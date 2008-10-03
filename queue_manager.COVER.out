@@ -1,0 +1,131 @@
+File generated from /Users/null/erlang/cpx/ebin/../src/queue_manager.erl by COVER 2008-10-03 at 14:38:01
+
+****************************************************************************
+
+        |  -module(queue_manager).
+        |  -include_lib("eunit/include/eunit.hrl").
+        |  -behaviour(gen_server).
+        |  
+        |  -export([start_link/0, add_queue/1, query_queue/1, stop/0, print/0]).
+        |  
+        |  % gen_server callbacks
+        |  -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+        |  
+        |  start_link() ->
+        |  	%gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+     0..|  	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
+        |  
+        |  add_queue(Name) ->
+     0..|  	gen_server:call(?MODULE, {add, Name}, infinity).
+        |  
+        |  query_queue(Name) ->
+     0..|  	try gen_server:call({global, ?MODULE}, {exists, Name}) of
+     0..|  		Foo -> Foo
+        |  	catch
+        |  		exit:{noproc,_} ->
+     0..|  			global:register_name(?MODULE, whereis(queue_manager), {global, random_notify_name}),
+     0..|  			gen_server:call({global, ?MODULE}, {exists, Name})
+        |  	end.
+        |  
+        |  stop() ->
+     0..|  	gen_server:call(?MODULE, stop).
+        |  
+        |  print() ->
+     0..|  	gen_server:call(?MODULE, print).
+        |  
+        |  dostuff(Name, State) ->
+     0..|  	try gen_server:call({global, ?MODULE}, {exists, Name}) of
+        |  		true ->
+     0..|  			{reply, exists, State};
+        |  		false ->
+     0..|  			gen_server:call({global, ?MODULE}, {notify, Name}), % TODO - handle timeout exception
+     0..|  			{reply, ok, dict:append(Name, {}, State)}
+        |  	catch
+        |  		_:_ ->
+     0..|  			global:register_name(?MODULE, self(), {global, random_notify_name}),
+     0..|  			{reply, timeout, dict:append(Name, {}, State)}
+        |  	end.
+        |  
+        |  sync_queues([H|T]) ->
+     0..|  	{K,_V} = H,
+     0..|  	try gen_server:call({global, ?MODULE}, {exists, K}) of
+        |  		true ->
+     0..|  			io:format("Queue conflict detected for ~p~n", [K]),
+     0..|  			sync_queues(T);
+        |  		false ->
+     0..|  			io:format("notifying master of ~p~n", [K]),
+     0..|  			try gen_server:call({global, ?MODULE}, {notify, K}) of
+     0..|  				_ -> sync_queues(T)
+        |  			catch
+        |  				exit:{timeout, _} -> % What to do here?
+     0..|  					[]
+        |  			end
+        |  	catch
+        |  		exit:{timeout, _} -> % What to do here?
+     0..|  			[]
+        |  	end;
+        |  sync_queues([]) ->
+     0..|  	[].
+        |  
+        |  init([]) ->
+     0..|  	process_flag(trap_exit, true),
+     0..|  	Self = self(),
+     0..|  	case global:whereis_name(?MODULE) of
+        |  		undefined ->
+     0..|  			global:register_name(?MODULE, self(), {global, random_notify_name});
+        |  		Self ->
+     0..|  			Self;
+        |  		GID -> 
+        |  			%io:format("~p is at ~p on node ~p.~n", [?MODULE, GID, node(GID)])
+     0..|  			link(GID)
+        |  	end,
+     0..|  	{ok, dict:new()}.
+        |  
+        |  handle_call({add, Name}, _From, State) ->
+     0..|  	case dict:is_key(Name, State) of
+        |  		true ->
+     0..|  			{reply, exists, State};
+        |  		false ->
+     0..|  			Self = self(),
+     0..|  			case global:whereis_name(?MODULE) of
+        |  				Self ->
+     0..|  					{reply, ok, dict:append(Name, {}, State)};
+        |  				undefined -> 
+     0..|  					global:register_name(?MODULE, self(), {global, random_notify_name}),
+     0..|  					{reply, ok, dict:append(Name, {}, State)};
+        |  				_ ->
+     0..|  					dostuff(Name, State)
+        |  			end
+        |  	end;
+        |  handle_call({exists, Name}, _From, State) ->
+     0..|  	{reply, dict:is_key(Name, State), State};
+        |  handle_call({notify, Name}, From, State) ->
+     0..|  	{reply, ok, dict:append(Name, From, State)};
+        |  handle_call(print, _From, State) ->
+     0..|  	{reply, State, State};
+        |  handle_call(stop, _From, State) ->
+     0..|  	{stop, getlost, please, State};
+        |  handle_call(_Request, _From, State) ->
+     0..|  	{reply, ok, State}.
+        |  
+        |  handle_cast(_Msg, State) ->
+     0..|  	{noreply, State}.
+        |  
+        |  handle_info({'EXIT', From, _Reason}, State) ->
+        |  	% filter out any queues on the dead node
+     0..|  	{noreply, dict:filter(fun(_K,[{}]) -> true; (_K,[{V,_}]) -> node(From) /= node(V) end, State)};
+        |  handle_info({global_name_conflict, _Name}, State) ->
+     0..|  	io:format("We lost the election~n"),
+     0..|  	link(global:whereis_name(?MODULE)),
+        |  	% loop over elements
+     0..|  	sync_queues(dict:to_list(State)),
+     0..|  	{noreply, State};
+        |  handle_info(_Info, State) ->
+     0..|  	{noreply, State}.
+        |  
+        |  terminate(_Reason, _State) ->
+     0..|  	ok.
+        |  
+        |  code_change(_OldVsn, State, _Extra) ->
+     0..|  	{ok, State}.
+        |  

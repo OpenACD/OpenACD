@@ -24,7 +24,7 @@ task :test =>  [:compile] do
   OBJ.each do |obj|
     obj[%r{.*/(.*).beam}]
     mod = $1
-    test_output = `erl -pa ebin -s test_coverage start #{mod} -run init stop`
+    test_output = `erl -pa ebin -sname cpx -s test_coverage start #{mod} -run init stop`
 
     if /\*failed\*/ =~ test_output
       test_output[/(Failed.*Aborted.*Skipped.*Succeeded.*$)/]

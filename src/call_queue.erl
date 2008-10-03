@@ -122,6 +122,33 @@ remove_test() ->
 	add(1, C2, Pid),
 	remove(C1, Pid),
 	?assertMatch({_Key, C2}, grab(Pid)).
+	
+remove_id_test() ->
+	{_, Pid} = start(goober),
+	C1 = #call{idnum="C1"},
+	add(1, C1, Pid),
+	?assertMatch(ok, remove("C1", Pid)),
+	?assertMatch(none, grab(Pid)).
+
+remove_nil_test() ->
+	{_, Pid} = start(goober), 
+	?assertMatch(ok, remove("C1", Pid)).
+
+find_key_test() ->
+	{_, Pid} = start(goober),
+	C1 = #call{idnum="C1"},
+	C2 = #call{idnum="C2", bound=[self()]},
+	add(1, C1, Pid),
+	?assertMatch(ok, remove(C2, Pid)).
+
+bound_test() ->
+	{_, Node} = slave:start(net_adm:localhost(), goober),
+	Pid = spawn(Node, fun() -> true end),
+	C1 = #call{idnum="C1", bound=[Pid]},
+	{_, Qpid} = start(foobar),
+	add(1, C1, Qpid),
+	?assertMatch({_Key, C1}, grab(Qpid)),
+	?assertMatch(none, grab(Qpid)).
 
 grab_test() -> 
 	C1 = #call{idnum="C1"},

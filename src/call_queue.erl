@@ -147,6 +147,7 @@ bound_test() ->
 	C1 = #call{idnum="C1", bound=[Pid]},
 	{_, Qpid} = start(foobar),
 	add(1, C1, Qpid),
+	slave:stop(Node),
 	?assertMatch({_Key, C1}, grab(Qpid)),
 	?assertMatch(none, grab(Qpid)).
 

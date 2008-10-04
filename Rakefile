@@ -34,4 +34,13 @@ task :test =>  [:compile] do
 			puts "#{mod}: #{$1}"
 		end
 	end
+	print "running dialyzer..."
+	dialyzer_output = `dialyzer --src -I include -c #{SRC.reject{|x| x =~ /test_coverage/}.join(' ')}`
+	#puts dialyzer_output
+	if $?.exitstatus.zero?
+		puts 'ok'
+	else
+		puts 'not ok'
+		puts dialyzer_output
+	end
 end

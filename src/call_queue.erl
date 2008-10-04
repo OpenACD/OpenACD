@@ -6,7 +6,7 @@
 
 -behaviour(gen_server).
 -include("call.hrl").
--export([start/1, start_link/1, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3]).
+-export([start/1, start_link/1, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1]).
 
 %gen_server support
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -32,6 +32,9 @@ grab(Pid) ->
 
 set_priority(Calldata, Priority, Pid) ->
 	gen_server:call(Pid, {set_priority, Calldata, Priority}).
+
+to_list(Pid) ->
+	gen_server:call(Pid, to_list).
 
 print(Pid) ->
 	gen_server:call(Pid, print).
@@ -74,7 +77,7 @@ handle_call(ask, From, State) ->
 
 handle_call(grab, From, State) ->
 	% ask and bind in one handy step
-	io:format("From:  ~p~n", [From]),
+	%io:format("From:  ~p~n", [From]),
 	case find_unbound(gb_trees:next(gb_trees:iterator(State)), From) of
 		none -> 
 			{reply, none, State};
@@ -112,6 +115,9 @@ handle_call({set_priority, Id, Priority}, _From, State) ->
 			State3 = gb_trees:insert({Priority, Time}, Value, State2),
 			{reply, ok, State3}
 		end;
+
+handle_call(to_list, _From, State) ->
+	{reply, lists:map(fun({_, Call}) -> Call end, gb_trees:to_list(State)), State};
 
 handle_call(_Request, _From, State) ->
 	{reply, ok, State}.
@@ -217,5 +223,15 @@ decrease_priority_test() ->
 	?assertMatch({{1, _Time}, C1}, ask(Pid)),
 	set_priority(C1, 2, Pid),
 	?assertMatch({{1, _Time}, C2}, ask(Pid)).
+
+queue_to_list_test() ->
+	C1 = #call{idnum="C1"},
+	C2 = #call{idnum="C2"},
+	C3 = #call{idnum="C3"},
+	{_, Pid} = start(goober),
+	add(1, C1, Pid),
+	add(1, C2, Pid),
+	add(1, C3, Pid),
+	?assertMatch([C1, C2, C3], to_list(Pid)).
 
 -endif.

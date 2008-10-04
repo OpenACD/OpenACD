@@ -1,5 +1,9 @@
 -module(queue_manager).
+
+-ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -behaviour(gen_server).
 
 -export([start_link/0, add_queue/1, query_queue/1, stop/0, print/0]).

@@ -6,7 +6,7 @@
 
 -behaviour(gen_server).
 -include("call.hrl").
--export([start/1, start_link/1, add/3, ask/1, print/1, remove/2, stop/1, grab/1]).
+-export([start/1, start_link/1, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3]).
 
 %gen_server support
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -24,11 +24,14 @@ init([Name]) ->
 add(Priority, Calldata, Pid) -> 
 	gen_server:call(Pid, {add, Priority, Calldata}, infinity).
 
-ask(Pid) -> 
+ask(Pid) ->
 	gen_server:call(Pid, ask).
 
-grab(Pid) -> 
+grab(Pid) ->
 	gen_server:call(Pid, grab).
+
+set_priority(Calldata, Priority, Pid) ->
+	gen_server:call(Pid, {set_priority, Calldata, Priority}).
 
 print(Pid) ->
 	gen_server:call(Pid, print).
@@ -39,6 +42,8 @@ remove(Calldata, Pid) ->
 stop(Pid) ->
 	gen_server:call(Pid, stop).
 
+% find the first call in the queue that doesn't have a pid on this node
+% in its bound list
 find_unbound(none, _From) -> 
 	none;
 find_unbound({Key, #call{bound = []} = Value, _Iter}, _From) ->
@@ -51,8 +56,9 @@ find_unbound({Key, #call{bound = B} = Value, Iter}, {From, _}) ->
 			find_unbound(gb_trees:next(Iter), {From, foo})
 	end.
 
-find_key(Needle, {Key, #call{idnum = Needle}, _Iter}) ->
-	Key;
+% return the {Key, Value} pair where Value#call.idnum == Needle or none
+find_key(Needle, {Key, #call{idnum = Needle} = Value, _Iter}) ->
+	{Key, Value};
 find_key(Needle, {_Key, _Value, Iter}) ->
 	find_key(Needle, gb_trees:next(Iter));
 find_key(_Needle, none) -> 
@@ -60,10 +66,12 @@ find_key(_Needle, none) ->
 
 handle_call({add, Priority, Calldata}, _From, State) -> 
 	{reply, ok, gb_trees:insert({Priority,now()}, Calldata, State)};
+
 handle_call(ask, From, State) ->
 	%generate a call in queue excluding those already bound
 	% return a tuple:  {key, val}
 	{reply, find_unbound(gb_trees:next(gb_trees:iterator(State)), From), State};
+
 handle_call(grab, From, State) ->
 	% ask and bind in one handy step
 	io:format("From:  ~p~n", [From]),
@@ -78,17 +86,33 @@ handle_call(grab, From, State) ->
 
 handle_call(print, _From, State) ->
 	{reply, State, State};
-handle_call({remove, #call{} = Calldata}, _From, State) -> 
-	Key = find_key(Calldata#call.idnum, gb_trees:next(gb_trees:iterator(State))),
-	%io:format("Key:  ~p~n", [Key]),
-	State2 = gb_trees:delete_any(Key, State),
-	{reply, ok, State2};
+
+handle_call({remove, #call{} = Calldata}, From, State) ->
+	handle_call({remove, Calldata#call.idnum}, From, State);
 handle_call({remove, Id}, _From, State) ->
-	Key = find_key(Id, gb_trees:next(gb_trees:iterator(State))),
-	State2 = gb_trees:delete_any(Key, State),
-	{reply, ok, State2};
+	case find_key(Id, gb_trees:next(gb_trees:iterator(State))) of
+		none ->
+			{reply, none, State};
+		{Key, _Value} ->
+			State2 = gb_trees:delete(Key, State),
+			{reply, ok, State2}
+		end;
+
 handle_call(stop, _From, State) ->
 	{stop, nicestop, please, State};
+
+handle_call({set_priority, #call{} = Calldata, Priority}, From, State) ->
+	handle_call({set_priority, Calldata#call.idnum, Priority}, From, State);
+handle_call({set_priority, Id, Priority}, _From, State) ->
+	case find_key(Id, gb_trees:next(gb_trees:iterator(State))) of
+		none ->
+			{reply, none, State};
+		{{Oldpri, Time}, Value} ->
+			State2 = gb_trees:delete({Oldpri, Time}, State),
+			State3 = gb_trees:insert({Priority, Time}, Value, State2),
+			{reply, ok, State3}
+		end;
+
 handle_call(_Request, _From, State) ->
 	{reply, ok, State}.
 
@@ -132,22 +156,21 @@ remove_id_test() ->
 
 remove_nil_test() ->
 	{_, Pid} = start(goober), 
-	?assertMatch(ok, remove("C1", Pid)).
+	?assertMatch(none, remove("C1", Pid)).
 
 find_key_test() ->
 	{_, Pid} = start(goober),
 	C1 = #call{idnum="C1"},
 	C2 = #call{idnum="C2", bound=[self()]},
 	add(1, C1, Pid),
-	?assertMatch(ok, remove(C2, Pid)).
+	?assertMatch(none, remove(C2, Pid)).
 
 bound_test() ->
 	{_, Node} = slave:start(net_adm:localhost(), goober),
-	Pid = spawn(Node, fun() -> true end),
+	Pid = spawn(Node, erlang, exit, [normal]),
 	C1 = #call{idnum="C1", bound=[Pid]},
 	{_, Qpid} = start(foobar),
 	add(1, C1, Qpid),
-	slave:stop(Node),
 	?assertMatch({_Key, C1}, grab(Qpid)),
 	?assertMatch(none, grab(Qpid)).
 
@@ -166,4 +189,33 @@ grab_test() ->
 grab_empty_test() -> 
 	{_, Pid} = start(goober),
 	?assert(grab(Pid) =:= none).
+
+increase_priority_test() ->
+	C1 = #call{idnum="C1"},
+	C2 = #call{idnum="C2"},
+	C3 = #call{idnum="C3"},
+	{_, Pid} = start(goober),
+	add(1, C1, Pid),
+	add(1, C2, Pid),
+	add(1, C3, Pid),
+	?assertMatch({{1, _Time}, C1}, ask(Pid)),
+	set_priority(C2, 0, Pid),
+	?assertMatch({{0, _Time}, C2}, ask(Pid)).
+
+increase_priority_nil_test() ->
+	{_, Pid} = start(goober),
+	?assertMatch(none, set_priority("C1", 1, Pid)).
+
+decrease_priority_test() ->
+	C1 = #call{idnum="C1"},
+	C2 = #call{idnum="C2"},
+	C3 = #call{idnum="C3"},
+	{_, Pid} = start(goober),
+	add(1, C1, Pid),
+	add(1, C2, Pid),
+	add(1, C3, Pid),
+	?assertMatch({{1, _Time}, C1}, ask(Pid)),
+	set_priority(C1, 2, Pid),
+	?assertMatch({{1, _Time}, C2}, ask(Pid)).
+
 -endif.

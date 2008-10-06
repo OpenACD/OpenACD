@@ -1,0 +1,34 @@
+What's a call?
+id: String
+type: atom
+callerid:  string
+source: Media Manager Pid
+bound: list of dispater pid's
+client:  client record
+skills:  list of atoms
+
+delivery recipe:
+
+a delivery recipe ticks every 10 seconds.
+One delivery reciple process per call, so that 'ticks' are based on the calls '0 hour' rather than all ticking at once.
+
+[{Ticks, operation, [arguments], run_once | run_many}, 
+...]
+
+Ticks:
+	On every nth Tick evaluate this.
+
+operations:  an atom of:
+	new_queue
+	add_skills
+	remove_skills
+	change_priority
+	voicemail
+	announce
+	add_recipe
+	
+arguments: determined by the operation.
+
+run_once | run_many
+	run_once means remove this recipe after it has run
+	run_many means continue running every nth Tick.

@@ -64,6 +64,7 @@ find_unbound({Key, #call{bound = B} = Value, Iter}, {From, _}) ->
 	end.
 
 % return the {Key, Value} pair where Value#call.idnum == Needle or none
+% ie:  lookup a call by ID, return the key in queue and the full call data
 find_key(Needle, {Key, #call{idnum = Needle} = Value, _Iter}) ->
 	{Key, Value};
 find_key(Needle, {_Key, _Value, Iter}) ->

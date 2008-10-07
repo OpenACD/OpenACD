@@ -6,13 +6,15 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, add_queue/1, query_queue/1, stop/0, print/0]).
+-export([start_link/0, start/0, add_queue/1, query_queue/1, stop/0, print/0]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 start_link() ->
-	%gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+start() ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
 add_queue(Name) ->
@@ -70,13 +72,16 @@ sync_queues([]) ->
 init([]) ->
 	process_flag(trap_exit, true),
 	Self = self(),
+	io:format("Self is :  ~p.~n", [Self]),
 	case global:whereis_name(?MODULE) of
 		undefined ->
+			io:format("~p was undefined, self (~p) taking charge.~n", [?MODULE, Self]),
 			global:register_name(?MODULE, self(), {global, random_notify_name});
 		Self ->
+			io:format("~p was alread at self (~p).~n", [?MODULE, Self]),
 			Self;
 		GID -> 
-			%io:format("~p is at ~p on node ~p.~n", [?MODULE, GID, node(GID)])
+			io:format("~p is at ~p on node ~p.~n", [?MODULE, GID, node(GID)]),
 			link(GID)
 	end,
 	{ok, dict:new()}.
@@ -115,7 +120,7 @@ handle_info({'EXIT', From, _Reason}, State) ->
 	% filter out any queues on the dead node
 	{noreply, dict:filter(fun(_K,[{}]) -> true; (_K,[{V,_}]) -> node(From) /= node(V) end, State)};
 handle_info({global_name_conflict, _Name}, State) ->
-	io:format("We lost the election~n"),
+	io:format("Node ~p lost the election~n", [node()]),
 	link(global:whereis_name(?MODULE)),
 	% loop over elements
 	sync_queues(dict:to_list(State)),
@@ -129,3 +134,34 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
+-ifdef('EUNIT').
+
+add_and_query_test() ->
+	start_link(),
+	?assertMatch(ok, add_queue(goober)),
+	?assertMatch(exists, add_queue(goober)),
+	?assertMatch(true, query_queue(goober)),
+	?assertMatch(false, query_queue(foobar)).
+
+sync_test() ->
+	{_, Slave1} = slave:start_link(net_adm:localhost(), slave1),
+	{_, Slave2} = slave:start_link(net_adm:localhost(), slave2),
+	
+	rpc:call(Slave1, global, sync, []),
+	rpc:call(Slave2, global, sync, []),
+
+	rpc:call(Slave1, queue_manager, start, []),
+	rpc:call(Slave2, queue_manager, start, []),
+	
+	rpc:call(Slave1, queue_manager, add_queue, [queue1]),
+	
+	?assertMatch(true, rpc:call(Slave1, queue_manager, query_queue, [queue1])),
+	?assertMatch(exists, rpc:call(Slave2, queue_manager, add_queue, [queue1])),
+	?assertMatch(ok, rpc:call(Slave2, queue_manager, add_queue, [queue2])), 
+	?assertMatch(true, rpc:call(Slave1, queue_manager, query_queue, [queue2])),
+	?assertMatch(exists, rpc:call(Slave1, queue_manager, add_queue, [queue2])),
+
+	slave:stop(Slave2),
+	slave:stop(Slave1).
+	
+-endif.

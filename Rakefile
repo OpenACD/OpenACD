@@ -44,3 +44,9 @@ task :test =>  [:compile] do
 		puts dialyzer_output
 	end
 end
+
+task :build_plt do
+	out = `which erlc`
+	foo = out.split('/')[0..-3].join('/')+'/lib/erlang/lib'
+	puts "dialyzer --build_plt -r #{foo}/kernel*/ebin #{foo}/stdlib*/ebin #{foo}/mnesia*/ebin"
+end

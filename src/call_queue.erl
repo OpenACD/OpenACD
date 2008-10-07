@@ -30,8 +30,10 @@ ask(Pid) ->
 grab(Pid) ->
 	gen_server:call(Pid, grab).
 
-set_priority(Calldata, Priority, Pid) ->
-	gen_server:call(Pid, {set_priority, Calldata, Priority}).
+set_priority(#call{} = Calldata, Priority, Pid) ->
+	set_priority(Calldata#call.idnum, Priority, Pid);
+set_priority(Callid, Priority, Pid) ->
+	gen_server:call(Pid, {set_priority, Callid, Priority}).
 
 to_list(Pid) ->
 	gen_server:call(Pid, to_list).
@@ -39,6 +41,8 @@ to_list(Pid) ->
 print(Pid) ->
 	gen_server:call(Pid, print).
 
+remove(#call{} = Calldata, Pid) ->
+	remove(Calldata#call.idnum, Pid);
 remove(Calldata, Pid) -> 
 	gen_server:call(Pid, {remove, Calldata}).
 
@@ -90,8 +94,6 @@ handle_call(grab, From, State) ->
 handle_call(print, _From, State) ->
 	{reply, State, State};
 
-handle_call({remove, #call{} = Calldata}, From, State) ->
-	handle_call({remove, Calldata#call.idnum}, From, State);
 handle_call({remove, Id}, _From, State) ->
 	case find_key(Id, gb_trees:next(gb_trees:iterator(State))) of
 		none ->
@@ -104,8 +106,6 @@ handle_call({remove, Id}, _From, State) ->
 handle_call(stop, _From, State) ->
 	{stop, nicestop, please, State};
 
-handle_call({set_priority, #call{} = Calldata, Priority}, From, State) ->
-	handle_call({set_priority, Calldata#call.idnum, Priority}, From, State);
 handle_call({set_priority, Id, Priority}, _From, State) ->
 	case find_key(Id, gb_trees:next(gb_trees:iterator(State))) of
 		none ->

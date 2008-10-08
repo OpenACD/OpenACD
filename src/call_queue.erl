@@ -105,7 +105,7 @@ handle_call({remove, Id}, _From, State) ->
 		end;
 
 handle_call(stop, _From, State) ->
-	{stop, nicestop, please, State};
+	{stop, normal, ok, State};
 
 handle_call({set_priority, Id, Priority}, _From, State) ->
 	case find_key(Id, gb_trees:next(gb_trees:iterator(State))) of
@@ -235,4 +235,8 @@ queue_to_list_test() ->
 	add(1, C3, Pid),
 	?assertMatch([C1, C2, C3], to_list(Pid)).
 
+start_stop_test() ->
+	{_, Pid} = start(goober),
+	?assertMatch(ok, stop(Pid)).
+	
 -endif.

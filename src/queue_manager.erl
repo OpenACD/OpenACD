@@ -35,19 +35,6 @@ stop() ->
 print() ->
 	gen_server:call(?MODULE, print).
 
-dostuff(Name, State) ->
-	try gen_server:call({global, ?MODULE}, {exists, Name}) of
-		true ->
-			{reply, exists, State};
-		false ->
-			gen_server:call({global, ?MODULE}, {notify, Name}), % TODO - handle timeout exception
-			{reply, ok, dict:append(Name, {}, State)}
-	catch
-		_:_ ->
-			global:register_name(?MODULE, self(), {global, random_notify_name}),
-			{reply, timeout, dict:append(Name, {}, State)}
-	end.
-
 sync_queues([H|T]) ->
 	{K,_V} = H,
 	try gen_server:call({global, ?MODULE}, {exists, K}) of
@@ -71,17 +58,10 @@ sync_queues([]) ->
 
 init([]) ->
 	process_flag(trap_exit, true),
-	Self = self(),
-	io:format("Self is :  ~p.~n", [Self]),
 	case global:whereis_name(?MODULE) of
 		undefined ->
-			io:format("~p was undefined, self (~p) taking charge.~n", [?MODULE, Self]),
 			global:register_name(?MODULE, self(), {global, random_notify_name});
-		Self ->
-			io:format("~p was alread at self (~p).~n", [?MODULE, Self]),
-			Self;
 		GID -> 
-			io:format("~p is at ~p on node ~p.~n", [?MODULE, GID, node(GID)]),
 			link(GID)
 	end,
 	{ok, dict:new()}.
@@ -99,7 +79,17 @@ handle_call({add, Name}, _From, State) ->
 					global:register_name(?MODULE, self(), {global, random_notify_name}),
 					{reply, ok, dict:append(Name, {}, State)};
 				_ ->
-					dostuff(Name, State)
+					try gen_server:call({global, ?MODULE}, {exists, Name}) of
+						true ->
+							{reply, exists, State};
+						false ->
+							gen_server:call({global, ?MODULE}, {notify, Name}), % TODO - handle timeout exception
+							{reply, ok, dict:append(Name, {}, State)}
+					catch
+						_:_ ->
+							global:register_name(?MODULE, self(), {global, random_notify_name}),
+							{reply, timeout, dict:append(Name, {}, State)}
+					end
 			end
 	end;
 handle_call({exists, Name}, _From, State) ->
@@ -109,7 +99,7 @@ handle_call({notify, Name}, From, State) ->
 handle_call(print, _From, State) ->
 	{reply, State, State};
 handle_call(stop, _From, State) ->
-	{stop, getlost, please, State};
+	{stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
 	{reply, ok, State}.
 
@@ -118,7 +108,7 @@ handle_cast(_Msg, State) ->
 
 handle_info({'EXIT', From, _Reason}, State) ->
 	% filter out any queues on the dead node
-	{noreply, dict:filter(fun(_K,[{}]) -> true; (_K,[{V,_}]) -> node(From) /= node(V) end, State)};
+	{noreply, dict:filter(fun(_K,[{}]) -> true; (K,[{V,_}]) -> io:format("Trying to remove ~p.~n", [K]), node(From) =/= node(V) end, State)};
 handle_info({global_name_conflict, _Name}, State) ->
 	io:format("Node ~p lost the election~n", [node()]),
 	link(global:whereis_name(?MODULE)),
@@ -141,11 +131,14 @@ add_and_query_test() ->
 	?assertMatch(ok, add_queue(goober)),
 	?assertMatch(exists, add_queue(goober)),
 	?assertMatch(true, query_queue(goober)),
-	?assertMatch(false, query_queue(foobar)).
+	?assertMatch(false, query_queue(foobar)),
+	stop().
 
 sync_test() ->
-	{_, Slave1} = slave:start_link(net_adm:localhost(), slave1),
-	{_, Slave2} = slave:start_link(net_adm:localhost(), slave2),
+	{_, Slave1} = slave:start(net_adm:localhost(), slave1),
+	{_, Slave2} = slave:start(net_adm:localhost(), slave2),
+	
+	cover:start([Slave1, Slave2]),
 	
 	rpc:call(Slave1, global, sync, []),
 	rpc:call(Slave2, global, sync, []),
@@ -161,7 +154,137 @@ sync_test() ->
 	?assertMatch(true, rpc:call(Slave1, queue_manager, query_queue, [queue2])),
 	?assertMatch(exists, rpc:call(Slave1, queue_manager, add_queue, [queue2])),
 
+	?assertMatch(ok, rpc:call(Slave1, queue_manager, stop, [])),
+	?assertMatch(ok, rpc:call(Slave2, queue_manager, stop, [])),
+	
+	cover:stop([Slave1, Slave2]),
+
 	slave:stop(Slave2),
 	slave:stop(Slave1).
 	
+master_death_test() ->
+	{_, Master} = slave:start(net_adm:localhost(), master),
+	{_, Slave} = slave:start(net_adm:localhost(), slave),
+	
+	cover:start([Master, Slave]),
+	
+	rpc:call(Master, global, sync, []),
+	rpc:call(Slave, global, sync, []),
+	
+	rpc:call(Master, queue_manager, start, []),
+	rpc:call(Slave, queue_manager, start, []),
+	
+	rpc:call(Master, erlang, disconnect_node, [Slave]),
+	cover:stop([Master]),
+	slave:stop(Master),
+	
+	?assertMatch(undefined, global:whereis_name(?MODULE)),
+	?assertMatch(ok, rpc:call(Slave, queue_manager, add_queue, [queue1])),
+	?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue1])),
+	
+	rpc:call(Slave, queue_manager, stop, []),
+	
+	cover:stop([Slave]),
+	slave:stop(Slave).
+	
+net_split_test() ->
+	{_, Master} = slave:start(net_adm:localhost(), master),
+	{_, Slave} = slave:start(net_adm:localhost(), slave),
+
+	cover:start([Master, Slave]),
+	
+	rpc:call(Master, global, sync, []),
+	rpc:call(Slave, global, sync, []),
+	
+	rpc:call(Master, queue_manager, start, []),
+	rpc:call(Slave, queue_manager, start, []),
+	
+	rpc:call(Master, queue_manager, add_queue, [queue1]),
+	
+	?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue1])),
+	
+	rpc:call(Master, erlang, disconnect_node, [Slave]),
+	rpc:call(Slave, erlang, disconnect_node, [Master]),
+	
+	?assertMatch(ok, rpc:call(Slave, queue_manager, add_queue, [queue2])),
+	?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue2])),
+	?assertMatch(ok, rpc:call(Slave, queue_manager, add_queue, [queue3])),
+	
+	?assertMatch(ok, rpc:call(Master, queue_manager, add_queue, [queue2])),
+	?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue2])),
+	
+	Pinged = rpc:call(Master, net_adm, ping, [Slave]),
+	Pinged = rpc:call(Master, net_adm, ping, [Slave]),
+	
+	?assert(Pinged =:= pong),
+	
+	rpc:call(Master, global, sync, []),
+	rpc:call(Slave, global, sync, []),
+	
+	Newmaster = node(global:whereis_name(?MODULE)),
+	
+	receive after 1000 -> ok end,
+	
+	?assertMatch(Newmaster, Master),
+	
+	?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue1])),
+	?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue2])),
+	?assertMatch(exists, rpc:call(Master, queue_manager, add_queue, [queue2])),
+	?assertMatch(exists, rpc:call(Master, queue_manager, add_queue, [queue1])),
+	
+	cover:stop([Master, Slave]),
+	
+	slave:stop(Master),
+	slave:stop(Slave).
+	
+%query_noproc_test() ->
+%	?_test({setup, fun() -> {_, Master} = slave:start(net_adm:localhost(), master), Master end, fun() -> slave:stop('master:dhcp80') end, [net_split_test]}).
+
+trivial_test() ->
+	{
+		setup,
+		local,
+		fun() -> 
+			put(goober, "goober"),
+			goober
+		end,
+		fun(X) -> 
+			erase(X),
+			ok
+		end,
+		fun(X) ->
+			?_assertMatch("goober", get(X))
+		end
+	}.
+
+multi_node_test_() ->
+	{
+		foreach,
+		local,
+		fun() -> 
+			{_, Master} = slave:start(net_adm:localhost(), master), 
+			{_, Slave} = slave:start(net_adm:localhost(), slave), 
+			cover:start([Master, Slave]),
+			rpc:call(Master, queue_manager, start, []),
+			rpc:call(Slave, queue_manager, start, []),
+			rpc:call(Master, global, sync, []),
+			rpc:call(Slave, global, sync, []),
+			rpc:call(Master, queue_manager, add_queue, [master1]),
+			rpc:call(Slave, queue_manager, add_queue, [slave1]),
+			{Master, Slave}
+		end,
+		fun({Master, Slave}) -> 
+			cover:stop([Master, Slave]), 
+			slave:stop(Master), 
+			slave:stop(Slave), 
+			ok 
+		end,
+		[
+		fun(Master, Slave) ->
+			?_assertMatch(false, rpc:call(Master, queue_manager, query_queue, [notthere]))
+		end
+		]
+	}.
+
+
 -endif.

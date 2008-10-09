@@ -25,7 +25,7 @@ task :test =>  [:compile] do
 		obj[%r{.*/(.*).beam}]
 		mod = $1
 		next if mod == 'test_coverage'
-		test_output = `erl -pa ebin -name testpx -s test_coverage start #{mod} -run init stop`
+		test_output = `erl -pa ebin -sname testpx -s test_coverage start #{mod} -run init stop`
 
 		if /\*failed\*/ =~ test_output
 			puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")

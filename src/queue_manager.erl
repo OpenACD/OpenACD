@@ -127,7 +127,8 @@ code_change(_OldVsn, State, _Extra) ->
 -ifdef('EUNIT').
 
 get_nodes() ->
-	{list_to_atom(lists:append("master@", net_adm:localhost())), list_to_atom(lists:append("slave@", net_adm:localhost()))}.
+	[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
+	{list_to_atom(lists:append("master@", Host)), list_to_atom(lists:append("slave@", Host))}.
 
 add_and_query_test() ->
 	start_link(),

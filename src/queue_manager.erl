@@ -86,7 +86,7 @@ handle_call({add, Name}, _From, State) ->
 							gen_server:call({global, ?MODULE}, {notify, Name}), % TODO - handle timeout exception
 							{reply, ok, dict:append(Name, {}, State)}
 					catch
-						_:_ ->
+						exit:{timeout, _} ->
 							global:register_name(?MODULE, self(), {global, random_notify_name}),
 							{reply, timeout, dict:append(Name, {}, State)}
 					end
@@ -126,6 +126,9 @@ code_change(_OldVsn, State, _Extra) ->
 
 -ifdef('EUNIT').
 
+get_nodes() ->
+	{list_to_atom(lists:append("master@", net_adm:localhost())), list_to_atom(lists:append("slave@", net_adm:localhost()))}.
+
 add_and_query_test() ->
 	start_link(),
 	?assertMatch(ok, add_queue(goober)),
@@ -134,155 +137,84 @@ add_and_query_test() ->
 	?assertMatch(false, query_queue(foobar)),
 	stop().
 
-sync_test() ->
-	{_, Slave1} = slave:start(net_adm:localhost(), slave1),
-	{_, Slave2} = slave:start(net_adm:localhost(), slave2),
-	
-	cover:start([Slave1, Slave2]),
-	
-	rpc:call(Slave1, global, sync, []),
-	rpc:call(Slave2, global, sync, []),
-
-	rpc:call(Slave1, queue_manager, start, []),
-	rpc:call(Slave2, queue_manager, start, []),
-	
-	rpc:call(Slave1, queue_manager, add_queue, [queue1]),
-	
-	?assertMatch(true, rpc:call(Slave1, queue_manager, query_queue, [queue1])),
-	?assertMatch(exists, rpc:call(Slave2, queue_manager, add_queue, [queue1])),
-	?assertMatch(ok, rpc:call(Slave2, queue_manager, add_queue, [queue2])), 
-	?assertMatch(true, rpc:call(Slave1, queue_manager, query_queue, [queue2])),
-	?assertMatch(exists, rpc:call(Slave1, queue_manager, add_queue, [queue2])),
-
-	?assertMatch(ok, rpc:call(Slave1, queue_manager, stop, [])),
-	?assertMatch(ok, rpc:call(Slave2, queue_manager, stop, [])),
-	
-	cover:stop([Slave1, Slave2]),
-
-	slave:stop(Slave2),
-	slave:stop(Slave1).
-	
-master_death_test() ->
-	{_, Master} = slave:start(net_adm:localhost(), master),
-	{_, Slave} = slave:start(net_adm:localhost(), slave),
-	
-	cover:start([Master, Slave]),
-	
-	rpc:call(Master, global, sync, []),
-	rpc:call(Slave, global, sync, []),
-	
-	rpc:call(Master, queue_manager, start, []),
-	rpc:call(Slave, queue_manager, start, []),
-	
-	rpc:call(Master, erlang, disconnect_node, [Slave]),
-	cover:stop([Master]),
-	slave:stop(Master),
-	
-	?assertMatch(undefined, global:whereis_name(?MODULE)),
-	?assertMatch(ok, rpc:call(Slave, queue_manager, add_queue, [queue1])),
-	?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue1])),
-	
-	rpc:call(Slave, queue_manager, stop, []),
-	
-	cover:stop([Slave]),
-	slave:stop(Slave).
-	
-net_split_test() ->
-	{_, Master} = slave:start(net_adm:localhost(), master),
-	{_, Slave} = slave:start(net_adm:localhost(), slave),
-
-	cover:start([Master, Slave]),
-	
-	rpc:call(Master, global, sync, []),
-	rpc:call(Slave, global, sync, []),
-	
-	rpc:call(Master, queue_manager, start, []),
-	rpc:call(Slave, queue_manager, start, []),
-	
-	rpc:call(Master, queue_manager, add_queue, [queue1]),
-	
-	?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue1])),
-	
-	rpc:call(Master, erlang, disconnect_node, [Slave]),
-	rpc:call(Slave, erlang, disconnect_node, [Master]),
-	
-	?assertMatch(ok, rpc:call(Slave, queue_manager, add_queue, [queue2])),
-	?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue2])),
-	?assertMatch(ok, rpc:call(Slave, queue_manager, add_queue, [queue3])),
-	
-	?assertMatch(ok, rpc:call(Master, queue_manager, add_queue, [queue2])),
-	?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue2])),
-	
-	Pinged = rpc:call(Master, net_adm, ping, [Slave]),
-	Pinged = rpc:call(Master, net_adm, ping, [Slave]),
-	
-	?assert(Pinged =:= pong),
-	
-	rpc:call(Master, global, sync, []),
-	rpc:call(Slave, global, sync, []),
-	
-	Newmaster = node(global:whereis_name(?MODULE)),
-	
-	receive after 1000 -> ok end,
-	
-	?assertMatch(Newmaster, Master),
-	
-	?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue1])),
-	?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue2])),
-	?assertMatch(exists, rpc:call(Master, queue_manager, add_queue, [queue2])),
-	?assertMatch(exists, rpc:call(Master, queue_manager, add_queue, [queue1])),
-	
-	cover:stop([Master, Slave]),
-	
-	slave:stop(Master),
-	slave:stop(Slave).
-	
-%query_noproc_test() ->
-%	?_test({setup, fun() -> {_, Master} = slave:start(net_adm:localhost(), master), Master end, fun() -> slave:stop('master:dhcp80') end, [net_split_test]}).
-
-trivial_test() ->
-	{
-		setup,
-		local,
-		fun() -> 
-			put(goober, "goober"),
-			goober
-		end,
-		fun(X) -> 
-			erase(X),
-			ok
-		end,
-		fun(X) ->
-			?_assertMatch("goober", get(X))
-		end
-	}.
-
 multi_node_test_() ->
+	{Master, Slave} = get_nodes(),
 	{
 		foreach,
-		local,
-		fun() -> 
-			{_, Master} = slave:start(net_adm:localhost(), master), 
-			{_, Slave} = slave:start(net_adm:localhost(), slave), 
+		fun() ->
+			slave:start(net_adm:localhost(), master), 
+			slave:start(net_adm:localhost(), slave), 
 			cover:start([Master, Slave]),
-			rpc:call(Master, queue_manager, start, []),
-			rpc:call(Slave, queue_manager, start, []),
 			rpc:call(Master, global, sync, []),
 			rpc:call(Slave, global, sync, []),
-			rpc:call(Master, queue_manager, add_queue, [master1]),
-			rpc:call(Slave, queue_manager, add_queue, [slave1]),
-			{Master, Slave}
+			rpc:call(Master, queue_manager, start, []),
+			rpc:call(Slave, queue_manager, start, []),
+			{}
 		end,
-		fun({Master, Slave}) -> 
+		fun({}) -> 
 			cover:stop([Master, Slave]), 
 			slave:stop(Master), 
-			slave:stop(Slave), 
+			slave:stop(Slave),
 			ok 
 		end,
 		[
-		fun(Master, Slave) ->
-			?_assertMatch(false, rpc:call(Master, queue_manager, query_queue, [notthere]))
-		end
+			{
+				"Master Death", fun() ->
+					rpc:call(Master, erlang, disconnect_node, [Slave]),
+					cover:stop([Master]),
+					slave:stop(Master),
+
+					?assertMatch(undefined, global:whereis_name(?MODULE)),
+					?assertMatch(ok, rpc:call(Slave, queue_manager, add_queue, [queue1])),
+					?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue1]))
+				end
+			},{
+				"Net Split",fun() ->
+					rpc:call(Master, queue_manager, add_queue, [queue1]),
+
+					?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue1])),
+
+					rpc:call(Master, erlang, disconnect_node, [Slave]),
+					rpc:call(Slave, erlang, disconnect_node, [Master]),
+
+					?assertMatch(ok, rpc:call(Slave, queue_manager, add_queue, [queue2])),
+					?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue2])),
+					?assertMatch(ok, rpc:call(Slave, queue_manager, add_queue, [queue3])),
+					?assertMatch(ok, rpc:call(Master, queue_manager, add_queue, [queue2])),
+					?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue2])),
+
+					Pinged = rpc:call(Master, net_adm, ping, [Slave]),
+					Pinged = rpc:call(Master, net_adm, ping, [Slave]),
+
+					?assert(Pinged =:= pong),
+
+					rpc:call(Master, global, sync, []),
+					rpc:call(Slave, global, sync, []),
+
+					Newmaster = node(global:whereis_name(?MODULE)),
+
+					receive after 1000 -> ok end,
+
+					?assertMatch(Newmaster, Master),
+					?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue1])),
+					?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue2])),
+					?assertMatch(exists, rpc:call(Master, queue_manager, add_queue, [queue2])),
+					?assertMatch(exists, rpc:call(Master, queue_manager, add_queue, [queue1]))
+				end
+			},{
+				"Queues in sync", fun() ->
+					rpc:call(Master, queue_manager, add_queue, [queue1]),
+
+					?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue1])),
+					?assertMatch(exists, rpc:call(Slave, queue_manager, add_queue, [queue1])),
+					?assertMatch(ok, rpc:call(Slave, queue_manager, add_queue, [queue2])), 
+					?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue2])),
+					?assertMatch(exists, rpc:call(Master, queue_manager, add_queue, [queue2])),
+
+					?assertMatch(ok, rpc:call(Master, queue_manager, stop, [])),
+					?assertMatch(ok, rpc:call(Slave, queue_manager, stop, []))
+				end
+			}
 		]
 	}.
 

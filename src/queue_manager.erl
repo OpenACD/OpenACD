@@ -11,15 +11,19 @@
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+-spec(start_link/0 :: () -> 'ok').
 start_link() ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+-spec(start/0 :: () -> 'ok').
 start() ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
+-spec(add_queue/1 :: (Name :: atom()) -> 'ok' | 'exists').
 add_queue(Name) ->
 	gen_server:call(?MODULE, {add, Name}, infinity).
 
+-spec(query_queue/1 :: (Name :: atom()) -> bool()).
 query_queue(Name) ->
 	try gen_server:call({global, ?MODULE}, {exists, Name}) of
 		Foo -> Foo
@@ -29,9 +33,11 @@ query_queue(Name) ->
 			gen_server:call({global, ?MODULE}, {exists, Name})
 	end.
 
+-spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:call(?MODULE, stop).
 
+-spec(print/0 :: () -> any()).
 print() ->
 	gen_server:call(?MODULE, print).
 
@@ -214,6 +220,11 @@ multi_node_test_() ->
 
 					?assertMatch(ok, rpc:call(Master, queue_manager, stop, [])),
 					?assertMatch(ok, rpc:call(Slave, queue_manager, stop, []))
+				end
+			},{
+				"No proc", fun() ->
+					slave:stop(Master),
+					?assertMatch(false, rpc:call(Slave, queue_manager, query_queue, [queue1]))
 				end
 			}
 		]

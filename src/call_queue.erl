@@ -1,5 +1,7 @@
 -module(call_queue).
 
+-type(key() :: {non_neg_integer(), {pos_integer(), non_neg_integer(), non_neg_integer()}}).
+
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -11,9 +13,11 @@
 %gen_server support
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+-spec(start/1 :: (Name :: atom()) -> {ok, pid()}).
 start(Name) ->
 	gen_server:start(?MODULE, [Name], []).
 
+-spec(start_link/1 :: (Name :: atom()) -> {ok, pid()}).
 start_link(Name) ->
 	gen_server:start_link(?MODULE, [Name], []).
 
@@ -21,31 +25,41 @@ init([Name]) ->
 	put(name, Name),
 	{ok, gb_trees:empty()}.
 
+-spec(add/3 :: (Priority :: non_neg_integer(), Calldata :: #call{}, Pid :: pid()) -> ok).
 add(Priority, Calldata, Pid) -> 
 	gen_server:call(Pid, {add, Priority, Calldata}, infinity).
 
+-spec(ask/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
 ask(Pid) ->
 	gen_server:call(Pid, ask).
 
+-spec(grab/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
 grab(Pid) ->
 	gen_server:call(Pid, grab).
 
+-spec(set_priority/3 :: (Calldata :: #call{}, Priority :: non_neg_integer(), Pid :: pid()) -> 'none' | 'ok';
+						(Callid :: string(), Priority :: non_neg_integer(), Pid :: pid()) -> 'none' | 'ok').
 set_priority(#call{} = Calldata, Priority, Pid) ->
 	set_priority(Calldata#call.idnum, Priority, Pid);
 set_priority(Callid, Priority, Pid) ->
 	gen_server:call(Pid, {set_priority, Callid, Priority}).
 
+-spec(to_list/1 :: (Pid :: pid()) -> []).
 to_list(Pid) ->
 	gen_server:call(Pid, to_list).
 
+-spec(print/1 :: (Pid :: pid()) -> any()).
 print(Pid) ->
 	gen_server:call(Pid, print).
 
+-spec(remove/2 :: (Calldata :: #call{}, Pid :: pid()) -> 'none' | 'ok';
+					(Calldata :: string(), Pid :: pid()) -> 'none' | 'ok').
 remove(#call{} = Calldata, Pid) ->
 	remove(Calldata#call.idnum, Pid);
 remove(Calldata, Pid) -> 
 	gen_server:call(Pid, {remove, Calldata}).
 
+-spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) ->
 	gen_server:call(Pid, stop).
 
@@ -235,8 +249,12 @@ queue_to_list_test() ->
 	add(1, C3, Pid),
 	?assertMatch([C1, C2, C3], to_list(Pid)).
 
+empty_queue_to_list_test() -> 
+	{_, Pid} = start(goober), 
+	?assertMatch([], to_list(Pid)).
+	
 start_stop_test() ->
 	{_, Pid} = start(goober),
 	?assertMatch(ok, stop(Pid)).
-	
+
 -endif.

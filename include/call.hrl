@@ -1,5 +1,5 @@
 -record(call, {	
-		idnum :: string(),
+		id :: string(),
 		type = voice :: 'voice' | 'email',
 		callerid :: string(),
 		% source is the Pid of the media manager this is from

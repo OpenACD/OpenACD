@@ -40,7 +40,7 @@ grab(Pid) ->
 -spec(set_priority/3 :: (Calldata :: #call{}, Priority :: non_neg_integer(), Pid :: pid()) -> 'none' | 'ok';
 						(Callid :: string(), Priority :: non_neg_integer(), Pid :: pid()) -> 'none' | 'ok').
 set_priority(#call{} = Calldata, Priority, Pid) ->
-	set_priority(Calldata#call.idnum, Priority, Pid);
+	set_priority(Calldata#call.id, Priority, Pid);
 set_priority(Callid, Priority, Pid) ->
 	gen_server:call(Pid, {set_priority, Callid, Priority}).
 
@@ -55,7 +55,7 @@ print(Pid) ->
 -spec(remove/2 :: (Calldata :: #call{}, Pid :: pid()) -> 'none' | 'ok';
 					(Calldata :: string(), Pid :: pid()) -> 'none' | 'ok').
 remove(#call{} = Calldata, Pid) ->
-	remove(Calldata#call.idnum, Pid);
+	remove(Calldata#call.id, Pid);
 remove(Calldata, Pid) -> 
 	gen_server:call(Pid, {remove, Calldata}).
 
@@ -77,9 +77,9 @@ find_unbound({Key, #call{bound = B} = Value, Iter}, {From, _}) ->
 			find_unbound(gb_trees:next(Iter), {From, foo})
 	end.
 
-% return the {Key, Value} pair where Value#call.idnum == Needle or none
+% return the {Key, Value} pair where Value#call.id == Needle or none
 % ie:  lookup a call by ID, return the key in queue and the full call data
-find_key(Needle, {Key, #call{idnum = Needle} = Value, _Iter}) ->
+find_key(Needle, {Key, #call{id = Needle} = Value, _Iter}) ->
 	{Key, Value};
 find_key(Needle, {_Key, _Value, Iter}) ->
 	find_key(Needle, gb_trees:next(Iter));
@@ -155,14 +155,14 @@ code_change(_OldVsn, State, _Extra) ->
 
 add_test() ->
 	{_, Pid} = start(goober),
-	C1 = #call{idnum="C1"},
+	C1 = #call{id="C1"},
 	?assert(add(1, C1, Pid) =:= ok),
 	?assertMatch({{1, _Time}, C1}, ask(Pid)).
 	
 remove_test() ->
 	{_, Pid} = start(goober),
-	C1 = #call{idnum="C1"},
-	C2 = #call{idnum="C2"},
+	C1 = #call{id="C1"},
+	C2 = #call{id="C2"},
 	add(1, C1, Pid),
 	add(1, C2, Pid),
 	remove(C1, Pid),
@@ -170,7 +170,7 @@ remove_test() ->
 	
 remove_id_test() ->
 	{_, Pid} = start(goober),
-	C1 = #call{idnum="C1"},
+	C1 = #call{id="C1"},
 	add(1, C1, Pid),
 	?assertMatch(ok, remove("C1", Pid)),
 	?assertMatch(none, grab(Pid)).
@@ -181,24 +181,24 @@ remove_nil_test() ->
 
 find_key_test() ->
 	{_, Pid} = start(goober),
-	C1 = #call{idnum="C1"},
-	C2 = #call{idnum="C2", bound=[self()]},
+	C1 = #call{id="C1"},
+	C2 = #call{id="C2", bound=[self()]},
 	add(1, C1, Pid),
 	?assertMatch(none, remove(C2, Pid)).
 
 bound_test() ->
 	{_, Node} = slave:start(net_adm:localhost(), goober),
 	Pid = spawn(Node, erlang, exit, [normal]),
-	C1 = #call{idnum="C1", bound=[Pid]},
+	C1 = #call{id="C1", bound=[Pid]},
 	{_, Qpid} = start(foobar),
 	add(1, C1, Qpid),
 	?assertMatch({_Key, C1}, grab(Qpid)),
 	?assertMatch(none, grab(Qpid)).
 
 grab_test() -> 
-	C1 = #call{idnum="C1"},
-	C2 = #call{idnum="C2", bound=[self()]},
-	C3 = #call{idnum="C3"},
+	C1 = #call{id="C1"},
+	C2 = #call{id="C2", bound=[self()]},
+	C3 = #call{id="C3"},
 	{_, Pid} = start(goober),
 	add(1, C1, Pid),
 	add(0, C2, Pid),
@@ -212,9 +212,9 @@ grab_empty_test() ->
 	?assert(grab(Pid) =:= none).
 
 increase_priority_test() ->
-	C1 = #call{idnum="C1"},
-	C2 = #call{idnum="C2"},
-	C3 = #call{idnum="C3"},
+	C1 = #call{id="C1"},
+	C2 = #call{id="C2"},
+	C3 = #call{id="C3"},
 	{_, Pid} = start(goober),
 	add(1, C1, Pid),
 	add(1, C2, Pid),
@@ -228,9 +228,9 @@ increase_priority_nil_test() ->
 	?assertMatch(none, set_priority("C1", 1, Pid)).
 
 decrease_priority_test() ->
-	C1 = #call{idnum="C1"},
-	C2 = #call{idnum="C2"},
-	C3 = #call{idnum="C3"},
+	C1 = #call{id="C1"},
+	C2 = #call{id="C2"},
+	C3 = #call{id="C3"},
 	{_, Pid} = start(goober),
 	add(1, C1, Pid),
 	add(1, C2, Pid),
@@ -240,9 +240,9 @@ decrease_priority_test() ->
 	?assertMatch({{1, _Time}, C2}, ask(Pid)).
 
 queue_to_list_test() ->
-	C1 = #call{idnum="C1"},
-	C2 = #call{idnum="C2"},
-	C3 = #call{idnum="C3"},
+	C1 = #call{id="C1"},
+	C2 = #call{id="C2"},
+	C3 = #call{id="C3"},
 	{_, Pid} = start(goober),
 	add(1, C1, Pid),
 	add(1, C2, Pid),

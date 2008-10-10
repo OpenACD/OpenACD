@@ -3,14 +3,14 @@
 	skills = [english] :: [atom(), ...],
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
 	socket :: port(),	% is port() appropriate?
-	state = idle :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
-	statedata = {} ::	{} |		% when state is idle
+	state = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
+	statedata = default ::	{} |		% when state is released
 						#call{} |	% when state is ringing, oncall, outgoing, or wrapup
 						any() |	% state = precall
 						{integer(), -1} | {integer(), 0} | {integer(), 1} | default |	% released
 						{onhold, #call{}, calling, #call{}},	% warmtransfer
-	queuedrelease = undef :: any(),	% is the current state is to go to released, what is the released type
-	lastchangetimestamp :: any(),	% at what time did the last state change occur
+	queuedrelease = undefined :: any(),	% is the current state is to go to released, what is the released type
+	lastchangetimestamp = now() :: any(),	% at what time did the last state change occur
 	endpoints :: any()  % the strings here are the uri's the media type is sent to to reach the agent.
 	}).
 	

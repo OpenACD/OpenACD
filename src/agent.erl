@@ -13,7 +13,7 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 
 %% other exports
--export([start/1, start_link/1, query_state/1]).
+-export([start/1, start_link/1, query_state/1, set_state/2, set_state/3]).
 
 % gen_fsm:start_link
 % gen_fsm:send_event
@@ -34,6 +34,12 @@ init([State = #agent{}]) ->
 % actual functions we'll call
 query_state(Pid) -> 
   gen_fsm:sync_send_all_state_event(Pid, query_state).
+
+set_state(Pid, State) ->
+	gen_fsm:sync_send_event(Pid, State).
+
+set_state(Pid, State, Data) ->
+	gen_fsm:sync_send_event(Pid, {State, Data}).
 
 
 % replace state_name with actual state names.
@@ -127,15 +133,6 @@ wrapup(_Event, _From, State) ->
 	{reply, invalide, wrapup, State}.
 
 
-%% idle :: {}
-%% ringing :: #call{}
-%% precall :: #client{}
-%% oncall :: #call{}
-%% outgoing :: #call{}
-%% released :: {int(), -1 } | {int(), 0} | {int(), 1} | default
-%% warmtransfer :: {onhold, #call{}, calling, #call{}},
-%% wrapup :: #call{}
-
 % generic handlers independant of state
 handle_event(_Event, StateName, State) ->
 	{next_state, StateName, State}.
@@ -154,3 +151,18 @@ terminate(_Reason, _StateName, _State) ->
 
 code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
+
+-ifdef(EUNIT).
+state_change_test() ->
+	{_, Pid} = start(#agent{login="testagent"}),
+	?assertMatch({ok, released}, query_state(Pid)),
+	?assertEqual(ok, set_state(Pid, idle)),
+	?assertMatch({ok, idle}, query_state(Pid)),
+	?assertEqual(invalid, set_state(Pid, oncall)),
+	?assertMatch({ok, idle}, query_state(Pid)),
+	?assertEqual(ok, set_state(Pid, ringing, #call{idnum="foo"})),
+	?assertMatch({ok, ringing}, query_state(Pid)),
+	?assertEqual(ok, set_state(Pid, oncall, #call{idnum="bar"})),
+	?assertMatch({ok, oncall}, query_state(Pid)),
+	?assertMatch(queued, set_state(Pid, released, {1, 0})).
+-endif.

@@ -2,6 +2,10 @@
 % based on the tcp_listener module by Serge Aleynikov
 % http://www.trapexit.org/Building_a_Non-blocking_TCP_server_using_OTP_principles
 
+-ifdef(EUNIT).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -behaviour(gen_server).
 
 %% External API
@@ -40,7 +44,7 @@ handle_call(Request, _From, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
-handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSock, acceptor=Ref, module=Module} = State) ->
+handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSock, acceptor=Ref} = State) ->
 	try
 		case set_sockopt(ListSock, CliSocket) of
 			ok  -> ok;
@@ -51,8 +55,7 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		io:format("new client connection.~n", []),
 		{ok, Pid} = agent_connection:start(CliSocket),
 		gen_tcp:controlling_process(CliSocket, Pid),
-		%% Instruct the new process that it owns the socket.
-		%Module:set_socket(Pid, CliSocket),
+		inet:setopts(CliSocket, [{active, once}, {packet, 0}, binary]),
 	
 		%% Signal the network driver that we are ready to accept another connection
 		case prim_inet:async_accept(ListSock, -1) of

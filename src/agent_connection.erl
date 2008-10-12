@@ -29,8 +29,8 @@ handle_cast(_Msg, State) ->
 handle_info({tcp, Socket, Bin}, State) ->
 	% Flow control: enable forwarding of next TCP message
 	ok = inet:setopts(Socket, [{active, once}]),
-	io:format("got ~p from socket~n", [Bin]),
-	ok = gen_tcp:send(Socket, "ok\r\n"),
+	%io:format("got ~p from socket~n", [Bin]),
+	ok = gen_tcp:send(Socket, handle_event(parse_event(binary_to_list(Bin))) ++ "\r\n"),
 	{noreply, State};
 
 handle_info({tcp_closed, _Socket}, State) ->
@@ -46,3 +46,34 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
+
+handle_event(["PING", Counter]) when is_integer(Counter) ->
+	{MegaSecs, Secs, _MicroSecs} = now(),
+	"ACK " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(MegaSecs) ++ integer_to_list(Secs);
+
+handle_event(["STATE", Counter, _State]) when is_integer(Counter) ->
+	"ACK " ++ integer_to_list(Counter);
+
+handle_event([Event, Counter]) when is_integer(Counter) ->
+	"ACK " ++ integer_to_list(Counter) ++ " Unknown event " ++ Event;
+
+handle_event(_Stuff) ->
+	"ACK Invalid Event, missing or invalid counter".
+
+parse_event(Args) ->
+	String = string:strip(string:strip(string:strip(Args,right, $\n), right, $\r)),
+	case util:string_split(String, " ", 3) of
+		[Event] ->
+			[Event];
+		[Event, Counter] ->
+			[Event, parse_counter(Counter)];
+		[Event, Counter, NArgs] ->
+			lists:append([Event, parse_counter(Counter)], util:string_split(NArgs, " "))
+	end.
+
+parse_counter(Counter) ->
+	try list_to_integer(Counter) of
+		IntCounter -> IntCounter
+	catch
+		_:_ -> Counter
+	end.

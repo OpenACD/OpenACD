@@ -55,7 +55,13 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		io:format("new client connection.~n", []),
 		{ok, Pid} = agent_connection:start(CliSocket),
 		gen_tcp:controlling_process(CliSocket, Pid),
-		inet:setopts(CliSocket, [{active, once}, {packet, 0}, binary]),
+
+		case inet:setopts(CliSocket, [{active, once}, {packet, 0}, binary]) of
+			ok ->
+				ok;
+			_Error ->
+				gen_tcp:close(CliSocket)
+		end,
 	
 		%% Signal the network driver that we are ready to accept another connection
 		case prim_inet:async_accept(ListSock, -1) of

@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([string_split/3, string_split/2]).
+-export([string_split/3, string_split/2, string_chomp/1]).
 
 string_split("", _Separator, _SplitCount) ->
 	[];
@@ -33,6 +33,9 @@ string_split(String, Separator) ->
 		Index ->
 			[string:substr(String, 1, Index - 1) | string_split(string:substr(String, Index + string:len(Separator)), Separator)]
 	end.
+
+string_chomp(String) ->
+	string:strip(string:strip(String,right, $\n), right, $\r).
 
 -ifdef(EUNIT).
 split_empty_string_test() ->

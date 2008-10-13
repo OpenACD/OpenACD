@@ -27,9 +27,8 @@ start_link(Agent = #agent{}) ->
 start(Agent = #agent{}) -> 
 	gen_fsm:start(?MODULE, [Agent], []).
 	
-init([State = #agent{}]) -> 
-	State2 = State#agent{statedata=default,state=released},
-	{ok, released, State2}.
+init([State = #agent{}]) ->
+	{ok, released, State}.
 
 % actual functions we'll call
 query_state(Pid) -> 

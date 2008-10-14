@@ -26,19 +26,19 @@ end
 
 task :compile => ['ebin'] + OBJ
 
-desc "Compile .beam files with -DEUNIT and +debug_info => debug_ebin"
-task :compile_debug => ['debug_ebin'] + DEBUGOBJ
-
 task :default => :compile
 
 task :release => :compile
 
 namespace :test do
+	desc "Compile .beam files with -DEUNIT and +debug_info => debug_ebin"
+	task :compile => ['debug_ebin'] + DEBUGOBJ
+
 	desc "run eunit tests, the dialyzer and output coverage reports"
-	task :all => [:compile_debug, :eunit, :dialyzer]
+	task :all => [:compile, :eunit, :dialyzer]
 
 	desc "run only the eunit tests"
-	task :eunit =>  [:compile_debug] do
+	task :eunit =>  [:compile] do
 		puts "Modules under test:"
 		DEBUGOBJ.each do |obj|
 			obj[%r{.*/(.*).beam}]

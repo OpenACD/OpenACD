@@ -111,7 +111,7 @@ handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), 
 
 handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter) ->
 	[Username, Password] = util:string_split(Credentials, ":", 2),
-	{ok, Pid} = agent:start_link(#agent{login=Username}),
+	{ok, Pid} = agent:start_link(#agent{login=Username, socket=State#state.socket}),
 	State2 = State#state{agent_fsm=Pid},
 	io:format("User ~p is trying to authenticate using ~p.~n", [Username, Password]),
 	{"ACK " ++ integer_to_list(Counter) ++ " 1 1 1", State2};

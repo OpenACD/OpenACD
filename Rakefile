@@ -30,6 +30,9 @@ task :default => :compile
 
 task :release => :compile
 
+desc "Alias for test:all"
+task :test => "test:all"
+
 namespace :test do
 	desc "Compile .beam files with -DEUNIT and +debug_info => debug_ebin"
 	task :compile => ['debug_ebin'] + DEBUGOBJ

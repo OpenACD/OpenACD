@@ -187,7 +187,7 @@ find_key_test() ->
 	?assertMatch(none, remove(C2, Pid)).
 
 bound_test() ->
-	{_, Node} = slave:start(net_adm:localhost(), goober),
+	{_, Node} = slave:start(net_adm:localhost(), boundtest),
 	Pid = spawn(Node, erlang, exit, [normal]),
 	C1 = #call{id="C1", bound=[Pid]},
 	{_, Qpid} = start(foobar),

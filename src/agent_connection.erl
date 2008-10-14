@@ -141,6 +141,9 @@ handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 handle_event([Event, Counter], State) when is_integer(Counter) ->
 	{"ERR " ++ integer_to_list(Counter) ++ " Unknown event " ++ Event, State};
 
+handle_event([Event | [Counter | Args]], State) when is_integer(Counter) ->
+	{"ERR " ++ integer_to_list(Counter) ++ " invalid arguments for event " ++ Event, State};
+	
 handle_event(_Stuff, State) ->
 	{"ERR Invalid Event, missing or invalid counter", State}.
 

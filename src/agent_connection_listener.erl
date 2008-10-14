@@ -97,3 +97,9 @@ set_sockopt(ListSock, CliSocket) ->
 			gen_tcp:close(CliSocket),
 			Error % return error
 	end.
+
+-ifdef(TEST).
+
+
+
+-endif.

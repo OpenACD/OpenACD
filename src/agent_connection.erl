@@ -123,13 +123,19 @@ handle_event(["PING", Counter], State) when is_integer(Counter) ->
 	{MegaSecs, Secs, _MicroSecs} = now(),
 	{"ACK " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(MegaSecs) ++ integer_to_list(Secs), State};
 
-handle_event(["STATE", Counter, _AgState], State) when is_integer(Counter) ->
-	case agent:set_state(State#state.agent_fsm, idle) of
-		ok ->
-			{"ACK " ++ integer_to_list(Counter), State};
-		invalid ->
-			{ok, OldState} = agent:query_state(State#state.agent_fsm),
-			{"ERR " ++ integer_to_list(Counter) ++ " Invalid state change from " ++ atom_to_list(OldState) ++ " to ???", State}
+handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
+	try agent:list_to_state(AgState) of
+		NewState ->
+			case agent:set_state(State#state.agent_fsm, NewState) of
+				ok ->
+					{"ACK " ++ integer_to_list(Counter), State};
+				invalid ->
+					{ok, OldState} = agent:query_state(State#state.agent_fsm),
+					{"ERR " ++ integer_to_list(Counter) ++ " Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState), State}
+			end
+	catch
+		_:_ ->
+			{"ERR " ++ integer_to_list(Counter) ++ " Invalid state " ++ AgState, State}
 	end;
 
 handle_event([Event, Counter], State) when is_integer(Counter) ->
@@ -156,3 +162,7 @@ parse_counter(Counter) ->
 	catch
 		_:_ -> Counter
 	end.
+
+-ifdef(EUNIT).
+
+-endif.

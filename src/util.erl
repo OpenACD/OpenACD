@@ -54,4 +54,6 @@ split_by_nonexistant_string_test() ->
 	?assertEqual(["Hello world"], string_split("Hello world", "batman")).
 split_by_nonexistant_string_with_limit_test() ->
 	?assertEqual(["Hello world"], string_split("Hello world", "batman", 3)).
+split_by_ambiguous_pattern_test() ->
+	?assertEqual([[], ";abc", "de;f;g"], string_split(";;;abc;;de;f;g;;", ";;")).
 -endif.

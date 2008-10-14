@@ -13,7 +13,7 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 
 %% other exports
--export([start/1, start_link/1, query_state/1, set_state/2, set_state/3]).
+-export([start/1, start_link/1, query_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1]).
 
 % gen_fsm:start_link
 % gen_fsm:send_event
@@ -39,6 +39,47 @@ set_state(Pid, State) ->
 
 set_state(Pid, State, Data) ->
 	gen_fsm:sync_send_event(Pid, {State, Data}).
+
+list_to_state(String) ->
+	try list_to_integer(String) of
+		Int -> integer_to_state(Int)
+	catch
+		_:_ ->
+			case string:to_lower(String) of
+				"idle" -> idle;
+				"ringing" -> ringing;
+				"precall" -> precall;
+				"oncall" -> oncall;
+				"outgoing" -> outgoing;
+				"released" -> released;
+				"warmtransfer" -> warmtransfer;
+				"wrapup" -> wrapup
+			end
+	end.
+
+integer_to_state(Int) ->
+	case Int of
+		2 -> idle;
+		3 -> ringing;
+		4 -> precall;
+		5 -> oncall;
+		6 -> outgoing;
+		7 -> released;
+		8 -> warmtransfer;
+		9 -> wrapup
+	end.
+
+state_to_integer(State) ->
+	case State of
+		idle -> 2;
+		ringing -> 3;
+		precall -> 4;
+		oncall -> 5;
+		outgoing -> 6;
+		released -> 7;
+		warmtransfer -> 8;
+		wrapup -> 9
+	end.
 
 
 % replace state_name with actual state names.

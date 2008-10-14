@@ -191,8 +191,8 @@ multi_node_test_() ->
 	{
 		foreach,
 		fun() -> 
-			slave:start(net_adm:localhost(), master), 
-			slave:start(net_adm:localhost(), slave),
+			slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
+			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
 			cover:start([Master, Slave]),
 			rpc:call(Master, global, sync, []),
 			rpc:call(Slave, global, sync, []),
@@ -238,6 +238,31 @@ multi_node_test_() ->
 					Globalwhere = global:whereis_name(agent_manager),
 					Slaveself = rpc:call(Slave, erlang, whereis, [agent_manager]),
 					?assertMatch(Globalwhere, Slaveself)
+				end
+			}, {
+				"Net Split",
+				fun() ->
+					rpc:call(Master, erlang, disconnect_node, [Slave]),
+					rpc:call(Slave, erlang, disconnect_node, [Master]),
+
+
+					?assertMatch({ok, _Pid}, rpc:call(Master, agent_manager, start_agent, [Agent])),
+					?assertMatch({ok, _Pid}, rpc:call(Slave, agent_manager, start_agent, [Agent])),
+
+					Pinged = rpc:call(Master, net_adm, ping, [Slave]),
+					Pinged = rpc:call(Slave, net_adm, ping, [Master]),
+
+					?assert(Pinged =:= pong),
+
+					rpc:call(Master, global, sync, []),
+					rpc:call(Slave, global, sync, []),
+
+					
+					Newmaster = node(global:whereis_name(?MODULE)),
+
+					receive after 1000 -> ok end,
+					?debugFmt("Newmaster: ~p Oldmaster: ~p~n", [Newmaster, Master]),
+					?assertMatch(Newmaster, Master)
 				end
 			}
 		]

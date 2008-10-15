@@ -21,9 +21,11 @@
 % gen_fsm:sync_send_event
 %    gen_fsm:sync_send_all_state_event
 
+-spec(start_link/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
 start_link(Agent = #agent{}) -> 
 	gen_fsm:start_link(?MODULE, [Agent], []).
-	
+
+-spec(start/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
 start(Agent = #agent{}) -> 
 	gen_fsm:start(?MODULE, [Agent], []).
 	
@@ -31,15 +33,20 @@ init([State = #agent{}]) ->
 	{ok, released, State}.
 
 % actual functions we'll call
+
+-spec(query_state/1 :: (Pid :: pid()) -> {'ok', atom()}).
 query_state(Pid) -> 
   gen_fsm:sync_send_all_state_event(Pid, query_state).
 
+-spec(set_state/2 :: (Pid :: pid(), State :: atom()) -> 'ok' | 'invalid').
 set_state(Pid, State) ->
 	gen_fsm:sync_send_event(Pid, State).
 
+-spec(set_state/3 :: (Pid :: pid(), State :: atom(), Data :: any()) -> 'ok' | 'invalid').
 set_state(Pid, State, Data) ->
 	gen_fsm:sync_send_event(Pid, {State, Data}).
 
+-spec(list_to_state/1 :: (String :: string()) -> atom()).
 list_to_state(String) ->
 	try list_to_integer(String) of
 		Int -> integer_to_state(Int)
@@ -57,6 +64,7 @@ list_to_state(String) ->
 			end
 	end.
 
+-spec(integer_to_state/1 :: (Int :: integer()) -> atom()).
 integer_to_state(Int) ->
 	case Int of
 		2 -> idle;
@@ -69,6 +77,7 @@ integer_to_state(Int) ->
 		9 -> wrapup
 	end.
 
+-spec(state_to_integer/1 :: (State :: atom()) -> integer()).
 state_to_integer(State) ->
 	case State of
 		idle -> 2;

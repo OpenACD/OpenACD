@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, start/1]).
+-export([start_link/1, start/1, stop/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -20,12 +20,15 @@
 		acceptor       % Asynchronous acceptor's internal reference
 		}).
 
+-spec(start_link/1 :: (Port :: integer()) -> any()).
 start_link(Port) when is_integer(Port) ->
 	gen_server:start_link(?MODULE, [Port], []).
 
+-spec(start/1 :: (Port :: integer()) -> any()).
 start(Port) when is_integer(Port) -> 
 	gen_server:start(?MODULE, [Port], []).
 
+-spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) -> 
 	gen_server:call(Pid, stop).
 
@@ -91,6 +94,7 @@ terminate(_Reason, State) ->
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
+-spec(set_sockopt/2 :: (ListSock :: port(), CliSocket :: port()) -> 'ok' | any()).
 set_sockopt(ListSock, CliSocket) ->
 	true = inet_db:register_socket(CliSocket, inet_tcp),
 	case prim_inet:getopts(ListSock, [active, nodelay, keepalive, delay_send, priority, tos]) of

@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/2]).
+-export([start_link/1, start/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -17,14 +17,19 @@
 
 -record(state, {
 		listener,       % Listening socket
-		acceptor,       % Asynchronous acceptor's internal reference
-		module          % FSM handling module
+		acceptor       % Asynchronous acceptor's internal reference
 		}).
 
-start_link(Port, Module) when is_integer(Port), is_atom(Module) ->
-	gen_server:start_link(?MODULE, [Port, Module], []).
+start_link(Port) when is_integer(Port) ->
+	gen_server:start_link(?MODULE, [Port], []).
 
-init([Port, Module]) ->
+start(Port) when is_integer(Port) -> 
+	gen_server:start(?MODULE, [Port], []).
+
+stop(Pid) -> 
+	gen_server:call(Pid, stop).
+
+init([Port]) ->
 	process_flag(trap_exit, true),
 	Opts = [binary, {packet, 0}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
@@ -33,10 +38,12 @@ init([Port, Module]) ->
 			%%Create first accepting process
 			{ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
 			{ok, #state{listener = Listen_socket,
-			acceptor = Ref,
-			module = Module}};
+			acceptor = Ref}};
 		{error, Reason} -> {stop, Reason}
 	end.
+
+handle_call(stop, _From, State) ->
+	{stop, normal, ok, State};
 
 handle_call(Request, _From, State) ->
 	{stop, {unknown_call, Request}, State}.
@@ -52,7 +59,7 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		end,
 
 		%% New client connected
-		io:format("new client connection.~n", []),
+		% io:format("new client connection.~n", []),
 		{ok, Pid} = agent_connection:start(CliSocket),
 		gen_tcp:controlling_process(CliSocket, Pid),
 
@@ -100,6 +107,20 @@ set_sockopt(ListSock, CliSocket) ->
 
 -ifdef(TEST).
 
+start_test() -> 
+	{ok, Pid} = start(6666),
+	stop(Pid).
 
+double_start_test() -> 
+	{ok, Pid} = start(6666),
+	?assertMatch({error, eaddrinuse}, start(6666)),
+	stop(Pid).
+	
+async_listsock_test() -> 
+	{ok, Pid} = start(6666),
+	{ok, Socket} = gen_tcp:connect(net_adm:localhost(), 6666, [binary]),
+	gen_tcp:send(Socket, "test"),
+	stop(Pid),
+	gen_tcp:close(Socket).
 
 -endif.

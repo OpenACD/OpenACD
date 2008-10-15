@@ -437,4 +437,20 @@ wrapup_state_test() ->
 	set_state(Pid, idle),
 	?assertMatch({ok, released}, query_state(Pid)).
 
+generate_state() ->
+	generate_state([{2, idle, "Idle"}, {3, ringing, "Ringing"}, {4, precall, "Precall"}, {5, oncall, "Oncall"}, {6, outgoing, "Outgoing"}, {7, released, "Released"}, {8, warmtransfer, "WarmTransfer"}, {9, wrapup, "Wrapup"}]).
+generate_state([{Int, Atom, String}|T]) -> 
+	[{"Automated test for " ++ integer_to_list(Int) ++ ", " ++ atom_to_list(Atom), 
+		fun() -> 
+			?assertEqual(Int, state_to_integer(Atom)),
+			?assertEqual(Atom, integer_to_state(Int)),
+			?assertEqual(Atom, list_to_state(String))
+		end
+		}|generate_state(T)];
+generate_state([]) -> 
+	[].
+
+cross_check_state_test_() ->
+	generate_state().
+
 -endif.

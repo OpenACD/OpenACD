@@ -102,14 +102,6 @@ handle_call({exists, Login}, _From, State) ->
 handle_call({notify, Login, Pid}, _From, State) -> 
 	{reply, ok, dict:store(Login, Pid, State)};
 
-handle_call({get_process, Login}, _From, State) -> 
-	case dict:is_key(Login, State) of 
-		true -> 
-			{reply, dict:find(Login, State), State};
-		false -> 
-			{reply, no_process, State}
-	end;
-
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 

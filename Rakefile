@@ -7,14 +7,20 @@ ERLC_FLAGS = "-I#{INCLUDE} +warn_unused_vars +warn_unused_import"
 SRC = FileList['src/*.erl']
 OBJ = SRC.pathmap("%{src,ebin}X.beam").reject{|x| x.include? 'test_coverage'}
 DEBUGOBJ = SRC.pathmap("%{src,debug_ebin}X.beam")
+COVERAGE = SRC.pathmap("%{src,coverage}X.txt")
+
+@maxwidth = SRC.map{|x| File.basename(x, 'erl').length}.max
 
 CLEAN.include("ebin/*.beam")
 CLEAN.include("debug_ebin/*.beam")
+CLEAN.include("coverage/*.txt")
+CLEAN.include("coverage/*.html")
 
 verbose(true)
 
 directory 'ebin'
 directory 'debug_ebin'
+directory 'coverage'
 
 rule ".beam" => ["%{ebin,src}X.erl"] do |t|
 	sh "erlc -pa ebin -W #{ERLC_FLAGS} -o ebin #{t.source} "
@@ -23,6 +29,21 @@ end
 rule ".beam" => ["%{debug_ebin,src}X.erl"] do |t|
 	sh "erlc +debug_info -D EUNIT -pa debug_ebin -W #{ERLC_FLAGS} -o debug_ebin #{t.source} "
 end
+
+# this almost works, doesn't handle module dependancies though :(
+rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam'] do |t|
+	next if t.source.include? 'test_coverage'
+	mod = File.basename(t.source, '.beam')
+	maxwidth = 30
+	test_output = `erl -pa debug_ebin -sname testpx -s test_coverage start #{mod} -run init stop`
+	if /\*failed\*/ =~ test_output
+		puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
+	else
+		test_output[/1>\s*(.*)\n/]
+		puts "  #{mod.ljust(@maxwidth - 1)} : #{$1}"
+	end
+end
+
 
 task :compile => ['ebin'] + OBJ
 
@@ -41,27 +62,14 @@ namespace :test do
 	task :all => [:compile, :eunit, :dialyzer, :report_coverage]
 
 	desc "run only the eunit tests"
-	task :eunit =>  [:compile] do
-		puts "Modules under test:"
-		DEBUGOBJ.each do |obj|
-			obj[%r{.*/(.*).beam}]
-			mod = $1
-			next if mod == 'test_coverage'
-			test_output = `erl -pa debug_ebin -sname testpx -s test_coverage start #{mod} -run init stop`
-
-			if /\*failed\*/ =~ test_output
-				puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
-			else
-				test_output[/1>\s*(.*)\n/]
-				puts "#{mod}: #{$1}"
-			end
-		end
-	end
+	task :eunit =>  ['coverage'] + COVERAGE
+	#end
 
 	desc "report the percentage code coverage of the last test run"
-	task :report_coverage do
+	task :report_coverage =>  [:eunit] do
+		global_total = 0
 		files = Dir['coverage/*.txt']
-		maxwidth = files.map{|x| x.split("/")[-1].length}.max
+		maxwidth = files.map{|x| File.basename(x, ".txt").length}.max
 		puts "Code coverage:"
 		files.each do |file|
 			total = 0
@@ -74,8 +82,10 @@ namespace :test do
 					total += 1
 				end
 			end
-			puts "  #{file.split('/')[-1].ljust(maxwidth)} : #{sprintf("%.2f%%", (tally/(total.to_f)) * 100)}"
+			puts "  #{File.basename(file, ".txt").ljust(maxwidth)} : #{sprintf("%.2f%%", (tally/(total.to_f)) * 100)}"
+			global_total += (tally/(total.to_f)) * 100
 		end
+		puts "Overall coverage: #{sprintf("%.2f%%", global_total/files.length)}"
 	end
 
 	desc "run the dialyzer"

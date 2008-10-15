@@ -6,8 +6,15 @@ ERLC_FLAGS = "-I#{INCLUDE} +warn_unused_vars +warn_unused_import"
 
 SRC = FileList['src/*.erl']
 OBJ = SRC.pathmap("%{src,ebin}X.beam").reject{|x| x.include? 'test_coverage'}
-DEBUGOBJ = SRC.pathmap("%{src,debug_ebin}X.beam")
-COVERAGE = SRC.pathmap("%{src,coverage}X.txt")
+DEBUGOBJ = SRC.pathmap("%{src,debug_ebin}X.txt")
+# hack to force correct compilation order so that module dependancies are met
+COVERAGE = SRC.sort_by do |x|
+	if md = /^%% depends on (.+)$/.match(File.read(x))
+		[md[1].split(/,\s*/).length]
+	else
+		[0]
+	end
+end.pathmap("%{src,coverage}X.txt")
 
 @maxwidth = SRC.map{|x| File.basename(x, 'erl').length}.max
 
@@ -34,7 +41,6 @@ end
 rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam'] do |t|
 	next if t.source.include? 'test_coverage'
 	mod = File.basename(t.source, '.beam')
-	maxwidth = 30
 	test_output = `erl -pa debug_ebin -sname testpx -s test_coverage start #{mod} -run init stop`
 	if /\*failed\*/ =~ test_output
 		puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")

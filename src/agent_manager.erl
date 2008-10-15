@@ -1,5 +1,7 @@
 -module(agent_manager).
 
+%% depends on agent
+
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.

@@ -6,7 +6,7 @@ ERLC_FLAGS = "-I#{INCLUDE} +warn_unused_vars +warn_unused_import"
 
 SRC = FileList['src/*.erl']
 OBJ = SRC.pathmap("%{src,ebin}X.beam").reject{|x| x.include? 'test_coverage'}
-DEBUGOBJ = SRC.pathmap("%{src,debug_ebin}X.txt")
+DEBUGOBJ = SRC.pathmap("%{src,debug_ebin}X.beam")
 # hack to force correct compilation order so that module dependancies are met
 COVERAGE = SRC.sort_by do |x|
 	if md = /^%% depends on (.+)$/.match(File.read(x))
@@ -14,7 +14,7 @@ COVERAGE = SRC.sort_by do |x|
 	else
 		[0]
 	end
-end.pathmap("%{src,coverage}X.txt")
+end.pathmap("%{src,coverage}X.txt").reject{|x| x.include? 'test_coverage'}
 
 @maxwidth = SRC.map{|x| File.basename(x, 'erl').length}.max
 
@@ -39,7 +39,6 @@ end
 
 # this almost works, doesn't handle module dependancies though :(
 rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam'] do |t|
-	next if t.source.include? 'test_coverage'
 	mod = File.basename(t.source, '.beam')
 	test_output = `erl -pa debug_ebin -sname testpx -s test_coverage start #{mod} -run init stop`
 	if /\*failed\*/ =~ test_output

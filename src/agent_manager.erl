@@ -188,6 +188,7 @@ get_nodes() ->
 multi_node_test_() -> 
 	{Master, Slave} = get_nodes(),
 	Agent = #agent{login="testagent"},
+	Agent2 = #agent{login="testagent2"},
 	{
 		foreach,
 		fun() -> 
@@ -261,8 +262,20 @@ multi_node_test_() ->
 					Newmaster = node(global:whereis_name(?MODULE)),
 
 					receive after 1000 -> ok end,
-					?debugFmt("Newmaster: ~p Oldmaster: ~p~n", [Newmaster, Master]),
 					?assertMatch(Newmaster, Master)
+				end
+			}, {
+				"Master removes agents for a dead node",
+				fun() ->
+					?assertMatch({ok, _Pid}, rpc:call(Slave, agent_manager, start_agent, [Agent])),
+					?assertMatch({ok, _Pid}, rpc:call(Master, agent_manager, start_agent, [Agent2])),
+					?assertMatch({true, _Pid}, rpc:call(Master, agent_manager, query_agent, [Agent])),
+					rpc:call(Master, erlang, disconnect_node, [Slave]),
+					cover:stop(Slave),
+					slave:stop(Slave),
+					?assertEqual(false, rpc:call(Master, agent_manager, query_agent, [Agent])),
+					?assertMatch({true, _Pid}, rpc:call(Master, agent_manager, query_agent, [Agent2])),
+					?assertMatch({ok, _Pid}, rpc:call(Master, agent_manager, start_agent, [Agent]))
 				end
 			}
 		]

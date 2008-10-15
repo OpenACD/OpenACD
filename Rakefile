@@ -38,7 +38,7 @@ namespace :test do
 	task :compile => ['debug_ebin'] + DEBUGOBJ
 
 	desc "run eunit tests, the dialyzer and output coverage reports"
-	task :all => [:compile, :eunit, :dialyzer]
+	task :all => [:compile, :eunit, :dialyzer, :report_coverage]
 
 	desc "run only the eunit tests"
 	task :eunit =>  [:compile] do
@@ -55,6 +55,26 @@ namespace :test do
 				test_output[/1>\s*(.*)\n/]
 				puts "#{mod}: #{$1}"
 			end
+		end
+	end
+
+	desc "report the percentage code coverage of the last test run"
+	task :report_coverage do
+		files = Dir['coverage/*.txt']
+		maxwidth = files.map{|x| x.split("/")[-1].length}.max
+		puts "Code coverage:"
+		files.each do |file|
+			total = 0
+			tally = 0
+			File.read(file).each do |line|
+				if line =~ /^\s+[1-9][0-9]*\.\./
+					total += 1
+					tally += 1
+				elsif line =~ /^\s+0\.\./ and not line =~ /^-module/
+					total += 1
+				end
+			end
+			puts "  #{file.split('/')[-1].ljust(maxwidth)} : #{sprintf("%.2f%%", (tally/(total.to_f)) * 100)}"
 		end
 	end
 

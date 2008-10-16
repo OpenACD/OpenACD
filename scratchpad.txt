@@ -32,3 +32,17 @@ arguments: determined by the operation.
 run_once | run_many
 	run_once means remove this recipe after it has run
 	run_many means continue running every nth Tick.
+	
+dispatcher matching a call to agent:
+select from agents with the shortest skill list that contains all the calls required skills ordered by the agent's idle time descending.
+
+(queue_wieight * calls_in_queue) / total_wieght = % time a dispatcher should go to this queue.
+Need to find a way to round robin the above, for now biased random.
+bias up local calls rather than remote ons.
+path_bonus, if local is potentially 10, lower if remoter.
+
+dispatchers are spawned and killed as a ratio of agents avialable (rather than total agents like stated earlier).
+
+each call that comes in will have a required skill named the same as the node it is local too.  Each agent on that node will have the same skill.  A default recipe will remove that skill from the call after a certin amount of time, thus opening the call to non-local agents.
+
+magic skills:  _node translates to the node, and _agent translate to an agent's login.  All skills that start with an underscore are reserved as magic skills.

@@ -20,15 +20,15 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, start/1]).
+-export([start_link/0, start/0, grab/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
 -record(state, {
-	call :: #call{},
-	agents = []}).
+	call :: #call{} | 'undefined',
+	agents = [] :: [pid()]}).
 
 %%====================================================================
 %% API
@@ -37,10 +37,10 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start_link(Call) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Call], []).
-start(Call) ->
-	gen_server:start({local, ?MODULE}, ?MODULE, [Call], []).
+start_link() ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start() ->
+	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -53,8 +53,8 @@ start(Call) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Call]) ->
-    {ok, #state{call=Call}}.
+init([]) ->
+    {ok, #state{call={}}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -66,6 +66,14 @@ init([Call]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
+handle_call({grab_from, Queue}, _From, State) -> 
+	case call_queue:grab(Queue) of
+		none -> 
+			{reply, {ok, none}, State};
+		{Key, Value} -> 
+			State2 = State#state{call=Value},
+			{reply, {ok, Value}, State2}
+	end;
 handle_call(_Request, _From, State) ->
     Reply = unknown,
     {reply, Reply, State}.
@@ -108,3 +116,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+-spec(grab/1 :: (Queue :: pid()) -> {'ok', 'none'} | {'ok', #call{}}).
+grab(Queue) -> 
+	gen_server:call(?MODULE, {grab_from, Queue}).

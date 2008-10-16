@@ -20,11 +20,11 @@
 		acceptor       % Asynchronous acceptor's internal reference
 		}).
 
--spec(start_link/1 :: (Port :: integer()) -> any()).
+-spec(start_link/1 :: (Port :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Port) when is_integer(Port) ->
 	gen_server:start_link(?MODULE, [Port], []).
 
--spec(start/1 :: (Port :: integer()) -> any()).
+-spec(start/1 :: (Port :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Port) when is_integer(Port) -> 
 	gen_server:start(?MODULE, [Port], []).
 
@@ -123,7 +123,7 @@ double_start_test() ->
 async_listsock_test() -> 
 	{ok, Pid} = start(6666),
 	{ok, Socket} = gen_tcp:connect(net_adm:localhost(), 6666, [binary]),
-	gen_tcp:send(Socket, "test"),
+	gen_tcp:send(Socket, "test/r/n"),
 	stop(Pid),
 	gen_tcp:close(Socket).
 

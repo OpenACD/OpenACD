@@ -47,6 +47,14 @@ set_state(Pid, State, Data) ->
 	gen_fsm:sync_send_event(Pid, {State, Data}).
 
 -spec(list_to_state/1 :: (String :: string()) -> atom()).
+                         %(String :: "idle") -> 'idle';
+                         %(String :: "ringing") -> 'ringing';
+                         %(String :: "precall") -> 'precall';
+                         %(String :: "oncall") -> 'oncall';
+                         %(String :: "outgoing") -> 'outgoing';
+                         %(String :: "released") -> 'released';
+                         %(String :: "warmtransfer") -> 'warmtransfer';
+                         %(String :: "wrapup") -> 'wrapup').
 list_to_state(String) ->
 	try list_to_integer(String) of
 		Int -> integer_to_state(Int)
@@ -64,7 +72,14 @@ list_to_state(String) ->
 			end
 	end.
 
--spec(integer_to_state/1 :: (Int :: integer()) -> atom()).
+-spec(integer_to_state/1 :: (Int :: 2) -> 'idle';
+                            (Int :: 3) -> 'ringing';
+                            (Int :: 4) -> 'precall';
+                            (Int :: 5) -> 'oncall';
+                            (Int :: 6) -> 'outgoing';
+                            (Int :: 7) -> 'released';
+                            (Int :: 8) -> 'warmtransfer';
+                            (Int :: 9) -> 'wrapup').
 integer_to_state(Int) ->
 	case Int of
 		2 -> idle;
@@ -77,7 +92,14 @@ integer_to_state(Int) ->
 		9 -> wrapup
 	end.
 
--spec(state_to_integer/1 :: (State :: atom()) -> integer()).
+-spec(state_to_integer/1 :: (State :: 'idle') -> 2;
+                            (State :: 'ringing') -> 3;
+                            (State :: 'precall') -> 4;
+                            (State :: 'oncall') -> 5;
+                            (State :: 'outgoing') -> 6;
+                            (State :: 'released') -> 7;
+                            (State :: 'warmtransfer') -> 8;
+                            (State :: 'wrapup') -> 9).
 state_to_integer(State) ->
 	case State of
 		idle -> 2;

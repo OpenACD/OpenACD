@@ -103,7 +103,7 @@ namespace :test do
 			exit(1)
 		end
 		STDOUT.flush
-		dialyzer_output = `dialyzer --src -I include -c #{SRC.reject{|x| x =~ /test_coverage/}.join(' ')}`
+		dialyzer_output = `dialyzer -Wunderspecs --src -I include -c #{SRC.reject{|x| x =~ /test_coverage/}.join(' ')}`
 		#puts dialyzer_output
 		if $?.exitstatus.zero?
 			puts 'ok'

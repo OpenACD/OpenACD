@@ -1,6 +1,6 @@
 -module(agent_manager).
 
-%% depends on agent
+%% depends on agent, util
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
@@ -8,7 +8,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, start/0, stop/0, start_agent/1, query_agent/1]).
+-export([start_link/0, start/0, stop/0, start_agent/1, query_agent/1, find_avail_agents_by_skill/1]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -44,9 +44,13 @@ init([]) ->
 start_agent(Agent) -> 
 	gen_server:call(?MODULE, {start_agent, Agent}).
 
-%-spec(find_agent/1 :: (Agent :: #agent{}) -> node() | 'undefined').
-%find_agent(#agent{login=Login} = Agent) -> 
-	
+% locally find all available agents with a particular skillset
+-spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
+find_avail_agents_by_skill(Skills) ->
+	Agents = lists:map(fun({K,V}) -> {K, V, agent:dump_state(V)} end, gen_server:call(?MODULE, list_agents)),
+	AvailSkilledAgents = lists:filter(fun({_K, _V, State}) -> State#agent.state =:= idle andalso util:list_contains_all(State#agent.skills, Skills) end, Agents),
+	AvailSkilledAgentsByIdleTime = lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> State1#agent.lastchangetimestamp =< State2#agent.lastchangetimestamp end, AvailSkilledAgents), 
+	lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> length(State1#agent.skills) =< length(State2#agent.skills) end, AvailSkilledAgentsByIdleTime).
 
 -spec(query_agent/1 ::	(Agent :: #agent{}) -> {'true', pid()} | 'false';
 						(Login :: string()) -> {'true', pid()} | 'false').
@@ -101,6 +105,9 @@ handle_call({exists, Login}, _From, State) ->
 
 handle_call({notify, Login, Pid}, _From, State) -> 
 	{reply, ok, dict:store(Login, Pid, State)};
+
+handle_call(list_agents, _From, State) ->
+	{reply, dict:to_list(State), State};
 
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
@@ -169,7 +176,39 @@ single_node_test_() ->
 					Login = Agent#agent.login,
 					?assertMatch({true, Pid}, query_agent(Login))
 				end
+			}, {
+				"Find available agents with a skillset that matches but is the shortest",
+				fun() ->
+					Agent1 = #agent{login="Agent1"},
+					Agent2 = #agent{login="Agent2", skills=[english, '_agent', '_node', coolskill, otherskill]},
+					Agent3 = #agent{login="Agent3", skills=[english, '_agent', '_node', coolskill]},
+					{ok, Agent1Pid} = gen_server:call(?MODULE, {start_agent, Agent1}),
+					{ok, Agent2Pid} = gen_server:call(?MODULE, {start_agent, Agent2}),
+					{ok, Agent3Pid} = gen_server:call(?MODULE, {start_agent, Agent3}),
+					agent:set_state(Agent1Pid, idle),
+					agent:set_state(Agent3Pid, idle),
+					?assertMatch([{"Agent3", Agent3Pid, _State}], find_avail_agents_by_skill([coolskill])),
+					agent:set_state(Agent2Pid, idle),
+					?assertMatch([{"Agent3", Agent3Pid, _State1}, {"Agent2", Agent2Pid, _State2}], find_avail_agents_by_skill([coolskill]))
+				end
+			}, {
+				"Find available agents with a skillset that matches but is longest idle",
+				fun() ->
+					Agent1 = #agent{login="Agent1"},
+					Agent2 = #agent{login="Agent2", skills=[english, '_agent', '_node', coolskill]},
+					Agent3 = #agent{login="Agent3", skills=[english, '_agent', '_node', coolskill]},
+					{ok, Agent1Pid} = gen_server:call(?MODULE, {start_agent, Agent1}),
+					{ok, Agent2Pid} = gen_server:call(?MODULE, {start_agent, Agent2}),
+					{ok, Agent3Pid} = gen_server:call(?MODULE, {start_agent, Agent3}),
+					agent:set_state(Agent1Pid, idle),
+					agent:set_state(Agent3Pid, idle),
+					?assertMatch([{"Agent3", Agent3Pid, _State}], find_avail_agents_by_skill([coolskill])),
+					receive after 500 -> ok end,
+					agent:set_state(Agent2Pid, idle),
+					?assertMatch([{"Agent3", Agent3Pid, _State1}, {"Agent2", Agent2Pid, _State2}], find_avail_agents_by_skill([coolskill]))
+				end
 			}
+
 		]
 	}.
 

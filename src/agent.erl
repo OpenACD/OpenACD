@@ -13,7 +13,7 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 
 %% other exports
--export([start/1, start_link/1, query_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1]).
+-export([start/1, start_link/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1]).
 
 % gen_fsm:start_link
 % gen_fsm:send_event
@@ -41,6 +41,10 @@ expand_magic_skills(State) ->
 		('_node') -> node();
 		(Skill) -> Skill
 	end, State#agent.skills)}.
+
+-spec(dump_state/1 :: (Pid :: pid()) -> #agent{}).
+dump_state(Pid) ->
+	gen_fsm:sync_send_all_state_event(Pid, dump_state).
 
 -spec(query_state/1 :: (Pid :: pid()) -> {'ok', atom()}).
 query_state(Pid) -> 
@@ -227,6 +231,8 @@ handle_event(_Event, StateName, State) ->
 
 handle_sync_event(query_state, _From, StateName, State) -> 
 	{reply, {ok, StateName}, StateName, State};
+handle_sync_event(dump_state, _From, StateName, State) ->
+	{reply, State, StateName, State};
 handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.
 

@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 
 %% External API
--export([start_link/1, start/1, stop/1]).
+-export([start_link/1, start/1, start/0, stop/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -27,6 +27,10 @@ start_link(Port) when is_integer(Port) ->
 -spec(start/1 :: (Port :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Port) when is_integer(Port) -> 
 	gen_server:start(?MODULE, [Port], []).
+
+-spec(start/0 :: () -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start() -> 
+	start(6666).
 
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) -> 

@@ -73,10 +73,12 @@ handle_call({start_agent, #agent{login=Login} = Agent}, _From, State) ->
 			case global:whereis_name(?MODULE) of
 				Self -> 
 					{ok, Pid} = agent:start(Agent),
+					erlang:monitor(process, Pid),
 					{reply, {ok, Pid}, dict:store(Login, Pid, State)};
 				undefined -> 
 					global:register_name(?MODULE, self(), {global, random_notify_name}),
 					{ok, Pid} = agent:start(Agent),
+					erlang:monitor(process, Pid),
 					{reply, {ok, Pid}, dict:store(Login, Pid, State)};
 				_ -> 
 					try gen_server:call({global, ?MODULE}, {exists, Login}) of 
@@ -84,12 +86,14 @@ handle_call({start_agent, #agent{login=Login} = Agent}, _From, State) ->
 							{reply, {exists, Pid}, State};
 						false -> 
 							{ok, Pid} = agent:start(Agent),
+							erlang:monitor(process, Pid),
 							gen_server:call({global, ?MODULE}, {notify, Login, Pid}), % like the queue manager, handle a timeout.
 							{reply, {ok, Pid}, dict:store(Login, Pid, State)}
 					catch
 						exit:{timeout, _} -> 
 							global:register_name(?MODULE, self(), {global, random_notify_name}),
 							{ok, Pid} = agent:start(Agent),
+							erlang:monitor(process, Pid),
 							{reply, {ok, Pid}, dict:store(Login, Pid, State)}
 					end
 			end
@@ -126,7 +130,9 @@ handle_info({'EXIT', From, _Reason}, State) ->
 		end,
 	State)
 	};
-	
+handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
+	io:format("I'm taking care of an agent down."),
+	{noreply, dict:filter(fun(_Key, Value) -> Value =/= Object end, State)};
 handle_info({global_name_conflict, _Name}, State) ->
 	io:format("Node ~p lost election", [node()]),
 	link(global:whereis_name(?MODULE)),

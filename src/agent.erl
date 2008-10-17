@@ -136,10 +136,13 @@ state_to_integer(State) ->
 %	{reply, Reply, state_name, State}.
 
 idle({precall, Client}, _From, State) ->
+	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	{reply, ok, precall, State#agent{state=precall, statedata=Client, lastchangetimestamp=now()}};
 idle({ringing, Call = #call{}}, _From, State) ->
+	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	{reply, ok, ringing, State#agent{state=ringing, statedata=Call, lastchangetimestamp=now()}};
 idle({released, Reason}, _From, State) ->
+	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 idle(_Event, _From, State) ->
 	{reply, invalid, idle, State}.
@@ -154,6 +157,7 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} 
 ringing({released, Reason}, _From, State) ->
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 ringing(idle, _From, State) ->
+	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 ringing(_Event, _From, State) ->
 	{reply, invalid, ringing, State}.
@@ -161,6 +165,7 @@ ringing(_Event, _From, State) ->
 precall({outgoing, Call}, _From, State) ->
 	{reply, ok, outgoing, State#agent{state=outgoing, statedata=Call, lastchangetimestamp=now()}};
 precall(idle, _From, State) ->
+	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 precall({released, Reason}, _From, State) ->
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
@@ -192,7 +197,8 @@ outgoing(_Event, _From, State) ->
 
 released({precall, Client}, _From, State) ->
 	{reply, ok, precall, State#agent{state=precall, statedata=Client, lastchangetimestamp=now()}};
-released(idle, _From, State) ->
+released(idle, _From, State) ->	
+	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 released({released, Reason}, _From, State) ->
 	{reply, ok, released, State#agent{statedata=Reason, lastchangetimestamp=now()}};
@@ -221,12 +227,15 @@ wrapup({released, Reason}, _From, State) ->
 wrapup(idle, _From, State= #agent{queuedrelease = undefined}) -> 
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 wrapup(idle, _From, State) -> 
+	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	{reply, ok, released, State#agent{state=released, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()}};
 wrapup(_Event, _From, State) -> 
 	{reply, invalid, wrapup, State}.
 
 
 % generic handlers independant of state
+handle_event(stop, _StateName, State) -> 
+	{stop, normal, State};
 handle_event(_Event, StateName, State) ->
 	{next_state, StateName, State}.
 

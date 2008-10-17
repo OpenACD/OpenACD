@@ -93,6 +93,7 @@ handle_info({tcp, Socket, Bin}, State) ->
 
 handle_info({tcp_closed, _Socket}, State) ->
 	io:format("Client disconnected~n", []),
+	gen_fsm:send_all_state_event(State#state.agent_fsm, stop),
 	{stop, normal, State};
 
 handle_info(_Info, State) ->
@@ -113,7 +114,8 @@ handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), 
 
 handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter) ->
 	[Username, Password] = util:string_split(Credentials, ":", 2),
-	{ok, Pid} = agent:start_link(#agent{login=Username, socket=State#state.socket}),
+	{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, socket=State#state.socket}),
+	link(Pid),
 	State2 = State#state{agent_fsm=Pid},
 	io:format("User ~p is trying to authenticate using ~p.~n", [Username, Password]),
 	{"ACK " ++ integer_to_list(Counter) ++ " 1 1 1", State2};
@@ -143,7 +145,7 @@ handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 handle_event([Event, Counter], State) when is_integer(Counter) ->
 	{"ERR " ++ integer_to_list(Counter) ++ " Unknown event " ++ Event, State};
 
-handle_event([Event | [Counter | Args]], State) when is_integer(Counter) ->
+handle_event([Event | [Counter | _Args]], State) when is_integer(Counter) ->
 	{"ERR " ++ integer_to_list(Counter) ++ " invalid arguments for event " ++ Event, State};
 	
 handle_event(_Stuff, State) ->

@@ -1,6 +1,6 @@
 -record(agent, {
 	login :: string(),
-	skills = [english] :: [atom(), ...],
+	skills = [english, '_agent', '_node'] :: [atom(), ...],
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
 	socket :: port(),	% is port() appropriate?
 	state = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	

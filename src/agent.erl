@@ -30,9 +30,17 @@ start(Agent = #agent{}) ->
 	gen_fsm:start(?MODULE, [Agent], []).
 	
 init([State = #agent{}]) ->
-	{ok, released, State}.
+	State2 = expand_magic_skills(State),
+	{ok, released, State2}.
 
 % actual functions we'll call
+
+expand_magic_skills(State) ->
+	State#agent{skills = lists:map(
+		fun('_agent') -> list_to_atom(State#agent.login);
+		('_node') -> node();
+		(Skill) -> Skill
+	end, State#agent.skills)}.
 
 -spec(query_state/1 :: (Pid :: pid()) -> {'ok', atom()}).
 query_state(Pid) -> 

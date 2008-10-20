@@ -131,10 +131,10 @@ handle_info({'EXIT', From, _Reason}, State) ->
 	State)
 	};
 handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
-	io:format("I'm taking care of an agent down."),
+	io:format("I'm taking care of an agent down.~n"),
 	{noreply, dict:filter(fun(_Key, Value) -> Value =/= Object end, State)};
 handle_info({global_name_conflict, _Name}, State) ->
-	io:format("Node ~p lost election", [node()]),
+	io:format("Node ~p lost election~n", [node()]),
 	link(global:whereis_name(?MODULE)),
 	{noreply, sync_agents(State)};
 

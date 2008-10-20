@@ -13,7 +13,7 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 
 %% other exports
--export([start/1, start_link/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1]).
+-export([start/1, start_link/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2]).
 
 % gen_fsm:start_link
 % gen_fsm:send_event
@@ -28,6 +28,9 @@ start_link(Agent = #agent{}) ->
 -spec(start/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
 start(Agent = #agent{}) -> 
 	gen_fsm:start(?MODULE, [Agent], []).
+
+set_connection(Pid, Socket) ->
+	gen_fsm:sync_send_all_state_event(Pid, {set_connection, Socket}).
 	
 init([State = #agent{}]) ->
 	State2 = expand_magic_skills(State),
@@ -243,6 +246,11 @@ handle_sync_event(query_state, _From, StateName, State) ->
 	{reply, {ok, StateName}, StateName, State};
 handle_sync_event(dump_state, _From, StateName, State) ->
 	{reply, State, StateName, State};
+handle_sync_event({set_connection, Pid}, _From, StateName, State) when is_atom(State#agent.connection) ->
+	link(Pid),
+	{reply, ok, StateName, State#agent{connection=Pid}};
+handle_sync_event({set_connection, _Pid}, _From, StateName, State) ->
+	{reply, error, StateName, State};
 handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.
 

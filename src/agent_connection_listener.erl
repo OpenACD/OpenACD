@@ -38,7 +38,7 @@ stop(Pid) ->
 
 init([Port]) ->
 	process_flag(trap_exit, true),
-	Opts = [binary, {packet, 0}, {reuseaddr, true},
+	Opts = [list, {packet, 0}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
 	case gen_tcp:listen(Port, Opts) of
 		{ok, Listen_socket} ->
@@ -126,7 +126,7 @@ double_start_test() ->
 	
 async_listsock_test() -> 
 	{ok, Pid} = start(6666),
-	{ok, Socket} = gen_tcp:connect(net_adm:localhost(), 6666, [binary]),
+	{ok, Socket} = gen_tcp:connect(net_adm:localhost(), 6666, [list]),
 	gen_tcp:send(Socket, "test/r/n"),
 	stop(Pid),
 	gen_tcp:close(Socket).

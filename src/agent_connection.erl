@@ -22,7 +22,9 @@
 -record(state, {
 	salt,
 	socket,
-	agent_fsm
+	agent_fsm,
+	send_queue = [],
+	counter = 1
 	}).
 
 start(Socket) ->
@@ -43,11 +45,11 @@ handle_call(Request, _From, State) ->
 
 % negotiate the client's protocol version and such
 handle_cast(negotiate, State) ->
-	inet:setopts(State#state.socket, [{active, false}, {packet, 0}, binary]),
+	inet:setopts(State#state.socket, [{active, false}, {packet, 0}, list]),
 	gen_tcp:send(State#state.socket, "Agent Server: -1\r\n"),
 	{ok, Packet} = gen_tcp:recv(State#state.socket, 0),
 	io:format("packet: ~p.~n", [Packet]),
-		case binary_to_list(Packet) of
+		case Packet of
 			"Protocol: " ++ Args ->
 				io:format("Got protcol version ~p.~n", [Args]),
 				try lists:map(fun(X) -> list_to_integer(X) end, util:string_split(util:string_chomp(Args), ".", 2)) of
@@ -77,18 +79,20 @@ handle_cast(_Msg, State) ->
 
 handle_info({tcp, Socket, Bin}, State) ->
 	% Flow control: enable forwarding of next TCP message
-	ok = inet:setopts(Socket, [{active, once}]),
-	case parse_event(binary_to_list(Bin)) of
+	case parse_event(Bin) of
 		[] ->
 			% for some reason, erlang is sometimes getting the /n after the rest of the event
 			% so lets ignore those until we find out why
+			ok = inet:setopts(Socket, [{active, once}]),
 			{noreply, State};
 		Ev ->
 			io:format("got ~p from socket~n", [Bin]),
 			{Reply, State2} = handle_event(Ev, State),
 			io:format("sent ~p to socket~n", [Reply]),
 			ok = gen_tcp:send(Socket, Reply ++ "\r\n"),
-			{noreply, State2}
+			State3 = State2#state{send_queue = flush_send_queue(lists:reverse(State2#state.send_queue), Socket)},
+			ok = inet:setopts(Socket, [{active, once}]),
+			{noreply, State3}
 	end;
 
 handle_info({tcp_closed, _Socket}, State) ->
@@ -107,46 +111,96 @@ code_change(_OldVsn, State, _Extra) ->
 
 handle_event(["GETSALT", Counter], State) when is_integer(Counter) ->
 	State2 = State#state{salt=random:uniform(4294967295)},
-	{"ACK " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(State2#state.salt), State2};
+	{ack(Counter, integer_to_list(State2#state.salt)), State2};
 
 handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), is_atom(State#state.salt) ->
-	{"ERR " ++ integer_to_list(Counter) ++ " Please request a salt with GETSALT first", State};
+	{err(Counter, "Please request a salt with GETSALT first"), State};
 
 handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter) ->
 	[Username, Password] = util:string_split(Credentials, ":", 2),
-	{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, socket=State#state.socket}),
-	link(Pid),
-	State2 = State#state{agent_fsm=Pid},
-	io:format("User ~p is trying to authenticate using ~p.~n", [Username, Password]),
-	{"ACK " ++ integer_to_list(Counter) ++ " 1 1 1", State2};
+	{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username}),
+	case agent:set_connection(Pid, self()) of
+		ok ->
+			State2 = State#state{agent_fsm=Pid},
+			io:format("User ~p is trying to authenticate using ~p.~n", [Username, Password]),
+			{ack(Counter, "1 1 1"), send("ASTATE", integer_to_list(agent:state_to_integer(released)), State2)};
+		error ->
+			{err(Counter, Username ++ " is already logged in"), State}
+	end;
 
 handle_event([_Event, Counter], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
-	{"ERR " ++ integer_to_list(Counter) ++ " This is an unauthenticated connection, the only permitted actions are GETSALT and LOGIN", State};
-	
+	{err(Counter, "This is an unauthenticated connection, the only permitted actions are GETSALT and LOGIN"), State};
+
 handle_event(["PING", Counter], State) when is_integer(Counter) ->
 	{MegaSecs, Secs, _MicroSecs} = now(),
-	{"ACK " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(MegaSecs) ++ integer_to_list(Secs), State};
+	{ack(Counter, integer_to_list(MegaSecs) ++ integer_to_list(Secs)), State};
+
+handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Counter) ->
+	try agent:list_to_state(AgState) of
+		released ->
+			try list_to_integer(AgStateData) of
+				ReleaseState ->
+					case agent:set_state(State#state.agent_fsm, released, {ReleaseState, 0}) of
+						ok ->
+							{ok, NewAgState} = agent:query_state(State#state.agent_fsm),
+							{ack(Counter), send("ASTATE", integer_to_list(agent:state_to_integer(NewAgState)), State)};
+						invalid ->
+							{ok, OldState} = agent:query_state(State#state.agent_fsm),
+							{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to released"), State}
+					end
+				catch
+					_:_ ->
+						{err(Counter, "Invalid release option"), State}
+				end;
+			%precall ->
+				%agent:set_state(State#state.agent_fsm, precall, AgStateData)
+		NewState ->
+			case agent:set_state(State#state.agent_fsm, NewState, AgStateData) of
+				ok ->
+					{ok, NewAgState} = agent:query_state(State#state.agent_fsm),
+					{ack(Counter), send("ASTATE", integer_to_list(agent:state_to_integer(NewAgState)), State)};
+				invalid ->
+					{ok, OldState} = agent:query_state(State#state.agent_fsm),
+					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState)), State}
+			end
+	catch
+		_:_ ->
+			{err(Counter, "Invalid state " ++ AgState), State}
+	end;
 
 handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 	try agent:list_to_state(AgState) of
 		NewState ->
 			case agent:set_state(State#state.agent_fsm, NewState) of
 				ok ->
-					{"ACK " ++ integer_to_list(Counter), State};
+					{ok, NewAgState} = agent:query_state(State#state.agent_fsm),
+					{ack(Counter), send("ASTATE", integer_to_list(agent:state_to_integer(NewAgState)), State)};
 				invalid ->
 					{ok, OldState} = agent:query_state(State#state.agent_fsm),
-					{"ERR " ++ integer_to_list(Counter) ++ " Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState), State}
+					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState)), State}
 			end
 	catch
 		_:_ ->
-			{"ERR " ++ integer_to_list(Counter) ++ " Invalid state " ++ AgState, State}
+			{err(Counter, "Invalid state " ++ AgState), State}
 	end;
 
+handle_event(["BRANDLIST", Counter], State) when is_integer(Counter) ->
+	{ack(Counter, "(0031003|Slic.com),(00420001|WTF)"), State};
+
+handle_event(["PROFILES", Counter], State) when is_integer(Counter) ->
+	{ack(Counter, "1:Level1 2:Level2 3:Level3 4:Supervisor"), State};
+
+handle_event(["QUEUENAMES", Counter], State) when is_integer(Counter) ->
+	{ack(Counter, "(L1-0031003|Slic.com),(L1-00420001|WTF)"), State};
+
+handle_event(["RELEASEOPTIONS", Counter], State) when is_integer(Counter) ->
+	{ack(Counter, "1:bathroom:0,2:smoke:-1"), State};
+
 handle_event([Event, Counter], State) when is_integer(Counter) ->
-	{"ERR " ++ integer_to_list(Counter) ++ " Unknown event " ++ Event, State};
+	{err(Counter, "Unknown event " ++ Event), State};
 
 handle_event([Event | [Counter | _Args]], State) when is_integer(Counter) ->
-	{"ERR " ++ integer_to_list(Counter) ++ " invalid arguments for event " ++ Event, State};
+	{err(Counter, "invalid arguments for event " ++ Event), State};
 	
 handle_event(_Stuff, State) ->
 	{"ERR Invalid Event, missing or invalid counter", State}.
@@ -169,6 +223,27 @@ parse_counter(Counter) ->
 	catch
 		_:_ -> Counter
 	end.
+
+ack(Counter, Data) ->
+	"ACK " ++ integer_to_list(Counter) ++ " " ++ Data.
+
+ack(Counter) ->
+	"ACK " ++ integer_to_list(Counter).
+
+err(Counter, Error) ->
+	"ERR " ++ integer_to_list(Counter) ++ " " ++ Error.
+
+-spec(send/3 :: (Event :: string(), Message :: string(), State :: #state{}) -> #state{}).
+send(Event, Message, State) ->
+	Counter = State#state.counter,
+	State#state{counter=Counter + 1, send_queue=[Event++" "++integer_to_list(Counter)++" "++Message | State#state.send_queue]}.
+
+flush_send_queue([], _Socket) ->
+	[];
+flush_send_queue([H|T], Socket) ->
+	io:format("sent ~p to socket~n", [H]),
+	gen_tcp:send(Socket, H ++ "\r\n"),
+	flush_send_queue(T, Socket).
 
 -ifdef(EUNIT).
 

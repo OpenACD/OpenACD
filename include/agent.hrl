@@ -2,7 +2,7 @@
 	login :: string(),
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
-	socket :: port(),	% is port() appropriate?
+	connection :: pid(),
 	state = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
 	statedata = default ::	{} |		% when state is released
 						#call{} |	% when state is ringing, oncall, outgoing, or wrapup

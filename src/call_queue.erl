@@ -6,24 +6,55 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-define(DEFAULT_WEIGHT, 5).
+
 -behaviour(gen_server).
 -include("call.hrl").
--export([start/1, start_link/1, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1]).
+-export([start/1, start/2, start/3, start_link/1, start_link/2, start_link/3, set_recipe/2, set_weight/2, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1]).
+
+-record(state, {
+	queue = gb_trees:empty(),
+	name :: atom(),
+	recipe = [] :: recipe(),
+	weight = ?DEFAULT_WEIGHT :: pos_integer()}).
 
 %gen_server support
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -spec(start/1 :: (Name :: atom()) -> {ok, pid()}).
 start(Name) ->
-	gen_server:start(?MODULE, [Name], []).
+	gen_server:start(?MODULE, [Name, [], ?DEFAULT_WEIGHT], []).
 
+-spec(start/2 :: (Name :: atom(), Recipe :: recipe()) -> {ok, pid()}).
+start(Name, Recipe) ->
+	gen_server:start(?MODULE, [Name, Recipe, ?DEFAULT_WEIGHT], []).
+
+-spec(start/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
+start(Name, Recipe, Weight) -> 
+	gen_server:start(?MODULE, [Name, Recipe, Weight]).
+	
 -spec(start_link/1 :: (Name :: atom()) -> {ok, pid()}).
 start_link(Name) ->
-	gen_server:start_link(?MODULE, [Name], []).
+	gen_server:start_link(?MODULE, [Name, [], ?DEFAULT_WEIGHT], []).
 
-init([Name]) -> 
-	put(name, Name),
-	{ok, gb_trees:empty()}.
+-spec(start_link/2 :: (Name :: atom(), Recipe :: recipe()) -> {ok, pid()}).
+start_link(Name, Recipe) -> 
+	gen_server:start_link(?MODULE, [Name, Recipe, ?DEFAULT_WEIGHT], []).
+
+-spec(start_link/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
+start_link(Name, Recipe, Weight) -> 
+	gen_server:start_link(?MODULE, [Name, Recipe, Weight], []).
+
+init([Name, Recipe, Weight]) -> 
+	{ok, #state{name=Name, recipe=Recipe, weight=Weight}}.
+
+-spec(set_recipe/2 :: (Pid :: pid(), Recipe :: recipe()) -> 'ok' | 'error').
+set_recipe(Pid, Recipe) -> 
+	gen_server:call(Pid, {set_recipe, Recipe}).
+
+-spec(set_weight/2 :: (Pid :: pid(), Weight :: pos_integer()) -> 'ok' | 'error').
+set_weight(Pid, Weight) -> 
+	gen_server:call(Pid, {set_weight, Weight}).
 
 -spec(add/3 :: (Priority :: non_neg_integer(), Calldata :: #call{}, Pid :: pid()) -> ok).
 add(Priority, Calldata, Pid) -> 
@@ -86,23 +117,28 @@ find_key(Needle, {_Key, _Value, Iter}) ->
 find_key(_Needle, none) -> 
 	none.
 
+handle_call({set_weight, Weight}, _From, State) ->
+	{reply, ok, State#state{weight=Weight}};
+handle_call({set_recipe, Recipe}, _From, State) ->
+	{reply, ok, State#state{recipe=Recipe}};
 handle_call({add, Priority, Calldata}, _From, State) -> 
-	{reply, ok, gb_trees:insert({Priority,now()}, Calldata, State)};
+	Trees = gb_trees:insert({Priority, now()}, Calldata, State#state.queue),
+	{reply, ok, State#state{queue=Trees}};
 
 handle_call(ask, From, State) ->
 	%generate a call in queue excluding those already bound
 	% return a tuple:  {key, val}
-	{reply, find_unbound(gb_trees:next(gb_trees:iterator(State)), From), State};
+	{reply, find_unbound(gb_trees:next(gb_trees:iterator(State#state.queue)), From), State};
 
 handle_call(grab, From, State) ->
 	% ask and bind in one handy step
 	%io:format("From:  ~p~n", [From]),
-	case find_unbound(gb_trees:next(gb_trees:iterator(State)), From) of
+	case find_unbound(gb_trees:next(gb_trees:iterator(State#state.queue)), From) of
 		none -> 
 			{reply, none, State};
 		{Key, Value} ->
 			{Realfrom, _} = From, 
-			State2 = gb_trees:update(Key, Value#call{bound=lists:append(Value#call.bound, [Realfrom])}, State),
+			State2 = State#state{queue=gb_trees:update(Key, Value#call{bound=lists:append(Value#call.bound, [Realfrom])}, State#state.queue)},
 			{reply, {Key, Value}, State2}
 	end;
 
@@ -110,11 +146,11 @@ handle_call(print, _From, State) ->
 	{reply, State, State};
 
 handle_call({remove, Id}, _From, State) ->
-	case find_key(Id, gb_trees:next(gb_trees:iterator(State))) of
+	case find_key(Id, gb_trees:next(gb_trees:iterator(State#state.queue))) of
 		none ->
 			{reply, none, State};
 		{Key, _Value} ->
-			State2 = gb_trees:delete(Key, State),
+			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			{reply, ok, State2}
 		end;
 
@@ -122,17 +158,17 @@ handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 
 handle_call({set_priority, Id, Priority}, _From, State) ->
-	case find_key(Id, gb_trees:next(gb_trees:iterator(State))) of
+	case find_key(Id, gb_trees:next(gb_trees:iterator(State#state.queue))) of
 		none ->
 			{reply, none, State};
 		{{Oldpri, Time}, Value} ->
-			State2 = gb_trees:delete({Oldpri, Time}, State),
-			State3 = gb_trees:insert({Priority, Time}, Value, State2),
+			State2 = State#state{queue=gb_trees:delete({Oldpri, Time}, State#state.queue)},
+			State3 = State2#state{queue=gb_trees:insert({Priority, Time}, Value, State2#state.queue)},
 			{reply, ok, State3}
 		end;
 
 handle_call(to_list, _From, State) ->
-	{reply, lists:map(fun({_, Call}) -> Call end, gb_trees:to_list(State)), State};
+	{reply, lists:map(fun({_, Call}) -> Call end, gb_trees:to_list(State#state.queue)), State};
 
 handle_call(_Request, _From, State) ->
 	{reply, ok, State}.

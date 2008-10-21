@@ -1,0 +1,259 @@
+%%%-------------------------------------------------------------------
+%%% File          : cook.erl
+%%% Author        : Micah Warren
+%%% Organization  : __MyCompanyName__
+%%% Project       : cpxerl
+%%% Description   : 
+%%%
+%%% Created       :  10/21/08
+%%%-------------------------------------------------------------------
+-module(cook).
+-author("Micah").
+
+-behaviour(gen_server).
+
+-include("call.hrl").
+-include("agent.hrl").
+-include("queue.hrl").
+
+-ifdef(EUNIT).
+-include_lib("eunit/include/eunit.hrl").
+-define(TICK_LENGTH, 500).
+-else.
+-define(TICK_LENGTH, 10000).
+-endif.
+
+%% API
+-export([start_link/3, start/3, stop/1, start_tick/1, stop_tick/1]).
+
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+	 terminate/2, code_change/3]).
+
+-record(state, {recipe = [] :: recipe(),
+				ticked = 0 :: integer(),
+				call :: string() | 'undefined',
+				queue :: pid() | 'undefined',
+				continue = true :: bool()}).
+
+%%====================================================================
+%% API
+%%====================================================================
+%%--------------------------------------------------------------------
+%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
+%% Description: Starts the server
+%%--------------------------------------------------------------------
+start_link(Call, Recipe, QueuePid) ->
+    gen_server:start_link(?MODULE, [Call, Recipe, QueuePid], []).
+start(Call, Recipe, QueuePid) -> 
+	gen_server:start(?MODULE, [Call, Recipe, QueuePid], []).
+%%====================================================================
+%% gen_server callbacks
+%%====================================================================
+
+%%--------------------------------------------------------------------
+%% Function: init(Args) -> {ok, State} |
+%%                         {ok, State, Timeout} |
+%%                         ignore               |
+%%                         {stop, Reason}
+%% Description: Initiates the server
+%%--------------------------------------------------------------------
+init([Call, Recipe, QueuePid]) ->
+	State = #state{ticked=0, recipe=Recipe, call=Call, queue=QueuePid},
+    {ok, State}.
+
+%%--------------------------------------------------------------------
+%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
+%%                                      {reply, Reply, State, Timeout} |
+%%                                      {noreply, State} |
+%%                                      {noreply, State, Timeout} |
+%%                                      {stop, Reason, Reply, State} |
+%%                                      {stop, Reason, State}
+%% Description: Handling call messages
+%%--------------------------------------------------------------------
+handle_call(_Request, _From, State) ->
+    Reply = ok,
+    {reply, Reply, State}.
+
+%%--------------------------------------------------------------------
+%% Function: handle_cast(Msg, State) -> {noreply, State} |
+%%                                      {noreply, State, Timeout} |
+%%                                      {stop, Reason, State}
+%% Description: Handling cast messages
+%%--------------------------------------------------------------------
+handle_cast(start_tick, State) -> 
+	{noreply, State#state{continue=true}};
+handle_cast(tick, #state{continue=false} = State) -> 
+	{noreply, State};
+handle_cast(tick, State) -> 
+	State2 = do_tick(State#state{continue=true}),
+	Self = self(),
+	spawn(fun() -> 
+		receive 
+		after ?TICK_LENGTH -> 
+			gen_server:cast(Self, tick)
+		end
+	end),
+	{noreply, State2};
+handle_cast(stop_tick, State) -> 
+	{noreply, State#state{continue = false}};
+handle_cast(stop, State) -> 
+	{stop, normal, State};
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% Function: handle_info(Info, State) -> {noreply, State} |
+%%                                       {noreply, State, Timeout} |
+%%                                       {stop, Reason, State}
+%% Description: Handling all non call/cast messages
+%%--------------------------------------------------------------------
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% Function: terminate(Reason, State) -> void()
+%% Description: This function is called by a gen_server when it is about to
+%% terminate. It should be the opposite of Module:init/1 and do any necessary
+%% cleaning up. When it returns, the gen_server terminates with Reason.
+%% The return value is ignored.
+%%--------------------------------------------------------------------
+terminate(_Reason, _State) ->
+    ok.
+
+%%--------------------------------------------------------------------
+%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
+%% Description: Convert process state when code is changed
+%%--------------------------------------------------------------------
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+%%--------------------------------------------------------------------
+%%% Internal functions
+%%--------------------------------------------------------------------
+start_tick(Pid) -> 
+	gen_server:cast(Pid, start_tick),
+	gen_server:cast(Pid, tick).
+
+stop_tick(Pid) -> 
+	gen_server:cast(Pid, stop_tick).
+
+do_tick(#state{recipe=Recipe} = State) -> 
+	io:format("state:~p.~n", [State]),
+	Recipe2 = do_recipe(Recipe, State),
+	State#state{ticked= State#state.ticked+1, recipe=Recipe2}.
+
+stop(Pid) -> 
+	gen_server:cast(Pid, stop).
+	
+do_recipe([{Ticks, Op, Args, Runs} | Recipe], #state{ticked=Ticked} = State) when Ticks rem Ticked == 0 -> 
+	Doneop = do_operation({Ticks, Op, Args, Runs}, State),
+	case {Doneop, Runs} of 
+		{{T, O, A, R}, run_once} -> 
+			%add to the output recipe
+			
+			[{T, O, A, R} | do_recipe(Recipe, State)];
+		{{T, O, A, R}, run_many} -> 
+			lists:append([{T, O, A, R}, {Ticks, Op, Args, Runs}], do_recipe(Recipe, State));
+		{_D, run_many} -> 
+			[{Ticks, Op, Args, Runs} | do_recipe(Recipe, State)];
+		{_D, run_once} ->
+			do_recipe(Recipe, State)
+			% don't, just dance.
+	end;
+do_recipe([Head | Recipe], State) -> 
+	[Head | do_recipe(Recipe, State)];
+do_recipe([], _State) -> 
+	[].
+	
+do_operation({_Ticks, Op, Args, _Runs}, State) -> 
+	#state{queue=Pid, call=Callid} = State,
+	case Op of
+		add_skills -> 
+			call_queue:add_skills(Pid, Callid, Args),
+			ok;
+		remove_skills -> 
+			call_queue:remove_skills(Pid, Callid, Args),
+			ok;
+		set_priority -> 
+			call_queue:set_priority(Pid, Callid, Args),
+			ok;
+		new_queue -> 
+			io:format("NIY~n"),
+			ok;
+		voicemail -> 
+			io:format("NIY~n"),
+			ok;
+		add_recipe -> 
+			Args;
+		annouce -> 
+			io:format("NIY~n"),
+			ok
+	end.
+
+-ifdef(EUNIT).
+
+
+recipe_test_() -> 
+	{timeout, 60, 
+	{
+		foreach,
+		fun() -> 
+			queue_manager:start(),
+			{ok, Pid} = queue_manager:add_queue(testqueue),
+			call_queue:add(Pid, 1, #call{id="testcall", skills=[english, testskill]}),
+			Pid
+		end,
+		fun(Pid) -> 
+			call_queue:stop(Pid),
+			queue_manager:stop()
+		end,
+		[
+			{"Add skills once",
+			fun() -> 
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),
+				{ok, MyPid} = start("testcall", [{1, add_skills, [newskill1, newskill2], run_once}], Pid),
+				start_tick(MyPid),
+				receive
+				after ?TICK_LENGTH + 2000 ->
+					true
+				end,
+				{_Key, #call{skills=CallSkills}} = call_queue:ask(Pid),
+				?assertEqual(lists:sort([english, testskill, newskill1, newskill2]), lists:sort(CallSkills)),
+				stop(MyPid)
+			end},
+			{"remove skills once",
+			fun() -> 
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, remove_skills, [testskill], run_once}]),
+				{ok, MyPid} = start("testcall", [{1, remove_skills, [testskill], run_once}], Pid),
+				start_tick(MyPid),
+				receive
+				after ?TICK_LENGTH + 2000 -> 
+					true
+				end,
+				{_Key, #call{skills=CallSkills}} = call_queue:ask(Pid),
+				?assertEqual([english], CallSkills),
+				stop(MyPid)
+			end},
+			{"Set Priority once",
+			fun() -> 
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, set_priority, 5, run_once}]),
+				{ok, MyPid} = start("testcall", [{1, set_priority, 5, run_once}], Pid),
+				start_tick(MyPid),
+				receive
+				after ?TICK_LENGTH + 2000 -> 
+					true
+				end,
+				{{Prior, _Time}, _Call} = call_queue:ask(Pid),
+				?assertEqual(5, Prior),
+				stop(MyPid)
+			end}
+		]
+	}
+	}.
+
+-endif.
+

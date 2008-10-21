@@ -138,6 +138,7 @@ start_tick(Pid) ->
 stop_tick(Pid) -> 
 	gen_server:cast(Pid, stop_tick).
 
+-spec(do_tick/1 :: (State :: #state{}) -> #state{}).
 do_tick(#state{recipe=Recipe} = State) -> 
 	io:format("state:~p.~n", [State]),
 	Recipe2 = do_recipe(Recipe, State),
@@ -145,19 +146,20 @@ do_tick(#state{recipe=Recipe} = State) ->
 
 stop(Pid) -> 
 	gen_server:cast(Pid, stop).
-	
+
+-spec(do_recipe/2 :: (Recipe :: recipe(), State :: #state{}) -> recipe()).
 do_recipe([{Ticks, Op, Args, Runs} | Recipe], #state{ticked=Ticked} = State) when Ticks rem Ticked == 0 -> 
 	Doneop = do_operation({Ticks, Op, Args, Runs}, State),
-	case {Doneop, Runs} of 
-		{{T, O, A, R}, run_once} -> 
+	case Doneop of 
+		{T, O, A, R} when Runs =:= run_once -> 
 			%add to the output recipe
 			
 			[{T, O, A, R} | do_recipe(Recipe, State)];
-		{{T, O, A, R}, run_many} -> 
+		{T, O, A, R} when Runs =:= run_many -> 
 			lists:append([{T, O, A, R}, {Ticks, Op, Args, Runs}], do_recipe(Recipe, State));
-		{_D, run_many} -> 
+		ok when Runs =:= run_many -> 
 			[{Ticks, Op, Args, Runs} | do_recipe(Recipe, State)];
-		{_D, run_once} ->
+		ok when Runs =:= run_once ->
 			do_recipe(Recipe, State)
 			% don't, just dance.
 	end;
@@ -165,7 +167,8 @@ do_recipe([Head | Recipe], State) ->
 	[Head | do_recipe(Recipe, State)];
 do_recipe([], _State) -> 
 	[].
-	
+
+-spec(do_operation/2 :: (Recipe :: recipe_step(), State :: #state{}) -> 'ok' | recipe_step()).
 do_operation({_Ticks, Op, Args, _Runs}, State) -> 
 	#state{queue=Pid, call=Callid} = State,
 	case Op of
@@ -176,7 +179,8 @@ do_operation({_Ticks, Op, Args, _Runs}, State) ->
 			call_queue:remove_skills(Pid, Callid, Args),
 			ok;
 		set_priority -> 
-			call_queue:set_priority(Pid, Callid, Args),
+			[Priority] = Args,
+			call_queue:set_priority(Pid, Callid, Priority),
 			ok;
 		new_queue -> 
 			io:format("NIY~n"),
@@ -185,8 +189,8 @@ do_operation({_Ticks, Op, Args, _Runs}, State) ->
 			io:format("NIY~n"),
 			ok;
 		add_recipe -> 
-			Args;
-		annouce -> 
+			list_to_tuple(Args);
+		announce -> 
 			io:format("NIY~n"),
 			ok
 	end.
@@ -240,8 +244,8 @@ recipe_test_() ->
 			{"Set Priority once",
 			fun() -> 
 				{exists, Pid} = queue_manager:add_queue(testqueue),
-				call_queue:set_recipe(Pid, [{1, set_priority, 5, run_once}]),
-				{ok, MyPid} = start("testcall", [{1, set_priority, 5, run_once}], Pid),
+				call_queue:set_recipe(Pid, [{1, set_priority, [5], run_once}]),
+				{ok, MyPid} = start("testcall", [{1, set_priority, [5], run_once}], Pid),
 				start_tick(MyPid),
 				receive
 				after ?TICK_LENGTH + 2000 -> 

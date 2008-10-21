@@ -48,8 +48,7 @@ start_agent(Agent) ->
 -spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
 find_avail_agents_by_skill(Skills) ->
 	% TODO - this should also be a list comprehension
-	Agents = lists:map(fun({K,V}) -> {K, V, agent:dump_state(V)} end, gen_server:call(?MODULE, list_agents)),
-	AvailSkilledAgents = lists:filter(fun({_K, _V, State}) -> State#agent.state =:= idle andalso util:list_contains_all(State#agent.skills, Skills) end, Agents),
+	AvailSkilledAgents = [{K, V, AgState} || {K, V} <- gen_server:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], AgState#agent.state =:= idle, util:list_contains_all(AgState#agent.skills, Skills)],
 	AvailSkilledAgentsByIdleTime = lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> State1#agent.lastchangetimestamp =< State2#agent.lastchangetimestamp end, AvailSkilledAgents), 
 	lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> length(State1#agent.skills) =< length(State2#agent.skills) end, AvailSkilledAgentsByIdleTime).
 

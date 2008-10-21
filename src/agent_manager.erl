@@ -47,6 +47,7 @@ start_agent(Agent) ->
 % locally find all available agents with a particular skillset
 -spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
 find_avail_agents_by_skill(Skills) ->
+	% TODO - this should also be a list comprehension
 	Agents = lists:map(fun({K,V}) -> {K, V, agent:dump_state(V)} end, gen_server:call(?MODULE, list_agents)),
 	AvailSkilledAgents = lists:filter(fun({_K, _V, State}) -> State#agent.state =:= idle andalso util:list_contains_all(State#agent.skills, Skills) end, Agents),
 	AvailSkilledAgentsByIdleTime = lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> State1#agent.lastchangetimestamp =< State2#agent.lastchangetimestamp end, AvailSkilledAgents), 

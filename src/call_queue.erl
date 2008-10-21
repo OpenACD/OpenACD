@@ -6,11 +6,10 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--define(DEFAULT_WEIGHT, 5).
-
 -behaviour(gen_server).
 -include("call.hrl").
--export([start/1, start/2, start/3, start_link/1, start_link/2, start_link/3, set_recipe/2, set_weight/2, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1]).
+-include("queue.hrl").
+-export([start/3, start_link/3, set_recipe/2, set_weight/2, get_weight/1, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1]).
 
 -record(state, {
 	queue = gb_trees:empty(),
@@ -22,27 +21,31 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -spec(start/1 :: (Name :: atom()) -> {ok, pid()}).
-start(Name) ->
-	gen_server:start(?MODULE, [Name, [], ?DEFAULT_WEIGHT], []).
+start(Name) -> % Start queue with default recipe and weight
+	gen_server:start(?MODULE, [Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT], []).
 
--spec(start/2 :: (Name :: atom(), Recipe :: recipe()) -> {ok, pid()}).
-start(Name, Recipe) ->
-	gen_server:start(?MODULE, [Name, Recipe, ?DEFAULT_WEIGHT], []).
+%-spec(start/2 :: (Name :: atom(), Recipe :: recipe()) -> {ok, pid()}).
+%start(Name, Recipe) when is_list(Recipe) -> % Start queue with default weight
+	%gen_server:start(?MODULE, [Name, Recipe, ?DEFAULT_WEIGHT], []);
+%start(Name, Weight) when is_integer(Weight), Weight > 0 -> % Start queue with default recipe
+	%gen_server:start(?MODULE, [Name, ?DEFAULT_RECIPE, Weight], []).
 
 -spec(start/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
-start(Name, Recipe, Weight) -> 
-	gen_server:start(?MODULE, [Name, Recipe, Weight]).
+start(Name, Recipe, Weight) -> % Start linked queue custom default recipe and weight
+	gen_server:start(?MODULE, [Name, Recipe, Weight], []).
 	
--spec(start_link/1 :: (Name :: atom()) -> {ok, pid()}).
-start_link(Name) ->
-	gen_server:start_link(?MODULE, [Name, [], ?DEFAULT_WEIGHT], []).
+%-spec(start_link/1 :: (Name :: atom()) -> {ok, pid()}).
+%start_link(Name) -> % Start linked queue with default recipe and weight
+	%gen_server:start_link(?MODULE, [Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT], []).
 
--spec(start_link/2 :: (Name :: atom(), Recipe :: recipe()) -> {ok, pid()}).
-start_link(Name, Recipe) -> 
-	gen_server:start_link(?MODULE, [Name, Recipe, ?DEFAULT_WEIGHT], []).
+%-spec(start_link/2 :: (Name :: atom(), Recipe :: recipe()) -> {ok, pid()}).
+%start_link(Name, Recipe) when is_list(Recipe) -> % Start linked queue with default weight
+	%gen_server:start_link(?MODULE, [Name, Recipe, ?DEFAULT_WEIGHT], []);
+%start_link(Name, Weight) when is_integer(Weight), Weight > 0 -> % Start linked queue with defailt recipe
+	%gen_server:start_link(?MODULE, [Name, ?DEFAULT_RECIPE, Weight], []).
 
 -spec(start_link/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
-start_link(Name, Recipe, Weight) -> 
+start_link(Name, Recipe, Weight) -> % Start linked queue with custom recipe and weight
 	gen_server:start_link(?MODULE, [Name, Recipe, Weight], []).
 
 init([Name, Recipe, Weight]) -> 
@@ -55,6 +58,10 @@ set_recipe(Pid, Recipe) ->
 -spec(set_weight/2 :: (Pid :: pid(), Weight :: pos_integer()) -> 'ok' | 'error').
 set_weight(Pid, Weight) -> 
 	gen_server:call(Pid, {set_weight, Weight}).
+
+-spec(get_weight/1 :: (Pid :: pid()) -> pos_integer()).
+get_weight(Pid) -> 
+	gen_server:call(Pid, get_weight).
 
 -spec(add/3 :: (Priority :: non_neg_integer(), Calldata :: #call{}, Pid :: pid()) -> ok).
 add(Priority, Calldata, Pid) -> 
@@ -119,6 +126,8 @@ find_key(_Needle, none) ->
 
 handle_call({set_weight, Weight}, _From, State) ->
 	{reply, ok, State#state{weight=Weight}};
+handle_call(get_weight, _From, State) ->
+		{reply, State#state.weight, State};
 handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
 handle_call({add, Priority, Calldata}, _From, State) -> 

@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 -include("call.hrl").
 -include("queue.hrl").
--export([start/3, start_link/3, set_recipe/2, set_weight/2, get_weight/1, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1]).
+-export([start/3, start_link/3, set_recipe/2, set_weight/2, get_weight/1, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1, add_skills/3, remove_skills/3]).
 
 -record(state, {
 	queue = gb_trees:empty(),
@@ -63,8 +63,8 @@ set_weight(Pid, Weight) ->
 get_weight(Pid) -> 
 	gen_server:call(Pid, get_weight).
 
--spec(add/3 :: (Priority :: non_neg_integer(), Calldata :: #call{}, Pid :: pid()) -> ok).
-add(Priority, Calldata, Pid) -> 
+-spec(add/3 :: (Pid :: pid(), Priority :: non_neg_integer(), Calldata :: #call{}) -> ok).
+add(Pid, Priority, Calldata) -> 
 	gen_server:call(Pid, {add, Priority, Calldata}, infinity).
 
 -spec(ask/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
@@ -74,12 +74,20 @@ ask(Pid) ->
 -spec(grab/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
 grab(Pid) ->
 	gen_server:call(Pid, grab).
+	
+-spec(add_skills/3 :: (Pid :: pid(), Callid :: string(), Skills :: [atom()]) -> 'none' | 'ok').
+add_skills(Pid, Callid, Skills) -> 
+	gen_server:call(Pid, {add_skills, Callid, Skills}).
+	
+-spec(remove_skills/3 :: (Pid :: pid(), Callid :: string(), Skills :: [atom()]) -> 'none' | 'ok').
+remove_skills(Pid, Callid, Skills) -> 
+	gen_server:call(Pid, {remove_skills, Callid, Skills}).
 
--spec(set_priority/3 :: (Calldata :: #call{}, Priority :: non_neg_integer(), Pid :: pid()) -> 'none' | 'ok';
-						(Callid :: string(), Priority :: non_neg_integer(), Pid :: pid()) -> 'none' | 'ok').
-set_priority(#call{} = Calldata, Priority, Pid) ->
-	set_priority(Calldata#call.id, Priority, Pid);
-set_priority(Callid, Priority, Pid) ->
+-spec(set_priority/3 :: ( Pid :: pid(), Calldata :: #call{}, Priority :: non_neg_integer()) -> 'none' | 'ok';
+						(Pid :: pid(), Callid :: string(), Priority :: non_neg_integer()) -> 'none' | 'ok').
+set_priority(Pid, #call{} = Calldata, Priority) ->
+	set_priority(Pid, Calldata#call.id, Priority);
+set_priority(Pid, Callid, Priority) ->
 	gen_server:call(Pid, {set_priority, Callid, Priority}).
 
 -spec(to_list/1 :: (Pid :: pid()) -> []).
@@ -90,11 +98,11 @@ to_list(Pid) ->
 print(Pid) ->
 	gen_server:call(Pid, print).
 
--spec(remove/2 :: (Calldata :: #call{}, Pid :: pid()) -> 'none' | 'ok';
-					(Calldata :: string(), Pid :: pid()) -> 'none' | 'ok').
-remove(#call{} = Calldata, Pid) ->
-	remove(Calldata#call.id, Pid);
-remove(Calldata, Pid) -> 
+-spec(remove/2 :: (Pid :: pid(), Calldata :: #call{}) -> 'none' | 'ok';
+					(Pid :: pid(), Calldata :: string()) -> 'none' | 'ok').
+remove(Pid, #call{} = Calldata) ->
+	remove(Pid, Calldata#call.id);
+remove(Pid, Calldata) -> 
 	gen_server:call(Pid, {remove, Calldata}).
 
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -133,6 +141,24 @@ handle_call({set_recipe, Recipe}, _From, State) ->
 handle_call({add, Priority, Calldata}, _From, State) -> 
 	Trees = gb_trees:insert({Priority, now()}, Calldata, State#state.queue),
 	{reply, ok, State#state{queue=Trees}};
+
+handle_call({add_skills, Callid, Skills}, _From, State) -> 
+	case find_key(Callid, gb_trees:next(gb_trees:iterator(State#state.queue))) of
+		none -> 
+			{reply, none, State};
+		{Key, #call{skills=OldSkills} = Value} -> 
+			State2 = State#state{queue=gb_trees:update(Key, Value#call{skills=lists:merge(lists:sort(OldSkills), lists:sort(Skills))}, State#state.queue)},
+			{reply, ok, State2}
+	end;
+handle_call({remove_skills, Callid, Skills}, _From, State) -> 
+	case find_key(Callid, gb_trees:next(gb_trees:iterator(State#state.queue))) of
+		none -> 
+			{reply, none, State};
+		{Key, #call{skills=OldSkills} = Value} -> 
+			NewSkills = lists:subtract(OldSkills, Skills),
+			State2 = State#state{queue=gb_trees:update(Key, Value#call{skills=NewSkills}, State#state.queue)},
+			{reply, ok, State2}
+	end;
 
 handle_call(ask, From, State) ->
 	%generate a call in queue excluding those already bound
@@ -174,7 +200,7 @@ handle_call({set_priority, Id, Priority}, _From, State) ->
 			State2 = State#state{queue=gb_trees:delete({Oldpri, Time}, State#state.queue)},
 			State3 = State2#state{queue=gb_trees:insert({Priority, Time}, Value, State2#state.queue)},
 			{reply, ok, State3}
-		end;
+	end;
 
 handle_call(to_list, _From, State) ->
 	{reply, lists:map(fun({_, Call}) -> Call end, gb_trees:to_list(State#state.queue)), State};
@@ -201,42 +227,42 @@ code_change(_OldVsn, State, _Extra) ->
 add_test() ->
 	{_, Pid} = start(goober),
 	C1 = #call{id="C1"},
-	?assert(add(1, C1, Pid) =:= ok),
+	?assert(add(Pid, 1, C1) =:= ok),
 	?assertMatch({{1, _Time}, C1}, ask(Pid)).
 	
 remove_test() ->
 	{_, Pid} = start(goober),
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2"},
-	add(1, C1, Pid),
-	add(1, C2, Pid),
-	remove(C1, Pid),
+	add(Pid, 1, C1),
+	add(Pid, 1, C2),
+	remove(Pid, C1),
 	?assertMatch({_Key, C2}, grab(Pid)).
 	
 remove_id_test() ->
 	{_, Pid} = start(goober),
 	C1 = #call{id="C1"},
-	add(1, C1, Pid),
-	?assertMatch(ok, remove("C1", Pid)),
+	add(Pid, 1, C1),
+	?assertMatch(ok, remove(Pid, "C1")),
 	?assertMatch(none, grab(Pid)).
 
 remove_nil_test() ->
 	{_, Pid} = start(goober), 
-	?assertMatch(none, remove("C1", Pid)).
+	?assertMatch(none, remove(Pid, "C1")).
 
 find_key_test() ->
 	{_, Pid} = start(goober),
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2", bound=[self()]},
-	add(1, C1, Pid),
-	?assertMatch(none, remove(C2, Pid)).
+	add(Pid, 1, C1),
+	?assertMatch(none, remove(Pid, C2)).
 
 bound_test() ->
 	{_, Node} = slave:start(net_adm:localhost(), boundtest),
 	Pid = spawn(Node, erlang, exit, [normal]),
 	C1 = #call{id="C1", bound=[Pid]},
 	{_, Qpid} = start(foobar),
-	add(1, C1, Qpid),
+	add(Qpid, 1, C1),
 	?assertMatch({_Key, C1}, grab(Qpid)),
 	?assertMatch(none, grab(Qpid)).
 
@@ -245,9 +271,9 @@ grab_test() ->
 	C2 = #call{id="C2", bound=[self()]},
 	C3 = #call{id="C3"},
 	{_, Pid} = start(goober),
-	add(1, C1, Pid),
-	add(0, C2, Pid),
-	add(1, C3, Pid),
+	add(Pid, 1, C1),
+	add(Pid, 0, C2),
+	add(Pid, 1, C3),
 	?assertMatch({_Key, C1}, grab(Pid)),
 	?assertMatch({_Key, C3}, grab(Pid)),
 	?assert(grab(Pid) =:= none).
@@ -261,27 +287,27 @@ increase_priority_test() ->
 	C2 = #call{id="C2"},
 	C3 = #call{id="C3"},
 	{_, Pid} = start(goober),
-	add(1, C1, Pid),
-	add(1, C2, Pid),
-	add(1, C3, Pid),
+	add(Pid, 1, C1),
+	add(Pid, 1, C2),
+	add(Pid, 1, C3),
 	?assertMatch({{1, _Time}, C1}, ask(Pid)),
-	set_priority(C2, 0, Pid),
+	set_priority(Pid, C2, 0),
 	?assertMatch({{0, _Time}, C2}, ask(Pid)).
 
 increase_priority_nil_test() ->
 	{_, Pid} = start(goober),
-	?assertMatch(none, set_priority("C1", 1, Pid)).
+	?assertMatch(none, set_priority(Pid, "C1", 1)).
 
 decrease_priority_test() ->
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2"},
 	C3 = #call{id="C3"},
 	{_, Pid} = start(goober),
-	add(1, C1, Pid),
-	add(1, C2, Pid),
-	add(1, C3, Pid),
+	add(Pid, 1, C1),
+	add(Pid, 1, C2),
+	add(Pid, 1, C3),
 	?assertMatch({{1, _Time}, C1}, ask(Pid)),
-	set_priority(C1, 2, Pid),
+	set_priority(Pid, C1, 2),
 	?assertMatch({{1, _Time}, C2}, ask(Pid)).
 
 queue_to_list_test() ->
@@ -289,9 +315,9 @@ queue_to_list_test() ->
 	C2 = #call{id="C2"},
 	C3 = #call{id="C3"},
 	{_, Pid} = start(goober),
-	add(1, C1, Pid),
-	add(1, C2, Pid),
-	add(1, C3, Pid),
+	add(Pid, 1, C1),
+	add(Pid, 1, C2),
+	add(Pid, 1, C3),
 	?assertMatch([C1, C2, C3], to_list(Pid)).
 
 empty_queue_to_list_test() -> 

@@ -22,7 +22,9 @@ operations:  an atom of:
 	new_queue
 	add_skills
 	remove_skills
-	change_priority
+	set_priority
+	prioritize
+	deprioritize
 	voicemail
 	announce
 	add_recipe

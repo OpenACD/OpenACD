@@ -63,17 +63,13 @@ query_queue(Name) ->
 get_best_bindable_queues() ->
 	try gen_server:call({global, ?MODULE}, queues_as_list) of
 		List ->
-			% TODO - this should be a damned list comprehension
-			% see what calls we can bind to on each queue and what weight they have
-			List2 = lists:map(fun({K,V}) -> {K, V, call_queue:ask(V), call_queue:get_weight(V)} end, List),
-			% filter queues that have no bindable calls
-			List3 = lists:filter(fun({_K,_V,Call,_W}) -> Call =/= none end, List2),
+			List1 = [{Tk, Tv, Tcall, Tw} || {Tk, Tv} <- List, Tcall <- [call_queue:ask(Tv)], Tcall =/= none, Tw <- [call_queue:get_weight(Tv)]],
 			% sort queues by queuetime of first bindable call, longest first (lowest unix epoch time)
-			List4 = lists:sort(fun({_K1,_V1,{{_P1,T1},_Call1},_W1}, {_K2,_V2,{{_P2,T2},_Call2},_W2}) -> T1 =< T2 end, List3),
+			List2 = lists:sort(fun({_K1,_V1,{{_P1,T1},_Call1},_W1}, {_K2,_V2,{{_P2,T2},_Call2},_W2}) -> T1 =< T2 end, List1),
 			% sort queues by priority of first bindable call, lowest is higher priority
-			List5 = lists:sort(fun({_K1,_V1,{{P1,_T1},_Call1},_W1}, {_K2,_V2,{{P2,_T2},_Call2},_W2}) -> P1 =< P2 end, List4),
+			List3 = lists:sort(fun({_K1,_V1,{{P1,_T1},_Call1},_W1}, {_K2,_V2,{{P2,_T2},_Call2},_W2}) -> P1 =< P2 end, List2),
 			% sort queues by queue weight, hignest first and return the result
-			lists:sort(fun({_K1,_V1,{{_P1,_T1},_Call1},W1}, {_K2,_V2,{{_P2,_T2},_Call2},W2}) -> W1 >= W2 end, List5)
+			lists:sort(fun({_K1,_V1,{{_P1,_T1},_Call1},W1}, {_K2,_V2,{{_P2,_T2},_Call2},W2}) -> W1 >= W2 end, List3)
 	catch
 		exit:{noproc,_} ->
 			global:register_name(?MODULE, whereis(?MODULE), {global, random_notify_name}),
@@ -224,7 +220,6 @@ single_node_test_() ->
 				end
 			}, {
 				"best bindable queues by weight test", fun() ->
-					start_link(),
 					{ok, Pid} = add_queue(goober),
 					{ok, Pid2} = add_queue(goober2, 10), % higher weighted queue
 					{ok, _Pid3} = add_queue(goober3),
@@ -244,7 +239,6 @@ single_node_test_() ->
 				end
 			},{
 				"best bindable queues by priority test", fun() ->
-					start_link(),
 					{ok, Pid} = add_queue(goober),
 					{ok, Pid2} = add_queue(goober2),
 					?assertMatch([], get_best_bindable_queues()),
@@ -258,7 +252,6 @@ single_node_test_() ->
 				end
 			},{
 				"best bindable queues by queuetime test", fun() ->
-					start_link(),
 					{ok, Pid2} = add_queue(goober2),
 					{ok, Pid} = add_queue(goober),
 					?assertMatch([], get_best_bindable_queues()),

@@ -259,8 +259,8 @@ single_node_test_() ->
 			},{
 				"best bindable queues by queuetime test", fun() ->
 					start_link(),
-					{ok, Pid} = add_queue(goober),
 					{ok, Pid2} = add_queue(goober2),
+					{ok, Pid} = add_queue(goober),
 					?assertMatch([], get_best_bindable_queues()),
 					?assertEqual(ok, call_queue:add(0, #call{id="Call1"}, Pid)),
 					?assertMatch([{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),

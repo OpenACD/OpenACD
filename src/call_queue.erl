@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 -include("call.hrl").
 -include("queue.hrl").
--export([start/3, start_link/3, set_recipe/2, set_weight/2, get_weight/1, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1, add_skills/3, remove_skills/3, call_count/1]).
+-export([start/3, start_link/3, set_recipe/2, set_weight/2, get_weight/1, add/3, ask/1, get_call/2, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1, add_skills/3, remove_skills/3, call_count/1]).
 
 -record(state, {
 	queue = gb_trees:empty(),
@@ -68,6 +68,10 @@ get_weight(Pid) ->
 -spec(add/3 :: (Pid :: pid(), Priority :: non_neg_integer(), Calldata :: #call{}) -> ok).
 add(Pid, Priority, Calldata) -> 
 	gen_server:call(Pid, {add, Priority, Calldata}, infinity).
+
+-spec(get_call/2 :: (Pid ::pid(), Callid :: string()) -> 'none' | {key(), #call{}}).
+get_call(Pid, Callid) -> 
+	gen_server:call(Pid, {get_call, Callid}).
 
 -spec(ask/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
 ask(Pid) ->
@@ -142,6 +146,13 @@ find_key(Needle, {_Key, _Value, Iter}) ->
 find_key(_Needle, none) -> 
 	none.
 
+handle_call({get_call, Callid}, _From, State) -> 
+	case find_key(Callid, gb_trees:next(gb_trees:iterator(State#state.queue))) of
+		none -> 
+			{reply, none, State};
+		{Key, Value} -> 
+			{reply, {Key, Value}, State}
+	end;
 handle_call({ungrab, Callid}, From, State) ->
 	case find_key(Callid, gb_trees:next(gb_trees:iterator(State#state.queue))) of
 		none -> 

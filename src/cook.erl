@@ -140,11 +140,66 @@ stop_tick(Pid) ->
 
 -spec(do_tick/1 :: (State :: #state{}) -> #state{}).
 do_tick(#state{recipe=Recipe} = State) -> 
+	do_route(State),
 	Recipe2 = do_recipe(Recipe, State),
 	State#state{ticked= State#state.ticked+1, recipe=Recipe2}.
 
 stop(Pid) -> 
 	gen_server:cast(Pid, stop).
+
+-spec(do_route/1 :: (State :: #state{}) -> 'ok').
+do_route(State) -> 
+	Qpid = State#state.queue,
+	case call_queue:get_call(Qpid, State#state.call) of
+		{_Key, Call} ->
+			case Call#call.bound of
+				[] -> 
+					ok;
+				% get the list of agents from the dispatchers, then flatten it.
+				Dispatchers -> 
+					Agents = lists:map(fun(Dpid) -> 
+						try dispatcher:get_agents(Dpid) of
+							Ag -> 
+								Ag
+						catch
+							_:_ -> 
+								[]
+						end
+					end,
+					Dispatchers),
+				Agents2 = lists:flatten(Agents),
+				
+				% calculate costs and sort by same.
+				Agents3 = lists:sort([{ARemote + Askills + Aidle, APid} || {AName, APid, AState} <- Agents2, 
+																ARemote <- 
+																	fun(APid2) when node() =:= node(APid2) -> 
+																		[0]; 
+																	(_APid2) -> 
+																		[15]
+																	end,
+																Askills <- [length(AState#agent.skills)],
+																Aidle <- [element(2, AState#agent.lastchangetimestamp)]]),
+				% offer the call to each agent.
+				offer_call(Agents3, State#state.call),
+				ok
+			end;
+		 none -> 
+			 ok 
+	end.
+
+-spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: string()) -> 'ok').
+offer_call([Apid | Agents], Call) -> 
+	case agent:set_state(Apid, ringing, Call) of
+		ok ->
+			ok;
+		_Invalid -> 
+			offer_call(Agents, Call)
+	end;
+offer_call([], Call) -> 
+	ok.
+	
+	
+	
 
 -spec(do_recipe/2 :: (Recipe :: recipe(), State :: #state{}) -> recipe()).
 do_recipe([{Ticks, Op, Args, Runs} | Recipe], #state{ticked=Ticked} = State) when Ticks rem Ticked == 0 -> 

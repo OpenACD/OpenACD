@@ -21,7 +21,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start/0, grab/1, stop/1]).
+-export([start_link/0, start/0, grab/1, stop/1, get_agents/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -67,7 +67,10 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
-handle_call({grab_best}, _From, State) -> 
+handle_call(get_agents, _From, State) when is_record(State#state.call, call) -> 
+	Call = State#state.call,
+	agent_manager:find_avail_agents_by_skill(Call#call.skills);
+handle_call(grab_best, _From, State) -> 
 	Queues = queue_manager:get_best_bindable_queues(),
 	case loop_queues(Queues) of
 		none -> 
@@ -130,6 +133,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+-spec(get_agents/1 :: (Pid :: pid()) -> [#agent{}]).
+get_agents(Pid) -> 
+	gen_server:call(Pid, get_agents).
+
 -spec(loop_queues/1 :: (Queues :: [] | [tuple()]) -> 'none' | #call{}).
 loop_queues([]) -> 
 	none;
@@ -144,7 +151,7 @@ loop_queues(Queues) ->
 				Call2
 	end.
 
--spec(biased_to/3 :: (Queue :: [tuple()], Acc :: non_neg_integer(), Random :: non_neg_integer) -> tuple() | 'none').
+-spec(biased_to/3 :: (Queue :: [tuple()], Acc :: non_neg_integer(), Random :: non_neg_integer()) -> tuple() | 'none').
 biased_to([Queue | Tail], Acc, Random) -> 
 	Acc2 = Acc + element(4, Queue),
 	case Acc2 of
@@ -154,9 +161,13 @@ biased_to([Queue | Tail], Acc, Random) ->
 			biased_to(Tail, Acc2, Random)
 	end.
 
--spec(grab/1 :: (Queue :: pid()) -> {'ok', 'none'} | {'ok', #call{}}).
-grab(Queue) -> 
-	gen_server:call(?MODULE, {grab_from, Queue}).
+%-spec(grab/1 :: (Queue :: pid()) -> {'ok', 'none'} | {'ok', #call{}}).
+%grab(Queue) -> 
+%	gen_server:call(?MODULE, {grab_from, Queue}).
+
+-spec(grab/1 :: (Pid :: pid()) -> 'none' | #call{}).
+grab(Pid) -> 
+	gen_server:call(Pid, grab_best).
 	
 -spec(stop/1 :: (pid()) -> 'ok').
 stop(Pid) -> 
@@ -191,9 +202,9 @@ random_test() ->
 	Dict4 = dict:store(queue3, 0, Dict3), 
 	Dict5 = dict:store(queue4, 0, Dict4),
 	Out = randomtest_loop(Queues, Total, Dict5, 0),
-	io:format("queue1:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [1, 4, 4]),
-	io:format("queue2:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [2, 3, 6]),
-	io:format("queue3:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [3, 3, 9]),
+	io:format("queue1:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [1, 4, 5]),
+	io:format("queue2:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [2, 3, 8]),
+	io:format("queue3:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [3, 3, 12]),
 	io:format("queue4:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [3, 0, 0]),
 	io:format("Total: ~p~n", [Total]),
 	io:format("out:  ~p~n", [Out]),
@@ -202,9 +213,14 @@ random_test() ->
 	V3 = dict:fetch(queue3, Out) div 1000,
 	V4 = dict:fetch(queue4, Out) div 1000,
 	?assert((V1 > 18) and (V1 < 22)),
-	?assert((V2 > 28) and (V2 < 32)),
-	?assert((V3 > 45) and (V3 < 52)),
-	?assert(V4 =:= 0).
+	?assert((V2 > 29) and (V2 < 33)),
+	?assert((V3 > 46) and (V3 < 50)),
+	?assert(V4 =:= 0),
+	call_queue:stop(Pid1),
+	call_queue:stop(Pid2),
+	call_queue:stop(Pid3), 
+	call_queue:stop(Pid4),
+	queue_manager:stop().
 
 randomtest_loop(_Queues, _Total, Dict, 100000) -> 
 	Dict;
@@ -213,5 +229,46 @@ randomtest_loop(Queues, Total, Dict, Acc) ->
 	{Name, _Qpid, _Call, _Weight} = biased_to(Queues, 0, Rand),
 	Dict2 = dict:store(Name, dict:fetch(Name, Dict) +1, Dict),
 	randomtest_loop(Queues, Total, Dict2, Acc+1).
+
+
+
+grab_test_() -> 
+	{
+		foreach,
+		fun() -> 
+			queue_manager:start(),
+			{_, Pid1} = queue_manager:add_queue(queue1, 1),
+			{_, Pid2} = queue_manager:add_queue(queue2, 2),
+			{_, Pid3} = queue_manager:add_queue(queue3, 99),
+			[Pid1, Pid2, Pid3]
+		end,
+		fun(Pids) -> 
+			queue_manager:stop(),
+			lists:foreach(fun(P) -> call_queue:stop(P) end, Pids)
+		end,
+		[
+			{"there is a call we want",
+			fun() -> 
+				Pid1 = queue_manager:get_queue(queue1),
+				Pid2 = queue_manager:get_queue(queue2),
+				Pid3 = queue_manager:get_queue(queue3),
+				{ok, Pid} = start(),
+				Calls = [Call || N <- [1, 2, 3], Call <- [#call{id="C" ++ integer_to_list(N)}]],
+				call_queue:add(Pid1, 1, lists:nth(1, Calls)),
+				call_queue:add(Pid2, 1, lists:nth(2, Calls)),
+				call_queue:add(Pid3, 1, lists:nth(3, Calls)),
+				Call = grab(Pid),
+				?assertEqual("C3", Call#call.id),
+				stop(Pid)
+			end},
+			{"There's no call.  At all.",
+			fun() -> 
+				{ok, Pid} = start(),
+				 Call = grab(Pid),
+				 ?assertEqual(none, Call),
+				 stop(Pid)
+			end}
+		]
+	}.
 	
 -endif.

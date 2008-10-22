@@ -170,17 +170,18 @@ do_route(State) ->
 				Agents2 = lists:flatten(Agents),
 				
 				% calculate costs and sort by same.
-				Agents3 = lists:sort([{ARemote + Askills + Aidle, APid} || {AName, APid, AState} <- Agents2, 
+				Agents3 = lists:sort([{ARemote + Askills + Aidle, APid} || {_AName, APid, AState} <- Agents2, 
 																ARemote <- 
-																	fun(APid2) when node() =:= node(APid2) -> 
-																		[0]; 
-																	(_APid2) -> 
-																		[15]
-																	end,
+																	case APid of
+																		_X when node() =:= node(APid) -> 
+																			[0]; 
+																		_Y -> 
+																			[15]
+																		end,
 																Askills <- [length(AState#agent.skills)],
 																Aidle <- [element(2, AState#agent.lastchangetimestamp)]]),
 				% offer the call to each agent.
-				offer_call(Agents3, State#state.call),
+				offer_call(Agents3, Call),
 				ok
 			end;
 		 none -> 
@@ -188,14 +189,14 @@ do_route(State) ->
 	end.
 
 -spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: string()) -> 'ok').
-offer_call([Apid | Agents], Call) -> 
+offer_call([{_ACost, Apid} | Agents], Call) -> 
 	case agent:set_state(Apid, ringing, Call) of
 		ok ->
 			ok;
 		_Invalid -> 
 			offer_call(Agents, Call)
 	end;
-offer_call([], Call) -> 
+offer_call([], _Call) -> 
 	ok.
 	
 	

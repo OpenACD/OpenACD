@@ -69,7 +69,7 @@ init([]) ->
 
 handle_call(get_agents, _From, State) when is_record(State#state.call, call) -> 
 	Call = State#state.call,
-	agent_manager:find_avail_agents_by_skill(Call#call.skills);
+	{reply, agent_manager:find_avail_agents_by_skill(Call#call.skills), State};
 handle_call(grab_best, _From, State) -> 
 	Queues = queue_manager:get_best_bindable_queues(),
 	case loop_queues(Queues) of

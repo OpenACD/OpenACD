@@ -56,9 +56,12 @@ list_contains_all(List, [H|T]) when is_list(List) ->
 		false -> false
 	end.
 
+-spec(list_map_with_index/2 :: (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [any()]) -> [any()]).
 list_map_with_index(Fun, List) when is_function(Fun), is_list(List) ->
 	list_map_with_index(Fun, List, 0).
 
+-spec(list_map_with_index/3 :: (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [any(),...], Counter :: non_neg_integer()) -> [any(), ...];
+							   (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [], Counter :: non_neg_integer()) -> []).
 list_map_with_index(_Fun, [], _Counter) ->
 	[];
 list_map_with_index(Fun, [H|T], Counter) ->
@@ -94,4 +97,9 @@ list_contains_all_test() ->
 	?assertEqual(true, list_contains_all([foo, bar, baz], [])),
 	?assertEqual(true, list_contains_all([], [])),
 	?assertEqual(false, list_contains_all([], [bar])).
+list_map_with_index_test() -> 
+	L = [1, 2, 3, 4, 5],
+	L2 = list_map_with_index(fun(C, Elem) -> C + Elem end, L),
+	?assertEqual([1, 3, 5, 7, 9], L2).
+
 -endif.

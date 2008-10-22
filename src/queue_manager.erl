@@ -69,7 +69,9 @@ get_best_bindable_queues() ->
 			% sort queues by priority of first bindable call, lowest is higher priority
 			List3 = lists:sort(fun({_K1,_V1,{{P1,_T1},_Call1},_W1}, {_K2,_V2,{{P2,_T2},_Call2},_W2}) -> P1 =< P2 end, List2),
 			% sort queues by queue weight, hignest first and return the result
-			lists:sort(fun({_K1,_V1,{{_P1,_T1},_Call1},W1}, {_K2,_V2,{{_P2,_T2},_Call2},W2}) -> W1 >= W2 end, List3)
+			List4 = lists:sort(fun({_K1,_V1,{{_P1,_T1},_Call1},W1}, {_K2,_V2,{{_P2,_T2},_Call2},W2}) -> W1 >= W2 end, List3),
+			Len = length(List4),
+			util:list_map_with_index(fun(C, {K, V, Call, Weight}) -> {K, V, Call, Weight + Len - C} end, List4)
 	catch
 		exit:{noproc,_} ->
 			global:register_name(?MODULE, whereis(?MODULE), {global, random_notify_name}),
@@ -225,16 +227,16 @@ single_node_test_() ->
 					{ok, _Pid3} = add_queue(goober3),
 					?assertMatch([], get_best_bindable_queues()),
 					?assertEqual(ok, call_queue:add(Pid, 0, #call{id="Call1"})),
-					?assertMatch([{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
+					?assertMatch([{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
 					?assertEqual(ok, call_queue:add(Pid2, 10, #call{id="Call2"})),
 					?assertMatch([
-							{goober2, Pid2, {{10,_},#call{id="Call2"}}, 10},
-							{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT}],
+							{goober2, Pid2, {{10,_},#call{id="Call2"}}, 12},
+							{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
 						get_best_bindable_queues()),
 					?assertEqual(ok, call_queue:add(Pid2, 0, #call{id="Call3"})),
 					?assertMatch([
-							{goober2, Pid2, {{0,_},#call{id="Call3"}}, 20},
-							{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT}],
+							{goober2, Pid2, {{0,_},#call{id="Call3"}}, 22},
+							{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
 						get_best_bindable_queues())
 				end
 			},{
@@ -243,11 +245,11 @@ single_node_test_() ->
 					{ok, Pid2} = add_queue(goober2),
 					?assertMatch([], get_best_bindable_queues()),
 					?assertEqual(ok, call_queue:add(Pid, 10, #call{id="Call1"})),
-					?assertMatch([{goober, Pid, {{10,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
+					?assertMatch([{goober, Pid, {{10,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
 					?assertEqual(ok, call_queue:add(Pid2, 0, #call{id="Call2"})), % higher priority
 					?assertMatch([
-							{goober2, Pid2, {{0,_},#call{id="Call2"}}, ?DEFAULT_WEIGHT},
-							{goober, Pid, {{10,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT}],
+							{goober2, Pid2, {{0,_},#call{id="Call2"}}, ?DEFAULT_WEIGHT+2},
+							{goober, Pid, {{10,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
 						get_best_bindable_queues())
 				end
 			},{
@@ -256,11 +258,11 @@ single_node_test_() ->
 					{ok, Pid} = add_queue(goober),
 					?assertMatch([], get_best_bindable_queues()),
 					?assertEqual(ok, call_queue:add(Pid, 0, #call{id="Call1"})),
-					?assertMatch([{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
+					?assertMatch([{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
 					?assertEqual(ok, call_queue:add(Pid2, 0, #call{id="Call2"})), % higher priority
 					?assertMatch([
-							{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT},
-							{goober2, Pid2, {{0,_},#call{id="Call2"}}, ?DEFAULT_WEIGHT}],
+							{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT+2},
+							{goober2, Pid2, {{0,_},#call{id="Call2"}}, ?DEFAULT_WEIGHT+1}],
 						get_best_bindable_queues())
 				end
 			}
@@ -354,7 +356,7 @@ multi_node_test_() ->
 					{ok, Pid} = rpc:call(Slave, queue_manager, add_queue, [queue2]),
 					?assertEqual(ok, call_queue:add(Pid, 0, #call{id="Call1"})),
 					slave:stop(Master),
-					?assertMatch([{queue2, Pid, {_, #call{id="Call1"}}, ?DEFAULT_WEIGHT}], rpc:call(Slave, queue_manager, get_best_bindable_queues, []))
+					?assertMatch([{queue2, Pid, {_, #call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], rpc:call(Slave, queue_manager, get_best_bindable_queues, []))
 				end
 			}
 		]

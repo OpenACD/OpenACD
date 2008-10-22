@@ -14,7 +14,7 @@
 -include("agent.hrl").
 
 -ifdef(EUNIT).
--export([randomtest/0]).
+%-export([randomtest/0]).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -166,7 +166,7 @@ stop(Pid) ->
 -ifdef(EUNIT).
 
 
-randomtest() -> 
+random_test() -> 
 	queue_manager:start(),
 	{_, Pid1} = queue_manager:add_queue(queue1, 1),
 	{_, Pid2} = queue_manager:add_queue(queue2, 2),
@@ -191,13 +191,22 @@ randomtest() ->
 	Dict4 = dict:store(queue3, 0, Dict3), 
 	Dict5 = dict:store(queue4, 0, Dict4),
 	Out = randomtest_loop(Queues, Total, Dict5, 0),
-	io:format("queue1:~n	w:  ~p~n	Calls:~p~n", [1, 4]),
-	io:format("queue2:~n	w:  ~p~n	Calls:~p~n", [2, 3]),
-	io:format("queue3:~n	w:  ~p~n	Calls:~p~n", [3, 3]),
-	io:format("queue4:~n	w:  ~p~n	Calls:~p~n", [3, 0]),
-	io:format("out:  ~p~n", [Out]).
+	io:format("queue1:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [1, 4, 4]),
+	io:format("queue2:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [2, 3, 6]),
+	io:format("queue3:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [3, 3, 9]),
+	io:format("queue4:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [3, 0, 0]),
+	io:format("Total: ~p~n", [Total]),
+	io:format("out:  ~p~n", [Out]),
+	V1 = dict:fetch(queue1, Out) div 1000,
+	V2 = dict:fetch(queue2, Out) div 1000,
+	V3 = dict:fetch(queue3, Out) div 1000,
+	V4 = dict:fetch(queue4, Out) div 1000,
+	?assert((V1 > 18) and (V1 < 22)),
+	?assert((V2 > 28) and (V2 < 32)),
+	?assert((V3 > 45) and (V3 < 52)),
+	?assert(V4 =:= 0).
 
-randomtest_loop(_Queues, _Total, Dict, 1000000) -> 
+randomtest_loop(_Queues, _Total, Dict, 100000) -> 
 	Dict;
 randomtest_loop(Queues, Total, Dict, Acc) ->
 	Rand = random:uniform(Total),

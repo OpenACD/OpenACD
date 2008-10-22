@@ -167,7 +167,7 @@ handle_call(get_weight, _From, State) ->
 handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
 handle_call({add, Priority, Calldata}, _From, State) -> 
-	{ok, Pid} = cook:start(Calldata#call.id, State#state.recipe, self()),
+	{ok, Pid} = cook:start_link(Calldata#call.id, State#state.recipe, self()),
 	Calldata2 = Calldata#call{cook=Pid},
 	Trees = gb_trees:insert({Priority, now()}, Calldata2, State#state.queue),
 	cook:start_tick(Pid),
@@ -204,6 +204,7 @@ handle_call(grab, From, State) ->
 			{reply, none, State};
 		{Key, Value} ->
 			{Realfrom, _} = From, 
+			link(Realfrom),
 			State2 = State#state{queue=gb_trees:update(Key, Value#call{bound=lists:append(Value#call.bound, [Realfrom])}, State#state.queue)},
 			{reply, {Key, Value}, State2}
 	end;
@@ -246,6 +247,12 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
+handle_info({'EXIT', From, _Reason}, State) ->
+	Calls = gb_trees:to_list(State#state.queue),
+	Cleancalls = clean_pid(From, State#state.recipe, Calls),
+	Newtree = gb_trees:from_orddict(Cleancalls),
+	{noreply, State#state{queue=Newtree}};
+	
 handle_info(_Info, State) -> 
 	{noreply, State}.
 
@@ -254,6 +261,22 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+-spec(clean_pid/3 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [#call{}]) -> [#call{}]).
+clean_pid(Deadpid, Recipe, [{Key, Call} | Calls] ) -> 
+	Bound = Call#call.bound,
+	Cleanbound = lists:delete(Deadpid, Bound),
+	case Call#call.cook of
+		Deadpid -> 
+			{ok, Pid} = cook:start_link(Call#call.id, Recipe, self());
+		_ -> 
+			Pid = Call#call.cook
+	end,
+	Cleancall = Call#call{bound=Cleanbound, cook=Pid},
+	[{Key, Cleancall} | clean_pid(Deadpid, Recipe, Calls)];
+clean_pid(_Deadpid, _Recipe, []) -> 
+	[].
+
 
 % begin the defintions of the tests.
 

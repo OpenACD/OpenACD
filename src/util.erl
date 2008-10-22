@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([string_split/3, string_split/2, string_chomp/1, list_contains_all/2]).
+-export([string_split/3, string_split/2, string_chomp/1, list_contains_all/2, list_map_with_index/2]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];
@@ -55,6 +55,14 @@ list_contains_all(List, [H|T]) when is_list(List) ->
 		true -> true =:= list_contains_all(List, T);
 		false -> false
 	end.
+
+list_map_with_index(Fun, List) when is_function(Fun), is_list(List) ->
+	list_map_with_index(Fun, List, 0).
+
+list_map_with_index(_Fun, [], _Counter) ->
+	[];
+list_map_with_index(Fun, [H|T], Counter) ->
+	[Fun(Counter, H) | list_map_with_index(Fun, T, Counter + 1)].
 
 -ifdef(EUNIT).
 split_empty_string_test() ->

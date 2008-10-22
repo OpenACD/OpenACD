@@ -24,7 +24,7 @@
 -endif.
 
 %% API
--export([start_link/3, start/3, stop/1, start_tick/1, stop_tick/1]).
+-export([start_link/3, start/3, stop/1, restart_tick/1, stop_tick/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -34,7 +34,8 @@
 				ticked = 0 :: integer(),
 				call :: string() | 'undefined',
 				queue :: pid() | 'undefined',
-				continue = true :: bool()}).
+				continue = true :: bool(),
+				tref :: any()}).
 
 %%====================================================================
 %% API
@@ -59,7 +60,8 @@ start(Call, Recipe, QueuePid) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Call, Recipe, QueuePid]) ->
-	State = #state{ticked=0, recipe=Recipe, call=Call, queue=QueuePid},
+	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),	
+	State = #state{ticked=0, recipe=Recipe, call=Call, queue=QueuePid, tref=Tref},
     {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -81,22 +83,13 @@ handle_call(_Request, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-handle_cast(start_tick, State) -> 
-	{noreply, State#state{continue=true}};
-handle_cast(tick, #state{continue=false} = State) -> 
-	{noreply, State};
-handle_cast(tick, State) -> 
-	State2 = do_tick(State#state{continue=true}),
-	Self = self(),
-	spawn(fun() -> 
-		receive 
-		after ?TICK_LENGTH -> 
-			gen_server:cast(Self, tick)
-		end
-	end),
-	{noreply, State2};
+handle_cast(restart_tick, State) ->
+	State2 = do_tick(State),
+	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
+	{noreply, State2#state{tref=Tref}};
 handle_cast(stop_tick, State) -> 
-	{noreply, State#state{continue = false}};
+	timer:cancel(State#state.tref),
+	{noreply, State#state{tref=undefined}};
 handle_cast(stop, State) -> 
 	{stop, normal, State};
 handle_cast(_Msg, State) ->
@@ -108,6 +101,8 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+handle_info(do_tick, State) -> 
+	{noreply, do_tick(State)};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -131,9 +126,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-start_tick(Pid) -> 
-	gen_server:cast(Pid, start_tick),
-	gen_server:cast(Pid, tick).
+restart_tick(Pid) -> 
+	gen_server:cast(Pid, restart_tick).
 
 stop_tick(Pid) -> 
 	gen_server:cast(Pid, stop_tick).
@@ -270,7 +264,6 @@ recipe_test_() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),
 				{ok, MyPid} = start("testcall", [{1, add_skills, [newskill1, newskill2], run_once}], Pid),
-				start_tick(MyPid),
 				receive
 				after ?TICK_LENGTH + 2000 ->
 					true
@@ -284,7 +277,6 @@ recipe_test_() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, remove_skills, [testskill], run_once}]),
 				{ok, MyPid} = start("testcall", [{1, remove_skills, [testskill], run_once}], Pid),
-				start_tick(MyPid),
 				receive
 				after ?TICK_LENGTH + 2000 -> 
 					true
@@ -298,7 +290,6 @@ recipe_test_() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, set_priority, [5], run_once}]),
 				{ok, MyPid} = start("testcall", [{1, set_priority, [5], run_once}], Pid),
-				start_tick(MyPid),
 				receive
 				after ?TICK_LENGTH + 2000 -> 
 					true

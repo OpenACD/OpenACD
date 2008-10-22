@@ -170,7 +170,6 @@ handle_call({add, Priority, Calldata}, _From, State) ->
 	{ok, Pid} = cook:start_link(Calldata#call.id, State#state.recipe, self()),
 	Calldata2 = Calldata#call{cook=Pid},
 	Trees = gb_trees:insert({Priority, now()}, Calldata2, State#state.queue),
-	cook:start_tick(Pid),
 	{reply, ok, State#state{queue=Trees}};
 
 handle_call({add_skills, Callid, Skills}, _From, State) -> 

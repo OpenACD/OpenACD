@@ -48,3 +48,18 @@ dispatchers are spawned and killed as a ratio of agents avialable (rather than t
 each call that comes in will have a required skill named the same as the node it is local too.  Each agent on that node will have the same skill.  A default recipe will remove that skill from the call after a certin amount of time, thus opening the call to non-local agents.
 
 magic skills:  _node translates to the node, and _agent translate to an agent's login.  All skills that start with an underscore are reserved as magic skills.
+
+
+
+We can get the most important call,
+and we can get matches of agents (list of agents).
+algorithm for waiting on sending it over.
+on tick:
+	ask dispatchers for thier lists (m-m-m-m-multicast!)
+	
+path costs:
+	local :  +0
+	remote:  +X (for now, later each node may know it's own uplink cost, chanign this to Node1+node2)
+	skills: +skills
+	idle: +laststatechange
+	

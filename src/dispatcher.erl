@@ -14,6 +14,7 @@
 -include("agent.hrl").
 
 -ifdef(EUNIT).
+-export([randomtest/0]).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -66,6 +67,14 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
+handle_call({grab_best}, _From, State) -> 
+	Queues = queue_manager:get_best_bindable_queues(),
+	case loop_queues(Queues) of
+		none -> 
+			{reply, none, State};
+		Call -> 
+			{reply, Call, State#state{call=Call}}
+	end;
 handle_call({grab_from, Queue}, _From, State) -> 
 	case call_queue:grab(Queue) of
 		none -> 
@@ -121,6 +130,30 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+-spec(loop_queues/1 :: (Queues :: [] | [tuple()]) -> 'none' | #call{}).
+loop_queues([]) -> 
+	none;
+loop_queues(Queues) -> 
+	Total = lists:foldl(fun(Elem, Acc) -> Acc + element(4, Elem) end, 0, Queues),
+	Rand = random:uniform(Total),
+	{Name, Qpid, Call, Weight} = biased_to(Queues, 0, Rand),
+	case call_queue:grab(Qpid) of
+			none -> 
+				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues));
+			{_Key, Call2} -> 
+				Call2
+	end.
+
+-spec(biased_to/3 :: (Queue :: [tuple()], Acc :: non_neg_integer(), Random :: non_neg_integer) -> tuple() | 'none').
+biased_to([Queue | Tail], Acc, Random) -> 
+	Acc2 = Acc + element(4, Queue),
+	case Acc2 of
+		_ when Random =< Acc2 ->
+			Queue;
+		_ -> 
+			biased_to(Tail, Acc2, Random)
+	end.
+
 -spec(grab/1 :: (Queue :: pid()) -> {'ok', 'none'} | {'ok', #call{}}).
 grab(Queue) -> 
 	gen_server:call(?MODULE, {grab_from, Queue}).
@@ -129,3 +162,47 @@ grab(Queue) ->
 stop(Pid) -> 
 	io:format("just before the gen_server handle call pid:  ~p.  Me:  ~p", [Pid, self()]),
 	gen_server:call(Pid, stop).
+	
+-ifdef(EUNIT).
+
+
+randomtest() -> 
+	queue_manager:start(),
+	{_, Pid1} = queue_manager:add_queue(queue1, 1),
+	{_, Pid2} = queue_manager:add_queue(queue2, 2),
+	{_, Pid3} = queue_manager:add_queue(queue3, 3),
+	{_, Pid4} = queue_manager:add_queue(queue4, 3),
+	Calls = list_to_tuple([Call || N <- [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], Call <- [#call{id="C" ++ integer_to_list(N)}]]),
+	call_queue:add(Pid1, 1, element(1, Calls)),
+	call_queue:add(Pid1, 1, element(2, Calls)),
+	call_queue:add(Pid1, 1, element(3, Calls)),
+	call_queue:add(Pid1, 1, element(4, Calls)),
+	call_queue:add(Pid2, 1, element(5, Calls)),
+	call_queue:add(Pid2, 1, element(6, Calls)),
+	call_queue:add(Pid2, 1, element(7, Calls)),
+	call_queue:add(Pid3, 1, element(8, Calls)),
+	call_queue:add(Pid3, 1, element(9, Calls)),
+	call_queue:add(Pid3, 1, element(10, Calls)),
+	Queues = queue_manager:get_best_bindable_queues(),
+	Total = lists:foldl(fun(Elem, Acc) -> Acc + element(4, Elem) end, 0, Queues),
+	Dict = dict:new(),
+	Dict2 = dict:store(queue1, 0, Dict),
+	Dict3 = dict:store(queue2, 0, Dict2), 
+	Dict4 = dict:store(queue3, 0, Dict3), 
+	Dict5 = dict:store(queue4, 0, Dict4),
+	Out = randomtest_loop(Queues, Total, Dict5, 0),
+	io:format("queue1:~n	w:  ~p~n	Calls:~p~n", [1, 4]),
+	io:format("queue2:~n	w:  ~p~n	Calls:~p~n", [2, 3]),
+	io:format("queue3:~n	w:  ~p~n	Calls:~p~n", [3, 3]),
+	io:format("queue4:~n	w:  ~p~n	Calls:~p~n", [3, 0]),
+	io:format("out:  ~p~n", [Out]).
+
+randomtest_loop(_Queues, _Total, Dict, 1000000) -> 
+	Dict;
+randomtest_loop(Queues, Total, Dict, Acc) ->
+	Rand = random:uniform(Total),
+	{Name, _Qpid, _Call, _Weight} = biased_to(Queues, 0, Rand),
+	Dict2 = dict:store(Name, dict:fetch(Name, Dict) +1, Dict),
+	randomtest_loop(Queues, Total, Dict2, Acc+1).
+	
+-endif.

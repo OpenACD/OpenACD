@@ -1,5 +1,7 @@
 -module(call_queue).
 
+%% depends on util, agent, cook, queue_manager
+
 -type(key() :: {non_neg_integer(), {pos_integer(), non_neg_integer(), non_neg_integer()}}).
 
 -ifdef(EUNIT).
@@ -9,7 +11,7 @@
 -behaviour(gen_server).
 -include("call.hrl").
 -include("queue.hrl").
--export([start/3, start_link/3, set_recipe/2, set_weight/2, get_weight/1, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1, add_skills/3, remove_skills/3]).
+-export([start/3, start_link/3, set_recipe/2, set_weight/2, get_weight/1, add/3, ask/1, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1, add_skills/3, remove_skills/3, call_count/1]).
 
 -record(state, {
 	queue = gb_trees:empty(),
@@ -74,7 +76,11 @@ ask(Pid) ->
 -spec(grab/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
 grab(Pid) ->
 	gen_server:call(Pid, grab).
-	
+
+-spec(ungrab/2 :: (Pid :: pid(), Callid :: string()) -> 'ok').
+ungrab(Pid, Callid) -> 
+	gen_server:call(Pid, {ungrab, Callid}).
+
 -spec(add_skills/3 :: (Pid :: pid(), Callid :: string(), Skills :: [atom()]) -> 'none' | 'ok').
 add_skills(Pid, Callid, Skills) -> 
 	gen_server:call(Pid, {add_skills, Callid, Skills}).
@@ -105,6 +111,10 @@ remove(Pid, #call{} = Calldata) ->
 remove(Pid, Calldata) -> 
 	gen_server:call(Pid, {remove, Calldata}).
 
+-spec(call_count/1 :: (Pid :: pid()) -> non_neg_integer()).
+call_count(Pid) -> 
+	gen_server:call(Pid, call_count).
+	
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) ->
 	gen_server:call(Pid, stop).
@@ -132,6 +142,13 @@ find_key(Needle, {_Key, _Value, Iter}) ->
 find_key(_Needle, none) -> 
 	none.
 
+handle_call({ungrab, Callid}, From, State) ->
+	case find_key(Callid, gb_trees:next(gb_trees:iterator(State#state.queue))) of
+		none -> 
+			{reply, ok, State};
+		{Key, Value} -> 
+			{reply, ok, State#state{queue=gb_trees:update(Key, Value#call{bound=lists:delete(From, Value#call.bound)})}}
+	end;
 handle_call({set_weight, Weight}, _From, State) ->
 	{reply, ok, State#state{weight=Weight}};
 handle_call(get_weight, _From, State) ->
@@ -139,7 +156,10 @@ handle_call(get_weight, _From, State) ->
 handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
 handle_call({add, Priority, Calldata}, _From, State) -> 
-	Trees = gb_trees:insert({Priority, now()}, Calldata, State#state.queue),
+	{ok, Pid} = cook:start(Calldata#call.id, State#state.recipe, self()),
+	Calldata2 = Calldata#call{cook=Pid},
+	Trees = gb_trees:insert({Priority, now()}, Calldata2, State#state.queue),
+	cook:start_tick(Pid),
 	{reply, ok, State#state{queue=Trees}};
 
 handle_call({add_skills, Callid, Skills}, _From, State) -> 
@@ -184,7 +204,8 @@ handle_call({remove, Id}, _From, State) ->
 	case find_key(Id, gb_trees:next(gb_trees:iterator(State#state.queue))) of
 		none ->
 			{reply, none, State};
-		{Key, _Value} ->
+		{Key, Value} ->
+			cook:stop(Value#call.cook),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			{reply, ok, State2}
 		end;
@@ -204,6 +225,9 @@ handle_call({set_priority, Id, Priority}, _From, State) ->
 
 handle_call(to_list, _From, State) ->
 	{reply, lists:map(fun({_, Call}) -> Call end, gb_trees:to_list(State#state.queue)), State};
+
+handle_call(call_count, _From, State) -> 
+	{reply, length(gb_trees:to_list(State#state.queue)), State};
 
 handle_call(_Request, _From, State) ->
 	{reply, ok, State}.
@@ -228,7 +252,10 @@ add_test() ->
 	{_, Pid} = start(goober),
 	C1 = #call{id="C1"},
 	?assert(add(Pid, 1, C1) =:= ok),
-	?assertMatch({{1, _Time}, C1}, ask(Pid)).
+	{{Priority, _Time}, Call} = ask(Pid),
+	?assertEqual(1, Priority),
+	Id = Call#call.id,
+	?assertEqual("C1", Id).
 	
 remove_test() ->
 	{_, Pid} = start(goober),
@@ -237,7 +264,8 @@ remove_test() ->
 	add(Pid, 1, C1),
 	add(Pid, 1, C2),
 	remove(Pid, C1),
-	?assertMatch({_Key, C2}, grab(Pid)).
+	{_Key, Call} = grab(Pid),
+	?assertMatch("C2", Call#call.id).
 	
 remove_id_test() ->
 	{_, Pid} = start(goober),
@@ -263,7 +291,8 @@ bound_test() ->
 	C1 = #call{id="C1", bound=[Pid]},
 	{_, Qpid} = start(foobar),
 	add(Qpid, 1, C1),
-	?assertMatch({_Key, C1}, grab(Qpid)),
+	{_Key, Call} = grab(Qpid),
+	?assertEqual("C1", Call#call.id),
 	?assertMatch(none, grab(Qpid)).
 
 grab_test() -> 
@@ -274,8 +303,10 @@ grab_test() ->
 	add(Pid, 1, C1),
 	add(Pid, 0, C2),
 	add(Pid, 1, C3),
-	?assertMatch({_Key, C1}, grab(Pid)),
-	?assertMatch({_Key, C3}, grab(Pid)),
+	{_Key, Call1} = grab(Pid),
+	{_Key2, Call3} = grab(Pid),
+	?assertEqual("C1", Call1#call.id),
+	?assertEqual("C3", Call3#call.id),
 	?assert(grab(Pid) =:= none).
 
 grab_empty_test() -> 
@@ -290,9 +321,11 @@ increase_priority_test() ->
 	add(Pid, 1, C1),
 	add(Pid, 1, C2),
 	add(Pid, 1, C3),
-	?assertMatch({{1, _Time}, C1}, ask(Pid)),
+	{_Key, Call1} = ask(Pid),
+	?assertEqual("C1", Call1#call.id),
 	set_priority(Pid, C2, 0),
-	?assertMatch({{0, _Time}, C2}, ask(Pid)).
+	{_Key2, Call2} = ask(Pid),
+	?assertEqual("C2", Call2#call.id).
 
 increase_priority_nil_test() ->
 	{_, Pid} = start(goober),
@@ -306,9 +339,11 @@ decrease_priority_test() ->
 	add(Pid, 1, C1),
 	add(Pid, 1, C2),
 	add(Pid, 1, C3),
-	?assertMatch({{1, _Time}, C1}, ask(Pid)),
+	{_Key, Call1} = ask(Pid),
+	?assertEqual("C1", Call1#call.id),
 	set_priority(Pid, C1, 2),
-	?assertMatch({{1, _Time}, C2}, ask(Pid)).
+	{_Key2, Call2} = ask(Pid),
+	?assertEqual("C2", Call2#call.id).
 
 queue_to_list_test() ->
 	C1 = #call{id="C1"},
@@ -318,7 +353,7 @@ queue_to_list_test() ->
 	add(Pid, 1, C1),
 	add(Pid, 1, C2),
 	add(Pid, 1, C3),
-	?assertMatch([C1, C2, C3], to_list(Pid)).
+	?assertMatch(["C1", "C2", "C3"], lists:map(fun(X) -> X#call.id end, to_list(Pid))).
 
 empty_queue_to_list_test() -> 
 	{_, Pid} = start(goober), 

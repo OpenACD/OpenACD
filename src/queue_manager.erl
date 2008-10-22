@@ -63,7 +63,7 @@ query_queue(Name) ->
 get_best_bindable_queues() ->
 	try gen_server:call({global, ?MODULE}, queues_as_list) of
 		List ->
-			List1 = [{K, V, Call, W} || {K, V} <- List, Call <- [call_queue:ask(V)], Call =/= none, W <- [call_queue:get_weight(V)]],
+			List1 = [{K, V, Call, W} || {K, V} <- List, Call <- [call_queue:ask(V)], Call =/= none, W <- [call_queue:get_weight(V) * call_queue:call_count(V)]],
 			% sort queues by queuetime of first bindable call, longest first (lowest unix epoch time)
 			List2 = lists:sort(fun({_K1,_V1,{{_P1,T1},_Call1},_W1}, {_K2,_V2,{{_P2,T2},_Call2},_W2}) -> T1 =< T2 end, List1),
 			% sort queues by priority of first bindable call, lowest is higher priority
@@ -233,7 +233,7 @@ single_node_test_() ->
 						get_best_bindable_queues()),
 					?assertEqual(ok, call_queue:add(Pid2, 0, #call{id="Call3"})),
 					?assertMatch([
-							{goober2, Pid2, {{0,_},#call{id="Call3"}}, 10},
+							{goober2, Pid2, {{0,_},#call{id="Call3"}}, 20},
 							{goober, Pid, {{0,_},#call{id="Call1"}}, ?DEFAULT_WEIGHT}],
 						get_best_bindable_queues())
 				end
@@ -359,6 +359,5 @@ multi_node_test_() ->
 			}
 		]
 	}.
-
 
 -endif.

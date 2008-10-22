@@ -140,7 +140,6 @@ stop_tick(Pid) ->
 
 -spec(do_tick/1 :: (State :: #state{}) -> #state{}).
 do_tick(#state{recipe=Recipe} = State) -> 
-	io:format("state:~p.~n", [State]),
 	Recipe2 = do_recipe(Recipe, State),
 	State#state{ticked= State#state.ticked+1, recipe=Recipe2}.
 

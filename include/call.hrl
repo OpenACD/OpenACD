@@ -7,7 +7,8 @@
 		bound = [] :: [pid()],
 		% client record
 		client :: any(),
-		skills = [english] :: [atom(), ...]
+		skills = [english] :: [atom(), ...],
+		cook :: pid()
 		}).
 
 

@@ -62,4 +62,8 @@ path costs:
 	remote:  +X (for now, later each node may know it's own uplink cost, chanign this to Node1+node2)
 	skills: +skills
 	idle: +laststatechange
-	
+
+once a call is ringing to an agent listen:
+	to ourselves (queue) in case it's not answered in X amount of time
+	to the agent in case they change state (answer or release)
+	to the media manager in case the call drops.

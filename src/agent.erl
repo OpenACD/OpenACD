@@ -270,6 +270,7 @@ handle_sync_event(dump_state, _From, StateName, State) ->
 	{reply, State, StateName, State};
 handle_sync_event({set_connection, Pid}, _From, StateName, State) when is_atom(State#agent.connection) ->
 	link(Pid),
+	gen_server:cast(Pid, {change_state, State#agent.state, State#agent.statedata}),
 	{reply, ok, StateName, State#agent{connection=Pid}};
 handle_sync_event({set_connection, _Pid}, _From, StateName, State) ->
 	{reply, error, StateName, State};

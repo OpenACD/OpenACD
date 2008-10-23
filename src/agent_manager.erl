@@ -121,7 +121,6 @@ handle_call(Request, _From, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
-
 handle_info({'EXIT', From, _Reason}, State) -> 
 	{noreply, dict:filter(
 		fun(_Key, Val) -> 

@@ -74,14 +74,16 @@ handle_cast(negotiate, State) ->
 				{stop, normal}
 		end;
 
-handle_cast({change_state, State, _Data}, State) ->
+handle_cast({change_state, AgState, _Data}, State) ->
+	io:format("got cast about changing state to ~p~n", [AgState]),
 	Counter = State#state.counter,
-	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(State))),
+	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(AgState)) ++ "\r\n"),
 	{noreply, State#state{counter = Counter + 1}};
 
-handle_cast({change_state, State}, State) ->
+handle_cast({change_state, AgState}, State) ->
+	io:format("got cast about changing state to ~p~n", [AgState]),
 	Counter = State#state.counter,
-	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(State))),
+	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(AgState)) ++ "\r\n"),
 	{noreply, State#state{counter = Counter + 1}};
 
 handle_cast(_Msg, State) ->
@@ -139,7 +141,7 @@ handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter) ->
 		ok ->
 			State2 = State#state{agent_fsm=Pid},
 			io:format("User ~p is trying to authenticate using ~p.~n", [Username, Password]),
-			{ack(Counter, "1 1 1"), send("ASTATE", integer_to_list(agent:state_to_integer(released)), State2)};
+			{ack(Counter, "1 1 1"), State2};
 		error ->
 			{err(Counter, Username ++ " is already logged in"), State}
 	end;
@@ -158,8 +160,7 @@ handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Co
 				ReleaseState ->
 					case agent:set_state(State#state.agent_fsm, released, {ReleaseState, 0}) of
 						ok ->
-							{ok, NewAgState} = agent:query_state(State#state.agent_fsm),
-							{ack(Counter), send("ASTATE", integer_to_list(agent:state_to_integer(NewAgState)), State)};
+							{ack(Counter), State};
 						invalid ->
 							{ok, OldState} = agent:query_state(State#state.agent_fsm),
 							{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to released"), State}
@@ -173,8 +174,7 @@ handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Co
 		NewState ->
 			case agent:set_state(State#state.agent_fsm, NewState, AgStateData) of
 				ok ->
-					{ok, NewAgState} = agent:query_state(State#state.agent_fsm),
-					{ack(Counter), send("ASTATE", integer_to_list(agent:state_to_integer(NewAgState)), State)};
+					{ack(Counter), State};
 				invalid ->
 					{ok, OldState} = agent:query_state(State#state.agent_fsm),
 					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState)), State}
@@ -189,8 +189,7 @@ handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 		NewState ->
 			case agent:set_state(State#state.agent_fsm, NewState) of
 				ok ->
-					{ok, NewAgState} = agent:query_state(State#state.agent_fsm),
-					{ack(Counter), send("ASTATE", integer_to_list(agent:state_to_integer(NewAgState)), State)};
+					{ack(Counter), State};
 				invalid ->
 					{ok, OldState} = agent:query_state(State#state.agent_fsm),
 					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState)), State}

@@ -74,6 +74,16 @@ handle_cast(negotiate, State) ->
 				{stop, normal}
 		end;
 
+handle_cast({change_state, State, _Data}, State) ->
+	Counter = State#state.counter,
+	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(State))),
+	{noreply, State#state{counter = Counter + 1}};
+
+handle_cast({change_state, State}, State) ->
+	Counter = State#state.counter,
+	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(State))),
+	{noreply, State#state{counter = Counter + 1}};
+
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 

@@ -144,9 +144,11 @@ idle({precall, Client}, _From, State) ->
 	{reply, ok, precall, State#agent{state=precall, statedata=Client, lastchangetimestamp=now()}};
 idle({ringing, Call = #call{}}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
+	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
 	{reply, ok, ringing, State#agent{state=ringing, statedata=Call, lastchangetimestamp=now()}};
 idle({released, Reason}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
+	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 idle(_Event, _From, State) ->
 	{reply, invalid, idle, State}.
@@ -154,24 +156,30 @@ idle(_Event, _From, State) ->
 ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} = State) ->
 	case Statecall#call.id of
 		Callid -> 
+			gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
 			{reply, ok, oncall, State#agent{state=oncall, statedata=Call, lastchangetimestamp=now()}};
 		_Other -> 
 			{reply, invalid, ringing, State}
 	end;
 ringing({released, Reason}, _From, State) ->
+	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 ringing(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
+	gen_server:cast(State#agent.connection, {change_state, ringing}),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 ringing(_Event, _From, State) ->
 	{reply, invalid, ringing, State}.
 
 precall({outgoing, Call}, _From, State) ->
+	gen_server:cast(State#agent.connection, {change_state, outgoing, Call}),
 	{reply, ok, outgoing, State#agent{state=outgoing, statedata=Call, lastchangetimestamp=now()}};
 precall(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
+	gen_server:cast(State#agent.connection, {change_state, idle}),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 precall({released, Reason}, _From, State) ->
+	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 precall(_Event, _From, State) -> 
 	{reply, invalid, precall, State}.
@@ -182,8 +190,10 @@ oncall({released, undefined}, _From, State) ->
 oncall({released, Reason}, _From, State) -> 
 	{reply, queued, oncall, State#agent{queuedrelease=Reason}};
 oncall({wrapup, Call}, _From, State) ->
+	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 	{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};
 oncall({warmtransfer, Transferto}, _From, State) ->
+	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
 	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}}};
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
@@ -193,20 +203,26 @@ outgoing({released, undefined}, _From, State) ->
 outgoing({released, Reason}, _From, State) -> 
 	{reply, queued, outgoing, State#agent{queuedrelease=Reason}};
 outgoing({wrapup, Call}, _From, State) ->
+	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 	{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call}};
 outgoing({warmtransfer, Transferto}, _From, State) -> 
+	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
 	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}}};
 outgoing(_Event, _From, State) -> 
 	{reply, invalid, outgoing, State}.
 
 released({precall, Client}, _From, State) ->
+	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
 	{reply, ok, precall, State#agent{state=precall, statedata=Client, lastchangetimestamp=now()}};
 released(idle, _From, State) ->	
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
+	gen_server:cast(State#agent.connection, {change_state, idle}),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 released({released, Reason}, _From, State) ->
+	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
 	{reply, ok, released, State#agent{statedata=Reason, lastchangetimestamp=now()}};
 released({ringing, Call}, _From, State) ->
+	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
 	{reply, ok, ringing, State#agent{state=ringing, statedata=Call, lastchangetimestamp=now()}};
 released(_Event, _From, State) ->
 	{reply, invalid, released, State}.
@@ -216,10 +232,13 @@ warmtransfer({released, undefined}, _From, State) ->
 warmtransfer({released, Reason}, _From, State) -> 
 	{reply, queued, warmtransfer, State#agent{queuedrelease=Reason}};
 warmtransfer({wrapup, Call}, _From, State) -> 
+	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 	{reply, ok, wrapup, State#agent{state=wrapup,statedata=Call, lastchangetimestamp=now()}};
 warmtransfer({oncall, Call}, _From, State) -> 
+	gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
 	{reply, ok, oncall, State#agent{state=oncall, statedata=Call, lastchangetimestamp=now()}};
 warmtransfer({outgoing, Call}, _From, State) ->
+	gen_server:cast(State#agent.connection, {change_state, outgoing, Call}),
 	{reply, ok, outgoing, State#agent{state=outgoing, statedata=Call, lastchangetimestamp=now()}};
 warmtransfer(_Event, _From, State) ->
 	{reply, invalid, warmtransfer, State}.
@@ -229,9 +248,11 @@ wrapup({released, undefined}, _From, State) ->
 wrapup({released, Reason}, _From, State) -> 
 	{reply, queued, wrapup, State#agent{queuedrelease=Reason}};
 wrapup(idle, _From, State= #agent{queuedrelease = undefined}) -> 
+	gen_server:cast(dispatch_manager, {now_avail, self()}),
+	gen_server:cast(State#agent.connection, {change_state, idle}),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 wrapup(idle, _From, State) -> 
-	gen_server:cast(dispatch_manager, {now_avail, self()}),
+	gen_server:cast(State#agent.connection, {change_state, released, State#agent.queuedrelease}),
 	{reply, ok, released, State#agent{state=released, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()}};
 wrapup(_Event, _From, State) -> 
 	{reply, invalid, wrapup, State}.

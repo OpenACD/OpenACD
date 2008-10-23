@@ -87,12 +87,18 @@ handle_info({tcp, Socket, Bin}, State) ->
 			{noreply, State};
 		Ev ->
 			io:format("got ~p from socket~n", [Bin]),
-			{Reply, State2} = handle_event(Ev, State),
-			io:format("sent ~p to socket~n", [Reply]),
-			ok = gen_tcp:send(Socket, Reply ++ "\r\n"),
-			State3 = State2#state{send_queue = flush_send_queue(lists:reverse(State2#state.send_queue), Socket)},
-			ok = inet:setopts(Socket, [{active, once}]),
-			{noreply, State3}
+			case handle_event(Ev, State) of
+				{Reply, State2} ->
+					io:format("sent ~p to socket~n", [Reply]),
+					ok = gen_tcp:send(Socket, Reply ++ "\r\n"),
+					State3 = State2#state{send_queue = flush_send_queue(lists:reverse(State2#state.send_queue), Socket)},
+					ok = inet:setopts(Socket, [{active, once}]),
+					{noreply, State3};
+				State2 ->
+					io:format("Event requires no response~n"),
+					ok = inet:setopts(Socket, [{active, once}]),
+					{noreply, State2}
+			end
 	end;
 
 handle_info({tcp_closed, _Socket}, State) ->
@@ -195,6 +201,19 @@ handle_event(["QUEUENAMES", Counter], State) when is_integer(Counter) ->
 
 handle_event(["RELEASEOPTIONS", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, "1:bathroom:0,2:smoke:-1"), State};
+
+handle_event(["ACK" | [Counter | _Args]], State) when is_integer(Counter) ->
+	State;
+
+handle_event(["ACK", Counter], State) when is_integer(Counter) ->
+	State;
+
+% beware for here be errors 
+handle_event(["ERR" | [Counter | _Args]], State) when is_integer(Counter) ->
+	State;
+
+handle_event(["ERR", Counter], State) when is_integer(Counter) ->
+	State;
 
 handle_event([Event, Counter], State) when is_integer(Counter) ->
 	{err(Counter, "Unknown event " ++ Event), State};

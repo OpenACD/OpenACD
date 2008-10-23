@@ -41,7 +41,7 @@ stop(Pid) ->
 
 init([Port]) ->
 	process_flag(trap_exit, true),
-	Opts = [list, {packet, 0}, {reuseaddr, true},
+	Opts = [list, {packet, line}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
 	case gen_tcp:listen(Port, Opts) of
 		{ok, Listen_socket} ->

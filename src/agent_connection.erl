@@ -45,7 +45,7 @@ handle_call(Request, _From, State) ->
 
 % negotiate the client's protocol version and such
 handle_cast(negotiate, State) ->
-	inet:setopts(State#state.socket, [{active, false}, {packet, 0}, list]),
+	inet:setopts(State#state.socket, [{active, false}, {packet, line}, list]),
 	gen_tcp:send(State#state.socket, "Agent Server: -1\r\n"),
 	{ok, Packet} = gen_tcp:recv(State#state.socket, 0),
 	io:format("packet: ~p.~n", [Packet]),

@@ -11,6 +11,9 @@
                         %(String :: [integer(),...], Separator :: [integer(),...], SplitCount :: 1) -> [integer(),...];
                         (String :: [integer(),...], Separator :: [], SplitCount :: pos_integer()) -> [[integer()],...];
                         (String :: [integer(),...], Separator :: [integer(),...], SplitCount :: pos_integer()) -> [[integer()],...]).
+%% @doc Split `String' string by `Separator' into a list of strings at most `SplitCount' long.
+%% If `Separator' is a blank string `String' is split into a list of `SplitCount' single character
+%% strings followed by the remainder of `String', if any.
 string_split("", _Separator, _SplitCount) ->
 	[];
 string_split(String, "", 1) ->
@@ -30,6 +33,8 @@ string_split(String, Separator, SplitCount) ->
 -spec(string_split/2 :: (String :: [], Separator :: [integer()]) -> [];
                         (String :: [integer(),...], Separator :: []) -> [[integer()]];
                         (String :: [integer(),...], Separator :: [integer(),...]) -> [[integer()]]).
+%% @doc Split `String' by `Separator'.
+%% If `Separator' is a blank string `String' is split into a list of single character strings.
 string_split("", _Separator) ->
 	[];
 string_split(String, "") ->
@@ -43,20 +48,24 @@ string_split(String, Separator) ->
 	end.
 
 -spec(string_chomp/1 :: (String :: string()) -> string()).
+%% @doc Remove any trailing newlines or carraige returns from `String'.
 string_chomp(String) ->
 	string:strip(string:strip(String,right, $\n), right, $\r).
 
 -spec(list_contains_all/2 :: (List :: [any()], Members :: []) -> 'true';
                              (List :: [any()], Members :: [any(),...]) -> 'true' | 'false').
+%% @doc Check whether `List' contains all elements of `Members'.
 list_contains_all(_List, []) ->
 	true;
-list_contains_all(List, [H|T]) when is_list(List) ->
+list_contains_all(List, [H | Members]) when is_list(List) ->
 	case lists:member(H, List) of
-		true -> true =:= list_contains_all(List, T);
+		true -> true =:= list_contains_all(List, Members);
 		false -> false
 	end.
 
 -spec(list_map_with_index/2 :: (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [any()]) -> [any()]).
+%% @doc Apply `Fun' to each element of `List' along with the element's index in `List'.
+%% @see lists:map/2
 list_map_with_index(Fun, List) when is_function(Fun), is_list(List) ->
 	list_map_with_index(Fun, List, 0).
 

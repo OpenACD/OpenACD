@@ -22,12 +22,14 @@ CLEAN.include("ebin/*.beam")
 CLEAN.include("debug_ebin/*.beam")
 CLEAN.include("coverage/*.txt")
 CLEAN.include("coverage/*.html")
+CLEAN.include("doc/*.html")
 
 verbose(true)
 
 directory 'ebin'
 directory 'debug_ebin'
 directory 'coverage'
+directory 'doc'
 
 rule ".beam" => ["%{ebin,src}X.erl"] do |t|
 	sh "erlc -pa ebin -W #{ERLC_FLAGS} -o ebin #{t.source} "

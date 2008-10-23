@@ -252,10 +252,11 @@ handle_info({'EXIT', From, _Reason}, State) ->
 	Newtree = gb_trees:from_orddict(Cleancalls),
 	{noreply, State#state{queue=Newtree}};
 	
-handle_info(_Info, State) -> 
+handle_info(_Info, State) ->
 	{noreply, State}.
 
-terminate(_Reason, _State) -> 
+terminate(_Reason, State) ->
+	lists:foreach(fun({_K,V}) when is_pid(V#call.cook) -> cook:stop(V#call.cook); (_) -> ok end, gb_trees:to_list(State#state.queue)),
 	ok.
 
 code_change(_OldVsn, State, _Extra) ->

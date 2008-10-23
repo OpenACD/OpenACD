@@ -59,6 +59,11 @@ task :release => :compile
 desc "Alias for test:all"
 task :test => "test:all"
 
+desc "Generate Documentation"
+task :doc do
+	sh("cd doc && erl -noshell -run edoc files ../#{SRC.join(" ../")} -run init stop")
+end
+
 namespace :test do
 	desc "Compile .beam files with -DEUNIT and +debug_info => debug_ebin"
 	task :compile => ['debug_ebin'] + DEBUGOBJ

@@ -176,6 +176,7 @@ stop(Pid) ->
 	
 -ifdef(EUNIT).
 
+-define(MAX_RANDOM_TEST, 100000).
 
 random_test() -> 
 	queue_manager:start(),
@@ -208,10 +209,10 @@ random_test() ->
 	io:format("queue4:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [3, 0, 0]),
 	io:format("Total: ~p~n", [Total]),
 	io:format("out:  ~p~n", [Out]),
-	V1 = dict:fetch(queue1, Out) div 1000,
-	V2 = dict:fetch(queue2, Out) div 1000,
-	V3 = dict:fetch(queue3, Out) div 1000,
-	V4 = dict:fetch(queue4, Out) div 1000,
+	V1 = dict:fetch(queue1, Out) div (?MAX_RANDOM_TEST div 100), %div by 100 to make a percetage.
+	V2 = dict:fetch(queue2, Out) div (?MAX_RANDOM_TEST div 100),
+	V3 = dict:fetch(queue3, Out) div (?MAX_RANDOM_TEST div 100),
+	V4 = dict:fetch(queue4, Out) div (?MAX_RANDOM_TEST div 100),
 	?assert((V1 > 18) and (V1 < 22)),
 	?assert((V2 > 29) and (V2 < 33)),
 	?assert((V3 > 46) and (V3 < 50)),
@@ -222,7 +223,7 @@ random_test() ->
 	call_queue:stop(Pid4),
 	queue_manager:stop().
 
-randomtest_loop(_Queues, _Total, Dict, 100000) -> 
+randomtest_loop(_Queues, _Total, Dict, ?MAX_RANDOM_TEST) -> 
 	Dict;
 randomtest_loop(Queues, Total, Dict, Acc) ->
 	Rand = random:uniform(Total),

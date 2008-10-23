@@ -75,13 +75,11 @@ handle_cast(negotiate, State) ->
 		end;
 
 handle_cast({change_state, AgState, _Data}, State) ->
-	io:format("got cast about changing state to ~p~n", [AgState]),
 	Counter = State#state.counter,
 	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(AgState)) ++ "\r\n"),
 	{noreply, State#state{counter = Counter + 1}};
 
 handle_cast({change_state, AgState}, State) ->
-	io:format("got cast about changing state to ~p~n", [AgState]),
 	Counter = State#state.counter,
 	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(AgState)) ++ "\r\n"),
 	{noreply, State#state{counter = Counter + 1}};
@@ -98,16 +96,16 @@ handle_info({tcp, Socket, Bin}, State) ->
 			ok = inet:setopts(Socket, [{active, once}]),
 			{noreply, State};
 		Ev ->
-			io:format("got ~p from socket~n", [Bin]),
+			%io:format("got ~p from socket~n", [Bin]),
 			case handle_event(Ev, State) of
 				{Reply, State2} ->
-					io:format("sent ~p to socket~n", [Reply]),
+					%io:format("sent ~p to socket~n", [Reply]),
 					ok = gen_tcp:send(Socket, Reply ++ "\r\n"),
 					State3 = State2#state{send_queue = flush_send_queue(lists:reverse(State2#state.send_queue), Socket)},
 					ok = inet:setopts(Socket, [{active, once}]),
 					{noreply, State3};
 				State2 ->
-					io:format("Event requires no response~n"),
+					%io:format("Event requires no response~n"),
 					ok = inet:setopts(Socket, [{active, once}]),
 					{noreply, State2}
 			end
@@ -161,6 +159,8 @@ handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Co
 					case agent:set_state(State#state.agent_fsm, released, {ReleaseState, 0}) of
 						ok ->
 							{ack(Counter), State};
+						queued ->
+							{ack(Counter), State};
 						invalid ->
 							{ok, OldState} = agent:query_state(State#state.agent_fsm),
 							{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to released"), State}
@@ -189,6 +189,8 @@ handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 		NewState ->
 			case agent:set_state(State#state.agent_fsm, NewState) of
 				ok ->
+					{ack(Counter), State};
+				queued ->
 					{ack(Counter), State};
 				invalid ->
 					{ok, OldState} = agent:query_state(State#state.agent_fsm),

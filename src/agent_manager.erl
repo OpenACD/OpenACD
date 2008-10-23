@@ -18,15 +18,15 @@
 
 -type(mod_state() :: [{string(), pid()}]).
 
--spec(start_link/0 :: () -> 'ok').
+-spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() -> 
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 	
--spec(start/0 :: () -> 'ok').
+-spec(start/0 :: () -> {'ok', pid()}).
 start() -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
--spec(stop/0 :: () -> 'ok').
+-spec(stop/0 :: () -> {'ok', pid()}).
 stop() ->
 	gen_server:call(?MODULE, stop).
 
@@ -45,9 +45,8 @@ start_agent(Agent) ->
 	gen_server:call(?MODULE, {start_agent, Agent}).
 
 % locally find all available agents with a particular skillset
--spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
+-spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [{string(), pid(), #agent{}}]).
 find_avail_agents_by_skill(Skills) ->
-	% TODO - this should also be a list comprehension
 	AvailSkilledAgents = [{K, V, AgState} || {K, V} <- gen_server:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], AgState#agent.state =:= idle, util:list_contains_all(AgState#agent.skills, Skills)],
 	AvailSkilledAgentsByIdleTime = lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> State1#agent.lastchangetimestamp =< State2#agent.lastchangetimestamp end, AvailSkilledAgents), 
 	lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> length(State1#agent.skills) =< length(State2#agent.skills) end, AvailSkilledAgentsByIdleTime).

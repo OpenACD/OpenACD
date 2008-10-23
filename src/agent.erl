@@ -58,7 +58,8 @@ query_state(Pid) ->
 set_state(Pid, State) ->
 	gen_fsm:sync_send_event(Pid, State).
 
--spec(set_state/3 :: (Pid :: pid(), State :: atom(), Data :: any()) -> 'ok' | 'invalid').
+-spec(set_state/3 :: (Pid :: pid(), State :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'warmtransfer' | 'wrapup', Data :: any()) -> 'ok' | 'invalid';
+                     (Pid :: pid(), State :: 'released', Data :: any()) -> 'ok' | 'invalid' | 'queued').
 set_state(Pid, State, Data) ->
 	gen_fsm:sync_send_event(Pid, {State, Data}).
 

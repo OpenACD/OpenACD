@@ -133,7 +133,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
--spec(get_agents/1 :: (Pid :: pid()) -> [#agent{}]).
+-spec(get_agents/1 :: (Pid :: pid()) -> [{string, pid(), #agent{}}]).
 get_agents(Pid) -> 
 	gen_server:call(Pid, get_agents).
 

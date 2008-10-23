@@ -59,7 +59,7 @@ query_queue(Name) ->
 			gen_server:call({global, ?MODULE}, {exists, Name})
 	end.
 
--spec(get_best_bindable_queues/0 :: () -> [{atom(), pid(), #call{}, pos_integer()}]).
+-spec(get_best_bindable_queues/0 :: () -> [{atom(), pid(), {{non_neg_integer(), any()}, #call{}}, pos_integer()}]).
 get_best_bindable_queues() ->
 	try gen_server:call({global, ?MODULE}, queues_as_list) of
 		List ->

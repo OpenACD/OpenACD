@@ -93,6 +93,23 @@ namespace :test do
 		puts "Overall coverage: #{sprintf("%.2f%%", global_total/files.length)}"
 	end
 
+	task :report_missing_specs do
+		unspecced = []
+		ignored = %w{handle_info handle_cast handle_call code_change terminate init}
+		puts "Functions missing specs:"
+		SRC.each do |src|
+			contents = File.read(src)
+			contents.each do |line|
+				if md = /^([a-z_]+)\(.*?\) ->/.match(line) and not ignored.include?(md[1]) and not md[1][-5..-1] == '_test' and not md[1][-6..-1] == '_test_'
+					unless /^-spec\(#{md[1]}\//.match(contents)
+						unspecced << File.basename(src, '.erl') + ':'+ md[1]
+					end
+				end
+			end
+		end
+		puts "  "+unspecced.uniq.join("\n  ")
+	end
+
 	desc "run the dialyzer"
 	task :dialyzer do
 		print "running dialyzer..."
@@ -103,6 +120,8 @@ namespace :test do
 			exit(1)
 		end
 		STDOUT.flush
+		# Add -DEUNIT=1 here to make dialyzer evaluate the code in the test cases. This generates some spurious warnings so 
+		# it's not set normally but it can be very helpful occasionally.
 		dialyzer_output = `dialyzer -Wunderspecs --src -I include -c #{SRC.reject{|x| x =~ /test_coverage/}.join(' ')}`
 		#puts dialyzer_output
 		if $?.exitstatus.zero?

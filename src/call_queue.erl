@@ -100,7 +100,7 @@ set_priority(Pid, #call{} = Calldata, Priority) ->
 set_priority(Pid, Callid, Priority) ->
 	gen_server:call(Pid, {set_priority, Callid, Priority}).
 
--spec(to_list/1 :: (Pid :: pid()) -> []).
+-spec(to_list/1 :: (Pid :: pid()) -> [#call{}]).
 to_list(Pid) ->
 	gen_server:call(Pid, to_list).
 
@@ -158,7 +158,7 @@ handle_call({ungrab, Callid}, From, State) ->
 		none -> 
 			{reply, ok, State};
 		{Key, Value} -> 
-			{reply, ok, State#state{queue=gb_trees:update(Key, Value#call{bound=lists:delete(From, Value#call.bound)})}}
+			{reply, ok, State#state{queue=gb_trees:update(Key, Value#call{bound=lists:delete(From, Value#call.bound)}, State#state.queue)}}
 	end;
 handle_call({set_weight, Weight}, _From, State) ->
 	{reply, ok, State#state{weight=Weight}};

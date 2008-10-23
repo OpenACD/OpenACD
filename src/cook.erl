@@ -183,15 +183,15 @@ do_route(State) ->
 	end.
 
 -spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #call{}) -> 'ok').
-offer_call([{_ACost, Apid} | Agents], Call) -> 
+offer_call([], _Call) -> 
+	ok;
+offer_call([{_ACost, Apid} | Tail], Call) -> 
 	case agent:set_state(Apid, ringing, Call) of
 		ok ->
 			ok;
 		invalid -> 
-			offer_call(Agents, Call)
-	end;
-offer_call([], _Call) -> 
-	ok.
+			offer_call(Tail, Call)
+	end.
 
 -spec(do_recipe/2 :: (Recipe :: recipe(), State :: #state{}) -> recipe()).
 do_recipe([{Ticks, Op, Args, Runs} | Recipe], #state{ticked=Ticked} = State) when Ticks rem Ticked == 0 -> 

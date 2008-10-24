@@ -22,41 +22,51 @@
 %gen_server support
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+%% @doc Start a queue named `Name' with no link to the current process.
 -spec(start/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
 start(Name, Recipe, Weight) -> % Start linked queue custom default recipe and weight
 	gen_server:start(?MODULE, [Name, Recipe, Weight], []).
 
+%% @doc Start a queue names `Name' with a link to the current process.
 -spec(start_link/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
 start_link(Name, Recipe, Weight) -> % Start linked queue with custom recipe and weight
 	gen_server:start_link(?MODULE, [Name, Recipe, Weight], []).
 
+%% @private
 init([Name, Recipe, Weight]) -> 
 	{ok, #state{name=Name, recipe=Recipe, weight=Weight}}.
 
+%% @doc Set the queue at `Pid''s recipe to `Recipe'.
 -spec(set_recipe/2 :: (Pid :: pid(), Recipe :: recipe()) -> 'ok' | 'error').
 set_recipe(Pid, Recipe) -> 
 	gen_server:call(Pid, {set_recipe, Recipe}).
 
+%% @doc Set the queue at `Pid''s weight to `Weight'.
 -spec(set_weight/2 :: (Pid :: pid(), Weight :: pos_integer()) -> 'ok' | 'error').
 set_weight(Pid, Weight) -> 
 	gen_server:call(Pid, {set_weight, Weight}).
 
+%% @doc Return the weight of the queue at `Pid'.
 -spec(get_weight/1 :: (Pid :: pid()) -> pos_integer()).
 get_weight(Pid) -> 
 	gen_server:call(Pid, get_weight).
 
+%% @doc Add the call `Calldata' to the queue at `Pid'.
 -spec(add/3 :: (Pid :: pid(), Priority :: non_neg_integer(), Calldata :: #call{}) -> ok).
 add(Pid, Priority, Calldata) -> 
 	gen_server:call(Pid, {add, Priority, Calldata}, infinity).
 
+%% @doc Query the queue at `Pid' for a call with the id of `Callid'.
 -spec(get_call/2 :: (Pid ::pid(), Callid :: string()) -> 'none' | {key(), #call{}}).
 get_call(Pid, Callid) -> 
 	gen_server:call(Pid, {get_call, Callid}).
 
+%% @doc Return the first call in the queue at `Pid' that doesn't have a dispatcher from this node already bound to it or none.
 -spec(ask/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
 ask(Pid) ->
 	gen_server:call(Pid, ask).
 
+%% @doc Bind to the first call in the queue at `Pid' that doesn't have a dispatcher from this node already bound to it or none.
 -spec(grab/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
 grab(Pid) ->
 	gen_server:call(Pid, grab).
@@ -65,14 +75,17 @@ grab(Pid) ->
 ungrab(Pid, Callid) -> 
 	gen_server:call(Pid, {ungrab, Callid}).
 
+%% @doc Add the list of skills `Skills' to the call with the id of `Callid' in the queue at `Pid'. Returns ok on success, none on failure.
 -spec(add_skills/3 :: (Pid :: pid(), Callid :: string(), Skills :: [atom()]) -> 'none' | 'ok').
 add_skills(Pid, Callid, Skills) -> 
 	gen_server:call(Pid, {add_skills, Callid, Skills}).
-	
+
+%% @doc Remove the list of skills `Skills' from the call with the id of `Callid' in the queue at `Pid'. Returns ok on success, none on failure.
 -spec(remove_skills/3 :: (Pid :: pid(), Callid :: string(), Skills :: [atom()]) -> 'none' | 'ok').
 remove_skills(Pid, Callid, Skills) -> 
 	gen_server:call(Pid, {remove_skills, Callid, Skills}).
 
+%% @doc Alter the priority of the call with the id of `Callid' in the queue at `Pid' to `Priority'.
 -spec(set_priority/3 :: ( Pid :: pid(), Calldata :: #call{}, Priority :: non_neg_integer()) -> 'none' | 'ok';
 						(Pid :: pid(), Callid :: string(), Priority :: non_neg_integer()) -> 'none' | 'ok').
 set_priority(Pid, #call{} = Calldata, Priority) ->
@@ -88,6 +101,7 @@ to_list(Pid) ->
 print(Pid) ->
 	gen_server:call(Pid, print).
 
+%% @doc Remove the call with id of `Calldata' from the queue at `Pid'.
 -spec(remove/2 :: (Pid :: pid(), Calldata :: #call{}) -> 'none' | 'ok';
 					(Pid :: pid(), Calldata :: string()) -> 'none' | 'ok').
 remove(Pid, #call{} = Calldata) ->
@@ -95,10 +109,12 @@ remove(Pid, #call{} = Calldata) ->
 remove(Pid, Calldata) -> 
 	gen_server:call(Pid, {remove, Calldata}).
 
+%% @doc Return the number of calls in the queue at `Pid'.
 -spec(call_count/1 :: (Pid :: pid()) -> non_neg_integer()).
 call_count(Pid) -> 
 	gen_server:call(Pid, call_count).
-	
+
+%% @doc Stop the queue at `Pid'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) ->
 	gen_server:call(Pid, stop).
@@ -137,6 +153,7 @@ find_key_(Needle, {_Key, _Value, Iter}) ->
 find_key_(_Needle, none) -> 
 	none.
 
+%% @private
 handle_call({get_call, Callid}, _From, State) -> 
 	case find_key(Callid, State#state.queue) of
 		none -> 
@@ -232,9 +249,11 @@ handle_call(call_count, _From, State) ->
 handle_call(_Request, _From, State) ->
 	{reply, ok, State}.
 
+%% @private
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
+%% @private
 handle_info({'EXIT', From, _Reason}, State) ->
 	Calls = gb_trees:to_list(State#state.queue),
 	Cleancalls = clean_pid(From, State#state.recipe, Calls),
@@ -244,10 +263,12 @@ handle_info({'EXIT', From, _Reason}, State) ->
 handle_info(_Info, State) ->
 	{noreply, State}.
 
+%% @private
 terminate(_Reason, State) ->
 	lists:foreach(fun({_K,V}) when is_pid(V#call.cook) -> cook:stop(V#call.cook); (_) -> ok end, gb_trees:to_list(State#state.queue)),
 	ok.
 
+%% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 

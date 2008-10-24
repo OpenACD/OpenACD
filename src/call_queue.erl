@@ -105,16 +105,17 @@ stop(Pid) ->
 
 % find the first call in the queue that doesn't have a pid on this node
 % in its bound list
+-spec(find_unbound/2 :: (Iterator :: {key(), #call{}, any()} | 'none', From :: pid()) -> {key(), #call{}} | 'none').
 find_unbound(none, _From) -> 
 	none;
 find_unbound({Key, #call{bound = []} = Value, _Iter}, _From) ->
 	{Key, Value};
-find_unbound({Key, #call{bound = B} = Value, Iter}, {From, _}) ->
+find_unbound({Key, #call{bound = B} = Value, Iter}, From) ->
 	case lists:filter(fun(Pid) -> node(Pid) =:= node(From) end, B ) of
 		[] ->
 			{Key, Value};
 		_ -> 
-			find_unbound(gb_trees:next(Iter), {From, foo})
+			find_unbound(gb_trees:next(Iter), From)
 	end.
 
 % return the {Key, Value} pair where Value#call.id == Needle or none
@@ -133,7 +134,7 @@ handle_call({get_call, Callid}, _From, State) ->
 		{Key, Value} -> 
 			{reply, {Key, Value}, State}
 	end;
-handle_call({ungrab, Callid}, From, State) ->
+handle_call({ungrab, Callid}, {From, _Tag}, State) ->
 	case find_key(Callid, gb_trees:next(gb_trees:iterator(State#state.queue))) of
 		none -> 
 			{reply, ok, State};
@@ -170,21 +171,19 @@ handle_call({remove_skills, Callid, Skills}, _From, State) ->
 			{reply, ok, State2}
 	end;
 
-handle_call(ask, From, State) ->
+handle_call(ask, {From, _Tag}, State) ->
 	%generate a call in queue excluding those already bound
 	% return a tuple:  {key, val}
 	{reply, find_unbound(gb_trees:next(gb_trees:iterator(State#state.queue)), From), State};
 
-handle_call(grab, From, State) ->
+handle_call(grab, {From, _Tag}, State) ->
 	% ask and bind in one handy step
-	%io:format("From:  ~p~n", [From]),
 	case find_unbound(gb_trees:next(gb_trees:iterator(State#state.queue)), From) of
 		none -> 
 			{reply, none, State};
 		{Key, Value} ->
-			{Realfrom, _} = From, 
-			link(Realfrom),
-			State2 = State#state{queue=gb_trees:update(Key, Value#call{bound=lists:append(Value#call.bound, [Realfrom])}, State#state.queue)},
+			link(From),
+			State2 = State#state{queue=gb_trees:update(Key, Value#call{bound=lists:append(Value#call.bound, [From])}, State#state.queue)},
 			{reply, {Key, Value}, State2}
 	end;
 
@@ -218,7 +217,7 @@ handle_call(to_list, _From, State) ->
 	{reply, lists:map(fun({_, Call}) -> Call end, gb_trees:to_list(State#state.queue)), State};
 
 handle_call(call_count, _From, State) -> 
-	{reply, length(gb_trees:to_list(State#state.queue)), State};
+	{reply, gb_trees:size(State#state.queue), State};
 
 handle_call(_Request, _From, State) ->
 	{reply, ok, State}.

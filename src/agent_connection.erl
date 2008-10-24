@@ -190,8 +190,8 @@ handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 			case agent:set_state(State#state.agent_fsm, NewState) of
 				ok ->
 					{ack(Counter), State};
-				queued ->
-					{ack(Counter), State};
+				%queued ->
+					%{ack(Counter), State};
 				invalid ->
 					{ok, OldState} = agent:query_state(State#state.agent_fsm),
 					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState)), State}

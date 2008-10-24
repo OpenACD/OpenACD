@@ -56,7 +56,8 @@ init([]) ->
 	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	AgentManagerSpec = {agent_manager, {agent_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	AgentListenerSpec = {agent_connection_listener, {agent_connection_listener, start, []}, permanent, 20000, worker, [?MODULE]},
-	Specs = [DispatchSpec, AgentManagerSpec, AgentListenerSpec],
+	QueueManagerSpec = {queue_manager, {queue_manager, start, []}, permanent, 20000, worker, [?MODULE]},
+	Specs = [DispatchSpec, AgentManagerSpec, AgentListenerSpec, QueueManagerSpec],
 	io:format("specs:  ~p~n", [supervisor:check_childspecs(Specs)]),
     {ok,{{one_for_one,3,5}, Specs}}.
 

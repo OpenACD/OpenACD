@@ -29,6 +29,7 @@
 
 -record(state, {
 	call :: #call{} | 'undefined',
+	tref,
 	agents = [] :: [pid()]}).
 
 %%====================================================================
@@ -41,6 +42,7 @@
 start_link() ->
 	gen_server:start_link(?MODULE, [], []).
 start() ->
+	io:format("Your pid is ~p~n", [self()]),
 	gen_server:start(?MODULE, [], []).
 
 %%====================================================================
@@ -55,7 +57,16 @@ start() ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-	{ok, #state{}}.
+	State = #state{},
+	case grab_best() of
+		none ->
+			io:format("no call to grab, lets start a timer~n"),
+			{ok, Tref} = timer:send_interval(10000, grab_best),
+			{ok, State#state{tref=Tref}};
+		Call ->
+			io:format("sweet, grabbed a call~n"),
+			{ok, State#state{call=Call}}
+	end.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -71,8 +82,7 @@ handle_call(get_agents, _From, State) when is_record(State#state.call, call) ->
 	Call = State#state.call,
 	{reply, agent_manager:find_avail_agents_by_skill(Call#call.skills), State};
 handle_call(grab_best, _From, State) -> 
-	Queues = queue_manager:get_best_bindable_queues(),
-	case loop_queues(Queues) of
+	case grab_best() of
 		none -> 
 			{reply, none, State};
 		Call -> 
@@ -108,6 +118,17 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+handle_info(grab_best, State) ->
+	io:format("trying to grab~n"),
+	case grab_best() of
+		none ->
+			io:format("no dice~n"),
+			{noreply, State};
+		Call ->
+			io:format("success!~n"),
+			timer:cancel(State#state.tref),
+			{noreply, State#state{call=Call, tref=undefined}}
+	end;
 handle_info(_Info, State) ->
 	{noreply, State}.
 
@@ -137,7 +158,7 @@ code_change(_OldVsn, State, _Extra) ->
 get_agents(Pid) -> 
 	gen_server:call(Pid, get_agents).
 
--spec(loop_queues/1 :: (Queues :: [] | [tuple()]) -> 'none' | #call{}).
+-spec(loop_queues/1 :: (Queues :: [] | [{atom(), pid(), {{any()}, #call{}}, non_neg_integer()}]) -> 'none' | #call{}).
 loop_queues([]) -> 
 	none;
 loop_queues(Queues) -> 
@@ -169,6 +190,11 @@ biased_to([Queue | Tail], Acc, Random) ->
 grab(Pid) -> 
 	gen_server:call(Pid, grab_best).
 	
+
+grab_best() ->
+	Queues = queue_manager:get_best_bindable_queues(),
+	loop_queues(Queues).
+
 -spec(stop/1 :: (pid()) -> 'ok').
 stop(Pid) -> 
 	io:format("just before the gen_server handle call pid:  ~p.  Me:  ~p", [Pid, self()]),

@@ -16,35 +16,15 @@
 -record(state, {
 	queue = gb_trees:empty(),
 	name :: atom(),
-	recipe = [] :: recipe(),
+	recipe = ?DEFAULT_RECIPE :: recipe(),
 	weight = ?DEFAULT_WEIGHT :: pos_integer()}).
 
 %gen_server support
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--spec(start/1 :: (Name :: atom()) -> {ok, pid()}).
-start(Name) -> % Start queue with default recipe and weight
-	gen_server:start(?MODULE, [Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT], []).
-
-%-spec(start/2 :: (Name :: atom(), Recipe :: recipe()) -> {ok, pid()}).
-%start(Name, Recipe) when is_list(Recipe) -> % Start queue with default weight
-	%gen_server:start(?MODULE, [Name, Recipe, ?DEFAULT_WEIGHT], []);
-%start(Name, Weight) when is_integer(Weight), Weight > 0 -> % Start queue with default recipe
-	%gen_server:start(?MODULE, [Name, ?DEFAULT_RECIPE, Weight], []).
-
 -spec(start/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
 start(Name, Recipe, Weight) -> % Start linked queue custom default recipe and weight
 	gen_server:start(?MODULE, [Name, Recipe, Weight], []).
-	
-%-spec(start_link/1 :: (Name :: atom()) -> {ok, pid()}).
-%start_link(Name) -> % Start linked queue with default recipe and weight
-	%gen_server:start_link(?MODULE, [Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT], []).
-
-%-spec(start_link/2 :: (Name :: atom(), Recipe :: recipe()) -> {ok, pid()}).
-%start_link(Name, Recipe) when is_list(Recipe) -> % Start linked queue with default weight
-	%gen_server:start_link(?MODULE, [Name, Recipe, ?DEFAULT_WEIGHT], []);
-%start_link(Name, Weight) when is_integer(Weight), Weight > 0 -> % Start linked queue with defailt recipe
-	%gen_server:start_link(?MODULE, [Name, ?DEFAULT_RECIPE, Weight], []).
 
 -spec(start_link/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
 start_link(Name, Recipe, Weight) -> % Start linked queue with custom recipe and weight
@@ -283,7 +263,7 @@ clean_pid(_Deadpid, _Recipe, []) ->
 -ifdef(TEST).
 
 add_test() ->
-	{_, Pid} = start(goober),
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	C1 = #call{id="C1"},
 	?assert(add(Pid, 1, C1) =:= ok),
 	{{Priority, _Time}, Call} = ask(Pid),
@@ -292,7 +272,7 @@ add_test() ->
 	?assertEqual("C1", Id).
 	
 remove_test() ->
-	{_, Pid} = start(goober),
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2"},
 	add(Pid, 1, C1),
@@ -302,18 +282,18 @@ remove_test() ->
 	?assertMatch("C2", Call#call.id).
 	
 remove_id_test() ->
-	{_, Pid} = start(goober),
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	C1 = #call{id="C1"},
 	add(Pid, 1, C1),
 	?assertMatch(ok, remove(Pid, "C1")),
 	?assertMatch(none, grab(Pid)).
 
 remove_nil_test() ->
-	{_, Pid} = start(goober), 
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	?assertMatch(none, remove(Pid, "C1")).
 
 find_key_test() ->
-	{_, Pid} = start(goober),
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2", bound=[self()]},
 	add(Pid, 1, C1),
@@ -323,7 +303,7 @@ bound_test() ->
 	{_, Node} = slave:start(net_adm:localhost(), boundtest),
 	Pid = spawn(Node, erlang, exit, [normal]),
 	C1 = #call{id="C1", bound=[Pid]},
-	{_, Qpid} = start(foobar),
+	{_, Qpid} = start(foobar, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	add(Qpid, 1, C1),
 	{_Key, Call} = grab(Qpid),
 	?assertEqual("C1", Call#call.id),
@@ -333,7 +313,7 @@ grab_test() ->
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2", bound=[self()]},
 	C3 = #call{id="C3"},
-	{_, Pid} = start(goober),
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	add(Pid, 1, C1),
 	add(Pid, 0, C2),
 	add(Pid, 1, C3),
@@ -344,14 +324,14 @@ grab_test() ->
 	?assert(grab(Pid) =:= none).
 
 grab_empty_test() -> 
-	{_, Pid} = start(goober),
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	?assert(grab(Pid) =:= none).
 
 increase_priority_test() ->
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2"},
 	C3 = #call{id="C3"},
-	{_, Pid} = start(goober),
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	add(Pid, 1, C1),
 	add(Pid, 1, C2),
 	add(Pid, 1, C3),
@@ -362,14 +342,14 @@ increase_priority_test() ->
 	?assertEqual("C2", Call2#call.id).
 
 increase_priority_nil_test() ->
-	{_, Pid} = start(goober),
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	?assertMatch(none, set_priority(Pid, "C1", 1)).
 
 decrease_priority_test() ->
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2"},
 	C3 = #call{id="C3"},
-	{_, Pid} = start(goober),
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	add(Pid, 1, C1),
 	add(Pid, 1, C2),
 	add(Pid, 1, C3),
@@ -383,18 +363,18 @@ queue_to_list_test() ->
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2"},
 	C3 = #call{id="C3"},
-	{_, Pid} = start(goober),
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	add(Pid, 1, C1),
 	add(Pid, 1, C2),
 	add(Pid, 1, C3),
 	?assertMatch(["C1", "C2", "C3"], lists:map(fun(X) -> X#call.id end, to_list(Pid))).
 
 empty_queue_to_list_test() -> 
-	{_, Pid} = start(goober), 
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	?assertMatch([], to_list(Pid)).
 	
 start_stop_test() ->
-	{_, Pid} = start(goober),
+	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	?assertMatch(ok, stop(Pid)).
 
 -endif.

@@ -14,14 +14,16 @@
 -include("agent.hrl").
 
 -ifdef(EUNIT).
-%-export([randomtest/0]).
 -include_lib("eunit/include/eunit.hrl").
+-define(POLL_INTERVAL, 500).
+-else.
+-define(POLL_INTERVAL, 10000).
 -endif.
 
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start/0, grab/1, stop/1, get_agents/1]).
+-export([start_link/0, start/0, stop/1, get_agents/1, bound_call/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -61,7 +63,7 @@ init([]) ->
 	case grab_best() of
 		none ->
 			io:format("no call to grab, lets start a timer~n"),
-			{ok, Tref} = timer:send_interval(10000, grab_best),
+			{ok, Tref} = timer:send_interval(?POLL_INTERVAL, grab_best),
 			{ok, State#state{tref=Tref}};
 		Call ->
 			io:format("sweet, grabbed a call~n"),
@@ -81,21 +83,13 @@ init([]) ->
 handle_call(get_agents, _From, State) when is_record(State#state.call, call) -> 
 	Call = State#state.call,
 	{reply, agent_manager:find_avail_agents_by_skill(Call#call.skills), State};
-handle_call(grab_best, _From, State) -> 
-	case grab_best() of
-		none -> 
+handle_call(bound_call, _From, State) ->
+	case State#state.call of
+		undefined ->
 			{reply, none, State};
-		Call -> 
-			{reply, Call, State#state{call=Call}}
-	end;
-handle_call({grab_from, Queue}, _From, State) -> 
-	case call_queue:grab(Queue) of
-		none -> 
-			{reply, {ok, none}, State};
-		{_Key, Value} -> 
-			State2 = State#state{call=Value},
-			{reply, {ok, Value}, State2}
-	end;
+		Call ->
+			{reply, Call, State}
+		end;
 handle_call(stop, _From, State) ->
 	io:format("okay, okay, I'll die.~n"),
 	{stop, normal, ok, State};
@@ -182,15 +176,11 @@ biased_to([Queue | Tail], Acc, Random) ->
 			biased_to(Tail, Acc2, Random)
 	end.
 
-%-spec(grab/1 :: (Queue :: pid()) -> {'ok', 'none'} | {'ok', #call{}}).
-%grab(Queue) -> 
-%	gen_server:call(?MODULE, {grab_from, Queue}).
+-spec(bound_call/1 :: (Pid :: pid()) -> #call{} | 'none').
+bound_call(Pid) ->
+	gen_server:call(Pid, bound_call).
 
--spec(grab/1 :: (Pid :: pid()) -> 'none' | #call{}).
-grab(Pid) -> 
-	gen_server:call(Pid, grab_best).
-	
-
+-spec(grab_best/0 :: () -> #call{} | 'none').
 grab_best() ->
 	Queues = queue_manager:get_best_bindable_queues(),
 	loop_queues(Queues).
@@ -235,7 +225,7 @@ random_test() ->
 	io:format("queue4:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [3, 0, 0]),
 	io:format("Total: ~p~n", [Total]),
 	io:format("out:  ~p~n", [Out]),
-	V1 = dict:fetch(queue1, Out) div (?MAX_RANDOM_TEST div 100), %div by 100 to make a percetage.
+	V1 = dict:fetch(queue1, Out) div (?MAX_RANDOM_TEST div 100), %div by 100 to make a percentage.
 	V2 = dict:fetch(queue2, Out) div (?MAX_RANDOM_TEST div 100),
 	V3 = dict:fetch(queue3, Out) div (?MAX_RANDOM_TEST div 100),
 	V4 = dict:fetch(queue4, Out) div (?MAX_RANDOM_TEST div 100),
@@ -267,10 +257,12 @@ grab_test_() ->
 			{_, Pid1} = queue_manager:add_queue(queue1, 1),
 			{_, Pid2} = queue_manager:add_queue(queue2, 2),
 			{_, Pid3} = queue_manager:add_queue(queue3, 99),
+			agent_manager:start(),
 			[Pid1, Pid2, Pid3]
 		end,
 		fun(Pids) -> 
 			queue_manager:stop(),
+			agent_manager:stop(),
 			lists:foreach(fun(P) -> call_queue:stop(P) end, Pids)
 		end,
 		[
@@ -284,14 +276,15 @@ grab_test_() ->
 				call_queue:add(Pid1, 1, lists:nth(1, Calls)),
 				call_queue:add(Pid2, 1, lists:nth(2, Calls)),
 				call_queue:add(Pid3, 1, lists:nth(3, Calls)),
-				Call = grab(Pid),
+				receive after ?POLL_INTERVAL -> ok end,
+				Call = bound_call(Pid),
 				?assertEqual("C3", Call#call.id),
 				stop(Pid)
 			end},
 			{"There's no call.  At all.",
 			fun() -> 
 				{ok, Pid} = start(),
-				 Call = grab(Pid),
+				 Call = bound_call(Pid),
 				 ?assertEqual(none, Call),
 				 stop(Pid)
 			end}

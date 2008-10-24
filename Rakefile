@@ -29,7 +29,7 @@ verbose(true)
 directory 'ebin'
 directory 'debug_ebin'
 directory 'coverage'
-directory 'doc'
+#directory 'doc'
 
 rule ".beam" => ["%{ebin,src}X.erl"] do |t|
 	sh "erlc -pa ebin -W #{ERLC_FLAGS} -o ebin #{t.source} "
@@ -63,7 +63,8 @@ task :test => "test:all"
 
 desc "Generate Documentation"
 task :doc do
-	sh("cd doc && erl -noshell -run edoc files ../#{SRC.join(" ../")} -run init stop")
+	sh('mkdir doc') unless File.directory? 'doc'
+	sh("rm -rf doc/*.html && cd doc && erl -noshell -run edoc files ../#{SRC.join(" ../")} -run init stop")
 end
 
 namespace :test do
@@ -75,7 +76,6 @@ namespace :test do
 
 	desc "run only the eunit tests"
 	task :eunit =>  ['coverage'] + COVERAGE
-	#end
 
 	desc "report the percentage code coverage of the last test run"
 	task :report_coverage =>  [:eunit] do

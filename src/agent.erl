@@ -1,4 +1,6 @@
+%% @doc A gen_fsm representing the agent's state.
 -module(agent).
+-behaviour(gen_fsm).
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").

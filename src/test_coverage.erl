@@ -1,3 +1,4 @@
+%% @hidden
 -module(test_coverage).
 -export([start/1]).
 

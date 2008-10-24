@@ -1,6 +1,11 @@
+%% @doc An inplementation of priority queues, with some extensions for parallel
+%% call delivery. The calls in queue can be re-prioritized at any time and they
+%% can have skills added/removed to facilitate scripted/dynamic call delivery.
+%% Each call can be 'bound' to by a single dispatcher from each node in a cluster.
 -module(call_queue).
 
 %% depends on util, agent, cook, queue_manager
+
 
 -type(key() :: {non_neg_integer(), {pos_integer(), non_neg_integer(), non_neg_integer()}}).
 
@@ -11,7 +16,25 @@
 -behaviour(gen_server).
 -include("call.hrl").
 -include("queue.hrl").
--export([start/3, start_link/3, set_recipe/2, set_weight/2, get_weight/1, add/3, ask/1, get_call/2, print/1, remove/2, stop/1, grab/1, set_priority/3, to_list/1, add_skills/3, remove_skills/3, call_count/1]).
+-export([
+    start/3,
+    start_link/3,
+    set_recipe/2,
+    set_weight/2,
+    get_weight/1,
+    add/3,
+    ask/1,
+    get_call/2,
+    print/1,
+    remove/2,
+    stop/1,
+    grab/1,
+    set_priority/3,
+    to_list/1, 
+    add_skills/3,
+    remove_skills/3,
+    call_count/1
+]).
 
 -record(state, {
 	queue = gb_trees:empty(),

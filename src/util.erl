@@ -1,3 +1,5 @@
+%% @doc A utility module containing several handy functions not provided by
+%% erlang's standard library.
 -module(util).
 
 -ifdef(EUNIT).

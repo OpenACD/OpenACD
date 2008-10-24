@@ -1,12 +1,8 @@
-%%%-------------------------------------------------------------------
-%%% File          : cook.erl
-%%% Author        : Micah Warren
-%%% Organization  : __MyCompanyName__
-%%% Project       : cpxerl
-%%% Description   : 
-%%%
-%%% Created       :  10/21/08
-%%%-------------------------------------------------------------------
+%% @doc The cook is a process that is spawned per call in queue, it
+%% executes the queue's 'recipe' on the call and handles call delivery to an
+%% agent. When it finds one or more dispatchers bound to its call it requests
+%% that each dispatcher generate a list of local agents matching the call's
+%% criteria and selects the best one to offer it to.
 -module(cook).
 -author("Micah").
 
@@ -28,14 +24,14 @@
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3]).
+	terminate/2, code_change/3]).
 
 -record(state, {recipe = [] :: recipe(),
-				ticked = 0 :: integer(),
-				call :: string() | 'undefined',
-				queue :: pid() | 'undefined',
-				continue = true :: bool(),
-				tref :: any()}).
+        ticked = 0 :: integer(),
+        call :: string() | 'undefined',
+        queue :: pid() | 'undefined',
+        continue = true :: bool(),
+        tref :: any()}).
 
 %%====================================================================
 %% API
@@ -59,6 +55,7 @@ start(Call, Recipe, QueuePid) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
+%% @private
 init([Call, Recipe, QueuePid]) ->
 	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),	
 	State = #state{ticked=0, recipe=Recipe, call=Call, queue=QueuePid, tref=Tref},
@@ -73,9 +70,9 @@ init([Call, Recipe, QueuePid]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+%% @private
 handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+    {reply, ok, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -83,6 +80,7 @@ handle_call(_Request, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+%% @private
 handle_cast(restart_tick, State) ->
 	State2 = do_tick(State),
 	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
@@ -101,6 +99,7 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+%% @private
 handle_info(do_tick, State) -> 
 	{noreply, do_tick(State)};
 handle_info(_Info, State) ->
@@ -113,6 +112,7 @@ handle_info(_Info, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
+%% @private
 terminate(_Reason, _State) ->
     ok.
 
@@ -120,6 +120,7 @@ terminate(_Reason, _State) ->
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
+%% @private
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 

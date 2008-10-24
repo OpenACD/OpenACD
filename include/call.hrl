@@ -1,3 +1,9 @@
+-record(client, {
+		tenant :: pos_integer(),
+		brand :: pos_integer(),
+		label :: string()
+}).
+
 -record(call, {	
 		id :: string(),
 		type = voice :: 'voice' | 'email',
@@ -6,9 +12,9 @@
 		source :: pid(),
 		bound = [] :: [pid()],
 		% client record
-		client :: any(),
+		client :: #client{},
 		skills = [english] :: [atom(), ...],
 		cook :: pid()
-		}).
+}).
 
 

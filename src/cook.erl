@@ -26,12 +26,14 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	terminate/2, code_change/3]).
 
--record(state, {recipe = [] :: recipe(),
-        ticked = 0 :: integer(),
-        call :: string() | 'undefined',
-        queue :: pid() | 'undefined',
-        continue = true :: bool(),
-        tref :: any()}).
+-record(state, {
+		recipe = [] :: recipe(),
+		ticked = 0 :: integer(),
+		call :: string() | 'undefined',
+		queue :: pid() | 'undefined',
+		continue = true :: bool(),
+		tref :: any()
+}).
 
 %%====================================================================
 %% API
@@ -187,7 +189,8 @@ do_route(State) ->
 offer_call([], _Call) -> 
 	ok;
 offer_call([{_ACost, Apid} | Tail], Call) -> 
-	case agent:set_state(Apid, ringing, Call) of
+	%case agent:set_state(Apid, ringing, Call) of
+	case gen_server:call(Call#call.source, {ring_agent, Apid, Call}) of
 		ok ->
 			ok;
 		invalid -> 

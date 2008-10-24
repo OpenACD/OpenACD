@@ -92,6 +92,8 @@ handle_call(bound_call, _From, State) ->
 		end;
 handle_call(stop, _From, State) ->
 	io:format("okay, okay, I'll die.~n"),
+	%% XXX - figure out how to unbind from this queue
+	%% call_queue:ungrab(
 	{stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
 	Reply = unknown,

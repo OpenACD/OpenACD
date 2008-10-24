@@ -29,6 +29,7 @@
     remove/2,
     stop/1,
     grab/1,
+		ungrab/2,
     set_priority/3,
     to_list/1, 
     add_skills/3,
@@ -283,7 +284,8 @@ handle_info({'EXIT', From, _Reason}, State) ->
 	Newtree = gb_trees:from_orddict(Cleancalls),
 	{noreply, State#state{queue=Newtree}};
 	
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+	io:format("got info ~p~n", [Info]),
 	{noreply, State}.
 
 %% @private

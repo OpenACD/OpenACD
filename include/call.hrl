@@ -1,7 +1,7 @@
 -record(call, {	
 		id :: string(),
 		type = voice :: 'voice' | 'email',
-		callerid :: string(),
+		callerid = "Unknown Unknown" :: string(),
 		% source is the Pid of the media manager this is from
 		source :: pid(),
 		bound = [] :: [pid()],

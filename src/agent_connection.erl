@@ -74,6 +74,12 @@ handle_cast(negotiate, State) ->
 				{stop, normal}
 		end;
 
+handle_cast({change_state, ringing, #call{} = Call}, State) ->
+	Counter = State#state.counter,
+	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n"),
+	gen_tcp:send(State#state.socket, "CALLINFO " ++ integer_to_list(Counter+1) ++ " 00310003 " ++ atom_to_list(Call#call.type) ++ " " ++ Call#call.callerid  ++ "\r\n"),
+	{noreply, State#state{counter = Counter + 2}};
+
 handle_cast({change_state, AgState, _Data}, State) ->
 	Counter = State#state.counter,
 	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(AgState)) ++ "\r\n"),

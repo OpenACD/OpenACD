@@ -105,17 +105,22 @@ stop(Pid) ->
 
 % find the first call in the queue that doesn't have a pid on this node
 % in its bound list
--spec(find_unbound/2 :: (Iterator :: {key(), #call{}, any()} | 'none', From :: pid()) -> {key(), #call{}} | 'none').
-find_unbound(none, _From) -> 
+
+-spec(find_unbound/2 :: (GbTree :: {non_neg_integer(), tuple()}, From :: pid()) -> {key(), #call{}} | 'none').
+find_unbound(GbTree, From) ->
+	find_unbound_(gb_trees:next(gb_trees:iterator(GbTree)), From).
+
+-spec(find_unbound_/2 :: (Iterator :: {key(), #call{}, any()} | 'none', From :: pid()) -> {key(), #call{}} | 'none').
+find_unbound_(none, _From) -> 
 	none;
-find_unbound({Key, #call{bound = []} = Value, _Iter}, _From) ->
+find_unbound_({Key, #call{bound = []} = Value, _Iter}, _From) ->
 	{Key, Value};
-find_unbound({Key, #call{bound = B} = Value, Iter}, From) ->
+find_unbound_({Key, #call{bound = B} = Value, Iter}, From) ->
 	case lists:filter(fun(Pid) -> node(Pid) =:= node(From) end, B ) of
 		[] ->
 			{Key, Value};
 		_ -> 
-			find_unbound(gb_trees:next(Iter), From)
+			find_unbound_(gb_trees:next(Iter), From)
 	end.
 
 % return the {Key, Value} pair where Value#call.id == Needle or none
@@ -174,11 +179,11 @@ handle_call({remove_skills, Callid, Skills}, _From, State) ->
 handle_call(ask, {From, _Tag}, State) ->
 	%generate a call in queue excluding those already bound
 	% return a tuple:  {key, val}
-	{reply, find_unbound(gb_trees:next(gb_trees:iterator(State#state.queue)), From), State};
+	{reply, find_unbound(State#state.queue, From), State};
 
 handle_call(grab, {From, _Tag}, State) ->
 	% ask and bind in one handy step
-	case find_unbound(gb_trees:next(gb_trees:iterator(State#state.queue)), From) of
+	case find_unbound(State#state.queue, From) of
 		none -> 
 			{reply, none, State};
 		{Key, Value} ->

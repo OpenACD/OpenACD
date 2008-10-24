@@ -125,22 +125,27 @@ find_unbound_({Key, #call{bound = B} = Value, Iter}, From) ->
 
 % return the {Key, Value} pair where Value#call.id == Needle or none
 % ie:  lookup a call by ID, return the key in queue and the full call data
-find_key(Needle, {Key, #call{id = Needle} = Value, _Iter}) ->
+-spec(find_key/2 :: (Needle :: string(), GbTree :: {non_neg_integer(), tuple()}) -> {key(), #call{}} | 'none').
+find_key(Needle, GbTree) ->
+	find_key_(Needle, gb_trees:next(gb_trees:iterator(GbTree))).
+
+-spec(find_key_/2 :: (Needle :: string(), Iterator :: {key(), #call{}, any()} | 'none') -> {key(), #call{}} | 'none').
+find_key_(Needle, {Key, #call{id = Needle} = Value, _Iter}) ->
 	{Key, Value};
-find_key(Needle, {_Key, _Value, Iter}) ->
-	find_key(Needle, gb_trees:next(Iter));
-find_key(_Needle, none) -> 
+find_key_(Needle, {_Key, _Value, Iter}) ->
+	find_key_(Needle, gb_trees:next(Iter));
+find_key_(_Needle, none) -> 
 	none.
 
 handle_call({get_call, Callid}, _From, State) -> 
-	case find_key(Callid, gb_trees:next(gb_trees:iterator(State#state.queue))) of
+	case find_key(Callid, State#state.queue) of
 		none -> 
 			{reply, none, State};
 		{Key, Value} -> 
 			{reply, {Key, Value}, State}
 	end;
 handle_call({ungrab, Callid}, {From, _Tag}, State) ->
-	case find_key(Callid, gb_trees:next(gb_trees:iterator(State#state.queue))) of
+	case find_key(Callid, State#state.queue) of
 		none -> 
 			{reply, ok, State};
 		{Key, Value} -> 
@@ -159,7 +164,7 @@ handle_call({add, Priority, Calldata}, _From, State) ->
 	{reply, ok, State#state{queue=Trees}};
 
 handle_call({add_skills, Callid, Skills}, _From, State) -> 
-	case find_key(Callid, gb_trees:next(gb_trees:iterator(State#state.queue))) of
+	case find_key(Callid, State#state.queue) of
 		none -> 
 			{reply, none, State};
 		{Key, #call{skills=OldSkills} = Value} -> 
@@ -167,7 +172,7 @@ handle_call({add_skills, Callid, Skills}, _From, State) ->
 			{reply, ok, State2}
 	end;
 handle_call({remove_skills, Callid, Skills}, _From, State) -> 
-	case find_key(Callid, gb_trees:next(gb_trees:iterator(State#state.queue))) of
+	case find_key(Callid, State#state.queue) of
 		none -> 
 			{reply, none, State};
 		{Key, #call{skills=OldSkills} = Value} -> 
@@ -196,7 +201,7 @@ handle_call(print, _From, State) ->
 	{reply, State, State};
 
 handle_call({remove, Id}, _From, State) ->
-	case find_key(Id, gb_trees:next(gb_trees:iterator(State#state.queue))) of
+	case find_key(Id, State#state.queue) of
 		none ->
 			{reply, none, State};
 		{Key, Value} ->
@@ -209,7 +214,7 @@ handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 
 handle_call({set_priority, Id, Priority}, _From, State) ->
-	case find_key(Id, gb_trees:next(gb_trees:iterator(State#state.queue))) of
+	case find_key(Id, State#state.queue) of
 		none ->
 			{reply, none, State};
 		{{Oldpri, Time}, Value} ->

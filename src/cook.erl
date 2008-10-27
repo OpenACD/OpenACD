@@ -34,7 +34,7 @@
 		call :: string() | 'undefined',
 		queue :: pid() | 'undefined',
 		continue = true :: bool(),
-		ringingto :: #agent{},
+		ringingto :: pid(),
 		ringcount = 0 :: non_neg_integer(),
 		tref :: any()
 }).

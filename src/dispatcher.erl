@@ -32,6 +32,7 @@
 -record(state, {
 	call :: #call{} | 'undefined',
 	tref,
+	qpid :: pid(),
 	agents = [] :: [pid()]}).
 
 %%====================================================================
@@ -65,9 +66,9 @@ init([]) ->
 			io:format("no call to grab, lets start a timer~n"),
 			{ok, Tref} = timer:send_interval(?POLL_INTERVAL, grab_best),
 			{ok, State#state{tref=Tref}};
-		Call ->
+		{Qpid, Call} ->
 			io:format("sweet, grabbed a call~n"),
-			{ok, State#state{call=Call}}
+			{ok, State#state{call=Call, qpid=Qpid}}
 	end.
 
 %%--------------------------------------------------------------------
@@ -90,10 +91,11 @@ handle_call(bound_call, _From, State) ->
 		Call ->
 			{reply, Call, State}
 		end;
+handle_call(stop, _From, State) when is_record(State#state.call, call) ->
+	Call = State#state.call,
+	call_queue:ungrab(State#state.qpid, Call#call.id),
+	{stop, normal, ok, State};
 handle_call(stop, _From, State) ->
-	io:format("okay, okay, I'll die.~n"),
-	%% XXX - figure out how to unbind from this queue
-	%% call_queue:ungrab(
 	{stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
 	Reply = unknown,
@@ -120,10 +122,10 @@ handle_info(grab_best, State) ->
 		none ->
 			io:format("no dice~n"),
 			{noreply, State};
-		Call ->
+		{Qpid, Call} ->
 			io:format("success!~n"),
 			timer:cancel(State#state.tref),
-			{noreply, State#state{call=Call, tref=undefined}}
+			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined}}
 	end;
 handle_info(_Info, State) ->
 	{noreply, State}.
@@ -165,7 +167,7 @@ loop_queues(Queues) ->
 			none -> 
 				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues));
 			{_Key, Call2} -> 
-				Call2
+				{Qpid, Call2}
 	end.
 
 -spec(biased_to/3 :: (Queue :: [tuple()], Acc :: non_neg_integer(), Random :: non_neg_integer()) -> tuple() | 'none').
@@ -182,7 +184,7 @@ biased_to([Queue | Tail], Acc, Random) ->
 bound_call(Pid) ->
 	gen_server:call(Pid, bound_call).
 
--spec(grab_best/0 :: () -> #call{} | 'none').
+-spec(grab_best/0 :: () -> {pid(), #call{}} | 'none').
 grab_best() ->
 	Queues = queue_manager:get_best_bindable_queues(),
 	loop_queues(Queues).

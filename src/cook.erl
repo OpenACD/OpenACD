@@ -156,6 +156,9 @@ do_route(State) ->
 				Dispatchers -> 
 					Agents = lists:map(fun(Dpid) -> 
 						try dispatcher:get_agents(Dpid) of
+							[] ->
+								io:format("empty list, might as well tell this dispatcher to unbind~n"),
+								[];
 							Ag -> 
 								Ag
 						catch

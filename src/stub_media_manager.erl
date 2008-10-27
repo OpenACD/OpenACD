@@ -29,7 +29,7 @@ handle_call({create_and_queue_call, ID, Type, CallerID, Client, Skills, Queue, P
 		undefined ->
 			{reply, unknownqueue, State};
 		Qpid ->
-			Call = #call{id=ID, type=Type, callerid=CallerID, client=Client, skills=Skills, source=self()},
+			Call = #call{id=ID, type=Type, callerid=CallerID, client=Client, skills=Skills, source=self(), media_path=inband, ring_path=inband},
 			call_queue:add(Qpid, Priority, Call),
 			{reply, ok, State#state{calls = lists:append(State#state.calls, [Call])}}
 		end;

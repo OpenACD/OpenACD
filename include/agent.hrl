@@ -11,7 +11,7 @@
 						{onhold, #call{}, calling, #call{}},	% warmtransfer
 	queuedrelease = undefined :: any(),	% is the current state is to go to released, what is the released type
 	lastchangetimestamp = now() :: any(),	% at what time did the last state change occur
-	endpoints :: any()  % the strings here are the uri's the media type is sent to to reach the agent.
+	defaultringpath = inband :: 'inband' | 'outband'
 	}).
 	
 %% 10/10/2008 Micah

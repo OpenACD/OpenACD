@@ -19,6 +19,8 @@
 -define(TICK_LENGTH, 10000).
 -endif.
 
+-define(RINGOUT, 4).
+
 %% API
 -export([start_link/3, start/3, stop/1, restart_tick/1, stop_tick/1]).
 
@@ -32,6 +34,8 @@
 		call :: string() | 'undefined',
 		queue :: pid() | 'undefined',
 		continue = true :: bool(),
+		ringingto :: #agent{},
+		ringcount = 0 :: non_neg_integer(),
 		tref :: any()
 }).
 
@@ -144,14 +148,19 @@ do_tick(#state{recipe=Recipe} = State) ->
 stop(Pid) -> 
 	gen_server:cast(Pid, stop).
 
--spec(do_route/1 :: (State :: #state{}) -> 'ok').
-do_route(State) -> 
+-spec(do_route/1 :: (State :: #state{}) -> #state{}).
+do_route(State) when State#state.ringingto =/= undefined, State#state.ringcount =< ?RINGOUT ->
+	State#state{ringcount=State#state.ringcount +1};
+do_route(State) when State#state.ringingto =/= undefined, State#state.ringcount > ?RINGOUT ->
+	agent_fsm:set_state(State#state.ringingto, idle),
+	do_route(State#state{ringingto=undefined});
+do_route(State) when State#state.ringingto =:= undefined -> 
 	Qpid = State#state.queue,
 	case call_queue:get_call(Qpid, State#state.call) of
 		{_Key, Call} ->
 			case Call#call.bound of
 				[] -> 
-					ok;
+					State;
 				% get the list of agents from the dispatchers, then flatten it.
 				Dispatchers -> 
 					Agents = lists:map(fun(Dpid) -> 
@@ -182,21 +191,25 @@ do_route(State) ->
 																Askills <- [length(AState#agent.skills)],
 																Aidle <- [element(2, AState#agent.lastchangetimestamp)]]),
 				% offer the call to each agent.
-				offer_call(Agents3, Call),
-				ok
+				case offer_call(Agents3, Call) of
+					none ->
+						State;
+					Agent ->
+						State#state{ringingto=Agent, ringcount=0}
+				end
 			end;
 		 none -> 
-			 ok 
+			 State
 	end.
 
--spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #call{}) -> 'ok').
+-spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #call{}) -> 'none' | pid()).
 offer_call([], _Call) -> 
 	ok;
 offer_call([{_ACost, Apid} | Tail], Call) -> 
 	%case agent:set_state(Apid, ringing, Call) of
 	case gen_server:call(Call#call.source, {ring_agent, Apid, Call}) of
 		ok ->
-			ok;
+			Apid;
 		invalid -> 
 			offer_call(Tail, Call)
 	end.

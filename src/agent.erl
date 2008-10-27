@@ -155,6 +155,9 @@ idle({released, Reason}, _From, State) ->
 idle(_Event, _From, State) ->
 	{reply, invalid, idle, State}.
 
+ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.defaultringpath =:= inband, Statecall#call.ring_path =/= outband ->
+	gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
+	{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};
 ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} = State) ->
 	case Statecall#call.id of
 		Callid -> 

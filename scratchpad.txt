@@ -67,3 +67,29 @@ once a call is ringing to an agent listen:
 	to ourselves (queue) in case it's not answered in X amount of time
 	to the agent in case they change state (answer or release)
 	to the media manager in case the call drops.
+	
+media manager
+	agent_goes_ringing
+	caller_hangup
+	agent_hangup
+	agent_pickup
+	agent_outbound
+	caller_pickup
+
+originate on asterix from agent to remote
+
+seems we'll need 2 major patterns for handling media:
+stateful (calls, chats),
+stateless (vm's, emails)
+
+stateful takes it's major changes between agent and media server from the media server.  Media server trickles up, 
+
+split ring configurable:  during negotiation the agentui will tell the agent server 'here's where/what I want to ring', that data is stored on the server.
+
+Out of band propigation for a sip call:
+sip phone says to black box 'oncall'
+black box says to media manager 'oncall'
+media manager says to agentfsm 'oncall'
+agentfsm says to agent_conneciton 'oncall'
+agent_conneciton says to agent ui 'oncall'
+

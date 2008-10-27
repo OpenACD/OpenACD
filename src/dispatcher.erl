@@ -23,7 +23,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start/0, stop/1, get_agents/1, bound_call/1]).
+-export([start_link/0, start/0, stop/1, get_agents/1, bound_call/1, regrab/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -97,6 +97,17 @@ handle_call(stop, _From, State) when is_record(State#state.call, call) ->
 	{stop, normal, ok, State};
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
+handle_call(regrab, _From, State) -> 
+	OldQ = State#state.qpid,
+	Queues = queue_manager:get_best_bindable_queues(),
+	Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
+	case loop_queues(Filtered) of
+		none -> 
+			{reply, State#state.call, State};
+		{Qpid, Call} -> 
+			call_queue:ungrab(State#state.qpid, Call#call.id),
+			{reply, Call, State#state{qpid=Qpid, call=Call}}
+	end;
 handle_call(_Request, _From, State) ->
 	Reply = unknown,
 	{reply, Reply, State}.
@@ -156,7 +167,7 @@ code_change(_OldVsn, State, _Extra) ->
 get_agents(Pid) -> 
 	gen_server:call(Pid, get_agents).
 
--spec(loop_queues/1 :: (Queues :: [] | [{atom(), pid(), {{any()}, #call{}}, non_neg_integer()}]) -> 'none' | #call{}).
+-spec(loop_queues/1 :: (Queues :: [] | [{atom(), pid(), {{any()}, #call{}}, non_neg_integer()}]) -> 'none' | {pid(), #call{}}).
 loop_queues([]) -> 
 	none;
 loop_queues(Queues) -> 
@@ -180,6 +191,7 @@ biased_to([Queue | Tail], Acc, Random) ->
 			biased_to(Tail, Acc2, Random)
 	end.
 
+%% @doc returns the call this is bound to
 -spec(bound_call/1 :: (Pid :: pid()) -> #call{} | 'none').
 bound_call(Pid) ->
 	gen_server:call(Pid, bound_call).
@@ -189,6 +201,11 @@ grab_best() ->
 	Queues = queue_manager:get_best_bindable_queues(),
 	loop_queues(Queues).
 
+%% @doc tries to grab a new call ignoring the queue it's current call is bound to
+-spec(regrab/1 :: (pid()) -> {pid(), #call{}} | 'none').
+regrab(Pid) -> 
+	gen_server:call(Pid, regrab).
+	
 -spec(stop/1 :: (pid()) -> 'ok').
 stop(Pid) -> 
 	io:format("just before the gen_server handle call pid:  ~p.  Me:  ~p", [Pid, self()]),

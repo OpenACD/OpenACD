@@ -166,7 +166,7 @@ do_route(State) when State#state.ringingto =:= undefined ->
 					Agents = lists:map(fun(Dpid) -> 
 						try dispatcher:get_agents(Dpid) of
 							[] ->
-								io:format("empty list, might as well tell this dispatcher to unbind~n"),
+								io:format("empty list, might as well tell this dispatcher to regrab~n"),
 								dispatcher:regrab(Dpid),
 								[];
 							Ag -> 
@@ -209,6 +209,7 @@ offer_call([{_ACost, Apid} | Tail], Call) ->
 	%case agent:set_state(Apid, ringing, Call) of
 	case gen_server:call(Call#call.source, {ring_agent, Apid, Call}) of
 		ok ->
+			io:format("cook offering call:  ~p to ~p", [Call, Apid]),
 			Apid;
 		invalid -> 
 			offer_call(Tail, Call)

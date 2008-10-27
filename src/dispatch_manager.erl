@@ -152,5 +152,5 @@ balance(State) when length(State#state.agents) < length(State#state.dispatchers)
 	ok = dispatcher:stop(Pid),
 	balance(State#state{dispatchers=Dispatchers});
 balance(State) -> 
-	io:format("It is nifty!~n"),
+	io:format("It is fully balanced!~n"),
 	State.

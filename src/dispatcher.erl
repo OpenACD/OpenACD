@@ -67,7 +67,7 @@ init([]) ->
 			{ok, Tref} = timer:send_interval(?POLL_INTERVAL, grab_best),
 			{ok, State#state{tref=Tref}};
 		{Qpid, Call} ->
-			io:format("sweet, grabbed a call~n"),
+			io:format("sweet, grabbed a call~p~n", [Call]),
 			{ok, State#state{call=Call, qpid=Qpid}}
 	end.
 
@@ -83,6 +83,7 @@ init([]) ->
 
 handle_call(get_agents, _From, State) when is_record(State#state.call, call) -> 
 	Call = State#state.call,
+	io:format("dispater:get_agents, Call is ~p.~n", [Call]),
 	{reply, agent_manager:find_avail_agents_by_skill(Call#call.skills), State};
 handle_call(bound_call, _From, State) ->
 	case State#state.call of
@@ -101,6 +102,7 @@ handle_call(regrab, _From, State) ->
 	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
+	io:format("looping through filtered queues...~n"),
 	case loop_queues(Filtered) of
 		none -> 
 			{reply, State#state.call, State};
@@ -128,7 +130,7 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(grab_best, State) ->
-	io:format("trying to grab~n"),
+	io:format("dispatcher trying to grab~n"),
 	case grab_best() of
 		none ->
 			io:format("no dice~n"),
@@ -204,11 +206,12 @@ grab_best() ->
 %% @doc tries to grab a new call ignoring the queue it's current call is bound to
 -spec(regrab/1 :: (pid()) -> {pid(), #call{}} | 'none').
 regrab(Pid) -> 
+	io:format("dispatcher trying to regrab~n"),
 	gen_server:call(Pid, regrab).
 	
 -spec(stop/1 :: (pid()) -> 'ok').
 stop(Pid) -> 
-	io:format("just before the gen_server handle call pid:  ~p.  Me:  ~p", [Pid, self()]),
+	io:format("just before the gen_server handle call pid:  ~p.  Me:  ~p~n", [Pid, self()]),
 	gen_server:call(Pid, stop).
 	
 -ifdef(EUNIT).

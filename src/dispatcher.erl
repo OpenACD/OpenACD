@@ -98,7 +98,7 @@ handle_call(stop, _From, State) when is_record(State#state.call, call) ->
 	{stop, normal, ok, State};
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
-handle_call(regrab, _From, State) -> 
+handle_call(regrab, _From, State) ->
 	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
@@ -106,8 +106,9 @@ handle_call(regrab, _From, State) ->
 	case loop_queues(Filtered) of
 		none -> 
 			{reply, State#state.call, State};
-		{Qpid, Call} -> 
-			call_queue:ungrab(State#state.qpid, Call#call.id),
+		{Qpid, Call} ->
+			OldCall = State#state.call,
+			call_queue:ungrab(State#state.qpid, OldCall#call.id),
 			{reply, Call, State#state{qpid=Qpid, call=Call}}
 	end;
 handle_call(_Request, _From, State) ->

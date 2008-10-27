@@ -141,20 +141,23 @@ stop_tick(Pid) ->
 
 -spec(do_tick/1 :: (State :: #state{}) -> #state{}).
 do_tick(#state{recipe=Recipe} = State) -> 
-	do_route(State),
-	Recipe2 = do_recipe(Recipe, State),
-	State#state{ticked= State#state.ticked+1, recipe=Recipe2}.
+	State2 = do_route(State),
+	Recipe2 = do_recipe(Recipe, State2),
+	State2#state{ticked= State2#state.ticked+1, recipe=Recipe2}.
 
 stop(Pid) -> 
 	gen_server:cast(Pid, stop).
 
 -spec(do_route/1 :: (State :: #state{}) -> #state{}).
 do_route(State) when State#state.ringingto =/= undefined, State#state.ringcount =< ?RINGOUT ->
+	io:format("still ringing: ~p of ~p times~n", [State#state.ringcount, ?RINGOUT]),
 	State#state{ringcount=State#state.ringcount +1};
 do_route(State) when State#state.ringingto =/= undefined, State#state.ringcount > ?RINGOUT ->
-	agent_fsm:set_state(State#state.ringingto, idle),
+	io:format("rang out~n"),
+	agent:set_state(State#state.ringingto, idle),
 	do_route(State#state{ringingto=undefined});
-do_route(State) when State#state.ringingto =:= undefined -> 
+do_route(State) when State#state.ringingto =:= undefined ->
+	%io:format("starting new ring~n"),
 	Qpid = State#state.queue,
 	case call_queue:get_call(Qpid, State#state.call) of
 		{_Key, Call} ->
@@ -178,6 +181,8 @@ do_route(State) when State#state.ringingto =:= undefined ->
 					end,
 					Dispatchers),
 				Agents2 = lists:flatten(Agents),
+
+				%io:format("Got agents ~p for call ~p~n", [Agents2, Call]),
 				
 				% calculate costs and sort by same.
 				Agents3 = lists:sort([{ARemote + Askills + Aidle, APid} || {_AName, APid, AState} <- Agents2, 
@@ -204,7 +209,7 @@ do_route(State) when State#state.ringingto =:= undefined ->
 
 -spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #call{}) -> 'none' | pid()).
 offer_call([], _Call) -> 
-	ok;
+	none;
 offer_call([{_ACost, Apid} | Tail], Call) -> 
 	%case agent:set_state(Apid, ringing, Call) of
 	case gen_server:call(Call#call.source, {ring_agent, Apid, Call}) of

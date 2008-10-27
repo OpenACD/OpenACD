@@ -171,7 +171,7 @@ ringing({released, Reason}, _From, State) ->
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 ringing(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
-	gen_server:cast(State#agent.connection, {change_state, ringing}),
+	gen_server:cast(State#agent.connection, {change_state, idle}),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 ringing(_Event, _From, State) ->
 	{reply, invalid, ringing, State}.

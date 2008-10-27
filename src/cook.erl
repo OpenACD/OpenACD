@@ -158,7 +158,7 @@ do_route(State) ->
 						try dispatcher:get_agents(Dpid) of
 							[] ->
 								io:format("empty list, might as well tell this dispatcher to unbind~n"),
-								
+								dispatcher:regrab(Dpid),
 								[];
 							Ag -> 
 								Ag

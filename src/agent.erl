@@ -157,6 +157,7 @@ idle(_Event, _From, State) ->
 
 ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.defaultringpath =:= inband, Statecall#call.ring_path =/= outband ->
 	gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
+	gen_server:cast(Statecall#call.cook, remove_from_queue),
 	{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};
 ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} = State) ->
 	case Statecall#call.id of
@@ -166,7 +167,8 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} 
 		_Other -> 
 			{reply, invalid, ringing, State}
 	end;
-ringing({released, Reason}, _From, State) ->
+ringing({released, Reason}, _From, #agent{statedata = Call} = State) ->
+	gen_server:cast(Call#call.cook, {stop_ringing, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 ringing(idle, _From, State) ->
@@ -189,11 +191,13 @@ precall({released, Reason}, _From, State) ->
 precall(_Event, _From, State) -> 
 	{reply, invalid, precall, State}.
 	
-	
 oncall({released, undefined}, _From, State) -> 
 	{reply, ok, oncall, State#agent{queuedrelease=undefined}};
 oncall({released, Reason}, _From, State) -> 
 	{reply, queued, oncall, State#agent{queuedrelease=Reason}};
+oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_path =:= 'inband' ->
+	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
+	{reply, ok, wrapup, State#agent{state=wrapup, lastchangetimestamp=now()}};
 oncall({wrapup, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 	{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};

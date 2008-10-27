@@ -94,6 +94,12 @@ handle_cast(restart_tick, State) ->
 handle_cast(stop_tick, State) -> 
 	timer:cancel(State#state.tref),
 	{noreply, State#state{tref=undefined}};
+handle_cast({stop_ringing, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
+	%% XXX - actually tell the backend to stop ringing if it's an outband ring
+	{noreply, State#state{ringingto=undefined}};
+handle_cast(remove_from_queue, State) ->
+	call_queue:remove(State#state.queue, State#state.call),
+	{noreply, State};
 handle_cast(stop, State) -> 
 	{stop, normal, State};
 handle_cast(_Msg, State) ->

@@ -6,6 +6,7 @@ ERLC_FLAGS = "-I#{INCLUDE} +warn_unused_vars +warn_unused_import"
 
 SRC = FileList['src/*.erl']
 OBJ = SRC.pathmap("%{src,ebin}X.beam").reject{|x| x.include? 'test_coverage'}
+CONTRIB = FileList['contrib/*']
 DEBUGOBJ = SRC.pathmap("%{src,debug_ebin}X.beam")
 # hack to force correct compilation order so that module dependancies are met
 COVERAGE = SRC.sort_by do |x|
@@ -52,7 +53,11 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 end
 
 
-task :compile => ['ebin'] + OBJ
+task :compile => ['ebin'] + OBJ do
+	CONTRIB.each do |cont|
+		sh "make -C #{cont}"
+	end
+end
 
 task :default => :compile
 

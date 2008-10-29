@@ -2,6 +2,8 @@
 
 %% depends on call_queue
 
+%% @doc Manages queues across nodes.
+
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -24,10 +26,12 @@ start_link() ->
 start() ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
+%% @doc Add a queue named Name using the default wieght and recipe.
 -spec(add_queue/1 :: (Name :: atom()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name) ->
 	gen_server:call(?MODULE, {add, Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT}, infinity).
 
+%% @doc Add a queue named Name uaing a givien Recipe or Weight.
 -spec(add_queue/2 :: (Name :: atom(), Recipe :: recipe()) -> {'ok', pid()} | {'exists', pid()};
 	(Name :: atom(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name, Recipe) when is_list(Recipe) ->
@@ -35,10 +39,12 @@ add_queue(Name, Recipe) when is_list(Recipe) ->
 add_queue(Name, Weight) when is_integer(Weight), Weight > 0 ->
 	gen_server:call(?MODULE, {add, Name, ?DEFAULT_RECIPE, Weight}).
 
+%% @doc Add a queue named Name using the given Name, Recipe, and Weight.
 -spec(add_queue/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name, Recipe, Weight) ->
 	gen_server:call(?MODULE, {add, Name, Recipe, Weight}).
 
+%% @doc Get the pid of the passed queue name.  If there is no queue, returns 'undefined'.
 -spec(get_queue/1 :: (Name :: atom()) -> pid() | undefined).
 get_queue(Name) -> 
 	try gen_server:call({global, ?MODULE}, {get_queue, Name}) of
@@ -49,6 +55,7 @@ get_queue(Name) ->
 			gen_server:call({global, ?MODULE}, {get_queue, Name})
 	end.
 	
+%% @doc 'true' or 'false' if the passed queue name exists.
 -spec(query_queue/1 :: (Name :: atom()) -> bool()).
 query_queue(Name) ->
 	try gen_server:call({global, ?MODULE}, {exists, Name}) of
@@ -59,10 +66,14 @@ query_queue(Name) ->
 			gen_server:call({global, ?MODULE}, {exists, Name})
 	end.
 
+%% @doc Spits out the queuss as [Qname :: atom(), Qpid :: pid()}].
 -spec(queues/0 :: () -> [{atom(), pid()}]).
 queues() -> 
 	gen_server:call({global, ?MODULE}, queues_as_list).
 
+%% @doc Attempt to find a queue with an important call.  An 'important call' is not always going to be the call with the highest priority,
+%% or the queue with the greatest wieght.  All the queues are evealuated together, then each is given a bias range.  A random roll determines 
+%% which queue is the 'best bindable' at the time.
 -spec(get_best_bindable_queues/0 :: () -> [{atom(), pid(), {{non_neg_integer(), any()}, #call{}}, pos_integer()}]).
 get_best_bindable_queues() ->
 	try gen_server:call({global, ?MODULE}, queues_as_list) of
@@ -90,6 +101,7 @@ stop() ->
 print() ->
 	gen_server:call(?MODULE, print).
 
+%% @doc internal sync function.
 sync_queues([H|T]) ->
 	{K,_V} = H,
 	try gen_server:call({global, ?MODULE}, {exists, K}) of

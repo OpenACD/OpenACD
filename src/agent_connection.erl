@@ -2,6 +2,9 @@
 
 %% depends on util, agent
 
+%% @doc The connecection handler that communicates with a client UI; in this case the desktop client.
+%% Other connection modules will be needed to bridge between the internal agent fsm and incoming agent connections.
+%% @clear
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -27,12 +30,15 @@
 	counter = 1
 	}).
 
+%% @doc start the conection unlinked on the given Socket.  This is usually done by agent_connection_listener
 start(Socket) ->
 	gen_server:start(?MODULE, [Socket], []).
 
+%% @doc start the conection linked on the given Socket.  This is usually done by agent_connection_listener
 start_link(Socket) ->
 	gen_server:start_link(?MODULE, [Socket], []).
 
+%% @doc negotiate the client's protocol, and version before login.
 negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).
 

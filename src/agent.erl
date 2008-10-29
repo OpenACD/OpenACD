@@ -31,9 +31,11 @@ start_link(Agent = #agent{}) ->
 start(Agent = #agent{}) -> 
 	gen_fsm:start(?MODULE, [Agent], []).
 
+%% @doc link the given agent (Pid) to the given connection (Socket).
 set_connection(Pid, Socket) ->
 	gen_fsm:sync_send_all_state_event(Pid, {set_connection, Socket}).
 	
+%% @private
 init([State = #agent{}]) ->
 	State2 = expand_magic_skills(State),
 	{ok, released, State2}.
@@ -48,18 +50,24 @@ expand_magic_skills(State) ->
 		(Skill) -> Skill
 	end, State#agent.skills)}.
 
+%% @doc returns the entrire state record.
 -spec(dump_state/1 :: (Pid :: pid()) -> #agent{}).
 dump_state(Pid) ->
 	gen_fsm:sync_send_all_state_event(Pid, dump_state).
 
+%% @doc returns {'ok', Statename :: atom()}
 -spec(query_state/1 :: (Pid :: pid()) -> {'ok', atom()}).
 query_state(Pid) -> 
   gen_fsm:sync_send_all_state_event(Pid, query_state).
 
+%% @doc Attempt to set the state of agent of Pid :: pid() to State :: atom().  Returns 'ok' | 'invalid' 
 -spec(set_state/2 :: (Pid :: pid(), State :: atom()) -> 'ok' | 'invalid').
 set_state(Pid, State) ->
 	gen_fsm:sync_send_event(Pid, State).
 
+%% @doc Some states require data to go into them; this function handles those states.  Pid :: pid() of the agent, 
+%% State :: atom() to go into, and Date :: any() will depend on the state going into.  Often Data will be a callid :: string() 
+%% or a call record #call{}.
 -spec(set_state/3 :: (Pid :: pid(), State :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'warmtransfer' | 'wrapup', Data :: any()) -> 'ok' | 'invalid';
                      (Pid :: pid(), State :: 'released', Data :: any()) -> 'ok' | 'invalid' | 'queued').
 set_state(Pid, State, Data) ->
@@ -141,6 +149,11 @@ state_to_integer(State) ->
 %	Reply = ok,
 %	{reply, Reply, state_name, State}.
 
+%% @doc The various calls avilable when an agent is idle. <ul>
+%%<li>{'precall', Client :: #client{}}</li>
+%%<li>{'ringing, Call :: #call{}}</li>
+%%<li>{'released', Reason :: string()}</li>
+%%</ul>
 idle({precall, Client}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	{reply, ok, precall, State#agent{state=precall, statedata=Client, lastchangetimestamp=now()}};
@@ -155,6 +168,12 @@ idle({released, Reason}, _From, State) ->
 idle(_Event, _From, State) ->
 	{reply, invalid, idle, State}.
 
+%% @doc The various calls available when an agent is ringing. <ul>
+%%<li>'oncall' when default ring path is 'inband' and the call's ring path is not ouband.</li>
+%%<li>{'oncall', Call :: #call{}}</li>
+%%<li>{'released', Reason :: string()}</li>
+%%<li>'idle'</li>
+%%</ul>
 ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.defaultringpath =:= inband, Statecall#call.ring_path =/= outband ->
 	gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
 	gen_server:cast(Statecall#call.cook, remove_from_queue),
@@ -178,6 +197,11 @@ ringing(idle, _From, State) ->
 ringing(_Event, _From, State) ->
 	{reply, invalid, ringing, State}.
 
+%% @doc The various calls available when an agent is in precall. <ul>
+%%<li>{'outgoing', Call :: #call{}}</li>
+%%<li>idle</li>
+%%<li>{'released', Reason}</li>
+%%</ul>
 precall({outgoing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, outgoing, Call}),
 	{reply, ok, outgoing, State#agent{state=outgoing, statedata=Call, lastchangetimestamp=now()}};
@@ -190,7 +214,14 @@ precall({released, Reason}, _From, State) ->
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 precall(_Event, _From, State) -> 
 	{reply, invalid, precall, State}.
-	
+
+%% @doc The various calls available when an agent is oncall. <ul>
+%%<li>{'released', 'undefined'}  :: note this 'unqueus' a released state when the call is done.</li>
+%%<li>{'released', Reason :: string()} :: this only queues a release, it doesn't actually chnage state</li>
+%%<li>'wrapup' when the media path of the call is 'inband'</li>
+%%<li>{'wrapup', Call :: #call}</li>
+%%<li>{'warmtransfer', Transferto :: any()}</li>
+%%</ul>
 oncall({released, undefined}, _From, State) -> 
 	{reply, ok, oncall, State#agent{queuedrelease=undefined}};
 oncall({released, Reason}, _From, State) -> 
@@ -207,6 +238,12 @@ oncall({warmtransfer, Transferto}, _From, State) ->
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
 	
+%% @doc The various calls available when an agent is in an outgoing call. <ul>
+%%<li>{'released', 'undefined'} :: Note this only unsets a previously queued release.</li>
+%%<li>{'released', Reason :: string()} :: Note this only queues a release for when the call is over.</li>
+%%<li>{'wrapup', Call :: #call{}}</li>
+%%<li>{'warmtransfer', Transferto :: any()}</li>
+%%</ul>
 outgoing({released, undefined}, _From, State) -> 
 	{reply, ok, outgoing, State#agent{queuedrelease=undefined}};
 outgoing({released, Reason}, _From, State) -> 
@@ -220,6 +257,13 @@ outgoing({warmtransfer, Transferto}, _From, State) ->
 outgoing(_Event, _From, State) -> 
 	{reply, invalid, outgoing, State}.
 
+%% @doc The various calls available when an agent is released. <ul>
+%%<li>{'precall', Client :: #client{}}</li>
+%%<li>'idle'</li>
+%%<li>{'released', Reason :: string()}  :: Changes the released reason.</li>
+%%<li>{'ringing', Call :: #call{}} :: While the system cannot automatically route to a relased agent,
+%%there is functionality for a supervisor to force it through.</li>
+%%</ul>
 released({precall, Client}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
 	{reply, ok, precall, State#agent{state=precall, statedata=Client, lastchangetimestamp=now()}};
@@ -236,6 +280,13 @@ released({ringing, Call}, _From, State) ->
 released(_Event, _From, State) ->
 	{reply, invalid, released, State}.
 
+%% @doc The various calls available when an agent is warmtransfering. <ul>
+%%<li>{'released', 'undefined'} :: unqueues a preveiouosly set release request.</li>
+%%<li>{'released', Reason :: string()} :: queues a reason after the call is done.</li>
+%%<li>{'wrapup', Call :: #call{}}</li>
+%%<li>{'oncall', Call :: #call{}}  :: if the agent goes back to the orignal call</li>
+%%<li>{'outgoing', Call :: #call{}}</li>
+%%</ul>
 warmtransfer({released, undefined}, _From, State) ->
 	{reply, ok, warmtransfer, State#agent{queuedrelease=undefined}};
 warmtransfer({released, Reason}, _From, State) -> 
@@ -252,6 +303,11 @@ warmtransfer({outgoing, Call}, _From, State) ->
 warmtransfer(_Event, _From, State) ->
 	{reply, invalid, warmtransfer, State}.
 
+%% @doc The various calls available when an agent is ringing. <ul>
+%%<li>{'released', 'undefined'} :: unqueues a release.</li>
+%%<li>{'released', Reason :: string()} :: queues a release the next time the agent tries to go idle.</li>
+%%<li>'idle' :: if the agent has a relase queued, that state is set instead.</li>
+%%</ul>
 wrapup({released, undefined}, _From, State) ->
 	{reply, ok, wrapup, State#agent{queuedrelease=undefined}};
 wrapup({released, Reason}, _From, State) -> 
@@ -268,11 +324,13 @@ wrapup(_Event, _From, State) ->
 
 
 % generic handlers independant of state
+%% @private
 handle_event(stop, _StateName, State) -> 
 	{stop, normal, State};
 handle_event(_Event, StateName, State) ->
 	{next_state, StateName, State}.
 
+%% @private
 handle_sync_event(query_state, _From, StateName, State) -> 
 	{reply, {ok, StateName}, StateName, State};
 handle_sync_event(dump_state, _From, StateName, State) ->
@@ -286,13 +344,16 @@ handle_sync_event({set_connection, _Pid}, _From, StateName, State) ->
 handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.
 
+%% @private
 handle_info(_Info, StateName, State) ->
 	{next_state, StateName, State}.
 
 % obviousness below.
+%% @private
 terminate(_Reason, _StateName, _State) ->
 	ok.
 
+%% @private
 code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
 

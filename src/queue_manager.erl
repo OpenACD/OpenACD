@@ -11,7 +11,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, start/0, add_queue/1, add_queue/2, add_queue/3, get_queue/1, query_queue/1, stop/0, print/0, get_best_bindable_queues/0]).
+-export([start_link/0, start/0, queues/0, add_queue/1, add_queue/2, add_queue/3, get_queue/1, query_queue/1, stop/0, print/0, get_best_bindable_queues/0]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -58,6 +58,10 @@ query_queue(Name) ->
 			global:register_name(?MODULE, whereis(?MODULE), {global, random_notify_name}),
 			gen_server:call({global, ?MODULE}, {exists, Name})
 	end.
+
+-spec(queues/0 :: () -> [{atom(), pid()}]).
+queues() -> 
+	gen_server:call({global, ?MODULE}, queues_as_list).
 
 -spec(get_best_bindable_queues/0 :: () -> [{atom(), pid(), {{non_neg_integer(), any()}, #call{}}, pos_integer()}]).
 get_best_bindable_queues() ->

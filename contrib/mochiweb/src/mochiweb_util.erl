@@ -99,7 +99,7 @@ safe_relative_path(P, Acc) ->
 %% @doc Quote a string according to UNIX shell quoting rules, returns a string
 %%      surrounded by double quotes.
 shell_quote(L) ->
-    shell_quote(L, [$\"]).
+    shell_quote(L, [$\"]).%"
 
 %% @spec cmd_port([string()], Options) -> port()
 %% @doc open_port({spawn, mochiweb_util:cmd_string(Argv)}, Options).

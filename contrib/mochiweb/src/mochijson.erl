@@ -301,7 +301,7 @@ tokenize_string(IoList=[C | _], S=#decoder{input_encoding=utf8}, Acc)
 tokenize_string("\"" ++ Rest, S, Acc) ->
     {lists:reverse(Acc), Rest, ?INC_COL(S)};
 tokenize_string("\\\"" ++ Rest, S, Acc) ->
-    tokenize_string(Rest, ?ADV_COL(S, 2), [$\" | Acc]);
+    tokenize_string(Rest, ?ADV_COL(S, 2), [$\" | Acc]);%"
 tokenize_string("\\\\" ++ Rest, S, Acc) ->
     tokenize_string(Rest, ?ADV_COL(S, 2), [$\\ | Acc]);
 tokenize_string("\\/" ++ Rest, S, Acc) ->

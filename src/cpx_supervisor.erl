@@ -57,7 +57,8 @@ init([]) ->
 	AgentManagerSpec = {agent_manager, {agent_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	AgentListenerSpec = {agent_connection_listener, {agent_connection_listener, start, []}, permanent, 20000, worker, [?MODULE]},
 	QueueManagerSpec = {queue_manager, {queue_manager, start, []}, permanent, 20000, worker, [?MODULE]},
-	Specs = [DispatchSpec, AgentManagerSpec, AgentListenerSpec, QueueManagerSpec],
+	WebManagementSpec = {cpx_web_management, {cpx_web_management, start, []}, permanent, 100, worker, [?MODULE]},
+	Specs = [DispatchSpec, AgentManagerSpec, AgentListenerSpec, QueueManagerSpec, WebManagementSpec],
 	io:format("specs:  ~p~n", [supervisor:check_childspecs(Specs)]),
     {ok,{{one_for_one,3,5}, Specs}}.
 

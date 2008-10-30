@@ -97,3 +97,9 @@ For agent web ui:
 agent_web_listener
 agent_web_connection
 
+agent_web_listener listens a web connection (using mochiweb at this time).
+agent_web_connection has the state and queued events for an agent logged in via web.
+
+When agent_web_listener maintains an ets table of cookie_id : agent_web_connection_pid.
+When a request comes in, if the cookie id has a pid associated with it, that agent_web_connection handles it, 
+otherwise the agent_web_connection does a 'negotiate'

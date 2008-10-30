@@ -55,7 +55,7 @@ start() ->
 init([]) ->
 	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	AgentManagerSpec = {agent_manager, {agent_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
-	AgentListenerSpec = {agent_connection_listener, {agent_connection_listener, start, []}, permanent, 20000, worker, [?MODULE]},
+	AgentListenerSpec = {agent_tcp_listener, {agent_tcp_listener, start, []}, permanent, 20000, worker, [?MODULE]},
 	QueueManagerSpec = {queue_manager, {queue_manager, start, []}, permanent, 20000, worker, [?MODULE]},
 	WebManagementSpec = {cpx_web_management, {cpx_web_management, start, []}, permanent, 100, worker, [?MODULE]},
 	Specs = [DispatchSpec, AgentManagerSpec, AgentListenerSpec, QueueManagerSpec, WebManagementSpec],

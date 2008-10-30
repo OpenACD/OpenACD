@@ -1,8 +1,8 @@
--module(agent_connection_listener).
+-module(agent_tcp_listener).
 % based on the tcp_listener module by Serge Aleynikov
 % http://www.trapexit.org/Building_a_Non-blocking_TCP_server_using_OTP_principles
 
-%% depends on agent_connection, util, agent
+%% depends on agent_tcp_connection, util, agent
 
 
 -ifdef(EUNIT).
@@ -70,10 +70,10 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 
 		%% New client connected
 		% io:format("new client connection.~n", []),
-		{ok, Pid} = agent_connection:start(CliSocket),
+		{ok, Pid} = agent_tcp_connection:start(CliSocket),
 		gen_tcp:controlling_process(CliSocket, Pid),
 
-		agent_connection:negotiate(Pid),
+		agent_tcp_connection:negotiate(Pid),
 	
 		%% Signal the network driver that we are ready to accept another connection
 		case prim_inet:async_accept(ListSock, -1) of

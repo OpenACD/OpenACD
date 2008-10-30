@@ -93,3 +93,7 @@ media manager says to agentfsm 'oncall'
 agentfsm says to agent_conneciton 'oncall'
 agent_conneciton says to agent ui 'oncall'
 
+For agent web ui:
+agent_web_listener
+agent_web_connection
+

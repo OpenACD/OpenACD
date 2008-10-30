@@ -77,14 +77,7 @@ make_proplist(Items, Names) when size(Items) =:= size(Names) ->
 	LNames = tuple_to_list(Names),
 	io:format("Items:  ~p~n", [Litems]),
 	FixedItems = lists:map(fun(X) -> fix_item(X) end, Litems),
-	join_proplist(LNames, FixedItems).
-
-%% @doc join a list of keys and list of values; helps make_proplist
--spec(join_proplist/2 :: (Keys :: [atom()], Values :: [any()]) -> [{atom(), any()}]).
-join_proplist([], []) -> 
-	[];
-join_proplist([Key | KTail], [Val | VTail]) -> 
-	[{Key, Val} | join_proplist(KTail, VTail)].
+	lists:zip(LNames, FixedItems).
 
 %% @doc try to coherce some types into mochiweb_json2 compliant types.
 %%  mochiweb_json2 types seem to be numbers, lists, and atoms.

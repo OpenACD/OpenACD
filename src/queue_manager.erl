@@ -1,8 +1,9 @@
+%% @doc Manages queues across nodes.
+
 -module(queue_manager).
 
 %% depends on call_queue
 
-%% @doc Manages queues across nodes.
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
@@ -71,9 +72,8 @@ query_queue(Name) ->
 queues() -> 
 	gen_server:call({global, ?MODULE}, queues_as_list).
 
-%% @doc Attempt to find a queue with an important call.  An 'important call' is not always going to be the call with the highest priority,
-%% or the queue with the greatest wieght.  All the queues are evealuated together, then each is given a bias range.  A random roll determines 
-%% which queue is the 'best bindable' at the time.
+%% @doc Sort queues containing a bindable call.  The queues are sorted from most important to least by weight, 
+%% priority of first bindable call, then the time the first bindable call has been in queue.
 -spec(get_best_bindable_queues/0 :: () -> [{atom(), pid(), {{non_neg_integer(), any()}, #call{}}, pos_integer()}]).
 get_best_bindable_queues() ->
 	try gen_server:call({global, ?MODULE}, queues_as_list) of

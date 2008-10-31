@@ -9,3 +9,6 @@ scenario1() ->
 	stub_media_manager:create_and_queue_call(Pid, "Call1", voice, "Hello world", {client, 1, 1, "somebrand"}, [german], queue1, 0),
 	stub_media_manager:create_and_queue_call(Pid, "Call2", voice, "Goodbye world", {client, 1, 1, "somebrand"}, [english], queue2, 0),
 	Pid.
+
+s1() -> 
+	scenario1().

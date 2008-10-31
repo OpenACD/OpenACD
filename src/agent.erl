@@ -15,7 +15,7 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 
 %% other exports
--export([start/1, start_link/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2]).
+-export([start/1, start_link/1, stop/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2]).
 
 % gen_fsm:start_link
 % gen_fsm:send_event
@@ -31,6 +31,9 @@ start_link(Agent = #agent{}) ->
 start(Agent = #agent{}) -> 
 	gen_fsm:start(?MODULE, [Agent], []).
 
+stop(Pid) -> 
+	gen_fsm:send_all_state_event(Pid, stop).
+	
 %% @doc link the given agent (Pid) to the given connection (Socket).
 set_connection(Pid, Socket) ->
 	gen_fsm:sync_send_all_state_event(Pid, {set_connection, Socket}).

@@ -104,11 +104,11 @@ init([Post, Ref, Table]) ->
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call({request, {"/logout", _Post, _Cookie}}, _From, State) -> 
-	{stop, normal, {200, [{"Set-Cookie", "cpx_id=0"}], io_lib:format("<pre>Logout completed</pre>", [])}, State};
+	{stop, normal, {200, [{"Set-Cookie", "cpx_id=0"}], io_lib:format("{success:true, message:\"Logout completed\"}", [])}, State};
 handle_call({request, {"/poll", _Post, _Cookie}}, _From, State) -> 
 	io:format("poll called~n"),
 	State2 = State#state{poll_queue=[]},
-	{reply, {200, [], io_lib:format("<pre>Poll:~p</pre>", [State#state.poll_queue])}, State2};
+	{reply, {200, [], io_lib:format("{success:true, message:\"Poll successful\", data:~p}", [mochijson2:encode(State#state.poll_queue)])}, State2};
 handle_call({request, {Path, Post, Cookie}}, _From, State) -> 
 	io:format("all other requests~n"),
 	case util:string_split(Path, "/") of 
@@ -116,36 +116,36 @@ handle_call({request, {Path, Post, Cookie}}, _From, State) ->
 			io:format("trying to change to ~p~n", [Statename]),
 			case agent:set_state(State#state.agent_fsm, list_to_atom(Statename)) of
 				ok -> 
-					{reply, {200, [], io_lib:format("<pre>State changed to ~p</pre>", [Statename])}, State};
+					{reply, {200, [], io_lib:format("{success:true, message:\"State changed to ~p\", state:\"~p\"}", [Statename, Statename])}, State};
 				_Else -> 
-					{reply, {200, [], io_lib:format("<pre>invalid state to ~p</pre>", [Statename])}, State}
+					{reply, {200, [], io_lib:format("{success:false, message:\"Invalid state ~p to change to, state:\"~p\"}", [Statename, Statename])}, State}
 			end;
 		["", "state", Statename, Statedata] -> 
 			io:format("trying to change to ~p with data ~p~n", [Statename, Statedata]),
 			case agent:set_state(State#state.agent_fsm, list_to_atom(Statename), Statedata) of 
 				ok -> 
-					{reply, {200, [], io_lib:format("<pre>State changed to ~p with data ~p</pre>", [Statename, Statedata])}, State};
+					{reply, {200, [], io_lib:format("{success:true, message:\"Successfully changed state to ~p with date ~p\", state:\"~p\", date:\"~p\"}"[Statename, Statedata, Statename, Statedata])}, State};
 				_Else -> 
-					{reply, {200, [], io_lib:format("<pre>invalid state to ~p with data ~p</pre>", [Statename, Statedata])}, State}
+					{reply, {200, [], io_lib:format("{success:false, message\"Invalid state to ~p with data ~p\", state:\"~p\", data:\"~p\"}", [Statename, Statedata, Statename, Statedata])}, State}
 			end;
 		["", "ack", Counter] -> 
 			io:format("you are acking~p~n", [Counter]),
 			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
 			State2 = State#state{ack_queue = Ackq},
-			{reply, {200, [], io_lib:format("<pre>cleared ack of ~p</pre>", [Counter])}, State2};
+			{reply, {200, [], io_lib:format("{success:true, message:\"Handled ack of ~p\", ack:~p", [Counter, Counter])}, State2};
 		["", "err", Counter] -> 
 			io:format("you are erroring~p", [Counter]),
 			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
 			State2 = State#state{ack_queue = Ackq},
-			{reply, {200, [], io_lib:format("<pre>cleared ack of ~p due to error</pre>", [Counter])}, State2};
+			{reply, {200, [], io_lib:format("{success:true, message:\"Handled error of event ~p\", ack:~p}", [Counter, Counter])}, State2};
 		["", "err", Counter, Message] -> 
 			io:format("you are erroring ~p with message ~p~n", [Counter, Message]),
 			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
 			State2 = State#state{ack_queue = Ackq},
-			{reply, {200, [], io_lib:format("<pre>cleared ack of ~p due to error with message ~p</pre>", [Counter, Message])}, State2};
+			{reply, {200, [], io_lib:format("{success:true, message:\"Handled error of event ~p with data ~p.\", ack:~p, data:\"~p\"}", [Counter, Message, Counter, Message])}, State2};
 		_Allelse -> 
 			io:format("I have no idea what you are talking about."),
-			{reply, {501, [], io_lib:format("<pre>Cannot handle request.~nPath: ~p~nPost: ~p~nCookie: ~p</pre>", [Path, Post, Cookie])}, State}
+			{reply, {501, [], io_lib:format("{success:false, message:\"Cannot handle request of Path ~p, Post ~p, with Cookie: ~p\", path:\"~p\", post:\"~p\", cookie:\"~p\"}", [Path, Post, Cookie, Path, Post, Cookie])}, State}
 	end.
 
 %%--------------------------------------------------------------------

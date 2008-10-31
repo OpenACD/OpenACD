@@ -30,7 +30,7 @@ make_struct([], _Names) ->
 make_struct([Item | Tail] , Names) when size(Item) =:= size(Names) -> 
 	[{struct, make_proplist(Item, Names)} | make_struct(Tail, Names)].
 
-%% @doc make a [{Key, Value}] suitbale for make_struct
+%% @doc make a [{Key, Value}] suitable for make_struct
 -spec(make_proplist/2 :: (Items :: [any()], Names :: [atom()]) -> [{atom(), any()}]).
 make_proplist(Items, Names) when size(Items) =:= size(Names) -> 
 	Litems = tuple_to_list(Items),

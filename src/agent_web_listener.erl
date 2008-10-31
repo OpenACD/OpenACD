@@ -132,18 +132,18 @@ loop(Req, Table) ->
 				% normally this would check against a database and not just discard the un/pw.
 				[] -> 
 					io:format("empty post~n"),
-					Req:respond({403, [], io_lib:format("<pre>No post data supplied</pre>", [])});
+					Req:respond({403, [], "{success:false, message:\"No post data supplied\"}"});
 				Any -> 
 					io:format("trying to start connection~n"),
 					Ref = make_ref(),
 					case agent_web_connection:start(Post, Ref, Table) of
 						{ok, Aconnpid} -> 
 							Cookie = io_lib:format("cpx_id=~p", [erlang:ref_to_list(Ref)]),
-							Req:respond({200, [{"Set-Cookie", Cookie}], io_lib:format("<pre>Looks okay to me</pre>", [])});
+							Req:respond({200, [{"Set-Cookie", Cookie}], "{success:true, message:\"Login successful\"}"});
 						{error, Reason} -> 
-							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], io_lib:format("<pre>Login failed:~p</pre>", [Reason])});
+							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], io_lib:format("{success:false, message:\"~p\"}", [Reason])});
 						ignore -> 
-							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], "We're ignoreing you."})
+							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], "{success:fase, message:\"ignored\"}"})
 					end
 			end;
 		Path -> 
@@ -158,6 +158,6 @@ loop(Req, Table) ->
 					Req:respond(Reqresponse);
 				_Allelse -> 
 					io:format("bad cookie~n"),
-					Req:respond({403, [], io_lib:format("<pre>Invalid cookie: ~p</pre>", [Req:parse_cookie()])})
+					Req:respond({403, [], io_lib:format("{success:false, message:\"Invalid cookie\", cookie:\"~p\"}", [Req:parse_cookie()])})
 			end
 	end.

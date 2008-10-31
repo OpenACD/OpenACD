@@ -116,6 +116,7 @@ handle_call({request, {"/poll", _Post, _Cookie}}, _From, State) ->
 	io:format("poll called~n"),
 	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
 	Json = cpx_json:make_struct(State#state.poll_queue, {counter, tried, type, data}),
+	io:format("json:  ~p~n", [Json]),
 	{reply, {200, [], io_lib:format("{success:true, message:\"Poll successful\", data:~p}", [mochijson2:encode(Json)])}, State2};
 handle_call({request, {Path, Post, Cookie}}, _From, State) -> 
 	io:format("all other requests~n"),

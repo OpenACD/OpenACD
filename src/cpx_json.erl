@@ -35,8 +35,8 @@ make_struct([Item | Tail] , Names) when size(Item) =:= size(Names) ->
 make_proplist(Items, Names) when size(Items) =:= size(Names) -> 
 	Litems = tuple_to_list(Items),
 	LNames = tuple_to_list(Names),
-	io:format("Items:  ~p~n", [Litems]),
-	FixedItems = lists:map(fun(X) -> fix_item(X) end, Litems),
+	io:format("Items:  ~p~nNames:  ~p~n", [Litems, Names]),
+	FixedItems = fix_items(Litems),
 	lists:zip(LNames, FixedItems).
 
 %% @doc Batch cohersion.  See @fix_item for details.
@@ -44,7 +44,7 @@ make_proplist(Items, Names) when size(Items) =:= size(Names) ->
 fix_items([]) -> 
 	[];
 fix_items([I | Rest]) -> 
-	fix_item(I) ++ fix_items(Rest).
+	[fix_item(I) | fix_items(Rest)].
 
 %% @doc try to coherce some types into mochiweb_json2 compliant types.
 %%  mochiweb_json2 types seem to be numbers, lists, and atoms.
@@ -55,7 +55,9 @@ fix_items([I | Rest]) ->
 fix_item(I) when is_pid(I) -> 
 	list_to_atom(pid_to_list(I));
 fix_item(I) when is_tuple(I) -> 
-	tuple_to_list(I);
+	io:format("trying to fix tuple:  ~p~n", [I]),
+	Items = tuple_to_list(I),
+	fix_items(Items);
 fix_item(I) when is_record(I, call) -> 
 	io:format("fixing a call record...~n"),
 	Items = [I#call.id, I#call.type, I#call.callerid, I#call.client, I#call.skills, I#call.ring_path, I#call.media_path],
@@ -70,5 +72,14 @@ fix_item(I) when is_record(I, agent) ->
 	Item = {I#agent.login, I#agent.skills, I#agent.securitylevel, I#agent.state, fix_item(I#agent.statedata), I#agent.lastchangetimestamp, I#agent.defaultringpath},
 	Names = {login, skills, securitylevel, state, statedata, lastchangetimestamp, defaultringpath},
 	make_struct([Item], Names);
+fix_item(I) when is_list(I) -> 
+	io:format("A list can be a string, or it could hold other things.~n"),
+	case fix_items(I) of
+		I -> 
+			I;
+		Other -> 
+			Other
+	end;
 fix_item(I) -> 
+	io:format("bad things will happen if this goes unfixed: ~p~n", [I]),
 	I.

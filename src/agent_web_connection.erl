@@ -14,6 +14,9 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
+-define(TICK_LENGTH, 5000000000).
+-else.
+-define(TICK_LENGTH, 10000).
 -endif.
 
 -include("call.hrl").
@@ -27,13 +30,16 @@
 	 terminate/2, code_change/3]).
 
 -record(state, {
-	salt,
-	ref,
-	agent_fsm,
-	ack_queue = dict:new(),
-	poll_queue = [],
-	counter = 1,
-	table
+	salt :: any(),
+	ref :: ref() | 'undefined',
+	agent_fsm :: pid() | 'undefined',
+	ack_queue = dict:new(), % key = counter, value is {when_qed, tries, type, data} so that a message can be resent
+	poll_queue = [] :: [{non_neg_integer(), non_neg_integer(), atom(), any()}], 
+		% {counter to be used as key in the ack_queue, how many tries this message has had, type of message, data to send to client}
+	missed_polls = 0 :: non_neg_integer(),
+	counter = 1 :: non_neg_integer(),
+	table :: atom() | 'undefined',
+	ack_timer
 }).
 
 
@@ -83,8 +89,9 @@ init([Post, Ref, Table]) ->
 				error -> 
 					{stop, "User could not be started"};
 				_Otherwise -> 
-					
-					{ok, #state{agent_fsm = Apid, ref = Ref, table = Table}}
+					% start the ack timer
+					{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
+					{ok, #state{agent_fsm = Apid, ref = Ref, table = Table, ack_timer = Tref}}
 			end;
 		_Other -> 
 			% io:format("all other posts~n"),
@@ -107,8 +114,9 @@ handle_call({request, {"/logout", _Post, _Cookie}}, _From, State) ->
 	{stop, normal, {200, [{"Set-Cookie", "cpx_id=0"}], io_lib:format("{success:true, message:\"Logout completed\"}", [])}, State};
 handle_call({request, {"/poll", _Post, _Cookie}}, _From, State) -> 
 	io:format("poll called~n"),
-	State2 = State#state{poll_queue=[]},
-	{reply, {200, [], io_lib:format("{success:true, message:\"Poll successful\", data:~p}", [mochijson2:encode(State#state.poll_queue)])}, State2};
+	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
+	Json = cpx_json:make_struct(State#state.poll_queue, {counter, tried, type, data}),
+	{reply, {200, [], io_lib:format("{success:true, message:\"Poll successful\", data:~p}", [mochijson2:encode(Json)])}, State2};
 handle_call({request, {Path, Post, Cookie}}, _From, State) -> 
 	io:format("all other requests~n"),
 	case util:string_split(Path, "/") of 
@@ -124,7 +132,7 @@ handle_call({request, {Path, Post, Cookie}}, _From, State) ->
 			io:format("trying to change to ~p with data ~p~n", [Statename, Statedata]),
 			case agent:set_state(State#state.agent_fsm, list_to_atom(Statename), Statedata) of 
 				ok -> 
-					{reply, {200, [], io_lib:format("{success:true, message:\"Successfully changed state to ~p with date ~p\", state:\"~p\", date:\"~p\"}"[Statename, Statedata, Statename, Statedata])}, State};
+					{reply, {200, [], io_lib:format("{success:true, message:\"Successfully changed state to ~p with date ~p\", state:\"~p\", date:\"~p\"}", [Statename, Statedata, Statename, Statedata])}, State};
 				_Else -> 
 					{reply, {200, [], io_lib:format("{success:false, message\"Invalid state to ~p with data ~p\", state:\"~p\", data:\"~p\"}", [Statename, Statedata, Statename, Statedata])}, State}
 			end;
@@ -154,6 +162,22 @@ handle_call({request, {Path, Post, Cookie}}, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+
+handle_cast({change_state, ringing, #call{} = Call}, State) -> 
+	Counter = State#state.counter,
+	C1 = {Counter+1, 0, 'ASTATE', ringing},
+	C2 = {Counter+2, 0, 'CALLINFO', Call},
+	Newpoll = lists:append(State#state.poll_queue, [C1, C2]),
+	{noreply, State#state{counter = Counter + 2, poll_queue = Newpoll}};
+
+
+
+
+
+
+
+
+
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -163,6 +187,52 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+handle_info(check_acks, State) when State#state.missed_polls < 4 -> 
+	io:format("checking...~n"),
+	% go through the acks, look for:
+	%  ones that have been tried never and been qed for ?TICK_LENGTH * 1 time
+	%  ones that have been tried once and been qed for ?TICK_LENGTH * 3 time (indicates time out)
+	Ackqueue = State#state.ack_queue,
+	Repoll = dict:filter(
+		fun(K, V) -> 
+			case V of 
+				{{_Macro, When, _Micro}, Tried, _Type, _Data} when When >= ?TICK_LENGTH * 2, Tried < 2 -> 
+					% put in the poll queue, it's only been tried at most 1 time, and has been in the ack queue longer than a tick.
+					true;
+				{{_Macro, When, _Micro}, Tried, _Type, _Data} when When >= ?TICK_LENGTH * 4, Tried >= 2 -> 
+					% tried 2 or more times and been queued for 4 ticks.  timeout, die
+					true;
+				_Any -> 
+					false
+			end
+		end, Ackqueue),
+	
+	Newack = dict:filter(
+		fun(K, V) -> 
+			case V of 
+				{{_Macro, When, _Micro}, Tried, _Type, _Data} when When >= ?TICK_LENGTH * 2, Tried < 2 -> 
+					%take out of the ack queue as it's being put in the poll queue
+					false;
+				{{_Macro, When, _Micro}, Tried, _Type, _Data} when When >= ?TICK_LENGTH * 4, Tried >= 2 -> 
+					% same as above.
+					false;
+				_Any -> 
+					 true
+			end
+		end, Ackqueue),
+	
+	{Newpoll, Newcounter} = build_poll(dict:to_list(Repoll), State#state.poll_queue, State#state.counter),
+	
+	Newmissed = State#state.missed_polls + 1,
+		
+	% got all that?  okay, build the new state
+	
+	{noreply, State#state{ack_queue = Newack, poll_queue = Newpoll, missed_polls = Newmissed, counter = Newcounter}};
+	
+handle_info(check_acks, State) -> 
+	io:format("too many missed polls.~n"),
+	{stop, "Client timeout", ok, State};
+
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -177,6 +247,7 @@ terminate(_Reason, State) ->
 	% io:format("terminated ~p~n", [?MODULE]),
 	ets:delete(State#state.table, erlang:ref_to_list(State#state.ref)),
 	agent:stop(State#state.agent_fsm),
+	timer:cancel(State#state.ack_timer),
     ok.
 
 %%--------------------------------------------------------------------
@@ -196,3 +267,14 @@ stop(Pid) ->
 request(Pid, Path, Post, Cookie) -> 
 	% io:format("~p:request called~n", [?MODULE]),
 	gen_server:call(Pid, {request, {Path, Post, Cookie}}).
+	
+build_acks([], Acks) -> 
+	Acks;
+build_acks([{Counter, Tried, Type, Data} | Pollqueue], Acks) -> 
+	Acks2 = dict:store(Counter, {now(), Tried, Type, Data}, Acks),
+	build_acks(Pollqueue, Acks2).
+	
+build_poll([], Pollqueue, Runningcount) -> 
+	{Pollqueue, Runningcount};
+build_poll([{Counter, {Tried, Type, Data}} | Ackqueue], Pollqueue, Runningcount) -> 
+	build_poll(Ackqueue, lists:append(Pollqueue, [{Runningcount+1, Tried+1, Type, Data}]), Runningcount+1).

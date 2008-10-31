@@ -20,7 +20,7 @@
 -include("agent.hrl").
 
 %% API
--export([start_link/2, start/2]).
+-export([start_link/3, start/3, stop/1, request/4]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -30,7 +30,8 @@
 	salt,
 	ref,
 	agent_fsm,
-	ack_queue = [],
+	ack_queue = dict:new(),
+	poll_queue = [],
 	counter = 1,
 	table
 }).
@@ -43,12 +44,12 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start_link(Req, Table) ->
-    gen_server:start_link(?MODULE, [Req, Table], []).
+start_link(Post, Ref, Table) ->
+    gen_server:start_link(?MODULE, [Post, Ref, Table], [{timeout, 10000}]).
 	
-start(Req, Table) -> 
+start(Post, Ref, Table) -> 
 	io:format("web_connection started~n"),
-	gen_server:start(?MODULE, [Req, Table], []).
+	gen_server:start(?MODULE, [Post, Ref, Table], [{timeout, 10000}]).
 
 %%====================================================================
 %% gen_server callbacks
@@ -61,25 +62,34 @@ start(Req, Table) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Req, Table]) ->
+init([Post, Ref, Table]) ->
 	io:format("actual web connection init~n"),
-	case Req:parse_post() of 
+	io:format("Post: ~p~nRef: ~p~nTable: ~p~n", [Post, Ref, Table]),
+	case Post of
 		[{"username", User},{"password", _Passwrd}] -> 
-			io:format("seems like a well formed post~n"),
-			Agent = #agent{login=User},
-			Ref = make_ref(),
-			Cookie = io_lib:format("cpx_id=~p", [erlang:ref_to_list(Ref)]),
+			% io:format("seems like a well formed post~n"),
 			Self = self(),
-			ets:insert(erlang:ref_to_list(Ref), Self),
-			Req:response({200, [{"Set-Cookie", Cookie}], io_lib:format("<pre>~p~p</pre>", [Req:dump(), Req:parse_cookie()])}),
-			{ok, Apid} = agent:start(Agent),
-			{ok, #state{agent_fsm=Apid, ref=Ref, table=Table}};
+			Agent = #agent{login=User},
+			
+			% io:format("if they are already logged in, update the reference~n"),
+			Result = ets:match(Table, {'$1', '$2', User}),
+			% io:format("restults:~p~n", [Result]),
+			lists:map(fun({_R, P, _U}) -> ?MODULE:stop(P) end, Result),
+			ets:insert(Table, {erlang:ref_to_list(Ref), Self, User}),
+			
+			% start the agent and associate it with self
+			{_Reply, Apid} = agent_manager:start_agent(Agent),
+			case agent:set_connection(Apid, Self) of
+				error -> 
+					{stop, "User could not be started"};
+				_Otherwise -> 
+					
+					{ok, #state{agent_fsm = Apid, ref = Ref, table = Table}}
+			end;
 		_Other -> 
-			io:format("all other posts~n"),
-			Req:response({403, [], "invalid post data"})
-	end,
-	io:format("error out"),
-	{error, "Invalid Login"}.
+			% io:format("all other posts~n"),
+			{stop, "Invalid Post data"}
+	end.
 
 
 %%--------------------------------------------------------------------
@@ -91,9 +101,52 @@ init([Req, Table]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+handle_call(stop, _From, State) ->
+	{stop, normal, ok, State};
+handle_call({request, {"/logout", _Post, _Cookie}}, _From, State) -> 
+	{stop, normal, {200, [{"Set-Cookie", "cpx_id=0"}], io_lib:format("<pre>Logout completed</pre>", [])}, State};
+handle_call({request, {"/poll", _Post, _Cookie}}, _From, State) -> 
+	io:format("poll called~n"),
+	State2 = State#state{poll_queue=[]},
+	{reply, {200, [], io_lib:format("<pre>Poll:~p</pre>", [State#state.poll_queue])}, State2};
+handle_call({request, {Path, Post, Cookie}}, _From, State) -> 
+	io:format("all other requests~n"),
+	case util:string_split(Path, "/") of 
+		["", "state", Statename] -> 
+			io:format("trying to change to ~p~n", [Statename]),
+			case agent:set_state(State#state.agent_fsm, list_to_atom(Statename)) of
+				ok -> 
+					{reply, {200, [], io_lib:format("<pre>State changed to ~p</pre>", [Statename])}, State};
+				_Else -> 
+					{reply, {200, [], io_lib:format("<pre>invalid state to ~p</pre>", [Statename])}, State}
+			end;
+		["", "state", Statename, Statedata] -> 
+			io:format("trying to change to ~p with data ~p~n", [Statename, Statedata]),
+			case agent:set_state(State#state.agent_fsm, list_to_atom(Statename), Statedata) of 
+				ok -> 
+					{reply, {200, [], io_lib:format("<pre>State changed to ~p with data ~p</pre>", [Statename, Statedata])}, State};
+				_Else -> 
+					{reply, {200, [], io_lib:format("<pre>invalid state to ~p with data ~p</pre>", [Statename, Statedata])}, State}
+			end;
+		["", "ack", Counter] -> 
+			io:format("you are acking~p~n", [Counter]),
+			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
+			State2 = State#state{ack_queue = Ackq},
+			{reply, {200, [], io_lib:format("<pre>cleared ack of ~p</pre>", [Counter])}, State2};
+		["", "err", Counter] -> 
+			io:format("you are erroring~p", [Counter]),
+			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
+			State2 = State#state{ack_queue = Ackq},
+			{reply, {200, [], io_lib:format("<pre>cleared ack of ~p due to error</pre>", [Counter])}, State2};
+		["", "err", Counter, Message] -> 
+			io:format("you are erroring ~p with message ~p~n", [Counter, Message]),
+			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
+			State2 = State#state{ack_queue = Ackq},
+			{reply, {200, [], io_lib:format("<pre>cleared ack of ~p due to error with message ~p</pre>", [Counter, Message])}, State2};
+		_Allelse -> 
+			io:format("I have no idea what you are talking about."),
+			{reply, {501, [], io_lib:format("<pre>Cannot handle request.~nPath: ~p~nPost: ~p~nCookie: ~p</pre>", [Path, Post, Cookie])}, State}
+	end.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -121,7 +174,9 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, State) ->
-	ets:delete(State#state.table, self()),
+	% io:format("terminated ~p~n", [?MODULE]),
+	ets:delete(State#state.table, erlang:ref_to_list(State#state.ref)),
+	agent:stop(State#state.agent_fsm),
     ok.
 
 %%--------------------------------------------------------------------
@@ -134,3 +189,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+stop(Pid) -> 
+	gen_server:call(Pid, stop).
+	
+request(Pid, Path, Post, Cookie) -> 
+	% io:format("~p:request called~n", [?MODULE]),
+	gen_server:call(Pid, {request, {Path, Post, Cookie}}).

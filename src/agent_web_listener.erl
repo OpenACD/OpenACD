@@ -123,19 +123,41 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 loop(Req, Table) -> 
+	io:format("loop start~n"),
 	case Req:get(path) of
 		"/login" -> 
 			io:format("/login~n"),
-			case Req:parse_post() of 
+			Post = Req:parse_post(),
+			case Post of 
 				% normally this would check against a database and not just discard the un/pw.
 				[] -> 
 					io:format("empty post~n"),
 					Req:respond({403, [], io_lib:format("<pre>No post data supplied</pre>", [])});
 				Any -> 
 					io:format("trying to start connection~n"),
-					agent_web_connection:start(Req, Table)
+					Ref = make_ref(),
+					case agent_web_connection:start(Post, Ref, Table) of
+						{ok, Aconnpid} -> 
+							Cookie = io_lib:format("cpx_id=~p", [erlang:ref_to_list(Ref)]),
+							Req:respond({200, [{"Set-Cookie", Cookie}], io_lib:format("<pre>Looks okay to me</pre>", [])});
+						{error, Reason} -> 
+							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], io_lib:format("<pre>Login failed:~p</pre>", [Reason])});
+						ignore -> 
+							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], "We're ignoreing you."})
+					end
 			end;
 		Path -> 
 			io:format("any other path~n"),
-			Req:respond({403, [], io_lib:format("<pre>Dudes should login first</pre>", [])})
+			case Req:parse_cookie() of 
+				[{"cpx_id", Reflist}] -> 
+					io:format("cookie looks good~nReflist: ~p~n", [Reflist]),
+					Etsres = ets:lookup(Table, Reflist),
+					io:format("ets res:~p~n", [Etsres]),
+					[{_Key, Aconn, _Login} | _Rest] = Etsres,
+					Reqresponse = agent_web_connection:request(Aconn, Path, Req:parse_post(), Req:parse_cookie()),
+					Req:respond(Reqresponse);
+				_Allelse -> 
+					io:format("bad cookie~n"),
+					Req:respond({403, [], io_lib:format("<pre>Invalid cookie: ~p</pre>", [Req:parse_cookie()])})
+			end
 	end.

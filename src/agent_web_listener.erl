@@ -12,6 +12,13 @@
 
 -behaviour(gen_server).
 
+-ifdef(EUNIT).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
+-include("call.hrl").
+-include("agent.hrl").
+
 -define(PORT, 5050).
 -define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
 
@@ -59,7 +66,7 @@ start_link(Port) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Port]) ->
-	Table = ets:new(web_connections, [set, public, named_table]), % protected means only this process can read and write to the table, but all others can read
+	Table = ets:new(web_connections, [set, public, named_table]),
 	{ok, Mochi} = mochiweb_http:start([{loop, fun(Req) -> loop(Req, Table) end}, {name, ?MODULE}, {port, Port}]),
     {ok, #state{connections=Table, mochipid = Mochi}}.
 
@@ -116,4 +123,19 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 loop(Req, Table) -> 
-	ok.
+	case Req:get(path) of
+		"/login" -> 
+			io:format("/login~n"),
+			case Req:parse_post() of 
+				% normally this would check against a database and not just discard the un/pw.
+				[] -> 
+					io:format("empty post~n"),
+					Req:respond({403, [], io_lib:format("<pre>No post data supplied</pre>", [])});
+				Any -> 
+					io:format("trying to start connection~n"),
+					agent_web_connection:start(Req, Table)
+			end;
+		Path -> 
+			io:format("any other path~n"),
+			Req:respond({403, [], io_lib:format("<pre>Dudes should login first</pre>", [])})
+	end.

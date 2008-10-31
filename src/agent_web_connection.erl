@@ -12,14 +12,29 @@
 
 -behaviour(gen_server).
 
+-ifdef(EUNIT).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
+-include("call.hrl").
+-include("agent.hrl").
+
 %% API
--export([start_link/0]).
+-export([start_link/2, start/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--record(state, {}).
+-record(state, {
+	salt,
+	ref,
+	agent_fsm,
+	ack_queue = [],
+	counter = 1,
+	table
+}).
+
 
 %%====================================================================
 %% API
@@ -28,8 +43,12 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start_link() ->
-    gen_server:start_link(?MODULE, [], []).
+start_link(Req, Table) ->
+    gen_server:start_link(?MODULE, [Req, Table], []).
+	
+start(Req, Table) -> 
+	io:format("web_connection started~n"),
+	gen_server:start(?MODULE, [Req, Table], []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -42,8 +61,26 @@ start_link() ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([]) ->
-    {ok, #state{}}.
+init([Req, Table]) ->
+	io:format("actual web connection init~n"),
+	case Req:parse_post() of 
+		[{"username", User},{"password", _Passwrd}] -> 
+			io:format("seems like a well formed post~n"),
+			Agent = #agent{login=User},
+			Ref = make_ref(),
+			Cookie = io_lib:format("cpx_id=~p", [erlang:ref_to_list(Ref)]),
+			Self = self(),
+			ets:insert(erlang:ref_to_list(Ref), Self),
+			Req:response({200, [{"Set-Cookie", Cookie}], io_lib:format("<pre>~p~p</pre>", [Req:dump(), Req:parse_cookie()])}),
+			{ok, Apid} = agent:start(Agent),
+			{ok, #state{agent_fsm=Apid, ref=Ref, table=Table}};
+		_Other -> 
+			io:format("all other posts~n"),
+			Req:response({403, [], "invalid post data"})
+	end,
+	io:format("error out"),
+	{error, "Invalid Login"}.
+
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -83,7 +120,8 @@ handle_info(_Info, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, State) ->
+	ets:delete(State#state.table, self()),
     ok.
 
 %%--------------------------------------------------------------------

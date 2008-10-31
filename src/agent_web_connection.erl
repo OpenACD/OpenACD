@@ -8,7 +8,7 @@
 %%% Created       :  10/30/08
 %%%-------------------------------------------------------------------
 -module(agent_web_connection).
--author(null).
+-author("Micah").
 
 -behaviour(gen_server).
 
@@ -29,7 +29,7 @@
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+    gen_server:start_link(?MODULE, [], []).
 
 %%====================================================================
 %% gen_server callbacks

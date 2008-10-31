@@ -53,6 +53,8 @@ loop(Req, _Method, "/queues") ->
 	Req:ok({"text/html", mochijson2:encode(Queues2)});
 loop(Req, _Method, "/web_dump") -> 
 	Req:ok({"text/html",io_lib:format("<pre>~p</pre>~n", [Req:dump()])});
+loop(Req, _Method, "/set_cookie") -> 
+	Req:respond({200, [{"Set-Cookie", "goober=foobar"}], io_lib:format("<pre>~p~p</pre>", [Req:dump(), Req:parse_cookie()])});
 loop(Req, _Method, _Path) -> 
 	Req:respond({501, [{"Content-Type", "text/plain"}], <<"Not yet implemented">>}).
 

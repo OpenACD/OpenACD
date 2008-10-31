@@ -8,18 +8,24 @@
 %%% Created       :  10/30/08
 %%%-------------------------------------------------------------------
 -module(agent_web_listener).
--author(null).
+-author("Micah").
 
 -behaviour(gen_server).
 
+-define(PORT, 5050).
+-define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
+
 %% API
--export([start_link/0]).
+-export([start_link/1, start/1, start/0, start_link/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--record(state, {}).
+-record(state, {
+	connections, % ets table of the connections
+	mochipid % pid of the mochiweb process.
+}).
 
 %%====================================================================
 %% API
@@ -28,8 +34,18 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
+
+start() -> 
+	start(?PORT).
+
+start(Port) -> 
+	gen_server:start(?MODULE, [Port], []).
+	
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+	start_link(?PORT).
+
+start_link(Port) -> 
+    gen_server:start_link(?MODULE, [Port], []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -42,8 +58,10 @@ start_link() ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([]) ->
-    {ok, #state{}}.
+init([Port]) ->
+	Table = ets:new(web_connections, [set, public, named_table]), % protected means only this process can read and write to the table, but all others can read
+	{ok, Mochi} = mochiweb_http:start([{loop, fun(Req) -> loop(Req, Table) end}, {name, ?MODULE}, {port, Port}]),
+    {ok, #state{connections=Table, mochipid = Mochi}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -65,7 +83,7 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(_Msg, State) ->
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
@@ -96,3 +114,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+loop(Req, Table) -> 
+	ok.

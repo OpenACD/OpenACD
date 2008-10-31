@@ -49,7 +49,7 @@ loop(Req, _Method, "/") ->
 	Req:ok({"text/html", "Welcome to the managemnet interface."});
 loop(Req, _Method, "/queues") ->
 	Queues = queue_manager:queues(),
-	Queues2 = make_struct(Queues, {name, pid}),
+	Queues2 = cpx_json:make_struct(Queues, {name, pid}),
 	Req:ok({"text/html", mochijson2:encode(Queues2)});
 loop(Req, _Method, "/web_dump") -> 
 	Req:ok({"text/html",io_lib:format("<pre>~p</pre>~n", [Req:dump()])});

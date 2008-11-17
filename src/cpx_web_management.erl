@@ -49,8 +49,20 @@ loop(Req, _Method, "/") ->
 	Req:ok({"text/html", "Welcome to the managemnet interface."});
 loop(Req, _Method, "/queues") ->
 	Queues = queue_manager:queues(),
-	Queues2 = cpx_json:make_struct(Queues, {name, pid}),
-	Req:ok({"text/html", mochijson2:encode(Queues2)});
+	io:format("Queues:  ~p~n", [Queues]),
+	Jqs = [{name, list_to_binary(atom_to_list(Qname))} || {Qname, _Pid} <- Queues],
+	io:format("Jqs:  ~p~n", [Jqs]),
+	Struct = {struct, Jqs},
+	io:format("Struct:  ~p~n", [Struct]),
+	try mochijson2:encode(Struct) of 
+		Out -> 
+			io:format("Out:  ~p~n", [Out]),
+			Req:ok({"text/html", Out})
+	catch
+		exit:{json_encode, {bad_term, Bad}} -> 
+			io:format("Catching a json parse error of ~p because ~p is bad.~n", [exit, Bad]),
+			Req:response({500, [], "Bad Json term"})
+	end;
 loop(Req, _Method, "/web_dump") -> 
 	Req:ok({"text/html",io_lib:format("<pre>~p</pre>~n", [Req:dump()])});
 loop(Req, _Method, "/set_cookie") -> 
@@ -62,34 +74,3 @@ loop(Req, _Method, _Path) ->
 -spec(loop/1 :: (Req :: any()) -> any()).
 loop(Request) -> 
 	loop(Request, Request:get(method), Request:get(path)).
-
-%% helper functions
-
-%% @doc make a mochiweb_json2 compatible structure tuple from a value list and a names list
--spec(make_struct/2 :: (Items :: [any()], Names :: [atom()]) -> [{struct, [{atom(), any()}]}]).
-make_struct([], _Names) -> 
-	[];
-make_struct([Item | Tail] , Names) when size(Item) =:= size(Names) -> 
-	[{struct, make_proplist(Item, Names)} | make_struct(Tail, Names)].
-
-%% @doc make a [{Key, Value}] suitbale for make_struct
--spec(make_proplist/2 :: (Items :: [any()], Names :: [atom()]) -> [{atom(), any()}]).
-make_proplist(Items, Names) when size(Items) =:= size(Names) -> 
-	Litems = tuple_to_list(Items),
-	LNames = tuple_to_list(Names),
-	io:format("Items:  ~p~n", [Litems]),
-	FixedItems = lists:map(fun(X) -> fix_item(X) end, Litems),
-	lists:zip(LNames, FixedItems).
-
-%% @doc try to coherce some types into mochiweb_json2 compliant types.
-%%  mochiweb_json2 types seem to be numbers, lists, and atoms.
-%% A typle of type {struct, [{atom, any()}]} will create a json object.
--spec(fix_item/1 :: (I :: pid()) -> atom();
-					(I :: tuple()) -> [any()];
-					(I :: any()) -> any()).
-fix_item(I) when is_pid(I) -> 
-	list_to_atom(pid_to_list(I));
-fix_item(I) when is_tuple(I) -> 
-	tuple_to_list(I);
-fix_item(I) -> 
-	I.

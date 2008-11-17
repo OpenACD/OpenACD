@@ -111,13 +111,16 @@ init([Post, Ref, Table]) ->
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call({request, {"/logout", _Post, _Cookie}}, _From, State) -> 
-	{stop, normal, {200, [{"Set-Cookie", "cpx_id=0"}], io_lib:format("{success:true, message:\"Logout completed\"}", [])}, State};
+	{stop, normal, {200, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, true}, {message, <<"Logout completed">>}]})}, State};
 handle_call({request, {"/poll", _Post, _Cookie}}, _From, State) -> 
 	io:format("poll called~n"),
+	Encoder = mochijson2:encoder([{handler, fun(Item) -> cpx_json:handler(Item) end}]),
 	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
-	Json = cpx_json:make_struct(State#state.poll_queue, {counter, tried, type, data}),
+	Pollq = State#state.poll_queue,
+	Json = [{struct, [{counter, Counter}, {tried, Tried}, {type, Type}, {data, Data}]} || {Counter, Tried, Type, Data} <- Pollq],
+	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, Json}]},
 	io:format("json:  ~p~n", [Json]),
-	{reply, {200, [], io_lib:format("{success:true, message:\"Poll successful\", data:~p}", [mochijson2:encode(Json)])}, State2};
+	{reply, {200, [], Encoder(Json2)}, State2};
 handle_call({request, {Path, Post, Cookie}}, _From, State) -> 
 	io:format("all other requests~n"),
 	case util:string_split(Path, "/") of 

@@ -8,7 +8,12 @@
 %%% Created       :  10/31/08
 %%%-------------------------------------------------------------------
 
-%% @doc Massages data so that it is better suited for mochiweb's json output.
+%% @doc Massages data so that it is better suited for mochiweb's json2 output.
+%% As stated in the comments for mochiwebjson2:
+%% "mochijson2 works with binaries as strings, arrays as lists (without an {array, _})
+%% wrapper and it only knows how to decode UTF-8 (and ASCII).
+%% Therefore, this will attempt to muscle general data to fit that requirement when the mochiweb cannot.
+
 
 -module(cpx_json).
 -author("Micah").
@@ -21,65 +26,18 @@
 -include("agent.hrl").
 
 % API
--export([make_struct/2, make_proplist/2, fix_item/1, fix_items/1]).
+-export([handler/1]).
 
-%% @doc make a mochiweb_json2 compatible structure tuple from a value list and a names list
--spec(make_struct/2 :: (Items :: [any()], Names :: [atom()]) -> [{struct, [{atom(), any()}]}]).
-make_struct([], _Names) -> 
-	[];
-make_struct([Item | Tail] , Names) when size(Item) =:= size(Names) -> 
-	[{struct, make_proplist(Item, Names)} | make_struct(Tail, Names)].
-
-%% @doc make a [{Key, Value}] suitable for make_struct
--spec(make_proplist/2 :: (Items :: [any()], Names :: [atom()]) -> [{atom(), any()}]).
-make_proplist(Items, Names) when size(Items) =:= size(Names) -> 
-	Litems = tuple_to_list(Items),
-	LNames = tuple_to_list(Names),
-	io:format("Items:  ~p~nNames:  ~p~n", [Litems, Names]),
-	FixedItems = fix_items(Litems),
-	lists:zip(LNames, FixedItems).
-
-%% @doc Batch cohersion.  See @fix_item for details.
--spec(fix_items/1 :: (Items :: [any()]) -> any()).
-fix_items([]) -> 
-	[];
-fix_items([I | Rest]) -> 
-	[fix_item(I) | fix_items(Rest)].
-
-%% @doc try to coherce some types into mochiweb_json2 compliant types.
-%%  mochiweb_json2 types seem to be numbers, lists, and atoms.
-%% A typle of type {struct, [{atom, any()}]} will create a json object.
--spec(fix_item/1 :: (I :: pid()) -> atom();
-					(I :: tuple()) -> [any()];
-					(I :: any()) -> any()).
-fix_item(I) when is_pid(I) -> 
-	list_to_atom(pid_to_list(I));
-fix_item(I) when is_tuple(I) -> 
-	io:format("trying to fix tuple:  ~p~n", [I]),
-	Items = tuple_to_list(I),
-	fix_items(Items);
-fix_item(I) when is_record(I, call) -> 
-	io:format("fixing a call record...~n"),
-	Items = [I#call.id, I#call.type, I#call.callerid, I#call.client, I#call.skills, I#call.ring_path, I#call.media_path],
-	FixedItems = list_to_tuple(fix_items(Items)),
-	Names = {id, type, callerid, client, skills, ring_path, media_path},
-	make_struct([FixedItems], Names);
-fix_item(I) when is_record(I, client) -> 
-	Item = {I#client.tenant, I#client.brand, I#client.label},
-	Names = {tenant, brand, label},
-	make_struct([Item], Names);	
-fix_item(I) when is_record(I, agent) -> 
-	Item = {I#agent.login, I#agent.skills, I#agent.securitylevel, I#agent.state, fix_item(I#agent.statedata), I#agent.lastchangetimestamp, I#agent.defaultringpath},
-	Names = {login, skills, securitylevel, state, statedata, lastchangetimestamp, defaultringpath},
-	make_struct([Item], Names);
-fix_item(I) when is_list(I) -> 
-	io:format("A list can be a string, or it could hold other things.~n"),
-	case fix_items(I) of
-		I -> 
-			I;
-		Other -> 
-			Other
-	end;
-fix_item(I) -> 
-	io:format("bad things will happen if this goes unfixed: ~p~n", [I]),
-	I.
+%% @doc Attempts to change the record into data for a client
+handler(Rec) when is_record(Rec, call) -> 
+	{struct, [{id, Rec#call.id}, 
+		{type, Rec#call.type}, 
+		{callerid, list_to_binary(Rec#call.callerid)}, 
+		{client, handler(Rec#call.client)}]};
+handler(Rec) when is_record(Rec, client) -> 
+	{struct, [{tenant, Rec#client.tenant},
+		{brand, Rec#client.brand},
+		{label, list_to_binary(Rec#client.label)}]};
+handler(Rec) when is_record(Rec, agent) -> 
+	{struct, [{login, list_to_binary(Rec#agent.login)},
+		{state, Rec#agent.state}]}.

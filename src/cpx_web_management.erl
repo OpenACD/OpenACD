@@ -61,7 +61,7 @@ loop(Req, _Method, "/queues") ->
 	catch
 		exit:{json_encode, {bad_term, Bad}} -> 
 			io:format("Catching a json parse error of ~p because ~p is bad.~n", [exit, Bad]),
-			Req:response({500, [], "Bad Json term"})
+			Req:respond({500, [], "Bad Json term"})
 	end;
 loop(Req, _Method, "/web_dump") -> 
 	Req:ok({"text/html",io_lib:format("<pre>~p</pre>~n", [Req:dump()])});

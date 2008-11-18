@@ -79,8 +79,8 @@ init([Post, Ref, Table]) ->
 			
 			% io:format("if they are already logged in, update the reference~n"),
 			Result = ets:match(Table, {'$1', '$2', User}),
-			% io:format("restults:~p~n", [Result]),
-			lists:map(fun({_R, P, _U}) -> ?MODULE:stop(P) end, Result),
+			io:format("restults:~p~n", [Result]),
+			lists:map(fun([_R, P]) -> ?MODULE:stop(P) end, Result),
 			ets:insert(Table, {erlang:ref_to_list(Ref), Self, User}),
 			
 			% start the agent and associate it with self
@@ -114,50 +114,50 @@ handle_call({request, {"/logout", _Post, _Cookie}}, _From, State) ->
 	{stop, normal, {200, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, true}, {message, <<"Logout completed">>}]})}, State};
 handle_call({request, {"/poll", _Post, _Cookie}}, _From, State) -> 
 	io:format("poll called~n"),
-	Encoder = mochijson2:encoder([{handler, fun(Item) -> cpx_json:handler(Item) end}]),
 	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
 	Pollq = State#state.poll_queue,
 	Json = [{struct, [{counter, Counter}, {tried, Tried}, {type, Type}, {data, Data}]} || {Counter, Tried, Type, Data} <- Pollq],
 	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, Json}]},
 	io:format("json:  ~p~n", [Json]),
-	{reply, {200, [], Encoder(Json2)}, State2};
+	{reply, cpx_json:encode_trap(Json2), State2};
 handle_call({request, {Path, Post, Cookie}}, _From, State) -> 
 	io:format("all other requests~n"),
 	case util:string_split(Path, "/") of 
 		["", "state", Statename] -> 
 			io:format("trying to change to ~p~n", [Statename]),
-			case agent:set_state(State#state.agent_fsm, list_to_atom(Statename)) of
+			case agent:set_state(State#state.agent_fsm, list_to_existing_atom(Statename)) of
 				ok -> 
-					{reply, {200, [], io_lib:format("{success:true, message:\"State changed to ~p\", state:\"~p\"}", [Statename, Statename])}, State};
+					Data = {struct, [{success, true}, {state, list_to_existing_atom(Statename)}]},
+					{reply, cpx_json:encode_trap(Data), State};
 				_Else -> 
-					{reply, {200, [], io_lib:format("{success:false, message:\"Invalid state ~p to change to, state:\"~p\"}", [Statename, Statename])}, State}
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}]})}, State}
 			end;
 		["", "state", Statename, Statedata] -> 
 			io:format("trying to change to ~p with data ~p~n", [Statename, Statedata]),
 			case agent:set_state(State#state.agent_fsm, list_to_atom(Statename), Statedata) of 
 				ok -> 
-					{reply, {200, [], io_lib:format("{success:true, message:\"Successfully changed state to ~p with date ~p\", state:\"~p\", date:\"~p\"}", [Statename, Statedata, Statename, Statedata])}, State};
+					{reply, cpx_json:encode_trap({struct, [{success, true}, {state, list_to_existing_atom(Statename)}, {data, Statedata}]}), State};
 				_Else -> 
-					{reply, {200, [], io_lib:format("{success:false, message\"Invalid state to ~p with data ~p\", state:\"~p\", data:\"~p\"}", [Statename, Statedata, Statename, Statedata])}, State}
+					{reply, cpx_json:encode_trap({struct, [{success, false}, {message, <<"Invalid state">>}]}), State}
 			end;
 		["", "ack", Counter] -> 
 			io:format("you are acking~p~n", [Counter]),
 			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
 			State2 = State#state{ack_queue = Ackq},
-			{reply, {200, [], io_lib:format("{success:true, message:\"Handled ack of ~p\", ack:~p", [Counter, Counter])}, State2};
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
 		["", "err", Counter] -> 
 			io:format("you are erroring~p", [Counter]),
 			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
 			State2 = State#state{ack_queue = Ackq},
-			{reply, {200, [], io_lib:format("{success:true, message:\"Handled error of event ~p\", ack:~p}", [Counter, Counter])}, State2};
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
 		["", "err", Counter, Message] -> 
 			io:format("you are erroring ~p with message ~p~n", [Counter, Message]),
 			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
 			State2 = State#state{ack_queue = Ackq},
-			{reply, {200, [], io_lib:format("{success:true, message:\"Handled error of event ~p with data ~p.\", ack:~p, data:\"~p\"}", [Counter, Message, Counter, Message])}, State2};
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
 		_Allelse -> 
 			io:format("I have no idea what you are talking about."),
-			{reply, {501, [], io_lib:format("{success:false, message:\"Cannot handle request of Path ~p, Post ~p, with Cookie: ~p\", path:\"~p\", post:\"~p\", cookie:\"~p\"}", [Path, Post, Cookie, Path, Post, Cookie])}, State}
+			{reply, {501, [], io_lib:format("Cannot handle request of Path ~p, Post ~p, with Cookie: ~p\", path:\"~p\", post:\"~p\", cookie:\"~p", [Path, Post, Cookie, Path, Post, Cookie])}, State}
 	end.
 
 %%--------------------------------------------------------------------

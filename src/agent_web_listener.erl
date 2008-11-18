@@ -132,18 +132,18 @@ loop(Req, Table) ->
 				% normally this would check against a database and not just discard the un/pw.
 				[] -> 
 					io:format("empty post~n"),
-					Req:respond({403, [], "{success:false, message:\"No post data supplied\"}"});
-				Any -> 
+					Req:respond({403, [], mochijson2:encode({struct, [{success, false}, {message, <<"No post data supplied">>}]})});
+				_Any -> 
 					io:format("trying to start connection~n"),
 					Ref = make_ref(),
 					case agent_web_connection:start(Post, Ref, Table) of
-						{ok, Aconnpid} -> 
+						{ok, _Aconnpid} -> 
 							Cookie = io_lib:format("cpx_id=~p", [erlang:ref_to_list(Ref)]),
-							Req:respond({200, [{"Set-Cookie", Cookie}], "{success:true, message:\"Login successful\"}"});
+							Req:respond({200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}, {message, <<"Login successful">>}]})});
 						{error, Reason} -> 
-							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], io_lib:format("{success:false, message:\"~p\"}", [Reason])});
+							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(io_lib:format("~p", [Reason]))}]})});
 						ignore -> 
-							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], "{success:fase, message:\"ignored\"}"})
+							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, false}, {message, <<"ignored">>}]})})
 					end
 			end;
 		Path -> 
@@ -158,6 +158,6 @@ loop(Req, Table) ->
 					Req:respond(Reqresponse);
 				_Allelse -> 
 					io:format("bad cookie~n"),
-					Req:respond({403, [], io_lib:format("{success:false, message:\"Invalid cookie\", cookie:\"~p\"}", [Req:parse_cookie()])})
+					Req:respond({403, [], io_lib:format("Invalid cookie: ~p", [Req:parse_cookie()])})
 			end
 	end.

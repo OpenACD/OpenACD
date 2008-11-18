@@ -26,11 +26,11 @@
 -include("agent.hrl").
 
 % API
--export([handler/1]).
+-export([handler/1, encode_trap/1]).
 
 %% @doc Attempts to change the record into data for a client
 handler(Rec) when is_record(Rec, call) -> 
-	{struct, [{id, Rec#call.id}, 
+	{struct, [{id, list_to_binary(Rec#call.id)}, 
 		{type, Rec#call.type}, 
 		{callerid, list_to_binary(Rec#call.callerid)}, 
 		{client, handler(Rec#call.client)}]};
@@ -41,3 +41,46 @@ handler(Rec) when is_record(Rec, client) ->
 handler(Rec) when is_record(Rec, agent) -> 
 	{struct, [{login, list_to_binary(Rec#agent.login)},
 		{state, Rec#agent.state}]}.
+
+encode_trap(Data) -> 
+	Encoder = mochijson2:encoder([{handler, fun(I) -> handler(I) end}]),
+	try Encoder(Data) of
+		Out ->
+			{200, [], Out}
+	catch
+		_:_ -> 
+			{500, [], io_lib:format("Bad Json term: ~n~p", [Data])}
+	end.
+
+-ifdef(EUNIT).
+
+call_record_id_test() -> 
+	Idtest = #call{id="Idtest", type=call, callerid="callerid", client=#client{tenant=1, brand=2, label="tenantlabel"}},
+	Idtestj = handler(Idtest),
+	{struct, [{id, T} | _Rest]} = Idtestj,
+	?assertMatch(<<"Idtest">>, T).
+	
+call_record_chat_test() -> 
+	Chattype = #call{id="Idtest", type=chat, callerid="callerid", client=#client{tenant=1, brand=2, label="tenantlabel"}},
+	Chattypej = handler(Chattype),
+	{struct, [_, {type, Type}, _, _]} = Chattypej,
+	?assertMatch(chat, Type).
+	
+call_record_email_test() -> 
+	Emailtype = #call{id="Idtest", type=email, callerid="callerid", client=#client{tenant=1, brand=2, label="tenantlabel"}},
+	Emailtypej = handler(Emailtype),
+	{struct, [_, {type, Type}, _, _]} = Emailtypej,
+	?assertMatch(email, Type).
+	
+client_record_test() -> 
+	Rec = #client{tenant = 55, brand = 74, label = "Testlabel"},
+	Coded = handler(Rec),
+	?assertMatch({struct, [{tenant, 55}, {brand, 74}, {label, <<"Testlabel">>}]}, Coded).
+
+agent_record_test() -> 
+	Rec = #agent{login = "Testagent", state=idle},
+	Coded = handler(Rec),
+	?assertMatch({struct, [{login, <<"Testagent">>}, {state, idle}]}, Coded).
+
+
+-endif.

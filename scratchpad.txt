@@ -106,49 +106,17 @@ otherwise the agent_web_connection does a 'negotiate'
 
 
 
+freecpx.dev 8021
+mod_erlang port:  8031
+cookie:  ClueCon
+node:  freeswitch@freecpx.dev
+test number:  2617542
 
+freeswitch (or other call gw) would hold data on how / which call goes to what queue.  Internally, the queues on the freeswitch are just a heap of calls (with hopefully consistant ids).
 
-
-
-case Req:parse_cookie() of 
-		[{"cpx_id", Pcookie}] -> 
-			case ets:lookup(Table, Pcookie) of
-				{Pcookie, Aconn} -> 
-					gen_server:cast(Aconn, [Req]);
-				_Whatever -> 
-					Method = Req:get(method),
-					Path = Req:get(path),
-					Post = Req:parse_post(),
-					Req:ok({"text/hmtl", io_lib:format("<pre>~p</pre>~n", [Post])})
-			end;
-		Allothers -> 
-			
-		
-		
-			Req:respond({200, [{"Set-Cookie", "goober=foobar"}], io_lib:format("<pre>~p~p</pre>", [Req:dump(), Req:parse_cookie()])});
-
-		
-		
-		
-			Req:ok({"text/hmtl", io_lib:format("<pre>~p~n~n~p</pre>", [Allothers, Req:parse_post()])})
-	end.
-
-
-
-
-
-
-
-					
-					Req:response
-									
-									
-									handle_cast({request, Req}, State) -> 
-									% first, pull out the cookie id and see if we have a process for this already.
-									case Req:parse_cookie() of
-									[{"cpx_id", Pcookie}] -> 
-									{_Whatever, Aconn} = ets:lookup(State#state.connections, Pcookie),
-									gen_server:call(Aconn, {request, Req});
-									_Other -> 
-									{ok, NewConn} = gen_server:start(agent_web_connection, [Req], [])
-									end;
+vars set by freeswitch:
+	brand
+	type
+	ivr selection
+	queue the call goes to
+	

@@ -23,13 +23,14 @@
     set_weight/2,
     get_weight/1,
     add/3,
+	add/2,
     ask/1,
     get_call/2,
     print/1,
     remove/2,
     stop/1,
     grab/1,
-		ungrab/2,
+	ungrab/2,
     set_priority/3,
     to_list/1, 
     add_skills/3,
@@ -80,7 +81,9 @@ get_weight(Pid) ->
 -spec(add/3 :: (Pid :: pid(), Priority :: non_neg_integer(), Calldata :: #call{}) -> ok).
 add(Pid, Priority, Calldata) -> 
 	gen_server:call(Pid, {add, Priority, Calldata}, infinity).
-
+add(Pid, Calldata) -> 
+	add(Pid, 1, Calldata).
+	
 %% @doc Query the queue at `Pid' for a call with the id of `Callid'.
 -spec(get_call/2 :: (Pid ::pid(), Callid :: string()) -> 'none' | {key(), #call{}}).
 get_call(Pid, Callid) -> 

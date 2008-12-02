@@ -220,7 +220,7 @@ offer_call([{_ACost, Apid} | Tail], Call) ->
 	%case agent:set_state(Apid, ringing, Call) of
 	case gen_server:call(Call#call.source, {ring_agent, Apid, Call}) of
 		ok ->
-			io:format("cook offering call:  ~p to ~p", [Call, Apid]),
+			io:format("cook offering call:  ~p to ~p~n", [Call, Apid]),
 			Apid;
 		invalid -> 
 			offer_call(Tail, Call)

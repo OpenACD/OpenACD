@@ -91,7 +91,7 @@ handle_cast({Callid, Rawcall}, State) ->
 					Protocall2 = Protocall#call{id=Callid, client=Brand, callerid=Callerid},
 					{noreply, State#state{protocall=Protocall2, queue=Q}};
 				_Else ->
-					io:format("Nothing needs to be done, as this is a bridge aid")
+					io:format("Nothing needs to be done, as this is a bridge aid~n")
 			end;
 		"CUSTOM" -> 
 			io:format("Custom event, begin with sub~n"),
@@ -105,7 +105,7 @@ handle_cast({Callid, Rawcall}, State) ->
 							{noreply, State}
 					end;
 				_Else -> 
-					io:format("Still, nothing needs to be done")
+					io:format("Still, nothing needs to be done~n")
 			end;
 		"CHANNEL_HANGUP" -> 
 			io:format("Call almost done, if it's in a queue, remove it.~n"),
@@ -120,7 +120,7 @@ handle_cast({Callid, Rawcall}, State) ->
 			io:format("Call done, time to die.~n"),
 			{stop, normal, State};
 		Else -> 
-			io:format("Not an event we care about: ~p", [Else]
+			io:format("Not an event we care about: ~p~n", [Else])
 	end;
 handle_cast(_Msg, State) ->
     {noreply, State}.

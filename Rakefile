@@ -20,7 +20,9 @@ end.pathmap("%{src,coverage}X.txt").reject{|x| x.include? 'test_coverage'}
 @maxwidth = SRC.map{|x| File.basename(x, 'erl').length}.max
 
 CLEAN.include("ebin/*.beam")
+CLEAN.include("ebin/*.app")
 CLEAN.include("debug_ebin/*.beam")
+CLEAN.include("debug_ebin/*.app")
 CLEAN.include("coverage/*.txt")
 CLEAN.include("coverage/*.html")
 CLEAN.include("doc/*.html")
@@ -57,6 +59,7 @@ task :compile => ['ebin'] + OBJ do
 	CONTRIB.each do |cont|
 		sh "make -C #{cont}"
 	end
+	sh "cp src/*.app ebin/"
 end
 
 task :default => :compile
@@ -74,7 +77,9 @@ end
 
 namespace :test do
 	desc "Compile .beam files with -DEUNIT and +debug_info => debug_ebin"
-	task :compile => ['debug_ebin'] + DEBUGOBJ
+	task :compile => ['debug_ebin'] + DEBUGOBJ do
+		sh "cp src/*.app debug_ebin/"
+	end
 
 	desc "run eunit tests, the dialyzer and output coverage reports"
 	task :all => [:compile, :eunit, :dialyzer, :report_coverage]

@@ -120,3 +120,56 @@ vars set by freeswitch:
 	ivr selection
 	queue the call goes to
 	
+	
+	
+	
+	
+	
+Configs:
+
+Media Managers : [
+	{
+		module, function, node, domain
+	},
+	...
+]
+
+Queues : [
+	{
+		node,
+		name,
+		wieght,
+		skills : [...],
+		recipe : [
+			{
+				on_ticks,
+				action,
+				params:{
+				
+				},
+				run_once | run_many
+			},
+			...
+		]
+	},
+	...
+]
+
+Agent Manager:{
+	authentication: internal | external
+	if(external){
+		module, function, [args]
+	}
+	agents:[
+		{
+			login,
+			password, //may not be used if auth is external
+			skills:[...]
+		},
+		...
+	],
+	tcp_port,
+	web_port
+}
+
+	

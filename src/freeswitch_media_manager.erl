@@ -23,7 +23,7 @@
 -define(TIMEOUT, 10000).
 
 %% API
--export([start_link/1, start/1, listener/1]).
+-export([start_link/2, start/2, listener/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -32,7 +32,8 @@
 -record(state, {
 	nodename :: atom(),
 	freeswitch_c_pid :: pid(),
-	watched_calls % ets table of the call id's already queued.
+	watched_calls, % ets table of the call id's already queued.
+	domain
 	}).
 	
 % watched calls structure:
@@ -47,10 +48,10 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start(Nodename) -> 
-	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename], []).
-start_link(Nodename) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename], []).
+start(Nodename, Domain) -> 
+	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
+start_link(Nodename, Domain) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -63,7 +64,7 @@ start_link(Nodename) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Nodename]) -> 
+init([Nodename, Domain]) -> 
 	process_flag(trap_exit, true),
 	Self = self(),
 	_Lpid = spawn(fun() -> 
@@ -80,7 +81,7 @@ init([Nodename]) ->
 	end),
 	T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
 	io:format("Attempted to start events in ffm's init:  ~p~n", [T]),
-    {ok, #state{nodename=Nodename, watched_calls = ets:new(watched_calls, [named_table])}}.
+    {ok, #state{nodename=Nodename, watched_calls = ets:new(watched_calls, [named_table]), domain=Domain}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -97,7 +98,7 @@ handle_call({ring_agent, AgentPid, Call}, _From, State) ->
 	%% send SIP to an agent's phone or whatever. We should do something about
 	%% ringout here though...
 	AgentRec = agent:dump_state(AgentPid),
-	Args = "{dstchan=" ++ Call#call.id ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%freecpx.dev &park()",
+	Args = "{dstchan=" ++ Call#call.id ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " &park()",
 	X = freeswitch:bgapi(State#state.nodename, originate, Args),
 	io:format("Bgapi call res:  ~p~nWith args: ~p~n", [X, Args]),
 	{reply, agent:set_state(AgentPid, ringing, Call), State};

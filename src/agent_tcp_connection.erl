@@ -146,14 +146,24 @@ handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), 
 
 handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter) ->
 	[Username, Password] = util:string_split(Credentials, ":", 2),
-	{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username}),
-	case agent:set_connection(Pid, self()) of
-		ok ->
-			State2 = State#state{agent_fsm=Pid},
-			io:format("User ~p is trying to authenticate using ~p.~n", [Username, Password]),
-			{ack(Counter, "1 1 1"), State2};
-		error ->
-			{err(Counter, Username ++ " is already logged in"), State}
+	io:format("username: ~p~npassword: ~p~n", [Username, Password]),
+	case agent_auth:auth(Username, Password, State#state.salt) of
+		deny -> 
+			io:format("Authentication failure~n"),
+			{err(Counter, "Authentication Failure"), State};
+		{allow, Skills} -> 
+			io:format("Authenciation success, next steps..."),
+			{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills}),
+			case agent:set_connection(Pid, self()) of
+				ok ->
+					State2 = State#state{agent_fsm=Pid},
+					io:format("User ~p has authenticated using ~p.~n", [Username, Password]),
+					{ack(Counter, "1 1 1"), State2};
+				error ->
+					{err(Counter, Username ++ " is already logged in"), State}
+			end;
+		_Else ->
+			{err(Counter, "Unexpected error authenticating, please try again."), State}
 	end;
 
 handle_event([_Event, Counter], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->

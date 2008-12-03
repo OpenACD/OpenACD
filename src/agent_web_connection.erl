@@ -72,26 +72,33 @@ init([Post, Ref, Table]) ->
 	io:format("actual web connection init~n"),
 	io:format("Post: ~p~nRef: ~p~nTable: ~p~n", [Post, Ref, Table]),
 	case Post of
-		[{"username", User},{"password", _Passwrd}] -> 
+		[{"username", User},{"password", Passwrd}] -> 
 			% io:format("seems like a well formed post~n"),
 			Self = self(),
-			Agent = #agent{login=User},
+			case agent_auth:auth(User, Passwrd) of
+				deny -> 
+					{stop, "Login Denied"};
+				{allow, Skills} ->
+					Agent = #agent{login=User, skills=Skills},
 			
-			% io:format("if they are already logged in, update the reference~n"),
-			Result = ets:match(Table, {'$1', '$2', User}),
-			io:format("restults:~p~n", [Result]),
-			lists:map(fun([_R, P]) -> ?MODULE:stop(P) end, Result),
-			ets:insert(Table, {erlang:ref_to_list(Ref), Self, User}),
-			
-			% start the agent and associate it with self
-			{_Reply, Apid} = agent_manager:start_agent(Agent),
-			case agent:set_connection(Apid, Self) of
-				error -> 
-					{stop, "User could not be started"};
-				_Otherwise -> 
-					% start the ack timer
-					{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
-					{ok, #state{agent_fsm = Apid, ref = Ref, table = Table, ack_timer = Tref}}
+					% io:format("if they are already logged in, update the reference~n"),
+					Result = ets:match(Table, {'$1', '$2', User}),
+					io:format("restults:~p~n", [Result]),
+					lists:map(fun([_R, P]) -> ?MODULE:stop(P) end, Result),
+					ets:insert(Table, {erlang:ref_to_list(Ref), Self, User}),
+					
+					% start the agent and associate it with self
+					{_Reply, Apid} = agent_manager:start_agent(Agent),
+					case agent:set_connection(Apid, Self) of
+						error -> 
+							{stop, "User could not be started"};
+						_Otherwise -> 
+							% start the ack timer
+							{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
+							{ok, #state{agent_fsm = Apid, ref = Ref, table = Table, ack_timer = Tref}}
+					end;
+				_Other ->
+					{stop, "500 internal server error"}
 			end;
 		_Other -> 
 			% io:format("all other posts~n"),

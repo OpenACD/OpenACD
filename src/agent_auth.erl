@@ -22,7 +22,11 @@
 
 
 %% API
--export([start_link/5, start/5, start_link/0, start/0, auth/2]).
+-export([start_link/5, start/5, start_link/0, start/0, stop/0, auth/3]).
+
+-ifdef(EUNIT).
+	-export([cache/3, destroy/1]).
+-endif.
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -47,16 +51,12 @@
 
 % @doc The Mod, Func, and Args are the module, funciton, and args needed to start the integration (if any).
 start() -> 
-	build_tables(),
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 start_link() -> 
-	build_tables(),
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 start(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) -> 
-	build_tables(),
 	gen_server:start({local, ?MODULE}, ?MODULE, [Mod, StartFunc, StartArgs, CheckFunc, CheckArgs], []).
 start_link(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) ->
-    build_tables(),
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Mod, StartFunc, StartArgs, CheckFunc, CheckArgs], []).
 
 %%====================================================================
@@ -71,10 +71,20 @@ start_link(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Mod, StartFunc, StartArgs, CheckFunc, CheckArgs]) ->
-	apply(Mod, StartFunc, StartArgs),
-    {ok, #state{mod=Mod, start_func=StartFunc, start_args=StartArgs, check_func = CheckFunc, check_args = CheckArgs}};
+	case build_tables() of
+		ok -> 
+			apply(Mod, StartFunc, StartArgs),
+			{ok, #state{mod=Mod, start_func=StartFunc, start_args=StartArgs, check_func = CheckFunc, check_args = CheckArgs}};
+		Else -> 
+			{stop, {build_tables, Else}}
+	end;
 init([]) -> 
-	{ok, #state{integration = false}}.
+	case build_tables() of
+		ok -> 
+			{ok, #state{integration = false}};
+	Else -> 
+		{stop, {build_tables, Else}}
+	end.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -85,27 +95,30 @@ init([]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({authentication, Username, Password}, _From, State) -> 
+handle_call({authentication, Username, Password, Salt}, _From, State) -> 
 	% start w/ the remote try.  If that fails, try the local.
 	case State#state.integration of
 		false -> 
 			io:format("local authentication only~n"),
-			Reply = local_auth(Username, Password),
+			Reply = local_auth(Username, Password, Salt),
 			{reply, Reply, State};
 		_Else -> 
 			io:format("remote authenitcaitona attempt first~n"),
-			Args = lists:append([[Username, Password], State#state.check_args]),
+			Args = lists:append([[Username, Password, Salt], State#state.check_args]),
 			case apply(State#state.mod, State#state.check_func, Args) of
 				{allow, Skills} -> 
 					cache(Username, Password, Skills),
-					{reply, {allow, Skills}, State};
+					{reply, {allow, lists:appned([Skills, ['_agent', '_node']])}, State};
 				deny -> 
+					destroy(Username),
 					{reply, deny, State};
 				_Else -> 
-					Reply = local_auth(Username, Password),
+					Reply = local_auth(Username, Password, Salt),
 					{reply, Reply, State}
 			end
 	end;
+handle_call(stop, _From, State) ->
+	{stop, normal, ok, State};
 handle_call(Request, _From, State) ->
 	io:format("agent_auth does not understand request:  ~p~n", [Request]),
     Reply = ok,
@@ -150,23 +163,64 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-auth(Username, Password) -> 
-	gen_server:call(?MODULE, {authentication, Username, Password}).
+auth(Username, Password, Salt) -> 
+	gen_server:call(?MODULE, {authentication, Username, Password, Salt}).
 
 build_tables() ->
 	io:format("building tables...~n"),
+	Nodes = lists:append([nodes(), [node()]]),
+	io:format("disc_copies: ~p~n", [Nodes]),
+	mnesia:create_schema(Nodes),
 	mnesia:start(),
-	A = mnesia:create_table(agent_auth, [{attributes, record_info(fields, agent_auth)}]),
+	A = mnesia:create_table(agent_auth, [
+		{attributes, record_info(fields, agent_auth)},
+		{disc_copies, Nodes},
+		{ram_copies, nodes()}
+	]),
 	io:format("~p~n", [A]),
-	ok.
+	case A of
+		{atomic, ok} -> 
+			ok;
+		{aborted, {already_exists, _Table}} ->
+			ok;
+		Else -> 
+			Else
+	end.
 	
 cache(Username, Password, Skills) -> 
-	ok.
-	
-local_auth(Username, Password) -> 
-	P = erlang:md5(Password),
-	QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Username, X#agent_auth.password =:= P]),
-	io:format("QH: ~p~n", [QH]),
+	% md5 the password before it gets here!
+	Agent = #agent_auth{
+		login=Username,
+		password = Password,
+		skills = Skills},
+	F = fun() -> 
+		mnesia:write(Agent)
+	end,
+	mnesia:transaction(F).
+
+destroy(Username) -> 
+	F = fun() -> 
+		mnesia:delete({agent_auth, Username})
+	end,
+	mnesia:transaction(F).
+
+clean_salt(Salt) when is_integer(Salt) -> 
+	clean_salt(integer_to_list(Salt));
+clean_salt(Salt) when is_binary(Salt) -> 
+	Salt;
+clean_salt(Salt) when is_list(Salt) -> 
+	list_to_binary(Salt).
+
+clean_password(Password) when is_binary(Password) -> 
+	Password;
+clean_password(Password) when is_list(Password) -> 
+	iolist_to_binary(Password).
+
+local_auth(Username, TPassword, TSalt) -> 
+	Password = clean_password(TPassword),
+	Salt = clean_salt(TSalt),
+	QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Username]),
+	% salt the password	
 	F = fun() -> qlc:e(QH) end,
 	case mnesia:transaction(F) of
 		%{error, mnesia, {aborted, {no_exists, agent_auth}}} -> 
@@ -175,9 +229,91 @@ local_auth(Username, Password) ->
 		{atomic, []} -> 
 			deny;
 		{atomic, [Agent]} when is_record(Agent, agent_auth) -> 
-			{allow, Agent#agent_auth.skills};
+			%check the password after salt
+			case erlang:md5(Salt ++ Agent#agent_auth.password) of
+				Password -> 
+					{allow, lists:append([Agent#agent_auth.skills, ['_agent', '_node']])};
+				Else -> 
+					io:format("Password: ~p~nSalting: ~p~n", [Password, Else]),
+					deny
+			end;
 		Else ->
-			io:format("Unusual respnse from lcal auth query: ~p~n", [Else]),
+			io:format("Unusual respnse from local auth query: ~p~n", [Else]),
 			deny
 	end.
-			
+
+stop() -> 
+	gen_server:call(?MODULE, stop).
+
+-ifdef(EUNIT).
+
+local_auth_test_() -> 
+	mnesia:start(),
+	{
+		setup,
+		fun() -> 
+			start(),
+			ok
+		end,
+		fun(_) -> 
+			stop()
+		end,
+		[
+			{
+				"Cache a user 'A'",
+				fun() -> 
+					?assertMatch({atomic, ok}, cache("A", erlang:md5("B"), [])),
+					destroy("A")
+				end
+			},
+			{
+				"Auth a user 'A'",
+				fun() -> 
+					cache("A", erlang:md5("B"), [testskill]),
+					?assertMatch({allow, [testskill, '_agent', '_node']}, local_auth("A", erlang:md5(integer_to_list(5) ++ erlang:md5("B")), 5)),
+					destroy("A"),
+					?assertMatch(deny, local_auth("A", erlang:md5(integer_to_list(5) ++ erlang:md5("B")), 5))
+				end
+			},
+			{
+				"Destroy a user 'A'",
+				fun() -> 
+					cache("A", erlang:md5("B"), [testskill]),
+					destroy("A"),
+					?assertMatch(deny, local_auth("A", erlang:md5("Salt" ++ erlang:md5("B")), 5))
+				end
+			},
+			{
+				"Raw Cache Test",
+				fun() -> 
+					cache("A", erlang:md5("B"), [testskill]),
+					Agent = #agent_auth{
+						login="A",
+						password=erlang:md5("B"),
+						skills=[testskill]},
+					F = fun() -> 
+						Pass = erlang:md5("B"),
+						QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= "A", X#agent_auth.password =:= Pass]),
+						qlc:e(QH)
+					end,
+					?assertMatch({atomic, [Agent]}, mnesia:transaction(F)),
+					destroy("A")
+				end
+			},
+			{
+				"Raw Destroy Test",
+				fun() -> 
+					cache("A", "B", [testskill]),
+					destroy("A"),
+					F = fun() -> 
+						Pass = erlang:md5("B"),
+						QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= "A", X#agent_auth.password =:= Pass]),
+						qlc:e(QH)
+					end,
+					?assertMatch({atomic, []}, mnesia:transaction(F))
+				end
+			}
+		]
+	}.
+
+-endif.

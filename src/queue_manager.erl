@@ -45,6 +45,9 @@ add_queue(Name, Weight) when is_integer(Weight), Weight > 0 ->
 add_queue(Name, Recipe, Weight) ->
 	gen_server:call(?MODULE, {add, Name, Recipe, Weight}).
 
+load_queue(Name) -> 
+	gen_server:call(?MODULE, {load_queue, Name}).
+			
 %% @doc Get the pid of the passed queue name.  If there is no queue, returns 'undefined'.
 -spec(get_queue/1 :: (Name :: atom()) -> pid() | undefined).
 get_queue(Name) -> 
@@ -167,6 +170,15 @@ handle_call({add, Name, Recipe, Weight}, _From, State) ->
 	end;
 handle_call({exists, Name}, _From, State) ->
 	{reply, dict:is_key(Name, State), State};
+handle_call({load_queue, Name}, _From, State) -> 
+	case call_queue_config:get_all(Name) of
+		noexists -> 
+			{reply, undefined, State};
+		Queue when is_record(Queue, call_queue) -> 
+			add_queue(Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight);
+		_Else -> 
+			{reply, undefined, State}
+	end;
 handle_call({get_queue, Name}, _From, State) ->
 	case dict:find(Name, State) of
 		{ok, Pid} ->

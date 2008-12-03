@@ -1,0 +1,39 @@
+{application, cpx, [
+	{description, "Call queuing and routing system"},
+	{vsn, "0.1"},
+	{modules, [
+		cpx,
+		freeswitch,
+		agent,
+		agent_tcp_connection,
+		agent_tcp_listener,
+		call_queue,
+		cook,
+		cook_supervisor,
+		cpx_supervisor,
+		dispatcher,
+		dispatch_manager,
+		dispatch_supervisor,
+		queue_manager,
+		util,
+		cpx_web_management,
+		agent_web_connection,
+		agent_web_listener,
+		cpx_json,
+		freeswitch_media_manager,
+		freeswitch_media
+	]},
+	{registered, [
+		agent_manager,
+		cook_supervisor,
+		cpx_supervisor,
+		dispatch_manager,
+		dispatch_supervisor,
+		queue_manager,
+		freeswitch_media_manager
+	]},
+	{mod, {cpx, []}},
+	{env, []},
+	{applications, [kernel, stdlib]},
+	{start_phases, []}
+]}.

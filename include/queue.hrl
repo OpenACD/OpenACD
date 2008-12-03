@@ -8,3 +8,10 @@
 	'run_once' | 'run_many'}).
 	
 -type(recipe() :: [recipe_step()]).
+
+-record(queue, {
+	name = "Unknown Queue" :: string(),
+	wieght = 1 :: non_neg_integer(),
+	skills = [english, '_node'] :: [atom()],
+	recipe = ?DEFAULT_RECIPE :: recipe()
+}).

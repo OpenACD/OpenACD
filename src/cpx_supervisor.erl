@@ -60,7 +60,8 @@ init([]) ->
 	FreeswitchManagerSpec = {freeswitch_media_manager, {freeswitch_media_manager, start, [freeswitch@freecpx.dev, "freecpx.dev"]}, permanent, 20000, worker, [?MODULE]},
 	WebManagementSpec = {cpx_web_management, {cpx_web_management, start, []}, permanent, 100, worker, [?MODULE]},
 	AgentWebSpec = {agent_web_listener, {agent_web_listener, start, []}, permanent, 20000, worker, [?MODULE]},
-	Specs = [DispatchSpec, AgentManagerSpec, AgentListenerSpec, QueueManagerSpec, FreeswitchManagerSpec, WebManagementSpec, AgentWebSpec],
+	AgentAuthSpec = {agent_auth, {agent_auth, start, []}, permanent, 20000, worker, [?MODULE]},
+	Specs = [DispatchSpec, AgentManagerSpec, AgentListenerSpec, QueueManagerSpec, FreeswitchManagerSpec, WebManagementSpec, AgentWebSpec, AgentAuthSpec],
 	io:format("specs:  ~p~n", [supervisor:check_childspecs(Specs)]),
     {ok,{{one_for_one,3,5}, Specs}}.
 

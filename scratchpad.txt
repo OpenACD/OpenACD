@@ -129,14 +129,13 @@ Configs:
 
 Media Managers : [
 	{
-		module, function, node, domain
+		module, function, [Args]
 	},
 	...
 ]
 
 Queues : [
 	{
-		node,
 		name,
 		wieght,
 		skills : [...],
@@ -155,20 +154,14 @@ Queues : [
 	...
 ]
 
-Agent Manager:{
-	authentication: internal | external
-	if(external){
-		module, function, [args]
-	}
-	agents:[
-		{
-			login,
-			password, //may not be used if auth is external
-			skills:[...]
-		},
-		...
-	],
+skills interpolated by module,
+un/pw/skills cached by internal system, updated periocically.
+
+Agent Manager (integration module):{
+	module, funciton, args
 	tcp_port,
+	tcp_ip,
+	web_port,
 	web_port
 }
 

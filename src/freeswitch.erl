@@ -1,6 +1,10 @@
 %% @doc A module for interfacing with FreeSWITCH using mod_erlang_event.
 -module(freeswitch).
 
+-ifdef(EUNIT).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -export([send/2, start_log_handler/1, start_event_handler/1, api/3, bgapi/3, event/2, nixevent/2, noevents/1, close/1, get_event_header/2, get_event_body/1, get_event_name/1, log_receiver_loop/1, event_receiver_loop/1, start_search/1, search_loop/1]).
 -define(TIMEOUT, 10000).
 
@@ -194,3 +198,7 @@ search_loop(Node) ->
 	end.
 
 
+-ifdef(EUNIT).
+
+
+-endif.

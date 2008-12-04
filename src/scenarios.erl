@@ -1,5 +1,9 @@
 -module(scenarios).
 
+-ifdef(EUNIT).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -compile(export_all).
 
 scenario1() ->
@@ -15,3 +19,8 @@ s1() ->
 	
 s2() -> 
 	queue_manager:add_queue("L3-00170001", [], 1).
+	
+-ifdef(EUNIT).
+
+
+-endif.

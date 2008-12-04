@@ -12,16 +12,30 @@
 
 -include("call.hrl").
 -include("agent.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 -ifdef(EUNIT).
 	-include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-record(cpx_conf, {
+	module_name :: atom(),
+	start_function :: atom(),
+	start_args :: [any()]
+}).
+
 -behaviour(supervisor).
 
 %% API
 -export([start_link/0, start/0]).
-
+-export([
+	add_conf/3,
+	build_spec/1,
+	build_tables/0,
+	destroy/1,
+	update_conf/4
+	]).
+	
 %% Supervisor callbacks
 -export([init/1]).
 
@@ -53,24 +67,179 @@ start() ->
 %% specifications.
 %%--------------------------------------------------------------------
 init([]) ->
-	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
-	AgentManagerSpec = {agent_manager, {agent_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
-	AgentListenerSpec = {agent_tcp_listener, {agent_tcp_listener, start, []}, permanent, 20000, worker, [?MODULE]},
-	QueueManagerSpec = {queue_manager, {queue_manager, start, []}, permanent, 20000, worker, [?MODULE]},
-	FreeswitchManagerSpec = {freeswitch_media_manager, {freeswitch_media_manager, start, [freeswitch@freecpx.dev, "freecpx.dev"]}, permanent, 20000, worker, [?MODULE]},
-	WebManagementSpec = {cpx_web_management, {cpx_web_management, start, []}, permanent, 100, worker, [?MODULE]},
-	AgentWebSpec = {agent_web_listener, {agent_web_listener, start, []}, permanent, 20000, worker, [?MODULE]},
-	AgentAuthSpec = {agent_auth, {agent_auth, start, []}, permanent, 20000, worker, [?MODULE]},
-	Specs = [DispatchSpec, AgentManagerSpec, AgentListenerSpec, QueueManagerSpec, FreeswitchManagerSpec, WebManagementSpec, AgentWebSpec, AgentAuthSpec],
-	io:format("specs:  ~p~n", [supervisor:check_childspecs(Specs)]),
-    {ok,{{one_for_one,3,5}, Specs}}.
+	case build_tables() of
+		ok -> 
+			DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
+			AgentManagerSpec = {agent_manager, {agent_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
+			QueueManagerSpec = {queue_manager, {queue_manager, start, []}, permanent, 20000, worker, [?MODULE]},
+
+			Specs = lists:append([DispatchSpec, AgentManagerSpec, QueueManagerSpec], load_specs()),
+			
+			io:format("specs:  ~p~n", [supervisor:check_childspecs(Specs)]),
+			{ok,{{one_for_one,3,5}, Specs}};
+		Else -> 
+			ignore
+	end.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
+add_conf(Mod, Start, Args) -> 
+	Rec = #cpx_conf{module_name = Mod, start_function = Start, start_args = Args},
+	F = fun() -> 
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F),
+	start_spec(build_spec(Rec)).
+	
+build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args} = Record) -> 
+	Spec = {Mod, {Mod, Start, Args}, permanent, 20000, worker, [?MODULE]},
+	case supervisor:check_childspecs([Spec]) of
+		ok -> 
+			Spec;
+		Else -> 
+			Else
+	end.
+
+build_tables() -> 
+	io:format("cpx building tables...~n"),
+	Nodes = [node()],
+	mnesia:create_schema(Nodes),
+	mnesia:start(),
+	A = mnesia:create_table(cpx_conf, [
+		{attributes, record_info(fields, cpx_conf)},
+		{disc_copies, Nodes},
+		{local_content, true}
+	]),
+	case A of
+		{atomic, ok} -> 
+			ok;
+		{aborted, {already_exists, _Table}} ->
+			ok;
+		Else -> 
+			Else
+	end.
+	
+destroy({Id, _Params, _Transience, _Time, _Type, _Module}) -> 
+	destroy(Id);
+destroy(Spec) when is_atom(Spec) -> 
+	F = fun() -> 
+		mnesia:delete({cpx_conf, Spec})
+	end,
+	mnesia:transaction(F).
+
+update_conf(Name, Mod, Start, Args) -> 
+	Rec = #cpx_conf{module_name = Mod, start_function = Start, start_args = Args},
+	F = fun() -> 
+		destroy(Name),
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F).
+	
+-ifndef(EUNIT).
+start_spec(Spec) -> 
+	supervisor:start_child(cpx_supervisor, Spec).
+	
+load_specs() -> 
+	F = fun() -> 
+		QH = qlc:q([X || X <- mnesia:table(cpx_conf)])
+		qlc:e(QH)
+	end,
+	case mnesia:transaction(F) of
+		{atomic, Records} -> 
+			lists:map(fun(I) -> build_spec(I) end, Records);
+		Else -> 
+			Else
+	end.
+-else.
+start_spec(_Sepc) -> 
+	ok.
+	
+load_specs() -> 
+	[
+		{agent_tcp_listener, {agent_tcp_listener, start, []}, permanent, 20000, worker, [?MODULE]},
+		{freeswitch_media_manager, {freeswitch_media_manager, start, [freeswitch@freecpx.dev, "freecpx.dev"]}, permanent, 20000, worker, [?MODULE]},
+		{cpx_web_management, {cpx_web_management, start, []}, permanent, 100, worker, [?MODULE]},
+		{agent_web_listener, {agent_web_listener, start, []}, permanent, 20000, worker, [?MODULE]},
+		{agent_auth, {agent_auth, start, []}, permanent, 20000, worker, [?MODULE]}
+	].
+			 
+-endif.
+
 -ifdef(EUNIT).
 
+config_test_() -> 
+	mnesia:start(),
+	[
+		{
+			"Adding a Valid Config",
+			fun() -> 
+				Valid = #cpx_conf{module_name = dummy_mod, start_function = start, start_args = []},
+				add_conf(dummy_mod, start, []),
+				QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
+				F = fun() -> 
+					qlc:e(QH)
+				end,
+				?assertMatch({atomic, [Valid]}, mnesia:transaction(F)),
+				destroy(dummy_mod)
+			end
+		},
+		{
+			"Destroy a Config by full spec",
+			fun() -> 
+				Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
+				add_conf(dummy_mod, start, []),
+				destroy(Spec),
+				QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
+				F = fun() -> 
+					qlc:e(QH)
+				end,
+				?assertMatch({atomic, []}, mnesia:transaction(F))
+			end
+		},
+		{
+			"Destroy a Config by id only",
+			fun() -> 
+				add_conf(dummy_mod, start, []),
+				destroy(dummy_mod),
+				QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
+				F = fun() -> 
+					qlc:e(QH)
+				end,
+				?assertMatch({atomic, []}, mnesia:transaction(F))
+			end
+		},
+		{
+			"Update a Config",
+			fun() -> 
+				Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
+				add_conf(dummy_mod, start, []),
+				update_conf(dummy_mod, new_mod, new_start, [new_arg]),
+				QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
+				F = fun() ->
+					qlc:e(QH)
+				end,
+				?assertMatch({atomic, []}, mnesia:transaction(F)),
+				Valid = #cpx_conf{module_name = new_mod, start_function = new_start, start_args = [new_arg]},
+				QH2 = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= new_mod]),
+				F2 = fun() -> 
+					qlc:e(QH2)
+				end,
+				?assertMatch({atomic, [Valid]}, mnesia:transaction(F2)),
+				destroy(new_mod),
+				destroy(dummy_mod)
+			end
+		},
+		{
+			"Build a Spec from Record",
+			fun() -> 
+				Record = #cpx_conf{module_name = dummy_mod, start_function = start, start_args = []},
+				?assertMatch({dummy_mod, {dummy_mod, start, []}, permanent, 20000, worker, [?MODULE]}, build_spec(Record))
+			end
+		}
+	].
+				
 %start_test() -> 
 %	{ok, Pid} = start_link(),
 %	?debugFmt("This pid is:  ~p.~n", [Pid]).

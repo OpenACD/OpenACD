@@ -165,4 +165,36 @@ Agent Manager (integration module):{
 	web_port
 }
 
+last 4 listed above are being moved!
+
+Seems the design is highly modular/module, so the best config I can see is to have the 
+supervisor specs dynamically loaded at application start
+
+cpx_modules
+-record(cpx_module, {
+	module_name :: atom()
+	start_function :: atom()
+	start_args :: [any()]
+	}).
+	
+
+	
+
+	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
+	AgentManagerSpec = {agent_manager, {agent_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
+	AgentListenerSpec = {agent_tcp_listener, {agent_tcp_listener, start, []}, permanent, 20000, worker, [?MODULE]},
+	QueueManagerSpec = {queue_manager, {queue_manager, start, []}, permanent, 20000, worker, [?MODULE]},
+	FreeswitchManagerSpec = {freeswitch_media_manager, {freeswitch_media_manager, start, [freeswitch@freecpx.dev, "freecpx.dev"]}, permanent, 20000, worker, [?MODULE]},
+	WebManagementSpec = {cpx_web_management, {cpx_web_management, start, []}, permanent, 100, worker, [?MODULE]},
+	AgentWebSpec = {agent_web_listener, {agent_web_listener, start, []}, permanent, 20000, worker, [?MODULE]},
+	AgentAuthSpec = {agent_auth, {agent_auth, start, []}, permanent, 20000, worker, [?MODULE]},
+	Specs = [DispatchSpec, AgentManagerSpec, AgentListenerSpec, QueueManagerSpec, FreeswitchManagerSpec, WebManagementSpec, AgentWebSpec, AgentAuthSpec],
+
+
+
+
+
+
+
+
 	

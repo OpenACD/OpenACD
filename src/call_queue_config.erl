@@ -26,6 +26,7 @@
 	start/0, 
 	new/1, 
 	new/2, 
+	destroy/1,
 	get_all/1,
 	get_all/0,
 	set_all/1,

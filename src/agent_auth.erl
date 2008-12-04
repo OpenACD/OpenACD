@@ -7,6 +7,12 @@
 %%%
 %%% Created       :  12/2/08
 %%%-------------------------------------------------------------------
+
+%% @doc Connection to the local authenication cache and integration to another module.
+%% Authentication is first checked by the integration module (if any).  If that fails, 
+%% this module will fall back to it's local cache in the mnesica 'agent_auth' table.
+%% the cache table is both ram and disc copies on all nodes.
+
 -module(agent_auth).
 -author(null).
 
@@ -44,18 +50,26 @@
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
 
-% @doc The Mod, Func, and Args are the module, funciton, and args needed to start the integration (if any).
+%% @doc Starts with no integration, meaning all authentication requests are done against the mnesia cache.
 start() -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
+%% @doc Starts with no integration, meaning all authentication requests are done against the mnesia cache.
 start_link() -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
+%% @doc Starts with integration, meaning all authentication requests are done first against the mnesia cache only if the integration fails.
+%% Mod is the integration module.  When this startes, Mod:StartFunc is called as the last step of this modules startup.
+%% When an authenticaiton request is made, Mod:CheckFunc is called with the Username, Password, and Salt prepended to the CheckArgs list.
+%% See also @see auth/3
+-spec(start/5 :: (Mod :: atom(), StartFunc :: atom(), StartArgs :: [any()], CheckFunc :: atom(), CheckArgs :: [any()]) -> 'ok' | any()).
 start(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [Mod, StartFunc, StartArgs, CheckFunc, CheckArgs], []).
+	
+%% @doc Starts with integration, meaning all authentication requests are done first against the mnesia cache only if the integration fails.
+%% Mod is the integration module.  When this startes, Mod:StartFunc is called as the last step of this modules startup.
+%% When an authenticaiton request is made, Mod:CheckFunc is called with the Username, Password, and Salt prepended to the CheckArgs list.
+%% @see auth/3
+-spec(start_link/5 :: (Mod :: atom(), StartFunc :: atom(), StartArgs :: [any()], CheckFunc :: atom(), CheckArgs :: [any()]) -> 'ok' | any()).
 start_link(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Mod, StartFunc, StartArgs, CheckFunc, CheckArgs], []).
 
@@ -63,13 +77,6 @@ start_link(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 init([Mod, StartFunc, StartArgs, CheckFunc, CheckArgs]) ->
 	case build_tables() of
 		ok -> 
@@ -87,12 +94,6 @@ init([]) ->
 	end.
 
 %%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({authentication, Username, Password, Salt}, _From, State) -> 
@@ -106,8 +107,8 @@ handle_call({authentication, Username, Password, Salt}, _From, State) ->
 			io:format("remote authenitcaitona attempt first~n"),
 			Args = lists:append([[Username, Password, Salt], State#state.check_args]),
 			case apply(State#state.mod, State#state.check_func, Args) of
-				{allow, Skills} -> 
-					cache(Username, Password, Skills),
+				{allow, CachePassword, Skills} -> 
+					cache(Username, CachePassword, Skills),
 					{reply, {allow, lists:appned([Skills, ['_agent', '_node']])}, State};
 				deny -> 
 					destroy(Username),
@@ -125,18 +126,12 @@ handle_call(Request, _From, State) ->
     {reply, Reply, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(_Info, State) ->
@@ -144,17 +139,12 @@ handle_info(_Info, State) ->
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -163,9 +153,26 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+%% @doc Base authentication function.  Does the appropariate gen_server:call.  Username, Password, and Salt are all expected to be lists.
+%% Password is an md5 hash of the salt and the md5 hash of the plain text password.  In pseudo code, password is
+%%
+%% <pre>md5(Salt + md5(password))</pre>
+%%
+%% When integration is enabled, the integration module should return {allow, CachePassword, [Skill]} so that the local authentication
+%% cache can store a propperly hashed password.  Local passwords are stored in a lower cased md5 hash.
+%% 
+%% If integration returns anything other than {allow, CachePassword, [Skill]} or 'deny', agent_auth falls back on it's mnesia cache.
+%% If that fails, deny is returned in all cases.
+%% 
+%% The magic skills of '_agent' and '_node' are automcatically appeneded to the skill list, and therefore do not need to be stored on the 
+%% integration side.
+%% @see local_auth/3.
+-spec(auth/3 :: (Username :: string(), Password :: string(), Salt :: string()) -> {'allow', [atom()]} | 'deny').
 auth(Username, Password, Salt) -> 
 	gen_server:call(?MODULE, {authentication, Username, Password, Salt}).
 
+%% @doc Starts mnesia and creates the tables.  If the tables already exist, returns ok.
+-spec(build_tables/0 :: () -> 'ok').
 build_tables() ->
 	io:format("building tables...~n"),
 	Nodes = lists:append([nodes(), [node()]]),
@@ -186,7 +193,14 @@ build_tables() ->
 		Else -> 
 			Else
 	end.
-	
+
+%% @doc Caches the passed Username, Password, and Skills to the mnesia database.  Username is the plaintext name and used as the key. 
+%% Password is assumed to be prehashed either from erlang:md5 or as a string (list).  Skills do not need to (and in fact should not)
+%% include the magic skills of '_agent' or '_node'.
+-spec(cache/3 ::	(Username :: string(), Password :: string(), Skills :: [atom()]) -> {'atomic', 'ok'} | {'aborted', any()};
+					(Username :: string(), Password :: binary(), Skills :: [atom()]) -> {'atomic', 'ok'} | {'aborted', any()}).
+cache(Username, Password, Skills) when is_binary(Password) -> 
+	cache(Username, util:bin_to_hexstr(Password), Skills);
 cache(Username, Password, Skills) -> 
 	% md5 the password before it gets here!
 	Agent = #agent_auth{
@@ -198,27 +212,18 @@ cache(Username, Password, Skills) ->
 	end,
 	mnesia:transaction(F).
 
+%% @doc Removes the passed user from the local cache.  Called when integration returns a deny.
+-spec(destroy/1 :: (Username :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
 destroy(Username) -> 
 	F = fun() -> 
 		mnesia:delete({agent_auth, Username})
 	end,
 	mnesia:transaction(F).
 
-clean_salt(Salt) when is_integer(Salt) -> 
-	clean_salt(integer_to_list(Salt));
-clean_salt(Salt) when is_binary(Salt) -> 
-	Salt;
-clean_salt(Salt) when is_list(Salt) -> 
-	list_to_binary(Salt).
-
-clean_password(Password) when is_binary(Password) -> 
-	Password;
-clean_password(Password) when is_list(Password) -> 
-	iolist_to_binary(Password).
-
-local_auth(Username, TPassword, TSalt) -> 
-	Password = clean_password(TPassword),
-	Salt = clean_salt(TSalt),
+%% @doc Checks the Username and prehashed Password using the given Salt for the chached password.
+%% internally called by the auth callback; there should be no need to call this directly.
+-spec(local_auth/3 :: (Username :: string(), Password :: string(), Salt :: string()) -> {'allow', [atom()]} | 'deny').
+local_auth(Username, Password, Salt) -> 
 	QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Username]),
 	% salt the password	
 	F = fun() -> qlc:e(QH) end,
@@ -230,22 +235,39 @@ local_auth(Username, TPassword, TSalt) ->
 			deny;
 		{atomic, [Agent]} when is_record(Agent, agent_auth) -> 
 			%check the password after salt
-			case erlang:md5(Salt ++ Agent#agent_auth.password) of
+			case salt(Agent#agent_auth.password, Salt) of
 				Password -> 
 					{allow, lists:append([Agent#agent_auth.skills, ['_agent', '_node']])};
 				Else -> 
-					io:format("Password: ~p~nSalting: ~p~n", [Password, Else]),
+					io:format("Password: ~p~nSalting: ~p~nPresalting: ~p~nAgentname: ~p~n", [Password, Else, util:bin_to_hexstr(Agent#agent_auth.password), Agent#agent_auth.login]),
 					deny
 			end;
 		Else ->
 			io:format("Unusual respnse from local auth query: ~p~n", [Else]),
 			deny
-	end.
+	end. 
 
+%% @doc Apply the passed Salt to the passed Hast.  The Hash is convered from a bin if need be, lowercased, then appended to the Salt.
+%% all this is the erlang:md5'ed.  That result is then turned into a list, and lowercased.
+-spec(salt/2 :: (Hash :: binary(), Salt :: string()) -> string();
+				(Hash :: string(), Salt :: string()) -> string()).
+salt(Hash, Salt) when is_binary(Hash) ->
+	io:format("agent_auth hash conversion...~n"),
+	salt(util:bin_to_hexstr(Hash), Salt);
+salt(Hash, Salt) when is_list(Hash) -> 
+	io:format("agent_auth salting~n     hash: ~p~n     salt: ~p~n", [Hash, Salt]),
+	Lower = string:to_lower(Hash),
+	string:to_lower(util:bin_to_hexstr(erlang:md5(Salt ++ Lower))).
+	
+%% @doc Duh.
 stop() -> 
 	gen_server:call(?MODULE, stop).
 
 -ifdef(EUNIT).
+
+%%--------------------------------------------------------------------
+%%% Test functions
+%%--------------------------------------------------------------------
 
 local_auth_test_() -> 
 	mnesia:start(),
@@ -260,9 +282,44 @@ local_auth_test_() ->
 		end,
 		[
 			{
-				"Cache a user 'A'",
+				"Salting a Binary",
 				fun() -> 
-					?assertMatch({atomic, ok}, cache("A", erlang:md5("B"), [])),
+					Salt = "salt",
+					Hash = erlang:md5("test"),
+					?assertMatch("fa148970883f467111816d22cf840613", salt(Hash, Salt))
+				end
+			},
+			{
+				"Salting a Hex",
+				fun() ->
+					Salt = "salt",
+					Hash = util:bin_to_hexstr(erlang:md5("test")),
+					?assertMatch("fa148970883f467111816d22cf840613", salt(Hash, Salt))
+				end
+			},
+			{
+				"Cache a user with bin encoded password",
+				fun() -> 
+					cache("A", erlang:md5("B"), [testskill]),
+					F = fun() -> 
+						QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= "A"]),
+						qlc:e(QH)
+					end,
+					{atomic, [Agent]} = mnesia:transaction(F),
+					?assertMatch("9d5ed678fe57bcca610140957afab571", Agent#agent_auth.password),
+					destroy("A")
+				end
+			},
+			{
+				"Cache a user with a hex encoded password in caps",
+				fun() ->
+					cache("A", util:bin_to_hexstr(erlang:md5("B")), [testskill]),
+					F = fun() -> 
+						QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= "A"]),
+						qlc:e(QH)
+					end,
+					{atomic, [Agent]} = mnesia:transaction(F),
+					?assertMatch("9d5ed678fe57bcca610140957afab571", Agent#agent_auth.password),
 					destroy("A")
 				end
 			},
@@ -270,38 +327,26 @@ local_auth_test_() ->
 				"Auth a user 'A'",
 				fun() -> 
 					cache("A", erlang:md5("B"), [testskill]),
-					?assertMatch({allow, [testskill, '_agent', '_node']}, local_auth("A", erlang:md5(integer_to_list(5) ++ erlang:md5("B")), 5)),
+					Salt = "12345",
+					SaltedPassword = salt(erlang:md5("B"), Salt),
+					?assertMatch({allow, [testskill, '_agent', '_node']}, local_auth("A", SaltedPassword, Salt)),
 					destroy("A"),
 					?assertMatch(deny, local_auth("A", erlang:md5(integer_to_list(5) ++ erlang:md5("B")), 5))
 				end
 			},
 			{
-				"Destroy a user 'A'",
+				"Auth a user 'A' with integer_to_list(salt)",
 				fun() -> 
 					cache("A", erlang:md5("B"), [testskill]),
+					Salt = 123,
+					SaltedPassword = salt(erlang:md5("B"), integer_to_list(Salt)),
+					?assertMatch({allow, [testskill, '_agent', '_node']}, local_auth("A", SaltedPassword, integer_to_list(Salt))),
 					destroy("A"),
-					?assertMatch(deny, local_auth("A", erlang:md5("Salt" ++ erlang:md5("B")), 5))
+					?assertMatch(deny, local_auth("A", SaltedPassword, integer_to_list(Salt)))
 				end
 			},
 			{
-				"Raw Cache Test",
-				fun() -> 
-					cache("A", erlang:md5("B"), [testskill]),
-					Agent = #agent_auth{
-						login="A",
-						password=erlang:md5("B"),
-						skills=[testskill]},
-					F = fun() -> 
-						Pass = erlang:md5("B"),
-						QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= "A", X#agent_auth.password =:= Pass]),
-						qlc:e(QH)
-					end,
-					?assertMatch({atomic, [Agent]}, mnesia:transaction(F)),
-					destroy("A")
-				end
-			},
-			{
-				"Raw Destroy Test",
+				"Destory a user 'A'",
 				fun() -> 
 					cache("A", "B", [testskill]),
 					destroy("A"),

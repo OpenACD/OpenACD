@@ -146,8 +146,10 @@ handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), 
 
 handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter) ->
 	[Username, Password] = util:string_split(Credentials, ":", 2),
-	io:format("username: ~p~npassword: ~p~n", [Username, Password]),
-	case agent_auth:auth(Username, Password, State#state.salt) of
+	% currently the password is coming in as a lowercase hex string (2008 / 12 / 04, Micah)
+	BinPass = util:hexstr_to_bin(Password),
+	io:format("username: ~p~npassword: ~p~nbinpass: ~p~nsalt: ~p~n", [Username, Password, BinPass, State#state.salt]),
+	case agent_auth:auth(Username, Password, integer_to_list(State#state.salt)) of
 		deny -> 
 			io:format("Authentication failure~n"),
 			{err(Counter, "Authentication Failure"), State};
@@ -297,6 +299,9 @@ flush_send_queue([H|T], Socket) ->
 	gen_tcp:send(Socket, H ++ "\r\n"),
 	flush_send_queue(T, Socket).
 
+
+
 -ifdef(EUNIT).
+
 
 -endif.

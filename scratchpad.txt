@@ -191,7 +191,10 @@ cpx_modules
 	Specs = [DispatchSpec, AgentManagerSpec, AgentListenerSpec, QueueManagerSpec, FreeswitchManagerSpec, WebManagementSpec, AgentWebSpec, AgentAuthSpec],
 
 
-
+Modules that could use a good code cleaning:
+	agent_manager
+	agent_web_connection
+	queue_manager
 
 
 

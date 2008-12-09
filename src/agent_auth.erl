@@ -179,11 +179,20 @@ build_tables() ->
 	io:format("disc_copies: ~p~n", [Nodes]),
 	mnesia:create_schema(Nodes),
 	mnesia:start(),
-	A = mnesia:create_table(agent_auth, [
-		{attributes, record_info(fields, agent_auth)},
-		{disc_copies, Nodes},
-		{ram_copies, nodes()}
-	]),
+	case erlang:get_cookie() of
+		nocookie -> 
+			TableConf = [
+				{attributes, record_info(fields, agent_auth)},
+				{disc_copies, Nodes},
+				{ram_copies, nodes()}
+			];
+		_OtherCookie -> 
+			TableConf = [
+				{attributes, record_info(fields, agent_auth)},
+				{ram_copies, [node()]}
+			]
+	end,
+	A = mnesia:create_table(agent_auth, TableConf),
 	io:format("~p~n", [A]),
 	case A of
 		{atomic, ok} -> 
@@ -273,6 +282,7 @@ local_auth_test_() ->
 	mnesia:start(),
 	{
 		setup,
+		local,
 		fun() -> 
 			start(),
 			ok

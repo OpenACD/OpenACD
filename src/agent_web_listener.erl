@@ -7,6 +7,10 @@
 %%%
 %%% Created       :  10/30/08
 %%%-------------------------------------------------------------------
+
+%% @doc Listens for new web connections, then spawns an {@link agent_web_connection} to handle the details.
+%% Uses Mochiweb for the heavy lifting.
+%% @see agent_web_connection
 -module(agent_web_listener).
 -author("Micah").
 
@@ -122,6 +126,15 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+%% @doc listens for a new connection.
+%% Based on the path, the loop can take several paths.
+%% if the path is "/login" and there is post data, an attempt is made to start a new {@link agent_web_connection}.
+%% On a successful start, a cookie is set that the key reference used by this module to link new connections
+%% to the just started agent_web_connection.
+%% 
+%% On any other path, the cookie is checked.  The value of the cookie is looked up on an internal table to see 
+%% if there is an active agent_web_connection.  If there is, further processing is done there, 
+%% otherwise the request is denied.
 loop(Req, Table) -> 
 	io:format("loop start~n"),
 	case Req:get(path) of

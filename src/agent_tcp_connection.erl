@@ -1,10 +1,10 @@
+%% @doc The connecection handler that communicates with a client UI; in this case the desktop client.
+%% Other connection modules will be needed to bridge between the internal agent fsm and incoming agent connections.
+%% @clear
 -module(agent_tcp_connection).
 
 %% depends on util, agent
 
-%% @doc The connecection handler that communicates with a client UI; in this case the desktop client.
-%% Other connection modules will be needed to bridge between the internal agent fsm and incoming agent connections.
-%% @clear
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.

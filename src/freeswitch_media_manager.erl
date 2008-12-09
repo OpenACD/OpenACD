@@ -7,6 +7,17 @@
 %%%
 %%% Created       :  11/18/08
 %%%-------------------------------------------------------------------
+
+%% @doc The controlling module for connection CPX to a freeswitch installation.  There are 2 primary requirements for this work:  
+%% the freeswitch installaction must have mod_erlang installed and active, and the freeswitch dialplan must add the following
+%% variables to the call data:
+%% <dl>
+%% <dt>queue</dt><dd>The name of the queue as entered into the queue_manager</dd>
+%% <dt>brand</dt><dd>As the combined brand id</dd>
+%% </dl>
+%% Primary job of this module is to listen to freeswitch for events, and shove those events to the appriate child process.
+%% @see freeswitch_media
+
 -module(freeswitch_media_manager).
 -author("Micah").
 
@@ -44,12 +55,10 @@
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
+%% @doc Nodename is the name of the C node for mod_erlang in freeswitch.
 start(Nodename, Domain) -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
+%% @doc Nodename is the name of the C node for mod_erlang in freeswitch.
 start_link(Nodename, Domain) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
 
@@ -57,13 +66,6 @@ start_link(Nodename, Domain) ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 init([Nodename, Domain]) -> 
 	process_flag(trap_exit, true),
 	Self = self(),
@@ -84,12 +86,6 @@ init([Nodename, Domain]) ->
     {ok, #state{nodename=Nodename, watched_calls = ets:new(watched_calls, [named_table]), domain=Domain}}.
 
 %%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
@@ -108,9 +104,6 @@ handle_call(Request, _From, State) ->
     {reply, Reply, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
@@ -138,9 +131,6 @@ handle_cast(Msg, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({register_event_handler, {ok, Pid}}, State) -> 
@@ -157,17 +147,12 @@ handle_info(Info, State) ->
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.

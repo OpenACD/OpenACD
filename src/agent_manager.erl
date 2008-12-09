@@ -1,3 +1,5 @@
+%% @doc Manages the agents, and attempts to start them.  Listener and connection modules refer back to this 
+%% module when it is determined that it needs to start a new agent.
 -module(agent_manager).
 
 %% depends on agent, util
@@ -130,7 +132,7 @@ handle_info({'EXIT', From, _Reason}, State) ->
 	State)
 	};
 handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
-	io:format("I'm taking care of an agent down.~n"),
+	io:format("agent_manager is taking care of an agent down.~n"),
 	{noreply, dict:filter(fun(_Key, Value) -> Value =/= Object end, State)};
 handle_info({global_name_conflict, _Name}, State) ->
 	io:format("Node ~p lost election~n", [node()]),

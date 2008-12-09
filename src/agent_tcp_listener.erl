@@ -1,6 +1,7 @@
+%% @doc A non-blocking tcp listener.  based on the tcp_listener module by Serge Aleynikov
+%% [http://www.trapexit.org/Building_a_Non-blocking_TCP_server_using_OTP_principles]
+
 -module(agent_tcp_listener).
-% based on the tcp_listener module by Serge Aleynikov
-% http://www.trapexit.org/Building_a_Non-blocking_TCP_server_using_OTP_principles
 
 %% depends on agent_tcp_connection, util, agent
 

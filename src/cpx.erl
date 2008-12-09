@@ -7,6 +7,8 @@
 %%%
 %%% Created       :  10/17/08
 %%%-------------------------------------------------------------------
+
+%% @doc The applcation module for the cpx.
 -module(cpx).
 -author("Micah").
 

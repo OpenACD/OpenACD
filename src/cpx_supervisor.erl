@@ -7,6 +7,19 @@
 %%%
 %%% Created       :  10/17/08
 %%%-------------------------------------------------------------------
+
+%% @doc The top-most supervisor of the cpx system.  This is responsible for starting and monitoring the primary supervisors
+%% as well as any additional modules that are configured.  
+%% Primary (hard coded) modules started:
+%% <ul>
+%% <li>{@link dispatch_manager}</li>
+%% <li>{@link agent_manager}</li>
+%% <li>{@link queue_manager}</li>
+%% </ul>
+%% Additional modules are loaded from the mnesia table 'cpx_conf'.  These modules would include 
+%% those for agent authentication and media managers.  If it cannot build or access the 'cpx_conf' table
+%% the supervisor does not start, thus halting all of cpx from starting.
+
 -module(cpx_supervisor).
 -author("Micah").
 
@@ -85,6 +98,9 @@ init([]) ->
 %% Internal functions
 %%====================================================================
 
+%% @doc Adds a configuration to get started and stores it in the database.  
+%% Mod is the module name, Start is the function to start it, and 
+%% Args is a list of terms passed to the start function.
 add_conf(Mod, Start, Args) -> 
 	Rec = #cpx_conf{module_name = Mod, start_function = Start, start_args = Args},
 	F = fun() -> 
@@ -92,7 +108,8 @@ add_conf(Mod, Start, Args) ->
 	end,
 	mnesia:transaction(F),
 	start_spec(build_spec(Rec)).
-	
+
+%% @doc Attempts to build a valid childspec suitbable for a supervisor module from the Record#cpx_conf.
 build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args} = Record) -> 
 	Spec = {Mod, {Mod, Start, Args}, permanent, 20000, worker, [?MODULE]},
 	case supervisor:check_childspecs([Spec]) of
@@ -102,6 +119,7 @@ build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Arg
 			Else
 	end.
 
+%% @doc attempts to build the cpx_conf table.  Ignores errors which occur if it already exists.
 build_tables() -> 
 	io:format("cpx building tables...~n"),
 	Nodes = [node()],
@@ -120,7 +138,8 @@ build_tables() ->
 		Else -> 
 			Else
 	end.
-	
+
+%% @doc Removes the passed childspec() or #cpx_conf from the database.
 destroy({Id, _Params, _Transience, _Time, _Type, _Module}) -> 
 	destroy(Id);
 destroy(Spec) when is_atom(Spec) -> 
@@ -129,6 +148,8 @@ destroy(Spec) when is_atom(Spec) ->
 	end,
 	mnesia:transaction(F).
 
+%% @doc updates the conf with key Name with new Mod, Start, and Args.
+%% @see add_conf/3
 update_conf(Name, Mod, Start, Args) -> 
 	Rec = #cpx_conf{module_name = Mod, start_function = Start, start_args = Args},
 	F = fun() -> 
@@ -143,7 +164,7 @@ start_spec(Spec) ->
 	
 load_specs() -> 
 	F = fun() -> 
-		QH = qlc:q([X || X <- mnesia:table(cpx_conf)])
+		QH = qlc:q([X || X <- mnesia:table(cpx_conf)]),
 		qlc:e(QH)
 	end,
 	case mnesia:transaction(F) of

@@ -7,6 +7,9 @@
 %%%
 %%% Created       :  12/3/08
 %%%-------------------------------------------------------------------
+
+%% @doc The helper module to config the call_queues for cpx.
+%% Uses the mnesia table 'call_queue.'  Queues are not started until a call requires it.
 -module(call_queue_config).
 -author(null).
 
@@ -67,21 +70,10 @@ start_link() ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-	io:format("~p building tables...~n", [?MODULE]),
-	Nodes = lists:append([nodes(), [node()]]),
-	io:format("disc_copies: ~p~n", [Nodes]),
-	mnesia:create_schema(Nodes),
-	mnesia:start(),
-	A = mnesia:create_table(call_queue, [
-		{attributes, record_info(fields, call_queue)},
-		{disc_copies, Nodes},
-		{ram_copies, nodes()}
-	]),
+	A = build_tables(),
 	io:format("~p~n", [A]),
 	case A of
-		{atomic, ok} -> 
-			{ok, #state{}};
-		{aborted, {already_exists, _Table}} ->
+		ok -> 
 			{ok, #state{}};
 		Else -> 
 			{stop, {build_tables, Else}}
@@ -206,38 +198,87 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+-ifdef(EUNIT).
+table_conf() -> 
+	[
+		{attributes, record_info(fields, call_queue)},
+		{ram_copies, nodes()}
+	].
+-else.
+table_conf() -> 
+	[
+		{attributes, record_info(fields, call_queue)},
+		{disc_copies, lists:append([nodes(), [node()]])},
+		{ram_copies, nodes()}
+	].
+-endif.
+
+%% @doc Attempts to set-up and create the required mnesia table 'call_queue.'
+%% Errors caused by the table already existing are ignored.
+build_tables() -> 
+	io:format("~p building tables...~n", [?MODULE]),
+	Nodes = lists:append([nodes(), [node()]]),
+	io:format("disc_copies: ~p~n", [Nodes]),
+	mnesia:create_schema(Nodes),
+	mnesia:start(),
+	A = mnesia:create_table(call_queue, table_conf()),
+	case A of
+		{atomic, ok} -> 
+			ok;
+		{aborted, {already_exists, _Table}} ->
+			ok;
+		Else -> 
+			Else
+	end.
+
+%% @doc Attempt to remove the queue Queue (or Queue#call_queue.name) from the configuration database.
 destroy(Queue) when is_record(Queue, call_queue) -> 
 	destroy(Queue#call_queue.name);
 destroy(Queue) -> 
 	gen_server:call({global, ?MODULE}, {destroy, Queue}).
-	
+
+%% @doc Get the configuration for the passed Queue name.
 get_all(Queue) ->
 	gen_server:call({global, ?MODULE}, {get, Queue}).
 
+%% @doc Get all the queue configurations.
 get_all() -> 
 	gen_server:call({global, ?MODULE}, get_all).
 
+%% @doc Create a new default queue configuraiton with the name QueueName.
 new(QueueName) -> 
 	new(QueueName, []).
 
+%% @doc Using with a single {Key, Value} tuple, or a list of same, create a new queue called QueueName and add it to the database.
+%% Valid keys/value combos are:
+%% <dl>
+%% <dt>wieght</dt><dd>An integer.</dd>
+%% <dt>skills</dt><dd>A list of atoms for the skills a call will be initially assigned.</dd>
+%% <dt>recipe</dt><dd>A recipe config for this queue for use by {@link cook. cooks}.</dd>
+%% </dl>
 new(QueueName, {Key, Value}) when is_atom(Key) -> 
 	new(QueueName, [{Key, Value}]);
 new(QueueName, Options) when is_list(Options) -> 
 	Q = #call_queue{name=QueueName},
 	set_options(Q, Options).
 
+%% @doc Set all the params for a config based on the record Queue.
 set_all(Queue) when is_record(Queue, call_queue) -> 
 	gen_server:call({global, ?MODULE}, {set_all, Queue}).
-	
+
+%% @doc Rename a queue from OldName to NewName.
 set_name(OldName, NewName) ->
 	gen_server:call({global, ?MODULE}, {set_name, OldName, NewName}).
-	
+
+%% @doc Update the recipe for a queue named Queue.
 set_recipe(Queue, Recipe) -> 
 	gen_server:call({global, ?MODULE}, {set_recipe, Queue, Recipe}).
 
+%% @doc Update the skill list for a queue named Queue.
 set_skills(Queue, Skills) -> 
 	gen_server:call({global, ?MODULE}, {set_skills, Queue, Skills}). 
 
+%% @doc Set the weight for a queue named Queue.
 set_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1-> 
 	gen_server:call({global, ?MODULE}, {set_weight, Queue, Weight}).
 
@@ -268,6 +309,7 @@ call_queue_test_() ->
 	mnesia:start(),
 	{
 		setup,
+		local,
 		fun() -> 
 			start(),
 			ok

@@ -7,6 +7,9 @@
 %%%
 %%% Created       :  10/17/08
 %%%-------------------------------------------------------------------
+
+%% @doc Handles the creation and desctruction of dispatchers.
+%% There is to be 1 dipatcher for every avaiable agent on a node.
 -module(dispatch_manager).
 -author("Micah").
 
@@ -93,7 +96,7 @@ handle_cast({now_avail, AgentPid}, State) ->
 			{noreply, balance(State2)}
 	end;
 handle_cast({end_avail, AgentPid}, State) -> 
-	io:format("Slackers, the lot of you!~n"),
+	io:format("And agent is no longer available.~n"),
 	State2 = State#state{agents = lists:delete(AgentPid, State#state.agents)},
 	{noreply, balance(State2)};
 
@@ -107,7 +110,7 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
-	io:format("Agent down!  Agent is down!~n"),
+	io:format("Announcement that an agent is down, balencing in response.~n"),
 	State2 = State#state{agents = lists:delete(Object, State#state.agents)},
 	{noreply, balance(State2)};
 handle_info(_Info, State) ->

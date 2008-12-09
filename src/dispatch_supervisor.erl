@@ -7,6 +7,9 @@
 %%%
 %%% Created       :  10/17/08
 %%%-------------------------------------------------------------------
+
+%% @doc Just a supervisor for the dispatch_manager
+%% @see dispatch_manager
 -module(dispatch_supervisor).
 -author("Micah").
 

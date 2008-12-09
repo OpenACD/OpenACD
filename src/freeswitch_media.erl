@@ -7,6 +7,18 @@
 %%%
 %%% Created       :  12/1/08
 %%%-------------------------------------------------------------------
+
+%% @doc An on demand gen_server for watching a freeswitch call.
+%% This is started by freeswitch_media_manager when a new call id is found.
+%% This is responsible for:
+%% <ul>
+%% <li>Connecting an agent to a call</li>
+%% <li>Moving a call into queue.</li>
+%% <li>Removing a call from queue.</li>
+%% <li>Signalling when a call has hung up.</li>
+%% </ul>
+%% @see freeswitch_media_manager
+
 -module(freeswitch_media).
 -author("Micah").
 

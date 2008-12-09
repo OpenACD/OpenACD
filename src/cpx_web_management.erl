@@ -8,7 +8,7 @@
 %%% Created       :  10/29/08
 %%%-------------------------------------------------------------------
 
-%% @doc The web management module.  Used mochiweb for the heavy lifting.
+%% @doc The web management module.  Uses mochiweb for the heavy lifting.
 
 -module(cpx_web_management).
 -author("Micah").

@@ -66,7 +66,7 @@ list_contains_all(List, [H | Members]) when is_list(List) ->
 	end.
 
 -spec(list_map_with_index/2 :: (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [any()]) -> [any()]).
-%% @doc Apply `Fun' to each element of `List' along with the element's index in `List'.
+%% @doc Apply the `Fun(Index, Element)' to each element of `List' along with the element's index in `List'.
 %% @see lists:map/2
 list_map_with_index(Fun, List) when is_function(Fun), is_list(List) ->
 	list_map_with_index(Fun, List, 0).

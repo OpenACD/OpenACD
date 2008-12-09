@@ -7,6 +7,10 @@
 %%%
 %%% Created       :  10/15/08
 %%%-------------------------------------------------------------------
+
+%% @doc gen_server started byt dispatch_supervisor to search for and bind a call
+%% to an agent.
+%% @see dispatch_manager
 -module(dispatcher).
 -author("Micah").
 
@@ -166,6 +170,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+%% @doc queries the agent_manager for avaialble agents with an appropriate skill-list.
+%% @see agent_manager:find_avail_agents_by_skill/1
 -spec(get_agents/1 :: (Pid :: pid()) -> [{string, pid(), #agent{}}]).
 get_agents(Pid) -> 
 	gen_server:call(Pid, get_agents).

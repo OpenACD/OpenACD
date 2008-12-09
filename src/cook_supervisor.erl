@@ -7,6 +7,11 @@
 %%%
 %%% Created       :  10/21/08
 %%%-------------------------------------------------------------------
+
+%% @doc The supervisor for the cooks.  When a new call is put into a queue, this starts
+%% a new {@link cook} to watch/modify that call based on the queues recipe.
+%% @see cook
+%% @see call_queue
 -module(cook_supervisor).
 -author("Micah").
 

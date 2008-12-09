@@ -7,6 +7,10 @@
 %%%
 %%% Created       :  10/30/08
 %%%-------------------------------------------------------------------
+
+%% @doc Handles the internal (cpx interaction) part of an agent web connection.
+%% (2008 12 09 : marking this for a refactoring.  Micah)
+%% @see agent_web_listener
 -module(agent_web_connection).
 -author("Micah").
 
@@ -47,7 +51,6 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link(Post, Ref, Table) ->
@@ -62,10 +65,6 @@ start(Post, Ref, Table) ->
 %%====================================================================
 
 %%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Post, Ref, Table]) ->
@@ -107,12 +106,6 @@ init([Post, Ref, Table]) ->
 
 
 %%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
@@ -168,9 +161,6 @@ handle_call({request, {Path, Post, Cookie}}, _From, State) ->
 	end.
 
 %%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
@@ -193,9 +183,6 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(check_acks, State) when State#state.missed_polls < 4 -> 
@@ -249,10 +236,6 @@ handle_info(_Info, State) ->
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, State) ->
 	% io:format("terminated ~p~n", [?MODULE]),
@@ -263,7 +246,6 @@ terminate(_Reason, State) ->
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -274,7 +256,8 @@ code_change(_OldVsn, State, _Extra) ->
 
 stop(Pid) -> 
 	gen_server:call(Pid, stop).
-	
+
+%% @doc This conviently ships the data over to handle_call.
 request(Pid, Path, Post, Cookie) -> 
 	% io:format("~p:request called~n", [?MODULE]),
 	gen_server:call(Pid, {request, {Path, Post, Cookie}}).

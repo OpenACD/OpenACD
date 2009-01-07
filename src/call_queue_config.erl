@@ -17,6 +17,23 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
+-define(QUEUE_TABLE, [{attributes, record_info(fields, call_queue)},{ram_copies, nodes()}]).
+-define(SKILL_TABLE, [{attributes, record_info(fields, skill_rec)}, {ram_copies, nodes()}]).
+-else.
+-define(QUEUE_TABLE, 
+	[
+		{attributes, record_info(fields, call_queue)},
+		{disc_copies, lists:append([nodes(), [node()]])},
+		{ram_copies, nodes()}
+	]
+).
+-define(SKILL_TABLE, 
+	[
+		{attributes, record_info(fields, skill_rec)},
+		{disc_copies, lists:append([nodes(), [node()]])},
+		{ram_copies, nodes()}
+	]
+).
 -endif.
 
 -include("queue.hrl").
@@ -32,6 +49,7 @@
 	destroy/1,
 	get_all/1,
 	get_all/0,
+	skill_exists/1,
 	set_all/1,
 	set_name/2,
 	set_recipe/2,
@@ -153,6 +171,12 @@ handle_call(get_all, _From, State) ->
 	end,
 	{atomic, Reply} = mnesia:transaction(F),
 	{reply, Reply, State};
+handle_call({get_skill_rec, Skillname}, _From, State) -> 
+	F = fun() -> 
+		mnesia:read({skill_rec, Skillname})
+	end,
+	{atomic, [Rec|_Tail]} = mnesia:transaction(F),
+	{reply, Rec, State};
 handle_call(stop, _From, State) -> 
 	{stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
@@ -198,21 +222,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
--ifdef(EUNIT).
-table_conf() -> 
-	[
-		{attributes, record_info(fields, call_queue)},
-		{ram_copies, nodes()}
-	].
--else.
-table_conf() -> 
-	[
-		{attributes, record_info(fields, call_queue)},
-		{disc_copies, lists:append([nodes(), [node()]])},
-		{ram_copies, nodes()}
-	].
--endif.
-
 %% @doc Attempts to set-up and create the required mnesia table 'call_queue.'
 %% Errors caused by the table already existing are ignored.
 build_tables() -> 
@@ -221,10 +230,23 @@ build_tables() ->
 	io:format("disc_copies: ~p~n", [Nodes]),
 	mnesia:create_schema(Nodes),
 	mnesia:start(),
-	A = mnesia:create_table(call_queue, table_conf()),
+	A = mnesia:create_table(call_queue, ?QUEUE_TABLE),
 	case A of
 		{atomic, ok} -> 
-			ok;
+			% since the table didn't already exist, build up the default skills
+			mnesia:create_table(skill_rec, ?SKILL_TABLE),
+			F = fun() -> 
+				mnesia:write(#skill_rec{name="English", atom=english, description="English Language"}),
+				mnesia:write(#skill_rec{name="German", atom=german, description="German Language"}),
+				mnesia:write(#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name."}),
+				mnesia:write(#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier."})
+			end,
+			case mnesia:transaction(F) of
+				{atomic, ok} -> 
+					ok;
+				Otherwise -> 
+					Otherwise
+			end;
 		{aborted, {already_exists, _Table}} ->
 			ok;
 		Else -> 
@@ -281,6 +303,15 @@ set_skills(Queue, Skills) ->
 %% @doc Set the weight for a queue named Queue.
 set_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1-> 
 	gen_server:call({global, ?MODULE}, {set_weight, Queue, Weight}).
+
+skill_exists(Skillname) when is_list(Skillname) -> 
+	try list_to_existing_atom(Skillname) of
+		Anything -> 
+			gen_server:call({global, ?MODULE}, {get_skill_rec, Anything})
+	catch
+		error:_Anyerror -> 
+			undefined
+	end.
 
 stop() -> 
 	gen_server:call({global, ?MODULE}, stop).
@@ -494,6 +525,35 @@ call_queue_test_() ->
 			}
 		 ]
 	}.
-	
+
+skill_rec_test_() -> 
+	mnesia:start(),
+	{
+		setup,
+		local,
+		fun() -> 
+			start(),
+			ok
+		end,
+		fun(_) -> 
+			stop()
+		end,
+		[
+			{
+				"Test for a known skill atom",
+				fun() -> 
+					Skillrec = skill_exists("_node"),
+					?assertMatch('_node', Skillrec#skill_rec.atom)
+				end
+			},
+			{
+				"Test for an unknown skill atom",
+				fun() -> 
+					Skillrec = skill_exists("Not a valid skill"),
+					?assertMatch(undefined, Skillrec)
+				end
+			}
+		]
+	}.
 
 -endif.

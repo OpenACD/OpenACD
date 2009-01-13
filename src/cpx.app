@@ -5,6 +5,7 @@
 		cpx,
 		freeswitch,
 		agent,
+		agent_auth,
 		agent_tcp_connection,
 		agent_tcp_listener,
 		call_queue,

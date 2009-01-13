@@ -29,10 +29,7 @@
 
 %% API
 -export([start_link/5, start/5, start_link/0, start/0, stop/0, auth/3]).
-
--ifdef(EUNIT).
-	-export([cache/3, destroy/1]).
--endif.
+-export([cache/3, destroy/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,

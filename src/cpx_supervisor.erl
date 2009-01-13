@@ -175,7 +175,7 @@ load_specs() ->
 	end.
 -else.
 start_spec(_Sepc) -> 
-	ok.
+	supervisor:start_child(cpx_supervisor, Spec).
 	
 load_specs() -> 
 	[

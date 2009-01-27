@@ -57,7 +57,7 @@
 -define(TIMEOUT, 10000).
 
 %% API
--export([start_link/4]).
+-export([start/0, start/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -72,9 +72,10 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start_link(Callid, Rawcall, Watched_calls, Source) ->
-	io:format("Source:  ~p~n", [Source]),
-    gen_server:start_link(?MODULE, [Callid, Rawcall, Watched_calls, Source], []).
+start(Leader) -> 
+	gen_server:start(?MODULE, [whereis(Leader)], []).
+start() ->
+	gen_server:start(?MODULE, [whereis(user)], []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -87,11 +88,10 @@ start_link(Callid, Rawcall, Watched_calls, Source) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Callid, _Rawcall, Watched_calls, Source]) ->
-	io:format("init source: ~p~n", [Source]),
-	Protocall = #call{id=Callid, type=voice, source=Source},
-	io:format("Protocall:  ~p~n", [Protocall]),
-    {ok, #state{watched_calls=Watched_calls, protocall=Protocall}}.
+init([Leader]) ->
+	% erlang:group_leader(Leader, self()),
+	io:format("freeswitch media start with leader ~p~n", [Leader]),
+    {ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -155,7 +155,8 @@ handle_cast({Callid, Rawcall}, State) ->
 			io:format("Call done, time to die.~n"),
 			{stop, normal, State};
 		Else -> 
-			io:format("Not an event we care about: ~p~n", [Else])
+			io:format("Not an event we care about: ~p~n", [Else]),
+			{noreply, State}
 	end;
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -166,6 +167,14 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+handle_info({call, {event, [UUID | _Rest]}}, #state{protocall = Call} = State) -> 
+	io:format("handling call ~p~n", [UUID]),
+	Newcall = Call#call{id = UUID},
+	{noreply, State#state{protocall=Newcall}};
+handle_info({call_event, {event, [UUID | Rest]}}, State) -> 
+	io:format("handling call ~p~n", [UUID]),
+	gen_server:cast(self(), {UUID, Rest}),
+	{noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 

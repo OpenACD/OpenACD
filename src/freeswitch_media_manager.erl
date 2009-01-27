@@ -112,6 +112,8 @@ init([Nodename, Domain]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
+handle_call(spawn_new, _From, State) -> 
+	{reply, freeswitch_media:start(), State};
 handle_call({ring_agent, AgentPid, Call}, _From, State) ->
 	%% @todo A real media manager would do something substantial here, like try to
 	%% send SIP to an agent's phone or whatever. We should do something about
@@ -130,25 +132,6 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
-
-handle_cast([Callid | Rawcall], State) when is_list(Callid) -> 
-	% is this a call we need to worry about?
-	io:format("raw call in~n"),
-	case ets:lookup(watched_calls, Callid) of
-		[] -> 
-			io:format("Call does not exist in fmm table~n"),
-			Self = self(),
-			{ok, Pid} = freeswitch_media:start_link(Callid, Rawcall, watched_calls, Self),
-			ets:insert(watched_calls, {Callid, Pid}),
-			{noreply, State};
-		[{Callid, Pid}] -> 
-			io:format("Call exists in fmm table~n"),
-			gen_server:cast(Pid, {Callid, Rawcall}),
-			{noreply, State};
-		Otherwise -> 
-			io:format("fmm ets seems corrupted, lookup got other result: ~p~n", [Otherwise]),
-			{noreply, State}
-	end;
 handle_cast(Msg, State) ->
 	io:format("freeswitch media manager got cast:  ~p~n", [Msg]),
     {noreply, State}.
@@ -156,6 +139,11 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+
+handle_info({new_pid, Ref, From}, State) ->
+	{ok, Pid} = freeswitch_media:start(),
+	From ! {Ref, Pid},
+	{noreply, State};
 handle_info({register_event_handler, {ok, Pid}}, State) -> 
 	{noreply, State#state{freeswitch_c_pid = Pid}};
 handle_info({'EXIT', Pid, normal}, State) -> 

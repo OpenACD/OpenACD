@@ -17,6 +17,13 @@ COVERAGE = SRC.sort_by do |x|
 	end
 end.pathmap("%{src,coverage}X.txt").reject{|x| x.include? 'test_coverage'}
 
+# check to see if gmake is available, if not fall back on the system make
+if res = `which gmake` and $?.exitstatus.zero?
+	MAKE = File.basename(res.chomp)
+else
+	MAKE = 'make'
+end
+
 @maxwidth = SRC.map{|x| File.basename(x, 'erl').length}.max
 
 CLEAN.include("ebin/*.beam")
@@ -57,7 +64,9 @@ end
 
 task :compile => ['ebin'] + OBJ do
 	CONTRIB.each do |cont|
-		sh "make -C #{cont}"
+		if File.exists? File.join(cont, 'Makefile')
+			sh "#{MAKE} -C #{cont}"
+		end
 	end
 	sh "cp src/*.app ebin/"
 end

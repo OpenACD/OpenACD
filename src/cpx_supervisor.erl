@@ -144,25 +144,55 @@ build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Arg
 			Else
 	end.
 
-%% @doc attempts to build the cpx_conf table.  Ignores errors which occur if it already exists.
-build_tables() -> 
+%% @doc Attempts to build the cpx_conf table. Tries to handle mnesia being
+%% in various odd states.
+build_tables() ->
+	case mnesia:system_info(is_running) of
+		no -> % not running, is there a schema directory?
+			case filelib:is_dir(mnesia:system_info(directory)) of
+				true ->
+					ok;
+				false ->
+					mnesia:create_schema([node()])
+			end, % continue on here to the next case
+			mnesia:start(),
+			case lists:member(cpx_conf, mnesia:system_info(tables)) of
+				true ->	% table is already there, nothing to do
+					ok;
+				false ->
+					create_tables()
+			end;
+		yes -> % check if the table is already there...
+			case lists:member(cpx_conf, mnesia:system_info(tables)) of
+				true -> % table is already initialized, we don't need to do anything
+					ok;
+				_Else -> % table isn't there, is the schema?
+					case filelib:is_dir(mnesia:system_info(directory)) of
+						true ->
+							% schema exists, simply create the table
+							create_tables();
+						false ->
+							% stop mnesia, create the schema, start mnesia and create the table
+							mnesia:stop(),
+							mnesia:create_schema([node()]),
+							mnesia:start(),
+							create_tables()
+					end
+			end
+	end.
+
+create_tables() ->
 	io:format("cpx building tables...~n"),
-	Nodes = [node()],
-	mnesia:create_schema(Nodes),
-	mnesia:start(),
 	A = mnesia:create_table(cpx_conf, [
 		{attributes, record_info(fields, cpx_conf)},
-		{disc_copies, Nodes},
+		{disc_copies, [node()]},
 		{local_content, true}
 	]),
 	case A of
 		{atomic, ok} -> 
 			timer:sleep(1000),
 			ok;
-		{aborted, {already_exists, _Table}} ->
-			ok;
-		Else -> 
-			Else
+		Else -> Else
 	end.
 
 %% @doc Removes the passed childspec() or #cpx_conf from the database.

@@ -26,6 +26,8 @@
 
 -module(agent_tcp_listener).
 
+-define(PORT, 1337).
+
 %% depends on agent_tcp_connection, util, agent
 
 
@@ -57,7 +59,7 @@ start(Port) when is_integer(Port) ->
 
 -spec(start/0 :: () -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start() -> 
-	start(6666).
+	start(?PORT).
 
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) -> 

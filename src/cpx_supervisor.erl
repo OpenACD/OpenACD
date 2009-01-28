@@ -108,12 +108,12 @@ init([]) ->
 			DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 			AgentManagerSpec = {agent_manager, {agent_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 			QueueManagerSpec = {queue_manager, {queue_manager, start, []}, permanent, 20000, worker, [?MODULE]},
-
 			Specs = lists:append([DispatchSpec, AgentManagerSpec, QueueManagerSpec], load_specs()),
 			
 			io:format("specs:  ~p~n", [supervisor:check_childspecs(Specs)]),
 			{ok,{{one_for_one,3,5}, Specs}};
 		Else -> 
+			io:format("Other error on building cpx tables:  ~p~n", [Else]),
 			ignore
 	end.
 
@@ -135,10 +135,12 @@ add_conf(Mod, Start, Args) ->
 %% @doc Attempts to build a valid childspec suitbable for a supervisor module from the Record#cpx_conf.
 build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args} = Record) -> 
 	Spec = {Mod, {Mod, Start, Args}, permanent, 20000, worker, [?MODULE]},
+	io:format("Building spec:  ~p~n", [Spec]),
 	case supervisor:check_childspecs([Spec]) of
 		ok -> 
 			Spec;
 		Else -> 
+			io:format("Spec failed check:  ~p~n", [Spec]),
 			Else
 	end.
 
@@ -155,6 +157,7 @@ build_tables() ->
 	]),
 	case A of
 		{atomic, ok} -> 
+			timer:sleep(1000),
 			ok;
 		{aborted, {already_exists, _Table}} ->
 			ok;
@@ -181,11 +184,11 @@ update_conf(Name, Mod, Start, Args) ->
 	end,
 	mnesia:transaction(F).
 	
--ifndef(EUNIT).
 start_spec(Spec) -> 
-	supervisor:start_child(cpx_supervisor, Spec).
-	
+	supervisor:start_child(?MODULE, Spec).
+
 load_specs() -> 
+	io:format("loading specs...~n"),
 	F = fun() -> 
 		QH = qlc:q([X || X <- mnesia:table(cpx_conf)]),
 		qlc:e(QH)
@@ -194,23 +197,11 @@ load_specs() ->
 		{atomic, Records} -> 
 			lists:map(fun(I) -> build_spec(I) end, Records);
 		Else -> 
+			io:format("unable to retrieve specs:  ~p~n", [Else]),
 			Else
 	end.
--else.
-start_spec(Spec) -> 
-	supervisor:start_child(cpx_supervisor, Spec).
-	
-load_specs() -> 
-	[
-		{agent_tcp_listener, {agent_tcp_listener, start, []}, permanent, 20000, worker, [?MODULE]},
-		{freeswitch_media_manager, {freeswitch_media_manager, start, [freeswitch@freecpx.dev, "freecpx.dev"]}, permanent, 20000, worker, [?MODULE]},
-		{cpx_web_management, {cpx_web_management, start, []}, permanent, 100, worker, [?MODULE]},
-		{agent_web_listener, {agent_web_listener, start, []}, permanent, 20000, worker, [?MODULE]},
-		{agent_auth, {agent_auth, start, []}, permanent, 20000, worker, [?MODULE]}
-	].
-			 
--endif.
 
+	
 -ifdef(EUNIT).
 
 config_test_() -> 

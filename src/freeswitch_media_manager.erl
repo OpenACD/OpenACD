@@ -90,30 +90,29 @@ start_link(Nodename, Domain) ->
 %%====================================================================
 
 init([Nodename, Domain]) -> 
+	io:format("freeswitch media manager starting...~n"),
 	process_flag(trap_exit, true),
-	Self = self(),
-	_Lpid = spawn(fun() -> 
-		{freeswitchnode, Nodename} ! register_event_handler,
-		receive
-			ok ->
-				Self ! {register_event_handler, {ok, self()}},
-				listener(Nodename);
-			{error, Reason} -> 
-				Self ! {register_event_handler, {error, Reason}}
-		after ?TIMEOUT -> 
-			Self ! {register_event_handler, timeout}
-		end
-	end),
-	T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
-	io:format("Attempted to start events in ffm's init:  ~p~n", [T]),
+%	Self = self(),
+%	_Lpid = spawn(fun() -> 
+%		{freeswitchnode, Nodename} ! register_event_handler,
+%		receive
+%			ok ->
+%				Self ! {register_event_handler, {ok, self()}},
+%				listener(Nodename);
+%			{error, Reason} -> 
+%				Self ! {register_event_handler, {error, Reason}}
+%		after ?TIMEOUT -> 
+%			Self ! {register_event_handler, timeout}
+%		end
+%	end),
+%	T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
+%	io:format("Attempted to start events in ffm's init:  ~p~n", [T]),
     {ok, #state{nodename=Nodename, watched_calls = ets:new(watched_calls, [named_table]), domain=Domain}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
-handle_call(spawn_new, _From, State) -> 
-	{reply, freeswitch_media:start(), State};
 handle_call({ring_agent, AgentPid, Call}, _From, State) ->
 	%% @todo A real media manager would do something substantial here, like try to
 	%% send SIP to an agent's phone or whatever. We should do something about
@@ -141,6 +140,7 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 
 handle_info({new_pid, Ref, From}, State) ->
+%	io:format("Starting new freeswitch media...~n"),
 	{ok, Pid} = freeswitch_media:start(),
 	From ! {Ref, Pid},
 	{noreply, State};

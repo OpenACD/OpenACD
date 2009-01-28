@@ -63,7 +63,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--record(state, {watched_calls, protocall = #call{}, queue, queue_pid, mode}).
+-record(state, {protocall = #call{}, queue, queue_pid, mode}).
 
 %%====================================================================
 %% API
@@ -112,11 +112,12 @@ handle_call(_Request, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+
 handle_cast({Callid, Rawcall}, State) -> 
-	io:format("fm Cast for call ~p.  I'm ~p.~n", [Callid, self()]),
+%	io:format("fm Cast for call ~p.  I'm ~p.~n", [Callid, self()]),
 	case freeswitch:get_event_name(Rawcall) of
 		"CHANNEL_ANSWER" -> 
-			io:format("Call started, variables available~n"),
+			io:format("fm progress:  CHANNEL_ANSWER~n"),
 			case has_dst_chan(Rawcall) of
 				false -> 
 					Q = freeswitch:get_event_header(Rawcall, "variable_queue"),
@@ -167,14 +168,37 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({call, {event, [UUID | _Rest]}}, #state{protocall = Call} = State) -> 
-	io:format("handling call ~p~n", [UUID]),
+handle_info({call, {event, [UUID | Rest]}}, #state{protocall = Call} = State) -> 
+	io:format("updating state for call ~p.  I'm ~p~n", [UUID, self()]),
+	gen_server:cast(self(), {UUID, Rest}),
 	Newcall = Call#call{id = UUID},
 	{noreply, State#state{protocall=Newcall}};
 handle_info({call_event, {event, [UUID | Rest]}}, State) -> 
-	io:format("handling call ~p~n", [UUID]),
-	gen_server:cast(self(), {UUID, Rest}),
-	{noreply, State};
+	case freeswitch:get_event_name(Rest) of
+		"CHANNEL_PARK" ->
+			case State#state.queue_pid of
+				undefined ->
+					Queue = freeswitch:get_event_header(Rest, "variable_queue"),
+					Brand = freeswitch:get_event_header(Rest, "variable_brand"),
+					Callerid = freeswitch:get_event_header(Rest, "Caller-Caller-ID-Name"),
+					Protocall = State#state.protocall,
+					Protocall2 = Protocall#call{id=UUID, client=Brand, callerid=Callerid},
+					case queue_manager:get_queue(Queue) of
+						undefined ->
+							io:format("Uh oh, no queue of ~p~n", [State#state.queue]),
+							{noreply, State};
+						Qpid -> 
+							io:format("Trying to add to queue...~n"),
+							R = call_queue:add(Qpid, State#state.protocall),
+							io:format("q response:  ~p~n", [R]),
+							{noreply, State#state{queue_pid=Qpid, queue=Queue, protocall=Protocall2}}
+					end;
+				 _Otherwise -> 
+					 {noreply, State} 
+			end;
+		_Other_event -> 
+			{noreply, State}
+	end;
 handle_info(_Info, State) ->
     {noreply, State}.
 

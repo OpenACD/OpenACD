@@ -35,6 +35,6 @@
 	]},
 	{mod, {cpx, []}},
 	{env, []},
-	{applications, [kernel, stdlib]},
+	{applications, [kernel, stdlib, mnesia]},
 	{start_phases, []}
 ]}.

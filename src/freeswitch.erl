@@ -8,33 +8,27 @@
 %% License for the specific language governing rights and limitations
 %% under the License.
 %% 
-%% The Original Code is Spice Telphony.
-%% 
-%% The Initial Developer of the Original Code is 
-%% Andrew Thompson and Micah Warren.
-%% Portions created by the Initial Developers are Copyright (C) 
-%% SpiceCSM. All Rights Reserved.
-
-%% Contributor(s): 
-
-%% Andrew Thompson <athompson at spicecsm dot com>
-%% Micah Warren <mwarren at spicecsm dot com>
-%% 
-
+%% @author Andrew Thompson <andrew AT hijacked DOT us>
+%% @copyright 2008-2009 Andrew Thompson
 %% @doc A module for interfacing with FreeSWITCH using mod_erlang_event.
+
 -module(freeswitch).
 
--ifdef(EUNIT).
--include_lib("eunit/include/eunit.hrl").
--endif.
-
--export([send/2, start_log_handler/1, start_event_handler/1, api/3, bgapi/3, event/2, nixevent/2, noevents/1, close/1, get_event_header/2, get_event_body/1, get_event_name/1, log_receiver_loop/1, event_receiver_loop/1, start_search/1, search_loop/1]).
+-export([send/2, api/3, bgapi/3, event/2,
+		nixevent/2, noevents/1, close/1,
+		get_event_header/2, get_event_body/1,
+		get_event_name/1, start_fetch_handler/4,
+		start_log_handler/3, start_event_handler/3]).
 -define(TIMEOUT, 10000).
 
 %% @doc Return the value for a specific header in an event or `{error,notfound}'.
 get_event_header([], _Needle) ->
 	{error, notfound};
 get_event_header({event, Headers}, Needle) when is_list(Headers) ->
+	get_event_header(Headers, Needle);
+get_event_header([undefined | Headers], Needle) ->
+	get_event_header(Headers, Needle);
+get_event_header([UUID | Headers], Needle) when is_list(UUID) ->
 	get_event_header(Headers, Needle);
 get_event_header([{Key,Value} | Headers], Needle) ->
 	case Key of
@@ -52,8 +46,7 @@ get_event_name(Event) ->
 get_event_body(Event) ->
 	get_event_header(Event, "body").
 
-
-%% @doc send some raw crap to FreeSWITCH. Returns the reply or `timeout' on a
+%% @doc Send a raw term to FreeSWITCH. Returns the reply or `timeout' on a
 %% timeout.
 send(Node, Term) ->
 	{send, Node} ! Term,
@@ -64,8 +57,8 @@ send(Node, Term) ->
 		timeout
 	end.
 
-%% @doc Make a blocking API call to FreeSWITCH. The result of the API is
-%returned or `timeout' if FreeSWITCH fails to respond.
+%% @doc Make a blocking API call to FreeSWITCH. The result of the API call is
+%% returned or `timeout' if FreeSWITCH fails to respond.
 api(Node, Cmd, Args) ->
 	{api, Node} ! {api, Cmd, Args},
 	receive
@@ -121,7 +114,7 @@ event(Node, Events) when is_list(Events) ->
 event(Node, Event) when is_atom(Event) ->
 	event(Node, [Event]).
 
-%% @doc Stop receiving any events in the list `Events'.
+%% @doc Stop receiving any events in the list `Events' from `Node'.
 nixevent(Node, Events) when is_list(Events) ->
 	{nixevent, Node} ! list_to_tuple(lists:append([nixevent], Events)),
 	receive
@@ -150,6 +143,49 @@ close(Node) ->
 		timeout
 	end.
 
+%% @doc Send an event to FreeSWITCH. `EventName' is the name of the event and
+%% `Headers' is a list of `{Key, Value}' string tuples. See the mod_event_socket
+%% documentation for more information.
+sendevent(Node, EventName, Headers) ->
+	{sendevent, Node} ! {sendevent, EventName, Headers},
+	receive
+		X -> X
+	after ?TIMEOUT ->
+		timeout
+	end.
+
+%% @doc Send a message to the call identified by `UUID'. `Headers' is a list of
+%% `{Key, Value}' string tuples.
+sendmsg(Node, UUID, Headers) ->
+	{sendmsg, Node} ! {sendmsg, UUID, Headers},
+	receive
+		X -> X
+	after ?TIMEOUT ->
+		timeout
+	end.
+
+
+%% @doc Get the fake pid of the FreeSWITCH node at `Node'. This can be helpful
+%% for linking to the process. Returns `{ok, Pid}' or `timeout'.
+getpid(Node) ->
+	{getpid, Node} ! getpid,
+	receive
+		X -> X
+	after ?TIMEOUT ->
+		timeout
+	end.
+
+%% @doc Request that FreeSWITCH send any events pertaining to call `UUID' to
+%% `Process' where process is a registered process name.
+handlecall(Node, Process) ->
+	{handlecall, Node} ! {handlecall, Process},
+	receive
+		X -> X
+	after ?TIMEOUT ->
+		timeout
+	end.
+
+%% @private
 start_handler(Node, Type, Module, Function) ->
 	Self = self(),
 	spawn(fun() ->
@@ -170,58 +206,60 @@ start_handler(Node, Type, Module, Function) ->
 		{Type, X} -> X
 	end.
 
-start_log_handler(Node) ->
-	start_handler(Node, register_log_handler, ?MODULE, log_receiver_loop).
+%% @todo Notify the process if it gets replaced by a new log handler.
 
-start_event_handler(Node) ->
-	start_handler(Node, register_event_handler, ?MODULE, event_receiver_loop).
+%% @doc Spawn `Module':`Function' as a log handler. The process will receive
+%% messages of the form `{log, [{level, LogLevel}, {text_channel, TextChannel}, {file, FileName}, {func, FunctionName}, {line, LineNumber}, {data, LogMessage}]}'
+%% or `{nodedown, Node}' if the FreesSWITCH node at `Node' exits.
+%% 
+%% The function specified by `Module':`Function' should be tail recursive and is
+%% passed one argument; the name of the FreeSWITCH node.
+%% 
+%% Subsequent calls to this function for the same node replaces the
+%% previous event handler with the newly spawned one.
+%% 
+%% This function returns either `{ok, Pid}' where `Pid' is the pid of the newly
+%% spawned process, `{error, Reason}' or the atom `timeout' if FreeSWITCH did
+%% not respond.
+start_log_handler(Node, Module, Function) ->
+	start_handler(Node, register_log_handler, Module, Function).
 
-start_search(Node) ->
-	start_handler(Node, {bind, dialplan}, ?MODULE, search_loop).
+%% @todo Notify the process if it gets replaced with a new event handler.
 
-log_receiver_loop(Node) ->
-	receive
-		{log, Log} ->
-			io:format("got log message ~p~n", [Log]),
-			log_receiver_loop(Node);
-		{nodedown, Node} ->
-			io:format("FreeSWITCH node is ~p down, log receiver process exiting~n", [Node]);
-		Any ->
-			io:format("log handler got unexpected message: ~p~n", [Any]),
-			log_receiver_loop(Node)
-	end.
+%% @doc Spawn Module:Function as an event handler. The process will receive
+%% messages of the form `{event, [UniqueID, {Key, Value}, {...}]}' where
+%% `UniqueID' is either a FreeSWITCH call ID or `undefined' or
+%% `{nodedown, Node}' if the FreeSWITCH node at `Node' exits. 
+%% 
+%% The function specified by `Module':`Function' should be tail recursive and is
+%% passed one argument; the name of the FreeSWITCH node.
+%% 
+%% Subsequent calls to this function for the same node replaces the
+%% previous event handler with the newly spawned one.
+%% 
+%% This function returns either `{ok, Pid}' where `Pid' is the pid of the newly
+%% spawned process, `{error, Reason}' or the atom `timeout' if FreeSWITCH did
+%% not respond.
+start_event_handler(Node, Module, Function) ->
+	start_handler(Node, register_event_handler, Module, Function).
 
-event_receiver_loop(Node) ->
-	receive
-		{event, Event} ->
-			io:format("got event ~p~n", [Event]),
-			event_receiver_loop(Node);
-		{nodedown, Node} ->
-			io:format("FreeSWITCH node ~p is down, event receiver process exiting~n", [Node]);
-		Any ->
-			io:format("log handler got unexpected message: ~p~n", [Any]),
-			event_receiver_loop(Node)
-	end.
-
-search_loop(Node) ->
-	receive
-		{fetch, dialplan, Tag, Key, Value, ID, _Data} ->
-			io:format("got dialplan fetch Tag ~p and Key ~p = Value ~p with id ~p~n", [Tag, Key, Value, ID]),
-			{wtf, Node} ! {fetch_reply, ID, "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?><document type=\"freeswitch/xml\"><section name=\"dialplan\" description=\"Dynamic test\"><context name=\"public\"><extension name=\"erlang test\"><condition><action application=\"sleep\" data=\"5\"/><action application=\"hangup\" data=\"\"/></condition></extension></context></section></document>"},
-			search_loop(Node);
-		{fetch, Section, Tag, Key, Value, ID, _Data} ->
-			io:format("got fetch for Section ~p, Tag ~p and Key ~p = Value ~p with id ~p~n", [Section, Tag, Key, Value, ID]),
-			{wtf, Node} ! {fetch_reply, ID, "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n<document type=\"freeswitch/xml\">\n<section name=\"result\">\n<result status=\"not found\" />\n</section>\n</document>"},
-			search_loop(Node);
-		{nodedown, Node} ->
-			io:format("FreeSWITCH node ~p is down, event receiver process exiting~n", [Node]);
-		Any ->
-			io:format("search handler got unexpected message: ~p~n", [Any]),
-			search_loop(Node)
-	end.
-
-
--ifdef(EUNIT).
-
-
--endif.
+%% @doc Spawn Module:Function as an XML config fetch handler for configs of type
+%% `Section'. See the FreeSWITCH documentation for mod_xml_rpc for more
+%% information on sections. The process will receive messages of the form 
+%% `{fetch, Section, Tag, Key, Value, ID, Data}' or `{nodedown, Node}' if the
+%% FreeSWITCH node at `Node' exits.
+%% 
+%% The function specified by `Module':`Function' should be tail recursive and is
+%% passed one argument; the name of the FreeSWITCH node. The function should
+%% send tuples back to FreeSWITCH of the form `{fetch_reply, ID, XML}' where
+%%`ID' is the ID received in the request tuple and  `XML' is XML in string or
+%% binary form of the form noted in the mod_xml_rpc documentation.
+%%
+%% Subsequent calls to this function for the same node and section will yield
+%% undefined behaviour.
+%% 
+%% This function returns either `{ok, Pid}' where `Pid' is the pid of the newly
+%% spawned process, `{error, Reason}' or the atom `timeout' if FreeSWITCH did
+%% not respond.
+start_fetch_handler(Node, Section, Module, Function) ->
+	start_handler(Node, {bind, Section}, Module, Function).

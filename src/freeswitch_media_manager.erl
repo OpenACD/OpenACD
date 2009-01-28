@@ -57,7 +57,11 @@
 -define(TIMEOUT, 10000).
 
 %% API
--export([start_link/2, start/2, listener/1]).
+-export([
+	start_link/2, 
+	start/2, 
+	listener/1,
+	ring_agent/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -92,21 +96,21 @@ start_link(Nodename, Domain) ->
 init([Nodename, Domain]) -> 
 	io:format("freeswitch media manager starting...~n"),
 	process_flag(trap_exit, true),
-%	Self = self(),
-%	_Lpid = spawn(fun() -> 
-%		{freeswitchnode, Nodename} ! register_event_handler,
-%		receive
-%			ok ->
-%				Self ! {register_event_handler, {ok, self()}},
-%				listener(Nodename);
-%			{error, Reason} -> 
-%				Self ! {register_event_handler, {error, Reason}}
-%		after ?TIMEOUT -> 
-%			Self ! {register_event_handler, timeout}
-%		end
-%	end),
-%	T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
-%	io:format("Attempted to start events in ffm's init:  ~p~n", [T]),
+	Self = self(),
+	_Lpid = spawn(fun() -> 
+		{freeswitchnode, Nodename} ! register_event_handler,
+		receive
+			ok ->
+				Self ! {register_event_handler, {ok, self()}},
+				listener(Nodename);
+			{error, Reason} -> 
+				Self ! {register_event_handler, {error, Reason}}
+		after ?TIMEOUT -> 
+			Self ! {register_event_handler, timeout}
+		end
+	end),
+	T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
+	io:format("Attempted to start events in ffm's init:  ~p~n", [T]),
     {ok, #state{nodename=Nodename, watched_calls = ets:new(watched_calls, [named_table]), domain=Domain}}.
 
 %%--------------------------------------------------------------------
@@ -172,6 +176,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+ring_agent(AgentPid, Call) -> 
+	gen_server:call(?MODULE, {ring_agent, AgentPid, Call}).
+	
 listener(Node) ->
 	receive
 		{event, Event} ->

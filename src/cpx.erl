@@ -47,6 +47,9 @@
 -export[start/2, stop/1].
 
 start(_Type, _StartArgs) -> 
+	Nodes = lists:append([nodes(), [node()]]),
+	mnesia:create_schema(Nodes),
+	mnesia:start(),
 	cpx_supervisor:start_link().
 	
 stop(_State) -> 

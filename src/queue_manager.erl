@@ -37,7 +37,19 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, start/0, queues/0, add_queue/1, add_queue/2, add_queue/3, get_queue/1, query_queue/1, stop/0, print/0, get_best_bindable_queues/0]).
+-export([
+	start_link/0, 
+	start/0, 
+	queues/0, 
+	add_queue/1, 
+	add_queue/2, 
+	add_queue/3, 
+	get_queue/1, 
+	query_queue/1, 
+	stop/0, 
+	print/0, 
+	get_best_bindable_queues/0
+	]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -55,7 +67,7 @@ start() ->
 add_queue(Name) ->
 	gen_server:call(?MODULE, {add, Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT}, infinity).
 
-%% @doc Add a queue named Name uaing a givien Recipe or Weight.
+%% @doc Add a queue named Name using a givien Recipe or Weight.
 -spec(add_queue/2 :: (Name :: atom(), Recipe :: recipe()) -> {'ok', pid()} | {'exists', pid()};
 	(Name :: atom(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name, Recipe) when is_list(Recipe) ->
@@ -68,8 +80,8 @@ add_queue(Name, Weight) when is_integer(Weight), Weight > 0 ->
 add_queue(Name, Recipe, Weight) ->
 	gen_server:call(?MODULE, {add, Name, Recipe, Weight}).
 
-load_queue(Name) -> 
-	gen_server:call(?MODULE, {load_queue, Name}).
+%load_queue(Name) -> 
+%	gen_server:call(?MODULE, {load_queue, Name}).
 			
 %% @doc Get the pid of the passed queue name.  If there is no queue, returns 'undefined'.
 -spec(get_queue/1 :: (Name :: atom()) -> pid() | undefined).
@@ -151,6 +163,7 @@ sync_queues([]) ->
 
 init([]) ->
 	process_flag(trap_exit, true),
+	call_queue_config:build_tables(),
 	case global:whereis_name(?MODULE) of
 		undefined ->
 			global:register_name(?MODULE, self(), {global, random_notify_name});
@@ -160,11 +173,13 @@ init([]) ->
 	{ok, dict:new()}.
 
 handle_call({add, Name, Recipe, Weight}, _From, State) ->
+	io:format("add_queue starting...~n"),
 	case dict:is_key(Name, State) of
 		true ->
 			{ok, Pid} = dict:find(Name, State),
 			{reply, {exists, Pid}, State};
 		false ->
+			io:format("add_queue queue doesn't already exist...~n"),
 			Self = self(),
 			case global:whereis_name(?MODULE) of
 				Self ->
@@ -193,21 +208,31 @@ handle_call({add, Name, Recipe, Weight}, _From, State) ->
 	end;
 handle_call({exists, Name}, _From, State) ->
 	{reply, dict:is_key(Name, State), State};
-handle_call({load_queue, Name}, _From, State) -> 
-	case call_queue_config:get_all(Name) of
-		noexists -> 
-			{reply, undefined, State};
-		Queue when is_record(Queue, call_queue) -> 
-			add_queue(Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight);
-		_Else -> 
-			{reply, undefined, State}
-	end;
-handle_call({get_queue, Name}, _From, State) ->
+%handle_call({load_queue, Name}, _From, State) -> 
+%	case call_queue_config:get_all(Name) of
+%		noexists -> 
+%			{reply, undefined, State};
+%		[Queue] when is_record(Queue, call_queue) -> 
+%			add_queue(Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight);
+%		_Else -> 
+%			{reply, undefined, State}
+%	end;
+handle_call({get_queue, Name}, From, State) ->
+	io:format("get_queue start...~n"),
 	case dict:find(Name, State) of
 		{ok, Pid} ->
 			{reply, Pid, State};
 		error ->
-			{reply, undefined, State}
+			io:format("get_queue looking in mnesia...~n"),
+			case call_queue_config:get_all(Name) of
+				noexists -> 
+					{reply, undefined, State};
+				[Queue] when is_record(Queue, call_queue) -> 
+					io:format("get_queue mnesia found it, starting...~n"),
+					%{_Whatever, Pid} = add_queue(Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight),
+					{reply, {ok, Pid}, Newstate} = handle_call({add, Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight}, From, State),
+					{reply, Pid, Newstate}
+			end
 	end;	
 handle_call({notify, Name, Pid}, _From, State) ->
 	{reply, ok, dict:store(Name, Pid, State)};

@@ -108,6 +108,7 @@ init([]) ->
 			DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 			AgentManagerSpec = {agent_manager, {agent_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 			QueueManagerSpec = {queue_manager, {queue_manager, start, []}, permanent, 20000, worker, [?MODULE]},
+			
 			Specs = lists:append([DispatchSpec, AgentManagerSpec, QueueManagerSpec], load_specs()),
 			
 			io:format("specs:  ~p~n", [supervisor:check_childspecs(Specs)]),
@@ -147,50 +148,14 @@ build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Arg
 %% @doc Attempts to build the cpx_conf table. Tries to handle mnesia being
 %% in various odd states.
 build_tables() ->
-	case mnesia:system_info(is_running) of
-		no -> % not running, is there a schema directory?
-			case filelib:is_dir(mnesia:system_info(directory)) of
-				true ->
-					ok;
-				false ->
-					mnesia:create_schema([node()])
-			end, % continue on here to the next case
-			mnesia:start(),
-			case lists:member(cpx_conf, mnesia:system_info(tables)) of
-				true ->	% table is already there, nothing to do
-					ok;
-				false ->
-					create_tables()
-			end;
-		yes -> % check if the table is already there...
-			case lists:member(cpx_conf, mnesia:system_info(tables)) of
-				true -> % table is already initialized, we don't need to do anything
-					ok;
-				_Else -> % table isn't there, is the schema?
-					case filelib:is_dir(mnesia:system_info(directory)) of
-						true ->
-							% schema exists, simply create the table
-							create_tables();
-						false ->
-							% stop mnesia, create the schema, start mnesia and create the table
-							mnesia:stop(),
-							mnesia:create_schema([node()]),
-							mnesia:start(),
-							create_tables()
-					end
-			end
-	end.
-
-create_tables() ->
 	io:format("cpx building tables...~n"),
-	A = mnesia:create_table(cpx_conf, [
+	A = util:build_table(cpx_conf, [
 		{attributes, record_info(fields, cpx_conf)},
 		{disc_copies, [node()]},
 		{local_content, true}
 	]),
 	case A of
 		{atomic, ok} -> 
-			timer:sleep(1000),
 			ok;
 		Else -> Else
 	end.
@@ -236,6 +201,7 @@ load_specs() ->
 
 config_test_() -> 
 	mnesia:start(),
+	cpx_supervisor:start(),
 	[
 		{
 			"Adding a Valid Config",

@@ -102,6 +102,9 @@ init([Leader]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call({ring_agent, AgentPid, Call}, _From, State) -> 
+	Reply = freeswitch_media_manager:ring_agent(AgentPid, Call),
+	{reply, Reply, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -182,14 +185,14 @@ handle_info({call_event, {event, [UUID | Rest]}}, State) ->
 					Brand = freeswitch:get_event_header(Rest, "variable_brand"),
 					Callerid = freeswitch:get_event_header(Rest, "Caller-Caller-ID-Name"),
 					Protocall = State#state.protocall,
-					Protocall2 = Protocall#call{id=UUID, client=Brand, callerid=Callerid},
+					Protocall2 = Protocall#call{id=UUID, client=Brand, callerid=Callerid, source=self()},
 					case queue_manager:get_queue(Queue) of
 						undefined ->
-							io:format("Uh oh, no queue of ~p~n", [State#state.queue]),
+							io:format("Uh oh, no queue of ~p~n", [Queue]),
 							{noreply, State};
 						Qpid -> 
 							io:format("Trying to add to queue...~n"),
-							R = call_queue:add(Qpid, State#state.protocall),
+							R = call_queue:add(Qpid, Protocall2),
 							io:format("q response:  ~p~n", [R]),
 							{noreply, State#state{queue_pid=Qpid, queue=Queue, protocall=Protocall2}}
 					end;

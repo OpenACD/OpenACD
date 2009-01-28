@@ -194,30 +194,14 @@ auth(Username, Password, Salt) ->
 %% @doc Starts mnesia and creates the tables.  If the tables already exist, returns ok.
 -spec(build_tables/0 :: () -> 'ok').
 build_tables() ->
-	io:format("building tables...~n"),
-	Nodes = lists:append([nodes(), [node()]]),
-	io:format("disc_copies: ~p~n", [Nodes]),
-	mnesia:create_schema(Nodes),
-	mnesia:start(),
-	case erlang:get_cookie() of
-		nocookie -> 
-			TableConf = [
+	io:format("~p building tables...~n", [?MODULE]),
+%	Nodes = lists:append([[node()], nodes()]),
+	A = util:build_table(agent_auth, [
 				{attributes, record_info(fields, agent_auth)},
-				{disc_copies, Nodes},
-				{ram_copies, nodes()}
-			];
-		_OtherCookie -> 
-			TableConf = [
-				{attributes, record_info(fields, agent_auth)},
-				{ram_copies, [node()]}
-			]
-	end,
-	A = mnesia:create_table(agent_auth, TableConf),
-	io:format("~p~n", [A]),
+				{disc_copies, [node()]}
+			]),
 	case A of
-		{atomic, ok} -> 
-			ok;
-		{aborted, {already_exists, _Table}} ->
+		{atomic, ok} ->
 			ok;
 		Else -> 
 			Else

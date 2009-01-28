@@ -29,7 +29,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([string_split/3, string_split/2, string_chomp/1, list_contains_all/2, list_map_with_index/2, bin_to_hexstr/1, hexstr_to_bin/1]).
+-export([string_split/3, string_split/2, string_chomp/1, list_contains_all/2, list_map_with_index/2, bin_to_hexstr/1, hexstr_to_bin/1, build_table/2]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];
@@ -123,6 +123,45 @@ hexstr_to_bin([X, Y | T], Acc) ->
 	hexstr_to_bin(T, [V | Acc]).
 
 %end 'borrowed' code
+
+%% @doc build the given mnesia table.
+%% If there's no schema preset, this will stop mnesia, create the schema, then start mnesia again.
+%% Fortunately, that only needs to be done once.
+%% takes the same parameters as mnesia:create_table.
+build_table(Tablename, Options) when is_atom(Tablename) ->
+	case mnesia:system_info(is_running) of
+		no -> % not running, is there a schema directory?
+			case filelib:is_dir(mnesia:system_info(directory)) of
+				true ->
+					ok;
+				false ->
+					mnesia:create_schema([node()])
+			end, % continue on here to the next case
+			mnesia:start(),
+			case lists:member(Tablename, mnesia:system_info(tables)) of
+				true ->	% table is already there, nothing to do
+					ok;
+				false ->
+					mnesia:create_table(Tablename, Options)
+			end;
+		yes -> % check if the table is already there...
+			case lists:member(Tablename, mnesia:system_info(tables)) of
+				true -> % table is already initialized, we don't need to do anything
+					ok;
+				_Else -> % table isn't there, is the schema?
+					case filelib:is_dir(mnesia:system_info(directory)) of
+						true ->
+							% schema exists, simply create the table
+							mnesia:create_table(Tablename, Options);
+						false ->
+							% stop mnesia, create the schema, start mnesia and create the table
+							mnesia:stop(),
+							mnesia:create_schema([node()]),
+							mnesia:start(),
+							mnesia:create_table(Tablename, Options)
+					end
+			end
+	end.
 
 -ifdef(EUNIT).
 split_empty_string_test() ->

@@ -22,7 +22,7 @@
 %% 
 
 %% @doc Manages the agents, and attempts to start them.  Listener and connection modules refer back to this 
-%% module when it is determined that it needs to start a new agent.
+%% module when it is determined that it needs to start or find an agent.
 -module(agent_manager).
 
 %% depends on agent, util
@@ -41,6 +41,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 
+% TODO wtf?
 -type(mod_state() :: [{string(), pid()}]).
 
 -spec(start_link/0 :: () -> {'ok', pid()}).
@@ -69,7 +70,8 @@ init([]) ->
 start_agent(Agent) -> 
 	gen_server:call(?MODULE, {start_agent, Agent}).
 
-% locally find all available agents with a particular skillset
+%% @doc Locally find all available agents with a particular skillset that contains the subset `Skills'.  Sorted by idle time, 
+%% then the length of the list of skills the agent has;  this means idle time is less important.
 -spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [{string(), pid(), #agent{}}]).
 find_avail_agents_by_skill(Skills) ->
 	io:format("skills passed:  ~p.~n", [Skills]),
@@ -77,6 +79,7 @@ find_avail_agents_by_skill(Skills) ->
 	AvailSkilledAgentsByIdleTime = lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> State1#agent.lastchangetimestamp =< State2#agent.lastchangetimestamp end, AvailSkilledAgents), 
 	lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> length(State1#agent.skills) =< length(State2#agent.skills) end, AvailSkilledAgentsByIdleTime).
 
+%% @doc Check if an agent idetified by agent record or login name string of `Login' exists
 -spec(query_agent/1 ::	(Agent :: #agent{}) -> {'true', pid()} | 'false';
 						(Login :: string()) -> {'true', pid()} | 'false').
 query_agent(#agent{login=Login}) -> 
@@ -84,6 +87,7 @@ query_agent(#agent{login=Login}) ->
 query_agent(Login) -> 
 	gen_server:call(?MODULE, {exists, Login}).
 
+% TODO stub for syncing agents across nodes
 -spec(sync_agents/1 :: (Dict :: mod_state()) -> mod_state()).
 sync_agents(Dict) -> 
 	Dict.

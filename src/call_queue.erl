@@ -40,27 +40,27 @@
 -include("call.hrl").
 -include("queue.hrl").
 -export([
-    start/3,
-    start_link/3,
-    set_recipe/2,
-    set_weight/2,
-    get_weight/1,
-    add/3,
+	start/3,
+	start_link/3,
+	set_recipe/2,
+	set_weight/2,
+	get_weight/1,
+	add/3,
 	add/2,
-    ask/1,
-    get_call/2,
-    print/1,
-    remove/2,
-    stop/1,
-    grab/1,
+	ask/1,
+	get_call/2,
+	print/1,
+	remove/2,
+	stop/1,
+	grab/1,
 	ungrab/2,
-    set_priority/3,
-    to_list/1, 
-    add_skills/3,
-    remove_skills/3,
-    call_count/1
+	set_priority/3,
+	to_list/1, 
+	add_skills/3,
+	remove_skills/3,
+	call_count/1
 ]).
-
+% TODO magic skill '_queue' (name of the queue, so agents can be assigned to the queue)
 -record(state, {
 	queue = gb_trees:empty(),
 	name :: atom(),
@@ -100,10 +100,14 @@ set_weight(Pid, Weight) ->
 get_weight(Pid) -> 
 	gen_server:call(Pid, get_weight).
 
-%% @doc Add the call `Calldata' to the queue at `Pid'.
+%% @doc Add the call `Calldata' to the queue at `Pid' with priority of `Priority'.
 -spec(add/3 :: (Pid :: pid(), Priority :: non_neg_integer(), Calldata :: #call{}) -> ok).
 add(Pid, Priority, Calldata) -> 
+	% TODO time out of infinity?
 	gen_server:call(Pid, {add, Priority, Calldata}, infinity).
+	
+%% @doc Add the call `Calldata' to the queue at `Pid' with default priority of 1.
+-spec(add/2 :: (Pid :: pid(), Calldata :: #call{}) -> ok).
 add(Pid, Calldata) -> 
 	add(Pid, 1, Calldata).
 	
@@ -112,31 +116,32 @@ add(Pid, Calldata) ->
 get_call(Pid, Callid) -> 
 	gen_server:call(Pid, {get_call, Callid}).
 
-%% @doc Return the first call in the queue at `Pid' that doesn't have a dispatcher from this node already bound to it or none.
+%% @doc Return the first call in the queue at `Pid' that doesn't have a dispatcher from this node already bound to it or `none'.
 -spec(ask/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
 ask(Pid) ->
 	gen_server:call(Pid, ask).
 
-%% @doc Bind to the first call in the queue at `Pid' that doesn't have a dispatcher from this node already bound to it or none.
+%% @doc Bind to the first call in the queue at `Pid' that doesn't have a dispatcher from this node already bound to it or `none'.
 -spec(grab/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
 grab(Pid) ->
 	gen_server:call(Pid, grab).
 
+%% @doc Reverse of @link grab/1.  Releases the call `Callid' from any bound dispatchers at queue `Pid'.  Returns `ok'.
 -spec(ungrab/2 :: (Pid :: pid(), Callid :: string()) -> 'ok').
 ungrab(Pid, Callid) -> 
 	gen_server:call(Pid, {ungrab, Callid}).
 
-%% @doc Add the list of skills `Skills' to the call with the id of `Callid' in the queue at `Pid'. Returns ok on success, none on failure.
+%% @doc Add the list of skills `Skills' to the call with the id of `Callid' in the queue at `Pid'. Returns `ok' on success, `none' on failure.
 -spec(add_skills/3 :: (Pid :: pid(), Callid :: string(), Skills :: [atom()]) -> 'none' | 'ok').
 add_skills(Pid, Callid, Skills) -> 
 	gen_server:call(Pid, {add_skills, Callid, Skills}).
 
-%% @doc Remove the list of skills `Skills' from the call with the id of `Callid' in the queue at `Pid'. Returns ok on success, none on failure.
+%% @doc Remove the list of skills `Skills' from the call with the id of `Callid' in the queue at `Pid'. Returns `ok' on success, `none' on failure.
 -spec(remove_skills/3 :: (Pid :: pid(), Callid :: string(), Skills :: [atom()]) -> 'none' | 'ok').
 remove_skills(Pid, Callid, Skills) -> 
 	gen_server:call(Pid, {remove_skills, Callid, Skills}).
 
-%% @doc Alter the priority of the call with the id of `Callid' in the queue at `Pid' to `Priority'.
+%% @doc Alter the priority of the call with the id of `Callid' in the queue at `Pid' to `Priority'.  Returns `ok' on success, `none' on failure.
 -spec(set_priority/3 :: ( Pid :: pid(), Calldata :: #call{}, Priority :: non_neg_integer()) -> 'none' | 'ok';
 						(Pid :: pid(), Callid :: string(), Priority :: non_neg_integer()) -> 'none' | 'ok').
 set_priority(Pid, #call{} = Calldata, Priority) ->
@@ -144,15 +149,18 @@ set_priority(Pid, #call{} = Calldata, Priority) ->
 set_priority(Pid, Callid, Priority) ->
 	gen_server:call(Pid, {set_priority, Callid, Priority}).
 
+%% @doc Returns a list of calls in queue at `Pid'.
 -spec(to_list/1 :: (Pid :: pid()) -> [#call{}]).
 to_list(Pid) ->
 	gen_server:call(Pid, to_list).
 
+%% @doc returns the state of the queue at `Pid'.
 -spec(print/1 :: (Pid :: pid()) -> any()).
 print(Pid) ->
+% TODO call this dump?
 	gen_server:call(Pid, print).
 
-%% @doc Remove the call with id of `Calldata' from the queue at `Pid'.
+%% @doc Remove the call with id of `Calldata' from the queue at `Pid'.  Returns `ok' on success, `none' on failure.
 -spec(remove/2 :: (Pid :: pid(), Calldata :: #call{}) -> 'none' | 'ok';
 					(Pid :: pid(), Calldata :: string()) -> 'none' | 'ok').
 remove(Pid, #call{} = Calldata) ->
@@ -172,11 +180,12 @@ stop(Pid) ->
 
 % find the first call in the queue that doesn't have a pid on this node
 % in its bound list
-
+%%@private
 -spec(find_unbound/2 :: (GbTree :: {non_neg_integer(), tuple()}, From :: pid()) -> {key(), #call{}} | 'none').
 find_unbound(GbTree, From) ->
 	find_unbound_(gb_trees:next(gb_trees:iterator(GbTree)), From).
 
+%%@private
 -spec(find_unbound_/2 :: (Iterator :: {key(), #call{}, any()} | 'none', From :: pid()) -> {key(), #call{}} | 'none').
 find_unbound_(none, _From) -> 
 	none;
@@ -192,10 +201,12 @@ find_unbound_({Key, #call{bound = B} = Value, Iter}, From) ->
 
 % return the {Key, Value} pair where Value#call.id == Needle or none
 % ie:  lookup a call by ID, return the key in queue and the full call data
+%% @private
 -spec(find_key/2 :: (Needle :: string(), GbTree :: {non_neg_integer(), tuple()}) -> {key(), #call{}} | 'none').
 find_key(Needle, GbTree) ->
 	find_key_(Needle, gb_trees:next(gb_trees:iterator(GbTree))).
 
+%% @private
 -spec(find_key_/2 :: (Needle :: string(), Iterator :: {key(), #call{}, any()} | 'none') -> {key(), #call{}} | 'none').
 find_key_(Needle, {Key, #call{id = Needle} = Value, _Iter}) ->
 	{Key, Value};
@@ -206,6 +217,7 @@ find_key_(_Needle, none) ->
 
 %% @private
 handle_call({get_call, Callid}, _From, State) -> 
+	% TODO collapse the case down to one line
 	case find_key(Callid, State#state.queue) of
 		none -> 
 			{reply, none, State};
@@ -222,7 +234,7 @@ handle_call({ungrab, Callid}, {From, _Tag}, State) ->
 handle_call({set_weight, Weight}, _From, State) ->
 	{reply, ok, State#state{weight=Weight}};
 handle_call(get_weight, _From, State) ->
-		{reply, State#state.weight, State};
+	{reply, State#state.weight, State};
 handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
 handle_call({add, Priority, Calldata}, _From, State) -> 
@@ -236,6 +248,7 @@ handle_call({add_skills, Callid, Skills}, _From, State) ->
 		none -> 
 			{reply, none, State};
 		{Key, #call{skills=OldSkills} = Value} -> 
+			% TODO break this up for readability
 			State2 = State#state{queue=gb_trees:update(Key, Value#call{skills=lists:merge(lists:sort(OldSkills), lists:sort(Skills))}, State#state.queue)},
 			{reply, ok, State2}
 	end;
@@ -250,7 +263,7 @@ handle_call({remove_skills, Callid, Skills}, _From, State) ->
 	end;
 
 handle_call(ask, {From, _Tag}, State) ->
-	%generate a call in queue excluding those already bound
+	%return a call in queue excluding those already bound
 	% return a tuple:  {key, val}
 	{reply, find_unbound(State#state.queue, From), State};
 
@@ -324,6 +337,8 @@ terminate(_Reason, State) ->
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
+%% @private
+%% Cleans up both dead dispatchers and dead cooks from the calls.
 -spec(clean_pid/3 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [#call{}]) -> [#call{}]).
 clean_pid(Deadpid, Recipe, [{Key, Call} | Calls] ) -> 
 	Bound = Call#call.bound,

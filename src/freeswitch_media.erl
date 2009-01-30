@@ -21,16 +21,6 @@
 %% Micah Warren <mwarren at spicecsm dot com>
 %% 
 
-%%%-------------------------------------------------------------------
-%%% File          : freeswitch_media.erl
-%%% Author        : Micah Warren
-%%% Organization  : __MyCompanyName__
-%%% Project       : cpxerl
-%%% Description   : 
-%%%
-%%% Created       :  12/1/08
-%%%-------------------------------------------------------------------
-
 %% @doc An on demand gen_server for watching a freeswitch call.
 %% This is started by freeswitch_media_manager when a new call id is found.
 %% This is responsible for:
@@ -63,59 +53,45 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
+% TODO protocall is confusing, rename.
 -record(state, {protocall = #call{}, queue, queue_pid, mode}).
 
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
+% TODO Leader is deprecated, as is the whereis(user).  A straight start should be fine.
 start(Leader) -> 
 	gen_server:start(?MODULE, [whereis(Leader)], []).
+%% @doc Starts using the 
 start() ->
 	gen_server:start(?MODULE, [whereis(user)], []).
 
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
-
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
+%% @private
+% TODO Leader is no longer needed
 init([Leader]) ->
 	% erlang:group_leader(Leader, self()),
 	io:format("freeswitch media start with leader ~p~n", [Leader]),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+%% @private
+% TODO If this module's state has the call, why does this need the call passed in?
 handle_call({ring_agent, AgentPid, Call}, _From, State) -> 
 	Reply = freeswitch_media_manager:ring_agent(AgentPid, Call),
 	{reply, Reply, State};
 handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+    {reply, ok, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-
+%% @private
+% TODO This first handle_cast is irrelevant, this functionality should be moved to handle_info
 handle_cast({Callid, Rawcall}, State) -> 
 %	io:format("fm Cast for call ~p.  I'm ~p.~n", [Callid, self()]),
 	case freeswitch:get_event_name(Rawcall) of
@@ -166,17 +142,17 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+%% @private
 handle_info({call, {event, [UUID | Rest]}}, #state{protocall = Call} = State) -> 
-	io:format("updating state for call ~p.  I'm ~p~n", [UUID, self()]),
+	io:format("new call ~p.  I'm ~p~n", [UUID, self()]),
+	% TODO why cast to self?  handle it.
 	gen_server:cast(self(), {UUID, Rest}),
 	Newcall = Call#call{id = UUID},
 	{noreply, State#state{protocall=Newcall}};
 handle_info({call_event, {event, [UUID | Rest]}}, State) -> 
+	% TODO flesh out for all call events.
 	case freeswitch:get_event_name(Rest) of
 		"CHANNEL_PARK" ->
 			case State#state.queue_pid of
@@ -184,10 +160,12 @@ handle_info({call_event, {event, [UUID | Rest]}}, State) ->
 					Queue = freeswitch:get_event_header(Rest, "variable_queue"),
 					Brand = freeswitch:get_event_header(Rest, "variable_brand"),
 					Callerid = freeswitch:get_event_header(Rest, "Caller-Caller-ID-Name"),
+					% TODO condense the next 2 lines into one
 					Protocall = State#state.protocall,
 					Protocall2 = Protocall#call{id=UUID, client=Brand, callerid=Callerid, source=self()},
 					case queue_manager:get_queue(Queue) of
 						undefined ->
+							% TODO what to do w/ the call w/ no queue?
 							io:format("Uh oh, no queue of ~p~n", [Queue]),
 							{noreply, State};
 						Qpid -> 
@@ -207,18 +185,15 @@ handle_info(_Info, State) ->
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
 %%--------------------------------------------------------------------
+%% @private
 terminate(_Reason, _State) ->
     ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
+%% @private
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -226,6 +201,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+%% @private
 has_dst_chan(Rawcall) -> 
 	case freeswitch:get_event_header(Rawcall, "variable_dstchan") of
 		{error, notfound} -> 
@@ -233,7 +209,8 @@ has_dst_chan(Rawcall) ->
 		Else -> 
 			Else
 	end.
-
+	
+%% @private
 fifo_parse(Rawcall, State) -> 
 	io:format("fifo::info needs more processing.~n"),
 	case freeswitch:get_event_header(Rawcall, "FIFO-Action") of
@@ -241,10 +218,12 @@ fifo_parse(Rawcall, State) ->
 			io:format("put into queue~n"),
 				case queue_manager:get_queue(State#state.queue) of
 					undefined ->
+						% TODO if we start using fifo again, what do we really want to do here?
 						io:format("Uh oh, no queue of ~p~n", [State#state.queue]),
 						{noreply, State};
 					Qpid -> 
 						io:format("Trying to add to queue...~n"),
+						% TODO and if this failed?
 						R = call_queue:add(Qpid, State#state.protocall),
 						io:format("q response:  ~p~n", [R]),
 						{noreply, State#state{queue_pid=Qpid}}
@@ -253,6 +232,7 @@ fifo_parse(Rawcall, State) ->
 			io:format("happy hangup~n"),
 			{noreply, State};
 		Else -> 
+			% TODO uh indeed.
 			io:format("Uh...~p~n", [Else]),
 			{noreply, State}
 	end.

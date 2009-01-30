@@ -21,17 +21,7 @@
 %% Micah Warren <mwarren at spicecsm dot com>
 %% 
 
-%%%-------------------------------------------------------------------
-%%% File          : dispatcher.erl
-%%% Author        : Micah Warren
-%%% Organization  : __MyCompanyName__
-%%% Project       : cpxerl
-%%% Description   : 
-%%%
-%%% Created       :  10/15/08
-%%%-------------------------------------------------------------------
-
-%% @doc gen_server started byt dispatch_supervisor to search for and bind a call
+%% @doc gen_server started by dispatch_supervisor to search for and bind a call
 %% to an agent.
 %% @see dispatch_manager
 -module(dispatcher).
@@ -58,17 +48,13 @@
 
 -record(state, {
 	call :: #call{} | 'undefined',
-	tref,
+	tref, % timer reference
 	qpid :: pid(),
 	agents = [] :: [pid()]}).
 
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
 start_link() ->
 	gen_server:start_link(?MODULE, [], []).
 start() ->
@@ -78,14 +64,7 @@ start() ->
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
-
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
+%% @private
 init([]) ->
 	State = #state{},
 	case grab_best() of
@@ -99,18 +78,12 @@ init([]) ->
 	end.
 
 %%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-
+%% @private
 handle_call(get_agents, _From, State) when is_record(State#state.call, call) -> 
 	Call = State#state.call,
-	io:format("dispater:get_agents, Call is ~p.~n", [Call]),
+	io:format("dispatcher:get_agents, Call is ~p.~n", [Call]),
 	{reply, agent_manager:find_avail_agents_by_skill(Call#call.skills), State};
 handle_call(bound_call, _From, State) ->
 	case State#state.call of
@@ -143,20 +116,16 @@ handle_call(_Request, _From, State) ->
 	{reply, Reply, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+%% @private
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+%% @private
 handle_info(grab_best, State) ->
 	io:format("dispatcher trying to grab~n"),
 	case grab_best() of
@@ -165,6 +134,7 @@ handle_info(grab_best, State) ->
 			{noreply, State};
 		{Qpid, Call} ->
 			io:format("success!~n"),
+			% TODO problem if the tref doesn't exist?
 			timer:cancel(State#state.tref),
 			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined}}
 	end;
@@ -173,19 +143,15 @@ handle_info(_Info, State) ->
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
 %%--------------------------------------------------------------------
-
+%% @private
 terminate(_Reason, _State) ->
 	ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
+%% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
@@ -193,7 +159,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-%% @doc queries the agent_manager for avaialble agents with an appropriate skill-list.
+%% @doc queries the agent_manager for available agents with an appropriate skill-list.
 %% @see agent_manager:find_avail_agents_by_skill/1
 -spec(get_agents/1 :: (Pid :: pid()) -> [{string, pid(), #agent{}}]).
 get_agents(Pid) -> 

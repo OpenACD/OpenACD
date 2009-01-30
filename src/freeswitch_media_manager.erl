@@ -21,16 +21,6 @@
 %% Micah Warren <mwarren at spicecsm dot com>
 %% 
 
-%%%-------------------------------------------------------------------
-%%% File          : freeswitch_media_manager.erl
-%%% Author        : Micah Warren
-%%% Organization  : __MyCompanyName__
-%%% Project       : cpxerl
-%%% Description   : 
-%%%
-%%% Created       :  11/18/08
-%%%-------------------------------------------------------------------
-
 %% @doc The controlling module for connection CPX to a freeswitch installation.  There are 2 primary requirements for this work:  
 %% the freeswitch installaction must have mod_erlang installed and active, and the freeswitch dialplan must add the following
 %% variables to the call data:
@@ -60,7 +50,7 @@
 -export([
 	start_link/2, 
 	start/2, 
-	listener/1,
+	listener/1, % TODO no need to export
 	ring_agent/2]).
 
 %% gen_server callbacks
@@ -70,7 +60,7 @@
 -record(state, {
 	nodename :: atom(),
 	freeswitch_c_pid :: pid(),
-	watched_calls, % ets table of the call id's already queued.
+	watched_calls, % ets table of the call id's already queued.  TODO we prolly don't need this anymore
 	domain
 	}).
 	
@@ -82,21 +72,28 @@
 %%====================================================================
 %% API
 %%====================================================================
-%% @doc Nodename is the name of the C node for mod_erlang in freeswitch.
+%% @doc Start the media manager unlinked to the parent process.  `Nodename' is the name of the C node for mod_erlang in freeswitch; 
+%% `Domain' is the domain of the node.
+%% @clear
+% TODO do we need domain?
 start(Nodename, Domain) -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
-%% @doc Nodename is the name of the C node for mod_erlang in freeswitch.
+%% @doc Start the media manager linked to the parent process.  `Nodename' is the name of the C node for mod_erlang in freeswitch; 
+%% `Domain' is the domain of the node.
+%% @clear
 start_link(Nodename, Domain) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
 
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
-
+%% @private
 init([Nodename, Domain]) -> 
+	?CONSOLE("starting...", []),
 	io:format("freeswitch media manager starting...~n"),
 	process_flag(trap_exit, true),
 	Self = self(),
+	% TODO we don't need to register this listener anymore.
 	_Lpid = spawn(fun() -> 
 		{freeswitchnode, Nodename} ! register_event_handler,
 		receive
@@ -116,11 +113,9 @@ init([Nodename, Domain]) ->
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-
+%% @private
 handle_call({ring_agent, AgentPid, Call}, _From, State) ->
-	%% @todo A real media manager would do something substantial here, like try to
-	%% send SIP to an agent's phone or whatever. We should do something about
-	%% ringout here though...
+	% TODO test functionality
 	AgentRec = agent:dump_state(AgentPid),
 	Args = "{dstchan=" ++ Call#call.id ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " &park()",
 	X = freeswitch:bgapi(State#state.nodename, originate, Args),
@@ -128,26 +123,26 @@ handle_call({ring_agent, AgentPid, Call}, _From, State) ->
 	{reply, agent:set_state(AgentPid, ringing, Call), State};
 handle_call(Request, _From, State) ->
 	io:format("Sudden call at fmm:  ~p~n", [Request]),
-    Reply = ok,
-    {reply, Reply, State}.
+	Reply = ok,
+	{reply, Reply, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-
+%% @private
 handle_cast(Msg, State) ->
 	io:format("freeswitch media manager got cast:  ~p~n", [Msg]),
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-
+%% @private
 handle_info({new_pid, Ref, From}, State) ->
-%	io:format("Starting new freeswitch media...~n"),
 	{ok, Pid} = freeswitch_media:start(),
 	From ! {Ref, Pid},
 	{noreply, State};
+% TODO There's no such message
 handle_info({register_event_handler, {ok, Pid}}, State) -> 
 	{noreply, State#state{freeswitch_c_pid = Pid}};
 handle_info({'EXIT', Pid, normal}, State) -> 
@@ -155,6 +150,7 @@ handle_info({'EXIT', Pid, normal}, State) ->
 	{noreply, State};
 handle_info({'EXIT', Pid, _Reason}, State) -> 
 	io:format("Bad exit, do clean up for ~p~n", [Pid]),
+	% TODO find out what clean up needs to be done and do it.
 	{noreply, State};
 handle_info(Info, State) ->
 	io:format("Sudden info at the fmm:  ~p~n", [Info]),
@@ -163,12 +159,14 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
+%% @private
 terminate(_Reason, _State) ->
     ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
+%% @private
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -176,9 +174,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+% TODO add supporting code so fmm can get the right media to ring it.
+%% @doc Ring `AgentPid' with `Call'.
 ring_agent(AgentPid, Call) -> 
 	gen_server:call(?MODULE, {ring_agent, AgentPid, Call}).
-	
+
+%% @private
+% listens for info from the freeswitch c node.
 listener(Node) ->
 	receive
 		{event, Event} ->

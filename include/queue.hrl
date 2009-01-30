@@ -36,7 +36,8 @@
 	name = "Unknown Queue" :: string(),
 	weight = 1 :: non_neg_integer(),
 	skills = [english, '_node'] :: [atom()],
-	recipe = ?DEFAULT_RECIPE :: recipe()
+	recipe = ?DEFAULT_RECIPE :: recipe(),
+	hold_music :: string()
 }).
 
 -record(skill_rec, {

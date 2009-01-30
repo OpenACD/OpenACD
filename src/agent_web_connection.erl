@@ -21,16 +21,6 @@
 %% Micah Warren <mwarren at spicecsm dot com>
 %% 
 
-%%%-------------------------------------------------------------------
-%%% File          : agent_web_connection.erl
-%%% Author        : Micah Warren
-%%% Organization  : __MyCompanyName__
-%%% Project       : cpxerl
-%%% Description   : 
-%%%
-%%% Created       :  10/30/08
-%%%-------------------------------------------------------------------
-
 %% @doc Handles the internal (cpx interaction) part of an agent web connection.
 %% (2008 12 09 : marking this for a refactoring.  Micah)
 %% @see agent_web_listener

@@ -54,20 +54,23 @@
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+%% @doc start the queue_manager linked to the parent process.
 -spec(start_link/0 :: () -> 'ok').
 start_link() ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+%% @doc start the queue_manager unlinked to the parent process.
 -spec(start/0 :: () -> 'ok').
 start() ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
-%% @doc Add a queue named Name using the default wieght and recipe.
+% TODO tie add_queue to the call_queue_config
+%% @doc Add a queue named `Name' using the default weight and recipe.
 -spec(add_queue/1 :: (Name :: atom()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name) ->
 	gen_server:call(?MODULE, {add, Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT}, infinity).
 
-%% @doc Add a queue named Name using a givien Recipe or Weight.
+%% @doc Add a queue named `Name' using a givien `Recipe' or `Weight'.
 -spec(add_queue/2 :: (Name :: atom(), Recipe :: recipe()) -> {'ok', pid()} | {'exists', pid()};
 	(Name :: atom(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name, Recipe) when is_list(Recipe) ->
@@ -75,14 +78,11 @@ add_queue(Name, Recipe) when is_list(Recipe) ->
 add_queue(Name, Weight) when is_integer(Weight), Weight > 0 ->
 	gen_server:call(?MODULE, {add, Name, ?DEFAULT_RECIPE, Weight}).
 
-%% @doc Add a queue named Name using the given Name, Recipe, and Weight.
+%% @doc Add a queue named `Name' using the given `Recipe' and `Weight'.
 -spec(add_queue/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name, Recipe, Weight) ->
 	gen_server:call(?MODULE, {add, Name, Recipe, Weight}).
 
-%load_queue(Name) -> 
-%	gen_server:call(?MODULE, {load_queue, Name}).
-			
 %% @doc Get the pid of the passed queue name.  If there is no queue, returns 'undefined'.
 -spec(get_queue/1 :: (Name :: atom()) -> pid() | undefined).
 get_queue(Name) -> 
@@ -105,7 +105,7 @@ query_queue(Name) ->
 			gen_server:call({global, ?MODULE}, {exists, Name})
 	end.
 
-%% @doc Spits out the queuss as [Qname :: atom(), Qpid :: pid()}].
+%% @doc Spits out the queues as {[Qname :: atom(), Qpid :: pid()}].
 -spec(queues/0 :: () -> [{atom(), pid()}]).
 queues() -> 
 	gen_server:call({global, ?MODULE}, queues_as_list).
@@ -118,12 +118,13 @@ get_best_bindable_queues() ->
 		List ->
 			List1 = [{K, V, Call, W} || {K, V} <- List, Call <- [call_queue:ask(V)], Call =/= none, W <- [call_queue:get_weight(V) * call_queue:call_count(V)]],
 			% sort queues by queuetime of first bindable call, longest first (lowest unix epoch time)
-			List2 = lists:sort(fun({_K1,_V1,{{_P1,T1},_Call1},_W1}, {_K2,_V2,{{_P2,T2},_Call2},_W2}) -> T1 =< T2 end, List1),
+			List2 = lists:sort(fun({_K1, _V1,{{_P1, T1}, _Call1}, _W1}, {_K2, _V2,{{_P2, T2}, _Call2}, _W2}) -> T1 =< T2 end, List1),
 			% sort queues by priority of first bindable call, lowest is higher priority
-			List3 = lists:sort(fun({_K1,_V1,{{P1,_T1},_Call1},_W1}, {_K2,_V2,{{P2,_T2},_Call2},_W2}) -> P1 =< P2 end, List2),
-			% sort queues by queue weight, hignest first and return the result
-			List4 = lists:sort(fun({_K1,_V1,{{_P1,_T1},_Call1},W1}, {_K2,_V2,{{_P2,_T2},_Call2},W2}) -> W1 >= W2 end, List3),
+			List3 = lists:sort(fun({_K1, _V1,{{P1, _T1}, _Call1}, _W1}, {_K2, _V2,{{P2, _T2}, _Call2}, _W2}) -> P1 =< P2 end, List2),
+			% sort queues by queue weight, highest first and return the result
+			List4 = lists:sort(fun({_K1, _V1,{{_P1, _T1}, _Call1}, W1}, {_K2, _V2,{{_P2, _T2}, _Call2}, W2}) -> W1 >= W2 end, List3),
 			Len = length(List4),
+			% C is the index/counter
 			util:list_map_with_index(fun(C, {K, V, Call, Weight}) -> {K, V, Call, Weight + Len - C} end, List4)
 	catch
 		exit:{noproc,_} ->
@@ -135,32 +136,36 @@ get_best_bindable_queues() ->
 stop() ->
 	gen_server:call(?MODULE, stop).
 
+%% @doc Returns the state.
 -spec(print/0 :: () -> any()).
 print() ->
 	gen_server:call(?MODULE, print).
 
 %% @doc internal sync function.
+-spec(sync_queues/1 :: ([{string(), pid()}]) -> [{string(), pid()}]).
 sync_queues([H|T]) ->
-	{K,_V} = H,
+	{K, _V} = H,
 	try gen_server:call({global, ?MODULE}, {exists, K}) of
 		true ->
 			io:format("Queue conflict detected for ~p~n", [K]),
+			% TODO resolve the conflict
 			sync_queues(T);
 		false ->
 			io:format("notifying master of ~p~n", [K]),
 			try gen_server:call({global, ?MODULE}, {notify, K}) of
 				_ -> sync_queues(T)
 			catch
-				exit:{timeout, _} -> % What to do here?
+				exit:{timeout, _} -> % TODO What to do here?
 					[]
 			end
 	catch
-		exit:{timeout, _} -> % What to do here?
+		exit:{timeout, _} -> % TODO What to do here?
 			[]
 	end;
 sync_queues([]) ->
 	[].
 
+%% @private
 init([]) ->
 	process_flag(trap_exit, true),
 	call_queue_config:build_tables(),
@@ -172,6 +177,8 @@ init([]) ->
 	end,
 	{ok, dict:new()}.
 
+%% @private
+% TODO tie into call_queue_config
 handle_call({add, Name, Recipe, Weight}, _From, State) ->
 	io:format("add_queue starting...~n"),
 	case dict:is_key(Name, State) of
@@ -208,15 +215,6 @@ handle_call({add, Name, Recipe, Weight}, _From, State) ->
 	end;
 handle_call({exists, Name}, _From, State) ->
 	{reply, dict:is_key(Name, State), State};
-%handle_call({load_queue, Name}, _From, State) -> 
-%	case call_queue_config:get_all(Name) of
-%		noexists -> 
-%			{reply, undefined, State};
-%		[Queue] when is_record(Queue, call_queue) -> 
-%			add_queue(Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight);
-%		_Else -> 
-%			{reply, undefined, State}
-%	end;
 handle_call({get_queue, Name}, From, State) ->
 	io:format("get_queue start...~n"),
 	case dict:find(Name, State) of
@@ -229,7 +227,7 @@ handle_call({get_queue, Name}, From, State) ->
 					{reply, undefined, State};
 				[Queue] when is_record(Queue, call_queue) -> 
 					io:format("get_queue mnesia found it, starting...~n"),
-					%{_Whatever, Pid} = add_queue(Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight),
+					% TODO prolly a better way to do this than a handle_call.
 					{reply, {ok, Pid}, Newstate} = handle_call({add, Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight}, From, State),
 					{reply, Pid, Newstate}
 			end
@@ -244,12 +242,15 @@ handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
 	{reply, ok, State}.
-
+	
+%% @private
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
+%% @private
 handle_info({'EXIT', From, _Reason}, State) ->
 	% filter out any queues on the dead node
+	% TODO recreate queus that have relevant calls
 	{noreply, dict:filter(fun(K,V) -> io:format("Trying to remove ~p.~n", [K]), node(From) =/= node(V) end, State)};
 handle_info({global_name_conflict, _Name}, State) ->
 	io:format("Node ~p lost the election~n", [node()]),
@@ -260,9 +261,11 @@ handle_info({global_name_conflict, _Name}, State) ->
 handle_info(_Info, State) ->
 	{noreply, State}.
 
+%% @private
 terminate(_Reason, _State) ->
 	ok.
 
+%% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 

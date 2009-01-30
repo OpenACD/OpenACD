@@ -21,16 +21,6 @@
 %% Micah Warren <mwarren at spicecsm dot com>
 %% 
 
-%%%-------------------------------------------------------------------
-%%% File          : dispatch_manager.erl
-%%% Author        : Micah Warren
-%%% Organization  : __MyCompanyName__
-%%% Project       : cpxerl
-%%% Description   : 
-%%%
-%%% Created       :  10/17/08
-%%%-------------------------------------------------------------------
-
 %% @doc Handles the creation and desctruction of dispatchers.
 %% There is to be 1 dipatcher for every avaiable agent on a node.
 -module(dispatch_manager).
@@ -53,7 +43,7 @@
 	 terminate/2, code_change/3]).
 
 -record(state, {
-	supervisor :: pid() | 'undefinced',
+	supervisor :: pid() | 'undefined',
 	dispatchers = [] :: [pid()],
 	agents = [] :: [pid()]
 	}).
@@ -61,10 +51,6 @@
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 	
@@ -74,28 +60,15 @@ start() ->
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
-
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
+%% @private
 init([]) ->
 	{ok, Super} = dispatch_supervisor:start_link(),
     {ok, #state{supervisor=Super}}.
 
 %%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-
+%% @private
 handle_call(stop, _From, State) -> 
 	{stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
@@ -103,13 +76,11 @@ handle_call(_Request, _From, State) ->
     {reply, Reply, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+%% @private
 handle_cast({now_avail, AgentPid}, State) -> 
-	io:format("Someone's avaialble now.~n"),
+	io:format("Someone's available now.~n"),
 	case lists:member(AgentPid, State#state.agents) of
 		true -> 
 			{noreply, balance(State)};
@@ -119,7 +90,7 @@ handle_cast({now_avail, AgentPid}, State) ->
 			{noreply, balance(State2)}
 	end;
 handle_cast({end_avail, AgentPid}, State) -> 
-	io:format("And agent is no longer available.~n"),
+	io:format("An agent is no longer available.~n"),
 	State2 = State#state{agents = lists:delete(AgentPid, State#state.agents)},
 	{noreply, balance(State2)};
 
@@ -127,13 +98,11 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+%% @private
 handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
-	io:format("Announcement that an agent is down, balencing in response.~n"),
+	io:format("Announcement that an agent is down, balancing in response.~n"),
 	State2 = State#state{agents = lists:delete(Object, State#state.agents)},
 	{noreply, balance(State2)};
 handle_info(_Info, State) ->
@@ -141,18 +110,15 @@ handle_info(_Info, State) ->
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
 %%--------------------------------------------------------------------
+%% @private
 terminate(_Reason, _State) ->
     ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
+%% @private
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -163,7 +129,9 @@ code_change(_OldVsn, State, _Extra) ->
 -spec(stop/0 :: () -> any()).
 stop() -> 
 	gen_server:call(?MODULE, stop).
-
+	
+% TODO roll the dispatch_supervisor into this process.
+%% @private
 -spec(balance/1 :: (State :: #state{}) -> #state{}).
 balance(State) when length(State#state.agents) > length(State#state.dispatchers) -> 
 	io:format("Starting new dispatcher~n"),
@@ -175,6 +143,7 @@ balance(State) when length(State#state.agents) < length(State#state.dispatchers)
 	io:format("Killing a dispatcher~n"),
 	[Pid | Dispatchers] = lists:reverse(State#state.dispatchers),
 	io:format("Pid I'm about to kill: ~p.  me:  ~p.  Dispatchers:  ~p~n", [Pid, self(), Dispatchers]),
+	% TODO check if the dispatcher pid is alive before we stop it
 	ok = dispatcher:stop(Pid),
 	balance(State#state{dispatchers=Dispatchers});
 balance(State) -> 

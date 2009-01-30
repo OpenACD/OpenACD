@@ -21,17 +21,7 @@
 %% Micah Warren <mwarren at spicecsm dot com>
 %% 
 
-%%%-------------------------------------------------------------------
-%%% File          : cpx.erl
-%%% Author        : Micah Warren
-%%% Organization  : __MyCompanyName__
-%%% Project       : cpxerl
-%%% Description   : 
-%%%
-%%% Created       :  10/17/08
-%%%-------------------------------------------------------------------
-
-%% @doc The applcation module for the cpx.
+%% @doc The application module.
 -module(cpx).
 -author("Micah").
 
@@ -46,6 +36,7 @@
 
 -export[start/2, stop/1].
 
+% TODO mnesia set-up (schema and connected nodes) needs to be ready before the app starts.
 start(_Type, _StartArgs) -> 
 	Nodes = lists:append([nodes(), [node()]]),
 	mnesia:create_schema(Nodes),

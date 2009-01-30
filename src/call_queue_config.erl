@@ -21,17 +21,7 @@
 %% Micah Warren <mwarren at spicecsm dot com>
 %% 
 
-%%%-------------------------------------------------------------------
-%%% File          : call_queue_config.erl
-%%% Author        : Micah Warren
-%%% Organization  : __MyCompanyName__
-%%% Project       : cpxerl
-%%% Description   : 
-%%%
-%%% Created       :  12/3/08
-%%%-------------------------------------------------------------------
-
-%% @doc The helper module to config the call_queues for cpx.
+%% @doc The helper module to config the call_queues.
 %% Uses the mnesia table 'call_queue.'  Queues are not started until a call requires it.
 -module(call_queue_config).
 -author("Micah").
@@ -39,7 +29,7 @@
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
-
+% TODO remove the ram_copies config param, disc_copies implies ram.
 -define(QUEUE_TABLE, 
 	[
 		{attributes, record_info(fields, call_queue)},
@@ -58,7 +48,7 @@
 -include("queue.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
-
+% TODO roll these into call_queue?
 %% API
 -export([
 	new_queue/1, 
@@ -80,6 +70,7 @@
 %% @doc Attempts to set-up and create the required mnesia table 'call_queue.'
 %% Errors caused by the table already existing are ignored.
 build_tables() -> 
+	% TODO use util:build_table for both call_queue and skill_rec
 	io:format("~p building tables...~n", [?MODULE]),
 	A = util:build_table(call_queue, ?QUEUE_TABLE),
 	case A of
@@ -104,7 +95,7 @@ build_tables() ->
 			Else
 	end.
 
-%% @doc Attempt to remove the queue Queue (or Queue#call_queue.name) from the configuration database.
+%% @doc Attempt to remove the queue `Queue' (or `Queue#call_queue.name') from the configuration database.
 destroy(Queue) when is_record(Queue, call_queue) -> 
 	destroy(Queue#call_queue.name);
 destroy(Queue) -> 
@@ -113,8 +104,9 @@ destroy(Queue) ->
 	end,
 	mnesia:transaction(F).
 	
-%% @doc Get the configuration for the passed Queue name.
+%% @doc Get the configuration for the passed `Queue' name.
 get_all(Queue) ->
+	% TODO this isn't a get_all, rename it.
 	F = fun() -> 
 		mnesia:read({call_queue, Queue})
 	end,
@@ -136,14 +128,14 @@ get_all() ->
 	{atomic, Reply} = mnesia:transaction(F),
 	Reply.
 
-%% @doc Create a new default queue configuraiton with the name QueueName.
+%% @doc Create a new default queue configuraiton with the name `QueueName'.
 new_queue(QueueName) -> 
 	new_queue(QueueName, []).
 
 %% @doc Using with a single {Key, Value} tuple, or a list of same, create a new queue called QueueName and add it to the database.
 %% Valid keys/value combos are:
 %% <dl>
-%% <dt>wieght</dt><dd>An integer.</dd>
+%% <dt>weight</dt><dd>An integer.</dd>
 %% <dt>skills</dt><dd>A list of atoms for the skills a call will be initially assigned.</dd>
 %% <dt>recipe</dt><dd>A recipe config for this queue for use by {@link cook. cooks}.</dd>
 %% </dl>
@@ -183,7 +175,8 @@ set_name(OldName, NewName) ->
 		mnesia:delete({call_queue, OldName})
 	end,
 	mnesia:transaction(F).
-	
+
+% TODO notify queue?  Kill the functions?
 %% @doc Update the recipe for a queue named Queue.
 set_recipe(Queue, Recipe) -> 
 	F = fun() -> 
@@ -210,19 +203,23 @@ set_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1->
 		mnesia:write(NewRec)
 	end,
 	mnesia:transaction(F).
-	
+
+%% @doc Check if the given `Skillname' exists.
 skill_exists(Skillname) when is_list(Skillname) -> 
 	try list_to_existing_atom(Skillname) of
-		_Anything -> 
+		Anything -> 
 			F = fun() -> 
-				mnesia:read({skill_rec, Skillname})
+				mnesia:read({skill_rec, Anything})
 			end,
 			{atomic, [Rec|_Tail]} = mnesia:transaction(F)
+			% TODO what the hell is this returning?  Should be the skill atom
 	catch
 		error:_Anyerror -> 
 			undefined
 	end.
 
+%% @private
+% helper function to create a call_queue record from a list of {Key, Value}.
 set_options(QueueRec, []) -> 
 	QueueRec;
 set_options(QueueRec, [{Key, Value} | Tail]) -> 
@@ -231,6 +228,7 @@ set_options(QueueRec, [{Key, Value} | Tail]) ->
 			set_options(QueueRec#call_queue{weight=Value}, Tail);
 		skills -> 
 			Skills = lists:append([QueueRec#call_queue.skills, Value]),
+			% TODO it would be nice if we could check if those skills exist.
 			set_options(QueueRec#call_queue{skills=Skills}, Tail);
 		recipe -> 
 			set_options(QueueRec#call_queue{recipe = Value}, Tail)

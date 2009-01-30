@@ -21,8 +21,7 @@
 %% Micah Warren <mwarren at spicecsm dot com>
 %% 
 
-%% @doc The connecection handler that communicates with a client UI; in this case the desktop client.
-%% Other connection modules will be needed to bridge between the internal agent fsm and incoming agent connections.
+%% @doc The connection handler that communicates with a client UI; in this case the desktop client.
 %% @clear
 -module(agent_tcp_connection).
 
@@ -65,6 +64,7 @@ start_link(Socket) ->
 negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).
 
+% TODO seed w/ something so it's actually random
 init([Socket]) ->
 	random:seed(), % seed the random number generator with some process info
 	{ok, #state{socket=Socket}}.
@@ -78,31 +78,32 @@ handle_cast(negotiate, State) ->
 	gen_tcp:send(State#state.socket, "Agent Server: -1\r\n"),
 	{ok, Packet} = gen_tcp:recv(State#state.socket, 0),
 	io:format("packet: ~p.~n", [Packet]),
-		case Packet of
-			"Protocol: " ++ Args ->
-				io:format("Got protcol version ~p.~n", [Args]),
-				try lists:map(fun(X) -> list_to_integer(X) end, util:string_split(util:string_chomp(Args), ".", 2)) of
-					[?Major, ?Minor] ->
-						gen_tcp:send(State#state.socket, "0 OK\r\n"),
-						inet:setopts(State#state.socket, [{active, once}]),
-						{noreply, State};
-					[?Major, _Minor] ->
-						gen_tcp:send(State#state.socket, "1 Protocol version mismatch. Please consider upgrading your client\r\n"),
-						inet:setopts(State#state.socket, [{active, once}]),
-						{noreply, State};
-					[_Major, _Minor] ->
-						gen_tcp:send(State#state.socket, "2 Protocol major version mismatch. Login denied\r\n"),
-						{stop, normal}
-				catch
-					_:_ ->
+	case Packet of
+		"Protocol: " ++ Args ->
+			io:format("Got protcol version ~p.~n", [Args]),
+			try lists:map(fun(X) -> list_to_integer(X) end, util:string_split(util:string_chomp(Args), ".", 2)) of
+				[?Major, ?Minor] ->
+					gen_tcp:send(State#state.socket, "0 OK\r\n"),
+					inet:setopts(State#state.socket, [{active, once}]),
+					{noreply, State};
+				[?Major, _Minor] ->
+					gen_tcp:send(State#state.socket, "1 Protocol version mismatch. Please consider upgrading your client\r\n"),
+					inet:setopts(State#state.socket, [{active, once}]),
+					{noreply, State};
+				[_Major, _Minor] ->
+					gen_tcp:send(State#state.socket, "2 Protocol major version mismatch. Login denied\r\n"),
+					{stop, normal}
+			catch
+				_:_ ->
 					gen_tcp:send(State#state.socket, "2 Invalid Response. Login denied\r\n"),
 					{stop, normal}
-				end;
-			_ ->
-				gen_tcp:send(State#state.socket, "2 Invalid Response. Login denied\r\n"),
-				{stop, normal}
-		end;
+			end;
+		_Else ->
+			gen_tcp:send(State#state.socket, "2 Invalid Response. Login denied\r\n"),
+			{stop, normal}
+	end;
 
+% TODO brandid is hard coded, not good (it's the 00310003)
 handle_cast({change_state, ringing, #call{} = Call}, State) ->
 	Counter = State#state.counter,
 	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n"),
@@ -121,26 +122,24 @@ handle_cast({change_state, AgState}, State) ->
 
 handle_cast(_Msg, State) ->
 	{noreply, State}.
-
-handle_info({tcp, Socket, Bin}, State) ->
+	
+handle_info({tcp, Socket, Packet}, State) ->
 	% Flow control: enable forwarding of next TCP message
-	case parse_event(Bin) of
+	case parse_event(Packet) of
 		[] ->
+			% TODO this may have been solved by setting the socket in line mode.
 			% for some reason, erlang is sometimes getting the /n after the rest of the event
 			% so lets ignore those until we find out why
 			ok = inet:setopts(Socket, [{active, once}]),
 			{noreply, State};
 		Ev ->
-			%io:format("got ~p from socket~n", [Bin]),
 			case handle_event(Ev, State) of
 				{Reply, State2} ->
-					%io:format("sent ~p to socket~n", [Reply]),
 					ok = gen_tcp:send(Socket, Reply ++ "\r\n"),
 					State3 = State2#state{send_queue = flush_send_queue(lists:reverse(State2#state.send_queue), Socket)},
 					ok = inet:setopts(Socket, [{active, once}]),
 					{noreply, State3};
 				State2 ->
-					%io:format("Event requires no response~n"),
 					ok = inet:setopts(Socket, [{active, once}]),
 					{noreply, State2}
 			end
@@ -161,7 +160,7 @@ code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
 handle_event(["GETSALT", Counter], State) when is_integer(Counter) ->
-	State2 = State#state{salt=random:uniform(4294967295)},
+	State2 = State#state{salt=random:uniform(4294967295)}, %bounds of number
 	{ack(Counter, integer_to_list(State2#state.salt)), State2};
 
 handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), is_atom(State#state.salt) ->
@@ -183,11 +182,13 @@ handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter) ->
 				ok ->
 					State2 = State#state{agent_fsm=Pid},
 					io:format("User ~p has authenticated using ~p.~n", [Username, Password]),
+					% TODO 1 1 1 should be updated to correct info (something, something security level, not in that order maybe.  RESEARCH!).
 					{ack(Counter, "1 1 1"), State2};
 				error ->
 					{err(Counter, Username ++ " is already logged in"), State}
 			end;
 		_Else ->
+			% TODO dialyzer will prolly tell us if we can ever actually get here.
 			{err(Counter, "Unexpected error authenticating, please try again."), State}
 	end;
 
@@ -203,7 +204,7 @@ handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Co
 		released ->
 			try list_to_integer(AgStateData) of
 				ReleaseState ->
-					case agent:set_state(State#state.agent_fsm, released, {ReleaseState, 0}) of
+					case agent:set_state(State#state.agent_fsm, released, {ReleaseState, 0}) of % {humanReadable, release_reason_id}
 						ok ->
 							{ack(Counter), State};
 						queued ->
@@ -212,12 +213,10 @@ handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Co
 							{ok, OldState} = agent:query_state(State#state.agent_fsm),
 							{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to released"), State}
 					end
-				catch
-					_:_ ->
-						{err(Counter, "Invalid release option"), State}
-				end;
-			%precall ->
-				%agent:set_state(State#state.agent_fsm, precall, AgStateData)
+			catch
+				_:_ ->
+					{err(Counter, "Invalid release option"), State}
+			end;
 		NewState ->
 			case agent:set_state(State#state.agent_fsm, NewState, AgStateData) of
 				ok ->
@@ -237,8 +236,6 @@ handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 			case agent:set_state(State#state.agent_fsm, NewState) of
 				ok ->
 					{ack(Counter), State};
-				%queued ->
-					%{ack(Counter), State};
 				invalid ->
 					{ok, OldState} = agent:query_state(State#state.agent_fsm),
 					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to " ++ atom_to_list(NewState)), State}
@@ -248,6 +245,7 @@ handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 			{err(Counter, "Invalid state " ++ AgState), State}
 	end;
 
+% TODO Hardcoding...
 handle_event(["BRANDLIST", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, "(0031003|Slic.com),(00420001|WTF)"), State};
 
@@ -260,6 +258,7 @@ handle_event(["QUEUENAMES", Counter], State) when is_integer(Counter) ->
 handle_event(["RELEASEOPTIONS", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, "1:bathroom:0,2:smoke:-1"), State};
 
+% TODO track unacked events
 handle_event(["ACK" | [Counter | _Args]], State) when is_integer(Counter) ->
 	State;
 

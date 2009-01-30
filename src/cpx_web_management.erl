@@ -21,18 +21,7 @@
 %% Micah Warren <mwarren at spicecsm dot com>
 %% 
 
-%%%-------------------------------------------------------------------
-%%% File          : cpx_web_management.erl
-%%% Author        : Micah Warren
-%%% Organization  : __MyCompanyName__
-%%% Project       : cpxerl
-%%% Description   : A very simply implemented web management.  Uses paths for requests.  Heavy lifting done by Mochiweb
-%%%
-%%% Created       :  10/29/08
-%%%-------------------------------------------------------------------
-
-%% @doc The web management module.  Uses mochiweb for the heavy lifting.
-
+%% @doc The web management module.  Uses mochiweb for the heavy lifting.  Listens on port 9999 by default.
 -module(cpx_web_management).
 -author("Micah").
 
@@ -48,15 +37,18 @@
 
 -export([start/0, stop/0, loop/3, loop/1]).
 
+% TODO configure this to start by default with a default configureation (cpx_supervisor_conf)
+%% @doc Start the web management server unlinked to the parent process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() -> 
 	mochiweb_http:start([{loop, {?MODULE, loop}} | ?WEB_DEFAULTS]).
 
+%% @doc Stops the web management.
 -spec(stop/0 :: () -> 'ok').
 stop() -> 
 	mochiweb_http:stop(?MODULE).
 
-%% @doc Take the request path and use that to determine what to return.
+%% @private Take the request path and use that to determine what to return.
 %% return data should be in json format whenever possible.
 %% note that mochiweb only likes to handle numbers, lists, and atoms for it's json encode.
 %% so be sure to massage the data befor attempting to ouput it.
@@ -69,7 +61,7 @@ stop() ->
 
 -spec(loop/3 :: (Req :: any(), Method :: string(), Path :: string()) -> any()).
 loop(Req, _Method, "/") -> 
-	Req:ok({"text/html", "Welcome to the managemnet interface."});
+	Req:ok({"text/html", "Welcome to the management interface."});
 loop(Req, _Method, "/queues") ->
 	Queues = queue_manager:queues(),
 	io:format("Queues:  ~p~n", [Queues]),
@@ -89,6 +81,7 @@ loop(Req, _Method, "/queues") ->
 loop(Req, _Method, "/web_dump") -> 
 	Req:ok({"text/html",io_lib:format("<pre>~p</pre>~n", [Req:dump()])});
 loop(Req, _Method, "/set_cookie") -> 
+	% TODO hardcoded cookie is hardcoded.
 	Req:respond({200, [{"Set-Cookie", "goober=foobar"}], io_lib:format("<pre>~p~p</pre>", [Req:dump(), Req:parse_cookie()])});
 loop(Req, _Method, _Path) -> 
 	Req:respond({501, [{"Content-Type", "text/plain"}], <<"Not yet implemented">>}).

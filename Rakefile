@@ -142,7 +142,7 @@ namespace :test do
 		`dialyzer --check_plt`
 		if $?.exitstatus != 0
 			puts 'no PLT'
-			puts "The dialyzer can't find the initial PLT, you can try building one using `rake build_plt`. This can take quite some time."
+			puts "The dialyzer can't find the initial PLT, you can try building one using `rake test:build_plt`. This can take quite some time."
 			exit(1)
 		end
 		STDOUT.flush

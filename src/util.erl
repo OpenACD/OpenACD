@@ -29,7 +29,15 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([string_split/3, string_split/2, string_chomp/1, list_contains_all/2, list_map_with_index/2, bin_to_hexstr/1, hexstr_to_bin/1, build_table/2]).
+-export([
+	string_split/3,
+	string_split/2,
+	string_chomp/1,
+	list_contains_all/2,
+	list_map_with_index/2,
+	bin_to_hexstr/1,
+	hexstr_to_bin/1,
+	build_table/2]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];
@@ -52,6 +60,7 @@ string_split(String, Separator, SplitCount) ->
 		0 ->
 			[String];
 		Index ->
+			% TODO split line up to 'fix' wrapping
 			[string:substr(String, 1, Index - 1) | string_split(string:substr(String, Index + string:len(Separator)), Separator, SplitCount - 1)]
 	end.
 
@@ -75,7 +84,7 @@ string_split(String, Separator) ->
 -spec(string_chomp/1 :: (String :: string()) -> string()).
 %% @doc Remove any trailing newlines or carraige returns from `String'.
 string_chomp(String) ->
-	string:strip(string:strip(String,right, $\n), right, $\r).
+	string:strip(string:strip(String, right, $\n), right, $\r).
 
 -spec(list_contains_all/2 :: (List :: [any()], Members :: []) -> 'true';
                              (List :: [any()], Members :: [any(),...]) -> 'true' | 'false').
@@ -95,7 +104,7 @@ list_map_with_index(Fun, List) when is_function(Fun), is_list(List) ->
 	list_map_with_index(Fun, List, 0).
 
 -spec(list_map_with_index/3 :: (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [any(),...], Counter :: non_neg_integer()) -> [any(), ...];
-							   (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [], Counter :: non_neg_integer()) -> []).
+					(Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [], Counter :: non_neg_integer()) -> []).
 list_map_with_index(_Fun, [], _Counter) ->
 	[];
 list_map_with_index(Fun, [H|T], Counter) ->
@@ -116,10 +125,11 @@ bin_to_hexstr(Bin) ->
 hexstr_to_bin(S) ->
 	hexstr_to_bin(S, []).
 
+-spec(hexstr_to_bin/2 :: ([X :: string(), Y :: string() | T :: string()], Acc :: binary()) -> binary()).
 hexstr_to_bin([], Acc) ->
 	list_to_binary(lists:reverse(Acc));
 hexstr_to_bin([X, Y | T], Acc) ->
-	{ok, [V], []} = io_lib:fread("~16u", [X,Y]),
+	{ok, [V], []} = io_lib:fread("~16u", [X, Y]),
 	hexstr_to_bin(T, [V | Acc]).
 
 %end 'borrowed' code
@@ -128,6 +138,9 @@ hexstr_to_bin([X, Y | T], Acc) ->
 %% If there's no schema preset, this will stop mnesia, create the schema, then start mnesia again.
 %% Fortunately, that only needs to be done once.
 %% takes the same parameters as mnesia:create_table.
+%% @see mnesia:create_table/2
+%% @clear
+%% TODO we shouldn't be starting/stopping/schemaing mnesia.
 build_table(Tablename, Options) when is_atom(Tablename) ->
 	case mnesia:system_info(is_running) of
 		no -> % not running, is there a schema directory?

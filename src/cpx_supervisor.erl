@@ -21,16 +21,6 @@
 %% Micah Warren <mwarren at spicecsm dot com>
 %% 
 
-%%%-------------------------------------------------------------------
-%%% File          : cpx.erl
-%%% Author        : Micah Warren
-%%% Organization  : __MyCompanyName__
-%%% Project       : cpxerl
-%%% Description   : 
-%%%
-%%% Created       :  10/17/08
-%%%-------------------------------------------------------------------
-
 %% @doc The top-most supervisor of the cpx system.  This is responsible for starting and monitoring the primary supervisors
 %% as well as any additional modules that are configured.  
 %% Primary (hard coded) modules started:
@@ -42,6 +32,9 @@
 %% Additional modules are loaded from the mnesia table 'cpx_conf'.  These modules would include 
 %% those for agent authentication and media managers.  If it cannot build or access the 'cpx_conf' table
 %% the supervisor does not start, thus halting all of cpx from starting.
+%%
+%% By default the agent_auth is not configured, and therefore not started.  Use {@link add_conf/3}.
+%% @see agent_auth
 
 -module(cpx_supervisor).
 -author("Micah").
@@ -75,17 +68,11 @@
 %% Supervisor callbacks
 -export([init/1]).
 
-%-define(SERVER, ?MODULE).
-
-%%====================================================================
 %% API functions
-%%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the supervisor
-%%--------------------------------------------------------------------
+%% @doc Start the cpx_supervisor linked to the parent process.
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+%% @doc Start the cpx_supervisor unlinked.
 start() -> 
 	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
 	unlink(Pid),
@@ -93,16 +80,8 @@ start() ->
 %%====================================================================
 %% Supervisor callbacks
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Func: init(Args) -> {ok,  {SupFlags,  [ChildSpec]}} |
-%%                     ignore                          |
-%%                     {error, Reason}
-%% Description: Whenever a supervisor is started using 
-%% supervisor:start_link/[2,3], this function is called by the new process 
-%% to find out about restart strategy, maximum restart frequency and child 
-%% specifications.
-%%--------------------------------------------------------------------
 init([]) ->
+	% TODO Create warnings for missing/requires specs (at least one media manager, the agent_auth).
 	case build_tables() of
 		ok -> 
 			DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
@@ -145,8 +124,7 @@ build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Arg
 			Else
 	end.
 
-%% @doc Attempts to build the cpx_conf table. Tries to handle mnesia being
-%% in various odd states.
+%% @doc Attempts to build the cpx_conf table.
 build_tables() ->
 	io:format("cpx building tables...~n"),
 	A = util:build_table(cpx_conf, [
@@ -157,10 +135,11 @@ build_tables() ->
 	case A of
 		{atomic, ok} -> 
 			ok;
-		Else -> Else
+		Else ->
+			Else
 	end.
 
-%% @doc Removes the passed childspec() or #cpx_conf from the database.
+%% @doc Removes the passed `childspec()' or `#cpx_conf' from the database.
 destroy({Id, _Params, _Transience, _Time, _Type, _Module}) -> 
 	destroy(Id);
 destroy(Spec) when is_atom(Spec) -> 
@@ -169,7 +148,7 @@ destroy(Spec) when is_atom(Spec) ->
 	end,
 	mnesia:transaction(F).
 
-%% @doc updates the conf with key Name with new Mod, Start, and Args.
+%% @doc updates the conf with key Name with new `Mod', `Start', and `Args'.
 %% @see add_conf/3
 update_conf(Name, Mod, Start, Args) -> 
 	Rec = #cpx_conf{module_name = Mod, start_function = Start, start_args = Args},
@@ -271,7 +250,4 @@ config_test_() ->
 		}
 	].
 				
-%start_test() -> 
-%	{ok, Pid} = start_link(),
-%	?debugFmt("This pid is:  ~p.~n", [Pid]).
 -endif.

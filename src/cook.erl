@@ -53,37 +53,33 @@
 
 -record(state, {
 		recipe = [] :: recipe(),
-		ticked = 0 :: integer(),
+		ticked = 0 :: integer(), % number of ticks we've done
 		call :: string() | 'undefined',
 		queue :: pid() | 'undefined',
 		continue = true :: bool(),
 		ringingto :: pid(),
 		ringcount = 0 :: non_neg_integer(),
-		tref :: any()
+		tref :: any() % timer reference
 }).
 
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
+
+%% @doc Starts a cook linked to the parent process for `Call' processed by `Recipe' for call_queue `QueuePid'.
+-spec(start_link/3 :: (Call :: #call{}, Recipe :: recipe(), QueuePid :: pid()) -> {'ok', pid()}).
 start_link(Call, Recipe, QueuePid) ->
     gen_server:start_link(?MODULE, [Call, Recipe, QueuePid], []).
+
+%% @doc Starts a cook not linked to the parent process for `Call' processed by `Recipe' for call_queue `QueuePid'.
+-spec(start/3 :: (Call :: #call{}, Recipe :: recipe(), QueuePid :: pid()) -> {'ok', pid()}).
 start(Call, Recipe, QueuePid) -> 
 	gen_server:start(?MODULE, [Call, Recipe, QueuePid], []).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 %% @private
 init([Call, Recipe, QueuePid]) ->
 	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),	
@@ -91,12 +87,6 @@ init([Call, Recipe, QueuePid]) ->
     {ok, State}.
 
 %%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
@@ -104,9 +94,6 @@ handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
@@ -118,7 +105,7 @@ handle_cast(stop_tick, State) ->
 	timer:cancel(State#state.tref),
 	{noreply, State#state{tref=undefined}};
 handle_cast({stop_ringing, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
-	%% XXX - actually tell the backend to stop ringing if it's an outband ring
+	%% TODO - actually tell the backend to stop ringing if it's an outband ring
 	{noreply, State#state{ringingto=undefined}};
 handle_cast(remove_from_queue, State) ->
 	call_queue:remove(State#state.queue, State#state.call),
@@ -129,9 +116,6 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
@@ -142,10 +126,6 @@ handle_info(_Info, State) ->
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
 %%--------------------------------------------------------------------
 %% @private
 terminate(_Reason, _State) ->
@@ -153,7 +133,6 @@ terminate(_Reason, _State) ->
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
 %% @private
 code_change(_OldVsn, State, _Extra) ->
@@ -162,12 +141,16 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+%% @doc Restart the cook at `Pid'.
 restart_tick(Pid) -> 
 	gen_server:cast(Pid, restart_tick).
 
+%% @doc Pause the cook running at `Pid'.
 stop_tick(Pid) -> 
 	gen_server:cast(Pid, stop_tick).
 
+%% @private
 -spec(do_tick/1 :: (State :: #state{}) -> #state{}).
 do_tick(#state{recipe=Recipe} = State) -> 
 	State2 = do_route(State),
@@ -177,6 +160,7 @@ do_tick(#state{recipe=Recipe} = State) ->
 stop(Pid) -> 
 	gen_server:cast(Pid, stop).
 
+%% @private
 -spec(do_route/1 :: (State :: #state{}) -> #state{}).
 do_route(State) when State#state.ringingto =/= undefined, State#state.ringcount =< ?RINGOUT ->
 	io:format("still ringing: ~p of ~p times~n", [State#state.ringcount, ?RINGOUT]),
@@ -192,9 +176,12 @@ do_route(State) when State#state.ringingto =:= undefined ->
 		{_Key, Call} ->
 			case Call#call.bound of
 				[] -> 
+					% if there are no dispatchers bound to the call,
+					% there are no agents available
 					State;
 				% get the list of agents from the dispatchers, then flatten it.
 				Dispatchers -> 
+					% TODO pull the fun out for code readability
 					Agents = lists:map(fun(Dpid) -> 
 						try dispatcher:get_agents(Dpid) of
 							[] ->
@@ -220,7 +207,7 @@ do_route(State) when State#state.ringingto =:= undefined ->
 																		_X when node() =:= node(APid) -> 
 																			[0]; 
 																		_Y -> 
-																			[15]
+																			[15] % TODO macro the magic number
 																		end,
 																Askills <- [length(AState#agent.skills)],
 																Aidle <- [element(2, AState#agent.lastchangetimestamp)]]),
@@ -233,14 +220,15 @@ do_route(State) when State#state.ringingto =:= undefined ->
 				end
 			end;
 		 none -> 
+			% TODO if the call is not in queue, this should die
 			 State
 	end.
 
+%% @private
 -spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #call{}) -> 'none' | pid()).
 offer_call([], _Call) -> 
 	none;
 offer_call([{_ACost, Apid} | Tail], Call) -> 
-	%case agent:set_state(Apid, ringing, Call) of
 	case gen_server:call(Call#call.source, {ring_agent, Apid, Call}) of
 		ok ->
 			io:format("cook offering call:  ~p to ~p~n", [Call, Apid]),
@@ -249,10 +237,12 @@ offer_call([{_ACost, Apid} | Tail], Call) ->
 			offer_call(Tail, Call)
 	end.
 
+%% @private
 -spec(do_recipe/2 :: (Recipe :: recipe(), State :: #state{}) -> recipe()).
 do_recipe([{Ticks, Op, Args, Runs} | Recipe], #state{ticked=Ticked} = State) when Ticks rem Ticked == 0 -> 
 	Doneop = do_operation({Ticks, Op, Args, Runs}, State),
 	case Doneop of 
+		% TODO {T, O, A, R}?
 		{T, O, A, R} when Runs =:= run_once -> 
 			%add to the output recipe
 			
@@ -266,10 +256,12 @@ do_recipe([{Ticks, Op, Args, Runs} | Recipe], #state{ticked=Ticked} = State) whe
 			% don't, just dance.
 	end;
 do_recipe([Head | Recipe], State) -> 
+	% this is here in case a recipe is not due to be run.
 	[Head | do_recipe(Recipe, State)];
 do_recipe([], _State) -> 
 	[].
 
+%% @private
 -spec(do_operation/2 :: (Recipe :: recipe_step(), State :: #state{}) -> 'ok' | recipe_step()).
 do_operation({_Ticks, Op, Args, _Runs}, State) -> 
 	#state{queue=Pid, call=Callid} = State,

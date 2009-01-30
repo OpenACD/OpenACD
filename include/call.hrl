@@ -42,4 +42,4 @@
 		media_path = outband :: 'inband' | 'outband'
 }).
 
-
+-define(CONSOLE(Message, Args), io:format("[~p][~p][~p]  " ++ Message ++ "~n", lists:append([[erlang:localtime(), ?MODULE, ?LINE], Args]))).

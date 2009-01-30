@@ -73,9 +73,9 @@ init([Port]) ->
 		{ok, Listen_socket} ->
 			%%Create first accepting process
 			{ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
-			{ok, #state{listener = Listen_socket,
-			acceptor = Ref}};
-		{error, Reason} -> {stop, Reason}
+			{ok, #state{listener = Listen_socket, acceptor = Ref}};
+		{error, Reason} ->
+			{stop, Reason}
 	end.
 
 handle_call(stop, _From, State) ->
@@ -90,8 +90,10 @@ handle_cast(_Msg, State) ->
 handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSock, acceptor=Ref} = State) ->
 	try
 		case set_sockopt(ListSock, CliSocket) of
-			ok  -> ok;
-			{error, Reason} -> exit({set_sockopt, Reason})
+			ok  ->
+				ok;
+			{error, Reason} ->
+				exit({set_sockopt, Reason})
 		end,
 
 		%% New client connected
@@ -103,8 +105,10 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 	
 		%% Signal the network driver that we are ready to accept another connection
 		case prim_inet:async_accept(ListSock, -1) of
-			{ok,    NewRef} -> ok;
-			{error, NewRef} -> exit({async_accept, inet:format_error(NewRef)})
+			{ok, NewRef} ->
+				ok;
+			{error, NewRef} ->
+				exit({async_accept, inet:format_error(NewRef)})
 		end,
 
 		{noreply, State#state{acceptor=NewRef}}

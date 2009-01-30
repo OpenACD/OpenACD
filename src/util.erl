@@ -125,7 +125,7 @@ bin_to_hexstr(Bin) ->
 hexstr_to_bin(S) ->
 	hexstr_to_bin(S, []).
 
--spec(hexstr_to_bin/2 :: ([X :: string(), Y :: string() | T :: string()], Acc :: binary()) -> binary()).
+-spec(hexstr_to_bin/2 :: ([string()], Acc :: binary()) -> binary()).
 hexstr_to_bin([], Acc) ->
 	list_to_binary(lists:reverse(Acc));
 hexstr_to_bin([X, Y | T], Acc) ->

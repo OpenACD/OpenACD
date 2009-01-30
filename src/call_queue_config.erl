@@ -243,6 +243,7 @@ test_queue() ->
 	
 call_queue_test_() -> 
 	mnesia:start(),
+	build_tables(),
 	[
 		{
 			"New Default Queue",

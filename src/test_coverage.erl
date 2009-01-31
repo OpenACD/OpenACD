@@ -41,5 +41,6 @@ start(Module) ->
 			cover:analyse_to_file(Module, string:concat(string:concat("coverage/", atom_to_list(Module)), ".html"), [html])
 	catch
 		_:_ ->
+			io:format("This module does not provide a test() function~n"),
 			ok
 	end.

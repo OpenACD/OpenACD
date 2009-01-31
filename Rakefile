@@ -68,6 +68,11 @@ task :compile => ['ebin'] + OBJ do
 	CONTRIB.each do |cont|
 		if File.exists? File.join(cont, 'Makefile')
 			sh "#{MAKE} -C #{cont}"
+		elsif File.exists? File.join(cont, 'Rakefile')
+			pwd = Dir.pwd
+			Dir.chdir(cont)
+			sh "#{$0}"
+			Dir.chdir(pwd)
 		end
 	end
 	sh "cp src/*.app ebin/"
@@ -89,6 +94,16 @@ end
 namespace :test do
 	desc "Compile .beam files with -DEUNIT and +debug_info => debug_ebin"
 	task :compile => ['debug_ebin'] + DEBUGOBJ do
+		CONTRIB.each do |cont|
+			if File.exists? File.join(cont, 'Makefile')
+				sh "#{MAKE} -C #{cont}"
+			elsif File.exists? File.join(cont, 'Rakefile')
+				pwd = Dir.pwd
+				Dir.chdir(cont)
+				sh "#{$0} debug=yes"
+				Dir.chdir(pwd)
+			end
+		end
 		sh "cp src/*.app debug_ebin/"
 	end
 

@@ -28,22 +28,32 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--endif.
-% TODO remove the ram_copies config param, disc_copies implies ram.
--define(QUEUE_TABLE, 
+-define(QUEUE_TABLE,
 	[
 		{attributes, record_info(fields, call_queue)},
-		{disc_copies, lists:append([nodes(), [node()]])},
-		{ram_copies, nodes()}
+		{ram_copies, lists:append(nodes(), [node()])}
 	]
 ).
 -define(SKILL_TABLE, 
 	[
 		{attributes, record_info(fields, skill_rec)},
-		{disc_copies, lists:append([nodes(), [node()]])},
-		{ram_copies, nodes()}
+		{ram_copies, lists:append([nodes(), [node()]])}
 	]
 ).
+-else.
+-define(QUEUE_TABLE, 
+	[
+		{attributes, record_info(fields, call_queue)},
+		{disc_copies, lists:append(nodes(), [node()])}
+	]
+).
+-define(SKILL_TABLE, 
+	[
+		{attributes, record_info(fields, skill_rec)},
+		{disc_copies, lists:append([nodes(), [node()]])}
+	]
+).
+-endif.
 
 -include("queue.hrl").
 -include_lib("stdlib/include/qlc.hrl").
@@ -56,7 +66,7 @@
 	new_skill/1,
 	new_skill/4,
 	destroy/1,
-	get_all/1,
+	get_queue/1,
 	get_all/0,
 	skill_exists/1,
 	set_all/1,
@@ -75,8 +85,16 @@ build_tables() ->
 	A = util:build_table(call_queue, ?QUEUE_TABLE),
 	case A of
 		{atomic, ok} -> 
-			% since the table didn't already exist, build up the default skills
-			mnesia:create_table(skill_rec, ?SKILL_TABLE),
+			% since the table didn't already exist, build up the default queue
+			new_queue("default_queue"),
+			ok;
+		_Else -> 
+			ok
+	end,
+	B = util:build_table(skill_rec, ?SKILL_TABLE),
+	case B of
+		{atomic, ok} ->
+			% since the table didn't already exist, build up some default skills
 			F = fun() -> 
 				mnesia:write(#skill_rec{name="English", atom=english, description="English Language"}),
 				mnesia:write(#skill_rec{name="German", atom=german, description="German Language"}),
@@ -89,13 +107,13 @@ build_tables() ->
 				Otherwise -> 
 					Otherwise
 			end;
-		{aborted, {already_exists, _Table}} ->
-			ok;
-		Else -> 
-			Else
+		_Or -> 
+			ok
 	end.
 
 %% @doc Attempt to remove the queue `Queue' (or `Queue#call_queue.name') from the configuration database.
+-spec(destroy/1 :: (Queue :: #call_queue{}) -> {atom(), any()};
+					(Queue :: string()) -> {atom(), any()}).
 destroy(Queue) when is_record(Queue, call_queue) -> 
 	destroy(Queue#call_queue.name);
 destroy(Queue) -> 
@@ -105,21 +123,22 @@ destroy(Queue) ->
 	mnesia:transaction(F).
 	
 %% @doc Get the configuration for the passed `Queue' name.
-get_all(Queue) ->
-	% TODO this isn't a get_all, rename it.
+-spec(get_queue/1 :: (Queue :: string()) -> #call_queue{} | {'noexists', any()}).
+get_queue(Queue) ->
 	F = fun() -> 
 		mnesia:read({call_queue, Queue})
 	end,
 	case mnesia:transaction(F) of
 		{atomic, []} -> 
-			[];
+			noexists;
 		{atomic, [Rec]} when is_record(Rec, call_queue) -> 
-			[Rec];
+			Rec;
 		Else -> 
 			{noexists, Else}
 	end.
 	
 %% @doc Get all the queue configurations.
+-spec(get_all/0 :: () -> [#call_queue{}]).
 get_all() -> 
 	QH = qlc:q([X || X <- mnesia:table(call_queue)]),
 	F = fun() -> 
@@ -129,6 +148,8 @@ get_all() ->
 	Reply.
 
 %% @doc Create a new default queue configuraiton with the name `QueueName'.
+%% @see new_queue/2
+-spec(new_queue/1 :: (QueueName :: string()) -> any()).
 new_queue(QueueName) -> 
 	new_queue(QueueName, []).
 
@@ -139,6 +160,8 @@ new_queue(QueueName) ->
 %% <dt>skills</dt><dd>A list of atoms for the skills a call will be initially assigned.</dd>
 %% <dt>recipe</dt><dd>A recipe config for this queue for use by {@link cook. cooks}.</dd>
 %% </dl>
+-spec(new_queue/2 :: (QueueName :: string(), {'weight' | 'skills' | 'recipe', any()}) -> any();
+					(QueueName :: string(), [{'weight' | 'skills' | 'recipe', any()}]) -> any()).
 new_queue(QueueName, {Key, Value}) when is_atom(Key) -> 
 	new_queue(QueueName, [{Key, Value}]);
 new_queue(QueueName, Options) when is_list(Options) -> 
@@ -147,7 +170,8 @@ new_queue(QueueName, Options) when is_list(Options) ->
 	F = fun() ->
 		mnesia:write(Fullqrec)
 	end,
-	mnesia:transaction(F).
+	{atomic, ok} = mnesia:transaction(F),
+	Fullqrec.
 
 new_skill(Skillatom, Skillname, Skilldesc, Creator) when is_atom(Skillatom) ->
 	Rec = #skill_rec{atom = Skillatom, name = Skillname, description = Skilldesc, creator = Creator},
@@ -160,6 +184,7 @@ new_skill(Rec) when is_record(Rec, skill_rec) ->
 	mnesia:transaction(F).
 		
 %% @doc Set all the params for a config based on the record Queue.
+-spec(set_all/1 :: (Queue :: #call_queue{}) -> any()).
 set_all(Queue) when is_record(Queue, call_queue) -> 
 	F = fun() -> 
 		mnesia:write(Queue)
@@ -167,6 +192,7 @@ set_all(Queue) when is_record(Queue, call_queue) ->
 	mnesia:transaction(F).
 	
 %% @doc Rename a queue from OldName to NewName.
+-spec(set_name/2 :: (OldName :: string(), NewName :: string()) -> any()).
 set_name(OldName, NewName) ->
 	F = fun() -> 
 		[OldRec] = mnesia:read({call_queue, OldName}),
@@ -178,6 +204,7 @@ set_name(OldName, NewName) ->
 
 % TODO notify queue?  Kill the functions?
 %% @doc Update the recipe for a queue named Queue.
+-spec(set_recipe/2 :: (Queue :: string(), Recipe :: recipe()) -> any()).
 set_recipe(Queue, Recipe) -> 
 	F = fun() -> 
 		[OldRec] = mnesia:read({call_queue, Queue}),
@@ -187,6 +214,7 @@ set_recipe(Queue, Recipe) ->
 	mnesia:transaction(F).
 	
 %% @doc Update the skill list for a queue named Queue.
+-spec(set_skills/2 :: (Queue :: string(), Skills :: [atom()]) -> any()).
 set_skills(Queue, Skills) -> 
 	F = fun() -> 
 		[OldRec] = mnesia:read({call_queue, Queue}),
@@ -196,6 +224,7 @@ set_skills(Queue, Skills) ->
 	mnesia:transaction(F).
 	
 %% @doc Set the weight for a queue named Queue.
+-spec(set_weight/2 :: (Queue :: string(), Weight :: pos_integer()) -> any()).
 set_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1-> 
 	F = fun() ->
 		[OldRec] = mnesia:read({call_queue, Queue}),
@@ -205,14 +234,15 @@ set_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1->
 	mnesia:transaction(F).
 
 %% @doc Check if the given `Skillname' exists.
+-spec(skill_exists/1 :: (Skillname :: string()) -> atom()).
 skill_exists(Skillname) when is_list(Skillname) -> 
 	try list_to_existing_atom(Skillname) of
 		Anything -> 
 			F = fun() -> 
 				mnesia:read({skill_rec, Anything})
 			end,
-			{atomic, [Rec|_Tail]} = mnesia:transaction(F)
-			% TODO what the hell is this returning?  Should be the skill atom
+			{atomic, [Rec|_Tail]} = mnesia:transaction(F),
+			Rec#skill_rec.atom
 	catch
 		error:_Anyerror -> 
 			undefined
@@ -241,185 +271,197 @@ test_queue() ->
 	Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
 	new_queue("test queue", Options).
 	
-call_queue_test_() -> 
-	mnesia:start(),
-	build_tables(),
-	[
-		{
-			"New Default Queue",
-			fun() -> 
-				Queue = #call_queue{name="test queue"},
-				?assertMatch(Queue, new_queue("test queue"))
-			end
-		},
-		{
-			"New Queue with Weight",
-			fun() -> 
-				Queue = #call_queue{name="test queue", weight=3},
-				?assertMatch(Queue, new_queue("test queue", {weight, 3}))
-			end
-		},
-		{
-			"New Queue with Invalid Weight",
-			fun() -> 
-				?assertError({case_clause, weight}, new_queue("name", {weight, "not a number"}))
-			end
-		},
-		{
-			"New Queue with Skills",
-			fun() ->
-				Queue = #call_queue{name="test queue"},
-				TestQueue = Queue#call_queue{skills = lists:append([Queue#call_queue.skills, [testskill]])},
-				?assertMatch(TestQueue, new_queue("test queue", {skills, [testskill]}))
-			end
-		},
-		{
-			"New Queue with Recipe",
-			fun() -> 
-				Recipe = [{2, add_skills, [true], run_once}],
-				Queue = #call_queue{name="test queue", recipe=Recipe},
-				?assertMatch(Queue, new_queue("test queue", {recipe, Recipe}))
-			end
-		},
-		{
-			"New Queue with Options List",
-			fun() -> 
-				Recipe = [{2, add_skills, [true], run_once}],
-				Queue = #call_queue{name="test queue", recipe=Recipe, weight=3},
-				TestQueue = Queue#call_queue{skills= lists:append([Queue#call_queue.skills, [testskill]])},
-				Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
-				?assertMatch(TestQueue, new_queue("test queue", Options))
-			end
-		},
-		{
-			"Set All",
-			fun() -> 
-				Recipe = [{2, add_skills, [true], run_once}],
-				Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
-				Queue = new_queue("test queue", Options),
-				set_all(Queue),
-				QH = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "test queue"]),
-				F = fun() -> 
-					qlc:e(QH)
-				end,
-				?assertMatch({atomic, [Queue]}, mnesia:transaction(F)),
-				destroy(Queue)
-			end
-		},
-		{
-			"Set Name", 
-			fun() ->
-				Queue = test_queue(),
-				set_all(Queue),
-				TestQueue = Queue#call_queue{name="new name"},
-				set_name(Queue#call_queue.name, TestQueue#call_queue.name),
-				Selectnew = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "new name"]),
-				SelectnewF = fun() -> 
-					qlc:e(Selectnew)
-				end,
-				Selectold = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "test queue"]),
-				SelectoldF = fun() -> 
-					qlc:e(Selectold)
-				end,
-				?assertMatch({atomic, [TestQueue]}, mnesia:transaction(SelectnewF)),
-				?assertMatch({atomic, []}, mnesia:transaction(SelectoldF)),
-				destroy(Queue),
-				destroy(TestQueue)
-			end
-		},
-		{
-			"Set Recipe",
-			fun() -> 
-				Queue = test_queue(),
-				set_all(Queue),
-				Recipe = [{3, new_queue, ["queue name"], run_once}],
-				TestQueue = Queue#call_queue{recipe = Recipe},
-				set_recipe(Queue#call_queue.name, Recipe),
-				Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
-				F = fun() -> 
-					qlc:e(Select)
-				end,
-				?assertMatch({atomic, [TestQueue]}, mnesia:transaction(F)),
-				destroy(Queue)
-			end
-		},
-		{
-			"Set Skills",
-			fun() -> 
-				Queue = test_queue(), 
-				set_all(Queue),
-				TestQueue = Queue#call_queue{skills = [german]},
-				set_skills(Queue#call_queue.name, [german]),
-				Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
-				F = fun() ->
-					qlc:e(Select)
-				end,
-				?assertMatch({atomic, [TestQueue]}, mnesia:transaction(F)),
-				destroy(Queue)
-			end
-		},
-		{
-			"Set Weight",
-			fun() -> 
-				Queue = test_queue(),
-				set_all(Queue),
-				TestQueue = Queue#call_queue{weight = 7},
-				set_weight(Queue#call_queue.name, 7),
-				Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
-				F = fun() -> 
-					qlc:e(Select)
-				end,
-				?assertMatch({atomic, [TestQueue]}, mnesia:transaction(F)),
-				destroy(Queue)
-			end
-		},
-		{
-			"Destroy",
-			fun() -> 
-				Queue = test_queue(),
-				set_all(Queue),
-				destroy(Queue),
-				Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
-				F = fun() -> 
-					qlc:e(Select)
-				end,
-				?assertMatch({atomic, []}, mnesia:transaction(F))
-			end
-		},
-		{
-			"Get All",
-			fun() -> 
-				Queue = test_queue(),
-				Queue2 = Queue#call_queue{name="test queue 2"},
-				set_all(Queue),
-				set_all(Queue2),
-				?assertMatch([Queue, Queue2], get_all()),
-				destroy(Queue),
-				destroy(Queue2)
-			end
-		},
-		{
-			"Get All of One",
-			fun() -> 
-				Queue = test_queue(),
-				Queue2 = Queue#call_queue{name="test queue 2"},
-				set_all(Queue),
-				set_all(Queue2),
-				?assertMatch(Queue, get_all(Queue#call_queue.name)),
-				?assertMatch(Queue2, get_all(Queue2#call_queue.name)),
-				destroy(Queue),
-				destroy(Queue2)
-			end
-		},
-		{
-			"Get All of None",
-			fun() -> 
-				Queue = test_queue(),
-				destroy(Queue),
-				?assertMatch(noexists, get_all(Queue#call_queue.name))
-			end
-		}
-	 ].
+call_queue_test_() ->
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	{
+		setup,
+		fun() -> 
+		%	?debugFmt("Node:  ~p~n", [node()]),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			build_tables(),
+			mnesia:start()
+		end,
+		fun(_Whatever) -> 
+			ok
+		end,
+		[
+			{
+				"New Default Queue",
+				fun() -> 
+					Queue = #call_queue{name="test queue"},
+					?assertMatch(Queue, new_queue("test queue"))
+				end
+			},
+			{
+				"New Queue with Weight",
+				fun() -> 
+					Queue = #call_queue{name="test queue", weight=3},
+					?assertMatch(Queue, new_queue("test queue", {weight, 3}))
+				end
+			},
+			{
+				"New Queue with Invalid Weight",
+				fun() -> 
+					?assertError({case_clause, weight}, new_queue("name", {weight, "not a number"}))
+				end
+			},
+			{
+				"New Queue with Skills",
+				fun() ->
+					Queue = #call_queue{name="test queue"},
+					TestQueue = Queue#call_queue{skills = lists:append([Queue#call_queue.skills, [testskill]])},
+					?assertMatch(TestQueue, new_queue("test queue", {skills, [testskill]}))
+				end
+			},
+			{
+				"New Queue with Recipe",
+				fun() -> 
+					Recipe = [{2, add_skills, [true], run_once}],
+					Queue = #call_queue{name="test queue", recipe=Recipe},
+					?assertMatch(Queue, new_queue("test queue", {recipe, Recipe}))
+				end
+			},
+			{
+				"New Queue with Options List",
+				fun() -> 
+					Recipe = [{2, add_skills, [true], run_once}],
+					Queue = #call_queue{name="test queue", recipe=Recipe, weight=3},
+					TestQueue = Queue#call_queue{skills= lists:append([Queue#call_queue.skills, [testskill]])},
+					Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
+					?assertMatch(TestQueue, new_queue("test queue", Options))
+				end
+			},
+			{
+				"Set All",
+				fun() -> 
+					Recipe = [{2, add_skills, [true], run_once}],
+					Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
+					Queue = new_queue("test queue", Options),
+					set_all(Queue),
+					QH = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "test queue"]),
+					F = fun() -> 
+						qlc:e(QH)
+					end,
+					?assertMatch({atomic, [Queue]}, mnesia:transaction(F)),
+					destroy(Queue)
+				end
+			},
+			{
+				"Set Name", 
+				fun() ->
+					Queue = test_queue(),
+					set_all(Queue),
+					TestQueue = Queue#call_queue{name="new name"},
+					set_name(Queue#call_queue.name, TestQueue#call_queue.name),
+					Selectnew = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "new name"]),
+					SelectnewF = fun() -> 
+						qlc:e(Selectnew)
+					end,
+					Selectold = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "test queue"]),
+					SelectoldF = fun() -> 
+						qlc:e(Selectold)
+					end,
+					?assertMatch({atomic, [TestQueue]}, mnesia:transaction(SelectnewF)),
+					?assertMatch({atomic, []}, mnesia:transaction(SelectoldF)),
+					destroy(Queue),
+					destroy(TestQueue)
+				end
+			},
+			{
+				"Set Recipe",
+				fun() -> 
+					Queue = test_queue(),
+					set_all(Queue),
+					Recipe = [{3, new_queue, ["queue name"], run_once}],
+					TestQueue = Queue#call_queue{recipe = Recipe},
+					set_recipe(Queue#call_queue.name, Recipe),
+					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
+					F = fun() -> 
+						qlc:e(Select)
+					end,
+					?assertMatch({atomic, [TestQueue]}, mnesia:transaction(F)),
+					destroy(Queue)
+				end
+			},
+			{
+				"Set Skills",
+				fun() -> 
+					Queue = test_queue(), 
+					set_all(Queue),
+					TestQueue = Queue#call_queue{skills = [german]},
+					set_skills(Queue#call_queue.name, [german]),
+					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
+					F = fun() ->
+						qlc:e(Select)
+					end,
+					?assertMatch({atomic, [TestQueue]}, mnesia:transaction(F)),
+					destroy(Queue)
+				end
+			},
+			{
+				"Set Weight",
+				fun() -> 
+					Queue = test_queue(),
+					set_all(Queue),
+					TestQueue = Queue#call_queue{weight = 7},
+					set_weight(Queue#call_queue.name, 7),
+					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
+					F = fun() -> 
+						qlc:e(Select)
+					end,
+					?assertMatch({atomic, [TestQueue]}, mnesia:transaction(F)),
+					destroy(Queue)
+				end
+			},
+			{
+				"Destroy",
+				fun() -> 
+					Queue = test_queue(),
+					set_all(Queue),
+					destroy(Queue),
+					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
+					F = fun() -> 
+						qlc:e(Select)
+					end,
+					?assertMatch({atomic, []}, mnesia:transaction(F))
+				end
+			},
+			{
+				"Get All",
+				fun() -> 
+					Queue = test_queue(),
+					Queue2 = Queue#call_queue{name="test queue 2"},
+					set_all(Queue),
+					set_all(Queue2),
+					?assertMatch([Queue, Queue2], get_all()),
+					destroy(Queue),
+					destroy(Queue2)
+				end
+			},
+			{
+				"Get One Queue",
+				fun() -> 
+					Queue = test_queue(),
+					Queue2 = Queue#call_queue{name="test queue 2"},
+					set_all(Queue),
+					set_all(Queue2),
+					?assertMatch(Queue, get_queue(Queue#call_queue.name)),
+					?assertMatch(Queue2, get_queue(Queue2#call_queue.name)),
+					destroy(Queue),
+					destroy(Queue2)
+				end
+			},
+			{
+				"Get All of None",
+				fun() -> 
+					Queue = test_queue(),
+					destroy(Queue),
+					?assertMatch(noexists, get_queue(Queue#call_queue.name))
+				end
+			}
+		]
+	}.
 
 skill_rec_test_() -> 
 	mnesia:start(),
@@ -428,7 +470,7 @@ skill_rec_test_() ->
 			"Test for a known skill atom",
 			fun() -> 
 				Skillrec = skill_exists("_node"),
-				?assertMatch('_node', Skillrec#skill_rec.atom)
+				?assertMatch('_node', Skillrec)
 			end
 		},
 		{

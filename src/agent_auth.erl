@@ -255,8 +255,8 @@ local_auth(Username, Password, Salt) ->
 %% @private
 % Apply the passed Salt to the passed Hash.  The Hash is converted from a bin if need be, lowercased, then appended to the Salt.
 % all this is then erlang:md5'ed.  That result is then turned into a list, and lowercased.
--spec(salt/2 :: (Hash :: binary(), Salt :: string()) -> string();
-				(Hash :: string(), Salt :: string()) -> string()).
+-spec(salt/2 ::	(Hash :: string(), Salt :: string()) -> string();
+		(Hash :: binary(), Salt :: string()) -> string()).
 salt(Hash, Salt) when is_binary(Hash) ->
 	io:format("agent_auth hash conversion...~n"),
 	salt(util:bin_to_hexstr(Hash), Salt);

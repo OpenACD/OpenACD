@@ -240,14 +240,17 @@ oncall({released, Reason}, _From, State) ->
 oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_path =:= 'inband' ->
 	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 	{reply, ok, wrapup, State#agent{state=wrapup, lastchangetimestamp=now()}};
-% TODO check call against call in state record (#agent{})
-oncall({wrapup, Call}, _From, State) ->
-	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-	{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};
-% TODO for times we are actually changing state, update the lastchangetimestamp
+oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
+	case Currentcall#call.id of
+		Callid -> 
+			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
+			{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};
+		_Else ->
+			{reply, invalid, oncall, State}
+	end;
 oncall({warmtransfer, Transferto}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
-	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}}};
+	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()}};
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
 	
@@ -261,14 +264,17 @@ outgoing({released, undefined}, _From, State) ->
 	{reply, ok, outgoing, State#agent{queuedrelease=undefined}};
 outgoing({released, Reason}, _From, State) -> 
 	{reply, queued, outgoing, State#agent{queuedrelease=Reason}};
-% TODO check if the Call#call.id matches what is in the state
-outgoing({wrapup, Call}, _From, State) ->
-	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-	{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call}};
-% TODO for times we are actually changing state, update the lastchangetimestamp
+outgoing({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
+	case Currentcall#call.id of
+		Callid -> 
+			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
+			{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};
+		_Else -> 
+			{reply, invalid, outgoing, State}
+	end;
 outgoing({warmtransfer, Transferto}, _From, State) -> 
 	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
-	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}}};
+	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()}};
 outgoing(_Event, _From, State) -> 
 	{reply, invalid, outgoing, State}.
 
@@ -305,15 +311,23 @@ released(_Event, _From, State) ->
 warmtransfer({released, undefined}, _From, State) ->
 	{reply, ok, warmtransfer, State#agent{queuedrelease=undefined}};
 warmtransfer({released, Reason}, _From, State) -> 
-	{reply, queued, warmtransfer, State#agent{queuedrelease=Reason}};
-% TODO make the Call match what's in the State
-warmtransfer({wrapup, Call}, _From, State) -> 
-	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-	{reply, ok, wrapup, State#agent{state=wrapup,statedata=Call, lastchangetimestamp=now()}};
-% TODO make the Call match what's in the State
-warmtransfer({oncall, Call}, _From, State) -> 
-	gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
-	{reply, ok, oncall, State#agent{state=oncall, statedata=Call, lastchangetimestamp=now()}};
+	{reply, queued, warmtransfer, State#agent{queuedrelease=Reason}};	
+warmtransfer({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = {onhold, Onhold, calling, _Calling}} = State) -> 
+	case Onhold#call.id of
+		 Callid -> 
+			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
+			{reply, ok, wrapup, State#agent{state=wrapup,statedata=Call, lastchangetimestamp=now()}};
+		_Else -> 
+			{reply, invalid, warmtransfer, State}
+	end;
+warmtransfer({oncall, #call{id = Callid} = Call}, _From, #agent{statedata = {onhold, Onhold, calling, _Calling}} = State) -> 
+	case Onhold#call.id of
+		 Callid -> 
+			gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
+			{reply, ok, oncall, State#agent{state=oncall, statedata=Call, lastchangetimestamp=now()}};
+		_Else -> 
+			{reply, invalid, warmtransfer, State}
+	end;
 warmtransfer({outgoing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, outgoing, Call}),
 	{reply, ok, outgoing, State#agent{state=outgoing, statedata=Call, lastchangetimestamp=now()}};

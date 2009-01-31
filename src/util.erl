@@ -27,7 +27,16 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
+-record(test_table, {name, data}).
+-define(TEST_TABLE, 
+	[
+		{attributes, record_info(fields, test_table)},
+		{ram_copies, lists:append([nodes(), [node()]])}
+	]
+).
 -endif.
+
+-include("call.hrl").
 
 -export([
 	string_split/3,
@@ -60,8 +69,9 @@ string_split(String, Separator, SplitCount) ->
 		0 ->
 			[String];
 		Index ->
-			% TODO split line up to 'fix' wrapping
-			[string:substr(String, 1, Index - 1) | string_split(string:substr(String, Index + string:len(Separator)), Separator, SplitCount - 1)]
+			Head = string:substr(String, 1, Index - 1),
+			Tailpresplit = string:substr(String, Index + string:len(Separator)),
+			[Head | string_split(Tailpresplit, Separator, SplitCount - 1)]
 	end.
 
 -spec(string_split/2 :: (String :: [], Separator :: [integer()]) -> [];
@@ -134,47 +144,34 @@ hexstr_to_bin([X, Y | T], Acc) ->
 
 %end 'borrowed' code
 
-%% @doc build the given mnesia table.
-%% If there's no schema preset, this will stop mnesia, create the schema, then start mnesia again.
-%% Fortunately, that only needs to be done once.
-%% takes the same parameters as mnesia:create_table.
+%% @doc build the given mnesia table `Tablename' with `Options'.
+%% This will exit the calling process if mnesia is not started or if the schema is not stored on disc.  
+%% If you trying to create the same table twice, it simply returns ok, otherwise returns the raw mnesia create_table result.
+%% Takes the same parameters as mnesia:create_table.
 %% @see mnesia:create_table/2
 %% @clear
-%% TODO we shouldn't be starting/stopping/schemaing mnesia.
+-spec(build_table/2 :: (atom(), [any()]) -> 'ok' | {'atomic', 'ok'}).
 build_table(Tablename, Options) when is_atom(Tablename) ->
 	case mnesia:system_info(is_running) of
-		no -> % not running, is there a schema directory?
+		yes -> 
 			case filelib:is_dir(mnesia:system_info(directory)) of
-				true ->
-					ok;
-				false ->
-					mnesia:create_schema([node()])
-			end, % continue on here to the next case
-			mnesia:start(),
-			case lists:member(Tablename, mnesia:system_info(tables)) of
-				true ->	% table is already there, nothing to do
-					ok;
-				false ->
-					mnesia:create_table(Tablename, Options)
-			end;
-		yes -> % check if the table is already there...
-			case lists:member(Tablename, mnesia:system_info(tables)) of
-				true -> % table is already initialized, we don't need to do anything
-					ok;
-				_Else -> % table isn't there, is the schema?
-					case filelib:is_dir(mnesia:system_info(directory)) of
-						true ->
-							% schema exists, simply create the table
-							mnesia:create_table(Tablename, Options);
+				true -> 					
+					case lists:member(Tablename, mnesia:system_info(tables)) of
+						true -> 
+							?CONSOLE("Table '~p' already exists.", [Tablename]),
+							ok;
 						false ->
-							% stop mnesia, create the schema, start mnesia and create the table
-							mnesia:stop(),
-							mnesia:create_schema([node()]),
-							mnesia:start(),
 							mnesia:create_table(Tablename, Options)
-					end
-			end
+					end;
+				false -> 
+					?CONSOLE("Mnesia does not have a disc based schema.", []),
+					exit(mnesia_schema_not_found)
+			end;
+		Else -> 
+			?CONSOLE("Mnesia is not running, in state ~p.", [Else]),
+			exit(mnesia_stopped)
 	end.
+	
 
 -ifdef(EUNIT).
 split_empty_string_test() ->
@@ -238,4 +235,42 @@ hex_bin_conversion_test_() ->
 		}
 	].
 
+buile_table_test() -> 
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	{
+		foreach,
+		fun() -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			ok
+		end,
+		fun(_Whatever) ->
+			mnesia:stop(),
+			mnesia:delete_schema([node()])
+		end,
+		[
+			{
+				"Everything is okay",
+				fun() -> 
+					mnesia:create_schema([node()]),
+					mnesia:start(),
+					?assertMatch({atomic, ok}, build_table(test_table, ?TEST_TABLE))
+				 end
+			},
+			{
+				"Mnesia not started",
+				fun() -> 
+					?assertExit(mnesia_stopped, build_table(test_table, ?TEST_TABLE))
+				end
+			},
+			{
+				"Mnesia Has Ram Schema",
+				fun() -> 
+					mnesia:start(), 
+					?assertExit(mnesia_schema_not_found, build_table(test_table, ?TEST_TABLE))
+				end
+			}
+		]
+	}.
+				
 -endif.

@@ -143,8 +143,13 @@ balance(State) when length(State#state.agents) < length(State#state.dispatchers)
 	io:format("Killing a dispatcher~n"),
 	[Pid | Dispatchers] = lists:reverse(State#state.dispatchers),
 	io:format("Pid I'm about to kill: ~p.  me:  ~p.  Dispatchers:  ~p~n", [Pid, self(), Dispatchers]),
-	% TODO check if the dispatcher pid is alive before we stop it
-	ok = dispatcher:stop(Pid),
+	case is_process_alive(Pid) of
+		true ->
+			ok = dispatcher:stop(Pid);
+		Else -> 
+			% don't try to kill it.
+			ok
+	end,
 	balance(State#state{dispatchers=Dispatchers});
 balance(State) -> 
 	io:format("It is fully balanced!~n"),

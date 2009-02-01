@@ -50,7 +50,6 @@
 -export([
 	start_link/2, 
 	start/2, 
-	listener/1, % TODO no need to export
 	ring_agent/2]).
 
 %% gen_server callbacks
@@ -73,13 +72,13 @@
 %% API
 %%====================================================================
 %% @doc Start the media manager unlinked to the parent process.  `Nodename' is the name of the C node for mod_erlang in freeswitch; 
-%% `Domain' is the domain of the node.
+%% `Domain' is the domain to ring to sip agents.
 %% @clear
-% TODO do we need domain?
+% Domain is there to help ring agents.
 start(Nodename, Domain) -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
 %% @doc Start the media manager linked to the parent process.  `Nodename' is the name of the C node for mod_erlang in freeswitch; 
-%% `Domain' is the domain of the node.
+%% `Domain' is the domain to ring to sip agents.
 %% @clear
 start_link(Nodename, Domain) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
@@ -142,9 +141,6 @@ handle_info({new_pid, Ref, From}, State) ->
 	{ok, Pid} = freeswitch_media:start(),
 	From ! {Ref, Pid},
 	{noreply, State};
-% TODO There's no such message
-handle_info({register_event_handler, {ok, Pid}}, State) -> 
-	{noreply, State#state{freeswitch_c_pid = Pid}};
 handle_info({'EXIT', Pid, normal}, State) -> 
 	io:format("Trapping exit from ~p because of ~p.~n", [Pid, normal]),
 	{noreply, State};

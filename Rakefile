@@ -53,15 +53,20 @@ end
 rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam'] do |t|
 	mod = File.basename(t.source, '.beam')
 	test_output = `erl -pa debug_ebin -sname testpx -s test_coverage start #{mod} -run init stop`
-	if /\*failed\*/ =~ test_output
+	if /(All \d+ tests successful|There were no tests to run|This module does not provide a test\(\) function)/ =~ test_output
+		puts "  #{mod.ljust(@maxwidth - 1)} : #{$1}"
+	else
 		puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
 		File.delete(t.to_s)
-	elsif / REPORT===/ =~ test_output
-		puts test_output
-		File.delete(t.to_s)
-	else
-		test_output[/1>\s*(.*)\n/]
-		puts "  #{mod.ljust(@maxwidth - 1)} : #{$1}"
+	#else # /=ERROR REPORT===/ =~ test_output
+		#puts test_output
+		#File.delete(t.to_s)
+	#elsif /=INFO REPORT===/ =~ test_output
+		#puts test_output
+		#File.delete(t.to_s)
+	#else
+		#test_output[/1>\s*(.*)\n/]
+		#puts "  #{mod.ljust(@maxwidth - 1)} : #{$1}"
 	end
 end
 

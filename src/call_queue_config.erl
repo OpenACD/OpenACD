@@ -279,8 +279,13 @@ call_queue_test_() ->
 		%	?debugFmt("Node:  ~p~n", [node()]),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
 			build_tables(),
-			mnesia:start()
+			F = fun() -> 
+				mnesia:delete({call_queue, "default_queue"})
+			end,
+			mnesia:transaction(F)
 		end,
 		fun(_Whatever) -> 
 			ok

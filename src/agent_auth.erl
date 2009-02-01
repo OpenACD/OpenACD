@@ -276,16 +276,22 @@ stop() ->
 %%--------------------------------------------------------------------
 
 local_auth_test_() -> 
-	mnesia:start(),
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		setup,
-		local,
 		fun() -> 
-			start(),
-			ok
+		%	?debugFmt("Node:  ~p~n", [node()]),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			build_tables(),
+			start()
 		end,
 		fun(_) -> 
-			stop()
+			stop(),
+			mnesia:stop(),
+			mnesia:delete_schema([node()])
 		end,
 		[
 			{

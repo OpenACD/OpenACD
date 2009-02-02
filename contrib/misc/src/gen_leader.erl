@@ -348,8 +348,18 @@ init_it(Starter,Parent,Name,Mod,{CandidateNodes,Workers,Arg},Options) ->
 	    NewE = startStage1(Election#election{incarn = incarnation(Name, node())}),
 
 	    proc_lib:init_ack(Starter, {ok, self()}),
+
+			% ADT - handle the case where there's only one candidate worker and we can't
+			% rely on DOWN messages to trigger the elected() call
+			case length(CandidateNodes) == 1 of
+				true ->
+					% there's only one candidate leader
+					hasBecomeLeader(NewE,#server{parent = Parent,mod = Mod,state = State,debug = Debug},{init});
+				false ->
+					% more than one candidate worker, continue as normal
 	    safe_loop(#server{parent = Parent,mod = Mod,state = State,debug = Debug}, 
-		      candidate, NewE,{init});
+		      candidate, NewE,{init})
+		end;
 	{{ok, State}, false} ->
 	    proc_lib:init_ack(Starter, {ok, self()}), 	  
 	    safe_loop(#server{parent = Parent,mod = Mod,state = State,debug = Debug}, 

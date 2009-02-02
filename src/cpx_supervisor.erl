@@ -179,75 +179,101 @@ load_specs() ->
 -ifdef(EUNIT).
 
 config_test_() -> 
-	mnesia:start(),
-	cpx_supervisor:start(),
-	[
-		{
-			"Adding a Valid Config",
-			fun() -> 
-				Valid = #cpx_conf{module_name = dummy_mod, start_function = start, start_args = []},
-				add_conf(dummy_mod, start, []),
-				QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
-				F = fun() -> 
-					qlc:e(QH)
-				end,
-				?assertMatch({atomic, [Valid]}, mnesia:transaction(F)),
-				destroy(dummy_mod)
-			end
-		},
-		{
-			"Destroy a Config by full spec",
-			fun() -> 
-				Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
-				add_conf(dummy_mod, start, []),
-				destroy(Spec),
-				QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
-				F = fun() -> 
-					qlc:e(QH)
-				end,
-				?assertMatch({atomic, []}, mnesia:transaction(F))
-			end
-		},
-		{
-			"Destroy a Config by id only",
-			fun() -> 
-				add_conf(dummy_mod, start, []),
-				destroy(dummy_mod),
-				QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
-				F = fun() -> 
-					qlc:e(QH)
-				end,
-				?assertMatch({atomic, []}, mnesia:transaction(F))
-			end
-		},
-		{
-			"Update a Config",
-			fun() -> 
-				Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
-				add_conf(dummy_mod, start, []),
-				update_conf(dummy_mod, new_mod, new_start, [new_arg]),
-				QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
-				F = fun() ->
-					qlc:e(QH)
-				end,
-				?assertMatch({atomic, []}, mnesia:transaction(F)),
-				Valid = #cpx_conf{module_name = new_mod, start_function = new_start, start_args = [new_arg]},
-				QH2 = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= new_mod]),
-				F2 = fun() -> 
-					qlc:e(QH2)
-				end,
-				?assertMatch({atomic, [Valid]}, mnesia:transaction(F2)),
-				destroy(new_mod),
-				destroy(dummy_mod)
-			end
-		},
-		{
-			"Build a Spec from Record",
-			fun() -> 
-				Record = #cpx_conf{module_name = dummy_mod, start_function = start, start_args = []},
-				?assertMatch({dummy_mod, {dummy_mod, start, []}, permanent, 20000, worker, [?MODULE]}, build_spec(Record))
-			end
-		}
-	].
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	{
+		setup,
+		fun() -> 
+		%	?debugFmt("Node:  ~p~n", [node()]),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			cpx_supervisor:start()
+		end,
+		fun(_Whatever) -> 
+			cpx_supervisor:stop(),
+			ok
+		end,
+		[
+			{
+				"Adding a Valid Config",
+				fun() -> 
+					Valid = #cpx_conf{module_name = dummy_mod, start_function = start, start_args = []},
+					try add_conf(dummy_mod, start, [])
+					catch
+						_:_ -> ok
+					end,
+					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
+					F = fun() -> 
+						qlc:e(QH)
+					end,
+					?assertMatch({atomic, [Valid]}, mnesia:transaction(F)),
+					destroy(dummy_mod)
+				end
+			},
+			{
+				"Destroy a Config by full spec",
+				fun() -> 
+					Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
+					try add_conf(dummy_mod, start, [])
+					catch
+						_:_ -> ok
+					end,
+					destroy(Spec),
+					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
+					F = fun() -> 
+						qlc:e(QH)
+					end,
+					?assertMatch({atomic, []}, mnesia:transaction(F))
+				end
+			},
+			{
+				"Destroy a Config by id only",
+				fun() -> 
+					try add_conf(dummy_mod, start, [])
+					catch
+						_:_ -> ok
+					end,
+					destroy(dummy_mod),
+					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
+					F = fun() -> 
+						qlc:e(QH)
+					end,
+					?assertMatch({atomic, []}, mnesia:transaction(F))
+				end
+			},
+			{
+				"Update a Config",
+				fun() -> 
+					Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
+					try add_conf(dummy_mod, start, [])
+					catch
+						_:_ -> ok
+					end,
+					update_conf(dummy_mod, new_mod, new_start, [new_arg]),
+					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_mod]),
+					F = fun() ->
+						qlc:e(QH)
+					end,
+					?assertMatch({atomic, []}, mnesia:transaction(F)),
+					Valid = #cpx_conf{module_name = new_mod, start_function = new_start, start_args = [new_arg]},
+					QH2 = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= new_mod]),
+					F2 = fun() -> 
+						qlc:e(QH2)
+					end,
+					?assertMatch({atomic, [Valid]}, mnesia:transaction(F2)),
+					destroy(new_mod),
+					destroy(dummy_mod)
+				end
+			},
+			{
+				"Build a Spec from Record",
+				fun() -> 
+					Record = #cpx_conf{module_name = dummy_mod, start_function = start, start_args = []},
+					?assertMatch({dummy_mod, {dummy_mod, start, []}, permanent, 20000, worker, [?MODULE]}, build_spec(Record))
+				end
+			}
+		]
+	}.
 				
 -endif.

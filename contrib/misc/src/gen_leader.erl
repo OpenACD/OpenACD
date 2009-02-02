@@ -345,7 +345,7 @@ init_it(Starter,Parent,Name,Mod,{CandidateNodes,Workers,Arg},Options) ->
 	    proc_lib:init_ack(Starter, {error, Reason}),
 	    exit(Reason);
 	{{ok, State}, true} ->
-	    NewE = startStage1(Election#election{incarn = incarnation(node())}),
+	    NewE = startStage1(Election#election{incarn = incarnation(Name, node())}),
 
 	    proc_lib:init_ack(Starter, {ok, self()}),
 	    safe_loop(#server{parent = Parent,mod = Mod,state = State,debug = Debug}, 
@@ -369,7 +369,7 @@ init_it(Starter,Parent,Name,Mod,{CandidateNodes,Workers,Arg},Options) ->
 
 
 safe_loop(#server{mod = Mod, state = State} = Server, Role,
-	  #election{name = Name} = E, PrevMsg) ->
+	  #election{name = Name} = E, _PrevMsg) ->
     % Event for QuickCheck
     % ?EVENT({Role,E}),
     receive
@@ -480,7 +480,7 @@ safe_loop(#server{mod = Mod, state = State} = Server, Role,
 	
 	{tau_timeout} = Msg ->
 	    safe_loop(Server,Role,E,Msg);
-	{'DOWN',Ref,process,From,Reason} = Msg when Role == waiting_worker ->
+	{'DOWN',_Ref,process,From,_Reason} = Msg when Role == waiting_worker ->
 	    % We are only monitoring one proc, the leader!
 	    Node = case From of
 		       {Name,_Node} -> _Node;
@@ -495,7 +495,7 @@ safe_loop(#server{mod = Mod, state = State} = Server, Role,
 		    NewE = E
 	    end,  
 	    safe_loop(Server, Role, NewE,Msg);
-	{'DOWN',Ref,process,From,Reason} = Msg ->
+	{'DOWN',Ref,process,From,_Reason} = Msg ->
 	    Node = case From of
 		       {Name,_Node} -> _Node;
 		       _ when pid(From) -> node(From)
@@ -543,7 +543,7 @@ safe_loop(#server{mod = Mod, state = State} = Server, Role,
 loop(#server{parent = Parent,
 	     mod = Mod,
 	     state = State,
-	     debug = Debug} = Server, Role, #election{name = Name} = E, PrevMsg) ->
+	     debug = Debug} = Server, Role, #election{name = Name} = E, _PrevMsg) ->
     % Event for QuickCheck
     % ?EVENT({Role,E}),
     receive
@@ -636,7 +636,7 @@ loop(#server{parent = Parent,
 			    ok
 		    end,
 		    loop(Server,Role,E,Msg);
-		{'DOWN',Ref,process,From,Reason} when Role == worker ->
+		{'DOWN',_Ref,process,From,_Reason} when Role == worker ->
 		    % We are only monitoring one proc, the leader!
 		    Node = case From of
 			       {Name,_Node} -> _Node;
@@ -651,7 +651,7 @@ loop(#server{parent = Parent,
 			false ->
 			    loop(Server, Role, E,Msg)
 		    end;		    
-		{'DOWN',Ref,process,From,Reason} ->
+		{'DOWN',Ref,process,From,_Reason} ->
 		    Node = case From of
 			       {Name,_Node} -> _Node;
 			       _ when pid(From) -> node(From)
@@ -689,13 +689,13 @@ loop(#server{parent = Parent,
 %% Callback functions for system messages handling.
 %%-----------------------------------------------------------------
 %% @hidden 
-system_continue(Parent, Debug, [safe, Server, Role, E]) ->
+system_continue(_Parent, _Debug, [safe, Server, Role, E]) ->
     safe_loop(Server, Role, E,{});
-system_continue(Parent, Debug, [normal, Server, Role, E]) ->
+system_continue(_Parent, _Debug, [normal, Server, Role, E]) ->
     loop(Server, Role, E,{}).
 
 %% @hidden 
-system_terminate(Reason, _Parent, Debug, [Mode, Server, Role, E]) ->
+system_terminate(Reason, _Parent, _Debug, [_Mode, Server, Role, E]) ->
     terminate(Reason, [], Server, Role, E).
 
 %% @hidden 
@@ -835,9 +835,9 @@ reply({To, Tag}, Reply, #server{state = State} = Server, Role, E) ->
     handle_debug(Server, Role, E, {out, Reply, To, State}).
 
 
-handle_debug(#server{debug = []} = Server, _Role, _E, Event) ->
+handle_debug(#server{debug = []} = Server, _Role, _E, _Event) ->
     Server;
-handle_debug(#server{debug = Debug} = Server, Role, E, Event) ->
+handle_debug(#server{debug = Debug} = Server, _Role, E, Event) ->
     Debug1 = sys:handle_debug(Debug, {?MODULE, print_event}, 
 			      E#election.name, Event),
     Server#server{debug = Debug1}.
@@ -848,8 +848,8 @@ handle_debug(#server{debug = Debug} = Server, Role, E, Event) ->
 
 terminate(Reason, Msg, #server{mod = Mod, 
 			       state = State,
-			       debug = Debug} = Server, Role,
-	  #election{name = Name} = E) ->
+			       debug = Debug} = _Server, _Role,
+	  #election{name = Name} = _E) ->
     case catch Mod:terminate(Reason, State) of
 	{'EXIT', R} ->
 	    error_info(R, Name, Msg, State, Debug),
@@ -920,7 +920,7 @@ dbg_opts(Name, Opts) ->
 %%-----------------------------------------------------------------
 %% @hidden 
 format_status(Opt, StatusData) ->
-    [PDict, SysState, Parent, Debug, [Mode, Server, Role, E]] = StatusData,
+    [PDict, SysState, Parent, Debug, [_Mode, Server, _Role, E]] = StatusData,
     Header = lists:concat(["Status for generic server ", E#election.name]),
     Log = sys:get_debug(log, Debug, []),
     #server{mod = Mod, state = State} = Server,
@@ -1001,7 +1001,7 @@ mon_nodes(E,Nodes) ->
 %% Star monitoring one Process
 mon_node(E,Proc) ->
     Node = case Proc of
-	       {Name,Node_} -> 
+	       {_Name,Node_} -> 
 		   Node_;
 	       Pid when pid(Pid) -> 
 		   node(Pid)
@@ -1058,15 +1058,20 @@ hasBecomeLeader(E,Server,Msg) ->
 % Atomicity: This approach is safe as long as there is only 
 % one gen_leader running per node.
 %
-incarnation(Node) ->
-    case file:read_file_info(Node) of
-	{error,Reason} ->
-	    ok = file:write_file(Node,term_to_binary(1)),
+% Modified by Andrew Thompson to use the locally registered
+% name in addition to the nodename to allow multiple gen_leaders
+% per node
+%
+incarnation(Name, Node) ->
+    FileName = lists:flatten(io_lib:format(".~p-~p", [Name, Node])),
+    case file:read_file_info(FileName) of
+	{error,_Reason} ->
+	    ok = file:write_file(FileName,term_to_binary(1)),
 	    0;
 	{ok,_} ->
-	    {ok,Bin} = file:read_file(Node),
+	    {ok,Bin} = file:read_file(FileName),
 	    Incarn = binary_to_term(Bin),
-	    ok = file:write_file(Node,term_to_binary(Incarn+1)),
+	    ok = file:write_file(FileName,term_to_binary(Incarn+1)),
 	    Incarn
     end.
 

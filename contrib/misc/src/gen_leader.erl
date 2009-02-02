@@ -518,6 +518,7 @@ safe_loop(#server{mod = Mod, state = State} = Server, Role,
 		    case ( pos(Node,E#election.candidate_nodes) < 
 			     pos(node(),E#election.candidate_nodes) ) of
 			true ->
+					NewServer = Server,
 			    Lesser = lesser(node(),E#election.candidate_nodes),
 			    LesserIsSubset = (Lesser -- NewDown) == [],
 			    case ((E#election.status == wait) and (Node == E#election.leadernode)) of
@@ -532,6 +533,14 @@ safe_loop(#server{mod = Mod, state = State} = Server, Role,
 				    end
 			    end;
 			false ->
+					% ADT if we're the leader, call Mod:handle_DOWN as per the documentation
+					case (E#election.leader == self()) of
+						true ->
+							{ok,NewState} = (Server#server.mod):handle_DOWN(Node, Server#server.state, E),
+							NewServer = Server#server{state = NewState};
+						false ->
+							NewServer = Server
+					end,
 			    case ( (E#election.status == elec2) and (Node == E#election.pendack) ) of
 				true ->
 				    NewE = continStage2(E1);
@@ -546,7 +555,7 @@ safe_loop(#server{mod = Mod, state = State} = Server, Role,
 			    end
 		    end 
 	    end,
-	    hasBecomeLeader(NewE,Server,Msg)
+	    hasBecomeLeader(NewE,NewServer,Msg)
     end.
 
 
@@ -677,7 +686,15 @@ loop(#server{parent = Parent,
 				    safe_loop(Server, candidate, NewE,Msg);
 				
 				false ->
-				    loop(Server, Role, E1,Msg)
+					% ADT if we're the leader, call Mod:handle_DOWN as per the documentation
+					case (E#election.leader == self()) of
+						true ->
+							{ok,NewState} = (Server#server.mod):handle_DOWN(Node, Server#server.state, E),
+							NewServer = Server#server{state = NewState};
+						false ->
+							NewServer = Server
+					end,
+				    loop(NewServer, Role, E1,Msg)
 			    end;
 			false ->
 			    % I am the leader, make sure the dead worker is in work_down.

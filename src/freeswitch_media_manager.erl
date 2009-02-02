@@ -116,7 +116,7 @@ init([Nodename, Domain]) ->
 handle_call({ring_agent, AgentPid, Call}, _From, State) ->
 	% TODO test functionality
 	AgentRec = agent:dump_state(AgentPid),
-	Args = "{dstchan=" ++ Call#call.id ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " &park()",
+	Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ " '&erlang("++?MODULE++":! "++State#state.nodename++")'",
 	X = freeswitch:bgapi(State#state.nodename, originate, Args),
 	io:format("Bgapi call res:  ~p~nWith args: ~p~n", [X, Args]),
 	{reply, agent:set_state(AgentPid, ringing, Call), State};

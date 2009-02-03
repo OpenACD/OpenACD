@@ -216,17 +216,17 @@ handle_call({add, Name, Recipe, Weight}, _From, State) ->
 handle_call({exists, Name}, _From, State) ->
 	{reply, dict:is_key(Name, State), State};
 handle_call({get_queue, Name}, From, State) ->
-	io:format("get_queue start...~n"),
+	?CONSOLE("get_queue start...", []),
 	case dict:find(Name, State) of
 		{ok, Pid} ->
 			{reply, Pid, State};
 		error ->
-			io:format("get_queue looking in mnesia...~n"),
-			case call_queue_config:get_all(Name) of
+			?CONSOLE("get_queue looking in mnesia...", []),
+			case call_queue_config:get_queue(Name) of
 				noexists -> 
 					{reply, undefined, State};
-				[Queue] when is_record(Queue, call_queue) -> 
-					io:format("get_queue mnesia found it, starting...~n"),
+				Queue when is_record(Queue, call_queue) -> 
+					?CONSOLE("get_queue mnesia found it, starting...", []),
 					% TODO prolly a better way to do this than a handle_call.
 					{reply, {ok, Pid}, Newstate} = handle_call({add, Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight}, From, State),
 					{reply, Pid, Newstate}

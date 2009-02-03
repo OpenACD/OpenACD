@@ -28,19 +28,7 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--define(QUEUE_TABLE,
-	[
-		{attributes, record_info(fields, call_queue)},
-		{ram_copies, lists:append(nodes(), [node()])}
-	]
-).
--define(SKILL_TABLE, 
-	[
-		{attributes, record_info(fields, skill_rec)},
-		{ram_copies, lists:append([nodes(), [node()]])}
-	]
-).
--else.
+-endif.
 -define(QUEUE_TABLE, 
 	[
 		{attributes, record_info(fields, call_queue)},
@@ -53,9 +41,9 @@
 		{disc_copies, lists:append([nodes(), [node()]])}
 	]
 ).
--endif.
 
 -include("queue.hrl").
+-include("call.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
 % TODO roll these into call_queue?
@@ -80,8 +68,7 @@
 %% @doc Attempts to set-up and create the required mnesia table 'call_queue.'
 %% Errors caused by the table already existing are ignored.
 build_tables() -> 
-	% TODO use util:build_table for both call_queue and skill_rec
-	io:format("~p building tables...~n", [?MODULE]),
+	?CONSOLE("~p building tables...", [?MODULE]),
 	A = util:build_table(call_queue, ?QUEUE_TABLE),
 	case A of
 		{atomic, ok} -> 
@@ -288,6 +275,8 @@ call_queue_test_() ->
 			mnesia:transaction(F)
 		end,
 		fun(_Whatever) -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
 			ok
 		end,
 		[
@@ -469,22 +458,38 @@ call_queue_test_() ->
 	}.
 
 skill_rec_test_() -> 
-	mnesia:start(),
-	[
-		{
-			"Test for a known skill atom",
-			fun() -> 
-				Skillrec = skill_exists("_node"),
-				?assertMatch('_node', Skillrec)
-			end
-		},
-		{
-			"Test for an unknown skill atom",
-			fun() -> 
-				Skillrec = skill_exists("Not a valid skill"),
-				?assertMatch(undefined, Skillrec)
-			end
-		}
-	].
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	{
+		setup,
+		fun() -> 
+		%	?debugFmt("Node:  ~p~n", [node()]),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			build_tables()
+		end,
+		fun(_Whatever) -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			ok
+		end,
+		[
+			{
+				"Test for a known skill atom",
+				fun() -> 
+					Skillrec = skill_exists("_node"),
+					?assertMatch('_node', Skillrec)
+				end
+			},
+			{
+				"Test for an unknown skill atom",
+				fun() -> 
+					Skillrec = skill_exists("Not a valid skill"),
+					?assertMatch(undefined, Skillrec)
+				end
+			}
+		]
+	}.
 
 -endif.

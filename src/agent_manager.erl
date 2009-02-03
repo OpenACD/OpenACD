@@ -74,7 +74,7 @@ start_agent(Agent) ->
 %% then the length of the list of skills the agent has;  this means idle time is less important.
 -spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [{string(), pid(), #agent{}}]).
 find_avail_agents_by_skill(Skills) ->
-	io:format("skills passed:  ~p.~n", [Skills]),
+	?CONSOLE("skills passed:  ~p.", [Skills]),
 	AvailSkilledAgents = [{K, V, AgState} || {K, V} <- gen_server:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], AgState#agent.state =:= idle, util:list_contains_all(AgState#agent.skills, Skills)],
 	AvailSkilledAgentsByIdleTime = lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> State1#agent.lastchangetimestamp =< State2#agent.lastchangetimestamp end, AvailSkilledAgents), 
 	lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> length(State1#agent.skills) =< length(State2#agent.skills) end, AvailSkilledAgentsByIdleTime).
@@ -159,10 +159,10 @@ handle_info({'EXIT', From, _Reason}, State) ->
 	State)
 	};
 handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
-	io:format("agent_manager is taking care of an agent down.~n"),
+	?CONSOLE("agent_manager is taking care of an agent down.", []),
 	{noreply, dict:filter(fun(_Key, Value) -> Value =/= Object end, State)};
 handle_info({global_name_conflict, _Name}, State) ->
-	io:format("Node ~p lost election~n", [node()]),
+	?CONSOLE("Node ~p lost election", [node()]),
 	link(global:whereis_name(?MODULE)),
 	{noreply, sync_agents(State)};
 

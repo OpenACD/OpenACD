@@ -47,27 +47,27 @@
 -define(TIMEOUT, 10000).
 
 %% API
--export([start/0]).
+-export([start/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--record(state, {callrec = #call{}, queue, queue_pid, mode}).
+-record(state, {callrec = #call{}, queue, queue_pid, cnode, agent, agent_pid}).
 
 %%====================================================================
 %% API
 %%====================================================================
-%% @doc starts the freeswitch media gen_server.
-start() -> 
-	gen_server:start(?MODULE, [], []).
+%% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
+start(Cnode) -> 
+	gen_server:start(?MODULE, [Cnode], []).
 
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 %% @private
-init([]) ->
-    {ok, #state{}}.
+init([Cnode]) ->
+    {ok, #state{cnode=Cnode}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -84,53 +84,6 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-% TODO This first handle_cast is irrelevant, this functionality should be moved to handle_info
-handle_cast({Callid, Rawcall}, State) -> 
-%	io:format("fm Cast for call ~p.  I'm ~p.~n", [Callid, self()]),
-	case freeswitch:get_event_name(Rawcall) of
-		"CHANNEL_ANSWER" -> 
-			io:format("fm progress:  CHANNEL_ANSWER~n"),
-			case has_dst_chan(Rawcall) of
-				false -> 
-					Q = freeswitch:get_event_header(Rawcall, "variable_queue"),
-					Brand = freeswitch:get_event_header(Rawcall, "variable_brand"),
-					Callerid = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
-					Protocall = State#state.callrec,
-					Protocall2 = Protocall#call{id=Callid, client=Brand, callerid=Callerid},
-					{noreply, State#state{callrec=Protocall2, queue=Q}};
-				_Else ->
-					io:format("Nothing needs to be done, as this is a bridge aid~n")
-			end;
-		"CUSTOM" -> 
-			io:format("Custom event, begin with sub~n"),
-			case has_dst_chan(Rawcall) of
-				false -> 
-					case freeswitch:get_event_header(Rawcall, "Event-Subclass") of
-						"fifo::info" -> 
-							fifo_parse(Rawcall, State);
-						Otherwise -> 
-							io:format("disregarding this custom: ~p~n", [Otherwise]),
-							{noreply, State}
-					end;
-				_Else -> 
-					io:format("Still, nothing needs to be done~n")
-			end;
-		"CHANNEL_HANGUP" -> 
-			io:format("Call almost done, if it's in a queue, remove it.~n"),
-			case State#state.queue_pid of
-				undefined -> 
-					{noreply, State};
-				Q -> 
-					call_queue:remove(Q, State#state.callrec),
-					{noreply, State}
-			end;
-		"CHANNEL_DESTROY" -> 
-			io:format("Call done, time to die.~n"),
-			{stop, normal, State};
-		Else -> 
-			io:format("Not an event we care about: ~p~n", [Else]),
-			{noreply, State}
-	end;
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -138,41 +91,15 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({call, {event, [UUID | Rest]}}, #state{callrec = Call} = State) -> 
-	io:format("new call ~p.  I'm ~p~n", [UUID, self()]),
-	% TODO why cast to self?  handle it.
-	gen_server:cast(self(), {UUID, Rest}),
-	Newcall = Call#call{id = UUID},
-	{noreply, State#state{callrec=Newcall}};
+handle_info({call, {event, [UUID | Rest]}}, State) -> 
+	?CONSOLE("~p reporting new call ~p.", [self(), UUID]),
+	case_event_name([UUID | Rest], State);
 handle_info({call_event, {event, [UUID | Rest]}}, State) -> 
+	?CONSOLE("~p reporting existing call progess ~p.", [self(), UUID]),
 	% TODO flesh out for all call events.
-	case freeswitch:get_event_name(Rest) of
-		"CHANNEL_PARK" ->
-			case State#state.queue_pid of
-				undefined ->
-					Queue = freeswitch:get_event_header(Rest, "variable_queue"),
-					Brand = freeswitch:get_event_header(Rest, "variable_brand"),
-					Callerid = freeswitch:get_event_header(Rest, "Caller-Caller-ID-Name"),
-					% TODO condense the next 2 lines into one
-					Protocall = State#state.callrec,
-					Protocall2 = Protocall#call{id=UUID, client=Brand, callerid=Callerid, source=self()},
-					case queue_manager:get_queue(Queue) of
-						undefined ->
-							% TODO what to do w/ the call w/ no queue?
-							io:format("Uh oh, no queue of ~p~n", [Queue]),
-							{noreply, State};
-						Qpid -> 
-							io:format("Trying to add to queue...~n"),
-							R = call_queue:add(Qpid, Protocall2),
-							io:format("q response:  ~p~n", [R]),
-							{noreply, State#state{queue_pid=Qpid, queue=Queue, callrec=Protocall2}}
-					end;
-				 _Otherwise -> 
-					 {noreply, State} 
-			end;
-		_Other_event -> 
-			{noreply, State}
-	end;
+	case_event_name([ UUID | Rest], State);
+handle_info({set_agent, Login, Apid}, State) -> 
+	{noreply, State#state{agent = Login, agent_pid = Apid}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -205,27 +132,94 @@ has_dst_chan(Rawcall) ->
 	
 %% @private
 fifo_parse(Rawcall, State) -> 
-	io:format("fifo::info needs more processing.~n"),
+	?CONSOLE("fifo::info needs more processing.", []),
 	case freeswitch:get_event_header(Rawcall, "FIFO-Action") of
 		"push" -> 
-			io:format("put into queue~n"),
+			?CONSOLE("put into queue", []),
 				case queue_manager:get_queue(State#state.queue) of
 					undefined ->
 						% TODO if we start using fifo again, what do we really want to do here?
-						io:format("Uh oh, no queue of ~p~n", [State#state.queue]),
+						?CONSOLE("Uh oh, no queue of ~p", [State#state.queue]),
 						{noreply, State};
 					Qpid -> 
-						io:format("Trying to add to queue...~n"),
+						?CONSOLE("Trying to add to queue...", []),
 						% TODO and if this failed?
 						R = call_queue:add(Qpid, State#state.callrec),
-						io:format("q response:  ~p~n", [R]),
+						?CONSOLE("q response:  ~p", [R]),
 						{noreply, State#state{queue_pid=Qpid}}
 				end;
 		"abort" ->
-			io:format("happy hangup~n"),
+			?CONSOLE("happy hangup", []),
 			{noreply, State};
 		Else -> 
 			% TODO uh indeed.
-			io:format("Uh...~p~n", [Else]),
+			?CONSOLE("Uh...~p", [Else]),
+			{noreply, State}
+	end.
+
+case_event_name([UUID | Rawcall], State) ->
+	Ename = freeswitch:get_event_name(Rawcall),
+%	?CONSOLE("Event:  ~p;  UUID:  ~p", [Ename, UUID]),
+	case Ename of
+		"CHANNEL_PARK" ->
+			case has_dst_chan(Rawcall) of
+				false -> 
+					case State#state.queue_pid of
+						undefined ->
+							Queue = freeswitch:get_event_header(Rawcall, "variable_queue"),
+							Brand = freeswitch:get_event_header(Rawcall, "variable_brand"),
+							Callerid = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
+							% TODO condense the next 2 lines into one
+							Protocall = State#state.callrec,
+							Protocall2 = Protocall#call{id=UUID, client=Brand, callerid=Callerid, source=self()},
+							case queue_manager:get_queue(Queue) of
+								undefined ->
+									% TODO what to do w/ the call w/ no queue?
+									?CONSOLE("Uh oh, no queue of ~p", [Queue]),
+									{noreply, State};
+								Qpid -> 
+									?CONSOLE("Trying to add to queue...", []),
+									R = call_queue:add(Qpid, Protocall2),
+									?CONSOLE("q response:  ~p", [R]),
+									freeswitch_media_manager:queued_call(UUID, Qpid),
+									{noreply, State#state{queue_pid=Qpid, queue=Queue, callrec=Protocall2}}
+							end;
+						 _Otherwise -> 
+							 {noreply, State} 
+					end;
+				Else -> 
+					?CONSOLE("Bridging UUID ~p to ~p", [UUID, Else]),
+					X = freeswitch:api(State#state.cnode, uuid_bridge, lists:append([Else, " ", UUID])),
+					?CONSOLE("result of bridging to node ~p was ~p", [State#state.cnode, X]),
+					% remove the call from queue, in this case Else.
+					{ok, Qpid} = freeswitch_media_manager:find_queued(Else),
+					?CONSOLE("Time to remove ~p from ~p", [Else, Qpid]),
+					{_Key, Callrec} = call_queue:get_call(Qpid, Else),
+					call_queue:remove(Qpid, Else),
+					freeswitch_media_manager:unqueue_call(Else),
+					% now to tell the agent that it is no longer ringing, but in call.
+					case freeswitch:get_event_header(Rawcall, "variable_agent") of
+						{error, notfound} -> 
+							?CONSOLE("Could not find agent in headers for ~p.", [Else]),
+							{noreply, State};
+						Agent ->
+							{true, Apid} = agent_manager:query_agent(Agent),
+							agent:set_state(Apid, oncall, Callrec),
+							freeswitch_media_manager:agent_call(Else, Apid),
+							{noreply, State}
+					end
+			end;
+		"CHANNEL_HANGUP" -> 
+			% on a channel destroy, set the agent to wrap-up.
+			case freeswitch_media_manager:find_agent(UUID) of
+				{ok, Apid} -> 
+					agent:set_state(Apid, wrapup, State#state.callrec),
+					freeswitch_media_manager:unagent_call(UUID),
+					{noreply, State};
+				Else -> 
+					{noreply, State}
+			end;
+		Else -> 
+		%	?CONSOLE("Event unhandled", []),
 			{noreply, State}
 	end.

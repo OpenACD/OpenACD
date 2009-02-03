@@ -163,8 +163,8 @@ print(Pid) ->
 %% @doc Remove the call with id of `Calldata' from the queue at `Pid'.  Returns `ok' on success, `none' on failure.
 -spec(remove/2 :: (Pid :: pid(), Calldata :: #call{}) -> 'none' | 'ok';
 					(Pid :: pid(), Calldata :: string()) -> 'none' | 'ok').
-remove(Pid, #call{} = Calldata) ->
-	remove(Pid, Calldata#call.id);
+remove(Pid, #call{id = Id}) ->
+	remove(Pid, Id);
 remove(Pid, Calldata) -> 
 	gen_server:call(Pid, {remove, Calldata}).
 
@@ -217,13 +217,7 @@ find_key_(_Needle, none) ->
 
 %% @private
 handle_call({get_call, Callid}, _From, State) -> 
-	% TODO collapse the case down to one line
-	case find_key(Callid, State#state.queue) of
-		none -> 
-			{reply, none, State};
-		{Key, Value} -> 
-			{reply, {Key, Value}, State}
-	end;
+	{reply, find_key(Callid, State#state.queue), State};
 handle_call({ungrab, Callid}, {From, _Tag}, State) ->
 	case find_key(Callid, State#state.queue) of
 		none -> 
@@ -282,6 +276,7 @@ handle_call(print, _From, State) ->
 	{reply, State, State};
 
 handle_call({remove, Id}, _From, State) ->
+	?CONSOLE("Trying to remove call ~p...", [Id]),
 	case find_key(Id, State#state.queue) of
 		none ->
 			{reply, none, State};
@@ -325,7 +320,7 @@ handle_info({'EXIT', From, _Reason}, State) ->
 	{noreply, State#state{queue=Newtree}};
 	
 handle_info(Info, State) ->
-	io:format("got info ~p~n", [Info]),
+	?CONSOLE("got info ~p", [Info]),
 	{noreply, State}.
 
 %% @private

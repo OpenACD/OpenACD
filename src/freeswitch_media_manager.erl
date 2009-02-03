@@ -50,7 +50,13 @@
 -export([
 	start_link/2, 
 	start/2, 
-	ring_agent/2]).
+	ring_agent/2,
+	queued_call/2,
+	find_queued/1,
+	unqueue_call/1,
+	agent_call/2,
+	find_agent/1,
+	unagent_call/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -59,7 +65,8 @@
 -record(state, {
 	nodename :: atom(),
 	freeswitch_c_pid :: pid(),
-	watched_calls, % ets table of the call id's already queued.  TODO we prolly don't need this anymore
+	queued_at = dict:new(),
+	agent_at = dict:new(),
 	domain
 	}).
 	
@@ -83,13 +90,36 @@ start(Nodename, Domain) ->
 start_link(Nodename, Domain) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
 
+%% @doc Inform the primary manager that call of id `Callid' has been placed in the queue at pid `Qpid'.
+queued_call(Callid, Qpid) -> 
+	gen_server:cast(?MODULE, {queued_call, Callid, Qpid}).
+
+%% @doc return the pid of the queue the given call id of `Callid' is placed in.
+find_queued(Callid) -> 
+	gen_server:call(?MODULE, {find_queued, Callid}).
+
+%% @doc Notifies the manager that the call id `Callid' is no longer queued anywhere.
+unqueue_call(Callid) ->
+	gen_server:cast(?MODULE, {unqueue_call, Callid}).
+
+%% @doc Notifies the manager that `Callid' is now being handled by agent at pid `Apid'.
+agent_call(Callid, Apid) -> 
+	gen_server:cast(?MODULE, {agent_call, Callid, Apid}).
+
+%% @doc Returns the agent pid that is associated with `Callid' if any.
+find_agent(Callid) -> 
+	gen_server:call(?MODULE, {find_agent, Callid}).
+
+%% @doc Notifies the manager that the call identified by `Callid' is free from any agents.
+unagent_call(Callid) -> 
+	gen_server:cast(?MODULE, {unagent_call, Callid}).
+	
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 %% @private
 init([Nodename, Domain]) -> 
 	?CONSOLE("starting...", []),
-	io:format("freeswitch media manager starting...~n"),
 	process_flag(trap_exit, true),
 	Self = self(),
 	% TODO we don't need to register this listener anymore.
@@ -106,22 +136,43 @@ init([Nodename, Domain]) ->
 		end
 	end),
 	T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
-	io:format("Attempted to start events in ffm's init:  ~p~n", [T]),
-    {ok, #state{nodename=Nodename, watched_calls = ets:new(watched_calls, [named_table]), domain=Domain}}.
+	?CONSOLE("Attempted to start events:  ~p", [T]),
+    {ok, #state{nodename=Nodename, domain=Domain}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call({ring_agent, AgentPid, Call}, _From, State) ->
+handle_call({ring_agent, AgentPid, Call}, _From, #state{queued_at = Dict} = State) ->
 	% TODO test functionality
-	AgentRec = agent:dump_state(AgentPid),
-	Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ " '&erlang("++?MODULE++":! "++State#state.nodename++")'",
-	X = freeswitch:bgapi(State#state.nodename, originate, Args),
-	io:format("Bgapi call res:  ~p~nWith args: ~p~n", [X, Args]),
-	{reply, agent:set_state(AgentPid, ringing, Call), State};
+	case dict:find(Call#call.id, Dict) of
+		{ok, Queue} -> 
+			?CONSOLE("As far as we know this call is queued at ~p", [Queue]),
+			AgentRec = agent:dump_state(AgentPid),
+			Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang("++atom_to_list(?MODULE)++":! "++atom_to_list(node())++")'",
+				X = freeswitch:api(State#state.nodename, originate, Args),
+				?CONSOLE("Bgapi call res:  ~p;  With args: ~p", [X, Args]),
+				{reply, agent:set_state(AgentPid, ringing, Call), State};
+		error -> 
+			{reply, {error, not_queued}, State}
+	end;
+handle_call({find_queued, Callid}, _From, #state{queued_at = Dict} = State) -> 
+	case dict:find(Callid, Dict) of
+		error -> 
+			{reply, {error, not_queued}, State};
+		Else -> 
+			{reply, Else, State}
+	end;
+handle_call({find_agent, Callid}, _From, #state{agent_at = Dict} = State) -> 
+	case dict:find(Callid, Dict) of 
+		error -> 
+			?CONSOLE("No agent handling this call", []),
+			{reply, {error, no_agent}, State};
+		Else -> 
+			{reply, Else, State}
+	end;
 handle_call(Request, _From, State) ->
-	io:format("Sudden call at fmm:  ~p~n", [Request]),
+	?CONSOLE("Sudden call:  ~p", [Request]),
 	Reply = ok,
 	{reply, Reply, State}.
 
@@ -129,8 +180,24 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_cast(Msg, State) ->
-	io:format("freeswitch media manager got cast:  ~p~n", [Msg]),
+handle_cast({queued_call, Callid, Qpid}, #state{queued_at = Dict} = State) -> 
+	?CONSOLE("noting that ~p was put in ~p", [Callid, Qpid]),
+	NewDict = dict:store(Callid, Qpid, Dict),
+	{noreply, State#state{queued_at = NewDict}};
+handle_cast({unqueue_call, Callid}, #state{queued_at = Dict} = State) -> 
+	?CONSOLE("Noting that ~p was unqueued.", [Callid]),
+	NewDict = dict:erase(Callid, Dict),
+	{noreply, State#state{queued_at = NewDict}};
+handle_cast({agent_call, Callid, Apid}, #state{agent_at = Dict} = State) -> 
+	?CONSOLE("coupling agent at ~p to call ~p", [Apid, Callid]),
+	NewDict = dict:store(Callid, Apid, Dict),
+	{noreply, State#state{agent_at = NewDict}};
+handle_cast({unagent_call, Callid}, #state{agent_at = Dict} = State) ->
+	?CONSOLE("Decoupling agents from ~p", [Callid]),
+	NewDict = dict:erase(Callid, Dict),
+	{noreply, State#state{agent_at = NewDict}};
+handle_cast(_Msg, State) ->
+	%?CONSOLE("Cast:  ~p", [Msg]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -138,18 +205,21 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info({new_pid, Ref, From}, State) ->
-	{ok, Pid} = freeswitch_media:start(),
+	{ok, Pid} = freeswitch_media:start(State#state.nodename),
 	From ! {Ref, Pid},
 	{noreply, State};
 handle_info({'EXIT', Pid, normal}, State) -> 
-	io:format("Trapping exit from ~p because of ~p.~n", [Pid, normal]),
+	?CONSOLE("Trapping exit from ~p because of ~p.", [Pid, normal]),
 	{noreply, State};
-handle_info({'EXIT', Pid, _Reason}, State) -> 
-	io:format("Bad exit, do clean up for ~p~n", [Pid]),
+handle_info({'EXIT', Pid, shutdown}, State) ->
+	?CONSOLE("Trapping exit from ~p due to ~p.", [Pid, shutdown]),
+	{noreply, State};
+handle_info({'EXIT', Pid, Reason}, State) -> 
+	?CONSOLE("Bad exit ~p, do clean up for ~p", [Reason, Pid]),
 	% TODO find out what clean up needs to be done and do it.
 	{noreply, State};
 handle_info(Info, State) ->
-	io:format("Sudden info at the fmm:  ~p~n", [Info]),
+	?CONSOLE("Sudden info:  ~p", [Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -179,12 +249,13 @@ ring_agent(AgentPid, Call) ->
 % listens for info from the freeswitch c node.
 listener(Node) ->
 	receive
-		{event, Event} ->
-			gen_server:cast(?MODULE, Event), 
+		{event, _Event} ->
+			?CONSOLE("recieved event from c node.", []),
+			%gen_server:cast(?MODULE, Event), 
 			listener(Node);
 		{nodedown, Node} -> 
 			gen_server:cast(?MODULE, nodedown);
 		 Otherwise -> 
-			 io:format("Uncertain reply received by the fmm listener:  ~p~n", [Otherwise]),
+			 ?CONSOLE("Uncertain reply received by the fmm listener:  ~p", [Otherwise]),
 			 listener(Node)
 	end.

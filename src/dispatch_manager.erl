@@ -80,7 +80,7 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_cast({now_avail, AgentPid}, State) -> 
-	io:format("Someone's available now.~n"),
+	?CONSOLE("Someone's available now.", []),
 	case lists:member(AgentPid, State#state.agents) of
 		true -> 
 			{noreply, balance(State)};
@@ -90,7 +90,7 @@ handle_cast({now_avail, AgentPid}, State) ->
 			{noreply, balance(State2)}
 	end;
 handle_cast({end_avail, AgentPid}, State) -> 
-	io:format("An agent is no longer available.~n"),
+	?CONSOLE("An agent is no longer available.", []),
 	State2 = State#state{agents = lists:delete(AgentPid, State#state.agents)},
 	{noreply, balance(State2)};
 
@@ -102,7 +102,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
-	io:format("Announcement that an agent is down, balancing in response.~n"),
+	?CONSOLE("Announcement that an agent is down, balancing in response.", []),
 	State2 = State#state{agents = lists:delete(Object, State#state.agents)},
 	{noreply, balance(State2)};
 handle_info(_Info, State) ->
@@ -134,15 +134,15 @@ stop() ->
 %% @private
 -spec(balance/1 :: (State :: #state{}) -> #state{}).
 balance(State) when length(State#state.agents) > length(State#state.dispatchers) -> 
-	io:format("Starting new dispatcher~n"),
+	?CONSOLE("Starting new dispatcher",[]),
 	Dispatchers = State#state.dispatchers,
 	{ok, Pid} = supervisor:start_child(State#state.supervisor, []),
 	State2 = State#state{dispatchers = [ Pid | Dispatchers]},
 	balance(State2);
 balance(State) when length(State#state.agents) < length(State#state.dispatchers) -> 
-	io:format("Killing a dispatcher~n"),
+	?CONSOLE("Killing a dispatcher",[]),
 	[Pid | Dispatchers] = lists:reverse(State#state.dispatchers),
-	io:format("Pid I'm about to kill: ~p.  me:  ~p.  Dispatchers:  ~p~n", [Pid, self(), Dispatchers]),
+	?CONSOLE("Pid I'm about to kill: ~p.  me:  ~p.  Dispatchers:  ~p~n", [Pid, self(), Dispatchers]),
 	case is_process_alive(Pid) of
 		true ->
 			ok = dispatcher:stop(Pid);
@@ -152,5 +152,5 @@ balance(State) when length(State#state.agents) < length(State#state.dispatchers)
 	end,
 	balance(State#state{dispatchers=Dispatchers});
 balance(State) -> 
-	io:format("It is fully balanced!~n"),
+	?CONSOLE("It is fully balanced!",[]),
 	State.

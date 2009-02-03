@@ -32,7 +32,7 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--define(POLL_INTERVAL, 500).
+-define(POLL_INTERVAL, 10000).
 -else.
 -define(POLL_INTERVAL, 10000).
 -endif.
@@ -58,7 +58,7 @@
 start_link() ->
 	gen_server:start_link(?MODULE, [], []).
 start() ->
-	io:format("Your pid is ~p~n", [self()]),
+	?CONSOLE("Pid is ~p", [self()]),
 	gen_server:start(?MODULE, [], []).
 
 %%====================================================================
@@ -69,11 +69,11 @@ init([]) ->
 	State = #state{},
 	case grab_best() of
 		none ->
-			io:format("no call to grab, lets start a timer~n"),
+			?CONSOLE("no call to grab, lets start a timer", []),
 			{ok, Tref} = timer:send_interval(?POLL_INTERVAL, grab_best),
 			{ok, State#state{tref=Tref}};
 		{Qpid, Call} ->
-			io:format("sweet, grabbed a call~p~n", [Call]),
+			?CONSOLE("sweet, grabbed a call: ~p", [Call]),
 			{ok, State#state{call=Call, qpid=Qpid}}
 	end.
 
@@ -83,7 +83,7 @@ init([]) ->
 %% @private
 handle_call(get_agents, _From, State) when is_record(State#state.call, call) -> 
 	Call = State#state.call,
-	io:format("dispatcher:get_agents, Call is ~p.~n", [Call]),
+	?CONSOLE("get_agents, Call is ~p.", [Call]),
 	{reply, agent_manager:find_avail_agents_by_skill(Call#call.skills), State};
 handle_call(bound_call, _From, State) ->
 	case State#state.call of
@@ -102,7 +102,7 @@ handle_call(regrab, _From, State) ->
 	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
-	io:format("looping through filtered queues...~n"),
+	?CONSOLE("looping through filtered queues...", []),
 	case loop_queues(Filtered) of
 		none -> 
 			{reply, State#state.call, State};
@@ -127,13 +127,13 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info(grab_best, State) ->
-	io:format("dispatcher trying to grab~n"),
+	?CONSOLE("dispatcher trying to grab", []),
 	case grab_best() of
 		none ->
-			io:format("no dice~n"),
+			?CONSOLE("no dice", []),
 			{noreply, State};
 		{Qpid, Call} ->
-			io:format("success!~n"),
+			?CONSOLE("success!", []),
 			% TODO problem if the tref doesn't exist?
 			timer:cancel(State#state.tref),
 			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined}}
@@ -202,12 +202,12 @@ grab_best() ->
 %% @doc tries to grab a new call ignoring the queue it's current call is bound to
 -spec(regrab/1 :: (pid()) -> {pid(), #call{}} | 'none').
 regrab(Pid) -> 
-	io:format("dispatcher trying to regrab~n"),
+	?CONSOLE("dispatcher trying to regrab", []),
 	gen_server:call(Pid, regrab).
 	
 -spec(stop/1 :: (pid()) -> 'ok').
 stop(Pid) -> 
-	io:format("just before the gen_server handle call pid:  ~p.  Me:  ~p~n", [Pid, self()]),
+	?CONSOLE("just before the gen_server handle call pid:  ~p.  Me:  ~p", [Pid, self()]),
 	gen_server:call(Pid, stop).
 	
 -ifdef(EUNIT).

@@ -200,6 +200,7 @@ handle_event(["PING", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, integer_to_list(MegaSecs) ++ integer_to_list(Secs)), State};
 
 handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Counter) ->
+	?CONSOLE("Trying to set state to ~p with data ~p.", [AgState, AgStateData]),
 	try agent:list_to_state(AgState) of
 		released ->
 			try list_to_integer(AgStateData) of
@@ -231,6 +232,7 @@ handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Co
 	end;
 
 handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
+	?CONSOLE("Trying to set state ~p.", [AgState]),
 	try agent:list_to_state(AgState) of
 		NewState ->
 			case agent:set_state(State#state.agent_fsm, NewState) of
@@ -257,6 +259,16 @@ handle_event(["QUEUENAMES", Counter], State) when is_integer(Counter) ->
 
 handle_event(["RELEASEOPTIONS", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, "1:bathroom:0,2:smoke:-1"), State};
+
+handle_event(["ENDWRAPUP", Counter], State) when is_integer(Counter) -> 
+	case agent:set_state(State#state.agent_fsm, idle) of
+		ok -> 
+			{ok, Curstate} = agent:query_state(State#state.agent_fsm),
+			send("ASTATE", integer_to_list(agent:state_to_integer(Curstate)), State),
+			{ack(Counter), State#state{counter = State#state.counter + 1}};
+		invalid -> 
+			{err(Counter, "invalid state"), State}
+	end;
 
 % TODO track unacked events
 handle_event(["ACK" | [Counter | _Args]], State) when is_integer(Counter) ->

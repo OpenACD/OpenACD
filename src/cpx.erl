@@ -38,9 +38,9 @@
 
 % TODO mnesia set-up (schema and connected nodes) needs to be ready before the app starts.
 start(_Type, _StartArgs) -> 
-	Nodes = lists:append([nodes(), [node()]]),
-	mnesia:create_schema(Nodes),
-	mnesia:start(),
+	%Nodes = lists:append([nodes(), [node()]]),
+	%mnesia:create_schema(Nodes),
+	%mnesia:start(),
 	cpx_supervisor:start_link().
 	
 stop(_State) -> 

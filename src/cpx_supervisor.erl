@@ -90,10 +90,10 @@ init([]) ->
 			
 			Specs = lists:append([DispatchSpec, AgentManagerSpec, QueueManagerSpec], load_specs()),
 			
-			io:format("specs:  ~p~n", [supervisor:check_childspecs(Specs)]),
+			?CONSOLE("specs:  ~p", [supervisor:check_childspecs(Specs)]),
 			{ok,{{one_for_one,3,5}, Specs}};
 		Else -> 
-			io:format("Other error on building cpx tables:  ~p~n", [Else]),
+			?CONSOLE("Other error on building cpx tables:  ~p", [Else]),
 			ignore
 	end.
 
@@ -115,18 +115,18 @@ add_conf(Mod, Start, Args) ->
 %% @doc Attempts to build a valid childspec suitbable for a supervisor module from the Record#cpx_conf.
 build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args} = Record) -> 
 	Spec = {Mod, {Mod, Start, Args}, permanent, 20000, worker, [?MODULE]},
-	io:format("Building spec:  ~p~n", [Spec]),
+	?CONSOLE("Building spec:  ~p", [Spec]),
 	case supervisor:check_childspecs([Spec]) of
 		ok -> 
 			Spec;
 		Else -> 
-			io:format("Spec failed check:  ~p~n", [Spec]),
+			?CONSOLE("Spec failed check:  ~p", [Spec]),
 			Else
 	end.
 
 %% @doc Attempts to build the cpx_conf table.
 build_tables() ->
-	io:format("cpx building tables...~n"),
+	?CONSOLE("cpx building tables...",[]),
 	A = util:build_table(cpx_conf, [
 		{attributes, record_info(fields, cpx_conf)},
 		{disc_copies, [node()]},
@@ -162,7 +162,7 @@ start_spec(Spec) ->
 	supervisor:start_child(?MODULE, Spec).
 
 load_specs() -> 
-	io:format("loading specs...~n"),
+	?CONSOLE("loading specs...",[]),
 	F = fun() -> 
 		QH = qlc:q([X || X <- mnesia:table(cpx_conf)]),
 		qlc:e(QH)
@@ -171,7 +171,7 @@ load_specs() ->
 		{atomic, Records} -> 
 			lists:map(fun(I) -> build_spec(I) end, Records);
 		Else -> 
-			io:format("unable to retrieve specs:  ~p~n", [Else]),
+			?CONSOLE("unable to retrieve specs:  ~p", [Else]),
 			Else
 	end.
 

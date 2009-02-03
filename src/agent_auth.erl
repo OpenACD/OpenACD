@@ -113,11 +113,11 @@ handle_call({authentication, Username, Password, Salt}, _From, State) ->
 	% start w/ the remote try.  If that fails, try the local.
 	case State#state.integration of
 		false -> 
-			io:format("local authentication only~n"),
+			?CONSOLE("local authentication only", []),
 			Reply = local_auth(Username, Password, Salt),
 			{reply, Reply, State};
 		_Else -> 
-			io:format("remote authentication attempt first~n"),
+			?CONSOLE("remote authentication attempt first", []),
 			Args = lists:append([[Username, Password, Salt], State#state.check_args]),
 			case apply(State#state.mod, State#state.check_func, Args) of
 				{allow, CachePassword, Skills} -> 
@@ -134,7 +134,7 @@ handle_call({authentication, Username, Password, Salt}, _From, State) ->
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call(Request, _From, State) ->
-	io:format("agent_auth does not understand request:  ~p~n", [Request]),
+	?CONSOLE("agent_auth does not understand request:  ~p", [Request]),
     Reply = ok,
     {reply, Reply, State}.
 
@@ -187,7 +187,7 @@ auth(Username, Password, Salt) ->
 %% @doc Starts mnesia and creates the tables.  If the tables already exist, returns ok.
 -spec(build_tables/0 :: () -> 'ok' | any()).
 build_tables() ->
-	io:format("~p building tables...~n", [?MODULE]),
+	?CONSOLE("building tables...", []),
 %	Nodes = lists:append([[node()], nodes()]),
 	A = util:build_table(agent_auth, [
 				{attributes, record_info(fields, agent_auth)},
@@ -243,12 +243,12 @@ local_auth(Username, Password, Salt) ->
 				Password -> 
 					{allow, lists:append([Agent#agent_auth.skills, ['_agent', '_node']])};
 				Else -> 
-					io:format("Password: ~p~nSalting: ~p~nPresalting: ~p~nAgentname: ~p~n", [Password, Else, Agent#agent_auth.password, Agent#agent_auth.login]),
+					?CONSOLE("Password: ~p;  Salting: ~p;  Presalting: ~p;  Agentname: ~p", [Password, Else, Agent#agent_auth.password, Agent#agent_auth.login]),
 					deny
 			end;
 		Else ->
 % TODO better error reporting/handling here?
-			io:format("Unusual response from local auth query: ~p~n", [Else]),
+			?CONSOLE("Unusual response from local auth query: ~p", [Else]),
 			deny
 	end. 
 
@@ -258,10 +258,10 @@ local_auth(Username, Password, Salt) ->
 -spec(salt/2 ::	(Hash :: string(), Salt :: string()) -> string();
 		(Hash :: binary(), Salt :: string()) -> string()).
 salt(Hash, Salt) when is_binary(Hash) ->
-	io:format("agent_auth hash conversion...~n"),
+	?CONSOLE("agent_auth hash conversion...", []),
 	salt(util:bin_to_hexstr(Hash), Salt);
 salt(Hash, Salt) when is_list(Hash) -> 
-	io:format("agent_auth salting~n     hash: ~p~n     salt: ~p~n", [Hash, Salt]),
+	?CONSOLE("agent_auth salting   hash: ~p;  salt: ~p", [Hash, Salt]),
 	Lower = string:to_lower(Hash),
 	string:to_lower(util:bin_to_hexstr(erlang:md5(Salt ++ Lower))).
 	

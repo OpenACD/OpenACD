@@ -82,6 +82,7 @@ start(Call, Recipe, QueuePid) ->
 
 %% @private
 init([Call, Recipe, QueuePid]) ->
+	% TODO check for a call right away.
 	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),	
 	State = #state{ticked=0, recipe=Recipe, call=Call, queue=QueuePid, tref=Tref},
     {ok, State}.
@@ -163,10 +164,10 @@ stop(Pid) ->
 %% @private
 -spec(do_route/1 :: (State :: #state{}) -> #state{}).
 do_route(State) when State#state.ringingto =/= undefined, State#state.ringcount =< ?RINGOUT ->
-	io:format("still ringing: ~p of ~p times~n", [State#state.ringcount, ?RINGOUT]),
+	?CONSOLE("still ringing: ~p of ~p times", [State#state.ringcount, ?RINGOUT]),
 	State#state{ringcount=State#state.ringcount +1};
 do_route(State) when State#state.ringingto =/= undefined, State#state.ringcount > ?RINGOUT ->
-	io:format("rang out~n"),
+	?CONSOLE("rang out",[]),
 	agent:set_state(State#state.ringingto, idle),
 	do_route(State#state{ringingto=undefined});
 do_route(State) when State#state.ringingto =:= undefined ->
@@ -185,7 +186,7 @@ do_route(State) when State#state.ringingto =:= undefined ->
 					Agents = lists:map(fun(Dpid) -> 
 						try dispatcher:get_agents(Dpid) of
 							[] ->
-								io:format("empty list, might as well tell this dispatcher to regrab~n"),
+								?CONSOLE("empty list, might as well tell this dispatcher to regrab", []),
 								dispatcher:regrab(Dpid),
 								[];
 							Ag -> 
@@ -231,7 +232,7 @@ offer_call([], _Call) ->
 offer_call([{_ACost, Apid} | Tail], Call) -> 
 	case gen_server:call(Call#call.source, {ring_agent, Apid, Call}) of
 		ok ->
-			io:format("cook offering call:  ~p to ~p~n", [Call, Apid]),
+			?CONSOLE("cook offering call:  ~p to ~p", [Call, Apid]),
 			Apid;
 		invalid -> 
 			offer_call(Tail, Call)
@@ -277,15 +278,15 @@ do_operation({_Ticks, Op, Args, _Runs}, State) ->
 			call_queue:set_priority(Pid, Callid, Priority),
 			ok;
 		new_queue -> 
-			io:format("NIY~n"),
+			?CONSOLE("NIY",[]),
 			ok;
 		voicemail -> 
-			io:format("NIY~n"),
+			?CONSOLE("NIY",[]),
 			ok;
 		add_recipe -> 
 			list_to_tuple(Args);
 		announce -> 
-			io:format("NIY~n"),
+			?CONSOLE("NIY",[]),
 			ok
 	end.
 

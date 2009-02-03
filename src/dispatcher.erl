@@ -32,7 +32,7 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--define(POLL_INTERVAL, 10000).
+-define(POLL_INTERVAL, 500.
 -else.
 -define(POLL_INTERVAL, 10000).
 -endif.
@@ -215,7 +215,7 @@ stop(Pid) ->
 -define(MAX_RANDOM_TEST, 100000).
 
 random_test() -> 
-	queue_manager:start(),
+	queue_manager:start([node()]),
 	{_, Pid1} = queue_manager:add_queue(queue1, 1),
 	{_, Pid2} = queue_manager:add_queue(queue2, 2),
 	{_, Pid3} = queue_manager:add_queue(queue3, 3),
@@ -273,7 +273,7 @@ grab_test_() ->
 	{
 		foreach,
 		fun() -> 
-			queue_manager:start(),
+			queue_manager:start([node()]),
 			{_, Pid1} = queue_manager:add_queue(queue1, 1),
 			{_, Pid2} = queue_manager:add_queue(queue2, 2),
 			{_, Pid3} = queue_manager:add_queue(queue3, 99),

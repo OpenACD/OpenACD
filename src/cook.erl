@@ -298,7 +298,7 @@ recipe_test_() ->
 	{
 		foreach,
 		fun() -> 
-			queue_manager:start(),
+				queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
 			call_queue:add(Pid, 1, #call{id="testcall", skills=[english, testskill]}),
 			Pid

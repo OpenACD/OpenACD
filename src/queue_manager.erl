@@ -35,11 +35,11 @@
 -include("queue.hrl").
 -include("call.hrl").
 
--behaviour(gen_server).
+-behaviour(gen_leader).
 
 -export([
-	start_link/0, 
-	start/0, 
+	start_link/1, 
+	start/1, 
 	queues/0, 
 	add_queue/1, 
 	add_queue/2, 
@@ -51,168 +51,177 @@
 	get_best_bindable_queues/0
 	]).
 
-% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+% gen_leader callbacks
+-export([init/1,
+		elected/2,
+		surrendered/3,
+		handle_DOWN/3,
+		handle_leader_call/4,
+		handle_leader_cast/3,
+		from_leader/3,
+		handle_call/3,
+		handle_cast/2,
+		handle_info/2,
+		terminate/2,
+		code_change/4]).
+
+%% API
 
 %% @doc start the queue_manager linked to the parent process.
--spec(start_link/0 :: () -> 'ok').
-start_link() ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+-spec(start_link/1 :: (Nodes :: [atom(),...]) -> 'ok').
+start_link(Nodes) ->
+	gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, [], []).
 
 %% @doc start the queue_manager unlinked to the parent process.
--spec(start/0 :: () -> 'ok').
-start() ->
-	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
+-spec(start/1 :: (Nodes :: [atom(),...]) -> 'ok').
+start(Nodes) ->
+	gen_leader:start(?MODULE, Nodes, [], ?MODULE, [], []).
 
 % TODO tie add_queue to the call_queue_config
 %% @doc Add a queue named `Name' using the default weight and recipe.
 -spec(add_queue/1 :: (Name :: atom()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name) ->
-	gen_server:call(?MODULE, {add, Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT}, infinity).
+	add_queue(Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT).
 
 %% @doc Add a queue named `Name' using a givien `Recipe' or `Weight'.
 -spec(add_queue/2 :: (Name :: atom(), Recipe :: recipe()) -> {'ok', pid()} | {'exists', pid()};
 	(Name :: atom(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name, Recipe) when is_list(Recipe) ->
-	gen_server:call(?MODULE, {add, Name, Recipe, ?DEFAULT_WEIGHT});
+	add_queue(Name, Recipe, ?DEFAULT_WEIGHT);
 add_queue(Name, Weight) when is_integer(Weight), Weight > 0 ->
-	gen_server:call(?MODULE, {add, Name, ?DEFAULT_RECIPE, Weight}).
+	add_queue(Name, ?DEFAULT_RECIPE, Weight).
 
 %% @doc Add a queue named `Name' using the given `Recipe' and `Weight'.
 -spec(add_queue/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name, Recipe, Weight) ->
-	gen_server:call(?MODULE, {add, Name, Recipe, Weight}).
+	case gen_leader:call(?MODULE, {exists, Name}) of
+		true ->
+			Pid = gen_leader:call(?MODULE, {get_queue, Name}),
+			{exists, Pid};
+		false ->
+			case gen_leader:leader_call(?MODULE, {exists, Name}) of
+				true ->
+					Pid = gen_leader:leader_call(?MODULE, {get_queue, Name}),
+					{exists, Pid};
+				false ->
+					{ok, Pid} = call_queue:start_link(Name, Recipe, Weight),
+					ok = gen_leader:call(?MODULE, {notify, Name, Pid}),
+					ok = gen_leader:leader_call(?MODULE, {notify, Name, Pid}),
+					{ok, Pid}
+			end
+	end.
 
 %% @doc Get the pid of the passed queue name.  If there is no queue, returns 'undefined'.
 -spec(get_queue/1 :: (Name :: atom()) -> pid() | undefined).
 get_queue(Name) -> 
-	try gen_server:call({global, ?MODULE}, {get_queue, Name}) of
-		Foo -> Foo
-	catch
-		exit:{noproc, _} -> 
-			global:register_name(?MODULE, whereis(?MODULE), {global, random_notify_name}),
-			gen_server:call({global, ?MODULE}, {get_queue, Name})
-	end.
+	gen_leader:leader_call(?MODULE, {get_queue, Name}).
 	
 %% @doc 'true' or 'false' if the passed queue name exists.
 -spec(query_queue/1 :: (Name :: atom()) -> bool()).
 query_queue(Name) ->
-	try gen_server:call({global, ?MODULE}, {exists, Name}) of
-		Foo -> Foo
-	catch
-		exit:{noproc,_} ->
-			global:register_name(?MODULE, whereis(?MODULE), {global, random_notify_name}),
-			gen_server:call({global, ?MODULE}, {exists, Name})
+	case gen_leader:call(?MODULE, {exists, Name}) of
+		true ->
+			 true;
+		 false ->
+			gen_leader:leader_call(?MODULE, {exists, Name})
 	end.
 
 %% @doc Spits out the queues as {[Qname :: atom(), Qpid :: pid()}].
 -spec(queues/0 :: () -> [{atom(), pid()}]).
 queues() -> 
-	gen_server:call({global, ?MODULE}, queues_as_list).
+	gen_leader:leader_call(?MODULE, queues_as_list).
 
 %% @doc Sort queues containing a bindable call.  The queues are sorted from most important to least by weight, 
 %% priority of first bindable call, then the time the first bindable call has been in queue.
 -spec(get_best_bindable_queues/0 :: () -> [{atom(), pid(), {{non_neg_integer(), any()}, #call{}}, pos_integer()}]).
 get_best_bindable_queues() ->
-	try gen_server:call({global, ?MODULE}, queues_as_list) of
-		List ->
-			List1 = [{K, V, Call, W} || {K, V} <- List, Call <- [call_queue:ask(V)], Call =/= none, W <- [call_queue:get_weight(V) * call_queue:call_count(V)]],
-			% sort queues by queuetime of first bindable call, longest first (lowest unix epoch time)
-			List2 = lists:sort(fun({_K1, _V1,{{_P1, T1}, _Call1}, _W1}, {_K2, _V2,{{_P2, T2}, _Call2}, _W2}) -> T1 =< T2 end, List1),
-			% sort queues by priority of first bindable call, lowest is higher priority
-			List3 = lists:sort(fun({_K1, _V1,{{P1, _T1}, _Call1}, _W1}, {_K2, _V2,{{P2, _T2}, _Call2}, _W2}) -> P1 =< P2 end, List2),
-			% sort queues by queue weight, highest first and return the result
-			List4 = lists:sort(fun({_K1, _V1,{{_P1, _T1}, _Call1}, W1}, {_K2, _V2,{{_P2, _T2}, _Call2}, W2}) -> W1 >= W2 end, List3),
-			Len = length(List4),
-			% C is the index/counter
-			util:list_map_with_index(fun(C, {K, V, Call, Weight}) -> {K, V, Call, Weight + Len - C} end, List4)
-	catch
-		exit:{noproc,_} ->
-			global:register_name(?MODULE, whereis(?MODULE), {global, random_notify_name}),
-			get_best_bindable_queues()
-	end.
+	List = gen_leader:leader_call(?MODULE, queues_as_list),
+	List1 = [{K, V, Call, W} || {K, V} <- List, Call <- [call_queue:ask(V)], Call =/= none, W <- [call_queue:get_weight(V) * call_queue:call_count(V)]],
+	% sort queues by queuetime of first bindable call, longest first (lowest unix epoch time)
+	List2 = lists:sort(fun({_K1, _V1,{{_P1, T1}, _Call1}, _W1}, {_K2, _V2,{{_P2, T2}, _Call2}, _W2}) -> T1 =< T2 end, List1),
+	% sort queues by priority of first bindable call, lowest is higher priority
+	List3 = lists:sort(fun({_K1, _V1,{{P1, _T1}, _Call1}, _W1}, {_K2, _V2,{{P2, _T2}, _Call2}, _W2}) -> P1 =< P2 end, List2),
+	% sort queues by queue weight, highest first and return the result
+	List4 = lists:sort(fun({_K1, _V1,{{_P1, _T1}, _Call1}, W1}, {_K2, _V2,{{_P2, _T2}, _Call2}, W2}) -> W1 >= W2 end, List3),
+	Len = length(List4),
+	% C is the index/counter
+	util:list_map_with_index(fun(C, {K, V, Call, Weight}) -> {K, V, Call, Weight + Len - C} end, List4).
 
 -spec(stop/0 :: () -> 'ok').
 stop() ->
-	gen_server:call(?MODULE, stop).
+	gen_leader:call(?MODULE, stop).
 
 %% @doc Returns the state.
 -spec(print/0 :: () -> any()).
 print() ->
-	gen_server:call(?MODULE, print).
+	gen_leader:call(?MODULE, print).
 
-%% @doc internal sync function.
--spec(sync_queues/1 :: ([{string(), pid()}]) -> [{string(), pid()}]).
-sync_queues([H|T]) ->
-	{K, _V} = H,
-	try gen_server:call({global, ?MODULE}, {exists, K}) of
-		true ->
-			io:format("Queue conflict detected for ~p~n", [K]),
-			% TODO resolve the conflict
-			sync_queues(T);
-		false ->
-			io:format("notifying master of ~p~n", [K]),
-			try gen_server:call({global, ?MODULE}, {notify, K}) of
-				_ -> sync_queues(T)
-			catch
-				exit:{timeout, _} -> % TODO What to do here?
-					[]
-			end
-	catch
-		exit:{timeout, _} -> % TODO What to do here?
-			[]
-	end;
-sync_queues([]) ->
-	[].
+% gen_leader stuff
 
 %% @private
 init([]) ->
 	process_flag(trap_exit, true),
-	call_queue_config:build_tables(),
-	case global:whereis_name(?MODULE) of
-		undefined ->
-			global:register_name(?MODULE, self(), {global, random_notify_name});
-		GID -> 
-			link(GID)
-	end,
+	%call_queue_config:build_tables(),
 	{ok, dict:new()}.
+
+elected(State, _Election) ->
+	io:format("elected~n"),
+	{ok, ok, State}.
+
+surrendered(State, _LeaderState, _Election) ->
+	io:format("surrendered~n"),
+	% TODO - purge any non-local pids from our state and notify the leader of all the local ones
+	State2 = dict:filter(fun(_K,V) -> node() =:= node(V) end, State),
+	lists:foreach(fun({Name, Pid}) -> gen_leader:leader_cast(?MODULE, {notify, Name, Pid}) end, dict:to_list(State2)),
+	{ok, State2}.
+
+%% @private
+handle_DOWN(Node, State, _Election) ->
+	io:format("in handle_DOWN~n"),
+	{ok, dict:filter(fun(K,V) -> io:format("Trying to remove ~p.~n", [K]), Node =/= node(V) end, State)}.
+
+%% @private
+handle_leader_call(queues_as_list, _From, State, _Election) ->
+		{reply, dict:to_list(State), State};
+handle_leader_call({notify, Name, Pid}, _From, State, _Election) ->
+	{reply, ok, dict:store(Name, Pid, State)};
+handle_leader_call({get_queue, Name}, _From, State, _Election) ->
+	case dict:find(Name, State) of
+		{ok, Pid} ->
+			{reply, Pid, State};
+		error ->
+			{reply, undefined, State}
+	end;
+handle_leader_call({exists, Name}, _From, State, _Election) ->
+	io:format("got an exists request~n"),
+	{reply, dict:is_key(Name, State), State};
+handle_leader_call(_Msg, _From, State, _Election) ->
+	{reply, unknown, State}.
+
 
 %% @private
 % TODO tie into call_queue_config
-handle_call({add, Name, Recipe, Weight}, _From, State) ->
-	io:format("add_queue starting...~n"),
-	case dict:is_key(Name, State) of
-		true ->
-			{ok, Pid} = dict:find(Name, State),
-			{reply, {exists, Pid}, State};
-		false ->
-			io:format("add_queue queue doesn't already exist...~n"),
-			Self = self(),
-			case global:whereis_name(?MODULE) of
-				Self ->
-					{ok, Pid} = call_queue:start_link(Name, Recipe, Weight),
-					{reply, {ok, Pid}, dict:store(Name, Pid, State)};
-				undefined -> 
-					global:register_name(?MODULE, self(), {global, random_notify_name}),
-					{ok, Pid} = call_queue:start_link(Name, Recipe, Weight),
-					{reply, {ok, Pid}, dict:store(Name, Pid, State)};
-				_ ->
-					try gen_server:call({global, ?MODULE}, {exists, Name}) of
-						true ->
-							Pid = gen_server:call({global, ?MODULE}, {get_queue, Name}),
-							{reply, {exists, Pid}, State};
-						false ->
-							{ok, Pid} = call_queue:start_link(Name, Recipe, Weight),
-							gen_server:call({global, ?MODULE}, {notify, Name, Pid}), % TODO - handle timeout exception
-							{reply, {ok, Pid}, dict:store(Name, Pid, State)}
-					catch
-						exit:{timeout, _} ->
-							global:register_name(?MODULE, self(), {global, random_notify_name}),
-							{ok, Pid} = call_queue:start_link(Name, Recipe, Weight),
-							{reply, timeout, dict:store(Name, Pid, State)}
-					end
-			end
-	end;
+%handle_call({add, Name, Recipe, Weight}, _From, State) ->
+	%io:format("add_queue starting...~n"),
+	%case dict:is_key(Name, State) of
+		%true ->
+			%{ok, Pid} = dict:find(Name, State),
+			%{reply, {exists, Pid}, State};
+		%false ->
+			%io:format("add_queue queue doesn't already exist locally...~n"),
+			%case gen_leader:leader_call(?MODULE, {exists, Name}, infinity) of
+				%true ->
+					 %TODO get_queue now will evilly add a queue, this isn't really right...
+					%Pid = gen_leader:leader_call(?MODULE, {get_queue, Name}, infinity),
+					%{reply, {exists, Pid}, State};
+				%false ->
+					%{ok, Pid} = call_queue:start_link(Name, Recipe, Weight),
+					%gen_leader:leader_call({global, ?MODULE}, {notify, Name, Pid}, infinity), % TODO - handle timeout exception
+					%{reply, {ok, Pid}, dict:store(Name, Pid, State)}
+			%end
+	%end;
+handle_call({notify, Name, Pid}, _From, State) ->
+	{reply, ok, dict:store(Name, Pid, State)};
 handle_call({exists, Name}, _From, State) ->
 	{reply, dict:is_key(Name, State), State};
 handle_call({get_queue, Name}, From, State) ->
@@ -221,53 +230,48 @@ handle_call({get_queue, Name}, From, State) ->
 		{ok, Pid} ->
 			{reply, Pid, State};
 		error ->
-			?CONSOLE("get_queue looking in mnesia...", []),
-			case call_queue_config:get_queue(Name) of
-				noexists -> 
-					{reply, undefined, State};
-				Queue when is_record(Queue, call_queue) -> 
-					?CONSOLE("get_queue mnesia found it, starting...", []),
-					% TODO prolly a better way to do this than a handle_call.
-					{reply, {ok, Pid}, Newstate} = handle_call({add, Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight}, From, State),
-					{reply, Pid, Newstate}
-			end
+			{reply, undefined, State}
 	end;	
-handle_call({notify, Name, Pid}, _From, State) ->
-	{reply, ok, dict:store(Name, Pid, State)};
+%handle_call({notify, Name, Pid}, _From, State) ->
+	%{reply, ok, dict:store(Name, Pid, State)};
 handle_call(print, _From, State) ->
 	{reply, State, State};
 handle_call(queues_as_list, _From, State) ->
-		{reply, dict:to_list(State), State};
+	{reply, dict:to_list(State), State};
 handle_call(stop, _From, State) ->
+	io:format("stop requested~n"),
 	{stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
-	{reply, ok, State}.
+	{reply, unknown, State}.
 	
+
+%% @private
+handle_leader_cast({notify, Name, Pid}, State, _Election) ->
+	?debugMsg("got notify leader cast!"),
+	{noreply, dict:store(Name, Pid, State)};
+handle_leader_cast(_Msg, State, _Election) ->
+	{noreply, State}.
+
 %% @private
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %% @private
-handle_info({'EXIT', From, _Reason}, State) ->
-	% filter out any queues on the dead node
-	% TODO recreate queus that have relevant calls
-	{noreply, dict:filter(fun(K,V) -> io:format("Trying to remove ~p.~n", [K]), node(From) =/= node(V) end, State)};
-handle_info({global_name_conflict, _Name}, State) ->
-	io:format("Node ~p lost the election~n", [node()]),
-	link(global:whereis_name(?MODULE)),
-	% loop over elements
-	sync_queues(dict:to_list(State)),
-	{noreply, State};
 handle_info(_Info, State) ->
 	{noreply, State}.
+
+%% @private
+from_leader(_Msg, State, _Election) ->
+	{ok, State}.
 
 %% @private
 terminate(_Reason, _State) ->
 	ok.
 
 %% @private
-code_change(_OldVsn, State, _Extra) ->
+code_change(_OldVsn, State, _Election, _Extra) ->
 	{ok, State}.
+
 
 -ifdef('EUNIT').
 
@@ -279,7 +283,7 @@ single_node_test_() ->
 	{
 		foreach,
 		fun() ->
-			start(),
+				{ok, _Pid} = start([node()]),
 			ok
 		end,
 		fun(_) ->
@@ -288,8 +292,8 @@ single_node_test_() ->
 		[
 			{
 				"Add and query test", fun() ->
-					?assertMatch({ok, _Pid}, add_queue(goober)),
-					?assertMatch({exists, _Pid}, add_queue(goober)),
+					?assertMatch({ok, _Pid2}, add_queue(goober)),
+					?assertMatch({exists, _Pid2}, add_queue(goober)),
 					?assertMatch(true, query_queue(goober)),
 					?assertMatch(false, query_queue(foobar))
 				end
@@ -356,14 +360,16 @@ multi_node_test_() ->
 			slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
 			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"), 
 			cover:start([Master, Slave]),
-			rpc:call(Master, global, sync, []),
-			rpc:call(Slave, global, sync, []),
-			rpc:call(Master, queue_manager, start, []),
-			rpc:call(Slave, queue_manager, start, []),
+			%rpc:call(Master, global, sync, []),
+			%rpc:call(Slave, global, sync, []),
+			{ok, _Pid} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
+			{ok, _Pid2} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
 			{}
 		end,
 		fun({}) -> 
+
 			cover:stop([Master, Slave]), 
+
 			slave:stop(Master), 
 			slave:stop(Slave),
 			ok 
@@ -371,71 +377,75 @@ multi_node_test_() ->
 		[
 			{
 				"Master Death", fun() ->
-					rpc:call(Master, erlang, disconnect_node, [Slave]),
-					cover:stop([Master]),
-					slave:stop(Master),
+					%rpc:call(Master, erlang, disconnect_node, [Slave]),
+					%cover:stop([Master]),
+					rpc:call(Master, ?MODULE, stop, []),
 
-					?assertMatch(undefined, global:whereis_name(?MODULE)),
-					?assertMatch({ok, _Pid}, rpc:call(Slave, queue_manager, add_queue, [queue1])),
-					?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue1]))
+					%?assertMatch(undefined, global:whereis_name(?MODULE)),
+					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, [queue1])),
+					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, [queue1]))
 				end
+
+			},{
+				"Slave Death", fun() ->
+					%rpc:call(Maste, erlang, disconnect_node, [Slave]),
+					%cover:stop([Master]),
+					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, [queue1])),
+					ok = rpc:call(Slave, ?MODULE, stop, []),
+
+					%?assertMatch(undefined, global:whereis_name(?MODULE)),
+					?assertMatch(false, rpc:call(Master, ?MODULE, query_queue, [queue1]))
+				end
+
 			},{
 				"Net Split",fun() ->
-					rpc:call(Master, queue_manager, add_queue, [queue1]),
+					rpc:call(Master, ?MODULE, add_queue, [queue1]),
+					rpc:call(Slave, ?MODULE, add_queue, [queue2]),
 
-					?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue1])),
+					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, [queue1])),
+					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue2])),
 
-					rpc:call(Master, erlang, disconnect_node, [Slave]),
+					%rpc:call(Master, erlang, disconnect_node, [Slave]),
 					rpc:call(Slave, erlang, disconnect_node, [Master]),
 
-					?assertMatch({ok, _Pid}, rpc:call(Slave, queue_manager, add_queue, [queue2])),
-					?assertMatch(true, rpc:call(Slave, queue_manager, query_queue, [queue2])),
-					?assertMatch({ok, _Pid}, rpc:call(Slave, queue_manager, add_queue, [queue3])),
-					?assertMatch({ok, _Pid}, rpc:call(Master, queue_manager, add_queue, [queue2])),
-					?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue2])),
+					%receive after 300 -> ok end,
 
-					Pinged = rpc:call(Master, net_adm, ping, [Slave]),
-					Pinged = rpc:call(Master, net_adm, ping, [Slave]),
+					?debugFmt("Master queues ~p~n", [rpc:call(Master, ?MODULE, queues, [])]),
+					?debugFmt("Slave queues ~p~n", [rpc:call(Slave, ?MODULE, queues, [])]),
 
-					?assert(Pinged =:= pong),
+					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, [queue2])),
+					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, [queue1])),
 
-					rpc:call(Master, global, sync, []),
-					rpc:call(Slave, global, sync, []),
-
-					Newmaster = node(global:whereis_name(?MODULE)),
-
-					receive after 1000 -> ok end,
-
-					?assertMatch(Newmaster, Master),
-					?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue1])),
-					?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue2])),
-					?assertMatch({exists, _Pid}, rpc:call(Master, queue_manager, add_queue, [queue2])),
-					?assertMatch({exists, _Pid}, rpc:call(Master, queue_manager, add_queue, [queue1]))
+					%?assertMatch(Newmaster, Master),
+					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue1])),
+					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue2])),
+					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, [queue2])),
+					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, [queue1]))
 				end
 			},{
 				"Queues in sync", fun() ->
-					rpc:call(Master, queue_manager, add_queue, [queue1]),
+					rpc:call(Master, ?MODULE, add_queue, [queue1]),
 
-					?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue1])),
-					?assertMatch({exists, _Pid}, rpc:call(Slave, queue_manager, add_queue, [queue1])),
-					?assertMatch({ok, _Pid}, rpc:call(Slave, queue_manager, add_queue, [queue2])), 
-					?assertMatch(true, rpc:call(Master, queue_manager, query_queue, [queue2])),
-					?assertMatch({exists, _Pid}, rpc:call(Master, queue_manager, add_queue, [queue2])),
+					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue1])),
+					?assertMatch({exists, _Pid}, rpc:call(Slave, ?MODULE, add_queue, [queue1])),
+					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, [queue2])), 
+					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue2])),
+					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, [queue2])),
 
-					?assertMatch(ok, rpc:call(Master, queue_manager, stop, [])),
-					?assertMatch(ok, rpc:call(Slave, queue_manager, stop, []))
+					?assertMatch(ok, rpc:call(Master, ?MODULE, stop, [])),
+					?assertMatch(ok, rpc:call(Slave, ?MODULE, stop, []))
 				end
 			},{
 				"No proc", fun() ->
 					slave:stop(Master),
-					?assertMatch(false, rpc:call(Slave, queue_manager, query_queue, [queue1]))
+					?assertMatch(false, rpc:call(Slave, ?MODULE, query_queue, [queue1]))
 				end
 			},{
 				"Best bindable queues with failed master", fun() ->
-					{ok, Pid} = rpc:call(Slave, queue_manager, add_queue, [queue2]),
+					{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, [queue2]),
 					?assertEqual(ok, call_queue:add(Pid, 0, #call{id="Call1"})),
 					slave:stop(Master),
-					?assertMatch([{queue2, Pid, {_, #call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], rpc:call(Slave, queue_manager, get_best_bindable_queues, []))
+					?assertMatch([{queue2, Pid, {_, #call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], rpc:call(Slave, ?MODULE, get_best_bindable_queues, []))
 				end
 			}
 		]

@@ -836,6 +836,21 @@ handle_msg({'$gen_cast',Msg} = Cast,
 	   #server{mod = Mod, state = State} = Server, Role, E) ->
     handle_common_reply(catch Mod:handle_cast(Msg, State), 
 			Cast, Server, Role, E);
+% ADT - implement gen_leader_cast
+handle_msg({'$leader_cast', Msg} = Cast,
+	   #server{mod = Mod, state = State} = Server, elected = Role, E) ->
+    case catch Mod:handle_leader_cast(Msg, State, E) of
+			{noreply, NState} ->
+				NewServer = handle_debug(Server#server{state = NState},
+					Role, E, Cast),
+				loop(NewServer, Role, E,Cast);
+			Other ->
+				handle_common_reply(Other, Msg, Server, Role, E)
+			end;
+handle_msg({'$leader_cast', Msg} = Cast, Server, Role,
+	   #election{leader = Leader} = E) ->
+    Leader ! {'$leader_cast', Msg},
+		loop(Server, Role, E, Cast);
 handle_msg(Msg,
 	   #server{mod = Mod, state = State} = Server, Role, E) ->
     handle_common_reply(catch Mod:handle_info(Msg, State),

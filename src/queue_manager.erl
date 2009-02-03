@@ -247,7 +247,6 @@ handle_call(_Request, _From, State) ->
 
 %% @private
 handle_leader_cast({notify, Name, Pid}, State, _Election) ->
-	?debugMsg("got notify leader cast!"),
 	{noreply, dict:store(Name, Pid, State)};
 handle_leader_cast(_Msg, State, _Election) ->
 	{noreply, State}.

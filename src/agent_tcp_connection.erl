@@ -186,10 +186,7 @@ handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter) ->
 					{ack(Counter, "1 1 1"), State2};
 				error ->
 					{err(Counter, Username ++ " is already logged in"), State}
-			end;
-		_Else ->
-			% TODO dialyzer will prolly tell us if we can ever actually get here.
-			{err(Counter, "Unexpected error authenticating, please try again."), State}
+			end
 	end;
 
 handle_event([_Event, Counter], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->

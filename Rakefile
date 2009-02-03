@@ -168,7 +168,7 @@ namespace :test do
 		STDOUT.flush
 		# Add -DEUNIT=1 here to make dialyzer evaluate the code in the test cases. This generates some spurious warnings so 
 		# it's not set normally but it can be very helpful occasionally.
-		dialyzer_output = `dialyzer -Wunderspecs --src -I include -c #{SRC.reject{|x| x =~ /test_coverage/}.join(' ')} contrib/mochiweb/src/*.erl`
+		dialyzer_output = `dialyzer -Wunderspecs --src -I include -c #{SRC.reject{|x| x =~ /test_coverage/}.join(' ')} contrib/misc/src/*.erl contrib/mochiweb/src/*.erl`
 		#puts dialyzer_output
 		if $?.exitstatus.zero?
 			puts 'ok'

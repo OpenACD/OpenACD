@@ -1,5 +1,5 @@
-*.pbxuser
-*.mode1v3
+build/*
+*.xcodeproj/*
 
 .DS_Store
 profile

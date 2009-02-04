@@ -859,6 +859,10 @@ handle_msg(Msg,
 
 handle_common_reply(Reply, Msg, Server, Role, E) ->
     case Reply of
+	{noreply, NState} -> 
+		NewServer = handle_debug(Server#server{state = NState},
+						Role, E, Reply),
+		loop(NewServer, Role, E, Msg);
 	{ok, NState} ->
 	    NewServer = handle_debug(Server#server{state = NState},
 				     Role, E, Reply),

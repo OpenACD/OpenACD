@@ -163,6 +163,7 @@ print() ->
 %% @private
 init([]) ->
 	process_flag(trap_exit, true),
+	% subscribe to mnesia system events to handle inconsistant db events
 	% load the queues in the db and start them.
 	Queues = call_queue_config:get_all(),
 	F = fun(Queuerec, Acc) ->
@@ -173,10 +174,12 @@ init([]) ->
 
 elected(State, _Election) ->
 	io:format("elected~n"),
+	mnesia:subscribe(system),
 	{ok, ok, State}.
 
 surrendered(State, _LeaderState, _Election) ->
 	io:format("surrendered~n"),
+	mnesia:unsubscribe(system),
 	% TODO - purge any non-local pids from our state and notify the leader of all the local ones
 	State2 = dict:filter(fun(_K,V) -> node() =:= node(V) end, State),
 	lists:foreach(fun({Name, Pid}) -> gen_leader:leader_cast(?MODULE, {notify, Name, Pid}) end, dict:to_list(State2)),
@@ -185,6 +188,8 @@ surrendered(State, _LeaderState, _Election) ->
 %% @private
 handle_DOWN(Node, State, _Election) ->
 	io:format("in handle_DOWN~n"),
+	mnesia:set_master_nodes(call_queue, [node()]),
+	mnesia:set_master_nodes(skill_rec, [node()]),
 	{ok, dict:filter(fun(K,V) -> io:format("Trying to remove ~p.~n", [K]), Node =/= node(V) end, State)}.
 
 %% @private
@@ -263,6 +268,12 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %% @private
+handle_info({mnesia_system_event, {inconsistent_database, Context, Node}}, State) -> 
+	mnesia:set_master_nodes(call_queue, [node()]),
+	mnesia:set_master_nodes(skill_rec, [node()]),
+	{noreply, State};
+handle_info({mnesia_system_event, MEvent}, State) -> 
+	{noreply, State};
 handle_info(_Info, State) ->
 	{noreply, State}.
 
@@ -365,7 +376,6 @@ single_node_test_() ->
 	}.
 
 multi_node_test_() ->
-	?debugMsg("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"),
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),
 	mnesia:delete_schema([node()]),
@@ -376,36 +386,26 @@ multi_node_test_() ->
 			slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
 			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"), 
 			cover:start([Master, Slave]),
-			%rpc:call(Master, global, sync, []),
-			%rpc:call(Slave, global, sync, []),
-			
-			%rpc:call(Master, mnesia, stop, []),
-			%rpc:call(Slave, mnesia, stop, []),
-			%rpc:call(Master, mnesia, delete_schema, [[Master]]),
-			%rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
-			%mnesia:create_schema([Master, Slave]),
-			%rpc:call(Master, mnesia, create_schema, [[Master]]),
-			%rpc:call(Slave, mnesia, create_schema, [[Slave]]),
+
 			rpc:call(Master, mnesia, start, []),
 			rpc:call(Slave, mnesia, start, []),
 			mnesia:start(),
 			Cf = mnesia:change_config(extra_db_nodes, [Master, Slave]),
-	%		?debugFmt("tried to connect to nodes, result: ~p", [Cf]),
+
 			mnesia:change_table_copy_type(schema, Master, disc_copies),
 			mnesia:change_table_copy_type(schema, Slave, disc_copies),
-	%		?debugFmt("Nodes: ~p~n", [nodes()]),
-	%		?debugFmt("mnesia db_nodes:  ~p~n", [mnesia:system_info(db_nodes)]),
+
 			{ok, _Pid} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
 			{ok, _Pid2} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
-	%		?debugFmt("tables:  ~p", [mnesia:system_info(tables)]),
 			{}
 		end,
 		fun({}) -> 
 
 			cover:stop([Master, Slave]), 
-			%?debugMsg("trying to kill the mnesia conf info"),
+
 			rpc:call(Master, mnesia, stop, []),
 			rpc:call(Slave, mnesia, stop, []),
+			mnesia:stop(),
 			rpc:call(Master, mnesia, delete_schema, [[Master]]),
 			rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
 

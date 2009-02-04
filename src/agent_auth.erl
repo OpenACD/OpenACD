@@ -92,16 +92,12 @@ init([Mod, StartFunc, StartArgs, CheckFunc, CheckArgs]) ->
 	case build_tables() of
 		ok -> 
 			apply(Mod, StartFunc, StartArgs),
-			{ok, #state{mod=Mod, start_func=StartFunc, start_args=StartArgs, check_func = CheckFunc, check_args = CheckArgs}};
-		Else -> 
-			{stop, {build_tables, Else}}
+			{ok, #state{mod=Mod, start_func=StartFunc, start_args=StartArgs, check_func = CheckFunc, check_args = CheckArgs}}
 	end;
 init([]) -> 
 	case build_tables() of
 		ok -> 
-			{ok, #state{integration = false}};
-	Else -> 
-		{stop, {build_tables, Else}}
+			{ok, #state{integration = false}}
 	end.
 
 %%--------------------------------------------------------------------
@@ -185,7 +181,7 @@ auth(Username, Password, Salt) ->
 	gen_server:call(?MODULE, {authentication, Username, Password, Salt}).
 
 %% @doc Starts mnesia and creates the tables.  If the tables already exist, returns ok.
--spec(build_tables/0 :: () -> 'ok' | any()).
+-spec(build_tables/0 :: () -> 'ok').
 build_tables() ->
 	?CONSOLE("building tables...", []),
 %	Nodes = lists:append([[node()], nodes()]),
@@ -255,8 +251,8 @@ local_auth(Username, Password, Salt) ->
 %% @private
 % Apply the passed Salt to the passed Hash.  The Hash is converted from a bin if need be, lowercased, then appended to the Salt.
 % all this is then erlang:md5'ed.  That result is then turned into a list, and lowercased.
--spec(salt/2 ::	(Hash :: string(), Salt :: string()) -> string();
-		(Hash :: binary(), Salt :: string()) -> string()).
+-spec(salt/2 ::	(Hash :: binary(), Salt :: string()) -> string();
+		(Hash :: string(), Salt :: string()) -> string()).
 salt(Hash, Salt) when is_binary(Hash) ->
 	?CONSOLE("agent_auth hash conversion...", []),
 	salt(util:bin_to_hexstr(Hash), Salt);

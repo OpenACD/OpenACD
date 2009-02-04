@@ -87,7 +87,8 @@ init([Post, Ref, Table]) ->
 		[{"username", User},{"password", Passwrd}] -> 
 			% io:format("seems like a well formed post~n"),
 			Self = self(),
-			case agent_auth:auth(User, Passwrd) of
+			% TODO add salt support
+			case agent_auth:auth(User, Passwrd, "replacethiswithpropersalt") of
 				deny -> 
 					{stop, "Login Denied"};
 				{allow, Skills} ->

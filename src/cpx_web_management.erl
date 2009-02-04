@@ -87,6 +87,6 @@ loop(Req, _Method, _Path) ->
 	Req:respond({501, [{"Content-Type", "text/plain"}], <<"Not yet implemented">>}).
 
 %% @doc Simply takes the request, yanks out the method and path, and shoves it to loop/3
--spec(loop/1 :: (Req :: any()) -> any()).
+-spec(loop/1 :: (Req :: atom()) -> any()).
 loop(Request) -> 
 	loop(Request, Request:get(method), Request:get(path)).

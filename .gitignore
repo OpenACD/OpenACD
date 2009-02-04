@@ -1,5 +1,14 @@
+# From the rake processes
+ebin/*
+Mnesia.*
+debug_ebin/*
+coverage/*
+erl_crash.dump
+.gen_leader*
+# Xcode
 build/*
 *.xcodeproj/*
 
+# OS X
 .DS_Store
 profile

@@ -142,7 +142,7 @@ get_all() ->
 
 %% @doc Create a new default queue configuraiton with the name `QueueName'.
 %% @see new_queue/2
--spec(new_queue/1 :: (QueueName :: string()) -> any()).
+-spec(new_queue/1 :: (QueueName :: string()) ->#call_queue{}).
 new_queue(QueueName) -> 
 	new_queue(QueueName, []).
 
@@ -153,8 +153,8 @@ new_queue(QueueName) ->
 %% <dt>skills</dt><dd>A list of atoms for the skills a call will be initially assigned.</dd>
 %% <dt>recipe</dt><dd>A recipe config for this queue for use by {@link cook. cooks}.</dd>
 %% </dl>
--spec(new_queue/2 :: (QueueName :: string(), {'weight' | 'skills' | 'recipe', any()}) -> any();
-					(QueueName :: string(), [{'weight' | 'skills' | 'recipe', any()}]) -> any()).
+-spec(new_queue/2 :: (QueueName :: string(), {'weight' | 'skills' | 'recipe', any()}) -> #call_queue{};
+					(QueueName :: string(), [{'weight' | 'skills' | 'recipe', any()}]) -> #call_queue{}).
 new_queue(QueueName, {Key, Value}) when is_atom(Key) -> 
 	new_queue(QueueName, [{Key, Value}]);
 new_queue(QueueName, Options) when is_list(Options) -> 
@@ -177,7 +177,7 @@ new_skill(Rec) when is_record(Rec, skill_rec) ->
 	mnesia:transaction(F).
 		
 %% @doc Set all the params for a config based on the record Queue.
--spec(set_all/1 :: (Queue :: #call_queue{}) -> any()).
+-spec(set_all/1 :: (Queue :: #call_queue{}) -> {'aborted', any()} | {'atomic', any()}).
 set_all(Queue) when is_record(Queue, call_queue) -> 
 	F = fun() -> 
 		mnesia:write(Queue)

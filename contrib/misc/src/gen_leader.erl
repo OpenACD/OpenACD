@@ -1109,7 +1109,7 @@ hasBecomeLeader(E,Server,Msg) ->
 % per node
 %
 incarnation(Name, Node) ->
-    FileName = lists:flatten(io_lib:format(".~p-~p", [Name, Node])),
+    FileName = lists:flatten(io_lib:format(".~p.~p-~p", [?MODULE, Name, Node])),
     case file:read_file_info(FileName) of
 	{error,_Reason} ->
 	    ok = file:write_file(FileName,term_to_binary(1)),

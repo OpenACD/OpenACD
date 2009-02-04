@@ -72,12 +72,12 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% @doc Start a queue named `Name' with no link to the current process.
--spec(start/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
+-spec(start/3 :: (Name :: string(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
 start(Name, Recipe, Weight) -> % Start linked queue custom default recipe and weight
 	gen_server:start(?MODULE, [Name, Recipe, Weight], []).
 
 %% @doc Start a queue names `Name' with a link to the current process.
--spec(start_link/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
+-spec(start_link/3 :: (Name :: string(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
 start_link(Name, Recipe, Weight) -> % Start linked queue with custom recipe and weight
 	gen_server:start_link(?MODULE, [Name, Recipe, Weight], []).
 

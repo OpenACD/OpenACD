@@ -91,10 +91,7 @@ init([]) ->
 			Specs = lists:append([DispatchSpec, AgentManagerSpec, QueueManagerSpec], load_specs()),
 			
 			?CONSOLE("specs:  ~p", [supervisor:check_childspecs(Specs)]),
-			{ok,{{one_for_one,3,5}, Specs}};
-		Else -> 
-			?CONSOLE("Other error on building cpx tables:  ~p", [Else]),
-			ignore
+			{ok,{{one_for_one,3,5}, Specs}}
 	end.
 
 %%====================================================================

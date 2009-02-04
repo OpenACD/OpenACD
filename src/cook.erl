@@ -67,12 +67,12 @@
 %%====================================================================
 
 %% @doc Starts a cook linked to the parent process for `Call' processed by `Recipe' for call_queue `QueuePid'.
--spec(start_link/3 :: (Call :: #call{}, Recipe :: recipe(), QueuePid :: pid()) -> {'ok', pid()}).
+-spec(start_link/3 :: (Call :: string(), Recipe :: recipe(), QueuePid :: pid()) -> {'ok', pid()}).
 start_link(Call, Recipe, QueuePid) ->
     gen_server:start_link(?MODULE, [Call, Recipe, QueuePid], []).
 
 %% @doc Starts a cook not linked to the parent process for `Call' processed by `Recipe' for call_queue `QueuePid'.
--spec(start/3 :: (Call :: #call{}, Recipe :: recipe(), QueuePid :: pid()) -> {'ok', pid()}).
+-spec(start/3 :: (Call :: string(), Recipe :: recipe(), QueuePid :: pid()) -> {'ok', pid()}).
 start(Call, Recipe, QueuePid) -> 
 	gen_server:start(?MODULE, [Call, Recipe, QueuePid], []).
 

@@ -42,4 +42,8 @@
 		media_path = outband :: 'inband' | 'outband'
 }).
 
+-ifdef(EUNIT).
+-define(CONSOLE(Message, Args), ?debugFmt("[~p][~p][~p][~p]~n            " ++ Message ++ "~n", lists:append([[erlang:localtime(), ?MODULE, ?LINE, self()], Args]))).
+-else.
 -define(CONSOLE(Message, Args), io:format("[~p][~p][~p][~p]~n            " ++ Message ++ "~n", lists:append([[erlang:localtime(), ?MODULE, ?LINE, self()], Args]))).
+-endif.

@@ -70,11 +70,13 @@
 %% @doc start the queue_manager linked to the parent process.
 -spec(start_link/1 :: (Nodes :: [atom(),...]) -> 'ok').
 start_link(Nodes) ->
+	call_queue_config:build_tables(Nodes),
 	gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, [], []).
 
 %% @doc start the queue_manager unlinked to the parent process.
 -spec(start/1 :: (Nodes :: [atom(),...]) -> 'ok').
 start(Nodes) ->
+	call_queue_config:build_tables(Nodes),
 	gen_leader:start(?MODULE, Nodes, [], ?MODULE, [], []).
 
 % TODO tie add_queue to the call_queue_config
@@ -161,8 +163,13 @@ print() ->
 %% @private
 init([]) ->
 	process_flag(trap_exit, true),
-	%call_queue_config:build_tables(),
-	{ok, dict:new()}.
+	% load the queues in the db and start them.
+	Queues = call_queue_config:get_all(),
+	F = fun(Queuerec, Acc) ->
+		{ok, Pid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
+		dict:store(Queuerec#call_queue.name, Pid, Acc)
+	end,
+	{ok, lists:foldr(F, dict:new(), Queues)}.
 
 elected(State, _Election) ->
 	io:format("elected~n"),
@@ -279,10 +286,16 @@ get_nodes() ->
 	{list_to_atom(lists:append("master@", Host)), list_to_atom(lists:append("slave@", Host))}.
 
 single_node_test_() ->
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
 		foreach,
 		fun() ->
-				{ok, _Pid} = start([node()]),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			%build_tables(),
+			{ok, _Pid} = start([node()]),
 			ok
 		end,
 		fun(_) ->
@@ -352,6 +365,10 @@ single_node_test_() ->
 	}.
 
 multi_node_test_() ->
+	?debugMsg("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"),
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
 	{Master, Slave} = get_nodes(),
 	{
 		foreach,
@@ -361,13 +378,36 @@ multi_node_test_() ->
 			cover:start([Master, Slave]),
 			%rpc:call(Master, global, sync, []),
 			%rpc:call(Slave, global, sync, []),
+			
+			%rpc:call(Master, mnesia, stop, []),
+			%rpc:call(Slave, mnesia, stop, []),
+			%rpc:call(Master, mnesia, delete_schema, [[Master]]),
+			%rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
+			%mnesia:create_schema([Master, Slave]),
+			%rpc:call(Master, mnesia, create_schema, [[Master]]),
+			%rpc:call(Slave, mnesia, create_schema, [[Slave]]),
+			rpc:call(Master, mnesia, start, []),
+			rpc:call(Slave, mnesia, start, []),
+			mnesia:start(),
+			Cf = mnesia:change_config(extra_db_nodes, [Master, Slave]),
+	%		?debugFmt("tried to connect to nodes, result: ~p", [Cf]),
+			mnesia:change_table_copy_type(schema, Master, disc_copies),
+			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+	%		?debugFmt("Nodes: ~p~n", [nodes()]),
+	%		?debugFmt("mnesia db_nodes:  ~p~n", [mnesia:system_info(db_nodes)]),
 			{ok, _Pid} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
 			{ok, _Pid2} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
+	%		?debugFmt("tables:  ~p", [mnesia:system_info(tables)]),
 			{}
 		end,
 		fun({}) -> 
 
 			cover:stop([Master, Slave]), 
+			%?debugMsg("trying to kill the mnesia conf info"),
+			rpc:call(Master, mnesia, stop, []),
+			rpc:call(Slave, mnesia, stop, []),
+			rpc:call(Master, mnesia, delete_schema, [[Master]]),
+			rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
 
 			slave:stop(Master), 
 			slave:stop(Slave),

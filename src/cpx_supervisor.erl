@@ -86,7 +86,7 @@ init([]) ->
 		ok -> 
 			DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 			AgentManagerSpec = {agent_manager, {agent_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
-			QueueManagerSpec = {queue_manager, {queue_manager, start, []}, permanent, 20000, worker, [?MODULE]},
+			QueueManagerSpec = {queue_manager, {queue_manager, start, [lists:append(nodes(), [node()])]}, permanent, 20000, worker, [?MODULE]},
 			
 			Specs = lists:append([DispatchSpec, AgentManagerSpec, QueueManagerSpec], load_specs()),
 			
@@ -183,7 +183,6 @@ config_test_() ->
 	{
 		setup,
 		fun() -> 
-		%	?debugFmt("Node:  ~p~n", [node()]),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),

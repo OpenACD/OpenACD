@@ -29,16 +29,16 @@
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
--define(QUEUE_TABLE, 
+-define(QUEUE_TABLE(Nodes), 
 	[
 		{attributes, record_info(fields, call_queue)},
-		{disc_copies, lists:append(nodes(), [node()])}
+		{disc_copies, Nodes}
 	]
 ).
--define(SKILL_TABLE, 
+-define(SKILL_TABLE(Nodes), 
 	[
 		{attributes, record_info(fields, skill_rec)},
-		{disc_copies, lists:append([nodes(), [node()]])}
+		{disc_copies, Nodes}
 	]
 ).
 
@@ -62,14 +62,20 @@
 	set_recipe/2,
 	set_skills/2,
 	set_weight/2,
-	build_tables/0
+	build_tables/0,
+	build_tables/1
 ]).
 
-%% @doc Attempts to set-up and create the required mnesia table 'call_queue.'
+%% @doc Attempts to set-up and create the required mnesia table 'call_queue' on all visible nodes.
 %% Errors caused by the table already existing are ignored.
 build_tables() -> 
+	build_tables(lists:append(nodes(), [node()])).
+
+%% @doc Attempts to set-up and create the required mnesia table 'call_queue' on the specified nodes
+%% Errors caused by the table already existing are ignored.
+build_tables(Nodes) -> 
 	?CONSOLE("~p building tables...", [?MODULE]),
-	A = util:build_table(call_queue, ?QUEUE_TABLE),
+	A = util:build_table(call_queue, ?QUEUE_TABLE(Nodes)),
 	case A of
 		{atomic, ok} -> 
 			% since the table didn't already exist, build up the default queue
@@ -78,7 +84,7 @@ build_tables() ->
 		_Else -> 
 			ok
 	end,
-	B = util:build_table(skill_rec, ?SKILL_TABLE),
+	B = util:build_table(skill_rec, ?SKILL_TABLE(Nodes)),
 	case B of
 		{atomic, ok} ->
 			% since the table didn't already exist, build up some default skills
@@ -263,7 +269,6 @@ call_queue_test_() ->
 	{
 		setup,
 		fun() -> 
-		%	?debugFmt("Node:  ~p~n", [node()]),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
@@ -462,7 +467,6 @@ skill_rec_test_() ->
 	{
 		setup,
 		fun() -> 
-		%	?debugFmt("Node:  ~p~n", [node()]),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),

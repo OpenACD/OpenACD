@@ -215,6 +215,11 @@ stop(Pid) ->
 -define(MAX_RANDOM_TEST, 100000).
 
 random_test() -> 
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
 	queue_manager:start([node()]),
 	{_, Pid1} = queue_manager:add_queue(queue1, 1),
 	{_, Pid2} = queue_manager:add_queue(queue2, 2),

@@ -51,12 +51,7 @@
 	start_link/2, 
 	start/2, 
 	ring_agent/2,
-	queued_call/2,
-	find_queued/1,
-	unqueue_call/1,
-	agent_call/2,
-	find_agent/1,
-	unagent_call/1]).
+	get_handler/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -65,8 +60,7 @@
 -record(state, {
 	nodename :: atom(),
 	freeswitch_c_pid :: pid(),
-	queued_at = dict:new(),
-	agent_at = dict:new(),
+	call_dict = dict:new(),
 	domain
 	}).
 	
@@ -90,29 +84,11 @@ start(Nodename, Domain) ->
 start_link(Nodename, Domain) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
 
-%% @doc Inform the primary manager that call of id `Callid' has been placed in the queue at pid `Qpid'.
-queued_call(Callid, Qpid) -> 
-	gen_server:cast(?MODULE, {queued_call, Callid, Qpid}).
-
-%% @doc return the pid of the queue the given call id of `Callid' is placed in.
-find_queued(Callid) -> 
-	gen_server:call(?MODULE, {find_queued, Callid}).
-
-%% @doc Notifies the manager that the call id `Callid' is no longer queued anywhere.
-unqueue_call(Callid) ->
-	gen_server:cast(?MODULE, {unqueue_call, Callid}).
-
-%% @doc Notifies the manager that `Callid' is now being handled by agent at pid `Apid'.
-agent_call(Callid, Apid) -> 
-	gen_server:cast(?MODULE, {agent_call, Callid, Apid}).
-
-%% @doc Returns the agent pid that is associated with `Callid' if any.
-find_agent(Callid) -> 
-	gen_server:call(?MODULE, {find_agent, Callid}).
-
-%% @doc Notifies the manager that the call identified by `Callid' is free from any agents.
-unagent_call(Callid) -> 
-	gen_server:cast(?MODULE, {unagent_call, Callid}).
+%% @doc returns {`ok', pid()} if there is a freeswitch media process handling the given `UUID'.
+-spec(get_handler/1 :: (UUID :: string()) -> {'ok', pid()} | 'noexists').
+get_handler(UUID) -> 
+	gen_server:call(?MODULE, {get_handler, UUID}).
+	
 	
 %%====================================================================
 %% gen_server callbacks
@@ -122,7 +98,6 @@ init([Nodename, Domain]) ->
 	?CONSOLE("starting...", []),
 	process_flag(trap_exit, true),
 	Self = self(),
-	% TODO we don't need to register this listener anymore.
 	_Lpid = spawn(fun() -> 
 		{freeswitchnode, Nodename} ! register_event_handler,
 		receive
@@ -143,33 +118,19 @@ init([Nodename, Domain]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call({ring_agent, AgentPid, Call}, _From, #state{queued_at = Dict} = State) ->
-	% TODO test functionality
-	case dict:find(Call#call.id, Dict) of
-		{ok, Queue} -> 
-			?CONSOLE("As far as we know this call is queued at ~p", [Queue]),
-			AgentRec = agent:dump_state(AgentPid),
-			Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang("++atom_to_list(?MODULE)++":! "++atom_to_list(node())++")'",
-				X = freeswitch:api(State#state.nodename, originate, Args),
-				?CONSOLE("Bgapi call res:  ~p;  With args: ~p", [X, Args]),
-				{reply, agent:set_state(AgentPid, ringing, Call), State};
+handle_call({ring_agent, AgentPid, Call}, _From, #state{call_dict = Dict} = State) ->
+	?CONSOLE("ring_agent to ~p for call ~p", [AgentPid, Call#call.id]),
+	AgentRec = agent:dump_state(AgentPid),
+	Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang("++atom_to_list(?MODULE)++":! "++atom_to_list(node())++")'",
+	X = freeswitch:api(State#state.nodename, originate, Args),
+	?CONSOLE("Bgapi call res:  ~p;  With args: ~p", [X, Args]),
+	{reply, agent:set_state(AgentPid, ringing, Call), State};
+handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) -> 
+	case dict:find(UUID, Dict) of
 		error -> 
-			{reply, {error, not_queued}, State}
-	end;
-handle_call({find_queued, Callid}, _From, #state{queued_at = Dict} = State) -> 
-	case dict:find(Callid, Dict) of
-		error -> 
-			{reply, {error, not_queued}, State};
-		Else -> 
-			{reply, Else, State}
-	end;
-handle_call({find_agent, Callid}, _From, #state{agent_at = Dict} = State) -> 
-	case dict:find(Callid, Dict) of 
-		error -> 
-			?CONSOLE("No agent handling this call", []),
-			{reply, {error, no_agent}, State};
-		Else -> 
-			{reply, Else, State}
+			{reply, noexists, State};
+		{ok, Pid} -> 
+			{reply, Pid, State}
 	end;
 handle_call(Request, _From, State) ->
 	?CONSOLE("Sudden call:  ~p", [Request]),
@@ -180,22 +141,6 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_cast({queued_call, Callid, Qpid}, #state{queued_at = Dict} = State) -> 
-	?CONSOLE("noting that ~p was put in ~p", [Callid, Qpid]),
-	NewDict = dict:store(Callid, Qpid, Dict),
-	{noreply, State#state{queued_at = NewDict}};
-handle_cast({unqueue_call, Callid}, #state{queued_at = Dict} = State) -> 
-	?CONSOLE("Noting that ~p was unqueued.", [Callid]),
-	NewDict = dict:erase(Callid, Dict),
-	{noreply, State#state{queued_at = NewDict}};
-handle_cast({agent_call, Callid, Apid}, #state{agent_at = Dict} = State) -> 
-	?CONSOLE("coupling agent at ~p to call ~p", [Apid, Callid]),
-	NewDict = dict:store(Callid, Apid, Dict),
-	{noreply, State#state{agent_at = NewDict}};
-handle_cast({unagent_call, Callid}, #state{agent_at = Dict} = State) ->
-	?CONSOLE("Decoupling agents from ~p", [Callid]),
-	NewDict = dict:erase(Callid, Dict),
-	{noreply, State#state{agent_at = NewDict}};
 handle_cast(_Msg, State) ->
 	%?CONSOLE("Cast:  ~p", [Msg]),
 	{noreply, State}.
@@ -204,20 +149,24 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({new_pid, Ref, From}, State) ->
+handle_info({new_pid, Ref, From}, #state{call_dict = Dict} = State) ->
 	{ok, Pid} = freeswitch_media:start(State#state.nodename),
 	From ! {Ref, Pid},
-	{noreply, State};
-handle_info({'EXIT', Pid, normal}, State) -> 
-	?CONSOLE("Trapping exit from ~p because of ~p.", [Pid, normal]),
-	{noreply, State};
-handle_info({'EXIT', Pid, shutdown}, State) ->
-	?CONSOLE("Trapping exit from ~p due to ~p.", [Pid, shutdown]),
-	{noreply, State};
-handle_info({'EXIT', Pid, Reason}, State) -> 
-	?CONSOLE("Bad exit ~p, do clean up for ~p", [Reason, Pid]),
-	% TODO find out what clean up needs to be done and do it.
-	{noreply, State};
+	Callrec = freeswitch_media:get_call(Pid),
+	NewDict = dict:store(Callrec#call.id, Pid, Dict),
+	{noreply, State#state{call_dict = NewDict}};
+handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) -> 
+	?CONSOLE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
+	F = fun(Key, Value, Acc) -> 
+		case Value of
+			Pid -> 
+				Acc;
+			_Else -> 
+				dict:store(Key, Value, Acc)
+		end
+	end,
+	NewDict = dict:fold(F, dict:new(), Dict),
+	{noreply, State#state{call_dict = NewDict}};
 handle_info(Info, State) ->
 	?CONSOLE("Sudden info:  ~p", [Info]),
     {noreply, State}.

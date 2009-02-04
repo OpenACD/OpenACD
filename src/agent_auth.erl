@@ -280,7 +280,6 @@ local_auth_test_() ->
 	{
 		setup,
 		fun() -> 
-		%	?debugFmt("Node:  ~p~n", [node()]),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),

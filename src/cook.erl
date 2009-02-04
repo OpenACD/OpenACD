@@ -294,11 +294,16 @@ do_operation({_Ticks, Op, Args, _Runs}, State) ->
 
 
 recipe_test_() -> 
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
 	{timeout, 60, 
 	{
 		foreach,
 		fun() -> 
-				queue_manager:start([node()]),
+			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
 			call_queue:add(Pid, 1, #call{id="testcall", skills=[english, testskill]}),
 			Pid

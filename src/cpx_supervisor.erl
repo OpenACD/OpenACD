@@ -33,8 +33,10 @@
 %% those for agent authentication and media managers.  If it cannot build or access the 'cpx_conf' table
 %% the supervisor does not start, thus halting all of cpx from starting.
 %%
-%% By default the agent_auth is not configured, and therefore not started.  Use {@link add_conf/3}.
-%% @see agent_auth
+%% If the system starts without a cpx_conf table, it will build one, placing some default information there.
+%% #cpx_conf{agent_auth, start, []} is added and started, as well as #cpx_conf{agent_tcp_listener}.
+%% 
+%% The 3 most important function are {@link add_conf/3}, {@link destroy/1}, {@link update_conf/4}.
 
 -module(cpx_supervisor).
 -author("Micah").

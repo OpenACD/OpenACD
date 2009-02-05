@@ -43,7 +43,7 @@
 }).
 
 -ifdef(EUNIT).
--define(CONSOLE(Message, Args), ?debugFmt("[~p][~p][~p][~p]~n            " ++ Message ++ "~n", lists:append([[erlang:localtime(), ?MODULE, ?LINE, self()], Args]))).
+-define(CONSOLE(Message, Args), ?debugFmt("[~p][~p]~n            " ++ Message ++ "~n", lists:append([[erlang:localtime(), self()], Args]))).
 -else.
 -define(CONSOLE(Message, Args), io:format("[~p][~p][~p][~p]~n            " ++ Message ++ "~n", lists:append([[erlang:localtime(), ?MODULE, ?LINE, self()], Args]))).
 -endif.

@@ -12,3 +12,6 @@ build/*
 # OS X
 .DS_Store
 profile
+
+# Vim
+*.swp

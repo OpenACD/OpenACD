@@ -66,7 +66,7 @@
 	name :: atom(),
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	weight = ?DEFAULT_WEIGHT :: pos_integer(),
-	call_skills = [english, '_node'] :: [atom()]}). % TODO use these!
+	call_skills = [english, '_node'] :: [atom()]}).
 
 %gen_server support
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).

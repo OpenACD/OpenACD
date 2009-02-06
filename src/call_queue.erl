@@ -322,8 +322,8 @@ handle_call(to_list, _From, State) ->
 handle_call(call_count, _From, State) -> 
 	{reply, gb_trees:size(State#state.queue), State};
 
-handle_call(_Request, _From, State) ->
-	{reply, ok, State}.
+handle_call(Request, _From, State) ->
+	{reply, {unknown_call, Request}, State}.
 
 %% @private
 handle_cast(_Msg, State) ->
@@ -608,5 +608,8 @@ queue_test_() ->
 		]
 	}.
 
+-define(MYSERVERFUNC, fun() -> {ok, Pid} = start(testq, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT), {Pid, fun() -> stop(Pid) end} end).
+
+-include("gen_server_test.hrl").
 
 -endif.

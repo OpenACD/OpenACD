@@ -348,5 +348,10 @@ multi_node_test_() ->
 		]
 	}.
 
+-define(MYSERVERFUNC, fun() -> start(), {?MODULE, fun() -> stop() end} end).
+
+-include("gen_server_test.hrl").
+
+
 -endif.
 

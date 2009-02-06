@@ -91,8 +91,8 @@ init([Call, Recipe, QueuePid]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call(_Request, _From, State) ->
-    {reply, ok, State}.
+handle_call(Request, _From, State) ->
+    {reply, {unknown_call, Request}, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
@@ -355,6 +355,11 @@ recipe_test_() ->
 		]
 	}
 	}.
+
+-define(MYSERVERFUNC, fun() -> {ok, Pid} = start("testcall",[{1, set_priority, [5], run_once}], self()), {Pid, fun() -> stop(Pid) end} end).
+
+-include("gen_server_test.hrl").
+
 
 -endif.
 

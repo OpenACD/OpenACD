@@ -390,7 +390,7 @@ multi_node_test_() ->
 			rpc:call(Master, mnesia, start, []),
 			rpc:call(Slave, mnesia, start, []),
 			mnesia:start(),
-			Cf = mnesia:change_config(extra_db_nodes, [Master, Slave]),
+			mnesia:change_config(extra_db_nodes, [Master, Slave]),
 
 			mnesia:change_table_copy_type(schema, Master, disc_copies),
 			mnesia:change_table_copy_type(schema, Slave, disc_copies),

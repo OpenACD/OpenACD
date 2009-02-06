@@ -66,7 +66,7 @@
 	name :: atom(),
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	weight = ?DEFAULT_WEIGHT :: pos_integer(),
-	call_skills = [english, '_node'] :: [atom()]}).
+	call_skills = [english, '_node'] :: [atom()]}). % TODO use these!
 
 %gen_server support
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -180,12 +180,12 @@ stop(Pid) ->
 
 % find the first call in the queue that doesn't have a pid on this node
 % in its bound list
-%%@private
+%% @private
 -spec(find_unbound/2 :: (GbTree :: {non_neg_integer(), tuple()}, From :: pid()) -> {key(), #call{}} | 'none').
 find_unbound(GbTree, From) ->
 	find_unbound_(gb_trees:next(gb_trees:iterator(GbTree)), From).
 
-%%@private
+%% @private
 -spec(find_unbound_/2 :: (Iterator :: {key(), #call{}, any()} | 'none', From :: pid()) -> {key(), #call{}} | 'none').
 find_unbound_(none, _From) -> 
 	none;
@@ -216,6 +216,18 @@ find_key_(_Needle, none) ->
 	none.
 
 %% @private
+-spec(expand_magic_skills/3 :: (State :: #state{}, Call :: #call{}, Skills :: [atom()]) -> [atom()]).
+expand_magic_skills(State, Call, Skills) ->
+	lists:flatten(lists:map(
+		fun('_node') when is_pid(Call#call.source) -> node(Call#call.source);
+			('_node') -> ?CONSOLE("Can't expand magic skill _node~n", []), [];
+			('_queue') when is_list(State#state.name) -> list_to_atom(State#state.name);
+			('_queue') when is_atom(State#state.name) -> State#state.name;
+			('_queue') -> ?CONSOLE("Can't expand magic skill _queue~n", []), [];
+			(Skill) -> Skill
+		end, Skills)).
+
+%% @private
 handle_call({get_call, Callid}, _From, State) -> 
 	{reply, find_key(Callid, State#state.queue), State};
 handle_call({ungrab, Callid}, {From, _Tag}, State) ->
@@ -225,33 +237,38 @@ handle_call({ungrab, Callid}, {From, _Tag}, State) ->
 		{Key, Value} -> 
 			{reply, ok, State#state{queue=gb_trees:update(Key, Value#call{bound=lists:delete(From, Value#call.bound)}, State#state.queue)}}
 	end;
-handle_call({set_weight, Weight}, _From, State) ->
+handle_call({set_weight, Weight}, _From, State) when is_integer(Weight), Weight > 0 ->
 	{reply, ok, State#state{weight=Weight}};
+handle_call({set_weight, _Weight}, _From, State) -> % invalid weight
+	{reply, error, State};
 handle_call(get_weight, _From, State) ->
 	{reply, State#state.weight, State};
 handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
-handle_call({add, Priority, Calldata}, _From, State) -> 
+handle_call({add, Priority, Calldata}, _From, State) ->
 	{ok, Pid} = cook:start_link(Calldata#call.id, State#state.recipe, self()),
-	Calldata2 = Calldata#call{cook=Pid},
+	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Calldata#call.skills)),
+	Calldata2 = Calldata#call{cook=Pid, skills=expand_magic_skills(State, Calldata, NewSkills)},
 	Trees = gb_trees:insert({Priority, now()}, Calldata2, State#state.queue),
 	{reply, ok, State#state{queue=Trees}};
 
-handle_call({add_skills, Callid, Skills}, _From, State) -> 
+handle_call({add_skills, Callid, Skills}, _From, State) ->
 	case find_key(Callid, State#state.queue) of
 		none -> 
 			{reply, none, State};
-		{Key, #call{skills=OldSkills} = Value} -> 
-			% TODO break this up for readability
-			State2 = State#state{queue=gb_trees:update(Key, Value#call{skills=lists:merge(lists:sort(OldSkills), lists:sort(Skills))}, State#state.queue)},
+		{Key, #call{skills=OldSkills} = Value} ->
+			Skills2 = expand_magic_skills(State, Value, Skills),
+			NewSkills = lists:umerge(lists:sort(OldSkills), lists:sort(Skills2)),
+			State2 = State#state{queue=gb_trees:update(Key, Value#call{skills=NewSkills}, State#state.queue)},
 			{reply, ok, State2}
 	end;
 handle_call({remove_skills, Callid, Skills}, _From, State) -> 
 	case find_key(Callid, State#state.queue) of
 		none -> 
 			{reply, none, State};
-		{Key, #call{skills=OldSkills} = Value} -> 
-			NewSkills = lists:subtract(OldSkills, Skills),
+		{Key, #call{skills=OldSkills} = Value} ->
+			Skills2 = expand_magic_skills(State, Value, Skills),
+			NewSkills = lists:subtract(OldSkills, Skills2),
 			State2 = State#state{queue=gb_trees:update(Key, Value#call{skills=NewSkills}, State#state.queue)},
 			{reply, ok, State2}
 	end;
@@ -468,5 +485,128 @@ empty_queue_to_list_test() ->
 start_stop_test() ->
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	?assertMatch(ok, stop(Pid)).
+
+queue_test_() ->
+	{
+		foreach,
+		fun() ->
+				{ok, Pid} = start(testq, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
+				register(stupidqueue, Pid),
+				Pid
+		end,
+		fun(Pid) ->
+			stop(Pid)
+		end,
+		[
+			{
+				"Change weight test", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(ok, set_weight(Pid, 2)),
+					?assertEqual(2, get_weight(Pid))
+				end
+			}, {
+				"Invalid weight change test", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(error, set_weight(Pid, -1)),
+					?assertEqual(?DEFAULT_WEIGHT, get_weight(Pid))
+				end
+			}, {
+				"Call Count Test", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(0, call_count(Pid)),
+					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					?assertEqual(1, call_count(Pid)),
+					?assertEqual(ok, remove(Pid, "C1")),
+					?assertEqual(0, call_count(Pid)),
+					?assertEqual(none, remove(Pid, "C1"))
+				end
+			}, {
+				"Querying for a call by ID", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(none, get_call(Pid, "C1")),
+					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					{_Key, Call} = get_call(Pid, "C1"),
+					?debugFmt("~p ~p~n", [Call, is_record(Call, call)]),
+					?assertEqual(true, is_record(Call, call))
+				end
+			}, {
+				"Ungrab test", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					?assertEqual(ok, add(Pid, #call{id="C2"})),
+					?assertEqual(ok, add(Pid, #call{id="C3"})),
+					{_Key, Call} = grab(Pid),
+					{_Key2, Call2} = grab(Pid),
+					?assertEqual(ok, ungrab(Pid, Call#call.id)),
+					?assertEqual(ok, ungrab(Pid, Call2#call.id)),
+					?assertEqual(ok, ungrab(Pid, "wtf"))
+				end
+			}, {
+				"Add skills test", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					{_Key, Call} = get_call(Pid, "C1"),
+					?assertEqual(false, lists:member(foo, Call#call.skills)),
+					?assertEqual(false, lists:member(bar, Call#call.skills)),
+					?assertEqual(ok, add_skills(Pid, "C1", [foo, bar])),
+					{_Key, Call2} = get_call(Pid, "C1"),
+					?assertEqual(true, lists:member(foo, Call2#call.skills)),
+					?assertEqual(true, lists:member(bar, Call2#call.skills))
+				end
+			}, {
+				"Add skills to unknown call test", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					?assertEqual(none, add_skills(Pid, "C2", [foo, bar]))
+				end
+			}, {
+				"Remove skills test", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					{_Key, Call} = get_call(Pid, "C1"),
+					?assertEqual(true, lists:member(english, Call#call.skills)),
+					?assertEqual(ok, remove_skills(Pid, "C1", [english])),
+					{_Key, Call2} = get_call(Pid, "C1"),
+					?assertEqual(false, lists:member(english, Call2#call.skills))
+				end
+			}, {
+				"Remove skills from unknown call test", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					?assertEqual(none, remove_skills(Pid, "C2", [english]))
+				end
+			}, {
+				"Add magic skills test", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(ok, add(Pid, #call{id="C1", source=self()})),
+					{_Key, Call} = get_call(Pid, "C1"),
+					?assertEqual(false, lists:member(testq, Call#call.skills)),
+					?assertEqual(ok, add_skills(Pid, "C1", ['_queue'])),
+					{_Key, Call2} = get_call(Pid, "C1"),
+					?debugFmt("Skills are ~p~n", [Call2#call.skills]),
+					?assertEqual(true, lists:member(testq, Call2#call.skills))
+				end
+			}, {
+				"Remove magic skills test", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(ok, add(Pid, #call{id="C1", source=self()})),
+					{_Key, Call} = get_call(Pid, "C1"),
+					?assertEqual(true, lists:member(node(), Call#call.skills)),
+					?assertEqual(ok, remove_skills(Pid, "C1", ['_node'])),
+					{_Key, Call2} = get_call(Pid, "C1"),
+					?assertEqual(false, lists:member(node(), Call2#call.skills))
+				end
+			}, {
+				"Ensure that call_skills are merged into the call's skill list on add", fun() ->
+					Pid = whereis(stupidqueue),
+					?assertEqual(ok, add(Pid, #call{id="C1", source=self(), skills=[madness]})),
+					{_Key, Call} = get_call(Pid, "C1"),
+					?assertEqual(true, lists:member(node(), Call#call.skills)),
+					?assertEqual(true, lists:member(english, Call#call.skills))
+				end
+			}
+		]
+	}.
+
 
 -endif.

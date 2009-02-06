@@ -236,7 +236,7 @@ handle_call({notify, Name, Pid}, _From, State) ->
 	{reply, ok, dict:store(Name, Pid, State)};
 handle_call({exists, Name}, _From, State) ->
 	{reply, dict:is_key(Name, State), State};
-handle_call({get_queue, Name}, From, State) ->
+handle_call({get_queue, Name}, _From, State) ->
 	?CONSOLE("get_queue start...", []),
 	case dict:find(Name, State) of
 		{ok, Pid} ->
@@ -268,11 +268,11 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %% @private
-handle_info({mnesia_system_event, {inconsistent_database, Context, Node}}, State) -> 
+handle_info({mnesia_system_event, {inconsistent_database, _Context, _Node}}, State) ->
 	mnesia:set_master_nodes(call_queue, [node()]),
 	mnesia:set_master_nodes(skill_rec, [node()]),
 	{noreply, State};
-handle_info({mnesia_system_event, MEvent}, State) -> 
+handle_info({mnesia_system_event, _MEvent}, State) ->
 	{noreply, State};
 handle_info(_Info, State) ->
 	{noreply, State}.

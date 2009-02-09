@@ -213,7 +213,7 @@ stop(Pid) ->
 
 -define(MAX_RANDOM_TEST, 100000).
 
-random_test() -> 
+random_test() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),
 	mnesia:delete_schema([node()]),
@@ -261,7 +261,9 @@ random_test() ->
 	call_queue:stop(Pid2),
 	call_queue:stop(Pid3), 
 	call_queue:stop(Pid4),
-	queue_manager:stop().
+	queue_manager:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]).
 
 randomtest_loop(_Queues, _Total, Dict, ?MAX_RANDOM_TEST) -> 
 	Dict;
@@ -273,10 +275,14 @@ randomtest_loop(Queues, Total, Dict, Acc) ->
 
 
 
-grab_test_() -> 
+grab_test_() ->
 	{
 		foreach,
-		fun() -> 
+		fun() ->
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
 			queue_manager:start([node()]),
 			{_, Pid1} = queue_manager:add_queue(queue1, 1),
 			{_, Pid2} = queue_manager:add_queue(queue2, 2),
@@ -286,6 +292,8 @@ grab_test_() ->
 		end,
 		fun(Pids) -> 
 			queue_manager:stop(),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
 			agent_manager:stop(),
 			lists:foreach(fun(P) -> call_queue:stop(P) end, Pids)
 		end,
@@ -316,18 +324,19 @@ grab_test_() ->
 	}.
 	
 -define(MYSERVERFUNC, fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
-		{ok, Pid2} = queue_manager:start([node()]),
-		receive
-		after 500 -> ok
-		end,
+		?debugFmt("~p~n", [mnesia:system_info(tables)]),
+		{ok, _Pid2} = queue_manager:start([node()]),
 		{ok, Pid} = start(),
 
 		{Pid, fun() ->
 			Res = stop(Pid),
 			queue_manager:stop(),
 			mnesia:stop(),
+			mnesia:delete_schema([node]),
 			Res
 		end}
 	end).

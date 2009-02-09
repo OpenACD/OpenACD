@@ -91,6 +91,8 @@ init([Call, Recipe, QueuePid]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
+handle_call(stop, _From, State) ->
+	{stop, normal, ok, State};
 handle_call(Request, _From, State) ->
     {reply, {unknown_call, Request}, State}.
 
@@ -111,8 +113,6 @@ handle_cast({stop_ringing, AgentPid}, State) when AgentPid =:= State#state.ringi
 handle_cast(remove_from_queue, State) ->
 	call_queue:remove(State#state.queue, State#state.call),
 	{noreply, State};
-handle_cast(stop, State) -> 
-	{stop, normal, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -159,7 +159,7 @@ do_tick(#state{recipe=Recipe} = State) ->
 	State2#state{ticked= State2#state.ticked+1, recipe=Recipe2}.
 
 stop(Pid) -> 
-	gen_server:cast(Pid, stop).
+	gen_server:call(Pid, stop).
 
 %% @private
 -spec(do_route/1 :: (State :: #state{}) -> #state{}).

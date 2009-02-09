@@ -177,7 +177,8 @@ code_change(_OldVsn, State, _Extra) ->
 
 -ifdef('EUNIT').
 
-handle_call_start_test() -> 
+handle_call_start_test() ->
+	stop(),
 	?assertMatch({ok, _Pid}, start()),
 	stop().
 
@@ -347,6 +348,11 @@ multi_node_test_() ->
 			}
 		]
 	}.
+
+-define(MYSERVERFUNC, fun() -> start(), {?MODULE, fun() -> stop() end} end).
+
+-include("gen_server_test.hrl").
+
 
 -endif.
 

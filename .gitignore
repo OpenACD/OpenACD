@@ -7,6 +7,9 @@ erl_crash.dump
 .gen_leader*
 doc/*
 
+contrib/**/ebin/*
+contrib/**/doc/*
+
 # Xcode
 build/*
 *.xcodeproj/*
@@ -14,3 +17,6 @@ build/*
 # OS X
 .DS_Store
 profile
+
+# Vim
+*.swp

@@ -111,9 +111,8 @@ handle_call(regrab, _From, State) ->
 			call_queue:ungrab(State#state.qpid, OldCall#call.id),
 			{reply, Call, State#state{qpid=Qpid, call=Call}}
 	end;
-handle_call(_Request, _From, State) ->
-	Reply = unknown,
-	{reply, Reply, State}.
+handle_call(Request, _From, State) ->
+	{reply, {unknown_call, Request}, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
@@ -316,5 +315,24 @@ grab_test_() ->
 		]
 	}.
 	
+-define(MYSERVERFUNC, fun() ->
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		{ok, Pid2} = queue_manager:start([node()]),
+		receive
+		after 500 -> ok
+		end,
+		{ok, Pid} = start(),
+
+		{Pid, fun() ->
+			Res = stop(Pid),
+			queue_manager:stop(),
+			mnesia:stop(),
+			Res
+		end}
+	end).
+
+-include("gen_server_test.hrl").
+
 -endif.
 

@@ -67,7 +67,9 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 end
 
 
-task :compile => ['ebin'] + OBJ do
+task :compile => [:contrib, 'ebin'] + OBJ
+
+task :contrib do
 	CONTRIB.each do |cont|
 		if File.exists? File.join(cont, 'Makefile')
 			sh "#{MAKE} -C #{cont}"
@@ -96,7 +98,9 @@ end
 
 namespace :test do
 	desc "Compile .beam files with -DEUNIT and +debug_info => debug_ebin"
-	task :compile => ['debug_ebin'] + DEBUGOBJ do
+	task :compile => [:contrib, 'debug_ebin'] + DEBUGOBJ
+
+	task :contrib do
 		CONTRIB.each do |cont|
 			if File.exists? File.join(cont, 'Makefile')
 				sh "#{MAKE} -C #{cont}"
@@ -114,7 +118,7 @@ namespace :test do
 	task :all => [:compile, :eunit, :dialyzer, :report_coverage]
 
 	desc "run only the eunit tests"
-	task :eunit =>  ['coverage'] + COVERAGE
+	task :eunit =>  [:compile, 'coverage'] + COVERAGE
 
 	desc "report the percentage code coverage of the last test run"
 	task :report_coverage =>  [:eunit] do

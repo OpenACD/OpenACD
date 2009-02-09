@@ -154,7 +154,7 @@ hexstr_to_bin([X, Y | T], Acc) ->
 build_table(Tablename, Options) when is_atom(Tablename) ->
 	case mnesia:system_info(is_running) of
 		yes -> 
-			case filelib:is_dir(mnesia:system_info(directory)) of
+			case mnesia:system_info(use_dir) of
 				true -> 					
 					case lists:member(Tablename, mnesia:system_info(tables)) of
 						true -> 
@@ -263,14 +263,14 @@ build_table_test_() ->
 				fun() -> 
 					?assertExit(mnesia_stopped, build_table(test_table, ?TEST_TABLE))
 				end
-			}%,
-			%{
-			%	"Mnesia Has Ram Schema",
-			%	fun() -> 
-			%		mnesia:start(), 
-			%		?assertExit(mnesia_schema_not_found, build_table(test_table, ?TEST_TABLE))
-			%	end
-			%}
+			},
+			{
+				"Mnesia Has Ram Schema",
+				fun() ->
+					mnesia:start(),
+					?assertExit(mnesia_schema_not_found, build_table(test_table, ?TEST_TABLE))
+				end
+			}
 		]
 	}.
 				

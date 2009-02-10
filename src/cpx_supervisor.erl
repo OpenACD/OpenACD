@@ -82,6 +82,7 @@ start() ->
 %%====================================================================
 %% Supervisor callbacks
 %%====================================================================
+%% @private
 init([]) ->
 	% TODO Create warnings for missing/requires specs (at least one media manager, the agent_auth).
 	case build_tables() of

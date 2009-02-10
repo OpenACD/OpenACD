@@ -41,7 +41,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 
-% TODO wtf?  %%answer:  this is meant to represent a dictionary.
+% TODO wtf?  %%answer:  this is meant to represent a dictionary.  Used for spec in sync.
 -type(mod_state() :: [{string(), pid()}]).
 
 %% @doc Starts the gen_server linked to the calling process.

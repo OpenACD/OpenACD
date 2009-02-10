@@ -104,6 +104,7 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
+%% @private
 %Password should already be md5'ed.
 handle_call({authentication, Username, Password, Salt}, _From, State) -> 
 	% start w/ the remote try.  If that fails, try the local.
@@ -137,24 +138,28 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+%% @private
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+%% @private
 handle_info(_Info, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
+%% @private
 terminate(_Reason, _State) ->
     ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
+%% @private
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -204,8 +209,8 @@ build_tables() ->
 			Else
 	end.
 
-%% @doc Caches the passed Username, Password, and Skills to the mnesia database.  Username is the plaintext name and used as the key. 
-%% Password is assumed to be prehashed either from erlang:md5 or as a string (list).  Skills  should not
+%% @doc Caches the passed `Username', `Password', and `Skills' to the mnesia database.  `Username' is the plaintext name and used as the key. 
+%% `Password' is assumed to be prehashed either from erlang:md5 or as a string (list).  `Skills'  should not
 %% include the magic skills of '_agent' or '_node'.
 -spec(cache/3 ::	(Username :: string(), Password :: string(), Skills :: [atom()]) -> {'atomic', 'ok'} | {'aborted', any()};
 					(Username :: string(), Password :: binary(), Skills :: [atom()]) -> {'atomic', 'ok'} | {'aborted', any()}).
@@ -222,7 +227,7 @@ cache(Username, Password, Skills) ->
 	end,
 	mnesia:transaction(F).
 
-%% @doc Removes the passed user from the local cache.  Called when integration returns a deny.
+%% @doc Removes the passed user with login of `Username' from the local cache.  Called when integration returns a deny.
 -spec(destroy/1 :: (Username :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
 destroy(Username) -> 
 	F = fun() -> 
@@ -231,7 +236,7 @@ destroy(Username) ->
 	mnesia:transaction(F).
 
 %% @private 
-% Checks the Username and prehashed Password using the given Salt for the cached password.
+% Checks the `Username' and prehashed `Password' using the given `Salt' for the cached password.
 % internally called by the auth callback; there should be no need to call this directly.
 -spec(local_auth/3 :: (Username :: string(), Password :: string(), Salt :: string()) -> {'allow', [atom()]} | 'deny').
 local_auth(Username, Password, Salt) -> 

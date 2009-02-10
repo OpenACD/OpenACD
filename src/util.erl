@@ -135,6 +135,7 @@ bin_to_hexstr(Bin) ->
 hexstr_to_bin(S) ->
 	hexstr_to_bin(S, []).
 
+%% @private
 -spec(hexstr_to_bin/2 :: (string(), Acc :: string()) -> binary()).
 hexstr_to_bin([], Acc) ->
 	list_to_binary(lists:reverse(Acc));
@@ -149,7 +150,6 @@ hexstr_to_bin([X, Y | T], Acc) ->
 %% If you trying to create the same table twice, it simply returns ok, otherwise returns the raw mnesia create_table result.
 %% Takes the same parameters as mnesia:create_table.
 %% @see mnesia:create_table/2
-%% @clear
 -spec(build_table/2 :: (atom(), [any()]) -> 'ok' | {'atomic', 'ok'}).
 build_table(Tablename, Options) when is_atom(Tablename) ->
 	case mnesia:system_info(is_running) of

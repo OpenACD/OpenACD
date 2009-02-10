@@ -173,12 +173,12 @@ init([]) ->
 	{ok, lists:foldr(F, dict:new(), Queues)}.
 
 elected(State, _Election) ->
-	io:format("elected~n"),
+	?CONSOLE("elected",[]),
 	mnesia:subscribe(system),
 	{ok, ok, State}.
 
 surrendered(State, _LeaderState, _Election) ->
-	io:format("surrendered~n"),
+	?CONSOLE("surrendered",[]),
 	mnesia:unsubscribe(system),
 	% TODO - purge any non-local pids from our state and notify the leader of all the local ones
 	State2 = dict:filter(fun(_K,V) -> node() =:= node(V) end, State),
@@ -187,7 +187,7 @@ surrendered(State, _LeaderState, _Election) ->
 
 %% @private
 handle_DOWN(Node, State, _Election) ->
-	io:format("in handle_DOWN~n"),
+	?CONSOLE("in handle_DOWN",[]),
 	mnesia:set_master_nodes(call_queue, [node()]),
 	mnesia:set_master_nodes(skill_rec, [node()]),
 	{ok, dict:filter(fun(K,V) -> io:format("Trying to remove ~p.~n", [K]), Node =/= node(V) end, State)}.
@@ -205,7 +205,7 @@ handle_leader_call({get_queue, Name}, _From, State, _Election) ->
 			{reply, undefined, State}
 	end;
 handle_leader_call({exists, Name}, _From, State, _Election) ->
-	io:format("got an exists request~n"),
+	?CONSOLE("got an exists request",[]),
 	{reply, dict:is_key(Name, State), State};
 handle_leader_call(_Msg, _From, State, _Election) ->
 	{reply, unknown, State}.
@@ -251,7 +251,7 @@ handle_call(print, _From, State) ->
 handle_call(queues_as_list, _From, State) ->
 	{reply, dict:to_list(State), State};
 handle_call(stop, _From, State) ->
-	io:format("stop requested~n"),
+	?CONSOLE("stop requested",[]),
 	{stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
 	{reply, unknown, State}.

@@ -41,21 +41,25 @@
 -include("call.hrl").
 -include("agent.hrl").
 
-% TODO wtf?
+% TODO wtf?  %%answer:  this is meant to represent a dictionary.
 -type(mod_state() :: [{string(), pid()}]).
 
+%% @doc Starts the gen_server linked to the calling process.
 -spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() -> 
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-	
+
+%% @doc Starts the gen_server without linking to the callnig process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
+%% @doc stops the server.
 -spec(stop/0 :: () -> {'ok', pid()}).
 stop() ->
 	gen_server:call(?MODULE, stop).
 
+%% @private
 init([]) -> 
 	process_flag(trap_exit, true),
 	case global:whereis_name(?MODULE) of
@@ -66,6 +70,7 @@ init([]) ->
 		end,
 	{ok, dict:new()}.
 
+%% @doc starts a new agent_fsm for `Agent'. Returns {'ok', pid()}, where pid is the new agent_fsm pid.
 -spec(start_agent/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
 start_agent(Agent) -> 
 	gen_server:call(?MODULE, {start_agent, Agent}).
@@ -92,6 +97,7 @@ query_agent(Login) ->
 sync_agents(Dict) -> 
 	Dict.
 
+%% @private
 handle_call({start_agent, #agent{login=Login} = Agent}, _From, State) ->
 	% starts a new agent and returns the state of that agent.
 	case dict:find(Login, State) of 
@@ -148,9 +154,12 @@ handle_call(stop, _From, State) ->
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 
+
+%% @private
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
+%% @private
 handle_info({'EXIT', From, _Reason}, State) -> 
 	{noreply, dict:filter(
 		fun(_Key, Val) -> 
@@ -169,9 +178,11 @@ handle_info({global_name_conflict, _Name}, State) ->
 handle_info(_Info, State) ->
 	{noreply, State}.
 
+%% @private
 terminate(_Reason, _State) ->
 	ok.
 
+%% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 

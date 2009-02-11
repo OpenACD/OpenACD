@@ -287,7 +287,7 @@ grab_test_() ->
 			{_, Pid1} = queue_manager:add_queue(queue1, 1),
 			{_, Pid2} = queue_manager:add_queue(queue2, 2),
 			{_, Pid3} = queue_manager:add_queue(queue3, 99),
-			agent_manager:start(),
+			agent_manager:start([node()]),
 			[Pid1, Pid2, Pid3]
 		end,
 		fun(Pids) -> 

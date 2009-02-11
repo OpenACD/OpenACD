@@ -119,6 +119,7 @@ elected(State, _Election) ->
 	?CONSOLE("elected", []),
 	{ok, ok, State}.
 	
+%% TODO what about an agent started at both places?
 surrendered(#state{agents = Agents} = State, _LeaderState, _Election) -> 
 	?CONSOLE("surrendered", []),
 	% clean out non-local pids
@@ -135,7 +136,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 	
 handle_DOWN(Node, #state{agents = Agents} = State, _Election) -> 
 	% clean out the pids associated w/ the dead node
-	F = fun(Login, Apid) -> 
+	F = fun(_Login, Apid) -> 
 		Node =/= node(Apid)
 	end,
 	Agents2 = dict:filter(F, Agents),
@@ -158,7 +159,7 @@ handle_leader_cast({notify, Agent, Apid}, #state{agents = Agents} = State, _Elec
 		error -> 
 			Agents2 = dict:store(Agent, Apid, Agents),
 			{noreply, State#state{agents = Agents2}};
-		Else -> 
+		_Else -> 
 			{noreply, State}
 	end;
 handle_leader_cast(dump_election, State, Election) -> 
@@ -331,7 +332,7 @@ multi_node_test_() ->
 					slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
 					cover:start([Master, Slave]),
 
-					{ok, MasterP} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
+					{ok, _MasterP} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
 					{ok, SlaveP} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
 
 					%% test proper begins
@@ -352,28 +353,25 @@ multi_node_test_() ->
 					%?assertMatch(Globalwhere, Slaveself)
 				end
 			}, {
-				"Net Split",
+				"Net Split with unique agents",
 				fun() ->
+					{ok, Apid1} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
+					
+					?assertMatch({exists, Apid1}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
+				
 					rpc:call(Master, erlang, disconnect_node, [Slave]),
 					rpc:call(Slave, erlang, disconnect_node, [Master]),
-
-
-					?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent])),
-					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
-
+					
+					{ok, Apid2} = rpc:call(Slave, ?MODULE, start_agent, [Agent2]),
+										
 					Pinged = rpc:call(Master, net_adm, ping, [Slave]),
 					Pinged = rpc:call(Slave, net_adm, ping, [Master]),
 
 					?assert(Pinged =:= pong),
 
-					%rpc:call(Master, global, sync, []),
-					%rpc:call(Slave, global, sync, []),
-
+					?assertMatch({true, Apid1}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
+					?assertMatch({true, Apid2}, rpc:call(Master, ?MODULE, query_agent, [Agent2]))
 					
-					%Newmaster = node(global:whereis_name(?MODULE)),
-
-					receive after 1000 -> ok end
-					%?assertMatch(Newmaster, Master)
 				end
 			}, {
 				"Master removes agents for a dead node",

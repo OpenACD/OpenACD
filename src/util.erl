@@ -270,6 +270,15 @@ build_table_test_() ->
 					mnesia:start(),
 					?assertExit(mnesia_schema_not_found, build_table(test_table, ?TEST_TABLE))
 				end
+			},
+			{
+				"Table already exists",
+				fun() ->
+					mnesia:create_schema([node()]),
+					mnesia:start(),
+					?assertMatch({atomic, ok}, build_table(test_table, ?TEST_TABLE)),
+					?assertMatch(ok, build_table(test_table, ?TEST_TABLE))
+				end
 			}
 		]
 	}.

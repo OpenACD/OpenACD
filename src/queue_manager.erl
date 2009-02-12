@@ -310,6 +310,8 @@ single_node_test_() ->
 			ok
 		end,
 		fun(_) ->
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
 			stop()
 		end,
 		[
@@ -377,20 +379,22 @@ single_node_test_() ->
 
 multi_node_test_() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
-	mnesia:stop(),
-	mnesia:delete_schema([node()]),
 	{Master, Slave} = get_nodes(),
 	{
 		foreach,
 		fun() ->
 			slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
 			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"), 
+
+			mnesia:change_config(extra_db_nodes, [Master, Slave]),
+			mnesia:delete_schema([node(), Master, Slave]),
+			mnesia:create_schema([node(), Master, Slave]),
+
 			cover:start([Master, Slave]),
 
 			rpc:call(Master, mnesia, start, []),
 			rpc:call(Slave, mnesia, start, []),
 			mnesia:start(),
-			mnesia:change_config(extra_db_nodes, [Master, Slave]),
 
 			mnesia:change_table_copy_type(schema, Master, disc_copies),
 			mnesia:change_table_copy_type(schema, Slave, disc_copies),
@@ -403,14 +407,16 @@ multi_node_test_() ->
 
 			cover:stop([Master, Slave]), 
 
-			rpc:call(Master, mnesia, stop, []),
-			rpc:call(Slave, mnesia, stop, []),
-			mnesia:stop(),
-			rpc:call(Master, mnesia, delete_schema, [[Master]]),
-			rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
+			%rpc:call(Master, mnesia, stop, []),
+			%rpc:call(Slave, mnesia, stop, []),
+			%rpc:call(Master, mnesia, delete_schema, [[Master]]),
+			%rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
 
 			slave:stop(Master), 
 			slave:stop(Slave),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+
 			ok 
 		end,
 		[

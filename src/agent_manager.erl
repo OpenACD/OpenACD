@@ -23,6 +23,7 @@
 
 -module(agent_manager).
 -author(micahw).
+-behaviour(gen_leader).
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").

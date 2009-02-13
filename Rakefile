@@ -59,7 +59,11 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 
 	test_output = `erl -pa debug_ebin -sname testpx -s test_coverage start #{mod} -run init stop`
 	if /(All \d+ tests successful|There were no tests to run|This module does not provide a test\(\) function)/ =~ test_output
-		puts "  #{mod.ljust(@maxwidth - 1)} : #{$1}"
+		if ENV['verbose']
+			puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
+		else
+			puts "  #{mod.ljust(@maxwidth - 1)} : #{$1}"
+		end
 	else
 		puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
 		File.delete(t.to_s)

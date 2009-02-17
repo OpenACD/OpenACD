@@ -94,9 +94,19 @@ start_agent(#agent{login = ALogin} = Agent) ->
 -spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [{string(), pid(), #agent{}}]).
 find_avail_agents_by_skill(Skills) -> 
 	?CONSOLE("skills passed:  ~p.", [Skills]),
-	AvailSkilledAgents = [{K, V, AgState} || {K, V} <- gen_leader:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], AgState#agent.state =:= idle, util:list_contains_all(AgState#agent.skills, Skills)],
+	AvailSkilledAgents = [{K, V, AgState} || {K, V} <- gen_leader:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], AgState#agent.state =:= idle, lists:member('_all', AgState#agent.skills) orelse util:list_contains_all(AgState#agent.skills, Skills)],
 	AvailSkilledAgentsByIdleTime = lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> State1#agent.lastchangetimestamp =< State2#agent.lastchangetimestamp end, AvailSkilledAgents), 
-	lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> length(State1#agent.skills) =< length(State2#agent.skills) end, AvailSkilledAgentsByIdleTime).
+	F = fun({_K1, _V1, State1}, {_K2, V2, State2}) -> 
+		case {lists:member('_all', State1#agent.skills), lists:member('_all', State2#agent.skills)} of
+			{true, false} -> 
+				false;
+			{false, true} -> 
+				true;
+			Else -> 
+				length(State1#agent.skills) =< length(State2#agent.skills)
+		end
+	end,
+	lists:sort(F, AvailSkilledAgentsByIdleTime).
 		
 %% @doc Check if an agent idetified by agent record or login name string of `Login' exists
 -spec(query_agent/1 ::	(Agent :: #agent{}) -> {'true', pid()} | 'false';

@@ -64,6 +64,7 @@ discover () ->
 %-=====================================================================-
 
 init ([ Addr, Port, Ttl ]) ->
+	crypto:start(),
   process_flag (trap_exit, true),
 
   Opts = [ { active, true },
@@ -144,7 +145,12 @@ process_packet ("DISCOVERV2 " ++ Rest, IP, InPortNo, State) ->
 
     case { mac ([ <<Time:64>>, NodeString ]), abs (seconds () - Time) } of
       { Mac, AbsDelta } when AbsDelta < 300 ->
-        net_adm:ping (list_to_atom (binary_to_list (NodeString)));
+				Node = list_to_atom (binary_to_list (NodeString)),
+				case node() of
+					Node -> ok; % don't bother pinging ourselves
+					_Node ->
+            net_adm:ping (Node)
+				end;
       { Mac, AbsDelta } ->
         error_logger:warning_msg ("expired DISCOVERV2 (~p) from ~p:~p~n",
                                   [ AbsDelta,

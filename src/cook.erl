@@ -310,7 +310,7 @@ do_operation({_Ticks, Op, Args, _Runs}, State) ->
 -ifdef(EUNIT).
 
 
-recipe_test_() -> 
+queue_interaction_test_() -> 
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),
 	mnesia:delete_schema([node()]),
@@ -327,7 +327,11 @@ recipe_test_() ->
 			Pid
 		end,
 		fun(Pid) -> 
-			call_queue:stop(Pid),
+			try call_queue:stop(Pid)
+			catch
+				exit:{noproc, Detail} ->
+					?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
+			end,
 			queue_manager:stop()
 		end,
 		[
@@ -372,6 +376,7 @@ recipe_test_() ->
 			end},
 			{"Waiting for queue rebirth",
 			fun() -> 
+				call_queue_config:new_queue(testqueue, {recipe, [{1, add_skills, [newskill1, newskill2], run_once}]}),
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),	
 				{ok, MyPid} = start("testcall", [{1, add_skills, [newskill1, newskill2], run_once}], testqueue),
@@ -380,7 +385,9 @@ recipe_test_() ->
 				after 300 -> ok
 				end,
 				NewPid = queue_manager:get_queue(testqueue),
-				?assertEqual(1, call_queue:call_count(NewPid))
+				?debugFmt("Newpid:  ~p", [NewPid]),
+				?assertEqual(1, call_queue:call_count(NewPid)),
+				call_queue_config:destroy(testqueue)
 			end
 			}
 		]

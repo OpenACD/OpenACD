@@ -284,9 +284,9 @@ handle_call(get_weight, _From, State) ->
 	{reply, State#state.weight, State};
 handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
-handle_call({add, Priority, Callpid, Callrec}, _From, State) when is_pid(Callpid) ->
+handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid) ->
 	% TODO ensure cook is started on same node callpid is on
-	?CONSOLE("adding call ~p...", [Callpid]),
+	?CONSOLE("adding call ~p request from ~p", [Callpid, From]),
 	{ok, Cookpid} = cook:start_link(Callpid, State#state.recipe, State#state.name),
 	Queuedrec = #queued_call{media=Callpid, id=Callrec#call.id, cook=Cookpid},
 	?CONSOLE("queuedrec: ~p", [Queuedrec]),
@@ -403,6 +403,10 @@ handle_info(Info, State) ->
 %% @private
 terminate(normal, State) ->
 	?CONSOLE("Normal terminate", []),
+	lists:foreach(fun({_K,V}) when is_pid(V#call.cook) -> cook:stop(V#call.cook); (_) -> ok end, gb_trees:to_list(State#state.queue)),
+	ok;
+terminate(shutdown, State) -> 
+	?CONSOLE("Shutdown terminate", []),
 	lists:foreach(fun({_K,V}) when is_pid(V#call.cook) -> cook:stop(V#call.cook); (_) -> ok end, gb_trees:to_list(State#state.queue)),
 	ok;
 terminate(Reason, State) -> 

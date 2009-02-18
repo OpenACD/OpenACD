@@ -124,7 +124,17 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info(do_tick, State) -> 
-	{noreply, do_tick(State)};
+	case whereis(queue_manager) of
+		undefined -> 
+			{stop, queue_manager_undefined, State};
+		_Else -> 
+			case queue_manager:get_queue(State#state.queue) of
+				undefined -> 
+					{stop, {queue_undefined, State#state.queue}, State};
+				_Other -> 
+					{noreply, do_tick(State)}
+			end
+	end;
 %handle_info({'EXIT', Pid, _Reason}, State) -> 
 %	?CONSOLE("queue ~p died, suspending self", [State#state.queue]),
 %	timer:cancel(State#state.tref),
@@ -143,7 +153,10 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% @private
 terminate(normal, _State) -> 
-	?CONSOLE("Graceful death", []),
+	?CONSOLE("normal Graceful death", []),
+	ok;
+terminate(shutdown, _State) -> 
+	?CONSOLE("shutdown graceful death", []),
 	ok;
 terminate(Reason, State) ->
 	?CONSOLE("Hagurk!  ~p", [Reason]),
@@ -175,15 +188,18 @@ stop_tick(Pid) ->
 wait_for_queue(Qname) ->
 	case whereis(queue_manager) of
 		undefined -> 
+			?CONSOLE("Waiting on the queue manager", []),
 			receive
 			after 1000 ->
 				ok
 			end;
-		QMPid -> 
+		QMPid when is_pid(QMPid) -> 
+			?CONSOLE("Queue manager is available", []),
 			ok
 	end,
 	case queue_manager:get_queue(Qname) of
 		undefined -> 
+			?CONSOLE("Waiting on queue ~p" , [Qname]),
 			receive
 			after 300 ->
 				ok
@@ -406,23 +422,16 @@ queue_interaction_test_() ->
 				call_queue_config:new_queue(testqueue, {recipe, [{1, add_skills, [newskill1, newskill2], run_once}]}),
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				{_Pri, CallRec} = call_queue:ask(Pid),
-				%call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),
-				%call_queue:add(Pid, whereis(media_dummy)),
 				?assertEqual(1, call_queue:call_count(Pid)),
-				%exit(Pid, testy),
-				%call_queue:stop(Pid),
 				gen_server:call(Pid, {stop, testy}),
 				?assert(is_process_alive(Pid) =:= false),
-				%?assert(is_process_alive(CallRec#queued_call.cook)),
-				%?CONSOLE("sending fake exit message to ~p", [CallRec#queued_call.cook]),
-				%CallRec#queued_call.cook ! {'EXIT', Pid, test_kill},
-				%?assert(is_process_alive(CallRec#queued_call.cook)),
 				receive
 				after 1000 -> 
 					ok
 				end,
 				NewPid = queue_manager:get_queue(testqueue),
 				?assertEqual(1, call_queue:call_count(NewPid)),
+				call_queue:stop(NewPid),
 				call_queue_config:destroy(testqueue)
 			end
 			},
@@ -431,11 +440,8 @@ queue_interaction_test_() ->
 				call_queue_config:new_queue(testqueue, {recipe, [{1, add_skills, [newskill1, newskill2], run_once}]}),
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				{_Pri, CallRec} = call_queue:ask(Pid),
-				%call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),
-				%call_queue:add(Pid, whereis(media_dummy)),
 				?assertEqual(1, call_queue:call_count(Pid)),
-				%exit(Pid, testy),
-				%call_queue:stop(Pid),
+				?CONSOLE("before death:  ~p", [call_queue:print(Pid)]),
 				QMPid = whereis(queue_manager),
 				exit(QMPid, kill),
 				receive
@@ -446,16 +452,14 @@ queue_interaction_test_() ->
 				?assert(is_process_alive(QMPid) =:= false),
 				?assert(is_process_alive(Pid) =:= false),
 				queue_manager:start([node()]),
-				%?assert(is_process_alive(CallRec#queued_call.cook)),
-				%?CONSOLE("sending fake exit message to ~p", [CallRec#queued_call.cook]),
-				%CallRec#queued_call.cook ! {'EXIT', Pid, test_kill},
-				%?assert(is_process_alive(CallRec#queued_call.cook)),
 				receive
 				after 1000 -> 
 					ok
 				end,
 				NewPid = queue_manager:get_queue(testqueue),
+				
 				?assertEqual(1, call_queue:call_count(NewPid)),
+				call_queue:stop(NewPid),
 				call_queue_config:destroy(testqueue)
 			end
 			}

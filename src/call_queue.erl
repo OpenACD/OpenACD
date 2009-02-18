@@ -39,6 +39,7 @@
 -behaviour(gen_server).
 -include("call.hrl").
 -include("queue.hrl").
+
 -export([
 	start/3,
 	start_link/3,
@@ -81,10 +82,6 @@ start(Name, Recipe, Weight) -> % Start linked queue custom default recipe and we
 start_link(Name, Recipe, Weight) -> % Start linked queue with custom recipe and weight
 	gen_server:start_link(?MODULE, [Name, Recipe, Weight], []).
 
-%% @private
-init([Name, Recipe, Weight]) -> 
-	{ok, #state{name=Name, recipe=Recipe, weight=Weight}}.
-
 %% @doc Set the queue at `Pid''s recipe to `Recipe'.
 -spec(set_recipe/2 :: (Pid :: pid(), Recipe :: recipe()) -> 'ok' | 'error').
 set_recipe(Pid, Recipe) -> 
@@ -102,18 +99,18 @@ get_weight(Pid) ->
 
 %% @doc Add the call `Calldata' to the queue at `Pid' with priority of `Priority'.
 -spec(add/3 :: (Pid :: pid(), Priority :: non_neg_integer(), Calldata :: #call{}) -> ok).
-add(Pid, Priority, Calldata) -> 
-	% TODO time out of infinity?
-	gen_server:call(Pid, {add, Priority, Calldata}, infinity).
+add(Pid, Priority, Mediapid) when is_pid(Pid), is_pid(Mediapid), Priority >= 0 -> 
+	Callrec = gen_server:call(Mediapid, get_call),
+	gen_server:call(Pid, {add, Priority, Mediapid, Callrec}).
 	
 %% @doc Add the call `Calldata' to the queue at `Pid' with default priority of 1.
 -spec(add/2 :: (Pid :: pid(), Calldata :: #call{}) -> ok).
-add(Pid, Calldata) -> 
-	add(Pid, 1, Calldata).
+add(Pid, Mediapid) when is_pid(Pid), is_pid(Mediapid) -> 
+	add(Pid, 1, Mediapid).
 	
 %% @doc Query the queue at `Pid' for a call with the id of `Callid'.
 -spec(get_call/2 :: (Pid ::pid(), Callid :: string()) -> 'none' | {key(), #call{}}).
-get_call(Pid, Callid) -> 
+get_call(Pid, Callid) when is_pid(Pid) -> 
 	gen_server:call(Pid, {get_call, Callid}).
 
 %% @doc Return the first call in the queue at `Pid' that doesn't have a dispatcher from this node already bound to it or `none'.
@@ -128,26 +125,33 @@ grab(Pid) ->
 
 %% @doc Reverse of @link grab/1.  Releases the call `Callid' from any bound dispatchers at queue `Pid'.  Returns `ok'.
 -spec(ungrab/2 :: (Pid :: pid(), Callid :: string()) -> 'ok').
+ungrab(Pid, Mediapid) when is_pid(Mediapid) -> 
+	#call{id = Cid} = gen_server:call(Mediapid, get_call),
+	gen_server:call(Pid, {ungrab, Cid});
 ungrab(Pid, Callid) -> 
 	gen_server:call(Pid, {ungrab, Callid}).
 
 %% @doc Add the list of skills `Skills' to the call with the id of `Callid' in the queue at `Pid'. Returns `ok' on success, `none' on failure.
 -spec(add_skills/3 :: (Pid :: pid(), Callid :: string(), Skills :: [atom()]) -> 'none' | 'ok').
+add_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) ->
+	#call{id = Callid} = gen_server:call(Mediapid, get_call),
+	gen_server:call(Pid, {add_skills, Callid, Skills});
 add_skills(Pid, Callid, Skills) -> 
 	gen_server:call(Pid, {add_skills, Callid, Skills}).
 
 %% @doc Remove the list of skills `Skills' from the call with the id of `Callid' in the queue at `Pid'. Returns `ok' on success, `none' on failure.
 -spec(remove_skills/3 :: (Pid :: pid(), Callid :: string(), Skills :: [atom()]) -> 'none' | 'ok').
+remove_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) -> 
+	#call{id = Callid} = gen_server:call(Mediapid, get_call),
+	gen_server:call(Pid, {remove_skills, Callid, Skills});
 remove_skills(Pid, Callid, Skills) -> 
 	gen_server:call(Pid, {remove_skills, Callid, Skills}).
 
-%% @doc Alter the priority of the call with the id of `Callid' in the queue at `Pid' to `Priority'.  Returns `ok' on success, `none' on failure.
+%% @doc Alter the priority of the call with the id or media pid of `Mediaid' in the queue at `Pid' to `Priority'.  Returns `ok' on success, `none' on failure.
 -spec(set_priority/3 :: ( Pid :: pid(), Calldata :: #call{}, Priority :: non_neg_integer()) -> 'none' | 'ok';
 						(Pid :: pid(), Callid :: string(), Priority :: non_neg_integer()) -> 'none' | 'ok').
-set_priority(Pid, #call{} = Calldata, Priority) ->
-	set_priority(Pid, Calldata#call.id, Priority);
-set_priority(Pid, Callid, Priority) ->
-	gen_server:call(Pid, {set_priority, Callid, Priority}).
+set_priority(Pid, Mediaid, Priority) when Priority >= 0 ->
+	gen_server:call(Pid, {set_priority, Mediaid, Priority}).
 
 %% @doc Returns a list of calls in queue at `Pid'.
 -spec(to_list/1 :: (Pid :: pid()) -> [#call{}]).
@@ -161,12 +165,22 @@ print(Pid) ->
 	gen_server:call(Pid, print).
 
 %% @doc Remove the call with id of `Calldata' from the queue at `Pid'.  Returns `ok' on success, `none' on failure.
--spec(remove/2 :: (Pid :: pid(), Calldata :: #call{}) -> 'none' | 'ok';
-					(Pid :: pid(), Calldata :: string()) -> 'none' | 'ok').
-remove(Pid, #call{id = Id}) ->
-	remove(Pid, Id);
-remove(Pid, Calldata) -> 
-	gen_server:call(Pid, {remove, Calldata}).
+%-spec(remove/2 :: (Pid :: pid(), Calldata :: #call{}) -> 'none' | 'ok';
+%					(Pid :: pid(), Calldata :: string()) -> 'none' | 'ok').
+%remove(Pid, #call{id = Id}) ->
+%	remove(Pid, Id);
+%remove(Pid, Calldata) -> 
+%	gen_server:call(Pid, {remove, Calldata}).
+
+remove(Pid, Callpid) when is_pid(Pid), is_pid(Callpid) -> 
+	gen_server:call(Pid, {remove, Callpid});
+remove(Pid, Callid) when is_pid(Pid) -> 
+	case gen_server:call(Pid, {get_call, Callid}) of
+		{_Key, #queued_call{media=Mediapid}} -> 
+			remove(Pid, Mediapid);
+		none -> 
+			none
+	end.
 
 %% @doc Return the number of calls in the queue at `Pid'.
 -spec(call_count/1 :: (Pid :: pid()) -> non_neg_integer()).
@@ -189,12 +203,15 @@ find_unbound(GbTree, From) ->
 -spec(find_unbound_/2 :: (Iterator :: {key(), #call{}, any()} | 'none', From :: pid()) -> {key(), #call{}} | 'none').
 find_unbound_(none, _From) -> 
 	none;
-find_unbound_({Key, #call{bound = []} = Value, _Iter}, _From) ->
-	{Key, Value};
-find_unbound_({Key, #call{bound = B} = Value, Iter}, From) ->
-	case lists:filter(fun(Pid) -> node(Pid) =:= node(From) end, B ) of
+find_unbound_({Key, #queued_call{dispatchers = []} = Callrec, _Iter}, _From) ->
+	{Key, Callrec};
+find_unbound_({Key, #queued_call{dispatchers = B} = Callrec, Iter}, From) ->
+	F = fun(Pid) -> 
+		node(Pid) =:= node(From)
+	end,
+	case lists:filter(F, B ) of
 		[] ->
-			{Key, Value};
+			{Key, Callrec};
 		_ -> 
 			find_unbound_(gb_trees:next(Iter), From)
 	end.
@@ -202,13 +219,13 @@ find_unbound_({Key, #call{bound = B} = Value, Iter}, From) ->
 % return the {Key, Value} pair where Value#call.id == Needle or none
 % ie:  lookup a call by ID, return the key in queue and the full call data
 %% @private
--spec(find_key/2 :: (Needle :: string(), GbTree :: {non_neg_integer(), tuple()}) -> {key(), #call{}} | 'none').
+-spec(find_key/2 :: (Needle :: string(), GbTree :: {non_neg_integer(), tuple()}) -> {key(), #queued_call{}} | 'none').
 find_key(Needle, GbTree) ->
 	find_key_(Needle, gb_trees:next(gb_trees:iterator(GbTree))).
 
 %% @private
--spec(find_key_/2 :: (Needle :: string(), Iterator :: {key(), #call{}, any()} | 'none') -> {key(), #call{}} | 'none').
-find_key_(Needle, {Key, #call{id = Needle} = Value, _Iter}) ->
+-spec(find_key_/2 :: (Needle :: string(), Iterator :: {key(), #queued_call{}, any()} | 'none') -> {key(), #queued_call{}} | 'none').
+find_key_(Needle, {Key, #queued_call{id = Needle} = Value, _Iter}) ->
 	{Key, Value};
 find_key_(Needle, {_Key, _Value, Iter}) ->
 	find_key_(Needle, gb_trees:next(Iter));
@@ -216,16 +233,38 @@ find_key_(_Needle, none) ->
 	none.
 
 %% @private
+-spec(find_by_pid/2 :: (Needle :: pid(), GbTree :: any()) -> {key(), #queued_call{}} | 'none').
+find_by_pid(Needle, GbTree) -> 
+	find_by_pid_(Needle, gb_trees:next(gb_trees:iterator(GbTree))).
+	
+%% @private
+-spec(find_by_pid_/2 :: (Needle :: pid(), Interator :: {key(), #queued_call{}, any()} | 'none') -> {key(), #queued_call{}} | 'none').
+find_by_pid_(Needle, {Key, #queued_call{media = Needle} = Value, _Iter}) -> 
+	{Key, Value};
+find_by_pid_(Needle, {_Key, _Value, Iter}) -> 
+	find_by_pid_(Needle, gb_trees:next(Iter));
+find_by_pid_(_Needle, none) -> 
+	none.
+
+%% @private
 -spec(expand_magic_skills/3 :: (State :: #state{}, Call :: #call{}, Skills :: [atom()]) -> [atom()]).
 expand_magic_skills(State, Call, Skills) ->
 	lists:flatten(lists:map(
-		fun('_node') when is_pid(Call#call.source) -> node(Call#call.source);
+		fun('_node') when is_pid(Call#queued_call.media) -> node(Call#queued_call.media);
 			('_node') -> ?CONSOLE("Can't expand magic skill _node~n", []), [];
 			('_queue') when is_list(State#state.name) -> list_to_atom(State#state.name);
 			('_queue') when is_atom(State#state.name) -> State#state.name;
 			('_queue') -> ?CONSOLE("Can't expand magic skill _queue~n", []), [];
 			(Skill) -> Skill
 		end, Skills)).
+
+%=====
+% gen_server callbacks
+%=====
+
+%% @private
+init([Name, Recipe, Weight]) -> 
+	{ok, #state{name=Name, recipe=Recipe, weight=Weight}}.
 
 %% @private
 handle_call({get_call, Callid}, _From, State) -> 
@@ -235,7 +274,7 @@ handle_call({ungrab, Callid}, {From, _Tag}, State) ->
 		none -> 
 			{reply, ok, State};
 		{Key, Value} -> 
-			{reply, ok, State#state{queue=gb_trees:update(Key, Value#call{bound=lists:delete(From, Value#call.bound)}, State#state.queue)}}
+			{reply, ok, State#state{queue=gb_trees:update(Key, Value#queued_call{dispatchers=lists:delete(From, Value#queued_call.dispatchers)}, State#state.queue)}}
 	end;
 handle_call({set_weight, Weight}, _From, State) when is_integer(Weight), Weight > 0 ->
 	{reply, ok, State#state{weight=Weight}};
@@ -245,31 +284,35 @@ handle_call(get_weight, _From, State) ->
 	{reply, State#state.weight, State};
 handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
-handle_call({add, Priority, Calldata}, _From, State) ->
-	{ok, Pid} = cook:start_link(Calldata#call.id, State#state.recipe, self()),
-	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Calldata#call.skills)),
-	Calldata2 = Calldata#call{cook=Pid, skills=expand_magic_skills(State, Calldata, NewSkills)},
-	Trees = gb_trees:insert({Priority, now()}, Calldata2, State#state.queue),
+handle_call({add, Priority, Callpid, Callrec}, _From, State) when is_pid(Callpid) ->
+	% TODO ensure cook is started on same node callpid is on
+	{ok, Cookpid} = cook:start_link(Callpid, State#state.recipe, State#state.name),
+	Queuedrec = #queued_call{media=Callpid, id=Callrec#call.id, cook=Cookpid},
+	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
+	Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
+	Value = Queuedrec#queued_call{skills=Expandedskills},
+	Trees = gb_trees:insert({Priority, now()}, Value, State#state.queue),
 	{reply, ok, State#state{queue=Trees}};
+
 
 handle_call({add_skills, Callid, Skills}, _From, State) ->
 	case find_key(Callid, State#state.queue) of
 		none -> 
 			{reply, none, State};
-		{Key, #call{skills=OldSkills} = Value} ->
+		{Key, #queued_call{skills=OldSkills} = Value} ->
 			Skills2 = expand_magic_skills(State, Value, Skills),
 			NewSkills = lists:umerge(lists:sort(OldSkills), lists:sort(Skills2)),
-			State2 = State#state{queue=gb_trees:update(Key, Value#call{skills=NewSkills}, State#state.queue)},
+			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{skills=NewSkills}, State#state.queue)},
 			{reply, ok, State2}
 	end;
 handle_call({remove_skills, Callid, Skills}, _From, State) -> 
 	case find_key(Callid, State#state.queue) of
 		none -> 
 			{reply, none, State};
-		{Key, #call{skills=OldSkills} = Value} ->
+		{Key, #queued_call{skills=OldSkills} = Value} ->
 			Skills2 = expand_magic_skills(State, Value, Skills),
 			NewSkills = lists:subtract(OldSkills, Skills2),
-			State2 = State#state{queue=gb_trees:update(Key, Value#call{skills=NewSkills}, State#state.queue)},
+			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{skills=NewSkills}, State#state.queue)},
 			{reply, ok, State2}
 	end;
 
@@ -285,20 +328,20 @@ handle_call(grab, {From, _Tag}, State) ->
 			{reply, none, State};
 		{Key, Value} ->
 			link(From),
-			State2 = State#state{queue=gb_trees:update(Key, Value#call{bound=lists:append(Value#call.bound, [From])}, State#state.queue)},
+			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{dispatchers=lists:append(Value#queued_call.dispatchers, [From])}, State#state.queue)},
 			{reply, {Key, Value}, State2}
 	end;
 
 handle_call(print, _From, State) ->
 	{reply, State, State};
 
-handle_call({remove, Id}, _From, State) ->
-	?CONSOLE("Trying to remove call ~p...", [Id]),
-	case find_key(Id, State#state.queue) of
+handle_call({remove, Callpid}, _From, State) ->
+	?CONSOLE("Trying to remove call ~p...", [Callpid]),
+	case find_by_pid(Callpid, State#state.queue) of
 		none ->
 			{reply, none, State};
-		{Key, Value} ->
-			cook:stop(Value#call.cook),
+		{Key, #queued_call{cook=Cookpid}} ->
+			cook:stop(Cookpid),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			{reply, ok, State2}
 		end;
@@ -306,7 +349,17 @@ handle_call({remove, Id}, _From, State) ->
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 
-handle_call({set_priority, Id, Priority}, _From, State) ->
+handle_call({set_priority, Id, Priority}, _From, State) when is_pid(Id), Priority >= 0 ->
+	case find_by_pid(Id, State#state.queue) of
+		none -> 
+			{reply, none, State};
+		{{Oldpri, Time}, Value} -> 
+			State2 = State#state{queue=gb_trees:delete({Oldpri, Time}, State#state.queue)},
+			State3 = State2#state{queue=gb_trees:insert({Priority, Time}, Value, State2#state.queue)},
+			{reply, ok, State3}
+	end;
+
+handle_call({set_priority, Id, Priority}, _From, State) when Priority >= 0 ->
 	case find_key(Id, State#state.queue) of
 		none ->
 			{reply, none, State};
@@ -332,7 +385,7 @@ handle_cast(_Msg, State) ->
 %% @private
 handle_info({'EXIT', From, _Reason}, State) ->
 	Calls = gb_trees:to_list(State#state.queue),
-	Cleancalls = clean_pid(From, State#state.recipe, Calls),
+	Cleancalls = clean_pid(From, State#state.recipe, Calls, State#state.name),
 	Newtree = gb_trees:from_orddict(Cleancalls),
 	{noreply, State#state{queue=Newtree}};
 	
@@ -351,19 +404,19 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% @private
 %% Cleans up both dead dispatchers and dead cooks from the calls.
--spec(clean_pid/3 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [#call{}]) -> [#call{}]).
-clean_pid(Deadpid, Recipe, [{Key, Call} | Calls] ) -> 
+-spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [#call{}], QName :: string()) -> [#call{}]).
+clean_pid(Deadpid, Recipe, [{Key, Call} | Calls], QName) -> 
 	Bound = Call#call.bound,
 	Cleanbound = lists:delete(Deadpid, Bound),
 	case Call#call.cook of
 		Deadpid -> 
-			{ok, Pid} = cook:start_link(Call#call.id, Recipe, self());
+			{ok, Pid} = cook:start_link(Call#call.id, Recipe, QName);
 		_ -> 
 			Pid = Call#call.cook
 	end,
 	Cleancall = Call#call{bound=Cleanbound, cook=Pid},
-	[{Key, Cleancall} | clean_pid(Deadpid, Recipe, Calls)];
-clean_pid(_Deadpid, _Recipe, []) -> 
+	[{Key, Cleancall} | clean_pid(Deadpid, Recipe, Calls, QName)];
+clean_pid(_Deadpid, _Recipe, [], _QName) -> 
 	[].
 
 
@@ -372,28 +425,33 @@ clean_pid(_Deadpid, _Recipe, []) ->
 -ifdef(TEST).
 
 add_test() ->
-	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
+	{_, Pid} = start(testqueue, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	C1 = #call{id="C1"},
-	?assert(add(Pid, 1, C1) =:= ok),
-	{{Priority, _Time}, Call} = ask(Pid),
-	?assertEqual(1, Priority),
-	Id = Call#call.id,
-	?assertEqual("C1", Id).
+	{_, Callpid} = dummy_media:start(C1, success),
+	?assertMatch(ok, add(Pid, 1, Callpid)),
+	{{Priority, _Time}, Queuedcall} = ask(Pid),
+	?assertEqual(Queuedcall#queued_call.media, Callpid),
+	?assert(is_list(Queuedcall#queued_call.skills)),
+	?assert(is_process_alive(Queuedcall#queued_call.cook)),
+	?assertEqual(1, Priority).
 	
 remove_test() ->
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2"},
-	add(Pid, 1, C1),
-	add(Pid, 1, C2),
-	remove(Pid, C1),
-	{_Key, Call} = grab(Pid),
-	?assertMatch("C2", Call#call.id).
+	{_, Dummy1} = dummy_media:start(C1, success),
+	{_, Dummy2} = dummy_media:start(C2, success),
+	add(Pid, 1, Dummy1),
+	add(Pid, 1, Dummy2),
+	remove(Pid, Dummy1),
+	{_Key, #queued_call{media = Mediapid}} = ask(Pid),
+	?assertEqual(Dummy2, Mediapid).
 	
 remove_id_test() ->
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	C1 = #call{id="C1"},
-	add(Pid, 1, C1),
+	{_, Dummy1} = dummy_media:start(C1),
+	add(Pid, 1, Dummy1),
 	?assertMatch(ok, remove(Pid, "C1")),
 	?assertMatch(none, grab(Pid)).
 
@@ -405,17 +463,19 @@ find_key_test() ->
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2", bound=[self()]},
-	add(Pid, 1, C1),
-	?assertMatch(none, remove(Pid, C2)).
+	{ok, Dummy1} = dummy_media:start(C1),
+	add(Pid, 1, Dummy1),
+	?assertMatch(none, remove(Pid, "C2")).
 
 bound_test() ->
 	{_, Node} = slave:start(net_adm:localhost(), boundtest),
 	Pid = spawn(Node, erlang, exit, [normal]),
 	C1 = #call{id="C1", bound=[Pid]},
 	{_, Qpid} = start(foobar, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
-	add(Qpid, 1, C1),
+	{ok, Dummy1} = dummy_media:start(C1),
+	add(Qpid, 1, Dummy1),
 	{_Key, Call} = grab(Qpid),
-	?assertEqual("C1", Call#call.id),
+	?assertEqual("C1", Call#queued_call.id),
 	?assertMatch(none, grab(Qpid)).
 
 grab_test() -> 
@@ -423,13 +483,18 @@ grab_test() ->
 	C2 = #call{id="C2", bound=[self()]},
 	C3 = #call{id="C3"},
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
-	add(Pid, 1, C1),
-	add(Pid, 0, C2),
-	add(Pid, 1, C3),
-	{_Key, Call1} = grab(Pid),
-	{_Key2, Call3} = grab(Pid),
-	?assertEqual("C1", Call1#call.id),
-	?assertEqual("C3", Call3#call.id),
+	{ok, Dummy1} = dummy_media:start(C1), 
+	{ok, Dummy2} = dummy_media:start(C2),
+	{ok, Dummy3} = dummy_media:start(C3),
+	add(Pid, 1, Dummy1),
+	add(Pid, 0, Dummy2),
+	add(Pid, 1, Dummy3),
+	{_Key2, Call2} = grab(Pid),
+	?assertEqual("C2", Call2#queued_call.id),
+	{_Key1, Call1} = grab(Pid),
+	{_Key3, Call3} = grab(Pid),
+	?assertEqual("C1", Call1#queued_call.id),
+	?assertEqual("C3", Call3#queued_call.id),
 	?assert(grab(Pid) =:= none).
 
 grab_empty_test() -> 
@@ -441,14 +506,17 @@ increase_priority_test() ->
 	C2 = #call{id="C2"},
 	C3 = #call{id="C3"},
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
-	add(Pid, 1, C1),
-	add(Pid, 1, C2),
-	add(Pid, 1, C3),
+	{ok, Dummy1} = dummy_media:start(C1),
+	{ok, Dummy2} = dummy_media:start(C2),
+	{ok, Dummy3} = dummy_media:start(C3),
+	add(Pid, 1, Dummy1),
+	add(Pid, 1, Dummy2),
+	add(Pid, 1, Dummy3),
 	{_Key, Call1} = ask(Pid),
-	?assertEqual("C1", Call1#call.id),
-	set_priority(Pid, C2, 0),
+	?assertEqual("C1", Call1#queued_call.id),
+	set_priority(Pid, Dummy2, 0),
 	{_Key2, Call2} = ask(Pid),
-	?assertEqual("C2", Call2#call.id).
+	?assertEqual("C2", Call2#queued_call.id).
 
 increase_priority_nil_test() ->
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
@@ -459,24 +527,33 @@ decrease_priority_test() ->
 	C2 = #call{id="C2"},
 	C3 = #call{id="C3"},
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
-	add(Pid, 1, C1),
-	add(Pid, 1, C2),
-	add(Pid, 1, C3),
+	{ok, Dummy1} = dummy_media:start(C1),
+	{ok, Dummy2} = dummy_media:start(C2),
+	{ok, Dummy3} = dummy_media:start(C3),
+	add(Pid, 1, Dummy1),
+	add(Pid, 1, Dummy2),
+	add(Pid, 1, Dummy3),
 	{_Key, Call1} = ask(Pid),
-	?assertEqual("C1", Call1#call.id),
-	set_priority(Pid, C1, 2),
+	?assertEqual("C1", Call1#queued_call.id),
+	set_priority(Pid, Dummy1, 2),
 	{_Key2, Call2} = ask(Pid),
-	?assertEqual("C2", Call2#call.id).
+	?assertEqual("C2", Call2#queued_call.id).
 
 queue_to_list_test() ->
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2"},
 	C3 = #call{id="C3"},
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
-	add(Pid, 1, C1),
-	add(Pid, 1, C2),
-	add(Pid, 1, C3),
-	?assertMatch(["C1", "C2", "C3"], lists:map(fun(X) -> X#call.id end, to_list(Pid))).
+	{ok, Dummy1} = dummy_media:start(C1),
+	{ok, Dummy2} = dummy_media:start(C2),
+	{ok, Dummy3} = dummy_media:start(C3),
+	add(Pid, 1, Dummy1),
+	add(Pid, 1, Dummy2),
+	add(Pid, 1, Dummy3),
+	F = fun(X) -> 
+		X#queued_call.id
+	end,
+	?assertMatch(["C1", "C2", "C3"], lists:map(F, to_list(Pid))).
 
 empty_queue_to_list_test() -> 
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
@@ -514,7 +591,8 @@ queue_test_() ->
 				"Call Count Test", fun() ->
 					Pid = whereis(stupidqueue),
 					?assertEqual(0, call_count(Pid)),
-					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					?assertEqual(ok, add(Pid, Dummy1)),
 					?assertEqual(1, call_count(Pid)),
 					?assertEqual(ok, remove(Pid, "C1")),
 					?assertEqual(0, call_count(Pid)),
@@ -524,85 +602,108 @@ queue_test_() ->
 				"Querying for a call by ID", fun() ->
 					Pid = whereis(stupidqueue),
 					?assertEqual(none, get_call(Pid, "C1")),
-					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
-					?debugFmt("~p ~p~n", [Call, is_record(Call, call)]),
-					?assertEqual(true, is_record(Call, call))
+					?debugFmt("~p ~p~n", [Call, is_record(Call, queued_call)]),
+					?assertEqual(true, is_record(Call, queued_call))
 				end
 			}, {
 				"Ungrab test", fun() ->
 					Pid = whereis(stupidqueue),
-					?assertEqual(ok, add(Pid, #call{id="C1"})),
-					?assertEqual(ok, add(Pid, #call{id="C2"})),
-					?assertEqual(ok, add(Pid, #call{id="C3"})),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					{ok, Dummy2} = dummy_media:start(#call{id="C2"}),
+					{ok, Dummy3} = dummy_media:start(#call{id="C3"}),
+					?assertEqual(ok, add(Pid, Dummy1)),
+					?assertEqual(ok, add(Pid, Dummy2)),
+					?assertEqual(ok, add(Pid, Dummy3)),
 					{_Key, Call} = grab(Pid),
 					{_Key2, Call2} = grab(Pid),
-					?assertEqual(ok, ungrab(Pid, Call#call.id)),
-					?assertEqual(ok, ungrab(Pid, Call2#call.id)),
+					?assertEqual(ok, ungrab(Pid, Call#queued_call.id)),
+					?assertEqual(ok, ungrab(Pid, Call2#queued_call.id)),
 					?assertEqual(ok, ungrab(Pid, "wtf"))
+				end
+			}, {
+				"Skill integrity test", fun() -> 
+					Pid = whereis(stupidqueue),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1", skills=[foo, bar, '_node']}),
+					add(Pid, Dummy1),
+					{_Key, Call} = ask(Pid),
+					?assertEqual(true, lists:member(foo, Call#queued_call.skills)),
+					?assertEqual(false, lists:member(baz, Call#queued_call.skills)),
+					?debugFmt("Skills: ~p", [Call#queued_call.skills]),
+					?assertEqual(4, length(Call#queued_call.skills))
 				end
 			}, {
 				"Add skills test", fun() ->
 					Pid = whereis(stupidqueue),
-					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(false, lists:member(foo, Call#call.skills)),
-					?assertEqual(false, lists:member(bar, Call#call.skills)),
+					?assertEqual(false, lists:member(foo, Call#queued_call.skills)),
+					?assertEqual(false, lists:member(bar, Call#queued_call.skills)),
 					?assertEqual(ok, add_skills(Pid, "C1", [foo, bar])),
 					{_Key, Call2} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member(foo, Call2#call.skills)),
-					?assertEqual(true, lists:member(bar, Call2#call.skills))
+					?assertEqual(true, lists:member(foo, Call2#queued_call.skills)),
+					?assertEqual(true, lists:member(bar, Call2#queued_call.skills))
 				end
 			}, {
 				"Add skills to unknown call test", fun() ->
 					Pid = whereis(stupidqueue),
-					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					?assertEqual(ok, add(Pid, Dummy1)),
 					?assertEqual(none, add_skills(Pid, "C2", [foo, bar]))
 				end
 			}, {
 				"Remove skills test", fun() ->
 					Pid = whereis(stupidqueue),
-					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member(english, Call#call.skills)),
+					?assertEqual(true, lists:member(english, Call#queued_call.skills)),
 					?assertEqual(ok, remove_skills(Pid, "C1", [english])),
 					{_Key, Call2} = get_call(Pid, "C1"),
-					?assertEqual(false, lists:member(english, Call2#call.skills))
+					?assertEqual(false, lists:member(english, Call2#queued_call.skills))
 				end
 			}, {
 				"Remove skills from unknown call test", fun() ->
 					Pid = whereis(stupidqueue),
-					?assertEqual(ok, add(Pid, #call{id="C1"})),
+					{ok, Dummy1} = dummy_media:start(#call{id = "C1"}),
+					?assertEqual(ok, add(Pid, Dummy1)),
 					?assertEqual(none, remove_skills(Pid, "C2", [english]))
 				end
 			}, {
 				"Add magic skills test", fun() ->
 					Pid = whereis(stupidqueue),
-					?assertEqual(ok, add(Pid, #call{id="C1", source=self()})),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(false, lists:member(testq, Call#call.skills)),
+					?assertEqual(false, lists:member(testq, Call#queued_call.skills)),
 					?assertEqual(ok, add_skills(Pid, "C1", ['_queue'])),
 					{_Key, Call2} = get_call(Pid, "C1"),
-					?debugFmt("Skills are ~p~n", [Call2#call.skills]),
-					?assertEqual(true, lists:member(testq, Call2#call.skills))
+					?debugFmt("Skills are ~p~n", [Call2#queued_call.skills]),
+					?assertEqual(true, lists:member(testq, Call2#queued_call.skills))
 				end
 			}, {
 				"Remove magic skills test", fun() ->
 					Pid = whereis(stupidqueue),
-					?assertEqual(ok, add(Pid, #call{id="C1", source=self()})),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1", skills=['_node']}),
+					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member(node(), Call#call.skills)),
+					?debugFmt("Queued_call:  ~p; this node:  ~p", [Call, node()]),
+					?assertEqual(true, lists:member(node(), Call#queued_call.skills)),
 					?assertEqual(ok, remove_skills(Pid, "C1", ['_node'])),
 					{_Key, Call2} = get_call(Pid, "C1"),
-					?assertEqual(false, lists:member(node(), Call2#call.skills))
+					?assertEqual(false, lists:member(node(), Call2#queued_call.skills))
 				end
 			}, {
 				"Ensure that call_skills are merged into the call's skill list on add", fun() ->
 					Pid = whereis(stupidqueue),
-					?assertEqual(ok, add(Pid, #call{id="C1", source=self(), skills=[madness]})),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1", skills=[madness]}),
+					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member(node(), Call#call.skills)),
-					?assertEqual(true, lists:member(english, Call#call.skills))
+					?assertEqual(true, lists:member(node(), Call#queued_call.skills)),
+					?assertEqual(true, lists:member(english, Call#queued_call.skills))
 				end
 			}
 		]

@@ -32,7 +32,7 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--define(POLL_INTERVAL, 500.
+-define(POLL_INTERVAL, 500).
 -else.
 -define(POLL_INTERVAL, 10000).
 -endif.
@@ -224,7 +224,16 @@ random_test() ->
 	{_, Pid2} = queue_manager:add_queue(queue2, 2),
 	{_, Pid3} = queue_manager:add_queue(queue3, 3),
 	{_, Pid4} = queue_manager:add_queue(queue4, 3),
-	Calls = list_to_tuple([Call || N <- [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], Call <- [#call{id="C" ++ integer_to_list(N)}]]),
+	PCalls = [Call || N <- [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], Call <- [#call{id="C" ++ integer_to_list(N)}]],
+	?debugFmt("PCalls:  ~p", [PCalls]),
+	F = fun(Callrec) -> 
+		{ok, Mpid} = dummy_media:start(Callrec),
+		Mpid
+	end,
+	Mediapids = lists:map(F, PCalls),
+	?debugFmt("Mediapids ~p", [Mediapids]),
+	Calls = list_to_tuple(Mediapids),
+	?debugFmt("Calls is:  ~p", [Calls]),
 	call_queue:add(Pid1, 1, element(1, Calls)),
 	call_queue:add(Pid1, 1, element(2, Calls)),
 	call_queue:add(Pid1, 1, element(3, Calls)),
@@ -243,12 +252,12 @@ random_test() ->
 	Dict4 = dict:store(queue3, 0, Dict3), 
 	Dict5 = dict:store(queue4, 0, Dict4),
 	Out = randomtest_loop(Queues, Total, Dict5, 0),
-	io:format("queue1:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [1, 4, 5]),
-	io:format("queue2:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [2, 3, 8]),
-	io:format("queue3:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [3, 3, 12]),
-	io:format("queue4:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [3, 0, 0]),
-	io:format("Total: ~p~n", [Total]),
-	io:format("out:  ~p~n", [Out]),
+	?debugFmt("queue1:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [1, 4, 5]),
+	?debugFmt("queue2:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [2, 3, 8]),
+	?debugFmt("queue3:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [3, 3, 12]),
+	?debugFmt("queue4:~n	w:  ~p~n	Calls:~p~n	Ratio:~p~n", [3, 0, 0]),
+	?debugFmt("Total: ~p~n", [Total]),
+	?debugFmt("out:  ~p~n", [Out]),
 	V1 = dict:fetch(queue1, Out) div (?MAX_RANDOM_TEST div 100), %div by 100 to make a percentage.
 	V2 = dict:fetch(queue2, Out) div (?MAX_RANDOM_TEST div 100),
 	V3 = dict:fetch(queue3, Out) div (?MAX_RANDOM_TEST div 100),
@@ -304,13 +313,18 @@ grab_test_() ->
 				Pid2 = queue_manager:get_queue(queue2),
 				Pid3 = queue_manager:get_queue(queue3),
 				{ok, Pid} = start(),
-				Calls = [Call || N <- [1, 2, 3], Call <- [#call{id="C" ++ integer_to_list(N)}]],
+				PCalls = [Call || N <- [1, 2, 3], Call <- [#call{id="C" ++ integer_to_list(N)}]],
+				F = fun(Callrec) -> 
+					{ok, Mpid} = dummy_media:start(Callrec),
+					Mpid
+				end,
+				Calls = lists:map(F, PCalls),
 				call_queue:add(Pid1, 1, lists:nth(1, Calls)),
 				call_queue:add(Pid2, 1, lists:nth(2, Calls)),
 				call_queue:add(Pid3, 1, lists:nth(3, Calls)),
 				receive after ?POLL_INTERVAL -> ok end,
 				Call = bound_call(Pid),
-				?assertEqual("C3", Call#call.id),
+				?assertEqual("C3", Call#queued_call.id),
 				stop(Pid)
 			end},
 			{"There's no call.  At all.",

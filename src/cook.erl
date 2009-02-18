@@ -55,7 +55,7 @@
 		recipe = [] :: recipe(),
 		ticked = 0 :: integer(), % number of ticks we've done
 		call :: string() | 'undefined',
-		queue :: pid() | 'undefined',
+		queue :: string() | 'undefined',
 		continue = true :: bool(),
 		ringingto :: pid(),
 		ringcount = 0 :: non_neg_integer(),
@@ -66,25 +66,27 @@
 %% API
 %%====================================================================
 
-%% @doc Starts a cook linked to the parent process for `Call' processed by `Recipe' for call_queue `QueuePid'.
--spec(start_link/3 :: (Call :: string(), Recipe :: recipe(), QueuePid :: pid()) -> {'ok', pid()}).
-start_link(Call, Recipe, QueuePid) ->
-    gen_server:start_link(?MODULE, [Call, Recipe, QueuePid], []).
+%% @doc Starts a cook linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
+-spec(start_link/3 :: (Call :: string(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()}).
+start_link(Call, Recipe, Queue) ->
+    gen_server:start_link(?MODULE, [Call, Recipe, Queue], []).
 
-%% @doc Starts a cook not linked to the parent process for `Call' processed by `Recipe' for call_queue `QueuePid'.
--spec(start/3 :: (Call :: string(), Recipe :: recipe(), QueuePid :: pid()) -> {'ok', pid()}).
-start(Call, Recipe, QueuePid) -> 
-	gen_server:start(?MODULE, [Call, Recipe, QueuePid], []).
-
+%% @doc Starts a cook not linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
+-spec(start/3 :: (Call :: string(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()}).
+start(Call, Recipe, Queue) -> 
+	gen_server:start(?MODULE, [Call, Recipe, Queue], []).
+	
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
 %% @private
-init([Call, Recipe, QueuePid]) ->
+init([Call, Recipe, Queue]) ->
 	% TODO check for a call right away.
+	?CONSOLE("Queue:  ~p", [Queue]),
+	process_flag(trap_exit, true),
 	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),	
-	State = #state{ticked=0, recipe=Recipe, call=Call, queue=QueuePid, tref=Tref},
+	State = #state{ticked=0, recipe=Recipe, call=Call, queue=Queue, tref=Tref},
     {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -111,7 +113,8 @@ handle_cast({stop_ringing, AgentPid}, State) when AgentPid =:= State#state.ringi
 	%% TODO - actually tell the backend to stop ringing if it's an outband ring
 	{noreply, State#state{ringingto=undefined}};
 handle_cast(remove_from_queue, State) ->
-	call_queue:remove(State#state.queue, State#state.call),
+	Qpid = queue_manager:get_queue(State#state.queue),
+	call_queue:remove(Qpid, State#state.call),
 	{noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -122,6 +125,13 @@ handle_cast(_Msg, State) ->
 %% @private
 handle_info(do_tick, State) -> 
 	{noreply, do_tick(State)};
+handle_info({'EXIT', Pid, _Reason}, State) -> 
+	?CONSOLE("queue ~p died, suspending self", [State#state.queue]),
+	timer:cancel(State#state.tref),
+	wait_for_queue(State#state.queue),
+	State2 = do_tick(State),
+	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
+	{noreply, State2#state{tref=Tref}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -151,6 +161,15 @@ restart_tick(Pid) ->
 stop_tick(Pid) -> 
 	gen_server:cast(Pid, stop_tick).
 
+wait_for_queue(Qname) ->
+	case queue_manager:get_queue(Qname) of
+		undefined -> 
+			wait_for_queue(Qname);
+		_Else -> 
+			?CONSOLE("Queue ~p is back up", [Qname]),
+			ok
+	end.
+
 %% @private
 -spec(do_tick/1 :: (State :: #state{}) -> #state{}).
 do_tick(#state{recipe=Recipe} = State) -> 
@@ -172,10 +191,10 @@ do_route(State) when State#state.ringingto =/= undefined, State#state.ringcount 
 	do_route(State#state{ringingto=undefined});
 do_route(State) when State#state.ringingto =:= undefined ->
 	%io:format("starting new ring~n"),
-	Qpid = State#state.queue,
+	Qpid = queue_manager:get_queue(State#state.queue),
 	case call_queue:get_call(Qpid, State#state.call) of
 		{_Key, Call} ->
-			case Call#call.bound of
+			case Call#queued_call.dispatchers of
 				[] -> 
 					% if there are no dispatchers bound to the call,
 					% there are no agents available
@@ -265,7 +284,8 @@ do_recipe([], _State) ->
 %% @private
 -spec(do_operation/2 :: (Recipe :: recipe_step(), State :: #state{}) -> 'ok' | recipe_step()).
 do_operation({_Ticks, Op, Args, _Runs}, State) -> 
-	#state{queue=Pid, call=Callid} = State,
+	#state{queue=Queuename, call=Callid} = State,
+	Pid = queue_manager:get_queue(Queuename),
 	case Op of
 		add_skills -> 
 			call_queue:add_skills(Pid, Callid, Args),
@@ -276,9 +296,6 @@ do_operation({_Ticks, Op, Args, _Runs}, State) ->
 		set_priority -> 
 			[Priority] = Args,
 			call_queue:set_priority(Pid, Callid, Priority),
-			ok;
-		new_queue -> 
-			?CONSOLE("NIY",[]),
 			ok;
 		voicemail -> 
 			?CONSOLE("NIY",[]),
@@ -305,7 +322,8 @@ recipe_test_() ->
 		fun() -> 
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
-			call_queue:add(Pid, 1, #call{id="testcall", skills=[english, testskill]}),
+			{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+			call_queue:add(Pid, 1, Dummy),
 			Pid
 		end,
 		fun(Pid) -> 
@@ -317,12 +335,12 @@ recipe_test_() ->
 			fun() -> 
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),
-				{ok, MyPid} = start("testcall", [{1, add_skills, [newskill1, newskill2], run_once}], Pid),
+				{ok, MyPid} = start("testcall", [{1, add_skills, [newskill1, newskill2], run_once}], testqueue),
 				receive
 				after ?TICK_LENGTH + 2000 ->
 					true
 				end,
-				{_Key, #call{skills=CallSkills}} = call_queue:ask(Pid),
+				{_Key, #queued_call{skills=CallSkills}} = call_queue:ask(Pid),
 				?assertEqual(lists:sort([english, testskill, newskill1, newskill2]), lists:sort(CallSkills)),
 				stop(MyPid)
 			end},
@@ -330,12 +348,12 @@ recipe_test_() ->
 			fun() -> 
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, remove_skills, [testskill], run_once}]),
-				{ok, MyPid} = start("testcall", [{1, remove_skills, [testskill], run_once}], Pid),
+				{ok, MyPid} = start("testcall", [{1, remove_skills, [testskill], run_once}], testqueue),
 				receive
 				after ?TICK_LENGTH + 2000 -> 
 					true
 				end,
-				{_Key, #call{skills=CallSkills}} = call_queue:ask(Pid),
+				{_Key, #queued_call{skills=CallSkills}} = call_queue:ask(Pid),
 				?assertEqual([english], CallSkills),
 				stop(MyPid)
 			end},
@@ -343,7 +361,7 @@ recipe_test_() ->
 			fun() -> 
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, set_priority, [5], run_once}]),
-				{ok, MyPid} = start("testcall", [{1, set_priority, [5], run_once}], Pid),
+				{ok, MyPid} = start("testcall", [{1, set_priority, [5], run_once}], testqueue),
 				receive
 				after ?TICK_LENGTH + 2000 -> 
 					true
@@ -351,12 +369,25 @@ recipe_test_() ->
 				{{Prior, _Time}, _Call} = call_queue:ask(Pid),
 				?assertEqual(5, Prior),
 				stop(MyPid)
-			end}
+			end},
+			{"Waiting for queue rebirth",
+			fun() -> 
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),	
+				{ok, MyPid} = start("testcall", [{1, add_skills, [newskill1, newskill2], run_once}], testqueue),
+				exit(Pid, test_kill),
+				receive
+				after 300 -> ok
+				end,
+				NewPid = queue_manager:get_queue(testqueue),
+				?assertEqual(1, call_queue:call_count(NewPid))
+			end
+			}
 		]
 	}
 	}.
 
--define(MYSERVERFUNC, fun() -> {ok, Pid} = start("testcall",[{1, set_priority, [5], run_once}], self()), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Pid} = start("testcall",[{1, set_priority, [5], run_once}], testqueue), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

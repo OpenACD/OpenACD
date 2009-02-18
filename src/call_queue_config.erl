@@ -93,7 +93,8 @@ build_tables(Nodes) ->
 				mnesia:write(#skill_rec{name="German", atom=german, description="German Language"}),
 				mnesia:write(#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name."}),
 				mnesia:write(#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier."}),
-				mnesia:write(#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name"})
+				mnesia:write(#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name"}),
+				mnesia:write(#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills."})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 

@@ -171,7 +171,6 @@ build_table(Tablename, Options) when is_atom(Tablename) ->
 			?CONSOLE("Mnesia is not running, in state ~p.", [Else]),
 			exit(mnesia_stopped)
 	end.
-	
 
 -ifdef(EUNIT).
 split_empty_string_test() ->

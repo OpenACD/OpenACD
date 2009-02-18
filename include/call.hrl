@@ -42,6 +42,15 @@
 		media_path = outband :: 'inband' | 'outband'
 }).
 
+-record(queued_call, {
+	media :: pid(),
+	id :: string(),
+	skills = [] :: [atom()],
+	dispatchers = [] :: [pid()],
+	cook :: pid()
+	}).
+
+
 -ifdef(EUNIT).
 -define(CONSOLE(Message, Args), ?debugFmt("[~p][~p]~n            " ++ Message ++ "~n", lists:append([[erlang:localtime(), self()], Args]))).
 -else.

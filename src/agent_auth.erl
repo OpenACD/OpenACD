@@ -196,8 +196,9 @@ build_tables() ->
 			]),
 	case A of
 		{atomic, ok} ->
-			F = fun() -> 
-				mnesia:write(#agent_auth{login="agent", password=erlang:md5("Password123"), skills = [english]})
+			F = fun() ->
+				% TODO what the heck is this?
+				mnesia:write(#agent_auth{login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english]})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 

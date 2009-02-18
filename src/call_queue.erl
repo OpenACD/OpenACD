@@ -98,13 +98,13 @@ get_weight(Pid) ->
 	gen_server:call(Pid, get_weight).
 
 %% @doc Add the call `Calldata' to the queue at `Pid' with priority of `Priority'.
--spec(add/3 :: (Pid :: pid(), Priority :: non_neg_integer(), Calldata :: #call{}) -> ok).
+-spec(add/3 :: (Pid :: pid(), Priority :: non_neg_integer(), Calldata :: pid()) -> ok).
 add(Pid, Priority, Mediapid) when is_pid(Pid), is_pid(Mediapid), Priority >= 0 -> 
 	Callrec = gen_server:call(Mediapid, get_call),
 	gen_server:call(Pid, {add, Priority, Mediapid, Callrec}).
 	
 %% @doc Add the call `Calldata' to the queue at `Pid' with default priority of 1.
--spec(add/2 :: (Pid :: pid(), Calldata :: #call{}) -> ok).
+-spec(add/2 :: (Pid :: pid(), Calldata :: pid()) -> ok).
 add(Pid, Mediapid) when is_pid(Pid), is_pid(Mediapid) -> 
 	add(Pid, 1, Mediapid).
 	
@@ -195,12 +195,12 @@ stop(Pid) ->
 % find the first call in the queue that doesn't have a pid on this node
 % in its bound list
 %% @private
--spec(find_unbound/2 :: (GbTree :: {non_neg_integer(), tuple()}, From :: pid()) -> {key(), #call{}} | 'none').
+-spec(find_unbound/2 :: (GbTree :: {non_neg_integer(), tuple()}, From :: pid()) -> {key(), #queued_call{}} | 'none').
 find_unbound(GbTree, From) ->
 	find_unbound_(gb_trees:next(gb_trees:iterator(GbTree)), From).
 
 %% @private
--spec(find_unbound_/2 :: (Iterator :: {key(), #call{}, any()} | 'none', From :: pid()) -> {key(), #call{}} | 'none').
+-spec(find_unbound_/2 :: (Iterator :: {key(), #call{}, any()} | 'none', From :: pid()) -> {key(), #queued_call{}} | 'none').
 find_unbound_(none, _From) -> 
 	none;
 find_unbound_({Key, #queued_call{dispatchers = []} = Callrec, _Iter}, _From) ->

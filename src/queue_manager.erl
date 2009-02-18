@@ -110,7 +110,7 @@ add_queue(Name, Recipe, Weight) ->
 					{exists, Pid};
 				false ->
 					?CONSOLE("Queue does not exist at all, starting it", []),
-					{ok, Pid} = call_queue:start_link(Name, Recipe, Weight),
+					{ok, Pid} = call_queue:start(Name, Recipe, Weight),
 					ok = gen_leader:call(?MODULE, {notify, Name, Pid}),
 					ok = gen_leader:leader_call(?MODULE, {notify, Name, Pid}),
 					{ok, Pid}
@@ -239,6 +239,7 @@ handle_leader_call(_Msg, _From, State, _Election) ->
 			%end
 	%end;
 handle_call({notify, Name, Pid}, _From, State) ->
+	link(Pid),
 	{reply, ok, dict:store(Name, Pid, State)};
 handle_call({exists, Name}, _From, State) ->
 	{reply, dict:is_key(Name, State), State};
@@ -282,20 +283,20 @@ handle_info({mnesia_system_event, _MEvent}, State) ->
 	{noreply, State};
 handle_info({'EXIT', Pid, Reason}, State) -> 
 	?CONSOLE("~p died due to ~p.", [Pid, Reason]),
-	F = fun(Queuename, Qpid, {Deadqs, Liveqs}) -> 
-		case Qpid of
-			Pid -> 
-				?CONSOLE("Found the dead pid ~p", [Pid]),
-				{[Queuename | Deadqs], Liveqs};
-			_Other -> 
-				{Deadqs, dict:store(Queuename, Qpid, Liveqs)}
-		end
-	end,
-	{[Deadq], Liveqs} = dict:fold(F, {[], dict:new()}, State),
-	Queuerec = call_queue_config:get_queue(Deadq),
-	{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
-	NewState = dict:store(Queuerec#call_queue.name, NewQPid, Liveqs),
-	{noreply, NewState};
+	case find_queue_name(Pid, State) of
+		none -> 
+			{noreply, State};
+		Qname -> 
+			case call_queue_config:get_queue(Qname) of
+				noexists -> 
+					{noreply, State};
+				Queuerec -> 
+					?CONSOLE("Got call_queue_config of ~p", [Queuerec]),
+					{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
+					NewState = dict:store(Queuerec#call_queue.name, NewQPid, State),
+					{noreply, NewState}
+			end
+	end;
 handle_info(_Info, State) ->
 	{noreply, State}.
 
@@ -311,6 +312,14 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Election, _Extra) ->
 	{ok, State}.
 
+find_queue_name(_NeedlePid, []) -> 
+	none;
+find_queue_name(NeedlePid, [{Qname, NeedlePid} | _Tail]) -> 
+	Qname;
+find_queue_name(NeedlePid, [{_Qname, _Otherpid} | Tail]) -> 
+	find_queue_name(NeedlePid, Tail);
+find_queue_name(NeedlePid, Dict) ->
+	find_queue_name(NeedlePid, dict:to_list(Dict)).
 
 -ifdef('EUNIT').
 

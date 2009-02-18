@@ -2,24 +2,24 @@
 %% Version 1.1 (the "License"); you may not use this file except in
 %% compliance with the License. You may obtain a copy of the License at
 %% http://www.mozilla.org/MPL/
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
 %% License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% The Original Code is Spice Telphony.
-%% 
-%% The Initial Developer of the Original Code is 
+%%
+%% The Initial Developer of the Original Code is
 %% Andrew Thompson and Micah Warren.
-%% Portions created by the Initial Developers are Copyright (C) 
+%% Portions created by the Initial Developers are Copyright (C)
 %% SpiceCSM. All Rights Reserved.
 
-%% Contributor(s): 
+%% Contributor(s):
 
 %% Andrew Thompson <athompson at spicecsm dot com>
 %% Micah Warren <mwarren at spicecsm dot com>
-%% 
+%%
 
 %% @doc Manages queues across nodes.
 
@@ -38,16 +38,16 @@
 -behaviour(gen_leader).
 
 -export([
-	start_link/1, 
-	start/1, 
-	queues/0, 
-	add_queue/1, 
-	add_queue/2, 
-	add_queue/3, 
-	get_queue/1, 
-	query_queue/1, 
-	stop/0, 
-	print/0, 
+	start_link/1,
+	start/1,
+	queues/0,
+	add_queue/1,
+	add_queue/2,
+	add_queue/3,
+	get_queue/1,
+	query_queue/1,
+	stop/0,
+	print/0,
 	get_best_bindable_queues/0
 	]).
 
@@ -110,7 +110,7 @@ add_queue(Name, Recipe, Weight) ->
 					{exists, Pid};
 				false ->
 					?CONSOLE("Queue does not exist at all, starting it", []),
-					{ok, Pid} = call_queue:start_link(Name, Recipe, Weight),
+					{ok, Pid} = call_queue:start(Name, Recipe, Weight),
 					ok = gen_leader:call(?MODULE, {notify, Name, Pid}),
 					ok = gen_leader:leader_call(?MODULE, {notify, Name, Pid}),
 					{ok, Pid}
@@ -119,9 +119,9 @@ add_queue(Name, Recipe, Weight) ->
 
 %% @doc Get the pid of the passed queue name.  If there is no queue, returns 'undefined'.
 -spec(get_queue/1 :: (Name :: atom()) -> pid() | undefined).
-get_queue(Name) -> 
+get_queue(Name) ->
 	gen_leader:leader_call(?MODULE, {get_queue, Name}).
-	
+
 %% @doc 'true' or 'false' if the passed queue name exists.
 -spec(query_queue/1 :: (Name :: atom()) -> bool()).
 query_queue(Name) ->
@@ -134,10 +134,10 @@ query_queue(Name) ->
 
 %% @doc Spits out the queues as {[Qname :: atom(), Qpid :: pid()}].
 -spec(queues/0 :: () -> [{atom(), pid()}]).
-queues() -> 
+queues() ->
 	gen_leader:leader_call(?MODULE, queues_as_list).
 
-%% @doc Sort queues containing a bindable call.  The queues are sorted from most important to least by weight, 
+%% @doc Sort queues containing a bindable call.  The queues are sorted from most important to least by weight,
 %% priority of first bindable call, then the time the first bindable call has been in queue.
 -spec(get_best_bindable_queues/0 :: () -> [{atom(), pid(), {{non_neg_integer(), any()}, #call{}}, pos_integer()}]).
 get_best_bindable_queues() ->
@@ -239,6 +239,7 @@ handle_leader_call(_Msg, _From, State, _Election) ->
 			%end
 	%end;
 handle_call({notify, Name, Pid}, _From, State) ->
+	link(Pid),
 	{reply, ok, dict:store(Name, Pid, State)};
 handle_call({exists, Name}, _From, State) ->
 	{reply, dict:is_key(Name, State), State};
@@ -249,7 +250,7 @@ handle_call({get_queue, Name}, _From, State) ->
 			{reply, Pid, State};
 		error ->
 			{reply, undefined, State}
-	end;	
+	end;
 %handle_call({notify, Name, Pid}, _From, State) ->
 	%{reply, ok, dict:store(Name, Pid, State)};
 handle_call(print, _From, State) ->
@@ -261,7 +262,7 @@ handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
 	{reply, unknown, State}.
-	
+
 
 %% @private
 handle_leader_cast({notify, Name, Pid}, State, _Election) ->
@@ -280,22 +281,22 @@ handle_info({mnesia_system_event, {inconsistent_database, _Context, _Node}}, Sta
 	{noreply, State};
 handle_info({mnesia_system_event, _MEvent}, State) ->
 	{noreply, State};
-handle_info({'EXIT', Pid, Reason}, State) -> 
+handle_info({'EXIT', Pid, Reason}, State) ->
 	?CONSOLE("~p died due to ~p.", [Pid, Reason]),
-	F = fun(Queuename, Qpid, {Deadqs, Liveqs}) -> 
-		case Qpid of
-			Pid -> 
-				?CONSOLE("Found the dead pid ~p", [Pid]),
-				{[Queuename | Deadqs], Liveqs};
-			_Other -> 
-				{Deadqs, dict:store(Queuename, Qpid, Liveqs)}
-		end
-	end,
-	{[Deadq], Liveqs} = dict:fold(F, {[], dict:new()}, State),
-	Queuerec = call_queue_config:get_queue(Deadq),
-	{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
-	NewState = dict:store(Queuerec#call_queue.name, NewQPid, Liveqs),
-	{noreply, NewState};
+	case find_queue_name(Pid, State) of
+		none ->
+			{noreply, State};
+		Qname ->
+			case call_queue_config:get_queue(Qname) of
+				noexists ->
+					{noreply, State};
+				Queuerec ->
+					?CONSOLE("Got call_queue_config of ~p", [Queuerec]),
+					{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
+					NewState = dict:store(Queuerec#call_queue.name, NewQPid, State),
+					{noreply, NewState}
+			end
+	end;
 handle_info(_Info, State) ->
 	{noreply, State}.
 
@@ -311,6 +312,14 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Election, _Extra) ->
 	{ok, State}.
 
+find_queue_name(_NeedlePid, []) ->
+	none;
+find_queue_name(NeedlePid, [{Qname, NeedlePid} | _Tail]) ->
+	Qname;
+find_queue_name(NeedlePid, [{_Qname, _Otherpid} | Tail]) ->
+	find_queue_name(NeedlePid, Tail);
+find_queue_name(NeedlePid, Dict) ->
+	find_queue_name(NeedlePid, dict:to_list(Dict)).
 
 -ifdef('EUNIT').
 
@@ -404,7 +413,7 @@ single_node_test_() ->
 				end
 			},{
 				"Dead queue restarted",
-				fun() -> 
+				fun() ->
 					{exists, QPid} = add_queue("default_queue"),
 					exit(QPid, test_kill),
 					receive
@@ -422,8 +431,8 @@ multi_node_test_() ->
 	{
 		foreach,
 		fun() ->
-			slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
-			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"), 
+			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
+			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
 
 			mnesia:change_config(extra_db_nodes, [Master, Slave]),
 			mnesia:delete_schema([node(), Master, Slave]),
@@ -442,21 +451,21 @@ multi_node_test_() ->
 			{ok, _Pid2} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
 			{}
 		end,
-		fun({}) -> 
+		fun({}) ->
 
-			cover:stop([Master, Slave]), 
+			cover:stop([Master, Slave]),
 
 			%rpc:call(Master, mnesia, stop, []),
 			%rpc:call(Slave, mnesia, stop, []),
 			%rpc:call(Master, mnesia, delete_schema, [[Master]]),
 			%rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
 
-			slave:stop(Master), 
+			slave:stop(Master),
 			slave:stop(Slave),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 
-			ok 
+			ok
 		end,
 		[
 			{
@@ -512,7 +521,7 @@ multi_node_test_() ->
 
 					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue1])),
 					?assertMatch({exists, _Pid}, rpc:call(Slave, ?MODULE, add_queue, [queue1])),
-					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, [queue2])), 
+					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, [queue2])),
 					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue2])),
 					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, [queue2])),
 
@@ -535,5 +544,5 @@ multi_node_test_() ->
 			}
 		]
 	}.
-	
+
 -endif.

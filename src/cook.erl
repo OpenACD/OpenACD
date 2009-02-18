@@ -201,12 +201,11 @@ do_route(State) when State#state.ringingto =:= undefined ->
 					State;
 				% get the list of agents from the dispatchers, then flatten it.
 				Dispatchers -> 
-					% TODO pull the fun out for code readability
-					Agents = lists:map(fun(Dpid) -> 
-						try dispatcher:get_agents(Dpid) of
-							[] ->
+					F = fun(Dpid) -> 
+						try dispatchers:get_agents(Dpid) of
+							[] -> 
 								?CONSOLE("empty list, might as well tell this dispatcher to regrab", []),
-								dispatcher:regrab(Dpid),
+								dispatchers:regrab(Dpic),
 								[];
 							Ag -> 
 								Ag
@@ -215,29 +214,30 @@ do_route(State) when State#state.ringingto =:= undefined ->
 								[]
 						end
 					end,
-					Dispatchers),
-				Agents2 = lists:flatten(Agents),
+					Agents = lists:map(F, Dispatchers),
+					Agents2 = lists:flatten(Agents),
 
-				%io:format("Got agents ~p for call ~p~n", [Agents2, Call]),
+					%io:format("Got agents ~p for call ~p~n", [Agents2, Call]),
 				
-				% calculate costs and sort by same.
-				Agents3 = lists:sort([{ARemote + Askills + Aidle, APid} || {_AName, APid, AState} <- Agents2, 
-																ARemote <- 
-																	case APid of
-																		_X when node() =:= node(APid) -> 
-																			[0]; 
-																		_Y -> 
-																			[15] % TODO macro the magic number
-																		end,
-																Askills <- [length(AState#agent.skills)],
-																Aidle <- [element(2, AState#agent.lastchangetimestamp)]]),
-				% offer the call to each agent.
-				case offer_call(Agents3, Call) of
-					none ->
-						State;
-					Agent ->
-						State#state{ringingto=Agent, ringcount=0}
-				end
+					% calculate costs and sort by same.
+					Agents3 = lists:sort([{ARemote + Askills + Aidle, APid} || 
+						{_AName, APid, AState} <- Agents2, 
+						ARemote <- 
+							case APid of
+								_X when node() =:= node(APid) -> 
+									[0]; 
+								_Y -> 
+									[15] % TODO macro the magic number
+							end,
+							Askills <- [length(AState#agent.skills)],
+							Aidle <- [element(2, AState#agent.lastchangetimestamp)]]),
+					% offer the call to each agent.
+					case offer_call(Agents3, Call) of
+						none ->
+							State;
+						Agent ->
+							State#state{ringingto=Agent, ringcount=0}
+					end
 			end;
 		 none -> 
 			% TODO if the call is not in queue, this should die

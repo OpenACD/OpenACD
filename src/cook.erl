@@ -69,7 +69,7 @@
 %% @doc Starts a cook linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
 -spec(start_link/3 :: (Call :: string(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()}).
 start_link(Call, Recipe, Queue) ->
-    gen_server:start_link(?MODULE, [Call, Recipe, Queue], []).
+	gen_server:start_link(?MODULE, [Call, Recipe, Queue], []).
 
 %% @doc Starts a cook not linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
 -spec(start/3 :: (Call :: string(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()}).
@@ -245,11 +245,11 @@ do_route(State) when State#state.ringingto =:= undefined ->
 	end.
 
 %% @private
--spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #call{}) -> 'none' | pid()).
+-spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #queued_call{}) -> 'none' | pid()).
 offer_call([], _Call) -> 
 	none;
 offer_call([{_ACost, Apid} | Tail], Call) -> 
-	case gen_server:call(Call#call.source, {ring_agent, Apid, Call}) of
+	case gen_server:call(Call#queued_call.media, {ring_agent, Apid, Call}) of
 		ok ->
 			?CONSOLE("cook offering call:  ~p to ~p", [Call, Apid]),
 			Apid;

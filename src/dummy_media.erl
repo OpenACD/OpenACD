@@ -41,7 +41,8 @@
 	start_link/1,
 	start_link/2,
 	start/1,
-	start/2
+	start/2,
+	ring_agent/2
 	]).
 
 %% gen_server callbacks

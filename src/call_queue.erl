@@ -64,7 +64,7 @@
 % TODO magic skill '_queue' (name of the queue, so agents can be assigned to the queue)
 -record(state, {
 	queue = gb_trees:empty(),
-	name :: atom(),
+	name :: string(),
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	weight = ?DEFAULT_WEIGHT :: pos_integer(),
 	call_skills = [english, '_node'] :: [atom()]}).
@@ -109,7 +109,7 @@ add(Pid, Mediapid) when is_pid(Pid), is_pid(Mediapid) ->
 	add(Pid, 1, Mediapid).
 	
 %% @doc Query the queue at `Pid' for a call with the id of `Callid'.
--spec(get_call/2 :: (Pid ::pid(), Callid :: string()) -> 'none' | {key(), #call{}}).
+-spec(get_call/2 :: (Pid ::pid(), Callid :: string()) -> 'none' | {key(), #queued_call{}}).
 get_call(Pid, Callid) when is_pid(Pid) -> 
 	gen_server:call(Pid, {get_call, Callid}).
 
@@ -247,7 +247,7 @@ find_by_pid_(_Needle, none) ->
 	none.
 
 %% @private
--spec(expand_magic_skills/3 :: (State :: #state{}, Call :: #call{}, Skills :: [atom()]) -> [atom()]).
+-spec(expand_magic_skills/3 :: (State :: #state{}, Call :: #queued_call{}, Skills :: [atom()]) -> [atom()]).
 expand_magic_skills(State, Call, Skills) ->
 	lists:flatten(lists:map(
 		fun('_node') when is_pid(Call#queued_call.media) -> node(Call#queued_call.media);
@@ -404,7 +404,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% @private
 %% Cleans up both dead dispatchers and dead cooks from the calls.
--spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [#call{}], QName :: string()) -> [#call{}]).
+-spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [{key(), #queued_call{}}], QName :: string()) -> [{key(), #queued_call{}}]).
 clean_pid(Deadpid, Recipe, [{Key, Call} | Calls], QName) -> 
 	Bound = Call#call.bound,
 	Cleanbound = lists:delete(Deadpid, Bound),

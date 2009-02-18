@@ -85,7 +85,7 @@ init([Call, Recipe, Queue]) ->
 	% TODO check for a call right away.
 	?CONSOLE("Queue:  ~p", [Queue]),
 	process_flag(trap_exit, true),
-	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),	
+	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
 	State = #state{ticked=0, recipe=Recipe, call=Call, queue=Queue, tref=Tref},
     {ok, State}.
 
@@ -125,22 +125,32 @@ handle_cast(_Msg, State) ->
 %% @private
 handle_info(do_tick, State) -> 
 	{noreply, do_tick(State)};
-handle_info({'EXIT', Pid, _Reason}, State) -> 
-	?CONSOLE("queue ~p died, suspending self", [State#state.queue]),
-	timer:cancel(State#state.tref),
-	Qpid = wait_for_queue(State#state.queue),
-	call_queue:add(Qpid, State#state.call),
-	State2 = do_tick(State),
-	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
-	{noreply, State2#state{tref=Tref}};
-handle_info(_Info, State) ->
+%handle_info({'EXIT', Pid, _Reason}, State) -> 
+%	?CONSOLE("queue ~p died, suspending self", [State#state.queue]),
+%	timer:cancel(State#state.tref),
+%	Qpid = wait_for_queue(State#state.queue),
+%	?CONSOLE("queue's back up, trying to add it to call", []),
+%	call_queue:add(Qpid, State#state.call),
+%	State2 = do_tick(State),
+%	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
+%	{noreply, State2#state{tref=Tref}};
+handle_info(Info, State) ->
+	?CONSOLE("received random info message: ~p", [Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(_Reason, _State) ->
+terminate(normal, _State) -> 
+	?CONSOLE("Graceful death", []),
+	ok;
+terminate(Reason, State) ->
+	?CONSOLE("Hagurk!  ~p", [Reason]),
+	timer:cancel(State#state.tref),
+	Qpid = wait_for_queue(State#state.queue),
+	?CONSOLE("Looks like the queue recovered, I can die now",[]),
+	call_queue:add(Qpid, State#state.call),
     ok.
 
 %%--------------------------------------------------------------------
@@ -163,8 +173,21 @@ stop_tick(Pid) ->
 	gen_server:cast(Pid, stop_tick).
 
 wait_for_queue(Qname) ->
+	case whereis(queue_manager) of
+		undefined -> 
+			receive
+			after 1000 ->
+				ok
+			end;
+		QMPid -> 
+			ok
+	end,
 	case queue_manager:get_queue(Qname) of
 		undefined -> 
+			receive
+			after 300 ->
+				ok
+			end,
 			wait_for_queue(Qname);
 		Qpid when is_pid(Qpid) -> 
 			?CONSOLE("Queue ~p is back up", [Qname]),
@@ -191,7 +214,7 @@ do_route(State) when State#state.ringingto =/= undefined, State#state.ringcount 
 	agent:set_state(State#state.ringingto, idle),
 	do_route(State#state{ringingto=undefined});
 do_route(State) when State#state.ringingto =:= undefined ->
-	%io:format("starting new ring~n"),
+	?CONSOLE("starting new ring~n",[]),
 	Qpid = queue_manager:get_queue(State#state.queue),
 	case call_queue:get_call(Qpid, State#state.call) of
 		{_Key, Call} ->
@@ -285,6 +308,7 @@ do_recipe([], _State) ->
 %% @private
 -spec(do_operation/2 :: (Recipe :: recipe_step(), State :: #state{}) -> 'ok' | recipe_step()).
 do_operation({_Ticks, Op, Args, _Runs}, State) -> 
+	?CONSOLE("do_opertion", []),
 	#state{queue=Queuename, call=Callid} = State,
 	Pid = queue_manager:get_queue(Queuename),
 	case Op of
@@ -381,14 +405,56 @@ queue_interaction_test_() ->
 			fun() -> 
 				call_queue_config:new_queue(testqueue, {recipe, [{1, add_skills, [newskill1, newskill2], run_once}]}),
 				{exists, Pid} = queue_manager:add_queue(testqueue),
-				call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),	
-				{ok, MyPid} = start(whereis(media_dummy), [{1, add_skills, [newskill1, newskill2], run_once}], testqueue),
-				exit(Pid, test_kill),
+				{_Pri, CallRec} = call_queue:ask(Pid),
+				%call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),
+				%call_queue:add(Pid, whereis(media_dummy)),
+				?assertEqual(1, call_queue:call_count(Pid)),
+				%exit(Pid, testy),
+				%call_queue:stop(Pid),
+				gen_server:call(Pid, {stop, testy}),
+				?assert(is_process_alive(Pid) =:= false),
+				%?assert(is_process_alive(CallRec#queued_call.cook)),
+				%?CONSOLE("sending fake exit message to ~p", [CallRec#queued_call.cook]),
+				%CallRec#queued_call.cook ! {'EXIT', Pid, test_kill},
+				%?assert(is_process_alive(CallRec#queued_call.cook)),
 				receive
-				after 300 -> ok
+				after 1000 -> 
+					ok
 				end,
 				NewPid = queue_manager:get_queue(testqueue),
-				?debugFmt("Newpid:  ~p", [NewPid]),
+				?assertEqual(1, call_queue:call_count(NewPid)),
+				call_queue_config:destroy(testqueue)
+			end
+			},
+			{"Queue Manager dies",
+			fun() -> 
+				call_queue_config:new_queue(testqueue, {recipe, [{1, add_skills, [newskill1, newskill2], run_once}]}),
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				{_Pri, CallRec} = call_queue:ask(Pid),
+				%call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),
+				%call_queue:add(Pid, whereis(media_dummy)),
+				?assertEqual(1, call_queue:call_count(Pid)),
+				%exit(Pid, testy),
+				%call_queue:stop(Pid),
+				QMPid = whereis(queue_manager),
+				exit(QMPid, kill),
+				receive
+				after 300 -> 
+					ok
+				end,
+
+				?assert(is_process_alive(QMPid) =:= false),
+				?assert(is_process_alive(Pid) =:= false),
+				queue_manager:start([node()]),
+				%?assert(is_process_alive(CallRec#queued_call.cook)),
+				%?CONSOLE("sending fake exit message to ~p", [CallRec#queued_call.cook]),
+				%CallRec#queued_call.cook ! {'EXIT', Pid, test_kill},
+				%?assert(is_process_alive(CallRec#queued_call.cook)),
+				receive
+				after 1000 -> 
+					ok
+				end,
+				NewPid = queue_manager:get_queue(testqueue),
 				?assertEqual(1, call_queue:call_count(NewPid)),
 				call_queue_config:destroy(testqueue)
 			end
@@ -397,7 +463,7 @@ queue_interaction_test_() ->
 	}
 	}.
 
--define(MYSERVERFUNC, fun() -> {ok, Pid} = start("testcall",[{1, set_priority, [5], run_once}], testqueue), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start(#call{}), {ok, Pid} = start(Dummy,[{1, set_priority, [5], run_once}], testqueue), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

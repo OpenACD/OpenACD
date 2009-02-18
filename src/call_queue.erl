@@ -286,8 +286,10 @@ handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
 handle_call({add, Priority, Callpid, Callrec}, _From, State) when is_pid(Callpid) ->
 	% TODO ensure cook is started on same node callpid is on
+	?CONSOLE("adding call ~p...", [Callpid]),
 	{ok, Cookpid} = cook:start_link(Callpid, State#state.recipe, State#state.name),
 	Queuedrec = #queued_call{media=Callpid, id=Callrec#call.id, cook=Cookpid},
+	?CONSOLE("queuedrec: ~p", [Queuedrec]),
 	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
 	Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
 	Value = Queuedrec#queued_call{skills=Expandedskills},
@@ -348,6 +350,8 @@ handle_call({remove, Callpid}, _From, State) ->
 
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
+handle_call({stop, Reason}, _From, State) -> 
+	{stop, Reason, ok, State};
 
 handle_call({set_priority, Id, Priority}, _From, State) when is_pid(Id), Priority >= 0 ->
 	case find_by_pid(Id, State#state.queue) of
@@ -383,6 +387,9 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %% @private
+handle_info({'EXIT', _From, test_kill}, State) ->
+	?CONSOLE("Exiting by test request", []),
+	exit(test_kill);
 handle_info({'EXIT', From, _Reason}, State) ->
 	Calls = gb_trees:to_list(State#state.queue),
 	Cleancalls = clean_pid(From, State#state.recipe, Calls, State#state.name),
@@ -394,8 +401,12 @@ handle_info(Info, State) ->
 	{noreply, State}.
 
 %% @private
-terminate(_Reason, State) ->
+terminate(normal, State) ->
+	?CONSOLE("Normal terminate", []),
 	lists:foreach(fun({_K,V}) when is_pid(V#call.cook) -> cook:stop(V#call.cook); (_) -> ok end, gb_trees:to_list(State#state.queue)),
+	ok;
+terminate(Reason, State) -> 
+	?CONSOLE("Hurk!  ~p", [Reason]),
 	ok.
 
 %% @private
@@ -406,6 +417,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% Cleans up both dead dispatchers and dead cooks from the calls.
 -spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [#call{}], QName :: string()) -> [#call{}]).
 clean_pid(Deadpid, Recipe, [{Key, Call} | Calls], QName) -> 
+	?CONSOLE("Cleaning dead pids out...", []),
 	Bound = Call#call.bound,
 	Cleanbound = lists:delete(Deadpid, Bound),
 	case Call#call.cook of

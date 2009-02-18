@@ -68,12 +68,12 @@
 
 %% @doc Starts a cook linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
 -spec(start_link/3 :: (Call :: string(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()}).
-start_link(Call, Recipe, Queue) ->
+start_link(Call, Recipe, Queue) when is_pid(Call) ->
     gen_server:start_link(?MODULE, [Call, Recipe, Queue], []).
 
 %% @doc Starts a cook not linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
 -spec(start/3 :: (Call :: string(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()}).
-start(Call, Recipe, Queue) -> 
+start(Call, Recipe, Queue) when is_pid(Call) -> 
 	gen_server:start(?MODULE, [Call, Recipe, Queue], []).
 	
 %%====================================================================
@@ -128,7 +128,8 @@ handle_info(do_tick, State) ->
 handle_info({'EXIT', Pid, _Reason}, State) -> 
 	?CONSOLE("queue ~p died, suspending self", [State#state.queue]),
 	timer:cancel(State#state.tref),
-	wait_for_queue(State#state.queue),
+	Qpid = wait_for_queue(State#state.queue),
+	call_queue:add(Qpid, State#state.call),
 	State2 = do_tick(State),
 	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
 	{noreply, State2#state{tref=Tref}};
@@ -165,9 +166,9 @@ wait_for_queue(Qname) ->
 	case queue_manager:get_queue(Qname) of
 		undefined -> 
 			wait_for_queue(Qname);
-		_Else -> 
+		Qpid when is_pid(Qpid) -> 
 			?CONSOLE("Queue ~p is back up", [Qname]),
-			ok
+			Qpid
 	end.
 
 %% @private
@@ -205,7 +206,7 @@ do_route(State) when State#state.ringingto =:= undefined ->
 						try dispatchers:get_agents(Dpid) of
 							[] -> 
 								?CONSOLE("empty list, might as well tell this dispatcher to regrab", []),
-								dispatchers:regrab(Dpic),
+								dispatchers:regrab(Dpid),
 								[];
 							Ag -> 
 								Ag
@@ -324,9 +325,11 @@ queue_interaction_test_() ->
 			{ok, Pid} = queue_manager:add_queue(testqueue),
 			{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
 			call_queue:add(Pid, 1, Dummy),
-			Pid
+			register(media_dummy, Dummy),
+			{Pid, Dummy}
 		end,
-		fun(Pid) -> 
+		fun({Pid, Dummy}) -> 
+			unregister(media_dummy),
 			try call_queue:stop(Pid)
 			catch
 				exit:{noproc, Detail} ->
@@ -339,7 +342,7 @@ queue_interaction_test_() ->
 			fun() -> 
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),
-				{ok, MyPid} = start("testcall", [{1, add_skills, [newskill1, newskill2], run_once}], testqueue),
+				{ok, MyPid} = start(whereis(media_dummy), [{1, add_skills, [newskill1, newskill2], run_once}], testqueue),
 				receive
 				after ?TICK_LENGTH + 2000 ->
 					true
@@ -352,7 +355,7 @@ queue_interaction_test_() ->
 			fun() -> 
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, remove_skills, [testskill], run_once}]),
-				{ok, MyPid} = start("testcall", [{1, remove_skills, [testskill], run_once}], testqueue),
+				{ok, MyPid} = start(whereis(media_dummy), [{1, remove_skills, [testskill], run_once}], testqueue),
 				receive
 				after ?TICK_LENGTH + 2000 -> 
 					true
@@ -365,7 +368,7 @@ queue_interaction_test_() ->
 			fun() -> 
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, set_priority, [5], run_once}]),
-				{ok, MyPid} = start("testcall", [{1, set_priority, [5], run_once}], testqueue),
+				{ok, MyPid} = start(whereis(media_dummy), [{1, set_priority, [5], run_once}], testqueue),
 				receive
 				after ?TICK_LENGTH + 2000 -> 
 					true
@@ -379,7 +382,7 @@ queue_interaction_test_() ->
 				call_queue_config:new_queue(testqueue, {recipe, [{1, add_skills, [newskill1, newskill2], run_once}]}),
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),	
-				{ok, MyPid} = start("testcall", [{1, add_skills, [newskill1, newskill2], run_once}], testqueue),
+				{ok, MyPid} = start(whereis(media_dummy), [{1, add_skills, [newskill1, newskill2], run_once}], testqueue),
 				exit(Pid, test_kill),
 				receive
 				after 300 -> ok

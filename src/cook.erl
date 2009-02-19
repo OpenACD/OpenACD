@@ -103,9 +103,19 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_cast(restart_tick, State) ->
-	State2 = do_tick(State),
+	case do_route(State#state.ringcount, State#state.queue, State#state.ringingto, State#state.call) of
+		nocall -> 
+			State2 = State,
+			{stop, {call_not_queued, State#state.call}, State};
+		rangout -> 
+			State2 = State#state{ringingto = undefined, ringcount = 0};
+		{ringing, Apid, Ringcount} -> 
+			State2 = State#state{ringingto = Apid, ringcount = Ringcount}
+	end,
+	NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
+	State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
 	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
-	{noreply, State2#state{tref=Tref}};
+	{noreply, State3#state{tref=Tref}};
 handle_cast(stop_tick, State) ->
 	timer:cancel(State#state.tref),
 	{noreply, State#state{tref=undefined}};
@@ -132,7 +142,18 @@ handle_info(do_tick, State) ->
 				undefined ->
 					{stop, {queue_undefined, State#state.queue}, State};
 				_Other ->
-					{noreply, do_tick(State)}
+					case do_route(State#state.ringcount, State#state.queue, State#state.ringingto, State#state.call) of
+						nocall -> 
+							State2 = State,
+							{stop, {call_not_queued, State#state.call}, State};
+						rangout -> 
+							State2 = State#state{ringingto = undefined, ringcount = 0};
+						{ringing, Apid, Ringcount} -> 
+							State2 = State#state{ringingto = Apid, ringcount = Ringcount}
+					end,
+					NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
+					State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
+					{noreply, State3}
 			end
 	end;
 %handle_info({'EXIT', Pid, _Reason}, State) ->
@@ -211,78 +232,77 @@ wait_for_queue(Qname) ->
 	end.
 
 %% @private
--spec(do_tick/1 :: (State :: #state{}) -> #state{}).
-do_tick(#state{recipe=Recipe} = State) ->
-	State2 = do_route(State),
-	Recipe2 = do_recipe(Recipe, State2),
-	State2#state{ticked= State2#state.ticked+1, recipe=Recipe2}.
+%-spec(do_tick/1 :: (State :: #state{}) -> #state{}).
+%do_tick(#state{recipe=Recipe} = State) ->
+%	State2 = do_route(State),
+%	Recipe2 = do_recipe(Recipe, State2),
+% 	State2#state{ticked= State2#state.ticked+1, recipe=Recipe2}.
 
 stop(Pid) ->
 	gen_server:call(Pid, stop).
 
 %% @private
--spec(do_route/1 :: (State :: #state{}) -> #state{}).
-do_route(State) when State#state.ringingto =/= undefined, State#state.ringcount =< ?RINGOUT ->
-	?CONSOLE("still ringing: ~p of ~p times", [State#state.ringcount, ?RINGOUT]),
-	State#state{ringcount=State#state.ringcount +1};
-do_route(State) when State#state.ringingto =/= undefined, State#state.ringcount > ?RINGOUT ->
+-spec(do_route/4 :: (Ringcount :: non_neg_integer(), Queue :: atom(), 'undefined' | pid(), pid()) -> 'nocall' | {'ringing', pid(), non_neg_integer()} | 'rangout').
+%-spec(do_route/1 :: (State :: #state{}) -> #state{}).
+do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid), Ringcount =< ?RINGOUT, is_pid(Callpid) ->
+	?CONSOLE("still ringing: ~p of ~p times", [Ringcount, ?RINGOUT]),
+	{ringing, Agentpid, Ringcount + 1};
+do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid), Ringcount > ?RINGOUT, is_pid(Callpid)  -> 
 	?CONSOLE("rang out",[]),
-	agent:set_state(State#state.ringingto, idle),
-	do_route(State#state{ringingto=undefined});
-do_route(State) when State#state.ringingto =:= undefined ->
+	agent:set_state(Agentpid, idle),
+	rangout;
+do_route(_Ringcount, Queue, undefined, Callpid) when is_pid(Callpid), is_atom(Queue) -> 
 	?CONSOLE("starting new ring~n",[]),
-	Qpid = queue_manager:get_queue(State#state.queue),
-	case call_queue:get_call(Qpid, State#state.call) of
+	Qpid = queue_manager:get_queue(Queue),
+	case call_queue:get_call(Qpid, Callpid) of
 		{_Key, Call} ->
-			case Call#queued_call.dispatchers of
-				[] ->
-					% if there are no dispatchers bound to the call,
-					% there are no agents available
-					State;
-				% get the list of agents from the dispatchers, then flatten it.
-				Dispatchers ->
-					F = fun(Dpid) ->
-						try dispatcher:get_agents(Dpid) of
-							[] ->
-								?CONSOLE("empty list, might as well tell this dispatcher to regrab", []),
-								dispatcher:regrab(Dpid),
-								[];
-							Ag ->
-								Ag
-						catch
-							_:_ ->
-								[]
-						end
-					end,
-					Agents = lists:map(F, Dispatchers),
-					Agents2 = lists:flatten(Agents),
-
-					%io:format("Got agents ~p for call ~p~n", [Agents2, Call]),
-
-					% calculate costs and sort by same.
-					Agents3 = lists:sort([{ARemote + Askills + Aidle, APid} ||
-						{_AName, APid, AState} <- Agents2,
-						ARemote <-
-							case APid of
-								_X when node() =:= node(APid) ->
-									[0];
-								_Y ->
-									[15] % TODO macro the magic number
-							end,
-							Askills <- [length(AState#agent.skills)],
-							Aidle <- [element(2, AState#agent.lastchangetimestamp)]]),
-					% offer the call to each agent.
-					case offer_call(Agents3, Call) of
-						none ->
-							State;
-						Agent ->
-							State#state{ringingto=Agent, ringcount=0}
-					end
+			Dispatchers = Call#queued_call.dispatchers,
+			Agents = sort_agent_list(Dispatchers),
+			case offer_call(Agents, Call) of
+				none -> 
+					rangout;
+				Apid when is_pid(Apid) -> 
+					{ringing, Apid, 0}
 			end;
-		 none ->
-			% TODO if the call is not in queue, this should die
-			 State
+		none -> 
+			nocall
 	end.
+
+%% @private
+-spec(sort_agent_list/1 :: (Dispatchers :: [pid()]) -> [pid()]).
+sort_agent_list([]) -> 
+	[];
+sort_agent_list(Dispatchers) when is_list(Dispatchers) -> 
+	F = fun(Dpid) ->
+		try dispatcher:get_agents(Dpid) of
+			[] ->
+				?CONSOLE("empty list, might as well tell this dispatcher to regrab", []),
+				dispatcher:regrab(Dpid),
+				[];
+			Ag ->
+				Ag
+		catch
+			_:_ ->
+				[]
+		end
+	end,
+	Agents = lists:map(F, Dispatchers),
+	Agents2 = lists:flatten(Agents),
+
+	% calculate costs and sort by same.
+	Agents3 = lists:sort([{ARemote + Askills + Aidle, APid} ||
+		{_AName, APid, AState} <- Agents2,
+		ARemote <-
+		case APid of
+			_X when node() =:= node(APid) ->
+				[0];
+			_Y ->
+				[15] % TODO macro the magic number
+		end,
+		Askills <- [length(AState#agent.skills)],
+		Aidle <- [element(2, AState#agent.lastchangetimestamp)]]),
+	Agents3.
+
 
 %% @private
 -spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #queued_call{}) -> 'none' | pid()).
@@ -298,35 +318,35 @@ offer_call([{_ACost, Apid} | Tail], Call) ->
 	end.
 
 %% @private
--spec(do_recipe/2 :: (Recipe :: recipe(), State :: #state{}) -> recipe()).
-do_recipe([{Ticks, Op, Args, Runs} | Recipe], #state{ticked=Ticked} = State) when Ticks rem Ticked == 0 ->
-	Doneop = do_operation({Ticks, Op, Args, Runs}, State),
+-spec(do_recipe/4 :: (Recipe :: recipe(), Ticked :: non_neg_integer(), Queuename :: atom(), Call :: pid()) -> recipe()).
+do_recipe([{Ticks, Op, Args, Runs} | Recipe], Ticked, Queuename, Call) when Ticks rem Ticked == 0, is_atom(Queuename), is_pid(Call) ->
+	Doneop = do_operation({Ticks, Op, Args, Runs}, Queuename, Call),
 	case Doneop of
 		% TODO {T, O, A, R}?
 		{T, O, A, R} when Runs =:= run_once ->
 			%add to the output recipe
 
-			[{T, O, A, R} | do_recipe(Recipe, State)];
+			[{T, O, A, R} | do_recipe(Recipe, Ticked, Queuename, Call)];
 		{T, O, A, R} when Runs =:= run_many ->
-			lists:append([{T, O, A, R}, {Ticks, Op, Args, Runs}], do_recipe(Recipe, State));
+			lists:append([{T, O, A, R}, {Ticks, Op, Args, Runs}], do_recipe(Recipe, Ticked, Queuename, Call));
 		ok when Runs =:= run_many ->
-			[{Ticks, Op, Args, Runs} | do_recipe(Recipe, State)];
+			[{Ticks, Op, Args, Runs} | do_recipe(Recipe, Ticked, Queuename, Call)];
 		ok when Runs =:= run_once ->
-			do_recipe(Recipe, State)
+			do_recipe(Recipe, Ticked, Queuename, Call)
 			% don't, just dance.
 	end;
-do_recipe([Head | Recipe], State) ->
+do_recipe([Head | Recipe], Ticked, Queuename, Call) when is_atom(Queuename), is_pid(Call) ->
 	% this is here in case a recipe is not due to be run.
-	[Head | do_recipe(Recipe, State)];
-do_recipe([], _State) ->
+	[Head | do_recipe(Recipe, Ticked, Queuename, Call)];
+do_recipe([], _Ticked, _Queuename, _Call) ->
 	[].
 
 %% @private
--spec(do_operation/2 :: (Recipe :: recipe_step(), State :: #state{}) -> 'ok' | recipe_step()).
-do_operation({_Ticks, Op, Args, _Runs}, State) ->
+-spec(do_operation/3 :: (Recipe :: recipe_step(), Queuename :: atom(), Callid :: pid()) -> 'ok' | recipe_step()).
+do_operation({_Ticks, Op, Args, _Runs}, Queuename, Callid) when is_atom(Queuename), is_pid(Callid) ->
 	?CONSOLE("do_opertion", []),
-	#state{queue=Queuename, call=Callid} = State,
-	Pid = queue_manager:get_queue(Queuename), % TODO look up the pid only once, maybe?
+	%#state{queue=Queuename, call=Callid} = State,
+	Pid = queue_manager:get_queue(Queuename), %TODO look up the pid only once, maybe?
 	case Op of
 		add_skills ->
 			call_queue:add_skills(Pid, Callid, Args),
@@ -374,7 +394,7 @@ queue_interaction_test_() ->
 			register(media_dummy, Dummy),
 			{Pid, Dummy}
 		end,
-		fun({Pid, Dummy}) ->
+		fun({Pid, _Dummy}) ->
 			unregister(media_dummy),
 			try call_queue:stop(Pid)
 			catch
@@ -427,7 +447,7 @@ queue_interaction_test_() ->
 			fun() ->
 				call_queue_config:new_queue(testqueue, {recipe, [{1, add_skills, [newskill1, newskill2], run_once}]}),
 				{exists, Pid} = queue_manager:add_queue(testqueue),
-				{_Pri, CallRec} = call_queue:ask(Pid),
+				{_Pri, _CallRec} = call_queue:ask(Pid),
 				?assertEqual(1, call_queue:call_count(Pid)),
 				gen_server:call(Pid, {stop, testy}),
 				?assert(is_process_alive(Pid) =:= false),
@@ -445,7 +465,7 @@ queue_interaction_test_() ->
 			fun() ->
 				call_queue_config:new_queue(testqueue, {recipe, [{1, add_skills, [newskill1, newskill2], run_once}]}),
 				{exists, Pid} = queue_manager:add_queue(testqueue),
-				{_Pri, CallRec} = call_queue:ask(Pid),
+				{_Pri, _CallRec} = call_queue:ask(Pid),
 				?assertEqual(1, call_queue:call_count(Pid)),
 				?CONSOLE("before death:  ~p", [call_queue:print(Pid)]),
 				QMPid = whereis(queue_manager),

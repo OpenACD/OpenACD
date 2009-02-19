@@ -520,6 +520,15 @@ grab_test() ->
 grab_empty_test() ->
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	?assert(grab(Pid) =:= none).
+
+set_priority_by_id_test() -> 
+	{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+	{ok, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
+	add(Pid, 1, Dummy1),
+	?assertEqual(ok, set_priority(Pid, "C1", 2)),
+	{Key, Callrec} = get_call(Pid, "C1"),
+	?assertEqual("C1", Callrec#queued_call.id),
+	?assertMatch({2, {_Macroseconds, _Seconds, _Microseconds}}, Key).
 	
 increase_priority_test() ->
 	C1 = #call{id="C1"},
@@ -541,6 +550,11 @@ increase_priority_test() ->
 increase_priority_nil_test() ->
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	?assertMatch(none, set_priority(Pid, "C1", 1)).
+
+increase_priority_nil_pid_test() -> 
+	{ok, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
+	{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+	?assertMatch(none, set_priority(Pid, Dummy1, 1)).
 
 decrease_priority_test() ->
 	C1 = #call{id="C1"},

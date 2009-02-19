@@ -42,7 +42,9 @@
 	start_link/2,
 	start/1,
 	start/2,
-	ring_agent/2
+	ring_agent/2,
+	stop/1,
+	stop/2
 	]).
 
 %% gen_server callbacks
@@ -72,7 +74,13 @@ start(Calldata, success) ->
 	gen_server:start(?MODULE, [Calldata, success], []);
 start(Calldata, failure) ->
 	gen_server:start(?MODULE, [Calldata, failure], []).
-	
+
+stop(Pid) -> 
+	stop(Pid, normal).
+
+stop(Pid, Reason) ->
+	gen_server:call(Pid, {stop, Reason}).
+
 ring_agent(Pid, Agentpid) when is_pid(Pid), is_pid(Agentpid) -> 
 	gen_server:call(Pid, {ring_agent, Agentpid}).
 	
@@ -122,6 +130,8 @@ handle_call({start_cook, Recipe, Queuename}, _From, #state{callrec = Call} = Sta
 			NewCall = Call#call{cook = Pid},
 			{reply, ok, State#state{callrec = NewCall}}
 	end;
+handle_call({stop, Reason}, _From, State) ->
+	{stop, Reason, ok, State};
 handle_call(stop_cook, _From, #state{callrec = Call} = State) -> 
 	case State#state.mode of
 		success -> 

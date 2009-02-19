@@ -515,28 +515,6 @@ grab_test() ->
 grab_empty_test() ->
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	?assert(grab(Pid) =:= none).
-
-ungrab_by_pid_test() -> 
-	C1 = #call{id="C1"},
-	{ok, Dummy1} = dummy_media:start(C1),
-	{ok, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
-	add(Pid, 1, Dummy1),
-	{_Key1, Call1} = grab(Pid),
-	?assertEqual("C1", Call1#queued_call.id),
-	ungrab(Pid, Dummy1),
-	{_Key2, Call2} = grab(Pid),
-	?assertEqual("C1", Call2#queued_call.id).
-
-ungrab_by_id_test() -> 
-	C1 = #call{id="C1"},
-	{ok, Dummy1} = dummy_media:start(C1),
-	{ok, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
-	add(Pid, 1, Dummy1),
-	{_Key1, Call1} = grab(Pid),
-	?assertEqual("C1", Call1#queued_call.id),
-	ungrab(Pid, "C1"),
-	{_Key2, Call2} = grab(Pid),
-	?assertEqual("C1", Call2#queued_call.id).
 	
 increase_priority_test() ->
 	C1 = #call{id="C1"},
@@ -659,6 +637,43 @@ queue_test_() ->
 					?assertEqual(ok, ungrab(Pid, Call#queued_call.id)),
 					?assertEqual(ok, ungrab(Pid, Call2#queued_call.id)),
 					?assertEqual(ok, ungrab(Pid, "wtf"))
+				end
+			}, {
+				"Ungrab by id", fun() -> 
+					C1 = #call{id="C1"},
+					{ok, Dummy1} = dummy_media:start(C1),
+					 Pid = whereis(stupidqueue),
+					add(Pid, 1, Dummy1),
+					{_Key1, Call1} = grab(Pid),
+					?assertEqual("C1", Call1#queued_call.id),
+					ungrab(Pid, "C1"),
+					{_Key2, Call2} = grab(Pid),
+					?assertEqual("C1", Call2#queued_call.id)
+				end
+			}, {
+				"Ungrab by pid", fun() -> 
+					C1 = #call{id="C1"},
+					{ok, Dummy1} = dummy_media:start(C1),
+					Pid = whereis(stupidqueue),
+					add(Pid, 1, Dummy1),
+					{_Key1, Call1} = grab(Pid),
+					?assertEqual("C1", Call1#queued_call.id),
+					ungrab(Pid, Dummy1),
+					{_Key2, Call2} = grab(Pid),
+					?assertEqual("C1", Call2#queued_call.id)
+				end
+			}, {
+				"Ungrab then grab again", fun() -> 
+					Pid = whereis(stupidqueue),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					{ok, Dummy2} = dummy_media:start(#call{id="C2"}),
+					add(Pid, Dummy1),
+					add(Pid, Dummy2),
+					{_Key, Call1} = grab(Pid),
+					?assertEqual("C1", Call1#queued_call.id),
+					ungrab(Pid, Dummy1),
+					{_Key2, Call2} = grab(Pid),
+					?assertEqual("C1", Call2#queued_call.id)
 				end
 			}, {
 				"Skill integrity test", fun() ->

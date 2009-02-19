@@ -120,15 +120,15 @@ ask(Pid) ->
 
 %% @doc Bind to the first call in the queue at `Pid' that doesn't have a dispatcher from this node already bound to it or `none'.
 -spec(grab/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
-grab(Pid) ->
+grab(Pid) when is_pid(Pid) ->
 	gen_server:call(Pid, grab).
 
 %% @doc Reverse of @link grab/1.  Releases the call `Callid' from any bound dispatchers at queue `Pid'.  Returns `ok'.
 -spec(ungrab/2 :: (Pid :: pid(), Callid :: string()) -> 'ok').
-ungrab(Pid, Mediapid) when is_pid(Mediapid) ->
+ungrab(Pid, Mediapid) when is_pid(Mediapid), is_pid(Pid) ->
 	#call{id = Cid} = gen_server:call(Mediapid, get_call),
 	gen_server:call(Pid, {ungrab, Cid});
-ungrab(Pid, Callid) ->
+ungrab(Pid, Callid) when is_pid(Pid) ->
 	gen_server:call(Pid, {ungrab, Callid}).
 
 %% @doc Add the list of skills `Skills' to the call with the id of `Callid' in the queue at `Pid'. Returns `ok' on success, `none' on failure.
@@ -328,7 +328,7 @@ handle_call(grab, {From, _Tag}, State) ->
 		none ->
 			{reply, none, State};
 		{Key, Value} ->
-			link(From),
+			link(From), % to catch exits from the dispather so we can clean out dead pids
 			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{dispatchers=lists:append(Value#queued_call.dispatchers, [From])}, State#state.queue)},
 			{reply, {Key, Value}, State2}
 	end;
@@ -516,6 +516,28 @@ grab_empty_test() ->
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	?assert(grab(Pid) =:= none).
 
+ungrab_by_pid_test() -> 
+	C1 = #call{id="C1"},
+	{ok, Dummy1} = dummy_media:start(C1),
+	{ok, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
+	add(Pid, 1, Dummy1),
+	{_Key1, Call1} = grab(Pid),
+	?assertEqual("C1", Call1#queued_call.id),
+	ungrab(Pid, Dummy1),
+	{_Key2, Call2} = grab(Pid),
+	?assertEqual("C1", Call2#queued_call.id).
+
+ungrab_by_id_test() -> 
+	C1 = #call{id="C1"},
+	{ok, Dummy1} = dummy_media:start(C1),
+	{ok, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
+	add(Pid, 1, Dummy1),
+	{_Key1, Call1} = grab(Pid),
+	?assertEqual("C1", Call1#queued_call.id),
+	ungrab(Pid, "C1"),
+	{_Key2, Call2} = grab(Pid),
+	?assertEqual("C1", Call2#queued_call.id).
+	
 increase_priority_test() ->
 	C1 = #call{id="C1"},
 	C2 = #call{id="C2"},

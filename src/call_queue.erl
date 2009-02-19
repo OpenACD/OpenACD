@@ -474,6 +474,11 @@ remove_nil_test() ->
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	?assertMatch(none, remove(Pid, "C1")).
 
+removed_nil_by_pid_test() -> 
+	{ok, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
+	{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+	?assertEqual(none, remove(Pid, Dummy1)).
+	
 find_key_test() ->
 	{_, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
 	C1 = #call{id="C1"},

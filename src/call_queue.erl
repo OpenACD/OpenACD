@@ -781,6 +781,14 @@ queue_test_() ->
 					?assertEqual(true, lists:member(node(), Call#queued_call.skills)),
 					?assertEqual(true, lists:member(english, Call#queued_call.skills))
 				end
+			}, {
+				"Change recipe", fun() -> 
+					Pid = whereis(stupidqueue),
+					#state{recipe = ?DEFAULT_RECIPE} = print(Pid),
+					NewRecipe = [{3, set_priority, 5, run_many}],
+					?assertEqual(ok, set_recipe(Pid, NewRecipe)),
+					?assertMatch(#state{recipe = NewRecipe}, print(Pid))				
+				end
 			}
 		]
 	}.

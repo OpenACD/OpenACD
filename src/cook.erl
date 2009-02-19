@@ -95,6 +95,9 @@ init([Call, Recipe, Queue]) ->
 %% @private
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
+handle_call({stop, Reason}, From, State) -> 
+	?CONSOLE("Stop requested from ~p for ~p.", [From, Reason]),
+	{stop, {normal, Reason}, ok, State};
 handle_call(Request, _From, State) ->
     {reply, {unknown_call, Request}, State}.
 
@@ -178,6 +181,9 @@ terminate(normal, _State) ->
 	ok;
 terminate(shutdown, _State) ->
 	?CONSOLE("shutdown death", []),
+	ok;
+terminate({normal, Reason}, _State) ->
+	?CONSOLE("An inelegant shutdown requested for ~p", [Reason]),
 	ok;
 terminate(Reason, State) ->
 	?CONSOLE("Unusual death:  ~p", [Reason]),

@@ -707,6 +707,19 @@ queue_test_() ->
 					?assertEqual(none, add_skills(Pid, "C2", [foo, bar]))
 				end
 			}, {
+				"Add skills to call reference by pid", fun() ->
+					Pid = whereis(stupidqueue),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					add(Pid, Dummy1),
+					{_Key, Call} = get_call(Pid, "C1"),
+					?assertEqual(false, lists:member(foo, Call#queued_call.skills)),
+					?assertEqual(false, lists:member(bar, Call#queued_call.skills)),
+					?assertEqual(ok, add_skills(Pid, Dummy1, [foo, bar])),
+					{_Key, Call2} = get_call(Pid, "C1"),
+					?assertEqual(true, lists:member(foo, Call2#queued_call.skills)),
+					?assertEqual(true, lists:member(bar, Call2#queued_call.skills))
+				end
+			}, {
 				"Remove skills test", fun() ->
 					Pid = whereis(stupidqueue),
 					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
@@ -723,6 +736,17 @@ queue_test_() ->
 					{ok, Dummy1} = dummy_media:start(#call{id = "C1"}),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					?assertEqual(none, remove_skills(Pid, "C2", [english]))
+				end
+			}, {
+				"Remove skills from call referenced by pid", fun() -> 
+					Pid = whereis(stupidqueue),
+					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					add(Pid, Dummy1),
+					{_Key, Call} = get_call(Pid, "C1"),
+					?assertEqual(true, lists:member(english, Call#queued_call.skills)),
+					?assertEqual(ok, remove_skills(Pid, Dummy1, [english])),
+					{_Key, Call2} = get_call(Pid, "C1"),
+					?assertEqual(false, lists:member(english, Call2#queued_call.skills))
 				end
 			}, {
 				"Add magic skills test", fun() ->

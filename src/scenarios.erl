@@ -41,7 +41,7 @@ s1() ->
 	scenario1().
 	
 s2() -> 
-	queue_manager:add_queue("L3-00170001", [], 1).
+	queue_manager:add_queue('L3-00170001', [], 1).
 	
 -ifdef(EUNIT).
 

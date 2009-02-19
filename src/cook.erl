@@ -54,8 +54,8 @@
 -record(state, {
 		recipe = [] :: recipe(),
 		ticked = 0 :: integer(), % number of ticks we've done
-		call :: string() | 'undefined',
-		queue :: string() | 'undefined',
+		call :: pid() | 'undefined',
+		queue :: atom() | 'undefined',
 		continue = true :: bool(),
 		ringingto :: pid(),
 		ringcount = 0 :: non_neg_integer(),
@@ -67,12 +67,12 @@
 %%====================================================================
 
 %% @doc Starts a cook linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
--spec(start_link/3 :: (Call :: string(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()}).
+-spec(start_link/3 :: (Call :: pid(), Recipe :: recipe(), Queue :: atom()) -> {'ok', pid()}).
 start_link(Call, Recipe, Queue) when is_pid(Call) ->
     gen_server:start_link(?MODULE, [Call, Recipe, Queue], []).
 
 %% @doc Starts a cook not linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
--spec(start/3 :: (Call :: string(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()}).
+-spec(start/3 :: (Call :: pid(), Recipe :: recipe(), Queue :: atom()) -> {'ok', pid()}).
 start(Call, Recipe, Queue) when is_pid(Call) ->
 	gen_server:start(?MODULE, [Call, Recipe, Queue], []).
 
@@ -242,10 +242,10 @@ do_route(State) when State#state.ringingto =:= undefined ->
 				% get the list of agents from the dispatchers, then flatten it.
 				Dispatchers ->
 					F = fun(Dpid) ->
-						try dispatchers:get_agents(Dpid) of
+						try dispatcher:get_agents(Dpid) of
 							[] ->
 								?CONSOLE("empty list, might as well tell this dispatcher to regrab", []),
-								dispatchers:regrab(Dpid),
+								dispatcher:regrab(Dpid),
 								[];
 							Ag ->
 								Ag
@@ -326,7 +326,7 @@ do_recipe([], _State) ->
 do_operation({_Ticks, Op, Args, _Runs}, State) ->
 	?CONSOLE("do_opertion", []),
 	#state{queue=Queuename, call=Callid} = State,
-	Pid = queue_manager:get_queue(Queuename),
+	Pid = queue_manager:get_queue(Queuename), % TODO look up the pid only once, maybe?
 	case Op of
 		add_skills ->
 			call_queue:add_skills(Pid, Callid, Args),
@@ -337,6 +337,12 @@ do_operation({_Ticks, Op, Args, _Runs}, State) ->
 		set_priority ->
 			[Priority] = Args,
 			call_queue:set_priority(Pid, Callid, Priority),
+			ok;
+		prioritize ->
+			?CONSOLE("NIY",[]),
+			ok;
+		deprioritize ->
+			?CONSOLE("NIY",[]),
 			ok;
 		voicemail ->
 			?CONSOLE("NIY",[]),

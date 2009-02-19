@@ -64,7 +64,7 @@
 % TODO magic skill '_queue' (name of the queue, so agents can be assigned to the queue)
 -record(state, {
 	queue = gb_trees:empty(),
-	name :: string(),
+	name :: atom(),
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	weight = ?DEFAULT_WEIGHT :: pos_integer(),
 	call_skills = [english, '_node'] :: [atom()]}).
@@ -108,8 +108,8 @@ add(Pid, Priority, Mediapid) when is_pid(Pid), is_pid(Mediapid), Priority >= 0 -
 add(Pid, Mediapid) when is_pid(Pid), is_pid(Mediapid) ->
 	add(Pid, 1, Mediapid).
 
-%% @doc Query the queue at `Pid' for a call with the id of `Callid'.
--spec(get_call/2 :: (Pid ::pid(), Callid :: string()) -> 'none' | {key(), #queued_call{}}).
+%% @doc Query the queue at `Pid' for a call with the pid of `Callid'.
+-spec(get_call/2 :: (Pid ::pid(), Callid :: pid()) -> 'none' | {key(), #queued_call{}}).
 get_call(Pid, Callid) when is_pid(Pid) ->
 	gen_server:call(Pid, {get_call, Callid}).
 
@@ -132,7 +132,7 @@ ungrab(Pid, Callid) ->
 	gen_server:call(Pid, {ungrab, Callid}).
 
 %% @doc Add the list of skills `Skills' to the call with the id of `Callid' in the queue at `Pid'. Returns `ok' on success, `none' on failure.
--spec(add_skills/3 :: (Pid :: pid(), Callid :: string(), Skills :: [atom()]) -> 'none' | 'ok').
+-spec(add_skills/3 :: (Pid :: pid(), Callid :: string() | pid(), Skills :: [atom(),...]) -> 'none' | 'ok').
 add_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) ->
 	#call{id = Callid} = gen_server:call(Mediapid, get_call),
 	gen_server:call(Pid, {add_skills, Callid, Skills});
@@ -140,7 +140,7 @@ add_skills(Pid, Callid, Skills) ->
 	gen_server:call(Pid, {add_skills, Callid, Skills}).
 
 %% @doc Remove the list of skills `Skills' from the call with the id of `Callid' in the queue at `Pid'. Returns `ok' on success, `none' on failure.
--spec(remove_skills/3 :: (Pid :: pid(), Callid :: string(), Skills :: [atom()]) -> 'none' | 'ok').
+-spec(remove_skills/3 :: (Pid :: pid(), Callid :: string() | pid(), Skills :: [atom(),...]) -> 'none' | 'ok').
 remove_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) ->
 	#call{id = Callid} = gen_server:call(Mediapid, get_call),
 	gen_server:call(Pid, {remove_skills, Callid, Skills});
@@ -148,8 +148,7 @@ remove_skills(Pid, Callid, Skills) ->
 	gen_server:call(Pid, {remove_skills, Callid, Skills}).
 
 %% @doc Alter the priority of the call with the id or media pid of `Mediaid' in the queue at `Pid' to `Priority'.  Returns `ok' on success, `none' on failure.
--spec(set_priority/3 :: ( Pid :: pid(), Calldata :: #call{}, Priority :: non_neg_integer()) -> 'none' | 'ok';
-						(Pid :: pid(), Callid :: string(), Priority :: non_neg_integer()) -> 'none' | 'ok').
+-spec(set_priority/3 :: ( Pid :: pid(), Calldata :: string() | pid(), Priority :: non_neg_integer()) -> 'none' | 'ok').
 set_priority(Pid, Mediaid, Priority) when Priority >= 0 ->
 	gen_server:call(Pid, {set_priority, Mediaid, Priority}).
 
@@ -419,14 +418,14 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% @private
 %% Cleans up both dead dispatchers and dead cooks from the calls.
--spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [{key(), #queued_call{}}], QName :: string()) -> [{key(), #queued_call{}}]).
+-spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [{key(), #queued_call{}}], QName :: atom()) -> [{key(), #queued_call{}}]).
 clean_pid(Deadpid, Recipe, [{Key, Call} | Calls], QName) ->
 	?CONSOLE("Cleaning dead pids out...", []),
 	Bound = Call#call.bound,
 	Cleanbound = lists:delete(Deadpid, Bound),
 	case Call#call.cook of
 		Deadpid ->
-			{ok, Pid} = cook:start_link(Call#call.id, Recipe, QName);
+			{ok, Pid} = cook:start_link(Call#call.source, Recipe, QName);
 		_ ->
 			Pid = Call#call.cook
 	end,

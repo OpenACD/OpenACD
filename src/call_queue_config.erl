@@ -118,7 +118,7 @@ destroy(Queue) ->
 	mnesia:transaction(F).
 	
 %% @doc Get the configuration for the passed `Queue' name.
--spec(get_queue/1 :: (Queue :: string()) -> #call_queue{} | {'noexists', any()}).
+-spec(get_queue/1 :: (Queue :: string()) -> #call_queue{} | {'noexists', any()} | 'noexists').
 get_queue(Queue) ->
 	F = fun() -> 
 		mnesia:read({call_queue, Queue})

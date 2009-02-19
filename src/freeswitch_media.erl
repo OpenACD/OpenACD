@@ -70,18 +70,23 @@ start(Cnode) ->
 	gen_server:start(?MODULE, [Cnode], []).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
+-spec(get_call(MPid :: pid()) -> #call{}).
 get_call(MPid) -> 
 	gen_server:call(MPid, get_call).
 
+-spec(get_queue(MPid :: pid()) -> pid()).
 get_queue(MPid) -> 
 	gen_server:call(MPid, get_queue).
-	
+
+-spec(get_agent(MPid :: pid()) -> pid()).
 get_agent(MPid) -> 
 	gen_server:call(MPid, get_agent).
 
+-spec(unqueue(Mpid :: pid()) -> 'ok').
 unqueue(MPid) -> 
 	gen_server:call(MPid, unqueue).
 
+-spec(set_agent(Mpid :: pid(), Agent :: any(), Apid :: pid()) -> 'ok').
 set_agent(MPid, Agent, Apid) when is_pid(MPid), is_pid(Apid) ->
 	gen_server:call(MPid, {set_agent, Agent, Apid}).
 	
@@ -196,7 +201,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 									{noreply, State};
 								Qpid -> 
 									?CONSOLE("Trying to add to queue...", []),
-									R = call_queue:add(Qpid, NewCall),
+									R = call_queue:add(Qpid, self()),
 									?CONSOLE("q response:  ~p", [R]),
 									%freeswitch_media_manager:queued_call(UUID, Qpid),
 									{noreply, State#state{queue_pid=Qpid, queue=Queue, callrec=NewCall}}
@@ -204,8 +209,9 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 						 _Otherwise -> 
 							 {noreply, State} 
 					end;
-				Else -> 
-					Elsepid = freeswitch_media_manager:get_handler(Else),
+				Else ->
+					% TODO - this isn't safe
+					{ok, Elsepid} = freeswitch_media_manager:get_handler(Else),
 					?CONSOLE("Bridging UUID ~p to ~p", [UUID, Else]),
 					X = freeswitch:api(State#state.cnode, uuid_bridge, lists:append([Else, " ", UUID])),
 					?CONSOLE("result of bridging to node ~p was ~p", [State#state.cnode, X]),

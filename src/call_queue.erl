@@ -409,7 +409,7 @@ terminate(shutdown, State) ->
 	lists:foreach(fun({_K,V}) when is_pid(V#call.cook) -> cook:stop(V#call.cook); (_) -> ok end, gb_trees:to_list(State#state.queue)),
 	ok;
 terminate(Reason, State) ->
-	?CONSOLE("Hurk!  ~p", [Reason]),
+	?CONSOLE("unusual terminate:  ~p", [Reason]),
 	ok.
 
 %% @private

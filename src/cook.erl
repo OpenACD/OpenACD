@@ -174,16 +174,16 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% @private
 terminate(normal, _State) ->
-	?CONSOLE("normal Graceful death", []),
+	?CONSOLE("normal death", []),
 	ok;
 terminate(shutdown, _State) ->
-	?CONSOLE("shutdown graceful death", []),
+	?CONSOLE("shutdown death", []),
 	ok;
 terminate(Reason, State) ->
-	?CONSOLE("Hagurk!  ~p", [Reason]),
+	?CONSOLE("Unusual death:  ~p", [Reason]),
 	timer:cancel(State#state.tref),
 	Qpid = wait_for_queue(State#state.queue),
-	?CONSOLE("Looks like the queue recovered, I can die now",[]),
+	?CONSOLE("Looks like the queue recovered, dieing now",[]),
 	call_queue:add(Qpid, State#state.call),
     ok.
 

@@ -389,9 +389,6 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %% @private
-handle_info({'EXIT', _From, test_kill}, State) ->
-	?CONSOLE("Exiting by test request", []),
-	exit(test_kill);
 handle_info({'EXIT', From, _Reason}, State) ->
 	Calls = gb_trees:to_list(State#state.queue),
 	Cleancalls = clean_pid(From, State#state.recipe, Calls, State#state.name),

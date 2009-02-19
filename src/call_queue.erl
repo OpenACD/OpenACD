@@ -108,8 +108,9 @@ add(Pid, Priority, Mediapid) when is_pid(Pid), is_pid(Mediapid), Priority >= 0 -
 add(Pid, Mediapid) when is_pid(Pid), is_pid(Mediapid) ->
 	add(Pid, 1, Mediapid).
 
-%% @doc Query the queue at `Pid' for a call with the pid of `Callid'.
--spec(get_call/2 :: (Pid ::pid(), Callid :: pid()) -> 'none' | {key(), #queued_call{}}).
+%% @doc Query the queue at `Pid' for a call with the ID or Pid of `Callid'.
+-spec(get_call/2 :: (Pid :: pid(), Callid :: pid()) -> 'none' | {key(), #queued_call{}};
+					(Pid :: pid(), Callid :: string()) -> 'none' | {key(), #queued_call{}}).
 get_call(Pid, Callid) when is_pid(Pid) ->
 	gen_server:call(Pid, {get_call, Callid}).
 
@@ -266,6 +267,8 @@ init([Name, Recipe, Weight]) ->
 	{ok, #state{name=Name, recipe=Recipe, weight=Weight}}.
 
 %% @private
+handle_call({get_call, Callpid}, _From, State) when is_pid(Callpid) ->
+	{reply, find_by_pid(Callpid, State#state.queue), State};
 handle_call({get_call, Callid}, _From, State) ->
 	{reply, find_key(Callid, State#state.queue), State};
 handle_call({ungrab, Callid}, {From, _Tag}, State) ->
@@ -486,6 +489,17 @@ find_key_test() ->
 	{ok, Dummy1} = dummy_media:start(C1),
 	add(Pid, 1, Dummy1),
 	?assertMatch(none, remove(Pid, "C2")).
+
+find_pid_test() -> 
+	{ok, Pid} = start(goober, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT),
+	C1 = #call{id="C1"},
+	C2 = #call{id="C2"},
+	{ok, Dummy1} = dummy_media:start(C1),
+	{ok, Dummy2} = dummy_media:start(C2),
+	add(Pid, 1, Dummy1),
+	{_Key1, Call1} = get_call(Pid, Dummy1),
+	?assertEqual("C1", Call1#queued_call.id),
+	?assertMatch(none, get_call(Pid, Dummy2)).
 
 bound_test() ->
 	{_, Node} = slave:start(net_adm:localhost(), boundtest),

@@ -544,6 +544,21 @@ queue_interaction_test_() ->
 				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
 				?assertEqual(2, Prior)
 			end},
+			{"Add reciepe many",
+			fun() ->
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				Subrecipe = [1, prioritize, [], run_many],
+				call_queue:set_recipe(Pid, [{1, add_recipe, Subrecipe, run_many}]),
+				Dummy1 = whereis(media_dummy),
+				call_queue:add(Pid, Dummy1),
+				receive
+				after ?TICK_LENGTH * 3 + 100 ->
+					ok
+				end,
+				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+				% tick 1:  add recipe.  tick 2:  add recipe, prioritize (2).  tick 3:  add recipe, prioritize (3), prioritize(4).
+				?assertEqual(4, Prior)
+			end},
 			{"Waiting for queue rebirth",
 			fun() ->
 				call_queue_config:new_queue(testqueue, {recipe, [{1, add_skills, [newskill1, newskill2], run_once}]}),

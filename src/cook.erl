@@ -392,7 +392,7 @@ do_operation({_Ticks, Op, Args, _Runs}, Queuename, Callid) when is_atom(Queuenam
 		add_recipe ->
 			list_to_tuple(Args);
 		announce ->
-			?CONSOLE("NIY",[]),
+			gen_server:call(Callid, {announce, Args}),
 			ok
 	end.
 

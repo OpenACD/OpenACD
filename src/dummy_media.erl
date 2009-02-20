@@ -152,6 +152,13 @@ handle_call(voicemail, _From, State) ->
 			{reply, ok, State};
 		failure ->
 			{reply, invalid, State}
+	end;
+handle_call({announce, _Args}, _From, State) ->
+	case State#state.mode of
+		success -> 
+			{reply, ok, State};
+		failure ->
+			{reply, invalid, State}
 	end.
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -261,6 +268,20 @@ dummy_test_() ->
 			fun() ->
 				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}, failure),
 				?assertMatch(invalid, gen_server:call(Dummypid, voicemail))
+			end
+		},
+		{
+			"Annouce when set for success",
+			fun() ->
+				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}),
+				?assertMatch(ok, gen_server:call(Dummypid, {announce, "Random data"}))
+			end
+		},
+		{
+			"Annouce when set to fail",
+			fun() ->
+				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}, failure),
+				?assertMatch(invalid, gen_server:call(Dummypid, {announce, "Random data"}))
 			end
 		}
 	].

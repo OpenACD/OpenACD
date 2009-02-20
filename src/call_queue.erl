@@ -52,6 +52,7 @@
 	get_call/2,
 	print/1,
 	remove/2,
+	bgremove/2,
 	stop/1,
 	grab/1,
 	ungrab/2,

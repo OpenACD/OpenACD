@@ -43,7 +43,6 @@
 	 terminate/2, code_change/3]).
 
 -record(state, {
-	supervisor :: pid() | 'undefined',
 	dispatchers = [] :: [pid()],
 	agents = [] :: [pid()]
 	}).
@@ -56,14 +55,18 @@ start_link() ->
 	
 start() ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
+	
+-spec(stop/0 :: () -> any()).
+stop() -> 
+	gen_server:call(?MODULE, stop).
 
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 %% @private
 init([]) ->
-	{ok, Super} = dispatch_supervisor:start_link(),
-    {ok, #state{supervisor=Super}}.
+	process_flag(trap_exit, true),
+    {ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -71,6 +74,8 @@ init([]) ->
 %% @private
 handle_call(stop, _From, State) -> 
 	{stop, normal, ok, State};
+handle_call(dump, _From, State) ->
+	{reply, State, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -79,7 +84,7 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_cast({now_avail, AgentPid}, State) -> 
+handle_cast({now_avail, AgentPid}, #state{agents = Agents, dispatchers = Dispatchers} = State) -> 
 	?CONSOLE("Someone's available now.", []),
 	case lists:member(AgentPid, State#state.agents) of
 		true -> 
@@ -105,6 +110,11 @@ handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) ->
 	?CONSOLE("Announcement that an agent is down, balancing in response.", []),
 	State2 = State#state{agents = lists:delete(Object, State#state.agents)},
 	{noreply, balance(State2)};
+handle_info({'EXIT', Pid, Reason}, #state{dispatchers = Dispatchers} = State) ->
+	?CONSOLE("Dispatcher unexpected exit:  ~p ~p", [Pid, Reason]),
+	CleanD = lists:delete(Pid, Dispatchers),
+	State2 = State#state{dispatchers = CleanD},
+	{noreply, balance(State2)};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -112,7 +122,8 @@ handle_info(_Info, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(_Reason, _State) ->
+terminate(Reason, State) ->
+	?CONSOLE("Termination cause:  ~p.  State:  ~p", [Reason, State]),
     ok.
 
 %%--------------------------------------------------------------------
@@ -125,10 +136,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-
--spec(stop/0 :: () -> any()).
-stop() -> 
-	gen_server:call(?MODULE, stop).
 	
 % TODO roll the dispatch_supervisor into this process.
 %% @private
@@ -136,7 +143,7 @@ stop() ->
 balance(State) when length(State#state.agents) > length(State#state.dispatchers) -> 
 	?CONSOLE("Starting new dispatcher",[]),
 	Dispatchers = State#state.dispatchers,
-	{ok, Pid} = supervisor:start_child(State#state.supervisor, []),
+	{ok, Pid} = dispatcher:start_link(),
 	State2 = State#state{dispatchers = [ Pid | Dispatchers]},
 	balance(State2);
 balance(State) when length(State#state.agents) < length(State#state.dispatchers) -> 
@@ -154,3 +161,88 @@ balance(State) when length(State#state.agents) < length(State#state.dispatchers)
 balance(State) -> 
 	?CONSOLE("It is fully balanced!",[]),
 	State.
+
+dump() ->
+	gen_server:call(?MODULE, dump).
+
+-ifdef(EUNIT).
+
+test_primer() ->
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start().
+
+balance_test_() ->
+	{
+		foreach,
+		fun() ->
+			test_primer(),
+			agent_manager:start([node()]),
+			queue_manager:start([node()]),
+			start(),
+			ok
+		end,
+		fun(ok) ->
+			agent_manager:stop(),
+			queue_manager:stop(),
+			stop()
+		end,
+		[
+			{
+				"Agent started, so a dispatcher starts",
+				fun() ->
+					State1 = dump(),
+					?assertEqual(State1#state.agents, []),
+					?assertEqual(State1#state.dispatchers, []),
+					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+					receive
+					after 100 ->
+						ok
+					end,
+					State2 = dump(),
+					?assertEqual([Apid], State2#state.agents),
+					?assertEqual(1, length(State2#state.dispatchers))
+				end
+			},
+			{
+				"Agent ended, so a dipatcher ends",
+				fun() ->
+					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+					receive
+					after 100 ->
+						ok
+					end,
+					State1 = dump(),
+					?assertEqual(State1#state.agents, [Apid]),
+					?assertEqual(1, length(State1#state.dispatchers)),
+					exit(Apid, test_kill),
+					receive
+					after 100 ->
+						ok
+					end,
+					State2 = dump(),
+					?assertEqual([], State2#state.agents),
+					?assertEqual([], State2#state.dispatchers)
+				end
+			},
+			{
+				"Unexpected dispatcher death",
+				fun() ->
+					{ok, _Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+					#state{dispatchers = [PidToKill]} = dump(),
+					exit(PidToKill, test_kill),
+					receive
+					after 100 ->
+						ok
+					end,
+					State1 = dump(),
+					?assertEqual(1, length(State1#state.dispatchers)),
+					?assertNot([PidToKill] =:= State1#state.dispatchers)
+				end
+			}
+		]
+	}.
+
+-endif.

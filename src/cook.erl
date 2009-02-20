@@ -382,17 +382,19 @@ do_operation({_Ticks, Op, Args, _Runs}, Queuename, Callid) when is_atom(Queuenam
 
 -ifdef(EUNIT).
 
-
-queue_interaction_test_() ->
+test_primer() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),
 	mnesia:delete_schema([node()]),
 	mnesia:create_schema([node()]),
-	mnesia:start(),
+	mnesia:start().
+
+queue_interaction_test_() ->
 	{timeout, 60,
 	{
 		foreach,
 		fun() ->
+			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
 			{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),

@@ -145,8 +145,11 @@ handle_call(stop_cook, _From, #state{callrec = Call} = State) ->
 			end;
 		failure -> 
 			{reply, invalid, State}
-	end.
-
+	end;
+handle_call(voicemail, _From, #state{mode = success} = State) ->
+	{reply, ok, State};
+handle_call(voicemail, _From, #state{mode = failure} = State) ->
+	{reply, invalid, State}.
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%                                      {noreply, State, Timeout} |
@@ -241,6 +244,20 @@ dummy_test_() ->
 			fun() -> 
 				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}, failure),
 				?assertMatch(invalid, gen_server:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
+			end
+		},
+		{
+			"Answer voicemail call when set to success",
+			fun() ->
+				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}),
+				?assertMatch(ok, gen_server:call(Dummypid, voicemail))
+			end
+		},
+		{
+			"Answer voicemail call when set to fail",
+			fun() ->
+				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}, failure),
+				?assertMatch(invalid, gen_server:call(Dummypid, voicemail))
 			end
 		}
 	].

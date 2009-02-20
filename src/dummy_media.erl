@@ -146,10 +146,13 @@ handle_call(stop_cook, _From, #state{callrec = Call} = State) ->
 		failure -> 
 			{reply, invalid, State}
 	end;
-handle_call(voicemail, _From, #state{mode = success} = State) ->
-	{reply, ok, State};
-handle_call(voicemail, _From, #state{mode = failure} = State) ->
-	{reply, invalid, State}.
+handle_call(voicemail, _From, State) ->
+	case State#state.mode of
+		success ->
+			{reply, ok, State};
+		failure ->
+			{reply, invalid, State}
+	end.
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%                                      {noreply, State, Timeout} |

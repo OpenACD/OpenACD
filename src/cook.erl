@@ -588,7 +588,19 @@ queue_interaction_test_() ->
 				after ?TICK_LENGTH + 100 ->
 					gen_server:call(Dummy1, set_success)
 				end,
-				?assertMatch({Key, #queued_call{id="testcall"}}, call_queue:get_call(Pid, Dummy1))
+				?assertMatch({_Key, #queued_call{id="testcall"}}, call_queue:get_call(Pid, Dummy1))
+			end},
+			{"Annouce (media doesn't matter)",
+			fun() ->
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, announce, ["random data"], run_once}]),
+				Dummy1 = whereis(media_dummy),
+				call_queue:add(Pid, Dummy1),
+				receive
+				after ?TICK_LENGTH + 100 ->
+					ok
+				end,
+				?assertMatch({_Key, #queued_call{id="testcall"}}, call_queue:get_call(Pid, Dummy1))
 			end},
 			{"Waiting for queue rebirth",
 			fun() ->

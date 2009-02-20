@@ -66,6 +66,7 @@ start() ->
 %%====================================================================
 %% @private
 init([]) ->
+	?CONSOLE("Dispatcher starting", []),
 	State = #state{},
 	case grab_best() of
 		none ->

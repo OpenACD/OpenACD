@@ -192,6 +192,7 @@ handle_call({start_agent, #agent{login = ALogin} = Agent}, _From, #state{agents 
 	{ok, Apid} = agent:start(Agent),
 	gen_leader:leader_cast(?MODULE, {notify, ALogin, Apid}),
 	Agents2 = dict:store(ALogin, Apid, Agents),
+	gen_server:cast(dispatch_manager, {now_avail, Apid}),
 	{reply, {ok, Apid}, State#state{agents = Agents2}}.
 
 handle_cast(_Request, State) -> 

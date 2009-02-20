@@ -266,20 +266,41 @@ balance_test_() ->
 					after 100 ->
 						ok
 					end,
-					
-					?assert(false)
+					State1 = dump(),
+					?assertEqual([Apid], State1#state.agents),
+					?assertEqual(1, length(State1#state.dispatchers)),
+					agent:set_state(Apid, released, default),
+					receive
+					after 100 ->
+						ok
+					end,
+					State2 = dump(),
+					?assertEqual([], State2#state.agents),
+					?assertEqual([], State2#state.agents)
 				end
 			},
 			{
 				"Agent avail and already tracked",
 				fun() ->
-					?assert(false)
+					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+					agent:set_state(Apid, idle),
+					receive
+					after 100 ->
+						ok
+					end,
+					State1 = dump(),
+					?assertEqual([Apid], State1#state.agents),
+					?assertEqual(1, length(State1#state.dispatchers)),
+					gen_server:cast(?MODULE, {now_avail, Apid}),
+					State2 = dump(),
+					?assertEqual([Apid], State2#state.agents),
+					?assertEqual(1, length(State1#state.dispatchers))
 				end
 			}
 		]
 	}.
 
--define(MYSERVERFUNC, fun() -> {ok, _Pid} = start(), {?MODULE, fun() -> stop() end} end).
+-define(MYSERVERFUNC, fun() -> {ok, _Pid} = start_link(), {?MODULE, fun() -> stop() end} end).
 
 -include("gen_server_test.hrl").
 

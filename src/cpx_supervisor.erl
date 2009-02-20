@@ -113,7 +113,7 @@ add_conf(Mod, Start, Args) ->
 	start_spec(build_spec(Rec)).
 
 %% @doc Attempts to build a valid childspec suitbable for a supervisor module from the Record#cpx_conf.
-build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args} = Record) -> 
+build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args}) -> 
 	Spec = {Mod, {Mod, Start, Args}, permanent, 20000, worker, [?MODULE]},
 	?CONSOLE("Building spec:  ~p", [Spec]),
 	case supervisor:check_childspecs([Spec]) of
@@ -254,7 +254,7 @@ config_test_() ->
 			{
 				"Update a Config",
 				fun() -> 
-					Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
+					%Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
 					try add_conf(dummy_mod, start, [])
 					catch
 						_:_ -> ok

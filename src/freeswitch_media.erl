@@ -248,7 +248,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 					State3 = State2#state{queue = undefined, queue_pid = undefined}
 			end,
 			{noreply, State3};
-		Else -> 
+		_Else -> 
 		%	?CONSOLE("Event unhandled", []),
 			{noreply, State}
 	end.

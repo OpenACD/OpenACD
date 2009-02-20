@@ -206,7 +206,7 @@ handle_info(check_acks, State) when State#state.missed_polls < 4 ->
 	%  ones that have been tried once and been qed for ?TICK_LENGTH * 3 time (indicates time out)
 	Ackqueue = State#state.ack_queue,
 	Repoll = dict:filter(
-		fun(K, V) -> 
+		fun(_K, V) -> 
 			case V of 
 				{{_Macro, When, _Micro}, Tried, _Type, _Data} when When >= ?TICK_LENGTH * 2, Tried < 2 -> 
 					% put in the poll queue, it's only been tried at most 1 time, and has been in the ack queue longer than a tick.
@@ -220,7 +220,7 @@ handle_info(check_acks, State) when State#state.missed_polls < 4 ->
 		end, Ackqueue),
 	
 	Newack = dict:filter(
-		fun(K, V) -> 
+		fun(_K, V) -> 
 			case V of 
 				{{_Macro, When, _Micro}, Tried, _Type, _Data} when When >= ?TICK_LENGTH * 2, Tried < 2 -> 
 					%take out of the ack queue as it's being put in the poll queue
@@ -284,5 +284,5 @@ build_acks([{Counter, Tried, Type, Data} | Pollqueue], Acks) ->
 	
 build_poll([], Pollqueue, Runningcount) -> 
 	{Pollqueue, Runningcount};
-build_poll([{Counter, {Tried, Type, Data}} | Ackqueue], Pollqueue, Runningcount) -> 
+build_poll([{_Counter, {Tried, Type, Data}} | Ackqueue], Pollqueue, Runningcount) -> 
 	build_poll(Ackqueue, lists:append(Pollqueue, [{Runningcount+1, Tried+1, Type, Data}]), Runningcount+1).

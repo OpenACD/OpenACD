@@ -118,7 +118,7 @@ init([Nodename, Domain]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call({ring_agent, AgentPid, Call}, _From, #state{call_dict = Dict} = State) ->
+handle_call({ring_agent, AgentPid, Call}, _From, State) ->
 	?CONSOLE("ring_agent to ~p for call ~p", [AgentPid, Call#call.id]),
 	AgentRec = agent:dump_state(AgentPid),
 	Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang("++atom_to_list(?MODULE)++":! "++atom_to_list(node())++")'",

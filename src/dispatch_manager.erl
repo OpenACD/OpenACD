@@ -146,7 +146,7 @@ balance(State) when length(State#state.agents) < length(State#state.dispatchers)
 	case is_process_alive(Pid) of
 		true ->
 			ok = dispatcher:stop(Pid);
-		Else -> 
+		_Else -> 
 			% don't try to kill it.
 			ok
 	end,

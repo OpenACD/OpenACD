@@ -96,13 +96,13 @@ find_avail_agents_by_skill(Skills) ->
 	?CONSOLE("skills passed:  ~p.", [Skills]),
 	AvailSkilledAgents = [{K, V, AgState} || {K, V} <- gen_leader:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], AgState#agent.state =:= idle, lists:member('_all', AgState#agent.skills) orelse util:list_contains_all(AgState#agent.skills, Skills)],
 	AvailSkilledAgentsByIdleTime = lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> State1#agent.lastchangetimestamp =< State2#agent.lastchangetimestamp end, AvailSkilledAgents), 
-	F = fun({_K1, _V1, State1}, {_K2, V2, State2}) -> 
+	F = fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> 
 		case {lists:member('_all', State1#agent.skills), lists:member('_all', State2#agent.skills)} of
 			{true, false} -> 
 				false;
 			{false, true} -> 
 				true;
-			Else -> 
+			_Else -> 
 				length(State1#agent.skills) =< length(State2#agent.skills)
 		end
 	end,

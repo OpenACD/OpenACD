@@ -497,7 +497,7 @@ call_in_out_grab_test_() ->
 			{
 				"Simple add", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					%{ok, _Dummy1} = dummy_media:start(#call{id="C1"}),
 					%?assertMatch(ok, add(Pid, 1, Dummy1)),
 					%% was added in the set-up, just make sure the data's valid.
 					{{Priority, _Time}, Queuedcall} = ask(Pid),
@@ -509,7 +509,6 @@ call_in_out_grab_test_() ->
 			}, {
 				"Remove by ID", fun() -> 
 					Pid = whereis(testqueue),
-					Mediapid = whereis(media_dummy),
 					?assertEqual(ok, remove(Pid, "testcall")),
 					?assertEqual(none, remove(Pid, "testcall"))
 				end
@@ -533,6 +532,7 @@ call_in_out_grab_test_() ->
 					{_Key1, Call1} = get_call(Pid, "testcall"),
 					?assert(Call1#queued_call.media =:= whereis(media_dummy)),
 					{_Key2, Call2} = get_call(Pid, "C1"),
+					?assert(Dummy1 =:= Call2#queued_call.media),
 					?assertEqual(none, get_call(Pid, "invalid_id")),
 					dummy_media:stop(Dummy1)
 				end
@@ -554,7 +554,7 @@ call_in_out_grab_test_() ->
 			}, {
 				"Grab binds once", fun() ->
 					Pid = whereis(testqueue),
-					Dummy1 = whereis(media_dummy),
+					%Dummy1 = whereis(media_dummy),
 					{_Key, Call} = grab(Pid),
 					?assertEqual("testcall", Call#queued_call.id),
 					?assertEqual(none, grab(Pid))
@@ -569,7 +569,7 @@ call_in_out_grab_test_() ->
 			}, {
 				"Grab priority testing", fun() ->
 					Pid = whereis(testqueue),
-					Dummy1 = whereis(media_dummy),
+					%Dummy1 = whereis(media_dummy),
 					{ok, Dummy2} = dummy_media:start(#call{id="C2"}),
 					{ok, Dummy3} = dummy_media:start(#call{id="C3"}),
 					add(Pid, 0, Dummy2),
@@ -587,7 +587,7 @@ call_in_out_grab_test_() ->
 					Pid = whereis(testqueue),
 					{_Key1, Call1} = grab(Pid),
 					ungrab(Pid, whereis(media_dummy)),
-					{Key2, Call2} = grab(Pid),
+					{_Key2, Call2} = grab(Pid),
 					?assert(Call1#queued_call.media =:= Call2#queued_call.media)
 				end
 			}
@@ -848,7 +848,7 @@ queue_update_and_info_test_() ->
 			}, {
 				"Dump queue data to a list", fun() ->
 					Pid = whereis(testqueue),
-					Dummy1 = whereis(media_dummy),
+					%Dummy1 = whereis(media_dummy),
 					{ok, Dummy2} = dummy_media:start(#call{id="C2"}),
 					{ok, Dummy3} = dummy_media:start(#call{id="C3"}),
 					add(Pid, 1, Dummy2),

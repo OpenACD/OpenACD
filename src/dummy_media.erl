@@ -86,10 +86,10 @@ ring_agent(Pid, Agentpid) when is_pid(Pid), is_pid(Agentpid) ->
 	
 	
 	
-set_mode(Pid, success) when is_pid(Pid) -> 
-	gen_server:call(Pid, set_success);
-set_mode(Pid, failure) when is_pid(Pid) -> 
-	gen_server:call(Pid, set_failure).
+%set_mode(Pid, success) when is_pid(Pid) -> 
+%	gen_server:call(Pid, set_success);
+%set_mode(Pid, failure) when is_pid(Pid) -> 
+%	gen_server:call(Pid, set_failure).
 	
 %%====================================================================
 %% gen_server callbacks
@@ -194,7 +194,7 @@ dummy_test_() ->
 		{
 			"Simple start",
 			fun() -> 
-				?assertMatch({ok, Pid}, dummy_media:start(#call{}))
+				?assertMatch({ok, _Pid}, dummy_media:start(#call{}))
 			end
 		},
 		{

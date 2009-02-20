@@ -76,15 +76,14 @@ handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call(dump, _From, State) ->
 	{reply, State, State};
-handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+handle_call(Request, _From, State) ->
+    {reply, {unknown_call, Request}, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_cast({now_avail, AgentPid}, #state{agents = Agents, dispatchers = Dispatchers} = State) -> 
+handle_cast({now_avail, AgentPid}, State) -> 
 	?CONSOLE("Someone's available now.", []),
 	case lists:member(AgentPid, State#state.agents) of
 		true -> 
@@ -191,12 +190,26 @@ balance_test_() ->
 		end,
 		[
 			{
-				"Agent started, so a dispatcher starts",
+				"Agent started, but is still released",
+				fun() ->
+					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+					receive
+					after 100 ->
+						ok
+					end,
+					State1 = dump(),
+					?assertEqual(State1#state.agents, []),
+					?assertEqual(State1#state.dispatchers, [])
+				end
+			},
+			{
+				"Agent started then set available, so a dispatcher starts",
 				fun() ->
 					State1 = dump(),
 					?assertEqual(State1#state.agents, []),
 					?assertEqual(State1#state.dispatchers, []),
 					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+					agent:set_state(Apid, idle),
 					receive
 					after 100 ->
 						ok
@@ -207,9 +220,10 @@ balance_test_() ->
 				end
 			},
 			{
-				"Agent ended, so a dipatcher ends",
+				"Agent died, so a dipatcher ends",
 				fun() ->
 					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+					agent:set_state(Apid, idle),
 					receive
 					after 100 ->
 						ok
@@ -230,7 +244,8 @@ balance_test_() ->
 			{
 				"Unexpected dispatcher death",
 				fun() ->
-					{ok, _Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+					agent:set_state(Apid, idle),
 					#state{dispatchers = [PidToKill]} = dump(),
 					exit(PidToKill, test_kill),
 					receive
@@ -241,8 +256,31 @@ balance_test_() ->
 					?assertEqual(1, length(State1#state.dispatchers)),
 					?assertNot([PidToKill] =:= State1#state.dispatchers)
 				end
+			},
+			{
+				"Agent unavailable, do a dispatcher ends",
+				fun() ->
+					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+					agent:set_state(Apid, idle),
+					receive
+					after 100 ->
+						ok
+					end,
+					
+					?assert(false)
+				end
+			},
+			{
+				"Agent avail and already tracked",
+				fun() ->
+					?assert(false)
+				end
 			}
 		]
 	}.
+
+-define(MYSERVERFUNC, fun() -> {ok, _Pid} = start(), {?MODULE, fun() -> stop() end} end).
+
+-include("gen_server_test.hrl").
 
 -endif.

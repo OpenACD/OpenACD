@@ -365,7 +365,9 @@ do_operation({_Ticks, Op, Args, _Runs}, Queuename, Callid) when is_atom(Queuenam
 			call_queue:set_priority(Pid, Callid, Priority),
 			ok;
 		prioritize ->
-			?CONSOLE("NIY",[]),
+			{{Prior, _Time}, Call} = call_queue:get_call(Pid, Callid),
+			call_queue:set_priority(Pid, Callid, Prior + 1),
+			%?CONSOLE("NIY",[]),
 			ok;
 		deprioritize ->
 			?CONSOLE("NIY",[]),
@@ -451,6 +453,20 @@ queue_interaction_test_() ->
 				?assertEqual(5, Prior),
 				stop(MyPid)
 			end},
+			{"Prioritize once",
+			fun() ->
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, prioritize, [], run_once}]),
+				Media = whereis(media_dummy),
+				{ok, MyPid} = start(Media, [{1, prioritize, [], run_once}], testqueue),
+				receive
+				after ?TICK_LENGTH * 2 + 200 ->
+					ok
+				end,
+				{{Prior, _Time}, _Call} = call_queue:ask(Pid),
+				?assertEqual(2, Prior),
+				stop(MyPid)
+			end},
 			{"Waiting for queue rebirth",
 			fun() ->
 				call_queue_config:new_queue(testqueue, {recipe, [{1, add_skills, [newskill1, newskill2], run_once}]}),
@@ -464,6 +480,7 @@ queue_interaction_test_() ->
 					ok
 				end,
 				NewPid = queue_manager:get_queue(testqueue),
+				?CONSOLE("The calls:  ~p", [call_queue:print(NewPid)]),
 				?assertEqual(1, call_queue:call_count(NewPid)),
 				call_queue:stop(NewPid),
 				call_queue_config:destroy(testqueue)

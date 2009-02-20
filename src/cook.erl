@@ -377,7 +377,8 @@ do_operation({_Ticks, Op, Args, _Runs}, Queuename, Callid) when is_atom(Queuenam
 			call_queue:set_priority(Pid, Callid, Prior + 1),
 			ok;
 		deprioritize ->
-			?CONSOLE("NIY",[]),
+			{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Callid),
+			call_queue:set_priority(Pid, Callid, Prior - 1),
 			ok;
 		voicemail ->
 			?CONSOLE("NIY",[]),
@@ -490,6 +491,58 @@ queue_interaction_test_() ->
 				end,
 				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
 				?assertEqual(3, Prior)
+			end},
+			{"Deprioritize once",
+			fun() -> 
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, deprioritize, [], run_once}]),
+				{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+				call_queue:add(Pid, 2, Dummy1),
+				receive
+				after ?TICK_LENGTH * 3 ->
+					ok
+				end,
+				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+				?assertEqual(1, Prior)
+			end},
+			{"Deprioritize many (waiting for 2 ticks)",
+			fun() ->
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, deprioritize, [], run_many}]),
+				{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+				call_queue:add(Pid, 4, Dummy1),
+				receive
+				after ?TICK_LENGTH * 2 + 100 ->
+					ok
+				end,
+				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+				?assertEqual(2, Prior)
+			end},
+			{"Deprioritize to below zero",
+			fun() ->
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, deprioritize, [], run_many}]),
+				{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+				call_queue:add(Pid, 1, Dummy1),
+				receive
+				after ?TICK_LENGTH * 2 + 100 ->
+					ok
+				end,
+				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+				?assertEqual(0, Prior)
+			end},
+			{"Add recipe once",
+			fun() ->
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, add_recipe, [1, prioritize, [], run_once], run_once}]),
+				Dummy1 = whereis(media_dummy),
+				call_queue:add(Pid, Dummy1),
+				receive
+				after ?TICK_LENGTH * 2 + 100 ->
+					ok
+				end,
+				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+				?assertEqual(2, Prior)
 			end},
 			{"Waiting for queue rebirth",
 			fun() ->

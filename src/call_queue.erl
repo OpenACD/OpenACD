@@ -182,6 +182,16 @@ remove(Pid, Callid) when is_pid(Pid) ->
 			none
 	end.
 
+bgremove(Pid, Callpid) when is_pid(Pid), is_pid(Callpid) ->
+	gen_server:cast(Pid, {remove, Callpid});
+bgremove(Pid, Callid) when is_pid(Pid) ->
+	case gen_server:call(Pid, {get_call, Callid}) of
+		{_Key, #queued_call{media = Mediapid}} ->
+			bgremove(Pid, Mediapid);
+		none ->
+			ok
+	end.
+
 %% @doc Return the number of calls in the queue at `Pid'.
 -spec(call_count/1 :: (Pid :: pid()) -> non_neg_integer()).
 call_count(Pid) ->
@@ -386,6 +396,17 @@ handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 
 %% @private
+handle_cast({remove, Callpid}, State) ->
+	?CONSOLE("Trying to remove call ~p (cast)...", [Callpid]),
+	case find_by_pid(Callpid, State#state.queue) of
+		none ->
+			{noreply, State};
+		{Key, #queued_call{cook=Cookpid}} ->
+			cook:stop(Cookpid),
+			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
+			{noreply, State2}
+		end;
+
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
@@ -517,6 +538,19 @@ call_in_out_grab_test_() ->
 					Pid = whereis(testqueue),
 					Mediapid = whereis(media_dummy),
 					?assertEqual(ok, remove(Pid, Mediapid)),
+					?assertEqual(none, remove(Pid, Mediapid))
+				end
+			}, {
+				"Remove by casted ID", fun() ->
+					Pid = whereis(testqueue),
+					?assertEqual(ok, bgremove(Pid, "testcall")),
+					?assertEqual(none, remove(Pid, "testcall"))
+				end
+			}, {
+				"Remove by casted pid", fun() ->
+					Pid = whereis(testqueue),
+					Mediapid = whereis(media_dummy),
+					?assertEqual(ok, bgremove(Pid, Mediapid)),
 					?assertEqual(none, remove(Pid, Mediapid))
 				end
 			}, {

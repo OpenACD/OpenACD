@@ -381,8 +381,14 @@ do_operation({_Ticks, Op, Args, _Runs}, Queuename, Callid) when is_atom(Queuenam
 			call_queue:set_priority(Pid, Callid, Prior - 1),
 			ok;
 		voicemail ->
-			?CONSOLE("NIY",[]),
-			ok;
+			case gen_server:call(Callid, voicemail) of
+				ok ->
+					?CONSOLE("voicemail successfully, removing from queue", []),
+					call_queue:bgremove(Pid, Callid);
+				invalid ->
+					?CONSOLE("voicemail failed.", []),
+					ok
+			end;
 		add_recipe ->
 			list_to_tuple(Args);
 		announce ->
@@ -544,7 +550,7 @@ queue_interaction_test_() ->
 				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
 				?assertEqual(2, Prior)
 			end},
-			{"Add reciepe many",
+			{"Add recipe many",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				Subrecipe = [1, prioritize, [], run_many],
@@ -558,6 +564,31 @@ queue_interaction_test_() ->
 				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
 				% tick 1:  add recipe.  tick 2:  add recipe, prioritize (2).  tick 3:  add recipe, prioritize (3), prioritize(4).
 				?assertEqual(4, Prior)
+			end},
+			{"Voice mail once for supported media",
+			fun() ->
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, voicemail, [], run_once}]),
+				Dummy1 = whereis(media_dummy),
+				call_queue:add(Pid, Dummy1),
+				receive
+				after ?TICK_LENGTH * 2 + 100 ->
+					ok
+				end,
+				?assertEqual(none, call_queue:get_call(Pid, Dummy1))
+			end},
+			{"Voicemail for unsupported media",
+			fun() ->
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{1, voicemail, [], run_once}]),
+				Dummy1 = whereis(media_dummy),
+				call_queue:add(Pid, Dummy1),
+				gen_server:call(Dummy1, set_failure),
+				receive
+				after ?TICK_LENGTH + 100 ->
+					gen_server:call(Dummy1, set_success)
+				end,
+				?assertMatch({Key, #queued_call{id="testcall"}}, call_queue:get_call(Pid, Dummy1))
 			end},
 			{"Waiting for queue rebirth",
 			fun() ->

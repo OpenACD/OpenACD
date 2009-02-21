@@ -284,7 +284,7 @@ do_route(_Ringcount, Queue, undefined, Callpid) when is_pid(Callpid), is_atom(Qu
 	end.
 
 %% @private
--spec(sort_agent_list/1 :: (Dispatchers :: [pid()]) -> [pid()]).
+-spec(sort_agent_list/1 :: (Dispatchers :: [pid()]) -> [{non_neg_integer(), pid()}]).
 sort_agent_list([]) -> 
 	[];
 sort_agent_list(Dispatchers) when is_list(Dispatchers) -> 

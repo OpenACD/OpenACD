@@ -29,9 +29,6 @@
 
 %% depends on util, agent, cook, queue_manager
 
-
--type(key() :: {non_neg_integer(), {pos_integer(), non_neg_integer(), non_neg_integer()}}).
-
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -39,6 +36,13 @@
 -behaviour(gen_server).
 -include("call.hrl").
 -include("queue.hrl").
+
+-type(key() :: {non_neg_integer(), {pos_integer(), non_neg_integer(), non_neg_integer()}}).
+
+-type(queue() ::
+	{non_neg_integer(), 'nil'} |
+	{non_neg_integer(), {key(), #queued_call{}, 'nil', 'nil'}} |
+	{non_neg_integer(), {key(), #queued_call{}, 'nil', tuple()}}).
 
 -export([
 	start/3,
@@ -206,7 +210,7 @@ stop(Pid) ->
 % find the first call in the queue that doesn't have a pid on this node
 % in its bound list
 %% @private
--spec(find_unbound/2 :: (GbTree :: {non_neg_integer(), tuple()}, From :: pid()) -> {key(), #queued_call{}} | 'none').
+-spec(find_unbound/2 :: (GbTree :: queue(), From :: pid()) -> {key(), #queued_call{}} | 'none').
 find_unbound(GbTree, From) when is_pid(From) ->
 	find_unbound_(gb_trees:next(gb_trees:iterator(GbTree)), From).
 
@@ -244,7 +248,7 @@ find_key_(_Needle, none) ->
 	none.
 
 %% @private
--spec(find_by_pid/2 :: (Needle :: pid(), GbTree :: any()) -> {key(), #queued_call{}} | 'none').
+-spec(find_by_pid/2 :: (Needle :: pid(), GbTree :: queue()) -> {key(), #queued_call{}} | 'none').
 find_by_pid(Needle, GbTree) ->
 	find_by_pid_(Needle, gb_trees:next(gb_trees:iterator(GbTree))).
 

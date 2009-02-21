@@ -343,7 +343,7 @@ handle_call(grab, {From, _Tag}, State) ->
 		none ->
 			{reply, none, State};
 		{Key, Value} ->
-			link(From), % to catch exits from the dispather so we can clean out dead pids
+			link(From), % to catch exits from the dispatcher so we can clean out dead pids
 			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{dispatchers=lists:append(Value#queued_call.dispatchers, [From])}, State#state.queue)},
 			{reply, {Key, Value}, State2}
 	end;
@@ -416,13 +416,13 @@ handle_info({'EXIT', From, Reason}, State) ->
 	QMPid = whereis(queue_manager),
 	?CONSOLE("Handling exit from ~p which died due to ~p.  Manager is ~p", [From, Reason, QMPid]),
 	case QMPid of
-		undefined -> 
+		undefined ->
 			?CONSOLE("Can't find the manager.  dying", []),
 			{stop, {queue_manager, noproc}, State};
-		From -> 
+		From ->
 			?CONSOLE("Seems to be the queue manager that died.  Dying with it.", []),
 			{stop, {queue_manager_died, Reason}, State};
-		_Else -> 
+		_Else ->
 			Calls = gb_trees:to_list(State#state.queue),
 			Cleancalls = clean_pid(From, State#state.recipe, Calls, State#state.name),
 			Newtree = gb_trees:from_orddict(Cleancalls),
@@ -434,12 +434,8 @@ handle_info(Info, State) ->
 	{noreply, State}.
 
 %% @private
-terminate(normal, State) ->
-	?CONSOLE("Normal terminate", []),
-	lists:foreach(fun({_K,V}) when is_pid(V#call.cook) -> cook:stop(V#call.cook); (_) -> ok end, gb_trees:to_list(State#state.queue)),
-	ok;
-terminate(shutdown, State) ->
-	?CONSOLE("Shutdown terminate", []),
+terminate(Reason, State) when is_atom(Reason) andalso Reason =:= normal orelse Reason =:= shutdown ->
+	?CONSOLE("~p terminate", [atom_to_list(Reason)]),
 	lists:foreach(fun({_K,V}) when is_pid(V#call.cook) -> cook:stop(V#call.cook); (_) -> ok end, gb_trees:to_list(State#state.queue)),
 	ok;
 terminate(Reason, _State) ->
@@ -475,17 +471,17 @@ clean_pid(_Deadpid, _Recipe, [], _QName) ->
 
 
 
-test_primer() -> 
+test_primer() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),
 	mnesia:delete_schema([node()]),
 	mnesia:create_schema([node()]),
 	mnesia:start().
 
-call_in_out_grab_test_() -> 
+call_in_out_grab_test_() ->
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
@@ -495,25 +491,27 @@ call_in_out_grab_test_() ->
 			register(testqueue, Pid),
 			{Pid, Dummy}
 		end,
-		fun({Pid, Dummy}) -> 
+		fun({Pid, Dummy}) ->
 			unregister(media_dummy),
 			exit(Dummy, normal),
 			?CONSOLE("Das pid:  ~p", [Pid]),
-			try call_queue:stop(Pid)
-			catch
-				What1:Why1 ->
-					?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
-			end,
-			case whereis(queue_manager) of
-				undefined ->
-					?CONSOLE("queue_manager already dead.", []);
-				_Else -> 
-					try queue_manager:stop()
-					catch
-						What2:Why2 ->
-							?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
-					end
-			end
+			call_queue:stop(Pid),
+			queue_manager:stop()
+			%try call_queue:stop(Pid)
+			%catch
+				%What1:Why1 ->
+					%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
+			%end,
+			%case whereis(queue_manager) of
+				%undefined ->
+					%?CONSOLE("queue_manager already dead.", []);
+				%_Else ->
+					%try queue_manager:stop()
+					%catch
+						%What2:Why2 ->
+							%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
+					%end
+			%end
 		end,
 		[
 			{
@@ -529,13 +527,13 @@ call_in_out_grab_test_() ->
 					?assertEqual(1, Priority)
 				end
 			}, {
-				"Remove by ID", fun() -> 
+				"Remove by ID", fun() ->
 					Pid = whereis(testqueue),
 					?assertEqual(ok, remove(Pid, "testcall")),
 					?assertEqual(none, remove(Pid, "testcall"))
 				end
 			}, {
-				"Remove by Pid", fun() -> 
+				"Remove by Pid", fun() ->
 					Pid = whereis(testqueue),
 					Mediapid = whereis(media_dummy),
 					?assertEqual(ok, remove(Pid, Mediapid)),
@@ -548,6 +546,11 @@ call_in_out_grab_test_() ->
 					?assertEqual(none, remove(Pid, "testcall"))
 				end
 			}, {
+				"Remove by non-existant casted ID", fun() ->
+					Pid = whereis(testqueue),
+					?assertEqual(ok, bgremove(Pid, "foo"))
+				end
+			}, {
 				"Remove by casted pid", fun() ->
 					Pid = whereis(testqueue),
 					Mediapid = whereis(media_dummy),
@@ -555,9 +558,19 @@ call_in_out_grab_test_() ->
 					?assertEqual(none, remove(Pid, Mediapid))
 				end
 			}, {
-				"Remove non-esistant call", fun() -> 
+				"Remove by non-existant casted pid", fun() ->
+					Pid = whereis(testqueue),
+					?assertEqual(ok, bgremove(Pid, self()))
+				end
+			}, {
+				"Remove non-existant call by id", fun() ->
 					Pid = whereis(testqueue),
 					?assertEqual(none, remove(Pid, "not_an_id_or_pid"))
+				end
+			}, {
+				"Remove non-existant call by pid", fun() ->
+					Pid = whereis(testqueue),
+					?assertEqual(none, remove(Pid, self()))
 				end
 			}, {
 				"Find call by UID", fun() ->
@@ -618,21 +631,26 @@ call_in_out_grab_test_() ->
 					?assertEqual(none, grab(Pid))
 				end
 			}, {
-				"Ungrabbing", fun() -> 
+				"Ungrabbing", fun() ->
 					Pid = whereis(testqueue),
 					{_Key1, Call1} = grab(Pid),
 					ungrab(Pid, whereis(media_dummy)),
 					{_Key2, Call2} = grab(Pid),
 					?assert(Call1#queued_call.media =:= Call2#queued_call.media)
 				end
+			}, {
+				"Ungrab nonexistant call", fun() ->
+					Pid = whereis(testqueue),
+					?assertEqual(ok, ungrab(Pid, "foo"))
+				end
 			}
 		]
 	}.
-	
-call_update_test_() -> 
+
+call_update_test_() ->
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
@@ -642,29 +660,31 @@ call_update_test_() ->
 			register(testqueue, Pid),
 			{Pid, Dummy}
 		end,
-		fun({Pid, Dummy}) -> 
+		fun({Pid, Dummy}) ->
 			unregister(media_dummy),
 			exit(Dummy, normal),
 			?CONSOLE("Das pid:  ~p", [Pid]),
-			try call_queue:stop(Pid)
-			catch
-				What1:Why1 ->
-					?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
-			end,
-			case whereis(queue_manager) of
-				undefined ->
-					?CONSOLE("queue_manager already dead.", []);
-				_Else -> 
-					try queue_manager:stop()
-					catch
-						What2:Why2 ->
-							?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
-					end
-			end
+			call_queue:stop(Pid),
+			queue_manager:stop()
+			%try call_queue:stop(Pid)
+			%catch
+				%What1:Why1 ->
+					%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
+			%end,
+			%case whereis(queue_manager) of
+				%undefined ->
+					%?CONSOLE("queue_manager already dead.", []);
+				%_Else ->
+					%try queue_manager:stop()
+					%catch
+						%What2:Why2 ->
+							%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
+					%end
+			%end
 		end,
 		[
 			{
-				"Set priority by id", fun() -> 
+				"Set priority by id", fun() ->
 					Pid = whereis(testqueue),
 					?assertEqual(ok, set_priority(Pid, "testcall", 2)),
 					{Key, Call} = get_call(Pid, "testcall"),
@@ -672,7 +692,7 @@ call_update_test_() ->
 					?assertMatch({2, {_Macroseconds, _Seconds, _Microseconds}}, Key)
 				end
 			}, {
-				"Set priority by pid", fun() -> 
+				"Set priority by pid", fun() ->
 					Pid = whereis(testqueue),
 					Mediapid = whereis(media_dummy),
 					?assertEqual(ok, set_priority(Pid, Mediapid, 2)),
@@ -681,12 +701,17 @@ call_update_test_() ->
 					?assertMatch({2, _Time}, Key)
 				end
 			}, {
-				"Set priority of non-existant call", fun() -> 
+				"Set priority of non-existant call", fun() ->
 					Pid = whereis(testqueue),
 					?assertMatch(none, set_priority(Pid, "Not a valid id", 5))
 				end
 			}, {
-				"increase priority", fun() -> 
+				"Set priority of non-existant call by pid", fun() ->
+					Pid = whereis(testqueue),
+					?assertMatch(none, set_priority(Pid, self(), 5))
+				end
+			}, {
+				"increase priority", fun() ->
 					Pid = whereis(testqueue),
 					Dummy = whereis(media_dummy),
 					remove(Pid, Dummy),
@@ -779,7 +804,7 @@ call_update_test_() ->
 					?assertEqual(none, remove_skills(Pid, "C2", [english]))
 				end
 			}, {
-				"Remove skills from call referenced by pid", fun() -> 
+				"Remove skills from call referenced by pid", fun() ->
 					Pid = whereis(testqueue),
 					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
 					add(Pid, Dummy1),
@@ -825,11 +850,11 @@ call_update_test_() ->
 			}
 		]
 	}.
-	
-queue_update_and_info_test_() -> 
+
+queue_update_and_info_test_() ->
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
@@ -839,25 +864,27 @@ queue_update_and_info_test_() ->
 			register(testqueue, Pid),
 			{Pid, Dummy}
 		end,
-		fun({Pid, Dummy}) -> 
+		fun({Pid, Dummy}) ->
 			unregister(media_dummy),
 			exit(Dummy, normal),
 			?CONSOLE("Das pid:  ~p", [Pid]),
-			try call_queue:stop(Pid)
-			catch
-				What1:Why1 ->
-					?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
-			end,
-			case whereis(queue_manager) of
-				undefined ->
-					?CONSOLE("queue_manager already dead.", []);
-				_Else -> 
-					try queue_manager:stop()
-					catch
-						What2:Why2 ->
-							?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
-					end
-			end
+			call_queue:stop(Pid),
+			queue_manager:stop()
+			%try call_queue:stop(Pid)
+			%catch
+				%What1:Why1 ->
+					%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
+			%end,
+			%case whereis(queue_manager) of
+				%undefined ->
+					%?CONSOLE("queue_manager already dead.", []);
+				%_Else ->
+					%try queue_manager:stop()
+					%catch
+						%What2:Why2 ->
+							%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
+					%end
+			%end
 		end,
 		[
 			{
@@ -888,7 +915,7 @@ queue_update_and_info_test_() ->
 					{ok, Dummy3} = dummy_media:start(#call{id="C3"}),
 					add(Pid, 1, Dummy2),
 					add(Pid, 1, Dummy3),
-					F = fun(X) -> 
+					F = fun(X) ->
 						X#queued_call.id
 					end,
 					?assertMatch(["testcall", "C2", "C3"], lists:map(F, to_list(Pid)))
@@ -900,17 +927,17 @@ queue_update_and_info_test_() ->
 					?assertMatch([], to_list(Pid))
 				end
 			}, {
-				"Change recipe", fun() -> 
+				"Change recipe", fun() ->
 					Pid = whereis(testqueue),
 					#state{recipe = ?DEFAULT_RECIPE} = print(Pid),
 					NewRecipe = [{3, set_priority, 5, run_many}],
 					?assertEqual(ok, set_recipe(Pid, NewRecipe)),
-					?assertMatch(#state{recipe = NewRecipe}, print(Pid))				
+					?assertMatch(#state{recipe = NewRecipe}, print(Pid))
 				end
 			}
 		]
 	}.
-	
+
 queue_manager_and_cook_test_() ->
 	{
 		timeout,
@@ -925,25 +952,27 @@ queue_manager_and_cook_test_() ->
 				register(media_dummy, Dummy),
 				{Pid, Dummy}
 			end,
-			fun({Pid, Dummy}) -> 
+			fun({Pid, Dummy}) ->
 				unregister(media_dummy),
 				exit(Dummy, normal),
 				?CONSOLE("Das pid:  ~p", [Pid]),
-				try call_queue:stop(Pid)
-				catch
-					What1:Why1 ->
-						?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
-				end,
-				case whereis(queue_manager) of
-					undefined ->
-						?CONSOLE("queue_manager already dead.", []);
-					_Else -> 
-						try queue_manager:stop()
-						catch
-							What2:Why2 ->
-								?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
-						end
-				end
+				call_queue:stop(Pid),
+				queue_manager:stop()
+				%try call_queue:stop(Pid)
+				%catch
+					%What1:Why1 ->
+						%?CONSOLE("Cleanup of call_queue caught ~p:~p", [What1, Why1])
+				%end,
+				%case whereis(queue_manager) of
+					%undefined ->
+						%?CONSOLE("queue_manager already dead.", []);
+					%_Else ->
+						%try queue_manager:stop()
+						%catch
+							%What2:Why2 ->
+								%?CONSOLE("Cleanup of queue_manager caught ~p:~p", [What2, Why2])
+						%end
+				%end
 			end,
 			[
 				{
@@ -969,7 +998,79 @@ queue_manager_and_cook_test_() ->
 			]
 		}
 	}.
-	
+
+
+get_nodes() ->
+	[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
+	{list_to_atom(lists:append("master@", Host)), list_to_atom(lists:append("slave@", Host))}.
+
+multi_node_test_() ->
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	{Master, Slave} = get_nodes(),
+	{
+		foreach,
+		fun() ->
+			mnesia:stop(),
+			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
+			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+
+			mnesia:change_config(extra_db_nodes, [Master, Slave]),
+			mnesia:delete_schema([node(), Master, Slave]),
+			mnesia:create_schema([node(), Master, Slave]),
+
+			cover:start([Master, Slave]),
+
+			rpc:call(Master, mnesia, start, []),
+			rpc:call(Slave, mnesia, start, []),
+			mnesia:start(),
+
+			mnesia:change_table_copy_type(schema, Master, disc_copies),
+			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+
+			{ok, _Pid} = rpc:call(Master, queue_manager, start, [[Master, Slave]]),
+			{ok, _Pid2} = rpc:call(Slave, queue_manager, start, [[Master, Slave]]),
+
+			{ok, Pid} = rpc:call(Slave, queue_manager, add_queue, [testqueue]),
+			Pid
+		end,
+		fun(Pid) ->
+
+			rpc:call(Slave, call_queue, stop, [Pid]),
+			cover:stop([Master, Slave]),
+
+			%rpc:call(Master, mnesia, stop, []),
+			%rpc:call(Slave, mnesia, stop, []),
+			%rpc:call(Master, mnesia, delete_schema, [[Master]]),
+			%rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
+
+			slave:stop(Master),
+			slave:stop(Slave),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+
+			ok
+		end,
+		[
+			{ "multi node grab test", fun() ->
+					Queue = rpc:call(Slave, queue_manager, get_queue, [testqueue]),
+					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
+					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
+					{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
+					{_Key, Callrec} = rpc:call(Master, call_queue, ask, [Queue]),
+					?assertEqual("testcall", Callrec#queued_call.id),
+					{_Key, Callrec2} = rpc:call(Slave, call_queue, ask, [Queue]),
+					?assertEqual("testcall", Callrec2#queued_call.id),
+					P1 = spawn(Slave, dispatcher, start, []),
+					P2 = spawn(Master, dispatcher, start, []),
+					receive after 300 -> ok end,
+					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
+					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue]))
+				end
+			}
+		]
+	}.
+
 -define(MYSERVERFUNC, fun() -> {ok, Pid} = start(testq, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").

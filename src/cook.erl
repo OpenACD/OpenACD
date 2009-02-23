@@ -253,7 +253,7 @@ do_route(_Ringcount, Queue, undefined, Callpid) when is_pid(Callpid), is_atom(Qu
 		{_Key, Call} ->
 			Dispatchers = Call#queued_call.dispatchers,
 			Agents = sort_agent_list(Dispatchers),
-			?CONSOLE("Agents to ring to ~p", [Agents]),
+			?CONSOLE("Dispatchers:  ~p; Agents:  ~p", [Dispatchers, Agents]),
 			case offer_call(Agents, Call) of
 				none -> 
 					rangout;
@@ -261,7 +261,7 @@ do_route(_Ringcount, Queue, undefined, Callpid) when is_pid(Callpid), is_atom(Qu
 					{ringing, Apid, 0}
 			end;
 		none -> 
-			?CONSOLE("No agent to ring to",[]),
+			?CONSOLE("No call to ring",[]),
 			nocall
 	end.
 
@@ -279,13 +279,14 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 			Ag ->
 				Ag
 		catch
-			_:_ ->
+			What:Why ->
+				?CONSOLE("Caught:  ~p:~p", [What, Why]),
 				[]
 		end
 	end,
 	Agents = lists:map(F, Dispatchers),
 	Agents2 = lists:flatten(Agents),
-
+	?CONSOLE("preflatten:  ~p; Post flatten: ~p", [Agents, Agents2]),
 	% calculate costs and sort by same.
 	Agents3 = lists:sort([{ARemote + Askills + Aidle, APid} ||
 		{_AName, APid, AState} <- Agents2,
@@ -705,8 +706,10 @@ agent_interaction_test_() ->
 		test_primer(),
 		queue_manager:start([node()]),
 		{ok, QPid} = queue_manager:add_queue(testqueue),
-		{ok, MPid} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
-		{ok, APid} = agent:start(#agent{login = "testagent"}),
+		{ok, MPid} = dummy_media:start(#call{id="testcall"}),
+		dispatch_manager:start(),
+		agent_manager:start([node()]),
+		{ok, APid} = agent_manager:start_agent(#agent{login = "testagent"}),
 		{QPid, MPid, APid}
 	end,
 	fun({QPid, MPid, APid}) ->
@@ -717,13 +720,21 @@ agent_interaction_test_() ->
 				?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
 		end,
 		queue_manager:stop(),
+		dispatch_manager:stop(),
 		agent:stop(APid)
 	end,
 	[
 		fun({QPid, MPid, APid}) ->
 			{"Ring to an agent",
 			fun() ->
-				?assert(true)
+				agent:set_state(APid, idle),
+				call_queue:add(QPid, MPid),
+				receive
+				after ?TICK_LENGTH * 2 + 100 ->
+					ok
+				end,
+				{ok, Statename} = agent:query_state(APid),
+				?assertEqual(ringing, Statename)
 			end}
 		end
 	]

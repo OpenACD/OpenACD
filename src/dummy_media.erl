@@ -107,7 +107,7 @@ handle_call(set_success, _From, State) ->
 	{reply, ok, State#state{mode = success}};
 handle_call(set_failure, _From, State) -> 
 	{reply, ok, State#state{mode = failure}};
-handle_call({ring_agent, AgentPid}, _From, State) -> 
+handle_call({ring_agent, AgentPid, _Queuedcall}, _From, State) -> 
 	case State#state.mode of
 		success -> 
 			{reply, agent:set_state(AgentPid, ringing, State#state.callrec), State};
@@ -216,7 +216,7 @@ dummy_test_() ->
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
 				{ok, Dummypid} = dummy_media:start(#call{}),
-				?assertMatch(ok, gen_server:call(Dummypid, {ring_agent, Agentpid}))
+				?assertMatch(ok, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{}}))
 			end
 		},
 		{
@@ -225,7 +225,7 @@ dummy_test_() ->
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
 				{ok, Dummypid} = dummy_media:start(#call{}, failure),
-				?assertMatch(invalid, gen_server:call(Dummypid, {ring_agent, Agentpid}))
+				?assertMatch(invalid, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{}}))
 			end
 		},
 		{

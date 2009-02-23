@@ -673,7 +673,7 @@ tick_manipulation_test_() ->
 					ok
 				end,
 				{{Priority, _Time}, _Callrec} = call_queue:ask(Pid),
-				?assertEqual(Priority, 1)
+				?assertEqual(1, Priority)
 			end}
 		end,
 		fun({Pid, Dummy}) ->
@@ -775,16 +775,34 @@ agent_interaction_test_() ->
 		fun({QPid, MPid, APid}) ->
 			{"Media says the the ring to the agent is invalid.",
 			fun() ->
-				call_queue:add(QPid, MPid),
+				{ok, Media} = dummy_media:start(#call{id="testcall"}),
+				dummy_media:set_mode(Media, ring_agent, fail),
+				call_queue:add(QPid, Media),
+				%gen_server:call(Media, set_fail_once),
 				agent:set_state(APid, idle),
-				gen_server:call(MPid, set_failure),
 				receive
 				after ?TICK_LENGTH * 3 + 100 ->
 					ok
 				end,
 				{ok, Statename} = agent:query_state(APid),
 				?assertEqual(idle, Statename),
-				gen_server:call(MPid, set_success)
+				dummy_media:stop(Media)
+			end}
+		end,
+		fun({QPid, MPid, APid}) ->
+			{"Agent cannot take the call in queue (regrab)",
+			fun() ->
+				{ok, Media} = dummy_media:start(#call{id="testcall", skills=[german]}),
+				?CONSOLE("Media response to getting call:  ~p", [gen_server:call(Media, get_call)]),
+				call_queue:add(QPid, Media),
+				agent:set_state(APid, idle),
+				receive
+				after ?TICK_LENGTH * 2 + 100 ->
+					ok
+				end,
+				{ok, Statename} = agent:query_state(APid),
+				?assertEqual(idle, Statename),
+				dummy_media:stop(Media)
 			end}
 		end
 	]

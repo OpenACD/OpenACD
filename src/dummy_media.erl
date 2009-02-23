@@ -53,7 +53,7 @@
 
 -record(state, {
 	callrec = #call{},
-	mode = success :: 'success' | 'failure'
+	mode = success :: 'success' | 'failure' | 'fail_once'
 	}).
 
 %%====================================================================
@@ -107,19 +107,25 @@ handle_call(set_success, _From, State) ->
 	{reply, ok, State#state{mode = success}};
 handle_call(set_failure, _From, State) -> 
 	{reply, ok, State#state{mode = failure}};
+handle_call(set_fail_once, _From, State) ->
+	{reply, ok, State#state{mode = set_fail_once}};
 handle_call({ring_agent, AgentPid, _Queuedcall}, _From, State) -> 
 	case State#state.mode of
 		success -> 
 			{reply, agent:set_state(AgentPid, ringing, State#state.callrec), State};
 		failure -> 
-			{reply, invalid, State}
+			{reply, invalid, State};
+		fail_once ->
+			{reply, invalid, State#state{mode = success}}
 	end;
 handle_call(get_call, _From, State) -> 
 	case State#state.mode of
 		success -> 
 			{reply, State#state.callrec, State};
 		failure -> 
-			{reply, invalid, State}
+			{reply, invalid, State};
+		fail_once ->
+			{reply, invalid, State#state{mode = success}}
 	end;
 handle_call({start_cook, Recipe, Queuename}, _From, #state{callrec = Call} = State) -> 
 	case State#state.mode of
@@ -128,7 +134,9 @@ handle_call({start_cook, Recipe, Queuename}, _From, #state{callrec = Call} = Sta
 		success -> 
 			{ok, Pid} = cook:start_link(self(), Recipe, Queuename),
 			NewCall = Call#call{cook = Pid},
-			{reply, ok, State#state{callrec = NewCall}}
+			{reply, ok, State#state{callrec = NewCall}};
+		fail_once ->
+			{reply, invalid, State#state{mode = success}}
 	end;
 handle_call({stop, Reason}, _From, State) ->
 	{stop, Reason, ok, State};
@@ -144,21 +152,27 @@ handle_call(stop_cook, _From, #state{callrec = Call} = State) ->
 					{reply, Cookres, State#state{callrec = NewCall}}
 			end;
 		failure -> 
-			{reply, invalid, State}
+			{reply, invalid, State};
+		fail_once ->
+			{reply, invalid, State#state{mode = success}}
 	end;
 handle_call(voicemail, _From, State) ->
 	case State#state.mode of
 		success ->
 			{reply, ok, State};
 		failure ->
-			{reply, invalid, State}
+			{reply, invalid, State};
+		fail_once ->
+			{reply, invalid, State#state{mode = success}}
 	end;
 handle_call({announce, _Args}, _From, State) ->
 	case State#state.mode of
 		success -> 
 			{reply, ok, State};
 		failure ->
-			{reply, invalid, State}
+			{reply, invalid, State};
+		fail_once ->
+			{reply, invalid, State#state{mode = success}}
 	end.
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |

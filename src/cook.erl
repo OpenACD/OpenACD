@@ -771,6 +771,21 @@ agent_interaction_test_() ->
 				?assertEqual(ringing, Statename4),
 				agent:stop(APid2)
 			end}
+		end,
+		fun({QPid, MPid, APid}) ->
+			{"Media says the the ring to the agent is invalid.",
+			fun() ->
+				call_queue:add(QPid, MPid),
+				agent:set_state(APid, idle),
+				gen_server:call(MPid, set_failure),
+				receive
+				after ?TICK_LENGTH * 3 + 100 ->
+					ok
+				end,
+				{ok, Statename} = agent:query_state(APid),
+				?assertEqual(idle, Statename),
+				gen_server:call(MPid, set_success)
+			end}
 		end
 	]
 	}.

@@ -47,7 +47,7 @@
 	 terminate/2, code_change/3]).
 
 -record(state, {
-	call :: #call{} | 'undefined',
+	call :: #queued_call{} | 'undefined',
 	tref, % timer reference
 	qpid :: pid(),
 	agents = [] :: [pid()]}).
@@ -82,10 +82,10 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call(get_agents, _From, State) when is_record(State#state.call, call) -> 
+handle_call(get_agents, _From, State) when is_record(State#state.call, queued_call) -> 
 	Call = State#state.call,
 	?CONSOLE("get_agents, Call is ~p.", [Call]),
-	{reply, agent_manager:find_avail_agents_by_skill(Call#call.skills), State};
+	{reply, agent_manager:find_avail_agents_by_skill(Call#queued_call.skills), State};
 handle_call(bound_call, _From, State) ->
 	case State#state.call of
 		undefined ->
@@ -93,9 +93,9 @@ handle_call(bound_call, _From, State) ->
 		Call ->
 			{reply, Call, State}
 		end;
-handle_call(stop, _From, State) when is_record(State#state.call, call) ->
+handle_call(stop, _From, State) when is_record(State#state.call, queued_call) ->
 	Call = State#state.call,
-	call_queue:ungrab(State#state.qpid, Call#call.id),
+	call_queue:ungrab(State#state.qpid, Call#queued_call.id),
 	{stop, normal, ok, State};
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
@@ -109,7 +109,7 @@ handle_call(regrab, _From, State) ->
 			{reply, State#state.call, State};
 		{Qpid, Call} ->
 			OldCall = State#state.call,
-			call_queue:ungrab(State#state.qpid, OldCall#call.id),
+			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			{reply, Call, State#state{qpid=Qpid, call=Call}}
 	end;
 handle_call(Request, _From, State) ->
@@ -165,7 +165,7 @@ code_change(_OldVsn, State, _Extra) ->
 get_agents(Pid) -> 
 	gen_server:call(Pid, get_agents).
 
--spec(loop_queues/1 :: (Queues :: [] | [{atom(), pid(), {{any()}, #call{}}, non_neg_integer()}]) -> 'none' | {pid(), #call{}}).
+-spec(loop_queues/1 :: (Queues :: [] | [{atom(), pid(), {{any()}, #queued_call{}}, non_neg_integer()}]) -> 'none' | {pid(), #queued_call{}}).
 loop_queues([]) -> 
 	none;
 loop_queues(Queues) -> 
@@ -190,17 +190,17 @@ biased_to([Queue | Tail], Acc, Random) ->
 	end.
 
 %% @doc returns the call this is bound to
--spec(bound_call/1 :: (Pid :: pid()) -> #call{} | 'none').
+-spec(bound_call/1 :: (Pid :: pid()) -> #queued_call{} | 'none').
 bound_call(Pid) ->
 	gen_server:call(Pid, bound_call).
 
--spec(grab_best/0 :: () -> {pid(), #call{}} | 'none').
+-spec(grab_best/0 :: () -> {pid(), #queued_call{}} | 'none').
 grab_best() ->
 	Queues = queue_manager:get_best_bindable_queues(),
 	loop_queues(Queues).
 
 %% @doc tries to grab a new call ignoring the queue it's current call is bound to
--spec(regrab/1 :: (pid()) -> {pid(), #call{}} | 'none').
+-spec(regrab/1 :: (pid()) -> {pid(), #queued_call{}} | 'none').
 regrab(Pid) -> 
 	?CONSOLE("dispatcher trying to regrab", []),
 	gen_server:call(Pid, regrab).

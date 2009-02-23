@@ -43,6 +43,7 @@
 -endif.
 
 -define(RINGOUT, 4).
+-define(DEFAULT_PATHCOST, 15).
 
 %% API
 -export([start_link/3, start/3, stop/1, restart_tick/1, stop_tick/1]).
@@ -295,7 +296,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 			_X when node() =:= node(APid) ->
 				[0];
 			_Y ->
-				[15] % TODO macro the magic number
+				[?DEFAULT_PATHCOST]
 		end,
 		Askills <- [length(AState#agent.skills)],
 		Aidle <- [element(2, AState#agent.lastchangetimestamp)]]),
@@ -721,7 +722,8 @@ agent_interaction_test_() ->
 		end,
 		queue_manager:stop(),
 		dispatch_manager:stop(),
-		agent:stop(APid)
+		agent:stop(APid),
+		agent_manager:stop()
 	end,
 	[
 		fun({QPid, MPid, APid}) ->
@@ -735,6 +737,39 @@ agent_interaction_test_() ->
 				end,
 				{ok, Statename} = agent:query_state(APid),
 				?assertEqual(ringing, Statename)
+			end}
+		end,
+		fun({QPid, MPid, APid}) ->
+			{"Ring to an agent, which rings out, and rings to another agent",
+			fun() ->
+				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2"}),
+				agent:set_state(APid, idle),
+				agent:set_state(APid2, idle),
+				call_queue:add(QPid, MPid),
+				receive
+				after ?TICK_LENGTH + 100 ->
+					ok
+				end,
+				?CONSOLE("test time!",[]),
+				{ok, Statename} = agent:query_state(APid),
+				{ok, Statename2} = agent:query_state(APid2),
+				?assertEqual(ringing, Statename),
+				?assertEqual(idle, Statename2),
+				% we wait 2 extra ticks because a ring does occur until a tick.
+				% Call enters q:  tick_length
+				% 1st tick, 2nd tick...RINGOUT'th tick
+				% dispather unbinds, tests new agent
+				% ringout'th + 1 tick, rings to an agent
+				receive
+				after ?TICK_LENGTH * (?RINGOUT + 3) + 100 ->
+					ok
+				end,
+				?CONSOLE("2nd test time!", []),
+				{ok, Statename3} = agent:query_state(APid),
+				{ok, Statename4} = agent:query_state(APid2),
+				?assertEqual(idle, Statename3),
+				?assertEqual(ringing, Statename4),
+				agent:stop(APid2)
 			end}
 		end
 	]

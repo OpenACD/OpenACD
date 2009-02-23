@@ -108,7 +108,6 @@ handle_call(Request, _From, State) ->
 handle_cast(restart_tick, State) ->
 	case do_route(State#state.ringcount, State#state.queue, State#state.ringingto, State#state.call) of
 		nocall -> 
-			%State2 = State,
 			{stop, {call_not_queued, State#state.call}, State};
 		rangout -> 
 			State2 = State#state{ringingto = undefined, ringcount = 0},
@@ -152,7 +151,6 @@ handle_info(do_tick, State) ->
 					?CONSOLE("Doing tick ~p", [State]),
 					case do_route(State#state.ringcount, State#state.queue, State#state.ringingto, State#state.call) of
 						nocall -> 
-							%State2 = State,
 							{stop, {call_not_queued, State#state.call}, State};
 						rangout -> 
 							State2 = State#state{ringingto = undefined, ringcount = 0},
@@ -165,20 +163,8 @@ handle_info(do_tick, State) ->
 							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
 							{noreply, State3}
 					end
-					%NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
-					%State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
-					%{noreply, State3}
 			end
 	end;
-%handle_info({'EXIT', Pid, _Reason}, State) ->
-%	?CONSOLE("queue ~p died, suspending self", [State#state.queue]),
-%	timer:cancel(State#state.tref),
-%	Qpid = wait_for_queue(State#state.queue),
-%	?CONSOLE("queue's back up, trying to add it to call", []),
-%	call_queue:add(Qpid, State#state.call),
-%	State2 = do_tick(State),
-%	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
-%	{noreply, State2#state{tref=Tref}};
 handle_info(Info, State) ->
 	?CONSOLE("received random info message: ~p", [Info]),
     {noreply, State}.
@@ -248,19 +234,11 @@ wait_for_queue(Qname) ->
 			Qpid
 	end.
 
-%% @private
-%-spec(do_tick/1 :: (State :: #state{}) -> #state{}).
-%do_tick(#state{recipe=Recipe} = State) ->
-%	State2 = do_route(State),
-%	Recipe2 = do_recipe(Recipe, State2),
-% 	State2#state{ticked= State2#state.ticked+1, recipe=Recipe2}.
-
 stop(Pid) ->
 	gen_server:call(Pid, stop).
 
 %% @private
 -spec(do_route/4 :: (Ringcount :: non_neg_integer(), Queue :: atom(), 'undefined' | pid(), pid()) -> 'nocall' | {'ringing', pid(), non_neg_integer()} | 'rangout').
-%-spec(do_route/1 :: (State :: #state{}) -> #state{}).
 do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid), Ringcount =< ?RINGOUT, is_pid(Callpid) ->
 	?CONSOLE("still ringing: ~p of ~p times", [Ringcount, ?RINGOUT]),
 	{ringing, Agentpid, Ringcount + 1};
@@ -363,7 +341,6 @@ do_recipe([Head | Recipe], Ticked, Queuename, Call) when is_atom(Queuename), is_
 -spec(do_operation/3 :: (Recipe :: recipe_step(), Queuename :: atom(), Callid :: pid()) -> 'ok' | recipe_step()).
 do_operation({_Ticks, Op, Args, _Runs}, Queuename, Callid) when is_atom(Queuename), is_pid(Callid) ->
 	?CONSOLE("do_opertion ~p", [Op]),
-	%#state{queue=Queuename, call=Callid} = State,
 	Pid = queue_manager:get_queue(Queuename), %TODO look up the pid only once, maybe?
 	case Op of
 		add_skills ->
@@ -418,7 +395,6 @@ queue_interaction_test_() ->
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
 			{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
-			%call_queue:add(Pid, 1, Dummy),
 			register(media_dummy, Dummy),
 			{Pid, Dummy}
 		end,
@@ -437,34 +413,29 @@ queue_interaction_test_() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, add_skills, [newskill1, newskill2], run_once}]),
 				call_queue:add(Pid, whereis(media_dummy)),
-				%{ok, MyPid} = start(whereis(media_dummy), [{1, add_skills, [newskill1, newskill2], run_once}], testqueue),
 				receive
 				after ?TICK_LENGTH + 2000 ->
 					true
 				end,
 				{_Key, #queued_call{skills=CallSkills}} = call_queue:ask(Pid),
 				?assertEqual(lists:sort([english, testskill, newskill1, newskill2, node()]), lists:sort(CallSkills))
-				%stop(MyPid)
 			end},
 			{"remove skills once",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, remove_skills, [testskill], run_once}]),
 				call_queue:add(Pid, whereis(media_dummy)),
-				%{ok, MyPid} = start(whereis(media_dummy), [{1, remove_skills, [testskill], run_once}], testqueue),
 				receive
 				after ?TICK_LENGTH + 2000 ->
 					true
 				end,
 				{_Key, #queued_call{skills=CallSkills}} = call_queue:ask(Pid),
 				?assertEqual([node(), english], CallSkills)
-				%stop(MyPid)
 			end},
 			{"Set Priority once",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, set_priority, [5], run_once}]),
-				%{ok, MyPid} = start(whereis(media_dummy), [{1, set_priority, [5], run_once}], testqueue),
 				call_queue:add(Pid, whereis(media_dummy)),
 				receive
 				after ?TICK_LENGTH + 2000 ->
@@ -472,14 +443,11 @@ queue_interaction_test_() ->
 				end,
 				{{Prior, _Time}, _Call} = call_queue:ask(Pid),
 				?assertEqual(5, Prior)
-				%stop(MyPid)
 			end},
 			{"Prioritize once",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, prioritize, [], run_once}]),
-				%Media = whereis(media_dummy),
-				%{ok, MyPid} = start(Media, [{1, prioritize, [], run_once}], testqueue),
 				{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
 				call_queue:add(Pid, Dummy1),
 				receive
@@ -566,7 +534,6 @@ queue_interaction_test_() ->
 					ok
 				end,
 				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
-				% tick 1:  add recipe.  tick 2:  add recipe, prioritize (2).  tick 3:  add recipe, prioritize (3), prioritize(4).
 				?assertEqual(4, Prior)
 			end},
 			{"Voice mail once for supported media",
@@ -666,12 +633,9 @@ tick_manipulation_test_() ->
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
 			{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
-			%call_queue:add(Pid, 1, Dummy),
-			%register(media_dummy, Dummy),
 			{Pid, Dummy}
 		end,
 		fun({Pid, Dummy}) ->
-			%unregister(media_dummy),
 			dummy_media:stop(Dummy),
 			try call_queue:stop(Pid)
 			catch

@@ -778,7 +778,6 @@ agent_interaction_test_() ->
 				{ok, Media} = dummy_media:start(#call{id="testcall"}),
 				dummy_media:set_mode(Media, ring_agent, fail),
 				call_queue:add(QPid, Media),
-				%gen_server:call(Media, set_fail_once),
 				agent:set_state(APid, idle),
 				receive
 				after ?TICK_LENGTH * 3 + 100 ->

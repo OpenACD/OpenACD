@@ -308,33 +308,71 @@ grab_test_() ->
 			lists:foreach(fun(P) -> call_queue:stop(P) end, Pids)
 		end,
 		[
-			{"there is a call we want",
-			fun() -> 
-				Pid1 = queue_manager:get_queue(queue1),
-				Pid2 = queue_manager:get_queue(queue2),
-				Pid3 = queue_manager:get_queue(queue3),
-				{ok, Pid} = start(),
-				PCalls = [Call || N <- [1, 2, 3], Call <- [#call{id="C" ++ integer_to_list(N)}]],
-				F = fun(Callrec) -> 
-					{ok, Mpid} = dummy_media:start(Callrec),
-					Mpid
-				end,
-				Calls = lists:map(F, PCalls),
-				call_queue:add(Pid1, 1, lists:nth(1, Calls)),
-				call_queue:add(Pid2, 1, lists:nth(2, Calls)),
-				call_queue:add(Pid3, 1, lists:nth(3, Calls)),
-				receive after ?POLL_INTERVAL -> ok end,
-				Call = bound_call(Pid),
-				?assertEqual("C3", Call#queued_call.id),
-				stop(Pid)
-			end},
-			{"There's no call.  At all.",
-			fun() -> 
-				{ok, Pid} = start(),
-				 Call = bound_call(Pid),
-				 ?assertEqual(none, Call),
-				 stop(Pid)
-			end}
+			fun([Pid1, Pid2, Pid3]) ->
+				{"there is a call we want",
+				fun() -> 
+					{ok, Pid} = start(),
+					PCalls = [Call || N <- [1, 2, 3], Call <- [#call{id="C" ++ integer_to_list(N)}]],
+					F = fun(Callrec) -> 
+						{ok, Mpid} = dummy_media:start(Callrec),
+						Mpid
+					end,
+					Calls = lists:map(F, PCalls),
+					call_queue:add(Pid1, 1, lists:nth(1, Calls)),
+					call_queue:add(Pid2, 1, lists:nth(2, Calls)),
+					call_queue:add(Pid3, 1, lists:nth(3, Calls)),
+					receive after ?POLL_INTERVAL -> ok end,
+					Call = bound_call(Pid),
+					?assertEqual("C3", Call#queued_call.id),
+					stop(Pid)
+				end}
+			end,
+			fun(_Pids) ->
+				{"There's no call.  At all.",
+				fun() -> 
+					{ok, Pid} = start(),
+					 Call = bound_call(Pid),
+					 ?assertEqual(none, Call),
+					 stop(Pid)
+				end}
+			end,
+			fun([Pid1, _Pid2, _Pid3]) ->
+				{"Regrabbing with no other calls",
+				fun() ->
+					{ok, MPid} = dummy_media:start(#call{id = "testcall"}),
+					call_queue:add(Pid1, MPid),
+					{ok, DPid} = dispatcher:start(),
+					Queuedcall = dispatcher:bound_call(DPid),
+					?assertEqual(Queuedcall, dispatcher:regrab(DPid))
+				end}
+			end,
+			fun([Pid1, Pid2, _Pid3]) ->
+				{"Regrabbing with a call in another queue",
+				fun() ->
+					{ok, MPid1} = dummy_media:start(#call{id = "C1"}),
+					{ok, MPid2} = dummy_media:start(#call{id = "C2"}),
+					call_queue:add(Pid1, MPid1),
+					call_queue:add(Pid2, MPid2),
+					{ok, DPid} = dispatcher:start(),
+					Queuedcall = dispatcher:bound_call(DPid),
+					Regrabbed = dispatcher:regrab(DPid),
+					?assert(is_record(Regrabbed, queued_call)),
+					?assertNot(Queuedcall =:= Regrabbed)
+				end}
+			end,
+			fun([Pid1, _Pid2, _Pid3]) ->
+				{"Regrabbing with a call in the same queue",
+				fun() ->
+					{ok, MPid1} = dummy_media:start(#call{id = "C1"}),
+					{ok, MPid2} = dummy_media:start(#call{id = "C2"}),
+					call_queue:add(Pid1, MPid1),
+					call_queue:add(Pid1, MPid2),
+					{ok, DPid} = dispatcher:start(),
+					Queuedcall = dispatcher:bound_call(DPid),
+					Regrabbed = dispatcher:regrab(DPid),
+					?assertEqual(Queuedcall, Regrabbed)
+				end}
+			end
 		]
 	}.
 	

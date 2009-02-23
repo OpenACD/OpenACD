@@ -573,6 +573,20 @@ queue_interaction_test_() ->
 				end,
 				?assertMatch({_Key, #queued_call{id="testcall"}}, call_queue:get_call(Pid, Dummy1))
 			end},
+			{"Skip some ticks",
+			fun() ->
+				{exists, Pid} = queue_manager:add_queue(testqueue),
+				call_queue:set_recipe(Pid, [{2, prioritize, [], run_many}]),
+				Dummy1 = whereis(media_dummy),
+				call_queue:add(Pid, Dummy1),
+				receive
+				after ?TICK_LENGTH * 4 + 100 ->
+					ok
+				end,
+				{{Priority, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+				?assertEqual(3, Priority)
+			end
+			},
 			{"Waiting for queue rebirth",
 			fun() ->
 				call_queue_config:new_queue(testqueue, {recipe, [{1, add_skills, [newskill1, newskill2], run_once}]}),
@@ -628,63 +642,92 @@ queue_interaction_test_() ->
 
 tick_manipulation_test_() ->
 	{foreach,
-		fun() ->
-			test_primer(),
-			queue_manager:start([node()]),
-			{ok, Pid} = queue_manager:add_queue(testqueue),
-			{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
-			{Pid, Dummy}
+	fun() ->
+		test_primer(),
+		queue_manager:start([node()]),
+		{ok, Pid} = queue_manager:add_queue(testqueue),
+		{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+		{Pid, Dummy}
+	end,
+	fun({Pid, Dummy}) ->
+		dummy_media:stop(Dummy),
+		try call_queue:stop(Pid)
+		catch
+			exit:{noproc, Detail} ->
+				?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
+		end,
+		queue_manager:stop()
+	end,
+	[
+		fun({Pid, Dummy}) -> 
+			{"Stop Tick Test",
+			fun() ->	
+				call_queue:set_recipe(Pid, [{1, prioritize, [], run_many}]),
+				call_queue:add(Pid, Dummy),
+				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
+				stop_tick(Cookpid),
+				receive
+				after ?TICK_LENGTH * 3 + 100 ->
+					ok
+				end,
+				{{Priority, _Time}, _Callrec} = call_queue:ask(Pid),
+				?assertEqual(Priority, 1)
+			end}
 		end,
 		fun({Pid, Dummy}) ->
-			dummy_media:stop(Dummy),
-			try call_queue:stop(Pid)
-			catch
-				exit:{noproc, Detail} ->
-					?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
-			end,
-			queue_manager:stop()
-		end,
-		[
-			fun({Pid, Dummy}) -> 
-				{"Stop Tick Test",
-				fun() ->	
-					call_queue:set_recipe(Pid, [{1, prioritize, [], run_many}]),
-					call_queue:add(Pid, Dummy),
-					{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
-					stop_tick(Cookpid),
-					receive
-					after ?TICK_LENGTH * 3 + 100 ->
-						ok
-					end,
-					{{Priority, _Time}, _Callrec} = call_queue:ask(Pid),
-					?assertEqual(Priority, 1)
-				end}
-			end,
-			fun({Pid, Dummy}) ->
-				{"Restart Tick Test",
-				fun() ->
-					call_queue:set_recipe(Pid, [{1, prioritize, [], run_many}]),
-					call_queue:add(Pid, Dummy),
-					{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
-					stop_tick(Cookpid),
-					receive
-					after ?TICK_LENGTH * 3 + 100 ->
-						ok
-					end,
-					{{Priority1, _Time1}, _Callrec} = call_queue:ask(Pid),
-					restart_tick(Cookpid),
-					receive
-					after ?TICK_LENGTH * 2 + 100 ->
-						ok
-					end,
-					{{Priority2, _Time2}, _Callrec} = call_queue:ask(Pid),
-					?assertEqual(1, Priority1),
-					?assertEqual(4, Priority2)
-				end}
-			end
-		]
+			{"Restart Tick Test",
+			fun() ->
+				call_queue:set_recipe(Pid, [{1, prioritize, [], run_many}]),
+				call_queue:add(Pid, Dummy),
+				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
+				stop_tick(Cookpid),
+				receive
+				after ?TICK_LENGTH * 3 + 100 ->
+					ok
+				end,
+				{{Priority1, _Time1}, _Callrec} = call_queue:ask(Pid),
+				restart_tick(Cookpid),
+				receive
+				after ?TICK_LENGTH * 2 + 100 ->
+					ok
+				end,
+				{{Priority2, _Time2}, _Callrec} = call_queue:ask(Pid),
+				?assertEqual(1, Priority1),
+				?assertEqual(4, Priority2)
+			end}
+		end
+	]
 	}.
 
+agent_interaction_test_() ->
+	{foreach,
+	fun() ->
+		test_primer(),
+		queue_manager:start([node()]),
+		{ok, QPid} = queue_manager:add_queue(testqueue),
+		{ok, MPid} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+		{ok, APid} = agent:start(#agent{login = "testagent"}),
+		{QPid, MPid, APid}
+	end,
+	fun({QPid, MPid, APid}) ->
+		dummy_media:stop(MPid),
+		try call_queue:stop(QPid)
+		catch
+			exit:{noproc, Detail} ->
+				?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
+		end,
+		queue_manager:stop(),
+		agent:stop(APid)
+	end,
+	[
+		fun({QPid, MPid, APid}) ->
+			{"Ring to an agent",
+			fun() ->
+				?assert(true)
+			end}
+		end
+	]
+	}.
 
 
 

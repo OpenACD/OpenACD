@@ -36,6 +36,8 @@
 -include("call.hrl").
 -include("agent.hrl").
 
+-define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook]).
+
 %% API
 -export([
 	start_link/1,
@@ -44,7 +46,8 @@
 	start/2,
 	ring_agent/2,
 	stop/1,
-	stop/2
+	stop/2,
+	set_mode/3
 	]).
 
 %% gen_server callbacks
@@ -53,7 +56,8 @@
 
 -record(state, {
 	callrec = #call{},
-	mode = success :: 'success' | 'failure' | 'fail_once'
+	mode = success :: 'success' | 'failure' | 'fail_once',
+	fail = []
 	}).
 
 %%====================================================================
@@ -84,7 +88,8 @@ stop(Pid, Reason) ->
 ring_agent(Pid, Agentpid) when is_pid(Pid), is_pid(Agentpid) -> 
 	gen_server:call(Pid, {ring_agent, Agentpid}).
 	
-	
+set_mode(Pid, Action, Mode) ->
+	gen_server:call(Pid, {set_action, Action, Mode}).
 	
 %set_mode(Pid, success) when is_pid(Pid) -> 
 %	gen_server:call(Pid, set_success);
@@ -108,11 +113,30 @@ handle_call(set_success, _From, State) ->
 handle_call(set_failure, _From, State) -> 
 	{reply, ok, State#state{mode = failure}};
 handle_call(set_fail_once, _From, State) ->
-	{reply, ok, State#state{mode = set_fail_once}};
-handle_call({ring_agent, AgentPid, _Queuedcall}, _From, State) -> 
+	{reply, ok, State#state{mode = fail_once}};
+handle_call({set_action, Action, fail}, _From, #state{fail = Curfail} = State) ->
+	case lists:member(Action, Curfail) of
+		true ->
+			{reply, ok, State};
+		false ->
+			Newfail = [Action | Curfail],
+			{reply, ok, State#state{fail = Newfail}}
+	end;
+handle_call({set_action, Action, success}, _From, #state{fail = Curfail} = State) ->
+	F = fun(E) ->
+		E =/= Action
+	end,
+	Newfail = lists:filter(F, Curfail),
+	{reply, ok, State#state{fail = Newfail}}; 
+handle_call({ring_agent, AgentPid, _Queuedcall}, _From, #state{fail = Fail} = State) -> 
 	case State#state.mode of
 		success -> 
-			{reply, agent:set_state(AgentPid, ringing, State#state.callrec), State};
+			case lists:member(ring_agent, Fail) of
+				true ->
+					{reply, invalid, State};
+				false ->
+					{reply, agent:set_state(AgentPid, ringing, State#state.callrec), State}
+			end;
 		failure -> 
 			{reply, invalid, State};
 		fail_once ->

@@ -108,17 +108,21 @@ handle_call(Request, _From, State) ->
 handle_cast(restart_tick, State) ->
 	case do_route(State#state.ringcount, State#state.queue, State#state.ringingto, State#state.call) of
 		nocall -> 
-			State2 = State,
+			%State2 = State,
 			{stop, {call_not_queued, State#state.call}, State};
 		rangout -> 
-			State2 = State#state{ringingto = undefined, ringcount = 0};
+			State2 = State#state{ringingto = undefined, ringcount = 0},
+			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
+			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
+			{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
+			{noreply, State3#state{tref=Tref}};
 		{ringing, Apid, Ringcount} -> 
-			State2 = State#state{ringingto = Apid, ringcount = Ringcount}
-	end,
-	NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
-	State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
-	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
-	{noreply, State3#state{tref=Tref}};
+			State2 = State#state{ringingto = Apid, ringcount = Ringcount},
+			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
+			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
+			{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
+			{noreply, State3#state{tref=Tref}}
+	end;
 handle_cast(stop_tick, State) ->
 	timer:cancel(State#state.tref),
 	{noreply, State#state{tref=undefined}};
@@ -653,30 +657,7 @@ queue_interaction_test_() ->
 			}
 		]
 	}
-	}.
-
-next_test_() ->
-	{
-		foreach,
-		fun() ->
-			{ok, MPid} = dummy_media:start(#call{id="testcall"}),
-			MPid
-		end,
-		fun(MPid) ->
-			ok
-		end,
-		[
-			fun(MPid) ->
-				{"Test", 
-				fun() ->
-					?CONSOLE("passed in value:  ~p", [MPid]),
-					?assert(1 =:= 1)
-				end}
-			end
-		]
-	}.
-	
-	
+	}.	
 
 tick_manipulation_test_() ->
 	{foreach,

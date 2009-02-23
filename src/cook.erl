@@ -655,6 +655,99 @@ queue_interaction_test_() ->
 	}
 	}.
 
+next_test_() ->
+	{
+		foreach,
+		fun() ->
+			{ok, MPid} = dummy_media:start(#call{id="testcall"}),
+			MPid
+		end,
+		fun(MPid) ->
+			ok
+		end,
+		[
+			fun(MPid) ->
+				{"Test", 
+				fun() ->
+					?CONSOLE("passed in value:  ~p", [MPid]),
+					?assert(1 =:= 1)
+				end}
+			end
+		]
+	}.
+	
+	
+
+tick_manipulation_test_() ->
+	{foreach,
+		fun() ->
+			test_primer(),
+			queue_manager:start([node()]),
+			{ok, Pid} = queue_manager:add_queue(testqueue),
+			{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+			%call_queue:add(Pid, 1, Dummy),
+			%register(media_dummy, Dummy),
+			{Pid, Dummy}
+		end,
+		fun({Pid, Dummy}) ->
+			%unregister(media_dummy),
+			dummy_media:stop(Dummy),
+			try call_queue:stop(Pid)
+			catch
+				exit:{noproc, Detail} ->
+					?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
+			end,
+			queue_manager:stop()
+		end,
+		[
+			fun({Pid, Dummy}) -> 
+				{"Stop Tick Test",
+				fun() ->	
+					call_queue:set_recipe(Pid, [{1, prioritize, [], run_many}]),
+					call_queue:add(Pid, Dummy),
+					{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
+					stop_tick(Cookpid),
+					receive
+					after ?TICK_LENGTH * 3 + 100 ->
+						ok
+					end,
+					{{Priority, _Time}, _Callrec} = call_queue:ask(Pid),
+					?assertEqual(Priority, 1)
+				end}
+			end,
+			fun({Pid, Dummy}) ->
+				{"Restart Tick Test",
+				fun() ->
+					call_queue:set_recipe(Pid, [{1, prioritize, [], run_many}]),
+					call_queue:add(Pid, Dummy),
+					{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
+					stop_tick(Cookpid),
+					receive
+					after ?TICK_LENGTH * 3 + 100 ->
+						ok
+					end,
+					{{Priority1, _Time1}, _Callrec} = call_queue:ask(Pid),
+					restart_tick(Cookpid),
+					receive
+					after ?TICK_LENGTH * 2 + 100 ->
+						ok
+					end,
+					{{Priority2, _Time2}, _Callrec} = call_queue:ask(Pid),
+					?assertEqual(1, Priority1),
+					?assertEqual(4, Priority2)
+				end}
+			end
+		]
+	}.
+
+
+
+
+
+
+
+
+	
 -define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start(#call{}), {ok, Pid} = start(Dummy,[{1, set_priority, [5], run_once}], testqueue), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").

@@ -22,7 +22,7 @@
 %% 
 
 -record(agent, {
-	login :: string(),
+	login = erlang:error({undefined, login}) :: string(),
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
 	connection :: pid(),
@@ -32,7 +32,7 @@
 						any() |	% state = precall
 						{integer(), -1} | {integer(), 0} | {integer(), 1} | default |	% released
 						{onhold, #call{}, calling, #call{}},	% warmtransfer
-	queuedrelease = undefined :: any(),	% is the current state is to go to released, what is the released type
+	queuedrelease :: any(),	% is the current state is to go to released, what is the released type
 	lastchangetimestamp = now() :: any(),	% at what time did the last state change occur
 	defaultringpath = inband :: 'inband' | 'outband'
 }).

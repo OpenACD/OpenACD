@@ -396,7 +396,8 @@ queue_interaction_test_() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
-			{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+			{ok, Dummy} = dummy_media:start("testcall"),
+			dummy_media:set_skills(Dummy, [english, testskill]),
 			register(media_dummy, Dummy),
 			{Pid, Dummy}
 		end,
@@ -450,7 +451,7 @@ queue_interaction_test_() ->
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, prioritize, [], run_once}]),
-				{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+				{ok, Dummy1} = dummy_media:start("C1"),
 				call_queue:add(Pid, Dummy1),
 				receive
 				after ?TICK_LENGTH * 3 ->
@@ -463,7 +464,7 @@ queue_interaction_test_() ->
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, prioritize, [], run_many}]),
-				{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+				{ok, Dummy1} = dummy_media:start("C1"),
 				call_queue:add(Pid, Dummy1),
 				receive
 				after ?TICK_LENGTH * 2 + 100 ->
@@ -476,7 +477,7 @@ queue_interaction_test_() ->
 			fun() -> 
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, deprioritize, [], run_once}]),
-				{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+				{ok, Dummy1} = dummy_media:start("C1"),
 				call_queue:add(Pid, 2, Dummy1),
 				receive
 				after ?TICK_LENGTH * 3 ->
@@ -489,7 +490,7 @@ queue_interaction_test_() ->
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, deprioritize, [], run_many}]),
-				{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+				{ok, Dummy1} = dummy_media:start("C1"),
 				call_queue:add(Pid, 4, Dummy1),
 				receive
 				after ?TICK_LENGTH * 2 + 100 ->
@@ -502,7 +503,7 @@ queue_interaction_test_() ->
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue(testqueue),
 				call_queue:set_recipe(Pid, [{1, deprioritize, [], run_many}]),
-				{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+				{ok, Dummy1} = dummy_media:start("C1"),
 				call_queue:add(Pid, 1, Dummy1),
 				receive
 				after ?TICK_LENGTH * 2 + 100 ->
@@ -648,7 +649,8 @@ tick_manipulation_test_() ->
 		test_primer(),
 		queue_manager:start([node()]),
 		{ok, Pid} = queue_manager:add_queue(testqueue),
-		{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+		{ok, Dummy} = dummy_media:start("testcall"),
+		dummy_media:set_skills(Dummy, [english, testskill]),
 		{Pid, Dummy}
 	end,
 	fun({Pid, Dummy}) ->
@@ -707,7 +709,7 @@ agent_interaction_test_() ->
 		test_primer(),
 		queue_manager:start([node()]),
 		{ok, QPid} = queue_manager:add_queue(testqueue),
-		{ok, MPid} = dummy_media:start(#call{id="testcall"}),
+		{ok, MPid} = dummy_media:start("testcall"),
 		dispatch_manager:start(),
 		agent_manager:start([node()]),
 		{ok, APid} = agent_manager:start_agent(#agent{login = "testagent"}),
@@ -775,7 +777,7 @@ agent_interaction_test_() ->
 		fun({QPid, MPid, APid}) ->
 			{"Media says the the ring to the agent is invalid.",
 			fun() ->
-				{ok, Media} = dummy_media:start(#call{id="testcall"}),
+				{ok, Media} = dummy_media:start("testcall"),
 				dummy_media:set_mode(Media, ring_agent, fail),
 				call_queue:add(QPid, Media),
 				agent:set_state(APid, idle),
@@ -791,7 +793,8 @@ agent_interaction_test_() ->
 		fun({QPid, MPid, APid}) ->
 			{"Agent cannot take the call in queue (regrab)",
 			fun() ->
-				{ok, Media} = dummy_media:start(#call{id="testcall", skills=[german]}),
+				{ok, Media} = dummy_media:start("testcall"),
+				dummy_media:set_skills(Media, [german]),
 				?CONSOLE("Media response to getting call:  ~p", [gen_server:call(Media, get_call)]),
 				call_queue:add(QPid, Media),
 				agent:set_state(APid, idle),
@@ -814,7 +817,7 @@ agent_interaction_test_() ->
 
 
 	
--define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start(#call{}), {ok, Pid} = start(Dummy,[{1, set_priority, [5], run_once}], testqueue), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start("testcall"), {ok, Pid} = start(Dummy,[{1, set_priority, [5], run_once}], testqueue), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

@@ -28,11 +28,11 @@
 }).
 
 -record(call, {
-		id :: string(),
+		id = erlang:error({undefined, id}) :: string(),
 		type = voice :: 'voice' | 'email' | 'chat',
 		callerid = "Unknown Unknown" :: string(),
 		% source is the Pid of the media manager this is from
-		source :: pid(),
+		source = erlang:error({undefined, source}) :: pid(),
 		bound = [] :: [pid()],
 		% client record
 		client :: #client{},
@@ -43,8 +43,8 @@
 }).
 
 -record(queued_call, {
-	media :: pid(),
-	id :: string(),
+	media = erlang:error({undefined, media}) :: pid(),
+	id = erlang:error({undefined, id}) :: string(),
 	skills = [] :: [atom()],
 	dispatchers = [] :: [pid()],
 	cook :: pid()

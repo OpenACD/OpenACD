@@ -396,16 +396,16 @@ state_change_test() ->
 	?assertMatch({ok, idle}, query_state(Pid)),
 	?assertEqual(invalid, set_state(Pid, oncall)),
 	?assertMatch({ok, idle}, query_state(Pid)),
-	?assertEqual(ok, set_state(Pid, ringing, #call{id="foo"})),
+	?assertEqual(ok, set_state(Pid, ringing, #call{id="foo", source=self()})),
 	?assertMatch({ok, ringing}, query_state(Pid)),
-	?assertEqual(ok, set_state(Pid, oncall, #call{id="foo"})),
+	?assertEqual(ok, set_state(Pid, oncall, #call{id="foo", source=self()})),
 	?assertMatch({ok, oncall}, query_state(Pid)),
 	?assertMatch(queued, set_state(Pid, released, {1, 0})).
 	
 ring_oncall_mismatch_test() ->
 	{_, Pid} = start(#agent{login="testagent"}),
-	Goodcall = #call{id="Goodcall"},
-	Badcall = #call{id="Badcall"},
+	Goodcall = #call{id="Goodcall", source=self()},
+	Badcall = #call{id="Badcall", source=self()},
 	?assertMatch(ok, set_state(Pid, idle)),
 	?assertMatch(ok, set_state(Pid, ringing, Goodcall)),
 	?assertMatch(invalid, set_state(Pid, oncall, Badcall)).
@@ -413,7 +413,7 @@ ring_oncall_mismatch_test() ->
 idle_state_test() -> 
 	{_, Pid} = start(#agent{login="testagent"}),
 	?assertMatch(ok, set_state(Pid, idle)),
-	Call = #call{id="testcall"},
+	Call = #call{id="testcall", source=self()},
 	?assertMatch(invalid, set_state(Pid, ringing, nothing)),
 	?assertMatch(invalid, set_state(Pid, oncall, nothing)),
 	?assertMatch(invalid, set_state(Pid, outgoing, nothing)),
@@ -431,12 +431,12 @@ idle_state_test() ->
 ringing_state_test() -> 
 	{_, Pid} = start(#agent{login="testagent"}),
 	?assertMatch(ok, set_state(Pid, idle)),
-	Call = #call{id="testcall"},
+	Call = #call{id="testcall", source=self()},
 	?assertMatch(ok, set_state(Pid, ringing, Call)),
 	?assertMatch(invalid, set_state(Pid, ringing)),
 	?assertMatch(invalid, set_state(Pid, ringing, Call)),
 	?assertMatch(invalid, set_state(Pid, precall)),
-	?assertMatch(invalid, set_state(Pid, oncall, #call{id="invalid"})),
+	?assertMatch(invalid, set_state(Pid, oncall, #call{id="invalid", source=self()})),
 	?assertMatch(invalid, set_state(Pid, outgoing)),
 	?assertMatch(invalid, set_state(Pid, outgoing, Call)),
 	?assertMatch(invalid, set_state(Pid, warmtransfer)),
@@ -459,7 +459,7 @@ ringing_state_test() ->
 	
 precall_state_test() ->
 	{_, Pid} = start(#agent{login="testagent"}),
-	Call = #call{id="testcall"},
+	Call = #call{id="testcall", source=self()},
 	Client = "dummyclient",
 	
 	?assertMatch(ok, set_state(Pid, precall, Client)),
@@ -485,7 +485,7 @@ precall_state_test() ->
 
 oncall_state_test() -> 
 	{_, Pid} = start(#agent{login="testagent"}),
-	Call = #call{id="testcall"},
+	Call = #call{id="testcall", source=self()},
 	set_state(Pid, idle),
 	set_state(Pid, ringing, Call),
 	set_state(Pid, oncall, Call),
@@ -500,7 +500,7 @@ oncall_state_test() ->
 	?assertMatch(queued, set_state(Pid, released, default)),
 	?assertMatch(ok, set_state(Pid, released, undefined)),
 	?assertMatch({ok, oncall}, query_state(Pid)),
-	?assertMatch(ok, set_state(Pid, warmtransfer, #call{id="dummycall"})),
+	?assertMatch(ok, set_state(Pid, warmtransfer, #call{id="dummycall", source=self()})),
 	?assertMatch({ok, warmtransfer}, query_state(Pid)),
 	set_state(Pid, oncall, Call),
 	?assertMatch(ok, set_state(Pid, wrapup, Call)),
@@ -508,7 +508,7 @@ oncall_state_test() ->
 	
 outgoing_state_test() ->
 	{_, Pid} = start(#agent{login="testagent"}),
-	Call = #call{id="testcall"},
+	Call = #call{id="testcall", source=self()},
 	Client = "dummyclient",
 	set_state(Pid, idle),
 	set_state(Pid, precall, Client),
@@ -527,7 +527,7 @@ outgoing_state_test() ->
 	?assertMatch({ok, outgoing}, query_state(Pid)),
 	?assertMatch(ok, set_state(Pid, released, undefined)),
 	?assertMatch({ok, outgoing}, query_state(Pid)),
-	?assertMatch(ok, set_state(Pid, warmtransfer, #call{id="dummycall"})),
+	?assertMatch(ok, set_state(Pid, warmtransfer, #call{id="dummycall", source=self()})),
 	?assertMatch({ok, warmtransfer}, query_state(Pid)),
 	set_state(Pid, outgoing, Call),
 	?assertMatch(ok, set_state(Pid, wrapup, Call)),
@@ -535,7 +535,7 @@ outgoing_state_test() ->
 	
 released_state_test() -> 
 	{_, Pid} = start(#agent{login="testagent"}),
-	Call = #call{id="testcall"},
+	Call = #call{id="testcall", source=self()},
 	Client = "dummyclient",
 	
 	?assertMatch({ok, released}, query_state(Pid)),
@@ -562,8 +562,8 @@ released_state_test() ->
 	
 warmtransfer_state_test() ->
 	{_, Pid} = start(#agent{login="testagent"}),
-	Call = #call{id="testcall"},
-	Callto = #call{id="callto"},
+	Call = #call{id="testcall", source=self()},
+	Callto = #call{id="callto", source=self()},
 	Client = "dummyclient",
 	
 	set_state(Pid, ringing, Call),
@@ -593,8 +593,8 @@ warmtransfer_state_test() ->
 
 wrapup_state_test() -> 
 	{_, Pid} = start(#agent{login="testagent"}),
-	Call = #call{id="testcall"},
-	Callto = #call{id="callto"},
+	Call = #call{id="testcall", source=self()},
+	Callto = #call{id="callto", source=self()},
 	Client = "dummyclient",
 
 	set_state(Pid, ringing, Call),

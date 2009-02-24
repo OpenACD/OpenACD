@@ -489,7 +489,8 @@ call_in_out_grab_test_() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
-			{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+			{ok, Dummy} = dummy_media:start("testcall"),
+			dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
 			register(media_dummy, Dummy),
 			register(testqueue, Pid),
@@ -579,7 +580,7 @@ call_in_out_grab_test_() ->
 			}, {
 				"Find call by UID", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					{ok, Dummy1} = dummy_media:start("C1"),
 					add(Pid, 1, Dummy1),
 					{_Key1, Call1} = get_call(Pid, "testcall"),
 					?assert(Call1#queued_call.media =:= whereis(media_dummy)),
@@ -592,8 +593,8 @@ call_in_out_grab_test_() ->
 				"Find call by pid", fun() ->
 					Pid = whereis(testqueue),
 					Dummy1 = whereis(media_dummy),
-					{ok, Dummy2} = dummy_media:start(#call{id="C2"}),
-					{ok, Dummy3} = dummy_media:start(#call{id="C3"}),
+					{ok, Dummy2} = dummy_media:start("C2"),
+					{ok, Dummy3} = dummy_media:start("C3"),
 					add(Pid, 1, Dummy2),
 					{_Key1, Call1} = get_call(Pid, Dummy1),
 					{_Key2, Call2} = get_call(Pid, Dummy2),
@@ -622,8 +623,8 @@ call_in_out_grab_test_() ->
 				"Grab priority testing", fun() ->
 					Pid = whereis(testqueue),
 					%Dummy1 = whereis(media_dummy),
-					{ok, Dummy2} = dummy_media:start(#call{id="C2"}),
-					{ok, Dummy3} = dummy_media:start(#call{id="C3"}),
+					{ok, Dummy2} = dummy_media:start("C2"),
+					{ok, Dummy3} = dummy_media:start("C3"),
 					add(Pid, 0, Dummy2),
 					add(Pid, 1, Dummy3),
 					{_Key2, Call2} = grab(Pid),
@@ -658,7 +659,8 @@ call_update_test_() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
-			{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+			{ok, Dummy} = dummy_media:start("testcall"),
+			dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
 			register(media_dummy, Dummy),
 			register(testqueue, Pid),
@@ -719,9 +721,9 @@ call_update_test_() ->
 					Pid = whereis(testqueue),
 					Dummy = whereis(media_dummy),
 					remove(Pid, Dummy),
-					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
-					{ok, Dummy2} = dummy_media:start(#call{id="C2"}),
-					{ok, Dummy3} = dummy_media:start(#call{id="C3"}),
+					{ok, Dummy1} = dummy_media:start("C1"),
+					{ok, Dummy2} = dummy_media:start("C2"),
+					{ok, Dummy3} = dummy_media:start("C3"),
 					add(Pid, 1, Dummy1),
 					add(Pid, 1, Dummy2),
 					add(Pid, 1, Dummy3),
@@ -736,9 +738,9 @@ call_update_test_() ->
 					Pid = whereis(testqueue),
 					Dummy = whereis(media_dummy),
 					remove(Pid, Dummy),
-					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
-					{ok, Dummy2} = dummy_media:start(#call{id="C2"}),
-					{ok, Dummy3} = dummy_media:start(#call{id="C3"}),
+					{ok, Dummy1} = dummy_media:start("C1"),
+					{ok, Dummy2} = dummy_media:start("C2"),
+					{ok, Dummy3} = dummy_media:start("C3"),
 					add(Pid, 1, Dummy1),
 					add(Pid, 1, Dummy2),
 					add(Pid, 1, Dummy3),
@@ -751,7 +753,8 @@ call_update_test_() ->
 			}, {
 				"Skill integrity test", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start(#call{id="C1", skills=[foo, bar, '_node']}),
+					{ok, Dummy1} = dummy_media:start("C1"),
+					dummy_media:set_skills(Dummy1, [foo, bar, '_node']),
 					add(Pid, Dummy1),
 					{_Key, Call} = get_call(Pid, Dummy1),
 					?assertEqual(true, lists:member(foo, Call#queued_call.skills)),
@@ -761,7 +764,7 @@ call_update_test_() ->
 			}, {
 				"Add skills test", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					{ok, Dummy1} = dummy_media:start("C1"),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
 					?assertEqual(false, lists:member(foo, Call#queued_call.skills)),
@@ -792,7 +795,7 @@ call_update_test_() ->
 			}, {
 				"Remove skills test", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					{ok, Dummy1} = dummy_media:start("C1"),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
 					?assertEqual(true, lists:member(english, Call#queued_call.skills)),
@@ -803,14 +806,14 @@ call_update_test_() ->
 			}, {
 				"Remove skills from unknown call test", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start(#call{id = "C1"}),
+					{ok, Dummy1} = dummy_media:start("C1"),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					?assertEqual(none, remove_skills(Pid, "C2", [english]))
 				end
 			}, {
 				"Remove skills from call referenced by pid", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					{ok, Dummy1} = dummy_media:start("C1"),
 					add(Pid, Dummy1),
 					{_Key, Call} = get_call(Pid, "C1"),
 					?assertEqual(true, lists:member(english, Call#queued_call.skills)),
@@ -821,7 +824,7 @@ call_update_test_() ->
 			}, {
 				"Add magic skills test", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start(#call{id="C1"}),
+					{ok, Dummy1} = dummy_media:start("C1"),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
 					?assertEqual(false, lists:member(testq, Call#queued_call.skills)),
@@ -833,7 +836,8 @@ call_update_test_() ->
 			}, {
 				"Remove magic skills test", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start(#call{id="C1", skills=['_node']}),
+					{ok, Dummy1} = dummy_media:start("C1"),
+					dummy_media:set_skills(Dummy1, ['_node']),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
 					?debugFmt("Queued_call:  ~p; this node:  ~p", [Call, node()]),
@@ -845,7 +849,8 @@ call_update_test_() ->
 			}, {
 				"Ensure that call_skills are merged into the call's skill list on add", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start(#call{id="C1", skills=[madness]}),
+					{ok, Dummy1} = dummy_media:start("C1"),
+					dummy_media:set_skills(Dummy1, [madness]),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
 					?assertEqual(true, lists:member(node(), Call#queued_call.skills)),
@@ -862,7 +867,8 @@ queue_update_and_info_test_() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue(testqueue),
-			{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+			{ok, Dummy} = dummy_media:start("testcall"),
+			dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
 			register(media_dummy, Dummy),
 			register(testqueue, Pid),
@@ -915,8 +921,8 @@ queue_update_and_info_test_() ->
 				"Dump queue data to a list", fun() ->
 					Pid = whereis(testqueue),
 					%Dummy1 = whereis(media_dummy),
-					{ok, Dummy2} = dummy_media:start(#call{id="C2"}),
-					{ok, Dummy3} = dummy_media:start(#call{id="C3"}),
+					{ok, Dummy2} = dummy_media:start("C2"),
+					{ok, Dummy3} = dummy_media:start("C3"),
 					add(Pid, 1, Dummy2),
 					add(Pid, 1, Dummy3),
 					F = fun(X) ->
@@ -951,7 +957,8 @@ queue_manager_and_cook_test_() ->
 			fun() ->
 				queue_manager:start([node()]),
 				{ok, Pid} = queue_manager:add_queue(testqueue),
-				{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+				{ok, Dummy} = dummy_media:start("testcall"),
+				dummy_media:set_skills(Dummy, [english, testskill]),
 				call_queue:add(Pid, 1, Dummy),
 				register(media_dummy, Dummy),
 				{Pid, Dummy}
@@ -1059,7 +1066,8 @@ multi_node_test_() ->
 					Queue = rpc:call(Slave, queue_manager, get_queue, [testqueue]),
 					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
-					{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+					{ok, Dummy} = dummy_media:start("testcall"),
+					dummy_media:set_skills(Dummy, [english, testskill]),
 					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
 					{_Key, Callrec} = rpc:call(Master, call_queue, ask, [Queue]),
 					?assertEqual("testcall", Callrec#queued_call.id),

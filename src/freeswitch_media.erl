@@ -95,7 +95,7 @@ set_agent(MPid, Agent, Apid) when is_pid(MPid), is_pid(Apid) ->
 %%====================================================================
 %% @private
 init([Cnode]) ->
-    {ok, #state{cnode=Cnode}}.
+	{ok, #state{cnode=Cnode}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages

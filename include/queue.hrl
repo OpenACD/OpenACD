@@ -45,7 +45,7 @@
 -type(recipe() :: [recipe_step()]).
 
 -record(call_queue, {
-	name = "Unknown Queue" :: string(),
+	name = erlang:error({undefined, name}) :: string(),
 	weight = 1 :: non_neg_integer(),
 	skills = [english, '_node'] :: [atom()],
 	recipe = ?DEFAULT_RECIPE :: recipe(),

@@ -47,7 +47,8 @@
 	ring_agent/2,
 	stop/1,
 	stop/2,
-	set_mode/3
+	set_mode/3,
+	set_skills/2
 	]).
 
 %% gen_server callbacks
@@ -63,21 +64,21 @@
 %%====================================================================
 %% API
 %%====================================================================
-start_link(Calldata) -> 
-	start_link(Calldata, success).
+start_link(Callid) ->
+	start_link(Callid, success).
 
-start_link(Calldata, success) ->
-    gen_server:start_link(?MODULE, [Calldata, success], []);
-start_link(Calldata, failure) ->
-	gen_server:start_link(?MODULE, [Calldata, failure], []).
+start_link(Callid, success) ->
+    gen_server:start_link(?MODULE, [Callid, success], []);
+start_link(Callid, failure) ->
+	gen_server:start_link(?MODULE, [Callid, failure], []).
 
-start(Calldata) -> 
-		start(Calldata, success).
+start(Callid) ->
+		start(Callid, success).
 
-start(Calldata, success) -> 
-	gen_server:start(?MODULE, [Calldata, success], []);
-start(Calldata, failure) ->
-	gen_server:start(?MODULE, [Calldata, failure], []).
+start(Callid, success) ->
+	gen_server:start(?MODULE, [Callid, success], []);
+start(Callid, failure) ->
+	gen_server:start(?MODULE, [Callid, failure], []).
 
 stop(Pid) -> 
 	stop(Pid, normal).
@@ -90,6 +91,9 @@ ring_agent(Pid, Agentpid) when is_pid(Pid), is_pid(Agentpid) ->
 	
 set_mode(Pid, Action, Mode) ->
 	gen_server:call(Pid, {set_action, Action, Mode}).
+
+set_skills(Pid, Skills) ->
+	gen_server:call(Pid, {set_skills, Skills}).
 	
 %set_mode(Pid, success) when is_pid(Pid) -> 
 %	gen_server:call(Pid, set_success);
@@ -100,9 +104,9 @@ set_mode(Pid, Action, Mode) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Calldata, Mode]) ->
+init([Callid, Mode]) ->
 	process_flag(trap_exit, true),
-    {ok, #state{callrec = Calldata, mode = Mode}}.
+	{ok, #state{callrec = #call{id=Callid, source=self()}, mode = Mode}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -127,7 +131,9 @@ handle_call({set_action, Action, success}, _From, #state{fail = Curfail} = State
 		E =/= Action
 	end,
 	Newfail = lists:filter(F, Curfail),
-	{reply, ok, State#state{fail = Newfail}}; 
+	{reply, ok, State#state{fail = Newfail}};
+handle_call({set_skills, Skills}, _From, #state{callrec = Call} = State) ->
+	{reply, ok, State#state{callrec = Call#call{skills=Skills}}};
 handle_call({ring_agent, AgentPid, _Queuedcall}, _From, #state{fail = Fail} = State) -> 
 	case State#state.mode of
 		success -> 
@@ -245,7 +251,7 @@ dummy_test_() ->
 		{
 			"Simple start",
 			fun() -> 
-				?assertMatch({ok, _Pid}, dummy_media:start(#call{}))
+				?assertMatch({ok, _Pid}, dummy_media:start("testcall"))
 			end
 		},
 		{
@@ -253,8 +259,8 @@ dummy_test_() ->
 			fun() -> 
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
-				{ok, Dummypid} = dummy_media:start(#call{}),
-				?assertMatch(ok, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{}}))
+				{ok, Dummypid} = dummy_media:start("testcall"),
+				?assertMatch(ok, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{media=Dummypid, id="testcall"}}))
 			end
 		},
 		{
@@ -262,63 +268,64 @@ dummy_test_() ->
 			fun() -> 
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
-				{ok, Dummypid} = dummy_media:start(#call{}, failure),
-				?assertMatch(invalid, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{}}))
+				{ok, Dummypid} = dummy_media:start("testcall", failure),
+				?assertMatch(invalid, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{media=Dummypid, id="testcall"}}))
 			end
 		},
 		{
 			"Get call when set to success",
 			fun() -> 
-				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}),
-				?assertMatch(#call{id="testcall"}, gen_server:call(Dummypid, get_call))
+				{ok, Dummypid} = dummy_media:start("testcall"),
+				Call = gen_server:call(Dummypid, get_call),
+				?assertMatch("testcall", Call#call.id)
 			end
 		},
 		{
 			"Get call when set to failure",
 			fun() -> 
-				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}, failure),
+				{ok, Dummypid} = dummy_media:start("testcall", failure),
 				?assertMatch(invalid, gen_server:call(Dummypid, get_call))
 			end
 		},
 		{
 			"Start cook when set to success",
 			fun() -> 
-				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}),
+				{ok, Dummypid} = dummy_media:start("testcall"),
 				?assertMatch(ok, gen_server:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
 			end
 		},
 		{
 			"Start cook when set to fail",
 			fun() -> 
-				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}, failure),
+				{ok, Dummypid} = dummy_media:start("testcall", failure),
 				?assertMatch(invalid, gen_server:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
 			end
 		},
 		{
 			"Answer voicemail call when set to success",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}),
+				{ok, Dummypid} = dummy_media:start("testcall"),
 				?assertMatch(ok, gen_server:call(Dummypid, voicemail))
 			end
 		},
 		{
 			"Answer voicemail call when set to fail",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}, failure),
+				{ok, Dummypid} = dummy_media:start("testcall", failure),
 				?assertMatch(invalid, gen_server:call(Dummypid, voicemail))
 			end
 		},
 		{
 			"Annouce when set for success",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}),
+				{ok, Dummypid} = dummy_media:start("testcall"),
 				?assertMatch(ok, gen_server:call(Dummypid, {announce, "Random data"}))
 			end
 		},
 		{
 			"Annouce when set to fail",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start(#call{id="testcall"}, failure),
+				{ok, Dummypid} = dummy_media:start("testcall", failure),
 				?assertMatch(invalid, gen_server:call(Dummypid, {announce, "Random data"}))
 			end
 		}

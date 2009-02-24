@@ -225,7 +225,7 @@ random_test() ->
 	{_, Pid2} = queue_manager:add_queue(queue2, 2),
 	{_, Pid3} = queue_manager:add_queue(queue3, 3),
 	{_, Pid4} = queue_manager:add_queue(queue4, 3),
-	PCalls = [Call || N <- [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], Call <- [#call{id="C" ++ integer_to_list(N)}]],
+	PCalls = [Call || N <- [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], Call <- ["C" ++ integer_to_list(N)]],
 	?debugFmt("PCalls:  ~p", [PCalls]),
 	F = fun(Callrec) -> 
 		{ok, Mpid} = dummy_media:start(Callrec),
@@ -312,7 +312,7 @@ grab_test_() ->
 				{"there is a call we want",
 				fun() -> 
 					{ok, Pid} = start(),
-					PCalls = [Call || N <- [1, 2, 3], Call <- [#call{id="C" ++ integer_to_list(N)}]],
+					PCalls = [Call || N <- [1, 2, 3], Call <- ["C" ++ integer_to_list(N)]],
 					F = fun(Callrec) -> 
 						{ok, Mpid} = dummy_media:start(Callrec),
 						Mpid
@@ -339,7 +339,7 @@ grab_test_() ->
 			fun([Pid1, _Pid2, _Pid3]) ->
 				{"Regrabbing with no other calls",
 				fun() ->
-					{ok, MPid} = dummy_media:start(#call{id = "testcall"}),
+					{ok, MPid} = dummy_media:start("testcall"),
 					call_queue:add(Pid1, MPid),
 					{ok, DPid} = dispatcher:start(),
 					Queuedcall = dispatcher:bound_call(DPid),
@@ -349,8 +349,8 @@ grab_test_() ->
 			fun([Pid1, Pid2, _Pid3]) ->
 				{"Regrabbing with a call in another queue",
 				fun() ->
-					{ok, MPid1} = dummy_media:start(#call{id = "C1"}),
-					{ok, MPid2} = dummy_media:start(#call{id = "C2"}),
+					{ok, MPid1} = dummy_media:start("C1"),
+					{ok, MPid2} = dummy_media:start("C2"),
 					call_queue:add(Pid1, MPid1),
 					call_queue:add(Pid2, MPid2),
 					{ok, DPid} = dispatcher:start(),
@@ -363,8 +363,8 @@ grab_test_() ->
 			fun([Pid1, _Pid2, _Pid3]) ->
 				{"Regrabbing with a call in the same queue",
 				fun() ->
-					{ok, MPid1} = dummy_media:start(#call{id = "C1"}),
-					{ok, MPid2} = dummy_media:start(#call{id = "C2"}),
+					{ok, MPid1} = dummy_media:start("C1"),
+					{ok, MPid2} = dummy_media:start("C2"),
 					call_queue:add(Pid1, MPid1),
 					call_queue:add(Pid1, MPid2),
 					{ok, DPid} = dispatcher:start(),

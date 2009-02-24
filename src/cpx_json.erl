@@ -78,19 +78,19 @@ encode_trap(Data) ->
 -ifdef(EUNIT).
 
 call_record_id_test() -> 
-	Idtest = #call{id="Idtest", type=call, callerid="callerid", client=#client{tenant=1, brand=2, label="tenantlabel"}},
+	Idtest = #call{id="Idtest", type=call, callerid="callerid", source=self(), client=#client{tenant=1, brand=2, label="tenantlabel"}},
 	Idtestj = handler(Idtest),
 	{struct, [{id, T} | _Rest]} = Idtestj,
 	?assertMatch(<<"Idtest">>, T).
 	
 call_record_chat_test() -> 
-	Chattype = #call{id="Idtest", type=chat, callerid="callerid", client=#client{tenant=1, brand=2, label="tenantlabel"}},
+	Chattype = #call{id="Idtest", type=chat, callerid="callerid", source=self(), client=#client{tenant=1, brand=2, label="tenantlabel"}},
 	Chattypej = handler(Chattype),
 	{struct, [_, {type, Type}, _, _]} = Chattypej,
 	?assertMatch(chat, Type).
 	
 call_record_email_test() -> 
-	Emailtype = #call{id="Idtest", type=email, callerid="callerid", client=#client{tenant=1, brand=2, label="tenantlabel"}},
+	Emailtype = #call{id="Idtest", type=email, callerid="callerid", source=self(), client=#client{tenant=1, brand=2, label="tenantlabel"}},
 	Emailtypej = handler(Emailtype),
 	{struct, [_, {type, Type}, _, _]} = Emailtypej,
 	?assertMatch(email, Type).

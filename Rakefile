@@ -186,7 +186,10 @@ namespace :test do
 		STDOUT.flush
 		# Add -DEUNIT=1 here to make dialyzer evaluate the code in the test cases. This generates some spurious warnings so 
 		# it's not set normally but it can be very helpful occasionally.
-		dialyzer_output = `dialyzer -Wunderspecs --src -I include -c #{SRC.reject{|x| x =~ /test_coverage/}.join(' ')} contrib/misc/src/*.erl contrib/mochiweb/src/*.erl`
+		dialyzer_flags = ""
+		dialyzer_flags += " -DEUNIT=1" if ENV['dialyzer_debug']
+		dialyzer_flags += " -Wunderspecs" if ENV['dialyzer_underspecced']
+		dialyzer_output = `dialyzer #{dialyzer_flags} --src -I include -c #{SRC.reject{|x| x =~ /test_coverage/}.join(' ')} contrib/misc/src/*.erl contrib/mochiweb/src/*.erl`
 		#puts dialyzer_output
 		if $?.exitstatus.zero?
 			puts 'ok'

@@ -31,6 +31,7 @@ CLEAN.include("ebin/*.app")
 CLEAN.include("debug_ebin/*.beam")
 CLEAN.include("debug_ebin/*.app")
 CLEAN.include("coverage/*.txt")
+CLEAN.include("coverage/*.txt.failed")
 CLEAN.include("coverage/*.html")
 CLEAN.include("doc/*.html")
 
@@ -59,6 +60,7 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 
 	test_output = `erl -pa debug_ebin -sname testpx -s test_coverage start #{mod} -run init stop`
 	if /(All \d+ tests successful|There were no tests to run|This module does not provide a test\(\) function)/ =~ test_output
+		File.delete(t.to_s+'.failed') if File.exists?(t.to_s+'.failed')
 		if ENV['verbose']
 			puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
 		else
@@ -66,7 +68,8 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 		end
 	else
 		puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
-		File.delete(t.to_s)
+		File.delete(t.to_s) if File.exists?(t.to_s)
+		File.new(t.to_s+'.failed', 'w').close
 	end
 end
 
@@ -124,25 +127,32 @@ namespace :test do
 	desc "run only the eunit tests"
 	task :eunit =>  [:compile, 'coverage'] + COVERAGE
 
+	desc "rerun any outstanding tests and report the coverage"
+	task :report_coverage =>  [:eunit, :report_current_coverage]
+
 	desc "report the percentage code coverage of the last test run"
-	task :report_coverage =>  [:eunit] do
+	task :report_current_coverage do
 		global_total = 0
-		files = Dir['coverage/*.txt']
-		maxwidth = files.map{|x| File.basename(x, ".txt").length}.max
+		files = (Dir['coverage/*.txt'] + Dir['coverage/*.txt.failed']).sort
+		maxwidth = files.map{|x| x = File.basename(x, '.failed'); File.basename(x, ".txt").length}.max
 		puts "Code coverage:"
 		files.each do |file|
-			total = 0
-			tally = 0
-			File.read(file).each do |line|
-				if line =~ /^\s+[1-9][0-9]*\.\./
-					total += 1
-					tally += 1
-				elsif line =~ /^\s+0\.\./ and not line =~ /^-module/
-					total += 1
+			if file =~ /\.txt\.failed$/
+				puts "  #{File.basename(file, ".txt.failed").ljust(maxwidth)} : FAILED"
+			else
+				total = 0
+				tally = 0
+				File.read(file).each do |line|
+					if line =~ /^\s+[1-9][0-9]*\.\./
+						total += 1
+						tally += 1
+					elsif line =~ /^\s+0\.\./ and not line =~ /^-module/
+						total += 1
+					end
 				end
+				puts "  #{File.basename(file, ".txt").ljust(maxwidth)} : #{sprintf("%.2f%%", (tally/(total.to_f)) * 100)}"
+				global_total += (tally/(total.to_f)) * 100
 			end
-			puts "  #{File.basename(file, ".txt").ljust(maxwidth)} : #{sprintf("%.2f%%", (tally/(total.to_f)) * 100)}"
-			global_total += (tally/(total.to_f)) * 100
 		end
 		puts "Overall coverage: #{sprintf("%.2f%%", global_total/files.length)}"
 	end

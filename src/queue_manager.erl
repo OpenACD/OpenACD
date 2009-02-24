@@ -544,7 +544,7 @@ multi_node_test_() ->
 			},{
 				"Best bindable queues with failed master", fun() ->
 					{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, [queue2]),
-					{ok, Dummy1} = dummy_media:start(#call{id="Call1"}),
+					{ok, Dummy1} = rpc:call(Slave, dummy_media, start, [#call{id="Call1"}]),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
 					slave:stop(Master),
 					?assertMatch([{queue2, Pid, {_, #queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], rpc:call(Slave, ?MODULE, get_best_bindable_queues, []))

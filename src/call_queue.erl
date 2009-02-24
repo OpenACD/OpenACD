@@ -1082,7 +1082,7 @@ multi_node_test_() ->
 					Queue = rpc:call(Slave, queue_manager, get_queue, [testqueue]),
 					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
-					{ok, Dummy} = dummy_media:start(#call{id="testcall", skills=[english, testskill]}),
+					{ok, Dummy} = rpc:call(node(Queue), dummy_media, start, [#call{id="testcall", skills=[english, testskill]}]),
 					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
 					{_Key, Callrec} = rpc:call(Master, call_queue, ask, [Queue]),
 					?assertEqual("testcall", Callrec#queued_call.id),

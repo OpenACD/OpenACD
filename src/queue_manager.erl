@@ -423,11 +423,13 @@ single_node_test_() ->
 				"Dead queue restarted",
 				fun() ->
 					{exists, QPid} = add_queue("default_queue"),
-					exit(QPid, test_kill),
+					exit(QPid, kill),
 					receive
 					after 300 -> ok
 					end,
-					?assertMatch({exists, NewPid}, add_queue("default_queue"))
+					AddQueueRes = add_queue("default_queue"),
+					?assertMatch({exists, NewPid}, AddQueueRes),
+					?assertNot(QPid =:= element(2, AddQueueRes))
 				end
 			}
 		]

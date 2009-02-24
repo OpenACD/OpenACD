@@ -119,9 +119,9 @@ init([Nodename, Domain]) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_call({ring_agent, AgentPid, Call}, _From, State) ->
-	?CONSOLE("ring_agent to ~p for call ~p", [AgentPid, Call#call.id]),
+	?CONSOLE("ring_agent to ~p for call ~p", [AgentPid, Call#queued_call.id]),
 	AgentRec = agent:dump_state(AgentPid),
-	Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang("++atom_to_list(?MODULE)++":! "++atom_to_list(node())++")'",
+	Args = "{dstchan=" ++ Call#queued_call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang("++atom_to_list(?MODULE)++":! "++atom_to_list(node())++")'",
 	X = freeswitch:api(State#state.nodename, originate, Args),
 	?CONSOLE("Bgapi call res:  ~p;  With args: ~p", [X, Args]),
 	{reply, agent:set_state(AgentPid, ringing, Call), State};
@@ -150,7 +150,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info({new_pid, Ref, From}, #state{call_dict = Dict} = State) ->
-	{ok, Pid} = freeswitch_media:start(State#state.nodename),
+	{ok, Pid} = freeswitch_media:start(State#state.nodename, State#state.domain),
 	From ! {Ref, Pid},
 	Callrec = freeswitch_media:get_call(Pid),
 	NewDict = dict:store(Callrec#call.id, Pid, Dict),

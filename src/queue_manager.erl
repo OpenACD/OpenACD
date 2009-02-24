@@ -119,7 +119,15 @@ add_queue(Name, Recipe, Weight) ->
 
 %% @doc Get the pid of the passed queue name.  If there is no queue, returns 'undefined'.
 -spec(get_queue/1 :: (Name :: atom()) -> pid() | undefined).
-get_queue(Name) ->
+get_queue(Name) when is_list(Name) ->
+	try list_to_existing_atom(Name) of
+		Atom ->
+			get_queue(Atom)
+	catch
+		_:_ ->
+			undefined
+	end;
+get_queue(Name) when is_atom(Name) ->
 	gen_leader:leader_call(?MODULE, {get_queue, Name}).
 
 %% @doc 'true' or 'false' if the passed queue name exists.

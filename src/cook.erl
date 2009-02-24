@@ -85,10 +85,15 @@ start(Call, Recipe, Queue) when is_pid(Call) ->
 init([Call, Recipe, Queue]) ->
 	% TODO check for a call right away.
 	?CONSOLE("Queue:  ~p", [Queue]),
-	process_flag(trap_exit, true),
-	{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
-	State = #state{ticked=0, recipe=Recipe, call=Call, queue=Queue, tref=Tref},
-    {ok, State}.
+	case is_process_alive(Call) of
+		true ->
+			process_flag(trap_exit, true),
+			{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
+			State = #state{ticked=0, recipe=Recipe, call=Call, queue=Queue, tref=Tref},
+			{ok, State};
+		false ->
+			{stop, media_pid_dead}
+	end.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -287,7 +292,6 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	end,
 	Agents = lists:map(F, Dispatchers),
 	Agents2 = lists:flatten(Agents),
-	?CONSOLE("preflatten:  ~p; Post flatten: ~p", [Agents, Agents2]),
 	% calculate costs and sort by same.
 	Agents3 = lists:sort([{ARemote + Askills + Aidle, APid} ||
 		{_AName, APid, AState} <- Agents2,
@@ -306,6 +310,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 %% @private
 -spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #queued_call{}) -> 'none' | pid()).
 offer_call([], _Call) ->
+	?CONSOLE("No valid agents found", []),
 	none;
 offer_call([{_ACost, Apid} | Tail], Call) ->
 	case gen_server:call(Call#queued_call.media, {ring_agent, Apid, Call}) of

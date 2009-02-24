@@ -43,12 +43,13 @@
 
 -include("queue.hrl").
 -include("call.hrl").
+-include("agent.hrl").
 
 -define(TIMEOUT, 10000).
 
 %% API
 -export([
-	start/1,
+	start/2,
 	get_call/1,
 	get_queue/1,
 	get_agent/1,
@@ -60,14 +61,22 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--record(state, {callrec = #call{}, queue, queue_pid, cnode, agent, agent_pid}).
+-record(state, {
+	callrec = #call{}, 
+	queue, 
+	queue_pid, 
+	cnode, 
+	domain,
+	agent, 
+	agent_pid
+	}).
 
 %%====================================================================
 %% API
 %%====================================================================
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
-start(Cnode) -> 
-	gen_server:start(?MODULE, [Cnode], []).
+start(Cnode, Domain) -> 
+	gen_server:start(?MODULE, [Cnode, Domain], []).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
 -spec(get_call(MPid :: pid()) -> #call{}).
@@ -94,17 +103,29 @@ set_agent(MPid, Agent, Apid) when is_pid(MPid), is_pid(Apid) ->
 %% gen_server callbacks
 %%====================================================================
 %% @private
-init([Cnode]) ->
-    {ok, #state{cnode=Cnode}}.
+init([Cnode, Domain]) ->
+    {ok, #state{cnode=Cnode, domain=Domain}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
 % TODO If this module's state has the call, why does this need the call passed in?  (part of the spec for a generic media_manager, change spec?)
-handle_call({ring_agent, AgentPid, Call}, _From, State) -> 
-	Reply = freeswitch_media_manager:ring_agent(AgentPid, Call),
-	{reply, Reply, State};
+handle_call({ring_agent, AgentPid, QCall}, _From, #state{callrec = Call} = State) -> 
+	?CONSOLE("ring_agent to ~p for call ~p", [AgentPid, QCall#queued_call.id]),
+	AgentRec = agent:dump_state(AgentPid),
+	case agent:set_state(AgentPid, ringing, Call) of
+		ok ->
+			Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang("++atom_to_list(?MODULE)++":! "++atom_to_list(node())++")'",
+			X = freeswitch:api(State#state.cnode, originate, Args),
+			?CONSOLE("Bgapi call res:  ~p;  With args: ~p", [X, Args]),
+			{reply, ok, State};
+		Else ->
+			?CONSOLE("Agent ringing response:  ~p", [Else]),
+			{reply, invalid, State}
+	end;
+	%Reply = freeswitch_media_manager:ring_agent(AgentPid, Call),
+	%{reply, Reply, State};
 handle_call(get_call, _From, State) -> 
 	{reply, State#state.callrec, State};
 handle_call(get_queue, _From, State) -> 
@@ -156,8 +177,8 @@ handle_info(_Info, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(_Reason, _State) ->
-	?CONSOLE("terminating...", []),
+terminate(Reason, _State) ->
+	?CONSOLE("terminating: ~p", [Reason]),
     ok.
 
 %%--------------------------------------------------------------------
@@ -201,7 +222,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 									{noreply, State};
 								Qpid -> 
 									?CONSOLE("Trying to add to queue...", []),
-									R = call_queue:add(Qpid, self()),
+									R = call_queue:add(Qpid, self(), NewCall),
 									?CONSOLE("q response:  ~p", [R]),
 									%freeswitch_media_manager:queued_call(UUID, Qpid),
 									{noreply, State#state{queue_pid=Qpid, queue=Queue, callrec=NewCall}}

@@ -176,7 +176,8 @@ idle({released, Reason}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
-idle(_Event, _From, State) ->
+idle(Event, From, State) ->
+	?CONSOLE("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
 	{reply, invalid, idle, State}.
 
 %% @doc The various state changes available when an agent is ringing. <ul>

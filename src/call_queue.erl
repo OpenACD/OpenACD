@@ -69,7 +69,7 @@
 % TODO magic skill '_queue' (name of the queue, so agents can be assigned to the queue)
 -record(state, {
 	queue = gb_trees:empty(),
-	name :: atom(),
+	name :: string(),
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	weight = ?DEFAULT_WEIGHT :: pos_integer(),
 	call_skills = [english, '_node'] :: [atom()]}).
@@ -120,12 +120,12 @@ get_call(Pid, Callid) when is_pid(Pid) ->
 	gen_server:call(Pid, {get_call, Callid}).
 
 %% @doc Return the first call in the queue at `Pid' that doesn't have a dispatcher from this node already bound to it or `none'.
--spec(ask/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
+-spec(ask/1 :: (Pid :: pid()) -> 'none' | {key(), #queued_call{}}).
 ask(Pid) ->
 	gen_server:call(Pid, ask).
 
 %% @doc Bind to the first call in the queue at `Pid' that doesn't have a dispatcher from this node already bound to it or `none'.
--spec(grab/1 :: (Pid :: pid()) -> 'none' | {key(), #call{}}).
+-spec(grab/1 :: (Pid :: pid()) -> 'none' | {key(), #queued_call{}}).
 grab(Pid) when is_pid(Pid) ->
 	gen_server:call(Pid, grab).
 
@@ -159,7 +159,7 @@ set_priority(Pid, Mediaid, Priority) when Priority >= 0 ->
 	gen_server:call(Pid, {set_priority, Mediaid, Priority}).
 
 %% @doc Returns a list of calls in queue at `Pid'.
--spec(to_list/1 :: (Pid :: pid()) -> [#call{}]).
+-spec(to_list/1 :: (Pid :: pid()) -> [#queued_call{}]).
 to_list(Pid) ->
 	gen_server:call(Pid, to_list).
 
@@ -215,7 +215,7 @@ find_unbound(GbTree, From) when is_pid(From) ->
 	find_unbound_(gb_trees:next(gb_trees:iterator(GbTree)), From).
 
 %% @private
--spec(find_unbound_/2 :: (Iterator :: {key(), #call{}, any()} | 'none', From :: pid()) -> {key(), #queued_call{}} | 'none').
+-spec(find_unbound_/2 :: (Iterator :: {key(), #queued_call{}, any()} | 'none', From :: pid()) -> {key(), #queued_call{}} | 'none').
 find_unbound_(none, _From) ->
 	none;
 find_unbound_({Key, #queued_call{dispatchers = []} = Callrec, _Iter}, _From) ->

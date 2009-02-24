@@ -81,12 +81,12 @@ start(Nodes) ->
 
 % TODO tie add_queue to the call_queue_config
 %% @doc Add a queue named `Name' using the default weight and recipe.
--spec(add_queue/1 :: (Name :: atom()) -> {'ok', pid()} | {'exists', pid()}).
+-spec(add_queue/1 :: (Name :: string()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name) ->
 	add_queue(Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT).
 
 %% @doc Add a queue named `Name' using a givien `Recipe' or `Weight'.
--spec(add_queue/2 :: (Name :: atom(), Recipe :: recipe()) -> {'ok', pid()} | {'exists', pid()};
+-spec(add_queue/2 :: (Name :: string(), Recipe :: recipe()) -> {'ok', pid()} | {'exists', pid()};
 	(Name :: atom(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name, Recipe) when is_list(Recipe) ->
 	add_queue(Name, Recipe, ?DEFAULT_WEIGHT);
@@ -94,7 +94,7 @@ add_queue(Name, Weight) when is_integer(Weight), Weight > 0 ->
 	add_queue(Name, ?DEFAULT_RECIPE, Weight).
 
 %% @doc Add a queue named `Name' using the given `Recipe' and `Weight'.
--spec(add_queue/3 :: (Name :: atom(), Recipe :: recipe(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
+-spec(add_queue/3 :: (Name :: string(), Recipe :: recipe(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name, Recipe, Weight) ->
 	case gen_leader:call(?MODULE, {exists, Name}) of
 		true ->
@@ -139,7 +139,7 @@ queues() ->
 
 %% @doc Sort queues containing a bindable call.  The queues are sorted from most important to least by weight,
 %% priority of first bindable call, then the time the first bindable call has been in queue.
--spec(get_best_bindable_queues/0 :: () -> [{atom(), pid(), {{non_neg_integer(), any()}, #call{}}, pos_integer()}]).
+-spec(get_best_bindable_queues/0 :: () -> [{atom(), pid(), {{non_neg_integer(), any()}, #queued_call{}}, pos_integer()}]).
 get_best_bindable_queues() ->
 	List = gen_leader:leader_call(?MODULE, queues_as_list),
 	List1 = [{K, V, Call, W} || {K, V} <- List, Call <- [call_queue:ask(V)], Call =/= none, W <- [call_queue:get_weight(V) * call_queue:call_count(V)]],
@@ -414,12 +414,12 @@ single_node_test_() ->
 			},{
 				"Dead queue restarted",
 				fun() ->
-					{exists, QPid} = add_queue("default_queue"),
+					{exists, QPid} = add_queue(default_queue),
 					exit(QPid, kill),
 					receive
 					after 300 -> ok
 					end,
-					AddQueueRes = add_queue("default_queue"),
+					AddQueueRes = add_queue(default_queue),
 					?assertMatch({exists, NewPid}, AddQueueRes),
 					?assertNot(QPid =:= element(2, AddQueueRes))
 				end

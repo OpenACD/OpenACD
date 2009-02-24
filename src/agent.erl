@@ -351,7 +351,8 @@ wrapup(idle, _From, State= #agent{queuedrelease = undefined}) ->
 wrapup(idle, _From, State) -> 
 	gen_server:cast(State#agent.connection, {change_state, released, State#agent.queuedrelease}),
 	{reply, ok, released, State#agent{state=released, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()}};
-wrapup(_Event, _From, State) -> 
+wrapup(Event, From, State) -> 
+	?CONSOLE("Invalid event '~p' from ~p while in wrapup.", [Event, From]),
 	{reply, invalid, wrapup, State}.
 
 

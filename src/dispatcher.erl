@@ -165,7 +165,7 @@ code_change(_OldVsn, State, _Extra) ->
 get_agents(Pid) -> 
 	gen_server:call(Pid, get_agents).
 
--spec(loop_queues/1 :: (Queues :: [] | [{atom(), pid(), {{any()}, #queued_call{}}, non_neg_integer()}]) -> 'none' | {pid(), #queued_call{}}).
+-spec(loop_queues/1 :: (Queues :: [{atom(), pid(), {{any()}, #queued_call{}}, non_neg_integer()}]) -> {pid(), #queued_call{}} | 'none').
 loop_queues([]) -> 
 	none;
 loop_queues(Queues) -> 

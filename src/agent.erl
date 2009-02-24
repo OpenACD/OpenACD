@@ -176,7 +176,8 @@ idle({released, Reason}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
-idle(_Event, _From, State) ->
+idle(Event, From, State) ->
+	?CONSOLE("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
 	{reply, invalid, idle, State}.
 
 %% @doc The various state changes available when an agent is ringing. <ul>
@@ -341,16 +342,17 @@ warmtransfer(_Event, _From, State) ->
 %%</ul>
 wrapup({released, undefined}, _From, State) ->
 	{reply, ok, wrapup, State#agent{queuedrelease=undefined}};
-wrapup({released, Reason}, _From, State) -> 
+wrapup({released, Reason}, _From, State) ->
 	{reply, queued, wrapup, State#agent{queuedrelease=Reason}};
-wrapup(idle, _From, State= #agent{queuedrelease = undefined}) -> 
+wrapup(idle, _From, State= #agent{queuedrelease = undefined}) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
-wrapup(idle, _From, State) -> 
+wrapup(idle, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, State#agent.queuedrelease}),
 	{reply, ok, released, State#agent{state=released, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()}};
-wrapup(_Event, _From, State) -> 
+wrapup(Event, From, State) ->
+	?CONSOLE("Invalid event '~p' from ~p while in wrapup.", [Event, From]),
 	{reply, invalid, wrapup, State}.
 
 

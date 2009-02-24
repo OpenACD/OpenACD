@@ -111,20 +111,20 @@ init([Nodename, Domain]) ->
 		end
 	end),
 	T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
-	?CONSOLE("Attempted to start events:  ~p", [T]),
+	%?CONSOLE("Attempted to start events:  ~p", [T]),
     {ok, #state{nodename=Nodename, domain=Domain}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call({ring_agent, AgentPid, Call}, _From, State) ->
-	?CONSOLE("ring_agent to ~p for call ~p", [AgentPid, Call#call.id]),
-	AgentRec = agent:dump_state(AgentPid),
-	Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang("++atom_to_list(?MODULE)++":! "++atom_to_list(node())++")'",
-	X = freeswitch:api(State#state.nodename, originate, Args),
-	?CONSOLE("Bgapi call res:  ~p;  With args: ~p", [X, Args]),
-	{reply, agent:set_state(AgentPid, ringing, Call), State};
+%handle_call({ring_agent, AgentPid, Call}, _From, State) ->
+%	?CONSOLE("ring_agent to ~p for call ~p", [AgentPid, Call#queued_call.id]),
+%	AgentRec = agent:dump_state(AgentPid),
+%	Args = "{dstchan=" ++ Call#queued_call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang("++atom_to_list(?MODULE)++":! "++atom_to_list(node())++")'",
+%	X = freeswitch:api(State#state.nodename, originate, Args),
+%	?CONSOLE("Bgapi call res:  ~p;  With args: ~p", [X, Args]),
+%	{reply, agent:set_state(AgentPid, ringing, Call), State};
 handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) -> 
 	case dict:find(UUID, Dict) of
 		error -> 
@@ -133,7 +133,7 @@ handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) ->
 			{reply, Pid, State}
 	end;
 handle_call(Request, _From, State) ->
-	?CONSOLE("Sudden call:  ~p", [Request]),
+	?CONSOLE("Unexpected call:  ~p", [Request]),
 	Reply = ok,
 	{reply, Reply, State}.
 
@@ -150,7 +150,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info({new_pid, Ref, From}, #state{call_dict = Dict} = State) ->
-	{ok, Pid} = freeswitch_media:start(State#state.nodename),
+	{ok, Pid} = freeswitch_media:start_link(State#state.nodename, State#state.domain),
 	From ! {Ref, Pid},
 	Callrec = freeswitch_media:get_call(Pid),
 	NewDict = dict:store(Callrec#call.id, Pid, Dict),
@@ -168,7 +168,7 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	NewDict = dict:fold(F, dict:new(), Dict),
 	{noreply, State#state{call_dict = NewDict}};
 handle_info(Info, State) ->
-	?CONSOLE("Sudden info:  ~p", [Info]),
+	?CONSOLE("Unexpected info:  ~p", [Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -198,8 +198,8 @@ ring_agent(AgentPid, Call) ->
 % listens for info from the freeswitch c node.
 listener(Node) ->
 	receive
-		{event, _Event} ->
-			?CONSOLE("recieved event from c node.", []),
+		{event, Event} ->
+			%?CONSOLE("recieved event '~p' from c node.", [Event]),
 			%gen_server:cast(?MODULE, Event), 
 			listener(Node);
 		{nodedown, Node} -> 

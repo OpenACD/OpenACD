@@ -50,6 +50,7 @@
 	set_recipe/2,
 	set_weight/2,
 	get_weight/1,
+	add/4,
 	add/3,
 	add/2,
 	ask/1,
@@ -102,8 +103,15 @@ set_weight(Pid, Weight) ->
 get_weight(Pid) ->
 	gen_server:call(Pid, get_weight).
 
+%% @doc Add the call `Calldata' to the queue at `Pid' with priority of `Priority' using the #calll{} of `Callrec' instead of querying the media.
+-spec(add/4 :: (Pid :: pid(), Priority :: non_neg_integer(), Mediapid :: pid(), Callrec :: #call{}) -> ok).
+add(Pid, Priority, Mediapid, Callrec) when is_pid(Pid), is_pid(Mediapid), Priority >= 0, is_record(Callrec, call) ->
+	gen_server:call(Pid, {add, Priority, Mediapid, Callrec}).
+
 %% @doc Add the call `Calldata' to the queue at `Pid' with priority of `Priority'.
 -spec(add/3 :: (Pid :: pid(), Priority :: non_neg_integer(), Calldata :: pid()) -> ok).
+add(Pid, Mediapid, Callrec) when is_pid(Pid), is_pid(Mediapid), is_record(Callrec, call) ->
+	add(Pid, 1, Mediapid, Callrec);
 add(Pid, Priority, Mediapid) when is_pid(Pid), is_pid(Mediapid), Priority >= 0 ->
 	Callrec = gen_server:call(Mediapid, get_call),
 	gen_server:call(Pid, {add, Priority, Mediapid, Callrec}).
@@ -305,16 +313,22 @@ handle_call({set_recipe, Recipe}, _From, State) ->
 handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid) ->
 	% TODO ensure cook is started on same node callpid is on
 	?CONSOLE("adding call ~p request from ~p", [Callpid, From]),
-	{ok, Cookpid} = cook:start_link(Callpid, State#state.recipe, State#state.name),
-	Queuedrec = #queued_call{media=Callpid, id=Callrec#call.id, cook=Cookpid},
-	?CONSOLE("queuedrec: ~p", [Queuedrec]),
-	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
-	Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
-	Value = Queuedrec#queued_call{skills=Expandedskills},
-	Trees = gb_trees:insert({Priority, now()}, Value, State#state.queue),
-	{reply, ok, State#state{queue=Trees}};
-
-
+	case cook:start_link(Callpid, State#state.recipe, State#state.name) of
+		{ok, Cookpid} ->
+			Queuedrec = #queued_call{media=Callpid, id=Callrec#call.id, cook=Cookpid},
+			?CONSOLE("queuedrec: ~p", [Queuedrec]),
+			NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
+			Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
+			Value = Queuedrec#queued_call{skills=Expandedskills},
+			Trees = gb_trees:insert({Priority, now()}, Value, State#state.queue),
+			{reply, ok, State#state{queue=Trees}};
+		ignore ->
+			?CONSOLE("Cook ignored start", []),
+			{reply, {error, {cook_not_started}}, State};
+		{error, Error} ->
+			?CONSOLE("Cook failed to start:  ~p", [Error]),
+			{reply, {error, Error}, State}
+	end;
 handle_call({add_skills, Callid, Skills}, _From, State) ->
 	case find_key(Callid, State#state.queue) of
 		none ->
@@ -459,12 +473,21 @@ clean_pid(Deadpid, Recipe, [{Key, Call} | Calls], QName) ->
 	Cleanbound = lists:delete(Deadpid, Bound),
 	case Call#queued_call.cook of
 		Deadpid ->
-			{ok, Pid} = cook:start_link(Call#queued_call.media, Recipe, QName);
+			case cook:start_link(Call#queued_call.media, Recipe, QName) of
+				{ok, Pid} ->
+					Cleancall = Call#queued_call{dispatchers=Cleanbound, cook=Pid},
+					[{Key, Cleancall} | clean_pid(Deadpid, Recipe, Calls, QName)];
+				ignore ->
+					?CONSOLE("Cook restart was ignored",[]),
+					clean_pid(Deadpid, Recipe, Calls, QName);
+				{error, Error} ->
+					?CONSOLE("Cook restart failed:  ~p", [Error]),
+					clean_pid(Deadpid, Recipe, Calls, QName)
+			end;
 		_ ->
-			Pid = Call#queued_call.cook
-	end,
-	Cleancall = Call#queued_call{dispatchers=Cleanbound, cook=Pid},
-	[{Key, Cleancall} | clean_pid(Deadpid, Recipe, Calls, QName)];
+			%Pid = Call#queued_call.cook
+			[{Key, Call} | clean_pid(Deadpid, Recipe, Calls, QName)]
+	end;
 clean_pid(_Deadpid, _Recipe, [], _QName) ->
 	[].
 
@@ -1066,7 +1089,7 @@ multi_node_test_() ->
 					Queue = rpc:call(Slave, queue_manager, get_queue, [testqueue]),
 					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
-					{ok, Dummy} = dummy_media:start("testcall"),
+					{ok, Dummy} = rpc:call(node(Queue), dummy_media, start, ["testcall"]),
 					dummy_media:set_skills(Dummy, [english, testskill]),
 					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
 					{_Key, Callrec} = rpc:call(Master, call_queue, ask, [Queue]),

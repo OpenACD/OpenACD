@@ -131,7 +131,8 @@ get_leader() ->
 	
 %% gen_leader callbacks
 
-init([]) -> 
+init([]) ->
+	process_flag(trap_exit, true),
 	{ok, #state{}}.
 	
 elected(State, _Election) -> 
@@ -197,7 +198,7 @@ handle_call(stop, _From, State) ->
 handle_call({start_agent, #agent{login = ALogin} = Agent}, _From, #state{agents = Agents} = State) -> 
 	% This should not be called directly!  use the wrapper start_agent/1
 	?CONSOLE("Starting new agent ~p", [Agent]),
-	{ok, Apid} = agent:start(Agent),
+	{ok, Apid} = agent:start_link(Agent),
 	gen_leader:leader_cast(?MODULE, {notify, ALogin, Apid}),
 	Agents2 = dict:store(ALogin, Apid, Agents),
 	gen_server:cast(dispatch_manager, {end_avail, Apid}),
@@ -206,9 +207,13 @@ handle_call({start_agent, #agent{login = ALogin} = Agent}, _From, #state{agents 
 handle_cast(_Request, State) -> 
 	?CONSOLE("Stub handle_cast", []),
 	{noreply, State}.
-	
-handle_info(_Msg, State) ->
-	?CONSOLE("Stub handle_info", []),
+
+handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
+	?CONSOLE("Caught exit for ~p with reason ~p", [Pid, Reason]),
+	% TODO notify gen_leader of dead agent (if we're not the leader)
+	{noreply, State#state{agents=dict:filter(fun(_Key, Value) -> Value =/= Pid end, Agents)}};
+handle_info(Msg, State) ->
+	?CONSOLE("Stub handle_info for ~p", [Msg]),
 	{noreply, State}.
 
 terminate(_Reason, _State) -> 

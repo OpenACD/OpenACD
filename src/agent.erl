@@ -390,6 +390,7 @@ handle_info(_Info, StateName, State) ->
 % obviousness below.
 %% @private
 terminate(_Reason, _StateName, _State) ->
+	?CONSOLE("Agent terminating", []),
 	ok.
 
 %% @private

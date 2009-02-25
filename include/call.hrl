@@ -37,7 +37,7 @@
 		% client record
 		client :: #client{},
 		skills = [english] :: [atom(), ...],
-		cook :: pid(),
+		cook :: pid(), % TODO is this ever set?
 		ring_path = outband :: 'inband' | 'outband' | 'any',
 		media_path = outband :: 'inband' | 'outband'
 }).

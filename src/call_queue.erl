@@ -67,7 +67,7 @@
 	remove_skills/3,
 	call_count/1
 ]).
-% TODO magic skill '_queue' (name of the queue, so agents can be assigned to the queue)
+
 -record(state, {
 	queue = gb_trees:empty(),
 	name = erlang:error({undefined, name}) :: string(),
@@ -275,7 +275,7 @@ find_by_pid_(_Needle, none) ->
 expand_magic_skills(State, Call, Skills) ->
 	lists:filter(fun(X) -> X =/= [] end, lists:map(
 		fun('_node') when is_pid(Call#queued_call.media) -> node(Call#queued_call.media);
-			('_node') -> ?CONSOLE("Can't expand magic skill _node~n", []), [];
+			%('_node') -> ?CONSOLE("Can't expand magic skill _node~n", []), [];
 			('_queue') -> State#state.name;
 			%('_queue') when is_atom(State#state.name) -> State#state.name;
 			%('_queue') -> ?CONSOLE("Can't expand magic skill _queue~n", []), [];
@@ -312,10 +312,11 @@ handle_call(get_weight, _From, State) ->
 handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
 handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid) ->
-	% TODO ensure cook is started on same node callpid is on
+	% cook is started on the same node callpid is on
 	?CONSOLE("adding call ~p request from ~p", [Callpid, From]),
-	case cook:start_link(Callpid, State#state.recipe, State#state.name) of
+	case rpc:call(node(Callpid), gen_server, start_link, [cook, [Callpid, State#state.recipe, State#state.name], []]) of
 		{ok, Cookpid} ->
+			link(Cookpid),
 			Queuedrec = #queued_call{media=Callpid, id=Callrec#call.id, cook=Cookpid},
 			?CONSOLE("queuedrec: ~p", [Queuedrec]),
 			NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
@@ -326,6 +327,9 @@ handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid)
 		ignore ->
 			?CONSOLE("Cook ignored start", []),
 			{reply, {error, {cook_not_started}}, State};
+		{badrpc, nodedown} ->
+			?CONSOLE("Cook failed to start on downed node  ~p", [node(Callpid)]),
+			{reply, {error, nodedown}, State};
 		{error, Error} ->
 			?CONSOLE("Cook failed to start:  ~p", [Error]),
 			{reply, {error, Error}, State}
@@ -474,12 +478,16 @@ clean_pid(Deadpid, Recipe, [{Key, Call} | Calls], QName) ->
 	Cleanbound = lists:delete(Deadpid, Bound),
 	case Call#queued_call.cook of
 		Deadpid ->
-			case cook:start_link(Call#queued_call.media, Recipe, QName) of
+			case rpc:call(node(Call#queued_call.media), gen_server, start_link, [cook, [Call#queued_call.media, Recipe, QName], []]) of
 				{ok, Pid} ->
+					link(Pid),
 					Cleancall = Call#queued_call{dispatchers=Cleanbound, cook=Pid},
 					[{Key, Cleancall} | clean_pid(Deadpid, Recipe, Calls, QName)];
 				ignore ->
 					?CONSOLE("Cook restart was ignored",[]),
+					clean_pid(Deadpid, Recipe, Calls, QName);
+				{badrpc, nodedown} ->
+					?CONSOLE("Cook failed to restart on downed node  ~p", [node(Call#queued_call.media)]),
 					clean_pid(Deadpid, Recipe, Calls, QName);
 				{error, Error} ->
 					?CONSOLE("Cook restart failed:  ~p", [Error]),
@@ -1102,6 +1110,27 @@ multi_node_test_() ->
 					receive after 300 -> ok end,
 					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue]))
+				end
+			}, { "ensure cook is started on same node as call", fun() ->
+					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
+					{ok, Dummy} = rpc:call(Master, dummy_media, start, ["testcall"]),
+					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
+					receive after 300 -> ok end,
+					{_Key, Callrec} = rpc:call(Slave, call_queue, ask, [Queue]),
+					?assertEqual(Master, node(Callrec#queued_call.cook))
+				end
+			}, { "a respawned cook should be on the same node as its call", fun() ->
+					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
+					{ok, Dummy} = rpc:call(Master, dummy_media, start, ["testcall"]),
+					rpc:call(Slave, call_queue, add, [Queue, 1, Dummy]),
+					receive after 300 -> ok end,
+					{_Key, Callrec} = rpc:call(Slave, call_queue, ask, [Queue]),
+					?assertEqual(Master, node(Callrec#queued_call.cook)),
+					exit(Callrec#queued_call.cook, kill),
+					receive after 300 -> ok end,
+					{_Key, Callrec2} = rpc:call(Slave, call_queue, ask, [Queue]),
+					?assertEqual(Master, node(Callrec2#queued_call.cook)),
+					?assertNot(Callrec#queued_call.cook =:= Callrec2#queued_call.cook)
 				end
 			}
 		]

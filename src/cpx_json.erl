@@ -78,7 +78,7 @@ encode_trap(Data) ->
 -ifdef(EUNIT).
 
 call_record_id_test() -> 
-	Idtest = #call{id="Idtest", type=call, callerid="callerid", source=self(), client=#client{tenant=1, brand=2, label="tenantlabel"}},
+	Idtest = #call{id="Idtest", type=voice, callerid="callerid", source=self(), client=#client{tenant=1, brand=2, label="tenantlabel"}},
 	Idtestj = handler(Idtest),
 	{struct, [{id, T} | _Rest]} = Idtestj,
 	?assertMatch(<<"Idtest">>, T).

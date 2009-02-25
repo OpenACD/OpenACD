@@ -200,7 +200,7 @@ grab_best() ->
 	loop_queues(Queues).
 
 %% @doc tries to grab a new call ignoring the queue it's current call is bound to
--spec(regrab/1 :: (pid()) -> {pid(), #queued_call{}} | 'none').
+-spec(regrab/1 :: (pid()) -> #queued_call{} | 'none').
 regrab(Pid) -> 
 	?CONSOLE("dispatcher trying to regrab", []),
 	gen_server:call(Pid, regrab).

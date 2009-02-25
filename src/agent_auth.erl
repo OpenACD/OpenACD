@@ -353,7 +353,7 @@ local_auth_test_() ->
 					SaltedPassword = salt(erlang:md5("B"), Salt),
 					?assertMatch({allow, [testskill, '_agent', '_node']}, local_auth("A", SaltedPassword, Salt)),
 					destroy("A"),
-					?assertMatch(deny, local_auth("A", erlang:md5(integer_to_list(5) ++ erlang:md5("B")), 5))
+					?assertMatch(deny, local_auth("A", util:bin_to_hexstr(erlang:md5(integer_to_list(5) ++ erlang:md5("B"))), "5"))
 				end
 			},
 			{
@@ -374,7 +374,7 @@ local_auth_test_() ->
 					destroy("A"),
 					F = fun() -> 
 						Pass = erlang:md5("B"),
-						QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= "A", X#agent_auth.password =:= Pass]),
+						QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= "A", X#agent_auth.password =:= util:bin_to_hexstr(Pass)]),
 						qlc:e(QH)
 					end,
 					?assertMatch({atomic, []}, mnesia:transaction(F))

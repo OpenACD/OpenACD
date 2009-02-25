@@ -374,7 +374,7 @@ call_queue_test_() ->
 				fun() -> 
 					Queue = test_queue(),
 					set_all(Queue),
-					Recipe = [{3, new_queue, ["queue name"], run_once}],
+					Recipe = [{3, announce, "announcement", run_once}],
 					TestQueue = Queue#call_queue{recipe = Recipe},
 					set_recipe(Queue#call_queue.name, Recipe),
 					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),

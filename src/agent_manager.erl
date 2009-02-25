@@ -65,12 +65,12 @@
 %% API
 
 %% @doc Starts the gen_server linked to the calling process.
--spec(start_link/1 :: (Nodes :: [port()]) -> {'ok', pid()}).
+-spec(start_link/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start_link(Nodes) -> 
 	gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, [], []).
 
 %% @doc Starts the gen_server without linking to the callnig process.
--spec(start/1 :: (Nodes :: [port()]) -> {'ok', pid()}).
+-spec(start/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start(Nodes) -> 
 	gen_leader:start(?MODULE, Nodes, [], ?MODULE, [], []).
 	
@@ -80,7 +80,7 @@ stop() ->
 	gen_leader:call(?MODULE, stop).
 	
 %% @doc starts a new agent_fsm for `Agent'. Returns {'ok', pid()}, where pid is the new agent_fsm pid.
--spec(start_agent/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
+-spec(start_agent/1 :: (Agent :: #agent{}) -> {'ok', pid()} | {'exists', pid()}).
 start_agent(#agent{login = ALogin} = Agent) -> 
 	case query_agent(ALogin) of
 		false -> 
@@ -212,7 +212,7 @@ code_change(_OldVsn, State, _Election, _Extra) ->
 -ifdef('EUNIT').
 
 handle_call_start_test() ->
-	?assertMatch({ok, _Pid}, start([node()])),
+	?assertMatch({ok, Pid}, start([node()])),
 	stop().
 
 single_node_test_() -> 

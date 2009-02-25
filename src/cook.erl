@@ -572,7 +572,7 @@ queue_interaction_test_() ->
 			{"Annouce (media doesn't matter)",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{1, announce, ["random data"], run_once}]),
+				call_queue:set_recipe(Pid, [{1, announce, "random data", run_once}]),
 				Dummy1 = whereis(media_dummy),
 				call_queue:add(Pid, Dummy1),
 				receive
@@ -612,7 +612,7 @@ queue_interaction_test_() ->
 				?CONSOLE("The calls:  ~p", [call_queue:print(NewPid)]),
 				?assertEqual(1, call_queue:call_count(NewPid)),
 				call_queue:stop(NewPid),
-				call_queue_config:destroy(testqueue)
+				call_queue_config:destroy("testqueue")
 			end
 			},
 			{"Queue Manager dies",
@@ -822,7 +822,7 @@ agent_interaction_test_() ->
 
 
 	
--define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start("testcall"), {ok, Pid} = start(Dummy,[{1, set_priority, [5], run_once}], testqueue), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start("testcall"), {ok, Pid} = start(Dummy,[{1, set_priority, 5, run_once}], "testqueue"), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

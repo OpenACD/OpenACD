@@ -68,13 +68,13 @@
 %% API
 
 %% @doc start the queue_manager linked to the parent process.
--spec(start_link/1 :: (Nodes :: [atom(),...]) -> 'ok').
+-spec(start_link/1 :: (Nodes :: [atom(),...]) -> {'ok', pid()}).
 start_link(Nodes) ->
 	call_queue_config:build_tables(Nodes),
 	gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, [], []).
 
 %% @doc start the queue_manager unlinked to the parent process.
--spec(start/1 :: (Nodes :: [atom(),...]) -> 'ok').
+-spec(start/1 :: (Nodes :: [atom(),...]) -> {'ok', pid()}).
 start(Nodes) ->
 	call_queue_config:build_tables(Nodes),
 	gen_leader:start(?MODULE, Nodes, [], ?MODULE, [], []).

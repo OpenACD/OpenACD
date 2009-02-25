@@ -139,7 +139,7 @@ grab(Pid) when is_pid(Pid) ->
 	gen_server:call(Pid, grab).
 
 %% @doc Reverse of @link grab/1.  Releases the call `Callid' from any bound dispatchers at queue `Pid'.  Returns `ok'.
--spec(ungrab/2 :: (Pid :: pid(), Callid :: string()) -> 'ok').
+-spec(ungrab/2 :: (Pid :: pid(), Callid :: string() | pid()) -> 'ok').
 ungrab(Pid, Mediapid) when is_pid(Mediapid), is_pid(Pid) ->
 	#call{id = Cid} = gen_server:call(Mediapid, get_call),
 	gen_server:call(Pid, {ungrab, Cid});
@@ -1136,7 +1136,7 @@ multi_node_test_() ->
 		]
 	}.
 
--define(MYSERVERFUNC, fun() -> {ok, Pid} = start(testq, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Pid} = start("testq", ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

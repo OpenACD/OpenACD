@@ -272,12 +272,12 @@ find_by_pid_(_Needle, none) ->
 %% @private
 -spec(expand_magic_skills/3 :: (State :: #state{}, Call :: #queued_call{}, Skills :: [atom()]) -> [atom()]).
 expand_magic_skills(State, Call, Skills) ->
-	lists:flatten(lists:map(
+	lists:filter(fun(X) -> X =/= [] end, lists:map(
 		fun('_node') when is_pid(Call#queued_call.media) -> node(Call#queued_call.media);
 			('_node') -> ?CONSOLE("Can't expand magic skill _node~n", []), [];
-			('_queue') when is_list(State#state.name) -> list_to_atom(State#state.name);
-			('_queue') when is_atom(State#state.name) -> State#state.name;
-			('_queue') -> ?CONSOLE("Can't expand magic skill _queue~n", []), [];
+			('_queue') -> State#state.name;
+			%('_queue') when is_atom(State#state.name) -> State#state.name;
+			%('_queue') -> ?CONSOLE("Can't expand magic skill _queue~n", []), [];
 			(Skill) -> Skill
 		end, Skills)).
 
@@ -466,7 +466,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% @private
 %% Cleans up both dead dispatchers and dead cooks from the calls.
--spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [{key(), #queued_call{}}], QName :: atom()) -> [{key(), #queued_call{}}]).
+-spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [{key(), #queued_call{}}], QName :: string()) -> [{key(), #queued_call{}}]).
 clean_pid(Deadpid, Recipe, [{Key, Call} | Calls], QName) ->
 	?CONSOLE("Cleaning dead pids out...", []),
 	Bound = Call#queued_call.dispatchers,
@@ -511,7 +511,7 @@ call_in_out_grab_test_() ->
 		fun() ->
 			test_primer(),
 			queue_manager:start([node()]),
-			{ok, Pid} = queue_manager:add_queue(testqueue),
+			{ok, Pid} = queue_manager:add_queue("testqueue"),
 			{ok, Dummy} = dummy_media:start("testcall"),
 			dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
@@ -681,7 +681,7 @@ call_update_test_() ->
 		fun() ->
 			test_primer(),
 			queue_manager:start([node()]),
-			{ok, Pid} = queue_manager:add_queue(testqueue),
+			{ok, Pid} = queue_manager:add_queue("testqueue"),
 			{ok, Dummy} = dummy_media:start("testcall"),
 			dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
@@ -854,7 +854,7 @@ call_update_test_() ->
 					?assertEqual(ok, add_skills(Pid, "C1", ['_queue'])),
 					{_Key, Call2} = get_call(Pid, "C1"),
 					?debugFmt("Skills are ~p~n", [Call2#queued_call.skills]),
-					?assertEqual(true, lists:member(testqueue, Call2#queued_call.skills))
+					?assertEqual(true, lists:member("testqueue", Call2#queued_call.skills))
 				end
 			}, {
 				"Remove magic skills test", fun() ->
@@ -889,7 +889,7 @@ queue_update_and_info_test_() ->
 		fun() ->
 			test_primer(),
 			queue_manager:start([node()]),
-			{ok, Pid} = queue_manager:add_queue(testqueue),
+			{ok, Pid} = queue_manager:add_queue("testqueue"),
 			{ok, Dummy} = dummy_media:start("testcall"),
 			dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
@@ -979,7 +979,7 @@ queue_manager_and_cook_test_() ->
 			foreach,
 			fun() ->
 				queue_manager:start([node()]),
-				{ok, Pid} = queue_manager:add_queue(testqueue),
+				{ok, Pid} = queue_manager:add_queue("testqueue"),
 				{ok, Dummy} = dummy_media:start("testcall"),
 				dummy_media:set_skills(Dummy, [english, testskill]),
 				call_queue:add(Pid, 1, Dummy),
@@ -1012,7 +1012,7 @@ queue_manager_and_cook_test_() ->
 				{
 					"Slaughter the cook",
 					fun() ->
-						{exists, Pid} = queue_manager:add_queue(testqueue),
+						{exists, Pid} = queue_manager:add_queue("testqueue"),
 						Dummy1 = whereis(media_dummy),
 						{_Key1, Call1} = get_call(Pid, Dummy1),
 						?assertEqual(Call1#queued_call.media, Dummy1),
@@ -1064,7 +1064,7 @@ multi_node_test_() ->
 			{ok, _Pid} = rpc:call(Master, queue_manager, start, [[Master, Slave]]),
 			{ok, _Pid2} = rpc:call(Slave, queue_manager, start, [[Master, Slave]]),
 
-			{ok, Pid} = rpc:call(Slave, queue_manager, add_queue, [testqueue]),
+			{ok, Pid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue"]),
 			Pid
 		end,
 		fun(Pid) ->
@@ -1086,7 +1086,7 @@ multi_node_test_() ->
 		end,
 		[
 			{ "multi node grab test", fun() ->
-					Queue = rpc:call(Slave, queue_manager, get_queue, [testqueue]),
+					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
 					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
 					{ok, Dummy} = rpc:call(node(Queue), dummy_media, start, ["testcall"]),

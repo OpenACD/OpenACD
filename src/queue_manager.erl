@@ -82,20 +82,20 @@ start(Nodes) ->
 % TODO tie add_queue to the call_queue_config
 %% @doc Add a queue named `Name' using the default weight and recipe.
 -spec(add_queue/1 :: (Name :: string()) -> {'ok', pid()} | {'exists', pid()}).
-add_queue(Name) ->
+add_queue(Name) when is_list(Name) ->
 	add_queue(Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT).
 
 %% @doc Add a queue named `Name' using a givien `Recipe' or `Weight'.
 -spec(add_queue/2 :: (Name :: string(), Recipe :: recipe()) -> {'ok', pid()} | {'exists', pid()};
-	(Name :: atom(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
-add_queue(Name, Recipe) when is_list(Recipe) ->
+	(Name :: string(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
+add_queue(Name, Recipe) when is_list(Name), is_list(Recipe) ->
 	add_queue(Name, Recipe, ?DEFAULT_WEIGHT);
-add_queue(Name, Weight) when is_integer(Weight), Weight > 0 ->
+add_queue(Name, Weight) when is_list(Name), is_integer(Weight), Weight > 0 ->
 	add_queue(Name, ?DEFAULT_RECIPE, Weight).
 
 %% @doc Add a queue named `Name' using the given `Recipe' and `Weight'.
 -spec(add_queue/3 :: (Name :: string(), Recipe :: recipe(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
-add_queue(Name, Recipe, Weight) ->
+add_queue(Name, Recipe, Weight) when is_list(Name) ->
 	case gen_leader:call(?MODULE, {exists, Name}) of
 		true ->
 			?CONSOLE("Queue exists locally", []),
@@ -118,20 +118,12 @@ add_queue(Name, Recipe, Weight) ->
 	end.
 
 %% @doc Get the pid of the passed queue name.  If there is no queue, returns 'undefined'.
--spec(get_queue/1 :: (Name :: atom()) -> pid() | undefined).
-get_queue(Name) when is_list(Name) ->
-	try list_to_existing_atom(Name) of
-		Atom ->
-			get_queue(Atom)
-	catch
-		_:_ ->
-			undefined
-	end;
-get_queue(Name) when is_atom(Name) ->
+-spec(get_queue/1 :: (Name :: string()) -> pid() | undefined).
+get_queue(Name) ->
 	gen_leader:leader_call(?MODULE, {get_queue, Name}).
 
 %% @doc 'true' or 'false' if the passed queue name exists.
--spec(query_queue/1 :: (Name :: atom()) -> bool()).
+-spec(query_queue/1 :: (Name :: string()) -> bool()).
 query_queue(Name) ->
 	case gen_leader:call(?MODULE, {exists, Name}) of
 		true ->
@@ -140,14 +132,14 @@ query_queue(Name) ->
 			gen_leader:leader_call(?MODULE, {exists, Name})
 	end.
 
-%% @doc Spits out the queues as {[Qname :: atom(), Qpid :: pid()}].
--spec(queues/0 :: () -> [{atom(), pid()}]).
+%% @doc Spits out the queues as {[Qname :: string(), Qpid :: pid()}].
+-spec(queues/0 :: () -> [{string(), pid()}]).
 queues() ->
 	gen_leader:leader_call(?MODULE, queues_as_list).
 
 %% @doc Sort queues containing a bindable call.  The queues are sorted from most important to least by weight,
 %% priority of first bindable call, then the time the first bindable call has been in queue.
--spec(get_best_bindable_queues/0 :: () -> [{atom(), pid(), {{non_neg_integer(), any()}, #queued_call{}}, pos_integer()}]).
+-spec(get_best_bindable_queues/0 :: () -> [{string(), pid(), {{non_neg_integer(), any()}, #queued_call{}}, pos_integer()}]).
 get_best_bindable_queues() ->
 	List = gen_leader:leader_call(?MODULE, queues_as_list),
 	List1 = [{K, V, Call, W} || {K, V} <- List, Call <- [call_queue:ask(V)], Call =/= none, W <- [call_queue:get_weight(V) * call_queue:call_count(V)]],
@@ -179,7 +171,9 @@ init([]) ->
 	% load the queues in the db and start them.
 	Queues = call_queue_config:get_all(),
 	F = fun(Queuerec, Acc) ->
+		?debugFmt("mnesia queue: ~p~n", [Queuerec]),
 		{ok, Pid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
+		?debugFmt("started queue ~p at ~p~n", [Queuerec#call_queue.name, Pid]),
 		dict:store(Queuerec#call_queue.name, Pid, Acc)
 	end,
 	{ok, lists:foldr(F, dict:new(), Queues)}.
@@ -356,78 +350,78 @@ single_node_test_() ->
 		[
 			{
 				"Add and query test", fun() ->
-					?assertMatch({ok, _Pid2}, add_queue(goober)),
-					?assertMatch({exists, _Pid2}, add_queue(goober)),
-					?assertMatch(true, query_queue(goober)),
-					?assertMatch(false, query_queue(foobar))
+					?assertMatch({ok, _Pid2}, add_queue("goober")),
+					?assertMatch({exists, _Pid2}, add_queue("goober")),
+					?assertMatch(true, query_queue("goober")),
+					?assertMatch(false, query_queue("foobar"))
 				end
 			},{
 				"Get test", fun() ->
-					{ok, Pid} = add_queue(goober),
-					?assertMatch(Pid, get_queue(goober)),
-					?assertMatch(undefined, get_queue(no_exists))
+					{ok, Pid} = add_queue("goober"),
+					?assertMatch(Pid, get_queue("goober")),
+					?assertMatch(undefined, get_queue("no_exists"))
 				end
 			}, {
 				"best bindable queues by weight test", fun() ->
-					{ok, Pid} = add_queue(goober),
-					{ok, Pid2} = add_queue(goober2, 10), % higher weighted queue
-					{ok, _Pid3} = add_queue(goober3),
+					{ok, Pid} = add_queue("goober"),
+					{ok, Pid2} = add_queue("goober2", 10), % higher weighted queue
+					{ok, _Pid3} = add_queue("goober3"),
 					?assertMatch([], get_best_bindable_queues()),
 					{ok, Dummy1} = dummy_media:start("Call1"),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
-					?assertMatch([{goober, Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
+					?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
 					{ok, Dummy2} = dummy_media:start("Call2"),
 					?assertEqual(ok, call_queue:add(Pid2, 10, Dummy2)),
 					?assertMatch([
-							{goober2, Pid2, {{10,_},#queued_call{id="Call2"}}, 12},
-							{goober, Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
+							{"goober2", Pid2, {{10,_},#queued_call{id="Call2"}}, 12},
+							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
 						get_best_bindable_queues()),
 					{ok, Dummy3} = dummy_media:start("Call3"),
 					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy3)),
 					?assertMatch([
-							{goober2, Pid2, {{0,_},#queued_call{id="Call3"}}, 22},
-							{goober, Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
+							{"goober2", Pid2, {{0,_},#queued_call{id="Call3"}}, 22},
+							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
 						get_best_bindable_queues())
 				end
 			},{
 				"best bindable queues by priority test", fun() ->
-					{ok, Pid} = add_queue(goober),
-					{ok, Pid2} = add_queue(goober2),
+					{ok, Pid} = add_queue("goober"),
+					{ok, Pid2} = add_queue("goober2"),
 					?assertMatch([], get_best_bindable_queues()),
 					{ok, Dummy1} = dummy_media:start("Call1"),
 					?assertEqual(ok, call_queue:add(Pid, 10, Dummy1)),
-					?assertMatch([{goober, Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
+					?assertMatch([{"goober", Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
 					{ok, Dummy2} = dummy_media:start("Call2"),
 					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy2)), % higher priority
 					?assertMatch([
-							{goober2, Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT+2},
-							{goober, Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
+							{"goober2", Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT+2},
+							{"goober", Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
 						get_best_bindable_queues())
 				end
 			},{
 				"best bindable queues by queuetime test", fun() ->
-					{ok, Pid2} = add_queue(goober2),
-					{ok, Pid} = add_queue(goober),
+					{ok, Pid2} = add_queue("goober2"),
+					{ok, Pid} = add_queue("goober"),
 					?assertMatch([], get_best_bindable_queues()),
 					{ok, Dummy1} = dummy_media:start("Call1"),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
-					?assertMatch([{goober, Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
+					?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
 					{ok, Dummy2} = dummy_media:start("Call2"),
 					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy2)),
 					?assertMatch([
-							{goober, Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+2},
-							{goober2, Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT+1}],
+							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+2},
+							{"goober2", Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT+1}],
 						get_best_bindable_queues())
 				end
 			},{
 				"Dead queue restarted",
 				fun() ->
-					{exists, QPid} = add_queue(default_queue),
+					{exists, QPid} = add_queue("default_queue"),
 					exit(QPid, kill),
 					receive
 					after 300 -> ok
 					end,
-					AddQueueRes = add_queue(default_queue),
+					AddQueueRes = add_queue("default_queue"),
 					?assertMatch({exists, NewPid}, AddQueueRes),
 					?assertNot(QPid =:= element(2, AddQueueRes))
 				end
@@ -485,28 +479,28 @@ multi_node_test_() ->
 					rpc:call(Master, ?MODULE, stop, []),
 
 					%?assertMatch(undefined, global:whereis_name(?MODULE)),
-					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, [queue1])),
-					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, [queue1]))
+					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1"])),
+					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"]))
 				end
 
 			},{
 				"Slave Death", fun() ->
 					%rpc:call(Maste, erlang, disconnect_node, [Slave]),
 					%cover:stop([Master]),
-					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, [queue1])),
+					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1"])),
 					ok = rpc:call(Slave, ?MODULE, stop, []),
 
 					%?assertMatch(undefined, global:whereis_name(?MODULE)),
-					?assertMatch(false, rpc:call(Master, ?MODULE, query_queue, [queue1]))
+					?assertMatch(false, rpc:call(Master, ?MODULE, query_queue, ["queue1"]))
 				end
 
 			},{
 				"Net Split",fun() ->
-					rpc:call(Master, ?MODULE, add_queue, [queue1]),
-					rpc:call(Slave, ?MODULE, add_queue, [queue2]),
+					rpc:call(Master, ?MODULE, add_queue, ["queue1"]),
+					rpc:call(Slave, ?MODULE, add_queue, ["queue2"]),
 
-					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, [queue1])),
-					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue2])),
+					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"])),
+					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
 
 					%rpc:call(Master, erlang, disconnect_node, [Slave]),
 					rpc:call(Slave, erlang, disconnect_node, [Master]),
@@ -516,24 +510,24 @@ multi_node_test_() ->
 					?debugFmt("Master queues ~p~n", [rpc:call(Master, ?MODULE, queues, [])]),
 					?debugFmt("Slave queues ~p~n", [rpc:call(Slave, ?MODULE, queues, [])]),
 
-					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, [queue2])),
-					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, [queue1])),
+					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue2"])),
+					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"])),
 
 					%?assertMatch(Newmaster, Master),
-					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue1])),
-					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue2])),
-					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, [queue2])),
-					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, [queue1]))
+					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue1"])),
+					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
+					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2"])),
+					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue1"]))
 				end
 			},{
 				"Queues in sync", fun() ->
-					rpc:call(Master, ?MODULE, add_queue, [queue1]),
+					rpc:call(Master, ?MODULE, add_queue, ["queue1"]),
 
-					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue1])),
-					?assertMatch({exists, _Pid}, rpc:call(Slave, ?MODULE, add_queue, [queue1])),
-					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, [queue2])),
-					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, [queue2])),
-					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, [queue2])),
+					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue1"])),
+					?assertMatch({exists, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1"])),
+					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue2"])),
+					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
+					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2"])),
 
 					?assertMatch(ok, rpc:call(Master, ?MODULE, stop, [])),
 					?assertMatch(ok, rpc:call(Slave, ?MODULE, stop, []))
@@ -541,15 +535,15 @@ multi_node_test_() ->
 			},{
 				"No proc", fun() ->
 					slave:stop(Master),
-					?assertMatch(false, rpc:call(Slave, ?MODULE, query_queue, [queue1]))
+					?assertMatch(false, rpc:call(Slave, ?MODULE, query_queue, ["queue1"]))
 				end
 			},{
 				"Best bindable queues with failed master", fun() ->
-					{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, [queue2]),
+					{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2"]),
 					{ok, Dummy1} = rpc:call(Slave, dummy_media, start, ["Call1"]),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
 					slave:stop(Master),
-					?assertMatch([{queue2, Pid, {_, #queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], rpc:call(Slave, ?MODULE, get_best_bindable_queues, []))
+					?assertMatch([{"queue2", Pid, {_, #queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], rpc:call(Slave, ?MODULE, get_best_bindable_queues, []))
 				end
 			}
 		]

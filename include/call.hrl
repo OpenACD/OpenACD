@@ -45,7 +45,7 @@
 -record(queued_call, {
 	media = erlang:error({undefined, media}) :: pid(),
 	id = erlang:error({undefined, id}) :: string(),
-	skills = [] :: [atom()],
+	skills = [] :: [atom() | string()],
 	dispatchers = [] :: [pid()],
 	cook :: pid()
 	}).

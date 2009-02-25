@@ -56,7 +56,7 @@
 		recipe = [] :: recipe(),
 		ticked = 0 :: integer(), % number of ticks we've done
 		call :: pid() | 'undefined',
-		queue :: atom() | 'undefined',
+		queue :: string() | 'undefined',
 		continue = true :: bool(),
 		ringingto :: pid(),
 		ringcount = 0 :: non_neg_integer(),
@@ -68,12 +68,12 @@
 %%====================================================================
 
 %% @doc Starts a cook linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
--spec(start_link/3 :: (Call :: pid(), Recipe :: recipe(), Queue :: atom()) -> {'ok', pid()}).
+-spec(start_link/3 :: (Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Call, Recipe, Queue) when is_pid(Call) ->
     gen_server:start_link(?MODULE, [Call, Recipe, Queue], []).
 
 %% @doc Starts a cook not linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
--spec(start/3 :: (Call :: pid(), Recipe :: recipe(), Queue :: atom()) -> {'ok', pid()}).
+-spec(start/3 :: (Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Call, Recipe, Queue) when is_pid(Call) ->
 	gen_server:start(?MODULE, [Call, Recipe, Queue], []).
 
@@ -244,7 +244,7 @@ stop(Pid) ->
 	gen_server:call(Pid, stop).
 
 %% @private
--spec(do_route/4 :: (Ringcount :: non_neg_integer(), Queue :: atom(), 'undefined' | pid(), pid()) -> 'nocall' | {'ringing', pid(), non_neg_integer()} | 'rangout').
+-spec(do_route/4 :: (Ringcount :: non_neg_integer(), Queue :: string(), 'undefined' | pid(), pid()) -> 'nocall' | {'ringing', pid(), non_neg_integer()} | 'rangout').
 do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid), Ringcount =< ?RINGOUT, is_pid(Callpid) ->
 	?CONSOLE("still ringing: ~p of ~p times", [Ringcount, ?RINGOUT]),
 	{ringing, Agentpid, Ringcount + 1};
@@ -322,7 +322,7 @@ offer_call([{_ACost, Apid} | Tail], Call) ->
 	end.
 
 %% @private
--spec(do_recipe/4 :: (Recipe :: recipe(), Ticked :: non_neg_integer(), Queuename :: atom(), Call :: pid()) -> recipe()).
+-spec(do_recipe/4 :: (Recipe :: recipe(), Ticked :: non_neg_integer(), Queuename :: string(), Call :: pid()) -> recipe()).
 do_recipe([], _Ticked, _Queuename, _Call) ->
 	[];
 do_recipe([{Ticks, Op, Args, Runs} | Recipe], Ticked, Queuename, Call) when (Ticked rem Ticks) == 0, is_list(Queuename), is_pid(Call) ->
@@ -345,7 +345,7 @@ do_recipe([Head | Recipe], Ticked, Queuename, Call) when is_list(Queuename), is_
 	[Head | do_recipe(Recipe, Ticked, Queuename, Call)].
 
 %% @private
--spec(do_operation/3 :: (Recipe :: recipe_step(), Queuename :: atom(), Callid :: pid()) -> 'ok' | recipe_step()).
+-spec(do_operation/3 :: (Recipe :: recipe_step(), Queuename :: string(), Callid :: pid()) -> 'ok' | recipe_step()).
 do_operation({_Ticks, Op, Args, _Runs}, Queuename, Callid) when is_list(Queuename), is_pid(Callid) ->
 	?CONSOLE("do_opertion ~p", [Op]),
 	Pid = queue_manager:get_queue(Queuename), %TODO look up the pid only once, maybe?

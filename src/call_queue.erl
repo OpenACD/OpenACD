@@ -70,7 +70,7 @@
 % TODO magic skill '_queue' (name of the queue, so agents can be assigned to the queue)
 -record(state, {
 	queue = gb_trees:empty(),
-	name :: string(),
+	name = erlang:error({undefined, name}) :: string(),
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	weight = ?DEFAULT_WEIGHT :: pos_integer(),
 	call_skills = [english, '_node'] :: [atom()]}).

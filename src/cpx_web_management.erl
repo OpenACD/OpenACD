@@ -65,7 +65,7 @@ loop(Req, _Method, "/") ->
 loop(Req, _Method, "/queues") ->
 	Queues = queue_manager:queues(),
 	io:format("Queues:  ~p~n", [Queues]),
-	Jqs = [{name, list_to_binary(atom_to_list(Qname))} || {Qname, _Pid} <- Queues],
+	Jqs = [{name, list_to_binary(Qname)} || {Qname, _Pid} <- Queues],
 	io:format("Jqs:  ~p~n", [Jqs]),
 	Struct = {struct, Jqs},
 	io:format("Struct:  ~p~n", [Struct]),

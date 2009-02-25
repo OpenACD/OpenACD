@@ -171,9 +171,7 @@ init([]) ->
 	% load the queues in the db and start them.
 	Queues = call_queue_config:get_all(),
 	F = fun(Queuerec, Acc) ->
-		?debugFmt("mnesia queue: ~p~n", [Queuerec]),
 		{ok, Pid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
-		?debugFmt("started queue ~p at ~p~n", [Queuerec#call_queue.name, Pid]),
 		dict:store(Queuerec#call_queue.name, Pid, Acc)
 	end,
 	{ok, lists:foldr(F, dict:new(), Queues)}.

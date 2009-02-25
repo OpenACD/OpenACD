@@ -182,6 +182,9 @@ handle_leader_cast({notify, Agent, Apid}, #state{agents = Agents} = State, _Elec
 		_Else -> 
 			{noreply, State}
 	end;
+handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Election) ->
+	?CONSOLE("leader notified of ~p exiting", [Agent]),
+	{noreply, State#state{agents = dict:erase(Agent, Agents)}};
 handle_leader_cast(dump_election, State, Election) -> 
 	?CONSOLE("Dumping leader election.~nSelf:  ~p~nDump:  ~p", [self(), Election]),
 	{noreply, State}.
@@ -210,8 +213,16 @@ handle_cast(_Request, State) ->
 
 handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
 	?CONSOLE("Caught exit for ~p with reason ~p", [Pid, Reason]),
-	% TODO notify gen_leader of dead agent (if we're not the leader)
-	{noreply, State#state{agents=dict:filter(fun(_Key, Value) -> Value =/= Pid end, Agents)}};
+	F = fun(Key, Value) ->
+		case Value =/= Pid of
+			true -> true;
+			false ->
+				?CONSOLE("notifying leader of ~p exit", [Key]),
+				gen_leader:leader_cast(?MODULE, {notify_down, Key}),
+				false
+		end
+	end,
+	{noreply, State#state{agents=dict:filter(F, Agents)}};
 handle_info(Msg, State) ->
 	?CONSOLE("Stub handle_info for ~p", [Msg]),
 	{noreply, State}.
@@ -410,6 +421,17 @@ multi_node_test_() ->
 					?assertEqual(false, rpc:call(Master, ?MODULE, query_agent, [Agent])),
 					?assertMatch({true, _Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent2])),
 					?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent]))
+				end
+			}, {
+				"Master is notified of agent removal on slave",
+				fun() ->
+					{ok, Pid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
+					?assertMatch({true, Pid}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
+					?assertMatch({true, Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent])),
+					exit(Pid, kill),
+					timer:sleep(300),
+					?assertMatch(false, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
+					?assertMatch(false, rpc:call(Master, ?MODULE, query_agent, [Agent]))
 				end
 			}
 		]

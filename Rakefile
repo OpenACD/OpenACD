@@ -35,7 +35,7 @@ CLEAN.include("coverage/*.txt.failed")
 CLEAN.include("coverage/*.html")
 CLEAN.include("doc/*.html")
 
-verbose(true)
+verbose(true) unless ENV['quiet']
 
 directory 'ebin'
 directory 'debug_ebin'

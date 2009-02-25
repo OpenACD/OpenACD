@@ -254,7 +254,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan} =
 									{noreply, State};
 								Qpid ->
 									?CONSOLE("Trying to add to queue...", []),
-									R = call_queue:add(Qpid, 1, self(), NewCall),
+									R = call_queue:add(Qpid, self(), NewCall),
 									?CONSOLE("q response:  ~p", [R]),
 									%freeswitch_media_manager:queued_call(UUID, Qpid),
 									{noreply, State#state{queue_pid=Qpid, queue=Queue, callrec=NewCall}}

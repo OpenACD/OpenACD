@@ -51,7 +51,8 @@
 	start_link/2, 
 	start/2, 
 	ring_agent/2,
-	get_handler/1]).
+	get_handler/1,
+	notify/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -89,6 +90,8 @@ start_link(Nodename, Domain) ->
 get_handler(UUID) -> 
 	gen_server:call(?MODULE, {get_handler, UUID}).
 	
+notify(UUID, Pid) ->
+	gen_server:cast(?MODULE, {notify, UUID, Pid}).
 	
 %%====================================================================
 %% gen_server callbacks
@@ -110,7 +113,7 @@ init([Nodename, Domain]) ->
 			Self ! {register_event_handler, timeout}
 		end
 	end),
-	T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
+	%T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
 	%?CONSOLE("Attempted to start events:  ~p", [T]),
     {ok, #state{nodename=Nodename, domain=Domain}}.
 
@@ -141,6 +144,9 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
+handle_cast({notify, Callid, Pid}, #state{call_dict = Dict} = State) ->
+	NewDict = dict:store(Callid, Pid, Dict),
+	{noreply, State#state{call_dict = NewDict}};
 handle_cast(_Msg, State) ->
 	%?CONSOLE("Cast:  ~p", [Msg]),
 	{noreply, State}.
@@ -152,9 +158,11 @@ handle_cast(_Msg, State) ->
 handle_info({new_pid, Ref, From}, #state{call_dict = Dict} = State) ->
 	{ok, Pid} = freeswitch_media:start_link(State#state.nodename, State#state.domain),
 	From ! {Ref, Pid},
-	Callrec = freeswitch_media:get_call(Pid),
-	NewDict = dict:store(Callrec#call.id, Pid, Dict),
-	{noreply, State#state{call_dict = NewDict}};
+	% even the media won't know the proper data for the call until later.
+	%Callrec = freeswitch_media:get_call(Pid),
+	%?CONSOLE("Callrec:  ~p", [Callrec]),
+	%NewDict = dict:store(Callrec#call.id, Pid, Dict),
+	{noreply, State};
 handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) -> 
 	?CONSOLE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
 	F = fun(Key, Value, Acc) -> 
@@ -198,8 +206,8 @@ ring_agent(AgentPid, Call) ->
 % listens for info from the freeswitch c node.
 listener(Node) ->
 	receive
-		{event, Event} ->
-			%?CONSOLE("recieved event '~p' from c node.", [Event]),
+		{event, [UUID | Event]} ->
+			?CONSOLE("recieved event '~p' from c node.", [UUID]),
 			%gen_server:cast(?MODULE, Event), 
 			listener(Node);
 		{nodedown, Node} -> 

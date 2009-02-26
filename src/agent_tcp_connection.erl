@@ -70,9 +70,7 @@ start_link(Socket) ->
 negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).
 
-% TODO seed w/ something so it's actually random
 init([Socket]) ->
-	random:seed(), % seed the random number generator with some process info
 	{ok, #state{socket=Socket}}.
 
 handle_call(Request, _From, State) ->
@@ -167,7 +165,7 @@ code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
 handle_event(["GETSALT", Counter], State) when is_integer(Counter) ->
-	State2 = State#state{salt=random:uniform(4294967295)}, %bounds of number
+	State2 = State#state{salt=crypto:rand_uniform(0, 4294967295)}, %bounds of number
 	{ack(Counter, integer_to_list(State2#state.salt)), State2};
 
 handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), is_atom(State#state.salt) ->

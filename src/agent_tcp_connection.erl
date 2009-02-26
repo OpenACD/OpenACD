@@ -50,12 +50,18 @@
 -include("call.hrl").
 -include("agent.hrl").
 
+% {Counter, Event, Data, now()}
+-type(unacked_event() :: {pos_integer(), string(), string(), {pos_integer(), pos_integer(), pos_integer()}}).
+
 -record(state, {
-	salt,
-	socket,
-	agent_fsm,
-	send_queue = [],
-	counter = 1
+		salt :: pos_integer(),
+		socket :: port(),
+		agent_fsm :: pid(),
+		send_queue = [] :: [string()],
+		counter = 1 :: pos_integer(),
+		unacked = [] :: [unacked_event()],
+		resent = [] :: [unacked_event()],
+		resend_counter = 0 :: non_neg_integer()
 	}).
 
 %% @doc start the conection unlinked on the given Socket.  This is usually done by agent_tcp_listener
@@ -71,6 +77,7 @@ negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).
 
 init([Socket]) ->
+	timer:send_interval(10000, do_tick),
 	{ok, #state{socket=Socket}}.
 
 handle_call(Request, _From, State) ->
@@ -109,7 +116,7 @@ handle_cast(negotiate, State) ->
 
 % TODO brandid is hard coded, not good (it's the 00310003)
 handle_cast({change_state, ringing, #call{} = Call}, State) ->
-	?CONSOLE("change_state to ringint with call ~p", [Call]),
+	?CONSOLE("change_state to ringing with call ~p", [Call]),
 	Counter = State#state.counter,
 	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n"),
 	gen_tcp:send(State#state.socket, "CALLINFO " ++ integer_to_list(Counter+1) ++ " 00310003 " ++ atom_to_list(Call#call.type) ++ " " ++ Call#call.callerid  ++ "\r\n"),
@@ -147,6 +154,25 @@ handle_info({tcp_closed, _Socket}, State) ->
 	io:format("Client disconnected~n", []),
 	gen_fsm:send_all_state_event(State#state.agent_fsm, stop),
 	{stop, normal, State};
+
+handle_info(do_tick, #state{resend_counter = Resends} = State) when Resends > 2 ->
+	?CONSOLE("Resend threshold exceeded, disconnecting: ~p", [Resends]),
+	gen_fsm:send_all_state_event(State#state.agent_fsm, stop),
+	{stop, normal, State};
+handle_info(do_tick, State) ->
+	ExpiredEvents = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) >= 60000000 end, State#state.resent),
+	ResendEvents = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) >= 10000000 end, State#state.unacked),
+	lists:foreach(fun({Counter, Event, Data, _Time}) ->
+		?CONSOLE("Expired event ~s ~p ~s", [Event, Counter, Data])
+	end, ExpiredEvents),
+	State2 = State#state{unacked = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) < 10000000 end, State#state.unacked)},
+	State3 = State2#state{resent = lists:append(lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) < 60000000 end, State#state.resent), ResendEvents)},
+	case length(ResendEvents) of
+		0 ->
+			{noreply, State3};
+		_Else ->
+			{noreply, resend_events(ResendEvents, State3)}
+	end;
 
 handle_info(_Info, State) ->
 	{noreply, State}.
@@ -262,25 +288,28 @@ handle_event(["ENDWRAPUP", Counter], State) when is_integer(Counter) ->
 	case agent:set_state(State#state.agent_fsm, idle) of
 		ok -> 
 			{ok, Curstate} = agent:query_state(State#state.agent_fsm),
-			send("ASTATE", integer_to_list(agent:state_to_integer(Curstate)), State),
-			{ack(Counter), State#state{counter = State#state.counter + 1}};
+			State2 = send("ASTATE", integer_to_list(agent:state_to_integer(Curstate)), State),
+			{ack(Counter), State2};
 		invalid -> 
 			{err(Counter, "invalid state"), State}
 	end;
 
-% TODO track unacked events
+handle_event(["UNACKTEST", Counter], State) when is_integer(Counter) ->
+	State2 = send("NOACK", "", State),
+	{ack(Counter), State2};
+
 handle_event(["ACK" | [Counter | _Args]], State) when is_integer(Counter) ->
-	State;
+	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
 
 handle_event(["ACK", Counter], State) when is_integer(Counter) ->
-	State;
+	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
 
 % beware for here be errors 
 handle_event(["ERR" | [Counter | _Args]], State) when is_integer(Counter) ->
-	State;
+	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
 
 handle_event(["ERR", Counter], State) when is_integer(Counter) ->
-	State;
+	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
 
 handle_event([Event, Counter], State) when is_integer(Counter) ->
 	{err(Counter, "Unknown event " ++ Event), State};
@@ -322,8 +351,11 @@ err(Counter, Error) ->
 -spec(send/3 :: (Event :: string(), Message :: string(), State :: #state{}) -> #state{}).
 send(Event, Message, State) ->
 	Counter = State#state.counter,
-	State#state{counter=Counter + 1, send_queue=[Event++" "++integer_to_list(Counter)++" "++Message | State#state.send_queue]}.
+	SendQueue = [Event++" "++integer_to_list(Counter)++" "++Message | State#state.send_queue],
+	UnackedEvents = [{Counter, Event, Message, now()} | State#state.unacked],
+	State#state{counter=Counter + 1, send_queue=SendQueue, unacked=UnackedEvents}.
 
+-spec(flush_send_queue/2 :: (Queue :: [string()], Socket :: port()) -> []).
 flush_send_queue([], _Socket) ->
 	[];
 flush_send_queue([H|T], Socket) ->
@@ -331,7 +363,12 @@ flush_send_queue([H|T], Socket) ->
 	gen_tcp:send(Socket, H ++ "\r\n"),
 	flush_send_queue(T, Socket).
 
-
+-spec(resend_events/2 :: (Events :: [unacked_event()], State :: #state{}) -> #state{}).
+resend_events([], State) ->
+	State#state{resend_counter = State#state.resend_counter + 1};
+resend_events([{Counter, Event, Data, _Time}|T], State) ->
+	?CONSOLE("Resending event ~s ~p ~s", [Event, Counter, Data]),
+	resend_events(T, send(Event, Data, State)).
 
 -ifdef(EUNIT).
 

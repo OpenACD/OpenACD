@@ -43,7 +43,7 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--define(TICK_LENGTH, 500).
+-define(TICK_LENGTH, 1000).
 -else.
 -define(TICK_LENGTH, 10000).
 -endif.
@@ -138,6 +138,8 @@ handle_cast(stop_tick, State) ->
 	timer:cancel(State#state.tref),
 	{noreply, State#state{tref=undefined}};
 handle_cast({stop_ringing, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
+	?CONSOLE("Ordered to stop ringing ~p", [AgentPid]),
+	agent:set_state(AgentPid, idle),
 	%% TODO - actually tell the backend to stop ringing if it's an outband ring
 	{noreply, State#state{ringingto=undefined}};
 handle_cast(remove_from_queue, State) ->
@@ -251,13 +253,13 @@ stop(Pid) ->
 
 %% @private
 -spec(do_route/4 :: (Ringcount :: non_neg_integer(), Queue :: string(), 'undefined' | pid(), pid()) -> 'nocall' | {'ringing', pid(), non_neg_integer()} | 'rangout').
-do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid), Ringcount =< ?RINGOUT, is_pid(Callpid) ->
-	?CONSOLE("still ringing: ~p of ~p times", [Ringcount, ?RINGOUT]),
+do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid) ->
+	?CONSOLE("still ringing: ~p times", [Ringcount]),
 	{ringing, Agentpid, Ringcount + 1};
-do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid), Ringcount > ?RINGOUT, is_pid(Callpid) ->
-	?CONSOLE("rang out",[]),
-	agent:set_state(Agentpid, idle),
-	rangout;
+%do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid), Ringcount > ?RINGOUT, is_pid(Callpid) ->
+%	?CONSOLE("rang out",[]),
+	%agent:set_state(Agentpid, idle),
+%	rangout;
 do_route(_Ringcount, Queue, undefined, Callpid) when is_pid(Callpid), is_list(Queue) ->
 	?CONSOLE("Searching for agent to ring to...",[]),
 	Qpid = queue_manager:get_queue(Queue),

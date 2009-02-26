@@ -71,6 +71,7 @@
 
 -record(state, {
 	callrec = undefined,
+	cook,
 	queue,
 	queue_pid,
 	cnode,
@@ -124,7 +125,7 @@ init([Cnode, Domain]) ->
 %% @private
 % TODO If this module's state has the call, why does this need the call passed in?  (part of the spec for a generic media_manager, change spec?)
 handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call} = State) ->
-	?CONSOLE("ring_agent to ~p for call ~p", [AgentPid, QCall#queued_call.id]),
+	?CONSOLE("ring_agent to ~p for call ~p with cook ~p", [AgentPid, QCall#queued_call.id, QCall#queued_call.cook]),
 	AgentRec = agent:dump_state(AgentPid),
 	Ringout = Timeout div 1000,
 	case agent:set_state(AgentPid, ringing, Call) of
@@ -133,16 +134,16 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 			case freeswitch:bgapi(State#state.cnode, originate, Args) of
 			%	{ok, _Msg} ->
 				ok ->
-					{reply, ok, State#state{agent_pid = AgentPid}};
+					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
 				{error, Msg} ->
 					?CONSOLE("Failed to ring agent ~p with error ~p", [AgentRec#agent.login, Msg]),
 					X = agent:set_state(AgentPid, released, "reason"),
 					?CONSOLE("------- ~p", [X]),
-					{reply, invalid, State};
+					{reply, invalid, State#state{cook = QCall#queued_call.cook}};
 				timeout ->
 					?CONSOLE("timed out waiting for bgapi response", []),
 					agent:set_state(AgentPid, released, "failure!"),
-					{reply, invalid, State}
+					{reply, invalid, State#state{cook = QCall#queued_call.cook}}
 			end;
 			%	Else ->
 			%		?CONSOLE("Freeswitch api response: ~p",[Else]),
@@ -150,7 +151,7 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 			%end;
 		Else ->
 			?CONSOLE("Agent ringing response:  ~p", [Else]),
-			{reply, invalid, State}
+			{reply, invalid, State#state{cook = QCall#queued_call.cook}}
 	end;
 	%Reply = freeswitch_media_manager:ring_agent(AgentPid, Call),
 	%{reply, Reply, State};
@@ -227,6 +228,18 @@ handle_info({set_agent, Login, Apid}, State) ->
 handle_info({bgok, Reply}, State) ->
 	?CONSOLE("bgok:  ~p", [Reply]),
 	{noreply, State};
+handle_info({bgerror, "-ERR NO_ANSWER\n"}, State) ->
+	?CONSOLE("Potential ringout.  Statecook:  ~p", [State#state.cook]),
+	case State#state.agent_pid of
+		Apid when is_pid(Apid) ->
+			%agent:set_state(Apid, idle),
+			gen_server:cast(State#state.cook, {stop_ringing, Apid}),
+			?CONSOLE("potential should be fulfilled", []),
+			{noreply, State#state{agent = undefined, agent_pid = undefined}};
+		_Else ->
+			?CONSOLE("disregarding potential ringout, not ringing to an agent", []),
+			{noreply, State}
+	end;
 handle_info({bgerror, Reply}, State) ->
 	?CONSOLE("bgerror: ~p", [Reply]),
 	{noreply, State};

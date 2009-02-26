@@ -189,8 +189,9 @@ handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter) ->
 				ok ->
 					State2 = State#state{agent_fsm=Pid},
 					io:format("User ~p has authenticated using ~p.~n", [Username, Password]),
-					% TODO 1 1 1 should be updated to correct info (something, something security level, not in that order maybe.  RESEARCH!).
-					{ack(Counter, "1 1 1"), State2};
+					{MegaSecs, Secs, _MicroSecs} = now(),
+					% TODO 1 1 1 should be updated to correct info (security level, profile id, current timestamp).
+					{ack(Counter, io_lib:format("1 1 ~p~p", [MegaSecs, Secs])), State2};
 				error ->
 					{err(Counter, Username ++ " is already logged in"), State}
 			end
@@ -259,7 +260,9 @@ handle_event(["PROFILES", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, "1:Level1 2:Level2 3:Level3 4:Supervisor"), State};
 
 handle_event(["QUEUENAMES", Counter], State) when is_integer(Counter) ->
-	{ack(Counter, "(L1-0031003|Slic.com),(L1-00420001|WTF)"), State};
+	% queues only have one name right now...
+	Queues = string:join(lists:map(fun({Name, _Pid}) -> io_lib:format("~s|~s", [Name, Name]) end,queue_manager:queues()), "),("),
+	{ack(Counter, io_lib:format("(~s)", [Queues])), State};
 
 handle_event(["RELEASEOPTIONS", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, "1:bathroom:0,2:smoke:-1"), State};

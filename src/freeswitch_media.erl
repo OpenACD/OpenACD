@@ -128,9 +128,15 @@ handle_call({ring_agent, AgentPid, QCall}, _From, #state{callrec = Call} = State
 	case agent:set_state(AgentPid, ringing, Call) of
 		ok ->
 			Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++",queue=" ++ State#state.queue ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang(freeswitch_media_manager:! "++atom_to_list(node())++")'",
-			X = freeswitch:bgapi(State#state.cnode, originate, Args),
-			?CONSOLE("Bgapi call res:  ~p;  With args: ~p", [X, Args]),
-			{reply, ok, State#state{agent_pid = AgentPid}};
+			case freeswitch:api(State#state.cnode, originate, Args) of
+				{ok, _Msg} ->
+					{reply, ok, State#state{agent_pid = AgentPid}};
+				{error, Msg} ->
+					?CONSOLE("Failed to ring agent ~p with error ~p", [AgentRec#agent.login, Msg]),
+					X = agent:set_state(AgentPid, released, "reason"),
+					?CONSOLE("------- ~p", [X]),
+					{reply, invalid, State}
+			end;
 		Else ->
 			?CONSOLE("Agent ringing response:  ~p", [Else]),
 			{reply, invalid, State}
@@ -317,7 +323,8 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan} =
 			case Ename of
 				"CHANNEL_PARK" ->
 					Args = UUID ++ " " ++ Dstchan,
-					freeswitch:bgapi(State#state.cnode, uuid_bridge, Args),
+					Res = freeswitch:api(State#state.cnode, uuid_bridge, Args),
+					?CONSOLE("Result of bridge: ~p", [Res]),
 					Otherpid = freeswitch_media_manager:get_handler(Dstchan),
 					gen_server:cast(Otherpid, unqueue),
 					gen_server:cast(Otherpid, agent_oncall);
@@ -332,7 +339,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan} =
 				%	end,
 				%	APid = agent_manager:query_agent(freeswitch:get_event_header(Rawcall, "variable_queue")),
 					
-				Else ->
+				_Else ->
 					{noreply, State}
 			end
 	end.

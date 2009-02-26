@@ -129,25 +129,18 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 	
 handle_info({tcp, Socket, Packet}, State) ->
-	% Flow control: enable forwarding of next TCP message
-	case parse_event(Packet) of
-		[] ->
-			% TODO this may have been solved by setting the socket in line mode.
-			% for some reason, erlang is sometimes getting the /n after the rest of the event
-			% so lets ignore those until we find out why
+	Ev = parse_event(Packet),
+	case handle_event(Ev, State) of
+		{Reply, State2} ->
+			ok = gen_tcp:send(Socket, Reply ++ "\r\n"),
+			State3 = State2#state{send_queue = flush_send_queue(lists:reverse(State2#state.send_queue), Socket)},
+			% Flow control: enable forwarding of next TCP message
 			ok = inet:setopts(Socket, [{active, once}]),
-			{noreply, State};
-		Ev ->
-			case handle_event(Ev, State) of
-				{Reply, State2} ->
-					ok = gen_tcp:send(Socket, Reply ++ "\r\n"),
-					State3 = State2#state{send_queue = flush_send_queue(lists:reverse(State2#state.send_queue), Socket)},
-					ok = inet:setopts(Socket, [{active, once}]),
-					{noreply, State3};
-				State2 ->
-					ok = inet:setopts(Socket, [{active, once}]),
-					{noreply, State2}
-			end
+			{noreply, State3};
+		State2 ->
+			% Flow control: enable forwarding of next TCP message
+			ok = inet:setopts(Socket, [{active, once}]),
+			{noreply, State2}
 	end;
 
 handle_info({tcp_closed, _Socket}, State) ->

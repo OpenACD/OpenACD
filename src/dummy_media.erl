@@ -140,7 +140,7 @@ handle_call({set_action, Action, success}, _From, #state{fail = Curfail} = State
 	{reply, ok, State#state{fail = Newfail}};
 handle_call({set_skills, Skills}, _From, #state{callrec = Call} = State) ->
 	{reply, ok, State#state{callrec = Call#call{skills=Skills}}};
-handle_call({ring_agent, AgentPid, _Queuedcall}, _From, #state{fail = Fail} = State) -> 
+handle_call({ring_agent, AgentPid, _Queuedcall, Ringout}, _From, #state{fail = Fail} = State) -> 
 	case State#state.mode of
 		success -> 
 			case lists:member(ring_agent, Fail) of
@@ -266,7 +266,7 @@ dummy_test_() ->
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
 				{ok, Dummypid} = dummy_media:start("testcall"),
-				?assertMatch(ok, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{media=Dummypid, id="testcall"}}))
+				?assertMatch(ok, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{media=Dummypid, id="testcall"}, 4000}))
 			end
 		},
 		{
@@ -275,7 +275,7 @@ dummy_test_() ->
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
 				{ok, Dummypid} = dummy_media:start("testcall", failure),
-				?assertMatch(invalid, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{media=Dummypid, id="testcall"}}))
+				?assertMatch(invalid, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{media=Dummypid, id="testcall"}, 4000}))
 			end
 		},
 		{

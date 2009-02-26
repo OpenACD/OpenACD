@@ -53,6 +53,7 @@
 
 -define(TIMEOUT, 10000).
 
+
 %% API
 -export([
 	start/2,
@@ -122,21 +123,31 @@ init([Cnode, Domain]) ->
 %%--------------------------------------------------------------------
 %% @private
 % TODO If this module's state has the call, why does this need the call passed in?  (part of the spec for a generic media_manager, change spec?)
-handle_call({ring_agent, AgentPid, QCall}, _From, #state{callrec = Call} = State) ->
+handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call} = State) ->
 	?CONSOLE("ring_agent to ~p for call ~p", [AgentPid, QCall#queued_call.id]),
 	AgentRec = agent:dump_state(AgentPid),
+	Ringout = Timeout div 1000,
 	case agent:set_state(AgentPid, ringing, Call) of
 		ok ->
-			Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++",queue=" ++ State#state.queue ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang(freeswitch_media_manager:! "++atom_to_list(node())++")'",
-			case freeswitch:api(State#state.cnode, originate, Args) of
-				{ok, _Msg} ->
+			Args = "{originate_timeout=" ++ integer_to_list(Ringout) ++ ",dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++",queue=" ++ State#state.queue ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang(freeswitch_media_manager:! "++atom_to_list(node())++")'",
+			case freeswitch:bgapi(State#state.cnode, originate, Args) of
+			%	{ok, _Msg} ->
+				ok ->
 					{reply, ok, State#state{agent_pid = AgentPid}};
 				{error, Msg} ->
 					?CONSOLE("Failed to ring agent ~p with error ~p", [AgentRec#agent.login, Msg]),
 					X = agent:set_state(AgentPid, released, "reason"),
 					?CONSOLE("------- ~p", [X]),
+					{reply, invalid, State};
+				timeout ->
+					?CONSOLE("timed out waiting for bgapi response", []),
+					agent:set_state(AgentPid, released, "failure!"),
 					{reply, invalid, State}
 			end;
+			%	Else ->
+			%		?CONSOLE("Freeswitch api response: ~p",[Else]),
+			%		{reply, {invalid, Else}, State}
+			%end;
 		Else ->
 			?CONSOLE("Agent ringing response:  ~p", [Else]),
 			{reply, invalid, State}
@@ -213,6 +224,12 @@ handle_info({call_event, {event, [UUID | Rest]}}, State) ->
 	case_event_name([ UUID | Rest], State);
 handle_info({set_agent, Login, Apid}, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};
+handle_info({bgok, Reply}, State) ->
+	?CONSOLE("bgok:  ~p", [Reply]),
+	{noreply, State};
+handle_info({bgerror, Reply}, State) ->
+	?CONSOLE("bgerror: ~p", [Reply]),
+	{noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -327,7 +344,8 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan} =
 					?CONSOLE("Result of bridge: ~p", [Res]),
 					Otherpid = freeswitch_media_manager:get_handler(Dstchan),
 					gen_server:cast(Otherpid, unqueue),
-					gen_server:cast(Otherpid, agent_oncall);
+					gen_server:cast(Otherpid, agent_oncall),
+					{noreply, State};
 					%QName = freeswitch:get_event_header(Rawcall, "variable_queue"),
 					%case queue_manager:get_queue(QName) of
 					%	undefined ->

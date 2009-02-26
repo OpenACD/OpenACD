@@ -319,7 +319,7 @@ offer_call([], _Call) ->
 	?CONSOLE("No valid agents found", []),
 	none;
 offer_call([{_ACost, Apid} | Tail], Call) ->
-	case gen_server:call(Call#queued_call.media, {ring_agent, Apid, Call}) of
+	case gen_server:call(Call#queued_call.media, {ring_agent, Apid, Call, ?TICK_LENGTH * (?RINGOUT + 1)}) of
 		ok ->
 			?CONSOLE("cook offering call:  ~p to ~p", [Call, Apid]),
 			Apid;

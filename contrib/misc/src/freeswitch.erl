@@ -20,7 +20,7 @@
 		get_event_name/1, getpid/1, sendmsg/3,
 		sendevent/3, handlecall/2, start_fetch_handler/4,
 		start_log_handler/3, start_event_handler/3]).
--define(TIMEOUT, 10000).
+-define(TIMEOUT, 5000).
 
 %% @doc Return the value for a specific header in an event or `{error,notfound}'.
 get_event_header([], _Needle) ->
@@ -63,7 +63,10 @@ send(Node, Term) ->
 api(Node, Cmd, Args) ->
 	{api, Node} ! {api, Cmd, Args},
 	receive
-		X -> X
+		{ok, X} -> 
+			{ok, X};
+		{error, X} ->
+			{error, X}
 	after ?TIMEOUT ->
 		timeout
 	end.

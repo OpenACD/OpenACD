@@ -48,7 +48,7 @@
 -define(TICK_LENGTH, 10000).
 -endif.
 
--define(RINGOUT, 4).
+-define(RINGOUT, 20).
 -define(DEFAULT_PATHCOST, 15).
 
 %% API

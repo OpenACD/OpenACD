@@ -90,7 +90,6 @@ init([]) ->
 %% @private
 handle_call(get_agents, _From, State) when is_record(State#state.call, queued_call) -> 
 	Call = State#state.call,
-	?CONSOLE("get_agents, Call is ~p.", [Call]),
 	{reply, agent_manager:find_avail_agents_by_skill(Call#queued_call.skills), State};
 handle_call(bound_call, _From, State) ->
 	case State#state.call of
@@ -133,25 +132,24 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info(grab_best, State) ->
-	?CONSOLE("dispatcher trying to grab", []),
 	case grab_best() of
 		none ->
-			?CONSOLE("no dice", []),
 			{noreply, State};
 		{Qpid, Call} ->
-			?CONSOLE("success!", []),
 			% TODO problem if the tref doesn't exist?
 			timer:cancel(State#state.tref),
 			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined}}
 	end;
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+	?CONSOLE("unexpected info ~p", [Info]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(_Reason, _State) ->
+terminate(Reason, _State) ->
+	?CONSOLE("Teminated:  ~p", [Reason]),
 	ok.
 
 %%--------------------------------------------------------------------
@@ -213,7 +211,6 @@ regrab(Pid) ->
 	
 -spec(stop/1 :: (pid()) -> 'ok').
 stop(Pid) -> 
-	?CONSOLE("just before the gen_server handle call pid:  ~p.  Me:  ~p", [Pid, self()]),
 	gen_server:call(Pid, stop).
 	
 -ifdef(EUNIT).

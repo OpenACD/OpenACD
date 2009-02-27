@@ -132,6 +132,7 @@ get_leader() ->
 %% gen_leader callbacks
 
 init([]) ->
+	?CONSOLE("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
 	{ok, #state{}}.
 	

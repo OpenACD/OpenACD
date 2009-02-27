@@ -95,12 +95,14 @@ start_link(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) ->
 %%====================================================================
 
 init([Mod, StartFunc, StartArgs, CheckFunc, CheckArgs]) ->
+	?CONSOLE("~p starting at ~p with integration", [?MODULE, node()]),
 	case build_tables() of
 		ok -> 
 			apply(Mod, StartFunc, StartArgs),
 			{ok, #state{mod=Mod, start_func=StartFunc, start_args=StartArgs, check_func = CheckFunc, check_args = CheckArgs}}
 	end;
 init([]) -> 
+	?CONSOLE("~p starting at ~p as stand-alone", [?MODULE, node()]),
 	case build_tables() of
 		ok -> 
 			{ok, #state{integration = false}}
@@ -159,7 +161,8 @@ handle_info(_Info, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(_Reason, _State) ->
+terminate(Reason, _State) ->
+	?CONSOLE("terminating:  ~p", [Reason]),
     ok.
 
 %%--------------------------------------------------------------------
@@ -203,7 +206,7 @@ build_tables() ->
 	case A of
 		{atomic, ok} ->
 			F = fun() ->
-				% TODO what the heck is this?
+				% TODO what the heck is this?  A:  a default agent created if the table initially didn't.
 				mnesia:write(#agent_auth{login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english]})
 			end,
 			case mnesia:transaction(F) of

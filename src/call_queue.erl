@@ -296,6 +296,7 @@ expand_magic_skills(State, Call, Skills) ->
 
 %% @private
 init([Name, Recipe, Weight]) ->
+	?CONSOLE("Starting queue ~p at ~p", [Name, node()]),
 	process_flag(trap_exit, true),
 	{ok, #state{name=Name, recipe=Recipe, weight=Weight}}.
 

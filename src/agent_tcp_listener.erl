@@ -41,6 +41,9 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include("call.hrl").
+-include("agent.hrl").
+
 -behaviour(gen_server).
 
 %% External API
@@ -72,6 +75,7 @@ stop(Pid) ->
 	gen_server:call(Pid, stop).
 
 init([Port]) ->
+	?CONSOLE("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
 	Opts = [list, {packet, line}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
@@ -81,6 +85,7 @@ init([Port]) ->
 			{ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
 			{ok, #state{listener = Listen_socket, acceptor = Ref}};
 		{error, Reason} ->
+			?CONSOLE("Could not start gen_tcp:  ~p", [Reason]),
 			{stop, Reason}
 	end.
 

@@ -71,6 +71,7 @@ stop() ->
 %%====================================================================
 %% @private
 init([]) ->
+	?CONSOLE("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
     {ok, #state{}}.
 

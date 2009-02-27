@@ -174,6 +174,7 @@ print() ->
 
 %% @private
 init([]) ->
+	?CONSOLE("queue manager starting at ~p", [node()]),
 	process_flag(trap_exit, true),
 	% subscribe to mnesia system events to handle inconsistant db events
 	% load the queues in the db and start them.

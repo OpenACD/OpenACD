@@ -88,6 +88,7 @@ start() ->
 	{ok, Pid}.
 	
 stop() ->
+	?CONSOLE("stopping ~p...", [?MODULE]),
 	exit(whereis(?MODULE), shutdown).
 
 %%====================================================================
@@ -96,11 +97,12 @@ stop() ->
 %% @private
 init([]) ->
 	% TODO Create warnings for missing/requires specs (at least one media manager, the agent_auth).
+	?CONSOLE("starting cpx_supervisor on ~p", [node()]),
 	case build_tables() of
 		ok -> 
 			DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 			AgentManagerSpec = {agent_manager, {agent_manager, start_link, [[node()]]}, permanent, 2000, worker, [?MODULE]},
-			QueueManagerSpec = {queue_manager, {queue_manager, start, [lists:append(nodes(), [node()])]}, permanent, 20000, worker, [?MODULE]},
+			QueueManagerSpec = {queue_manager, {queue_manager, start_link, [lists:append(nodes(), [node()])]}, permanent, 20000, worker, [?MODULE]},
 			
 			Specs = lists:append([DispatchSpec, AgentManagerSpec, QueueManagerSpec], load_specs()),
 			
@@ -140,7 +142,7 @@ build_tables() ->
 	?CONSOLE("cpx building tables...",[]),
 	A = util:build_table(cpx_conf, [
 		{attributes, record_info(fields, cpx_conf)},
-		{disc_copies, [node()]},
+		{disc_copies, lists:append([[node()], nodes()])},
 		{local_content, true}
 	]),
 	case A of
@@ -157,6 +159,7 @@ build_tables() ->
 					Else
 			end;
 		Else ->
+			?CONSOLE("unusual response building tables: ~p", [Else]),
 			Else
 	end.
 
@@ -322,6 +325,14 @@ mutlinode_test_() ->
 
 			mnesia:change_table_copy_type(schema, Master, disc_copies),
 			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+			
+			% nix the agent_tcp_default to keep addresses from binding
+			rpc:call(Master, cpx_supervisor, build_tables, []),
+			rpc:call(Slave, cpx_supervisor, build_tables, []),
+
+			rpc:call(Master, cpx_supervisor, destroy, [agent_tcp_listener]),
+			rpc:call(Slave, cpx_supervisor, destroy, [agent_tcp_listener]),
+
 			{Master, Slave}
 		end,
 		fun({Master, Slave}) ->
@@ -339,6 +350,7 @@ mutlinode_test_() ->
 				{"Start on two different nodes",
 				fun() ->
 					Masterres = rpc:call(Master, ?MODULE, start, []),
+					%timer:sleep(3000),
 					Slaveres = rpc:call(Slave, ?MODULE, start, []),
 					?CONSOLE("M:  ~p; S:  ~p", [Masterres, Slaveres]),
 					?assertMatch({ok, _Pid}, Masterres),

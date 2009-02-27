@@ -43,12 +43,12 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--define(TICK_LENGTH, 1000).
+-define(TICK_LENGTH, 500).
 -else.
 -define(TICK_LENGTH, 10000).
 -endif.
 
--define(RINGOUT, 20).
+-define(RINGOUT, 4).
 -define(DEFAULT_PATHCOST, 15).
 
 %% API

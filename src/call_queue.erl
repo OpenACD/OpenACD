@@ -171,7 +171,9 @@ remove_skills(Pid, Callid, Skills) ->
 %% @doc Alter the priority of the call with the id or media pid of `Mediaid' in the queue at `Pid' to `Priority'.  Returns `ok' on success, `none' on failure.
 -spec(set_priority/3 :: ( Pid :: pid(), Calldata :: string() | pid(), Priority :: non_neg_integer()) -> 'none' | 'ok').
 set_priority(Pid, Mediaid, Priority) when Priority >= 0 ->
-	gen_server:call(Pid, {set_priority, Mediaid, Priority}).
+	gen_server:call(Pid, {set_priority, Mediaid, Priority});
+set_priority(_Pid, _Mediapid, _Priority) ->
+	none.
 
 %% @doc Returns a list of calls in queue at `Pid'.
 -spec(to_list/1 :: (Pid :: pid()) -> [#queued_call{}]).

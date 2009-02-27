@@ -140,13 +140,14 @@ handle_call({set_action, Action, success}, _From, #state{fail = Curfail} = State
 	{reply, ok, State#state{fail = Newfail}};
 handle_call({set_skills, Skills}, _From, #state{callrec = Call} = State) ->
 	{reply, ok, State#state{callrec = Call#call{skills=Skills}}};
-handle_call({ring_agent, AgentPid, _Queuedcall, Ringout}, _From, #state{fail = Fail} = State) -> 
+handle_call({ring_agent, AgentPid, Queuedcall, Ringout}, _From, #state{fail = Fail} = State) -> 
 	case State#state.mode of
 		success -> 
 			case lists:member(ring_agent, Fail) of
 				true ->
 					{reply, invalid, State};
 				false ->
+					timer:apply_after(Ringout, gen_server, cast, [Queuedcall#queued_call.cook, {stop_ringing, AgentPid}]),
 					{reply, agent:set_state(AgentPid, ringing, State#state.callrec), State}
 			end;
 		failure -> 

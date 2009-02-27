@@ -192,7 +192,7 @@ elected(State, _Election) ->
 surrendered(State, _LeaderState, _Election) ->
 	?CONSOLE("surrendered",[]),
 	mnesia:unsubscribe(system),
-	% TODO - purge any non-local pids from our state and notify the leader of all the local ones
+	% purge any non-local pids from our state and notify the leader of all the local ones
 	State2 = dict:filter(fun(_K,V) -> node() =:= node(V) end, State),
 	lists:foreach(fun({Name, Pid}) -> gen_leader:leader_cast(?MODULE, {notify, Name, Pid}) end, dict:to_list(State2)),
 	{ok, State2}.
@@ -226,26 +226,6 @@ handle_leader_call(_Msg, _From, State, _Election) ->
 
 
 %% @private
-% TODO tie into call_queue_config
-%handle_call({add, Name, Recipe, Weight}, _From, State) ->
-	%io:format("add_queue starting...~n"),
-	%case dict:is_key(Name, State) of
-		%true ->
-			%{ok, Pid} = dict:find(Name, State),
-			%{reply, {exists, Pid}, State};
-		%false ->
-			%io:format("add_queue queue doesn't already exist locally...~n"),
-			%case gen_leader:leader_call(?MODULE, {exists, Name}, infinity) of
-				%true ->
-					 %TODO get_queue now will evilly add a queue, this isn't really right...
-					%Pid = gen_leader:leader_call(?MODULE, {get_queue, Name}, infinity),
-					%{reply, {exists, Pid}, State};
-				%false ->
-					%{ok, Pid} = call_queue:start_link(Name, Recipe, Weight),
-					%gen_leader:leader_call({global, ?MODULE}, {notify, Name, Pid}, infinity), % TODO - handle timeout exception
-					%{reply, {ok, Pid}, dict:store(Name, Pid, State)}
-			%end
-	%end;
 handle_call({notify, Name, Pid}, _From, State) ->
 	link(Pid),
 	{reply, ok, dict:store(Name, Pid, State)};

@@ -142,7 +142,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 	
-% TODO roll the dispatch_supervisor into this process.
 %% @private
 -spec(balance/1 :: (State :: #state{}) -> #state{}).
 balance(State) when length(State#state.agents) > length(State#state.dispatchers) -> 

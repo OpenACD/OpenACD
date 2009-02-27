@@ -172,7 +172,13 @@ new_queue(QueueName, Options) when is_list(Options) ->
 		mnesia:write(Fullqrec)
 	end,
 	{atomic, ok} = mnesia:transaction(F),
-	Fullqrec.
+	case whereis(queue_manager) of
+		undefined ->
+			Fullqrec;
+		QMPid when is_pid(QMPid) ->
+			queue_manager:add_queue(Fullqrec#call_queue.name, Fullqrec#call_queue.recipe, Fullqrec#call_queue.weight),
+			Fullqrec
+	end.
 
 new_skill(Skillatom, Skillname, Skilldesc, Creator) when is_atom(Skillatom) ->
 	Rec = #skill_rec{atom = Skillatom, name = Skillname, description = Skilldesc, creator = Creator},
@@ -297,14 +303,14 @@ call_queue_test_() ->
 				"New Default Queue",
 				fun() -> 
 					Queue = #call_queue{name="test queue"},
-					?assertMatch(Queue, new_queue("test queue"))
+					?assertEqual(Queue, new_queue("test queue"))
 				end
 			},
 			{
 				"New Queue with Weight",
 				fun() -> 
 					Queue = #call_queue{name="test queue", weight=3},
-					?assertMatch(Queue, new_queue("test queue", {weight, 3}))
+					?assertEqual(Queue, new_queue("test queue", {weight, 3}))
 				end
 			},
 			{
@@ -318,7 +324,7 @@ call_queue_test_() ->
 				fun() ->
 					Queue = #call_queue{name="test queue"},
 					TestQueue = Queue#call_queue{skills = lists:append([Queue#call_queue.skills, [testskill]])},
-					?assertMatch(TestQueue, new_queue("test queue", {skills, [testskill]}))
+					?assertEqual(TestQueue, new_queue("test queue", {skills, [testskill]}))
 				end
 			},
 			{
@@ -326,7 +332,7 @@ call_queue_test_() ->
 				fun() -> 
 					Recipe = [{2, add_skills, [true], run_once}],
 					Queue = #call_queue{name="test queue", recipe=Recipe},
-					?assertMatch(Queue, new_queue("test queue", {recipe, Recipe}))
+					?assertEqual(Queue, new_queue("test queue", {recipe, Recipe}))
 				end
 			},
 			{
@@ -336,7 +342,7 @@ call_queue_test_() ->
 					Queue = #call_queue{name="test queue", recipe=Recipe, weight=3},
 					TestQueue = Queue#call_queue{skills= lists:append([Queue#call_queue.skills, [testskill]])},
 					Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
-					?assertMatch(TestQueue, new_queue("test queue", Options))
+					?assertEqual(TestQueue, new_queue("test queue", Options))
 				end
 			},
 			{
@@ -350,8 +356,17 @@ call_queue_test_() ->
 					F = fun() -> 
 						qlc:e(QH)
 					end,
-					?assertMatch({atomic, [Queue]}, mnesia:transaction(F)),
+					?assertEqual({atomic, [Queue]}, mnesia:transaction(F)),
 					destroy(Queue)
+				end
+			},
+			{
+				"New Queue with active Queue Manager",
+				fun() ->
+					queue_manager:start([node()]),
+					_Queue = new_queue("test queue"),
+					?assertMatch(true, queue_manager:query_queue("test queue")),
+					queue_manager:stop()
 				end
 			},
 			{
@@ -369,8 +384,8 @@ call_queue_test_() ->
 					SelectoldF = fun() -> 
 						qlc:e(Selectold)
 					end,
-					?assertMatch({atomic, [TestQueue]}, mnesia:transaction(SelectnewF)),
-					?assertMatch({atomic, []}, mnesia:transaction(SelectoldF)),
+					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(SelectnewF)),
+					?assertEqual({atomic, []}, mnesia:transaction(SelectoldF)),
 					destroy(Queue),
 					destroy(TestQueue)
 				end
@@ -387,7 +402,7 @@ call_queue_test_() ->
 					F = fun() -> 
 						qlc:e(Select)
 					end,
-					?assertMatch({atomic, [TestQueue]}, mnesia:transaction(F)),
+					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
 					destroy(Queue)
 				end
 			},
@@ -402,7 +417,7 @@ call_queue_test_() ->
 					F = fun() ->
 						qlc:e(Select)
 					end,
-					?assertMatch({atomic, [TestQueue]}, mnesia:transaction(F)),
+					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
 					destroy(Queue)
 				end
 			},
@@ -417,7 +432,7 @@ call_queue_test_() ->
 					F = fun() -> 
 						qlc:e(Select)
 					end,
-					?assertMatch({atomic, [TestQueue]}, mnesia:transaction(F)),
+					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
 					destroy(Queue)
 				end
 			},
@@ -431,7 +446,7 @@ call_queue_test_() ->
 					F = fun() -> 
 						qlc:e(Select)
 					end,
-					?assertMatch({atomic, []}, mnesia:transaction(F))
+					?assertEqual({atomic, []}, mnesia:transaction(F))
 				end
 			},
 			{
@@ -441,7 +456,7 @@ call_queue_test_() ->
 					Queue2 = Queue#call_queue{name="test queue 2"},
 					set_all(Queue),
 					set_all(Queue2),
-					?assertMatch([Queue, Queue2], get_all()),
+					?assertEqual([Queue, Queue2], get_all()),
 					destroy(Queue),
 					destroy(Queue2)
 				end
@@ -453,8 +468,8 @@ call_queue_test_() ->
 					Queue2 = Queue#call_queue{name="test queue 2"},
 					set_all(Queue),
 					set_all(Queue2),
-					?assertMatch(Queue, get_queue(Queue#call_queue.name)),
-					?assertMatch(Queue2, get_queue(Queue2#call_queue.name)),
+					?assertEqual(Queue, get_queue(Queue#call_queue.name)),
+					?assertEqual(Queue2, get_queue(Queue2#call_queue.name)),
 					destroy(Queue),
 					destroy(Queue2)
 				end

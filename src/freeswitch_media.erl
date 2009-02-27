@@ -53,6 +53,7 @@
 
 -define(TIMEOUT, 10000).
 
+
 %% API
 -export([
 	start/2,
@@ -61,7 +62,8 @@
 	get_queue/1,
 	get_agent/1,
 	unqueue/1,
-	set_agent/3
+	set_agent/3,
+	dump_state/1
 	]).
 
 %% gen_server callbacks
@@ -70,13 +72,16 @@
 
 -record(state, {
 	callrec = undefined,
+	cook,
 	queue,
 	queue_pid,
 	cnode,
 	domain,
 	agent,
 	agent_pid,
-	dstchan = undefined
+	dstchan = undefined,
+	dststate,
+	dstpid
 	}).
 
 %%====================================================================
@@ -110,6 +115,10 @@ unqueue(MPid) ->
 set_agent(MPid, Agent, Apid) when is_pid(MPid), is_pid(Apid) ->
 	gen_server:call(MPid, {set_agent, Agent, Apid}).
 
+-spec(dump_state(Mpid :: pid) -> #state{}).
+dump_state(Mpid) when is_pid(Mpid) ->
+	gen_server:call(Mpid, dump_state).
+	
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -122,24 +131,34 @@ init([Cnode, Domain]) ->
 %%--------------------------------------------------------------------
 %% @private
 % TODO If this module's state has the call, why does this need the call passed in?  (part of the spec for a generic media_manager, change spec?)
-handle_call({ring_agent, AgentPid, QCall}, _From, #state{callrec = Call} = State) ->
-	?CONSOLE("ring_agent to ~p for call ~p", [AgentPid, QCall#queued_call.id]),
+handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call} = State) ->
+	?CONSOLE("ring_agent to ~p for call ~p with cook ~p", [AgentPid, QCall#queued_call.id, QCall#queued_call.cook]),
 	AgentRec = agent:dump_state(AgentPid),
+	Ringout = Timeout div 1000,
 	case agent:set_state(AgentPid, ringing, Call) of
 		ok ->
-			Args = "{dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++",queue=" ++ State#state.queue ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang(freeswitch_media_manager:! "++atom_to_list(node())++")'",
-			case freeswitch:api(State#state.cnode, originate, Args) of
-				{ok, _Msg} ->
-					{reply, ok, State#state{agent_pid = AgentPid}};
+			Args = "{originate_timeout=" ++ integer_to_list(Ringout) ++ ",dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++",queue=" ++ State#state.queue ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang(freeswitch_media_manager:! "++atom_to_list(node())++")'",
+			case freeswitch:bgapi(State#state.cnode, originate, Args) of
+			%	{ok, _Msg} ->
+				ok ->
+					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
 				{error, Msg} ->
 					?CONSOLE("Failed to ring agent ~p with error ~p", [AgentRec#agent.login, Msg]),
 					X = agent:set_state(AgentPid, released, "reason"),
 					?CONSOLE("------- ~p", [X]),
-					{reply, invalid, State}
+					{reply, invalid, State#state{cook = QCall#queued_call.cook}};
+				timeout ->
+					?CONSOLE("timed out waiting for bgapi response", []),
+					agent:set_state(AgentPid, released, "failure!"),
+					{reply, invalid, State#state{cook = QCall#queued_call.cook}}
 			end;
+			%	Else ->
+			%		?CONSOLE("Freeswitch api response: ~p",[Else]),
+			%		{reply, {invalid, Else}, State}
+			%end;
 		Else ->
 			?CONSOLE("Agent ringing response:  ~p", [Else]),
-			{reply, invalid, State}
+			{reply, invalid, State#state{cook = QCall#queued_call.cook}}
 	end;
 	%Reply = freeswitch_media_manager:ring_agent(AgentPid, Call),
 	%{reply, Reply, State};
@@ -164,6 +183,8 @@ handle_call(unqueue, _From, #state{queue_pid = Qpid, callrec = Callrec} = State)
 	end;
 handle_call({set_agent, Agent, Apid}, _From, State) ->
 	{reply, ok, State#state{agent = Agent, agent_pid = Apid}};
+handle_call(dump_state, _From, State) ->
+	{reply, State, State};
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
@@ -204,7 +225,9 @@ handle_info({call, {event, [UUID | Rest]}}, State) ->
 		false ->
 			State2 = State#state{dstchan = undefined, callrec = Callrec};
 		Dstchan ->
-			State2 = State#state{dstchan = Dstchan, callrec = Callrec}
+			Otherpid = freeswitch_media_manager:get_handler(Dstchan),
+			Otherstate = freeswitch_media:dump_state(Otherpid),
+			State2 = State#state{dstchan = Dstchan, callrec = Callrec, dststate = Otherstate, dstpid = Otherpid}
 	end,
 	case_event_name([UUID | Rest], State2);
 handle_info({call_event, {event, [UUID | Rest]}}, State) ->
@@ -213,6 +236,33 @@ handle_info({call_event, {event, [UUID | Rest]}}, State) ->
 	case_event_name([ UUID | Rest], State);
 handle_info({set_agent, Login, Apid}, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};
+handle_info({bgok, Reply}, State) ->
+	?CONSOLE("bgok:  ~p", [Reply]),
+	{noreply, State};
+handle_info({bgerror, "-ERR NO_ANSWER\n"}, State) ->
+	?CONSOLE("Potential ringout.  Statecook:  ~p", [State#state.cook]),
+	case State#state.agent_pid of
+		Apid when is_pid(Apid) ->
+			%agent:set_state(Apid, idle),
+			gen_server:cast(State#state.cook, {stop_ringing, Apid}),
+			?CONSOLE("potential should be fulfilled", []),
+			{noreply, State#state{agent = undefined, agent_pid = undefined}};
+		_Else ->
+			?CONSOLE("disregarding potential ringout, not ringing to an agent", []),
+			{noreply, State}
+	end;
+handle_info({bgerror, "-ERR USER_BUSY\n"}, State) ->
+	?CONSOLE("Agent rejected the call", []),
+	case State#state.agent_pid of
+		Apid when is_pid(Apid) ->
+			gen_server:cast(State#state.cook, {stop_ringing, Apid}),
+			{noreply, State#state{agent = undefined, agent_pid = undefined}};
+		_Else ->
+			{noreply, State}
+	end;
+handle_info({bgerror, Reply}, State) ->
+	?CONSOLE("unhandled bgerror: ~p", [Reply]),
+	{noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -246,7 +296,7 @@ has_dst_chan(Rawcall) ->
 	end.
 
 %% @private
-case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan} = State) ->
+case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan, dststate = Dststate, dstpid = Dstpid} = State) ->
 	Ename = freeswitch:get_event_name(Rawcall),
 	?CONSOLE("Event:  ~p;  UUID:  ~p", [Ename, UUID]),
 	case Dstchan of
@@ -284,7 +334,12 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan} =
 							?CONSOLE("Agent undefined", []),
 							State2 = State#state{agent = undefined, agent_pid = undefined};
 						_Other ->
-							agent:set_state(Apid, wrapup, State#state.callrec),
+							case agent:query_state(Apid) of
+								{ok, ringing} ->
+									agent:set_state(Apid, idle);
+								{ok, oncall} ->
+									agent:set_state(Apid, wrapup, State#state.callrec)
+							end,
 							State2 = State#state{agent = undefined, agent_pid = undefined}
 					end,
 					case Qpid of
@@ -323,11 +378,31 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan} =
 			case Ename of
 				"CHANNEL_PARK" ->
 					Args = UUID ++ " " ++ Dstchan,
-					Res = freeswitch:api(State#state.cnode, uuid_bridge, Args),
-					?CONSOLE("Result of bridge: ~p", [Res]),
-					Otherpid = freeswitch_media_manager:get_handler(Dstchan),
-					gen_server:cast(Otherpid, unqueue),
-					gen_server:cast(Otherpid, agent_oncall);
+					case freeswitch:api(State#state.cnode, uuid_bridge, Args) of
+						{error, Msg} ->
+							% this means the other guy prolly hung up.  sepuku!
+							?CONSOLE("Error ~p doing bridge to ~p", [Msg, Dstchan]),
+							freeswitch:api(State#state.cnode, uuid_kill, [UUID]),
+							case Dststate#state.agent_pid of
+								undefined ->
+									ok;
+								Apid ->
+									agent:set_state(Apid, idle)
+							end,
+							%case agent_manager:query_agent(freeswitch:get_event_header(Rawcall, "variable_agent")) of
+							%	false ->
+							%		%boogie
+							%		ok;
+							%	{true, Apid} ->
+							%		agent:set_state(Apid, idle)
+							%end,
+							{stop, normal, State};
+						_Else ->
+							%Otherpid = freeswitch_media_manager:get_handler(Dstchan),
+							gen_server:cast(Dstpid, unqueue),
+							gen_server:cast(Dstpid, agent_oncall),
+							{noreply, State}
+					end;
 					%QName = freeswitch:get_event_header(Rawcall, "variable_queue"),
 					%case queue_manager:get_queue(QName) of
 					%	undefined ->
@@ -338,8 +413,8 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan} =
 				%			{noreply, State}
 				%	end,
 				%	APid = agent_manager:query_agent(freeswitch:get_event_header(Rawcall, "variable_queue")),
-					
-				_Else ->
+				Else ->
+					?CONSOLE("Other dstchan event ~p", [Else]),
 					{noreply, State}
 			end
 	end.

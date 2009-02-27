@@ -70,7 +70,8 @@
 	build_spec/1,
 	build_tables/0,
 	destroy/1,
-	update_conf/4
+	update_conf/4,
+	stop/0
 	]).
 	
 %% Supervisor callbacks
@@ -85,6 +86,10 @@ start() ->
 	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
 	unlink(Pid),
 	{ok, Pid}.
+	
+stop() ->
+	exit(whereis(?MODULE), shutdown).
+
 %%====================================================================
 %% Supervisor callbacks
 %%====================================================================
@@ -207,6 +212,8 @@ config_test_() ->
 		end,
 		fun(_Whatever) -> 
 			cpx_supervisor:stop(),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
 			ok
 		end,
 		[
@@ -290,5 +297,55 @@ config_test_() ->
 			}
 		]
 	}.
-				
+
+mutlinode_test_() ->
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	{
+		foreach,
+		fun() ->
+			[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
+			Master = list_to_atom(lists:append("master@", Host)),
+			Slave = list_to_atom(lists:append("slave@", Host)),
+			
+			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
+			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+			
+			mnesia:change_config(extra_db_nodes, [Master, Slave]),
+			mnesia:delete_schema([node(), Master, Slave]),
+			mnesia:create_schema([node(), Master, Slave]),
+			
+			cover:start([Master, Slave]),
+			
+			rpc:call(Master, mnesia, start, []),
+			rpc:call(Slave, mnesia, start, []),
+			mnesia:start(),
+
+			mnesia:change_table_copy_type(schema, Master, disc_copies),
+			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+			{Master, Slave}
+		end,
+		fun({Master, Slave}) ->
+			cover:stop([Master, Slave]),
+			
+			slave:stop(Master),
+			slave:stop(Slave),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			
+			ok
+		end,
+		[
+			fun({Master, Slave}) ->
+				{"Start on two different nodes",
+				fun() ->
+					Masterres = rpc:call(Master, ?MODULE, start, []),
+					Slaveres = rpc:call(Slave, ?MODULE, start, []),
+					?CONSOLE("M:  ~p; S:  ~p", [Masterres, Slaveres]),
+					?assertMatch({ok, _Pid}, Masterres),
+					?assertMatch({ok, _Pid2}, Slaveres)
+				end}
+			end
+		]
+	}.
+	
 -endif.

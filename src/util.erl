@@ -139,15 +139,22 @@ bin_to_hexstr(Bin) ->
 %% @doc Converts a hexidecimal string in any case to a binary.
 -spec(hexstr_to_bin/1 :: (S :: string()) -> binary()).
 hexstr_to_bin(S) ->
-	hexstr_to_bin(S, []).
+	hexstr_to_bin(string:to_upper(S), []).
+
+-define(HEX, [$0, $1, $2, $3, $5, $6, $7, $8, $9, $1, $A, $B, $C, $D, $E, $F]).
 
 %% @private
--spec(hexstr_to_bin/2 :: (string(), Acc :: string()) -> binary()).
+-spec(hexstr_to_bin/2 :: (string(), Acc :: string()) -> binary() | 'error').
 hexstr_to_bin([], Acc) ->
 	list_to_binary(lists:reverse(Acc));
 hexstr_to_bin([X, Y | T], Acc) ->
-	{ok, [V], []} = io_lib:fread("~16u", [X, Y]),
-	hexstr_to_bin(T, [V | Acc]).
+	case {lists:member(X, ?HEX), lists:member(Y, ?HEX)} of
+		{true, true} ->
+			{ok, [V], []} = io_lib:fread("~16u", [X, Y]),
+			hexstr_to_bin(T, [V | Acc]);
+		_Else ->
+			error
+	end.
 
 %end 'borrowed' code
 
@@ -236,6 +243,13 @@ hex_bin_conversion_test_() ->
 			fun() -> 
 				Bin = erlang:md5("teststring"),
 				?assertMatch(Bin, hexstr_to_bin("D67C5CBF5B01C9F91932E3B8DEF5E5F8"))
+			end
+		},
+		{
+			"To bin from invalid Hex",
+			fun() ->
+				?assertEqual(error, hexstr_to_bin("abcdefghijklmnop")),
+				?assertEqual(error, hexstr_to_bin("12345"))
 			end
 		}
 	].

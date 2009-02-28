@@ -87,7 +87,7 @@ handle_call(Request, _From, State) ->
 handle_cast(negotiate, State) ->
 	inet:setopts(State#state.socket, [{active, false}, {packet, line}, list]),
 	gen_tcp:send(State#state.socket, "Agent Server: -1\r\n"),
-	{ok, Packet} = gen_tcp:recv(State#state.socket, 0),
+	{ok, Packet} = gen_tcp:recv(State#state.socket, 0), % TODO timeout
 	io:format("packet: ~p.~n", [Packet]),
 	case Packet of
 		"Protocol: " ++ Args ->
@@ -191,27 +191,28 @@ handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), 
 	{err(Counter, "Please request a salt with GETSALT first"), State};
 
 handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter) ->
-	[Username, Password] = util:string_split(Credentials, ":", 2),
-	% currently the password is coming in as a lowercase hex string (2008 / 12 / 04, Micah)
-	BinPass = util:hexstr_to_bin(Password),
-	io:format("username: ~p~npassword: ~p~nbinpass: ~p~nsalt: ~p~n", [Username, Password, BinPass, State#state.salt]),
-	case agent_auth:auth(Username, Password, integer_to_list(State#state.salt)) of
-		deny -> 
-			io:format("Authentication failure~n"),
-			{err(Counter, "Authentication Failure"), State};
-		{allow, Skills} -> 
-			io:format("Authenciation success, next steps..."),
-			{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills}),
-			case agent:set_connection(Pid, self()) of
-				ok ->
-					State2 = State#state{agent_fsm=Pid},
-					io:format("User ~p has authenticated using ~p.~n", [Username, Password]),
-					{MegaSecs, Secs, _MicroSecs} = now(),
-					% TODO 1 1 1 should be updated to correct info (security level, profile id, current timestamp).
-					{ack(Counter, io_lib:format("1 1 ~p~p", [MegaSecs, Secs])), State2};
-				error ->
-					{err(Counter, Username ++ " is already logged in"), State}
-			end
+	case util:string_split(Credentials, ":", 2) of
+		[Username, Password] ->
+			case agent_auth:auth(Username, Password, integer_to_list(State#state.salt)) of
+				deny -> 
+					io:format("Authentication failure~n"),
+					{err(Counter, "Authentication Failure"), State};
+				{allow, Skills} -> 
+					io:format("Authenciation success, next steps..."),
+					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills}),
+					case agent:set_connection(Pid, self()) of
+						ok ->
+							State2 = State#state{agent_fsm=Pid},
+							io:format("User ~p has authenticated using ~p.~n", [Username, Password]),
+							{MegaSecs, Secs, _MicroSecs} = now(),
+							% TODO 1 1 1 should be updated to correct info (security level, profile id, current timestamp).
+							{ack(Counter, io_lib:format("1 1 ~p~p", [MegaSecs, Secs])), State2};
+						error ->
+							{err(Counter, Username ++ " is already logged in"), State}
+					end
+			end;
+			_Else ->
+				{err(Counter, "Authentication Failure"), State}
 	end;
 
 handle_event([_Event, Counter], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
@@ -371,6 +372,102 @@ resend_events([{Counter, Event, Data, _Time}|T], State) ->
 	resend_events(T, send(Event, Data, State)).
 
 -ifdef(EUNIT).
+
+unauthenticated_agent_test_() ->
+	{
+		foreach,
+		fun() ->
+				crypto:start(),
+				%{ok, Pid} = agent:start(#agent{login="testuser"}),
+				mnesia:delete_schema([node()]),
+				mnesia:create_schema([node()]),
+				mnesia:start(),
+				agent_auth:start(),
+				agent_auth:cache("Username", erlang:md5("Password"), [skill1, skill2]),
+				agent_manager:start([node()]),
+				#state{}
+		end,
+		fun(_State) ->
+			agent_auth:stop(),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			agent_manager:stop([node()]),
+			ok
+		end,
+		[
+			fun(State) ->
+				{"Agent can only send GETSALT and LOGIN until they're authenticated",
+				fun() ->
+						{Reply, _State2} = handle_event(["PING",  1], State),
+						?assertEqual("ERR 1 This is an unauthenticated connection, the only permitted actions are GETSALT and LOGIN", Reply)
+				end}
+			end,
+
+			fun(State) ->
+				{"Agent must get a salt with GETSALT before sending LOGIN",
+				fun() ->
+					{Reply, _State2} = handle_event(["LOGIN",  2, "username:password"], State),
+					?assertEqual("ERR 2 Please request a salt with GETSALT first", Reply)
+				end}
+			end,
+
+			fun(State) ->
+				{"GETSALT returns a random number",
+				fun() ->
+					{Reply, _State2} = handle_event(["GETSALT",  3], State),
+
+					[_Ack, Counter, Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
+					?assertEqual(Counter, "3"),
+
+					{Reply2, _State3} = handle_event(["GETSALT",  4], State),
+					[_Ack2, Counter2, Args2] = util:string_split(string:strip(util:string_chomp(Reply2)), " ", 3),
+					?assertEqual(Counter2, "4"),
+					?assertNot(Args =:= Args2)
+				end}
+			end,
+
+			fun(State) ->
+				{"LOGIN with no password",
+				fun() ->
+					{_Reply, State2} = handle_event(["GETSALT",  3], State),
+					{Reply, _State3} = handle_event(["LOGIN",  2, "username"], State2),
+					?assertMatch(["ERR", "2", "Authentication Failure"], util:string_split(string:strip(util:string_chomp(Reply)), " ", 3))
+				end}
+			end,
+
+			fun(State) ->
+				{"LOGIN with blank password",
+				fun() ->
+					{_Reply, State2} = handle_event(["GETSALT",  3], State),
+					{Reply, _State3} = handle_event(["LOGIN",  2, "username:"], State2),
+					?assertMatch(["ERR", "2", "Authentication Failure"], util:string_split(string:strip(util:string_chomp(Reply)), " ", 3))
+				end}
+			end,
+
+			fun(State) ->
+				{"LOGIN with bad credentials",
+				fun() ->
+					{_Reply, State2} = handle_event(["GETSALT",  3], State),
+					{Reply, _State3} = handle_event(["LOGIN",  2, "username:password"], State2),
+					?assertMatch(["ERR", "2", "Authentication Failure"], util:string_split(string:strip(util:string_chomp(Reply)), " ", 3))
+				end}
+			end,
+			fun(State) ->
+				{"LOGIN with good credentials",
+				fun() ->
+					{Reply, State2} = handle_event(["GETSALT",  3], State),
+					[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
+					Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
+					{Reply2, _State3} = handle_event(["LOGIN",  4, "Username:" ++ Password], State2),
+					?assertMatch(["ACK", "4", _Args], util:string_split(string:strip(util:string_chomp(Reply2)), " ", 3))
+				end}
+			end
+
+
+
+		]
+	}.
+
 
 
 -endif.

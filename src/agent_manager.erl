@@ -53,7 +53,8 @@
 	start_agent/1, 
 	query_agent/1, 
 	find_avail_agents_by_skill/1,
-	get_leader/0
+	get_leader/0,
+	list/0
 ]).
 
 % gen_leader callbacks
@@ -115,7 +116,12 @@ find_avail_agents_by_skill(Skills) ->
 		end
 	end,
 	lists:sort(F, AvailSkilledAgentsByIdleTime).
-		
+
+%% @doc Get a list of agents
+-spec(list/0 :: () -> [any()]).
+list() ->
+	gen_leader:call(?MODULE, list_agents).
+
 %% @doc Check if an agent idetified by agent record or login name string of `Login' exists
 -spec(query_agent/1 ::	(Agent :: #agent{}) -> {'true', pid()} | 'false';
 						(Login :: string()) -> {'true', pid()} | 'false').
@@ -237,7 +243,7 @@ code_change(_OldVsn, State, _Election, _Extra) ->
 -ifdef('EUNIT').
 
 handle_call_start_test() ->
-	?assertMatch({ok, Pid}, start([node()])),
+	?assertMatch({ok, _Pid}, start([node()])),
 	stop().
 
 single_node_test_() -> 

@@ -10,6 +10,9 @@ doc/*
 contrib/**/ebin/*
 contrib/**/doc/*
 
+# unique config files
+*.config
+
 # Xcode
 build/*
 *.xcodeproj/*

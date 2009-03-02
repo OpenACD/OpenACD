@@ -43,12 +43,15 @@
 -export[start/2, stop/1].
 
 % TODO mnesia set-up (schema and connected nodes) needs to be ready before the app starts.
-start(_Type, _StartArgs) ->
+start(_Type, StartArgs) ->
+	?CONSOLE("Start args ~p", [StartArgs]),
+	?CONSOLE("All env: ~p", [application:get_all_env(cpx)]),
 	crypto:start(),
 	%Nodes = lists:append([nodes(), [node()]]),
 	%mnesia:create_schema(Nodes),
 	%mnesia:start(),
-	cpx_supervisor:start_link().
+	{ok, Nodes} = application:get_env(cpx, nodes),
+	cpx_supervisor:start_link(Nodes).
 	
 stop(_State) -> 
 	ok.

@@ -64,7 +64,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0, start/0]).
+-export([start_link/1, start/1]).
 -export([
 	add_conf/3,
 	build_spec/1,
@@ -79,11 +79,11 @@
 
 %% API functions
 %% @doc Start the cpx_supervisor linked to the parent process.
-start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+start_link(Nodes) ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]).
 %% @doc Start the cpx_supervisor unlinked.
-start() -> 
-	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
+start(Nodes) -> 
+	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]),
 	unlink(Pid),
 	{ok, Pid}.
 	
@@ -95,14 +95,14 @@ stop() ->
 %% Supervisor callbacks
 %%====================================================================
 %% @private
-init([]) ->
+init([Nodes]) ->
 	% TODO Create warnings for missing/requires specs (at least one media manager, the agent_auth).
 	?CONSOLE("starting cpx_supervisor on ~p", [node()]),
 	case build_tables() of
 		ok -> 
 			DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
-			AgentManagerSpec = {agent_manager, {agent_manager, start_link, [[node()]]}, permanent, 2000, worker, [?MODULE]},
-			QueueManagerSpec = {queue_manager, {queue_manager, start_link, [lists:append([node()], nodes())]}, permanent, 20000, worker, [?MODULE]},
+			AgentManagerSpec = {agent_manager, {agent_manager, start_link, [Nodes]}, permanent, 2000, worker, [?MODULE]},
+			QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
 			
 			Specs = lists:append([DispatchSpec, AgentManagerSpec, QueueManagerSpec], load_specs()),
 			
@@ -211,7 +211,7 @@ config_test_() ->
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
 			mnesia:start(),
-			cpx_supervisor:start()
+			cpx_supervisor:start([node()])
 		end,
 		fun(_Whatever) -> 
 			cpx_supervisor:stop(),
@@ -349,9 +349,9 @@ mutlinode_test_() ->
 			fun({Master, Slave}) ->
 				{"Start on two different nodes",
 				fun() ->
-					Masterres = rpc:call(Master, ?MODULE, start, []),
+					Masterres = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
 					%timer:sleep(3000),
-					Slaveres = rpc:call(Slave, ?MODULE, start, []),
+					Slaveres = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
 					?CONSOLE("M:  ~p; S:  ~p", [Masterres, Slaveres]),
 					?assertMatch({ok, _Pid}, Masterres),
 					?assertMatch({ok, _Pid2}, Slaveres)

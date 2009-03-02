@@ -252,7 +252,7 @@ stop(Pid) ->
 
 %% @private
 -spec(do_route/4 :: (Ringcount :: non_neg_integer(), Queue :: string(), 'undefined' | pid(), pid()) -> 'nocall' | {'ringing', pid(), non_neg_integer()} | 'rangout').
-do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid) ->
+do_route(Ringcount, _Queue, Agentpid, _Callpid) when is_pid(Agentpid) ->
 	?CONSOLE("still ringing: ~p times", [Ringcount]),
 	{ringing, Agentpid, Ringcount + 1};
 %do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid), Ringcount > ?RINGOUT, is_pid(Callpid) ->
@@ -786,7 +786,7 @@ agent_interaction_test_() ->
 				agent:stop(APid2)
 			end}
 		end,
-		fun({QPid, MPid, APid}) ->
+		fun({QPid, _MPid, APid}) ->
 			{"Media says the the ring to the agent is invalid.",
 			fun() ->
 				{ok, Media} = dummy_media:start("testcall"),
@@ -802,7 +802,7 @@ agent_interaction_test_() ->
 				dummy_media:stop(Media)
 			end}
 		end,
-		fun({QPid, MPid, APid}) ->
+		fun({QPid, _MPid, APid}) ->
 			{"Agent cannot take the call in queue (regrab)",
 			fun() ->
 				{ok, Media} = dummy_media:start("testcall"),

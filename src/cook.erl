@@ -89,8 +89,7 @@ start(Call, Recipe, Queue) when is_pid(Call) ->
 
 %% @private
 init([Call, Recipe, Queue]) ->
-	% TODO check for a call right away.
-	?CONSOLE("Queue:  ~p", [Queue]),
+	?CONSOLE("Cook starting for call ~p from queue ~p", [Call, Queue]),
 	case is_process_alive(Call) of
 		true ->
 			process_flag(trap_exit, true),
@@ -154,7 +153,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info(do_tick, State) ->
-	case whereis(queue_manager) of
+	case whereis(queue_manager) of % do we even need this?  We do have a terminate that should catch a no-proc.
 		undefined ->
 			{stop, queue_manager_undefined, State};
 		_Else ->

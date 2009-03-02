@@ -193,6 +193,7 @@ idle(Event, From, State) ->
 %%<li>'idle'</li>
 %%</ul>
 ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.defaultringpath =:= inband, Statecall#call.ring_path =/= outband ->
+	?CONSOLE("default ringpath inband, ring_path not outband", []),
 	gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
 	gen_server:cast(Statecall#call.cook, remove_from_queue),
 	{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};

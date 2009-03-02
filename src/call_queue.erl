@@ -326,6 +326,7 @@ handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid)
 	case rpc:call(node(Callpid), gen_server, start_link, [cook, [Callpid, State#state.recipe, State#state.name], []]) of
 		{ok, Cookpid} ->
 			link(Cookpid),
+			erlang:monitor(process, Callpid),
 			Queuedrec = #queued_call{media=Callpid, id=Callrec#call.id, cook=Cookpid},
 			?CONSOLE("queuedrec: ~p", [Queuedrec]),
 			NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
@@ -444,6 +445,16 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %% @private
+handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
+	?CONSOLE("Handling down process ~p due to ~p", [Pid, Reason]),
+	case find_by_pid(Pid, State#state.queue) of
+		none ->
+			{noreply, State};
+		{Key, #queued_call{cook=Cookpid}} ->
+			cook:stop(Cookpid),
+			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
+			{noreply, State2}
+	end;
 handle_info({'EXIT', From, Reason}, State) ->
 	QMPid = whereis(queue_manager),
 	?CONSOLE("Handling exit from ~p which died due to ~p.  Manager is ~p", [From, Reason, QMPid]),
@@ -460,7 +471,6 @@ handle_info({'EXIT', From, Reason}, State) ->
 			Newtree = gb_trees:from_orddict(Cleancalls),
 			{noreply, State#state{queue=Newtree}}
 	end;
-
 handle_info(Info, State) ->
 	?CONSOLE("got info ~p", [Info]),
 	{noreply, State}.
@@ -896,6 +906,14 @@ call_update_test_() ->
 					{_Key, Call} = get_call(Pid, "C1"),
 					?assertEqual(true, lists:member(node(), Call#queued_call.skills)),
 					?assertEqual(true, lists:member(english, Call#queued_call.skills))
+				end
+			}, {
+				"The Media dies", fun() ->
+					Pid = whereis(testqueue),
+					{ok, Dummy1} = dummy_media:start("C1"),
+					add(Pid, Dummy1),
+					dummy_media:stop(Dummy1, testkill),
+					?assertMatch(none, get_call(Pid, "C1"))
 				end
 			}
 		]

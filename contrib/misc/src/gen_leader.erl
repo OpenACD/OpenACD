@@ -52,7 +52,6 @@
 %% @type callerRef() = {pid(), reference()}. See gen_server.
 %%
 -module(gen_leader).
--compile(export_all).
 
 % Time between rounds of query from the leader
 -define(TAU,250).

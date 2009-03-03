@@ -3,7 +3,6 @@
 	{vsn, "0.1"},
 	{modules, [
 		cpx,
-		freeswitch,
 		agent,
 		agent_auth,
 		agent_tcp_connection,
@@ -24,10 +23,8 @@
 	]},
 	{registered, [
 		agent_manager,
-		cook_supervisor,
 		cpx_supervisor,
 		dispatch_manager,
-		dispatch_supervisor,
 		queue_manager,
 		freeswitch_media_manager
 	]},

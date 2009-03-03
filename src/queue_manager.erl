@@ -209,6 +209,7 @@ handle_DOWN(Node, State, _Election) ->
 handle_leader_call(queues_as_list, _From, State, _Election) ->
 		{reply, dict:to_list(State), State};
 handle_leader_call({notify, Name, Pid}, _From, State, _Election) ->
+	?CONSOLE("Leading storing queue ~p named ~p", [Pid, Name]),
 	{reply, ok, dict:store(Name, Pid, State)};
 handle_leader_call({get_queue, Name}, _From, State, _Election) ->
 	case dict:find(Name, State) of
@@ -255,7 +256,11 @@ handle_call(_Request, _From, State) ->
 
 %% @private
 handle_leader_cast({notify, Name, Pid}, State, _Election) ->
+	?CONSOLE("leader alterted about new queue ~p at ~p", [Name, Pid]),
 	{noreply, dict:store(Name, Pid, State)};
+handle_leader_cast({notify, Name}, State, _Election) ->
+	?CONSOLE("leader alterted about dead queue ~p", [Name]),
+	{noreply, dict:erase(Name, State)};
 handle_leader_cast(_Msg, State, _Election) ->
 	{noreply, State}.
 
@@ -274,15 +279,19 @@ handle_info({'EXIT', Pid, Reason}, State) ->
 	?CONSOLE("~p died due to ~p.", [Pid, Reason]),
 	case find_queue_name(Pid, State) of
 		none ->
+			?CONSOLE("Cannot find queue", []),
 			{noreply, State};
 		Qname ->
 			case call_queue_config:get_queue(Qname) of
 				noexists ->
+					?CONSOLE("queue not in the config database", []),
+					gen_leader:leader_cast(?MODULE, {notify, Qname}),
 					{noreply, State};
 				Queuerec ->
 					?CONSOLE("Got call_queue_config of ~p", [Queuerec]),
 					{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
 					NewState = dict:store(Queuerec#call_queue.name, NewQPid, State),
+					ok = gen_leader:leader_cast(?MODULE, {notify, Qname, NewQPid}),
 					{noreply, NewState}
 			end
 	end;
@@ -409,7 +418,7 @@ single_node_test_() ->
 					after 300 -> ok
 					end,
 					AddQueueRes = add_queue("default_queue"),
-					?assertMatch({exists, NewPid}, AddQueueRes),
+					?assertMatch({exists, _NewPid}, AddQueueRes),
 					?assertNot(QPid =:= element(2, AddQueueRes))
 				end
 			}
@@ -531,6 +540,20 @@ multi_node_test_() ->
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
 					slave:stop(Master),
 					?assertMatch([{"queue2", Pid, {_, #queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], rpc:call(Slave, ?MODULE, get_best_bindable_queues, []))
+				end
+			}, {
+				"Leader is told about a call_queue that dies and did not come back", fun() ->
+					{ok, QPid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2"]),
+					?assertMatch({exists, QPid}, rpc:call(Master, ?MODULE, add_queue, ["queue2"])),
+					gen_server:call(QPid, {stop, test_kill}),
+					receive
+					after 100 ->
+						ok
+					end,
+					NewQPid = rpc:call(Slave, ?MODULE, get_queue, ["queue2"]),
+					?CONSOLE("the pids:  ~p and ~p", [QPid, NewQPid]),
+					?assertNot(QPid =:= NewQPid),
+					?assertEqual(undefined, rpc:call(Master, ?MODULE, get_queue, ["queue2"]))
 				end
 			}
 		]

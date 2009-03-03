@@ -56,6 +56,7 @@
 -export([
 	start_link/2, 
 	start/2, 
+	stop/0,
 	ring_agent/2,
 	get_handler/1,
 	notify/2]).
@@ -98,7 +99,10 @@ get_handler(UUID) ->
 	
 notify(UUID, Pid) ->
 	gen_server:cast(?MODULE, {notify, UUID, Pid}).
-	
+
+stop() ->
+	gen_server:call(?MODULE, stop).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -141,6 +145,9 @@ handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) ->
 		{ok, Pid} -> 
 			{reply, Pid, State}
 	end;
+handle_call(stop, _From, State) ->
+	?CONSOLE("Normal termination", []),
+	{stop, normal, ok, State};
 handle_call(Request, _From, State) ->
 	?CONSOLE("Unexpected call:  ~p", [Request]),
 	Reply = ok,

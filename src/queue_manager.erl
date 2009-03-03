@@ -256,10 +256,10 @@ handle_call(_Request, _From, State) ->
 
 %% @private
 handle_leader_cast({notify, Name, Pid}, State, _Election) ->
-	?CONSOLE("leader alterted about new queue ~p at ~p", [Name, Pid]),
+	?CONSOLE("leader alerted about new queue ~p at ~p", [Name, Pid]),
 	{noreply, dict:store(Name, Pid, State)};
 handle_leader_cast({notify, Name}, State, _Election) ->
-	?CONSOLE("leader alterted about dead queue ~p", [Name]),
+	?CONSOLE("leader alerted about dead queue ~p", [Name]),
 	{noreply, dict:erase(Name, State)};
 handle_leader_cast(_Msg, State, _Election) ->
 	{noreply, State}.
@@ -554,6 +554,20 @@ multi_node_test_() ->
 					?CONSOLE("the pids:  ~p and ~p", [QPid, NewQPid]),
 					?assertNot(QPid =:= NewQPid),
 					?assertEqual(undefined, rpc:call(Master, ?MODULE, get_queue, ["queue2"]))
+				end
+			}, {
+				"Leader is told about a call_queue that died but is reborn", fun() ->
+					QPid = rpc:call(Slave, queue_manager, get_queue, ["default_queue"]),
+					?CONSOLE("qpid: ~p", [QPid]),
+					gen_server:call(QPid, {stop, test_kill}),
+					receive
+					after 100 ->
+						ok
+					end,
+					NewQPid = rpc:call(Slave, queue_manager, get_queue, ["default_queue"]),
+					?CONSOLE("Das pids:  ~p and ~p", [QPid, NewQPid]),
+					?assertNot(QPid =:= NewQPid),
+					?assertNot(NewQPid =:= undefined)
 				end
 			}
 		]

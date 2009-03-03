@@ -1,0 +1,9 @@
+% A sample config file.
+% when invoking the erl shell, pass -config file-basename
+% (for this file, -config gen-cpx
+% To use this file, remove .sample from the end.
+% Change the nodes to those you plan to use, adding or 
+% removing as needed.
+[{cpx, [
+	{nodes, [node1@host1, node2@host2]}
+]}].

@@ -12,6 +12,8 @@ contrib/**/doc/*
 
 # unique config files
 *.config
+*.boot
+*.script
 
 # Xcode
 build/*

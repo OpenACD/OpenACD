@@ -659,7 +659,7 @@ loop(#server{parent = Parent,
 					Fun = fun() ->
 						case whereis(E#election.name) of
 							undefined ->
-								io:format("~p is not running on ", [E#election.name, node()]),
+								io:format("~p is not running on ~p", [E#election.name, node()]),
 								ok;
 							Pid ->
 								io:format("suspending ~p on ~p~n", [Pid, node()]),
@@ -782,7 +782,7 @@ system_terminate(Reason, _Parent, _Debug, [_Mode, Server, Role, E]) ->
     terminate(Reason, [], Server, Role, E).
 
 %% @hidden 
-system_code_change([Mode, Server, Role, E], _Module, OldVsn,
+system_code_change([Mode, Server, Role, E], _Module, _OldVsn,
 	{add_worker, Worker}) ->
 	NewE = E#election{worker_nodes = lists:umerge(E#election.worker_nodes,
 			[Worker])},

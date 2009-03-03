@@ -458,8 +458,21 @@ unauthenticated_agent_test_() ->
 					{Reply, State2} = handle_event(["GETSALT",  3], State),
 					[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
 					Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
+					{Reply2, State3} = handle_event(["LOGIN",  4, "Username:" ++ Password], State2),
+					?assertMatch(["ACK", "4", _Args], util:string_split(string:strip(util:string_chomp(Reply2)), " ", 3)),
+					gen_fsm:send_all_state_event(State3#state.agent_fsm, stop) % TODO - why is this needed?
+				end}
+			end,
+			fun(State) ->
+				{"LOGIN twice fails",
+				fun() ->
+					{Reply, State2} = handle_event(["GETSALT",  3], State),
+					[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
+					Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
 					{Reply2, _State3} = handle_event(["LOGIN",  4, "Username:" ++ Password], State2),
-					?assertMatch(["ACK", "4", _Args], util:string_split(string:strip(util:string_chomp(Reply2)), " ", 3))
+					?assertMatch(["ACK", "4", _Args], util:string_split(string:strip(util:string_chomp(Reply2)), " ", 3)),
+					{Reply3, _State4} = handle_event(["LOGIN",  5, "Username:" ++ Password], State2),
+					?assertMatch(["ERR", "5", _Args], util:string_split(string:strip(util:string_chomp(Reply3)), " ", 3))
 				end}
 			end
 

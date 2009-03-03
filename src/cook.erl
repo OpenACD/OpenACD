@@ -104,7 +104,8 @@ init([Call, Recipe, Queue]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call(stop, _From, State) ->
+handle_call(stop, From, State) ->
+	?CONSOLE("Stop requested from ~p", [From]),
 	{stop, normal, ok, State};
 handle_call({stop, Reason}, From, State) -> 
 	?CONSOLE("Stop requested from ~p for ~p.", [From, Reason]),

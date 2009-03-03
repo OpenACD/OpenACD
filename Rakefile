@@ -1,5 +1,25 @@
 require 'rake/clean'
 
+def percent_to_color(per)
+	if ENV['COLORTERM'].to_s.downcase == 'yes'
+		if per >= 90.0
+			colorstart = "\e[1;32m"
+		elsif per >= 75.0
+			colorstart = "\e[0;32m"
+		elsif per >= 50.0
+			colorstart = "\e[0;33m"
+		elsif per >= 25.0
+			colorstart = "\e[1;31m"
+		else
+			colorstart = "\e[0;31m"
+		end
+		return [colorstart, "\e[0m"]
+	else
+		return ["", ""]
+	end
+end
+
+
 INCLUDE = "include"
 
 ERLC_FLAGS = "-I#{INCLUDE} +warn_unused_vars +warn_unused_import"
@@ -144,7 +164,11 @@ namespace :test do
 		puts "Code coverage:"
 		files.each do |file|
 			if file =~ /\.txt\.failed$/
-				puts "  #{File.basename(file, ".txt.failed").ljust(maxwidth)} : FAILED"
+				if ENV['COLORTERM'].to_s.downcase == 'yes'
+					puts "  #{File.basename(file, ".txt.failed").ljust(maxwidth)} : \e[1;35mFAILED\e[0m"
+				else
+					puts "  #{File.basename(file, ".txt.failed").ljust(maxwidth)} : FAILED"
+				end
 			else
 				total = 0
 				tally = 0
@@ -156,11 +180,14 @@ namespace :test do
 						total += 1
 					end
 				end
-				puts "  #{File.basename(file, ".txt").ljust(maxwidth)} : #{sprintf("%.2f%%", (tally/(total.to_f)) * 100)}"
+				per = tally/total.to_f * 100
+				colorstart, colorend = percent_to_color(per)
+				puts "  #{File.basename(file, ".txt").ljust(maxwidth)} : #{colorstart}#{sprintf("%.2f%%", (tally/(total.to_f)) * 100)}#{colorend}"
 				global_total += (tally/(total.to_f)) * 100
 			end
 		end
-		puts "Overall coverage: #{sprintf("%.2f%%", global_total/files.length)}"
+		colorstart, colorend = percent_to_color(global_total/files.length)
+		puts "Overall coverage: #{colorstart}#{sprintf("%.2f%%", global_total/files.length)}#{colorend}"
 	end
 
 	task :report_missing_specs do

@@ -28,8 +28,12 @@ end
 
 CLEAN.include("ebin/*.beam")
 CLEAN.include("ebin/*.app")
+CLEAN.include("ebin/*.script")
+CLEAN.include("ebin/*.boot")
 CLEAN.include("debug_ebin/*.beam")
 CLEAN.include("debug_ebin/*.app")
+CLEAN.include("debug_ebin/*.script")
+CLEAN.include("debug_ebin/*.boot")
 CLEAN.include("coverage/*.txt")
 CLEAN.include("coverage/*.txt.failed")
 CLEAN.include("coverage/*.html")
@@ -74,7 +78,9 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 end
 
 
-task :compile => [:contrib, 'ebin'] + OBJ
+task :compile => [:contrib, 'ebin'] + OBJ do
+	sh "erl -noshell -eval 'systools:make_script(\"src/cpx-rel-0.1\", [{outdir, \"ebin\"}]).' -s erlang halt -pa ebin"
+end
 
 task :contrib do
 	CONTRIB.each do |cont|

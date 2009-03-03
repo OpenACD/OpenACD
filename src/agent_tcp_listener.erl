@@ -108,10 +108,11 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		end,
 
 		%% New client connected
-		% io:format("new client connection.~n", []),
+		?CONSOLE("new client connection.~n", []),
 		{ok, Pid} = agent_tcp_connection:start(CliSocket),
 		gen_tcp:controlling_process(CliSocket, Pid),
 
+		?CONSOLE("negiotiating protocol.~n", []),
 		agent_tcp_connection:negotiate(Pid),
 	
 		%% Signal the network driver that we are ready to accept another connection

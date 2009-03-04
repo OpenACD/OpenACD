@@ -1,7 +1,7 @@
 require 'rake/clean'
 
 def percent_to_color(per)
-	if ENV['COLORTERM'].to_s.downcase == 'yes'
+	if ENV['COLORTERM'].to_s.downcase == 'yes' or ENV['TERM'] =~ /-color$/
 		if per >= 90.0
 			colorstart = "\e[1;32m"
 		elsif per >= 75.0
@@ -9,9 +9,9 @@ def percent_to_color(per)
 		elsif per >= 50.0
 			colorstart = "\e[0;33m"
 		elsif per >= 25.0
-			colorstart = "\e[1;31m"
-		else
 			colorstart = "\e[0;31m"
+		else
+			colorstart = "\e[1;31m"
 		end
 		return [colorstart, "\e[0m"]
 	else
@@ -164,7 +164,7 @@ namespace :test do
 		puts "Code coverage:"
 		files.each do |file|
 			if file =~ /\.txt\.failed$/
-				if ENV['COLORTERM'].to_s.downcase == 'yes'
+				if ENV['COLORTERM'].to_s.downcase == 'yes' or ENV['TERM'] =~ /-color$/
 					puts "  #{File.basename(file, ".txt.failed").ljust(maxwidth)} : \e[1;35mFAILED\e[0m"
 				else
 					puts "  #{File.basename(file, ".txt.failed").ljust(maxwidth)} : FAILED"

@@ -73,6 +73,9 @@
 		terminate/2,
 		code_change/4]).
 
+-record(state, {
+	qdict = dict:new()
+}).
 %% API
 
 %% @doc start the queue_manager linked to the parent process.
@@ -183,14 +186,15 @@ init([]) ->
 		{ok, Pid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
 		dict:store(Queuerec#call_queue.name, Pid, Acc)
 	end,
-	{ok, lists:foldr(F, dict:new(), Queues)}.
+	State = #state{qdict = lists:foldr(F, dict:new(), Queues)},
+	{ok, State}.
 
 elected(State, _Election) ->
 	?CONSOLE("elected",[]),
 	mnesia:subscribe(system),
-	{ok, State, State}.
+	{ok, State#state.qdict, State}.
 
-surrendered(State, LeaderState, _Election) ->
+surrendered(#state{qdict = Qdict} = State, LeaderDict, _Election) ->
 	?CONSOLE("surrendered.",[]),
 	mnesia:unsubscribe(system),
 	% any queues the leader has that do not match the pid we have
@@ -200,12 +204,12 @@ surrendered(State, LeaderState, _Election) ->
 				{Mestate, Tokill};
 			{ok, Value} ->
 				{Mestate, Tokill};
-			{ok, Otherpid} ->
+			{ok, _Otherpid} ->
 				?CONSOLE("slated to die: ~p at ~p", [Key, Value]),
 				{dict:erase(Key, Mestate), [Value | Tokill]}
 		end
 	end,
-	{Noleader, Todie} = dict:fold(F, {State, []}, LeaderState),
+	{Noleader, Todie} = dict:fold(F, {Qdict, []}, LeaderDict),
 	% inform the leader of any queues left over
 	F2 = fun({Name, Pid}) ->
 		gen_leader:leader_cast(?MODULE, {notify, Name, Pid})
@@ -216,24 +220,26 @@ surrendered(State, LeaderState, _Election) ->
 		%call_queue:stop(Pid)
 	end,
 	lists:foreach(Killem, Todie),
-	?CONSOLE("Lead: ~p.  Self: ~p", [LeaderState, Noleader]),
-	{ok, Noleader}.
+	%?CONSOLE("Lead: ~p.  Self: ~p", [LeaderDict, Noleader]),
+	{ok, State#state{qdict = Noleader}}.
 
 %% @private
-handle_DOWN(Node, State, _Election) ->
+handle_DOWN(Node, #state{qdict = Qdict} = State, _Election) ->
 	?CONSOLE("in handle_DOWN",[]),
 	mnesia:set_master_nodes(call_queue, [node()]),
 	mnesia:set_master_nodes(skill_rec, [node()]),
-	{ok, dict:filter(fun(K,V) -> ?CONSOLE("Trying to remove ~p", [K]), Node =/= node(V) end, State)}.
+	Newdict = dict:filter(fun(K,V) -> ?CONSOLE("Trying to remove ~p", [K]), Node =/= node(V) end, Qdict),
+	{ok, State#state{qdict = Newdict}}.
 
 %% @private
-handle_leader_call(queues_as_list, _From, State, _Election) ->
-		{reply, dict:to_list(State), State};
-handle_leader_call({notify, Name, Pid}, _From, State, _Election) ->
+handle_leader_call(queues_as_list, _From, #state{qdict = Qdict} = State, _Election) ->
+		{reply, dict:to_list(Qdict), State};
+handle_leader_call({notify, Name, Pid}, _From, #state{qdict = Qdict} = State, _Election) ->
 	?CONSOLE("Leading storing queue ~p named ~p", [Pid, Name]),
-	{reply, ok, dict:store(Name, Pid, State)};
-handle_leader_call({get_queue, Name}, _From, State, _Election) ->
-	case dict:find(Name, State) of
+	Newdict = dict:store(Name, Pid, Qdict),
+	{reply, ok, State#state{qdict = Newdict}};
+handle_leader_call({get_queue, Name}, _From, #state{qdict = Qdict} = State, _Election) ->
+	case dict:find(Name, Qdict) of
 		{ok, Pid} ->
 			?CONSOLE("Found queue ~p", [Name]),
 			{reply, Pid, State};
@@ -241,22 +247,23 @@ handle_leader_call({get_queue, Name}, _From, State, _Election) ->
 			?CONSOLE("No such queue ~p", [Name]),
 			{reply, undefined, State}
 	end;
-handle_leader_call({exists, Name}, _From, State, _Election) ->
+handle_leader_call({exists, Name}, _From, #state{qdict = Qdict} = State, _Election) ->
 	?CONSOLE("got an exists request",[]),
-	{reply, dict:is_key(Name, State), State};
+	{reply, dict:is_key(Name, Qdict), State};
 handle_leader_call(_Msg, _From, State, _Election) ->
 	{reply, unknown, State}.
 
 
 %% @private
-handle_call({notify, Name, Pid}, _From, State) ->
+handle_call({notify, Name, Pid}, _From, #state{qdict = Qdict} = State) ->
 	link(Pid),
-	{reply, ok, dict:store(Name, Pid, State)};
-handle_call({exists, Name}, _From, State) ->
-	{reply, dict:is_key(Name, State), State};
-handle_call({get_queue, Name}, _From, State) ->
+	Newdict = dict:store(Name, Pid, Qdict),
+	{reply, ok, State#state{qdict = Newdict}};
+handle_call({exists, Name}, _From, #state{qdict = Qdict} = State) ->
+	{reply, dict:is_key(Name, Qdict), State};
+handle_call({get_queue, Name}, _From, #state{qdict = Qdict} = State) ->
 	?CONSOLE("get_queue start...", []),
-	case dict:find(Name, State) of
+	case dict:find(Name, Qdict) of
 		{ok, Pid} ->
 			{reply, Pid, State};
 		error ->
@@ -265,9 +272,9 @@ handle_call({get_queue, Name}, _From, State) ->
 %handle_call({notify, Name, Pid}, _From, State) ->
 	%{reply, ok, dict:store(Name, Pid, State)};
 handle_call(print, _From, State) ->
-	{reply, State, State};
+	{reply, State#state.qdict, State};
 handle_call(queues_as_list, _From, State) ->
-	{reply, dict:to_list(State), State};
+	{reply, dict:to_list(State#state.qdict), State};
 handle_call(stop, _From, State) ->
 	?CONSOLE("stop requested",[]),
 	{stop, normal, ok, State};
@@ -276,12 +283,14 @@ handle_call(_Request, _From, State) ->
 
 
 %% @private
-handle_leader_cast({notify, Name, Pid}, State, _Election) ->
+handle_leader_cast({notify, Name, Pid}, #state{qdict = Qdict} = State, _Election) ->
 	?CONSOLE("leader alerted about new queue ~p at ~p", [Name, Pid]),
-	{noreply, dict:store(Name, Pid, State)};
-handle_leader_cast({notify, Name}, State, _Election) ->
+	Newdict = dict:store(Name, Pid, Qdict),
+	{noreply, State#state{qdict = Newdict}};
+handle_leader_cast({notify, Name}, #state{qdict = Qdict} = State, _Election) ->
 	?CONSOLE("leader alerted about dead queue ~p", [Name]),
-	{noreply, dict:erase(Name, State)};
+	Newdict = dict:erase(Name, Qdict),
+	{noreply, State#state{qdict = Newdict}};
 handle_leader_cast(_Msg, State, _Election) ->
 	{noreply, State}.
 
@@ -296,29 +305,29 @@ handle_info({mnesia_system_event, {inconsistent_database, _Context, _Node}}, Sta
 	{noreply, State};
 handle_info({mnesia_system_event, _MEvent}, State) ->
 	{noreply, State};
-handle_info({'EXIT', Pid, normal}, State) ->
+handle_info({'EXIT', Pid, normal}, #state{qdict = Qdict} = State) ->
 	?CONSOLE("~p died normally", [Pid]),
-	case find_queue_name(Pid, State) of
+	case find_queue_name(Pid, Qdict) of
 		none ->
 			{noreply, State};
 		Qname ->
 			gen_leader:leader_cast(?MODULE, {notify, Qname}),
-			NewState = dict:erase(Qname, State),
-			{noreply, NewState}
+			Newdict = dict:erase(Qname, Qdict),
+			{noreply, State#state{qdict = Newdict}}
 	end;
-handle_info({'EXIT', Pid, shutdown}, State) ->
+handle_info({'EXIT', Pid, shutdown}, #state{qdict = Qdict} = State) ->
 	?CONSOLE("~p was shutdown.", [Pid]),
-	case find_queue_name(Pid, State) of
+	case find_queue_name(Pid, Qdict) of
 		none ->
 			{noreply, State};
 		Qname ->
 			gen_leader:leader_cast(?MODULE, {notify, Qname}),
-			NewState = dict:erase(Qname, State),
-			{noreply, NewState}
+			Newdict = dict:erase(Qname, Qdict),
+			{noreply, State#state{qdict = Newdict}}
 	end;
-handle_info({'EXIT', Pid, Reason}, State) ->
+handle_info({'EXIT', Pid, Reason}, #state{qdict = Qdict} = State) ->
 	?CONSOLE("~p died due to ~p.", [Pid, Reason]),
-	case find_queue_name(Pid, State) of
+	case find_queue_name(Pid, Qdict) of
 		none ->
 			?CONSOLE("Cannot find queue", []),
 			{noreply, State};
@@ -331,9 +340,9 @@ handle_info({'EXIT', Pid, Reason}, State) ->
 				Queuerec ->
 					?CONSOLE("Got call_queue_config of ~p", [Queuerec]),
 					{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
-					NewState = dict:store(Queuerec#call_queue.name, NewQPid, State),
+					Newdict = dict:store(Queuerec#call_queue.name, NewQPid, Qdict),
 					ok = gen_leader:leader_cast(?MODULE, {notify, Qname, NewQPid}),
-					{noreply, NewState}
+					{noreply, State#state{qdict = Newdict}}
 			end
 	end;
 handle_info(_Info, State) ->

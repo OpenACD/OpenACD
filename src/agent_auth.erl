@@ -375,6 +375,17 @@ local_auth_test_() ->
 				end
 			},
 			{
+				"auth a user using auth",
+				fun() ->
+					cache("A", erlang:md5("B"), [testskill]),
+					Salt = "12345",
+					SaltedPassword = salt(erlang:md5("B"), Salt),
+					?assertMatch({allow, [testskill, '_agent', '_node']}, auth("A", SaltedPassword, Salt)),
+					destroy("A"),
+					?assertMatch(deny, local_auth("A", util:bin_to_hexstr(erlang:md5(integer_to_list(5) ++ erlang:md5("B"))), "5"))
+				end
+			},
+			{
 				"Auth a user 'A' with integer_to_list(salt)",
 				fun() -> 
 					cache("A", erlang:md5("B"), [testskill]),

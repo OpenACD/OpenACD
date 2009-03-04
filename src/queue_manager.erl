@@ -188,22 +188,43 @@ init([]) ->
 elected(State, _Election) ->
 	?CONSOLE("elected",[]),
 	mnesia:subscribe(system),
-	{ok, ok, State}.
+	{ok, State, State}.
 
-surrendered(State, _LeaderState, _Election) ->
-	?CONSOLE("surrendered",[]),
+surrendered(State, LeaderState, _Election) ->
+	?CONSOLE("surrendered.",[]),
 	mnesia:unsubscribe(system),
-	% purge any non-local pids from our state and notify the leader of all the local ones
-	State2 = dict:filter(fun(_K,V) -> node() =:= node(V) end, State),
-	lists:foreach(fun({Name, Pid}) -> gen_leader:leader_cast(?MODULE, {notify, Name, Pid}) end, dict:to_list(State2)),
-	{ok, State2}.
+	% any queues the leader has that do not match the pid we have
+	F = fun(Key, Value, {Mestate, Tokill}) ->
+		case dict:find(Key, Mestate) of
+			error ->
+				{Mestate, Tokill};
+			{ok, Value} ->
+				{Mestate, Tokill};
+			{ok, Otherpid} ->
+				?CONSOLE("slated to die: ~p at ~p", [Key, Value]),
+				{dict:erase(Key, Mestate), [Value | Tokill]}
+		end
+	end,
+	{Noleader, Todie} = dict:fold(F, {State, []}, LeaderState),
+	% inform the leader of any queues left over
+	F2 = fun({Name, Pid}) ->
+		gen_leader:leader_cast(?MODULE, {notify, Name, Pid})
+	end,
+	lists:foreach(F2, dict:to_list(Noleader)),
+	Killem = fun(Pid) ->
+		timer:exit_after(100, Pid, normal)
+		%call_queue:stop(Pid)
+	end,
+	lists:foreach(Killem, Todie),
+	?CONSOLE("Lead: ~p.  Self: ~p", [LeaderState, Noleader]),
+	{ok, Noleader}.
 
 %% @private
 handle_DOWN(Node, State, _Election) ->
 	?CONSOLE("in handle_DOWN",[]),
 	mnesia:set_master_nodes(call_queue, [node()]),
 	mnesia:set_master_nodes(skill_rec, [node()]),
-	{ok, dict:filter(fun(K,V) -> io:format("Trying to remove ~p.~n", [K]), Node =/= node(V) end, State)}.
+	{ok, dict:filter(fun(K,V) -> ?CONSOLE("Trying to remove ~p", [K]), Node =/= node(V) end, State)}.
 
 %% @private
 handle_leader_call(queues_as_list, _From, State, _Election) ->
@@ -275,6 +296,26 @@ handle_info({mnesia_system_event, {inconsistent_database, _Context, _Node}}, Sta
 	{noreply, State};
 handle_info({mnesia_system_event, _MEvent}, State) ->
 	{noreply, State};
+handle_info({'EXIT', Pid, normal}, State) ->
+	?CONSOLE("~p died normally", [Pid]),
+	case find_queue_name(Pid, State) of
+		none ->
+			{noreply, State};
+		Qname ->
+			gen_leader:leader_cast(?MODULE, {notify, Qname}),
+			NewState = dict:erase(Qname, State),
+			{noreply, NewState}
+	end;
+handle_info({'EXIT', Pid, shutdown}, State) ->
+	?CONSOLE("~p was shutdown.", [Pid]),
+	case find_queue_name(Pid, State) of
+		none ->
+			{noreply, State};
+		Qname ->
+			gen_leader:leader_cast(?MODULE, {notify, Qname}),
+			NewState = dict:erase(Qname, State),
+			{noreply, NewState}
+	end;
 handle_info({'EXIT', Pid, Reason}, State) ->
 	?CONSOLE("~p died due to ~p.", [Pid, Reason]),
 	case find_queue_name(Pid, State) of
@@ -568,6 +609,18 @@ multi_node_test_() ->
 					?CONSOLE("Das pids:  ~p and ~p", [QPid, NewQPid]),
 					?assertNot(QPid =:= NewQPid),
 					?assertNot(NewQPid =:= undefined)
+				end
+			}, {
+				"A queue is only started (or stays started) on one node", fun() ->
+					% because a queue_manager starts every queue in the database on init,
+					% a queue will always exist locally.
+					% this is not desired behavior, so on a surrender, it must ditch any
+					% empty queues it already has, and notify the leader of the rest.
+					MasterQ = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
+					SlaveQ = rpc:call(Slave, queue_manager, get_queue, ["default_queue"]),
+					?CONSOLE("dah qs:  ~p and ~p", [MasterQ, SlaveQ]),
+					?assert(node(MasterQ) =:= node(SlaveQ)),
+					?assert(MasterQ =:= SlaveQ)
 				end
 			}
 		]

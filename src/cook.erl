@@ -52,7 +52,14 @@
 -define(DEFAULT_PATHCOST, 15).
 
 %% API
--export([start_link/3, start/3, stop/1, restart_tick/1, stop_tick/1]).
+-export([
+	start_link/3,
+	start/3,
+	stop/1,
+	restart_tick/1,
+	stop_tick/1,
+	start_at/4
+]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -83,6 +90,19 @@ start_link(Call, Recipe, Queue) when is_pid(Call) ->
 start(Call, Recipe, Queue) when is_pid(Call) ->
 	gen_server:start(?MODULE, [Call, Recipe, Queue], []).
 
+start_at(Node, Call, Recipe, Queue) ->
+	F = fun() ->
+		case init([Call, Recipe, Queue]) of
+			{ok, State} ->
+				?CONSOLE("about to enter loop", []),
+				gen_server:enter_loop(?MODULE, [], State);
+			{stop, Reason} ->
+				?CONSOLE("not entering loop due to ~p", [Reason]),
+				{error, Reason}
+		end
+	end,
+	{ok, proc_lib:spawn_link(Node, F)}.
+	
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -90,15 +110,18 @@ start(Call, Recipe, Queue) when is_pid(Call) ->
 %% @private
 init([Call, Recipe, Queue]) ->
 	?CONSOLE("Cook starting for call ~p from queue ~p", [Call, Queue]),
-	case is_process_alive(Call) of
-		true ->
-			process_flag(trap_exit, true),
+	?CONSOLE("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
+	process_flag(trap_exit, true),
+	%case is_process_alive(Call) of
+	%	true ->
+			%process_flag(trap_exit, true),
 			{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
 			State = #state{ticked=0, recipe=Recipe, call=Call, queue=Queue, tref=Tref},
-			{ok, State};
-		false ->
-			{stop, media_pid_dead}
-	end.
+			{ok, State}.%;
+	%	false ->
+	%		?CONSOLE("Call process not alive, aborting start", []),
+	%		{stop, media_pid_dead}
+%	end.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -154,6 +177,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info(do_tick, State) ->
+	?CONSOLE("do_tick caught, beginning processing...", []),
 	case whereis(queue_manager) of % do we even need this?  We do have a terminate that should catch a no-proc.
 		undefined ->
 			{stop, queue_manager_undefined, State};
@@ -610,6 +634,9 @@ queue_interaction_test_() ->
 				call_queue:add(Pid, whereis(media_dummy)),
 				{_Pri, _CallRec} = call_queue:ask(Pid),
 				?assertEqual(1, call_queue:call_count(Pid)),
+				timer:sleep(100), % TODO this is hear because the cook is not started quickly.
+					% thus, if the queue dies while the cook is starting, the media is orphaned.
+					% we should prolly do somthing about that.
 				gen_server:call(Pid, {stop, testy}),
 				?assert(is_process_alive(Pid) =:= false),
 				receive
@@ -823,8 +850,68 @@ agent_interaction_test_() ->
 	]
 	}.
 
-
-
+multinode_test_() ->
+	{
+		foreach,
+		fun() ->
+			["testpx", Host] = string:tokens(atom_to_list(node()), "@"),
+			Master = list_to_atom(lists:append("master@", Host)),
+			Slave = list_to_atom(lists:append("slave@", Host)),
+			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
+			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+			
+			mnesia:stop(),
+			
+			mnesia:change_config(extra_db_nodes, [Master, Slave]),
+			mnesia:delete_schema([node(), Master, Slave]),
+			mnesia:create_schema([node(), Master, Slave]),
+			
+			cover:start([Master, Slave]),
+			
+			rpc:call(Master, mnesia, start, []),
+			rpc:call(Slave, mnesia, start, []),
+			mnesia:start(),
+			
+			mnesia:change_table_copy_type(schema, Master, disc_copies),
+			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+			
+			rpc:call(Master, queue_manager, start, [[Master, Slave]]),
+			rpc:call(Slave, queue_manager, start, [[Master, Slave]]),
+			
+			{Master, Slave}
+		end,
+		fun({Master, Slave}) ->
+			cover:stop([Master, Slave]),
+			
+			slave:stop(Master),
+			slave:stop(Slave),
+			mnesia:stop(),
+			mnesia:delete_schema([node(), Master, Slave]),
+			ok
+		end,
+		[
+			fun({Master, Slave}) ->
+				{"Media goes into a queue on a different node",
+				fun() ->
+					?CONSOLE("cook multi 1", []),
+					{ok, Media} = rpc:call(Slave, dummy_media, start, ["testcall"]),
+					?assert(node(Media) =:= Slave),
+					QPid = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
+					?CONSOLE("das pid:  ~p", [QPid]),
+					?assert(is_pid(QPid)),
+					%QPid = queue_manager:get_queue("default_queue"),
+					call_queue:set_recipe(QPid, [{1, prioritize, [], run_many}]),
+					call_queue:add(QPid, Media),
+					receive
+					after ?TICK_LENGTH * 2 + 100 ->
+						ok
+					end,
+					{{Priority, _Time}, Mediarec} = call_queue:get_call(QPid, Media),
+					?assertEqual(3, Priority)
+				end}
+			end
+		]
+	}.
 
 
 

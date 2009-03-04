@@ -322,8 +322,9 @@ handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
 handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid) ->
 	% cook is started on the same node callpid is on
-	?CONSOLE("adding call ~p request from ~p", [Callpid, From]),
-	case rpc:call(node(Callpid), gen_server, start_link, [cook, [Callpid, State#state.recipe, State#state.name], []]) of
+	?CONSOLE("adding call ~p request from ~p on node ~p", [Callpid, From, node(Callpid)]),
+%	case rpc:call(node(Callpid), gen_server, start, [cook, [Callpid, State#state.recipe, State#state.name], []]) of
+	case cook:start_at(node(Callpid), Callpid, State#state.recipe, State#state.name) of
 		{ok, Cookpid} ->
 			link(Cookpid),
 			erlang:monitor(process, Callpid),
@@ -497,7 +498,9 @@ clean_pid(Deadpid, Recipe, [{Key, Call} | Calls], QName) ->
 	Cleanbound = lists:delete(Deadpid, Bound),
 	case Call#queued_call.cook of
 		Deadpid ->
-			case rpc:call(node(Call#queued_call.media), gen_server, start_link, [cook, [Call#queued_call.media, Recipe, QName], []]) of
+			%case rpc:call(node(Call#queued_call.media), gen_server, start_link, [cook, [Call#queued_call.media, Recipe, QName], []]) of
+			?CONSOLE("~nNode:  ~p~nMedia:  ~p~nRecipe:  ~p~nQueue:  ~p", [node(Call#queued_call.media), Call#queued_call.media, Recipe, QName]),
+			case cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName) of
 				{ok, Pid} ->
 					link(Pid),
 					Cleancall = Call#queued_call{dispatchers=Cleanbound, cook=Pid},
@@ -908,10 +911,21 @@ call_update_test_() ->
 					?assertEqual(true, lists:member(english, Call#queued_call.skills))
 				end
 			}, {
-				"The Media dies", fun() ->
+				"The Media dies during cook start", fun() ->
+					?CONSOLE("Media dies during cook start test begins", []),
 					Pid = whereis(testqueue),
 					{ok, Dummy1} = dummy_media:start("C1"),
 					add(Pid, Dummy1),
+					dummy_media:stop(Dummy1, testkill),
+					?assertMatch(none, get_call(Pid, "C1"))
+				end
+			}, {
+				"Media dies", fun() ->
+					?CONSOLE("Media dies", []),
+					Pid = whereis(testqueue),
+					{ok, Dummy1} = dummy_media:start("C1"),
+					add(Pid, Dummy1),
+					timer:sleep(100),
 					dummy_media:stop(Dummy1, testkill),
 					?assertMatch(none, get_call(Pid, "C1"))
 				end

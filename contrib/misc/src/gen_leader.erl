@@ -359,7 +359,8 @@ init_it(Starter,Parent,Name,Mod,{CandidateNodes,Workers,Arg},Options) ->
 			case (length(CandidateNodes) == 1) and (CandidateNodes =:= [node()]) of
 				true ->
 					% there's only one candidate leader; us
-					hasBecomeLeader(NewE,#server{parent = Parent,mod = Mod,state = State,debug = Debug},{init});
+					hasBecomeLeader(NewE,#server{parent = Parent,mod = Mod,
+							state = State,debug = Debug},{init});
 				false ->
 					% more than one candidate worker, continue as normal
 	    safe_loop(#server{parent = Parent,mod = Mod,state = State,debug = Debug}, 
@@ -367,12 +368,14 @@ init_it(Starter,Parent,Name,Mod,{CandidateNodes,Workers,Arg},Options) ->
 		end;
 	{{ok, State}, false} ->
 		io:format("new worker~n", []),
+		% broadcast to all the candidate nodes we know about
 	    proc_lib:init_ack(Starter, {ok, self()}),
 	    lists:foreach(
 		      fun(Node) ->
 		          {Name,Node} ! {workerStart, self()}
 		      end,Election#election.candidate_nodes),
 
+		timer:send_after(?TAU,{workerstart_timeout}),
 	    safe_loop(#server{parent = Parent,mod = Mod,state = State,debug = Debug}, 
 		      waiting_worker, Election,{init});
 	Else ->
@@ -445,12 +448,14 @@ safe_loop(#server{mod = Mod, state = State} = Server, Role,
 		    NewE = E
 	    end,
 	    hasBecomeLeader(NewE,Server,Msg);
-	{ldr,Synch,T,From} = Msg ->
+	{ldr,Synch,Candidates,Workers,T,From} = Msg ->
 	    case ( (E#election.status == wait) and (E#election.elid == T) ) of
 		true ->
 		    NewE1 = mon_node(E,From),
 		    NewE = NewE1#election{leader = From,
 					  leadernode = node(From),
+						candidate_nodes = Candidates,
+						worker_nodes = Workers,
 					  status = norm},
 		    {ok,NewState} = Mod:surrendered(State,Synch,NewE),
 		    loop(Server#server{state = NewState},surrendered,NewE,Msg);
@@ -507,6 +512,14 @@ safe_loop(#server{mod = Mod, state = State} = Server, Role,
 	
 	{tau_timeout} = Msg ->
 	    safe_loop(Server,Role,E,Msg);
+	{workerstart_timeout} = Msg ->
+		io:format("worker start timeout~n"),
+		lists:foreach(
+			fun(Node) ->
+					{E#election.name,Node} ! {workerStart, self()}
+			end,E#election.candidate_nodes),
+		timer:send_after(?TAU,{workerstart_timeout}),
+		safe_loop(Server, Role, E, Msg);
 	{'DOWN',_Ref,process,From,_Reason} = Msg when Role == waiting_worker ->
 	    % We are only monitoring one proc, the leader!
 	    Node = case From of
@@ -594,7 +607,7 @@ loop(#server{parent = Parent,
 
 		{halt,_,From} ->
 		    % we already have a leader, so send it back
-		    From ! {hasLeader,E#election.leader,E#election.elid,self()},
+		    From ! {hasLeader, E#election.leader,E#election.elid,self()},
 		    loop(Server,Role,E,Msg);
 		{hasLeader,_,_,_} ->
 		    loop(Server,Role,E,Msg);
@@ -604,7 +617,8 @@ loop(#server{parent = Parent,
 			    NewE = mon_node(E#election{down = E#election.down -- [node(From)]},
 						 From),
 			    {ok,Synch,NewState} = Mod:elected(State,NewE),
-			    From ! {ldr,Synch,E#election.elid,self()}, 
+			    From ! {ldr,Synch,E#election.candidate_nodes, E#election.worker_nodes,
+						E#election.elid,self()},
 			    loop(Server#server{state = NewState},Role,NewE,Msg);	
 			false ->
 			    From ! {notLeader,T,self()},
@@ -626,7 +640,8 @@ loop(#server{parent = Parent,
 			    NewE = mon_node(E#election{down = E#election.down -- [node(From)]},
 						 From),
 			    {ok,Synch,NewState} = Mod:elected(State,NewE),
-			    From ! {ldr,Synch,E#election.elid,self()},
+			    From ! {ldr,Synch,E#election.candidate_nodes, E#election.worker_nodes,
+						E#election.elid,self()},
 			    loop(Server#server{state = NewState},Role,NewE,Msg);	
 			false ->
 			    loop(Server,Role,E,Msg)
@@ -659,7 +674,7 @@ loop(#server{parent = Parent,
 					Fun = fun() ->
 						case whereis(E#election.name) of
 							undefined ->
-								io:format("~p is not running on ~p", [E#election.name, node()]),
+								io:format("~p is not running on ~p~n", [E#election.name, node()]),
 								ok;
 							Pid ->
 								io:format("suspending ~p on ~p~n", [Pid, node()]),
@@ -711,6 +726,8 @@ loop(#server{parent = Parent,
 			    ok
 		    end,
 		    loop(Server,Role,E,Msg);
+		{workerstart_timeout} = Msg ->
+			loop(Server, Role, E, Msg);
 		{'DOWN',_Ref,process,From,_Reason} when Role == worker ->
 		    % We are only monitoring one proc, the leader!
 		    Node = case From of
@@ -1142,7 +1159,8 @@ hasBecomeLeader(E,Server,Msg) ->
 	    lists:foreach(
 	      fun(Node) ->
 		      {E#election.name,Node} ! 
-			  {ldr, Synch, E#election.elid, self()}
+			  {ldr, Synch, E#election.candidate_nodes, E#election.worker_nodes,
+					E#election.elid, self()}
 	      end,E#election.acks),
 
 	    % Make sure we will try to contact all workers!

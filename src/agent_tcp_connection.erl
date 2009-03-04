@@ -88,10 +88,10 @@ handle_cast(negotiate, State) ->
 	inet:setopts(State#state.socket, [{active, false}, {packet, line}, list]),
 	gen_tcp:send(State#state.socket, "Agent Server: -1\r\n"),
 	{ok, Packet} = gen_tcp:recv(State#state.socket, 0), % TODO timeout
-	io:format("packet: ~p.~n", [Packet]),
+	?CONSOLE("packet: ~p.~n", [Packet]),
 	case Packet of
 		"Protocol: " ++ Args ->
-			io:format("Got protcol version ~p.~n", [Args]),
+			?CONSOLE("Got protcol version ~p.~n", [Args]),
 			try lists:map(fun(X) -> list_to_integer(X) end, util:string_split(util:string_chomp(Args), ".", 2)) of
 				[?Major, ?Minor] ->
 					gen_tcp:send(State#state.socket, "0 OK\r\n"),
@@ -190,7 +190,7 @@ handle_event(["GETSALT", Counter], State) when is_integer(Counter) ->
 handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), is_atom(State#state.salt) ->
 	{err(Counter, "Please request a salt with GETSALT first"), State};
 
-handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter) ->
+handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
 	case util:string_split(Credentials, ":", 2) of
 		[Username, Password] ->
 			case agent_auth:auth(Username, Password, integer_to_list(State#state.salt)) of
@@ -285,16 +285,22 @@ handle_event(["QUEUENAMES", Counter], State) when is_integer(Counter) ->
 handle_event(["RELEASEOPTIONS", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, "1:bathroom:0,2:smoke:-1"), State};
 
-handle_event(["ENDWRAPUP", Counter], State) when is_integer(Counter) -> 
-	case agent:set_state(State#state.agent_fsm, idle) of
-		ok -> 
-			{ok, Curstate} = agent:query_state(State#state.agent_fsm),
-			State2 = send("ASTATE", integer_to_list(agent:state_to_integer(Curstate)), State),
-			{ack(Counter), State2};
-		invalid -> 
-			{err(Counter, "invalid state"), State}
+handle_event(["ENDWRAPUP", Counter], State) when is_integer(Counter) ->
+	case agent:query_state(State#state.agent_fsm) of
+		{ok, wrapup} ->
+			case agent:set_state(State#state.agent_fsm, idle) of
+				ok ->
+					{ok, Curstate} = agent:query_state(State#state.agent_fsm),
+					State2 = send("ASTATE", integer_to_list(agent:state_to_integer(Curstate)), State),
+					{ack(Counter), State2};
+				invalid ->
+					{err(Counter, "invalid state"), State}
+			end;
+		_Else ->
+			{err(Counter, "Agent must be in wrapup to send an ENDWRAPUP"), State}
 	end;
 
+% XXX - only for testing
 handle_event(["UNACKTEST", Counter], State) when is_integer(Counter) ->
 	State2 = send("NOACK", "", State),
 	{ack(Counter), State2};
@@ -315,8 +321,12 @@ handle_event(["ERR", Counter], State) when is_integer(Counter) ->
 handle_event([Event, Counter], State) when is_integer(Counter) ->
 	{err(Counter, "Unknown event " ++ Event), State};
 
-handle_event([Event | [Counter | _Args]], State) when is_integer(Counter) ->
-	{err(Counter, "invalid arguments for event " ++ Event), State};
+handle_event([Event, Counter, _Args], State) when is_integer(Counter) ->
+	{err(Counter, "Unknown event " ++ Event), State};
+
+% TODO - do we need this?
+%handle_event([Event | [Counter | _Args]], State) when is_integer(Counter) ->
+	%{err(Counter, "invalid arguments for event " ++ Event), State};
 	
 handle_event(_Stuff, State) ->
 	{"ERR Invalid Event, missing or invalid counter", State}.
@@ -377,21 +387,20 @@ unauthenticated_agent_test_() ->
 	{
 		foreach,
 		fun() ->
-				crypto:start(),
-				%{ok, Pid} = agent:start(#agent{login="testuser"}),
-				mnesia:delete_schema([node()]),
-				mnesia:create_schema([node()]),
-				mnesia:start(),
-				agent_auth:start(),
-				agent_auth:cache("Username", erlang:md5("Password"), [skill1, skill2]),
-				agent_manager:start([node()]),
-				#state{}
+			crypto:start(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			agent_auth:start(),
+			agent_auth:cache("Username", erlang:md5("Password"), [skill1, skill2]),
+			agent_manager:start([node()]),
+			#state{}
 		end,
 		fun(_State) ->
 			agent_auth:stop(),
+			agent_manager:stop(),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
-			agent_manager:stop([node()]),
 			ok
 		end,
 		[
@@ -458,9 +467,8 @@ unauthenticated_agent_test_() ->
 					{Reply, State2} = handle_event(["GETSALT",  3], State),
 					[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
 					Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
-					{Reply2, State3} = handle_event(["LOGIN",  4, "Username:" ++ Password], State2),
-					?assertMatch(["ACK", "4", _Args], util:string_split(string:strip(util:string_chomp(Reply2)), " ", 3)),
-					gen_fsm:send_all_state_event(State3#state.agent_fsm, stop) % TODO - why is this needed?
+					{Reply2, _State3} = handle_event(["LOGIN",  4, "Username:" ++ Password], State2),
+					?assertMatch(["ACK", "4", _Args], util:string_split(string:strip(util:string_chomp(Reply2)), " ", 3))
 				end}
 			end,
 			fun(State) ->
@@ -475,12 +483,174 @@ unauthenticated_agent_test_() ->
 					?assertMatch(["ERR", "5", _Args], util:string_split(string:strip(util:string_chomp(Reply3)), " ", 3))
 				end}
 			end
-
-
-
 		]
 	}.
 
+
+authenticated_agent_test_() ->
+	{
+		foreach,
+		fun() ->
+			crypto:start(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			agent_auth:start(),
+			agent_auth:cache("Username", erlang:md5("Password"), [skill1, skill2]),
+			agent_manager:start([node()]),
+			State = #state{},
+			{Reply, State2} = handle_event(["GETSALT",  3], State),
+			[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
+			Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
+			{_Reply2, State3} = handle_event(["LOGIN",  4, "Username:" ++ Password], State2),
+			State3
+		end,
+		fun(_State) ->
+			agent_auth:stop(),
+			agent_manager:stop(),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			ok
+		end,
+		[
+			fun(State) ->
+				{"LOGIN should be an unknown event",
+				fun() ->
+					{Reply, _State2} = handle_event(["LOGIN",  3, "username:password"], State),
+					?assertEqual("ERR 3 Unknown event LOGIN", Reply)
+				end}
+			end,
+
+			fun(State) ->
+				{"PING should return the current timestamp",
+				fun() ->
+					{MegaSecs, Secs, _MicroSecs} = now(),
+					Now = list_to_integer(integer_to_list(MegaSecs) ++ integer_to_list(Secs)),
+					timer:sleep(1000),
+					{Reply, _State2} = handle_event(["PING", 3], State),
+					["ACK", "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
+					Pingtime = list_to_integer(Args),
+					?assert(Now < Pingtime),
+					timer:sleep(1000),
+					{MegaSecs2, Secs2, _MicroSecs2} = now(),
+					Now2 = list_to_integer(integer_to_list(MegaSecs2) ++ integer_to_list(Secs2)),
+					?assert(Now2 > Pingtime)
+				end}
+			end,
+
+			fun(State) ->
+				{"ENDWRAPUP should not work while in not in wrapup",
+				fun() ->
+					{Reply, _State2} = handle_event(["ENDWRAPUP", 3], State),
+					?assertEqual("ERR 3 Agent must be in wrapup to send an ENDWRAPUP", Reply)
+				end}
+			end,
+
+			fun(State) ->
+				{"ENDWRAPUP should work while in wrapup",
+				fun() ->
+					Call = #call{id="testcall", source=self()},
+					?assertEqual(ok, agent:set_state(State#state.agent_fsm, idle)),
+					?assertEqual(ok, agent:set_state(State#state.agent_fsm, ringing, Call)),
+					?assertEqual(ok, agent:set_state(State#state.agent_fsm, oncall, Call)),
+					?assertEqual(ok, agent:set_state(State#state.agent_fsm, wrapup, Call)),
+					{Reply, _State2} = handle_event(["ENDWRAPUP", 3], State),
+					?assertEqual("ACK 3", Reply)
+				end
+				}
+			end
+		]
+	}.
+
+socket_enabled_test_() ->
+	{
+		foreach,
+		fun() ->
+			crypto:start(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			agent_auth:start(),
+			agent_auth:cache("Username", erlang:md5("Password"), [skill1, skill2]),
+			agent_manager:start([node()]),
+			{ok, Pid} = agent_tcp_listener:start(),
+			{ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, 1337, [inet, list, {active, false}]),
+			%timer:sleep(1000),
+			%State = #state{},
+			%{Reply, State2} = handle_event(["GETSALT",  3], State),
+			%[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
+			%Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
+			%{_Reply2, State3} = handle_event(["LOGIN",  4, "Username:" ++ Password], State2),
+			%State3
+			{Socket, Pid}
+		end,
+		fun({Socket, Pid}) ->
+			agent_auth:stop(),
+			agent_manager:stop(),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			agent_tcp_listener:stop(Pid),
+			gen_tcp:close(Socket),
+			ok
+		end,
+		[
+			fun({Socket, _Pid}) ->
+				{"Negiotiate protocol with correct version",
+				fun() ->
+					?debugFmt("getting initial banner~n", []),
+					{ok, Packet} = gen_tcp:recv(Socket, 0),
+					?assertEqual("Agent Server: -1\r\n", Packet),
+					gen_tcp:send(Socket, io_lib:format("Protocol: ~p.~p\r\n", [?Major, ?Minor])),
+					{ok, Packet2} = gen_tcp:recv(Socket, 0),
+					?assertEqual("0 OK\r\n", Packet2)
+				end}
+			end,
+			fun({Socket, _Pid}) ->
+				{"Negiotiate protocol with minor version mismatch",
+				fun() ->
+					?debugFmt("getting initial banner~n", []),
+					{ok, Packet} = gen_tcp:recv(Socket, 0),
+					?assertEqual("Agent Server: -1\r\n", Packet),
+					gen_tcp:send(Socket, io_lib:format("Protocol: ~p.~p\r\n", [?Major, ?Minor -1])),
+					{ok, Packet2} = gen_tcp:recv(Socket, 0),
+					?assertEqual("1 Protocol version mismatch. Please consider upgrading your client\r\n", Packet2)
+				end}
+			end,
+			fun({Socket, _Pid}) ->
+				{"Negiotiate protocol with major version mismatch",
+				fun() ->
+					?debugFmt("getting initial banner~n", []),
+					{ok, Packet} = gen_tcp:recv(Socket, 0),
+					?assertEqual("Agent Server: -1\r\n", Packet),
+					gen_tcp:send(Socket, io_lib:format("Protocol: ~p.~p\r\n", [?Major -1, ?Minor])),
+					{ok, Packet2} = gen_tcp:recv(Socket, 0),
+					?assertEqual("2 Protocol major version mismatch. Login denied\r\n", Packet2)
+				end}
+			end,
+			fun({Socket, _Pid}) ->
+				{"Negiotiate protocol with non-integer version",
+				fun() ->
+					?debugFmt("getting initial banner~n", []),
+					{ok, Packet} = gen_tcp:recv(Socket, 0),
+					?assertEqual("Agent Server: -1\r\n", Packet),
+					gen_tcp:send(Socket, "Protocol: a.b\r\n"),
+					{ok, Packet2} = gen_tcp:recv(Socket, 0),
+					?assertEqual("2 Invalid Response. Login denied\r\n", Packet2)
+				end}
+			end,
+			fun({Socket, _Pid}) ->
+				{"Negiotiate protocol with gibberish",
+				fun() ->
+					?debugFmt("getting initial banner~n", []),
+					{ok, Packet} = gen_tcp:recv(Socket, 0),
+					?assertEqual("Agent Server: -1\r\n", Packet),
+					gen_tcp:send(Socket, "asdfasdf\r\n"),
+					{ok, Packet2} = gen_tcp:recv(Socket, 0),
+					?assertEqual("2 Invalid Response. Login denied\r\n", Packet2)
+				end}
+			end
+		]
+	}.
 
 
 -endif.

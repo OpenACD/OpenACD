@@ -115,7 +115,7 @@ unqueue(MPid) ->
 set_agent(MPid, Agent, Apid) when is_pid(MPid), is_pid(Apid) ->
 	gen_server:call(MPid, {set_agent, Agent, Apid}).
 
--spec(dump_state(Mpid :: pid) -> #state{}).
+-spec(dump_state(Mpid :: pid()) -> #state{}).
 dump_state(Mpid) when is_pid(Mpid) ->
 	gen_server:call(Mpid, dump_state).
 	

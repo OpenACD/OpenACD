@@ -27,7 +27,9 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
-%% @doc Agent manager
+%% @doc Centralized authority on where agent_fsm's are and starting them.
+%% Similar in function to the {@link queue_manager}, just oriented towards
+%% agents.  There can be only one `agent_manager' per node.
 
 -module(agent_manager).
 -author(micahw).
@@ -73,22 +75,22 @@
 
 %% API
 
-%% @doc Starts the gen_server linked to the calling process.
+%% @doc Starts the `agent_manger' linked to the calling process.
 -spec(start_link/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start_link(Nodes) -> 
 	gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, [], []).
 
-%% @doc Starts the gen_server without linking to the callnig process.
+%% @doc Starts the `agent_manager' without linking to the calling process.
 -spec(start/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start(Nodes) -> 
 	gen_leader:start(?MODULE, Nodes, [], ?MODULE, [], []).
 	
-%% @doc stops the server.
+%% @doc stops the `agent_manager'.
 -spec(stop/0 :: () -> {'ok', pid()}).
 stop() -> 
 	gen_leader:call(?MODULE, stop).
 	
-%% @doc starts a new agent_fsm for `Agent'. Returns {'ok', pid()}, where pid is the new agent_fsm pid.
+%% @doc starts a new agent_fsm for `Agent'. Returns `{ok, pid()}', where `Pid' is the new agent_fsm pid.
 -spec(start_agent/1 :: (Agent :: #agent{}) -> {'ok', pid()} | {'exists', pid()}).
 start_agent(#agent{login = ALogin} = Agent) -> 
 	case query_agent(ALogin) of
@@ -117,7 +119,7 @@ find_avail_agents_by_skill(Skills) ->
 	end,
 	lists:sort(F, AvailSkilledAgentsByIdleTime).
 
-%% @doc Get a list of agents
+%% @doc Get a list of agents at the node this `agent_manager' is running on.
 -spec(list/0 :: () -> [any()]).
 list() ->
 	gen_leader:call(?MODULE, list_agents).
@@ -130,22 +132,24 @@ query_agent(#agent{login=Login}) ->
 query_agent(Login) -> 
 	gen_leader:leader_call(?MODULE, {exists, Login}).
 
-%% @doc Returns {'ok', pid()} where pid() is the pid of the leader process.
+%% @doc Returns `{ok, pid()}' where `pid()' is the pid of the leader process.
 -spec(get_leader/0 :: () -> {'ok', pid()}).
 get_leader() -> 
 	gen_leader:leader_call(?MODULE, get_pid).
 	
 %% gen_leader callbacks
-
+%% @hidden
 init([]) ->
 	?CONSOLE("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
 	{ok, #state{}}.
 	
+%% @hidden
 elected(State, _Election) -> 
 	?CONSOLE("elected", []),
 	{ok, ok, State}.
 	
+%% @hidden
 %% TODO what about an agent started at both places?
 surrendered(#state{agents = Agents} = State, _LeaderState, _Election) -> 
 	?CONSOLE("surrendered", []),
@@ -161,6 +165,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 	lists:foreach(Notify, dict:to_list(Locals)),
 	{ok, State#state{agents=Locals}}.
 	
+%% @hidden
 handle_DOWN(Node, #state{agents = Agents} = State, _Election) -> 
 	% clean out the pids associated w/ the dead node
 	F = fun(_Login, Apid) -> 
@@ -169,6 +174,7 @@ handle_DOWN(Node, #state{agents = Agents} = State, _Election) ->
 	Agents2 = dict:filter(F, Agents),
 	{ok, State#state{agents = Agents2}}.
 
+%% @hidden
 handle_leader_call({exists, Agent}, _From, #state{agents = Agents} = State, _Election) when is_list(Agent) -> 
 	?CONSOLE("Trying to determine if ~p exists", [Agent]),
 	case dict:find(Agent, Agents) of
@@ -180,6 +186,7 @@ handle_leader_call({exists, Agent}, _From, #state{agents = Agents} = State, _Ele
 handle_leader_call(get_pid, _From, State, _Election) -> 
 	{reply, {ok, self()}, State}.
 
+%% @hidden
 handle_leader_cast({notify, Agent, Apid}, #state{agents = Agents} = State, _Election) -> 
 	?CONSOLE("Notified of ~p pid ~p", [Agent, Apid]),
 	case dict:find(Agent, Agents) of
@@ -196,11 +203,12 @@ handle_leader_cast(dump_election, State, Election) ->
 	?CONSOLE("Dumping leader election.~nSelf:  ~p~nDump:  ~p", [self(), Election]),
 	{noreply, State}.
 
-
+%% @hidden
 from_leader(_Msg, State, _Election) -> 
 	?CONSOLE("Stub from leader.", []),
 	{ok, State}.
 
+%% @hidden
 handle_call(list_agents, _From, #state{agents = Agents} = State) -> 
 	{reply, dict:to_list(Agents), State};
 handle_call(stop, _From, State) -> 
@@ -214,10 +222,12 @@ handle_call({start_agent, #agent{login = ALogin} = Agent}, _From, #state{agents 
 	gen_server:cast(dispatch_manager, {end_avail, Apid}),
 	{reply, {ok, Apid}, State#state{agents = Agents2}}.
 
+%% @hidden
 handle_cast(_Request, State) -> 
 	?CONSOLE("Stub handle_cast", []),
 	{noreply, State}.
 
+%% @hidden
 handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
 	?CONSOLE("Caught exit for ~p with reason ~p", [Pid, Reason]),
 	F = fun(Key, Value) ->
@@ -234,9 +244,12 @@ handle_info(Msg, State) ->
 	?CONSOLE("Stub handle_info for ~p", [Msg]),
 	{noreply, State}.
 
-terminate(_Reason, _State) -> 
+%% @hidden
+terminate(Reason, _State) -> 
+	?CONSOLE("Terminating:  ~p", [Reason]),
 	ok.
 
+%% @hidden
 code_change(_OldVsn, State, _Election, _Extra) ->
 	{ok, State}.
 	

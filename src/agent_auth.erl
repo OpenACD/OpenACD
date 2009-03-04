@@ -73,26 +73,27 @@
 %% API
 %%====================================================================
 
-%% @doc Starts with no integration, meaning all authentication requests are done against the mnesia cache.
+%% @doc Starts with no integration.  All authentication requests are done against the mnesia cache.
 start() -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
-%% @doc Starts with no integration, meaning all authentication requests are done against the mnesia cache.
+%% @doc Starts with no integration linked to the calling process.  All authentication requests are done against the mnesia cache.
 start_link() -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
-%% @doc Starts with integration, meaning all authentication requests are done first against the mnesia cache only if the integration fails.
-%% Mod is the integration module.  When this starts, Mod:StartFunc is called as the last step of this modules startup.
-%% When an authenticaiton request is made, Mod:CheckFunc is called with the Username, Password, and Salt prepended to the CheckArgs list.
-%% See also @see auth/3
+%% @doc Starts with integration.  All authentication requests are done against the mnesia cache only if the integration fails.
+%% When the agent_auth starts, `apply(Mod, StartFunc, StartArgs)' is called as the last step. When an authenticaiton request 
+%% is made, `apply(Mod, CheckFunc, PrependedCheckArgs)' is called with the `Username', `Password', and `Salt' prepended to the `CheckArgs' list
+%% to get `PrependedCheckArgs'.
+%% The integration is expected to return either `{allow, PasswordToCache, [skill1, skill2, ...]}' or `deny'.  If the tuple is returned, 
+%% the passed username is cached using {@link cache/3}.
+%% @see auth/3
 -spec(start/5 :: (Mod :: atom(), StartFunc :: atom(), StartArgs :: [any()], CheckFunc :: atom(), CheckArgs :: [any()]) -> 'ok' | any()).
 start(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [Mod, StartFunc, StartArgs, CheckFunc, CheckArgs], []).
 	
-%% @doc Starts with integration, meaning all authentication requests are done first against the mnesia cache only if the integration fails.
-%% Mod is the integration module.  When this startes, Mod:StartFunc is called as the last step of this modules startup.
-%% When an authenticaiton request is made, Mod:CheckFunc is called with the Username, Password, and Salt prepended to the CheckArgs list.
-%% @see auth/3
+%% @doc Starts linked to the calling process with integration.
+%% @see start/5
 -spec(start_link/5 :: (Mod :: atom(), StartFunc :: atom(), StartArgs :: [any()], CheckFunc :: atom(), CheckArgs :: [any()]) -> 'ok' | any()).
 start_link(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Mod, StartFunc, StartArgs, CheckFunc, CheckArgs], []).
@@ -101,6 +102,7 @@ start_link(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) ->
 %% gen_server callbacks
 %%====================================================================
 
+%% @hidden
 init([Mod, StartFunc, StartArgs, CheckFunc, CheckArgs]) ->
 	?CONSOLE("~p starting at ~p with integration", [?MODULE, node()]),
 	case build_tables() of
@@ -183,16 +185,16 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-%% @doc Base authentication function.  Does the appropriate gen_server:call.  Username, Password, and Salt are all expected to be lists.
+%% @doc Base authentication function.  Does the appropriate gen_server:call.  Username, Password, and Salt are all expected to be of type `string()'.
 %% Password is an md5 hash of the salt and the md5 hash of the plain text password.  In pseudo code, password is
 %%
 %% <pre>md5(Salt + md5(password))</pre>
 %%
-%% When integration is enabled, the integration module should return {allow, CachePassword, [Skill]} so that the local authentication
-%% cache can store a properly hashed and unsalted password.  Local passwords are stored in a lower cased md5 hash.
+%% When integration is enabled, the integration module should return `{allow, CachePassword, [skill, ...]}' for the local authentication
+%% cache to store a hashed and unsalted password.  Local passwords are stored in a lower cased md5 hash.
 %% 
-%% If integration returns anything other than `{allow, CachePassword, [Skill]}' or `deny', agent_auth falls back on it's mnesia cache.
-%% If that fails, deny is returned in all cases.
+%% If integration returns anything other than `{allow, CachePassword, [skill, ...]}' or `deny', agent_auth falls back on it's mnesia cache.
+%% If that fails, `deny' is returned in all cases.
 %% 
 %% The magic skills of `_agent' and `_node' are automcatically appended to the skill list, and therefore do not need to be stored on the 
 %% integration side.
@@ -201,7 +203,8 @@ code_change(_OldVsn, State, _Extra) ->
 auth(Username, Password, Salt) -> 
 	gen_server:call(?MODULE, {authentication, Username, Password, Salt}).
 
-%% @doc Starts mnesia and creates the tables.  If the tables already exist, returns ok.
+%% @doc Starts mnesia and creates the tables.  If the tables already exist, returns `ok'.  Otherwise, a default username
+%% of `"agent"' is stored with password `"Password123"' and skill `[english]'.
 -spec(build_tables/0 :: () -> 'ok').
 build_tables() ->
 	?CONSOLE("building tables...", []),
@@ -227,8 +230,8 @@ build_tables() ->
 	end.
 
 %% @doc Caches the passed `Username', `Password', and `Skills' to the mnesia database.  `Username' is the plaintext name and used as the key. 
-%% `Password' is assumed to be prehashed either from erlang:md5 or as a string (list).  `Skills'  should not
-%% include the magic skills of '_agent' or '_node'.
+%% `Password' is assumed to be prehashed either from erlang:md5 or as type `string()'.  `Skills' should not
+%% include the magic skills of `_agent' or `_node'.
 -spec(cache/3 ::	(Username :: string(), Password :: string(), Skills :: [atom()]) -> {'atomic', 'ok'} | {'aborted', any()};
 					(Username :: string(), Password :: binary(), Skills :: [atom()]) -> {'atomic', 'ok'} | {'aborted', any()}).
 cache(Username, Password, Skills) when is_binary(Password) -> 
@@ -254,7 +257,7 @@ destroy(Username) ->
 
 %% @private 
 % Checks the `Username' and prehashed `Password' using the given `Salt' for the cached password.
-% internally called by the auth callback; there should be no need to call this directly.
+% internally called by the auth callback; there should be no need to call this directly (aside from tests).
 -spec(local_auth/3 :: (Username :: string(), Password :: string(), Salt :: string()) -> {'allow', [atom()]} | 'deny').
 local_auth(Username, Password, Salt) -> 
 	QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Username]),
@@ -291,7 +294,7 @@ salt(Hash, Salt) when is_list(Hash) ->
 	Lower = string:to_lower(Hash),
 	string:to_lower(util:bin_to_hexstr(erlang:md5(Salt ++ Lower))).
 	
-%% @doc Duh.
+%% @doc Stops the authentication server.  Note this does not stop the integration server.
 stop() -> 
 	gen_server:call(?MODULE, stop).
 
@@ -419,19 +422,24 @@ local_auth_test_() ->
 		]
 	}.
 
+%% @hidden
 mock_start_success("mock1", "mock2") ->
 	{ok, self()}.
 
+%% @hidden
 mock_start_failure("mock1", "mock2") ->
 	{error, invalid}.
 
+%% @hidden
 mock_auth_success(_Username, _Password, _Nonce, "mock1", "mock2") ->
 	?CONSOLE("~p", [util:bin_to_hexstr(erlang:md5("password"))]),
 	{allow, util:bin_to_hexstr(erlang:md5("password")), [testskill]}.
 
+%% @hidden
 mock_auth_deny(_Username, _Password, _Nonce, "mock1", "mock2") ->
 	deny.
 
+%% @hidden
 mock_auth_error(_Username, _Password, _Nonce, "mock1", "mock2") ->
 	{error, invalid}.
 

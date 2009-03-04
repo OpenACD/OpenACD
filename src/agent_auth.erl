@@ -147,7 +147,7 @@ handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call(Request, _From, State) ->
 	?CONSOLE("agent_auth does not understand request:  ~p", [Request]),
-    Reply = ok,
+    Reply = {unknown_call, Request},
     {reply, Reply, State}.
 
 %%--------------------------------------------------------------------
@@ -498,5 +498,19 @@ mock_integration_test_() ->
 			}
 		]
 	}.
+	
+-define(MYSERVERFUNC, 
+	fun() -> 
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		build_tables(),
+		{ok, _Pid} = start_link(), 
+		{?MODULE, fun() -> stop() end} 
+	end).
+
+-include("gen_server_test.hrl").
+
 
 -endif.

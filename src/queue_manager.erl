@@ -471,6 +471,32 @@ single_node_test_() ->
 					?assertMatch({exists, _NewPid}, AddQueueRes),
 					?assertNot(QPid =:= element(2, AddQueueRes))
 				end
+			},{
+				"Find the correct queue test",
+				fun() ->
+					{exists, QPid} = add_queue("default_queue"),
+					{ok, QPid2} = add_queue("queue2"),
+					{ok, QPid3} = add_queue("queue3"),
+					?assertEqual(QPid2, get_queue("queue2")),
+					?assertEqual(QPid, get_queue("default_queue")),
+					?assertEqual(QPid3, get_queue("queue3"))
+				end
+			},{
+				"Queue is shutdown, thus not restarted",
+				fun() ->
+					{exists, QPid} = add_queue("default_queue"),
+					gen_server:call(QPid, {stop, shutdown}),
+					timer:sleep(100),
+					?assertEqual(undefined, get_queue("default_queue"))
+				end
+			},{
+				"Queue exits on normal, thus not restarted",
+				fun() ->
+					{exists, QPid} = add_queue("default_queue"),
+					gen_server:call(QPid, stop),
+					timer:sleep(100),
+					?assertEqual(undefined, get_queue("default_queue"))
+				end
 			}
 		]
 	}.

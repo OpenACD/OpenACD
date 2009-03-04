@@ -375,6 +375,15 @@ local_auth_test_() ->
 					destroy("A"),
 					?assertMatch(deny, local_auth("A", SaltedPassword, integer_to_list(Salt)))
 				end
+			},{
+				"Deny a user",
+				fun() ->
+					cache("A", erlang:md5("B"), [testskill]),
+					Salt = 123,
+					SaltedPassword = salt(erlang:md5("wrongpass"), integer_to_list(Salt)),
+					?assertEqual(deny, local_auth("A", SaltedPassword, integer_to_list(Salt))),
+					destroy("A")
+				end
 			},
 			{
 				"Destory a user 'A'",
@@ -392,4 +401,12 @@ local_auth_test_() ->
 		]
 	}.
 
+mock_start_success("mock1", "mock2") ->
+	{ok, self()}.
+
+mock_start_failure("mock1", "mock2") ->
+	{error, invalid}.
+
+%mock_auth_success(Username, Password, Nonce, 
+%mock_integration_test_()
 -endif.

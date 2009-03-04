@@ -42,6 +42,13 @@
 
 -ifdef(EUNIT).
 	-include_lib("eunit/include/eunit.hrl").
+	-export([
+		mock_auth_deny/5,
+		mock_auth_success/5,
+		mock_auth_error/5,
+		mock_start_failure/2,
+		mock_start_success/2
+	]).
 -endif.
 
 
@@ -122,7 +129,7 @@ handle_call({authentication, Username, Password, Salt}, _From, State) ->
 			Reply = local_auth(Username, Password, Salt),
 			{reply, Reply, State};
 		_Else -> 
-			?CONSOLE("remote authentication attempt first", []),
+			?CONSOLE("remote authentication attempt first: ~p : ~p : ~p", [State#state.mod, State#state.check_func, State#state.check_args]),
 			Args = lists:append([[Username, Password, Salt], State#state.check_args]),
 			case apply(State#state.mod, State#state.check_func, Args) of
 				{allow, CachePassword, Skills} -> 
@@ -131,7 +138,7 @@ handle_call({authentication, Username, Password, Salt}, _From, State) ->
 				deny -> 
 					destroy(Username),
 					{reply, deny, State};
-				_Else -> 
+				_Otherwise -> 
 					Reply = local_auth(Username, Password, Salt),
 					{reply, Reply, State}
 			end
@@ -276,6 +283,8 @@ local_auth(Username, Password, Salt) ->
 % all this is then erlang:md5'ed.  That result is then turned into a list, and lowercased.
 -spec(salt/2 ::	(Hash :: binary(), Salt :: string()) -> string();
 		(Hash :: string(), Salt :: string()) -> string()).
+salt(Hash, Salt) when is_integer(Salt) ->
+	salt(Hash, integer_to_list(Salt));
 salt(Hash, Salt) when is_binary(Hash) ->
 	?CONSOLE("agent_auth hash conversion...", []),
 	salt(util:bin_to_hexstr(Hash), Salt);
@@ -386,7 +395,7 @@ local_auth_test_() ->
 				end
 			},
 			{
-				"Destory a user 'A'",
+				"Destroy a user 'A'",
 				fun() -> 
 					cache("A", "B", [testskill]),
 					destroy("A"),
@@ -407,6 +416,87 @@ mock_start_success("mock1", "mock2") ->
 mock_start_failure("mock1", "mock2") ->
 	{error, invalid}.
 
-%mock_auth_success(Username, Password, Nonce, 
-%mock_integration_test_()
+mock_auth_success(_Username, _Password, _Nonce, "mock1", "mock2") ->
+	?CONSOLE("~p", [util:bin_to_hexstr(erlang:md5("password"))]),
+	{allow, util:bin_to_hexstr(erlang:md5("password")), [testskill]}.
+
+mock_auth_deny(_Username, _Password, _Nonce, "mock1", "mock2") ->
+	deny.
+
+mock_auth_error(_Username, _Password, _Nonce, "mock1", "mock2") ->
+	{error, invalid}.
+
+mock_integration_test_() ->
+	{
+		foreach,
+		fun() ->
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			build_tables()
+		end,
+		fun(_) -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()])
+		end,
+		[
+			{
+				"Integration starts correctly",
+				fun() ->
+					?assertMatch({ok, _Pid}, start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_success, ["mock1", "mock2"])),
+					stop()
+				end
+			},
+			{
+				"Integration fails to start",
+				fun() ->
+					% this test is for current (2009/03/04) implementation; TODO - do we really just want to ignore this failure?
+					?assertMatch({ok, _Pid}, start(?MODULE, mock_start_failure, ["mock1", "mock2"], mock_auth_success, ["mock1", "mock2"])),
+					stop()
+				end
+			},
+			{
+				"Integration success, and thus caches a user",
+				fun() ->
+					start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_success, ["mock1", "mock2"]),
+					?assertEqual(deny, local_auth("A", salt(erlang:md5("password"), 1234), 1234)),
+					?assertEqual({allow, [testskill, '_agent', '_node']}, auth("A", "password", 1234)),
+					?assertEqual({allow, [testskill, '_agent', '_node']}, local_auth("A", salt(erlang:md5("password"), 1234), 1234)),
+					destroy("A"),
+					stop()
+				end
+			},
+			{
+				"Integration deny, thus user is not cached",
+				fun() ->
+					start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_deny, ["mock1", "mock2"]),
+					?assertEqual(deny, auth("A", "password", 1234)),
+					?assertEqual(deny, local_auth("A", salt(erlang:md5("password"), 1234), 1234)),
+					stop()
+				end
+			},
+			{
+				"Integration deny, falling user is removed from cache",
+				fun() ->
+					start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_deny, ["mock1", "mock2"]),
+					cache("A", erlang:md5("password"), [testskill]),
+					?assertMatch({allow, _Skills}, local_auth("A", salt(erlang:md5("password"), 1234), 1234)),
+					auth("A", "password", 1234),
+					?assertEqual(deny, local_auth("A", salt(erlang:md5("password"), 1234), 1234)),
+					stop()
+				end
+			},
+			{
+				"Integration error, falling back to local cache",
+				fun() ->
+					start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_error, ["mock1", "mock2"]),
+					cache("A", erlang:md5("password"), [testskill]),
+					?assertMatch({allow, _Skills}, auth("A", salt(erlang:md5("password"), 1234), 1234)),
+					stop()
+				end
+			}
+		]
+	}.
+
 -endif.

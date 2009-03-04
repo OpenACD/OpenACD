@@ -283,8 +283,6 @@ local_auth(Username, Password, Salt) ->
 % all this is then erlang:md5'ed.  That result is then turned into a list, and lowercased.
 -spec(salt/2 ::	(Hash :: binary(), Salt :: string()) -> string();
 		(Hash :: string(), Salt :: string()) -> string()).
-salt(Hash, Salt) when is_integer(Salt) ->
-	salt(Hash, integer_to_list(Salt));
 salt(Hash, Salt) when is_binary(Hash) ->
 	?CONSOLE("agent_auth hash conversion...", []),
 	salt(util:bin_to_hexstr(Hash), Salt);
@@ -471,9 +469,9 @@ mock_integration_test_() ->
 				"Integration success, and thus caches a user",
 				fun() ->
 					start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_success, ["mock1", "mock2"]),
-					?assertEqual(deny, local_auth("A", salt(erlang:md5("password"), 1234), 1234)),
-					?assertEqual({allow, [testskill, '_agent', '_node']}, auth("A", "password", 1234)),
-					?assertEqual({allow, [testskill, '_agent', '_node']}, local_auth("A", salt(erlang:md5("password"), 1234), 1234)),
+					?assertEqual(deny, local_auth("A", salt(erlang:md5("password"), "1234"), "1234")),
+					?assertEqual({allow, [testskill, '_agent', '_node']}, auth("A", "password", "1234")),
+					?assertEqual({allow, [testskill, '_agent', '_node']}, local_auth("A", salt(erlang:md5("password"), "1234"), "1234")),
 					destroy("A"),
 					stop()
 				end
@@ -482,8 +480,8 @@ mock_integration_test_() ->
 				"Integration deny, thus user is not cached",
 				fun() ->
 					start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_deny, ["mock1", "mock2"]),
-					?assertEqual(deny, auth("A", "password", 1234)),
-					?assertEqual(deny, local_auth("A", salt(erlang:md5("password"), 1234), 1234)),
+					?assertEqual(deny, auth("A", "password", "1234")),
+					?assertEqual(deny, local_auth("A", salt(erlang:md5("password"), "1234"), "1234")),
 					stop()
 				end
 			},
@@ -492,9 +490,9 @@ mock_integration_test_() ->
 				fun() ->
 					start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_deny, ["mock1", "mock2"]),
 					cache("A", erlang:md5("password"), [testskill]),
-					?assertMatch({allow, _Skills}, local_auth("A", salt(erlang:md5("password"), 1234), 1234)),
-					auth("A", "password", 1234),
-					?assertEqual(deny, local_auth("A", salt(erlang:md5("password"), 1234), 1234)),
+					?assertMatch({allow, _Skills}, local_auth("A", salt(erlang:md5("password"), "1234"), "1234")),
+					auth("A", "password", "1234"),
+					?assertEqual(deny, local_auth("A", salt(erlang:md5("password"), "1234"), "1234")),
 					stop()
 				end
 			},
@@ -503,7 +501,7 @@ mock_integration_test_() ->
 				fun() ->
 					start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_error, ["mock1", "mock2"]),
 					cache("A", erlang:md5("password"), [testskill]),
-					?assertMatch({allow, _Skills}, auth("A", salt(erlang:md5("password"), 1234), 1234)),
+					?assertMatch({allow, _Skills}, auth("A", salt(erlang:md5("password"), "1234"), "1234")),
 					stop()
 				end
 			}

@@ -225,7 +225,7 @@ handle_info({call, {event, [UUID | Rest]}}, State) ->
 		false ->
 			State2 = State#state{dstchan = undefined, callrec = Callrec};
 		Dstchan ->
-			Otherpid = freeswitch_media_manager:get_handler(Dstchan),
+			{ok, Otherpid} = freeswitch_media_manager:get_handler(Dstchan),
 			Otherstate = freeswitch_media:dump_state(Otherpid),
 			State2 = State#state{dstchan = Dstchan, callrec = Callrec, dststate = Otherstate, dstpid = Otherpid}
 	end,

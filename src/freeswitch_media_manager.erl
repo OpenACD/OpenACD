@@ -168,7 +168,7 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({new_pid, Ref, From}, #state{call_dict = Dict} = State) ->
+handle_info({new_pid, Ref, From}, State) ->
 	{ok, Pid} = freeswitch_media:start_link(State#state.nodename, State#state.domain),
 	From ! {Ref, Pid},
 	% even the media won't know the proper data for the call until later.
@@ -219,7 +219,7 @@ ring_agent(AgentPid, Call) ->
 % listens for info from the freeswitch c node.
 listener(Node) ->
 	receive
-		{event, [UUID | Event]} ->
+		{event, [UUID | _Event]} ->
 			?CONSOLE("recieved event '~p' from c node.", [UUID]),
 			%gen_server:cast(?MODULE, Event), 
 			listener(Node);

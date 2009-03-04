@@ -334,16 +334,16 @@ handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid)
 			Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
 			Value = Queuedrec#queued_call{skills=Expandedskills},
 			Trees = gb_trees:insert({Priority, now()}, Value, State#state.queue),
-			{reply, ok, State#state{queue=Trees}};
-		ignore ->
-			?CONSOLE("Cook ignored start", []),
-			{reply, {error, {cook_not_started}}, State};
-		{badrpc, nodedown} ->
-			?CONSOLE("Cook failed to start on downed node  ~p", [node(Callpid)]),
-			{reply, {error, nodedown}, State};
-		{error, Error} ->
-			?CONSOLE("Cook failed to start:  ~p", [Error]),
-			{reply, {error, Error}, State}
+			{reply, ok, State#state{queue=Trees}}%;
+		%ignore ->
+		%	?CONSOLE("Cook ignored start", []),
+		%	{reply, {error, {cook_not_started}}, State};
+		%{badrpc, nodedown} ->
+		%	?CONSOLE("Cook failed to start on downed node  ~p", [node(Callpid)]),
+		%	{reply, {error, nodedown}, State};
+		%{error, Error} ->
+		%	?CONSOLE("Cook failed to start:  ~p", [Error]),
+		%	{reply, {error, Error}, State}
 	end;
 handle_call({add_skills, Callid, Skills}, _From, State) ->
 	case find_key(Callid, State#state.queue) of
@@ -504,16 +504,16 @@ clean_pid(Deadpid, Recipe, [{Key, Call} | Calls], QName) ->
 				{ok, Pid} ->
 					link(Pid),
 					Cleancall = Call#queued_call{dispatchers=Cleanbound, cook=Pid},
-					[{Key, Cleancall} | clean_pid(Deadpid, Recipe, Calls, QName)];
-				ignore ->
-					?CONSOLE("Cook restart was ignored",[]),
-					clean_pid(Deadpid, Recipe, Calls, QName);
-				{badrpc, nodedown} ->
-					?CONSOLE("Cook failed to restart on downed node  ~p", [node(Call#queued_call.media)]),
-					clean_pid(Deadpid, Recipe, Calls, QName);
-				{error, Error} ->
-					?CONSOLE("Cook restart failed:  ~p", [Error]),
-					clean_pid(Deadpid, Recipe, Calls, QName)
+					[{Key, Cleancall} | clean_pid(Deadpid, Recipe, Calls, QName)]%;
+				%ignore ->
+				%	?CONSOLE("Cook restart was ignored",[]),
+				%	clean_pid(Deadpid, Recipe, Calls, QName);
+				%{badrpc, nodedown} ->
+				%	?CONSOLE("Cook failed to restart on downed node  ~p", [node(Call#queued_call.media)]),
+				%	clean_pid(Deadpid, Recipe, Calls, QName);
+				%{error, Error} ->
+				%	?CONSOLE("Cook restart failed:  ~p", [Error]),
+				%	clean_pid(Deadpid, Recipe, Calls, QName)
 			end;
 		_ ->
 			%Pid = Call#queued_call.cook
@@ -1146,8 +1146,8 @@ multi_node_test_() ->
 					?assertEqual("testcall", Callrec#queued_call.id),
 					{_Key, Callrec2} = rpc:call(Slave, call_queue, ask, [Queue]),
 					?assertEqual("testcall", Callrec2#queued_call.id),
-					P1 = spawn(Slave, dispatcher, start, []),
-					P2 = spawn(Master, dispatcher, start, []),
+					_P1 = spawn(Slave, dispatcher, start, []),
+					_P2 = spawn(Master, dispatcher, start, []),
 					receive after 300 -> ok end,
 					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue]))

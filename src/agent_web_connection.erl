@@ -115,9 +115,9 @@ init([Post, Ref, Table]) ->
 							% start the ack timer
 							{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
 							{ok, #state{agent_fsm = Apid, ref = Ref, table = Table, ack_timer = Tref}}
-					end;
-				_Other ->
-					{stop, "500 internal server error"}
+					end%;
+				%_Other ->
+				%	{stop, "500 internal server error"}
 			end;
 		_Other -> 
 			% io:format("all other posts~n"),

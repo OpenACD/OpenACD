@@ -198,7 +198,7 @@ balance_test_() ->
 			{
 				"Agent started, but is still released",
 				fun() ->
-					{ok, Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
+					{ok, _Apid} = agent_manager:start_agent(#agent{login = "testagent"}),
 					receive
 					after 100 ->
 						ok

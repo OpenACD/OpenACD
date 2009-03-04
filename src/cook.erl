@@ -95,10 +95,10 @@ start_at(Node, Call, Recipe, Queue) ->
 		case init([Call, Recipe, Queue]) of
 			{ok, State} ->
 				?CONSOLE("about to enter loop", []),
-				gen_server:enter_loop(?MODULE, [], State);
-			{stop, Reason} ->
-				?CONSOLE("not entering loop due to ~p", [Reason]),
-				{error, Reason}
+				gen_server:enter_loop(?MODULE, [], State)%;
+			%{stop, Reason} ->
+			%	?CONSOLE("not entering loop due to ~p", [Reason]),
+			%	{error, Reason}
 		end
 	end,
 	{ok, proc_lib:spawn_link(Node, F)}.
@@ -906,7 +906,7 @@ multinode_test_() ->
 					after ?TICK_LENGTH * 2 + 100 ->
 						ok
 					end,
-					{{Priority, _Time}, Mediarec} = call_queue:get_call(QPid, Media),
+					{{Priority, _Time}, _Mediarec} = call_queue:get_call(QPid, Media),
 					?assertEqual(3, Priority)
 				end}
 			end

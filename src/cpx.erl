@@ -50,7 +50,12 @@ start(_Type, StartArgs) ->
 	%Nodes = lists:append([nodes(), [node()]]),
 	%mnesia:create_schema(Nodes),
 	%mnesia:start(),
-	{ok, Nodes} = application:get_env(cpx, nodes),
+	case application:get_env(cpx, nodes) of
+		{ok, Nodes} ->
+			ok;
+		_Else ->
+			Nodes = [node()]
+	end,
 	cpx_supervisor:start_link(Nodes).
 	
 stop(_State) -> 

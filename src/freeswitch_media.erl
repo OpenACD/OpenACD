@@ -185,6 +185,12 @@ handle_call({set_agent, Agent, Apid}, _From, State) ->
 	{reply, ok, State#state{agent = Agent, agent_pid = Apid}};
 handle_call(dump_state, _From, State) ->
 	{reply, State, State};
+handle_call({announce, Announcement}, _From, #state{callrec = Callrec} = State) ->
+	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
+		[{"call-command", "execute"},
+			{"execute-app-name", "playback"},
+			{"execute-app-arg", Announcement}]),
+	{reply, ok, State};
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
@@ -309,6 +315,11 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan, d
 							Brand = freeswitch:get_event_header(Rawcall, "variable_brand"),
 							Callerid = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
 							NewCall = Callrec#call{id=UUID, client=Brand, callerid=Callerid, source=self()},
+							% play musique d'attente
+							freeswitch:sendmsg(State#state.cnode, UUID,
+								[{"call-command", "execute"},
+									{"execute-app-name", "playback"},
+									{"execute-app-arg", "local_stream://moh"}]),
 							case queue_manager:get_queue(Queue) of
 								undefined ->
 									% TODO what to do w/ the call w/ no queue?

@@ -81,7 +81,7 @@ init([Socket]) ->
 	{ok, #state{socket=Socket}}.
 
 handle_call(Request, _From, State) ->
-	{stop, {unknown_call, Request}, State}.
+	{reply, {unknown_call, Request}, State}.
 
 % negotiate the client's protocol version and such
 handle_cast(negotiate, State) ->
@@ -651,6 +651,13 @@ socket_enabled_test_() ->
 			end
 		]
 	}.
+	
+-define(MYSERVERFUNC, 
+	fun() -> 
+		{ok, Pid} = start_link("garbage data"), 
+		{Pid, fun() -> exit(Pid) end} 
+	end).
 
+-include("gen_server_test.hrl").
 
 -endif.

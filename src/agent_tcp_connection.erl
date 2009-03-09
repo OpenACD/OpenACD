@@ -136,6 +136,7 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 	
 handle_info({tcp, Socket, Packet}, State) ->
+	?CONSOLE("handle_info {~p, ~p, ~p} ~p", [tcp, Socket, Packet, State]),
 	Ev = parse_event(Packet),
 	case handle_event(Ev, State) of
 		{Reply, State2} ->
@@ -647,6 +648,62 @@ socket_enabled_test_() ->
 					gen_tcp:send(Socket, "asdfasdf\r\n"),
 					{ok, Packet2} = gen_tcp:recv(Socket, 0),
 					?assertEqual("2 Invalid Response. Login denied\r\n", Packet2)
+				end}
+			end
+		]
+	}.
+	
+post_login_test_() ->
+	{
+		foreach,
+		fun() ->
+			crypto:start(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			agent_auth:start(),
+			agent_auth:cache("Username", erlang:md5("Password"), [skill1, skill2]),
+			agent_manager:start([node()]),
+			{ok, Pid} = agent_tcp_listener:start(),
+			{ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, 1337, [inet, list, {active, false}]),
+			{ok, _Packet} = gen_tcp:recv(Socket, 0),
+			gen_tcp:send(Socket, io_lib:format("Protocol: ~p.~p\r\n", [?Major, ?Minor])),
+			{ok, _Packet2} = gen_tcp:recv(Socket, 0),
+			gen_tcp:send(Socket, "GETSALT 3\r\n"),
+			{ok, Reply} = gen_tcp:recv(Socket, 0),
+			[_Ack, "3", Args] = util:string_split(string:strip(util:string_chomp(Reply)), " ", 3),
+			Password = string:to_lower(util:bin_to_hexstr(erlang:md5(Args ++ string:to_lower(util:bin_to_hexstr(erlang:md5("Password")))))),
+			gen_tcp:send(Socket, "LOGIN 4 Username:" ++ Password ++ "\r\n"),
+			gen_tcp:recv(Socket, 0),
+			?CONSOLE("recv:  ~p", [gen_tcp:recv(Socket, 0)]),
+			{true, APid} = agent_manager:query_agent("Username"),
+			{Pid, Socket, APid}
+		end,
+		fun({Tcplistener, Clientsock, APid}) ->
+			agent:stop(APid),
+			agent_auth:stop(),
+			agent_manager:stop(),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			agent_tcp_listener:stop(Tcplistener),
+			gen_tcp:close(Clientsock),
+			ok
+		end,
+		[
+			fun({Tcplistener, Clientsock, APid}) ->
+				{"Set agent to idle",
+				fun() ->
+					agent:set_state(APid, idle),
+					{ok, Packet} = gen_tcp:recv(Clientsock, 0),
+					?assertEqual("ASTATE 2 " ++ integer_to_list(agent:state_to_integer(idle)) ++ "\r\n", Packet)
+				end}
+			end,
+			fun({Tcplistener, Clientsock, APid}) ->
+				{"Set agent to new released",
+				fun() ->
+					?assertMatch(ok, agent:set_state(APid, released, "test reason")),
+					{ok, Packet} = gen_tcp:recv(Clientsock, 0),
+					?assertEqual("ASTATE 2 " ++ integer_to_list(agent:state_to_integer(released)) ++ "\r\n", Packet)
 				end}
 			end
 		]

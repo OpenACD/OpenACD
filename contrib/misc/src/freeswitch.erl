@@ -111,7 +111,8 @@ bgapi(Node, Cmd, Args) ->
 event(Node, Events) when is_list(Events) ->
 	{event, Node} ! list_to_tuple(lists:append([event], Events)),
 	receive
-		X -> X
+		ok -> ok;
+		{error, Reason} -> {error, Reason}
 	after ?TIMEOUT ->
 		timeout
 	end;
@@ -133,7 +134,8 @@ nixevent(Node, Event) when is_atom(Event) ->
 noevents(Node) ->
 	{noevents, Node} ! noevents,
 	receive
-		X -> X
+		ok -> ok;
+		{error, Reason} -> {error, Reason}
 	after ?TIMEOUT ->
 		timeout
 	end.
@@ -142,7 +144,7 @@ noevents(Node) ->
 close(Node) ->
 	{close, Node} ! exit,
 	receive
-		X -> X
+		ok -> ok
 	after ?TIMEOUT ->
 		timeout
 	end.
@@ -153,7 +155,8 @@ close(Node) ->
 sendevent(Node, EventName, Headers) ->
 	{sendevent, Node} ! {sendevent, EventName, Headers},
 	receive
-		X -> X
+		ok -> ok;
+		{error, Reason} -> {error, Reason}
 	after ?TIMEOUT ->
 		timeout
 	end.
@@ -163,7 +166,8 @@ sendevent(Node, EventName, Headers) ->
 sendmsg(Node, UUID, Headers) ->
 	{sendmsg, Node} ! {sendmsg, UUID, Headers},
 	receive
-		X -> X
+		ok -> ok;
+		{error, Reason} -> {error, Reason}
 	after ?TIMEOUT ->
 		timeout
 	end.
@@ -174,7 +178,7 @@ sendmsg(Node, UUID, Headers) ->
 getpid(Node) ->
 	{getpid, Node} ! getpid,
 	receive
-		X -> X
+		{ok, Pid} when is_pid(Pid) -> {ok, Pid}
 	after ?TIMEOUT ->
 		timeout
 	end.
@@ -184,7 +188,8 @@ getpid(Node) ->
 handlecall(Node, Process) ->
 	{handlecall, Node} ! {handlecall, Process},
 	receive
-		X -> X
+		ok -> ok;
+		{error, Reason} -> {error, Reason}
 	after ?TIMEOUT ->
 		timeout
 	end.

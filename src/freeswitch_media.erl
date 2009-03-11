@@ -135,6 +135,7 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 	?CONSOLE("ring_agent to ~p for call ~p with cook ~p", [AgentPid, QCall#queued_call.id, QCall#queued_call.cook]),
 	AgentRec = agent:dump_state(AgentPid),
 	Ringout = Timeout div 1000,
+	?CONSOLE("ringout ~p", [Ringout]),
 	case agent:set_state(AgentPid, ringing, Call) of
 		ok ->
 			{ok, UUID} = freeswitch:api(State#state.cnode, create_uuid),
@@ -143,22 +144,25 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 					% agent picked up?
 					freeswitch:api(State#state.cnode, uuid_bridge, Call#call.id ++ " " ++ UUID);
 				(error, Reply) ->
-					io:format("originate failed: ~p~n", [Reply])
+					?CONSOLE("originate failed: ~p", [Reply]),
+					gen_server:cast(QCall#queued_call.cook, {stop_ringing, AgentPid})
 			end,
 			case freeswitch:bgapi(State#state.cnode, originate, Args, F) of
 			%	{ok, _Msg} ->
 				ok ->
-					F2 = fun(F2) ->
-							receive
-								X ->
-									%io:format("got message ~p~n", [X]),
-									F2(F2)
-							end
-					end,
-					spawn(fun() ->
-						freeswitch:handlecall(State#state.cnode, UUID),
-						F2(F2)
-					end),
+					{ok, Pid} = freeswitch_ring:start(State#state.cnode, UUID, AgentPid, Call),
+					?CONSOLE("Started the freeswitch_ring got ~p", [Pid]),
+					%F2 = fun(F2) ->
+					%		receive
+					%			X ->
+					%				%io:format("got message ~p~n", [X]),
+					%				F2(F2)
+					%		end
+					%end,
+					%spawn(fun() ->
+					%	freeswitch:handlecall(State#state.cnode, UUID),
+					%	F2(F2)
+					%end),
 						
 					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
 				{error, Msg} ->
@@ -402,49 +406,49 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan, d
 				Else ->
 					?CONSOLE("Event unhandled ~p", [Else]),
 					{noreply, State}
-			end;
-		Dstchan ->
-			?CONSOLE("dstchan mode Ename:  ~p", [Ename]),
-			case Ename of
-				"CHANNEL_PARK" ->
-					Args = UUID ++ " " ++ Dstchan,
-					case freeswitch:api(State#state.cnode, uuid_bridge, Args) of
-						{error, Msg} ->
-							% this means the other guy prolly hung up.  sepuku!
-							?CONSOLE("Error ~p doing bridge to ~p", [Msg, Dstchan]),
-							freeswitch:api(State#state.cnode, uuid_kill, [UUID]),
-							case Dststate#state.agent_pid of
-								undefined ->
-									ok;
-								Apid ->
-									agent:set_state(Apid, idle)
-							end,
-							%case agent_manager:query_agent(freeswitch:get_event_header(Rawcall, "variable_agent")) of
-							%	false ->
-							%		%boogie
-							%		ok;
-							%	{true, Apid} ->
-							%		agent:set_state(Apid, idle)
-							%end,
-							{stop, normal, State};
-						_Else ->
-							%Otherpid = freeswitch_media_manager:get_handler(Dstchan),
-							gen_server:cast(Dstpid, unqueue),
-							gen_server:cast(Dstpid, agent_oncall),
-							{noreply, State}
-					end;
-					%QName = freeswitch:get_event_header(Rawcall, "variable_queue"),
-					%case queue_manager:get_queue(QName) of
-					%	undefined ->
-					%		?CONSOLE("no queue defined, something's broked.", []),
-					%		{noreply, State};
-					%	QPid ->
-					%		call_queue:remove(QPid, Dstchan),
-				%			{noreply, State}
-				%	end,
-				%	APid = agent_manager:query_agent(freeswitch:get_event_header(Rawcall, "variable_queue")),
-				Else ->
-					?CONSOLE("Other dstchan event ~p", [Else]),
-					{noreply, State}
+%			end;
+%		Dstchan ->
+%			?CONSOLE("dstchan mode Ename:  ~p", [Ename]),
+%			case Ename of
+%				"CHANNEL_PARK" ->
+%					Args = UUID ++ " " ++ Dstchan,
+%					case freeswitch:api(State#state.cnode, uuid_bridge, Args) of
+%						{error, Msg} ->
+%							% this means the other guy prolly hung up.  sepuku!
+%							?CONSOLE("Error ~p doing bridge to ~p", [Msg, Dstchan]),
+%							freeswitch:api(State#state.cnode, uuid_kill, [UUID]),
+%							case Dststate#state.agent_pid of
+%								undefined ->
+%									ok;
+%								Apid ->
+%									agent:set_state(Apid, idle)
+%							end,
+%							%case agent_manager:query_agent(freeswitch:get_event_header(Rawcall, "variable_agent")) of
+%							%	false ->
+%							%		%boogie
+%							%		ok;
+%							%	{true, Apid} ->
+%							%		agent:set_state(Apid, idle)
+%							%end,
+%							{stop, normal, State};
+%						_Else ->
+%							%Otherpid = freeswitch_media_manager:get_handler(Dstchan),
+%							gen_server:cast(Dstpid, unqueue),
+%							gen_server:cast(Dstpid, agent_oncall),
+%							{noreply, State}
+%					end;
+%					%QName = freeswitch:get_event_header(Rawcall, "variable_queue"),
+%					%case queue_manager:get_queue(QName) of
+%					%	undefined ->
+%					%		?CONSOLE("no queue defined, something's broked.", []),
+%					%		{noreply, State};
+%					%	QPid ->
+%					%		call_queue:remove(QPid, Dstchan),
+%				%			{noreply, State}
+%				%	end,
+%				%	APid = agent_manager:query_agent(freeswitch:get_event_header(Rawcall, "variable_queue")),
+%				Else ->
+%					?CONSOLE("Other dstchan event ~p", [Else]),
+%					{noreply, State}
 			end
 	end.

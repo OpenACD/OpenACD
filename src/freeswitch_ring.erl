@@ -120,15 +120,16 @@ handle_info({call_event, {event, [_UUID | Rest]}}, State) ->
 			case agent:query_state(State#state.agent_pid) of
 				{ok, wrapup} ->
 					agent:set_state(State#state.agent_pid, idle),
-					{stop, normal, State};
+					{noreply, State};
 				{ok, _Other} ->
-					{stop, normal, State}
+					{noreply, State}
 			end;
 		_Else ->
 			?CONSOLE("call_event ~p", [Event]),
 			{noreply, State}
 	end;
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+	?CONSOLE("unhandled info ~p", [Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------

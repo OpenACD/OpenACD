@@ -137,10 +137,29 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 	Ringout = Timeout div 1000,
 	case agent:set_state(AgentPid, ringing, Call) of
 		ok ->
-			Args = "{originate_timeout=" ++ integer_to_list(Ringout) ++ ",dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++",queue=" ++ State#state.queue ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang(freeswitch_media_manager:! "++atom_to_list(node())++")'",
-			case freeswitch:bgapi(State#state.cnode, originate, Args) of
+			{ok, UUID} = freeswitch:api(State#state.cnode, create_uuid),
+			Args = "{origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ ",dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++",queue=" ++ State#state.queue ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " &park()",
+			F = fun(ok, Reply) ->
+					% agent picked up?
+					freeswitch:api(State#state.cnode, uuid_bridge, Call#call.id ++ " " ++ UUID);
+				(error, Reply) ->
+					io:format("originate failed: ~p~n", [Reply])
+			end,
+			case freeswitch:bgapi(State#state.cnode, originate, Args, F) of
 			%	{ok, _Msg} ->
 				ok ->
+					F2 = fun(F2) ->
+							receive
+								X ->
+									%io:format("got message ~p~n", [X]),
+									F2(F2)
+							end
+					end,
+					spawn(fun() ->
+						freeswitch:handlecall(State#state.cnode, UUID),
+						F2(F2)
+					end),
+						
 					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
 				{error, Msg} ->
 					?CONSOLE("Failed to ring agent ~p with error ~p", [AgentRec#agent.login, Msg]),

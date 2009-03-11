@@ -85,10 +85,11 @@ handle_call(Request, _From, State) ->
 
 % negotiate the client's protocol version and such
 handle_cast(negotiate, State) ->
+	?CONSOLE("starting negotiation...", []),
 	inet:setopts(State#state.socket, [{active, false}, {packet, line}, list]),
 	gen_tcp:send(State#state.socket, "Agent Server: -1\r\n"),
 	{ok, Packet} = gen_tcp:recv(State#state.socket, 0), % TODO timeout
-	?CONSOLE("packet: ~p.~n", [Packet]),
+	%?CONSOLE("packet: ~p.~n", [Packet]),
 	case Packet of
 		"Protocol: " ++ Args ->
 			?CONSOLE("Got protcol version ~p.~n", [Args]),
@@ -136,16 +137,16 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 	
 handle_info({tcp, Socket, Packet}, State) ->
-	?CONSOLE("handle_info {~p, ~p, ~p} ~p", [tcp, Socket, Packet, State]),
+	%?CONSOLE("handle_info {~p, ~p, ~p} ~p", [tcp, Socket, Packet, State]),
 	Ev = parse_event(Packet),
 	case handle_event(Ev, State) of
 		{Reply, State2} ->
-			?CONSOLE("response: ~p", [Reply]),
+			%?CONSOLE("response: ~p", [Reply]),
 			ok = gen_tcp:send(Socket, Reply ++ "\r\n"),
 			State3 = State2#state{send_queue = flush_send_queue(lists:reverse(State2#state.send_queue), Socket)},
 			% Flow control: enable forwarding of next TCP message
 			ok = inet:setopts(Socket, [{active, once}]),
-			?CONSOLE("leaving info", []),
+			%?CONSOLE("leaving info", []),
 			{noreply, State3};
 		State2 ->
 			% Flow control: enable forwarding of next TCP message
@@ -206,7 +207,7 @@ handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter), i
 					?CONSOLE("Authentication failure",[]),
 					{err(Counter, "Authentication Failure"), State};
 				{allow, Skills} -> 
-					?CONSOLE("Authenciation success, next steps...",[]),
+					%?CONSOLE("Authenciation success, next steps...",[]),
 					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills}),
 					case agent:set_connection(Pid, self()) of
 						ok ->

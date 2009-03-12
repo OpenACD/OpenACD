@@ -346,6 +346,9 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan, d
 							Brand = freeswitch:get_event_header(Rawcall, "variable_brand"),
 							Callerid = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
 							NewCall = Callrec#call{id=UUID, client=Brand, callerid=Callerid, source=self()},
+							freeswitch:sendmsg(State#state.cnode, UUID,
+								[{"call-command", "execute"},
+									{"execute-app-name", "answer"}]),
 							% play musique d'attente
 							freeswitch:sendmsg(State#state.cnode, UUID,
 								[{"call-command", "execute"},

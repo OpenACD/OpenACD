@@ -139,10 +139,10 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 	case agent:set_state(AgentPid, ringing, Call) of
 		ok ->
 			{ok, UUID} = freeswitch:api(State#state.cnode, create_uuid),
-			Args = "{origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ ",dstchan=" ++ Call#call.id ++ ",agent="++ AgentRec#agent.login ++",queue=" ++ State#state.queue ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " &park()",
-			F = fun(ok, Reply) ->
+			Args = "{origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " &park()",
+			F = fun(ok, _Reply) ->
 					% agent picked up?
-					freeswitch:api(State#state.cnode, uuid_bridge, Call#call.id ++ " " ++ UUID);
+					freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Call#call.id);
 				(error, Reply) ->
 					?CONSOLE("originate failed: ~p", [Reply]),
 					gen_server:cast(QCall#queued_call.cook, {stop_ringing, AgentPid})
@@ -150,8 +150,16 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 			case freeswitch:bgapi(State#state.cnode, originate, Args, F) of
 			%	{ok, _Msg} ->
 				ok ->
-					{ok, Pid} = freeswitch_ring:start(State#state.cnode, UUID, AgentPid, Call),
-					?CONSOLE("Started the freeswitch_ring got ~p", [Pid]),
+					case freeswitch_ring:start(State#state.cnode, UUID, AgentPid, Call) of
+						{ok, Pid} when is_pid(Pid) ->
+							?CONSOLE("Started the freeswitch_ring got ~p", [Pid]),
+							{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
+						{error, {error, baduuid}} ->
+							?CONSOLE("Bad uuid (~p)got passed in, resetting this for another tick pass", [UUID]),
+							agent:set_state(AgentPid, idle),
+							{reply, invalid, State#state{cook = QCall#queued_call.cook}}
+					end;
+					%{ok, Pid} = freeswitch_ring:start(State#state.cnode, UUID, AgentPid, Call),
 					%F2 = fun(F2) ->
 					%		receive
 					%			X ->
@@ -164,7 +172,7 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 					%	F2(F2)
 					%end),
 						
-					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
+					%{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
 				{error, Msg} ->
 					?CONSOLE("Failed to ring agent ~p with error ~p", [AgentRec#agent.login, Msg]),
 					X = agent:set_state(AgentPid, released, "reason"),

@@ -74,8 +74,13 @@ start_link(Fnode, UUID, Apid, Callrec) when is_pid(Apid), is_record(Callrec, cal
 
 init([Fnode, UUID, Apid, Callrec]) ->
 	?CONSOLE("starting for ~p", [UUID]),
-	freeswitch:handlecall(Fnode, UUID),
-    {ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Callrec}}.
+	case freeswitch:handlecall(Fnode, UUID) of
+		{error, baduuid} ->
+			{stop, {error, baduuid}};
+		Else ->
+			?CONSOLE("fs:handlecall:  ~p", [Else]),
+			{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Callrec}}
+	end.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages

@@ -63,8 +63,8 @@
 
 -record(state, {
 	callrec = #call{},
-	mode = success :: 'success' | 'failure' | 'fail_once',
-	fail = []
+	%mode = success :: 'success' | 'failure' | 'fail_once',
+	fail = dict:new()
 	}).
 
 %%====================================================================
@@ -76,15 +76,19 @@ start_link(Callid) ->
 start_link(Callid, success) ->
     gen_server:start_link(?MODULE, [Callid, success], []);
 start_link(Callid, failure) ->
-	gen_server:start_link(?MODULE, [Callid, failure], []).
-
+	gen_server:start_link(?MODULE, [Callid, failure], []);
+start_link(Callid, Fails) when is_list(Fails) ->
+	gen_server:start_link(?MODULE, [Callid, Fails], []).
+	
 start(Callid) ->
 		start(Callid, success).
 
 start(Callid, success) ->
 	gen_server:start(?MODULE, [Callid, success], []);
 start(Callid, failure) ->
-	gen_server:start(?MODULE, [Callid, failure], []).
+	gen_server:start(?MODULE, [Callid, failure], []);
+start(Callid, Fails) when is_list(Fails) ->
+	gen_server:start(?MODULE, [Callid, Fails], []).
 
 stop(Pid) -> 
 	stop(Pid, normal).
@@ -98,6 +102,7 @@ ring_agent(Pid, Agentpid) when is_pid(Pid), is_pid(Agentpid) ->
 set_mode(Pid, Action, Mode) ->
 	gen_server:call(Pid, {set_action, Action, Mode}).
 
+
 set_skills(Pid, Skills) ->
 	gen_server:call(Pid, {set_skills, Skills}).
 	
@@ -110,75 +115,82 @@ set_skills(Pid, Skills) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Callid, Mode]) ->
+init([Callid, success]) ->
 	process_flag(trap_exit, true),
-	{ok, #state{callrec = #call{id=Callid, source=self()}, mode = Mode}}.
-
+	Newfail = lists:map(fun(E) -> {E, success} end, ?MEDIA_ACTIONS),
+	{ok, #state{callrec = #call{id=Callid, source=self()}, fail = dict:from_list(Newfail)}};
+init([Callid, failure]) ->
+	process_flag(trap_exit, true),
+	Newfail = lists:map(fun(E) -> {E, fail} end, ?MEDIA_ACTIONS),
+	{ok, #state{callrec = #call{id = Callid, source = self()}, fail = dict:from_list(Newfail)}};
+init([Callid, Fails]) when is_list(Fails) ->
+	process_flag(trap_exit, true),
+	F = fun(E) ->
+		{E, fail}
+	end,
+	Newfails = lists:map(F, Fails),
+	{ok, #state{callrec = #call{id = Callid, source=self()}, fail = Newfails}}.
+		
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 
-handle_call(set_success, _From, State) -> 
-	{reply, ok, State#state{mode = success}};
-handle_call(set_failure, _From, State) -> 
-	{reply, ok, State#state{mode = failure}};
-handle_call(set_fail_once, _From, State) ->
-	{reply, ok, State#state{mode = fail_once}};
+handle_call(set_success, _From, #state{fail = Fail} = State) -> 
+	Newfail = dict:map(fun(_Key, _Value) -> success end, Fail),
+	{reply, ok, State#state{fail = Newfail}};
+handle_call(set_failure, _From, #state{fail = Fail} = State) -> 
+	Newfail = dict:map(fun(_Key, _Value) -> fail end, Fail),
+	{reply, ok, State#state{fail = Newfail}};
+%handle_call(set_fail_once, _From, State) ->
+%	{reply, ok, State#state{mode = fail_once}};
 handle_call({set_action, Action, fail}, _From, #state{fail = Curfail} = State) ->
-	case lists:member(Action, Curfail) of
-		true ->
-			{reply, ok, State};
-		false ->
-			Newfail = [Action | Curfail],
-			{reply, ok, State#state{fail = Newfail}}
-	end;
+	Newfails = dict:store(Action, fail, Curfail),
+	{reply, ok, State#state{fail = Newfails}};
 handle_call({set_action, Action, success}, _From, #state{fail = Curfail} = State) ->
-	F = fun(E) ->
-		E =/= Action
-	end,
-	Newfail = lists:filter(F, Curfail),
+	Newfail = dict:store(Action, success, Curfail),
+	{reply, ok, State#state{fail = Newfail}};
+handle_call({set_action, Action, fail_once}, _From, #state{fail = Curfail} = State) ->
+	Newfail = dict:store(Action, fail_once, Curfail),
 	{reply, ok, State#state{fail = Newfail}};
 handle_call({set_skills, Skills}, _From, #state{callrec = Call} = State) ->
 	{reply, ok, State#state{callrec = Call#call{skills=Skills}}};
 handle_call({ring_agent, AgentPid, Queuedcall, Ringout}, _From, #state{fail = Fail} = State) -> 
-	case State#state.mode of
+	case dict:fetch(ring_agent, Fail) of
 		success -> 
-			case lists:member(ring_agent, Fail) of
-				true ->
-					{reply, invalid, State};
-				false ->
-					timer:apply_after(Ringout, gen_server, cast, [Queuedcall#queued_call.cook, {stop_ringing, AgentPid}]),
-					{reply, agent:set_state(AgentPid, ringing, State#state.callrec), State}
-			end;
-		failure -> 
+			timer:apply_after(Ringout, gen_server, cast, [Queuedcall#queued_call.cook, {stop_ringing, AgentPid}]),
+			{reply, agent:set_state(AgentPid, ringing, State#state.callrec), State};
+		fail -> 
 			{reply, invalid, State};
 		fail_once ->
-			{reply, invalid, State#state{mode = success}}
+			Newfail = dict:store(ring_agent, success, Fail),
+			{reply, invalid, State#state{fail = Newfail}}
 	end;
-handle_call(get_call, _From, State) -> 
-	case State#state.mode of
+handle_call(get_call, _From, #state{fail = Fail} = State) -> 
+	case dict:fetch(get_call, Fail) of
 		success -> 
 			{reply, State#state.callrec, State};
-		failure -> 
+		fail -> 
 			{reply, invalid, State};
 		fail_once ->
-			{reply, invalid, State#state{mode = success}}
+			Newfail = dict:store(get_call, success, Fail),
+			{reply, invalid, State#state{fail = Newfail}}
 	end;
-handle_call({start_cook, Recipe, Queuename}, _From, #state{callrec = Call} = State) -> 
-	case State#state.mode of
-		failure -> 
+handle_call({start_cook, Recipe, Queuename}, _From, #state{callrec = Call, fail = Fail} = State) -> 
+	case dict:fetch(start_cook, Fail) of
+		fail -> 
 			{reply, invalid, State};
 		success -> 
 			{ok, Pid} = cook:start_link(self(), Recipe, Queuename),
 			NewCall = Call#call{cook = Pid},
 			{reply, ok, State#state{callrec = NewCall}};
 		fail_once ->
-			{reply, invalid, State#state{mode = success}}
+			Newfail = dict:store(start_cook, success, Fail),
+			{reply, invalid, State#state{fail = Newfail}}
 	end;
 handle_call({stop, Reason}, _From, State) ->
 	{stop, Reason, ok, State};
-handle_call(stop_cook, _From, #state{callrec = Call} = State) -> 
-	case State#state.mode of
+handle_call(stop_cook, _From, #state{callrec = Call, fail = Fail} = State) -> 
+	case dict:fetch(stop_cook, Fail) of
 		success -> 
 			case Call#call.cook of
 				undefined -> 
@@ -188,28 +200,31 @@ handle_call(stop_cook, _From, #state{callrec = Call} = State) ->
 					NewCall = Call#call{cook = undefined},
 					{reply, Cookres, State#state{callrec = NewCall}}
 			end;
-		failure -> 
+		fail -> 
 			{reply, invalid, State};
 		fail_once ->
-			{reply, invalid, State#state{mode = success}}
+			Newfail = dict:store(stop_cook, success, Fail),
+			{reply, invalid, State#state{fail = Newfail}}
 	end;
-handle_call(voicemail, _From, State) ->
-	case State#state.mode of
+handle_call(voicemail, _From, #state{fail = Fail} = State) ->
+	case dict:fetch(voicemail, Fail) of
 		success ->
 			{reply, ok, State};
-		failure ->
+		fail ->
 			{reply, invalid, State};
 		fail_once ->
-			{reply, invalid, State#state{mode = success}}
+			Newfail = dict:store(voicemail, success, Fail),
+			{reply, invalid, State#state{fail = Newfail}}
 	end;
-handle_call({announce, _Args}, _From, State) ->
-	case State#state.mode of
+handle_call({announce, _Args}, _From, #state{fail = Fail} = State) ->
+	case dict:fetch(announce, Fail) of
 		success -> 
 			{reply, ok, State};
-		failure ->
+		fail ->
 			{reply, invalid, State};
 		fail_once ->
-			{reply, invalid, State#state{mode = success}}
+			Newfail = dict:store(announce, success, Fail),
+			{reply, invalid, State#state{fail = Newfail}}
 	end.
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -338,4 +353,47 @@ dummy_test_() ->
 		}
 	].
 
+-define(MEDIA_ACTION_PARAMS, [
+	{ring_agent, fun() ->
+		Queuedcall = #queued_call{media = self(), id = "testcall"},
+		{ok, Agentpid} = agent:start(#agent{login = "testagent"}),
+		agent:set_state(Agentpid, idle),
+		{ring_agent, Agentpid, Queuedcall, 1}
+	end},
+	{start_cook, fun() ->
+		{start_cook, recipe, "queuename"}
+	end},
+	{stop_cook, fun() ->
+		stop_cook
+	end},
+	{voicemail, fun() ->
+		voicemail
+	end},
+	{announce, fun() ->
+		{announce, "args"}
+	end}
+]).
+
+-define(SUCCESS_MODES, [{fail, invalid, invalid}, {fail_once, invalid, ok}, {success, ok, ok}]).
+
+success_test_() ->
+	{generator,
+	fun() ->
+		{ok, Dummypid} = dummy_media:start("testcall"),
+		Modes = fun({Mode, Test1, Test2}) ->
+			Paramed = fun({Action, Params}) ->
+				Nom = "Mode " ++ atom_to_list(Mode) ++ " for " ++ atom_to_list(Action),
+				{Nom,
+				fun() ->
+					dummy_media:set_mode(Dummypid, Action, Mode),
+					?assertEqual(Test1, gen_server:call(Dummypid, Params())),
+					?assertEqual(Test2, gen_server:call(Dummypid, Params()))
+				end}
+			end,
+			lists:map(Paramed, ?MEDIA_ACTION_PARAMS)
+		end,
+		Tests = lists:map(Modes, ?SUCCESS_MODES),
+		lists:append(Tests)
+	end}.
+	
 -endif.

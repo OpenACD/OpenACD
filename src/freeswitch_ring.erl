@@ -62,7 +62,7 @@
 %%====================================================================
 %% API
 %%====================================================================
-start(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_record(Qcall, queued_call) ->
+start(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_record(Qcall, call) ->
 	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Domain], []).
 	
 start_link(Fnode, UUID, Apid, Callrec) when is_pid(Apid), is_record(Callrec, call) ->
@@ -78,10 +78,10 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) ->
 			Args = "[origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]sofia/default/" ++ AgentRec#agent.login ++ "%" ++ Domain ++ " &park()",
 			F = fun(ok, _Reply) ->
 					% agent picked up?
-					freeswitch:api(Fnode, uuid_bridge, UUID ++ " " ++ Qcall#queued_call.id);
+					freeswitch:api(Fnode, uuid_bridge, UUID ++ " " ++ Qcall#call.id);
 				(error, Reply) ->
 					?CONSOLE("originate failed: ~p", [Reply]),
-					gen_server:cast(Qcall#queued_call.cook, {stop_ringing, Apid})
+					gen_server:cast(Qcall#call.cook, {stop_ringing, Apid})
 			end,
 			case freeswitch:bgapi(Fnode, originate, Args, F) of
 				ok ->
@@ -89,7 +89,7 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) ->
 						{error, baduuid} ->
 							?CONSOLE("bad uuid ~p", [UUID]),
 							{stop, {error, baduuid}};
-						Else ->
+						_Else ->
 							?CONSOLE("starting for ~p", [UUID]),
 							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Qcall}}
 					end;
@@ -115,10 +115,10 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({call, {event, [_UUID | _Rest]}}, State) ->
+handle_info({call, {event, [UUID | _Rest]}}, #state{uuid = UUID} = State) ->
 	?CONSOLE("call", []),
 	{noreply, State};
-handle_info({call_event, {event, [_UUID | Rest]}}, State) ->
+handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) ->
 	Event = freeswitch:get_event_name(Rest),
 	case Event of
 		"CHANNEL_BRIDGE" ->

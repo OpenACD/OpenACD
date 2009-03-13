@@ -138,7 +138,7 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 	?CONSOLE("ringout ~p", [Ringout]),
 	case agent:set_state(AgentPid, ringing, Call) of
 		ok ->
-			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, QCall, Ringout, State#state.domain) of
+			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call#call{cook=QCall#queued_call.cook}, Ringout, State#state.domain) of
 				{ok, Pid} ->
 					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
 				{error, Error} ->

@@ -85,10 +85,27 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) ->
 			end,
 			case freeswitch:bgapi(Fnode, originate, Args, F) of
 				ok ->
-					case freeswitch:handlecall(Fnode, UUID) of
+					Gethandle = fun(Recusef, Count) ->
+						?CONSOLE("Counted ~p", [Count]),
+						case freeswitch:handlecall(Fnode, UUID) of
+							{error, baduuid} when Count > 4 ->
+								{error, baduuid};
+							{error, baduuid} ->
+								timer:sleep(100),
+								Recusef(Recusef, Count+1);
+							{error, Other} ->
+								{error, Other};
+							Else ->
+								Else
+						end
+					end,
+					case Gethandle(Gethandle, 0) of
 						{error, baduuid} ->
 							?CONSOLE("bad uuid ~p", [UUID]),
 							{stop, {error, baduuid}};
+						{error, Other} ->
+							?CONSOLE("other error starting; ~p", [Other]),
+							{stop, {error, Other}};
 						_Else ->
 							?CONSOLE("starting for ~p", [UUID]),
 							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Qcall}}

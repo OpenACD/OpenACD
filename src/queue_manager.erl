@@ -78,13 +78,13 @@
 }).
 %% API
 
-%% @doc start the queue_manager linked to the parent process.
+%% @doc start linked to the parent process.
 -spec(start_link/1 :: (Nodes :: [atom(),...]) -> {'ok', pid()}).
 start_link(Nodes) ->
 	call_queue_config:build_tables(Nodes),
 	gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, [], []).
 
-%% @doc start the queue_manager unlinked to the parent process.
+%% @doc start unlinked to the parent process.
 -spec(start/1 :: (Nodes :: [atom(),...]) -> {'ok', pid()}).
 start(Nodes) ->
 	call_queue_config:build_tables(Nodes),
@@ -128,12 +128,12 @@ add_queue(Name, Recipe, Weight) when is_list(Name) ->
 			end
 	end.
 
-%% @doc Get the pid of the passed queue name.  If there is no queue, returns 'undefined'.
+%% @doc Get the `pid()' of the passed queue name.  If there is no queue, returns 'undefined'.
 -spec(get_queue/1 :: (Name :: string()) -> pid() | undefined).
 get_queue(Name) ->
 	gen_leader:leader_call(?MODULE, {get_queue, Name}).
 
-%% @doc 'true' or 'false' if the passed queue name exists.
+%% @doc `true' or `false' if the passed queue name exists.
 -spec(query_queue/1 :: (Name :: string()) -> bool()).
 query_queue(Name) ->
 	case gen_leader:call(?MODULE, {exists, Name}) of
@@ -143,7 +143,7 @@ query_queue(Name) ->
 			gen_leader:leader_call(?MODULE, {exists, Name})
 	end.
 
-%% @doc Spits out the queues as {[Qname :: string(), Qpid :: pid()}].
+%% @doc Spits out the queues as `[{Qname :: string(), Qpid :: pid()}]'.
 -spec(queues/0 :: () -> [{string(), pid()}]).
 queues() ->
 	gen_leader:leader_call(?MODULE, queues_as_list).
@@ -164,6 +164,7 @@ get_best_bindable_queues() ->
 	% C is the index/counter
 	util:list_map_with_index(fun(C, {K, V, Call, Weight}) -> {K, V, Call, Weight + Len - C} end, List4).
 
+%% @doc Stops the local `queue_manager' for reason `normal'
 -spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_leader:call(?MODULE, stop).
@@ -189,11 +190,13 @@ init([]) ->
 	State = #state{qdict = lists:foldr(F, dict:new(), Queues)},
 	{ok, State}.
 
+%% @private
 elected(State, _Election) ->
 	?CONSOLE("elected",[]),
 	mnesia:subscribe(system),
 	{ok, State#state.qdict, State}.
 
+%% @private
 surrendered(#state{qdict = Qdict} = State, LeaderDict, _Election) ->
 	?CONSOLE("surrendered.",[]),
 	mnesia:unsubscribe(system),

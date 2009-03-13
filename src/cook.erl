@@ -93,6 +93,9 @@ start_link(Call, Recipe, Queue) when is_pid(Call) ->
 start(Call, Recipe, Queue) when is_pid(Call) ->
 	gen_server:start(?MODULE, [Call, Recipe, Queue], []).
 
+%% @doc starts a new cook on the give `node()' `Node' for `Call' to be process by `Recipe' for the call_queue named `Queue'.
+%% This is used in place of start and start_link to allow a queue on a different node to start the cook on the same node
+%% the media exists on.
 start_at(Node, Call, Recipe, Queue) ->
 	F = fun() ->
 		case init([Call, Recipe, Queue]) of
@@ -251,6 +254,7 @@ restart_tick(Pid) ->
 stop_tick(Pid) ->
 	gen_server:cast(Pid, stop_tick).
 
+%% @private
 wait_for_queue(Qname) ->
 	case whereis(queue_manager) of
 		undefined ->
@@ -276,6 +280,7 @@ wait_for_queue(Qname) ->
 			Qpid
 	end.
 
+%% @doc Stop the cook with reason `normal'.
 stop(Pid) ->
 	gen_server:call(Pid, stop).
 

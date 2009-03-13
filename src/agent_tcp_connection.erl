@@ -28,7 +28,7 @@
 %%
 
 %% @doc The connection handler that communicates with a client UI; in this case the desktop client.
-%% @clear
+
 -module(agent_tcp_connection).
 
 %% depends on util, agent
@@ -64,25 +64,28 @@
 		resend_counter = 0 :: non_neg_integer()
 	}).
 
-%% @doc start the conection unlinked on the given Socket.  This is usually done by agent_tcp_listener
+%% @doc start the conection unlinked on the given Socket.  This is usually done by agent_tcp_listener.
 start(Socket) ->
 	gen_server:start(?MODULE, [Socket], []).
 
-%% @doc start the conection linked on the given Socket.  This is usually done by agent_tcp_listener
+%% @doc start the conection linked on the given Socket.  This is usually done by agent_tcp_listener.
 start_link(Socket) ->
 	gen_server:start_link(?MODULE, [Socket], []).
 
-%% @doc negotiate the client's protocol, and version before login.
+%% @doc negotiate the client's protocol and version before login.
 negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).
 
+%% @hidden
 init([Socket]) ->
 	timer:send_interval(10000, do_tick),
 	{ok, #state{socket=Socket}}.
 
+%% @hidden
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 
+%% @hidden
 % negotiate the client's protocol version and such
 handle_cast(negotiate, State) ->
 	?CONSOLE("starting negotiation...", []),
@@ -115,6 +118,7 @@ handle_cast(negotiate, State) ->
 			{stop, normal, State}
 	end;
 
+%% @hidden
 % TODO brandid is hard coded, not good (it's the 00310003)
 handle_cast({change_state, ringing, #call{} = Call}, State) ->
 	?CONSOLE("change_state to ringing with call ~p", [Call]),
@@ -135,7 +139,8 @@ handle_cast({change_state, AgState}, State) ->
 
 handle_cast(_Msg, State) ->
 	{noreply, State}.
-	
+
+%% @hidden
 handle_info({tcp, Socket, Packet}, State) ->
 	%?CONSOLE("handle_info {~p, ~p, ~p} ~p", [tcp, Socket, Packet, State]),
 	Ev = parse_event(Packet),
@@ -186,9 +191,11 @@ handle_info(do_tick, State) ->
 handle_info(_Info, State) ->
 	{noreply, State}.
 
+%% @hidden
 terminate(_Reason, _State) ->
 	ok.
 
+%% @hidden
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 

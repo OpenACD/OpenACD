@@ -72,12 +72,13 @@
 	build_tables/1
 ]).
 
-%% @doc Attempts to set-up and create the required mnesia table 'call_queue' on all visible nodes.
+%% @doc Attempts to set-up and create the required mnesia table `call_queue' on all visible nodes.
 %% Errors caused by the table already existing are ignored.
+%% @see build_tables/1
 build_tables() -> 
 	build_tables(lists:append(nodes(), [node()])).
 
-%% @doc Attempts to set-up and create the required mnesia table 'call_queue' on the specified nodes
+%% @doc Attempts to set-up and create the required mnesia table `call_queue' on the specified nodes
 %% Errors caused by the table already existing are ignored.
 build_tables(Nodes) -> 
 	?CONSOLE("~p building tables...", [?MODULE]),
@@ -112,7 +113,7 @@ build_tables(Nodes) ->
 			ok
 	end.
 
-%% @doc Attempt to remove the queue `Queue' (or `Queue#call_queue.name') from the configuration database.
+%% @doc Attempt to remove the queue `#call_queue{}' or `string()' `Queue' from the configuration database.
 -spec(destroy/1 :: (Queue :: #call_queue{}) -> {atom(), any()};
 					(Queue :: string()) -> {atom(), any()}).
 destroy(Queue) when is_record(Queue, call_queue) -> 
@@ -123,7 +124,7 @@ destroy(Queue) ->
 	end,
 	mnesia:transaction(F).
 	
-%% @doc Get the configuration for the passed `Queue' name.
+%% @doc Get the configuration for the passed `string()' `Queue' name.
 -spec(get_queue/1 :: (Queue :: string()) -> #call_queue{} | {'noexists', any()} | 'noexists').
 get_queue(Queue) ->
 	F = fun() -> 
@@ -138,7 +139,7 @@ get_queue(Queue) ->
 			{noexists, Else}
 	end.
 	
-%% @doc Get all the queue configurations.
+%% @doc Get all the queue configurations (`[#call_queue{}]').
 -spec(get_all/0 :: () -> [#call_queue{}]).
 get_all() -> 
 	QH = qlc:q([X || X <- mnesia:table(call_queue)]),
@@ -148,13 +149,13 @@ get_all() ->
 	{atomic, Reply} = mnesia:transaction(F),
 	Reply.
 
-%% @doc Create a new default queue configuraiton with the name `QueueName'.
+%% @doc Create a new default queue configuraiton with the name `string()' `QueueName'.
 %% @see new_queue/2
 -spec(new_queue/1 :: (QueueName :: string()) ->#call_queue{}).
 new_queue(QueueName) -> 
 	new_queue(QueueName, []).
 
-%% @doc Using with a single {Key, Value} tuple, or a list of same, create a new queue called QueueName and add it to the database.
+%% @doc Using with a single `{Key, Value}', or `[{Key, Value}]', create a new queue called `string()' `QueueName' and add it to the database.
 %% Valid keys/value combos are:
 %% <dl>
 %% <dt>weight</dt><dd>An integer.</dd>
@@ -180,17 +181,21 @@ new_queue(QueueName, Options) when is_list(Options) ->
 			Fullqrec
 	end.
 
+%% @doc Add a new skill to the configuration database.  `atom()' `Skillatom', `string()' `Skillname', 
+%% `string()' `Skilldesc', `string()' `Creator'.
+%% @see new_skill/1
 new_skill(Skillatom, Skillname, Skilldesc, Creator) when is_atom(Skillatom) ->
 	Rec = #skill_rec{atom = Skillatom, name = Skillname, description = Skilldesc, creator = Creator},
 	new_skill(Rec).
 
+%% @doc Add `#skill_rec{}' `Rec' to the configuration database.
 new_skill(Rec) when is_record(Rec, skill_rec) ->
 	F = fun() -> 
 		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F).
 		
-%% @doc Set all the params for a config based on the record Queue.
+%% @doc Set all the params for a config based on the `#call_queue{}' `Queue'.  Returns the results of the mnesia transaction.
 -spec(set_all/1 :: (Queue :: #call_queue{}) -> {'aborted', any()} | {'atomic', any()}).
 set_all(Queue) when is_record(Queue, call_queue) -> 
 	F = fun() -> 
@@ -198,7 +203,7 @@ set_all(Queue) when is_record(Queue, call_queue) ->
 	end,
 	mnesia:transaction(F).
 	
-%% @doc Rename a queue from OldName to NewName.
+%% @doc Rename a queue from `string()' `OldName' to `string()' `NewName'.  Returns the results of the mnesia transaction.
 -spec(set_name/2 :: (OldName :: string(), NewName :: string()) -> any()).
 set_name(OldName, NewName) ->
 	F = fun() -> 
@@ -210,7 +215,7 @@ set_name(OldName, NewName) ->
 	mnesia:transaction(F).
 
 % TODO notify queue?  Kill the functions?
-%% @doc Update the recipe for a queue named Queue.
+%% @doc Update `string()' `Queue' with a new `recipe()' `Recipe'.
 -spec(set_recipe/2 :: (Queue :: string(), Recipe :: recipe()) -> any()).
 set_recipe(Queue, Recipe) -> 
 	F = fun() -> 
@@ -220,7 +225,8 @@ set_recipe(Queue, Recipe) ->
 	end,
 	mnesia:transaction(F).
 	
-%% @doc Update the skill list for a queue named Queue.
+%% @doc Update the `string()' `Queue' replacing the skills with `[atom()]' `Skills'.
+%% Returns the result of the mnesia transaction.
 -spec(set_skills/2 :: (Queue :: string(), Skills :: [atom()]) -> any()).
 set_skills(Queue, Skills) -> 
 	F = fun() -> 
@@ -230,7 +236,8 @@ set_skills(Queue, Skills) ->
 	end,
 	mnesia:transaction(F).
 	
-%% @doc Set the weight for a queue named Queue.
+%% @doc Update `string()' `Queue' with a new wight of `pos_integer()' `Weight'.
+%% Returns the result of the mnesia transaction.
 -spec(set_weight/2 :: (Queue :: string(), Weight :: pos_integer()) -> any()).
 set_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1-> 
 	F = fun() ->
@@ -240,7 +247,8 @@ set_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1->
 	end,
 	mnesia:transaction(F).
 
-%% @doc Check if the given `Skillname' exists.
+%% @doc Check if the given `string()' `Skillname' exists.
+%% Returns the `atom()' of `Skillname' or `undefined'
 -spec(skill_exists/1 :: (Skillname :: string()) -> atom()).
 skill_exists(Skillname) when is_list(Skillname) -> 
 	try list_to_existing_atom(Skillname) of

@@ -28,7 +28,9 @@
 %%
 
 %% @doc Handles the creation and desctruction of dispatchers.
+%% Locally registered on each node.
 %% There is to be 1 dipatcher for every avaiable agent on a node.
+%% @see dispatcher
 -module(dispatch_manager).
 -author("Micah").
 
@@ -56,12 +58,16 @@
 %%====================================================================
 %% API
 %%====================================================================
+
+%% @doc start a dispatch manager linked to the calling process.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-	
+
+%% @doc start a dispatch manager linked to no process.
 start() ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
-	
+
+%% @doc Stop the dispatch manager with reason `normal'.
 -spec(stop/0 :: () -> any()).
 stop() -> 
 	gen_server:call(?MODULE, stop).

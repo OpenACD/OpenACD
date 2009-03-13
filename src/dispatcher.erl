@@ -61,10 +61,12 @@
 %%====================================================================
 %% API
 %%====================================================================
+%% @doc Start linked to the calling process.  Ususally done by the {@link dispatch_manager}.
 start_link() ->
 	gen_server:start_link(?MODULE, [], []).
+	
+%% @doc Starts not linked to a process.
 start() ->
-	?CONSOLE("Pid is ~p", [self()]),
 	gen_server:start(?MODULE, [], []).
 
 %%====================================================================
@@ -208,7 +210,8 @@ grab_best() ->
 regrab(Pid) -> 
 	?CONSOLE("dispatcher trying to regrab", []),
 	gen_server:call(Pid, regrab).
-	
+
+%% @doc Stops the dispatcher at `pid() Pid' with reason `normal'.
 -spec(stop/1 :: (pid()) -> 'ok').
 stop(Pid) -> 
 	gen_server:call(Pid, stop).

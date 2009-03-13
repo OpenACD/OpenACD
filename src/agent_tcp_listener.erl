@@ -58,22 +58,27 @@
 		acceptor       % Asynchronous acceptor's internal reference
 		}).
 
+%% @doc Start the listener on port `Port' linked to the calling process.
 -spec(start_link/1 :: (Port :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Port) when is_integer(Port) ->
 	gen_server:start_link(?MODULE, [Port], []).
 
+%% @doc Start the listener on port `Port' linked to no process.
 -spec(start/1 :: (Port :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Port) when is_integer(Port) -> 
 	gen_server:start(?MODULE, [Port], []).
 
+%% @doc Start the listener on the default port of 1337 linked to no process.
 -spec(start/0 :: () -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start() -> 
 	start(?PORT).
 
+%% @doc Stop the listener pid() `Pid' with reason `normal'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) -> 
 	gen_server:call(Pid, stop).
 
+%% @hidden
 init([Port]) ->
 	?CONSOLE("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
@@ -89,15 +94,18 @@ init([Port]) ->
 			{stop, Reason}
 	end.
 
+%% @hidden
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 
 handle_call(Request, _From, State) ->
 	{stop, {unknown_call, Request}, State}.
 
+%% @hidden
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
+%% @hidden
 handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSock, acceptor=Ref} = State) ->
 	try
 		case set_sockopt(ListSock, CliSocket) of
@@ -136,10 +144,12 @@ handle_info({inet_async, ListSock, Ref, Error}, #state{listener=ListSock, accept
 handle_info(_Info, State) ->
 	{noreply, State}.
 
+%% @hidden
 terminate(_Reason, State) ->
 	gen_tcp:close(State#state.listener),
 	ok.
 
+%% @hidden
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 

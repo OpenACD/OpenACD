@@ -86,7 +86,8 @@ start(Nodes) ->
 	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]),
 	unlink(Pid),
 	{ok, Pid}.
-	
+
+%% @doc Exit with reason `shutdown'
 stop() ->
 	?CONSOLE("stopping ~p...", [?MODULE]),
 	exit(whereis(?MODULE), shutdown).
@@ -125,7 +126,7 @@ add_conf(Mod, Start, Args) ->
 	mnesia:transaction(F),
 	start_spec(build_spec(Rec)).
 
-%% @doc Attempts to build a valid childspec suitbable for a supervisor module from the Record#cpx_conf.
+%% @doc Attempts to build a valid childspec suitable for a supervisor module from the `#cpx_conf{}'.
 build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args}) -> 
 	Spec = {Mod, {Mod, Start, Args}, permanent, 20000, worker, [?MODULE]},
 	?CONSOLE("Building spec:  ~p", [Spec]),
@@ -137,7 +138,7 @@ build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Arg
 			Else
 	end.
 
-%% @doc Attempts to build the cpx_conf table.
+%% @doc Attempts to build the `cpx_conf' table.
 build_tables() ->
 	?CONSOLE("cpx building tables...",[]),
 	A = util:build_table(cpx_conf, [
@@ -163,7 +164,7 @@ build_tables() ->
 			Else
 	end.
 
-%% @doc Removes the passed `childspec()' or `#cpx_conf' from the database.
+%% @doc Removes the passed `childspec()' or `#cpx_conf{}' from the database.
 destroy({Id, _Params, _Transience, _Time, _Type, _Module}) -> 
 	destroy(Id);
 destroy(Spec) when is_atom(Spec) -> 
@@ -172,7 +173,7 @@ destroy(Spec) when is_atom(Spec) ->
 	end,
 	mnesia:transaction(F).
 
-%% @doc updates the conf with key Name with new `Mod', `Start', and `Args'.
+%% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
 %% @see add_conf/3
 update_conf(Name, Mod, Start, Args) -> 
 	Rec = #cpx_conf{module_name = Mod, start_function = Start, start_args = Args},
@@ -181,10 +182,12 @@ update_conf(Name, Mod, Start, Args) ->
 		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F).
-	
+
+%% @private
 start_spec(Spec) -> 
 	supervisor:start_child(?MODULE, Spec).
 
+%% @private
 load_specs() -> 
 	?CONSOLE("loading specs...",[]),
 	F = fun() -> 

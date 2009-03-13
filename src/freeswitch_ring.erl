@@ -88,9 +88,9 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) ->
 					Gethandle = fun(Recusef, Count) ->
 						?CONSOLE("Counted ~p", [Count]),
 						case freeswitch:handlecall(Fnode, UUID) of
-							{error, baduuid} when Count > 4 ->
-								{error, baduuid};
-							{error, baduuid} ->
+							{error, badsession} when Count > 4 ->
+								{error, badsession};
+							{error, badsession} ->
 								timer:sleep(100),
 								Recusef(Recusef, Count+1);
 							{error, Other} ->
@@ -100,9 +100,9 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) ->
 						end
 					end,
 					case Gethandle(Gethandle, 0) of
-						{error, baduuid} ->
+						{error, badsession} ->
 							?CONSOLE("bad uuid ~p", [UUID]),
-							{stop, {error, baduuid}};
+							{stop, {error, session}};
 						{error, Other} ->
 							?CONSOLE("other error starting; ~p", [Other]),
 							{stop, {error, Other}};

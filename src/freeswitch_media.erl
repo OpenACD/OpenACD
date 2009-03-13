@@ -138,51 +138,62 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 	?CONSOLE("ringout ~p", [Ringout]),
 	case agent:set_state(AgentPid, ringing, Call) of
 		ok ->
-			{ok, UUID} = freeswitch:api(State#state.cnode, create_uuid),
-			Args = "{origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " &park()",
-			F = fun(ok, _Reply) ->
-					% agent picked up?
-					freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Call#call.id);
-				(error, Reply) ->
-					?CONSOLE("originate failed: ~p", [Reply]),
-					gen_server:cast(QCall#queued_call.cook, {stop_ringing, AgentPid})
-			end,
-			case freeswitch:bgapi(State#state.cnode, originate, Args, F) of
-			%	{ok, _Msg} ->
-				ok ->
-					case freeswitch_ring:start(State#state.cnode, UUID, AgentPid, Call) of
-						{ok, Pid} when is_pid(Pid) ->
-							?CONSOLE("Started the freeswitch_ring got ~p", [Pid]),
-							{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
-						{error, {error, baduuid}} ->
-							?CONSOLE("Bad uuid (~p)got passed in, resetting this for another tick pass", [UUID]),
-							agent:set_state(AgentPid, idle),
-							{reply, invalid, State#state{cook = QCall#queued_call.cook}}
-					end;
-					%{ok, Pid} = freeswitch_ring:start(State#state.cnode, UUID, AgentPid, Call),
-					%F2 = fun(F2) ->
-					%		receive
-					%			X ->
-					%				%io:format("got message ~p~n", [X]),
-					%				F2(F2)
-					%		end
-					%end,
-					%spawn(fun() ->
-					%	freeswitch:handlecall(State#state.cnode, UUID),
-					%	F2(F2)
-					%end),
-						
-					%{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
-				{error, Msg} ->
-					?CONSOLE("Failed to ring agent ~p with error ~p", [AgentRec#agent.login, Msg]),
-					X = agent:set_state(AgentPid, released, "reason"),
-					?CONSOLE("------- ~p", [X]),
-					{reply, invalid, State#state{cook = QCall#queued_call.cook}};
-				timeout ->
-					?CONSOLE("timed out waiting for bgapi response", []),
-					agent:set_state(AgentPid, released, "failure!"),
+			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, QCall, Ringout, State#state.domain) of
+				{ok, Pid} ->
+					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
+				{error, Error} ->
+					?CONSOLE("error:  ~p", [Error]),
+					agent:set_state(AgentPid, released, "badring"),
 					{reply, invalid, State#state{cook = QCall#queued_call.cook}}
 			end;
+		
+		
+		
+		%	{ok, UUID} = freeswitch:api(State#state.cnode, create_uuid),
+%			Args = "{origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " &park()",
+%			F = fun(ok, _Reply) ->
+%					% agent picked up?
+%					freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Call#call.id);
+%				(error, Reply) ->
+%					?CONSOLE("originate failed: ~p", [Reply]),
+%					gen_server:cast(QCall#queued_call.cook, {stop_ringing, AgentPid})
+%			end,
+%			case freeswitch:bgapi(State#state.cnode, originate, Args, F) of
+%			%	{ok, _Msg} ->
+%				ok ->
+%					case freeswitch_ring:start(State#state.cnode, UUID, AgentPid, Call) of
+%						{ok, Pid} when is_pid(Pid) ->
+%							?CONSOLE("Started the freeswitch_ring got ~p", [Pid]),
+%							{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
+%						{error, {error, baduuid}} ->
+%							?CONSOLE("Bad uuid (~p)got passed in, resetting this for another tick pass", [UUID]),
+%							agent:set_state(AgentPid, idle),
+%							{reply, invalid, State#state{cook = QCall#queued_call.cook}}
+%					end;
+%					%{ok, Pid} = freeswitch_ring:start(State#state.cnode, UUID, AgentPid, Call),
+%					%F2 = fun(F2) ->
+%					%		receive
+%					%			X ->
+%					%				%io:format("got message ~p~n", [X]),
+%					%				F2(F2)
+%					%		end
+%					%end,
+%					%spawn(fun() ->
+%					%	freeswitch:handlecall(State#state.cnode, UUID),
+%					%	F2(F2)
+%					%end),
+%						
+%					%{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
+%				{error, Msg} ->
+%					?CONSOLE("Failed to ring agent ~p with error ~p", [AgentRec#agent.login, Msg]),
+%					X = agent:set_state(AgentPid, released, "reason"),
+%					?CONSOLE("------- ~p", [X]),
+%					{reply, invalid, State#state{cook = QCall#queued_call.cook}};
+%				timeout ->
+%					?CONSOLE("timed out waiting for bgapi response", []),
+%					agent:set_state(AgentPid, released, "failure!"),
+%					{reply, invalid, State#state{cook = QCall#queued_call.cook}}
+%			end;
 			%	Else ->
 			%		?CONSOLE("Freeswitch api response: ~p",[Else]),
 			%		{reply, {invalid, Else}, State}

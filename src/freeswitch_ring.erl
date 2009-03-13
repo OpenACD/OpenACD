@@ -45,7 +45,7 @@
 %% API
 -export([
 	start_link/4,
-	start/4
+	start/6
 	]).
 
 %% gen_server callbacks
@@ -62,8 +62,8 @@
 %%====================================================================
 %% API
 %%====================================================================
-start(Fnode, UUID, Apid, Callrec) when is_pid(Apid), is_record(Callrec, call) ->
-	gen_server:start(?MODULE, [Fnode, UUID, Apid, Callrec], []).
+start(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_record(Qcall, queued_call) ->
+	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Domain], []).
 	
 start_link(Fnode, UUID, Apid, Callrec) when is_pid(Apid), is_record(Callrec, call) ->
     gen_server:start_link(?MODULE, [Fnode, UUID, Apid, Callrec], []).
@@ -72,14 +72,31 @@ start_link(Fnode, UUID, Apid, Callrec) when is_pid(Apid), is_record(Callrec, cal
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, UUID, Apid, Callrec]) ->
-	?CONSOLE("starting for ~p", [UUID]),
-	case freeswitch:handlecall(Fnode, UUID) of
-		{error, baduuid} ->
-			{stop, {error, baduuid}};
-		Else ->
-			?CONSOLE("fs:handlecall:  ~p", [Else]),
-			{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Callrec}}
+init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) ->
+	case freeswitch:api(Fnode, create_uuid) of
+		{ok, UUID} ->
+			Args = "[origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]sofia/default/" ++ AgentRec#agent.login ++ "%" ++ Domain ++ " &park()",
+			F = fun(ok, _Reply) ->
+					% agent picked up?
+					freeswitch:api(Fnode, uuid_bridge, UUID ++ " " ++ Qcall#queued_call.id);
+				(error, Reply) ->
+					?CONSOLE("originate failed: ~p", [Reply]),
+					gen_server:cast(Qcall#queued_call.cook, {stop_ringing, Apid})
+			end,
+			case freeswitch:bgapi(Fnode, originate, Args, F) of
+				ok ->
+					case freeswitch:handlecall(Fnode, UUID) of
+						{error, baduuid} ->
+							?CONSOLE("bad uuid ~p", [UUID]),
+							{stop, {error, baduuid}};
+						Else ->
+							?CONSOLE("starting for ~p", [UUID]),
+							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Qcall}}
+					end;
+				Else ->
+					?CONSOLE("bgapi call failed ~p", [Else]),
+					{stop, {error, Else}}
+			end
 	end.
 
 %%--------------------------------------------------------------------

@@ -39,7 +39,7 @@ find_pid() ->
 	case whereis(?MODULE) of
 		undefined ->
 			case whereis(genservertestpid) of
-				undefined -> exit(busted);
+				undefined -> exit(noproc);
 				Pid -> Pid
 			end;
 		Pid -> Pid

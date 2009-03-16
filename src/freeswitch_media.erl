@@ -311,6 +311,9 @@ handle_info({bgerror, "-ERR USER_BUSY\n"}, State) ->
 handle_info({bgerror, Reply}, State) ->
 	?CONSOLE("unhandled bgerror: ~p", [Reply]),
 	{noreply, State};
+handle_info(call_hangup, State) ->
+	?CONSOLE("Call hangup info, terminating", []),
+	{stop, normal, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 

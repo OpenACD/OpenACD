@@ -285,7 +285,15 @@ handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 
 % TODO Hardcoding...
 handle_event(["BRANDLIST", Counter], State) when is_integer(Counter) ->
-	{ack(Counter, "(0031003|Slic.com),(00420001|WTF)"), State};
+	Brands = call_queue_config:get_clients(),
+	F = fun(Elem) ->
+		Idbase = integer_to_list(Elem#client.tenant * 10000 + Elem#client.brand),
+		Padding = lists:duplicate(8 - length(Idbase), "0"),
+		Idstring = lists:append([Padding, Idbase]),
+		lists:append(["(", Idstring, "|", Elem#client.label, ")"])
+	end,
+	Brandstringed = lists:map(F, Brands),
+	{ack(Counter, string:join(Brandstringed, ",")), State};
 
 handle_event(["PROFILES", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, "1:Level1 2:Level2 3:Level3 4:Supervisor"), State};
@@ -783,6 +791,18 @@ post_login_test_() ->
 					gen_tcp:send(Clientsock, "STATE 7 " ++ integer_to_list(agent:state_to_integer(released)) ++ " notvalid\r\n"),
 					receive {tcp, Clientsock, Packet} -> ok end,
 					?assertEqual("ERR 7 Invalid release option\r\n", Packet)
+				end}
+			end,
+			fun({_Tcplistener, Clientsock, _APid}) ->
+				{"Brandlist requested",
+				fun() ->
+					call_queue_config:build_tables(),
+					call_queue_config:new_client(#client{label = "Aclient", tenant = 10, brand = 1}),
+					call_queue_config:new_client(#client{label = "Bclient", tenant = 5, brand = 2}),
+					call_queue_config:new_client(#client{label = "Cclient", tenant = 20, brand = 3}),
+					gen_tcp:send(Clientsock, "BRANDLIST 7\r\n"),
+					receive {tcp, Clientsock, Packet} -> ok end,
+					?assertEqual("ACK 7 (00100001|Aclient),(00050002|Bclient),(00200003|Cclient)\r\n", Packet)
 				end}
 			end%,
 			%fun({_Tcplistener, _Client, APid}) ->

@@ -356,8 +356,9 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 				undefined ->
 					Queue = freeswitch:get_event_header(Rawcall, "variable_queue"),
 					Brand = freeswitch:get_event_header(Rawcall, "variable_brand"),
+					Clientrec = call_queue_config:get_client(Brand),
 					Callerid = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
-					NewCall = Callrec#call{id=UUID, client=Brand, callerid=Callerid, source=self()},
+					NewCall = Callrec#call{id=UUID, client=Clientrec, callerid=Callerid, source=self()},
 					freeswitch:sendmsg(State#state.cnode, UUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "answer"}]),

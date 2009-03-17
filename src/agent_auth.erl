@@ -54,7 +54,7 @@
 
 %% API
 -export([start_link/5, start/5, start_link/0, start/0, stop/0, auth/3]).
--export([cache/3, destroy/1]).
+-export([cache/3, cache/4, destroy/1]).
 %% API for relase options
 -export([
 	new_release/1,

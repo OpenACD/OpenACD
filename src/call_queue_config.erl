@@ -202,12 +202,14 @@ new_queue(QueueName, Options) when is_list(Options) ->
 
 %% @doc Add a new skill to the configuration database.  `atom()' `Skillatom', `string()' `Skillname', 
 %% `string()' `Skilldesc', `string()' `Creator'.
-%% @see new_skill/1
+%% @see new_skill
+-spec(new_skill/4 :: (Skillatom :: atom(), Skillname :: string(), Skilldesc :: string(), Creator :: string()) -> {'atomic', 'ok'}).
 new_skill(Skillatom, Skillname, Skilldesc, Creator) when is_atom(Skillatom) ->
 	Rec = #skill_rec{atom = Skillatom, name = Skillname, description = Skilldesc, creator = Creator},
 	new_skill(Rec).
 
 %% @doc Add `#skill_rec{}' `Rec' to the configuration database.
+-spec(new_skill/1 :: (Rec :: #skill_rec{}) -> {'atomic', 'ok'}).
 new_skill(Rec) when is_record(Rec, skill_rec) ->
 	F = fun() -> 
 		mnesia:write(Rec)
@@ -216,10 +218,12 @@ new_skill(Rec) when is_record(Rec, skill_rec) ->
 
 %% @doc Add a new client with `string()' `Label', `integer()' `Tenantid', and `integer()' `Brandid'.
 %% @see new_client/1
+-spec(new_client/3 :: (Label :: string(), Tenantid :: pos_integer(), Brandid :: pos_integer()) -> {'atomic', 'ok'}).
 new_client(Label, Tenantid, Brandid) when is_integer(Tenantid), is_integer(Brandid) ->
 	Rec = #client{label = Label, tenant = Tenantid, brand = Brandid},
 	new_client(Rec).
 
+-spec(new_client/1 :: (Rec :: #client{}) -> {'atomic', 'ok'}).
 %% @doc Add a new client based on `#client{}' `Rec'.
 new_client(Rec) when is_record(Rec, client) ->
 	F = fun() ->
@@ -229,11 +233,13 @@ new_client(Rec) when is_record(Rec, client) ->
 
 %% @doc Update the client `string()' `Label' to `string()' `Newlabel', `integer()' `Tenantid', `integer()' `Brandid'.
 %% @see set_client/2
+-spec(set_client/4 :: (Label :: string(), Newlabel :: string(), Tenantid :: pos_integer(), Brandid :: pos_integer()) -> {'atomic', 'ok'}).
 set_client(Label, Newlabel, Tenantid, Brandid) when is_integer(Tenantid), is_integer(Brandid) ->
 	Client = #client{label = Newlabel, tenant = Tenantid, brand = Brandid},
 	set_client(Label, Client).
 
 %% @doc Update the client `string()' `Label' to the `#client{}' `Client'.
+-spec(set_client/2 :: (Label :: string(), Client :: #client{}) -> {'atomic', 'ok'}).
 set_client(Label, Client) when is_record(Client, client) ->
 	F = fun() ->
 		mnesia:delete({client, Label}),
@@ -242,6 +248,7 @@ set_client(Label, Client) when is_record(Client, client) ->
 	mnesia:transaction(F).
 
 %% @doc Removed the client labeled `Label' from the client database.
+-spec(destroy_client/1 :: (Label :: string()) -> {'atomic', 'ok'}).
 destroy_client(Label) ->
 	F = fun() -> 
 		mnesia:delete({client, Label})
@@ -249,6 +256,7 @@ destroy_client(Label) ->
 	mnesia:transaction(F).
 
 %% @doc Gets `[#client{}]' sorted by `#client.label'.
+-spec(get_clients/0 :: () -> [#client{}]).
 get_clients() ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(client)]),

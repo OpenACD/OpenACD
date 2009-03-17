@@ -97,8 +97,8 @@ init([Post, Ref, Table]) ->
 			case agent_auth:auth(User, Passwrd, "replacethiswithpropersalt") of
 				deny -> 
 					{stop, "Login Denied"};
-				{allow, Skills} ->
-					Agent = #agent{login=User, skills=Skills},
+				{allow, Skills, Security} ->
+					Agent = #agent{login=User, skills=Skills, securitylevel = Security},
 			
 					% io:format("if they are already logged in, update the reference~n"),
 					Result = ets:match(Table, {'$1', '$2', User}),

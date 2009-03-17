@@ -199,7 +199,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% The magic skills of `_agent' and `_node' are automcatically appended to the skill list, and therefore do not need to be stored on the 
 %% integration side.
 %% @see local_auth/3.
--spec(auth/3 :: (Username :: string(), Password :: string(), Salt :: string()) -> {'allow', [atom()]} | 'deny').
+-spec(auth/3 :: (Username :: string(), Password :: string(), Salt :: string()) -> {'allow', [atom()], atom()} | 'deny').
 auth(Username, Password, Salt) -> 
 	gen_server:call(?MODULE, {authentication, Username, Password, Salt}).
 

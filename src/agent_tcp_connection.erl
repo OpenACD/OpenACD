@@ -124,7 +124,7 @@ handle_cast({change_state, ringing, #call{} = Call}, State) ->
 	?CONSOLE("change_state to ringing with call ~p", [Call]),
 	Counter = State#state.counter,
 	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n"),
-	gen_tcp:send(State#state.socket, "CALLINFO " ++ integer_to_list(Counter+1) ++ " 00310003 " ++ atom_to_list(Call#call.type) ++ " " ++ Call#call.callerid  ++ "\r\n"),
+	gen_tcp:send(State#state.socket, "CALLINFO " ++ integer_to_list(Counter+1) ++ " " ++ clientrec_to_id(Call#call.client) ++ " " ++ atom_to_list(Call#call.type) ++ " " ++ Call#call.callerid  ++ "\r\n"),
 	{noreply, State#state{counter = Counter + 2}};
 
 handle_cast({change_state, AgState, _Data}, State) ->
@@ -283,13 +283,13 @@ handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 			{err(Counter, "Invalid state " ++ AgState), State}
 	end;
 
-% TODO Hardcoding...
 handle_event(["BRANDLIST", Counter], State) when is_integer(Counter) ->
 	Brands = call_queue_config:get_clients(),
 	F = fun(Elem) ->
-		Idbase = integer_to_list(Elem#client.tenant * 10000 + Elem#client.brand),
-		Padding = lists:duplicate(8 - length(Idbase), "0"),
-		Idstring = lists:append([Padding, Idbase]),
+		%Idbase = integer_to_list(Elem#client.tenant * 10000 + Elem#client.brand),
+		%Padding = lists:duplicate(8 - length(Idbase), "0"),
+		%Idstring = lists:append([Padding, Idbase]),
+		Idstring = clientrec_to_id(Elem),
 		lists:append(["(", Idstring, "|", Elem#client.label, ")"])
 	end,
 	Brandstringed = lists:map(F, Brands),
@@ -406,6 +406,11 @@ resend_events([], State) ->
 resend_events([{Counter, Event, Data, _Time}|T], State) ->
 	?CONSOLE("Resending event ~s ~p ~s", [Event, Counter, Data]),
 	resend_events(T, send(Event, Data, State)).
+
+clientrec_to_id(Rec) ->
+	Idbase = integer_to_list(Rec#client.tenant * 10000 + Rec#client.brand),
+	Padding = lists:duplicate(8 - length(Idbase), "0"),
+	lists:flatten(lists:append([Padding, Idbase])).
 
 -ifdef(EUNIT).
 
@@ -744,12 +749,12 @@ post_login_test_() ->
 			fun({_Tcplistener, Clientsock, APid}) ->
 				{"set ringing",
 				fun() ->
-					Call = #call{id="testcall", source = self()},
+					Call = #call{id="testcall", source = self(), client=#client{label="testclient", brand = 1, tenant = 57}},
 					agent:set_state(APid, ringing, Call),
 					receive {tcp, Clientsock, Packet} -> inet:setopts(Clientsock, [{active, once}]) end,
 					?assertEqual("ASTATE 2 " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n", Packet),
 					receive {tcp, Clientsock, Packet2} -> ok end,
-					?assertEqual("CALLINFO 3 00310003 voice Unknown Unknown\r\n", Packet2)
+					?assertEqual("CALLINFO 3 00570001 voice Unknown Unknown\r\n", Packet2)
 				end}
 			end,
 			fun({_Tcplistener, Clientsock, _APid}) ->
@@ -779,7 +784,7 @@ post_login_test_() ->
 			fun({_Tcplistener, Clientsock, APid}) ->
 				{"Client requests release, but it's queued",
 				fun() ->
-					Call = #call{id="testcall", source = self()},
+					Call = #call{id="testcall", source = self(), client=#client{label="testclient", brand = 1, tenant = 57}},
 					agent:set_state(APid, ringing, Call),
 					receive {tcp, Clientsock, _Packet} -> inet:setopts(Clientsock, [{active, once}]) end,
 					receive {tcp, Clientsock, _Packet2} -> inet:setopts(Clientsock, [{active, once}]) end,
@@ -838,6 +843,11 @@ post_login_test_() ->
 %			end
 		]
 	}.
+
+clientrec_to_id_test() ->
+	Client = #client{label = "testclient", tenant = 50, brand = 7},
+	?assertEqual("00500007", clientrec_to_id(Client)).
+
 
 -define(MYSERVERFUNC, 
 	fun() -> 

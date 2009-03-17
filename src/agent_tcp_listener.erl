@@ -137,6 +137,9 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		{stop, Why, State}
 end;
 
+handle_info({'EXIT', From, shutdown}, State) ->
+	{stop, shutdown, State};
+	
 handle_info({inet_async, ListSock, Ref, Error}, #state{listener=ListSock, acceptor=Ref} = State) ->
 	error_logger:error_msg("Error in socket acceptor: ~p.\n", [Error]),
 	{stop, Error, State};
@@ -145,7 +148,8 @@ handle_info(_Info, State) ->
 	{noreply, State}.
 
 %% @hidden
-terminate(_Reason, State) ->
+terminate(Reason, State) ->
+	?CONSOLE("Terminating due to ~p", [Reason]),
 	gen_tcp:close(State#state.listener),
 	ok.
 

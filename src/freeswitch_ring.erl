@@ -169,7 +169,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 	end;
 handle_info(Info, State) ->
 	?CONSOLE("unhandled info ~p", [Info]),
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()

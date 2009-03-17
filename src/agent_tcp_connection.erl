@@ -213,9 +213,9 @@ handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter), i
 				deny -> 
 					?CONSOLE("Authentication failure",[]),
 					{err(Counter, "Authentication Failure"), State};
-				{allow, Skills} -> 
+				{allow, Skills, Security} -> 
 					%?CONSOLE("Authenciation success, next steps...",[]),
-					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills}),
+					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills, securitylevel = Security}),
 					case agent:set_connection(Pid, self()) of
 						ok ->
 							State2 = State#state{agent_fsm=Pid},

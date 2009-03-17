@@ -134,9 +134,9 @@ handle_call({authentication, Username, Password, Salt}, _From, State) ->
 			?CONSOLE("remote authentication attempt first: ~p : ~p : ~p", [State#state.mod, State#state.check_func, State#state.check_args]),
 			Args = lists:append([[Username, Password, Salt], State#state.check_args]),
 			case apply(State#state.mod, State#state.check_func, Args) of
-				{allow, CachePassword, Skills} -> 
-					cache(Username, CachePassword, Skills),
-					{reply, {allow, lists:append([Skills, ['_agent', '_node']])}, State};
+				{allow, CachePassword, Skills, Security} -> 
+					cache(Username, CachePassword, Skills, Security),
+					{reply, {allow, lists:append([Skills, ['_agent', '_node']]), Security}, State};
 				deny -> 
 					destroy(Username),
 					{reply, deny, State};
@@ -229,23 +229,35 @@ build_tables() ->
 			Else
 	end.
 
-%% @doc Caches the passed `Username', `Password', and `Skills' to the mnesia database.  `Username' is the plaintext name and used as the key. 
+%% @doc Caches the passed `Username', `Password', `Skills', and `Security' type.  to the mnesia database.  
+%% `Username' is the plaintext name and used as the key. 
 %% `Password' is assumed to be prehashed either from erlang:md5 or as type `string()'.  `Skills' should not
-%% include the magic skills of `_agent' or `_node'.
+%% include the magic skills of `_agent' or `_node'.  `Security' is either `agent', `supervisor', or `admin'.
+-spec(cache/4 ::	(Username :: string(), Password :: string(), Skills :: [atom()], Security :: 'agent' | 'supervisor' | 'admin') -> 
+						{'atomic', 'ok'} | {'aborted', any()};
+					(Username :: string(), Password :: binary(), Skills :: [atom()], Security :: 'agent' | 'supervisor' | 'admin') -> 
+						{'atomic', 'ok'} | {'aborted', any()}).
+cache(Username, Password, Skills, Security) when is_binary(Password) ->
+	cache(Username, util:bin_to_hexstr(Password), Skills, Security);
+cache(Username, Password, Skills, Security) when is_atom(Security) ->
+	Agent = #agent_auth{
+		login = Username,
+		password = Password,
+		skills = Skills,
+		securitylevel = Security},
+	F = fun() ->
+		mnesia:write(Agent)
+	end,
+	mnesia:transaction(F).
+	
+%% @doc Passes `Username', `Password', and `Skills' to {@link cache/4} using a default `Security' of `agent'.
+%% @see cache/4
 -spec(cache/3 ::	(Username :: string(), Password :: string(), Skills :: [atom()]) -> {'atomic', 'ok'} | {'aborted', any()};
 					(Username :: string(), Password :: binary(), Skills :: [atom()]) -> {'atomic', 'ok'} | {'aborted', any()}).
 cache(Username, Password, Skills) when is_binary(Password) -> 
 	cache(Username, util:bin_to_hexstr(Password), Skills);
-cache(Username, Password, Skills) -> 
-	% md5 the password before it gets here!
-	Agent = #agent_auth{
-		login=Username,
-		password = Password,
-		skills = Skills},
-	F = fun() -> 
-		mnesia:write(Agent)
-	end,
-	mnesia:transaction(F).
+cache(Username, Password, Skills) ->
+	cache(Username, Password, Skills, agent).
 
 %% @doc Removes the passed user with login of `Username' from the local cache.  Called when integration returns a deny.
 -spec(destroy/1 :: (Username :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
@@ -270,7 +282,7 @@ local_auth(Username, Password, Salt) ->
 			%check the password after salt
 			case salt(Agent#agent_auth.password, Salt) of
 				Password -> 
-					{allow, lists:append([Agent#agent_auth.skills, ['_agent', '_node']])};
+					{allow, lists:append([Agent#agent_auth.skills, ['_agent', '_node']]), Agent#agent_auth.securitylevel};
 				Else -> 
 					?CONSOLE("Password: ~p;  Salting: ~p;  Presalting: ~p;  Agentname: ~p", [Password, Else, Agent#agent_auth.password, Agent#agent_auth.login]),
 					deny
@@ -347,7 +359,7 @@ local_auth_test_() ->
 						qlc:e(QH)
 					end,
 					{atomic, [Agent]} = mnesia:transaction(F),
-					?assertMatch("9d5ed678fe57bcca610140957afab571", Agent#agent_auth.password),
+					?assertEqual("9d5ed678fe57bcca610140957afab571", Agent#agent_auth.password),
 					destroy("A")
 				end
 			},
@@ -360,7 +372,33 @@ local_auth_test_() ->
 						qlc:e(QH)
 					end,
 					{atomic, [Agent]} = mnesia:transaction(F),
-					?assertMatch("9d5ed678fe57bcca610140957afab571", Agent#agent_auth.password),
+					?assertEqual("9d5ed678fe57bcca610140957afab571", Agent#agent_auth.password),
+					destroy("A")
+				end
+			},
+			{
+				"Cache a user with a security level",
+				fun() ->
+					cache("A", util:bin_to_hexstr(erlang:md5("B")), [testskill], supervisor),
+					F = fun() ->
+						QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= "A"]),
+						qlc:e(QH)
+					end,
+					{atomic, [Agent]} = mnesia:transaction(F),
+					?assertEqual(supervisor, Agent#agent_auth.securitylevel),
+					destroy("A")
+				end
+			},
+			{
+				"Cache a user with default security level",
+				fun() ->
+					cache("A", util:bin_to_hexstr(erlang:md5("B")), [testskill]),
+					F = fun() ->
+						QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= "A"]),
+						qlc:e(QH)
+					end,
+					{atomic, [Agent]} = mnesia:transaction(F),
+					?assertEqual(agent, Agent#agent_auth.securitylevel),
 					destroy("A")
 				end
 			},
@@ -370,7 +408,7 @@ local_auth_test_() ->
 					cache("A", erlang:md5("B"), [testskill]),
 					Salt = "12345",
 					SaltedPassword = salt(erlang:md5("B"), Salt),
-					?assertMatch({allow, [testskill, '_agent', '_node']}, local_auth("A", SaltedPassword, Salt)),
+					?assertMatch({allow, [testskill, '_agent', '_node'], agent}, local_auth("A", SaltedPassword, Salt)),
 					destroy("A"),
 					?assertMatch(deny, local_auth("A", util:bin_to_hexstr(erlang:md5(integer_to_list(5) ++ erlang:md5("B"))), "5"))
 				end
@@ -381,7 +419,7 @@ local_auth_test_() ->
 					cache("A", erlang:md5("B"), [testskill]),
 					Salt = "12345",
 					SaltedPassword = salt(erlang:md5("B"), Salt),
-					?assertMatch({allow, [testskill, '_agent', '_node']}, auth("A", SaltedPassword, Salt)),
+					?assertMatch({allow, [testskill, '_agent', '_node'], agent}, auth("A", SaltedPassword, Salt)),
 					destroy("A"),
 					?assertMatch(deny, local_auth("A", util:bin_to_hexstr(erlang:md5(integer_to_list(5) ++ erlang:md5("B"))), "5"))
 				end
@@ -392,7 +430,7 @@ local_auth_test_() ->
 					cache("A", erlang:md5("B"), [testskill]),
 					Salt = 123,
 					SaltedPassword = salt(erlang:md5("B"), integer_to_list(Salt)),
-					?assertMatch({allow, [testskill, '_agent', '_node']}, local_auth("A", SaltedPassword, integer_to_list(Salt))),
+					?assertMatch({allow, [testskill, '_agent', '_node'], agent}, local_auth("A", SaltedPassword, integer_to_list(Salt))),
 					destroy("A"),
 					?assertMatch(deny, local_auth("A", SaltedPassword, integer_to_list(Salt)))
 				end
@@ -433,7 +471,7 @@ mock_start_failure("mock1", "mock2") ->
 %% @hidden
 mock_auth_success(_Username, _Password, _Nonce, "mock1", "mock2") ->
 	?CONSOLE("~p", [util:bin_to_hexstr(erlang:md5("password"))]),
-	{allow, util:bin_to_hexstr(erlang:md5("password")), [testskill]}.
+	{allow, util:bin_to_hexstr(erlang:md5("password")), [testskill], agent}.
 
 %% @hidden
 mock_auth_deny(_Username, _Password, _Nonce, "mock1", "mock2") ->
@@ -478,8 +516,8 @@ mock_integration_test_() ->
 				fun() ->
 					start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_success, ["mock1", "mock2"]),
 					?assertEqual(deny, local_auth("A", salt(erlang:md5("password"), "1234"), "1234")),
-					?assertEqual({allow, [testskill, '_agent', '_node']}, auth("A", "password", "1234")),
-					?assertEqual({allow, [testskill, '_agent', '_node']}, local_auth("A", salt(erlang:md5("password"), "1234"), "1234")),
+					?assertEqual({allow, [testskill, '_agent', '_node'], agent}, auth("A", "password", "1234")),
+					?assertEqual({allow, [testskill, '_agent', '_node'], agent}, local_auth("A", salt(erlang:md5("password"), "1234"), "1234")),
 					destroy("A"),
 					stop()
 				end
@@ -498,7 +536,7 @@ mock_integration_test_() ->
 				fun() ->
 					start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_deny, ["mock1", "mock2"]),
 					cache("A", erlang:md5("password"), [testskill]),
-					?assertMatch({allow, _Skills}, local_auth("A", salt(erlang:md5("password"), "1234"), "1234")),
+					?assertMatch({allow, _Skills, agent}, local_auth("A", salt(erlang:md5("password"), "1234"), "1234")),
 					auth("A", "password", "1234"),
 					?assertEqual(deny, local_auth("A", salt(erlang:md5("password"), "1234"), "1234")),
 					stop()
@@ -509,7 +547,7 @@ mock_integration_test_() ->
 				fun() ->
 					start(?MODULE, mock_start_success, ["mock1", "mock2"], mock_auth_error, ["mock1", "mock2"]),
 					cache("A", erlang:md5("password"), [testskill]),
-					?assertMatch({allow, _Skills}, auth("A", salt(erlang:md5("password"), "1234"), "1234")),
+					?assertMatch({allow, _Skills, agent}, auth("A", salt(erlang:md5("password"), "1234"), "1234")),
 					stop()
 				end
 			}

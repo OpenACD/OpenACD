@@ -255,6 +255,20 @@ destroy_client(Label) ->
 	end,
 	mnesia:transaction(F).
 
+%% @doc Get the `#client{}' associated with the label `Label'.
+-spec(get_client/1 :: (Label :: string()) -> #client{} | 'none').
+get_client(Label) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(client), X#client.label =:= Label]),
+		qlc:e(QH)
+	end,
+	case mnesia:transaction(F) of
+		{atomic, []} ->
+			none;
+		{atomic, [Client]} when is_record(Client, client) ->
+			Client
+	end.
+
 %% @doc Gets `[#client{}]' sorted by `#client.label'.
 -spec(get_clients/0 :: () -> [#client{}]).
 get_clients() ->
@@ -696,6 +710,24 @@ client_rec_test_() ->
 					new_client(Client2),
 					new_client(Client3),
 					?assertEqual([Client3, Client1, Client2], get_clients())
+				end
+			},
+			{
+				"Get a single client",
+				fun() ->
+					Client1 = #client{label = "Client1", tenant = 23, brand = 1},
+					Client2 = #client{label = "Client2", tenant = 47, brand = 2},
+					Client3 = #client{label = "Aclient", tenant = 56, brand = 1},
+					new_client(Client1),
+					new_client(Client2),
+					new_client(Client3),
+					?assertEqual(Client2, get_client("Client2"))
+				end
+			},
+			{
+				"Get a client that's not there",
+				fun() ->
+					?assertEqual(none, get_client("Noexists"))
 				end
 			}
 		]

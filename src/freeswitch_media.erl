@@ -264,7 +264,7 @@ handle_cast(stop_ringing, State) ->
 		RingChannel ->
 			freeswitch_ring:hangup(RingChannel)
 	end,
-	{noreply, State};
+	{noreply, State#state{ringchannel=undefined, agent=undefined, agent_pid=undefined}};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 

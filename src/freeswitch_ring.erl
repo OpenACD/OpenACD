@@ -159,20 +159,6 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 					?CONSOLE("Cannot set agent ~p to oncall with media ~p", [State#state.agent_pid, Call#call.id]),
 					{noreply, State}
 			end;
-		%"CHANNEL_UNBRIDGE" ->
-		%	% if this event happens, it means the remote side (caller) has hungup.  For now, we do nothing but console log it.
-		%	?CONSOLE("agent should be in wrapup, seems like remote dc'ed", []),
-		%	{noreply, State};
-		"CHANNEL_UNBRIDGE" -> 
-			% if the agent is in wrap-up, set them to idle (or at least attempt).
-			% this is for niftyness
-			case agent:query_state(State#state.agent_pid) of
-				{ok, wrapup} ->
-					agent:set_state(State#state.agent_pid, idle),
-					{noreply, State};
-				{ok, _Other} ->
-					{noreply, State}
-			end;
 		_Else ->
 			?CONSOLE("call_event ~p", [Event]),
 			{noreply, State}

@@ -59,5 +59,6 @@
 -record(agent_auth, {
 	login :: string(),
 	password :: string(),
-	skills = [english, '_agent', '_node'] :: [atom(), ...]
+	skills = [english, '_agent', '_node'] :: [atom(), ...],
+	securitylevel = agent :: 'agent' | 'supervisor' | 'admin'
 }).

@@ -160,7 +160,7 @@ handle_info({tcp, Socket, Packet}, State) ->
 	end;
 
 handle_info({tcp_closed, _Socket}, State) ->
-	io:format("Client disconnected~n", []),
+	?CONSOLE("Client disconnected", []),
 	case is_pid(State#state.agent_fsm) of
 		true ->
 			gen_fsm:send_all_state_event(State#state.agent_fsm, stop);
@@ -784,10 +784,26 @@ post_login_test_() ->
 					receive {tcp, Clientsock, Packet} -> ok end,
 					?assertEqual("ERR 7 Invalid release option\r\n", Packet)
 				end}
-			end
+			end%,
+			%fun({_Tcplistener, _Client, APid}) ->
+%				{"Unresponsive client",
+%				timeout,
+%				60,
+%				fun() ->
+%					Call = #call{id="testcall", source = self()},
+%					agent:set_state(APid, ringing, Call),
+%					#agent{connection = Tcp} = agent:dump_state(APid),
+%					%timer:sleep(31),
+%					Tcp ! do_tick,
+%					Tcp ! do_tick,
+%					Tcp ! do_tick,
+%					?assertNot(is_process_alive(Tcp))
+%				%	?assertExit(noproc, gen_server:call(Tcplistener, garbage))
+%				end}
+%			end
 		]
 	}.
-	
+
 -define(MYSERVERFUNC, 
 	fun() -> 
 		{ok, Pid} = start_link("garbage data"), 

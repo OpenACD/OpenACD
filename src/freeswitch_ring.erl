@@ -167,6 +167,9 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 			?CONSOLE("call_event ~p", [Event]),
 			{noreply, State}
 	end;
+handle_info(call_hangup, State) ->
+	?CONSOLE("Call hangup info", []),
+	{stop, normal, State};
 handle_info(Info, State) ->
 	?CONSOLE("unhandled info ~p", [Info]),
 	{noreply, State}.

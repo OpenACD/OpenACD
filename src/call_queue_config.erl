@@ -70,6 +70,7 @@
 	destroy_client/1,
 	set_client/2,
 	set_client/4,
+	get_client/1,
 	get_clients/0,
 	destroy/1,
 	get_queue/1,

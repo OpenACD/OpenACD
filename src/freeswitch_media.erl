@@ -134,7 +134,7 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 	AgentRec = agent:dump_state(AgentPid),
 	Ringout = Timeout div 1000,
 	?CONSOLE("ringout ~p", [Ringout]),
-	case agent:set_state(AgentPid, ringing, Call) of
+	case agent:set_state(AgentPid, ringing, Call#call{cook=QCall#queued_call.cook}) of
 		ok ->
 			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call#call{cook=QCall#queued_call.cook}, Ringout, State#state.domain) of
 				{ok, Pid} ->
@@ -256,8 +256,17 @@ handle_cast(agent_oncall, State) ->
 			agent:set_state(Apid, oncall, State#state.callrec),
 			{noreply, State}
 	end;
+handle_cast(stop_ringing, State) ->
+	?CONSOLE("hanging up ring channel", []),
+	case State#state.ringchannel of
+		undefined ->
+			ok;
+		RingChannel ->
+			freeswitch_ring:hangup(RingChannel)
+	end,
+	{noreply, State};
 handle_cast(_Msg, State) ->
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
@@ -282,7 +291,6 @@ handle_info({bgerror, "-ERR NO_ANSWER\n"}, State) ->
 	?CONSOLE("Potential ringout.  Statecook:  ~p", [State#state.cook]),
 	case State#state.agent_pid of
 		Apid when is_pid(Apid) ->
-			%agent:set_state(Apid, idle),
 			gen_server:cast(State#state.cook, {stop_ringing, Apid}),
 			?CONSOLE("potential should be fulfilled", []),
 			{noreply, State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}};
@@ -315,14 +323,14 @@ handle_info(Info, State) ->
 %% @private
 terminate(Reason, _State) ->
 	?CONSOLE("terminating: ~p", [Reason]),
-    ok.
+	ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
 %% @private
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+	{ok, State}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions
@@ -394,9 +402,11 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 							end,
 							agent:set_state(Apid, idle);
 						{ok, oncall} ->
-							agent:set_state(Apid, wrapup, State#state.callrec)
+							agent:set_state(Apid, wrapup, State#state.callrec);
+						{ok, released} ->
+							ok
 					end,
-					State2 = State#state{agent = undefined, agent_pid = undefined}
+					State2 = State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}
 			end,
 			case Qpid of
 				undefined ->

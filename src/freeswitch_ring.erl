@@ -85,6 +85,7 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) ->
 					freeswitch:api(Fnode, uuid_bridge, UUID ++ " " ++ Qcall#call.id);
 				(error, Reply) ->
 					?CONSOLE("originate failed: ~p", [Reply]),
+					%agent:set_state(Apid, idle),
 					gen_server:cast(Qcall#call.cook, {stop_ringing, Apid})
 			end,
 			case freeswitch:bgapi(Fnode, originate, Args, F) of

@@ -169,7 +169,11 @@ handle_cast(stop_tick, State) ->
 handle_cast({stop_ringing, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
 	?CONSOLE("Ordered to stop ringing ~p", [AgentPid]),
 	agent:set_state(AgentPid, idle),
-	%% TODO - actually tell the backend to stop ringing if it's an outband ring
+	gen_server:cast(State#state.call, stop_ringing),
+	{noreply, State#state{ringingto=undefined}};
+handle_cast({stop_ringing_keep_state, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
+	?CONSOLE("Ordered to stop ringing without changing state ~p", [AgentPid]),
+	gen_server:cast(State#state.call, stop_ringing),
 	{noreply, State#state{ringingto=undefined}};
 handle_cast(remove_from_queue, State) ->
 	Qpid = queue_manager:get_queue(State#state.queue),
@@ -233,7 +237,7 @@ terminate(Reason, State) ->
 	Qpid = wait_for_queue(State#state.queue),
 	?CONSOLE("Looks like the queue recovered, dieing now",[]),
 	call_queue:add(Qpid, State#state.call),
-    ok.
+	ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}

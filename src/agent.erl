@@ -206,7 +206,8 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} 
 			{reply, invalid, ringing, State}
 	end;
 ringing({released, Reason}, _From, #agent{statedata = Call} = State) ->
-	gen_server:cast(Call#call.cook, {stop_ringing, self()}),
+	?CONSOLE("going released from ringing", []),
+	gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 ringing(idle, _From, State) ->

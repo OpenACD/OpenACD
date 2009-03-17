@@ -1,6 +1,7 @@
 # From the rake processes
 ebin/*
 Mnesia.*
+MnesiaCore.*
 debug_ebin/*
 coverage/*
 erl_crash.dump

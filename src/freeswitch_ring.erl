@@ -45,7 +45,8 @@
 %% API
 -export([
 	start_link/4,
-	start/6
+	start/6,
+	hangup/1
 	]).
 
 %% gen_server callbacks
@@ -68,6 +69,9 @@ start(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_recor
 start_link(Fnode, UUID, Apid, Callrec) when is_pid(Apid), is_record(Callrec, call) ->
     gen_server:start_link(?MODULE, [Fnode, UUID, Apid, Callrec], []).
 
+hangup(Pid) ->
+	gen_server:cast(Pid, hangup).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -81,6 +85,7 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) ->
 					freeswitch:api(Fnode, uuid_bridge, UUID ++ " " ++ Qcall#call.id);
 				(error, Reply) ->
 					?CONSOLE("originate failed: ~p", [Reply]),
+					%agent:set_state(Apid, idle),
 					gen_server:cast(Qcall#call.cook, {stop_ringing, Apid})
 			end,
 			case freeswitch:bgapi(Fnode, originate, Args, F) of
@@ -126,6 +131,11 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast(hangup, #state{uuid = UUID} = State) ->
+	freeswitch:sendmsg(State#state.cnode, UUID,
+		[{"call-command", "hangup"},
+			{"hangup-cause", "NORMAL_CLEARING"}]),
+	{noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -147,20 +157,6 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 					{noreply, State};
 				invalid ->
 					?CONSOLE("Cannot set agent ~p to oncall with media ~p", [State#state.agent_pid, Call#call.id]),
-					{noreply, State}
-			end;
-		%"CHANNEL_UNBRIDGE" ->
-		%	% if this event happens, it means the remote side (caller) has hungup.  For now, we do nothing but console log it.
-		%	?CONSOLE("agent should be in wrapup, seems like remote dc'ed", []),
-		%	{noreply, State};
-		"CHANNEL_UNBRIDGE" -> 
-			% if the agent is in wrap-up, set them to idle (or at least attempt).
-			% this is for niftyness
-			case agent:query_state(State#state.agent_pid) of
-				{ok, wrapup} ->
-					agent:set_state(State#state.agent_pid, idle),
-					{noreply, State};
-				{ok, _Other} ->
 					{noreply, State}
 			end;
 		_Else ->

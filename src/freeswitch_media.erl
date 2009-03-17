@@ -79,9 +79,7 @@
 	domain,
 	agent,
 	agent_pid,
-	dstchan = undefined,
-	dststate,
-	dstpid
+	ringchannel
 	}).
 
 %%====================================================================
@@ -136,11 +134,11 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 	AgentRec = agent:dump_state(AgentPid),
 	Ringout = Timeout div 1000,
 	?CONSOLE("ringout ~p", [Ringout]),
-	case agent:set_state(AgentPid, ringing, Call) of
+	case agent:set_state(AgentPid, ringing, Call#call{cook=QCall#queued_call.cook}) of
 		ok ->
 			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call#call{cook=QCall#queued_call.cook}, Ringout, State#state.domain) of
 				{ok, Pid} ->
-					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
+					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook, ringchannel=Pid}};
 				{error, Error} ->
 					?CONSOLE("error:  ~p", [Error]),
 					agent:set_state(AgentPid, released, "badring"),
@@ -258,25 +256,27 @@ handle_cast(agent_oncall, State) ->
 			agent:set_state(Apid, oncall, State#state.callrec),
 			{noreply, State}
 	end;
+handle_cast(stop_ringing, State) ->
+	?CONSOLE("hanging up ring channel", []),
+	case State#state.ringchannel of
+		undefined ->
+			ok;
+		RingChannel ->
+			freeswitch_ring:hangup(RingChannel)
+	end,
+	{noreply, State#state{ringchannel=undefined, agent=undefined, agent_pid=undefined}};
 handle_cast(_Msg, State) ->
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
 handle_info({call, {event, [UUID | Rest]}}, State) ->
-	?CONSOLE("reporting new call ~p.  dstchan:  ~p", [UUID, has_dst_chan(Rest)]),
+	?CONSOLE("reporting new call ~p.", [UUID]),
 	Callrec = #call{id = UUID, source = self()},
 	freeswitch_media_manager:notify(UUID, self()),
-	case has_dst_chan(Rest) of
-		false ->
-			State2 = State#state{dstchan = undefined, callrec = Callrec};
-		Dstchan ->
-			{ok, Otherpid} = freeswitch_media_manager:get_handler(Dstchan),
-			Otherstate = freeswitch_media:dump_state(Otherpid),
-			State2 = State#state{dstchan = Dstchan, callrec = Callrec, dststate = Otherstate, dstpid = Otherpid}
-	end,
+	State2 = State#state{callrec = Callrec},
 	case_event_name([UUID | Rest], State2);
 handle_info({call_event, {event, [UUID | Rest]}}, State) ->
 	?CONSOLE("reporting existing call progess ~p.", [UUID]),
@@ -291,10 +291,9 @@ handle_info({bgerror, "-ERR NO_ANSWER\n"}, State) ->
 	?CONSOLE("Potential ringout.  Statecook:  ~p", [State#state.cook]),
 	case State#state.agent_pid of
 		Apid when is_pid(Apid) ->
-			%agent:set_state(Apid, idle),
 			gen_server:cast(State#state.cook, {stop_ringing, Apid}),
 			?CONSOLE("potential should be fulfilled", []),
-			{noreply, State#state{agent = undefined, agent_pid = undefined}};
+			{noreply, State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}};
 		_Else ->
 			?CONSOLE("disregarding potential ringout, not ringing to an agent", []),
 			{noreply, State}
@@ -304,7 +303,7 @@ handle_info({bgerror, "-ERR USER_BUSY\n"}, State) ->
 	case State#state.agent_pid of
 		Apid when is_pid(Apid) ->
 			gen_server:cast(State#state.cook, {stop_ringing, Apid}),
-			{noreply, State#state{agent = undefined, agent_pid = undefined}};
+			{noreply, State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}};
 		_Else ->
 			{noreply, State}
 	end;
@@ -324,14 +323,14 @@ handle_info(Info, State) ->
 %% @private
 terminate(Reason, _State) ->
 	?CONSOLE("terminating: ~p", [Reason]),
-    ok.
+	ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
 %% @private
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+	{ok, State}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions
@@ -348,133 +347,95 @@ has_dst_chan(Rawcall) ->
 	end.
 
 %% @private
-case_event_name([UUID | Rawcall], #state{callrec = Callrec, dstchan = Dstchan, dststate = Dststate, dstpid = Dstpid} = State) ->
+case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 	Ename = freeswitch:get_event_name(Rawcall),
 	?CONSOLE("Event:  ~p;  UUID:  ~p", [Ename, UUID]),
-	case Dstchan of
-		undefined ->
-			case Ename of
-				"CHANNEL_PARK" ->
-					case State#state.queue_pid of
+	case Ename of
+		"CHANNEL_PARK" ->
+			case State#state.queue_pid of
+				undefined ->
+					Queue = freeswitch:get_event_header(Rawcall, "variable_queue"),
+					Brand = freeswitch:get_event_header(Rawcall, "variable_brand"),
+					Callerid = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
+					NewCall = Callrec#call{id=UUID, client=Brand, callerid=Callerid, source=self()},
+					freeswitch:sendmsg(State#state.cnode, UUID,
+						[{"call-command", "execute"},
+							{"execute-app-name", "answer"}]),
+					% play musique d'attente
+					freeswitch:sendmsg(State#state.cnode, UUID,
+						[{"call-command", "execute"},
+							{"execute-app-name", "playback"},
+							{"execute-app-arg", "local_stream://moh"}]),
+					case queue_manager:get_queue(Queue) of
 						undefined ->
-							Queue = freeswitch:get_event_header(Rawcall, "variable_queue"),
-							Brand = freeswitch:get_event_header(Rawcall, "variable_brand"),
-							Callerid = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
-							NewCall = Callrec#call{id=UUID, client=Brand, callerid=Callerid, source=self()},
-							freeswitch:sendmsg(State#state.cnode, UUID,
-								[{"call-command", "execute"},
-									{"execute-app-name", "answer"}]),
-							% play musique d'attente
-							freeswitch:sendmsg(State#state.cnode, UUID,
-								[{"call-command", "execute"},
-									{"execute-app-name", "playback"},
-									{"execute-app-arg", "local_stream://moh"}]),
-							case queue_manager:get_queue(Queue) of
-								undefined ->
-									% TODO what to do w/ the call w/ no queue?
-									?CONSOLE("Uh oh, no queue of ~p", [Queue]),
-									{noreply, State};
-								Qpid ->
-									?CONSOLE("Trying to add to queue...", []),
-									R = call_queue:add(Qpid, self(), NewCall),
-									?CONSOLE("q response:  ~p", [R]),
-									%freeswitch_media_manager:queued_call(UUID, Qpid),
-									{noreply, State#state{queue_pid=Qpid, queue=Queue, callrec=NewCall}}
-							end;
-						 _Otherwise ->
-							 {noreply, State}
+							% TODO what to do w/ the call w/ no queue?
+							?CONSOLE("Uh oh, no queue of ~p", [Queue]),
+							{noreply, State};
+						Qpid ->
+							?CONSOLE("Trying to add to queue...", []),
+							R = call_queue:add(Qpid, self(), NewCall),
+							?CONSOLE("q response:  ~p", [R]),
+							%freeswitch_media_manager:queued_call(UUID, Qpid),
+							{noreply, State#state{queue_pid=Qpid, queue=Queue, callrec=NewCall}}
 					end;
-				"CHANNEL_HANGUP" ->
-					% on a channel destroy, set the agent to wrap-up.
-					?CONSOLE("Channel hangup", []),
-					Qpid = State#state.queue_pid,
-					Apid = State#state.agent_pid,
-					case Apid of
-						undefined ->
-							?CONSOLE("Agent undefined", []),
-							State2 = State#state{agent = undefined, agent_pid = undefined};
-						_Other ->
-							case agent:query_state(Apid) of
-								{ok, ringing} ->
-									agent:set_state(Apid, idle);
-								{ok, oncall} ->
-									agent:set_state(Apid, wrapup, State#state.callrec)
-							end,
-							State2 = State#state{agent = undefined, agent_pid = undefined}
-					end,
-					case Qpid of
-						undefined ->
-							?CONSOLE("Queue undefined", []),
-							State3 = State2#state{agent = undefined, agent_pid = undefined};
-						_Else ->
-							call_queue:remove(Qpid, self()),
-							State3 = State2#state{queue = undefined, queue_pid = undefined}
-					end,
-					{noreply, State3};
-				"CHANNEL_DESTROY" ->
-					?CONSOLE("Last message this will recieve, channel destroy", []),
-					{stop, normal, State};
-				%"PRESENCE_IN" ->
-				%	?CONSOLE("Lets see if presence in will let me get out of queue...", []),
-				%	Qpid = State#state.queue_pid,
-				%	case Qpid of
-				%		undefined ->
-				%			?CONSOLE("I'm not sure if this is even possible, undefined queue during ~p", [Ename]),
-				%			{noreply, State};
-				%		_Else ->
-				%			call_queue:remove(Qpid, self()),
-				%			State2 = State#state{queue = undefined},
-				%			{noreply, State2}
-				%	end;
-				{error, notfound} ->
-					?CONSOLE("event name not found: ~p", [freeswitch:get_event_header(Rawcall, "Content-Type")]),
-					{noreply, State};
-				Else ->
-					?CONSOLE("Event unhandled ~p", [Else]),
+				_Otherwise ->
 					{noreply, State}
-%			end;
-%		Dstchan ->
-%			?CONSOLE("dstchan mode Ename:  ~p", [Ename]),
-%			case Ename of
-%				"CHANNEL_PARK" ->
-%					Args = UUID ++ " " ++ Dstchan,
-%					case freeswitch:api(State#state.cnode, uuid_bridge, Args) of
-%						{error, Msg} ->
-%							% this means the other guy prolly hung up.  sepuku!
-%							?CONSOLE("Error ~p doing bridge to ~p", [Msg, Dstchan]),
-%							freeswitch:api(State#state.cnode, uuid_kill, [UUID]),
-%							case Dststate#state.agent_pid of
-%								undefined ->
-%									ok;
-%								Apid ->
-%									agent:set_state(Apid, idle)
-%							end,
-%							%case agent_manager:query_agent(freeswitch:get_event_header(Rawcall, "variable_agent")) of
-%							%	false ->
-%							%		%boogie
-%							%		ok;
-%							%	{true, Apid} ->
-%							%		agent:set_state(Apid, idle)
-%							%end,
-%							{stop, normal, State};
-%						_Else ->
-%							%Otherpid = freeswitch_media_manager:get_handler(Dstchan),
-%							gen_server:cast(Dstpid, unqueue),
-%							gen_server:cast(Dstpid, agent_oncall),
-%							{noreply, State}
-%					end;
-%					%QName = freeswitch:get_event_header(Rawcall, "variable_queue"),
-%					%case queue_manager:get_queue(QName) of
-%					%	undefined ->
-%					%		?CONSOLE("no queue defined, something's broked.", []),
-%					%		{noreply, State};
-%					%	QPid ->
-%					%		call_queue:remove(QPid, Dstchan),
-%				%			{noreply, State}
-%				%	end,
-%				%	APid = agent_manager:query_agent(freeswitch:get_event_header(Rawcall, "variable_queue")),
-%				Else ->
-%					?CONSOLE("Other dstchan event ~p", [Else]),
-%					{noreply, State}
-			end
+			end;
+		"CHANNEL_HANGUP" ->
+			% on a channel destroy, set the agent to wrap-up.
+			?CONSOLE("Channel hangup", []),
+			Qpid = State#state.queue_pid,
+			Apid = State#state.agent_pid,
+			case Apid of
+				undefined ->
+					?CONSOLE("Agent undefined", []),
+					State2 = State#state{agent = undefined, agent_pid = undefined};
+				_Other ->
+					case agent:query_state(Apid) of
+						{ok, ringing} ->
+							?CONSOLE("caller hung up while we were ringing an agent", []),
+							case State#state.ringchannel of
+								undefined ->
+									ok;
+								RingChannel ->
+									freeswitch_ring:hangup(RingChannel)
+							end,
+							agent:set_state(Apid, idle);
+						{ok, oncall} ->
+							agent:set_state(Apid, wrapup, State#state.callrec);
+						{ok, released} ->
+							ok
+					end,
+					State2 = State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}
+			end,
+			case Qpid of
+				undefined ->
+					?CONSOLE("Queue undefined", []),
+					State3 = State2#state{agent = undefined, agent_pid = undefined};
+				_Else ->
+					call_queue:remove(Qpid, self()),
+					State3 = State2#state{queue = undefined, queue_pid = undefined}
+			end,
+			{noreply, State3};
+		"CHANNEL_DESTROY" ->
+			?CONSOLE("Last message this will recieve, channel destroy", []),
+			{stop, normal, State};
+		%"PRESENCE_IN" ->
+		%	?CONSOLE("Lets see if presence in will let me get out of queue...", []),
+		%	Qpid = State#state.queue_pid,
+		%	case Qpid of
+		%		undefined ->
+		%			?CONSOLE("I'm not sure if this is even possible, undefined queue during ~p", [Ename]),
+		%			{noreply, State};
+		%		_Else ->
+		%			call_queue:remove(Qpid, self()),
+		%			State2 = State#state{queue = undefined},
+		%			{noreply, State2}
+		%	end;
+		{error, notfound} ->
+			?CONSOLE("event name not found: ~p", [freeswitch:get_event_header(Rawcall, "Content-Type")]),
+			{noreply, State};
+		Else ->
+			?CONSOLE("Event unhandled ~p", [Else]),
+			{noreply, State}
 	end.

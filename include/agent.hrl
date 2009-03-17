@@ -31,7 +31,6 @@
 -record(agent, {
 	login = erlang:error({undefined, login}) :: string(),
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
-	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
 	connection :: pid(),
 	state = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
 	statedata = default ::	{} |		% when state is released

@@ -61,7 +61,8 @@
 		counter = 1 :: pos_integer(),
 		unacked = [] :: [unacked_event()],
 		resent = [] :: [unacked_event()],
-		resend_counter = 0 :: non_neg_integer()
+		resend_counter = 0 :: non_neg_integer(),
+		securitylevel = agent :: 'agent' | 'supervisor' | 'admin'
 	}).
 
 %% @doc start the conection unlinked on the given Socket.  This is usually done by agent_tcp_listener.
@@ -215,14 +216,14 @@ handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter), i
 					{err(Counter, "Authentication Failure"), State};
 				{allow, Skills, Security} -> 
 					%?CONSOLE("Authenciation success, next steps...",[]),
-					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills, securitylevel = Security}),
+					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills}),
 					case agent:set_connection(Pid, self()) of
 						ok ->
-							State2 = State#state{agent_fsm=Pid},
+							State2 = State#state{agent_fsm=Pid, securitylevel=Security},
 							?CONSOLE("User ~p has authenticated using ~p.~n", [Username, Password]),
 							{MegaSecs, Secs, _MicroSecs} = now(),
 							% TODO 1 1 1 should be updated to correct info (security level, profile id, current timestamp).
-							{ack(Counter, io_lib:format("1 1 ~p~p", [MegaSecs, Secs])), State2};
+							{ack(Counter, io_lib:format("~p 1 ~p~p", [securitylevel_to_id(Security), MegaSecs, Secs])), State2};
 						error ->
 							{err(Counter, Username ++ " is already logged in"), State}
 					end
@@ -326,6 +327,21 @@ handle_event(["ENDWRAPUP", Counter], State) when is_integer(Counter) ->
 			{err(Counter, "Agent must be in wrapup to send an ENDWRAPUP"), State}
 	end;
 
+handle_event(["QUEUES", Counter, "ALL"], #state{securitylevel = Security} = State) when Security =:= supervisor; Security =:= admin ->
+	State2 = lists:foldl(fun({Name, _Pid}, St) -> send("QUEUE", io_lib:format("~s 0 0 0 0 0 0 0", [Name]), St) end, State, queue_manager:queues()),
+	{ack(Counter), State2};
+handle_event(["QUEUES", Counter, QueueNames], #state{securitylevel = Security} = State) when Security =:= supervisor; Security =:= admin ->
+	Queues = util:string_split(QueueNames, ":"),
+	State2 = lists:foldl(fun({Name, _Pid}, St) ->
+		case lists:member(Name, Queues) of
+			true ->
+				send("QUEUE", io_lib:format("~s 0 0 0 0 0 0 0", [Name]), St);
+			false ->
+				St
+		end
+	end, State, queue_manager:queues()),
+	{ack(Counter), State2};
+
 % XXX - only for testing
 handle_event(["UNACKTEST", Counter], State) when is_integer(Counter) ->
 	State2 = send("NOACK", "", State),
@@ -411,6 +427,13 @@ clientrec_to_id(Rec) ->
 	Idbase = integer_to_list(Rec#client.tenant * 10000 + Rec#client.brand),
 	Padding = lists:duplicate(8 - length(Idbase), "0"),
 	lists:flatten(lists:append([Padding, Idbase])).
+
+securitylevel_to_id(agent) ->
+	1;
+securitylevel_to_id(supervisor) ->
+	3;
+securitylevel_to_id(admin) ->
+	4.
 
 -ifdef(EUNIT).
 

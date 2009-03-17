@@ -88,7 +88,17 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 		if ENV['verbose']
 			puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
 		else
-			puts "  #{mod.ljust(@maxwidth - 1)} : #{$1}"
+			out = $1
+			if /All \d+ tests successful/ =~ test_output
+				colorstart, colorend = percent_to_color(80)
+			elsif /This module does not provide a test\(\) function/ =~ test_output
+				colorstart, colorend = percent_to_color(0)
+			else
+				colorstart, colorend = ["", ""]
+			end
+			puts "  #{mod.ljust(@maxwidth - 1)} : #{colorstart}#{out}#{colorend}"
+			#puts "  #{mod.ljust(@maxwidth - 1)} : #{out}"
+
 		end
 	else
 		puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")

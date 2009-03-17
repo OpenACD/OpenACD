@@ -29,9 +29,9 @@
 
 %% @hidden
 -record(client, {
+		label :: string(),
 		tenant :: pos_integer(),
-		brand :: pos_integer(),
-		label :: string()
+		brand :: pos_integer()
 }).
 
 -record(call, {

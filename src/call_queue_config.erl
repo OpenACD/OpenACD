@@ -47,6 +47,12 @@
 		{disc_copies, Nodes}
 	]
 ).
+-define(CLIENT_TABLE(Nodes),
+	[
+		{attributes, record_info(fields, client)},
+		{disc_copies, Nodes}
+	]
+).
 
 -include("queue.hrl").
 -include("call.hrl").
@@ -59,6 +65,12 @@
 	new_queue/2,
 	new_skill/1,
 	new_skill/4,
+	new_client/1,
+	new_client/3,
+	destroy_client/1,
+	set_client/2,
+	set_client/4,
+	get_clients/0,
 	destroy/1,
 	get_queue/1,
 	get_all/0,
@@ -110,6 +122,13 @@ build_tables(Nodes) ->
 					Otherwise
 			end;
 		_Or -> 
+			ok
+	end,
+	C = util:build_table(client, ?CLIENT_TABLE(Nodes)),
+	case C of
+		{atomic, ok} ->
+			ok;
+		_Orelse ->
 			ok
 	end.
 
@@ -194,7 +213,50 @@ new_skill(Rec) when is_record(Rec, skill_rec) ->
 		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F).
-		
+
+%% @doc Add a new client with `string()' `Label', `integer()' `Tenantid', and `integer()' `Brandid'.
+%% @see new_client/1
+new_client(Label, Tenantid, Brandid) when is_integer(Tenantid), is_integer(Brandid) ->
+	Rec = #client{label = Label, tenant = Tenantid, brand = Brandid},
+	new_client(Rec).
+
+%% @doc Add a new client based on `#client{}' `Rec'.
+new_client(Rec) when is_record(Rec, client) ->
+	F = fun() ->
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F).
+
+%% @doc Update the client `string()' `Label' to `string()' `Newlabel', `integer()' `Tenantid', `integer()' `Brandid'.
+%% @see set_client/2
+set_client(Label, Newlabel, Tenantid, Brandid) when is_integer(Tenantid), is_integer(Brandid) ->
+	Client = #client{label = Newlabel, tenant = Tenantid, brand = Brandid},
+	set_client(Label, Client).
+
+%% @doc Update the client `string()' `Label' to the `#client{}' `Client'.
+set_client(Label, Client) when is_record(Client, client) ->
+	F = fun() ->
+		mnesia:delete({client, Label}),
+		mnesia:write(Client)
+	end,
+	mnesia:transaction(F).
+
+%% @doc Removed the client labeled `Label' from the client database.
+destroy_client(Label) ->
+	F = fun() -> 
+		mnesia:delete({client, Label})
+	end,
+	mnesia:transaction(F).
+
+%% @doc Gets `[#client{}]' sorted by `#client.label'.
+get_clients() ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(client)]),
+		qlc:e(QH)
+	end,
+	{atomic, Clients} = mnesia:transaction(F),
+	lists:sort(Clients).
+
 %% @doc Set all the params for a config based on the `#call_queue{}' `Queue'.  Returns the results of the mnesia transaction.
 -spec(set_all/1 :: (Queue :: #call_queue{}) -> {'aborted', any()} | {'atomic', any()}).
 set_all(Queue) when is_record(Queue, call_queue) -> 
@@ -526,5 +588,110 @@ skill_rec_test_() ->
 			}
 		]
 	}.
+
+client_rec_test_() ->
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	{
+		foreach,
+		fun() -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			build_tables()
+		end,
+		fun(_Whatever) -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			ok
+		end,
+		[
+			{
+				"Create a client by record",
+				fun() ->
+					Client = #client{label = "testclient", tenant = 23, brand = 1},
+					new_client(Client),
+					F = fun() ->
+						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
+						qlc:e(Select)
+					end,
+					?assertEqual({atomic, [Client]}, mnesia:transaction(F))
+				end
+			},
+			{
+				"Create a client by explicit",
+				fun() ->
+					new_client("testclient", 23, 1),
+					F = fun() ->
+						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
+						qlc:e(Select)
+					end,
+					?assertEqual({atomic, [#client{label = "testclient", tenant = 23, brand = 1}]}, mnesia:transaction(F))
+				end
+			},
+			{
+				"Destroy a client",
+				fun() ->
+					new_client("testclient", 23, 1),
+					destroy_client("testclient"),
+					F = fun() ->
+						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
+						qlc:e(Select)
+					end,
+					?assertEqual({atomic, []}, mnesia:transaction(F))
+
+				end
+			},
+			{
+				"Update a client explicit",
+				fun() ->
+					new_client("oldname", 23, 1),
+					set_client("oldname", "newname", 47, 2),
+					Findold = fun() ->
+						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "oldname"]),
+						qlc:e(Select)
+					end,
+					Findnew = fun() ->
+						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "newname"]),
+						qlc:e(Select)
+					end,
+					?assertEqual({atomic, []}, mnesia:transaction(Findold)),
+					?assertEqual({atomic, [#client{label = "newname", tenant = 47, brand = 2}]}, mnesia:transaction(Findnew))
+				end
+			},
+			{
+				"Update a client by record",
+				fun() ->
+					Client1 = #client{label = "Client1", tenant = 23, brand = 1},
+					Client2 = #client{label = "Client2", tenant = 47, brand = 2},
+					new_client(Client1),
+					set_client("Client1", Client2),
+					Findold = fun() ->
+						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "Client1"]),
+						qlc:e(Select)
+					end,
+					Findnew = fun() ->
+						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "Client2"]),
+						qlc:e(Select)
+					end,
+					?assertEqual({atomic, []}, mnesia:transaction(Findold)),
+					?assertEqual({atomic, [Client2]}, mnesia:transaction(Findnew))
+				end
+			},
+			{
+				"Get a client list",
+				fun() ->
+					Client1 = #client{label = "Client1", tenant = 23, brand = 1},
+					Client2 = #client{label = "Client2", tenant = 47, brand = 2},
+					Client3 = #client{label = "Aclient", tenant = 56, brand = 1},
+					new_client(Client1),
+					new_client(Client2),
+					new_client(Client3),
+					?assertEqual([Client3, Client1, Client2], get_clients())
+				end
+			}
+		]
+	}.
+
 
 -endif.

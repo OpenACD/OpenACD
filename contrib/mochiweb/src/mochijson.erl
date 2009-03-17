@@ -11,7 +11,7 @@
 -export([test/0]).
 
 % This is a macro to placate syntax highlighters..
--define(Q, $\").%"
+-define(Q, $\").
 -define(ADV_COL(S, N), S#decoder{column=N+S#decoder.column}).
 -define(INC_COL(S), S#decoder{column=1+S#decoder.column}).
 -define(INC_LINE(S), S#decoder{column=1, line=1+S#decoder.line}).
@@ -301,7 +301,7 @@ tokenize_string(IoList=[C | _], S=#decoder{input_encoding=utf8}, Acc)
 tokenize_string("\"" ++ Rest, S, Acc) ->
     {lists:reverse(Acc), Rest, ?INC_COL(S)};
 tokenize_string("\\\"" ++ Rest, S, Acc) ->
-    tokenize_string(Rest, ?ADV_COL(S, 2), [$\" | Acc]);%"
+    tokenize_string(Rest, ?ADV_COL(S, 2), [$\" | Acc]);
 tokenize_string("\\\\" ++ Rest, S, Acc) ->
     tokenize_string(Rest, ?ADV_COL(S, 2), [$\\ | Acc]);
 tokenize_string("\\/" ++ Rest, S, Acc) ->
@@ -478,10 +478,6 @@ test_one([{E, J} | Rest], N) ->
     true = equiv(E, decode(encode(E))),
     test_one(Rest, 1+N).
 
-e2j_test_vec(unicode) -> 
-    [
-     {"foo" ++ [500] ++ "bar", [$", $f, $o, $o, 500, $b, $a, $r, $"]}
-    ];
 e2j_test_vec(utf8) ->
     [
     {1, "1"},

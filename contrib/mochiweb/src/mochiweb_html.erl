@@ -7,8 +7,8 @@
          escape_attr/1, to_html/1, test/0]).
 
 % This is a macro to placate syntax highlighters..
--define(QUOTE, $\").%"
--define(SQUOTE, $\').%'
+-define(QUOTE, $\").
+-define(SQUOTE, $\').
 -define(ADV_COL(S, N),
         S#decoder{column=N+S#decoder.column,
                   offset=N+S#decoder.offset}).

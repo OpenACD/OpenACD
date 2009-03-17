@@ -45,7 +45,8 @@
 %% API
 -export([
 	start_link/4,
-	start/6
+	start/6,
+	hangup/1
 	]).
 
 %% gen_server callbacks
@@ -67,6 +68,9 @@ start(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_recor
 	
 start_link(Fnode, UUID, Apid, Callrec) when is_pid(Apid), is_record(Callrec, call) ->
     gen_server:start_link(?MODULE, [Fnode, UUID, Apid, Callrec], []).
+
+hangup(Pid) ->
+	gen_server:cast(Pid, hangup).
 
 %%====================================================================
 %% gen_server callbacks
@@ -126,6 +130,11 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast(hangup, #state{uuid = UUID} = State) ->
+	freeswitch:sendmsg(State#state.cnode, UUID,
+		[{"call-command", "hangup"},
+			{"hangup-cause", "NORMAL_CLEARING"}]),
+	{noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 

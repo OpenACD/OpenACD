@@ -62,3 +62,9 @@
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin'
 }).
+
+-record(release_opt, {
+	label :: string(),
+	id :: pos_integer(),
+	bias = 0 :: -1 | 0 | 1
+	}).

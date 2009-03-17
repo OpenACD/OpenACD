@@ -55,6 +55,13 @@
 %% API
 -export([start_link/5, start/5, start_link/0, start/0, stop/0, auth/3]).
 -export([cache/3, destroy/1]).
+%% API for relase options
+-export([
+	new_release/1,
+	destroy_release/1,
+	update_release/2,
+	get_releases/0
+	]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -97,6 +104,33 @@ start(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) ->
 -spec(start_link/5 :: (Mod :: atom(), StartFunc :: atom(), StartArgs :: [any()], CheckFunc :: atom(), CheckArgs :: [any()]) -> 'ok' | any()).
 start_link(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Mod, StartFunc, StartArgs, CheckFunc, CheckArgs], []).
+
+new_release(Rec) when is_record(Rec, release_opt) ->
+	F = fun() ->
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F).
+
+destroy_release(Label) when is_list(Label) ->
+	F = fun() ->
+		mnesia:delete({release_opt, Label})
+	end,
+	mnesia:transaction(F).
+
+update_release(Label, Rec) when is_list(Label), is_record(Rec, release_opt) ->
+	F = fun() ->
+		mnesia:delete({release_opt, Label}),
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F).
+
+get_releases() ->
+	F = fun() ->
+		Select = qlc:q([X || X <- mnesia:table(release_opt)]),
+		qlc:e(Select)
+	end,
+	{atomic, Opts} = mnesia:transaction(F),
+	lists:sort(Opts).
 
 %%====================================================================
 %% gen_server callbacks
@@ -227,6 +261,16 @@ build_tables() ->
 			end;
 		Else -> 
 			Else
+	end,
+	B = util:build_table(release_opt, [
+		{attributes, record_info(fields, release_opt)},
+		{disc_copies, [node()]}
+	]),
+	case B of
+		{atomic, ok} ->
+			ok;
+		Otherwise ->
+			Otherwise
 	end.
 
 %% @doc Caches the passed `Username', `Password', `Skills', and `Security' type.  to the mnesia database.  
@@ -553,7 +597,81 @@ mock_integration_test_() ->
 			}
 		]
 	}.
-	
+
+release_opt_test_() ->
+	{
+		foreach,
+		fun() ->
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			build_tables()
+		end,
+		fun(_) -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()])
+		end,
+		[
+			{
+				"Add new release option",
+				fun() ->
+					Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
+					new_release(Releaseopt),
+					F = fun() ->
+						Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
+						qlc:e(Select)
+					end,
+					?assertEqual({atomic, [Releaseopt]}, mnesia:transaction(F))
+				end
+			},
+			{
+				"Destroy a release option",
+				fun() ->
+					Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
+					new_release(Releaseopt),
+					destroy_release("testopt"),
+					F = fun() ->
+						Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
+						qlc:e(Select)
+					end,
+					?assertEqual({atomic, []}, mnesia:transaction(F))
+				end
+			},
+			{
+				"Update a release option",
+				fun() ->
+					Oldopt = #release_opt{label = "oldopt", id = 500, bias = 1},
+					Newopt = #release_opt{label = "newopt", id = 500, bias = 1},
+					new_release(Oldopt),
+					update_release("oldopt", Newopt),
+					Getold = fun() ->
+						Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "oldopt"]),
+						qlc:e(Select)
+					end,
+					Getnew = fun() ->
+						Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "newopt"]),
+						qlc:e(Select)
+					end,
+					?assertEqual({atomic, []}, mnesia:transaction(Getold)),
+					?assertEqual({atomic, [Newopt]}, mnesia:transaction(Getnew))
+				end
+			},
+			{
+				"Get all release options",
+				fun() ->
+					Aopt = #release_opt{label = "aoption", id = 300, bias = 1},
+					Bopt = #release_opt{label = "boption", id = 200, bias = 1},
+					Copt = #release_opt{label = "coption", id = 100, bias = -1},
+					new_release(Copt),
+					new_release(Bopt),
+					new_release(Aopt),
+					?assertEqual([Aopt, Bopt, Copt], get_releases())
+				end
+			}
+		]
+	}.
+
 -define(MYSERVERFUNC, 
 	fun() -> 
 		mnesia:stop(),

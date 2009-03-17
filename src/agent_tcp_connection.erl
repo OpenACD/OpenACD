@@ -304,7 +304,12 @@ handle_event(["QUEUENAMES", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, io_lib:format("(~s)", [Queues])), State};
 
 handle_event(["RELEASEOPTIONS", Counter], State) when is_integer(Counter) ->
-	{ack(Counter, "1:bathroom:0,2:smoke:-1"), State};
+	Releaseopts = agent_auth:get_releases(),
+	F = fun(Elem) ->
+		string:join([integer_to_list(Elem#release_opt.id), Elem#release_opt.label, integer_to_list(Elem#release_opt.bias)], ":")
+	end,
+	Releasestringed = string:join(lists:map(F, Releaseopts), ","),
+	{ack(Counter, Releasestringed), State};
 
 handle_event(["ENDWRAPUP", Counter], State) when is_integer(Counter) ->
 	case agent:query_state(State#state.agent_fsm) of
@@ -803,6 +808,16 @@ post_login_test_() ->
 					gen_tcp:send(Clientsock, "BRANDLIST 7\r\n"),
 					receive {tcp, Clientsock, Packet} -> ok end,
 					?assertEqual("ACK 7 (00100001|Aclient),(00050002|Bclient),(00200003|Cclient)\r\n", Packet)
+				end}
+			end,
+			fun({_Tcplistener, Clientsock, _APid}) ->
+				{"Release options requested",
+				fun() ->
+					agent_auth:new_release(#release_opt{label = "Bathroom", id=1, bias=0}),
+					agent_auth:new_release(#release_opt{label = "Default", id = 2, bias = -1}),
+					gen_tcp:send(Clientsock, "RELEASEOPTIONS 7\r\n"),
+					receive {tcp, Clientsock, Packet} -> ok end,
+					?assertEqual("ACK 7 1:Bathroom:0,2:Default:-1\r\n", Packet)
 				end}
 			end%,
 			%fun({_Tcplistener, _Client, APid}) ->

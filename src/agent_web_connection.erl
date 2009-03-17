@@ -62,7 +62,8 @@
 	missed_polls = 0 :: non_neg_integer(),
 	counter = 1 :: non_neg_integer(),
 	table :: atom() | 'undefined',
-	ack_timer
+	ack_timer,
+	securitylevel = agent :: 'agent' | 'supervisor' | 'admin'
 }).
 
 
@@ -98,7 +99,7 @@ init([Post, Ref, Table]) ->
 				deny -> 
 					{stop, "Login Denied"};
 				{allow, Skills, Security} ->
-					Agent = #agent{login=User, skills=Skills, securitylevel = Security},
+					Agent = #agent{login=User, skills=Skills},
 			
 					% io:format("if they are already logged in, update the reference~n"),
 					Result = ets:match(Table, {'$1', '$2', User}),
@@ -114,7 +115,7 @@ init([Post, Ref, Table]) ->
 						_Otherwise -> 
 							% start the ack timer
 							{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
-							{ok, #state{agent_fsm = Apid, ref = Ref, table = Table, ack_timer = Tref}}
+							{ok, #state{agent_fsm = Apid, ref = Ref, table = Table, ack_timer = Tref, securitylevel = Security}}
 					end%;
 				%_Other ->
 				%	{stop, "500 internal server error"}

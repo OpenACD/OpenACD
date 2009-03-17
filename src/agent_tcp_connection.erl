@@ -361,9 +361,11 @@ handle_event(["ERR", Counter], State) when is_integer(Counter) ->
 	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
 
 handle_event([Event, Counter], State) when is_integer(Counter) ->
+	?CONSOLE("Unhandled: ~p", [Event]),
 	{err(Counter, "Unknown event " ++ Event), State};
 
-handle_event([Event, Counter, _Args], State) when is_integer(Counter) ->
+handle_event([Event, Counter, Args], State) when is_integer(Counter) ->
+	?CONSOLE("Unhandled: ~p with Args: ~p", [Event, Args]),
 	{err(Counter, "Unknown event " ++ Event), State};
 
 % TODO - do we need this?

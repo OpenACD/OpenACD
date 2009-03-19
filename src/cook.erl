@@ -660,7 +660,7 @@ queue_interaction_test_() ->
 				?CONSOLE("The calls:  ~p", [call_queue:print(NewPid)]),
 				?assertEqual(1, call_queue:call_count(NewPid)),
 				call_queue:stop(NewPid),
-				call_queue_config:destroy("testqueue")
+				call_queue_config:destroy_queue("testqueue")
 			end
 			},
 			{"Queue Manager dies",
@@ -689,7 +689,7 @@ queue_interaction_test_() ->
 
 				?assertEqual(1, call_queue:call_count(NewPid)),
 				call_queue:stop(NewPid),
-				call_queue_config:destroy("testqueue")
+				call_queue_config:destroy_queue("testqueue")
 			end
 			}
 		]

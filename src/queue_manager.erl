@@ -182,7 +182,7 @@ init([]) ->
 	process_flag(trap_exit, true),
 	% subscribe to mnesia system events to handle inconsistant db events
 	% load the queues in the db and start them.
-	Queues = call_queue_config:get_all(),
+	Queues = call_queue_config:get_queues(),
 	F = fun(Queuerec, Acc) ->
 		{ok, Pid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
 		dict:store(Queuerec#call_queue.name, Pid, Acc)

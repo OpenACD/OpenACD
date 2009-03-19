@@ -60,27 +60,34 @@
 
 % TODO roll these into call_queue?
 %% API
+
+%%
 -export([
 	new_queue/1, 
 	new_queue/2,
+	destroy_queue/1,
+	get_queue/1,
+	get_queues/0,
+	set_queue/1,
+	set_queue_name/2,
+	set_queue_recipe/2,
+	set_queue_skills/2,
+	set_queue_weight/2
+	]).
+-export([
 	new_skill/1,
 	new_skill/4,
+	skill_exists/1
+	]).
+-export([
 	new_client/1,
 	new_client/3,
 	destroy_client/1,
 	set_client/2,
 	set_client/4,
 	get_client/1,
-	get_clients/0,
-	destroy/1,
-	get_queue/1,
-	get_all/0,
-	skill_exists/1,
-	set_all/1,
-	set_name/2,
-	set_recipe/2,
-	set_skills/2,
-	set_weight/2,
+	get_clients/0]).
+-export([
 	build_tables/0,
 	build_tables/1
 ]).
@@ -134,11 +141,11 @@ build_tables(Nodes) ->
 	end.
 
 %% @doc Attempt to remove the queue `#call_queue{}' or `string()' `Queue' from the configuration database.
--spec(destroy/1 :: (Queue :: #call_queue{}) -> {atom(), any()};
+-spec(destroy_queue/1 :: (Queue :: #call_queue{}) -> {atom(), any()};
 					(Queue :: string()) -> {atom(), any()}).
-destroy(Queue) when is_record(Queue, call_queue) -> 
-	destroy(Queue#call_queue.name);
-destroy(Queue) -> 
+destroy_queue(Queue) when is_record(Queue, call_queue) -> 
+	destroy_queue(Queue#call_queue.name);
+destroy_queue(Queue) -> 
 	F = fun() -> 
 		mnesia:delete({call_queue, Queue})
 	end,
@@ -160,8 +167,8 @@ get_queue(Queue) ->
 	end.
 	
 %% @doc Get all the queue configurations (`[#call_queue{}]').
--spec(get_all/0 :: () -> [#call_queue{}]).
-get_all() -> 
+-spec(get_queues/0 :: () -> [#call_queue{}]).
+get_queues() -> 
 	QH = qlc:q([X || X <- mnesia:table(call_queue)]),
 	F = fun() -> 
 		qlc:e(QH)
@@ -281,16 +288,16 @@ get_clients() ->
 	lists:sort(Clients).
 
 %% @doc Set all the params for a config based on the `#call_queue{}' `Queue'.  Returns the results of the mnesia transaction.
--spec(set_all/1 :: (Queue :: #call_queue{}) -> {'aborted', any()} | {'atomic', any()}).
-set_all(Queue) when is_record(Queue, call_queue) -> 
+-spec(set_queue/1 :: (Queue :: #call_queue{}) -> {'aborted', any()} | {'atomic', any()}).
+set_queue(Queue) when is_record(Queue, call_queue) -> 
 	F = fun() -> 
 		mnesia:write(Queue)
 	end,
 	mnesia:transaction(F).
 	
 %% @doc Rename a queue from `string()' `OldName' to `string()' `NewName'.  Returns the results of the mnesia transaction.
--spec(set_name/2 :: (OldName :: string(), NewName :: string()) -> any()).
-set_name(OldName, NewName) ->
+-spec(set_queue_name/2 :: (OldName :: string(), NewName :: string()) -> any()).
+set_queue_name(OldName, NewName) ->
 	F = fun() -> 
 		[OldRec] = mnesia:read({call_queue, OldName}),
 		NewRec = OldRec#call_queue{name=NewName},
@@ -301,8 +308,8 @@ set_name(OldName, NewName) ->
 
 % TODO notify queue?  Kill the functions?
 %% @doc Update `string()' `Queue' with a new `recipe()' `Recipe'.
--spec(set_recipe/2 :: (Queue :: string(), Recipe :: recipe()) -> any()).
-set_recipe(Queue, Recipe) -> 
+-spec(set_queue_recipe/2 :: (Queue :: string(), Recipe :: recipe()) -> any()).
+set_queue_recipe(Queue, Recipe) -> 
 	F = fun() -> 
 		[OldRec] = mnesia:read({call_queue, Queue}),
 		NewRec = OldRec#call_queue{recipe=Recipe},
@@ -312,8 +319,8 @@ set_recipe(Queue, Recipe) ->
 	
 %% @doc Update the `string()' `Queue' replacing the skills with `[atom()]' `Skills'.
 %% Returns the result of the mnesia transaction.
--spec(set_skills/2 :: (Queue :: string(), Skills :: [atom()]) -> any()).
-set_skills(Queue, Skills) -> 
+-spec(set_queue_skills/2 :: (Queue :: string(), Skills :: [atom()]) -> any()).
+set_queue_skills(Queue, Skills) -> 
 	F = fun() -> 
 		[OldRec] = mnesia:read({call_queue, Queue}),
 		NewRec = OldRec#call_queue{skills=Skills},
@@ -323,8 +330,8 @@ set_skills(Queue, Skills) ->
 	
 %% @doc Update `string()' `Queue' with a new wight of `pos_integer()' `Weight'.
 %% Returns the result of the mnesia transaction.
--spec(set_weight/2 :: (Queue :: string(), Weight :: pos_integer()) -> any()).
-set_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1-> 
+-spec(set_queue_weight/2 :: (Queue :: string(), Weight :: pos_integer()) -> any()).
+set_queue_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1-> 
 	F = fun() ->
 		[OldRec] = mnesia:read({call_queue, Queue}),
 		NewRec = OldRec#call_queue{weight = Weight},
@@ -444,13 +451,13 @@ call_queue_test_() ->
 					Recipe = [{2, add_skills, [true], run_once}],
 					Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
 					Queue = new_queue("test queue", Options),
-					set_all(Queue),
+					set_queue(Queue),
 					QH = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "test queue"]),
 					F = fun() -> 
 						qlc:e(QH)
 					end,
 					?assertEqual({atomic, [Queue]}, mnesia:transaction(F)),
-					destroy(Queue)
+					destroy_queue(Queue)
 				end
 			},
 			{
@@ -466,9 +473,9 @@ call_queue_test_() ->
 				"Set Name", 
 				fun() ->
 					Queue = test_queue(),
-					set_all(Queue),
+					set_queue(Queue),
 					TestQueue = Queue#call_queue{name="new name"},
-					set_name(Queue#call_queue.name, TestQueue#call_queue.name),
+					set_queue_name(Queue#call_queue.name, TestQueue#call_queue.name),
 					Selectnew = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "new name"]),
 					SelectnewF = fun() -> 
 						qlc:e(Selectnew)
@@ -479,62 +486,62 @@ call_queue_test_() ->
 					end,
 					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(SelectnewF)),
 					?assertEqual({atomic, []}, mnesia:transaction(SelectoldF)),
-					destroy(Queue),
-					destroy(TestQueue)
+					destroy_queue(Queue),
+					destroy_queue(TestQueue)
 				end
 			},
 			{
 				"Set Recipe",
 				fun() -> 
 					Queue = test_queue(),
-					set_all(Queue),
+					set_queue(Queue),
 					Recipe = [{3, announce, "announcement", run_once}],
 					TestQueue = Queue#call_queue{recipe = Recipe},
-					set_recipe(Queue#call_queue.name, Recipe),
+					set_queue_recipe(Queue#call_queue.name, Recipe),
 					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
 					F = fun() -> 
 						qlc:e(Select)
 					end,
 					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
-					destroy(Queue)
+					destroy_queue(Queue)
 				end
 			},
 			{
 				"Set Skills",
 				fun() -> 
 					Queue = test_queue(), 
-					set_all(Queue),
+					set_queue(Queue),
 					TestQueue = Queue#call_queue{skills = [german]},
-					set_skills(Queue#call_queue.name, [german]),
+					set_queue_skills(Queue#call_queue.name, [german]),
 					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
 					F = fun() ->
 						qlc:e(Select)
 					end,
 					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
-					destroy(Queue)
+					destroy_queue(Queue)
 				end
 			},
 			{
 				"Set Weight",
 				fun() -> 
 					Queue = test_queue(),
-					set_all(Queue),
+					set_queue(Queue),
 					TestQueue = Queue#call_queue{weight = 7},
-					set_weight(Queue#call_queue.name, 7),
+					set_queue_weight(Queue#call_queue.name, 7),
 					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
 					F = fun() -> 
 						qlc:e(Select)
 					end,
 					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
-					destroy(Queue)
+					destroy_queue(Queue)
 				end
 			},
 			{
 				"Destroy",
 				fun() -> 
 					Queue = test_queue(),
-					set_all(Queue),
-					destroy(Queue),
+					set_queue(Queue),
+					destroy_queue(Queue),
 					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
 					F = fun() -> 
 						qlc:e(Select)
@@ -547,11 +554,11 @@ call_queue_test_() ->
 				fun() -> 
 					Queue = test_queue(),
 					Queue2 = Queue#call_queue{name="test queue 2"},
-					set_all(Queue),
-					set_all(Queue2),
-					?assertEqual([Queue, Queue2], get_all()),
-					destroy(Queue),
-					destroy(Queue2)
+					set_queue(Queue),
+					set_queue(Queue2),
+					?assertEqual([Queue, Queue2], get_queues()),
+					destroy_queue(Queue),
+					destroy_queue(Queue2)
 				end
 			},
 			{
@@ -559,19 +566,19 @@ call_queue_test_() ->
 				fun() -> 
 					Queue = test_queue(),
 					Queue2 = Queue#call_queue{name="test queue 2"},
-					set_all(Queue),
-					set_all(Queue2),
+					set_queue(Queue),
+					set_queue(Queue2),
 					?assertEqual(Queue, get_queue(Queue#call_queue.name)),
 					?assertEqual(Queue2, get_queue(Queue2#call_queue.name)),
-					destroy(Queue),
-					destroy(Queue2)
+					destroy_queue(Queue),
+					destroy_queue(Queue2)
 				end
 			},
 			{
 				"Get All of None",
 				fun() -> 
 					Queue = test_queue(),
-					destroy(Queue),
+					destroy_queue(Queue),
 					?assertMatch(noexists, get_queue(Queue#call_queue.name))
 				end
 			}

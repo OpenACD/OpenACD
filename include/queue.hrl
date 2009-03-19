@@ -58,6 +58,13 @@
 	hold_music :: string()
 }).
 
+-record(queue_group, {
+	name = erlang:error({undefined, name}) :: string(),
+	recipe = [] :: recipe(),
+	sort = 10 :: non_neg_integer(),
+	protected = false :: 'true' | 'false'
+}).
+
 -record(skill_rec, {
 	atom :: atom(),
 	name = "New Skill" :: string(),

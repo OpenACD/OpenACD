@@ -77,7 +77,6 @@ start_link(Post, Ref, Table) ->
     gen_server:start_link(?MODULE, [Post, Ref, Table], [{timeout, 10000}]).
 	
 start(Post, Ref, Table) -> 
-	io:format("web_connection started~n"),
 	gen_server:start(?MODULE, [Post, Ref, Table], [{timeout, 10000}]).
 
 %%====================================================================
@@ -88,8 +87,8 @@ start(Post, Ref, Table) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Post, Ref, Table]) ->
-	io:format("actual web connection init~n"),
-	io:format("Post: ~p~nRef: ~p~nTable: ~p~n", [Post, Ref, Table]),
+	?CONSOLE("web_connection init", []),
+	%io:format("Post: ~p~nRef: ~p~nTable: ~p~n", [Post, Ref, Table]),
 	case Post of
 		[{"username", User},{"password", Passwrd}] -> 
 			% io:format("seems like a well formed post~n"),
@@ -103,7 +102,7 @@ init([Post, Ref, Table]) ->
 			
 					% io:format("if they are already logged in, update the reference~n"),
 					Result = ets:match(Table, {'$1', '$2', User}),
-					io:format("restults:~p~n", [Result]),
+					%io:format("restults:~p~n", [Result]),
 					lists:map(fun([_R, P]) -> ?MODULE:stop(P) end, Result),
 					ets:insert(Table, {erlang:ref_to_list(Ref), Self, User}),
 					
@@ -134,18 +133,18 @@ handle_call(stop, _From, State) ->
 handle_call({request, {"/logout", _Post, _Cookie}}, _From, State) -> 
 	{stop, normal, {200, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, true}, {message, <<"Logout completed">>}]})}, State};
 handle_call({request, {"/poll", _Post, _Cookie}}, _From, State) -> 
-	io:format("poll called~n"),
+	?CONSOLE("poll called",[]),
 	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
 	Pollq = State#state.poll_queue,
 	Json = [{struct, [{counter, Counter}, {tried, Tried}, {type, Type}, {data, Data}]} || {Counter, Tried, Type, Data} <- Pollq],
 	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, Json}]},
-	io:format("json:  ~p~n", [Json]),
+	%io:format("json:  ~p~n", [Json]),
 	{reply, cpx_json:encode_trap(Json2), State2};
 handle_call({request, {Path, Post, Cookie}}, _From, State) -> 
-	io:format("all other requests~n"),
+	%io:format("all other requests~n"),
 	case util:string_split(Path, "/") of 
 		["", "state", Statename] -> 
-			io:format("trying to change to ~p~n", [Statename]),
+			?CONSOLE("trying to change to ~p", [Statename]),
 			case agent:set_state(State#state.agent_fsm, list_to_existing_atom(Statename)) of
 				ok -> 
 					Data = {struct, [{success, true}, {state, list_to_existing_atom(Statename)}]},
@@ -154,7 +153,7 @@ handle_call({request, {Path, Post, Cookie}}, _From, State) ->
 					{reply, {200, [], mochijson2:encode({struct, [{success, false}]})}, State}
 			end;
 		["", "state", Statename, Statedata] -> 
-			io:format("trying to change to ~p with data ~p~n", [Statename, Statedata]),
+			?CONSOLE("trying to change to ~p with data ~p", [Statename, Statedata]),
 			case agent:set_state(State#state.agent_fsm, list_to_atom(Statename), Statedata) of 
 				ok -> 
 					{reply, cpx_json:encode_trap({struct, [{success, true}, {state, list_to_existing_atom(Statename)}, {data, Statedata}]}), State};
@@ -162,22 +161,22 @@ handle_call({request, {Path, Post, Cookie}}, _From, State) ->
 					{reply, cpx_json:encode_trap({struct, [{success, false}, {message, <<"Invalid state">>}]}), State}
 			end;
 		["", "ack", Counter] -> 
-			io:format("you are acking~p~n", [Counter]),
+			?CONSOLE("you are acking~p", [Counter]),
 			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
 			State2 = State#state{ack_queue = Ackq},
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
 		["", "err", Counter] -> 
-			io:format("you are erroring~p", [Counter]),
+			?CONSOLE("you are erroring~p", [Counter]),
 			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
 			State2 = State#state{ack_queue = Ackq},
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
 		["", "err", Counter, Message] -> 
-			io:format("you are erroring ~p with message ~p~n", [Counter, Message]),
+			?CONSOLE("you are erroring ~p with message ~p", [Counter, Message]),
 			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
 			State2 = State#state{ack_queue = Ackq},
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
 		_Allelse -> 
-			io:format("I have no idea what you are talking about."),
+			?CONSOLE("I have no idea what you are talking about.", []),
 			{reply, {501, [], io_lib:format("Cannot handle request of Path ~p, Post ~p, with Cookie: ~p\", path:\"~p\", post:\"~p\", cookie:\"~p", [Path, Post, Cookie, Path, Post, Cookie])}, State}
 	end.
 
@@ -207,7 +206,7 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(check_acks, State) when State#state.missed_polls < 4 -> 
-	io:format("checking...~n"),
+	?CONSOLE("checking acks...",[]),
 	% go through the acks, look for:
 	%  ones that have been tried never and been qed for ?TICK_LENGTH * 1 time
 	%  ones that have been tried once and been qed for ?TICK_LENGTH * 3 time (indicates time out)
@@ -249,7 +248,7 @@ handle_info(check_acks, State) when State#state.missed_polls < 4 ->
 	{noreply, State#state{ack_queue = Newack, poll_queue = Newpoll, missed_polls = Newmissed, counter = Newcounter}};
 	
 handle_info(check_acks, State) -> 
-	io:format("too many missed polls.~n"),
+	?CONSOLE("too many missed polls.",[]),
 	{stop, "Client timeout", ok, State};
 
 handle_info(_Info, State) ->
@@ -258,8 +257,8 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(_Reason, State) ->
-	% io:format("terminated ~p~n", [?MODULE]),
+terminate(Reason, State) ->
+	?CONSOLE("terminated ~p", [Reason]),
 	ets:delete(State#state.table, erlang:ref_to_list(State#state.ref)),
 	agent:stop(State#state.agent_fsm),
 	timer:cancel(State#state.ack_timer),

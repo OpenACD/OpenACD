@@ -92,7 +92,15 @@ loop(Req, _Method, "/set_cookie") ->
 	Req:respond({200, [{"Set-Cookie", "goober=foobar"}], io_lib:format("<pre>~p~p</pre>", [Req:dump(), Req:parse_cookie()])});
 loop(Req, _Method, Path) ->
 	?CONSOLE("path requested: ~p", [Path]),
-	Req:serve_file(string:concat(".", Path), "www/contrib/").
+	% strip the leading / if any, and then check if it's a file in www/admin; if
+	% it's not then try blindly in www/contrib
+	RPath = string:strip(Path, left, $/),
+	case filelib:is_regular(string:concat("www/admin/", RPath)) of
+		true ->
+			Req:serve_file(RPath, "www/admin/");
+		false ->
+			Req:serve_file(RPath, "www/contrib/")
+	end.
 
 %% @doc Simply takes the request, yanks out the method and path, and shoves it to loop/3
 -spec(loop/1 :: (Req :: atom()) -> any()).

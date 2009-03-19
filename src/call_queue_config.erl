@@ -207,12 +207,20 @@ get_queue(Queue) ->
 %% @doc Get all the queue configurations (`[#call_queue{}]').
 -spec(get_queues/0 :: () -> [#call_queue{}]).
 get_queues() -> 
-	QH = qlc:q([X || X <- mnesia:table(call_queue)]),
+	QH = qlc:q([{X, G#queue_group.recipe} || 
+		X <- mnesia:table(call_queue), 
+		G <- mnesia:table(queue_group), 
+		G#queue_group.name =:= X#call_queue.group
+	]),
 	F = fun() -> 
 		qlc:e(QH)
 	end,
 	{atomic, Reply} = mnesia:transaction(F),
-	Reply.
+	Mergereci = fun({#call_queue{recipe = Qreci} = Queue, Groupreci}) ->
+		Newreci = lists:append([Qreci, Groupreci]),
+		Queue#call_queue{recipe = Newreci}
+	end,
+	lists:map(Mergereci, Reply).
 
 %% @doc Create a new default queue configuraiton with the name `string()' `QueueName'.
 %% @see new_queue/2
@@ -227,8 +235,8 @@ new_queue(QueueName) ->
 %% <dt>skills</dt><dd>A list of atoms for the skills a call will be initially assigned.</dd>
 %% <dt>recipe</dt><dd>A recipe config for this queue for use by {@link cook. cooks}.</dd>
 %% </dl>
--spec(new_queue/2 :: (QueueName :: string(), {'weight' | 'skills' | 'recipe', any()}) -> #call_queue{};
-					(QueueName :: string(), [{'weight' | 'skills' | 'recipe', any()}]) -> #call_queue{}).
+-spec(new_queue/2 :: (QueueName :: string(), {'weight' | 'skills' | 'recipe' | 'queue_group', any()}) -> #call_queue{};
+					(QueueName :: string(), [{'weight' | 'skills' | 'recipe' | 'queue_group', any()}]) -> #call_queue{}).
 new_queue(QueueName, {Key, Value}) when is_atom(Key) -> 
 	new_queue(QueueName, [{Key, Value}]);
 new_queue(QueueName, Options) when is_list(Options) -> 
@@ -336,10 +344,19 @@ set_queue_group(Oldname, Rec) when is_record(Rec, queue_group) ->
 		case mnesia:read({queue_group, Oldname}) of
 			[] ->
 				{error, {noexists, Oldname}};
-			[#queue_group{protected = Prot} = Oldrec] ->
+			[#queue_group{protected = Prot}] ->
 				Newrec = Rec#queue_group{protected = Prot},
 				mnesia:delete({queue_group, Oldname}),
-				mnesia:write(Newrec)
+				mnesia:write(Newrec),
+				QH = qlc:q([Queue || Queue <- mnesia:table(call_queue), Queue#call_queue.group =:= Oldname]),
+				Queues = qlc:e(QH),
+				Regroupqs = fun(Queue) ->
+					Newqrec = Queue#call_queue{group = Rec#queue_group.name},
+					mnesia:delete({call_queue, Queue#call_queue.name}),
+					mnesia:write(Newqrec)
+				end,
+				lists:map(Regroupqs, Queues),
+				ok
 		end
 	end,
 	mnesia:transaction(F).
@@ -549,7 +566,9 @@ set_options(QueueRec, [{Key, Value} | Tail]) ->
 			% TODO it would be nice if we could check if those skills exist.
 			set_options(QueueRec#call_queue{skills=Skills}, Tail);
 		recipe -> 
-			set_options(QueueRec#call_queue{recipe = Value}, Tail)
+			set_options(QueueRec#call_queue{recipe = Value}, Tail);
+		queue_group ->
+			set_options(QueueRec#call_queue{group = Value}, Tail)
 	end.
 
 %% =====
@@ -860,7 +879,9 @@ queue_group_test_() ->
 					Updateto = #queue_group{name = "newname", sort = 5, protected = false, recipe = Recipe},
 					Default = ?DEFAULT_QUEUE_GROUP,
 					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
-					set_queue_group(Default#queue_group.name, Updateto),
+					Setres = set_queue_group(Default#queue_group.name, Updateto),
+					?CONSOLE("res:  ~p", [Setres]),
+					?assertEqual({atomic, ok}, Setres),
 					?assertEqual({atomic, [Test]}, get_queue_group("newname"))
 				end
 			},

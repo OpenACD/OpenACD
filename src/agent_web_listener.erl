@@ -155,18 +155,18 @@ code_change(_OldVsn, State, _Extra) ->
 %% if there is an active agent_web_connection.  If there is, further processing is done there, 
 %% otherwise the request is denied.
 loop(Req, Table) -> 
-	io:format("loop start~n"),
+	?CONSOLE("loop start",[]),
 	case Req:get(path) of
 		"/login" -> 
-			io:format("/login~n"),
+			?CONSOLE("/login",[]),
 			Post = Req:parse_post(),
 			case Post of 
 				% normally this would check against a database and not just discard the un/pw.
 				[] -> 
-					io:format("empty post~n"),
+					?CONSOLE("empty post",[]),
 					Req:respond({403, [], mochijson2:encode({struct, [{success, false}, {message, <<"No post data supplied">>}]})});
 				_Any -> 
-					io:format("trying to start connection~n"),
+					?CONSOLE("trying to start connection",[]),
 					Ref = make_ref(),
 					case agent_web_connection:start(Post, Ref, Table) of
 						{ok, _Aconnpid} -> 
@@ -179,17 +179,17 @@ loop(Req, Table) ->
 					end
 			end;
 		Path -> 
-			io:format("any other path~n"),
+			?CONSOLE("any other path",[]),
 			case Req:parse_cookie() of 
 				[{"cpx_id", Reflist}] -> 
-					io:format("cookie looks good~nReflist: ~p~n", [Reflist]),
+					?CONSOLE("cookie looks good~nReflist: ~p", [Reflist]),
 					Etsres = ets:lookup(Table, Reflist),
-					io:format("ets res:~p~n", [Etsres]),
+					?CONSOLE("ets res:~p", [Etsres]),
 					[{_Key, Aconn, _Login} | _Rest] = Etsres,
 					Reqresponse = agent_web_connection:request(Aconn, Path, Req:parse_post(), Req:parse_cookie()),
 					Req:respond(Reqresponse);
 				_Allelse -> 
-					io:format("bad cookie~n"),
+					?CONSOLE("bad cookie",[]),
 					Req:respond({403, [], io_lib:format("Invalid cookie: ~p", [Req:parse_cookie()])})
 			end
 	end.

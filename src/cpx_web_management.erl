@@ -67,7 +67,8 @@ stop() ->
 
 -spec(loop/3 :: (Req :: any(), Method :: string(), Path :: string()) -> any()).
 loop(Req, _Method, "/") -> 
-	Req:ok({"text/html", "Welcome to the management interface."});
+	%Req:ok({"text/html", "Welcome to the management interface."});
+	Req:serve_file("index.html", "www/admin/");
 loop(Req, _Method, "/queues") ->
 	Queues = queue_manager:queues(),
 	io:format("Queues:  ~p~n", [Queues]),
@@ -89,8 +90,9 @@ loop(Req, _Method, "/web_dump") ->
 loop(Req, _Method, "/set_cookie") -> 
 	% TODO hardcoded cookie is hardcoded.
 	Req:respond({200, [{"Set-Cookie", "goober=foobar"}], io_lib:format("<pre>~p~p</pre>", [Req:dump(), Req:parse_cookie()])});
-loop(Req, _Method, _Path) -> 
-	Req:respond({501, [{"Content-Type", "text/plain"}], <<"Not yet implemented">>}).
+loop(Req, _Method, Path) ->
+	?CONSOLE("path requested: ~p", [Path]),
+	Req:serve_file(string:concat(".", Path), "www/contrib/").
 
 %% @doc Simply takes the request, yanks out the method and path, and shoves it to loop/3
 -spec(loop/1 :: (Req :: atom()) -> any()).

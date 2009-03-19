@@ -1,27 +1,37 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" 
-	"http://www.w3.org/TR/html4/strict.dtd">
+"http://www.w3.org/TR/html4/strict.dtd">
 <html>
-<head>
-	
-	<title>Dojo Toolkit Test Page</title>    
+	<head>
 
-	<style type="text/css">
-	/* our CSS can go here */    
-	</style>    
-    
-	<!-- load the dojo toolkit base -->
-	<script type="text/javascript" src="/dojo/dojo/dojo.js"
-	    djConfig="parseOnLoad:true, isDebug:true"></script>
-    
-	<script type="text/javascript">
-	/* our JavaScript will go here */
-	</script>
+		<title>Dojo Toolkit Test Page</title>
 
-</head>
-<body><!-- this is a Typical WebPage starting point ... -->
-	<h1 id="testHeading">Dojo Skeleton Page</h1>
-	<div id="contentNode">
-		<p>Some Content To Replace</p>
-	</div>
-</body>
+		<link rel="stylesheet" href="/dojo/dijit/themes/tundra/tundra.css">
+
+		<style type="text/css">
+			/* our CSS can go here */
+		</style>    
+
+		<!-- load the dojo toolkit base -->
+		<script type="text/javascript" src="/dojo/dojo/dojo.js"
+			djConfig="parseOnLoad:true, isDebug:false"></script>
+
+		<script type="text/javascript">
+			/* our JavaScript will go here */
+			dojo.require("dijit.Dialog");
+			dojo.addOnLoad(function(){
+				var myDialog = dijit.byId("someId");
+				myDialog.attr("content", "<p>I've been replaced!</p>");
+				myDialog.show();
+			});
+		</script>
+	</head>
+
+	<body class="tundra">
+		<!-- this is a Typical WebPage starting point ... -->
+		<!--<h1 id="testHeading">Dojo Skeleton Page</h1>-->
+		<!--<div id="contentNode">-->
+		<!--<p>Some Content To Replace</p>-->
+		<!--</div>-->
+		<div dojoType="dijit.Dialog" title="Hello Dijit!" id="someId"></div>
+	</body>
 </html>

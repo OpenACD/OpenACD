@@ -317,10 +317,14 @@ new_queue_group(Rec) when is_record(Rec, queue_group) ->
 	end,
 	mnesia:transaction(F).
 
+%% @doc Add a new group with name, sort order and recipe
+-spec(new_queue_group/3 :: (Name :: string(), Sort :: non_neg_integer(), Recipe :: recipe()) -> {'atomic', 'ok'}).
 new_queue_group(Name, Sort, Recipe) when is_integer(Sort) ->
 	Qgroup = #queue_group{name = Name, sort = Sort, recipe = Recipe},
 	new_queue_group(Qgroup).
-	
+
+%% @doc get a `#queue_group{}' named `Name'
+-spec(get_queue_group/1 :: (Name :: string()) -> {'atomic', [#queue_group{}]}).
 get_queue_group(Name) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(queue_group), X#queue_group.name =:= Name]),
@@ -328,6 +332,8 @@ get_queue_group(Name) ->
 	end,
 	mnesia:transaction(F).
 
+%% @doc Gets all `#queue_group{}' in a list sorted by group.
+-spec(get_queue_groups/0 :: () -> [#queue_group{}]).
 get_queue_groups() ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(queue_group)]),
@@ -338,7 +344,9 @@ get_queue_groups() ->
 		Group1#queue_group.sort < Group2#queue_group.sort
 	end,
 	lists:sort(Sort, Groups).
-	
+
+%% @doc Set the `#queue_group{}' named `Oldname' to the passed `#queue_group{}' `Rec'.
+-spec(set_queue_group/2 :: (Oldname :: string(), Rec :: #queue_group{}) -> {'atomic' | 'ok'}).
 set_queue_group(Oldname, Rec) when is_record(Rec, queue_group) ->
 	F = fun() ->
 		case mnesia:read({queue_group, Oldname}) of
@@ -361,10 +369,14 @@ set_queue_group(Oldname, Rec) when is_record(Rec, queue_group) ->
 	end,
 	mnesia:transaction(F).
 
+%% @doc Set the Name, Sort, and recipe of the `#queue_group{}' named `Oldname' to `Newname', `Newsort', and `Newrecipe'.
+-spec(set_queue_group/4 :: (Oldname :: string(), Newname :: string(), Newsort :: non_neg_integer(), Newrecipe :: recipe()) -> {'atomic', 'ok'}).
 set_queue_group(Oldname, Newname, Newsort, Newrecipe) when is_integer(Newsort) ->
 	Rec = #queue_group{name = Newname, sort = Newsort, recipe = Newrecipe},
 	set_queue_group(Oldname, Rec).
 
+%% @doc remove the queue_group named `Groupname' from the database.
+-spec(destroy_queue_group/1 :: (Groupname :: string()) -> {'atomic', 'ok'}).
 destroy_queue_group(Groupname) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(queue_group), X#queue_group.name =:= Groupname]),

@@ -63,6 +63,10 @@
 
 %%
 -export([
+	build_tables/0,
+	build_tables/1
+]).
+-export([
 	new_queue/1, 
 	new_queue/2,
 	destroy_queue/1,
@@ -77,7 +81,11 @@
 -export([
 	new_skill/1,
 	new_skill/4,
-	skill_exists/1
+	skill_exists/1,
+	get_skills/0,
+	get_skills/1,
+	regroup_skills/2,
+	destroy_skill/1
 	]).
 -export([
 	new_client/1,
@@ -87,11 +95,10 @@
 	set_client/4,
 	get_client/1,
 	get_clients/0]).
--export([
-	build_tables/0,
-	build_tables/1
-]).
 
+%% =====
+%% All configs
+%% =====
 %% @doc Attempts to set-up and create the required mnesia table `call_queue' on all visible nodes.
 %% Errors caused by the table already existing are ignored.
 %% @see build_tables/1
@@ -116,12 +123,12 @@ build_tables(Nodes) ->
 		{atomic, ok} ->
 			% since the table didn't already exist, build up some default skills
 			F = fun() -> 
-				mnesia:write(#skill_rec{name="English", atom=english, description="English Language"}),
-				mnesia:write(#skill_rec{name="German", atom=german, description="German Language"}),
-				mnesia:write(#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name."}),
-				mnesia:write(#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier."}),
-				mnesia:write(#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name"}),
-				mnesia:write(#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills."})
+				mnesia:write(#skill_rec{name="English", atom=english, description="English", group = "Language"}),
+				mnesia:write(#skill_rec{name="German", atom=german, description="German", group = "Language"}),
+				mnesia:write(#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name.", group = "Magic", protected = true}),
+				mnesia:write(#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier.", group = "Magic", protected = true}),
+				mnesia:write(#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name", group = "Magic", protected = true}),
+				mnesia:write(#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills.", group = "Magic", protected = true})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 
@@ -139,6 +146,10 @@ build_tables(Nodes) ->
 		_Orelse ->
 			ok
 	end.
+
+%% =====
+%% Call queue
+%% =====
 
 %% @doc Attempt to remove the queue `#call_queue{}' or `string()' `Queue' from the configuration database.
 -spec(destroy_queue/1 :: (Queue :: #call_queue{}) -> {atom(), any()};
@@ -207,13 +218,67 @@ new_queue(QueueName, Options) when is_list(Options) ->
 			queue_manager:add_queue(Fullqrec#call_queue.name, Fullqrec#call_queue.recipe, Fullqrec#call_queue.weight),
 			Fullqrec
 	end.
+%% @doc Set all the params for a config based on the `#call_queue{}' `Queue'.  Returns the results of the mnesia transaction.
+-spec(set_queue/1 :: (Queue :: #call_queue{}) -> {'aborted', any()} | {'atomic', any()}).
+set_queue(Queue) when is_record(Queue, call_queue) -> 
+	F = fun() -> 
+		mnesia:write(Queue)
+	end,
+	mnesia:transaction(F).
+	
+%% @doc Rename a queue from `string()' `OldName' to `string()' `NewName'.  Returns the results of the mnesia transaction.
+-spec(set_queue_name/2 :: (OldName :: string(), NewName :: string()) -> any()).
+set_queue_name(OldName, NewName) ->
+	F = fun() -> 
+		[OldRec] = mnesia:read({call_queue, OldName}),
+		NewRec = OldRec#call_queue{name=NewName},
+		mnesia:write(NewRec),
+		mnesia:delete({call_queue, OldName})
+	end,
+	mnesia:transaction(F).
+
+% TODO notify queue?  Kill the functions?
+%% @doc Update `string()' `Queue' with a new `recipe()' `Recipe'.
+-spec(set_queue_recipe/2 :: (Queue :: string(), Recipe :: recipe()) -> any()).
+set_queue_recipe(Queue, Recipe) -> 
+	F = fun() -> 
+		[OldRec] = mnesia:read({call_queue, Queue}),
+		NewRec = OldRec#call_queue{recipe=Recipe},
+		mnesia:write(NewRec)
+	end,
+	mnesia:transaction(F).
+	
+%% @doc Update the `string()' `Queue' replacing the skills with `[atom()]' `Skills'.
+%% Returns the result of the mnesia transaction.
+-spec(set_queue_skills/2 :: (Queue :: string(), Skills :: [atom()]) -> any()).
+set_queue_skills(Queue, Skills) -> 
+	F = fun() -> 
+		[OldRec] = mnesia:read({call_queue, Queue}),
+		NewRec = OldRec#call_queue{skills=Skills},
+		mnesia:write(NewRec)
+	end,
+	mnesia:transaction(F).
+	
+%% @doc Update `string()' `Queue' with a new wight of `pos_integer()' `Weight'.
+%% Returns the result of the mnesia transaction.
+-spec(set_queue_weight/2 :: (Queue :: string(), Weight :: pos_integer()) -> any()).
+set_queue_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1-> 
+	F = fun() ->
+		[OldRec] = mnesia:read({call_queue, Queue}),
+		NewRec = OldRec#call_queue{weight = Weight},
+		mnesia:write(NewRec)
+	end,
+	mnesia:transaction(F).
+%% =====
+%% Skill Configs
+%% =====
 
 %% @doc Add a new skill to the configuration database.  `atom()' `Skillatom', `string()' `Skillname', 
 %% `string()' `Skilldesc', `string()' `Creator'.
 %% @see new_skill
--spec(new_skill/4 :: (Skillatom :: atom(), Skillname :: string(), Skilldesc :: string(), Creator :: string()) -> {'atomic', 'ok'}).
-new_skill(Skillatom, Skillname, Skilldesc, Creator) when is_atom(Skillatom) ->
-	Rec = #skill_rec{atom = Skillatom, name = Skillname, description = Skilldesc, creator = Creator},
+-spec(new_skill/4 :: (Skillatom :: atom(), Skillname :: string(), Skilldesc :: string(), Group :: string()) -> {'atomic', 'ok'}).
+new_skill(Skillatom, Skillname, Skilldesc, Group) when is_atom(Skillatom), is_list(Group) ->
+	Rec = #skill_rec{atom = Skillatom, name = Skillname, description = Skilldesc, group = Group},
 	new_skill(Rec).
 
 %% @doc Add `#skill_rec{}' `Rec' to the configuration database.
@@ -223,6 +288,93 @@ new_skill(Rec) when is_record(Rec, skill_rec) ->
 		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F).
+	
+%% @doc Check if the given `string()' `Skillname' exists.
+%% Returns the `atom()' of `Skillname' or `undefined'
+-spec(skill_exists/1 :: (Skillname :: string()) -> atom()).
+skill_exists(Skillname) when is_list(Skillname) -> 
+	try list_to_existing_atom(Skillname) of
+		Anything -> 
+			F = fun() -> 
+				mnesia:read({skill_rec, Anything})
+			end,
+			{atomic, [Rec|_Tail]} = mnesia:transaction(F),
+			Rec#skill_rec.atom
+	catch
+		error:_Anyerror -> 
+			undefined
+	end.
+
+%% @doc Return `[#skill_rec{}]' in the system sorted by group
+-spec(get_skills/0 :: () -> [#skill_rec{}]).
+get_skills() ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(skill_rec)]),
+		qlc:e(QH)
+	end,
+	{atomic, Skills} = mnesia:transaction(F),
+	Compare = fun(Skill1, Skill2) ->
+		Skill1#skill_rec.group =< Skill2#skill_rec.group
+	end,
+	lists:sort(Compare, Skills).
+
+%% @doc Returns `[#skill_rec{}]' in the system which have a group of `string()' `Group'.
+-spec(get_skills/1 :: (Group :: string()) -> [#skill_rec{}]).
+get_skills(Group) when is_list(Group) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.group =:= Group]),
+		qlc:e(QH)
+	end,
+	{atomic, Skills} = mnesia:transaction(F),
+	Compare = fun(Skill1, Skill2) ->
+		Skill1#skill_rec.name =< Skill2#skill_rec.name
+	end,
+	lists:sort(Compare, Skills).
+
+%% @doc Removes the skill named `string()' `Skillname' from the database.
+destroy_skill(Skillname) ->
+	Get = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.name =:= Skillname]),
+		qlc:e(QH)
+	end,
+	case mnesia:transaction(Get) of
+		{atomic, []} ->
+			{atomic, ok};
+		{atomic, [#skill_rec{protected = true}]} ->
+			{error, protected};
+		{atomic, [Skillrec]} ->
+			Del = fun() ->
+				mnesia:delete({skill_rec, Skillrec#skill_rec.atom})
+			end,
+			mnesia:transaction(Del)
+	end.
+
+regroup_skills(Oldgroup, Newgroup) ->
+	Testng = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.group =:= Newgroup]),
+		qlc:e(QH)
+	end,
+	case mnesia:transaction(Testng) of
+		{atomic, []} ->
+			Doupdate = fun() ->
+				QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.group =:= Oldgroup]),
+				Skills = qlc:e(QH),
+				Update = fun(Oldskill) ->
+					Newskill = Oldskill#skill_rec{group = Newgroup},
+					mnesia:delete({skill_rec, Oldskill#skill_rec.atom}),
+					mnesia:write(Newskill)
+				end,
+				lists:map(Update, Skills),
+				ok
+			end,
+			mnesia:transaction(Doupdate);
+		{atomic, List} when length(List) >= 1 ->
+			{error, {exists, Newgroup}}
+	end.
+				
+%% =====
+%% Client configs
+%% =====
 
 %% @doc Add a new client with `string()' `Label', `integer()' `Tenantid', and `integer()' `Brandid'.
 %% @see new_client/1
@@ -287,73 +439,9 @@ get_clients() ->
 	{atomic, Clients} = mnesia:transaction(F),
 	lists:sort(Clients).
 
-%% @doc Set all the params for a config based on the `#call_queue{}' `Queue'.  Returns the results of the mnesia transaction.
--spec(set_queue/1 :: (Queue :: #call_queue{}) -> {'aborted', any()} | {'atomic', any()}).
-set_queue(Queue) when is_record(Queue, call_queue) -> 
-	F = fun() -> 
-		mnesia:write(Queue)
-	end,
-	mnesia:transaction(F).
-	
-%% @doc Rename a queue from `string()' `OldName' to `string()' `NewName'.  Returns the results of the mnesia transaction.
--spec(set_queue_name/2 :: (OldName :: string(), NewName :: string()) -> any()).
-set_queue_name(OldName, NewName) ->
-	F = fun() -> 
-		[OldRec] = mnesia:read({call_queue, OldName}),
-		NewRec = OldRec#call_queue{name=NewName},
-		mnesia:write(NewRec),
-		mnesia:delete({call_queue, OldName})
-	end,
-	mnesia:transaction(F).
-
-% TODO notify queue?  Kill the functions?
-%% @doc Update `string()' `Queue' with a new `recipe()' `Recipe'.
--spec(set_queue_recipe/2 :: (Queue :: string(), Recipe :: recipe()) -> any()).
-set_queue_recipe(Queue, Recipe) -> 
-	F = fun() -> 
-		[OldRec] = mnesia:read({call_queue, Queue}),
-		NewRec = OldRec#call_queue{recipe=Recipe},
-		mnesia:write(NewRec)
-	end,
-	mnesia:transaction(F).
-	
-%% @doc Update the `string()' `Queue' replacing the skills with `[atom()]' `Skills'.
-%% Returns the result of the mnesia transaction.
--spec(set_queue_skills/2 :: (Queue :: string(), Skills :: [atom()]) -> any()).
-set_queue_skills(Queue, Skills) -> 
-	F = fun() -> 
-		[OldRec] = mnesia:read({call_queue, Queue}),
-		NewRec = OldRec#call_queue{skills=Skills},
-		mnesia:write(NewRec)
-	end,
-	mnesia:transaction(F).
-	
-%% @doc Update `string()' `Queue' with a new wight of `pos_integer()' `Weight'.
-%% Returns the result of the mnesia transaction.
--spec(set_queue_weight/2 :: (Queue :: string(), Weight :: pos_integer()) -> any()).
-set_queue_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1-> 
-	F = fun() ->
-		[OldRec] = mnesia:read({call_queue, Queue}),
-		NewRec = OldRec#call_queue{weight = Weight},
-		mnesia:write(NewRec)
-	end,
-	mnesia:transaction(F).
-
-%% @doc Check if the given `string()' `Skillname' exists.
-%% Returns the `atom()' of `Skillname' or `undefined'
--spec(skill_exists/1 :: (Skillname :: string()) -> atom()).
-skill_exists(Skillname) when is_list(Skillname) -> 
-	try list_to_existing_atom(Skillname) of
-		Anything -> 
-			F = fun() -> 
-				mnesia:read({skill_rec, Anything})
-			end,
-			{atomic, [Rec|_Tail]} = mnesia:transaction(F),
-			Rec#skill_rec.atom
-	catch
-		error:_Anyerror -> 
-			undefined
-	end.
+%% =====
+%% Internal / helper functions
+%% =====
 
 %% @private
 % helper function to create a call_queue record from a list of {Key, Value}.
@@ -370,6 +458,10 @@ set_options(QueueRec, [{Key, Value} | Tail]) ->
 		recipe -> 
 			set_options(QueueRec#call_queue{recipe = Value}, Tail)
 	end.
+
+%% =====
+%% Tests
+%% =====
 
 -ifdef(EUNIT).
 
@@ -588,7 +680,7 @@ call_queue_test_() ->
 skill_rec_test_() -> 
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
-		setup,
+		foreach,
 		fun() -> 
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
@@ -614,6 +706,97 @@ skill_rec_test_() ->
 				fun() -> 
 					Skillrec = skill_exists("Not a valid skill"),
 					?assertMatch(undefined, Skillrec)
+				end
+			},
+			{
+				"Set a skill by record",
+				fun() ->
+					Skillrec = #skill_rec{name = "testskill", atom = testskill, description = "test skill", group = "Misc", protected = false},
+					new_skill(Skillrec),
+					F = fun() ->
+						QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.atom =:= testskill]),
+						qlc:e(QH)
+					end,
+					?assertEqual({atomic, [Skillrec]}, mnesia:transaction(F))
+				end
+			},
+			{
+				"Set a skill explicit",
+				fun() ->
+					Skillrec = #skill_rec{name = "testskill", atom = testskill, description = "test skill", group = "Misc", protected = false},
+					new_skill(testskill, "testskill", "test skill", "Misc"),
+					F = fun() ->
+						QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.atom =:= testskill]),
+						qlc:e(QH)
+					end,
+					?assertEqual({atomic, [Skillrec]}, mnesia:transaction(F))
+				end
+			},
+			{
+				"get all skills",
+				fun() ->
+					Skills = [
+						#skill_rec{name="English", atom=english, description="English", group = "Language"},
+						#skill_rec{name="German", atom=german, description="German", group = "Language"},
+						#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name", group = "Magic", protected = true},
+						#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier.", group = "Magic", protected = true},
+						#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name.", group = "Magic", protected = true},
+						#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills.", group = "Magic", protected = true}
+					],
+					Gotten = get_skills(),
+					?assertEqual(Skills, Gotten)
+				end
+			},
+			{
+				"get all skills in a group",
+				fun() ->
+					Skills = [
+						#skill_rec{name="English", atom=english, description="English", group = "Language"},
+						#skill_rec{name="German", atom=german, description="German", group = "Language"}
+					],
+					Gotten = get_skills("Language"),
+					?assertEqual(Skills, Gotten)
+				end
+			},
+			{
+				"destroy a non-protected skill",
+				fun() ->
+					destroy_skill("English"),
+					F = fun() ->
+						mnesia:read({skill_rec, english})
+					end,
+					?assertEqual({atomic, []}, mnesia:transaction(F))
+				end
+			},
+			{
+				"destroy a protected skill",
+				fun() ->
+					destroy_skill("All"),
+					F = fun() ->
+						mnesia:read({skill_rec, '_all'})
+					end,
+					?assertMatch({atomic, [#skill_rec{}]}, mnesia:transaction(F))
+				end
+			},
+			{
+				"change group on skills",
+				fun() ->
+					Skills = [
+						#skill_rec{name="English", atom=english, description="English", group = "Talky"},
+						#skill_rec{name="German", atom=german, description="German", group = "Talky"}
+					],
+					Rgres = regroup_skills("Language", "Talky"),
+					Gottennew = get_skills("Talky"),
+					Gottenold = get_skills("Language"),
+					?assertEqual({atomic, ok}, Rgres),
+					?assertEqual([], Gottenold),
+					?assertEqual(Skills, Gottennew)
+				end
+			},
+			{
+				"Change group, but group exists",
+				fun() ->
+					?assertEqual({error, {exists, "Magic"}}, regroup_skills("Language", "Magic"))
 				end
 			}
 		]
@@ -669,7 +852,6 @@ client_rec_test_() ->
 						qlc:e(Select)
 					end,
 					?assertEqual({atomic, []}, mnesia:transaction(F))
-
 				end
 			},
 			{

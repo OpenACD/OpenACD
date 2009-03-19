@@ -61,6 +61,7 @@
 -record(skill_rec, {
 	atom :: atom(),
 	name = "New Skill" :: string(),
-	creator = "system" :: string(),
-	description = "Default description" :: string()
+	protected = false :: 'true' | 'false',
+	description = "Default description" :: string(),
+	group = "Misc" :: string() 
 }).

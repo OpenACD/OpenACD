@@ -54,7 +54,7 @@
 
 %% API
 -export([start_link/5, start/5, start_link/0, start/0, stop/0, auth/3]).
--export([cache/3, cache/4, destroy/1]).
+-export([cache/3, cache/4, destroy/1, add_agent/4]).
 %% API for relase options
 -export([
 	new_release/1,
@@ -284,11 +284,13 @@ build_tables() ->
 cache(Username, Password, Skills, Security) when is_binary(Password) ->
 	cache(Username, util:bin_to_hexstr(Password), Skills, Security);
 cache(Username, Password, Skills, Security) when is_atom(Security) ->
+	{_, Integrated, _} = now(),
 	Agent = #agent_auth{
 		login = Username,
 		password = Password,
 		skills = Skills,
-		securitylevel = Security},
+		securitylevel = Security,
+		integrated = Integrated},
 	F = fun() ->
 		mnesia:write(Agent)
 	end,
@@ -302,6 +304,21 @@ cache(Username, Password, Skills) when is_binary(Password) ->
 	cache(Username, util:bin_to_hexstr(Password), Skills);
 cache(Username, Password, Skills) ->
 	cache(Username, Password, Skills, agent).
+
+%% @doc adds a user to the local cache bypassing the integrated at check.  Note that unlike {@link cache/4} this expects the password 
+%% in plain text!
+-spec(add_agent/4 :: (Username :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor') -> 
+						{'atomic', 'ok'}).
+add_agent(Username, Password, Skills, Security) ->
+	Rec = #agent_auth{
+		login = Username,
+		password = util:bin_to_hexstr(erlang:md5(Password)),
+		skills = Skills,
+		securitylevel = Security},
+	F = fun() ->
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F).
 
 %% @doc Removes the passed user with login of `Username' from the local cache.  Called when integration returns a deny.
 -spec(destroy/1 :: (Username :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
@@ -443,6 +460,16 @@ local_auth_test_() ->
 					end,
 					{atomic, [Agent]} = mnesia:transaction(F),
 					?assertEqual(agent, Agent#agent_auth.securitylevel),
+					destroy("A")
+				end
+			},
+			{
+				"Add a user bypassing the cache",
+				fun() ->
+					?assertEqual({atomic, ok}, add_agent("A", "Pass", [testskill], agent)),
+					Salt = "12345",
+					SaltedPassword = salt(erlang:md5("Pass"), Salt),
+					?assertMatch({allow, [testskill, '_agent', '_node'], agent}, local_auth("A", SaltedPassword, Salt)),
 					destroy("A")
 				end
 			},

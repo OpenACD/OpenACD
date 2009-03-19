@@ -59,7 +59,8 @@
 	login :: string(),
 	password :: string(),
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
-	securitylevel = agent :: 'agent' | 'supervisor' | 'admin'
+	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
+	integrated :: 'undefined' | pos_integer()
 }).
 
 -record(release_opt, {

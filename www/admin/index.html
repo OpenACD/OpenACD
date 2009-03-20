@@ -92,7 +92,7 @@
 					</div>
 					<div dojoType="dijit.layout.ContentPane" layoutAlign="left"
 						style="width: 200px;">
-						<div dojoType="dojo.data.ItemFileReadStore" url="/skills" jsId="treeStore"></div>
+						<div dojoType="dojo.data.ItemFileWriteStore" url="/skills" jsId="treeStore"></div>
 
 						<div dojoType="dijit.tree.ForestStoreModel"
 							store="treeStore"
@@ -104,6 +104,9 @@
 							id="itemTree"
 							showRoot="false"
 							style="width:100px;"
+							checkAcceptance="skillDragCheckAcceptance"
+							checkItemAcceptance="skillDragCheckItemAcceptance"
+							dndController="dijit._tree.dndSource"
 							persist="false"></div>
 					</div>
 				</div>

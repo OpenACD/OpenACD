@@ -71,22 +71,22 @@ stop() ->
 loop(Req, _Method, "/") -> 
 	%Req:ok({"text/html", "Welcome to the management interface."});
 	Req:serve_file("index.html", "www/admin/");
-loop(Req, _Method, "/queues") ->
-	Queues = queue_manager:queues(),
-	io:format("Queues:  ~p~n", [Queues]),
-	Jqs = [{name, list_to_binary(Qname)} || {Qname, _Pid} <- Queues],
-	io:format("Jqs:  ~p~n", [Jqs]),
-	Struct = {struct, Jqs},
-	io:format("Struct:  ~p~n", [Struct]),
-	try mochijson2:encode(Struct) of 
-		Out -> 
-			io:format("Out:  ~p~n", [Out]),
-			Req:ok({"text/html", Out})
-	catch
-		exit:{json_encode, {bad_term, Bad}} -> 
-			io:format("Catching a json parse error of ~p because ~p is bad.~n", [exit, Bad]),
-			Req:respond({500, [], "Bad Json term"})
-	end;
+%loop(Req, _Method, "/queues") ->
+	%Queues = queue_manager:queues(),
+	%io:format("Queues:  ~p~n", [Queues]),
+	%Jqs = [{name, list_to_binary(Qname)} || {Qname, _Pid} <- Queues],
+	%io:format("Jqs:  ~p~n", [Jqs]),
+	%Struct = {struct, Jqs},
+	%io:format("Struct:  ~p~n", [Struct]),
+	%try mochijson2:encode(Struct) of 
+		%Out -> 
+			%io:format("Out:  ~p~n", [Out]),
+			%Req:ok({"text/html", Out})
+	%catch
+		%exit:{json_encode, {bad_term, Bad}} -> 
+			%io:format("Catching a json parse error of ~p because ~p is bad.~n", [exit, Bad]),
+			%Req:respond({500, [], "Bad Json term"})
+	%end;
 loop(Req, _Method, "/agents") ->
 	QH = qlc:q([X || X <- mnesia:table(agent_auth)]),
 	F = fun() -> qlc:e(QH) end,
@@ -109,6 +109,9 @@ loop(Req, _Method, "/skills") ->
 	Skills = util:group_by(fun(X) -> X#skill_rec.group end, call_queue_config:get_skills()),
 	?CONSOLE("struct: ~p", [{struct, [{items, encode_skills_with_groups(Skills)}]}]),
 	Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_skills_with_groups(Skills)}]})});
+loop(Req, _Method, "/queues") ->
+	Queues = util:group_by(fun(X) -> X#call_queue.group end, call_queue_config:get_queues()),
+	Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_queues_with_groups(Queues)}]})});
 loop(Req, _Method, "/web_dump") -> 
 	Req:ok({"text/html",io_lib:format("<pre>~p</pre>~n", [Req:dump()])});
 loop(Req, _Method, "/set_cookie") -> 
@@ -134,11 +137,31 @@ loop(Request) ->
 encode_skills([]) ->
 	[];
 encode_skills([Skill|Skills]) ->
-	[{struct, [{name, list_to_binary(Skill#skill_rec.name)}, {type, skill}, {atom, Skill#skill_rec.atom}, {description, list_to_binary(Skill#skill_rec.description)}, {protected, Skill#skill_rec.protected}]} | encode_skills(Skills)].
+	[{struct, [{name, list_to_binary(Skill#skill_rec.name)},
+			{type, skill}, {atom, Skill#skill_rec.atom},
+			{description, list_to_binary(Skill#skill_rec.description)},
+			{protected, Skill#skill_rec.protected}]} | encode_skills(Skills)].
 
 encode_skills_with_groups([]) ->
 	[];
 encode_skills_with_groups([Group|Groups]) ->
 	ASkill = lists:nth(1, Group),
-	[{struct, [{name, list_to_binary(ASkill#skill_rec.group)}, {type, group}, {children, encode_skills(Group)}]} | encode_skills_with_groups(Groups)].
+	[{struct, [{name, list_to_binary(ASkill#skill_rec.group)},
+			{type, group},
+			{children, encode_skills(Group)}]} | encode_skills_with_groups(Groups)].
 
+encode_queues([]) ->
+	[];
+encode_queues([Queue|Queues]) ->
+	[{struct, [{name, list_to_binary(Queue#call_queue.name)},
+			{type, queue}, {weight, Queue#call_queue.weight},
+			{skills, Queue#call_queue.skills},
+			{recipe, none}]} | encode_skills(Queues)].
+
+encode_queues_with_groups([]) ->
+	[];
+encode_queues_with_groups([Group|Groups]) ->
+	AQueue = lists:nth(1, Group),
+	[{struct, [{name, list_to_binary(AQueue#call_queue.group)},
+			{type, group}, {protected, AQueue#call_queue.protected},
+			{children, encode_queues(Group)}]} | encode_queues_with_groups(Groups)].

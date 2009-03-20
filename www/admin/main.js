@@ -19,29 +19,54 @@ function switchtab(tab) {
 	currenttab = tab;
 }
 
+function selectskill(item) {
+	if (item.type == "skill") {
+		dijit.byId("editSkillGroupPane").domNode.style.display="none";
+		dijit.byId("editSkillPane").domNode.style.display="block";
+		dijit.byId("skillAtom").setValue(item.atom);
+		dijit.byId("skillName").setValue(item.name);
+		dijit.byId("skillDesc").setValue(item.description);
+		dijit.byId("skillAtom").setDisabled(true);
+		dijit.byId("skillName").setDisabled(item.protected == "true");
+		dijit.byId("skillDesc").setDisabled(item.protected == "true");
+		dijit.byId("wtf").setDisabled(item.protected == "true");
+		dijit.byId("skillPane").refresh();
+	} else if (item.type == "group") {
+		dijit.byId("editSkillGroupPane").domNode.style.display="block";
+		dijit.byId("editSkillPane").domNode.style.display="none";
+		dijit.byId("skillPane").refresh();
+	}
+}
+
+function selectqueue(item) {
+	if (item.type == "queue") {
+		dijit.byId("editQueueGroupPane").domNode.style.display="none";
+		dijit.byId("editQueueGeneralPane").domNode.style.display="none";
+		dijit.byId("editQueuePane").domNode.style.display="block";
+		dijit.byId("queuePane").refresh();
+	} else if (item.type == "group") {
+		dijit.byId("editQueueGroupPane").domNode.style.display="block";
+		dijit.byId("editQueueGeneralPane").domNode.style.display="none";
+		dijit.byId("editQueuePane").domNode.style.display="none";
+		dijit.byId("queuePane").refresh();
+	}
+}
+
 
 dojo.addOnLoad(function() {
 	var tabbar = dijit.byId("mainTabContainer");
 	currenttab = dijit.byId("agentsTab");
 	dojo.connect(tabbar,'selectChild','switchtab');
-	var tree = dijit.byId("itemTree");
-	dojo.connect(tree, 'onClick', function(item) {
-		if (item.type == "skill") {
-			dijit.byId("editSkillGroupPane").domNode.style.display="none";
-			dijit.byId("editSkillPane").domNode.style.display="block";
-			dijit.byId("skillAtom").setValue(item.atom);
-			dijit.byId("skillName").setValue(item.name);
-			dijit.byId("skillDesc").setValue(item.description);
-			dijit.byId("skillAtom").setDisabled(true);
-			dijit.byId("skillName").setDisabled(item.protected == "true");
-			dijit.byId("skillDesc").setDisabled(item.protected == "true");
-			dijit.byId("wtf").setDisabled(item.protected == "true");
-			dijit.byId("skillPane").refresh();
-		} else if (item.type == "group") {
-			dijit.byId("editSkillGroupPane").domNode.style.display="block";
-			dijit.byId("editSkillPane").domNode.style.display="none";
-			dijit.byId("skillPane").refresh();
-		}
+	dojo.connect(dijit.byId('itemTree'), 'onClick', 'selectskill');
+	dojo.connect(dijit.byId('queueTree'), 'onClick', 'selectqueue');
+	dojo.connect(dijit.byId("wtf"), 'onClick', function(foo) {
+		console.log(foo.target)
+	});
+	dojo.connect(dijit.byId("generalQueueSettings"), 'onClick', function(foo) {
+		dijit.byId("editQueueGroupPane").domNode.style.display="none";
+		dijit.byId("editQueueGeneralPane").domNode.style.display="block";
+		dijit.byId("editQueuePane").domNode.style.display="none";
+		dijit.byId("queuePane").refresh();
 	});
 });
 

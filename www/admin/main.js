@@ -7,7 +7,9 @@ dojo.require("dijit.form.Button");
 dojo.require("dijit.form.Form");
 dojo.require("dijit.form.TextBox");
 dojo.require("dijit.form.ValidationTextBox");
+dojo.require("dijit._tree.dndSource");
 dojo.require("dijit.Tree");
+dojo.require("dojo.data.ItemFileWriteStore");
 dojo.require("dojo.data.ItemFileReadStore");
 
 
@@ -59,6 +61,17 @@ function selectqueue(item) {
 	}
 }
 
+function skillDragCheckAcceptance(source, nodes) {
+	if (nodes.length != 1)
+		return false;
+	var item = dijit.getEnclosingWidget(nodes[0]).item;
+	return (item.type == "skill");
+};
+
+function skillDragCheckItemAcceptance(target, source) {
+	var item = dijit.getEnclosingWidget(target).item;
+	return (item.type == "group");
+};
 
 dojo.addOnLoad(function() {
 	var tabbar = dijit.byId("mainTabContainer");
@@ -74,6 +87,24 @@ dojo.addOnLoad(function() {
 		dijit.byId("editQueueGeneralPane").domNode.style.display="block";
 		dijit.byId("editQueuePane").domNode.style.display="none";
 		dijit.byId("queuePane").refresh();
+	});
+	dojo.connect(dijit.byId("itemTree").dndController, 'onDndDrop', function(source, nodes, copy) {
+		var item = dijit.getEnclosingWidget(nodes[0]).item;
+		var newparent = dijit.byId("itemTree")._itemNodeMap[dijit.byId("itemTree").model.getIdentity(item)].getParent().item;
+		console.log("moved "+item.name+" into group "+newparent.name);
+		dojo.xhrPost( {
+			// The following URL must match that used to test the server.
+			url: "http://freecpx.dev:9999/update_skill",
+			handleAs: "json",
+			content: {atom: item.atom, group: newparent.name},
+			load: function(responseObject, ioArgs) {
+				// Now you can just use the object
+				console.dir(responseObject);  // Dump it to the console
+				console.dir(responseObject.cobblers[0].filling);  // Prints "peach"
+				return responseObject;
+				}
+			// More properties for xhrGet...
+		});
 	});
 });
 

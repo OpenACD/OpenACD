@@ -1,5 +1,6 @@
 /* dependancies */
 dojo.require("dijit.Dialog");
+dojo.require("dijit.layout.LayoutContainer");
 dojo.require("dijit.layout.ContentPane");
 dojo.require("dijit.layout.TabContainer");
 dojo.require("dijit.form.Button");

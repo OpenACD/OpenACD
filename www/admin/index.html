@@ -35,11 +35,31 @@
 			<div id="queuesTab" dojoType="dijit.layout.ContentPane" title="Queues">this is the queues tab</div>
 			<div id="skillsTab" dojoType="dijit.layout.ContentPane" title="Skills">
 				<div dojoType="dijit.layout.LayoutContainer" style="width: 100%; height: 100%; padding: 0; margin: 0; border: 0;">
-					<div dojoType="dijit.layout.ContentPane" layoutAlign="client" style="background-color:yellow">
-						yo
+					<div dojoType="dijit.layout.ContentPane" layoutAlign="client" id="skillPane">
+						<div id="editSkillGroupPane" dojoType="dijit.layout.ContentPane">
+							hi
+						</div>
+						<div id="editSkillPane" dojoType="dijit.layout.ContentPane">
+							<form dojoType="dijit.form.Form" id="editSkillForm">
+								Skill atom:<input type="text" name="skillatom" id="skillAtom" value=""
+								dojoType="dijit.form.ValidationTextBox"
+								regExp="[_a-z0-9]+"
+								required="true"
+								invalidMessage="Atoms can only consist of lowercase characters, underscores and numbers."/> <br/>
+								Name:<input type="text" name="skillname" id="skillName" value=""
+								dojoType="dijit.form.TextBox"
+								trim="true"
+								propercase="true" /> <br/>
+								Description:<input type="text" name="skilldesc" id="skillDesc" value=""
+								dojoType="dijit.form.TextBox"
+								trim="true"
+								propercase="true" /><br/>
+								<button dojoType="dijit.form.Button" id="wtf">Edit Skill</button>
+							</form>
+						</div>
 					</div>
 					<div dojoType="dijit.layout.ContentPane" layoutAlign="left"
-						style="background-color:lightblue;width: 200px;">
+						style="width: 200px;">
 						<div dojoType="dojo.data.ItemFileReadStore" url="/skills" jsId="treeStore"></div>
 
 						<div dojoType="dijit.tree.ForestStoreModel"

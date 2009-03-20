@@ -134,7 +134,7 @@ loop(Request) ->
 encode_skills([]) ->
 	[];
 encode_skills([Skill|Skills]) ->
-	[{struct, [{name, list_to_binary(Skill#skill_rec.name)}, {type, skill}, {atom, Skill#skill_rec.atom}]} | encode_skills(Skills)].
+	[{struct, [{name, list_to_binary(Skill#skill_rec.name)}, {type, skill}, {atom, Skill#skill_rec.atom}, {description, list_to_binary(Skill#skill_rec.description)}, {protected, Skill#skill_rec.protected}]} | encode_skills(Skills)].
 
 encode_skills_with_groups([]) ->
 	[];

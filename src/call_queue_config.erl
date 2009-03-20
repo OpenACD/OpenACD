@@ -89,6 +89,7 @@
 	new_queue_group/1,
 	new_queue_group/3,
 	get_queue_groups/0,
+	get_queue_group/1,
 	set_queue_group/2,
 	set_queue_group/4,
 	destroy_queue_group/1

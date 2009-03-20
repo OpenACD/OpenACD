@@ -200,6 +200,11 @@ encode_queues_with_groups([]) ->
 	[];
 encode_queues_with_groups([Group|Groups]) ->
 	AQueue = lists:nth(1, Group),
-	[{struct, [{name, list_to_binary(AQueue#call_queue.group)},
-			{type, group}, %{protected, AQueue#call_queue.protected},
-			{children, encode_queues(Group)}]} | encode_queues_with_groups(Groups)].
+	case call_queue_config:get_queue_group(AQueue#call_queue.group) of
+		{atomic, [G]} ->
+			[{struct, [{name, list_to_binary(G#queue_group.name)},
+					{type, group}, {protected, G#queue_group.protected},
+					{recipe, G#queue_group.recipe},
+					{children, encode_queues(Group)}]} | encode_queues_with_groups(Groups)]
+	end.
+

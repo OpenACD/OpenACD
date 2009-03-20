@@ -181,9 +181,5 @@ encode_queues_with_groups([]) ->
 encode_queues_with_groups([Group|Groups]) ->
 	AQueue = lists:nth(1, Group),
 	[{struct, [{name, list_to_binary(AQueue#call_queue.group)},
-<<<<<<< HEAD:src/cpx_web_management.erl
-			{type, group},% {protected, AQueue#call_queue.protected},
-=======
 			{type, group}, %{protected, AQueue#call_queue.protected},
->>>>>>> 7e02524a491875594a0bef3daa752509ade4531b:src/cpx_web_management.erl
 			{children, encode_queues(Group)}]} | encode_queues_with_groups(Groups)].

@@ -14,24 +14,42 @@
 		<!-- load the dojo toolkit base -->
 		<script type="text/javascript" src="/dojo/dojo/dojo.js"
 			djConfig="parseOnLoad:true, isDebug:false"></script>
-
-		<script type="text/javascript">
-			/* our JavaScript will go here */
-			dojo.require("dijit.Dialog");
-			dojo.addOnLoad(function(){
-				var myDialog = dijit.byId("someId");
-				myDialog.attr("content", "<p>I've been replaced!</p>");
-				myDialog.show();
-			});
-		</script>
+		<script type="text/javascript" src="main.js"></script>
 	</head>
 
 	<body class="tundra">
-		<!-- this is a Typical WebPage starting point ... -->
-		<!--<h1 id="testHeading">Dojo Skeleton Page</h1>-->
-		<!--<div id="contentNode">-->
-		<!--<p>Some Content To Replace</p>-->
-		<!--</div>-->
-		<div dojoType="dijit.Dialog" title="Hello Dijit!" id="someId"></div>
+		<div id="mainTabContainer" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px">
+			<div id="agentsTab" dojoType="dijit.layout.ContentPane" title="Agents" selected="true">
+				<!--<div dojoType="dojo.data.ItemFileReadStore" url="/agents" jsId="treeStore"></div>-->
+
+				<!--<div dojoType="dijit.tree.ForestStoreModel"-->
+					<!--store="treeStore"-->
+					<!--rootLabel="Agents"-->
+					<!--jsId="treeModel"></div>-->
+
+				<!--<div dojoType="dijit.Tree" -->
+					<!--model="treeModel" -->
+					<!--jsId="itemTree" -->
+					<!--persist="false">hi</div>-->
+				</div>
+			<div id="queuesTab" dojoType="dijit.layout.ContentPane" title="Queues">this is the queues tab</div>
+			<div id="skillsTab" dojoType="dijit.layout.ContentPane" title="Skills">
+				<div dojoType="dojo.data.ItemFileReadStore" url="/skills" jsId="treeStore"></div>
+
+				<div dojoType="dijit.tree.ForestStoreModel"
+					store="treeStore"
+					rootLabel="Skills"
+					jsId="treeModel"></div>
+
+				<div dojoType="dijit.Tree" 
+					model="treeModel" 
+					id="itemTree"
+					showRoot="false"
+					style="width:100px;"
+					persist="false"></div>
+			</div>
+
+			<div id="mediaTab" dojoType="dijit.layout.ContentPane" title="Media Types">This is the media tab</div>
+		</div>
 	</body>
 </html>

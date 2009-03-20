@@ -48,6 +48,10 @@
 -export([handler/1, encode_trap/1]).
 
 %% @doc Attempts to change the record into data for a client
+handler(Rec) when is_record(Rec, agent_auth) ->
+	{struct, [{login, list_to_binary(Rec#agent_auth.login)},
+		{skills, Rec#agent_auth.skills},
+		{securitylevel, Rec#agent_auth.securitylevel}]};
 handler(Rec) when is_record(Rec, call) -> 
 	{struct, [{id, list_to_binary(Rec#call.id)}, 
 		{type, Rec#call.type}, 
@@ -67,8 +71,8 @@ encode_trap(Data) ->
 		Out ->
 			{200, [], Out}
 	catch
-		_:_ -> 
-			{500, [], io_lib:format("Bad Json term: ~n~p", [Data])}
+		_:_ ->
+			{500, [], <<"Bad json term">>}
 	end.
 
 -ifdef(EUNIT).

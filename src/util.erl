@@ -42,8 +42,6 @@
 ).
 -endif.
 
--include("call.hrl").
-
 -export([
 	string_split/3,
 	string_split/2,
@@ -52,7 +50,8 @@
 	list_map_with_index/2,
 	bin_to_hexstr/1,
 	hexstr_to_bin/1,
-	build_table/2]).
+	build_table/2,
+	group_by/2]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];
@@ -156,6 +155,21 @@ hexstr_to_bin([X, Y | T], Acc) ->
 			error
 	end.
 
+%% @doc groups a list into a list of lists where each sublists contains
+%% the elements where `Fun(Element)' returned the same value.
+group_by(Fun, List) ->
+	lists:map(fun({_Key,Value}) -> Value end,
+		dict:to_list(lists:foldl(fun(X, Acc) ->
+			V = Fun(X),
+			case dict:is_key(V, Acc) of
+				true ->
+					dict:append(V, X, Acc);
+				false ->
+					dict:store(V, [X], Acc)
+			end
+	end, dict:new(), List))).
+
+
 %end 'borrowed' code
 
 %% @doc build the given mnesia table `Tablename' with `Options'.
@@ -171,17 +185,17 @@ build_table(Tablename, Options) when is_atom(Tablename) ->
 				true -> 					
 					case lists:member(Tablename, mnesia:system_info(tables)) of
 						true -> 
-							?CONSOLE("Table '~p' already exists.", [Tablename]),
+							io:format("Table '~p' already exists.~n", [Tablename]),
 							ok;
 						false ->
 							mnesia:create_table(Tablename, Options)
 					end;
 				false -> 
-					?CONSOLE("Mnesia does not have a disc based schema.", []),
+					io:format("Mnesia does not have a disc based schema.~n", []),
 					exit(mnesia_schema_not_found)
 			end;
 		Else -> 
-			?CONSOLE("Mnesia is not running, in state ~p.", [Else]),
+			io:format("Mnesia is not running, in state ~p~n.", [Else]),
 			exit(mnesia_stopped)
 	end.
 
@@ -301,5 +315,8 @@ build_table_test_() ->
 			}
 		]
 	}.
+
+group_by_test() ->
+	?assertEqual([[2,4],[1,3,5]], util:group_by(fun(X) -> (X rem 2) =:= 0 end, [1, 2, 3, 4, 5])).
 				
 -endif.

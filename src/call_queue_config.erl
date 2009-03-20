@@ -53,7 +53,14 @@
 		{disc_copies, Nodes}
 	]
 ).
-
+-define(QUEUE_GROUP_TABLE(Nodes),
+	[
+		{attributes, record_info(fields, queue_group)},
+		{disc_copies, Nodes}
+	]
+).
+-define(DEFAULT_QUEUE_GROUP, #queue_group{name = "Default", sort = 0, protected = true}).
+	
 -include("queue.hrl").
 -include("call.hrl").
 -include_lib("stdlib/include/qlc.hrl").
@@ -77,6 +84,14 @@
 	set_queue_recipe/2,
 	set_queue_skills/2,
 	set_queue_weight/2
+	]).
+-export([
+	new_queue_group/1,
+	new_queue_group/3,
+	get_queue_groups/0,
+	set_queue_group/2,
+	set_queue_group/4,
+	destroy_queue_group/1
 	]).
 -export([
 	new_skill/1,
@@ -144,6 +159,18 @@ build_tables(Nodes) ->
 		{atomic, ok} ->
 			ok;
 		_Orelse ->
+			ok
+	end,
+	D = util:build_table(queue_group, ?QUEUE_GROUP_TABLE(Nodes)),
+	case D of
+		{atomic, ok} ->
+			case new_queue_group(?DEFAULT_QUEUE_GROUP) of
+				{atomic, ok} ->
+					ok;
+				Or4 ->
+					Or4
+			end;
+		_Or3 ->
 			ok
 	end.
 
@@ -269,6 +296,72 @@ set_queue_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1->
 		mnesia:write(NewRec)
 	end,
 	mnesia:transaction(F).
+	
+%% =====
+%% call queue groups Configs
+%% =====
+
+%% @doc Add a new group to the configuation database
+-spec(new_queue_group/1 :: (Rec :: #queue_group{}) -> {'atomic', 'ok'}).
+new_queue_group(Rec) when is_record(Rec, queue_group) ->
+	F = fun() ->
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F).
+
+new_queue_group(Name, Sort, Recipe) when is_integer(Sort) ->
+	Qgroup = #queue_group{name = Name, sort = Sort, recipe = Recipe},
+	new_queue_group(Qgroup).
+	
+get_queue_group(Name) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(queue_group), X#queue_group.name =:= Name]),
+		qlc:e(QH)
+	end,
+	mnesia:transaction(F).
+
+get_queue_groups() ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(queue_group)]),
+		qlc:e(QH)
+	end,
+	{atomic, Groups} = mnesia:transaction(F),
+	Sort = fun(Group1, Group2) ->
+		Group1#queue_group.sort < Group2#queue_group.sort
+	end,
+	lists:sort(Sort, Groups).
+	
+set_queue_group(Oldname, Rec) when is_record(Rec, queue_group) ->
+	F = fun() ->
+		case mnesia:read({queue_group, Oldname}) of
+			[] ->
+				{error, {noexists, Oldname}};
+			[#queue_group{protected = Prot} = Oldrec] ->
+				Newrec = Rec#queue_group{protected = Prot},
+				mnesia:delete({queue_group, Oldname}),
+				mnesia:write(Newrec)
+		end
+	end,
+	mnesia:transaction(F).
+
+set_queue_group(Oldname, Newname, Newsort, Newrecipe) when is_integer(Newsort) ->
+	Rec = #queue_group{name = Newname, sort = Newsort, recipe = Newrecipe},
+	set_queue_group(Oldname, Rec).
+
+destroy_queue_group(Groupname) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(queue_group), X#queue_group.name =:= Groupname]),
+		[Queue] = qlc:e(QH),
+		case Queue#queue_group.protected of
+			true ->
+				{error, protected};
+			false ->
+				mnesia:delete({queue_group, Groupname}),
+				ok
+		end
+	end,
+	mnesia:transaction(F).
+	
 %% =====
 %% Skill Configs
 %% =====
@@ -672,6 +765,119 @@ call_queue_test_() ->
 					Queue = test_queue(),
 					destroy_queue(Queue),
 					?assertMatch(noexists, get_queue(Queue#call_queue.name))
+				end
+			}
+		]
+	}.
+
+queue_group_test_() ->
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	{
+		foreach,
+		fun() -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			build_tables()
+		end,
+		fun(_Whatever) -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			ok
+		end,
+		[
+			{
+				"New call group by record",
+				fun() ->
+					Qgroup = #queue_group{name = "test group"},
+					new_queue_group(Qgroup),
+					F = fun() ->
+						mnesia:read({queue_group, "test group"})
+					end,
+					?assertEqual({atomic, [Qgroup]}, mnesia:transaction(F))
+				end
+			},
+			{
+				"New call group explicit",
+				fun() ->
+					Recipe = [{3, prioritize, [], run_once}],
+					Qgroup = #queue_group{name = "test group", sort = 15, recipe = Recipe},
+					new_queue_group("test group", 15, Recipe),
+					F = fun() ->
+						mnesia:read({queue_group, "test group"})
+					end,
+					?assertEqual({atomic, [Qgroup]}, mnesia:transaction(F))
+				end
+			},
+			{
+				"destroy unprotected call group",
+				fun() ->
+					Qgroup = #queue_group{name = "test group"},
+					new_queue_group(Qgroup),
+					F = fun() ->
+						mnesia:read({queue_group, "test group"})
+					end,
+					?assertEqual({atomic, [Qgroup]}, mnesia:transaction(F)),
+					?assertEqual({atomic, ok}, destroy_queue_group("test group")),
+					?assertEqual({atomic, []}, mnesia:transaction(F))
+				end
+			},
+			{
+				"destroy protected call group",
+				fun() ->
+					?assertEqual({atomic, {error, protected}}, destroy_queue_group("Default")),
+					F = fun() ->
+						mnesia:read({queue_group, "Default"})
+					end,
+					?assertEqual({atomic, [?DEFAULT_QUEUE_GROUP]}, mnesia:transaction(F))
+				end
+			},
+			{
+				"get a call group",
+				fun() ->
+					?assertEqual({atomic, [?DEFAULT_QUEUE_GROUP]}, get_queue_group("Default"))
+				end
+			},
+			{
+				"get all call groups (order matters)",
+				fun() ->
+					Sort10 = #queue_group{name = "Added 1st", sort = 10},
+					Sort5 = #queue_group{name = "Added 2nd", sort = 5},
+					Sort7 = #queue_group{name = "Added 3rd", sort = 7},
+					new_queue_group(Sort10),
+					new_queue_group(Sort5),
+					new_queue_group(Sort7),
+					Test = [#queue_group{name = "Default", sort = 0, protected = true}, Sort5, Sort7, Sort10],
+					Gotten = get_queue_groups(),
+					?assertEqual(Test, Gotten)
+				end
+			},
+			{
+				"update a protected call group by record",
+				fun() ->
+					Recipe = [{3, prioritize, [], run_once}],
+					Updateto = #queue_group{name = "newname", sort = 5, protected = false, recipe = Recipe},
+					Default = ?DEFAULT_QUEUE_GROUP,
+					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
+					set_queue_group(Default#queue_group.name, Updateto),
+					?assertEqual({atomic, [Test]}, get_queue_group("newname"))
+				end
+			},
+			{
+				"update a protected call group explicitly",
+				fun() ->
+					Recipe = [{3, prioritize, [], run_once}],
+					Default = ?DEFAULT_QUEUE_GROUP,
+					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
+					set_queue_group(Default#queue_group.name, "newname", 5, Recipe),
+					?assertEqual({atomic, [Test]}, get_queue_group("newname"))
+				end
+			},
+			{
+				"update a group that doesn't exist",
+				fun() ->
+					?assertEqual({atomic, {error, {noexists, "testname"}}}, set_queue_group("testname", ?DEFAULT_QUEUE_GROUP))
 				end
 			}
 		]

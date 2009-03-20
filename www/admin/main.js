@@ -21,6 +21,13 @@ function switchtab(tab) {
 	currenttab = tab;
 }
 
+function inspect(obj){
+	console.log(obj);
+	for(var i in obj){
+		console.log("  " + i + ": " + obj[i])
+	}
+}
+
 function selectskill(item) {
 	if (item.type == "skill") {
 		dijit.byId("editSkillGroupPane").domNode.style.display="none";
@@ -101,3 +108,32 @@ dojo.addOnLoad(function() {
 	});
 });
 
+function setSkill(e){
+	console.log("what is e " + e)
+	// prevent the form from actually submitting
+	e.preventDefault(); 
+	// submit the form in the background	
+	dojo.xhrPost({
+		url: "setskill",
+		form: "editSkillForm",
+		handleAs: "json",
+		content:{
+			"skillatom":dijit.byId("skillAtom").getValue(),
+			"action" : "set"
+		},
+		handle: function(data,args){
+			if(typeof data == "error"){
+				console.warn("error!",args);
+			}else{
+				// show our response 
+				console.log("success!"),
+				inspect(data);
+			}
+		}
+	});
+};
+dojo.addOnLoad(function(){
+			   var theForm = dojo.byId("editSkillPane");
+			   // another dojo.connect syntax: call a function directly	
+			   dojo.connect(theForm,"onsubmit",setSkill);
+			   }); 

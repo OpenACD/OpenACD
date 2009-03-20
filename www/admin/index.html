@@ -72,7 +72,7 @@
 							Edit Skill Group
 						</div>
 						<div id="editSkillPane" dojoType="dijit.layout.ContentPane" style="display:none;">
-							<form dojoType="dijit.form.Form" id="editSkillForm">
+							<form dojoType="dijit.form.Form" id="editSkillForm" action="setskill" method="post">
 								Skill atom:<input type="text" name="skillatom" id="skillAtom" value=""
 								dojoType="dijit.form.ValidationTextBox"
 								regExp="[_a-z0-9]+"
@@ -86,7 +86,7 @@
 								dojoType="dijit.form.TextBox"
 								trim="true"
 								propercase="true" /><br/>
-								<button dojoType="dijit.form.Button" id="wtf">Edit Skill</button>
+								<button dojoType="dijit.form.Button" id="wtf" onclick="setSkill">Edit Skill</button>
 							</form>
 						</div>
 					</div>

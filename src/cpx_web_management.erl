@@ -48,7 +48,8 @@
 % TODO configure this to start by default with a default configureation (cpx_supervisor_conf)
 %% @doc Start the web management server unlinked to the parent process.
 -spec(start/0 :: () -> {'ok', pid()}).
-start() -> 
+start() ->
+	?CONSOLE("Staring mochiweb...", []),
 	mochiweb_http:start([{loop, {?MODULE, loop}} | ?WEB_DEFAULTS]).
 
 %% @doc Stops the web management.
@@ -69,7 +70,6 @@ stop() ->
 
 -spec(loop/3 :: (Req :: any(), Method :: string(), Path :: string()) -> any()).
 loop(Req, _Method, "/") -> 
-	%Req:ok({"text/html", "Welcome to the management interface."});
 	Req:serve_file("index.html", "www/admin/");
 %loop(Req, _Method, "/queues") ->
 	%Queues = queue_manager:queues(),
@@ -109,42 +109,22 @@ loop(Req, _Method, "/skills") ->
 	Skills = util:group_by(fun(X) -> X#skill_rec.group end, call_queue_config:get_skills()),
 	?CONSOLE("struct: ~p", [{struct, [{items, encode_skills_with_groups(Skills)}]}]),
 	Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_skills_with_groups(Skills)}]})});
-loop(Req, Method, "/update_skill") ->
+loop(Req, _Method, "/setskill") ->
 	Post = Req:parse_post(),
-	?CONSOLE("POST: ~p", [Post]),
-	case proplists:get_value("atom", Post) of
-		undefined ->
-			Req:respond({500, [], <<"Missing skill atom">>});
-		AtomStr ->
-			case list_to_existing_atom(AtomStr) of
-				badarg ->
-					Req:respond({500, [], <<"Nonexistant skill atom">>});
-				Atom ->
-					case call_queue_config:get_skill(Atom) of
-						undefined ->
-							Req:respond({500, [], <<"Nonexistant skill atom">>});
-						Skill ->
-							NewSkill = lists:foldl(fun(X, A) -> case proplists:get_value(atom_to_list(X), Post) of
-											undefined ->
-												A;
-											Value ->
-												case X of
-													name ->
-														A#skill_rec{name = Value};
-													description ->
-														A#skill_rec{description = Value};
-													group ->
-														A#skill_rec{group = Value}
-												end
-										end
-								end, Skill, [name, description, group]),
-							case call_queue_config:set_skill(Atom, NewSkill) of
-								{atomic, ok} ->
-									Req:respond({200, [], <<"OK!">>});
-								_Else ->
-									Req:respond({500, [], <<"update failed">>})
-							end
-					end
+	case proplists:get_value("action", Post) of
+		"set" ->
+			Stratom = proplists:get_value("skillatom", Post),
+			case call_queue_config:get_skill(Stratom) of
+				undefined ->
+					Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Skill atom mismatch">>}]})});
+				Skillrec when is_record(Skillrec, skill_rec) ->
+					Newrec = #skill_rec{
+						atom = Skillrec#skill_rec.atom, 
+						name = proplists:get_value("skillname", Post), 
+						description = proplists:get_value("skilldesc", Post),
+						group = Skillrec#skill_rec.group},
+					call_queue_config:set_skill(Skillrec#skill_rec.atom, Newrec),
+					Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Skill updated">>}]})})
 			end
 	end;
 loop(Req, _Method, "/queues") ->

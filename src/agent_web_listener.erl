@@ -156,40 +156,89 @@ code_change(_OldVsn, State, _Extra) ->
 %% otherwise the request is denied.
 loop(Req, Table) -> 
 	?CONSOLE("loop start",[]),
-	case Req:get(path) of
-		"/login" -> 
-			?CONSOLE("/login",[]),
-			Post = Req:parse_post(),
-			case Post of 
-				% normally this would check against a database and not just discard the un/pw.
-				[] -> 
-					?CONSOLE("empty post",[]),
-					Req:respond({403, [], mochijson2:encode({struct, [{success, false}, {message, <<"No post data supplied">>}]})});
-				_Any -> 
-					?CONSOLE("trying to start connection",[]),
-					Ref = make_ref(),
-					case agent_web_connection:start(Post, Ref, Table) of
-						{ok, _Aconnpid} -> 
-							Cookie = io_lib:format("cpx_id=~p", [erlang:ref_to_list(Ref)]),
-							Req:respond({200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}, {message, <<"Login successful">>}]})});
-						{error, Reason} -> 
-							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(io_lib:format("~p", [Reason]))}]})});
-						ignore -> 
-							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, false}, {message, <<"ignored">>}]})})
+	Path = Req:get(path),
+	case parse_path(Path) of
+		{file, {File, Docroot}} ->
+			Req:serve_file(File, Docroot);
+		{api, _Any} ->
+			Req:respond({501, [], mochijson2:encode({struct, [{success, false},{message, <<"Not yet implemented!">>}]})})
+	end.
+	
+	
+	
+%	case Req:get(path) of
+%		"/login" -> 
+%			?CONSOLE("/login",[]),
+%			Post = Req:parse_post(),
+%			case Post of 
+%				% normally this would check against a database and not just discard the un/pw.
+%				[] -> 
+%					?CONSOLE("empty post",[]),
+%					Req:respond({403, [], mochijson2:encode({struct, [{success, false}, {message, <<"No post data supplied">>}]})});
+%				_Any -> 
+%					?CONSOLE("trying to start connection",[]),
+%					Ref = make_ref(),
+%					case agent_web_connection:start(Post, Ref, Table) of
+%						{ok, _Aconnpid} -> 
+%							Cookie = io_lib:format("cpx_id=~p", [erlang:ref_to_list(Ref)]),
+%							Req:respond({200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}, {message, <<"Login successful">>}]})});
+%						{error, Reason} -> 
+%							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(io_lib:format("~p", [Reason]))}]})});
+%						ignore -> 
+%							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, false}, {message, <<"ignored">>}]})})
+%					end
+%			end;
+%		Path -> 
+%			?CONSOLE("any other path",[]),
+%			case Req:parse_cookie() of 
+%				[{"cpx_id", Reflist}] -> 
+%					?CONSOLE("cookie looks good~nReflist: ~p", [Reflist]),
+%					Etsres = ets:lookup(Table, Reflist),
+%					?CONSOLE("ets res:~p", [Etsres]),
+%					[{_Key, Aconn, _Login} | _Rest] = Etsres,
+%					Reqresponse = agent_web_connection:request(Aconn, Path, Req:parse_post(), Req:parse_cookie()),
+%					Req:respond(Reqresponse);
+%				_Allelse -> 
+%					?CONSOLE("bad cookie",[]),
+%					Req:respond({403, [], io_lib:format("Invalid cookie: ~p", [Req:parse_cookie()])})
+%			end
+%	end.
+
+%% @doc determine if the given path is an api call, or if it's a file request.
+parse_path(Path) ->
+	% easy tests first.
+	case Path of
+		"/" ->
+			{file, {"index.html", "www/agent/"}};
+		"/poll" ->
+			{api, poll};
+		"/logout" ->
+			{api, logout};
+		"/login" ->
+			{api, login};
+		"/getsalt" ->
+			{api, getsalt};
+		Other ->
+			case util:string_split(Path, "/") of 
+				["", "state", Statename] ->
+					{api, {set_state, Statename}};
+				["", "state", Statename, Statedata] ->
+					{api, {set_state, Statename, Statedata}};
+				["", "ack", Counter] ->
+					{api, {ack, Counter}};
+				["", "err", Counter] ->
+					{api, {err, Counter}};
+				["", "err", Counter, Message] ->
+					{api, {err, Counter, Message}};
+				_Allother ->
+					% is there an actual file to serve?
+					%Rpath = string:strip(Path, left, $/),
+					case filelib:is_regular(string:concat("www/agent", Path)) of
+						true ->
+							{file, {string:strip(Path, left, $/), "www/agent/"}};
+						false ->
+							{file, {string:strip(Path, left, $/), "www/contrib/"}}
 					end
-			end;
-		Path -> 
-			?CONSOLE("any other path",[]),
-			case Req:parse_cookie() of 
-				[{"cpx_id", Reflist}] -> 
-					?CONSOLE("cookie looks good~nReflist: ~p", [Reflist]),
-					Etsres = ets:lookup(Table, Reflist),
-					?CONSOLE("ets res:~p", [Etsres]),
-					[{_Key, Aconn, _Login} | _Rest] = Etsres,
-					Reqresponse = agent_web_connection:request(Aconn, Path, Req:parse_post(), Req:parse_cookie()),
-					Req:respond(Reqresponse);
-				_Allelse -> 
-					?CONSOLE("bad cookie",[]),
-					Req:respond({403, [], io_lib:format("Invalid cookie: ~p", [Req:parse_cookie()])})
 			end
 	end.
+

@@ -151,7 +151,8 @@ build_tables() ->
 			% create some default info so the system is at least a bit usable.
 			F = fun() -> 
 				mnesia:write(#cpx_conf{module_name = agent_auth, start_function = start, start_args = []}),
-				mnesia:write(#cpx_conf{module_name = agent_tcp_listener, start_function = start, start_args = []})
+				mnesia:write(#cpx_conf{module_name = agent_tcp_listener, start_function = start, start_args = []}),
+				mnesia:write(#cpx_conf{module_name = cpx_web_management, start_function = start, start_args = []})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 
@@ -210,11 +211,11 @@ config_test_() ->
 	{
 		setup,
 		fun() -> 
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			cpx_supervisor:start([node()])
+			?CONSOLE("f1 ~p", [mnesia:stop()]),
+			?CONSOLE("f2 ~p", [mnesia:delete_schema([node()])]),
+			?CONSOLE("f3 ~p", [mnesia:create_schema([node()])]),
+			?CONSOLE("F4 ~p", [mnesia:start()]),
+			?CONSOLE("findme ~p", [cpx_supervisor:start([node()])])
 		end,
 		fun(_Whatever) -> 
 			cpx_supervisor:stop(),
@@ -315,10 +316,11 @@ mutlinode_test_() ->
 			
 			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
 			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
-			
+			mnesia:stop(),
+
 			mnesia:change_config(extra_db_nodes, [Master, Slave]),
-			mnesia:delete_schema([node(), Master, Slave]),
-			mnesia:create_schema([node(), Master, Slave]),
+			?CONSOLE("~p", [mnesia:delete_schema([node(), Master, Slave])]),
+			?CONSOLE("~p", [mnesia:create_schema([node(), Master, Slave])]),
 			
 			cover:start([Master, Slave]),
 			
@@ -326,15 +328,17 @@ mutlinode_test_() ->
 			rpc:call(Slave, mnesia, start, []),
 			mnesia:start(),
 
-			mnesia:change_table_copy_type(schema, Master, disc_copies),
-			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+			?CONSOLE("~p", [mnesia:change_table_copy_type(schema, Master, disc_copies)]),
+			?CONSOLE("~p", [mnesia:change_table_copy_type(schema, Slave, disc_copies)]),
 			
-			% nix the agent_tcp_default to keep addresses from binding
+			% nix the agent_tcp_default and web_managmeent to keep addresses from binding
 			rpc:call(Master, cpx_supervisor, build_tables, []),
 			rpc:call(Slave, cpx_supervisor, build_tables, []),
 
 			rpc:call(Master, cpx_supervisor, destroy, [agent_tcp_listener]),
 			rpc:call(Slave, cpx_supervisor, destroy, [agent_tcp_listener]),
+			rpc:call(Master, cpx_supervisor, destroy, [cpx_web_management]),
+			rpc:call(Slave, cpx_supervisor, destroy, [cpx_web_management]),
 
 			{Master, Slave}
 		end,

@@ -82,7 +82,7 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 		next
 	end
 
-	test_output = `erl -pa debug_ebin -sname testpx -s test_coverage start #{mod} -run init stop`
+	test_output = `erl -pa debug_ebin -pa contrib/mochiweb/ebin -sname testpx -s test_coverage start #{mod} -run init stop`
 	if /(All \d+ tests successful|There were no tests to run|This module does not provide a test\(\) function)/ =~ test_output
 		File.delete(t.to_s+'.failed') if File.exists?(t.to_s+'.failed')
 		if ENV['verbose']

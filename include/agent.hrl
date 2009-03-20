@@ -61,7 +61,7 @@
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
 	integrated :: 'undefined' | pos_integer(),
-	profile :: string() | 'undefined'
+	profile = "Default" :: string()
 }).
 
 -record(agent_profile, {

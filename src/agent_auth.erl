@@ -62,7 +62,7 @@
 	get_profiles/0,
 	destroy_profile/1
 	]).
-%% API for relase options
+%% API for release options
 -export([
 	new_release/1,
 	destroy_release/1,
@@ -306,7 +306,7 @@ build_tables() ->
 		{atomic, ok} ->
 			F = fun() ->
 				% TODO what the heck is this?  A:  a default agent created if the table initially didn't.
-				mnesia:write(#agent_auth{login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english]})
+				mnesia:write(#agent_auth{login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english], profile="Default"})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 
@@ -333,7 +333,16 @@ build_tables() ->
 	]),
 	case C of
 		{atomic, ok} -> 
-			ok;
+			G = fun() ->
+				% TODO what the heck is this?  A:  a default agent created if the table initially didn't.
+				mnesia:write(?DEFAULT_PROFILE)
+			end,
+			case mnesia:transaction(G) of
+				{atomic, ok} -> 
+					ok;
+				Else2 -> 
+					Else2
+			end;
 		Ors -> 
 			Ors
 	end.

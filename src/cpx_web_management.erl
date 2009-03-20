@@ -71,39 +71,22 @@ stop() ->
 -spec(loop/3 :: (Req :: any(), Method :: string(), Path :: string()) -> any()).
 loop(Req, _Method, "/") -> 
 	Req:serve_file("index.html", "www/admin/");
-%loop(Req, _Method, "/queues") ->
-	%Queues = queue_manager:queues(),
-	%io:format("Queues:  ~p~n", [Queues]),
-	%Jqs = [{name, list_to_binary(Qname)} || {Qname, _Pid} <- Queues],
-	%io:format("Jqs:  ~p~n", [Jqs]),
-	%Struct = {struct, Jqs},
-	%io:format("Struct:  ~p~n", [Struct]),
-	%try mochijson2:encode(Struct) of 
-		%Out -> 
-			%io:format("Out:  ~p~n", [Out]),
-			%Req:ok({"text/html", Out})
-	%catch
-		%exit:{json_encode, {bad_term, Bad}} -> 
-			%io:format("Catching a json parse error of ~p because ~p is bad.~n", [exit, Bad]),
-			%Req:respond({500, [], "Bad Json term"})
-	%end;
+loop(Req, _Method, "/releaseoptions") ->
+	case agent_auth:get_releases() of
+		[] ->
+			Req:respond({500, [], <<"No release states">>});
+		ReleaseOptions ->
+			Req:respond({200, [], mochijson2:encode({struct, [{label, label}, {identifier, label}, {items, lists:foldl(fun(X, A) -> [A | {struct, [{label, list_to_binary(X#release_opt.label)}, {id, X#release_opt.id}, {bias, X#release_opt.bias}]}] end, [], ReleaseOptions)}]})})
+	end;
 loop(Req, _Method, "/agents") ->
-	QH = qlc:q([X || X <- mnesia:table(agent_auth)]),
+	QH = qlc:q([X || X <- mnesia:table(agent_auth)]), % X#agent_auth.integrated =:= undefined]),
 	F = fun() -> qlc:e(QH) end,
-	%?CONSOLE("foo ~p", [ qlc:e(QH)]),
 	case mnesia:transaction(F) of
 		{atomic, Agents} ->
-			try cpx_json:encode_trap({struct, [{identifier, login}, {label, login}, {items, Agents}]}) of
-				Out ->
-					io:format("Out:  ~p~n", [Out]),
-					Req:respond(Out)
-			catch
-			exit:{json_encode, {bad_term, Bad}} -> 
-				io:format("Catching a json parse error of ~p because ~p is bad.~n", [exit, Bad]),
-				Req:respond({500, [], "Bad Json term"})
-			end;
+			GroupedAgents = util:group_by(fun(X) -> X#agent_auth.profile end, Agents),
+			Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_agents_with_profiles(GroupedAgents)}]})});
 		Else ->
-			Req:respond({500, [], "No agents"})
+			Req:respond({500, [], <<"No agents">>})
 	end;
 loop(Req, _Method, "/skills") ->
 	Skills = util:group_by(fun(X) -> X#skill_rec.group end, call_queue_config:get_skills()),
@@ -174,7 +157,7 @@ encode_queues([Queue|Queues]) ->
 	[{struct, [{name, list_to_binary(Queue#call_queue.name)},
 			{type, queue}, {weight, Queue#call_queue.weight},
 			{skills, Queue#call_queue.skills},
-			{recipe, none}]} | encode_skills(Queues)].
+			{recipe, none}]} | encode_queues(Queues)].
 
 encode_queues_with_groups([]) ->
 	[];
@@ -187,4 +170,21 @@ encode_queues_with_groups([Group|Groups]) ->
 					{recipe, G#queue_group.recipe},
 					{children, encode_queues(Group)}]} | encode_queues_with_groups(Groups)]
 	end.
+
+encode_agents([]) ->
+	[];
+encode_agents([Agent|Agents]) ->
+	[{struct, [{name, list_to_binary(Agent#agent_auth.login)},
+			{type, agent}, {securitylevel, Agent#agent_auth.securitylevel},
+			{skills, Agent#agent_auth.skills}]} | encode_agents(Agents)].
+
+encode_agents_with_profiles([]) ->
+	[];
+encode_agents_with_profiles([Profile|Profiles]) ->
+	AnAgent = lists:nth(1, Profile),
+	{Name, Skills} = agent_auth:get_profile(AnAgent#agent_auth.profile),
+	[{struct, [{name, list_to_binary(Name)},
+			{type, profile}, 
+			{skills, Skills},
+			{children, encode_agents(Profile)}]} | encode_agents_with_profiles(Profiles)].
 

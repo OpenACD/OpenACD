@@ -97,8 +97,10 @@
 	new_skill/1,
 	new_skill/4,
 	skill_exists/1,
+	get_skill/1,
 	get_skills/0,
 	get_skills/1,
+	set_skill/2,
 	regroup_skills/2,
 	destroy_skill/1
 	]).
@@ -426,6 +428,35 @@ skill_exists(Skillname) when is_list(Skillname) ->
 		error:_Anyerror -> 
 			undefined
 	end.
+
+%% @doc get a single `#skill_rec{}'
+-spec(get_skill/1 :: (Skill :: atom()) -> #skill_rec{} | 'undefined').
+get_skill(Skill) when is_atom(Skill) ->
+	F = fun() ->
+		mnesia:read({skill_rec, Skill})
+	end,
+	case mnesia:transaction(F) of
+		{atomic, []} ->
+			undefined;
+		{atomic, [Skillrec]} ->
+			Skillrec
+	end.
+
+%% @doc updates the skill Old skill with the data in the Newrec; the atom remains unchanged
+-spec(set_skill/2 :: (Oldskill :: atom(), Newrec :: #skill_rec{}) -> {'atomic', 'ok'} | {'atomic', 'undefined'}).
+set_skill(Oldskill, Newrec) when is_atom(Oldskill), is_record(Newrec, skill_rec) ->
+	F = fun() ->
+		case mnesia:read({skill_rec, Oldskill}) of
+			[] ->
+				undefined;
+			[_Oldrec] ->
+				Forwrite = Newrec#skill_rec{atom = Oldskill},
+				mnesia:delete({skill_rec, Oldskill}),
+				mnesia:write(Forwrite),
+				ok
+		end
+	end,
+	mnesia:transaction(F).
 
 %% @doc Return `[#skill_rec{}]' in the system sorted by group
 -spec(get_skills/0 :: () -> [#skill_rec{}]).
@@ -1036,6 +1067,24 @@ skill_rec_test_() ->
 				"Change group, but group exists",
 				fun() ->
 					?assertEqual({error, {exists, "Magic"}}, regroup_skills("Language", "Magic"))
+				end
+			},
+			{
+				"get a single skill",
+				fun() ->
+					Test = #skill_rec{name="English", atom=english, description="English", group = "Language"},
+					?assertEqual(Test, get_skill(english))
+				end
+			},
+			{
+				"update a skill",
+				fun() ->
+					Original = #skill_rec{name="English", atom=english, description="English", group = "Language"},
+					New = #skill_rec{name="Newname", atom=testskill, description="Newdesc", group = "Newgroup"},
+					Result = #skill_rec{name="Newname", atom=english, description="Newdesc", group = "Newgroup"},
+					?assertEqual({atomic, ok}, set_skill(english, New)),
+					?assertEqual(Result, get_skill(english)),
+					?assertEqual(undefined, get_skill(testskill))
 				end
 			}
 		]

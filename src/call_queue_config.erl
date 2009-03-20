@@ -101,7 +101,7 @@
 	get_skills/0,
 	get_skills/1,
 	set_skill/2,
-	regroup_skills/2,
+	rename_skill_group/2,
 	destroy_skill/1
 	]).
 -export([
@@ -430,7 +430,15 @@ skill_exists(Skillname) when is_list(Skillname) ->
 	end.
 
 %% @doc get a single `#skill_rec{}'
--spec(get_skill/1 :: (Skill :: atom()) -> #skill_rec{} | 'undefined').
+-spec(get_skill/1 :: (Skill :: atom() | string()) -> #skill_rec{} | 'undefined').
+get_skill(Skill) when is_list(Skill) ->
+	try list_to_existing_atom(Skill) of
+		Anything ->
+			get_skill(Anything)
+	catch
+		error:_Anyerror ->
+			undefined
+	end;
 get_skill(Skill) when is_atom(Skill) ->
 	F = fun() ->
 		mnesia:read({skill_rec, Skill})
@@ -502,7 +510,7 @@ destroy_skill(Skillname) ->
 			mnesia:transaction(Del)
 	end.
 
-regroup_skills(Oldgroup, Newgroup) ->
+rename_skill_group(Oldgroup, Newgroup) ->
 	Testng = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.group =:= Newgroup]),
 		qlc:e(QH)
@@ -1055,7 +1063,7 @@ skill_rec_test_() ->
 						#skill_rec{name="English", atom=english, description="English", group = "Talky"},
 						#skill_rec{name="German", atom=german, description="German", group = "Talky"}
 					],
-					Rgres = regroup_skills("Language", "Talky"),
+					Rgres = rename_skill_group("Language", "Talky"),
 					Gottennew = get_skills("Talky"),
 					Gottenold = get_skills("Language"),
 					?assertEqual({atomic, ok}, Rgres),
@@ -1066,7 +1074,7 @@ skill_rec_test_() ->
 			{
 				"Change group, but group exists",
 				fun() ->
-					?assertEqual({error, {exists, "Magic"}}, regroup_skills("Language", "Magic"))
+					?assertEqual({error, {exists, "Magic"}}, rename_skill_group("Language", "Magic"))
 				end
 			},
 			{

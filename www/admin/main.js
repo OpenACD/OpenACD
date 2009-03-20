@@ -85,6 +85,19 @@ dojo.addOnLoad(function() {
 		var item = dijit.getEnclosingWidget(nodes[0]).item;
 		var newparent = dijit.byId("itemTree")._itemNodeMap[dijit.byId("itemTree").model.getIdentity(item)].getParent().item;
 		console.log("moved "+item.name+" into group "+newparent.name);
+		dojo.xhrPost( {
+			// The following URL must match that used to test the server.
+			url: "http://freecpx.dev:9999/update_skill",
+			handleAs: "json",
+			content: {atom: item.atom, group: newparent.name},
+			load: function(responseObject, ioArgs) {
+				// Now you can just use the object
+				console.dir(responseObject);  // Dump it to the console
+				console.dir(responseObject.cobblers[0].filling);  // Prints "peach"
+				return responseObject;
+				}
+			// More properties for xhrGet...
+		});
 	});
 });
 

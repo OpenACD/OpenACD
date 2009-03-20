@@ -109,6 +109,44 @@ loop(Req, _Method, "/skills") ->
 	Skills = util:group_by(fun(X) -> X#skill_rec.group end, call_queue_config:get_skills()),
 	?CONSOLE("struct: ~p", [{struct, [{items, encode_skills_with_groups(Skills)}]}]),
 	Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_skills_with_groups(Skills)}]})});
+loop(Req, Method, "/update_skill") ->
+	Post = Req:parse_post(),
+	?CONSOLE("POST: ~p", [Post]),
+	case proplists:get_value("atom", Post) of
+		undefined ->
+			Req:respond({500, [], <<"Missing skill atom">>});
+		AtomStr ->
+			case list_to_existing_atom(AtomStr) of
+				badarg ->
+					Req:respond({500, [], <<"Nonexistant skill atom">>});
+				Atom ->
+					case call_queue_config:get_skill(Atom) of
+						undefined ->
+							Req:respond({500, [], <<"Nonexistant skill atom">>});
+						Skill ->
+							NewSkill = lists:foldl(fun(X, A) -> case proplists:get_value(atom_to_list(X), Post) of
+											undefined ->
+												A;
+											Value ->
+												case X of
+													name ->
+														A#skill_rec{name = Value};
+													description ->
+														A#skill_rec{description = Value};
+													group ->
+														A#skill_rec{group = Value}
+												end
+										end
+								end, Skill, [name, description, group]),
+							case call_queue_config:set_skill(Atom, NewSkill) of
+								{atomic, ok} ->
+									Req:respond({200, [], <<"OK!">>});
+								_Else ->
+									Req:respond({500, [], <<"update failed">>})
+							end
+					end
+			end
+	end;
 loop(Req, _Method, "/queues") ->
 	Queues = util:group_by(fun(X) -> X#call_queue.group end, call_queue_config:get_queues()),
 	Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_queues_with_groups(Queues)}]})});
@@ -163,5 +201,5 @@ encode_queues_with_groups([]) ->
 encode_queues_with_groups([Group|Groups]) ->
 	AQueue = lists:nth(1, Group),
 	[{struct, [{name, list_to_binary(AQueue#call_queue.group)},
-			{type, group}, {protected, AQueue#call_queue.protected},
+			{type, group}, %{protected, AQueue#call_queue.protected},
 			{children, encode_queues(Group)}]} | encode_queues_with_groups(Groups)].

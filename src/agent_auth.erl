@@ -54,7 +54,14 @@
 
 %% API
 -export([start_link/5, start/5, start_link/0, start/0, stop/0, auth/3]).
--export([cache/3, cache/4, destroy/1, add_agent/4]).
+-export([cache/3, cache/4, destroy/1, add_agent/5]).
+-export([
+	new_profile/2,
+	set_profile/3,
+	get_profile/1,
+	get_profiles/0,
+	destroy_profile/1
+	]).
 %% API for relase options
 -export([
 	new_release/1,
@@ -131,6 +138,53 @@ get_releases() ->
 	end,
 	{atomic, Opts} = mnesia:transaction(F),
 	lists:sort(Opts).
+
+new_profile(Name, Skills) ->
+	Rec = #agent_profile{name = Name, skills = Skills},
+	F = fun() ->
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F).
+
+set_profile(Oldname, Newname, Skills) ->
+	Rec = #agent_profile{name = Newname, skills = Skills},
+	F = fun() ->
+		mnesia:delete({agent_profile, Oldname}),
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F).
+
+destroy_profile(Name) ->
+	F = fun() ->
+		mnesia:delete({agent_profile, Name})
+	end,
+	mnesia:transaction(F).
+
+get_profile(Name) ->
+	F = fun() ->
+		mnesia:read({agent_profile, Name})
+	end,
+	case mnesia:transaction(F) of
+		{atomic, []} ->
+			undefined;
+		{atomic, [Profile]} ->
+			{Profile#agent_profile.name, Profile#agent_profile.skills}
+	end.
+
+get_profiles() ->
+	F = fun() ->
+		QH = qlc:q([ X || X <- mnesia:table(agent_profile)]),
+		qlc:e(QH)
+	end,
+	{atomic, Profiles} = mnesia:transaction(F),
+	Convert = fun(Profile) ->
+		{Profile#agent_profile.name, Profile#agent_profile.skills}
+	end,
+	Cprofs = lists:map(Convert, Profiles),
+	Sort = fun({Name1, _Skills1}, {Name2, _Skills2}) ->
+		Name1 < Name2
+	end,
+	lists:sort(Sort, Cprofs).
 
 %%====================================================================
 %% gen_server callbacks
@@ -219,7 +273,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-%% @doc Base authentication function.  Does the appropriate gen_server:call.  Username, Password, and Salt are all expected to be of type `string()'.
+%% @doc Base authentication function.  Does the appropriate gen_server:call.  Username, Password, and Salt are 
+%% all expected to be of type `string()'.
 %% Password is an md5 hash of the salt and the md5 hash of the plain text password.  In pseudo code, password is
 %%
 %% <pre>md5(Salt + md5(password))</pre>
@@ -271,6 +326,16 @@ build_tables() ->
 			ok;
 		Otherwise ->
 			Otherwise
+	end,
+	C = util:build_table(agent_profile, [
+		{attributes, record_info(fields, agent_profile)},
+		{disc_copies, [node()]}
+	]),
+	case C of
+		{atomic, ok} -> 
+			ok;
+		Ors -> 
+			Ors
 	end.
 
 %% @doc Caches the passed `Username', `Password', `Skills', and `Security' type.  to the mnesia database.  
@@ -307,14 +372,16 @@ cache(Username, Password, Skills) ->
 
 %% @doc adds a user to the local cache bypassing the integrated at check.  Note that unlike {@link cache/4} this expects the password 
 %% in plain text!
--spec(add_agent/4 :: (Username :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor') -> 
-						{'atomic', 'ok'}).
-add_agent(Username, Password, Skills, Security) ->
+-spec(add_agent/5 :: 
+	(Username :: string(), Password :: string(), Skills :: [atom()], Security :: 'admin' | 'agent' | 'supervisor', Profile :: string()) -> 
+		{'atomic', 'ok'}).
+add_agent(Username, Password, Skills, Security, Profile) ->
 	Rec = #agent_auth{
 		login = Username,
 		password = util:bin_to_hexstr(erlang:md5(Password)),
 		skills = Skills,
-		securitylevel = Security},
+		securitylevel = Security,
+		profile = Profile},
 	F = fun() ->
 		mnesia:write(Rec)
 	end,
@@ -466,7 +533,7 @@ local_auth_test_() ->
 			{
 				"Add a user bypassing the cache",
 				fun() ->
-					?assertEqual({atomic, ok}, add_agent("A", "Pass", [testskill], agent)),
+					?assertEqual({atomic, ok}, add_agent("A", "Pass", [testskill], agent, undefined)),
 					Salt = "12345",
 					SaltedPassword = salt(erlang:md5("Pass"), Salt),
 					?assertMatch({allow, [testskill, '_agent', '_node'], agent}, local_auth("A", SaltedPassword, Salt)),
@@ -699,6 +766,76 @@ release_opt_test_() ->
 		]
 	}.
 
+profile_test_() ->
+	{
+		foreach,
+		fun() ->
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			build_tables()
+		end,
+		fun(_) -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()])
+		end,
+		[
+			{
+				"Add a profile",
+				fun() ->
+					F = fun() ->
+						QH = qlc:q([X || X <- mnesia:table(agent_profile), X#agent_profile.name =:= "test profile"]),
+						qlc:e(QH)
+					end,
+					?assertEqual({atomic, []}, mnesia:transaction(F)),
+					?assertEqual({atomic, ok}, new_profile("test profile", [testskill])),
+					Test = #agent_profile{name = "test profile", skills = [testskill]},
+					?assertEqual({atomic, [Test]}, mnesia:transaction(F))
+				end
+			},
+			{
+				"Update a profile",
+				fun() ->
+					new_profile("inital", [english]),
+					set_profile("initial", "new", [german]),
+					?assertEqual(undefined, get_profile("initial")),
+					?assertEqual({"new", [german]}, get_profile("new"))
+				end
+			},
+			{
+				"Remove a profile",
+				fun() ->
+					F = fun() ->
+						QH = qlc:q([X || X <- mnesia:table(agent_profile), X#agent_profile.name =:= "test profile"]),
+						qlc:e(QH)
+					end,
+					new_profile("test profile", [english]),
+					?assertEqual({atomic, [#agent_profile{name = "test profile", skills=[english]}]}, mnesia:transaction(F)),
+					?assertEqual({atomic, ok}, destroy_profile("test profile")),
+					?assertEqual({atomic, []}, mnesia:transaction(F))
+				end
+			},
+			{
+				"Get a profile",
+				fun() ->
+					?assertEqual(undefined, get_profile("noexists")),
+					new_profile("test profile", [testskill]),
+					?assertEqual({"test profile", [testskill]}, get_profile("test profile"))
+				end
+			},
+			{
+				"Get all profiles",
+				fun() ->
+					new_profile("B", [german]),
+					new_profile("A", [english]),
+					new_profile("C", [testskill]),
+					?assertEqual([{"A", [english]}, {"B", [german]}, {"C", [testskill]}], get_profiles())
+				end
+			}
+		]
+	}.
+	
 -define(MYSERVERFUNC, 
 	fun() -> 
 		mnesia:stop(),

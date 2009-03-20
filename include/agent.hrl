@@ -60,8 +60,16 @@
 	password :: string(),
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
-	integrated :: 'undefined' | pos_integer()
+	integrated :: 'undefined' | pos_integer(),
+	profile :: string() | 'undefined'
 }).
+
+-record(agent_profile, {
+	name = erlang:error({undefined, name}) :: string(),
+	skills = [] :: [atom()]
+}).
+
+-define(DEFAULT_PROFILE, #agent_profile{name = "Default"}).
 
 -record(release_opt, {
 	label :: string(),

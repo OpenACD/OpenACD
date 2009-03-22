@@ -44,13 +44,17 @@
 
 -define(PORT, 5050).
 -define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
-
+-define(MOCHI_NAME, aweb_mochi).
 %% API
 -export([start_link/1, start/1, start/0, start_link/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
+
+-type(salt() :: string() | 'undefined').
+-type(connection_handler() :: pid() | 'undefined').
+-type(web_connection() :: {string(), salt(), connection_handler()}).
 
 -record(state, {
 	connections, % ets table of the connections
@@ -60,78 +64,61 @@
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
 
 start() -> 
 	start(?PORT).
 
 start(Port) -> 
-	gen_server:start(?MODULE, [Port], []).
+	gen_server:start({local, ?MODULE}, ?MODULE, [Port], []).
 	
 start_link() ->
 	start_link(?PORT).
 
 start_link(Port) -> 
-    gen_server:start_link(?MODULE, [Port], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []).
 
+stop() ->
+	gen_server:call(?MODULE, stop).
+	
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 init([Port]) ->
+	?CONSOLE("Starting on port ~p", [Port]),
 	Table = ets:new(web_connections, [set, public, named_table]),
-	{ok, Mochi} = mochiweb_http:start([{loop, fun(Req) -> loop(Req, Table) end}, {name, ?MODULE}, {port, Port}]),
+	Pmochie = mochiweb_http:start([{loop, fun(Req) -> loop(Req, Table) end}, {name, ?MOCHI_NAME}, {port, Port}]),
+	?CONSOLE("pmochi ~p", [Pmochie]),
+	{ok, Mochi} = Pmochie,
     {ok, #state{connections=Table, mochipid = Mochi}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+handle_call(stop, _From, State) ->
+	{stop, normal, ok, State};
+handle_call(Request, _From, State) ->
+    {reply, {unknown_call, Request}, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(_Info, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(Reason, _State) ->
+	?CONSOLE("Terminating ~p", [Reason]),
+	mochiweb_socket_server:stop(?MOCHI_NAME),
+	ets:delete(web_connections),
     ok.
 
 %%--------------------------------------------------------------------
@@ -156,13 +143,35 @@ code_change(_OldVsn, State, _Extra) ->
 %% otherwise the request is denied.
 loop(Req, Table) -> 
 	?CONSOLE("loop start",[]),
+	
+	
 	Path = Req:get(path),
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
-			Req:serve_file(File, Docroot);
-		{api, _Any} ->
-			Req:respond({501, [], mochijson2:encode({struct, [{success, false},{message, <<"Not yet implemented!">>}]})})
+			case Req:parse_cookie() of
+				[{"cpx_id", Reflist}] ->
+					Req:serve_file(File, Docroot);
+				[] ->
+					Reflist = erlang:ref_to_list(make_ref()),
+					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
+					ets:insert(Table, {Reflist, undefined, undefined}),
+					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}]);
+				Allelse ->
+					Req:respond({403, [], io_lib:format("Invalid cookie: ~p", [Allelse])})
+			end
 	end.
+		
+		%{api, getsalt} ->
+%			
+%
+%
+%
+%
+%
+%		{api, 
+%		{api, _Any} ->
+%			Req:respond({501, [], mochijson2:encode({struct, [{success, false},{message, <<"Not yet implemented!">>}]})})
+%	end.
 	
 	
 	
@@ -204,6 +213,10 @@ loop(Req, Table) ->
 %			end
 %	end.
 
+%% @doc determine if hte given cookie data is valid
+check_cookie(Cookie) ->
+	ok.
+
 %% @doc determine if the given path is an api call, or if it's a file request.
 parse_path(Path) ->
 	% easy tests first.
@@ -232,7 +245,6 @@ parse_path(Path) ->
 					{api, {err, Counter, Message}};
 				_Allother ->
 					% is there an actual file to serve?
-					%Rpath = string:strip(Path, left, $/),
 					case filelib:is_regular(string:concat("www/agent", Path)) of
 						true ->
 							{file, {string:strip(Path, left, $/), "www/agent/"}};
@@ -242,3 +254,11 @@ parse_path(Path) ->
 			end
 	end.
 
+-ifdef(EUNIT).
+
+-define(MYSERVERFUNC, fun() -> {ok, _Pid} = start_link(), {?MODULE, fun() -> stop() end} end).
+
+-include("gen_server_test.hrl").
+
+
+-endif.

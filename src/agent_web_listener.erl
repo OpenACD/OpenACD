@@ -47,7 +47,7 @@
 -define(MOCHI_NAME, aweb_mochi).
 
 %% API
--export([start_link/1, start/1, start/0, start_link/0]).
+-export([start_link/1, start/1, start/0, start_link/0, stop/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -146,7 +146,7 @@ loop(Req, Table) ->
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
 			case Req:parse_cookie() of
-				[{"cpx_id", Reflist}] ->
+				[{"cpx_id", _Reflist}] ->
 					Req:serve_file(File, Docroot);
 				[] ->
 					Reflist = erlang:ref_to_list(make_ref()),
@@ -163,7 +163,37 @@ loop(Req, Table) ->
 				badcookie ->
 					Req:response({403, [], io_lib:format("Invalid cookie for api request.  Trying to to the index first.")});
 				{Reflist, Salt, Conn} ->
-					ok
+					%% okay, now to handle the api stuff.
+					case Apirequest of
+						getsalt ->
+							Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
+							ets:insert(web_connections, {Reflist, Newsalt, Conn}),
+							Req:response({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt poperty">>}, {salt, list_to_binary(Newsalt)}]})});
+						login ->
+							case Salt of
+								undefined ->
+									Req:response({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})});
+								Salt ->
+									case agent_web_connection:start_link(Req:parse_post(), Salt) of
+										{ok, Pid} ->
+											ets:insert(web_connections, {Reflist, Salt, Pid}),
+											Req:response({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})});
+										ignore ->
+											Req:response({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})});
+										{error, _Error} ->
+											Req:response({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login err">>}]})})
+									end
+							end;
+						%% everying else, we need an actual connection to handle
+						Apirequest ->
+							case Conn of
+								undefined ->
+									Req:response({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login required">>}]})});
+								Conn ->
+									Response = agent_web_connection:api(Conn, Apirequest),
+									Req:respone(Response)
+							end
+					end
 			end
 	end.
 		
@@ -220,6 +250,7 @@ loop(Req, Table) ->
 %	end.
 
 %% @doc determine if hte given cookie data is valid
+-spec(check_cookie/1 :: ([{string(), string()}]) -> 'badcookie' | web_connection()).
 check_cookie([]) ->
 	badcookie;
 check_cookie([{"cpx_id", Reflist}]) ->
@@ -229,7 +260,7 @@ check_cookie([{"cpx_id", Reflist}]) ->
 		[{Reflist, Salt, Conn}] ->
 			{Reflist, Salt, Conn}
 	end;
-check_cookie(Allothers) ->
+check_cookie(_Allothers) ->
 	badcookie.
 
 
@@ -247,7 +278,7 @@ parse_path(Path) ->
 			{api, login};
 		"/getsalt" ->
 			{api, getsalt};
-		Other ->
+		_Other ->
 			case util:string_split(Path, "/") of 
 				["", "state", Statename] ->
 					{api, {set_state, Statename}};

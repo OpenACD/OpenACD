@@ -87,9 +87,7 @@ stop() ->
 init([Port]) ->
 	?CONSOLE("Starting on port ~p", [Port]),
 	Table = ets:new(web_connections, [set, public, named_table]),
-	Pmochie = mochiweb_http:start([{loop, fun(Req) -> loop(Req, Table) end}, {name, ?MOCHI_NAME}, {port, Port}]),
-	?CONSOLE("pmochi ~p", [Pmochie]),
-	{ok, Mochi} = Pmochie,
+	{ok, Mochi} = mochiweb_http:start([{loop, fun(Req) -> loop(Req, Table) end}, {name, ?MOCHI_NAME}, {port, Port}]),
     {ok, #state{connections=Table, mochipid = Mochi}}.
 
 %%--------------------------------------------------------------------
@@ -255,6 +253,33 @@ parse_path(Path) ->
 	end.
 
 -ifdef(EUNIT).
+
+-define(PATH_TEST_SET, [
+		{"/", {file, {"index.html", "www/agent/"}}},
+		{"/poll", {api, poll}},
+		{"/logout", {api, logout}},
+		{"/login", {api, login}},
+		{"/getsalt", {api, getsalt}},
+		{"/state/teststate", {api, {set_state, "teststate"}}},
+		{"/state/teststate/statedata", {api, {set_state, "teststate", "statedata"}}},
+		{"/ack/7", {api, {ack, "7"}}},
+		{"/err/89", {api, {err, "89"}}},
+		{"/err/74/testmessage", {api, {err, "74", "testmessage"}}},
+		{"/index.html", {file, {"index.html", "www/agent/"}}},
+		{"/otherfile.ext", {file, {"otherfile.ext", "www/contrib/"}}},
+		{"/other/path", {file, {"other/path", "www/contrib/"}}}
+	]
+).
+
+path_parse_test_() ->
+	{generator,
+	fun() ->
+		Test = fun({Path, Expected}) ->
+			Name = string:concat("Testing path ", Path),
+			{Name, fun() -> ?assertEqual(Expected, parse_path(Path)) end}
+		end,
+		lists:map(Test, ?PATH_TEST_SET)
+	end}.
 
 -define(MYSERVERFUNC, fun() -> {ok, _Pid} = start_link(), {?MODULE, fun() -> stop() end} end).
 

@@ -45,6 +45,7 @@
 -define(PORT, 5050).
 -define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
 -define(MOCHI_NAME, aweb_mochi).
+
 %% API
 -export([start_link/1, start/1, start/0, start_link/0]).
 
@@ -141,8 +142,6 @@ code_change(_OldVsn, State, _Extra) ->
 %% otherwise the request is denied.
 loop(Req, Table) -> 
 	?CONSOLE("loop start",[]),
-	
-	
 	Path = Req:get(path),
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
@@ -156,6 +155,15 @@ loop(Req, Table) ->
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}]);
 				Allelse ->
 					Req:respond({403, [], io_lib:format("Invalid cookie: ~p", [Allelse])})
+			end;
+		{api, Apirequest} ->
+			% actions that don't care about the cookie
+			% that would be none
+			case check_cookie(Req:parse_cookie()) of
+				badcookie ->
+					Req:response({403, [], io_lib:format("Invalid cookie for api request.  Trying to to the index first.")});
+				{Reflist, Salt, Conn} ->
+					ok
 			end
 	end.
 		
@@ -212,8 +220,18 @@ loop(Req, Table) ->
 %	end.
 
 %% @doc determine if hte given cookie data is valid
-check_cookie(Cookie) ->
-	ok.
+check_cookie([]) ->
+	badcookie;
+check_cookie([{"cpx_id", Reflist}]) ->
+	case ets:lookup(web_connections, Reflist) of
+		[] ->
+			badcookie;
+		[{Reflist, Salt, Conn}] ->
+			{Reflist, Salt, Conn}
+	end;
+check_cookie(Allothers) ->
+	badcookie.
+
 
 %% @doc determine if the given path is an api call, or if it's a file request.
 parse_path(Path) ->
@@ -280,6 +298,35 @@ path_parse_test_() ->
 		end,
 		lists:map(Test, ?PATH_TEST_SET)
 	end}.
+
+cookie_check_test_() ->
+	[
+		{"A blanke cookie",
+		fun() ->
+			?assertEqual(badcookie, check_cookie([]))
+		end},
+		{"An invalid cookie",
+		fun() ->
+			?assertEqual(badcookie, check_cookie([{"cookiekey", "cookievalue"}]))
+		end},
+		{"A well formed cookie, but not in ets",
+		fun() ->
+			ets:new(web_connections, [set, public, named_table]),
+			Reflist = erlang:ref_to_list(make_ref()),
+			?assertEqual(badcookie, check_cookie([{"cpx_id", Reflist}])),
+			ets:delete(web_connections)
+		end},
+		{"A well formed cookie in the ets",
+		fun() ->
+			ets:new(web_connections, [set, public, named_table]),
+			Reflist = erlang:ref_to_list(make_ref()),
+			ets:insert(web_connections, {Reflist, undefined, undefined}),
+			?assertEqual({Reflist, undefined, undefined}, check_cookie([{"cpx_id", Reflist}])),
+			ets:delete(web_connections)
+		end}
+	].
+	
+	
 
 -define(MYSERVERFUNC, fun() -> {ok, _Pid} = start_link(), {?MODULE, fun() -> stop() end} end).
 

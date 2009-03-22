@@ -6,7 +6,7 @@
 -module(mochiweb_cookies).
 -export([parse_cookie/1, cookie/3, cookie/2, test/0]).
 
--define(QUOTE, $\").
+-define(QUOTE, $\"). %"
 
 -define(IS_WHITESPACE(C),
         (C =:= $\s orelse C =:= $\t orelse C =:= $\r orelse C =:= $\n)).
@@ -17,7 +17,7 @@
          C =:= $\s orelse C =:= $\t orelse
          C =:= $( orelse C =:= $) orelse C =:= $< orelse C =:= $> orelse
          C =:= $@ orelse C =:= $, orelse C =:= $; orelse C =:= $: orelse
-         C =:= $\\ orelse C =:= $\" orelse C =:= $/ orelse
+         C =:= $\\ orelse C =:= $\" orelse C =:= $/ orelse %"
          C =:= $[ orelse C =:= $] orelse C =:= $? orelse C =:= $= orelse
          C =:= ${ orelse C =:= $})).
 

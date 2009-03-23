@@ -161,7 +161,7 @@ loop(Req, Table) ->
 			% that would be none
 			case check_cookie(Req:parse_cookie()) of
 				badcookie ->
-					Req:response({403, [], io_lib:format("Invalid cookie for api request.  Trying to to the index first.")});
+					Req:response({403, [], io_lib:format("Invalid cookie for api request.  Trying going to the index first.")});
 				{Reflist, Salt, Conn} ->
 					%% okay, now to handle the api stuff.
 					case Apirequest of

@@ -46,7 +46,7 @@
 -include("agent.hrl").
 
 %% API
--export([start_link/3, start/3, stop/1, request/4]).
+-export([start_link/2, start/2, stop/1, api/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -73,11 +73,33 @@
 %%--------------------------------------------------------------------
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start_link(Post, Ref, Table) ->
-    gen_server:start_link(?MODULE, [Post, Ref, Table], [{timeout, 10000}]).
+start_link(Post, Salt) ->
+	Username = proplists:get_value("username", Post, ""),
+	Password = proplists:get_value("password", Post, ""),
+	case agent_auth:auth(Username, Password, Salt) of
+		deny ->
+			{stop, badlogin};
+		{allow, Skills, Security} ->
+			Agent = #agent{login = Username, skills = Skills},
+			gen_server:start_link(?MODULE, [Agent, Security], [{timeout, 10000}])
+	end.
 	
-start(Post, Ref, Table) -> 
-	gen_server:start(?MODULE, [Post, Ref, Table], [{timeout, 10000}]).
+start(Post, Salt) ->
+	Username = proplists:get_value("username", Post, ""),
+	Password = proplists:get_value("password", Post, ""),
+	case agent_auth:auth(Username, Password, Salt) of
+		deny ->
+			{stop, badlogin};
+		{allow, Skills, Security} ->
+			Agent = #agent{login = Username, skills = Skills}, 
+			gen_server:start(?MODULE, [Agent, Security], [{timeout, 10000}])
+	end.
+
+stop(Pid) ->
+	gen_server:call(Pid, stop).
+
+api(Pid, Apicall) ->
+	gen_server:call(Pid, Apicall).
 
 %%====================================================================
 %% gen_server callbacks
@@ -86,99 +108,132 @@ start(Post, Ref, Table) ->
 %%--------------------------------------------------------------------
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Post, Ref, Table]) ->
+init([Agent, Security]) ->
 	?CONSOLE("web_connection init", []),
-	%io:format("Post: ~p~nRef: ~p~nTable: ~p~n", [Post, Ref, Table]),
-	case Post of
-		[{"username", User},{"password", Passwrd}] -> 
-			% io:format("seems like a well formed post~n"),
-			Self = self(),
-			% TODO add salt support
-			case agent_auth:auth(User, Passwrd, "replacethiswithpropersalt") of
-				deny -> 
-					{stop, "Login Denied"};
-				{allow, Skills, Security} ->
-					Agent = #agent{login=User, skills=Skills},
-			
-					% io:format("if they are already logged in, update the reference~n"),
-					Result = ets:match(Table, {'$1', '$2', User}),
-					%io:format("restults:~p~n", [Result]),
-					lists:map(fun([_R, P]) -> ?MODULE:stop(P) end, Result),
-					ets:insert(Table, {erlang:ref_to_list(Ref), Self, User}),
-					
-					% start the agent and associate it with self
-					{_Reply, Apid} = agent_manager:start_agent(Agent),
-					case agent:set_connection(Apid, Self) of
-						error -> 
-							{stop, "User could not be started"};
-						_Otherwise -> 
-							% start the ack timer
-							{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
-							{ok, #state{agent_fsm = Apid, ref = Ref, table = Table, ack_timer = Tref, securitylevel = Security}}
-					end%;
-				%_Other ->
-				%	{stop, "500 internal server error"}
-			end;
-		_Other -> 
-			% io:format("all other posts~n"),
-			{stop, "Invalid Post data"}
+	{ok, Apid} = agent_manager:start_agent(Agent),
+	case agent:set_connection(Apid, self()) of
+		error ->
+			{stop, "Agent could not be started"};
+		_Else ->
+			{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
+			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security}}
 	end.
+
+
+%	case Post of
+%		[{"username", User},{"password", Passwrd}] -> 
+%			% io:format("seems like a well formed post~n"),
+%			Self = self(),
+%			% TODO add salt support
+%			case agent_auth:auth(User, Passwrd, "replacethiswithpropersalt") of
+%				deny -> 
+%					{stop, "Login Denied"};
+%				{allow, Skills, Security} ->
+%					Agent = #agent{login=User, skills=Skills},
+%			
+%					% io:format("if they are already logged in, update the reference~n"),
+%					Result = ets:match(Table, {'$1', '$2', User}),
+%					%io:format("restults:~p~n", [Result]),
+%					lists:map(fun([_R, P]) -> ?MODULE:stop(P) end, Result),
+%					ets:insert(Table, {erlang:ref_to_list(Ref), Self, User}),
+%					
+%					% start the agent and associate it with self
+%					{_Reply, Apid} = agent_manager:start_agent(Agent),
+%					case agent:set_connection(Apid, Self) of
+%						error -> 
+%							{stop, "User could not be started"};
+%						_Otherwise -> 
+%							% start the ack timer
+%							{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
+%							{ok, #state{agent_fsm = Apid, ref = Ref, table = Table, ack_timer = Tref, securitylevel = Security}}
+%					end%;
+%				%_Other ->
+%				%	{stop, "500 internal server error"}
+%			end;
+%		_Other -> 
+%			% io:format("all other posts~n"),
+%			{stop, "Invalid Post data"}
+%	end.
 
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
-	{stop, normal, ok, State};
-handle_call({request, {"/logout", _Post, _Cookie}}, _From, State) -> 
-	{stop, normal, {200, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, true}, {message, <<"Logout completed">>}]})}, State};
-handle_call({request, {"/poll", _Post, _Cookie}}, _From, State) -> 
-	?CONSOLE("poll called",[]),
+	{stop, shutdown, ok, State};
+handle_call(poll, _From, #state{poll_queue = Pollq} = State) ->
 	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
-	Pollq = State#state.poll_queue,
 	Json = [{struct, [{counter, Counter}, {tried, Tried}, {type, Type}, {data, Data}]} || {Counter, Tried, Type, Data} <- Pollq],
 	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, Json}]},
-	%io:format("json:  ~p~n", [Json]),
-	{reply, cpx_json:encode_trap(Json2), State2};
-handle_call({request, {Path, Post, Cookie}}, _From, State) -> 
-	%io:format("all other requests~n"),
-	case util:string_split(Path, "/") of 
-		["", "state", Statename] -> 
-			?CONSOLE("trying to change to ~p", [Statename]),
-			case agent:set_state(State#state.agent_fsm, list_to_existing_atom(Statename)) of
-				ok -> 
-					Data = {struct, [{success, true}, {state, list_to_existing_atom(Statename)}]},
-					{reply, cpx_json:encode_trap(Data), State};
-				_Else -> 
-					{reply, {200, [], mochijson2:encode({struct, [{success, false}]})}, State}
-			end;
-		["", "state", Statename, Statedata] -> 
-			?CONSOLE("trying to change to ~p with data ~p", [Statename, Statedata]),
-			case agent:set_state(State#state.agent_fsm, list_to_atom(Statename), Statedata) of 
-				ok -> 
-					{reply, cpx_json:encode_trap({struct, [{success, true}, {state, list_to_existing_atom(Statename)}, {data, Statedata}]}), State};
-				_Else -> 
-					{reply, cpx_json:encode_trap({struct, [{success, false}, {message, <<"Invalid state">>}]}), State}
-			end;
-		["", "ack", Counter] -> 
-			?CONSOLE("you are acking~p", [Counter]),
-			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
-			State2 = State#state{ack_queue = Ackq},
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
-		["", "err", Counter] -> 
-			?CONSOLE("you are erroring~p", [Counter]),
-			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
-			State2 = State#state{ack_queue = Ackq},
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
-		["", "err", Counter, Message] -> 
-			?CONSOLE("you are erroring ~p with message ~p", [Counter, Message]),
-			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
-			State2 = State#state{ack_queue = Ackq},
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
-		_Allelse -> 
-			?CONSOLE("I have no idea what you are talking about.", []),
-			{reply, {501, [], io_lib:format("Cannot handle request of Path ~p, Post ~p, with Cookie: ~p\", path:\"~p\", post:\"~p\", cookie:\"~p", [Path, Post, Cookie, Path, Post, Cookie])}, State}
-	end.
+	{reply, {200, [], cpx_json:encode(Json2)}, State};
+handle_call(logout, _From, State) ->
+	{reply, ok, State};
+handle_call({set_state, Statename}, _From, State) ->
+	{reply, ok, State};
+handle_call({set_state, Statename, Statedata}, _From, State) ->
+	{reply, ok, State};
+handle_call({ack, Counter}, _From, State) ->
+	{reply, ok, State};
+handle_call({err, Counter}, _From, State) ->
+	{reply, ok, State};
+handle_call({err, Counter, Message}, _From, State) ->
+	{reply, ok, State};
+handle_call(Allothers, _From, State) ->
+	{reply, {unknown_call, Allothers}, State}.
+	
+	
+	
+	
+	%
+%handle_call({request, {"/logout", _Post, _Cookie}}, _From, State) -> 
+%	{stop, normal, {200, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, true}, {message, <<"Logout completed">>}]})}, State};
+%handle_call({request, {"/poll", _Post, _Cookie}}, _From, State) -> 
+%	?CONSOLE("poll called",[]),
+%	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
+%	Pollq = State#state.poll_queue,
+%	Json = [{struct, [{counter, Counter}, {tried, Tried}, {type, Type}, {data, Data}]} || {Counter, Tried, Type, Data} <- Pollq],
+%	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, Json}]},
+%	%io:format("json:  ~p~n", [Json]),
+%	{reply, cpx_json:encode_trap(Json2), State2};
+%handle_call({request, {Path, Post, Cookie}}, _From, State) -> 
+%	%io:format("all other requests~n"),
+%	case util:string_split(Path, "/") of 
+%		["", "state", Statename] -> 
+%			?CONSOLE("trying to change to ~p", [Statename]),
+%			case agent:set_state(State#state.agent_fsm, list_to_existing_atom(Statename)) of
+%				ok -> 
+%					Data = {struct, [{success, true}, {state, list_to_existing_atom(Statename)}]},
+%					{reply, cpx_json:encode_trap(Data), State};
+%				_Else -> 
+%					{reply, {200, [], mochijson2:encode({struct, [{success, false}]})}, State}
+%			end;
+%		["", "state", Statename, Statedata] -> 
+%			?CONSOLE("trying to change to ~p with data ~p", [Statename, Statedata]),
+%			case agent:set_state(State#state.agent_fsm, list_to_atom(Statename), Statedata) of 
+%				ok -> 
+%					{reply, cpx_json:encode_trap({struct, [{success, true}, {state, list_to_existing_atom(Statename)}, {data, Statedata}]}), State};
+%				_Else -> 
+%					{reply, cpx_json:encode_trap({struct, [{success, false}, {message, <<"Invalid state">>}]}), State}
+%			end;
+%		["", "ack", Counter] -> 
+%			?CONSOLE("you are acking~p", [Counter]),
+%			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
+%			State2 = State#state{ack_queue = Ackq},
+%			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
+%		["", "err", Counter] -> 
+%			?CONSOLE("you are erroring~p", [Counter]),
+%			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
+%			State2 = State#state{ack_queue = Ackq},
+%			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
+%		["", "err", Counter, Message] -> 
+%			?CONSOLE("you are erroring ~p with message ~p", [Counter, Message]),
+%			Ackq = dict:erase(list_to_integer(Counter), State#state.ack_queue),
+%			State2 = State#state{ack_queue = Ackq},
+%			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State2};
+%		_Allelse -> 
+%			?CONSOLE("I have no idea what you are talking about.", []),
+%			{reply, {501, [], io_lib:format("Cannot handle request of Path ~p, Post ~p, with Cookie: ~p\", path:\"~p\", post:\"~p\", cookie:\"~p", [Path, Post, Cookie, Path, Post, Cookie])}, State}
+%	end.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
@@ -190,15 +245,6 @@ handle_cast({change_state, ringing, #call{} = Call}, State) ->
 	C2 = {Counter+2, 0, 'CALLINFO', Call},
 	Newpoll = lists:append(State#state.poll_queue, [C1, C2]),
 	{noreply, State#state{counter = Counter + 2, poll_queue = Newpoll}};
-
-
-
-
-
-
-
-
-
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -273,14 +319,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-
-stop(Pid) -> 
-	gen_server:call(Pid, stop).
-
-%% @doc This conviently ships the data over to handle_call.
-request(Pid, Path, Post, Cookie) -> 
-	% io:format("~p:request called~n", [?MODULE]),
-	gen_server:call(Pid, {request, {Path, Post, Cookie}}).
 	
 build_acks([], Acks) -> 
 	Acks;
@@ -292,3 +330,34 @@ build_poll([], Pollqueue, Runningcount) ->
 	{Pollqueue, Runningcount};
 build_poll([{_Counter, {Tried, Type, Data}} | Ackqueue], Pollqueue, Runningcount) -> 
 	build_poll(Ackqueue, lists:append(Pollqueue, [{Runningcount+1, Tried+1, Type, Data}]), Runningcount+1).
+
+-ifdef(TEST).
+
+-define(MYSERVERFUNC, 
+	fun() ->
+		["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		Passwd = util:bin_to_hexstr(erlang:md5("Password123")),
+		Saltedpasswd = util:bin_to_hexstr(erlang:md5(string:concat("12345", Passwd))),
+		Post = [{"username", "agent"},{"password", Saltedpasswd}],
+		agent_manager:start([node()]),
+		agent_auth:start(),
+		{ok, Pid} = start_link(Post, "12345"),
+		Stopfun = fun() ->
+			stop(Pid),
+			agent_auth:stop(),
+			agent_manager:stop(),
+			mnesia:stop(),
+			mnesia:delete_schema([node()])
+		end,
+		{Pid, Stopfun}
+	end
+).
+
+-include("gen_server_test.hrl").
+
+
+-endif.

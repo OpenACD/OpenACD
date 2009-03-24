@@ -87,6 +87,7 @@ stop() ->
 
 init([Port]) ->
 	?CONSOLE("Starting on port ~p", [Port]),
+	crypto:start(),
 	Table = ets:new(web_connections, [set, public, named_table]),
 	{ok, Mochi} = mochiweb_http:start([{loop, fun(Req) -> loop(Req, Table) end}, {name, ?MOCHI_NAME}, {port, Port}]),
     {ok, #state{connections=Table, mochipid = Mochi}}.
@@ -95,7 +96,7 @@ init([Port]) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
-	{stop, normal, ok, State};
+	{stop, shutdown, ok, State};
 handle_call(Request, _From, State) ->
     {reply, {unknown_call, Request}, State}.
 
@@ -154,44 +155,46 @@ loop(Req, Table) ->
 					ets:insert(Table, {Reflist, undefined, undefined}),
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}]);
 				Allelse ->
-					Req:respond({403, [], io_lib:format("Invalid cookie: ~p", [Allelse])})
+					Out = io_lib:format("Invalid cookie: ~p", [Allelse]),
+					Req:respond({403, [], Out})
 			end;
 		{api, Apirequest} ->
 			% actions that don't care about the cookie
 			% that would be none
 			case check_cookie(Req:parse_cookie()) of
 				badcookie ->
-					Req:response({403, [], io_lib:format("Invalid cookie for api request.  Trying going to the index first.")});
+					Req:respond({403, [], io_lib:format("Invalid cookie for api request.  Trying going to the index first.")});
 				{Reflist, Salt, Conn} ->
 					%% okay, now to handle the api stuff.
 					case Apirequest of
 						getsalt ->
 							Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
 							ets:insert(web_connections, {Reflist, Newsalt, Conn}),
-							Req:response({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt poperty">>}, {salt, list_to_binary(Newsalt)}]})});
+							?CONSOLE("About to respond...", []),
+							Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})});
 						login ->
 							case Salt of
 								undefined ->
-									Req:response({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})});
+									Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})});
 								Salt ->
 									case agent_web_connection:start_link(Req:parse_post(), Salt) of
 										{ok, Pid} ->
 											ets:insert(web_connections, {Reflist, Salt, Pid}),
-											Req:response({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})});
+											Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})});
 										ignore ->
-											Req:response({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})});
+											Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})});
 										{error, _Error} ->
-											Req:response({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login err">>}]})})
+											Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login err">>}]})})
 									end
 							end;
 						%% everying else, we need an actual connection to handle
 						Apirequest ->
 							case Conn of
 								undefined ->
-									Req:response({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login required">>}]})});
+									Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login required">>}]})});
 								Conn ->
 									Response = agent_web_connection:api(Conn, Apirequest),
-									Req:respone(Response)
+									Req:respond(Response)
 							end
 					end
 			end
@@ -302,6 +305,85 @@ parse_path(Path) ->
 	end.
 
 -ifdef(EUNIT).
+
+cooke_file_test_() ->
+	{
+		foreach,
+		fun() ->
+			agent_web_listener:start(),
+			inets:start(),
+			{ok, Httpc} = inets:start(httpc, [{profile, test_prof}]),
+			Httpc
+		end,
+		fun(Httpc) ->
+			inets:stop(httpc, Httpc),
+			inets:stop(),
+			agent_web_listener:stop()
+		end,
+		[
+			fun(_Httpc) ->
+				{"Get a cookie on index page request",
+				fun() ->
+					{ok, Result} = http:request("http://127.0.0.1:5050/"),
+					?assertMatch({_Statusline, _Headers, _Boddy}, Result),
+					{_Line, Head, _Body} = Result,
+					Cookie = proplists:get_value("set-cookie", Head),
+					?assertNot(undefined =:= Cookie)
+				end}
+			end,
+			fun(_Httpc) ->
+				{"Try to get a page with a bad cookie",
+				fun() ->
+					{ok, {{_Httpver, Code, _Message}, _Head, Body}} = http:request(get, {"http://127.0.0.1:5050/", [{"Cookie", "goober=snot"}]}, [], []),
+					?assertEqual("Invalid cookie: [{\"goober\",\"snot\"}]", Body),
+					?assertEqual(403, Code)
+				end}
+			end,
+			fun(_Httpc) ->
+				{"Get a cookie, then a request with that cookie",
+				fun() ->
+					{ok, {_Statusline, Head, _Body}} = http:request("http://127.0.0.1:5050/"),
+					Cookie = proplists:get_value("set-cookie", Head),
+					{ok, {{_Httpver, Code, _Message}, Head2, _Body2}} = http:request(get, {"http://127.0.0.1:5050", [{"Cookie", Cookie}]}, [], []),
+					Cookie2 = proplists:get_value("set-cookie", Head2),
+					?assertEqual(undefined, Cookie2),
+					?assertEqual(200, Code)
+				end}
+			end
+		]
+	}.
+
+cookie_api_test_() ->
+	{
+		foreach,
+		fun() ->
+			agent_web_listener:start(),
+			inets:start(),
+			{ok, Httpc} = inets:start(httpc, [{profile, test_prof}]),
+			{ok, {_Statusline, Head, _Body}} = http:request("http://127.0.0.1:5050"),
+			Cookie = proplists:get_value("set-cookie", Head),
+			{Httpc, Cookie}
+		end,
+		fun({Httpc, _Cookie}) ->
+			inets:stop(httpc, Httpc),
+			inets:stop(),
+			agent_web_listener:stop()
+		end,
+		[
+			fun({_Httpc, Cookie}) ->
+				{"Get a salt with a valid cookie",
+				fun() ->
+					{ok, {{_Ver, Code, _Msg}, _Head, Body}} = http:request(get, {"http://127.0.0.1:5050/getsalt", [{"Cookie", Cookie}]}, [], []),
+					?CONSOLE("body:  ~p", [Body]),
+					{struct, Pairs} = mochijson2:decode(Body),
+					?assertEqual(200, Code),
+					?assertEqual(true, proplists:get_value(<<"success">>, Pairs)),
+					?assertEqual(<<"Salt created, check salt property">>, proplists:get_value(<<"message">>, Pairs)),
+					?assertNot(undefined =:= proplists:get_value(<<"salt">>, Pairs))
+				end}
+			end
+		]
+	}.
 
 -define(PATH_TEST_SET, [
 		{"/", {file, {"index.html", "www/agent/"}}},

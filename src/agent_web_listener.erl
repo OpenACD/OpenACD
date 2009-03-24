@@ -148,14 +148,17 @@ loop(Req, Table) ->
 		{file, {File, Docroot}} ->
 			case Req:parse_cookie() of
 				[{"cpx_id", _Reflist}] ->
+					?CONSOLE("Serving file ~p", [string:concat(Docroot, File)]),
 					Req:serve_file(File, Docroot);
 				[] ->
 					Reflist = erlang:ref_to_list(make_ref()),
 					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
 					ets:insert(Table, {Reflist, undefined, undefined}),
+					?CONSOLE("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}]);
 				Allelse ->
 					Out = io_lib:format("Invalid cookie: ~p", [Allelse]),
+					?CONSOLE("Bad cookie", []),
 					Req:respond({403, [], Out})
 			end;
 		{api, Apirequest} ->
@@ -163,7 +166,7 @@ loop(Req, Table) ->
 			% that would be none
 			case check_cookie(Req:parse_cookie()) of
 				badcookie ->
-					?CONSOLE("About to respond", []),
+					?CONSOLE("bad cookie", []),
 					Req:respond({403, [], <<"Invalid cookie for api request.  Trying going to the index first.">>});
 				{Reflist, Salt, Conn} ->
 					%% okay, now to handle the api stuff.
@@ -171,27 +174,32 @@ loop(Req, Table) ->
 						getsalt ->
 							Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
 							ets:insert(web_connections, {Reflist, Newsalt, Conn}),
-							?CONSOLE("About to respond...", []),
+							?CONSOLE("created and sent salt for ~p", [Reflist]),
 							Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})});
 						login ->
 							case Salt of
 								undefined ->
+									?CONSOLE("Bad salt for login request for ~p", [Reflist]),
 									Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})});
 								Salt ->
 									case agent_web_connection:start_link(Req:parse_post(), Salt) of
 										{ok, Pid} ->
 											ets:insert(web_connections, {Reflist, Salt, Pid}),
+											?CONSOLE("connection started for ~p", [Reflist]),
 											Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})});
 										ignore ->
+											?CONSOLE("Ignore message trying to start connection for ~p", [Reflist]),
 											Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})});
-										{error, _Error} ->
-											Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login err">>}]})})
+										{error, Error} ->
+											?CONSOLE("Error ~p trying to start connection for ~p", [Error, Reflist]),
+											Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})})
 									end
 							end;
 						%% everying else, we need an actual connection to handle
 						Apirequest ->
 							case Conn of
 								undefined ->
+									?CONSOLE("Cannot answer api request ~p due to no connection", [Apirequest]),
 									Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login required">>}]})});
 								Conn ->
 									Response = agent_web_connection:api(Conn, Apirequest),
@@ -393,6 +401,77 @@ cookie_api_test_() ->
 			end
 		]
 	}.
+	
+web_connection_login_test_() ->
+	{
+		foreach,
+		fun() ->
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			agent_manager:start([node()]),
+			agent_web_listener:start(),
+			inets:start(),
+			{ok, Httpc} = inets:start(httpc, [{profile, test_prof}]),
+			{ok, {_Statusline, Head, _Body}} = http:request("http://127.0.0.1:5050"),
+			Cookie = proplists:get_value("set-cookie", Head),
+			agent_auth:start(),
+			?CONSOLE("~p", [agent_auth:add_agent("testagent", "pass", [english], agent, "Default")]),
+			Getsalt = fun() ->
+				{ok, {_Statusline2, _Head2, Body2}} = http:request(get, {"http://127.0.0.1:5050/getsalt", [{"Cookie", Cookie}]}, [], []),
+				{struct, Jsonlist} = mochijson2:decode(Body2),
+				binary_to_list(proplists:get_value(<<"salt">>, Jsonlist))
+			end,
+			{Httpc, Cookie, Getsalt}
+		end,
+		fun({Httpc, Cookie, Getsalt}) ->
+			inets:stop(httpc, Httpc),
+			inets:stop(),
+			agent_web_listener:stop(),
+			agent_manager:stop(),
+			agent_auth:destroy("testagent"),
+			agent_auth:stop(),
+			mnesia:stop(),
+			mnesia:delete_schema([node()])
+		end,
+		[
+			fun({_Httpc, Cookie, _Salt}) ->
+				{"Trying to login before salt request",
+				fun() ->
+					Unsalted = util:bin_to_hexstr(erlang:md5("pass")),
+					Salted = util:bin_to_hexstr(erlang:md5(string:concat("12345", Unsalted))),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", [{"Cookie", Cookie}], "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", Salted])}, [], []),
+					{struct, Json} = mochijson2:decode(Body),
+					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
+					?assertEqual(<<"No salt set">>, proplists:get_value(<<"message">>, Json))
+				end}
+			end,
+			fun({_Httpc, Cookie, Salt}) ->
+				{"Login with a bad pw",
+				fun() ->
+					Unsalted = util:bin_to_hexstr(erlang:md5("badpass")),
+					Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt(), Unsalted))),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", [{"Cookie", Cookie}], "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", Salted])}, [], []),
+					{struct, Json} = mochijson2:decode(Body),
+					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
+					?assertEqual(<<"login err">>, proplists:get_value(<<"message">>, Json))
+				end}
+			end,
+			fun({_Httpc, Cookie, Salt}) ->
+				{"Login with bad un",
+				fun() ->
+					Unsalted = util:bin_to_hexstr(erlang:md5("pass")),
+					Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt(), Unsalted))),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", [{"Cookie", Cookie}], "application/x-www-form-urlencoded", lists:append(["username=badun&password=", Salted])}, [], []),
+					{struct, Json} = mochijson2:decode(Body),
+					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
+					?assertEqual(<<"login err">>, proplists:get_value(<<"message">>, Json))
+				end}
+			end
+		]
+	}.
+
 
 % TODO add tests for interaction w/ agent, agent_manager
 

@@ -74,22 +74,24 @@
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link(Post, Salt) ->
+	?CONSOLE("start_link post ~p; salt ~p", [Post, Salt]),
 	Username = proplists:get_value("username", Post, ""),
 	Password = proplists:get_value("password", Post, ""),
 	case agent_auth:auth(Username, Password, Salt) of
 		deny ->
-			{stop, badlogin};
+			{error, badlogin};
 		{allow, Skills, Security} ->
 			Agent = #agent{login = Username, skills = Skills},
 			gen_server:start_link(?MODULE, [Agent, Security], [{timeout, 10000}])
 	end.
 	
 start(Post, Salt) ->
+	?CONSOLE("start post ~p; salt ~p", [Post, Salt]),
 	Username = proplists:get_value("username", Post, ""),
 	Password = proplists:get_value("password", Post, ""),
 	case agent_auth:auth(Username, Password, Salt) of
 		deny ->
-			{stop, badlogin};
+			{error, badlogin};
 		{allow, Skills, Security} ->
 			Agent = #agent{login = Username, skills = Skills}, 
 			gen_server:start(?MODULE, [Agent, Security], [{timeout, 10000}])

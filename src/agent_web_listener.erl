@@ -163,7 +163,8 @@ loop(Req, Table) ->
 			% that would be none
 			case check_cookie(Req:parse_cookie()) of
 				badcookie ->
-					Req:respond({403, [], io_lib:format("Invalid cookie for api request.  Trying going to the index first.")});
+					?CONSOLE("About to respond", []),
+					Req:respond({403, [], <<"Invalid cookie for api request.  Trying going to the index first.">>});
 				{Reflist, Salt, Conn} ->
 					%% okay, now to handle the api stuff.
 					case Apirequest of
@@ -381,9 +382,19 @@ cookie_api_test_() ->
 					?assertEqual(<<"Salt created, check salt property">>, proplists:get_value(<<"message">>, Pairs)),
 					?assertNot(undefined =:= proplists:get_value(<<"salt">>, Pairs))
 				end}
+			end,
+			fun({_Httpc, _Cookie}) ->
+				{"Get a salt with an invalid cookie",
+				fun() ->
+					{ok, {{_Ver, Code, _Msg}, _Head, Body}} = http:request(get, {"http://127.0.0.1:5050/getsalt", [{"Cookie", "goober=snot"}]}, [], []),
+					?assertEqual(403, Code),
+					?assertEqual("Invalid cookie for api request.  Trying going to the index first.", Body)
+				end}
 			end
 		]
 	}.
+
+% TODO add tests for interaction w/ agent, agent_manager
 
 -define(PATH_TEST_SET, [
 		{"/", {file, {"index.html", "www/agent/"}}},

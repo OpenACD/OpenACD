@@ -6,6 +6,16 @@
   .statusdisplay {
 		padding:1.5em
   }
+  
+  label{
+        width: 10em;
+        float: left;
+        text-align:right;
+        margin-right:0.1em;
+        display:block;
+        font-weight:bold;
+        clear:both;
+	}
 </style>
 
 <script type="text/javascript" src="/dojo/dojo/dojo.js" djConfig="parseOnLoad:true, isDebug: false"></script>
@@ -16,11 +26,16 @@ dojo.require("dijit.layout.TabContainer");
 dojo.require("dijit.form.SimpleTextarea");
 dojo.require("dijit.form.Button");
 dojo.require("dojox.timing");
+dojo.require("dijit.Dialog");
+dojo.require("dojox.encoding.digests.MD5");
+dojo.require("dijit.form.ComboBox");
 //dojo.require("dijit.Menu");
 </script>
 
 <script type="text/javascript" src="/dojo/dojox/timer.js"></script>
 <script type="text/javascript" src="/eventLog.js"></script>
+<script type="text/javascript" src="/Stopwatch.js"></script>
+<script type="text/javascript" src="/Agent.js"></script>
 
 <script type="text/javascript">
 function panelswitch(e){
@@ -29,58 +44,90 @@ function panelswitch(e){
 	}
 }
 
-function Stopwatch(){
-	this.t = new dojox.timing.Timer(1000);
-	this.elapsed = 0;
-	this.onTick = function(){};
-	
-	this.t.ln = this;
-	
-	this.t.onTick = function(){
-		this.ln.elapsed += 1;
-		this.ln.onTick();
-	}
-	
-	this.time = function(){
-		return this.elapsed
-	};
-	
-	this.reset = function(){
-		this.elapsed = 0;
-	}
-	
-	this.start = function(){
-		this.t.start();
-	}
-	
-	this.stop = function(){
-		this.t.stop();
-	}
-}
 
 dojo.addOnLoad(function(){
 	dojo.connect(dijit.byId("tabPanel"),'selectChild','panelswitch');
 	EventLog.log("Inteface loaded");
+		
+	dijit.byId("loginpane").show();
 	
-	ticker = new Stopwatch();
+	//ticker.start();
 	
-	ticker.onTick = function(){
-		var timer = ticker.elapsed
-		var d = new Date(0);
-		d.setHours(0);
-		d.setMinutes(0);
-		d.setSeconds(ticker.elapsed)
-		dojo.byId("timerdisp").innerHTML = d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds()
-	}
-	
-	ticker.start();
+	var loginform = dijit.byId("loginform")
+	dojo.connect(loginform, "onSubmit", function(e){
+		e.preventDefault();
+		if (loginform.isValid()){
+			dojo.xhrGet({
+				url:"/getsalt",
+				handleAs:"json",
+				error:function(response, ioargs){
+					dojo.byId("loginerrp").style.display = "block";
+					dojo.byId("loginerrspan").innerHTML = response.responseText;
+				},
+				load:function(response, ioargs){
+					EventLog.log("Recieved salt");
+					salt = response.salt;
+					attrs = loginform.attr("value");
+					md5pass = dojox.encoding.digests.MD5(attrs.password, dojox.encoding.digests.outputTypes.Hex);
+					salted = dojox.encoding.digests.MD5(salt + md5pass, dojox.encoding.digests.outputTypes.Hex);
+					values = attrs;
+					values.password = salted;
+					dojo.xhrPost({
+						url:"/login",
+						handleAs:"json",
+						content:values,
+						load:function(response2, ioargs2){
+							if(response2.success){
+								EventLog.log("Logged in");
+								dijit.byId("loginpane").hide();
+								dojo.byId("main").style.display="block";
+								dojo.byId("main").style.visibility = "visible";
+								dojo.byId("agentname").innerHTML = attrs.username;
+								console.log(response2);
+								agent = new Agent(attrs.username);
+								agent.stopwatch.onTick = function(){
+									var elapsed = agent.stopwatch.time();
+									var d = new Date();
+									d.setHours(0);
+									d.setMinutes(0);
+									d.setSeconds(elapsed);
+									dojo.byId("timerdisp").innerHTML = d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
+								}
+							}
+							else{
+								dojo.byId("loginerrp").style.display = "block";
+								dojo.byId("loginerrspan").innerHTML = response2.message;
+							}
+						}
+					});
+				}
+			});
+		}
+	});
+
 });
 
 
 </script>
 <body class="nihilo">
 
-<div dojoType="dijit.layout.BorderContainer" style="width: 100%; height:600px; border: 1px solid #ccc;">
+<div dojoType="dijit.Dialog" title="Login" id="loginpane">
+	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
+		<p  id="loginerrp" style="font-size:smaller;display:none"><label>&nbsp;</label><span id="loginerrspan" style="color:#ff0000"></span></p>
+		<p><label for="username">Username:</label>
+			<input type="text" name="username" value="" dojoType="dijit.form.TextBox" trim="true" id="username" />
+		</p>
+		<p><label for="password">Password:</label>
+			<input type="password" name="password" value="" dojoType="dijit.form.TextBox" id="password" />
+		</p>
+		
+		<p><label for="loginsubmit">&nbsp;</label>
+			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">Login</button>
+		</p>
+	</div>
+</div>
+
+<div dojoType="dijit.layout.BorderContainer" style="width: 100%; height:600px; border: 1px solid #ccc;visibility:hidden" id="main">
 	<div dojoType="dijit.layout.ContentPane" region="top">
 		<span style="float:right">
 			<span class="statusdisplay" id="timerdisp">Time</span>
@@ -122,14 +169,39 @@ dojo.addOnLoad(function(){
 		
 	</div>
 	<div dojoType="dijit.layout.TabContainer" region="center" id="tabPanel">
-	<div dojoType="dijit.layout.ContentPane" title="Main"></div>
-	<div dojoType="dijit.layout.ContentPane" title="Agents">Tab 2</div>
-	<div dojoType="dijit.layout.ContentPane" title="Queues">Tab 2</div>
-	<div dojoType="dijit.layout.ContentPane" title="Event Log" id="eventLog">
-		<textarea dojoType="dijit.form.SimpleTextarea" id="eventLogText" name="eventLogText" width="80%" rows="1000" readonly>
-		</textarea>
+		<div dojoType="dijit.layout.ContentPane" title="Main">
+			<p id="agentnamep"><label for="agentname">Agent:</label><span id="agentname"></span></p>
+			<p id="agentstatep"><label for="state">State:</label><span id="state">Login needed</span></p>
+			<p id="agentbrandp" style="display:none"><label for="brand">Brand:</label><span id="brand"></span></p>
+			<p id="calleridp" style="display:none"><label for="callerid">Caller id:</label><span id="callerid"></span></p>
+		</div>
+		<div dojoType="dijit.layout.ContentPane" title="Agents">Tab 2</div>
+		<div dojoType="dijit.layout.ContentPane" title="Queues">Tab 2</div>
+		<div dojoType="dijit.layout.ContentPane" title="Event Log" id="eventLog">
+			<textarea dojoType="dijit.form.SimpleTextarea" id="eventLogText" name="eventLogText" width="80%" rows="1000" readonly>
+			</textarea>
+		</div>
+		
 	</div>
-</div>
+	
+	<div dojoType = "dijit.layout.ContentPane" region="bottom" style="text-align:center">
+		<button dojoType="dijit.form.Button" id="bgoavail">Go Available</button>
+		<label for="boutboundcall">Outbound</label>
+		<select dojoType="dijit.form.ComboBox" id="boutboundcall" name="outbound">
+			<option>Demo Brand</option>
+		</select>
+		<button dojoType="dijit.form.Button" id="bcancel">Cancel</button>
+		<div dojoType="dijit.form.DropDownButton" id="bgoreleased">
+			<span>Go Released...</span>
+			<div dojoType="dijit.Menu" id="releasedmenu">
+				<div dojoType="dijit.MenuItem" label="Hangup" onclick="hangup();"></div>
+				<div dojoType="dijit.MenuItem" label="Logout" onclick="logout();"></div>
+			</div>
+		</div>
+		<button dojoType="dijit.form.Button" id="bdial">Dial</button>
+
+	</div>
+
 </div>
 </body>
 </html>

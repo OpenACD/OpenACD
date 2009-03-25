@@ -11,16 +11,30 @@ function Agent(username){
 	this.stopwatch = new Stopwatch();
 	this.stopwatch.onTick = function(){}
 	
+	this.handleData = function(datalist){
+		/*for(var i in datalist){
+			 switch (datalist[i].command){
+				case "astate":
+					dojo.publish("agent.states", 
+					break;
+					
+				default 
+			 }
+		}*/
+	}
+	
 	this.poll = function(){
 		dojo.xhrGet({
 			url:"/poll",
 			handleAs:"json",
 			error:function(response, ioargs){
+				console.log(response);
 				EventLog.log("Poll failed:  " + response.responseText);
 			},
 			load:function(response, ioargs){
-				EventLog.log("Polled");
 				console.log(response);
+				EventLog.log("Poll success, handling data");
+				agentref.handleData(response.data);
 			}
 		})
 	}
@@ -52,12 +66,14 @@ Agent.prototype.setState = function(state){
 		handleAs:"json",
 		error:function(response, ioargs){
 			EventLog.log("state change failed:  " + response.responseText);
+			dojo.publish("agent.states", [{"success":false, "state":state, "statedata":statedata, "message":responseText}]);
 		},
 		load:function(response, ioargs){
 			EventLog.log("state change success:  " + state);
 			this.state = state;
 			this.statedata = statedata;
 			this.stopwatch.reset();
+			dojo.publish("agent.states", [{"success":true, "state":state, "statedata":statedata}]);
 		}
 	})
 }

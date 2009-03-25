@@ -216,8 +216,10 @@ loop(Req, Table) ->
 									?CONSOLE("Cannot answer api request ~p due to no connection", [Apirequest]),
 									Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login required">>}]})});
 								Conn ->
-									Response = agent_web_connection:api(Conn, Apirequest),
-									Req:respond(Response)
+									case agent_web_connection:api(Conn, Apirequest) of
+										{Code, Headers, Body} ->
+											Req:respond({Code, Headers, Body})
+									end
 							end
 					end
 			end

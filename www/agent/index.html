@@ -48,8 +48,13 @@ function panelswitch(e){
 dojo.addOnLoad(function(){
 	dojo.connect(dijit.byId("tabPanel"),'selectChild','panelswitch');
 	EventLog.log("Inteface loaded");
-		
+	
 	dijit.byId("loginpane").show();
+	
+	handler = dojo.subscribe("agent.states", function(data){
+		console.log(data);
+		dojo.byId("statedisp").innerHTML = "State: " + data.state;
+	});
 	
 	//ticker.start();
 	
@@ -185,7 +190,7 @@ dojo.addOnLoad(function(){
 	</div>
 	
 	<div dojoType = "dijit.layout.ContentPane" region="bottom" style="text-align:center">
-		<button dojoType="dijit.form.Button" id="bgoavail">Go Available</button>
+		<button dojoType="dijit.form.Button" id="bgoavail" onclick=agent.setState("idle")>Go Available</button>
 		<label for="boutboundcall">Outbound</label>
 		<select dojoType="dijit.form.ComboBox" id="boutboundcall" name="outbound">
 			<option>Demo Brand</option>

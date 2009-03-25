@@ -149,13 +149,23 @@ handle_call(poll, _From, #state{poll_queue = Pollq} = State) ->
 	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
 	Json = [{struct, [{counter, Counter}, {tried, Tried}, {type, Type}, {data, Data}]} || {Counter, Tried, Type, Data} <- Pollq],
 	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, Json}]},
-	{reply, {200, [], mochijson2:encode(Json2)}, State};
+	{reply, {200, [], mochijson2:encode(Json2)}, State2};
 handle_call(logout, _From, State) ->
-	{reply, ok, State};
-handle_call({set_state, Statename}, _From, State) ->
-	{reply, ok, State};
-handle_call({set_state, Statename, Statedata}, _From, State) ->
-	{reply, ok, State};
+	{stop, normal, {200, [{"Set-Cookie", [{"cpx_id=dead"}]}], mochijson2:encode({struct, [{success, true}]})}, State};
+handle_call({set_state, Statename}, _From, #state{agent_fsm = Apid} = State) ->
+	case agent:set_state(Apid, agent:list_to_state(Statename)) of
+		ok ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, ok}]})}, State};
+		invalid ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"status">>, invalid}]})}, State}
+	end;
+handle_call({set_state, Statename, Statedata}, _From, #state{agent_fsm = Apid} = State) ->
+	case agent:set_state(Apid, agent:list_to_state(Statename), Statedata) of
+		invalid ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"status">>, invalid}]})}, State};
+		Status ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State}
+	end;
 handle_call({ack, Counter}, _From, State) ->
 	{reply, ok, State};
 handle_call({err, Counter}, _From, State) ->
@@ -223,12 +233,33 @@ handle_call(Allothers, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
-handle_cast({change_state, ringing, #call{} = Call}, State) -> 
-	Counter = State#state.counter,
-	C1 = {Counter+1, 0, 'ASTATE', ringing},
-	C2 = {Counter+2, 0, 'CALLINFO', Call},
-	Newpoll = lists:append(State#state.poll_queue, [C1, C2]),
-	{noreply, State#state{counter = Counter + 2, poll_queue = Newpoll}};
+handle_cast({change_state, ringing, #call{client = Clientrec} = Call}, #state{poll_queue = Pollq, counter = Counter} = State) ->
+	Newqueue = 
+		[{struct, [
+			{<<"counter">>, Counter},
+			{<<"command">>, <<"astate">>},
+			{<<"state">>, ringing},
+			{<<"callerid">>, list_to_binary(Call#call.callerid)},
+			{<<"brandname">>, list_to_binary(Clientrec#client.label)}
+		]} | Pollq],
+	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
+handle_cast({change_state, AgState, Data}, #state{poll_queue = Pollq, counter = Counter} = State) ->
+	Newqueue =
+		[{struct, [
+			{<<"counter">>, Counter},
+			{<<"command">>, <<"astate">>},
+			{<<"state">>, AgState},
+			{<<"stateinfo">>, <<"NYI">>}
+		]} | Pollq],
+	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
+handle_cast({change_state, AgState}, #state{poll_queue = Pollq, counter = Counter} = State) ->
+	Newqueue =
+		[{struct, [
+			{<<"counter">>, Counter},
+			{<<"command">>, <<"astate">>},
+			{<<"state">>, AgState}
+		]} | Pollq],
+	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -289,7 +320,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 terminate(Reason, State) ->
 	?CONSOLE("terminated ~p", [Reason]),
-	ets:delete(State#state.table, erlang:ref_to_list(State#state.ref)),
+	%ets:delete(State#state.table, erlang:ref_to_list(State#state.ref)),
 	agent:stop(State#state.agent_fsm),
 	timer:cancel(State#state.ack_timer),
     ok.
@@ -316,6 +347,42 @@ build_poll([{_Counter, {Tried, Type, Data}} | Ackqueue], Pollqueue, Runningcount
 	build_poll(Ackqueue, lists:append(Pollqueue, [{Runningcount+1, Tried+1, Type, Data}]), Runningcount+1).
 
 -ifdef(TEST).
+
+set_state_test_() ->
+	{
+		foreach,
+		fun() ->
+			agent_manager:start([node()]),
+			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}, agent),
+			{Connpid}
+		end,
+		fun({Connpid}) ->
+			stop(Connpid),
+			agent_manager:stop()
+		end,
+		[
+			fun({Connpid}) ->
+				{"Set state valid",
+				fun() ->
+					Reply = gen_server:call(Connpid, {set_state, "idle"}),
+					?assertEqual({200, [], [123, [34,"success", 34], 58,<<"true">>, 44, [34,<<"status">>, 34], 58, [34,"ok", 34], 125]}, Reply),
+					Reply2 = gen_server:call(Connpid, {set_state, "released", "default"}),
+					?assertEqual({200, [], [123, [34,"success", 34], 58,<<"true">>, 44, [34,<<"status">>, 34], 58, [34,"ok", 34], 125]}, Reply2)
+				end}
+			end,
+			fun({Connpid}) ->
+				{"Set state invalid",
+				fun() ->
+					Reply = gen_server:call(Connpid, {set_state, "wrapup"}),
+					?CONSOLE("~p", [Reply]),
+					?assertEqual({200, [], [123, [34,"success", 34], 58,<<"false">>, 44, [34,<<"status">>, 34], 58, [34,"invalid", 34], 125]}, Reply),
+					Reply2 = gen_server:call(Connpid, {set_state, "wrapup", "garbage"}),
+					?CONSOLE("~p", [Reply2]),
+					?assertEqual({200, [], [123, [34,"success", 34], 58,<<"false">>, 44, [34,<<"status">>, 34], 58, [34,"invalid", 34], 125]}, Reply2)
+				end}
+			end
+		]
+	}.
 
 -define(MYSERVERFUNC, 
 	fun() ->

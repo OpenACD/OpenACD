@@ -1,27 +1,135 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" 
-	"http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
+<title>Agent UI</title>
+<style type="text/css">
+  @import "/dojo/dijit/themes/nihilo/nihilo.css";
+  .statusdisplay {
+		padding:1.5em
+  }
+</style>
+
+<script type="text/javascript" src="/dojo/dojo/dojo.js" djConfig="parseOnLoad:true, isDebug: false"></script>
+<script type="text/javascript">
+dojo.require("dijit.layout.BorderContainer");
+dojo.require("dijit.layout.ContentPane");
+dojo.require("dijit.layout.TabContainer");
+dojo.require("dijit.form.SimpleTextarea");
+dojo.require("dijit.form.Button");
+dojo.require("dojox.timing");
+//dojo.require("dijit.Menu");
+</script>
+
+<script type="text/javascript" src="/dojo/dojox/timer.js"></script>
+<script type="text/javascript" src="/eventLog.js"></script>
+
+<script type="text/javascript">
+function panelswitch(e){
+	if(e.id == "eventLog"){
+		dijit.byId("eventLogText").setValue(EventLog.logged.join("\n"));
+	}
+}
+
+function Stopwatch(){
+	this.t = new dojox.timing.Timer(1000);
+	this.elapsed = 0;
+	this.onTick = function(){};
 	
-	<title>Dojo Toolkit Test Page</title>    
+	this.t.ln = this;
+	
+	this.t.onTick = function(){
+		this.ln.elapsed += 1;
+		this.ln.onTick();
+	}
+	
+	this.time = function(){
+		return this.elapsed
+	};
+	
+	this.reset = function(){
+		this.elapsed = 0;
+	}
+	
+	this.start = function(){
+		this.t.start();
+	}
+	
+	this.stop = function(){
+		this.t.stop();
+	}
+}
 
-	<style type="text/css">
-	/* our CSS can go here */    
-	</style>    
-    
-	<!-- load the dojo toolkit base -->
-	<script type="text/javascript" src="dojo-release-1.2.3/dojo/dojo.js"
-	    djConfig="parseOnLoad:true, isDebug:true"></script>
-    
-	<script type="text/javascript">
-	/* our JavaScript will go here */
-	</script>
+dojo.addOnLoad(function(){
+	dojo.connect(dijit.byId("tabPanel"),'selectChild','panelswitch');
+	EventLog.log("Inteface loaded");
+	
+	ticker = new Stopwatch();
+	
+	ticker.onTick = function(){
+		var timer = ticker.elapsed
+		var d = new Date(0);
+		d.setHours(0);
+		d.setMinutes(0);
+		d.setSeconds(ticker.elapsed)
+		dojo.byId("timerdisp").innerHTML = d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds()
+	}
+	
+	ticker.start();
+});
 
-</head>
-<body><!-- this is a Typical WebPage starting point ... -->
-	<h1 id="testHeading">Dojo Skeleton Page</h1>
-	<div id="contentNode">
-		<p>Some Content To Replace</p>
+
+</script>
+<body class="nihilo">
+
+<div dojoType="dijit.layout.BorderContainer" style="width: 100%; height:600px; border: 1px solid #ccc;">
+	<div dojoType="dijit.layout.ContentPane" region="top">
+		<span style="float:right">
+			<span class="statusdisplay" id="timerdisp">Time</span>
+			<span class="statusdisplay" id="profiledisp">Profile:Goober</span>
+			<span class="statusdisplay" id="statedisp">State:denial</span>
+		</span>
+
+		<div dojoType="dijit.form.DropDownButton">
+			<span>File</span>
+			<div dojoType="dijit.Menu" id="Filemenu">
+				<div dojoType="dijit.MenuItem" label="Hangup" onclick="hangup();"></div>
+				<div dojoType="dijit.MenuItem" label="Logout" onclick="logout();"></div>
+			</div>
+		</div>
+		<div dojoType="dijit.form.DropDownButton">
+			<span>Edit</span>
+			<div dojoType="dijit.Menu" id="Editmenu">
+				<div dojoType="dijit.MenuItem" label="Config" onclick="alert('NYI');"></div>
+			</div>
+		</div>
+		<div dojoType="dijit.form.DropDownButton">
+			<span>View</span>
+			<div dojoType="dijit.Menu" id="Viewmenu">
+				<div dojoType="dijit.MenuItem" label="Tundra" onclick="alert('NYI Tundra');"></div>
+				<div dojoType="dijit.MenuItem" label="Nihilo" onclick="alert('NYI nihilo');"></div>
+			</div>
+		</div>
+		<div dojoType="dijit.form.DropDownButton">
+			<span>Tabs</span>
+			<div dojoType="dijit.Menu" id="Tabsmenu">
+				<div dojoType="dijit.PopupMenuItem">
+					<span>Load Tab</span>
+					<div dojoType="dijit.Menu">
+						<div dojoType="dijit.MenuItem" onClick="alert('NYI this thing')">Abuh?</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		
 	</div>
+	<div dojoType="dijit.layout.TabContainer" region="center" id="tabPanel">
+	<div dojoType="dijit.layout.ContentPane" title="Main"></div>
+	<div dojoType="dijit.layout.ContentPane" title="Agents">Tab 2</div>
+	<div dojoType="dijit.layout.ContentPane" title="Queues">Tab 2</div>
+	<div dojoType="dijit.layout.ContentPane" title="Event Log" id="eventLog">
+		<textarea dojoType="dijit.form.SimpleTextarea" id="eventLogText" name="eventLogText" width="80%" rows="1000" readonly>
+		</textarea>
+	</div>
+</div>
+</div>
 </body>
 </html>

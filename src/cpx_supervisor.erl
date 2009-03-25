@@ -151,7 +151,7 @@ build_tables() ->
 			% create some default info so the system is at least a bit usable.
 			F = fun() -> 
 				mnesia:write(#cpx_conf{module_name = agent_auth, start_function = start, start_args = []}),
-				mnesia:write(#cpx_conf{module_name = agent_tcp_listener, start_function = start, start_args = []}),
+				mnesia:write(#cpx_conf{module_name = agent_tcp_listener, start_function = start, start_args = [1337]}),
 				mnesia:write(#cpx_conf{module_name = cpx_web_management, start_function = start, start_args = []})
 			end,
 			case mnesia:transaction(F) of

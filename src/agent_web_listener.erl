@@ -167,7 +167,10 @@ loop(Req, Table) ->
 			case check_cookie(Req:parse_cookie()) of
 				badcookie ->
 					?CONSOLE("bad cookie", []),
-					Req:respond({403, [], <<"Invalid cookie for api request.  Trying going to the index first.">>});
+					Reflist = erlang:ref_to_list(make_ref()),
+					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
+					ets:insert(Table, {Reflist, undefined, undefined}),
+					Req:respond({403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>});
 				{Reflist, Salt, Conn} ->
 					%% okay, now to handle the api stuff.
 					case Apirequest of
@@ -402,9 +405,10 @@ cookie_api_test_() ->
 			fun({_Httpc, _Cookie}) ->
 				{"Get a salt with an invalid cookie",
 				fun() ->
-					{ok, {{_Ver, Code, _Msg}, _Head, Body}} = http:request(get, {"http://127.0.0.1:5050/getsalt", [{"Cookie", "goober=snot"}]}, [], []),
+					{ok, {{_Ver, Code, _Msg}, Head, Body}} = http:request(get, {"http://127.0.0.1:5050/getsalt", [{"Cookie", "goober=snot"}]}, [], []),
 					?assertEqual(403, Code),
-					?assertEqual("Invalid cookie for api request.  Trying going to the index first.", Body)
+					?assertNot(noexist =:= proplists:get_value("set-cookie", Head, noexist)),
+					?assertEqual("Cookie reset, retry.", Body)
 				end}
 			end
 		]

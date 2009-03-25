@@ -87,6 +87,7 @@ stop() ->
 
 init([Port]) ->
 	?CONSOLE("Starting on port ~p", [Port]),
+	process_flag(trap_exit, true),
 	crypto:start(),
 	Table = ets:new(web_connections, [set, public, named_table]),
 	{ok, Mochi} = mochiweb_http:start([{loop, fun(Req) -> loop(Req, Table) end}, {name, ?MOCHI_NAME}, {port, Port}]),
@@ -109,7 +110,8 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+	?CONSOLE("Info:  ~p", [Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------

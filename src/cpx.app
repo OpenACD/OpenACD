@@ -17,7 +17,6 @@
 		cpx_web_management,
 		agent_web_connection,
 		agent_web_listener,
-		cpx_json,
 		freeswitch_media_manager,
 		freeswitch_media
 	]},

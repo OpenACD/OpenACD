@@ -73,29 +73,11 @@
 %%--------------------------------------------------------------------
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start_link(Post, Salt) ->
-	?CONSOLE("start_link post ~p; salt ~p", [Post, Salt]),
-	Username = proplists:get_value("username", Post, ""),
-	Password = proplists:get_value("password", Post, ""),
-	case agent_auth:auth(Username, Password, Salt) of
-		deny ->
-			{error, badlogin};
-		{allow, Skills, Security} ->
-			Agent = #agent{login = Username, skills = Skills},
-			gen_server:start_link(?MODULE, [Agent, Security], [{timeout, 10000}])
-	end.
+start_link(Agent, Security) ->
+	gen_server:start_link(?MODULE, [Agent, Security], [{timeout, 10000}]).
 	
-start(Post, Salt) ->
-	?CONSOLE("start post ~p; salt ~p", [Post, Salt]),
-	Username = proplists:get_value("username", Post, ""),
-	Password = proplists:get_value("password", Post, ""),
-	case agent_auth:auth(Username, Password, Salt) of
-		deny ->
-			{error, badlogin};
-		{allow, Skills, Security} ->
-			Agent = #agent{login = Username, skills = Skills}, 
-			gen_server:start(?MODULE, [Agent, Security], [{timeout, 10000}])
-	end.
+start(Agent, Security) ->
+	gen_server:start(?MODULE, [Agent, Security], [{timeout, 10000}]).
 
 stop(Pid) ->
 	gen_server:call(Pid, stop).
@@ -111,7 +93,7 @@ api(Pid, Apicall) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Agent, Security]) ->
-	?CONSOLE("web_connection init", []),
+	?CONSOLE("web_connection init ~p", [Agent]),
 	{ok, Apid} = agent_manager:start_agent(Agent),
 	case agent:set_connection(Apid, self()) of
 		error ->
@@ -167,7 +149,7 @@ handle_call(poll, _From, #state{poll_queue = Pollq} = State) ->
 	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
 	Json = [{struct, [{counter, Counter}, {tried, Tried}, {type, Type}, {data, Data}]} || {Counter, Tried, Type, Data} <- Pollq],
 	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, Json}]},
-	{reply, {200, [], cpx_json:encode(Json2)}, State};
+	{reply, {200, [], mochijson2:encode(Json2)}, State};
 handle_call(logout, _From, State) ->
 	{reply, ok, State};
 handle_call({set_state, Statename}, _From, State) ->
@@ -344,10 +326,10 @@ build_poll([{_Counter, {Tried, Type, Data}} | Ackqueue], Pollqueue, Runningcount
 		mnesia:start(),
 		Passwd = util:bin_to_hexstr(erlang:md5("Password123")),
 		Saltedpasswd = util:bin_to_hexstr(erlang:md5(string:concat("12345", Passwd))),
-		Post = [{"username", "agent"},{"password", Saltedpasswd}],
+		Agent = #agent{login = "agent", skills = [english]},
 		agent_manager:start([node()]),
 		agent_auth:start(),
-		{ok, Pid} = start_link(Post, "12345"),
+		{ok, Pid} = start_link(Agent, agent),
 		Stopfun = fun() ->
 			stop(Pid),
 			agent_auth:stop(),

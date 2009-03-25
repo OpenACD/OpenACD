@@ -182,17 +182,26 @@ loop(Req, Table) ->
 									?CONSOLE("Bad salt for login request for ~p", [Reflist]),
 									Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})});
 								Salt ->
-									case agent_web_connection:start_link(Req:parse_post(), Salt) of
-										{ok, Pid} ->
-											ets:insert(web_connections, {Reflist, Salt, Pid}),
-											?CONSOLE("connection started for ~p", [Reflist]),
-											Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})});
-										ignore ->
-											?CONSOLE("Ignore message trying to start connection for ~p", [Reflist]),
+									Post = Req:parse_post(),
+									Username = proplists:get_value("username", Post, ""),
+									Password = proplists:get_value("password", Post, ""),
+									case agent_auth:auth(Username, Password, Salt) of
+										deny ->
 											Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})});
-										{error, Error} ->
-											?CONSOLE("Error ~p trying to start connection for ~p", [Error, Reflist]),
-											Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})})
+										{allow, Skills, Security} ->
+											Agent = #agent{login = Username, skills = Skills},
+											case agent_web_connection:start_link(Agent, Security) of
+												{ok, Pid} ->
+													ets:insert(web_connections, {Reflist, Salt, Pid}),
+													?CONSOLE("connection started for ~p", [Reflist]),
+													Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})});
+												ignore ->
+													?CONSOLE("Ignore message trying to start connection for ~p", [Reflist]),
+													Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})});
+												{error, Error} ->
+													?CONSOLE("Error ~p trying to start connection for ~p", [Error, Reflist]),
+													Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})})
+											end
 									end
 							end;
 						%% everying else, we need an actual connection to handle
@@ -274,7 +283,6 @@ check_cookie([{"cpx_id", Reflist}]) ->
 	end;
 check_cookie(_Allothers) ->
 	badcookie.
-
 
 %% @doc determine if the given path is an api call, or if it's a file request.
 parse_path(Path) ->

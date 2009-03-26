@@ -117,11 +117,20 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(Reason, _State) ->
-	?CONSOLE("Terminating ~p", [Reason]),
+terminate(shutdown, _State) ->
+	?CONSOLE("shutdown", []),
 	mochiweb_socket_server:stop(?MOCHI_NAME),
 	ets:delete(web_connections),
+    ok;
+terminate(normal, _State) ->
+	?CONSOLE("normal exit", []),
+	mochiweb_socket_server:stop(?MOCHI_NAME),
+	ets:delete(web_connections),
+    ok;
+terminate(Reason, _State) ->
+	?CONSOLE("Terminating dirty:  ~p", [Reason]),
     ok.
+
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -148,20 +157,16 @@ loop(Req, Table) ->
 	Path = Req:get(path),
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
-			case Req:parse_cookie() of
-				[{"cpx_id", _Reflist}] ->
-					?CONSOLE("Serving file ~p", [string:concat(Docroot, File)]),
-					Req:serve_file(File, Docroot);
-				[] ->
+			Cookielist = Req:parse_cookie(),
+			case proplists:get_value("cpx_id", Cookielist) of
+				undefined ->
 					Reflist = erlang:ref_to_list(make_ref()),
 					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
 					ets:insert(Table, {Reflist, undefined, undefined}),
 					?CONSOLE("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}]);
-				Allelse ->
-					Out = io_lib:format("Invalid cookie: ~p", [Allelse]),
-					?CONSOLE("Bad cookie", []),
-					Req:respond({403, [], Out})
+				Reflist ->
+					Req:serve_file(File, Docroot)
 			end;
 		{api, Apirequest} ->
 			% actions that don't care about the cookie
@@ -281,16 +286,19 @@ loop(Req, Table) ->
 -spec(check_cookie/1 :: ([{string(), string()}]) -> 'badcookie' | web_connection()).
 check_cookie([]) ->
 	badcookie;
-check_cookie([{"cpx_id", Reflist}]) ->
-	case ets:lookup(web_connections, Reflist) of
-		[] ->
+check_cookie(Allothers) ->
+	case proplists:get_value("cpx_id", Allothers) of
+		undefined ->
 			badcookie;
-		[{Reflist, Salt, Conn}] ->
-			{Reflist, Salt, Conn}
-	end;
-check_cookie(_Allothers) ->
-	badcookie.
-
+		Reflist ->
+			case ets:lookup(web_connections, Reflist) of
+				[] ->
+					badcookie;
+				[{Reflist, Salt, Conn}] ->
+					{Reflist, Salt, Conn}
+			end
+	end.
+	
 %% @doc determine if the given path is an api call, or if it's a file request.
 parse_path(Path) ->
 	% easy tests first.

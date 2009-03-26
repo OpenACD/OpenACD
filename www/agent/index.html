@@ -51,7 +51,7 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("loginpane").show();
 	
-	handler = dojo.subscribe("agent.states", function(data){
+	var handler = dojo.subscribe("agent.states", function(data){
 		console.log(data);
 		dojo.byId("statedisp").innerHTML = "State: " + data.state;
 	});

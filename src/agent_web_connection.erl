@@ -56,9 +56,10 @@
 	salt :: any(),
 	ref :: ref() | 'undefined',
 	agent_fsm :: pid() | 'undefined',
-	ack_queue = dict:new(), % key = counter, value is {when_qed, tries, type, data} so that a message can be resent
-	poll_queue = [] :: [{non_neg_integer(), non_neg_integer(), atom(), any()}], 
-		% {counter to be used as key in the ack_queue, how many tries this message has had, type of message, data to send to client}
+	ack_queue = dict:new(), % key = counter, value is {when_qed, tries, pollitem} so that a message can be resent
+	poll_queue = [] :: [{struct, [{binary(), any()}]}],
+		% list of json structs to be sent to the client on poll.
+		% struct MUST contain a counter, used to handle acks/errs
 	missed_polls = 0 :: non_neg_integer(),
 	counter = 1 :: non_neg_integer(),
 	table :: atom() | 'undefined',
@@ -147,8 +148,7 @@ handle_call(stop, _From, State) ->
 	{stop, shutdown, ok, State};
 handle_call(poll, _From, #state{poll_queue = Pollq} = State) ->
 	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
-	Json = [{struct, [{counter, Counter}, {tried, Tried}, {type, Type}, {data, Data}]} || {Counter, Tried, Type, Data} <- Pollq],
-	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, Json}]},
+	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, Pollq}]},
 	{reply, {200, [], mochijson2:encode(Json2)}, State2};
 handle_call(logout, _From, State) ->
 	{stop, normal, {200, [{"Set-Cookie", [{"cpx_id=dead"}]}], mochijson2:encode({struct, [{success, true}]})}, State};
@@ -266,53 +266,13 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(check_acks, State) when State#state.missed_polls < 4 -> 
-	?CONSOLE("checking acks...",[]),
-	% go through the acks, look for:
-	%  ones that have been tried never and been qed for ?TICK_LENGTH * 1 time
-	%  ones that have been tried once and been qed for ?TICK_LENGTH * 3 time (indicates time out)
-	Ackqueue = State#state.ack_queue,
-	Repoll = dict:filter(
-		fun(_K, V) -> 
-			case V of 
-				{{_Macro, When, _Micro}, Tried, _Type, _Data} when When >= ?TICK_LENGTH * 2, Tried < 2 -> 
-					% put in the poll queue, it's only been tried at most 1 time, and has been in the ack queue longer than a tick.
-					true;
-				{{_Macro, When, _Micro}, Tried, _Type, _Data} when When >= ?TICK_LENGTH * 4, Tried >= 2 -> 
-					% tried 2 or more times and been queued for 4 ticks.  timeout, die
-					true;
-				_Any -> 
-					false
-			end
-		end, Ackqueue),
-	
-	Newack = dict:filter(
-		fun(_K, V) -> 
-			case V of 
-				{{_Macro, When, _Micro}, Tried, _Type, _Data} when When >= ?TICK_LENGTH * 2, Tried < 2 -> 
-					%take out of the ack queue as it's being put in the poll queue
-					false;
-				{{_Macro, When, _Micro}, Tried, _Type, _Data} when When >= ?TICK_LENGTH * 4, Tried >= 2 -> 
-					% same as above.
-					false;
-				_Any -> 
-					 true
-			end
-		end, Ackqueue),
-	
-	{Newpoll, Newcounter} = build_poll(dict:to_list(Repoll), State#state.poll_queue, State#state.counter),
-	
-	Newmissed = State#state.missed_polls + 1,
-		
-	% got all that?  okay, build the new state
-	
-	{noreply, State#state{ack_queue = Newack, poll_queue = Newpoll, missed_polls = Newmissed, counter = Newcounter}};
-	
+handle_info(check_acks, #state{missed_polls = Missedpolls} = State) when Missedpolls < 4 -> 	
+	{noreply, State#state{missed_polls = Missedpolls + 1}};
 handle_info(check_acks, State) -> 
 	?CONSOLE("too many missed polls.",[]),
 	{stop, "Client timeout", ok, State};
-
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+	?CONSOLE("info I can't handle:  ~p", [Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -337,8 +297,15 @@ code_change(_OldVsn, State, _Extra) ->
 	
 build_acks([], Acks) -> 
 	Acks;
-build_acks([{Counter, Tried, Type, Data} | Pollqueue], Acks) -> 
-	Acks2 = dict:store(Counter, {now(), Tried, Type, Data}, Acks),
+build_acks([{struct, Pollprops} | Pollqueue], Acks) -> 
+	%[{Counter, Tried, Type, Data} | Pollqueue]
+	Counter = proplists:get_value(<<"counter">>, Pollprops),
+	case dict:find(Counter, Acks) of
+		error ->
+			Acks2 = dict:store(Counter, {now(), 0, {struct, Pollprops}}, Acks);
+		{Time, Tried, _Struct} ->
+			Acks2 = dict:store(Counter, {Time, Tried+1, {struct, Pollprops}}, Acks)
+	end,
 	build_acks(Pollqueue, Acks2).
 	
 build_poll([], Pollqueue, Runningcount) -> 

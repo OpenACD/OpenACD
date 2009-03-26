@@ -12,15 +12,36 @@ function Agent(username){
 	this.stopwatch.onTick = function(){}
 	
 	this.handleData = function(datalist){
-		/*for(var i in datalist){
+		for(var i in datalist){
 			 switch (datalist[i].command){
 				case "astate":
-					dojo.publish("agent.states", 
-					break;
-					
-				default 
+					agentref.state = datalist[i].state;
+					switch(datalist[i].state){
+						case "ringing":
+							agentref.statedata = {"callerid":datalist[i].callerid, "brandname":datalist[i].brandname};
+							dojo.publish("agent/state", [{"state":datalist[i].state, "statedata":{"callerid":datalist[i].callerid, "brandname":datalist[i].brandname}}]);
+							break;
+							
+						case "released":
+							agentref.statedata = datalist[i].stateinfo;
+							dojo.publish("agent/state", [{"state":datalist[i].state, "statedata":datalist[i].stateinfo}]);
+							break;
+						
+						case "idle":
+							dojo.publish("agent/state", [{"state":"idle"}]);
+							break;
+						
+						case "precall":
+							dojo.publish("agent/state", [{"state":"precall"}, {"brand":datalist[i].stateinfo}]);
+							break;
+							
+						default:
+							//just...just no.
+					}					
+				default:
+					//seriously?
 			 }
-		}*/
+		}
 	}
 	
 	this.poll = function(){
@@ -46,6 +67,8 @@ function Agent(username){
 	
 	t.start();
 	this.stopwatch.start();
+	
+	this.poll()
 }
 
 Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];

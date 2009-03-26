@@ -1,25 +1,40 @@
 dojo.addOnLoad(function(){
 	EventLog.log("Inteface loaded");
 
-	dijit.byId("loginpane").show();
-
+	//dijit.byId("loginpane").show();
+	dojo.xhrGet({
+		url:"/checkcookie",
+		handleAs:"json",
+		error:function(response, ioargs){
+			console.log("checkcookie failed!");
+		},
+		load:function(response, ioargs){
+			if(response.success){
+				//dance
+			}
+			else(response.success){
+				dijit.byId("loginpane").show();
+			}
+		}
+	});
+	
 	//Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
 
 	dojo.byId("brand").stateChanger = dojo.subscribe("agent/state", function(data){
 		var node = dojo.byId("brand");
-
+		console.log(data.statedata);
 		switch(data.state){
 			case "ringing":
 			case "precall":
 			case "oncall":
 			case "outgoing":
 			case "wrapup":
-				node.innerHTML = data.brand;
-				node.style.visibility = "visible";
+				node.innerHTML = data.statedata.brandname;
+				dojo.byId("agentbrandp").style.display = "block";
 			break;
 
 			default:
-				node.style.visibility = "hidden";
+				dojo.byId("agentbrandp").style.display = "none";
 		}
 	});
 
@@ -50,11 +65,52 @@ dojo.addOnLoad(function(){
 		}
 	});
 
+	dijit.byId("boutboundcall").stateChanger = dojo.subscribe("agent/state", function(data){
+		var widget = dijit.byId("boutboundcall");
+		/*console.log("boutboundcall" + widget.attr('style'));
+		switch(data.state){
+			case "released":
+			case "idle":
+				widget.attr('style', 'display:inline');
+				break;
+			default:
+				widget.attr('style', 'display:none');
+		}*/
+	});
+	
+	dijit.byId("bcancel").stateChanger = dojo.subscribe("agent/state", function(data){
+		var widget = dijit.byId("bcancel");
+		switch(data.state){
+			case "warmtransfer":
+			case "precall":
+				widget.attr('style', 'display:inline');
+				break;
+			default:
+				widget.attr('style', 'display:none');
+		}
+	});
+	
+	dijit.byId("bdial").stateChanger = dojo.subscribe("agent/state", function(data){
+		var widget = dijit.byId("bdial");
+		switch(data.state){
+			case "precall":
+			case "warmtransfer":
+				widget.attr('style', 'display:inline');
+				break;
+			default:
+				widget.attr('style', 'display:none');
+		}
+	});
+	
+	dojo.byId("state").stateChanger = dojo.subscribe("agent/state", function(data){
+		dojo.byId("state").innerHTML = data.state;
+	});
+
 	dijit.byId("eventLogText").eventLogPushed = dojo.subscribe("eventlog/push", function(text){
 		var oldval = dijit.byId("eventLogText").value;
 		dijit.byId("eventLogText").setValue(oldval + "\n" + text)
 	});
-
+	
 	var loginform = dijit.byId("loginform")
 	dojo.connect(loginform, "onSubmit", function(e){
 		e.preventDefault();

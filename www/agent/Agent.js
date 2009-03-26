@@ -61,19 +61,23 @@ Agent.prototype.setState = function(state){
 		var requesturl = "/state/" + state;
 	}
 	
+	var agentref = this;
+	
 	dojo.xhrGet({
 		url:requesturl,
 		handleAs:"json",
 		error:function(response, ioargs){
-			EventLog.log("state change failed:  " + response.responseText);
-			dojo.publish("agent.states", [{"success":false, "state":state, "statedata":statedata, "message":responseText}]);
+			console.log("error for set state");
+			console.log(response);
+			//EventLog.log("state change failed:  " + response.responseText);
+			//dojo.publish("agent/state", [{"success":false, "state":state, "statedata":statedata, "message":responseText}]);
 		},
 		load:function(response, ioargs){
 			EventLog.log("state change success:  " + state);
-			this.state = state;
-			this.statedata = statedata;
-			this.stopwatch.reset();
-			dojo.publish("agent.states", [{"success":true, "state":state, "statedata":statedata}]);
+			agentref.state = state;
+			agentref.statedata = statedata;
+			agentref.stopwatch.reset();
+			dojo.publish("agent/state", [{"success":true, "state":state, "statedata":statedata}]);
 		}
 	})
 }

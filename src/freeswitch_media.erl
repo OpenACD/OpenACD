@@ -337,16 +337,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 %% @private
-has_dst_chan(Rawcall) ->
-	%?CONSOLE("Rawcall for has_dst_chan check: ~p", [Rawcall]),
-	case freeswitch:get_event_header(Rawcall, "variable_dstchan") of
-		{error, notfound} ->
-			false;
-		Else ->
-			Else
-	end.
-
-%% @private
 case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 	Ename = freeswitch:get_event_name(Rawcall),
 	?CONSOLE("Event:  ~p;  UUID:  ~p", [Ename, UUID]),

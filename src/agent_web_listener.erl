@@ -186,6 +186,13 @@ loop(Req, Table) ->
 							ets:insert(web_connections, {Reflist, Newsalt, Conn}),
 							?CONSOLE("created and sent salt for ~p", [Reflist]),
 							Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})});
+						releaseopts ->
+							Releaseopts = agent_auth:get_releases(),
+							Converter = fun(#release_opt{label = Label, id = Id} = Rec) ->
+								{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, Id}]}
+							end,
+							Jsons = lists:map(Converter, Releaseopts),
+							Req:respond({200, [], mochijson2:encode(Jsons)});
 						login ->
 							case Salt of
 								undefined ->
@@ -313,6 +320,8 @@ parse_path(Path) ->
 			{api, login};
 		"/getsalt" ->
 			{api, getsalt};
+		"/releaseopts" ->
+			{api, releaseopts};
 		_Other ->
 			case util:string_split(Path, "/") of 
 				["", "state", Statename] ->
@@ -514,7 +523,8 @@ web_connection_login_test_() ->
 		{"/err/74/testmessage", {api, {err, "74", "testmessage"}}},
 		{"/index.html", {file, {"index.html", "www/agent/"}}},
 		{"/otherfile.ext", {file, {"otherfile.ext", "www/contrib/"}}},
-		{"/other/path", {file, {"other/path", "www/contrib/"}}}
+		{"/other/path", {file, {"other/path", "www/contrib/"}}},
+		{"/releaseopts", {api, releaseopts}}
 	]
 ).
 

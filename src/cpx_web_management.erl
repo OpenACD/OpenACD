@@ -74,9 +74,9 @@ loop(Req, _Method, "/") ->
 loop(Req, _Method, "/releaseoptions") ->
 	case agent_auth:get_releases() of
 		[] ->
-			Req:respond({500, [], <<"No release states">>});
+			Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No release states">>}]})});
 		ReleaseOptions ->
-			Req:respond({200, [], mochijson2:encode({struct, [{label, label}, {identifier, label}, {items, lists:foldl(fun(X, A) -> [A | {struct, [{label, list_to_binary(X#release_opt.label)}, {id, X#release_opt.id}, {bias, X#release_opt.bias}]}] end, [], ReleaseOptions)}]})})
+			Req:respond({200, [], mochijson2:encode({struct, [{label, label}, {identifier, label}, {items, lists:foldl(fun(X, A) -> [{struct, [{label, list_to_binary(X#release_opt.label)}, {id, X#release_opt.id}, {bias, X#release_opt.bias}]} | A] end, [], ReleaseOptions)}]})})
 	end;
 loop(Req, _Method, "/agents") ->
 	QH = qlc:q([X || X <- mnesia:table(agent_auth)]), % X#agent_auth.integrated =:= undefined]),
@@ -86,7 +86,7 @@ loop(Req, _Method, "/agents") ->
 			GroupedAgents = util:group_by(fun(X) -> X#agent_auth.profile end, Agents),
 			Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_agents_with_profiles(GroupedAgents)}]})});
 		Else ->
-			Req:respond({500, [], <<"No agents">>})
+			Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No agents">>}]})})
 	end;
 loop(Req, _Method, "/skills") ->
 	Skills = util:group_by(fun(X) -> X#skill_rec.group end, call_queue_config:get_skills()),

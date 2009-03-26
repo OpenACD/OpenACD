@@ -169,9 +169,7 @@ build_tables(Nodes) ->
 		{atomic, ok} ->
 			case new_queue_group(?DEFAULT_QUEUE_GROUP) of
 				{atomic, ok} ->
-					ok;
-				Or4 ->
-					Or4
+					ok
 			end;
 		_Or3 ->
 			ok
@@ -349,7 +347,7 @@ get_queue_groups() ->
 	lists:sort(Sort, Groups).
 
 %% @doc Set the `#queue_group{}' named `Oldname' to the passed `#queue_group{}' `Rec'.
--spec(set_queue_group/2 :: (Oldname :: string(), Rec :: #queue_group{}) -> {'atomic' | 'ok'}).
+-spec(set_queue_group/2 :: (Oldname :: string(), Rec :: #queue_group{}) -> {'atomic', atom()} | {'aborted', atom()}).
 set_queue_group(Oldname, Rec) when is_record(Rec, queue_group) ->
 	F = fun() ->
 		case mnesia:read({queue_group, Oldname}) of

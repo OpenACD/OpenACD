@@ -61,22 +61,25 @@
 %% @doc Split `String' string by `Separator' into a list of strings at most `SplitCount' long.
 %% If `Separator' is a blank string `String' is split into a list of `SplitCount' single character
 %% strings followed by the remainder of `String', if any.
-string_split("", _Separator, _SplitCount) ->
-	[];
-string_split(String, "", 1) ->
-	[String];
-string_split(String, _Separator, 1) ->
-	[String];
-string_split(String, "", SplitCount) ->
-	[string:substr(String, 1, 1) | string_split(string:substr(String, 2), "", SplitCount - 1)];
 string_split(String, Separator, SplitCount) ->
+	string_split_(String, Separator, SplitCount, []).
+
+string_split_("", _Separator, _SplitCount, Acc) ->
+	lists:reverse(Acc);
+string_split_(String, "", 1, Acc) ->
+	lists:reverse([String | Acc]);
+string_split_(String, _Separator, 1, Acc) ->
+	lists:reverse([String | Acc]);
+string_split_(String, "", SplitCount, Acc) ->
+	string_split_(string:substr(String, 2), "", SplitCount - 1, [string:substr(String, 1, 1) | Acc]);
+string_split_(String, Separator, SplitCount, Acc) ->
 	case string:str(String, Separator) of
 		0 ->
-			[String];
+			lists:reverse([String | Acc]);
 		Index ->
 			Head = string:substr(String, 1, Index - 1),
 			Tailpresplit = string:substr(String, Index + string:len(Separator)),
-			[Head | string_split(Tailpresplit, Separator, SplitCount - 1)]
+			string_split_(Tailpresplit, Separator, SplitCount - 1, [Head | Acc])
 	end.
 
 -spec(string_split/2 :: (String :: [], Separator :: [integer()]) -> [];
@@ -84,16 +87,20 @@ string_split(String, Separator, SplitCount) ->
                         (String :: [integer(),...], Separator :: [integer(),...]) -> [[integer()]]).
 %% @doc Split `String' by `Separator'.
 %% If `Separator' is a blank string `String' is split into a list of single character strings.
-string_split("", _Separator) ->
-	[];
-string_split(String, "") ->
-	[string:substr(String, 1, 1) | string_split(string:substr(String, 2), "")];
+
 string_split(String, Separator) ->
+	string_split_(String, Separator, []).
+
+string_split_("", _Separator, Acc) ->
+	lists:reverse(Acc);
+string_split_(String, "", Acc) ->
+	string_split_(string:substr(String, 2), "", [string:substr(String, 1, 1) | Acc]);
+string_split_(String, Separator, Acc) ->
 	case string:str(String, Separator) of
 		0 ->
-			[String];
+			lists:reverse([String | Acc]);
 		Index ->
-			[string:substr(String, 1, Index - 1) | string_split(string:substr(String, Index + string:len(Separator)), Separator)]
+			string_split_(string:substr(String, Index + string:len(Separator)), Separator, [string:substr(String, 1, Index - 1) | Acc])
 	end.
 
 -spec(string_chomp/1 :: (String :: string()) -> string()).
@@ -116,14 +123,14 @@ list_contains_all(List, [H | Members]) when is_list(List) ->
 %% @doc Apply the `Fun(Index, Element)' to each element of `List' along with the element's index in `List'.
 %% @see lists:map/2
 list_map_with_index(Fun, List) when is_function(Fun), is_list(List) ->
-	list_map_with_index(Fun, List, 0).
+	list_map_with_index(Fun, List, 0, []).
 
--spec(list_map_with_index/3 :: (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [any(),...], Counter :: non_neg_integer()) -> [any(), ...];
-					(Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [], Counter :: non_neg_integer()) -> []).
-list_map_with_index(_Fun, [], _Counter) ->
-	[];
-list_map_with_index(Fun, [H|T], Counter) ->
-	[Fun(Counter, H) | list_map_with_index(Fun, T, Counter + 1)].
+-spec(list_map_with_index/4 :: (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [any(),...], Counter :: non_neg_integer(), Acc :: [any(),...]) -> [any(), ...];
+	(Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [], Counter :: non_neg_integer(), Acc :: []) -> []).
+list_map_with_index(_Fun, [], _Counter, Acc) ->
+	lists:reverse(Acc);
+list_map_with_index(Fun, [H|T], Counter, Acc) ->
+	list_map_with_index(Fun, T, Counter + 1, [Fun(Counter, H) | Acc]).
 
 %% code below shamelessly 'borrowed' from Steve Vinoski in his comments at
 % http://necrobious.blogspot.com/2008/03/binary-to-hex-string-back-to-binary-in.html
@@ -155,8 +162,9 @@ hexstr_to_bin([X, Y | T], Acc) ->
 			error
 	end.
 
-%% @doc groups a list into a list of lists where each sublists contains
+%% @doc groups a list into a list of lists where each sublist contains
 %% the elements where `Fun(Element)' returned the same value.
+-spec(group_by/2 :: (Fun :: fun((Value :: any()) -> any()), List :: [any()]) -> [any()]).
 group_by(Fun, List) ->
 	lists:map(fun({_Key,Value}) -> Value end,
 		dict:to_list(lists:foldl(fun(X, Acc) ->

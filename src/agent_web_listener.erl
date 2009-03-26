@@ -366,9 +366,11 @@ cooke_file_test_() ->
 			fun(_Httpc) ->
 				{"Try to get a page with a bad cookie",
 				fun() ->
-					{ok, {{_Httpver, Code, _Message}, _Head, Body}} = http:request(get, {"http://127.0.0.1:5050/", [{"Cookie", "goober=snot"}]}, [], []),
-					?assertEqual("Invalid cookie: [{\"goober\",\"snot\"}]", Body),
-					?assertEqual(403, Code)
+					{ok, {{_Httpver, Code, _Message}, Head, _Body}} = http:request(get, {"http://127.0.0.1:5050/", [{"Cookie", "goober=snot"}]}, [], []),
+					?assertEqual(200, Code),
+					?CONSOLE("~p", [Head]),
+					Cookie = proplists:get_value("set-cookie", Head),
+					?assertNot(undefinded =:= Cookie)
 				end}
 			end,
 			fun(_Httpc) ->

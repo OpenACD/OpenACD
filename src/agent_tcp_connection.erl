@@ -346,7 +346,7 @@ handle_event(["QUEUES", Counter, QueueNames], #state{securitylevel = Security} =
 	{ack(Counter), State2};
 
 handle_event(["DIAL", Counter, Brand, "outbound", Number, "1"], State) when is_integer(Counter) ->
-	freeswitch_ring:start_outbound(freeswitch@freecpx, agent:dump_state(State#state.agent_fsm), State#state.agent_fsm, Number, 30, "freecpx.dev"),
+	freeswitch_media_manager:make_outbound_call(Number, State#state.agent_fsm, agent:dump_state(State#state.agent_fsm)),
 	{ack(Counter), State};
 
 handle_event(["ACK" | [Counter | _Args]], State) when is_integer(Counter) ->

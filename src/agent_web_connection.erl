@@ -46,7 +46,13 @@
 -include("agent.hrl").
 
 %% API
--export([start_link/2, start/2, stop/1, api/2]).
+-export([
+	start_link/2,
+	start/2,
+	stop/1,
+	api/2,
+	dump_agent/1
+]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -64,6 +70,8 @@
 	counter = 1 :: non_neg_integer(),
 	table :: atom() | 'undefined',
 	ack_timer,
+	poll_state :: atom(),
+	poll_statedata :: any(),
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin'
 }).
 
@@ -85,6 +93,9 @@ stop(Pid) ->
 
 api(Pid, Apicall) ->
 	gen_server:call(Pid, Apicall).
+
+dump_agent(Pid) ->
+	gen_server:call(Pid, dump_agent).
 
 %%====================================================================
 %% gen_server callbacks
@@ -116,7 +127,7 @@ handle_call(stop, _From, State) ->
 	{stop, shutdown, ok, State};
 handle_call(poll, _From, #state{poll_queue = Pollq} = State) ->
 	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
-	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, Pollq}]},
+	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}]},
 	{reply, {200, [], mochijson2:encode(Json2)}, State2};
 handle_call(logout, _From, State) ->
 	{stop, normal, {200, [{"Set-Cookie", [{"cpx_id=dead"}]}], mochijson2:encode({struct, [{success, true}]})}, State};
@@ -140,6 +151,9 @@ handle_call({err, Counter}, _From, State) ->
 	{reply, ok, State};
 handle_call({err, Counter, Message}, _From, State) ->
 	{reply, ok, State};
+handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
+	Astate = agent:dump_state(Apid),
+	{reply, Astate, State};
 handle_call(Allothers, _From, State) ->
 	{reply, {unknown_call, Allothers}, State}.
 

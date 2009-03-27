@@ -116,15 +116,16 @@ dojo.require("dijit.form.ComboBox");
 	
 	<div dojoType = "dijit.layout.ContentPane" region="bottom" style="text-align:center">
 		<button dojoType="dijit.form.Button" id="bgoavail" onclick=agent.setState("idle")>Go Available</button>
-		<select dojoType="dijit.form.ComboBox" id="boutboundcall" name="outbound">
-			<option>Demo Brand</option>
-		</select>
-		<button dojoType="dijit.form.Button" id="bcancel" style="display:none">Cancel</button>
 		<div dojoType="dijit.form.DropDownButton" id="bgoreleased" style="display:none">
 			<span>Go Released...</span>
 			<div dojoType="dijit.Menu" id="releasedmenu">
 			</div>
 		</div>
+
+		<select dojoType="dijit.form.ComboBox" id="boutboundcall" name="outbound">
+			<option>Demo Brand</option>
+		</select>
+		<button dojoType="dijit.form.Button" id="bcancel" style="display:none">Cancel</button>
 		<button dojoType="dijit.form.Button" id="bdial" style="display:none">Dial</button>
 
 	</div>

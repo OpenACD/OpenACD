@@ -153,7 +153,6 @@ code_change(_OldVsn, State, _Extra) ->
 %% if there is an active agent_web_connection.  If there is, further processing is done there, 
 %% otherwise the request is denied.
 loop(Req, Table) -> 
-	?CONSOLE("loop start",[]),
 	Path = Req:get(path),
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
@@ -167,6 +166,22 @@ loop(Req, Table) ->
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}]);
 				Reflist ->
 					Req:serve_file(File, Docroot)
+			end;
+		{api, checkcookie} ->
+			case check_cookie(Req:parse_cookie()) of
+				badcookie ->
+					Reflist = erlang:ref_to_list(make_ref()),
+					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
+					ets:insert(Table, {Reflist, undefined, undefined}),
+					Json = {struct, [{<<"success">>, false}]},
+					Req:respond({200, [{"Set-Cookie", Cookie}], mochijson2:encode(Json)});
+				{Reflist, Salt, Conn} ->
+					Agentrec = agent_web_connection:dump_agent(Conn),
+					Json = {struct, [
+						{<<"success">>, true},
+						{<<"login">>, list_to_binary(Agentrec#agent.login)},
+						{<<"state">>, Agentrec#agent.state}]},
+					Req:respond({200, [], mochijson2:encode(Json)})
 			end;
 		{api, Apirequest} ->
 			% actions that don't care about the cookie
@@ -322,6 +337,8 @@ parse_path(Path) ->
 			{api, getsalt};
 		"/releaseopts" ->
 			{api, releaseopts};
+		"/checkcookie" ->
+			{api, checkcookie};
 		_Other ->
 			case util:string_split(Path, "/") of 
 				["", "state", Statename] ->
@@ -524,7 +541,8 @@ web_connection_login_test_() ->
 		{"/index.html", {file, {"index.html", "www/agent/"}}},
 		{"/otherfile.ext", {file, {"otherfile.ext", "www/contrib/"}}},
 		{"/other/path", {file, {"other/path", "www/contrib/"}}},
-		{"/releaseopts", {api, releaseopts}}
+		{"/releaseopts", {api, releaseopts}},
+		{"/checkcookie", {api, checkcookie}}
 	]
 ).
 

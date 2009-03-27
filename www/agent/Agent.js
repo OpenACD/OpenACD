@@ -1,5 +1,5 @@
 function Agent(username){
-	this.login = "";
+	this.login = username;
 	this.securitylevel = "";
 	this.profile = "";
 	this.skills = [];

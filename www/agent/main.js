@@ -10,9 +10,14 @@ dojo.addOnLoad(function(){
 		},
 		load:function(response, ioargs){
 			if(response.success){
-				//dance
+				dojo.byId("main").style.display="block";
+				dojo.byId("main").style.visibility = "visible";
+				agent = new Agent(response.login);
+				buildReleaseMenu(agent);
+				dojo.byId("agentname").innerHTML = response.login;
+				agent.setState(response.state)
 			}
-			else(response.success){
+			else{
 				dijit.byId("loginpane").show();
 			}
 		}
@@ -119,8 +124,8 @@ dojo.addOnLoad(function(){
 				url:"/getsalt",
 				handleAs:"json",
 				error:function(response, ioargs){
-				dojo.byId("loginerrp").style.display = "block";
-				dojo.byId("loginerrspan").innerHTML = response.responseText;
+					dojo.byId("loginerrp").style.display = "block";
+					dojo.byId("loginerrspan").innerHTML = response.responseText;
 				},
 				load:function(response, ioargs){
 					EventLog.log("Recieved salt");

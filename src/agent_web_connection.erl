@@ -145,15 +145,15 @@ handle_call({set_state, Statename, Statedata}, _From, #state{agent_fsm = Apid} =
 		Status ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State}
 	end;
-handle_call({ack, Counter}, _From, State) ->
-	{reply, ok, State};
-handle_call({err, Counter}, _From, State) ->
-	{reply, ok, State};
-handle_call({err, Counter, Message}, _From, State) ->
-	{reply, ok, State};
-handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
-	Astate = agent:dump_state(Apid),
-	{reply, Astate, State};
+%handle_call({ack, Counter}, _From, State) ->
+%	{reply, ok, State};
+%handle_call({err, Counter}, _From, State) ->
+%	{reply, ok, State};
+%handle_call({err, Counter, Message}, _From, State) ->
+%	{reply, ok, State};
+%handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
+%	Astate = agent:dump_state(Apid),
+%	{reply, Astate, State};
 handle_call(Allothers, _From, State) ->
 	{reply, {unknown_call, Allothers}, State}.
 
@@ -178,6 +178,7 @@ handle_cast({change_state, ringing, #call{client = Clientrec} = Call}, #state{po
 		]} | Pollq],
 	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
 handle_cast({change_state, AgState, Data}, #state{poll_queue = Pollq, counter = Counter} = State) ->
+	?CONSOLE("State:  ~p; Data:  ~p", [AgState, Data]),
 	Newqueue =
 		[{struct, [
 			{<<"counter">>, Counter},

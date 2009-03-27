@@ -164,7 +164,7 @@ loop(Req, Table) ->
 					ets:insert(Table, {Reflist, undefined, undefined}),
 					?CONSOLE("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}]);
-				Reflist ->
+				_Reflist ->
 					Req:serve_file(File, Docroot)
 			end;
 		{api, checkcookie} ->
@@ -175,7 +175,7 @@ loop(Req, Table) ->
 					ets:insert(Table, {Reflist, undefined, undefined}),
 					Json = {struct, [{<<"success">>, false}]},
 					Req:respond({200, [{"Set-Cookie", Cookie}], mochijson2:encode(Json)});
-				{Reflist, Salt, Conn} ->
+				{_Reflist, _Salt, Conn} ->
 					Agentrec = agent_web_connection:dump_agent(Conn),
 					Json = {struct, [
 						{<<"success">>, true},
@@ -203,7 +203,7 @@ loop(Req, Table) ->
 							Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})});
 						releaseopts ->
 							Releaseopts = agent_auth:get_releases(),
-							Converter = fun(#release_opt{label = Label, id = Id} = Rec) ->
+							Converter = fun(#release_opt{label = Label, id = Id}) ->
 								{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, Id}]}
 							end,
 							Jsons = lists:map(Converter, Releaseopts),
@@ -477,7 +477,7 @@ web_connection_login_test_() ->
 			end,
 			{Httpc, Cookie, Getsalt}
 		end,
-		fun({Httpc, Cookie, Getsalt}) ->
+		fun({Httpc, _Cookie, _Getsalt}) ->
 			inets:stop(httpc, Httpc),
 			inets:stop(),
 			agent_web_listener:stop(),

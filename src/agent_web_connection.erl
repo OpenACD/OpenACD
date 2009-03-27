@@ -151,9 +151,9 @@ handle_call({set_state, Statename, Statedata}, _From, #state{agent_fsm = Apid} =
 %	{reply, ok, State};
 %handle_call({err, Counter, Message}, _From, State) ->
 %	{reply, ok, State};
-%handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
-%	Astate = agent:dump_state(Apid),
-%	{reply, Astate, State};
+handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
+	Astate = agent:dump_state(Apid),
+	{reply, Astate, State};
 handle_call(Allothers, _From, State) ->
 	{reply, {unknown_call, Allothers}, State}.
 

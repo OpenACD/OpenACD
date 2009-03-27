@@ -1,12 +1,21 @@
 dojo.addOnLoad(function(){
 	EventLog.log("Inteface loaded");
 
+	EventLog.logAgentState = dojo.subscribe("agent/state", function(data){
+		var line = "Agent state changed to " + data.state;
+		if(data.statedata){
+			line += data.statedata.toString();
+		}
+		EventLog.log(line);
+	});
+	
 	//dijit.byId("loginpane").show();
 	dojo.xhrGet({
 		url:"/checkcookie",
 		handleAs:"json",
 		error:function(response, ioargs){
 			console.log("checkcookie failed!");
+			console.log(response);
 		},
 		load:function(response, ioargs){
 			if(response.success){

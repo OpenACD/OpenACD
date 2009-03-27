@@ -169,18 +169,24 @@ loop(Req, Table) ->
 			end;
 		{api, checkcookie} ->
 			case check_cookie(Req:parse_cookie()) of
-				badcookie ->
-					Reflist = erlang:ref_to_list(make_ref()),
-					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
-					ets:insert(Table, {Reflist, undefined, undefined}),
-					Json = {struct, [{<<"success">>, false}]},
-					Req:respond({200, [{"Set-Cookie", Cookie}], mochijson2:encode(Json)});
-				{_Reflist, _Salt, Conn} ->
+				{_Reflist, _Salt, Conn} when is_pid(Conn) ->
+					?CONSOLE("Found agent_connection pid ~p", [Conn]),
 					Agentrec = agent_web_connection:dump_agent(Conn),
 					Json = {struct, [
 						{<<"success">>, true},
 						{<<"login">>, list_to_binary(Agentrec#agent.login)},
 						{<<"state">>, Agentrec#agent.state}]},
+					Req:respond({200, [], mochijson2:encode(Json)});
+				badcookie ->
+					?CONSOLE("cookie not in ets", []),
+					Reflist = erlang:ref_to_list(make_ref()),
+					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
+					ets:insert(Table, {Reflist, undefined, undefined}),
+					Json = {struct, [{<<"success">>, false}]},
+					Req:respond({200, [{"Set-Cookie", Cookie}], mochijson2:encode(Json)});
+				{_Reflist, _Salt, undefined} ->
+					?CONSOLE("cookie found, no agent", []),
+					Json = {struct, [{<<"success">>, false}]},
 					Req:respond({200, [], mochijson2:encode(Json)})
 			end;
 		{api, Apirequest} ->

@@ -164,7 +164,7 @@ handle_call(poll, _From, #state{poll_queue = Pollq} = State) ->
 	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}]},
 	{reply, {200, [], mochijson2:encode(Json2)}, State2};
 handle_call(logout, _From, State) ->
-	{stop, normal, {200, [{"Set-Cookie", [{"cpx_id=dead"}]}], mochijson2:encode({struct, [{success, true}]})}, State};
+	{stop, normal, {200, [{"Set-Cookie", "cpx_id=dead"}], mochijson2:encode({struct, [{success, true}]})}, State};
 handle_call({set_state, Statename}, _From, #state{agent_fsm = Apid} = State) ->
 	case agent:set_state(Apid, agent:list_to_state(Statename)) of
 		ok ->

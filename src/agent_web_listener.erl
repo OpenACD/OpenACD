@@ -80,7 +80,10 @@ start_link(Port) ->
 
 stop() ->
 	gen_server:call(?MODULE, stop).
-	
+
+linkto(Pid) ->
+	gen_server:cast(?MODULE, {linkto, Pid}).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -104,12 +107,18 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+handle_cast({linkto, Pid}, State) ->
+	link(Pid),
+	{noreply, State};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+handle_info({'EXIT', Pid, normal}, State) ->
+	ets:match_delete(web_connections, {'$1', '_', Pid}),
+	{noreply, State};
 handle_info(Info, State) ->
 	?CONSOLE("Info:  ~p", [Info]),
     {noreply, State}.
@@ -152,8 +161,9 @@ code_change(_OldVsn, State, _Extra) ->
 %% On any other path, the cookie is checked.  The value of the cookie is looked up on an internal table to see 
 %% if there is an active agent_web_connection.  If there is, further processing is done there, 
 %% otherwise the request is denied.
-loop(Req, Table) -> 
+loop(Req, Table) ->
 	Path = Req:get(path),
+	Post = Req:parse_post(),
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
 			Cookielist = Req:parse_cookie(),
@@ -167,149 +177,85 @@ loop(Req, Table) ->
 				_Reflist ->
 					Req:serve_file(File, Docroot)
 			end;
-		{api, checkcookie} ->
-			case check_cookie(Req:parse_cookie()) of
-				{_Reflist, _Salt, Conn} when is_pid(Conn) ->
-					?CONSOLE("Found agent_connection pid ~p", [Conn]),
-					Agentrec = agent_web_connection:dump_agent(Conn),
-					Json = {struct, [
-						{<<"success">>, true},
-						{<<"login">>, list_to_binary(Agentrec#agent.login)},
-						{<<"state">>, Agentrec#agent.state},
-						{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)}]},
-					Req:respond({200, [], mochijson2:encode(Json)});
-				badcookie ->
-					?CONSOLE("cookie not in ets", []),
-					Reflist = erlang:ref_to_list(make_ref()),
-					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
-					ets:insert(Table, {Reflist, undefined, undefined}),
-					Json = {struct, [{<<"success">>, false}]},
-					Req:respond({200, [{"Set-Cookie", Cookie}], mochijson2:encode(Json)});
-				{_Reflist, _Salt, undefined} ->
-					?CONSOLE("cookie found, no agent", []),
-					Json = {struct, [{<<"success">>, false}]},
-					Req:respond({200, [], mochijson2:encode(Json)})
-			end;
-		{api, Apirequest} ->
-			% actions that don't care about the cookie
-			% that would be none
-			case check_cookie(Req:parse_cookie()) of
-				badcookie ->
-					?CONSOLE("bad cookie", []),
-					Reflist = erlang:ref_to_list(make_ref()),
-					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
-					ets:insert(Table, {Reflist, undefined, undefined}),
-					Req:respond({403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>});
-				{Reflist, Salt, Conn} ->
-					%% okay, now to handle the api stuff.
-					case Apirequest of
-						getsalt ->
-							Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
-							ets:insert(web_connections, {Reflist, Newsalt, Conn}),
-							?CONSOLE("created and sent salt for ~p", [Reflist]),
-							Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})});
-						releaseopts ->
-							Releaseopts = agent_auth:get_releases(),
-							Converter = fun(#release_opt{label = Label, id = Id}) ->
-								{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, Id}]}
-							end,
-							Jsons = lists:map(Converter, Releaseopts),
-							Req:respond({200, [], mochijson2:encode(Jsons)});
-						login ->
-							case Salt of
-								undefined ->
-									?CONSOLE("Bad salt for login request for ~p", [Reflist]),
-									Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})});
-								Salt ->
-									Post = Req:parse_post(),
-									Username = proplists:get_value("username", Post, ""),
-									Password = proplists:get_value("password", Post, ""),
-									case agent_auth:auth(Username, Password, Salt) of
-										deny ->
-											Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})});
-										{allow, Skills, Security} ->
-											Agent = #agent{login = Username, skills = Skills},
-											case agent_web_connection:start_link(Agent, Security) of
-												{ok, Pid} ->
-													ets:insert(web_connections, {Reflist, Salt, Pid}),
-													?CONSOLE("connection started for ~p", [Reflist]),
-													Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})});
-												ignore ->
-													?CONSOLE("Ignore message trying to start connection for ~p", [Reflist]),
-													Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})});
-												{error, Error} ->
-													?CONSOLE("Error ~p trying to start connection for ~p", [Error, Reflist]),
-													Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})})
-											end
-									end
-							end;
-						%% everying else, we need an actual connection to handle
-						Apirequest ->
-							case Conn of
-								undefined ->
-									?CONSOLE("Cannot answer api request ~p due to no connection", [Apirequest]),
-									Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login required">>}]})});
-								Conn ->
-									case agent_web_connection:api(Conn, Apirequest) of
-										{Code, Headers, Body} ->
-											Req:respond({Code, Headers, Body})
-									end
-							end
-					end
-			end
+		{api, Api} ->
+			Out = api(Api, check_cookie(Req:parse_cookie()), Post),
+			?CONSOLE("Sending back ~p", [Out]),
+			Req:respond(Out)
 	end.
 		
-		%{api, getsalt} ->
-%			
-%
-%
-%
-%
-%
-%		{api, 
-%		{api, _Any} ->
-%			Req:respond({501, [], mochijson2:encode({struct, [{success, false},{message, <<"Not yet implemented!">>}]})})
-%	end.
-	
-	
-	
-%	case Req:get(path) of
-%		"/login" -> 
-%			?CONSOLE("/login",[]),
-%			Post = Req:parse_post(),
-%			case Post of 
-%				% normally this would check against a database and not just discard the un/pw.
-%				[] -> 
-%					?CONSOLE("empty post",[]),
-%					Req:respond({403, [], mochijson2:encode({struct, [{success, false}, {message, <<"No post data supplied">>}]})});
-%				_Any -> 
-%					?CONSOLE("trying to start connection",[]),
-%					Ref = make_ref(),
-%					case agent_web_connection:start(Post, Ref, Table) of
-%						{ok, _Aconnpid} -> 
-%							Cookie = io_lib:format("cpx_id=~p", [erlang:ref_to_list(Ref)]),
-%							Req:respond({200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}, {message, <<"Login successful">>}]})});
-%						{error, Reason} -> 
-%							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(io_lib:format("~p", [Reason]))}]})});
-%						ignore -> 
-%							Req:respond({403, [{"Set-Cookie", "cpx_id=0"}], mochijson2:encode({struct, [{success, false}, {message, <<"ignored">>}]})})
-%					end
-%			end;
-%		Path -> 
-%			?CONSOLE("any other path",[]),
-%			case Req:parse_cookie() of 
-%				[{"cpx_id", Reflist}] -> 
-%					?CONSOLE("cookie looks good~nReflist: ~p", [Reflist]),
-%					Etsres = ets:lookup(Table, Reflist),
-%					?CONSOLE("ets res:~p", [Etsres]),
-%					[{_Key, Aconn, _Login} | _Rest] = Etsres,
-%					Reqresponse = agent_web_connection:request(Aconn, Path, Req:parse_post(), Req:parse_cookie()),
-%					Req:respond(Reqresponse);
-%				_Allelse -> 
-%					?CONSOLE("bad cookie",[]),
-%					Req:respond({403, [], io_lib:format("Invalid cookie: ~p", [Req:parse_cookie()])})
-%			end
-%	end.
+api(checkcookie, Cookie, _Post) ->
+	case Cookie of
+		{_Reflist, _Salt, Conn} when is_pid(Conn) ->
+			?CONSOLE("Found agent_connection pid ~p", [Conn]),
+			Agentrec = agent_web_connection:dump_agent(Conn),
+			Json = {struct, [
+				{<<"success">>, true},
+				{<<"login">>, list_to_binary(Agentrec#agent.login)},
+				{<<"state">>, Agentrec#agent.state},
+				{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)}]},
+			{200, [], mochijson2:encode(Json)};
+		badcookie ->
+			?CONSOLE("cookie not in ets", []),
+			Reflist = erlang:ref_to_list(make_ref()),
+			NewCookie = io_lib:format("cpx_id=~p", [Reflist]),
+			ets:insert(web_connections, {Reflist, undefined, undefined}),
+			Json = {struct, [{<<"success">>, false}]},
+			{200, [{"Set-Cookie", NewCookie}], mochijson2:encode(Json)};
+		{_Reflist, _Salt, undefined} ->
+			?CONSOLE("cookie found, no agent", []),
+			Json = {struct, [{<<"success">>, false}]},
+			{200, [], mochijson2:encode(Json)}
+	end;
+api(Apirequest, badcookie, _Post) ->
+	?CONSOLE("bad cookie for request ~p", [Apirequest]),
+	Reflist = erlang:ref_to_list(make_ref()),
+	Cookie = io_lib:format("cpx_id=~p", [Reflist]),
+	ets:insert(web_connections, {Reflist, undefined, undefined}),
+	{403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>};
+api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
+	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
+	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
+	?CONSOLE("created and sent salt for ~p", [Reflist]),
+	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})};
+api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
+	Releaseopts = agent_auth:get_releases(),
+	Converter = fun(#release_opt{label = Label, id = Id}) ->
+		{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, Id}]}
+	end,
+	Jsons = lists:map(Converter, Releaseopts),
+	{200, [], mochijson2:encode(Jsons)};
+api(login, {_Reflist, undefined, _Conn}, _Post) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})};
+api(login, {Reflist, Salt, _Conn}, Post) ->
+	Username = proplists:get_value("username", Post, ""),
+	Password = proplists:get_value("password", Post, ""),
+	case agent_auth:auth(Username, Password, Salt) of
+		deny ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
+		{allow, Skills, Security} ->
+			Agent = #agent{login = Username, skills = Skills},
+			case agent_web_connection:start(Agent, Security) of
+				{ok, Pid} ->
+					linkto(Pid),
+					ets:insert(web_connections, {Reflist, Salt, Pid}),
+					?CONSOLE("connection started for ~p", [Reflist]),
+					{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
+				ignore ->
+					?CONSOLE("Ignore message trying to start connection for ~p", [Reflist]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
+				{error, Error} ->
+					?CONSOLE("Error ~p trying to start connection for ~p", [Error, Reflist]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})}
+			end
+	end;
+api(Api, {_Reflist, _Salt, Conn}, _Post) when is_pid(Conn) ->
+	?CONSOLE("api:  ~p", [Api]),
+	case agent_web_connection:api(Conn, Api) of
+		{Code, Headers, Body} ->
+			{Code, Headers, Body}
+	end;
+api(_Api, _Whatever, _Post) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login required">>}]})}.
 
 %% @doc determine if hte given cookie data is valid
 -spec(check_cookie/1 :: ([{string(), string()}]) -> 'badcookie' | web_connection()).
@@ -358,6 +304,8 @@ parse_path(Path) ->
 					{api, {err, Counter}};
 				["", "err", Counter, Message] ->
 					{api, {err, Counter, Message}};
+				["", "dial", Number] ->
+					{api, {dial, Number}};
 				_Allother ->
 					% is there an actual file to serve?
 					case filelib:is_regular(string:concat("www/agent", Path)) of

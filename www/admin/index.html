@@ -8,7 +8,20 @@
 		<link rel="stylesheet" href="/dojo/dijit/themes/tundra/tundra.css">
 
 		<style type="text/css">
-			/* our CSS can go here */
+			@import "/dojo/dijit/themes/nihilo/nihilo.css";
+			.statusdisplay {
+				padding:1.5em
+			}
+
+			label{
+				width: 10em;
+				float: left;
+				text-align:right;
+				margin-right:0.1em;
+				display:block;
+				font-weight:bold;
+				clear:both;
+			}
 		</style>    
 
 		<!-- load the dojo toolkit base -->
@@ -78,20 +91,20 @@
 						</div>
 						<div id="editSkillPane" dojoType="dijit.layout.ContentPane" style="display:none;">
 							<form dojoType="dijit.form.Form" id="editSkillForm" action="setskill" method="post">
-								Skill atom:<input type="text" name="skillatom" id="skillAtom" value=""
+								<p><label for="skillatom">Skill atom:</label><input type="text" name="skillatom" id="skillAtom" value=""
 								dojoType="dijit.form.ValidationTextBox"
 								regExp="[_a-z0-9]+"
 								required="true"
-								invalidMessage="Atoms can only consist of lowercase characters, underscores and numbers."/> <br/>
-								Name:<input type="text" name="skillname" id="skillName" value=""
+								invalidMessage="Atoms can only consist of lowercase characters, underscores and numbers."/></p>
+								<p><label for="skillName">Name:</label><input type="text" name="skillname" id="skillName" value=""
 								dojoType="dijit.form.TextBox"
 								trim="true"
-								propercase="true" /> <br/>
-								Description:<input type="text" name="skilldesc" id="skillDesc" value=""
+								propercase="true" /></p>
+								<p><label for="skilldesc">Description:</label><input type="text" name="skilldesc" id="skillDesc" value=""
 								dojoType="dijit.form.TextBox"
 								trim="true"
-								propercase="true" /><br/>
-								<button dojoType="dijit.form.Button" id="wtf" onclick="setSkill">Edit Skill</button>
+								propercase="true" /></p>
+								<p><label>&nbsp;</label><button dojoType="dijit.form.Button" id="wtf" onclick="setSkill">Edit Skill</button></p>
 							</form>
 						</div>
 					</div>

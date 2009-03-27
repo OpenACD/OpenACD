@@ -105,4 +105,5 @@ Agent.prototype.logout = function(callback){
 				callback();
 			}			
 		}
+	});
 }

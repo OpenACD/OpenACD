@@ -90,7 +90,7 @@ Agent.prototype.setState = function(state){
 }
 
 Agent.prototype.logout = function(callback){
-	agentref = this;
+	var agentref = this;
 	dojo.xhrGet({
 		url:"/logout",
 		handleAs:"json",

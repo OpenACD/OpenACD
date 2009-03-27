@@ -260,6 +260,9 @@ dojo.addOnLoad(function(){
 	}
 	
 	logout = function(agent){
-		agent.logout(dijit.byId("loginform").show)
+		agent.logout(function(){
+			dijit.byId("loginpane").show();
+			dijit.byId("main").attr('style', 'visibility:hidden');
+		});
 	}
 });

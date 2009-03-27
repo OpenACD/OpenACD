@@ -51,7 +51,8 @@
 	start/2,
 	stop/1,
 	api/2,
-	dump_agent/1
+	dump_agent/1,
+	encode_statedata/1
 ]).
 
 %% gen_server callbacks
@@ -96,6 +97,39 @@ api(Pid, Apicall) ->
 
 dump_agent(Pid) ->
 	gen_server:call(Pid, dump_agent).
+	
+encode_statedata(Callrec) when is_record(Callrec, call) ->
+	case Callrec#call.client of
+		undefined ->
+			Brand = "unknown client";
+		Clientrec when is_record(Clientrec, client) ->
+			Brand = Clientrec#client.label
+	end,
+	{struct, [
+		{<<"callerid">>, list_to_binary(Callrec#call.callerid)},
+		{<<"brandname">>, list_to_binary(Brand)},
+		{<<"ringpath">>, Callrec#call.ring_path},
+		{<<"mediapath">>, Callrec#call.media_path},
+		{<<"callid">>, list_to_binary(Callrec#call.id)},
+		{<<"type">>, Callrec#call.type}]};
+encode_statedata(Clientrec) when is_record(Clientrec, client) ->
+	{struct, [
+		{<<"brandname">>, list_to_binary(Clientrec#client.label)}]};
+encode_statedata({onhold, Holdcall, calling, Calling}) ->
+	Holdjson = encode_statedata(Holdcall),
+	Callingjson = encode_statedata(Calling),
+	{struct, [
+		{<<"onhold">>, Holdjson},
+		{<<"calling">>, Callingjson}]};
+encode_statedata({Relcode, _Bias}) ->
+	{struct, [{<<"reason">>, list_to_binary(Relcode)}]};
+encode_statedata(default) ->
+	{struct, [{<<"reason">>, default}]};
+encode_statedata(List) when is_list(List) ->
+	list_to_binary(List);
+encode_statedata({}) ->
+	false.
+
 
 %%====================================================================
 %% gen_server callbacks
@@ -161,22 +195,24 @@ handle_call(Allothers, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
-handle_cast({change_state, ringing, #call{client = Clientrec} = Call}, #state{poll_queue = Pollq, counter = Counter} = State) ->
-	case Clientrec of
-		undefined ->
-			Brand = "unknown client";
-		Clientrec when is_record(Clientrec, client) ->
-			Brand = Clientrec#client.label
-	end,
-	Newqueue = 
-		[{struct, [
-			{<<"counter">>, Counter},
-			{<<"command">>, <<"astate">>},
-			{<<"state">>, ringing},
-			{<<"callerid">>, list_to_binary(Call#call.callerid)},
-			{<<"brandname">>, list_to_binary(Brand)}
-		]} | Pollq],
-	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
+%handle_cast({change_state, AgState, Call}, #state{poll_queue = Pollq, counter = Counter} = State) when is_record(Call, call) ->
+%	case Call#call.client of
+%		undefined ->
+%			Brand = "unknown client";
+%		Clientrec when is_record(Clientrec, client) ->
+%			Brand = Clientrec#client.label
+%	end,
+%	Newqueue = 
+%		[{struct, [
+%			{<<"counter">>, Counter},
+%			{<<"command">>, <<"astate">>},
+%			{<<"state">>, AgState},
+%			{<<"callerid">>, list_to_binary(Call#call.callerid)},
+%			{<<"brandname">>, list_to_binary(Brand)},
+%			{<<"ringpath">>, Call#call.ring_path},
+%			{<<"mediapath">>, Call#call.media_path}
+%		]} | Pollq],
+%	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
 handle_cast({change_state, AgState, Data}, #state{poll_queue = Pollq, counter = Counter} = State) ->
 	?CONSOLE("State:  ~p; Data:  ~p", [AgState, Data]),
 	Newqueue =
@@ -184,7 +220,7 @@ handle_cast({change_state, AgState, Data}, #state{poll_queue = Pollq, counter = 
 			{<<"counter">>, Counter},
 			{<<"command">>, <<"astate">>},
 			{<<"state">>, AgState},
-			{<<"stateinfo">>, <<"NYI">>}
+			{<<"statedata">>, encode_statedata(Data)}
 		]} | Pollq],
 	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
 handle_cast({change_state, AgState}, #state{poll_queue = Pollq, counter = Counter} = State) ->
@@ -195,7 +231,8 @@ handle_cast({change_state, AgState}, #state{poll_queue = Pollq, counter = Counte
 			{<<"state">>, AgState}
 		]} | Pollq],
 	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
-handle_cast(_Msg, State) ->
+handle_cast(Msg, State) ->
+	?CONSOLE("Other case ~p", [Msg]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -243,11 +280,6 @@ build_acks([{struct, Pollprops} | Pollqueue], Acks) ->
 	end,
 	build_acks(Pollqueue, Acks2).
 	
-build_poll([], Pollqueue, Runningcount) -> 
-	{Pollqueue, Runningcount};
-build_poll([{_Counter, {Tried, Type, Data}} | Ackqueue], Pollqueue, Runningcount) -> 
-	build_poll(Ackqueue, lists:append(Pollqueue, [{Runningcount+1, Tried+1, Type, Data}]), Runningcount+1).
-
 -ifdef(TEST).
 
 set_state_test_() ->

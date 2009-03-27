@@ -68,8 +68,8 @@ dojo.require("dijit.form.ComboBox");
 		<div dojoType="dijit.form.DropDownButton">
 			<span>File</span>
 			<div dojoType="dijit.Menu" id="Filemenu">
-				<div dojoType="dijit.MenuItem" label="Hangup" onclick="hangup();"></div>
-				<div dojoType="dijit.MenuItem" label="Logout" onclick="logout();"></div>
+				<div dojoType="dijit.MenuItem" label="Hangup" id="miHangup" onclick=agent.setState("wrapup");></div>
+				<div dojoType="dijit.MenuItem" label="Logout" id="miLogout" onclick=logout();></div>
 			</div>
 		</div>
 		<div dojoType="dijit.form.DropDownButton">
@@ -127,7 +127,8 @@ dojo.require("dijit.form.ComboBox");
 		</select>
 		<button dojoType="dijit.form.Button" id="bcancel" style="display:none">Cancel</button>
 		<button dojoType="dijit.form.Button" id="bdial" style="display:none">Dial</button>
-
+		<button dojoType="dijit.form.Button" id="banswer" style="display:none" onclick=agent.setState("oncall")>Answer</button>
+		<butotn dojoType="dijit.form.Button" id="bhangup" style="display:none" onclick=agent.setState("wrapup")>Hang up</button>
 	</div>
 
 </div>

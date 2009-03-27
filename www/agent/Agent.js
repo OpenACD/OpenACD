@@ -16,30 +16,14 @@ function Agent(username){
 			 switch (datalist[i].command){
 				case "astate":
 					agentref.state = datalist[i].state;
-					switch(datalist[i].state){
-						case "ringing":
-							agentref.statedata = {"callerid":datalist[i].callerid, "brandname":datalist[i].brandname};
-							dojo.publish("agent/state", [{"state":datalist[i].state, "statedata":{"callerid":datalist[i].callerid, "brandname":datalist[i].brandname}}]);
-							break;
-							
-						case "released":
-							agentref.statedata = datalist[i].stateinfo;
-							dojo.publish("agent/state", [{"state":datalist[i].state, "statedata":datalist[i].stateinfo}]);
-							break;
-						
-						case "idle":
-							dojo.publish("agent/state", [{"state":"idle"}]);
-							break;
-						
-						case "precall":
-							dojo.publish("agent/state", [{"state":"precall"}, {"brand":datalist[i].stateinfo}]);
-							break;
-							
-						default:
-							//just...just no.
-					}					
+					agentref.statedata = datalist[i].statedata;
+					dojo.publish("agent/state", [datalist[i]]);
+					agentref.stopwatch.reset();
+					break;
+					
 				default:
-					//seriously?
+					console.log("unhandled command");
+					console.log(datalist[i].command);
 			 }
 		}
 	}
@@ -100,7 +84,25 @@ Agent.prototype.setState = function(state){
 			agentref.state = state;
 			agentref.statedata = statedata;
 			agentref.stopwatch.reset();
-			dojo.publish("agent/state", [{"success":true, "state":state, "statedata":statedata}]);
+			//dojo.publish("agent/state", [{"success":true, "state":state, "statedata":statedata}]);
 		}
 	})
+}
+
+Agent.prototype.logout = function(callback){
+	agentref = this;
+	dojo.xhrGet({
+		url:"/logout",
+		handleAs:"json",
+		error:function(response, ioargs){
+			console.log("error logging out");
+			console.log(response);
+		},
+		load:function(response, ioargs){
+			if(response.success){
+				agentref.stopwatch.stop();
+				agentref.stopwatch.reset();
+				callback();
+			}			
+		}
 }

@@ -24,7 +24,8 @@ dojo.addOnLoad(function(){
 				agent = new Agent(response.login);
 				buildReleaseMenu(agent);
 				dojo.byId("agentname").innerHTML = response.login;
-				agent.setState(response.state)
+				agent.state = response.state;
+				dojo.publish("agent/state", [{"state":response.state, "statedata":response.statedata}]);
 			}
 			else{
 				dijit.byId("loginpane").show();
@@ -119,7 +120,54 @@ dojo.addOnLoad(function(){
 	dojo.byId("state").stateChanger = dojo.subscribe("agent/state", function(data){
 		dojo.byId("state").innerHTML = data.state;
 	});
-
+	
+	dijit.byId("banswer").stateChanger = dojo.subscribe("agent/state", function(data){
+		var widget = dijit.byId("banswer");
+		console.log("banswer");
+		console.log(data);
+		if(data.statedata.ringpath == "inband"){
+			switch(data.state){
+				case "ringing":
+					widget.attr('style', "display:inline");
+					break;
+				default:
+					widget.attr('style', 'display:none');
+			}
+		}
+	});
+	
+	dijit.byId("bhangup").stateChanger = dojo.subscribe("agent/state", function(data){
+		var widget = dijit.byId("bhangup");
+		console.log("bhangup");
+		console.log(data);
+		if(data.statedata.mediapath == "inband"){
+			switch(data.state){
+				case "oncall":
+				case "warmtransfer":
+				case "outbound":
+					widget.attr('style', 'display:inline');
+					break;
+				default:
+					widget.attr('style', 'display:none');
+			}
+		}
+	});
+	
+	dijit.byId("miHangup").stateChanger = dojo.subscribe("agent/state", function(data){
+		var widget = dijit.byId("miHangup");
+		if(data.statedata.mediapath = "inband"){
+			switch(data.state){
+				case "oncall":
+				case "warmtransfer":
+				case "outband":
+					widget.setDisabled(false);
+					break;
+				default:
+					widget.setDisabled(true);
+			}
+		}
+	});
+	
 	dijit.byId("eventLogText").eventLogPushed = dojo.subscribe("eventlog/push", function(text){
 		var oldval = dijit.byId("eventLogText").value;
 		dijit.byId("eventLogText").setValue(oldval + "\n" + text)
@@ -209,5 +257,9 @@ dojo.addOnLoad(function(){
 				}
 			}
 		})
+	}
+	
+	logout = function(agent){
+		agent.logout(dijit.byId("loginform").show)
 	}
 });

@@ -175,7 +175,8 @@ loop(Req, Table) ->
 					Json = {struct, [
 						{<<"success">>, true},
 						{<<"login">>, list_to_binary(Agentrec#agent.login)},
-						{<<"state">>, Agentrec#agent.state}]},
+						{<<"state">>, Agentrec#agent.state},
+						{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)}]},
 					Req:respond({200, [], mochijson2:encode(Json)});
 				badcookie ->
 					?CONSOLE("cookie not in ets", []),

@@ -59,7 +59,9 @@
 	stop/0,
 	ring_agent/2,
 	get_handler/1,
-	notify/2]).
+	notify/2,
+	make_outbound_call/3
+]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -100,6 +102,9 @@ get_handler(UUID) ->
 notify(UUID, Pid) ->
 	gen_server:cast(?MODULE, {notify, UUID, Pid}).
 
+make_outbound_call(Number, AgentPid, AgentRec) ->
+	gen_server:call(?MODULE, {make_outbound_call, Number, AgentPid, AgentRec}).
+
 stop() ->
 	gen_server:call(?MODULE, stop).
 
@@ -138,6 +143,10 @@ init([Nodename, Domain]) ->
 %	X = freeswitch:api(State#state.nodename, originate, Args),
 %	?CONSOLE("Bgapi call res:  ~p;  With args: ~p", [X, Args]),
 %	{reply, agent:set_state(AgentPid, ringing, Call), State};
+
+handle_call({make_outbound_call, Number, AgentPid, AgentRec}, From, #state{nodename = Node, domain = Domain} = State) ->
+	freeswitch_outbound:start(Node, AgentRec, AgentPid, Number, 30, Domain),
+	{reply, ok, State};
 handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) -> 
 	case dict:find(UUID, Dict) of
 		error -> 

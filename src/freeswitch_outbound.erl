@@ -27,8 +27,8 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
-%% @doc Helper module for freeswitch media to ring to an agent.
--module(freeswitch_ring).
+%% @doc Helper module for freeswitch media to make an outbound call.
+-module(freeswitch_outbound).
 -author("Micah").
 
 -behaviour(gen_server).
@@ -63,11 +63,11 @@
 %%====================================================================
 %% API
 %%====================================================================
-start(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_record(Qcall, call) ->
-	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Domain], []).
+start(Fnode, AgentRec, Apid, Number, Ringout, Domain) when is_pid(Apid) ->
+	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout, Domain], []).
 
-start_link(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_record(Qcall, call) ->
-	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Domain], []).
+start_link(Fnode, AgentRec, Apid, Number, Ringout, Domain) when is_pid(Apid) ->
+	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout, Domain], []).
 
 hangup(Pid) ->
 	gen_server:cast(Pid, hangup).
@@ -76,17 +76,18 @@ hangup(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) when is_record(Qcall, call) ->
+init([Fnode, AgentRec, Apid, Number, Ringout, Domain]) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
-			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]sofia/default/" ++ AgentRec#agent.login ++ "%" ++ Domain ++ " &park()",
+			Call = #call{id=UUID, source=self(), type=voice},
+			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]sofia/default/" ++ AgentRec#agent.login ++ "%" ++ Domain ++ " " ++ Number ++ " xml outbound",
 			F = fun(ok, _Reply) ->
 					% agent picked up?
-					freeswitch:api(Fnode, uuid_bridge, UUID ++ " " ++ Qcall#call.id);
+					%agent:set_state(Apid, outgoing, Call);
+					ok;
 				(error, Reply) ->
 					?CONSOLE("originate failed: ~p", [Reply]),
-					%agent:set_state(Apid, idle),
-					gen_server:cast(Qcall#call.cook, {stop_ringing, Apid})
+					agent:set_state(Apid, idle)
 			end,
 			case freeswitch:bgapi(Fnode, originate, Args, F) of
 				ok ->
@@ -113,7 +114,7 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) when is_record(Qcall, call
 							{stop, {error, Other}};
 						_Else ->
 							?CONSOLE("starting for ~p", [UUID]),
-							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Qcall}}
+							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Call}}
 					end;
 				Else ->
 					?CONSOLE("bgapi call failed ~p", [Else]),
@@ -151,14 +152,27 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 		"CHANNEL_BRIDGE" ->
 			?CONSOLE("Call bridged", []),
 			Call = State#state.callrec,
-			case agent:set_state(State#state.agent_pid, oncall, Call) of
+			case agent:set_state(State#state.agent_pid, outgoing, Call) of
 				ok ->
-					gen_server:call(Call#call.source, unqueue),
 					{noreply, State};
 				invalid ->
 					?CONSOLE("Cannot set agent ~p to oncall with media ~p", [State#state.agent_pid, Call#call.id]),
 					{noreply, State}
 			end;
+		"CHANNEL_HANGUP" ->
+			case proplists:get_value("variable_hangup_cause", Rest) of
+				"NO_ROUTE_DESTINATION" ->
+					?CONSOLE("No route to destination for outbound call", []);
+				"NORMAL_CLEARING" ->
+					agent:set_state(State#state.agent_pid, wrapup, State#state.callrec);
+				"USER_BUSY" ->
+					?CONSOLE("Agent's phone rejected the call", []);
+				"NO_ANSWER" ->
+					?CONSOLE("Agent rangout on outbound call", []);
+				Else ->
+					?CONSOLE("Hangup cause: ~p", [Else])
+			end,
+			{noreply, State};
 		_Else ->
 			?CONSOLE("call_event ~p", [Event]),
 			{noreply, State}
@@ -174,7 +188,7 @@ handle_info(Info, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 terminate(Reason, _State) ->
-	?CONSOLE("FreeSWITCH ring channel teminating ~p", [Reason]),
+	?CONSOLE("FreeSWITCH outbound channel teminating ~p", [Reason]),
 	ok.
 
 %%--------------------------------------------------------------------

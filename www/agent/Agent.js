@@ -103,6 +103,7 @@ Agent.prototype.logout = function(callback){
 				agentref.stopwatch.stop();
 				agentref.stopwatch.reset();
 				agentref.poller.stop();
+				dojo.publish("agent/logout", []);
 				callback();
 			}			
 		}

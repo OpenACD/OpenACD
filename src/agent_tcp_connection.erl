@@ -285,17 +285,20 @@ handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 	end;
 
 handle_event(["BRANDLIST", Counter], State) when is_integer(Counter) ->
-	Brands = call_queue_config:get_clients(),
-	F = fun(Elem) ->
-		%Idbase = integer_to_list(Elem#client.tenant * 10000 + Elem#client.brand),
-		%Padding = lists:duplicate(8 - length(Idbase), "0"),
-		%Idstring = lists:append([Padding, Idbase]),
-		Idstring = clientrec_to_id(Elem),
-		lists:append(["(", Idstring, "|", Elem#client.label, ")"])
-	end,
-	Brandstringed = lists:map(F, Brands),
-	{ack(Counter, string:join(Brandstringed, ",")), State};
-
+	case call_queue_config:get_clients() of
+		[] ->
+			{err(Counter, "No brands configured"), State};
+		Brands ->
+			F = fun(Elem) ->
+					%Idbase = integer_to_list(Elem#client.tenant * 10000 + Elem#client.brand),
+					%Padding = lists:duplicate(8 - length(Idbase), "0"),
+					%Idstring = lists:append([Padding, Idbase]),
+					Idstring = clientrec_to_id(Elem),
+					lists:append(["(", Idstring, "|", Elem#client.label, ")"])
+			end,
+			Brandstringed = lists:map(F, Brands),
+			{ack(Counter, string:join(Brandstringed, ",")), State}
+	end;
 handle_event(["PROFILES", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, "1:Level1 2:Level2 3:Level3 4:Supervisor"), State};
 
@@ -342,10 +345,9 @@ handle_event(["QUEUES", Counter, QueueNames], #state{securitylevel = Security} =
 	end, State, queue_manager:queues()),
 	{ack(Counter), State2};
 
-% XXX - only for testing
-handle_event(["UNACKTEST", Counter], State) when is_integer(Counter) ->
-	State2 = send("NOACK", "", State),
-	{ack(Counter), State2};
+handle_event(["DIAL", Counter, Brand, "outbound", Number, "1"], State) when is_integer(Counter) ->
+	freeswitch_ring:start_outbound(freeswitch@freecpx, agent:dump_state(State#state.agent_fsm), State#state.agent_fsm, Number, 30, "freecpx.dev"),
+	{ack(Counter), State};
 
 handle_event(["ACK" | [Counter | _Args]], State) when is_integer(Counter) ->
 	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
@@ -364,14 +366,10 @@ handle_event([Event, Counter], State) when is_integer(Counter) ->
 	?CONSOLE("Unhandled: ~p", [Event]),
 	{err(Counter, "Unknown event " ++ Event), State};
 
-handle_event([Event, Counter, Args], State) when is_integer(Counter) ->
+handle_event([Event | [Counter | Args]], State) when is_integer(Counter) ->
 	?CONSOLE("Unhandled: ~p with Args: ~p", [Event, Args]),
 	{err(Counter, "Unknown event " ++ Event), State};
 
-% TODO - do we need this?
-%handle_event([Event | [Counter | _Args]], State) when is_integer(Counter) ->
-	%{err(Counter, "invalid arguments for event " ++ Event), State};
-	
 handle_event(_Stuff, State) ->
 	{"ERR Invalid Event, missing or invalid counter", State}.
 

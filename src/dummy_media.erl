@@ -114,7 +114,7 @@ q() ->
 q(Queuename) ->
 	{ok, Dummypid} = start(erlang:ref_to_list(make_ref())),
 	Qpid = queue_manager:get_queue(Queuename),
-	call_queue:add(Qpid, Dummypid).
+	{call_queue:add(Qpid, Dummypid), Dummypid}.
 
 %%====================================================================
 %% gen_server callbacks
@@ -123,18 +123,21 @@ q(Queuename) ->
 init([Callid, success]) ->
 	process_flag(trap_exit, true),
 	Newfail = lists:map(fun(E) -> {E, success} end, ?MEDIA_ACTIONS),
-	{ok, #state{callrec = #call{id=Callid, source=self()}, fail = dict:from_list(Newfail)}};
+	Callrec = #call{id=Callid, source=self(), media_path = inband, ring_path = inband},
+	{ok, #state{callrec = Callrec, fail = dict:from_list(Newfail)}};
 init([Callid, failure]) ->
 	process_flag(trap_exit, true),
 	Newfail = lists:map(fun(E) -> {E, fail} end, ?MEDIA_ACTIONS),
-	{ok, #state{callrec = #call{id = Callid, source = self()}, fail = dict:from_list(Newfail)}};
+	Callrec = #call{id=Callid, source=self(), media_path = inband, ring_path = inband},
+	{ok, #state{callrec = Callrec, fail = dict:from_list(Newfail)}};
 init([Callid, Fails]) when is_list(Fails) ->
 	process_flag(trap_exit, true),
 	F = fun(E) ->
 		{E, fail}
 	end,
 	Newfails = lists:map(F, Fails),
-	{ok, #state{callrec = #call{id = Callid, source=self()}, fail = Newfails}}.
+	Callrec = #call{id=Callid, source=self(), media_path = inband, ring_path = inband},
+	{ok, #state{callrec = Callrec, fail = Newfails}}.
 		
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |

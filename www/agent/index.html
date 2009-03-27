@@ -37,83 +37,8 @@ dojo.require("dijit.form.ComboBox");
 <script type="text/javascript" src="/Stopwatch.js"></script>
 <script type="text/javascript" src="/Agent.js"></script>
 
-<script type="text/javascript">
-function panelswitch(e){
-	if(e.id == "eventLog"){
-		dijit.byId("eventLogText").setValue(EventLog.logged.join("\n"));
-	}
-}
+<script type="text/javascript" src="/main.js"></script>
 
-
-dojo.addOnLoad(function(){
-	dojo.connect(dijit.byId("tabPanel"),'selectChild','panelswitch');
-	EventLog.log("Inteface loaded");
-	
-	dijit.byId("loginpane").show();
-	
-	var handler = dojo.subscribe("agent.states", function(data){
-		console.log(data);
-		dojo.byId("statedisp").innerHTML = "State: " + data.state;
-	});
-	
-	//ticker.start();
-	
-	var loginform = dijit.byId("loginform")
-	dojo.connect(loginform, "onSubmit", function(e){
-		e.preventDefault();
-		if (loginform.isValid()){
-			dojo.xhrGet({
-				url:"/getsalt",
-				handleAs:"json",
-				error:function(response, ioargs){
-					dojo.byId("loginerrp").style.display = "block";
-					dojo.byId("loginerrspan").innerHTML = response.responseText;
-				},
-				load:function(response, ioargs){
-					EventLog.log("Recieved salt");
-					salt = response.salt;
-					attrs = loginform.attr("value");
-					md5pass = dojox.encoding.digests.MD5(attrs.password, dojox.encoding.digests.outputTypes.Hex);
-					salted = dojox.encoding.digests.MD5(salt + md5pass, dojox.encoding.digests.outputTypes.Hex);
-					values = attrs;
-					values.password = salted;
-					dojo.xhrPost({
-						url:"/login",
-						handleAs:"json",
-						content:values,
-						load:function(response2, ioargs2){
-							if(response2.success){
-								EventLog.log("Logged in");
-								dijit.byId("loginpane").hide();
-								dojo.byId("main").style.display="block";
-								dojo.byId("main").style.visibility = "visible";
-								dojo.byId("agentname").innerHTML = attrs.username;
-								console.log(response2);
-								agent = new Agent(attrs.username);
-								agent.stopwatch.onTick = function(){
-									var elapsed = agent.stopwatch.time();
-									var d = new Date();
-									d.setHours(0);
-									d.setMinutes(0);
-									d.setSeconds(elapsed);
-									dojo.byId("timerdisp").innerHTML = d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
-								}
-							}
-							else{
-								dojo.byId("loginerrp").style.display = "block";
-								dojo.byId("loginerrspan").innerHTML = response2.message;
-							}
-						}
-					});
-				}
-			});
-		}
-	});
-
-});
-
-
-</script>
 <body class="nihilo">
 
 <div dojoType="dijit.Dialog" title="Login" id="loginpane">
@@ -191,19 +116,17 @@ dojo.addOnLoad(function(){
 	
 	<div dojoType = "dijit.layout.ContentPane" region="bottom" style="text-align:center">
 		<button dojoType="dijit.form.Button" id="bgoavail" onclick=agent.setState("idle")>Go Available</button>
-		<label for="boutboundcall">Outbound</label>
+		<div dojoType="dijit.form.DropDownButton" id="bgoreleased" style="display:none">
+			<span>Go Released...</span>
+			<div dojoType="dijit.Menu" id="releasedmenu">
+			</div>
+		</div>
+
 		<select dojoType="dijit.form.ComboBox" id="boutboundcall" name="outbound">
 			<option>Demo Brand</option>
 		</select>
-		<button dojoType="dijit.form.Button" id="bcancel">Cancel</button>
-		<div dojoType="dijit.form.DropDownButton" id="bgoreleased">
-			<span>Go Released...</span>
-			<div dojoType="dijit.Menu" id="releasedmenu">
-				<div dojoType="dijit.MenuItem" label="Hangup" onclick="hangup();"></div>
-				<div dojoType="dijit.MenuItem" label="Logout" onclick="logout();"></div>
-			</div>
-		</div>
-		<button dojoType="dijit.form.Button" id="bdial">Dial</button>
+		<button dojoType="dijit.form.Button" id="bcancel" style="display:none">Cancel</button>
+		<button dojoType="dijit.form.Button" id="bdial" style="display:none">Dial</button>
 
 	</div>
 

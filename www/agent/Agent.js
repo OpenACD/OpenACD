@@ -1,5 +1,5 @@
 function Agent(username){
-	this.login = "";
+	this.login = username;
 	this.securitylevel = "";
 	this.profile = "";
 	this.skills = [];
@@ -12,15 +12,36 @@ function Agent(username){
 	this.stopwatch.onTick = function(){}
 	
 	this.handleData = function(datalist){
-		/*for(var i in datalist){
+		for(var i in datalist){
 			 switch (datalist[i].command){
 				case "astate":
-					dojo.publish("agent.states", 
-					break;
-					
-				default 
+					agentref.state = datalist[i].state;
+					switch(datalist[i].state){
+						case "ringing":
+							agentref.statedata = {"callerid":datalist[i].callerid, "brandname":datalist[i].brandname};
+							dojo.publish("agent/state", [{"state":datalist[i].state, "statedata":{"callerid":datalist[i].callerid, "brandname":datalist[i].brandname}}]);
+							break;
+							
+						case "released":
+							agentref.statedata = datalist[i].stateinfo;
+							dojo.publish("agent/state", [{"state":datalist[i].state, "statedata":datalist[i].stateinfo}]);
+							break;
+						
+						case "idle":
+							dojo.publish("agent/state", [{"state":"idle"}]);
+							break;
+						
+						case "precall":
+							dojo.publish("agent/state", [{"state":"precall"}, {"brand":datalist[i].stateinfo}]);
+							break;
+							
+						default:
+							//just...just no.
+					}					
+				default:
+					//seriously?
 			 }
-		}*/
+		}
 	}
 	
 	this.poll = function(){
@@ -46,6 +67,8 @@ function Agent(username){
 	
 	t.start();
 	this.stopwatch.start();
+	
+	this.poll()
 }
 
 Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
@@ -61,19 +84,23 @@ Agent.prototype.setState = function(state){
 		var requesturl = "/state/" + state;
 	}
 	
+	var agentref = this;
+	
 	dojo.xhrGet({
 		url:requesturl,
 		handleAs:"json",
 		error:function(response, ioargs){
-			EventLog.log("state change failed:  " + response.responseText);
-			dojo.publish("agent.states", [{"success":false, "state":state, "statedata":statedata, "message":responseText}]);
+			console.log("error for set state");
+			console.log(response);
+			//EventLog.log("state change failed:  " + response.responseText);
+			//dojo.publish("agent/state", [{"success":false, "state":state, "statedata":statedata, "message":responseText}]);
 		},
 		load:function(response, ioargs){
 			EventLog.log("state change success:  " + state);
-			this.state = state;
-			this.statedata = statedata;
-			this.stopwatch.reset();
-			dojo.publish("agent.states", [{"success":true, "state":state, "statedata":statedata}]);
+			agentref.state = state;
+			agentref.statedata = statedata;
+			agentref.stopwatch.reset();
+			dojo.publish("agent/state", [{"success":true, "state":state, "statedata":statedata}]);
 		}
 	})
 }

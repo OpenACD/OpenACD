@@ -44,12 +44,12 @@ function Agent(username){
 		})
 	}
 	
-	var t = new dojox.timing.Timer(1000);
-	t.onTick = function(){
+	this.poller = new dojox.timing.Timer(1000);
+	this.poller.onTick = function(){
 		agentref.poll();
 	}
 	
-	t.start();
+	this.poller.start();
 	this.stopwatch.start();
 	
 	this.poll()
@@ -102,6 +102,7 @@ Agent.prototype.logout = function(callback){
 			if(response.success){
 				agentref.stopwatch.stop();
 				agentref.stopwatch.reset();
+				agentref.poller.stop();
 				callback();
 			}			
 		}

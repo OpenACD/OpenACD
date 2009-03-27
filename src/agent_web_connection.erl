@@ -179,12 +179,16 @@ handle_call({set_state, Statename, Statedata}, _From, #state{agent_fsm = Apid} =
 		Status ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State}
 	end;
-%handle_call({ack, Counter}, _From, State) ->
-%	{reply, ok, State};
-%handle_call({err, Counter}, _From, State) ->
-%	{reply, ok, State};
-%handle_call({err, Counter, Message}, _From, State) ->
-%	{reply, ok, State};
+handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
+	%% don't like it, but hardcoding freeswitch
+	case whereis(freeswitch_media_manager) of
+		undefined ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Freeswitch not available">>}]})}, State};
+		_Pid ->
+			AgentRec = agent:dump_state(AgentPid),
+			freeswitch_media_manager:make_outbound_call(Number, AgentPid, AgentRec),
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
+	end;
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
 	{reply, Astate, State};
@@ -195,24 +199,6 @@ handle_call(Allothers, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
-%handle_cast({change_state, AgState, Call}, #state{poll_queue = Pollq, counter = Counter} = State) when is_record(Call, call) ->
-%	case Call#call.client of
-%		undefined ->
-%			Brand = "unknown client";
-%		Clientrec when is_record(Clientrec, client) ->
-%			Brand = Clientrec#client.label
-%	end,
-%	Newqueue = 
-%		[{struct, [
-%			{<<"counter">>, Counter},
-%			{<<"command">>, <<"astate">>},
-%			{<<"state">>, AgState},
-%			{<<"callerid">>, list_to_binary(Call#call.callerid)},
-%			{<<"brandname">>, list_to_binary(Brand)},
-%			{<<"ringpath">>, Call#call.ring_path},
-%			{<<"mediapath">>, Call#call.media_path}
-%		]} | Pollq],
-%	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
 handle_cast({change_state, AgState, Data}, #state{poll_queue = Pollq, counter = Counter} = State) ->
 	?CONSOLE("State:  ~p; Data:  ~p", [AgState, Data]),
 	Newqueue =

@@ -160,7 +160,10 @@ build_tables(Nodes) ->
 	C = util:build_table(client, ?CLIENT_TABLE(Nodes)),
 	case C of
 		{atomic, ok} ->
-			ok;
+			Addc = fun() ->
+				mnesia:write(#client{label = "Demo Client", tenant = 99, brand = 99})
+			end,
+			mnesia:transaction(Addc);
 		_Orelse ->
 			ok
 	end,

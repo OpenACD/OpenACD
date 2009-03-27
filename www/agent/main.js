@@ -97,17 +97,14 @@ dojo.addOnLoad(function(){
 	});
 
 	dijit.byId("dialbox").stateChanger = dojo.subscribe("agent/state", function(data){
-		/*var widget = dijit.byId("dialbox");*/
 		var div = dojo.byId("foo");
 		switch(data.state){
 			case "warmtransfer":
 			case "precall":
-				foo.style.display="inline";
-				/*widget.attr('style', 'display:block');*/
+				div.style.display="inline";
 				break;
 			default:
-				foo.style.display="none";
-				/*widget.attr('style', 'display:none');*/
+				div.style.display="none";
 		}
 	});
 

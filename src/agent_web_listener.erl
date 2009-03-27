@@ -215,6 +215,17 @@ loop(Req, Table) ->
 							end,
 							Jsons = lists:map(Converter, Releaseopts),
 							Req:respond({200, [], mochijson2:encode(Jsons)});
+						brandlist ->
+							case call_queue_config:get_clients() of
+								[] ->
+									Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No brands defined">>}]})});
+								Brands ->
+									Converter = fun(#client{label = Label, tenant = Tenant, brand = Brand}) ->
+											{struct, [{<<"label">>, list_to_binary(Label)}, {<<"tenant">>, Tenant}, {<<"brand">>, Brand}]}
+									end,
+									Jsons = lists:map(Converter, Brands),
+									Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {<<"brands">>, Jsons}]})})
+							end;
 						login ->
 							case Salt of
 								undefined ->
@@ -344,6 +355,8 @@ parse_path(Path) ->
 			{api, getsalt};
 		"/releaseopts" ->
 			{api, releaseopts};
+		"/brandlist" ->
+			{api, brandlist};
 		"/checkcookie" ->
 			{api, checkcookie};
 		_Other ->
@@ -549,6 +562,7 @@ web_connection_login_test_() ->
 		{"/otherfile.ext", {file, {"otherfile.ext", "www/contrib/"}}},
 		{"/other/path", {file, {"other/path", "www/contrib/"}}},
 		{"/releaseopts", {api, releaseopts}},
+		{"/brandlist", {api, brandlist}},
 		{"/checkcookie", {api, checkcookie}}
 	]
 ).

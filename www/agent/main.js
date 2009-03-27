@@ -23,6 +23,7 @@ dojo.addOnLoad(function(){
 				dojo.byId("main").style.visibility = "visible";
 				agent = new Agent(response.login);
 				buildReleaseMenu(agent);
+				buildOutboundMenu(agent);
 				dojo.byId("agentname").innerHTML = response.login;
 				agent.state = response.state;
 				dojo.publish("agent/state", [{"state":response.state, "statedata":response.statedata}]);
@@ -40,14 +41,16 @@ dojo.addOnLoad(function(){
 		console.log(data.statedata);
 		switch(data.state){
 			case "ringing":
-			case "precall":
 			case "oncall":
 			case "outgoing":
 			case "wrapup":
 				node.innerHTML = data.statedata.brandname;
 				dojo.byId("agentbrandp").style.display = "block";
 			break;
-
+			case "precall":
+				node.innerHTML = data.statedata;
+				dojo.byId("agentbrandp").style.display = "block";
+				break;
 			default:
 				dojo.byId("agentbrandp").style.display = "none";
 		}
@@ -92,7 +95,22 @@ dojo.addOnLoad(function(){
 				widget.attr('style', 'display:none');
 		}*/
 	});
-	
+
+	dijit.byId("dialbox").stateChanger = dojo.subscribe("agent/state", function(data){
+		/*var widget = dijit.byId("dialbox");*/
+		var div = dojo.byId("foo");
+		switch(data.state){
+			case "warmtransfer":
+			case "precall":
+				foo.style.display="inline";
+				/*widget.attr('style', 'display:block');*/
+				break;
+			default:
+				foo.style.display="none";
+				/*widget.attr('style', 'display:none');*/
+		}
+	});
+
 	dijit.byId("bcancel").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("bcancel");
 		switch(data.state){
@@ -125,7 +143,7 @@ dojo.addOnLoad(function(){
 		var widget = dijit.byId("banswer");
 		console.log("banswer");
 		console.log(data);
-		if(data.statedata.ringpath == "inband"){
+		if(data.statedata && data.statedata.ringpath == "inband"){
 			switch(data.state){
 				case "ringing":
 					widget.attr('style', "display:inline");
@@ -140,7 +158,7 @@ dojo.addOnLoad(function(){
 		var widget = dijit.byId("bhangup");
 		console.log("bhangup");
 		console.log(data);
-		if(data.statedata.mediapath == "inband"){
+		if(data.statedata && data.statedata.mediapath == "inband"){
 			switch(data.state){
 				case "oncall":
 				case "warmtransfer":
@@ -155,7 +173,7 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("miHangup").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("miHangup");
-		if(data.statedata.mediapath = "inband"){
+		if(data.statedata && data.statedata.mediapath == "inband"){
 			switch(data.state){
 				case "oncall":
 				case "warmtransfer":
@@ -165,6 +183,21 @@ dojo.addOnLoad(function(){
 				default:
 					widget.setDisabled(true);
 			}
+		}
+	});
+
+	dijit.byId("boutboundcall").stateChanger = dojo.subscribe("agent/state", function(data) {
+		var widget = dijit.byId("boutboundcall");
+		console.log("boutboundcall");
+		console.log(data);
+		console.log(data.state);
+		switch(data.state){
+			case "idle":
+			case "released":
+				widget.attr('style', 'display:inline');
+				break;
+			default:
+				widget.attr('style', 'display:none');
 		}
 	});
 	
@@ -214,6 +247,7 @@ dojo.addOnLoad(function(){
 								dojo.byId("timerdisp").innerHTML = d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
 							}
 								buildReleaseMenu(agent);
+								buildOutboundMenu(agent);
 							}
 							else{
 								dojo.byId("loginerrp").style.display = "block";
@@ -238,7 +272,7 @@ dojo.addOnLoad(function(){
 				});
 				menu.addChild(item);
 			},
-			load:function(reponse, ioargs){
+			load:function(response, ioargs){
 				if(response.success){
 					var menu = dijit.byId("releasedmenu");
 					var item = new dijit.MenuItem({
@@ -258,6 +292,42 @@ dojo.addOnLoad(function(){
 			}
 		})
 	}
+
+	buildOutboundMenu = function(agent){
+		var menu = dijit.byId("outboundmenu");
+		dojo.xhrGet({
+			url:"/brandlist",
+			handleAs:"json",
+			error:function(response, ioargs){
+				console.log(response);
+				var item = new dijit.MenuItem({
+					label:"Failed to get brandlist1",
+					disabled: true
+				});
+				menu.addChild(item);
+			},
+			load:function(response, ioargs){
+				console.log(response);
+				if(response.success){
+					for(var i in response.brands) {
+						var item = new dijit.MenuItem({
+							label:response.brands[i].label,
+							onClick:function(){agent.setState("precall", response.brands[i].label); }
+						});
+						menu.addChild(item);
+					}
+				}
+				else{
+					var item = new dijit.MenuItem({
+						label:"Failed to get brandlist",
+						disabled: true
+					});
+					menu.addChild(item);
+				}
+			}
+		})
+	}
+
 	
 	logout = function(agent){
 		agent.logout(dijit.byId("loginform").show)

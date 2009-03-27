@@ -54,7 +54,9 @@
 	stop/1,
 	stop/2,
 	set_mode/3,
-	set_skills/2
+	set_skills/2,
+	q/0,
+	q/1
 	]).
 
 %% gen_server callbacks
@@ -106,11 +108,14 @@ set_mode(Pid, Action, Mode) ->
 set_skills(Pid, Skills) ->
 	gen_server:call(Pid, {set_skills, Skills}).
 	
-%set_mode(Pid, success) when is_pid(Pid) -> 
-%	gen_server:call(Pid, set_success);
-%set_mode(Pid, failure) when is_pid(Pid) -> 
-%	gen_server:call(Pid, set_failure).
-	
+q() ->
+	q("default_queue").
+
+q(Queuename) ->
+	{ok, Dummypid} = start(erlang:ref_to_list(make_ref())),
+	Qpid = queue_manager:get_queue(Queuename),
+	call_queue:add(Qpid, Dummypid).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================

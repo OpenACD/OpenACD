@@ -122,13 +122,18 @@ dojo.require("dijit.form.ComboBox");
 			</div>
 		</div>
 
-		<select dojoType="dijit.form.ComboBox" id="boutboundcall" name="outbound">
-			<option>Demo Brand</option>
-		</select>
-		<button dojoType="dijit.form.Button" id="bcancel" style="display:none">Cancel</button>
-		<button dojoType="dijit.form.Button" id="bdial" style="display:none">Dial</button>
+		<div dojoType="dijit.form.DropDownButton" id="boutboundcall" style="display:none">
+			<span>Outbound call to...</span>
+			<div dojoType="dijit.Menu" id="outboundmenu">
+			</div>
+		</div>
+
+
+		<div id="foo" style="clear:both;"><input type="text" value="" dojoType="dijit.form.ValidationTextBox" regExp="[\d]+" invalidMessage="Invalid number" id="dialbox" /></div>
+		<button dojoType="dijit.form.Button" id="bcancel" style="display:none" onclick=agent.setState("idle")>Cancel</button>
+		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=agent.dial()>Dial</button>
 		<button dojoType="dijit.form.Button" id="banswer" style="display:none" onclick=agent.setState("oncall")>Answer</button>
-		<butotn dojoType="dijit.form.Button" id="bhangup" style="display:none" onclick=agent.setState("wrapup")>Hang up</button>
+		<button dojoType="dijit.form.Button" id="bhangup" style="display:none" onclick=agent.setState("wrapup")>Hang up</button>
 	</div>
 
 </div>

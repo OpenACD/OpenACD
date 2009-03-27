@@ -44,7 +44,7 @@ function Agent(username){
 		})
 	}
 	
-	var t = new dojox.timing.Timer(5000);
+	var t = new dojox.timing.Timer(1000);
 	t.onTick = function(){
 		agentref.poll();
 	}
@@ -106,4 +106,25 @@ Agent.prototype.logout = function(callback){
 			}			
 		}
 	});
+}
+
+Agent.prototype.dial = function() {
+	if (dijit.byId("dialbox").isValid()) {
+		dojo.xhrGet({
+			url:"/dial/"+dijit.byId("dialbox").getValue(),
+			handleAs:"json",
+			error:function(response, ioargs){
+				console.log("error for dial");
+				console.log(response);
+			},
+			load:function(response, ioargs){
+				if (response.success) {
+				console.log("success for dial");
+				} else {
+					console.log("failure for dial!");
+				}
+				console.log(response);
+			}
+		});
+	}
 }

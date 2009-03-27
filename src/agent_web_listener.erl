@@ -179,7 +179,6 @@ loop(Req, Table) ->
 			end;
 		{api, Api} ->
 			Out = api(Api, check_cookie(Req:parse_cookie()), Post),
-			?CONSOLE("Sending back ~p", [Out]),
 			Req:respond(Out)
 	end.
 		
@@ -212,6 +211,17 @@ api(Apirequest, badcookie, _Post) ->
 	Cookie = io_lib:format("cpx_id=~p", [Reflist]),
 	ets:insert(web_connections, {Reflist, undefined, undefined}),
 	{403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>};
+api(brandlist, {_Reflist, _Salt, _Conn}, _Post) ->
+	case call_queue_config:get_clients() of
+	[] ->
+		{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No brands defined">>}]})};
+	Brands ->
+		Converter = fun(#client{label = Label, tenant = Tenant, brand = Brand}) ->
+			{struct, [{<<"label">>, list_to_binary(Label)}, {<<"tenant">>, Tenant}, {<<"brand">>, Brand}]}
+		end,
+		Jsons = lists:map(Converter, Brands),
+		{200, [], mochijson2:encode({struct, [{success, true}, {<<"brands">>, Jsons}]})}
+	end;
 api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
 	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
 	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
@@ -249,7 +259,6 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 			end
 	end;
 api(Api, {_Reflist, _Salt, Conn}, _Post) when is_pid(Conn) ->
-	?CONSOLE("api:  ~p", [Api]),
 	case agent_web_connection:api(Conn, Api) of
 		{Code, Headers, Body} ->
 			{Code, Headers, Body}
@@ -290,6 +299,8 @@ parse_path(Path) ->
 			{api, getsalt};
 		"/releaseopts" ->
 			{api, releaseopts};
+		"/brandlist" ->
+			{api, brandlist};
 		"/checkcookie" ->
 			{api, checkcookie};
 		_Other ->
@@ -497,7 +508,9 @@ web_connection_login_test_() ->
 		{"/otherfile.ext", {file, {"otherfile.ext", "www/contrib/"}}},
 		{"/other/path", {file, {"other/path", "www/contrib/"}}},
 		{"/releaseopts", {api, releaseopts}},
-		{"/checkcookie", {api, checkcookie}}
+		{"/brandlist", {api, brandlist}},
+		{"/checkcookie", {api, checkcookie}},
+		{"/dial/12345", {api, {dial, "12345"}}
 	]
 ).
 

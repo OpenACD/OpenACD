@@ -346,7 +346,12 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 				undefined ->
 					Queue = freeswitch:get_event_header(Rawcall, "variable_queue"),
 					Brand = freeswitch:get_event_header(Rawcall, "variable_brand"),
-					Clientrec = call_queue_config:get_client(Brand),
+					case call_queue_config:get_client(Brand) of
+						none ->
+							Clientrec = #client{label="Unknown", tenant=0, brand=0};
+						Clientrec ->
+							ok
+					end,
 					Callerid = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
 					NewCall = Callrec#call{id=UUID, client=Clientrec, callerid=Callerid, source=self()},
 					freeswitch:sendmsg(State#state.cnode, UUID,

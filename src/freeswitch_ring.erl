@@ -44,8 +44,9 @@
 
 %% API
 -export([
-	start_link/4,
+	start_link/6,
 	start/6,
+	start_outbound/6,
 	hangup/1
 	]).
 
@@ -57,17 +58,21 @@
 	cnode :: node(),
 	uuid :: any(),
 	agent_pid :: pid(),
-	callrec :: #call{}
+	callrec :: #call{},
+	type :: 'inbound' | 'outbound'
 	}).
 
 %%====================================================================
 %% API
 %%====================================================================
 start(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_record(Qcall, call) ->
-	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Domain], []).
-	
-start_link(Fnode, UUID, Apid, Callrec) when is_pid(Apid), is_record(Callrec, call) ->
-    gen_server:start_link(?MODULE, [Fnode, UUID, Apid, Callrec], []).
+	gen_server:start(?MODULE, [inbound, Fnode, AgentRec, Apid, Qcall, Ringout, Domain], []).
+
+start_outbound(Fnode, AgentRec, Apid, Number, Ringout, Domain) when is_pid(Apid) ->
+	gen_server:start(?MODULE, [outbound, Fnode, AgentRec, Apid, Number, Ringout, Domain], []).
+
+start_link(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_record(Qcall, call) ->
+	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Domain], []).
 
 hangup(Pid) ->
 	gen_server:cast(Pid, hangup).
@@ -76,7 +81,7 @@ hangup(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) ->
+init([inbound, Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) when is_record(Qcall, call) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]sofia/default/" ++ AgentRec#agent.login ++ "%" ++ Domain ++ " &park()",
@@ -113,7 +118,52 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) ->
 							{stop, {error, Other}};
 						_Else ->
 							?CONSOLE("starting for ~p", [UUID]),
-							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Qcall}}
+							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Qcall, type=inbound}}
+					end;
+				Else ->
+					?CONSOLE("bgapi call failed ~p", [Else]),
+					{stop, {error, Else}}
+			end
+	end;
+
+init([outbound, Fnode, AgentRec, Apid, Number, Ringout, Domain]) ->
+	case freeswitch:api(Fnode, create_uuid) of
+		{ok, UUID} ->
+			Call = #call{id=UUID, source=self(), type=voice},
+			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]sofia/default/" ++ AgentRec#agent.login ++ "%" ++ Domain ++ " " ++ Number ++ " xml outbound",
+			F = fun(ok, _Reply) ->
+					% agent picked up?
+					agent:set_state(Apid, outgoing, Call);
+				(error, Reply) ->
+					?CONSOLE("originate failed: ~p", [Reply]),
+					agent:set_state(Apid, idle)
+			end,
+			case freeswitch:bgapi(Fnode, originate, Args, F) of
+				ok ->
+					Gethandle = fun(Recusef, Count) ->
+						?CONSOLE("Counted ~p", [Count]),
+						case freeswitch:handlecall(Fnode, UUID) of
+							{error, badsession} when Count > 4 ->
+								{error, badsession};
+							{error, badsession} ->
+								timer:sleep(100),
+								Recusef(Recusef, Count+1);
+							{error, Other} ->
+								{error, Other};
+							Else ->
+								Else
+						end
+					end,
+					case Gethandle(Gethandle, 0) of
+						{error, badsession} ->
+							?CONSOLE("bad uuid ~p", [UUID]),
+							{stop, {error, session}};
+						{error, Other} ->
+							?CONSOLE("other error starting; ~p", [Other]),
+							{stop, {error, Other}};
+						_Else ->
+							?CONSOLE("starting for ~p", [UUID]),
+							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Call, type=outbound}}
 					end;
 				Else ->
 					?CONSOLE("bgapi call failed ~p", [Else]),
@@ -163,6 +213,9 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 			?CONSOLE("call_event ~p", [Event]),
 			{noreply, State}
 	end;
+handle_info(call_hangup, #state{type = Type, agent_pid = Apid, callrec = Call} = State) when Type =:= outbound ->
+	agent:set_state(Apid, wrapup, Call),
+	{stop, normal, State};
 handle_info(call_hangup, State) ->
 	?CONSOLE("Call hangup info", []),
 	{stop, normal, State};

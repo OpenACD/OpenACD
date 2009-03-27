@@ -88,6 +88,12 @@ dojo.addOnLoad(function() {
 		dijit.byId("editQueuePane").domNode.style.display="none";
 		dijit.byId("queuePane").refresh();
 	});
+
+
+	dojo.connect(dijit.byId("removeSkill"), 'onClick', function(foo) {
+		var item = dijit.byId("itemTree").lastFocused;
+		alert("Remove "+ item.label + " skill");
+	});
 	dojo.connect(dijit.byId("itemTree").dndController, 'onDndDrop', function(source, nodes, copy) {
 		var item = dijit.getEnclosingWidget(nodes[0]).item;
 		var newparent = dijit.byId("itemTree")._itemNodeMap[dijit.byId("itemTree").model.getIdentity(item)].getParent().item;
@@ -133,7 +139,7 @@ function setSkill(e){
 	});
 };
 dojo.addOnLoad(function(){
-			   var theForm = dojo.byId("editSkillPane");
+			   var theForm = dijit.byId("editSkillPane");
 			   // another dojo.connect syntax: call a function directly	
 			   dojo.connect(theForm,"onsubmit",setSkill);
 			   }); 

@@ -51,6 +51,18 @@
 -include("agent.hrl").
 
 -define(TIMEOUT, 10000).
+-define(DIALUSERRESPONSE,
+"<document type=\"freeswitch/xml\">
+	<section name=\"directory\">
+		<domain name=\"~s\">
+			<user id=\"~s\">
+				<params>
+					<param name=\"dial-string\" value=\"~s\"/>
+				</params>
+			</user>
+		</domain>
+	</section>
+</document>").
 
 %% API
 -export([
@@ -60,7 +72,8 @@
 	ring_agent/2,
 	get_handler/1,
 	notify/2,
-	make_outbound_call/3
+	make_outbound_call/3,
+	fetch_domain_user/2
 ]).
 
 %% gen_server callbacks
@@ -128,9 +141,11 @@ init([Nodename, Domain]) ->
 			Self ! {register_event_handler, timeout}
 		end
 	end),
+
+	freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, []),
 	%T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
 	%?CONSOLE("Attempted to start events:  ~p", [T]),
-    {ok, #state{nodename=Nodename, domain=Domain}}.
+	{ok, #state{nodename=Nodename, domain=Domain}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -237,4 +252,26 @@ listener(Node) ->
 		 Otherwise -> 
 			 ?CONSOLE("Uncertain reply received by the fmm listener:  ~p", [Otherwise]),
 			 listener(Node)
+	end.
+
+fetch_domain_user(Node, State) ->
+	?CONSOLE("entering fetch loop", []),
+	receive
+		{fetch, directory, "domain", "name", _Value, ID, [undefined | Data]} ->
+			case proplists:get_value("as_channel", Data) of
+				"true" ->
+					User = proplists:get_value("user", Data),
+					Domain = proplists:get_value("domain", Data),
+					% XXX hardcoded for now
+					freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "sofia/default/"++User++"%"++Domain])});
+				_Else ->
+					ok
+			end,
+			fetch_domain_user(Node, State);
+		{nodedown, Node} ->
+			?CONSOLE("Node we were serving XML search requests to exited", []),
+			ok;
+		Other ->
+			?CONSOLE("got other response: ~p", [Other]),
+			fetch_domain_user(Node, State)
 	end.

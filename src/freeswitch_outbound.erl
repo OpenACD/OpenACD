@@ -80,7 +80,7 @@ init([Fnode, AgentRec, Apid, Number, Ringout, Domain]) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Call = #call{id=UUID, source=self(), type=voice},
-			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]sofia/default/" ++ AgentRec#agent.login ++ "%" ++ Domain ++ " " ++ Number ++ " xml outbound",
+			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " " ++ Number ++ " xml outbound",
 			F = fun(ok, _Reply) ->
 					% agent picked up?
 					%agent:set_state(Apid, outgoing, Call);

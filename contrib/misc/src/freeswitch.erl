@@ -18,8 +18,8 @@
 		nixevent/2, noevents/1, close/1,
 		get_event_header/2, get_event_body/1,
 		get_event_name/1, getpid/1, sendmsg/3,
-		sendevent/3, handlecall/2, handlecall/3, start_fetch_handler/4,
-		start_log_handler/3, start_event_handler/3]).
+		sendevent/3, handlecall/2, handlecall/3, start_fetch_handler/5,
+		start_log_handler/4, start_event_handler/4]).
 -define(TIMEOUT, 5000).
 
 %% @doc Return the value for a specific header in an event or `{error,notfound}'.
@@ -246,15 +246,16 @@ handlecall(Node, UUID) ->
 	end.
 
 %% @private
-start_handler(Node, Type, Module, Function) ->
+start_handler(Node, Type, Module, Function, State) ->
 	Self = self(),
 	spawn(fun() ->
 		monitor_node(Node, true),
 		{foo, Node} ! Type,
 		receive
 			ok ->
+				io:format("OK!!!!!!!~n"),
 				Self ! {Type, {ok, self()}},
-				apply(Module, Function, [Node]);
+				apply(Module, Function, [Node, State]);
 			{error,Reason} ->
 				Self ! {Type, {error, Reason}}
 		after ?TIMEOUT ->
@@ -281,8 +282,8 @@ start_handler(Node, Type, Module, Function) ->
 %% This function returns either `{ok, Pid}' where `Pid' is the pid of the newly
 %% spawned process, `{error, Reason}' or the atom `timeout' if FreeSWITCH did
 %% not respond.
-start_log_handler(Node, Module, Function) ->
-	start_handler(Node, register_log_handler, Module, Function).
+start_log_handler(Node, Module, Function, State) ->
+	start_handler(Node, register_log_handler, Module, Function, State).
 
 %% @todo Notify the process if it gets replaced with a new event handler.
 
@@ -300,8 +301,8 @@ start_log_handler(Node, Module, Function) ->
 %% This function returns either `{ok, Pid}' where `Pid' is the pid of the newly
 %% spawned process, `{error, Reason}' or the atom `timeout' if FreeSWITCH did
 %% not respond.
-start_event_handler(Node, Module, Function) ->
-	start_handler(Node, register_event_handler, Module, Function).
+start_event_handler(Node, Module, Function, State) ->
+	start_handler(Node, register_event_handler, Module, Function, State).
 
 %% @doc Spawn Module:Function as an XML config fetch handler for configs of type
 %% `Section'. See the FreeSWITCH documentation for mod_xml_rpc for more
@@ -321,5 +322,5 @@ start_event_handler(Node, Module, Function) ->
 %% This function returns either `{ok, Pid}' where `Pid' is the pid of the newly
 %% spawned process, `{error, Reason}' or the atom `timeout' if FreeSWITCH did
 %% not respond.
-start_fetch_handler(Node, Section, Module, Function) ->
-	start_handler(Node, {bind, Section}, Module, Function).
+start_fetch_handler(Node, Section, Module, Function, State) ->
+	start_handler(Node, {bind, Section}, Module, Function, State).

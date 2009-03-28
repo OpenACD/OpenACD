@@ -334,7 +334,6 @@ build_tables() ->
 	case C of
 		{atomic, ok} -> 
 			G = fun() ->
-				% TODO what the heck is this?  A:  a default agent created if the table initially didn't.
 				mnesia:write(?DEFAULT_PROFILE)
 			end,
 			case mnesia:transaction(G) of

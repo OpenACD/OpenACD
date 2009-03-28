@@ -43,18 +43,20 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([start/0, stop/0, loop/3, loop/1]).
+-export([start/0, stop/0, loop/1]).
 
 % TODO configure this to start by default with a default configureation (cpx_supervisor_conf)
 %% @doc Start the web management server unlinked to the parent process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	?CONSOLE("Staring mochiweb...", []),
+	ets:new(cpx_management_logins, [set, public, named_table]),
 	mochiweb_http:start([{loop, {?MODULE, loop}} | ?WEB_DEFAULTS]).
 
 %% @doc Stops the web management.
 -spec(stop/0 :: () -> 'ok').
 stop() -> 
+	ets:delete(cpx_management_logins),
 	mochiweb_http:stop(?MODULE).
 
 %% @private Take the request path and use that to determine what to return.
@@ -68,72 +70,180 @@ stop() ->
 %% it's tuple is {Http_response_code, [header()], body},
 %% where header is {header_name, header_val}
 
--spec(loop/3 :: (Req :: any(), Method :: string(), Path :: string()) -> any()).
-loop(Req, _Method, "/") -> 
-	Req:serve_file("index.html", "www/admin/");
-loop(Req, _Method, "/releaseoptions") ->
-	case agent_auth:get_releases() of
-		[] ->
-			Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No release states">>}]})});
-		ReleaseOptions ->
-			Req:respond({200, [], mochijson2:encode({struct, [{label, label}, {identifier, label}, {items, lists:foldl(fun(X, A) -> [{struct, [{label, list_to_binary(X#release_opt.label)}, {id, X#release_opt.id}, {bias, X#release_opt.bias}]} | A] end, [], ReleaseOptions)}]})})
-	end;
-loop(Req, _Method, "/agents") ->
-	QH = qlc:q([X || X <- mnesia:table(agent_auth)]), % X#agent_auth.integrated =:= undefined]),
-	F = fun() -> qlc:e(QH) end,
-	case mnesia:transaction(F) of
-		{atomic, Agents} ->
-			GroupedAgents = util:group_by(fun(X) -> X#agent_auth.profile end, Agents),
-			Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_agents_with_profiles(GroupedAgents)}]})});
-		Else ->
-			Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No agents">>}]})})
-	end;
-loop(Req, _Method, "/skills") ->
-	Skills = util:group_by(fun(X) -> X#skill_rec.group end, call_queue_config:get_skills()),
-	?CONSOLE("struct: ~p", [{struct, [{items, encode_skills_with_groups(Skills)}]}]),
-	Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_skills_with_groups(Skills)}]})});
-loop(Req, _Method, "/setskill") ->
+%-spec(loop/3 :: (Req :: any(), Method :: string(), Path :: string()) -> any()).
+%loop(Req, _Method, "/") -> 
+%	Req:serve_file("index.html", "www/admin/");
+%loop(Req, _Method, "/releaseoptions") ->
+%	case agent_auth:get_releases() of
+%		[] ->
+%			Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No release states">>}]})});
+%		ReleaseOptions ->
+%			Req:respond({200, [], mochijson2:encode({struct, [{label, label}, {identifier, label}, {items, lists:foldl(fun(X, A) -> [{struct, [{label, list_to_binary(X#release_opt.label)}, {id, X#release_opt.id}, {bias, X#release_opt.bias}]} | A] end, [], ReleaseOptions)}]})})
+%	end;
+%loop(Req, _Method, "/agents") ->
+%	QH = qlc:q([X || X <- mnesia:table(agent_auth)]), % X#agent_auth.integrated =:= undefined]),
+%	F = fun() -> qlc:e(QH) end,
+%	case mnesia:transaction(F) of
+%		{atomic, Agents} ->
+%			GroupedAgents = util:group_by(fun(X) -> X#agent_auth.profile end, Agents),
+%			Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_agents_with_profiles(GroupedAgents)}]})});
+%		Else ->
+%			Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No agents">>}]})})
+%	end;
+%loop(Req, _Method, "/skills") ->
+%	Skills = util:group_by(fun(X) -> X#skill_rec.group end, call_queue_config:get_skills()),
+%	?CONSOLE("struct: ~p", [{struct, [{items, encode_skills_with_groups(Skills)}]}]),
+%	Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_skills_with_groups(Skills)}]})});
+%loop(Req, _Method, "/setskill") ->
+%	Post = Req:parse_post(),
+%	case proplists:get_value("action", Post) of
+%		"set" ->
+%			Stratom = proplists:get_value("skillatom", Post),
+%			case call_queue_config:get_skill(Stratom) of
+%				undefined ->
+%					Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Skill atom mismatch">>}]})});
+%				Skillrec when is_record(Skillrec, skill_rec) ->
+%					Newrec = #skill_rec{
+%						atom = Skillrec#skill_rec.atom, 
+%						name = proplists:get_value("skillname", Post), 
+%						description = proplists:get_value("skilldesc", Post),
+%						group = Skillrec#skill_rec.group},
+%					call_queue_config:set_skill(Skillrec#skill_rec.atom, Newrec),
+%					Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Skill updated">>}]})})
+%			end
+%	end;
+%loop(Req, _Method, "/queues") ->
+%	Queues = util:group_by(fun(X) -> X#call_queue.group end, call_queue_config:get_queues()),
+%	Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_queues_with_groups(Queues)}]})});
+%loop(Req, _Method, "/web_dump") -> 
+%	Req:ok({"text/html",io_lib:format("<pre>~p</pre>~n", [Req:dump()])});
+%loop(Req, _Method, "/set_cookie") -> 
+%	% TODO hardcoded cookie is hardcoded.
+%	Req:respond({200, [{"Set-Cookie", "goober=foobar"}], io_lib:format("<pre>~p~p</pre>", [Req:dump(), Req:parse_cookie()])});
+%loop(Req, _Method, Path) ->
+%	?CONSOLE("path requested: ~p", [Path]),
+%	% strip the leading / if any, and then check if it's a file in www/admin; if
+%	% it's not then try blindly in www/contrib
+%	RPath = string:strip(Path, left, $/),
+%	case filelib:is_regular(string:concat("www/admin/", RPath)) of
+%		true ->
+%			Req:serve_file(RPath, "www/admin/");
+%		false ->
+%			Req:serve_file(RPath, "www/contrib/")
+%	end.
+%
+
+-spec(loop/1 :: (Req :: atom()) -> any()).
+loop(Req) ->
+	Path = Req:get(path),
 	Post = Req:parse_post(),
-	case proplists:get_value("action", Post) of
-		"set" ->
-			Stratom = proplists:get_value("skillatom", Post),
-			case call_queue_config:get_skill(Stratom) of
+	case parse_path(Path) of
+		{file, {File, Docroot}} ->
+			Cookies = Req:parse_cookie(),
+			case proplists:get_value("cpx_management", Cookies) of
 				undefined ->
-					Req:respond({200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Skill atom mismatch">>}]})});
-				Skillrec when is_record(Skillrec, skill_rec) ->
-					Newrec = #skill_rec{
-						atom = Skillrec#skill_rec.atom, 
-						name = proplists:get_value("skillname", Post), 
-						description = proplists:get_value("skilldesc", Post),
-						group = Skillrec#skill_rec.group},
-					call_queue_config:set_skill(Skillrec#skill_rec.atom, Newrec),
-					Req:respond({200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Skill updated">>}]})})
-			end
-	end;
-loop(Req, _Method, "/queues") ->
-	Queues = util:group_by(fun(X) -> X#call_queue.group end, call_queue_config:get_queues()),
-	Req:respond({200, [], mochijson2:encode({struct, [{label, name}, {identifier, name}, {items, encode_queues_with_groups(Queues)}]})});
-loop(Req, _Method, "/web_dump") -> 
-	Req:ok({"text/html",io_lib:format("<pre>~p</pre>~n", [Req:dump()])});
-loop(Req, _Method, "/set_cookie") -> 
-	% TODO hardcoded cookie is hardcoded.
-	Req:respond({200, [{"Set-Cookie", "goober=foobar"}], io_lib:format("<pre>~p~p</pre>", [Req:dump(), Req:parse_cookie()])});
-loop(Req, _Method, Path) ->
-	?CONSOLE("path requested: ~p", [Path]),
-	% strip the leading / if any, and then check if it's a file in www/admin; if
-	% it's not then try blindly in www/contrib
-	RPath = string:strip(Path, left, $/),
-	case filelib:is_regular(string:concat("www/admin/", RPath)) of
-		true ->
-			Req:serve_file(RPath, "www/admin/");
-		false ->
-			Req:serve_file(RPath, "www/contrib/")
+					Ref = erlang:ref_to_list(make_ref()),
+					Cookie = io_lib:format("cpx_management=~p", [Ref]),
+					ets:insert(cpx_management_logins, {Ref, undefined, undefined}),
+					?CONSOLE("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
+					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}]);
+				_Reflist ->
+					Req:serve_file(File, Docroot)
+			end;
+		{api, Api} ->
+			Out = api(Api, check_cookie(Req:parse_cookie()), Post),
+			Req:respond(Out)
 	end.
 
-%% @doc Simply takes the request, yanks out the method and path, and shoves it to loop/3
--spec(loop/1 :: (Req :: atom()) -> any()).
-loop(Request) -> 
-	loop(Request, Request:get(method), Request:get(path)).
+api(checkcookie, Cookie, _Post) ->
+	case Cookie of
+		badcookie ->
+			Reflist = erlang:ref_to_list(make_ref()),
+			NewCookie = io_lib:format("cpx_management=~p", [Reflist]),
+			ets:insert(cpx_management_logins, {Reflist, undefined, undefined}),
+			{200, [{"Sect-Cookie", NewCookie}], mochijson2:encode({struct, [{<<"success">>, false}]})};
+		{_Reflist, _Salt, undefined} ->
+			{200, [], mochijson2:encode({struct, [{<<"success">>, false}]})};
+		{_Reflist, _Salt, Login} ->
+			{200, [], mochijson2:encode({struct, [{<<"success">>, true}, {<<"login">>, list_to_binary(Login)}]})}
+	end;
+api(_Apirequest, badcookie, _Post) ->
+	Reflist = erlang:ref_to_list(make_ref()),
+	Cookie = io_lib:format("cpx_management=~p", [Reflist]),
+	ets:insert(cpx_management_logins, {Reflist, undefined, undefined}),
+	{403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>};
+api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
+	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
+	ets:insert(cpx_management_logins, {Reflist, Newsalt, Conn}),
+	?CONSOLE("created and sent salt for ~p", [Reflist]),
+	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})};
+api(login, {_Reflist, undefined, _Login}, _Post) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})};
+api(login, {Reflist, Salt, _Login}, Post) ->
+	Username = proplists:get_value("username", Post, ""),
+	Password = proplists:get_value("password", Post, ""),
+	case agent_auth:auth(Username, Password, Salt) of
+		deny ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
+		{allow, _Skills, admin} ->
+			ets:insert(cpx_management_logins, {Reflist, Salt, Username}),
+			{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
+		{allow, _Skills, _Security} ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})}
+	end;
+api(logout, {Reflist, _Salt, _Login}, _Post) ->
+	ets:delete(cpx_management_logins, Reflist),
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
+api(_Api, _Cookie, _Post) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login requried">>}]})}.
+
+parse_path(Path) ->
+	case Path of
+		"/" ->
+			{file, {"index.html", "www/admin/"}};
+		"/getsalt" ->
+			{api, getsalt};
+		"/login" ->
+			{api, login};
+		"/logout" ->
+			{api, logout};
+		"/checkcookie" ->
+			{api, checkcookie};
+		_Other ->
+			% section/action (params in post data)
+			case util:string_split(Path, "/") of
+				["", "skill", Action] ->
+					{api, {skill, Action}};
+				["", "agents", Action] ->
+					{api, {agents, Action}};
+				["", "queues", Action] ->
+					{api, {queues, Action}};
+				["", "medias", Action] ->
+					{api, {medias, Action}};
+				_Allothers ->
+					case filelib:is_regular(string:concat("www/admin", Path)) of
+						true ->
+							{file, {string:strip(Path, left, $/), "www/admin/"}};
+						false ->
+							{file, {string:strip(Path, left, $/), "www/contrib/"}}
+					end
+			end
+	end.
+
+check_cookie([]) ->
+	badcookie;
+check_cookie(Allothers) ->
+	case proplists:get_value("cpx_management", Allothers) of
+		undefined ->
+			badcookie;
+		Reflist ->
+			case ets:lookup(cpx_management_logins, Reflist) of
+				[] ->
+					badcookie;
+				[{Reflist, Salt, Login}] ->
+					{Reflist, Salt, Login}
+			end
+	end.
 
 encode_skills([]) ->
 	[];

@@ -1,140 +1,157 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" 
 "http://www.w3.org/TR/html4/strict.dtd">
 <html>
-	<head>
+<head>
 
-		<title>Dojo Toolkit Test Page</title>
+<title>Dojo Toolkit Test Page</title>
 
-		<link rel="stylesheet" href="/dojo/dijit/themes/tundra/tundra.css">
+<link rel="stylesheet" href="/dojo/dijit/themes/tundra/tundra.css">
 
-		<style type="text/css">
-			@import "/dojo/dijit/themes/nihilo/nihilo.css";
-			.statusdisplay {
-				padding:1.5em
-			}
+<style type="text/css">
+	@import "/dojo/dijit/themes/nihilo/nihilo.css";
+	.statusdisplay {
+		padding:1.5em
+	}
 
-			label{
-				width: 10em;
-				float: left;
-				text-align:right;
-				margin-right:0.1em;
-				display:block;
-				font-weight:bold;
-				clear:both;
-			}
-		</style>    
+	label{
+		width: 10em;
+		float: left;
+		text-align:right;
+		margin-right:0.1em;
+		display:block;
+		font-weight:bold;
+		clear:both;
+	}
+</style>    
 
-		<!-- load the dojo toolkit base -->
-		<script type="text/javascript" src="/dojo/dojo/dojo.js"
-			djConfig="parseOnLoad:true, isDebug:false"></script>
-		<script type="text/javascript" src="main.js"></script>
-	</head>
+<!-- load the dojo toolkit base -->
+<script type="text/javascript" src="/dojo/dojo/dojo.js"
+	djConfig="parseOnLoad:true, isDebug:false"></script>
+<script type="text/javascript" src="main.js"></script>
+</head>
 
-	<body class="tundra">
-		<div id="mainTabContainer" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px">
-			<div id="agentsTab" dojoType="dijit.layout.ContentPane" title="Agents" selected="true">
-				<!--<div dojoType="dojo.data.ItemFileReadStore" url="/agents" jsId="treeStore"></div>-->
+<body class="tundra">
+	
+<div dojoType="dijit.Dialog" title="Login" id="loginpane">
+	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
+		<p  id="loginerrp" style="font-size:smaller;display:none"><label>&nbsp;</label><span id="loginerrspan" style="color:#ff0000"></span></p>
+		<p><label for="username">Username:</label>
+			<input type="text" name="username" value="" dojoType="dijit.form.TextBox" trim="true" id="username" />
+		</p>
+		<p><label for="password">Password:</label>
+			<input type="password" name="password" value="" dojoType="dijit.form.TextBox" id="password" />
+		</p>
+		
+		<p><label for="loginsubmit">&nbsp;</label>
+			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">Login</button>
+		</p>
+	</div>
+</div>
 
-				<!--<div dojoType="dijit.tree.ForestStoreModel"-->
-					<!--store="treeStore"-->
-					<!--rootLabel="Agents"-->
-					<!--jsId="treeModel"></div>-->
+<div id="mainTabContainer" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px;visibility:hidden">
+	<div id="agentsTab" dojoType="dijit.layout.ContentPane" title="Agents" selected="true">
+		<!--<div dojoType="dojo.data.ItemFileReadStore" url="/agents" jsId="treeStore"></div>-->
 
-				<!--<div dojoType="dijit.Tree" -->
-					<!--model="treeModel" -->
-					<!--jsId="itemTree" -->
-					<!--persist="false">hi</div>-->
-			</div>
-			<div id="queuesTab" dojoType="dijit.layout.ContentPane" title="Queues">
-				<div dojoType="dijit.layout.LayoutContainer" style="width: 100%; height: 100%; padding: 0; margin: 0; border: 0;">
-					<div dojoType="dijit.layout.ContentPane" layoutAlign="client" id="queuePane">
-						<div id="editQueueGroupPane" dojoType="dijit.layout.ContentPane" style="display:none;">
-							Edit Queue Group
-						</div>
-						<div id="editQueuePane" dojoType="dijit.layout.ContentPane" style="display:none;">
-							Edit Queue
-						</div>
-						<div id="editQueueGeneralPane" dojoType="dijit.layout.ContentPane">
-							General Settings
-						</div>
-					</div>
-					<div dojoType="dijit.layout.ContentPane" layoutAlign="left"
-						style="width: 200px;">
-						<button dojoType="dijit.form.Button" id="generalQueueSettings">General Settings</button>
-						<div dojoType="dojo.data.ItemFileReadStore" url="/queues" jsId="queueTreeStore"></div>
+		<!--<div dojoType="dijit.tree.ForestStoreModel"-->
+			<!--store="treeStore"-->
+			<!--rootLabel="Agents"-->
+			<!--jsId="treeModel"></div>-->
 
-						<div dojoType="dijit.tree.ForestStoreModel"
-							store="queueTreeStore"
-							rootLabel="Skills"
-							jsId="queueTreeModel"></div>
-
-						<div dojoType="dijit.Tree" 
-							model="queueTreeModel" 
-							id="queueTree"
-							showRoot="false"
-							style="width:100%;height: 85%;"
-							persist="false"></div>
-						<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
-							<button dojoType="dijit.form.Button" id="addQueue">+</button>
-							<button dojoType="dijit.form.Button" id="addQueueGroup">+Group</button>
-							<button dojoType="dijit.form.Button" id="removeQueue">-</button>
-						</div>
-					</div>
+		<!--<div dojoType="dijit.Tree" -->
+			<!--model="treeModel" -->
+			<!--jsId="itemTree" -->
+			<!--persist="false">hi</div>-->
+	</div>
+	<div id="queuesTab" dojoType="dijit.layout.ContentPane" title="Queues">
+		<div dojoType="dijit.layout.LayoutContainer" style="width: 100%; height: 100%; padding: 0; margin: 0; border: 0;">
+			<div dojoType="dijit.layout.ContentPane" layoutAlign="client" id="queuePane">
+				<div id="editQueueGroupPane" dojoType="dijit.layout.ContentPane" style="display:none;">
+					Edit Queue Group
+				</div>
+				<div id="editQueuePane" dojoType="dijit.layout.ContentPane" style="display:none;">
+					Edit Queue
+				</div>
+				<div id="editQueueGeneralPane" dojoType="dijit.layout.ContentPane">
+					General Settings
 				</div>
 			</div>
+			<div dojoType="dijit.layout.ContentPane" layoutAlign="left"
+				style="width: 200px;">
+				<button dojoType="dijit.form.Button" id="generalQueueSettings">General Settings</button>
+				<div dojoType="dojo.data.ItemFileReadStore" url="/queues" jsId="queueTreeStore"></div>
 
-			<div id="skillsTab" dojoType="dijit.layout.ContentPane" title="Skills">
-				<div dojoType="dijit.layout.LayoutContainer" style="width: 100%; height: 100%; padding: 0; margin: 0; border: 0;">
-					<div dojoType="dijit.layout.ContentPane" layoutAlign="client" id="skillPane">
-						<div id="editSkillGroupPane" dojoType="dijit.layout.ContentPane" style="display:none;">
-							Edit Skill Group
-						</div>
-						<div id="editSkillPane" dojoType="dijit.layout.ContentPane" style="display:none;">
-							<form dojoType="dijit.form.Form" id="editSkillForm" action="setskill" method="post">
-								<p><label for="skillatom">Skill atom:</label><input type="text" name="skillatom" id="skillAtom" value=""
-								dojoType="dijit.form.ValidationTextBox"
-								regExp="[_a-z0-9]+"
-								required="true"
-								invalidMessage="Atoms can only consist of lowercase characters, underscores and numbers."/></p>
-								<p><label for="skillName">Name:</label><input type="text" name="skillname" id="skillName" value=""
-								dojoType="dijit.form.TextBox"
-								trim="true"
-								propercase="true" /></p>
-								<p><label for="skilldesc">Description:</label><input type="text" name="skilldesc" id="skillDesc" value=""
-								dojoType="dijit.form.TextBox"
-								trim="true"
-								propercase="true" /></p>
-								<p><label>&nbsp;</label><button dojoType="dijit.form.Button" id="wtf" onclick="setSkill">Edit Skill</button></p>
-							</form>
-						</div>
-					</div>
-					<div dojoType="dijit.layout.ContentPane" layoutAlign="left"
-						style="width: 200px;">
-						<div dojoType="dojo.data.ItemFileWriteStore" url="/skills" jsId="treeStore"></div>
+				<div dojoType="dijit.tree.ForestStoreModel"
+					store="queueTreeStore"
+					rootLabel="Skills"
+					jsId="queueTreeModel"></div>
 
-						<div dojoType="dijit.tree.ForestStoreModel"
-							store="treeStore"
-							rootLabel="Skills"
-							jsId="treeModel"></div>
-
-						<div dojoType="dijit.Tree" 
-							model="treeModel" 
-							id="itemTree"
-							showRoot="false"
-							style="width:100%; height: 92%;"
-							checkAcceptance="skillDragCheckAcceptance"
-							checkItemAcceptance="skillDragCheckItemAcceptance"
-							dndController="dijit._tree.dndSource"
-							persist="false"></div>
-						<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
-							<button dojoType="dijit.form.Button" id="addSkill">+</button>
-							<button dojoType="dijit.form.Button" id="addSkillGroup">+Group</button>
-							<button dojoType="dijit.form.Button" id="removeSkill">-</button>
-						</div>
-					</div>
+				<div dojoType="dijit.Tree" 
+					model="queueTreeModel" 
+					id="queueTree"
+					showRoot="false"
+					style="width:100%;height: 85%;"
+					persist="false"></div>
+				<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
+					<button dojoType="dijit.form.Button" id="addQueue">+</button>
+					<button dojoType="dijit.form.Button" id="addQueueGroup">+Group</button>
+					<button dojoType="dijit.form.Button" id="removeQueue">-</button>
 				</div>
 			</div>
-			<div id="mediaTab" dojoType="dijit.layout.ContentPane" title="Media Types">This is the media tab</div>
 		</div>
-	</body>
+	</div>
+
+	<div id="skillsTab" dojoType="dijit.layout.ContentPane" title="Skills">
+		<div dojoType="dijit.layout.LayoutContainer" style="width: 100%; height: 100%; padding: 0; margin: 0; border: 0;">
+			<div dojoType="dijit.layout.ContentPane" layoutAlign="client" id="skillPane">
+				<div id="editSkillGroupPane" dojoType="dijit.layout.ContentPane" style="display:none;">
+					Edit Skill Group
+				</div>
+				<div id="editSkillPane" dojoType="dijit.layout.ContentPane" style="display:none;">
+					<form dojoType="dijit.form.Form" id="editSkillForm" action="setskill" method="post">
+						<p><label for="skillatom">Skill atom:</label><input type="text" name="skillatom" id="skillAtom" value=""
+						dojoType="dijit.form.ValidationTextBox"
+						regExp="[_a-z0-9]+"
+						required="true"
+						invalidMessage="Atoms can only consist of lowercase characters, underscores and numbers."/></p>
+						<p><label for="skillName">Name:</label><input type="text" name="skillname" id="skillName" value=""
+						dojoType="dijit.form.TextBox"
+						trim="true"
+						propercase="true" /></p>
+						<p><label for="skilldesc">Description:</label><input type="text" name="skilldesc" id="skillDesc" value=""
+						dojoType="dijit.form.TextBox"
+						trim="true"
+						propercase="true" /></p>
+						<p><label>&nbsp;</label><button dojoType="dijit.form.Button" id="bsetskill" onclick="setSkill">Edit Skill</button></p>
+					</form>
+				</div>
+			</div>
+			<div dojoType="dijit.layout.ContentPane" layoutAlign="left"
+				style="width: 200px;">
+				<div dojoType="dojo.data.ItemFileWriteStore" url="/skills" jsId="treeStore"></div>
+
+				<div dojoType="dijit.tree.ForestStoreModel"
+					store="treeStore"
+					rootLabel="Skills"
+					jsId="treeModel"></div>
+
+				<div dojoType="dijit.Tree" 
+					model="treeModel" 
+					id="itemTree"
+					showRoot="false"
+					style="width:100%; height: 92%;"
+					checkAcceptance="skillDragCheckAcceptance"
+					checkItemAcceptance="skillDragCheckItemAcceptance"
+					dndController="dijit._tree.dndSource"
+					persist="false"></div>
+				<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
+					<button dojoType="dijit.form.Button" id="addSkill">+</button>
+					<button dojoType="dijit.form.Button" id="addSkillGroup">+Group</button>
+					<button dojoType="dijit.form.Button" id="removeSkill">-</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div id="mediaTab" dojoType="dijit.layout.ContentPane" title="Media Types">This is the media tab</div>
+</div>
+</body>
 </html>

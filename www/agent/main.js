@@ -71,6 +71,11 @@ dojo.addOnLoad(function(){
 		}
 	});
 
+	dijit.byId("releasedmenu").logout = dojo.subscribe("agent/logout", function(data){
+		var widget = dijit.byId("releasedmenu");
+		widget.destroyDescendants();
+	});
+	
 	dijit.byId("bgoavail").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("bgoavail");
 		switch(data.state){
@@ -94,6 +99,11 @@ dojo.addOnLoad(function(){
 			default:
 				widget.attr('style', 'display:none');
 		}*/
+	});
+	
+	dijit.byId("outboundmenu").logout = dojo.subscribe("agent/logout", function(data){
+		var menu = dijit.byId("outboundmenu");
+		menu.destroyDescendants();
 	});
 
 	dijit.byId("dialbox").stateChanger = dojo.subscribe("agent/state", function(data){
@@ -328,6 +338,7 @@ dojo.addOnLoad(function(){
 	
 	logout = function(agent){
 		agent.logout(function(){
+			dojo.byId("loginerrp").style.display = "none";
 			dijit.byId("loginpane").show();
 			dijit.byId("main").attr('style', 'visibility:hidden');
 		});

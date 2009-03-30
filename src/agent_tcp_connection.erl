@@ -276,6 +276,14 @@ handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Co
 handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 	?CONSOLE("Trying to set state ~p.", [AgState]),
 	try agent:list_to_state(AgState) of
+		released ->
+			case agent:set_state(State#state.agent_fsm, released, default) of
+				ok ->
+					{ack(Counter), State};
+				invalid ->
+					{ok, OldState} = agent:query_state(State#state.agent_fsm),
+					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to released"), State}
+			end;
 		NewState ->
 			case agent:set_state(State#state.agent_fsm, NewState) of
 				ok ->

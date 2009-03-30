@@ -63,11 +63,19 @@ dojo.addOnLoad(function(){
 
 	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("bgoreleased");
-		if(data.state == "released"){
-			widget.attr('style', 'display:none');
-		}
-		else{
-			widget.attr('style', 'display:inline');
+		switch (data.state) {
+			case 'idle':
+			case 'ringing':
+			case 'precall':
+				widget.setLabel("Go Released...");
+				widget.attr('style', 'display:inline');
+				break;
+			case 'released':
+				widget.attr('style', 'display:none');
+				break;
+			default:
+				widget.setLabel("Queue Release...");
+				widget.attr('style', 'display:inline');
 		}
 	});
 

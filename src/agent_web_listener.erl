@@ -255,7 +255,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
 				{error, Error} ->
 					?CONSOLE("Error ~p trying to start connection for ~p", [Error, Reflist]),
-					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})}
+					{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(Error)}]})}
 			end
 	end;
 api(Api, {_Reflist, _Salt, Conn}, _Post) when is_pid(Conn) ->

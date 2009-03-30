@@ -148,7 +148,7 @@ init([Agent, Security]) ->
 	end,
 	case agent:set_connection(Apid, self()) of
 		error ->
-			{stop, "Agent could not be started"};
+			{stop, "Agent is already logged in"};
 		_Else ->
 			{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
 			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security}}

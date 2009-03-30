@@ -51,6 +51,14 @@
 -include("agent.hrl").
 
 -define(TIMEOUT, 10000).
+-define(EMPTYRESPONSE, "<document type=\"freeswitch/xml\"></document>").
+-define(NOTFOUNDRESPONSE,
+"<document type=\"freeswitch/xml\">
+	<section name=\"result\">
+		<result status=\"not found\" />
+	</section>
+</document>").
+
 -define(DIALUSERRESPONSE,
 "<document type=\"freeswitch/xml\">
 	<section name=\"directory\">
@@ -263,10 +271,27 @@ fetch_domain_user(Node, State) ->
 					User = proplists:get_value("user", Data),
 					Domain = proplists:get_value("domain", Data),
 					% XXX hardcoded for now
-					freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "sofia/default/"++User++"%"++Domain])});
+					case agent_manager:query_agent(User) of
+						{true, Pid} ->
+							try agent:dump_state(Pid) of
+								#agent{remotenumber = Number} = AgState when is_list(Number) ->
+									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "sofia/gateway/cpxvgw.fusedsolutions.com/"++Number]))});
+								Else ->
+									?CONSOLE("state: ~p", [Else]),
+									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "sofia/default/"++User++"%"++Domain]))})
+							catch
+								_:_ -> % agent pid is toast?
+									freeswitch:send(Node, {fetch_reply, ID, ?NOTFOUNDRESPONSE})
+							end;
+						false ->
+							freeswitch:send(Node, {fetch_reply, ID, ?NOTFOUNDRESPONSE})
+					end;
 				_Else ->
-					ok
+					freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
 			end,
+			fetch_domain_user(Node, State);
+		{fetch, _Section, _Something, _Key, _Value, ID, [undefined | Data]} ->
+			freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE}),
 			fetch_domain_user(Node, State);
 		{nodedown, Node} ->
 			?CONSOLE("Node we were serving XML search requests to exited", []),

@@ -44,14 +44,22 @@ dojo.require("dijit.form.ComboBox");
 <div dojoType="dijit.Dialog" title="Login" id="loginpane">
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
 		<p  id="loginerrp" style="font-size:smaller;display:none"><label>&nbsp;</label><span id="loginerrspan" style="color:#ff0000"></span></p>
-		<p><label for="username">Username:</label>
+		<p>
+			<label for="username">Username:</label>
 			<input type="text" name="username" value="" dojoType="dijit.form.TextBox" trim="true" id="username" />
 		</p>
-		<p><label for="password">Password:</label>
+		<p>
+			<label for="password">Password:</label>
 			<input type="password" name="password" value="" dojoType="dijit.form.TextBox" id="password" />
 		</p>
-		
-		<p><label for="loginsubmit">&nbsp;</label>
+		<p>
+			<label for="username">Remote Number:</label>
+			<input type="text" name="remotenumber" value="" dojoType="dijit.form.TextBox" trim="true" id="remotenumber" />
+			<div dojoType="dijit.Tooltip" connectId="remotenumber" label="A normal telephone number if you're not using a SIP phone"></div>
+		</p>
+	
+		<p>
+			<label for="loginsubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">Login</button>
 		</p>
 	</div>
@@ -130,8 +138,8 @@ dojo.require("dijit.form.ComboBox");
 
 
 		<div id="foo" style="clear:both;"><input type="text" value="" dojoType="dijit.form.ValidationTextBox" regExp="[\d]+" invalidMessage="Invalid number" id="dialbox" /></div>
-		<button dojoType="dijit.form.Button" id="bcancel" style="display:none" onclick=agent.setState("idle")>Cancel</button>
 		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=agent.dial()>Dial</button>
+		<button dojoType="dijit.form.Button" id="bcancel" style="display:none" onclick=agent.setState("idle")>Cancel</button>
 		<button dojoType="dijit.form.Button" id="banswer" style="display:none" onclick=agent.setState("oncall")>Answer</button>
 		<button dojoType="dijit.form.Button" id="bhangup" style="display:none" onclick=agent.setState("wrapup")>Hang up</button>
 	</div>

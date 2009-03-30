@@ -239,13 +239,20 @@ api(login, {_Reflist, undefined, _Conn}, _Post) ->
 api(login, {Reflist, Salt, _Conn}, Post) ->
 	Username = proplists:get_value("username", Post, ""),
 	Password = proplists:get_value("password", Post, ""),
+	case proplists:get_value("remotenumber", Post) of
+		Number when is_list(Number) ->
+			ok;
+		_Else ->
+			Number = undefined
+	end,
 	case agent_auth:auth(Username, Password, Salt) of
 		deny ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
+			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
 		{allow, Skills, Security} ->
 			Agent = #agent{login = Username, skills = Skills},
 			case agent_web_connection:start(Agent, Security) of
 				{ok, Pid} ->
+					gen_server:call(Pid, {set_remote_number, Number}),
 					linkto(Pid),
 					ets:insert(web_connections, {Reflist, Salt, Pid}),
 					?CONSOLE("connection started for ~p", [Reflist]),

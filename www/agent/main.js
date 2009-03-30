@@ -80,9 +80,13 @@ dojo.addOnLoad(function(){
 		var widget = dijit.byId("bgoavail");
 		switch(data.state){
 			case "released":
+				widget.attr('style', 'display:inline');
+				widget.setLabel("Go Available");
+				break;
 			case "wrapup":
 				widget.attr('style', 'display:inline');
-			break;
+				widget.setLabel("End Wrapup");
+				break;
 			default:
 				widget.attr('style', 'display:none');
 		}
@@ -222,7 +226,10 @@ dojo.addOnLoad(function(){
 				handleAs:"json",
 				error:function(response, ioargs){
 					dojo.byId("loginerrp").style.display = "block";
-					dojo.byId("loginerrspan").innerHTML = response.responseText;
+					if (response.status)
+						dojo.byId("loginerrspan").innerHTML = response.responseText;
+					else
+						dojo.byId("loginerrspan").innerHTML = "Server is not responding";
 				},
 				load:function(response, ioargs){
 					EventLog.log("Recieved salt");

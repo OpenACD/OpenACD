@@ -54,7 +54,14 @@
 
 %% API
 -export([start_link/5, start/5, start_link/0, start/0, stop/0, auth/3]).
--export([cache/3, cache/4, destroy/1, add_agent/5]).
+-export([
+	cache/3,
+	cache/4,
+	destroy/1,
+	add_agent/5,
+	get_agents/0,
+	get_agents/1
+]).
 -export([
 	new_profile/2,
 	set_profile/3,
@@ -185,6 +192,28 @@ get_profiles() ->
 		Name1 < Name2
 	end,
 	lists:sort(Sort, Cprofs).
+
+get_agents() ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(agent_auth)]),
+		qlc:e(QH)
+	end,
+	{atomic, Agents} = mnesia:transaction(F),
+	Sort = fun(#agent_auth{profile = P1}, #agent_auth{profile = P2}) ->
+		P1 < P2
+	end,
+	lists:sort(Sort, Agents).
+
+get_agents(Profile) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.profile =:= Profile]),
+		qlc:e(QH)
+	end,
+	{atomic, Agents} = mnesia:transaction(F),
+	Sort = fun(#agent_auth{login = L1}, #agent_auth{login = L2}) ->
+		 L1 < L2
+	end,
+	lists:sort(Sort, Agents).
 
 %%====================================================================
 %% gen_server callbacks

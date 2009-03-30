@@ -194,6 +194,31 @@ api(login, {Reflist, Salt, _Login}, Post) ->
 api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	ets:delete(cpx_management_logins, Reflist),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
+api(agents, {_Reflist, _Salt, _Login}, _Post) ->
+	%%	{identifier: 'name',
+	%%	label: 'name',
+	%%	items: [
+	%%		{name:"Default",
+	%%		type:"profile",
+	%%		skills:[],
+	%%		children:[
+	%%			{_reference:"1"},
+	%%			{_reference:"2"}
+	%%		]
+	%%		},
+	%%		{name:"1",
+	%%		type:"agent",
+	%%		etc...
+	%%		}
+	Agents = agent_auth:get_agents(),
+	Proplist = dict:to_list(encode_agents_with_profiles(Agents)),
+	?CONSOLE("list before conversion ~p", [Proplist]),
+	Convert = fun({Profile, Agentrecs}) ->
+		{struct, [{<<"name">>, list_to_binary(Profile)}, {<<"type">>, <<"profile">>}, {<<"agents">>, encode_agents(Agentrecs)}]}
+	end,
+	Json = {struct, [{success, true}, {<<"items">>, lists:map(Convert, Proplist)}]},
+	?CONSOLE("~p", [Json]),
+	{200, [], mochijson2:encode(Json)};
 api(_Api, _Cookie, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login requried">>}]})}.
 
@@ -209,6 +234,8 @@ parse_path(Path) ->
 			{api, logout};
 		"/checkcookie" ->
 			{api, checkcookie};
+		"/agents" ->
+			{api, agents};
 		_Other ->
 			% section/action (params in post data)
 			case util:string_split(Path, "/") of
@@ -280,21 +307,37 @@ encode_queues_with_groups([Group|Groups]) ->
 					{recipe, G#queue_group.recipe},
 					{children, encode_queues(Group)}]} | encode_queues_with_groups(Groups)]
 	end.
-
+	
 encode_agents([]) ->
 	[];
 encode_agents([Agent|Agents]) ->
-	[{struct, [{name, list_to_binary(Agent#agent_auth.login)},
-			{type, agent}, {securitylevel, Agent#agent_auth.securitylevel},
-			{skills, Agent#agent_auth.skills}]} | encode_agents(Agents)].
+	[encode_agent(Agent) | encode_agents(Agents)].
+
+encode_agent(Agentrec) ->
+	{struct, [
+		{name, list_to_binary(Agentrec#agent_auth.login)},
+		{<<"type">>, <<"agent">>},
+		{login, list_to_binary(Agentrec#agent_auth.login)},
+		{skills, Agentrec#agent_auth.skills},
+		{securitylevel, Agentrec#agent_auth.securitylevel},
+		{integrated, Agentrec#agent_auth.integrated},
+		{profile, list_to_binary(Agentrec#agent_auth.profile)}
+	]}.
 
 encode_agents_with_profiles([]) ->
-	[];
-encode_agents_with_profiles([Profile|Profiles]) ->
-	AnAgent = lists:nth(1, Profile),
-	{Name, Skills} = agent_auth:get_profile(AnAgent#agent_auth.profile),
-	[{struct, [{name, list_to_binary(Name)},
-			{type, profile}, 
-			{skills, Skills},
-			{children, encode_agents(Profile)}]} | encode_agents_with_profiles(Profiles)].
+	dict:new();
+encode_agents_with_profiles(Agents) ->
+	encode_agents_with_profiles(Agents, dict:new()).
+
+encode_agents_with_profiles([], Acc) ->
+	Acc;
+encode_agents_with_profiles([Agent | Agents], Acc) ->
+	case dict:find(Agent#agent_auth.profile, Acc) of
+		error ->
+			Pagents = [];
+		{ok, Pagents} ->
+			Pagents
+	end,
+	Newacc = dict:store(Agent#agent_auth.profile, [Agent | Pagents], Acc),
+	encode_agents_with_profiles(Agents, Newacc).
 

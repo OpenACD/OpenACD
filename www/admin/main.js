@@ -12,35 +12,15 @@ dojo.require("dijit.Tree");
 dojo.require("dojo.data.ItemFileWriteStore");
 dojo.require("dojo.data.ItemFileReadStore");
 dojo.require("dojox.encoding.digests.MD5");
+dojo.require("dijit.layout.BorderContainer");
+dojo.require("dijit.layout.StackContainer");
+/* setting up some namespaces for code organization */
 
+var cpx = function(){
+	return {};
+}
 
 currenttab = undefined;
-
-dojo.xhrGet({
-	url:"/checkcookie",
-	handleAs:"json",
-	error:function(response, ioargs){
-		console.log("checkcookie failed!");
-		console.log(response);
-	},
-	load:function(response, ioargs){
-		if(response.success){
-			dojo.byId("main").style.display="block";
-			dojo.byId("main").style.visibility = "visible";
-			agent = new Agent(response.login);
-			buildReleaseMenu(agent);
-			buildOutboundMenu(agent);
-			dojo.byId("agentname").innerHTML = response.login;
-			agent.state = response.state;
-			dojo.publish("agent/state", [{"state":response.state, "statedata":response.statedata}]);
-		}
-		else{
-			dijit.byId("loginpane").show();
-		}
-	}
-});
-
-
 
 function switchtab(tab) {
 	if (currenttab != tab)
@@ -55,7 +35,7 @@ function inspect(obj){
 	}
 }
 
-function selectskill(item) {
+/*function selectskill(item) {
 	if (item.type == "skill") {
 		dijit.byId("editSkillGroupPane").domNode.style.display="none";
 		dijit.byId("editSkillPane").domNode.style.display="block";
@@ -98,12 +78,12 @@ function skillDragCheckAcceptance(source, nodes) {
 function skillDragCheckItemAcceptance(target, source) {
 	var item = dijit.getEnclosingWidget(target).item;
 	return (item.type == "group");
-};
+};*/
 
 dojo.addOnLoad(function() {
 	var tabbar = dijit.byId("mainTabContainer");
 	currenttab = dijit.byId("agentsTab");
-	dojo.connect(tabbar,'selectChild','switchtab');
+	/*dojo.connect(tabbar,'selectChild','switchtab');
 	dojo.connect(dijit.byId('itemTree'), 'onClick', 'selectskill');
 	dojo.connect(dijit.byId('queueTree'), 'onClick', 'selectqueue');
 	dojo.connect(dijit.byId("bsetskill"), 'onClick', function(foo) {
@@ -138,10 +118,10 @@ dojo.addOnLoad(function() {
 				}
 			// More properties for xhrGet...
 		});
-	});
+	});*/
 });
 
-function setSkill(e){
+/*function setSkill(e){
 	console.log("what is e " + e)
 	// prevent the form from actually submitting
 	e.preventDefault(); 
@@ -164,7 +144,7 @@ function setSkill(e){
 			}
 		}
 	});
-};
+};*/
 
 dojo.addOnLoad(function(){
 	var loginform = dijit.byId("loginform")
@@ -208,17 +188,28 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-
-
-
-
-
-
-
-
-	var theForm = dijit.byId("editSkillPane");
+//	var theForm = dijit.byId("editSkillPane");
 	// another dojo.connect syntax: call a function directly	
-	dojo.connect(theForm,"onsubmit",setSkill);
+//	dojo.connect(theForm,"onsubmit",setSkill);
+	
+	dojo.xhrGet({
+		url:"/checkcookie",
+		handleAs:"json",
+		error:function(response, ioargs){
+			console.log("checkcookie failed!");
+			console.log(response);
+		},
+		load:function(response, ioargs){
+			if(response.success){
+				dojo.byId("main").style.display="block";
+				dojo.byId("main").style.visibility = "visible";
+			}
+			else{
+				dijit.byId("loginpane").show();
+			}
+		}
+	});
+			   
 });
 
 

@@ -79,7 +79,7 @@ hangup(Pid) ->
 init([Fnode, AgentRec, Apid, Qcall, Ringout, Domain]) when is_record(Qcall, call) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
-			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]sofia/default/" ++ AgentRec#agent.login ++ "%" ++ Domain ++ " &park()",
+			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " &park()",
 			F = fun(ok, _Reply) ->
 					% agent picked up?
 					freeswitch:api(Fnode, uuid_bridge, UUID ++ " " ++ Qcall#call.id);

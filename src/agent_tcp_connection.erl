@@ -207,7 +207,7 @@ handle_event(["GETSALT", Counter], State) when is_integer(Counter) ->
 handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), is_atom(State#state.salt) ->
 	{err(Counter, "Please request a salt with GETSALT first"), State};
 
-handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
+handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
 	case util:string_split(Credentials, ":", 2) of
 		[Username, Password] ->
 			case agent_auth:auth(Username, Password, integer_to_list(State#state.salt)) of
@@ -219,6 +219,8 @@ handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter), i
 					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills}),
 					case agent:set_connection(Pid, self()) of
 						ok ->
+							% TODO validate this?
+							agent:set_remote_number(Pid, RemoteNumber),
 							State2 = State#state{agent_fsm=Pid, securitylevel=Security},
 							?CONSOLE("User ~p has authenticated using ~p.~n", [Username, Password]),
 							{MegaSecs, Secs, _MicroSecs} = now(),
@@ -231,6 +233,9 @@ handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter), i
 			_Else ->
 				{err(Counter, "Authentication Failure"), State}
 	end;
+
+handle_event(["LOGIN", Counter, Credentials], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
+	handle_event(["LOGIN", Counter, Credentials, undefined], State);
 
 handle_event([_Event, Counter], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
 	{err(Counter, "This is an unauthenticated connection, the only permitted actions are GETSALT and LOGIN"), State};
@@ -271,6 +276,14 @@ handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Co
 handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
 	?CONSOLE("Trying to set state ~p.", [AgState]),
 	try agent:list_to_state(AgState) of
+		released ->
+			case agent:set_state(State#state.agent_fsm, released, default) of
+				ok ->
+					{ack(Counter), State};
+				invalid ->
+					{ok, OldState} = agent:query_state(State#state.agent_fsm),
+					{err(Counter, "Invalid state change from " ++ atom_to_list(OldState) ++ " to released"), State}
+			end;
 		NewState ->
 			case agent:set_state(State#state.agent_fsm, NewState) of
 				ok ->

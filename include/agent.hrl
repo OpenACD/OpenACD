@@ -40,7 +40,8 @@
 						{onhold, #call{}, calling, #call{}},	% warmtransfer
 	queuedrelease :: any(),	% is the current state is to go to released, what is the released type
 	lastchangetimestamp = now() :: any(),	% at what time did the last state change occur
-	defaultringpath = inband :: 'inband' | 'outband'
+	defaultringpath = inband :: 'inband' | 'outband',
+	remotenumber :: 'undefined' | string()
 }).
 	
 %% 10/10/2008 Micah

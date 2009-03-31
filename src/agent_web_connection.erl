@@ -148,7 +148,7 @@ init([Agent, Security]) ->
 	end,
 	case agent:set_connection(Apid, self()) of
 		error ->
-			{stop, "Agent could not be started"};
+			{stop, "Agent is already logged in"};
 		_Else ->
 			{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
 			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security}}
@@ -179,6 +179,8 @@ handle_call({set_state, Statename, Statedata}, _From, #state{agent_fsm = Apid} =
 		Status ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State}
 	end;
+handle_call({set_remote_number, Number}, _From, #state{agent_fsm = Apid} = State) ->
+	{reply, agent:set_remote_number(Apid, Number), State};
 handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 	%% don't like it, but hardcoding freeswitch
 	case whereis(freeswitch_media_manager) of

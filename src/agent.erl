@@ -44,7 +44,7 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 
 %% other exports
--export([start/1, start_link/1, stop/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2]).
+-export([start/1, start_link/1, stop/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2, set_remote_number/2]).
 
 %% @doc Start an agent fsm for the passed in agent record `Agent' that is linked to the calling process
 -spec(start_link/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
@@ -65,7 +65,9 @@ stop(Pid) ->
 -spec(set_connection/2 :: (Pid :: pid(), Socket :: pid()) -> 'ok' | 'error').
 set_connection(Pid, Socket) ->
 	gen_fsm:sync_send_all_state_event(Pid, {set_connection, Socket}).
-	
+
+set_remote_number(Pid, Number) ->
+	gen_fsm:sync_send_all_state_event(Pid, {set_remote_number, Number}).
 
 %% @private
 init([State = #agent{}]) ->
@@ -382,6 +384,8 @@ handle_sync_event({set_connection, Pid}, _From, StateName, #agent{connection = u
 	{reply, ok, StateName, State#agent{connection=Pid}};
 handle_sync_event({set_connection, _Pid}, _From, StateName, State) ->
 	{reply, error, StateName, State};
+handle_sync_event({set_remote_number, Number}, _From, StateName, State) ->
+	{reply, ok, StateName, State#agent{remotenumber = Number}};
 handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.
 

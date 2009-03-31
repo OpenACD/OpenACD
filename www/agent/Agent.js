@@ -5,6 +5,7 @@ function Agent(username){
 	this.skills = [];
 	this.state = "";
 	this.statedata = "";
+	this.pollfailures = 0;
 	
 	var agentref = this;
 
@@ -35,11 +36,23 @@ function Agent(username){
 			error:function(response, ioargs){
 				console.log(response);
 				EventLog.log("Poll failed:  " + response.responseText);
+				agentref.pollfailures += 1;
+				if (agentref.pollfailures >= 5) {
+					agentref.stopwatch.stop();
+					agentref.stopwatch.reset();
+					agentref.poller.stop();
+					dojo.publish("agent/logout", []);
+					dojo.byId("loginerrp").style.display = "block";
+					dojo.byId("loginerrspan").innerHTML = "Server is not responding";
+					dijit.byId("loginpane").show();
+					dijit.byId("main").attr('style', 'visibility:hidden');
+				}	
 			},
 			load:function(response, ioargs){
 				console.log(response);
 				EventLog.log("Poll success, handling data");
 				agentref.handleData(response.data);
+				agentref.pollfailures = 0;
 			}
 		})
 	}

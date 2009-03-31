@@ -459,11 +459,13 @@ unauthenticated_agent_test_() ->
 			mnesia:create_schema([node()]),
 			mnesia:start(),
 			agent_auth:start(),
-			agent_auth:cache("Username", erlang:md5("Password"), [skill1, skill2]),
+			agent_auth:new_profile("Testprofile", [skill1, skill2]),
+			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
 			agent_manager:start([node()]),
 			#state{}
 		end,
 		fun(_State) ->
+			agent_auth:destroy_profile("Testprofile"),
 			agent_auth:stop(),
 			agent_manager:stop(),
 			mnesia:stop(),
@@ -563,7 +565,8 @@ authenticated_agent_test_() ->
 			mnesia:create_schema([node()]),
 			mnesia:start(),
 			agent_auth:start(),
-			agent_auth:cache("Username", erlang:md5("Password"), [skill1, skill2]),
+			agent_auth:new_profile("Testprofile", [skill1, skill2]),
+			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
 			agent_manager:start([node()]),
 			State = #state{},
 			{Reply, State2} = handle_event(["GETSALT",  3], State),
@@ -573,6 +576,7 @@ authenticated_agent_test_() ->
 			State3
 		end,
 		fun(_State) ->
+			agent_auth:destroy_profile("Testprofile"),
 			agent_auth:stop(),
 			agent_manager:stop(),
 			mnesia:stop(),
@@ -638,7 +642,8 @@ socket_enabled_test_() ->
 			mnesia:create_schema([node()]),
 			mnesia:start(),
 			agent_auth:start(),
-			agent_auth:cache("Username", erlang:md5("Password"), [skill1, skill2]),
+			agent_auth:new_profile("Testprofile", [skill1, skill2]),
+			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
 			agent_manager:start([node()]),
 			{ok, Pid} = agent_tcp_listener:start(),
 			{ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, 1337, [inet, list, {active, false}, {packet, line}]),
@@ -652,6 +657,7 @@ socket_enabled_test_() ->
 			{Socket, Pid}
 		end,
 		fun({Socket, Pid}) ->
+			agent_auth:destroy_profile("Testprofile"),
 			agent_auth:stop(),
 			agent_manager:stop(),
 			mnesia:stop(),
@@ -730,7 +736,8 @@ post_login_test_() ->
 			mnesia:create_schema([node()]),
 			mnesia:start(),
 			agent_auth:start(),
-			agent_auth:cache("Username", erlang:md5("Password"), [skill1, skill2]),
+			agent_auth:new_profile("Testprofile", [skill1, skill2]),
+			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
 			agent_manager:start([node()]),
 			{ok, Pid} = agent_tcp_listener:start(),
 			{ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, 1337, [inet, list, {active, once}, {packet, line}]),
@@ -754,6 +761,7 @@ post_login_test_() ->
 		fun({Tcplistener, Clientsock, APid}) ->
 			?CONSOLE("Cleanup", []),
 			agent:stop(APid),
+			agent_auth:destroy("Testprofile"),
 			agent_auth:stop(),
 			agent_manager:stop(),
 			mnesia:stop(),

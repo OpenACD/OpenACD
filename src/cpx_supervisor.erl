@@ -71,6 +71,7 @@
 	build_tables/0,
 	destroy/1,
 	update_conf/4,
+	get_conf/1,
 	stop/0
 	]).
 	
@@ -183,6 +184,21 @@ update_conf(Name, Mod, Start, Args) ->
 		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F).
+
+get_conf(Name) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= Name]),
+		qlc:e(QH)
+	end,
+	case mnesia:transaction(F) of
+		{atomic, []} ->
+			undefined;
+		{atomic, [Rec]} ->
+			[{name, Rec#cpx_conf.module_name},
+			{module_name, Rec#cpx_conf.module_name},
+			{start_function, Rec#cpx_conf.start_function},
+			{start_args, Rec#cpx_conf.start_args}]
+	end.
 
 %% @private
 start_spec(Spec) -> 

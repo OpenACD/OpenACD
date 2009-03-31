@@ -14,6 +14,9 @@ dojo.require("dojo.data.ItemFileReadStore");
 dojo.require("dojox.encoding.digests.MD5");
 dojo.require("dijit.layout.BorderContainer");
 dojo.require("dijit.layout.StackContainer");
+dojo.require("dijit.form.NumberTextBox");
+dojo.require("dijit.form.CheckBox");
+
 /* setting up some namespaces for code organization */
 
 var cpx = function(){

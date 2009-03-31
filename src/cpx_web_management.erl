@@ -175,7 +175,6 @@ api(_Apirequest, badcookie, _Post) ->
 api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
 	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
 	ets:insert(cpx_management_logins, {Reflist, Newsalt, Conn}),
-	?CONSOLE("created and sent salt for ~p", [Reflist]),
 	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})};
 api(login, {_Reflist, undefined, _Login}, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})};
@@ -195,32 +194,64 @@ api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	ets:delete(cpx_management_logins, Reflist),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api(agents, {_Reflist, _Salt, _Login}, _Post) ->
-	%%	{identifier: 'name',
-	%%	label: 'name',
-	%%	items: [
-	%%		{name:"Default",
-	%%		type:"profile",
-	%%		skills:[],
-	%%		children:[
-	%%			{_reference:"1"},
-	%%			{_reference:"2"}
-	%%		]
-	%%		},
-	%%		{name:"1",
-	%%		type:"agent",
-	%%		etc...
-	%%		}
 	Agents = agent_auth:get_agents(),
 	Proplist = dict:to_list(encode_agents_with_profiles(Agents)),
-	?CONSOLE("list before conversion ~p", [Proplist]),
 	Convert = fun({Profile, Agentrecs}) ->
 		{struct, [{<<"name">>, list_to_binary(Profile)}, {<<"type">>, <<"profile">>}, {<<"agents">>, encode_agents(Agentrecs)}]}
 	end,
 	Json = {struct, [{success, true}, {<<"items">>, lists:map(Convert, Proplist)}]},
-	?CONSOLE("~p", [Json]),
 	{200, [], mochijson2:encode(Json)};
-api(_Api, _Cookie, _Post) ->
-	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login requried">>}]})}.
+api({agents, "editmodules"}, {_Reflist, _Salt, _Login}, Post) ->
+	Tcpout = case proplists:get_value("agentModuleTCPListen", Post) of
+		undefined ->
+			cpx_supervisor:destroy(agent_tcp_listener),
+			{struct, [{success, true}, {<<"message">>, <<"TCP Server disabled">>}]};
+		Tcpport ->
+			try list_to_integer(Tcpport) of
+				N when N >= 1024, N =< 49151 ->
+					cpx_supervisor:update_conf(agent_tcp_listener, agent_tcp_listener, start_link, [N]),
+					{struct, [{success, true}, {<<"message">>, <<"TCP Server enabled">>}]};
+				_N ->
+					{struct, [{success, false}, {<<"message">>, <<"Listen port out of range">>}]}
+			catch
+				error:badarg ->
+					{struct, [{success, false}, {<<"message">>, <<"Listen port not a number">>}]}
+			end
+	end,
+	Webout = case proplists:get_value("agentModuleWebListen", Post) of
+		undefined ->
+			cpx_supervisor:destroy(agent_web_listener),
+			{struct, [{success, true}, {<<"message">>, <<"Web Server disabled">>}]};
+		Webport ->
+			try list_to_integer(Webport) of
+				M when M >= 1024, M =< 49151 ->
+					cpx_supervisor:update_conf(agent_web_listener, agent_web_listener, start_link, [M]),
+					{struct, [{success, true}, {<<"message">>, <<"Web Server enabled">>}]};
+				_M ->
+					{struct, [{success, false}, {<<"message">>, <<"Listen port out of range">>}]}
+			catch
+				error:badarg ->
+					{struct, [{success, false}, {<<"message">>, <<"Listen port not a number">>}]}
+			end
+	end,
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"results">>, [Tcpout, Webout]}]})};
+api({agents, "getmodules"}, {_Reflist, _Salt, _Login}, _Post) ->
+	Tcpout = case cpx_supervisor:get_conf(agent_tcp_listener) of
+		undefined ->
+			[{"agentModuleTCPListen", 1337}, {"agentModuleTCPListenEnabled", false}];
+		Tcplist ->
+			[Tcport] = proplists:get_value(start_args, Tcplist, [1337]),
+			[{"agentModuleTCPListen", Tcport}, {"agentModuleTCPListenEnabled", true}]
+	end,
+	Webout = case cpx_supervisor:get_conf(agent_web_listener) of
+		undefined ->
+			[{"agentModuleWebListen", 5050}, {"agentModuleWebListenEnabled", false}];
+		Weblist ->
+			[Webport] = proplists:get_value(start_args, Weblist, [5050]),
+			[{"agentModuleWebListen", Webport}, {"agentModuleWebListenEnabled", true}]
+	end,
+	Full = lists:append([Tcpout, Webout]),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})}.
 
 parse_path(Path) ->
 	case Path of
@@ -239,10 +270,10 @@ parse_path(Path) ->
 		_Other ->
 			% section/action (params in post data)
 			case util:string_split(Path, "/") of
-				["", "skill", Action] ->
-					{api, {skill, Action}};
 				["", "agents", Action] ->
 					{api, {agents, Action}};
+				["", "skill", Action] ->
+					{api, {skill, Action}};
 				["", "queues", Action] ->
 					{api, {queues, Action}};
 				["", "medias", Action] ->

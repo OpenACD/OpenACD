@@ -848,7 +848,7 @@ post_login_test_() ->
 					call_queue_config:new_client(#client{label = "Cclient", tenant = 20, brand = 3}),
 					gen_tcp:send(Clientsock, "BRANDLIST 7\r\n"),
 					receive {tcp, Clientsock, Packet} -> ok end,
-					?assertEqual("ACK 7 (00100001|Aclient),(00050002|Bclient),(00200003|Cclient)\r\n", Packet)
+					?assertEqual("ACK 7 (00100001|Aclient),(00050002|Bclient),(00200003|Cclient),(00990099|Demo Client)\r\n", Packet)
 				end}
 			end,
 			fun({_Tcplistener, Clientsock, _APid}) ->
@@ -888,7 +888,7 @@ clientrec_to_id_test() ->
 -define(MYSERVERFUNC, 
 	fun() -> 
 		{ok, Pid} = start_link("garbage data"), 
-		{Pid, fun() -> exit(Pid, kill) end} 
+		{Pid, fun() -> exit(Pid, kill), ok end} 
 	end).
 
 -include("gen_server_test.hrl").

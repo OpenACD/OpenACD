@@ -1194,10 +1194,11 @@ client_rec_test_() ->
 					Client1 = #client{label = "Client1", tenant = 23, brand = 1},
 					Client2 = #client{label = "Client2", tenant = 47, brand = 2},
 					Client3 = #client{label = "Aclient", tenant = 56, brand = 1},
+					DemoClient = #client{label="Demo Client", tenant=99, brand=99},
 					new_client(Client1),
 					new_client(Client2),
 					new_client(Client3),
-					?assertEqual([Client3, Client1, Client2], get_clients())
+					?assertEqual([Client3, Client1, Client2, DemoClient], get_clients())
 				end
 			},
 			{

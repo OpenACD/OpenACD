@@ -27,8 +27,31 @@
 <!-- load the dojo toolkit base -->
 <script type="text/javascript" src="/dojo/dojo/dojo.js"
 	djConfig="parseOnLoad:true, isDebug:false"></script>
-<script type="text/javascript" src="main.js"></script>
+<script type="text/javascript">
+/* dependancies */
+dojo.require("dijit.Dialog");
+dojo.require("dijit.layout.LayoutContainer");
+dojo.require("dijit.layout.ContentPane");
+dojo.require("dijit.layout.TabContainer");
+dojo.require("dijit.form.Button");
+dojo.require("dijit.form.Form");
+dojo.require("dijit.form.TextBox");
+dojo.require("dijit.form.ValidationTextBox");
+dojo.require("dijit._tree.dndSource");
+dojo.require("dijit.Tree");
+dojo.require("dojo.data.ItemFileWriteStore");
+dojo.require("dojo.data.ItemFileReadStore");
+dojo.require("dojox.encoding.digests.MD5");
+dojo.require("dijit.layout.BorderContainer");
+dojo.require("dijit.layout.StackContainer");
+dojo.require("dijit.form.NumberTextBox");
+dojo.require("dijit.form.CheckBox");
+dojo.require("dijit.form.FilteringSelect");
+dojo.require("dijit.form.MultiSelect");
+</script>
 <script type="text/javascript" src="agents.js"></script>
+<script type="text/javascript" src="skills.js"></script>
+<script type="text/javascript" src="main.js"></script>
 </head>
 
 <body class="tundra">
@@ -56,7 +79,16 @@
 				<button dojoType="dijit.form.Button" label="Agents Settings" onclick="dijit.byId('agentsMain').selectChild('agentModuleSettings')"></button>
 			</div>
 			
-			<div dojoType="dijit.Tree", id="agentsList" model="agents.model" showRoot="false" style="width:100%;height: 85%;"></div>
+			<div id="agentsList"style="width:100%;height: 85%;">
+				<!--<script type="dojo/method" event="onClick" args="item">
+					if(item.type == "profile"){
+						dijit.byId("agentsMain").selectChild("agentProfileEditor");
+					}
+					else{
+						dijit.byId("agentsMain").selectChild("agentEditor");
+					}
+				</script>-->
+			</div>
 			
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
 				<button dojoType="dijit.form.Button" label="+"></button>
@@ -95,8 +127,25 @@
 			<div dojoType="dijit.layout.ContentPane" id="agentEditor">
 				AgentEditor
 			</div>
+			
 			<div dojoType="dijit.layout.ContentPane" id="agentProfileEditor">
-				AGentProfileEditor
+				<form dojoType="dijit.form.Form" id="editAgentProfileForm" action="javascript:void(0)" method="post">
+					<input type="hidden" name="agentProfileOldName" value="" />
+					<p>
+						<label for="agentProfileName">Profile Name:</label>
+						<input dojoType="dijit.form.TextBox" name="agentProfileName" id="agentProfileName" />
+					</p>
+					<p>
+						<label for="agentProfileSkills">Skills:</label>
+						<div id="agentProfileSkills">
+							<select dojoType="dijit.form.MultiSelect" name="agentProfileSkills" size="10" multiple="true"></select>
+						</div>
+					</p>
+					<p>
+						<label for="agentProfileSubmit">&nbsp;</label>
+						<button dojoType="dijit.form.Button" label="Submit" onClick="agents.updateProfile('edit AgentProfileForm')"></button>
+					</p>
+				</form>
 			</div>
 		</div>
 

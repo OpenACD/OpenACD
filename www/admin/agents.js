@@ -4,19 +4,6 @@ var agents = function(){
 	return {}
 }
 
-agents.store = new dojo.data.ItemFileReadStore({
-	url:"/agents"
-});
-
-agents.model = new dijit.tree.ForestStoreModel({
-	store: agents.store,
-	labelAttr:"name",
-	query:{"type":"profile"},
-	childrenAttrs:["agents"],
-	rootId:"agents",
-	rootLabel:"Agents"
-});
-
 agents.updateModule = function(subform){
 	dojo.xhrPost({
 		url:"agents/editmodules",
@@ -42,4 +29,56 @@ agents.getModules = function(targetform){
 			targetform.setValues(response.result);
 		}
 	})
+}
+
+agents.getProfile = function(profile, targetform){
+	var setAvailSkills = function(skilljson){
+		console.log('hi');
+	}
+}
+
+agents.store = new dojo.data.ItemFileReadStore({
+	data:{
+		"items":[]
+	}
+});
+
+agents.model = new dijit.tree.ForestStoreModel({
+	store: agents.store,
+	labelAttr:"name",
+	query:{"type":"profile"},
+	childrenAttrs:["agents"],
+	rootId:"agents",
+	rootLabel:"Agents"
+});
+
+agents.init = function(){
+	console.log("agent.init");
+	agents.store = new dojo.data.ItemFileWriteStore({
+		url:"/agents"
+	});
+	agents.store.fetch();
+	agents.model = new dijit.tree.ForestStoreModel({
+		store: agents.store,
+		labelAttr:"name",
+		query:{"type":"profile"},
+		childrenAttrs:["agents"],
+		rootId:"agents",
+		rootLabel:"Agents"
+	});
+}
+
+agents.tree = false;
+
+agents.refreshTree = function(targetnode){
+	agents.store.fetch();
+	if(dijit.byId(agents.tree.id)){
+		dijit.byId(agents.tree.id).destroy();
+	}
+	agents.tree = new dijit.Tree({
+		store: agents.store,
+		model: agents.model,
+		showRoot:false},
+		targetnode
+	);
 }

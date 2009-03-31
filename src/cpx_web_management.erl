@@ -251,8 +251,21 @@ api({agents, "getmodules"}, {_Reflist, _Salt, _Login}, _Post) ->
 			[{"agentModuleWebListen", Webport}, {"agentModuleWebListenEnabled", true}]
 	end,
 	Full = lists:append([Tcpout, Webout]),
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})}.
-
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})};
+api(skills, {_Reflist, _Salt, _Login}, _Post) ->
+	?CONSOLE("trying to send skills", []),
+	Skills = call_queue_config:get_skills(),
+	Proplist = dict:to_list(encode_skills_with_groups(Skills)),
+	Convert = fun({Group, Skillrecs}) ->
+		{struct, [{<<"name">>, list_to_binary(Group)}, {<<"type">>, <<"group">>}, {<<"skills">>, encode_skills(Skillrecs)}]}
+	end,
+	Json = {struct, [{success, true}, {<<"items">>, lists:map(Convert, Proplist)}]},
+	{200, [], mochijson2:encode(Json)};
+api({skills, Profile}, {_Reflist, _Salt, _Login}, Post) ->
+	Skills = call_queue_config:get_skills(Profile),
+	Encoded = encode_skills(Skills),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})}.
+	
 parse_path(Path) ->
 	case Path of
 		"/" ->
@@ -267,13 +280,15 @@ parse_path(Path) ->
 			{api, checkcookie};
 		"/agents" ->
 			{api, agents};
+		"/skills" ->
+			{api, skills};
 		_Other ->
 			% section/action (params in post data)
 			case util:string_split(Path, "/") of
 				["", "agents", Action] ->
 					{api, {agents, Action}};
-				["", "skill", Action] ->
-					{api, {skill, Action}};
+				["", "skills", Profile] ->
+					{api, {skills, Profile}};
 				["", "queues", Action] ->
 					{api, {queues, Action}};
 				["", "medias", Action] ->
@@ -313,11 +328,25 @@ encode_skills([Skill|Skills]) ->
 
 encode_skills_with_groups([]) ->
 	[];
-encode_skills_with_groups([Group|Groups]) ->
-	ASkill = lists:nth(1, Group),
-	[{struct, [{name, list_to_binary(ASkill#skill_rec.group)},
-			{type, group},
-			{children, encode_skills(Group)}]} | encode_skills_with_groups(Groups)].
+encode_skills_with_groups(Skills) ->
+	encode_skills_with_groups(Skills, dict:new()).
+
+encode_skills_with_groups([], Acc) ->
+	Acc;
+encode_skills_with_groups([Skill | Skills], Acc) ->
+	case dict:find(Skill#skill_rec.group, Acc) of
+		error ->
+			Sgroups = [];
+		{ok, Sgroups} ->
+			Sgroups
+	end,
+	Newacc = dict:store(Skill#skill_rec.group, [Skill | Sgroups], Acc),
+	encode_skills_with_groups(Skills, Newacc).
+	
+%	ASkill = lists:nth(1, Group),
+%	[{struct, [{name, list_to_binary(ASkill#skill_rec.group)},
+%			{type, group},
+%			{children, encode_skills(Group)}]} | encode_skills_with_groups(Groups)].
 
 encode_queues([]) ->
 	[];

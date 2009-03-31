@@ -1,27 +1,3 @@
-/* dependancies */
-dojo.require("dijit.Dialog");
-dojo.require("dijit.layout.LayoutContainer");
-dojo.require("dijit.layout.ContentPane");
-dojo.require("dijit.layout.TabContainer");
-dojo.require("dijit.form.Button");
-dojo.require("dijit.form.Form");
-dojo.require("dijit.form.TextBox");
-dojo.require("dijit.form.ValidationTextBox");
-dojo.require("dijit._tree.dndSource");
-dojo.require("dijit.Tree");
-dojo.require("dojo.data.ItemFileWriteStore");
-dojo.require("dojo.data.ItemFileReadStore");
-dojo.require("dojox.encoding.digests.MD5");
-dojo.require("dijit.layout.BorderContainer");
-dojo.require("dijit.layout.StackContainer");
-dojo.require("dijit.form.NumberTextBox");
-dojo.require("dijit.form.CheckBox");
-
-/* setting up some namespaces for code organization */
-
-var cpx = function(){
-	return {};
-}
 
 currenttab = undefined;
 
@@ -82,7 +58,7 @@ function skillDragCheckItemAcceptance(target, source) {
 	var item = dijit.getEnclosingWidget(target).item;
 	return (item.type == "group");
 };*/
-
+/*
 dojo.addOnLoad(function() {
 	var tabbar = dijit.byId("mainTabContainer");
 	currenttab = dijit.byId("agentsTab");
@@ -122,7 +98,7 @@ dojo.addOnLoad(function() {
 			// More properties for xhrGet...
 		});
 	});*/
-});
+//});
 
 /*function setSkill(e){
 	console.log("what is e " + e)
@@ -173,14 +149,18 @@ dojo.addOnLoad(function(){
 						handleAs:"json",
 						content:values,
 						load:function(response2, ioargs2){
+							console.log(response2);
 							if(response2.success){
-								EventLog.log("Logged in");
 								dijit.byId("loginpane").hide();
-								dojo.byId("mainTabContainer").style.display="block";
-								dojo.byId("mainTabContainer").style.visibility = "visible";
+								dojo.byId("main").style.display="block";
+								dojo.byId("main").style.visibility = "visible";
+								console.log(agents);
+								agents.init();
+								agents.refreshTree("agentsList");
 								console.log(response2);
 							}
 							else{
+								console.log("aroo?");
 								dojo.byId("loginerrp").style.display = "block";
 								dojo.byId("loginerrspan").innerHTML = response2.message;
 							}
@@ -206,13 +186,14 @@ dojo.addOnLoad(function(){
 			if(response.success){
 				dojo.byId("main").style.display="block";
 				dojo.byId("main").style.visibility = "visible";
+				agents.init();
+				agents.refreshTree("agentsList");
 			}
 			else{
 				dijit.byId("loginpane").show();
 			}
 		}
 	});
-			   
 });
 
 

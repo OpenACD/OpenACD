@@ -79,8 +79,8 @@ init([State = #agent{}]) ->
 -spec(expand_magic_skills/1 :: (State :: #agent{}) -> #agent{}).
 expand_magic_skills(State) ->
 	State#agent{skills = lists:map(
-		fun('_agent') -> list_to_atom(State#agent.login);
-		('_node') -> node();
+		fun('_agent') -> {'_agent', list_to_atom(State#agent.login)};
+		('_node') -> {'_node', node()};
 		(Skill) -> Skill
 	end, State#agent.skills)}.
 

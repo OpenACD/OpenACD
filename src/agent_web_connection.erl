@@ -69,7 +69,6 @@
 		% struct MUST contain a counter, used to handle acks/errs
 	missed_polls = 0 :: non_neg_integer(),
 	counter = 1 :: non_neg_integer(),
-	table :: atom() | 'undefined',
 	ack_timer,
 	poll_state :: atom(),
 	poll_statedata :: any(),
@@ -240,7 +239,6 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 terminate(Reason, State) ->
 	?CONSOLE("terminated ~p", [Reason]),
-	%ets:delete(State#state.table, erlang:ref_to_list(State#state.ref)),
 	agent:stop(State#state.agent_fsm),
 	timer:cancel(State#state.ack_timer),
     ok.

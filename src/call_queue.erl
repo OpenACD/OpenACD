@@ -298,9 +298,9 @@ find_by_pid_(_Needle, none) ->
 -spec(expand_magic_skills/3 :: (State :: #state{}, Call :: #queued_call{}, Skills :: [atom()]) -> [atom()]).
 expand_magic_skills(State, Call, Skills) ->
 	lists:filter(fun(X) -> X =/= [] end, lists:map(
-		fun('_node') when is_pid(Call#queued_call.media) -> node(Call#queued_call.media);
+		fun('_node') when is_pid(Call#queued_call.media) -> {'_node', node(Call#queued_call.media)};
 			%('_node') -> ?CONSOLE("Can't expand magic skill _node~n", []), [];
-			('_queue') -> State#state.name;
+			('_queue') -> {'_queue', State#state.name};
 			%('_queue') when is_atom(State#state.name) -> State#state.name;
 			%('_queue') -> ?CONSOLE("Can't expand magic skill _queue~n", []), [];
 			(Skill) -> Skill
@@ -367,7 +367,7 @@ handle_call({add_skills, Callid, Skills}, _From, State) ->
 			{reply, none, State};
 		{Key, #queued_call{skills=OldSkills} = Value} ->
 			Skills2 = expand_magic_skills(State, Value, Skills),
-			NewSkills = lists:umerge(lists:sort(OldSkills), lists:sort(Skills2)),
+			NewSkills = util:merge_skill_lists(OldSkills, Skills2),
 			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{skills=NewSkills}, State#state.queue)},
 			{reply, ok, State2}
 	end;
@@ -901,7 +901,7 @@ call_update_test_() ->
 					?assertEqual(ok, add_skills(Pid, "C1", ['_queue'])),
 					{_Key, Call2} = get_call(Pid, "C1"),
 					?debugFmt("Skills are ~p~n", [Call2#queued_call.skills]),
-					?assertEqual(true, lists:member("testqueue", Call2#queued_call.skills))
+					?assertEqual(true, lists:member({'_queue', "testqueue"}, Call2#queued_call.skills))
 				end
 			}, {
 				"Remove magic skills test", fun() ->
@@ -911,10 +911,10 @@ call_update_test_() ->
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
 					?debugFmt("Queued_call:  ~p; this node:  ~p", [Call, node()]),
-					?assertEqual(true, lists:member(node(), Call#queued_call.skills)),
+					?assertEqual(true, lists:member({'_node', node()}, Call#queued_call.skills)),
 					?assertEqual(ok, remove_skills(Pid, "C1", ['_node'])),
 					{_Key, Call2} = get_call(Pid, "C1"),
-					?assertEqual(false, lists:member(node(), Call2#queued_call.skills))
+					?assertEqual(false, lists:member({'_node', node()}, Call2#queued_call.skills))
 				end
 			}, {
 				"Ensure that call_skills are merged into the call's skill list on add", fun() ->
@@ -923,7 +923,7 @@ call_update_test_() ->
 					dummy_media:set_skills(Dummy1, [madness]),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member(node(), Call#queued_call.skills)),
+					?assertEqual(true, lists:member({'_node', node()}, Call#queued_call.skills)),
 					?assertEqual(true, lists:member(english, Call#queued_call.skills))
 				end
 			}, {

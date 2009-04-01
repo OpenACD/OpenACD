@@ -51,7 +51,10 @@
 	bin_to_hexstr/1,
 	hexstr_to_bin/1,
 	build_table/2,
-	group_by/2]).
+	group_by/2,
+	group_by_with_key/2,
+	merge_skill_lists/2,
+	subtract_skill_lists/2]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];
@@ -162,23 +165,70 @@ hexstr_to_bin([X, Y | T], Acc) ->
 			error
 	end.
 
+%end 'borrowed' code
+
 %% @doc groups a list into a list of lists where each sublist contains
 %% the elements where `Fun(Element)' returned the same value.
+-spec(group_by_with_key/2 :: (Fun :: fun((Value :: any()) -> any()), List :: [any()]) -> [{any, any()}]).
+group_by_with_key(Fun, List) ->
+	dict:to_list(lists:foldl(fun(X, Acc) ->
+		V = Fun(X),
+		case dict:is_key(V, Acc) of
+			true ->
+				dict:append(V, X, Acc);
+			false ->
+				dict:store(V, [X], Acc)
+		end
+	end, dict:new(), List)).
+
 -spec(group_by/2 :: (Fun :: fun((Value :: any()) -> any()), List :: [any()]) -> [any()]).
 group_by(Fun, List) ->
-	lists:map(fun({_Key,Value}) -> Value end,
-		dict:to_list(lists:foldl(fun(X, Acc) ->
-			V = Fun(X),
-			case dict:is_key(V, Acc) of
-				true ->
-					dict:append(V, X, Acc);
-				false ->
-					dict:store(V, [X], Acc)
-			end
-	end, dict:new(), List))).
+	lists:map(fun({_Key, Value}) -> Value end, group_by_with_key(Fun, List)).
 
+%% @doc Merges 2 skill lists using lists:umerge and then ensures that only one
+%% instance of each magic skill is present, at maximum.
+-spec(merge_skill_lists(List1 :: [any()], List2 :: [any()]) -> [any()]).
+merge_skill_lists(List1, List2) ->
+	lists:foreach(fun({Key, Value}) ->
+		case length(Value) of
+			1 ->
+				ok;
+			_Else ->
+				io:format("duplicate magic skill ~p in first argument", [Key]),
+				erlang:error(badarg)
+		end
+	end, group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, lists:filter(fun(X) -> is_tuple(X) end, List1))),
+	
+	lists:foreach(fun({Key, Value}) ->
+		case length(Value) of
+			1 ->
+				ok;
+			_Else ->
+				io:format("duplicate magic skill ~p in second argument", [Key]),
+				erlang:error(badarg)
+		end
+	end, group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, lists:filter(fun(X) -> is_tuple(X) end, List2))),
 
-%end 'borrowed' code
+	NewList = lists:umerge(lists:sort(List1), lists:sort(List2)),
+	MagicSkills = lists:filter(fun(X) -> is_tuple(X) end, NewList),
+
+	Grouped = group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, MagicSkills),
+	
+	lists:filter(fun({SkillAtom, _SkillString} = Val) ->
+				case length(proplists:get_value(SkillAtom, Grouped)) of
+					1 ->
+						true;
+					2 ->
+						lists:member(Val, List2);
+					_Else ->
+						erlang:error(badarg)
+				end;
+		(_Skill) -> true
+	end, NewList).
+
+subtract_skill_lists(List1, List2) ->
+	FilterList = lists:map(fun({SkillAtom, _SkillString}) -> SkillAtom; (Skill) -> Skill end, List2),
+	lists:filter(fun({SkillAtom, _SkillString}) -> lists:member(SkillAtom, FilterList); (Skill) -> lists:member(Skill, FilterList) end, List1).
 
 %% @doc build the given mnesia table `Tablename' with `Options'.
 %% This will exit the calling process if mnesia is not started or if the schema is not stored on disc.  
@@ -326,5 +376,29 @@ build_table_test_() ->
 
 group_by_test() ->
 	?assertEqual([[2,4],[1,3,5]], util:group_by(fun(X) -> (X rem 2) =:= 0 end, [1, 2, 3, 4, 5])).
+
+merge_skill_lists_test_() ->
+	[
+		{
+			"Retains magic skills from the first list but overrides duplicates with magic skills from the second list",
+			fun () ->
+				?assertEqual([foo, {'_agent', "Steve"}, {'_brand', "Test"}], util:merge_skill_lists([{'_agent', "Fred"}, foo, {'_brand', "Test"}], [{'_agent', "Steve"}, foo]))
+			end
+		},
+		{
+			"errors out with badarg if one of the lists contains a duplicate magic skill",
+			fun() ->
+				?assertError(badarg, util:merge_skill_lists([{'_agent', "Foo"}, {'_agent', "Bar"}], [{'_agent', "Baz"},foo])),
+				?assertError(badarg, util:merge_skill_lists([{'_agent', "Foo"}], [{'_agent', "Baz"},foo, {'_agent', "Bar"}])),
+				?assertError(badarg, util:merge_skill_lists([{'_agent', "Foo"}, {'_agent', "Bar"}], [foo])),
+				?assertError(badarg, util:merge_skill_lists([foo], [{'_agent', "Foo"}, {'_agent', "Bar"}]))
+			end
+		}
+	].
+
+subtract_skill_lists_test() ->
+	?assertEqual([{'_agent',"Foo"},baz], util:subtract_skill_lists([{'_agent', "Foo"}, bar, baz], ['_agent', baz])),
+	?assertEqual([{'_agent',"Foo"},baz], util:subtract_skill_lists([{'_agent', "Foo"}, bar, baz], [{'_agent', "Whatever"}, baz])),
+	?assertEqual([baz], util:subtract_skill_lists([bar, baz], [{'_agent', "Whatever"}, baz])).
 				
 -endif.

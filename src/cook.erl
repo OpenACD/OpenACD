@@ -471,7 +471,7 @@ queue_interaction_test_() ->
 					true
 				end,
 				{_Key, #queued_call{skills=CallSkills}} = call_queue:ask(Pid),
-				?assertEqual(lists:sort([english, testskill, newskill1, newskill2, node()]), lists:sort(CallSkills))
+				?assertEqual(lists:sort([english, testskill, newskill1, newskill2, {'_node', node()}]), lists:sort(CallSkills))
 			end},
 			{"remove skills once",
 			fun() ->
@@ -483,7 +483,7 @@ queue_interaction_test_() ->
 					true
 				end,
 				{_Key, #queued_call{skills=CallSkills}} = call_queue:ask(Pid),
-				?assertEqual([node(), english], CallSkills)
+				?assertEqual([{'_node', node()}, english], CallSkills)
 			end},
 			{"Set Priority once",
 			fun() ->

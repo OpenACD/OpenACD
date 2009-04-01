@@ -79,17 +79,9 @@ dojo.require("dijit.form.MultiSelect");
 				<button dojoType="dijit.form.Button" label="Agents Settings" onclick="dijit.byId('agentsMain').selectChild('agentModuleSettings')"></button>
 			</div>
 			
-			<div id="agentsList"style="width:100%;height: 85%;">
-				<!--<script type="dojo/method" event="onClick" args="item">
-					if(item.type == "profile"){
-						dijit.byId("agentsMain").selectChild("agentProfileEditor");
-					}
-					else{
-						dijit.byId("agentsMain").selectChild("agentEditor");
-					}
-				</script>-->
+			<div style="width:100%;height: 85%;">
+				<div id="agentsList" style="width:100%;height: 85%;"></div>
 			</div>
-			
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
 				<button dojoType="dijit.form.Button" label="+"></button>
 				<button dojoType="dijit.form.Button" label="+ Profile"></button>

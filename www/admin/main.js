@@ -10,120 +10,26 @@ function switchtab(tab) {
 function inspect(obj){
 	console.log(obj);
 	for(var i in obj){
-		console.log("  " + i + ": " + obj[i])
+		if(typeof(obj[i]) == "function"){
+			console.log("  " + i + ": function()");
+		}
+		else{
+			console.log("  " + i + ": " + obj[i])
+		}
 	}
 }
 
-/*function selectskill(item) {
-	if (item.type == "skill") {
-		dijit.byId("editSkillGroupPane").domNode.style.display="none";
-		dijit.byId("editSkillPane").domNode.style.display="block";
-		dijit.byId("skillAtom").setValue(item.atom);
-		dijit.byId("skillName").setValue(item.name);
-		dijit.byId("skillDesc").setValue(item.description);
-		dijit.byId("skillAtom").setDisabled(true);
-		dijit.byId("skillName").setDisabled(item.protected == "true");
-		dijit.byId("skillDesc").setDisabled(item.protected == "true");
-		dijit.byId("bsetskill").setDisabled(item.protected == "true");
-		dijit.byId("skillPane").refresh();
-	} else if (item.type == "group") {
-		dijit.byId("editSkillGroupPane").domNode.style.display="block";
-		dijit.byId("editSkillPane").domNode.style.display="none";
-		dijit.byId("skillPane").refresh();
-	}
-}
-
-function selectqueue(item) {
-	if (item.type == "queue") {
-		dijit.byId("editQueueGroupPane").domNode.style.display="none";
-		dijit.byId("editQueueGeneralPane").domNode.style.display="none";
-		dijit.byId("editQueuePane").domNode.style.display="block";
-		dijit.byId("queuePane").refresh();
-	} else if (item.type == "group") {
-		dijit.byId("editQueueGroupPane").domNode.style.display="block";
-		dijit.byId("editQueueGeneralPane").domNode.style.display="none";
-		dijit.byId("editQueuePane").domNode.style.display="none";
-		dijit.byId("queuePane").refresh();
-	}
-}
-
-function skillDragCheckAcceptance(source, nodes) {
-	if (nodes.length != 1)
-		return false;
-	var item = dijit.getEnclosingWidget(nodes[0]).item;
-	return (item.type == "skill");
-};
-
-function skillDragCheckItemAcceptance(target, source) {
-	var item = dijit.getEnclosingWidget(target).item;
-	return (item.type == "group");
-};*/
-/*
-dojo.addOnLoad(function() {
-	var tabbar = dijit.byId("mainTabContainer");
-	currenttab = dijit.byId("agentsTab");
-	/*dojo.connect(tabbar,'selectChild','switchtab');
-	dojo.connect(dijit.byId('itemTree'), 'onClick', 'selectskill');
-	dojo.connect(dijit.byId('queueTree'), 'onClick', 'selectqueue');
-	dojo.connect(dijit.byId("bsetskill"), 'onClick', function(foo) {
-		console.log(foo.target)
-	});
-	dojo.connect(dijit.byId("generalQueueSettings"), 'onClick', function(foo) {
-		dijit.byId("editQueueGroupPane").domNode.style.display="none";
-		dijit.byId("editQueueGeneralPane").domNode.style.display="block";
-		dijit.byId("editQueuePane").domNode.style.display="none";
-		dijit.byId("queuePane").refresh();
-	});
-
-
-	dojo.connect(dijit.byId("removeSkill"), 'onClick', function(foo) {
-		var item = dijit.byId("itemTree").lastFocused;
-		alert("Remove "+ item.label + " skill");
-	});
-	dojo.connect(dijit.byId("itemTree").dndController, 'onDndDrop', function(source, nodes, copy) {
-		var item = dijit.getEnclosingWidget(nodes[0]).item;
-		var newparent = dijit.byId("itemTree")._itemNodeMap[dijit.byId("itemTree").model.getIdentity(item)].getParent().item;
-		console.log("moved "+item.name+" into group "+newparent.name);
-		dojo.xhrPost( {
-			// The following URL must match that used to test the server.
-			url: "http://freecpx.dev:9999/update_skill",
-			handleAs: "json",
-			content: {atom: item.atom, group: newparent.name},
-			load: function(responseObject, ioArgs) {
-				// Now you can just use the object
-				console.dir(responseObject);  // Dump it to the console
-				console.dir(responseObject.cobblers[0].filling);  // Prints "peach"
-				return responseObject;
-				}
-			// More properties for xhrGet...
-		});
-	});*/
-//});
-
-/*function setSkill(e){
-	console.log("what is e " + e)
-	// prevent the form from actually submitting
-	e.preventDefault(); 
-	// submit the form in the background	
-	dojo.xhrPost({
-		url: "setskill",
-		form: "editSkillForm",
-		handleAs: "json",
-		content:{
-			"skillatom":dijit.byId("skillAtom").getValue(),
-			"action" : "set"
-		},
-		handle: function(data,args){
-			if(typeof data == "error"){
-				console.warn("error!",args);
-			}else{
-				// show our response 
-				console.log("success!"),
-				inspect(data);
-			}
+var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){
+	dojo.connect(agents.tree, "onClick", function(i){
+		console.log(i);
+		if(i.type == "profile"){
+			dijit.byId('agentsMain').selectChild('agentProfileEditor');
+		}
+		else{
+			dijit.byId('agentsMain').selectChild('agentEditor');
 		}
 	});
-};*/
+});
 
 dojo.addOnLoad(function(){
 	var loginform = dijit.byId("loginform")
@@ -149,18 +55,14 @@ dojo.addOnLoad(function(){
 						handleAs:"json",
 						content:values,
 						load:function(response2, ioargs2){
-							console.log(response2);
 							if(response2.success){
 								dijit.byId("loginpane").hide();
 								dojo.byId("main").style.display="block";
 								dojo.byId("main").style.visibility = "visible";
-								console.log(agents);
 								agents.init();
 								agents.refreshTree("agentsList");
-								console.log(response2);
 							}
 							else{
-								console.log("aroo?");
 								dojo.byId("loginerrp").style.display = "block";
 								dojo.byId("loginerrspan").innerHTML = response2.message;
 							}
@@ -188,6 +90,7 @@ dojo.addOnLoad(function(){
 				dojo.byId("main").style.visibility = "visible";
 				agents.init();
 				agents.refreshTree("agentsList");
+				skills.init();
 			}
 			else{
 				dijit.byId("loginpane").show();

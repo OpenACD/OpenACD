@@ -78,7 +78,7 @@ agents.refreshTree = function(targetnode){
 	agents.tree = new dijit.Tree({
 		store: agents.store,
 		model: agents.model,
-		showRoot:false},
-		targetnode
-	);
+		showRoot:false
+	}, targetnode);
+	dojo.publish("agents/tree/refreshed", []);
 }

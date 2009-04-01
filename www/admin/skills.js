@@ -1,20 +1,6 @@
 var skills = function(){
 	return {};
 }
-/*
-skills.getSkills = function(callback){
-	var geturl = "skills/getskills";
-	if(arguments[1]){
-		geturl += "/" + arguments[1];
-	}
-	dojo.xhrGet({
-		url:"skills/getskills",
-		handleAs:"json",
-		load:function(response, ioargs){
-			callback(response);
-		}
-	});
-}*/
 
 skills.store = new dojo.data.ItemFileReadStore({
 	data:{
@@ -30,3 +16,32 @@ skills.model = new dijit.tree.ForestStoreModel({
 	rootId:"skills",
 	rootLabel:"Skills"
 })
+
+skills.tree = false;
+
+skills.init = function(){
+	skills.store = new dojo.data.ItemFileWriteStore({
+		url:"/skills",
+	});
+	skills.store.fetch();
+	skills.model = new dijit.tree.ForestStoreModel({
+		store:skills.store,
+		labelAttr: "name",
+		query:{"type":"group"},
+		childrenAttrs:"skills",
+		rootId:"skills",
+		rootLabel:"Skills"
+	});
+}
+
+skills.refreshTree = function(targetnode){
+	skills.store.fetch();
+	if(dijit.byId(skills.tree.id)){
+		dijit.byId(skills.tree.id).destroy();
+	}
+	skills.tree = new dijit.Tree({
+		store: skills.store,
+		model: skills.model,
+		showRoot: false,
+	}, targetnode);
+}

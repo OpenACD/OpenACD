@@ -66,14 +66,13 @@ loop(Req) ->
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
 			Cookies = Req:parse_cookie(),
-			case proplists:get_value("cpx_management", Cookies) of
-				undefined ->
+			case check_cookie(Cookies) of
+				badcookie ->
 					Ref = erlang:ref_to_list(make_ref()),
-					Cookie = io_lib:format("cpx_management=~p", [Ref]),
+					Cookie = io_lib:format("cpx_management=~p; path=/", [Ref]),
 					ets:insert(cpx_management_logins, {Ref, undefined, undefined}),
-					?CONSOLE("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}]);
-				_Reflist ->
+				{_Reflist, _Salt, _Login} ->
 					Req:serve_file(File, Docroot)
 			end;
 		{api, Api} ->
@@ -85,17 +84,17 @@ api(checkcookie, Cookie, _Post) ->
 	case Cookie of
 		badcookie ->
 			Reflist = erlang:ref_to_list(make_ref()),
-			NewCookie = io_lib:format("cpx_management=~p", [Reflist]),
+			NewCookie = io_lib:format("cpx_management=~p; path=/", [Reflist]),
 			ets:insert(cpx_management_logins, {Reflist, undefined, undefined}),
-			{200, [{"Sect-Cookie", NewCookie}], mochijson2:encode({struct, [{<<"success">>, false}]})};
+			{200, [{"Set-Cookie", NewCookie}], mochijson2:encode({struct, [{<<"success">>, false}]})};
 		{_Reflist, _Salt, undefined} ->
 			{200, [], mochijson2:encode({struct, [{<<"success">>, false}]})};
 		{_Reflist, _Salt, Login} ->
 			{200, [], mochijson2:encode({struct, [{<<"success">>, true}, {<<"login">>, list_to_binary(Login)}]})}
 	end;
-api(_Apirequest, badcookie, _Post) ->
+api(Apirequest, badcookie, _Post) ->
 	Reflist = erlang:ref_to_list(make_ref()),
-	Cookie = io_lib:format("cpx_management=~p", [Reflist]),
+	Cookie = io_lib:format("cpx_management=~p; path=/", [Reflist]),
 	ets:insert(cpx_management_logins, {Reflist, undefined, undefined}),
 	{403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>};
 api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
@@ -179,7 +178,6 @@ api({agents, "getmodules"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Full = lists:append([Tcpout, Webout]),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})};
 api(skills, {_Reflist, _Salt, _Login}, _Post) ->
-	?CONSOLE("trying to send skills", []),
 	Skills = call_queue_config:get_skills(),
 	Proplist = dict:to_list(encode_skills_with_groups(Skills)),
 	Convert = fun({Group, Skillrecs}) ->
@@ -234,10 +232,12 @@ check_cookie([]) ->
 check_cookie(Allothers) ->
 	case proplists:get_value("cpx_management", Allothers) of
 		undefined ->
+			?CONSOLE("Cookie bad due to no cpx_managmenet.  ~p", [Allothers]),
 			badcookie;
 		Reflist ->
 			case ets:lookup(cpx_management_logins, Reflist) of
 				[] ->
+					?CONSOLE("Cookie bad reflist not in ets.  ~p", [Allothers]),
 					badcookie;
 				[{Reflist, Salt, Login}] ->
 					{Reflist, Salt, Login}

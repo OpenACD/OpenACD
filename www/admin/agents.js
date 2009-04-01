@@ -71,14 +71,37 @@ agents.init = function(){
 agents.tree = false;
 
 agents.refreshTree = function(targetnode){
-	agents.store.fetch();
+	console.log(agents.tree.id);
+	console.log(dojo.byId(targetnode));
+	var parent = dojo.byId(targetnode).parentNode;
+	//agents.store.fetch();
+	agents.init();
 	if(dijit.byId(agents.tree.id)){
 		dijit.byId(agents.tree.id).destroy();
-	}
+	};
+	var n = dojo.doc.createElement('div');
+	n.id = targetnode;
+	parent.appendChild(n);
+	console.log(dojo.byId(targetnode));
 	agents.tree = new dijit.Tree({
 		store: agents.store,
 		model: agents.model,
 		showRoot:false
 	}, targetnode);
+	console.log(dojo.byId(targetnode));
 	dojo.publish("agents/tree/refreshed", []);
+}
+
+agents.updateProfile = function(submitForm, treenode){
+	var values = dijit.byId(submitForm).getValues();
+	var xhrurl = "/agents/" + values.oldname + "/update";
+	console.log(values);
+	dojo.xhrPost({
+		url:xhrurl,
+		handleAs:"json",
+		form:submitForm,
+		load:function(response, ioargs){
+			agents.refreshTree(treenode);
+		}
+	});
 }

@@ -20,10 +20,77 @@ function inspect(obj){
 }
 
 var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){
-	dojo.connect(agents.tree, "onClick", function(i){
-		console.log(i);
-		if(i.type == "profile"){
+	dojo.connect(agents.tree, "onClick", function(item){
+		console.log(item);
+		if(item.type[0] == "profile"){
+			dojo.byId("agentProfileOldName").value = item.name[0];
+			dijit.byId("agentProfileName").attr("value", item.name[0]);
 			dijit.byId('agentsMain').selectChild('agentProfileEditor');
+			var node = dijit.byId("agentProfileSkills").domNode;
+			while(node.hasChildNodes()){
+				node.removeChild(node.lastChild);
+			}
+				 
+			var setSkills = function(groups, profileSkills){
+				console.log(groups);
+				for(var i in groups){
+					var optgroup = dojo.doc.createElement('optgroup');
+					optgroup.label = groups[i].name[0];
+					for(var j in groups[i].skills){
+						var option = dojo.doc.createElement('option');
+						option.value = groups[i].skills[j].atom[0];
+						//console.log(groups[i].skills[j].atom[0]);
+						option.innerHTML = groups[i].skills[j].name[0];
+						option.title = groups[i].skills[j].description[0];
+						optgroup.appendChild(option);
+					}
+					dijit.byId("agentProfileSkills").domNode.appendChild(optgroup);
+				}
+				dojo.xhrGet({
+					url:"/skills/" + item.name[0],
+					handleAs:"json",
+					load:function(resp, ioargs){
+						var selected = function(needle){
+							for(var i in resp.items){
+								if(resp.items[i].atom == needle){
+									return true;
+								}
+							};
+							return false;
+						}
+						var reserved = {
+							"_queue":true,
+							"_agent":true,
+							"_node":true,
+							"_brand":true
+						};
+						var sel = dijit.byId("agentProfileSkills").domNode;
+						for(var i in sel.childNodes){
+							var selkid = sel.childNodes[i];
+							for(var j in selkid.childNodes){
+								var node = selkid.childNodes[j];
+								if(! reserved[node.value]){
+									if(selected(node.value)){
+										node.selected = true;
+									}
+									else{
+										node.selected = false;
+									}
+								}
+								else{
+									node.disabled = true;
+								}
+							}
+						}
+					}
+				});
+			};
+			
+			skills.store.fetch({
+				query:{type:"group"},
+				onComplete:setSkills
+			});
+				 
 		}
 		else{
 			dijit.byId('agentsMain').selectChild('agentEditor');

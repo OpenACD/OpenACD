@@ -45,3 +45,11 @@ skills.refreshTree = function(targetnode){
 		showRoot: false,
 	}, targetnode);
 }
+
+skills.getSkills = function(profile, callback){
+	dojo.xhrGet({
+		url:"/skills/" + profile,
+		handleAs:"json",
+		load:callback
+	})
+}

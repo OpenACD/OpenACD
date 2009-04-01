@@ -119,12 +119,13 @@ api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	ets:delete(cpx_management_logins, Reflist),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api(agents, {_Reflist, _Salt, _Login}, _Post) ->
-	Agents = agent_auth:get_agents(),
-	Proplist = dict:to_list(encode_agents_with_profiles(Agents)),
-	Convert = fun({Profile, Agentrecs}) ->
-		{struct, [{<<"name">>, list_to_binary(Profile)}, {<<"type">>, <<"profile">>}, {<<"agents">>, encode_agents(Agentrecs)}]}
+	Profiles = agent_auth:get_profiles(),
+	Foreachprofile = fun({Pname, Pskills}) ->
+		Agents = agent_auth:get_agents(Pname),
+		{struct, [{<<"name">>, list_to_binary(Pname)}, {<<"type">>, <<"profile">>}, {<<"skills">>, Pskills}, {<<"agents">>, encode_agents(Agents)}]}
 	end,
-	Json = {struct, [{success, true}, {<<"items">>, lists:map(Convert, Proplist)}]},
+	Items = lists:map(Foreachprofile, Profiles),
+	Json = {struct, [{success, true}, {<<"items">>, Items}]},
 	{200, [], mochijson2:encode(Json)};
 api({agents, "editmodules"}, {_Reflist, _Salt, _Login}, Post) ->
 	Tcpout = case proplists:get_value("agentModuleTCPListen", Post) of
@@ -177,6 +178,12 @@ api({agents, "getmodules"}, {_Reflist, _Salt, _Login}, _Post) ->
 	end,
 	Full = lists:append([Tcpout, Webout]),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})};
+api({agents, Profile, "update"}, {_Reflist, _Salt, _Login}, Post) ->
+	?CONSOLE("~p", [Post]),
+	?CONSOLE("~p", [proplists:get_all_values("skills", Post)]),
+	Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
+	agent_auth:set_profile(Profile, proplists:get_value("name", Post), Skillatoms),
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api(skills, {_Reflist, _Salt, _Login}, _Post) ->
 	Skills = call_queue_config:get_skills(),
 	Proplist = dict:to_list(encode_skills_with_groups(Skills)),
@@ -186,7 +193,11 @@ api(skills, {_Reflist, _Salt, _Login}, _Post) ->
 	Json = {struct, [{success, true}, {<<"items">>, lists:map(Convert, Proplist)}]},
 	{200, [], mochijson2:encode(Json)};
 api({skills, Profile}, {_Reflist, _Salt, _Login}, Post) ->
-	Skills = call_queue_config:get_skills(Profile),
+	{_Profilename, Skillatoms} = agent_auth:get_profile(Profile),
+	Expandskills = fun(Atom) ->
+		call_queue_config:get_skill(Atom)
+	end,
+	Skills = lists:map(Expandskills, Skillatoms),
 	Encoded = encode_skills(Skills),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})}.
 	
@@ -211,6 +222,8 @@ parse_path(Path) ->
 			case util:string_split(Path, "/") of
 				["", "agents", Action] ->
 					{api, {agents, Action}};
+				["", "agents", Profile, Action] ->
+					{api, {agents, Profile, Action}};
 				["", "skills", Profile] ->
 					{api, {skills, Profile}};
 				["", "queues", Action] ->

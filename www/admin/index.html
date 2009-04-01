@@ -3,7 +3,7 @@
 <html>
 <head>
 
-<title>Dojo Toolkit Test Page</title>
+<title>Spice Telephony Management</title>
 
 <link rel="stylesheet" href="/dojo/dijit/themes/tundra/tundra.css">
 
@@ -122,20 +122,20 @@ dojo.require("dijit.form.MultiSelect");
 			
 			<div dojoType="dijit.layout.ContentPane" id="agentProfileEditor">
 				<form dojoType="dijit.form.Form" id="editAgentProfileForm" action="javascript:void(0)" method="post">
-					<input type="hidden" name="agentProfileOldName" value="" />
+					<input type="hidden" dojoType="dijit.form.TextBox" name="oldname" id="agentProfileOldName" value="" />
 					<p>
 						<label for="agentProfileName">Profile Name:</label>
-						<input dojoType="dijit.form.TextBox" name="agentProfileName" id="agentProfileName" />
+						<input dojoType="dijit.form.TextBox" name="name" id="agentProfileName" />
 					</p>
 					<p>
 						<label for="agentProfileSkills">Skills:</label>
 						<div id="agentProfileSkills">
-							<select dojoType="dijit.form.MultiSelect" name="agentProfileSkills" size="10" multiple="true"></select>
+							<select dojoType="dijit.form.MultiSelect" id="agentProfileSkills" name="skills" size="10" multiple="true"></select>
 						</div>
 					</p>
 					<p>
 						<label for="agentProfileSubmit">&nbsp;</label>
-						<button dojoType="dijit.form.Button" label="Submit" onClick="agents.updateProfile('edit AgentProfileForm')"></button>
+						<button dojoType="dijit.form.Button" label="Submit" onClick="agents.updateProfile('editAgentProfileForm', 'agentsList')"></button>
 					</p>
 				</form>
 			</div>

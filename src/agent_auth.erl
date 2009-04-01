@@ -152,11 +152,26 @@ new_profile(Name, Skills) ->
 	end,
 	mnesia:transaction(F).
 
+set_profile(Oldname, Oldname, Skills) ->
+	Rec = #agent_profile{name = Oldname, skills = Skills},
+	F = fun() ->
+		mnesia:delete({agent_profile, Oldname}),
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F);
 set_profile(Oldname, Newname, Skills) ->
 	Rec = #agent_profile{name = Newname, skills = Skills},
 	F = fun() ->
 		mnesia:delete({agent_profile, Oldname}),
-		mnesia:write(Rec)
+		mnesia:write(Rec),
+		Agents = get_agents(Oldname),
+		Update = fun(Arec) ->
+			Newagent = Arec#agent_auth{profile = Newname},
+			destroy(Arec#agent_auth.login),
+			mnesia:write(Newagent)
+		end,
+		lists:map(Update, Agents),
+		ok
 	end,
 	mnesia:transaction(F).
 

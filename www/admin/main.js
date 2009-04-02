@@ -26,6 +26,9 @@ function goober(){
 var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){
 	dojo.connect(agents.tree, "onClick", function(item){
 		if(item.type[0] == "profile"){
+			dijit.byId("agentProfileSubmit").onClick = function(){
+				agents.updateProfile('editAgentProfileForm', 'agentsList');
+			};
 			dojo.byId("agentProfileOldName").value = item.name[0];
 			dijit.byId("agentProfileName").attr("value", item.name[0]);
 			if(item.name[0] == "Default"){
@@ -212,7 +215,7 @@ dojo.addOnLoad(function(){
 				agents.init();
 				agents.refreshTree("agentsList");
 				skills.init();
-				skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);
+				//skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);
 			}
 			else{
 				dijit.byId("loginpane").show();

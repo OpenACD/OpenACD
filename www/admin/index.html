@@ -84,7 +84,14 @@ dojo.require("dijit.form.MultiSelect");
 			</div>
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
 				<button dojoType="dijit.form.Button" label="+"></button>
-				<button dojoType="dijit.form.Button" label="+ Profile" onclick="dijit.byId('agentsMain').selectChild('agentProfileNew')"></button>
+				<button dojoType="dijit.form.Button" label="+ Profile" 
+				onclick="
+					dijit.byId('editAgentProfileForm').reset(); 
+					dijit.byId('agentProfileSubmit').onClick = function(){
+						agents.newProfile('editAgentProfileForm', 'agentsList');
+					};
+					dijit.byId('agentsMain').selectChild('agentProfileEditor');
+					dijit.byId('agentProfileName').setDisabled(false);"></button>
 				<button dojoType="dijit.form.Button" label="-" id="agentsDestroyButton"></button>
 			</div>
 
@@ -135,12 +142,12 @@ dojo.require("dijit.form.MultiSelect");
 					</p>
 					<p>
 						<label for="agentProfileSubmit">&nbsp;</label>
-						<button dojoType="dijit.form.Button" label="Submit" onClick="agents.updateProfile('editAgentProfileForm', 'agentsList')"></button>
+						<button dojoType="dijit.form.Button" label="Submit" id="agentProfileSubmit" onClick="agents.updateProfile('editAgentProfileForm', 'agentsList')"></button>
 					</p>
 				</form>
 			</div>
 			
-			<div dojoType="dijit.layout.ContentPane" id="agentProfileNew">
+			<!--<div dojoType="dijit.layout.ContentPane" id="agentProfileNew">
 				<form dojoType="dijit.form.Form" id="newAgentProfileForm" action="javascript:void(0)" method="post">
 					<p>
 						<label for="agentProfileName">Profile Name:</label>
@@ -157,7 +164,7 @@ dojo.require("dijit.form.MultiSelect");
 						<button dojoType="dijit.form.Button" label="Submit" onClick="agents.newProfile('newAgentProfileForm', 'agentsList'); dijit.byId('newAgentProfileForm').reset()"></button>
 					</p>
 				</form>
-			</div>
+			</div>-->
 		</div>
 
 	</div>

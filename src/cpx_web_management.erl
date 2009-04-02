@@ -195,6 +195,11 @@ api({agents, Profile, "update"}, {_Reflist, _Salt, _Login}, Post) ->
 	Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
 	agent_auth:set_profile(Profile, proplists:get_value("name", Post), Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
+api({agents, "Default", "delete"}, {_Reflist, _Salt, _Login}, _Post) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be deleted">>}]})};
+api({agents, Profile, "delete"}, {_Reflist, _Salt, _Login}, _Post) ->
+	agent_auth:destroy_profile(Profile),
+	{100, [], mochijson2:encode({struct, [{success, true}]})};
 api(skills, {_Reflist, _Salt, _Login}, _Post) ->
 	Skills = call_queue_config:get_skills(),
 	Proplist = dict:to_list(encode_skills_with_groups(Skills)),

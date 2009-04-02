@@ -177,7 +177,15 @@ set_profile(Oldname, Newname, Skills) ->
 
 destroy_profile(Name) ->
 	F = fun() ->
-		mnesia:delete({agent_profile, Name})
+		mnesia:delete({agent_profile, Name}),
+		Agents = get_agents(Name),
+		Update = fun(Arec) ->
+			Newagent = Arec#agent_auth{profile = "Default"},
+			destroy(Arec#agent_auth.login),
+			mnesia:write(Newagent)
+		end,
+		lists:map(Update, Agents),
+		ok
 	end,
 	mnesia:transaction(F).
 

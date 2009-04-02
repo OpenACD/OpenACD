@@ -124,7 +124,42 @@ dojo.require("dijit.form.MultiSelect");
 			</div>
 			
 			<div dojoType="dijit.layout.ContentPane" id="agentEditor">
-				AgentEditor
+				<form dojoType="dijit.form.Form" id="editAgent" action="javascript:void(0)" method="post">
+				<p>
+					<label for="agentLogin">Login Name:</label>
+					<input dojoType="dijit.form.TextBox" name="login" id="agentLogin" />
+				</p>
+				<p>
+					<label for="agentPassword">Password:</label>
+					<input dojoType="dijit.form.TextBox" type="password" id="agentPassword" name="password" />
+				</p>
+				<p>
+					<label for="agentConfirm">Confirm Password:</label>
+					<input dojoType="dijit.form.TextBox" type="password" id="agentConfirm" name="confirm" />
+				</p>
+				<p>
+					<label for="agentProfile">Profile:</label>
+					<select dojoType="dijit.form.FilteringSelect" id="agentProfile" name="profile"></select>
+				</p>
+				<p>
+					<label for="agentSecurity">Security level:</label>
+					<select dojoType="dijit.form.FilteringSelect" id="agentSecurity" name="security">
+						<option value="agent" title="Can have media routed to them">Agent</option>
+						<option value="supervisor" title="Agent + can route media and view agent states.">Supervisor</option>
+						<option value="admin" title="Supervisor + can access managment interface">Admin</option>
+					</select>
+				</p>
+				<p>
+					<label for="agentSkills">Skills:</label>
+					<div id="agentSkills">
+						<select dojoType="dijit.form.MultiSelect" id="agentSkills" name="skills" size="10" multiple="true"></select>
+					</div>
+				</p>
+				<p>
+					<label for="agentSubmit">&nbsp;</label>
+					<button dojoType="dijit.form.Button" label="Submit" id="agentSubmit" onClick="agents.updateAgent('editAgent', 'agentsList')"></button>
+				</p>
+				</form>
 			</div>
 			
 			<div dojoType="dijit.layout.ContentPane" id="agentProfileEditor">
@@ -147,26 +182,7 @@ dojo.require("dijit.form.MultiSelect");
 				</form>
 			</div>
 			
-			<!--<div dojoType="dijit.layout.ContentPane" id="agentProfileNew">
-				<form dojoType="dijit.form.Form" id="newAgentProfileForm" action="javascript:void(0)" method="post">
-					<p>
-						<label for="agentProfileName">Profile Name:</label>
-						<input dojoType="dijit.form.TextBox" name="name" id="agentNewProfileName" />
-					</p>
-					<p>
-						<label for="agentNewProfileSkillsPane">Skills:</label>
-						<div id="agentNewProfileSkillsPane" dojoType="dijit.layout.ContentPane">
-							<select dojoType="dijit.form.MultiSelect" id="agentNewProfileSkills" name="skills" size="10" multiple="true"></select>
-						</div>
-					</p>
-					<p>
-						<label for="agentProfileSubmit">&nbsp;</label>
-						<button dojoType="dijit.form.Button" label="Submit" onClick="agents.newProfile('newAgentProfileForm', 'agentsList'); dijit.byId('newAgentProfileForm').reset()"></button>
-					</p>
-				</form>
-			</div>-->
 		</div>
-
 	</div>
 	<div id="queuesTab" dojoType="dijit.layout.ContentPane" title="Queues">
 	<!--	<div dojoType="dijit.layout.LayoutContainer" style="width: 100%; height: 100%; padding: 0; margin: 0; border: 0;">

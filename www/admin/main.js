@@ -28,6 +28,12 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 		if(item.type[0] == "profile"){
 			dojo.byId("agentProfileOldName").value = item.name[0];
 			dijit.byId("agentProfileName").attr("value", item.name[0]);
+			if(item.name[0] == "Default"){
+				dijit.byId("agentProfileName").setDisabled(true);
+			}
+			else{
+				dijit.byId("agentProfileName").setDisabled(false);
+			}
 			dijit.byId('agentsMain').selectChild('agentProfileEditor');
 			var node = dijit.byId("agentProfileSkills").domNode;
 			while(node.hasChildNodes()){

@@ -215,7 +215,36 @@ api({skills, Profile}, {_Reflist, _Salt, _Login}, Post) ->
 	end,
 	Skills = lists:map(Expandskills, Skillatoms),
 	Encoded = encode_skills(Skills),
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})}.
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})};
+api({skills, "expand", "_queue"}, {_Reflist, _Salt, _Login}, _Post) ->
+	Queues = call_queue_config:get_queues(),
+	F = fun(Qrec) ->
+		list_to_binary(Qrec#call_queue.name)
+	end,
+	Converted = lists:map(F, Queues),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
+api({skills, "expand", "_node"}, {_Reflist, _Salt, _Login}, _Post) ->
+	Nodes = [node() | nodes()],
+	F = fun(Atom) ->
+		L = atom_to_list(Atom),
+		list_to_binary(L)
+	end,
+	Converted = lists:map(F, Nodes),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"itmes">>, Converted}]})};
+api({skills, "expand", "_agent"}, {_Reflist, _Salt, _Login}, _Post) ->
+	Agents = agent_auth:get_agents(),
+	F = fun(Arec) ->
+		list_to_binary(Arec#agent_auth.login)
+	end,
+	Converted = lists:map(F, Agents),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
+api({skills, "expand", "_brand"}, {_Reflist, _Salt, _Login}, _Post) ->
+	Clients = call_queue_config:get_clients(),
+	F = fun(Clientrec) ->
+		list_to_binary(Clientrec#client.label)
+	end,
+	Converted = lists:map(F, Clients),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})}.
 	
 parse_path(Path) ->
 	case Path of

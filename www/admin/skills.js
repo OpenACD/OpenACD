@@ -53,3 +53,23 @@ skills.getSkills = function(profile, callback){
 		load:callback
 	})
 }
+
+skills.skillSelection = function(targetnode){
+	skills.store.fetch({
+		query:{type:"group"},
+		onComplete:function(groups, query){
+			for(var i in groups){
+				var optgroup = dojo.doc.createElement('optgroup');
+				optgroup.label = groups[i].name[0];
+				for(var j in groups[i].skills){
+					var option = dojo.doc.createElement('option');
+					option.value = groups[i].skills[j].atom[0];
+					option.innerHTML = groups[i].skills[j].name[0];
+					option.title = groups[i].skills[j].description[0];
+					optgroup.appendChild(option);
+				}
+				targetnode.appendChild(optgroup);
+			}
+		}
+	});
+}

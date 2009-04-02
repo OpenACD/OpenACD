@@ -178,9 +178,11 @@ api({agents, "getmodules"}, {_Reflist, _Salt, _Login}, _Post) ->
 	end,
 	Full = lists:append([Tcpout, Webout]),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})};
+api({agents, "newprofile"}, {_Reflist, _Salt, _Login}, Post) ->
+	Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
+	agent_auth:new_profile(proplists:get_value("name", Post), Skillatoms),
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, Profile, "update"}, {_Reflist, _Salt, _Login}, Post) ->
-	?CONSOLE("~p", [Post]),
-	?CONSOLE("~p", [proplists:get_all_values("skills", Post)]),
 	Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
 	agent_auth:set_profile(Profile, proplists:get_value("name", Post), Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};

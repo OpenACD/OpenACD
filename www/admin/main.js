@@ -102,10 +102,27 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 				query:{type:"group"},
 				onComplete:setSkills
 			});
-				 
+			
+			dijit.byId("agentsDestroyButton").onClick = function(){
+				dojo.xhrGet({
+					url:"agents/" + item.name[0] + "/delete",
+					handleAs:"json",
+					load:function(response, ioargs){
+						if( ! response.success){
+							console.log(response.message);
+						}
+						else{
+							agents.refreshTree('agentsList');
+						}
+					}
+				})
+			}
 		}
 		else{
 			dijit.byId('agentsMain').selectChild('agentEditor');
+			dijit.byId('agentsDestroyButton').onClick = function(){
+				console.log('goober');
+			}
 		}
 	});
 });

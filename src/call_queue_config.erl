@@ -419,7 +419,7 @@ new_skill(Rec) when is_record(Rec, skill_rec) ->
 %% @doc Check if the given `string()' `Skillname' exists.
 %% Returns the `atom()' of `Skillname' or `undefined'
 -spec(skill_exists/1 :: (Skillname :: string()) -> atom()).
-skill_exists(Skillname) when is_list(Skillname) -> 
+skill_exists(Skillname) when is_list(Skillname) ->
 	try list_to_existing_atom(Skillname) of
 		Anything -> 
 			F = fun() -> 

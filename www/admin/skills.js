@@ -44,6 +44,7 @@ skills.refreshTree = function(targetnode){
 		model: skills.model,
 		showRoot: false,
 	}, targetnode);
+	dojo.publish("skills/tree/refreshed", []);
 }
 
 skills.getSkills = function(profile, callback){
@@ -70,6 +71,16 @@ skills.skillSelection = function(targetnode){
 				}
 				targetnode.appendChild(optgroup);
 			}
+		}
+	});
+}
+
+skills.expandSkill = function(callback, magicskill){
+	dojo.xhrGet({
+		url:"/skills/expand/" + magicskill,
+		handleAs:"json",
+		load:function(response, ioargs){
+			callback(response.items);
 		}
 	});
 }

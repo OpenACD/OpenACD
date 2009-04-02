@@ -122,7 +122,8 @@ api(agents, {_Reflist, _Salt, _Login}, _Post) ->
 	Profiles = agent_auth:get_profiles(),
 	Foreachprofile = fun({Pname, Pskills}) ->
 		Agents = agent_auth:get_agents(Pname),
-		{struct, [{<<"name">>, list_to_binary(Pname)}, {<<"type">>, <<"profile">>}, {<<"skills">>, Pskills}, {<<"agents">>, encode_agents(Agents)}]}
+		?CONSOLE("~p", [Pskills]),
+		{struct, [{<<"name">>, list_to_binary(Pname)}, {<<"type">>, <<"profile">>}, {<<"skills">>, encode_skills(Pskills)}, {<<"agents">>, encode_agents(Agents)}]}
 	end,
 	Items = lists:map(Foreachprofile, Profiles),
 	Json = {struct, [{success, true}, {<<"items">>, Items}]},
@@ -192,7 +193,18 @@ api({agents, "Default", "update"}, {_Reflist, _Salt, _Login}, Post) ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be renamed">>}]})}
 	end;
 api({agents, Profile, "update"}, {_Reflist, _Salt, _Login}, Post) ->
-	Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
+	Parseskills = fun(Skill) ->
+		?CONSOLE("~p", [Skill]),
+		case string:tokens(Skill, "{},") of
+			["_brand", Brandname] ->
+				{'_brand', Brandname};
+			["_queue", Queuename] ->
+				{'_queue', Queuename};
+			[Skill] ->
+				call_queue_config:skill_exists(Skill)
+		end
+	end,
+	Skillatoms = lists:map(Parseskills, proplists:get_all_values("skills", Post)),
 	agent_auth:set_profile(Profile, proplists:get_value("name", Post), Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, "Default", "delete"}, {_Reflist, _Salt, _Login}, _Post) ->
@@ -210,11 +222,7 @@ api(skills, {_Reflist, _Salt, _Login}, _Post) ->
 	{200, [], mochijson2:encode(Json)};
 api({skills, Profile}, {_Reflist, _Salt, _Login}, Post) ->
 	{_Profilename, Skillatoms} = agent_auth:get_profile(Profile),
-	Expandskills = fun(Atom) ->
-		call_queue_config:get_skill(Atom)
-	end,
-	Skills = lists:map(Expandskills, Skillatoms),
-	Encoded = encode_skills(Skills),
+	Encoded = encode_skills(Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})};
 api({skills, "expand", "_queue"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Queues = call_queue_config:get_queues(),
@@ -271,6 +279,8 @@ parse_path(Path) ->
 					{api, {agents, Profile, Action}};
 				["", "skills", Profile] ->
 					{api, {skills, Profile}};
+				["", "skills", "expand", Skill] ->
+					{api, {skills, "expand", Skill}};
 				["", "queues", Action] ->
 					{api, {queues, Action}};
 				["", "medias", Action] ->
@@ -302,13 +312,35 @@ check_cookie(Allothers) ->
 			end
 	end.
 
+encode_skill(Atom) when is_atom(Atom) ->
+	?CONSOLE("~p", [Atom]),
+	Skill = call_queue_config:get_skill(Atom),
+	{struct, [{name, list_to_binary(Skill#skill_rec.name)},
+		{type, skill}, {atom, Skill#skill_rec.atom},
+		{description, list_to_binary(Skill#skill_rec.description)},
+		{protected, Skill#skill_rec.protected}]};
+encode_skill({Atom, Value}) when is_atom(Atom), is_list(Value) ->
+	?CONSOLE("~p", [{Atom, Value}]),
+	encode_skill({Atom, list_to_binary(Value)});
+encode_skill({Atom, Value}) ->
+	?CONSOLE("~p", [{Atom, Value}]),
+	Skill = call_queue_config:get_skill(Atom),
+	{struct, [{name, list_to_binary(Skill#skill_rec.name)},
+		{type, skill}, {atom, Skill#skill_rec.atom},
+		{description, list_to_binary(Skill#skill_rec.description)},
+		{protected, Skill#skill_rec.protected},
+		{expanded, Value}]};
+encode_skill(Skill) when is_record(Skill, skill_rec) ->
+	{struct, [{name, list_to_binary(Skill#skill_rec.name)},
+		{type, skill}, {atom, Skill#skill_rec.atom},
+		{description, list_to_binary(Skill#skill_rec.description)},
+		{protected, Skill#skill_rec.protected}]}.
+
+
 encode_skills([]) ->
 	[];
 encode_skills([Skill|Skills]) ->
-	[{struct, [{name, list_to_binary(Skill#skill_rec.name)},
-			{type, skill}, {atom, Skill#skill_rec.atom},
-			{description, list_to_binary(Skill#skill_rec.description)},
-			{protected, Skill#skill_rec.protected}]} | encode_skills(Skills)].
+	[encode_skill(Skill) | encode_skills(Skills)].
 
 encode_skills_with_groups([]) ->
 	[];

@@ -44,30 +44,26 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 				console.log(groups);
 				
 				skills.skillSelection(dijit.byId("agentProfileSkills").domNode);
-				/*
-				for(var i in groups){
-					var optgroup = dojo.doc.createElement('optgroup');
-					optgroup.label = groups[i].name[0];
-					for(var j in groups[i].skills){
-						var option = dojo.doc.createElement('option');
-						option.value = groups[i].skills[j].atom[0];
-						//console.log(groups[i].skills[j].atom[0]);
-						option.innerHTML = groups[i].skills[j].name[0];
-						option.title = groups[i].skills[j].description[0];
-						optgroup.appendChild(option);
-					}
-					dijit.byId("agentProfileSkills").domNode.appendChild(optgroup);
-				}*/
 				dojo.xhrGet({
 					url:"/skills/" + item.name[0],
 					handleAs:"json",
 					load:function(resp, ioargs){
-						var selected = function(needle){
+						var atomMatch = function(needle){
 							for(var i in resp.items){
-								if(resp.items[i].atom == needle){
+								if( (! resp.items[i].expanded) && resp.items[i].atom == needle){
 									return true;
 								}
 							};
+							return false;
+						}
+						var expandedMatch = function(atom, expanded){
+							for(var i in resp.items){
+								if(resp.items[i].atom == atom){
+									if(resp.items[i].expanded == expanded){
+										return true;
+									}
+								}
+							}
 							return false;
 						}
 						var reserved = {
@@ -82,7 +78,7 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 							for(var j in selkid.childNodes){
 								var node = selkid.childNodes[j];
 								if(! reserved[node.value]){
-									if(selected(node.value)){
+									if(atomMatch(node.value)){
 										node.selected = true;
 									}
 									else{
@@ -94,8 +90,37 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 								}
 							}
 						}
+						
+						var brandoptgroup = dojo.doc.createElement('optgroup');
+						brandoptgroup.label = '_brand';
+						var setBrandSkills = function(items){
+							for(var i in items){
+								var opt = dojo.doc.createElement('option');
+								opt.value = "{_brand," + items[i] + "}";
+								opt.innerHTML = items[i];
+								opt.selected = expandedMatch("_brand", items[i]);
+								brandoptgroup.appendChild(opt);
+							}
+						}
+						dijit.byId("agentProfileSkills").domNode.appendChild(brandoptgroup);
+						skills.expandSkill(setBrandSkills, "_brand");
+						
+						var queueOptGroup = dojo.doc.createElement('optgroup');
+						queueOptGroup.label = '_queue';
+						var setQueueSkills = function(items){
+							for(var i in items){
+								var opt = dojo.doc.createElement('option');
+								opt.value = "{_queue," + items[i] + "}";
+								opt.innerHTML = items[i];
+								opt.selected = expandedMatch("_queue", items[i]);
+								queueOptGroup.appendChild(opt);
+							}
+						}
+						dijit.byId("agentProfileSkills").domNode.appendChild(queueOptGroup);
+						skills.expandSkill(setQueueSkills, "_queue");
 					}
 				});
+				
 			};
 			
 			skills.store.fetch({

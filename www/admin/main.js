@@ -48,7 +48,7 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 				
 				skills.skillSelection(dijit.byId("agentProfileSkills").domNode);
 				dojo.xhrGet({
-					url:"/skills/" + item.name[0],
+					url:"/agents/profiles/" + item.name[0] + "/getskills",
 					handleAs:"json",
 					load:function(resp, ioargs){
 						var atomMatch = function(needle){
@@ -133,7 +133,7 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 			
 			dijit.byId("agentsDestroyButton").onClick = function(){
 				dojo.xhrGet({
-					url:"agents/" + item.name[0] + "/delete",
+					url:"agents/profiles/" + item.name[0] + "/delete",
 					handleAs:"json",
 					load:function(response, ioargs){
 						if( ! response.success){

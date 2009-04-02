@@ -21,7 +21,7 @@ skills.tree = false;
 
 skills.init = function(){
 	skills.store = new dojo.data.ItemFileWriteStore({
-		url:"/skills",
+		url:"/skills/groups/get",
 	});
 	skills.store.fetch();
 	skills.model = new dijit.tree.ForestStoreModel({
@@ -47,14 +47,6 @@ skills.refreshTree = function(targetnode){
 	dojo.publish("skills/tree/refreshed", []);
 }
 
-skills.getSkills = function(profile, callback){
-	dojo.xhrGet({
-		url:"/skills/" + profile,
-		handleAs:"json",
-		load:callback
-	})
-}
-
 skills.skillSelection = function(targetnode){
 	skills.store.fetch({
 		query:{type:"group"},
@@ -77,7 +69,7 @@ skills.skillSelection = function(targetnode){
 
 skills.expandSkill = function(callback, magicskill){
 	dojo.xhrGet({
-		url:"/skills/expand/" + magicskill,
+		url:"/skills/skill/" + magicskill + "/expand",
 		handleAs:"json",
 		load:function(response, ioargs){
 			callback(response.items);

@@ -118,17 +118,8 @@ api(login, {Reflist, Salt, _Login}, Post) ->
 api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	ets:delete(cpx_management_logins, Reflist),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
-api(agents, {_Reflist, _Salt, _Login}, _Post) ->
-	Profiles = agent_auth:get_profiles(),
-	Foreachprofile = fun({Pname, Pskills}) ->
-		Agents = agent_auth:get_agents(Pname),
-		?CONSOLE("~p", [Pskills]),
-		{struct, [{<<"name">>, list_to_binary(Pname)}, {<<"type">>, <<"profile">>}, {<<"skills">>, encode_skills(Pskills)}, {<<"agents">>, encode_agents(Agents)}]}
-	end,
-	Items = lists:map(Foreachprofile, Profiles),
-	Json = {struct, [{success, true}, {<<"items">>, Items}]},
-	{200, [], mochijson2:encode(Json)};
-api({agents, "editmodules"}, {_Reflist, _Salt, _Login}, Post) ->
+	
+api({agents, "modules", "update"}, {_Reflist, _Salt, _Login}, Post) ->
 	Tcpout = case proplists:get_value("agentModuleTCPListen", Post) of
 		undefined ->
 			cpx_supervisor:destroy(agent_tcp_listener),
@@ -162,7 +153,7 @@ api({agents, "editmodules"}, {_Reflist, _Salt, _Login}, Post) ->
 			end
 	end,
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"results">>, [Tcpout, Webout]}]})};
-api({agents, "getmodules"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({agents, "modules", "get"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Tcpout = case cpx_supervisor:get_conf(agent_tcp_listener) of
 		undefined ->
 			[{"agentModuleTCPListen", 1337}, {"agentModuleTCPListenEnabled", false}];
@@ -179,11 +170,26 @@ api({agents, "getmodules"}, {_Reflist, _Salt, _Login}, _Post) ->
 	end,
 	Full = lists:append([Tcpout, Webout]),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})};
-api({agents, "newprofile"}, {_Reflist, _Salt, _Login}, Post) ->
+api({agents, "profiles", "get"}, {_Reflist, _Salt, _Login}, _Post) ->
+	Profiles = agent_auth:get_profiles(),
+	Foreachprofile = fun({Pname, Pskills}) ->
+		Agents = agent_auth:get_agents(Pname),
+		?CONSOLE("~p", [Pskills]),
+		{struct, [{<<"name">>, list_to_binary(Pname)}, {<<"type">>, <<"profile">>}, {<<"skills">>, encode_skills(Pskills)}, {<<"agents">>, encode_agents(Agents)}]}
+	end,
+	Items = lists:map(Foreachprofile, Profiles),
+	Json = {struct, [{success, true}, {<<"items">>, Items}]},
+	{200, [], mochijson2:encode(Json)};
+api({agents, "profiles", Profile, "getskills"}, {_Reflist, _Salt, _Login}, _Post) ->
+	{_Profilename, Skillatoms} = agent_auth:get_profile(Profile),
+	Encoded = encode_skills(Skillatoms),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})};
+
+api({agents, "profiles", "new"}, {_Reflist, _Salt, _Login}, Post) ->
 	Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
 	agent_auth:new_profile(proplists:get_value("name", Post), Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
-api({agents, "Default", "update"}, {_Reflist, _Salt, _Login}, Post) ->
+api({agents, "profiles", "Default", "update"}, {_Reflist, _Salt, _Login}, Post) ->
 	case proplists:get_value("name", Post) of
 		undefined ->
 			Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
@@ -192,7 +198,7 @@ api({agents, "Default", "update"}, {_Reflist, _Salt, _Login}, Post) ->
 		_Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be renamed">>}]})}
 	end;
-api({agents, Profile, "update"}, {_Reflist, _Salt, _Login}, Post) ->
+api({agents, "profiles", Profile, "update"}, {_Reflist, _Salt, _Login}, Post) ->
 	Parseskills = fun(Skill) ->
 		?CONSOLE("~p", [Skill]),
 		case string:tokens(Skill, "{},") of
@@ -207,12 +213,13 @@ api({agents, Profile, "update"}, {_Reflist, _Salt, _Login}, Post) ->
 	Skillatoms = lists:map(Parseskills, proplists:get_all_values("skills", Post)),
 	agent_auth:set_profile(Profile, proplists:get_value("name", Post), Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
-api({agents, "Default", "delete"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({agents, "profiles", "Default", "delete"}, {_Reflist, _Salt, _Login}, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be deleted">>}]})};
-api({agents, Profile, "delete"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({agents, "profiles", Profile, "delete"}, {_Reflist, _Salt, _Login}, _Post) ->
 	agent_auth:destroy_profile(Profile),
 	{100, [], mochijson2:encode({struct, [{success, true}]})};
-api(skills, {_Reflist, _Salt, _Login}, _Post) ->
+	
+api({skills, "groups", "get"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Skills = call_queue_config:get_skills(),
 	Proplist = dict:to_list(encode_skills_with_groups(Skills)),
 	Convert = fun({Group, Skillrecs}) ->
@@ -220,18 +227,18 @@ api(skills, {_Reflist, _Salt, _Login}, _Post) ->
 	end,
 	Json = {struct, [{success, true}, {<<"items">>, lists:map(Convert, Proplist)}]},
 	{200, [], mochijson2:encode(Json)};
-api({skills, Profile}, {_Reflist, _Salt, _Login}, Post) ->
-	{_Profilename, Skillatoms} = agent_auth:get_profile(Profile),
-	Encoded = encode_skills(Skillatoms),
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})};
-api({skills, "expand", "_queue"}, {_Reflist, _Salt, _Login}, _Post) ->
+%api({skills, Profile}, {_Reflist, _Salt, _Login}, Post) ->
+%	{_Profilename, Skillatoms} = agent_auth:get_profile(Profile),
+%	Encoded = encode_skills(Skillatoms),
+%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})};
+api({skills, "skill", "_queue", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Queues = call_queue_config:get_queues(),
 	F = fun(Qrec) ->
 		list_to_binary(Qrec#call_queue.name)
 	end,
 	Converted = lists:map(F, Queues),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
-api({skills, "expand", "_node"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({skills, "skill", "_node", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Nodes = [node() | nodes()],
 	F = fun(Atom) ->
 		L = atom_to_list(Atom),
@@ -239,21 +246,30 @@ api({skills, "expand", "_node"}, {_Reflist, _Salt, _Login}, _Post) ->
 	end,
 	Converted = lists:map(F, Nodes),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"itmes">>, Converted}]})};
-api({skills, "expand", "_agent"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({skills, "skill", "_agent", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Agents = agent_auth:get_agents(),
 	F = fun(Arec) ->
 		list_to_binary(Arec#agent_auth.login)
 	end,
 	Converted = lists:map(F, Agents),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
-api({skills, "expand", "_brand"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({skills, "skill", "_brand", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Clients = call_queue_config:get_clients(),
 	F = fun(Clientrec) ->
 		list_to_binary(Clientrec#client.label)
 	end,
 	Converted = lists:map(F, Clients),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})}.
-	
+
+% path spec:
+% /basiccommand
+% /section/subsection/action
+% /section/subsection/item/action
+%
+% So, this means to update the modules for agents:
+% /agents/modules/update
+% but to update an agent profile:
+% /agents/profiles/profilename/update
 parse_path(Path) ->
 	case Path of
 		"/" ->
@@ -266,21 +282,31 @@ parse_path(Path) ->
 			{api, logout};
 		"/checkcookie" ->
 			{api, checkcookie};
-		"/agents" ->
-			{api, agents};
-		"/skills" ->
-			{api, skills};
 		_Other ->
 			% section/action (params in post data)
 			case util:string_split(Path, "/") of
-				["", "agents", Action] ->
-					{api, {agents, Action}};
-				["", "agents", Profile, Action] ->
-					{api, {agents, Profile, Action}};
-				["", "skills", Profile] ->
-					{api, {skills, Profile}};
-				["", "skills", "expand", Skill] ->
-					{api, {skills, "expand", Skill}};
+				["", "agents", "modules", Action] ->
+					{api, {agents, "modules", Action}};
+				["", "agents", "profiles", Action] ->
+					{api, {agents, "profiles", Action}};
+				["", "agents", "profiles", Profile, Action] ->
+					{api, {agents, "profiles", Profile, Action}};
+				["", "agents", "agents", Action] ->
+					{api, {agents, "agents", Action}};
+				["", "agents", "agents", Agent, Action] ->
+					{api, {agents, "agents", Agent, Action}};
+%				["", "agents", Action] ->
+%					{api, {agents, Action}};
+%				["", "agents", Profile, Action] ->
+%					{api, {agents, Profile, Action}};
+%				["", "skills", Profile] ->
+%					{api, {skills, Profile}};
+				["", "skills", "groups", Action] ->
+					{api, {skills, "groups", Action}};
+				["", "skills", "groups", Group, Action] ->
+					{api, {skills, "groups", Group, Action}};
+				["", "skills", "skill", Skill, Action] ->
+					{api, {skills, Skill, Action}};
 				["", "queues", Action] ->
 					{api, {queues, Action}};
 				["", "medias", Action] ->

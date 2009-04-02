@@ -6,7 +6,7 @@ var agents = function(){
 
 agents.updateModule = function(subform){
 	dojo.xhrPost({
-		url:"agents/editmodules",
+		url:"agents/modules/update",
 		handleAs:"json",
 		form:subform,
 		error:function(response, ioargs){
@@ -20,7 +20,7 @@ agents.updateModule = function(subform){
 
 agents.getModules = function(targetform){
 	dojo.xhrGet({
-		url:"agents/getmodules",
+		url:"agents/modules/get",
 		handleAs:"json",
 		load:function(response, ioargs){
 			targetform.setValues(response.result);
@@ -45,7 +45,7 @@ agents.model = new dijit.tree.ForestStoreModel({
 
 agents.init = function(){
 	agents.store = new dojo.data.ItemFileWriteStore({
-		url:"/agents"
+		url:"/agents/profiles/get"
 	});
 	agents.store.fetch();
 	agents.model = new dijit.tree.ForestStoreModel({
@@ -80,7 +80,7 @@ agents.refreshTree = function(targetnode){
 
 agents.updateProfile = function(submitForm, treenode){
 	var values = dijit.byId(submitForm).getValues();
-	var xhrurl = "/agents/" + values.oldname + "/update";
+	var xhrurl = "/agents/profiles" + values.oldname + "/update";
 	dojo.xhrPost({
 		url:xhrurl,
 		handleAs:"json",
@@ -93,11 +93,34 @@ agents.updateProfile = function(submitForm, treenode){
 
 agents.newProfile = function(submitForm, treenode){
 	dojo.xhrPost({
-		url:"/agents/newprofile",
+		url:"/agents/profiles/new",
 		handleAs:"json",
 		form:submitForm,
 		load:function(response, ioargs){
 			agents.refreshTree(treenode);
 		}
+	})
+}
+
+agents.updateAgent = function(subform, node){
+	var values = dijit.byId(subform).getValues();
+	dojo.xhrPost({
+		url:"/agents/agents/" + values.oldlogin + "/update",
+		handleAs:"json",
+		form:subform,
+		error:function(response, ioargs){
+			console.log(response);
+		},
+		load:function(response, ioargs){
+			agents.refreshTree(treenode);
+		}
+	})
+}
+
+agents.getSkills = function(profile, callback){
+	dojo.xhrGet({
+		url:"/skills/" + profile,
+		handleAs:"json",
+		load:callback
 	})
 }

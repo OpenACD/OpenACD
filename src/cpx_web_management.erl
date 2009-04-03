@@ -234,6 +234,9 @@ api({agents, "profiles", Profile, "delete"}, ?COOKIE, _Post) ->
 api({agents, "agents", Agent, "get"}, ?COOKIE, _Post) ->
 	{atomic, [Agentrec]} = agent_auth:get_agent(Agent),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"agent">>, encode_agent(Agentrec)}]})};
+api({agents, "agents", Agent, "delete"}, ?COOKIE, Post) ->
+	agent_auth:destroy(Agent),
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 	{atomic, [Agentrec]} = agent_auth:get_agent(Agent),
 	{ok, Regex} = re:compile("^{(_\\w+),(\\w+)}$"),

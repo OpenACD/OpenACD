@@ -58,6 +58,8 @@
 	cache/4,
 	destroy/1,
 	add_agent/5,
+	set_agent/5,
+	set_agent/6,
 	get_agent/1,
 	get_agents/0,
 	get_agents/1
@@ -216,6 +218,33 @@ get_profiles() ->
 	end,
 	lists:sort(Sort, Cprofs).
 
+set_agent(Oldlogin, Newlogin, Newskills, NewSecurity, Newprofile) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Oldlogin]),
+		[Agent] = qlc:e(QH),
+		Newrec = #agent_auth{
+			login = Newlogin,
+			profile = Newprofile,
+			securitylevel = NewSecurity,
+			skills = Newskills,
+			password = Agent#agent_auth.password
+		},
+		destroy(Oldlogin),
+		mnesia:write(Newrec),
+		ok
+	end,
+	mnesia:transaction(F).
+
+set_agent(Oldlogin, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Oldlogin]),
+		[Agent] = qlc:e(QH),
+		destroy(Oldlogin),
+		add_agent(Newlogin, Newpass, Newskills, NewSecurity, Newprofile),
+		ok
+	end,
+	mnesia:transaction(F).
+			
 get_agent(Login) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Login]),

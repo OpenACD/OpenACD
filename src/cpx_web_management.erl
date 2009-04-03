@@ -33,6 +33,7 @@
 
 -define(PORT, 9999).
 -define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
+-define(COOKIE, {_Reflist, _Salt, _Login}).
 
 -include("call.hrl").
 -include("agent.hrl").
@@ -80,6 +81,9 @@ loop(Req) ->
 			Req:respond(Out)
 	end.
 
+%% =====
+%% General requests
+%% =====
 api(checkcookie, Cookie, _Post) ->
 	case Cookie of
 		badcookie ->
@@ -97,11 +101,11 @@ api(Apirequest, badcookie, _Post) ->
 	Cookie = io_lib:format("cpx_management=~p; path=/", [Reflist]),
 	ets:insert(cpx_management_logins, {Reflist, undefined, undefined}),
 	{403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>};
-api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
+api(getsalt, {Reflist, _Salt, Login}, _Post) ->
 	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
-	ets:insert(cpx_management_logins, {Reflist, Newsalt, Conn}),
+	ets:insert(cpx_management_logins, {Reflist, Newsalt, Login}),
 	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})};
-api(login, {_Reflist, undefined, _Login}, _Post) ->
+api(login, {_Reflist, undefined, _Login}, _Post)  ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})};
 api(login, {Reflist, Salt, _Login}, Post) ->
 	Username = proplists:get_value("username", Post, ""),
@@ -118,8 +122,11 @@ api(login, {Reflist, Salt, _Login}, Post) ->
 api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	ets:delete(cpx_management_logins, Reflist),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
-	
-api({agents, "modules", "update"}, {_Reflist, _Salt, _Login}, Post) ->
+
+%% =====
+%% agents -> modules
+%% =====
+api({agents, "modules", "update"}, ?COOKIE, Post) ->
 	Tcpout = case proplists:get_value("agentModuleTCPListen", Post) of
 		undefined ->
 			cpx_supervisor:destroy(agent_tcp_listener),
@@ -153,7 +160,7 @@ api({agents, "modules", "update"}, {_Reflist, _Salt, _Login}, Post) ->
 			end
 	end,
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"results">>, [Tcpout, Webout]}]})};
-api({agents, "modules", "get"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({agents, "modules", "get"}, ?COOKIE, _Post) ->
 	Tcpout = case cpx_supervisor:get_conf(agent_tcp_listener) of
 		undefined ->
 			[{"agentModuleTCPListen", 1337}, {"agentModuleTCPListenEnabled", false}];
@@ -170,7 +177,11 @@ api({agents, "modules", "get"}, {_Reflist, _Salt, _Login}, _Post) ->
 	end,
 	Full = lists:append([Tcpout, Webout]),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})};
-api({agents, "profiles", "get"}, {_Reflist, _Salt, _Login}, _Post) ->
+
+%% =====
+%% agents -> profiles
+%% =====
+api({agents, "profiles", "get"}, ?COOKIE, _Post) ->
 	Profiles = agent_auth:get_profiles(),
 	Foreachprofile = fun({Pname, Pskills}) ->
 		Agents = agent_auth:get_agents(Pname),
@@ -179,12 +190,11 @@ api({agents, "profiles", "get"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Items = lists:map(Foreachprofile, Profiles),
 	Json = {struct, [{success, true}, {<<"items">>, Items}]},
 	{200, [], mochijson2:encode(Json)};
-api({agents, "profiles", Profile, "getskills"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({agents, "profiles", Profile, "getskills"}, ?COOKIE, _Post) ->
 	{_Profilename, Skillatoms} = agent_auth:get_profile(Profile),
 	Encoded = encode_skills(Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})};
-
-api({agents, "profiles", "new"}, {_Reflist, _Salt, _Login}, Post) ->
+api({agents, "profiles", "new"}, ?COOKIE, Post) ->
 	Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
 	agent_auth:new_profile(proplists:get_value("name", Post), Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
@@ -197,7 +207,7 @@ api({agents, "profiles", "Default", "update"}, {_Reflist, _Salt, _Login}, Post) 
 		_Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be renamed">>}]})}
 	end;
-api({agents, "profiles", Profile, "update"}, {_Reflist, _Salt, _Login}, Post) ->
+api({agents, "profiles", Profile, "update"}, ?COOKIE, Post) ->
 	Parseskills = fun(Skill) ->
 		?CONSOLE("~p", [Skill]),
 		case string:tokens(Skill, "{},") of
@@ -212,16 +222,66 @@ api({agents, "profiles", Profile, "update"}, {_Reflist, _Salt, _Login}, Post) ->
 	Skillatoms = lists:map(Parseskills, proplists:get_all_values("skills", Post)),
 	agent_auth:set_profile(Profile, proplists:get_value("name", Post), Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
-api({agents, "profiles", "Default", "delete"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({agents, "profiles", "Default", "delete"}, ?COOKIE, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be deleted">>}]})};
-api({agents, "profiles", Profile, "delete"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({agents, "profiles", Profile, "delete"}, ?COOKIE, _Post) ->
 	agent_auth:destroy_profile(Profile),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
-api({agents, "agents", Agent, "get"}, {_Reflist, _Salt, _Login}, _Post) ->
+
+%% =====
+%% agents -> agents
+%% =====
+api({agents, "agents", Agent, "get"}, ?COOKIE, _Post) ->
 	{atomic, [Agentrec]} = agent_auth:get_agent(Agent),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"agent">>, encode_agent(Agentrec)}]})};
+api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
+	{atomic, [Agentrec]} = agent_auth:get_agent(Agent),
+	{ok, Regex} = re:compile("^{(_\\w+),(\\w+)}$"),
+	Postedskills = proplists:get_all_values("skills", Post),
+	Convertskills = fun(Skill) ->
+		case re:run(Skill, Regex) of
+			{match, [_Overall, {Atomstart, Atomlen}, {Expandedstart, Expandedlen}]} ->
+				Atomstring = string:substr(Skill, Atomstart, Atomlen),
+				case call_queue_config:skill_exists(Atomstring) of
+					undefined ->
+						erlang:error({badarg, Skill});
+					Atom ->
+						Expanded = string:substr(Skill, Expandedstart, Expandedlen),
+						{Atom, Expanded}
+				end;
+			nomatch ->
+				case call_queue_config:skill_exists(Skill) of
+					undefined ->
+						erlang:error({badarg, Skill});
+					Atom ->
+						Atom
+				end
+		end
+	end,
+	Fixedskills = lists:map(Convertskills, Postedskills),
+	?CONSOLE("~p", [Fixedskills]),
+	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
+	case proplists:get_value("password", Post) of
+		"" ->
+			agent_auth:set_agent(Agent, 
+				proplists:get_value("login", Post),
+				Fixedskills,
+				list_to_existing_atom(proplists:get_value("security", Post)),
+				proplists:get_value("profile", Post));
+		Confirmpw ->
+			agent_auth:set_agent(Agent,
+				proplists:get_value("login", Post),
+				proplists:get_value("password", Post),
+				Fixedskills,
+				list_to_existing_atom(proplists:get_value("security", Post)),
+				proplists:get_value("profile", Post))
+	end,
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
 
-api({skills, "groups", "get"}, {_Reflist, _Salt, _Login}, _Post) ->
+%% =====
+%% skills -> groups
+%% =====
+api({skills, "groups", "get"}, ?COOKIE, _Post) ->
 	Skills = call_queue_config:get_skills(),
 	Proplist = dict:to_list(encode_skills_with_groups(Skills)),
 	Convert = fun({Group, Skillrecs}) ->
@@ -233,14 +293,18 @@ api({skills, "groups", "get"}, {_Reflist, _Salt, _Login}, _Post) ->
 %	{_Profilename, Skillatoms} = agent_auth:get_profile(Profile),
 %	Encoded = encode_skills(Skillatoms),
 %	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})};
-api({skills, "skill", "_queue", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
+
+%% =====
+%% skills -> skill
+%% =====
+api({skills, "skill", "_queue", "expand"}, ?COOKIE, _Post) ->
 	Queues = call_queue_config:get_queues(),
 	F = fun(Qrec) ->
 		list_to_binary(Qrec#call_queue.name)
 	end,
 	Converted = lists:map(F, Queues),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
-api({skills, "skill", "_node", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({skills, "skill", "_node", "expand"}, ?COOKIE, _Post) ->
 	Nodes = [node() | nodes()],
 	F = fun(Atom) ->
 		L = atom_to_list(Atom),
@@ -255,7 +319,7 @@ api({skills, "skill", "_agent", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
 	end,
 	Converted = lists:map(F, Agents),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
-api({skills, "skill", "_brand", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
+api({skills, "skill", "_brand", "expand"}, ?COOKIE, _Post) ->
 	Clients = call_queue_config:get_clients(),
 	F = fun(Clientrec) ->
 		list_to_binary(Clientrec#client.label)

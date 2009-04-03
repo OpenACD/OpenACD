@@ -195,7 +195,9 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 					dojo.byId("agentIntegrated").innerHTML = agent.integrated;
 					dijit.byId("agentSecurity").setValue(agent.securitylevel);
 					dijit.byId("agentProfile").setDisplayedValue(agent.profile);
-					
+					dijit.byId("agentPassword").setValue("");
+					dijit.byId("agentConfirm").setValue("");
+								   
 					var selectSkill = function(skill){
 						if(/\{\w+\,\w+\}/.test(skill)){
 							var split = skill.split(',');
@@ -206,16 +208,15 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 									return true;
 								}
 							}
-							return false;
 						}
 						else{
 							for(var i in agent.skills){
 								if(agent.skills[i].atom == skill){
 									return true;
 								}
-								return false
 							}
 						}
+						return false;
 					}
 					
 					var sel = dijit.byId("agentSkills").domNode;
@@ -236,28 +237,6 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 							}
 						}
 					}
-					
-					
-					
-/*
-
- </p>
- <p>
- <label for="agentProfile">Profile:</label>
- <select dojoType="dijit.form.FilteringSelect" id="agentProfile" name="profile"></select>
- </p>
- <p>
- <label for="agentSkills">Skills:</label>
- <div id="agentSkills">
- <select dojoType="dijit.form.MultiSelect" id="agentSkills" name="skills" size="10" multiple="true"></select>
- </div>
- </p>
- <p>
- <label for="agentSubmit">&nbsp;</label>
- <button dojoType="dijit.form.Button" label="Submit" id="agentSubmit" onClick="agents.updateAgent('editAgent', 'agentsList')"></button>
- </p>
- </form>
- </div>*/					console.log(response);
 				}
 			});
 		

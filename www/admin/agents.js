@@ -54,7 +54,8 @@ agents.init = function(){
 		query:{"type":"profile"},
 		childrenAttrs:["agents"],
 		rootId:"agents",
-		rootLabel:"Agents"
+		rootLabel:"Agents",
+		
 	});
 }
 
@@ -104,15 +105,21 @@ agents.newProfile = function(submitForm, treenode){
 
 agents.updateAgent = function(subform, node){
 	var values = dijit.byId(subform).getValues();
+	agents.store.fetchItemByIdentity({
+		identity:values.profile,
+		onItem:function(item, req){
+			values.profile = item.name[0];
+		}
+	});
 	dojo.xhrPost({
 		url:"/agents/agents/" + values.oldlogin + "/update",
 		handleAs:"json",
-		form:subform,
+		content:values,
 		error:function(response, ioargs){
 			console.log(response);
 		},
 		load:function(response, ioargs){
-			agents.refreshTree(treenode);
+			agents.refreshTree(node);
 		}
 	})
 }

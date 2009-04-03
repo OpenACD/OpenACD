@@ -32,6 +32,7 @@ skills.init = function(){
 		rootId:"skills",
 		rootLabel:"Skills"
 	});
+	dojo.publish("skills/init", []);
 }
 
 skills.refreshTree = function(targetnode){
@@ -48,6 +49,7 @@ skills.refreshTree = function(targetnode){
 }
 
 skills.skillSelection = function(targetnode){
+	console.log(targetnode);
 	skills.store.fetch({
 		query:{type:"group"},
 		onComplete:function(groups, query){

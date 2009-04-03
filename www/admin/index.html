@@ -131,6 +131,10 @@ dojo.require("dijit.form.MultiSelect");
 					<input dojoType="dijit.form.TextBox" name="login" id="agentLogin" />
 				</p>
 				<p>
+					<label for="agentIntegrated">Last Integrated:</label>
+					<span id="agentIntegrated">undefined</span>
+				</p>
+				<p>
 					<label for="agentPassword">Password:</label>
 					<input dojoType="dijit.form.TextBox" type="password" id="agentPassword" name="password" />
 				</p>
@@ -140,7 +144,7 @@ dojo.require("dijit.form.MultiSelect");
 				</p>
 				<p>
 					<label for="agentProfile">Profile:</label>
-					<select dojoType="dijit.form.FilteringSelect" id="agentProfile" name="profile"></select>
+					<input dojoType="dijit.form.FilteringSelect" id="agentProfile" name="profile" store="agents.store" value="Default" searchAttr="name" query="{type:'profile'}"/>
 				</p>
 				<p>
 					<label for="agentSecurity">Security level:</label>

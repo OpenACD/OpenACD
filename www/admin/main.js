@@ -23,7 +23,44 @@ function goober(){
 	console.log('goober');
 }
 
+var agentsSkillRefreshHandle = dojo.subscribe("skills/init", function(data){
+	var node = dijit.byId('agentSkills').domNode;
+	while(node.hasChildNodes()){
+		node.removeChild(node.lastChild);
+	}
+	skills.skillSelection(dijit.byId("agentSkills").domNode);
+	
+	var brandoptgroup = dojo.doc.createElement('optgroup');
+	brandoptgroup.label = '_brand';
+	var setBrandSkills = function(items){
+		for(var i in items){
+			var opt = dojo.doc.createElement('option');
+			opt.value = "{_brand," + items[i] + "}";
+			opt.innerHTML = items[i];
+			brandoptgroup.appendChild(opt);
+		}
+		dijit.byId("agentSkills").domNode.appendChild(brandoptgroup);
+	}
+	
+	skills.expandSkill(setBrandSkills, "_brand");
+
+	var queueOptGroup = dojo.doc.createElement('optgroup');
+	queueOptGroup.label = '_queue';
+	var setQueueSkills = function(items){
+		for(var i in items){
+			var opt = dojo.doc.createElement('option');
+			opt.value = "{_queue," + items[i] + "}";
+			opt.innerHTML = items[i];
+			queueOptGroup.appendChild(opt);
+		}
+		dijit.byId("agentSkills").domNode.appendChild(queueOptGroup);
+	}
+	skills.expandSkill(setQueueSkills, "_queue");
+											  
+});
+
 var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){
+	dijit.byId('agentProfile').store = agents.store;
 	dojo.connect(agents.tree, "onClick", function(item){
 		if(item.type[0] == "profile"){
 			dijit.byId("agentProfileSubmit").onClick = function(){
@@ -147,9 +184,97 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 			}
 		}
 		else{
+			dojo.xhrGet({
+				url:"/agents/agents/" + item.name[0] + "/get",
+				handleAs:"json",
+				load:function(response, ioargs){
+					var agent = response.agent;
+					dijit.byId("agentLogin").attr("value", agent.login);
+					dojo.byId("agentOldLogin").value = agent.login;
+					//dijit.byId("agentProfile").attr("value", agent.profile);
+					dojo.byId("agentIntegrated").innerHTML = agent.integrated;
+					dijit.byId("agentSecurity").setValue(agent.securitylevel);
+					dijit.byId("agentProfile").setDisplayedValue(agent.profile);
+					
+					var selectSkill = function(skill){
+						if(/\{\w+\,\w+\}/.test(skill)){
+							var split = skill.split(',');
+							var atom = split[0].substr(1);
+							var expanded = split[1].substr(0, split[1].length-1);
+							for(var i in agent.skills){
+								if(agent.skills[i].atom == atom && agent.skills[i].expanded == expanded){
+									return true;
+								}
+							}
+							return false;
+						}
+						else{
+							for(var i in agent.skills){
+								if(agent.skills[i].atom == skill){
+									return true;
+								}
+								return false
+							}
+						}
+					}
+					
+					var sel = dijit.byId("agentSkills").domNode;
+					for(var i in sel.childNodes){
+						if(sel.childNodes[i].hasChildNodes){
+							var kid = sel.childNodes[i];
+							var label = sel.label;
+							for(var j in kid.childNodes){
+								var kidkid = kid.childNodes[j];
+								if(kidkid.nodeType == 1){
+									if(selectSkill(kidkid.value)){
+										kidkid.selected = true;
+									}
+									else{
+										kidkid.selected = false;
+									}
+								}
+							}
+						}
+					}
+					
+					
+					
+/*
+
+ </p>
+ <p>
+ <label for="agentProfile">Profile:</label>
+ <select dojoType="dijit.form.FilteringSelect" id="agentProfile" name="profile"></select>
+ </p>
+ <p>
+ <label for="agentSkills">Skills:</label>
+ <div id="agentSkills">
+ <select dojoType="dijit.form.MultiSelect" id="agentSkills" name="skills" size="10" multiple="true"></select>
+ </div>
+ </p>
+ <p>
+ <label for="agentSubmit">&nbsp;</label>
+ <button dojoType="dijit.form.Button" label="Submit" id="agentSubmit" onClick="agents.updateAgent('editAgent', 'agentsList')"></button>
+ </p>
+ </form>
+ </div>*/					console.log(response);
+				}
+			});
+		
 			dijit.byId('agentsMain').selectChild('agentEditor');
 			dijit.byId('agentsDestroyButton').onClick = function(){
-				console.log('goober');
+				dojo.xhrGet({
+					url:"agents/agents/" + item.name[0] + "/delete",
+					handleAs:"json",
+					load:function(response, ioargs){
+						if(response.success){
+							agents.refreshTree('agentsList');
+						}
+						else{
+							console.log(response.message);
+						}
+					}
+				});
 			}
 		}
 	});

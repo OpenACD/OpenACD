@@ -58,6 +58,7 @@
 	cache/4,
 	destroy/1,
 	add_agent/5,
+	get_agent/1,
 	get_agents/0,
 	get_agents/1
 ]).
@@ -215,6 +216,13 @@ get_profiles() ->
 	end,
 	lists:sort(Sort, Cprofs).
 
+get_agent(Login) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Login]),
+		qlc:e(QH)
+	end,
+	mnesia:transaction(F).
+	
 get_agents() ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth)]),

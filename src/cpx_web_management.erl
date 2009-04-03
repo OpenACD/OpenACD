@@ -174,7 +174,6 @@ api({agents, "profiles", "get"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Profiles = agent_auth:get_profiles(),
 	Foreachprofile = fun({Pname, Pskills}) ->
 		Agents = agent_auth:get_agents(Pname),
-		?CONSOLE("~p", [Pskills]),
 		{struct, [{<<"name">>, list_to_binary(Pname)}, {<<"type">>, <<"profile">>}, {<<"skills">>, encode_skills(Pskills)}, {<<"agents">>, encode_agents(Agents)}]}
 	end,
 	Items = lists:map(Foreachprofile, Profiles),
@@ -217,8 +216,11 @@ api({agents, "profiles", "Default", "delete"}, {_Reflist, _Salt, _Login}, _Post)
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be deleted">>}]})};
 api({agents, "profiles", Profile, "delete"}, {_Reflist, _Salt, _Login}, _Post) ->
 	agent_auth:destroy_profile(Profile),
-	{100, [], mochijson2:encode({struct, [{success, true}]})};
-	
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
+api({agents, "agents", Agent, "get"}, {_Reflist, _Salt, _Login}, _Post) ->
+	{atomic, [Agentrec]} = agent_auth:get_agent(Agent),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"agent">>, encode_agent(Agentrec)}]})};
+
 api({skills, "groups", "get"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Skills = call_queue_config:get_skills(),
 	Proplist = dict:to_list(encode_skills_with_groups(Skills)),
@@ -306,7 +308,7 @@ parse_path(Path) ->
 				["", "skills", "groups", Group, Action] ->
 					{api, {skills, "groups", Group, Action}};
 				["", "skills", "skill", Skill, Action] ->
-					{api, {skills, Skill, Action}};
+					{api, {skills, "skill", Skill, Action}};
 				["", "queues", Action] ->
 					{api, {queues, Action}};
 				["", "medias", Action] ->
@@ -339,17 +341,11 @@ check_cookie(Allothers) ->
 	end.
 
 encode_skill(Atom) when is_atom(Atom) ->
-	?CONSOLE("~p", [Atom]),
 	Skill = call_queue_config:get_skill(Atom),
-	{struct, [{name, list_to_binary(Skill#skill_rec.name)},
-		{type, skill}, {atom, Skill#skill_rec.atom},
-		{description, list_to_binary(Skill#skill_rec.description)},
-		{protected, Skill#skill_rec.protected}]};
+	encode_skill(Skill);
 encode_skill({Atom, Value}) when is_atom(Atom), is_list(Value) ->
-	?CONSOLE("~p", [{Atom, Value}]),
 	encode_skill({Atom, list_to_binary(Value)});
 encode_skill({Atom, Value}) ->
-	?CONSOLE("~p", [{Atom, Value}]),
 	Skill = call_queue_config:get_skill(Atom),
 	{struct, [{name, list_to_binary(Skill#skill_rec.name)},
 		{type, skill}, {atom, Skill#skill_rec.atom},
@@ -409,18 +405,18 @@ encode_queues_with_groups([Group|Groups]) ->
 					{recipe, G#queue_group.recipe},
 					{children, encode_queues(Group)}]} | encode_queues_with_groups(Groups)]
 	end.
-	
+
 encode_agents([]) ->
 	[];
 encode_agents([Agent|Agents]) ->
 	[encode_agent(Agent) | encode_agents(Agents)].
 
-encode_agent(Agentrec) ->
+encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 	{struct, [
 		{name, list_to_binary(Agentrec#agent_auth.login)},
 		{<<"type">>, <<"agent">>},
 		{login, list_to_binary(Agentrec#agent_auth.login)},
-		{skills, Agentrec#agent_auth.skills},
+		{skills, encode_skills(Agentrec#agent_auth.skills)},
 		{securitylevel, Agentrec#agent_auth.securitylevel},
 		{integrated, Agentrec#agent_auth.integrated},
 		{profile, list_to_binary(Agentrec#agent_auth.profile)}

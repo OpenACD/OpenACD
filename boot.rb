@@ -79,6 +79,6 @@ if ! File.exists?($conf + ".config")
 	f.close
 end
 
-puts "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$name} -config #{$conf} -boot ebin/#{$boot}"
+puts "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
 `erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}`
 #erl -pa ebin/ -pa contrib/mochiweb/ebin/ -setcookie ClueCon -sname testme -config single -boot ebin/cpx-rel-0.1

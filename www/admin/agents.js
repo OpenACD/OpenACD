@@ -124,6 +124,27 @@ agents.updateAgent = function(subform, node){
 	})
 }
 
+agents.newAgent = function(subform, node){
+	var values = dijit.byId(subform).getValues();
+	agents.store.fetchItemByIdentity({
+		identity:values.profile,
+		onItem:function(item, req){
+			values.profile = item.name[0];
+		}
+	});
+	dojo.xhrPost({
+		url:"/agents/agents/new",
+		handleAs:"json",
+		content:values,
+		error:function(response, ioargs){
+			console.log(response);
+		},
+		load:function(response, ioargs){
+			agents.refreshTree(node);
+		}
+	})
+}
+
 agents.getSkills = function(profile, callback){
 	dojo.xhrGet({
 		url:"/skills/" + profile,

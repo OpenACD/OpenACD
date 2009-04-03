@@ -55,6 +55,7 @@
 	stop/2,
 	set_mode/3,
 	set_skills/2,
+	set_brand/2,
 	q/0,
 	q/1
 	]).
@@ -107,6 +108,9 @@ set_mode(Pid, Action, Mode) ->
 
 set_skills(Pid, Skills) ->
 	gen_server:call(Pid, {set_skills, Skills}).
+
+set_brand(Pid, Brand) ->
+	gen_server:call(Pid, {set_brand, Brand}).
 	
 q() ->
 	q("default_queue").
@@ -162,6 +166,8 @@ handle_call({set_action, Action, fail_once}, _From, #state{fail = Curfail} = Sta
 	{reply, ok, State#state{fail = Newfail}};
 handle_call({set_skills, Skills}, _From, #state{callrec = Call} = State) ->
 	{reply, ok, State#state{callrec = Call#call{skills=Skills}}};
+handle_call({set_brand, Brand}, _From, #state{callrec = Call} = State) ->
+	{reply, ok, State#state{callrec = Call#call{client=Brand}}};
 handle_call({ring_agent, AgentPid, Queuedcall, Ringout}, _From, #state{fail = Fail} = State) -> 
 	case dict:fetch(ring_agent, Fail) of
 		success -> 

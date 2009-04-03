@@ -303,6 +303,14 @@ expand_magic_skills(State, Call, Skills) ->
 			('_queue') -> {'_queue', State#state.name};
 			%('_queue') when is_atom(State#state.name) -> State#state.name;
 			%('_queue') -> ?CONSOLE("Can't expand magic skill _queue~n", []), [];
+			('_brand') when is_pid(Call#queued_call.media) ->
+				AState = gen_server:call(Call#queued_call.media, get_call),
+				case AState#call.client of
+					undefined ->
+						{'_brand', "Unknown"};
+					Name ->
+						{'_brand', Name#client.label}
+				end;
 			(Skill) -> Skill
 		end, Skills)).
 
@@ -900,8 +908,26 @@ call_update_test_() ->
 					?assertEqual(false, lists:member(testq, Call#queued_call.skills)),
 					?assertEqual(ok, add_skills(Pid, "C1", ['_queue'])),
 					{_Key, Call2} = get_call(Pid, "C1"),
-					?debugFmt("Skills are ~p~n", [Call2#queued_call.skills]),
 					?assertEqual(true, lists:member({'_queue', "testqueue"}, Call2#queued_call.skills))
+				end
+			}, {
+				"Test _brand skill expansion", fun() ->
+					Pid = whereis(testqueue),
+					{ok, Dummy1} = dummy_media:start("C1"),
+					dummy_media:set_skills(Dummy1, ['_brand']),
+					dummy_media:set_brand(Dummy1, #client{label="Test Brand"}),
+					?assertEqual(ok, add(Pid, Dummy1)),
+					{_Key, Call2} = get_call(Pid, "C1"),
+					?assertEqual(true, lists:member({'_brand', "Test Brand"}, Call2#queued_call.skills))
+				end
+			}, {
+				"_brand skill should expand to \"Unknown\" if the call doesn't have a brand tagged", fun() ->
+					Pid = whereis(testqueue),
+					{ok, Dummy1} = dummy_media:start("C1"),
+					dummy_media:set_skills(Dummy1, ['_brand']),
+					?assertEqual(ok, add(Pid, Dummy1)),
+					{_Key, Call2} = get_call(Pid, "C1"),
+					?assertEqual(true, lists:member({'_brand', "Unknown"}, Call2#queued_call.skills))
 				end
 			}, {
 				"Remove magic skills test", fun() ->
@@ -910,7 +936,6 @@ call_update_test_() ->
 					dummy_media:set_skills(Dummy1, ['_node']),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
-					?debugFmt("Queued_call:  ~p; this node:  ~p", [Call, node()]),
 					?assertEqual(true, lists:member({'_node', node()}, Call#queued_call.skills)),
 					?assertEqual(ok, remove_skills(Pid, "C1", ['_node'])),
 					{_Key, Call2} = get_call(Pid, "C1"),

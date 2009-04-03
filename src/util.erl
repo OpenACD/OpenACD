@@ -219,9 +219,7 @@ merge_skill_lists(List1, List2) ->
 					1 ->
 						true;
 					2 ->
-						lists:member(Val, List2);
-					_Else ->
-						erlang:error(badarg)
+						lists:member(Val, List2)
 				end;
 		(_Skill) -> true
 	end, NewList).

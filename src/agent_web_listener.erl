@@ -240,7 +240,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 	Username = proplists:get_value("username", Post, ""),
 	Password = proplists:get_value("password", Post, ""),
 	case proplists:get_value("remotenumber", Post) of
-		Number when is_list(Number) ->
+		Number when is_list(Number), length(Number) > 0 ->
 			ok;
 		_Else ->
 			Number = undefined

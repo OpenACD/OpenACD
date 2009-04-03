@@ -81,6 +81,7 @@ init([Fnode, AgentRec, Apid, Number, Ringout, Domain]) ->
 		{ok, UUID} ->
 			Call = #call{id=UUID, source=self(), type=voice},
 			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " " ++ Number ++ " xml outbound",
+			?CONSOLE("Originating outbound call with args: ~p", [Args]),
 			F = fun(ok, _Reply) ->
 					% agent picked up?
 					%agent:set_state(Apid, outgoing, Call);

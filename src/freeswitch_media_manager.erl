@@ -275,7 +275,7 @@ fetch_domain_user(Node, State) ->
 						{true, Pid} ->
 							try agent:dump_state(Pid) of
 								#agent{remotenumber = Number} = AgState when is_list(Number) ->
-									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "sofia/gateway/cpxvgw.fusedsolutions.com/"++Number]))});
+									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "{ignore_early_media=true}sofia/gateway/cpxvgw.fusedsolutions.com/"++Number]))});
 								Else ->
 									?CONSOLE("state: ~p", [Else]),
 									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "sofia/default/"++User++"%"++Domain]))})

@@ -80,7 +80,7 @@ agents.refreshTree = function(targetnode){
 
 agents.updateProfile = function(submitForm, treenode){
 	var values = dijit.byId(submitForm).getValues();
-	var xhrurl = "/agents/profiles" + values.oldname + "/update";
+	var xhrurl = "/agents/profiles/" + values.oldname + "/update";
 	dojo.xhrPost({
 		url:xhrurl,
 		handleAs:"json",

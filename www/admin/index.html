@@ -76,7 +76,8 @@ dojo.require("dijit.form.MultiSelect");
 	<div id="agentsTab" dojoType="dijit.layout.BorderContainer" title="Agents" selected="true">
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="agentsNav">
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="top">
-				<button dojoType="dijit.form.Button" label="Agents Settings" onclick="dijit.byId('agentsMain').selectChild('agentModuleSettings')"></button>
+				<button dojoType="dijit.form.Button" label="Agents Settings" onclick="dijit.byId('agentsMain').selectChild('agentModuleSettings');
+						agents.getModules(dijit.byId('editAgentModuleForm'));"></button>
 			</div>
 			
 			<div style="width:100%;height: 85%;">
@@ -233,7 +234,14 @@ dojo.require("dijit.form.MultiSelect");
 		</div>-->
 	</div>
 
-	<div id="skillsTab" dojoType="dijit.layout.ContentPane" title="Skills">
+	<div id="skillsTab" dojoType="dijit.layout.BorderContainer" title="Skills">
+		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="skillsNav">
+			Skills nav
+		</div>
+		
+		<div dojoType="dijit.layout.StackContainer" region="center" id="skillsMain">
+			Skills Main
+		</div>
 		<!--<div dojoType="dijit.layout.LayoutContainer" style="width: 100%; height: 100%; padding: 0; margin: 0; border: 0;">
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="client" id="skillPane">
 				<div id="editSkillGroupPane" dojoType="dijit.layout.ContentPane" style="display:none;">

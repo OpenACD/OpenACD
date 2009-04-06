@@ -24,6 +24,15 @@ agents.getModules = function(targetform){
 		handleAs:"json",
 		load:function(response, ioargs){
 			targetform.setValues(response.result);
+			var kids = targetform.getDescendants();
+			for(var i in kids){
+				if(kids[i].id == 'agentModuleTCPListenEnabled'){
+					kids[i].setChecked(response.result.agentModuleTCPListenEnabled);
+				}
+				if(kids[i].id == 'agentModuleWebListenEnabled'){
+					kids[i].setChecked(response.result.agentModuleWebListenEnabled);
+				}
+			}
 		}
 	})
 }

@@ -288,6 +288,7 @@ dojo.addOnLoad(function(){
 								agents.init();
 								agents.refreshTree("agentsList");
 								skills.init();
+								agents.getModules(dijit.byId('editAgentModuleForm'));
 							}
 							else{
 								dojo.byId("loginerrp").style.display = "block";
@@ -318,6 +319,7 @@ dojo.addOnLoad(function(){
 				agents.init();
 				agents.refreshTree("agentsList");
 				skills.init();
+				agents.getModules(dijit.byId('editAgentModuleForm'));
 				//skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);
 			}
 			else{

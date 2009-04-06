@@ -217,6 +217,12 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 						return false;
 					}
 					
+					var reservedSkills = {
+						'_queue': false,
+						'_node': false,
+						'_agent': false,
+						'_brand': false
+					};
 					var sel = dijit.byId("agentSkills").domNode;
 					for(var i in sel.childNodes){
 						if(sel.childNodes[i].hasChildNodes){
@@ -225,6 +231,9 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 							for(var j in kid.childNodes){
 								var kidkid = kid.childNodes[j];
 								if(kidkid.nodeType == 1){
+									if(reservedSkills[kidkid.value] == false){
+										kidkid.disabled = true;
+									}
 									if(selectSkill(kidkid.value)){
 										kidkid.selected = true;
 									}

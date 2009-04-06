@@ -21,25 +21,40 @@ skills.tree = false;
 
 skills.init = function(){
 	skills.store = new dojo.data.ItemFileWriteStore({
-		url:"/skills/groups/get",
+		url:"/skills/groups/get"
 	});
 	skills.store.fetch();
 	skills.model = new dijit.tree.ForestStoreModel({
 		store:skills.store,
 		labelAttr: "name",
 		query:{"type":"group"},
-		childrenAttrs:"skills",
+		childrenAttrs:["skills"],
 		rootId:"skills",
-		rootLabel:"Skills"
+		rootLabel:"Skills",
 	});
 	dojo.publish("skills/init", []);
 }
 
 skills.refreshTree = function(targetnode){
+	var parent = dojo.byId(targetnode).parentNode;
+	skills.store = new dojo.data.ItemFileWriteStore({
+		url:"/skills/groups/get"
+	});
 	skills.store.fetch();
+	skills.model = new dijit.tree.ForestStoreModel({
+		store:skills.store,
+		labelAttr: "name",
+		query:{"type":"group"},
+		childrenAttrs:["skills"],
+		rootId:"skills",
+		rootLabel:"Skills",
+	});
 	if(dijit.byId(skills.tree.id)){
 		dijit.byId(skills.tree.id).destroy();
 	}
+	var n = dojo.doc.createElement('div');
+	n.id = targetnode;
+	parent.appendChild(n);
 	skills.tree = new dijit.Tree({
 		store: skills.store,
 		model: skills.model,
@@ -77,4 +92,38 @@ skills.expandSkill = function(callback, magicskill){
 			callback(response.items);
 		}
 	});
+}
+
+skills.updateGroup = function(submform, node){
+	var values = dijit.byId(submform).getValues();
+	dojo.xhrPost({
+		url:"/skills/groups/" + values.oldname + "/update",
+		form:submform,
+		handleAs:"json",
+		load:function(response, ioargs){
+			skills.refreshTree(node);
+		},
+		error:function(response, ioargs){
+			console.log(response.message);
+		}
+	});
+}
+
+skills.updateSkill = function(submform, node){
+	var values = dijit.byId(submform).getValues();
+	var atom = dijit.byId('skillAtom').getValue();
+	dojo.xhrPost({
+		url:"/skills/skill/" + atom + "/update",
+		form:submform,
+		content:{
+			'atom':atom
+		},
+		handleAs:"json",
+		load:function(response, ioargs){
+			skills.refreshTree(node);
+		},
+		error:function(response, ioargs){
+			console.log(response.message);
+		}
+	})
 }

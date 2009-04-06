@@ -517,7 +517,7 @@ destroy_skill(Skillname) ->
 			mnesia:transaction(Del)
 	end.
 
-rename_skill_group(Oldgroup, Newgroup) ->
+rename_skill_group(Oldgroup, Newgroup) when is_list(Newgroup) ->
 	Testng = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.group =:= Newgroup]),
 		qlc:e(QH)
@@ -537,6 +537,7 @@ rename_skill_group(Oldgroup, Newgroup) ->
 			end,
 			mnesia:transaction(Doupdate);
 		{atomic, List} when length(List) >= 1 ->
+			?CONSOLE("error, target name exists", []),
 			{error, {exists, Newgroup}}
 	end.
 				

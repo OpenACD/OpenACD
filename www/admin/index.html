@@ -37,6 +37,7 @@ dojo.require("dijit.form.Button");
 dojo.require("dijit.form.Form");
 dojo.require("dijit.form.TextBox");
 dojo.require("dijit.form.ValidationTextBox");
+dojo.require("dijit.form.Textarea");
 dojo.require("dijit._tree.dndSource");
 dojo.require("dijit.Tree");
 dojo.require("dojo.data.ItemFileWriteStore");
@@ -236,11 +237,56 @@ dojo.require("dijit.form.MultiSelect");
 
 	<div id="skillsTab" dojoType="dijit.layout.BorderContainer" title="Skills">
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="skillsNav">
-			<div id="SkillsList">Skills nav</div>
+			<div id="skillsList"></div>
 		</div>
 		
 		<div dojoType="dijit.layout.StackContainer" region="center" id="skillsMain">
-			Skills Main
+			<div id="skillEditor" dojoType="dijit.layout.ContentPane">
+				<form dojoType="dijit.form.Form" id="editSkill" action="javascript:void(0)" method="post">
+					<p>
+						<label for="skillName">Name:</label>
+						<input dojoType="dijit.form.TextBox" name="name" id="skillName" />
+					</p>
+					
+					<p>
+						<label for="skillAtom">Atom:</label>
+						<input dojoType="dijit.form.TextBox" name="atom" id="skillAtom" disabled />
+					</p>
+					
+					<p>
+						<label for="skillGroup">Group:</label>
+						<input dojoType="dijit.form.ComboBox" name="group" id="skillGroup" store="skills.store" searchAttr="name" query="{type:'group'}"/>
+					</p>
+					
+					<p>
+						<label for="skillDesc">Description:</label>
+						<textarea dojoType="dijit.form.Textarea" name="description" id="skillDesc" style="width:400px"></textarea>
+					</p>
+					
+					<p>
+						<label for="skillSubmit">&nbsp;</label>
+						<button dojoType="dijit.form.Button" label="Submit" id="skillSubmit" onClick="skills.updateSkill('editSkill', 'skillsList')"></button>
+					</p>
+				</form>
+			</div>
+			
+			<div id="skillGroupEditor" dojoType="dijit.layout.ContentPane">
+				<ul>
+					<li>To create a skill group, give a skill a group that does not exist.</li>
+					<li>A group is automatically deleted when there are no skills in it.</li>
+				</ul>
+				<form dojoType="dijit.form.Form" id="editSkillGroupForm" action="javascript:void(0)" method="post">
+					<input type="hidden" dojoType="dijit.form.TextBox" name="oldname" id="skillGroupOldName" value="" />
+					<p>
+						<label for="skillGroupName">Group Name:</label>
+						<input dojoType="dijit.form.TextBox" name="name" id="skillGroupName" />
+					</p>
+					<p>
+						<label for="skillGroupSubmit">&nbsp;</label>
+						<button dojoType="dijit.form.Button" label="Submit" id="skillGroupSubmit" onClick="skills.updateGroup('editSkillGroupForm', 'skillsList')"></button>
+					</p>
+				</form>
+			</div>
 		</div>
 		<!--<div dojoType="dijit.layout.LayoutContainer" style="width: 100%; height: 100%; padding: 0; margin: 0; border: 0;">
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="client" id="skillPane">

@@ -331,6 +331,11 @@ api({skills, "groups", "get"}, ?COOKIE, _Post) ->
 	end,
 	Json = {struct, [{success, true}, {<<"items">>, lists:map(Convert, Proplist)}]},
 	{200, [], mochijson2:encode(Json)};
+api({skills, "groups", Group, "update"}, ?COOKIE, Post) ->
+	?CONSOLE("Updating skill group ~p", [Group]),
+	Newname = proplists:get_value("name", Post),
+	call_queue_config:rename_skill_group(Group, Newname),
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
 %api({skills, Profile}, {_Reflist, _Salt, _Login}, Post) ->
 %	{_Profilename, Skillatoms} = agent_auth:get_profile(Profile),
 %	Encoded = encode_skills(Skillatoms),
@@ -367,7 +372,23 @@ api({skills, "skill", "_brand", "expand"}, ?COOKIE, _Post) ->
 		list_to_binary(Clientrec#client.label)
 	end,
 	Converted = lists:map(F, Clients),
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})}.
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
+api({skills, "skill", Skill, "update"}, ?COOKIE, Post) ->
+	case call_queue_config:get_skill(Skill) of
+		Skillrec when is_record(Skillrec, skill_rec) ->
+			case Skillrec#skill_rec.protected of
+				false ->
+					Rec = #skill_rec{
+						atom = Skillrec#skill_rec.atom,
+						name = proplists:get_value("name", Post),
+						description = proplists:get_value("description", Post),
+						group = proplists:get_value("group", Post)},
+					call_queue_config:set_skill(Skillrec#skill_rec.atom, Rec),
+					{200, [], mochijson2:encode({struct, [{success, true}]})}
+			end
+	end.
+
+
 
 % path spec:
 % /basiccommand
@@ -457,11 +478,13 @@ encode_skill({Atom, Value}) ->
 		{type, skill}, {atom, Skill#skill_rec.atom},
 		{description, list_to_binary(Skill#skill_rec.description)},
 		{protected, Skill#skill_rec.protected},
+		{group, list_to_binary(Skill#skill_rec.group)},
 		{expanded, Value}]};
 encode_skill(Skill) when is_record(Skill, skill_rec) ->
 	{struct, [{name, list_to_binary(Skill#skill_rec.name)},
 		{type, skill}, {atom, Skill#skill_rec.atom},
 		{description, list_to_binary(Skill#skill_rec.description)},
+		{group, list_to_binary(Skill#skill_rec.group)},
 		{protected, Skill#skill_rec.protected}]};
 encode_skill(_) ->
 	[].

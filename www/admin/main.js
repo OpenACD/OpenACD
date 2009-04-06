@@ -19,10 +19,6 @@ function inspect(obj){
 	}
 }
 
-function goober(){
-	console.log('goober');
-}
-
 var agentsSkillRefreshHandle = dojo.subscribe("skills/init", function(data){
 	var node = dijit.byId('agentSkills').domNode;
 	while(node.hasChildNodes()){
@@ -56,7 +52,34 @@ var agentsSkillRefreshHandle = dojo.subscribe("skills/init", function(data){
 		dijit.byId("agentSkills").domNode.appendChild(queueOptGroup);
 	}
 	skills.expandSkill(setQueueSkills, "_queue");
-											  
+	
+	skills.refreshTree(dojo.byId('skillsList'));
+});
+
+var skillsTreeRefreshHandle = dojo.subscribe("skills/tree/refreshed", function(data){
+	dijit.byId('skillGroup').store = skills.store;
+	dojo.connect(skills.tree, "onClick", function(item){
+		if(item.type[0] == "skill"){
+			dijit.byId('skillsMain').selectChild('skillEditor');
+			dijit.byId('editSkill').setValues(item);
+			var d = dijit.byId('editSkill').getDescendants();
+			for(i in d){
+				try{
+					 d[i].setDisabled(item.protected[0]);
+				}
+				catch(err){
+					//ditching it sense this will ususally be "this is a funciton" error
+					//Prolly should test that first instead of shoving it to a try/catch.
+				}
+			}	
+			dijit.byId('skillAtom').setDisabled(true);	
+		}
+		else{
+			dijit.byId('skillsMain').selectChild('skillGroupEditor');
+			dijit.byId('editSkillGroupForm').setValues(item);
+			dijit.byId('skillGroupOldName').setValue(item.name[0]);
+		}
+	});
 });
 
 var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){

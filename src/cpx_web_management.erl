@@ -239,7 +239,7 @@ api({agents, "agents", Agent, "delete"}, ?COOKIE, Post) ->
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 	{atomic, [Agentrec]} = agent_auth:get_agent(Agent),
-	{ok, Regex} = re:compile("^{(_\\w+),(\\w+)}$"),
+	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
 	Postedskills = proplists:get_all_values("skills", Post),
 	Convertskills = fun(Skill) ->
 			case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
@@ -263,7 +263,7 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 				end
 		end
 	end,
-	Fixedskills = lists:map(Convertskills, Postedskills),
+	Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
 	?CONSOLE("~p", [Fixedskills]),
 	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
 	case proplists:get_value("password", Post) of
@@ -289,26 +289,28 @@ api({agents, "agents", "new"}, ?COOKIE, Post) ->
 			erlang:error({badarg, proplists:get_value("password", Post)});
 		Confirmpw ->
 			Postedskills = proplists:get_all_values("skills", Post),
-			{ok, Regex} = re:compile("^{(_\\w+),(\\w+)}$"),
+			{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
 			Convertskills = fun(Skill) ->
 				case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
 					{match, [Atomstring, Expanded]} ->
 						case call_queue_config:skill_exists(Atomstring) of
 							undefined ->
-								erlang:error({badarg, Skill});
+								[];
+								%erlang:error({badarg, Skill});
 							Atom ->
 								{Atom, Expanded}
 						end;
 					nomatch ->
 						case call_queue_config:skill_exists(Skill) of
 							undefined ->
-								erlang:error({badarg, Skill});
+								[];
+								%erlang:error({badarg, Skill});
 							Atom ->
 								Atom
 						end
 				end
 			end,
-			Fixedskills = lists:map(Convertskills, Postedskills),
+			Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
 			agent_auth:add_agent(
 				proplists:get_value("login", Post),
 				Confirmpw,
@@ -444,9 +446,7 @@ check_cookie(Allothers) ->
 			end
 	end.
 
-encode_skill(undefined) ->
-	[];
-encode_skill(Atom) when is_atom(Atom) ->
+encode_skill(Atom) when is_atom(Atom), Atom =/= undefined ->
 	Skill = call_queue_config:get_skill(Atom),
 	encode_skill(Skill);
 encode_skill({Atom, Value}) when is_atom(Atom), is_list(Value) ->
@@ -462,7 +462,9 @@ encode_skill(Skill) when is_record(Skill, skill_rec) ->
 	{struct, [{name, list_to_binary(Skill#skill_rec.name)},
 		{type, skill}, {atom, Skill#skill_rec.atom},
 		{description, list_to_binary(Skill#skill_rec.description)},
-		{protected, Skill#skill_rec.protected}]}.
+		{protected, Skill#skill_rec.protected}]};
+encode_skill(_) ->
+	[].
 
 
 encode_skills(Skills) ->

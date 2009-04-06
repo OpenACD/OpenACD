@@ -242,20 +242,22 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 	{ok, Regex} = re:compile("^{(_\\w+),(\\w+)}$"),
 	Postedskills = proplists:get_all_values("skills", Post),
 	Convertskills = fun(Skill) ->
-		case re:run(Skill, Regex) of
-			{match, [_Overall, {Atomstart, Atomlen}, {Expandedstart, Expandedlen}]} ->
-				Atomstring = string:substr(Skill, Atomstart, Atomlen),
+			case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
+			{match, [Atomstring, Expanded]} ->
 				case call_queue_config:skill_exists(Atomstring) of
 					undefined ->
-						erlang:error({badarg, Skill});
+						?CONSOLE("bad skill ~p : ~p", [Atomstring, Skill]),
+						%erlang:error(badarg);
+						[];
 					Atom ->
-						Expanded = string:substr(Skill, Expandedstart, Expandedlen),
 						{Atom, Expanded}
 				end;
 			nomatch ->
 				case call_queue_config:skill_exists(Skill) of
 					undefined ->
-						erlang:error({badarg, Skill});
+						?CONSOLE("bad skill ~p", [Skill]),
+						%erlang:error(badarg);
+						[];
 					Atom ->
 						Atom
 				end
@@ -289,14 +291,12 @@ api({agents, "agents", "new"}, ?COOKIE, Post) ->
 			Postedskills = proplists:get_all_values("skills", Post),
 			{ok, Regex} = re:compile("^{(_\\w+),(\\w+)}$"),
 			Convertskills = fun(Skill) ->
-				case re:run(Skill, Regex) of
-					{match, [_Overall, {Atomstart, Atomlen}, {Expandedstart, Expandedlen}]} ->
-						Atomstring = string:substr(Skill, Atomstart, Atomlen),
+				case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
+					{match, [Atomstring, Expanded]} ->
 						case call_queue_config:skill_exists(Atomstring) of
 							undefined ->
 								erlang:error({badarg, Skill});
 							Atom ->
-								Expanded = string:substr(Skill, Expandedstart, Expandedlen),
 								{Atom, Expanded}
 						end;
 					nomatch ->
@@ -444,6 +444,8 @@ check_cookie(Allothers) ->
 			end
 	end.
 
+encode_skill(undefined) ->
+	[];
 encode_skill(Atom) when is_atom(Atom) ->
 	Skill = call_queue_config:get_skill(Atom),
 	encode_skill(Skill);
@@ -463,10 +465,14 @@ encode_skill(Skill) when is_record(Skill, skill_rec) ->
 		{protected, Skill#skill_rec.protected}]}.
 
 
-encode_skills([]) ->
-	[];
-encode_skills([Skill|Skills]) ->
-	[encode_skill(Skill) | encode_skills(Skills)].
+encode_skills(Skills) ->
+	encode_skills(Skills, []).
+
+encode_skills([], Acc) ->
+	lists:flatten(lists:reverse(Acc));
+encode_skills([Skill|Skills], Acc) ->
+	Head = encode_skill(Skill),
+	encode_skills(Skills, [Head | Acc]).
 
 encode_skills_with_groups([]) ->
 	[];

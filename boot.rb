@@ -3,18 +3,19 @@
 require 'socket'
 
 def helpdump
-        puts "usage: #{$0} [-c cookiename] [-s shortname | -n longname] [-b bootfile] [-f configfile] [-d]"
-		puts "-c defaults to \"ClueCon\"."
-		puts "-s and -n override each other.  Defaults to \"-s testme\"."
-		puts "-b only needs the file name, ebin is assumed.  Defaults to \"cpx-rel-0.1\"."
-		puts "-f defaults to \"single\"."
-		puts "-d uses the debug compile."
-		puts ""
-		puts "If you have not yet run rake (or rake test if you are using"
-		puts "-d), erl will fail to start.  If the config file does not"
-		puts "exist, a default config is put in it's place.  Feel free"
-		puts "to edit it."
-        exit
+	STDERR.puts "usage: #{$0} [-c cookiename] [-s shortname | -n longname] [-b bootfile] [-f configfile] [-d]"
+	STDERR.puts
+	STDERR.puts "  -c defaults to \"ClueCon\"."
+	STDERR.puts "  -s and -n override each other.  Defaults to \"-s testme\"."
+	STDERR.puts "  -b only needs the file name, ebin is assumed.  Defaults to \"cpx-rel-0.1\"."
+	STDERR.puts "  -f defaults to \"single\"."
+	STDERR.puts "  -d uses the debug compile."
+	STDERR.puts ""
+	STDERR.puts "If you have not yet run rake (or rake test if you are using"
+	STDERR.puts "-d), erl will fail to start.  If the config file does not"
+	STDERR.puts "exist, a default config is put in it's place.  Feel free"
+	STDERR.puts "to edit it."
+	exit
 end
 
 $cookie = "ClueCon"
@@ -61,6 +62,11 @@ while true do
 	end
 end
 
+unless File.exists?(File.join('ebin', $boot + '.boot'))
+	STDERR.puts "Boot file \"#{File.join('ebin', $boot + '.boot')}\" missing, did you run `rake' first?"
+	exit(1)
+end
+
 if ! File.exists?($conf + ".config")
 	f = File.new($conf + ".config", "w+")
 
@@ -84,6 +90,6 @@ if Dir["Mnesia.#{$name}@*"].length.zero?
 	`erl -noshell #{$nametype} #{$name} -eval 'mnesia:create_schema([node()]).' -s erlang halt -pa ebin`
 end
 
-puts "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
+#puts "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
 exec "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
 #erl -pa ebin/ -pa contrib/mochiweb/ebin/ -setcookie ClueCon -sname testme -config single -boot ebin/cpx-rel-0.1

@@ -237,7 +237,22 @@ dojo.require("dijit.form.MultiSelect");
 
 	<div id="skillsTab" dojoType="dijit.layout.BorderContainer" title="Skills">
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="skillsNav">
-			<div id="skillsList"></div>
+			<div style="width:100%;height:92%">
+				<div id="skillsList"></div>
+			</div>
+			
+			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
+				<button dojoType="dijit.form.Button" label="+"
+					onclick="
+						dijit.byId('skillsMain').selectChild('skillEditor');
+						dijit.byId('editSkill').reset();
+						dijit.byId('skillAtom').setDisabled(false);
+						dijit.byId('skillSubmit').onClick = function(){
+							skills.newSkill('editSkill', 'skillsList');
+						}
+					"></button>
+			</div>
+
 		</div>
 		
 		<div dojoType="dijit.layout.StackContainer" region="center" id="skillsMain">

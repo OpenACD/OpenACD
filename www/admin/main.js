@@ -78,6 +78,7 @@ var skillsTreeRefreshHandle = dojo.subscribe("skills/tree/refreshed", function(d
 			dijit.byId('skillsMain').selectChild('skillGroupEditor');
 			dijit.byId('editSkillGroupForm').setValues(item);
 			dijit.byId('skillGroupOldName').setValue(item.name[0]);
+			dijit.byId('skillGroupName').setDisabled(item.name[0] == "Magic");
 		}
 	});
 });

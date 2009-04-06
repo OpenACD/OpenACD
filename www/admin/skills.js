@@ -127,3 +127,18 @@ skills.updateSkill = function(submform, node){
 		}
 	})
 }
+
+skills.newSkill = function(submform, node){
+	var values = dijit.byId(submform).getValues();
+	dojo.xhrPost({
+		url:"/skills/skill/new",
+		form:submform,
+		handleAs:"json",
+		load:function(response, ioargs){
+			skills.refreshTree(node);
+		},
+		error:function(response, ioargs){
+			console.log(response.message);
+		}
+	});
+}

@@ -386,8 +386,15 @@ api({skills, "skill", Skill, "update"}, ?COOKIE, Post) ->
 					call_queue_config:set_skill(Skillrec#skill_rec.atom, Rec),
 					{200, [], mochijson2:encode({struct, [{success, true}]})}
 			end
-	end.
-
+	end;
+api({skills, "skill", "new"}, ?COOKIE, Post) ->
+	call_queue_config:new_skill(
+		list_to_atom(proplists:get_value("atom", Post)),
+		proplists:get_value("name", Post),
+		proplists:get_value("description", Post),
+		proplists:get_value("group", Post)
+	),
+	{200, [], mochijson2:encode({struct, [{success, true}]})}.
 
 
 % path spec:
@@ -434,6 +441,8 @@ parse_path(Path) ->
 					{api, {skills, "groups", Action}};
 				["", "skills", "groups", Group, Action] ->
 					{api, {skills, "groups", Group, Action}};
+				["", "skills", "skill", Action] ->
+					{api, {skills, "skill", Action}};
 				["", "skills", "skill", Skill, Action] ->
 					{api, {skills, "skill", Skill, Action}};
 				["", "queues", Action] ->

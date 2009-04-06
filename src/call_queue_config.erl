@@ -425,8 +425,12 @@ skill_exists(Skillname) when is_list(Skillname) ->
 			F = fun() -> 
 				mnesia:read({skill_rec, Anything})
 			end,
-			{atomic, [Rec|_Tail]} = mnesia:transaction(F),
-			Rec#skill_rec.atom
+			case mnesia:transaction(F) of
+				{atomic, [Rec|_Tail]} ->
+					Rec#skill_rec.atom;
+				_Else -> % failure or empty response
+					undefined
+			end
 	catch
 		error:_Anyerror -> 
 			undefined

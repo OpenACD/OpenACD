@@ -197,9 +197,8 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 					dijit.byId("agentProfile").setDisplayedValue(agent.profile);
 					dijit.byId("agentPassword").setValue("");
 					dijit.byId("agentConfirm").setValue("");
-								   
 					var selectSkill = function(skill){
-						if(/\{\w+\,\w+\}/.test(skill)){
+						if(/{_\w+,[-a-zA-Z0-9_ ]+}/.test(skill)){
 							var split = skill.split(',');
 							var atom = split[0].substr(1);
 							var expanded = split[1].substr(0, split[1].length-1);
@@ -208,10 +207,9 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 									return true;
 								}
 							}
-						}
-						else{
+						} else{
 							for(var i in agent.skills){
-								if(agent.skills[i].atom == skill){
+								if(agent.skills[i].atom == skill && agent.skills[i].expanded == undefined){
 									return true;
 								}
 							}
@@ -289,6 +287,7 @@ dojo.addOnLoad(function(){
 								dojo.byId("main").style.visibility = "visible";
 								agents.init();
 								agents.refreshTree("agentsList");
+								skills.init();
 							}
 							else{
 								dojo.byId("loginerrp").style.display = "block";

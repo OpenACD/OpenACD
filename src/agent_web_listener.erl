@@ -100,7 +100,6 @@ init([Port]) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
-	?CONSOLE("stopping mochiweb ~p", [mochiweb_http:stop(?MOCHI_NAME)]),
 	{stop, shutdown, ok, State};
 handle_call(Request, _From, State) ->
     {reply, {unknown_call, Request}, State}.
@@ -129,12 +128,12 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 terminate(shutdown, _State) ->
 	?CONSOLE("shutdown", []),
-	mochiweb_socket_server:stop(?MOCHI_NAME),
+	mochiweb_http:stop(?MOCHI_NAME),
 	ets:delete(web_connections),
     ok;
 terminate(normal, _State) ->
 	?CONSOLE("normal exit", []),
-	mochiweb_socket_server:stop(?MOCHI_NAME),
+	mochiweb_http:stop(?MOCHI_NAME),
 	ets:delete(web_connections),
     ok;
 terminate(Reason, _State) ->

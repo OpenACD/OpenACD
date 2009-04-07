@@ -163,7 +163,6 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 				_Else2 ->
 					undefined
 			end,
-			?CONSOLE("1: ~p, 2: ~p", [Webport, OldWebPort]),
 			try list_to_integer(Webport) of
 				OldWebPort  ->
 					{struct, [{success, true}, {<<"message">>, <<"Nothing to do">>}]};

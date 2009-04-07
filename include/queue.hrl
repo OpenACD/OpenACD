@@ -38,15 +38,24 @@
 
 -type(recipe_runs() :: 'run_once' | 'run_many').
 
+-type(recipe_comparison() :: '<' | '>' | '=').
+
+-type(recipe_condition() ::
+	{'ticks', pos_integer()} |
+	{'eligible_agents', recipe_comparison(), non_neg_integer()} |
+	{'available_agents', recipe_comparison(), non_neg_integer()} |
+	{'queue_position', recipe_comparison(), non_neg_integer()} |
+	{'calls_queued', recipe_comparison(), non_neg_integer()}).
+	
 -type(recipe_step() ::
-	{non_neg_integer(), 'add_skills', [atom(),...], recipe_runs()} |
-	{non_neg_integer(), 'remove_skills', [atom(),...], recipe_runs()} |
-	{non_neg_integer(), 'set_priority', integer(), recipe_runs()} |
-	{non_neg_integer(), 'prioritize', [], recipe_runs()} |
-	{non_neg_integer(), 'deprioritize', [], recipe_runs()} |
-	{non_neg_integer(), 'voicemail', [], recipe_runs()} |
-	{non_neg_integer(), 'announce', string(), recipe_runs()} |
-	{non_neg_integer(), 'add_recipe', tuple(), recipe_runs()}). % no recursive types, so you can't use recipe_runs here.
+	{[recipe_condition(), ...], 'add_skills', [atom(),...], recipe_runs()} |
+	{[recipe_condition(), ...], 'remove_skills', [atom(),...], recipe_runs()} |
+	{[recipe_condition(), ...], 'set_priority', integer(), recipe_runs()} |
+	{[recipe_condition(), ...], 'prioritize', [], recipe_runs()} |
+	{[recipe_condition(), ...], 'deprioritize', [], recipe_runs()} |
+	{[recipe_condition(), ...], 'voicemail', [], recipe_runs()} |
+	{[recipe_condition(), ...], 'announce', string(), recipe_runs()} |
+	{[recipe_condition(), ...], 'add_recipe', tuple(), recipe_runs()}). % no recursive types, so you can't use recipe_step here.
 
 -type(recipe() :: [recipe_step()]).
 

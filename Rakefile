@@ -39,7 +39,11 @@ end.pathmap("%{src,coverage}X.txt").reject{|x| x.include? 'test_coverage'}
 
 # check to see if gmake is available, if not fall back on the system make
 if res = `which gmake` and $?.exitstatus.zero?
-	MAKE = File.basename(res.chomp)
+	if res =~ /^no gmake in/
+		MAKE = 'make'
+	else
+		MAKE = File.basename(res.chomp)
+	end
 else
 	MAKE = 'make'
 end

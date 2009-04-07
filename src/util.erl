@@ -54,7 +54,9 @@
 	group_by/2,
 	group_by_with_key/2,
 	merge_skill_lists/2,
-	subtract_skill_lists/2]).
+	subtract_skill_lists/2,
+	list_index/2,
+	list_index/3]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];

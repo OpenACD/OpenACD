@@ -32,6 +32,6 @@
 .dijitRtl .nihilo .dijitTabContainerRight-tabs .dijitTab {
 	margin-left:0px;
 }
-.dj_ie .nihilo .dijitTab .dijitTabInnerDiv{
+.dj_ie-rtl .nihilo .dijitTab .dijitTabInnerDiv{
 	width : 1%;
 }

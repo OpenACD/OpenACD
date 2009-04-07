@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -16,35 +16,31 @@ dojo.setContext=function(_1,_2){
 dojo.global=_1;
 dojo.doc=_2;
 };
-dojo._fireCallback=function(_3,_4,_5){
-if(_4&&dojo.isString(_3)){
-_3=_4[_3];
-}
-return _3.apply(_4,_5||[]);
-};
-dojo.withGlobal=function(_6,_7,_8,_9){
-var _a;
-var _b=dojo.global;
-var _c=dojo.doc;
+dojo.withGlobal=function(_3,_4,_5,_6){
+var _7=dojo.global;
 try{
-dojo.setContext(_6,_6.document);
-_a=dojo._fireCallback(_7,_8,_9);
+dojo.global=_3;
+return dojo.withDoc.call(null,_3.document,_4,_5,_6);
 }
 finally{
-dojo.setContext(_b,_c);
+dojo.global=_7;
 }
-return _a;
 };
-dojo.withDoc=function(_d,_e,_f,_10){
-var _11;
-var _12=dojo.doc;
+dojo.withDoc=function(_8,_9,_a,_b){
+var _c=dojo.doc,_d=dojo._bodyLtr;
 try{
-dojo.doc=_d;
-_11=dojo._fireCallback(_e,_f,_10);
+dojo.doc=_8;
+delete dojo._bodyLtr;
+if(_a&&dojo.isString(_9)){
+_9=_a[_9];
+}
+return _9.apply(_a,_b||[]);
 }
 finally{
-dojo.doc=_12;
+dojo.doc=_c;
+if(_d!==undefined){
+dojo._bodyLtr=_d;
 }
-return _11;
+}
 };
 }

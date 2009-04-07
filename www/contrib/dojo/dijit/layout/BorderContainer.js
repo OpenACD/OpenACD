@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -42,7 +42,7 @@ this["_"+_2+"Widget"]=_1;
 if((_1.splitter||this.gutters)&&!this._splitters[_2]){
 var _4=dojo.getObject(_1.splitter?this._splitterClass:"dijit.layout._Gutter");
 var _5={left:"right",right:"left",top:"bottom",bottom:"top",leading:"trailing",trailing:"leading"};
-var _6=new _4({container:this,child:_1,region:_2,oppNode:dojo.query("[region="+_5[_1.region]+"]",this.domNode)[0],live:this.liveSplitters});
+var _6=new _4({container:this,child:_1,region:_2,oppNode:this["_"+_5[_1.region]],live:this.liveSplitters});
 _6.isSplitter=true;
 this._splitters[_2]=_6.domNode;
 dojo.place(this._splitters[_2],_1.domNode,"after");
@@ -95,6 +95,9 @@ dojo.style(_13,"padding","0px");
 }
 this.inherited(arguments);
 },_layoutChildren:function(_14){
+if(!this._borderBox||!this._borderBox.h){
+return;
+}
 var _15=(this.design=="sidebar");
 var _16=0,_17=0,_18=0,_19=0;
 var _1a={},_1b={},_1c={},_1d={},_1e=(this._center&&this._center.style)||{};
@@ -168,7 +171,7 @@ _1a.right=_1d.right=pe.r+"px";
 var _30=this._borderBox.h-pe.t-pe.b,_31=_30-(_16+_28+_17+_2b),_32=_15?_30:_31;
 var _33=this._borderBox.w-pe.l-pe.r,_34=_33-(_18+_29+_19+_2a),_35=_15?_34:_33;
 var dim={top:{w:_35,h:_16},bottom:{w:_35,h:_17},left:{w:_18,h:_32},right:{w:_19,h:_32},center:{h:_31,w:_34}};
-var _37=dojo.isIE||dojo.some(this.getChildren(),function(_38){
+var _37=dojo.isIE<8||(dojo.isIE&&dojo.isQuirks)||dojo.some(this.getChildren(),function(_38){
 return _38.domNode.tagName=="TEXTAREA"||_38.domNode.tagName=="INPUT";
 });
 if(_37){
@@ -213,10 +216,10 @@ _3e.resize(null,dim[_3e.region]);
 },this);
 }
 },destroy:function(){
-for(region in this._splitters){
-var _3f=this._splitters[region];
-dijit.byNode(_3f).destroy();
-dojo._destroyElement(_3f);
+for(var _3f in this._splitters){
+var _40=this._splitters[_3f];
+dijit.byNode(_40).destroy();
+dojo.destroy(_40);
 }
 delete this._splitters;
 delete this._splitterThickness;
@@ -236,15 +239,15 @@ this.child.domNode._recalc=true;
 });
 this._cookieName=this.container.id+"_"+this.region;
 if(this.container.persist){
-var _40=dojo.cookie(this._cookieName);
-if(_40){
-this.child.domNode.style[this.horizontal?"height":"width"]=_40;
+var _41=dojo.cookie(this._cookieName);
+if(_41){
+this.child.domNode.style[this.horizontal?"height":"width"]=_41;
 }
 }
 },_computeMaxSize:function(){
-var dim=this.horizontal?"h":"w",_42=this.container._splitterThickness[this.region];
-var _43=dojo.contentBox(this.container.domNode)[dim]-(this.oppNode?dojo.marginBox(this.oppNode)[dim]:0)-20-_42*2;
-this._maxSize=Math.min(this.child.maxSize,_43);
+var dim=this.horizontal?"h":"w",_43=this.container._splitterThickness[this.region];
+var _44=dojo.contentBox(this.container.domNode)[dim]-(this.oppNode?dojo.marginBox(this.oppNode)[dim]:0)-20-_43*2;
+this._maxSize=Math.min(this.child.maxSize,_44);
 },_startDrag:function(e){
 if(this.child.domNode._recalc){
 this._computeMaxSize();
@@ -254,11 +257,10 @@ if(!this.cover){
 this.cover=dojo.doc.createElement("div");
 dojo.addClass(this.cover,"dijitSplitterCover");
 dojo.place(this.cover,this.child.domNode,"after");
-}else{
-this.cover.style.zIndex=1;
 }
+dojo.addClass(this.cover,"dijitSplitterCoverActive");
 if(this.fake){
-dojo._destroyElement(this.fake);
+dojo.destroy(this.fake);
 }
 if(!(this._resize=this.live)){
 (this.fake=this.domNode.cloneNode(true)).removeAttribute("id");
@@ -266,24 +268,24 @@ dojo.addClass(this.domNode,"dijitSplitterShadow");
 dojo.place(this.fake,this.domNode,"after");
 }
 dojo.addClass(this.domNode,"dijitSplitterActive");
-var _45=this._factor,max=this._maxSize,min=this._minSize||20,_48=this.horizontal,_49=_48?"pageY":"pageX",_4a=e[_49],_4b=this.domNode.style,dim=_48?"h":"w",_4d=dojo.marginBox(this.child.domNode)[dim],_4e=this.region,_4f=parseInt(this.domNode.style[_4e],10),_50=this._resize,mb={},_52=this.child.domNode,_53=dojo.hitch(this.container,this.container._layoutChildren),de=dojo.doc.body;
-this._handlers=(this._handlers||[]).concat([dojo.connect(de,"onmousemove",this._drag=function(e,_56){
-var _57=e[_49]-_4a,_58=_45*_57+_4d,_59=Math.max(Math.min(_58,max),min);
-if(_50||_56){
-mb[dim]=_59;
-dojo.marginBox(_52,mb);
-_53(_4e);
+var _46=this._factor,max=this._maxSize,min=this._minSize||20,_49=this.horizontal,_4a=_49?"pageY":"pageX",_4b=e[_4a],_4c=this.domNode.style,dim=_49?"h":"w",_4e=dojo.marginBox(this.child.domNode)[dim],_4f=this.region,_50=parseInt(this.domNode.style[_4f],10),_51=this._resize,mb={},_53=this.child.domNode,_54=dojo.hitch(this.container,this.container._layoutChildren),de=dojo.doc.body;
+this._handlers=(this._handlers||[]).concat([dojo.connect(de,"onmousemove",this._drag=function(e,_57){
+var _58=e[_4a]-_4b,_59=_46*_58+_4e,_5a=Math.max(Math.min(_59,max),min);
+if(_51||_57){
+mb[dim]=_5a;
+dojo.marginBox(_53,mb);
+_54(_4f);
 }
-_4b[_4e]=_45*_57+_4f+(_59-_58)+"px";
-}),dojo.connect(de,"onmouseup",this,"_stopDrag")]);
+_4c[_4f]=_46*_58+_50+(_5a-_59)+"px";
+}),dojo.connect(dojo.doc,"ondragstart",dojo.stopEvent),dojo.connect(dojo.body(),"onselectstart",dojo.stopEvent),dojo.connect(de,"onmouseup",this,"_stopDrag")]);
 dojo.stopEvent(e);
 },_stopDrag:function(e){
 try{
 if(this.cover){
-this.cover.style.zIndex=-1;
+dojo.removeClass(this.cover,"dijitSplitterCoverActive");
 }
 if(this.fake){
-dojo._destroyElement(this.fake);
+dojo.destroy(this.fake);
 }
 dojo.removeClass(this.domNode,"dijitSplitterActive");
 dojo.removeClass(this.domNode,"dijitSplitterShadow");
@@ -309,20 +311,20 @@ this._computeMaxSize();
 this.child.domNode._recalc=false;
 }
 this._resize=true;
-var _5c=this.horizontal;
-var _5d=1;
+var _5d=this.horizontal;
+var _5e=1;
 var dk=dojo.keys;
 switch(e.charOrCode){
-case _5c?dk.UP_ARROW:dk.LEFT_ARROW:
-_5d*=-1;
-case _5c?dk.DOWN_ARROW:dk.RIGHT_ARROW:
+case _5d?dk.UP_ARROW:dk.LEFT_ARROW:
+_5e*=-1;
+case _5d?dk.DOWN_ARROW:dk.RIGHT_ARROW:
 break;
 default:
 return;
 }
-var _5f=dojo.marginBox(this.child.domNode)[_5c?"h":"w"]+this._factor*_5d;
+var _60=dojo.marginBox(this.child.domNode)[_5d?"h":"w"]+this._factor*_5e;
 var mb={};
-mb[this.horizontal?"h":"w"]=Math.max(Math.min(_5f,this._maxSize),this._minSize);
+mb[this.horizontal?"h":"w"]=Math.max(Math.min(_60,this._maxSize),this._minSize);
 dojo.marginBox(this.child.domNode,mb);
 if(this.oppNode){
 this.oppNode._recalc=true;
@@ -333,6 +335,7 @@ dojo.stopEvent(e);
 this._cleanupHandlers();
 delete this.child;
 delete this.container;
+delete this.cover;
 delete this.fake;
 this.inherited(arguments);
 }});

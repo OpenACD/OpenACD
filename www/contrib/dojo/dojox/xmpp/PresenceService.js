@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -88,42 +88,42 @@ var _a=new dojox.string.Builder(dojox.xmpp.util.createElement("iq",_9,false));
 _a.append(dojox.xmpp.util.createElement("query",{xmlns:"jabber:iq:privacy"},false));
 _a.append(dojox.xmpp.util.createElement("list",{name:"iwcRestrictedContacts"},false));
 var _b=1;
-for(jid in this.restrictedContactjids){
-var _c=this.restrictedContactjids[jid];
-if(_c.blocked||_c.invisible){
-_a.append(dojox.xmpp.util.createElement("item",{value:dojox.xmpp.util.encodeJid(jid),action:"deny",order:_b++},false));
-if(_c.blocked){
+for(var _c in this.restrictedContactjids){
+var _d=this.restrictedContactjids[_c];
+if(_d.blocked||_d.invisible){
+_a.append(dojox.xmpp.util.createElement("item",{value:dojox.xmpp.util.encodeJid(_c),action:"deny",order:_b++},false));
+if(_d.blocked){
 _a.append(dojox.xmpp.util.createElement("message",{},true));
 }
-if(_c.invisible){
+if(_d.invisible){
 _a.append(dojox.xmpp.util.createElement("presence-out",{},true));
 }
 _a.append("</item>");
 }else{
-delete this.restrictedContactjids[jid];
+delete this.restrictedContactjids[_c];
 }
 }
 _a.append("</list>");
 _a.append("</query>");
 _a.append("</iq>");
-var _d=new dojox.string.Builder(dojox.xmpp.util.createElement("iq",_9,false));
-_d.append(dojox.xmpp.util.createElement("query",{xmlns:"jabber:iq:privacy"},false));
-_d.append(dojox.xmpp.util.createElement("active",{name:"iwcRestrictedContacts"},true));
-_d.append("</query>");
-_d.append("</iq>");
+var _e=new dojox.string.Builder(dojox.xmpp.util.createElement("iq",_9,false));
+_e.append(dojox.xmpp.util.createElement("query",{xmlns:"jabber:iq:privacy"},false));
+_e.append(dojox.xmpp.util.createElement("active",{name:"iwcRestrictedContacts"},true));
+_e.append("</query>");
+_e.append("</iq>");
 this.session.dispatchPacket(_a.toString());
-this.session.dispatchPacket(_d.toString());
+this.session.dispatchPacket(_e.toString());
 },_setVisible:function(){
-var _e={id:this.session.getNextIqId(),from:this.session.jid+"/"+this.session.resource,type:"set"};
-var _f=new dojox.string.Builder(dojox.xmpp.util.createElement("iq",_e,false));
-_f.append(dojox.xmpp.util.createElement("query",{xmlns:"jabber:iq:privacy"},false));
-_f.append(dojox.xmpp.util.createElement("active",{},true));
-_f.append("</query>");
-_f.append("</iq>");
-this.session.dispatchPacket(_f.toString());
+var _f={id:this.session.getNextIqId(),from:this.session.jid+"/"+this.session.resource,type:"set"};
+var req=new dojox.string.Builder(dojox.xmpp.util.createElement("iq",_f,false));
+req.append(dojox.xmpp.util.createElement("query",{xmlns:"jabber:iq:privacy"},false));
+req.append(dojox.xmpp.util.createElement("active",{},true));
+req.append("</query>");
+req.append("</iq>");
+this.session.dispatchPacket(req.toString());
 },_setInvisible:function(){
-var _10={id:this.session.getNextIqId(),from:this.session.jid+"/"+this.session.resource,type:"set"};
-var req=new dojox.string.Builder(dojox.xmpp.util.createElement("iq",_10,false));
+var _11={id:this.session.getNextIqId(),from:this.session.jid+"/"+this.session.resource,type:"set"};
+var req=new dojox.string.Builder(dojox.xmpp.util.createElement("iq",_11,false));
 req.append(dojox.xmpp.util.createElement("query",{xmlns:"jabber:iq:privacy"},false));
 req.append(dojox.xmpp.util.createElement("list",{name:"invisible"},false));
 req.append(dojox.xmpp.util.createElement("item",{action:"deny",order:"1"},false));
@@ -132,32 +132,32 @@ req.append("</item>");
 req.append("</list>");
 req.append("</query>");
 req.append("</iq>");
-_10={id:this.session.getNextIqId(),from:this.session.jid+"/"+this.session.resource,type:"set"};
-var _12=new dojox.string.Builder(dojox.xmpp.util.createElement("iq",_10,false));
-_12.append(dojox.xmpp.util.createElement("query",{xmlns:"jabber:iq:privacy"},false));
-_12.append(dojox.xmpp.util.createElement("active",{name:"invisible"},true));
-_12.append("</query>");
-_12.append("</iq>");
+_11={id:this.session.getNextIqId(),from:this.session.jid+"/"+this.session.resource,type:"set"};
+var _13=new dojox.string.Builder(dojox.xmpp.util.createElement("iq",_11,false));
+_13.append(dojox.xmpp.util.createElement("query",{xmlns:"jabber:iq:privacy"},false));
+_13.append(dojox.xmpp.util.createElement("active",{name:"invisible"},true));
+_13.append("</query>");
+_13.append("</iq>");
 this.session.dispatchPacket(req.toString());
-this.session.dispatchPacket(_12.toString());
-},_manageSubscriptions:function(_13,_14){
-if(!_13){
+this.session.dispatchPacket(_13.toString());
+},_manageSubscriptions:function(_14,_15){
+if(!_14){
 return;
 }
-if(_13.indexOf("@")==-1){
-_13+="@"+this.session.domain;
+if(_14.indexOf("@")==-1){
+_14+="@"+this.session.domain;
 }
-var req=dojox.xmpp.util.createElement("presence",{to:_13,type:_14},true);
+var req=dojox.xmpp.util.createElement("presence",{to:_14,type:_15},true);
 this.session.dispatchPacket(req);
-},subscribe:function(_16){
-this._manageSubscriptions(_16,"subscribe");
-},approveSubscription:function(_17){
-this._manageSubscriptions(_17,"subscribed");
-},unsubscribe:function(_18){
-this._manageSubscriptions(_18,"unsubscribe");
-},declineSubscription:function(_19){
-this._manageSubscriptions(_19,"unsubscribed");
-},cancelSubscription:function(_1a){
+},subscribe:function(_17){
+this._manageSubscriptions(_17,"subscribe");
+},approveSubscription:function(_18){
+this._manageSubscriptions(_18,"subscribed");
+},unsubscribe:function(_19){
+this._manageSubscriptions(_19,"unsubscribe");
+},declineSubscription:function(_1a){
 this._manageSubscriptions(_1a,"unsubscribed");
+},cancelSubscription:function(_1b){
+this._manageSubscriptions(_1b,"unsubscribed");
 }});
 }

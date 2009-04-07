@@ -36,40 +36,44 @@
 	border:1px solid #ccc;
 	background:#fff;
 }
-.tundra .dijitTab .dijitClosable .closeNode {
-	
-	display:-moz-inline-box;		
-	display:inline-block;			
-	#zoom: 1; 
-	#display:inline; 
-	vertical-align:top;
-	width: 1em;
-	height: 1em;
-	padding: 0;
-	margin: 0;
-}
 .tundra .dijitTab .dijitClosable .closeImage {
 	background: url("../images/tabClose.png") no-repeat right top;
 	width: 12px;
 	height: 12px;
 }
 .tundra .dijitTab .dijitTabButtonSpacer {
+	
 	height: 12px;
 	width: 1px;
 }
-.dj_ie6 .dijitTab .dijitClosable .closeImage {
-	background-image:url("../images/tabClose.gif");
+.tundra .dijitTabContainerTabListNested .dijitTab {
+	background: none;
+	border: none;
+	top: 0px;		 
 }
-.tundra .dijitTabCloseButton .dijitClosable .closeImage {
+.tundra .dijitTabContainerTabListNested .dijitTab .dijitTabContent {
+}
+.tundra .dijitTabContainerTabListNested .dijitTabHover .dijitTabContent .tabLabel {
+	text-decoration: underline;
+}
+.tundra .dijitTabContainerTabListNested .dijitTabChecked .dijitTabContent .tabLabel {
+	text-decoration: underline;
+	font-weight: bold;
+	
+}
+.tundra .dijitTabContainer .dijitTabPaneWrapperNested {
+	border: none;	
+}
+.tundra .dijitTab .closeImage {
 	background-image : url("../images/tabClose.png");
 }
-.dj_ie6 .tundra .dijitTabCloseButton .dijitClosable .closeImage {
+.dj_ie6 .tundra .dijitTab .closeImage {
 	background-image : url("../images/tabClose.gif");
 }
-.tundra .dijitTabCloseButtonHover .dijitClosable .closeImage {
+.tundra .dijitTab .closeButton-hover .closeImage {
 	background-image : url("../images/tabCloseHover.png");
 }
-.dj_ie6 .tundra .dijitTabCloseButtonHover .dijitClosable .closeImage {
+.dj_ie6 .tundra .dijitTab .closeButton-hover .closeImage {
 	background-image : url("../images/tabCloseHover.gif");
 }
 .tundra .dijitTabContainerTop-tabs {

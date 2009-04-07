@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -21,7 +21,6 @@ this.radius=8;
 this.textPosition={x:196,y:196};
 this.textOffset=4;
 this.textAlign="end";
-this.property("label",this.id);
 this.rectShape=null;
 this.labelShape=null;
 this.anchors.start=new ta.Anchor(this,"start");
@@ -74,22 +73,32 @@ this.end.y=parseFloat(c.getAttribute("height"),10)+parseFloat(c.getAttribute("y"
 if(c.getAttribute("r")!==null){
 this.radius=parseFloat(c.getAttribute("r"),10);
 }
+var _c=this.property("stroke");
+var _d=c.getAttribute("style");
+var m=_d.match(/stroke:([^;]+);/);
+if(m){
+_c.color=m[1];
+this.property("fill",m[1]);
+}
+m=_d.match(/stroke-width:([^;]+);/);
+if(m){
+_c.width=m[1];
+}
+this.property("stroke",_c);
 }
 }
 }
 };
-p.initialize=function(_c){
-var _d=(ta.Annotation.labelFont)?ta.Annotation.labelFont:{family:"Times",size:"16px"};
-this.apply(_c);
+p.initialize=function(_f){
+this.apply(_f);
 this._pos();
 this.shape=this.figure.group.createGroup();
 this.shape.getEventSource().setAttribute("id",this.id);
-if(this.transform.dx||this.transform.dy){
-this.shape.setTransform(this.transform);
-}
-this.rectShape=this.shape.createRect({x:this.start.x,y:this.start.y,width:this.end.x-this.start.x,height:this.end.y-this.start.y,r:this.radius}).setStroke({color:this.property("fill"),width:1}).setFill([255,255,255,0.1]);
+this.rectShape=this.shape.createRect({x:this.start.x,y:this.start.y,width:this.end.x-this.start.x,height:this.end.y-this.start.y,r:this.radius}).setFill([255,255,255,0.1]);
 this.rectShape.getEventSource().setAttribute("shape-rendering","crispEdges");
-this.labelShape=this.shape.createText({x:this.textPosition.x,y:this.textPosition.y,text:this.property("label"),align:this.textAlign}).setFont(_d).setFill(this.property("fill"));
+this.labelShape=this.shape.createText({x:this.textPosition.x,y:this.textPosition.y,text:this.property("label"),align:this.textAlign}).setFill(this.property("fill"));
+this.labelShape.getEventSource().setAttribute("id",this.id+"-labelShape");
+this.draw();
 };
 p.destroy=function(){
 if(!this.shape){
@@ -111,12 +120,21 @@ p.draw=function(obj){
 this.apply(obj);
 this._pos();
 this.shape.setTransform(this.transform);
-this.rectShape.setShape({x:this.start.x,y:this.start.y,width:this.end.x-this.start.x,height:this.end.y-this.start.y,r:this.radius}).setStroke({color:this.property("fill"),width:1}).setFill([255,255,255,0.1]);
+this.rectShape.setShape({x:this.start.x,y:this.start.y,width:this.end.x-this.start.x,height:this.end.y-this.start.y,r:this.radius}).setFill([255,255,255,0.1]);
 this.labelShape.setShape({x:this.textPosition.x,y:this.textPosition.y,text:this.property("label")}).setFill(this.property("fill"));
+this.zoom();
+};
+p.zoom=function(pct){
+if(this.rectShape){
+pct=pct||this.figure.zoomFactor;
+ta.Annotation.prototype.zoom.call(this,pct);
+pct=dojox.gfx.renderer=="vml"?1:pct;
+this.rectShape.setStroke({color:this.property("fill"),width:1/pct});
+}
 };
 p.serialize=function(){
 var s=this.property("stroke");
-return "<g "+this.writeCommonAttrs()+">"+"<rect style=\"stroke:"+s.color+";stroke-weight:1;fill:none;\" "+"x=\""+this.start.x+"\" "+"width=\""+(this.end.x-this.start.x)+"\" "+"y=\""+this.start.y+"\" "+"height=\""+(this.end.y-this.start.y)+"\" "+"rx=\""+this.radius+"\" "+"ry=\""+this.radius+"\" "+" />"+"<text style=\"fill:"+s.color+";text-anchor:"+this.textAlign+"\" font-weight=\"bold\" "+"x=\""+this.textPosition.x+"\" "+"y=\""+this.textPosition.y+"\">"+this.property("label")+"</text>"+"</g>";
+return "<g "+this.writeCommonAttrs()+">"+"<rect style=\"stroke:"+s.color+";stroke-width:1;fill:none;\" "+"x=\""+this.start.x+"\" "+"width=\""+(this.end.x-this.start.x)+"\" "+"y=\""+this.start.y+"\" "+"height=\""+(this.end.y-this.start.y)+"\" "+"rx=\""+this.radius+"\" "+"ry=\""+this.radius+"\" "+" />"+"<text style=\"fill:"+s.color+";text-anchor:"+this.textAlign+"\" font-weight=\"bold\" "+"x=\""+this.textPosition.x+"\" "+"y=\""+this.textPosition.y+"\">"+this.property("label")+"</text>"+"</g>";
 };
 ta.Annotation.register("Preexisting");
 })();

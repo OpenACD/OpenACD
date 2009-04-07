@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -8,6 +8,7 @@
 if(!dojo._hasResource["dojox.validate.check"]){
 dojo._hasResource["dojox.validate.check"]=true;
 dojo.provide("dojox.validate.check");
+dojo.experimental;
 dojo.require("dojox.validate._base");
 dojox.validate.check=function(_1,_2){
 var _3=[];

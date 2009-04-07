@@ -20,10 +20,6 @@
 .dijitRtl .dijitProgressBarFull .dijitProgressBarLabel {
 	right:0; 
 }
-.dijitRtl .dijitA11ySideArrow {
-	margin-left:1em;
-	margin-right:0;
-}
 .dijitRtl .dijitSliderImageHandleV {
 	left:auto;
 	right:-6px;

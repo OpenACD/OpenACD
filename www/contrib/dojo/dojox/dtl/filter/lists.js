@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -22,7 +22,7 @@ var i,_6,_7=[];
 if(!dojo.isArray(_3)){
 var _8=_3,_3=[];
 for(var _9 in _8){
-_3.push(_8[k]);
+_3.push(_8[_9]);
 }
 }
 for(i=0;i<_3.length;i++){

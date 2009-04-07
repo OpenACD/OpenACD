@@ -1,15 +1,21 @@
 
-.nihilo .dijitMenu {
+.nihilo .dijitMenu,
+.nihilo .dijitMenuBar {
 	border: 1px solid #d3d3d3;
 	margin: 0px;
 	padding: 0px;
 	background-color: #fff;
 }
+.nihilo .dijitBorderContainer .dijitMenuBar {
+	border: 1px #ccc solid;
+}
 .nihilo .dijitMenuItem {
-	background-color: #fff;
 	font-family: sans-serif;
 	margin: 0px;
 	color: #243C5F;
+}
+.nihilo .dijitMenuBar .dijitMenuItem {
+	padding: 4px 5px;
 }
 .nihilo .dijitMenuPreviousButton, .nihilo .dijitMenuNextButton {
 	font-style: italic;
@@ -17,29 +23,25 @@
 .nihilo .dijitMenuItem TD {
 	padding:1px;
 }
-.nihilo .dijitMenuItemHover {
+.nihilo .dijitMenuPassive .dijitMenuItemHover,
+.nihilo .dijitMenuItemSelected {
 	background-color: #ffe284; 
 	color: #243C5F;
 }
 .nihilo .dijitMenuItemIcon {
 	width: 15px;
 	height: 15px;
-	
 }
 .nihilo .dijitMenuExpand {
-	
 	width:15px;
 	height:15px;
 	background-image: url('images/spriteRoundedIconsSmall.png');
-	background-repeat: no-repeat;
 	background-position: -30px top;
-	display:block;
 }
 .dj_ie6 .nihilo .dijitMenuExpand {
 	background-image:url('images/spriteRoundedIconsSmall.gif');
 }
 .nihilo .dijitMenuSeparator {
-	background-color: #fff;
 	height: 1px;
 }
 .nihilo .dijitMenuSeparatorTop {
@@ -53,14 +55,8 @@
 }
 .nihilo .dijitCheckedMenuItemIcon {
 	background-image: url('images/spriteCheckbox.gif');
-	background-position: -16px;
-}
-.nihilo .dijitCheckedMenuItemIconChecked {
-	background-position: 0px;
-}
-.nihilo .dijitMenuItemHover .dijitCheckedMenuItemIcon {
 	background-position: -80px;
 }
-.nihilo .dijitMenuItemHover .dijitCheckedMenuItemIconChecked {
+.nihilo .dijitCheckedMenuItemChecked .dijitCheckedMenuItemIcon {
 	background-position: -64px;
 }

@@ -45,14 +45,18 @@
 .tundra .dijitToggleButtonHover .dijitButtonNode,
 .tundra .dijitDropDownButtonHover .dijitButtonNode,
 .tundra .dijitComboButtonHover .dijitButtonContents,
-.tundra .dijitComboButtonDownArrowHover .dijitDownArrowButton,
-.tundra .dijitComboBoxHover .dijitDownArrowButton,
-.tundra .dijitSpinnerUpArrowHover .dijitUpArrowButton,
-.tundra .dijitSpinnerDownArrowHover .dijitDownArrowButton {
+.tundra .dijitComboButtonDownArrowHover .dijitDownArrowButton {
 	
 	
 	border-color:		#a5beda; 
 	border-bottom-color:#5c7590; 
+	color:#243C5F;
+	background:#fcfdff url("../images/buttonHover.png") repeat-x bottom;
+}
+.tundra .dijitComboBoxHover .dijitDownArrowButton,
+.tundra .dijitSpinnerUpArrowHover .dijitUpArrowButton,
+.tundra .dijitSpinnerDownArrowHover .dijitDownArrowButton {
+	
 	color:#243C5F;
 	background:#fcfdff url("../images/buttonHover.png") repeat-x bottom;
 }
@@ -63,7 +67,8 @@
 .tundra .dijitDropDownButtonActive .dijitButtonNode,
 .tundra .dijitComboButtonActive .dijitButtonContents,
 .tundra .dijitDownArrowActive .dijitDownArrowButton,
-.tundra .dijitComboBoxActive .dijitDownArrowButton {
+.tundra .dijitComboBoxActive .dijitDownArrowButton,
+.tundra .dijitStackController .dijitToggleButtonChecked .dijitButtonNode {
 	
 	border-color:#366dba;
 	background: #ededed url("../images/buttonActive.png") bottom repeat-x;

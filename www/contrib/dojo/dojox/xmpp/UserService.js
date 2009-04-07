@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -45,23 +45,23 @@ this.onSetPersonalProfileFailure(_b);
 },onSetPersonalProfileFailure:function(_d){
 },_onGetPersonalProfile:function(_e){
 if(_e.getAttribute("type")=="result"){
-props={};
+var _f={};
 if(_e.hasChildNodes()){
-var _f=_e.firstChild;
-if((_f.nodeName=="query")&&(_f.getAttribute("xmlns")=="jabber:iq:private")){
-var _10=_f.firstChild;
-if((_10.nodeName=="query")&&(_10.getAttributes("xmlns")=="sun:xmpp:properties")){
-for(var i=0;i<_10.childNodes.length;i++){
-var n=_10.childNodes[i];
+var _10=_e.firstChild;
+if((_10.nodeName=="query")&&(_10.getAttribute("xmlns")=="jabber:iq:private")){
+var _11=_10.firstChild;
+if((_11.nodeName=="query")&&(_11.getAttributes("xmlns")=="sun:xmpp:properties")){
+for(var i=0;i<_11.childNodes.length;i++){
+var n=_11.childNodes[i];
 if(n.nodeName=="property"){
-var _13=n.getAttribute("name");
+var _14=n.getAttribute("name");
 var val=n.firstChild||"";
-props[_13]=val;
+_f[_14]=val;
 }
 }
 }
 }
-this.onGetPersonalProfile(props);
+this.onGetPersonalProfile(_f);
 }
 }else{
 if(_e.getAttribute("type")=="error"){
@@ -70,7 +70,7 @@ this.onGetPersonalProfileFailure(err);
 }
 }
 return _e;
-},onGetPersonalProfile:function(_16){
+},onGetPersonalProfile:function(_17){
 },onGetPersonalProfileFailure:function(err){
 }});
 }

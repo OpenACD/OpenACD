@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -67,21 +67,21 @@ var sh=this.opt.shadows,_11=new dojo.Color([0,0,0,0.2]),_10=dojo.clone(_e?_e:_d)
 _10.color=_11;
 _10.width+=sh.dw?sh.dw:0;
 run.dyn.shadow=_10;
-shadowMarkers=dojo.map(_17,function(_1e){
+var _1e=dojo.map(_17,function(_1f){
 var sh=this.opt.shadows;
-return s.createCircle({cx:_1e.x+sh.dx,cy:_1e.y+sh.dy,r:_1e.radius}).setStroke(_10).setFill(_11);
+return s.createCircle({cx:_1f.x+sh.dx,cy:_1f.y+sh.dy,r:_1f.radius}).setStroke(_10).setFill(_11);
 },this);
 }
 if(run.outline||t.series.outline){
 _e=dc.makeStroke(run.outline?run.outline:t.series.outline);
 _e.width=2*_e.width+_d.width;
 run.dyn.outline=_e;
-_1b=dojo.map(_17,function(_20){
-s.createCircle({cx:_20.x,cy:_20.y,r:_20.radius}).setStroke(_e);
+_1b=dojo.map(_17,function(_21){
+s.createCircle({cx:_21.x,cy:_21.y,r:_21.radius}).setStroke(_e);
 },this);
 }
-_1a=dojo.map(_17,function(_21){
-return s.createCircle({cx:_21.x,cy:_21.y,r:_21.radius}).setStroke(_d).setFill(_f);
+_1a=dojo.map(_17,function(_22){
+return s.createCircle({cx:_22.x,cy:_22.y,r:_22.radius}).setStroke(_d).setFill(_f);
 },this);
 if(_14){
 dojo.forEach(_1a,function(s,i){

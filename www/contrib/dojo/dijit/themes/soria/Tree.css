@@ -3,8 +3,13 @@
     background : url('images/treeI.gif') no-repeat;
     background-position : top left;
     background-repeat : repeat-y;
-    margin-left: 19px;
     zoom: 1;	
+}
+.soria .dijitTreeNodeHover {
+	
+	background-image: url(images/treeHover.png);
+	background-repeat: repeat;
+	background-color: none !important;
 }
 .soria .dijitTreeIsLast {
     background: url('images/treeI_half.gif') no-repeat;
@@ -20,6 +25,10 @@
 .soria .dijitTreeExpando {
     width: 18px;
     height: 18px;
+}
+.soria .dijitTreeRow {
+	
+	padding-bottom: 2px;
 }
 .soria .dijitTreeContent {
     min-height: 18px;
@@ -37,7 +46,9 @@
 }
 .soria .dijitTreeLabelFocused {
 	outline: 1px invert dotted;
-	background:#dde7f2;
+}
+.soria .dijitTreeNodeSelected .dijitTreeLabel{
+	background:#b8cbec;
 }
 .soria .dijitTreeExpandoOpened {
 	background: url('images/spriteTree.gif') no-repeat -18px top;
@@ -63,4 +74,17 @@
 }
 .soria .dijitLeaf {
 	background: url('images/spriteDivIcons.gif') no-repeat -32px top;
+}
+.soria .dijitTreeNode .dojoDndItemBefore,
+.soria .dijitTreeNode .dojoDndItemAfter {
+	border-bottom: none;
+	border-top: none;
+}
+.soria .dijitTreeNode .dojoDndItemBefore .dijitTreeContent {
+	
+	border-top: 2px solid #369;
+}
+.soria .dijitTreeNode .dojoDndItemAfter .dijitTreeContent {
+	
+	border-bottom: 2px solid #369;
 }

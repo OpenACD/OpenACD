@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -41,12 +41,9 @@ p.getType=function(){
 return ta.SingleArrowAnnotation;
 };
 p._rot=function(){
-var _5=this.start.y-this.control.y;
-var _6=this.start.x-this.control.x;
-if(!_6){
-_6=1;
-}
-this.rotation=Math.atan(_5/_6);
+var _5=this.control.y-this.start.y;
+var _6=this.control.x-this.start.x;
+this.rotation=Math.atan2(_5,_6);
 };
 p._pos=function(){
 var _7=this.textOffset,x=0,y=0;
@@ -103,29 +100,37 @@ this.control.y=parseFloat(s[1],10);
 s=d[2].split(",");
 this.end.x=parseFloat(s[0],10);
 this.end.y=parseFloat(s[1],10);
+var _10=this.property("stroke");
+var _11=c.getAttribute("style");
+var m=_11.match(/stroke:([^;]+);/);
+if(m){
+_10.color=m[1];
+this.property("fill",m[1]);
+}
+m=_11.match(/stroke-width:([^;]+);/);
+if(m){
+_10.width=m[1];
+}
+this.property("stroke",_10);
 }
 }
 }
 };
 p.initialize=function(obj){
-var _11=(ta.Annotation.labelFont)?ta.Annotation.labelFont:{family:"Times",size:"16px"};
+var _14=(ta.Annotation.labelFont)?ta.Annotation.labelFont:{family:"Times",size:"16px"};
 this.apply(obj);
 this._rot();
 this._pos();
 var rot=this.rotation;
-if(this.control.x>=this.end.x&&this.control.x<this.start.x){
-rot+=Math.PI;
-}
-var _13=dojox.gfx.matrix.rotate(rot);
+var _16=dojox.gfx.matrix.rotate(rot);
 this.shape=this.figure.group.createGroup();
 this.shape.getEventSource().setAttribute("id",this.id);
-if(this.transform.dx||this.transform.dy){
-this.shape.setTransform(this.transform);
-}
-this.pathShape=this.shape.createPath("M"+this.start.x+","+this.start.y+" Q"+this.control.x+","+this.control.y+" "+this.end.x+","+this.end.y+" l0,0").setStroke(this.property("stroke"));
-this.arrowheadGroup=this.shape.createGroup().setTransform({dx:this.start.x,dy:this.start.y}).applyTransform(_13);
-this.arrowhead=this.arrowheadGroup.createPath("M0,0 l20,-5 -3,5 3,5 Z").setFill(this.property("fill"));
-this.labelShape=this.shape.createText({x:this.textPosition.x,y:this.textPosition.y,text:this.property("label"),align:this.textAlign}).setFont(_11).setFill(this.property("fill"));
+this.pathShape=this.shape.createPath("M"+this.start.x+","+this.start.y+" Q"+this.control.x+","+this.control.y+" "+this.end.x+","+this.end.y+" l0,0");
+this.arrowheadGroup=this.shape.createGroup();
+this.arrowhead=this.arrowheadGroup.createPath();
+this.labelShape=this.shape.createText({x:this.textPosition.x,y:this.textPosition.y,text:this.property("label"),align:this.textAlign});
+this.labelShape.getEventSource().setAttribute("id",this.id+"-labelShape");
+this.draw();
 };
 p.destroy=function(){
 if(!this.shape){
@@ -143,15 +148,24 @@ this.apply(obj);
 this._rot();
 this._pos();
 var rot=this.rotation;
-if(this.control.x<this.start.x){
-rot+=Math.PI;
-}
-var _16=dojox.gfx.matrix.rotate(rot);
+var _19=dojox.gfx.matrix.rotate(rot);
 this.shape.setTransform(this.transform);
-this.pathShape.setShape("M"+this.start.x+","+this.start.y+" Q"+this.control.x+","+this.control.y+" "+this.end.x+","+this.end.y+" l0,0").setStroke(this.property("stroke"));
-this.arrowheadGroup.setTransform({dx:this.start.x,dy:this.start.y}).applyTransform(_16);
+this.pathShape.setShape("M"+this.start.x+","+this.start.y+" Q"+this.control.x+","+this.control.y+" "+this.end.x+","+this.end.y+" l0,0");
+this.arrowheadGroup.setTransform({dx:this.start.x,dy:this.start.y}).applyTransform(_19);
 this.arrowhead.setFill(this.property("fill"));
 this.labelShape.setShape({x:this.textPosition.x,y:this.textPosition.y,text:this.property("label"),align:this.textAlign}).setFill(this.property("fill"));
+this.zoom();
+};
+p.zoom=function(pct){
+if(this.arrowhead){
+pct=pct||this.figure.zoomFactor;
+ta.Annotation.prototype.zoom.call(this,pct);
+if(this._curPct!==pct){
+this._curPct=pct;
+var l=pct>1?20:Math.floor(20/pct),w=pct>1?5:Math.floor(5/pct),h=pct>1?3:Math.floor(3/pct);
+this.arrowhead.setShape("M0,0 l"+l+",-"+w+" -"+h+","+w+" "+h+","+w+" Z");
+}
+}
 };
 p.getBBox=function(){
 var x=Math.min(this.start.x,this.control.x,this.end.x);
@@ -163,9 +177,6 @@ return {x:x,y:y,width:w,height:h};
 p.serialize=function(){
 var s=this.property("stroke");
 var r=this.rotation*(180/Math.PI);
-if(this.start.x>this.end.x){
-r-=180;
-}
 r=Math.round(r*Math.pow(10,4))/Math.pow(10,4);
 return "<g "+this.writeCommonAttrs()+">"+"<path style=\"stroke:"+s.color+";stroke-width:"+s.width+";fill:none;\" d=\""+"M"+this.start.x+","+this.start.y+" "+"Q"+this.control.x+","+this.control.y+" "+this.end.x+","+this.end.y+"\" />"+"<g transform=\"translate("+this.start.x+","+this.start.y+") "+"rotate("+r+")\">"+"<path style=\"fill:"+s.color+";\" d=\"M0,0 l20,-5, -3,5, 3,5 Z\" />"+"</g>"+"<text style=\"fill:"+s.color+";text-anchor:"+this.textAlign+"\" font-weight=\"bold\" "+"x=\""+this.textPosition.x+"\" "+"y=\""+this.textPosition.y+"\">"+this.property("label")+"</text>"+"</g>";
 };

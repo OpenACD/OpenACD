@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -45,8 +45,7 @@ df.forEachRev(this.series,function(_e){
 _e.cleanGroup(s);
 });
 }
-var t=this.chart.theme,_10,_11,_12,f,gap,_15,ht=this._hScaler.scaler.getTransformerFromModel(this._hScaler),vt=this._vScaler.scaler.getTransformerFromModel(this._vScaler);
-events=this.events();
+var t=this.chart.theme,_10,_11,_12,f,gap,_15,ht=this._hScaler.scaler.getTransformerFromModel(this._hScaler),vt=this._vScaler.scaler.getTransformerFromModel(this._vScaler),_18=this.events();
 f=dc.calculateBarSize(this._hScaler.bounds.scale,this.opt);
 gap=f.gap;
 _15=f.size;
@@ -64,14 +63,14 @@ _10=_a.dyn.color=new dojo.Color(t.next("color"));
 _11=_a.stroke?_a.stroke:dc.augmentStroke(t.series.stroke,_10);
 _12=_a.fill?_a.fill:dc.augmentFill(t.series.fill,_10);
 for(var j=0;j<_8.length;++j){
-var v=_8[j],_18=vt(v);
-if(_15>=1&&_18>=1){
-var _19=s.createRect({x:_7.l+ht(j+0.5)+gap,y:_6.height-_7.b-vt(v),width:_15,height:_18}).setFill(_12).setStroke(_11);
-_a.dyn.fill=_19.getFill();
-_a.dyn.stroke=_19.getStroke();
-if(events){
-var o={element:"column",index:j,run:_a,plot:this,hAxis:this.hAxis||null,vAxis:this.vAxis||null,shape:_19,x:j+0.5,y:v};
-this._connectEvents(_19,o);
+var v=_8[j],_19=vt(v);
+if(_15>=1&&_19>=1){
+var _1a=s.createRect({x:_7.l+ht(j+0.5)+gap,y:_6.height-_7.b-vt(v),width:_15,height:_19}).setFill(_12).setStroke(_11);
+_a.dyn.fill=_1a.getFill();
+_a.dyn.stroke=_1a.getStroke();
+if(_18){
+var o={element:"column",index:j,run:_a,plot:this,hAxis:this.hAxis||null,vAxis:this.vAxis||null,shape:_1a,x:j+0.5,y:v};
+this._connectEvents(_1a,o);
 }
 }
 }

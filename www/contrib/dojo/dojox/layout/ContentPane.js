@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -60,17 +60,17 @@ dijit.layout.ContentPane.prototype._onError.apply(this,arguments);
 if(this.onLoadDeferred){
 this.onLoadDeferred.errback(_b);
 }
-},_prepareLoad:function(_c){
-var _d=this._setUpDeferreds();
-dijit.layout.ContentPane.prototype._prepareLoad.apply(this,arguments);
-return _d;
-},_setContent:function(_e){
-var _f=this._contentSetter;
-if(!(_f&&_f instanceof dojox.html._ContentSetter)){
-_f=this._contentSetter=new dojox.html._ContentSetter({node:this.containerNode,_onError:dojo.hitch(this,this._onError),onContentError:dojo.hitch(this,function(e){
-var _11=this.onContentError(e);
+},refresh:function(){
+var _c=this._setUpDeferreds();
+this.inherited(arguments);
+return _c;
+},_setContent:function(_d){
+var _e=this._contentSetter;
+if(!(_e&&_e instanceof dojox.html._ContentSetter)){
+_e=this._contentSetter=new dojox.html._ContentSetter({node:this.containerNode,_onError:dojo.hitch(this,this._onError),onContentError:dojo.hitch(this,function(e){
+var _10=this.onContentError(e);
 try{
-this.containerNode.innerHTML=_11;
+this.containerNode.innerHTML=_10;
 }
 catch(e){
 console.error("Fatal "+this.id+" could not change content due to "+e.message,e);

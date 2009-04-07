@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -58,7 +58,7 @@ var s=dojo.getComputedStyle(n);
 if(s.overflow.toLowerCase() in dojo.dnd._validOverflow){
 var b=dojo._getContentBox(n,s),t=dojo._abs(n,true);
 var w=Math.min(dojo.dnd.H_TRIGGER_AUTOSCROLL,b.w/2),h=Math.min(dojo.dnd.V_TRIGGER_AUTOSCROLL,b.h/2),rx=e.pageX-t.x,ry=e.pageY-t.y,dx=0,dy=0;
-if(dojo.isSafari||dojo.isOpera){
+if(dojo.isWebKit||dojo.isOpera){
 rx+=dojo.body().scrollLeft,ry+=dojo.body().scrollTop;
 }
 if(rx>0&&rx<b.w){

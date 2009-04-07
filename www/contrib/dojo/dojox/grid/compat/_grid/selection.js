@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -144,7 +144,7 @@ this.addToSelection(_20);
 }
 this.endUpdate();
 },clickSelectEvent:function(e){
-this.clickSelect(e.rowIndex,e.ctrlKey,e.shiftKey);
+this.clickSelect(e.rowIndex,dojo.dnd.getCopyKeyState(e),e.shiftKey);
 },clear:function(){
 this.beginUpdate();
 this.unselectAll();

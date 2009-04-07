@@ -22,11 +22,11 @@
 	
 	background-position: 0px;
 }
-.soria .dijitRadioCheckedDisabled {
+.soria .dijitRadioDisabled {
 	
 	background-position: -48px;
 }
-.soria .dijitRadioDisabled {
+.soria .dijitRadioCheckedDisabled {
 	
 	background-position: -32px;
 }

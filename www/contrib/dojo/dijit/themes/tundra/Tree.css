@@ -1,9 +1,7 @@
 
 .tundra .dijitTreeNode {
     background-image : url('images/i.gif');
-    background-position : top left;
     background-repeat : repeat-y;
-    margin-left: 19px;
     zoom: 1;	
 }
 .tundra .dijitTreeIsLast {
@@ -16,6 +14,10 @@
 .tundra .dijitTreeExpando {
     width: 18px;
     height: 18px;
+}
+.tundra .dijitTreeRow {
+	
+	padding-bottom: 2px;
 }
 .tundra .dijitTreeContent {
     min-height: 18px;
@@ -32,10 +34,16 @@
 }
 .tundra .dijitTreeLabelFocused {
 	outline: 1px invert dotted;
-	background:#dde7f2;
+}
+.tundra .dijitTreeNodeSelected .dijitTreeLabel {
+	background:#e2ebfe;
 }
 .tundra .dijitTreeNodeHover {
-	background-color: #e2ebf2 !important;
+	
+	
+	background-image: url(images/treeHover.png);
+	background-repeat: repeat;
+	background-color: none !important;
 }
 .tundra .dijitTreeExpandoOpened {
 	background-image: url('images/treeExpand_minus.gif');
@@ -61,4 +69,17 @@
 }
 .tundra .dijitLeaf {
 	background: url('images/leaf.gif') no-repeat;
+}
+.tundra .dijitTreeNode .dojoDndItemBefore,
+.tundra .dijitTreeNode .dojoDndItemAfter {
+	border-bottom: none;
+	border-top: none;
+}
+.tundra .dijitTreeNode .dojoDndItemBefore .dijitTreeContent {
+	
+	border-top: 2px solid #369;
+}
+.tundra .dijitTreeNode .dojoDndItemAfter .dijitTreeContent {
+	
+	border-bottom: 2px solid #369;
 }

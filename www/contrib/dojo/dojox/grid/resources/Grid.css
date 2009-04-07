@@ -71,6 +71,19 @@
 .dojoxGridArrowButtonChar {
 	display:inline;
 }
+ 
+.dojoxGridArrowButtonNode:hover {
+        cursor: default;
+}
+.dojoxGridArrowButtonChar:hover {
+        cursor: default;
+}
+.dojoxGridSortUp:hover {
+        cursor: default;
+}
+.dojoxGridSortDown:hover {
+        cursor: default;
+}
 .dijit_a11y .dojoxGridArrowButtonChar {
 	display:inline !important;
 }
@@ -208,7 +221,7 @@
 	border-top: 1px solid white;
 }
 .dijit_a11y .dojoxGridRowSelected {
-	border-bottom: 1px dashed black;
+	border: 1px solid black !important;
 }
 .dojoxGridDndAvatar {
 	font-size: 100%;

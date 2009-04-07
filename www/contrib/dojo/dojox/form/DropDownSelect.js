@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -11,8 +11,8 @@ dojo.provide("dojox.form.DropDownSelect");
 dojo.require("dojox.form._FormSelectWidget");
 dojo.require("dojox.form._HasDropDown");
 dojo.require("dijit.Menu");
-dojo.requireLocalization("dijit.form","validate",null,"zh,ca,pt,da,tr,ru,de,sv,ja,he,fi,nb,el,ar,pt-pt,ROOT,cs,fr,es,ko,nl,zh-tw,pl,th,it,hu,sk,sl");
-dojo.declare("dojox.form.DropDownSelect",[dojox.form._FormSelectWidget,dojox.form._HasDropDown],{baseClass:"dojoxDropDownSelect",templateString:"<span class=\"dijit dijitReset dijitLeft dijitInline\"\n\tdojoAttachPoint=\"dropDownNode\"\n\tdojoAttachEvent=\"onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse\"\n\t><span class='dijitReset dijitRight dijitInline'\n\t\t><span class='dijitReset dijitInline dijitButtonNode'\n\t\t\t><table class=\"dojoxDropDownSelectTable\" dojoAttachPoint=\"tableNode\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tbody><tr\n\t\t\t\t><td class=\"dojoxDropDownSelectTableContent\" \n\t\t\t\t\t><span class=\"dijitReset dijitInline dijitButtonText\"  dojoAttachPoint=\"containerNode,popupStateNode\" id=\"${id}_label\"></span\n\t\t\t\t></td><td class=\"dojoxDropDownSelectTableButton\" \n\t\t\t\t\t><button class=\"dijitReset dijitStretch dijitButtonContents\" type=\"button\" name=\"${name}\"\n\t\t\t\t\t\tdojoAttachPoint=\"focusNode,titleNode\" waiRole=\"button\" waiState=\"haspopup-true,labelledby-${id}_label\"\n\t\t\t\t\t\t><span class=\"dijitReset dijitInline dijitArrowButtonInner\">&thinsp;</span\n\t\t\t\t\t\t><span class=\"dijitReset dijitInline dijitArrowButtonChar\" waiRole=\"presentation\">&#9660;</span\n\t\t\t\t\t></button\n\t\t\t\t></td\n\t\t\t></tr></tbody></table\n\t\t></span\n\t></span\n></span>\n",attributeMap:dojo.mixin(dojo.clone(dojox.form._FormSelectWidget.prototype.attributeMap),{style:"tableNode"}),required:false,state:"",tooltipPosition:[],emptyLabel:"",_isLoaded:false,_childrenLoaded:false,_fillContent:function(){
+dojo.requireLocalization("dijit.form","validate",null,"ROOT,ar,ca,cs,da,de,el,es,fi,fr,he,hu,it,ja,ko,nb,nl,pl,pt,pt-pt,ru,sk,sl,sv,th,tr,zh,zh-tw");
+dojo.declare("dojox.form.DropDownSelect",[dojox.form._FormSelectWidget,dojox.form._HasDropDown],{attributeMap:dojo.mixin(dojo.clone(dojox.form._FormSelectWidget.prototype.attributeMap),{value:"valueNode",name:"valueNode"}),baseClass:"dojoxDropDownSelect",templateString:"<table class='dijit dijitReset dijitInline dijitLeft'\n\tdojoAttachPoint=\"dropDownNode,tableNode\" cellspacing='0' cellpadding='0' waiRole=\"presentation\"\n\tdojoAttachEvent=\"onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse\"\n\t><tbody waiRole=\"presentation\"><tr waiRole=\"presentation\"\n\t\t><td class=\"dijitReset dijitStretch dijitButtonContents dijitButtonNode\" \n\t\t\t><span class=\"dijitReset dijitInline dijitButtonText\"  dojoAttachPoint=\"containerNode,popupStateNode\" id=\"${id}_label\"></span\n\t\t\t><input type=\"hidden\" ${nameAttrSetting} dojoAttachPoint=\"valueNode\" value=\"${value}\" />\n\t\t</td><td class=\"dijitReset dijitRight dijitButtonNode dijitArrowButton dijitDownArrowButton\" \n\t\t\t\tdojoAttachPoint=\"focusNode,titleNode\" waiRole=\"button\" waiState=\"haspopup-true,labelledby-${id}_label\"\n\t\t\t><div class=\"dijitReset dijitArrowButtonInner\">&thinsp;</div\n\t\t\t><div class=\"dijitReset dijitArrowButtonChar\" waiRole=\"presentation\">&#9660;</div\n\t\t></td\n\t></tr></tbody\n></table>\n",attributeMap:dojo.mixin(dojo.clone(dojox.form._FormSelectWidget.prototype.attributeMap),{style:"tableNode"}),required:false,state:"",tooltipPosition:[],emptyLabel:"",_isLoaded:false,_childrenLoaded:false,_fillContent:function(){
 this.inherited(arguments);
 if(this.options.length&&!this.value){
 var si=this.srcNodeRef.selectedIndex;
@@ -45,24 +45,27 @@ this.attr("disabled",(_5===0));
 delete this._iDisabled;
 }
 this._setValueAttr(this.value);
-},_setDisplay:function(_6){
-this.containerNode.innerHTML="<span class=\" "+this.baseClass+"Label\">"+(_6||this.emptyLabel||"&nbsp;")+"</span>";
+},_setValueAttr:function(_6){
+this.inherited(arguments);
+dojo.attr(this.valueNode,"value",this.attr("value"));
+},_setDisplay:function(_7){
+this.containerNode.innerHTML="<span class=\" "+this.baseClass+"Label\">"+(_7||this.emptyLabel||"&nbsp;")+"</span>";
 this._layoutHack();
-},validate:function(_7){
-var _8=this.isValid(_7);
-this.state=_8?"":"Error";
+},validate:function(_8){
+var _9=this.isValid(_8);
+this.state=_9?"":"Error";
 this._setStateClass();
-dijit.setWaiState(this.focusNode,"invalid",_8?"false":"true");
-var _9=_8?"":this._missingMsg;
-if(this._message!==_9){
-this._message=_9;
+dijit.setWaiState(this.focusNode,"invalid",_9?"false":"true");
+var _a=_9?"":this._missingMsg;
+if(this._message!==_a){
+this._message=_a;
 dijit.hideTooltip(this.domNode);
-if(_9){
-dijit.showTooltip(_9,this.domNode,this.tooltipPosition);
+if(_a){
+dijit.showTooltip(_a,this.domNode,this.tooltipPosition);
 }
 }
-return _8;
-},isValid:function(_a){
+return _9;
+},isValid:function(_b){
 return (!this.required||!(/^\s*$/.test(this.value)));
 },reset:function(){
 this.inherited(arguments);
@@ -78,43 +81,52 @@ this.inherited(arguments);
 if(dojo.attr(this.srcNodeRef,"disabled")){
 this.attr("disabled",true);
 }
+if(this.tableNode.style.width){
+dojo.addClass(this.domNode,this.baseClass+"FixedWidth");
+}
 },startup:function(){
 if(this._started){
 return;
 }
 if(!this.dropDown){
-var _b=dojo.query("[widgetId]",this.dropDownContainer)[0];
-this.dropDown=dijit.byNode(_b);
+var _c=dojo.query("[widgetId]",this.dropDownContainer)[0];
+this.dropDown=dijit.byNode(_c);
 delete this.dropDownContainer;
 }
 this.inherited(arguments);
 },_onMenuMouseup:function(e){
-var _d=this.dropDown,t=e.target;
-if(_d.onItemClick){
-var _f;
-while(t&&!(_f=dijit.byNode(t))){
+var _e=this.dropDown,t=e.target;
+if(_e.onItemClick){
+var _10;
+while(t&&!(_10=dijit.byNode(t))){
 t=t.parentNode;
 }
-if(_f&&_f.onClick&&_f.getParent){
-_f.getParent().onItemClick(_f,e);
+if(_10&&_10.onClick&&_10.getParent){
+_10.getParent().onItemClick(_10,e);
 }
 }
 },isLoaded:function(){
 return this._isLoaded;
-},loadDropDown:function(_10){
+},loadDropDown:function(_11){
 this._loadChildren();
 this._isLoaded=true;
-_10();
-},_setReadOnlyAttr:function(_11){
-this._iReadOnly=_11;
-if(!_11&&this._childrenLoaded&&this.options.length===1){
+_11();
+},_setReadOnlyAttr:function(_12){
+this._iReadOnly=_12;
+if(!_12&&this._childrenLoaded&&this.options.length===1){
 return;
 }
-this.readOnly=_11;
-},_setDisabledAttr:function(_12){
-this._iDisabled=_12;
-if(!_12&&this._childrenLoaded&&this.options.length===0){
+this.readOnly=_12;
+},_setDisabledAttr:function(_13){
+this._iDisabled=_13;
+if(!_13&&this._childrenLoaded&&this.options.length===0){
 return;
+}
+this.inherited(arguments);
+},uninitialize:function(_14){
+if(this.dropDown){
+this.dropDown.destroyRecursive(_14);
+delete this.dropDown;
 }
 this.inherited(arguments);
 }});

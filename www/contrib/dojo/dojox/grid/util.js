@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -11,6 +11,8 @@ dojo.provide("dojox.grid.util");
 (function(){
 var _1=dojox.grid.util;
 _1.na="...";
+_1.rowIndexTag="gridRowIndex";
+_1.gridViewTag="gridView";
 _1.fire=function(ob,ev,_4){
 var fn=ob&&ev&&ob[ev];
 return fn&&(_4?fn.apply(ob,_4):ob[ev]());

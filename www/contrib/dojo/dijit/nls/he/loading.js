@@ -1,1 +1,1 @@
-({"loadingState":"טעינה...","errorState":"אירעה שגיאה"})
+({"loadingState":"טעינה...‏","errorState":"אירעה שגיאה"})

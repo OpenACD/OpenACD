@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -10,41 +10,50 @@ dojo._hasResource["dojox.lang.utils"]=true;
 dojo.provide("dojox.lang.utils");
 (function(){
 var _1={},du=dojox.lang.utils;
-dojo.mixin(du,{coerceType:function(_3,_4){
-switch(typeof _3){
+var _3=function(o){
+if(dojo.isArray(o)){
+return dojo._toArray(o);
+}
+if(!dojo.isObject(o)||dojo.isFunction(o)){
+return o;
+}
+return dojo.delegate(o);
+};
+dojo.mixin(du,{coerceType:function(_5,_6){
+switch(typeof _5){
 case "number":
-return Number(eval("("+_4+")"));
+return Number(eval("("+_6+")"));
 case "string":
-return String(_4);
+return String(_6);
 case "boolean":
-return Boolean(eval("("+_4+")"));
+return Boolean(eval("("+_6+")"));
 }
-return eval("("+_4+")");
-},updateWithObject:function(_5,_6,_7){
-if(!_6){
-return _5;
+return eval("("+_6+")");
+},updateWithObject:function(_7,_8,_9){
+if(!_8){
+return _7;
 }
-for(var x in _5){
-if(x in _6&&!(x in _1)){
-var t=_5[x];
+for(var x in _7){
+if(x in _8&&!(x in _1)){
+var t=_7[x];
 if(t&&typeof t=="object"){
-du.updateWithObject(t,_6[x],_7);
+du.updateWithObject(t,_8[x],_9);
 }else{
-_5[x]=_7?du.coerceType(t,_6[x]):dojo.clone(_6[x]);
+_7[x]=_9?du.coerceType(t,_8[x]):_3(_8[x]);
 }
 }
 }
-return _5;
-},updateWithPattern:function(_a,_b,_c,_d){
-if(!_b||!_c){
-return _a;
+return _7;
+},updateWithPattern:function(_c,_d,_e,_f){
+if(!_d||!_e){
+return _c;
 }
-for(var x in _c){
-if(x in _b&&!(x in _1)){
-_a[x]=_d?du.coerceType(_c[x],_b[x]):dojo.clone(_b[x]);
+for(var x in _e){
+if(x in _d&&!(x in _1)){
+_c[x]=_f?du.coerceType(_e[x],_d[x]):_3(_d[x]);
 }
 }
-return _a;
+return _c;
 }});
 })();
 }

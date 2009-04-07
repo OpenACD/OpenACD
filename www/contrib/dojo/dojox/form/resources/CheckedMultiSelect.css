@@ -9,7 +9,7 @@
 	height: 100px;
 }
 .dj_ie .dojoxMultiSelect,
-.dj_safari .dojoxMultiSelect {
+.dj_webkit .dojoxMultiSelect {
 	
 	padding-right: 15px;
 }
@@ -18,7 +18,8 @@
 	padding:.1em .2em;
 	cursor:default;
 }
-.dojoxMultiSelectDisabled * {
+.dojoxMultiSelectDisabled *,
+.dojoxMultiSelectReadOnly * {
 	color:gray !important;
 }
 .dojoxMultiSelectItemLabel {

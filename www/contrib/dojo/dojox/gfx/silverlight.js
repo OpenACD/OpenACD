@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -365,9 +365,9 @@ s.onLoad(s);
 }
 };
 if(dojo.isSafari){
-obj="<embed type='application/x-silverlight' id='"+_66+"' width='"+_61+"' height='"+_62+" background='transparent'"+" source='#"+t.id+"'"+" windowless='true'"+" maxFramerate='60'"+" onLoad='"+_67+"'"+" onError='__dojoSilverligthError'"+" /><iframe style='visibility:hidden;height:0;width:0'/>";
+obj="<embed type='application/x-silverlight' id='"+_66+"' width='"+_61+"' height='"+_62+" background='transparent'"+" source='#"+t.id+"'"+" windowless='true'"+" maxFramerate='60'"+" onLoad='"+_67+"'"+" onError='__dojoSilverlightError'"+" /><iframe style='visibility:hidden;height:0;width:0'/>";
 }else{
-obj="<object type='application/x-silverlight' data='data:application/x-silverlight,' id='"+_66+"' width='"+_61+"' height='"+_62+"'>"+"<param name='background' value='transparent' />"+"<param name='source' value='#"+t.id+"' />"+"<param name='windowless' value='true' />"+"<param name='maxFramerate' value='60' />"+"<param name='onLoad' value='"+_67+"' />"+"<param name='onError' value='__dojoSilverligthError' />"+"</object>";
+obj="<object type='application/x-silverlight' data='data:application/x-silverlight,' id='"+_66+"' width='"+_61+"' height='"+_62+"'>"+"<param name='background' value='transparent' />"+"<param name='source' value='#"+t.id+"' />"+"<param name='windowless' value='true' />"+"<param name='maxFramerate' value='60' />"+"<param name='onLoad' value='"+_67+"' />"+"<param name='onError' value='__dojoSilverlightError' />"+"</object>";
 }
 _60.innerHTML=obj;
 var _69=dojo.byId(_66);
@@ -383,7 +383,7 @@ s.width=dojox.gfx.normalizedLength(_61);
 s.height=dojox.gfx.normalizedLength(_62);
 return s;
 };
-__dojoSilverligthError=function(_6a,err){
+__dojoSilverlightError=function(_6a,err){
 var t="Silverlight Error:\n"+"Code: "+err.ErrorCode+"\n"+"Type: "+err.ErrorType+"\n"+"Message: "+err.ErrorMessage+"\n";
 switch(err.ErrorType){
 case "ParserError":

@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -9,6 +9,7 @@ if(!dojo._hasResource["dojox.form.DateTextBox"]){
 dojo._hasResource["dojox.form.DateTextBox"]=true;
 dojo.provide("dojox.form.DateTextBox");
 dojo.require("dojox.widget.Calendar");
+dojo.require("dojox.widget.CalendarViews");
 dojo.require("dijit.form._DateTimeTextBox");
 dojo.declare("dojox.form.DateTextBox",dijit.form._DateTimeTextBox,{popupClass:"dojox.widget.Calendar",_selector:"date",_open:function(){
 this.inherited(arguments);
@@ -25,29 +26,33 @@ this.inherited(arguments);
 this._picker.onValueSelected=dojo.hitch(this,function(_5){
 this.focus();
 setTimeout(dojo.hitch(this,"_close"),1);
-dijit.form.TextBox.prototype._setValueAttr.call(this,_5.getDate(),true,_5.getDate());
+dijit.form.TextBox.prototype._setValueAttr.call(this,_5,true,String(_5.getDate()));
 });
 }});
-dojo.declare("dojox.form.MonthTextBox",dojox.form.DateTextBox,{popupClass:"dojox.widget.MonthlyCalendar",validator:function(_6){
-var _7=Number(_6);
-var _8=/(^-?\d\d*$)/.test(String(_6));
-return _6==""||_6==null||(_8&&_7>=1&&_7<=12);
+dojo.declare("dojox.form.MonthTextBox",dojox.form.DateTextBox,{popupClass:"dojox.widget.MonthlyCalendar",format:function(_6){
+return _6+1;
+},validator:function(_7){
+var _8=Number(_7);
+var _9=/(^-?\d\d*$)/.test(String(_7));
+return _7==""||_7==null||(_9&&_8>=1&&_8<=12);
 },_open:function(){
 this.inherited(arguments);
-this._picker.onValueSelected=dojo.hitch(this,function(_9){
+this._picker.onValueSelected=dojo.hitch(this,function(_a){
 this.focus();
 setTimeout(dojo.hitch(this,"_close"),1);
-dijit.form.TextBox.prototype._setValueAttr.call(this,_9+1,true,_9+1);
+dijit.form.TextBox.prototype._setValueAttr.call(this,_a+1,true,_a+1);
 });
 }});
-dojo.declare("dojox.form.YearTextBox",dojox.form.DateTextBox,{popupClass:"dojox.widget.YearlyCalendar",validator:function(_a){
-return _a==""||_a==null||/(^-?\d\d*$)/.test(String(_a));
+dojo.declare("dojox.form.YearTextBox",dojox.form.DateTextBox,{popupClass:"dojox.widget.YearlyCalendar",format:function(_b){
+return _b;
+},validator:function(_c){
+return _c==""||_c==null||/(^-?\d\d*$)/.test(String(_c));
 },_open:function(){
 this.inherited(arguments);
-this._picker.onValueSelected=dojo.hitch(this,function(_b){
+this._picker.onValueSelected=dojo.hitch(this,function(_d){
 this.focus();
 setTimeout(dojo.hitch(this,"_close"),1);
-dijit.form.TextBox.prototype._setValueAttr.call(this,_b,true,_b);
+dijit.form.TextBox.prototype._setValueAttr.call(this,_d,true,_d);
 });
 }});
 }

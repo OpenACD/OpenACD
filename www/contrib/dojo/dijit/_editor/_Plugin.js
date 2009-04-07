@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -29,32 +29,28 @@ this.button=new this.buttonClass(_4);
 }
 },destroy:function(f){
 dojo.forEach(this._connects,dojo.disconnect);
+if(this.dropDown){
+this.dropDown.destroyRecursive();
+}
 },connect:function(o,f,tf){
 this._connects.push(dojo.connect(o,f,this,tf));
 },updateState:function(){
-var _e=this.editor;
-var _c=this.command;
-if(!_e){
-return;
-}
-if(!_e.isLoaded){
-return;
-}
-if(!_c.length){
+var e=this.editor,c=this.command,_d,_e;
+if(!e||!e.isLoaded||!c.length){
 return;
 }
 if(this.button){
 try{
-var _d=_e.queryCommandEnabled(_c);
-if(this.enabled!==_d){
-this.enabled=_d;
-this.button.attr("disabled",!_d);
+_e=e.queryCommandEnabled(c);
+if(this.enabled!==_e){
+this.enabled=_e;
+this.button.attr("disabled",!_e);
 }
 if(typeof this.button.checked=="boolean"){
-var _e=_e.queryCommandState(_c);
-if(this.checked!==_e){
-this.checked=_e;
-this.button.attr("checked",_e.queryCommandState(_c));
+_d=e.queryCommandState(c);
+if(this.checked!==_d){
+this.checked=_d;
+this.button.attr("checked",e.queryCommandState(c));
 }
 }
 }

@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -13,7 +13,7 @@ dojo.require("dijit._Widget");
 dojo.require("dijit._Container");
 dojo.require("dijit.form.Button");
 dojo.require("dijit.form.TextBox");
-dojo.requireLocalization("dijit","common",null,"zh,ca,pt,da,tr,ru,de,sv,ja,he,fi,nb,el,ar,ROOT,pt-pt,cs,fr,es,ko,nl,zh-tw,pl,th,it,hu,sk,sl");
+dojo.requireLocalization("dijit","common",null,"ROOT,ar,ca,cs,da,de,el,es,fi,fr,he,hu,it,ja,ko,nb,nl,pl,pt,pt-pt,ru,sk,sl,sv,th,tr,zh,zh-tw");
 dojo.declare("dijit.InlineEditBox",dijit._Widget,{editing:false,autoSave:true,buttonSave:"",buttonCancel:"",renderAsHtml:false,editor:"dijit.form.TextBox",editorParams:{},onChange:function(_1){
 },onCancel:function(){
 },width:"100%",value:"",noValueIndicator:"<span style='font-family: wingdings; text-decoration: underline;'>&nbsp;&nbsp;&nbsp;&nbsp;&#x270d;&nbsp;&nbsp;&nbsp;&nbsp;</span>",constructor:function(){
@@ -55,19 +55,16 @@ return;
 }
 this.editing=true;
 var _7=(this.renderAsHtml?this.value:this.value.replace(/\s*\r?\n\s*/g,"").replace(/<br\/?>/gi,"\n").replace(/&gt;/g,">").replace(/&lt;/g,"<").replace(/&amp;/g,"&").replace(/&quot;/g,"\""));
-var _8=dojo.doc.createElement("span");
-dojo.place(_8,this.domNode,"before");
-var ew=this.editWidget=new dijit._InlineEditor({value:dojo.trim(_7),autoSave:this.autoSave,buttonSave:this.buttonSave,buttonCancel:this.buttonCancel,renderAsHtml:this.renderAsHtml,editor:this.editor,editorParams:this.editorParams,style:dojo.getComputedStyle(this.displayNode),save:dojo.hitch(this,"save"),cancel:dojo.hitch(this,"cancel"),width:this.width},_8);
+var _8=dojo.create("span",null,this.domNode,"before");
+var ew=this.editWidget=new dijit._InlineEditor({value:dojo.trim(_7),autoSave:this.autoSave,buttonSave:this.buttonSave,buttonCancel:this.buttonCancel,renderAsHtml:this.renderAsHtml,editor:this.editor,editorParams:this.editorParams,sourceStyle:dojo.getComputedStyle(this.displayNode),save:dojo.hitch(this,"save"),cancel:dojo.hitch(this,"cancel"),width:this.width},_8);
 var _a=ew.domNode.style;
 this.displayNode.style.display="none";
 _a.position="static";
 _a.visibility="visible";
 this.domNode=ew.domNode;
 setTimeout(function(){
-if(ew.editWidget._resetValue===undefined){
-ew.editWidget._resetValue=ew.getValue();
-}
 ew.focus();
+ew._resetValue=ew.getValue();
 },100);
 },_showText:function(_b){
 this.displayNode.style.display="";
@@ -120,7 +117,7 @@ this[_13]=this.messages[_13];
 },this);
 },postCreate:function(){
 var cls=dojo.getObject(this.editor);
-var _15=this.style;
+var _15=this.sourceStyle;
 var _16="line-height:"+_15.lineHeight+";";
 dojo.forEach(["Weight","Family","Size","Style"],function(_17){
 _16+="font-"+_17+":"+_15["font"+_17]+";";
@@ -139,6 +136,7 @@ this.editorParams["displayedValue" in cls.prototype?"displayedValue":"value"]=th
 var ew=this.editWidget=new cls(this.editorParams,this.editorPlaceholder);
 this.connect(ew,"onChange","_onChange");
 this.connect(ew,"onKeyPress","_onKeyPress");
+this.connect(ew,"onKeyUp","_onKeyPress");
 if(this.autoSave){
 this.buttonContainer.style.display="none";
 }
@@ -161,7 +159,7 @@ dojo.stopEvent(e);
 this._exitInProgress=true;
 this.cancel(true);
 }else{
-if(e.charOrCode==dojo.keys.ENTER){
+if(e.charOrCode==dojo.keys.ENTER&&this.editWidget.focusNode.tagName=="INPUT"){
 dojo.stopEvent(e);
 this._exitInProgress=true;
 this.save(true);
@@ -175,7 +173,7 @@ setTimeout(dojo.hitch(this,"save",false),0);
 }else{
 var _1c=this;
 setTimeout(function(){
-_1c.saveButton.attr("disabled",_1c.getValue()==_1c.editWidget._resetValue);
+_1c._onChange();
 },100);
 }
 },_onBlur:function(){
@@ -185,7 +183,7 @@ return;
 }
 if(this.autoSave){
 this._exitInProgress=true;
-if(this.getValue()==this.editWidget._resetValue){
+if(this.getValue()==this._resetValue){
 this.cancel(false);
 }else{
 this.save(false);
@@ -199,7 +197,7 @@ if(this.autoSave){
 this._exitInProgress=true;
 this.save(true);
 }else{
-this.saveButton.attr("disabled",(this.getValue()==this.editWidget._resetValue)||!this.enableSave());
+this.saveButton.attr("disabled",(this.getValue()==this._resetValue)||!this.enableSave());
 }
 },enableSave:function(){
 return this.editWidget.isValid?this.editWidget.isValid():true;

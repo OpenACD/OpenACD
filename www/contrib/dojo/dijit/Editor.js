@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -10,12 +10,13 @@ dojo._hasResource["dijit.Editor"]=true;
 dojo.provide("dijit.Editor");
 dojo.require("dijit._editor.RichText");
 dojo.require("dijit.Toolbar");
+dojo.require("dijit.ToolbarSeparator");
 dojo.require("dijit._editor._Plugin");
 dojo.require("dijit._editor.plugins.EnterKeyHandling");
 dojo.require("dijit._editor.range");
 dojo.require("dijit._Container");
 dojo.require("dojo.i18n");
-dojo.requireLocalization("dijit._editor","commands",null,"zh,ca,pt,da,tr,ru,de,sv,ja,he,fi,nb,el,ar,pt-pt,cs,fr,es,ko,nl,zh-tw,pl,th,it,hu,ROOT,sk,sl");
+dojo.requireLocalization("dijit._editor","commands",null,"ROOT,ar,ca,cs,da,de,el,es,fi,fr,he,hu,it,ja,ko,nb,nl,pl,pt,pt-pt,ru,sk,sl,sv,th,tr,zh,zh-tw");
 dojo.declare("dijit.Editor",dijit._editor.RichText,{plugins:null,extraPlugins:null,constructor:function(){
 if(!dojo.isArray(this.plugins)){
 this.plugins=["undo","redo","|","cut","copy","paste","|","bold","italic","underline","strikethrough","|","insertOrderedList","insertUnorderedList","indent","outdent","|","justifyLeft","justifyRight","justifyCenter","justifyFull","dijit._editor.plugins.EnterKeyHandling"];
@@ -50,7 +51,7 @@ p.destroy();
 }
 });
 this._plugins=[];
-this.toolbar.destroy();
+this.toolbar.destroyRecursive();
 delete this.toolbar;
 this.inherited(arguments);
 },addPlugin:function(_2,_3){
@@ -80,7 +81,7 @@ if(dojo.isFunction(_2.setToolbar)){
 _2.setToolbar(this.toolbar);
 }
 },startup:function(){
-},resize:function(){
+},resize:function(_7){
 dijit.layout._LayoutWidget.prototype.resize.apply(this,arguments);
 },layout:function(){
 this.editingArea.style.height=(this._contentBox.h-dojo.marginBox(this.toolbar.domNode).h)+"px";
@@ -88,15 +89,21 @@ if(this.iframe){
 this.iframe.style.height="100%";
 }
 this._layoutMode=true;
+},_onIEMouseDown:function(e){
+delete this._savedSelection;
+if(e.target.tagName=="BODY"){
+setTimeout(dojo.hitch(this,"placeCursorAtEnd"),0);
+}
+this.inherited(arguments);
 },onBeforeDeactivate:function(e){
 if(this.customUndo){
 this.endEditing(true);
 }
 this._saveSelection();
-},customUndo:dojo.isIE,editActionInterval:3,beginEditing:function(_8){
+},customUndo:dojo.isIE,editActionInterval:3,beginEditing:function(_a){
 if(!this._inEditing){
 this._inEditing=true;
-this._beginEditing(_8);
+this._beginEditing(_a);
 }
 if(this.editActionInterval>0){
 if(this._editTimer){
@@ -104,9 +111,9 @@ clearTimeout(this._editTimer);
 }
 this._editTimer=setTimeout(dojo.hitch(this,this.endEditing),this._editInterval);
 }
-},_steps:[],_undoedSteps:[],execCommand:function(_9){
-if(this.customUndo&&(_9=="undo"||_9=="redo")){
-return this[_9]();
+},_steps:[],_undoedSteps:[],execCommand:function(_b){
+if(this.customUndo&&(_b=="undo"||_b=="redo")){
+return this[_b]();
 }else{
 if(this.customUndo){
 this.endEditing();
@@ -114,15 +121,14 @@ this._beginEditing();
 }
 try{
 var r=this.inherited("execCommand",arguments);
-if(dojo.isSafari&&_9=="paste"&&!r){
-var su=dojo.string.substitute,_c=navigator.userAgent.indexOf("Macintosh")!=-1;
-alert(su(this.commands.systemShortcut,[this.commands[_9],su(this.commands[_c?"appleKey":"ctrlKey"],["V"])]));
+if(dojo.isWebKit&&_b=="paste"&&!r){
+throw {code:1011};
 }
 }
 catch(e){
-if(dojo.isMoz&&/copy|cut|paste/.test(_9)){
+if(e.code==1011&&/copy|cut|paste/.test(_b)){
 var _d=dojo.string.substitute,_e={cut:"X",copy:"C",paste:"V"},_f=navigator.userAgent.indexOf("Macintosh")!=-1;
-alert(_d(this.commands.systemShortcutFF,[this.commands[_9],_d(this.commands[_f?"appleKey":"ctrlKey"],[_e[_9]])]));
+alert(_d(this.commands.systemShortcut,[this.commands[_b],_d(this.commands[_f?"appleKey":"ctrlKey"],[_e[_b]])]));
 }
 r=false;
 }
@@ -227,7 +233,7 @@ if(!dojo.isIE&&!this.iframe&&e.keyCode==dojo.keys.TAB&&!this.tabIndent){
 this._saveSelection();
 }
 if(!this.customUndo){
-this.inherited("onKeyDown",arguments);
+this.inherited(arguments);
 return;
 }
 var k=e.keyCode,ks=dojo.keys;
@@ -244,7 +250,7 @@ return;
 }
 }
 }
-this.inherited("onKeyDown",arguments);
+this.inherited(arguments);
 switch(k){
 case ks.ENTER:
 case ks.BACKSPACE:
@@ -298,11 +304,11 @@ this._moveToBookmark(this._savedSelection);
 delete this._savedSelection;
 }
 },_onFocus:function(){
-this._restoreSelection();
+setTimeout(dojo.hitch(this,"_restoreSelection"),0);
 this.inherited(arguments);
 },onClick:function(){
 this.endEditing(true);
-this.inherited("onClick",arguments);
+this.inherited(arguments);
 }});
 dojo.subscribe(dijit._scopeName+".Editor.getPlugin",null,function(o){
 if(o.plugin){

@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -16,9 +16,9 @@ _1.Theme=function(_2){
 _2=_2||{};
 var _3=_1.Theme._def;
 dojo.forEach(["chart","plotarea","axis","series","marker"],function(n){
-this[n]=dojo.mixin(dojo.clone(_3[n]),_2[n]||{});
+this[n]=dojo.delegate(_3[n],_2[n]||{});
 },this);
-this.markers=dojo.mixin(dojo.clone(_1.Theme.Markers),_2.markers||{});
+this.markers=dojo.delegate(_1.Theme.Markers,_2.markers||{});
 this.colors=[];
 this.antiAlias=("antiAlias" in _2)?_2.antiAlias:true;
 this.assignColors=("assignColors" in _2)?_2.assignColors:true;
@@ -62,7 +62,7 @@ this._markers.push(this.markers[p]);
 }
 this._current.marker=0;
 },_clone:function(){
-return new _1.Theme({chart:this.chart,plotarea:this.plotarea,axis:this.axis,series:this.series,marker:this.marker,antiAlias:this.antiAlias,assignColors:this.assignColors,assignMarkers:this.assigneMarkers,colors:dojo.clone(this.colors)});
+return new _1.Theme({chart:this.chart,plotarea:this.plotarea,axis:this.axis,series:this.series,marker:this.marker,antiAlias:this.antiAlias,assignColors:this.assignColors,assignMarkers:this.assigneMarkers,colors:dojo.delegate(this.colors)});
 },addMarker:function(_10,_11){
 this.markers[_10]=_11;
 this._buildMarkerArray();

@@ -22,11 +22,11 @@
 	
 	background-position: 0px;
 }
-.nihilo .dijitRadioCheckedDisabled {
+.nihilo .dijitRadioDisabled {
 	
 	background-position: -48px;
 }
-.nihilo .dijitRadioDisabled {
+.nihilo .dijitRadioCheckedDisabled {
 	
 	background-position: -32px;
 }

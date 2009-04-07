@@ -1,14 +1,4 @@
 
-.nihilo .dijitSliderDisabled *,
-.nihilo .dijitDisabledClickableRegion,	
-.nihilo .dijitSpinnerDisabled *,
-.nihilo .dijitButtonDisabled *,
-.nihilo .dijitDropDownButtonDisabled *,
-.nihilo .dijitComboButtonDisabled *,
-.nihilo .dijitComboBoxDisabled *
-{
-	cursor: not-allowed !important;
-}
 .nihilo .dojoDndItemBefore {
 	border-top: 2px solid #369;
 }

@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -41,7 +41,7 @@ _3.destroy();
 }
 this._surfaces=[];
 while(this.legendBody.lastChild){
-dojo._destroyElement(this.legendBody.lastChild);
+dojo.destroy(this.legendBody.lastChild);
 }
 if(this.horizontal){
 dojo.addClass(this.legendNode,"dojoxLegendHorizontal");

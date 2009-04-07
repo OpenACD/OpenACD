@@ -7,13 +7,11 @@
 .soria .dijitTabContainerBottom-dijitContentPane,
 .soria .dijitTabContainerRight-dijitContentPane,
 .soria .dijitAccordionContainer-dijitContentPane {
-    border: none;
     background-color: #fff;
     padding: 5px;
 }
 .soria .dijitSplitContainer-dijitContentPane,
 .soria .dijitBorderContainer-dijitContentPane {
-    border: 1px #B1BADF solid;
-    background-color: #fff;
+    background-color: #fff;		
     padding: 5px;
 }

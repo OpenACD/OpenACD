@@ -6,9 +6,9 @@
 	padding: 0px;
 }
 .soria .dijitDialog .dijitDialogTitle {
-	border-top: none;
-	border-left: none;
-	border-right: none;
+	
+	font-weight: bold;
+	padding: 0px 4px;
 	font-size: 0.9em;
 	color: #3243C5F;
 }
@@ -25,15 +25,11 @@
 	cursor: move;
 	outline:0; 
 }
-.soria .dijitDialogTitle {
-	
-	font-weight: bold;
-	padding: 4px;
-	outline:0;
-}
 .soria .dijitDialogCloseIcon {
 	
-	background : url("images/spriteRoundedIconsSmallBl.png") no-repeat right top;
+	background-image: url("images/spriteRoundedIconsSmallBl.png");
+	background-repeat: no-repeat;
+	background-position: -60px 0px;
 	position: absolute;
 	vertical-align: middle;
 	right: 6px;
@@ -42,12 +38,11 @@
 	width: 15px;
 	cursor: pointer;
 }
-.dj_ie .soria .dijitDialogCloseIcon {
-	background : url("images/spriteRoundedIconsSmallBl.gif") no-repeat right top;
+.dj_ie6 .soria .dijitDialogCloseIcon {
+	background-image: url("images/spriteRoundedIconsSmallBl.gif");
 }
-.soria .dijitDialogContent {
-	
-	padding: 8px;
+.soria .dijitDialogCloseIcon-hover {
+	background-position: -60px -15px;
 }
 .soria .dijitTooltip,
 .soria .dijitTooltipDialog {
@@ -86,7 +81,7 @@
 	width:17px;
 	height:11px;
 }
-.dj_ie .soria .dijitTooltipBelow .dijitTooltipConnector {
+.dj_ie6 .soria .dijitTooltipBelow .dijitTooltipConnector {
 	background-image: url("images/tooltipConnectorUp.gif");
 }
 .soria .dijitTooltipAbove .dijitTooltipConnector {
@@ -97,7 +92,7 @@
 	width:17px;
 	height:11px;
 }
-.dj_ie .soria .dijitTooltipAbove .dijitTooltipConnector {
+.dj_ie6 .soria .dijitTooltipAbove .dijitTooltipConnector {
 	background-image: url("images/tooltipConnectorDown.gif");
 }
 .dj_ie6 .soria .dijitTooltipAbove .dijitTooltipConnector {
@@ -118,7 +113,7 @@
 	width:11px;
 	height:17px;
 }
-.dj_ie .soria .dijitTooltipLeft .dijitTooltipConnector {
+.dj_ie6 .soria .dijitTooltipLeft .dijitTooltipConnector {
 	background-image: url("images/tooltipConnectorRight.gif");
 }
 .soria .dijitTooltipRight {
@@ -132,6 +127,6 @@
 	width:11px;
 	height:17px;
 }
-.dj_ie .soria .dijitTooltipRight .dijitTooltipConnector {
+.dj_ie6 .soria .dijitTooltipRight .dijitTooltipConnector {
 	background-image: url("images/tooltipConnectorLeft.gif");
 }

@@ -1,15 +1,5 @@
 
 @import url("../dijit.css");
-.nihilo .dijitSliderDisabled *,
-.nihilo .dijitDisabledClickableRegion,	
-.nihilo .dijitSpinnerDisabled *,
-.nihilo .dijitButtonDisabled *,
-.nihilo .dijitDropDownButtonDisabled *,
-.nihilo .dijitComboButtonDisabled *,
-.nihilo .dijitComboBoxDisabled *
-{
-	cursor: not-allowed !important;
-}
 .nihilo .dojoDndItemBefore {
 	border-top: 2px solid #369;
 }
@@ -36,14 +26,12 @@
 .nihilo .dijitTabContainerRight-dijitContentPane,
 .nihilo .dijitTabContainerBottom-dijitContentPane,
 .nihilo .dijitAccordionContainer-dijitContentPane {
-    border: none;
     background-color: #fff;
     padding: 5px;
 }
 .nihilo .dijitSplitContainer-dijitContentPane,
 .nihilo .dijitBorderContainer-dijitContentPane {
-    border: 1px #ccc solid;
-    background-color: #fff;
+    background-color: #fff;		
     padding: 5px;
 }
  
@@ -76,17 +64,14 @@
 .dijitTabSpacer {
 	font-size: 1px;
 }
-.nihilo .dijitTabHover,
-.nihilo .dijitTabCloseButtonHover {
+.nihilo .dijitTabHover {
 	color: #243C5F;
 	background: url(images/tabContainerSprite.gif) no-repeat 0px -150px;
 }
-.nihilo .dijitTabHover .dijitTabInnerDiv,
-.nihilo .dijitTabCloseButtonHover .dijitTabInnerDiv {
+.nihilo .dijitTabHover .dijitTabInnerDiv {
 	background: url(images/tabContainerSprite.gif) no-repeat right -250px;
 }
-.nihilo .dijitTabHover .dijitTabInnerDiv .dijitTabContent,
-.nihilo .dijitTabCloseButtonHover .dijitTabInnerDiv .dijitTabContent {
+.nihilo .dijitTabHover .dijitTabInnerDiv .dijitTabContent {
 	background: url(images/tabContainerSprite.gif) repeat-x 0 -200px;
 }
 .nihilo .dijitTabChecked,
@@ -102,37 +87,48 @@
 	background: url(images/tabContainerSprite.gif) repeat-x 0 -50px;
 	color: #243C5F !important;
 }
-.nihilo .dijitTab .dijitClosable .closeNode {
-	
-	display:-moz-inline-box;		
-	display:inline-block;			
-	#zoom: 1; 
-	#display:inline; 
-	vertical-align:top;
-	width: 1.25em;
-	height: 1.25em;
-	padding: 0;
-	margin: 0;
+.nihilo .dijitTabContainerTabListNested {
+	background: #FDFDFD;
+	border: none;
+	margin-bottom: 0px;		
 }
-.nihilo .dijitTab .dijitClosable .closeImage {
+.nihilo .dijitTabContainerTabListNested .dijitTab {
+	background: none;
+	border: none;
+	top: 0px;	
+}
+.nihilo .dijitTabContainerTabListNested .dijitTab .dijitTabInnerDiv,
+.nihilo .dijitTabContainerTabListNested .dijitTab .dijitTabContent {
+	background: none;
+}
+.nihilo .dijitTabContainerTabListNested .dijitTabHover .dijitTabContent .tabLabel {
+	text-decoration: underline;
+}
+.nihilo .dijitTabContainerTabListNested .dijitTabChecked .tabLabel {
+	text-decoration: underline;
+	font-weight: bold;
+}
+.nihilo .dijitTabContainerSpacerNested {
+	
+	height: 0px;
+	border-bottom: 0px;
+}
+.nihilo .dijitTabPaneWrapperNested {
+	border: none;	
+}
+.nihilo .dijitTab .closeImage {
 	background: url(images/spriteRoundedIconsSmall.png) no-repeat -60px top;
 	width: 15px;
 	height: 15px;
 }
-.dj_ie6 .dijitTab .dijitClosable .closeImage {
+.dj_ie6 .dijitTab .closeImage {
 	background: url(images/spriteRoundedIconsSmall.gif) no-repeat -60px top;
 }
-.nihilo .dijitTabCloseButton .dijitClosable .closeImage {
-	background: url(images/spriteRoundedIconsSmall.png) no-repeat -60px top;
+.nihilo .dijitTab .closeButton-hover .closeImage {
+	background: url(images/spriteRoundedIconsSmall.png) no-repeat -60px -15px;
 }
-.dj_ie6 .nihilo .dijitTabCloseButton .dijitClosable .closeImage {
-	background: url(images/spriteRoundedIconsSmall.gif) no-repeat -60px top;
-}
-.nihilo .dijitTabCloseButtonHover .dijitClosable .closeImage {
-	background: url(images/spriteRoundedIconsSmall.png) no-repeat -60px top;
-}
-.dj_ie6 .nihilo .dijitTabCloseButtonHover .dijitClosable .closeImage {
-	background: url(images/spriteRoundedIconsSmall.gif) no-repeat -60px top;
+.dj_ie6 .nihilo .dijitTab .closeButton-hover .closeImage {
+	background: url(images/spriteRoundedIconsSmall.gif) no-repeat -60px -15px;
 }
 .nihilo .dijitTab .dijitTabButtonSpacer {
 	height: 15px;
@@ -181,17 +177,14 @@
 .nihilo .dijitTabContainerBottom-tabs .dijitTabInnerDiv {
 	background: url(images/tabBottomEnabledSpriteLR.gif) no-repeat bottom right;
 }
-.nihilo .dijitTabContainerBottom-tabs .dijitTabHover,
-.nihilo .dijitTabContainerBottom-tabs .dijitTabCloseButtonHover {
+.nihilo .dijitTabContainerBottom-tabs .dijitTabHover {
 	color: #243C5F;
 	background: url(images/tabBottomHoverSpriteLR.gif) no-repeat bottom left;
 }
-.nihilo .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv,
-.nihilo .dijitTabContainerBottom-tabs .dijitTabCloseButtonHover .dijitTabInnerDiv {
+.nihilo .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv {
 	background: url(images/tabBottomHoverSpriteLR.gif) no-repeat bottom right;
 }
-.nihilo .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv .dijitTabContent,
-.nihilo .dijitTabContainerBottom-tabs .dijitTabCloseButtonHover .dijitTabInnerDiv .dijitTabContent {
+.nihilo .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv .dijitTabContent {
 	background: url(images/tabBottomHoverC.gif) repeat-x bottom left;
 }
 .nihilo .dijitTabContainerBottom-tabs .dijitTabChecked,
@@ -319,31 +312,17 @@ border-bottom: solid #fff 1px;
 	padding-left: 0px;	
 }
 .nihilo .dijitAccordionContainer {
-	border-color: #ccc;	
-}
-.nihilo .dijitTabContainer-dijitAccordionContainer {
-    border: none;
-}
-.nihilo .dijitAccordionContainer-dijitAccordionContainer {
-    border: none;
-    background-color: #fff;
-}
-.nihilo .dijitSplitContainer-dijitAccordionContainer,
-.nihilo .dijitBorderContainer-dijitAccordionContainer {
-    border: 1px #ccc solid;
-    background-color: #fff;
-}
-.nihilo .dijitAccordionPane {
-	background-color: #e7e7e7;
-	font-size: 0.9em;
-	font-weight: bold;
-	color: #6d6d6d;
+	border-color: #ccc;
+	background-color: #fff;
 }
 .nihilo .dijitAccordionTitle {
 	background:#fafafa url(images/titleBar.png) repeat-x top left;
 	border-top: 1px solid #dedede;
 	padding: 5px 4px 6px 8px;
 	cursor:pointer;
+	font-size: 0.9em;
+	font-weight: bold;
+	color: #6d6d6d;
 }
 .nihilo .dijitAccordionTitle-selected  {
 	background: #f9f9f9 url(images/accordionItemActive.png) top repeat-x;
@@ -367,9 +346,6 @@ border-bottom: solid #fff 1px;
 .nihilo .dijitAccordionText {
 	margin-left: 4px;
 	margin-right: 4px;
-}
-.nihilo .dijitAccordionBody {
-	background: #fff;
 }
  
 .nihilo .dijitSplitContainerSizerH {
@@ -403,7 +379,20 @@ border-bottom: solid #fff 1px;
 	background-color: #fcfcfc;
 	padding: 5px;
 }
+.nihilo .dijitSplitContainer-child,
+.nihilo .dijitBorderContainer-child {
+	
+    border: 1px #ccc solid;
+}
+.nihilo .dijitBorderContainer-dijitTabContainerTop,
+.nihilo .dijitBorderContainer-dijitTabContainerBottom,
+.nihilo .dijitBorderContainer-dijitTabContainerLeft,
+.nihilo .dijitBorderContainer-dijitTabContainerRight {
+	
+	 border: none;
+}
 .nihilo .dijitBorderContainer-dijitBorderContainer {
+	
 	border: none;
 	padding: 0px;
 }
@@ -482,23 +471,28 @@ border-bottom: solid #fff 1px;
 .nihilo .dijitTextAreaDisabled {
 	color: gray;
 }
-.dj_safari .nihilo .dijitTextBoxDisabled,
-.dj_safari .nihilo .dijitComboBoxDisabled,
-.dj_safari .nihilo .dijitSpinnerDisabled,
-.dj_safari .nihilo .dijitTextareaDisabled {
+.dj_webkit .nihilo .dijitTextBoxDisabled,
+.dj_webkit .nihilo .dijitComboBoxDisabled,
+.dj_webkit .nihilo .dijitSpinnerDisabled,
+.dj_webkit .nihilo .dijitTextareaDisabled {
 	color: #eee;
 }
 .nihilo .dijitTextBoxFocused,
 .nihilo .dijitComboBoxFocused,
-.nihilo .dijitSpinnerFocused,
+.nihilo .dijitSpinnerFocused, .nihilo .dijitSpinnerUpArrowActive, .nihilo .dijitSpinnerDownArrowActive,
 .nihilo .dijitTextAreaFocused {
 	
 	border-color:#b3b3b3;
 }
-.nihilo .dijitComboBoxFocused .dijitButtonNode, .nihilo .dijitSpinnerFocused .dijitButtonNode {
+.nihilo .dijitComboBoxFocused .dijitButtonNode,
+.nihilo .dijitSpinnerFocused .dijitButtonNode,
+.nihilo .dijitSpinnerUpArrowActive .dijitButtonNode,
+.nihilo .dijitSpinnerDownArrowActive .dijitButtonNode {
 	border-left-color:#d3d3d3;
 }
-.nihilo .dijitSpinnerFocused .dijitDownArrowButton {
+.nihilo .dijitSpinnerFocused .dijitDownArrowButton,
+.nihilo .dijitSpinnerUpArrowActive .dijitDownArrowButton,
+.nihilo .dijitSpinnerDownArrowActive .dijitDownArrowButton {
 	border-top-color:#d3d3d3;
 }
 .nihilo .dijitError {
@@ -589,7 +583,8 @@ border-bottom: solid #fff 1px;
 .nihilo .dijitDropDownButtonActive .dijitButtonNode,
 .nihilo .dijitComboButtonActive .dijitButtonContents,
 .nihilo .dijitDownArrowActive .dijitDownArrowButton,
-.nihilo .dijitComboBoxActive .dijitDownArrowButton {
+.nihilo .dijitComboBoxActive .dijitDownArrowButton,
+.nihilo .dijitStackController .dijitToggleButtonChecked .dijitButtonNode {
 	
 	border-color:#dedede;
 	background: #f5f5f5 url(images/buttonActive.png) top left repeat-x;
@@ -682,11 +677,11 @@ border-bottom: solid #fff 1px;
 	
 	background-position: 0px;
 }
-.nihilo .dijitRadioCheckedDisabled {
+.nihilo .dijitRadioDisabled {
 	
 	background-position: -48px;
 }
-.nihilo .dijitRadioDisabled {
+.nihilo .dijitRadioCheckedDisabled {
 	
 	background-position: -32px;
 }
@@ -806,21 +801,26 @@ border-bottom: solid #fff 1px;
 .nihilo .dijitSliderDisabled {
 	opacity:0.6 !important;
 }
-.dj_ie6 .nihilo .dijitSliderDisabled,
-.dj_ie6 .nihilo .dijitSliderDisabled .dijitRuleContainer,
-.dj_ie6 .nihilo .dijitSliderDisabled .dijitSliderRemainingBar,
-.dj_ie6 .nihilo .dijitSliderDisabled .dijitSliderProgressBar {
+.dj_ie .nihilo .dijitSliderDisabled,
+.dj_ie .nihilo .dijitSliderDisabled .dijitRuleContainer,
+.dj_ie .nihilo .dijitSliderDisabled .dijitSliderRemainingBar,
+.dj_ie .nihilo .dijitSliderDisabled .dijitSliderProgressBar {
 	filter: gray() alpha(opacity=40);
 }
 .nihilo .dijitTreeNode {
     background : url(images/treeI.gif) no-repeat;
     background-position : top left;
     background-repeat : repeat-y;
-    margin-left: 19px;
     zoom: 1;	
 }
 .nihilo .dijitTreeIsLast {
     background: url(images/treeI_half.gif) no-repeat;
+}
+.nihilo .dijitTreeNodeHover {
+	
+	background-image: url(images/treeHover.png);
+	background-repeat: repeat;
+	background-color: none !important;
 }
 .nihilo .dijitTreeLabel {
 	font-weight: normal;
@@ -833,6 +833,10 @@ border-bottom: solid #fff 1px;
 .nihilo .dijitTreeExpando {
     width: 18px;
     height: 18px;
+}
+.nihilo .dijitTreeRow {
+	
+	padding-bottom: 2px;
 }
 .nihilo .dijitTreeContent {
     min-height: 18px;
@@ -850,7 +854,6 @@ border-bottom: solid #fff 1px;
 }
 .nihilo .dijitTreeLabelFocused {
 	outline: 1px invert dotted;
-	background:#dde7f2;
 }
 .nihilo .dijitTreeExpandoOpened {
 	background: url(images/spriteTree.gif) no-repeat -18px top;
@@ -877,6 +880,19 @@ border-bottom: solid #fff 1px;
 .nihilo .dijitLeaf {
 	background: url(images/spriteDivIcons.gif) no-repeat -32px top;
 }
+.nihilo .dijitTreeNode .dojoDndItemBefore,
+.nihilo .dijitTreeNode .dojoDndItemAfter {
+	border-bottom: none;
+	border-top: none;
+}
+.nihilo .dijitTreeNode .dojoDndItemBefore .dijitTreeContent {
+	
+	border-top: 2px solid #369;
+}
+.nihilo .dijitTreeNode .dojoDndItemAfter .dijitTreeContent {
+	
+	border-bottom: 2px solid #369;
+}
 .nihilo .dijitProgressBar {
 	margin:2px 0px 2px 0px;
 }
@@ -902,7 +918,7 @@ border-bottom: solid #fff 1px;
 }
  
  
-.nihilo .dijitTitlePane .dijitTitlePaneTitle {
+.nihilo .dijitTitlePaneTitle {
 	background: #cccccc;
 	background:#fff url(images/titleBar.png) repeat-x top left;
 	border:1px solid #bfbfbf;
@@ -911,6 +927,9 @@ border-bottom: solid #fff 1px;
 	font-size: 0.9em;
 	font-weight: bold;
 	color: #6d6d6d;
+}
+.nihilo .dijitTitlePaneTitle-hover  {
+	background: #f9f9f9 url(images/accordionItemActive.png) top repeat-x;
 }
 .nihilo .dijitTitlePaneTitle * {
 	vertical-align: middle;
@@ -977,9 +996,8 @@ border-bottom: solid #fff 1px;
 	font-size:.1em;
 	background-image: url(images/spriteRoundedIconsSmall.gif);
 }
-.nihilo .dijitCalendarIncreaseInner,
-.nihilo .dijitCalendarDecreaseInner {
-	visibility:hidden;
+.nihilo .dijitA11ySideArrow {
+	display: none;
 }
 .nihilo .dijitCalendarDecrease {
 	background-position: top left;
@@ -1210,11 +1228,11 @@ border-bottom: solid #fff 1px;
 	padding: 0px;
 }
 .nihilo .dijitDialog .dijitDialogTitle {
-	border-top: none;
-	border-left: none;
-	border-right: none;
+	
 	font-size: 0.9em;
 	color: #3243C5F;
+	font-weight: bold;
+	padding: 0px 4px;
 }
 .nihilo .dijitDialog .dijitDialogPaneContent {
 	background: #ffffff;
@@ -1229,15 +1247,11 @@ border-bottom: solid #fff 1px;
 	cursor: move;
 	outline:0; 
 }
-.nihilo .dijitDialogTitle {
-	
-	font-weight: bold;
-	padding: 4px;
-	outline:0;
-}
 .nihilo .dijitDialogCloseIcon {
 	
-	background : url(images/spriteRoundedIconsSmall.png) no-repeat right top;
+	background-image: url(images/spriteRoundedIconsSmall.png);
+	background-repeat: no-repeat;
+	background-position: -60px 0px;
 	position: absolute;
 	vertical-align: middle;
 	right: 6px;
@@ -1246,12 +1260,11 @@ border-bottom: solid #fff 1px;
 	width: 15px;
 	cursor: pointer;
 }
-.dj_ie .nihilo .dijitDialogCloseIcon {
-	background : url(images/spriteRoundedIconsSmall.gif) no-repeat right top;
+.dj_ie6 .nihilo .dijitDialogCloseIcon {
+	background-image: url(images/spriteRoundedIconsSmall.gif);
 }
-.nihilo .dijitDialogContent {
-	
-	padding: 8px;
+.nihilo .dijitDialogCloseIcon-hover {
+	background-position: -60px -15px;
 }
 .nihilo .dijitTooltip,
 .nihilo .dijitTooltipDialog {
@@ -1290,7 +1303,7 @@ border-bottom: solid #fff 1px;
 	width:17px;
 	height:11px;
 }
-.dj_ie .nihilo .dijitTooltipBelow .dijitTooltipConnector {
+.dj_ie6 .nihilo .dijitTooltipBelow .dijitTooltipConnector {
 	background-image: url(images/tooltipConnectorUp.gif);
 }
 .nihilo .dijitTooltipAbove .dijitTooltipConnector {
@@ -1301,7 +1314,7 @@ border-bottom: solid #fff 1px;
 	width:17px;
 	height:11px;
 }
-.dj_ie .nihilo .dijitTooltipAbove .dijitTooltipConnector {
+.dj_ie6 .nihilo .dijitTooltipAbove .dijitTooltipConnector {
 	background-image: url(images/tooltipConnectorDown.gif);
 }
 .dj_ie6 .nihilo .dijitTooltipAbove .dijitTooltipConnector {
@@ -1321,7 +1334,7 @@ border-bottom: solid #fff 1px;
 	width:11px;
 	height:17px;
 }
-.dj_ie .nihilo .dijitTooltipLeft .dijitTooltipConnector {
+.dj_ie6 .nihilo .dijitTooltipLeft .dijitTooltipConnector {
 	background-image: url(images/tooltipConnectorRight.gif);
 }
 .nihilo .dijitTooltipRight {
@@ -1335,20 +1348,26 @@ border-bottom: solid #fff 1px;
 	width:11px;
 	height:17px;
 }
-.dj_ie .nihilo .dijitTooltipRight .dijitTooltipConnector {
+.dj_ie6 .nihilo .dijitTooltipRight .dijitTooltipConnector {
 	background-image: url(images/tooltipConnectorLeft.gif);
 }
-.nihilo .dijitMenu {
+.nihilo .dijitMenu,
+.nihilo .dijitMenuBar {
 	border: 1px solid #d3d3d3;
 	margin: 0px;
 	padding: 0px;
 	background-color: #fff;
 }
+.nihilo .dijitBorderContainer .dijitMenuBar {
+	border: 1px #ccc solid;
+}
 .nihilo .dijitMenuItem {
-	background-color: #fff;
 	font-family: sans-serif;
 	margin: 0px;
 	color: #243C5F;
+}
+.nihilo .dijitMenuBar .dijitMenuItem {
+	padding: 4px 5px;
 }
 .nihilo .dijitMenuPreviousButton, .nihilo .dijitMenuNextButton {
 	font-style: italic;
@@ -1356,29 +1375,25 @@ border-bottom: solid #fff 1px;
 .nihilo .dijitMenuItem TD {
 	padding:1px;
 }
-.nihilo .dijitMenuItemHover {
+.nihilo .dijitMenuPassive .dijitMenuItemHover,
+.nihilo .dijitMenuItemSelected {
 	background-color: #ffe284; 
 	color: #243C5F;
 }
 .nihilo .dijitMenuItemIcon {
 	width: 15px;
 	height: 15px;
-	
 }
 .nihilo .dijitMenuExpand {
-	
 	width:15px;
 	height:15px;
 	background-image: url(images/spriteRoundedIconsSmall.png);
-	background-repeat: no-repeat;
 	background-position: -30px top;
-	display:block;
 }
 .dj_ie6 .nihilo .dijitMenuExpand {
 	background-image:url(images/spriteRoundedIconsSmall.gif);
 }
 .nihilo .dijitMenuSeparator {
-	background-color: #fff;
 	height: 1px;
 }
 .nihilo .dijitMenuSeparatorTop {
@@ -1392,15 +1407,9 @@ border-bottom: solid #fff 1px;
 }
 .nihilo .dijitCheckedMenuItemIcon {
 	background-image: url(images/spriteCheckbox.gif);
-	background-position: -16px;
-}
-.nihilo .dijitCheckedMenuItemIconChecked {
-	background-position: 0px;
-}
-.nihilo .dijitMenuItemHover .dijitCheckedMenuItemIcon {
 	background-position: -80px;
 }
-.nihilo .dijitMenuItemHover .dijitCheckedMenuItemIconChecked {
+.nihilo .dijitCheckedMenuItemChecked .dijitCheckedMenuItemIcon {
 	background-position: -64px;
 }
 .dijitIEFixedToolbar {

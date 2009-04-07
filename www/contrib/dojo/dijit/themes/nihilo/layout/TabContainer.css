@@ -28,17 +28,14 @@
 .dijitTabSpacer {
 	font-size: 1px;
 }
-.nihilo .dijitTabHover,
-.nihilo .dijitTabCloseButtonHover {
+.nihilo .dijitTabHover {
 	color: #243C5F;
 	background: url("../images/tabContainerSprite.gif") no-repeat 0px -150px;
 }
-.nihilo .dijitTabHover .dijitTabInnerDiv,
-.nihilo .dijitTabCloseButtonHover .dijitTabInnerDiv {
+.nihilo .dijitTabHover .dijitTabInnerDiv {
 	background: url("../images/tabContainerSprite.gif") no-repeat right -250px;
 }
-.nihilo .dijitTabHover .dijitTabInnerDiv .dijitTabContent,
-.nihilo .dijitTabCloseButtonHover .dijitTabInnerDiv .dijitTabContent {
+.nihilo .dijitTabHover .dijitTabInnerDiv .dijitTabContent {
 	background: url("../images/tabContainerSprite.gif") repeat-x 0 -200px;
 }
 .nihilo .dijitTabChecked,
@@ -54,37 +51,48 @@
 	background: url("../images/tabContainerSprite.gif") repeat-x 0 -50px;
 	color: #243C5F !important;
 }
-.nihilo .dijitTab .dijitClosable .closeNode {
-	
-	display:-moz-inline-box;		
-	display:inline-block;			
-	#zoom: 1; 
-	#display:inline; 
-	vertical-align:top;
-	width: 1.25em;
-	height: 1.25em;
-	padding: 0;
-	margin: 0;
+.nihilo .dijitTabContainerTabListNested {
+	background: #FDFDFD;
+	border: none;
+	margin-bottom: 0px;		
 }
-.nihilo .dijitTab .dijitClosable .closeImage {
+.nihilo .dijitTabContainerTabListNested .dijitTab {
+	background: none;
+	border: none;
+	top: 0px;	
+}
+.nihilo .dijitTabContainerTabListNested .dijitTab .dijitTabInnerDiv,
+.nihilo .dijitTabContainerTabListNested .dijitTab .dijitTabContent {
+	background: none;
+}
+.nihilo .dijitTabContainerTabListNested .dijitTabHover .dijitTabContent .tabLabel {
+	text-decoration: underline;
+}
+.nihilo .dijitTabContainerTabListNested .dijitTabChecked .tabLabel {
+	text-decoration: underline;
+	font-weight: bold;
+}
+.nihilo .dijitTabContainerSpacerNested {
+	
+	height: 0px;
+	border-bottom: 0px;
+}
+.nihilo .dijitTabPaneWrapperNested {
+	border: none;	
+}
+.nihilo .dijitTab .closeImage {
 	background: url("../images/spriteRoundedIconsSmall.png") no-repeat -60px top;
 	width: 15px;
 	height: 15px;
 }
-.dj_ie6 .dijitTab .dijitClosable .closeImage {
+.dj_ie6 .dijitTab .closeImage {
 	background: url("../images/spriteRoundedIconsSmall.gif") no-repeat -60px top;
 }
-.nihilo .dijitTabCloseButton .dijitClosable .closeImage {
-	background: url("../images/spriteRoundedIconsSmall.png") no-repeat -60px top;
+.nihilo .dijitTab .closeButton-hover .closeImage {
+	background: url("../images/spriteRoundedIconsSmall.png") no-repeat -60px -15px;
 }
-.dj_ie6 .nihilo .dijitTabCloseButton .dijitClosable .closeImage {
-	background: url("../images/spriteRoundedIconsSmall.gif") no-repeat -60px top;
-}
-.nihilo .dijitTabCloseButtonHover .dijitClosable .closeImage {
-	background: url("../images/spriteRoundedIconsSmall.png") no-repeat -60px top;
-}
-.dj_ie6 .nihilo .dijitTabCloseButtonHover .dijitClosable .closeImage {
-	background: url("../images/spriteRoundedIconsSmall.gif") no-repeat -60px top;
+.dj_ie6 .nihilo .dijitTab .closeButton-hover .closeImage {
+	background: url("../images/spriteRoundedIconsSmall.gif") no-repeat -60px -15px;
 }
 .nihilo .dijitTab .dijitTabButtonSpacer {
 	height: 15px;
@@ -133,17 +141,14 @@
 .nihilo .dijitTabContainerBottom-tabs .dijitTabInnerDiv {
 	background: url("../images/tabBottomEnabledSpriteLR.gif") no-repeat bottom right;
 }
-.nihilo .dijitTabContainerBottom-tabs .dijitTabHover,
-.nihilo .dijitTabContainerBottom-tabs .dijitTabCloseButtonHover {
+.nihilo .dijitTabContainerBottom-tabs .dijitTabHover {
 	color: #243C5F;
 	background: url("../images/tabBottomHoverSpriteLR.gif") no-repeat bottom left;
 }
-.nihilo .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv,
-.nihilo .dijitTabContainerBottom-tabs .dijitTabCloseButtonHover .dijitTabInnerDiv {
+.nihilo .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv {
 	background: url("../images/tabBottomHoverSpriteLR.gif") no-repeat bottom right;
 }
-.nihilo .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv .dijitTabContent,
-.nihilo .dijitTabContainerBottom-tabs .dijitTabCloseButtonHover .dijitTabInnerDiv .dijitTabContent {
+.nihilo .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv .dijitTabContent {
 	background: url("../images/tabBottomHoverC.gif") repeat-x bottom left;
 }
 .nihilo .dijitTabContainerBottom-tabs .dijitTabChecked,

@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -10,6 +10,7 @@ dojo._hasResource["dojox.charting.action2d.Magnify"]=true;
 dojo.provide("dojox.charting.action2d.Magnify");
 dojo.require("dojox.charting.action2d.Base");
 dojo.require("dojox.gfx.matrix");
+dojo.require("dojo.fx");
 (function(){
 var _1=2,m=dojox.gfx.matrix,gf=dojox.gfx.fx;
 dojo.declare("dojox.charting.action2d.Magnify",dojox.charting.action2d.Base,{defaultParams:{duration:400,easing:dojo.fx.easing.backOut,scale:_1},optionalParams:{},constructor:function(_4,_5,_6){

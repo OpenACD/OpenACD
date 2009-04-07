@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -31,6 +31,7 @@ this.isBuffering=_c;
 console.warn("ERROR-"+_d.type.toUpperCase()+":",_d.info.code," - URL:",_e);
 },onStatus:function(_f){
 },onPlayerStatus:function(_10){
+},onResize:function(){
 },_figureStatus:function(){
 var pos=this.getTime();
 if(this.status=="stopping"){
@@ -89,5 +90,34 @@ this.onStatus(this.status);
 },_eventFactory:function(){
 var evt={status:this.status};
 return evt;
+},_sub:function(_13,_14){
+dojo.subscribe(this.id+"/"+_13,this,_14);
+},_normalizeVolume:function(vol){
+if(vol>1){
+while(vol>1){
+vol*=0.1;
+}
+}
+return vol;
+},_normalizeUrl:function(_16){
+if(_16&&_16.toLowerCase().indexOf("http")<0){
+var loc=window.location.href.split("/");
+loc.pop();
+loc=loc.join("/")+"/";
+_16=loc+_16;
+}
+return _16;
+},destroy:function(){
+if(!this.flashMedia){
+this._cons.push(dojo.connect(this,"onLoad",this,"destroy"));
+return;
+}
+dojo.forEach(this._subs,function(s){
+dojo.unsubscribe(s);
+});
+dojo.forEach(this._cons,function(c){
+dojo.disconnect(c);
+});
+this._flashObject.destroy();
 }});
 }

@@ -21,10 +21,6 @@
 .dijitRtl .dijitProgressBarFull .dijitProgressBarLabel {
 	right:0; 
 }
-.dijitRtl .dijitA11ySideArrow {
-	margin-left:1em;
-	margin-right:0;
-}
 .dijitRtl .dijitSliderImageHandleV {
 	left:auto;
 	right:-6px;
@@ -113,7 +109,7 @@
 .dijitRtl .nihilo .dijitTabContainerRight-tabs .dijitTab {
 	margin-left:0px;
 }
-.dj_ie .nihilo .dijitTab .dijitTabInnerDiv{
+.dj_ie-rtl .nihilo .dijitTab .dijitTabInnerDiv{
 	width : 1%;
 }
 .dijitRtl .nihilo .dijitAccordionArrow {
@@ -162,15 +158,9 @@
 	border-right: 1px solid #8ba0bd;
 }
 .dijitRtl .nihilo .dijitTreeContainer .dijitTreeNode {
-    background-image : url(images/treeI_rtl.gif);
-    background-position : top right;
-    margin-left: auto;
-    margin-right: 19px;
+    background-image : none;
 }
 .dijitRtl .nihilo .dijitTreeContainer .dijitTreeIsRoot {
-	margin-left: auto;
-    margin-right: 0;
-    background-image: none;
 }
 .dijitRtl .nihilo .dijitTreeContainer .dijitTreeIsLast {
     background-image: url(images/treeI_half_rtl.gif);
@@ -186,7 +176,7 @@
 	background-image: url(images/spriteTree_rtl.gif);
 }
 .dijitRtl .nihilo .dijitTreeContainer .dijitTreeExpandoLeaf {
-	background: url(images/spriteTree_rtl.gif) no-repeat -36px top;
+	background: none;
 }
 .dijitRtl .nihilo .dijitTitlePane .dijitClosed .dijitArrowNode {
 	background-position: 0px top;

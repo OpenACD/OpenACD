@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -12,7 +12,7 @@ dojo.require("dojox.charting.scaler.common");
 (function(){
 var _1=3,dc=dojox.charting,_3=dc.scaler,_4=_3.common,_5=_4.findString,_6=_4.getNumericLabel;
 var _7=function(_8,_9,_a,_b,_c,_d,_e){
-_a=dojo.clone(_a);
+_a=dojo.delegate(_a);
 if(!_b){
 if(_a.fixUpper=="major"){
 _a.fixUpper="minor";

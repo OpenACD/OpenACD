@@ -11,9 +11,8 @@
 	font-size:.1em;
 	background-image: url("images/spriteRoundedIconsSmall.gif");
 }
-.tundra .dijitCalendarIncreaseInner,
-.tundra .dijitCalendarDecreaseInner {
-	visibility:hidden;
+.tundra .dijitA11ySideArrow {
+	display: none;
 }
 .tundra .dijitCalendarDecrease {
 	background-position: top left;
@@ -86,10 +85,9 @@
 		
 	background-color:#bbbbbc !important;
 }
-.tundra .dijitCalendarCurrentDate {
-	
-	text-decoration:underline;
-	font-weight:bold;
+.tundra .dijitCalendarDisabledDate {
+	cursor:default !important;
+	text-decoration:line-through !important;
 }
 .tundra .dijitCalendarCurrentDate {
 	

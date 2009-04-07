@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -37,25 +37,25 @@ return;
 }
 var _7=this._defsResolved[this._curId];
 this._curId+=1;
-function resolveAndCallFunc(_8){
-var _9=null;
-if(dojo.isArray(_8)){
-if(_8.length>2){
-_9=_8[0].apply(_8[1],_8.slice(2));
+function _8(_9){
+var _a=null;
+if(dojo.isArray(_9)){
+if(_9.length>2){
+_a=_9[0].apply(_9[1],_9.slice(2));
 }else{
-_9=_8[0].apply(_8[1]);
+_a=_9[0].apply(_9[1]);
 }
 }else{
-_9=_8();
+_a=_9();
 }
-return _9;
+return _a;
 };
 if(this._curId>=this._defsResolved.length){
-resolveAndCallFunc(_7.func);
+_8(_7.func);
 return;
 }
 if(_7.pauseAfter){
-if(resolveAndCallFunc(_7.func)!==false){
+if(_8(_7.func)!==false){
 setTimeout(dojo.hitch(this,"_go"),_7.pauseAfter);
 }else{
 this._goOnPause=_7.pauseAfter;
@@ -63,13 +63,13 @@ this._goOnPause=_7.pauseAfter;
 }else{
 if(_7.pauseBefore){
 var x=dojo.hitch(this,function(){
-if(resolveAndCallFunc(_7.func)!==false){
+if(_8(_7.func)!==false){
 this._go();
 }
 });
 setTimeout(x,_7.pauseBefore);
 }else{
-if(resolveAndCallFunc(_7.func)!==false){
+if(_8(_7.func)!==false){
 this._go();
 }
 }

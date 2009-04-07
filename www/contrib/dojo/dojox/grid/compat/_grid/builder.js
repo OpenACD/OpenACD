@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -214,7 +214,8 @@ return !_45.noresize&&!_45.isFlex();
 if(dojo._isBodyLtr()){
 return (e.cellIndex>0)&&(e.cellX<this.overResizeWidth)&&this.prepareResize(e,-1);
 }
-return t=e.cellNode&&(e.cellX<this.overResizeWidth);
+var t=e.cellNode&&(e.cellX<this.overResizeWidth);
+return;
 },overRightResizeArea:function(e){
 if(dojo._isBodyLtr()){
 return e.cellNode&&(e.cellX>=e.cellNode.offsetWidth-this.overResizeWidth);
@@ -245,107 +246,107 @@ return true;
 }
 },beginColumnResize:function(e){
 dojo.stopEvent(e);
-var _4d=[],_4e=this.tableMap.findOverlappingNodes(e.cellNode);
-for(var i=0,_50;(_50=_4e[i]);i++){
-_4d.push({node:_50,index:this.getCellNodeIndex(_50),width:_50.offsetWidth});
+var _4e=[],_4f=this.tableMap.findOverlappingNodes(e.cellNode);
+for(var i=0,_51;(_51=_4f[i]);i++){
+_4e.push({node:_51,index:this.getCellNodeIndex(_51),width:_51.offsetWidth});
 }
-var _51={scrollLeft:e.sourceView.headerNode.scrollLeft,view:e.sourceView,node:e.cellNode,index:e.cellIndex,w:e.cellNode.clientWidth,spanners:_4d};
-dojox.grid.drag.start(e.cellNode,dojo.hitch(this,"doResizeColumn",_51),dojo.hitch(this,"endResizeColumn",_51),e);
-},doResizeColumn:function(_52,_53){
-var _54=dojo._isBodyLtr();
-if(_54){
-var w=_52.w+_53.deltaX;
+var _52={scrollLeft:e.sourceView.headerNode.scrollLeft,view:e.sourceView,node:e.cellNode,index:e.cellIndex,w:e.cellNode.clientWidth,spanners:_4e};
+dojox.grid.drag.start(e.cellNode,dojo.hitch(this,"doResizeColumn",_52),dojo.hitch(this,"endResizeColumn",_52),e);
+},doResizeColumn:function(_53,_54){
+var _55=dojo._isBodyLtr();
+if(_55){
+var w=_53.w+_54.deltaX;
 }else{
-var w=_52.w-_53.deltaX;
+var w=_53.w-_54.deltaX;
 }
 if(w>=this.minColWidth){
-for(var i=0,s,sw;(s=_52.spanners[i]);i++){
-if(_54){
-sw=s.width+_53.deltaX;
+for(var i=0,s,sw;(s=_53.spanners[i]);i++){
+if(_55){
+sw=s.width+_54.deltaX;
 }else{
-sw=s.width-_53.deltaX;
+sw=s.width-_54.deltaX;
 }
 s.node.style.width=sw+"px";
-_52.view.setColWidth(s.index,sw);
+_53.view.setColWidth(s.index,sw);
 }
-_52.node.style.width=w+"px";
-_52.view.setColWidth(_52.index,w);
-if(!_54){
-_52.view.headerNode.scrollLeft=(_52.scrollLeft-_53.deltaX);
+_53.node.style.width=w+"px";
+_53.view.setColWidth(_53.index,w);
+if(!_55){
+_53.view.headerNode.scrollLeft=(_53.scrollLeft-_54.deltaX);
 }
 }
-if(_52.view.flexCells&&!_52.view.testFlexCells()){
-var t=dojox.grid.findTable(_52.node);
+if(_53.view.flexCells&&!_53.view.testFlexCells()){
+var t=dojox.grid.findTable(_53.node);
 t&&(t.style.width="");
 }
-},endResizeColumn:function(_5a){
+},endResizeColumn:function(_5b){
 this.bogusClickTime=new Date().getTime()+30;
-setTimeout(dojo.hitch(_5a.view,"update"),50);
+setTimeout(dojo.hitch(_5b.view,"update"),50);
 }});
-dojo.declare("dojox.grid.tableMap",null,{constructor:function(_5b){
-this.mapRows(_5b);
-},map:null,mapRows:function(_5c){
-var _5d=_5c.length;
-if(!_5d){
+dojo.declare("dojox.grid.tableMap",null,{constructor:function(_5c){
+this.mapRows(_5c);
+},map:null,mapRows:function(_5d){
+var _5e=_5d.length;
+if(!_5e){
 return;
 }
 this.map=[];
-for(var j=0,row;(row=_5c[j]);j++){
+for(var j=0,row;(row=_5d[j]);j++){
 this.map[j]=[];
 }
-for(var j=0,row;(row=_5c[j]);j++){
-for(var i=0,x=0,_62,_63,_64;(_62=row[i]);i++){
+for(var j=0,row;(row=_5d[j]);j++){
+for(var i=0,x=0,_63,_64,_65;(_63=row[i]);i++){
 while(this.map[j][x]){
 x++;
 }
 this.map[j][x]={c:i,r:j};
-_64=_62.rowSpan||1;
-_63=_62.colSpan||1;
-for(var y=0;y<_64;y++){
-for(var s=0;s<_63;s++){
+_65=_63.rowSpan||1;
+_64=_63.colSpan||1;
+for(var y=0;y<_65;y++){
+for(var s=0;s<_64;s++){
 this.map[j+y][x+s]=this.map[j][x];
 }
 }
-x+=_63;
+x+=_64;
 }
 }
 },dumpMap:function(){
 for(var j=0,row,h="";(row=this.map[j]);j++,h=""){
-for(var i=0,_6b;(_6b=row[i]);i++){
-h+=_6b.r+","+_6b.c+"   ";
+for(var i=0,_6c;(_6c=row[i]);i++){
+h+=_6c.r+","+_6c.c+"   ";
 }
 
 }
-},getMapCoords:function(_6c,_6d){
+},getMapCoords:function(_6d,_6e){
 for(var j=0,row;(row=this.map[j]);j++){
-for(var i=0,_71;(_71=row[i]);i++){
-if(_71.c==_6d&&_71.r==_6c){
+for(var i=0,_72;(_72=row[i]);i++){
+if(_72.c==_6e&&_72.r==_6d){
 return {j:j,i:i};
 }
 }
 }
 return {j:-1,i:-1};
-},getNode:function(_72,_73,_74){
-var row=_72&&_72.rows[_73];
-return row&&row.cells[_74];
-},_findOverlappingNodes:function(_76,_77,_78){
-var _79=[];
-var m=this.getMapCoords(_77,_78);
+},getNode:function(_73,_74,_75){
+var row=_73&&_73.rows[_74];
+return row&&row.cells[_75];
+},_findOverlappingNodes:function(_77,_78,_79){
+var _7a=[];
+var m=this.getMapCoords(_78,_79);
 var row=this.map[m.j];
 for(var j=0,row;(row=this.map[j]);j++){
 if(j==m.j){
 continue;
 }
 with(row[m.i]){
-var n=this.getNode(_76,r,c);
+var n=this.getNode(_77,r,c);
 if(n){
-_79.push(n);
+_7a.push(n);
 }
 }
 }
-return _79;
-},findOverlappingNodes:function(_7e){
-return this._findOverlappingNodes(dojox.grid.findTable(_7e),dojox.grid.getTrIndex(_7e.parentNode),dojox.grid.getTdIndex(_7e));
+return _7a;
+},findOverlappingNodes:function(_7f){
+return this._findOverlappingNodes(dojox.grid.findTable(_7f),dojox.grid.getTrIndex(_7f.parentNode),dojox.grid.getTdIndex(_7f));
 }});
 dojox.grid.rowIndexTag="gridRowIndex";
 dojox.grid.gridViewTag="gridView";

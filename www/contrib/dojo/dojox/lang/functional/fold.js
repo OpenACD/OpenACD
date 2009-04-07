@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -17,19 +17,19 @@ a=a.split("");
 }
 o=o||d.global;
 f=df.lambda(f);
+var i,n;
 if(d.isArray(a)){
-for(var i=0,n=a.length;i<n;z=f.call(o,z,a[i],i,a),++i){
+for(i=0,n=a.length;i<n;z=f.call(o,z,a[i],i,a),++i){
 }
 }else{
 if(typeof a.hasNext=="function"&&typeof a.next=="function"){
-for(var i=0;a.hasNext();z=f.call(o,z,a.next(),i++,a)){
+for(i=0;a.hasNext();z=f.call(o,z,a.next(),i++,a)){
 }
 }else{
-for(var i in a){
-if(i in _3){
-continue;
-}
+for(i in a){
+if(!(i in _3)){
 z=f.call(o,z,a[i],i,a);
+}
 }
 }
 }
@@ -40,29 +40,28 @@ a=a.split("");
 }
 o=o||d.global;
 f=df.lambda(f);
-var z;
+var z,i,n;
 if(d.isArray(a)){
 z=a[0];
-for(var i=1,n=a.length;i<n;z=f.call(o,z,a[i],i,a),++i){
+for(i=1,n=a.length;i<n;z=f.call(o,z,a[i],i,a),++i){
 }
 }else{
 if(typeof a.hasNext=="function"&&typeof a.next=="function"){
 if(a.hasNext()){
 z=a.next();
-for(var i=1;a.hasNext();z=f.call(o,z,a.next(),i++,a)){
+for(i=1;a.hasNext();z=f.call(o,z,a.next(),i++,a)){
 }
 }
 }else{
 var _10=true;
-for(var i in a){
-if(i in _3){
-continue;
-}
+for(i in a){
+if(!(i in _3)){
 if(_10){
 z=a[i];
 _10=false;
 }else{
 z=f.call(o,z,a[i],i,a);
+}
 }
 }
 }
@@ -83,8 +82,8 @@ a=a.split("");
 }
 o=o||d.global;
 f=df.lambda(f);
-var n=a.length,z=a[n-1];
-for(var i=n-1;i>0;--i,z=f.call(o,z,a[i],i,a)){
+var n=a.length,z=a[n-1],i=n-1;
+for(;i>0;--i,z=f.call(o,z,a[i],i,a)){
 }
 return z;
 },reduce:function(a,f,z){

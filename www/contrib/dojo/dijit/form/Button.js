@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -10,14 +10,14 @@ dojo._hasResource["dijit.form.Button"]=true;
 dojo.provide("dijit.form.Button");
 dojo.require("dijit.form._FormWidget");
 dojo.require("dijit._Container");
-dojo.declare("dijit.form.Button",dijit.form._FormWidget,{label:"",showLabel:true,iconClass:"",type:"button",baseClass:"dijitButton",templateString:"<span class=\"dijit dijitReset dijitLeft dijitInline\"\n\tdojoAttachEvent=\"ondijitclick:_onButtonClick,onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse\"\n\t><span class=\"dijitReset dijitRight dijitInline\"\n\t\t><span class=\"dijitReset dijitInline dijitButtonNode\"\n\t\t\t><button class=\"dijitReset dijitStretch dijitButtonContents\"\n\t\t\t\tdojoAttachPoint=\"titleNode,focusNode\" \n\t\t\t\tname=\"${name}\" type=\"${type}\" waiRole=\"button\" waiState=\"labelledby-${id}_label\"\n\t\t\t\t><span class=\"dijitReset dijitInline\" dojoAttachPoint=\"iconNode\" \n\t\t\t\t\t><span class=\"dijitReset dijitToggleButtonIconChar\">&#10003;</span \n\t\t\t\t></span \n\t\t\t\t><span class=\"dijitReset dijitInline dijitButtonText\" \n\t\t\t\t\tid=\"${id}_label\"  \n\t\t\t\t\tdojoAttachPoint=\"containerNode\"\n\t\t\t\t></span\n\t\t\t></button\n\t\t></span\n\t></span\n></span>\n",attributeMap:dojo.mixin(dojo.clone(dijit.form._FormWidget.prototype.attributeMap),{label:{node:"containerNode",type:"innerHTML"},iconClass:{node:"iconNode",type:"class"}}),_onClick:function(e){
+dojo.declare("dijit.form.Button",dijit.form._FormWidget,{label:"",showLabel:true,iconClass:"",type:"button",baseClass:"dijitButton",templateString:"<span class=\"dijit dijitReset dijitLeft dijitInline\"\n\tdojoAttachEvent=\"ondijitclick:_onButtonClick,onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse\"\n\t><span class=\"dijitReset dijitRight dijitInline\"\n\t\t><span class=\"dijitReset dijitInline dijitButtonNode\"\n\t\t\t><button class=\"dijitReset dijitStretch dijitButtonContents\"\n\t\t\t\tdojoAttachPoint=\"titleNode,focusNode\" \n\t\t\t\t${nameAttrSetting} type=\"${type}\" value=\"${value}\" waiRole=\"button\" waiState=\"labelledby-${id}_label\"\n\t\t\t\t><span class=\"dijitReset dijitInline\" dojoAttachPoint=\"iconNode\" \n\t\t\t\t\t><span class=\"dijitReset dijitToggleButtonIconChar\">&#10003;</span \n\t\t\t\t></span \n\t\t\t\t><span class=\"dijitReset dijitInline dijitButtonText\" \n\t\t\t\t\tid=\"${id}_label\"  \n\t\t\t\t\tdojoAttachPoint=\"containerNode\"\n\t\t\t\t></span\n\t\t\t></button\n\t\t></span\n\t></span\n></span>\n",attributeMap:dojo.delegate(dijit.form._FormWidget.prototype.attributeMap,{label:{node:"containerNode",type:"innerHTML"},iconClass:{node:"iconNode",type:"class"}}),_onClick:function(e){
 if(this.disabled||this.readOnly){
 return false;
 }
 this._clicked();
 return this.onClick(e);
 },_onButtonClick:function(e){
-if(e.type!="click"){
+if(e.type!="click"&&!(this.type=="submit"||this.type=="reset")){
 dojo.stopEvent(e);
 }
 if(this._onClick(e)===false){
@@ -33,9 +33,16 @@ break;
 }
 }
 }
-},_fillContent:function(_5){
-if(_5&&!("label" in this.params)){
-this.attr("label",_5.innerHTML);
+},_setValueAttr:function(_5){
+var _6=this.attributeMap.value||"";
+if(this[_6.node||_6||"domNode"].tagName=="BUTTON"){
+if(_5!=this.value){
+
+}
+}
+},_fillContent:function(_7){
+if(_7&&!("label" in this.params)){
+this.attr("label",_7.innerHTML);
 }
 },postCreate:function(){
 if(this.showLabel==false){
@@ -46,20 +53,20 @@ this.inherited(arguments);
 },onClick:function(e){
 return true;
 },_clicked:function(e){
-},setLabel:function(_8){
+},setLabel:function(_a){
 dojo.deprecated("dijit.form.Button.setLabel() is deprecated.  Use attr('label', ...) instead.","","2.0");
-this.attr("label",_8);
-},_setLabelAttr:function(_9){
-this.containerNode.innerHTML=this.label=_9;
+this.attr("label",_a);
+},_setLabelAttr:function(_b){
+this.containerNode.innerHTML=this.label=_b;
 this._layoutHack();
 if(this.showLabel==false&&!this.params.title){
 this.titleNode.title=dojo.trim(this.containerNode.innerText||this.containerNode.textContent||"");
 }
 }});
-dojo.declare("dijit.form.DropDownButton",[dijit.form.Button,dijit._Container],{baseClass:"dijitDropDownButton",templateString:"<span class=\"dijit dijitReset dijitLeft dijitInline\"\n\tdojoAttachEvent=\"onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse,onclick:_onDropDownClick,onkeydown:_onDropDownKeydown,onblur:_onDropDownBlur,onkeypress:_onKey\"\n\t><span class='dijitReset dijitRight dijitInline'\n\t\t><span class='dijitReset dijitInline dijitButtonNode'\n\t\t\t><button class=\"dijitReset dijitStretch dijitButtonContents\" \n\t\t\t\ttype=\"${type}\" name=\"${name}\"\n\t\t\t\tdojoAttachPoint=\"focusNode,titleNode\" \n\t\t\t\twaiRole=\"button\" waiState=\"haspopup-true,labelledby-${id}_label\"\n\t\t\t\t><span class=\"dijitReset dijitInline\" \n\t\t\t\t\tdojoAttachPoint=\"iconNode\"\n\t\t\t\t></span\n\t\t\t\t><span class=\"dijitReset dijitInline dijitButtonText\"  \n\t\t\t\t\tdojoAttachPoint=\"containerNode,popupStateNode\" \n\t\t\t\t\tid=\"${id}_label\"\n\t\t\t\t></span\n\t\t\t\t><span class=\"dijitReset dijitInline dijitArrowButtonInner\">&thinsp;</span\n\t\t\t\t><span class=\"dijitReset dijitInline dijitArrowButtonChar\">&#9660;</span\n\t\t\t></button\n\t\t></span\n\t></span\n></span>\n",_fillContent:function(){
+dojo.declare("dijit.form.DropDownButton",[dijit.form.Button,dijit._Container],{baseClass:"dijitDropDownButton",templateString:"<span class=\"dijit dijitReset dijitLeft dijitInline\"\n\tdojoAttachEvent=\"onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse,onclick:_onDropDownClick,onkeydown:_onDropDownKeydown,onblur:_onDropDownBlur,onkeypress:_onKey\"\n\t><span class='dijitReset dijitRight dijitInline'\n\t\t><span class='dijitReset dijitInline dijitButtonNode'\n\t\t\t><button class=\"dijitReset dijitStretch dijitButtonContents\" \n\t\t\t\t${nameAttrSetting} type=\"${type}\" value=\"${value}\"\n\t\t\t\tdojoAttachPoint=\"focusNode,titleNode\" \n\t\t\t\twaiRole=\"button\" waiState=\"haspopup-true,labelledby-${id}_label\"\n\t\t\t\t><span class=\"dijitReset dijitInline\" \n\t\t\t\t\tdojoAttachPoint=\"iconNode\"\n\t\t\t\t></span\n\t\t\t\t><span class=\"dijitReset dijitInline dijitButtonText\"  \n\t\t\t\t\tdojoAttachPoint=\"containerNode,popupStateNode\" \n\t\t\t\t\tid=\"${id}_label\"\n\t\t\t\t></span\n\t\t\t\t><span class=\"dijitReset dijitInline dijitArrowButtonInner\">&thinsp;</span\n\t\t\t\t><span class=\"dijitReset dijitInline dijitArrowButtonChar\">&#9660;</span\n\t\t\t></button\n\t\t></span\n\t></span\n></span>\n",_fillContent:function(){
 if(this.srcNodeRef){
-var _a=dojo.query("*",this.srcNodeRef);
-dijit.form.DropDownButton.superclass._fillContent.call(this,_a[0]);
+var _c=dojo.query("*",this.srcNodeRef);
+dijit.form.DropDownButton.superclass._fillContent.call(this,_c[0]);
 this.dropDownContainer=this.srcNodeRef;
 }
 },startup:function(){
@@ -67,8 +74,8 @@ if(this._started){
 return;
 }
 if(!this.dropDown){
-var _b=dojo.query("[widgetId]",this.dropDownContainer)[0];
-this.dropDown=dijit.byNode(_b);
+var _d=dojo.query("[widgetId]",this.dropDownContainer)[0];
+this.dropDown=dijit.byNode(_d);
 delete this.dropDownContainer;
 }
 dijit.popup.prepare(this.dropDown.domNode);
@@ -85,8 +92,8 @@ return;
 }
 this._toggleDropDown();
 },_onDropDownClick:function(e){
-var _e=dojo.isFF&&dojo.isFF<3&&navigator.appVersion.indexOf("Macintosh")!=-1;
-if(!_e||e.detail!=0||this._seenKeydown){
+var _10=dojo.isFF&&dojo.isFF<3&&navigator.appVersion.indexOf("Macintosh")!=-1;
+if(!_10||e.detail!=0||this._seenKeydown){
 this._onArrowClick(e);
 }
 this._seenKeydown=false;
@@ -112,18 +119,18 @@ if(this.disabled||this.readOnly){
 return;
 }
 dijit.focus(this.popupStateNode);
-var _12=this.dropDown;
-if(!_12){
+var _14=this.dropDown;
+if(!_14){
 return;
 }
 if(!this._opened){
-if(_12.href&&!_12.isLoaded){
-var _13=this;
-var _14=dojo.connect(_12,"onLoad",function(){
-dojo.disconnect(_14);
-_13._openDropDown();
+if(_14.href&&!_14.isLoaded){
+var _15=this;
+var _16=dojo.connect(_14,"onLoad",function(){
+dojo.disconnect(_16);
+_15._openDropDown();
 });
-_12._loadCheck(true);
+_14.refresh();
 return;
 }else{
 this._openDropDown();
@@ -132,58 +139,58 @@ this._openDropDown();
 this._closeDropDown();
 }
 },_openDropDown:function(){
-var _15=this.dropDown;
-var _16=_15.domNode.style.width;
-var _17=this;
-dijit.popup.open({parent:this,popup:_15,around:this.domNode,orient:this.isLeftToRight()?{"BL":"TL","BR":"TR","TL":"BL","TR":"BR"}:{"BR":"TR","BL":"TL","TR":"BR","TL":"BL"},onExecute:function(){
-_17._closeDropDown(true);
+var _17=this.dropDown;
+var _18=_17.domNode.style.width;
+var _19=this;
+dijit.popup.open({parent:this,popup:_17,around:this.domNode,orient:this.isLeftToRight()?{"BL":"TL","BR":"TR","TL":"BL","TR":"BR"}:{"BR":"TR","BL":"TL","TR":"BR","TL":"BL"},onExecute:function(){
+_19._closeDropDown(true);
 },onCancel:function(){
-_17._closeDropDown(true);
+_19._closeDropDown(true);
 },onClose:function(){
-_15.domNode.style.width=_16;
-_17.popupStateNode.removeAttribute("popupActive");
-_17._opened=false;
+_17.domNode.style.width=_18;
+_19.popupStateNode.removeAttribute("popupActive");
+_19._opened=false;
 }});
-if(this.domNode.offsetWidth>_15.domNode.offsetWidth){
-var _18=null;
+if(this.domNode.offsetWidth>_17.domNode.offsetWidth){
+var _1a=null;
 if(!this.isLeftToRight()){
-_18=_15.domNode.parentNode;
-var _19=_18.offsetLeft+_18.offsetWidth;
+_1a=_17.domNode.parentNode;
+var _1b=_1a.offsetLeft+_1a.offsetWidth;
 }
-dojo.marginBox(_15.domNode,{w:this.domNode.offsetWidth});
-if(_18){
-_18.style.left=_19-this.domNode.offsetWidth+"px";
+dojo.marginBox(_17.domNode,{w:this.domNode.offsetWidth});
+if(_1a){
+_1a.style.left=_1b-this.domNode.offsetWidth+"px";
 }
 }
 this.popupStateNode.setAttribute("popupActive","true");
 this._opened=true;
-if(_15.focus){
-_15.focus();
+if(_17.focus){
+_17.focus();
 }
-},_closeDropDown:function(_1a){
+},_closeDropDown:function(_1c){
 if(this._opened){
 dijit.popup.close(this.dropDown);
-if(_1a){
+if(_1c){
 this.focus();
 }
 this._opened=false;
 }
 }});
-dojo.declare("dijit.form.ComboButton",dijit.form.DropDownButton,{templateString:"<table class='dijit dijitReset dijitInline dijitLeft'\n\tcellspacing='0' cellpadding='0' waiRole=\"presentation\"\n\t><tbody waiRole=\"presentation\"><tr waiRole=\"presentation\"\n\t\t><td class=\"dijitReset dijitStretch dijitButtonContents dijitButtonNode\"\n\t\t\tdojoAttachEvent=\"ondijitclick:_onButtonClick,onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse\"  dojoAttachPoint=\"titleNode\"\n\t\t\twaiRole=\"button\" waiState=\"labelledby-${id}_label\"\n\t\t\t><div class=\"dijitReset dijitInline\" dojoAttachPoint=\"iconNode\" waiRole=\"presentation\"></div\n\t\t\t><div class=\"dijitReset dijitInline dijitButtonText\" id=\"${id}_label\" dojoAttachPoint=\"containerNode\" waiRole=\"presentation\"></div\n\t\t></td\n\t\t><td class='dijitReset dijitRight dijitButtonNode dijitArrowButton dijitDownArrowButton'\n\t\t\tdojoAttachPoint=\"popupStateNode,focusNode\"\n\t\t\tdojoAttachEvent=\"ondijitclick:_onArrowClick, onkeypress:_onKey,onmouseenter:_onMouse,onmouseleave:_onMouse\"\n\t\t\tstateModifier=\"DownArrow\"\n\t\t\ttitle=\"${optionsTitle}\" name=\"${name}\"\n\t\t\twaiRole=\"button\" waiState=\"haspopup-true\"\n\t\t\t><div class=\"dijitReset dijitArrowButtonInner\" waiRole=\"presentation\">&thinsp;</div\n\t\t\t><div class=\"dijitReset dijitArrowButtonChar\" waiRole=\"presentation\">&#9660;</div\n\t\t></td\n\t></tr></tbody\n></table>\n",attributeMap:dojo.mixin(dojo.clone(dijit.form.Button.prototype.attributeMap),{id:"",name:"",tabIndex:["focusNode","titleNode"]}),optionsTitle:"",baseClass:"dijitComboButton",_focusedNode:null,postCreate:function(){
+dojo.declare("dijit.form.ComboButton",dijit.form.DropDownButton,{templateString:"<table class='dijit dijitReset dijitInline dijitLeft'\n\tcellspacing='0' cellpadding='0' waiRole=\"presentation\"\n\t><tbody waiRole=\"presentation\"><tr waiRole=\"presentation\"\n\t\t><td class=\"dijitReset dijitStretch dijitButtonContents dijitButtonNode\"\n\t\t\tdojoAttachEvent=\"ondijitclick:_onButtonClick,onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse\"  dojoAttachPoint=\"titleNode\"\n\t\t\twaiRole=\"button\" waiState=\"labelledby-${id}_label\"\n\t\t\t><div class=\"dijitReset dijitInline\" dojoAttachPoint=\"iconNode\" waiRole=\"presentation\"></div\n\t\t\t><div class=\"dijitReset dijitInline dijitButtonText\" id=\"${id}_label\" dojoAttachPoint=\"containerNode\" waiRole=\"presentation\"></div\n\t\t></td\n\t\t><td class='dijitReset dijitRight dijitButtonNode dijitArrowButton dijitDownArrowButton'\n\t\t\tdojoAttachPoint=\"popupStateNode,focusNode\"\n\t\t\tdojoAttachEvent=\"ondijitclick:_onArrowClick, onkeypress:_onKey,onmouseenter:_onMouse,onmouseleave:_onMouse\"\n\t\t\tstateModifier=\"DownArrow\"\n\t\t\ttitle=\"${optionsTitle}\" ${nameAttrSetting}\n\t\t\twaiRole=\"button\" waiState=\"haspopup-true\"\n\t\t\t><div class=\"dijitReset dijitArrowButtonInner\" waiRole=\"presentation\">&thinsp;</div\n\t\t\t><div class=\"dijitReset dijitArrowButtonChar\" waiRole=\"presentation\">&#9660;</div\n\t\t></td\n\t></tr></tbody\n></table>\n",attributeMap:dojo.mixin(dojo.clone(dijit.form.Button.prototype.attributeMap),{id:"",tabIndex:["focusNode","titleNode"]}),optionsTitle:"",baseClass:"dijitComboButton",_focusedNode:null,postCreate:function(){
 this.inherited(arguments);
 this._focalNodes=[this.titleNode,this.popupStateNode];
-dojo.forEach(this._focalNodes,dojo.hitch(this,function(_1b){
+dojo.forEach(this._focalNodes,dojo.hitch(this,function(_1d){
 if(dojo.isIE){
-this.connect(_1b,"onactivate",this._onNodeFocus);
-this.connect(_1b,"ondeactivate",this._onNodeBlur);
+this.connect(_1d,"onactivate",this._onNodeFocus);
+this.connect(_1d,"ondeactivate",this._onNodeBlur);
 }else{
-this.connect(_1b,"onfocus",this._onNodeFocus);
-this.connect(_1b,"onblur",this._onNodeBlur);
+this.connect(_1d,"onfocus",this._onNodeFocus);
+this.connect(_1d,"onblur",this._onNodeBlur);
 }
 }));
-},focusFocalNode:function(_1c){
-this._focusedNode=_1c;
-dijit.focus(_1c);
+},focusFocalNode:function(_1e){
+this._focusedNode=_1e;
+dijit.focus(_1e);
 },hasNextFocalNode:function(){
 return this._focusedNode!==this.getFocalNodes()[1];
 },focusNext:function(){
@@ -209,15 +216,15 @@ this._focusedNode=null;
 }});
 dojo.declare("dijit.form.ToggleButton",dijit.form.Button,{baseClass:"dijitToggleButton",checked:false,attributeMap:dojo.mixin(dojo.clone(dijit.form.Button.prototype.attributeMap),{checked:"focusNode"}),_clicked:function(evt){
 this.attr("checked",!this.checked);
-},_setCheckedAttr:function(_22){
-this.checked=_22;
-dojo.attr(this.focusNode||this.domNode,"checked",_22);
-dijit.setWaiState(this.focusNode||this.domNode,"pressed",_22);
+},_setCheckedAttr:function(_24){
+this.checked=_24;
+dojo.attr(this.focusNode||this.domNode,"checked",_24);
+dijit.setWaiState(this.focusNode||this.domNode,"pressed",_24);
 this._setStateClass();
-this._handleOnChange(_22,true);
-},setChecked:function(_23){
-dojo.deprecated("setChecked("+_23+") is deprecated. Use attr('checked',"+_23+") instead.","","2.0");
-this.attr("checked",_23);
+this._handleOnChange(_24,true);
+},setChecked:function(_25){
+dojo.deprecated("setChecked("+_25+") is deprecated. Use attr('checked',"+_25+") instead.","","2.0");
+this.attr("checked",_25);
 },reset:function(){
 this._hasBeenBlurred=false;
 this.attr("checked",this.params.checked||false);

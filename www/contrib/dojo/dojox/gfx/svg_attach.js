@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -84,13 +84,13 @@ var _11=null,_12=dojox.gfx.svg.getRef(_10);
 if(_12){
 switch(_12.tagName.toLowerCase()){
 case "lineargradient":
-_11=_getGradient(dojox.gfx.defaultLinearGradient,_12);
+_11=_13(dojox.gfx.defaultLinearGradient,_12);
 dojo.forEach(["x1","y1","x2","y2"],function(x){
 _11[x]=_12.getAttribute(x);
 });
 break;
 case "radialgradient":
-_11=_getGradient(dojox.gfx.defaultRadialGradient,_12);
+_11=_13(dojox.gfx.defaultRadialGradient,_12);
 dojo.forEach(["cx","cy","r"],function(x){
 _11[x]=_12.getAttribute(x);
 });
@@ -108,14 +108,14 @@ break;
 }
 }else{
 _11=new dojo.Color(_10);
-var _16=_f.rawNode.getAttribute("fill-opacity");
-if(_16!=null){
-_11.a=_16;
+var _17=_f.rawNode.getAttribute("fill-opacity");
+if(_17!=null){
+_11.a=_17;
 }
 }
 _f.fillStyle=_11;
 };
-var _17=function(_18,_19){
+var _13=function(_18,_19){
 var _1a=dojo.clone(_18);
 _1a.colors=[];
 for(var i=0;i<_19.childNodes.length;++i){

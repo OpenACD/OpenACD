@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -16,10 +16,8 @@ if((_2&&_2.query[this.searchAttr]!=this._lastQuery)||(!_2&&_1.length&&this.store
 return;
 }
 if(!_1.length){
-if(_3||!this._focused){
 this.valueNode.value="";
-}
-dijit.form.TextBox.superclass._setValueAttr.call(this,"",_3||!this._focused);
+dijit.form.TextBox.superclass._setValueAttr.call(this,"",_3||(_3===undefined&&!this._focused));
 this._isvalid=false;
 this.validate(this._focused);
 this.item=null;
@@ -46,7 +44,7 @@ if(!this._onChangeActive){
 _a=null;
 }
 this._lastQuery=_9;
-if(_9===null){
+if(_9===null||_9===""){
 this._setDisplayedValueAttr("",_a);
 return;
 }
@@ -96,17 +94,9 @@ dojo.mixin(_1b,this.fetchProperties);
 this.store.fetch(_1b);
 }
 },postMixInProperties:function(){
-dijit.form.ComboBoxMixin.prototype.postMixInProperties.apply(this,arguments);
-dijit.form.MappedTextBox.prototype.postMixInProperties.apply(this,arguments);
-},postCreate:function(){
-dijit.form.ComboBoxMixin.prototype._postCreate.apply(this,arguments);
-dijit.form.MappedTextBox.prototype.postCreate.apply(this,arguments);
-},_setDisabledAttr:function(_1f,_20){
-dijit.form.MappedTextBox.prototype._setDisabledAttr.apply(this,arguments);
-dijit.form.ComboBoxMixin.prototype._setDisabledAttr.apply(this,arguments);
+this.inherited(arguments);
+this._isvalid=!this.required;
 },undo:function(){
 this.attr("displayedValue",this._lastDisplayedValue);
-},_valueChanged:function(){
-return this.attr("displayedValue")!=this._lastDisplayedValue;
 }});
 }

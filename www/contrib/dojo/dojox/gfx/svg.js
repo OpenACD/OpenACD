@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -64,10 +64,11 @@ this.rawNode.setAttribute("fill-opacity",f.a);
 this.rawNode.setAttribute("fill-rule","evenodd");
 return this;
 },setStroke:function(_8){
+var rn=this.rawNode;
 if(!_8){
 this.strokeStyle=null;
-this.rawNode.setAttribute("stroke","none");
-this.rawNode.setAttribute("stroke-opacity",0);
+rn.setAttribute("stroke","none");
+rn.setAttribute("stroke-opacity",0);
 return this;
 }
 if(typeof _8=="string"||dojo.isArray(_8)||_8 instanceof dojo.Color){
@@ -75,7 +76,6 @@ _8={color:_8};
 }
 var s=this.strokeStyle=dojox.gfx.makeParameters(dojox.gfx.defaultStroke,_8);
 s.color=dojox.gfx.normalizeColor(s.color);
-var rn=this.rawNode;
 if(s){
 rn.setAttribute("stroke",s.color.toCss());
 rn.setAttribute("stroke-opacity",s.color.a);
@@ -92,7 +92,7 @@ if(da in dojox.gfx.svg.dasharray){
 da=dojox.gfx.svg.dasharray[da];
 }
 if(da instanceof Array){
-da=dojo.clone(da);
+da=dojo._toArray(da);
 for(var i=0;i<da.length;++i){
 da[i]*=s.width;
 }
@@ -141,11 +141,7 @@ _13.setAttribute("id",dojox.gfx._base._getUniqueId());
 _12.appendChild(_13);
 }
 if(_f=="pattern"){
-if(dojo.isSafari){
-_13.setAttributeNS(null,"patternUnits","userSpaceOnUse");
-}else{
 _13.setAttribute("patternUnits","userSpaceOnUse");
-}
 var img=document.createElementNS(_10,"image");
 img.setAttribute("x",0);
 img.setAttribute("y",0);
@@ -154,11 +150,7 @@ img.setAttribute("height",f.height.toFixed(8));
 img.setAttributeNS(dojox.gfx.svg.xmlns.xlink,"href",f.src);
 _13.appendChild(img);
 }else{
-if(dojo.isSafari){
-_13.setAttributeNS(null,"gradientUnits","userSpaceOnUse");
-}else{
 _13.setAttribute("gradientUnits","userSpaceOnUse");
-}
 for(var i=0;i<f.colors.length;++i){
 var c=f.colors[i],t=document.createElementNS(_10,"stop"),cc=c.color=dojox.gfx.normalizeColor(c.color);
 t.setAttribute("offset",c.offset.toFixed(8));

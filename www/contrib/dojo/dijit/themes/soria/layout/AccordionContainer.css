@@ -1,31 +1,17 @@
  
  
 .soria .dijitAccordionContainer {
-	border-color: #b1badf;	
-}
-.soria .dijitTabContainer-dijitAccordionContainer {
-    border: none;
-}
-.soria .dijitAccordionContainer-dijitAccordionContainer {
-    border: none;
-    background-color: #fff;
-}
-.soria .dijitSplitContainer-dijitAccordionContainer,
-.soria .dijitBorderContainer-dijitAccordionContainer {
-    border: 1px #B1BADF solid;
-    background-color: #fff;
-}
-.soria .dijitAccordionPane {
-	background-color: #e7e7e7;
-	font-size: 0.9em;
-	font-weight: bold;
-	color: #373941;
+	border-color: #b1badf;
+	background-color: #fff;
 }
 .soria .dijitAccordionTitle {
 	background:#fafafa url("../images/titleBar.png") repeat-x top left;
 	border-top: 1px solid #b9bbdd;
 	padding: 5px 4px 6px 8px;
 	cursor:pointer;
+	font-size: 0.9em;
+	font-weight: bold;
+	color: #373941;
 }
 .soria .dijitAccordionTitle-selected  {
 	background: #f9f9f9 url("../images/accordionItemActive.png") top repeat-x;
@@ -49,7 +35,4 @@
 .soria .dijitAccordionText {
 	margin-left: 4px;
 	margin-right: 4px;
-}
-.soria .dijitAccordionBody {
-	background: #fff;
 }

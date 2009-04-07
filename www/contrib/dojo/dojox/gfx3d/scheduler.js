@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -17,7 +17,6 @@ return _2(b)-_2(a);
 });
 return _1;
 },bsp:function(_5,_6){
-
 _6=_6?_6:dojox.gfx3d.scheduler.outline;
 var p=new dojox.gfx3d.scheduler.BinarySearchTree(_5[0],_6);
 dojo.forEach(_5.slice(1),function(_8){
@@ -37,28 +36,25 @@ var o=_c(_b);
 this.orient=o[0];
 this.normal=dojox.gfx3d.vector.normalize(o);
 },add:function(_e,_f){
-var _10=0.5,o=_f(_e),v=dojox.gfx3d.vector,n=this.normal,a=this.orient;
-if(dojo.every(o,function(_15){
-return Math.floor(_10+v.dotProduct(n,v.substract(_15,a)))<=0;
+var _10=0.5,o=_f(_e),v=dojox.gfx3d.vector,n=this.normal,a=this.orient,BST=dojox.gfx3d.scheduler.BinarySearchTree;
+if(dojo.every(o,function(_16){
+return Math.floor(_10+v.dotProduct(n,v.substract(_16,a)))<=0;
 })){
 if(this.minus){
 this.minus.add(_e,_f);
 }else{
-this.minus=new dojox.gfx3d.scheduler.BinarySearchTree(_e,_f);
+this.minus=new BST(_e,_f);
 }
 }else{
-if(dojo.every(o,function(_16){
-return Math.floor(_10+v.dotProduct(n,v.substract(_16,a)))>=0;
+if(dojo.every(o,function(_17){
+return Math.floor(_10+v.dotProduct(n,v.substract(_17,a)))>=0;
 })){
 if(this.plus){
 this.plus.add(_e,_f);
 }else{
-this.plus=new dojox.gfx3d.scheduler.BinarySearchTree(_e,_f);
+this.plus=new BST(_e,_f);
 }
 }else{
-dojo.forEach(o,function(_17){
-
-});
 throw "The case: polygon cross siblings' plate is not implemneted yet";
 }
 }
@@ -83,7 +79,6 @@ _1b=_1b.concat(_1c[1].iterate());
 return _1b;
 }});
 dojo.mixin(dojox.gfx3d.drawer,{conservative:function(_1e,_1f,_20){
-
 dojo.forEach(this.objects,function(_21){
 _21.destroy();
 });
@@ -91,7 +86,6 @@ dojo.forEach(_1f,function(_22){
 _22.draw(_20.lighting);
 });
 },chart:function(_23,_24,_25){
-
 dojo.forEach(this.todos,function(_26){
 _26.draw(_25.lighting);
 });

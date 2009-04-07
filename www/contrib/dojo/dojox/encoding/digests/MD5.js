@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -30,7 +30,7 @@ return C(b^c^d,a,b,x,s,t);
 function II(a,b,c,d,x,s,t){
 return C(c^(b|(~d)),a,b,x,s,t);
 };
-function core(x,len){
+function _2d(x,len){
 x[len>>5]|=128<<((len)%32);
 x[(((len+64)>>>9)<<4)+14]=len;
 var a=1732584193;
@@ -38,10 +38,10 @@ var b=-271733879;
 var c=-1732584194;
 var d=271733878;
 for(var i=0;i<x.length;i+=16){
-var _2e=a;
-var _2f=b;
-var _30=c;
-var _31=d;
+var _35=a;
+var _36=b;
+var _37=c;
+var _38=d;
 a=FF(a,b,c,d,x[i+0],7,-680876936);
 d=FF(d,a,b,c,x[i+1],12,-389564586);
 c=FF(c,d,a,b,x[i+2],17,606105819);
@@ -106,29 +106,29 @@ a=II(a,b,c,d,x[i+4],6,-145523070);
 d=II(d,a,b,c,x[i+11],10,-1120210379);
 c=II(c,d,a,b,x[i+2],15,718787259);
 b=II(b,c,d,a,x[i+9],21,-343485551);
-a=_1.addWords(a,_2e);
-b=_1.addWords(b,_2f);
-c=_1.addWords(c,_30);
-d=_1.addWords(d,_31);
+a=_1.addWords(a,_35);
+b=_1.addWords(b,_36);
+c=_1.addWords(c,_37);
+d=_1.addWords(d,_38);
 }
 return [a,b,c,d];
 };
-function hmac(_32,key){
+function _39(_3a,key){
 var wa=_1.stringToWord(key);
 if(wa.length>16){
-wa=core(wa,key.length*_2);
+wa=_2d(wa,key.length*_2);
 }
 var l=[],r=[];
 for(var i=0;i<16;i++){
 l[i]=wa[i]^909522486;
 r[i]=wa[i]^1549556828;
 }
-var h=core(l.concat(_1.stringToWord(_32)),512+_32.length*_2);
-return core(r.concat(h),640);
+var h=_2d(l.concat(_1.stringToWord(_3a)),512+_3a.length*_2);
+return _2d(r.concat(h),640);
 };
-_1.MD5=function(_39,_3a){
-var out=_3a||_1.outputTypes.Base64;
-var wa=core(_1.stringToWord(_39),_39.length*_2);
+_1.MD5=function(_41,_42){
+var out=_42||_1.outputTypes.Base64;
+var wa=_2d(_1.stringToWord(_41),_41.length*_2);
 switch(out){
 case _1.outputTypes.Raw:
 return wa;
@@ -140,9 +140,9 @@ default:
 return _1.wordToBase64(wa);
 }
 };
-_1.MD5._hmac=function(_3d,key,_3f){
-var out=_3f||_1.outputTypes.Base64;
-var wa=hmac(_3d,key);
+_1.MD5._hmac=function(_45,key,_47){
+var out=_47||_1.outputTypes.Base64;
+var wa=_39(_45,key);
 switch(out){
 case _1.outputTypes.Raw:
 return wa;

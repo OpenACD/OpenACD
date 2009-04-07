@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -44,7 +44,7 @@ _12=dojo.getObject(_11,false,_d).call(_d,_12,key);
 return _c(_12,key).toString();
 });
 };
-dojo.string.trim=function(str){
+dojo.string.trim=String.prototype.trim?dojo.trim:function(str){
 str=str.replace(/^\s+/,"");
 for(var i=str.length-1;i>=0;i--){
 if(/\S/.test(str.charAt(i))){

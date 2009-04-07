@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -62,40 +62,60 @@ return _9;
 }
 }
 }});
-_2.BindDataNode=dojo.extend(function(_b,_c,_d){
-this.items=new dd._Filter(_b);
-this.store=new dd._Filter(_c);
-this.alias=_d;
-},{render:function(_e,_f){
-var _10=this.items.resolve(_e);
-var _11=this.store.resolve(_e);
-if(!_11){
+_2._BoundItem.prototype.get.safe=true;
+_2.BindDataNode=dojo.extend(function(_b,_c,_d,_e){
+this.items=_b&&new dd._Filter(_b);
+this.query=_c&&new dd._Filter(_c);
+this.store=new dd._Filter(_d);
+this.alias=_e;
+},{render:function(_f,_10){
+var _11=this.items&&this.items.resolve(_f);
+var _12=this.query&&this.query.resolve(_f);
+var _13=this.store.resolve(_f);
+if(!_13||!_13.getFeatures){
 throw new Error("data_bind didn't receive a store");
 }
-var _12=[];
-if(_10){
-for(var i=0,_14;_14=_10[i];i++){
-_12.push(new _2._BoundItem(_14,_11));
+if(_12){
+var _14=false;
+_13.fetch({query:_12,sync:true,scope:this,onComplete:function(it){
+_14=true;
+_11=it;
+}});
+if(!_14){
+throw new Error("The bind_data tag only works with a query if the store executed synchronously");
 }
 }
-_e[this.alias]=_12;
-return _f;
-},unrender:function(_15,_16){
-return _16;
+var _16=[];
+if(_11){
+for(var i=0,_18;_18=_11[i];i++){
+_16.push(new _2._BoundItem(_18,_13));
+}
+}
+_f[this.alias]=_16;
+return _10;
+},unrender:function(_19,_1a){
+return _1a;
 },clone:function(){
 return this;
 }});
 dojo.mixin(_2,{_get:function(key){
 if(this.length){
-return this[0].get(key);
+return (this[0] instanceof _2._BoundItem)?this[0].get(key):this[0][key];
 }
-},bind_data:function(_18,_19){
-var _1a=_19.contents.split();
-if(_1a[2]!="to"||_1a[4]!="as"||!_1a[5]){
+},bind_data:function(_1c,_1d){
+var _1e=_1d.contents.split();
+if(_1e[2]!="to"||_1e[4]!="as"||!_1e[5]){
 throw new Error("data_bind expects the format: 'data_bind items to store as varName'");
 }
-return new _2.BindDataNode(_1a[1],_1a[3],_1a[5]);
+return new _2.BindDataNode(_1e[1],null,_1e[3],_1e[5]);
+},bind_query:function(_1f,_20){
+var _21=_20.contents.split();
+if(_21[2]!="to"||_21[4]!="as"||!_21[5]){
+throw new Error("data_bind expects the format: 'bind_query query to store as varName'");
+}
+return new _2.BindDataNode(null,_21[1],_21[3],_21[5]);
 }});
-dd.register.tags("dojox.dtl.contrib",{"data":["bind_data"]});
+_2._get.safe=true;
+dd.register.tags("dojox.dtl.contrib",{"data":["bind_data","bind_query"]});
 })();
 }

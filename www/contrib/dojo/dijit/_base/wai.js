@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -9,10 +9,7 @@ if(!dojo._hasResource["dijit._base.wai"]){
 dojo._hasResource["dijit._base.wai"]=true;
 dojo.provide("dijit._base.wai");
 dijit.wai={onload:function(){
-var _1=dojo.doc.createElement("div");
-_1.id="a11yTestNode";
-_1.style.cssText="border: 1px solid;"+"border-color:red green;"+"position: absolute;"+"height: 5px;"+"top: -999px;"+"background-image: url(\""+(dojo.config.blankGif||dojo.moduleUrl("dojo","resources/blank.gif"))+"\");";
-dojo.body().appendChild(_1);
+var _1=dojo.create("div",{id:"a11yTestNode",style:{cssText:"border: 1px solid;"+"border-color:red green;"+"position: absolute;"+"height: 5px;"+"top: -999px;"+"background-image: url(\""+(dojo.config.blankGif||dojo.moduleUrl("dojo","resources/blank.gif"))+"\");"}},dojo.body());
 var cs=dojo.getComputedStyle(_1);
 if(cs){
 var _3=cs.backgroundImage;
@@ -30,11 +27,7 @@ dojo._loaders.unshift(dijit.wai.onload);
 }
 dojo.mixin(dijit,{_XhtmlRoles:/banner|contentinfo|definition|main|navigation|search|note|secondary|seealso/,hasWaiRole:function(_5,_6){
 var _7=this.getWaiRole(_5);
-if(_6){
-return (_7.indexOf(_6)>-1);
-}else{
-return (_7.length>0);
-}
+return _6?(_7.indexOf(_6)>-1):(_7.length>0);
 },getWaiRole:function(_8){
 return dojo.trim((dojo.attr(_8,"role")||"").replace(this._XhtmlRoles,"").replace("wairole:",""));
 },setWaiRole:function(_9,_a){
@@ -63,27 +56,24 @@ _e.removeAttribute("role");
 },hasWaiState:function(_13,_14){
 if(dojo.isFF<3){
 return _13.hasAttributeNS("http://www.w3.org/2005/07/aaa",_14);
-}else{
-return _13.hasAttribute?_13.hasAttribute("aria-"+_14):!!_13.getAttribute("aria-"+_14);
 }
+return _13.hasAttribute?_13.hasAttribute("aria-"+_14):!!_13.getAttribute("aria-"+_14);
 },getWaiState:function(_15,_16){
 if(dojo.isFF<3){
 return _15.getAttributeNS("http://www.w3.org/2005/07/aaa",_16);
-}else{
-var _17=_15.getAttribute("aria-"+_16);
-return _17?_17:"";
 }
-},setWaiState:function(_18,_19,_1a){
+return _15.getAttribute("aria-"+_16)||"";
+},setWaiState:function(_17,_18,_19){
 if(dojo.isFF<3){
-_18.setAttributeNS("http://www.w3.org/2005/07/aaa","aaa:"+_19,_1a);
+_17.setAttributeNS("http://www.w3.org/2005/07/aaa","aaa:"+_18,_19);
 }else{
-_18.setAttribute("aria-"+_19,_1a);
+_17.setAttribute("aria-"+_18,_19);
 }
-},removeWaiState:function(_1b,_1c){
+},removeWaiState:function(_1a,_1b){
 if(dojo.isFF<3){
-_1b.removeAttributeNS("http://www.w3.org/2005/07/aaa",_1c);
+_1a.removeAttributeNS("http://www.w3.org/2005/07/aaa",_1b);
 }else{
-_1b.removeAttribute("aria-"+_1c);
+_1a.removeAttribute("aria-"+_1b);
 }
 }});
 }

@@ -1,14 +1,4 @@
 
-.soria .dijitSliderDisabled *,
-.soria .dijitDisabledClickableRegion,	
-.soria .dijitSpinnerDisabled *,
-.soria .dijitButtonDisabled *,
-.soria .dijitDropDownButtonDisabled *,
-.soria .dijitComboButtonDisabled *,
-.soria .dijitComboBoxDisabled *
-{
-	cursor: not-allowed !important;
-}
 .soria .dojoDndItemBefore {
 	border-top: 2px solid #369;
 }

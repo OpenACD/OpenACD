@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -10,7 +10,7 @@ dojo._hasResource["dojo.currency"]=true;
 dojo.provide("dojo.currency");
 dojo.require("dojo.number");
 dojo.require("dojo.i18n");
-dojo.requireLocalization("dojo.cldr","currency",null,"zh,en-ca,pt,en-us,de,ja,en,en-au,ROOT,fr,es,ko,zh-tw,it");
+dojo.requireLocalization("dojo.cldr","currency",null,"ROOT,ar,ca,cs,da,de,el,en,en-au,en-ca,en-us,es,fi,fr,he,hu,it,ja,ko,nb,nl,pl,pt,ru,sk,sl,sv,th,tr,zh,zh-tw");
 dojo.require("dojo.cldr.monetary");
 dojo.currency._mixInDefaults=function(_1){
 _1=_1||{};

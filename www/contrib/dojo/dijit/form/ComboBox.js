@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -11,8 +11,9 @@ dojo.provide("dijit.form.ComboBox");
 dojo.require("dijit.form.ValidationTextBox");
 dojo.require("dojo.data.util.simpleFetch");
 dojo.require("dojo.data.util.filter");
-dojo.requireLocalization("dijit.form","ComboBox",null,"zh,ca,ROOT,pt,da,tr,ru,de,sv,ja,he,fi,nb,el,ar,pt-pt,cs,fr,es,ko,nl,zh-tw,pl,th,it,hu,sk,sl");
-dojo.declare("dijit.form.ComboBoxMixin",null,{item:null,pageSize:Infinity,store:null,fetchProperties:{},query:{},autoComplete:true,highlightMatch:"first",searchDelay:100,searchAttr:"name",labelAttr:"",labelType:"text",queryExpr:"${0}*",ignoreCase:true,hasDownArrow:true,templateString:"<div class=\"dijit dijitReset dijitInlineTable dijitLeft\"\n\tid=\"widget_${id}\"\n\tdojoAttachEvent=\"onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse\" dojoAttachPoint=\"comboNode\" waiRole=\"combobox\" tabIndex=\"-1\"\n\t><div style=\"overflow:hidden;\"\n\t\t><div class='dijitReset dijitRight dijitButtonNode dijitArrowButton dijitDownArrowButton'\n\t\t\tdojoAttachPoint=\"downArrowNode\" waiRole=\"presentation\"\n\t\t\tdojoAttachEvent=\"onmousedown:_onArrowMouseDown,onmouseup:_onMouse,onmouseenter:_onMouse,onmouseleave:_onMouse\"\n\t\t\t><div class=\"dijitArrowButtonInner\">&thinsp;</div\n\t\t\t><div class=\"dijitArrowButtonChar\">&#9660;</div\n\t\t></div\n\t\t><div class=\"dijitReset dijitValidationIcon\"><br></div\n\t\t><div class=\"dijitReset dijitValidationIconText\">&Chi;</div\n\t\t><div class=\"dijitReset dijitInputField\"\n\t\t\t><input type=\"text\" autocomplete=\"off\" name=\"${name}\" class='dijitReset'\n\t\t\tdojoAttachEvent=\"onkeypress:_onKeyPress, onfocus:_update, compositionend\"\n\t\t\tdojoAttachPoint=\"textbox,focusNode\" waiRole=\"textbox\" waiState=\"haspopup-true,autocomplete-list\"\n\t\t/></div\n\t></div\n></div>\n",baseClass:"dijitComboBox",_getCaretPos:function(_1){
+dojo.require("dojo.regexp");
+dojo.requireLocalization("dijit.form","ComboBox",null,"ROOT,ar,ca,cs,da,de,el,es,fi,fr,he,hu,it,ja,ko,nb,nl,pl,pt,pt-pt,ru,sk,sl,sv,th,tr,zh,zh-tw");
+dojo.declare("dijit.form.ComboBoxMixin",null,{item:null,pageSize:Infinity,store:null,fetchProperties:{},query:{},autoComplete:true,highlightMatch:"first",searchDelay:100,searchAttr:"name",labelAttr:"",labelType:"text",queryExpr:"${0}*",ignoreCase:true,hasDownArrow:true,templateString:"<div class=\"dijit dijitReset dijitInlineTable dijitLeft\"\n\tid=\"widget_${id}\"\n\tdojoAttachEvent=\"onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse\" dojoAttachPoint=\"comboNode\" waiRole=\"combobox\" tabIndex=\"-1\"\n\t><div style=\"overflow:hidden;\"\n\t\t><div class='dijitReset dijitRight dijitButtonNode dijitArrowButton dijitDownArrowButton'\n\t\t\tdojoAttachPoint=\"downArrowNode\" waiRole=\"presentation\"\n\t\t\tdojoAttachEvent=\"onmousedown:_onArrowMouseDown,onmouseup:_onMouse,onmouseenter:_onMouse,onmouseleave:_onMouse\"\n\t\t\t><div class=\"dijitArrowButtonInner\">&thinsp;</div\n\t\t\t><div class=\"dijitArrowButtonChar\">&#9660;</div\n\t\t></div\n\t\t><div class=\"dijitReset dijitValidationIcon\"><br></div\n\t\t><div class=\"dijitReset dijitValidationIconText\">&Chi;</div\n\t\t><div class=\"dijitReset dijitInputField\"\n\t\t\t><input ${nameAttrSetting} type=\"text\" autocomplete=\"off\" class='dijitReset'\n\t\t\tdojoAttachEvent=\"onkeypress:_onKeyPress,compositionend\"\n\t\t\tdojoAttachPoint=\"textbox,focusNode\" waiRole=\"textbox\" waiState=\"haspopup-true,autocomplete-list\"\n\t\t/></div\n\t></div\n></div>\n",baseClass:"dijitComboBox",_getCaretPos:function(_1){
 var _2=0;
 if(typeof (_1.selectionStart)=="number"){
 _2=_1.selectionStart;
@@ -35,6 +36,7 @@ return _2;
 _6=parseInt(_6);
 dijit.selectInputText(_5,_6,_6);
 },_setDisabledAttr:function(_7){
+this.inherited(arguments);
 dijit.setWaiState(this.comboNode,"disabled",_7);
 },_onKeyPress:function(_8){
 var _9=_8.charOrCode;
@@ -44,8 +46,10 @@ return;
 var _a=false;
 var pw=this._popupWidget;
 var dk=dojo.keys;
+var _d=null;
 if(this._isShowingNow){
 pw.handleKey(_9);
+_d=pw.getHighlightedOption();
 }
 switch(_9){
 case dk.PAGE_DOWN:
@@ -54,7 +58,9 @@ if(!this._isShowingNow||this._prev_key_esc){
 this._arrowPressed();
 _a=true;
 }else{
-this._announceOption(pw.getHighlightedOption());
+if(_d){
+this._announceOption(_d);
+}
 }
 dojo.stopEvent(_8);
 this._prev_key_backspace=false;
@@ -63,15 +69,14 @@ break;
 case dk.PAGE_UP:
 case dk.UP_ARROW:
 if(this._isShowingNow){
-this._announceOption(pw.getHighlightedOption());
+this._announceOption(_d);
 }
 dojo.stopEvent(_8);
 this._prev_key_backspace=false;
 this._prev_key_esc=false;
 break;
 case dk.ENTER:
-var _d;
-if(this._isShowingNow&&(_d=pw.getHighlightedOption())){
+if(_d){
 if(_d==pw.nextButton){
 this._nextSearch(1);
 dojo.stopEvent(_8);
@@ -95,8 +100,8 @@ break;
 if(this._isShowingNow){
 this._prev_key_backspace=false;
 this._prev_key_esc=false;
-if(pw.getHighlightedOption()){
-pw.attr("value",{target:pw.getHighlightedOption()});
+if(_d){
+pw.attr("value",{target:_d});
 }
 this._lastQuery=null;
 this._hideResultList();
@@ -105,7 +110,7 @@ break;
 case " ":
 this._prev_key_backspace=false;
 this._prev_key_esc=false;
-if(this._isShowingNow&&pw.getHighlightedOption()){
+if(_d){
 dojo.stopEvent(_8);
 this._selectOption();
 this._hideResultList();
@@ -119,8 +124,6 @@ this._prev_key_esc=true;
 if(this._isShowingNow){
 dojo.stopEvent(_8);
 this._hideResultList();
-}else{
-this.inherited(arguments);
 }
 break;
 case dk.DELETE:
@@ -168,8 +171,10 @@ if(!_13.length){
 this._hideResultList();
 return;
 }
+this.item=null;
 var _15=new String(this.store.getValue(_13[0],this.searchAttr));
 if(_15&&this.autoComplete&&!this._prev_key_backspace&&(_14.query[this.searchAttr]!="*")){
+this.item=_13[0];
 this._autoCompleteText(_15);
 }
 _14._maxOptions=this._maxOptions;
@@ -323,13 +328,15 @@ this.value=this.store.getValue(_33,this._getValueField());
 }
 }
 }
-},_postCreate:function(){
+this.inherited(arguments);
+},postCreate:function(){
 var _34=dojo.query("label[for=\""+this.id+"\"]");
 if(_34.length){
 _34[0].id=(this.id+"_label");
 var cn=this.comboNode;
 dijit.setWaiState(cn,"labelledby",_34[0].id);
 }
+this.inherited(arguments);
 },uninitialize:function(){
 if(this._popupWidget){
 this._hideResultList();
@@ -346,10 +353,8 @@ return {html:_38=="html",label:_37};
 },doHighlight:function(_39,_3a){
 var _3b="i"+(this.highlightMatch=="all"?"g":"");
 var _3c=this._escapeHtml(_39);
-var ret=_3c.replace(new RegExp("^("+_3a+")",_3b),"<span class=\"dijitComboBoxHighlightMatch\">$1</span>");
-if(_3c==ret){
-ret=_3c.replace(new RegExp(" ("+_3a+")",_3b)," <span class=\"dijitComboBoxHighlightMatch\">$1</span>");
-}
+_3a=dojo.regexp.escapeString(_3a);
+var ret=_3c.replace(new RegExp("(^|\\s)("+_3a+")",_3b),"$1<span class=\"dijitComboBoxHighlightMatch\">$2</span>");
 return ret;
 },_escapeHtml:function(str){
 str=String(str).replace(/&/gm,"&amp;").replace(/</gm,"&lt;").replace(/>/gm,"&gt;").replace(/"/gm,"&quot;");
@@ -361,9 +366,9 @@ return dijit.popup.open({popup:this._popupWidget,around:this.domNode,parent:this
 this.item=null;
 this.inherited(arguments);
 }});
-dojo.declare("dijit.form._ComboBoxMenu",[dijit._Widget,dijit._Templated],{templateString:"<ul class='dijitReset dijitMenu' dojoAttachEvent='onmousedown:_onMouseDown,onmouseup:_onMouseUp,onmouseover:_onMouseOver,onmouseout:_onMouseOut' tabIndex='-1' style='overflow: \"auto\"; overflow-x: \"hidden\";'>"+"<li class='dijitMenuItem dijitMenuPreviousButton' dojoAttachPoint='previousButton'></li>"+"<li class='dijitMenuItem dijitMenuNextButton' dojoAttachPoint='nextButton'></li>"+"</ul>",_messages:null,postMixInProperties:function(){
+dojo.declare("dijit.form._ComboBoxMenu",[dijit._Widget,dijit._Templated],{templateString:"<ul class='dijitReset dijitMenu' dojoAttachEvent='onmousedown:_onMouseDown,onmouseup:_onMouseUp,onmouseover:_onMouseOver,onmouseout:_onMouseOut' tabIndex='-1' style='overflow: \"auto\"; overflow-x: \"hidden\";'>"+"<li class='dijitMenuItem dijitMenuPreviousButton' dojoAttachPoint='previousButton' waiRole='option'></li>"+"<li class='dijitMenuItem dijitMenuNextButton' dojoAttachPoint='nextButton' waiRole='option'></li>"+"</ul>",_messages:null,postMixInProperties:function(){
 this._messages=dojo.i18n.getLocalization("dijit.form","ComboBox",this.lang);
-this.inherited("postMixInProperties",arguments);
+this.inherited(arguments);
 },_setValueAttr:function(_3f){
 this.value=_3f;
 this.onChange(_3f);
@@ -464,11 +469,11 @@ this._blurOptionNode();
 if(this._highlighted_option!=_53){
 this._blurOptionNode();
 this._highlighted_option=_53;
-dojo.addClass(this._highlighted_option,"dijitMenuItemHover");
+dojo.addClass(this._highlighted_option,"dijitMenuItemSelected");
 }
 },_blurOptionNode:function(){
 if(this._highlighted_option){
-dojo.removeClass(this._highlighted_option,"dijitMenuItemHover");
+dojo.removeClass(this._highlighted_option,"dijitMenuItemSelected");
 this._highlighted_option=null;
 }
 },_highlightNextOption:function(){
@@ -545,61 +550,52 @@ this.pageUp();
 break;
 }
 }});
-dojo.declare("dijit.form.ComboBox",[dijit.form.ValidationTextBox,dijit.form.ComboBoxMixin],{postMixInProperties:function(){
-dijit.form.ComboBoxMixin.prototype.postMixInProperties.apply(this,arguments);
-dijit.form.ValidationTextBox.prototype.postMixInProperties.apply(this,arguments);
-},postCreate:function(){
-dijit.form.ComboBoxMixin.prototype._postCreate.apply(this,arguments);
-dijit.form.ValidationTextBox.prototype.postCreate.apply(this,arguments);
-},_setDisabledAttr:function(_5f){
-dijit.form.ValidationTextBox.prototype._setDisabledAttr.apply(this,arguments);
-dijit.form.ComboBoxMixin.prototype._setDisabledAttr.apply(this,arguments);
-},_setValueAttr:function(_60,_61){
-if(!_60){
-_60="";
+dojo.declare("dijit.form.ComboBox",[dijit.form.ValidationTextBox,dijit.form.ComboBoxMixin],{_setValueAttr:function(_5f,_60){
+if(!_5f){
+_5f="";
 }
-dijit.form.ValidationTextBox.prototype._setValueAttr.call(this,_60,_61);
+dijit.form.ValidationTextBox.prototype._setValueAttr.call(this,_5f,_60);
 }});
-dojo.declare("dijit.form._ComboBoxDataStore",null,{constructor:function(_62){
-this.root=_62;
-dojo.query("> option",_62).forEach(function(_63){
-_63.innerHTML=dojo.trim(_63.innerHTML);
+dojo.declare("dijit.form._ComboBoxDataStore",null,{constructor:function(_61){
+this.root=_61;
+dojo.query("> option",_61).forEach(function(_62){
+_62.innerHTML=dojo.trim(_62.innerHTML);
 });
-},getValue:function(_64,_65,_66){
-return (_65=="value")?_64.value:(_64.innerText||_64.textContent||"");
-},isItemLoaded:function(_67){
+},getValue:function(_63,_64,_65){
+return (_64=="value")?_63.value:(_63.innerText||_63.textContent||"");
+},isItemLoaded:function(_66){
 return true;
 },getFeatures:function(){
 return {"dojo.data.api.Read":true,"dojo.data.api.Identity":true};
-},_fetchItems:function(_68,_69,_6a){
-if(!_68.query){
-_68.query={};
+},_fetchItems:function(_67,_68,_69){
+if(!_67.query){
+_67.query={};
 }
-if(!_68.query.name){
-_68.query.name="";
+if(!_67.query.name){
+_67.query.name="";
 }
-if(!_68.queryOptions){
-_68.queryOptions={};
+if(!_67.queryOptions){
+_67.queryOptions={};
 }
-var _6b=dojo.data.util.filter.patternToRegExp(_68.query.name,_68.queryOptions.ignoreCase),_6c=dojo.query("> option",this.root).filter(function(_6d){
-return (_6d.innerText||_6d.textContent||"").match(_6b);
+var _6a=dojo.data.util.filter.patternToRegExp(_67.query.name,_67.queryOptions.ignoreCase),_6b=dojo.query("> option",this.root).filter(function(_6c){
+return (_6c.innerText||_6c.textContent||"").match(_6a);
 });
-if(_68.sort){
-_6c.sort(dojo.data.util.sorter.createSortFunction(_68.sort,this));
+if(_67.sort){
+_6b.sort(dojo.data.util.sorter.createSortFunction(_67.sort,this));
 }
-_69(_6c,_68);
-},close:function(_6e){
+_68(_6b,_67);
+},close:function(_6d){
 return;
-},getLabel:function(_6f){
-return _6f.innerHTML;
-},getIdentity:function(_70){
-return dojo.attr(_70,"value");
-},fetchItemByIdentity:function(_71){
-var _72=dojo.query("option[value='"+_71.identity+"']",this.root)[0];
-_71.onItem(_72);
+},getLabel:function(_6e){
+return _6e.innerHTML;
+},getIdentity:function(_6f){
+return dojo.attr(_6f,"value");
+},fetchItemByIdentity:function(_70){
+var _71=dojo.query("option[value='"+_70.identity+"']",this.root)[0];
+_70.onItem(_71);
 },fetchSelectedItem:function(){
-var _73=this.root,si=_73.selectedIndex;
-return dojo.query("> option:nth-child("+(si!=-1?si+1:1)+")",_73)[0];
+var _72=this.root,si=_72.selectedIndex;
+return dojo.query("> option:nth-child("+(si!=-1?si+1:1)+")",_72)[0];
 }});
 dojo.extend(dijit.form._ComboBoxDataStore,dojo.data.util.simpleFetch);
 }

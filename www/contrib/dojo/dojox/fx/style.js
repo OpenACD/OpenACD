@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -24,8 +24,7 @@ var _a=_2(cs);
 d[(_7?"addClass":"removeClass")](_8,_6.cssClass);
 var _b=_2(cs);
 d[(_7?"removeClass":"addClass")](_8,_6.cssClass);
-var _c={};
-var i=0;
+var _c={},i=0;
 d.forEach(dojox.fx._allowedProperties,function(_e){
 if(_a[i]!=_b[i]){
 _c[_e]=parseInt(_b[i]);

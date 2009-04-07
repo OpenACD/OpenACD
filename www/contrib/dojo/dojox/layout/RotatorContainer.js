@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -10,6 +10,10 @@ dojo._hasResource["dojox.layout.RotatorContainer"]=true;
 dojo.provide("dojox.layout.RotatorContainer");
 dojo.require("dojo.fx");
 dojo.require("dijit.layout.StackContainer");
+dojo.require("dijit.layout.StackController");
+dojo.require("dijit._Widget");
+dojo.require("dijit._Templated");
+dojo.require("dijit._Contained");
 dojo.declare("dojox.layout.RotatorContainer",[dijit.layout.StackContainer,dijit._Templated],{templateString:"<div class=\"dojoxRotatorContainer\"><div dojoAttachPoint=\"tabNode\"></div><div class=\"dojoxRotatorPager\" dojoAttachPoint=\"pagerNode\"></div><div class=\"dojoxRotatorContent\" dojoAttachPoint=\"containerNode\"></div></div>",showTabs:true,transitionDelay:5000,transition:"fade",transitionDuration:1000,autoStart:true,suspendOnHover:false,pauseOnManualChange:null,reverse:false,pagerId:"",cycles:-1,_timer:null,_over:false,_playing:false,pagerClass:"dojox.layout.RotatorPager",postCreate:function(){
 this.inherited(arguments);
 dojo.style(this.domNode,"position","relative");

@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -25,7 +25,7 @@ _5.style.width=dojo.marginBox(_4.node).w+"px";
 dojo.style(_5,"opacity",_3);
 this.node=_5;
 },destroy:function(){
-dojo._destroyElement(this.node);
+dojo.destroy(this.node);
 this.node=false;
 },update:function(){
 dojo[(this.manager.canDropFlag?"add":"remove")+"Class"](this.node,"dojoDndAvatarCanDrop");

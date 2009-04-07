@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -11,8 +11,8 @@ dojo.provide("dojox.lang.functional.listcomp");
 (function(){
 var _1=/\bfor\b|\bif\b/gm;
 var _2=function(s){
-var _4=s.split(_1),_5=s.match(_1),_6=["var r = [];"],_7=[];
-for(var i=0;i<_5.length;){
+var _4=s.split(_1),_5=s.match(_1),_6=["var r = [];"],_7=[],i=0,l=_5.length;
+while(i<l){
 var a=_5[i],f=_4[++i];
 if(a=="for"&&!/^\s*\(\s*(;|var)/.test(f)){
 f=f.replace(/^\s*\(/,"(var ");

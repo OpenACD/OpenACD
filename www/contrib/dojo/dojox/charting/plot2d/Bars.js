@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -40,8 +40,7 @@ df.forEachRev(this.series,function(_d){
 _d.cleanGroup(s);
 });
 }
-var t=this.chart.theme,_f,_10,_11,f,gap,_14,ht=this._hScaler.scaler.getTransformerFromModel(this._hScaler),vt=this._vScaler.scaler.getTransformerFromModel(this._vScaler);
-baseline=Math.max(0,this._hScaler.bounds.lower),baselineWidth=ht(baseline),events=this.events();
+var t=this.chart.theme,_f,_10,_11,f,gap,_14,ht=this._hScaler.scaler.getTransformerFromModel(this._hScaler),vt=this._vScaler.scaler.getTransformerFromModel(this._vScaler),_17=Math.max(0,this._hScaler.bounds.lower),_18=ht(_17),_19=this.events();
 f=dc.calculateBarSize(this._vScaler.bounds.scale,this.opt);
 gap=f.gap;
 _14=f.size;
@@ -59,14 +58,14 @@ _f=run.dyn.color=new dojo.Color(t.next("color"));
 _10=run.stroke?run.stroke:dc.augmentStroke(t.series.stroke,_f);
 _11=run.fill?run.fill:dc.augmentFill(t.series.fill,_f);
 for(var j=0;j<run.data.length;++j){
-var v=run.data[j],hv=ht(v),_1c=hv-baselineWidth,w=Math.abs(_1c);
+var v=run.data[j],hv=ht(v),_1f=hv-_18,w=Math.abs(_1f);
 if(w>=1&&_14>=1){
-var _1e=s.createRect({x:_b.l+(v<baseline?hv:baselineWidth),y:_a.height-_b.b-vt(j+1.5)+gap,width:w,height:_14}).setFill(_11).setStroke(_10);
-run.dyn.fill=_1e.getFill();
-run.dyn.stroke=_1e.getStroke();
-if(events){
-var o={element:"bar",index:j,run:run,plot:this,hAxis:this.hAxis||null,vAxis:this.vAxis||null,shape:_1e,x:v,y:j+1.5};
-this._connectEvents(_1e,o);
+var _21=s.createRect({x:_b.l+(v<_17?hv:_18),y:_a.height-_b.b-vt(j+1.5)+gap,width:w,height:_14}).setFill(_11).setStroke(_10);
+run.dyn.fill=_21.getFill();
+run.dyn.stroke=_21.getStroke();
+if(_19){
+var o={element:"bar",index:j,run:run,plot:this,hAxis:this.hAxis||null,vAxis:this.vAxis||null,shape:_21,x:v,y:j+1.5};
+this._connectEvents(_21,o);
 }
 }
 }

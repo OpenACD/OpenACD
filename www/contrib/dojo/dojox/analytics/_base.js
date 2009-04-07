@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -15,11 +15,7 @@ this.sendInterval=dojo.config["sendInterval"]||5000;
 this.inTransitRetry=dojo.config["inTransitRetry"]||200;
 this.dataUrl=dojo.config["analyticsUrl"]||dojo.moduleUrl("dojox.analytics.logger","dojoxAnalytics.php");
 this.sendMethod=dojo.config["sendMethod"]||"xhrPost";
-if(dojo.isIE){
-this.maxRequestSize=2000;
-}else{
-this.maxRequestSize=dojo.config["maxRequestSize"]||4000;
-}
+this.maxRequestSize=dojo.isIE?2000:dojo.config["maxRequestSize"]||4000;
 dojo.addOnLoad(this,"schedulePusher");
 dojo.addOnUnload(this,"pushData",true);
 };
@@ -27,11 +23,11 @@ dojo.extend(dojox.analytics,{schedulePusher:function(_1){
 setTimeout(dojo.hitch(this,"checkData"),_1||this.sendInterval);
 },addData:function(_2,_3){
 if(arguments.length>2){
-var d=[];
+var c=[];
 for(var i=1;i<arguments.length;i++){
-d.push(arguments[i]);
+c.push(arguments[i]);
 }
-_3=d;
+_3=c;
 }
 this._data.push({plugin:_2,data:_3});
 },checkData:function(){
@@ -44,7 +40,7 @@ return;
 }
 this.schedulePusher();
 },pushData:function(){
-if(this._data.length>0){
+if(this._data.length){
 this._inTransit=this._data;
 this._data=[];
 var _6;

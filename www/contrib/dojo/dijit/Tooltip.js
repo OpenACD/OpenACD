@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -88,21 +88,23 @@ dijit._masterTT=new dijit._MasterTooltip();
 }
 return dijit._masterTT.hide(_f);
 };
-dojo.declare("dijit.Tooltip",dijit._Widget,{label:"",showDelay:400,connectId:[],position:[],postCreate:function(){
-dojo.addClass(this.domNode,"dijitTooltipData");
+dojo.declare("dijit.Tooltip",dijit._Widget,{label:"",showDelay:400,connectId:[],position:[],_setConnectIdAttr:function(ids){
 this._connectNodes=[];
+this.connectId=dojo.isArrayLike(ids)?ids:[ids];
 dojo.forEach(this.connectId,function(id){
-var _11=dojo.byId(id);
-if(_11){
-this._connectNodes.push(_11);
-dojo.forEach(["onMouseEnter","onMouseLeave","onFocus","onBlur"],function(_12){
-this.connect(_11,_12.toLowerCase(),"_"+_12);
+var _12=dojo.byId(id);
+if(_12){
+this._connectNodes.push(_12);
+dojo.forEach(["onMouseEnter","onMouseLeave","onFocus","onBlur"],function(_13){
+this.connect(_12,_13.toLowerCase(),"_"+_13);
 },this);
 if(dojo.isIE){
-_11.style.zoom=1;
+_12.style.zoom=1;
 }
 }
 },this);
+},postCreate:function(){
+dojo.addClass(this.domNode,"dijitTooltipData");
 },_onMouseEnter:function(e){
 this._onHover(e);
 },_onMouseLeave:function(e){
@@ -117,9 +119,9 @@ this._onUnHover(e);
 this.inherited(arguments);
 },_onHover:function(e){
 if(!this._showTimer){
-var _18=e.target;
+var _19=e.target;
 this._showTimer=setTimeout(dojo.hitch(this,function(){
-this.open(_18);
+this.open(_19);
 }),this.showDelay);
 }
 },_onUnHover:function(e){
@@ -131,17 +133,17 @@ clearTimeout(this._showTimer);
 delete this._showTimer;
 }
 this.close();
-},open:function(_1a){
-_1a=_1a||this._connectNodes[0];
-if(!_1a){
+},open:function(_1b){
+_1b=_1b||this._connectNodes[0];
+if(!_1b){
 return;
 }
 if(this._showTimer){
 clearTimeout(this._showTimer);
 delete this._showTimer;
 }
-dijit.showTooltip(this.label||this.domNode.innerHTML,_1a,this.position);
-this._connectNode=_1a;
+dijit.showTooltip(this.label||this.domNode.innerHTML,_1b,this.position);
+this._connectNode=_1b;
 },close:function(){
 if(this._connectNode){
 dijit.hideTooltip(this._connectNode);

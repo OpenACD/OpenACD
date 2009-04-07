@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -199,41 +199,35 @@ if(!tag){
 return dojo.dnd._createSpan;
 }
 return function(_2d){
-var n=dojo.doc.createElement(tag);
-n.innerHTML=_2d;
-return n;
+return dojo.create(tag,{innerHTML:_2d});
 };
 };
-dojo.dnd._createTrTd=function(_2f){
-var tr=dojo.doc.createElement("tr");
-var td=dojo.doc.createElement("td");
-td.innerHTML=_2f;
-tr.appendChild(td);
+dojo.dnd._createTrTd=function(_2e){
+var tr=dojo.create("tr");
+dojo.create("td",{innerHTML:_2e},tr);
 return tr;
 };
-dojo.dnd._createSpan=function(_32){
-var n=dojo.doc.createElement("span");
-n.innerHTML=_32;
-return n;
+dojo.dnd._createSpan=function(_30){
+return dojo.create("span",{innerHTML:_30});
 };
 dojo.dnd._defaultCreatorNodes={ul:"li",ol:"li",div:"div",p:"div"};
-dojo.dnd._defaultCreator=function(_34){
-var tag=_34.tagName.toLowerCase();
+dojo.dnd._defaultCreator=function(_31){
+var tag=_31.tagName.toLowerCase();
 var c=tag=="tbody"||tag=="thead"?dojo.dnd._createTrTd:dojo.dnd._createNode(dojo.dnd._defaultCreatorNodes[tag]);
-return function(_37,_38){
-var _39=_37&&dojo.isObject(_37),_3a,_3b,n;
-if(_39&&_37.tagName&&_37.nodeType&&_37.getAttribute){
-_3a=_37.getAttribute("dndData")||_37.innerHTML;
-_3b=_37.getAttribute("dndType");
-_3b=_3b?_3b.split(/\s*,\s*/):["text"];
-n=_37;
+return function(_34,_35){
+var _36=_34&&dojo.isObject(_34),_37,_38,n;
+if(_36&&_34.tagName&&_34.nodeType&&_34.getAttribute){
+_37=_34.getAttribute("dndData")||_34.innerHTML;
+_38=_34.getAttribute("dndType");
+_38=_38?_38.split(/\s*,\s*/):["text"];
+n=_34;
 }else{
-_3a=(_39&&_37.data)?_37.data:_37;
-_3b=(_39&&_37.type)?_37.type:["text"];
-n=(_38=="avatar"?dojo.dnd._createSpan:c)(String(_3a));
+_37=(_36&&_34.data)?_34.data:_34;
+_38=(_36&&_34.type)?_34.type:["text"];
+n=(_35=="avatar"?dojo.dnd._createSpan:c)(String(_37));
 }
 n.id=dojo.dnd.getUniqueId();
-return {node:n,data:_3a,type:_3b};
+return {node:n,data:_37,type:_38};
 };
 };
 }

@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -59,12 +59,25 @@ this.removeOption(this._optionValFromPane(_d.id));
 this._setValueAttr(this._optionValFromPane(_e.id));
 },onStartup:function(_f){
 var _10=_f.selected;
-dojo.forEach(_f.children,function(c){
-this.onAddChild(c);
-if(this._savedValue&&this._optionValFromPane(c.id)){
+this.addOption(dojo.filter(dojo.map(_f.children,function(c){
+var v=this._optionValFromPane(c.id);
+var _13=null;
+if(!this._panes[c.id]){
+this._panes[c.id]=c;
+_13={value:v,label:c.title};
+}
+if(!c.onShow||!c.onHide||c._shown==undefined){
+c.onShow=dojo.hitch(this,"_togglePane",c,true);
+c.onHide=dojo.hitch(this,"_togglePane",c,false);
+c.onHide();
+}
+if(this._savedValue&&v){
 _10=c;
 }
-},this);
+return _13;
+},this),function(i){
+return i;
+}));
 delete this._savedValue;
 this.onSelectChild(_10);
 if(!_10._shown){
@@ -73,20 +86,23 @@ this._togglePane(_10,true);
 },postMixInProperties:function(){
 this._savedValue=this.value;
 this.inherited(arguments);
+this.connect(this,"onChange","_handleSelfOnChange");
 },postCreate:function(){
 this.inherited(arguments);
 this._panes={};
 this._subscriptions=[dojo.subscribe(this.stackId+"-startup",this,"onStartup"),dojo.subscribe(this.stackId+"-addChild",this,"onAddChild"),dojo.subscribe(this.stackId+"-removeChild",this,"onRemoveChild"),dojo.subscribe(this.stackId+"-selectChild",this,"onSelectChild")];
-var _12=dijit.byId(this.stackId);
-if(_12&&_12._started){
-this.onStartup({children:_12.getChildren(),selected:_12.selectedChildWidget});
+var _15=dijit.byId(this.stackId);
+if(_15&&_15._started){
+this.onStartup({children:_15.getChildren(),selected:_15.selectedChildWidget});
 }
 },destroy:function(){
 dojo.forEach(this._subscriptions,dojo.unsubscribe);
-},onChange:function(val){
-var _14=this._panes[this._paneIdFromOption(val)];
-if(_14){
-dijit.byId(this.stackId).selectChild(_14);
+delete this._panes;
+this.inherited("destroy",arguments);
+},_handleSelfOnChange:function(val){
+var _17=this._panes[this._paneIdFromOption(val)];
+if(_17){
+dijit.byId(this.stackId).selectChild(_17);
 }
 }});
 }

@@ -37,23 +37,28 @@
 .nihilo .dijitTextAreaDisabled {
 	color: gray;
 }
-.dj_safari .nihilo .dijitTextBoxDisabled,
-.dj_safari .nihilo .dijitComboBoxDisabled,
-.dj_safari .nihilo .dijitSpinnerDisabled,
-.dj_safari .nihilo .dijitTextareaDisabled {
+.dj_webkit .nihilo .dijitTextBoxDisabled,
+.dj_webkit .nihilo .dijitComboBoxDisabled,
+.dj_webkit .nihilo .dijitSpinnerDisabled,
+.dj_webkit .nihilo .dijitTextareaDisabled {
 	color: #eee;
 }
 .nihilo .dijitTextBoxFocused,
 .nihilo .dijitComboBoxFocused,
-.nihilo .dijitSpinnerFocused,
+.nihilo .dijitSpinnerFocused, .nihilo .dijitSpinnerUpArrowActive, .nihilo .dijitSpinnerDownArrowActive,
 .nihilo .dijitTextAreaFocused {
 	
 	border-color:#b3b3b3;
 }
-.nihilo .dijitComboBoxFocused .dijitButtonNode, .nihilo .dijitSpinnerFocused .dijitButtonNode {
+.nihilo .dijitComboBoxFocused .dijitButtonNode,
+.nihilo .dijitSpinnerFocused .dijitButtonNode,
+.nihilo .dijitSpinnerUpArrowActive .dijitButtonNode,
+.nihilo .dijitSpinnerDownArrowActive .dijitButtonNode {
 	border-left-color:#d3d3d3;
 }
-.nihilo .dijitSpinnerFocused .dijitDownArrowButton {
+.nihilo .dijitSpinnerFocused .dijitDownArrowButton,
+.nihilo .dijitSpinnerUpArrowActive .dijitDownArrowButton,
+.nihilo .dijitSpinnerDownArrowActive .dijitDownArrowButton {
 	border-top-color:#d3d3d3;
 }
 .nihilo .dijitError {

@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -204,7 +204,7 @@ m[j][i]=a[i][j];
 return m;
 },format:function(a,_4b){
 _4b=_4b||5;
-function format_int(x,dp){
+function _4c(x,dp){
 var fac=Math.pow(10,dp);
 var a=Math.round(x*fac)/fac;
 var b=a.toString();
@@ -221,15 +221,15 @@ return b;
 };
 var ya=a.length;
 var xa=ya>0?a[0].length:0;
-var _53="";
+var _54="";
 for(var y=0;y<ya;y++){
-_53+="| ";
+_54+="| ";
 for(var x=0;x<xa;x++){
-_53+=format_int(a[y][x],_4b)+" ";
+_54+=_4c(a[y][x],_4b)+" ";
 }
-_53+="|\n";
+_54+="|\n";
 }
-return _53;
+return _54;
 },copy:function(a){
 var ya=a.length,xa=a[0].length,m=this.create(xa,ya);
 for(var y=0;y<ya;y++){
@@ -238,12 +238,12 @@ m[y][x]=a[y][x];
 }
 }
 return m;
-},scale:function(a,_5d){
+},scale:function(a,_5e){
 a=this.copy(a);
 var ya=a.length,xa=a[0].length;
 for(var y=0;y<ya;y++){
 for(var x=0;x<xa;x++){
-a[y][x]*=_5d;
+a[y][x]*=_5e;
 }
 }
 return a;

@@ -1,21 +1,7 @@
 
 .tundra .dijitAccordionContainer {
-	border-color: #ccc;	
-}
-.tundra .dijitTabContainer-dijitAccordionContainer {
-    border: none;
-}
-.tundra .dijitAccordionContainer-dijitAccordionContainer {
-    border: none;
-    background-color: #fff;
-}
-.tundra .dijitSplitContainer-dijitAccordionContainer,
-.tundra .dijitBorderContainer-dijitAccordionContainer {
-    border: 1px #ccc solid;
-    background-color: #fff;
-}
-.tundra .dijitAccordionPane {
-	background-color: #e7e7e7;
+	border-color: #ccc;
+	background-color: #fff;
 }
 .tundra .dijitAccordionTitle {
 	background:#fafafa url("../images/titleBar.png") repeat-x bottom left;
@@ -33,7 +19,4 @@
 	border-bottom: 1px solid #bfbfbf;
 	padding: 4px 4px 4px 8px;
 	cursor: default;
-}
-.tundra .dijitAccordionBody {
-	background: #fff;
 }

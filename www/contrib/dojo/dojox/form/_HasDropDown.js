@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -165,9 +165,6 @@ dojo.attr(this.popupStateNode,"popupActive","true");
 dojo.addClass(_10.popupStateNode,"dojoxHasDropDownOpen");
 this._opened=true;
 this.state="Opened";
-if(_e.focus){
-_e.focus();
-}
 return _11;
 },closeDropDown:function(_14){
 if(this._opened){

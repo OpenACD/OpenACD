@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -44,18 +44,12 @@ p.getType=function(){
 return ta.DoubleArrowAnnotation;
 };
 p._rot=function(){
-var _5=this.start.y-this.control.y;
-var _6=this.start.x-this.control.x;
-if(!_6){
-_6=1;
-}
-this.startRotation=Math.atan(_5/_6);
-_5=this.control.y-this.end.y;
-_6=this.control.x-this.end.x;
-if(!_6){
-_6=1;
-}
-this.endRotation=Math.atan(_5/_6);
+var _5=this.control.y-this.start.y;
+var _6=this.control.x-this.start.x;
+this.startRotation=Math.atan2(_5,_6);
+_5=this.end.y-this.control.y;
+_6=this.end.x-this.control.x;
+this.endRotation=Math.atan2(_5,_6);
 };
 p._pos=function(){
 var _7=this.textOffset;
@@ -92,37 +86,42 @@ this.control.y=parseFloat(s[1],10);
 s=d[2].split(",");
 this.end.x=parseFloat(s[0],10);
 this.end.y=parseFloat(s[1],10);
+var _f=this.property("stroke");
+var _10=c.getAttribute("style");
+var m=_10.match(/stroke:([^;]+);/);
+if(m){
+_f.color=m[1];
+this.property("fill",m[1]);
+}
+m=_10.match(/stroke-width:([^;]+);/);
+if(m){
+_f.width=m[1];
+}
+this.property("stroke",_f);
 }
 }
 }
 };
-p.initialize=function(_f){
-var _10=(ta.Annotation.labelFont)?ta.Annotation.labelFont:{family:"Times",size:"16px"};
-this.apply(_f);
+p.initialize=function(obj){
+var _13=(ta.Annotation.labelFont)?ta.Annotation.labelFont:{family:"Times",size:"16px"};
+this.apply(obj);
 this._rot();
 this._pos();
 var rot=this.startRotation;
-if(this.control.x<this.start.x){
-rot+=Math.PI;
-}
-var _12=dojox.gfx.matrix.rotate(rot);
+var _15=dojox.gfx.matrix.rotate(rot);
 rot=this.endRotation;
-if(this.control.x>=this.end.x){
-rot+=Math.PI;
-}
-var _13=dojox.gfx.matrix.rotateAt(rot,this.end.x,this.end.y);
+var _16=dojox.gfx.matrix.rotateAt(rot,this.end.x,this.end.y);
 this.shape=this.figure.group.createGroup();
 this.shape.getEventSource().setAttribute("id",this.id);
-if(this.transform.dx||this.transform.dy){
-this.shape.setTransform(this.transform);
-}
-this.pathShape=this.shape.createPath("M"+this.start.x+" "+this.start.y+"Q"+this.control.x+" "+this.control.y+" "+this.end.x+" "+this.end.y+" l0,0").setStroke(this.property("stroke"));
+this.pathShape=this.shape.createPath("M"+this.start.x+" "+this.start.y+"Q"+this.control.x+" "+this.control.y+" "+this.end.x+" "+this.end.y+" l0,0");
 this.startArrowGroup=this.shape.createGroup().setTransform({dx:this.start.x,dy:this.start.y});
-this.startArrowGroup.applyTransform(_12);
-this.startArrow=this.startArrowGroup.createPath("M0,0 l20,-5 -3,5 3,5 Z").setFill(this.property("fill"));
-this.endArrowGroup=this.shape.createGroup().setTransform(_13);
-this.endArrow=this.endArrowGroup.createPath("M"+this.end.x+","+this.end.y+" l-20,-5 3,5 -3,5 Z").setFill(this.property("fill"));
-this.labelShape=this.shape.createText({x:this.textPosition.x,y:this.textPosition.y,text:this.property("label"),align:this.textAlign}).setFont(_10).setFill(this.property("fill"));
+this.startArrowGroup.applyTransform(_15);
+this.startArrow=this.startArrowGroup.createPath();
+this.endArrowGroup=this.shape.createGroup().setTransform(_16);
+this.endArrow=this.endArrowGroup.createPath();
+this.labelShape=this.shape.createText({x:this.textPosition.x,y:this.textPosition.y,text:this.property("label"),align:this.textAlign}).setFill(this.property("fill"));
+this.labelShape.getEventSource().setAttribute("id",this.id+"-labelShape");
+this.draw();
 };
 p.destroy=function(){
 if(!this.shape){
@@ -142,23 +141,26 @@ this.apply(obj);
 this._rot();
 this._pos();
 var rot=this.startRotation;
-if(this.control.x<this.start.x){
-rot+=Math.PI;
-}
-var _16=dojox.gfx.matrix.rotate(rot);
+var _19=dojox.gfx.matrix.rotate(rot);
 rot=this.endRotation;
-if(this.control.x>=this.end.x){
-rot+=Math.PI;
-}
-var _17=dojox.gfx.matrix.rotateAt(rot,this.end.x,this.end.y);
+var _1a=dojox.gfx.matrix.rotateAt(rot,this.end.x,this.end.y);
 this.shape.setTransform(this.transform);
-this.pathShape.setShape("M"+this.start.x+" "+this.start.y+" Q"+this.control.x+" "+this.control.y+" "+this.end.x+" "+this.end.y+" l0,0").setStroke(this.property("stroke"));
-this.startArrowGroup.setTransform({dx:this.start.x,dy:this.start.y});
-this.startArrowGroup.applyTransform(_16);
+this.pathShape.setShape("M"+this.start.x+" "+this.start.y+" Q"+this.control.x+" "+this.control.y+" "+this.end.x+" "+this.end.y+" l0,0");
+this.startArrowGroup.setTransform({dx:this.start.x,dy:this.start.y}).applyTransform(_19);
 this.startArrow.setFill(this.property("fill"));
-this.endArrowGroup.setTransform(_17);
-this.endArrow.setShape("M"+this.end.x+","+this.end.y+" l-20,-5 3,5 -3,5 Z").setFill(this.property("fill"));
+this.endArrowGroup.setTransform(_1a);
+this.endArrow.setFill(this.property("fill"));
 this.labelShape.setShape({x:this.textPosition.x,y:this.textPosition.y,text:this.property("label")}).setFill(this.property("fill"));
+this.zoom();
+};
+p.zoom=function(pct){
+if(this.startArrow){
+pct=pct||this.figure.zoomFactor;
+ta.Annotation.prototype.zoom.call(this,pct);
+var l=pct>1?20:Math.floor(20/pct),w=pct>1?5:Math.floor(5/pct),h=pct>1?3:Math.floor(3/pct);
+this.startArrow.setShape("M0,0 l"+l+",-"+w+" -"+h+","+w+" "+h+","+w+" Z");
+this.endArrow.setShape("M"+this.end.x+","+this.end.y+" l-"+l+",-"+w+" "+h+","+w+" -"+h+","+w+" Z");
+}
 };
 p.getBBox=function(){
 var x=Math.min(this.start.x,this.control.x,this.end.x);

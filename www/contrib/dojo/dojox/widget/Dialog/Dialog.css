@@ -46,7 +46,7 @@
 	-webkik-border-radius-topleft:7pt;
 	-webkit-border-radius-topright:7pt;
 }
-.dj_safari .dojoxDialogTitleBar {
+.dj_webkit .dojoxDialogTitleBar {
 	border:1px solid #ccc;
 }
 .dojoxDialogNoTitle .dojoxDialogTitleBar {
@@ -77,7 +77,7 @@ div.dojoxDialogNoTitle {
 	cursor: pointer;
 	z-index: 999;
 }
-.dj_ie .dojoxDialogCloseIcon {
+.dj_ie6 .dojoxDialogCloseIcon {
 	background-image: url("images/dialogCloseButton.gif");
 }
 .dojoxDialogNoTitle .dojoxDialogCloseIcon {

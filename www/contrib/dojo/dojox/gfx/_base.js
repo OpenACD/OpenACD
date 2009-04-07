@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -11,141 +11,160 @@ dojo.provide("dojox.gfx._base");
 (function(){
 var g=dojox.gfx,b=g._base;
 g._hasClass=function(_3,_4){
-return ((" "+_3.getAttribute("className")+" ").indexOf(" "+_4+" ")>=0);
+var _5=_3.getAttribute("className");
+return _5&&(" "+_5+" ").indexOf(" "+_4+" ")>=0;
 };
-g._addClass=function(_5,_6){
-var _7=_5.getAttribute("className");
-if((" "+_7+" ").indexOf(" "+_6+" ")<0){
-_5.setAttribute("className",_7+(_7?" ":"")+_6);
+g._addClass=function(_6,_7){
+var _8=_6.getAttribute("className")||"";
+if(!_8||(" "+_8+" ").indexOf(" "+_7+" ")<0){
+_6.setAttribute("className",_8+(_8?" ":"")+_7);
 }
 };
-g._removeClass=function(_8,_9){
-_8.setAttribute("className",_8.getAttribute("className").replace(new RegExp("(^|\\s+)"+_9+"(\\s+|$)"),"$1$2"));
+g._removeClass=function(_9,_a){
+var _b=_9.getAttribute("className");
+if(_b){
+_9.setAttribute("className",_b.replace(new RegExp("(^|\\s+)"+_a+"(\\s+|$)"),"$1$2"));
+}
 };
 b._getFontMeasurements=function(){
-var _a={"1em":0,"1ex":0,"100%":0,"12pt":0,"16px":0,"xx-small":0,"x-small":0,"small":0,"medium":0,"large":0,"x-large":0,"xx-large":0};
+var _c={"1em":0,"1ex":0,"100%":0,"12pt":0,"16px":0,"xx-small":0,"x-small":0,"small":0,"medium":0,"large":0,"x-large":0,"xx-large":0};
 if(dojo.isIE){
 dojo.doc.documentElement.style.fontSize="100%";
 }
-var _b=dojo.doc.createElement("div");
-_b.style.position="absolute";
-_b.style.left="-100px";
-_b.style.top="0";
-_b.style.width="30px";
-_b.style.height="1000em";
-_b.style.border="0";
-_b.style.margin="0";
-_b.style.padding="0";
-_b.style.outline="0";
-_b.style.lineHeight="1";
-_b.style.overflow="hidden";
-dojo.body().appendChild(_b);
-for(var p in _a){
-_b.style.fontSize=p;
-_a[p]=Math.round(_b.offsetHeight*12/16)*16/12/1000;
+var _d=dojo.doc.createElement("div");
+var s=_d.style;
+s.position="absolute";
+s.left="-100px";
+s.top="0px";
+s.width="30px";
+s.height="1000em";
+s.border="0px";
+s.margin="0px";
+s.padding="0px";
+s.outline="none";
+s.lineHeight="1";
+s.overflow="hidden";
+dojo.body().appendChild(_d);
+for(var p in _c){
+_d.style.fontSize=p;
+_c[p]=Math.round(_d.offsetHeight*12/16)*16/12/1000;
 }
-dojo.body().removeChild(_b);
-_b=null;
-return _a;
+dojo.body().removeChild(_d);
+_d=null;
+return _c;
 };
-var _d=null;
-b._getCachedFontMeasurements=function(_e){
-if(_e||!_d){
-_d=b._getFontMeasurements();
+var _10=null;
+b._getCachedFontMeasurements=function(_11){
+if(_11||!_10){
+_10=b._getFontMeasurements();
 }
-return _d;
+return _10;
 };
-var _f=null,_10={};
-b._getTextBox=function(_11,_12,_13){
-var m;
-if(!_f){
-m=_f=dojo.doc.createElement("div");
-m.style.position="absolute";
-m.style.left="-10000px";
-m.style.top="0";
+var _12=null,_13={};
+b._getTextBox=function(_14,_15,_16){
+var m,s;
+if(!_12){
+m=_12=dojo.doc.createElement("div");
+s=m.style;
+s.position="absolute";
+s.left="-10000px";
+s.top="0";
 dojo.body().appendChild(m);
 }else{
-m=_f;
+m=_12;
+s=m.style;
 }
 m.className="";
-m.style.border="0";
-m.style.margin="0";
-m.style.padding="0";
-m.style.outline="0";
-if(arguments.length>1&&_12){
-for(var i in _12){
-if(i in _10){
+s.border="0";
+s.margin="0";
+s.padding="0";
+s.outline="0";
+if(arguments.length>1&&_15){
+for(var i in _15){
+if(i in _13){
 continue;
 }
-m.style[i]=_12[i];
+s[i]=_15[i];
 }
 }
-if(arguments.length>2&&_13){
-m.className=_13;
+if(arguments.length>2&&_16){
+m.className=_16;
 }
-m.innerHTML=_11;
+m.innerHTML=_14;
 return dojo.marginBox(m);
 };
-var _16=0;
+var _1a=0;
 b._getUniqueId=function(){
 var id;
 do{
-id=dojo._scopeName+"Unique"+(++_16);
+id=dojo._scopeName+"Unique"+(++_1a);
 }while(dojo.byId(id));
 return id;
 };
 })();
-dojo.mixin(dojox.gfx,{defaultPath:{type:"path",path:""},defaultPolyline:{type:"polyline",points:[]},defaultRect:{type:"rect",x:0,y:0,width:100,height:100,r:0},defaultEllipse:{type:"ellipse",cx:0,cy:0,rx:200,ry:100},defaultCircle:{type:"circle",cx:0,cy:0,r:100},defaultLine:{type:"line",x1:0,y1:0,x2:100,y2:100},defaultImage:{type:"image",x:0,y:0,width:0,height:0,src:""},defaultText:{type:"text",x:0,y:0,text:"",align:"start",decoration:"none",rotated:false,kerning:true},defaultTextPath:{type:"textpath",text:"",align:"start",decoration:"none",rotated:false,kerning:true},defaultStroke:{type:"stroke",color:"black",style:"solid",width:1,cap:"butt",join:4},defaultLinearGradient:{type:"linear",x1:0,y1:0,x2:100,y2:100,colors:[{offset:0,color:"black"},{offset:1,color:"white"}]},defaultRadialGradient:{type:"radial",cx:0,cy:0,r:100,colors:[{offset:0,color:"black"},{offset:1,color:"white"}]},defaultPattern:{type:"pattern",x:0,y:0,width:0,height:0,src:""},defaultFont:{type:"font",style:"normal",variant:"normal",weight:"normal",size:"10pt",family:"serif"},normalizeColor:function(_18){
-return (_18 instanceof dojo.Color)?_18:new dojo.Color(_18);
-},normalizeParameters:function(_19,_1a){
-if(_1a){
-var _1b={};
-for(var x in _19){
-if(x in _1a&&!(x in _1b)){
-_19[x]=_1a[x];
+dojo.mixin(dojox.gfx,{defaultPath:{type:"path",path:""},defaultPolyline:{type:"polyline",points:[]},defaultRect:{type:"rect",x:0,y:0,width:100,height:100,r:0},defaultEllipse:{type:"ellipse",cx:0,cy:0,rx:200,ry:100},defaultCircle:{type:"circle",cx:0,cy:0,r:100},defaultLine:{type:"line",x1:0,y1:0,x2:100,y2:100},defaultImage:{type:"image",x:0,y:0,width:0,height:0,src:""},defaultText:{type:"text",x:0,y:0,text:"",align:"start",decoration:"none",rotated:false,kerning:true},defaultTextPath:{type:"textpath",text:"",align:"start",decoration:"none",rotated:false,kerning:true},defaultStroke:{type:"stroke",color:"black",style:"solid",width:1,cap:"butt",join:4},defaultLinearGradient:{type:"linear",x1:0,y1:0,x2:100,y2:100,colors:[{offset:0,color:"black"},{offset:1,color:"white"}]},defaultRadialGradient:{type:"radial",cx:0,cy:0,r:100,colors:[{offset:0,color:"black"},{offset:1,color:"white"}]},defaultPattern:{type:"pattern",x:0,y:0,width:0,height:0,src:""},defaultFont:{type:"font",style:"normal",variant:"normal",weight:"normal",size:"10pt",family:"serif"},getDefault:(function(){
+var _1c={};
+return function(_1d){
+var t=_1c[_1d];
+if(t){
+return new t();
+}
+t=_1c[_1d]=function(){
+};
+t.prototype=dojox.gfx["default"+_1d];
+return new t();
+};
+})(),normalizeColor:function(_1f){
+return (_1f instanceof dojo.Color)?_1f:new dojo.Color(_1f);
+},normalizeParameters:function(_20,_21){
+if(_21){
+var _22={};
+for(var x in _20){
+if(x in _21&&!(x in _22)){
+_20[x]=_21[x];
 }
 }
 }
-return _19;
-},makeParameters:function(_1d,_1e){
-if(!_1e){
-return dojo.clone(_1d);
+return _20;
+},makeParameters:function(_24,_25){
+if(!_25){
+return dojo.delegate(_24);
 }
-var _1f={};
-for(var i in _1d){
-if(!(i in _1f)){
-_1f[i]=dojo.clone((i in _1e)?_1e[i]:_1d[i]);
+var _26={};
+for(var i in _24){
+if(!(i in _26)){
+_26[i]=dojo.clone((i in _25)?_25[i]:_24[i]);
 }
 }
-return _1f;
-},formatNumber:function(x,_22){
+return _26;
+},formatNumber:function(x,_29){
 var val=x.toString();
 if(val.indexOf("e")>=0){
 val=x.toFixed(4);
 }else{
-var _24=val.indexOf(".");
-if(_24>=0&&val.length-_24>5){
+var _2b=val.indexOf(".");
+if(_2b>=0&&val.length-_2b>5){
 val=x.toFixed(4);
 }
 }
 if(x<0){
 return val;
 }
-return _22?" "+val:val;
-},makeFontString:function(_25){
-return _25.style+" "+_25.variant+" "+_25.weight+" "+_25.size+" "+_25.family;
+return _29?" "+val:val;
+},makeFontString:function(_2c){
+return _2c.style+" "+_2c.variant+" "+_2c.weight+" "+_2c.size+" "+_2c.family;
 },splitFontString:function(str){
-var _27=dojo.clone(dojox.gfx.defaultFont);
+var _2e=dojox.gfx.getDefault("Font");
 var t=str.split(/\s+/);
 do{
 if(t.length<5){
 break;
 }
-_27.style=t[0];
-_27.varian=t[1];
-_27.weight=t[2];
+_2e.style=t[0];
+_2e.varian=t[1];
+_2e.weight=t[2];
 var i=t[3].indexOf("/");
-_27.size=i<0?t[3]:t[3].substring(0,i);
+_2e.size=i<0?t[3]:t[3].substring(0,i);
 var j=4;
 if(i<0){
 if(t[4]=="/"){
@@ -160,10 +179,10 @@ break;
 if(j+3>t.length){
 break;
 }
-_27.size=t[j];
-_27.family=t[j+1];
+_2e.size=t[j];
+_2e.family=t[j+1];
 }while(false);
-return _27;
+return _2e;
 },cm_in_pt:72/2.54,mm_in_pt:7.2/2.54,px_in_pt:function(){
 return dojox.gfx._base._getCachedFontMeasurements()["12pt"]/12;
 },pt2px:function(len){
@@ -175,21 +194,21 @@ if(len.length==0){
 return 0;
 }
 if(len.length>2){
-var _2e=dojox.gfx.px_in_pt();
+var _35=dojox.gfx.px_in_pt();
 var val=parseFloat(len);
 switch(len.slice(-2)){
 case "px":
 return val;
 case "pt":
-return val*_2e;
+return val*_35;
 case "in":
-return val*72*_2e;
+return val*72*_35;
 case "pc":
-return val*12*_2e;
+return val*12*_35;
 case "mm":
-return val*dojox.gfx.mm_in_pt*_2e;
+return val*dojox.gfx.mm_in_pt*_35;
 case "cm":
-return val*dojox.gfx.cm_in_pt*_2e;
+return val*dojox.gfx.cm_in_pt*_35;
 }
 }
 return parseFloat(len);

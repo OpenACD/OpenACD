@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -18,6 +18,7 @@ dojo.declare("dojox.editor.plugins.GlobalTableHandler",dijit._editor._Plugin,{ta
 dojo.mixin(this.editor,{getAncestorElement:function(_1){
 return dojo.withGlobal(this.window,"getAncestorElement",dijit._editor.selection,[_1]);
 },hasAncestorElement:function(_2){
+return true;
 return dojo.withGlobal(this.window,"hasAncestorElement",dijit._editor.selection,[_2]);
 },selectElement:function(_3){
 dojo.withGlobal(this.window,"selectElement",dijit._editor.selection,[_3]);
@@ -33,7 +34,7 @@ return;
 }
 this.initialized=true;
 this.editor=_9;
-this.editorDomNode=this.editor.iframe?this.editor.document:this.editor.editNode;
+this.editorDomNode=this.editor.editNode||this.editor.iframe.document.body.firstChild;
 dojo.connect(this.editorDomNode,"mouseup",this.editor,"onClick");
 dojo.connect(this.editor,"onDisplayChanged",this,"checkAvailable");
 this.doMixins();
@@ -247,20 +248,20 @@ this.onEditorLoaded();
 },onEditorLoaded:function(){
 tablePluginHandler.initialize(this.editor);
 },_createContextMenu:function(){
-var _2c=dojo.isFF?this.editor.editNode:this.editor.document.firstChild;
-pMenu=new dijit.Menu({targetNodeIds:[_2c],id:"progMenu",contextMenuForWindow:dojo.isIE});
+var _2c=dojo.isFF?this.editor.editNode:this.editorDomNode;
+var _2d=new dijit.Menu({targetNodeIds:[_2c],id:"progMenu",contextMenuForWindow:dojo.isIE});
 var _M=dijit.MenuItem;
-var _2e=dojo.i18n.getLocalization("dojox.editor.plugins","TableDialog",this.lang);
-pMenu.addChild(new _M({label:_2e.selectTableLabel,onClick:dojo.hitch(this,"selectTable")}));
-pMenu.addChild(new dijit.MenuSeparator());
-pMenu.addChild(new _M({label:_2e.insertTableRowBeforeLabel,onClick:dojo.hitch(this,"modTable","insertTableRowBefore")}));
-pMenu.addChild(new _M({label:_2e.insertTableRowAfterLabel,onClick:dojo.hitch(this,"modTable","insertTableRowAfter")}));
-pMenu.addChild(new _M({label:_2e.insertTableColumnBeforeLabel,onClick:dojo.hitch(this,"modTable","insertTableColumnBefore")}));
-pMenu.addChild(new _M({label:_2e.insertTableColumnAfterLabel,onClick:dojo.hitch(this,"modTable","insertTableColumnAfter")}));
-pMenu.addChild(new dijit.MenuSeparator());
-pMenu.addChild(new _M({label:_2e.deleteTableRowLabel,onClick:dojo.hitch(this,"modTable","deleteTableRow")}));
-pMenu.addChild(new _M({label:_2e.deleteTableColumnLabel,onClick:dojo.hitch(this,"modTable","deleteTableColumn")}));
-pMenu._openMyself=function(e){
+var _2f=dojo.i18n.getLocalization("dojox.editor.plugins","TableDialog",this.lang);
+_2d.addChild(new _M({label:_2f.selectTableLabel,onClick:dojo.hitch(this,"selectTable")}));
+_2d.addChild(new dijit.MenuSeparator());
+_2d.addChild(new _M({label:_2f.insertTableRowBeforeLabel,onClick:dojo.hitch(this,"modTable","insertTableRowBefore")}));
+_2d.addChild(new _M({label:_2f.insertTableRowAfterLabel,onClick:dojo.hitch(this,"modTable","insertTableRowAfter")}));
+_2d.addChild(new _M({label:_2f.insertTableColumnBeforeLabel,onClick:dojo.hitch(this,"modTable","insertTableColumnBefore")}));
+_2d.addChild(new _M({label:_2f.insertTableColumnAfterLabel,onClick:dojo.hitch(this,"modTable","insertTableColumnAfter")}));
+_2d.addChild(new dijit.MenuSeparator());
+_2d.addChild(new _M({label:_2f.deleteTableRowLabel,onClick:dojo.hitch(this,"modTable","deleteTableRow")}));
+_2d.addChild(new _M({label:_2f.deleteTableColumnLabel,onClick:dojo.hitch(this,"modTable","deleteTableColumn")}));
+_2d._openMyself=function(e){
 if(!tablePluginHandler.checkAvailable()){
 return;
 }
@@ -276,13 +277,13 @@ y=e.y;
 x=e.screenX;
 y=e.screenY+25;
 }
-var _32=this;
-var _33=dijit.getFocus(this);
-function closeAndRestoreFocus(){
-dijit.focus(_33);
-dijit.popup.close(_32);
+var _33=this;
+var _34=dijit.getFocus(this);
+function _35(){
+dijit.focus(_34);
+dijit.popup.close(_33);
 };
-var res=dijit.popup.open({popup:this,x:x,y:y,onExecute:closeAndRestoreFocus,onCancel:closeAndRestoreFocus,orient:this.isLeftToRight()?"L":"R"});
+var res=dijit.popup.open({popup:this,x:x,y:y,onExecute:_35,onCancel:_35,orient:this.isLeftToRight()?"L":"R"});
 var v=dijit.getViewport();
 if(res.y+res.h>v.h){
 if(e.screenY-res.h>=0){
@@ -291,7 +292,7 @@ y=e.screenY-res.h;
 y=0;
 }
 dijit.popup.close(this);
-res=dijit.popup.open({popup:this,x:x,y:y,onExecute:closeAndRestoreFocus,onCancel:closeAndRestoreFocus,orient:this.isLeftToRight()?"L":"R"});
+res=dijit.popup.open({popup:this,x:x,y:y,onExecute:_35,onCancel:_35,orient:this.isLeftToRight()?"L":"R"});
 }
 
 this.focus();
@@ -300,7 +301,7 @@ this.inherited("_onBlur",arguments);
 dijit.popup.close(this);
 };
 };
-this.menu=pMenu;
+this.menu=_2d;
 },selectTable:function(){
 var o=this.getTableInfo();
 dojo.withGlobal(this.editor.window,"selectElement",dijit._editor.selection,[o.tbl]);
@@ -316,10 +317,10 @@ var o=this.getTableInfo();
 
 var w=new dojox.editor.plugins.EditorModifyTableDialog({table:o.tbl});
 w.show();
-this.connect(w,"onSetTable",function(_3d){
+this.connect(w,"onSetTable",function(_3f){
 var o=this.getTableInfo();
 
-dojo.attr(o.td,"bgcolor",_3d);
+dojo.attr(o.td,"bgcolor",_3f);
 });
 },_initButton:function(){
 this.command=this.commandName;
@@ -333,12 +334,12 @@ if(this.commandName=="tableContextMenu"){
 this.button.domNode.display="none";
 }
 this.onDisplayChanged(false);
-},modTable:function(cmd,_40){
+},modTable:function(cmd,_42){
 this.begEdit();
 var o=this.getTableInfo();
 var sw=(dojo.isString(cmd))?cmd:this.commandName;
 var r,c,i;
-var _46=false;
+var _48=false;
 switch(sw){
 case "insertTableRowBefore":
 r=o.tbl.insertRow(o.trIndex);
@@ -359,14 +360,14 @@ o.trs.forEach(function(r){
 c=r.insertCell(o.colIndex);
 c.innerHTML="&nbsp;";
 });
-_46=true;
+_48=true;
 break;
 case "insertTableColumnAfter":
 o.trs.forEach(function(r){
 c=r.insertCell(o.colIndex+1);
 c.innerHTML="&nbsp;";
 });
-_46=true;
+_48=true;
 break;
 case "deleteTableRow":
 o.tbl.deleteRow(o.trIndex);
@@ -376,12 +377,12 @@ case "deleteTableColumn":
 o.trs.forEach(function(tr){
 tr.deleteCell(o.colIndex);
 });
-_46=true;
+_48=true;
 break;
 case "colorTableCell":
 var tds=this.getSelectedCells(o.tbl);
 dojo.forEach(tds,function(td){
-dojo.style(td,"backgroundColor",_40);
+dojo.style(td,"backgroundColor",_42);
 });
 break;
 case "modifyTable":
@@ -389,7 +390,7 @@ break;
 case "insertTable":
 break;
 }
-if(_46){
+if(_48){
 this.makeColumnsEven();
 }
 this.endEdit();
@@ -408,9 +409,9 @@ if(tablePluginHandler.undoEnabled){
 if(this.editor.customUndo){
 this.editor.endEditing();
 }else{
-var _4c=this.editor.getValue();
+var _4e=this.editor.getValue();
 this.editor.setValue(this.valBeforeUndo);
-this.editor.replaceValue(_4c);
+this.editor.replaceValue(_4e);
 }
 this.editor.onDisplayChanged();
 }
@@ -422,8 +423,8 @@ o.tds.forEach(function(d){
 dojo.attr(d,"width",w+"%");
 });
 }),10);
-},getTableInfo:function(_50){
-return tablePluginHandler.getTableInfo(_50);
+},getTableInfo:function(_52){
+return tablePluginHandler.getTableInfo(_52);
 },_makeTitle:function(str){
 var s=str.split(""),ns=[];
 dojo.forEach(str,function(c,i){
@@ -437,50 +438,50 @@ ns.push(c);
 });
 return ns.join("");
 },getSelectedCells:function(){
-var _56=[];
+var _58=[];
 var tbl=this.getTableInfo().tbl;
 var tds=tablePluginHandler._prepareTable(tbl);
 var e=this.editor;
 var r;
 if(!dojo.isIE){
 r=dijit.range.getSelection(e.window);
-var _5b=false;
-var _5c=false;
+var _5d=false;
+var _5e=false;
 if(r.anchorNode&&r.anchorNode.tagName&&r.anchorNode.tagName.toLowerCase()=="tr"){
 var trs=dojo.query("tr",tbl);
-var _5e=[];
+var _60=[];
 trs.forEach(function(tr,i){
-if(!_5b&&(tr==r.anchorNode||tr==r.focusNode)){
-_5e.push(tr);
-_5b=true;
+if(!_5d&&(tr==r.anchorNode||tr==r.focusNode)){
+_60.push(tr);
+_5d=true;
 if(r.anchorNode==r.focusNode){
-_5c=true;
+_5e=true;
 }
 }else{
-if(_5b&&!_5c){
-_5e.push(tr);
+if(_5d&&!_5e){
+_60.push(tr);
 if(tr==r.anchorNode||tr==r.focusNode){
-_5c=true;
+_5e=true;
 }
 }
 }
 });
-dojo.forEach(_5e,function(tr){
-_56=_56.concat(dojo.query("td",tr));
+dojo.forEach(_60,function(tr){
+_58=_58.concat(dojo.query("td",tr));
 },this);
 }else{
 tds.forEach(function(td,i){
-if(!_5b&&(td.id==r.anchorNode.parentNode.id||td.id==r.focusNode.parentNode.id)){
-_56.push(td);
-_5b=true;
+if(!_5d&&(td.id==r.anchorNode.parentNode.id||td.id==r.focusNode.parentNode.id)){
+_58.push(td);
+_5d=true;
 if(r.anchorNode.parentNode.id==r.focusNode.parentNode.id){
-_5c=true;
+_5e=true;
 }
 }else{
-if(_5b&&!_5c){
-_56.push(td);
+if(_5d&&!_5e){
+_58.push(td);
 if(td.id==r.focusNode.parentNode.id||td.id==r.anchorNode.parentNode.id){
-_5c=true;
+_5e=true;
 }
 }
 }
@@ -493,10 +494,10 @@ r=document.selection.createRange();
 var str=r.htmlText.match(/id=\w*/g);
 dojo.forEach(str,function(a){
 var id=a.substring(3,a.length);
-_56.push(e.byId(id));
+_58.push(e.byId(id));
 },this);
 }
-return _56;
+return _58;
 }});
 dojo.provide("dojox.editor.plugins.EditorTableDialog");
 dojo.require("dijit.Dialog");
@@ -504,32 +505,32 @@ dojo.require("dijit.form.TextBox");
 dojo.require("dijit.form.FilteringSelect");
 dojo.require("dijit.form.Button");
 dojo.declare("dojox.editor.plugins.EditorTableDialog",[dijit.Dialog],{baseClass:"EditorTableDialog",widgetsInTemplate:true,templateString:"<div class=\"dijitDialog\" tabindex=\"-1\" waiRole=\"dialog\" waiState=\"labelledby-${id}_title\">\n\t<div dojoAttachPoint=\"titleBar\" class=\"dijitDialogTitleBar\">\n\t<span dojoAttachPoint=\"titleNode\" class=\"dijitDialogTitle\" id=\"${id}_title\">${insertTableTitle}</span>\n\t<span dojoAttachPoint=\"closeButtonNode\" class=\"dijitDialogCloseIcon\" dojoAttachEvent=\"onclick: onCancel\" title=\"${buttonCancel}\">\n\t\t<span dojoAttachPoint=\"closeText\" class=\"closeText\" title=\"${buttonCancel}\">x</span>\n\t</span>\n\t</div>\n    <div dojoAttachPoint=\"containerNode\" class=\"dijitDialogPaneContent\">\n        <table class=\"etdTable\"><tr>\n            <td class=\"left\">\n                <span dojoAttachPoint=\"selectRow\" dojoType=\"dijit.form.TextBox\" value=\"2\"></span>\n                <label>${rows}</label>\n            </td><td class=\"right\">\n                <span dojoAttachPoint=\"selectCol\" dojoType=\"dijit.form.TextBox\" value=\"2\"></span>\n                <label>${columns}</label>\n            </td></tr><tr><td>\n                <span dojoAttachPoint=\"selectWidth\" dojoType=\"dijit.form.TextBox\" value=\"100\"></span>\n                <label>${tableWidth}</label>\n            </td><td>\n                <select dojoAttachPoint=\"selectWidthType\" hasDownArrow=\"true\" dojoType=\"dijit.form.FilteringSelect\">\n                  <option value=\"percent\">${percent}</option>\n                  <option value=\"pixels\">${pixels}</option>\n                </select></td></tr>\n          <tr><td>\n                <span dojoAttachPoint=\"selectBorder\" dojoType=\"dijit.form.TextBox\" value=\"1\"></span>\n                <label>${borderThickness}</label></td>\n            <td>\n                ${pixels}\n            </td></tr><tr><td>\n                <span dojoAttachPoint=\"selectPad\" dojoType=\"dijit.form.TextBox\" value=\"0\"></span>\n                <label>${cellPadding}</label></td>\n            <td class=\"cellpad\"></td></tr><tr><td>\n                <span dojoAttachPoint=\"selectSpace\" dojoType=\"dijit.form.TextBox\" value=\"0\"></span>\n                <label>${cellSpacing}</label>\n            </td><td class=\"cellspace\"></td></tr></table>\n        <div class=\"dialogButtonContainer\">\n            <div dojoType=\"dijit.form.Button\" dojoAttachEvent=\"onClick: onInsert\">${buttonInsert}</div>\n            <div dojoType=\"dijit.form.Button\" dojoAttachEvent=\"onClick: onCancel\">${buttonCancel}</div>\n        </div>\n\t</div>\n</div>\n",postMixInProperties:function(){
-var _67=dojo.i18n.getLocalization("dojox.editor.plugins","TableDialog",this.lang);
-dojo.mixin(this,_67);
+var _69=dojo.i18n.getLocalization("dojox.editor.plugins","TableDialog",this.lang);
+dojo.mixin(this,_69);
 this.inherited(arguments);
 },postCreate:function(){
 dojo.addClass(this.domNode,this.baseClass);
 this.inherited(arguments);
 },onInsert:function(){
 
-var _68=this.selectRow.attr("value")||1,_69=this.selectCol.attr("value")||1,_6a=this.selectWidth.attr("value"),_6b=this.selectWidthType.attr("value"),_6c=this.selectBorder.attr("value"),pad=this.selectPad.attr("value"),_6e=this.selectSpace.attr("value"),_id="tbl_"+(new Date().getTime()),t="<table id=\""+_id+"\"width=\""+_6a+((_6b=="percent")?"%":"")+"\" border=\""+_6c+"\" cellspacing=\""+_6e+"\" cellpadding=\""+pad+"\">\n";
-for(var r=0;r<_68;r++){
+var _6a=this.selectRow.attr("value")||1,_6b=this.selectCol.attr("value")||1,_6c=this.selectWidth.attr("value"),_6d=this.selectWidthType.attr("value"),_6e=this.selectBorder.attr("value"),pad=this.selectPad.attr("value"),_70=this.selectSpace.attr("value"),_id="tbl_"+(new Date().getTime()),t="<table id=\""+_id+"\"width=\""+_6c+((_6d=="percent")?"%":"")+"\" border=\""+_6e+"\" cellspacing=\""+_70+"\" cellpadding=\""+pad+"\">\n";
+for(var r=0;r<_6a;r++){
 t+="\t<tr>\n";
-for(var c=0;c<_69;c++){
-t+="\t\t<td width=\""+(Math.floor(100/_69))+"%\">&nbsp;</td>\n";
+for(var c=0;c<_6b;c++){
+t+="\t\t<td width=\""+(Math.floor(100/_6b))+"%\">&nbsp;</td>\n";
 }
 t+="\t</tr>\n";
 }
 t+="</table>";
 this.onBuildTable({htmlText:t,id:_id});
 this.hide();
-},onBuildTable:function(_73){
+},onBuildTable:function(_75){
 }});
 dojo.provide("dojox.editor.plugins.EditorModifyTableDialog");
 dojo.require("dijit.ColorPalette");
 dojo.declare("dojox.editor.plugins.EditorModifyTableDialog",[dijit.Dialog],{baseClass:"EditorTableDialog",widgetsInTemplate:true,table:null,tableAtts:{},templateString:"<div class=\"dijitDialog\" tabindex=\"-1\" waiRole=\"dialog\" waiState=\"labelledby-${id}_title\">\n\t<div dojoAttachPoint=\"titleBar\" class=\"dijitDialogTitleBar\">\n\t<span dojoAttachPoint=\"titleNode\" class=\"dijitDialogTitle\" id=\"${id}_title\">${modifyTableTitle}</span>\n\t<span dojoAttachPoint=\"closeButtonNode\" class=\"dijitDialogCloseIcon\" dojoAttachEvent=\"onclick: onCancel\" title=\"${buttonCancel}\">\n\t\t<span dojoAttachPoint=\"closeText\" class=\"closeText\" title=\"${buttonCancel}\">x</span>\n\t</span>\n\t</div>\n    <div dojoAttachPoint=\"containerNode\" class=\"dijitDialogPaneContent\">\n        <table class=\"etdTable\">\n          <tr><td class=\"left\">\n                <span class=\"colorSwatchBtn\" dojoAttachPoint=\"backgroundCol\"></span>\n                <label>${backgroundColor}</label>\n            </td><td class=\"right\">\n                <span class=\"colorSwatchBtn\" dojoAttachPoint=\"borderCol\"></span>\n                <label>${borderColor}</label>\n            </td></tr><tr><td>\n                <span dojoAttachPoint=\"selectBorder\" dojoType=\"dijit.form.TextBox\" value=\"1\"></span>\n                <label>${borderThickness}</label>\n            </td><td>\n            ${pixels}\n            </td></tr><tr><td>\n                <select class=\"floatDijit\" dojoAttachPoint=\"selectAlign\" dojoType=\"dijit.form.FilteringSelect\">\n                  <option value=\"default\">${default}</option>\n                  <option value=\"left\">${left}</option>\n                  <option value=\"center\">${center}</option>\n                  <option value=\"right\">${right}</option>\n                </select>\n                <label>${align}</label>\n            </td><td></td></tr><tr><td>\n                <span dojoAttachPoint=\"selectWidth\" dojoType=\"dijit.form.TextBox\" value=\"100\"></span>\n                <label>${tableWidth}</label>\n            </td><td>\n                <select dojoAttachPoint=\"selectWidthType\" hasDownArrow=\"true\" dojoType=\"dijit.form.FilteringSelect\">\n                  <option value=\"percent\">${percent}</option>\n                  <option value=\"pixels\">${pixels}</option>\n                </select>\n                </td></tr><tr><td>\n                <span dojoAttachPoint=\"selectPad\" dojoType=\"dijit.form.TextBox\" value=\"0\"></span>\n                <label>${cellPadding}</label></td>\n            <td class=\"cellpad\"></td></tr><tr><td>\n                <span dojoAttachPoint=\"selectSpace\" dojoType=\"dijit.form.TextBox\" value=\"0\"></span>\n                <label>${cellSpacing}</label>\n            </td><td class=\"cellspace\"></td></tr>\n        </table>\n        <div class=\"dialogButtonContainer\">\n            <div dojoType=\"dijit.form.Button\" dojoAttachEvent=\"onClick: onSet\">${buttonSet}</div>\n            <div dojoType=\"dijit.form.Button\" dojoAttachEvent=\"onClick: onCancel\">${buttonCancel}</div>\n        </div>\n\t</div>\n</div>\n",postMixInProperties:function(){
-var _74=dojo.i18n.getLocalization("dojox.editor.plugins","TableDialog",this.lang);
-dojo.mixin(this,_74);
+var _76=dojo.i18n.getLocalization("dojox.editor.plugins","TableDialog",this.lang);
+dojo.mixin(this,_76);
 this.inherited(arguments);
 },postCreate:function(){
 dojo.addClass(this.domNode,this.baseClass);
@@ -538,18 +539,18 @@ this.connect(this.borderCol,"click",function(){
 var div=document.createElement("div");
 var w=new dijit.ColorPalette({},div);
 dijit.popup.open({popup:w,around:this.borderCol});
-this.connect(w,"onChange",function(_77){
+this.connect(w,"onChange",function(_79){
 dijit.popup.close(w);
-this.setBrdColor(_77);
+this.setBrdColor(_79);
 });
 });
 this.connect(this.backgroundCol,"click",function(){
 var div=document.createElement("div");
 var w=new dijit.ColorPalette({},div);
 dijit.popup.open({popup:w,around:this.backgroundCol});
-this.connect(w,"onChange",function(_7a){
+this.connect(w,"onChange",function(_7c){
 dijit.popup.close(w);
-this.setBkColor(_7a);
+this.setBkColor(_7c);
 });
 });
 this.setBrdColor(dojo.attr(this.table,"bordercolor"));
@@ -566,12 +567,12 @@ this.selectBorder.attr("value",dojo.attr(this.table,"border"));
 this.selectPad.attr("value",dojo.attr(this.table,"cellpadding"));
 this.selectSpace.attr("value",dojo.attr(this.table,"cellspacing"));
 this.selectAlign.attr("value",dojo.attr(this.table,"align"));
-},setBrdColor:function(_7d){
-this.brdColor=_7d;
-dojo.style(this.borderCol,"backgroundColor",_7d);
-},setBkColor:function(_7e){
-this.bkColor=_7e;
-dojo.style(this.backgroundCol,"backgroundColor",_7e);
+},setBrdColor:function(_7f){
+this.brdColor=_7f;
+dojo.style(this.borderCol,"backgroundColor",_7f);
+},setBkColor:function(_80){
+this.bkColor=_80;
+dojo.style(this.backgroundCol,"backgroundColor",_80);
 },onSet:function(){
 dojo.attr(this.table,"bordercolor",this.brdColor);
 dojo.attr(this.table,"bgcolor",this.bkColor);
@@ -581,7 +582,7 @@ dojo.attr(this.table,"cellpadding",this.selectPad.attr("value"));
 dojo.attr(this.table,"cellspacing",this.selectSpace.attr("value"));
 dojo.attr(this.table,"align",this.selectAlign.attr("value"));
 this.hide();
-},onSetTable:function(_7f){
+},onSetTable:function(_81){
 }});
 dojo.subscribe(dijit._scopeName+".Editor.getPlugin",null,function(o){
 if(o.plugin){

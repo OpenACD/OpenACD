@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -177,7 +177,7 @@ _1c[i]=dojo.fromJson(_1e);
 return _1c;
 },removeMultiple:function(_1f,_20){
 this._initStorage();
-if(!this.isValidKeyArray(_1f)||!values instanceof Array){
+if(!this.isValidKeyArray(_1f)){
 throw new Error("Invalid arguments: keys = ["+_1f+"]");
 }
 if(_20==null||typeof _20=="undefined"){

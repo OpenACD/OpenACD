@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -11,7 +11,7 @@ dojo.provide("dojox.widget.FilePicker");
 dojo.require("dojox.widget.RollingList");
 dojo.require("dojo.i18n");
 dojo.requireLocalization("dojox.widget","FilePicker",null,"ROOT");
-dojo.declare("dojox.widget._FileInfoPane",[dojox.widget._RollingListPane],{templateString:"",templateString:"<div class=\"dojoxFileInfoPane\">\n\t<table>\n\t\t<tbody>\n\t\t\t<tr>\n\t\t\t\t<td class=\"dojoxFileInfoLabel dojoxFileInfoNameLabel\">${_messages.name}</td>\n\t\t\t\t<td class=\"dojoxFileInfoName\" dojoAttachPoint=\"nameNode\"></td>\n\t\t\t</tr>\n\t\t\t<tr>\n\t\t\t\t<td class=\"dojoxFileInfoLabel dojoxFileInfoPathLabel\">${_messages.path}</td>\n\t\t\t\t<td class=\"dojoxFileInfoPath\" dojoAttachPoint=\"pathNode\"></td>\n\t\t\t</tr>\n\t\t\t<tr>\n\t\t\t\t<td class=\"dojoxFileInfoLabel dojoxFileInfoSizeLabel\">${_messages.size}</td>\n\t\t\t\t<td class=\"dojoxFileInfoSize\" dojoAttachPoint=\"sizeNode\"></td>\n\t\t\t</tr>\n\t\t</tbody>\n\t</table>\n</div>\n",postMixInProperties:function(){
+dojo.declare("dojox.widget._FileInfoPane",[dojox.widget._RollingListPane],{templateString:"",templateString:"<div class=\"dojoxFileInfoPane\">\n\t<table>\n\t\t<tbody>\n\t\t\t<tr>\n\t\t\t\t<td class=\"dojoxFileInfoLabel dojoxFileInfoNameLabel\">${_messages.name}</td>\n\t\t\t\t<td class=\"dojoxFileInfoName\" dojoAttachPoint=\"nameNode\"></td>\n\t\t\t</tr>\n\t\t\t<tr>\n\t\t\t\t<td class=\"dojoxFileInfoLabel dojoxFileInfoPathLabel\">${_messages.path}</td>\n\t\t\t\t<td class=\"dojoxFileInfoPath\" dojoAttachPoint=\"pathNode\"></td>\n\t\t\t</tr>\n\t\t\t<tr>\n\t\t\t\t<td class=\"dojoxFileInfoLabel dojoxFileInfoSizeLabel\">${_messages.size}</td>\n\t\t\t\t<td class=\"dojoxFileInfoSize\" dojoAttachPoint=\"sizeNode\"></td>\n\t\t\t</tr>\n\t\t</tbody>\n\t</table>\n\t<div dojoAttachPoint=\"containerNode\" style=\"display:none;\"></div>\n</div>\n",postMixInProperties:function(){
 this._messages=dojo.i18n.getLocalization("dojox.widget","FilePicker",this.lang);
 this.inherited(arguments);
 },onItems:function(){
@@ -26,7 +26,7 @@ this.parentWidget.scrollIntoView(this);
 this.inherited(arguments);
 }
 }});
-dojo.declare("dojox.widget.FilePicker",dojox.widget.RollingList,{className:"dojoxFilePicker",pathSeparator:"",topDir:"",parentAttr:"parentDir",pathAttr:"path",_itemsMatch:function(_3,_4){
+dojo.declare("dojox.widget.FilePicker",dojox.widget.RollingList,{className:"dojoxFilePicker",pathSeparator:"",topDir:"",parentAttr:"parentDir",pathAttr:"path",preloadItems:50,selectDirectories:true,selectFiles:true,_itemsMatch:function(_3,_4){
 if(!_3&&!_4){
 return true;
 }else{
@@ -37,7 +37,7 @@ if(_3==_4){
 return true;
 }else{
 if(this._isIdentity){
-var _5=[this.store.getIdentity(_3),i2=this.store.getIdentity(_4)];
+var _5=[this.store.getIdentity(_3),this.store.getIdentity(_4)];
 dojo.forEach(_5,function(i,_7){
 if(i.lastIndexOf(this.pathSeparator)==(i.length-1)){
 _5[_7]=i.substring(0,i.length-1);
@@ -92,15 +92,18 @@ ret=[];
 }
 return ret;
 },getMenuItemForItem:function(_11,_12,_13){
-var _14="dojoxDirectoryItemIcon";
+var _14={iconClass:"dojoxDirectoryItemIcon"};
 if(!this.store.getValue(_11,"directory")){
-_14="dojoxFileItemIcon";
+_14.iconClass="dojoxFileItemIcon";
 var l=this.store.getLabel(_11),idx=l.lastIndexOf(".");
 if(idx>=0){
-_14+=" dojoxFileItemIcon_"+l.substring(idx+1);
+_14.iconClass+=" dojoxFileItemIcon_"+l.substring(idx+1);
+}
+if(!this.selectFiles){
+_14.disabled=true;
 }
 }
-var ret=new dijit.MenuItem({iconClass:_14});
+var ret=new dijit.MenuItem(_14);
 return ret;
 },getPaneForItem:function(_18,_19,_1a){
 var ret=null;
@@ -112,7 +115,7 @@ ret=new dojox.widget._FileInfoPane({});
 }
 }
 return ret;
-},_setPathValueAttr:function(_1c){
+},_setPathValueAttr:function(_1c,_1d,_1e){
 if(!_1c){
 this.attr("value",null);
 return;
@@ -120,7 +123,15 @@ return;
 if(_1c.lastIndexOf(this.pathSeparator)==(_1c.length-1)){
 _1c=_1c.substring(0,_1c.length-1);
 }
-this.store.fetchItemByIdentity({identity:_1c,onItem:dojo.hitch(this,"attr","value"),scope:this});
+this.store.fetchItemByIdentity({identity:_1c,onItem:function(v){
+if(_1d){
+this._lastExecutedValue=v;
+}
+this.attr("value",v);
+if(_1e){
+_1e();
+}
+},scope:this});
 },_getPathValueAttr:function(val){
 if(!val){
 val=this.value;
@@ -129,6 +140,21 @@ if(val&&this.store.isItem(val)){
 return this.store.getValue(val,this.pathAttr);
 }else{
 return "";
+}
+},_setValue:function(_21){
+delete this._setInProgress;
+var _22=this.store;
+if(_21&&_22.isItem(_21)){
+var _23=this.store.getValue(_21,"directory");
+if((_23&&!this.selectDirectories)||(!_23&&!this.selectFiles)){
+return;
+}
+}else{
+_21=null;
+}
+if(!this._itemsMatch(this.value,_21)){
+this.value=_21;
+this._onChange(_21);
 }
 }});
 }

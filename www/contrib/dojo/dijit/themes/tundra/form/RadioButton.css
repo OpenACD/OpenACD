@@ -28,10 +28,6 @@
 	
 	background-position: -144px;
 }
-.tundra .dijitRadioCheckedDisabled {
-	
-	background-position: -128px;
-}
 .tundra .dijitRadioHover {
 	
 	background-position: -176px;
@@ -41,4 +37,8 @@
 .tundra .dijitToggleButtonChecked .dijitRadioIcon {
 	
 	background-position: -96px;
+}
+.tundra .dijitRadioCheckedDisabled {
+	
+	background-position: -128px;
 }

@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -10,7 +10,13 @@ dojo._hasResource["dojox.av.widget.Status"]=true;
 dojo.provide("dojox.av.widget.Status");
 dojo.require("dijit._Widget");
 dojo.require("dijit._Templated");
-dojo.declare("dojox.av.widget.Status",[dijit._Widget,dijit._Templated],{templateString:"<table class=\"Status\">\n    <tr>\n        <td class=\"Time\" dojoAttachPoint=\"timeNode\">0.00</td>\n        <td class=\"Status\" dojoAttachPoint=\"titleNode\">Loading...</td>\n        <td class=\"Duration\" dojoAttachPoint=\"durNode\">0.00</td>\n    </tr>\n</table>\n",postCreate:function(){
+dojo.declare("dojox.av.widget.Status",[dijit._Widget,dijit._Templated],{templateString:"<table class=\"Status\">\n    <tr>\n        <td class=\"Time\"><span dojoAttachPoint=\"timeNode\">0.00</span></td>\n        <td class=\"Status\"><div dojoAttachPoint=\"titleNode\">Loading...</div></td>\n        <td class=\"Duration\"><span dojoAttachPoint=\"durNode\">0.00</span></td>\n    </tr>\n</table>\n",postCreate:function(){
+this.titleNode=dojo.query(".Status",this.domNode);
+this.durNode=dojo.query(".Duration",this.domNode);
+this.timeNode=dojo.query(".Time",this.domNode);
+
+
+
 },setMedia:function(_1){
 this.media=_1;
 dojo.connect(this.media,"onMetaData",this,function(_2){
@@ -18,7 +24,6 @@ this.duration=_2.duration;
 this.durNode.innerHTML=this.toSeconds(this.duration);
 });
 dojo.connect(this.media,"onPosition",this,function(_3){
-this.timeNode.innerHTML=this.toSeconds(_3);
 });
 var _4=["onMetaData","onPosition","onStart","onBuffer","onPlay","onPause","onStop","onEnd","onError","onLoad"];
 dojo.forEach(_4,function(c){
@@ -43,7 +48,6 @@ this.setStatus("buffering...");
 this.setStatus("Playing");
 }
 },onPosition:function(_a){
-this.timeNode.innerHTML=this.toSeconds(_a);
 },onStart:function(){
 this.setStatus("Starting");
 },onPlay:function(){
@@ -74,7 +78,7 @@ _d="buffering...";
 }
 this.titleNode.innerHTML="<span class=\"statusTitle\">"+this.title+"</span> <span class=\"statusInfo\">"+_d+"</span>";
 },toSeconds:function(_f){
-ts=_f.toString();
+var ts=_f.toString();
 if(ts.indexOf(".")<0){
 ts+=".00";
 }else{

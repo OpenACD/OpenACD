@@ -1,14 +1,4 @@
 
-.tundra .dijitSliderDisabled *,
-.tundra .dijitDisabledClickableRegion,	
-.tundra .dijitSpinnerDisabled *,
-.tundra .dijitButtonDisabled *,
-.tundra .dijitDropDownButtonDisabled *,
-.tundra .dijitComboButtonDisabled *,
-.tundra .dijitComboBoxDisabled *
-{
-	cursor: not-allowed !important;
-}
 .tundra .dojoDndItemBefore {
 	border-top: 2px solid #369;
 }

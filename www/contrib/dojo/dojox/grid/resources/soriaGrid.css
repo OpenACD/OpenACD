@@ -71,6 +71,19 @@
 .dojoxGridArrowButtonChar {
 	display:inline;
 }
+ 
+.dojoxGridArrowButtonNode:hover {
+        cursor: default;
+}
+.dojoxGridArrowButtonChar:hover {
+        cursor: default;
+}
+.dojoxGridSortUp:hover {
+        cursor: default;
+}
+.dojoxGridSortDown:hover {
+        cursor: default;
+}
 .dijit_a11y .dojoxGridArrowButtonChar {
 	display:inline !important;
 }
@@ -208,7 +221,7 @@
 	border-top: 1px solid white;
 }
 .dijit_a11y .dojoxGridRowSelected {
-	border-bottom: 1px dashed black;
+	border: 1px solid black !important;
 }
 .dojoxGridDndAvatar {
 	font-size: 100%;
@@ -274,6 +287,10 @@
 .soria .dojoxGridHeader .dojoxGridCellOver {
 	background: url(../../../dijit/themes/soria/images/titleBarActive.png) #e9e9e9 repeat-x top;
 }
+.tundra .dojoxGridHeader .dojoxGridCellFocus {
+	border-color: #ACA899 #919191;
+	border-style: dashed;	
+}
 .soria .dojoxGridArrowButtonChar {
 	float: right;
 	display: none;
@@ -334,6 +351,10 @@
 .soria .dojoxGridRowSelected {
 	background-color: #aec7e3;
 }
+.dijit_a11y .soria .dojoxGridRowSelected { 
+    background-color: #aec7e3;     
+    border-style: solid;     
+}   
 .soria .dojoxGridCell {
 	border: 1px dotted #D5CDB5;
 	border-left-color: transparent;

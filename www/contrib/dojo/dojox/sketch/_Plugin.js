@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -24,11 +24,7 @@ this.connect(this.button,"onClick","activate");
 }
 }
 },attr:function(_4,_5){
-if(arguments.length>1){
-this.button.setAttribute(_4,_5);
-}else{
-this.button.getAttribute(_4);
-}
+return this.button.attr(_4,_5);
 },onActivate:function(){
 },activate:function(e){
 this.onActivate();

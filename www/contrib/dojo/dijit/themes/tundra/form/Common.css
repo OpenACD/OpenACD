@@ -32,10 +32,10 @@
 .tundra .dijitTextAreaDisabled {
 	color: gray;
 }
-.dj_safari .tundra .dijitTextBoxDisabled,
-.dj_safari .tundra .dijitComboBoxDisabled,
-.dj_safari .tundra .dijitSpinnerDisabled,
-.dj_safari .tundra .dijitTextAreaDisabled {
+.dj_webkit .tundra .dijitTextBoxDisabled,
+.dj_webkit .tundra .dijitComboBoxDisabled,
+.dj_webkit .tundra .dijitSpinnerDisabled,
+.dj_webkit .tundra .dijitTextAreaDisabled {
 	color: #eee;
 }
 .tundra .dijitComboBox .dijitInputField {
@@ -53,15 +53,20 @@
 }
 .tundra .dijitTextBoxFocused,
 .tundra .dijitComboBoxFocused,
-.tundra .dijitSpinnerFocused,
+.tundra .dijitSpinnerFocused, .tundra .dijitSpinnerUpArrowActive, .tundra .dijitSpinnerDownArrowActive,
 .tundra .dijitTextAreaFocused {
 	
 	border-color:#406b9b;
 }
-.tundra .dijitComboBoxFocused .dijitButtonNode, .tundra .dijitSpinnerFocused .dijitButtonNode {
+.tundra .dijitComboBoxFocused .dijitButtonNode,
+.tundra .dijitSpinnerFocused .dijitButtonNode,
+.tundra .dijitSpinnerUpArrowActive .dijitButtonNode,
+.tundra .dijitSpinnerDownArrowActive .dijitButtonNode {
 	border-left-color:#366dba;
 }
-.tundra .dijitSpinnerFocused .dijitDownArrowButton {
+.tundra .dijitSpinnerFocused .dijitDownArrowButton,
+.tundra .dijitSpinnerUpArrowActive .dijitDownArrowButton,
+.tundra .dijitSpinnerDownArrowActive .dijitDownArrowButton {
 	border-top-color:#366dba;
 }
 .tundra .dijitError {

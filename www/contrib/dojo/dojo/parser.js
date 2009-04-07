@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -13,213 +13,216 @@ dojo.parser=new function(){
 var d=dojo;
 var _2=d._scopeName+"Type";
 var _3="["+_2+"]";
-function val2type(_4){
-if(d.isString(_4)){
+var _4=0,_5={};
+var _6=function(_7,_8){
+var _9=_8||_5;
+if(dojo.isIE){
+var cn=_7["__dojoNameCache"];
+if(cn&&_9[cn]===_7){
+return cn;
+}
+}
+var _b;
+do{
+_b="__"+_4++;
+}while(_b in _9);
+_9[_b]=_7;
+return _b;
+};
+function _c(_d){
+if(d.isString(_d)){
 return "string";
 }
-if(typeof _4=="number"){
+if(typeof _d=="number"){
 return "number";
 }
-if(typeof _4=="boolean"){
+if(typeof _d=="boolean"){
 return "boolean";
 }
-if(d.isFunction(_4)){
+if(d.isFunction(_d)){
 return "function";
 }
-if(d.isArray(_4)){
+if(d.isArray(_d)){
 return "array";
 }
-if(_4 instanceof Date){
+if(_d instanceof Date){
 return "date";
 }
-if(_4 instanceof d._Url){
+if(_d instanceof d._Url){
 return "url";
 }
 return "object";
 };
-function str2obj(_5,_6){
-switch(_6){
+function _e(_f,_10){
+switch(_10){
 case "string":
-return _5;
+return _f;
 case "number":
-return _5.length?Number(_5):NaN;
+return _f.length?Number(_f):NaN;
 case "boolean":
-return typeof _5=="boolean"?_5:!(_5.toLowerCase()=="false");
+return typeof _f=="boolean"?_f:!(_f.toLowerCase()=="false");
 case "function":
-if(d.isFunction(_5)){
-_5=_5.toString();
-_5=d.trim(_5.substring(_5.indexOf("{")+1,_5.length-1));
+if(d.isFunction(_f)){
+_f=_f.toString();
+_f=d.trim(_f.substring(_f.indexOf("{")+1,_f.length-1));
 }
 try{
-if(_5.search(/[^\w\.]+/i)!=-1){
-_5=d.parser._nameAnonFunc(new Function(_5),this);
+if(_f.search(/[^\w\.]+/i)!=-1){
+_f=_6(new Function(_f),this);
 }
-return d.getObject(_5,false);
+return d.getObject(_f,false);
 }
 catch(e){
 return new Function();
 }
 case "array":
-return _5?_5.split(/\s*,\s*/):[];
+return _f?_f.split(/\s*,\s*/):[];
 case "date":
-switch(_5){
+switch(_f){
 case "":
 return new Date("");
 case "now":
 return new Date();
 default:
-return d.date.stamp.fromISOString(_5);
+return d.date.stamp.fromISOString(_f);
 }
 case "url":
-return d.baseUrl+_5;
+return d.baseUrl+_f;
 default:
-return d.fromJson(_5);
+return d.fromJson(_f);
 }
 };
-var _7={};
-function getClassInfo(_8){
-if(!_7[_8]){
-var _9=d.getObject(_8);
-if(!d.isFunction(_9)){
-throw new Error("Could not load class '"+_8+"'. Did you spell the name correctly and use a full path, like 'dijit.form.Button'?");
+var _11={};
+function _12(_13){
+if(!_11[_13]){
+var cls=d.getObject(_13);
+if(!d.isFunction(cls)){
+throw new Error("Could not load class '"+_13+"'. Did you spell the name correctly and use a full path, like 'dijit.form.Button'?");
 }
-var _a=_9.prototype;
-var _b={};
-for(var _c in _a){
-if(_c.charAt(0)=="_"){
+var _15=cls.prototype;
+var _16={},_17={};
+for(var _18 in _15){
+if(_18.charAt(0)=="_"){
 continue;
 }
-var _d=_a[_c];
-_b[_c]=val2type(_d);
-}
-_7[_8]={cls:_9,params:_b};
-}
-return _7[_8];
-};
-this._functionFromScript=function(_e){
-var _f="";
-var _10="";
-var _11=_e.getAttribute("args");
-if(_11){
-d.forEach(_11.split(/\s*,\s*/),function(_12,idx){
-_f+="var "+_12+" = arguments["+idx+"]; ";
-});
-}
-var _14=_e.getAttribute("with");
-if(_14&&_14.length){
-d.forEach(_14.split(/\s*,\s*/),function(_15){
-_f+="with("+_15+"){";
-_10+="}";
-});
-}
-return new Function(_f+_e.innerHTML+_10);
-};
-this.instantiate=function(_16){
-var _17=[];
-d.forEach(_16,function(_18){
-if(!_18){
-return;
-}
-var _19=_18.getAttribute(_2);
-if((!_19)||(!_19.length)){
-return;
-}
-var _1a=getClassInfo(_19);
-var _1b=_1a.cls;
-var ps=_1b._noScript||_1b.prototype._noScript;
-var _1d={};
-var _1e=_18.attributes;
-for(var _1f in _1a.params){
-var _20=_1e.getNamedItem(_1f);
-if(!_20||(!_20.specified&&(!dojo.isIE||_1f.toLowerCase()!="value"))){
+if(_18 in _17){
 continue;
 }
-var _21=_20.value;
-switch(_1f){
+var _19=_15[_18];
+_16[_18]=_c(_19);
+}
+_11[_13]={cls:cls,params:_16};
+}
+return _11[_13];
+};
+this._functionFromScript=function(_1a){
+var _1b="";
+var _1c="";
+var _1d=_1a.getAttribute("args");
+if(_1d){
+d.forEach(_1d.split(/\s*,\s*/),function(_1e,idx){
+_1b+="var "+_1e+" = arguments["+idx+"]; ";
+});
+}
+var _20=_1a.getAttribute("with");
+if(_20&&_20.length){
+d.forEach(_20.split(/\s*,\s*/),function(_21){
+_1b+="with("+_21+"){";
+_1c+="}";
+});
+}
+return new Function(_1b+_1a.innerHTML+_1c);
+};
+this.instantiate=function(_22,_23){
+var _24=[];
+_23=_23||{};
+d.forEach(_22,function(_25){
+if(!_25){
+return;
+}
+var _26=_2 in _23?_23[_2]:_25.getAttribute(_2);
+if(!_26||!_26.length){
+return;
+}
+var _27=_12(_26),_28=_27.cls,ps=_28._noScript||_28.prototype._noScript;
+var _2a={},_2b=_25.attributes;
+for(var _2c in _27.params){
+var _2d=_2c in _23?{value:_23[_2c],specified:true}:_2b.getNamedItem(_2c);
+if(!_2d||(!_2d.specified&&(!dojo.isIE||_2c.toLowerCase()!="value"))){
+continue;
+}
+var _2e=_2d.value;
+switch(_2c){
 case "class":
-_21=_18.className;
+_2e="className" in _23?_23.className:_25.className;
 break;
 case "style":
-_21=_18.style&&_18.style.cssText;
+_2e="style" in _23?_23.style:(_25.style&&_25.style.cssText);
 }
-var _22=_1a.params[_1f];
-_1d[_1f]=str2obj(_21,_22);
+var _2f=_27.params[_2c];
+if(typeof _2e=="string"){
+_2a[_2c]=_e(_2e,_2f);
+}else{
+_2a[_2c]=_2e;
+}
 }
 if(!ps){
-var _23=[],_24=[];
-d.query("> script[type^='dojo/']",_18).orphan().forEach(function(_25){
-var _26=_25.getAttribute("event"),_19=_25.getAttribute("type"),nf=d.parser._functionFromScript(_25);
-if(_26){
-if(_19=="dojo/connect"){
-_23.push({event:_26,func:nf});
+var _30=[],_31=[];
+d.query("> script[type^='dojo/']",_25).orphan().forEach(function(_32){
+var _33=_32.getAttribute("event"),_26=_32.getAttribute("type"),nf=d.parser._functionFromScript(_32);
+if(_33){
+if(_26=="dojo/connect"){
+_30.push({event:_33,func:nf});
 }else{
-_1d[_26]=nf;
+_2a[_33]=nf;
 }
 }else{
-_24.push(nf);
+_31.push(nf);
 }
 });
 }
-var _28=_1b["markupFactory"];
-if(!_28&&_1b["prototype"]){
-_28=_1b.prototype["markupFactory"];
+var _35=_28["markupFactory"];
+if(!_35&&_28["prototype"]){
+_35=_28.prototype["markupFactory"];
 }
-var _29=_28?_28(_1d,_18,_1b):new _1b(_1d,_18);
-_17.push(_29);
-var _2a=_18.getAttribute("jsId");
-if(_2a){
-d.setObject(_2a,_29);
+var _36=_35?_35(_2a,_25,_28):new _28(_2a,_25);
+_24.push(_36);
+var _37=_25.getAttribute("jsId");
+if(_37){
+d.setObject(_37,_36);
 }
 if(!ps){
-d.forEach(_23,function(_2b){
-d.connect(_29,_2b.event,null,_2b.func);
+d.forEach(_30,function(_38){
+d.connect(_36,_38.event,null,_38.func);
 });
-d.forEach(_24,function(_2c){
-_2c.call(_29);
+d.forEach(_31,function(_39){
+_39.call(_36);
 });
 }
 });
-d.forEach(_17,function(_2d){
-if(_2d&&_2d.startup&&!_2d._started&&(!_2d.getParent||!_2d.getParent())){
-_2d.startup();
+d.forEach(_24,function(_3a){
+if(_3a&&_3a.startup&&!_3a._started&&(!_3a.getParent||!_3a.getParent())){
+_3a.startup();
 }
 });
-return _17;
+return _24;
 };
-this.parse=function(_2e){
-var _2f=d.query(_3,_2e);
-var _30=this.instantiate(_2f);
-return _30;
+this.parse=function(_3b){
+var _3c=d.query(_3,_3b);
+var _3d=this.instantiate(_3c);
+return _3d;
 };
 }();
 (function(){
-var _31=function(){
+var _3e=function(){
 if(dojo.config["parseOnLoad"]==true){
 dojo.parser.parse();
 }
 };
 if(dojo.exists("dijit.wai.onload")&&(dijit.wai.onload===dojo._loaders[0])){
-dojo._loaders.splice(1,0,_31);
+dojo._loaders.splice(1,0,_3e);
 }else{
-dojo._loaders.unshift(_31);
+dojo._loaders.unshift(_3e);
 }
 })();
-dojo.parser._anonCtr=0;
-dojo.parser._anon={};
-dojo.parser._nameAnonFunc=function(_32,_33){
-var jpn="$joinpoint";
-var nso=(_33||dojo.parser._anon);
-if(dojo.isIE){
-var cn=_32["__dojoNameCache"];
-if(cn&&nso[cn]===_32){
-return _32["__dojoNameCache"];
-}
-}
-var ret="__"+dojo.parser._anonCtr++;
-while(typeof nso[ret]!="undefined"){
-ret="__"+dojo.parser._anonCtr++;
-}
-nso[ret]=_32;
-return ret;
-};
 }

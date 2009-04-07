@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -10,7 +10,7 @@ dojo._hasResource["dojox.validate.us"]=true;
 dojo.provide("dojox.validate.us");
 dojo.require("dojox.validate._base");
 dojox.validate.us.isState=function(_1,_2){
-var re=new RegExp("^"+dojox.regexp.us.state(_2)+"$","i");
+var re=new RegExp("^"+dojox.validate.regexp.us.state(_2)+"$","i");
 return re.test(_1);
 };
 dojox.validate.us.isPhoneNumber=function(_4){

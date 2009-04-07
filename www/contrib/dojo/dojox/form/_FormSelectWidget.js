@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -110,13 +110,29 @@ this.value=this._multiValue?val:val[0];
 this._setDisplay(this._multiValue?_1e:_1e[0]);
 this._updateSelection();
 this._handleOnChange(this.value,_14);
+},_getDisplayedValueAttr:function(){
+var val=this.attr("value");
+if(!dojo.isArray(val)){
+val=[val];
+}
+var ret=dojo.map(this.getOptions(val),function(v){
+if(v&&"label" in v){
+return v.label;
+}else{
+if(v){
+return v.value;
+}
+}
+return null;
+},this);
+return this._multiValue?ret:ret[0];
 },_getValueDeprecated:false,getValue:function(){
 return this._lastValue;
 },undo:function(){
 this._setValueAttr(this._lastValueReported,false);
 },_loadChildren:function(){
-dojo.forEach(this._getChildren(),function(_20){
-_20.destroyRecursive();
+dojo.forEach(this._getChildren(),function(_23){
+_23.destroyRecursive();
 });
 dojo.forEach(this.options,this._addOptionItem,this);
 this._updateSelection();
@@ -127,30 +143,30 @@ if(!dojo.isArray(val)){
 val=[val];
 }
 if(val&&val[0]){
-dojo.forEach(this._getChildren(),function(_22){
-var _23=dojo.some(val,function(v){
-return _22.option&&(v===_22.option.value);
+dojo.forEach(this._getChildren(),function(_25){
+var _26=dojo.some(val,function(v){
+return _25.option&&(v===_25.option.value);
 });
-dojo.toggleClass(_22.domNode,this.baseClass+"SelectedOption",_23);
-dijit.setWaiState(_22.domNode,"selected",_23);
+dojo.toggleClass(_25.domNode,this.baseClass+"SelectedOption",_26);
+dijit.setWaiState(_25.domNode,"selected",_26);
 },this);
 }
 this._handleOnChange(this.value);
 },_getValueFromOpts:function(){
-var _25=this.getOptions()||[];
-if(!this._multiValue&&_25.length){
-var opt=dojo.filter(_25,function(i){
+var _28=this.getOptions()||[];
+if(!this._multiValue&&_28.length){
+var opt=dojo.filter(_28,function(i){
 return i.selected;
 })[0];
 if(opt&&opt.value){
 return opt.value;
 }else{
-_25[0].selected=true;
-return _25[0].value;
+_28[0].selected=true;
+return _28[0].value;
 }
 }else{
 if(this._multiValue){
-return dojo.map(dojo.filter(_25,function(i){
+return dojo.map(dojo.filter(_28,function(i){
 return i.selected;
 }),function(i){
 return i.value;
@@ -162,13 +178,13 @@ return "";
 this._multiValue=(this.multiple.toLowerCase()==="true");
 this.inherited(arguments);
 },_fillContent:function(){
-var _2a=this.options;
-if(!_2a){
-_2a=this.options=this.srcNodeRef?dojo.query(">",this.srcNodeRef).map(function(_2b){
-if(_2b.getAttribute("type")==="separator"){
+var _2d=this.options;
+if(!_2d){
+_2d=this.options=this.srcNodeRef?dojo.query(">",this.srcNodeRef).map(function(_2e){
+if(_2e.getAttribute("type")==="separator"){
 return {value:"",label:"",selected:false,disabled:false};
 }
-return {value:_2b.getAttribute("value"),label:String(_2b.innerHTML),selected:_2b.getAttribute("selected")||false,disabled:_2b.getAttribute("disabled")||false};
+return {value:_2e.getAttribute("value"),label:String(_2e.innerHTML),selected:_2e.getAttribute("selected")||false,disabled:_2e.getAttribute("disabled")||false};
 },this):[];
 }
 if(!this.value){
@@ -184,9 +200,9 @@ this.inherited(arguments);
 this.connect(this,"onChange","_updateSelection");
 this.connect(this,"startup","_loadChildren");
 this._setValueAttr(this.value,null);
-},_addOptionItem:function(_2c){
-},_removeOptionItem:function(_2d){
-},_setDisplay:function(_2e){
+},_addOptionItem:function(_2f){
+},_removeOptionItem:function(_30){
+},_setDisplay:function(_31){
 },_getChildren:function(){
 return [];
 },_getSelectedOptionsAttr:function(){

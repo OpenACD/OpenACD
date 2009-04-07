@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -11,11 +11,11 @@ dojo.provide("dijit._Templated");
 dojo.require("dijit._Widget");
 dojo.require("dojo.string");
 dojo.require("dojo.parser");
-dojo.declare("dijit._Templated",null,{templateNode:null,templateString:null,templatePath:null,widgetsInTemplate:false,_skipNodeCache:false,_stringRepl:function(_1){
+dojo.declare("dijit._Templated",null,{templateString:null,templatePath:null,widgetsInTemplate:false,_skipNodeCache:false,_stringRepl:function(_1){
 var _2=this.declaredClass,_3=this;
 return dojo.string.substitute(_1,this,function(_4,_5){
 if(_5.charAt(0)=="!"){
-_4=_3[_5.substr(1)];
+_4=dojo.getObject(_5.substr(1),_3);
 }
 if(typeof _4=="undefined"){
 throw new Error(_2+" template:"+_5);
@@ -29,170 +29,128 @@ return _5.charAt(0)=="!"?_4:_4.toString().replace(/"/g,"&quot;");
 var _6=dijit._Templated.getCachedTemplate(this.templatePath,this.templateString,this._skipNodeCache);
 var _7;
 if(dojo.isString(_6)){
-_7=dijit._Templated._createNodesFromText(this._stringRepl(_6))[0];
+_7=dojo._toDom(this._stringRepl(_6));
 }else{
 _7=_6.cloneNode(true);
 }
 this.domNode=_7;
 this._attachTemplateNodes(_7);
-var _8=this.srcNodeRef;
-if(_8&&_8.parentNode){
-_8.parentNode.replaceChild(_7,_8);
-}
 if(this.widgetsInTemplate){
 var cw=(this._supportingWidgets=dojo.parser.parse(_7));
 this._attachTemplateNodes(cw,function(n,p){
 return n[p];
 });
 }
-this._fillContent(_8);
-},_fillContent:function(_c){
-var _d=this.containerNode;
-if(_c&&_d){
-while(_c.hasChildNodes()){
-_d.appendChild(_c.firstChild);
+this._fillContent(this.srcNodeRef);
+},_fillContent:function(_b){
+var _c=this.containerNode;
+if(_b&&_c){
+while(_b.hasChildNodes()){
+_c.appendChild(_b.firstChild);
 }
 }
-},_attachTemplateNodes:function(_e,_f){
-_f=_f||function(n,p){
+},_attachTemplateNodes:function(_d,_e){
+_e=_e||function(n,p){
 return n.getAttribute(p);
 };
-var _12=dojo.isArray(_e)?_e:(_e.all||_e.getElementsByTagName("*"));
-var x=dojo.isArray(_e)?0:-1;
-var _14={};
-for(;x<_12.length;x++){
-var _15=(x==-1)?_e:_12[x];
-if(this.widgetsInTemplate&&_f(_15,"dojoType")){
+var _11=dojo.isArray(_d)?_d:(_d.all||_d.getElementsByTagName("*"));
+var x=dojo.isArray(_d)?0:-1;
+for(;x<_11.length;x++){
+var _13=(x==-1)?_d:_11[x];
+if(this.widgetsInTemplate&&_e(_13,"dojoType")){
 continue;
 }
-var _16=_f(_15,"dojoAttachPoint");
-if(_16){
-var _17,_18=_16.split(/\s*,\s*/);
-while((_17=_18.shift())){
-if(dojo.isArray(this[_17])){
-this[_17].push(_15);
+var _14=_e(_13,"dojoAttachPoint");
+if(_14){
+var _15,_16=_14.split(/\s*,\s*/);
+while((_15=_16.shift())){
+if(dojo.isArray(this[_15])){
+this[_15].push(_13);
 }else{
-this[_17]=_15;
+this[_15]=_13;
 }
 }
 }
-var _19=_f(_15,"dojoAttachEvent");
-if(_19){
-var _1a,_1b=_19.split(/\s*,\s*/);
-var _1c=dojo.trim;
-while((_1a=_1b.shift())){
-if(_1a){
-var _1d=null;
-if(_1a.indexOf(":")!=-1){
-var _1e=_1a.split(":");
-_1a=_1c(_1e[0]);
-_1d=_1c(_1e[1]);
+var _17=_e(_13,"dojoAttachEvent");
+if(_17){
+var _18,_19=_17.split(/\s*,\s*/);
+var _1a=dojo.trim;
+while((_18=_19.shift())){
+if(_18){
+var _1b=null;
+if(_18.indexOf(":")!=-1){
+var _1c=_18.split(":");
+_18=_1a(_1c[0]);
+_1b=_1a(_1c[1]);
 }else{
-_1a=_1c(_1a);
+_18=_1a(_18);
 }
-if(!_1d){
-_1d=_1a;
+if(!_1b){
+_1b=_18;
 }
-this.connect(_15,_1a,_1d);
+this.connect(_13,_18,_1b);
 }
 }
 }
-var _1f=_f(_15,"waiRole");
-if(_1f){
-dijit.setWaiRole(_15,_1f);
+var _1d=_e(_13,"waiRole");
+if(_1d){
+dijit.setWaiRole(_13,_1d);
 }
-var _20=_f(_15,"waiState");
-if(_20){
-dojo.forEach(_20.split(/\s*,\s*/),function(_21){
-if(_21.indexOf("-")!=-1){
-var _22=_21.split("-");
-dijit.setWaiState(_15,_22[0],_22[1]);
+var _1e=_e(_13,"waiState");
+if(_1e){
+dojo.forEach(_1e.split(/\s*,\s*/),function(_1f){
+if(_1f.indexOf("-")!=-1){
+var _20=_1f.split("-");
+dijit.setWaiState(_13,_20[0],_20[1]);
 }
 });
 }
 }
 }});
 dijit._Templated._templateCache={};
-dijit._Templated.getCachedTemplate=function(_23,_24,_25){
-var _26=dijit._Templated._templateCache;
-var key=_24||_23;
-var _28=_26[key];
-if(_28){
-if(!_28.ownerDocument||_28.ownerDocument==dojo.doc){
-return _28;
+dijit._Templated.getCachedTemplate=function(_21,_22,_23){
+var _24=dijit._Templated._templateCache;
+var key=_22||_21;
+var _26=_24[key];
+if(_26){
+if(!_26.ownerDocument||_26.ownerDocument==dojo.doc){
+return _26;
 }
-dojo._destroyElement(_28);
+dojo.destroy(_26);
 }
-if(!_24){
-_24=dijit._Templated._sanitizeTemplateString(dojo._getText(_23));
+if(!_22){
+_22=dijit._Templated._sanitizeTemplateString(dojo.trim(dojo._getText(_21)));
 }
-_24=dojo.string.trim(_24);
-if(_25||_24.match(/\$\{([^\}]+)\}/g)){
-return (_26[key]=_24);
+_22=dojo.string.trim(_22);
+if(_23||_22.match(/\$\{([^\}]+)\}/g)){
+return (_24[key]=_22);
 }else{
-return (_26[key]=dijit._Templated._createNodesFromText(_24)[0]);
+return (_24[key]=dojo._toDom(_22));
 }
 };
-dijit._Templated._sanitizeTemplateString=function(_29){
-if(_29){
-_29=_29.replace(/^\s*<\?xml(\s)+version=[\'\"](\d)*.(\d)*[\'\"](\s)*\?>/im,"");
-var _2a=_29.match(/<body[^>]*>\s*([\s\S]+)\s*<\/body>/im);
-if(_2a){
-_29=_2a[1];
+dijit._Templated._sanitizeTemplateString=function(_27){
+if(_27){
+_27=_27.replace(/^\s*<\?xml(\s)+version=[\'\"](\d)*.(\d)*[\'\"](\s)*\?>/im,"");
+var _28=_27.match(/<body[^>]*>\s*([\s\S]+)\s*<\/body>/im);
+if(_28){
+_27=_28[1];
 }
 }else{
-_29="";
+_27="";
 }
-return _29;
+return _27;
 };
 if(dojo.isIE){
 dojo.addOnWindowUnload(function(){
-var _2b=dijit._Templated._templateCache;
-for(var key in _2b){
-var _2d=_2b[key];
-if(!isNaN(_2d.nodeType)){
-dojo._destroyElement(_2d);
+var _29=dijit._Templated._templateCache;
+for(var key in _29){
+var _2b=_29[key];
+if(!isNaN(_2b.nodeType)){
+dojo.destroy(_2b);
 }
-delete _2b[key];
+delete _29[key];
 }
 });
 }
-(function(){
-var _2e={cell:{re:/^<t[dh][\s\r\n>]/i,pre:"<table><tbody><tr>",post:"</tr></tbody></table>"},row:{re:/^<tr[\s\r\n>]/i,pre:"<table><tbody>",post:"</tbody></table>"},section:{re:/^<(thead|tbody|tfoot)[\s\r\n>]/i,pre:"<table>",post:"</table>"}};
-var tn;
-dijit._Templated._createNodesFromText=function(_30){
-if(tn&&tn.ownerDocument!=dojo.doc){
-dojo._destroyElement(tn);
-tn=undefined;
-}
-if(!tn){
-tn=dojo.doc.createElement("div");
-tn.style.display="none";
-dojo.body().appendChild(tn);
-}
-var _31="none";
-var _32=_30.replace(/^\s+/,"");
-for(var _33 in _2e){
-var map=_2e[_33];
-if(map.re.test(_32)){
-_31=_33;
-_30=map.pre+_30+map.post;
-break;
-}
-}
-tn.innerHTML=_30;
-if(tn.normalize){
-tn.normalize();
-}
-var tag={cell:"tr",row:"tbody",section:"table"}[_31];
-var _36=(typeof tag!="undefined")?tn.getElementsByTagName(tag)[0]:tn;
-var _37=[];
-while(_36.firstChild){
-_37.push(_36.removeChild(_36.firstChild));
-}
-tn.innerHTML="";
-return _37;
-};
-})();
 dojo.extend(dijit._Widget,{dojoAttachEvent:"",dojoAttachPoint:"",waiRole:"",waiState:""});
 }

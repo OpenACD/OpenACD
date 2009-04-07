@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -95,6 +95,9 @@ this._picker.destroy();
 delete this._picker;
 }
 this.inherited(arguments);
+},postCreate:function(){
+this.inherited(arguments);
+this.connect(this.focusNode,"onkeypress",this._onKeyPress);
 },_onKeyPress:function(e){
 var p=this._picker,dk=dojo.keys;
 if(p&&this._opened&&p.handleKey){
@@ -110,7 +113,6 @@ if(!this._opened&&e.charOrCode==dk.DOWN_ARROW){
 this._open();
 dojo.stopEvent(e);
 }else{
-if(dijit.form._DateTimeTextBox.superclass._onKeyPress.apply(this,arguments)){
 if(e.charOrCode===dk.TAB){
 this._tabbingAway=true;
 }else{
@@ -118,7 +120,6 @@ if(this._opened&&(e.keyChar||e.charOrCode===dk.BACKSPACE||e.charOrCode==dk.DELET
 setTimeout(dojo.hitch(this,function(){
 dijit.placeOnScreenAroundElement(p.domNode.parentNode,this.domNode,{"BL":"TL","TL":"BL"},p.orient?dojo.hitch(p,"orient"):null);
 }),1);
-}
 }
 }
 }

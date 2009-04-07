@@ -28,10 +28,10 @@
 .soria .dijitTextAreaDisabled {
 	color: gray;
 }
-.dj_safari .soria .dijitTextBoxDisabled,
-.dj_safari .soria .dijitComboBoxDisabled,
-.dj_safari .soria .dijitSpinnerDisabled,
-.dj_safari .soria .dijitTextareaDisabled {
+.dj_webkit .soria .dijitTextBoxDisabled,
+.dj_webkit .soria .dijitComboBoxDisabled,
+.dj_webkit .soria .dijitSpinnerDisabled,
+.dj_webkit .soria .dijitTextareaDisabled {
 	color: #eee;
 }
 .soria .dijitComboBox .dijitButtonNode {
@@ -45,15 +45,20 @@
 }
 .soria .dijitTextBoxFocused,
 .soria .dijitComboBoxFocused,
-.soria .dijitSpinnerFocused,
+.soria .dijitSpinnerFocused, .soria .dijitSpinnerUpArrowActive, .soria .dijitSpinnerDownArrowActive,
 .soria .dijitTextAreaFocused {
 	
 	border-color:#406b9b;
 }
-.soria .dijitComboBoxFocused .dijitButtonNode, .soria .dijitSpinnerFocused .dijitButtonNode {
+.soria .dijitComboBoxFocused .dijitButtonNode,
+.soria .dijitSpinnerFocused .dijitButtonNode,
+.soria .dijitSpinnerUpArrowActive .dijitButtonNode,
+.soria .dijitSpinnerDownArrowActive .dijitButtonNode {
 	border-left-color:#8ba0bd;
 }
-.soria .dijitSpinnerFocused .dijitDownArrowButton {
+.soria .dijitSpinnerFocused .dijitDownArrowButton,
+.soria .dijitSpinnerUpArrowActive .dijitDownArrowButton,
+.soria .dijitSpinnerDownArrowActive .dijitDownArrowButton {
 	border-top-color:#8ba0bd;
 }
 .soria .dijitError {

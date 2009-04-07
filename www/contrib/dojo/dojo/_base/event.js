@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -21,11 +21,13 @@ if(!dojo.isIE&&(_3=="mouseenter"||_3=="mouseleave")){
 var _6=fp;
 _3=(_3=="mouseenter")?"mouseover":"mouseout";
 fp=function(e){
+if(dojo.isFF<=2){
 try{
 e.relatedTarget.tagName;
 }
 catch(e2){
 return;
+}
 }
 if(!dojo.isDescendant(e.relatedTarget,_2)){
 return _6.call(this,e);
@@ -69,7 +71,7 @@ evt.stopPropagation();
 var _15=dojo._listener;
 dojo._connect=function(obj,_17,_18,_19,_1a){
 var _1b=obj&&(obj.nodeType||obj.attachEvent||obj.addEventListener);
-var lid=!_1b?0:(!_1a?1:2),l=[dojo._listener,_1,_15][lid];
+var lid=_1b?(_1a?2:1):0,l=[dojo._listener,_1,_15][lid];
 var h=l.add(obj,_17,dojo.hitch(_18,_19));
 return [obj,_17,h,lid];
 };
@@ -87,7 +89,7 @@ return 0;
 }
 };
 var iel=dojo._listener;
-var _27=dojo._ieListenersName="_"+dojo._scopeName+"_listeners";
+var _27=(dojo._ieListenersName="_"+dojo._scopeName+"_listeners");
 if(!dojo.config._allow_leaks){
 _15=iel=dojo._ie_listener={handlers:[],add:function(_28,_29,_2a){
 _28=_28||dojo.global;
@@ -191,7 +193,7 @@ if(!kp||!kp[_27]){
 return;
 }
 var k=evt.keyCode;
-var _49=(k!=13)&&(k!=32)&&(k!=27)&&(k<48||k>90)&&(k<96||k>111)&&(k<186||k>192)&&(k<219||k>222);
+var _49=k!=13&&k!=32&&k!=27&&(k<48||k>90)&&(k<96||k>111)&&(k<186||k>192)&&(k<219||k>222);
 if(_49||evt.ctrlKey){
 var c=_49?0:k;
 if(evt.ctrlKey){
@@ -249,8 +251,8 @@ var c=evt.which;
 if(c==3){
 c=99;
 }
-c=((c<41)&&(!evt.shiftKey)?0:c);
-if((evt.ctrlKey)&&(!evt.shiftKey)&&(c>=65)&&(c<=90)){
+c=c<41&&!evt.shiftKey?0:c;
+if(evt.ctrlKey&&!evt.shiftKey&&c>=65&&c<=90){
 c+=32;
 }
 return _1._synthesizeEvent(evt,{charCode:c});
@@ -258,7 +260,7 @@ return _1._synthesizeEvent(evt,{charCode:c});
 return evt;
 }});
 }
-if(dojo.isSafari){
+if(dojo.isWebKit){
 _1._add=_1.add;
 _1._remove=_1.remove;
 dojo.mixin(_1,{add:function(_53,_54,fp){
@@ -269,7 +271,7 @@ var _56=_1._add(_53,_54,fp);
 if(_1._normalizeEventName(_54)=="keypress"){
 _56._stealthKeyDownHandle=_1._add(_53,"keydown",function(evt){
 var k=evt.keyCode;
-var _59=(k!=13)&&(k!=32)&&(k!=27)&&(k<48||k>90)&&(k<96||k>111)&&(k<186||k>192)&&(k<219||k>222);
+var _59=k!=13&&k!=32&&k!=27&&(k<48||k>90)&&(k<96||k>111)&&(k<186||k>192)&&(k<219||k>222);
 if(_59||evt.ctrlKey){
 var c=_59?0:k;
 if(evt.ctrlKey){
@@ -279,7 +281,7 @@ return;
 if(c>95&&c<106){
 c-=48;
 }else{
-if((!evt.shiftKey)&&(c>=65&&c<=90)){
+if(!evt.shiftKey&&c>=65&&c<=90){
 c+=32;
 }else{
 c=_1._punctMap[c]||c;

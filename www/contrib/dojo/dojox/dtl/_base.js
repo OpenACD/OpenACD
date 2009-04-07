@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -10,6 +10,7 @@ dojo._hasResource["dojox.dtl._base"]=true;
 dojo.provide("dojox.dtl._base");
 dojo.require("dojox.string.Builder");
 dojo.require("dojox.string.tokenize");
+dojo.experimental("dojox.dtl");
 (function(){
 var dd=dojox.dtl;
 dd.TOKEN_BLOCK=-1;
@@ -121,7 +122,7 @@ fn=_22.pop();
 }
 dojo["require"](_21);
 var _23=dojo.getObject(_21);
-return _23[fn||_1d]||_23[_1d+"_"];
+return _23[fn||_1d]||_23[_1d+"_"]||_23[fn+"_"];
 },getTag:function(_24,_25){
 return ddt._get("tag",_24,_25);
 },getFilter:function(_26,_27){
@@ -280,6 +281,9 @@ this.filters.push([fn,arg]);
 },getExpression:function(){
 return this.contents;
 },resolve:function(_59){
+if(typeof this.key=="undefined"){
+return "";
+}
 var str=this.resolvePath(this.key,_59);
 for(var i=0,_5c;_5c=this.filters[i];i++){
 if(_5c[1]){
@@ -314,33 +318,45 @@ return null;
 }
 _60=_5d.split(".");
 _5f=_5e.get(_60[0]);
-for(var i=1;i<_60.length;i++){
-var _64=_60[i];
-if(_5f){
-var _65=_5f;
-if(dojo.isObject(_5f)&&_64=="items"&&typeof _5f[_64]=="undefined"){
-var _66=[];
-for(var key in _5f){
-_66.push([key,_5f[key]]);
+if(dojo.isFunction(_5f)){
+var _63=_5e.getThis&&_5e.getThis();
+if(_5f.alters_data){
+_5f="";
+}else{
+if(_63){
+_5f=_5f.call(_63);
+}else{
+_5f="";
 }
-_5f=_66;
+}
+}
+for(var i=1;i<_60.length;i++){
+var _65=_60[i];
+if(_5f){
+var _66=_5f;
+if(dojo.isObject(_5f)&&_65=="items"&&typeof _5f[_65]=="undefined"){
+var _67=[];
+for(var key in _5f){
+_67.push([key,_5f[key]]);
+}
+_5f=_67;
 continue;
 }
-if(_5f.get&&dojo.isFunction(_5f.get)){
-_5f=_5f.get(_64);
+if(_5f.get&&dojo.isFunction(_5f.get)&&_5f.get.safe){
+_5f=_5f.get(_65);
 }else{
-if(typeof _5f[_64]=="undefined"){
-_5f=_5f[_64];
+if(typeof _5f[_65]=="undefined"){
+_5f=_5f[_65];
 break;
 }else{
-_5f=_5f[_64];
+_5f=_5f[_65];
 }
 }
 if(dojo.isFunction(_5f)){
 if(_5f.alters_data){
 _5f="";
 }else{
-_5f=_5f.call(_65);
+_5f=_5f.call(_66);
 }
 }else{
 if(_5f instanceof Date){
@@ -357,35 +373,35 @@ return _5f;
 }});
 dd._TextNode=dd._Node=dojo.extend(function(obj){
 this.contents=obj;
-},{set:function(_69){
-this.contents=_69;
+},{set:function(_6a){
+this.contents=_6a;
 return this;
-},render:function(_6a,_6b){
-return _6b.concat(this.contents);
+},render:function(_6b,_6c){
+return _6c.concat(this.contents);
 },isEmpty:function(){
 return !dojo.trim(this.contents);
 },clone:function(){
 return this;
 }});
-dd._NodeList=dojo.extend(function(_6c){
-this.contents=_6c||[];
+dd._NodeList=dojo.extend(function(_6d){
+this.contents=_6d||[];
 this.last="";
-},{push:function(_6d){
-this.contents.push(_6d);
+},{push:function(_6e){
+this.contents.push(_6e);
 return this;
-},concat:function(_6e){
-this.contents=this.contents.concat(_6e);
+},concat:function(_6f){
+this.contents=this.contents.concat(_6f);
 return this;
-},render:function(_6f,_70){
+},render:function(_70,_71){
 for(var i=0;i<this.contents.length;i++){
-_70=this.contents[i].render(_6f,_70);
-if(!_70){
+_71=this.contents[i].render(_70,_71);
+if(!_71){
 throw new Error("Template must return buffer");
 }
 }
-return _70;
-},dummyRender:function(_72){
-return this.render(_72,dd.Template.prototype.getBuffer()).toString();
+return _71;
+},dummyRender:function(_73){
+return this.render(_73,dd.Template.prototype.getBuffer()).toString();
 },unrender:function(){
 return arguments[1];
 },clone:function(){
@@ -403,12 +419,12 @@ return this;
 }});
 dd._VarNode=dojo.extend(function(str){
 this.contents=new dd._Filter(str);
-},{render:function(_74,_75){
-var str=this.contents.resolve(_74);
+},{render:function(_75,_76){
+var str=this.contents.resolve(_75);
 if(!str.safe){
 str=dd._base.escape(""+str);
 }
-return _75.concat(str);
+return _76.concat(str);
 }});
 dd._noOpNode=new function(){
 this.render=this.unrender=function(){
@@ -418,98 +434,98 @@ this.clone=function(){
 return this;
 };
 };
-dd._Parser=dojo.extend(function(_77){
-this.contents=_77;
-},{i:0,parse:function(_78){
-var _79={};
-_78=_78||[];
-for(var i=0;i<_78.length;i++){
-_79[_78[i]]=true;
+dd._Parser=dojo.extend(function(_78){
+this.contents=_78;
+},{i:0,parse:function(_79){
+var _7a={};
+_79=_79||[];
+for(var i=0;i<_79.length;i++){
+_7a[_79[i]]=true;
 }
-var _7b=new dd._NodeList();
+var _7c=new dd._NodeList();
 while(this.i<this.contents.length){
 token=this.contents[this.i++];
 if(typeof token=="string"){
-_7b.push(new dd._TextNode(token));
+_7c.push(new dd._TextNode(token));
 }else{
-var _7c=token[0];
-var _7d=token[1];
-if(_7c==dd.TOKEN_VAR){
-_7b.push(new dd._VarNode(_7d));
+var _7d=token[0];
+var _7e=token[1];
+if(_7d==dd.TOKEN_VAR){
+_7c.push(new dd._VarNode(_7e));
 }else{
-if(_7c==dd.TOKEN_BLOCK){
-if(_79[_7d]){
+if(_7d==dd.TOKEN_BLOCK){
+if(_7a[_7e]){
 --this.i;
-return _7b;
+return _7c;
 }
-var cmd=_7d.split(/\s+/g);
+var cmd=_7e.split(/\s+/g);
 if(cmd.length){
 cmd=cmd[0];
 var fn=ddt.getTag(cmd);
 if(fn){
-_7b.push(fn(this,new dd.Token(_7c,_7d)));
+_7c.push(fn(this,new dd.Token(_7d,_7e)));
 }
 }
 }
 }
 }
 }
-if(_78.length){
-throw new Error("Could not find closing tag(s): "+_78.toString());
+if(_79.length){
+throw new Error("Could not find closing tag(s): "+_79.toString());
 }
 this.contents.length=0;
-return _7b;
+return _7c;
 },next_token:function(){
-var _80=this.contents[this.i++];
-return new dd.Token(_80[0],_80[1]);
+var _81=this.contents[this.i++];
+return new dd.Token(_81[0],_81[1]);
 },delete_first_token:function(){
 this.i++;
-},skip_past:function(_81){
+},skip_past:function(_82){
 while(this.i<this.contents.length){
-var _82=this.contents[this.i++];
-if(_82[0]==dd.TOKEN_BLOCK&&_82[1]==_81){
+var _83=this.contents[this.i++];
+if(_83[0]==dd.TOKEN_BLOCK&&_83[1]==_82){
 return;
 }
 }
-throw new Error("Unclosed tag found when looking for "+_81);
-},create_variable_node:function(_83){
-return new dd._VarNode(_83);
-},create_text_node:function(_84){
-return new dd._TextNode(_84||"");
-},getTemplate:function(_85){
-return new dd.Template(_85);
+throw new Error("Unclosed tag found when looking for "+_82);
+},create_variable_node:function(_84){
+return new dd._VarNode(_84);
+},create_text_node:function(_85){
+return new dd._TextNode(_85||"");
+},getTemplate:function(_86){
+return new dd.Template(_86);
 }});
-dd.register={_registry:{attributes:[],tags:[],filters:[]},get:function(_86,_87){
-var _88=dd.register._registry[_86+"s"];
-for(var i=0,_8a;_8a=_88[i];i++){
-if(typeof _8a[0]=="string"){
-if(_8a[0]==_87){
-return _8a;
+dd.register={_registry:{attributes:[],tags:[],filters:[]},get:function(_87,_88){
+var _89=dd.register._registry[_87+"s"];
+for(var i=0,_8b;_8b=_89[i];i++){
+if(typeof _8b[0]=="string"){
+if(_8b[0]==_88){
+return _8b;
 }
 }else{
-if(_87.match(_8a[0])){
-return _8a;
+if(_88.match(_8b[0])){
+return _8b;
 }
 }
 }
 },getAttributeTags:function(){
-var _8b=[];
-var _8c=dd.register._registry.attributes;
-for(var i=0,_8e;_8e=_8c[i];i++){
-if(_8e.length==3){
-_8b.push(_8e);
+var _8c=[];
+var _8d=dd.register._registry.attributes;
+for(var i=0,_8f;_8f=_8d[i];i++){
+if(_8f.length==3){
+_8c.push(_8f);
 }else{
-var fn=dojo.getObject(_8e[1]);
+var fn=dojo.getObject(_8f[1]);
 if(fn&&dojo.isFunction(fn)){
-_8e.push(fn);
-_8b.push(_8e);
+_8f.push(fn);
+_8c.push(_8f);
 }
 }
 }
-return _8b;
-},_any:function(_90,_91,_92){
-for(var _93 in _92){
-for(var i=0,fn;fn=_92[_93][i];i++){
+return _8c;
+},_any:function(_91,_92,_93){
+for(var _94 in _93){
+for(var i=0,fn;fn=_93[_94][i];i++){
 var key=fn;
 if(dojo.isArray(fn)){
 key=fn[0];
@@ -517,38 +533,38 @@ fn=fn[1];
 }
 if(typeof key=="string"){
 if(key.substr(0,5)=="attr:"){
-var _97=fn;
-if(_97.substr(0,5)=="attr:"){
-_97=_97.slice(5);
+var _98=fn.toLowerCase();
+if(_98.substr(0,5)=="attr:"){
+_98=_98.slice(5);
 }
-dd.register._registry.attributes.push([_97,_91+"."+_93+"."+_97]);
+dd.register._registry.attributes.push([_98,_92+"."+_94+"."+_98]);
 }
 key=key.toLowerCase();
 }
-dd.register._registry[_90].push([key,fn,_91+"."+_93]);
+dd.register._registry[_91].push([key,fn,_92+"."+_94]);
 }
 }
-},tags:function(_98,_99){
-dd.register._any("tags",_98,_99);
-},filters:function(_9a,_9b){
-dd.register._any("filters",_9a,_9b);
+},tags:function(_99,_9a){
+dd.register._any("tags",_99,_9a);
+},filters:function(_9b,_9c){
+dd.register._any("filters",_9b,_9c);
 }};
-var _9c=/&/g;
-var _9d=/</g;
-var _9e=/>/g;
-var _9f=/'/g;
-var _a0=/"/g;
-dd._base.escape=function(_a1){
-return dd.mark_safe(_a1.replace(_9c,"&amp;").replace(_9d,"&lt;").replace(_9e,"&gt;").replace(_a0,"&quot;").replace(_9f,"&#39;"));
+var _9d=/&/g;
+var _9e=/</g;
+var _9f=/>/g;
+var _a0=/'/g;
+var _a1=/"/g;
+dd._base.escape=function(_a2){
+return dd.mark_safe(_a2.replace(_9d,"&amp;").replace(_9e,"&lt;").replace(_9f,"&gt;").replace(_a1,"&quot;").replace(_a0,"&#39;"));
 };
-dd._base.safe=function(_a2){
-if(typeof _a2=="string"){
-_a2=new String(_a2);
+dd._base.safe=function(_a3){
+if(typeof _a3=="string"){
+_a3=new String(_a3);
 }
-if(typeof _a2=="object"){
-_a2.safe=true;
+if(typeof _a3=="object"){
+_a3.safe=true;
 }
-return _a2;
+return _a3;
 };
 dd.mark_safe=dd._base.safe;
 dd.register.tags("dojox.dtl.tag",{"date":["now"],"logic":["if","for","ifequal","ifnotequal"],"loader":["extends","block","include","load","ssi"],"misc":["comment","debug","filter","firstof","spaceless","templatetag","widthratio","with"],"loop":["cycle","ifchanged","regroup"]});

@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -9,118 +9,161 @@ if(!dojo._hasResource["dijit._base.scroll"]){
 dojo._hasResource["dijit._base.scroll"]=true;
 dojo.provide("dijit._base.scroll");
 dijit.scrollIntoView=function(_1){
+try{
 _1=dojo.byId(_1);
-var _2=_1.ownerDocument.body;
-var _3=_2.parentNode;
-if(dojo.isFF==2||_1==_2||_1==_3){
+var _2=dojo.doc;
+var _3=dojo.body();
+var _4=_3.parentNode;
+if((!(dojo.isFF>=3||dojo.isIE||dojo.isWebKit)||_1==_3||_1==_4)&&(typeof _1.scrollIntoView=="function")){
 _1.scrollIntoView(false);
 return;
 }
-var _4=!dojo._isBodyLtr();
-var _5=dojo.doc.compatMode!="BackCompat";
-var _6=(_5&&!dojo.isSafari)?_3:_2;
-function addPseudoAttrs(_7){
-var _8=_7.parentNode;
-var _9=_7.offsetParent;
-if(_9==null){
-_7=_6;
-_9=_3;
-_8=null;
+var _5=dojo._isBodyLtr();
+var _6=dojo.isIE>=8&&!_7;
+var _8=!_5&&!_6;
+var _9=_3;
+var _7=_2.compatMode=="BackCompat";
+if(_7){
+_4._offsetWidth=_4._clientWidth=_3._offsetWidth=_3.clientWidth;
+_4._offsetHeight=_4._clientHeight=_3._offsetHeight=_3.clientHeight;
+}else{
+if(dojo.isWebKit){
+_3._offsetWidth=_3._clientWidth=_4.clientWidth;
+_3._offsetHeight=_3._clientHeight=_4.clientHeight;
+}else{
+_9=_4;
 }
-_7._offsetParent=(_9==_2)?_6:_9;
-_7._parent=(_8==_2)?_6:_8;
-_7._start={H:_7.offsetLeft,V:_7.offsetTop};
-_7._scroll={H:_7.scrollLeft,V:_7.scrollTop};
-_7._renderedSize={H:_7.offsetWidth,V:_7.offsetHeight};
-var bp=dojo._getBorderExtents(_7);
-_7._borderStart={H:bp.l,V:bp.t};
-_7._borderSize={H:bp.w,V:bp.h};
-_7._clientSize=(_7._offsetParent==_3&&dojo.isSafari&&_5)?{H:_3.clientWidth,V:_3.clientHeight}:{H:_7.clientWidth,V:_7.clientHeight};
-_7._scrollBarSize={V:null,H:null};
-for(var _b in _7._scrollBarSize){
-var _c=_7._renderedSize[_b]-_7._clientSize[_b]-_7._borderSize[_b];
-_7._scrollBarSize[_b]=(_7._clientSize[_b]>0&&_c>=15&&_c<=17)?_c:0;
+_4._offsetHeight=_4.clientHeight;
+_4._offsetWidth=_4.clientWidth;
 }
-_7._isScrollable={V:null,H:null};
-for(_b in _7._isScrollable){
-var _d=_b=="H"?"V":"H";
-_7._isScrollable[_b]=_7==_6||_7._scroll[_b]||_7._scrollBarSize[_d];
+function _a(_b){
+var ie=dojo.isIE;
+return ((ie<=6||(ie>=7&&_7))?false:(dojo.style(_b,"position").toLowerCase()=="fixed"));
+};
+function _d(_e){
+var _f=_e.parentNode;
+var _10=_e.offsetParent;
+if(_10==null||_a(_e)){
+_10=_4;
+_f=(_e==_3)?_4:null;
+}
+_e._offsetParent=_10;
+_e._parent=_f;
+var bp=dojo._getBorderExtents(_e);
+_e._borderStart={H:(_6&&!_5)?(bp.w-bp.l):bp.l,V:bp.t};
+_e._borderSize={H:bp.w,V:bp.h};
+_e._scrolledAmount={H:_e.scrollLeft,V:_e.scrollTop};
+_e._offsetSize={H:_e._offsetWidth||_e.offsetWidth,V:_e._offsetHeight||_e.offsetHeight};
+_e._offsetStart={H:(_6&&!_5)?_10.clientWidth-_e.offsetLeft-_e._offsetSize.H:_e.offsetLeft,V:_e.offsetTop};
+_e._clientSize={H:_e._clientWidth||_e.clientWidth,V:_e._clientHeight||_e.clientHeight};
+if(_e!=_3&&_e!=_4&&_e!=_1){
+for(var dir in _e._offsetSize){
+var _13=_e._offsetSize[dir]-_e._clientSize[dir]-_e._borderSize[dir];
+var _14=_e._clientSize[dir]>0&&_13>0;
+if(_14){
+_e._offsetSize[dir]-=_13;
+if(dojo.isIE&&_8&&dir=="H"){
+_e._offsetStart[dir]+=_13;
+}
+}
+}
 }
 };
-var _e=_1;
-while(_e!=null){
-addPseudoAttrs(_e);
-var _f=_e._parent;
-if(_f){
-_f._child=_e;
+var _15=_1;
+while(_15!=null){
+if(_a(_15)){
+_1.scrollIntoView(false);
+return;
 }
-_e=_f;
+_d(_15);
+_15=_15._parent;
 }
-for(var dir in _6._renderedSize){
-_6._renderedSize[dir]=Math.min(_6._clientSize[dir],_6._renderedSize[dir]);
+if(dojo.isIE&&_1._parent){
+var _16=_1._offsetParent;
+_1._offsetStart.H+=_16._borderStart.H;
+_1._offsetStart.V+=_16._borderStart.V;
 }
-var _11=_1;
-while(_11!=_6){
-_e=_11._parent;
-if(_e.tagName=="TD"){
-var _12=_e._parent._parent._parent;
-if(_12._offsetParent==_11._offsetParent&&_e._offsetParent!=_11._offsetParent){
-_e=_12;
-}
-}
-var _13=_11==_6||(_e._offsetParent!=_11._offsetParent);
-for(dir in _11._start){
-var _14=dir=="H"?"V":"H";
-if(_4&&dir=="H"&&(dojo.isSafari||dojo.isIE)&&_e._clientSize.H>0){
-var _15=_e.scrollWidth-_e._clientSize.H;
-if(_15>0){
-_e._scroll.H-=_15;
+if(dojo.isIE>=7&&_9==_4&&_8&&_3._offsetStart&&_3._offsetStart.H==0){
+var _17=_4.scrollWidth-_4._offsetSize.H;
+if(_17>0){
+_3._offsetStart.H=-_17;
 }
 }
-if(dojo.isIE&&_e._offsetParent.tagName=="TABLE"){
-_e._start[dir]-=_e._offsetParent._borderStart[dir];
-_e._borderStart[dir]=_e._borderSize[dir]=0;
+if(dojo.isIE<=6&&!_7){
+_4._offsetSize.H+=_4._borderSize.H;
+_4._offsetSize.V+=_4._borderSize.V;
 }
-if(_e._clientSize[dir]==0){
-_e._renderedSize[dir]=_e._clientSize[dir]=_e._child._clientSize[dir];
-if(_4&&dir=="H"){
-_e._start[dir]-=_e._renderedSize[dir];
+if(_8&&_3._offsetStart&&_9==_4&&_4._scrolledAmount){
+var ofs=_3._offsetStart.H;
+if(ofs<0){
+_4._scrolledAmount.H+=ofs;
+_3._offsetStart.H=0;
 }
+}
+_15=_1;
+while(_15){
+var _19=_15._parent;
+if(!_19){
+break;
+}
+if(_19.tagName=="TD"){
+var _1a=_19._parent._parent._parent;
+if(_19!=_15._offsetParent&&_19._offsetParent!=_15._offsetParent){
+_19=_1a;
+}
+}
+var _1b=_15._offsetParent==_19;
+for(var dir in _15._offsetStart){
+var _1d=dir=="H"?"V":"H";
+if(_8&&dir=="H"&&(_19!=_4)&&(_19!=_3)&&(dojo.isIE||dojo.isWebKit)&&_19._clientSize.H>0&&_19.scrollWidth>_19._clientSize.H){
+var _1e=_19.scrollWidth-_19._clientSize.H;
+if(_1e>0){
+_19._scrolledAmount.H-=_1e;
+}
+}
+if(_19._offsetParent.tagName=="TABLE"){
+if(dojo.isIE){
+_19._offsetStart[dir]-=_19._offsetParent._borderStart[dir];
+_19._borderStart[dir]=_19._borderSize[dir]=0;
 }else{
-_e._renderedSize[dir]-=_e._borderSize[dir]+_e._scrollBarSize[dir];
-}
-_e._start[dir]+=_e._borderStart[dir];
-var _16=_11._start[dir]-(_13?0:_e._start[dir])-_e._scroll[dir];
-var _17=_16+_11._renderedSize[dir]-_e._renderedSize[dir];
-var _18,_19=(dir=="H")?"scrollLeft":"scrollTop";
-var _1a=(dir=="H"&&_4);
-var _1b=_1a?-_17:_16;
-var _1c=_1a?-_16:_17;
-if(_1b<=0){
-_18=_1b;
-}else{
-if(_1c<=0){
-_18=0;
-}else{
-if(_1b<_1c){
-_18=_1b;
-}else{
-_18=_1c;
+_19._offsetStart[dir]+=_19._offsetParent._borderStart[dir];
 }
 }
+if(dojo.isIE){
+_19._offsetStart[dir]+=_19._offsetParent._borderStart[dir];
 }
-var _1d=0;
-if(_18!=0){
-var _1e=_e[_19];
-_e[_19]+=_1a?-_18:_18;
-_1d=_e[_19]-_1e;
-_16-=_1d;
-_1c-=_1a?-_1d:_1d;
+var _1f=_15._offsetStart[dir]-_19._scrolledAmount[dir]-(_1b?0:_19._offsetStart[dir])-_19._borderStart[dir];
+var _20=_1f+_15._offsetSize[dir]-_19._offsetSize[dir]+_19._borderSize[dir];
+var _21=(dir=="H")?"scrollLeft":"scrollTop";
+var _22=dir=="H"&&_8;
+var _23=_22?-_20:_1f;
+var _24=_22?-_1f:_20;
+var _25=(_23*_24<=0)?0:Math[(_23<0)?"max":"min"](_23,_24);
+if(_25!=0){
+var _26=_19[_21];
+_19[_21]+=(_22)?-_25:_25;
+var _27=_19[_21]-_26;
 }
-_e._renderedSize[dir]=_11._renderedSize[dir]+_e._scrollBarSize[dir]-((_e._isScrollable[dir]&&_1c>0)?_1c:0);
-_e._start[dir]+=(_16>=0||!_e._isScrollable[dir])?_16:0;
+if(_1b){
+_15._offsetStart[dir]+=_19._offsetStart[dir];
 }
-_11=_e;
+_15._offsetStart[dir]-=_19[_21];
+}
+_15._parent=_19._parent;
+_15._offsetParent=_19._offsetParent;
+}
+_19=_1;
+var _28;
+while(_19&&_19.removeAttribute){
+_28=_19.parentNode;
+_19.removeAttribute("_offsetParent");
+_19.removeAttribute("_parent");
+_19=_28;
+}
+}
+catch(error){
+console.error("scrollIntoView: "+error);
+_1.scrollIntoView(false);
 }
 };
 }

@@ -28,17 +28,14 @@
 .dijitTabSpacer {
 	font-size: 1px;
 }
-.soria .dijitTabHover,
-.soria .dijitTabCloseButtonHover {
+.soria .dijitTabHover {
 	color: #243C5F;
 	background: url("../images/tabContainerSprite.gif") no-repeat 0px -150px;
 }
-.soria .dijitTabHover .dijitTabInnerDiv,
-.soria .dijitTabCloseButtonHover .dijitTabInnerDiv {
+.soria .dijitTabHover .dijitTabInnerDiv {
 	background: url("../images/tabContainerSprite.gif") no-repeat right -250px;
 }
-.soria .dijitTabHover .dijitTabInnerDiv .dijitTabContent,
-.soria .dijitTabCloseButtonHover .dijitTabInnerDiv .dijitTabContent {
+.soria .dijitTabHover .dijitTabInnerDiv .dijitTabContent {
 	background: url("../images/tabContainerSprite.gif") repeat-x 0 -200px;
 }
 .soria .dijitTabChecked,
@@ -54,19 +51,35 @@
 	background: url("../images/tabContainerSprite.gif") repeat-x 0 -50px;
 	color: #243C5F !important;
 }
-.soria .dijitTab .dijitClosable .closeNode {
-	
-	display:-moz-inline-box;		
-	display:inline-block;			
-	#zoom: 1; 
-	#display:inline; 
-	vertical-align:top;
-	width: 1.25em;
-	height: 1.25em;
-	padding: 0;
-	margin: 0;
+.soria .dijitTabContainerTabListNested {
+	background: #F0F4FC;
+	background: #D9E9F9;
+	border: none;
 }
-.soria .dijitTab .dijitClosable .closeImage {
+.soria .dijitTabContainerTabListNested .dijitTab {
+	background: none;
+	border: none;
+	top: 0px;	
+}
+.soria .dijitTabContainerTabListNested .dijitTab .dijitTabInnerDiv,
+.soria .dijitTabContainerTabListNested .dijitTab .dijitTabContent {
+	background: none;
+}
+.soria .dijitTabContainerTabListNested .dijitTabHover .dijitTabContent .tabLabel {
+	text-decoration: underline;
+}
+.soria .dijitTabContainerTabListNested .dijitTabChecked .tabLabel {
+	text-decoration: underline;
+	font-weight: bold;
+}
+.soria .dijitTabContainerSpacerNested .dijitTabSpacer {
+	
+	height: 0px;
+}
+.soria .dijitTabPaneWrapperNested {
+	border: none;	
+}
+.soria .dijitTab .closeImage {
 	width: 15px;
 	height: 15px;
 	background: url("../images/spriteRoundedIconsSmall.png") no-repeat -60px top;
@@ -74,17 +87,11 @@
 .dj_ie6 .dijitTab .dijitClosable .closeImage {
 	background: url("../images/spriteRoundedIconsSmall.gif") no-repeat -60px top;
 }
-.soria .dijitTabCloseButton .dijitClosable .closeImage {
-	background: url("../images/spriteRoundedIconsSmall.png") no-repeat -60px top;
+.soria .dijitTab .closeButton-hover .closeImage {
+	background: url("../images/spriteRoundedIconsSmall.png") no-repeat -60px -15px;
 }
-.dj_ie6 .soria .dijitTabCloseButton .dijitClosable .closeImage {
-	background: url("../images/spriteRoundedIconsSmall.gif") no-repeat -60px top;
-}
-.soria .dijitTabCloseButtonHover .dijitClosable .closeImage {
-	background: url("../images/spriteRoundedIconsSmall.png") no-repeat -60px top;
-}
-.dj_ie6 .soria .dijitTabCloseButtonHover .dijitClosable .closeImage {
-	background: url("../images/spriteRoundedIconsSmall.gif") no-repeat -60px top;
+.dj_ie6 .soria .dijitTab .closeButton-hover .closeImage {
+	background: url("../images/spriteRoundedIconsSmall.gif") no-repeat -60px -15px;
 }
 .soria .dijitTab .dijitTabButtonSpacer {
 	height: 15px;
@@ -133,17 +140,14 @@
 .soria .dijitTabContainerBottom-tabs .dijitTabInnerDiv {
 	background: url("../images/tabBottomEnabledSpriteLR.gif") no-repeat bottom right;
 }
-.soria .dijitTabContainerBottom-tabs .dijitTabHover,
-.soria .dijitTabContainerBottom-tabs .dijitTabCloseButtonHover {
+.soria .dijitTabContainerBottom-tabs .dijitTabHover {
 	color: #243C5F;
 	background: url("../images/tabBottomHoverSpriteLR.gif") no-repeat bottom left;
 }
-.soria .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv,
-.soria .dijitTabContainerBottom-tabs .dijitTabCloseButtonHover .dijitTabInnerDiv {
+.soria .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv {
 	background: url("../images/tabBottomHoverSpriteLR.gif") no-repeat bottom right;
 }
-.soria .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv .dijitTabContent,
-.soria .dijitTabContainerBottom-tabs .dijitTabCloseButtonHover .dijitTabInnerDiv .dijitTabContent {
+.soria .dijitTabContainerBottom-tabs .dijitTabHover .dijitTabInnerDiv .dijitTabContent {
 	background: url("../images/tabBottomHoverC.gif") repeat-x bottom left;
 }
 .soria .dijitTabContainerBottom-tabs .dijitTabChecked,

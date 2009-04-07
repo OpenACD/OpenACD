@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -12,7 +12,7 @@ dojo.provide("dojox.wire.ml.RestHandler");
 dojo.provide("dojox.wire.ml.XmlHandler");
 dojo.provide("dojox.wire.ml.JsonHandler");
 dojo.require("dijit._Widget");
-dojo.require("dojox.data.dom");
+dojo.require("dojox.xml.parser");
 dojo.require("dojox.wire._base");
 dojo.require("dojox.wire.ml.util");
 dojo.declare("dojox.wire.ml.Service",dijit._Widget,{url:"",serviceUrl:"",serviceType:"",handlerClass:"",preventCache:true,postCreate:function(){
@@ -142,7 +142,7 @@ _21=_21.documentElement;
 }
 }
 var _22="<?xml version=\"1.0\"?>";
-_1f=_22+dojox.data.dom.innerXML(_21);
+_1f=_22+dojox.xml.parser.innerXML(_21);
 }
 }
 }

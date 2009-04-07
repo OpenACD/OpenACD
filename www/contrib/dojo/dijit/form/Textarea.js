@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -8,185 +8,84 @@
 if(!dojo._hasResource["dijit.form.Textarea"]){
 dojo._hasResource["dijit.form.Textarea"]=true;
 dojo.provide("dijit.form.Textarea");
-dojo.require("dijit.form._FormWidget");
-dojo.require("dojo.i18n");
-dojo.requireLocalization("dijit.form","Textarea",null,"zh,ca,pt,da,tr,ru,de,ROOT,sv,ja,he,fi,nb,el,ar,pt-pt,cs,fr,es,ko,nl,zh-tw,pl,th,it,hu,sk,sl");
-dojo.declare("dijit.form.Textarea",dijit.form._FormValueWidget,{attributeMap:dojo.mixin(dojo.clone(dijit.form._FormValueWidget.prototype.attributeMap),{style:"styleNode","class":"styleNode"}),templateString:(dojo.isIE||dojo.isSafari||dojo.isFF)?((dojo.isIE||dojo.isSafari||dojo.isFF>=3)?"<fieldset id=\"${id}\" class=\"dijitInline\" dojoAttachPoint=\"styleNode\" waiRole=\"presentation\"><div dojoAttachPoint=\"editNode,focusNode,eventNode\" dojoAttachEvent=\"onpaste:_changing,oncut:_changing\" waiRole=\"textbox\" waiState=\"multiline-true\" contentEditable=\"true\"></div>":"<span id=\"${id}\" class=\"dijitReset\">"+"<iframe src=\"javascript:<html><head><title>${_iframeEditTitle}</title></head><body><script>var _postCreate=window.frameElement?window.frameElement.postCreate:null;if(_postCreate)_postCreate();</script></body></html>\""+" dojoAttachPoint=\"iframe,styleNode,stateNode\" dojoAttachEvent=\"onblur:_onIframeBlur\" class=\"dijitInline dijitInputField\"></iframe>")+"<textarea name=\"${name}\" value=\"${value}\" dojoAttachPoint=\"formValueNode\" style=\"display:none;\" autocomplete=\"off\"></textarea>"+((dojo.isIE||dojo.isSafari||dojo.isFF>=3)?"</fieldset>":"</span>"):"<textarea id=\"${id}\" name=\"${name}\" value=\"${value}\" dojoAttachPoint=\"formValueNode,editNode,focusNode,styleNode\">"+dojo.isFF+"</textarea>",baseClass:"dijitTextArea",_setDisabledAttr:function(_1){
+dojo.require("dijit.form.SimpleTextarea");
+dojo.declare("dijit.form.Textarea",dijit.form.SimpleTextarea,{cols:"",_previousNewlines:0,_strictMode:(dojo.doc.compatMode!="BackCompat"),_getHeight:function(_1){
+var _2=_1.scrollHeight;
+if(dojo.isIE){
+_2+=_1.offsetHeight-_1.clientHeight-((dojo.isIE<8&&this._strictMode)?dojo._getPadBorderExtents(_1).h:0);
+}else{
+if(dojo.isMoz){
+_2+=_1.offsetHeight-_1.clientHeight;
+}else{
+_2+=dojo._getPadBorderExtents(_1).h;
+}
+}
+return _2;
+},_onInput:function(){
 this.inherited(arguments);
-this.formValueNode.disabled=this.disabled;
-this._adjustWritable();
-},_setReadOnlyAttr:function(_2){
-this.readOnly=_2;
-this._adjustWritable();
-},_adjustWritable:function(){
-if(dojo.isIE||dojo.isSafari||dojo.isFF>=3){
-this.editNode.contentEditable=(!this.disabled&&!this.readOnly);
-}else{
-if(dojo.isFF){
-this.iframe.contentDocument.designMode=(this.disabled||this.readOnly)?"off":"on";
-}
-}
-},focus:function(){
-if(!this.disabled&&!this.readOnly){
-this._changing();
-}
-dijit.focus(this.iframe||this.focusNode);
-},_setValueAttr:function(_3,_4){
-var _5=this.editNode;
-if(typeof _3=="string"){
-_5.innerHTML="";
-if(_3.split){
-var _6=this;
-var _7=true;
-dojo.forEach(_3.split("\n"),function(_8){
-if(_7){
-_7=false;
-}else{
-_5.appendChild(dojo.doc.createElement("BR"));
-}
-if(_8){
-_5.appendChild(dojo.doc.createTextNode(_8));
-}
-});
-}else{
-if(_3){
-_5.appendChild(dojo.doc.createTextNode(_3));
-}
-}
-if(!dojo.isIE){
-_5.appendChild(dojo.doc.createElement("BR"));
-}
-}else{
-_3=_5.innerHTML;
-if(this.iframe){
-_3=_3.replace(/<div><\/div>\r?\n?$/i,"");
-}
-_3=_3.replace(/\s*\r?\n|^\s+|\s+$|&nbsp;/g,"").replace(/>\s+</g,"><").replace(/<\/(p|div)>$|^<(p|div)[^>]*>/gi,"").replace(/([^>])<div>/g,"$1\n").replace(/<\/p>\s*<p[^>]*>|<br[^>]*>|<\/div>\s*<div[^>]*>/gi,"\n").replace(/<[^>]*>/g,"").replace(/&amp;/gi,"&").replace(/&lt;/gi,"<").replace(/&gt;/gi,">");
-if(!dojo.isIE){
-_3=_3.replace(/\n$/,"");
-}
-}
-this.value=this.formValueNode.value=_3;
-if(this.iframe){
-var _9=dojo.doc.createElement("div");
-_5.appendChild(_9);
-var _a=_9.offsetTop;
-if(_5.scrollWidth>_5.clientWidth){
-_a+=16;
-}
-if(this.lastHeight!=_a){
-if(_a==0){
-_a=16;
-}
-dojo.contentBox(this.iframe,{h:_a});
-this.lastHeight=_a;
-}
-_5.removeChild(_9);
-}
-dijit.form.Textarea.superclass._setValueAttr.call(this,this.attr("value"),_4);
-},_getValueAttr:function(){
-return this.value.replace(/\r/g,"");
-},postMixInProperties:function(){
-this.inherited(arguments);
-if(this.srcNodeRef&&this.srcNodeRef.innerHTML!=""){
-this.value=this.srcNodeRef.innerHTML;
-this.srcNodeRef.innerHTML="";
-}
-if((!this.value||this.value=="")&&this.srcNodeRef&&this.srcNodeRef.value){
-this.value=this.srcNodeRef.value;
-}
-if(!this.value){
-this.value="";
-}
-this.value=this.value.replace(/\r\n/g,"\n").replace(/&gt;/g,">").replace(/&lt;/g,"<").replace(/&amp;/g,"&");
-if(dojo.isFF==2){
-var _b=dojo.i18n.getLocalization("dijit.form","Textarea");
-this._iframeEditTitle=_b.iframeEditTitle;
-this._iframeFocusTitle=_b.iframeFocusTitle;
-var _c=dojo.query("label[for=\""+this.id+"\"]");
-if(_c.length){
-this._iframeEditTitle=_c[0].innerHTML+" "+this._iframeEditTitle;
-}
-this.focusNode=this.editNode=dojo.doc.createElement("BODY");
-}
-},postCreate:function(){
-var _d="";
-if(dojo.isIE||dojo.isSafari||dojo.isFF>=3){
-this.domNode.style.overflowY="hidden";
-}else{
-if(dojo.isFF){
-var w=this.iframe.contentWindow;
-var _f="";
-try{
-_f=this.iframe.contentDocument.title;
-}
-catch(e){
-}
-if(!w||!_f){
-this.iframe.postCreate=dojo.hitch(this,this.postCreate);
+if(this._busyResizing){
 return;
 }
-var d=w.document;
-d.getElementsByTagName("HTML")[0].replaceChild(this.editNode,d.getElementsByTagName("BODY")[0]);
-if(!this.isLeftToRight()){
-d.getElementsByTagName("HTML")[0].dir="rtl";
+this._busyResizing=true;
+var _3=this.domNode;
+_3.scrollTop=0;
+var _4=parseFloat(dojo.getComputedStyle(_3).height);
+var _5=this._getHeight(_3);
+if(_5>0&&_3.style.height!=_5){
+_3.style.maxHeight=_3.style.height=_5+"px";
 }
-this.iframe.style.overflowY="hidden";
-this.eventNode=d;
-w.addEventListener("resize",dojo.hitch(this,this._changed),false);
-dijit.registerWin(w);
-_d="margin:0px;padding:0px;border:0px;";
-}else{
-this.focusNode=this.domNode;
+this._busyResizing=false;
+if(dojo.isMoz||dojo.isWebKit){
+var _6=(_3.value.match(/\n/g)||[]).length;
+if(_6<this._previousNewlines){
+this._shrink();
 }
+this._previousNewlines=_6;
 }
-this.style.replace(/(^|;)(line-|font-?)[^;]+/g,function(_11){
-_d+=_11.replace(/^;/g,"")+";";
-});
-dojo.attr(this.focusNode,"style",_d);
-if(this.eventNode){
-this.connect(this.eventNode,"keypress",this._onKeyPress);
-this.connect(this.eventNode,"mousemove",this._changed);
-this.connect(this.eventNode,"focus",this._focusedEventNode);
-this.connect(this.eventNode,"blur",this._blurredEventNode);
+},_busyResizing:false,_shrink:function(){
+if((dojo.isMoz||dojo.isSafari)&&!this._busyResizing){
+this._busyResizing=true;
+var _7=this.domNode;
+var _8=false;
+if(_7.value==""){
+_7.value=" ";
+_8=true;
 }
-if(this.editNode){
-this.connect(this.editNode,"change",this._changed);
+var _9=this._getHeight(_7);
+if(_9>0){
+var _a=_7.scrollHeight;
+var _b=-1;
+var _c=dojo.getComputedStyle(_7).paddingBottom;
+var _d=dojo._getPadExtents(_7);
+var _e=_d.h-_d.t;
+_7.style.maxHeight=_9+"px";
+while(_b!=_a){
+_b=_a;
+_e+=16;
+_7.style.paddingBottom=_e+"px";
+_7.scrollTop=0;
+_a=_7.scrollHeight;
+_9-=_b-_a;
 }
-this.inherited("postCreate",arguments);
-},_focusedEventNode:function(e){
-this._focused=true;
-this._setStateClass();
-this._changed(e);
-},_blurredEventNode:function(e){
-this._focused=false;
-this._setStateClass();
-this._changed(e,true);
-},_onIframeBlur:function(){
-this.iframe.contentDocument.title=this._iframeEditTitle;
-},_onKeyPress:function(e){
-if(e.charOrCode===dojo.keys.TAB&&!e.shiftKey&&!e.ctrlKey&&!e.altKey&&this.iframe){
-this.iframe.contentDocument.title=this._iframeFocusTitle;
-this.iframe.focus();
-dojo.stopEvent(e);
-}else{
-if(e.charOrCode==dojo.keys.ENTER){
-e.stopPropagation();
-}else{
-if(this.inherited("_onKeyPress",arguments)&&this.iframe){
-var te=dojo.doc.createEvent("KeyEvents");
-te.initKeyEvent("keypress",true,true,null,e.ctrlKey,e.altKey,e.shiftKey,e.metaKey,e.keyCode,e.charCode);
-this.iframe.dispatchEvent(te);
+_7.style.paddingBottom=_c;
+_7.style.maxHeight=_7.style.height=_9+"px";
 }
+if(_8){
+_7.value="";
 }
+this._busyResizing=false;
 }
-this._changing();
-},_changing:function(e){
-setTimeout(dojo.hitch(this,"_changed",e,false),1);
-},_changed:function(e,_18){
-if(this.iframe&&this.iframe.contentDocument.designMode!="on"&&!this.disabled&&!this.readOnly){
-this.iframe.contentDocument.designMode="on";
-}
-this._setValueAttr(null,_18||false);
+},resize:function(){
+this._onInput();
+this._shrink();
+},_setValueAttr:function(){
+this.inherited(arguments);
+this.resize();
+},postCreate:function(){
+this.inherited(arguments);
+dojo.style(this.domNode,{overflowY:"hidden",overflowX:"auto",boxSizing:"border-box",MsBoxSizing:"border-box",WebkitBoxSizing:"border-box",MozBoxSizing:"border-box"});
+this.connect(this.domNode,"onscroll",this._onInput);
+this.connect(this.domNode,"onresize",this._onInput);
+setTimeout(dojo.hitch(this,"resize"),0);
 }});
 }

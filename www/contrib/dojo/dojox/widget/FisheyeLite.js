@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -27,13 +27,11 @@ this._runningIn.play();
 this._runningIn.stop();
 this._runningOut.play();
 },_makeAnims:function(){
-var _3={};
-var _4={};
-var cs=dojo.getComputedStyle(this._target);
+var _3={},_4={},cs=dojo.getComputedStyle(this._target);
 for(var p in this.properties){
-var v=parseInt(cs[p]);
+var _7=this.properties[p],_8=dojo.isObject(_7),v=parseInt(cs[p]);
 _4[p]={end:v,unit:this.unit};
-_3[p]={end:(this.properties[p]*v),unit:this.unit};
+_3[p]=_8?_7:{end:_7*v,unit:this.unit};
 }
 this._runningIn=dojo.animateProperty({node:this._target,easing:this.easeIn,duration:this.durationIn,properties:_3});
 this._runningOut=dojo.animateProperty({node:this._target,duration:this.durationOut,easing:this.easeOut,properties:_4});

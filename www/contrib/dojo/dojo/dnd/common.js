@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -28,5 +28,11 @@ if(t.nodeType==3){
 t=t.parentNode;
 }
 return " button textarea input select option ".indexOf(" "+t.tagName.toLowerCase()+" ")>=0;
+};
+dojo.dnd._lmb=dojo.isIE?1:0;
+dojo.dnd._isLmbPressed=dojo.isIE?function(e){
+return e.button&1;
+}:function(e){
+return e.button===0;
 };
 }

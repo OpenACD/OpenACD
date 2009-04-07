@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -12,68 +12,68 @@ dojo.require("dojox.collections.ArrayList");
 (function(){
 var _1=dojox.collections;
 _1.Set=new (function(){
-function conv(_2){
-if(_2.constructor==Array){
-return new dojox.collections.ArrayList(_2);
+function _2(_3){
+if(_3.constructor==Array){
+return new dojox.collections.ArrayList(_3);
 }
-return _2;
+return _3;
 };
-this.union=function(_3,_4){
-_3=conv(_3);
-_4=conv(_4);
-var _5=new dojox.collections.ArrayList(_3.toArray());
-var e=_4.getIterator();
+this.union=function(_4,_5){
+_4=_2(_4);
+_5=_2(_5);
+var _6=new dojox.collections.ArrayList(_4.toArray());
+var e=_5.getIterator();
 while(!e.atEnd()){
-var _7=e.get();
-if(!_5.contains(_7)){
-_5.add(_7);
+var _8=e.get();
+if(!_6.contains(_8)){
+_6.add(_8);
 }
 }
-return _5;
+return _6;
 };
-this.intersection=function(_8,_9){
-_8=conv(_8);
-_9=conv(_9);
-var _a=new dojox.collections.ArrayList();
-var e=_9.getIterator();
+this.intersection=function(_9,_a){
+_9=_2(_9);
+_a=_2(_a);
+var _b=new dojox.collections.ArrayList();
+var e=_a.getIterator();
 while(!e.atEnd()){
-var _c=e.get();
-if(_8.contains(_c)){
-_a.add(_c);
+var _d=e.get();
+if(_9.contains(_d)){
+_b.add(_d);
 }
 }
-return _a;
+return _b;
 };
-this.difference=function(_d,_e){
-_d=conv(_d);
-_e=conv(_e);
-var _f=new dojox.collections.ArrayList();
-var e=_d.getIterator();
+this.difference=function(_e,_f){
+_e=_2(_e);
+_f=_2(_f);
+var _10=new dojox.collections.ArrayList();
+var e=_e.getIterator();
 while(!e.atEnd()){
-var _11=e.get();
-if(!_e.contains(_11)){
-_f.add(_11);
+var _12=e.get();
+if(!_f.contains(_12)){
+_10.add(_12);
 }
 }
-return _f;
+return _10;
 };
-this.isSubSet=function(_12,_13){
-_12=conv(_12);
-_13=conv(_13);
-var e=_12.getIterator();
+this.isSubSet=function(_13,_14){
+_13=_2(_13);
+_14=_2(_14);
+var e=_13.getIterator();
 while(!e.atEnd()){
-if(!_13.contains(e.get())){
+if(!_14.contains(e.get())){
 return false;
 }
 }
 return true;
 };
-this.isSuperSet=function(_15,_16){
-_15=conv(_15);
-_16=conv(_16);
-var e=_16.getIterator();
+this.isSuperSet=function(_16,_17){
+_16=_2(_16);
+_17=_2(_17);
+var e=_17.getIterator();
 while(!e.atEnd()){
-if(!_15.contains(e.get())){
+if(!_16.contains(e.get())){
 return false;
 }
 }

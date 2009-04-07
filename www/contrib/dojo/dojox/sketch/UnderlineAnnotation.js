@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -16,10 +16,9 @@ ta.UnderlineAnnotation=function(_2,id){
 ta.Annotation.call(this,_2,id);
 this.transform={dx:0,dy:0};
 this.start={x:0,y:0};
-this.property("label",this.id);
+this.property("label","#");
 this.labelShape=null;
 this.lineShape=null;
-this.anchors.start=new ta.Anchor(this,"start",false);
 };
 ta.UnderlineAnnotation.prototype=new ta.Annotation;
 var p=ta.UnderlineAnnotation.prototype;
@@ -42,20 +41,26 @@ for(var i=0;i<_5.childNodes.length;i++){
 var c=_5.childNodes[i];
 if(c.localName=="text"){
 this.property("label",c.childNodes[0].nodeValue);
+var _8=c.getAttribute("style");
+var m=_8.match(/fill:([^;]+);/);
+if(m){
+var _a=this.property("stroke");
+_a.collor=m[1];
+this.property("stroke",_a);
+this.property("fill",_a.collor);
+}
 }
 }
 };
-p.initialize=function(_8){
-var _9=(ta.Annotation.labelFont)?ta.Annotation.labelFont:{family:"Times",size:"16px"};
-this.apply(_8);
+p.initialize=function(_b){
+this.apply(_b);
 this.shape=this.figure.group.createGroup();
 this.shape.getEventSource().setAttribute("id",this.id);
-if(this.transform.dx||this.transform.dy){
-this.shape.setTransform(this.transform);
-}
-this.labelShape=this.shape.createText({x:0,y:0,text:this.property("label"),align:"start"}).setFont(_9).setFill(this.property("fill"));
-this.lineShape=this.shape.createLine({x1:1,x2:this.labelShape.getTextWidth(),y1:2,y2:2}).setStroke({color:this.property("fill"),width:1});
+this.labelShape=this.shape.createText({x:0,y:0,text:this.property("label"),decoration:"underline",align:"start"});
+this.labelShape.getEventSource().setAttribute("id",this.id+"-labelShape");
+this.lineShape=this.shape.createLine({x1:1,x2:this.labelShape.getTextWidth(),y1:2,y2:2});
 this.lineShape.getEventSource().setAttribute("shape-rendering","crispEdges");
+this.draw();
 };
 p.destroy=function(){
 if(!this.shape){
@@ -68,17 +73,30 @@ this.shape=this.lineShape=this.labelShape=null;
 };
 p.getBBox=function(){
 var b=this.getTextBox();
-return {x:0,y:b.h*-1+4,width:b.w+2,height:b.h};
+var z=this.figure.zoomFactor;
+return {x:0,y:(b.h*-1+4)/z,width:(b.w+2)/z,height:b.h/z};
 };
-p.draw=function(_b){
-this.apply(_b);
+p.draw=function(_e){
+this.apply(_e);
 this.shape.setTransform(this.transform);
 this.labelShape.setShape({x:0,y:0,text:this.property("label")}).setFill(this.property("fill"));
-this.lineShape.setShape({x1:1,x2:this.labelShape.getTextWidth()+1,y1:2,y2:2}).setStroke({color:this.property("fill"),width:1});
+this.zoom();
+};
+p.zoom=function(_f){
+if(this.labelShape){
+_f=_f||this.figure.zoomFactor;
+var _10=dojox.gfx.renderer=="vml"?0:2/_f;
+ta.Annotation.prototype.zoom.call(this,_f);
+_f=dojox.gfx.renderer=="vml"?1:_f;
+this.lineShape.setShape({x1:0,x2:this.getBBox().width-_10,y1:2,y2:2}).setStroke({color:this.property("fill"),width:1/_f});
+if(this.mode==ta.Annotation.Modes.Edit){
+this.drawBBox();
+}
+}
 };
 p.serialize=function(){
 var s=this.property("stroke");
-return "<g "+this.writeCommonAttrs()+">"+"<line x1=\"1\" x2=\""+this.labelShape.getTextWidth()+1+"\" y1=\"5\" y2=\"5\" style=\"stroke:"+s.color+";stroke-weight:"+s.width+"\" />"+"<text style=\"fill:"+this.property("fill")+";\" font-weight=\"bold\" "+"x=\"0\" y=\"0\">"+this.property("label")+"</text>"+"</g>";
+return "<g "+this.writeCommonAttrs()+">"+"<text style=\"fill:"+this.property("fill")+";\" font-weight=\"bold\" text-decoration=\"underline\" "+"x=\"0\" y=\"0\">"+this.property("label")+"</text>"+"</g>";
 };
 ta.Annotation.register("Underline");
 })();

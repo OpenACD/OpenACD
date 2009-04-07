@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -12,7 +12,7 @@ dojo.experimental("dojox.widget.Pager");
 dojo.require("dijit._Widget");
 dojo.require("dijit._Templated");
 dojo.require("dojo.fx");
-dojo.declare("dojox.widget.Pager",[dijit._Widget,dijit._Templated],{templateString:"<div dojoAttachPoint=\"pagerContainer\" tabIndex=\"0\" dojoAttachEvent=\"onkeypress: _handleKey, onfocus: _a11yStyle, onblur:_a11yStyle\" class=\"${orientation}PagerContainer\">\n    <div class=\"pagerContainer\">\n\t\t<div dojoAttachPoint=\"pagerContainerStatus\" class=\"${orientation}PagerStatus\"></div>\n\t\t<div dojoAttachPoint=\"pagerContainerPager\" class=\"${orientation}PagerPager\">\n\t\t\t<div tabIndex=\"0\" dojoAttachPoint=\"pagerNext\" class=\"pagerIconContainer\" dojoAttachEvent=\"onclick: _pagerNext\"><img dojoAttachPoint=\"pagerIconNext\" src=\"${iconNext}\" alt=\"Next\" /></div>\n\t\t\t<div tabIndex=\"0\" dojoAttachPoint=\"pagerPrevious\" class=\"pagerIconContainer\" dojoAttachEvent=\"onclick: _pagerPrevious\"><img dojoAttachPoint=\"pagerIconPrevious\" src=\"${iconPrevious}\" alt=\"Previous\" /></div>\n\t\t</div>\n\t\t<div dojoAttachPoint=\"pagerContainerView\" class=\"${orientation}PagerView\">\n\t\t    <div dojoAttachPoint=\"pagerItemContainer\"><ul dojoAttachPoint=\"pagerItems\" class=\"pagerItems\"></ul></div>\n\t\t</div>\n    </div>\n\t<div dojoAttachPoint=\"containerNode\" style=\"display:none\"></div>\n</div>\n",iconPage:dojo.moduleUrl("dojox.widget","Pager/images/pageInactive.png"),iconPageActive:dojo.moduleUrl("dojox.widget","Pager/images/pageActive.png"),store:null,orientation:"horizontal",statusPos:"leading",pagerPos:"center",duration:500,itemSpace:2,resizeChildren:true,itemClass:"dojox.widget._PagerItem",itemsPage:3,postMixInProperties:function(){
+dojo.declare("dojox.widget.Pager",[dijit._Widget,dijit._Templated],{templateString:"<div dojoAttachPoint=\"pagerContainer\" tabIndex=\"0\" dojoAttachEvent=\"onkeypress: _handleKey, onfocus: _a11yStyle, onblur:_a11yStyle\" class=\"${orientation}PagerContainer\">\n    <div class=\"pagerContainer\">\n\t\t<div dojoAttachPoint=\"pagerContainerStatus\" class=\"${orientation}PagerStatus\"></div>\n\t\t<div dojoAttachPoint=\"pagerContainerView\" class=\"${orientation}PagerView\">\n\t\t    <div dojoAttachPoint=\"pagerItemContainer\"><ul dojoAttachPoint=\"pagerItems\" class=\"pagerItems\"></ul></div>\n\t\t</div>\n\t\t<div dojoAttachPoint=\"pagerContainerPager\" class=\"${orientation}PagerPager\">\n\t\t\t<div tabIndex=\"0\" dojoAttachPoint=\"pagerNext\" class=\"pagerIconContainer\" dojoAttachEvent=\"onclick: _pagerNext\"><img dojoAttachPoint=\"pagerIconNext\" src=\"${iconNext}\" alt=\"Next\" /></div>\n\t\t\t<div tabIndex=\"0\" dojoAttachPoint=\"pagerPrevious\" class=\"pagerIconContainer\" dojoAttachEvent=\"onclick: _pagerPrevious\"><img dojoAttachPoint=\"pagerIconPrevious\" src=\"${iconPrevious}\" alt=\"Previous\" /></div>\n\t\t</div>\n    </div>\n\t<div dojoAttachPoint=\"containerNode\" style=\"display:none\"></div>\n</div>\n",iconPage:dojo.moduleUrl("dojox.widget","Pager/images/pageInactive.png"),iconPageActive:dojo.moduleUrl("dojox.widget","Pager/images/pageActive.png"),store:null,orientation:"horizontal",statusPos:"leading",pagerPos:"center",duration:500,itemSpace:2,resizeChildren:true,itemClass:"dojox.widget._PagerItem",itemsPage:3,postMixInProperties:function(){
 var h=(this.orientation=="horizontal");
 dojo.mixin(this,{_totalPages:0,_currentPage:1,dirClass:"pager"+(h?"Horizontal":"Vertical"),iconNext:dojo.moduleUrl("dojox.widget","Pager/images/"+(h?"h":"v")+"Next.png"),iconPrevious:dojo.moduleUrl("dojox.widget","Pager/images/"+(h?"h":"v")+"Previous.png")});
 },postCreate:function(){
@@ -113,11 +113,10 @@ _9(_7,"marginRight",_12+"px");
 }
 }
 var _1a=dojo.getObject(this.itemClass);
-var _1b=(_h?"paddingLeft":"paddingTop");
-var _1c=(_h?"paddingRight":"paddingBottom");
+var _1b="padding"+(_h?"Left":"Top");
+var _1c="padding"+(_h?"Right":"Bottom");
 dojo.forEach(this.items,function(_1d,cnt){
-var _1f=dojo.doc.createElement("div");
-_1f.innerHTML=_1d.content;
+var _1f=dojo.create("div",{innerHTML:_1d.content});
 var _20=new _1a({id:this.id+"-item-"+(cnt+1)},_1f);
 this.pagerItems.appendChild(_20.domNode);
 var _21={};
@@ -288,32 +287,32 @@ this._currentPage=1;
 }else{
 this._currentPage++;
 }
-cnt=this.itemsPage;
+var cnt=this.itemsPage;
 for(var i=this._currentPage*this.itemsPage;i>(this._currentPage-1)*this.itemsPage;i--){
 if(dojo.byId(this.id+"-item-"+i)){
 var _3b=dojo.byId(this.id+"-item-"+i);
 var _3c=dojo.marginBox(_3b);
 if(this.orientation=="horizontal"){
-newPos=(dojo.style(this.pagerContainerView,"width")+((cnt-1)*_3c.w))-1;
-dojo.style(_3b,"left",newPos+"px");
+var _40=(dojo.style(this.pagerContainerView,"width")+((cnt-1)*_3c.w))-1;
+dojo.style(_3b,"left",_40+"px");
 dojo.style(_3b,"top","0px");
-var _3d=newPos-(this.itemsPage*_3c.w);
+var _3d=_40-(this.itemsPage*_3c.w);
 _39.push(dojo.fx.slideTo({node:_3b,left:_3d,duration:this.duration}));
 }else{
-newPos=(dojo.style(this.pagerContainerView,"height")+((cnt-1)*_3c.h))-1;
-dojo.style(_3b,"top",newPos+"px");
+_40=(dojo.style(this.pagerContainerView,"height")+((cnt-1)*_3c.h))-1;
+dojo.style(_3b,"top",_40+"px");
 dojo.style(_3b,"left","0px");
-var _3d=newPos-(this.itemsPage*_3c.h);
+var _3d=_40-(this.itemsPage*_3c.h);
 _39.push(dojo.fx.slideTo({node:_3b,top:_3d,duration:this.duration}));
 }
 }
 cnt--;
 }
 this._anim=dojo.fx.combine(_39);
-var _3f=this.connect(this._anim,"onEnd",function(){
+var _41=this.connect(this._anim,"onEnd",function(){
 delete this._anim;
 this.onScrollEnd();
-this.disconnect(_3f);
+this.disconnect(_41);
 });
 this._anim.play();
 dojo.byId(this.id+"-status-"+_3e).src=this.iconPage;
@@ -322,60 +321,60 @@ dojo.byId(this.id+"-status-"+this._currentPage).src=this.iconPageActive;
 if(this._anim){
 return;
 }
-var _40=[];
+var _42=[];
 for(var i=this._currentPage*this.itemsPage;i>(this._currentPage-1)*this.itemsPage;i--){
 if(!dojo.byId(this.id+"-item-"+i)){
 continue;
 }
-var _42=dojo.byId(this.id+"-item-"+i);
-var _43=dojo.marginBox(_42);
+var _44=dojo.byId(this.id+"-item-"+i);
+var _45=dojo.marginBox(_44);
 if(this.orientation=="horizontal"){
-var _44=dojo.style(_42,"left")+(this.itemsPage*_43.w);
-_40.push(dojo.fx.slideTo({node:_42,left:_44,duration:this.duration}));
+var _46=dojo.style(_44,"left")+(this.itemsPage*_45.w);
+_42.push(dojo.fx.slideTo({node:_44,left:_46,duration:this.duration}));
 }else{
-var _44=dojo.style(_42,"top")+(this.itemsPage*_43.h);
-_40.push(dojo.fx.slideTo({node:_42,top:_44,duration:this.duration}));
+var _46=dojo.style(_44,"top")+(this.itemsPage*_45.h);
+_42.push(dojo.fx.slideTo({node:_44,top:_46,duration:this.duration}));
 }
 }
-var _45=this._currentPage;
+var _47=this._currentPage;
 if(this._currentPage==1){
 this._currentPage=this._totalPages;
 }else{
 this._currentPage--;
 }
-cnt=this.itemsPage;
+var cnt=this.itemsPage;
 var j=1;
 for(var i=this._currentPage*this.itemsPage;i>(this._currentPage-1)*this.itemsPage;i--){
 if(dojo.byId(this.id+"-item-"+i)){
-var _42=dojo.byId(this.id+"-item-"+i);
-var _43=dojo.marginBox(_42);
+var _44=dojo.byId(this.id+"-item-"+i);
+var _45=dojo.marginBox(_44);
 if(this.orientation=="horizontal"){
-newPos=-(j*_43.w)+1;
-dojo.style(_42,"left",newPos+"px");
-dojo.style(_42,"top","0px");
-var _44=((cnt-1)*_43.w);
-_40.push(dojo.fx.slideTo({node:_42,left:_44,duration:this.duration}));
-var _44=newPos+(this.itemsPage*_43.w);
-_40.push(dojo.fx.slideTo({node:_42,left:_44,duration:this.duration}));
+var _4a=-(j*_45.w)+1;
+dojo.style(_44,"left",_4a+"px");
+dojo.style(_44,"top","0px");
+var _46=((cnt-1)*_45.w);
+_42.push(dojo.fx.slideTo({node:_44,left:_46,duration:this.duration}));
+var _46=_4a+(this.itemsPage*_45.w);
+_42.push(dojo.fx.slideTo({node:_44,left:_46,duration:this.duration}));
 }else{
-newPos=-((j*_43.h)+1);
-dojo.style(_42,"top",newPos+"px");
-dojo.style(_42,"left","0px");
-var _44=((cnt-1)*_43.h);
-_40.push(dojo.fx.slideTo({node:_42,top:_44,duration:this.duration}));
+_4a=-((j*_45.h)+1);
+dojo.style(_44,"top",_4a+"px");
+dojo.style(_44,"left","0px");
+var _46=((cnt-1)*_45.h);
+_42.push(dojo.fx.slideTo({node:_44,top:_46,duration:this.duration}));
 }
 }
 cnt--;
 j++;
 }
-this._anim=dojo.fx.combine(_40);
-var _47=dojo.connect(this._anim,"onEnd",dojo.hitch(this,function(){
+this._anim=dojo.fx.combine(_42);
+var _4b=dojo.connect(this._anim,"onEnd",dojo.hitch(this,function(){
 delete this._anim;
 this.onScrollEnd();
-dojo.disconnect(_47);
+dojo.disconnect(_4b);
 }));
 this._anim.play();
-dojo.byId(this.id+"-status-"+_45).src=this.iconPage;
+dojo.byId(this.id+"-status-"+_47).src=this.iconPage;
 dojo.byId(this.id+"-status-"+this._currentPage).src=this.iconPageActive;
 },onScrollEnd:function(){
 }});

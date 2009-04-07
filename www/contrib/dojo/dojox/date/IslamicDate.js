@@ -1,5 +1,5 @@
 /*
-	Copyright (c) 2004-2008, The Dojo Foundation All Rights Reserved.
+	Copyright (c) 2004-2009, The Dojo Foundation All Rights Reserved.
 	Available via Academic Free License >= 2.1 OR the modified BSD license.
 	see: http://dojotoolkit.org/license for details
 */
@@ -11,7 +11,7 @@ dojo.provide("dojox.date.IslamicDate");
 dojo.experimental("dojox.date.IslamicDate");
 dojo.require("dojo.date.locale");
 dojo.require("dojo.date");
-dojo.requireLocalization("dojo.cldr","islamic",null,"");
+dojo.requireLocalization("dojo.cldr","islamic",null,"ROOT,ar");
 dojo.declare("dojox.date.IslamicDate",null,{_date:0,_month:0,_year:0,_hours:0,_minutes:0,_seconds:0,_milliseconds:0,_day:0,_GREGORIAN_EPOCH:1721425.5,_ISLAMIC_EPOCH:1948439.5,constructor:function(){
 var _1=arguments.length;
 if(_1==0){

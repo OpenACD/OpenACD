@@ -3,11 +3,16 @@
     background : url('images/treeI.gif') no-repeat;
     background-position : top left;
     background-repeat : repeat-y;
-    margin-left: 19px;
     zoom: 1;	
 }
 .nihilo .dijitTreeIsLast {
     background: url('images/treeI_half.gif') no-repeat;
+}
+.nihilo .dijitTreeNodeHover {
+	
+	background-image: url(images/treeHover.png);
+	background-repeat: repeat;
+	background-color: none !important;
 }
 .nihilo .dijitTreeLabel {
 	font-weight: normal;
@@ -20,6 +25,10 @@
 .nihilo .dijitTreeExpando {
     width: 18px;
     height: 18px;
+}
+.nihilo .dijitTreeRow {
+	
+	padding-bottom: 2px;
 }
 .nihilo .dijitTreeContent {
     min-height: 18px;
@@ -37,7 +46,6 @@
 }
 .nihilo .dijitTreeLabelFocused {
 	outline: 1px invert dotted;
-	background:#dde7f2;
 }
 .nihilo .dijitTreeExpandoOpened {
 	background: url('images/spriteTree.gif') no-repeat -18px top;
@@ -63,4 +71,17 @@
 }
 .nihilo .dijitLeaf {
 	background: url('images/spriteDivIcons.gif') no-repeat -32px top;
+}
+.nihilo .dijitTreeNode .dojoDndItemBefore,
+.nihilo .dijitTreeNode .dojoDndItemAfter {
+	border-bottom: none;
+	border-top: none;
+}
+.nihilo .dijitTreeNode .dojoDndItemBefore .dijitTreeContent {
+	
+	border-top: 2px solid #369;
+}
+.nihilo .dijitTreeNode .dojoDndItemAfter .dijitTreeContent {
+	
+	border-bottom: 2px solid #369;
 }

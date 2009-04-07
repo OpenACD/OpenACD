@@ -133,7 +133,7 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 			{struct, [{success, true}, {<<"message">>, <<"TCP Server disabled">>}]};
 		Tcpport ->
 			try list_to_integer(Tcpport) of
-				N when N >= 1024, N =< 49151 ->
+				N when N >= 1024, N =< 65535 ->
 					cpx_supervisor:update_conf(agent_tcp_listener, agent_tcp_listener, start_link, [N]),
 					{struct, [{success, true}, {<<"message">>, <<"TCP Server enabled">>}]};
 				_N ->
@@ -149,7 +149,7 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 			{struct, [{success, true}, {<<"message">>, <<"Web Server disabled">>}]};
 		Webport ->
 			try list_to_integer(Webport) of
-				M when M >= 1024, M =< 49151 ->
+				M when M >= 1024, M =< 65535 ->
 					cpx_supervisor:update_conf(agent_web_listener, agent_web_listener, start_link, [M]),
 					{struct, [{success, true}, {<<"message">>, <<"Web Server enabled">>}]};
 				_M ->

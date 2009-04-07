@@ -397,7 +397,8 @@ build_tables() ->
 		{atomic, ok} ->
 			F = fun() ->
 				% TODO what the heck is this?  A:  a default agent created if the table initially didn't.
-				mnesia:write(#agent_auth{login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english], profile="Default"})
+				mnesia:write(#agent_auth{login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english], profile="Default"}),
+				mnesia:write(#agent_auth{login="administrator", password=util:bin_to_hexstr(erlang:md5("Password123")), securitylevel=admin, skills=[english], profile="Default"})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 

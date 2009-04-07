@@ -187,7 +187,7 @@ group_by(Fun, List) ->
 
 %% @doc Merges 2 skill lists using lists:umerge and then ensures that only one
 %% instance of each magic skill is present, at maximum.
--spec(merge_skill_lists(List1 :: [any()], List2 :: [any()]) -> [any()]).
+-spec(merge_skill_lists/2 :: (List1 :: [any()], List2 :: [any()]) -> [any()]).
 merge_skill_lists(List1, List2) ->
 	lists:foreach(fun({Key, Value}) ->
 		case length(Value) of

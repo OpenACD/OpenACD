@@ -93,27 +93,27 @@ start_link(Cnode, Domain) ->
 	gen_server:start_link(?MODULE, [Cnode, Domain], []).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
--spec(get_call(MPid :: pid()) -> #call{}).
+-spec(get_call/1 :: (MPid :: pid()) -> #call{}).
 get_call(MPid) ->
 	gen_server:call(MPid, get_call).
 
--spec(get_queue(MPid :: pid()) -> pid()).
+-spec(get_queue/1 :: (MPid :: pid()) -> pid()).
 get_queue(MPid) ->
 	gen_server:call(MPid, get_queue).
 
--spec(get_agent(MPid :: pid()) -> pid()).
+-spec(get_agent/1 :: (MPid :: pid()) -> pid()).
 get_agent(MPid) ->
 	gen_server:call(MPid, get_agent).
 
--spec(unqueue(Mpid :: pid()) -> 'ok').
+-spec(unqueue/1 :: (Mpid :: pid()) -> 'ok').
 unqueue(MPid) ->
 	gen_server:call(MPid, unqueue).
 
--spec(set_agent(Mpid :: pid(), Agent :: any(), Apid :: pid()) -> 'ok').
+-spec(set_agent/3 :: (Mpid :: pid(), Agent :: any(), Apid :: pid()) -> 'ok').
 set_agent(MPid, Agent, Apid) when is_pid(MPid), is_pid(Apid) ->
 	gen_server:call(MPid, {set_agent, Agent, Apid}).
 
--spec(dump_state(Mpid :: pid()) -> #state{}).
+-spec(dump_state/1 :: (Mpid :: pid()) -> #state{}).
 dump_state(Mpid) when is_pid(Mpid) ->
 	gen_server:call(Mpid, dump_state).
 	

@@ -52,6 +52,7 @@ dojo.require("dijit.form.MultiSelect");
 </script>
 <script type="text/javascript" src="agents.js"></script>
 <script type="text/javascript" src="skills.js"></script>
+<script type="text/javascript" src="queues.js"></script>
 <script type="text/javascript" src="main.js"></script>
 </head>
 
@@ -197,9 +198,47 @@ dojo.require("dijit.form.MultiSelect");
 			
 		</div>
 	</div>
-	<div id="queuesTab" dojoType="dijit.layout.ContentPane" title="Queues">
-	<!--	<div dojoType="dijit.layout.LayoutContainer" style="width: 100%; height: 100%; padding: 0; margin: 0; border: 0;">
-			<div dojoType="dijit.layout.ContentPane" layoutAlign="client" id="queuePane">
+	
+	<div id="queuesTab" dojoType="dijit.layout.BorderContainer" title="Queues">
+		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="queuesNav">
+			<div style="width:100%;height: 92%">
+				<div id="queuesList"></div>
+			</div>
+			
+			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
+				<button dojoType="dijit.form.Button" label="+"></button>
+				<button dojoType="dijit.form.Button" label="+ Group"></button>
+				<button dojoType="dijit.form.Button" label="-"></button>
+			</div>
+		</div>
+		
+		<div dojoType="dijit.layout.StackContainer" region="center" id="queuesMain">
+			
+			<div dojoType="dijit.layout.ContentPane" id="queueGroupEditor">
+				<form dojoType="dijit.form.Form" id="editQueueGroupForm" action="javascript:void(0)" method="post">
+				<input type="hidden" dojoType="dijit.form.TextBox" name="oldname" id="queueGroupOldName" value="" />
+				<p>
+					<label for="queueGroupName">Name:</label>
+					<input dojoType="dijit.form.TextBox" name="name" id="queueGroupName" />
+				</p>
+				
+				<p>
+					<label for="queueGroupSort">Sort:</label>
+					<input dojoType="dijit.form.NumberTextBox" name="sort" id="queueGroupSort" />
+				</p>
+				
+				<p>
+					<label for="queueGroupSubmit">&nbsp;</label>
+					<button dojoType="dijit.form.Button" label="Submit" onClick="console.log('submit')"></button>
+				</p>
+			</div>
+			
+			<div dojoType="dijit.layout.ContentPane" id="queueEditor">
+				Queue Editor
+			</div>
+
+		</div>
+	<!--		<div dojoType="dijit.layout.ContentPane" layoutAlign="client" id="queuePane">
 				<div id="editQueueGroupPane" dojoType="dijit.layout.ContentPane" style="display:none;">
 					Edit Queue Group
 				</div>

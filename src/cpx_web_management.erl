@@ -394,7 +394,19 @@ api({skills, "skill", "new"}, ?COOKIE, Post) ->
 		proplists:get_value("description", Post),
 		proplists:get_value("group", Post)
 	),
-	{200, [], mochijson2:encode({struct, [{success, true}]})}.
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
+
+%% =====
+%% queues -> groups
+%% =====
+
+api({queues, "groups", "get"}, ?COOKIE, _Post) ->
+	Groups = call_queue_config:get_queue_groups(),
+	List = encode_queues_with_groups(Groups),
+	Json = {struct, [{success, true}, {<<"items">>, List}]},
+	{200, [], mochijson2:encode(Json)}.
+		
+	
 
 
 % path spec:
@@ -445,8 +457,8 @@ parse_path(Path) ->
 					{api, {skills, "skill", Action}};
 				["", "skills", "skill", Skill, Action] ->
 					{api, {skills, "skill", Skill, Action}};
-				["", "queues", Action] ->
-					{api, {queues, Action}};
+				["", "queues", "groups", Action] ->
+					{api, {queues, "groups", Action}};
 				["", "medias", Action] ->
 					{api, {medias, Action}};
 				_Allothers ->
@@ -530,26 +542,34 @@ encode_skills_with_groups([Skill | Skills], Acc) ->
 %			{type, group},
 %			{children, encode_skills(Group)}]} | encode_skills_with_groups(Groups)].
 
-encode_queues([]) ->
-	[];
-encode_queues([Queue|Queues]) ->
-	[{struct, [{name, list_to_binary(Queue#call_queue.name)},
+encode_queues(Queues) ->
+	encode_queues(Queues, []).
+
+encode_queues([], Acc) ->
+	lists:reverse(Acc);
+encode_queues([Queue | Queues], Acc) ->
+	Head = {struct, [{name, list_to_binary(Queue#call_queue.name)},
 			{type, queue}, {weight, Queue#call_queue.weight},
 			{skills, Queue#call_queue.skills},
-			{recipe, none}]} | encode_queues(Queues)].
+			{recipe, none}]},
+	encode_queues(Queues, [Head | Acc]).
 
-encode_queues_with_groups([]) ->
-	[];
-encode_queues_with_groups([Group|Groups]) ->
-	AQueue = lists:nth(1, Group),
-	case call_queue_config:get_queue_group(AQueue#call_queue.group) of
-		{atomic, [G]} ->
-			[{struct, [{name, list_to_binary(G#queue_group.name)},
-					{type, group}, {protected, G#queue_group.protected},
-					{recipe, G#queue_group.recipe},
-					{children, encode_queues(Group)}]} | encode_queues_with_groups(Groups)]
-	end.
+encode_queues_with_groups(Groups) ->
+	encode_queues_with_groups(Groups, []).
 
+encode_queues_with_groups([], Acc) ->
+	lists:reverse(Acc);
+encode_queues_with_groups([Group | Groups], Acc) ->
+	Queues = call_queue_config:get_queues(Group#queue_group.name),
+	Head = {struct, [
+		{name, list_to_binary(Group#queue_group.name)},
+		{recipe, <<"TODO">>},
+		{sort, Group#queue_group.sort},
+		{protected, Group#queue_group.protected},
+		{<<"type">>, <<"group">>},
+		{queues, encode_queues(Queues)}]},
+	encode_queues_with_groups(Groups, [Head | Acc]).
+	
 encode_agents([]) ->
 	[];
 encode_agents([Agent|Agents]) ->

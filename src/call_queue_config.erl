@@ -79,6 +79,7 @@
 	destroy_queue/1,
 	get_queue/1,
 	get_queues/0,
+	get_queues/1,
 	set_queue/1,
 	set_queue_name/2,
 	set_queue_recipe/2,
@@ -208,6 +209,16 @@ get_queue(Queue) ->
 		Else -> 
 			{noexists, Else}
 	end.
+
+%% @doc Get all the queues that are members of the specified Group (`string()').
+-spec(get_queues/1 :: (Group :: string()) -> {atomic, [#call_queue{}]}).
+get_queues(Group) ->
+	QH = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.group =:= Group]),
+	F = fun() ->
+		qlc:e(QH)
+	end,
+	{atomic, Queues} = mnesia:transaction(F),
+	lists:sort(fun(Qreca, Qrecb) -> Qreca#call_queue.name =< Qrecb#call_queue.name end, Queues).
 	
 %% @doc Get all the queue configurations (`[#call_queue{}]').
 -spec(get_queues/0 :: () -> [#call_queue{}]).

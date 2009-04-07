@@ -260,8 +260,8 @@ build_table(Tablename, Options) when is_atom(Tablename) ->
 %% @doc Find the position of `Needle' (`any()') in a list.  Remember, the first element in an erlang list is 1.
 -spec(list_index/2 :: (Needle :: any(), Haystack :: [any()]) -> non_neg_integer()).
 list_index(Needle, List) ->
-	F = fun(Needle, Item) ->
-		Needle =:= Item
+	F = fun(Needl, Item) ->
+		Needl =:= Item
 	end,
 	list_index_(F, Needle, List, 1).
 

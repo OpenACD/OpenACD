@@ -40,7 +40,7 @@
 	-include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export[start/2, stop/1].
+-export([start/2, stop/1]).
 
 % TODO mnesia set-up (schema and connected nodes) needs to be ready before the app starts.
 start(_Type, StartArgs) ->

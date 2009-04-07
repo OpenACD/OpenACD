@@ -38,6 +38,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 -include("queue.hrl").
+-include("cpx.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
 -ifdef(EUNIT).
@@ -50,7 +51,7 @@
 %% @doc Start the web management server unlinked to the parent process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
-	?CONSOLE("Staring mochiweb...", []),
+	?CONSOLE("Starting mochiweb...", []),
 	ets:new(cpx_management_logins, [set, public, named_table]),
 	mochiweb_http:start([{loop, {?MODULE, loop}} | ?WEB_DEFAULTS]).
 
@@ -132,7 +133,15 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 			cpx_supervisor:destroy(agent_tcp_listener),
 			{struct, [{success, true}, {<<"message">>, <<"TCP Server disabled">>}]};
 		Tcpport ->
+			OldTcpPort = case cpx_supervisor:get_conf(agent_tcp_listener) of
+				TcpRecord when is_record(TcpRecord, cpx_conf) ->
+					lists:nth(1, TcpRecord#cpx_conf.start_args);
+				_Else1 ->
+					undefined
+			end,
 			try list_to_integer(Tcpport) of
+				OldTcpPort ->
+					{struct, [{success, true}, {<<"message">>, <<"Nothing to do">>}]};
 				N when N >= 1024, N =< 65535 ->
 					cpx_supervisor:update_conf(agent_tcp_listener, agent_tcp_listener, start_link, [N]),
 					{struct, [{success, true}, {<<"message">>, <<"TCP Server enabled">>}]};
@@ -148,7 +157,16 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 			cpx_supervisor:destroy(agent_web_listener),
 			{struct, [{success, true}, {<<"message">>, <<"Web Server disabled">>}]};
 		Webport ->
+			OldWebPort = case cpx_supervisor:get_conf(agent_web_listener) of
+				WebRecord when is_record(WebRecord, cpx_conf) ->
+					lists:nth(1, WebRecord#cpx_conf.start_args);
+				_Else2 ->
+					undefined
+			end,
+			?CONSOLE("1: ~p, 2: ~p", [Webport, OldWebPort]),
 			try list_to_integer(Webport) of
+				OldWebPort  ->
+					{struct, [{success, true}, {<<"message">>, <<"Nothing to do">>}]};
 				M when M >= 1024, M =< 65535 ->
 					cpx_supervisor:update_conf(agent_web_listener, agent_web_listener, start_link, [M]),
 					{struct, [{success, true}, {<<"message">>, <<"Web Server enabled">>}]};
@@ -165,14 +183,14 @@ api({agents, "modules", "get"}, ?COOKIE, _Post) ->
 		undefined ->
 			[{"agentModuleTCPListen", 1337}, {"agentModuleTCPListenEnabled", false}];
 		Tcplist ->
-			[Tcport] = proplists:get_value(start_args, Tcplist, [1337]),
+			[Tcport] = Tcplist#cpx_conf.start_args,
 			[{"agentModuleTCPListen", Tcport}, {"agentModuleTCPListenEnabled", true}]
 	end,
 	Webout = case cpx_supervisor:get_conf(agent_web_listener) of
 		undefined ->
 			[{"agentModuleWebListen", 5050}, {"agentModuleWebListenEnabled", false}];
 		Weblist ->
-			[Webport] = proplists:get_value(start_args, Weblist, [5050]),
+			[Webport] = Weblist#cpx_conf.start_args,
 			[{"agentModuleWebListen", Webport}, {"agentModuleWebListenEnabled", true}]
 	end,
 	Full = lists:append([Tcpout, Webout]),

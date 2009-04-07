@@ -49,17 +49,12 @@
 
 -include("call.hrl").
 -include("agent.hrl").
+-include("cpx.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
 -ifdef(EUNIT).
 	-include_lib("eunit/include/eunit.hrl").
 -endif.
-
--record(cpx_conf, {
-	module_name :: atom(),
-	start_function :: atom(),
-	start_args :: [any()]
-}).
 
 -behaviour(supervisor).
 
@@ -173,7 +168,8 @@ destroy(Spec) when is_atom(Spec) ->
 	F = fun() -> 
 		mnesia:delete({cpx_conf, Spec})
 	end,
-	mnesia:transaction(F).
+	mnesia:transaction(F),
+	stop_spec(Spec).
 
 %% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
 %% @see add_conf/3
@@ -183,7 +179,8 @@ update_conf(Name, Mod, Start, Args) ->
 		destroy(Name),
 		mnesia:write(Rec)
 	end,
-	mnesia:transaction(F).
+	mnesia:transaction(F),
+	start_spec(build_spec(Rec)).
 
 get_conf(Name) ->
 	F = fun() ->
@@ -194,15 +191,16 @@ get_conf(Name) ->
 		{atomic, []} ->
 			undefined;
 		{atomic, [Rec]} ->
-			[{name, Rec#cpx_conf.module_name},
-			{module_name, Rec#cpx_conf.module_name},
-			{start_function, Rec#cpx_conf.start_function},
-			{start_args, Rec#cpx_conf.start_args}]
+			Rec
 	end.
 
 %% @private
-start_spec(Spec) -> 
+start_spec(Spec) ->
+	supervisor:delete_child(?MODULE, element(1, Spec)),
 	supervisor:start_child(?MODULE, Spec).
+
+stop_spec(SpecID) ->
+	supervisor:terminate_child(?MODULE, SpecID).
 
 %% @private
 load_specs() -> 

@@ -100,6 +100,7 @@ init([Port]) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
+	?CONSOLE("stopping mochiweb ~p", [mochiweb_http:stop(?MOCHI_NAME)]),
 	{stop, shutdown, ok, State};
 handle_call(Request, _From, State) ->
     {reply, {unknown_call, Request}, State}.

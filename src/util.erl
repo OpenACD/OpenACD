@@ -255,6 +255,30 @@ build_table(Tablename, Options) when is_atom(Tablename) ->
 			exit(mnesia_stopped)
 	end.
 
+%% @doc Find the position of `Needle' (`any()') in a list.  Remember, the first element in an erlang list is 1.
+-spec(list_index/2 :: (Needle :: any(), Haystack :: [any()]) -> non_neg_integer()).
+list_index(Needle, List) ->
+	F = fun(Needle, Item) ->
+		Needle =:= Item
+	end,
+	list_index_(F, Needle, List, 1).
+
+%% @doc Find the position of `Needle' (`any()') in a list using `Fun' (`fun()') as the comparison.
+-spec(list_index/3 :: (Fun :: fun((any) -> bool()), Needle :: any(), List :: [any()]) -> non_neg_integer()).
+list_index(Fun, Needle, List) ->
+	list_index_(Fun, Needle, List, 1).
+
+%% @private
+list_index_(_Fun, _Needle, [], _Index) ->
+	0;
+list_index_(Fun, Needle, [Head | Tail], Index) ->
+	case Fun(Needle, Head) of
+		false ->
+			list_index_(Fun, Needle, Tail, Index + 1);
+		true ->
+			Index
+	end.
+
 -ifdef(EUNIT).
 split_empty_string_test() ->
 	?assertEqual([] , string_split("", " ")).
@@ -398,5 +422,25 @@ subtract_skill_lists_test() ->
 	?assertEqual([{'_agent',"Foo"},baz], util:subtract_skill_lists([{'_agent', "Foo"}, bar, baz], ['_agent', baz])),
 	?assertEqual([{'_agent',"Foo"},baz], util:subtract_skill_lists([{'_agent', "Foo"}, bar, baz], [{'_agent', "Whatever"}, baz])),
 	?assertEqual([baz], util:subtract_skill_lists([bar, baz], [{'_agent', "Whatever"}, baz])).
-				
+
+list_index_test_() ->
+	[{"Default check of =:=",
+	fun() ->
+		?assertEqual(0, list_index(a, [b, c, d])),
+		?assertEqual(1, list_index(b, [b, c, d])),
+		?assertEqual(2, list_index(c, [b, c, d])),
+		?assertEqual(0, list_index(a, []))
+	end},
+	{"Custom fun check",
+	fun() ->
+		F = fun({A, B}, {C, _}) ->
+			?debugFmt("~p ~p ~p", [A, B, C]),
+			A =:= C
+		end,
+		?assertEqual(0, list_index(F, {a, b}, [{c, d}, {e, f}, {g, h}])),
+		?assertEqual(1, list_index(F, {a, b}, [{a, c}, {e, f}, {g, h}])),
+		?assertEqual(2, list_index(F, {a, b}, [{c, d}, {a, f}, {g, h}])),
+		?assertEqual(0, list_index(F, {a, b}, []))
+	end}].
+
 -endif.

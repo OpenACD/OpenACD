@@ -54,7 +54,7 @@
 	 terminate/2, code_change/3]).
 
 -record(state, {
-	cnode :: node(),
+	cnode :: atom(),
 	uuid :: any(),
 	agent_pid :: pid(),
 	callrec :: #call{}

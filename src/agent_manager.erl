@@ -54,6 +54,7 @@
 	stop/0, 
 	start_agent/1, 
 	query_agent/1, 
+	find_by_skill/1,
 	find_avail_agents_by_skill/1,
 	get_leader/0,
 	list/0
@@ -119,6 +120,9 @@ find_avail_agents_by_skill(Skills) ->
 	end,
 	lists:sort(F, AvailSkilledAgentsByIdleTime).
 
+find_by_skill(Skills) ->
+	[{K, V, AgState} || {K, V} <- gen_leader:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], lists:member('_all', AgState#agent.skills) orelse util:list_contains_all(AgState#agent.skills, Skills)].
+	
 %% @doc Get a list of agents at the node this `agent_manager' is running on.
 -spec(list/0 :: () -> [any()]).
 list() ->

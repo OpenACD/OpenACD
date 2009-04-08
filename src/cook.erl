@@ -378,20 +378,8 @@ check_conditions([{available_agents, Comparision, Number} | Conditions], Ticked,
 	Qpid = queue_manager:get_queue(Queue),
 	{_Key, Callrec} = call_queue:get_call(Qpid, Call),
 	Dispatchers = Callrec#queued_call.dispatchers,
-	Getagents = fun(Dpid) ->
-		try dispatcher:get_agents(Dpid) of
-			[] ->
-				?CONSOLE("empty list, might as well tell this dispatcher to regrab", []),
-				[];
-			Ag ->
-				Ag
-		catch
-			What:Why ->
-				?CONSOLE("Caught:  ~p:~p", [What, Why]),
-				[]
-		end
-	end,
-	Agents = length(lists:flatten(lists:map(Getagents, Dispatchers))),
+	L = agent_manager:find_avail_agents_by_skill(Callrec#queued_call.skills),
+	Agents = length(L),
 	case Comparision of
 		'>' when Agents > Number ->
 			check_conditions(Conditions, Ticked, Queue, Call);

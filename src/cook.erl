@@ -1057,7 +1057,32 @@ agent_interaction_test_() ->
 				?assertEqual(idle, Statename),
 				dummy_media:stop(Media)
 			end}
+		end,
+		fun({QPid, MPid, APid}) ->
+			{"Agent with the _all skill overrides other skill checking",
+			fun() ->
+				dummy_media:set_skills(MPid, [german]),
+				call_queue:add(QPid, MPid),
+				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2", skills=[english, '_all']}),
+				agent:set_state(APid2, idle),
+				timer:sleep(?TICK_LENGTH * 2 + 100),
+				{ok, Statename} = agent:query_state(APid2),
+				?assertEqual(ringing, Statename)
+			end}
+		end,
+		fun({QPid, MPid, APid}) ->
+			{"Call with the _all skill overrides other skill checking",
+			fun() ->
+				dummy_media:set_skills(MPid, [german, '_all']),
+				call_queue:add(QPid, MPid),
+				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2", skills=[english]}),
+				agent:set_state(APid2, idle),
+				timer:sleep(?TICK_LENGTH * 2 + 100),
+				{ok, Statename} = agent:query_state(APid2),
+				?assertEqual(ringing, Statename)
+			end}
 		end
+
 	]
 	}.
 

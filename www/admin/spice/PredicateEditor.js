@@ -9,6 +9,7 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 	setComparisons: function(prop){
 		var ithis = this;
 		var callback = function(res, req){
+			console.log(res);
 			var items = [];
 			for(var i in res[0].comparisons){
 				items.push({'label':res[0].comparisons[i].label[0]});
@@ -21,7 +22,7 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 					"items":items
 				}
 			});
-			ithis.comparisonField.store.fetch();
+			ithis.valueField.regExp = res[0].regExp[0]
 		}
 		this.propertyField.store.fetch({
 			query:{'label':prop},

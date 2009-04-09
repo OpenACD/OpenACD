@@ -13,13 +13,13 @@ queues.recipeBuilderStore = new dojo.data.ItemFileReadStore({
 		"items":[
 			{"label":"ticks",
 			"type":"property",
-			"valueType":"number",
+			"regExp":"[\\d]+",
 			"comparisons":[
 				{_reference:"="}
 			]},
 			{"label":"Agents Available",
 			"type":"property",
-			"valueType":"number",
+			"regExp":"[\\d]+",
 			"comparisons":[
 				{_reference:"="},
 				{_reference:">"},

@@ -4,7 +4,61 @@ dojo.provide("spice.queues");
 
 var queues = function(){
 	return {}
-}
+};
+
+queues.recipeBuilderStore = new dojo.data.ItemFileReadStore({
+	data:{
+		identifier:"label",
+		label:"label",
+		"items":[
+			{"label":"ticks",
+			"type":"property",
+			"valueType":"number",
+			"comparisons":[
+				{_reference:"="}
+			]},
+			{"label":"Agents Available",
+			"type":"property",
+			"valueType":"number",
+			"comparisons":[
+				{_reference:"="},
+				{_reference:">"},
+				{_reference:"<"}
+			]},
+			{"label":"=",
+			"type":"comparison"},
+			{"label":">",
+			"type":"comparison"},
+			{"label":"<",
+			"type":"comparison"}
+		]
+	}
+});
+/*
+queues.recipeBuilderStore = new dojo.data.ItemFileReadStore({
+	data:{
+		"items":[
+			{"label":"ticks",
+			"type":"property",
+			"valueType":"number",
+			"comparisons":[
+				{"label":"=",
+				"type":"comparison"}
+			]},
+			{"label":"Agents Available",
+			"type":"property",
+			"valueType":"number",
+			"comparisons":[
+				{"label":">",
+				"type":"comparison"},
+				{"label":"=",
+				"type":"comparison"},
+				{"label":"<",
+				"type":"comparison"}
+			]}
+		]
+	}
+});*/
 
 queues.store = new dojo.data.ItemFileWriteStore({
 	data:{

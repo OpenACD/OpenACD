@@ -11,7 +11,7 @@ queues.recipeBuilderStore = new dojo.data.ItemFileReadStore({
 		identifier:"label",
 		label:"label",
 		"items":[
-			{"label":"ticks",
+			{"label":"Tick interval",
 			"type":"property",
 			"regExp":"[\\d]+",
 			"comparisons":[
@@ -30,7 +30,31 @@ queues.recipeBuilderStore = new dojo.data.ItemFileReadStore({
 			{"label":">",
 			"type":"comparison"},
 			{"label":"<",
-			"type":"comparison"}
+			"type":"comparison"},
+			{"label":"Agents Eligible",
+			"type":"property",
+			"regExp":"[\\d]+",
+			"comparisons":[
+				{_reference:"="},
+				{_reference:">"},
+				{_reference:"<"}
+			]},
+			{"label":"Calls in Queue",
+			"type":"property",
+			"regExp":"[\\d]+",
+			"comparisons":[
+				{_reference:"="},
+				{_reference:">"},
+				{_reference:"<"}
+			]},
+			{"label":"Position in Queue",
+			"type":"property",
+			"regExp":"[\\d]+",
+			"comparisons":[
+				{_reference:"="},
+				{_reference:">"},
+				{_reference:"<"}
+			]}
 		]
 	}
 });

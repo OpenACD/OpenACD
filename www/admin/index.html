@@ -235,14 +235,16 @@ dojo.require("spice.PredicateEditor");
 				</p>
 				
 				<p>
+					<label for="queueGroupRecipe">Recipe:</label>
+					<div dojoType="PredicateEditor" id="queueGroupRecipe" store="queues.recipeBuilderStore" propwidth="12em" valwidth="4em"compwidth="6em"></div>
+				</p>
+				
+				<p>
 					<label for="queueGroupSubmit">&nbsp;</label>
 					<button dojoType="dijit.form.Button" label="Submit" onClick="console.log('submit')"></button>
 				</p>
+
 				</form>
-				<p>
-					<label for="queueGroupRecipe">Recipe:</label>
-					<div dojoType="PredicateEditor" id="queueGroupRecipe" store="queues.recipeBuilderStore"></div>
-				</p>
 			</div>
 			
 			<div dojoType="dijit.layout.ContentPane" id="queueEditor">

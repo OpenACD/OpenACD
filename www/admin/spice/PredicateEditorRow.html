@@ -1,8 +1,8 @@
 <div dojoType="dijit.layout.ContentPane">
-	<input dojoType="dijit.form.FilteringSelect" dojoAttachPoint="propertyField" name="property"  store="${store}" searchAttr="label" query="{type:'property'}" dojoAttachEvent='onChange: setComparisons' />
+	<input dojoType="dijit.form.FilteringSelect" dojoAttachPoint="propertyField" name="property"  store="${store}" searchAttr="label" query="{type:'property'}" dojoAttachEvent='onChange: setComparisons' style="width:${propwidth}">
 	</input>
-	<input dojoType="dijit.form.FilteringSelect" dojoAttachPoint="comparisonField" name="comparison" store="${store}" searchAttr="label" />
-	<input dojoType="dijit.form.ValidationTextBox" regExp="" dojoAttachPoint="valueField" name="value">
+	<input dojoType="dijit.form.FilteringSelect" dojoAttachPoint="comparisonField" name="comparison" store="${store}" searchAttr="label" style="width:${compwidth}" />
+	<input dojoType="dijit.form.ValidationTextBox" regExp="" dojoAttachPoint="valueField" name="value" style="width:${valwidth}">
 	</input>
 	<button dojoType="dijit.form.Button" dojoAttachPoint="dropButton" label="-"></button>
 	<button dojotype="dijit.form.Button" dojoAttachPoint="addButton" label="+"></button>

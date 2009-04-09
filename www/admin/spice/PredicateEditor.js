@@ -6,6 +6,9 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 	widgetsInTemplate: true,
 	templateString: "",
 	store:[],
+	propwidth:"20em",
+	compwidth:"10em",
+	valwidth:"20em",
 	setComparisons: function(prop){
 		var ithis = this;
 		var callback = function(res, req){
@@ -36,6 +39,11 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 			"value":this.valueField.value
 		};
 		return out;
+	},
+	setValues: function(obj){
+		this.propertyField.setValue(obj.property);
+		this.comparisonField.setValue(obj.comparison);
+		this.valueField.setValue(obj.value);
 	}
 });
 
@@ -45,12 +53,18 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 	templateString:"",
 	store:[],
 	rows:[],
+	propwidth:"20em",
+	compwidth:"10em",
+	valwidth:"20em",
 	addRow:function(){
 		var ithis = this;
 		console.log(this);
 		console.log(self);
 		var row = new PredicateEditorRow({
-			store: this.store
+			store: this.store,
+			propwidth: this.propwidth,
+			compwidth: this.compwidth,
+			valwidth: this.valwidth
 		});
 		row.addButton.onClick = function(){
 			ithis.addRow();
@@ -80,6 +94,16 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 			items.push(dijit.byId(this.rows[i]).getValues());
 		}
 		return items;
+	},
+	setValues:function(list){
+		for(var i in this.rows){
+			dijit.byId(this.rows[i]).destroy();
+		}
+		this.rows = [];
+		for(var i in list){
+			this.addRow();
+			dijit.byId(this.rows[i]).setValues(list[i]);
+		}
 	},
 	postCreate:function(){
 		this.addRow();

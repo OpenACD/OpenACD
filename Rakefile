@@ -160,8 +160,8 @@ namespace :test do
 		sh "cp src/*.app debug_ebin/"
 	end
 
-	desc "run eunit tests, the dialyzer and output coverage reports"
-	task :all => [:compile, :eunit, :dialyzer, :report_coverage]
+	desc "run eunit tests and output coverage reports"
+	task :all => [:compile, :eunit, :report_coverage]
 
 	desc "run only the eunit tests"
 	task :eunit =>  [:compile, 'coverage'] + COVERAGE

@@ -261,7 +261,7 @@ build_acks([{struct, Pollprops} | Pollqueue], Acks) ->
 	case dict:find(Counter, Acks) of
 		error ->
 			Acks2 = dict:store(Counter, {now(), 0, {struct, Pollprops}}, Acks);
-		{Time, Tried, _Struct} ->
+		{ok, {Time, Tried, _Struct}} ->
 			Acks2 = dict:store(Counter, {Time, Tried+1, {struct, Pollprops}}, Acks)
 	end,
 	build_acks(Pollqueue, Acks2).

@@ -384,10 +384,19 @@ grab_test_() ->
 					Regrabbed = dispatcher:regrab(DPid),
 					?assertEqual(Queuedcall, Regrabbed)
 				end}
+			end,
+			fun([Pid1, _Pid2, _Pid3]) ->
+				{"loop_queues test",
+				fun() ->
+					?assertEqual(none, loop_queues([{"queue1", Pid1, {wtf, #queued_call{}}, 10}]))
+				end}
 			end
 		]
 	}.
-	
+
+bias_to_test() ->
+	?assertEqual(none, biased_to([], 0, 20)).
+
 -define(MYSERVERFUNC, fun() ->
 		mnesia:stop(),
 		mnesia:delete_schema([node]),

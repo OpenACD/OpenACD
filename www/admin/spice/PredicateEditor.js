@@ -28,5 +28,13 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 			query:{'label':prop},
 			onComplete:callback
 		});
+	},
+	getValues: function(){
+		out = {
+			"property":this.propertyField.value,
+			"comparison":this.comparisonField.value,
+			"value":this.valueField.value
+		};
+		return out;
 	}
 });

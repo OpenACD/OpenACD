@@ -86,6 +86,67 @@ skills.skillSelection = function(targetnode){
 	});
 }
 
+skills.newSelection = function(callback, selected, reserved, expand){
+	var select = new dijit.form.MultiSelect({});
+	var isSelected = function(skill){
+		for(var i in selected){
+			if(selected[i] == skill){
+				return true
+			}
+		}
+		return false
+	}
+	var isReserved = function(skill){
+		for(var i in reserved){
+			if(reserved[i] == skill){
+				return true;
+			}
+		}
+		return false;
+	}
+	skills.store.fetch({
+		query:{type:"group"},
+		onComplete:function(groups, query){
+			var select = dojo.doc.createElement('select');
+			select.multiple = true;
+			for(var i in groups){
+				var optgroup = dojo.doc.createElement('optgroup');
+				optgroup.label = groups[i].name[0];
+				for(var j in groups[i].skills){
+					var option = dojo.doc.createElement('option');
+					option.value = groups[i].skills[j].atom[0];
+					option.innerHTML = groups[i].skills[j].name[0];
+					option.title = groups[i].skills[j].description[0];
+					option.selected = isSelected(groups[i].skills[j].atom[0]);
+					option.disabled = isReserved(groups[i].skills[j].atom[0]);
+					optgroup.appendChild(option);
+				}
+				select.appendChild(optgroup);
+			}
+			for(var i in expand){
+				var appendExpanded = function(expanded){
+					var optgroup = dojo.doc.createElement('optgroup');
+					optgroup.label = expand[i];
+					for(var j in expanded){
+					   var option = dojo.doc.createElement('option');
+					   var val = '{' + expand[i] + ',' + expanded[j] + '}';
+					   option.value = val;
+					   option.innerHTML = expanded[j];
+					   option.selected = isSelected(val);
+					   option.disabled = isReserved(val);
+					   optgroup.appendChild(option);
+					}
+					select.appendChild(optgroup);
+				}
+				
+				skills.expandSkill(appendExpanded, expand[i]);
+			}
+			
+			callback(select);
+		}
+	});
+}
+
 skills.expandSkill = function(callback, magicskill){
 	dojo.xhrGet({
 		url:"/skills/skill/" + magicskill + "/expand",

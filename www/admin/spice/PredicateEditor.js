@@ -38,3 +38,50 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 		return out;
 	}
 });
+
+dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
+	templatePath: dojo.moduleUrl("spice", "PredicateEditor.html"),
+	widgetsInTemplate:true,
+	templateString:"",
+	store:[],
+	rows:[],
+	addRow:function(){
+		var ithis = this;
+		console.log(this);
+		console.log(self);
+		var row = new PredicateEditorRow({
+			store: this.store
+		});
+		row.addButton.onClick = function(){
+			ithis.addRow();
+		};
+		row.dropButton.onClick = function(){
+			ithis.dropRow(row.id);
+		};
+		this.rows.push(row.id);
+		this.topNode.appendChild(row.domNode);
+	},
+	dropRow:function(rowid){
+		if(this.rows.length < 2){
+			return;
+		}
+		dijit.byId(rowid).destroy();
+		var newrows = [];
+		for(var i in this.rows){
+			if(this.rows[i] != rowid){
+				newrows.push(this.rows[i]);
+			}
+		}
+		this.rows = newrows;
+	},
+	getValues:function(){
+		var items = [];
+		for(var i in this.rows){
+			items.push(dijit.byId(this.rows[i]).getValues());
+		}
+		return items;
+	},
+	postCreate:function(){
+		this.addRow();
+	}
+});

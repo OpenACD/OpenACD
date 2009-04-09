@@ -99,7 +99,7 @@ handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 
 handle_call(Request, _From, State) ->
-	{stop, {unknown_call, Request}, State}.
+	{reply, {unknown_call, Request}, State}.
 
 %% @hidden
 handle_cast(_Msg, State) ->
@@ -189,5 +189,15 @@ async_listsock_test() ->
 	gen_tcp:send(Socket, "test/r/n"),
 	stop(Pid),
 	gen_tcp:close(Socket).
+
+
+
+-define(MYSERVERFUNC, 
+	fun() -> 
+		{ok, Pid} = start_link(5050), 
+		{Pid, fun() -> stop(Pid) end} 
+	end).
+
+-include("gen_server_test.hrl").
 
 -endif.

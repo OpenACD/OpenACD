@@ -6,7 +6,7 @@ var queues = function(){
 	return {}
 };
 
-queues.recipeBuilderStore = new dojo.data.ItemFileReadStore({
+queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 	data:{
 		identifier:"label",
 		label:"label",

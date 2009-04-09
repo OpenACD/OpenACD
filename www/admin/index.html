@@ -55,10 +55,12 @@ dojo.registerModulePath("spice.agents","../../spice/agents");
 dojo.registerModulePath("spice.skills", "../../spice/skills");
 dojo.registerModulePath("spice.queues", "../../spice/queues");
 dojo.registerModulePath("spice.PredicateEditor", "../../spice/PredicateEditor");
+dojo.registerModulePath("spice.RecipeEditor", "../../spice/RecipeEditor");
 dojo.require("spice.agents");
 dojo.require("spice.skills");
 dojo.require("spice.queues");
 dojo.require("spice.PredicateEditor");
+dojo.require("spice.RecipeEditor");
 </script>
 <script type="text/javascript" src="main.js"></script>
 </head>
@@ -236,7 +238,7 @@ dojo.require("spice.PredicateEditor");
 				
 				<p>
 					<label for="queueGroupRecipe">Recipe:</label>
-					<div dojoType="PredicateEditor" id="queueGroupRecipe" store="queues.recipeBuilderStore" propwidth="12em" valwidth="4em"compwidth="6em"></div>
+					<div dojoType="RecipeEditorRow" id="queueGroupRecipe"></div>
 				</p>
 				
 				<p>

@@ -378,20 +378,8 @@ check_conditions([{available_agents, Comparision, Number} | Conditions], Ticked,
 	Qpid = queue_manager:get_queue(Queue),
 	{_Key, Callrec} = call_queue:get_call(Qpid, Call),
 	Dispatchers = Callrec#queued_call.dispatchers,
-	Getagents = fun(Dpid) ->
-		try dispatcher:get_agents(Dpid) of
-			[] ->
-				?CONSOLE("empty list, might as well tell this dispatcher to regrab", []),
-				[];
-			Ag ->
-				Ag
-		catch
-			What:Why ->
-				?CONSOLE("Caught:  ~p:~p", [What, Why]),
-				[]
-		end
-	end,
-	Agents = length(lists:flatten(lists:map(Getagents, Dispatchers))),
+	L = agent_manager:find_avail_agents_by_skill(Callrec#queued_call.skills),
+	Agents = length(L),
 	case Comparision of
 		'>' when Agents > Number ->
 			check_conditions(Conditions, Ticked, Queue, Call);
@@ -1069,7 +1057,32 @@ agent_interaction_test_() ->
 				?assertEqual(idle, Statename),
 				dummy_media:stop(Media)
 			end}
+		end,
+		fun({QPid, MPid, APid}) ->
+			{"Agent with the _all skill overrides other skill checking",
+			fun() ->
+				dummy_media:set_skills(MPid, [german]),
+				call_queue:add(QPid, MPid),
+				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2", skills=[english, '_all']}),
+				agent:set_state(APid2, idle),
+				timer:sleep(?TICK_LENGTH * 2 + 100),
+				{ok, Statename} = agent:query_state(APid2),
+				?assertEqual(ringing, Statename)
+			end}
+		end,
+		fun({QPid, MPid, APid}) ->
+			{"Call with the _all skill overrides other skill checking",
+			fun() ->
+				dummy_media:set_skills(MPid, [german, '_all']),
+				call_queue:add(QPid, MPid),
+				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2", skills=[english]}),
+				agent:set_state(APid2, idle),
+				timer:sleep(?TICK_LENGTH * 2 + 100),
+				{ok, Statename} = agent:query_state(APid2),
+				?assertEqual(ringing, Statename)
+			end}
 		end
+
 	]
 	}.
 

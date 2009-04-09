@@ -71,6 +71,7 @@ set_remote_number(Pid, Number) ->
 
 %% @private
 init([State = #agent{}]) ->
+	% TODO - merge in skills from the profile!
 	State2 = expand_magic_skills(State),
 	{ok, released, State2}.
 

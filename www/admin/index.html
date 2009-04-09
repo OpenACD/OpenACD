@@ -50,20 +50,21 @@ dojo.require("dijit.form.CheckBox");
 dojo.require("dijit.form.FilteringSelect");
 dojo.require("dijit.form.MultiSelect");
 dojo.require("dijit.Declaration");
+dojo.registerModulePath("spice", "../../spice");
 dojo.registerModulePath("spice.agents","../../spice/agents");
 dojo.registerModulePath("spice.skills", "../../spice/skills");
 dojo.registerModulePath("spice.queues", "../../spice/queues");
+dojo.registerModulePath("spice.PredicateEditor", "../../spice/PredicateEditor");
 dojo.require("spice.agents");
 dojo.require("spice.skills");
 dojo.require("spice.queues");
+dojo.require("spice.PredicateEditor");
 </script>
-<script type="text/javascript" src="skills.js"></script>
-<script type="text/javascript" src="queues.js"></script>
 <script type="text/javascript" src="main.js"></script>
 </head>
 
 <body class="tundra">
-	
+
 <div dojoType="dijit.Dialog" title="Login" id="loginpane">
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
 		<p  id="loginerrp" style="font-size:smaller;display:none"><label>&nbsp;</label><span id="loginerrspan" style="color:#ff0000"></span></p>
@@ -238,6 +239,10 @@ dojo.require("spice.queues");
 					<button dojoType="dijit.form.Button" label="Submit" onClick="console.log('submit')"></button>
 				</p>
 				</form>
+				<p>
+					<label for="queueGroupRecipe">Recipe:</label>
+					<div dojoType="PredicateEditorRow" id="queueGroupRecipe" store="queues.recipeBuilderStore"></div>
+				</p>
 			</div>
 			
 			<div dojoType="dijit.layout.ContentPane" id="queueEditor">

@@ -1108,7 +1108,6 @@ skill_rec_test_() ->
 			{
 				"update a skill",
 				fun() ->
-					Original = #skill_rec{name="English", atom=english, description="English", group = "Language"},
 					New = #skill_rec{name="Newname", atom=testskill, description="Newdesc", group = "Newgroup"},
 					Result = #skill_rec{name="Newname", atom=english, description="Newdesc", group = "Newgroup"},
 					?assertEqual({atomic, ok}, set_skill(english, New)),

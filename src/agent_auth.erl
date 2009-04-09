@@ -238,10 +238,14 @@ set_agent(Oldlogin, Newlogin, Newskills, NewSecurity, Newprofile) ->
 set_agent(Oldlogin, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Oldlogin]),
-		[Agent] = qlc:e(QH),
-		destroy(Oldlogin),
-		add_agent(Newlogin, Newpass, Newskills, NewSecurity, Newprofile),
-		ok
+		case qlc:e(QH) of
+			[] ->
+				error;
+			_Agent ->
+				destroy(Oldlogin),
+				add_agent(Newlogin, Newpass, Newskills, NewSecurity, Newprofile),
+				ok
+		end
 	end,
 	mnesia:transaction(F).
 			

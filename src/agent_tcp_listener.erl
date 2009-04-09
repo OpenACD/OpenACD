@@ -137,7 +137,8 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		{stop, Why, State}
 end;
 
-handle_info({'EXIT', From, shutdown}, State) ->
+% TODO - why?
+handle_info({'EXIT', _From, shutdown}, State) ->
 	{stop, shutdown, State};
 	
 handle_info({inet_async, ListSock, Ref, Error}, #state{listener=ListSock, acceptor=Ref} = State) ->

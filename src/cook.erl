@@ -377,7 +377,6 @@ check_conditions([{ticks, _Ticks} | _Conditions], _Ticked, _Queue, _Call) ->
 check_conditions([{available_agents, Comparision, Number} | Conditions], Ticked, Queue, Call) ->
 	Qpid = queue_manager:get_queue(Queue),
 	{_Key, Callrec} = call_queue:get_call(Qpid, Call),
-	Dispatchers = Callrec#queued_call.dispatchers,
 	L = agent_manager:find_avail_agents_by_skill(Callrec#queued_call.skills),
 	Agents = length(L),
 	case Comparision of
@@ -906,7 +905,7 @@ condition_checking_test_() ->
 				agent:stop(Notavailable)
 			end}
 		end,
-		fun({Qpid, Mpid}) ->
+		fun({Qpid, _Mpid}) ->
 			{"Check the queue postiion",
 			fun() ->
 				{ok, First} = dummy_media:start("first"),
@@ -1058,7 +1057,7 @@ agent_interaction_test_() ->
 				dummy_media:stop(Media)
 			end}
 		end,
-		fun({QPid, MPid, APid}) ->
+		fun({QPid, MPid, _APid}) ->
 			{"Agent with the _all skill overrides other skill checking",
 			fun() ->
 				dummy_media:set_skills(MPid, [german]),
@@ -1067,7 +1066,8 @@ agent_interaction_test_() ->
 				agent:set_state(APid2, idle),
 				timer:sleep(?TICK_LENGTH * 2 + 100),
 				{ok, Statename} = agent:query_state(APid2),
-				?assertEqual(ringing, Statename)
+				?assertEqual(ringing, Statename),
+				agent:stop(APid2)
 			end}
 		end,
 		fun({QPid, MPid, APid}) ->
@@ -1075,10 +1075,9 @@ agent_interaction_test_() ->
 			fun() ->
 				dummy_media:set_skills(MPid, [german, '_all']),
 				call_queue:add(QPid, MPid),
-				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2", skills=[english]}),
-				agent:set_state(APid2, idle),
+				agent:set_state(APid, idle),
 				timer:sleep(?TICK_LENGTH * 2 + 100),
-				{ok, Statename} = agent:query_state(APid2),
+				{ok, Statename} = agent:query_state(APid),
 				?assertEqual(ringing, Statename)
 			end}
 		end

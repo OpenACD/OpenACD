@@ -76,7 +76,7 @@ hangup(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Number, Ringout, Domain]) ->
+init([Fnode, AgentRec, Apid, Number, Ringout, _Domain]) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Call = #call{id=UUID, source=self(), type=voice},

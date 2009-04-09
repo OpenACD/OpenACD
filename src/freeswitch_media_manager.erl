@@ -167,7 +167,7 @@ init([Nodename, Domain]) ->
 %	?CONSOLE("Bgapi call res:  ~p;  With args: ~p", [X, Args]),
 %	{reply, agent:set_state(AgentPid, ringing, Call), State};
 
-handle_call({make_outbound_call, Number, AgentPid, AgentRec}, From, #state{nodename = Node, domain = Domain} = State) ->
+handle_call({make_outbound_call, Number, AgentPid, AgentRec}, _From, #state{nodename = Node, domain = Domain} = State) ->
 	freeswitch_outbound:start(Node, AgentRec, AgentPid, Number, 30, Domain),
 	{reply, ok, State};
 handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) -> 
@@ -274,7 +274,7 @@ fetch_domain_user(Node, State) ->
 					case agent_manager:query_agent(User) of
 						{true, Pid} ->
 							try agent:dump_state(Pid) of
-								#agent{remotenumber = Number} = AgState when is_list(Number) ->
+								#agent{remotenumber = Number} when is_list(Number) ->
 									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "{ignore_early_media=true}sofia/gateway/cpxvgw.fusedsolutions.com/"++Number]))});
 								Else ->
 									?CONSOLE("state: ~p", [Else]),
@@ -290,7 +290,7 @@ fetch_domain_user(Node, State) ->
 					freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
 			end,
 			fetch_domain_user(Node, State);
-		{fetch, _Section, _Something, _Key, _Value, ID, [undefined | Data]} ->
+		{fetch, _Section, _Something, _Key, _Value, ID, [undefined | _Data]} ->
 			freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE}),
 			fetch_domain_user(Node, State);
 		{nodedown, Node} ->

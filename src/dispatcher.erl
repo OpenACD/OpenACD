@@ -174,10 +174,12 @@ get_agents(Pid) ->
 -spec(loop_queues/1 :: (Queues :: [{string(), pid(), {any(), #queued_call{}}, non_neg_integer()}]) -> {pid(), #queued_call{}} | 'none').
 loop_queues([]) -> 
 	none;
-loop_queues(Queues) -> 
+loop_queues(Queues) ->
+	?CONSOLE("queues: ~p", [Queues]),
 	Total = lists:foldl(fun(Elem, Acc) -> Acc + element(4, Elem) end, 0, Queues),
 	Rand = random:uniform(Total),
 	{Name, Qpid, Call, Weight} = biased_to(Queues, 0, Rand),
+	?CONSOLE("grabbing call", []),
 	case call_queue:grab(Qpid) of
 			none -> 
 				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues));
@@ -388,7 +390,7 @@ grab_test_() ->
 			fun([Pid1, _Pid2, _Pid3]) ->
 				{"loop_queues test",
 				fun() ->
-					?assertEqual(none, loop_queues([{"queue1", Pid1, {wtf, #queued_call{}}, 10}]))
+						?assertEqual(none, loop_queues([{"queue1", Pid1, {wtf, #queued_call{media=self(), id="foo"}}, 10}]))
 				end}
 			end
 		]

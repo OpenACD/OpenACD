@@ -111,7 +111,7 @@ find_avail_agents_by_skill(Skills) ->
 		AgState <- [agent:dump_state(V)], % dump their state
 		AgState#agent.state =:= idle, % only get the idle ones
 		( % check if either the call or the agent has the _all skill
-			lists:member('_all', AgState#agent.skills) or
+			lists:member('_all', AgState#agent.skills) orelse
 			lists:member('_all', Skills)
 			% if there's no _all skill, make sure the agent has all the required skills
 		) orelse util:list_contains_all(AgState#agent.skills, Skills)],

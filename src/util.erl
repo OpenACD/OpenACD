@@ -54,6 +54,7 @@
 	group_by/2,
 	group_by_with_key/2,
 	merge_skill_lists/2,
+	merge_skill_lists/3,
 	subtract_skill_lists/2,
 	list_index/2,
 	list_index/3]).
@@ -188,9 +189,17 @@ group_by(Fun, List) ->
 	lists:map(fun({_Key, Value}) -> Value end, group_by_with_key(Fun, List)).
 
 %% @doc Merges 2 skill lists using lists:umerge and then ensures that only one
-%% instance of each magic skill is present, at maximum.
+%% instance of each magic skill is present, at maximum. If the same skill is present
+%% in both lists, the instance from `List2' is the one retained. Any magic skills should
+%% be expanded before calling this function.
 -spec(merge_skill_lists/2 :: (List1 :: [any()], List2 :: [any()]) -> [any()]).
 merge_skill_lists(List1, List2) ->
+	merge_skill_lists(List1, List2, []).
+
+%% @doc merge_skill_lists/2 with an optional whitelist of unexpanded magic skills to ignore.
+%% This allows us to strip any duplicates of `_agent' (for example) but not i `_brand'.
+-spec(merge_skill_lists/3 :: (List1 :: [any()], List2 :: [any()], Whitelist ::[atom()]) -> [any()]).
+merge_skill_lists(List1, List2, Whitelist) ->
 	lists:foreach(fun({Key, Value}) ->
 		case length(Value) of
 			1 ->
@@ -221,7 +230,12 @@ merge_skill_lists(List1, List2) ->
 					1 ->
 						true;
 					2 ->
-						lists:member(Val, List2)
+						case lists:member(SkillAtom, Whitelist) of
+							true ->
+								true;
+							false ->
+								lists:member(Val, List2)
+						end
 				end;
 		(_Skill) -> true
 	end, NewList).
@@ -416,6 +430,13 @@ merge_skill_lists_test_() ->
 				?assertError(badarg, util:merge_skill_lists([{'_agent', "Foo"}], [{'_agent', "Baz"},foo, {'_agent', "Bar"}])),
 				?assertError(badarg, util:merge_skill_lists([{'_agent', "Foo"}, {'_agent', "Bar"}], [foo])),
 				?assertError(badarg, util:merge_skill_lists([foo], [{'_agent', "Foo"}, {'_agent', "Bar"}]))
+			end
+		},
+		{
+			"Whitelisting works",
+			fun() ->
+					?assertEqual([foo, {'_agent', "Steve"}, {'_brand', "Test 2"}], util:merge_skill_lists([{'_agent', "Fred"}, foo, {'_brand', "Test"}], [{'_agent', "Steve"}, foo, {'_brand', "Test 2"}], [])),
+					?assertEqual([foo, {'_agent', "Steve"}, {'_brand', "Test"}, {'_brand', "Test 2"}], util:merge_skill_lists([{'_agent', "Fred"}, foo, {'_brand', "Test"}], [{'_agent', "Steve"}, foo, {'_brand', "Test 2"}], ['_brand']))
 			end
 		}
 	].

@@ -602,21 +602,3 @@ encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 		{integrated, Agentrec#agent_auth.integrated},
 		{profile, list_to_binary(Agentrec#agent_auth.profile)}
 	]}.
-
-encode_agents_with_profiles([]) ->
-	dict:new();
-encode_agents_with_profiles(Agents) ->
-	encode_agents_with_profiles(Agents, dict:new()).
-
-encode_agents_with_profiles([], Acc) ->
-	Acc;
-encode_agents_with_profiles([Agent | Agents], Acc) ->
-	case dict:find(Agent#agent_auth.profile, Acc) of
-		error ->
-			Pagents = [];
-		{ok, Pagents} ->
-			Pagents
-	end,
-	Newacc = dict:store(Agent#agent_auth.profile, [Agent | Pagents], Acc),
-	encode_agents_with_profiles(Agents, Newacc).
-

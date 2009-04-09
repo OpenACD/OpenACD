@@ -1054,7 +1054,7 @@ queue_update_and_info_test_() ->
 				"Change recipe", fun() ->
 					Pid = whereis(testqueue),
 					#state{recipe = ?DEFAULT_RECIPE} = print(Pid),
-					NewRecipe = [{3, set_priority, 5, run_many}],
+					NewRecipe = [{[{ticks, 3}], set_priority, 5, run_many}],
 					?assertEqual(ok, set_recipe(Pid, NewRecipe)),
 					?assertMatch(#state{recipe = NewRecipe}, print(Pid))
 				end

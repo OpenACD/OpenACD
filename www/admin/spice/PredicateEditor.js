@@ -12,15 +12,18 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 	setComparisons: function(prop){
 		var ithis = this;
 		var callback = function(res, req){
+			console.log('callback');
 			console.log(res);
 			var items = [];
 			for(var i in res[0].comparisons){
-				items.push({'label':res[0].comparisons[i].label[0]});
+				items.push({
+					'label':res[0].comparisons[i].label[0],
+					'value':res[0].comparisons[i].value[0]});
 			};
 			console.log(items);
 			ithis.comparisonField.store = new dojo.data.ItemFileReadStore({
 				data:{
-					identifier:"label",
+					identifier:"value",
 					label:"label",
 					"items":items
 				}
@@ -28,7 +31,7 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 			ithis.valueField.regExp = res[0].regExp[0]
 		}
 		this.propertyField.store.fetch({
-			query:{'label':prop},
+			query:{'value':prop},
 			onComplete:callback
 		});
 	},

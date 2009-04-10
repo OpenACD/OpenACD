@@ -8,16 +8,18 @@ var queues = function(){
 
 queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 	data:{
-		identifier:"label",
+		identifier:"value",
 		label:"label",
 		"items":[
 			{"label":"Tick interval",
+			"value":"ticks",
 			"type":"property",
 			"regExp":"[\\d]+",
 			"comparisons":[
 				{_reference:"="}
 			]},
 			{"label":"Agents Available",
+			"value":"agents_avail",
 			"type":"property",
 			"regExp":"[\\d]+",
 			"comparisons":[
@@ -26,12 +28,16 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 				{_reference:"<"}
 			]},
 			{"label":"=",
+			"value":"=",
 			"type":"comparison"},
 			{"label":">",
+			"value":">",
 			"type":"comparison"},
 			{"label":"<",
+			"value":"<",
 			"type":"comparison"},
 			{"label":"Agents Eligible",
+			"value":"agents_eligible",
 			"type":"property",
 			"regExp":"[\\d]+",
 			"comparisons":[
@@ -40,6 +46,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 				{_reference:"<"}
 			]},
 			{"label":"Calls in Queue",
+			"value":"call_count",
 			"type":"property",
 			"regExp":"[\\d]+",
 			"comparisons":[
@@ -48,6 +55,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 				{_reference:"<"}
 			]},
 			{"label":"Position in Queue",
+			"value":"queue_position",
 			"type":"property",
 			"regExp":"[\\d]+",
 			"comparisons":[

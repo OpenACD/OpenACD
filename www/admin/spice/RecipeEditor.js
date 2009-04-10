@@ -11,7 +11,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	compwidth:"10em",
 	valwidth:"20em",
 	conditions:[{
-		"property":"Tick interval",
+		"property":"ticks",
 		"comparison":"=",
 		"value":"1"}],
 	argsWidget:{
@@ -47,7 +47,26 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 			return out;
 		}
 		var ithis = this;
-		select.setValue = function(values){};
+		select.setValue = function(values){
+			var isSelected = function(val){
+				for(var i in values){
+					if(values[i] == val){
+						return true;
+					}
+				}
+				return false;
+			}
+			
+			var kids = this.childNodes;
+			for(var i in kids){
+				if(kids[i].tagName == 'OPTGROUP'){
+					var opts = kids[i].childNodes;
+					for(var j in opts){
+						opts[j].selected = isSelected(opts[j].value);
+					}
+				}
+			}
+		};
 		return select;
 	},
 	setArguments: function(action){
@@ -70,7 +89,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 				var callback = function(select){
 					select.size = 3;
 					argdiv.setContent(select);
-					ithis.argsWidget = select;
+					ithis.argsWidget = ithis._buildSelect(select);
 				}
 				skills.newSelection(callback, [], [], []);
 			break;
@@ -174,6 +193,9 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		this.stepsContainer.appendChild(row.domNode);
 	},
 	dropRow: function(rowid){
+		if(this.rows.length < 2){
+			return;
+		}
 		dijit.byId(rowid).destroy();
 		var newrows = [];
 		for(var i in this.rows){
@@ -192,6 +214,14 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		}
 	},
 	setValue:function(value){
-	
+		var cpyrows = this.rows;
+		for(var i in cpyrows){
+			dijit.byId(cpyrows[i]).destroy();
+		}
+		this.rows = [];
+		for(var i in value){
+			this.addRow();
+			dijit.byId(this.rows[i]).setValue(value[i]);
+		}
 	}
 });

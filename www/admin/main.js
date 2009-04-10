@@ -93,7 +93,6 @@ var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(da
 			dijit.byId("queueGroupOldName").setValue(item.name[0]);
 			dijit.byId("queueGroupName").setValue(item.name[0]);
 			dijit.byId("queueGroupSort").setValue(item.sort[0]);
-			console.log(item);
 			var rec = queues.fromStoreToObj(item.recipe);
 			dijit.byId("queueGroupRecipe").setValue(rec);
 			dijit.byId("queueGroupName").setDisabled(item.protected[0]);
@@ -126,7 +125,6 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 			}
 				 
 			var setSkills = function(groups, profileSkills){
-				console.log(groups);
 				
 				skills.skillSelection(dijit.byId("agentProfileSkills").domNode);
 				dojo.xhrGet({

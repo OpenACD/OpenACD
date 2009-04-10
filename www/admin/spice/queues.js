@@ -66,31 +66,6 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 		]
 	}
 });
-/*
-queues.recipeBuilderStore = new dojo.data.ItemFileReadStore({
-	data:{
-		"items":[
-			{"label":"ticks",
-			"type":"property",
-			"valueType":"number",
-			"comparisons":[
-				{"label":"=",
-				"type":"comparison"}
-			]},
-			{"label":"Agents Available",
-			"type":"property",
-			"valueType":"number",
-			"comparisons":[
-				{"label":">",
-				"type":"comparison"},
-				{"label":"=",
-				"type":"comparison"},
-				{"label":"<",
-				"type":"comparison"}
-			]}
-		]
-	}
-});*/
 
 queues.store = new dojo.data.ItemFileWriteStore({
 	data:{

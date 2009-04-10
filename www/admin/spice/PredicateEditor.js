@@ -12,15 +12,15 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 	setComparisons: function(prop){
 		var ithis = this;
 		var callback = function(res, req){
-			console.log('callback');
-			console.log(res);
 			var items = [];
+			if(! res[0]){
+				return;
+			}
 			for(var i in res[0].comparisons){
 				items.push({
 					'label':res[0].comparisons[i].label[0],
 					'value':res[0].comparisons[i].value[0]});
 			};
-			console.log(items);
 			ithis.comparisonField.store = new dojo.data.ItemFileReadStore({
 				data:{
 					identifier:"value",
@@ -97,13 +97,12 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 		return items;
 	},
 	setValue:function(list){
-		console.log(this.rows);
 		for(var i in this.rows){
 			try{
 				dijit.byId(this.rows[i]).destroy();
 			}
 			catch(err){
-				console.log('meh');
+				//Do nothing w/ the error, just ignore it.
 			}
 		}
 		this.rows = [];

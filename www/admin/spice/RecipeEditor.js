@@ -70,7 +70,6 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		return select;
 	},
 	setArguments: function(action){
-		console.log(action);
 		switch(action){
 			case "add_skills":
 				var ithis = this;
@@ -180,7 +179,6 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 			ithis.dropRow(row.id);
 		}
 		row.onFocus = function(){
-			console.log(ithis._focusedOn);
 			if(dijit.byId(ithis._focusedOn)){
 				dijit.byId(ithis._focusedOn).setConditions(ithis.conditionsEditor.getValue());
 				dijit.byId(ithis._focusedOn).domNode.style.backgroundColor = "#ffffff";
@@ -192,6 +190,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		this.rows.push(row.id);
 		this.stepsContainer.appendChild(row.domNode);
 		this.nullButton.domNode.style.display = "none";
+		this.conditionsEditor.domNode.style.display = "table";
 	},
 	dropRow: function(rowid){
 		dijit.byId(rowid).destroy();
@@ -204,15 +203,18 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		this.rows = newrows;
 		if(this.rows.length == 0){
 			this.nullButton.domNode.style.display = "inline";
+			this.conditionsEditor.domNode.style.display = "none";
 		}
 	},
 	postCreate: function(){
 		this.addRow();
 	},
 	getValue:function(){
+		var out = [];
 		for(var i in this.rows){
-			console.log(dijit.byId(this.rows[i]).getValue());
+			out.push(dijit.byId(this.rows[i]).getValue());
 		}
+		return out;
 	},
 	setValue:function(value){
 		var cpyrows = this.rows;
@@ -223,6 +225,10 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		for(var i in value){
 			this.addRow();
 			dijit.byId(this.rows[i]).setValue(value[i]);
+		}
+		if(this.rows.length == 0){
+			 this.nullButton.domNode.style.display = "inline";
+			 this.conditionsEditor.domNode.style.display = "none";
 		}
 	}
 });

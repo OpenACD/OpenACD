@@ -431,7 +431,21 @@ api({queues, "groups", Group, "get"}, ?COOKIE, _Post) ->
 		{<<"protected">>, Qgroup#queue_group.protected},
 		{<<"recipe">>, Jrecipe}
 	]},
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"queuegroup">>, Json}]})}.
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"queuegroup">>, Json}]})};
+api({queues, "groups", Group, "update"}, ?COOKIE, Post) ->
+	?CONSOLE("~p", [Post]),
+	Newname = proplists:get_value("name", Post),
+	Sort = list_to_integer(proplists:get_value("sort", Post)),
+	Recipe = decode_recipe(proplists:get_value("recipe", Post)),
+	call_queue_config:set_queue_group(Group, Newname, Sort, Recipe),
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
+api({queues, "groups", "new"}, ?COOKIE, Post) ->
+	Name = proplists:get_value("name", Post), 
+	Sort = list_to_integer(proplists:get_value("sort", Post)),
+	Recipe = decode_recipe(proplists:get_value("recipe", Post)),
+	call_queue_config:new_queue_group(Name, Sort, Recipe),
+	{200, [], mochijson2:encode({struct, [{success, true}]})}.
+
 
 % path spec:
 % /basiccommand
@@ -605,7 +619,100 @@ encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 		{integrated, Agentrec#agent_auth.integrated},
 		{profile, list_to_binary(Agentrec#agent_auth.profile)}
 	]}.
+	
+decode_recipe([Test | Tail]) when is_tuple(Test) ->
+	decode_recipe([Test | Tail], []);
+decode_recipe(Json) ->
+	Structed = mochijson2:decode(Json),
+	decode_recipe(Structed).
 
+decode_recipe([], Acc) ->
+	lists:reverse(Acc);
+decode_recipe([{struct, Proplist} | Tail], Acc) ->
+	Action = case proplists:get_value(<<"action">>, Proplist) of
+		<<"add_skills">> ->
+			add_skills;
+		<<"remove_skills">> ->
+			remove_skills;
+		<<"set_priority">> ->
+			set_priority;
+		<<"prioritize">> ->
+			prioritize;
+		<<"deprioritize">> ->
+			deprioritize;
+		<<"voicemail">> ->
+			voicemail;
+		<<"announce">> ->
+			announce;
+		<<"add_recipe">> ->
+			add_recipe
+	end,
+	Args = decode_recipe_args(Action, proplists:get_value(<<"arguments">>, Proplist)),
+	Runs = case proplists:get_value(<<"runs">>, Proplist) of
+		<<"run_once">> ->
+			run_once;
+		<<"run_many">> ->
+			run_many
+	end,
+	Conditions = decode_recipe_conditions(proplists:get_value(<<"conditions">>, Proplist)),
+	decode_recipe(Tail, [{Conditions, Action, Args, Runs} | Acc]).
+
+decode_recipe_args(add_skills, Args) ->
+	decode_recipe_args(remove_skills, Args);
+decode_recipe_args(remove_skills, Args) ->
+	F = fun(Bin) ->
+		case call_queue_config:skill_exists(binary_to_list(Bin)) of
+			undefined ->
+				erlang:error(bararg, Bin);
+			Atom ->
+				Atom
+		end
+	end,
+	lists:map(F, Args);
+decode_recipe_args(set_priority, Args) ->
+	list_to_integer(binary_to_list(Args));
+decode_recipe_args(prioritize, _Args) ->
+	[];
+decode_recipe_args(deprioritize, _Args) ->
+	[];
+decode_recipe_args(voicemail, Args) ->
+	binary_to_list(Args);
+decode_recipe_args(announce, Args) ->
+	binary_to_list(Args);
+decode_recipe_args(add_recipe, _Args) ->
+	% TODO add support
+	[].
+
+decode_recipe_conditions(Conds) ->
+	decode_recipe_conditions(Conds, []).
+
+decode_recipe_conditions([], Acc) ->
+	lists:reverse(Acc);
+decode_recipe_conditions([{struct, Props} | Tail], Acc) ->
+	Cond = proplists:get_value(<<"property">>, Props),
+	Comp = case proplists:get_value(<<"comparison">>, Props) of
+		<<"=">> ->
+			'=';
+		<<">">> ->
+			'>';
+		<<"<">> ->
+			'<'
+	end,
+	Val = list_to_integer(binary_to_list(proplists:get_value(<<"value">>, Props))),
+	Tuple = case {Cond, Comp, Val} of
+		{<<"ticks">>, '=', Val} ->
+			{ticks, Val};
+		{<<"eligible_agents">>, Comp, Val} ->
+			{eligible_agents, Comp, Val};
+		{<<"available_agents">>, Comp, Val} ->
+			{available_agents, Comp, Val};
+		{<<"queue_position">>, Comp, Val} ->
+			{queue_position, Comp, Val};
+		{<<"calls_queued">>, Comp, Val} ->
+			{calls_queued, Comp, Val}
+	end,
+	decode_recipe_conditions(Tail, [Tuple | Acc]).	
+	
 encode_recipe(Recipe) ->
 	encode_recipe_steps(Recipe).
 

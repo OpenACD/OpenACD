@@ -583,7 +583,7 @@ encode_queues_with_groups([Group | Groups], Acc) ->
 	Queues = call_queue_config:get_queues(Group#queue_group.name),
 	Head = {struct, [
 		{name, list_to_binary(Group#queue_group.name)},
-		{recipe, <<"TODO">>},
+		{recipe, encode_recipe(Group#queue_group.recipe)},
 		{sort, Group#queue_group.sort},
 		{protected, Group#queue_group.protected},
 		{<<"type">>, <<"group">>},

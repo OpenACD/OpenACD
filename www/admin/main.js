@@ -95,6 +95,9 @@ var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(da
 			dijit.byId("queueGroupSort").setValue(item.sort[0]);
 			dijit.byId("queueGroupRecipe").setValue(item.recipe[0]);
 			dijit.byId("queueGroupName").setDisabled(item.protected[0]);
+			dijit.byId("queueGroupSubmit").onClick = function(){
+				queues.setGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"));
+			}
 		}
 	});
 });

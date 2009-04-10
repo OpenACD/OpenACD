@@ -216,7 +216,19 @@ dojo.require("spice.RecipeEditor");
 			
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
 				<button dojoType="dijit.form.Button" label="+"></button>
-				<button dojoType="dijit.form.Button" label="+ Group"></button>
+				<button dojoType="dijit.form.Button" label="+ Group">
+					<script type="dojo/connect" event="onClick">
+						dijit.byId("queuesMain").selectChild('queueGroupEditor');
+						dijit.byId("queueGroupOldName").setValue("");
+						dijit.byId("queueGroupName").setValue("New Group");
+						dijit.byId("queueGroupSort").setValue(10);
+						dijit.byId("queueGroupRecipe").setValue([]);
+						dijit.byId("queueGroupName").setDisabled(false);
+						dijit.byId("queueGroupSubmit").onClick = function(){
+							queues.newGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"));
+						}
+					</script>
+				</button>
 				<button dojoType="dijit.form.Button" label="-"></button>
 			</div>
 		</div>
@@ -243,7 +255,7 @@ dojo.require("spice.RecipeEditor");
 				
 				<p>
 					<label for="queueGroupSubmit">&nbsp;</label>
-					<button dojoType="dijit.form.Button" label="Submit" onClick="console.log('submit')"></button>
+					<button dojoType="dijit.form.Button" label="Submit" id="queueGroupSubmit" onClick="console.log('submit')"></button>
 				</p>
 
 				</form>

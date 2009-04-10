@@ -375,7 +375,7 @@ api({skills, "skill", "_node", "expand"}, ?COOKIE, _Post) ->
 		list_to_binary(L)
 	end,
 	Converted = lists:map(F, Nodes),
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"itmes">>, Converted}]})};
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
 api({skills, "skill", "_agent", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
 	Agents = agent_auth:get_agents(),
 	F = fun(Arec) ->
@@ -421,10 +421,17 @@ api({queues, "groups", "get"}, ?COOKIE, _Post) ->
 	Groups = call_queue_config:get_queue_groups(),
 	List = encode_queues_with_groups(Groups),
 	Json = {struct, [{success, true}, {<<"items">>, List}]},
-	{200, [], mochijson2:encode(Json)}.
-		
-	
-
+	{200, [], mochijson2:encode(Json)};
+api({queues, "groups", Group, "get"}, ?COOKIE, _Post) ->
+	{atomic, [Qgroup]} = call_queue_config:get_queue_group(Group),
+	Jrecipe = encode_recipe(Qgroup#queue_group.recipe),
+	Json = {struct, [
+		{<<"name">>, list_to_binary(Qgroup#queue_group.name)},
+		{<<"sort">>, Qgroup#queue_group.sort},
+		{<<"protected">>, Qgroup#queue_group.protected},
+		{<<"recipe">>, Jrecipe}
+	]},
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"queuegroup">>, Json}]})}.
 
 % path spec:
 % /basiccommand
@@ -460,12 +467,6 @@ parse_path(Path) ->
 					{api, {agents, "agents", Action}};
 				["", "agents", "agents", Agent, Action] ->
 					{api, {agents, "agents", Agent, Action}};
-%				["", "agents", Action] ->
-%					{api, {agents, Action}};
-%				["", "agents", Profile, Action] ->
-%					{api, {agents, Profile, Action}};
-%				["", "skills", Profile] ->
-%					{api, {skills, Profile}};
 				["", "skills", "groups", Action] ->
 					{api, {skills, "groups", Action}};
 				["", "skills", "groups", Group, Action] ->
@@ -476,6 +477,8 @@ parse_path(Path) ->
 					{api, {skills, "skill", Skill, Action}};
 				["", "queues", "groups", Action] ->
 					{api, {queues, "groups", Action}};
+				["", "queues", "groups", Group, Action] ->
+					{api, {queues, "groups", Group, Action}};
 				["", "medias", Action] ->
 					{api, {medias, Action}};
 				_Allothers ->
@@ -602,3 +605,58 @@ encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 		{integrated, Agentrec#agent_auth.integrated},
 		{profile, list_to_binary(Agentrec#agent_auth.profile)}
 	]}.
+
+encode_recipe(Recipe) ->
+	encode_recipe_steps(Recipe).
+
+encode_recipe_steps(Steps) ->
+	encode_recipe_steps(Steps, []).
+
+encode_recipe_steps([], Acc) ->
+	lists:reverse(Acc);
+encode_recipe_steps([Step | Tail], Acc) ->
+	Jstep = encode_recipe_step(Step),
+	encode_recipe_steps(Tail, [Jstep | Acc]).
+
+encode_recipe_step({Conditions, Action, Args, Runs}) ->
+	Jcond = encode_recipe_conditions(Conditions),
+	Jargs = case Action of
+		add_skills ->
+			Args;
+		remove_skills ->
+			Args;
+		set_priority ->
+			Args;
+		prioritize ->
+			<<"">>;
+		deprioritize ->
+			<<"">>;
+		voicemail ->
+			<<"">>;
+		announce ->
+			list_to_binary(Args);
+		add_recipe ->
+			% TODO:  more encoding
+			<<"">>
+	end,
+	{struct, [
+		{<<"conditions">>, Jcond},
+		{<<"action">>, Action},
+		{<<"arguments">>, Jargs},
+		{<<"runs">>, Runs}
+	]}.
+
+encode_recipe_conditions(Conditions) ->
+	encode_recipe_conditions(Conditions, []).
+
+encode_recipe_conditions([], Acc) ->
+	lists:reverse(Acc);
+encode_recipe_conditions([{ticks, Num} | Tail], Acc) ->
+	encode_recipe_conditions([{ticks, '=', Num} | Tail], Acc);
+encode_recipe_conditions([{Prop, Comp, Num} | Tail], Acc) ->
+	Jcond = {struct, [
+		{<<"property">>, Prop},
+		{<<"comparison">>, Comp},
+		{<<"value">>, Num}
+	]},
+	encode_recipe_conditions(Tail, [Jcond | Acc]).

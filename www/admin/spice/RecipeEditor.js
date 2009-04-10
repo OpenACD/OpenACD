@@ -165,6 +165,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 	_focusedOn:null,
 	rows:[],
 	addRow: function(){
+		console.log("in add row");
 		var ithis = this;
 		var row = new RecipeEditorRow({
 			propwidth: this.propwidth,
@@ -217,6 +218,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		return out;
 	},
 	setValue:function(value){
+		console.log(value);
 		var cpyrows = this.rows;
 		for(var i in cpyrows){
 			dijit.byId(cpyrows[i]).destroy();
@@ -224,6 +226,9 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		this.rows = [];
 		for(var i in value){
 			this.addRow();
+			console.log("post add row");
+			console.log(this.rows);
+			console.log(i);
 			dijit.byId(this.rows[i]).setValue(value[i]);
 		}
 		if(this.rows.length == 0){

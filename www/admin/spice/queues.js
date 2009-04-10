@@ -115,3 +115,65 @@ queues.refreshTree = function(node){
 	}, node);
 	dojo.publish("queues/tree/refreshed", []);
 }
+
+queues.setGroup = function(form, reciper, refreshnode){
+	var vals = form.getValues();
+	if(! vals.name){
+		vals.name = vals.oldname;
+	}
+	vals.recipe = dojo.toJson(reciper.getValue());
+	dojo.xhrPost({
+		url:"/queues/groups/" + vals.oldname + "/update",
+		handleAs:"json",
+		content:vals,
+		load:function(resp, ioargs){
+			if(! resp.success){
+				console.log(resp.message);
+			}
+			else{
+				queues.refreshTree(refreshnode);
+			}
+		}
+	});
+}
+
+queues.newGroup = function(form, reciper, refreshnode){
+	var vals = form.getValues();
+	vals.recipe = dojo.toJson(reciper.getValue());
+	dojo.xhrPost({
+		url:"/queues/groups/new",
+		handleAs:"json",
+		content:vals,
+		load:function(resp, ioargs){
+			if(! resp.success){
+				console.log(resp.message);
+			}
+			else{
+				queues.refreshTree(refreshnode);
+			}
+		}
+	});
+}
+
+queues.fromStoreToObj = function(store){
+	var out = [];
+	for(var i in store){
+		var protoRecipe = {
+			"conditions": [],
+			"action": store[i].action[0],
+			"arguments": store[i].arguments[0],
+			"runs": store[i].runs[0]
+		};
+		var conds = store[i].conditions;
+		for(var j in conds){
+			var protoCondition = {
+				"property":conds[j].property[0],
+				"comparison":conds[j].comparison[0],
+				"value":conds[j].value[0]
+			};
+			protoRecipe.conditions.push(protoCondition);
+		}
+		out.push(protoRecipe);
+	}
+	return out;
+}

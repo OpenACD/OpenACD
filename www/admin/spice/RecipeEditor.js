@@ -191,11 +191,9 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		}
 		this.rows.push(row.id);
 		this.stepsContainer.appendChild(row.domNode);
+		this.nullButton.domNode.style.display = "none";
 	},
 	dropRow: function(rowid){
-		if(this.rows.length < 2){
-			return;
-		}
 		dijit.byId(rowid).destroy();
 		var newrows = [];
 		for(var i in this.rows){
@@ -204,6 +202,9 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 			}
 		};
 		this.rows = newrows;
+		if(this.rows.length == 0){
+			this.nullButton.domNode.style.display = "inline";
+		}
 	},
 	postCreate: function(){
 		this.addRow();

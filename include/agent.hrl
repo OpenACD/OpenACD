@@ -56,11 +56,13 @@
 %% warmtransfer :: {onhold, #call{}, calling, #call{}},
 %% wrapup :: #call{}
 
+-type(security_level() :: 'agent' | 'supervisor' | 'admin').
+
 -record(agent_auth, {
 	login :: string(),
 	password :: string(),
-	skills = [english, '_agent', '_node'] :: [atom(), ...],
-	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
+	skills = [english, '_agent', '_node'] :: [atom()],
+	securitylevel = agent :: security_level(),
 	integrated :: 'undefined' | pos_integer(),
 	profile = "Default" :: string()
 }).

@@ -171,13 +171,15 @@ code_change(_OldVsn, State, _Extra) ->
 get_agents(Pid) -> 
 	gen_server:call(Pid, get_agents).
 
--spec(loop_queues/1 :: (Queues :: [{atom(), pid(), {{any()}, #queued_call{}}, non_neg_integer()}]) -> {pid(), #queued_call{}} | 'none').
+-spec(loop_queues/1 :: (Queues :: [{string(), pid(), {any(), #queued_call{}}, non_neg_integer()}]) -> {pid(), #queued_call{}} | 'none').
 loop_queues([]) -> 
 	none;
-loop_queues(Queues) -> 
+loop_queues(Queues) ->
+	?CONSOLE("queues: ~p", [Queues]),
 	Total = lists:foldl(fun(Elem, Acc) -> Acc + element(4, Elem) end, 0, Queues),
 	Rand = random:uniform(Total),
 	{Name, Qpid, Call, Weight} = biased_to(Queues, 0, Rand),
+	?CONSOLE("grabbing call", []),
 	case call_queue:grab(Qpid) of
 			none -> 
 				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues));
@@ -185,13 +187,19 @@ loop_queues(Queues) ->
 				{Qpid, Call2}
 	end.
 
--spec(biased_to/3 :: (Queue :: [tuple()], Acc :: non_neg_integer(), Random :: non_neg_integer()) -> tuple() | 'none').
+-spec(biased_to/3 :: (
+		Queue :: [{string(), pid(), {any(), #queued_call{}}, non_neg_integer()}],
+		Acc :: non_neg_integer(),
+		Random :: integer()) ->
+		{string(), pid(), {any(), #queued_call{}}, non_neg_integer()} | 'none').
+biased_to([], _Acc, _Random) ->
+	none;
 biased_to([Queue | Tail], Acc, Random) -> 
 	Acc2 = Acc + element(4, Queue),
-	case Acc2 of
-		_ when Random =< Acc2 ->
+	case Random =< Acc2 of
+		true ->
 			Queue;
-		_ -> 
+		false -> 
 			biased_to(Tail, Acc2, Random)
 	end.
 
@@ -378,10 +386,19 @@ grab_test_() ->
 					Regrabbed = dispatcher:regrab(DPid),
 					?assertEqual(Queuedcall, Regrabbed)
 				end}
+			end,
+			fun([Pid1, _Pid2, _Pid3]) ->
+				{"loop_queues test",
+				fun() ->
+						?assertEqual(none, loop_queues([{"queue1", Pid1, {wtf, #queued_call{media=self(), id="foo"}}, 10}]))
+				end}
 			end
 		]
 	}.
-	
+
+bias_to_test() ->
+	?assertEqual(none, biased_to([], 0, 20)).
+
 -define(MYSERVERFUNC, fun() ->
 		mnesia:stop(),
 		mnesia:delete_schema([node]),

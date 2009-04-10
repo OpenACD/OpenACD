@@ -144,16 +144,16 @@ list_map_with_index(Fun, [H|T], Counter, Acc) ->
 % doc and spec added by same.
 
 %% @doc Converts a bin to a lowercase hexidecimal string.
--spec(bin_to_hexstr/1 :: (Bin :: binary()) -> string()).
+-spec(bin_to_hexstr/1 :: (Bin :: binary()) -> [48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 97 | 98 | 99 | 100 | 101 | 102]).
 bin_to_hexstr(Bin) ->
 	string:to_lower(lists:flatten([io_lib:format("~2.16.0B", [X]) || X <- binary_to_list(Bin)])).
 
 %% @doc Converts a hexidecimal string in any case to a binary.
--spec(hexstr_to_bin/1 :: (S :: string()) -> binary()).
+-spec(hexstr_to_bin/1 :: (S :: string()) -> binary() | 'error').
 hexstr_to_bin(S) ->
-	hexstr_to_bin(string:to_upper(S), []).
+	hexstr_to_bin(string:to_lower(S), []).
 
--define(HEX, [$0, $1, $2, $3, $5, $6, $7, $8, $9, $1, $A, $B, $C, $D, $E, $F]).
+-define(HEX, [$0, $1, $2, $3, $4, $5, $6, $7, $8, $9, $a, $b, $c, $d, $e, $f]).
 
 %% @private
 -spec(hexstr_to_bin/2 :: (string(), Acc :: string()) -> binary() | 'error').
@@ -280,7 +280,7 @@ list_index(Needle, List) ->
 	list_index_(F, Needle, List, 1).
 
 %% @doc Find the position of `Needle' (`any()') in a list using `Fun' (`fun()') as the comparison.
--spec(list_index/3 :: (Fun :: fun((any) -> bool()), Needle :: any(), List :: [any()]) -> non_neg_integer()).
+-spec(list_index/3 :: (Fun :: fun((any(), any()) -> bool()), Needle :: any(), List :: [any()]) -> non_neg_integer()).
 list_index(Fun, Needle, List) ->
 	list_index_(Fun, Needle, List, 1).
 

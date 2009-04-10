@@ -97,7 +97,7 @@ api(checkcookie, Cookie, _Post) ->
 		{_Reflist, _Salt, Login} ->
 			{200, [], mochijson2:encode({struct, [{<<"success">>, true}, {<<"login">>, list_to_binary(Login)}]})}
 	end;
-api(Apirequest, badcookie, _Post) ->
+api(_Apirequest, badcookie, _Post) ->
 	Reflist = erlang:ref_to_list(make_ref()),
 	Cookie = io_lib:format("cpx_management=~p; path=/", [Reflist]),
 	ets:insert(cpx_management_logins, {Reflist, undefined, undefined}),
@@ -251,11 +251,11 @@ api({agents, "profiles", Profile, "delete"}, ?COOKIE, _Post) ->
 api({agents, "agents", Agent, "get"}, ?COOKIE, _Post) ->
 	{atomic, [Agentrec]} = agent_auth:get_agent(Agent),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"agent">>, encode_agent(Agentrec)}]})};
-api({agents, "agents", Agent, "delete"}, ?COOKIE, Post) ->
+api({agents, "agents", Agent, "delete"}, ?COOKIE, _Post) ->
 	agent_auth:destroy(Agent),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
-	{atomic, [Agentrec]} = agent_auth:get_agent(Agent),
+	{atomic, [_Agentrec]} = agent_auth:get_agent(Agent),
 	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
 	Postedskills = proplists:get_all_values("skills", Post),
 	Convertskills = fun(Skill) ->
@@ -602,21 +602,3 @@ encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 		{integrated, Agentrec#agent_auth.integrated},
 		{profile, list_to_binary(Agentrec#agent_auth.profile)}
 	]}.
-
-encode_agents_with_profiles([]) ->
-	dict:new();
-encode_agents_with_profiles(Agents) ->
-	encode_agents_with_profiles(Agents, dict:new()).
-
-encode_agents_with_profiles([], Acc) ->
-	Acc;
-encode_agents_with_profiles([Agent | Agents], Acc) ->
-	case dict:find(Agent#agent_auth.profile, Acc) of
-		error ->
-			Pagents = [];
-		{ok, Pagents} ->
-			Pagents
-	end,
-	Newacc = dict:store(Agent#agent_auth.profile, [Agent | Pagents], Acc),
-	encode_agents_with_profiles(Agents, Newacc).
-

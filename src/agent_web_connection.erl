@@ -261,7 +261,7 @@ build_acks([{struct, Pollprops} | Pollqueue], Acks) ->
 	case dict:find(Counter, Acks) of
 		error ->
 			Acks2 = dict:store(Counter, {now(), 0, {struct, Pollprops}}, Acks);
-		{Time, Tried, _Struct} ->
+		{ok, {Time, Tried, _Struct}} ->
 			Acks2 = dict:store(Counter, {Time, Tried+1, {struct, Pollprops}}, Acks)
 	end,
 	build_acks(Pollqueue, Acks2).
@@ -311,8 +311,6 @@ set_state_test_() ->
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
-		Passwd = util:bin_to_hexstr(erlang:md5("Password123")),
-		Saltedpasswd = util:bin_to_hexstr(erlang:md5(string:concat("12345", Passwd))),
 		Agent = #agent{login = "agent", skills = [english]},
 		agent_manager:start([node()]),
 		agent_auth:start(),

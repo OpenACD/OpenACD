@@ -238,10 +238,14 @@ set_agent(Oldlogin, Newlogin, Newskills, NewSecurity, Newprofile) ->
 set_agent(Oldlogin, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Oldlogin]),
-		[Agent] = qlc:e(QH),
-		destroy(Oldlogin),
-		add_agent(Newlogin, Newpass, Newskills, NewSecurity, Newprofile),
-		ok
+		case qlc:e(QH) of
+			[] ->
+				error;
+			_Agent ->
+				destroy(Oldlogin),
+				add_agent(Newlogin, Newpass, Newskills, NewSecurity, Newprofile),
+				ok
+		end
 	end,
 	mnesia:transaction(F).
 			
@@ -379,7 +383,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% The magic skills of `_agent' and `_node' are automcatically appended to the skill list, and therefore do not need to be stored.
 %%
 %% @see local_auth/3.
--spec(auth/3 :: (Username :: string(), Password :: string(), Salt :: string()) -> {'allow', string(), string(), atom()} | 'deny').
+-spec(auth/3 :: (Username :: string(), Password :: string(), Salt :: string()) -> {'allow', [atom()], security_level()} | 'deny').
 auth(Username, Password, Salt) -> 
 	gen_server:call(?MODULE, {authentication, Username, Password, Salt}).
 
@@ -490,7 +494,7 @@ destroy(Username) ->
 %% @private 
 % Checks the `Username' and prehashed `Password' using the given `Salt' for the cached password.
 % internally called by the auth callback; there should be no need to call this directly (aside from tests).
--spec(local_auth/3 :: (Username :: string(), Password :: string(), Salt :: string()) -> {'allow', [atom()]} | 'deny').
+-spec(local_auth/3 :: (Username :: string(), Password :: string(), Salt :: string()) -> {'allow', [atom()], security_level()} | 'deny').
 local_auth(Username, Password, Salt) -> 
 	QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Username]),
 	% salt the password	

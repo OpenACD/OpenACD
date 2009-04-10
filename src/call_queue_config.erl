@@ -211,7 +211,7 @@ get_queue(Queue) ->
 	end.
 
 %% @doc Get all the queues that are members of the specified Group (`string()').
--spec(get_queues/1 :: (Group :: string()) -> {atomic, [#call_queue{}]}).
+-spec(get_queues/1 :: (Group :: string()) -> [#call_queue{}]).
 get_queues(Group) ->
 	QH = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.group =:= Group]),
 	F = fun() ->
@@ -704,7 +704,7 @@ call_queue_test_() ->
 			{
 				"New Queue with Recipe",
 				fun() -> 
-					Recipe = [{2, add_skills, [true], run_once}],
+					Recipe = [{[{ticks, 2}], add_skills, [true], run_once}],
 					Queue = #call_queue{name="test queue", recipe=Recipe},
 					?assertEqual(Queue, new_queue("test queue", {recipe, Recipe}))
 				end
@@ -712,7 +712,7 @@ call_queue_test_() ->
 			{
 				"New Queue with Options List",
 				fun() -> 
-					Recipe = [{2, add_skills, [true], run_once}],
+					Recipe = [{[{ticks, 2}], add_skills, [true], run_once}],
 					Queue = #call_queue{name="test queue", recipe=Recipe, weight=3},
 					TestQueue = Queue#call_queue{skills= lists:append([Queue#call_queue.skills, [testskill]])},
 					Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
@@ -722,7 +722,7 @@ call_queue_test_() ->
 			{
 				"Set All",
 				fun() -> 
-					Recipe = [{2, add_skills, [true], run_once}],
+					Recipe = [{[{ticks, 2}], add_skills, [true], run_once}],
 					Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
 					Queue = new_queue("test queue", Options),
 					set_queue(Queue),
@@ -769,7 +769,7 @@ call_queue_test_() ->
 				fun() -> 
 					Queue = test_queue(),
 					set_queue(Queue),
-					Recipe = [{3, announce, "announcement", run_once}],
+					Recipe = [{[{ticks, 3}], announce, "announcement", run_once}],
 					TestQueue = Queue#call_queue{recipe = Recipe},
 					set_queue_recipe(Queue#call_queue.name, Recipe),
 					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
@@ -890,7 +890,7 @@ queue_group_test_() ->
 			{
 				"New call group explicit",
 				fun() ->
-					Recipe = [{3, prioritize, [], run_once}],
+					Recipe = [{[{ticks, 3}], prioritize, [], run_once}],
 					Qgroup = #queue_group{name = "test group", sort = 15, recipe = Recipe},
 					new_queue_group("test group", 15, Recipe),
 					F = fun() ->
@@ -945,7 +945,7 @@ queue_group_test_() ->
 			{
 				"update a protected call group by record",
 				fun() ->
-					Recipe = [{3, prioritize, [], run_once}],
+					Recipe = [{[{ticks, 3}], prioritize, [], run_once}],
 					Updateto = #queue_group{name = "newname", sort = 5, protected = false, recipe = Recipe},
 					Default = ?DEFAULT_QUEUE_GROUP,
 					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
@@ -958,7 +958,7 @@ queue_group_test_() ->
 			{
 				"update a protected call group explicitly",
 				fun() ->
-					Recipe = [{3, prioritize, [], run_once}],
+					Recipe = [{[{ticks, 3}], prioritize, [], run_once}],
 					Default = ?DEFAULT_QUEUE_GROUP,
 					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
 					set_queue_group(Default#queue_group.name, "newname", 5, Recipe),
@@ -1108,7 +1108,6 @@ skill_rec_test_() ->
 			{
 				"update a skill",
 				fun() ->
-					Original = #skill_rec{name="English", atom=english, description="English", group = "Language"},
 					New = #skill_rec{name="Newname", atom=testskill, description="Newdesc", group = "Newgroup"},
 					Result = #skill_rec{name="Newname", atom=english, description="Newdesc", group = "Newgroup"},
 					?assertEqual({atomic, ok}, set_skill(english, New)),

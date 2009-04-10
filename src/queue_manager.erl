@@ -149,8 +149,8 @@ queues() ->
 	gen_leader:leader_call(?MODULE, queues_as_list).
 
 %% @doc Sort queues containing a bindable call.  The queues are sorted from most important to least by weight,
-%% priority of first bindable call, then the time the first bindable call has been in queue.
--spec(get_best_bindable_queues/0 :: () -> [{string(), pid(), {{non_neg_integer(), any()}, #queued_call{}}, pos_integer()}]).
+%% priority of first bindable call, then by the time the first bindable call has been in queue.
+-spec(get_best_bindable_queues/0 :: () -> [{string(), pid(), {any(), #queued_call{}}, pos_integer()}]).
 get_best_bindable_queues() ->
 	List = gen_leader:leader_call(?MODULE, queues_as_list),
 	List1 = [{K, V, Call, W} || {K, V} <- List, Call <- [call_queue:ask(V)], Call =/= none, W <- [call_queue:get_weight(V) * call_queue:call_count(V)]],

@@ -358,6 +358,7 @@ handle_event(["QUEUES", Counter, QueueNames], #state{securitylevel = Security} =
 	end, State, queue_manager:queues()),
 	{ack(Counter), State2};
 
+% TODO use the brand on the outbound call
 handle_event(["DIAL", Counter, Brand, "outbound", Number, "1"], State) when is_integer(Counter) ->
 	freeswitch_media_manager:make_outbound_call(Number, State#state.agent_fsm, agent:dump_state(State#state.agent_fsm)),
 	{ack(Counter), State};

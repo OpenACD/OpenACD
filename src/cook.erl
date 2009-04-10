@@ -377,7 +377,6 @@ check_conditions([{ticks, _Ticks} | _Conditions], _Ticked, _Queue, _Call) ->
 check_conditions([{available_agents, Comparision, Number} | Conditions], Ticked, Queue, Call) ->
 	Qpid = queue_manager:get_queue(Queue),
 	{_Key, Callrec} = call_queue:get_call(Qpid, Call),
-	Dispatchers = Callrec#queued_call.dispatchers,
 	L = agent_manager:find_avail_agents_by_skill(Callrec#queued_call.skills),
 	Agents = length(L),
 	case Comparision of
@@ -539,7 +538,7 @@ queue_interaction_test_() ->
 			{"Add skills once",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], add_skills, [newskill1, newskill2], run_once}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]),
 				call_queue:add(Pid, whereis(media_dummy)),
 				receive
 				after ?TICK_LENGTH + 2000 ->
@@ -551,7 +550,7 @@ queue_interaction_test_() ->
 			{"remove skills once",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], remove_skills, [testskill], run_once}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], remove_skills, [testskill], run_once}]),
 				call_queue:add(Pid, whereis(media_dummy)),
 				receive
 				after ?TICK_LENGTH + 2000 ->
@@ -563,7 +562,7 @@ queue_interaction_test_() ->
 			{"Set Priority once",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], set_priority, [5], run_once}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], set_priority, [5], run_once}]),
 				call_queue:add(Pid, whereis(media_dummy)),
 				receive
 				after ?TICK_LENGTH + 2000 ->
@@ -575,7 +574,7 @@ queue_interaction_test_() ->
 			{"Prioritize once",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], prioritize, [], run_once}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], prioritize, [], run_once}]),
 				{ok, Dummy1} = dummy_media:start("C1"),
 				call_queue:add(Pid, Dummy1),
 				receive
@@ -588,7 +587,7 @@ queue_interaction_test_() ->
 			{"Prioritize many (waiting for 2 ticks)",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], prioritize, [], run_many}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], prioritize, [], run_many}]),
 				{ok, Dummy1} = dummy_media:start("C1"),
 				call_queue:add(Pid, Dummy1),
 				receive
@@ -601,7 +600,7 @@ queue_interaction_test_() ->
 			{"Deprioritize once",
 			fun() -> 
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], deprioritize, [], run_once}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], deprioritize, [], run_once}]),
 				{ok, Dummy1} = dummy_media:start("C1"),
 				call_queue:add(Pid, 2, Dummy1),
 				receive
@@ -614,7 +613,7 @@ queue_interaction_test_() ->
 			{"Deprioritize many (waiting for 2 ticks)",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], deprioritize, [], run_many}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], deprioritize, [], run_many}]),
 				{ok, Dummy1} = dummy_media:start("C1"),
 				call_queue:add(Pid, 4, Dummy1),
 				receive
@@ -627,7 +626,7 @@ queue_interaction_test_() ->
 			{"Deprioritize to below zero",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], deprioritize, [], run_many}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], deprioritize, [], run_many}]),
 				{ok, Dummy1} = dummy_media:start("C1"),
 				call_queue:add(Pid, 1, Dummy1),
 				receive
@@ -640,7 +639,7 @@ queue_interaction_test_() ->
 			{"Add recipe once",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], add_recipe, [[], prioritize, [], run_once], run_once}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], add_recipe, [[], prioritize, [], run_once], run_once}]),
 				Dummy1 = whereis(media_dummy),
 				call_queue:add(Pid, Dummy1),
 				receive
@@ -654,7 +653,7 @@ queue_interaction_test_() ->
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
 				Subrecipe = [[], prioritize, [], run_many],
-				call_queue:set_recipe(Pid, [{[], add_recipe, Subrecipe, run_many}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], add_recipe, Subrecipe, run_many}]),
 				Dummy1 = whereis(media_dummy),
 				call_queue:add(Pid, Dummy1),
 				receive
@@ -667,7 +666,7 @@ queue_interaction_test_() ->
 			{"Voice mail once for supported media",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], voicemail, [], run_once}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], voicemail, [], run_once}]),
 				Dummy1 = whereis(media_dummy),
 				call_queue:add(Pid, Dummy1),
 				receive
@@ -679,7 +678,7 @@ queue_interaction_test_() ->
 			{"Voicemail for unsupported media",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], voicemail, [], run_once}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], voicemail, [], run_once}]),
 				Dummy1 = whereis(media_dummy),
 				call_queue:add(Pid, Dummy1),
 				gen_server:call(Dummy1, set_failure),
@@ -692,7 +691,7 @@ queue_interaction_test_() ->
 			{"Annouce (media doesn't matter)",
 			fun() ->
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[], announce, "random data", run_once}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], announce, "random data", run_once}]),
 				Dummy1 = whereis(media_dummy),
 				call_queue:add(Pid, Dummy1),
 				receive
@@ -717,7 +716,7 @@ queue_interaction_test_() ->
 			},
 			{"Waiting for queue rebirth",
 			fun() ->
-				call_queue_config:new_queue("testqueue", {recipe, [{[], add_skills, [newskill1, newskill2], run_once}]}),
+				call_queue_config:new_queue("testqueue", {recipe, [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]}),
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
 				call_queue:add(Pid, whereis(media_dummy)),
 				{_Pri, _CallRec} = call_queue:ask(Pid),
@@ -740,7 +739,7 @@ queue_interaction_test_() ->
 			},
 			{"Queue Manager dies",
 			fun() ->
-				call_queue_config:new_queue("testqueue", {recipe, [{[], add_skills, [newskill1, newskill2], run_once}]}),
+				call_queue_config:new_queue("testqueue", {recipe, [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]}),
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
 				call_queue:add(Pid, whereis(media_dummy)),
 				{_Pri, _CallRec} = call_queue:ask(Pid),
@@ -906,7 +905,7 @@ condition_checking_test_() ->
 				agent:stop(Notavailable)
 			end}
 		end,
-		fun({Qpid, Mpid}) ->
+		fun({Qpid, _Mpid}) ->
 			{"Check the queue postiion",
 			fun() ->
 				{ok, First} = dummy_media:start("first"),
@@ -1058,7 +1057,7 @@ agent_interaction_test_() ->
 				dummy_media:stop(Media)
 			end}
 		end,
-		fun({QPid, MPid, APid}) ->
+		fun({QPid, MPid, _APid}) ->
 			{"Agent with the _all skill overrides other skill checking",
 			fun() ->
 				dummy_media:set_skills(MPid, [german]),
@@ -1067,7 +1066,8 @@ agent_interaction_test_() ->
 				agent:set_state(APid2, idle),
 				timer:sleep(?TICK_LENGTH * 2 + 100),
 				{ok, Statename} = agent:query_state(APid2),
-				?assertEqual(ringing, Statename)
+				?assertEqual(ringing, Statename),
+				agent:stop(APid2)
 			end}
 		end,
 		fun({QPid, MPid, APid}) ->
@@ -1075,10 +1075,9 @@ agent_interaction_test_() ->
 			fun() ->
 				dummy_media:set_skills(MPid, [german, '_all']),
 				call_queue:add(QPid, MPid),
-				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2", skills=[english]}),
-				agent:set_state(APid2, idle),
+				agent:set_state(APid, idle),
 				timer:sleep(?TICK_LENGTH * 2 + 100),
-				{ok, Statename} = agent:query_state(APid2),
+				{ok, Statename} = agent:query_state(APid),
 				?assertEqual(ringing, Statename)
 			end}
 		end
@@ -1153,7 +1152,7 @@ multinode_test_() ->
 
 
 	
--define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start("testcall"), {ok, Pid} = start(Dummy,[{1, set_priority, 5, run_once}], "testqueue"), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start("testcall"), {ok, Pid} = start(Dummy,[{[{ticks, 1}], set_priority, 5, run_once}], "testqueue"), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

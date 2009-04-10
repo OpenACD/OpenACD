@@ -698,7 +698,14 @@ decode_recipe_conditions([{struct, Props} | Tail], Acc) ->
 		<<"<">> ->
 			'<'
 	end,
-	Val = list_to_integer(binary_to_list(proplists:get_value(<<"value">>, Props))),
+	Val = case proplists:get_value(<<"value">>, Props) of
+		V when is_integer(V) ->
+			V;
+		V when is_binary(V) ->
+			list_to_integer(binary_to_list(V));
+		V ->
+			V
+	end,
 	Tuple = case {Cond, Comp, Val} of
 		{<<"ticks">>, '=', Val} ->
 			{ticks, Val};

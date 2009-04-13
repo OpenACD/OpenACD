@@ -433,18 +433,34 @@ api({queues, "groups", Group, "get"}, ?COOKIE, _Post) ->
 	]},
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"queuegroup">>, Json}]})};
 api({queues, "groups", Group, "update"}, ?COOKIE, Post) ->
-	?CONSOLE("~p", [Post]),
 	Newname = proplists:get_value("name", Post),
 	Sort = list_to_integer(proplists:get_value("sort", Post)),
-	Recipe = decode_recipe(proplists:get_value("recipe", Post)),
+	Recipe = case proplists:get_value("recipe", Post) of
+		"[]" ->
+			[];
+		Else ->
+			decode_recipe(Else)
+	end,
 	call_queue_config:set_queue_group(Group, Newname, Sort, Recipe),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({queues, "groups", "new"}, ?COOKIE, Post) ->
 	Name = proplists:get_value("name", Post), 
 	Sort = list_to_integer(proplists:get_value("sort", Post)),
-	Recipe = decode_recipe(proplists:get_value("recipe", Post)),
+	Recipe = case proplists:get_value("recipe", Post) of
+		"[]" ->
+			[];
+		Else ->
+			decode_recipe(Else)
+	end,
 	call_queue_config:new_queue_group(Name, Sort, Recipe),
-	{200, [], mochijson2:encode({struct, [{success, true}]})}.
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
+api({queues, "groups", Group, "delete"}, ?COOKIE, _Post) ->
+	case call_queue_config:destroy_queue_group(Group) of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		{atomic, {error, protected}} ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Group is protected and cannot be deleted">>}]})}
+	end.
 
 
 % path spec:

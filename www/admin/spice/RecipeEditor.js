@@ -191,7 +191,6 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 			ithis.dropRow(row.id);
 		}
 		row.onFocus = function(){
-			console.log('focus func');
 			if(dijit.byId(ithis._focusedOn)){
 				dijit.byId(ithis._focusedOn).setConditions(ithis.conditionsEditor.getValue());
 				dijit.byId(ithis._focusedOn).domNode.style.backgroundColor = "#ffffff";

@@ -198,3 +198,18 @@ queues.deleteGroup = function(group, node){
 		}
 	});
 }
+
+queues.getQueue = function(queue, callback){
+	dojo.xhrGet({
+		url:"/queues/queue/" + queue + "/get",
+		handleAs:"json",
+		load:function(resp, ioargs){
+			if(resp.success){
+				callback(resp.queue);
+			}
+			else{
+				console.log(resp.message);
+			}
+		}
+	});
+}

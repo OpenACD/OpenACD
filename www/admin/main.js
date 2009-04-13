@@ -87,7 +87,25 @@ var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(da
 	dijit.byId('queueGroup').store = queues.store;
 	dojo.connect(queues.tree, "onClick", function(item){
 		if(item.type[0] == "queue"){
-			dijit.byId("queuesMain").selectChild('queueEditor');
+			var callback = function(queue){
+				console.log('cb!');
+				dijit.byId("editQueueFrom").setValues(queue);
+				dijit.byId("queueRecipe").setValue(queue.recipe);
+				dijit.byId("queueGroup").setDisplayedValue(queue.group);
+				dijit.byId("queuesMain").selectChild('queueEditor');
+				
+				var setGroupRecipe = function(item, req){
+					console.log(item);
+					dijit.byId("queueGroupRecipeDisplay").setValue(queues.fromStoreToObj(item[0].recipe));
+				}
+				
+				queues.store.fetch({
+					query:{type:'group', name: queue.group},
+					onComplete:setGroupRecipe
+				});
+			}
+			
+			queues.getQueue(item.name[0], callback);
 		}
 		else{
 			dijit.byId("queuesMain").selectChild('queueGroupEditor');

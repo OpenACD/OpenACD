@@ -262,7 +262,44 @@ dojo.require("spice.RecipeEditor");
 			</div>
 			
 			<div dojoType="dijit.layout.ContentPane" id="queueEditor">
-				Queue Editor
+				<form dojoType="dijit.form.Form" id="editQueueFrom" action="javascript:void(0)" method="post">
+				<input type="hidden" dojoType="dijit.form.TextBox" name="oldname" id="queueOldName" value="" />
+				<p>
+					<label for="queueName">Name:</label>
+					<input dojoType="dijit.form.TextBox" name="name" id="queueName" />
+				</p>
+				
+				<p>
+					<label for="queueGroup">Group:</label>
+					<input dojoType="dijit.form.FilteringSelect" id="queueGroup" name="group" store="queues.store" value="Default" searchAttr="name" query="{type:'group'}" />
+				</p>
+				
+				<p>
+					<label for="queueSkills" title="the skills added to calls put in this queue">Skills:</label>
+					<div id="queueSkills">
+						<select dojoType="dijit.form.MultiSelect" id="queueSkills" name="skills" size="10" multiple="true"></select>
+					</div>
+				</p>
+				
+				<p>
+					<label for="queueWeight">Weight:</label>
+					<input dojoType="dijit.form.ValidationTextBox" id="queueWeight" name="weight" regExp="[\d]+" />
+				</p>
+				
+				<p>
+					<label for="queueGroupRecipeDisplay">Group Recipe<label>
+					<div dojoType="RecipeEditor" id="queueGroupRecipeDisplay"></div>
+				</p>
+				
+				<p>
+					<label for="queueRecipe">Queue Recipe</label>
+					<div dojoType="RecipeEditor" id="queueRecipe"></div>
+				<p>
+				
+				<p>
+					<label for="queueSubmit">&nbsp;</label>
+					<button dojoType="dijit.form.Button" label="Submit" id="queueSubmit" onClick="console.log('submit')"></button>
+				</p>				
 			</div>
 
 		</div>

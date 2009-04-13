@@ -190,12 +190,14 @@ balance_test_() ->
 		foreach,
 		fun() ->
 			test_primer(),
+			agent_auth:start(),
 			agent_manager:start([node()]),
 			queue_manager:start([node()]),
 			start(),
 			ok
 		end,
 		fun(ok) ->
+			agent_auth:stop(),
 			agent_manager:stop(),
 			queue_manager:stop(),
 			stop()

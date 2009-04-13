@@ -275,7 +275,13 @@ single_node_test_() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	Agent = #agent{login="testagent"},
 	{foreach,
-		fun() -> 
+		fun() ->
+			catch agent_auth:stop(),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			agent_auth:start(),
 			start([node()]),
 			{}
 		end,
@@ -356,10 +362,26 @@ multi_node_test_() ->
 	Agent2 = #agent{login="testagent2"},
 	{
 		foreach,
-		fun() -> 
+		fun() ->
 			slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
 			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+			mnesia:stop(),
+			
+			mnesia:change_config(extra_db_nodes, [Master, Slave]),
+			mnesia:delete_schema([node(), Master, Slave]),
+			mnesia:create_schema([node(), Master, Slave]),
+			
 			cover:start([Master, Slave]),
+			
+			rpc:call(Master, mnesia, start, []),
+			rpc:call(Slave, mnesia, start, []),
+			mnesia:start(),
+			
+			mnesia:change_table_copy_type(schema, Master, disc_copies),
+			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+
+			{ok, _P3} = rpc:call(Master, agent_auth, start, []),
+			{ok, _P4} = rpc:call(Slave, agent_auth, start, []),
 
 			{ok, _P1} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
 			{ok, _P2} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
@@ -383,6 +405,7 @@ multi_node_test_() ->
 				"Slave continues after master dies",
 				fun() -> 
 					{ok, _Pid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
+					%slave:stop(Master),
 					rpc:call(Master, erlang, disconnect_node, [Slave]),
 					rpc:call(Slave, erlang, disconnect_node, [Master]),
 					?assertMatch({ok, _NewPid}, rpc:call(Slave, ?MODULE, start_agent, [Agent]))

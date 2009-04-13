@@ -272,12 +272,18 @@ set_state_test_() ->
 	{
 		foreach,
 		fun() ->
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			agent_auth:start(),
 			agent_manager:start([node()]),
 			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}, agent),
 			{Connpid}
 		end,
 		fun({Connpid}) ->
 			stop(Connpid),
+			agent_auth:stop(),
 			agent_manager:stop()
 		end,
 		[
@@ -311,6 +317,7 @@ set_state_test_() ->
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
+		agent_auth:start(),
 		Agent = #agent{login = "agent", skills = [english]},
 		agent_manager:start([node()]),
 		agent_auth:start(),

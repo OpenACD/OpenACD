@@ -114,10 +114,10 @@ api(login, {Reflist, Salt, _Login}, Post) ->
 	case agent_auth:auth(Username, Password, Salt) of
 		deny ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
-		{allow, _Skills, admin} ->
+		{allow, _Skills, admin, _Profile} ->
 			ets:insert(cpx_management_logins, {Reflist, Salt, Username}),
 			{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
-		{allow, _Skills, _Security} ->
+		{allow, _Skills, _Security, _Profile} ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})}
 	end;
 api(logout, {Reflist, _Salt, _Login}, _Post) ->

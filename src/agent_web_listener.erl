@@ -248,8 +248,8 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 	case agent_auth:auth(Username, Password, Salt) of
 		deny ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
-		{allow, Skills, Security} ->
-			Agent = #agent{login = Username, skills = Skills},
+		{allow, Skills, Security, Profile} ->
+			Agent = #agent{login = Username, skills = Skills, profile=Profile},
 			case agent_web_connection:start(Agent, Security) of
 				{ok, Pid} ->
 					gen_server:call(Pid, {set_remote_number, Number}),

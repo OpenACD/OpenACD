@@ -152,6 +152,10 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	},
 	setConditions:function(conditions){
 		this.conditions = conditions;
+	},
+	postCreate:function(){
+		this.setArguments("add_skills");
+		this.inherited("postCreate", arguments);
 	}
 });
 

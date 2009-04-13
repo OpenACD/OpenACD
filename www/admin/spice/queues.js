@@ -158,7 +158,6 @@ queues.newGroup = function(form, reciper, refreshnode){
 queues.fromStoreToObj = function(store){
 	var out = [];
 	for(var i in store){
-		console.log(store[i].arguments);
 		if(store[i].arguments.length > 1){
 			args = store[i].arguments;
 		}
@@ -183,4 +182,19 @@ queues.fromStoreToObj = function(store){
 		out.push(protoRecipe);
 	}
 	return out;
+}
+
+queues.deleteGroup = function(group, node){
+	dojo.xhrGet({
+		url:"/queues/groups/" + group + "/delete",
+		handleAs:"json",
+		load:function(resp, ioargs){
+			if(! resp.success){
+				console.log(resp.message);
+			}
+			else{
+				queues.refreshTree(node);
+			}
+		}
+	});
 }

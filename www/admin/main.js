@@ -99,6 +99,9 @@ var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(da
 			dijit.byId("queueGroupSubmit").onClick = function(){
 				queues.setGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
 			}
+			dijit.byId("queueDropButton").onClick = function(){
+				queues.deleteGroup(item.name[0], "queuesList");
+			}
 		}
 	});
 });

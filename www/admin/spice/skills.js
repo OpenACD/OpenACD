@@ -66,7 +66,6 @@ skills.refreshTree = function(targetnode){
 }
 
 skills.skillSelection = function(targetnode){
-	console.log(targetnode);
 	skills.store.fetch({
 		query:{type:"group"},
 		onComplete:function(groups, query){

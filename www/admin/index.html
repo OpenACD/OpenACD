@@ -225,7 +225,7 @@ dojo.require("spice.RecipeEditor");
 						dijit.byId("queueGroupRecipe").setValue([]);
 						dijit.byId("queueGroupName").setDisabled(false);
 						dijit.byId("queueGroupSubmit").onClick = function(){
-							queues.newGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), dojo.byId("queuesList"));
+							queues.newGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
 						}
 					</script>
 				</button>

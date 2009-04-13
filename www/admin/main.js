@@ -84,6 +84,7 @@ var skillsTreeRefreshHandle = dojo.subscribe("skills/tree/refreshed", function(d
 });
 
 var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(data){
+	dijit.byId('queueGroup').store = queues.store;
 	dojo.connect(queues.tree, "onClick", function(item){
 		if(item.type[0] == "queue"){
 			dijit.byId("queuesMain").selectChild('queueEditor');

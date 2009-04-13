@@ -69,6 +69,8 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 
 queues.store = new dojo.data.ItemFileWriteStore({
 	data:{
+		"identifier":'name',
+		"label":'name',
 		"items":[]
 	}
 });
@@ -210,6 +212,33 @@ queues.getQueue = function(queue, callback){
 			else{
 				console.log(resp.message);
 			}
+		}
+	});
+}
+
+queues.setQueue = function(queue, form, reciper, refreshnode){
+	var vals = form.getValues();
+	vals.recipe = dojo.toJson(reciper.getValue());
+	var doxhr = function(){
+		dojo.xhrPost({
+			url:"/queues/queue/" + queue + "/update",
+			handleAs:"json",
+			content:vals,
+			load:function(resp, ioargs){
+				if(resp.success){
+					queues.refreshTree(refreshnode);
+				}
+				else{
+					console.log(resp.message);
+				}
+			}
+		});
+	};
+	queues.store.fetchItemByIdentity({
+		identity:vals.group,
+		onItem:function(i){
+			vals.group = queues.store.getValue(i, 'name');
+			doxhr();
 		}
 	});
 }

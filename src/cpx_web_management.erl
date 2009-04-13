@@ -468,8 +468,23 @@ api({queues, "queue", Queue, "get"}, ?COOKIE, _Post) ->
 		Queuerec ->
 			Jqueue = encode_queue(Queuerec),
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"queue">>, Jqueue}]})}
-	end.
-
+	end;
+api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
+	Recipe = decode_recipe(proplists:get_value("recipe", Post)),
+	Weight = list_to_integer(proplists:get_value("weight", Post)),
+	Name = proplists:get_value("name", Post),
+	Postedskills = proplists:get_all_values("skills", Post),
+	Filteredskills = lists:filter(fun(Skill) -> call_queue_config:skill_exists(Skill) =/= undefined end, Postedskills),
+	Group = proplists:get_value("group", Post),
+	Qrec = #call_queue{
+		name = Name,
+		weight = Weight,
+		skills = Filteredskills,
+		recipe = Recipe,
+		group = Group
+	},
+	call_queue_config:set_queue(Queue, Qrec),
+	{200, [], mochijson2:encode({struct, [{success, true}]})}.
 
 % path spec:
 % /basiccommand
@@ -652,6 +667,8 @@ encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 	
 decode_recipe([Test | Tail]) when is_tuple(Test) ->
 	decode_recipe([Test | Tail], []);
+decode_recipe("[]") ->
+	[];
 decode_recipe(Json) ->
 	Structed = mochijson2:decode(Json),
 	decode_recipe(Structed).

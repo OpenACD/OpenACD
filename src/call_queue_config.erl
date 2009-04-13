@@ -81,6 +81,7 @@
 	get_queues/0,
 	get_queues/1,
 	set_queue/1,
+	set_queue/2,
 	set_queue_name/2,
 	set_queue_recipe/2,
 	set_queue_skills/2,
@@ -276,7 +277,19 @@ set_queue(Queue) when is_record(Queue, call_queue) ->
 		mnesia:write(Queue)
 	end,
 	mnesia:transaction(F).
-	
+
+%% @doc Sets the queue name `Queue' to the passed `#call_queue{}'.
+-spec(set_queue/2 :: (Queue :: string(), Rec :: #call_queue{}) -> {'atomic', 'ok'} | {'aborted', any()}).
+set_queue(Queue, Rec) ->
+	F = fun() ->
+		case mnesia:read({call_queue, Queue}) of
+			[OldRec] ->
+				mnesia:delete({call_queue, Queue}),
+				mnesia:write(Rec)
+		end
+	end,
+	mnesia:transaction(F).
+
 %% @doc Rename a queue from `string()' `OldName' to `string()' `NewName'.  Returns the results of the mnesia transaction.
 -spec(set_queue_name/2 :: (OldName :: string(), NewName :: string()) -> any()).
 set_queue_name(OldName, NewName) ->

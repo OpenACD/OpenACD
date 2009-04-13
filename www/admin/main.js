@@ -88,7 +88,7 @@ var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(da
 	dojo.connect(queues.tree, "onClick", function(item){
 		if(item.type[0] == "queue"){
 			var callback = function(queue){
-				dijit.byId("editQueueFrom").setValues(queue);
+				dijit.byId("editQueueForm").setValues(queue);
 				dijit.byId("queueRecipe").setValue(queue.recipe);
 				dijit.byId("queueGroup").setDisplayedValue(queue.group);
 				dijit.byId("queuesMain").selectChild('queueEditor');
@@ -101,6 +101,10 @@ var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(da
 					query:{type:'group', name: queue.group},
 					onComplete:setGroupRecipe
 				});
+				
+				dijit.byId("queueSubmit").onClick = function(){
+					queues.setQueue(item.name[0], dijit.byId("editQueueForm"), dijit.byId("queueRecipe"), "queuesList");
+				}
 			}
 			
 			queues.getQueue(item.name[0], callback);

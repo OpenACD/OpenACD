@@ -158,10 +158,17 @@ queues.newGroup = function(form, reciper, refreshnode){
 queues.fromStoreToObj = function(store){
 	var out = [];
 	for(var i in store){
+		console.log(store[i].arguments);
+		if(store[i].arguments.length > 1){
+			args = store[i].arguments;
+		}
+		else{
+			args = store[i].arguments[0];
+		}
 		var protoRecipe = {
 			"conditions": [],
 			"action": store[i].action[0],
-			"arguments": store[i].arguments[0],
+			"arguments": args,
 			"runs": store[i].runs[0]
 		};
 		var conds = store[i].conditions;

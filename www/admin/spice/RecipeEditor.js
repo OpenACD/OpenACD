@@ -236,7 +236,12 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 	setValue:function(value){
 		var cpyrows = this.rows;
 		for(var i in cpyrows){
-			dijit.byId(cpyrows[i]).destroy();
+			try{
+				dijit.byId(cpyrows[i]).destroy();
+			}
+			catch(err){
+				//destroy failed due to + err.message);
+			}
 		}
 		this.rows = [];
 		for(var i in value){

@@ -460,6 +460,14 @@ api({queues, "groups", Group, "delete"}, ?COOKIE, _Post) ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		{atomic, {error, protected}} ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Group is protected and cannot be deleted">>}]})}
+	end;
+api({queues, "queue", Queue, "get"}, ?COOKIE, _Post) ->
+	case call_queue_config:get_queue(Queue) of
+		noexists ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"No such queue">>}]})};
+		Queuerec ->
+			Jqueue = encode_queue(Queuerec),
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"queue">>, Jqueue}]})}
 	end.
 
 
@@ -509,6 +517,8 @@ parse_path(Path) ->
 					{api, {queues, "groups", Action}};
 				["", "queues", "groups", Group, Action] ->
 					{api, {queues, "groups", Group, Action}};
+				["", "queues", "queue", Queue, Action] ->
+					{api, {queues, "queue", Queue, Action}};
 				["", "medias", Action] ->
 					{api, {medias, Action}};
 				_Allothers ->
@@ -592,16 +602,20 @@ encode_skills_with_groups([Skill | Skills], Acc) ->
 %			{type, group},
 %			{children, encode_skills(Group)}]} | encode_skills_with_groups(Groups)].
 
+encode_queue(Queue) ->
+	{struct, [{name, list_to_binary(Queue#call_queue.name)},
+			{type, queue}, {weight, Queue#call_queue.weight},
+			{skills, Queue#call_queue.skills},
+			{recipe, encode_recipe(Queue#call_queue.recipe)},
+			{group, list_to_binary(Queue#call_queue.group)}]}.
+
 encode_queues(Queues) ->
 	encode_queues(Queues, []).
 
 encode_queues([], Acc) ->
 	lists:reverse(Acc);
 encode_queues([Queue | Queues], Acc) ->
-	Head = {struct, [{name, list_to_binary(Queue#call_queue.name)},
-			{type, queue}, {weight, Queue#call_queue.weight},
-			{skills, Queue#call_queue.skills},
-			{recipe, none}]},
+	Head = encode_queue(Queue),
 	encode_queues(Queues, [Head | Acc]).
 
 encode_queues_with_groups(Groups) ->

@@ -727,7 +727,7 @@ decode_recipe_conditions([{struct, Props} | Tail], Acc) ->
 			{ticks, Val};
 		{<<"eligible_agents">>, Comp, Val} ->
 			{eligible_agents, Comp, Val};
-		{<<"available_agents">>, Comp, Val} ->
+		{<<"agents_avail">>, Comp, Val} ->
 			{available_agents, Comp, Val};
 		{<<"queue_position">>, Comp, Val} ->
 			{queue_position, Comp, Val};

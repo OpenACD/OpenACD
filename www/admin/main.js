@@ -386,6 +386,11 @@ dojo.addOnLoad(function(){
 			}
 		}
 	});
+	
+	dijit.byId("queueSkills").skillUpdateHandler = dojo.subscribe("skills/init", function(data){
+		skills.skillSelection(dojo.byId("queueSkills"));
+	});
+			   
 });
 
 

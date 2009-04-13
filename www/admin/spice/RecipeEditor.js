@@ -55,7 +55,6 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 			if(values.constructor == String){
 				values = [values];
 			}
-			console.log(values);
 			var isSelected = function(val){
 				for(var i in values){
 					if(values[i] == val){
@@ -66,7 +65,6 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 			}
 			
 			var kids = this.childNodes;
-			console.log(kids);
 			for(var i in kids){
 				if(kids[i].tagName == 'OPTGROUP'){
 					var opts = kids[i].childNodes;
@@ -154,7 +152,6 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		return this.conditions;
 	},
 	setValue:function(recipeStep){
-		console.log(recipeStep);
 		this.conditions = recipeStep.conditions;
 		this.actionField.setValue(recipeStep.action);
 		this.setArguments(recipeStep.action);
@@ -165,7 +162,6 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		this.conditions = conditions;
 	},
 	postCreate:function(){
-		console.log(this.argsWidget);
 		this.setArguments("add_skills");
 		this.inherited("postCreate", arguments);
 	}
@@ -240,8 +236,6 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		this.rows = [];
 		for(var i in value){
 			this.addRow();
-			console.log('setValue');
-			console.log(value[i]);
 			dijit.byId(this.rows[i]).setValue(value[i]);
 		}
 		if(this.rows.length == 0){

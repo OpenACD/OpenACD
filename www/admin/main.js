@@ -108,6 +108,10 @@ var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(da
 			}
 			
 			queues.getQueue(item.name[0], callback);
+			dijit.byId("queueDropButton").onClick = function(){
+				queues.deleteQueue(item.name[0], "queuesList");
+			}
+				 
 		}
 		else{
 			dijit.byId("queuesMain").selectChild('queueGroupEditor');

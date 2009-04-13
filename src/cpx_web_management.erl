@@ -484,6 +484,9 @@ api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
 		group = Group
 	},
 	call_queue_config:set_queue(Queue, Qrec),
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
+api({queues, "queue", Queue, "delete"}, ?COOKIE, _Post) ->
+	call_queue_config:destroy_queue(Queue),
 	{200, [], mochijson2:encode({struct, [{success, true}]})}.
 
 % path spec:

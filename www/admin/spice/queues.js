@@ -242,3 +242,18 @@ queues.setQueue = function(queue, form, reciper, refreshnode){
 		}
 	});
 }
+
+queues.deleteQueue = function(queue, refreshnode){
+	dojo.xhrGet({
+		url:"/queues/queue/" + queue + "/delete",
+		handleAs:"json",
+		load:function(resp, ioargs){
+			if(resp.success){
+				queues.refreshTree(refreshnode);
+			}
+			else{
+				console.log(resp.message);
+			}
+		}
+	});
+}

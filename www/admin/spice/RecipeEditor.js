@@ -191,6 +191,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 			ithis.dropRow(row.id);
 		}
 		row.onFocus = function(){
+			console.log('focus func');
 			if(dijit.byId(ithis._focusedOn)){
 				dijit.byId(ithis._focusedOn).setConditions(ithis.conditionsEditor.getValue());
 				dijit.byId(ithis._focusedOn).domNode.style.backgroundColor = "#ffffff";
@@ -222,6 +223,11 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		this.addRow();
 	},
 	getValue:function(){
+		//lock in any changes made to currently selected row conditions.
+		if(dijit.byId(this._focusedOn)){
+			dijit.byId(this._focusedOn).setConditions(this.conditionsEditor.getValue());
+		}
+			 
 		var out = [];
 		for(var i in this.rows){
 			out.push(dijit.byId(this.rows[i]).getValue());

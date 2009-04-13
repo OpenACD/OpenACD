@@ -474,12 +474,12 @@ api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
 	Weight = list_to_integer(proplists:get_value("weight", Post)),
 	Name = proplists:get_value("name", Post),
 	Postedskills = proplists:get_all_values("skills", Post),
-	Filteredskills = lists:filter(fun(Skill) -> call_queue_config:skill_exists(Skill) =/= undefined end, Postedskills),
+	Atomizedskills = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, Postedskills),
 	Group = proplists:get_value("group", Post),
 	Qrec = #call_queue{
 		name = Name,
 		weight = Weight,
-		skills = Filteredskills,
+		skills = Atomizedskills,
 		recipe = Recipe,
 		group = Group
 	},
@@ -487,8 +487,24 @@ api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({queues, "queue", Queue, "delete"}, ?COOKIE, _Post) ->
 	call_queue_config:destroy_queue(Queue),
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
+api({queues, "queue", "new"}, ?COOKIE, Post) ->
+	Postedskills = proplists:get_all_values("skills", Post),
+	Atomizedskills = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, Postedskills),
+	Recipe = decode_recipe(proplists:get_value("recipe", Post)),
+	Weight = list_to_integer(proplists:get_value("weight", Post)),
+	Name = proplists:get_value("name", Post),
+	Group = proplists:get_value("group", Post),
+	Qrec = #call_queue{
+		name = Name,
+		weight = Weight,
+		skills = Atomizedskills,
+		recipe = Recipe,
+		group = Group
+	},
+	call_queue_config:new_queue(Qrec),
 	{200, [], mochijson2:encode({struct, [{success, true}]})}.
-
+	
 % path spec:
 % /basiccommand
 % /section/subsection/action
@@ -537,6 +553,8 @@ parse_path(Path) ->
 					{api, {queues, "groups", Group, Action}};
 				["", "queues", "queue", Queue, Action] ->
 					{api, {queues, "queue", Queue, Action}};
+				["", "queues", "queue", Action] ->
+					{api, {queues, "queue", Action}};
 				["", "medias", Action] ->
 					{api, {medias, Action}};
 				_Allothers ->

@@ -241,7 +241,15 @@ get_queues() ->
 
 %% @doc Create a new default queue configuraiton with the name `string()' `QueueName'.
 %% @see new_queue/2
--spec(new_queue/1 :: (QueueName :: string()) ->#call_queue{}).
+-spec(new_queue/1 :: (QueueName :: string() | #call_queue{} ) -> #call_queue{}).
+new_queue(Queue) when is_record(Queue, call_queue) ->
+	F = fun() ->
+		mnesia:write(Queue)
+	end,
+	case mnesia:transaction(F) of
+		{atomic, ok} ->
+			Queue
+	end;
 new_queue(QueueName) -> 
 	new_queue(QueueName, []).
 
@@ -283,7 +291,7 @@ set_queue(Queue) when is_record(Queue, call_queue) ->
 set_queue(Queue, Rec) ->
 	F = fun() ->
 		case mnesia:read({call_queue, Queue}) of
-			[OldRec] ->
+			[_OldRec] ->
 				mnesia:delete({call_queue, Queue}),
 				mnesia:write(Rec)
 		end

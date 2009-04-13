@@ -257,3 +257,30 @@ queues.deleteQueue = function(queue, refreshnode){
 		}
 	});
 }
+
+queues.newQueue = function(form, reciper, node){
+	var vals = form.getValues();
+	vals.recipe = dojo.toJson(reciper.getValue());
+	var doxhr = function(){
+		dojo.xhrPost({
+			url:"/queues/queue/new",
+			handleAs:"json",
+			content:vals,
+			load:function(resp, ioargs){
+				if(resp.success){
+					queues.refreshTree(node);
+				}
+				else{
+					console.log(resp.message);
+				}
+			}
+		});
+	};
+	queues.store.fetchItemByIdentity({
+		identity:vals.group,
+		onItem:function(i){
+			vals.group = queues.store.getValue(i, 'name');
+			doxhr();
+		}
+	});
+}

@@ -54,3 +54,19 @@ medias.refreshTree = function(node){
 	}, node);
 	dojo.publish("medias/tree/refreshed", []);
 }
+
+medias.setMedia = function(erlnode, mediatype, args, treenode){
+	dojo.xhrPost({
+		url:"medias/" + erlnode + "/" + mediatype + "/" + "update",
+		handleAs:"json",
+		content:args,
+		load:function(resp, ioargs){
+			if(resp.success){
+				medias.refreshTree(treenode);
+			}
+			else{
+				console.log(resp.message);
+			}
+		}
+	});
+}

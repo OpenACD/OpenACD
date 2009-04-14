@@ -1,7 +1,7 @@
 <form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
 <p>
 	<label for="enabled">&nbsp;</label>
-	<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" />FreeSWITCH Enabled
+	<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" name="enabled" />FreeSWITCH Enabled
 </p>
 
 <p>
@@ -16,11 +16,7 @@
 
 <p>
 	<label for="mediaSubmit">&nbsp;</label>
-	<button dojoType="dijit.form.Button" label="submit">
-		<script type="dojo/connect" event="onClick">
-			var args = dijit.byId("mediaForm").getValues();
-			medias.setMedia('freeswitch', args, 'mediaList');
-		</script>
+	<button dojoType="dijit.form.Button" label="submit" id="mediaSubmit">
 	</button>
 </form>
 

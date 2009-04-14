@@ -133,6 +133,12 @@ var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(da
 
 var mediaTreeRefreshHandle = dojo.subscribe("medias/tree/refreshed", function(data){
 	dojo.connect(medias.tree, "onClick", function(item){
+		dijit.byId("mediaConf").onDownloadEnd = function(){
+			dijit.byId("mediaSubmit").onClick = function(){
+				medias.setMedia(item.node[0], item.name[0], dijit.byId("mediaForm").getValues(), 'mediaList');
+			}
+		}
+	
 		if(item.type[0] == "conf"){
 			dijit.byId("mediaConf").setHref("spice/medias/" + item.mediatype[0] + ".html");
 		}

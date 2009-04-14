@@ -131,6 +131,15 @@ var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(da
 	});
 });
 
+var mediaTreeRefreshHandle = dojo.subscribe("medias/tree/refreshed", function(data){
+	dojo.connect(medias.tree, "onClick", function(item){
+		if(item.type[0] == "conf"){
+			dijit.byId("mediaConf").setHref("spice/medias/" + item.mediatype[0] + ".html");
+		}
+		dijit.byId("mediaMain").selectChild("mediaConf");
+	});
+})
+
 var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){
 	dijit.byId('agentProfile').store = agents.store;
 	dojo.connect(agents.tree, "onClick", function(item){

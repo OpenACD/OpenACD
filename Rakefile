@@ -28,14 +28,9 @@ SRC = FileList['src/*.erl']
 OBJ = SRC.pathmap("%{src,ebin}X.beam").reject{|x| x.include? 'test_coverage'}
 CONTRIB = FileList['contrib/*']
 DEBUGOBJ = SRC.pathmap("%{src,debug_ebin}X.beam")
-# hack to force correct compilation order so that module dependancies are met
-COVERAGE = SRC.sort_by do |x|
-	if md = /^%% depends on (.+)$/.match(File.read(x))
-		[md[1].split(/,\s*/).length]
-	else
-		[0]
-	end
-end.pathmap("%{src,coverage}X.txt").reject{|x| x.include? 'test_coverage'}
+COVERAGE = SRC.pathmap("%{src,coverage}X.txt").reject{|x| x.include? 'test_coverage'}
+
+HEADERS = FileList['include/*.hrl']
 
 # check to see if gmake is available, if not fall back on the system make
 if res = `which gmake` and $?.exitstatus.zero? and not res =~ /no gmake in/
@@ -65,7 +60,7 @@ directory 'ebin'
 directory 'debug_ebin'
 directory 'coverage'
 #directory 'doc'
-
+#
 rule ".beam" => ["%{ebin,src}X.erl"] do |t|
 	sh "erlc -pa ebin -W #{ERLC_FLAGS} -o ebin #{t.source} "
 end
@@ -74,7 +69,6 @@ rule ".beam" => ["%{debug_ebin,src}X.erl"] do |t|
 	sh "erlc +debug_info -D EUNIT -pa debug_ebin -W #{ERLC_FLAGS} -o debug_ebin #{t.source} "
 end
 
-# this almost works, doesn't handle module dependancies though :(
 rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam'] do |t|
 	mod = File.basename(t.source, '.beam')
 	if ENV['modules'] and not ENV['modules'].split(',').include? mod
@@ -105,13 +99,13 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 	else
 		puts "\e[1;35mFAILED\e[0m"
 		puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
+		puts "  #{mod.ljust(@maxwidth - 1)} : \e[1;35mFAILED\e[0m"
 		File.delete(t.to_s) if File.exists?(t.to_s)
 		File.new(t.to_s+'.failed', 'w').close
 	end
 end
 
-
-task :compile => [:contrib, 'ebin'] + OBJ do
+task :compile => [:contrib, 'ebin'] + HEADERS + OBJ do
 	sh "erl -noshell -eval 'systools:make_script(\"src/cpx-rel-0.1\", [{outdir, \"ebin\"}]).' -s erlang halt -pa ebin"
 end
 
@@ -144,7 +138,7 @@ end
 
 namespace :test do
 	desc "Compile .beam files with -DEUNIT and +debug_info => debug_ebin"
-	task :compile => [:contrib, 'debug_ebin'] + DEBUGOBJ
+	task :compile => [:contrib, 'debug_ebin'] + HEADERS + DEBUGOBJ
 
 	task :contrib do
 		CONTRIB.each do |cont|

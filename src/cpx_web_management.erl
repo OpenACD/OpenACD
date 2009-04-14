@@ -503,7 +503,19 @@ api({queues, "queue", "new"}, ?COOKIE, Post) ->
 		group = Group
 	},
 	call_queue_config:new_queue(Qrec),
-	{200, [], mochijson2:encode({struct, [{success, true}]})}.
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
+	
+%% =====
+%% media -> *
+%% =====
+api({medias, "poll"}, ?COOKIE, _Post) ->
+	Nodes = [node() | nodes()],
+	F = fun(Node) ->
+		{Node, [{freeswitch, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch], 2000)}]}
+	end,
+	Rpcs = lists:map(F, Nodes),
+	Json = encode_medias(Rpcs, []),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"identifier">>, <<"name">>}, {<<"label">>, <<"name">>}, {<<"items">>, Json}]})}.
 	
 % path spec:
 % /basiccommand
@@ -842,3 +854,43 @@ encode_recipe_conditions([{Prop, Comp, Num} | Tail], Acc) ->
 		{<<"value">>, Num}
 	]},
 	encode_recipe_conditions(Tail, [Jcond | Acc]).
+
+encode_medias([], Acc) ->
+	lists:reverse(Acc);
+encode_medias([{Node, Medias} | Tail], Acc) ->
+	Json = {struct, [
+		{<<"name">>, list_to_binary(atom_to_list(Node))},
+		{<<"type">>, <<"node">>},
+		{<<"medias">>, encode_medias_confs(Medias, [])}
+	]},
+	encode_medias(Tail, [Json | Acc]).
+
+encode_medias_confs([], Acc) ->
+	lists:reverse(Acc);
+encode_medias_confs([{Mod, Conf} | Tail], Acc) when is_record(Conf, cpx_conf) ->
+	Json = {struct, [
+		{<<"name">>, list_to_binary(atom_to_list(Conf#cpx_conf.module_name))},
+		{<<"enabled">>, true},
+		{<<"type">>, <<"conf">>},
+		{<<"mediatype">>, list_to_binary(atom_to_list(Mod))},
+		{<<"start">>, list_to_binary(atom_to_list(Conf#cpx_conf.start_function))},
+		{<<"args">>, encode_media_args(Conf#cpx_conf.start_args, [])}
+	]},
+	encode_medias_confs(Tail, [Json | Acc]);
+encode_medias_confs([{Mod, undefined} | Tail], Acc) ->
+	Json = {struct, [
+		{<<"name">>, list_to_binary(atom_to_list(Mod))},
+		{<<"enabled">>, false},
+		{<<"mediatype">>, list_to_binary(atom_to_list(Mod))},
+		{<<"type">>, <<"conf">>}
+	]},
+	encode_medias_confs(Tail, [Json | Acc]).
+
+encode_media_args([], Acc) ->
+	lists:reverse(Acc);
+encode_media_args([Arg | Tail], Acc) when is_list(Arg) ->
+	encode_media_args(Tail, [list_to_binary(Arg) | Acc]);
+encode_media_args([Arg | Tail], Acc) when is_atom(Arg) ->
+	encode_media_args(Tail, [list_to_binary(atom_to_list(Arg)) | Acc]);
+encode_media_args([Arg | Tail], Acc) when is_binary(Arg) ->
+	encode_media_args(Tail, [Arg, Acc]).

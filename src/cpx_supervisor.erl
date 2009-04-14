@@ -139,7 +139,7 @@ build_tables() ->
 	?CONSOLE("cpx building tables...",[]),
 	A = util:build_table(cpx_conf, [
 		{attributes, record_info(fields, cpx_conf)},
-		{disc_copies, lists:append([[node()], nodes()])},
+		{disc_copies, [node()]},
 		{local_content, true}
 	]),
 	case A of
@@ -169,7 +169,7 @@ destroy(Spec) when is_atom(Spec) ->
 		mnesia:delete({cpx_conf, Spec})
 	end,
 	mnesia:transaction(F),
-	stop_spec(Spec).
+	catch stop_spec(Spec).
 
 %% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
 %% @see add_conf/3

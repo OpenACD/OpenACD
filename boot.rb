@@ -85,10 +85,10 @@ if ! File.exists?($conf + ".config")
 	f.close
 end
 
-if Dir["Mnesia.#{$name}@*"].length.zero?
-	puts "Mnesia directory not found, trying to create the schema"
-	`erl -noshell #{$nametype} #{$name} -eval 'mnesia:create_schema([node()]).' -s erlang halt -pa ebin`
-end
+#if Dir["Mnesia.#{$name}@*"].length.zero?
+	#puts "Mnesia directory not found, trying to create the schema"
+	#`erl -noshell #{$nametype} #{$name} -eval 'mnesia:create_schema([node()]).' -s erlang halt -pa ebin`
+#end
 
 #puts "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
 exec "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"

@@ -401,7 +401,7 @@ build_tables() ->
 %	Nodes = lists:append([[node()], nodes()]),
 	A = util:build_table(agent_auth, [
 				{attributes, record_info(fields, agent_auth)},
-				{disc_copies, lists:append([node()], nodes())}
+				{disc_copies, [node()]}
 			]),
 	case A of
 		{atomic, ok} ->
@@ -421,7 +421,7 @@ build_tables() ->
 	end,
 	B = util:build_table(release_opt, [
 		{attributes, record_info(fields, release_opt)},
-		{disc_copies, lists:append([node()], nodes())}
+		{disc_copies, [node()]}
 	]),
 	case B of
 		{atomic, ok} ->
@@ -431,7 +431,7 @@ build_tables() ->
 	end,
 	C = util:build_table(agent_profile, [
 		{attributes, record_info(fields, agent_profile)},
-		{disc_copies, lists:append([node()], nodes())}
+		{disc_copies, [node()]}
 	]),
 	case C of
 		{atomic, ok} -> 

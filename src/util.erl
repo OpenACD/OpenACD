@@ -255,12 +255,18 @@ build_table(Tablename, Options) when is_atom(Tablename) ->
 		yes -> 
 			case mnesia:system_info(use_dir) of
 				true -> 					
-					case lists:member(Tablename, mnesia:system_info(tables)) of
+					case lists:member(Tablename, mnesia:system_info(local_tables)) of
 						true -> 
 							io:format("Table '~p' already exists.~n", [Tablename]),
 							ok;
 						false ->
-							mnesia:create_table(Tablename, Options)
+							case lists:member(Tablename, mnesia:system_info(tables)) of
+								true ->
+									mnesia:add_table_copy(Tablename ,node(), disc_copies),
+									ok;
+								false ->
+									mnesia:create_table(Tablename, Options)
+						end
 					end;
 				false -> 
 					io:format("Mnesia does not have a disc based schema.~n", []),

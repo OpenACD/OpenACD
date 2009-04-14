@@ -110,7 +110,7 @@ handle_call(regrab, _From, State) ->
 	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
-	?CONSOLE("looping through filtered queues...", []),
+	?CONSOLE("looping through filtered queues... ~p", [Filtered]),
 	case loop_queues(Filtered) of
 		none -> 
 			{reply, State#state.call, State};
@@ -172,7 +172,8 @@ get_agents(Pid) ->
 	gen_server:call(Pid, get_agents).
 
 -spec(loop_queues/1 :: (Queues :: [{string(), pid(), {any(), #queued_call{}}, non_neg_integer()}]) -> {pid(), #queued_call{}} | 'none').
-loop_queues([]) -> 
+loop_queues([]) ->
+	?CONSOLE("queue list is empty", []),
 	none;
 loop_queues(Queues) ->
 	?CONSOLE("queues: ~p", [Queues]),

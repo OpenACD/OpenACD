@@ -129,7 +129,7 @@ build_tables() ->
 %% Errors caused by the table already existing are ignored.
 build_tables(Nodes) -> 
 	?CONSOLE("~p building tables...", [?MODULE]),
-	A = util:build_table(call_queue, ?QUEUE_TABLE(Nodes)),
+	A = util:build_table(call_queue, ?QUEUE_TABLE([node()])),
 	case A of
 		{atomic, ok} -> 
 			% since the table didn't already exist, build up the default queue
@@ -138,7 +138,7 @@ build_tables(Nodes) ->
 		_Else -> 
 			ok
 	end,
-	B = util:build_table(skill_rec, ?SKILL_TABLE(Nodes)),
+	B = util:build_table(skill_rec, ?SKILL_TABLE([node()])),
 	case B of
 		{atomic, ok} ->
 			% since the table didn't already exist, build up some default skills
@@ -160,7 +160,7 @@ build_tables(Nodes) ->
 		_Or -> 
 			ok
 	end,
-	C = util:build_table(client, ?CLIENT_TABLE(Nodes)),
+	C = util:build_table(client, ?CLIENT_TABLE([node()])),
 	case C of
 		{atomic, ok} ->
 			Addc = fun() ->
@@ -170,7 +170,7 @@ build_tables(Nodes) ->
 		_Orelse ->
 			ok
 	end,
-	D = util:build_table(queue_group, ?QUEUE_GROUP_TABLE(Nodes)),
+	D = util:build_table(queue_group, ?QUEUE_GROUP_TABLE([node()])),
 	case D of
 		{atomic, ok} ->
 			case new_queue_group(?DEFAULT_QUEUE_GROUP) of

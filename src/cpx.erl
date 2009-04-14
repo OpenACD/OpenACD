@@ -52,10 +52,18 @@ start(_Type, StartArgs) ->
 	%mnesia:start(),
 	case application:get_env(cpx, nodes) of
 		{ok, Nodes} ->
+			lists:foreach(fun(Node) -> net_adm:ping(Node) end, Nodes),
+			case nodes() of
+				[] ->
+					ok;
+				AliveNodes ->
+					mnesia:change_config(extra_db_nodes, AliveNodes)
+			end,
 			ok;
 		_Else ->
 			Nodes = [node()]
 	end,
+	mnesia:change_table_copy_type(schema, node(), disc_copies),
 	cpx_supervisor:start_link(Nodes).
 	
 stop(_State) -> 

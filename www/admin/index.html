@@ -61,6 +61,7 @@ dojo.require("spice.skills");
 dojo.require("spice.queues");
 dojo.require("spice.PredicateEditor");
 dojo.require("spice.RecipeEditor");
+dojo.require("spice.medias");
 </script>
 <script type="text/javascript" src="main.js"></script>
 </head>
@@ -387,7 +388,23 @@ dojo.require("spice.RecipeEditor");
 			</div>
 		</div>
 	</div>
-	<div id="mediaTab" dojoType="dijit.layout.ContentPane" title="Media Types">This is the media tab</div>
+	<div id="mediaTab" dojoType="dijit.layout.BorderContainer" title="Media Types">
+		<div id="mediaNav" dojoType="dijit.layout.ContentPane" region="leading" width="20%">
+			<div style="width:100%;height: 92%">
+				<div id="mediaList"></div>
+			</div>
+		</div>
+		
+		<div id="mediaMain" dojoType="dijit.layout.StackContainer" region="center">
+			<div id="mediaNodeInfo" dojoType="dijit.layout.ContentPane">
+				Node data
+			</div>
+			
+			<div id="mediaFreeswitch" dojoType="dijit.layout.ContentPane">
+				FreeswitchConf
+			</div>
+		</div>
+	</div>
 </div>
 </body>
 </html>

@@ -371,6 +371,8 @@ dojo.addOnLoad(function(){
 								agents.getModules(dijit.byId('editAgentModuleForm'));
 								queues.init();
 								queues.refreshTree('queuesList');
+								medias.init();
+								medias.refreshTree('mediaList');
 							}
 							else{
 								dojo.byId("loginerrp").style.display = "block";
@@ -404,6 +406,8 @@ dojo.addOnLoad(function(){
 				agents.getModules(dijit.byId('editAgentModuleForm'));
 				queues.init();
 				queues.refreshTree('queuesList');
+				medias.init();
+				medias.refreshTree('mediaList');
 				//skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);
 			}
 			else{

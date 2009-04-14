@@ -61,6 +61,7 @@ dojo.require("spice.skills");
 dojo.require("spice.queues");
 dojo.require("spice.PredicateEditor");
 dojo.require("spice.RecipeEditor");
+dojo.require("spice.medias");
 </script>
 <script type="text/javascript" src="main.js"></script>
 </head>
@@ -386,57 +387,24 @@ dojo.require("spice.RecipeEditor");
 				</form>
 			</div>
 		</div>
-		<!--<div dojoType="dijit.layout.LayoutContainer" style="width: 100%; height: 100%; padding: 0; margin: 0; border: 0;">
-			<div dojoType="dijit.layout.ContentPane" layoutAlign="client" id="skillPane">
-				<div id="editSkillGroupPane" dojoType="dijit.layout.ContentPane" style="display:none;">
-					Edit Skill Group
-				</div>
-				<div id="editSkillPane" dojoType="dijit.layout.ContentPane" style="display:none;">
-					<form dojoType="dijit.form.Form" id="editSkillForm" action="setskill" method="post">
-						<p><label for="skillatom">Skill atom:</label><input type="text" name="skillatom" id="skillAtom" value=""
-						dojoType="dijit.form.ValidationTextBox"
-						regExp="[_a-z0-9]+"
-						required="true"
-						invalidMessage="Atoms can only consist of lowercase characters, underscores and numbers."/></p>
-						<p><label for="skillName">Name:</label><input type="text" name="skillname" id="skillName" value=""
-						dojoType="dijit.form.TextBox"
-						trim="true"
-						propercase="true" /></p>
-						<p><label for="skilldesc">Description:</label><input type="text" name="skilldesc" id="skillDesc" value=""
-						dojoType="dijit.form.TextBox"
-						trim="true"
-						propercase="true" /></p>
-						<p><label>&nbsp;</label><button dojoType="dijit.form.Button" id="bsetskill" onclick="setSkill">Edit Skill</button></p>
-					</form>
-				</div>
-			</div>
-			<div dojoType="dijit.layout.ContentPane" layoutAlign="left"
-				style="width: 200px;">
-				<div dojoType="dojo.data.ItemFileWriteStore" url="/skills" jsId="treeStore"></div>
-
-				<div dojoType="dijit.tree.ForestStoreModel"
-					store="treeStore"
-					rootLabel="Skills"
-					jsId="treeModel"></div>
-
-				<div dojoType="dijit.Tree" 
-					model="treeModel" 
-					id="itemTree"
-					showRoot="false"
-					style="width:100%; height: 92%;"
-					checkAcceptance="skillDragCheckAcceptance"
-					checkItemAcceptance="skillDragCheckItemAcceptance"
-					dndController="dijit._tree.dndSource"
-					persist="false"></div>
-				<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
-					<button dojoType="dijit.form.Button" id="addSkill">+</button>
-					<button dojoType="dijit.form.Button" id="addSkillGroup">+Group</button>
-					<button dojoType="dijit.form.Button" id="removeSkill">-</button>
-				</div>
-			</div>
-		</div>-->
 	</div>
-	<div id="mediaTab" dojoType="dijit.layout.ContentPane" title="Media Types">This is the media tab</div>
+	<div id="mediaTab" dojoType="dijit.layout.BorderContainer" title="Media Types">
+		<div id="mediaNav" dojoType="dijit.layout.ContentPane" region="leading" width="20%">
+			<div style="width:100%;height: 92%">
+				<div id="mediaList"></div>
+			</div>
+		</div>
+		
+		<div id="mediaMain" dojoType="dijit.layout.StackContainer" region="center">
+			<div id="mediaNodeInfo" dojoType="dijit.layout.ContentPane">
+				Node data
+			</div>
+			
+			<div id="mediaConf" dojoType="dijit.layout.ContentPane">
+				Conf container
+			</div>
+		</div>
+	</div>
 </div>
 </body>
 </html>

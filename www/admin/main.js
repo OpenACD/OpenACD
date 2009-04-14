@@ -131,6 +131,34 @@ var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(da
 	});
 });
 
+var mediaTreeRefreshHandle = dojo.subscribe("medias/tree/refreshed", function(data){
+	dojo.connect(medias.tree, "onClick", function(item){
+		dijit.byId("mediaConf").onDownloadEnd = function(){
+			dijit.byId("mediaSubmit").onClick = function(){
+				medias.setMedia(item.node[0], item.name[0], dijit.byId("mediaForm").getValues(), 'mediaList');
+			}
+			dojo.xhrGet({
+				url:"medias/" + item.node[0] + "/" + item.name[0] + "/get",
+				handleAs:"json",
+				load:function(resp, ioargs){
+					if(resp.success){
+						dijit.byId("mediaForm").setValues(resp);
+						dijit.byId("mediaEnabled").setValue(resp.enabled);
+					}
+					else{
+						console.log(resp.message);
+					}
+				}
+			})
+		}
+	
+		if(item.type[0] == "conf"){
+			dijit.byId("mediaConf").setHref("spice/medias/" + item.mediatype[0] + ".html");
+		}
+		dijit.byId("mediaMain").selectChild("mediaConf");
+	});
+})
+
 var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){
 	dijit.byId('agentProfile').store = agents.store;
 	dojo.connect(agents.tree, "onClick", function(item){
@@ -371,6 +399,8 @@ dojo.addOnLoad(function(){
 								agents.getModules(dijit.byId('editAgentModuleForm'));
 								queues.init();
 								queues.refreshTree('queuesList');
+								medias.init();
+								medias.refreshTree('mediaList');
 							}
 							else{
 								dojo.byId("loginerrp").style.display = "block";
@@ -404,6 +434,8 @@ dojo.addOnLoad(function(){
 				agents.getModules(dijit.byId('editAgentModuleForm'));
 				queues.init();
 				queues.refreshTree('queuesList');
+				medias.init();
+				medias.refreshTree('mediaList');
 				//skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);
 			}
 			else{

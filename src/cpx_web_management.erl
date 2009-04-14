@@ -503,7 +503,50 @@ api({queues, "queue", "new"}, ?COOKIE, Post) ->
 		group = Group
 	},
 	call_queue_config:new_queue(Qrec),
-	{200, [], mochijson2:encode({struct, [{success, true}]})}.
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
+	
+%% =====
+%% media -> *
+%% =====
+api({medias, "poll"}, ?COOKIE, _Post) ->
+	Nodes = [node() | nodes()],
+	F = fun(Node) ->
+		{Node, [{freeswitch, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch], 2000)}]}
+	end,
+	Rpcs = lists:map(F, Nodes),
+	Json = encode_medias(Rpcs, []),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"identifier">>, <<"name">>}, {<<"label">>, <<"name">>}, {<<"items">>, Json}]})};
+api({medias, Node, "freeswitch", "update"}, ?COOKIE, Post) ->
+	case proplists:get_value("enabled", Post) of
+		undefined ->
+			cpx_supervisor:destroy(freeswitch),
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		_Else ->
+			Args = [list_to_atom(proplists:get_value("cnode", Post)), proplists:get_value("domain", Post, "")],
+			Start = start_link,
+			Atomnode = list_to_existing_atom(Node),
+			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch, freeswitch, Start, Args], 2000),
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
+api({medias, Node, "freeswitch", "get"}, ?COOKIE, _Post) ->
+	Anode = list_to_existing_atom(Node),
+	case rpc:call(Anode, cpx_supervisor, get_conf, [freeswitch]) of
+		undefined ->
+			Json = {struct, [
+				{success, true},
+				{<<"enabled">>, false}
+			]},
+			{200, [], mochijson2:encode(Json)};
+		Rec when is_record(Rec, cpx_conf) ->
+			[Cnode, Domain] = Rec#cpx_conf.start_args,
+			Json = {struct, [
+				{success, true},
+				{<<"enabled">>, true},
+				{<<"cnode">>, list_to_binary(atom_to_list(Cnode))},
+				{<<"domain">>, list_to_binary(Domain)}
+			]},
+			{200, [], mochijson2:encode(Json)}
+	end.
 	
 % path spec:
 % /basiccommand
@@ -557,6 +600,8 @@ parse_path(Path) ->
 					{api, {queues, "queue", Action}};
 				["", "medias", Action] ->
 					{api, {medias, Action}};
+				["", "medias", Node, Media, Action] ->
+					{api, {medias, Node, Media, Action}};
 				_Allothers ->
 					case filelib:is_regular(string:concat("www/admin", Path)) of
 						true ->
@@ -842,3 +887,45 @@ encode_recipe_conditions([{Prop, Comp, Num} | Tail], Acc) ->
 		{<<"value">>, Num}
 	]},
 	encode_recipe_conditions(Tail, [Jcond | Acc]).
+
+encode_medias([], Acc) ->
+	lists:reverse(Acc);
+encode_medias([{Node, Medias} | Tail], Acc) ->
+	Json = {struct, [
+		{<<"name">>, list_to_binary(atom_to_list(Node))},
+		{<<"type">>, <<"node">>},
+		{<<"medias">>, encode_medias_confs(Node, Medias, [])}
+	]},
+	encode_medias(Tail, [Json | Acc]).
+
+encode_medias_confs(_Node, [], Acc) ->
+	lists:reverse(Acc);
+encode_medias_confs(Node, [{Mod, Conf} | Tail], Acc) when is_record(Conf, cpx_conf) ->
+	Json = {struct, [
+		{<<"name">>, list_to_binary(atom_to_list(Conf#cpx_conf.module_name))},
+		{<<"enabled">>, true},
+		{<<"type">>, <<"conf">>},
+		{<<"mediatype">>, list_to_binary(atom_to_list(Mod))},
+		{<<"start">>, list_to_binary(atom_to_list(Conf#cpx_conf.start_function))},
+		{<<"args">>, encode_media_args(Conf#cpx_conf.start_args, [])},
+		{<<"node">>, list_to_binary(atom_to_list(Node))}
+	]},
+	encode_medias_confs(Node, Tail, [Json | Acc]);
+encode_medias_confs(Node, [{Mod, undefined} | Tail], Acc) ->
+	Json = {struct, [
+		{<<"name">>, list_to_binary(atom_to_list(Mod))},
+		{<<"enabled">>, false},
+		{<<"mediatype">>, list_to_binary(atom_to_list(Mod))},
+		{<<"type">>, <<"conf">>},
+		{<<"node">>, list_to_binary(atom_to_list(Node))}
+	]},
+	encode_medias_confs(Node, Tail, [Json | Acc]).
+
+encode_media_args([], Acc) ->
+	lists:reverse(Acc);
+encode_media_args([Arg | Tail], Acc) when is_list(Arg) ->
+	encode_media_args(Tail, [list_to_binary(Arg) | Acc]);
+encode_media_args([Arg | Tail], Acc) when is_atom(Arg) ->
+	encode_media_args(Tail, [list_to_binary(atom_to_list(Arg)) | Acc]);
+encode_media_args([Arg | Tail], Acc) when is_binary(Arg) ->
+	encode_media_args(Tail, [Arg, Acc]).

@@ -46,7 +46,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 				{_reference:"<"}
 			]},
 			{"label":"Calls in Queue",
-			"value":"call_count",
+			"value":"calls_queued",
 			"type":"property",
 			"regExp":"[\\d]+",
 			"comparisons":[

@@ -137,6 +137,19 @@ var mediaTreeRefreshHandle = dojo.subscribe("medias/tree/refreshed", function(da
 			dijit.byId("mediaSubmit").onClick = function(){
 				medias.setMedia(item.node[0], item.name[0], dijit.byId("mediaForm").getValues(), 'mediaList');
 			}
+			dojo.xhrGet({
+				url:"medias/" + item.node[0] + "/" + item.name[0] + "/get",
+				handleAs:"json",
+				load:function(resp, ioargs){
+					if(resp.success){
+						dijit.byId("mediaForm").setValues(resp);
+						dijit.byId("mediaEnabled").setValue(resp.enabled);
+					}
+					else{
+						console.log(resp.message);
+					}
+				}
+			})
 		}
 	
 		if(item.type[0] == "conf"){

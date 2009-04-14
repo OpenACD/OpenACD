@@ -72,18 +72,25 @@ set_remote_number(Pid, Number) ->
 %% @private
 init([State = #agent{}]) ->
 	% TODO - merge in skills from the profile!
-	State2 = expand_magic_skills(State),
+	{Profile, Skills} = case agent_auth:get_profile(State#agent.profile) of
+		undefined ->
+			?CONSOLE("Agent ~p has an invalid profile of ~p, using Default", [State#agent.login, State#agent.profile]),
+			agent_auth:get_profile("Default");
+		Else ->
+			Else
+	end,
+	State2 = State#agent{skills = util:merge_skill_lists(expand_magic_skills(State, Skills), expand_magic_skills(State, State#agent.skills))},
 	{ok, released, State2}.
 
 % actual functions we'll call
 %% @private
--spec(expand_magic_skills/1 :: (State :: #agent{}) -> #agent{}).
-expand_magic_skills(State) ->
-	State#agent{skills = lists:map(
+-spec(expand_magic_skills/2 :: (State :: #agent{}, Skills :: [atom()]) -> [atom()]).
+expand_magic_skills(State, Skills) ->
+	lists:map(
 		fun('_agent') -> {'_agent', list_to_atom(State#agent.login)};
 		('_node') -> {'_node', node()};
 		(Skill) -> Skill
-	end, State#agent.skills)}.
+	end, Skills).
 
 %% @doc Returns the entire agent record for the agent at `Pid'.
 -spec(dump_state/1 :: (Pid :: pid()) -> #agent{}).
@@ -406,6 +413,12 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 
 -ifdef(EUNIT).
 state_change_test() ->
+	catch agent_auth:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	?assertMatch({ok, released}, query_state(Pid)),
 	?assertEqual(ok, set_state(Pid, idle)),
@@ -419,6 +432,12 @@ state_change_test() ->
 	?assertMatch(queued, set_state(Pid, released, {1, 0})).
 	
 ring_oncall_mismatch_test() ->
+	catch agent_auth:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	Goodcall = #call{id="Goodcall", source=self()},
 	Badcall = #call{id="Badcall", source=self()},
@@ -426,7 +445,13 @@ ring_oncall_mismatch_test() ->
 	?assertMatch(ok, set_state(Pid, ringing, Goodcall)),
 	?assertMatch(invalid, set_state(Pid, oncall, Badcall)).
 
-idle_state_test() -> 
+idle_state_test() ->
+	catch agent_auth:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	?assertMatch(ok, set_state(Pid, idle)),
 	Call = #call{id="testcall", source=self()},
@@ -444,7 +469,13 @@ idle_state_test() ->
 	?assertMatch(ok, set_state(Pid, idle)),
 	?assertMatch({ok, idle}, query_state(Pid)).
 	
-ringing_state_test() -> 
+ringing_state_test() ->
+	catch agent_auth:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	?assertMatch(ok, set_state(Pid, idle)),
 	Call = #call{id="testcall", source=self()},
@@ -474,6 +505,12 @@ ringing_state_test() ->
 	
 	
 precall_state_test() ->
+	catch agent_auth:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	Call = #call{id="testcall", source=self()},
 	Client = "dummyclient",
@@ -499,7 +536,13 @@ precall_state_test() ->
 	?assertMatch(ok, set_state(Pid, idle)),
 	?assertMatch({ok, idle}, query_state(Pid)).
 
-oncall_state_test() -> 
+oncall_state_test() ->
+	catch agent_auth:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	Call = #call{id="testcall", source=self()},
 	set_state(Pid, idle),
@@ -523,6 +566,12 @@ oncall_state_test() ->
 	?assertMatch({ok, wrapup}, query_state(Pid)).
 	
 outgoing_state_test() ->
+	catch agent_auth:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	Call = #call{id="testcall", source=self()},
 	Client = "dummyclient",
@@ -549,7 +598,13 @@ outgoing_state_test() ->
 	?assertMatch(ok, set_state(Pid, wrapup, Call)),
 	?assertMatch({ok, wrapup}, query_state(Pid)).
 	
-released_state_test() -> 
+released_state_test() ->
+	catch agent_auth:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	Call = #call{id="testcall", source=self()},
 	Client = "dummyclient",
@@ -577,6 +632,12 @@ released_state_test() ->
 	?assertMatch({ok, ringing}, query_state(Pid)).
 	
 warmtransfer_state_test() ->
+	catch agent_auth:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	Call = #call{id="testcall", source=self()},
 	Callto = #call{id="callto", source=self()},
@@ -607,7 +668,13 @@ warmtransfer_state_test() ->
 	?assertMatch(ok, set_state(Pid, wrapup, Call)),
 	?assertMatch({ok, wrapup}, query_state(Pid)).
 
-wrapup_state_test() -> 
+wrapup_state_test() ->
+	catch agent_auth:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	Call = #call{id="testcall", source=self()},
 	Callto = #call{id="callto", source=self()},

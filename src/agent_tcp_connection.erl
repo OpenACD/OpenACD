@@ -214,9 +214,9 @@ handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integ
 				deny -> 
 					?CONSOLE("Authentication failure",[]),
 					{err(Counter, "Authentication Failure"), State};
-				{allow, Skills, Security} -> 
+				{allow, Skills, Security, Profile} -> 
 					%?CONSOLE("Authenciation success, next steps...",[]),
-					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills}),
+					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills, profile=Profile}),
 					case agent:set_connection(Pid, self()) of
 						ok ->
 							% TODO validate this?

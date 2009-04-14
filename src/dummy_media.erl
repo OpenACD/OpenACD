@@ -283,6 +283,18 @@ code_change(_OldVsn, State, _Extra) ->
 -ifdef(EUNIT).
 
 dummy_test_() -> 
+	{foreach,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		agent_auth:start(),
+		ok
+	end,
+	fun(_Ok) ->
+		agent_auth:stop()
+	end,
 	[
 		{
 			"Simple start",
@@ -365,7 +377,8 @@ dummy_test_() ->
 				?assertMatch(invalid, gen_server:call(Dummypid, {announce, "Random data"}))
 			end
 		}
-	].
+	]
+	}.
 
 -define(MEDIA_ACTION_PARAMS, [
 	{ring_agent, fun() ->

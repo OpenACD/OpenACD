@@ -834,6 +834,7 @@ condition_checking_test_() ->
 	{foreach,
 	fun() ->
 		test_primer(),
+		agent_auth:start(),
 		queue_manager:start([node()]),
 		{ok, Qpid} = queue_manager:add_queue("testqueue"),
 		{ok, Mpid} = dummy_media:start("testcall"),
@@ -842,11 +843,12 @@ condition_checking_test_() ->
 		{Qpid, Mpid}
 	end,
 	fun({Qpid, Mpid}) ->
+		agent_auth:stop(),
 		dummy_media:stop(Mpid),
 		call_queue:stop(Qpid),
 		queue_manager:stop(),
-		dispatch_manager:stop(),
-		agent_manager:stop()
+		agent_manager:stop(),
+		dispatch_manager:stop()
 	end,
 	[
 		fun({_Qpid, Mpid}) ->
@@ -961,6 +963,7 @@ agent_interaction_test_() ->
 		{ok, QPid} = queue_manager:add_queue("testqueue"),
 		{ok, MPid} = dummy_media:start("testcall"),
 		dispatch_manager:start(),
+		agent_auth:start(),
 		agent_manager:start([node()]),
 		{ok, APid} = agent_manager:start_agent(#agent{login = "testagent"}),
 		{QPid, MPid, APid}
@@ -972,6 +975,7 @@ agent_interaction_test_() ->
 			exit:{noproc, Detail} ->
 				?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
 		end,
+		agent_auth:stop(),
 		queue_manager:stop(),
 		dispatch_manager:stop(),
 		agent:stop(APid),

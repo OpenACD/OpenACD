@@ -220,19 +220,19 @@ handle_cast({change_state, AgState}, #state{poll_queue = Pollq, counter = Counte
 	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
 handle_cast(Msg, State) ->
 	?CONSOLE("Other case ~p", [Msg]),
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(check_acks, #state{missed_polls = Missedpolls} = State) when Missedpolls < 4 -> 	
+handle_info(check_acks, #state{missed_polls = Missedpolls} = State) when Missedpolls < 4 ->
 	{noreply, State#state{missed_polls = Missedpolls + 1}};
-handle_info(check_acks, State) -> 
+handle_info(check_acks, State) ->
 	?CONSOLE("too many missed polls.",[]),
-	{stop, "Client timeout", ok, State};
+	{stop, normal, State};
 handle_info(Info, State) ->
 	?CONSOLE("info I can't handle:  ~p", [Info]),
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
@@ -241,13 +241,13 @@ terminate(Reason, State) ->
 	?CONSOLE("terminated ~p", [Reason]),
 	agent:stop(State#state.agent_fsm),
 	timer:cancel(State#state.ack_timer),
-    ok.
+	ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+	{ok, State}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions

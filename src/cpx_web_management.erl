@@ -515,7 +515,7 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 	end,
 	Rpcs = lists:map(F, Nodes),
 	Json = encode_medias(Rpcs, []),
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"identifier">>, <<"name">>}, {<<"label">>, <<"name">>}, {<<"items">>, Json}]})};
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"identifier">>, <<"id">>}, {<<"label">>, <<"name">>}, {<<"items">>, Json}]})};
 api({medias, Node, "freeswitch", "update"}, ?COOKIE, Post) ->
 	case proplists:get_value("enabled", Post) of
 		undefined ->
@@ -894,6 +894,7 @@ encode_medias([{Node, Medias} | Tail], Acc) ->
 	Json = {struct, [
 		{<<"name">>, list_to_binary(atom_to_list(Node))},
 		{<<"type">>, <<"node">>},
+		{<<"id">>, list_to_binary(atom_to_list(Node))},
 		{<<"medias">>, encode_medias_confs(Node, Medias, [])}
 	]},
 	encode_medias(Tail, [Json | Acc]).
@@ -905,6 +906,7 @@ encode_medias_confs(Node, [{Mod, Conf} | Tail], Acc) when is_record(Conf, cpx_co
 		{<<"name">>, list_to_binary(atom_to_list(Conf#cpx_conf.module_name))},
 		{<<"enabled">>, true},
 		{<<"type">>, <<"conf">>},
+		{<<"id">>, list_to_binary(atom_to_list(Node) ++ "/" ++ atom_to_list(Mod))},
 		{<<"mediatype">>, list_to_binary(atom_to_list(Mod))},
 		{<<"start">>, list_to_binary(atom_to_list(Conf#cpx_conf.start_function))},
 		{<<"args">>, encode_media_args(Conf#cpx_conf.start_args, [])},
@@ -917,6 +919,7 @@ encode_medias_confs(Node, [{Mod, undefined} | Tail], Acc) ->
 		{<<"enabled">>, false},
 		{<<"mediatype">>, list_to_binary(atom_to_list(Mod))},
 		{<<"type">>, <<"conf">>},
+		{<<"id">>, list_to_binary(atom_to_list(Node) ++ "/" ++ atom_to_list(Mod))},
 		{<<"node">>, list_to_binary(atom_to_list(Node))}
 	]},
 	encode_medias_confs(Node, Tail, [Json | Acc]).

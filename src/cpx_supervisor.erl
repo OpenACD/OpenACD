@@ -117,10 +117,10 @@ init([Nodes]) ->
 add_conf(Mod, Start, Args) -> 
 	Rec = #cpx_conf{module_name = Mod, start_function = Start, start_args = Args},
 	F = fun() -> 
-		mnesia:write(Rec)
+		mnesia:write(Rec),
+		start_spec(build_spec(Rec))
 	end,
-	mnesia:transaction(F),
-	start_spec(build_spec(Rec)).
+	mnesia:transaction(F).
 
 %% @doc Attempts to build a valid childspec suitable for a supervisor module from the `#cpx_conf{}'.
 build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args}) -> 
@@ -173,14 +173,14 @@ destroy(Spec) when is_atom(Spec) ->
 
 %% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
 %% @see add_conf/3
-update_conf(Name, Mod, Start, Args) -> 
+update_conf(Name, Mod, Start, Args) ->
 	Rec = #cpx_conf{module_name = Mod, start_function = Start, start_args = Args},
 	F = fun() -> 
 		destroy(Name),
-		mnesia:write(Rec)
+		mnesia:write(Rec),
+		start_spec(build_spec(Rec))
 	end,
-	mnesia:transaction(F),
-	start_spec(build_spec(Rec)).
+	mnesia:transaction(F).
 
 get_conf(Name) ->
 	F = fun() ->

@@ -6,7 +6,7 @@ var medias = function(){
 
 medias.store = new dojo.data.ItemFileReadStore({
 	data:{
-		"identifier":'name',
+		"identifier":'id',
 		"label":'name',
 		"items":[]
 	}

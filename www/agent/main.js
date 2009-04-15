@@ -58,23 +58,25 @@ dojo.addOnLoad(function(){
 
 	dojo.byId("statedisp").stateChanger = dojo.subscribe("agent/state", function(data){
 		var node = dojo.byId("statedisp");
-		node.innerHTML = "State:" + data.state;
+		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
+		node.innerHTML = nlsStrings.STATE + ":" + nlsStrings[data.state.toUpperCase()];
 	});
 
 	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("bgoreleased");
+		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		switch (data.state) {
 			case 'idle':
 			case 'ringing':
 			case 'precall':
-				widget.setLabel("Go Released...");
+				widget.setLabel(nlsStrings.GORELEASED);
 				widget.attr('style', 'display:inline');
 				break;
 			case 'released':
 				widget.attr('style', 'display:none');
 				break;
 			default:
-				widget.setLabel("Queue Release...");
+				widget.setLabel(nlsStrings.QUEUERELEASE);
 				widget.attr('style', 'display:inline');
 		}
 	});
@@ -86,14 +88,15 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("bgoavail").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("bgoavail");
+		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		switch(data.state){
 			case "released":
 				widget.attr('style', 'display:inline');
-				widget.setLabel("Go Available");
+				widget.setLabel(nlsStrings.GOAVAILABLE);
 				break;
 			case "wrapup":
 				widget.attr('style', 'display:inline');
-				widget.setLabel("End Wrapup");
+				widget.setLabel(nlsStrings.ENDWRAPUP);
 				break;
 			default:
 				widget.attr('style', 'display:none');
@@ -155,7 +158,8 @@ dojo.addOnLoad(function(){
 	});
 	
 	dojo.byId("state").stateChanger = dojo.subscribe("agent/state", function(data){
-		dojo.byId("state").innerHTML = data.state;
+		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
+		dojo.byId("state").innerHTML = nlsStrings[data.state.toUpperCase()];
 	});
 	
 	dijit.byId("banswer").stateChanger = dojo.subscribe("agent/state", function(data){
@@ -283,13 +287,14 @@ dojo.addOnLoad(function(){
 	});
 
 	buildReleaseMenu = function(agent){
+		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		dojo.xhrGet({
 			url:"/releaseopts",
 			handleAs:"json",
 			error:function(response, ioargs){
 				var menu = dijit.byId("releasedmenu");
 				var item = new dijit.MenuItem({
-					label:"Default",
+					label: nlsStrings.DEFAULT,
 					onClick:function(){agent.setState("released", "Default"); }
 				});
 				menu.addChild(item);
@@ -298,7 +303,7 @@ dojo.addOnLoad(function(){
 				if(response.success){
 					var menu = dijit.byId("releasedmenu");
 					var item = new dijit.MenuItem({
-						label:"Default",
+						label: nlsStrings.DEFAULT,
 						onClick:function(){agent.setState("released", "Default"); }
 					});
 					menu.addChild(item);
@@ -306,7 +311,7 @@ dojo.addOnLoad(function(){
 				else{
 					var menu = dijit.byId("releasedmenu");
 					var item = new dijit.MenuItem({
-						label:"Default",
+						label: nlsStrings.DEFAULT,
 						onClick:function(){agent.setState("released", "Default"); }
 					});
 					menu.addChild(item);

@@ -18,19 +18,60 @@
 	}
 </style>
 
-<script type="text/javascript" src="/dojo/dojo/dojo.js" djConfig="parseOnLoad:true, isDebug: false"></script>
 <script type="text/javascript">
-dojo.require("dijit.layout.BorderContainer");
-dojo.require("dijit.layout.ContentPane");
-dojo.require("dijit.layout.TabContainer");
-dojo.require("dijit.form.SimpleTextarea");
-dojo.require("dijit.form.Button");
-dojo.require("dijit.form.Form");
-dojo.require("dojox.timing");
-dojo.require("dijit.Dialog");
-dojo.require("dojox.encoding.digests.MD5");
-dojo.require("dijit.form.ComboBox");
-//dojo.require("dijit.Menu");
+	var djConfig = {
+		modulePaths: {agentUI: "/application"},
+		parseOnLoad: true,
+		isDebug: false,
+		locale: 'en-us'
+	};
+</script>
+<script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
+<script type="text/javascript">
+	dojo.require("dijit.layout.BorderContainer");
+	dojo.require("dijit.layout.ContentPane");
+	dojo.require("dijit.layout.TabContainer");
+	dojo.require("dijit.form.SimpleTextarea");
+	dojo.require("dijit.form.Button");
+	dojo.require("dijit.form.Form");
+	dojo.require("dojox.timing");
+	dojo.require("dijit.Dialog");
+	dojo.require("dojox.encoding.digests.MD5");
+	dojo.require("dijit.form.ComboBox");
+	//dojo.require("dijit.Menu");
+	dojo.requireLocalization("agentUI", "labels");
+	function init()
+	{
+		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
+		dojo.byId("usernamelabel").innerHTML = nlsStrings.USERNAME + ":";
+		dojo.byId("passwordlabel").innerHTML = nlsStrings.PASSWORD + ":";
+		dojo.byId("remotenumberlabel").innerHTML = nlsStrings.REMOTENUM + ":";
+		dojo.byId("agentlabel").innerHTML = nlsStrings.AGENT + ":";
+		dojo.byId("statelabel").innerHTML = nlsStrings.STATE + ":";
+		dojo.byId("brandlabel").innerHTML = nlsStrings.BRAND + ":";
+		dojo.byId("calleridlabel").innerHTML = nlsStrings.CALLERID + ":";
+		dijit.byId("loginsubmit").setLabel(nlsStrings.LOGIN);
+		dijit.byId("bgoavail").setLabel(nlsStrings.GOAVAILABLE);
+		dijit.byId("boutboundcall").setLabel(nlsStrings.MKOUTBOUND);
+		dijit.byId("bdial").setLabel(nlsStrings.DIAL);
+		dijit.byId("bcancel").setLabel(nlsStrings.CANCEL);
+		dijit.byId("banswer").setLabel(nlsStrings.ANSWER);
+		dijit.byId("bhangup").setLabel(nlsStrings.HANGUP);
+		dijit.byId("miHangup").setLabel(nlsStrings.HANGUP);
+		dijit.byId("miLogout").setLabel(nlsStrings.LOGOUT);
+		dijit.byId("filemenubutton").setLabel(nlsStrings.FILE);
+		dijit.byId("editmenubutton").setLabel(nlsStrings.EDIT);
+		dijit.byId("viewmenubutton").setLabel(nlsStrings.VIEW);
+		dijit.byId("tabsmenubutton").setLabel(nlsStrings.TABS);
+		dijit.byId("maintab").attr("title", nlsStrings.MAIN);
+		dijit.byId("loginpane").attr("title", nlsStrings.LOGIN);
+		dijit.byId("tabPanel").tablist.pane2button[dijit.byId("maintab")].setLabel(nlsStrings.MAIN);
+		dijit.byId("tabPanel").tablist.pane2button[dijit.byId("agentstab")].setLabel(nlsStrings.AGENTS);
+		dijit.byId("tabPanel").tablist.pane2button[dijit.byId("queuestab")].setLabel(nlsStrings.QUEUES);
+		dijit.byId("tabPanel").tablist.pane2button[dijit.byId("eventLog")].setLabel(nlsStrings.EVENTLOG);
+	}
+	dojo.addOnLoad(init);
+
 </script>
 
 <script type="text/javascript" src="/dojo/dojox/timer.js"></script>
@@ -46,15 +87,15 @@ dojo.require("dijit.form.ComboBox");
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
 		<p  id="loginerrp" style="font-size:smaller;display:none"><label>&nbsp;</label><span id="loginerrspan" style="color:#ff0000"></span></p>
 		<p>
-			<label for="username">Username:</label>
+			<label for="username" id="usernamelabel">Username:</label>
 			<input type="text" name="username" value="" dojoType="dijit.form.TextBox" trim="true" id="username" />
 		</p>
 		<p>
-			<label for="password">Password:</label>
+			<label for="password" id="passwordlabel">Password:</label>
 			<input type="password" name="password" value="" dojoType="dijit.form.TextBox" id="password" />
 		</p>
 		<p>
-			<label for="username">Remote Number:</label>
+			<label for="remotenumber" id="remotenumberlabel">Remote Number:</label>
 			<input type="text" name="remotenumber" value="" dojoType="dijit.form.TextBox" trim="true" id="remotenumber" />
 			<div dojoType="dijit.Tooltip" connectId="remotenumber" label="A normal telephone number if you're not using a SIP phone"></div>
 		</p>
@@ -74,27 +115,27 @@ dojo.require("dijit.form.ComboBox");
 			<span class="statusdisplay" id="statedisp">State:denial</span>
 		</span>
 
-		<div dojoType="dijit.form.DropDownButton">
+		<div dojoType="dijit.form.DropDownButton" id="filemenubutton">
 			<span>File</span>
 			<div dojoType="dijit.Menu" id="Filemenu">
 				<div dojoType="dijit.MenuItem" label="Hangup" id="miHangup" onclick=agent.setState("wrapup");></div>
 				<div dojoType="dijit.MenuItem" label="Logout" id="miLogout" onclick=logout(agent);></div>
 			</div>
 		</div>
-		<div dojoType="dijit.form.DropDownButton">
+		<div dojoType="dijit.form.DropDownButton" id="editmenubutton">
 			<span>Edit</span>
 			<div dojoType="dijit.Menu" id="Editmenu">
 				<div dojoType="dijit.MenuItem" label="Config" onclick="alert('NYI');"></div>
 			</div>
 		</div>
-		<div dojoType="dijit.form.DropDownButton">
+		<div dojoType="dijit.form.DropDownButton" id="viewmenubutton">
 			<span>View</span>
 			<div dojoType="dijit.Menu" id="Viewmenu">
 				<div dojoType="dijit.MenuItem" label="Tundra" onclick="alert('NYI Tundra');"></div>
 				<div dojoType="dijit.MenuItem" label="Nihilo" onclick="alert('NYI nihilo');"></div>
 			</div>
 		</div>
-		<div dojoType="dijit.form.DropDownButton">
+		<div dojoType="dijit.form.DropDownButton" id="tabsmenubutton">
 			<span>Tabs</span>
 			<div dojoType="dijit.Menu" id="Tabsmenu">
 				<div dojoType="dijit.PopupMenuItem">
@@ -108,14 +149,14 @@ dojo.require("dijit.form.ComboBox");
 		
 	</div>
 	<div dojoType="dijit.layout.TabContainer" region="center" id="tabPanel">
-		<div dojoType="dijit.layout.ContentPane" title="Main">
-			<p id="agentnamep"><label for="agentname">Agent:</label><span id="agentname"></span></p>
-			<p id="agentstatep"><label for="state">State:</label><span id="state">Login needed</span></p>
-			<p id="agentbrandp" style="display:none"><label for="brand">Brand:</label><span id="brand"></span></p>
-			<p id="calleridp" style="display:none"><label for="callerid">Caller id:</label><span id="callerid"></span></p>
+		<div dojoType="dijit.layout.ContentPane" title="Main" id="maintab">
+			<p id="agentnamep"><label for="agentname" id="agentlabel">Agent:</label><span id="agentname"></span></p>
+			<p id="agentstatep"><label for="state" id="statelabel">State:</label><span id="state">Login needed</span></p>
+			<p id="agentbrandp" style="display:none"><label for="brand" id="brandlabel">Brand:</label><span id="brand"></span></p>
+			<p id="calleridp" style="display:none"><label for="callerid" id="calleridlabel">Caller id:</label><span id="callerid"></span></p>
 		</div>
-		<div dojoType="dijit.layout.ContentPane" title="Agents">Tab 2</div>
-		<div dojoType="dijit.layout.ContentPane" title="Queues">Tab 2</div>
+		<div dojoType="dijit.layout.ContentPane" title="Agents" id="agentstab">Tab 2</div>
+		<div dojoType="dijit.layout.ContentPane" title="Queues" id="queuestab">Tab 2</div>
 		<div dojoType="dijit.layout.ContentPane" title="Event Log" id="eventLog">
 			<textarea dojoType="dijit.form.SimpleTextarea" id="eventLogText" name="eventLogText" width="80%" rows="1000" readonly>
 			</textarea>

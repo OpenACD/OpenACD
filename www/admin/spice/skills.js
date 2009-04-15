@@ -1,6 +1,6 @@
 dojo.provide("spice.skills");
 
-var skills = function(){
+skills = function(){
 	return {};
 }
 

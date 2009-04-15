@@ -1,6 +1,6 @@
 dojo.provide("spice.medias");
 
-var medias = function(){
+medias = function(){
 	return {};
 }
 

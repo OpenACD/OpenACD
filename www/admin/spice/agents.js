@@ -2,7 +2,7 @@
 
 dojo.provide("spice.agents");
 
-var agents = function(){
+agents = function(){
 	return {}
 }
 

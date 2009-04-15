@@ -2,7 +2,7 @@
 
 dojo.provide("spice.queues");
 
-var queues = function(){
+queues = function(){
 	return {}
 };
 

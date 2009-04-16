@@ -51,9 +51,12 @@
 %% @doc Start the web management server unlinked to the parent process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
+	start(?PORT).
+
+start(Port) ->
 	?CONSOLE("Starting mochiweb...", []),
 	ets:new(cpx_management_logins, [set, public, named_table]),
-	mochiweb_http:start([{loop, {?MODULE, loop}} | ?WEB_DEFAULTS]).
+	mochiweb_http:start([{loop, {?MODULE, loop}}, {name, ?MODULE}, {port, Port}]).
 
 %% @doc Stops the web management.
 -spec(stop/0 :: () -> 'ok').

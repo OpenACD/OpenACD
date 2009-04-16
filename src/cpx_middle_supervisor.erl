@@ -54,11 +54,19 @@
 %% API functions
 %%====================================================================
 
-start_link(Maxr, Maxt, Spec) ->
+start_link(Maxr, Maxt, Spec) when is_tuple(Spec) ->
 	?CONSOLE("Starting a middleman", []),
 	{ok, Pid} = supervisor:start_link(?MODULE, [Maxr, Maxt, Spec]),
 	supervisor:start_child(Pid, Spec),
-	{ok, Pid}.
+	{ok, Pid};
+start_link(Maxr, Maxt, Name) ->
+	?CONSOLE("Starting a middle man monitor", []),
+	%{routing, {cpx_middle_supervisor, start_link, [routing_sup]}, temporary, 2000, supervisor, [?MODULE]}
+	supervisor:start_link({local, Name}, [Maxr, Maxt, {cpx_middle_supervisor, {cpx_middle_supervisor, start_link, [Maxr, Maxt]}, temporary, 2000, supervisor, [?MODULE]}]).
+
+%% @doc Start up a process with a middle supervisor between the spec and the supervisor `Name.'
+start_middleman(Name, Spec) ->
+	supervisor:start_child(Name, [Spec]).
 
 %%====================================================================
 %% Supervisor callbacks
@@ -74,9 +82,12 @@ init([Maxr, Maxt, Spec]) ->
 -ifdef(EUNIT).
 
 startup_test_() ->
-	[{"start with a spec",
+	[{"start as a middle man",
 	fun() ->
+		Dummyspec = {dummy_media, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]},
+		?CONSOLE("spec ~p is ~p", [Dummyspec, supervisor:check_childspecs([Dummyspec])]),
 		Out = start_link(3, 5, {dummy_media, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]}),
+		?CONSOLE("~p", [Out]),
 		?assertMatch({ok, _Pid}, Out)
 	end}].
 	

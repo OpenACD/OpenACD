@@ -76,7 +76,14 @@
 %% API functions
 %% @doc Start the cpx_supervisor linked to the parent process.
 start_link(Nodes) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]).
+    {ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]),
+%	Specs = load_specs(),
+%	F = fun(Spec) ->
+%		supervisor:start_child(?MODULE, Spec)
+%	end,
+%	lists:map(F, Specs),
+	{ok, Pid}.
+	
 %% @doc Start the cpx_supervisor unlinked.
 start(Nodes) -> 
 	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]),
@@ -97,11 +104,11 @@ init([Nodes]) ->
 	?CONSOLE("starting cpx_supervisor on ~p", [node()]),
 	case build_tables() of
 		ok -> 
-			DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
-			AgentManagerSpec = {agent_manager, {agent_manager, start_link, [Nodes]}, permanent, 2000, worker, [?MODULE]},
-			QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
+			Routingspec = {routing, {cpx_middle_supervisor, start_link, [routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
+			Agentspec = {agent, {cpx_middle_supervisor, start_link, [agent_sup]}, temporary, 2000, supervisor, [?MODULE]},
+			Managementspec = {management, {cpx_middle_supervisor, start_link, [management_sup]}, temporary, 2000, supervisor, [?MODULE]},
 			
-			Specs = lists:append([DispatchSpec, AgentManagerSpec, QueueManagerSpec], load_specs()),
+			Specs = [Routingspec, Agentspec, Managementspec],
 			
 			?CONSOLE("specs:  ~p", [supervisor:check_childspecs(Specs)]),
 			{ok,{{one_for_one,3,5}, Specs}}
@@ -146,9 +153,9 @@ build_tables() ->
 		{atomic, ok} -> 
 			% create some default info so the system is at least a bit usable.
 			F = fun() -> 
-				mnesia:write(#cpx_conf{module_name = agent_auth, start_function = start, start_args = []}),
-				mnesia:write(#cpx_conf{module_name = agent_tcp_listener, start_function = start, start_args = [1337]}),
-				mnesia:write(#cpx_conf{module_name = cpx_web_management, start_function = start, start_args = []})
+				mnesia:write(#cpx_conf{id = agent_auth, module_name = agent_auth, start_function = start, start_args = [], supervisor=agent_connection}),
+				mnesia:write(#cpx_conf{id = agent_tcp_listener, module_name = agent_tcp_listener, start_function = start, start_args = [1337], supervisor=agent_connection}),
+				mnesia:write(#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start, start_args = [], supervisor = management})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 

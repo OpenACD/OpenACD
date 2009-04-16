@@ -43,7 +43,9 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/3]).
+-export([
+	start_link/3
+	]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -52,16 +54,18 @@
 %% API functions
 %%====================================================================
 
-start_link(Regname, Maxr, Maxt) ->
-	?CONSOLE("Staring a middleman named ~p", [Regname]),
-    supervisor:start_link({local, Regname}, ?MODULE, [Maxr, Maxt]).
+start_link(Maxr, Maxt, Spec) ->
+	?CONSOLE("Starting a middleman", []),
+	{ok, Pid} = supervisor:start_link(?MODULE, [Maxr, Maxt, Spec]),
+	supervisor:start_child(Pid, Spec),
+	{ok, Pid}.
 
 %%====================================================================
 %% Supervisor callbacks
 %%====================================================================
 
-init([Maxr, Maxt]) ->
-    {ok,{{one_for_one, Maxr, Maxt}, []}}.
+init([Maxr, Maxt, Spec]) ->
+    {ok,{{one_for_one, Maxr, Maxt}, [Spec]}}.
 
 %%====================================================================
 %% Internal functions
@@ -70,17 +74,12 @@ init([Maxr, Maxt]) ->
 -ifdef(EUNIT).
 
 startup_test_() ->
-	[{"Starts everything okay",
+	[{"start with a spec",
 	fun() ->
-		Out = start_link(testname, 3, 5),
-		?assertMatch({ok, _P}, Out),
-		{ok, Pid} = Out,
-		?assertEqual(Pid, whereis(testname))
-	end},
-	{"goober",
-	fun() ->
-		?assert(true)
+		Out = start_link(3, 5, {dummy_media, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]}),
+		?assertMatch({ok, _Pid}, Out)
 	end}].
+	
 	
 
 -endif.

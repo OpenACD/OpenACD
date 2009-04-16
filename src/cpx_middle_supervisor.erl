@@ -44,7 +44,8 @@
 
 %% API
 -export([
-	start_link/3
+	start_direct/3,
+	start_middleman/3
 	]).
 
 %% Supervisor callbacks
@@ -54,19 +55,27 @@
 %% API functions
 %%====================================================================
 
-start_link(Maxr, Maxt, Spec) when is_tuple(Spec) ->
+%% @doc a Direct supervisor is a `one_for_one' supervisor. 
+start_direct(Maxr, Maxt, Spec) when is_tuple(Spec) ->
 	?CONSOLE("Starting a middleman", []),
-	{ok, Pid} = supervisor:start_link(?MODULE, [Maxr, Maxt, Spec, one_for_one]),
-	supervisor:start_child(Pid, Spec),
-	{ok, Pid};
-start_link(Maxr, Maxt, Name) ->
+	supervisor:start_link(?MODULE, [Maxr, Maxt, [Spec], one_for_one]);
+start_direct(Maxr, Maxt, Spec) when is_list(Spec) ->
+	?CONSOLE("Starting a middleman", []),
+	supervisor:start_link(?MODULE, [Maxr, Maxt, Spec, one_for_one]);
+start_direct(Maxr, Maxt, Name) when is_atom(Name) ->
+	?CONSOLE("Staring named middleman ~p", [Name]),
+	supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt, [], one_for_one]).
+
+%% @doc a middle man supervisor is a `simple_one_for_one' supervisor that starts a direct supervisor as a temporary child.
+%% The started supervisor then starts a child on a permanent basis.
+start_middleman(Maxr, Maxt, Name) ->
 	?CONSOLE("Starting a middle man monitor", []),
 	%{routing, {cpx_middle_supervisor, start_link, [routing_sup]}, temporary, 2000, supervisor, [?MODULE]}
-	Spec = {?MODULE, {?MODULE, start_link, [Maxr, Maxt]}, temporary, brutal_kill, supervisor, [?MODULE]},
-	supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt, Spec, simple_one_for_one]).
+	Spec = {?MODULE, {?MODULE, start_direct, [Maxr, Maxt]}, temporary, brutal_kill, supervisor, [?MODULE]},
+	supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt, [Spec], simple_one_for_one]).
 
 %% @doc Start up a process with a middle supervisor between the spec and the supervisor `Name.'
-start_middleman(Name, Spec) ->
+add_to_middleman(Name, Spec) ->
 	supervisor:start_child(Name, [Spec]).
 
 %%====================================================================
@@ -74,8 +83,8 @@ start_middleman(Name, Spec) ->
 %%====================================================================
 
 init([Maxr, Maxt, Spec, Type]) ->
-	?CONSOLE("Checking spec: ~p", [supervisor:check_childspecs([Spec])]),
-    {ok,{{Type, Maxr, Maxt}, [Spec]}}.
+	?CONSOLE("Checking spec: ~p", [supervisor:check_childspecs(Spec)]),
+    {ok,{{Type, Maxr, Maxt}, Spec}}.
 
 %%====================================================================
 %% Internal functions
@@ -84,31 +93,50 @@ init([Maxr, Maxt, Spec, Type]) ->
 -ifdef(EUNIT).
 
 startup_test_() ->
-	[{"start as a middle man",
+	[{"start as an anonymous direct supervisor with one spec.",
 	fun() ->
 		Dummyspec = {dummy_media, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]},
 		?CONSOLE("spec ~p is ~p", [Dummyspec, supervisor:check_childspecs([Dummyspec])]),
-		Out = start_link(3, 5, {dummy_media, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]}),
+		Out = start_direct(3, 5, {dummy_media, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]}),
 		?CONSOLE("~p", [Out]),
 		?assertMatch({ok, _P}, Out),
 		{ok, Pid} = Out,
 		exit(Pid, shutdown)
 	end},
-	{"start as a 'top'",
+	{"Start as an anonymouse direct supervisor with a list of specs.",
 	fun() ->
-		Out = start_link(3, 5, testsup),
+		Dummyspec1 = {dummy_media1, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]},
+		Dummyspec2 = {dummy_media2, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]},
+		?CONSOLE("specs: ~p", [supervisor:check_childspecs([Dummyspec1, Dummyspec2])]),
+		Out = start_direct(3, 5, [Dummyspec1, Dummyspec2]),
 		?CONSOLE("~p", [Out]),
 		?assertMatch({ok, _P}, Out),
 		{ok, Pid} = Out,
 		exit(Pid, shutdown)
 	end},
-	{"Start a top, then have it start a middle man.",
+	{"start as a neamed direct supervisor.",
+	fun() ->
+		Out = start_direct(3, 5, testsup),
+		?CONSOLE("~p", [Out]),
+		?assertMatch({ok, _P}, Out),
+		{ok, Pid} = Out,
+		exit(Pid, shutdown)
+	end},
+	{"Start a middle man",
+	fun() ->
+		Out = start_middleman(3, 5, testsup),
+		?CONSOLE("~p", [Out]),
+		?assertMatch({ok, _P}, Out),
+		{ok, Pid} = Out,
+		exit(Pid, shutdown)
+	end},
+	{"Start a middleman, then have it start directs.",
 	fun() ->
 		Dummyspec = {dummy_media, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]},
-		{ok, Top} = start_link(3, 5, testsup),
-		?CONSOLE("top ~p", [Top]),
-		Middle = start_middleman(testsup, Dummyspec),
-		?CONSOLE("middle ~p", [Middle]),
+		{ok, Top} = start_middleman(3, 5, testsup),
+		?CONSOLE("middleman ~p", [Top]),
+		Middle = add_to_middleman(testsup, Dummyspec),
+		?CONSOLE("direct ~p", [Middle]),
 		?assertMatch({ok, _P}, Middle),
 		exit(Top, shutdown)
 	end}].

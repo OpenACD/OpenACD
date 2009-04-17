@@ -972,5 +972,101 @@ cookie_test_() ->
 		end}
 	]}.
 
+api_test_() ->
+	{foreach,
+	fun() -> 
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		cpx_supervisor:start([node()]),
+		% add a fake login for easy testing
+		Cookie = {"ref", "salt", "login"},
+		%ets:insert(cpx_management_logins, Cookie),
+		?CONSOLE("~p", [ets:info(cpx_management_logins)]),
+		ets:insert(cpx_management_logins, {"ref", "salt", "login"}),
+
+		Cookie
+	end,
+	fun(_Whatever) -> 
+		cpx_supervisor:stop(),
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		ok
+	end,
+	[
+		fun(Cookie) ->
+			{"/checkcookie with value data",
+			fun() ->
+				Expected = 	{200, [], mochijson2:encode({struct, [{<<"success">>, true}, {<<"login">>, list_to_binary("login")}]})},
+				Apires = api(checkcookie, Cookie, []),
+				?assertEqual(Expected, Apires)
+			end}
+		end
+	]}.
+
+
+
+
+%
+%
+%
+%
+%
+%parse_path(Path) ->
+%	case Path of
+%		"/" ->
+%			{file, {"index.html", "www/admin/"}};
+%		"/getsalt" ->
+%			{api, getsalt};
+%		"/login" ->
+%			{api, login};
+%		"/logout" ->
+%			{api, logout};
+%		"/checkcookie" ->
+%			{api, checkcookie};
+%		_Other ->
+%			% section/action (params in post data)
+%			case util:string_split(Path, "/") of
+%				["", "agents", "modules", Action] ->
+%					{api, {agents, "modules", Action}};
+%				["", "agents", "profiles", Action] ->
+%					{api, {agents, "profiles", Action}};
+%				["", "agents", "profiles", Profile, Action] ->
+%					{api, {agents, "profiles", Profile, Action}};
+%				["", "agents", "agents", Action] ->
+%					{api, {agents, "agents", Action}};
+%				["", "agents", "agents", Agent, Action] ->
+%					{api, {agents, "agents", Agent, Action}};
+%				["", "skills", "groups", Action] ->
+%					{api, {skills, "groups", Action}};
+%				["", "skills", "groups", Group, Action] ->
+%					{api, {skills, "groups", Group, Action}};
+%				["", "skills", "skill", Action] ->
+%					{api, {skills, "skill", Action}};
+%				["", "skills", "skill", Skill, Action] ->
+%					{api, {skills, "skill", Skill, Action}};
+%				["", "queues", "groups", Action] ->
+%					{api, {queues, "groups", Action}};
+%				["", "queues", "groups", Group, Action] ->
+%					{api, {queues, "groups", Group, Action}};
+%				["", "queues", "queue", Queue, Action] ->
+%					{api, {queues, "queue", Queue, Action}};
+%				["", "queues", "queue", Action] ->
+%					{api, {queues, "queue", Action}};
+%				["", "medias", Action] ->
+%					{api, {medias, Action}};
+%				["", "medias", Node, Media, Action] ->
+%					{api, {medias, Node, Media, Action}};
+%				_Allothers ->
+%					case filelib:is_regular(string:concat("www/admin", Path)) of
+%						true ->
+%							{file, {string:strip(Path, left, $/), "www/admin/"}};
+%						false ->
+%							{file, {string:strip(Path, left, $/), "www/contrib/"}}
+%					end
+%			end
+%	end.
+			
 		
 -endif.

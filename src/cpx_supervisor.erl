@@ -94,7 +94,7 @@ start_link(Nodes) ->
 	
 %% @doc Start the cpx_supervisor unlinked.
 start(Nodes) -> 
-	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]),
+	{ok, Pid} = start_link(Nodes),
 	unlink(Pid),
 	{ok, Pid}.
 
@@ -216,6 +216,7 @@ get_conf(Name) ->
 
 %% @private
 start_spec(Spec) when is_record(Spec, cpx_conf) ->
+	?CONSOLE("Starting ~p with supervisor ~p", [Spec#cpx_conf.id, Spec#cpx_conf.supervisor]),
 	cpx_middle_supervisor:add_with_middleman(Spec#cpx_conf.supervisor, 3, 5, Spec).
 
 stop_spec(Spec) when is_record(Spec, cpx_conf) ->

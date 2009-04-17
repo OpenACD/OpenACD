@@ -16,7 +16,9 @@
 	BRAND: "Marca",
 	CALLERID: "Identificador de Llamada",
 	GOAVAILABLE: "Disponible",
+	ENDWRAPUP: "Finalizar Post-Proceso",
 	GORELEASED: "Liberar ...",
+	QUEUERELEASE: "Liberar Colas...",
 	MKOUTBOUND: "Llamada de salida a...",
 	DIAL: "Marcar",
 	CANCEL: "Cancelelar",
@@ -34,5 +36,5 @@
 	OUTGOING: "Llamada de Salida",
 	RELEASED: "Liberado",
 	WARMTRANSFER: "Transferencia",
-	WRAPUP: "Cierre"
+	WRAPUP: "Post-Proceso"
 }

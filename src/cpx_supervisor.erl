@@ -65,7 +65,7 @@
 	build_spec/1,
 	build_tables/0,
 	destroy/1,
-	update_conf/4,
+	update_conf/2,
 	get_conf/1,
 	stop/0
 	]).
@@ -199,15 +199,11 @@ destroy(Spec) ->
 
 %% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
 %% @see add_conf/3
-update_conf(Id, Mod, Start, Args) ->
+update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	F = fun() ->
-		[Rec] = mnesia:read({cpx_conf, Id}),
-		Newrec = Rec#cpx_conf{start_args = Start, module_name = Mod, start_function = Start},
 		destroy(Id),
-		mnesia:write(Newrec),
-		Oldmod = Rec#cpx_conf.module_name,
-		Oldmod:stop(),
-		start_spec(Newrec)
+		start_spec(Conf),
+		mnesia:write(Conf)
 	end,
 	mnesia:transaction(F).
 	
@@ -329,25 +325,28 @@ config_test_() ->
 				"Update a Config",
 				fun() -> 
 					%Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
-					try add_conf(dummy_id, dummy_media_manager, start_link, ["dummy_arg"], management_sup)
-					catch
-						_:_ -> ok
-					end,
+					add_conf(dummy_media_manager, dummy_media_manager, start_link, ["dummy_arg"], management_sup),
+%					try add_conf(dummy_media_manager, dummy_media_manager, start_link, ["dummy_arg"], management_sup)
+%					catch
+%						_:_ -> ok
+%					end,
 					Oldpid = whereis(dummy_media_manager),
-					update_conf(dummy_id, dummy_media_manager, start_link, ["new_arg"]),
+					Newrec = #cpx_conf{
+						id=dummy_media_manager,
+						module_name = dummy_media_manager,
+						start_function = start_link,
+						start_args = ["new_arg"],
+						supervisor = management_sup
+					},
+					update_conf(dummy_media_manager, Newrec),
 					Newpid = whereis(dummy_media_manager),
 					?assertNot(Oldpid =:= Newpid),
-%					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_media_manager]),
-%					F = fun() ->
-%						qlc:e(QH)
-%					end,
-%					?assertMatch({atomic, []}, mnesia:transaction(F)),
-%					Valid = #cpx_conf{module_name = new_mod, start_function = new_start, start_args = [new_arg]},
-%					QH2 = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= new_mod]),
-%					F2 = fun() -> 
-%						qlc:e(QH2)
-%					end,
-%					?assertMatch({atomic, [Valid]}, mnesia:transaction(F2)),
+					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_media_manager]),
+					F = fun() ->
+						qlc:e(QH)
+					end,
+					{atomic, [Rec]} = mnesia:transaction(F),
+					?assertEqual(["new_arg"], Rec#cpx_conf.start_args),
 					destroy(dummy_media_manager)
 				end
 			},

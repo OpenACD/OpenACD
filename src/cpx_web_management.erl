@@ -519,6 +519,11 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 	Rpcs = lists:map(F, Nodes),
 	Json = encode_medias(Rpcs, []),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"identifier">>, <<"id">>}, {<<"label">>, <<"name">>}, {<<"items">>, Json}]})};
+
+%% =====
+%% media -> node -> media
+%% =====
+
 api({medias, Node, "freeswitch", "update"}, ?COOKIE, Post) ->
 	case proplists:get_value("enabled", Post) of
 		undefined ->
@@ -935,3 +940,37 @@ encode_media_args([Arg | Tail], Acc) when is_atom(Arg) ->
 	encode_media_args(Tail, [list_to_binary(atom_to_list(Arg)) | Acc]);
 encode_media_args([Arg | Tail], Acc) when is_binary(Arg) ->
 	encode_media_args(Tail, [Arg, Acc]).
+
+%% =====
+%% tests
+%% =====
+
+-ifdef(EUNIT).
+
+cookie_test_() ->
+	{setup,
+	fun() ->
+		ets:new(cpx_management_logins, [set, public, named_table]),
+		ok
+	end,
+	fun(ok) ->
+		ets:delete(cpx_management_logins)
+	end,
+	[
+		{"A blank cookie",
+		fun() ->
+			?assertEqual(badcookie, check_cookie([]))
+		end},
+		{"A cookie, but not in the ets",
+		fun() ->
+			?assertEqual(badcookie, check_cookie([{"cpx_management", erlang:ref_to_list(make_ref())}]))
+		end},
+		{"A cookie that is in the ets",
+		fun() ->
+			ets:insert(cpx_management_logins, {"ref", "salt", "login"}),
+			?assertEqual({"ref", "salt", "login"}, check_cookie([{"cpx_management", "ref"}]))
+		end}
+	]}.
+
+		
+-endif.

@@ -189,13 +189,6 @@ destroy(Spec) ->
 		mnesia:delete({cpx_conf, Spec})
 	end,
 	mnesia:transaction(F).
-%destroy(Spec) -> 
-%	F = fun() ->
-%		[Rec] = mnesia:read({cpx_conf, Spec}),
-%		destroy(Rec),
-%		ok
-%	end,
-%	mnesia:transaction(F).
 
 %% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
 %% @see add_conf/3
@@ -207,15 +200,6 @@ update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	end,
 	mnesia:transaction(F).
 	
-%update_conf(Name, Mod, Start, Args) ->
-%	Rec = #cpx_conf{module_name = Mod, start_function = Start, start_args = Args},
-%	F = fun() -> 
-%		destroy(Name),
-%		mnesia:write(Rec),
-%		start_spec(build_spec(Rec))
-%	end,
-%	mnesia:transaction(F).
-
 get_conf(Name) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= Name]),

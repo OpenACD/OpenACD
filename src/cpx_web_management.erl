@@ -1079,13 +1079,25 @@ api_test_() ->
 		fun(Cookie) ->
 			{"/agents/profiles/someprofile/delete kills the profile",
 			fun() ->
-				agent_auth:new_profile("someproflie", []),
+				?CONSOLE("~p", [agent_auth:new_profile("someprofile", [])]),
+				?assertEqual({"someprofile", []}, agent_auth:get_profile("someprofile")),
 				{200, [], _Json} = api({agents, "profiles", "someprofile", "delete"}, Cookie, []),
 				?assertEqual(undefined, agent_auth:get_profile("someprofile"))
 			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/profiles/someprofile/update updates the profile, and corrects the agents",
+			fun() ->
+				agent_auth:new_profile("someprofile", ['_all', english]),
+				agent_auth:add_agent("someagent", "", [], agent, "someprofile"),
+				{200, [], _Json} = api({agents, "profiles", "someprofile", "update"}, Cookie, [{"name", "newprofile"}, {"skills", "_all"}]),
+				?assertEqual({"newprofile", ['_all']}, agent_auth:get_profile("newprofile")),
+				?assertEqual(undefined, agent_auth:get_profile("someprofile")),
+				{atomic, [Agent]} = agent_auth:get_agent("someagent"),
+				?assertEqual("newprofile", Agent#agent_auth.profile)
+			end}
 		end
 	]}.
-
 
 
 

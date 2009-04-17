@@ -1103,62 +1103,6 @@ api_test_() ->
 
 %
 %
-%api({agents, "profiles", "get"}, ?COOKIE, _Post) ->
-%	Profiles = agent_auth:get_profiles(),
-%	Foreachprofile = fun({Pname, Pskills}) ->
-%		Agents = agent_auth:get_agents(Pname),
-%		{struct, [{<<"name">>, list_to_binary(Pname)}, {<<"type">>, <<"profile">>}, {<<"skills">>, encode_skills(Pskills)}, {<<"agents">>, encode_agents(Agents)}]}
-%	end,
-%	Items = lists:map(Foreachprofile, Profiles),
-%	Json = {struct, [{success, true}, {<<"items">>, Items}]},
-%	{200, [], mochijson2:encode(Json)};
-%api({agents, "profiles", Profile, "getskills"}, ?COOKIE, _Post) ->
-%	{_Profilename, Skillatoms} = agent_auth:get_profile(Profile),
-%	Encoded = encode_skills(Skillatoms),
-%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})};
-%api({agents, "profiles", "new"}, ?COOKIE, Post) ->
-%	Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
-%	agent_auth:new_profile(proplists:get_value("name", Post), Skillatoms),
-%	{200, [], mochijson2:encode({struct, [{success, true}]})};
-%api({agents, "profiles", "Default", "update"}, {_Reflist, _Salt, _Login}, Post) ->
-%	case proplists:get_value("name", Post) of
-%		undefined ->
-%			Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
-%			agent_auth:set_profile("Default", "Default", Skillatoms),
-%			{200, [], mochijson2:encode({struct, [{success, true}]})};
-%		_Else ->
-%			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be renamed">>}]})}
-%	end;
-%api({agents, "profiles", Profile, "update"}, ?COOKIE, Post) ->
-%	Parseskills = fun(Skill) ->
-%		?CONSOLE("~p", [Skill]),
-%		case string:tokens(Skill, "{},") of
-%			["_brand", Brandname] ->
-%				{'_brand', Brandname};
-%			["_queue", Queuename] ->
-%				{'_queue', Queuename};
-%			[Skill] ->
-%				call_queue_config:skill_exists(Skill)
-%		end
-%	end,
-%	Skillatoms = lists:map(Parseskills, proplists:get_all_values("skills", Post)),
-%	agent_auth:set_profile(Profile, proplists:get_value("name", Post), Skillatoms),
-%	{200, [], mochijson2:encode({struct, [{success, true}]})};
-%api({agents, "profiles", "Default", "delete"}, ?COOKIE, _Post) ->
-%	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be deleted">>}]})};
-%api({agents, "profiles", Profile, "delete"}, ?COOKIE, _Post) ->
-%	agent_auth:destroy_profile(Profile),
-%	{200, [], mochijson2:encode({struct, [{success, true}]})};
-%
-%
-%
-
-
-
-
-
-%
-%
 %
 %
 %

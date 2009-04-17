@@ -146,7 +146,14 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 				OldTcpPort ->
 					{struct, [{success, true}, {<<"message">>, <<"Nothing to do">>}]};
 				N when N >= 1024, N =< 65535 ->
-					cpx_supervisor:update_conf(agent_tcp_listener, agent_tcp_listener, start_link, [N]),
+					Tcprec = #cpx_conf{
+						id = agent_tcp_listener,
+						module_name = agent_tcp_listener,
+						start_function = start_link,
+						start_args = [N],
+						supervisor = agent_connection_sup
+					},
+					cpx_supervisor:update_conf(agent_tcp_listener, Tcprec),
 					{struct, [{success, true}, {<<"message">>, <<"TCP Server enabled">>}]};
 				_N ->
 					{struct, [{success, false}, {<<"message">>, <<"Listen port out of range">>}]}
@@ -170,7 +177,14 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 				OldWebPort  ->
 					{struct, [{success, true}, {<<"message">>, <<"Nothing to do">>}]};
 				M when M >= 1024, M =< 65535 ->
-					cpx_supervisor:update_conf(agent_web_listener, agent_web_listener, start_link, [M]),
+					Webrec = #cpx_conf{
+						id = agent_web_listener,
+						module_name = agent_web_listener,
+						start_function = start_link,
+						start_args = [M],
+						supervisor = agent_connection_sup
+					},
+					cpx_supervisor:update_conf(agent_web_listener, Webrec),
 					{struct, [{success, true}, {<<"message">>, <<"Web Server enabled">>}]};
 				_M ->
 					{struct, [{success, false}, {<<"message">>, <<"Listen port out of range">>}]}
@@ -975,6 +989,7 @@ cookie_test_() ->
 api_test_() ->
 	{foreach,
 	fun() -> 
+		crypto:start(),
 		mnesia:stop(),
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
@@ -982,8 +997,6 @@ api_test_() ->
 		cpx_supervisor:start([node()]),
 		% add a fake login for easy testing
 		Cookie = {"ref", "salt", "login"},
-		%ets:insert(cpx_management_logins, Cookie),
-		?CONSOLE("~p", [ets:info(cpx_management_logins)]),
 		ets:insert(cpx_management_logins, {"ref", "salt", "login"}),
 
 		Cookie
@@ -1002,9 +1015,51 @@ api_test_() ->
 				Apires = api(checkcookie, Cookie, []),
 				?assertEqual(Expected, Apires)
 			end}
+		end,
+		fun(Cookie) ->
+			{"/getsalt",
+			fun() ->
+				{200, [], Json} = api(getsalt, Cookie, []),
+				{struct, Props} = mochijson2:decode(Json),
+				?assertNot(undefined =:= proplists:get_value(<<"salt">>, Props)),
+				?assertEqual(<<"Salt created, check salt property">>, proplists:get_value(<<"message">>, Props))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/modules/set disabling all",
+			fun() ->
+				{200, [], Json} = api({agents, "modules", "update"}, Cookie, []),
+				{struct, Props} = mochijson2:decode(Json),
+				?assertEqual(true, proplists:get_value(<<"success">>, Props)),
+				?assertEqual(undefined, whereis(agent_tcp_listener)),
+				?assertEqual(undefined, whereis(agent_web_listener))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/modules/set enabling only tcp",
+			fun() ->
+				{200, [], _Json} = api({agents, "modules", "update"}, Cookie, [{"agentModuleTCPListen", "5678"}]),
+				?assertMatch({ok, Socket}, gen_tcp:connect(net_adm:localhost(), 5678, [list])),
+				?assertNot(is_pid(whereis(agent_web_listener)))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/modules/set enabling only web",
+			fun() ->
+				{200, [], _Json} = api({agents, "modules", "update"}, Cookie, [{"agentModuleWebListen", "8787"}]),
+				?assert(is_pid(whereis(agent_web_listener))),
+				?assertEqual(undefined, whereis(agent_tcp_listener))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/modules/set enabling both",
+			fun() ->
+				{200, [], _Json} = api({agents, "modules", "update"}, Cookie, [{"agentModuleTCPListen", "8765"}, {"agentModuleWebListen", "8787"}]),
+				?assert(is_pid(whereis(agent_web_listener))),
+				?assertMatch({ok, Socket}, gen_tcp:connect(net_adm:localhost(), 8765, [list]))
+			end}
 		end
 	]}.
-
 
 
 

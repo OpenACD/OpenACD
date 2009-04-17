@@ -77,14 +77,17 @@
 %% @doc Start the cpx_supervisor linked to the parent process.
 start_link(Nodes) ->
     {ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]),
+	
 	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
-	supervisor:add_child(routing_sup, QueueManagerSpec),
-	supervisor:add_child(routing_sup, DispatchSpec),
+	supervisor:start_child(routing_sup, DispatchSpec),
+	supervisor:start_child(routing_sup, QueueManagerSpec),
+	
+	Agentconnspec = {agent_connection_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	AgentManagerSpec = {agent_manager, {agent_manager, start_link, [Nodes]}, permanent, 2000, worker, [?MODULE]},
-	AgentConnectionsSepc = {agent_connections, {cpx_middle_supervisor, start_middleman, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},
-	supervisor:add_child(agent_sup, AgentManagerSpec),
-	supervisor:add_child(agent_sup, AgentConnectionsSepc),
+	supervisor:start_child(agent_sup, AgentManagerSpec),
+	supervisor:start_child(agent_sup, Agentconnspec),
+	
 	{ok, Pid}.
 	
 %% @doc Start the cpx_supervisor unlinked.
@@ -107,9 +110,9 @@ init([Nodes]) ->
 	?CONSOLE("starting cpx_supervisor on ~p", [node()]),
 	case build_tables() of
 		ok ->
-			Routingspec = {routing, {cpx_middle_supervisor, start_direct, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
-			Agentspec = {agent, {cpx_middle_supervisor, start_direct, [3, 5, agent_sup]}, temporary, 2000, supervisor, [?MODULE]},
-			Managementspec = {management, {cpx_middle_supervisor, start_middleman, [3, 5, management_sup]}, permanent, 2000, supervisor, [?MODULE]},
+			Routingspec = {routing_sup, {cpx_middle_supervisor, start_named, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
+			Managementspec = {management_sup, {cpx_middle_supervisor, start_named, [3, 5, management_sup]}, permanent, 2000, supervisor, [?MODULE]},
+			Agentspec = {agent_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_sup]}, temporary, 2000, supervisor, [?MODULE]},
 			Specs = [Routingspec, Agentspec, Managementspec],
 			?CONSOLE("specs:  ~p", [supervisor:check_childspecs(Specs)]),
 			{ok,{{one_for_one,3,5}, Specs}}
@@ -179,13 +182,20 @@ destroy(Spec) when is_record(Spec, cpx_conf) ->
 		mnesia:delete({cpx_conf, Spec#cpx_conf.id})
 	end,
 	mnesia:transaction(F);
-destroy(Spec) -> 
+destroy(Spec) ->
 	F = fun() ->
 		[Rec] = mnesia:read({cpx_conf, Spec}),
-		destroy(Rec),
-		ok
+		stop_spec(Rec),
+		mnesia:delete({cpx_conf, Spec})
 	end,
 	mnesia:transaction(F).
+%destroy(Spec) -> 
+%	F = fun() ->
+%		[Rec] = mnesia:read({cpx_conf, Spec}),
+%		destroy(Rec),
+%		ok
+%	end,
+%	mnesia:transaction(F).
 
 %% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
 %% @see add_conf/3
@@ -223,15 +233,12 @@ get_conf(Name) ->
 	end.
 
 %% @private
-start_spec(#cpx_conf{supervisor = management_sup} = Spec) ->
-	cpx_middle_supervisor:add_to_middleman(management_sup, build_spec(Spec));
-start_spec(#cpx_conf{supervisor = agent_connection_sup} = Spec) ->
-	cpx_middle_supervisor:add_to_middleman(agent_connection_sup, build_spec(Spec));
 start_spec(Spec) when is_record(Spec, cpx_conf) ->
-	supervisor:start_child(Spec#cpx_conf.supervisor, build_spec(Spec)).
+	cpx_middle_supervisor:add_with_middleman(Spec#cpx_conf.supervisor, 3, 5, Spec).
 
 stop_spec(Spec) when is_record(Spec, cpx_conf) ->
-	Out = supervisor:terminate_child(Spec#cpx_conf.supervisor, Spec#cpx_conf.id),
+	Out = cpx_middle_supervisor:drop_child(Spec#cpx_conf.supervisor, Spec),
+%	Out = supervisor:terminate_child(Spec#cpx_conf.supervisor, Spec#cpx_conf.id),
 	?CONSOLE("Out:  ~p.  Spec:  ~p.", [Out, Spec]),
 	Out.
 
@@ -274,21 +281,14 @@ config_test_() ->
 			{
 				"Adding a Valid Config gets it to start",
 				fun() -> 
-					Valid = #cpx_conf{id = "dummy_id", module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup},
-					try add_conf("dummy_id", dummy_media_manager, start_link, ["dummy_arg"], management_sup) of
-						Huh ->
-							?CONSOLE("~p", [Huh]),
-							ok
-					catch
-						What:Why -> 
-							?CONSOLE("~p:~p", [What, Why]),
-							ok
-					end,
+					Valid = #cpx_conf{id = dummy_media_manager, module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup},
+					add_conf(dummy_media_manager, dummy_media_manager, start_link, ["dummy_arg"], management_sup),
 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_media_manager]),
 					F = fun() -> 
 						qlc:e(QH)
 					end,
-					?assertMatch({atomic, [Valid]}, mnesia:transaction(F)),
+					?CONSOLE("~p", [mnesia:transaction(F)]),
+					?assertEqual({atomic, [Valid]}, mnesia:transaction(F)),
 					?assert(is_pid(whereis(dummy_media_manager)))
 				end
 			},
@@ -313,15 +313,11 @@ config_test_() ->
 			{
 				"Destroy a Config by id only",
 				fun() -> 
-					try add_conf(dummy_id, dummy_media_manager, start_link, ["dummy_arg"], management_sup)
-					catch
-						_:_ -> ok
-					end,
+					add_conf(dummy_media_manager, dummy_media_manager, start_link, ["dummy_arg"], management_sup),
 					?assert(is_pid(whereis(dummy_media_manager))),
-					destroy(dummy_id),
-					?CONSOLE("~p", cpx_middle_supervisor:dump_middleman(management_sup)),
+					destroy(dummy_media_manager),
+					?CONSOLE("~p", [whereis(dummy_media_manager)]),
 					?assertEqual(undefined, whereis(dummy_media_manager)),
-					destroy(dummy_id),
 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_media_manager]),
 					F = fun() -> 
 						qlc:e(QH)

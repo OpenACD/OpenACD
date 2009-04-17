@@ -45,7 +45,9 @@
 %% API
 -export([
 	start_direct/3,
-	start_middleman/3
+	start_middleman/3,
+	add_to_middleman/2,
+	dump_middleman/1
 	]).
 
 %% Supervisor callbacks
@@ -72,11 +74,21 @@ start_middleman(Maxr, Maxt, Name) ->
 	?CONSOLE("Starting a middle man monitor", []),
 	%{routing, {cpx_middle_supervisor, start_link, [routing_sup]}, temporary, 2000, supervisor, [?MODULE]}
 	Spec = {?MODULE, {?MODULE, start_direct, [Maxr, Maxt]}, temporary, brutal_kill, supervisor, [?MODULE]},
-	supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt, [Spec], simple_one_for_one]).
+	supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt, [], one_for_one]).
 
 %% @doc Start up a process with a middle supervisor between the spec and the supervisor `Name.'
-add_to_middleman(Name, Spec) ->
-	supervisor:start_child(Name, [Spec]).
+add_to_middleman(Name, Maxr, Maxt, Spec) when is_record(Spec, cpx_conf) ->
+	Childspec = {Spec#cpx_conf.id, {Spec#cpx_conf.module_name, Spec#cpx_conf.start_function, Spec#cpx_conf.start_args}
+	supervisor:start_child(Name, {
+
+drop_from_middleman(Name, Spec) when is_record(Spec, cpx_conf) ->
+	drop_from_middleman(Name, Spec#cpx_conf.id);
+drop_from_middleman(Name, Id) ->
+	supervisor:terminate_child(Name, Id),
+	supervisor:delete_child(Name, Id).
+
+dump_middleman(Name) ->
+	supervisor:which_children(Name).
 
 %%====================================================================
 %% Supervisor callbacks
@@ -139,6 +151,14 @@ startup_test_() ->
 		?CONSOLE("direct ~p", [Middle]),
 		?assertMatch({ok, _P}, Middle),
 		exit(Top, shutdown)
+	end},
+	{"Stop a child of a direct that is a child of a middleman.",
+	fun() ->
+		Dummyspec = {"dummy_media_manager", {dummy_media_manager, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]},
+		{ok, Top} = start_middleman(3, 5, testsup),
+		Middle = add_to_middleman(3, 5, testsup, Dummyspec),
+		drop_from_middleman(testsup, "dummy_media_manager"),
+		?assertEqual(undefined, whereis(dummy_media_manager))
 	end}].
 	
 	

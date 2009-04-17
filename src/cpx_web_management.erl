@@ -511,26 +511,26 @@ api({queues, "queue", "new"}, ?COOKIE, Post) ->
 api({medias, "poll"}, ?COOKIE, _Post) ->
 	Nodes = [node() | nodes()],
 	F = fun(Node) ->
-		{Node, [{freeswitch, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch], 2000)}]}
+		{Node, [{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)}]}
 	end,
 	Rpcs = lists:map(F, Nodes),
 	Json = encode_medias(Rpcs, []),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"identifier">>, <<"id">>}, {<<"label">>, <<"name">>}, {<<"items">>, Json}]})};
-api({medias, Node, "freeswitch", "update"}, ?COOKIE, Post) ->
+api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 	case proplists:get_value("enabled", Post) of
 		undefined ->
-			cpx_supervisor:destroy(freeswitch),
+			cpx_supervisor:destroy(freeswitch_media_manager),
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
 			Args = [list_to_atom(proplists:get_value("cnode", Post)), proplists:get_value("domain", Post, "")],
 			Start = start_link,
 			Atomnode = list_to_existing_atom(Node),
-			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch, freeswitch, Start, Args], 2000),
+			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, freeswitch_media_manager, Start, Args], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-api({medias, Node, "freeswitch", "get"}, ?COOKIE, _Post) ->
+api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 	Anode = list_to_existing_atom(Node),
-	case rpc:call(Anode, cpx_supervisor, get_conf, [freeswitch]) of
+	case rpc:call(Anode, cpx_supervisor, get_conf, [freeswitch_media_manager]) of
 		undefined ->
 			Json = {struct, [
 				{success, true},

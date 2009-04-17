@@ -44,10 +44,11 @@
 
 %% API
 -export([
-	start_direct/3,
-	start_middleman/3,
-	add_to_middleman/2,
-	dump_middleman/1
+	start_anon/3,
+	start_named/3,
+	add_with_middleman/4,
+	add_directly/2,
+	drop_child/2
 	]).
 
 %% Supervisor callbacks
@@ -57,46 +58,36 @@
 %% API functions
 %%====================================================================
 
-%% @doc a Direct supervisor is a `one_for_one' supervisor. 
-start_direct(Maxr, Maxt, Spec) when is_tuple(Spec) ->
-	?CONSOLE("Starting a middleman", []),
-	supervisor:start_link(?MODULE, [Maxr, Maxt, [Spec], one_for_one]);
-start_direct(Maxr, Maxt, Spec) when is_list(Spec) ->
-	?CONSOLE("Starting a middleman", []),
-	supervisor:start_link(?MODULE, [Maxr, Maxt, Spec, one_for_one]);
-start_direct(Maxr, Maxt, Name) when is_atom(Name) ->
-	?CONSOLE("Staring named middleman ~p", [Name]),
-	supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt, [], one_for_one]).
+start_anon(Maxr, Maxt, Spec) when is_record(Spec, cpx_conf) ->
+	Childspec = {Spec#cpx_conf.id, {Spec#cpx_conf.module_name, Spec#cpx_conf.start_function, Spec#cpx_conf.start_args}, permanent, 2000, worker, [?MODULE]},
+	supervisor:start_link(?MODULE, [Maxr, Maxt, Childspec]).
+	
+start_named(Maxr, Maxt, Name) when is_atom(Name) ->
+	supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt]).
 
-%% @doc a middle man supervisor is a `simple_one_for_one' supervisor that starts a direct supervisor as a temporary child.
-%% The started supervisor then starts a child on a permanent basis.
-start_middleman(Maxr, Maxt, Name) ->
-	?CONSOLE("Starting a middle man monitor", []),
-	%{routing, {cpx_middle_supervisor, start_link, [routing_sup]}, temporary, 2000, supervisor, [?MODULE]}
-	Spec = {?MODULE, {?MODULE, start_direct, [Maxr, Maxt]}, temporary, brutal_kill, supervisor, [?MODULE]},
-	supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt, [], one_for_one]).
+add_with_middleman(Name, Maxr, Maxt, Spec) when is_record(Spec, cpx_conf) ->
+	?CONSOLE("~p", [Spec]),
+	supervisor:start_child(Name, {Spec#cpx_conf.id, {?MODULE, start_anon, [Maxr, Maxt, Spec]}, temporary, 2000, supervisor, [?MODULE]}).
 
-%% @doc Start up a process with a middle supervisor between the spec and the supervisor `Name.'
-add_to_middleman(Name, Maxr, Maxt, Spec) when is_record(Spec, cpx_conf) ->
-	Childspec = {Spec#cpx_conf.id, {Spec#cpx_conf.module_name, Spec#cpx_conf.start_function, Spec#cpx_conf.start_args}
-	supervisor:start_child(Name, {
+add_directly(Name, Spec) when is_record(Spec, cpx_conf) ->
+	Childspec = {Spec#cpx_conf.id, {Spec#cpx_conf.module_name, Spec#cpx_conf.start_function, Spec#cpx_conf.start_args}, permanent, 2000, worker, [?MODULE]},
+	supervisor:start_child(Name, Childspec).
 
-drop_from_middleman(Name, Spec) when is_record(Spec, cpx_conf) ->
-	drop_from_middleman(Name, Spec#cpx_conf.id);
-drop_from_middleman(Name, Id) ->
-	supervisor:terminate_child(Name, Id),
-	supervisor:delete_child(Name, Id).
-
-dump_middleman(Name) ->
-	supervisor:which_children(Name).
+drop_child(Name, Spec) when is_record(Spec, cpx_conf) ->
+	drop_child(Name, Spec#cpx_conf.id);
+drop_child(Name, Childid) ->
+	supervisor:terminate_child(Name, Childid),
+	supervisor:delete_child(Name, Childid).
 
 %%====================================================================
 %% Supervisor callbacks
 %%====================================================================
 
-init([Maxr, Maxt, Spec, Type]) ->
-	?CONSOLE("Checking spec: ~p", [supervisor:check_childspecs(Spec)]),
-    {ok,{{Type, Maxr, Maxt}, Spec}}.
+init([Maxr, Maxt]) ->
+    {ok,{{one_for_one, Maxr, Maxt}, []}};
+init([Maxr, Maxt, Spec]) ->
+	?CONSOLE("Checking spec: ~p", [supervisor:check_childspecs([Spec])]),
+    {ok,{{one_for_one, Maxr, Maxt}, [Spec]}}.
 
 %%====================================================================
 %% Internal functions
@@ -107,57 +98,59 @@ init([Maxr, Maxt, Spec, Type]) ->
 startup_test_() ->
 	[{"start as an anonymous direct supervisor with one spec.",
 	fun() ->
-		Dummyspec = {dummy_media, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]},
-		?CONSOLE("spec ~p is ~p", [Dummyspec, supervisor:check_childspecs([Dummyspec])]),
-		Out = start_direct(3, 5, {dummy_media, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]}),
+		Dummyspec = #cpx_conf{
+			id = dummy_media_manager, 
+			module_name = dummy_media_manager, 
+			start_function = start_link,
+			start_args = []
+		},
+		Out = start_anon(3, 5, Dummyspec),
 		?CONSOLE("~p", [Out]),
 		?assertMatch({ok, _P}, Out),
 		{ok, Pid} = Out,
 		exit(Pid, shutdown)
 	end},
-	{"Start as an anonymouse direct supervisor with a list of specs.",
+	{"start as a neamed supervisor.",
 	fun() ->
-		Dummyspec1 = {dummy_media1, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]},
-		Dummyspec2 = {dummy_media2, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]},
-		?CONSOLE("specs: ~p", [supervisor:check_childspecs([Dummyspec1, Dummyspec2])]),
-		Out = start_direct(3, 5, [Dummyspec1, Dummyspec2]),
+		Out = start_named(3, 5, testsup),
 		?CONSOLE("~p", [Out]),
 		?assertMatch({ok, _P}, Out),
 		{ok, Pid} = Out,
-		exit(Pid, shutdown)
-	end},
-	{"start as a neamed direct supervisor.",
-	fun() ->
-		Out = start_direct(3, 5, testsup),
-		?CONSOLE("~p", [Out]),
-		?assertMatch({ok, _P}, Out),
-		{ok, Pid} = Out,
-		exit(Pid, shutdown)
+		exit(whereis(testsup), shutdown),
+		?CONSOLE("~p", [whereis(testsup)])
 	end},
 	{"Start a middle man",
 	fun() ->
-		Out = start_middleman(3, 5, testsup),
+		Out = start_named(3, 5, testsup),
 		?CONSOLE("~p", [Out]),
 		?assertMatch({ok, _P}, Out),
 		{ok, Pid} = Out,
-		exit(Pid, shutdown)
+		Dummyspec = #cpx_conf{
+			id = dummy_media_manager, 
+			module_name = dummy_media_manager, 
+			start_function = start_link,
+			start_args = []
+		},
+		Out2 = add_with_middleman(testsup, 3, 5, Dummyspec),
+		?assertMatch({ok, _P2}, Out2),
+		{ok, Pid2} = Out2,
+		?assertNot(Pid2 =:= Pid),
+		Dpid = whereis(dummy_media_manager),
+		?assertNot(Pid2 =:= Dpid),
+		exit(whereis(testsup), shutdown),
+		?CONSOLE("~p", [whereis(testsup)])
 	end},
-	{"Start a middleman, then have it start directs.",
+	{"Stop a child that has a middleman.",
 	fun() ->
-		Dummyspec = {dummy_media, {dummy_media, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]},
-		{ok, Top} = start_middleman(3, 5, testsup),
-		?CONSOLE("middleman ~p", [Top]),
-		Middle = add_to_middleman(testsup, Dummyspec),
-		?CONSOLE("direct ~p", [Middle]),
-		?assertMatch({ok, _P}, Middle),
-		exit(Top, shutdown)
-	end},
-	{"Stop a child of a direct that is a child of a middleman.",
-	fun() ->
-		Dummyspec = {"dummy_media_manager", {dummy_media_manager, start_link, ["test"]}, temporary, brutal_kill, worker, [?MODULE]},
-		{ok, Top} = start_middleman(3, 5, testsup),
-		Middle = add_to_middleman(3, 5, testsup, Dummyspec),
-		drop_from_middleman(testsup, "dummy_media_manager"),
+		Dummyspec = #cpx_conf{
+			id = dummy_media_manager, 
+			module_name = dummy_media_manager, 
+			start_function = start_link,
+			start_args = []
+		},
+		{ok, Top} = start_named(3, 5, testsup),
+		Middle = add_with_middleman(testsup, 3, 5, Dummyspec),
+		drop_child(testsup, dummy_media_manager),
 		?assertEqual(undefined, whereis(dummy_media_manager))
 	end}].
 	

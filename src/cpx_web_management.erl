@@ -1039,7 +1039,7 @@ api_test_() ->
 			{"/agents/modules/set enabling only tcp",
 			fun() ->
 				{200, [], _Json} = api({agents, "modules", "update"}, Cookie, [{"agentModuleTCPListen", "5678"}]),
-				?assertMatch({ok, Socket}, gen_tcp:connect(net_adm:localhost(), 5678, [list])),
+				?assertMatch({ok, _Socket}, gen_tcp:connect(net_adm:localhost(), 5678, [list])),
 				?assertNot(is_pid(whereis(agent_web_listener)))
 			end}
 		end,
@@ -1056,7 +1056,7 @@ api_test_() ->
 			fun() ->
 				{200, [], _Json} = api({agents, "modules", "update"}, Cookie, [{"agentModuleTCPListen", "8765"}, {"agentModuleWebListen", "8787"}]),
 				?assert(is_pid(whereis(agent_web_listener))),
-				?assertMatch({ok, Socket}, gen_tcp:connect(net_adm:localhost(), 8765, [list]))
+				?assertMatch({ok, _Socket}, gen_tcp:connect(net_adm:localhost(), 8765, [list]))
 			end}
 		end,
 		fun(Cookie) ->
@@ -1067,6 +1067,21 @@ api_test_() ->
 				?assertEqual("newprofile", Name),
 				?assert(lists:member('_all', Skills)),
 				?assert(lists:member(english, Skills))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/profiles/Default/delete does nothing",
+			fun() ->
+				{200, [], _Json} = api({agents, "profiles", "Default", "delete"}, Cookie, []),
+				?assertEqual({"Default", []}, agent_auth:get_profile("Default"))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/profiles/someprofile/delete kills the profile",
+			fun() ->
+				agent_auth:new_profile("someproflie", []),
+				{200, [], _Json} = api({agents, "profiles", "someprofile", "delete"}, Cookie, []),
+				?assertEqual(undefined, agent_auth:get_profile("someprofile"))
 			end}
 		end
 	]}.

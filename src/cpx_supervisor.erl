@@ -88,6 +88,8 @@ start_link(Nodes) ->
 	supervisor:start_child(agent_sup, AgentManagerSpec),
 	supervisor:start_child(agent_sup, Agentconnspec),
 	
+	load_specs(),
+	
 	{ok, Pid}.
 	
 %% @doc Start the cpx_supervisor unlinked.
@@ -231,7 +233,7 @@ load_specs() ->
 	end,
 	case mnesia:transaction(F) of
 		{atomic, Records} -> 
-			lists:map(fun(I) -> build_spec(I) end, Records);
+			lists:map(fun(I) -> start_spec(I) end, Records);
 		Else -> 
 			?CONSOLE("unable to retrieve specs:  ~p", [Else]),
 			Else

@@ -32,7 +32,7 @@
 % child_spec() = {Id,StartFunc,Restart,Shutdown,Type,Modules}
 
 -record(cpx_conf, {
-	id = erlang:error({undefined, name}) :: any(),
+	id = erlang:error({undefined, id}) :: any(),
 	module_name = erlang:error({undefined, module_name}) :: atom(),
 	start_function = erlang:error({undefined, start_function}) :: atom(),
 	start_args = [] :: [any()],

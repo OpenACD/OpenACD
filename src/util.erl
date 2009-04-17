@@ -249,7 +249,7 @@ subtract_skill_lists(List1, List2) ->
 %% If you trying to create the same table twice, it simply returns ok, otherwise returns the raw mnesia create_table result.
 %% Takes the same parameters as mnesia:create_table.
 %% @see mnesia:create_table/2
--spec(build_table/2 :: (atom(), [any()]) -> 'ok' | {'atomic', 'ok'}).
+-spec(build_table/2 :: (atom(), [any()]) -> 'exists' | {'atomic', 'ok'} | 'copied').
 build_table(Tablename, Options) when is_atom(Tablename) ->
 	case mnesia:system_info(is_running) of
 		yes -> 
@@ -258,12 +258,12 @@ build_table(Tablename, Options) when is_atom(Tablename) ->
 					case lists:member(Tablename, mnesia:system_info(local_tables)) of
 						true -> 
 							io:format("Table '~p' already exists.~n", [Tablename]),
-							ok;
+							exists;
 						false ->
 							case lists:member(Tablename, mnesia:system_info(tables)) of
 								true ->
 									mnesia:add_table_copy(Tablename ,node(), disc_copies),
-									ok;
+									copied;
 								false ->
 									mnesia:create_table(Tablename, Options)
 						end

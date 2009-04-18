@@ -43,13 +43,8 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--ifndef(TICKMOD).
--define(TICKMOD, 1).
 -endif.
--define(TICK_LENGTH, 500 * ?TICKMOD).
--else.
--define(TICK_LENGTH, 10000).
--endif.
+-define(TICK_LENGTH, 500).
 
 -define(RINGOUT, 4).
 -define(DEFAULT_PATHCOST, 15).

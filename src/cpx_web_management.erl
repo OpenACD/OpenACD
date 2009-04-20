@@ -1136,6 +1136,15 @@ api_test_() ->
 				%?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
 				agent_auth:destroy("someagent")
 			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/agents/someagent/delete deleting an agent",
+			fun() ->
+				agent_auth:add_agent("someagent", "somepassword", [], agent, "Default"),
+				?assertMatch({atomic, [_Rec]}, agent_auth:get_agent("someagent")),
+				{200, [], _Json} = api({agents, "agents", "someagent", "delete"}, Cookie, []),
+				?assertEqual({atomic, []}, agent_auth:get_agent("someagent"))
+			end}
 		end
 	]}.
 

@@ -29,9 +29,26 @@
 
 %% @hidden
 
+% child_spec() = {Id,StartFunc,Restart,Shutdown,Type,Modules}
+
 -record(cpx_conf, {
-	module_name :: atom(),
-	start_function :: atom(),
-	start_args :: [any()]
+	id = erlang:error({undefined, id}) :: any(),
+	module_name = erlang:error({undefined, module_name}) :: atom(),
+	start_function = erlang:error({undefined, start_function}) :: atom(),
+	start_args = [] :: [any()],
+	supervisor = management_sup :: 'routing_sup' | 'agent_sup' | 'agent_connection_sup' | 'management_sup'
 }).
 
+
+%cpx ->
+%	cpx_web_mangement
+%	{routing, temp, 1for1} ->
+%		{dispatch_manager, permanent}
+%		{queue_manager, permanent}
+%	agent ->
+%		agent_manager
+%		agent_connections ->
+%			agent_tcp_connection
+%			agent_web_connection
+%	media ->
+%		freeswitch

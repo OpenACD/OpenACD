@@ -51,9 +51,12 @@
 %% @doc Start the web management server unlinked to the parent process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
+	start(?PORT).
+
+start(Port) ->
 	?CONSOLE("Starting mochiweb...", []),
 	ets:new(cpx_management_logins, [set, public, named_table]),
-	mochiweb_http:start([{loop, {?MODULE, loop}} | ?WEB_DEFAULTS]).
+	mochiweb_http:start([{loop, {?MODULE, loop}}, {name, ?MODULE}, {port, Port}]).
 
 %% @doc Stops the web management.
 -spec(stop/0 :: () -> 'ok').
@@ -143,7 +146,14 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 				OldTcpPort ->
 					{struct, [{success, true}, {<<"message">>, <<"Nothing to do">>}]};
 				N when N >= 1024, N =< 65535 ->
-					cpx_supervisor:update_conf(agent_tcp_listener, agent_tcp_listener, start_link, [N]),
+					Tcprec = #cpx_conf{
+						id = agent_tcp_listener,
+						module_name = agent_tcp_listener,
+						start_function = start_link,
+						start_args = [N],
+						supervisor = agent_connection_sup
+					},
+					cpx_supervisor:update_conf(agent_tcp_listener, Tcprec),
 					{struct, [{success, true}, {<<"message">>, <<"TCP Server enabled">>}]};
 				_N ->
 					{struct, [{success, false}, {<<"message">>, <<"Listen port out of range">>}]}
@@ -167,7 +177,14 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 				OldWebPort  ->
 					{struct, [{success, true}, {<<"message">>, <<"Nothing to do">>}]};
 				M when M >= 1024, M =< 65535 ->
-					cpx_supervisor:update_conf(agent_web_listener, agent_web_listener, start_link, [M]),
+					Webrec = #cpx_conf{
+						id = agent_web_listener,
+						module_name = agent_web_listener,
+						start_function = start_link,
+						start_args = [M],
+						supervisor = agent_connection_sup
+					},
+					cpx_supervisor:update_conf(agent_web_listener, Webrec),
 					{struct, [{success, true}, {<<"message">>, <<"Web Server enabled">>}]};
 				_M ->
 					{struct, [{success, false}, {<<"message">>, <<"Listen port out of range">>}]}
@@ -516,6 +533,11 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 	Rpcs = lists:map(F, Nodes),
 	Json = encode_medias(Rpcs, []),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"identifier">>, <<"id">>}, {<<"label">>, <<"name">>}, {<<"items">>, Json}]})};
+
+%% =====
+%% media -> node -> media
+%% =====
+
 api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 	case proplists:get_value("enabled", Post) of
 		undefined ->
@@ -523,9 +545,13 @@ api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
 			Args = [list_to_atom(proplists:get_value("cnode", Post)), proplists:get_value("domain", Post, "")],
-			Start = start_link,
 			Atomnode = list_to_existing_atom(Node),
-			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, freeswitch_media_manager, Start, Args], 2000),
+			Conf = #cpx_conf{
+				id = freeswitch_media_manager,
+				module_name = freeswitch_media_manager,
+				start_function = start_link,
+				start_args = Args},
+			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, Conf], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
 api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
@@ -932,3 +958,611 @@ encode_media_args([Arg | Tail], Acc) when is_atom(Arg) ->
 	encode_media_args(Tail, [list_to_binary(atom_to_list(Arg)) | Acc]);
 encode_media_args([Arg | Tail], Acc) when is_binary(Arg) ->
 	encode_media_args(Tail, [Arg, Acc]).
+
+%% =====
+%% tests
+%% =====
+
+-ifdef(EUNIT).
+
+cookie_test_() ->
+	{setup,
+	fun() ->
+		ets:new(cpx_management_logins, [set, public, named_table]),
+		ok
+	end,
+	fun(ok) ->
+		ets:delete(cpx_management_logins)
+	end,
+	[
+		{"A blank cookie",
+		fun() ->
+			?assertEqual(badcookie, check_cookie([]))
+		end},
+		{"A cookie, but not in the ets",
+		fun() ->
+			?assertEqual(badcookie, check_cookie([{"cpx_management", erlang:ref_to_list(make_ref())}]))
+		end},
+		{"A cookie that is in the ets",
+		fun() ->
+			ets:insert(cpx_management_logins, {"ref", "salt", "login"}),
+			?assertEqual({"ref", "salt", "login"}, check_cookie([{"cpx_management", "ref"}]))
+		end}
+	]}.
+
+api_test_() ->
+	{foreach,
+	fun() -> 
+		crypto:start(),
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		cpx_supervisor:start([node()]),
+		% add a fake login for easy testing
+		Cookie = {"ref", "salt", "login"},
+		ets:insert(cpx_management_logins, {"ref", "salt", "login"}),
+
+		Cookie
+	end,
+	fun(_Whatever) -> 
+		cpx_supervisor:stop(),
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		ok
+	end,
+	[
+		fun(Cookie) ->
+			{"/checkcookie with value data",
+			fun() ->
+				Expected = 	{200, [], mochijson2:encode({struct, [{<<"success">>, true}, {<<"login">>, list_to_binary("login")}]})},
+				Apires = api(checkcookie, Cookie, []),
+				?assertEqual(Expected, Apires)
+			end}
+		end,
+		fun(Cookie) ->
+			{"/getsalt",
+			fun() ->
+				{200, [], Json} = api(getsalt, Cookie, []),
+				{struct, Props} = mochijson2:decode(Json),
+				?assertNot(undefined =:= proplists:get_value(<<"salt">>, Props)),
+				?assertEqual(<<"Salt created, check salt property">>, proplists:get_value(<<"message">>, Props))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/modules/set disabling all",
+			fun() ->
+				{200, [], Json} = api({agents, "modules", "update"}, Cookie, []),
+				{struct, Props} = mochijson2:decode(Json),
+				?assertEqual(true, proplists:get_value(<<"success">>, Props)),
+				?assertEqual(undefined, whereis(agent_tcp_listener)),
+				?assertEqual(undefined, whereis(agent_web_listener))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/modules/set enabling only tcp",
+			fun() ->
+				{200, [], _Json} = api({agents, "modules", "update"}, Cookie, [{"agentModuleTCPListen", "5678"}]),
+				?assertMatch({ok, _Socket}, gen_tcp:connect(net_adm:localhost(), 5678, [list])),
+				?assertNot(is_pid(whereis(agent_web_listener)))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/modules/set enabling only web",
+			fun() ->
+				{200, [], _Json} = api({agents, "modules", "update"}, Cookie, [{"agentModuleWebListen", "8787"}]),
+				?assert(is_pid(whereis(agent_web_listener))),
+				?assertEqual(undefined, whereis(agent_tcp_listener))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/modules/set enabling both",
+			fun() ->
+				{200, [], _Json} = api({agents, "modules", "update"}, Cookie, [{"agentModuleTCPListen", "8765"}, {"agentModuleWebListen", "8787"}]),
+				?assert(is_pid(whereis(agent_web_listener))),
+				?assertMatch({ok, _Socket}, gen_tcp:connect(net_adm:localhost(), 8765, [list]))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/profiles/new New profile",
+			fun() ->
+				{200, [], _Json} = api({agents, "profiles", "new"}, Cookie, [{"name", "newprofile"}, {"skills", "_all"}, {"skills", "english"}]),
+				{Name, Skills} = agent_auth:get_profile("newprofile"),
+				?assertEqual("newprofile", Name),
+				?assert(lists:member('_all', Skills)),
+				?assert(lists:member(english, Skills))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/profiles/Default/delete does nothing",
+			fun() ->
+				{200, [], _Json} = api({agents, "profiles", "Default", "delete"}, Cookie, []),
+				?assertEqual({"Default", []}, agent_auth:get_profile("Default"))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/profiles/someprofile/delete kills the profile",
+			fun() ->
+				?CONSOLE("~p", [agent_auth:new_profile("someprofile", [])]),
+				?assertEqual({"someprofile", []}, agent_auth:get_profile("someprofile")),
+				{200, [], _Json} = api({agents, "profiles", "someprofile", "delete"}, Cookie, []),
+				?assertEqual(undefined, agent_auth:get_profile("someprofile"))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/profiles/someprofile/update updates the profile, and corrects the agents",
+			fun() ->
+				agent_auth:new_profile("someprofile", ['_all', english]),
+				agent_auth:add_agent("someagent", "", [], agent, "someprofile"),
+				{200, [], _Json} = api({agents, "profiles", "someprofile", "update"}, Cookie, [{"name", "newprofile"}, {"skills", "_all"}]),
+				?assertEqual({"newprofile", ['_all']}, agent_auth:get_profile("newprofile")),
+				?assertEqual(undefined, agent_auth:get_profile("someprofile")),
+				{atomic, [Agent]} = agent_auth:get_agent("someagent"),
+				?assertEqual("newprofile", Agent#agent_auth.profile)
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/agents/new adds a new agent (all fields right)",
+			fun() ->
+				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
+				Post = [
+					{"password", "goober"},
+					{"confirm", "goober"},
+					{"skills", "english"},
+					{"skills", "{_brand,Somebrand}"},
+					{"login", "someagent"},
+					{"security", "agent"},
+					{"profile", "Default"}
+				],
+				{200, [], _Json} = api({agents, "agents", "new"}, Cookie, Post),
+				{atomic, [Rec]} = agent_auth:get_agent("someagent"),
+				?CONSOLE("~p", [Rec#agent_auth.skills]),
+				?assertEqual(true, lists:member(english, Rec#agent_auth.skills)),
+				?assertEqual(true, lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
+				agent_auth:destroy("someagent")
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/agents/new adds a new agent (password mismatch)",
+			fun() ->
+				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
+				Post = [
+					{"password", "goober"},
+					{"confirm", "typoed"},
+					{"skills", "english"},
+					{"skills", "{_brand,Somebrand}"},
+					{"login", "someagent"},
+					{"security", "agent"},
+					{"profile", "Default"}
+				],
+				?assertError({case_clause,"goober"}, api({agents, "agents", "new"}, Cookie, Post)),
+				%{200, [], Json} = api({agents, "agents", "new"}, Cookie, Post),
+				%?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
+				agent_auth:destroy("someagent")
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/agents/someagent/delete deleting an agent",
+			fun() ->
+				agent_auth:add_agent("someagent", "somepassword", [], agent, "Default"),
+				?assertMatch({atomic, [_Rec]}, agent_auth:get_agent("someagent")),
+				{200, [], _Json} = api({agents, "agents", "someagent", "delete"}, Cookie, []),
+				?assertEqual({atomic, []}, agent_auth:get_agent("someagent"))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/agents/someagent/update updating an agent, but not password",
+			fun() ->
+				agent_auth:add_agent("someagent", "somepassword", [], supervisor, "Default"),
+				{atomic, [Oldrec]} = agent_auth:get_agent("someagent"),
+				Post = [
+					{"skills", "{_brand,Somebrand}"},
+					{"skills", "english"},
+					{"password", ""},
+					{"confirm", ""},
+					{"security", "agent"},
+					{"profile", "Default"},
+					{"login", "renamed"}
+				],
+				api({agents, "agents", "someagent", "update"}, Cookie, Post),
+				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
+				{atomic, [Rec]} = agent_auth:get_agent("renamed"),
+				?assertEqual(agent, Rec#agent_auth.securitylevel),
+				?assert(lists:member(english, Rec#agent_auth.skills)),
+				?assert(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
+				?assertEqual(Oldrec#agent_auth.password, Rec#agent_auth.password),
+				agent_auth:destroy("renamed")
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/agents/someagent/update updating an agent and password",
+			fun() ->
+				agent_auth:add_agent("someagent", "somepassword", [], supervisor, "Default"),
+				{atomic, [Oldrec]} = agent_auth:get_agent("someagent"),
+				Post = [
+					{"skills", "{_brand,Somebrand}"},
+					{"skills", "english"},
+					{"password", "newpass"},
+					{"confirm", "newpass"},
+					{"security", "agent"},
+					{"profile", "Default"},
+					{"login", "renamed"}
+				],
+				api({agents, "agents", "someagent", "update"}, Cookie, Post),
+				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
+				{atomic, [Rec]} = agent_auth:get_agent("renamed"),
+				?assertEqual(agent, Rec#agent_auth.securitylevel),
+				?assert(lists:member(english, Rec#agent_auth.skills)),
+				?assert(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
+				?assertNot(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
+				agent_auth:destroy("renamed")
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/agents/someagent/update updating an agent fails w/ password mismtach",
+			fun() ->
+				agent_auth:add_agent("someagent", "somepassword", [], supervisor, "Default"),
+				{atomic, [Oldrec]} = agent_auth:get_agent("someagent"),
+				Post = [
+					{"skills", "{_brand,Somebrand}"},
+					{"skills", "english"},
+					{"password", "newpass"},
+					{"confirm", "typoed"},
+					{"security", "agent"},
+					{"profile", "Default"},
+					{"login", "renamed"}
+				],
+				?assertError({case_clause, "newpass"}, api({agents, "agents", "someagent", "update"}, Cookie, Post)),
+				?assertEqual({atomic, []}, agent_auth:get_agent("renamed")),
+				{atomic, [Rec]} = agent_auth:get_agent("someagent"),
+				?assertEqual(supervisor, Rec#agent_auth.securitylevel),
+				?assertNot(lists:member(english, Rec#agent_auth.skills)),
+				?assertNot(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
+				?assert(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
+				agent_auth:destroy("someagent")
+			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/agents/someagent/update updating an agent fails w/o password change",
+			fun() ->
+				agent_auth:add_agent("someagent", "somepassword", [], supervisor, "Default"),
+				{atomic, [Oldrec]} = agent_auth:get_agent("someagent"),
+				Post = [
+					{"skills", "{_brand,Somebrand}"},
+					{"skills", "english"},
+					{"password", ""},
+					{"confirm", ""},
+					{"security", "agent"},
+					{"profile", "Default"},
+					{"login", "renamed"}
+				],
+				api({agents, "agents", "someagent", "update"}, Cookie, Post),
+				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
+				{atomic, [Rec]} = agent_auth:get_agent("renamed"),
+				?assertEqual(agent, Rec#agent_auth.securitylevel),
+				?assert(lists:member(english, Rec#agent_auth.skills)),
+				?assert(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
+				?assert(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
+				agent_auth:destroy("renamed")
+			end}
+		end,
+		fun(Cookie) ->
+			{"/skills/skill/new Creating a skill",
+			fun() ->
+				Post = [
+					{"atom", "testskill"},
+					{"name", "Test Skill"},
+					{"description", "Test skill for gooberness"},
+					{"group", "Magic"}
+				],
+				api({skills, "skill", "new"}, Cookie, Post),
+				Rec = call_queue_config:get_skill(testskill),
+				Testrec = #skill_rec{
+					atom = testskill,
+					name = "Test Skill",
+					protected = false,
+					description = "Test skill for gooberness",
+					group = "Magic"},
+				?assertEqual(Testrec, Rec),
+				F = fun() ->
+					mnesia:delete({skill_rec, testskill})
+				end,
+				mnesia:transaction(F)
+			end}
+		end,
+		fun(Cookie) ->
+			{"/skills/skill/testskill/update Updating a skill",
+			fun() ->
+				Oldrec = #skill_rec{
+					atom = testskill,
+					name = "Test Skill",
+					protected = false,
+					description = "Test skill for gooberness",
+					group = "Magic"},
+				call_queue_config:new_skill(Oldrec),
+				Post = [
+					{"name", "New Name"},
+					{"description", "Blah blah blah"},
+					{"group", "Languages"}
+				],
+				Newrec = #skill_rec{
+					atom = testskill,
+					name = "New Name",
+					protected = false,
+					description = "Blah blah blah",
+					group = "Languages"},
+				api({skills, "skill", "testskill", "update"}, Cookie, Post),
+				?assertEqual(Newrec, call_queue_config:get_skill(testskill)),
+				F = fun() ->
+					mnesia:delete({skill_rec, testskill})
+				end,
+				mnesia:transaction(F)
+			end}
+		end,
+		fun(Cookie) ->
+			{"/queues/groups/new Creating queue group",
+			fun() ->
+				Recipe = [{[{ticks, 5}], prioritize, [], run_many}],
+				Jrecipe = mochijson2:encode(encode_recipe(Recipe)),
+				Post = [
+					{"name", "Test Q Group"},
+					{"sort", "27"},
+					{"recipe", Jrecipe}
+				],
+				?assertEqual({atomic, []}, call_queue_config:get_queue_group("Test Q Group")),
+				api({queues, "groups", "new"}, Cookie, Post),
+				{atomic, [Rec]} = call_queue_config:get_queue_group("Test Q Group"),
+				Testrec = #queue_group{
+					name = "Test Q Group",
+					recipe = Recipe,
+					sort = 27,
+					protected = false
+				},
+				?assertEqual(Testrec, Rec),
+				call_queue_config:destroy_queue_group("Test Q Group")
+			end}
+		end,
+		fun(Cookie) ->
+			{"/queus/groups/Test Q Group/update Updating a queue group",
+			fun() ->
+				Recipe = [{[{ticks, 5}], prioritize, [], run_many}],
+				Qgrouprec = #queue_group{
+					name = "Test Q Group",
+					recipe = Recipe,
+					sort = 35
+				},
+				call_queue_config:new_queue_group(Qgrouprec),
+				Newrecipe = [{[{calls_queued, '<', 200}], deprioritize, [], run_once}],
+				Newjrecipe = mochijson2:encode(encode_recipe(Newrecipe)),
+				Post = [
+					{"name", "Renamed Q Group"},
+					{"sort", "27"},
+					{"recipe", Newjrecipe}
+				],
+				api({queues, "groups", "Test Q Group", "update"}, Cookie, Post),
+				{atomic, [Rec]} = call_queue_config:get_queue_group("Renamed Q Group"),
+				Testrec = #queue_group{
+					name = "Renamed Q Group",
+					recipe = Newrecipe,
+					sort = 27,
+					protected = false
+				},
+				?assertNot(Qgrouprec =:= Rec),
+				?assertEqual(Testrec, Rec),
+				?assertEqual({atomic, []}, call_queue_config:get_queue_group("Test Q Group")),
+				call_queue_config:destroy_queue_group("Renamed Q Group")
+			end}
+		end,
+		fun(Cookie) ->
+			{"/queues/groups/Test Q Group/delete Destroying queue group",
+			fun() ->
+				Recipe = [{[{ticks, 5}], prioritize, [], run_many}],
+				Qgrouprec = #queue_group{
+					name = "Test Q Group",
+					recipe = Recipe,
+					sort = 35
+				},
+				call_queue_config:new_queue_group(Qgrouprec),
+				?assertMatch({atomic, [_Rec]}, call_queue_config:get_queue_group("Test Q Group")),
+				api({queues, "groups", "Test Q Group", "delete"}, Cookie, []),
+				?assertEqual({atomic, []}, call_queue_config:get_queue_group("Test Q Group"))
+			end}
+		end,
+		fun(Cookie) ->
+			{timeout,
+			120,
+			[
+				{"/medias/Thisnode/freeswitch_media_manager/update disabling",
+				fun() ->
+					Fsconf = #cpx_conf{
+						id = freeswitch_media_manager,
+						module_name = freeswitch_media_manager,
+						start_function = start_link,
+						start_args = [freeswitch@localhost, "localhost"],
+						supervisor = management_sup},
+					cpx_supervisor:destroy(freeswitch_media_manager),
+					?CONSOLE("post destroy", []),
+					cpx_supervisor:add_conf(Fsconf),
+					?CONSOLE("post add", []),
+					?assertEqual(Fsconf, cpx_supervisor:get_conf(freeswitch_media_manager)),
+					?CONSOLE("post get", []),
+					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, []),
+					?CONSOLE("post api", []),
+					?assertEqual(undefined, cpx_supervisor:get_conf(freeswitch_media_manager)),
+					?CONSOLE("post assertEqual", []),
+					cpx_supervisor:destroy(freeswitch_media_manager)
+				end}
+			]}
+		end,
+		fun(Cookie) ->
+			{timeout,
+			120,
+			[
+				{"/medias/Thisnode/freeswitch_media_manager/update enabling",
+				fun() ->
+					?assertEqual(undefined, cpx_supervisor:get_conf(freeswitch_media_manager)),
+					Post = [
+						{"enabled", "some data whichd oesn't matter"},
+						{"cnode", "freeswitch@localhost"},
+						{"domain", "localhost"}
+					],
+					Fsconf = #cpx_conf{
+						id = freeswitch_media_manager,
+						module_name = freeswitch_media_manager,
+						start_function = start_link,
+						start_args = [freeswitch@localhost, "localhost"],
+						supervisor = management_sup},
+					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, Post),
+					?assertEqual(Fsconf, cpx_supervisor:get_conf(freeswitch_media_manager)),
+					cpx_supervisor:destroy(freeswitch_media_manager)
+				end}
+			]}
+		end
+	]}.
+
+
+
+%api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
+%	case proplists:get_value("enabled", Post) of
+%		undefined ->
+%			cpx_supervisor:destroy(freeswitch),
+%			{200, [], mochijson2:encode({struct, [{success, true}]})};
+%		_Else ->
+%			Args = [list_to_atom(proplists:get_value("cnode", Post)), proplists:get_value("domain", Post, "")],
+%			Start = start_link,
+%			Atomnode = list_to_existing_atom(Node),
+%			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch, freeswitch, Start, Args], 2000),
+%			{200, [], mochijson2:encode({struct, [{success, true}]})}
+%	end;
+%api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
+%	Anode = list_to_existing_atom(Node),
+%	case rpc:call(Anode, cpx_supervisor, get_conf, [freeswitch]) of
+%		undefined ->
+%			Json = {struct, [
+%				{success, true},
+%				{<<"enabled">>, false}
+%			]},
+%			{200, [], mochijson2:encode(Json)};
+%		Rec when is_record(Rec, cpx_conf) ->
+%			[Cnode, Domain] = Rec#cpx_conf.start_args,
+%			Json = {struct, [
+%				{success, true},
+%				{<<"enabled">>, true},
+%				{<<"cnode">>, list_to_binary(atom_to_list(Cnode))},
+%				{<<"domain">>, list_to_binary(Domain)}
+%			]},
+%			{200, [], mochijson2:encode(Json)}
+%	end.
+
+
+
+
+%api({queues, "queue", Queue, "get"}, ?COOKIE, _Post) ->
+%	case call_queue_config:get_queue(Queue) of
+%		noexists ->
+%			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"No such queue">>}]})};
+%		Queuerec ->
+%			Jqueue = encode_queue(Queuerec),
+%			{200, [], mochijson2:encode({struct, [{success, true}, {<<"queue">>, Jqueue}]})}
+%	end;
+%api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
+%	Recipe = decode_recipe(proplists:get_value("recipe", Post)),
+%	Weight = list_to_integer(proplists:get_value("weight", Post)),
+%	Name = proplists:get_value("name", Post),
+%	Postedskills = proplists:get_all_values("skills", Post),
+%	Atomizedskills = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, Postedskills),
+%	Group = proplists:get_value("group", Post),
+%	Qrec = #call_queue{
+%		name = Name,
+%		weight = Weight,
+%		skills = Atomizedskills,
+%		recipe = Recipe,
+%		group = Group
+%	},
+%	call_queue_config:set_queue(Queue, Qrec),
+%	{200, [], mochijson2:encode({struct, [{success, true}]})};
+%api({queues, "queue", Queue, "delete"}, ?COOKIE, _Post) ->
+%	call_queue_config:destroy_queue(Queue),
+%	{200, [], mochijson2:encode({struct, [{success, true}]})};
+%api({queues, "queue", "new"}, ?COOKIE, Post) ->
+%	Postedskills = proplists:get_all_values("skills", Post),
+%	Atomizedskills = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, Postedskills),
+%	Recipe = decode_recipe(proplists:get_value("recipe", Post)),
+%	Weight = list_to_integer(proplists:get_value("weight", Post)),
+%	Name = proplists:get_value("name", Post),
+%	Group = proplists:get_value("group", Post),
+%	Qrec = #call_queue{
+%		name = Name,
+%		weight = Weight,
+%		skills = Atomizedskills,
+%		recipe = Recipe,
+%		group = Group
+%	},
+%	call_queue_config:new_queue(Qrec),
+%	{200, [], mochijson2:encode({struct, [{success, true}]})};
+%	
+%
+
+
+%
+%
+%
+%
+%
+%parse_path(Path) ->
+%	case Path of
+%		"/" ->
+%			{file, {"index.html", "www/admin/"}};
+%		"/getsalt" ->
+%			{api, getsalt};
+%		"/login" ->
+%			{api, login};
+%		"/logout" ->
+%			{api, logout};
+%		"/checkcookie" ->
+%			{api, checkcookie};
+%		_Other ->
+%			% section/action (params in post data)
+%			case util:string_split(Path, "/") of
+%				["", "agents", "modules", Action] ->
+%					{api, {agents, "modules", Action}};
+%				["", "agents", "profiles", Action] ->
+%					{api, {agents, "profiles", Action}};
+%				["", "agents", "profiles", Profile, Action] ->
+%					{api, {agents, "profiles", Profile, Action}};
+%				["", "agents", "agents", Action] ->
+%					{api, {agents, "agents", Action}};
+%				["", "agents", "agents", Agent, Action] ->
+%					{api, {agents, "agents", Agent, Action}};
+%				["", "skills", "groups", Action] ->
+%					{api, {skills, "groups", Action}};
+%				["", "skills", "groups", Group, Action] ->
+%					{api, {skills, "groups", Group, Action}};
+%				["", "skills", "skill", Action] ->
+%					{api, {skills, "skill", Action}};
+%				["", "skills", "skill", Skill, Action] ->
+%					{api, {skills, "skill", Skill, Action}};
+%				["", "queues", "groups", Action] ->
+%					{api, {queues, "groups", Action}};
+%				["", "queues", "groups", Group, Action] ->
+%					{api, {queues, "groups", Group, Action}};
+%				["", "queues", "queue", Queue, Action] ->
+%					{api, {queues, "queue", Queue, Action}};
+%				["", "queues", "queue", Action] ->
+%					{api, {queues, "queue", Action}};
+%				["", "medias", Action] ->
+%					{api, {medias, Action}};
+%				["", "medias", Node, Media, Action] ->
+%					{api, {medias, Node, Media, Action}};
+%				_Allothers ->
+%					case filelib:is_regular(string:concat("www/admin", Path)) of
+%						true ->
+%							{file, {string:strip(Path, left, $/), "www/admin/"}};
+%						false ->
+%							{file, {string:strip(Path, left, $/), "www/contrib/"}}
+%					end
+%			end
+%	end.
+			
+		
+-endif.

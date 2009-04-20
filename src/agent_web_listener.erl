@@ -167,7 +167,6 @@ loop(Req, Table) ->
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
 			Cookielist = Req:parse_cookie(),
-			?CONSOLE("The cookie list:  ~p", [Cookielist]),
 			case proplists:get_value("cpx_id", Cookielist) of
 				undefined ->
 					Reflist = erlang:ref_to_list(make_ref()),
@@ -302,7 +301,6 @@ api(_Api, _Whatever, _Post) ->
 check_cookie([]) ->
 	badcookie;
 check_cookie(Allothers) ->
-	?CONSOLE("Das check_cookie ~p", [Allothers]),
 	case proplists:get_value("cpx_id", Allothers) of
 		undefined ->
 			badcookie;

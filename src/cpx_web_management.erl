@@ -1193,6 +1193,30 @@ api_test_() ->
 				?assertNot(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
 				agent_auth:destroy("renamed")
 			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/agents/someagent/update updating an agent fails w/ password mismtach",
+			fun() ->
+				agent_auth:add_agent("someagent", "somepassword", [], supervisor, "Default"),
+				{atomic, [Oldrec]} = agent_auth:get_agent("someagent"),
+				Post = [
+					{"skills", "{_brand,Somebrand}"},
+					{"skills", "english"},
+					{"password", "newpass"},
+					{"confirm", "typoed"},
+					{"security", "agent"},
+					{"profile", "Default"},
+					{"login", "renamed"}
+				],
+				?assertError({case_clause, "newpass"}, api({agents, "agents", "someagent", "update"}, Cookie, Post)),
+				?assertEqual({atomic, []}, agent_auth:get_agent("renamed")),
+				{atomic, [Rec]} = agent_auth:get_agent("someagent"),
+				?assertEqual(supervisor, Rec#agent_auth.securitylevel),
+				?assertNot(lists:member(english, Rec#agent_auth.skills)),
+				?assertNot(lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
+				?assert(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
+				agent_auth:destroy("someagent")
+			end}
 		end
 	]}.
 

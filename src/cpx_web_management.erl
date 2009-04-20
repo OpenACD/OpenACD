@@ -1096,8 +1096,144 @@ api_test_() ->
 				{atomic, [Agent]} = agent_auth:get_agent("someagent"),
 				?assertEqual("newprofile", Agent#agent_auth.profile)
 			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/agents/new adds a new agent (all fields right)",
+			fun() ->
+				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
+				Post = [
+					{"password", "goober"},
+					{"confirm", "goober"},
+					{"skills", "english"},
+					{"skills", "{_brand,Somebrand}"},
+					{"login", "someagent"},
+					{"security", "agent"},
+					{"profile", "Default"}
+				],
+				{200, [], Json} = api({agents, "agents", "new"}, Cookie, Post),
+				{atomic, [Rec]} = agent_auth:get_agent("someagent"),
+				?CONSOLE("~p", [Rec#agent_auth.skills]),
+				?assertEqual(true, lists:member(english, Rec#agent_auth.skills)),
+				?assertEqual(true, lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
+				agent_auth:destroy("someagent")
+			end}
 		end
 	]}.
+
+
+
+
+
+
+
+
+
+
+
+
+%api({agents, "agents", Agent, "get"}, ?COOKIE, _Post) ->
+%	{atomic, [Agentrec]} = agent_auth:get_agent(Agent),
+%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"agent">>, encode_agent(Agentrec)}]})};
+%api({agents, "agents", Agent, "delete"}, ?COOKIE, _Post) ->
+%	agent_auth:destroy(Agent),
+%	{200, [], mochijson2:encode({struct, [{success, true}]})};
+%api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
+%	{atomic, [_Agentrec]} = agent_auth:get_agent(Agent),
+%	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
+%	Postedskills = proplists:get_all_values("skills", Post),
+%	Convertskills = fun(Skill) ->
+%			case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
+%			{match, [Atomstring, Expanded]} ->
+%				case call_queue_config:skill_exists(Atomstring) of
+%					undefined ->
+%						?CONSOLE("bad skill ~p : ~p", [Atomstring, Skill]),
+%						%erlang:error(badarg);
+%						[];
+%					Atom ->
+%						{Atom, Expanded}
+%				end;
+%			nomatch ->
+%				case call_queue_config:skill_exists(Skill) of
+%					undefined ->
+%						?CONSOLE("bad skill ~p", [Skill]),
+%						%erlang:error(badarg);
+%						[];
+%					Atom ->
+%						Atom
+%				end
+%		end
+%	end,
+%	Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
+%	?CONSOLE("~p", [Fixedskills]),
+%	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
+%	case proplists:get_value("password", Post) of
+%		"" ->
+%			agent_auth:set_agent(Agent, 
+%				proplists:get_value("login", Post),
+%				Fixedskills,
+%				list_to_existing_atom(proplists:get_value("security", Post)),
+%				proplists:get_value("profile", Post));
+%		Confirmpw ->
+%			agent_auth:set_agent(Agent,
+%				proplists:get_value("login", Post),
+%				proplists:get_value("password", Post),
+%				Fixedskills,
+%				list_to_existing_atom(proplists:get_value("security", Post)),
+%				proplists:get_value("profile", Post))
+%	end,
+%	{200, [], mochijson2:encode({struct, [{success, true}]})};
+%api({agents, "agents", "new"}, ?COOKIE, Post) ->
+%	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
+%	case proplists:get_value("password", Post) of
+%		"" ->
+%			erlang:error({badarg, proplists:get_value("password", Post)});
+%		Confirmpw ->
+%			Postedskills = proplists:get_all_values("skills", Post),
+%			{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
+%			Convertskills = fun(Skill) ->
+%				case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
+%					{match, [Atomstring, Expanded]} ->
+%						case call_queue_config:skill_exists(Atomstring) of
+%							undefined ->
+%								[];
+%								%erlang:error({badarg, Skill});
+%							Atom ->
+%								{Atom, Expanded}
+%						end;
+%					nomatch ->
+%						case call_queue_config:skill_exists(Skill) of
+%							undefined ->
+%								[];
+%								%erlang:error({badarg, Skill});
+%							Atom ->
+%								Atom
+%						end
+%				end
+%			end,
+%			Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
+%			agent_auth:add_agent(
+%				proplists:get_value("login", Post),
+%				Confirmpw,
+%				Fixedskills,
+%				list_to_existing_atom(proplists:get_value("security", Post)),
+%				proplists:get_value("profile", Post)),
+%				{200, [], mochijson2:encode({struct, [{success, true}]})}
+%	end;
+%
+%
+%
+%
+
+
+
+
+
+
+
+
+
+
+
 
 
 

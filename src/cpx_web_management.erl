@@ -1259,7 +1259,40 @@ api_test_() ->
 					protected = false,
 					description = "Test skill for gooberness",
 					group = "Magic"},
-				?assertEqual(Testrec, Rec)
+				?assertEqual(Testrec, Rec),
+				F = fun() ->
+					mnesia:delete({skill_rec, testskill})
+				end,
+				mnesia:transaction(F)
+			end}
+		end,
+		fun(Cookie) ->
+			{"/skills/skill/testskill/update Updating a skill",
+			fun() ->
+				Oldrec = #skill_rec{
+					atom = testskill,
+					name = "Test Skill",
+					protected = false,
+					description = "Test skill for gooberness",
+					group = "Magic"},
+				call_queue_config:new_skill(Oldrec),
+				Post = [
+					{"name", "New Name"},
+					{"description", "Blah blah blah"},
+					{"group", "Languages"}
+				],
+				Newrec = #skill_rec{
+					atom = testskill,
+					name = "New Name",
+					protected = false,
+					description = "Blah blah blah",
+					group = "Languages"},
+				api({skills, "skill", "testskill", "update"}, Cookie, Post),
+				?assertEqual(Newrec, call_queue_config:get_skill(testskill)),
+				F = fun() ->
+					mnesia:delete({skill_rec, testskill})
+				end,
+				mnesia:transaction(F)
 			end}
 		end
 	]}.

@@ -412,7 +412,7 @@ build_table_test_() ->
 					mnesia:create_schema([node()]),
 					mnesia:start(),
 					?assertMatch({atomic, ok}, build_table(test_table, ?TEST_TABLE)),
-					?assertMatch(ok, build_table(test_table, ?TEST_TABLE))
+					?assertMatch(exists, build_table(test_table, ?TEST_TABLE))
 				end
 			}
 		]

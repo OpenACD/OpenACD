@@ -528,7 +528,7 @@ api({queues, "queue", "new"}, ?COOKIE, Post) ->
 api({medias, "poll"}, ?COOKIE, _Post) ->
 	Nodes = [node() | nodes()],
 	F = fun(Node) ->
-		{Node, [{freeswitch, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch], 2000)}]}
+		{Node, [{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)}]}
 	end,
 	Rpcs = lists:map(F, Nodes),
 	Json = encode_medias(Rpcs, []),
@@ -538,21 +538,25 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 %% media -> node -> media
 %% =====
 
-api({medias, Node, "freeswitch", "update"}, ?COOKIE, Post) ->
+api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 	case proplists:get_value("enabled", Post) of
 		undefined ->
-			cpx_supervisor:destroy(freeswitch),
+			cpx_supervisor:destroy(freeswitch_media_manager),
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
 			Args = [list_to_atom(proplists:get_value("cnode", Post)), proplists:get_value("domain", Post, "")],
-			Start = start_link,
 			Atomnode = list_to_existing_atom(Node),
-			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch, freeswitch, Start, Args], 2000),
+			Conf = #cpx_conf{
+				id = freeswitch_media_manager,
+				module_name = freeswitch_media_manager,
+				start_function = start_link,
+				start_args = Args},
+			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, Conf], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-api({medias, Node, "freeswitch", "get"}, ?COOKIE, _Post) ->
+api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 	Anode = list_to_existing_atom(Node),
-	case rpc:call(Anode, cpx_supervisor, get_conf, [freeswitch]) of
+	case rpc:call(Anode, cpx_supervisor, get_conf, [freeswitch_media_manager]) of
 		undefined ->
 			Json = {struct, [
 				{success, true},
@@ -1363,45 +1367,92 @@ api_test_() ->
 				api({queues, "groups", "Test Q Group", "delete"}, Cookie, []),
 				?assertEqual({atomic, []}, call_queue_config:get_queue_group("Test Q Group"))
 			end}
+		end,
+		fun(Cookie) ->
+			{timeout,
+			120,
+			[
+				{"/medias/Thisnode/freeswitch_media_manager/update disabling",
+				fun() ->
+					Fsconf = #cpx_conf{
+						id = freeswitch_media_manager,
+						module_name = freeswitch_media_manager,
+						start_function = start_link,
+						start_args = [freeswitch@localhost, "localhost"],
+						supervisor = management_sup},
+					cpx_supervisor:destroy(freeswitch_media_manager),
+					?CONSOLE("post destroy", []),
+					cpx_supervisor:add_conf(Fsconf),
+					?CONSOLE("post add", []),
+					?assertEqual(Fsconf, cpx_supervisor:get_conf(freeswitch_media_manager)),
+					?CONSOLE("post get", []),
+					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, []),
+					?CONSOLE("post api", []),
+					?assertEqual(undefined, cpx_supervisor:get_conf(freeswitch_media_manager)),
+					?CONSOLE("post assertEqual", []),
+					cpx_supervisor:destroy(freeswitch_media_manager)
+				end}
+			]}
+		end,
+		fun(Cookie) ->
+			{timeout,
+			120,
+			[
+				{"/medias/Thisnode/freeswitch_media_manager/update enabling",
+				fun() ->
+					?assertEqual(undefined, cpx_supervisor:get_conf(freeswitch_media_manager)),
+					Post = [
+						{"enabled", "some data whichd oesn't matter"},
+						{"cnode", "freeswitch@localhost"},
+						{"domain", "localhost"}
+					],
+					Fsconf = #cpx_conf{
+						id = freeswitch_media_manager,
+						module_name = freeswitch_media_manager,
+						start_function = start_link,
+						start_args = [freeswitch@localhost, "localhost"],
+						supervisor = management_sup},
+					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, Post),
+					?assertEqual(Fsconf, cpx_supervisor:get_conf(freeswitch_media_manager)),
+					cpx_supervisor:destroy(freeswitch_media_manager)
+				end}
+			]}
 		end
 	]}.
 
 
 
-%api({queues, "groups", Group, "update"}, ?COOKIE, Post) ->
-%	Newname = proplists:get_value("name", Post),
-%	Sort = list_to_integer(proplists:get_value("sort", Post)),
-%	Recipe = case proplists:get_value("recipe", Post) of
-%		"[]" ->
-%			[];
-%		Else ->
-%			decode_recipe(Else)
-%	end,
-%	call_queue_config:set_queue_group(Group, Newname, Sort, Recipe),
-%	{200, [], mochijson2:encode({struct, [{success, true}]})};
-%api({queues, "groups", "new"}, ?COOKIE, Post) ->
-%	Name = proplists:get_value("name", Post), 
-%	Sort = list_to_integer(proplists:get_value("sort", Post)),
-%	Recipe = case proplists:get_value("recipe", Post) of
-%		"[]" ->
-%			[];
-%		Else ->
-%			decode_recipe(Else)
-%	end,
-%	call_queue_config:new_queue_group(Name, Sort, Recipe),
-%	{200, [], mochijson2:encode({struct, [{success, true}]})};
-%api({queues, "groups", Group, "delete"}, ?COOKIE, _Post) ->
-%	case call_queue_config:destroy_queue_group(Group) of
-%		{atomic, ok} ->
+%api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
+%	case proplists:get_value("enabled", Post) of
+%		undefined ->
+%			cpx_supervisor:destroy(freeswitch),
 %			{200, [], mochijson2:encode({struct, [{success, true}]})};
-%		{atomic, {error, protected}} ->
-%			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Group is protected and cannot be deleted">>}]})}
+%		_Else ->
+%			Args = [list_to_atom(proplists:get_value("cnode", Post)), proplists:get_value("domain", Post, "")],
+%			Start = start_link,
+%			Atomnode = list_to_existing_atom(Node),
+%			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch, freeswitch, Start, Args], 2000),
+%			{200, [], mochijson2:encode({struct, [{success, true}]})}
 %	end;
-
-
-
-
-
+%api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
+%	Anode = list_to_existing_atom(Node),
+%	case rpc:call(Anode, cpx_supervisor, get_conf, [freeswitch]) of
+%		undefined ->
+%			Json = {struct, [
+%				{success, true},
+%				{<<"enabled">>, false}
+%			]},
+%			{200, [], mochijson2:encode(Json)};
+%		Rec when is_record(Rec, cpx_conf) ->
+%			[Cnode, Domain] = Rec#cpx_conf.start_args,
+%			Json = {struct, [
+%				{success, true},
+%				{<<"enabled">>, true},
+%				{<<"cnode">>, list_to_binary(atom_to_list(Cnode))},
+%				{<<"domain">>, list_to_binary(Domain)}
+%			]},
+%			{200, [], mochijson2:encode(Json)}
+%	end.
 
 
 

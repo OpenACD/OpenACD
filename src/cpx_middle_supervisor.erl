@@ -66,7 +66,7 @@ start_named(Maxr, Maxt, Name) when is_atom(Name) ->
 	supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt]).
 
 add_with_middleman(Name, Maxr, Maxt, Spec) when is_record(Spec, cpx_conf) ->
-	?CONSOLE("~p", [Spec]),
+	?CONSOLE("~p adding ~p", [Name, Spec]),
 	supervisor:start_child(Name, {Spec#cpx_conf.id, {?MODULE, start_anon, [Maxr, Maxt, Spec]}, temporary, 2000, supervisor, [?MODULE]}).
 
 add_directly(Name, Spec) when is_record(Spec, cpx_conf) ->

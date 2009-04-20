@@ -62,6 +62,7 @@
 -export([start_link/1, start/1]).
 -export([
 	add_conf/5,
+	add_conf/1,
 	build_spec/1,
 	build_tables/0,
 	destroy/1,

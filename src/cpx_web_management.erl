@@ -1110,7 +1110,7 @@ api_test_() ->
 					{"security", "agent"},
 					{"profile", "Default"}
 				],
-				{200, [], Json} = api({agents, "agents", "new"}, Cookie, Post),
+				{200, [], _Json} = api({agents, "agents", "new"}, Cookie, Post),
 				{atomic, [Rec]} = agent_auth:get_agent("someagent"),
 				?CONSOLE("~p", [Rec#agent_auth.skills]),
 				?assertEqual(true, lists:member(english, Rec#agent_auth.skills)),
@@ -1294,67 +1294,117 @@ api_test_() ->
 				end,
 				mnesia:transaction(F)
 			end}
+		end,
+		fun(Cookie) ->
+			{"/queues/groups/new Creating queue group",
+			fun() ->
+				Recipe = [{[{ticks, 5}], prioritize, [], run_many}],
+				Jrecipe = mochijson2:encode(encode_recipe(Recipe)),
+				Post = [
+					{"name", "Test Q Group"},
+					{"sort", "27"},
+					{"recipe", Jrecipe}
+				],
+				?assertEqual({atomic, []}, call_queue_config:get_queue_group("Test Q Group")),
+				api({queues, "groups", "new"}, Cookie, Post),
+				{atomic, [Rec]} = call_queue_config:get_queue_group("Test Q Group"),
+				Testrec = #queue_group{
+					name = "Test Q Group",
+					recipe = Recipe,
+					sort = 27,
+					protected = false
+				},
+				?assertEqual(Testrec, Rec),
+				call_queue_config:destroy_queue_group("Test Q Group")
+			end}
 		end
 	]}.
 
 
 
-
-%api({skills, "skill", "_queue", "expand"}, ?COOKIE, _Post) ->
-%	Queues = call_queue_config:get_queues(),
-%	F = fun(Qrec) ->
-%		list_to_binary(Qrec#call_queue.name)
+%api({queues, "groups", Group, "update"}, ?COOKIE, Post) ->
+%	Newname = proplists:get_value("name", Post),
+%	Sort = list_to_integer(proplists:get_value("sort", Post)),
+%	Recipe = case proplists:get_value("recipe", Post) of
+%		"[]" ->
+%			[];
+%		Else ->
+%			decode_recipe(Else)
 %	end,
-%	Converted = lists:map(F, Queues),
-%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
-%api({skills, "skill", "_node", "expand"}, ?COOKIE, _Post) ->
-%	Nodes = [node() | nodes()],
-%	F = fun(Atom) ->
-%		L = atom_to_list(Atom),
-%		list_to_binary(L)
-%	end,
-%	Converted = lists:map(F, Nodes),
-%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
-%api({skills, "skill", "_agent", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
-%	Agents = agent_auth:get_agents(),
-%	F = fun(Arec) ->
-%		list_to_binary(Arec#agent_auth.login)
-%	end,
-%	Converted = lists:map(F, Agents),
-%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
-%api({skills, "skill", "_brand", "expand"}, ?COOKIE, _Post) ->
-%	Clients = call_queue_config:get_clients(),
-%	F = fun(Clientrec) ->
-%		list_to_binary(Clientrec#client.label)
-%	end,
-%	Converted = lists:map(F, Clients),
-%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
-%api({skills, "skill", Skill, "update"}, ?COOKIE, Post) ->
-%	case call_queue_config:get_skill(Skill) of
-%		Skillrec when is_record(Skillrec, skill_rec) ->
-%			case Skillrec#skill_rec.protected of
-%				false ->
-%					Rec = #skill_rec{
-%						atom = Skillrec#skill_rec.atom,
-%						name = proplists:get_value("name", Post),
-%						description = proplists:get_value("description", Post),
-%						group = proplists:get_value("group", Post)},
-%					call_queue_config:set_skill(Skillrec#skill_rec.atom, Rec),
-%					{200, [], mochijson2:encode({struct, [{success, true}]})}
-%			end
-%	end;
-%api({skills, "skill", "new"}, ?COOKIE, Post) ->
-%	call_queue_config:new_skill(
-%		list_to_atom(proplists:get_value("atom", Post)),
-%		proplists:get_value("name", Post),
-%		proplists:get_value("description", Post),
-%		proplists:get_value("group", Post)
-%	),
+%	call_queue_config:set_queue_group(Group, Newname, Sort, Recipe),
 %	{200, [], mochijson2:encode({struct, [{success, true}]})};
+%api({queues, "groups", "new"}, ?COOKIE, Post) ->
+%	Name = proplists:get_value("name", Post), 
+%	Sort = list_to_integer(proplists:get_value("sort", Post)),
+%	Recipe = case proplists:get_value("recipe", Post) of
+%		"[]" ->
+%			[];
+%		Else ->
+%			decode_recipe(Else)
+%	end,
+%	call_queue_config:new_queue_group(Name, Sort, Recipe),
+%	{200, [], mochijson2:encode({struct, [{success, true}]})};
+%api({queues, "groups", Group, "delete"}, ?COOKIE, _Post) ->
+%	case call_queue_config:destroy_queue_group(Group) of
+%		{atomic, ok} ->
+%			{200, [], mochijson2:encode({struct, [{success, true}]})};
+%		{atomic, {error, protected}} ->
+%			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Group is protected and cannot be deleted">>}]})}
+%	end;
 
 
 
 
+
+
+
+
+
+%api({queues, "queue", Queue, "get"}, ?COOKIE, _Post) ->
+%	case call_queue_config:get_queue(Queue) of
+%		noexists ->
+%			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"No such queue">>}]})};
+%		Queuerec ->
+%			Jqueue = encode_queue(Queuerec),
+%			{200, [], mochijson2:encode({struct, [{success, true}, {<<"queue">>, Jqueue}]})}
+%	end;
+%api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
+%	Recipe = decode_recipe(proplists:get_value("recipe", Post)),
+%	Weight = list_to_integer(proplists:get_value("weight", Post)),
+%	Name = proplists:get_value("name", Post),
+%	Postedskills = proplists:get_all_values("skills", Post),
+%	Atomizedskills = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, Postedskills),
+%	Group = proplists:get_value("group", Post),
+%	Qrec = #call_queue{
+%		name = Name,
+%		weight = Weight,
+%		skills = Atomizedskills,
+%		recipe = Recipe,
+%		group = Group
+%	},
+%	call_queue_config:set_queue(Queue, Qrec),
+%	{200, [], mochijson2:encode({struct, [{success, true}]})};
+%api({queues, "queue", Queue, "delete"}, ?COOKIE, _Post) ->
+%	call_queue_config:destroy_queue(Queue),
+%	{200, [], mochijson2:encode({struct, [{success, true}]})};
+%api({queues, "queue", "new"}, ?COOKIE, Post) ->
+%	Postedskills = proplists:get_all_values("skills", Post),
+%	Atomizedskills = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, Postedskills),
+%	Recipe = decode_recipe(proplists:get_value("recipe", Post)),
+%	Weight = list_to_integer(proplists:get_value("weight", Post)),
+%	Name = proplists:get_value("name", Post),
+%	Group = proplists:get_value("group", Post),
+%	Qrec = #call_queue{
+%		name = Name,
+%		weight = Weight,
+%		skills = Atomizedskills,
+%		recipe = Recipe,
+%		group = Group
+%	},
+%	call_queue_config:new_queue(Qrec),
+%	{200, [], mochijson2:encode({struct, [{success, true}]})};
+%	
+%
 
 
 %

@@ -160,7 +160,7 @@ build_tables() ->
 		{local_content, true}
 	]),
 	case A of
-		{atomic, ok} -> 
+		Result when Result =:= {atomic, ok}; Result =:= copied -> 
 			% create some default info so the system is at least a bit usable.
 			F = fun() -> 
 				mnesia:write(#cpx_conf{id = agent_auth, module_name = agent_auth, start_function = start, start_args = [], supervisor=agent_connection_sup}),
@@ -173,6 +173,8 @@ build_tables() ->
 				Else -> 
 					Else
 			end;
+		exists ->
+			ok;
 		Else ->
 			?CONSOLE("unusual response building tables: ~p", [Else]),
 			Else

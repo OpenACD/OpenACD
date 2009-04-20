@@ -20,11 +20,20 @@
 </style>
 
 <script type="text/javascript">
+	/* this is lame, why do cookies suck in JS? */
+	var cookies = document.cookie.split('; ');
+	var locale = "";
+	for(var i = 0; i < cookies.length; i++) {
+		var stuff = cookies[i].split("=");
+		if (stuff[0] == "cpx_lang") {
+			locale = stuff[1];
+		}
+	}
 	var djConfig = {
 		modulePaths: {agentUI: "/application"},
 		parseOnLoad: true,
 		isDebug: false,
-		locale: 'en-us'
+		locale: locale
 	};
 </script>
 <script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
@@ -70,6 +79,10 @@
 		dijit.byId("tabPanel").tablist.pane2button[dijit.byId("agentstab")].setLabel(nlsStrings.AGENTS);
 		dijit.byId("tabPanel").tablist.pane2button[dijit.byId("queuestab")].setLabel(nlsStrings.QUEUES);
 		dijit.byId("tabPanel").tablist.pane2button[dijit.byId("eventLog")].setLabel(nlsStrings.EVENTLOG);
+		if (dojo.config.locale == "") {
+			dojo.byId("loginerrp").style.display = "block";
+			dojo.byId("loginerrspan").innerHTML="No translation for any locales<br/>matching your request, sorry.";
+		}
 	}
 	dojo.addOnLoad(init);
 
@@ -86,7 +99,7 @@
 
 <div dojoType="dijit.Dialog" title="Login" id="loginpane">
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
-		<p  id="loginerrp" style="font-size:smaller;display:none"><label>&nbsp;</label><span id="loginerrspan" style="color:#ff0000"></span></p>
+		<p  id="loginerrp" style="font-size:smaller;display:none"><center><span id="loginerrspan" style="color:#ff0000"></span></center></p>
 		<p>
 			<label for="username" id="usernamelabel">Username:</label>
 			<input type="text" name="username" value="" dojoType="dijit.form.TextBox" trim="true" id="username" />

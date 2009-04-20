@@ -25,12 +25,11 @@ INCLUDE = "include"
 ERLC_FLAGS = "-I#{INCLUDE} +warn_unused_vars +warn_unused_import"
 
 SRC = FileList['src/*.erl']
+HEADERS = FileList['include/*.hrl']
 OBJ = SRC.pathmap("%{src,ebin}X.beam").reject{|x| x.include? 'test_coverage'}
 CONTRIB = FileList['contrib/*']
 DEBUGOBJ = SRC.pathmap("%{src,debug_ebin}X.beam")
 COVERAGE = SRC.pathmap("%{src,coverage}X.txt").reject{|x| x.include? 'test_coverage'}
-
-HEADERS = FileList['include/*.hrl']
 
 # check to see if gmake is available, if not fall back on the system make
 if res = `which gmake` and $?.exitstatus.zero? and not res =~ /no gmake in/
@@ -60,12 +59,12 @@ directory 'ebin'
 directory 'debug_ebin'
 directory 'coverage'
 #directory 'doc'
-#
-rule ".beam" => ["%{ebin,src}X.erl"] do |t|
+
+rule ".beam" => ["%{ebin,src}X.erl"] + HEADERS do |t|
 	sh "erlc -pa ebin -W #{ERLC_FLAGS} -o ebin #{t.source} "
 end
 
-rule ".beam" => ["%{debug_ebin,src}X.erl"] do |t|
+rule ".beam" => ["%{debug_ebin,src}X.erl"] + HEADERS do |t|
 	sh "erlc +debug_info -D EUNIT -pa debug_ebin -W #{ERLC_FLAGS} -o debug_ebin #{t.source} "
 end
 

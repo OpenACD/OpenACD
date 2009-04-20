@@ -416,8 +416,10 @@ build_tables() ->
 				Else -> 
 					Else
 			end;
-		Else -> 
-			Else
+		_Else when A =:= copied; A =:= exists ->
+			ok;
+		_Else -> 
+			A
 	end,
 	B = util:build_table(release_opt, [
 		{attributes, record_info(fields, release_opt)},
@@ -426,8 +428,10 @@ build_tables() ->
 	case B of
 		{atomic, ok} ->
 			ok;
-		Otherwise ->
-			Otherwise
+		_Else2 when B =:= copied; B =:= exists ->
+			ok;
+		_Else2 ->
+			B
 	end,
 	C = util:build_table(agent_profile, [
 		{attributes, record_info(fields, agent_profile)},
@@ -444,8 +448,10 @@ build_tables() ->
 				Else2 -> 
 					Else2
 			end;
-		Ors -> 
-			Ors
+		_Else3 when C =:= copied; C =:= exists ->
+			ok;
+		_Else3 ->
+			C
 	end.
 
 %% @doc Caches the passed `Username', `Password', `Skills', and `Security' type.  to the mnesia database.  

@@ -38,10 +38,8 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--define(POLL_INTERVAL, 500).
--else.
--define(POLL_INTERVAL, 10000).
 -endif.
+-define(POLL_INTERVAL, 500).
 
 -behaviour(gen_server).
 

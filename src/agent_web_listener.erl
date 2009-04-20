@@ -172,14 +172,37 @@ loop(Req, Table) ->
 					Reflist = erlang:ref_to_list(make_ref()),
 					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
 					ets:insert(Table, {Reflist, undefined, undefined}),
+					Language = io_lib:format("cpx_lang=~s", [determine_language(Req:get_header_value("Accept-Language"))]),
 					?CONSOLE("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
-					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}]);
+					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}, {"Set-Cookie", Language}]);
 				_Reflist ->
-					Req:serve_file(File, Docroot)
+					Language = io_lib:format("cpx_lang=~s", [determine_language(Req:get_header_value("Accept-Language"))]),
+					Req:serve_file(File, Docroot, [{"Set-Cookie", Language}])
 			end;
 		{api, Api} ->
 			Out = api(Api, check_cookie(Req:parse_cookie()), Post),
 			Req:respond(Out)
+	end.
+
+determine_language(undefined) ->
+	"";
+determine_language([]) ->
+	"";
+determine_language(String) ->
+	[Head | Other] = util:string_split(String, ",", 2),
+	[Lang |_Junk] = util:string_split(Head, ";"),
+	case filelib:is_regular(string:concat(string:concat("www/agent/application/nls/", Lang), "/labels.js")) of
+		true ->
+			Lang;
+		false ->
+			% try the "super language" (eg en vs en-us) in case it's not in the list itself
+			[SuperLang | _SubLang] = util:string_split(Lang, "-"),
+			case filelib:is_regular(string:concat(string:concat("www/agent/application/nls/", SuperLang), "/labels.js")) of
+				true ->
+					SuperLang;
+				false ->
+					determine_language(Other)
+			end
 	end.
 		
 api(checkcookie, Cookie, _Post) ->

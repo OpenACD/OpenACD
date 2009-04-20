@@ -1348,6 +1348,21 @@ api_test_() ->
 				?assertEqual({atomic, []}, call_queue_config:get_queue_group("Test Q Group")),
 				call_queue_config:destroy_queue_group("Renamed Q Group")
 			end}
+		end,
+		fun(Cookie) ->
+			{"/queues/groups/Test Q Group/delete Destroying queue group",
+			fun() ->
+				Recipe = [{[{ticks, 5}], prioritize, [], run_many}],
+				Qgrouprec = #queue_group{
+					name = "Test Q Group",
+					recipe = Recipe,
+					sort = 35
+				},
+				call_queue_config:new_queue_group(Qgrouprec),
+				?assertMatch({atomic, [_Rec]}, call_queue_config:get_queue_group("Test Q Group")),
+				api({queues, "groups", "Test Q Group", "delete"}, Cookie, []),
+				?assertEqual({atomic, []}, call_queue_config:get_queue_group("Test Q Group"))
+			end}
 		end
 	]}.
 

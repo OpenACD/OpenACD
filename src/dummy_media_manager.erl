@@ -32,6 +32,10 @@
 
 -behaviour(gen_server).
 
+-ifdef(EUNIT).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 %% API
 -export([
 	start_link/1,
@@ -107,3 +111,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+-ifdef(EUNIT).
+
+a_test_() ->
+	[{"test",
+	fun() ->
+		?assert(true)
+	end}].
+-endif.
+

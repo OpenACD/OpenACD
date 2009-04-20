@@ -58,21 +58,33 @@
 %% API functions
 %%====================================================================
 
+%% @doc Start an anonymous supervisor with `Spec :: #cpx_conf{}' with maximum restart `Maxr' in `Maxt' seconds.
+%% {@link add_with_middleman/4} makes use of this function to create a middleman supervisor.
+-spec(start_anon/3 :: (Maxr :: pos_integer(), Maxt :: pos_integer(), Spec :: #cpx_conf{}) -> {'ok', pid()}).
 start_anon(Maxr, Maxt, Spec) when is_record(Spec, cpx_conf) ->
 	Childspec = {Spec#cpx_conf.id, {Spec#cpx_conf.module_name, Spec#cpx_conf.start_function, Spec#cpx_conf.start_args}, permanent, 2000, worker, [?MODULE]},
 	supervisor:start_link(?MODULE, [Maxr, Maxt, Childspec]).
-	
+
+%% @doc Start a supervisor locally registered as `atom() Name' with maximum restart `Maxr' in `Maxt' seconds.
+-spec(start_named/3 :: (Maxr :: pos_integer(), Maxt :: pos_integer(), Name :: atom()) -> {'ok', pid()}).
 start_named(Maxr, Maxt, Name) when is_atom(Name) ->
 	supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt]).
 
+%% @doc Starts the passed `#cpx_conf{} Spec' on the supervisor registered at `atom() Name' with maximum restart `Maxr' in `Maxt' seconds.
+-spec(add_with_middleman/4 :: (Name :: atom(), Maxr :: pos_integer(), Maxt :: pos_integer(), Spec :: #cpx_conf{}) -> {'ok', pid()}).
 add_with_middleman(Name, Maxr, Maxt, Spec) when is_record(Spec, cpx_conf) ->
 	?CONSOLE("~p adding ~p", [Name, Spec]),
 	supervisor:start_child(Name, {Spec#cpx_conf.id, {?MODULE, start_anon, [Maxr, Maxt, Spec]}, temporary, 2000, supervisor, [?MODULE]}).
 
+%% @doc Adds the `#cpx_conf{} Spec' directly to the supervisor registered at `atom() Name'.
+-spec(add_directly/2 :: (Name :: atom(), Spec :: #cpx_conf{}) -> {'ok', pid}).
 add_directly(Name, Spec) when is_record(Spec, cpx_conf) ->
 	Childspec = {Spec#cpx_conf.id, {Spec#cpx_conf.module_name, Spec#cpx_conf.start_function, Spec#cpx_conf.start_args}, permanent, 2000, worker, [?MODULE]},
 	supervisor:start_child(Name, Childspec).
 
+%% @doc Drops that passed `#cpx_conf Spec' or `atom() Childid' from the supervisor registered at `atom() Name'.
+-spec(drop_child/2 ::	(Name :: atom(), Spec :: #cpx_conf{}) -> 'ok';
+						(Name :: atom(), Childid :: atom()) -> 'ok').
 drop_child(Name, Spec) when is_record(Spec, cpx_conf) ->
 	drop_child(Name, Spec#cpx_conf.id);
 drop_child(Name, Childid) ->
@@ -83,6 +95,7 @@ drop_child(Name, Childid) ->
 %% Supervisor callbacks
 %%====================================================================
 
+%% @private
 init([Maxr, Maxt]) ->
     {ok,{{one_for_one, Maxr, Maxt}, []}};
 init([Maxr, Maxt, Spec]) ->

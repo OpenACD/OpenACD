@@ -1117,6 +1117,25 @@ api_test_() ->
 				?assertEqual(true, lists:member({'_brand', "Somebrand"}, Rec#agent_auth.skills)),
 				agent_auth:destroy("someagent")
 			end}
+		end,
+		fun(Cookie) ->
+			{"/agents/agents/new adds a new agent (password mismatch)",
+			fun() ->
+				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
+				Post = [
+					{"password", "goober"},
+					{"confirm", "typoed"},
+					{"skills", "english"},
+					{"skills", "{_brand,Somebrand}"},
+					{"login", "someagent"},
+					{"security", "agent"},
+					{"profile", "Default"}
+				],
+				?assertError({case_clause,"goober"}, api({agents, "agents", "new"}, Cookie, Post)),
+				%{200, [], Json} = api({agents, "agents", "new"}, Cookie, Post),
+				%?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
+				agent_auth:destroy("someagent")
+			end}
 		end
 	]}.
 

@@ -1241,120 +1241,83 @@ api_test_() ->
 				?assert(Oldrec#agent_auth.password =:= Rec#agent_auth.password),
 				agent_auth:destroy("renamed")
 			end}
+		end,
+		fun(Cookie) ->
+			{"/skills/skill/new Creating a skill",
+			fun() ->
+				Post = [
+					{"atom", "testskill"},
+					{"name", "Test Skill"},
+					{"description", "Test skill for gooberness"},
+					{"group", "Magic"}
+				],
+				api({skills, "skill", "new"}, Cookie, Post),
+				Rec = call_queue_config:get_skill(testskill),
+				Testrec = #skill_rec{
+					atom = testskill,
+					name = "Test Skill",
+					protected = false,
+					description = "Test skill for gooberness",
+					group = "Magic"},
+				?assertEqual(Testrec, Rec)
+			end}
 		end
 	]}.
 
 
 
 
-
-
-
-
-
-
-
-
-%api({agents, "agents", Agent, "get"}, ?COOKIE, _Post) ->
-%	{atomic, [Agentrec]} = agent_auth:get_agent(Agent),
-%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"agent">>, encode_agent(Agentrec)}]})};
-%api({agents, "agents", Agent, "delete"}, ?COOKIE, _Post) ->
-%	agent_auth:destroy(Agent),
-%	{200, [], mochijson2:encode({struct, [{success, true}]})};
-%api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
-%	{atomic, [_Agentrec]} = agent_auth:get_agent(Agent),
-%	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
-%	Postedskills = proplists:get_all_values("skills", Post),
-%	Convertskills = fun(Skill) ->
-%			case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
-%			{match, [Atomstring, Expanded]} ->
-%				case call_queue_config:skill_exists(Atomstring) of
-%					undefined ->
-%						?CONSOLE("bad skill ~p : ~p", [Atomstring, Skill]),
-%						%erlang:error(badarg);
-%						[];
-%					Atom ->
-%						{Atom, Expanded}
-%				end;
-%			nomatch ->
-%				case call_queue_config:skill_exists(Skill) of
-%					undefined ->
-%						?CONSOLE("bad skill ~p", [Skill]),
-%						%erlang:error(badarg);
-%						[];
-%					Atom ->
-%						Atom
-%				end
-%		end
+%api({skills, "skill", "_queue", "expand"}, ?COOKIE, _Post) ->
+%	Queues = call_queue_config:get_queues(),
+%	F = fun(Qrec) ->
+%		list_to_binary(Qrec#call_queue.name)
 %	end,
-%	Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
-%	?CONSOLE("~p", [Fixedskills]),
-%	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
-%	case proplists:get_value("password", Post) of
-%		"" ->
-%			agent_auth:set_agent(Agent, 
-%				proplists:get_value("login", Post),
-%				Fixedskills,
-%				list_to_existing_atom(proplists:get_value("security", Post)),
-%				proplists:get_value("profile", Post));
-%		Confirmpw ->
-%			agent_auth:set_agent(Agent,
-%				proplists:get_value("login", Post),
-%				proplists:get_value("password", Post),
-%				Fixedskills,
-%				list_to_existing_atom(proplists:get_value("security", Post)),
-%				proplists:get_value("profile", Post))
+%	Converted = lists:map(F, Queues),
+%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
+%api({skills, "skill", "_node", "expand"}, ?COOKIE, _Post) ->
+%	Nodes = [node() | nodes()],
+%	F = fun(Atom) ->
+%		L = atom_to_list(Atom),
+%		list_to_binary(L)
 %	end,
-%	{200, [], mochijson2:encode({struct, [{success, true}]})};
-%api({agents, "agents", "new"}, ?COOKIE, Post) ->
-%	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
-%	case proplists:get_value("password", Post) of
-%		"" ->
-%			erlang:error({badarg, proplists:get_value("password", Post)});
-%		Confirmpw ->
-%			Postedskills = proplists:get_all_values("skills", Post),
-%			{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
-%			Convertskills = fun(Skill) ->
-%				case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
-%					{match, [Atomstring, Expanded]} ->
-%						case call_queue_config:skill_exists(Atomstring) of
-%							undefined ->
-%								[];
-%								%erlang:error({badarg, Skill});
-%							Atom ->
-%								{Atom, Expanded}
-%						end;
-%					nomatch ->
-%						case call_queue_config:skill_exists(Skill) of
-%							undefined ->
-%								[];
-%								%erlang:error({badarg, Skill});
-%							Atom ->
-%								Atom
-%						end
-%				end
-%			end,
-%			Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
-%			agent_auth:add_agent(
-%				proplists:get_value("login", Post),
-%				Confirmpw,
-%				Fixedskills,
-%				list_to_existing_atom(proplists:get_value("security", Post)),
-%				proplists:get_value("profile", Post)),
-%				{200, [], mochijson2:encode({struct, [{success, true}]})}
+%	Converted = lists:map(F, Nodes),
+%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
+%api({skills, "skill", "_agent", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
+%	Agents = agent_auth:get_agents(),
+%	F = fun(Arec) ->
+%		list_to_binary(Arec#agent_auth.login)
+%	end,
+%	Converted = lists:map(F, Agents),
+%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
+%api({skills, "skill", "_brand", "expand"}, ?COOKIE, _Post) ->
+%	Clients = call_queue_config:get_clients(),
+%	F = fun(Clientrec) ->
+%		list_to_binary(Clientrec#client.label)
+%	end,
+%	Converted = lists:map(F, Clients),
+%	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
+%api({skills, "skill", Skill, "update"}, ?COOKIE, Post) ->
+%	case call_queue_config:get_skill(Skill) of
+%		Skillrec when is_record(Skillrec, skill_rec) ->
+%			case Skillrec#skill_rec.protected of
+%				false ->
+%					Rec = #skill_rec{
+%						atom = Skillrec#skill_rec.atom,
+%						name = proplists:get_value("name", Post),
+%						description = proplists:get_value("description", Post),
+%						group = proplists:get_value("group", Post)},
+%					call_queue_config:set_skill(Skillrec#skill_rec.atom, Rec),
+%					{200, [], mochijson2:encode({struct, [{success, true}]})}
+%			end
 %	end;
-%
-%
-%
-%
-
-
-
-
-
-
-
-
+%api({skills, "skill", "new"}, ?COOKIE, Post) ->
+%	call_queue_config:new_skill(
+%		list_to_atom(proplists:get_value("atom", Post)),
+%		proplists:get_value("name", Post),
+%		proplists:get_value("description", Post),
+%		proplists:get_value("group", Post)
+%	),
+%	{200, [], mochijson2:encode({struct, [{success, true}]})};
 
 
 

@@ -85,7 +85,7 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 			puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
 		else
 			out = $1
-			if /(All \d+ tests successful|Test successful)/ =~ test_output
+			if /(All \d+ tests successful|Test successful.)/ =~ test_output
 				colorstart, colorend = percent_to_color(80)
 			#elsif /This module does not provide a test\(\) function/ =~ test_output
 				#colorstart, colorend = percent_to_color(50)

@@ -415,7 +415,7 @@ handle_call({remove, Callpid}, _From, State) ->
 		none ->
 			{reply, none, State};
 		{Key, #queued_call{cook=Cookpid}} ->
-			cook:stop(Cookpid),
+			gen_server:cast(Cookpid, stop),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			{reply, ok, State2}
 		end;
@@ -461,7 +461,7 @@ handle_cast({remove, Callpid}, State) ->
 		none ->
 			{noreply, State};
 		{Key, #queued_call{cook=Cookpid}} ->
-			cook:stop(Cookpid),
+			gen_server:cast(Cookpid, stop),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			{noreply, State2}
 		end;

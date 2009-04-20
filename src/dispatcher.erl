@@ -124,6 +124,9 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
+handle_cast({update_skills, Skills}, #state{call = Call} = State) ->
+	Newcall = Call#queued_call{skills = Skills},
+	{noreply, State#state{call = Newcall}};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 

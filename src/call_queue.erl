@@ -377,6 +377,10 @@ handle_call({add_skills, Callid, Skills}, _From, State) ->
 			Skills2 = expand_magic_skills(State, Value, Skills),
 			NewSkills = util:merge_skill_lists(OldSkills, Skills2),
 			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{skills=NewSkills}, State#state.queue)},
+			Telldp = fun(Pid) ->
+				gen_server:cast(Pid, {update_skills, NewSkills})
+			end,
+			lists:foreach(Telldp, Value#queued_call.dispatchers),
 			{reply, ok, State2}
 	end;
 handle_call({remove_skills, Callid, Skills}, _From, State) ->
@@ -387,6 +391,10 @@ handle_call({remove_skills, Callid, Skills}, _From, State) ->
 			Skills2 = expand_magic_skills(State, Value, Skills),
 			NewSkills = lists:subtract(OldSkills, Skills2),
 			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{skills=NewSkills}, State#state.queue)},
+			Telldp = fun(Pid) ->
+				gen_server:cast(Pid, {update_skills, NewSkills})
+			end,
+			lists:foreach(Telldp, Value#queued_call.dispatchers),
 			{reply, ok, State2}
 	end;
 

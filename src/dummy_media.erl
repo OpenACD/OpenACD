@@ -171,7 +171,7 @@ handle_call({set_brand, Brand}, _From, #state{callrec = Call} = State) ->
 handle_call({ring_agent, AgentPid, Queuedcall, Ringout}, _From, #state{fail = Fail} = State) -> 
 	case dict:fetch(ring_agent, Fail) of
 		success -> 
-			timer:apply_after(Ringout * 10000, gen_server, cast, [Queuedcall#queued_call.cook, {stop_ringing, AgentPid}]),
+			timer:apply_after(Ringout, gen_server, cast, [Queuedcall#queued_call.cook, {stop_ringing, AgentPid}]),
 			Callrec = State#state.callrec,
 			{reply, agent:set_state(AgentPid, ringing, Callrec#call{cook = Queuedcall#queued_call.cook}), State};
 		fail -> 

@@ -381,8 +381,18 @@ cooke_file_test_() ->
 					{ok, Result} = http:request("http://127.0.0.1:5050/"),
 					?assertMatch({_Statusline, _Headers, _Boddy}, Result),
 					{_Line, Head, _Body} = Result,
-					Cookie = proplists:get_value("set-cookie", Head),
-					?assertNot(undefined =:= Cookie)
+					?CONSOLE("Das head:  ~p", [Head]),
+					Cookies = proplists:get_all_values("set-cookie", Head),
+					Test = fun(C) ->
+						case util:string_split(C, "=", 2) of
+							["cpx_id", _Whatever] ->
+								true;
+							_Else ->
+								false
+						end
+					end,
+					?CONSOLE("Hmmm, cookie:  ~p", [Cookies]),
+					?assert(lists:any(Test, Cookies))
 				end}
 			end,
 			fun(_Httpc) ->
@@ -391,8 +401,16 @@ cooke_file_test_() ->
 					{ok, {{_Httpver, Code, _Message}, Head, _Body}} = http:request(get, {"http://127.0.0.1:5050/", [{"Cookie", "goober=snot"}]}, [], []),
 					?assertEqual(200, Code),
 					?CONSOLE("~p", [Head]),
-					Cookie = proplists:get_value("set-cookie", Head),
-					?assertNot(undefinded =:= Cookie)
+					Cookies = proplists:get_all_values("set-cookie", Head),
+					Test = fun(C) ->
+						case util:string_split(C, "=", 2) of
+							["cpx_id", _Whatever] ->
+								true;
+							_Else ->
+								false
+						end
+					end,
+					?assertEqual(true, lists:any(Test, Cookies))
 				end}
 			end,
 			fun(_Httpc) ->
@@ -401,8 +419,16 @@ cooke_file_test_() ->
 					{ok, {_Statusline, Head, _Body}} = http:request("http://127.0.0.1:5050/"),
 					Cookie = proplists:get_value("set-cookie", Head),
 					{ok, {{_Httpver, Code, _Message}, Head2, _Body2}} = http:request(get, {"http://127.0.0.1:5050", [{"Cookie", Cookie}]}, [], []),
-					Cookie2 = proplists:get_value("set-cookie", Head2),
-					?assertEqual(undefined, Cookie2),
+					Cookie2 = proplists:get_all_values("set-cookie", Head2),
+					Test = fun(C) ->
+						case util:string_split(C, "=", 2) of
+							["cpx_id", _Whatever] ->
+								true;
+							_Else ->
+								false
+						end
+					end,
+					?assertEqual(false, lists:any(Test, Cookie2)),
 					?assertEqual(200, Code)
 				end}
 			end

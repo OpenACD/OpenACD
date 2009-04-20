@@ -174,6 +174,8 @@ handle_cast(remove_from_queue, State) ->
 	Qpid = queue_manager:get_queue(State#state.queue),
 	call_queue:remove(Qpid, State#state.call),
 	{noreply, State};
+handle_cast(stop, State) ->
+	{stop, normal, State};
 handle_cast(Msg, State) ->
 	?CONSOLE("unhanlded cast ~p", [Msg]),
     {noreply, State}.

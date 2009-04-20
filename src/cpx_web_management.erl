@@ -1317,6 +1317,37 @@ api_test_() ->
 				?assertEqual(Testrec, Rec),
 				call_queue_config:destroy_queue_group("Test Q Group")
 			end}
+		end,
+		fun(Cookie) ->
+			{"/queus/groups/Test Q Group/update Updating a queue group",
+			fun() ->
+				Recipe = [{[{ticks, 5}], prioritize, [], run_many}],
+				Qgrouprec = #queue_group{
+					name = "Test Q Group",
+					recipe = Recipe,
+					sort = 35
+				},
+				call_queue_config:new_queue_group(Qgrouprec),
+				Newrecipe = [{[{calls_queued, '<', 200}], deprioritize, [], run_once}],
+				Newjrecipe = mochijson2:encode(encode_recipe(Newrecipe)),
+				Post = [
+					{"name", "Renamed Q Group"},
+					{"sort", "27"},
+					{"recipe", Newjrecipe}
+				],
+				api({queues, "groups", "Test Q Group", "update"}, Cookie, Post),
+				{atomic, [Rec]} = call_queue_config:get_queue_group("Renamed Q Group"),
+				Testrec = #queue_group{
+					name = "Renamed Q Group",
+					recipe = Newrecipe,
+					sort = 27,
+					protected = false
+				},
+				?assertNot(Qgrouprec =:= Rec),
+				?assertEqual(Testrec, Rec),
+				?assertEqual({atomic, []}, call_queue_config:get_queue_group("Test Q Group")),
+				call_queue_config:destroy_queue_group("Renamed Q Group")
+			end}
 		end
 	]}.
 

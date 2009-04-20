@@ -167,6 +167,7 @@ loop(Req, Table) ->
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
 			Cookielist = Req:parse_cookie(),
+			?CONSOLE("The cookie list:  ~p", [Cookielist]),
 			case proplists:get_value("cpx_id", Cookielist) of
 				undefined ->
 					Reflist = erlang:ref_to_list(make_ref()),
@@ -301,6 +302,7 @@ api(_Api, _Whatever, _Post) ->
 check_cookie([]) ->
 	badcookie;
 check_cookie(Allothers) ->
+	?CONSOLE("Das check_cookie ~p", [Allothers]),
 	case proplists:get_value("cpx_id", Allothers) of
 		undefined ->
 			badcookie;
@@ -417,8 +419,9 @@ cooke_file_test_() ->
 				{"Get a cookie, then a request with that cookie",
 				fun() ->
 					{ok, {_Statusline, Head, _Body}} = http:request("http://127.0.0.1:5050/"),
-					Cookie = proplists:get_value("set-cookie", Head),
-					{ok, {{_Httpver, Code, _Message}, Head2, _Body2}} = http:request(get, {"http://127.0.0.1:5050", [{"Cookie", Cookie}]}, [], []),
+					Cookie = proplists:get_all_values("set-cookie", Head),
+					Cookielist = lists:map(fun(I) -> {"Cookie", I} end, Cookie),
+					{ok, {{_Httpver, Code, _Message}, Head2, _Body2}} = http:request(get, {"http://127.0.0.1:5050", Cookielist}, [], []),
 					Cookie2 = proplists:get_all_values("set-cookie", Head2),
 					Test = fun(C) ->
 						case util:string_split(C, "=", 2) of
@@ -443,8 +446,11 @@ cookie_api_test_() ->
 			inets:start(),
 			{ok, Httpc} = inets:start(httpc, [{profile, test_prof}]),
 			{ok, {_Statusline, Head, _Body}} = http:request("http://127.0.0.1:5050"),
-			Cookie = proplists:get_value("set-cookie", Head),
-			{Httpc, Cookie}
+			Cookie = proplists:get_all_values("set-cookie", Head),
+			?CONSOLE("cookie_api_test_ setup ~p", [Cookie]),
+			Cookieproplist = lists:map(fun(I) -> {"Cookie", I} end, Cookie),
+			?CONSOLE("cookie proplist ~p", [Cookieproplist]),
+			{Httpc, Cookieproplist}
 		end,
 		fun({Httpc, _Cookie}) ->
 			inets:stop(httpc, Httpc),
@@ -452,10 +458,10 @@ cookie_api_test_() ->
 			agent_web_listener:stop()
 		end,
 		[
-			fun({_Httpc, Cookie}) ->
+			fun({_Httpc, Cookielist}) ->
 				{"Get a salt with a valid cookie",
 				fun() ->
-					{ok, {{_Ver, Code, _Msg}, _Head, Body}} = http:request(get, {"http://127.0.0.1:5050/getsalt", [{"Cookie", Cookie}]}, [], []),
+					{ok, {{_Ver, Code, _Msg}, _Head, Body}} = http:request(get, {"http://127.0.0.1:5050/getsalt", Cookielist}, [], []),
 					?CONSOLE("body:  ~p", [Body]),
 					{struct, Pairs} = mochijson2:decode(Body),
 					?assertEqual(200, Code),
@@ -489,15 +495,19 @@ web_connection_login_test_() ->
 			inets:start(),
 			{ok, Httpc} = inets:start(httpc, [{profile, test_prof}]),
 			{ok, {_Statusline, Head, _Body}} = http:request("http://127.0.0.1:5050"),
-			Cookie = proplists:get_value("set-cookie", Head),
+			?CONSOLE("request head ~p", [Head]),
+			Cookies = proplists:get_all_values("set-cookie", Head),
+			Cookielist = lists:map(fun(I) -> {"Cookie", I} end, Cookies), 
 			agent_auth:start(),
 			?CONSOLE("~p", [agent_auth:add_agent("testagent", "pass", [english], agent, "Default")]),
 			Getsalt = fun() ->
-				{ok, {_Statusline2, _Head2, Body2}} = http:request(get, {"http://127.0.0.1:5050/getsalt", [{"Cookie", Cookie}]}, [], []),
+				{ok, {_Statusline2, _Head2, Body2}} = http:request(get, {"http://127.0.0.1:5050/getsalt", Cookielist}, [], []),
+				?CONSOLE("Body2:  ~p", [Body2]),
 				{struct, Jsonlist} = mochijson2:decode(Body2),
 				binary_to_list(proplists:get_value(<<"salt">>, Jsonlist))
 			end,
-			{Httpc, Cookie, Getsalt}
+			
+			{Httpc, Cookielist, Getsalt}
 		end,
 		fun({Httpc, _Cookie, _Getsalt}) ->
 			inets:stop(httpc, Httpc),
@@ -515,7 +525,7 @@ web_connection_login_test_() ->
 				fun() ->
 					Unsalted = util:bin_to_hexstr(erlang:md5("pass")),
 					Salted = util:bin_to_hexstr(erlang:md5(string:concat("12345", Unsalted))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", [{"Cookie", Cookie}], "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", Salted])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", Salted])}, [], []),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
 					?assertEqual(<<"No salt set">>, proplists:get_value(<<"message">>, Json))
@@ -526,7 +536,7 @@ web_connection_login_test_() ->
 				fun() ->
 					Unsalted = util:bin_to_hexstr(erlang:md5("badpass")),
 					Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt(), Unsalted))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", [{"Cookie", Cookie}], "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", Salted])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", Salted])}, [], []),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json))
 					%?assertEqual(<<"login err">>, proplists:get_value(<<"message">>, Json))
@@ -537,7 +547,8 @@ web_connection_login_test_() ->
 				fun() ->
 					Unsalted = util:bin_to_hexstr(erlang:md5("pass")),
 					Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt(), Unsalted))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", [{"Cookie", Cookie}], "application/x-www-form-urlencoded", lists:append(["username=badun&password=", Salted])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", Salted])}, [], []),
+					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json))
 					%?assertEqual(<<"login err">>, proplists:get_value(<<"message">>, Json))

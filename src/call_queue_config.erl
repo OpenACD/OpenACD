@@ -80,12 +80,7 @@
 	get_queue/1,
 	get_queues/0,
 	get_queues/1,
-	set_queue/1,
-	set_queue/2,
-	set_queue_name/2,
-	set_queue_recipe/2,
-	set_queue_skills/2,
-	set_queue_weight/2
+	set_queue/2
 	]).
 -export([
 	new_queue_group/1,
@@ -291,12 +286,12 @@ new_queue(Name, Weight, Skills, Recipe, Group) when Weight > 0, is_integer(Weigh
 %			Fullqrec
 %	end.
 %% @doc Set all the params for a config based on the `#call_queue{}' `Queue'.  Returns the results of the mnesia transaction.
--spec(set_queue/1 :: (Queue :: #call_queue{}) -> {'aborted', any()} | {'atomic', any()}).
-set_queue(Queue) when is_record(Queue, call_queue) -> 
-	F = fun() -> 
-		mnesia:write(Queue)
-	end,
-	mnesia:transaction(F).
+%-spec(set_queue/1 :: (Queue :: #call_queue{}) -> {'aborted', any()} | {'atomic', any()}).
+%set_queue(Queue) when is_record(Queue, call_queue) -> 
+%	F = fun() -> 
+%		mnesia:write(Queue)
+%	end,
+%	mnesia:transaction(F).
 
 %% @doc Sets the queue name `Queue' to the passed `#call_queue{}'.
 -spec(set_queue/2 :: (Queue :: string(), Rec :: #call_queue{}) -> {'atomic', 'ok'} | {'aborted', any()}).
@@ -311,48 +306,48 @@ set_queue(Queue, Rec) ->
 	mnesia:transaction(F).
 
 %% @doc Rename a queue from `string()' `OldName' to `string()' `NewName'.  Returns the results of the mnesia transaction.
--spec(set_queue_name/2 :: (OldName :: string(), NewName :: string()) -> any()).
-set_queue_name(OldName, NewName) ->
-	F = fun() -> 
-		[OldRec] = mnesia:read({call_queue, OldName}),
-		NewRec = OldRec#call_queue{name=NewName},
-		mnesia:write(NewRec),
-		mnesia:delete({call_queue, OldName})
-	end,
-	mnesia:transaction(F).
+%-spec(set_queue_name/2 :: (OldName :: string(), NewName :: string()) -> any()).
+%set_queue_name(OldName, NewName) ->
+%	F = fun() -> 
+%		[OldRec] = mnesia:read({call_queue, OldName}),
+%		NewRec = OldRec#call_queue{name=NewName},
+%		mnesia:write(NewRec),
+%		mnesia:delete({call_queue, OldName})
+%	end,
+%	mnesia:transaction(F).
 
 % TODO notify queue?  Kill the functions?
 %% @doc Update `string()' `Queue' with a new `recipe()' `Recipe'.
--spec(set_queue_recipe/2 :: (Queue :: string(), Recipe :: recipe()) -> any()).
-set_queue_recipe(Queue, Recipe) -> 
-	F = fun() -> 
-		[OldRec] = mnesia:read({call_queue, Queue}),
-		NewRec = OldRec#call_queue{recipe=Recipe},
-		mnesia:write(NewRec)
-	end,
-	mnesia:transaction(F).
+%-spec(set_queue_recipe/2 :: (Queue :: string(), Recipe :: recipe()) -> any()).
+%set_queue_recipe(Queue, Recipe) -> 
+%	F = fun() -> 
+%		[OldRec] = mnesia:read({call_queue, Queue}),
+%		NewRec = OldRec#call_queue{recipe=Recipe},
+%		mnesia:write(NewRec)
+%	end,
+%	mnesia:transaction(F).
 	
 %% @doc Update the `string()' `Queue' replacing the skills with `[atom()]' `Skills'.
 %% Returns the result of the mnesia transaction.
--spec(set_queue_skills/2 :: (Queue :: string(), Skills :: [atom()]) -> any()).
-set_queue_skills(Queue, Skills) -> 
-	F = fun() -> 
-		[OldRec] = mnesia:read({call_queue, Queue}),
-		NewRec = OldRec#call_queue{skills=Skills},
-		mnesia:write(NewRec)
-	end,
-	mnesia:transaction(F).
+%-spec(set_queue_skills/2 :: (Queue :: string(), Skills :: [atom()]) -> any()).
+%set_queue_skills(Queue, Skills) -> 
+%	F = fun() -> 
+%		[OldRec] = mnesia:read({call_queue, Queue}),
+%		NewRec = OldRec#call_queue{skills=Skills},
+%		mnesia:write(NewRec)
+%	end,
+%	mnesia:transaction(F).
 	
 %% @doc Update `string()' `Queue' with a new wight of `pos_integer()' `Weight'.
 %% Returns the result of the mnesia transaction.
--spec(set_queue_weight/2 :: (Queue :: string(), Weight :: pos_integer()) -> any()).
-set_queue_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1-> 
-	F = fun() ->
-		[OldRec] = mnesia:read({call_queue, Queue}),
-		NewRec = OldRec#call_queue{weight = Weight},
-		mnesia:write(NewRec)
-	end,
-	mnesia:transaction(F).
+%-spec(set_queue_weight/2 :: (Queue :: string(), Weight :: pos_integer()) -> any()).
+%set_queue_weight(Queue, Weight) when is_integer(Weight) andalso Weight >= 1-> 
+%	F = fun() ->
+%		[OldRec] = mnesia:read({call_queue, Queue}),
+%		NewRec = OldRec#call_queue{weight = Weight},
+%		mnesia:write(NewRec)
+%	end,
+%	mnesia:transaction(F).
 	
 %% =====
 %% call queue groups Configs
@@ -773,77 +768,93 @@ call_queue_test_() ->
 				end
 			},
 			{
-				"Set Name", 
+				"Set queue",
 				fun() ->
 					Queue = test_queue(),
-					set_queue(Queue),
-					TestQueue = Queue#call_queue{name="new name"},
-					set_queue_name(Queue#call_queue.name, TestQueue#call_queue.name),
-					Selectnew = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "new name"]),
-					SelectnewF = fun() -> 
-						qlc:e(Selectnew)
-					end,
-					Selectold = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "test queue"]),
-					SelectoldF = fun() -> 
-						qlc:e(Selectold)
-					end,
-					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(SelectnewF)),
-					?assertEqual({atomic, []}, mnesia:transaction(SelectoldF)),
-					destroy_queue(Queue),
-					destroy_queue(TestQueue)
+					new_queue(Queue),
+					Newqueue = #call_queue{
+						name = "new name",
+						skills = [],
+						recipe = [],
+						group = "New Group"
+					},
+					set_queue("test queue", Newqueue),
+					?assertEqual(noexists, get_queue("test queue")),
+					?assertEqual(Newqueue, get_queue("new name"))
 				end
-			},
-			{
-				"Set Recipe",
-				fun() -> 
-					Queue = test_queue(),
-					set_queue(Queue),
-					Recipe = [{[{ticks, 3}], announce, "announcement", run_once}],
-					TestQueue = Queue#call_queue{recipe = Recipe},
-					set_queue_recipe(Queue#call_queue.name, Recipe),
-					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
-					F = fun() -> 
-						qlc:e(Select)
-					end,
-					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
-					destroy_queue(Queue)
-				end
-			},
-			{
-				"Set Skills",
-				fun() -> 
-					Queue = test_queue(), 
-					set_queue(Queue),
-					TestQueue = Queue#call_queue{skills = [german]},
-					set_queue_skills(Queue#call_queue.name, [german]),
-					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
-					F = fun() ->
-						qlc:e(Select)
-					end,
-					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
-					destroy_queue(Queue)
-				end
-			},
-			{
-				"Set Weight",
-				fun() -> 
-					Queue = test_queue(),
-					set_queue(Queue),
-					TestQueue = Queue#call_queue{weight = 7},
-					set_queue_weight(Queue#call_queue.name, 7),
-					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
-					F = fun() -> 
-						qlc:e(Select)
-					end,
-					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
-					destroy_queue(Queue)
-				end
+%			},
+%			{
+%				"Set Name", 
+%				fun() ->
+%					Queue = test_queue(),
+%					set_queue(Queue),
+%					TestQueue = Queue#call_queue{name="new name"},
+%					set_queue_name(Queue#call_queue.name, TestQueue#call_queue.name),
+%					Selectnew = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "new name"]),
+%					SelectnewF = fun() -> 
+%						qlc:e(Selectnew)
+%					end,
+%					Selectold = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "test queue"]),
+%					SelectoldF = fun() -> 
+%						qlc:e(Selectold)
+%					end,
+%					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(SelectnewF)),
+%					?assertEqual({atomic, []}, mnesia:transaction(SelectoldF)),
+%					destroy_queue(Queue),
+%					destroy_queue(TestQueue)
+%				end
+			%},
+%			{
+%				"Set Recipe",
+%				fun() -> 
+%					Queue = test_queue(),
+%					set_queue(Queue),
+%					Recipe = [{[{ticks, 3}], announce, "announcement", run_once}],
+%					TestQueue = Queue#call_queue{recipe = Recipe},
+%					set_queue_recipe(Queue#call_queue.name, Recipe),
+%					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
+%					F = fun() -> 
+%						qlc:e(Select)
+%					end,
+%					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
+%					destroy_queue(Queue)
+%				end
+%			},
+%			{
+%				"Set Skills",
+%				fun() -> 
+%					Queue = test_queue(), 
+%					set_queue(Queue),
+%					TestQueue = Queue#call_queue{skills = [german]},
+%					set_queue_skills(Queue#call_queue.name, [german]),
+%					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
+%					F = fun() ->
+%						qlc:e(Select)
+%					end,
+%					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
+%					destroy_queue(Queue)
+%				end
+%			},
+%			{
+%				"Set Weight",
+%				fun() -> 
+%					Queue = test_queue(),
+%					set_queue(Queue),
+%					TestQueue = Queue#call_queue{weight = 7},
+%					set_queue_weight(Queue#call_queue.name, 7),
+%					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
+%					F = fun() -> 
+%						qlc:e(Select)
+%					end,
+%					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F)),
+%					destroy_queue(Queue)
+%				end
 			},
 			{
 				"Destroy",
 				fun() -> 
 					Queue = test_queue(),
-					set_queue(Queue),
+					new_queue(Queue),
 					destroy_queue(Queue),
 					Select = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= Queue#call_queue.name]),
 					F = fun() -> 
@@ -857,8 +868,8 @@ call_queue_test_() ->
 				fun() -> 
 					Queue = test_queue(),
 					Queue2 = Queue#call_queue{name="test queue 2"},
-					set_queue(Queue),
-					set_queue(Queue2),
+					new_queue(Queue),
+					new_queue(Queue2),
 					?assertEqual([Queue, Queue2], get_queues()),
 					destroy_queue(Queue),
 					destroy_queue(Queue2)
@@ -869,8 +880,8 @@ call_queue_test_() ->
 				fun() -> 
 					Queue = test_queue(),
 					Queue2 = Queue#call_queue{name="test queue 2"},
-					set_queue(Queue),
-					set_queue(Queue2),
+					new_queue(Queue),
+					new_queue(Queue2),
 					?assertEqual(Queue, get_queue(Queue#call_queue.name)),
 					?assertEqual(Queue2, get_queue(Queue2#call_queue.name)),
 					destroy_queue(Queue),

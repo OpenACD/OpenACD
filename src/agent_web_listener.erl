@@ -257,6 +257,12 @@ api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
 	end,
 	Jsons = lists:map(Converter, Releaseopts),
 	{200, [], mochijson2:encode(Jsons)};
+api(logout, {Reflist, _Salt, Conn}, _Post) ->
+	Newref = erlang:ref_to_list(make_ref()),
+	ets:insert(web_connections, {Newref, undefined, undefined}),
+	Cookie = io_lib:format("cpx_id=~p", [Newref]),
+	agent_web_connection:api(Conn, logout),
+	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
 api(login, {_Reflist, undefined, _Conn}, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})};
 api(login, {Reflist, Salt, _Conn}, Post) ->

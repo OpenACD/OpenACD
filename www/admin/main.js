@@ -393,6 +393,7 @@ dojo.addOnLoad(function(){
 								dijit.byId("loginpane").hide();
 								dojo.byId("main").style.display="block";
 								dojo.byId("main").style.visibility = "visible";
+								dojo.byId("logoutButtonDiv").style.display="block";
 								agents.init();
 								agents.refreshTree("agentsList");
 								skills.init();
@@ -428,6 +429,7 @@ dojo.addOnLoad(function(){
 			if(response.success){
 				dojo.byId("main").style.display="block";
 				dojo.byId("main").style.visibility = "visible";
+				dojo.byId("logoutButtonDiv").style.display="block";
 				agents.init();
 				agents.refreshTree("agentsList");
 				skills.init();
@@ -447,7 +449,6 @@ dojo.addOnLoad(function(){
 	dijit.byId("queueSkills").skillUpdateHandler = dojo.subscribe("skills/init", function(data){
 		skills.skillSelection(dojo.byId("queueSkills"));
 	});
-			   
 });
 
 

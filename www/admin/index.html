@@ -83,7 +83,27 @@ dojo.require("spice.medias");
 	</div>
 </div>
 
+<div style="position: absolute; top:2%; right:2%; z-index:2000; display:none" id="logoutButtonDiv">
+	<button id="logoutbutton" dojoType="dijit.form.Button" label="Log Out">
+		<script type="dojo/connect" event="onClick">
+			dojo.xhrGet({
+				url:"/logout",
+				handleAs:"json",
+				load:function(resp, ioargs){
+					console.log(resp);
+					if(resp.success){
+						dojo.byId("main").style.visibility = "hidden";
+						dojo.byId("logoutButtonDiv").style.display = "none";
+						dijit.byId("loginpane").show();
+					}
+				}
+			});
+		</script>
+	</button>
+</div>
+
 <div id="main" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px;visibility:hidden">
+	
 	<div id="agentsTab" dojoType="dijit.layout.BorderContainer" title="Agents" selected="true">
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="agentsNav">
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="top">
@@ -405,5 +425,6 @@ dojo.require("spice.medias");
 		</div>
 	</div>
 </div>
+
 </body>
 </html>

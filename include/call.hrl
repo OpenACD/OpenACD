@@ -61,5 +61,5 @@
 -ifdef(EUNIT).
 -define(CONSOLE(Message, Args), ?debugFmt("[~p][~p][~p]~n	~s~n", [erlang:localtime(), node(), self(), lists:flatten(io_lib:format(Message, Args))])).
 -else.
--define(CONSOLE(Message, Args), cpxlog:log(info, erlang:localtime(), ?MODULE, ?LINE, self(), Message, Args)).
+-define(CONSOLE(Message, Args), cpxlog:log(info, erlang:localtime(), ?MODULE, ?LINE, self(), "FIXME "++Message, Args)).
 -endif.

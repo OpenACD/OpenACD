@@ -1,5 +1,37 @@
+%%	The contents of this file are subject to the Common Public Attribution
+%%	License Version 1.0 (the “License”); you may not use this file except
+%%	in compliance with the License. You may obtain a copy of the License at
+%%	http://opensource.org/licenses/cpal_1.0. The License is based on the
+%%	Mozilla Public License Version 1.1 but Sections 14 and 15 have been
+%%	added to cover use of software over a computer network and provide for
+%%	limited attribution for the Original Developer. In addition, Exhibit A
+%%	has been modified to be consistent with Exhibit B.
+%%
+%%	Software distributed under the License is distributed on an “AS IS”
+%%	basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+%%	License for the specific language governing rights and limitations
+%%	under the License.
+%%
+%%	The Original Code is Spice Telephony.
+%%
+%%	The Initial Developers of the Original Code is 
+%%	Andrew Thompson and Micah Warren.
+%%
+%%	All portions of the code written by the Initial Developers are Copyright
+%%	(c) 2008-2009 SpiceCSM.
+%%	All Rights Reserved.
+%%
+%%	Contributor(s):
+%%
+%%	Andrew Thompson <athompson at spicecsm dot com>
+%%	Micah Warren <mwarren at spicecsm dot com>
+%%
+
 -module(cpxlog_terminal).
 -behaviour(gen_event).
+
+-include("log.hrl").
+
 -export([
 	init/1,
 	handle_event/2,
@@ -9,19 +41,9 @@
 	code_change/3
 ]).
 
--define(LOGLEVELS, [
-	debug,
-	info,
-	notice,
-	warning,
-	error,
-	critical,
-	alert,
-	emergency
-]).
-
 -record(state, {
 	level = info,
+	debugmodules = [],
 	lasttime
 }).
 
@@ -35,7 +57,7 @@ handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 		false ->
 			ok
 	end,
-	case (lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(State#state.level, ?LOGLEVELS))) of
+	case ((lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(State#state.level, ?LOGLEVELS))) orelse lists:member(Module, State#state.debugmodules)) of
 		true ->
 			io:format("~w:~w:~w [~s] ~w@~s:~w ~s~n", [
 					element(1, element(2, Time)),
@@ -57,6 +79,12 @@ handle_event({set_log_level, Level}, State) ->
 			io:format("Invalid loglevel: ~s~n", [string:to_upper(atom_to_list(Level))]),
 			{ok, State}
 	end;
+handle_event({debug_module, Module}, State) ->
+	io:format("Now showing all messages for module ~s", [Module]),
+	{ok, State#state{debugmodules = lists:umerge(State#state.debugmodules, [Module])}};
+handle_event({nodebug_module, Module}, State) ->
+	io:format("No longer showing all messages for module ~s", [Module]),
+	{ok, State#state{debugmodules = lists:subtract(State#state.debugmodules, [Module])}};
 handle_event(_Event, State) ->
 	{ok, State}.
 

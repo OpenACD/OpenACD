@@ -37,6 +37,7 @@
 
 -behaviour(gen_server).
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 -include("queue.hrl").
@@ -95,7 +96,7 @@ start_at(Node, Call, Recipe, Queue) ->
 	F = fun() ->
 		case init([Call, Recipe, Queue]) of
 			{ok, State} ->
-				?CONSOLE("about to enter loop", []),
+				?DEBUG("about to enter loop", []),
 				gen_server:enter_loop(?MODULE, [], State)%;
 			%{stop, Reason} ->
 			%	?CONSOLE("not entering loop due to ~p", [Reason]),
@@ -110,8 +111,8 @@ start_at(Node, Call, Recipe, Queue) ->
 
 %% @private
 init([Call, Recipe, Queue]) ->
-	?CONSOLE("Cook starting for call ~p from queue ~p", [Call, Queue]),
-	?CONSOLE("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
+	?DEBUG("Cook starting for call ~p from queue ~p", [Call, Queue]),
+	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
 	process_flag(trap_exit, true),
 	%case is_process_alive(Call) of
 	%	true ->
@@ -129,10 +130,10 @@ init([Call, Recipe, Queue]) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_call(stop, From, State) ->
-	?CONSOLE("Stop requested from ~p", [From]),
+	?NOTICE("Stop requested from ~p", [From]),
 	{stop, normal, ok, State};
 handle_call({stop, Reason}, From, State) -> 
-	?CONSOLE("Stop requested from ~p for ~p.", [From, Reason]),
+	?NOTICE("Stop requested from ~p for ~p.", [From, Reason]),
 	{stop, {normal, Reason}, ok, State};
 handle_call(Request, _From, State) ->
     {reply, {unknown_call, Request}, State}.
@@ -162,12 +163,12 @@ handle_cast(stop_tick, State) ->
 	timer:cancel(State#state.tref),
 	{noreply, State#state{tref=undefined}};
 handle_cast({stop_ringing, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
-	?CONSOLE("Ordered to stop ringing ~p", [AgentPid]),
+	?DEBUG("Ordered to stop ringing ~p", [AgentPid]),
 	agent:set_state(AgentPid, idle),
 	gen_server:cast(State#state.call, stop_ringing),
 	{noreply, State#state{ringingto=undefined}};
 handle_cast({stop_ringing_keep_state, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
-	?CONSOLE("Ordered to stop ringing without changing state ~p", [AgentPid]),
+	?DEBUG("Ordered to stop ringing without changing state ~p", [AgentPid]),
 	gen_server:cast(State#state.call, stop_ringing),
 	{noreply, State#state{ringingto=undefined}};
 handle_cast(remove_from_queue, State) ->
@@ -177,15 +178,15 @@ handle_cast(remove_from_queue, State) ->
 handle_cast(stop, State) ->
 	{stop, normal, State};
 handle_cast(Msg, State) ->
-	?CONSOLE("unhanlded cast ~p", [Msg]),
-    {noreply, State}.
+	?DEBUG("unhandled cast ~p", [Msg]),
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
 handle_info(do_tick, State) ->
-	?CONSOLE("do_tick caught, beginning processing...", []),
+	?DEBUG("do_tick caught, beginning processing...", []),
 	case whereis(queue_manager) of % do we even need this?  We do have a terminate that should catch a no-proc.
 		undefined ->
 			{stop, queue_manager_undefined, State};
@@ -194,7 +195,7 @@ handle_info(do_tick, State) ->
 				undefined ->
 					{stop, {queue_undefined, State#state.queue}, State};
 				_Other ->
-					?CONSOLE("Doing tick ~p", [State]),
+					?DEBUG("Doing tick ~p", [State]),
 					case do_route(State#state.ringcount, State#state.queue, State#state.ringingto, State#state.call) of
 						nocall -> 
 							{stop, {call_not_queued, State#state.call}, State};
@@ -212,27 +213,27 @@ handle_info(do_tick, State) ->
 			end
 	end;
 handle_info(Info, State) ->
-	?CONSOLE("received random info message: ~p", [Info]),
-    {noreply, State}.
+	?DEBUG("received random info message: ~p", [Info]),
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
 terminate(normal, _State) ->
-	?CONSOLE("normal death", []),
+	?DEBUG("normal death", []),
 	ok;
 terminate(shutdown, _State) ->
-	?CONSOLE("shutdown death", []),
+	?DEBUG("shutdown death", []),
 	ok;
 terminate({normal, Reason}, _State) ->
-	?CONSOLE("An inelegant shutdown requested for ~p", [Reason]),
+	?NOTICE("An inelegant shutdown requested for ~p", [Reason]),
 	ok;
 terminate(Reason, State) ->
-	?CONSOLE("Unusual death:  ~p", [Reason]),
+	?WARNING("Unusual death:  ~p", [Reason]),
 	timer:cancel(State#state.tref),
 	Qpid = wait_for_queue(State#state.queue),
-	?CONSOLE("Looks like the queue recovered, dieing now",[]),
+	?INFO("Looks like the queue recovered, dieing now",[]),
 	call_queue:add(Qpid, State#state.call),
 	ok.
 
@@ -259,25 +260,25 @@ stop_tick(Pid) ->
 wait_for_queue(Qname) ->
 	case whereis(queue_manager) of
 		undefined ->
-			?CONSOLE("Waiting on the queue manager", []),
+			?INFO("Waiting on the queue manager", []),
 			receive
 			after 1000 ->
 				ok
 			end;
 		QMPid when is_pid(QMPid) ->
-			?CONSOLE("Queue manager is available", []),
+			?DEBUG("Queue manager is available", []),
 			ok
 	end,
 	case queue_manager:get_queue(Qname) of
 		undefined ->
-			?CONSOLE("Waiting on queue ~p" , [Qname]),
+			?INFO("Waiting on queue ~p" , [Qname]),
 			receive
 			after 300 ->
 				ok
 			end,
 			wait_for_queue(Qname);
 		Qpid when is_pid(Qpid) ->
-			?CONSOLE("Queue ~p is back up", [Qname]),
+			?DEBUG("Queue ~p is back up", [Qname]),
 			Qpid
 	end.
 
@@ -288,20 +289,20 @@ stop(Pid) ->
 %% @private
 -spec(do_route/4 :: (Ringcount :: non_neg_integer(), Queue :: string(), 'undefined' | pid(), pid()) -> 'nocall' | {'ringing', pid(), non_neg_integer()} | 'rangout').
 do_route(Ringcount, _Queue, Agentpid, _Callpid) when is_pid(Agentpid) ->
-	?CONSOLE("still ringing: ~p times", [Ringcount]),
+	?DEBUG("still ringing: ~p times", [Ringcount]),
 	{ringing, Agentpid, Ringcount + 1};
 %do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid), Ringcount > ?RINGOUT, is_pid(Callpid) ->
 %	?CONSOLE("rang out",[]),
 	%agent:set_state(Agentpid, idle),
 %	rangout;
 do_route(_Ringcount, Queue, undefined, Callpid) when is_pid(Callpid), is_list(Queue) ->
-	?CONSOLE("Searching for agent to ring to...",[]),
+	?DEBUG("Searching for agent to ring to...",[]),
 	Qpid = queue_manager:get_queue(Queue),
 	case call_queue:get_call(Qpid, Callpid) of
 		{_Key, Call} ->
 			Dispatchers = Call#queued_call.dispatchers,
 			Agents = sort_agent_list(Dispatchers),
-			?CONSOLE("Dispatchers:  ~p; Agents:  ~p", [Dispatchers, Agents]),
+			?DEBUG("Dispatchers:  ~p; Agents:  ~p", [Dispatchers, Agents]),
 			case offer_call(Agents, Call) of
 				none -> 
 					rangout;
@@ -309,7 +310,7 @@ do_route(_Ringcount, Queue, undefined, Callpid) when is_pid(Callpid), is_list(Qu
 					{ringing, Apid, 0}
 			end;
 		none -> 
-			?CONSOLE("No call to ring",[]),
+			?DEBUG("No call to ring",[]),
 			nocall
 	end.
 
@@ -321,14 +322,14 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	F = fun(Dpid) ->
 		try dispatcher:get_agents(Dpid) of
 			[] ->
-				?CONSOLE("empty list, might as well tell this dispatcher to regrab", []),
+				?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
 				dispatcher:regrab(Dpid),
 				[];
 			Ag ->
 				Ag
 		catch
 			What:Why ->
-				?CONSOLE("Caught:  ~p:~p", [What, Why]),
+				?INFO("Caught:  ~p:~p", [What, Why]),
 				[]
 		end
 	end,
@@ -352,12 +353,12 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 %% @private
 -spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #queued_call{}) -> 'none' | pid()).
 offer_call([], _Call) ->
-	?CONSOLE("No valid agents found", []),
+	?DEBUG("No valid agents found", []),
 	none;
 offer_call([{_ACost, Apid} | Tail], Call) ->
 	case gen_server:call(Call#queued_call.media, {ring_agent, Apid, Call, ?TICK_LENGTH * (?RINGOUT + 1)}) of
 		ok ->
-			?CONSOLE("cook offering call:  ~p to ~p", [Call, Apid]),
+			?INFO("cook offering call:  ~p to ~p", [Call, Apid]),
 			Apid;
 		invalid ->
 			offer_call(Tail, Call)
@@ -391,7 +392,7 @@ check_conditions([{eligible_agents, Comparision, Number} | Conditions], Ticked, 
 	{_Key, Callrec} = call_queue:get_call(Qpid, Call),
 	L = agent_manager:find_by_skill(Callrec#queued_call.skills),
 	Agents = length(L),
-	?CONSOLE("Number: ~p; agents: ~p", [Number, Agents]),
+	?DEBUG("Number: ~p; agents: ~p", [Number, Agents]),
 	case Comparision of
 		'>' when Agents > Number ->
 			check_conditions(Conditions, Ticked, Queue, Call);
@@ -463,7 +464,7 @@ do_recipe([{Conditions, Op, Args, Runs} | Recipe], Ticked, Queuename, Call) when
 %% @private
 -spec(do_operation/3 :: (Recipe :: recipe_step(), Queuename :: string(), Callid :: pid()) -> 'ok' | recipe_step()).
 do_operation({_Conditions, Op, Args, _Runs}, Queuename, Callid) when is_list(Queuename), is_pid(Callid) ->
-	?CONSOLE("do_opertion ~p", [Op]),
+	?DEBUG("do_opertion ~p", [Op]),
 	Pid = queue_manager:get_queue(Queuename), %TODO look up the pid only once, maybe?
 	case Op of
 		add_skills ->
@@ -487,10 +488,10 @@ do_operation({_Conditions, Op, Args, _Runs}, Queuename, Callid) when is_list(Que
 		voicemail ->
 			case gen_server:call(Callid, voicemail) of
 				ok ->
-					?CONSOLE("voicemail successfully, removing from queue", []),
+					?DEBUG("voicemail successfully, removing from queue", []),
 					call_queue:bgremove(Pid, Callid);
 				invalid ->
-					?CONSOLE("voicemail failed.", []),
+					?WARNING("voicemail failed.", []),
 					ok
 			end;
 		add_recipe ->

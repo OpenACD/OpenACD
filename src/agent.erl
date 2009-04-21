@@ -35,6 +35,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 
@@ -74,7 +75,7 @@ init([State = #agent{}]) ->
 	% TODO - merge in skills from the profile!
 	{Profile, Skills} = case agent_auth:get_profile(State#agent.profile) of
 		undefined ->
-			?CONSOLE("Agent ~p has an invalid profile of ~p, using Default", [State#agent.login, State#agent.profile]),
+			?WARNING("Agent ~p has an invalid profile of ~p, using Default", [State#agent.login, State#agent.profile]),
 			agent_auth:get_profile("Default");
 		Else ->
 			Else
@@ -193,7 +194,7 @@ idle({released, Reason}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 idle(Event, From, State) ->
-	?CONSOLE("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
+	?WARNING("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
 	{reply, invalid, idle, State}.
 
 %% @doc The various state changes available when an agent is ringing. <ul>
@@ -203,7 +204,7 @@ idle(Event, From, State) ->
 %%<li>`idle'</li>
 %%</ul>
 ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.defaultringpath =:= inband, Statecall#call.ring_path =/= outband ->
-	?CONSOLE("default ringpath inband, ring_path not outband", []),
+	?DEBUG("default ringpath inband, ring_path not outband", []),
 	gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
 	gen_server:cast(Statecall#call.cook, remove_from_queue),
 	{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};
@@ -216,7 +217,7 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} 
 			{reply, invalid, ringing, State}
 	end;
 ringing({released, Reason}, _From, #agent{statedata = Call} = State) ->
-	?CONSOLE("going released from ringing", []),
+	?DEBUG("going released from ringing", []),
 	gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
@@ -370,7 +371,7 @@ wrapup(idle, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, State#agent.queuedrelease}),
 	{reply, ok, released, State#agent{state=released, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()}};
 wrapup(Event, From, State) ->
-	?CONSOLE("Invalid event '~p' from ~p while in wrapup.", [Event, From]),
+	?WARNING("Invalid event '~p' from ~p while in wrapup.", [Event, From]),
 	{reply, invalid, wrapup, State}.
 
 
@@ -404,7 +405,7 @@ handle_info(_Info, StateName, State) ->
 % obviousness below.
 %% @private
 terminate(Reason, StateName, _State) ->
-	?CONSOLE("Agent terminating:  ~p, State:  ~p", [Reason, StateName]),
+	?NOTICE("Agent terminating:  ~p, State:  ~p", [Reason, StateName]),
 	ok.
 
 %% @private

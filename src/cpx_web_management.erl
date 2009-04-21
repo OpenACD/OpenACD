@@ -1369,6 +1369,56 @@ api_test_() ->
 			end}
 		end,
 		fun(Cookie) ->
+			{"/queues/queue/new Add a queue",
+			fun() ->
+				Post = [
+					{"name", "test queue"},
+					{"recipe", "[]"},
+					{"weight", "1"},
+					{"group", "Default"}
+				],
+				Q = #call_queue{
+					name = "test queue",
+					skills = [], 
+					recipe = []
+				},
+				api({queues, "queue", "new"}, Cookie, Post),
+				?assertEqual(Q, call_queue_config:get_queue("test queue")),
+				call_queue_config:destroy_queue("test queue")
+			end}
+		end,
+		fun(Cookie) ->
+			{"/queues/queue/test queue/update Update an existing queue",
+			fun() ->
+				Post = [
+					{"name", "test name"},
+					{"recipe", "[]"},
+					{"weight", "57"},
+					{"group", "Group"},
+					{"skills", "english"}
+				],
+				Q = #call_queue{
+					name = "test name",
+					skills = [english],
+					recipe = [],
+					weight = 57,
+					group = "Group"
+				},
+				call_queue_config:new_queue("test queue", 1, [], [], "Default"),
+				api({queues, "queue", "test queue", "update"}, Cookie, Post),
+				?assertEqual(noexists, call_queue_config:get_queue("test queue")),
+				?assertEqual(Q, call_queue_config:get_queue("test name"))
+			end}
+		end,
+		fun(Cookie) ->
+			{"/queues/queue/test queue/delete Delete an existing queue",
+			fun() ->
+				call_queue_config:new_queue("test queue", 1, [], [], "Default"),
+				api({queues, "queue", "test queue", "delete"}, Cookie, []),
+				?assertEqual(noexists, call_queue_config:get_queue("test queue"))
+			end}
+		end,
+		fun(Cookie) ->
 			{timeout,
 			120,
 			[

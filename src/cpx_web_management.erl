@@ -125,7 +125,10 @@ api(login, {Reflist, Salt, _Login}, Post) ->
 	end;
 api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	ets:delete(cpx_management_logins, Reflist),
-	{200, [], mochijson2:encode({struct, [{success, true}]})};
+	Newref = erlang:ref_to_list(make_ref()),
+	Cookie = io_lib:format("cpx_management=~p; path=/", [Newref]),
+	ets:insert(cpx_management_logins, {Newref, undefined, undefined}),
+	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
 
 %% =====
 %% agents -> modules

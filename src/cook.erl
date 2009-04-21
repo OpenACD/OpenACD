@@ -713,7 +713,10 @@ queue_interaction_test_() ->
 			},
 			{"Waiting for queue rebirth",
 			fun() ->
-				call_queue_config:new_queue("testqueue", {recipe, [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]}),
+				call_queue_config:new_queue(#call_queue{
+					name = "testqueue",
+					recipe = [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]
+				}),
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
 				call_queue:add(Pid, whereis(media_dummy)),
 				{_Pri, _CallRec} = call_queue:ask(Pid),
@@ -736,7 +739,10 @@ queue_interaction_test_() ->
 			},
 			{"Queue Manager dies",
 			fun() ->
-				call_queue_config:new_queue("testqueue", {recipe, [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]}),
+				call_queue_config:new_queue(#call_queue{
+					name = "testqueue",
+					recipe = [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]
+				}),
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
 				call_queue:add(Pid, whereis(media_dummy)),
 				{_Pri, _CallRec} = call_queue:ask(Pid),

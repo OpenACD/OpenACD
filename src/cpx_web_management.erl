@@ -76,13 +76,39 @@ loop(Req) ->
 					Ref = erlang:ref_to_list(make_ref()),
 					Cookie = io_lib:format("cpx_management=~p; path=/", [Ref]),
 					ets:insert(cpx_management_logins, {Ref, undefined, undefined}),
-					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}]);
+					% now would be a good time to determine the language.
+					Language = case Req:get_header_value("Accept-Language") of
+						undefined ->
+							"";
+						Langlist ->
+							determine_language(util:string_split(Langlist, ","))
+					end,
+					Langcookie = io_lib:format("cpx_lang=~s", [Language]),
+					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie},{"Set-Cookie", Langcookie}]);
 				{_Reflist, _Salt, _Login} ->
 					Req:serve_file(File, Docroot)
 			end;
 		{api, Api} ->
 			Out = api(Api, check_cookie(Req:parse_cookie()), Post),
 			Req:respond(Out)
+	end.
+
+determine_language([]) ->
+	"";
+determine_language([Head | Tail]) ->
+	[Lang |_Junk] = util:string_split(Head, ";"),
+	case filelib:is_regular(string:concat(string:concat("www/admin/lang/nls/", Lang), "/labels.js")) of
+		true ->
+			Lang;
+		false ->
+			% try the "super language" (eg en vs en-us) in case it's not in the list itself
+			[SuperLang | _SubLang] = util:string_split(Lang, "-"),
+			case filelib:is_regular(string:concat(string:concat("www/admin/lang/nls/", SuperLang), "/labels.js")) of
+				true ->
+					SuperLang;
+				false ->
+					determine_language(Tail)
+			end
 	end.
 
 %% =====

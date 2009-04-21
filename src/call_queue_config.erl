@@ -75,7 +75,7 @@
 ]).
 -export([
 	new_queue/1, 
-	new_queue/2,
+	new_queue/5,
 	destroy_queue/1,
 	get_queue/1,
 	get_queues/0,
@@ -133,7 +133,7 @@ build_tables(Nodes) ->
 	case A of
 		{atomic, ok} -> 
 			% since the table didn't already exist, build up the default queue
-			new_queue("default_queue"),
+			new_queue(#call_queue{name = "default_queue"}),
 			ok;
 		_Else -> 
 			ok
@@ -241,18 +241,30 @@ get_queues() ->
 
 %% @doc Create a new default queue configuraiton with the name `string()' `QueueName'.
 %% @see new_queue/2
--spec(new_queue/1 :: (QueueName :: string() | #call_queue{} ) -> #call_queue{}).
+-spec(new_queue/1 :: (QueueName :: #call_queue{} ) -> #call_queue{}).
 new_queue(Queue) when is_record(Queue, call_queue) ->
+	
 	F = fun() ->
 		mnesia:write(Queue)
 	end,
-	case mnesia:transaction(F) of
-		{atomic, ok} ->
-			Queue
-	end;
-new_queue(QueueName) -> 
-	new_queue(QueueName, []).
+	Trans = mnesia:transaction(F),
+	case whereis(queue_manager) of
+		undefined ->
+			Trans;
+		Qmpid when is_pid(Qmpid) ->
+			queue_manager:add_queue(Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight),
+			Trans
+	end.
 
+new_queue(Name, Weight, Skills, Recipe, Group) when Weight > 0, is_integer(Weight) ->
+	Rec = #call_queue{
+		name = Name,
+		weight = Weight,
+		skills = Skills,
+		recipe = Recipe,
+		group = Group},
+	new_queue(Rec).
+		
 %% @doc Using with a single `{Key, Value}', or `[{Key, Value}]', create a new queue called `string()' `QueueName' and add it to the database.
 %% Valid keys/value combos are:
 %% <dl>
@@ -260,24 +272,24 @@ new_queue(QueueName) ->
 %% <dt>skills</dt><dd>A list of atoms for the skills a call will be initially assigned.</dd>
 %% <dt>recipe</dt><dd>A recipe config for this queue for use by {@link cook. cooks}.</dd>
 %% </dl>
--spec(new_queue/2 :: (QueueName :: string(), {'weight' | 'skills' | 'recipe' | 'queue_group', any()}) -> #call_queue{};
-					(QueueName :: string(), [{'weight' | 'skills' | 'recipe' | 'queue_group', any()}]) -> #call_queue{}).
-new_queue(QueueName, {Key, Value}) when is_atom(Key) -> 
-	new_queue(QueueName, [{Key, Value}]);
-new_queue(QueueName, Options) when is_list(Options) -> 
-	Q = #call_queue{name=QueueName},
-	Fullqrec = set_options(Q, Options),
-	F = fun() ->
-		mnesia:write(Fullqrec)
-	end,
-	{atomic, ok} = mnesia:transaction(F),
-	case whereis(queue_manager) of
-		undefined ->
-			Fullqrec;
-		QMPid when is_pid(QMPid) ->
-			queue_manager:add_queue(Fullqrec#call_queue.name, Fullqrec#call_queue.recipe, Fullqrec#call_queue.weight),
-			Fullqrec
-	end.
+%-spec(new_queue/2 :: (QueueName :: string(), {'weight' | 'skills' | 'recipe' | 'queue_group', any()}) -> #call_queue{};
+%					(QueueName :: string(), [{'weight' | 'skills' | 'recipe' | 'queue_group', any()}]) -> #call_queue{}).
+%new_queue(QueueName, {Key, Value}) when is_atom(Key) -> 
+%	new_queue(QueueName, [{Key, Value}]);
+%new_queue(QueueName, Options) when is_list(Options) -> 
+%	Q = #call_queue{name=QueueName},
+%	Fullqrec = set_options(Q, Options),
+%	F = fun() ->
+%		mnesia:write(Fullqrec)
+%	end,
+%	{atomic, ok} = mnesia:transaction(F),
+%	case whereis(queue_manager) of
+%		undefined ->
+%			Fullqrec;
+%		QMPid when is_pid(QMPid) ->
+%			queue_manager:add_queue(Fullqrec#call_queue.name, Fullqrec#call_queue.recipe, Fullqrec#call_queue.weight),
+%			Fullqrec
+%	end.
 %% @doc Set all the params for a config based on the `#call_queue{}' `Queue'.  Returns the results of the mnesia transaction.
 -spec(set_queue/1 :: (Queue :: #call_queue{}) -> {'aborted', any()} | {'atomic', any()}).
 set_queue(Queue) when is_record(Queue, call_queue) -> 
@@ -670,13 +682,14 @@ set_options(QueueRec, [{Key, Value} | Tail]) ->
 
 test_queue() -> 
 	Recipe = [{2, add_skills, [true], run_once}],
-	Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
-	new_queue("test queue", Options).
+	new_queue("test queue", 3, [testskill], Recipe, "Default"),
+	Default = #call_queue{name = "goober"},
+	#call_queue{name = "test queue", weight = 3, skills = [testskill], recipe = Recipe, group = "Default"}.
 	
 call_queue_test_() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{
-		setup,
+		foreach,
 		fun() -> 
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
@@ -686,7 +699,11 @@ call_queue_test_() ->
 			F = fun() -> 
 				mnesia:delete({call_queue, "default_queue"})
 			end,
-			mnesia:transaction(F)
+			mnesia:transaction(F),
+			Dumptestq = fun() ->
+				mnesia:transaction(fun() -> mnesia:delete({call_queue, "test queue"}) end)
+			end,
+			{Dumptestq}
 		end,
 		fun(_Whatever) -> 
 			mnesia:stop(),
@@ -695,71 +712,62 @@ call_queue_test_() ->
 		end,
 		[
 			{
-				"New Default Queue",
-				fun() -> 
-					Queue = #call_queue{name="test queue"},
-					?assertEqual(Queue, new_queue("test queue"))
-				end
-			},
-			{
 				"New Queue with Weight",
-				fun() -> 
-					Queue = #call_queue{name="test queue", weight=3},
-					?assertEqual(Queue, new_queue("test queue", {weight, 3}))
+				fun() ->
+					?assertEqual({atomic, ok}, new_queue("test queue", 3, [], [], "Default")),
+					F = fun() ->
+						mnesia:read({call_queue, "test queue"})
+					end,
+					Q = #call_queue{
+						name = "test queue",
+						weight = 3,
+						recipe = [],
+						skills = []},
+					?CONSOLE("trans:  ~p", [mnesia:transaction(F)]),
+					?CONSOLE("rec:  ~p", [Q]),
+					?assertEqual({atomic, [Q]}, mnesia:transaction(F))
 				end
 			},
 			{
 				"New Queue with Invalid Weight",
 				fun() -> 
-					?assertError({case_clause, weight}, new_queue("name", {weight, "not a number"}))
+					?assertError(function_clause, new_queue("name", "not a number", [], [], "Default")),
+					?assertError(function_clause, new_queue("name", -1, [], [], "Default")),
+					?assertError(function_clause, new_queue("name", 0, [], [], "Default"))
 				end
 			},
 			{
 				"New Queue with Skills",
 				fun() ->
-					Queue = #call_queue{name="test queue"},
-					TestQueue = Queue#call_queue{skills = lists:append([Queue#call_queue.skills, [testskill]])},
-					?assertEqual(TestQueue, new_queue("test queue", {skills, [testskill]}))
+					TestQueue = #call_queue{skills = [testskill], name = "test queue", weight = 1, recipe = []},
+					?assertEqual({atomic, ok}, new_queue("test queue", 1, [testskill], [], "Default")),
+					F = fun() ->
+						mnesia:read({call_queue, "test queue"})
+					end,
+					?CONSOLE("trans:  ~p", [mnesia:transaction(F)]),
+					?CONSOLE("test:  ~p", [TestQueue]),
+					?assertEqual({atomic, [TestQueue]}, mnesia:transaction(F))
 				end
 			},
 			{
 				"New Queue with Recipe",
 				fun() -> 
 					Recipe = [{[{ticks, 2}], add_skills, [true], run_once}],
-					Queue = #call_queue{name="test queue", recipe=Recipe},
-					?assertEqual(Queue, new_queue("test queue", {recipe, Recipe}))
-				end
-			},
-			{
-				"New Queue with Options List",
-				fun() -> 
-					Recipe = [{[{ticks, 2}], add_skills, [true], run_once}],
-					Queue = #call_queue{name="test queue", recipe=Recipe, weight=3},
-					TestQueue = Queue#call_queue{skills= lists:append([Queue#call_queue.skills, [testskill]])},
-					Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
-					?assertEqual(TestQueue, new_queue("test queue", Options))
-				end
-			},
-			{
-				"Set All",
-				fun() -> 
-					Recipe = [{[{ticks, 2}], add_skills, [true], run_once}],
-					Options = [{skills, [testskill]}, {weight, 3}, {recipe, Recipe}],
-					Queue = new_queue("test queue", Options),
-					set_queue(Queue),
-					QH = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "test queue"]),
-					F = fun() -> 
-						qlc:e(QH)
+					Queue = #call_queue{name="test queue", recipe=Recipe, skills = []},
+					?assertEqual({atomic, ok}, new_queue("test queue", 1, [], Recipe, "Default")),
+					F = fun() ->
+						mnesia:read({call_queue, "test queue"})
 					end,
-					?assertEqual({atomic, [Queue]}, mnesia:transaction(F)),
-					destroy_queue(Queue)
+					?CONSOLE("Queue:  ~p", [Queue]),
+					?CONSOLE("Trans:  ~p", [mnesia:transaction(F)]),
+					?assertEqual({atomic, [Queue]}, mnesia:transaction(F))
 				end
 			},
 			{
 				"New Queue with active Queue Manager",
 				fun() ->
 					queue_manager:start([node()]),
-					_Queue = new_queue("test queue"),
+					_Queue = new_queue(#call_queue{name = "test queue"}),
 					?assertMatch(true, queue_manager:query_queue("test queue")),
 					queue_manager:stop()
 				end

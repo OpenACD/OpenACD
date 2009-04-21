@@ -40,6 +40,8 @@
 -endif.
 
 -behaviour(gen_server).
+
+-include("log.hrl").
 -include("call.hrl").
 -include("queue.hrl").
 

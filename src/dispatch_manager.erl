@@ -34,6 +34,7 @@
 -module(dispatch_manager).
 -author("Micah").
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 

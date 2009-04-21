@@ -46,6 +46,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include("log.hrl").
 -include("queue.hrl").
 -include("call.hrl").
 -include("agent.hrl").

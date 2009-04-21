@@ -491,14 +491,12 @@ handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
 			{noreply, State2}
 	end;
 handle_info({'EXIT', From, Reason}, State) ->
-	QMPid = whereis(queue_manager),
-	?NOTICE("Handling exit from ~p which died due to ~p.  Manager is ~p", [From, Reason, QMPid]),
-	case QMPid of
+	case whereis(queue_manager) of
 		undefined ->
 			?ERROR("Can't find the manager.  dying", []),
 			{stop, {queue_manager, noproc}, State};
 		From ->
-			?NOTICE("Seems to be the queue manager that died.  Dying with it.", []),
+			?NOTICE("Handling exit of queue manager with reason ~p.  Dying with it.", [Reason]),
 			{stop, {queue_manager_died, Reason}, State};
 		_Else ->
 			Calls = gb_trees:to_list(State#state.queue),
@@ -523,6 +521,9 @@ terminate(Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
+% TODO - this function kinda sucks, it shouldn't keep iterating after it matches
+% a pid, for example. It should also probably be aware of the exit reason so it
+% can log things more appropiately.
 %% @private
 %% Cleans up both dead dispatchers and dead cooks from the calls.
 -spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [{key(), #queued_call{}}], QName :: string()) -> [{key(), #queued_call{}}]).
@@ -560,9 +561,6 @@ clean_pid(_Deadpid, _Recipe, [], _QName) ->
 % begin the defintions of the tests.
 
 -ifdef(TEST).
-
-
-
 test_primer() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),

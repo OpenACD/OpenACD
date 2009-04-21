@@ -124,7 +124,12 @@ handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) ->
 	State2 = State#state{agents = lists:delete(Object, State#state.agents)},
 	{noreply, balance(State2)};
 handle_info({'EXIT', Pid, Reason}, #state{dispatchers = Dispatchers} = State) ->
-	?NOTICE("Dispatcher unexpected exit:  ~p ~p", [Pid, Reason]),
+	case (Reason =:= normal orelse Reason =:= shutdown) of
+		true ->
+			ok;
+		false ->
+			?NOTICE("Dispatcher unexpected exit:  ~p ~p", [Pid, Reason])
+	end,
 	CleanD = lists:delete(Pid, Dispatchers),
 	State2 = State#state{dispatchers = CleanD},
 	{noreply, balance(State2)};

@@ -59,6 +59,7 @@ start(_Type, StartArgs) ->
 				[] ->
 					ok;
 				AliveNodes ->
+					?NOTICE("Alive nodes: ~p", [AliveNodes]),
 					mnesia:change_config(extra_db_nodes, AliveNodes)
 			end,
 			ok;
@@ -66,6 +67,7 @@ start(_Type, StartArgs) ->
 			Nodes = [node()]
 	end,
 	mnesia:change_table_copy_type(schema, node(), disc_copies),
+	mnesia:set_master_nodes(lists:umerge(Nodes, [node()])),
 	cpx_supervisor:start_link(Nodes).
 	
 stop(_State) -> 

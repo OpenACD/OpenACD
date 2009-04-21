@@ -42,6 +42,7 @@
 -define(TICK_LENGTH, 10000).
 -endif.
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 
@@ -138,7 +139,7 @@ encode_statedata({}) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Agent, Security]) ->
-	?CONSOLE("web_connection init ~p", [Agent]),
+	?DEBUG("web_connection init ~p", [Agent]),
 	case agent_manager:start_agent(Agent) of
 		{ok, Apid} ->
 			ok;
@@ -201,7 +202,7 @@ handle_call(Allothers, _From, State) ->
 %%--------------------------------------------------------------------
 
 handle_cast({change_state, AgState, Data}, #state{poll_queue = Pollq, counter = Counter} = State) ->
-	?CONSOLE("State:  ~p; Data:  ~p", [AgState, Data]),
+	?DEBUG("State:  ~p; Data:  ~p", [AgState, Data]),
 	Newqueue =
 		[{struct, [
 			{<<"counter">>, Counter},
@@ -219,7 +220,7 @@ handle_cast({change_state, AgState}, #state{poll_queue = Pollq, counter = Counte
 		]} | Pollq],
 	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
 handle_cast(Msg, State) ->
-	?CONSOLE("Other case ~p", [Msg]),
+	?DEBUG("Other case ~p", [Msg]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -228,17 +229,17 @@ handle_cast(Msg, State) ->
 handle_info(check_acks, #state{missed_polls = Missedpolls} = State) when Missedpolls < 4 ->
 	{noreply, State#state{missed_polls = Missedpolls + 1}};
 handle_info(check_acks, State) ->
-	?CONSOLE("too many missed polls.",[]),
+	?NOTICE("too many missed polls.",[]),
 	{stop, normal, State};
 handle_info(Info, State) ->
-	?CONSOLE("info I can't handle:  ~p", [Info]),
+	?DEBUG("info I can't handle:  ~p", [Info]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 terminate(Reason, State) ->
-	?CONSOLE("terminated ~p", [Reason]),
+	?NOTICE("terminated ~p", [Reason]),
 	agent:stop(State#state.agent_fsm),
 	timer:cancel(State#state.ack_timer),
 	ok.

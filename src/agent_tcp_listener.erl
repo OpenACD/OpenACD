@@ -41,6 +41,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 
@@ -80,7 +81,7 @@ stop(Pid) ->
 
 %% @hidden
 init([Port]) ->
-	?CONSOLE("~p starting at ~p", [?MODULE, node()]),
+	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
 	Opts = [list, {packet, line}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
@@ -90,7 +91,7 @@ init([Port]) ->
 			{ok, Ref} = prim_inet:async_accept(Listen_socket, -1),
 			{ok, #state{listener = Listen_socket, acceptor = Ref}};
 		{error, Reason} ->
-			?CONSOLE("Could not start gen_tcp:  ~p", [Reason]),
+			?DEBUG("Could not start gen_tcp:  ~p", [Reason]),
 			{stop, Reason}
 	end.
 
@@ -116,11 +117,11 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		end,
 
 		%% New client connected
-		?CONSOLE("new client connection.~n", []),
+		?DEBUG("new client connection.~n", []),
 		{ok, Pid} = agent_tcp_connection:start(CliSocket),
 		gen_tcp:controlling_process(CliSocket, Pid),
 
-		?CONSOLE("negiotiating protocol.~n", []),
+		?DEBUG("negiotiating protocol.~n", []),
 		agent_tcp_connection:negotiate(Pid),
 	
 		%% Signal the network driver that we are ready to accept another connection
@@ -150,7 +151,7 @@ handle_info(_Info, State) ->
 
 %% @hidden
 terminate(Reason, State) ->
-	?CONSOLE("Terminating due to ~p", [Reason]),
+	?NOTICE("Terminating due to ~p", [Reason]),
 	gen_tcp:close(State#state.listener),
 	ok.
 

@@ -38,6 +38,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include("log.hrl").
 -include("queue.hrl").
 -include("call.hrl").
 -include("agent.hrl").
@@ -77,7 +78,7 @@ start_link(Callid) ->
 	start_link(Callid, success).
 
 start_link(Callid, success) ->
-    gen_server:start_link(?MODULE, [Callid, success], []);
+	gen_server:start_link(?MODULE, [Callid, success], []);
 start_link(Callid, failure) ->
 	gen_server:start_link(?MODULE, [Callid, failure], []);
 start_link(Callid, Fails) when is_list(Fails) ->
@@ -248,7 +249,7 @@ handle_call({announce, _Args}, _From, #state{fail = Fail} = State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(_Msg, State) ->
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
@@ -257,8 +258,8 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(Info, State) ->
-	?CONSOLE("Info: ~p", [Info]),
-    {noreply, State}.
+	?DEBUG("Info: ~p", [Info]),
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
@@ -268,14 +269,14 @@ handle_info(Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _State) ->
-    ok.
+	ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+	{ok, State}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions

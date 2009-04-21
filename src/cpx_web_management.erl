@@ -35,6 +35,7 @@
 -define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
 -define(COOKIE, {_Reflist, _Salt, _Login}).
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 -include("queue.hrl").
@@ -54,7 +55,7 @@ start() ->
 	start(?PORT).
 
 start(Port) ->
-	?CONSOLE("Starting mochiweb...", []),
+	?DEBUG("Starting mochiweb...", []),
 	ets:new(cpx_management_logins, [set, public, named_table]),
 	mochiweb_http:start([{loop, {?MODULE, loop}}, {name, ?MODULE}, {port, Port}]).
 
@@ -243,7 +244,7 @@ api({agents, "profiles", "Default", "update"}, {_Reflist, _Salt, _Login}, Post) 
 	end;
 api({agents, "profiles", Profile, "update"}, ?COOKIE, Post) ->
 	Parseskills = fun(Skill) ->
-		?CONSOLE("~p", [Skill]),
+		?DEBUG("~p", [Skill]),
 		case string:tokens(Skill, "{},") of
 			["_brand", Brandname] ->
 				{'_brand', Brandname};
@@ -280,7 +281,7 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 			{match, [Atomstring, Expanded]} ->
 				case call_queue_config:skill_exists(Atomstring) of
 					undefined ->
-						?CONSOLE("bad skill ~p : ~p", [Atomstring, Skill]),
+						?WARNING("bad skill ~p : ~p", [Atomstring, Skill]),
 						%erlang:error(badarg);
 						[];
 					Atom ->
@@ -289,7 +290,7 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 			nomatch ->
 				case call_queue_config:skill_exists(Skill) of
 					undefined ->
-						?CONSOLE("bad skill ~p", [Skill]),
+						?WARNING("bad skill ~p", [Skill]),
 						%erlang:error(badarg);
 						[];
 					Atom ->
@@ -298,7 +299,7 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 		end
 	end,
 	Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
-	?CONSOLE("~p", [Fixedskills]),
+	?DEBUG("~p", [Fixedskills]),
 	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
 	case proplists:get_value("password", Post) of
 		"" ->
@@ -366,7 +367,7 @@ api({skills, "groups", "get"}, ?COOKIE, _Post) ->
 	Json = {struct, [{success, true}, {<<"items">>, lists:map(Convert, Proplist)}]},
 	{200, [], mochijson2:encode(Json)};
 api({skills, "groups", Group, "update"}, ?COOKIE, Post) ->
-	?CONSOLE("Updating skill group ~p", [Group]),
+	?DEBUG("Updating skill group ~p", [Group]),
 	Newname = proplists:get_value("name", Post),
 	call_queue_config:rename_skill_group(Group, Newname),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
@@ -643,12 +644,12 @@ check_cookie([]) ->
 check_cookie(Allothers) ->
 	case proplists:get_value("cpx_management", Allothers) of
 		undefined ->
-			?CONSOLE("Cookie bad due to no cpx_managmenet.  ~p", [Allothers]),
+			?NOTICE("Cookie bad due to no cpx_managmenet.  ~p", [Allothers]),
 			badcookie;
 		Reflist ->
 			case ets:lookup(cpx_management_logins, Reflist) of
 				[] ->
-					?CONSOLE("Cookie bad reflist not in ets.  ~p", [Allothers]),
+					?NOTICE("Cookie bad reflist not in ets.  ~p", [Allothers]),
 					badcookie;
 				[{Reflist, Salt, Login}] ->
 					{Reflist, Salt, Login}

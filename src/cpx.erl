@@ -33,6 +33,7 @@
 
 -behaviour(application).
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 
@@ -44,8 +45,8 @@
 
 % TODO mnesia set-up (schema and connected nodes) needs to be ready before the app starts.
 start(_Type, StartArgs) ->
-	?CONSOLE("Start args ~p", [StartArgs]),
-	?CONSOLE("All env: ~p", [application:get_all_env(cpx)]),
+	?DEBUG("Start args ~p", [StartArgs]),
+	?DEBUG("All env: ~p", [application:get_all_env(cpx)]),
 	crypto:start(),
 	cpxlog:start(),
 	%Nodes = lists:append([nodes(), [node()]]),

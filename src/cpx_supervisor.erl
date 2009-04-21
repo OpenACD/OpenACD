@@ -47,6 +47,7 @@
 -module(cpx_supervisor).
 -author("Micah").
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 -include("cpx.hrl").
@@ -101,7 +102,7 @@ start(Nodes) ->
 
 %% @doc Exit with reason `shutdown'
 stop() ->
-	?CONSOLE("stopping ~p...", [?MODULE]),
+	?NOTICE("stopping ~p...", [?MODULE]),
 	exit(whereis(?MODULE), shutdown).
 
 %%====================================================================
@@ -110,14 +111,14 @@ stop() ->
 %% @private
 init([Nodes]) ->
 	% TODO Create warnings for missing/requires specs (at least one media manager, the agent_auth).
-	?CONSOLE("starting cpx_supervisor on ~p", [node()]),
+	?DEBUG("starting cpx_supervisor on ~p", [node()]),
 	case build_tables() of
 		ok ->
 			Routingspec = {routing_sup, {cpx_middle_supervisor, start_named, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
 			Managementspec = {management_sup, {cpx_middle_supervisor, start_named, [3, 5, management_sup]}, permanent, 2000, supervisor, [?MODULE]},
 			Agentspec = {agent_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_sup]}, temporary, 2000, supervisor, [?MODULE]},
 			Specs = [Routingspec, Agentspec, Managementspec],
-			?CONSOLE("specs:  ~p", [supervisor:check_childspecs(Specs)]),
+			?DEBUG("specs:  ~p", [supervisor:check_childspecs(Specs)]),
 			{ok,{{one_for_one,3,5}, Specs}}
 	end.
 
@@ -142,18 +143,18 @@ add_conf(Rec) ->
 %% @doc Attempts to build a valid childspec suitable for a supervisor module from the `#cpx_conf{}'.
 build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args, id = Id}) -> 
 	Spec = {Id, {Mod, Start, Args}, permanent, 20000, worker, [?MODULE]},
-	?CONSOLE("Building spec:  ~p", [Spec]),
+	?DEBUG("Building spec:  ~p", [Spec]),
 	case supervisor:check_childspecs([Spec]) of
 		ok -> 
 			Spec;
 		Else -> 
-			?CONSOLE("Spec failed check:  ~p", [Spec]),
+			?ERROR("Spec failed check:  ~p", [Spec]),
 			Else
 	end.
 
 %% @doc Attempts to build the `cpx_conf' table.
 build_tables() ->
-	?CONSOLE("cpx building tables...",[]),
+	?DEBUG("cpx building tables...",[]),
 	A = util:build_table(cpx_conf, [
 		{attributes, record_info(fields, cpx_conf)},
 		{disc_copies, [node()]},
@@ -176,7 +177,7 @@ build_tables() ->
 		exists ->
 			ok;
 		Else ->
-			?CONSOLE("unusual response building tables: ~p", [Else]),
+			?NOTICE("unusual response building tables: ~p", [Else]),
 			Else
 	end.
 
@@ -219,18 +220,18 @@ get_conf(Name) ->
 
 %% @private
 start_spec(Spec) when is_record(Spec, cpx_conf) ->
-	?CONSOLE("Starting ~p with supervisor ~p", [Spec#cpx_conf.id, Spec#cpx_conf.supervisor]),
+	?DEBUG("Starting ~p with supervisor ~p", [Spec#cpx_conf.id, Spec#cpx_conf.supervisor]),
 	cpx_middle_supervisor:add_with_middleman(Spec#cpx_conf.supervisor, 3, 5, Spec).
 
 stop_spec(Spec) when is_record(Spec, cpx_conf) ->
 	Out = cpx_middle_supervisor:drop_child(Spec#cpx_conf.supervisor, Spec),
 %	Out = supervisor:terminate_child(Spec#cpx_conf.supervisor, Spec#cpx_conf.id),
-	?CONSOLE("Out:  ~p.  Spec:  ~p.", [Out, Spec]),
+	?DEBUG("Out:  ~p.  Spec:  ~p.", [Out, Spec]),
 	Out.
 
 %% @private
 load_specs() -> 
-	?CONSOLE("loading specs...",[]),
+	?DEBUG("loading specs...",[]),
 	F = fun() -> 
 		QH = qlc:q([X || X <- mnesia:table(cpx_conf)]),
 		qlc:e(QH)
@@ -239,7 +240,7 @@ load_specs() ->
 		{atomic, Records} -> 
 			lists:map(fun(I) -> start_spec(I) end, Records);
 		Else -> 
-			?CONSOLE("unable to retrieve specs:  ~p", [Else]),
+			?ERROR("unable to retrieve specs:  ~p", [Else]),
 			Else
 	end.
 

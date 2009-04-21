@@ -37,6 +37,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include("log.hrl").
 -include("queue.hrl").
 -include("call.hrl").
 -include("agent.hrl").
@@ -81,19 +82,19 @@ init([Fnode, AgentRec, Apid, Number, Ringout, _Domain]) ->
 		{ok, UUID} ->
 			Call = #call{id=UUID, source=self(), type=voice},
 			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " " ++ Number ++ " xml outbound",
-			?CONSOLE("Originating outbound call with args: ~p", [Args]),
+			?INFO("Originating outbound call with args: ~p", [Args]),
 			F = fun(ok, _Reply) ->
 					% agent picked up?
 					%agent:set_state(Apid, outgoing, Call);
 					ok;
 				(error, Reply) ->
-					?CONSOLE("originate failed: ~p", [Reply]),
+					?WARNING("originate failed: ~p", [Reply]),
 					agent:set_state(Apid, idle)
 			end,
 			case freeswitch:bgapi(Fnode, originate, Args, F) of
 				ok ->
 					Gethandle = fun(Recusef, Count) ->
-						?CONSOLE("Counted ~p", [Count]),
+						?DEBUG("Counted ~p", [Count]),
 						case freeswitch:handlecall(Fnode, UUID) of
 							{error, badsession} when Count > 4 ->
 								{error, badsession};
@@ -108,17 +109,17 @@ init([Fnode, AgentRec, Apid, Number, Ringout, _Domain]) ->
 					end,
 					case Gethandle(Gethandle, 0) of
 						{error, badsession} ->
-							?CONSOLE("bad uuid ~p", [UUID]),
+							?ERROR("bad uuid ~p", [UUID]),
 							{stop, {error, session}};
 						{error, Other} ->
-							?CONSOLE("other error starting; ~p", [Other]),
+							?ERROR("other error starting; ~p", [Other]),
 							{stop, {error, Other}};
 						_Else ->
-							?CONSOLE("starting for ~p", [UUID]),
+							?DEBUG("starting for ~p", [UUID]),
 							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Call}}
 					end;
 				Else ->
-					?CONSOLE("bgapi call failed ~p", [Else]),
+					?ERROR("bgapi call failed ~p", [Else]),
 					{stop, {error, Else}}
 			end
 	end.
@@ -145,51 +146,51 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({call, {event, [UUID | _Rest]}}, #state{uuid = UUID} = State) ->
-	?CONSOLE("call", []),
+	?DEBUG("call", []),
 	{noreply, State};
 handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) ->
 	Event = freeswitch:get_event_name(Rest),
 	case Event of
 		"CHANNEL_BRIDGE" ->
-			?CONSOLE("Call bridged", []),
+			?INFO("Call bridged", []),
 			Call = State#state.callrec,
 			case agent:set_state(State#state.agent_pid, outgoing, Call) of
 				ok ->
 					{noreply, State};
 				invalid ->
-					?CONSOLE("Cannot set agent ~p to oncall with media ~p", [State#state.agent_pid, Call#call.id]),
+					?WARNING("Cannot set agent ~p to oncall with media ~p", [State#state.agent_pid, Call#call.id]),
 					{noreply, State}
 			end;
 		"CHANNEL_HANGUP" ->
 			case proplists:get_value("variable_hangup_cause", Rest) of
 				"NO_ROUTE_DESTINATION" ->
-					?CONSOLE("No route to destination for outbound call", []);
+					?ERROR("No route to destination for outbound call", []);
 				"NORMAL_CLEARING" ->
 					agent:set_state(State#state.agent_pid, wrapup, State#state.callrec);
 				"USER_BUSY" ->
-					?CONSOLE("Agent's phone rejected the call", []);
+					?WARNING("Agent's phone rejected the call", []);
 				"NO_ANSWER" ->
-					?CONSOLE("Agent rangout on outbound call", []);
+					?NOTICE("Agent rangout on outbound call", []);
 				Else ->
-					?CONSOLE("Hangup cause: ~p", [Else])
+					?INFO("Hangup cause: ~p", [Else])
 			end,
 			{noreply, State};
 		_Else ->
-			?CONSOLE("call_event ~p", [Event]),
+			?DEBUG("call_event ~p", [Event]),
 			{noreply, State}
 	end;
 handle_info(call_hangup, State) ->
-	?CONSOLE("Call hangup info", []),
+	?DEBUG("Call hangup info", []),
 	{stop, normal, State};
 handle_info(Info, State) ->
-	?CONSOLE("unhandled info ~p", [Info]),
+	?DEBUG("unhandled info ~p", [Info]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 terminate(Reason, _State) ->
-	?CONSOLE("FreeSWITCH outbound channel teminating ~p", [Reason]),
+	?NOTICE("FreeSWITCH outbound channel teminating ~p", [Reason]),
 	ok.
 
 %%--------------------------------------------------------------------

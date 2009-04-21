@@ -57,3 +57,7 @@
 -define(ALERT(Message, Args), cpxlog:alert(erlang:localtime(), ?MODULE, ?LINE, self(), Message, Args)).
 -define(EMERGENCY(Message, Args), cpxlog:emergency(erlang:localtime(), ?MODULE, ?LINE, self(), Message, Args)).
 -endif.
+
+-ifdef(EUNIT).
+-define(CONSOLE(Message, Args), ?debugFmt("[~p][~p][~p]~n	~s~n", [erlang:localtime(), node(), self(), lists:flatten(io_lib:format(Message, Args))])).
+-endif.

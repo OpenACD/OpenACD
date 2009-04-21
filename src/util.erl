@@ -205,7 +205,6 @@ merge_skill_lists(List1, List2, Whitelist) ->
 			1 ->
 				ok;
 			_Else ->
-				io:format("duplicate magic skill ~p in first argument", [Key]),
 				erlang:error(badarg)
 		end
 	end, group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, lists:filter(fun(X) -> is_tuple(X) end, List1))),
@@ -215,7 +214,6 @@ merge_skill_lists(List1, List2, Whitelist) ->
 			1 ->
 				ok;
 			_Else ->
-				io:format("duplicate magic skill ~p in second argument", [Key]),
 				erlang:error(badarg)
 		end
 	end, group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, lists:filter(fun(X) -> is_tuple(X) end, List2))),
@@ -257,7 +255,6 @@ build_table(Tablename, Options) when is_atom(Tablename) ->
 				true -> 					
 					case lists:member(Tablename, mnesia:system_info(local_tables)) of
 						true -> 
-							io:format("Table '~p' already exists.~n", [Tablename]),
 							exists;
 						false ->
 							case lists:member(Tablename, mnesia:system_info(tables)) of
@@ -269,11 +266,9 @@ build_table(Tablename, Options) when is_atom(Tablename) ->
 						end
 					end;
 				false -> 
-					io:format("Mnesia does not have a disc based schema.~n", []),
 					exit(mnesia_schema_not_found)
 			end;
 		Else -> 
-			io:format("Mnesia is not running, in state ~p~n.", [Else]),
 			exit(mnesia_stopped)
 	end.
 

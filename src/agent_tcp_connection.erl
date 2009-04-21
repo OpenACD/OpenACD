@@ -47,6 +47,7 @@
 -define(Major, 2).
 -define(Minor, 0).
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 
@@ -89,14 +90,14 @@ handle_call(Request, _From, State) ->
 %% @hidden
 % negotiate the client's protocol version and such
 handle_cast(negotiate, State) ->
-	?CONSOLE("starting negotiation...", []),
+	?DEBUG("starting negotiation...", []),
 	inet:setopts(State#state.socket, [{active, false}, {packet, line}, list]),
 	gen_tcp:send(State#state.socket, "Agent Server: -1\r\n"),
 	{ok, Packet} = gen_tcp:recv(State#state.socket, 0), % TODO timeout
 	%?CONSOLE("packet: ~p.~n", [Packet]),
 	case Packet of
 		"Protocol: " ++ Args ->
-			?CONSOLE("Got protcol version ~p.~n", [Args]),
+			?DEBUG("Got protcol version ~p.~n", [Args]),
 			try lists:map(fun(X) -> list_to_integer(X) end, util:string_split(util:string_chomp(Args), ".", 2)) of
 				[?Major, ?Minor] ->
 					gen_tcp:send(State#state.socket, "0 OK\r\n"),
@@ -122,7 +123,7 @@ handle_cast(negotiate, State) ->
 %% @hidden
 % TODO brandid is hard coded, not good (it's the 00310003)
 handle_cast({change_state, ringing, #call{} = Call}, State) ->
-	?CONSOLE("change_state to ringing with call ~p", [Call]),
+	?DEBUG("change_state to ringing with call ~p", [Call]),
 	Counter = State#state.counter,
 	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n"),
 	gen_tcp:send(State#state.socket, "CALLINFO " ++ integer_to_list(Counter+1) ++ " " ++ clientrec_to_id(Call#call.client) ++ " " ++ atom_to_list(Call#call.type) ++ " " ++ Call#call.callerid  ++ "\r\n"),
@@ -161,7 +162,7 @@ handle_info({tcp, Socket, Packet}, State) ->
 	end;
 
 handle_info({tcp_closed, _Socket}, State) ->
-	?CONSOLE("Client disconnected", []),
+	?NOTICE("Client disconnected", []),
 	case is_pid(State#state.agent_fsm) of
 		true ->
 			gen_fsm:send_all_state_event(State#state.agent_fsm, stop);
@@ -171,14 +172,14 @@ handle_info({tcp_closed, _Socket}, State) ->
 	{stop, normal, State};
 
 handle_info(do_tick, #state{resend_counter = Resends} = State) when Resends > 2 ->
-	?CONSOLE("Resend threshold exceeded, disconnecting: ~p", [Resends]),
+	?NOTICE("Resend threshold exceeded, disconnecting: ~p", [Resends]),
 	gen_fsm:send_all_state_event(State#state.agent_fsm, stop),
 	{stop, normal, State};
 handle_info(do_tick, State) ->
 	ExpiredEvents = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) >= 60000000 end, State#state.resent),
 	ResendEvents = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) >= 10000000 end, State#state.unacked),
 	lists:foreach(fun({Counter, Event, Data, _Time}) ->
-		?CONSOLE("Expired event ~s ~p ~s", [Event, Counter, Data])
+		?NOTICE("Expired event ~s ~p ~s", [Event, Counter, Data])
 	end, ExpiredEvents),
 	State2 = State#state{unacked = lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) < 10000000 end, State#state.unacked)},
 	State3 = State2#state{resent = lists:append(lists:filter(fun(X) -> timer:now_diff(now(), element(4,X)) < 60000000 end, State#state.resent), ResendEvents)},
@@ -212,7 +213,7 @@ handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integ
 		[Username, Password] ->
 			case agent_auth:auth(Username, Password, integer_to_list(State#state.salt)) of
 				deny -> 
-					?CONSOLE("Authentication failure",[]),
+					?INFO("Authentication failure for ~s",[Username]),
 					{err(Counter, "Authentication Failure"), State};
 				{allow, Skills, Security, Profile} -> 
 					%?CONSOLE("Authenciation success, next steps...",[]),
@@ -222,7 +223,7 @@ handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integ
 							% TODO validate this?
 							agent:set_remote_number(Pid, RemoteNumber),
 							State2 = State#state{agent_fsm=Pid, securitylevel=Security},
-							?CONSOLE("User ~p has authenticated using ~p.~n", [Username, Password]),
+							?DEBUG("User ~p has authenticated using ~p.~n", [Username, Password]),
 							{MegaSecs, Secs, _MicroSecs} = now(),
 							% TODO 1 1 1 should be updated to correct info (security level, profile id, current timestamp).
 							{ack(Counter, io_lib:format("~p 1 ~p~p", [securitylevel_to_id(Security), MegaSecs, Secs])), State2};
@@ -245,7 +246,7 @@ handle_event(["PING", Counter], State) when is_integer(Counter) ->
 	{ack(Counter, integer_to_list(MegaSecs) ++ integer_to_list(Secs)), State};
 
 handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Counter) ->
-	?CONSOLE("Trying to set state to ~p with data ~p.", [AgState, AgStateData]),
+	?DEBUG("Trying to set state to ~p with data ~p.", [AgState, AgStateData]),
 	try agent:list_to_state(AgState) of
 		released ->
 			try list_to_integer(AgStateData) of
@@ -274,7 +275,7 @@ handle_event(["STATE", Counter, AgState, AgStateData], State) when is_integer(Co
 	end;
 
 handle_event(["STATE", Counter, AgState], State) when is_integer(Counter) ->
-	?CONSOLE("Trying to set state ~p.", [AgState]),
+	?DEBUG("Trying to set state ~p.", [AgState]),
 	try agent:list_to_state(AgState) of
 		released ->
 			case agent:set_state(State#state.agent_fsm, released, default) of
@@ -377,11 +378,11 @@ handle_event(["ERR", Counter], State) when is_integer(Counter) ->
 	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
 
 handle_event([Event, Counter], State) when is_integer(Counter) ->
-	?CONSOLE("Unhandled: ~p", [Event]),
+	?INFO("Unhandled: ~p", [Event]),
 	{err(Counter, "Unknown event " ++ Event), State};
 
 handle_event([Event | [Counter | Args]], State) when is_integer(Counter) ->
-	?CONSOLE("Unhandled: ~p with Args: ~p", [Event, Args]),
+	?INFO("Unhandled: ~p with Args: ~p", [Event, Args]),
 	{err(Counter, "Unknown event " ++ Event), State};
 
 handle_event(_Stuff, State) ->
@@ -434,7 +435,7 @@ flush_send_queue([H|T], Socket) ->
 resend_events([], State) ->
 	State#state{resend_counter = State#state.resend_counter + 1};
 resend_events([{Counter, Event, Data, _Time}|T], State) ->
-	?CONSOLE("Resending event ~s ~p ~s", [Event, Counter, Data]),
+	?NOTICE("Resending event ~s ~p ~s", [Event, Counter, Data]),
 	resend_events(T, send(Event, Data, State)).
 
 clientrec_to_id(Rec) ->

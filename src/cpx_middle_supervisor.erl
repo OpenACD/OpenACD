@@ -33,6 +33,7 @@
 -module(cpx_middle_supervisor).
 -author("Micah").
 
+-include("log.hrl").
 -include("cpx.hrl").
 -include("call.hrl").
 
@@ -73,7 +74,7 @@ start_named(Maxr, Maxt, Name) when is_atom(Name) ->
 %% @doc Starts the passed `#cpx_conf{} Spec' on the supervisor registered at `atom() Name' with maximum restart `Maxr' in `Maxt' seconds.
 -spec(add_with_middleman/4 :: (Name :: atom(), Maxr :: pos_integer(), Maxt :: pos_integer(), Spec :: #cpx_conf{}) -> {'ok', pid()}).
 add_with_middleman(Name, Maxr, Maxt, Spec) when is_record(Spec, cpx_conf) ->
-	?CONSOLE("~p adding ~p", [Name, Spec]),
+	?DEBUG("~p adding ~p", [Name, Spec]),
 	supervisor:start_child(Name, {Spec#cpx_conf.id, {?MODULE, start_anon, [Maxr, Maxt, Spec]}, temporary, 2000, supervisor, [?MODULE]}).
 
 %% @doc Adds the `#cpx_conf{} Spec' directly to the supervisor registered at `atom() Name'.
@@ -99,7 +100,7 @@ drop_child(Name, Childid) ->
 init([Maxr, Maxt]) ->
     {ok,{{one_for_one, Maxr, Maxt}, []}};
 init([Maxr, Maxt, Spec]) ->
-	?CONSOLE("Checking spec: ~p", [supervisor:check_childspecs([Spec])]),
+	?DEBUG("Checking spec: ~p", [supervisor:check_childspecs([Spec])]),
     {ok,{{one_for_one, Maxr, Maxt}, [Spec]}}.
 
 %%====================================================================

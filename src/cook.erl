@@ -66,7 +66,7 @@
 
 -record(state, {
 		recipe = [] :: recipe(),
-		ticked = 0 :: integer(), % number of ticks we've done
+		ticked = 1 :: pos_integer(), % number of ticks we've done
 		call :: pid() | 'undefined',
 		queue :: string() | 'undefined',
 		continue = true :: bool(),
@@ -118,7 +118,7 @@ init([Call, Recipe, Queue]) ->
 	%	true ->
 			%process_flag(trap_exit, true),
 			{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
-			State = #state{ticked=0, recipe=Recipe, call=Call, queue=Queue, tref=Tref},
+			State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref},
 			{ok, State}.%;
 	%	false ->
 	%		?CONSOLE("Call process not alive, aborting start", []),
@@ -368,7 +368,7 @@ offer_call([{_ACost, Apid} | Tail], Call) ->
 -spec(check_conditions/4 :: (Conditions :: [recipe_condition()], Ticked :: non_neg_integer(), Queue :: string(), Call :: pid()) -> 'true' | 'false').
 check_conditions([], _Ticked, _Queue, _Call) ->
 	true;
-check_conditions([{ticks, Ticks} | Conditions], Ticked, Queue, Call) when (Ticked rem Ticks) == 0 ->
+check_conditions([{ticks, Ticks} | Conditions], Ticked, Queue, Call) when Ticked > 0 andalso (Ticked rem Ticks) == 0 ->
 	check_conditions(Conditions, Ticked, Queue, Call);
 check_conditions([{ticks, _Ticks} | _Conditions], _Ticked, _Queue, _Call) ->
 	false;
@@ -464,7 +464,7 @@ do_recipe([{Conditions, Op, Args, Runs} | Recipe], Ticked, Queuename, Call) when
 %% @private
 -spec(do_operation/3 :: (Recipe :: recipe_step(), Queuename :: string(), Callid :: pid()) -> 'ok' | recipe_step()).
 do_operation({_Conditions, Op, Args, _Runs}, Queuename, Callid) when is_list(Queuename), is_pid(Callid) ->
-	?DEBUG("do_opertion ~p", [Op]),
+	?INFO("do_operation ~p with args ~p", [Op, Args]),
 	Pid = queue_manager:get_queue(Queuename), %TODO look up the pid only once, maybe?
 	case Op of
 		add_skills ->
@@ -858,7 +858,7 @@ condition_checking_test_() ->
 		fun({_Qpid, Mpid}) ->
 			{"Ticks on even ticks",
 			fun() ->
-				?assertEqual(true, check_conditions([{ticks, 2}], 0, "testqueue", Mpid)),
+				?assertEqual(false, check_conditions([{ticks, 2}], 0, "testqueue", Mpid)),
 				?assertEqual(false, check_conditions([{ticks, 2}], 1, "testqueue", Mpid)),
 				?assertEqual(true, check_conditions([{ticks, 2}], 2, "testqueue", Mpid)),
 				?assertEqual(false, check_conditions([{ticks, 2}], 3, "testqueue", Mpid))

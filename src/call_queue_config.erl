@@ -60,7 +60,8 @@
 	]
 ).
 -define(DEFAULT_QUEUE_GROUP, #queue_group{name = "Default", sort = 0, protected = true}).
-	
+
+-include("log.hrl").
 -include("queue.hrl").
 -include("call.hrl").
 -include_lib("stdlib/include/qlc.hrl").
@@ -124,7 +125,7 @@ build_tables() ->
 %% @doc Attempts to set-up and create the required mnesia table `call_queue' on the specified nodes
 %% Errors caused by the table already existing are ignored.
 build_tables(Nodes) -> 
-	?CONSOLE("~p building tables...", [?MODULE]),
+	?DEBUG("~p building tables...", [?MODULE]),
 	A = util:build_table(call_queue, ?QUEUE_TABLE([node()])),
 	case A of
 		{atomic, ok} -> 
@@ -500,7 +501,7 @@ rename_skill_group(Oldgroup, Newgroup) when is_list(Newgroup) ->
 			end,
 			mnesia:transaction(Doupdate);
 		{atomic, List} when length(List) >= 1 ->
-			?CONSOLE("error, target name exists", []),
+			?ERROR("error, target name ~p exists", [Newgroup]),
 			{error, {exists, Newgroup}}
 	end.
 				

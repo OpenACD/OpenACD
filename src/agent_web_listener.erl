@@ -39,6 +39,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 
@@ -89,7 +90,7 @@ linkto(Pid) ->
 %%====================================================================
 
 init([Port]) ->
-	?CONSOLE("Starting on port ~p", [Port]),
+	?DEBUG("Starting on port ~p", [Port]),
 	process_flag(trap_exit, true),
 	crypto:start(),
 	Table = ets:new(web_connections, [set, public, named_table]),
@@ -120,25 +121,25 @@ handle_info({'EXIT', Pid, normal}, State) ->
 	ets:match_delete(web_connections, {'$1', '_', Pid}),
 	{noreply, State};
 handle_info(Info, State) ->
-	?CONSOLE("Info:  ~p", [Info]),
-    {noreply, State}.
+	?DEBUG("Info:  ~p", [Info]),
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 terminate(shutdown, _State) ->
-	?CONSOLE("shutdown", []),
+	?NOTICE("shutdown", []),
 	mochiweb_http:stop(?MOCHI_NAME),
 	ets:delete(web_connections),
-    ok;
+	ok;
 terminate(normal, _State) ->
-	?CONSOLE("normal exit", []),
+	?NOTICE("normal exit", []),
 	mochiweb_http:stop(?MOCHI_NAME),
 	ets:delete(web_connections),
-    ok;
+	ok;
 terminate(Reason, _State) ->
-	?CONSOLE("Terminating dirty:  ~p", [Reason]),
-    ok.
+	?NOTICE("Terminating dirty:  ~p", [Reason]),
+	ok.
 
 
 %%--------------------------------------------------------------------
@@ -173,7 +174,7 @@ loop(Req, Table) ->
 					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
 					ets:insert(Table, {Reflist, undefined, undefined}),
 					Language = io_lib:format("cpx_lang=~s", [determine_language(Req:get_header_value("Accept-Language"))]),
-					?CONSOLE("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
+					?DEBUG("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}, {"Set-Cookie", Language}]);
 				_Reflist ->
 					Language = io_lib:format("cpx_lang=~s", [determine_language(Req:get_header_value("Accept-Language"))]),
@@ -208,7 +209,7 @@ determine_language(String) ->
 api(checkcookie, Cookie, _Post) ->
 	case Cookie of
 		{_Reflist, _Salt, Conn} when is_pid(Conn) ->
-			?CONSOLE("Found agent_connection pid ~p", [Conn]),
+			?DEBUG("Found agent_connection pid ~p", [Conn]),
 			Agentrec = agent_web_connection:dump_agent(Conn),
 			Json = {struct, [
 				{<<"success">>, true},
@@ -217,19 +218,19 @@ api(checkcookie, Cookie, _Post) ->
 				{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)}]},
 			{200, [], mochijson2:encode(Json)};
 		badcookie ->
-			?CONSOLE("cookie not in ets", []),
+			?INFO("cookie not in ets", []),
 			Reflist = erlang:ref_to_list(make_ref()),
 			NewCookie = io_lib:format("cpx_id=~p", [Reflist]),
 			ets:insert(web_connections, {Reflist, undefined, undefined}),
 			Json = {struct, [{<<"success">>, false}]},
 			{200, [{"Set-Cookie", NewCookie}], mochijson2:encode(Json)};
 		{_Reflist, _Salt, undefined} ->
-			?CONSOLE("cookie found, no agent", []),
+			?INFO("cookie found, no agent", []),
 			Json = {struct, [{<<"success">>, false}]},
 			{200, [], mochijson2:encode(Json)}
 	end;
 api(Apirequest, badcookie, _Post) ->
-	?CONSOLE("bad cookie for request ~p", [Apirequest]),
+	?INFO("bad cookie for request ~p", [Apirequest]),
 	Reflist = erlang:ref_to_list(make_ref()),
 	Cookie = io_lib:format("cpx_id=~p", [Reflist]),
 	ets:insert(web_connections, {Reflist, undefined, undefined}),
@@ -248,7 +249,7 @@ api(brandlist, {_Reflist, _Salt, _Conn}, _Post) ->
 api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
 	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
 	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
-	?CONSOLE("created and sent salt for ~p", [Reflist]),
+	?DEBUG("created and sent salt for ~p", [Reflist]),
 	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})};
 api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
 	Releaseopts = agent_auth:get_releases(),
@@ -284,13 +285,13 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 					gen_server:call(Pid, {set_remote_number, Number}),
 					linkto(Pid),
 					ets:insert(web_connections, {Reflist, Salt, Pid}),
-					?CONSOLE("connection started for ~p", [Reflist]),
+					?DEBUG("connection started for ~p", [Reflist]),
 					{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
 				ignore ->
-					?CONSOLE("Ignore message trying to start connection for ~p", [Reflist]),
+					?WARNING("Ignore message trying to start connection for ~p", [Reflist]),
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
 				{error, Error} ->
-					?CONSOLE("Error ~p trying to start connection for ~p", [Error, Reflist]),
+					?ERROR("Error ~p trying to start connection for ~p", [Error, Reflist]),
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(Error)}]})}
 			end
 	end;

@@ -37,6 +37,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include("log.hrl").
 -include("queue.hrl").
 -include("call.hrl").
 -include("agent.hrl").
@@ -80,19 +81,19 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, _Domain]) when is_record(Qcall, cal
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " &park()",
-			?CONSOLE("originating ring channel with args: ~p", [Args]),
+			?INFO("originating ring channel with args: ~p", [Args]),
 			F = fun(ok, _Reply) ->
 					% agent picked up?
 					freeswitch:api(Fnode, uuid_bridge, UUID ++ " " ++ Qcall#call.id);
 				(error, Reply) ->
-					?CONSOLE("originate failed: ~p", [Reply]),
+					?WARNING("originate failed: ~p", [Reply]),
 					%agent:set_state(Apid, idle),
 					gen_server:cast(Qcall#call.cook, {stop_ringing, Apid})
 			end,
 			case freeswitch:bgapi(Fnode, originate, Args, F) of
 				ok ->
 					Gethandle = fun(Recusef, Count) ->
-						?CONSOLE("Counted ~p", [Count]),
+						?DEBUG("Counted ~p", [Count]),
 						case freeswitch:handlecall(Fnode, UUID) of
 							{error, badsession} when Count > 4 ->
 								{error, badsession};
@@ -107,17 +108,17 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, _Domain]) when is_record(Qcall, cal
 					end,
 					case Gethandle(Gethandle, 0) of
 						{error, badsession} ->
-							?CONSOLE("bad uuid ~p", [UUID]),
+							?ERROR("bad uuid ~p", [UUID]),
 							{stop, {error, session}};
 						{error, Other} ->
-							?CONSOLE("other error starting; ~p", [Other]),
+							?ERROR("other error starting; ~p", [Other]),
 							{stop, {error, Other}};
 						_Else ->
-							?CONSOLE("starting for ~p", [UUID]),
+							?DEBUG("starting for ~p", [UUID]),
 							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Qcall}}
 					end;
 				Else ->
-					?CONSOLE("bgapi call failed ~p", [Else]),
+					?ERROR("bgapi call failed ~p", [Else]),
 					{stop, {error, Else}}
 			end
 	end.
@@ -144,38 +145,38 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({call, {event, [UUID | _Rest]}}, #state{uuid = UUID} = State) ->
-	?CONSOLE("call", []),
+	?DEBUG("call", []),
 	{noreply, State};
 handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) ->
 	Event = freeswitch:get_event_name(Rest),
 	case Event of
 		"CHANNEL_BRIDGE" ->
-			?CONSOLE("Call bridged", []),
+			?INFO("Call bridged", []),
 			Call = State#state.callrec,
 			case agent:set_state(State#state.agent_pid, oncall, Call) of
 				ok ->
 					gen_server:call(Call#call.source, unqueue),
 					{noreply, State};
 				invalid ->
-					?CONSOLE("Cannot set agent ~p to oncall with media ~p", [State#state.agent_pid, Call#call.id]),
+					?WARNING("Cannot set agent ~p to oncall with media ~p", [State#state.agent_pid, Call#call.id]),
 					{noreply, State}
 			end;
 		_Else ->
-			?CONSOLE("call_event ~p", [Event]),
+			?DEBUG("call_event ~p", [Event]),
 			{noreply, State}
 	end;
 handle_info(call_hangup, State) ->
-	?CONSOLE("Call hangup info", []),
+	?DEBUG("Call hangup info", []),
 	{stop, normal, State};
 handle_info(Info, State) ->
-	?CONSOLE("unhandled info ~p", [Info]),
+	?DEBUG("unhandled info ~p", [Info]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 terminate(Reason, _State) ->
-	?CONSOLE("FreeSWITCH ring channel teminating ~p", [Reason]),
+	?NOTICE("FreeSWITCH ring channel teminating ~p", [Reason]),
 	ok.
 
 %%--------------------------------------------------------------------

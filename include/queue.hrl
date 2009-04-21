@@ -29,7 +29,11 @@
 
 %% @hidden
 -define(DEFAULT_WEIGHT, 5).
+-ifdef(EUNIT).
 -define(DEFAULT_RECIPE, [{[{ticks, 3}], remove_skills, ['_node'], run_once}]). % TODO - flesh this out?
+-else.
+-define(DEFAULT_RECIPE, [{[{ticks, 15}], remove_skills, ['_node'], run_once}]). % TODO - flesh this out?
+-endif.
 
 %-type(recipe_step() :: {non_neg_integer(),
 	%'new_queue' | 'add_skills' | 'remove_skills' | 'set_priority' | 'prioritize' | 'deprioritize' | 'voicemail' | 'announce' | 'add_recipe',

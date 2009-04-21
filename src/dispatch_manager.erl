@@ -34,6 +34,7 @@
 -module(dispatch_manager).
 -author("Micah").
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 
@@ -77,7 +78,7 @@ stop() ->
 %%====================================================================
 %% @private
 init([]) ->
-	?CONSOLE("~p starting at ~p", [?MODULE, node()]),
+	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
     {ok, #state{}}.
 
@@ -97,7 +98,7 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_cast({now_avail, AgentPid}, State) -> 
-	?CONSOLE("Someone's available now.", []),
+	?DEBUG("Someone's available now.", []),
 	case lists:member(AgentPid, State#state.agents) of
 		true -> 
 			{noreply, balance(State)};
@@ -107,7 +108,7 @@ handle_cast({now_avail, AgentPid}, State) ->
 			{noreply, balance(State2)}
 	end;
 handle_cast({end_avail, AgentPid}, State) -> 
-	?CONSOLE("An agent is no longer available.", []),
+	?DEBUG("An agent is no longer available.", []),
 	State2 = State#state{agents = lists:delete(AgentPid, State#state.agents)},
 	{noreply, balance(State2)};
 
@@ -119,11 +120,16 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) -> 
-	?CONSOLE("Announcement that an agent is down, balancing in response.", []),
+	?DEBUG("Announcement that an agent is down, balancing in response.", []),
 	State2 = State#state{agents = lists:delete(Object, State#state.agents)},
 	{noreply, balance(State2)};
 handle_info({'EXIT', Pid, Reason}, #state{dispatchers = Dispatchers} = State) ->
-	?CONSOLE("Dispatcher unexpected exit:  ~p ~p", [Pid, Reason]),
+	case (Reason =:= normal orelse Reason =:= shutdown) of
+		true ->
+			ok;
+		false ->
+			?NOTICE("Dispatcher unexpected exit:  ~p ~p", [Pid, Reason])
+	end,
 	CleanD = lists:delete(Pid, Dispatchers),
 	State2 = State#state{dispatchers = CleanD},
 	{noreply, balance(State2)};
@@ -135,7 +141,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 %% @private
 terminate(Reason, State) ->
-	?CONSOLE("Termination cause:  ~p.  State:  ~p", [Reason, State]),
+	?NOTICE("Termination cause:  ~p.  State:  ~p", [Reason, State]),
     ok.
 
 %%--------------------------------------------------------------------
@@ -152,15 +158,15 @@ code_change(_OldVsn, State, _Extra) ->
 %% @private
 -spec(balance/1 :: (State :: #state{}) -> #state{}).
 balance(State) when length(State#state.agents) > length(State#state.dispatchers) -> 
-	?CONSOLE("Starting new dispatcher",[]),
+	?DEBUG("Starting new dispatcher",[]),
 	Dispatchers = State#state.dispatchers,
 	{ok, Pid} = dispatcher:start_link(),
 	State2 = State#state{dispatchers = [ Pid | Dispatchers]},
 	balance(State2);
 balance(State) when length(State#state.agents) < length(State#state.dispatchers) -> 
-	?CONSOLE("Killing a dispatcher",[]),
+	?DEBUG("Killing a dispatcher",[]),
 	[Pid | Dispatchers] = lists:reverse(State#state.dispatchers),
-	?CONSOLE("Pid I'm about to kill: ~p.  me:  ~p.  Dispatchers:  ~p~n", [Pid, self(), Dispatchers]),
+	?DEBUG("Pid I'm about to kill: ~p.  me:  ~p.  Dispatchers:  ~p~n", [Pid, self(), Dispatchers]),
 	case is_process_alive(Pid) of
 		true ->
 			ok = dispatcher:stop(Pid);
@@ -170,7 +176,7 @@ balance(State) when length(State#state.agents) < length(State#state.dispatchers)
 	end,
 	balance(State#state{dispatchers=Dispatchers});
 balance(State) -> 
-	?CONSOLE("It is fully balanced!",[]),
+	?DEBUG("It is fully balanced!",[]),
 	State.
 
 dump() ->

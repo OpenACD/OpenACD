@@ -36,6 +36,7 @@
 
 -behaviour(gen_server).
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 -include_lib("stdlib/include/qlc.hrl").
@@ -284,14 +285,14 @@ get_agents(Profile) ->
 
 %% @hidden
 init([Mod, StartFunc, StartArgs, CheckFunc, CheckArgs]) ->
-	?CONSOLE("~p starting at ~p with integration", [?MODULE, node()]),
+	?DEBUG("~p starting at ~p with integration", [?MODULE, node()]),
 	case build_tables() of
 		ok -> 
 			apply(Mod, StartFunc, StartArgs),
 			{ok, #state{mod=Mod, start_func=StartFunc, start_args=StartArgs, check_func = CheckFunc, check_args = CheckArgs}}
 	end;
 init([]) -> 
-	?CONSOLE("~p starting at ~p as stand-alone", [?MODULE, node()]),
+	?DEBUG("~p starting at ~p as stand-alone", [?MODULE, node()]),
 	case build_tables() of
 		ok -> 
 			{ok, #state{integration = false}}
@@ -307,11 +308,11 @@ handle_call({authentication, Username, Password, Salt}, _From, State) ->
 	% start w/ the remote try.  If that fails, try the local.
 	case State#state.integration of
 		false -> 
-			?CONSOLE("local authentication only", []),
+			?DEBUG("local authentication only", []),
 			Reply = local_auth(Username, Password, Salt),
 			{reply, Reply, State};
 		_Else -> 
-			?CONSOLE("remote authentication attempt first: ~p : ~p : ~p", [State#state.mod, State#state.check_func, State#state.check_args]),
+			?DEBUG("remote authentication attempt first: ~p : ~p : ~p", [State#state.mod, State#state.check_func, State#state.check_args]),
 			Args = lists:append([[Username, Password, Salt], State#state.check_args]),
 			case apply(State#state.mod, State#state.check_func, Args) of
 				{allow, CachePassword, Profile, Security} -> 
@@ -335,7 +336,7 @@ handle_call({authentication, Username, Password, Salt}, _From, State) ->
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call(Request, _From, State) ->
-	?CONSOLE("agent_auth does not understand request:  ~p", [Request]),
+	?DEBUG("agent_auth does not understand request:  ~p", [Request]),
     Reply = {unknown_call, Request},
     {reply, Reply, State}.
 
@@ -358,7 +359,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 %% @private
 terminate(Reason, _State) ->
-	?CONSOLE("terminating:  ~p", [Reason]),
+	?NOTICE("terminating:  ~p", [Reason]),
     ok.
 
 %%--------------------------------------------------------------------
@@ -397,7 +398,7 @@ auth(Username, Password, Salt) ->
 %% of `"agent"' is stored with password `"Password123"' and skill `[english]'.
 -spec(build_tables/0 :: () -> 'ok').
 build_tables() ->
-	?CONSOLE("building tables...", []),
+	?DEBUG("building tables...", []),
 %	Nodes = lists:append([[node()], nodes()]),
 	A = util:build_table(agent_auth, [
 				{attributes, record_info(fields, agent_auth)},
@@ -520,12 +521,12 @@ local_auth(Username, Password, Salt) ->
 				Password -> 
 					{allow, lists:umerge(lists:sort(Agent#agent_auth.skills), lists:sort(['_agent', '_node'])), Agent#agent_auth.securitylevel, Agent#agent_auth.profile};
 				Else -> 
-					?CONSOLE("Password: ~p;  Salting: ~p;  Presalting: ~p;  Agentname: ~p", [Password, Else, Agent#agent_auth.password, Agent#agent_auth.login]),
+					?DEBUG("Password: ~p;  Salting: ~p;  Presalting: ~p;  Agentname: ~p", [Password, Else, Agent#agent_auth.password, Agent#agent_auth.login]),
 					deny
 			end;
 		Else ->
 % TODO better error reporting/handling here?
-			?CONSOLE("Unusual response from local auth query: ~p", [Else]),
+			?WARNING("Unusual response from local auth query: ~p", [Else]),
 			deny
 	end. 
 
@@ -535,10 +536,10 @@ local_auth(Username, Password, Salt) ->
 -spec(salt/2 ::	(Hash :: binary(), Salt :: string()) -> string();
 		(Hash :: string(), Salt :: string()) -> string()).
 salt(Hash, Salt) when is_binary(Hash) ->
-	?CONSOLE("agent_auth hash conversion...", []),
+	?DEBUG("agent_auth hash conversion...", []),
 	salt(util:bin_to_hexstr(Hash), Salt);
 salt(Hash, Salt) when is_list(Hash) -> 
-	?CONSOLE("agent_auth salting   hash: ~p;  salt: ~p", [Hash, Salt]),
+	?DEBUG("agent_auth salting   hash: ~p;  salt: ~p", [Hash, Salt]),
 	Lower = string:to_lower(Hash),
 	string:to_lower(util:bin_to_hexstr(erlang:md5(Salt ++ Lower))).
 	

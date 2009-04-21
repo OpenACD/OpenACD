@@ -134,7 +134,7 @@ stop() ->
 %%====================================================================
 %% @private
 init([Nodename, Domain]) -> 
-	?CONSOLE("starting...", []),
+	?DEBUG("starting...", []),
 	process_flag(trap_exit, true),
 	Self = self(),
 	_Lpid = spawn(fun() -> 
@@ -178,10 +178,10 @@ handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) ->
 			{reply, Pid, State}
 	end;
 handle_call(stop, _From, State) ->
-	?CONSOLE("Normal termination", []),
+	?NOTICE("Normal termination", []),
 	{stop, normal, ok, State};
 handle_call(Request, _From, State) ->
-	?CONSOLE("Unexpected call:  ~p", [Request]),
+	?INFO("Unexpected call:  ~p", [Request]),
 	Reply = ok,
 	{reply, Reply, State}.
 
@@ -209,7 +209,7 @@ handle_info({new_pid, Ref, From}, State) ->
 	%NewDict = dict:store(Callrec#call.id, Pid, Dict),
 	{noreply, State};
 handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) -> 
-	?CONSOLE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
+	?NOTICE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
 	F = fun(Key, Value, Acc) -> 
 		case Value of
 			Pid -> 
@@ -221,7 +221,7 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	NewDict = dict:fold(F, dict:new(), Dict),
 	{noreply, State#state{call_dict = NewDict}};
 handle_info(Info, State) ->
-	?CONSOLE("Unexpected info:  ~p", [Info]),
+	?DEBUG("Unexpected info:  ~p", [Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -252,18 +252,18 @@ ring_agent(AgentPid, Call) ->
 listener(Node) ->
 	receive
 		{event, [UUID | _Event]} ->
-			?CONSOLE("recieved event '~p' from c node.", [UUID]),
+			?DEBUG("recieved event '~p' from c node.", [UUID]),
 			%gen_server:cast(?MODULE, Event), 
 			listener(Node);
 		{nodedown, Node} -> 
 			gen_server:cast(?MODULE, nodedown);
 		 Otherwise -> 
-			 ?CONSOLE("Uncertain reply received by the fmm listener:  ~p", [Otherwise]),
+			 ?INFO("Uncertain reply received by the fmm listener:  ~p", [Otherwise]),
 			 listener(Node)
 	end.
 
 fetch_domain_user(Node, State) ->
-	?CONSOLE("entering fetch loop", []),
+	?DEBUG("entering fetch loop", []),
 	receive
 		{fetch, directory, "domain", "name", _Value, ID, [undefined | Data]} ->
 			case proplists:get_value("as_channel", Data) of
@@ -277,7 +277,7 @@ fetch_domain_user(Node, State) ->
 								#agent{remotenumber = Number} when is_list(Number) ->
 									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "{ignore_early_media=true}sofia/gateway/cpxvgw.fusedsolutions.com/"++Number]))});
 								Else ->
-									?CONSOLE("state: ~p", [Else]),
+									?DEBUG("state: ~p", [Else]),
 									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "sofia/default/"++User++"%"++Domain]))})
 							catch
 								_:_ -> % agent pid is toast?
@@ -294,9 +294,9 @@ fetch_domain_user(Node, State) ->
 			freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE}),
 			fetch_domain_user(Node, State);
 		{nodedown, Node} ->
-			?CONSOLE("Node we were serving XML search requests to exited", []),
+			?DEBUG("Node we were serving XML search requests to exited", []),
 			ok;
 		Other ->
-			?CONSOLE("got other response: ~p", [Other]),
+			?DEBUG("got other response: ~p", [Other]),
 			fetch_domain_user(Node, State)
 	end.

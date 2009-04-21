@@ -80,10 +80,10 @@ handle_event({set_log_level, Level}, State) ->
 			{ok, State}
 	end;
 handle_event({debug_module, Module}, State) ->
-	io:format("Now showing all messages for module ~s", [Module]),
+	io:format("Now showing all messages for module ~s~n", [Module]),
 	{ok, State#state{debugmodules = lists:umerge(State#state.debugmodules, [Module])}};
 handle_event({nodebug_module, Module}, State) ->
-	io:format("No longer showing all messages for module ~s", [Module]),
+	io:format("No longer showing all messages for module ~s~n", [Module]),
 	{ok, State#state{debugmodules = lists:subtract(State#state.debugmodules, [Module])}};
 handle_event(_Event, State) ->
 	{ok, State}.

@@ -320,7 +320,7 @@ expand_magic_skills(State, Call, Skills) ->
 
 %% @private
 init([Name, Recipe, Weight]) ->
-	?CONSOLE("Starting queue ~p at ~p", [Name, node()]),
+	?DEBUG("Starting queue ~p at ~p", [Name, node()]),
 	process_flag(trap_exit, true),
 	{ok, #state{name=Name, recipe=Recipe, weight=Weight}}.
 
@@ -346,14 +346,14 @@ handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
 handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid) ->
 	% cook is started on the same node callpid is on
-	?CONSOLE("adding call ~p request from ~p on node ~p", [Callpid, From, node(Callpid)]),
+	?INFO("adding call ~p request from ~p on node ~p", [Callpid, From, node(Callpid)]),
 %	case rpc:call(node(Callpid), gen_server, start, [cook, [Callpid, State#state.recipe, State#state.name], []]) of
 	case cook:start_at(node(Callpid), Callpid, State#state.recipe, State#state.name) of
 		{ok, Cookpid} ->
 			link(Cookpid),
 			erlang:monitor(process, Callpid),
 			Queuedrec = #queued_call{media=Callpid, id=Callrec#call.id, cook=Cookpid},
-			?CONSOLE("queuedrec: ~p", [Queuedrec]),
+			?DEBUG("queuedrec: ~p", [Queuedrec]),
 			NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
 			Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
 			Value = Queuedrec#queued_call{skills=Expandedskills},
@@ -418,7 +418,7 @@ handle_call(print, _From, State) ->
 	{reply, State, State};
 
 handle_call({remove, Callpid}, _From, State) ->
-	?CONSOLE("Trying to remove call ~p...", [Callpid]),
+	?INFO("Trying to remove call ~p...", [Callpid]),
 	case find_by_pid(Callpid, State#state.queue) of
 		none ->
 			{reply, none, State};
@@ -464,7 +464,7 @@ handle_call(Request, _From, State) ->
 
 %% @private
 handle_cast({remove, Callpid}, State) ->
-	?CONSOLE("Trying to remove call ~p (cast)...", [Callpid]),
+	?INFO("Trying to remove call ~p (cast)...", [Callpid]),
 	case find_by_pid(Callpid, State#state.queue) of
 		none ->
 			{noreply, State};
@@ -479,7 +479,7 @@ handle_cast(_Msg, State) ->
 
 %% @private
 handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
-	?CONSOLE("Handling down process ~p due to ~p", [Pid, Reason]),
+	?NOTICE("Handling down process ~p due to ~p", [Pid, Reason]),
 	case find_by_pid(Pid, State#state.queue) of
 		none ->
 			{noreply, State};
@@ -490,13 +490,13 @@ handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
 	end;
 handle_info({'EXIT', From, Reason}, State) ->
 	QMPid = whereis(queue_manager),
-	?CONSOLE("Handling exit from ~p which died due to ~p.  Manager is ~p", [From, Reason, QMPid]),
+	?NOTICE("Handling exit from ~p which died due to ~p.  Manager is ~p", [From, Reason, QMPid]),
 	case QMPid of
 		undefined ->
-			?CONSOLE("Can't find the manager.  dying", []),
+			?ERROR("Can't find the manager.  dying", []),
 			{stop, {queue_manager, noproc}, State};
 		From ->
-			?CONSOLE("Seems to be the queue manager that died.  Dying with it.", []),
+			?NOTICE("Seems to be the queue manager that died.  Dying with it.", []),
 			{stop, {queue_manager_died, Reason}, State};
 		_Else ->
 			Calls = gb_trees:to_list(State#state.queue),
@@ -505,16 +505,16 @@ handle_info({'EXIT', From, Reason}, State) ->
 			{noreply, State#state{queue=Newtree}}
 	end;
 handle_info(Info, State) ->
-	?CONSOLE("got info ~p", [Info]),
+	?DEBUG("got info ~p", [Info]),
 	{noreply, State}.
 
 %% @private
 terminate(Reason, State) when is_atom(Reason) andalso Reason =:= normal orelse Reason =:= shutdown ->
-	?CONSOLE("~p terminate", [atom_to_list(Reason)]),
+	?NOTICE("~p terminate", [atom_to_list(Reason)]),
 	lists:foreach(fun({_K,V}) when is_pid(V#call.cook) -> cook:stop(V#call.cook); (_) -> ok end, gb_trees:to_list(State#state.queue)),
 	ok;
 terminate(Reason, _State) ->
-	?CONSOLE("unusual terminate:  ~p", [Reason]),
+	?NOTICE("unusual terminate:  ~p", [Reason]),
 	ok.
 
 %% @private
@@ -525,13 +525,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% Cleans up both dead dispatchers and dead cooks from the calls.
 -spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [{key(), #queued_call{}}], QName :: string()) -> [{key(), #queued_call{}}]).
 clean_pid(Deadpid, Recipe, [{Key, Call} | Calls], QName) ->
-	?CONSOLE("Cleaning dead pids out...", []),
+	?INFO("Cleaning dead pids out...", []),
 	Bound = Call#queued_call.dispatchers,
 	Cleanbound = lists:delete(Deadpid, Bound),
 	case Call#queued_call.cook of
 		Deadpid ->
 			%case rpc:call(node(Call#queued_call.media), gen_server, start_link, [cook, [Call#queued_call.media, Recipe, QName], []]) of
-			?CONSOLE("~nNode:  ~p~nMedia:  ~p~nRecipe:  ~p~nQueue:  ~p", [node(Call#queued_call.media), Call#queued_call.media, Recipe, QName]),
+			?INFO("~nNode:  ~p~nMedia:  ~p~nRecipe:  ~p~nQueue:  ~p", [node(Call#queued_call.media), Call#queued_call.media, Recipe, QName]),
 			case cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName) of
 				{ok, Pid} ->
 					link(Pid),

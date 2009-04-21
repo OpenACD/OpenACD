@@ -105,7 +105,7 @@ start_agent(#agent{login = ALogin} = Agent) ->
 %% then the length of the list of skills the agent has;  this means idle time is less important.
 -spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [{string(), pid(), #agent{}}]).
 find_avail_agents_by_skill(Skills) -> 
-	?CONSOLE("skills passed:  ~p.", [Skills]),
+	?DEBUG("skills passed:  ~p.", [Skills]),
 	AvailSkilledAgents = [{K, V, AgState} || {K, V} <-
 		gen_leader:call(?MODULE, list_agents), % get all the agents
 		AgState <- [agent:dump_state(V)], % dump their state
@@ -152,19 +152,19 @@ get_leader() ->
 %% gen_leader callbacks
 %% @hidden
 init([]) ->
-	?CONSOLE("~p starting at ~p", [?MODULE, node()]),
+	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
 	{ok, #state{}}.
 	
 %% @hidden
 elected(State, _Election) -> 
-	?CONSOLE("elected", []),
+	?INFO("elected", []),
 	{ok, ok, State}.
 	
 %% @hidden
 %% TODO what about an agent started at both places?
 surrendered(#state{agents = Agents} = State, _LeaderState, _Election) -> 
-	?CONSOLE("surrendered", []),
+	?INFO("surrendered", []),
 	% clean out non-local pids
 	F = fun(_Login, Apid) -> 
 		node() =:= node(Apid)
@@ -188,7 +188,7 @@ handle_DOWN(Node, #state{agents = Agents} = State, _Election) ->
 
 %% @hidden
 handle_leader_call({exists, Agent}, _From, #state{agents = Agents} = State, _Election) when is_list(Agent) -> 
-	?CONSOLE("Trying to determine if ~p exists", [Agent]),
+	?DEBUG("Trying to determine if ~p exists", [Agent]),
 	case dict:find(Agent, Agents) of
 		error -> 
 			{reply, false, State};
@@ -200,7 +200,7 @@ handle_leader_call(get_pid, _From, State, _Election) ->
 
 %% @hidden
 handle_leader_cast({notify, Agent, Apid}, #state{agents = Agents} = State, _Election) -> 
-	?CONSOLE("Notified of ~p pid ~p", [Agent, Apid]),
+	?INFO("Notified of ~p pid ~p", [Agent, Apid]),
 	case dict:find(Agent, Agents) of
 		error -> 
 			Agents2 = dict:store(Agent, Apid, Agents),
@@ -209,15 +209,15 @@ handle_leader_cast({notify, Agent, Apid}, #state{agents = Agents} = State, _Elec
 			{noreply, State}
 	end;
 handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Election) ->
-	?CONSOLE("leader notified of ~p exiting", [Agent]),
+	?NOTICE("leader notified of ~p exiting", [Agent]),
 	{noreply, State#state{agents = dict:erase(Agent, Agents)}};
 handle_leader_cast(dump_election, State, Election) -> 
-	?CONSOLE("Dumping leader election.~nSelf:  ~p~nDump:  ~p", [self(), Election]),
+	?DEBUG("Dumping leader election.~nSelf:  ~p~nDump:  ~p", [self(), Election]),
 	{noreply, State}.
 
 %% @hidden
 from_leader(_Msg, State, _Election) -> 
-	?CONSOLE("Stub from leader.", []),
+	?DEBUG("Stub from leader.", []),
 	{ok, State}.
 
 %% @hidden
@@ -227,7 +227,7 @@ handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call({start_agent, #agent{login = ALogin} = Agent}, _From, #state{agents = Agents} = State) -> 
 	% This should not be called directly!  use the wrapper start_agent/1
-	?CONSOLE("Starting new agent ~p", [Agent]),
+	?INFO("Starting new agent ~p", [Agent]),
 	{ok, Apid} = agent:start_link(Agent),
 	gen_leader:leader_cast(?MODULE, {notify, ALogin, Apid}),
 	Agents2 = dict:store(ALogin, Apid, Agents),
@@ -236,29 +236,29 @@ handle_call({start_agent, #agent{login = ALogin} = Agent}, _From, #state{agents 
 
 %% @hidden
 handle_cast(_Request, State) -> 
-	?CONSOLE("Stub handle_cast", []),
+	?DEBUG("Stub handle_cast", []),
 	{noreply, State}.
 
 %% @hidden
 handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
-	?CONSOLE("Caught exit for ~p with reason ~p", [Pid, Reason]),
+	?NOTICE("Caught exit for ~p with reason ~p", [Pid, Reason]),
 	F = fun(Key, Value) ->
 		case Value =/= Pid of
 			true -> true;
 			false ->
-				?CONSOLE("notifying leader of ~p exit", [Key]),
+				?NOTICE("notifying leader of ~p exit", [Key]),
 				gen_leader:leader_cast(?MODULE, {notify_down, Key}),
 				false
 		end
 	end,
 	{noreply, State#state{agents=dict:filter(F, Agents)}};
 handle_info(Msg, State) ->
-	?CONSOLE("Stub handle_info for ~p", [Msg]),
+	?DEBUG("Stub handle_info for ~p", [Msg]),
 	{noreply, State}.
 
 %% @hidden
 terminate(Reason, _State) -> 
-	?CONSOLE("Terminating:  ~p", [Reason]),
+	?NOTICE("Terminating:  ~p", [Reason]),
 	ok.
 
 %% @hidden

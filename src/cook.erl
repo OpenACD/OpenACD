@@ -130,10 +130,10 @@ init([Call, Recipe, Queue]) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_call(stop, From, State) ->
-	?INFO("Stop requested from ~p", [From]),
+	?NOTICE("Stop requested from ~p", [From]),
 	{stop, normal, ok, State};
 handle_call({stop, Reason}, From, State) -> 
-	?INFO("Stop requested from ~p for ~p.", [From, Reason]),
+	?NOTICE("Stop requested from ~p for ~p.", [From, Reason]),
 	{stop, {normal, Reason}, ok, State};
 handle_call(Request, _From, State) ->
     {reply, {unknown_call, Request}, State}.
@@ -178,7 +178,7 @@ handle_cast(remove_from_queue, State) ->
 handle_cast(stop, State) ->
 	{stop, normal, State};
 handle_cast(Msg, State) ->
-	?DEBUG("unhanlded cast ~p", [Msg]),
+	?DEBUG("unhandled cast ~p", [Msg]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -214,7 +214,7 @@ handle_info(do_tick, State) ->
 	end;
 handle_info(Info, State) ->
 	?DEBUG("received random info message: ~p", [Info]),
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()

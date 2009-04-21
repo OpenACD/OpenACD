@@ -33,6 +33,7 @@
 -module(dispatcher).
 -author("Micah").
 
+-include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
 
@@ -72,15 +73,15 @@ start() ->
 %%====================================================================
 %% @private
 init([]) ->
-	?CONSOLE("Dispatcher starting", []),
+	?DEBUG("Dispatcher starting", []),
 	State = #state{},
 	case grab_best() of
 		none ->
-			?CONSOLE("no call to grab, lets start a timer", []),
+			?DEBUG("no call to grab, lets start a timer", []),
 			{ok, Tref} = timer:send_interval(?POLL_INTERVAL, grab_best),
 			{ok, State#state{tref=Tref}};
 		{Qpid, Call} ->
-			?CONSOLE("sweet, grabbed a call: ~p", [Call]),
+			?DEBUG("sweet, grabbed a call: ~p", [Call]),
 			{ok, State#state{call=Call, qpid=Qpid}}
 	end.
 
@@ -108,7 +109,7 @@ handle_call(regrab, _From, State) ->
 	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
-	?CONSOLE("looping through filtered queues... ~p", [Filtered]),
+	?DEBUG("looping through filtered queues... ~p", [Filtered]),
 	case loop_queues(Filtered) of
 		none -> 
 			{reply, State#state.call, State};
@@ -144,7 +145,7 @@ handle_info(grab_best, State) ->
 			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined}}
 	end;
 handle_info(Info, State) ->
-	?CONSOLE("unexpected info ~p", [Info]),
+	?DEBUG("unexpected info ~p", [Info]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -152,7 +153,7 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% @private
 terminate(Reason, _State) ->
-	?CONSOLE("Teminated:  ~p", [Reason]),
+	?NOTICE("Teminated:  ~p", [Reason]),
 	ok.
 
 %%--------------------------------------------------------------------
@@ -174,14 +175,14 @@ get_agents(Pid) ->
 
 -spec(loop_queues/1 :: (Queues :: [{string(), pid(), {any(), #queued_call{}}, non_neg_integer()}]) -> {pid(), #queued_call{}} | 'none').
 loop_queues([]) ->
-	?CONSOLE("queue list is empty", []),
+	?DEBUG("queue list is empty", []),
 	none;
 loop_queues(Queues) ->
-	?CONSOLE("queues: ~p", [Queues]),
+	?DEBUG("queues: ~p", [Queues]),
 	Total = lists:foldl(fun(Elem, Acc) -> Acc + element(4, Elem) end, 0, Queues),
 	Rand = random:uniform(Total),
 	{Name, Qpid, Call, Weight} = biased_to(Queues, 0, Rand),
-	?CONSOLE("grabbing call", []),
+	?DEBUG("grabbing call", []),
 	case call_queue:grab(Qpid) of
 			none -> 
 				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues));
@@ -218,7 +219,7 @@ grab_best() ->
 %% @doc tries to grab a new call ignoring the queue it's current call is bound to
 -spec(regrab/1 :: (pid()) -> #queued_call{} | 'none').
 regrab(Pid) -> 
-	?CONSOLE("dispatcher trying to regrab", []),
+	?DEBUG("dispatcher trying to regrab", []),
 	gen_server:call(Pid, regrab).
 
 %% @doc Stops the dispatcher at `pid() Pid' with reason `normal'.

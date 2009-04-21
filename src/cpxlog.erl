@@ -40,7 +40,9 @@
 	critical/6,
 	alert/6,
 	emergency/6,
-	set_loglevel/1
+	set_loglevel/1,
+	debug_module/1,
+	nodebug_module/1
 ]).
 
 start() ->
@@ -83,3 +85,9 @@ emergency(Time, Module, Line, Pid, Message, Args) ->
 
 set_loglevel(Level) ->
 	catch gen_event:notify(cpxlog, {set_log_level, Level}).
+
+debug_module(Module) ->
+	catch gen_event:notify(cpxlog, {debug_module, Module}).
+
+nodebug_module(Module) ->
+	catch gen_event:notify(cpxlog, {nodebug_module, Module}).

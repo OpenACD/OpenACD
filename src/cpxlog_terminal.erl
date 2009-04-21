@@ -43,6 +43,7 @@
 
 -record(state, {
 	level = info,
+	debugmodules = [],
 	lasttime
 }).
 
@@ -56,7 +57,7 @@ handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 		false ->
 			ok
 	end,
-	case (lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(State#state.level, ?LOGLEVELS))) of
+	case ((lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(State#state.level, ?LOGLEVELS))) orelse lists:member(Module, State#state.debugmodules)) of
 		true ->
 			io:format("~w:~w:~w [~s] ~w@~s:~w ~s~n", [
 					element(1, element(2, Time)),
@@ -78,6 +79,12 @@ handle_event({set_log_level, Level}, State) ->
 			io:format("Invalid loglevel: ~s~n", [string:to_upper(atom_to_list(Level))]),
 			{ok, State}
 	end;
+handle_event({debug_module, Module}, State) ->
+	io:format("Now showing all messages for module ~s", [Module]),
+	{ok, State#state{debugmodules = lists:umerge(State#state.debugmodules, [Module])}};
+handle_event({nodebug_module, Module}, State) ->
+	io:format("No longer showing all messages for module ~s", [Module]),
+	{ok, State#state{debugmodules = lists:subtract(State#state.debugmodules, [Module])}};
 handle_event(_Event, State) ->
 	{ok, State}.
 

@@ -3,6 +3,8 @@ dojo.require("dojox.form.DropDownSelect");
 dojo.provide("spice.RecipeEditorRow");
 dojo.provide("spice.RecipeEditor");
 
+dojo.requireLocalization("admin", "recipeEditor");
+
 dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	templatePath: dojo.moduleUrl("spice","RecipeEditorRow.html"),
 	widgetsInTemplate: true,
@@ -10,6 +12,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	propwidth:"20em",
 	compwidth:"10em",
 	valwidth:"20em",
+	labels:[],
 	conditions:[{
 		"property":"ticks",
 		"comparison":"=",
@@ -160,6 +163,10 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	},
 	setConditions:function(conditions){
 		this.conditions = conditions;
+	},
+	constructor:function(){
+		this.labels = dojo.i18n.getLocalization("admin", "recipeEditor");
+		//this.inherited("constructor", arguments);
 	},
 	postCreate:function(){
 		this.setArguments("add_skills");

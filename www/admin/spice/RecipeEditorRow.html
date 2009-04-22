@@ -1,19 +1,19 @@
 <div dojoType="dijit.layout.ContentPane">
 	<select dojoType="dijit.form.FilteringSelect" dojoAttachPoint="actionField" name="action" dojoAttachEvent='onChange: setArguments' style="width:12em">
-		<option value="add_skills">Add Skills</option>
-		<option value="remove_skills">Remove Skills</option>
-		<option value="set_priority">Set Priority</option>
-		<option value="prioritize">Prioritize</option>
-		<option value="deprioritize">Deprioritize</option>
-		<option value="voicemail">Send to Voicemail</option>
-		<option value="announce">Media Announce</option>
-		<option value="add_recipe">Add recipe</option>
+		<option value="add_skills">${labels.ADDSKILLS}</option>
+		<option value="remove_skills">${labels.REMOVESKILLS}</option>
+		<option value="set_priority">${labels.SETPRIORITY}</option>
+		<option value="prioritize">${labels.PRIORITIZE}</option>
+		<option value="deprioritize">${labels.DEPRIORITIZE}</option>
+		<option value="voicemail">${labels.SENDTOVOICEMAIL}</option>
+		<option value="announce">${labels.MEDIAANNOUCE}</option>
+		<option value="add_recipe">${labels.ADDRECIPE}</option>
 	</select>
 	<div dojoType="dijit.layout.ContentPane" dojoAttachPoint="argumentsDiv" style="display:inline"></div>
 	<select dojoType="dojox.form.DropDownSelect" dojoAttachPoint="runsField">
-		<option value="run_once">Run Once</option>
-		<option value="run_many">Run Many</option>
+		<option value="run_once">${labels.RUNONCE}</option>
+		<option value="run_many">${labels.RUNMANY}</option>
 	</select>
-	<button dojoType="dijit.form.Button" dojoAttachPoint="dropButton" label="-"></button>
-	<button dojotype="dijit.form.Button" dojoAttachPoint="addButton" label="+"></button>
+	<button dojoType="dijit.form.Button" dojoAttachPoint="dropButton" label="${labels.DROPSTEP}"></button>
+	<button dojotype="dijit.form.Button" dojoAttachPoint="addButton" label="${labels.ADDSTEP}"></button>
 </div>

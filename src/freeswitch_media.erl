@@ -276,6 +276,7 @@ handle_cast(_Msg, State) ->
 handle_info({call, {event, [UUID | Rest]}}, State) ->
 	?DEBUG("reporting new call ~p.", [UUID]),
 	Callrec = #call{id = UUID, source = self()},
+	cdr:cdrinit(Callrec),
 	freeswitch_media_manager:notify(UUID, self()),
 	State2 = State#state{callrec = Callrec},
 	case_event_name([UUID | Rest], State2);
@@ -383,6 +384,9 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 			?DEBUG("Channel hangup", []),
 			Qpid = State#state.queue_pid,
 			Apid = State#state.agent_pid,
+			Agent = agent:dump_state(Apid),
+			cdr:hangup(State#state.callrec, caller),
+			cdr:wrapup(State#state.callrec, Agent#agent.login),
 			case Apid of
 				undefined ->
 					?WARNING("Agent undefined", []),

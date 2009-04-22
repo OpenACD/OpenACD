@@ -360,6 +360,7 @@ handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid)
 			Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
 			Value = Queuedrec#queued_call{skills=Expandedskills},
 			Trees = gb_trees:insert({Priority, now()}, Value, State#state.queue),
+			cdr:inqueue(Callrec, State#state.name),
 			{reply, ok, State#state{queue=Trees}}%;
 		%ignore ->
 		%	?CONSOLE("Cook ignored start", []),

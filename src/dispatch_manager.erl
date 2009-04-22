@@ -62,7 +62,7 @@
 
 %% @doc start a dispatch manager linked to the calling process.
 start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc start a dispatch manager linked to no process.
 start() ->
@@ -80,7 +80,7 @@ stop() ->
 init([]) ->
 	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
-    {ok, #state{}}.
+	{ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -91,7 +91,7 @@ handle_call(stop, _From, State) ->
 handle_call(dump, _From, State) ->
 	{reply, State, State};
 handle_call(Request, _From, State) ->
-    {reply, {unknown_call, Request}, State}.
+	{reply, {unknown_call, Request}, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
@@ -113,7 +113,7 @@ handle_cast({end_avail, AgentPid}, State) ->
 	{noreply, balance(State2)};
 
 handle_cast(_Msg, State) ->
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
@@ -126,7 +126,7 @@ handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) ->
 handle_info({'EXIT', Pid, Reason}, #state{dispatchers = Dispatchers} = State) ->
 	case (Reason =:= normal orelse Reason =:= shutdown) of
 		true ->
-			ok;
+			?DEBUG("Dispatcher exited normally ~p", [Pid]);
 		false ->
 			?NOTICE("Dispatcher unexpected exit:  ~p ~p", [Pid, Reason])
 	end,
@@ -134,7 +134,7 @@ handle_info({'EXIT', Pid, Reason}, #state{dispatchers = Dispatchers} = State) ->
 	State2 = State#state{dispatchers = CleanD},
 	{noreply, balance(State2)};
 handle_info(_Info, State) ->
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
@@ -142,14 +142,14 @@ handle_info(_Info, State) ->
 %% @private
 terminate(Reason, State) ->
 	?NOTICE("Termination cause:  ~p.  State:  ~p", [Reason, State]),
-    ok.
+	ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
 %% @private
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+	{ok, State}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions

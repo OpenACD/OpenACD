@@ -207,6 +207,7 @@ ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.d
 	?DEBUG("default ringpath inband, ring_path not outband", []),
 	gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
 	gen_server:cast(Statecall#call.cook, remove_from_queue),
+	cdr:oncall(Statecall, State#agent.login),
 	{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};
 ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} = State) ->
 	case Statecall#call.id of
@@ -259,6 +260,8 @@ oncall({released, Reason}, _From, State) ->
 	{reply, queued, oncall, State#agent{queuedrelease=Reason}};
 oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_path =:= 'inband' ->
 	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
+	cdr:hangup(Call, agent),
+	cdr:wrapup(Call, agent),
 	{reply, ok, wrapup, State#agent{state=wrapup, lastchangetimestamp=now()}};
 oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
 	case Currentcall#call.id of
@@ -363,12 +366,14 @@ wrapup({released, undefined}, _From, State) ->
 	{reply, ok, wrapup, State#agent{queuedrelease=undefined}};
 wrapup({released, Reason}, _From, State) ->
 	{reply, queued, wrapup, State#agent{queuedrelease=Reason}};
-wrapup(idle, _From, State= #agent{queuedrelease = undefined}) ->
+wrapup(idle, _From, State= #agent{statedata = Call, queuedrelease = undefined}) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
+	cdr:endwrapup(Call, State#agent.login),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
-wrapup(idle, _From, State) ->
+wrapup(idle, _From, #agent{statedata=Call} = State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, State#agent.queuedrelease}),
+	cdr:endwrapup(Call, State#agent.login),
 	{reply, ok, released, State#agent{state=released, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()}};
 wrapup(Event, From, State) ->
 	?WARNING("Invalid event '~p' from ~p while in wrapup.", [Event, From]),

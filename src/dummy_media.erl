@@ -85,7 +85,7 @@ start_link(Callid, Fails) when is_list(Fails) ->
 	gen_server:start_link(?MODULE, [Callid, Fails], []).
 	
 start(Callid) ->
-		start(Callid, success).
+	start(Callid, success).
 
 start(Callid, success) ->
 	gen_server:start(?MODULE, [Callid, success], []);
@@ -129,6 +129,7 @@ init([Callid, success]) ->
 	process_flag(trap_exit, true),
 	Newfail = lists:map(fun(E) -> {E, success} end, ?MEDIA_ACTIONS),
 	Callrec = #call{id=Callid, source=self(), media_path = inband, ring_path = inband},
+	cdr:cdrinit(Callrec),
 	{ok, #state{callrec = Callrec, fail = dict:from_list(Newfail)}};
 init([Callid, failure]) ->
 	process_flag(trap_exit, true),

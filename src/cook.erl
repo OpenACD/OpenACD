@@ -358,7 +358,10 @@ offer_call([], _Call) ->
 offer_call([{_ACost, Apid} | Tail], Call) ->
 	case gen_server:call(Call#queued_call.media, {ring_agent, Apid, Call, ?TICK_LENGTH * (?RINGOUT + 1)}) of
 		ok ->
-			?INFO("cook offering call:  ~p to ~p", [Call, Apid]),
+			Agent = agent:dump_state(Apid),
+			Callrec = gen_server:call(Call#queued_call.media, get_call),
+			?INFO("cook offering call:  ~p to ~p", [Callrec#call.id, Agent#agent.login]),
+			cdr:ringing(Callrec, Agent#agent.login),
 			Apid;
 		invalid ->
 			offer_call(Tail, Call)

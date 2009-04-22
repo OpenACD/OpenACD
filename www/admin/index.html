@@ -143,37 +143,55 @@ dojo.requireLocalization("admin", "labels");
 </div>
 
 <div id="main" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px;visibility:hidden">
-	
-	<div id="agentsTab" dojoType="dijit.layout.BorderContainer" title="err" selected="true">
-		<script type="dojo/connect" event="postMixInProperties">
-			this.setAttribute("title", dojo.i18n.getLocalization("admin", "labels").AGENTS);
-		</script>
+
+	<div id="agentsTab" dojoType="dijit.layout.BorderContainer" title="AGENTS" selected="true">
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="agentsNav">
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="top">
-				<button dojoType="dijit.form.Button" label="Agents Settings" onclick="dijit.byId('agentsMain').selectChild('agentModuleSettings');
-						agents.getModules(dijit.byId('editAgentModuleForm'));"></button>
+				<button dojoType="dijit.form.Button" label="AGENTSETTINGS">
+					<script type="dojo/connect" event="onClick">
+						dijit.byId('agentsMain').selectChild('agentModuleSettings');
+						agents.getModules(dijit.byId('editAgentModuleForm'));
+					</script>
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("admin","labels").AGENTSETTINGS);
+					</script>
+				</button>
 			</div>
 			
 			<div style="width:100%;height: 85%;">
 				<div id="agentsList" style="width:100%;height: 85%;"></div>
 			</div>
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
-				<button dojoType="dijit.form.Button" label="+"
-					onclick="
+				<button dojoType="dijit.form.Button" label="ADDAGENT">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("admin","labels").ADDAGENT);
+					</script>
+					<script type="dojo/connect" event="onClick">
 						dijit.byId('editAgent').reset();
 						dijit.byId('agentSubmit').onClick = function(){
 							agents.newAgent('editAgent', 'agentsList');
 						}
-						dijit.byId('agentsMain').selectChild('agentEditor')"></button>
-				<button dojoType="dijit.form.Button" label="+ Profile" 
-				onclick="
-					dijit.byId('editAgentProfileForm').reset(); 
-					dijit.byId('agentProfileSubmit').onClick = function(){
-						agents.newProfile('editAgentProfileForm', 'agentsList');
-					};
-					dijit.byId('agentsMain').selectChild('agentProfileEditor');
-					dijit.byId('agentProfileName').setDisabled(false);"></button>
-				<button dojoType="dijit.form.Button" label="-" id="agentsDestroyButton"></button>
+						dijit.byId('agentsMain').selectChild('agentEditor');
+					</script>
+				</button>
+				<button dojoType="dijit.form.Button" label="ADDAGENTPROFILE">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("admin","labels").ADDAGENTPROFILE);
+					</script>
+					<script type="dojo/connect" event="onClick">
+						dijit.byId('editAgentProfileForm').reset(); 
+						dijit.byId('agentProfileSubmit').onClick = function(){
+							agents.newProfile('editAgentProfileForm', 'agentsList');
+						};
+						dijit.byId('agentsMain').selectChild('agentProfileEditor');
+						dijit.byId('agentProfileName').setDisabled(false);
+					</script>
+				</button>
+				<button dojoType="dijit.form.Button" label="DROPAGENTORPROFILE" id="agentsDestroyButton">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("admin","labels").DROPAGENTORPROFILE);
+					</script>
+				</button>
 			</div>
 
 		</div>
@@ -183,23 +201,53 @@ dojo.requireLocalization("admin", "labels");
 				<form dojoType="dijit.form.Form" id="editAgentModuleForm" action="javascript:void(0)" method="post">
 					<p>
 						<label for="agentModuleTCPListenEnabled">&nbsp;</label>
-						<input id="agentModuleTCPListenEnabled" name="agentModuleTCPListenEnabled" dojoType="dijit.form.CheckBox" value="tcpEnabled" checked onChange="dijit.byId('agentModuleTCPListen').setAttribute('disabled', !this.checked)" />Enable Agent TCP Server
+						<input id="agentModuleTCPListenEnabled" name="agentModuleTCPListenEnabled" dojoType="dijit.form.CheckBox" value="tcpEnabled" checked onChange="dijit.byId('agentModuleTCPListen').setAttribute('disabled', !this.checked)" />
+						<span id="ENABLEAGENTTCP">ENABLEAGENTTCP
+							<script type="text/javascript">
+								dojo.byId("ENABLEAGENTTCP").innerHTML = dojo.i18n.getLocalization("admin","labels").ENABLEAGENTTCP;
+							</script>
+						</span>
 					</p>
 					<p>
-						<label for="agentModuleTCPListen">TCP Port:</label>
+						<label for="agentModuleTCPListen" id="agentModuleTCPListen">
+							<script type="text/javascript">
+								dojo.byId("agentModuleTCPListen").innerHTML = dojo.i18n.getLocalization("admin","labels").TCPPORT + ":";
+							</script>
+						</label>
 						<input id="agentModuleTCPListen" dojoType="dijit.form.NumberTextBox" name="agentModuleTCPListen" constraints="{min:1024,max:49151,places:0}", required="true", invalidMessage="Not a valid port to bind to.">
 					</p>
 					<p>
 						<label for="agentModuleWebListenEnabled">&nbsp;</label>
-						<input id="agentModuleWebListenEnabled" name="agentModuleWebListenEnabled" dojoType="dijit.form.CheckBox" value="webEnabled" checked onChange="dijit.byId('agentModuleWebListen').setAttribute('disabled', !this.checked)" />Enable Agent Web Server
+						<input id="agentModuleWebListenEnabled" name="agentModuleWebListenEnabled" dojoType="dijit.form.CheckBox" value="webEnabled" checked>
+							<script type="dojo/connect" event="onChange">
+								dijit.byId('agentModuleWebListen').setAttribute('disabled', !this.checked);
+							</script>
+						</input>
+						<span id="ENABLEAGENTWEB">ENABLEAGENTWEB
+							<script type="text/javascript">
+								dojo.byId("ENABLEAGENTWEB").innerHTML = dojo.i18n.getLocalization("admin","labels").ENABLEAGENTWEB;
+							</script>
+						</span>
+
 					</p>
 					<p>
-						<label for="agentModuleWebListen">Web Port:</label>
+						<label for="agentModuleWebListen" id="WEBPORT">WEBPORT:
+							<script type="text/javascript">
+								dojo.byId("WEBPORT").innerHTML = dojo.i18n.getLocalization("admin","labels").WEBPORT;
+							</script>
+						</label>
 						<input id="agentModuleWebListen" dojoType="dijit.form.NumberTextBox" name="agentModuleWebListen" constraints="{min:1024,max:49151,places:0}", required="true", invalidMessage="Not a valid port to bind to.">
 					</p>
 					<p>
 						<label for="agentModuleSubmit">&nbsp;</label>
-						<button dojoType="dijit.form.Button" label="Submit" onClick="agents.updateModule('editAgentModuleForm')"></button>
+						<button dojoType="dijit.form.Button" label="SUBMIT">
+							<script type="dojo/connect" event="onClick">
+								agents.updateModule('editAgentModuleForm');
+							</script>
+							<script type="dojo/method" event="postCreate">
+								this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+							</script>
+						</button>
 					</p>
 				</form>
 			</div>
@@ -208,42 +256,105 @@ dojo.requireLocalization("admin", "labels");
 				<form dojoType="dijit.form.Form" id="editAgent" action="javascript:void(0)" method="post">
 				<input type="hidden" dojoType="dijit.form.TextBox" name="oldlogin" id="agentOldLogin" value="" />
 				<p>
-					<label for="agentLogin">Login Name:</label>
+					<label for="agentLogin" id="LOGINNAME">LOGINNAME:
+						<script type="text/javascript">
+							dojo.byId("LOGINNAME").innerHTML = dojo.i18n.getLocalization("admin", "labels").LOGINNAME + ":";
+						</script>
+					</label>
 					<input dojoType="dijit.form.TextBox" name="login" id="agentLogin" />
 				</p>
 				<p>
-					<label for="agentIntegrated">Last Integrated:</label>
+					<label for="agentIntegrated" id="LASTINTEGRATED">LASTINTEGRATED:
+						<script type="text/javascript">
+							dojo.byId("LASTINTEGRATED").innerHTML = dojo.i18n.getLocalization("admin", "labels").LASTINTEGRATED + ":";
+						</script>
+					</label>
 					<span id="agentIntegrated">undefined</span>
 				</p>
 				<p>
-					<label for="agentPassword">Password:</label>
+					<label for="agentPassword" id="PASSWORD">PASSWORD:
+						<script type="text/javascript">
+							dojo.byId("PASSWORD").innerHTML = dojo.i18n.getLocalization("admin","labels").PASSWORD + ":";
+						</script>
+					</label>
 					<input dojoType="dijit.form.TextBox" type="password" id="agentPassword" name="password" />
 				</p>
 				<p>
-					<label for="agentConfirm">Confirm Password:</label>
+					<label for="agentConfirm" id="CONFIRM">CONFIRM:
+						<script type="text/javascript">
+							dojo.byId("CONFIRM").innerHTML = dojo.i18n.getLocalization("admin", "labels").CONFIRM + ":";
+						</script>
+					</label>
 					<input dojoType="dijit.form.TextBox" type="password" id="agentConfirm" name="confirm" />
 				</p>
 				<p>
-					<label for="agentProfile">Profile:</label>
+					<label for="agentProfile" id="agentPROFILENAME">PROFILENAME:
+						<script type="text/javascript">
+							dojo.byId("agentPROFILENAME").innerHTML = dojo.i18n.getLocalization("admin", "labels").PROFILENAME + ":";
+						</script>
+					</label>
 					<input dojoType="dijit.form.FilteringSelect" id="agentProfile" name="profile" store="agents.store" value="Default" searchAttr="name" query="{type:'profile'}"/>
 				</p>
 				<p>
-					<label for="agentSecurity">Security level:</label>
+					<label for="agentSecurity" id="SECURITY">SECURITY:
+						<script type="text/javascript">
+							dojo.byId("SECURITY").innerHTML = dojo.i18n.getLocalization("admin", "labels").SECURITY + ":";
+						</script>
+					</label>
 					<select dojoType="dijit.form.FilteringSelect" id="agentSecurity" name="security">
-						<option value="agent" title="Can have media routed to them">Agent</option>
-						<option value="supervisor" title="Agent + can route media and view agent states.">Supervisor</option>
-						<option value="admin" title="Supervisor + can access managment interface">Admin</option>
+						<option value="agent" title="AGENTDESCRIPTION">AGENT</option>
+						<option value="supervisor" title="SUPERVISORDESCRIPTION">SUPERVISOR</option>
+						<option value="admin" title="ADMINDESCRIPTION">ADMIN</option>
+						<script type="text/javascript">
+							var sel = dojo.byId("agentSecurity");
+							for(var i in sel.childNodes){
+								if(sel.childNodes[i].tagName == 'OPTION'){
+									var kid = sel.childNodes[i];
+									var label = "";
+									var title = "";
+									switch(kid.value){
+									case "agent":
+										label = "AGENT";
+										title = "AGENTDESCRIPTION";
+										break;
+										
+									case "admin":
+										label = "ADMIN";
+										title = "ADMINDESCRIPTION";
+										break;
+									
+									case "supervisor":
+										label = "SUPERVISOR";
+										title = "SUPERVISORDESCRIPTION";
+										break;
+									}
+									kid.title = dojo.i18n.getLocalization("admin", "labels")[title];
+									kid.innerHTML = dojo.i18n.getLocalization("admin", "labels")[label];
+								}
+							}
+						</script>
 					</select>
 				</p>
 				<p>
-					<label for="agentSkills">Skills:</label>
+					<label for="agentSkills" id="agentSKILLS">SKILLS:
+						<script type="text/javascript">
+							dojo.byId("agentSKILLS").innerHTML = dojo.i18n.getLocalization("admin", "labels").SKILLS + ":";
+						</script>
+					</label>
 					<div id="agentSkills">
 						<select dojoType="dijit.form.MultiSelect" id="agentSkills" name="skills" size="10" multiple="true"></select>
 					</div>
 				</p>
 				<p>
 					<label for="agentSubmit">&nbsp;</label>
-					<button dojoType="dijit.form.Button" label="Submit" id="agentSubmit" onClick="agents.updateAgent('editAgent', 'agentsList')"></button>
+					<button dojoType="dijit.form.Button" label="SUBMIT" id="agentSubmit">
+						<script type="dojo/connect" event="onClick">
+							agents.updateAgent('editAgent', 'agentsList')
+						</script>
+						<script type="dojo/method" event="postCreate">
+							this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+						</script>
+					</button>
 				</p>
 				</form>
 			</div>
@@ -252,18 +363,33 @@ dojo.requireLocalization("admin", "labels");
 				<form dojoType="dijit.form.Form" id="editAgentProfileForm" action="javascript:void(0)" method="post">
 					<input type="hidden" dojoType="dijit.form.TextBox" name="oldname" id="agentProfileOldName" value="" />
 					<p>
-						<label for="agentProfileName">Profile Name:</label>
+						<label for="agentProfileName" id="agentprofilePROFILENAME">PROFILENAME:
+							<script type="text/javascript">
+								dojo.byId("agentprofilePROFILENAME").innerHTML = dojo.i18n.getLocalization("admin","labels").PROFILENAME + ":";
+							</script>
+						</label>
 						<input dojoType="dijit.form.TextBox" name="name" id="agentProfileName" />
 					</p>
 					<p>
-						<label for="agentProfileSkills">Skills:</label>
+						<label for="agentProfileSkills" id="agentprofileSKILLS">SKILLS:
+							<script type="text/javascript">
+								dojo.byId("agentprofileSKILLS").innerHTML = dojo.i18n.getLocalization("admin", "labels").SKILLS + ":";
+							</script>
+						</label>
 						<div id="agentProfileSkills">
 							<select dojoType="dijit.form.MultiSelect" id="agentProfileSkills" name="skills" size="10" multiple="true"></select>
 						</div>
 					</p>
 					<p>
 						<label for="agentProfileSubmit">&nbsp;</label>
-						<button dojoType="dijit.form.Button" label="Submit" id="agentProfileSubmit" onClick="agents.updateProfile('editAgentProfileForm', 'agentsList')"></button>
+						<button dojoType="dijit.form.Button" label="SUBMIT" id="agentProfileSubmit">
+							<script type="dojo/connect" event="onClick">
+								agents.updateProfile('editAgentProfileForm', 'agentsList')
+							</script>
+							<script type="dojo/method" event="postCreate">
+								this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT)
+							</script>
+						</button>
 					</p>
 				</form>
 			</div>
@@ -271,14 +397,14 @@ dojo.requireLocalization("admin", "labels");
 		</div>
 	</div>
 	
-	<div id="queuesTab" dojoType="dijit.layout.BorderContainer" title="Queues">
+	<div id="queuesTab" dojoType="dijit.layout.BorderContainer" title="QUEUES">
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="queuesNav">
 			<div style="width:100%;height: 92%">
 				<div id="queuesList"></div>
 			</div>
 			
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
-				<button dojoType="dijit.form.Button" label="+">
+				<button dojoType="dijit.form.Button" label="ADDQUEUE">
 					<script type="dojo/connect" event="onClick">
 						dijit.byId("queueName").setValue("New Call Queue");
 						dijit.byId("queueGroup").setDisplayedValue("Default");
@@ -290,8 +416,11 @@ dojo.requireLocalization("admin", "labels");
 						}
 						dijit.byId("queuesMain").selectChild('queueEditor');
 					</script>
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("admin","labels").ADDQUEUE);
+					</script>
 				</button>
-				<button dojoType="dijit.form.Button" label="+ Group">
+				<button dojoType="dijit.form.Button" label="ADDQUEUEGROUP">
 					<script type="dojo/connect" event="onClick">
 						dijit.byId("queuesMain").selectChild('queueGroupEditor');
 						dijit.byId("queueGroupOldName").setValue("");
@@ -303,8 +432,15 @@ dojo.requireLocalization("admin", "labels");
 							queues.newGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
 						}
 					</script>
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("admin","labels").ADDQUEUEGROUP);
+					</script>
 				</button>
-				<button dojoType="dijit.form.Button" label="-" id="queueDropButton"></button>
+				<button dojoType="dijit.form.Button" label="DROPQUEUEORGROUP" id="queueDropButton">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("admin", "labels").DROPQUEUEORGROUP);
+					</script>
+				</button>
 			</div>
 		</div>
 		
@@ -314,23 +450,42 @@ dojo.requireLocalization("admin", "labels");
 				<form dojoType="dijit.form.Form" id="editQueueGroupForm" action="javascript:void(0)" method="post">
 				<input type="hidden" dojoType="dijit.form.TextBox" name="oldname" id="queueGroupOldName" value="" />
 				<p>
-					<label for="queueGroupName">Name:</label>
+					<label for="queueGroupName" id="lqueueGroupName">QUEUEGROUPNAME:
+						<script type="text/javascript">
+							dojo.byId("lqueueGroupName").innerHTML = dojo.i18n.getLocalization("admin", "labels").QUEUEGROUPNAME + ":";
+						</script>
+					</label>
 					<input dojoType="dijit.form.TextBox" name="name" id="queueGroupName" />
 				</p>
 				
 				<p>
-					<label for="queueGroupSort">Sort:</label>
+					<label for="queueGroupSort" id="lqueueGroupSort">SORT:
+						<script type="text/javascript">
+							dojo.byId("lqueueGroupSort").innerHTML = dojo.i18n.getLocalization("admin", "labels").SORT + ":";
+						</script>
+					</label>
 					<input dojoType="dijit.form.NumberTextBox" name="sort" id="queueGroupSort" />
 				</p>
 				
 				<p>
-					<label for="queueGroupRecipe">Recipe:</label>
+					<label for="queueGroupRecipe" id="lqueueGroupRecipe">RECIPE:
+						<script type="text/javascript">
+							dojo.byId("lqueueGroupRecipe").innerHTML = dojo.i18n.getLocalization("admin", "labels").RECIPE + ":";
+						</script>
+					</label>
 					<div dojoType="RecipeEditor" id="queueGroupRecipe"></div>
 				</p>
 				
 				<p>
 					<label for="queueGroupSubmit">&nbsp;</label>
-					<button dojoType="dijit.form.Button" label="Submit" id="queueGroupSubmit" onClick="console.log('submit')"></button>
+					<button dojoType="dijit.form.Button" label="SUBMIT" id="queueGroupSubmit">
+						<script type="dojo/connect" event="onClick">
+							console.log('submit');
+						</script>
+						<script type="dojo/method" event="postCreate">
+							this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+						</script>
+					</button>
 				</p>
 
 				</form>
@@ -340,40 +495,71 @@ dojo.requireLocalization("admin", "labels");
 				<form dojoType="dijit.form.Form" id="editQueueForm" action="javascript:void(0)" method="post">
 				<input type="hidden" dojoType="dijit.form.TextBox" name="oldname" id="queueOldName" value="" />
 				<p>
-					<label for="queueName">Name:</label>
+					<label for="queueName" id="lqueueName">QUEUENAME:
+						<script type="text/javascript">
+							dojo.byId("lqueueName").innerHTML = dojo.i18n.getLocalization("admin","labels").QUEUENAME + ":";
+						</script>
+					</label>
 					<input dojoType="dijit.form.TextBox" name="name" id="queueName" />
 				</p>
 				
 				<p>
-					<label for="queueGroup">Group:</label>
+					<label for="queueGroup" id="lqueueGroup">GROUP:
+						<script type = "text/javascript">
+							dojo.byId("lqueueGroup").innerHTML = dojo.i18n.getLocalization("admin", "labels").GROUP + ":";
+						</script>
+					</label>
 					<input dojoType="dijit.form.FilteringSelect" id="queueGroup" name="group" store="queues.store" value="Default" searchAttr="name" query="{type:'group'}" />
 				</p>
 				
 				<p>
-					<label for="queueSkills" title="the skills added to calls put in this queue">Skills:</label>
+					<label for="queueSkills" title="the skills added to calls put in this queue" id="lqueueSkills">SKILLS:
+						<script type="text/javascript">
+							dojo.byId("lqueueSkills").innerHTML = dojo.i18n.getLocalization("admin", "labels").SKILLS + ":";
+						</script>
+					</label>
 					<div id="queueSkillsDiv">
 						<select dojoType="dijit.form.MultiSelect" id="queueSkills" name="skills" size="10" multiple="true"></select>
 					</div>
 				</p>
 				
 				<p>
-					<label for="queueWeight">Weight:</label>
+					<label for="queueWeight" id="lqueueWeight">WEIGHT:
+						<script type="text/javascript">
+							dojo.byId("lqueueWeight").innerHTML = dojo.i18n.getLocalization("admin", "labels").WEIGHT + ":";
+						</script>
+					</label>
 					<input dojoType="dijit.form.ValidationTextBox" id="queueWeight" name="weight" regExp="[\d]+" />
 				</p>
 				
 				<p>
-					<label for="queueGroupRecipeDisplay">Group Recipe<label>
+					<label for="queueGroupRecipeDisplay" id="lqueueGroupRecipeDisplay">GROUPRECIPE:
+						<script type="text/javascript">
+							dojo.byId("lqueueGroupRecipeDisplay").innerHTML = dojo.i18n.getLocalization("admin", "labels").GROUPRECIPE + ":";
+						</script>
+					<label>
 					<div dojoType="RecipeEditor" id="queueGroupRecipeDisplay"></div>
 				</p>
 				
 				<p>
-					<label for="queueRecipe">Queue Recipe</label>
+					<label for="queueRecipe" id="lqueueRecipe">RECIPE:
+						<script type="text/javascript">
+							dojo.byId("lqueueRecipe").innerHTML = dojo.i18n.getLocalization("admin", "labels").RECIPE + ":";
+						</script>
+					</label>
 					<div dojoType="RecipeEditor" id="queueRecipe"></div>
 				<p>
 				
 				<p>
 					<label for="queueSubmit">&nbsp;</label>
-					<button dojoType="dijit.form.Button" label="Submit" id="queueSubmit" onClick="console.log('submit')"></button>
+					<button dojoType="dijit.form.Button" label="SUBMIT" id="queueSubmit">
+						<script type="dojo/connect" event="onClick">
+							console.log('submit');
+						</script>
+						<script type="dojo/method" event="postCreate">
+							this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+						</script>
+					</button>
 				</p>
 				</form>				
 			</div>
@@ -381,22 +567,26 @@ dojo.requireLocalization("admin", "labels");
 		</div>
 	</div>
 
-	<div id="skillsTab" dojoType="dijit.layout.BorderContainer" title="Skills">
+	<div id="skillsTab" dojoType="dijit.layout.BorderContainer" title="SKILLS">
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="skillsNav">
 			<div style="width:100%;height:92%">
 				<div id="skillsList"></div>
 			</div>
 			
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
-				<button dojoType="dijit.form.Button" label="+"
-					onclick="
+				<button dojoType="dijit.form.Button" label="ADDSKILL">
+					<script type="dojo/connect" event="onClick">
 						dijit.byId('skillsMain').selectChild('skillEditor');
 						dijit.byId('editSkill').reset();
 						dijit.byId('skillAtom').setDisabled(false);
 						dijit.byId('skillSubmit').onClick = function(){
 							skills.newSkill('editSkill', 'skillsList');
 						}
-					"></button>
+					</script>
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("admin", "labels").ADDSKILL);
+					</script>
+				</button>
 			</div>
 
 		</div>
@@ -405,52 +595,91 @@ dojo.requireLocalization("admin", "labels");
 			<div id="skillEditor" dojoType="dijit.layout.ContentPane">
 				<form dojoType="dijit.form.Form" id="editSkill" action="javascript:void(0)" method="post">
 					<p>
-						<label for="skillName">Name:</label>
+						<label for="skillName" id="lskillName">SKILLNAME:
+							<script type="text/javascript">
+								dojo.byId("lskillName").innerHTML = dojo.i18n.getLocalization("admin", "labels").SKILLNAME + ":";
+							</script>
+						</label>
 						<input dojoType="dijit.form.TextBox" name="name" id="skillName" />
 					</p>
 					
 					<p>
-						<label for="skillAtom">Atom:</label>
+						<label for="skillAtom" id="lskillAtom">ATOM:
+							<script type="text/javascript">
+								dojo.byId("lskillAtom").innerHTML = dojo.i18n.getLocalization("admin", "labels").ATOM + ":";
+							</script>
+						</label>
 						<input dojoType="dijit.form.TextBox" name="atom" id="skillAtom" disabled />
 					</p>
 					
 					<p>
-						<label for="skillGroup">Group:</label>
+						<label for="skillGroup" id="lskillGroup">GROUP:
+							<script type="text/javascript">
+								dojo.byId("lskillGroup").innerHTML = dojo.i18n.getLocalization("admin", "labels").GROUP + ":";
+							</script>
+						</label>
 						<input dojoType="dijit.form.ComboBox" name="group" id="skillGroup" store="skills.store" searchAttr="name" query="{type:'group'}"/>
 					</p>
 					
 					<p>
-						<label for="skillDesc">Description:</label>
+						<label for="skillDesc" id="lskillDesc">DESCRIPTION:
+							<script type="text/javascript">
+								dojo.byId("lskillDesc").innerHTML = dojo.i18n.getLocalization("admin", "labels").DESCRIPTION + ":";
+							</script>
+						</label>
 						<textarea dojoType="dijit.form.Textarea" name="description" id="skillDesc" style="width:400px"></textarea>
 					</p>
 					
 					<p>
 						<label for="skillSubmit">&nbsp;</label>
-						<button dojoType="dijit.form.Button" label="Submit" id="skillSubmit" onClick="skills.updateSkill('editSkill', 'skillsList')"></button>
+						<button dojoType="dijit.form.Button" label="SUBMIT" id="skillSubmit">
+							<script type="dojo/connect" event="onClick">
+								skills.updateSkill('editSkill', 'skillsList');
+							</script>
+							<script type="dojo/method" event="postCreate">
+								this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+							</script>
+						</button>
 					</p>
 				</form>
 			</div>
 			
 			<div id="skillGroupEditor" dojoType="dijit.layout.ContentPane">
 				<ul>
-					<li>To create a skill group, give a skill a group that does not exist.</li>
-					<li>A group is automatically deleted when there are no skills in it.</li>
+					<li id="TOCREATESKILLGROUP">TOCREATESKILLGROUP</li>
+					<li id="TODELETESKILLGROUP">TODELETESKILLGROUP</li>
+					<script type="text/javascript">
+						dojo.byId("TOCREATESKILLGROUP").innerHTML = dojo.i18n.getLocalization("admin", "labels").TOCREATESKILLGROUP;
+						dojo.byId("TODELETESKILLGROUP").innerHTML = dojo.i18n.getLocalization("admin", "labels").TODELETESKILLGROUP;
+					</script>
 				</ul>
 				<form dojoType="dijit.form.Form" id="editSkillGroupForm" action="javascript:void(0)" method="post">
 					<input type="hidden" dojoType="dijit.form.TextBox" name="oldname" id="skillGroupOldName" value="" />
 					<p>
-						<label for="skillGroupName">Group Name:</label>
+						<label for="skillGroupName" id="lskillGroupName">GROUP:
+							<script type="text/javascript">
+								dojo.byId("lskillGroupName").innerHTML = dojo.i18n.getLocalization("admin", "labels").GROUP + ":";
+							</script>
+						</label>
 						<input dojoType="dijit.form.TextBox" name="name" id="skillGroupName" />
 					</p>
 					<p>
 						<label for="skillGroupSubmit">&nbsp;</label>
-						<button dojoType="dijit.form.Button" label="Submit" id="skillGroupSubmit" onClick="skills.updateGroup('editSkillGroupForm', 'skillsList')"></button>
+						<button dojoType="dijit.form.Button" label="SUBMIT" id="skillGroupSubmit">
+							<script type="dojo/connect" event="onClick">
+								skills.updateGroup('editSkillGroupForm', 'skillsList');
+							</script>
+							<script type="dojo/method" event="postCreate">
+								this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+							</script>
+						</button>
 					</p>
 				</form>
 			</div>
 		</div>
 	</div>
-	<div id="mediaTab" dojoType="dijit.layout.BorderContainer" title="Media Types">
+	
+	<div id="mediaTab" dojoType="dijit.layout.BorderContainer" title="MEDIATYPES">
 		<div id="mediaNav" dojoType="dijit.layout.ContentPane" region="leading" width="20%">
 			<div style="width:100%;height: 92%">
 				<div id="mediaList"></div>
@@ -467,6 +696,17 @@ dojo.requireLocalization("admin", "labels");
 			</div>
 		</div>
 	</div>
+	
+	<script type="text/javascript">
+		var div = dojo.byId("main");
+		for(var i in div.childNodes){
+			if(div.childNodes[i].tagName == "DIV"){
+				var totrans = div.childNodes[i].getAttribute('title');
+				div.childNodes[i].setAttribute('title', dojo.i18n.getLocalization("admin", "labels")[totrans])
+			}
+		}
+	</script>
+
 </div>
 
 </body>

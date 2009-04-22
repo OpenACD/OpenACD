@@ -89,9 +89,9 @@ dojo.requireLocalization("admin", "labels");
 
 <body class="tundra">
 
-<div dojoType="dijit.Dialog" title="Login" id="loginpane">
-	<script type="dojo/connect" event="postCreate">
-		this.setTitle(dojo.i18n.getLocalization("admin", "labels").LOGIN);
+<div dojoType="dijit.Dialog" title="ddd" id="loginpane">
+	<script type="dojo/connect" event="onShow">
+		this.setAttribute("title", dojo.i18n.getLocalization("admin", "labels").LOGIN);
 	</script>
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
 		<p  id="loginerrp" style="font-size:smaller;display:none"><label>&nbsp;</label><span id="loginerrspan" style="color:#ff0000"></span></p>
@@ -122,6 +122,9 @@ dojo.requireLocalization("admin", "labels");
 
 <div style="position: absolute; top:2%; right:2%; z-index:2000; display:none" id="logoutButtonDiv">
 	<button id="logoutbutton" dojoType="dijit.form.Button" label="Log Out">
+		<script type="dojo/method" event="postCreate">
+			this.setLabel(dojo.i18n.getLocalization("admin", "labels").LOGOUT);
+		</script>
 		<script type="dojo/connect" event="onClick">
 			dojo.xhrGet({
 				url:"/logout",
@@ -141,7 +144,10 @@ dojo.requireLocalization("admin", "labels");
 
 <div id="main" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px;visibility:hidden">
 	
-	<div id="agentsTab" dojoType="dijit.layout.BorderContainer" title="Agents" selected="true">
+	<div id="agentsTab" dojoType="dijit.layout.BorderContainer" title="err" selected="true">
+		<script type="dojo/connect" event="postMixInProperties">
+			this.setAttribute("title", dojo.i18n.getLocalization("admin", "labels").AGENTS);
+		</script>
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="agentsNav">
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="top">
 				<button dojoType="dijit.form.Button" label="Agents Settings" onclick="dijit.byId('agentsMain').selectChild('agentModuleSettings');

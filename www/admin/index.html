@@ -23,9 +23,29 @@
 	}
 </style>    
 
+<script type="text/javascript">
+	//Can't use dojo.cookie because we need the language to configure dojo.
+	//Thus, the hard parsing.
+	var cookies = document.cookie.split('; ');
+	var locale = "";
+	for(var i = 0; i < cookies.length; i++){
+		var broken = cookies[i].split("=");
+		if(broken[0] == "cpx_lang"){
+			locale = broken[1];
+			break;
+		}
+	}
+	var djConfig = {
+		parseOnLoad:true,
+		isDebug:false,
+		locale:locale,
+		modulePaths:{
+			"admin":"/lang"
+		}
+	}
+</script>
 <!-- load the dojo toolkit base -->
-<script type="text/javascript" src="/dojo/dojo/dojo.js"
-	djConfig="parseOnLoad:true, isDebug:false"></script>
+<script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
 <script type="text/javascript">
 /* dependancies */
 dojo.require("dijit.Dialog");
@@ -61,6 +81,8 @@ dojo.require("spice.queues");
 dojo.require("spice.PredicateEditor");
 dojo.require("spice.RecipeEditor");
 dojo.require("spice.medias");
+dojo.requireLocalization("admin", "labels");
+
 </script>
 <script type="text/javascript" src="main.js"></script>
 </head>
@@ -68,17 +90,32 @@ dojo.require("spice.medias");
 <body class="tundra">
 
 <div dojoType="dijit.Dialog" title="Login" id="loginpane">
+	<script type="dojo/connect" event="postCreate">
+		this.setTitle(dojo.i18n.getLocalization("admin", "labels").LOGIN);
+	</script>
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
 		<p  id="loginerrp" style="font-size:smaller;display:none"><label>&nbsp;</label><span id="loginerrspan" style="color:#ff0000"></span></p>
-		<p><label for="username">Username:</label>
+		<p><label for="username" id="unlabel">
+			<script type="text/javascript">
+				dojo.byId("unlabel").innerHTML = dojo.i18n.getLocalization("admin", "labels").USERNAME + ":"
+			</script>
+		</label>
 			<input type="text" name="username" value="" dojoType="dijit.form.TextBox" trim="true" id="username" />
 		</p>
-		<p><label for="password">Password:</label>
+		<p><label for="password" id="pwlabel">
+			<script type="text/javascript" event="addOnLoad">
+				dojo.byId("pwlabel").innerHTML = dojo.i18n.getLocalization("admin", "labels").PASSWORD + ":"
+			</script>
+		</label>
 			<input type="password" name="password" value="" dojoType="dijit.form.TextBox" id="password" />
 		</p>
 		
 		<p><label for="loginsubmit">&nbsp;</label>
-			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">Login</button>
+			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">
+				<script type="dojo/method" event="postCreate">
+					this.setLabel(dojo.i18n.getLocalization("admin", "labels").LOGIN);
+				</script>
+			</button>
 		</p>
 	</div>
 </div>

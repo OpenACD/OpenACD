@@ -1,6 +1,10 @@
 -module(cdr).
 -behaviour(gen_event).
 
+-ifdef(EUNIT).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -include("log.hrl").
 -include("call.hrl").
 

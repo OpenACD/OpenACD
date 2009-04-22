@@ -6,19 +6,21 @@ queues = function(){
 	return {}
 };
 
+dojo.requireLocalization("admin", "recipeEditor");
+
 queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 	data:{
 		identifier:"value",
 		label:"label",
 		"items":[
-			{"label":"Tick interval",
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").TICKINTERVAL,
 			"value":"ticks",
 			"type":"property",
 			"regExp":"[\\d]+",
 			"comparisons":[
 				{_reference:"="}
 			]},
-			{"label":"Agents Available",
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSAVAILABLE,
 			"value":"agents_avail",
 			"type":"property",
 			"regExp":"[\\d]+",
@@ -27,16 +29,16 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 				{_reference:">"},
 				{_reference:"<"}
 			]},
-			{"label":"=",
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPAREEQUAL,
 			"value":"=",
 			"type":"comparison"},
-			{"label":">",
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPAREGREATERTHAN,
 			"value":">",
 			"type":"comparison"},
-			{"label":"<",
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPARELESSTHAN,
 			"value":"<",
 			"type":"comparison"},
-			{"label":"Agents Eligible",
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSELIGIBLE,
 			"value":"agents_eligible",
 			"type":"property",
 			"regExp":"[\\d]+",
@@ -45,7 +47,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 				{_reference:">"},
 				{_reference:"<"}
 			]},
-			{"label":"Calls in Queue",
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").CALLSINQUEUE,
 			"value":"calls_queued",
 			"type":"property",
 			"regExp":"[\\d]+",
@@ -54,7 +56,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 				{_reference:">"},
 				{_reference:"<"}
 			]},
-			{"label":"Position in Queue",
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").POSITIONINQUEUE,
 			"value":"queue_position",
 			"type":"property",
 			"regExp":"[\\d]+",

@@ -1,22 +1,29 @@
 <form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
 <p>
 	<label for="mediaEnabled">&nbsp;</label>
-	<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" />FreeSWITCH Enabled
+	<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" />
+	<span id="lFREESWITCHENABLED">FREESWITCHENABLED</span>
 </p>
 
 <p>
-	<label for="cnode">C Node:</label>
+	<label for="cnode" id="lCNODE">CNODE:</label>
 	<input dojoType="dijit.form.TextBox" name="cnode" id="cnode">
 </p>
 
 <p>
-	<label for="domain">Domain:</label>
+	<label for="domain" id="lDOMAIN">DOMAIN:</label>
 	<input dojoType="dijit.form.TextBox" name="domain" id="domain">
 </p>
 
 <p>
 	<label for="mediaSubmit">&nbsp;</label>
-	<button dojoType="dijit.form.Button" label="submit" id="mediaSubmit">
+	<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">
+		<script type="dojo/method" event="postCreate">
+			dojo.byId("lFREESWITCHENABLED").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").FREESWITCHENABLED;
+			dojo.byId("lCNODE").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").CNODE + ":";
+			dojo.byId("lDOMAIN").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").DOMAIN + ":";
+			this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
 	</button>
 </form>
 

@@ -153,6 +153,7 @@ var mediaTreeRefreshHandle = dojo.subscribe("medias/tree/refreshed", function(da
 		}
 	
 		if(item.type[0] == "conf"){
+			dojo.requireLocalization("admin", item.mediatype[0]);
 			dijit.byId("mediaConf").setHref("spice/medias/" + item.mediatype[0] + ".html");
 		}
 		dijit.byId("mediaMain").selectChild("mediaConf");

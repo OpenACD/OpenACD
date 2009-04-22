@@ -78,7 +78,7 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 	print "  #{mod.ljust(@maxwidth - 1)} : "
 	STDOUT.flush
 	test_output = `erl -pa debug_ebin -pa contrib/mochiweb/ebin -sname testpx -s test_coverage start #{mod} -run init stop`
-	if /(All \d+ tests successful|There were no tests to run|This module does not provide a test\(\) function|Test successful)/ =~ test_output
+	if /(All \d+ tests (successful|passed)|There were no tests to run|This module does not provide a test\(\) function|Test (successful|passed))/ =~ test_output
 		File.delete(t.to_s+'.failed') if File.exists?(t.to_s+'.failed')
 		if ENV['verbose']
 			puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")

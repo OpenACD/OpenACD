@@ -22,7 +22,8 @@ end
 
 INCLUDE = "include"
 
-ERLC_FLAGS = "-I#{INCLUDE} +warn_unused_vars +warn_unused_import"
+OTPVERSION = `erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]).' -s erlang halt`.chomp
+ERLC_FLAGS = "-I#{INCLUDE} -D #{OTPVERSION} +warn_unused_vars +warn_unused_import +warn_exported_vars +warn_missing_spec +warn_untyped_record"
 
 SRC = FileList['src/*.erl']
 HEADERS = FileList['include/*.hrl']
@@ -84,7 +85,7 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 			puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
 		else
 			out = $1
-			if /(All \d+ tests successful|Test successful.)/ =~ test_output
+			if /(All \d+ tests (successful|passed)|Test (successful|passed))/ =~ test_output
 				colorstart, colorend = percent_to_color(80)
 			#elsif /This module does not provide a test\(\) function/ =~ test_output
 				#colorstart, colorend = percent_to_color(50)

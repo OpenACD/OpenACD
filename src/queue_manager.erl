@@ -75,7 +75,7 @@
 		code_change/4]).
 
 -record(state, {
-	qdict = dict:new()
+	qdict = dict:new() :: dict()
 }).
 %% API
 

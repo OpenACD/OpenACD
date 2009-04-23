@@ -401,6 +401,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 							end,
 							agent:set_state(Apid, idle);
 						{ok, oncall} ->
+							Agent = agent:dump_state(Apid),
 							cdr:wrapup(State#state.callrec, Agent#agent.login),
 							agent:set_state(Apid, wrapup, State#state.callrec);
 						{ok, released} ->

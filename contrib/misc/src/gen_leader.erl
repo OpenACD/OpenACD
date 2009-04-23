@@ -320,6 +320,9 @@ reply({To, Tag}, Reply) ->
 %%% loop is entered.
 %%% ---------------------------------------------------
 %%% @hidden 
+init_it(Starter, Parent, {local, Name}, Mod, {CandidateNodes, Workers, Arg}, Options) ->
+    init_it(Starter, Parent, Name, Mod,
+	    {CandidateNodes, Workers, Arg}, Options); % ADT - R13B compatability
 init_it(Starter, self, Name, Mod, {CandidateNodes, Workers, Arg}, Options) ->
     init_it(Starter, self(), Name, Mod, 
 	    {CandidateNodes, Workers, Arg}, Options);

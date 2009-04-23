@@ -47,10 +47,14 @@
 
 -type(key() :: {non_neg_integer(), {pos_integer(), non_neg_integer(), non_neg_integer()}}).
 
--type(queue() ::
+-ifdef(R13B).
+-type(call_queue() :: gb_tree()).
+-else.
+-type(call_queue() ::
 	{non_neg_integer(), 'nil'} |
 	{non_neg_integer(), {key(), #queued_call{}, 'nil', 'nil'}} |
 	{non_neg_integer(), {key(), #queued_call{}, 'nil', tuple()}}).
+-endif.
 
 -export([
 	start/3,
@@ -244,7 +248,7 @@ stop(Pid) ->
 % find the first call in the queue that doesn't have a pid on this node
 % in its bound list
 %% @private
--spec(find_unbound/2 :: (GbTree :: queue(), From :: pid()) -> {key(), #queued_call{}} | 'none').
+-spec(find_unbound/2 :: (GbTree :: call_queue(), From :: pid()) -> {key(), #queued_call{}} | 'none').
 find_unbound(GbTree, From) when is_pid(From) ->
 	find_unbound_(gb_trees:next(gb_trees:iterator(GbTree)), From).
 
@@ -283,7 +287,7 @@ find_key_(_Needle, none) ->
 
 %% @private
 % same as find_key, only searches by pid
--spec(find_by_pid/2 :: (Needle :: pid(), GbTree :: queue()) -> {key(), #queued_call{}} | 'none').
+-spec(find_by_pid/2 :: (Needle :: pid(), GbTree :: call_queue()) -> {key(), #queued_call{}} | 'none').
 find_by_pid(Needle, GbTree) ->
 	find_by_pid_(Needle, gb_trees:next(gb_trees:iterator(GbTree))).
 

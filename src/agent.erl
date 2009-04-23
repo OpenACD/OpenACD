@@ -267,6 +267,7 @@ oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcal
 	case Currentcall#call.id of
 		Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
+			cdr:wrapup(Call, State#agent.login),
 			{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};
 		_Else ->
 			{reply, invalid, oncall, State}

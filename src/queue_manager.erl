@@ -74,6 +74,10 @@
 		terminate/2,
 		code_change/4]).
 
+-ifndef(R13B).
+-type(dict() :: any()).
+-endif.
+
 -record(state, {
 	qdict = dict:new() :: dict()
 }).

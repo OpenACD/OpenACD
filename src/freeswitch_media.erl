@@ -384,9 +384,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 			?DEBUG("Channel hangup", []),
 			Qpid = State#state.queue_pid,
 			Apid = State#state.agent_pid,
-			Agent = agent:dump_state(Apid),
 			cdr:hangup(State#state.callrec, caller),
-			cdr:wrapup(State#state.callrec, Agent#agent.login),
 			case Apid of
 				undefined ->
 					?WARNING("Agent undefined", []),
@@ -403,6 +401,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 							end,
 							agent:set_state(Apid, idle);
 						{ok, oncall} ->
+							cdr:wrapup(State#state.callrec, Agent#agent.login),
 							agent:set_state(Apid, wrapup, State#state.callrec);
 						{ok, released} ->
 							ok

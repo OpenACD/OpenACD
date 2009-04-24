@@ -183,7 +183,7 @@ summarize(Transactions) ->
 	Oncall = Count(Count, oncall, wrapup, [], 0, Sorted),
 	Ringing = Count(Count, ringing, oncall, [], 0, Sorted),
 	?NOTICE("Wrapup:  ~p;  Inqueue:  ~p;  Oncall:  ~p;  Rining:  ~p", [Wrapup, Inqueue, Oncall, Ringing]),
-	{Wrapup, Inqueue, Oncall, Ringing}.
+	{Inqueue, Ringing, Oncall, Wrapup}.
 
 nowsec() ->
 	{_, Sec, _} = now(),
@@ -284,34 +284,96 @@ summarize_test_() ->
 			{wrapup, {"test", 3, "agent"}},
 			{endwrapup, {"test", 7, "agent"}}
 		],
-		?assertEqual({4, 0, 0, 0}, summarize(Transactions))
+		?assertEqual({0, 0, 0, 4}, summarize(Transactions))
+	end},
+	{"Simple inqueue count, one inqueu -> ringing transaction.",
+	fun() ->
+		Transactions = [
+			{inqueue, {"test", 5, "queue"}},
+			{ringing, {"test", 17, "agent"}}
+		],
+		?assertEqual({12, 0, 0, 0}, summarize(Transactions))
+	end},
+	{"Simple oncall count, one oncall -> wrapup transaction",
+	fun() ->
+		Transactions = [
+			{oncall, {"test", 6, "agent"}},
+			{wrapup, {"test", 18, "agent"}}
+		],
+		?assertEqual({0, 0, 12, 0}, summarize(Transactions))
+	end},
+	{"Simple ringing count, one ringin -> oncall transaction",
+	fun() ->
+		Transactions = [
+			{ringing, {"test", 8, "agent"}},
+			{oncall, {"test", 23, "agent"}}
+		],
+		?assertEqual({0, 15, 0, 0}, summarize(Transactions))
+	end},
+	{"Transactions out of order",
+	fun() ->
+		Transactions = [
+			{oncall, {"test", 23, "agent"}},
+			{ringing, {"test", 8, "agent"}}
+		],
+		?assertEqual({0, 15, 0, 0}, summarize(Transactions))
+	end},
+	{"Simple call flow:  inqueue -> ringing -> oncall -> hangup -> wrapup -> endwrapup",
+	fun() -> 
+		Transactions = [
+			{inqueue, {"test", 2, "queue"}},
+			{ringing, {"test", 6, "agent"}},
+			{oncall, {"test", 11, "agent"}},
+			{hangup, {"test", 17, "caller"}},
+			{wrapup, {"test", 17, "agent"}},
+			{endwrapup, {"test", 24, "agent"}}
+		],
+		?assertEqual({4, 5, 6, 7}, summarize(Transactions))
+	end},
+	{"Call flow with transfer:  inqueue -> ringing -> oncall -> transfer -> wrapup -> endwrapup -> oncall -> wrapup -> endwrapup",
+	fun() ->
+		Transactions = [
+			{inqueue, {"test", 2, "queue"}},
+			{ringing, {"test", 4, "agent"}},
+			{oncall, {"test", 7, "agent"}},
+			{transfer, {"test", 11, "agent2"}},
+			{wrapup, {"test", 11, "agent"}},
+			{oncall, {"test", 11, "agent2"}},
+			{endwrapup, {"test", 16, "agent"}},
+			{hangup, {"test", 17, "caller"}},
+			{wrapup, {"test", 17, "agent2"}},
+			{endwrapup, {"test", 24, "agent2"}}
+		],
+		?assertEqual({2, 3, 10, 12}, summarize(Transactions))
+	end},
+	{"Call flow with transfer (same as above) in mixed order",
+	fun() ->
+		Transactions = [
+			{inqueue, {"test", 2, "queue"}},
+			{ringing, {"test", 4, "agent"}},
+			{oncall, {"test", 7, "agent"}},
+			{transfer, {"test", 11, "agent2"}},
+			{wrapup, {"test", 11, "agent"}},
+			{oncall, {"test", 11, "agent2"}},
+			{endwrapup, {"test", 16, "agent"}},
+			{hangup, {"test", 17, "caller"}},
+			{wrapup, {"test", 17, "agent2"}},
+			{endwrapup, {"test", 24, "agent2"}}
+		],
+		crypto:start(),
+		Shuffle = fun(_F, [], Acc) ->
+				Acc;
+			(F, List, Acc) ->
+				Index = crypto:rand_uniform(1, length(List) + 1),
+				Item = lists:nth(Index, List),
+				Newlist = lists:subtract(List, [Item]),
+				Newacc = [Item | Acc],
+				F(F, Newlist, Newacc)
+		end,
+		Newtrans = Shuffle(Shuffle, Transactions, []),
+		?assertEqual({2, 3, 10, 12}, summarize(Newtrans))
 	end}].
-	
-	
-	
-	
-	
-	
-	
-	
 
-
-
-%do_test_() ->
-%	{foreach,
-%	fun() ->
-%		ok
-%	end,
-%	fun(ok) ->
-%		ok
-%	end,
-%	[fun(ok) ->
-%		{"test",
-%		fun() ->
-%			?assert(false)
-%		end}
-%	end]}.
-			
 -endif.
 
 	

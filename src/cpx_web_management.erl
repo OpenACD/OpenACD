@@ -574,7 +574,9 @@ api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 			cpx_supervisor:destroy(freeswitch_media_manager),
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
-			Args = [list_to_atom(proplists:get_value("cnode", Post)), proplists:get_value("domain", Post, "")],
+			Args = [list_to_atom(proplists:get_value("cnode", Post)), [
+				{domain, proplists:get_value("domain", Post, "")},
+				{voicegateway, proplists:get_value("voicegw", Post, "")}]],
 			Atomnode = list_to_existing_atom(Node),
 			Conf = #cpx_conf{
 				id = freeswitch_media_manager,
@@ -594,12 +596,20 @@ api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 			]},
 			{200, [], mochijson2:encode(Json)};
 		Rec when is_record(Rec, cpx_conf) ->
-			[Cnode, Domain] = Rec#cpx_conf.start_args,
+			[Cnode, [Head | _Tail] = Args] = Rec#cpx_conf.start_args,
+			?DEBUG("Args: ~p", [Args]),
+			{Domain, Voicegw} = case Head of
+				X when is_tuple(X) ->
+					{proplists:get_value(domain, Args, ""), proplists:get_value(voicegateway, Args, "")};
+				X ->
+					{X, ""}
+			end,
 			Json = {struct, [
 				{success, true},
 				{<<"enabled">>, true},
 				{<<"cnode">>, list_to_binary(atom_to_list(Cnode))},
-				{<<"domain">>, list_to_binary(Domain)}
+				{<<"domain">>, list_to_binary(Domain)},
+				{<<"voicegw">>, list_to_binary(Voicegw)}
 			]},
 			{200, [], mochijson2:encode(Json)}
 	end.
@@ -965,7 +975,7 @@ encode_medias_confs(Node, [{Mod, Conf} | Tail], Acc) when is_record(Conf, cpx_co
 		{<<"id">>, list_to_binary(atom_to_list(Node) ++ "/" ++ atom_to_list(Mod))},
 		{<<"mediatype">>, list_to_binary(atom_to_list(Mod))},
 		{<<"start">>, list_to_binary(atom_to_list(Conf#cpx_conf.start_function))},
-		{<<"args">>, encode_media_args(Conf#cpx_conf.start_args, [])},
+		%{<<"args">>, encode_media_args(Conf#cpx_conf.start_args, [])},
 		{<<"node">>, list_to_binary(atom_to_list(Node))}
 	]},
 	encode_medias_confs(Node, Tail, [Json | Acc]);

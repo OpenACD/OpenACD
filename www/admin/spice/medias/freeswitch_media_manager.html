@@ -7,12 +7,17 @@
 
 <p>
 	<label for="cnode" id="lCNODE">CNODE:</label>
-	<input dojoType="dijit.form.TextBox" name="cnode" id="cnode">
+	<input dojoType="dijit.form.TextBox" name="cnode" id="cnode" />
 </p>
 
 <p>
 	<label for="domain" id="lDOMAIN">DOMAIN:</label>
-	<input dojoType="dijit.form.TextBox" name="domain" id="domain">
+	<input dojoType="dijit.form.TextBox" name="domain" id="domain" />
+</p>
+
+<p>
+	<label for="voicegw" id="lVOICEGATEWAY">VOICEGATEWAY:</label>
+	<input dojoType="dijit.form.TextBox" name="voicegw" id="voicegw" />
 </p>
 
 <p>
@@ -22,6 +27,7 @@
 			dojo.byId("lFREESWITCHENABLED").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").FREESWITCHENABLED;
 			dojo.byId("lCNODE").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").CNODE + ":";
 			dojo.byId("lDOMAIN").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").DOMAIN + ":";
+			dojo.byId("lVOICEGATEWAY").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").VOICEGATEWAY + ":";
 			this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 		</script>
 	</button>

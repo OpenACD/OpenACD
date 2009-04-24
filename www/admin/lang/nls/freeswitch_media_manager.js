@@ -1,5 +1,6 @@
 {
 	FREESWITCHENABLED: "FreeSWITCH Enabled",
 	CNODE: "C Node",
-	DOMAIN: "Domain"
+	DOMAIN: "Domain",
+	VOICEGATEWAY: "Voice Gateway"
 }

@@ -117,13 +117,11 @@
 %% =====
 
 %% @doc Attempts to set-up and create the required mnesia table `call_queue' on all visible nodes.
-%% Errors caused by the table already existing are ignored.
 %% @see build_tables/1
 build_tables() -> 
 	build_tables(lists:append(nodes(), [node()])).
 
 %% @doc Attempts to set-up and create the required mnesia table `call_queue' on the specified nodes
-%% Errors caused by the table already existing are ignored.
 build_tables(Nodes) -> 
 	?DEBUG("~p building tables...", [?MODULE]),
 	A = util:build_table(call_queue, ?QUEUE_TABLE([node()])),
@@ -236,7 +234,7 @@ get_queues() ->
 	end,
 	lists:map(Mergereci, Reply).
 
-%% @doc Create a new default queue configuraiton with the name `string()' `QueueName'.
+%% @doc Create a new default queue configuraiton from `#call_queue{} Queue'.
 %% @see new_queue/2
 -spec(new_queue/1 :: (QueueName :: #call_queue{} ) -> {'aborted', any()} | {'atomic', #call_queue{}}).
 new_queue(Queue) when is_record(Queue, call_queue) ->
@@ -252,6 +250,8 @@ new_queue(Queue) when is_record(Queue, call_queue) ->
 			Trans
 	end.
 
+%% @doc Create a new queue from the given `string() Name, pos_integer() Weight, [atom()] Skills, recipe() Recipe, string() Group'.
+-spec(new_queue/5 :: (Name :: string(), Weight :: pos_integer(), Skills :: [atom() | {atom(), any()}], Recipe :: recipe(), Group :: string()) -> {'aborted', any()} | {'atomic', #call_queue{}}).
 new_queue(Name, Weight, Skills, Recipe, Group) when Weight > 0, is_integer(Weight) ->
 	Rec = #call_queue{
 		name = Name,

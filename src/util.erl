@@ -244,7 +244,8 @@ subtract_skill_lists(List1, List2) ->
 
 %% @doc build the given mnesia table `Tablename' with `Options'.
 %% This will exit the calling process if mnesia is not started or if the schema is not stored on disc.  
-%% If you trying to create the same table twice, it simply returns ok, otherwise returns the raw mnesia create_table result.
+%% If you trying to create the same table twice, it returns `exists'.  If the table was copied from another node,
+%% it returns `copied'.  Otherwise returns the raw mnesia create_table result, usually `{atomic, ok}'.
 %% Takes the same parameters as mnesia:create_table.
 %% @see mnesia:create_table/2
 -spec(build_table/2 :: (atom(), [any()]) -> 'exists' | {'atomic', 'ok'} | 'copied').

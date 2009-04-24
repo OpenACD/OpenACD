@@ -110,7 +110,7 @@
 %% and `[{atom(), term()] Options'.
 %% <ul>
 %% <li>`domain :: string()'</li>
-%% <li>`voicegateway :: string()</li>
+%% <li>`voicegateway :: string()'</li>
 %% </ul>
 start(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, Options], []);
@@ -126,7 +126,7 @@ start(Nodename, Domain) ->
 %% and `[{atom(), term()] Options'.
 %% <ul>
 %% <li>`domain :: string()'</li>
-%% <li>`voicegateway :: string()</li>
+%% <li>`voicegateway :: string()'</li>
 %% </ul>
 start_link(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Options], []);

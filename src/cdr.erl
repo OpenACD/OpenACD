@@ -29,9 +29,13 @@
 	code_change/3
 ]).
 
+-type(callid() :: string()).
+-type(time() :: integer()).
+-type(transaction() :: {'inqueue', {callid(), time(), any()}}).
+
 -record(state, {
 	id,
-	transactions = [],
+	transactions = [] :: [transaction()],
 	checkend = false :: 'false' | 'true'
 }).
 
@@ -83,23 +87,23 @@ init([Call]) ->
 
 handle_event({inqueue, #call{id = CallID} = Call, Queue}, #state{id = CallID} = State) ->
 	?NOTICE("~s has joined queue ~s", [CallID, Queue]),
-	Newtrans = [{inqueue, {CallID, Queue}} | State#state.transactions],
+	Newtrans = [{inqueue, {CallID, nowsec(), Queue}} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans}};
 handle_event({ringing, #call{id = CallID} = Call, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s is ringing to ~s", [CallID, Agent]),
-	Newtrans = [{ringing, {CallID, Agent}} | State#state.transactions],
+	Newtrans = [{ringing, {CallID, nowsec(), Agent}} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans}};
 handle_event({oncall, #call{id = CallID} = Call, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s is oncall with ~s", [CallID, Agent]),
-	Newtrans = [{oncall, {CallID, Agent}} | State#state.transactions],
+	Newtrans = [{oncall, {CallID, nowsec(), Agent}} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans}};
 handle_event({hangup, #call{id = CallID} = Call, agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s hungup by agent", [CallID]),
-	Newtrans = [{hangup, {CallID, agent}} | State#state.transactions],
+	Newtrans = [{hangup, {CallID, nowsec(), agent}} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans, checkend = true}};
 handle_event({hangup, #call{id = CallID} = Call, By}, #state{id = CallID} = State) ->
 	?NOTICE("~s hungup by ~s", [CallID, By]),
-	Newtrans = [{hangup, {CallID, By}} | State#state.transactions],
+	Newtrans = [{hangup, {CallID, nowsec(), By}} | State#state.transactions],
 	case check_end(Newtrans) of
 		{true, Num} when Num > 0 ->
 			summarize(Newtrans),
@@ -109,11 +113,11 @@ handle_event({hangup, #call{id = CallID} = Call, By}, #state{id = CallID} = Stat
 	end;
 handle_event({wrapup, #call{id = CallID} = Call, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s started wrapup for ~s", [Agent, CallID]),
-	Newtrans = [{wrapup, {CallID, Agent}} | State#state.transactions],
+	Newtrans = [{wrapup, {CallID, nowsec(), Agent}} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans}};
 handle_event({endwrapup, #call{id = CallID} = Call, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s ended wrapup for ~s", [Agent, CallID]),
-	Newtrans = [{endwrapup, {CallID, Agent}} | State#state.transactions],
+	Newtrans = [{endwrapup, {CallID, nowsec(), Agent}} | State#state.transactions],
 	?NOTICE("Checkend ~s", [State#state.checkend]),
 	case State#state.checkend of
 		true ->
@@ -129,7 +133,7 @@ handle_event({endwrapup, #call{id = CallID} = Call, Agent}, #state{id = CallID} 
 	end;
 handle_event({transfer, #call{id = CallID} = Call, Transferto}, #state{id = Callid} = State) ->
 	?NOTICE("~s has gotten a transfer of ~s", [Transferto, Callid]),
-	Newtrans = [{transfer, {CallID, Transferto}} | State#state.transactions],
+	Newtrans = [{transfer, {CallID, nowsec(), Transferto}} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans}};
 %handle_event({abandonqueue, #call{id = Callid} = Call, Queue}, #state{id = Callid} = State) ->
 %	?NOTICE("~s has abandoned in queue ~s", [Callid, Queue]),
@@ -159,9 +163,31 @@ check_end(Transactions) ->
 	
 summarize(Transactions) ->
 	?NOTICE("summarizing transactions:  ~p", [Transactions]),
-	ok.
+	Sort = fun({_Type, {_Callid, Time, _Data}}, {_Type2, {_Callid, Time2, _Data2}}) ->
+		Time < Time2
+	end,
+	Sorted = lists:sort(Sort, Transactions),
+	Count = fun(_F, _Starttag, _Endtag, _Starts, Acc, []) ->
+			Acc;
+		(F, Starttag, Endtag, Starts, Acc, [{Starttag, {_, Time, _}} | Tail]) ->
+			Newstarts = [Time | Starts],
+			F(F, Starttag, Endtag, Newstarts, Acc, Tail);
+		(F, Starttag, Endtag, [Started | Starts], Acc, [{Endtag, {_, Time, _}} | Tail]) ->
+			Newacc = Acc + (Time - Started),
+			F(F, Starttag, Endtag, Starts, Newacc, Tail);
+		(F, Starttag, Endtag, Starts, Acc, [{_Tag, _Details} | Tail]) ->
+			F(F, Starttag, Endtag, Starts, Acc, Tail)
+	end,
+	Wrapup = Count(Count, wrapup, endwrapup, [], 0, Sorted),
+	Inqueue = Count(Count, inqueue, ringing, [], 0, Sorted),
+	Oncall = Count(Count, oncall, wrapup, [], 0, Sorted),
+	Ringing = Count(Count, ringing, oncall, [], 0, Sorted),
+	?NOTICE("Wrapup:  ~p;  Inqueue:  ~p;  Oncall:  ~p;  Rining:  ~p", [Wrapup, Inqueue, Oncall, Ringing]),
+	{Wrapup, Inqueue, Oncall, Ringing}.
 
-
+nowsec() ->
+	{_, Sec, _} = now(),
+	Sec.
 
 
 %endpoints:
@@ -250,6 +276,24 @@ check_end_test_() ->
 		end}
 	end]}.
 
+% {Wrapup, Inqueue, Oncall, Ringing}.
+summarize_test_() ->
+	[{"Simple wrapup count, one wrapup -> endwrap transaction.",
+	fun() ->
+		Transactions = [
+			{wrapup, {"test", 3, "agent"}},
+			{endwrapup, {"test", 7, "agent"}}
+		],
+		?assertEqual({4, 0, 0, 0}, summarize(Transactions))
+	end}].
+	
+	
+	
+	
+	
+	
+	
+	
 
 
 

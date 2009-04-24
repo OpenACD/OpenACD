@@ -1484,13 +1484,14 @@ api_test_() ->
 					Post = [
 						{"enabled", "some data whichd oesn't matter"},
 						{"cnode", "freeswitch@localhost"},
-						{"domain", "localhost"}
+						{"domain", "localhost"},
+						{"voicegw", "whatever"}
 					],
 					Fsconf = #cpx_conf{
 						id = freeswitch_media_manager,
 						module_name = freeswitch_media_manager,
 						start_function = start_link,
-						start_args = [freeswitch@localhost, "localhost"],
+						start_args = [freeswitch@localhost, [{domain, "localhost"}, {voicegateway, "whatever"}]],
 						supervisor = management_sup},
 					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, Post),
 					?assertEqual(Fsconf, cpx_supervisor:get_conf(freeswitch_media_manager)),

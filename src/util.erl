@@ -238,6 +238,9 @@ merge_skill_lists(List1, List2, Whitelist) ->
 		(_Skill) -> true
 	end, NewList).
 
+%% @doc Returns all skills in `[{atom(), string()} | atom()] List1' where the skills' atom exists in 
+%% `[{atom(), string()} | atom()} List2'.
+-spec(subtract_skill_lists/2 :: (List1 :: [{atom(), string()} | atom()], List2 :: [{atom(), string()} | atom()]) -> [{atom(), string()} | atom()]).
 subtract_skill_lists(List1, List2) ->
 	FilterList = lists:map(fun({SkillAtom, _SkillString}) -> SkillAtom; (Skill) -> Skill end, List2),
 	lists:filter(fun({SkillAtom, _SkillString}) -> lists:member(SkillAtom, FilterList); (Skill) -> lists:member(Skill, FilterList) end, List1).

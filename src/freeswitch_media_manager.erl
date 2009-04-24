@@ -93,7 +93,8 @@
 	nodename :: atom(),
 	freeswitch_c_pid :: pid(),
 	call_dict = dict:new(),
-	domain
+	domain,
+	voicegateway = "" :: string()
 	}).
 	
 % watched calls structure:
@@ -104,17 +105,37 @@
 %%====================================================================
 %% API
 %%====================================================================
+
+%% @doc Start the media manager unlinked to the parant process with C node `node() Nodemane' 
+%% and `[{atom(), term()] Options'.
+%% <ul>
+%% <li>`domain :: string()'</li>
+%% <li>`voicegateway :: string()</li>
+%% </ul>
+start(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
+	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, Options], []);
+	
 %% @doc Start the media manager unlinked to the parent process.  `Nodename' is the name of the C node for mod_erlang in freeswitch; 
 %% `Domain' is the domain to ring to sip agents.
 %% @clear
 % Domain is there to help ring agents.
 start(Nodename, Domain) -> 
-	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
+	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, [{domain, Domain}]], []).
+	
+%% @doc Start the media manager linked to the parant process with C node `node() Nodemane' 
+%% and `[{atom(), term()] Options'.
+%% <ul>
+%% <li>`domain :: string()'</li>
+%% <li>`voicegateway :: string()</li>
+%% </ul>
+start_link(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Options], []);
+
 %% @doc Start the media manager linked to the parent process.  `Nodename' is the name of the C node for mod_erlang in freeswitch; 
 %% `Domain' is the domain to ring to sip agents.
 %% @clear
 start_link(Nodename, Domain) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Domain], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, [{domain, Domain}]], []).
 
 %% @doc returns {`ok', pid()} if there is a freeswitch media process handling the given `UUID'.
 -spec(get_handler/1 :: (UUID :: string()) -> {'ok', pid()} | 'noexists').
@@ -134,7 +155,7 @@ stop() ->
 %% gen_server callbacks
 %%====================================================================
 %% @private
-init([Nodename, Domain]) -> 
+init([Nodename, Options]) -> 
 	?DEBUG("starting...", []),
 	process_flag(trap_exit, true),
 	Self = self(),
@@ -150,11 +171,12 @@ init([Nodename, Domain]) ->
 			Self ! {register_event_handler, timeout}
 		end
 	end),
-
-	freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, []),
+	Voicegateway = proplists:get_value(voicegateway, Options, ""),
+	freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{voicegateway, Voicegateway}]),
 	%T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
 	%?CONSOLE("Attempted to start events:  ~p", [T]),
-	{ok, #state{nodename=Nodename, domain=Domain}}.
+	Domain = proplists:get_value(domain, Options, "localhost"),
+	{ok, #state{nodename=Nodename, domain=Domain, voicegateway = Voicegateway}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -264,7 +286,7 @@ listener(Node) ->
 	end.
 
 fetch_domain_user(Node, State) ->
-	?DEBUG("entering fetch loop", []),
+	?DEBUG("entering fetch loop with state ~p", [State]),
 	receive
 		{fetch, directory, "domain", "name", _Value, ID, [undefined | Data]} ->
 			case proplists:get_value("as_channel", Data) of
@@ -276,7 +298,9 @@ fetch_domain_user(Node, State) ->
 						{true, Pid} ->
 							try agent:dump_state(Pid) of
 								#agent{remotenumber = Number} when is_list(Number) ->
-									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "{ignore_early_media=true}sofia/gateway/cpxvgw.fusedsolutions.com/"++Number]))});
+									%GW = "{ignore_early_media=true}sofia/gateway/cpxvgw.fusedsolutions.com/"++Number,
+									GW = "{ignore_early_media=true}sofia/gateway/"++ proplists:get_value(voicegateway, State, "") ++Number,
+									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, GW]))});
 								Else ->
 									?DEBUG("state: ~p", [Else]),
 									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "sofia/default/"++User++"%"++Domain]))})

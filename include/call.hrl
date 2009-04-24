@@ -30,8 +30,8 @@
 %% @hidden
 -record(client, {
 		label :: string(),
-		tenant :: pos_integer(),
-		brand :: pos_integer()
+		tenant :: non_neg_integer(),
+		brand :: non_neg_integer()
 }).
 
 -record(call, {
@@ -57,3 +57,16 @@
 	cook :: pid()
 	}).
 
+%-record(cdr_summary, {
+%	callid = erlang:error({undefined, callid}) :: string(),
+%	queued = 0 :: non_neg_interger(),
+%	ringing = 0 :: non_neg_interger(),
+%	oncall = 0 :: non_neg_interger(),
+%	wrapup = 0 :: non_neg_interger()
+%}).
+%
+%-record(cdr_transaction, {
+%	callid = erlang:error({undefined, callid}) :: string(),
+%	changedto = erlang:error({undefined, changedto}) :: 'inqueue' | 'ringing' | 'oncall' | 'transfer' | 'wrapup' | 'endwrapup',
+%	details = [] :: any()
+%}).

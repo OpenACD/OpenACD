@@ -975,7 +975,6 @@ encode_medias_confs(Node, [{Mod, Conf} | Tail], Acc) when is_record(Conf, cpx_co
 		{<<"id">>, list_to_binary(atom_to_list(Node) ++ "/" ++ atom_to_list(Mod))},
 		{<<"mediatype">>, list_to_binary(atom_to_list(Mod))},
 		{<<"start">>, list_to_binary(atom_to_list(Conf#cpx_conf.start_function))},
-		%{<<"args">>, encode_media_args(Conf#cpx_conf.start_args, [])},
 		{<<"node">>, list_to_binary(atom_to_list(Node))}
 	]},
 	encode_medias_confs(Node, Tail, [Json | Acc]);
@@ -989,15 +988,6 @@ encode_medias_confs(Node, [{Mod, undefined} | Tail], Acc) ->
 		{<<"node">>, list_to_binary(atom_to_list(Node))}
 	]},
 	encode_medias_confs(Node, Tail, [Json | Acc]).
-
-encode_media_args([], Acc) ->
-	lists:reverse(Acc);
-encode_media_args([Arg | Tail], Acc) when is_list(Arg) ->
-	encode_media_args(Tail, [list_to_binary(Arg) | Acc]);
-encode_media_args([Arg | Tail], Acc) when is_atom(Arg) ->
-	encode_media_args(Tail, [list_to_binary(atom_to_list(Arg)) | Acc]);
-encode_media_args([Arg | Tail], Acc) when is_binary(Arg) ->
-	encode_media_args(Tail, [Arg, Acc]).
 
 %% =====
 %% tests

@@ -119,10 +119,11 @@ startup_test_() ->
 			start_args = []
 		},
 		Out = start_anon(3, 5, Dummyspec),
-		?CONSOLE("~p", [Out]),
+		?CONSOLE("1:~p, ~p", [Out, self()]),
 		?assertMatch({ok, _P}, Out),
 		{ok, Pid} = Out,
-		exit(Pid, shutdown)
+		unlink(Pid),
+		exit(Pid, kill)
 	end},
 	{"start as a neamed supervisor.",
 	fun() ->
@@ -130,7 +131,8 @@ startup_test_() ->
 		?CONSOLE("~p", [Out]),
 		?assertMatch({ok, _P}, Out),
 		{ok, Pid} = Out,
-		exit(whereis(testsup), shutdown),
+		unlink(Pid),
+		exit(whereis(testsup), kill),
 		?CONSOLE("~p", [whereis(testsup)])
 	end},
 	{"Start a middle man",
@@ -151,7 +153,8 @@ startup_test_() ->
 		?assertNot(Pid2 =:= Pid),
 		Dpid = whereis(dummy_media_manager),
 		?assertNot(Pid2 =:= Dpid),
-		exit(whereis(testsup), shutdown),
+		unlink(Pid),
+		exit(whereis(testsup), kill),
 		?CONSOLE("~p", [whereis(testsup)])
 	end},
 	{"Stop a child that has a middleman.",

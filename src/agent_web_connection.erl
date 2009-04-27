@@ -327,12 +327,19 @@ set_state_test_() ->
 		agent_manager:start([node()]),
 		agent_auth:start(),
 		{ok, Pid} = start_link(Agent, agent),
+		unlink(Pid),
 		Stopfun = fun() ->
-			stop(Pid),
+			?CONSOLE("stopping agent_auth", []),
 			agent_auth:stop(),
+			?CONSOLE("stopping agent_manager", []),
 			agent_manager:stop(),
+			?CONSOLE("stopping web_connection at ~p: ~p", [Pid, is_process_alive(Pid)]),
+			stop(Pid),
+			?CONSOLE("stopping mnesia", []),
 			mnesia:stop(),
-			mnesia:delete_schema([node()])
+			?CONSOLE("deleting schema", []),
+			mnesia:delete_schema([node()]),
+			?CONSOLE("all done", [])
 		end,
 		{Pid, Stopfun}
 	end

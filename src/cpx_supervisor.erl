@@ -129,6 +129,10 @@ init([Nodes]) ->
 %% @doc Adds a configuration to get started and stores it in the database.  
 %% Mod is the module name, Start is the function to start it, and 
 %% Args is a list of terms passed to the start function.
+%% Erlang/OTP documentation recommends keeping the module name and 
+%% id the same; the ability to keep them separate is here for completeness
+%% and flexibility.  It is recommended to treat this function as an API to be used
+%% by other modules rather than call it directly from a shell.
 add_conf(Id, Mod, Start, Args, Super) -> 
 	Rec = #cpx_conf{id = Id, module_name = Mod, start_function = Start, start_args = Args, supervisor = Super},
 	add_conf(Rec).

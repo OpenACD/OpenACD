@@ -65,11 +65,13 @@
 %oncall -> transfer
 
 check_split(Fun, List) ->
+	?DEBUG("checking split with list ~p", [List]),
 	case lists:splitwith(Fun, List) of
 		{List, []} ->
 			?ERROR("Split check failed!", []),
 			erlang:error("Split check failed");
 		{Head, [Tuple | Tail]} ->
+			?DEBUG("Head:  ~p;  Tuple:  ~p;  Tail:  ~p", [Head, Tuple, Tail]),
 			{Tuple, lists:append(Head, Tail)}
 	end.
 
@@ -85,8 +87,7 @@ find_initiator({ringing, _Time, _Datalist}, Unterminated) ->
 		end
 	end,
 	check_split(F, Unterminated);
-find_initiator({oncall, _Time, Datalist}, Unterminated) ->
-	Agent = proplists:get_value(agent, Datalist),
+find_initiator({oncall, _Time, Agent}, Unterminated) ->
 	F = fun(I) ->
 		case I of
 			{ringing, _Oldtime, Agent} ->
@@ -96,8 +97,7 @@ find_initiator({oncall, _Time, Datalist}, Unterminated) ->
 		end
 	end,
 	check_split(F, Unterminated);
-find_initiator({wrapup, _Time, Datalist}, Unterminated) ->
-	Agent = proplists:get_value(agent, Datalist),
+find_initiator({wrapup, _Time, Agent}, Unterminated) ->
 	F = fun(I) ->
 		case I of
 			{oncall, _Oldtime, Agent} ->
@@ -107,8 +107,7 @@ find_initiator({wrapup, _Time, Datalist}, Unterminated) ->
 		end
 	end,
 	check_split(F, Unterminated);
-find_initiator({endwrapup, _Time, Datalist}, Unterminated) ->
-	Agent = proplists:get_value(agent, Datalist),
+find_initiator({endwrapup, _Time, Agent}, Unterminated) ->
 	F = fun(I) ->
 		case I of
 			{wrapup, _Oldtime, Agent} ->
@@ -167,7 +166,7 @@ init([Call]) ->
 
 handle_event({inqueue, #call{id = CallID}, Time, Queuename}, #state{id = CallID} = State) ->
 	?NOTICE("~s has joined queue ~s", [CallID, Queuename]),
-	Unterminated = [{inqueue, CallID, Time, [{queue, Queuename}]} | State#state.unterminated],
+	Unterminated = [{inqueue, Time, Queuename} | State#state.unterminated],
 	{ok, State#state{unterminated = Unterminated}};
 handle_event({ringing, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s is ringing to ~s", [CallID, Agent]),
@@ -242,36 +241,43 @@ code_change(_OldVsn, State, _Extra) ->
 % All this needs to do is sum up the data.
 summarize(Transactions) ->
 	Acc = dict:from_list([
-		{inqueue, dict:from_list([
-			{total, 0}
-		])},
-		{ringing, dict:from_list([
-			{total, 0}
-		])},
-		{oncall, dict:from_list([
-			{total, 0}
-		])},
-		{wrapup, dict:from_list([
-			{total, 0}
-		])}
+		{total, {0, 0, 0, 0}}
 	]),
 	Count = fun({Event, _State, _End, Duration, Data}, Dict) ->
-		case dict:find(Event, Dict) of
-			error ->
-				Dict;
-			Subdict ->
-				Total = dict:find(total, Subdict) + Duration,
-				Midsub = case dict:find(Data, Subdict) of
+		{Inqueue, Ringing, Oncall, Wrapup} = dict:find(total, Dict),
+		case Event of
+			inqueue ->
+				dict:store(total, {Inqueue + Duration, Ringing, Oncall, Wrapup}, Dict);
+			ringing ->
+				{_Aqueue, Aring, Aoncall, Awrapup} = case dict:find(Data, Dict) of
 					error ->
-						dict:store(Data, Duration, Subdict);
-					Value ->
-						dict:store(Data, Duration + Value, Subdict)
+						{0, 0, 0, 0};
+					Tuple when is_tuple(Tuple) ->
+						Tuple
 				end,
-				Newsub = dict:store(total, Total, Midsub),
-				dict:store(Event, Newsub, Dict)
+				Dict2 = dict:store(total, {Inqueue, Ringing + Duration, Oncall, Wrapup}, Dict),
+				dict:store(Data, {0, Aring + Duration, Aoncall, Awrapup}, Dict2);
+			oncall ->
+				{_Aqueue, Aring, Aoncall, Awrapup} = case dict:find(Data, Dict) of
+					error ->
+						{0, 0, 0, 0};
+					Tuple when is_tuple(Tuple) ->
+						Tuple
+				end,
+				Dict2 = dict:store(total, {Inqueue, Ringing, Oncall + Duration, Wrapup}),
+				dict:store(Data, {0, Aring, Aoncall + Duration, Awrapup}, Dict2);
+			wrapup ->
+				{_Aqueue, Aring, Aoncall, Awrapup} = case dict:find(Data, Dict) of
+					error ->
+						{0, 0, 0, 0};
+					Tuple when is_tuple(Tuple) ->
+						Tuple
+				end,
+				Dict2 = dict:store(total, {Inqueue, Ringing, Oncall, Wrapup + Duration}),
+				dict:store(Data, {0, Aring, Aoncall, Awrapup + Duration})
 		end
 	end,
-	lists:foldl(Count, Transactions).
+	lists:foldl(Count, Acc, Transactions).
 				
 				
 %summarize(Transactions) ->
@@ -318,26 +324,110 @@ nowsec({Mega, Sec, _Micro}) ->
 
 -ifdef(EUNIT).
 
-%check_end_test_() ->
-%	{foreach,
-%	fun() ->
-%		start(),
-%		#call{id = "testcall", source=self()}
-%	end,
-%	fun(#call{id = Id}) ->
-%		gen_event:delete_handler(cdr, {?MODULE, Id}, []),
-%		ok
-%	end,
-%	[fun(Call) ->
-%		{"Simple startup",
-%		fun() ->
-%			?assertEqual(ok, cdrinit(Call)),
-%			?assertEqual([], transactions(Call))
-%		end}
-%	end,
-%	fun(Call) ->
-%		{"Normal call flow:  inqueue -> ringing -> oncall -> agent hangup -> wrapup -> endwrap",
-%		fun() ->
+check_split_test_() ->
+	[{"List ends up all on the left",
+	fun() ->
+		F = fun(_I) ->
+			true
+		end,
+		List = [{a}, {b}, {c}, {d}],
+		?assertError("Split check failed", check_split(F, List))
+	end},
+	{"List ends up all on the right",
+	fun() ->
+		F = fun(_I) ->
+			false
+		end,
+		List = [{a}, {b}, {c}, {d}],
+		?assertEqual({{a}, [{b}, {c}, {d}]}, check_split(F, List))
+	end},
+	{"Get the correct split from a b b b c",
+	fun() ->
+		F = fun(I) ->
+			case I of
+				{b} ->
+					false;
+				_Else ->
+					true
+			end
+		end,
+		List = [{a}, {b}, {b}, {b}, {c}],
+		?assertEqual({{b}, [{a}, {b}, {b}, {c}]}, check_split(F, List))
+	end}].
+
+find_initiator_test_() ->
+	[{"ringing with only inqueue before it",
+	fun() ->
+		Unterminated = [{inqueue, 10, "queuename"}],
+		?assertEqual({{inqueue, 10, "queuename"}, []}, find_initiator({ringing, 15, "agent"}, Unterminated))
+	end},
+	{"ringing with only ringing before it",
+	fun() ->
+		Unterminated = [{ringing, 10, "agent1"}],
+		?assertEqual({{ringing, 10, "agent1"}, []}, find_initiator({ringing, 15, "agent2"}, Unterminated))
+	end},
+	{"oncall with a ringing before it",
+	fun() ->
+		Unterminated = [{ringing, 10, "agent"}],
+		?assertEqual({{ringing, 10, "agent"}, []}, find_initiator({oncall, 15, "agent"}, Unterminated))
+	end},
+	{"wraupup with an oncall before it",
+	fun() ->
+		Unterminated = [{oncall, 10, "agent"}],
+		?assertEqual({{oncall, 10, "agent"}, []}, find_initiator({wrapup, 15, "agent"}, Unterminated))
+	end},
+	{"endwrapup with a wrapup before it",
+	fun() ->
+		Unterminated = [{wrapup, 10, "agent"}],
+		?assertEqual({{wrapup, 10, "agent"}, []}, find_initiator({endwrapup, 15, "agent"}, Unterminated))
+	end},
+	{"endwrapup with two wrapups before it",
+	fun() ->
+		Unterminated = [{wrapup, 10, "agent1"}, {wrapup, 5, "agent2"}],
+		Res = find_initiator({endwrapup, 15, "agent1"}, Unterminated),
+		?CONSOLE("res:  ~p", [Res]),
+		?assertEqual({{wrapup, 10, "agent1"}, [{wrapup, 5, "agent2"}]}, Res)
+	end},
+	{"endwrapup with wrapup in the middle of the list",
+	fun() ->
+		Unterminated = [{oncall, 10, "ignore"}, {wrapup, 10, "catch"}, {wrapup, 5, "alsoignore"}],
+		Res = find_initiator({endwrapup, 15, "catch"}, Unterminated),
+		?CONSOLE("res:  ~p", [Res]),
+		?assertEqual({{wrapup, 10, "catch"}, [{oncall, 10, "ignore"}, {wrapup, 5, "alsoignore"}]}, Res)
+	end}].
+		 
+check_end_test_() ->
+	{foreach,
+	fun() ->
+		start(),
+		#call{id = "testcall", source=self()}
+	end,
+	fun(#call{id = Id}) ->
+		gen_event:delete_handler(cdr, {?MODULE, Id}, []),
+		ok
+	end,
+	[fun(Call) ->
+		{"Simple startup",
+		fun() ->
+			?assertEqual(ok, cdrinit(Call)),
+			?assertEqual([], transactions(Call))
+		end}
+	end,
+	fun(Call) ->
+		{"Normal call flow:  inqueue -> ringing -> oncall -> agent hangup -> wrapup -> endwrap",
+		fun() ->
+			?assert(false)
+			?assertEqual(ok, cdrinit(Call)),
+			inqueue(Call, "testqueue"),
+			ringing(Call, "agent"),
+			oncall(Call, "agent"),
+			hangup(Call, agent),
+			wrapup(Call, "agent"),
+			Transactions = transactions(Call)
+			
+			
+			
+			
 %			?assertEqual(ok, cdrinit(Call)),
 %			inqueue(Call, "testqueue"),
 %			ringing(Call, "agent"),
@@ -350,11 +440,12 @@ nowsec({Mega, Sec, _Micro}) ->
 %			?assertEqual(remove_handler, handle_event({endwrapup, Call, "agent"}, Teststate)),
 %			endwrapup(Call, "agent"),
 %			?assertEqual({error, bad_module}, transactions(Call))
-%		end}
-%	end,
-%	fun(Call) ->
-%		{"Normal call flow with caller hangup",
-%		fun() ->
+		end}
+	end,
+	fun(Call) ->
+		{"Normal call flow with caller hangup",
+		fun() ->
+			?assert(false)
 %			?assertEqual(ok, cdrinit(Call)),
 %			inqueue(Call, "testqueue"),
 %			ringing(Call, "agent"),
@@ -365,11 +456,12 @@ nowsec({Mega, Sec, _Micro}) ->
 %			?assertEqual({true, 1}, check_end([{endwrapup, {Call#call.id, "agent"}} | Transactions])),
 %			Teststate = #state{id = Call#call.id, checkend = true, transactions = Transactions},
 %			?assertEqual(remove_handler, handle_event({endwrapup, Call, "agent"}, Teststate))
-%		end}
-%	end,
-%	fun(Call) ->
-%		{"Call flow with a transfer to an agent",
-%		fun() ->
+		end}
+	end,
+	fun(Call) ->
+		{"Call flow with a transfer to an agent",
+		fun() ->
+			?assert(false)
 %			?assertEqual(ok, cdrinit(Call)),
 %			inqueue(Call, "testqueue"),
 %			ringing(Call, "agent"),
@@ -388,8 +480,8 @@ nowsec({Mega, Sec, _Micro}) ->
 %			?assertEqual(remove_handler, handle_event({endwrapup, Call, "agent2"}, #state{id = Call#call.id, transactions = Trans2, checkend = true})),
 %			endwrapup(Call, "agent2"),
 %			?assertEqual({error, bad_module}, transactions(Call))
-%		end}
-%	end]}.
+		end}
+	end]}.
 %
 % {Wrapup, Inqueue, Oncall, Ringing}.
 summarize_test_() ->

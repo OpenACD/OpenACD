@@ -156,8 +156,8 @@ endwrapup(Call, Agent) ->
 transfer(Call, Transferto) ->
 	catch gen_event:notify(cdr, {transfer, Call, nowsec(now()), Transferto}).
 
-transactions(Call) ->
-	gen_event:call(cdr, {?MODULE, Call#call.id}, transactions).
+status(Call) ->
+	gen_event:call(cdr, {?MODULE, Call#call.id}, status).
 
 %% Gen event callbacks
 init([Call]) ->
@@ -215,8 +215,8 @@ handle_event({transfer, #call{id = CallID}, Time, Transferto}, #state{id = CallI
 handle_event(_Event, State) ->
 	{ok, State}.
 
-handle_call(transactions, State) ->
-	{ok, State#state.transactions, State};
+handle_call(status, State) ->
+	{ok, {State#state.transactions, State#state.unterminated}, State};
 handle_call(_Request, State) ->
 	{ok, ok, State}.
 
@@ -395,37 +395,96 @@ find_initiator_test_() ->
 		?CONSOLE("res:  ~p", [Res]),
 		?assertEqual({{wrapup, 10, "catch"}, [{oncall, 10, "ignore"}, {wrapup, 5, "alsoignore"}]}, Res)
 	end}].
-		 
-check_end_test_() ->
-	{foreach,
+
+handle_event_test_() ->
+	[{"handle_event inqueue",
 	fun() ->
-		start(),
-		#call{id = "testcall", source=self()}
-	end,
-	fun(#call{id = Id}) ->
-		gen_event:delete_handler(cdr, {?MODULE, Id}, []),
-		ok
-	end,
-	[fun(Call) ->
-		{"Simple startup",
+		Call = #call{id = "testcall", source=self()},
+		State = #state{id = "testcall"},
+		{ok, Newstate} = handle_event({inqueue, Call, 10, "testqueue"}, State),
+		?assertEqual([], Newstate#state.transactions),
+		?assertEqual([{inqueue, 10, "testqueue"}], Newstate#state.unterminated)
+	end},
+		{"ringing",
 		fun() ->
-			?assertEqual(ok, cdrinit(Call)),
-			?assertEqual([], transactions(Call))
+			Call = #call{id = "testcall", source=self()},
+			Unterminated = [{inqueue, 10, "testqueue"}],
+			State = #state{unterminated = Unterminated, id = "testcall"},
+			{ok, Newstate} = handle_event({ringing, Call, 15, "agent"}, State),
+			?assertEqual([{inqueue, 10, 15, 5, "testqueue"}], Newstate#state.transactions),
+			?assertEqual([{ringing, 15, "agent"}], Newstate#state.unterminated)
+		end},
+		{"oncall",
+		fun() ->
+					Call = #call{id = "testcall", source=self()},
+			Unterminated = [{ringing, 10, "agent"}],
+			State = #state{unterminated = Unterminated, id = "testcall"},
+			{ok, Newstate} = handle_event({oncall, Call, 15, "agent"}, State),
+			?assertEqual([{ringing, 10, 15, 5, "agent"}], Newstate#state.transactions),
+			?assertEqual([{oncall, 15, "agent"}], Newstate#state.unterminated)
+		end},
+		{"wrapup",
+		fun() ->
+					Call = #call{id = "testcall", source=self()},
+
+			Unterminated = [{oncall, 10, "agent"}],
+			State = #state{unterminated = Unterminated, id="testcall"},
+			{ok, Newstate} = handle_event({wrapup, Call, 15, "agent"}, State),
+			?assertEqual([{oncall, 10, 15, 5, "agent"}], Newstate#state.transactions),
+			?assertEqual([{wrapup, 15, "agent"}], Newstate#state.unterminated)
+		end},
+		{"endwrapup",
+		fun() ->
+					Call = #call{id = "testcall", source=self()},
+
+			Unterminated = [{wrapup, 10, "agent"}],
+			State = #state{unterminated = Unterminated, id="testcall"},
+			{ok, Newstate} = handle_event({endwrapup, Call, 15, "agent"}, State),
+			?assertEqual([{wrapup, 10, 15, 5, "agent"}], Newstate#state.transactions),
+			?assertEqual([], Newstate#state.unterminated)
 		end}
-	end,
-	fun(Call) ->
-		{"Normal call flow:  inqueue -> ringing -> oncall -> agent hangup -> wrapup -> endwrap",
-		fun() ->
-			?assert(false)
-			?assertEqual(ok, cdrinit(Call)),
-			inqueue(Call, "testqueue"),
-			ringing(Call, "agent"),
-			oncall(Call, "agent"),
-			hangup(Call, agent),
-			wrapup(Call, "agent"),
-			Transactions = transactions(Call)
-			
-			
+	].
+
+%check_end_test_() ->
+%	{foreach,
+%	fun() ->
+%		start(),
+%		#call{id = "testcall", source=self()}
+%	end,
+%	fun(#call{id = Id}) ->
+%		gen_event:delete_handler(cdr, {?MODULE, Id}, []),
+%		ok
+%	end,
+%	[fun(Call) ->
+%		{"Simple startup",
+%		fun() ->
+%			?assertEqual(ok, cdrinit(Call)),
+%			?assertEqual({[], []}, status(Call))
+%		end}
+%	end]}.
+%	fun(Call) ->
+%		{"adding an inqueue creates an unterminated",
+%		fun() ->
+%			inqueue(Call, "testqueue"),
+%			{Trans, Unterminated} = status(Call),
+%			?CONSOLE("{~p, ~p}", [Trans, Unterminated]),
+%			?assertEqual([], Trans),
+%			?assertMatch({inqueue, _Time, "testqueue"}, Unterminated)
+%		end}
+%	end]}.%,
+%	fun(Call) ->
+%		{"Normal call flow:  inqueue -> ringing -> oncall -> agent hangup -> wrapup -> endwrap",
+%		fun() ->
+%			?assert(false)
+%			?assertEqual(ok, cdrinit(Call)),
+%			inqueue(Call, "testqueue"),
+%			ringing(Call, "agent"),
+%			oncall(Call, "agent"),
+%			hangup(Call, agent),
+%			wrapup(Call, "agent"),
+%			Transactions = transactions(Call)
+%			
+%			
 			
 			
 %			?assertEqual(ok, cdrinit(Call)),
@@ -440,12 +499,12 @@ check_end_test_() ->
 %			?assertEqual(remove_handler, handle_event({endwrapup, Call, "agent"}, Teststate)),
 %			endwrapup(Call, "agent"),
 %			?assertEqual({error, bad_module}, transactions(Call))
-		end}
-	end,
-	fun(Call) ->
-		{"Normal call flow with caller hangup",
-		fun() ->
-			?assert(false)
+%		end}
+%	end,
+%	fun(Call) ->
+%		{"Normal call flow with caller hangup",
+%		fun() ->
+%			?assert(false)
 %			?assertEqual(ok, cdrinit(Call)),
 %			inqueue(Call, "testqueue"),
 %			ringing(Call, "agent"),
@@ -456,12 +515,12 @@ check_end_test_() ->
 %			?assertEqual({true, 1}, check_end([{endwrapup, {Call#call.id, "agent"}} | Transactions])),
 %			Teststate = #state{id = Call#call.id, checkend = true, transactions = Transactions},
 %			?assertEqual(remove_handler, handle_event({endwrapup, Call, "agent"}, Teststate))
-		end}
-	end,
-	fun(Call) ->
-		{"Call flow with a transfer to an agent",
-		fun() ->
-			?assert(false)
+%		end}
+%	end,
+%	fun(Call) ->
+%		{"Call flow with a transfer to an agent",
+%		fun() ->
+%			?assert(false)
 %			?assertEqual(ok, cdrinit(Call)),
 %			inqueue(Call, "testqueue"),
 %			ringing(Call, "agent"),
@@ -480,106 +539,106 @@ check_end_test_() ->
 %			?assertEqual(remove_handler, handle_event({endwrapup, Call, "agent2"}, #state{id = Call#call.id, transactions = Trans2, checkend = true})),
 %			endwrapup(Call, "agent2"),
 %			?assertEqual({error, bad_module}, transactions(Call))
-		end}
-	end]}.
+%		end}
+%	end]}.
 %
 % {Wrapup, Inqueue, Oncall, Ringing}.
-summarize_test_() ->
-	[{"Simple wrapup count, one wrapup -> endwrap transaction.",
-	fun() ->
-		Transactions = [
-			{wrapup, {"test", 3, "agent"}},
-			{endwrapup, {"test", 7, "agent"}}
-		],
-		?assertEqual({0, 0, 0, 4}, summarize(Transactions))
-	end},
-	{"Simple inqueue count, one inqueu -> ringing transaction.",
-	fun() ->
-		Transactions = [
-			{inqueue, {"test", 5, "queue"}},
-			{ringing, {"test", 17, "agent"}}
-		],
-		?assertEqual({12, 0, 0, 0}, summarize(Transactions))
-	end},
-	{"Simple oncall count, one oncall -> wrapup transaction",
-	fun() ->
-		Transactions = [
-			{oncall, {"test", 6, "agent"}},
-			{wrapup, {"test", 18, "agent"}}
-		],
-		?assertEqual({0, 0, 12, 0}, summarize(Transactions))
-	end},
-	{"Simple ringing count, one ringin -> oncall transaction",
-	fun() ->
-		Transactions = [
-			{ringing, {"test", 8, "agent"}},
-			{oncall, {"test", 23, "agent"}}
-		],
-		?assertEqual({0, 15, 0, 0}, summarize(Transactions))
-	end},
-	{"Transactions out of order",
-	fun() ->
-		Transactions = [
-			{oncall, {"test", 23, "agent"}},
-			{ringing, {"test", 8, "agent"}}
-		],
-		?assertEqual({0, 15, 0, 0}, summarize(Transactions))
-	end},
-	{"Simple call flow:  inqueue -> ringing -> oncall -> hangup -> wrapup -> endwrapup",
-	fun() -> 
-		Transactions = [
-			{inqueue, {"test", 2, "queue"}},
-			{ringing, {"test", 6, "agent"}},
-			{oncall, {"test", 11, "agent"}},
-			{hangup, {"test", 17, "caller"}},
-			{wrapup, {"test", 17, "agent"}},
-			{endwrapup, {"test", 24, "agent"}}
-		],
-		?assertEqual({4, 5, 6, 7}, summarize(Transactions))
-	end},
-	{"Call flow with transfer:  inqueue -> ringing -> oncall -> transfer -> wrapup -> endwrapup -> oncall -> wrapup -> endwrapup",
-	fun() ->
-		Transactions = [
-			{inqueue, {"test", 2, "queue"}},
-			{ringing, {"test", 4, "agent"}},
-			{oncall, {"test", 7, "agent"}},
-			{transfer, {"test", 11, "agent2"}},
-			{wrapup, {"test", 11, "agent"}},
-			{oncall, {"test", 11, "agent2"}},
-			{endwrapup, {"test", 16, "agent"}},
-			{hangup, {"test", 17, "caller"}},
-			{wrapup, {"test", 17, "agent2"}},
-			{endwrapup, {"test", 24, "agent2"}}
-		],
-		?assertEqual({2, 3, 10, 12}, summarize(Transactions))
-	end},
-	{"Call flow with transfer (same as above) in mixed order",
-	fun() ->
-		Transactions = [
-			{inqueue, {"test", 2, "queue"}},
-			{ringing, {"test", 4, "agent"}},
-			{oncall, {"test", 7, "agent"}},
-			{transfer, {"test", 11, "agent2"}},
-			{wrapup, {"test", 11, "agent"}},
-			{oncall, {"test", 11, "agent2"}},
-			{endwrapup, {"test", 16, "agent"}},
-			{hangup, {"test", 17, "caller"}},
-			{wrapup, {"test", 17, "agent2"}},
-			{endwrapup, {"test", 24, "agent2"}}
-		],
-		crypto:start(),
-		Shuffle = fun(_F, [], Acc) ->
-				Acc;
-			(F, List, Acc) ->
-				Index = crypto:rand_uniform(1, length(List) + 1),
-				Item = lists:nth(Index, List),
-				Newlist = lists:subtract(List, [Item]),
-				Newacc = [Item | Acc],
-				F(F, Newlist, Newacc)
-		end,
-		Newtrans = Shuffle(Shuffle, Transactions, []),
-		?assertEqual({2, 3, 10, 12}, summarize(Newtrans))
-	end}].
+%summarize_test_() ->
+%	[{"Simple wrapup count, one wrapup -> endwrap transaction.",
+%	fun() ->
+%		Transactions = [
+%			{wrapup, {"test", 3, "agent"}},
+%			{endwrapup, {"test", 7, "agent"}}
+%		],
+%		?assertEqual({0, 0, 0, 4}, summarize(Transactions))
+%	end},
+%	{"Simple inqueue count, one inqueu -> ringing transaction.",
+%	fun() ->
+%		Transactions = [
+%			{inqueue, {"test", 5, "queue"}},
+%			{ringing, {"test", 17, "agent"}}
+%		],
+%		?assertEqual({12, 0, 0, 0}, summarize(Transactions))
+%	end},
+%	{"Simple oncall count, one oncall -> wrapup transaction",
+%	fun() ->
+%		Transactions = [
+%			{oncall, {"test", 6, "agent"}},
+%			{wrapup, {"test", 18, "agent"}}
+%		],
+%		?assertEqual({0, 0, 12, 0}, summarize(Transactions))
+%	end},
+%	{"Simple ringing count, one ringin -> oncall transaction",
+%	fun() ->
+%		Transactions = [
+%			{ringing, {"test", 8, "agent"}},
+%			{oncall, {"test", 23, "agent"}}
+%		],
+%		?assertEqual({0, 15, 0, 0}, summarize(Transactions))
+%	end},
+%	{"Transactions out of order",
+%	fun() ->
+%		Transactions = [
+%			{oncall, {"test", 23, "agent"}},
+%			{ringing, {"test", 8, "agent"}}
+%		],
+%		?assertEqual({0, 15, 0, 0}, summarize(Transactions))
+%	end},
+%	{"Simple call flow:  inqueue -> ringing -> oncall -> hangup -> wrapup -> endwrapup",
+%	fun() -> 
+%		Transactions = [
+%			{inqueue, {"test", 2, "queue"}},
+%			{ringing, {"test", 6, "agent"}},
+%			{oncall, {"test", 11, "agent"}},
+%			{hangup, {"test", 17, "caller"}},
+%			{wrapup, {"test", 17, "agent"}},
+%			{endwrapup, {"test", 24, "agent"}}
+%		],
+%		?assertEqual({4, 5, 6, 7}, summarize(Transactions))
+%	end},
+%	{"Call flow with transfer:  inqueue -> ringing -> oncall -> transfer -> wrapup -> endwrapup -> oncall -> wrapup -> endwrapup",
+%	fun() ->
+%		Transactions = [
+%			{inqueue, {"test", 2, "queue"}},
+%			{ringing, {"test", 4, "agent"}},
+%			{oncall, {"test", 7, "agent"}},
+%			{transfer, {"test", 11, "agent2"}},
+%			{wrapup, {"test", 11, "agent"}},
+%			{oncall, {"test", 11, "agent2"}},
+%			{endwrapup, {"test", 16, "agent"}},
+%			{hangup, {"test", 17, "caller"}},
+%			{wrapup, {"test", 17, "agent2"}},
+%			{endwrapup, {"test", 24, "agent2"}}
+%		],
+%		?assertEqual({2, 3, 10, 12}, summarize(Transactions))
+%	end},
+%	{"Call flow with transfer (same as above) in mixed order",
+%	fun() ->
+%		Transactions = [
+%			{inqueue, {"test", 2, "queue"}},
+%			{ringing, {"test", 4, "agent"}},
+%			{oncall, {"test", 7, "agent"}},
+%			{transfer, {"test", 11, "agent2"}},
+%			{wrapup, {"test", 11, "agent"}},
+%			{oncall, {"test", 11, "agent2"}},
+%			{endwrapup, {"test", 16, "agent"}},
+%			{hangup, {"test", 17, "caller"}},
+%			{wrapup, {"test", 17, "agent2"}},
+%			{endwrapup, {"test", 24, "agent2"}}
+%		],
+%		crypto:start(),
+%		Shuffle = fun(_F, [], Acc) ->
+%				Acc;
+%			(F, List, Acc) ->
+%				Index = crypto:rand_uniform(1, length(List) + 1),
+%				Item = lists:nth(Index, List),
+%				Newlist = lists:subtract(List, [Item]),
+%				Newacc = [Item | Acc],
+%				F(F, Newlist, Newacc)
+%		end,
+%		Newtrans = Shuffle(Shuffle, Transactions, []),
+%		?assertEqual({2, 3, 10, 12}, summarize(Newtrans))
+%	end}].
 
 -endif.
 

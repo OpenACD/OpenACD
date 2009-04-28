@@ -276,7 +276,10 @@ summarize(Transactions) ->
 						Tuple
 				end,
 				Dict2 = dict:store(total, {Inqueue, Ringing, Oncall, Wrapup + Duration}, Dict),
-				dict:store(Data, {0, Aring, Aoncall, Awrapup + Duration}, Dict2)
+				dict:store(Data, {0, Aring, Aoncall, Awrapup + Duration}, Dict2);
+			_Other ->
+				?DEBUG("Can't summarize ~s", [Event]),
+				Dict
 		end
 	end,
 	lists:foldl(Count, Acc, Transactions).
@@ -501,6 +504,49 @@ handle_event_test_() ->
 		?assertEqual(State, Newstate)
 	end}].
 
+summarize_test_() ->
+	[{"Simple summary, one call, one agent",
+	fun() ->
+		Transactions = [
+			{inqueue, 5, 10, 5, "testqueue"},
+			{ringing, 10, 13, 3, "agent"},
+			{oncall, 13, 20, 7, "agent"},
+			{wrapup, 20, 24, 4, "agent"}
+		],
+		Dict = summarize(Transactions),
+		?assertEqual({5, 3, 7, 4}, dict:fetch(total, Dict)),
+		?assertEqual({0, 3, 7, 4}, dict:fetch("agent", Dict))
+	end},
+	{"summary with a ringout",
+	fun() ->
+		Transactions = [
+			{inqueue, 5, 10, 5, "testqueue"},
+			{ringing, 10, 20, 10, "agent1"},
+			{ringing, 20, 28, 8, "agent2"},
+			{oncall, 28, 22, 5, "agent2"},
+			{wrapup, 22, 23, 1, "agent2"}
+		],
+		Dict = summarize(Transactions),
+		?assertEqual({5, 18, 5, 1}, dict:fetch(total, Dict)),
+		?assertEqual({0, 10, 0, 0}, dict:fetch("agent1", Dict)),
+		?assertEqual({0, 8, 5, 1}, dict:fetch("agent2", Dict))
+	end},
+	{"summary with a transfer to another agent",
+	fun() ->
+		Transactions = [
+			{inqueue, 5, 10, 5, "testqueue"},
+			{ringing, 10, 20, 10, "agent1"},
+			{oncall, 20, 30, 10, "agent1"},
+			{transfer, 30, 30, 0, "agent2"},
+			{oncall, 30, 35, 5, "agent2"},
+			{wrapup, 30, 40, 10, "agent1"},
+			{wrapup, 35, 40, 5, "agent2"}
+		],
+		Dict = summarize(Transactions),
+		?assertEqual({5, 10, 15, 15}, dict:fetch(total, Dict)),
+		?assertEqual({0, 10, 10, 10}, dict:fetch("agent1", Dict)),
+		?assertEqual({0, 0, 5, 5}, dict:fetch("agent2", Dict))
+	end}].
 %check_end_test_() ->
 %	{foreach,
 %	fun() ->

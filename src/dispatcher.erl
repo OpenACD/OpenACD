@@ -100,8 +100,6 @@ handle_call(bound_call, _From, State) ->
 			{reply, Call, State}
 		end;
 handle_call(stop, _From, State) when is_record(State#state.call, queued_call) ->
-	Call = State#state.call,
-	call_queue:ungrab(State#state.qpid, Call#queued_call.id),
 	{stop, normal, ok, State};
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
@@ -152,8 +150,10 @@ handle_info(Info, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(Reason, _State) ->
+terminate(Reason, State) ->
 	?NOTICE("Teminated:  ~p", [Reason]),
+	Call = State#state.call,
+	catch call_queue:ungrab(State#state.qpid, Call#queued_call.id),
 	ok.
 
 %%--------------------------------------------------------------------

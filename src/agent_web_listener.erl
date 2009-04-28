@@ -625,7 +625,7 @@ cookie_check_test_() ->
 	
 	
 
--define(MYSERVERFUNC, fun() -> {ok, _Pid} = start_link(), {?MODULE, fun() -> stop() end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Pid} = start_link(), unlink(Pid), {?MODULE, fun() -> stop() end} end).
 
 -include("gen_server_test.hrl").
 

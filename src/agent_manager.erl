@@ -43,8 +43,12 @@
 -include("call.hrl").
 -include("agent.hrl").
 
+-ifndef(R13B).
+-type(dict() :: any()).
+-endif.
+
 -record(state, {
-	agents = dict:new()
+	agents = dict:new() :: dict()
 	}).
 
 
@@ -273,10 +277,9 @@ handle_call_start_test() ->
 	stop().
 
 single_node_test_() -> 
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
-	Agent = #agent{login="testagent"},
 	{foreach,
 		fun() ->
+			Agent = #agent{login="testagent"},
 			catch agent_auth:stop(),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
@@ -284,69 +287,79 @@ single_node_test_() ->
 			mnesia:start(),
 			agent_auth:start(),
 			start([node()]),
-			{}
+			Agent
 		end,
-		fun({}) -> 
+		fun(_Agent) -> 
 			stop()
 		end,
 		[
-			{"Start New Agent", 
-				fun() -> 
-					{ok, Pid} = start_agent(Agent),
-					?assertMatch({ok, released}, agent:query_state(Pid))
-				end
-			},
-			{"Start Existing Agent",
-				fun() -> 
-					{ok, Pid} = start_agent(Agent),
-					?assertMatch({exists, Pid}, start_agent(Agent))
-				end
-			},
-			{"Lookup agent by name",
-				fun() -> 
-					{ok, Pid} = start_agent(Agent),
-					Login = Agent#agent.login,
-					?assertMatch({true, Pid}, query_agent(Login))
-				end
-			},
-			{"Look for a non-existang agent",
-				fun() -> 
-					?assertMatch(false, query_agent("does not exist"))
-				end
-			 }, 
-			{
-				"Find available agents with a skillset that matches but is the shortest",
-				fun() ->
-					Agent1 = #agent{login="Agent1"},
-					Agent2 = #agent{login="Agent2", skills=[english, '_agent', '_node', coolskill, otherskill]},
-					Agent3 = #agent{login="Agent3", skills=[english, '_agent', '_node', coolskill]},
-					{ok, Agent1Pid} = gen_leader:call(?MODULE, {start_agent, Agent1}),
-					{ok, Agent2Pid} = gen_leader:call(?MODULE, {start_agent, Agent2}),
-					{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
-					agent:set_state(Agent1Pid, idle),
-					agent:set_state(Agent3Pid, idle),
-					?assertMatch([{"Agent3", Agent3Pid, _State}], find_avail_agents_by_skill([coolskill])),
-					agent:set_state(Agent2Pid, idle),
-					?assertMatch([{"Agent3", Agent3Pid, _State1}, {"Agent2", Agent2Pid, _State2}], find_avail_agents_by_skill([coolskill]))
-				end
-			}, {
-				"Find available agents with a skillset that matches but is longest idle",
-				fun() ->
-					Agent1 = #agent{login="Agent1"},
-					Agent2 = #agent{login="Agent2", skills=[english, '_agent', '_node', coolskill]},
-					Agent3 = #agent{login="Agent3", skills=[english, '_agent', '_node', coolskill]},
-					{ok, Agent1Pid} = gen_leader:call(?MODULE, {start_agent, Agent1}),
-					{ok, Agent2Pid} = gen_leader:call(?MODULE, {start_agent, Agent2}),
-					{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
-					agent:set_state(Agent1Pid, idle),
-					agent:set_state(Agent3Pid, idle),
-					?assertMatch([{"Agent3", Agent3Pid, _State}], find_avail_agents_by_skill([coolskill])),
-					receive after 500 -> ok end,
-					agent:set_state(Agent2Pid, idle),
-					?assertMatch([{"Agent3", Agent3Pid, _State1}, {"Agent2", Agent2Pid, _State2}], find_avail_agents_by_skill([coolskill]))
-				end
-			}
-
+			fun(Agent) ->
+				{"Start New Agent", 
+					fun() -> 
+						{ok, Pid} = start_agent(Agent),
+						?assertMatch({ok, released}, agent:query_state(Pid))
+					end
+				}
+			end,
+			fun(Agent) ->
+				{"Start Existing Agent",
+					fun() -> 
+						{ok, Pid} = start_agent(Agent),
+						?assertMatch({exists, Pid}, start_agent(Agent))
+					end
+				}
+			end,
+			fun(Agent) ->
+				{"Lookup agent by name",
+					fun() -> 
+						{ok, Pid} = start_agent(Agent),
+						Login = Agent#agent.login,
+						?assertMatch({true, Pid}, query_agent(Login))
+					end
+				}
+			end,
+			fun(_Agent) ->
+				{"Look for a non-existang agent",
+					fun() -> 
+						?assertMatch(false, query_agent("does not exist"))
+					end
+				}
+			end, 
+			fun(_Agent) ->
+				{"Find available agents with a skillset that matches but is the shortest",
+					fun() ->
+						Agent1 = #agent{login="Agent1"},
+						Agent2 = #agent{login="Agent2", skills=[english, '_agent', '_node', coolskill, otherskill]},
+						Agent3 = #agent{login="Agent3", skills=[english, '_agent', '_node', coolskill]},
+						{ok, Agent1Pid} = gen_leader:call(?MODULE, {start_agent, Agent1}),
+						{ok, Agent2Pid} = gen_leader:call(?MODULE, {start_agent, Agent2}),
+						{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
+						agent:set_state(Agent1Pid, idle),
+						agent:set_state(Agent3Pid, idle),
+						?assertMatch([{"Agent3", Agent3Pid, _State}], find_avail_agents_by_skill([coolskill])),
+						agent:set_state(Agent2Pid, idle),
+						?assertMatch([{"Agent3", Agent3Pid, _State1}, {"Agent2", Agent2Pid, _State2}], find_avail_agents_by_skill([coolskill]))
+					end
+				}
+			end,
+			fun(_Agent) ->
+				{"Find available agents with a skillset that matches but is longest idle",
+					fun() ->
+						Agent1 = #agent{login="Agent1"},
+						Agent2 = #agent{login="Agent2", skills=[english, '_agent', '_node', coolskill]},
+						Agent3 = #agent{login="Agent3", skills=[english, '_agent', '_node', coolskill]},
+						{ok, Agent1Pid} = gen_leader:call(?MODULE, {start_agent, Agent1}),
+						{ok, Agent2Pid} = gen_leader:call(?MODULE, {start_agent, Agent2}),
+						{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
+						agent:set_state(Agent1Pid, idle),
+						agent:set_state(Agent3Pid, idle),
+						?assertMatch([{"Agent3", Agent3Pid, _State}], find_avail_agents_by_skill([coolskill])),
+						receive after 500 -> ok end,
+						agent:set_state(Agent2Pid, idle),
+						?assertMatch([{"Agent3", Agent3Pid, _State1}, {"Agent2", Agent2Pid, _State2}], find_avail_agents_by_skill([coolskill]))
+					end
+				}
+			end
 		]
 	}.
 
@@ -357,13 +370,13 @@ get_nodes() ->
 	{list_to_atom(lists:append("master@", Host)), list_to_atom(lists:append("slave@", Host))}.
 
 multi_node_test_() -> 
-	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
-	{Master, Slave} = get_nodes(),
-	Agent = #agent{login="testagent"},
-	Agent2 = #agent{login="testagent2"},
-	{
+		{
 		foreach,
 		fun() ->
+			?CONSOLE("======multi node setup!=======", []),
+			{Master, Slave} = get_nodes(),
+			Agent = #agent{login="testagent"},
+			Agent2 = #agent{login="testagent2"},
 			slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
 			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
 			mnesia:stop(),
@@ -385,111 +398,122 @@ multi_node_test_() ->
 			{ok, _P4} = rpc:call(Slave, agent_auth, start, []),
 
 			{ok, _P1} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
+			?CONSOLE("Master started!", []),
 			{ok, _P2} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
-			{}
+			?CONSOLE("Slave started!", []),
+			{Master, Slave, Agent, Agent2}
 		end,
-		fun({}) -> 
+		fun({Master, Slave, _Agent, _Agent2}) -> 
 			cover:stop([Master, Slave]),
 			slave:stop(Master),
 			slave:stop(Slave),
 			ok
 		end,
 		[
-			{
-				"Slave picks up added agent",
-				fun() -> 
-					{ok, Pid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
-					?assertMatch({exists, Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent]))
-				end
-			},
-			{
-				"Slave continues after master dies",
-				fun() -> 
-					{ok, _Pid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
-					%slave:stop(Master),
-					rpc:call(Master, erlang, disconnect_node, [Slave]),
-					rpc:call(Slave, erlang, disconnect_node, [Master]),
-					?assertMatch({ok, _NewPid}, rpc:call(Slave, ?MODULE, start_agent, [Agent]))
-				end
-			},
-			{
-				"Slave becomes master after master dies",
-				fun() -> 
-					%% getting the pids is important for this test
-					cover:stop([Master, Slave]),
-					slave:stop(Master),
-					slave:stop(Slave),
-					
-					slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
-					slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
-					cover:start([Master, Slave]),
+			fun({Master, Slave, Agent, _Agent2}) ->
+				{"Slave picks up added agent",
+					fun() -> 
+						{ok, Pid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
+						?assertMatch({exists, Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent]))
+					end
+				}
+			end,
+			fun({Master, Slave, Agent, _Agent2}) ->
+				{"Slave continues after master dies",
+					fun() -> 
+						{ok, _Pid} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
+						%slave:stop(Master),
+						rpc:call(Master, erlang, disconnect_node, [Slave]),
+						rpc:call(Slave, erlang, disconnect_node, [Master]),
+						?assertMatch({ok, _NewPid}, rpc:call(Slave, ?MODULE, start_agent, [Agent]))
+					end
+				}
+			end,
+			fun({Master, Slave, _Agent, _Agent2}) ->
+				{"Slave becomes master after master dies",
+					fun() -> 
+						%% getting the pids is important for this test
+						cover:stop([Master, Slave]),
+						slave:stop(Master),
+						slave:stop(Slave),
+						
+						slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
+						slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+						cover:start([Master, Slave]),
 
-					{ok, _MasterP} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
-					{ok, SlaveP} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
+						{ok, _MasterP} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
+						{ok, SlaveP} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
 
-					%% test proper begins
-					rpc:call(Master, erlang, disconnect_node, [Slave]),
-					cover:stop([Master]),
-					slave:stop(Master),
+						%% test proper begins
+						rpc:call(Master, erlang, disconnect_node, [Slave]),
+						cover:stop([Master]),
+						slave:stop(Master),
+						
+						?assertMatch({ok, SlaveP}, rpc:call(Slave, ?MODULE, get_leader, []))
+						
+						%?assertMatch(undefined, global:whereis_name(?MODULE)),
+						%?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
+						%?assertMatch({true, _Pid}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
+						
+						
+						%Globalwhere = global:whereis_name(?MODULE),
+						%Slaveself = rpc:call(Slave, erlang, whereis, [?MODULE]),
+											
+						%?assertMatch(Globalwhere, Slaveself)
+					end
+				}
+			end,
+			fun({Master, Slave, Agent, Agent2}) ->
+				{"Net Split with unique agents",
+					fun() ->
+						{ok, Apid1} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
+						
+						?assertMatch({exists, Apid1}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
 					
-					?assertMatch({ok, SlaveP}, rpc:call(Slave, ?MODULE, get_leader, []))
-					
-					%?assertMatch(undefined, global:whereis_name(?MODULE)),
-					%?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
-					%?assertMatch({true, _Pid}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
-					
-					
-					%Globalwhere = global:whereis_name(?MODULE),
-					%Slaveself = rpc:call(Slave, erlang, whereis, [?MODULE]),
-										
-					%?assertMatch(Globalwhere, Slaveself)
-				end
-			}, {
-				"Net Split with unique agents",
-				fun() ->
-					{ok, Apid1} = rpc:call(Master, ?MODULE, start_agent, [Agent]),
-					
-					?assertMatch({exists, Apid1}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
-				
-					rpc:call(Master, erlang, disconnect_node, [Slave]),
-					rpc:call(Slave, erlang, disconnect_node, [Master]),
-					
-					{ok, Apid2} = rpc:call(Slave, ?MODULE, start_agent, [Agent2]),
-										
-					Pinged = rpc:call(Master, net_adm, ping, [Slave]),
-					Pinged = rpc:call(Slave, net_adm, ping, [Master]),
+						rpc:call(Master, erlang, disconnect_node, [Slave]),
+						rpc:call(Slave, erlang, disconnect_node, [Master]),
+						
+						{ok, Apid2} = rpc:call(Slave, ?MODULE, start_agent, [Agent2]),
+											
+						Pinged = rpc:call(Master, net_adm, ping, [Slave]),
+						Pinged = rpc:call(Slave, net_adm, ping, [Master]),
 
-					?assert(Pinged =:= pong),
+						?assert(Pinged =:= pong),
 
-					?assertMatch({true, Apid1}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
-					?assertMatch({true, Apid2}, rpc:call(Master, ?MODULE, query_agent, [Agent2]))
-					
-				end
-			}, {
-				"Master removes agents for a dead node",
-				fun() ->
-					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
-					?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent2])),
-					?assertMatch({true, _Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent])),
-					rpc:call(Master, erlang, disconnect_node, [Slave]),
-					cover:stop(Slave),
-					slave:stop(Slave),
-					?assertEqual(false, rpc:call(Master, ?MODULE, query_agent, [Agent])),
-					?assertMatch({true, _Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent2])),
-					?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent]))
-				end
-			}, {
-				"Master is notified of agent removal on slave",
-				fun() ->
-					{ok, Pid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
-					?assertMatch({true, Pid}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
-					?assertMatch({true, Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent])),
-					exit(Pid, kill),
-					timer:sleep(300),
-					?assertMatch(false, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
-					?assertMatch(false, rpc:call(Master, ?MODULE, query_agent, [Agent]))
-				end
-			}
+						?assertMatch({true, Apid1}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
+						?assertMatch({true, Apid2}, rpc:call(Master, ?MODULE, query_agent, [Agent2]))
+						
+					end
+				}
+			end,
+			fun({Master, Slave, Agent, Agent2}) ->
+				{"Master removes agents for a dead node",
+					fun() ->
+						?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
+						?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent2])),
+						?assertMatch({true, _Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent])),
+						rpc:call(Master, erlang, disconnect_node, [Slave]),
+						cover:stop(Slave),
+						slave:stop(Slave),
+						?assertEqual(false, rpc:call(Master, ?MODULE, query_agent, [Agent])),
+						?assertMatch({true, _Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent2])),
+						?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent]))
+					end
+				}
+			end,
+			fun({Master, Slave, Agent, _Agent2}) ->
+				{"Master is notified of agent removal on slave",
+					fun() ->
+						{ok, Pid} = rpc:call(Slave, ?MODULE, start_agent, [Agent]),
+						?assertMatch({true, Pid}, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
+						?assertMatch({true, Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent])),
+						exit(Pid, kill),
+						timer:sleep(300),
+						?assertMatch(false, rpc:call(Slave, ?MODULE, query_agent, [Agent])),
+						?assertMatch(false, rpc:call(Master, ?MODULE, query_agent, [Agent]))
+					end
+				}
+			end
 		]
 	}.
 

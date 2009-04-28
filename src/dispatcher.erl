@@ -100,8 +100,6 @@ handle_call(bound_call, _From, State) ->
 			{reply, Call, State}
 		end;
 handle_call(stop, _From, State) when is_record(State#state.call, queued_call) ->
-	Call = State#state.call,
-	call_queue:ungrab(State#state.qpid, Call#queued_call.id),
 	{stop, normal, ok, State};
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
@@ -152,8 +150,10 @@ handle_info(Info, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(Reason, _State) ->
+terminate(Reason, State) ->
 	?NOTICE("Teminated:  ~p", [Reason]),
+	Call = State#state.call,
+	catch call_queue:ungrab(State#state.qpid, Call#queued_call.id),
 	ok.
 
 %%--------------------------------------------------------------------
@@ -318,11 +318,11 @@ grab_test_() ->
 			[Pid1, Pid2, Pid3]
 		end,
 		fun(Pids) -> 
-			queue_manager:stop(),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			agent_manager:stop(),
-			lists:foreach(fun(P) -> call_queue:stop(P) end, Pids)
+			lists:foreach(fun(P) -> call_queue:stop(P) end, Pids),
+			queue_manager:stop()
 		end,
 		[
 			fun([Pid1, Pid2, Pid3]) ->
@@ -404,19 +404,18 @@ bias_to_test() ->
 
 -define(MYSERVERFUNC, fun() ->
 		mnesia:stop(),
-		mnesia:delete_schema([node]),
+		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
 		?debugFmt("~p~n", [mnesia:system_info(tables)]),
 		{ok, _Pid2} = queue_manager:start([node()]),
 		{ok, Pid} = start(),
-
 		{Pid, fun() ->
-			Res = stop(Pid),
 			queue_manager:stop(),
+			Ref = stop(Pid),
 			mnesia:stop(),
 			mnesia:delete_schema([node]),
-			Res
+			Ref
 		end}
 	end).
 

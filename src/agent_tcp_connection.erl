@@ -895,10 +895,11 @@ clientrec_to_id_test() ->
 	?assertEqual("00500007", clientrec_to_id(Client)).
 
 
--define(MYSERVERFUNC, 
-	fun() -> 
-		{ok, Pid} = start_link("garbage data"), 
-		{Pid, fun() -> exit(Pid, kill), ok end} 
+-define(MYSERVERFUNC,
+	fun() ->
+		{ok, Pid} = start_link("garbage data"),
+		unlink(Pid),
+		{Pid, fun() -> exit(Pid, kill), ok end}
 	end).
 
 -include("gen_server_test.hrl").

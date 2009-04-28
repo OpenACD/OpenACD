@@ -747,12 +747,13 @@ queue_interaction_test_() ->
 					name = "testqueue",
 					recipe = [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]
 				}),
+				QMPid = whereis(queue_manager),
 				{exists, Pid} = queue_manager:add_queue("testqueue"),
+				?assertEqual(0, call_queue:call_count(Pid)),
 				call_queue:add(Pid, whereis(media_dummy)),
 				{_Pri, _CallRec} = call_queue:ask(Pid),
 				?assertEqual(1, call_queue:call_count(Pid)),
 				?CONSOLE("before death:  ~p", [call_queue:print(Pid)]),
-				QMPid = whereis(queue_manager),
 				exit(QMPid, kill),
 				receive
 				after 300 ->
@@ -767,6 +768,7 @@ queue_interaction_test_() ->
 					ok
 				end,
 				NewPid = queue_manager:get_queue("testqueue"),
+				?assertNot(QMPid =:= NewPid),
 
 				?assertEqual(1, call_queue:call_count(NewPid)),
 				call_queue:stop(NewPid),

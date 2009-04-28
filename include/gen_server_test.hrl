@@ -35,25 +35,12 @@
 %% after the test has run.
 
 -ifdef(MYSERVERFUNC).
-find_pid() ->
-	case whereis(?MODULE) of
-		undefined ->
-			case whereis(genservertestpid) of
-				undefined -> exit(noproc);
-				Pid -> Pid
-			end;
-		Pid -> Pid
-	end.
-
 gen_server_test_() ->
-	{setup,
-
+	{foreach,
 	fun() ->
 		{Server, StopFunc} = ?MYSERVERFUNC(),
 		case Server of
-			Pid when is_pid(Pid) ->
-				?debugFmt("registering ~p as genservertestpid~n", [Pid]),
-				register(genservertestpid, Pid),
+			Pid when is_pid(Server) ->
 				ok;
 			Server ->
 				Pid = whereis(Server),
@@ -61,43 +48,42 @@ gen_server_test_() ->
 		end,
 		{Pid, StopFunc}
 	end,
-
 	fun({Pid, StopFunc}) ->
 		?assertMatch(ok, StopFunc()),
 		?assertMatch(false, is_process_alive(Pid))
 	end,
 
-	[{ "handle_call with garbage value",
-		fun() ->
-			Server = find_pid(),
-			?assertEqual({unknown_call, garbage}, gen_server:call(Server, garbage))
+	[
+		fun({Pid, _StopFunc}) ->
+			{ "handle_call with garbage value",
+				fun() ->
+					?assertEqual({unknown_call, garbage}, gen_server:call(Pid, garbage))
+				end
+			}
+		end,
+		fun({Pid, _StopFunc}) ->
+			{ "handle_cast with garbage value",
+				fun() ->
+					?assertEqual(ok, gen_server:cast(Pid, garbage))
+				end
+			}
+		end,
+		fun({Pid, _StopFunc}) ->
+			{ "code_change",
+				fun() ->
+					?assertEqual(ok, sys:suspend(Pid)),
+					?assertEqual(ok, sys:change_code(Pid, "", ?MODULE, "")),
+					?assertEqual(ok, sys:resume(Pid))
+				end
+			}
+		end,
+		fun({Pid, _StopFunc}) ->
+			{ "handle info with garbage value",
+				fun() ->
+					Pid ! garbage
+				end
+			}
 		end
-	},
-
-	{ "handle_cast with garbage value",
-		fun() ->
-			Server = find_pid(),
-			?assertEqual(ok, gen_server:cast(Server, garbage))
-		end
-	},
-
-
-	{ "code_change",
-		fun() ->
-			Pid = find_pid(),
-			?assertEqual(ok, sys:suspend(Pid)),
-			?assertEqual(ok, sys:change_code(Pid, "", ?MODULE, "")),
-			?assertEqual(ok, sys:resume(Pid))
-		end
-	},
-
-	{ "handle info with garbage value",
-		fun() ->
-			Pid = find_pid(),
-			Pid ! garbage
-		end
-	}
-
 	]}.
 
 -endif.

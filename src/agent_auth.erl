@@ -179,6 +179,8 @@ set_profile(Oldname, Newname, Skills) ->
 	end,
 	mnesia:transaction(F).
 
+destroy_profile("Default") ->
+	error;
 destroy_profile(Name) ->
 	F = fun() ->
 		mnesia:delete({agent_profile, Name}),

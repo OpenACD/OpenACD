@@ -189,7 +189,7 @@ handle_event({hangup, #call{id = CallID}, Time, agent}, #state{id = CallID} = St
 	{ok, State#state{transactions = Newtrans, hangup = true}};
 handle_event({hangup, #call{id = CallID}, Time, By}, #state{id = CallID} = State) ->
 	?NOTICE("Hangup for ~s", [CallID]),
-	Newtrans = [{handup, Time, Time, 0, By} | State#state.transactions],
+	Newtrans = [{hangup, Time, Time, 0, By} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans, hangup = true}};
 handle_event({wrapup, #call{id = CallID}, Time,  Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s wrapup for ~s", [Agent, CallID]),
@@ -405,45 +405,78 @@ handle_event_test_() ->
 		?assertEqual([], Newstate#state.transactions),
 		?assertEqual([{inqueue, 10, "testqueue"}], Newstate#state.unterminated)
 	end},
-		{"ringing",
-		fun() ->
-			Call = #call{id = "testcall", source=self()},
-			Unterminated = [{inqueue, 10, "testqueue"}],
-			State = #state{unterminated = Unterminated, id = "testcall"},
-			{ok, Newstate} = handle_event({ringing, Call, 15, "agent"}, State),
-			?assertEqual([{inqueue, 10, 15, 5, "testqueue"}], Newstate#state.transactions),
-			?assertEqual([{ringing, 15, "agent"}], Newstate#state.unterminated)
-		end},
-		{"oncall",
-		fun() ->
-					Call = #call{id = "testcall", source=self()},
-			Unterminated = [{ringing, 10, "agent"}],
-			State = #state{unterminated = Unterminated, id = "testcall"},
-			{ok, Newstate} = handle_event({oncall, Call, 15, "agent"}, State),
-			?assertEqual([{ringing, 10, 15, 5, "agent"}], Newstate#state.transactions),
-			?assertEqual([{oncall, 15, "agent"}], Newstate#state.unterminated)
-		end},
-		{"wrapup",
-		fun() ->
-					Call = #call{id = "testcall", source=self()},
-
-			Unterminated = [{oncall, 10, "agent"}],
-			State = #state{unterminated = Unterminated, id="testcall"},
-			{ok, Newstate} = handle_event({wrapup, Call, 15, "agent"}, State),
-			?assertEqual([{oncall, 10, 15, 5, "agent"}], Newstate#state.transactions),
-			?assertEqual([{wrapup, 15, "agent"}], Newstate#state.unterminated)
-		end},
-		{"endwrapup",
-		fun() ->
-					Call = #call{id = "testcall", source=self()},
-
-			Unterminated = [{wrapup, 10, "agent"}],
-			State = #state{unterminated = Unterminated, id="testcall"},
-			{ok, Newstate} = handle_event({endwrapup, Call, 15, "agent"}, State),
-			?assertEqual([{wrapup, 10, 15, 5, "agent"}], Newstate#state.transactions),
-			?assertEqual([], Newstate#state.unterminated)
-		end}
-	].
+	{"ringing",
+	fun() ->
+		Call = #call{id = "testcall", source=self()},
+		Unterminated = [{inqueue, 10, "testqueue"}],
+		State = #state{unterminated = Unterminated, id = "testcall"},
+		{ok, Newstate} = handle_event({ringing, Call, 15, "agent"}, State),
+		?assertEqual([{inqueue, 10, 15, 5, "testqueue"}], Newstate#state.transactions),
+		?assertEqual([{ringing, 15, "agent"}], Newstate#state.unterminated)
+	end},
+	{"oncall",
+	fun() ->
+		Call = #call{id = "testcall", source=self()},
+		Unterminated = [{ringing, 10, "agent"}],
+		State = #state{unterminated = Unterminated, id = "testcall"},
+		{ok, Newstate} = handle_event({oncall, Call, 15, "agent"}, State),
+		?assertEqual([{ringing, 10, 15, 5, "agent"}], Newstate#state.transactions),
+		?assertEqual([{oncall, 15, "agent"}], Newstate#state.unterminated)
+	end},
+	{"wrapup",
+	fun() ->
+		Call = #call{id = "testcall", source=self()},
+		Unterminated = [{oncall, 10, "agent"}],
+		State = #state{unterminated = Unterminated, id="testcall"},
+		{ok, Newstate} = handle_event({wrapup, Call, 15, "agent"}, State),
+		?assertEqual([{oncall, 10, 15, 5, "agent"}], Newstate#state.transactions),
+		?assertEqual([{wrapup, 15, "agent"}], Newstate#state.unterminated)
+	end},
+	{"endwrapup",
+	fun() ->
+		Call = #call{id = "testcall", source=self()},
+		Unterminated = [{wrapup, 10, "agent"}],
+		State = #state{unterminated = Unterminated, id="testcall"},
+		{ok, Newstate} = handle_event({endwrapup, Call, 15, "agent"}, State),
+		?assertEqual([{wrapup, 10, 15, 5, "agent"}], Newstate#state.transactions),
+		?assertEqual([], Newstate#state.unterminated)
+	end},
+	{"hangup from agent",
+	fun() ->
+		Call = #call{id = "testcall", source=self()},
+		State = #state{id = "testcall"},
+		{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
+		?assertEqual([{hangup, 10, 10, 0, agent}], Newstate#state.transactions),
+		?assertEqual([], Newstate#state.unterminated),
+		?assert(Newstate#state.hangup)
+	end},
+	{"hangup from caller",
+	fun() ->
+		Call = #call{id = "testcall", source=self()},
+		State = #state{id = "testcall"},
+		{ok, Newstate} = handle_event({hangup, Call, 10, "caller"}, State),
+		?assertEqual([{hangup, 10, 10, 0, "caller"}], Newstate#state.transactions),
+		?assertEqual([], Newstate#state.unterminated),
+		?assert(Newstate#state.hangup)
+	end},
+	{"hangup from caller when a hangup is already received",
+	fun() ->
+		Call = #call{id = "testcall", source = self()},
+		Protostate = #state{id = "testcall"},
+		{ok, State} = handle_event({hangup, Call, 10, agent}, Protostate),
+		{ok, Newstate} = handle_event({hangup, Call, 10, "notagent"}, State),
+		?assert(Newstate#state.hangup),
+		?assertEqual(State#state.transactions, Newstate#state.transactions)
+	end},
+	{"hangup from agent when hangup from caller is already recieved",
+	fun() ->
+		Call = #call{id = "testcall", source = self()},
+		Protostate = #state{id = "testcall"},
+		{ok, State} = handle_event({hangup, Call, 10, "notagent"}, Protostate),
+		{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
+		?assert(Newstate#state.hangup),
+		?assertEqual(State#state.transactions, Newstate#state.transactions)
+	end}].
 
 %check_end_test_() ->
 %	{foreach,

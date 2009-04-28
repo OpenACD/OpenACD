@@ -42,7 +42,7 @@
 %% If the system starts without a cpx_conf table, it will build one, placing some default information there.
 %% #cpx_conf{agent_auth, start, []} is added and started, as well as #cpx_conf{agent_tcp_listener}.
 %% 
-%% The 3 most important function are {@link add_conf/3}, {@link destroy/1}, {@link update_conf/4}.
+%% The 3 most important function are {@link add_conf/5}, {@link destroy/1}, {@link update_conf/4}.
 
 -module(cpx_supervisor).
 -author("Micah").
@@ -197,7 +197,7 @@ destroy(Spec) ->
 	mnesia:transaction(F).
 
 %% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
-%% @see add_conf/3
+%% @see add_conf/5
 update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	F = fun() ->
 		destroy(Id),

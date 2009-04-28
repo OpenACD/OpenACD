@@ -204,6 +204,7 @@ handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} =
 	case {State#state.hangup, Midunterminated} of
 		{true, []} ->
 			summarize(Newtrans),
+			?DEBUG("Summarize complete, now to remove the handler...", []),
 			remove_handler;
 		_Else ->
 			{ok, State#state{unterminated = Midunterminated, transactions = Newtrans}}
@@ -240,11 +241,12 @@ code_change(_OldVsn, State, _Extra) ->
 % pair checking is done as the transactions are built up.
 % All this needs to do is sum up the data.
 summarize(Transactions) ->
+	?DEBUG("Summarizing ~p", [Transactions]),
 	Acc = dict:from_list([
 		{total, {0, 0, 0, 0}}
 	]),
 	Count = fun({Event, _State, _End, Duration, Data}, Dict) ->
-		{Inqueue, Ringing, Oncall, Wrapup} = dict:find(total, Dict),
+		{ok, {Inqueue, Ringing, Oncall, Wrapup}} = dict:find(total, Dict),
 		case Event of
 			inqueue ->
 				dict:store(total, {Inqueue + Duration, Ringing, Oncall, Wrapup}, Dict);
@@ -252,7 +254,7 @@ summarize(Transactions) ->
 				{_Aqueue, Aring, Aoncall, Awrapup} = case dict:find(Data, Dict) of
 					error ->
 						{0, 0, 0, 0};
-					Tuple when is_tuple(Tuple) ->
+					{ok, Tuple} when is_tuple(Tuple) ->
 						Tuple
 				end,
 				Dict2 = dict:store(total, {Inqueue, Ringing + Duration, Oncall, Wrapup}, Dict),
@@ -261,20 +263,20 @@ summarize(Transactions) ->
 				{_Aqueue, Aring, Aoncall, Awrapup} = case dict:find(Data, Dict) of
 					error ->
 						{0, 0, 0, 0};
-					Tuple when is_tuple(Tuple) ->
+					{ok, Tuple} when is_tuple(Tuple) ->
 						Tuple
 				end,
-				Dict2 = dict:store(total, {Inqueue, Ringing, Oncall + Duration, Wrapup}),
+				Dict2 = dict:store(total, {Inqueue, Ringing, Oncall + Duration, Wrapup}, Dict),
 				dict:store(Data, {0, Aring, Aoncall + Duration, Awrapup}, Dict2);
 			wrapup ->
 				{_Aqueue, Aring, Aoncall, Awrapup} = case dict:find(Data, Dict) of
 					error ->
 						{0, 0, 0, 0};
-					Tuple when is_tuple(Tuple) ->
+					{ok, Tuple} when is_tuple(Tuple) ->
 						Tuple
 				end,
-				Dict2 = dict:store(total, {Inqueue, Ringing, Oncall, Wrapup + Duration}),
-				dict:store(Data, {0, Aring, Aoncall, Awrapup + Duration})
+				Dict2 = dict:store(total, {Inqueue, Ringing, Oncall, Wrapup + Duration}, Dict),
+				dict:store(Data, {0, Aring, Aoncall, Awrapup + Duration}, Dict2)
 		end
 	end,
 	lists:foldl(Count, Acc, Transactions).
@@ -476,6 +478,27 @@ handle_event_test_() ->
 		{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
 		?assert(Newstate#state.hangup),
 		?assertEqual(State#state.transactions, Newstate#state.transactions)
+	end},
+	{"transfer event",
+	fun() ->
+		Call = #call{id = "testcall", source = self()},
+		State = #state{id = "testcall"},
+		{ok, Newstate} = handle_event({transfer, Call, 10, "target"}, State),
+		?assertEqual([], Newstate#state.unterminated),
+		?assertEqual([{transfer, 10, 10, 0, "target"}], Newstate#state.transactions)
+	end},
+	{"endwrapup when a hangup has already been recieved",
+	fun() ->
+		Call = #call{id = "testcall", source = self()},
+		State = #state{id = "testcall", hangup = true, unterminated = [{wrapup, 10, "agent"}]},
+		?assertEqual(remove_handler, handle_event({endwrapup, Call, 15, "agent"}, State))
+	end},
+	{"handling an event for a differnt call id (ie, not handling it)",
+	fun() ->
+		Call = #call{id = "testcall", source = self()},
+		State = #state{id = "differs"},
+		{ok, Newstate} = handle_event({inqueue, Call, 15, "queue"}, State),
+		?assertEqual(State, Newstate)
 	end}].
 
 %check_end_test_() ->

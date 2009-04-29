@@ -941,7 +941,10 @@ profile_test_() ->
 					new_profile("B", [german]),
 					new_profile("A", [english]),
 					new_profile("C", [testskill]),
-					destroy_profile("Default"),
+					F = fun() ->
+						mnesia:delete({agent_profile, "Default"})
+					end,
+					mnesia:transaction(F),
 					?CONSOLE("profs:  ~p", [get_profiles()]),
 					?assertEqual([{"A", [english]}, {"B", [german]}, {"C", [testskill]}], get_profiles())
 				end

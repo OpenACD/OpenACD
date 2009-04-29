@@ -293,7 +293,6 @@ fetch_domain_user(Node, State) ->
 				"true" ->
 					User = proplists:get_value("user", Data),
 					Domain = proplists:get_value("domain", Data),
-					% XXX hardcoded for now
 					case agent_manager:query_agent(User) of
 						{true, Pid} ->
 							try agent:dump_state(Pid) of

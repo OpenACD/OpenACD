@@ -297,6 +297,7 @@ fetch_domain_user(Node, State) ->
 						{true, Pid} ->
 							try agent:dump_state(Pid) of
 								#agent{remotenumber = Number} when is_list(Number) ->
+									% TODO won't always be sofia, should take the whole path/string
 									%GW = "{ignore_early_media=true}sofia/gateway/cpxvgw.fusedsolutions.com/"++Number,
 									GW = "{ignore_early_media=true}sofia/gateway/"++ proplists:get_value(voicegateway, State, "") ++"/" ++ Number,
 									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, GW]))});

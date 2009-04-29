@@ -82,7 +82,7 @@ stop(Pid) ->
 %% @hidden
 init([Port]) ->
 	?DEBUG("~p starting at ~p", [?MODULE, node()]),
-	process_flag(trap_exit, true),
+%	process_flag(trap_exit, true),
 	Opts = [list, {packet, line}, {reuseaddr, true},
 		{keepalive, true}, {backlog, 30}, {active, false}],
 	case gen_tcp:listen(Port, Opts) of
@@ -138,7 +138,8 @@ handle_info({inet_async, ListSock, Ref, {ok, CliSocket}}, #state{listener=ListSo
 		{stop, Why, State}
 end;
 
-% TODO - why?
+% TODO - why?  trying to close on shutdown w/ reason shutdown, which it does anyway.
+% remove the trap exit process flag, see what happens.
 handle_info({'EXIT', _From, shutdown}, State) ->
 	{stop, shutdown, State};
 	

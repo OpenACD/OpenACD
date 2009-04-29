@@ -48,7 +48,6 @@
 
 -export([start/0, stop/0, loop/1]).
 
-% TODO configure this to start by default with a default configureation (cpx_supervisor_conf)
 %% @doc Start the web management server unlinked to the parent process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->

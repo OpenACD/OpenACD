@@ -72,7 +72,6 @@ set_remote_number(Pid, Number) ->
 
 %% @private
 init([State = #agent{}]) ->
-	% TODO - merge in skills from the profile!
 	{Profile, Skills} = case agent_auth:get_profile(State#agent.profile) of
 		undefined ->
 			?WARNING("Agent ~p has an invalid profile of ~p, using Default", [State#agent.login, State#agent.profile]),

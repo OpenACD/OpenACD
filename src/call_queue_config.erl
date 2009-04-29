@@ -66,7 +66,6 @@
 -include("call.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
-% TODO roll these into call_queue?
 %% API
 
 %%
@@ -574,24 +573,6 @@ get_clients() ->
 %% =====
 %% Internal / helper functions
 %% =====
-
-%% @private
-% helper function to create a call_queue record from a list of {Key, Value}.
-%set_options(QueueRec, []) -> 
-%	QueueRec;
-%set_options(QueueRec, [{Key, Value} | Tail]) -> 
-%	case Key of
-%		weight when is_integer(Value) -> 
-%			set_options(QueueRec#call_queue{weight=Value}, Tail);
-%		skills -> 
-%			Skills = lists:append([QueueRec#call_queue.skills, Value]),
-%			% TODO it would be nice if we could check if those skills exist.
-%			set_options(QueueRec#call_queue{skills=Skills}, Tail);
-%		recipe -> 
-%			set_options(QueueRec#call_queue{recipe = Value}, Tail);
-%		queue_group ->
-%			set_options(QueueRec#call_queue{group = Value}, Tail)
-%	end.
 
 %% =====
 %% Tests

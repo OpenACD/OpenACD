@@ -43,7 +43,6 @@
 
 -export([start/2, stop/1]).
 
-% TODO mnesia set-up (schema and connected nodes) needs to be ready before the app starts.
 start(_Type, StartArgs) ->
 	?DEBUG("Start args ~p", [StartArgs]),
 	?DEBUG("All env: ~p", [application:get_all_env(cpx)]),

@@ -121,7 +121,6 @@ handle_cast(negotiate, State) ->
 	end;
 
 %% @hidden
-% TODO brandid is hard coded, not good (it's the 00310003)
 handle_cast({change_state, ringing, #call{} = Call}, State) ->
 	?DEBUG("change_state to ringing with call ~p", [Call]),
 	Counter = State#state.counter,

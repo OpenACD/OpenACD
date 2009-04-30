@@ -22,7 +22,14 @@ end
 
 INCLUDE = "include"
 
-OTPVERSION = `erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]).' -s erlang halt`.chomp
+vertest = `erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]).' -s erlang halt`.chomp
+if vertest =~ /(R\d\d[AB])/
+	OTPVERSION = $1
+	puts OTPVERSION
+else
+	STDERR.puts "unable to determine OTP version! (I got #{vertest})"
+	exit -1
+end
 ERLC_FLAGS = "-I#{INCLUDE} -D #{OTPVERSION} +warn_unused_vars +warn_unused_import +warn_exported_vars +warn_missing_spec +warn_untyped_record"
 
 SRC = FileList['src/*.erl']

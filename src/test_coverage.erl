@@ -41,7 +41,7 @@ start([]) ->
 start(Module) ->
 	cover:start(),
 	cover:compile_beam(string:concat("debug_ebin/", atom_to_list(Module))),
-	try apply(Module, test, []) of
+	try eunit:test(Module, [verbose]) of
 		_Any ->
 			cover:analyse_to_file(Module, string:concat(string:concat("coverage/", atom_to_list(Module)), ".txt")),
 			cover:analyse_to_file(Module, string:concat(string:concat("coverage/", atom_to_list(Module)), ".html"), [html])

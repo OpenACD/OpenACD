@@ -299,7 +299,13 @@ fetch_domain_user(Node, State) ->
 								#agent{remotenumber = Number} when is_list(Number) ->
 									% TODO expand out agent state checking to get full routing path/method
 									%GW = "{ignore_early_media=true}sofia/gateway/cpxvgw.fusedsolutions.com/"++Number,
-									GW = "{ignore_early_media=true}sofia/gateway/"++ proplists:get_value(voicegateway, State, "") ++"/" ++ Number,
+									GW = case string:to_integer(Number) of
+										{Ext, []} when Ext =< 9999, Ext > 0 ->
+											"{ignore_early_media=true}sofia/default" ++ Number ++ "%" ++ Domain;
+										_Else ->
+											"{ignore_eary_media=true}sofia/gateway/" ++ proplists:get_value(voicegateway, State, "") ++ "/" ++ Number
+									end,
+									%GW = "{ignore_early_media=true}sofia/gateway/"++ proplists:get_value(voicegateway, State, "") ++"/" ++ Number,
 									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, GW]))});
 								Else ->
 									?DEBUG("state: ~p", [Else]),

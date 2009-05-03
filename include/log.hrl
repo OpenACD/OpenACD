@@ -38,6 +38,8 @@
 	emergency
 ]).
 
+-type(loglevels() :: 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency').
+
 -ifdef(EUNIT).
 -define(DEBUG(Message, Args), ?debugFmt("[~p][~p][~p]~n	DEBUG: ~s~n", [erlang:localtime(), node(), self(), lists:flatten(io_lib:format(Message, Args))])).
 -define(INFO(Message, Args), ?debugFmt("[~p][~p][~p]~n	INFO: ~s~n", [erlang:localtime(), node(), self(), lists:flatten(io_lib:format(Message, Args))])).

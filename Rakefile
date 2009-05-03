@@ -30,7 +30,7 @@ else
 	STDERR.puts "unable to determine OTP version! (I got #{vertest})"
 	exit -1
 end
-ERLC_FLAGS = "-I#{INCLUDE} -D #{OTPVERSION} +warn_unused_vars +warn_unused_import +warn_exported_vars +warn_missing_spec +warn_untyped_record"
+ERLC_FLAGS = "-I#{INCLUDE} -D #{OTPVERSION} +warn_unused_vars +warn_unused_import +warn_exported_vars +warn_untyped_record"
 
 SRC = FileList['src/*.erl']
 HEADERS = FileList['include/*.hrl']
@@ -69,7 +69,7 @@ directory 'coverage'
 #directory 'doc'
 
 rule ".beam" => ["%{ebin,src}X.erl"] + HEADERS do |t|
-	sh "erlc -pa ebin -W #{ERLC_FLAGS} -o ebin #{t.source} "
+	sh "erlc -pa ebin -W #{ERLC_FLAGS} +warn_missing_spec -o ebin #{t.source} "
 end
 
 rule ".beam" => ["%{debug_ebin,src}X.erl"] + HEADERS do |t|

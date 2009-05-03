@@ -42,13 +42,13 @@
 ]).
 
 -record(state, {
-	level = info,
-	debugmodules = [],
-	lasttime
+	level = info :: loglevels(),
+	debugmodules = [] :: [atom()],
+	lasttime = erlang:localtime() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}
 }).
 
 init(_Args) ->
-	{ok, #state{lasttime = erlang:localtime()}}.
+	{ok, #state{}}.
 
 handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of

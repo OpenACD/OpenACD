@@ -55,8 +55,8 @@
 		code_change/3]).
 
 -record(state, {
-		listener,       % Listening socket
-		acceptor       % Asynchronous acceptor's internal reference
+		listener :: port(),       % Listening socket
+		acceptor :: ref()       % Asynchronous acceptor's internal reference
 		}).
 
 %% @doc Start the listener on port `Port' linked to the calling process.

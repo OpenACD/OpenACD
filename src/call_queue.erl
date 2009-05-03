@@ -80,8 +80,12 @@
 	call_count/1
 ]).
 
+-ifndef(R13B).
+-type(gb_trees() :: any()).
+-endif.
+
 -record(state, {
-	queue = gb_trees:empty(),
+	queue = gb_trees:empty() :: gb_trees(),
 	name = erlang:error({undefined, name}) :: string(),
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	weight = ?DEFAULT_WEIGHT :: pos_integer(),

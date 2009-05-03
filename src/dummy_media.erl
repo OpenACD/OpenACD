@@ -65,10 +65,14 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
+-ifndef(R13B).
+-type(dict() :: any()).
+-endif.
+
 -record(state, {
-	callrec = #call{},
+	callrec = #call{} :: #call{},
 	%mode = success :: 'success' | 'failure' | 'fail_once',
-	fail = dict:new()
+	fail = dict:new() :: dict()
 	}).
 
 %%====================================================================

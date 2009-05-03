@@ -62,19 +62,21 @@
 
 -ifdef(R13B).
 -type ref() :: reference().
+-else.
+-type(dict() :: any()).
 -endif.
 
 -record(state, {
 	salt :: any(),
 	ref :: ref() | 'undefined',
 	agent_fsm :: pid() | 'undefined',
-	ack_queue = dict:new(), % key = counter, value is {when_qed, tries, pollitem} so that a message can be resent
+	ack_queue = dict:new() :: dict(), % key = counter, value is {when_qed, tries, pollitem} so that a message can be resent
 	poll_queue = [] :: [{struct, [{binary(), any()}]}],
 		% list of json structs to be sent to the client on poll.
 		% struct MUST contain a counter, used to handle acks/errs
 	missed_polls = 0 :: non_neg_integer(),
 	counter = 1 :: non_neg_integer(),
-	ack_timer,
+	ack_timer :: {'ok', {'interval', ref()}} | 'undefined',
 	poll_state :: atom(),
 	poll_statedata :: any(),
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin'

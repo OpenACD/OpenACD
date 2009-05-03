@@ -89,11 +89,15 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
+-ifndef(R13B).
+-type(dict() :: any()).
+-endif.
+
 -record(state, {
 	nodename :: atom(),
 	freeswitch_c_pid :: pid(),
-	call_dict = dict:new(),
-	domain,
+	call_dict = dict:new() :: dict(),
+	domain :: string(),
 	voicegateway = "" :: string()
 	}).
 	

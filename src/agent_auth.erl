@@ -85,12 +85,12 @@
 	 terminate/2, code_change/3]).
 
 -record(state, {
-	integration, % set to 'false' if there's no integration, otherwise default ('undefined')
-	mod,
-	start_func,
-	start_args,
-	check_func,
-	check_args
+	integration = 'true' :: bool(), % set to 'false' if there's no integration, otherwise default ('undefined')
+	mod :: atom(),
+	start_func :: atom(),
+	start_args :: [any()] | 'undefined',
+	check_func :: atom(),
+	check_args :: [any()] | 'undefined'
 }).
 
 %%====================================================================

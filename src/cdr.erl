@@ -17,7 +17,8 @@
 	hangup/2,
 	wrapup/2,
 	endwrapup/2,
-	transfer/2
+	transfer/2,
+	status/1
 ]).
 
 -export([
@@ -30,22 +31,22 @@
 ]).
 
 
-%-type(transactions() :: [transaction()]).
-%	-type(transaction() :: {transaction_type(), callid(), time(), datalist()}).
-%		-type(transaction_type() :: 'inqueue' | 'ringing' | 'oncall' | 'wrapup').
-%		-type(callid() :: string()),
-%		-type(time() :: integer()).
-%		-type(datalist() :: [{atom(), string()}]).
-%
+-type(transaction_type() :: 'inqueue' | 'ringing' | 'oncall' | 'wrapup').
+-type(callid() :: string()).
+-type(time() :: integer()).
+-type(datalist() :: [{atom(), string()}]).
+-type(transaction() :: {transaction_type(), callid(), time(), datalist()}).
+-type(transactions() :: [transaction()]).
+
 %-type(proto_transactions() :: [proto_transaction()]).
 %	-type(proto_transaction() :: {transaction_type(), callid(), time(), datalist()}).
 
 -record(state, {
-	id,
-	transactions = [],
-	unterminated = [],
-	hangup = false,
-	wrapup = false
+	id :: callid(),
+	transactions = [] :: transactions(),
+	unterminated = [] :: transactions(),
+	hangup = false :: bool(),
+	wrapup = false :: bool()
 }).
 
 %event -> terminated by
@@ -505,4 +506,3 @@ summarize_test_() ->
 
 -endif.
 
-	

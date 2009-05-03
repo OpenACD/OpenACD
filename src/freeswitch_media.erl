@@ -72,15 +72,15 @@
 	 terminate/2, code_change/3]).
 
 -record(state, {
-	callrec = undefined,
-	cook,
-	queue,
-	queue_pid,
-	cnode,
-	domain,
-	agent,
-	agent_pid,
-	ringchannel
+	callrec = undefined :: #call{} | 'undefined',
+	cook :: pid() | 'undefined',
+	queue :: string() | 'undefined',
+	queue_pid :: pid() | 'undefined',
+	cnode :: atom(),
+	domain :: string(),
+	agent :: string() | 'undefined',
+	agent_pid :: pid() | 'undefined',
+	ringchannel :: pid() | 'undefined'
 	}).
 
 %%====================================================================
@@ -401,7 +401,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 							end,
 							agent:set_state(Apid, idle);
 						{ok, oncall} ->
-							Agent = agent:dump_state(Apid),
+							%Agent = agent:dump_state(Apid),
 							agent:set_state(Apid, wrapup, State#state.callrec);
 						{ok, released} ->
 							ok

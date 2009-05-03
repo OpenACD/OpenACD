@@ -53,7 +53,7 @@
 
 -record(state, {
 	call :: #queued_call{} | 'undefined',
-	tref, % timer reference
+	tref :: any(), % timer reference
 	qpid :: pid(),
 	agents = [] :: [pid()]}).
 

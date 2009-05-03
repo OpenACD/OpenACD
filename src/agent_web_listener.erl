@@ -59,8 +59,8 @@
 -type(web_connection() :: {string(), salt(), connection_handler()}).
 
 -record(state, {
-	connections, % ets table of the connections
-	mochipid % pid of the mochiweb process.
+	connections:: any(), % ets table of the connections
+	mochipid :: pid() % pid of the mochiweb process.
 }).
 
 %%====================================================================
@@ -95,7 +95,7 @@ init([Port]) ->
 	crypto:start(),
 	Table = ets:new(web_connections, [set, public, named_table]),
 	{ok, Mochi} = mochiweb_http:start([{loop, fun(Req) -> loop(Req, Table) end}, {name, ?MOCHI_NAME}, {port, Port}]),
-    {ok, #state{connections=Table, mochipid = Mochi}}.
+	{ok, #state{connections=Table, mochipid = Mochi}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |

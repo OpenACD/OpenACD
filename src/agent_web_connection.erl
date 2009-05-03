@@ -61,7 +61,7 @@
 	 terminate/2, code_change/3]).
 
 -ifdef(R13B).
--type ref() :: reference().
+-type(ref() :: reference()).
 -else.
 -type(dict() :: any()).
 -endif.

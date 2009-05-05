@@ -25,7 +25,6 @@ INCLUDE = "include"
 vertest = `erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]).' -s erlang halt`.chomp
 if vertest =~ /(R\d\d[AB])/
 	OTPVERSION = $1
-	puts OTPVERSION
 else
 	STDERR.puts "unable to determine OTP version! (I got #{vertest})"
 	exit -1

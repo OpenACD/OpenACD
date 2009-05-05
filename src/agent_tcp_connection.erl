@@ -31,8 +31,6 @@
 
 -module(agent_tcp_connection).
 
-%% depends on util, agent
-
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.

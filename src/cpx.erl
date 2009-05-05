@@ -47,7 +47,6 @@ start(_Type, StartArgs) ->
 	?DEBUG("Start args ~p", [StartArgs]),
 	?DEBUG("All env: ~p", [application:get_all_env(cpx)]),
 	crypto:start(),
-	cpxlog:start(),
 	%Nodes = lists:append([nodes(), [node()]]),
 	%mnesia:create_schema(Nodes),
 	%mnesia:start(),

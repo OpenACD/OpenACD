@@ -284,7 +284,7 @@ oncall({released, undefined}, _From, State) ->
 	{reply, ok, oncall, State#agent{queuedrelease=undefined}};
 oncall({released, Reason}, _From, State) -> 
 	{reply, queued, oncall, State#agent{queuedrelease=Reason}};
-oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_path =:= 'inband' ->
+oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_path =:= inband ->
 	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 	cdr:hangup(Call, agent),
 	cdr:wrapup(Call, State#agent.login),

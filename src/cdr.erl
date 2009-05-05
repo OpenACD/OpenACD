@@ -50,8 +50,8 @@
 	
 -record(cdr_rec, {
 	id :: callid(),
-	summary,
-	transactions
+	summary = inprogress,
+	transactions = inprogress
 }).
 
 -record(cdr_transactions, {
@@ -214,6 +214,8 @@ status(Call) ->
 %% @private
 init([Call]) ->
 	?NOTICE("Starting new CDR handler for ~s", [Call#call.id]),
+	Cdrrec = #cdr_rec{id = Call#call.id},
+	mnesia:transaction(fun() -> mnesia:write(Cdrrec) end),
 	{ok, #state{id=Call#call.id}}.
 
 %% @private
@@ -258,6 +260,7 @@ handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} =
 		{true, []} ->
 			Summary = summarize(Newtrans),
 			F = fun() ->
+				mnesia:delete({cdr_rec, CallID}),
 				mnesia:write(#cdr_rec{
 					id = CallID,
 					summary = Summary,
@@ -582,32 +585,45 @@ mnesia_test_() ->
 		mnesia:create_schema([node()]),
 		mnesia:start(),
 		build_tables(),
+		#call{id = "testcall", source = self()}
+	end,
+	fun(_Whatever) ->
 		ok
 	end,
-	fun(ok) ->
-		ok
+	[fun(Call) ->
+		{"Summary gets written to db",
+		fun() ->
+			StateTrans = lists:reverse([
+				{inqueue, 5, 10, 5, "testqueue"},
+				{ringing, 10, 13, 3, "agent"},
+				{oncall, 13, 20, 7, "agent"},
+				{hangup, 20, 20, 0, agent}
+			]),
+			ExpectedTransactions = [ {wrapup, 20, 24, 4, "agent"} | StateTrans ],
+			Unterminated = [{wrapup, 20, "agent"}],
+			State = #state{unterminated = Unterminated, id="testcall", transactions = StateTrans, hangup=true},
+			remove_handler = handle_event({endwrapup, Call, 24, "agent"}, State),
+			F = fun() ->
+				mnesia:read(cdr_rec, "testcall")
+			end,
+			{atomic, [Cdrrec]} = mnesia:transaction(F),
+			?assertEqual({5, 3, 7, 4}, proplists:get_value(total, Cdrrec#cdr_rec.summary)),
+			?assertEqual({0, 3, 7, 4}, proplists:get_value("agent", Cdrrec#cdr_rec.summary)),
+			?assertEqual(ExpectedTransactions, Cdrrec#cdr_rec.transactions)
+		end}
 	end,
-	[{"Summary gets written to db",
-	fun() ->
-		StateTrans = lists:reverse([
-			{inqueue, 5, 10, 5, "testqueue"},
-			{ringing, 10, 13, 3, "agent"},
-			{oncall, 13, 20, 7, "agent"},
-			{hangup, 20, 20, 0, agent}
-		]),
-		ExpectedTransactions = [ {wrapup, 20, 24, 4, "agent"} | StateTrans ],
-		Call = #call{id = "testcall", source=self()},
-		Unterminated = [{wrapup, 20, "agent"}],
-		State = #state{unterminated = Unterminated, id="testcall", transactions = StateTrans, hangup=true},
-		remove_handler = handle_event({endwrapup, Call, 24, "agent"}, State),
-		F = fun() ->
-			mnesia:read(cdr_rec, "testcall")
-		end,
-		{atomic, [Cdrrec]} = mnesia:transaction(F),
-		?assertEqual({5, 3, 7, 4}, proplists:get_value(total, Cdrrec#cdr_rec.summary)),
-		?assertEqual({0, 3, 7, 4}, proplists:get_value("agent", Cdrrec#cdr_rec.summary)),
-		?assertEqual(ExpectedTransactions, Cdrrec#cdr_rec.transactions)
-	end}]}.
+	fun(Call) ->
+		{"init creates an 'inprogress' summary",
+		fun() ->
+			init([Call]),
+			F = fun() ->
+				mnesia:read(cdr_rec, "testcall")
+			end,
+			{atomic, [Cdrrec]} = mnesia:transaction(F),
+			?assertEqual(inprogress, Cdrrec#cdr_rec.summary),
+			?assertEqual(inprogress, Cdrrec#cdr_rec.transactions)
+		end}
+	end]}.
 	
 -endif.
 

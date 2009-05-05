@@ -46,7 +46,12 @@
 	transactions = [] :: transactions(),
 	unterminated = [] :: transactions(),
 	hangup = false :: bool(),
-	wrapup = false :: bool()
+	wrapup = false :: bool()}).
+	
+-record(cdr_rec, {
+	id :: callid(),
+	summary,
+	transactions
 }).
 
 %event -> terminated by
@@ -65,6 +70,9 @@
 %event -> branched by
 %oncall -> transfer
 
+%% @doc Using `fun() Fun' as the search function, extract the first item that 
+%% causes `Fun' to return false from `[any()] List'.  Returns `{Found, Remaininglist}'.
+-spec(check_split/2 :: (Fun :: fun(), List :: [tuple()]) -> {tuple(), [tuple()]}).
 check_split(Fun, List) ->
 	?DEBUG("checking split with list ~p", [List]),
 	case lists:splitwith(Fun, List) of
@@ -76,6 +84,9 @@ check_split(Fun, List) ->
 			{Tuple, lists:append(Head, Tail)}
 	end.
 
+%% @doc Find the most recent transaction that can be used as an opening pair
+%% for the passed event.
+-spec(find_initiator/2 :: ({Event :: atom(), Time :: integer(), Datalist :: any()}, Unterminated :: [tuple()]) -> {tuple(), [tuple()]}).
 find_initiator({ringing, _Time, _Datalist}, Unterminated) ->
 	F = fun(I) ->
 		case I of
@@ -120,9 +131,14 @@ find_initiator({endwrapup, _Time, Agent}, Unterminated) ->
 	check_split(F, Unterminated).
 
 %% API
+
+%% @doc starts the cdr event server.
+-spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	gen_event:start({local, cdr}).
 
+%% @doc Create a handler specifically for `#call{} Call' with default options.
+-spec(cdrinit/1 :: (Call :: #call{}) -> 'ok' | 'error').
 cdrinit(Call) ->
 	try gen_event:add_handler(cdr, {?MODULE, Call#call.id}, [Call]) of
 		ok ->
@@ -136,35 +152,58 @@ cdrinit(Call) ->
 			error
 	end.
 
+%% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
+-spec(inqueue/2 :: (Call :: #call{}, Queue :: string()) -> 'ok').
 inqueue(Call, Queue) ->
 	catch gen_event:notify(cdr, {inqueue, Call, nowsec(now()), Queue}).
 
+%% @doc Notify cdr handler that `#call{} Call' is now ringing to `string() Agent'.
+-spec(ringing/2 :: (Call :: #call{}, Agent :: string()) -> 'ok').
 ringing(Call, Agent) ->
 	catch gen_event:notify(cdr, {ringing, Call, nowsec(now()), Agent}).
-	
+
+%% @doc Notify cdr handler that `#call{} Call' is currently oncall with `string() Agent'.
+-spec(oncall/2 :: (Call :: #call{}, Agent :: string()) -> 'ok').
 oncall(Call, Agent) ->
 	catch gen_event:notify(cdr, {oncall, Call, nowsec(now()), Agent}).
 
+%% @doc Notify cdr handler that `#call{} Call' has been hungup by `string() | agent By'.
+-spec(hangup/2 :: (Call :: #call{}, By :: string() | 'agent') -> 'ok').
 hangup(Call, By) ->
 	catch gen_event:notify(cdr, {hangup, Call, nowsec(now()), By}).
 
+%% @doc Notify cdr handler that `#call{} Call' has been put in wrapup by `string() Agent'.
+-spec(wrapup/2 :: (Call :: #call{}, Agent :: string()) -> 'ok').
 wrapup(Call, Agent) ->
 	catch gen_event:notify(cdr, {wrapup, Call, nowsec(now()), Agent}).
 
+%% @doc Notify cdr handler that `#call{} Call' has had a wrapup ended by `string() Agent'.
+-spec(endwrapup/2 :: (Call :: #call{}, Agent :: string()) -> 'ok').
 endwrapup(Call, Agent) ->
 	catch gen_event:notify(cdr, {endwrapup, Call, nowsec(now()), Agent}).
 
+%% @doc Notify cdr handler that `#call{} Call' is to be transfered to `string() Transferto'.
+-spec(transfer/2 :: (Call :: #call{}, Transferto :: string()) -> 'ok').
 transfer(Call, Transferto) ->
 	catch gen_event:notify(cdr, {transfer, Call, nowsec(now()), Transferto}).
 
+%% @doc Return the completed and partial transactions for `#call{} Call'.
+-spec(status/1 :: (Call :: #call{}) -> {[tuple()], [tuple()]}).
 status(Call) ->
 	gen_event:call(cdr, {?MODULE, Call#call.id}, status).
 
 %% Gen event callbacks
+
+%% @private
 init([Call]) ->
 	?NOTICE("Starting new CDR handler for ~s", [Call#call.id]),
+	util:build_table(cdr_rec, [
+		{attributes, record_info(fields, cdr_rec)},
+		{disc_copies, [node()]}
+	]),
 	{ok, #state{id=Call#call.id}}.
 
+%% @private
 handle_event({inqueue, #call{id = CallID}, Time, Queuename}, #state{id = CallID} = State) ->
 	?NOTICE("~s has joined queue ~s", [CallID, Queuename]),
 	Unterminated = [{inqueue, Time, Queuename} | State#state.unterminated],
@@ -204,7 +243,15 @@ handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} =
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 	case {State#state.hangup, Midunterminated} of
 		{true, []} ->
-			summarize(Newtrans),
+			Summary = summarize(Newtrans),
+			F = fun() ->
+				mnesia:write(#cdr_rec{
+					id = CallID,
+					summary = Summary,
+					transactions = Newtrans
+				})
+			end,
+			mnesia:transaction(F),
 			?DEBUG("Summarize complete, now to remove the handler...", []),
 			remove_handler;
 		_Else ->
@@ -217,18 +264,22 @@ handle_event({transfer, #call{id = CallID}, Time, Transferto}, #state{id = CallI
 handle_event(_Event, State) ->
 	{ok, State}.
 
+%% @private
 handle_call(status, State) ->
 	{ok, {State#state.transactions, State#state.unterminated}, State};
 handle_call(_Request, State) ->
 	{ok, ok, State}.
 
+%% @private
 handle_info(_Info, State) ->
 	{ok, State}.
 
+%% @private
 terminate(Args, _State) ->
 	?NOTICE("terminating with args ~p", [Args]),
 	ok.
 
+%% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
@@ -236,6 +287,9 @@ code_change(_OldVsn, State, _Extra) ->
 %% so there does need to be some form of pair checking.
 % pair checking is done as the transactions are built up.
 % All this needs to do is sum up the data.
+%% @doc Given a list of `[tuple()] Transactions' summarize how long the call was
+%% in each state, and a break down of each agent involved.
+-spec(summarize/1 :: (Transactions :: [tuple()]) -> [tuple()]).
 summarize(Transactions) ->
 	?DEBUG("Summarizing ~p", [Transactions]),
 	Acc = dict:from_list([
@@ -278,8 +332,11 @@ summarize(Transactions) ->
 				Dict
 		end
 	end,
-	lists:foldl(Count, Acc, Transactions).
+	SummaryDict = lists:foldl(Count, Acc, Transactions),
+	dict:to_list(SummaryDict).
 
+%% @private Get a standarized unix epoch integer from `now()'.
+-spec(nowsec/1 :: ({non_neg_integer(), non_neg_integer(), non_neg_integer()}) -> non_neg_integer()).
 nowsec({Mega, Sec, _Micro}) ->
 	(Mega * 1000000) + Sec.
 

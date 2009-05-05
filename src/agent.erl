@@ -82,7 +82,13 @@ init([State = #agent{}]) ->
 			Else
 	end,
 	State2 = State#agent{skills = util:merge_skill_lists(expand_magic_skills(State, Skills), expand_magic_skills(State, State#agent.skills))},
-	{ok, released, State2}.
+	case State#agent.state of
+		idle ->
+			gen_server:cast(dispatch_manager, {now_avail, self()});
+		_Other ->
+			gen_server:cast(dispatch_manager, {end_avail, self()})
+	end,
+	{ok, State#agent.state, State2}.
 
 % actual functions we'll call
 %% @private
@@ -461,6 +467,21 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
 
 -ifdef(EUNIT).
+
+start_arbitrary_test() ->
+	catch agent_auth:stop(),
+	mnesia:stop(),
+	mnesia:delete_schema([node()]),
+	mnesia:create_schema([node()]),
+	mnesia:start(),
+	agent_auth:start(),
+	{ok, Dummy} = dummy_media:start("dumpit"),
+	register(dispatch_manager, Dummy),
+	{ok, Pid} = start(#agent{login = "testagent", state = idle}),
+	?assertEqual({ok, idle}, query_state(Pid)),
+	agent:stop(Pid),
+	exit(Dummy, kill).
+
 state_change_test() ->
 	catch agent_auth:stop(),
 	mnesia:stop(),
@@ -771,5 +792,6 @@ generate_state([]) ->
 
 cross_check_state_test_() ->
 	generate_state().
+
 
 -endif.

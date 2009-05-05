@@ -37,6 +37,7 @@
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
+-include_lib("stdlib/include/qlc.hrl").
 
 -include("log.hrl").
 -include("queue.hrl").
@@ -58,7 +59,9 @@
 	set_skills/2,
 	set_brand/2,
 	q/0,
-	q/1
+	q/1,
+	q_x/1,
+	q_x/2
 	]).
 
 %% gen_server callbacks
@@ -124,6 +127,23 @@ q(Queuename) ->
 	{ok, Dummypid} = start(erlang:ref_to_list(make_ref())),
 	Qpid = queue_manager:get_queue(Queuename),
 	{call_queue:add(Qpid, Dummypid), Dummypid}.
+
+q_x(N) ->
+	F = fun() ->
+		QH = qlc:q([Queue#call_queue.name || Queue <- mnesia:table(call_queue)]),
+		qlc:e(QH)
+	end,
+	{atomic, Qs} = mnesia:transaction(F),
+	?INFO("~p", [Qs]),
+	q_x(N, Qs).
+
+q_x(N, Queues) ->
+	F = fun(_I) ->
+		Index = crypto:rand_uniform(1, length(Queues) + 1),
+		Q = lists:nth(Index, Queues),
+		q(Q)
+	end,
+	lists:foreach(F, lists:seq(1, N)).
 
 %%====================================================================
 %% gen_server callbacks

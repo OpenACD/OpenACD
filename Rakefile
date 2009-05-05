@@ -87,7 +87,7 @@ rule ".rel" => ["%{ebin,src}X.rel.src"] do |t|
 		else
 			version = `erl -noshell -eval 'application:load(#{app}), io:format("~s~n", [proplists:get_value(#{app}, lists:map(fun({Name, Desc, Vsn}) -> {Name, Vsn} end, application:loaded_applications()))]).' -s erlang halt`.chomp
 		end
-		if md = /(\d+\.\d+(\.\d+|))/.match(version)
+		if md = /(\d+\.\d+(\.\d+(\.\d+|)|))/.match(version)
 			contents.sub!(app, "{#{app}, \"#{md[1]}\"}")
 		else
 			STDERR.puts "Cannot find application #{app} mentioned in release file!"

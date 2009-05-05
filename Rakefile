@@ -38,6 +38,7 @@ OBJ = SRC.pathmap("%{src,ebin}X.beam").reject{|x| x.include? 'test_coverage'}
 CONTRIB = FileList['contrib/*']
 DEBUGOBJ = SRC.pathmap("%{src,debug_ebin}X.beam")
 COVERAGE = SRC.pathmap("%{src,coverage}X.txt").reject{|x| x.include? 'test_coverage'}
+RELEASE = FileList['src/*.rel.src'].pathmap("%{src,ebin}X")
 
 # check to see if gmake is available, if not fall back on the system make
 if res = `which gmake` and $?.exitstatus.zero? and not res =~ /no gmake in/
@@ -52,6 +53,7 @@ CLEAN.include("ebin/*.beam")
 CLEAN.include("ebin/*.app")
 CLEAN.include("ebin/*.script")
 CLEAN.include("ebin/*.boot")
+CLEAN.include("ebin/*.rel")
 CLEAN.include("debug_ebin/*.beam")
 CLEAN.include("debug_ebin/*.app")
 CLEAN.include("debug_ebin/*.script")
@@ -74,6 +76,28 @@ end
 
 rule ".beam" => ["%{debug_ebin,src}X.erl"] + HEADERS do |t|
 	sh "erlc +debug_info -D EUNIT -pa debug_ebin -W #{ERLC_FLAGS} -o debug_ebin #{t.source} "
+end
+
+rule ".rel" => ["%{ebin,src}X.rel.src"] do |t|
+	contents = File.read(t.source)
+	#p contents
+	while contents =~ /^[\s\t]*([-a-zA-Z0-9_]+),[\s\t]*$/
+		app = $1
+		if app == "erts"
+			version = `erl -noshell -eval 'io:format("~s~n", [erlang:system_info(version)]).' -s erlang halt`.chomp
+		else
+			version = `erl -noshell -eval 'application:load(#{app}), io:format("~s~n", [proplists:get_value(#{app}, lists:map(fun({Name, Desc, Vsn}) -> {Name, Vsn} end, application:loaded_applications()))]).' -s erlang halt`.chomp
+		end
+		if md = /(\d+\.\d+(\.\d+|))/.match(version)
+			contents.sub!(app, "{#{app}, \"#{md[1]}\"}")
+		else
+			STDERR.puts "Cannot find application #{app} mentioned in release file!"
+			exit 1
+		end
+	end
+	File.open(t.name, 'w') do |f|
+		f.puts contents
+	end
 end
 
 rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam'] do |t|
@@ -112,8 +136,8 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 	end
 end
 
-task :compile => [:contrib, 'ebin'] + HEADERS + OBJ do
-	sh "erl -noshell -eval 'systools:make_script(\"src/cpx-rel-0.1\", [{outdir, \"ebin\"}]).' -s erlang halt -pa ebin"
+task :compile => [:contrib, 'ebin'] + HEADERS + OBJ + RELEASE do
+	sh "erl -noshell -eval 'systools:make_script(\"ebin/cpx-rel-0.1\", [{outdir, \"ebin\"}]).' -s erlang halt -pa ebin"
 end
 
 task :contrib do

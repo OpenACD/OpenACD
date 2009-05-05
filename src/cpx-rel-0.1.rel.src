@@ -2,12 +2,12 @@
 % version numbers taken from man pages.
 {release,
 	{"cpx_1", "0.1"},
-	{erts, "5.6.5"},
+	erts,
 	[
-		{kernel, "2.12.5"},
-		{stdlib, "1.15.5"},
-		{sasl, "2.1.5.4"},
-		{mnesia, "4.4.7"},
+		kernel,
+		stdlib,
+		sasl,
+		mnesia,
 		{cpx, "0.1"}
 	]
 }.

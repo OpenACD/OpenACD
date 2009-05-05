@@ -83,10 +83,12 @@ start_link(Nodes) ->
 	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
 	Cpxlogspec = {cpxlog, {cpxlog, start_link, []}, permanent, 2000, worker, [?MODULE]},
+	Cdrspec = {cdr, {cdr, start, []}, permanent, 2000, worker, [?MODULE]},
 	
 	supervisor:start_child(routing_sup, DispatchSpec),
 	supervisor:start_child(routing_sup, QueueManagerSpec),
 	supervisor:start_child(routing_sup, Cpxlogspec),
+	supervisor:start_child(routing_sup, Cdrspec),
 	
 	Agentconnspec = {agent_connection_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	AgentManagerSpec = {agent_manager, {agent_manager, start_link, [Nodes]}, permanent, 2000, worker, [?MODULE]},

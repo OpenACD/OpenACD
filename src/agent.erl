@@ -281,7 +281,7 @@ oncall({released, Reason}, _From, State) ->
 oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_path =:= 'inband' ->
 	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 	cdr:hangup(Call, agent),
-	cdr:wrapup(Call, agent),
+	cdr:wrapup(Call, State#agent.login),
 	{reply, ok, wrapup, State#agent{state=wrapup, lastchangetimestamp=now()}};
 oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
 	case Currentcall#call.id of

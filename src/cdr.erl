@@ -574,22 +574,40 @@ summarize_test_() ->
 		?assertEqual({0, 0, 5, 5}, proplists:get_value("agent2", Dict))
 	end}].
 
-%mnesia_test_() ->
-%	{foreach,
-%	fun() ->
-%		mnesia:stop(),
-%		mnesia:delete_schema([node()]),
-%		mnesia:create_schema([node()]),
-%		mnesia:start(),
-%		build_tables(),
-%		ok
-%	end,
-%	fun(ok) ->
-%		ok
-%	end,
-%	[{"Summary gets written to db",
-%	fun() ->
-%		
-%	end}]
+mnesia_test_() ->
+	{foreach,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		build_tables(),
+		ok
+	end,
+	fun(ok) ->
+		ok
+	end,
+	[{"Summary gets written to db",
+	fun() ->
+		StateTrans = lists:reverse([
+			{inqueue, 5, 10, 5, "testqueue"},
+			{ringing, 10, 13, 3, "agent"},
+			{oncall, 13, 20, 7, "agent"},
+			{hangup, 20, 20, 0, agent}
+		]),
+		ExpectedTransactions = [ {wrapup, 20, 24, 4, "agent"} | StateTrans ],
+		Call = #call{id = "testcall", source=self()},
+		Unterminated = [{wrapup, 20, "agent"}],
+		State = #state{unterminated = Unterminated, id="testcall", transactions = StateTrans, hangup=true},
+		remove_handler = handle_event({endwrapup, Call, 24, "agent"}, State),
+		F = fun() ->
+			mnesia:read(cdr_rec, "testcall")
+		end,
+		{atomic, [Cdrrec]} = mnesia:transaction(F),
+		?assertEqual({5, 3, 7, 4}, proplists:get_value(total, Cdrrec#cdr_rec.summary)),
+		?assertEqual({0, 3, 7, 4}, proplists:get_value("agent", Cdrrec#cdr_rec.summary)),
+		?assertEqual(ExpectedTransactions, Cdrrec#cdr_rec.transactions)
+	end}]}.
+	
 -endif.
 

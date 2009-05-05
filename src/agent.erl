@@ -475,12 +475,9 @@ start_arbitrary_test() ->
 	mnesia:create_schema([node()]),
 	mnesia:start(),
 	agent_auth:start(),
-	{ok, Dummy} = dummy_media:start("dumpit"),
-	register(dispatch_manager, Dummy),
 	{ok, Pid} = start(#agent{login = "testagent", state = idle}),
 	?assertEqual({ok, idle}, query_state(Pid)),
-	agent:stop(Pid),
-	exit(Dummy, kill).
+	agent:stop(Pid).		
 
 state_change_test() ->
 	catch agent_auth:stop(),

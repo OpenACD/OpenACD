@@ -50,11 +50,11 @@
 	
 -record(cdr_rec, {
 	id :: callid(),
-	summary,
-	transactions
+	summary = inprogress,
+	transactions = inprogress
 }).
 
--record(cdr_transactions, {
+-record(cdr_raw, {
 	id :: callid(),
 	transaction
 }).
@@ -140,9 +140,10 @@ build_tables() ->
 		{attributes, record_info(fields, cdr_rec)},
 		{disc_copies, [node() | nodes()]}
 	]),
-	util:build_table(cdr_rec, [
-		{attributes, record_info(fields, cdr_transactions)},
-		{disc_copies, [node() | nodes()]}
+	util:build_table(cdr_raw, [
+		{attributes, record_info(fields, cdr_raw)},
+		{disc_copies, [node() | nodes()]},
+		{type, bag}
 	]),
 	ok.
 	
@@ -214,24 +215,29 @@ status(Call) ->
 %% @private
 init([Call]) ->
 	?NOTICE("Starting new CDR handler for ~s", [Call#call.id]),
+	Cdrrec = #cdr_rec{id = Call#call.id},
+	mnesia:transaction(fun() -> mnesia:write(Cdrrec) end),
 	{ok, #state{id=Call#call.id}}.
 
 %% @private
 handle_event({inqueue, #call{id = CallID}, Time, Queuename}, #state{id = CallID} = State) ->
 	?NOTICE("~s has joined queue ~s", [CallID, Queuename]),
 	Unterminated = [{inqueue, Time, Queuename} | State#state.unterminated],
+	push_raw(CallID, {inqueue, Time, Queuename}),
 	{ok, State#state{unterminated = Unterminated}};
 handle_event({ringing, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s is ringing to ~s", [CallID, Agent]),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({ringing, Time, Agent}, State#state.unterminated),
 	Newuntermed = [{ringing, Time, Agent} | Midunterminated],
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
+	push_raw(CallID, {ringing, Time, Agent}),
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event({oncall, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s is on call with ~s.", [Agent, CallID]),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({oncall, Time, Agent}, State#state.unterminated),
 	Newuntermed = [{oncall, Time, Agent} | Midunterminated],
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
+	push_raw(CallID, {oncall, Time, Agent}),
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event({hangup, _Callrec, _Time, _By}, #state{hangup = true} = State) ->
 	% already got a hangup, so we don't care.
@@ -239,25 +245,30 @@ handle_event({hangup, _Callrec, _Time, _By}, #state{hangup = true} = State) ->
 handle_event({hangup, #call{id = CallID}, Time, agent}, #state{id = CallID} = State) ->
 	?NOTICE("hangup for ~s", [CallID]),
 	Newtrans = [{hangup, Time, Time, 0, agent} | State#state.transactions],
+	push_raw(CallID, {hangup, Time, agent}),
 	{ok, State#state{transactions = Newtrans, hangup = true}};
 handle_event({hangup, #call{id = CallID}, Time, By}, #state{id = CallID} = State) ->
 	?NOTICE("Hangup for ~s", [CallID]),
 	Newtrans = [{hangup, Time, Time, 0, By} | State#state.transactions],
+	push_raw(CallID, {hangup, Time, By}),
 	{ok, State#state{transactions = Newtrans, hangup = true}};
 handle_event({wrapup, #call{id = CallID}, Time,  Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s wrapup for ~s", [Agent, CallID]),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({wrapup, Time, Agent}, State#state.unterminated),
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 	Newuntermed = [{wrapup, Time, Agent} | Midunterminated],
+	push_raw(CallID, {wrapup, Time, Agent}),
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s ended wrapup for ~s", [Agent, CallID]),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({endwrapup, Time, Agent}, State#state.unterminated),
+	push_raw(CallID, {endwrapup, Time, Agent}),
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 	case {State#state.hangup, Midunterminated} of
 		{true, []} ->
 			Summary = summarize(Newtrans),
 			F = fun() ->
+				mnesia:delete({cdr_rec, CallID}),
 				mnesia:write(#cdr_rec{
 					id = CallID,
 					summary = Summary,
@@ -272,6 +283,7 @@ handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} =
 	end;
 handle_event({transfer, #call{id = CallID}, Time, Transferto}, #state{id = CallID} = State) ->
 	?NOTICE("~s has gotten a transfer of ~s", [Transferto, CallID]),
+	push_raw(CallID, {transfer, Time, Transferto}),
 	Newtrans = [{transfer, Time, Time, 0, Transferto} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans}};
 handle_event(_Event, State) ->
@@ -353,6 +365,9 @@ summarize(Transactions) ->
 nowsec({Mega, Sec, _Micro}) ->
 	(Mega * 1000000) + Sec.
 
+push_raw(Callid, Trans) ->
+	mnesia:transaction(fun() -> mnesia:write(#cdr_raw{id = Callid, transaction = Trans}) end).
+
 -ifdef(EUNIT).
 
 check_split_test_() ->
@@ -428,107 +443,159 @@ find_initiator_test_() ->
 	end}].
 
 handle_event_test_() ->
-	[{"handle_event inqueue",
+	{foreach,
 	fun() ->
-		Call = #call{id = "testcall", source=self()},
-		State = #state{id = "testcall"},
-		{ok, Newstate} = handle_event({inqueue, Call, 10, "testqueue"}, State),
-		?assertEqual([], Newstate#state.transactions),
-		?assertEqual([{inqueue, 10, "testqueue"}], Newstate#state.unterminated)
-	end},
-	{"ringing",
-	fun() ->
-		Call = #call{id = "testcall", source=self()},
-		Unterminated = [{inqueue, 10, "testqueue"}],
-		State = #state{unterminated = Unterminated, id = "testcall"},
-		{ok, Newstate} = handle_event({ringing, Call, 15, "agent"}, State),
-		?assertEqual([{inqueue, 10, 15, 5, "testqueue"}], Newstate#state.transactions),
-		?assertEqual([{ringing, 15, "agent"}], Newstate#state.unterminated)
-	end},
-	{"oncall",
-	fun() ->
-		Call = #call{id = "testcall", source=self()},
-		Unterminated = [{ringing, 10, "agent"}],
-		State = #state{unterminated = Unterminated, id = "testcall"},
-		{ok, Newstate} = handle_event({oncall, Call, 15, "agent"}, State),
-		?assertEqual([{ringing, 10, 15, 5, "agent"}], Newstate#state.transactions),
-		?assertEqual([{oncall, 15, "agent"}], Newstate#state.unterminated)
-	end},
-	{"wrapup",
-	fun() ->
-		Call = #call{id = "testcall", source=self()},
-		Unterminated = [{oncall, 10, "agent"}],
-		State = #state{unterminated = Unterminated, id="testcall"},
-		{ok, Newstate} = handle_event({wrapup, Call, 15, "agent"}, State),
-		?assertEqual([{oncall, 10, 15, 5, "agent"}], Newstate#state.transactions),
-		?assertEqual([{wrapup, 15, "agent"}], Newstate#state.unterminated)
-	end},
-	{"endwrapup",
-	fun() ->
-		Call = #call{id = "testcall", source=self()},
-		Unterminated = [{wrapup, 10, "agent"}],
-		State = #state{unterminated = Unterminated, id="testcall"},
-		{ok, Newstate} = handle_event({endwrapup, Call, 15, "agent"}, State),
-		?assertEqual([{wrapup, 10, 15, 5, "agent"}], Newstate#state.transactions),
-		?assertEqual([], Newstate#state.unterminated)
-	end},
-	{"hangup from agent",
-	fun() ->
-		Call = #call{id = "testcall", source=self()},
-		State = #state{id = "testcall"},
-		{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
-		?assertEqual([{hangup, 10, 10, 0, agent}], Newstate#state.transactions),
-		?assertEqual([], Newstate#state.unterminated),
-		?assert(Newstate#state.hangup)
-	end},
-	{"hangup from caller",
-	fun() ->
-		Call = #call{id = "testcall", source=self()},
-		State = #state{id = "testcall"},
-		{ok, Newstate} = handle_event({hangup, Call, 10, "caller"}, State),
-		?assertEqual([{hangup, 10, 10, 0, "caller"}], Newstate#state.transactions),
-		?assertEqual([], Newstate#state.unterminated),
-		?assert(Newstate#state.hangup)
-	end},
-	{"hangup from caller when a hangup is already received",
-	fun() ->
-		Call = #call{id = "testcall", source = self()},
-		Protostate = #state{id = "testcall"},
-		{ok, State} = handle_event({hangup, Call, 10, agent}, Protostate),
-		{ok, Newstate} = handle_event({hangup, Call, 10, "notagent"}, State),
-		?assert(Newstate#state.hangup),
-		?assertEqual(State#state.transactions, Newstate#state.transactions)
-	end},
-	{"hangup from agent when hangup from caller is already recieved",
-	fun() ->
-		Call = #call{id = "testcall", source = self()},
-		Protostate = #state{id = "testcall"},
-		{ok, State} = handle_event({hangup, Call, 10, "notagent"}, Protostate),
-		{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
-		?assert(Newstate#state.hangup),
-		?assertEqual(State#state.transactions, Newstate#state.transactions)
-	end},
-	{"transfer event",
-	fun() ->
-		Call = #call{id = "testcall", source = self()},
-		State = #state{id = "testcall"},
-		{ok, Newstate} = handle_event({transfer, Call, 10, "target"}, State),
-		?assertEqual([], Newstate#state.unterminated),
-		?assertEqual([{transfer, 10, 10, 0, "target"}], Newstate#state.transactions)
-	end},
-	{"endwrapup when a hangup has already been recieved",
-	fun() ->
-		Call = #call{id = "testcall", source = self()},
-		State = #state{id = "testcall", hangup = true, unterminated = [{wrapup, 10, "agent"}]},
-		?assertEqual(remove_handler, handle_event({endwrapup, Call, 15, "agent"}, State))
-	end},
-	{"handling an event for a differnt call id (ie, not handling it)",
-	fun() ->
-		Call = #call{id = "testcall", source = self()},
-		State = #state{id = "differs"},
-		{ok, Newstate} = handle_event({inqueue, Call, 15, "queue"}, State),
-		?assertEqual(State, Newstate)
-	end}].
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		build_tables(),
+		Pull = fun() ->
+			mnesia:transaction(fun() -> mnesia:read(cdr_raw, "testcall") end)
+		end,
+		{#call{id = "testcall", source = self()}, Pull}
+	end,
+	fun(_Whatever) ->
+		ok
+	end,
+	[fun({Call, Pull}) ->
+		{"handle_event inqueue",
+		fun() ->
+			State = #state{id = "testcall"},
+			{ok, Newstate} = handle_event({inqueue, Call, 10, "testqueue"}, State),
+			?assertEqual([], Newstate#state.transactions),
+			?assertEqual([{inqueue, 10, "testqueue"}], Newstate#state.unterminated),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({inqueue, 10, "testqueue"}, Trans#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"ringing",
+		fun() ->
+			Unterminated = [{inqueue, 10, "testqueue"}],
+			State = #state{unterminated = Unterminated, id = "testcall"},
+			{ok, Newstate} = handle_event({ringing, Call, 15, "agent"}, State),
+			?assertEqual([{inqueue, 10, 15, 5, "testqueue"}], Newstate#state.transactions),
+			?assertEqual([{ringing, 15, "agent"}], Newstate#state.unterminated),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({ringing, 15, "agent"}, Trans#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"oncall",
+		fun() ->
+			Unterminated = [{ringing, 10, "agent"}],
+			State = #state{unterminated = Unterminated, id = "testcall"},
+			{ok, Newstate} = handle_event({oncall, Call, 15, "agent"}, State),
+			?assertEqual([{ringing, 10, 15, 5, "agent"}], Newstate#state.transactions),
+			?assertEqual([{oncall, 15, "agent"}], Newstate#state.unterminated),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({oncall, 15, "agent"}, Trans#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"wrapup",
+		fun() ->
+			Unterminated = [{oncall, 10, "agent"}],
+			State = #state{unterminated = Unterminated, id="testcall"},
+			{ok, Newstate} = handle_event({wrapup, Call, 15, "agent"}, State),
+			?assertEqual([{oncall, 10, 15, 5, "agent"}], Newstate#state.transactions),
+			?assertEqual([{wrapup, 15, "agent"}], Newstate#state.unterminated),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({wrapup, 15, "agent"}, Trans#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"endwrapup",
+		fun() ->
+			Unterminated = [{wrapup, 10, "agent"}],
+			State = #state{unterminated = Unterminated, id="testcall"},
+			{ok, Newstate} = handle_event({endwrapup, Call, 15, "agent"}, State),
+			?assertEqual([{wrapup, 10, 15, 5, "agent"}], Newstate#state.transactions),
+			?assertEqual([], Newstate#state.unterminated),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({endwrapup, 15, "agent"}, Trans#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"hangup from agent",
+		fun() ->
+			State = #state{id = "testcall"},
+			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
+			?assertEqual([{hangup, 10, 10, 0, agent}], Newstate#state.transactions),
+			?assertEqual([], Newstate#state.unterminated),
+			?assert(Newstate#state.hangup),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({hangup, 10, agent}, Trans#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"hangup from caller",
+		fun() ->
+			State = #state{id = "testcall"},
+			{ok, Newstate} = handle_event({hangup, Call, 10, "caller"}, State),
+			?assertEqual([{hangup, 10, 10, 0, "caller"}], Newstate#state.transactions),
+			?assertEqual([], Newstate#state.unterminated),
+			?assert(Newstate#state.hangup),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({hangup, 10, "caller"}, Trans#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"hangup from caller when a hangup is already received",
+		fun() ->
+			Protostate = #state{id = "testcall"},
+			{ok, State} = handle_event({hangup, Call, 10, agent}, Protostate),
+			{ok, Newstate} = handle_event({hangup, Call, 10, "notagent"}, State),
+			?assert(Newstate#state.hangup),
+			?assertEqual(State#state.transactions, Newstate#state.transactions),
+			{atomic, [H | Tail] = Trans} = Pull(),
+			?assertEqual(1, length(Trans)),
+			?assertEqual({hangup, 10, agent}, H#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"hangup from agent when hangup from caller is already recieved",
+		fun() ->
+			Protostate = #state{id = "testcall"},
+			{ok, State} = handle_event({hangup, Call, 10, "notagent"}, Protostate),
+			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
+			?assert(Newstate#state.hangup),
+			?assertEqual(State#state.transactions, Newstate#state.transactions),
+			{atomic, [H | Tail] = Trans} = Pull(),
+			?assertEqual(1, length(Trans)),
+			?assertEqual({hangup, 10, "notagent"}, H#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"transfer event",
+		fun() ->
+			State = #state{id = "testcall"},
+			{ok, Newstate} = handle_event({transfer, Call, 10, "target"}, State),
+			?assertEqual([], Newstate#state.unterminated),
+			?assertEqual([{transfer, 10, 10, 0, "target"}], Newstate#state.transactions),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({transfer, 10, "target"}, Trans#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"endwrapup when a hangup has already been recieved",
+		fun() ->
+			State = #state{id = "testcall", hangup = true, unterminated = [{wrapup, 10, "agent"}]},
+			?assertEqual(remove_handler, handle_event({endwrapup, Call, 15, "agent"}, State)),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({endwrapup, 15, "agent"}, Trans#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"handling an event for a differnt call id (ie, not handling it)",
+		fun() ->
+			State = #state{id = "differs"},
+			{ok, Newstate} = handle_event({inqueue, Call, 15, "queue"}, State),
+			?assertEqual(State, Newstate),
+			?assertEqual({atomic, []}, Pull())
+		end}
+	end]}.
 
 summarize_test_() ->
 	[{"Simple summary, one call, one agent",
@@ -574,22 +641,53 @@ summarize_test_() ->
 		?assertEqual({0, 0, 5, 5}, proplists:get_value("agent2", Dict))
 	end}].
 
-%mnesia_test_() ->
-%	{foreach,
-%	fun() ->
-%		mnesia:stop(),
-%		mnesia:delete_schema([node()]),
-%		mnesia:create_schema([node()]),
-%		mnesia:start(),
-%		build_tables(),
-%		ok
-%	end,
-%	fun(ok) ->
-%		ok
-%	end,
-%	[{"Summary gets written to db",
-%	fun() ->
-%		
-%	end}]
+mnesia_test_() ->
+	{foreach,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		build_tables(),
+		#call{id = "testcall", source = self()}
+	end,
+	fun(_Whatever) ->
+		ok
+	end,
+	[fun(Call) ->
+		{"Summary gets written to db",
+		fun() ->
+			StateTrans = lists:reverse([
+				{inqueue, 5, 10, 5, "testqueue"},
+				{ringing, 10, 13, 3, "agent"},
+				{oncall, 13, 20, 7, "agent"},
+				{hangup, 20, 20, 0, agent}
+			]),
+			ExpectedTransactions = [ {wrapup, 20, 24, 4, "agent"} | StateTrans ],
+			Unterminated = [{wrapup, 20, "agent"}],
+			State = #state{unterminated = Unterminated, id="testcall", transactions = StateTrans, hangup=true},
+			remove_handler = handle_event({endwrapup, Call, 24, "agent"}, State),
+			F = fun() ->
+				mnesia:read(cdr_rec, "testcall")
+			end,
+			{atomic, [Cdrrec]} = mnesia:transaction(F),
+			?assertEqual({5, 3, 7, 4}, proplists:get_value(total, Cdrrec#cdr_rec.summary)),
+			?assertEqual({0, 3, 7, 4}, proplists:get_value("agent", Cdrrec#cdr_rec.summary)),
+			?assertEqual(ExpectedTransactions, Cdrrec#cdr_rec.transactions)
+		end}
+	end,
+	fun(Call) ->
+		{"init creates an 'inprogress' summary",
+		fun() ->
+			init([Call]),
+			F = fun() ->
+				mnesia:read(cdr_rec, "testcall")
+			end,
+			{atomic, [Cdrrec]} = mnesia:transaction(F),
+			?assertEqual(inprogress, Cdrrec#cdr_rec.summary),
+			?assertEqual(inprogress, Cdrrec#cdr_rec.transactions)
+		end}
+	end]}.
+	
 -endif.
 

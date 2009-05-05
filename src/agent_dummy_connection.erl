@@ -68,7 +68,7 @@ start_x(N, Args) ->
 	F = fun(_I) ->
 		start(Args)
 	end,
-	lists:map(F, lists:seq(1, N)).
+	lists:foreach(F, lists:seq(1, N)).
 
 start() ->
 	start([]).

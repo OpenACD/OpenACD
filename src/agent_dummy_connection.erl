@@ -126,13 +126,23 @@ handle_cast(_Msg, State) ->
 handle_info(answer, #state{call = Call} = State) ->
 	?INFO("time to answer", []),
 	%gen_server:call(Call#call.source, unqueue),
-	agent:set_state(State#state.agent_fsm, oncall, State#state.call),
+	case Call#call.ring_path of
+		inband ->
+			agent:set_state(State#state.agent_fsm, oncall);
+		outband ->
+			agent:set_state(State#state.agent_fsm, oncall, State#state.call)
+	end,
 	gen_server:cast(Call#call.cook, remove_from_queue),
 	{noreply, State};
-handle_info(hangup, State) ->
+handle_info(hangup, #state{call = Call} = State) ->
 	?INFO("time to hangup", []),
 	% TODO the media needs to implement a hangup message
-	agent:set_state(State#state.agent_fsm, wrapup, State#state.call),
+	case Call#call.ring_path of
+		inband ->
+			agent:set_state(State#state.agent_fsm, wrapup);
+		outband ->
+			agent:set_state(State#state.agent_fsm, wrapup, State#state.call)
+	end,
 	{noreply, State};
 handle_info(endwrapup, State) ->
 	?INFO("time to endwrapup", []),

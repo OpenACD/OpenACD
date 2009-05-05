@@ -477,19 +477,7 @@ start_arbitrary_test() ->
 	agent_auth:start(),
 	{ok, Pid} = start(#agent{login = "testagent", state = idle}),
 	?assertEqual({ok, idle}, query_state(Pid)),
-	agent:stop(Pid).
-
-%state_change_test_() ->
-%	{foreach,
-%	fun() ->
-%		mnesia:stop(),
-%		mnesia:delete_schema([node()]),
-%		mnesia:create_schema([node()]),
-%		mnesia:start(),
-%		agent_auth:start(),
-%		{ok, Dummy} = dummy_media:start("dumpit"),
-		
-
+	agent:stop(Pid).		
 
 state_change_test() ->
 	catch agent_auth:stop(),

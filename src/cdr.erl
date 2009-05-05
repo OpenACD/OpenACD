@@ -54,7 +54,7 @@
 	transactions = inprogress
 }).
 
--record(cdr_transactions, {
+-record(cdr_raw, {
 	id :: callid(),
 	transaction
 }).
@@ -140,9 +140,10 @@ build_tables() ->
 		{attributes, record_info(fields, cdr_rec)},
 		{disc_copies, [node() | nodes()]}
 	]),
-	util:build_table(cdr_rec, [
-		{attributes, record_info(fields, cdr_transactions)},
-		{disc_copies, [node() | nodes()]}
+	util:build_table(cdr_raw, [
+		{attributes, record_info(fields, cdr_raw)},
+		{disc_copies, [node() | nodes()]},
+		{type, bag}
 	]),
 	ok.
 	
@@ -222,18 +223,21 @@ init([Call]) ->
 handle_event({inqueue, #call{id = CallID}, Time, Queuename}, #state{id = CallID} = State) ->
 	?NOTICE("~s has joined queue ~s", [CallID, Queuename]),
 	Unterminated = [{inqueue, Time, Queuename} | State#state.unterminated],
+	push_raw(CallID, {inqueue, Time, Queuename}),
 	{ok, State#state{unterminated = Unterminated}};
 handle_event({ringing, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s is ringing to ~s", [CallID, Agent]),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({ringing, Time, Agent}, State#state.unterminated),
 	Newuntermed = [{ringing, Time, Agent} | Midunterminated],
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
+	push_raw(CallID, {ringing, Time, Agent}),
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event({oncall, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s is on call with ~s.", [Agent, CallID]),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({oncall, Time, Agent}, State#state.unterminated),
 	Newuntermed = [{oncall, Time, Agent} | Midunterminated],
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
+	push_raw(CallID, {oncall, Time, Agent}),
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event({hangup, _Callrec, _Time, _By}, #state{hangup = true} = State) ->
 	% already got a hangup, so we don't care.
@@ -241,20 +245,24 @@ handle_event({hangup, _Callrec, _Time, _By}, #state{hangup = true} = State) ->
 handle_event({hangup, #call{id = CallID}, Time, agent}, #state{id = CallID} = State) ->
 	?NOTICE("hangup for ~s", [CallID]),
 	Newtrans = [{hangup, Time, Time, 0, agent} | State#state.transactions],
+	push_raw(CallID, {hangup, Time, agent}),
 	{ok, State#state{transactions = Newtrans, hangup = true}};
 handle_event({hangup, #call{id = CallID}, Time, By}, #state{id = CallID} = State) ->
 	?NOTICE("Hangup for ~s", [CallID]),
 	Newtrans = [{hangup, Time, Time, 0, By} | State#state.transactions],
+	push_raw(CallID, {hangup, Time, By}),
 	{ok, State#state{transactions = Newtrans, hangup = true}};
 handle_event({wrapup, #call{id = CallID}, Time,  Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s wrapup for ~s", [Agent, CallID]),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({wrapup, Time, Agent}, State#state.unterminated),
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 	Newuntermed = [{wrapup, Time, Agent} | Midunterminated],
+	push_raw(CallID, {wrapup, Time, Agent}),
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s ended wrapup for ~s", [Agent, CallID]),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({endwrapup, Time, Agent}, State#state.unterminated),
+	push_raw(CallID, {endwrapup, Time, Agent}),
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 	case {State#state.hangup, Midunterminated} of
 		{true, []} ->
@@ -275,6 +283,7 @@ handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} =
 	end;
 handle_event({transfer, #call{id = CallID}, Time, Transferto}, #state{id = CallID} = State) ->
 	?NOTICE("~s has gotten a transfer of ~s", [Transferto, CallID]),
+	push_raw(CallID, {transfer, Time, Transferto}),
 	Newtrans = [{transfer, Time, Time, 0, Transferto} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans}};
 handle_event(_Event, State) ->
@@ -355,6 +364,9 @@ summarize(Transactions) ->
 -spec(nowsec/1 :: ({non_neg_integer(), non_neg_integer(), non_neg_integer()}) -> non_neg_integer()).
 nowsec({Mega, Sec, _Micro}) ->
 	(Mega * 1000000) + Sec.
+
+push_raw(Callid, Trans) ->
+	mnesia:transaction(fun() -> mnesia:write(#cdr_raw{id = Callid, transaction = Trans}) end).
 
 -ifdef(EUNIT).
 
@@ -437,8 +449,9 @@ handle_event_test_() ->
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
+		build_tables(),
 		Pull = fun() ->
-			mnesia:transaction(fun() -> mnesia:read(cdr_transactions, "testcall") end)
+			mnesia:transaction(fun() -> mnesia:read(cdr_raw, "testcall") end)
 		end,
 		{#call{id = "testcall", source = self()}, Pull}
 	end,
@@ -452,8 +465,8 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({inqueue, Call, 10, "testqueue"}, State),
 			?assertEqual([], Newstate#state.transactions),
 			?assertEqual([{inqueue, 10, "testqueue"}], Newstate#state.unterminated),
-			{atomic, Trans} = Pull(),
-			?assertEqual([{inqueue, 10, "testqueue"}], Trans)
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({inqueue, 10, "testqueue"}, Trans#cdr_raw.transaction)
 		end}
 	end,
 	fun({Call, Pull}) ->
@@ -464,8 +477,8 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({ringing, Call, 15, "agent"}, State),
 			?assertEqual([{inqueue, 10, 15, 5, "testqueue"}], Newstate#state.transactions),
 			?assertEqual([{ringing, 15, "agent"}], Newstate#state.unterminated),
-			{atomic, Trans} = Pull(),
-			?assertEqual([{ringing, 15, "agent"}], Trans)
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({ringing, 15, "agent"}, Trans#cdr_raw.transaction)
 		end}
 	end,
 	fun({Call, Pull}) ->
@@ -476,7 +489,8 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({oncall, Call, 15, "agent"}, State),
 			?assertEqual([{ringing, 10, 15, 5, "agent"}], Newstate#state.transactions),
 			?assertEqual([{oncall, 15, "agent"}], Newstate#state.unterminated),
-			?assertEqual({atomic, [{oncall, 15, "agent"}]}, Pull())
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({oncall, 15, "agent"}, Trans#cdr_raw.transaction)
 		end}
 	end,
 	fun({Call, Pull}) ->
@@ -487,7 +501,8 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({wrapup, Call, 15, "agent"}, State),
 			?assertEqual([{oncall, 10, 15, 5, "agent"}], Newstate#state.transactions),
 			?assertEqual([{wrapup, 15, "agent"}], Newstate#state.unterminated),
-			?assertEqual({atomic, [{wrapup, 15, "agent"}]}, Pull())
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({wrapup, 15, "agent"}, Trans#cdr_raw.transaction)
 		end}
 	end,
 	fun({Call, Pull}) ->
@@ -498,7 +513,8 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({endwrapup, Call, 15, "agent"}, State),
 			?assertEqual([{wrapup, 10, 15, 5, "agent"}], Newstate#state.transactions),
 			?assertEqual([], Newstate#state.unterminated),
-			?assertEqual({atomic, [{endwrapup, 15, "agent"}]}, Pull)
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({endwrapup, 15, "agent"}, Trans#cdr_raw.transaction)
 		end}
 	end,
 	fun({Call, Pull}) ->
@@ -509,7 +525,8 @@ handle_event_test_() ->
 			?assertEqual([{hangup, 10, 10, 0, agent}], Newstate#state.transactions),
 			?assertEqual([], Newstate#state.unterminated),
 			?assert(Newstate#state.hangup),
-			?assertEqual({atomic, [{hangup, 10, agent}]}, Pull())
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({hangup, 10, agent}, Trans#cdr_raw.transaction)
 		end}
 	end,
 	fun({Call, Pull}) ->
@@ -520,7 +537,8 @@ handle_event_test_() ->
 			?assertEqual([{hangup, 10, 10, 0, "caller"}], Newstate#state.transactions),
 			?assertEqual([], Newstate#state.unterminated),
 			?assert(Newstate#state.hangup),
-			?assertEqual({atomic, [{hangup, 10, "caller"}]}, Pull())
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({hangup, 10, "caller"}, Trans#cdr_raw.transaction)
 		end}
 	end,
 	fun({Call, Pull}) ->
@@ -531,7 +549,9 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({hangup, Call, 10, "notagent"}, State),
 			?assert(Newstate#state.hangup),
 			?assertEqual(State#state.transactions, Newstate#state.transactions),
-			?assertEqual({atomic, []}, Pull())
+			{atomic, [H | Tail] = Trans} = Pull(),
+			?assertEqual(1, length(Trans)),
+			?assertEqual({hangup, 10, agent}, H#cdr_raw.transaction)
 		end}
 	end,
 	fun({Call, Pull}) ->
@@ -542,7 +562,9 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
 			?assert(Newstate#state.hangup),
 			?assertEqual(State#state.transactions, Newstate#state.transactions),
-			?assertEqual({atomic, []}, Pull())
+			{atomic, [H | Tail] = Trans} = Pull(),
+			?assertEqual(1, length(Trans)),
+			?assertEqual({hangup, 10, "notagent"}, H#cdr_raw.transaction)
 		end}
 	end,
 	fun({Call, Pull}) ->
@@ -552,7 +574,8 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({transfer, Call, 10, "target"}, State),
 			?assertEqual([], Newstate#state.unterminated),
 			?assertEqual([{transfer, 10, 10, 0, "target"}], Newstate#state.transactions),
-			?assertEqual({atomic, [{transfer, 10, "target"}]}, Pull())
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({transfer, 10, "target"}, Trans#cdr_raw.transaction)
 		end}
 	end,
 	fun({Call, Pull}) ->
@@ -560,7 +583,8 @@ handle_event_test_() ->
 		fun() ->
 			State = #state{id = "testcall", hangup = true, unterminated = [{wrapup, 10, "agent"}]},
 			?assertEqual(remove_handler, handle_event({endwrapup, Call, 15, "agent"}, State)),
-			?assertEqual({atomic, [{endwrapup, 15, "agent"}]}, Pull())
+			{atomic, [Trans]} = Pull(),
+			?assertEqual({endwrapup, 15, "agent"}, Trans#cdr_raw.transaction)
 		end}
 	end,
 	fun({Call, Pull}) ->

@@ -54,6 +54,11 @@
 	transactions
 }).
 
+-record(cdr_transactions, {
+	id :: callid(),
+	transaction
+}).
+
 %event -> terminated by
 %inqueue -> ringing
 %ringing -> ringing, oncall
@@ -130,11 +135,23 @@ find_initiator({endwrapup, _Time, Agent}, Unterminated) ->
 	end,
 	check_split(F, Unterminated).
 
+build_tables() ->
+	util:build_table(cdr_rec, [
+		{attributes, record_info(fields, cdr_rec)},
+		{disc_copies, [node() | nodes()]}
+	]),
+	util:build_table(cdr_rec, [
+		{attributes, record_info(fields, cdr_transactions)},
+		{disc_copies, [node() | nodes()]}
+	]),
+	ok.
+	
 %% API
 
 %% @doc starts the cdr event server.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
+	build_tables(),
 	gen_event:start({local, cdr}).
 
 %% @doc Create a handler specifically for `#call{} Call' with default options.
@@ -197,10 +214,6 @@ status(Call) ->
 %% @private
 init([Call]) ->
 	?NOTICE("Starting new CDR handler for ~s", [Call#call.id]),
-	util:build_table(cdr_rec, [
-		{attributes, record_info(fields, cdr_rec)},
-		{disc_copies, [node()]}
-	]),
 	{ok, #state{id=Call#call.id}}.
 
 %% @private
@@ -527,8 +540,8 @@ summarize_test_() ->
 			{wrapup, 20, 24, 4, "agent"}
 		],
 		Dict = summarize(Transactions),
-		?assertEqual({5, 3, 7, 4}, dict:fetch(total, Dict)),
-		?assertEqual({0, 3, 7, 4}, dict:fetch("agent", Dict))
+		?assertEqual({5, 3, 7, 4}, proplists:get_value(total, Dict)),
+		?assertEqual({0, 3, 7, 4}, proplists:get_value("agent", Dict))
 	end},
 	{"summary with a ringout",
 	fun() ->
@@ -540,9 +553,9 @@ summarize_test_() ->
 			{wrapup, 22, 23, 1, "agent2"}
 		],
 		Dict = summarize(Transactions),
-		?assertEqual({5, 18, 5, 1}, dict:fetch(total, Dict)),
-		?assertEqual({0, 10, 0, 0}, dict:fetch("agent1", Dict)),
-		?assertEqual({0, 8, 5, 1}, dict:fetch("agent2", Dict))
+		?assertEqual({5, 18, 5, 1}, proplists:get_value(total, Dict)),
+		?assertEqual({0, 10, 0, 0}, proplists:get_value("agent1", Dict)),
+		?assertEqual({0, 8, 5, 1}, proplists:get_value("agent2", Dict))
 	end},
 	{"summary with a transfer to another agent",
 	fun() ->
@@ -556,10 +569,27 @@ summarize_test_() ->
 			{wrapup, 35, 40, 5, "agent2"}
 		],
 		Dict = summarize(Transactions),
-		?assertEqual({5, 10, 15, 15}, dict:fetch(total, Dict)),
-		?assertEqual({0, 10, 10, 10}, dict:fetch("agent1", Dict)),
-		?assertEqual({0, 0, 5, 5}, dict:fetch("agent2", Dict))
+		?assertEqual({5, 10, 15, 15}, proplists:get_value(total, Dict)),
+		?assertEqual({0, 10, 10, 10}, proplists:get_value("agent1", Dict)),
+		?assertEqual({0, 0, 5, 5}, proplists:get_value("agent2", Dict))
 	end}].
 
+%mnesia_test_() ->
+%	{foreach,
+%	fun() ->
+%		mnesia:stop(),
+%		mnesia:delete_schema([node()]),
+%		mnesia:create_schema([node()]),
+%		mnesia:start(),
+%		build_tables(),
+%		ok
+%	end,
+%	fun(ok) ->
+%		ok
+%	end,
+%	[{"Summary gets written to db",
+%	fun() ->
+%		
+%	end}]
 -endif.
 

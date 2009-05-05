@@ -437,122 +437,139 @@ handle_event_test_() ->
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
-		#call{id = "testcall", source = self()}
+		Pull = fun() ->
+			mnesia:transaction(fun() -> mnesia:read(cdr_transactions, "testcall") end)
+		end,
+		{#call{id = "testcall", source = self()}, Pull}
 	end,
 	fun(_Whatever) ->
 		ok
 	end,
-	[fun(Call) ->
+	[fun({Call, Pull}) ->
 		{"handle_event inqueue",
 		fun() ->
 			State = #state{id = "testcall"},
 			{ok, Newstate} = handle_event({inqueue, Call, 10, "testqueue"}, State),
 			?assertEqual([], Newstate#state.transactions),
-			?assertEqual([{inqueue, 10, "testqueue"}], Newstate#state.unterminated)
+			?assertEqual([{inqueue, 10, "testqueue"}], Newstate#state.unterminated),
+			{atomic, Trans} = Pull(),
+			?assertEqual([{inqueue, 10, "testqueue"}], Trans)
 		end}
 	end,
-	fun(Call) ->
+	fun({Call, Pull}) ->
 		{"ringing",
 		fun() ->
 			Unterminated = [{inqueue, 10, "testqueue"}],
 			State = #state{unterminated = Unterminated, id = "testcall"},
 			{ok, Newstate} = handle_event({ringing, Call, 15, "agent"}, State),
 			?assertEqual([{inqueue, 10, 15, 5, "testqueue"}], Newstate#state.transactions),
-			?assertEqual([{ringing, 15, "agent"}], Newstate#state.unterminated)
+			?assertEqual([{ringing, 15, "agent"}], Newstate#state.unterminated),
+			{atomic, Trans} = Pull(),
+			?assertEqual([{ringing, 15, "agent"}], Trans)
 		end}
 	end,
-	fun(Call) ->
+	fun({Call, Pull}) ->
 		{"oncall",
 		fun() ->
 			Unterminated = [{ringing, 10, "agent"}],
 			State = #state{unterminated = Unterminated, id = "testcall"},
 			{ok, Newstate} = handle_event({oncall, Call, 15, "agent"}, State),
 			?assertEqual([{ringing, 10, 15, 5, "agent"}], Newstate#state.transactions),
-			?assertEqual([{oncall, 15, "agent"}], Newstate#state.unterminated)
+			?assertEqual([{oncall, 15, "agent"}], Newstate#state.unterminated),
+			?assertEqual({atomic, [{oncall, 15, "agent"}]}, Pull())
 		end}
 	end,
-	fun(Call) ->
+	fun({Call, Pull}) ->
 		{"wrapup",
 		fun() ->
 			Unterminated = [{oncall, 10, "agent"}],
 			State = #state{unterminated = Unterminated, id="testcall"},
 			{ok, Newstate} = handle_event({wrapup, Call, 15, "agent"}, State),
 			?assertEqual([{oncall, 10, 15, 5, "agent"}], Newstate#state.transactions),
-			?assertEqual([{wrapup, 15, "agent"}], Newstate#state.unterminated)
+			?assertEqual([{wrapup, 15, "agent"}], Newstate#state.unterminated),
+			?assertEqual({atomic, [{wrapup, 15, "agent"}]}, Pull())
 		end}
 	end,
-	fun(Call) ->
+	fun({Call, Pull}) ->
 		{"endwrapup",
 		fun() ->
 			Unterminated = [{wrapup, 10, "agent"}],
 			State = #state{unterminated = Unterminated, id="testcall"},
 			{ok, Newstate} = handle_event({endwrapup, Call, 15, "agent"}, State),
 			?assertEqual([{wrapup, 10, 15, 5, "agent"}], Newstate#state.transactions),
-			?assertEqual([], Newstate#state.unterminated)
+			?assertEqual([], Newstate#state.unterminated),
+			?assertEqual({atomic, [{endwrapup, 15, "agent"}]}, Pull)
 		end}
 	end,
-	fun(Call) ->
+	fun({Call, Pull}) ->
 		{"hangup from agent",
 		fun() ->
 			State = #state{id = "testcall"},
 			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
 			?assertEqual([{hangup, 10, 10, 0, agent}], Newstate#state.transactions),
 			?assertEqual([], Newstate#state.unterminated),
-			?assert(Newstate#state.hangup)
+			?assert(Newstate#state.hangup),
+			?assertEqual({atomic, [{hangup, 10, agent}]}, Pull())
 		end}
 	end,
-	fun(Call) ->
+	fun({Call, Pull}) ->
 		{"hangup from caller",
 		fun() ->
 			State = #state{id = "testcall"},
 			{ok, Newstate} = handle_event({hangup, Call, 10, "caller"}, State),
 			?assertEqual([{hangup, 10, 10, 0, "caller"}], Newstate#state.transactions),
 			?assertEqual([], Newstate#state.unterminated),
-			?assert(Newstate#state.hangup)
+			?assert(Newstate#state.hangup),
+			?assertEqual({atomic, [{hangup, 10, "caller"}]}, Pull())
 		end}
 	end,
-	fun(Call) ->
+	fun({Call, Pull}) ->
 		{"hangup from caller when a hangup is already received",
 		fun() ->
 			Protostate = #state{id = "testcall"},
 			{ok, State} = handle_event({hangup, Call, 10, agent}, Protostate),
 			{ok, Newstate} = handle_event({hangup, Call, 10, "notagent"}, State),
 			?assert(Newstate#state.hangup),
-			?assertEqual(State#state.transactions, Newstate#state.transactions)
+			?assertEqual(State#state.transactions, Newstate#state.transactions),
+			?assertEqual({atomic, []}, Pull())
 		end}
 	end,
-	fun(Call) ->
+	fun({Call, Pull}) ->
 		{"hangup from agent when hangup from caller is already recieved",
 		fun() ->
 			Protostate = #state{id = "testcall"},
 			{ok, State} = handle_event({hangup, Call, 10, "notagent"}, Protostate),
 			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
 			?assert(Newstate#state.hangup),
-			?assertEqual(State#state.transactions, Newstate#state.transactions)
+			?assertEqual(State#state.transactions, Newstate#state.transactions),
+			?assertEqual({atomic, []}, Pull())
 		end}
 	end,
-	fun(Call) ->
+	fun({Call, Pull}) ->
 		{"transfer event",
 		fun() ->
 			State = #state{id = "testcall"},
 			{ok, Newstate} = handle_event({transfer, Call, 10, "target"}, State),
 			?assertEqual([], Newstate#state.unterminated),
-			?assertEqual([{transfer, 10, 10, 0, "target"}], Newstate#state.transactions)
+			?assertEqual([{transfer, 10, 10, 0, "target"}], Newstate#state.transactions),
+			?assertEqual({atomic, [{transfer, 10, "target"}]}, Pull())
 		end}
 	end,
-	fun(Call) ->
+	fun({Call, Pull}) ->
 		{"endwrapup when a hangup has already been recieved",
 		fun() ->
 			State = #state{id = "testcall", hangup = true, unterminated = [{wrapup, 10, "agent"}]},
-			?assertEqual(remove_handler, handle_event({endwrapup, Call, 15, "agent"}, State))
+			?assertEqual(remove_handler, handle_event({endwrapup, Call, 15, "agent"}, State)),
+			?assertEqual({atomic, [{endwrapup, 15, "agent"}]}, Pull())
 		end}
 	end,
-	fun(Call) ->
+	fun({Call, Pull}) ->
 		{"handling an event for a differnt call id (ie, not handling it)",
 		fun() ->
 			State = #state{id = "differs"},
 			{ok, Newstate} = handle_event({inqueue, Call, 15, "queue"}, State),
-			?assertEqual(State, Newstate)
+			?assertEqual(State, Newstate),
+			?assertEqual({atomic, []}, Pull())
 		end}
 	end]}.
 

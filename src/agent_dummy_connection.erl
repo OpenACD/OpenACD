@@ -37,7 +37,7 @@
 
 -behaviour(gen_server).
 
--export([start/0, start/1, start_link/0, start_link/1]).
+-export([start/0, start/1, start_link/0, start_link/1, start_x/1, start_x/2]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 		code_change/3]).
@@ -60,6 +60,15 @@
 	call :: #call{} | 'undefined',
 	agent_fsm :: pid()
 }).
+
+start_x(N) ->
+	start_x(N, []).
+
+start_x(N, Args) ->
+	F = fun(_I) ->
+		start(Args)
+	end,
+	lists:map(F, lists:seq(1, N)).
 
 start() ->
 	start([]).

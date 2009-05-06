@@ -70,7 +70,8 @@
 	update_conf/2,
 	get_conf/1,
 	stop/0,
-	load_specs/1
+	load_specs/1,
+	restart/2
 	]).
 	
 %% Supervisor callbacks
@@ -111,6 +112,33 @@ stop() ->
 	?NOTICE("stopping ~p...", [?MODULE]),
 	exit(whereis(?MODULE), shutdown).
 
+%% @doc In case of a branch going down, this funciton will restart the specified branch.
+-spec(restart/2 :: (Branch :: 'agent_connection_sup' | 'routing_sup' | 'management_sup' | 'agent_sup', Args :: [any()]) -> 'ok').
+restart(agent_connection_sup, _Args) ->
+	?INFO("Restaring agent_connection_sup.", []),
+	supervisor:restart_child(agent_sup, agent_connection_sup);
+restart(routing_sup, [Nodes]) ->
+	Out = supervisor:restart_child(cpx_supervisor, routing_sup),
+	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
+	QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
+	Cpxlogspec = {cpxlog, {cpxlog, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
+	Cdrspec = {cdr, {cdr, start, []}, permanent, brutal_kill, worker, [?MODULE]},
+	supervisor:start_child(routing_sup, DispatchSpec),
+	supervisor:start_child(routing_sup, QueueManagerSpec),
+	supervisor:start_child(routing_sup, Cpxlogspec),
+	supervisor:start_child(routing_sup, Cdrspec),
+	Out;
+restart(agent_sup, [Nodes]) ->
+	?INFO("Restarting agent_sup.", []),
+	Out = supervisor:restart_child(cpx_supervisor, agent_sup),
+	Agentconnspec = {agent_connection_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},
+	AgentManagerSpec = {agent_manager, {agent_manager, start_link, [Nodes]}, permanent, 2000, worker, [?MODULE]},
+	supervisor:start_child(agent_sup, Agentconnspec),
+	supervisor:start_child(agent_sup, AgentManagerSpec),
+	Out;
+restart(Branch, Args) when is_atom(Branch) ->
+	supervisor:restart_child(cpx_supervisor, Branch).
+	
 %%====================================================================
 %% Supervisor callbacks
 %%====================================================================
@@ -253,8 +281,7 @@ load_specs() ->
 			?ERROR("unable to retrieve specs:  ~p", [Else]),
 			Else
 	end.
-load_specs(routing_sup) ->
-	ok;
+
 load_specs(Super) ->
 	?DEBUG("loading specs for supervisor ~s", [Super]),
 	F = fun() ->
@@ -393,20 +420,50 @@ murder_test_() ->
 	end,
 	[{"Killing the management branch",
 	fun() ->
-		?assert(false)
+		Where = whereis(management_sup),
+		?assertNot(Where =:= undefined),
+		exit(whereis(management_sup), kill),
+		timer:sleep(5),
+		restart(management_sup, []),
+		Newwhere = whereis(management_sup),
+		?assertNot(Where =:= Newwhere),
+		?assertNot(whereis(cpx_web_management) =:= undefined)
 	end},
 	{"Killing the agent connection branch (and bringing it back)",
 	fun() ->
-		?assert(false)
+		Where = whereis(agent_connection_sup),
+		?assertNot(Where =:= undefined),
+		exit(Where, kill),
+		timer:sleep(5),
+		restart(agent_connection_sup, []),
+		Newwhere = whereis(agent_connection_sup),
+		?assertNot(Where =:= Newwhere),
+		?assertNot(whereis(agent_auth) =:= undefined)
 	end},
 	{"Killing the agent branch (and bringing it back)",
 	fun() ->
-		?assert(false)
+		Where = whereis(agent_sup),
+		?assertNot(Where =:= undefined),
+		exit(Where, kill),
+		timer:sleep(5),
+		restart(agent_sup, [[node()]]),
+		Newwhere = whereis(agent_sup),
+		?assertNot(Where =:= Newwhere),
+		?assertNot(whereis(agent_connection_sup) =:= undefined),
+		?assertNot(whereis(agent_manager) =:= undefined)
 	end},
 	{"Killing the routing branch (and bringing it back)",
 	fun() ->
-		?assert(false)
-	end}].
+		Where = whereis(routing_sup),
+		?assertNot(Where =:= undefined),
+		exit(Where, kill),
+		timer:sleep(5),
+		restart(routing_sup, [[node()]]),
+		Newwhere = whereis(routing_sup),
+		?assertNot(Where =:= Newwhere),
+		?assertNot(whereis(dispatch_manager) =:= undefined),
+		?assertNot(whereis(queue_manager) =:= undefined)
+	end}]}.
 
 mutlinode_test_() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),

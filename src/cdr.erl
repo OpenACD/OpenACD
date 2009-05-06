@@ -220,6 +220,10 @@ handle_event({transfer, #call{id = CallID}, Time, Transferto}, #state{id = CallI
 	push_raw(CallID, {transfer, Time, Transferto}),
 	Newtrans = [{transfer, Time, Time, 0, Transferto} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans}};
+handle_event({recover, #call{id = CallID}}, #state{id = CallID} = State) ->
+	?NOTICE("Doing a recovery for ~s", [CallID]),
+	{Unterminated, Termed, Hangup} = load_recover(CallID),
+	{ok, State#state{unterminated = Unterminated, transactions = Termed, hangup = Hangup}};
 handle_event(_Event, State) ->
 	{ok, State}.
 
@@ -372,8 +376,8 @@ summarize(Transactions) ->
 	SummaryDict = lists:foldl(Count, Acc, Transactions),
 	dict:to_list(SummaryDict).
 
-recover(Callid) ->
-	?INFO("Starting recovery for ~s", [Callid]),
+load_recover(Callid) ->
+	?DEBUG("Starting recovery for ~s", [Callid]),
 	F = fun() ->
 		QH = qlc:q([X#cdr_raw.transaction || X <- mnesia:table(cdr_raw), X#cdr_raw.id =:= Callid]),
 		qlc:e(QH)
@@ -645,6 +649,49 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({inqueue, Call, 15, "queue"}, State),
 			?assertEqual(State, Newstate),
 			?assertEqual({atomic, []}, Pull())
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"Recovery!",
+		fun() ->
+			State = #state{id = "testcall"},
+			Transactions = [
+				{inqueue, 5, "testqueue"},
+				{ringing, 10, "agent1"},
+				{ringing, 15, "agent2"},
+				{oncall, 20, "agent2"},
+				{transfer, 25, "agent3"},
+				{oncall, 25, "agent3"},
+				{wrapup, 25, "agent2"},
+				{endwrapup, 30, "agent2"},
+				{hangup, 35, agent},
+				{wrapup, 35, "agent3"}
+			],
+			F = fun() ->
+				Foreach = fun(I) ->
+					mnesia:write(#cdr_raw{id = Call#call.id, transaction = I})
+				end,
+				lists:foreach(Foreach, Transactions)
+			end,
+			mnesia:transaction(F),
+			{ok, Newstate} = handle_event({recover, Call}, State),
+			Expectedstate = #state{
+				id = "testcall",
+				hangup = true,
+				transactions = [
+					{oncall, 25, 35, 10, "agent3"},
+					{hangup, 35, 35, 0, agent},
+					{wrapup, 25, 30, 5, "agent2"},
+					{oncall, 20, 25, 5, "agent2"},
+					{transfer, 25, 25, 0, "agent3"},
+					{ringing, 15, 20, 5, "agent2"},
+					{ringing, 10, 15, 5, "agent1"},
+					{inqueue, 5, 10, 5, "testqueue"}
+				],
+				unterminated = [{wrapup, 35, "agent3"}]
+			},
+			?DEBUG("Expected:  ~p;  Recieved:  ~p", [Expectedstate, Newstate]),
+			?assertEqual(Expectedstate, Newstate)
 		end}
 	end]}.
 

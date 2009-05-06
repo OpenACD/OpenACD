@@ -160,6 +160,7 @@ recover(Call) ->
 %% Gen event callbacks
 
 %% @private
+-spec(init/1 :: (Args :: [any()]) -> {'ok', #state{}}).
 init([Call]) ->
 	?NOTICE("Starting new CDR handler for ~s", [Call#call.id]),
 	Cdrrec = #cdr_rec{id = Call#call.id},
@@ -167,6 +168,7 @@ init([Call]) ->
 	{ok, #state{id=Call#call.id}}.
 
 %% @private
+-spec(handle_event/2 :: (Event :: any(), #state{}) -> {'ok', #state{}} | 'remove_handler').
 handle_event({inqueue, #call{id = CallID}, Time, Queuename}, #state{id = CallID} = State) ->
 	?NOTICE("~s has joined queue ~s", [CallID, Queuename]),
 	Unterminated = [{inqueue, Time, Queuename} | State#state.unterminated],

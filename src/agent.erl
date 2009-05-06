@@ -74,6 +74,7 @@ set_remote_number(Pid, Number) ->
 %% @private
 -spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
 init([State = #agent{}]) ->
+	process_flag(trap_exit, true),
 	{_Profile, Skills} = case agent_auth:get_profile(State#agent.profile) of
 		undefined ->
 			?WARNING("Agent ~p has an invalid profile of ~p, using Default", [State#agent.login, State#agent.profile]),
@@ -453,8 +454,48 @@ handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.
 
 %% @private
+handle_info({'EXIT', From, Reason}, StateName, State) ->
+	?INFO("Got exit message from ~p with reason ~p", [From, Reason]),
+	case whereis(agent_manager) of
+		undefined ->
+			agent_manager_exit(Reason, StateName, State);
+		From ->
+			agent_manager_exit(Reason, StateName, State);
+		_Else ->
+			?INFO("unknown exit", [])
+	end;
 handle_info(_Info, StateName, State) ->
 	{next_state, StateName, State}.
+
+agent_manager_exit(Reason, StateName, State) ->
+	case Reason of
+		normal ->
+			?INFO("Agent manager exited normally", []),
+			{stop, normal, State};
+		shutdown ->
+			?INFO("Agent manager shutdown", []),
+			{stop, shutdown, State};
+		Else ->
+			?INFO("Agent manager exited abnormally with reason ~p", [Reason]),
+			wait_for_agent_manager(5, StateName, State)
+	end.
+
+wait_for_agent_manager(0, _StateName, State) ->
+	?WARNING("Timed out waiting for agent manager respawn", []),
+	{stop, timeout, State};
+wait_for_agent_manager(Count, StateName, State) ->
+	case whereis(agent_manager) of
+		undefined ->
+			timer:sleep(1000),
+			wait_for_agent_manager(Count - 1, StateName, State);
+		Else when is_pid(Else) ->
+			?INFO("Agent manager respawned as ~p", [Else]),
+			% this will throw an error if the agent is already registered as
+			% a different pid and that error will crash this process
+			?INFO("Notifying new agent manager of agent ~p at ~p", [State#agent.login, self()]),
+			agent_manager:notify(State#agent.login, self()),
+			{next_state, StateName, State}
+	end.
 
 % obviousness below.
 %% @private

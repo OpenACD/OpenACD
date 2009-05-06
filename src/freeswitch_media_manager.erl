@@ -305,7 +305,7 @@ fetch_domain_user(Node, State) ->
 									%GW = "{ignore_early_media=true}sofia/gateway/cpxvgw.fusedsolutions.com/"++Number,
 									GW = case string:to_integer(Number) of
 										{Ext, []} when Ext =< 9999, Ext > 0 ->
-											"{ignore_early_media=true}sofia/default" ++ Number ++ "%" ++ Domain;
+											"{ignore_early_media=true}sofia/default/" ++ Number ++ "%" ++ Domain;
 										_Else ->
 											"{ignore_eary_media=true}sofia/gateway/" ++ proplists:get_value(voicegateway, State, "") ++ "/" ++ Number
 									end,

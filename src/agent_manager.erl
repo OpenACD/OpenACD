@@ -48,7 +48,8 @@
 -endif.
 
 -record(state, {
-	agents = dict:new() :: dict()
+	agents = dict:new() :: dict(),
+	status = unknown :: 'unknown' | 'leader' | 'notleader'
 	}).
 
 
@@ -62,7 +63,8 @@
 	find_by_skill/1,
 	find_avail_agents_by_skill/1,
 	get_leader/0,
-	list/0
+	list/0,
+	notify/2
 ]).
 
 % gen_leader callbacks
@@ -149,6 +151,18 @@ query_agent(#agent{login=Login}) ->
 query_agent(Login) -> 
 	gen_leader:leader_call(?MODULE, {exists, Login}).
 
+%% @doc Notify the agent_manager of a local agent after an agent manager restart.
+-spec(notify/2 :: (Login :: string(), Pid :: pid()) -> 'ok').
+notify(Login, Pid) ->
+	case gen_leader:call(?MODULE, {exists, Login}) of
+		false ->
+			gen_leader:call(?MODULE, {notify, Login, Pid});
+		{true, Pid} ->
+			ok;
+		{true, _OtherPid} ->
+			erlang:error({duplicate_registration, Login})
+	end.
+
 %% @doc Returns `{ok, pid()}' where `pid()' is the pid of the leader process.
 -spec(get_leader/0 :: () -> {'ok', pid()}).
 get_leader() -> 
@@ -164,7 +178,7 @@ init([]) ->
 %% @hidden
 elected(State, _Election) -> 
 	?INFO("elected", []),
-	{ok, ok, State}.
+	{ok, ok, State#state{status = leader}}.
 	
 %% @hidden
 %% TODO what about an agent started at both places?
@@ -180,7 +194,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 		gen_leader:leader_cast(?MODULE, {notify, Login, Apid})
 	end,
 	lists:foreach(Notify, dict:to_list(Locals)),
-	{ok, State#state{agents=Locals}}.
+	{ok, State#state{agents=Locals, status = notleader}}.
 	
 %% @hidden
 handle_DOWN(Node, #state{agents = Agents} = State, _Election) -> 
@@ -233,11 +247,52 @@ handle_call(stop, _From, State) ->
 handle_call({start_agent, #agent{login = ALogin} = Agent}, _From, #state{agents = Agents} = State) -> 
 	% This should not be called directly!  use the wrapper start_agent/1
 	?INFO("Starting new agent ~p", [Agent]),
-	{ok, Apid} = agent:start_link(Agent),
+	{ok, Apid} = agent:start(Agent),
+	link(Apid),
 	gen_leader:leader_cast(?MODULE, {notify, ALogin, Apid}),
 	Agents2 = dict:store(ALogin, Apid, Agents),
 	gen_server:cast(dispatch_manager, {end_avail, Apid}),
-	{reply, {ok, Apid}, State#state{agents = Agents2}}.
+	{reply, {ok, Apid}, State#state{agents = Agents2}};
+handle_call({exists, Login}, _From, #state{agents = Agents} = State) ->
+	case dict:find(Login, Agents) of
+		error when State#state.status =:= notleader ->
+			case gen_leader:leader_call(?MODULE, {exists, Login}) of
+				false ->
+					{reply, false, State};
+				{true, Pid} when node(Pid) =:= node() ->
+					% leader knows about a local agent, but we didn't!
+					% So we update the local dict
+					Agents2 = dict:store(Login, Pid, Agents),
+					{reply, {true, Pid}, State#state{agents = Agents2}};
+				{true, OtherPid} ->
+					{reply, {true, OtherPid}, State}
+			end;
+		error -> % we're the leader
+			{reply, false, State};
+		{ok, Pid} ->
+			{reply, {true, Pid}, State}
+	end;
+handle_call({notify, Login, Pid}, _From, #state{agents = Agents} = State) when is_pid(Pid) andalso node(Pid) =:= node() ->
+	case dict:find(Login, Agents) of
+		error ->
+			link(Pid),
+			case State#state.status of
+				notleader -> 
+					gen_leader:leader_cast(?MODULE, {notify, Login, Pid});
+				_Else ->
+					ok
+			end,
+			Agents2 = dict:store(Login, Pid, Agents),
+			{reply, ok, State#state{agents = Agents2}};
+		{ok, Pid} ->
+			{reply, ok, State};
+		{ok, _OtherPid} ->
+			{reply, ok, State}
+	end;
+handle_call(Message, From, State) ->
+	?WARNING("received unexpected call ~p from ~p", [Message, From]),
+	{reply, ok, State}.
+
 
 %% @hidden
 handle_cast(_Request, State) -> 

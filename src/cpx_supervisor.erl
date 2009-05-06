@@ -69,7 +69,8 @@
 	destroy/1,
 	update_conf/2,
 	get_conf/1,
-	stop/0
+	stop/0,
+	load_specs/1
 	]).
 	
 %% Supervisor callbacks
@@ -95,7 +96,7 @@ start_link(Nodes) ->
 	supervisor:start_child(agent_sup, AgentManagerSpec),
 	supervisor:start_child(agent_sup, Agentconnspec),
 	
-	load_specs(),
+	%load_specs(),
 	
 	{ok, Pid}.
 	
@@ -252,8 +253,22 @@ load_specs() ->
 			?ERROR("unable to retrieve specs:  ~p", [Else]),
 			Else
 	end.
+load_specs(routing_sup) ->
+	ok;
+load_specs(Super) ->
+	?DEBUG("loading specs for supervisor ~s", [Super]),
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.supervisor =:= Super]),
+		qlc:e(QH)
+	end,
+	case mnesia:transaction(F) of
+		{atomic, Records} ->
+			lists:foreach(fun(I) -> start_spec(I) end, Records);
+		Else ->
+			?ERROR("unable to retrieve specs for ~s:  ~p", [Super, Else]),
+			Else
+	end.
 
-	
 -ifdef(EUNIT).
 
 config_test_() -> 
@@ -359,6 +374,39 @@ config_test_() ->
 			}
 		]
 	}.
+
+murder_test_() ->
+	{foreach,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		cpx_supervisor:start([node()]),
+		ok
+	end,
+	fun(ok) -> 
+		cpx_supervisor:stop(),
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		ok
+	end,
+	[{"Killing the management branch",
+	fun() ->
+		?assert(false)
+	end},
+	{"Killing the agent connection branch (and bringing it back)",
+	fun() ->
+		?assert(false)
+	end},
+	{"Killing the agent branch (and bringing it back)",
+	fun() ->
+		?assert(false)
+	end},
+	{"Killing the routing branch (and bringing it back)",
+	fun() ->
+		?assert(false)
+	end}].
 
 mutlinode_test_() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),

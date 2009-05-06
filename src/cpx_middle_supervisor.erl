@@ -69,7 +69,9 @@ start_anon(Maxr, Maxt, Spec) when is_record(Spec, cpx_conf) ->
 %% @doc Start a supervisor locally registered as `atom() Name' with maximum restart `Maxr' in `Maxt' seconds.
 -spec(start_named/3 :: (Maxr :: pos_integer(), Maxt :: pos_integer(), Name :: atom()) -> {'ok', pid()}).
 start_named(Maxr, Maxt, Name) when is_atom(Name) ->
-	supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt]).
+	Out = supervisor:start_link({local, Name}, ?MODULE, [Maxr, Maxt, Name]),
+	cpx_supervisor:load_specs(Name),
+	Out.
 
 %% @doc Starts the passed `#cpx_conf{} Spec' on the supervisor registered at `atom() Name' with maximum restart `Maxr' in `Maxt' seconds.
 -spec(add_with_middleman/4 :: (Name :: atom(), Maxr :: pos_integer(), Maxt :: pos_integer(), Spec :: #cpx_conf{}) -> {'ok', pid()}).
@@ -97,7 +99,7 @@ drop_child(Name, Childid) ->
 %%====================================================================
 
 %% @private
-init([Maxr, Maxt]) ->
+init([Maxr, Maxt, Name]) when is_atom(Name) ->
     {ok,{{one_for_one, Maxr, Maxt}, []}};
 init([Maxr, Maxt, Spec]) ->
 	?DEBUG("Checking spec: ~p", [supervisor:check_childspecs([Spec])]),

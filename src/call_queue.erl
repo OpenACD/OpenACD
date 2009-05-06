@@ -430,6 +430,7 @@ handle_call({remove, Callpid}, _From, State) ->
 		none ->
 			{reply, none, State};
 		{Key, #queued_call{cook=Cookpid}} ->
+			unlink(Cookpid),
 			gen_server:cast(Cookpid, stop),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			{reply, ok, State2}
@@ -476,6 +477,7 @@ handle_cast({remove, Callpid}, State) ->
 		none ->
 			{noreply, State};
 		{Key, #queued_call{cook=Cookpid}} ->
+			unlink(Cookpid),
 			gen_server:cast(Cookpid, stop),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			{noreply, State2}
@@ -534,51 +536,23 @@ code_change(_OldVsn, State, _Extra) ->
 -spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [{key(), #queued_call{}}], QName :: string()) -> [{key(), #queued_call{}}]).
 clean_pid(Deadpid, Recipe, Calls, QName) ->
 	?INFO("Cleaning dead pids out...", []),
-	clean_pid_(Deadpid, Recipe, QName, Calls, [], notfound).
-%	Bound = Call#queued_call.dispatchers,
-%	Cleanbound = lists:delete(Deadpid, Bound),
-%	case Call#queued_call.cook of
-%		Deadpid ->
-%			?INFO("~nNode:  ~p~nMedia:  ~p~nRecipe:  ~p~nQueue:  ~p", [node(Call#queued_call.media), Call#queued_call.media, Recipe, QName]),
-%			case cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName) of
-%				{ok, Pid} ->
-%					link(Pid),
-%					Cleancall = Call#queued_call{dispatchers=Cleanbound, cook=Pid},
-%					[{Key, Cleancall} | clean_pid(Deadpid, Recipe, Calls, QName)]%;
-%				%ignore ->
-%				%	?CONSOLE("Cook restart was ignored",[]),
-%				%	clean_pid(Deadpid, Recipe, Calls, QName);
-%				%{badrpc, nodedown} ->
-%				%	?CONSOLE("Cook failed to restart on downed node  ~p", [node(Call#queued_call.media)]),
-%				%	clean_pid(Deadpid, Recipe, Calls, QName);
-%				%{error, Error} ->
-%				%	?CONSOLE("Cook restart failed:  ~p", [Error]),
-%				%	clean_pid(Deadpid, Recipe, Calls, QName)
-%			end;
-%		_ ->
-%			%Pid = Call#queued_call.cook
-%			[{Key, Call} | clean_pid(Deadpid, Recipe, Calls, QName)]
-%	end;
-%clean_pid(_Deadpid, _Recipe, [], _QName) ->
-%	[].
+	clean_pid_(Deadpid, Recipe, QName, Calls, []).
 
-clean_pid_(_Deadpid, _Recipe, _QName, [], Acc, _Found) ->
+clean_pid_(_Deadpid, _Recipe, _QName, [], Acc) ->
 	lists:reverse(Acc);
-clean_pid_(_Deadpid, _Recipe, _QName, Calls, Acc, found) ->
-	lists:append(lists:reverse(Acc), Calls);
-clean_pid_(Deadpid, Recipe, QName, [{Key, #queued_call{cook = Deadpid} = Call} | Calls], Acc, notfound) ->
+clean_pid_(Deadpid, Recipe, QName, [{Key, #queued_call{cook = Deadpid} = Call} | Calls], Acc) ->
 	{ok, Pid} = cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName),
 	link(Pid),
 	Cleancall = Call#queued_call{cook = Pid},
-	clean_pid_(Deadpid, Recipe, QName, Calls, [{Key, Cleancall} | Acc], found);
-clean_pid_(Deadpid, Recipe, QName, [{Key, Call} | Calls], Acc, notfound) ->
+	clean_pid_(Deadpid, Recipe, QName, Calls, [{Key, Cleancall} | Acc]);
+clean_pid_(Deadpid, Recipe, QName, [{Key, Call} | Calls], Acc) ->
 	case lists:member(Deadpid, Call#queued_call.dispatchers) of
 		false ->
-			clean_pid_(Deadpid, Recipe, QName, Calls, [{Key, Call} | Acc], notfound);
+			clean_pid_(Deadpid, Recipe, QName, Calls, [{Key, Call} | Acc]);
 		true ->
 			Cleanbound = lists:delete(Deadpid, Call#queued_call.dispatchers),
 			Cleancall = Call#queued_call{dispatchers = Cleanbound},
-			clean_pid_(Deadpid, Recipe, QName, Calls, [{Key, Cleancall} | Acc], found)
+			lists:append(lists:reverse(Acc), Calls)
 	end.
 	
 % begin the defintions of the tests.

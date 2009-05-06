@@ -117,7 +117,7 @@ init([Call, Recipe, Queue]) ->
 	%case is_process_alive(Call) of
 	%	true ->
 			%process_flag(trap_exit, true),
-			{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
+			{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
 			State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref},
 			{ok, State}.%;
 	%	false ->
@@ -150,13 +150,13 @@ handle_cast(restart_tick, State) ->
 			State2 = State#state{ringingto = undefined, ringcount = 0},
 			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
 			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
-			{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
+			{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
 			{noreply, State3#state{tref=Tref}};
 		{ringing, Apid, Ringcount} -> 
 			State2 = State#state{ringingto = Apid, ringcount = Ringcount},
 			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
 			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
-			{ok, Tref} = timer:send_interval(?TICK_LENGTH, do_tick),
+			{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
 			{noreply, State3#state{tref=Tref}}
 	end;
 handle_cast(stop_tick, State) ->
@@ -202,12 +202,14 @@ handle_info(do_tick, State) ->
 						rangout -> 
 							State2 = State#state{ringingto = undefined, ringcount = 0},
 							NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
-							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
+							{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
+							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe, tref = Tref},
 							{noreply, State3};
 						{ringing, Apid, Ringcount} -> 
 							State2 = State#state{ringingto = Apid, ringcount = Ringcount},
 							NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
-							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
+							{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
+							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe, tref = Tref},
 							{noreply, State3}
 					end
 			end

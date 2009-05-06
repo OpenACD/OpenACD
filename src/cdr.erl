@@ -19,7 +19,9 @@
 	wrapup/2,
 	endwrapup/2,
 	transfer/2,
-	status/1
+	status/1,
+	recover/1,
+	recoveryinit/1
 ]).
 
 -export([
@@ -36,28 +38,29 @@
 -type(callid() :: string()).
 -type(time() :: integer()).
 -type(datalist() :: [{atom(), string()}]).
+-type(proplist() :: [{any(), any()}]).
 -type(transaction() :: {transaction_type(), callid(), time(), datalist()}).
 -type(transactions() :: [transaction()]).
-
+-type(raw_transaction() :: {transaction_type(), time(), any()}).
 %-type(proto_transactions() :: [proto_transaction()]).
 %	-type(proto_transaction() :: {transaction_type(), callid(), time(), datalist()}).
 
 -record(state, {
 	id :: callid(),
 	transactions = [] :: transactions(),
-	unterminated = [] :: transactions(),
+	unterminated = [] :: [raw_transaction()],
 	hangup = false :: bool(),
 	wrapup = false :: bool()}).
 	
 -record(cdr_rec, {
 	id :: callid(),
-	summary = inprogress,
-	transactions = inprogress
+	summary = inprogress :: 'inprogress' | proplist(),
+	transactions = inprogress :: 'inprogress' | transactions()
 }).
 
 -record(cdr_raw, {
 	id :: callid(),
-	transaction
+	transaction :: raw_transaction()
 }).
 
 %event -> terminated by
@@ -99,6 +102,16 @@ cdrinit(Call) ->
 			error
 	end.
 
+%% @doc Create a handler for `#call{} Call', then use the recovery database.
+-spec(recoveryinit/1 :: (Call :: #call{}) -> 'ok' | 'error').
+recoveryinit(Call) ->
+	case cdrinit(Call) of
+		ok ->
+			recover(Call);
+		error ->
+			error
+	end.
+	
 %% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
 -spec(inqueue/2 :: (Call :: #call{}, Queue :: string()) -> 'ok').
 inqueue(Call, Queue) ->
@@ -138,6 +151,11 @@ transfer(Call, Transferto) ->
 -spec(status/1 :: (Call :: #call{}) -> {[tuple()], [tuple()]}).
 status(Call) ->
 	gen_event:call(cdr, {?MODULE, Call#call.id}, status).
+
+%% @doc Pulls the transactions from the cdr_raw (recovery) database.
+-spec(recover/1 :: (Call :: #call{}) -> 'ok').
+recover(Call) ->
+	catch gen_event:notify(cdr, {recover, Call}).
 
 %% Gen event callbacks
 

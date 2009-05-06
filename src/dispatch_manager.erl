@@ -80,7 +80,28 @@ stop() ->
 init([]) ->
 	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
-	{ok, #state{}}.
+	case whereis(agent_manager) of
+		undefined ->
+			{ok, #state{}};
+		_Else ->
+			Agents = agent_manager:list(),
+			F = fun({Login, Pid}) ->
+				?DEBUG("Checking status of ~s (~p)", [Login, Pid]),
+				case agent:query_state(Pid) of
+					{ok, idle} ->
+						gen_server:cast(dispatch_manager, {now_avail, Pid});
+					_Other ->
+						gen_server:cast(dispatch_manager, {end_avail, Pid})
+				end
+			end,
+			spawn(fun() -> 
+				timer:sleep(10),
+				?DEBUG("Spawn waking up with agents ~p", [Agents]),
+				lists:foreach(F, Agents),
+				?DEBUG("Spawn done.", [])
+			end),
+			{ok, #state{}}
+	end.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -111,7 +132,6 @@ handle_cast({end_avail, AgentPid}, State) ->
 	?DEBUG("An agent is no longer available.", []),
 	State2 = State#state{agents = lists:delete(AgentPid, State#state.agents)},
 	{noreply, balance(State2)};
-
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
@@ -315,6 +335,32 @@ balance_test_() ->
 					State2 = dump(),
 					?assertEqual([Apid], State2#state.agents),
 					?assertEqual(1, length(State1#state.dispatchers))
+				end
+			},
+			{
+				"Dispatcher unfortunately dies, but notices agents on it's return.",
+				fun() ->
+					agent_dummy_connection:start_x(10),
+					Agents = agent_manager:list(),
+					Setrel = fun(I) ->
+						{_Login, Pid} = lists:nth(I, Agents),
+						agent:set_state(Pid, released, default)
+					end,
+					lists:foreach(Setrel, lists:seq(1, 5)),
+					#state{agents = Expectedagents, dispatchers = Unexpecteddispatchers} = gen_server:call(dispatch_manager, dump),
+					exit(whereis(dispatch_manager), kill),
+					timer:sleep(5),
+					{ok, _Pid} = start(),
+					timer:sleep(30),
+					#state{agents = Newagents, dispatchers = Newdispathers} = Dump = gen_server:call(dispatch_manager, dump),
+					?assertEqual(length(Expectedagents), length(Newagents)),
+					?assertEqual(length(Unexpecteddispatchers), length(Newdispathers)),
+					lists:foreach(fun(I) ->
+						?assertNot(lists:member(I, Unexpecteddispatchers))
+					end, Newdispathers),
+					lists:foreach(fun(I) ->
+						?assert(lists:member(I, Expectedagents))
+					end, Newagents)
 				end
 			}
 		]

@@ -361,10 +361,12 @@ summarize(Transactions) ->
 	dict:to_list(SummaryDict).
 
 %% @private Get a standarized unix epoch integer from `now()'.
--spec(nowsec/1 :: ({non_neg_integer(), non_neg_integer(), non_neg_integer()}) -> non_neg_integer()).
+-spec(nowsec/1 :: ({Mega :: non_neg_integer(), Sec :: non_neg_integer(), Micro :: non_neg_integer()}) -> non_neg_integer()).
 nowsec({Mega, Sec, _Micro}) ->
 	(Mega * 1000000) + Sec.
 
+%% @private Push the raw transaction into the cdr_raw table.
+-spec(push_raw/2 :: (Callid :: string(), Trans :: tuple()) -> {'atomic', 'ok'}).
 push_raw(Callid, Trans) ->
 	mnesia:transaction(fun() -> mnesia:write(#cdr_raw{id = Callid, transaction = Trans}) end).
 

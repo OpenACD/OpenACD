@@ -7,6 +7,7 @@
 
 -include("log.hrl").
 -include("call.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 -export([
 	start/0,
@@ -164,7 +165,12 @@ handle_event({oncall, #call{id = CallID}, Time, Agent}, #state{id = CallID} = St
 	?NOTICE("~s is on call with ~s.", [Agent, CallID]),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({oncall, Time, Agent}, State#state.unterminated),
 	Newuntermed = [{oncall, Time, Agent} | Midunterminated],
-	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
+	Newtrans = case Event of
+		transfer ->
+			State#state.transactions;
+		_Else ->
+			[{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions]
+	end,
 	push_raw(CallID, {oncall, Time, Agent}),
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event({hangup, _Callrec, _Time, _By}, #state{hangup = true} = State) ->
@@ -243,7 +249,7 @@ check_split(Fun, List) ->
 	?DEBUG("checking split with list ~p", [List]),
 	case lists:splitwith(Fun, List) of
 		{List, []} ->
-			?ERROR("Split check failed!", []),
+			?ERROR("Split check failed on list ~p", [List]),
 			erlang:error("Split check failed");
 		{Head, [Tuple | Tail]} ->
 			?DEBUG("Head:  ~p;  Tuple:  ~p;  Tail:  ~p", [Head, Tuple, Tail]),
@@ -253,7 +259,8 @@ check_split(Fun, List) ->
 %% @doc Find the most recent transaction that can be used as an opening pair
 %% for the passed event.
 -spec(find_initiator/2 :: ({Event :: atom(), Time :: integer(), Datalist :: any()}, Unterminated :: [tuple()]) -> {tuple(), [tuple()]}).
-find_initiator({ringing, _Time, _Datalist}, Unterminated) ->
+find_initiator({ringing, _Time, _Datalist} = H, Unterminated) ->
+	?DEBUG("~p", [H]),
 	F = fun(I) ->
 		case I of
 			{ringing, _Oldtime, _Data} ->
@@ -265,17 +272,21 @@ find_initiator({ringing, _Time, _Datalist}, Unterminated) ->
 		end
 	end,
 	check_split(F, Unterminated);
-find_initiator({oncall, _Time, Agent}, Unterminated) ->
+find_initiator({oncall, _Time, Agent} = H, Unterminated) ->
+	?DEBUG("~p", [H]),
 	F = fun(I) ->
 		case I of
 			{ringing, _Oldtime, Agent} ->
+				false;
+			{transfer, _Oldtime, Agent} ->
 				false;
 			_Other ->
 				true
 		end
 	end,
 	check_split(F, Unterminated);
-find_initiator({wrapup, _Time, Agent}, Unterminated) ->
+find_initiator({wrapup, _Time, Agent} = H, Unterminated) ->
+	?DEBUG("~p", [H]),
 	F = fun(I) ->
 		case I of
 			{oncall, _Oldtime, Agent} ->
@@ -285,7 +296,8 @@ find_initiator({wrapup, _Time, Agent}, Unterminated) ->
 		end
 	end,
 	check_split(F, Unterminated);
-find_initiator({endwrapup, _Time, Agent}, Unterminated) ->
+find_initiator({endwrapup, _Time, Agent} = H, Unterminated) ->
+	?DEBUG("~p", [H]),
 	F = fun(I) ->
 		case I of
 			{wrapup, _Oldtime, Agent} ->
@@ -360,6 +372,38 @@ summarize(Transactions) ->
 	SummaryDict = lists:foldl(Count, Acc, Transactions),
 	dict:to_list(SummaryDict).
 
+recover(Callid) ->
+	?INFO("Starting recovery for ~s", [Callid]),
+	F = fun() ->
+		QH = qlc:q([X#cdr_raw.transaction || X <- mnesia:table(cdr_raw), X#cdr_raw.id =:= Callid]),
+		qlc:e(QH)
+	end,
+	{atomic, Transactions} = mnesia:transaction(F),
+	Sort = fun({_Atrans, Atime, _Adata}, {_Btrans, Btime, Bdata}) ->
+		Atime >= Btime
+	end,
+	Sorted = lists:sort(Sort, Transactions),
+	recover(Transactions, [], [], false).
+
+recover([], Untermed, Termed, Hangup) ->
+	{Untermed, Termed, Hangup};
+recover([{inqueue, Time, Details} = Head | Tail], Untermed, Termed, Hangup) ->
+	recover(Tail, [Head | Untermed], Termed, Hangup);
+recover([{hangup, Time, Details} = Head | Tail], Untermed, Termed, _Hangup) ->
+	recover(Tail, Untermed, [{hangup, Time, Time, 0, Details} | Termed], true);
+recover([{transfer, Time, Details} = Head | Tail], Untermed, Termed, Hangup) ->
+	recover(Tail, [{transfer, Time, Details} | Untermed], Termed, Hangup);
+recover([{Event, Time, Details} = Head | Tail], Untermed, Termed, Hangup) ->
+	{{Priorevent, Oldtime, Olddetails}, Miduntermed} = find_initiator(Head, Untermed),
+	Newtermed = [{Priorevent, Oldtime, Time, Time - Oldtime, Olddetails} | Termed],
+	Newuntermed = case Event of
+		endwrapup ->
+			Miduntermed;
+		_Else ->
+			[Head | Miduntermed]
+	end,
+	recover(Tail, Newuntermed, Newtermed, Hangup).
+			
 %% @private Get a standarized unix epoch integer from `now()'.
 -spec(nowsec/1 :: ({Mega :: non_neg_integer(), Sec :: non_neg_integer(), Micro :: non_neg_integer()}) -> non_neg_integer()).
 nowsec({Mega, Sec, _Micro}) ->
@@ -418,6 +462,11 @@ find_initiator_test_() ->
 	fun() ->
 		Unterminated = [{ringing, 10, "agent"}],
 		?assertEqual({{ringing, 10, "agent"}, []}, find_initiator({oncall, 15, "agent"}, Unterminated))
+	end},
+	{"oncall with a transfer before it",
+	fun() ->
+		Unterminated = [{transfer, 10, "newagent"}],
+		?assertEqual({{transfer, 10, "newagent"}, []}, find_initiator({oncall, 10, "newagent"}, Unterminated))
 	end},
 	{"wraupup with an oncall before it",
 	fun() ->
@@ -690,6 +739,56 @@ mnesia_test_() ->
 			?assertEqual(inprogress, Cdrrec#cdr_rec.transactions)
 		end}
 	end]}.
+
+recover_test_() ->
+	[
+	{"Recover a call that's only been queued",
+	fun() ->
+		Transactions = [{inqueue, 5, "testqueue"}],
+		?assertEqual({[{inqueue, 5, "testqueue"}], [], false}, recover(Transactions, [], [], false))
+	end},
+	{"Recover a call that's ringing to an agent",
+	fun() ->
+		Transactions = [{inqueue, 5, "testqueue"}, {ringing, 10, "agent"}],
+		Expected = {[{ringing, 10, "agent"}], [{inqueue, 5, 10, 5, "testqueue"}], false},
+		?assertEqual(Expected, recover(Transactions, [], [], false))
+	end},
+	{"Recover a call that's ringing to two different agents",
+	fun() ->
+		Transactions = [{inqueue, 5, "testqueue"}, {ringing, 10, "agent1"}, {ringing, 15, "agent2"}],
+		Expected = {[{ringing, 15, "agent2"}], [{ringing, 10, 15, 5, "agent1"}, {inqueue, 5, 10, 5, "testqueue"}], false},
+		?assertEqual(Expected, recover(Transactions, [], [], false))
+	end},
+	{"Recover a call that's all but completed",
+	fun() ->
+		Transactions = [
+			{inqueue, 5, "testqueue"},
+			{ringing, 10, "agent1"},
+			{ringing, 15, "agent2"},
+			{oncall, 20, "agent2"},
+			{transfer, 25, "agent3"},
+			{oncall, 25, "agent3"},
+			{wrapup, 25, "agent2"},
+			{endwrapup, 30, "agent2"},
+			{hangup, 35, agent},
+			{wrapup, 35, "agent3"}
+		],
+		Expecteduntermed = [{wrapup, 35, "agent3"}],
+		Expectedtermed = [
+			{oncall, 25, 35, 10, "agent3"},
+			{hangup, 35, 35, 0, agent},
+			{wrapup, 25, 30, 5, "agent2"},
+			{oncall, 20, 25, 5, "agent2"},
+			{transfer, 25, 25, 0, "agent3"},
+			{ringing, 15, 20, 5, "agent2"},
+			{ringing, 10, 15, 5, "agent1"},
+			{inqueue, 5, 10, 5, "testqueue"}
+		],
+		Expected = {Expecteduntermed, Expectedtermed, true},
+		?DEBUG("recovery:  ~p", [recover(Transactions, [], [], false)]),
+		?assertEqual(Expected, recover(Transactions, [], [], false))
+	end}
+	].
 	
 -endif.
 

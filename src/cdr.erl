@@ -74,78 +74,6 @@
 %
 %event -> branched by
 %oncall -> transfer
-
-%% @doc Using `fun() Fun' as the search function, extract the first item that 
-%% causes `Fun' to return false from `[any()] List'.  Returns `{Found, Remaininglist}'.
--spec(check_split/2 :: (Fun :: fun(), List :: [tuple()]) -> {tuple(), [tuple()]}).
-check_split(Fun, List) ->
-	?DEBUG("checking split with list ~p", [List]),
-	case lists:splitwith(Fun, List) of
-		{List, []} ->
-			?ERROR("Split check failed!", []),
-			erlang:error("Split check failed");
-		{Head, [Tuple | Tail]} ->
-			?DEBUG("Head:  ~p;  Tuple:  ~p;  Tail:  ~p", [Head, Tuple, Tail]),
-			{Tuple, lists:append(Head, Tail)}
-	end.
-
-%% @doc Find the most recent transaction that can be used as an opening pair
-%% for the passed event.
--spec(find_initiator/2 :: ({Event :: atom(), Time :: integer(), Datalist :: any()}, Unterminated :: [tuple()]) -> {tuple(), [tuple()]}).
-find_initiator({ringing, _Time, _Datalist}, Unterminated) ->
-	F = fun(I) ->
-		case I of
-			{ringing, _Oldtime, _Data} ->
-				false;
-			{inqueue, _Oldtime, _Data} ->
-				false;
-			_Other ->
-				true
-		end
-	end,
-	check_split(F, Unterminated);
-find_initiator({oncall, _Time, Agent}, Unterminated) ->
-	F = fun(I) ->
-		case I of
-			{ringing, _Oldtime, Agent} ->
-				false;
-			_Other ->
-				true
-		end
-	end,
-	check_split(F, Unterminated);
-find_initiator({wrapup, _Time, Agent}, Unterminated) ->
-	F = fun(I) ->
-		case I of
-			{oncall, _Oldtime, Agent} ->
-				false;
-			_Other ->
-				true
-		end
-	end,
-	check_split(F, Unterminated);
-find_initiator({endwrapup, _Time, Agent}, Unterminated) ->
-	F = fun(I) ->
-		case I of
-			{wrapup, _Oldtime, Agent} ->
-				false;
-			_Other ->
-				true
-		end
-	end,
-	check_split(F, Unterminated).
-
-build_tables() ->
-	util:build_table(cdr_rec, [
-		{attributes, record_info(fields, cdr_rec)},
-		{disc_copies, [node() | nodes()]}
-	]),
-	util:build_table(cdr_raw, [
-		{attributes, record_info(fields, cdr_raw)},
-		{disc_copies, [node() | nodes()]},
-		{type, bag}
-	]),
-	ok.
 	
 %% API
 
@@ -307,7 +235,79 @@ terminate(Args, _State) ->
 %% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+	
+%% @doc Using `fun() Fun' as the search function, extract the first item that 
+%% causes `Fun' to return false from `[any()] List'.  Returns `{Found, Remaininglist}'.
+-spec(check_split/2 :: (Fun :: fun(), List :: [tuple()]) -> {tuple(), [tuple()]}).
+check_split(Fun, List) ->
+	?DEBUG("checking split with list ~p", [List]),
+	case lists:splitwith(Fun, List) of
+		{List, []} ->
+			?ERROR("Split check failed!", []),
+			erlang:error("Split check failed");
+		{Head, [Tuple | Tail]} ->
+			?DEBUG("Head:  ~p;  Tuple:  ~p;  Tail:  ~p", [Head, Tuple, Tail]),
+			{Tuple, lists:append(Head, Tail)}
+	end.
 
+%% @doc Find the most recent transaction that can be used as an opening pair
+%% for the passed event.
+-spec(find_initiator/2 :: ({Event :: atom(), Time :: integer(), Datalist :: any()}, Unterminated :: [tuple()]) -> {tuple(), [tuple()]}).
+find_initiator({ringing, _Time, _Datalist}, Unterminated) ->
+	F = fun(I) ->
+		case I of
+			{ringing, _Oldtime, _Data} ->
+				false;
+			{inqueue, _Oldtime, _Data} ->
+				false;
+			_Other ->
+				true
+		end
+	end,
+	check_split(F, Unterminated);
+find_initiator({oncall, _Time, Agent}, Unterminated) ->
+	F = fun(I) ->
+		case I of
+			{ringing, _Oldtime, Agent} ->
+				false;
+			_Other ->
+				true
+		end
+	end,
+	check_split(F, Unterminated);
+find_initiator({wrapup, _Time, Agent}, Unterminated) ->
+	F = fun(I) ->
+		case I of
+			{oncall, _Oldtime, Agent} ->
+				false;
+			_Other ->
+				true
+		end
+	end,
+	check_split(F, Unterminated);
+find_initiator({endwrapup, _Time, Agent}, Unterminated) ->
+	F = fun(I) ->
+		case I of
+			{wrapup, _Oldtime, Agent} ->
+				false;
+			_Other ->
+				true
+		end
+	end,
+	check_split(F, Unterminated).
+
+build_tables() ->
+	util:build_table(cdr_rec, [
+		{attributes, record_info(fields, cdr_rec)},
+		{disc_copies, [node() | nodes()]}
+	]),
+	util:build_table(cdr_raw, [
+		{attributes, record_info(fields, cdr_raw)},
+		{disc_copies, [node() | nodes()]},
+		{type, bag}
+	]),
+	ok.
+	
 %% Need to keep in mind that not all agents are to be billed the same,
 %% so there does need to be some form of pair checking.
 % pair checking is done as the transactions are built up.

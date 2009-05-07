@@ -178,22 +178,59 @@ handle_event({inqueue, #call{id = CallID}, Time, Queuename}, #state{id = CallID}
 handle_event({ringing, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s is ringing to ~s", [CallID, Agent]),
 	push_raw(CallID, {ringing, Time, Agent}),
-	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({ringing, Time, Agent}, State#state.unterminated),
-	Newuntermed = [{ringing, Time, Agent} | Midunterminated],
-	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
-	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
+	case find_initiator_limbo({ringing, Time, Agent}, State#state.unterminated, State#state.limbo) of
+		{Limboevent, Limbotime, Limbodata} = Limbo ->
+			{ok, State#state{limbo = Limbo}};
+		{{Event, Oldtime, Data}, Midunterminated} ->
+			Newuntermed = [{ringing, Time, Agent} | Midunterminated],
+			Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
+			{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
+		{[{Event1, Otime1, Data1}, {Event2, Otime2, Data2}], Midunterminated} ->
+			{ok, State}
+%	
+%	
+%	try find_initiator({ringing, Time, Agent}, State#state.unterminated) of
+%		{{Event, Oldtime, Data}, Midunterminated} ->
+%			Newuntermed = [{ringing, Time, Agent} | Midunterminated],
+%			Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
+%			case State#state.limbo of
+%				undefined ->
+%					{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
+%				{Levent, Ltime, Ldata} = Limbo ->
+%					try find_initiator(Limbo, Newuntermed) of
+%						{{Limboevent, Limbotime, Limbodata}, Limboeduntermed} ->
+%							
+%	catch
+%		error:split_check_fail ->
+%			case State#state.limbo of
+%				undefined ->
+%					{ok, State#state{limbo = {ringing, Time, Agent}};
+%				_Else ->
+%					erlang:error(split_check_fail)
+%			end
+	end;
 handle_event({oncall, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s is on call with ~s.", [Agent, CallID]),
 	push_raw(CallID, {oncall, Time, Agent}),
-	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({oncall, Time, Agent}, State#state.unterminated),
-	Newuntermed = [{oncall, Time, Agent} | Midunterminated],
-	Newtrans = case Event of
-		transfer ->
-			State#state.transactions;
-		_Else ->
-			[{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions]
-	end,
-	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
+	try find_initiator({oncall, Time, Agent}, State#state.unterminated) of
+		{{Event, Oldtime, Data}, Midunterminated} ->
+			Newuntermed = [{oncall, Time, Agent} | Midunterminated],
+			Newtrans = case Event of
+				transfer ->
+					State#state.transactions;
+				_Else ->
+					[{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions]
+			end,
+			{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}}
+	catch
+		error:split_check_fail ->
+			case State#state.limbo of
+				undefined ->
+					{ok, State#state{limbo = {oncall, Time, Agent}}};
+				_Else ->
+					erlang:error(split_check_fail)
+			end
+	end;
 handle_event({hangup, _Callrec, _Time, _By}, #state{hangup = true} = State) ->
 	% already got a hangup, so we don't care.
 	{ok, State};
@@ -281,6 +318,25 @@ check_split(Fun, List) ->
 			{Tuple, lists:append(Head, Tail)}
 	end.
 
+find_initiator_limbo(Rawtrans, Unterminated, undefined) ->
+	try find_initiator(Rawtrans, Unterminated)
+	catch
+		error:split_check_fail ->
+			Rawtrans
+	end;
+find_initiator_limbo(Rawtrans, Unterminated, Limbo) ->
+	?INFO("Attempting to reconcile limbo'ed event ~p", [Limbo]),
+	{{Event, Time, Data} = Event1, Newunterminated} = N = find_initiator(Rawtrans, Unterminated),
+	?DEBUG("N:  ~p", [N]),
+	try find_initiator(Limbo, [Rawtrans | Newunterminated]) of
+		{Event2, Moreuntermed} ->
+			{[Event1, Event2], Moreuntermed}
+	catch
+		error:split_check_fail ->
+			?DEBUG("Caught fail through", []),
+			{Event1, Newunterminated}
+	end.
+	
 %% @doc Find the most recent transaction that can be used as an opening pair
 %% for the passed event.
 -spec(find_initiator/2 :: ({Event :: atom(), Time :: integer(), Datalist :: any()}, Unterminated :: [tuple()]) -> {tuple(), [tuple()]}).
@@ -518,6 +574,43 @@ find_initiator_test_() ->
 		?assertEqual({{wrapup, 10, "catch"}, [{oncall, 10, "ignore"}, {wrapup, 5, "alsoignore"}]}, Res)
 	end}].
 
+find_initiator_limbo_test_() ->
+	[{"No limbo to test, and no errors occur",
+	fun() ->
+		Unterminated = [{ringing, 5, "agent"}],
+		Res = find_initiator_limbo({oncall, 10, "agent"}, Unterminated, undefined),
+		?assertEqual({{ringing, 5, "agent"}, []}, Res)
+	end},
+	{"No limbo to test, but ends up with one",
+	fun() ->
+		Unterminated = [{inqueue, 5, "testqueue"}],
+		Res = find_initiator_limbo({oncall, 15, "agent"}, Unterminated, undefined),
+		?assertEqual({oncall, 15, "agent"}, Res)
+	end},
+	{"A limbo to test, and it's cleared",
+	fun() ->
+		Unterminated = [{inqueue, 5, "testqueue"}],
+		Limbo = {oncall, 15, "agent"},
+		Event = {ringing, 10, "agent"},
+		Res = find_initiator_limbo(Event, Unterminated, Limbo),
+		?assertEqual({[{inqueue, 5, "testqueue"}, {ringing, 10, "agent"}], []}, Res)
+	end},
+	{"A limbo to test, but it still doesn't match",
+	fun() ->
+		Unterminated = [{inqueue, 5, "testqueue"}],
+		Limbo = {oncall, 15, "agent"},
+		Event = {ringing, 10, "garbage"},
+		Res = find_initiator_limbo(Event, Unterminated, Limbo),
+		?assertEqual({{inqueue, 5, "testqueue"}, []}, Res)
+	end},
+	{"A limbo to test, but end up with a second limbo",
+	fun() ->
+		Unterminated = [{inqueue, 5, "testqueue"}],
+		Limbo = {oncall, 15, "agent"},
+		Event = {wrapup, 20, "agent"},
+		?assertError(split_check_fail, find_initiator_limbo(Event, Unterminated, Limbo))
+	end}].
+	
 handle_event_test_() ->
 	{foreach,
 	fun() ->
@@ -726,7 +819,7 @@ handle_event_test_() ->
 			{atomic, [Trans]} = Pull(),
 			?assertEqual(#cdr_raw{id = "testcall", transaction = {oncall, 15, "agent"}}, Trans),
 			?assertEqual({oncall, 15, "agent"}, Newstate#state.limbo),
-			?assertEqual([], Newstate#state.unterminated),
+			?assertEqual([{inqueue, 5, "testqueue"}], Newstate#state.unterminated),
 			?assertEqual([], Newstate#state.transactions)
 		end}
 	end,
@@ -736,7 +829,7 @@ handle_event_test_() ->
 			State = #state{
 				id = "testcall",
 				unterminated = [{inqueue, 5, "testqueue"}],
-				limbo = [{oncall, 15, "agent"}]
+				limbo = {oncall, 15, "agent"}
 			},
 			{ok, Newstate} = handle_event({ringing, Call, 10, "agent"}, State),
 			{atomic, [Trans]} = Pull(),

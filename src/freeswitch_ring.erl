@@ -166,7 +166,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 		"CHANNEL_UNBRIDGE" ->
 			Agent = agent:dump_state(State#state.agent_pid),
 			cdr:hangup(State#state.callrec, agent),
-			cdr:wrapup(State#state.callrec, Agent#agent.login),
+			%cdr:wrapup(State#state.callrec, Agent#agent.login),
 			{noreply, State};
 		_Else ->
 			?DEBUG("call_event ~p", [Event]),

@@ -49,7 +49,7 @@
 	id :: callid(),
 	transactions = [] :: transactions(),
 	unterminated = [] :: [raw_transaction()],
-	limbo = [] :: [raw_transaction()],
+	limbo :: raw_transaction() | 'undefined',
 	hangup = false :: bool(),
 	wrapup = false :: bool()}).
 	
@@ -177,13 +177,14 @@ handle_event({inqueue, #call{id = CallID}, Time, Queuename}, #state{id = CallID}
 	{ok, State#state{unterminated = Unterminated}};
 handle_event({ringing, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s is ringing to ~s", [CallID, Agent]),
+	push_raw(CallID, {ringing, Time, Agent}),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({ringing, Time, Agent}, State#state.unterminated),
 	Newuntermed = [{ringing, Time, Agent} | Midunterminated],
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
-	push_raw(CallID, {ringing, Time, Agent}),
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event({oncall, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s is on call with ~s.", [Agent, CallID]),
+	push_raw(CallID, {oncall, Time, Agent}),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({oncall, Time, Agent}, State#state.unterminated),
 	Newuntermed = [{oncall, Time, Agent} | Midunterminated],
 	Newtrans = case Event of
@@ -192,27 +193,26 @@ handle_event({oncall, #call{id = CallID}, Time, Agent}, #state{id = CallID} = St
 		_Else ->
 			[{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions]
 	end,
-	push_raw(CallID, {oncall, Time, Agent}),
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event({hangup, _Callrec, _Time, _By}, #state{hangup = true} = State) ->
 	% already got a hangup, so we don't care.
 	{ok, State};
 handle_event({hangup, #call{id = CallID}, Time, agent}, #state{id = CallID} = State) ->
 	?NOTICE("hangup for ~s", [CallID]),
-	Newtrans = [{hangup, Time, Time, 0, agent} | State#state.transactions],
 	push_raw(CallID, {hangup, Time, agent}),
+	Newtrans = [{hangup, Time, Time, 0, agent} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans, hangup = true}};
 handle_event({hangup, #call{id = CallID}, Time, By}, #state{id = CallID} = State) ->
 	?NOTICE("Hangup for ~s", [CallID]),
-	Newtrans = [{hangup, Time, Time, 0, By} | State#state.transactions],
 	push_raw(CallID, {hangup, Time, By}),
+	Newtrans = [{hangup, Time, Time, 0, By} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans, hangup = true}};
 handle_event({wrapup, #call{id = CallID}, Time,  Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s wrapup for ~s", [Agent, CallID]),
+	push_raw(CallID, {wrapup, Time, Agent}),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({wrapup, Time, Agent}, State#state.unterminated),
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 	Newuntermed = [{wrapup, Time, Agent} | Midunterminated],
-	push_raw(CallID, {wrapup, Time, Agent}),
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} = State) ->
 	?NOTICE("~s ended wrapup for ~s", [Agent, CallID]),
@@ -448,7 +448,7 @@ check_split_test_() ->
 			true
 		end,
 		List = [{a}, {b}, {c}, {d}],
-		?assertError("Split check failed", check_split(F, List))
+		?assertError(split_check_fail, check_split(F, List))
 	end},
 	{"List ends up all on the right",
 	fun() ->

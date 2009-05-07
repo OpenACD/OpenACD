@@ -136,8 +136,9 @@ restart(agent_sup, [Nodes]) ->
 	supervisor:start_child(agent_sup, Agentconnspec),
 	supervisor:start_child(agent_sup, AgentManagerSpec),
 	Out;
-restart(Branch, Args) when is_atom(Branch) ->
-	supervisor:restart_child(cpx_supervisor, Branch).
+restart(Branch, _Args) when is_atom(Branch) ->
+	supervisor:restart_child(cpx_supervisor, Branch),
+	load_specs(Branch).
 	
 %%====================================================================
 %% Supervisor callbacks

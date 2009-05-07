@@ -49,6 +49,7 @@
 	id :: callid(),
 	transactions = [] :: transactions(),
 	unterminated = [] :: [raw_transaction()],
+	limbo = [] :: [raw_transaction()],
 	hangup = false :: bool(),
 	wrapup = false :: bool()}).
 	
@@ -274,7 +275,7 @@ check_split(Fun, List) ->
 	case lists:splitwith(Fun, List) of
 		{List, []} ->
 			?ERROR("Split check failed on list ~p", [List]),
-			erlang:error("Split check failed");
+			erlang:error(split_check_fail);
 		{Head, [Tuple | Tail]} ->
 			?DEBUG("Head:  ~p;  Tuple:  ~p;  Tail:  ~p", [Head, Tuple, Tail]),
 			{Tuple, lists:append(Head, Tail)}
@@ -713,8 +714,39 @@ handle_event_test_() ->
 			?DEBUG("Expected:  ~p;  Recieved:  ~p", [Expectedstate, Newstate]),
 			?assertEqual(Expectedstate, Newstate)
 		end}
+	end,
+	fun({Call, Pull}) ->
+		{"On call comes in before ringing",
+		fun() ->
+			State = #state{
+				id = "testcall",
+				unterminated = [{inqueue, 5, "testqueue"}]
+			},
+			{ok, Newstate} = handle_event({oncall, Call, 15, "agent"}, State),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual(#cdr_raw{id = "testcall", transaction = {oncall, 15, "agent"}}, Trans),
+			?assertEqual({oncall, 15, "agent"}, Newstate#state.limbo),
+			?assertEqual([], Newstate#state.unterminated),
+			?assertEqual([], Newstate#state.transactions)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"Limbo pull",
+		fun() ->
+			State = #state{
+				id = "testcall",
+				unterminated = [{inqueue, 5, "testqueue"}],
+				limbo = [{oncall, 15, "agent"}]
+			},
+			{ok, Newstate} = handle_event({ringing, Call, 10, "agent"}, State),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual(#cdr_raw{id = "testcall", transaction = {ringing, 10, "agent"}}, Trans),
+			?assertEqual([], Newstate#state.limbo),
+			?assertEqual([{oncall, 15, "agent"}], Newstate#state.unterminated),
+			?assertEqual([{inqueue, 5, 10, 5, "testqueue"}], Newstate#state.transactions)
+		end}
 	end]}.
-
+		
 summarize_test_() ->
 	[{"Simple summary, one call, one agent",
 	fun() ->

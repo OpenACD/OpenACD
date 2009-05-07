@@ -186,7 +186,13 @@ handle_event({ringing, #call{id = CallID}, Time, Agent}, #state{id = CallID} = S
 			Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 			{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 		{[{Event1, Otime1, Data1}, {Event2, Otime2, Data2}], Midunterminated} ->
-			{ok, State}
+			{_Levent, Ltime, _Ldata} = State#state.limbo,
+			Unlimboed = [
+				{Event2, Otime2, Ltime, Ltime - Otime2, Data2},
+				{Event1, Otime1, Otime2, Otime2 - Otime1, Data1}
+			],
+			Newtrans = lists:append(Unlimboed, State#state.transactions),
+			{ok, State#state{unterminated = [State#state.limbo | Midunterminated], limbo = undefined, transactions = Newtrans}}
 %	
 %	
 %	try find_initiator({ringing, Time, Agent}, State#state.unterminated) of
@@ -318,6 +324,7 @@ check_split(Fun, List) ->
 			{Tuple, lists:append(Head, Tail)}
 	end.
 
+%% When returning 2 events to be transactionsized, the older one is first
 find_initiator_limbo(Rawtrans, Unterminated, undefined) ->
 	try find_initiator(Rawtrans, Unterminated)
 	catch
@@ -333,7 +340,7 @@ find_initiator_limbo(Rawtrans, Unterminated, Limbo) ->
 			{[Event1, Event2], Moreuntermed}
 	catch
 		error:split_check_fail ->
-			?DEBUG("Caught fail through", []),
+			?DEBUG("Caught fall through", []),
 			{Event1, Newunterminated}
 	end.
 	
@@ -824,19 +831,35 @@ handle_event_test_() ->
 		end}
 	end,
 	fun({Call, Pull}) ->
-		{"Limbo pull",
+		{"Ringing comes in while an oncall is in limbo",
+		fun() ->
+			State = #state{
+				id = "testcall",
+				unterminated = [{inqueue, 55, "testqueue"}],
+				limbo = {oncall, 90, "agent"}
+			},
+			{ok, Newstate} = handle_event({ringing, Call, 66, "agent"}, State),
+			{atomic, [Trans]} = Pull(),
+			?assertEqual(#cdr_raw{id = "testcall", transaction = {ringing, 66, "agent"}}, Trans),
+			?assertEqual(undefined, Newstate#state.limbo),
+			?assertEqual([{oncall, 90, "agent"}], Newstate#state.unterminated),
+			?assertEqual([{ringing, 66, 90, 24, "agent"}, {inqueue, 55, 66, 11, "testqueue"}], Newstate#state.transactions)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"Ringing for a different agent comes in while oncall is in limbo",
 		fun() ->
 			State = #state{
 				id = "testcall",
 				unterminated = [{inqueue, 5, "testqueue"}],
-				limbo = {oncall, 15, "agent"}
+				limbo = {oncall, 20, "agent"}
 			},
-			{ok, Newstate} = handle_event({ringing, Call, 10, "agent"}, State),
+			{ok, Newstate} = handle_event({ringing, Call, 10, "someagent"}, State),
 			{atomic, [Trans]} = Pull(),
-			?assertEqual(#cdr_raw{id = "testcall", transaction = {ringing, 10, "agent"}}, Trans),
-			?assertEqual([], Newstate#state.limbo),
-			?assertEqual([{oncall, 15, "agent"}], Newstate#state.unterminated),
-			?assertEqual([{inqueue, 5, 10, 5, "testqueue"}], Newstate#state.transactions)
+			?assertEqual(#cdr_raw{id = "testcall", transaction = {ringing, 10, "someagent"}}, Trans),
+			?assertEqual({oncall, 20, "agent"}, Newstate#state.limbo),
+			?assertEqual([{ringing, 10, "someagent"}], Newstate#state.unterminated),
+			?assertEqual([{inqueue, 5, 10, 5, "testqueue"}], Newstate#state.transactions)  
 		end}
 	end]}.
 		

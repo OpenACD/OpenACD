@@ -46,6 +46,8 @@
 
 -behaviour(gen_leader).
 
+-type(election() :: tuple()).
+
 -export([
 	start_link/1,
 	start/1,
@@ -182,6 +184,7 @@ print() ->
 % gen_leader stuff
 
 %% @private
+-spec(init/1 :: (Args :: []) -> {'ok', #state{}}).
 init([]) ->
 	?DEBUG("queue manager starting at ~p", [node()]),
 	process_flag(trap_exit, true),
@@ -196,12 +199,14 @@ init([]) ->
 	{ok, State}.
 
 %% @private
+-spec(elected/2 :: (State :: #state{}, Election :: election()) -> {'ok', dict(), #state{}}).
 elected(State, _Election) ->
 	?INFO("elected",[]),
 	mnesia:subscribe(system),
 	{ok, State#state.qdict, State}.
 
 %% @private
+-spec(surrendered/3 :: (State :: #state{}, LeaderDict :: dict(), Election :: election()) -> {'ok', #state{}}).
 surrendered(#state{qdict = Qdict} = State, LeaderDict, _Election) ->
 	?INFO("surrendered.",[]),
 	mnesia:unsubscribe(system),
@@ -232,6 +237,7 @@ surrendered(#state{qdict = Qdict} = State, LeaderDict, _Election) ->
 	{ok, State#state{qdict = Noleader}}.
 
 %% @private
+-spec(handle_DOWN/3 :: (Node :: node(), State :: #state{}, Election :: election()) -> {'ok', #state{}}).
 handle_DOWN(Node, #state{qdict = Qdict} = State, _Election) ->
 	?INFO("in handle_DOWN",[]),
 	mnesia:set_master_nodes(call_queue, [node()]),
@@ -240,6 +246,7 @@ handle_DOWN(Node, #state{qdict = Qdict} = State, _Election) ->
 	{ok, State#state{qdict = Newdict}}.
 
 %% @private
+-spec(handle_leader_call/4 :: (Request :: any(), From :: pid(), State :: #state{}, Election :: election()) -> {'reply', any(), #state{}}).
 handle_leader_call(queues_as_list, _From, #state{qdict = Qdict} = State, _Election) ->
 		{reply, dict:to_list(Qdict), State};
 handle_leader_call({notify, Name, Pid}, _From, #state{qdict = Qdict} = State, _Election) ->
@@ -263,6 +270,7 @@ handle_leader_call(_Msg, _From, State, _Election) ->
 
 
 %% @private
+-spec(handle_call/3 :: (Request :: any(), From :: pid(), State :: #state{}) -> {'ok', any(), #state{}}).
 handle_call({notify, Name, Pid}, _From, #state{qdict = Qdict} = State) ->
 	link(Pid),
 	Newdict = dict:store(Name, Pid, Qdict),
@@ -291,6 +299,7 @@ handle_call(_Request, _From, State) ->
 
 
 %% @private
+-spec(handle_leader_cast/3 :: (Request :: any(), State :: #state{}, Election :: election()) -> {'noreply', #state{}}).
 handle_leader_cast({notify, Name, Pid}, #state{qdict = Qdict} = State, _Election) ->
 	?INFO("leader alerted about new queue ~p at ~p", [Name, Pid]),
 	Newdict = dict:store(Name, Pid, Qdict),
@@ -303,10 +312,12 @@ handle_leader_cast(_Msg, State, _Election) ->
 	{noreply, State}.
 
 %% @private
+-spec(handle_cast/2 :: (Msg :: any(), State :: #state{}) -> {'noreply', #state{}}).
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 %% @private
+-spec(handle_info/2 :: (Info :: any(), State :: #state{}) -> {'noreply', #state{}}).
 handle_info({mnesia_system_event, {inconsistent_database, _Context, _Node}}, State) ->
 	mnesia:set_master_nodes(call_queue, [node()]),
 	mnesia:set_master_nodes(skill_rec, [node()]),
@@ -357,17 +368,22 @@ handle_info(_Info, State) ->
 	{noreply, State}.
 
 %% @private
+-spec(from_leader/3 :: (Msg :: any(), State :: #state{}, Election :: election()) -> {'ok', #state{}}).
 from_leader(_Msg, State, _Election) ->
 	{ok, State}.
 
 %% @private
+-spec(terminate/2 :: (Reason :: any(), State :: #state{}) -> 'ok').
 terminate(_Reason, _State) ->
 	ok.
 
 %% @private
+-spec(code_change/4 :: (OldVsn :: string(), State :: #state{}, Election :: election(), Extra :: any()) -> {'ok', #state{}}).
 code_change(_OldVsn, State, _Election, _Extra) ->
 	{ok, State}.
 
+%% @private
+-spec(find_queue_name/2 :: (NeedlePid :: pid(), Queues :: [{string(), pid()}]) -> 'none' | string()).
 find_queue_name(_NeedlePid, []) ->
 	none;
 find_queue_name(NeedlePid, [{Qname, NeedlePid} | _Tail]) ->

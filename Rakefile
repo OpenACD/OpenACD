@@ -259,7 +259,7 @@ namespace :test do
 		dialyzer_flags = ""
 		dialyzer_flags += " -DEUNIT=1" if ENV['dialyzer_debug']
 		dialyzer_flags += " -Wunderspecs" if ENV['dialyzer_underspecced']
-		dialyzer_output = `dialyzer -D#{OTPVERSION} #{dialyzer_flags} --src -I include -c #{SRC.reject{|x| x =~ /test_coverage/}.join(' ')} contrib/misc/src/*.erl contrib/mochiweb/src/*.erl`
+		dialyzer_output = `dialyzer -D#{OTPVERSION}=1 #{dialyzer_flags} --src -I include -c #{SRC.reject{|x| x =~ /test_coverage/}.join(' ')} contrib/misc/src/*.erl contrib/mochiweb/src/*.erl`
 		#puts dialyzer_output
 		if $?.exitstatus.zero?
 			puts 'ok'

@@ -27,6 +27,8 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
+%% @doc A terminal output backend for cpxlog.
+
 -module(cpxlog_terminal).
 -behaviour(gen_event).
 

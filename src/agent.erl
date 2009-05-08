@@ -430,7 +430,7 @@ wrapup(Event, From, State) ->
 
 % generic handlers independant of state
 %% @private
--spec(handle_event/3 :: (Event :: 'stop', StateName :: atom(), State :: #agent{}) -> {'stop','normal', #agent{}}).
+-spec(handle_event/3 :: (Event :: 'stop', StateName :: statename(), State :: #agent{}) -> {'stop','normal', #agent{}}).
 	%(Event :: any(), StateName :: atom(), State :: #agent{}) -> {'next_state', atom(), #agent{}}).
 handle_event(stop, _StateName, State) -> 
 	{stop, normal, State};
@@ -438,6 +438,7 @@ handle_event(_Event, StateName, State) ->
 	{next_state, StateName, State}.
 
 %% @private
+-spec(handle_sync_event/4 :: (Event :: any(), From :: pid(), StateName :: statename(), State :: #agent{}) -> {'reply', any(), atom(), #agent{}}).
 handle_sync_event(query_state, _From, StateName, State) -> 
 	{reply, {ok, StateName}, StateName, State};
 handle_sync_event(dump_state, _From, StateName, State) ->
@@ -454,6 +455,7 @@ handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.
 
 %% @private
+-spec(handle_info/3 :: (Event :: any(), StateName :: statename(), State :: #agent{}) -> {'stop', 'normal', #agent{}} | {'stop', 'shutdown', #agent{}} | {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
 handle_info({'EXIT', From, Reason}, StateName, State) ->
 	?INFO("Got exit message from ~p with reason ~p", [From, Reason]),
 	case whereis(agent_manager) of
@@ -467,6 +469,8 @@ handle_info({'EXIT', From, Reason}, StateName, State) ->
 handle_info(_Info, StateName, State) ->
 	{next_state, StateName, State}.
 
+%% @private
+-spec(agent_manager_exit/3 :: (Reason :: any(), StateName :: statename(), State :: #agent{}) -> {'stop', 'normal', #agent{}} | {'stop', 'shutdown', #agent{}} | {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
 agent_manager_exit(Reason, StateName, State) ->
 	case Reason of
 		normal ->
@@ -475,11 +479,12 @@ agent_manager_exit(Reason, StateName, State) ->
 		shutdown ->
 			?INFO("Agent manager shutdown", []),
 			{stop, shutdown, State};
-		Else ->
+		_Else ->
 			?INFO("Agent manager exited abnormally with reason ~p", [Reason]),
 			wait_for_agent_manager(5, StateName, State)
 	end.
 
+-spec(wait_for_agent_manager/3 :: (Count :: non_neg_integer(), StateName :: statename(), State :: #agent{}) -> {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
 wait_for_agent_manager(0, _StateName, State) ->
 	?WARNING("Timed out waiting for agent manager respawn", []),
 	{stop, timeout, State};
@@ -499,11 +504,13 @@ wait_for_agent_manager(Count, StateName, State) ->
 
 % obviousness below.
 %% @private
+-spec(terminate/3 :: (Reason :: any(), StateName :: statename(), State :: #agent{}) -> 'ok').
 terminate(Reason, StateName, _State) ->
 	?NOTICE("Agent terminating:  ~p, State:  ~p", [Reason, StateName]),
 	ok.
 
 %% @private
+-spec(code_change/4 :: (OldVsn :: string(), StateName :: statename(), State :: #agent{}, Extra :: any()) -> {'ok', statename(), #agent{}}).
 code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
 

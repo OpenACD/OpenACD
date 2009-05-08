@@ -58,6 +58,7 @@
 %% wrapup :: #call{}
 
 -type(security_level() :: 'agent' | 'supervisor' | 'admin').
+-type(statename() :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup').
 
 -record(agent_auth, {
 	login :: string(),

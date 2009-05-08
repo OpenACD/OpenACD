@@ -82,9 +82,17 @@
 start_link(Nodes) ->
     {ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]),
 	
+	Routingspec = {routing_sup, {cpx_middle_supervisor, start_named, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
+	Managementspec = {management_sup, {cpx_middle_supervisor, start_named, [3, 5, management_sup]}, permanent, 2000, supervisor, [?MODULE]},
+	Agentspec = {agent_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_sup]}, temporary, 2000, supervisor, [?MODULE]},
+	Specs = [Routingspec, Agentspec, Managementspec],
+	?DEBUG("specs:  ~p", [supervisor:check_childspecs(Specs)]),
+
+	supervisor:start_child(Pid, Routingspec),
+	
+	Cpxlogspec = {cpxlog, {cpxlog, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
-	Cpxlogspec = {cpxlog, {cpxlog, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	Cdrspec = {cdr, {cdr, start, []}, permanent, brutal_kill, worker, [?MODULE]},
 	
 	supervisor:start_child(routing_sup, DispatchSpec),
@@ -92,11 +100,14 @@ start_link(Nodes) ->
 	supervisor:start_child(routing_sup, Cpxlogspec),
 	supervisor:start_child(routing_sup, Cdrspec),
 	
+	supervisor:start_child(Pid, Agentspec),
+	
 	Agentconnspec = {agent_connection_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	AgentManagerSpec = {agent_manager, {agent_manager, start_link, [Nodes]}, permanent, 2000, worker, [?MODULE]},
 	supervisor:start_child(agent_sup, AgentManagerSpec),
 	supervisor:start_child(agent_sup, Agentconnspec),
 	
+	supervisor:start_child(Pid, Managementspec),
 	%load_specs(),
 	
 	{ok, Pid}.
@@ -149,12 +160,7 @@ init([Nodes]) ->
 	?DEBUG("starting cpx_supervisor on ~p", [node()]),
 	case build_tables() of
 		ok ->
-			Routingspec = {routing_sup, {cpx_middle_supervisor, start_named, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
-			Managementspec = {management_sup, {cpx_middle_supervisor, start_named, [3, 5, management_sup]}, permanent, 2000, supervisor, [?MODULE]},
-			Agentspec = {agent_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_sup]}, temporary, 2000, supervisor, [?MODULE]},
-			Specs = [Routingspec, Agentspec, Managementspec],
-			?DEBUG("specs:  ~p", [supervisor:check_childspecs(Specs)]),
-			{ok,{{one_for_one,3,5}, Specs}}
+			{ok,{{one_for_one,3,5}, []}}
 	end.
 
 %%====================================================================

@@ -93,11 +93,16 @@
 	check_args :: [any()] | 'undefined'
 }).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
 %%====================================================================
 %% API
 %%====================================================================
 
 %% @doc Starts with no integration.  All authentication requests are done against the mnesia cache.
+-spec(start/0 :: () -> {'ok', pid()}).
 start() -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 

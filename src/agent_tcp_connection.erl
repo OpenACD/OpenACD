@@ -64,15 +64,22 @@
 		securitylevel = agent :: 'agent' | 'supervisor' | 'admin'
 	}).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
 %% @doc start the conection unlinked on the given Socket.  This is usually done by agent_tcp_listener.
+-spec(start/1 :: (Socket :: port()) -> {'ok', pid()}).
 start(Socket) ->
 	gen_server:start(?MODULE, [Socket], []).
 
 %% @doc start the conection linked on the given Socket.  This is usually done by agent_tcp_listener.
+-spec(start_link/1 :: (Socket :: port()) -> {'ok', pid()}).
 start_link(Socket) ->
 	gen_server:start_link(?MODULE, [Socket], []).
 
 %% @doc negotiate the client's protocol and version before login.
+-spec(negotiate/1 :: (Pid :: pid()) -> 'ok').
 negotiate(Pid) ->
 	gen_server:cast(Pid, negotiate).
 
@@ -357,7 +364,7 @@ handle_event(["QUEUES", Counter, QueueNames], #state{securitylevel = Security} =
 	{ack(Counter), State2};
 
 % TODO use the brand on the outbound call
-handle_event(["DIAL", Counter, Brand, "outbound", Number, "1"], State) when is_integer(Counter) ->
+handle_event(["DIAL", Counter, _Brand, "outbound", Number, "1"], State) when is_integer(Counter) ->
 	freeswitch_media_manager:make_outbound_call(Number, State#state.agent_fsm, agent:dump_state(State#state.agent_fsm)),
 	{ack(Counter), State};
 

@@ -202,7 +202,7 @@ merge_skill_lists(List1, List2) ->
 %% This allows us to strip any duplicates of `_agent' (for example) but not i `_brand'.
 -spec(merge_skill_lists/3 :: (List1 :: [any()], List2 :: [any()], Whitelist ::[atom()]) -> [any()]).
 merge_skill_lists(List1, List2, Whitelist) ->
-	lists:foreach(fun({Key, Value}) ->
+	lists:foreach(fun({_Key, Value}) ->
 		case length(Value) of
 			1 ->
 				ok;
@@ -211,7 +211,7 @@ merge_skill_lists(List1, List2, Whitelist) ->
 		end
 	end, group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, lists:filter(fun(X) -> is_tuple(X) end, List1))),
 	
-	lists:foreach(fun({Key, Value}) ->
+	lists:foreach(fun({_Key, Value}) ->
 		case length(Value) of
 			1 ->
 				ok;
@@ -274,7 +274,7 @@ build_table(Tablename, Options) when is_atom(Tablename) ->
 				false -> 
 					exit(mnesia_schema_not_found)
 			end;
-		Else -> 
+		_Else -> 
 			exit(mnesia_stopped)
 	end.
 

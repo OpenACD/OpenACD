@@ -98,7 +98,8 @@
 	freeswitch_c_pid :: pid(),
 	call_dict = dict:new() :: dict(),
 	domain :: string(),
-	voicegateway = "" :: string()
+	voicegateway = "" :: string(),
+	xmlserver :: pid() | 'undefined'
 	}).
 	
 % watched calls structure:
@@ -163,24 +164,14 @@ init([Nodename, Options]) ->
 	?DEBUG("starting...", []),
 	process_flag(trap_exit, true),
 	Self = self(),
-	_Lpid = spawn(fun() -> 
-		{freeswitchnode, Nodename} ! register_event_handler,
-		receive
-			ok ->
-				Self ! {register_event_handler, {ok, self()}},
-				listener(Nodename);
-			{error, Reason} -> 
-				Self ! {register_event_handler, {error, Reason}}
-		after ?TIMEOUT -> 
-			Self ! {register_event_handler, timeout}
-		end
-	end),
+	Lpid = start_listener(Nodename),
 	Voicegateway = proplists:get_value(voicegateway, Options, ""),
+	monitor_node(Nodename, true),
 	freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{voicegateway, Voicegateway}]),
 	%T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
 	%?CONSOLE("Attempted to start events:  ~p", [T]),
 	Domain = proplists:get_value(domain, Options, "localhost"),
-	{ok, #state{nodename=Nodename, domain=Domain, voicegateway = Voicegateway}}.
+	{ok, #state{nodename=Nodename, domain=Domain, voicegateway = Voicegateway, xmlserver = Lpid}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -247,9 +238,25 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	end,
 	NewDict = dict:fold(F, dict:new(), Dict),
 	{noreply, State#state{call_dict = NewDict}};
+handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Lpid} = State) ->
+	?WARNING("Freeswitch node ~p has gone down", [Nodename]),
+	exit(Lpid, kill),
+	timer:send_after(1000, freeswitch_ping),
+	{noreply, State};
+handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
+	case net_adm:ping(Nodename) of
+		pong ->
+			?NOTICE("Freeswitch node ~p is back up", [Nodename]),
+			monitor_node(Nodename, true),
+			Lpid = start_listener(Nodename),
+			{noreply, State#state{xmlserver = Lpid}};
+		pang ->
+			timer:send_after(1000, freeswitch_ping),
+			{noreply, State}
+	end;
 handle_info(Info, State) ->
 	?DEBUG("Unexpected info:  ~p", [Info]),
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
@@ -273,6 +280,22 @@ code_change(_OldVsn, State, _Extra) ->
 %% @doc Ring `AgentPid' with `Call'.
 ring_agent(AgentPid, Call) -> 
 	gen_server:call(?MODULE, {ring_agent, AgentPid, Call}).
+
+%% @private
+start_listener(Nodename) ->
+	Self = self(),
+	spawn(fun() -> 
+				{freeswitchnode, Nodename} ! register_event_handler,
+				receive
+					ok ->
+						Self ! {register_event_handler, {ok, self()}},
+						listener(Nodename);
+					{error, Reason} -> 
+						Self ! {register_event_handler, {error, Reason}}
+				after ?TIMEOUT -> 
+						Self ! {register_event_handler, timeout}
+				end
+		end).
 
 %% @private
 % listens for info from the freeswitch c node.

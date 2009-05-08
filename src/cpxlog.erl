@@ -27,6 +27,8 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
+%% @doc A gen_event based logging framework.
+
 -module(cpxlog).
 -export([
 	start/0,

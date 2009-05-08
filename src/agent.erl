@@ -39,6 +39,10 @@
 -include("call.hrl").
 -include("agent.hrl").
 
+-type(state() :: #agent{}).
+-define(GEN_FSM, true).
+-include("gen_spec.hrl").
+
 %% gen_fsm exports
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 %% defined state exports
@@ -72,7 +76,7 @@ set_remote_number(Pid, Number) ->
 	gen_fsm:sync_send_all_state_event(Pid, {set_remote_number, Number}).
 
 %% @private
--spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
+%-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
 init([State = #agent{}]) ->
 	process_flag(trap_exit, true),
 	{_Profile, Skills} = case agent_auth:get_profile(State#agent.profile) of
@@ -430,7 +434,7 @@ wrapup(Event, From, State) ->
 
 % generic handlers independant of state
 %% @private
--spec(handle_event/3 :: (Event :: 'stop', StateName :: statename(), State :: #agent{}) -> {'stop','normal', #agent{}}).
+%-spec(handle_event/3 :: (Event :: 'stop', StateName :: statename(), State :: #agent{}) -> {'stop','normal', #agent{}}).
 	%(Event :: any(), StateName :: atom(), State :: #agent{}) -> {'next_state', atom(), #agent{}}).
 handle_event(stop, _StateName, State) -> 
 	{stop, normal, State};
@@ -438,7 +442,7 @@ handle_event(_Event, StateName, State) ->
 	{next_state, StateName, State}.
 
 %% @private
--spec(handle_sync_event/4 :: (Event :: any(), From :: pid(), StateName :: statename(), State :: #agent{}) -> {'reply', any(), atom(), #agent{}}).
+%-spec(handle_sync_event/4 :: (Event :: any(), From :: pid(), StateName :: statename(), State :: #agent{}) -> {'reply', any(), atom(), #agent{}}).
 handle_sync_event(query_state, _From, StateName, State) -> 
 	{reply, {ok, StateName}, StateName, State};
 handle_sync_event(dump_state, _From, StateName, State) ->
@@ -455,7 +459,7 @@ handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.
 
 %% @private
--spec(handle_info/3 :: (Event :: any(), StateName :: statename(), State :: #agent{}) -> {'stop', 'normal', #agent{}} | {'stop', 'shutdown', #agent{}} | {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
+%-spec(handle_info/3 :: (Event :: any(), StateName :: statename(), State :: #agent{}) -> {'stop', 'normal', #agent{}} | {'stop', 'shutdown', #agent{}} | {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
 handle_info({'EXIT', From, Reason}, StateName, State) ->
 	?INFO("Got exit message from ~p with reason ~p", [From, Reason]),
 	case whereis(agent_manager) of
@@ -504,13 +508,13 @@ wait_for_agent_manager(Count, StateName, State) ->
 
 % obviousness below.
 %% @private
--spec(terminate/3 :: (Reason :: any(), StateName :: statename(), State :: #agent{}) -> 'ok').
+%-spec(terminate/3 :: (Reason :: any(), StateName :: statename(), State :: #agent{}) -> 'ok').
 terminate(Reason, StateName, _State) ->
 	?NOTICE("Agent terminating:  ~p, State:  ~p", [Reason, StateName]),
 	ok.
 
 %% @private
--spec(code_change/4 :: (OldVsn :: string(), StateName :: statename(), State :: #agent{}, Extra :: any()) -> {'ok', statename(), #agent{}}).
+%-spec(code_change/4 :: (OldVsn :: string(), StateName :: statename(), State :: #agent{}, Extra :: any()) -> {'ok', statename(), #agent{}}).
 code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
 

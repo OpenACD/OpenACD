@@ -117,10 +117,13 @@
 
 %% @doc Attempts to set-up and create the required mnesia table `call_queue' on all visible nodes.
 %% @see build_tables/1
+-spec(build_tables/0 :: () ->'ok').
 build_tables() -> 
 	build_tables(lists:append(nodes(), [node()])).
 
+%TODO So why aren't we using Nodes here?
 %% @doc Attempts to set-up and create the required mnesia table `call_queue' on the specified nodes
+-spec(build_tables/1 :: (Nodes :: [atom()]) -> 'ok').
 build_tables(Nodes) -> 
 	?DEBUG("~p building tables...", [?MODULE]),
 	A = util:build_table(call_queue, ?QUEUE_TABLE([node()])),
@@ -461,7 +464,9 @@ get_skills(Group) when is_list(Group) ->
 	end,
 	lists:sort(Compare, Skills).
 
-%% @doc Removes the skill named `string()' `Skillname' from the database.
+%% @doc Removes the skill named `string()' `Skillname' from the database.  The 
+%% atom is still in the system, so this is just for looks.
+-spec(destroy_skill/1 :: (Skillname :: string()) -> {'atomic', 'ok'} | {'error', 'protected'}).
 destroy_skill(Skillname) ->
 	Get = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.name =:= Skillname]),
@@ -479,6 +484,8 @@ destroy_skill(Skillname) ->
 			mnesia:transaction(Del)
 	end.
 
+%% @doc Move every skill in Oldgroup to Newgroup.
+-spec(rename_skill_group/2 :: (Oldgroup :: string(), Newgroup :: string()) -> {'atomic', 'ok'} | {'error', {'exists', string()}}).
 rename_skill_group(Oldgroup, Newgroup) when is_list(Newgroup) ->
 	Testng = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.group =:= Newgroup]),

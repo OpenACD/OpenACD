@@ -63,6 +63,10 @@
 		acceptor :: ref()       % Asynchronous acceptor's internal reference
 		}).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
 %% @doc Start the listener on port `Port' linked to the calling process.
 -spec(start_link/1 :: (Port :: integer()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Port) when is_integer(Port) ->

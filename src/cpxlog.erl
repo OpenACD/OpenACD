@@ -47,16 +47,21 @@
 	nodebug_module/1
 ]).
 
+-type(level() :: 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency').
+
+-spec(start/0 :: () -> 'ok').
 start() ->
 	gen_event:start({local, cpxlog}),
 	gen_event:add_handler(cpxlog, cpxlog_terminal, []),
 	ok.
-
+	
+-spec(start_link/0 :: () -> 'ok').
 start_link() ->
 	gen_event:start_link({local, cpxlog}),
 	gen_event:add_handler(cpxlog, cpxlog_terminal, []),
 	ok.
 
+-spec(log/7 :: (Level :: level(), Time :: integer(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 log(Level, Time, Module, Line, Pid, Message, Args) ->
 	catch gen_event:notify(cpxlog, {Level, Time, Module, Line, Pid, Message, Args}),
 	ok.

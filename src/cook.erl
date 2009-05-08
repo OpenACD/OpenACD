@@ -75,6 +75,10 @@
 		tref :: any() % timer reference
 }).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -92,6 +96,7 @@ start(Call, Recipe, Queue) when is_pid(Call) ->
 %% @doc starts a new cook on the give `node()' `Node' for `Call' to be process by `Recipe' for the call_queue named `Queue'.
 %% This is used in place of start and start_link to allow a queue on a different node to start the cook on the same node
 %% the media exists on.
+-spec(start_at/4 :: (Node :: node(), Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_at(Node, Call, Recipe, Queue) ->
 	F = fun() ->
 		case init([Call, Recipe, Queue]) of
@@ -251,10 +256,12 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 %% @doc Restart the cook at `Pid'.
+-spec(restart_tick/1 :: (Pid :: pid()) -> 'ok').
 restart_tick(Pid) ->
 	gen_server:cast(Pid, restart_tick).
 
 %% @doc Pause the cook running at `Pid'.
+-spec(stop_tick/1 :: (Pid :: pid()) -> 'ok').
 stop_tick(Pid) ->
 	gen_server:cast(Pid, stop_tick).
 
@@ -285,6 +292,7 @@ wait_for_queue(Qname) ->
 	end.
 
 %% @doc Stop the cook with reason `normal'.
+-spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) ->
 	gen_server:call(Pid, stop).
 

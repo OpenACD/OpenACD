@@ -95,6 +95,10 @@
 	transaction :: raw_transaction()
 }).
 
+-type(state() :: #state{}).
+-define(GEN_EVENT, true).
+-include("gen_spec.hrl").
+
 %event -> terminated by
 %inqueue -> ringing
 %ringing -> ringing, oncall
@@ -192,7 +196,6 @@ recover(Call) ->
 %% Gen event callbacks
 
 %% @private
--spec(init/1 :: (Args :: [any()]) -> {'ok', #state{}}).
 init([Call]) ->
 	?NOTICE("Starting new CDR handler for ~s", [Call#call.id]),
 	Cdrrec = #cdr_rec{id = Call#call.id},
@@ -200,7 +203,6 @@ init([Call]) ->
 	{ok, #state{id=Call#call.id}}.
 
 %% @private
--spec(handle_event/2 :: (Event :: any(), #state{}) -> {'ok', #state{}} | 'remove_handler').
 handle_event({inqueue, #call{id = CallID}, Time, Queuename}, #state{id = CallID} = State) ->
 	?NOTICE("~s has joined queue ~s", [CallID, Queuename]),
 	Unterminated = [{inqueue, Time, Queuename} | State#state.unterminated],
@@ -210,7 +212,7 @@ handle_event({ringing, #call{id = CallID}, Time, Agent}, #state{id = CallID} = S
 	?NOTICE("~s is ringing to ~s", [CallID, Agent]),
 	push_raw(CallID, {ringing, Time, Agent}),
 	case find_initiator_limbo({ringing, Time, Agent}, State#state.unterminated, State#state.limbo) of
-		{Limboevent, Limbotime, Limbodata} = Limbo ->
+		{_Limboevent, _Limbotime, _Limbodata} = Limbo ->
 			{ok, State#state{limbo = Limbo}};
 		{{Event, Oldtime, Data}, Midunterminated} ->
 			Newuntermed = [{ringing, Time, Agent} | Midunterminated],
@@ -364,7 +366,7 @@ find_initiator_limbo(Rawtrans, Unterminated, undefined) ->
 	end;
 find_initiator_limbo(Rawtrans, Unterminated, Limbo) ->
 	?INFO("Attempting to reconcile limbo'ed event ~p", [Limbo]),
-	{{Event, Time, Data} = Event1, Newunterminated} = N = find_initiator(Rawtrans, Unterminated),
+	{{_Event, _Time, _Data} = Event1, Newunterminated} = N = find_initiator(Rawtrans, Unterminated),
 	?DEBUG("N:  ~p", [N]),
 	try find_initiator(Limbo, [Rawtrans | Newunterminated]) of
 		{Event2, Moreuntermed} ->
@@ -498,21 +500,22 @@ load_recover(Callid) ->
 		qlc:e(QH)
 	end,
 	{atomic, Transactions} = mnesia:transaction(F),
-	Sort = fun({_Atrans, Atime, _Adata}, {_Btrans, Btime, Bdata}) ->
-		Atime >= Btime
+	Sort = fun({_Atrans, Atime, _Adata}, {_Btrans, Btime, _Bdata}) ->
+		Btime >= Atime
 	end,
 	Sorted = lists:sort(Sort, Transactions),
-	recover(Transactions, [], [], false).
+	?DEBUG("Recovery list:  ~p", [Sorted]),
+	recover(Sorted, [], [], false).
 
 recover([], Untermed, Termed, Hangup) ->
 	{Untermed, Termed, Hangup};
-recover([{inqueue, Time, Details} = Head | Tail], Untermed, Termed, Hangup) ->
+recover([{inqueue, _Time, _Details} = Head | Tail], Untermed, Termed, Hangup) ->
 	recover(Tail, [Head | Untermed], Termed, Hangup);
-recover([{hangup, Time, Details} = Head | Tail], Untermed, Termed, _Hangup) ->
+recover([{hangup, Time, Details} = _Head | Tail], Untermed, Termed, _Hangup) ->
 	recover(Tail, Untermed, [{hangup, Time, Time, 0, Details} | Termed], true);
-recover([{transfer, Time, Details} = Head | Tail], Untermed, Termed, Hangup) ->
+recover([{transfer, Time, Details} = _Head | Tail], Untermed, Termed, Hangup) ->
 	recover(Tail, [{transfer, Time, Details} | Untermed], Termed, Hangup);
-recover([{Event, Time, Details} = Head | Tail], Untermed, Termed, Hangup) ->
+recover([{Event, Time, _Details} = Head | Tail], Untermed, Termed, Hangup) ->
 	{{Priorevent, Oldtime, Olddetails}, Miduntermed} = find_initiator(Head, Untermed),
 	Newtermed = [{Priorevent, Oldtime, Time, Time - Oldtime, Olddetails} | Termed],
 	Newuntermed = case Event of

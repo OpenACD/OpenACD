@@ -82,6 +82,11 @@
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin'
 }).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
+-type(json_simple() :: {'struct', [{binary(), binary()}]}).
 
 %%====================================================================
 %% API
@@ -89,21 +94,41 @@
 %%--------------------------------------------------------------------
 %% Description: Starts the server
 %%--------------------------------------------------------------------
+
+%% @doc Starts the passed agent at the given security level.
+-spec(start_link/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()}).
 start_link(Agent, Security) ->
 	gen_server:start_link(?MODULE, [Agent, Security], [{timeout, 10000}]).
-	
+
+%% @doc Starts the passed agent at the given security level.
+-spec(start/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()}).
 start(Agent, Security) ->
 	gen_server:start(?MODULE, [Agent, Security], [{timeout, 10000}]).
 
+%% @doc Stops the passed Web connection process.
+-spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) ->
 	gen_server:call(Pid, stop).
 
+%% @doc Do a web api call.
+-spec(api/2 :: (Pid :: pid(), Apicall :: any()) -> any()).
 api(Pid, Apicall) ->
 	gen_server:call(Pid, Apicall).
 
+%% @doc Dump the state of agent associated with the passed connection.
+-spec(dump_agent/1 :: (Pid :: pid()) -> #agent{}).
 dump_agent(Pid) ->
 	gen_server:call(Pid, dump_agent).
-	
+
+%% @doc Encode the given data into a structure suitable for mochijson2:encode
+-spec(encode_statedata/1 :: 
+	(Callrec :: #call{}) -> json_simple();
+	(Clientrec :: #client{}) -> json_simple();
+	({'onhold', Holdcall :: #call{}, 'calling', any()}) -> json_simple();
+	({Relcode :: string(), Bias :: non_neg_integer()}) -> json_simple();
+	('default') -> {'struct', [{binary(), 'default'}]};
+	(List :: string()) -> binary();
+	({}) -> 'false').
 encode_statedata(Callrec) when is_record(Callrec, call) ->
 	case Callrec#call.client of
 		undefined ->

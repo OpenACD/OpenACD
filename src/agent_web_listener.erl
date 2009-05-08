@@ -63,25 +63,41 @@
 	mochipid :: pid() % pid of the mochiweb process.
 }).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
 %%====================================================================
 %% API
 %%====================================================================
 
+%% @doc Starts the web listener on the default port of 5050.
+-spec(start/0 :: () -> {'ok', pid()}).
 start() -> 
 	start(?PORT).
 
+%% @doc Starts the web listener on the passed port.
+-spec(start/1 :: (Port :: non_neg_integer()) -> {'ok', pid()}).
 start(Port) -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [Port], []).
-	
+
+%% @doc Start linked on the default port of 5050.
+-spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
 	start_link(?PORT).
 
+%% @doc Start linked on the given port.
+-spec(start_link/1 :: (Port :: non_neg_integer()) -> {'ok', pid()}).
 start_link(Port) -> 
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []).
 
+%% @doc Stop the web listener.
+-spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:call(?MODULE, stop).
 
+%% @doc Link to the passed pid; usually an agent pid.
+-spec(linkto/1 :: (Pid :: pid()) -> 'ok').
 linkto(Pid) ->
 	gen_server:cast(?MODULE, {linkto, Pid}).
 
@@ -258,7 +274,7 @@ api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
 	end,
 	Jsons = lists:map(Converter, Releaseopts),
 	{200, [], mochijson2:encode(Jsons)};
-api(logout, {Reflist, _Salt, Conn}, _Post) ->
+api(logout, {_Reflist, _Salt, Conn}, _Post) ->
 	Newref = erlang:ref_to_list(make_ref()),
 	ets:insert(web_connections, {Newref, undefined, undefined}),
 	Cookie = io_lib:format("cpx_id=~p", [Newref]),

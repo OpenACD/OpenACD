@@ -77,8 +77,14 @@
 %% Supervisor callbacks
 -export([init/1]).
 
+-define(SUPERVISOR, true).
+-include("gen_spec.hrl").
+
+-type(supervisor_name() :: 'routing_sup' | 'agent_sup' | 'agent_connection_sup' | 'management_sup').
+
 %% API functions
 %% @doc Start the cpx_supervisor linked to the parent process.
+-spec(start_link/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start_link(Nodes) ->
     {ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]),
 	
@@ -113,18 +119,20 @@ start_link(Nodes) ->
 	{ok, Pid}.
 	
 %% @doc Start the cpx_supervisor unlinked.
+-spec(start/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start(Nodes) -> 
 	{ok, Pid} = start_link(Nodes),
 	unlink(Pid),
 	{ok, Pid}.
 
 %% @doc Exit with reason `shutdown'
+-spec(stop/0 :: () -> 'true').
 stop() ->
 	?NOTICE("stopping ~p...", [?MODULE]),
 	exit(whereis(?MODULE), shutdown).
 
 %% @doc In case of a branch going down, this funciton will restart the specified branch.
--spec(restart/2 :: (Branch :: 'agent_connection_sup' | 'routing_sup' | 'management_sup' | 'agent_sup', Args :: [any()]) -> 'ok').
+-spec(restart/2 :: (Branch :: supervisor_name(), Args :: [any()]) -> 'ok').
 restart(agent_connection_sup, _Args) ->
 	?INFO("Restaring agent_connection_sup.", []),
 	supervisor:restart_child(agent_sup, agent_connection_sup);
@@ -156,6 +164,7 @@ restart(Branch, _Args) when is_atom(Branch) ->
 %%====================================================================
 %% @private
 init([Nodes]) ->
+	% TODO Nodes is no longer used here.
 	% TODO Create warnings for missing/requires specs (at least one media manager, the agent_auth).
 	?DEBUG("starting cpx_supervisor on ~p", [node()]),
 	case build_tables() of
@@ -174,10 +183,12 @@ init([Nodes]) ->
 %% id the same; the ability to keep them separate is here for completeness
 %% and flexibility.  It is recommended to treat this function as an API to be used
 %% by other modules rather than call it directly from a shell.
+-spec(add_conf/5 :: (Id :: atom(), Mod :: atom(), Start :: atom(), Args :: [any()], Super :: supervisor_name()) -> {'atomic', 'ok'}).
 add_conf(Id, Mod, Start, Args, Super) -> 
 	Rec = #cpx_conf{id = Id, module_name = Mod, start_function = Start, start_args = Args, supervisor = Super},
 	add_conf(Rec).
 
+-spec(add_conf/1 :: (Rec :: #cpx_conf{}) -> {'atomic', 'ok'}).
 add_conf(Rec) ->
 	F = fun() -> 
 		mnesia:write(Rec),
@@ -186,6 +197,7 @@ add_conf(Rec) ->
 	mnesia:transaction(F).
 
 %% @doc Attempts to build a valid childspec suitable for a supervisor module from the `#cpx_conf{}'.
+-spec(build_spec/1 :: (Spec :: #cpx_conf{}) -> child_spec() | {'error', any()}).
 build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Args, id = Id}) -> 
 	Spec = {Id, {Mod, Start, Args}, permanent, 20000, worker, [?MODULE]},
 	?DEBUG("Building spec:  ~p", [Spec]),
@@ -198,6 +210,7 @@ build_spec(#cpx_conf{module_name = Mod, start_function = Start, start_args = Arg
 	end.
 
 %% @doc Attempts to build the `cpx_conf' table.
+-spec(build_tables/0 :: () -> 'ok' | {'error', any()}).
 build_tables() ->
 	?DEBUG("cpx building tables...",[]),
 	A = util:build_table(cpx_conf, [
@@ -227,6 +240,7 @@ build_tables() ->
 	end.
 
 %% @doc Removes the passed `childspec()' or `#cpx_conf{}' from the database.
+-spec(destroy/1 :: (Spec :: child_spec() | #cpx_conf{}) -> {'atomic', 'ok'}).
 destroy(Spec) when is_record(Spec, cpx_conf) ->
 	F = fun() ->
 		stop_spec(Spec),
@@ -243,6 +257,7 @@ destroy(Spec) ->
 
 %% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
 %% @see add_conf/5
+-spec(update_conf/2 :: (Id :: atom(), Conf :: #cpx_conf{}) -> {'atomic', 'ok'}).
 update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	F = fun() ->
 		destroy(Id),
@@ -250,7 +265,9 @@ update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 		mnesia:write(Conf)
 	end,
 	mnesia:transaction(F).
-	
+
+%% @doc Pull the `#cpx_conf{}' from the database for the given module name.
+-spec(get_conf/1 :: (Name :: atom()) -> 'undefined' | #cpx_conf{}).
 get_conf(Name) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= Name]),
@@ -275,6 +292,7 @@ stop_spec(Spec) when is_record(Spec, cpx_conf) ->
 	Out.
 
 %% @private
+-spec(load_specs/0 :: () -> {'error', any()} | none()).
 load_specs() -> 
 	?DEBUG("loading specs...",[]),
 	F = fun() -> 
@@ -289,6 +307,7 @@ load_specs() ->
 			Else
 	end.
 
+-spec(load_specs/1 :: (Super :: supervisor_name()) -> {'error', any()} | none()).
 load_specs(Super) ->
 	?DEBUG("loading specs for supervisor ~s", [Super]),
 	F = fun() ->

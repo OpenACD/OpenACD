@@ -122,3 +122,18 @@
 -spec(code_change/4 :: (OldVsn :: {'down', any} | any(), State :: state(), Election :: election(), Extra :: any()) -> {'ok', state()}).
 
 -endif.
+
+-ifdef(SUPERVISOR).
+
+-type(childid() :: any()).
+-type(startfunc() :: {atom, atom, [any()]}).
+-type(childrestart() :: 'permanent' | 'transient' | 'temporary').
+-type(childkill() :: 'brutal_kill' | non_neg_integer() | 'infinity').
+-type(childtype() :: 'worker' | 'supervisor').
+-type(childmodules() :: [atom()] | 'dynamic').
+-type(child_spec() :: {childid(), startfunc(), childrestart(), childkill(), childtype(), childmodules()}).
+
+-type(restart_strat() :: 'one_for_all' | 'one_for_one' | 'rest_for_one' | 'simple_one_for_one').
+-spec(init/1 :: (Args :: [any]) -> 'ignore' | {'ok', {{restart_strat(), non_neg_integer(), non_neg_integer()}, [child_spec()]}}).
+
+-endif.

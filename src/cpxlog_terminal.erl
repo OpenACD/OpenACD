@@ -49,6 +49,10 @@
 	lasttime = erlang:localtime() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}
 }).
 
+-type(state() :: #state{}).
+-define(GEN_EVENT, true).
+-include("gen_spec.hrl").
+
 init(_Args) ->
 	{ok, #state{}}.
 

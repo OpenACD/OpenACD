@@ -87,6 +87,10 @@
 	weight = ?DEFAULT_WEIGHT :: pos_integer(),
 	call_skills = [english, '_node'] :: [atom()]}).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
 %gen_server support
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -213,6 +217,7 @@ print(Pid) ->
 
 %% @doc Remove the call with id `string()' of `Calldata' or `pid()' `Callpid' from the queue at `Pid'.  
 %% Returns `ok' on success, `none' on failure.
+-spec(remove/2 :: (Pid :: pid(), Callid :: pid() | string()) -> 'none' | 'ok').
 remove(Pid, Callpid) when is_pid(Pid), is_pid(Callpid) ->
 	gen_server:call(Pid, {remove, Callpid});
 remove(Pid, Callid) when is_pid(Pid) ->
@@ -225,6 +230,7 @@ remove(Pid, Callid) when is_pid(Pid) ->
 	
 %% @doc Non-blocking version of {@link remove/2}
 %% @see remove/2
+-spec(bgremove/2 :: (Pid :: pid(), Callid :: pid() | string()) -> 'ok').
 bgremove(Pid, Callpid) when is_pid(Pid), is_pid(Callpid) ->
 	gen_server:cast(Pid, {remove, Callpid});
 bgremove(Pid, Callid) when is_pid(Pid) ->
@@ -552,7 +558,7 @@ clean_pid_(Deadpid, Recipe, QName, [{Key, Call} | Calls], Acc) ->
 		true ->
 			Cleanbound = lists:delete(Deadpid, Call#queued_call.dispatchers),
 			Cleancall = Call#queued_call{dispatchers = Cleanbound},
-			lists:append(lists:reverse(Acc), Calls)
+			lists:append(lists:reverse(Acc), [{Key, Cleancall} | Calls])
 	end.
 	
 % begin the defintions of the tests.

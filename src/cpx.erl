@@ -43,6 +43,7 @@
 
 -export([start/2, stop/1]).
 
+-spec(start/2 :: (Type :: 'normal' | {'takeover', atom()} | {'failover', atom()}, StartArgs :: [any()]) -> {'ok', pid(), any()} | {'ok', pid()} | {'error', any()}).
 start(_Type, StartArgs) ->
 	?DEBUG("Start args ~p", [StartArgs]),
 	?DEBUG("All env: ~p", [application:get_all_env(cpx)]),
@@ -67,6 +68,7 @@ start(_Type, StartArgs) ->
 	mnesia:change_table_copy_type(schema, node(), disc_copies),
 	mnesia:set_master_nodes(lists:umerge(Nodes, [node()])),
 	cpx_supervisor:start_link(Nodes).
-	
+
+-spec(stop/1 :: (State :: any()) -> 'ok').
 stop(_State) -> 
 	ok.

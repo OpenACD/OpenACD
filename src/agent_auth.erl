@@ -107,6 +107,7 @@ start() ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Starts with no integration linked to the calling process.  All authentication requests are done against the mnesia cache.
+-spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() -> 
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
@@ -127,18 +128,24 @@ start(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) ->
 start_link(Mod, StartFunc, StartArgs, CheckFunc, CheckArgs) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Mod, StartFunc, StartArgs, CheckFunc, CheckArgs], []).
 
+%% @doc Add `#release_opt{} Rec' to the database. 
+-spec(new_release/1 :: (Rec :: #release_opt{}) -> {'atomic', 'ok'}).
 new_release(Rec) when is_record(Rec, release_opt) ->
 	F = fun() ->
 		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F).
 
+%% @doc Remove the release option `string() Label' from the database.
+-spec(destroy_release/1 :: (Label :: string()) -> {'atomic', 'ok'}).
 destroy_release(Label) when is_list(Label) ->
 	F = fun() ->
 		mnesia:delete({release_opt, Label})
 	end,
 	mnesia:transaction(F).
 
+%% @doc Update the release option `string() Label' to `#release_opt{} Rec'.
+-spec(update_release/2 :: (Label :: string(), Rec :: #release_opt{}) -> {'atomic', 'ok'}).
 update_release(Label, Rec) when is_list(Label), is_record(Rec, release_opt) ->
 	F = fun() ->
 		mnesia:delete({release_opt, Label}),
@@ -146,6 +153,8 @@ update_release(Label, Rec) when is_list(Label), is_record(Rec, release_opt) ->
 	end,
 	mnesia:transaction(F).
 
+%% @doc Get all `#release_opt'.
+-spec(get_releases/0 :: () -> [#release_opt{}]).
 get_releases() ->
 	F = fun() ->
 		Select = qlc:q([X || X <- mnesia:table(release_opt)]),
@@ -154,6 +163,8 @@ get_releases() ->
 	{atomic, Opts} = mnesia:transaction(F),
 	lists:sort(Opts).
 
+%% @doc Create a new agent profile `string() Name' with `[atom()] Skills'.
+-spec(new_profile/2 :: (Name :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
 new_profile(Name, Skills) ->
 	Rec = #agent_profile{name = Name, skills = Skills},
 	F = fun() ->
@@ -161,6 +172,8 @@ new_profile(Name, Skills) ->
 	end,
 	mnesia:transaction(F).
 
+%% @doc Update the proflie `string() Oldname' to `string() Newname' with `[atom()] Skills'.
+-spec(set_profile/3 :: (Oldname :: string(), Newname :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
 set_profile(Oldname, Oldname, Skills) ->
 	Rec = #agent_profile{name = Oldname, skills = Skills},
 	F = fun() ->
@@ -184,6 +197,8 @@ set_profile(Oldname, Newname, Skills) ->
 	end,
 	mnesia:transaction(F).
 
+%% @doc Remove the profile `string() Name'.  Returns `error' if you try to remove the profile `"Default"'.
+-spec(destroy_profile/1 :: (Name :: string()) -> 'error' | {'atomic', 'ok'}).
 destroy_profile("Default") ->
 	error;
 destroy_profile(Name) ->
@@ -200,6 +215,8 @@ destroy_profile(Name) ->
 	end,
 	mnesia:transaction(F).
 
+%% @doc Gets the proflie `string() Name'
+-spec(get_profile/1 :: (Name :: string()) -> {string(), [atom()]}).
 get_profile(Name) ->
 	F = fun() ->
 		mnesia:read({agent_profile, Name})
@@ -211,6 +228,8 @@ get_profile(Name) ->
 			{Profile#agent_profile.name, Profile#agent_profile.skills}
 	end.
 
+%% @doc Return all profiles as `[{string() Name, [atom] Skills}]'.
+-spec(get_profiles/0 :: () -> [{string(), [atom()]}]).
 get_profiles() ->
 	F = fun() ->
 		QH = qlc:q([ X || X <- mnesia:table(agent_profile)]),
@@ -226,6 +245,8 @@ get_profiles() ->
 	end,
 	lists:sort(Sort, Cprofs).
 
+%% @doc Update the agent `string() Oldlogin' without changing the password.
+-spec(set_agent/5 :: (Oldlogin :: string(), Newlogin :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'ok'}).
 set_agent(Oldlogin, Newlogin, Newskills, NewSecurity, Newprofile) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Oldlogin]),
@@ -243,6 +264,8 @@ set_agent(Oldlogin, Newlogin, Newskills, NewSecurity, Newprofile) ->
 	end,
 	mnesia:transaction(F).
 
+%% @doc Update the agent `string() Oldlogin' with a new password (as well as everything else).
+-spec(set_agent/6 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
 set_agent(Oldlogin, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Oldlogin]),
@@ -256,14 +279,18 @@ set_agent(Oldlogin, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 		end
 	end,
 	mnesia:transaction(F).
-			
+
+%% @doc Gets `#agent_auth{}' associated with `string() Login'.
+-spec(get_agent/1 :: (Login :: string()) -> {'atomic', [#agent_auth{}]}).
 get_agent(Login) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Login]),
 		qlc:e(QH)
 	end,
 	mnesia:transaction(F).
-	
+
+%% @doc Gets All the agents.
+-spec(get_agents/0 :: () -> [#agent_auth{}]).
 get_agents() ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth)]),
@@ -275,6 +302,8 @@ get_agents() ->
 	end,
 	lists:sort(Sort, Agents).
 
+%% @doc Gets all the agents associated with `string() Profile'.
+-spec(get_agents/1 :: (Profile :: string()) -> [#agent_auth{}]).
 get_agents(Profile) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.profile =:= Profile]),
@@ -324,7 +353,7 @@ handle_call({authentication, Username, Password, Salt}, _From, State) ->
 			case apply(State#state.mod, State#state.check_func, Args) of
 				{allow, CachePassword, Profile, Security} -> 
 					cache(Username, CachePassword, Profile, Security),
-					{Profile, PSkills} = get_profile(Profile),
+					{Profile, _PSkills} = get_profile(Profile),
 					Skills = case get_agent(Username) of
 						{atomic, []} ->
 						 [];
@@ -550,6 +579,7 @@ salt(Hash, Salt) when is_list(Hash) ->
 	string:to_lower(util:bin_to_hexstr(erlang:md5(Salt ++ Lower))).
 	
 %% @doc Stops the authentication server.  Note this does not stop the integration server.
+-spec(stop/0 :: () -> 'ok').
 stop() -> 
 	gen_server:call(?MODULE, stop).
 

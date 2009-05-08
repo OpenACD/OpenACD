@@ -52,6 +52,9 @@
 	status = unknown :: 'unknown' | 'leader' | 'notleader'
 	}).
 
+-type(state() :: #state{}).
+-define(GEN_LEADER, true).
+-include("gen_spec.hrl").
 
 % API exports
 -export([
@@ -135,6 +138,8 @@ find_avail_agents_by_skill(Skills) ->
 	end,
 	lists:sort(F, AvailSkilledAgentsByIdleTime).
 
+%% @doc Gets all the agents have have the given `[atom()] Skills'.
+-spec(find_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
 find_by_skill(Skills) ->
 	[{K, V, AgState} || {K, V} <- gen_leader:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], lists:member('_all', AgState#agent.skills) orelse util:list_contains_all(AgState#agent.skills, Skills)].
 	

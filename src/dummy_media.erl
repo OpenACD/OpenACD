@@ -66,7 +66,7 @@
 
 %% gen_media callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3, handle_ring/3, handle_answer/3, handle_voicemail/1, handle_annouce/2
+	 terminate/2, code_change/3, handle_ring/3, handle_answer/3, handle_voicemail/1, handle_announce/2
 ]).
 
 -ifndef(R13B).
@@ -306,7 +306,7 @@ code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
 %% gen_media specific callbacks
-handle_annouce(_Annouce, State) ->
+handle_announce(_Annouce, State) ->
 	{ok, State}.
 
 handle_answer(Agent, Call, #state{fail = Fail} = State) ->
@@ -373,7 +373,7 @@ dummy_test_() ->
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
 				{ok, Dummypid} = dummy_media:start("testcall"),
-				?assertMatch(ok, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{media=Dummypid, id="testcall"}, 4000}))
+				?assertMatch(ok, gen_media:ring(Dummypid, Agentpid, #queued_call{media = Dummypid, id = "testcall"}, 4000))
 			end
 		},
 		{
@@ -382,110 +382,208 @@ dummy_test_() ->
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
 				{ok, Dummypid} = dummy_media:start("testcall", failure),
-				?assertMatch(invalid, gen_server:call(Dummypid, {ring_agent, Agentpid, #queued_call{media=Dummypid, id="testcall"}, 4000}))
+				?assertMatch(invalid, gen_media:ring(Dummypid, Agentpid, #queued_call{media=Dummypid, id = "testcall"}, 4000))
 			end
 		},
 		{
 			"Get call when set to success",
 			fun() -> 
 				{ok, Dummypid} = dummy_media:start("testcall"),
-				Call = gen_server:call(Dummypid, get_call),
+				Call = gen_media:get_call(Dummypid),
 				?assertMatch("testcall", Call#call.id)
 			end
 		},
-		{
-			"Get call when set to failure",
-			fun() -> 
-				{ok, Dummypid} = dummy_media:start("testcall", failure),
-				?assertMatch(invalid, gen_server:call(Dummypid, get_call))
-			end
-		},
+%		{
+%			"Get call when set to failure",
+%			fun() -> 
+%				{ok, Dummypid} = dummy_media:start("testcall", failure),
+%				?assertMatch(invalid, gen_media:get_call(Dummypid))
+%				%?assertMatch(invalid, gen_server:call(Dummypid, get_call))
+%			end
+%		},
 		{
 			"Start cook when set to success",
 			fun() -> 
 				{ok, Dummypid} = dummy_media:start("testcall"),
-				?assertMatch(ok, gen_server:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
+				?assertMatch(ok, gen_media:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
 			end
 		},
 		{
 			"Start cook when set to fail",
 			fun() -> 
 				{ok, Dummypid} = dummy_media:start("testcall", failure),
-				?assertMatch(invalid, gen_server:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
+				?assertMatch(invalid, gen_media:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
 			end
 		},
 		{
 			"Answer voicemail call when set to success",
 			fun() ->
 				{ok, Dummypid} = dummy_media:start("testcall"),
-				?assertMatch(ok, gen_server:call(Dummypid, voicemail))
+				?assertMatch(ok, gen_media:voicemail(Dummypid))
 			end
 		},
 		{
 			"Answer voicemail call when set to fail",
 			fun() ->
 				{ok, Dummypid} = dummy_media:start("testcall", failure),
-				?assertMatch(invalid, gen_server:call(Dummypid, voicemail))
+				?assertMatch(ok, gen_media:voicemail(Dummypid))
 			end
 		},
 		{
-			"Annouce when set for success",
+			"Announce when set for success",
 			fun() ->
 				{ok, Dummypid} = dummy_media:start("testcall"),
-				?assertMatch(ok, gen_server:call(Dummypid, {announce, "Random data"}))
+				?assertMatch(ok, gen_media:announce(Dummypid, "Random data"))
 			end
 		},
 		{
-			"Annouce when set to fail",
+			"Announce when set to fail",
 			fun() ->
 				{ok, Dummypid} = dummy_media:start("testcall", failure),
-				?assertMatch(invalid, gen_server:call(Dummypid, {announce, "Random data"}))
+				?assertMatch(ok, gen_media:announce(Dummypid, "Random data"))
 			end
 		}
 	]
 	}.
 
--define(MEDIA_ACTION_PARAMS, [
-	{ring_agent, fun() ->
-		Queuedcall = #queued_call{media = self(), id = "testcall"},
-		{ok, Agentpid} = agent:start(#agent{login = "testagent"}),
-		agent:set_state(Agentpid, idle),
-		{ring_agent, Agentpid, Queuedcall, 1}
-	end},
-	{start_cook, fun() ->
-		{start_cook, recipe, "queuename"}
-	end},
-	{stop_cook, fun() ->
-		stop_cook
-	end},
-	{voicemail, fun() ->
-		voicemail
-	end},
-	{announce, fun() ->
-		{announce, "args"}
-	end}
-]).
-
--define(SUCCESS_MODES, [{fail, invalid, invalid}, {fail_once, invalid, ok}, {success, ok, ok}]).
-
-success_test_() ->
-	{generator,
+set_action_test_() ->
+	{foreach,
 	fun() ->
-		{ok, Dummypid} = dummy_media:start("testcall"),
-		Modes = fun({Mode, Test1, Test2}) ->
-			Paramed = fun({Action, Params}) ->
-				Nom = "Mode " ++ atom_to_list(Mode) ++ " for " ++ atom_to_list(Action),
-				{Nom,
-				fun() ->
-					dummy_media:set_mode(Dummypid, Action, Mode),
-					?assertEqual(Test1, gen_server:call(Dummypid, Params())),
-					?assertEqual(Test2, gen_server:call(Dummypid, Params()))
-				end}
+		Call = #queued_call{media = self(), id = "testcall"},
+		Dict = dict:from_list([{oncall, "goober"}, {announce, "goober"}]),
+		#state{fail = Dict, callrec = Call}
+	end,
+	fun(_Whatever) ->
+		ok
+	end,
+	[fun(State) ->
+		{"Setting everything to a success",
+		fun() ->
+			{reply, ok, Newstate} = handle_call(set_success, self(), State),
+			Test = fun(Key, success, Acc) ->
+					[true | Acc];
+				(Key, _Other, Acc) ->
+					[false | Acc]
 			end,
-			lists:map(Paramed, ?MEDIA_ACTION_PARAMS)
-		end,
-		Tests = lists:map(Modes, ?SUCCESS_MODES),
-		lists:append(Tests)
-	end}.
+			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
+		end}
+	end,
+	fun(State) ->
+		{"Setting everything to a failure",
+		fun() ->
+			{reply, ok, Newstate} = handle_call(set_failure, self(), State),
+			Test = fun(Key, fail, Acc) ->
+					[true | Acc];
+				(Key, _Other, Acc) ->
+					[false | Acc]
+			end,
+			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
+		end}
+	end,
+	fun(State) ->
+		{"setting a single action to fail",
+		fun() ->
+			{reply, ok, Newstate} = handle_call({set_action, oncall, fail}, self(), State),
+			Test = fun(oncall, fail, Acc) -> 
+					[true | Acc];
+				(announce, "goober", Acc) ->
+					[true | Acc];
+				(Key, Val, Acc) ->
+					[false, Acc]
+			end,
+			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
+		end}
+	end,
+	fun(State) ->
+		{"Setting a single action to succeed",
+		fun() ->
+			{reply, ok, Newstate} = handle_call({set_action, oncall, success}, self(), State),
+			Test = fun(oncall, success, Acc) ->
+					[true | Acc];
+				(announce, "goober", Acc) ->
+					[true | Acc];
+				(Key, Val, Acc) ->
+					[false | Acc]
+			end,
+			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
+		end}
+	end,
+	fun(State) ->
+		{"Setting a single action to fail_once",
+		fun() ->
+			{reply, ok, Newstate} = handle_call({set_action, oncall, fail_once}, self(), State),
+			Test = fun(oncall, fail_once, Acc) ->
+					[true | Acc];
+				(announce, "goober", Acc) ->
+					[true | Acc];
+				(Key, Val, Acc) ->
+					[false | Acc]
+			end,
+			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
+		end}
+	end]}.
+
+% Test if the action setting functions work.
+
+%
+%
+%[{Action, Callback, Args, Testup, Testdown}]
+%
+%foreach action, using the given callback, ensure we get the correct responses
+%on each set_action.
+%
+%-define(MEDIA_ACTION_PARAMS, [
+%	{ring_agent, fun() ->
+%		Call = #queued_call{media = self(), id = "testcall"},
+%		{ok, Agentpid} = agent:start(#agent{login = "testagent"}),
+%		agent:set_state(Agentpid, idle),
+%		Fup = fun({ok, _Whatever}) -> true; (_Else) -> false end,
+%		Fdown = fun({invalid, _Whatever}) -> true; (_Else) -> false end
+%		{handle_ring, [Agentpid, Call], Fup, Fdown}},
+%	{start_cook, fun() ->
+%		{handle_call, [{start_cook, [], "testqueue"}, "wherever"
+
+%-define(MEDIA_ACTION_PARAMS, [
+%	{ring_agent, fun() ->
+%		Queuedcall = #queued_call{media = self(), id = "testcall"},
+%		{ok, Agentpid} = agent:start(#agent{login = "testagent"}),
+%		agent:set_state(Agentpid, idle),
+%		{ring_agent, Agentpid, Queuedcall, 1}
+%	end},
+%	{start_cook, fun() ->
+%		{start_cook, recipe, "queuename"}
+%	end},
+%	{stop_cook, fun() ->
+%		stop_cook
+%	end},
+%	{voicemail, fun() ->
+%		voicemail
+%	end},
+%	{announce, fun() ->
+%		{announce, "args"}
+%	end}
+%]).
+%
+%-define(SUCCESS_MODES, [{fail, invalid, invalid}, {fail_once, invalid, ok}, {success, ok, ok}]).
+%
+%success_test_() ->
+%	{generator,
+%	fun() ->
+%		{ok, Dummypid} = dummy_media:start("testcall"),
+%		Modes = fun({Mode, Test1, Test2}) ->
+%			Paramed = fun({Action, Params}) ->
+%				Nom = "Mode " ++ atom_to_list(Mode) ++ " for " ++ atom_to_list(Action),
+%				{Nom,
+%				fun() ->
+%					dummy_media:set_mode(Dummypid, Action, Mode),
+%					?assertEqual(Test1, gen_server:call(Dummypid, Params())),
+%					?assertEqual(Test2, gen_server:call(Dummypid, Params()))
+%				end}
+%			end,
+%			lists:map(Paramed, ?MEDIA_ACTION_PARAMS)
+%		end,
+%		Tests = lists:map(Modes, ?SUCCESS_MODES),
+%		lists:append(Tests)
+%	end}.
 	
 -endif.

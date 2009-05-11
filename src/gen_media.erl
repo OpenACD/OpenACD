@@ -57,7 +57,10 @@
 	voicemail/1,
 	announce/2,
 	stop_ringing/1,
-	oncall/1
+	oncall/1,
+	call/2,
+	call/3,
+	cast/2
 ]).
 
 -record(state, {
@@ -99,6 +102,15 @@ stop_ringing(Genmedia) ->
 
 oncall(Genmedia) ->
 	gen_server:cast(Genmedia, '$gen_media_agent_oncall').
+
+call(Genmedia, Request) ->
+	gen_server:call(Genmedia, Request).
+
+call(Genmedia, Request, Timeout) ->
+	gen_server:call(Genmedia, Request, Timeout).
+	
+cast(Genmedia, Request) ->
+	gen_server:cast(Genmedia, Request).
 %
 %handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call} = State) ->
 %handle_call(get_call, _From, State) ->

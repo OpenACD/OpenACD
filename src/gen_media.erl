@@ -176,10 +176,10 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = C
 			{reply, invalid, State}
 	end;
 handle_call({'$gen_media_annouce', Annouce}, From, #state{callback = Callback} = State) ->
-	{ok, Substate} = Callback:handle_annouce(Annouce, State),
+	{ok, Substate} = Callback:handle_announce(Annouce, State),
 	{reply, ok, State#state{substate = Substate}};
 handle_call('$gen_media_voicemail', From, #state{callback = Callback} = State) ->
-	{ok, Substate} = Callback:handle_voicemail(),
+	{ok, Substate} = Callback:handle_voicemail(State#state.substate),
 	{reply, ok, State#state{substate = Substate}};
 handle_call(Request, From, #state{callback = Callback} = State) ->
 	case Callback:handle_call(Request, From, State#state.substate) of

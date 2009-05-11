@@ -92,25 +92,12 @@ start_link(Callback, Args) ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
 init([Callback, Args]) ->
 	{ok, {Substate, Callrec}} = apply(Callback, init, Args),
     {ok, #state{callback = Callback, substate = Substate, callrec = Callrec}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
 %%--------------------------------------------------------------------
 
 handle_call('$gen_media_get_call', From, State) ->
@@ -155,9 +142,6 @@ handle_call(Request, From, State) ->
 	
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
 handle_cast('$gen_media_agent_oncall', State) ->
@@ -189,9 +173,6 @@ handle_cast(Msg, State) ->
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(Info, State) ->
 	case apply(State#state.callback, handle_info, [Info, State#state.substate]) of
@@ -207,17 +188,12 @@ handle_info(Info, State) ->
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(Reason, State) ->
 	apply(State#state.callback, terminate, [Reason, State#state.substate]).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
 code_change(OldVsn, State, Extra) ->
 	{ok, Newsub} = apply(State#state.callback, code_change, [OldVsn, State#state.substate, Extra]),

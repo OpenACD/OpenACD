@@ -141,7 +141,7 @@ start(Callback, Args) ->
 %%====================================================================
 
 init([Callback, Args]) ->
-	{ok, {Substate, Callrec}} = apply(Callback, init, [Args]),
+	{ok, {Substate, Callrec}} = Callback:init(Args),
     {ok, #state{callback = Callback, substate = Substate, callrec = Callrec}}.
 
 %%--------------------------------------------------------------------
@@ -150,10 +150,10 @@ init([Callback, Args]) ->
 
 handle_call('$gen_media_get_call', From, State) ->
 	{reply, State#state.callrec, State};
-handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = Call} = State) ->
+handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = Call, callback = Callback} = State) ->
 	case agent:set_state(Agent, ringing, Call#call{cook=QCall#queued_call.cook}) of
 		ok ->
-			case apply(State#state.callback, handle_ring, [Agent, State#state.callrec, State#state.substate]) of
+			case Callback:handle_ring(Agent, State#state.callrec, State#state.substate) of
 				{ok, Substate} ->
 					{reply, ok, State#state{substate = Substate, agent_pid = Agent}};
 				{invalid, Substate} ->
@@ -163,11 +163,11 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = C
 			?INFO("Agent ringing response:  ~p", [Else]),
 			{reply, invalid, State}
 	end;
-handle_call({'$gen_media_annouce', Annouce}, From, State) ->
-	{ok, Substate} = apply(State#state.callback, handle_annouce, [Annouce, State]),
+handle_call({'$gen_media_annouce', Annouce}, From, #state{callback = Callback} = State) ->
+	{ok, Substate} = Callback:handle_annouce(Annouce, State),
 	{reply, ok, State#state{substate = Substate}};
-handle_call('$gen_media_voicemail', From, State) ->
-	{ok, Substate} = apply(State#state.callback, handle_voicemail, []),
+handle_call('$gen_media_voicemail', From, #state{callback = Callback} = State) ->
+	{ok, Substate} = Callback:handle_voicemail(),
 	{reply, ok, State#state{substate = Substate}};
 handle_call(Request, From, #state{callback = Callback} = State) ->
 	case Callback:handle_call(Request, From, State#state.substate) of
@@ -193,13 +193,13 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 
-handle_cast('$gen_media_agent_oncall', State) ->
+handle_cast('$gen_media_agent_oncall', #state{callback = Callback} = State) ->
 	case State#state.agent_pid of
 		undefined ->
 			?WARNING("No agent to set state to",[]),
 			{noreply, State};
 		Apid when is_pid(Apid) ->
-			case apply(State#state.callback, handle_answer, [Apid, State#state.callrec, State#state.substate]) of
+			case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
 				{ok, Newstate} ->
 					agent:set_state(State#state.agent_pid, oncall, State#state.callrec),
 					{noreply, State#state{substate = Newstate}};
@@ -208,8 +208,8 @@ handle_cast('$gen_media_agent_oncall', State) ->
 					{noreply, State#state{substate = Newstate}}
 			end
 	end;
-handle_cast(Msg, State) ->
-	case apply(State#state.callback, handle_cast, [Msg, State#state.substate]) of
+handle_cast(Msg, #state{callback = Callback} = State) ->
+	case Callback:handle_cast(Msg, State#state.substate) of
 		{noreply, NewState} ->
 			{noreply, State#state{substate = NewState}};
 		{noreply, NewState, Timeout} when is_integer(Timeout) ->
@@ -223,8 +223,8 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(Info, State) ->
-	case apply(State#state.callback, handle_info, [Info, State#state.substate]) of
+handle_info(Info, #state{callback = Callback} = State) ->
+	case Callback:handle_info(Info, State#state.substate) of
 		{noreply, NewState} ->
 			{noreply, State#state{substate = NewState}};
 		{noreply, NewState,  Timeout} when is_integer(Timeout) ->
@@ -238,14 +238,14 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(Reason, State) ->
-	apply(State#state.callback, terminate, [Reason, State#state.substate]).
+terminate(Reason, #state{callback = Callback} = State) ->
+	Callback:terminate(Reason, State#state.substate).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
-code_change(OldVsn, State, Extra) ->
-	{ok, Newsub} = apply(State#state.callback, code_change, [OldVsn, State#state.substate, Extra]),
+code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
+	{ok, Newsub} = Callback:code_change(OldVsn, State#state.substate, Extra),
     {ok, State#state{substate = Newsub}}.
 
 %%--------------------------------------------------------------------

@@ -170,11 +170,11 @@ handle_cast(stop_tick, State) ->
 handle_cast({stop_ringing, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
 	?DEBUG("Ordered to stop ringing ~p", [AgentPid]),
 	agent:set_state(AgentPid, idle),
-	gen_server:cast(State#state.call, stop_ringing),
+	gen_media:stop_ringing(State#state.call),
 	{noreply, State#state{ringingto=undefined}};
 handle_cast({stop_ringing_keep_state, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
 	?DEBUG("Ordered to stop ringing without changing state ~p", [AgentPid]),
-	gen_server:cast(State#state.call, stop_ringing),
+	gen_media:stop_ringing(State#state.call),
 	{noreply, State#state{ringingto=undefined}};
 handle_cast(remove_from_queue, State) ->
 	Qpid = queue_manager:get_queue(State#state.queue),
@@ -369,7 +369,7 @@ offer_call([{_ACost, Apid} | Tail], Call) ->
 	case gen_server:call(Call#queued_call.media, {ring_agent, Apid, Call, ?TICK_LENGTH * (?RINGOUT + 1)}) of
 		ok ->
 			Agent = agent:dump_state(Apid),
-			Callrec = gen_server:call(Call#queued_call.media, get_call),
+			Callrec = gen_media:get_call(Call#queued_call.media),
 			?INFO("cook offering call:  ~p to ~p", [Callrec#call.id, Agent#agent.login]),
 			cdr:ringing(Callrec, Agent#agent.login),
 			Apid;
@@ -692,10 +692,10 @@ queue_interaction_test_() ->
 				call_queue:set_recipe(Pid, [{[{ticks, 1}], voicemail, [], run_once}]),
 				Dummy1 = whereis(media_dummy),
 				call_queue:add(Pid, Dummy1),
-				gen_server:call(Dummy1, set_failure),
+				gen_media:call(Dummy1, set_failure),
 				receive
 				after ?TICK_LENGTH + 100 ->
-					gen_server:call(Dummy1, set_success)
+					gen_media:call(Dummy1, set_success)
 				end,
 				?assertMatch({_Key, #queued_call{id="testcall"}}, call_queue:get_call(Pid, Dummy1))
 			end},
@@ -1068,7 +1068,7 @@ agent_interaction_test_() ->
 			fun() ->
 				{ok, Media} = dummy_media:start("testcall"),
 				dummy_media:set_skills(Media, [german]),
-				?CONSOLE("Media response to getting call:  ~p", [gen_server:call(Media, get_call)]),
+				?CONSOLE("Media response to getting call:  ~p", [gen_media:gen_call(Media)]),
 				call_queue:add(QPid, Media),
 				agent:set_state(APid, idle),
 				receive

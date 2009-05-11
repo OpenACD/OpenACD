@@ -140,7 +140,7 @@ add(Pid, Priority, Mediapid, Callrec) when is_pid(Pid), is_pid(Mediapid), Priori
 add(Pid, Mediapid, Callrec) when is_pid(Pid), is_pid(Mediapid), is_record(Callrec, call) ->
 	add(Pid, 1, Mediapid, Callrec);
 add(Pid, Priority, Mediapid) when is_pid(Pid), is_pid(Mediapid), Priority >= 0 ->
-	Callrec = gen_server:call(Mediapid, get_call),
+	Callrec = gen_media:get_call(Mediapid),
 	gen_server:call(Pid, {add, Priority, Mediapid, Callrec}).
 
 %% @doc Add to queue at `pid()' `Pid' a call taken from `pid()' `Mediapid'.
@@ -173,7 +173,7 @@ grab(Pid) when is_pid(Pid) ->
 %% bound dispatchers at queue `pid()' `Pid'.  Returns `ok'.
 -spec(ungrab/2 :: (Pid :: pid(), Callid :: string() | pid()) -> 'ok').
 ungrab(Pid, Mediapid) when is_pid(Mediapid), is_pid(Pid) ->
-	#call{id = Cid} = gen_server:call(Mediapid, get_call),
+	#call{id = Cid} = gen_media:get_call(Mediapid),
 	gen_server:call(Pid, {ungrab, Cid});
 ungrab(Pid, Callid) when is_pid(Pid) ->
 	gen_server:call(Pid, {ungrab, Callid}).
@@ -182,7 +182,7 @@ ungrab(Pid, Callid) when is_pid(Pid) ->
 %% Returns `ok' on success, `none' on failure.
 -spec(add_skills/3 :: (Pid :: pid(), Callid :: string() | pid(), Skills :: [atom(),...]) -> 'none' | 'ok').
 add_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) ->
-	#call{id = Callid} = gen_server:call(Mediapid, get_call),
+	#call{id = Callid} = gen_media:get_call(Mediapid),
 	gen_server:call(Pid, {add_skills, Callid, Skills});
 add_skills(Pid, Callid, Skills) ->
 	gen_server:call(Pid, {add_skills, Callid, Skills}).
@@ -191,7 +191,7 @@ add_skills(Pid, Callid, Skills) ->
 %% Returns `ok' on success, `none' on failure.
 -spec(remove_skills/3 :: (Pid :: pid(), Callid :: string() | pid(), Skills :: [atom(),...]) -> 'none' | 'ok').
 remove_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) ->
-	#call{id = Callid} = gen_server:call(Mediapid, get_call),
+	#call{id = Callid} = gen_media:get_call(Mediapid),
 	gen_server:call(Pid, {remove_skills, Callid, Skills});
 remove_skills(Pid, Callid, Skills) ->
 	gen_server:call(Pid, {remove_skills, Callid, Skills}).
@@ -316,7 +316,7 @@ expand_magic_skills(State, Call, Skills) ->
 			%('_queue') when is_atom(State#state.name) -> State#state.name;
 			%('_queue') -> ?CONSOLE("Can't expand magic skill _queue~n", []), [];
 			('_brand') when is_pid(Call#queued_call.media) ->
-				AState = gen_server:call(Call#queued_call.media, get_call),
+				AState = gen_media:get_call(Call#queued_call.media),
 				case AState#call.client of
 					undefined ->
 						{'_brand', "Unknown"};

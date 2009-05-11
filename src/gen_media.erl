@@ -42,7 +42,8 @@
 %% API
 -export([
 	behaviour_info/1,
-	start_link/2
+	start_link/2,
+	start/2
 ]).
 
 %% gen_server callbacks
@@ -132,12 +133,15 @@ oncall(Genmedia) ->
 start_link(Callback, Args) ->
     gen_server:start_link(?MODULE, [Callback, Args], []).
 
+start(Callback, Args) ->
+	gen_server:start(?MODULE, [Callback, Args], []).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
 init([Callback, Args]) ->
-	{ok, {Substate, Callrec}} = apply(Callback, init, Args),
+	{ok, {Substate, Callrec}} = apply(Callback, init, [Args]),
     {ok, #state{callback = Callback, substate = Substate, callrec = Callrec}}.
 
 %%--------------------------------------------------------------------

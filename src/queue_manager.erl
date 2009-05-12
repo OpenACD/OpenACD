@@ -237,7 +237,7 @@ surrendered(#state{qdict = Qdict} = State, LeaderDict, _Election) ->
 	{ok, State#state{qdict = Noleader}}.
 
 %% @private
--spec(handle_DOWN/3 :: (Node :: node(), State :: #state{}, Election :: election()) -> {'ok', #state{}}).
+-spec(handle_DOWN/3 :: (Node :: atom(), State :: #state{}, Election :: election()) -> {'ok', #state{}}).
 handle_DOWN(Node, #state{qdict = Qdict} = State, _Election) ->
 	?INFO("in handle_DOWN",[]),
 	mnesia:set_master_nodes(call_queue, [node()]),

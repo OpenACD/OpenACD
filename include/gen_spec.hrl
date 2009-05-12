@@ -111,7 +111,7 @@
 -spec(init/1 :: (Args :: any()) -> {'ok', state()}).
 -spec(elected/2 :: (State :: state(), Election :: election()) -> {'ok', any(), state()}).
 -spec(surrendered/3 :: (State :: state(), Elected :: any(), Election :: election()) -> {'ok', state()}).
--spec(handle_DOWN/3 :: (Node :: node(), State :: state(), Election :: election()) -> {'ok', state()}).
+-spec(handle_DOWN/3 :: (Node :: atom(), State :: state(), Election :: election()) -> {'ok', state()}).
 -spec(handle_leader_call/4 :: (Request :: any(), From :: pid(), State :: state(), Election :: election()) -> {'reply', any(), state()}).
 -spec(handle_call/3 :: (Request :: any(), From :: pid(), State :: state()) -> {'ok', any(), state()}).
 -spec(handle_leader_cast/3 :: (Request :: any(), State :: state(), Election :: election()) -> {'noreply', state()}).

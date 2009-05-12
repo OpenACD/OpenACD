@@ -468,7 +468,7 @@ handle_call({set_priority, Id, Priority}, _From, State) when Priority >= 0 ->
 	end;
 
 handle_call(to_list, _From, State) ->
-	{reply, lists:map(fun({_, Call}) -> Call end, gb_trees:to_list(State#state.queue)), State};
+	{reply, gb_trees:values(State#state.queue), State};
 
 handle_call(call_count, _From, State) ->
 	{reply, gb_trees:size(State#state.queue), State};

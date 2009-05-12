@@ -357,19 +357,22 @@ parse_path(Path) ->
 		"/checkcookie" ->
 			{api, checkcookie};
 		_Other ->
-			case util:string_split(Path, "/") of 
-				["", "state", Statename] ->
+			["" | Tail] = util:string_split(Path, "/"),
+			case Tail of 
+				["state", Statename] ->
 					{api, {set_state, Statename}};
-				["", "state", Statename, Statedata] ->
+				["state", Statename, Statedata] ->
 					{api, {set_state, Statename, Statedata}};
-				["", "ack", Counter] ->
+				["ack", Counter] ->
 					{api, {ack, Counter}};
-				["", "err", Counter] ->
+				["err", Counter] ->
 					{api, {err, Counter}};
-				["", "err", Counter, Message] ->
+				["err", Counter, Message] ->
 					{api, {err, Counter, Message}};
-				["", "dial", Number] ->
+				["dial", Number] ->
 					{api, {dial, Number}};
+				["supervisor" | Supertail] ->
+					{api, {supervisor, Supertail}};
 				_Allother ->
 					% is there an actual file to serve?
 					case filelib:is_regular(string:concat("www/agent", Path)) of

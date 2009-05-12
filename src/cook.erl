@@ -75,10 +75,6 @@
 		tref :: any() % timer reference
 }).
 
--ifdef(R12B).
--type(node() :: atom()).
--endif.
-
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
@@ -100,7 +96,7 @@ start(Call, Recipe, Queue) when is_pid(Call) ->
 %% @doc starts a new cook on the give `node()' `Node' for `Call' to be process by `Recipe' for the call_queue named `Queue'.
 %% This is used in place of start and start_link to allow a queue on a different node to start the cook on the same node
 %% the media exists on.
--spec(start_at/4 :: (Node :: node(), Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+-spec(start_at/4 :: (Node :: atom(), Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_at(Node, Call, Recipe, Queue) ->
 	F = fun() ->
 		case init([Call, Recipe, Queue]) of

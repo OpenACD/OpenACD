@@ -67,6 +67,7 @@
 	add/2,
 	ask/1,
 	get_call/2,
+	get_calls/1,
 	print/1,
 	remove/2,
 	bgremove/2,
@@ -158,6 +159,11 @@ add(Pid, Mediapid) when is_pid(Pid), is_pid(Mediapid) ->
 get_call(Pid, Callid) when is_pid(Pid) ->
 	gen_server:call(Pid, {get_call, Callid}).
 
+%% @doc Return `[{key(), #queued_call{}]' from the queue at `pid()'.
+-spec(get_calls/1 :: (Pid :: pid()) -> [{key(), #queued_call{}}]).
+get_calls(Pid) when is_pid(Pid) ->
+	gen_server:call(Pid, get_calls).
+	
 %% @doc Return the first `{key(), #queued_call{}} call in the queue at `pid()' `Pid' that doesn't 
 %% have a dispatcher from this node already bound to it or `none'.
 -spec(ask/1 :: (Pid :: pid()) -> 'none' | {key(), #queued_call{}}).
@@ -470,6 +476,9 @@ handle_call({set_priority, Id, Priority}, _From, State) when Priority >= 0 ->
 handle_call(to_list, _From, State) ->
 	{reply, gb_trees:values(State#state.queue), State};
 
+handle_call(get_calls, _From, #state{queue = Calls} = State) ->
+	{reply, gb_trees:to_list(Calls), State};
+	
 handle_call(call_count, _From, State) ->
 	{reply, gb_trees:size(State#state.queue), State};
 

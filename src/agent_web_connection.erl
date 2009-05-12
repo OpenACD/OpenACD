@@ -391,12 +391,29 @@ do_action([Node | Tail], ["agent", Agent, "callid"] = Do, Acc) ->
 					{false, <<"not a call">>}
 			end
 	end;
+%% get a summary of the given queue
+do_action([Node | Tail], ["queue", Queue] = Do, Acc) ->
+	case queue_manager:get_queue(Queue) of
+		undefined ->
+			{false, <<"no such queue">>};
+		Pid when is_pid(Pid) ->
+			Weight = call_queue:get_weight(Pid),
+			Count = call_queue:call_count(Pid),
+			Calls = encode_queue_list(call_queue:get_calls(Pid), []),
+			Encoded = {struct, [
+				{<<"weight">>, Weight},
+				{<<"count">>, Count},
+				{<<"calls">>, Calls}
+			]},
+			{true, Encoded}
+	end;
+%% get a call from the given queue
 do_action([Node | Tail], ["queue", Queue, Callid] = Do, Acc) ->
 	case queue_manager:get_queue(Queue) of
 		undefined ->
 			{false, <<"no such queue">>};
 		Pid when is_pid(Pid) ->
-			case call_queue:get_call(Callid) of
+			case call_queue:get_call(Pid, Callid) of
 				{{Weight, {Mega, Sec, _Micro}}, Call} ->
 					{struct, Preweight} = encode_call(Call),
 					Time = (Mega * 100000) + Sec,
@@ -461,6 +478,8 @@ encode_calls([], Acc) ->
 encode_calls([Head | Tail], Acc) ->
 	encode_calls(Tail, [encode_call(Head) | Acc]).
 
+encode_client(undefined) ->
+	undefined;
 encode_client(Client) when is_record(Client, client) ->
 	{struct, [
 		{<<"label">>, list_to_binary(Client#client.label)},
@@ -472,6 +491,19 @@ encode_clients([], Acc) ->
 	lists:reverse(Acc);
 encode_clients([Head | Tail], Acc) ->
 	encode_clients(Tail, [encode_client(Head) | Acc]).
+
+encode_queue_list([], Acc) ->
+	lists:reverse(Acc);
+encode_queue_list([{{Priority, {Mega, Sec, Micro}}, Call} | Tail], Acc) ->
+	Time = (Mega * 1000000) + Sec,
+	Struct = {struct, [
+		{<<"queued">>, Time},
+		{<<"priority">>, Priority},
+		{<<"id">>, list_to_binary(Call#queued_call.id)}
+	]},
+	Newacc = [Struct | Acc],
+	encode_queue_list(Tail, Newacc).
+
 
 build_acks([], Acks) -> 
 	Acks;

@@ -75,6 +75,10 @@
 		tref :: any() % timer reference
 }).
 
+-ifdef(R12B).
+-type(node() :: atom()).
+-endif.
+
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").

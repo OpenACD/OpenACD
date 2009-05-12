@@ -220,10 +220,8 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 	case Callback:handle_cast(Msg, State#state.substate) of
 		{noreply, NewState} ->
 			{noreply, State#state{substate = NewState}};
-		{noreply, NewState, Timeout} when is_integer(Timeout) ->
+		{noreply, NewState, Timeout} ->
 			{noreply, State#state{substate = NewState}, Timeout};
-		{noreply, NewState, hibernate} ->
-			{noreply, State#state{substate = NewState}, hibernate};
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}}
 	end.
@@ -235,10 +233,8 @@ handle_info(Info, #state{callback = Callback} = State) ->
 	case Callback:handle_info(Info, State#state.substate) of
 		{noreply, NewState} ->
 			{noreply, State#state{substate = NewState}};
-		{noreply, NewState,  Timeout} when is_integer(Timeout) ->
+		{noreply, NewState,  Timeout} ->
 			{noreply, State#state{substate = NewState}, Timeout};
-		{noreply, NewState, hibernate} ->
-			{noreply, State#state{substate = NewState}, hibernate};
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}}
 	end.

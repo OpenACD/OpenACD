@@ -185,16 +185,12 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 	case Callback:handle_call(Request, From, State#state.substate) of
 		{reply, Reply, NewState} ->
 			{reply, Reply, State#state{substate = NewState}};
-		{reply, Reply, Newstate, Timeout} when is_integer(Timeout) ->
+		{reply, Reply, Newstate, Timeout}  ->
 			{reply, Reply, State#state{substate = Newstate}, Timeout};
-		{reply, Reply, NewState, hibernate} ->
-			{reply, Reply, State#state{substate = NewState}, hibernate};
 		{noreply, NewState} ->
 			{noreply, State#state{substate = NewState}};
-		{noreply, NewState, Timeout} when is_integer(Timeout) ->
+		{noreply, NewState, Timeout} ->
 			{noreply, State#state{substate = NewState}, Timeout};
-		{noreply, NewState, hibernate} ->
-			{noreply, State#state{substate = NewState}, hibernate};
 		{stop, Reason, Reply, NewState} ->
 			{stop, Reason, Reply, State#state{substate = NewState}};
 		{stop, Reason, NewState} ->

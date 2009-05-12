@@ -48,6 +48,15 @@
 
 -export([start/0, stop/0, loop/1]).
 
+-export([
+	encode_skill/1,
+	encode_skills/1,
+	encode_queue/1,
+	encode_queues/1,
+	encode_agent/1,
+	encode_agents/1
+]).
+
 %% @doc Start the web management server unlinked to the parent process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->

@@ -194,15 +194,37 @@
 		
 	</div>
 	<div dojoType="dijit.layout.TabContainer" region="center" id="tabPanel">
-		<div dojoType="dijit.layout.ContentPane" title="Main" id="maintab">
-			<p id="agentnamep"><label for="agentname" id="agentlabel">Agent:</label><span id="agentname"></span></p>
-			<p id="agentstatep"><label for="state" id="statelabel">State:</label><span id="state">Login needed</span></p>
-			<p id="agentbrandp" style="display:none"><label for="brand" id="brandlabel">Brand:</label><span id="brand"></span></p>
-			<p id="calleridp" style="display:none"><label for="callerid" id="calleridlabel">Caller id:</label><span id="callerid"></span></p>
+		<div dojoType="dijit.layout.ContentPane" title="000" id="maintab">
+			<script type="dojo/method" event="postCreate">
+				this.title = dojo.i18n.getLocalization("agentUI", "labels").MAIN;
+			</script>
+			<p id="agentnamep"><label for="agentname" id="agentlabel">
+				<script type="text/javascript">
+					dojo.byId("agentlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").AGENT;
+				</script>
+			</label><span id="agentname"></span></p>
+			<p id="agentstatep"><label for="state" id="statelabel">
+				<script type="text/javascript">
+					dojo.byId("statelabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").STATE;
+				</script>
+			</label><span id="state">Login needed</span></p>
+			<p id="agentbrandp" style="display:none"><label for="brand" id="brandlabel">
+				<script type="text/javascript">
+					dojo.byId("brandlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").BRAND;
+				</script>
+			</label><span id="brand"></span></p>
+			<p id="calleridp" style="display:none"><label for="callerid" id="calleridlabel">
+				<script type="text/javascript">
+					dojo.byId("calleridlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").CALLERID;
+				</script>
+			</label><span id="callerid"></span></p>
 		</div>
 		<div dojoType="dijit.layout.ContentPane" title="Agents" id="agentstab">Tab 2</div>
 		<div dojoType="dijit.layout.ContentPane" title="Queues" id="queuestab">Tab 2</div>
-		<div dojoType="dijit.layout.ContentPane" title="Event Log" id="eventLog">
+		<div dojoType="dijit.layout.ContentPane" title="000" id="eventLog">
+			<script type="dojo/method" event="postCreate">
+				this.title = dojo.i18n.getLocalization("agentUI", "labels").EVENTLOG;
+			</script>
 			<textarea dojoType="dijit.form.SimpleTextarea" id="eventLogText" name="eventLogText" width="80%" rows="1000" readonly>
 			</textarea>
 		</div>

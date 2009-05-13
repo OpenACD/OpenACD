@@ -1,8 +1,11 @@
+<script type="text/javascipt">
+	dojo.require("dojox.widget.FisheyeLite");
+	dojo.require("dojo.fx");
+	dojo.require("dijit.layout.LayoutContainer");
+</script>
+<script type="text/javascript" src="tabs/supervisor.js"></script>
+
 <div dojoType="dijit.layout.ContentPane" id="supervisorMain">
-	<script type="dojo/method" event="postMixInProperties">
-		dojo.require("dojox.widget.FisheyeLite");
-		dojo.require("dojo.fx");
-	</script>
 	<script type="dojo/method" event="postCreate">
 		dojo.query("#nodeDisp >").forEach(function(n){
 			new dojox.widget.FisheyeLite({
@@ -35,7 +38,7 @@
 	</style>
 
 	<div id="agentDisp">
-		<div dojoType="dijit.layout.ContentPane" class="fisheyeTarget">
+		<div dojoType="dijit.layout.ContentPane" class="fisheyeTarget" id="goober">
 			Test
 		</div>
 	</div>
@@ -46,9 +49,53 @@
 		</div>
 	</div>
 
-	<div id="nodeDisp">
+	<div id="nodeDisp" dojoType="dijit.layout.LayoutContainer">
+		<script type="dojo/method" event="postCreate">
+			var t = this;
+			this.nodeSubscription = dojo.subscribe("supervisor/node/poll", function(names){
+				names.push("all");
+				t.destroyDescendants();
+				dojo.forEach(names, function(name){
+					var whenclicked = function(e){
+						supervisorTab.pollAgentProfiles(name);
+						supervisorTab.pollQueues(name);
+					};
+					/*var actor = new dijit.layout.ContentPane({
+						content:name,
+						style:"display:inline-block;background-color:red;margin:5px",
+						onClick:whenclicked
+					});*/
+					var actor = document.createElement('span');
+					actor.style.backgroundColor = 'red';
+					actor.style.display = 'inline-block';
+					actor.style.margin = '5px';
+					actor.style.width = '100px';
+					actor.style.height = '50px';
+					actor.innerHTML = name;
+					console.log('actor');
+					console.log(actor);
+					//try{
+						var f = new dojox.widget.FisheyeLite({
+							properties: {
+								height: 2,
+								width: 3
+							},
+							easeOut: dojo.fx.easing.quadInOut,
+							durationOut: 500,
+							onClick: whenclicked
+						}, actor);
+						t.addChild(f);
+					//}
+					/*catch(err){
+						console.log(err);
+					}
+					console.log(actor);*/
+				});
+			});
+
+		</script>
 		<span class="nodeTarg" id="nsp1">Span 1</span>
 		<span class="nodeTarg" id="nsp2">Span 2</span>
 	</div>
 </div>
-<script type="text/javascript" src="tabs/supervisor.js"></script>
+

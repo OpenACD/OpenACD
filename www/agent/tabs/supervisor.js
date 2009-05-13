@@ -10,9 +10,10 @@ supervisorTab.pollNodes = function(){
 			EventLog.log("Node poll failed:  " + response.responseText);
 		},
 		load:function(response, ioargs){
+			console.log(response);
 			if(response.success){
 				EventLog.log("Node poll success, handling data...");
-				dojo.publish("/supervisor/node/poll", [success.nodes]);
+				dojo.publish("supervisor/node/poll", [response.nodes]);
 			}
 		}
 	});
@@ -118,4 +119,12 @@ supervisorTab.pollQueuedCall = function(node, queue, callid){
 			}
 		}
 	})
-}
+};
+/*
+dojo.addOnLoad(function(){
+	EventLog.log("Supervisor tab loaded!");
+	dojo.byId("nodeDisp").nodeSubscription = dojo.subscribe("supervisor/node/poll", function(names){
+		dojo.byId("nodeDisp").desc
+		names.push("all");
+	});
+});*/

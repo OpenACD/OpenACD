@@ -308,7 +308,7 @@ get_nodes("all") ->
 get_nodes(Nodestring) ->
 	case atom_to_list(node()) of
 		Nodestring ->
-			node();
+			[node()];
 		_Else ->
 			F = fun(N) ->
 				atom_to_list(N) =/= Nodestring
@@ -423,7 +423,8 @@ do_action([Node | Tail], ["queue", Queue, Callid] = Do, Acc) ->
 					{false, <<"no such call">>}
 			end
 	end;
-do_action(_Nodes, _Do, _Acc) ->
+do_action(Nodes, Do, _Acc) ->
+	?INFO("Bumping back unknown request ~p for nodes ~p", [Do, Nodes]),
 	{false, <<"unknown request">>}.
 
 encode_agent(Agent) when is_record(Agent, agent) ->

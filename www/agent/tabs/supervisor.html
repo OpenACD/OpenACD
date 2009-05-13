@@ -1,0 +1,54 @@
+<div dojoType="dijit.layout.ContentPane" id="supervisorMain">
+	<script type="dojo/method" event="postMixInProperties">
+		dojo.require("dojox.widget.FisheyeLite");
+		dojo.require("dojo.fx");
+	</script>
+	<script type="dojo/method" event="postCreate">
+		dojo.query("#nodeDisp >").forEach(function(n){
+			new dojox.widget.FisheyeLite({
+				properties: {
+					height: 2,
+					width: 3
+				},
+				easeOut: dojo.fx.easing.quadInOut,
+				durationOut: 500
+			}, n);
+		}).connect("onclick", function(e){
+			//meh
+		});
+	</script>
+	<style type="text/css">
+		#nodeDisp {
+			text-align:center;
+			overflow:visible
+		}
+		span.nodeTarg {
+			margin:10px;
+			padding:3px;
+			line-height:22px;
+			font:10px Arial,sans-serif;
+			height: 50px;
+			width: 50px;
+			background-color:black;
+			display:inline-block
+		}
+	</style>
+
+	<div id="agentDisp">
+		<div dojoType="dijit.layout.ContentPane" class="fisheyeTarget">
+			Test
+		</div>
+	</div>
+	
+	<div id="queueDisp">
+		<div dojoType="dijit.layout.ContentPane" class="fisheyeTarget">
+			Test 2
+		</div>
+	</div>
+
+	<div id="nodeDisp">
+		<span class="nodeTarg" id="nsp1">Span 1</span>
+		<span class="nodeTarg" id="nsp2">Span 2</span>
+	</div>
+</div>
+<script type="text/javascript" src="tabs/supervisor.js"></script>

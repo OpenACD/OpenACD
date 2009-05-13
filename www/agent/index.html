@@ -192,10 +192,12 @@
 								var t = new dojox.layout.ContentPane({
 									href:"tabs/supervisor.html",
 									title:"Supervisor",
-									executeScripts: "true"
+									executeScripts: "true",
+									id:"supervisorTab"
 								});
 								dijit.byId("tabPanel").addChild(t);
 								this.setDisabled(true);
+								dijit.byId("tabPanel").selectChild("supervisorTab");
 							</script>
 						</div>
 					</div>

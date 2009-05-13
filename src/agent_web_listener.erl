@@ -187,9 +187,9 @@ loop(Req, Table) ->
 			case proplists:get_value("cpx_id", Cookielist) of
 				undefined ->
 					Reflist = erlang:ref_to_list(make_ref()),
-					Cookie = io_lib:format("cpx_id=~p", [Reflist]),
+					Cookie = io_lib:format("cpx_id=~p; path=/", [Reflist]),
 					ets:insert(Table, {Reflist, undefined, undefined}),
-					Language = io_lib:format("cpx_lang=~s", [determine_language(Req:get_header_value("Accept-Language"))]),
+					Language = io_lib:format("cpx_lang=~s; path=/", [determine_language(Req:get_header_value("Accept-Language"))]),
 					?DEBUG("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}, {"Set-Cookie", Language}]);
 				_Reflist ->

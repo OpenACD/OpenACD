@@ -48,6 +48,7 @@
 	dojo.require("dijit.Dialog");
 	dojo.require("dojox.encoding.digests.MD5");
 	dojo.require("dijit.form.ComboBox");
+	dojo.require("dojox.layout.ContentPane");
 	//dojo.require("dijit.Menu");
 	dojo.requireLocalization("agentUI", "labels");
 	function init()
@@ -186,7 +187,17 @@
 					</script>
 					<span>000</span>
 					<div dojoType="dijit.Menu">
-						<div dojoType="dijit.MenuItem" onClick="alert('NYI this thing')">Abuh?</div>
+						<div dojoType="dijit.MenuItem">Supervisor
+							<script type="dojo/connect" event="onClick">
+								var t = new dojox.layout.ContentPane({
+									href:"tabs/supervisor.html",
+									title:"Supervisor",
+									executeScripts: "true"
+								});
+								dijit.byId("tabPanel").addChild(t);
+								this.setDisabled(true);
+							</script>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -219,8 +230,8 @@
 				</script>
 			</label><span id="callerid"></span></p>
 		</div>
-		<div dojoType="dijit.layout.ContentPane" title="Agents" id="agentstab">Tab 2</div>
-		<div dojoType="dijit.layout.ContentPane" title="Queues" id="queuestab">Tab 2</div>
+		<!--<div dojoType="dijit.layout.ContentPane" title="Agents" id="agentstab">Tab 2</div>
+		<div dojoType="dijit.layout.ContentPane" title="Queues" id="queuestab">Tab 2</div>-->
 		<div dojoType="dijit.layout.ContentPane" title="000" id="eventLog">
 			<script type="dojo/method" event="postCreate">
 				this.title = dojo.i18n.getLocalization("agentUI", "labels").EVENTLOG;

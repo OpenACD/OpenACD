@@ -120,11 +120,3 @@ supervisorTab.pollQueuedCall = function(node, queue, callid){
 		}
 	})
 };
-/*
-dojo.addOnLoad(function(){
-	EventLog.log("Supervisor tab loaded!");
-	dojo.byId("nodeDisp").nodeSubscription = dojo.subscribe("supervisor/node/poll", function(names){
-		dojo.byId("nodeDisp").desc
-		names.push("all");
-	});
-});*/

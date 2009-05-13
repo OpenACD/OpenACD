@@ -3,7 +3,6 @@
 	dojo.require("dojo.fx");
 	dojo.require("dijit.layout.LayoutContainer");
 </script>
-<script type="text/javascript" src="tabs/supervisor.js"></script>
 
 <div dojoType="dijit.layout.ContentPane" id="supervisorMain">
 	<script type="dojo/method" event="postCreate">
@@ -37,16 +36,16 @@
 		}
 	</style>
 
-	<div id="agentDisp">
-		<div dojoType="dijit.layout.ContentPane" class="fisheyeTarget" id="goober">
-			Test
-		</div>
+	<div id="agentDisp" dojoType="dijit.layout.LayoutContainer">
+		<script type="dojo/method" event="postCreate">
+			console.log('todo');
+		</script>
 	</div>
 	
-	<div id="queueDisp">
-		<div dojoType="dijit.layout.ContentPane" class="fisheyeTarget">
-			Test 2
-		</div>
+	<div id="queueDisp" dojoType="dijit.layout.LayoutContainer">
+		<script type="dojo/method" event="postCreate">
+			console.log('todo');
+		</script>
 	</div>
 
 	<div id="nodeDisp" dojoType="dijit.layout.LayoutContainer">
@@ -60,42 +59,28 @@
 						supervisorTab.pollAgentProfiles(name);
 						supervisorTab.pollQueues(name);
 					};
-					/*var actor = new dijit.layout.ContentPane({
-						content:name,
-						style:"display:inline-block;background-color:red;margin:5px",
-						onClick:whenclicked
-					});*/
 					var actor = document.createElement('span');
-					actor.style.backgroundColor = 'red';
+					actor.style.backgroundColor = 'green';
 					actor.style.display = 'inline-block';
 					actor.style.margin = '5px';
 					actor.style.width = '100px';
 					actor.style.height = '50px';
 					actor.innerHTML = name;
-					console.log('actor');
-					console.log(actor);
-					//try{
-						var f = new dojox.widget.FisheyeLite({
-							properties: {
-								height: 2,
-								width: 3
-							},
-							easeOut: dojo.fx.easing.quadInOut,
-							durationOut: 500,
-							onClick: whenclicked
-						}, actor);
-						t.addChild(f);
-					//}
-					/*catch(err){
-						console.log(err);
-					}
-					console.log(actor);*/
+					var f = new dojox.widget.FisheyeLite({
+						properties: {
+							height: 2,
+							width: 3
+						},
+						easeOut: dojo.fx.easing.quadInOut,
+						durationOut: 500,
+						onClick: whenclicked
+					}, actor);
+					t.addChild(f);
 				});
 			});
-
+			supervisorTab.pollNodes();
 		</script>
-		<span class="nodeTarg" id="nsp1">Span 1</span>
-		<span class="nodeTarg" id="nsp2">Span 2</span>
 	</div>
 </div>
 
+<script type="text/javascript" src="tabs/supervisor.js"></script>

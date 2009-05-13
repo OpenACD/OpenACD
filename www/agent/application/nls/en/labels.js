@@ -2,6 +2,7 @@
 	USERNAME: "Username",
 	PASSWORD: "Password",
 	REMOTENUM: "Remote Number",
+	REMOTENUMHINT: "A normal telephone number or extension if you're not using a SIP phone",
 	LOGIN: "Login",
 	LOGOUT: "Logout",
 	TIME: "Time",
@@ -36,5 +37,8 @@
 	OUTGOING: "Outbound Call",
 	RELEASED: "Released",
 	WARMTRANSFER: "Warm Transfer",
-	WRAPUP: "Wrap-up"
+	WRAPUP: "Wrap-up",
+	CONFIG:  "Config",
+	TUNDRA: "Tundra",
+	NIHILO: "Nihilo"
 }

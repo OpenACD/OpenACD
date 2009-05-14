@@ -72,9 +72,10 @@
 <body class="nihilo">
 
 <div dojoType="dijit.Dialog" title="Login" id="loginpane">
-	<script type="dojo/connect" event="postCreate">
-		this.title = dojo.i18n.getLocalization("agentUI", "labels").LOGIN;
+	<script type="dojo/connect" event="onShow">
+		this.setAttribute("title", dojo.i18n.getLocalization("agentUI", "labels").LOGIN);
 	</script>
+
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
 		<p  id="loginerrp" style="font-size:smaller;display:none"><center><span id="loginerrspan" style="color:#ff0000"></span></center></p>
 		<p>

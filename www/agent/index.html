@@ -95,19 +95,32 @@
 			<input type="password" name="password" value="" dojoType="dijit.form.TextBox" id="password" />
 		</p>
 		<p>
-			<label for="remotenumber" id="remotenumberlabel">
+			<label for="voipendpoint" id="voipendpointlabel">
 				<script type="text/javascript">
-					dojo.byId("remotenumberlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").REMOTENUM + ":";
+					dojo.byId("voipendpointlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").VOIPENDPOINT + ":";
 				</script>
 			</label>
-			<input type="text" name="remotenumber" value="" dojoType="dijit.form.TextBox" trim="true" id="remotenumber" />
-			<div dojoType="dijit.Tooltip" connectId="remotenumber" label="UNTRANSLATED">
+			<select dojoType="dijit.form.ComboBox" autocomplete="false" value="SIP Registration" id="voipendpoint" name="voipendpoint" onchange="endpointselect()">
+				<option selected="selected">SIP Registration</option>
+				<option >SIP URI</option>
+				<option >IAX2 URI</option>
+				<option >H323 URI</option>
+				<option >PSTN Number</option>
+			</select>
+		</p>
+		<p>
+			<label for="voipendpointdata" id="voipendpointdatalabel">
+				<script type="text/javascript">
+					dojo.byId("voipendpointdatalabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").VOIPENDPOINTDATA + ":";
+				</script>
+			</label>
+			<input type="text" name="voipendpointdata" value="" dojoType="dijit.form.TextBox" trim="true" id="voipendpointdata" />
+			<div dojoType="dijit.Tooltip" connectId="voipendpointdata" label="UNTRANSLATED" id="voipendpointdatahint">
 				<script type="dojo/method" event="postCreate">
-					this.label = dojo.i18n.getLocalization("agentUI", "labels").REMOTENUMHINT;
+					endpointselect();
 				</script>
 			</div>
 		</p>
-	
 		<p>
 			<label for="loginsubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">

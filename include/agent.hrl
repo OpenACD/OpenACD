@@ -28,6 +28,8 @@
 %%
 
 %% @hidden
+-type(endpoints() :: 'sip_registration' | 'sip' | 'iax2' | 'h323' | 'pstn').
+
 -record(agent, {
 	login = erlang:error({undefined, login}) :: string(),
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
@@ -42,7 +44,8 @@
 	queuedrelease :: any(),	% is the current state is to go to released, what is the released type
 	lastchangetimestamp = now() :: any(),	% at what time did the last state change occur
 	defaultringpath = inband :: 'inband' | 'outband',
-	remotenumber :: 'undefined' | string()
+	endpointtype = sip_registration :: endpoints(),
+	endpointdata = undefined :: 'undefined' | string()
 }).
 	
 %% 10/10/2008 Micah

@@ -211,8 +211,8 @@ handle_call({set_state, Statename, Statedata}, _From, #state{agent_fsm = Apid} =
 		Status ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State}
 	end;
-handle_call({set_remote_number, Number}, _From, #state{agent_fsm = Apid} = State) ->
-	{reply, agent:set_remote_number(Apid, Number), State};
+handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) ->
+	{reply, agent:set_endpoint(Apid, Endpoint), State};
 handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 	%% don't like it, but hardcoding freeswitch
 	case whereis(freeswitch_media_manager) of
@@ -430,19 +430,19 @@ do_action(Nodes, Do, _Acc) ->
 encode_agent(Agent) when is_record(Agent, agent) ->
 	{Mega, Sec, _Micro} = Agent#agent.lastchangetimestamp,
 	Now = (Mega * 1000000) + Sec,
-	Remnum = case Agent#agent.remotenumber of
-		undefined ->
-			<<"undefined">>;
-		Else when is_list(Else) ->
-			list_to_binary(Else)
-	end,
+	%Remnum = case Agent#agent.remotenumber of
+		%undefined ->
+			%<<"undefined">>;
+		%Else when is_list(Else) ->
+			%list_to_binary(Else)
+	%end,
 	Prestatedata = [
 		{<<"login">>, list_to_binary(Agent#agent.login)},
 		{<<"skills">>, cpx_web_management:encode_skills(Agent#agent.skills)},
 		{<<"profile">>, list_to_binary(Agent#agent.profile)},
 		{<<"state">>, Agent#agent.state},
-		{<<"lastchanged">>, Now},
-		{<<"remotenumber">>, Remnum}
+		{<<"lastchanged">>, Now}
+		%{<<"remotenumber">>, Remnum}
 	],
 	Statedata = case Agent#agent.state of
 		Call when is_record(Call, call) ->

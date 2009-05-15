@@ -40,5 +40,12 @@
 	WRAPUP: "Wrap-up",
 	CONFIG:  "Config",
 	TUNDRA: "Tundra",
-	NIHILO: "Nihilo"
+	NIHILO: "Nihilo",
+	VOIPENDPOINT: "VoIP Endpoint",
+	VOIPENDPOINTDATA: "VoIP Endpoint Data",
+	SIPREGHINT: "SIP registration username (defaults to login username)",
+	SIPHINT: "SIP URI (a host or IP with an optional port eg. myhost:5060)",
+	IAXTWOHINT: "IAX2 URI (a host or IP with an optional port eg. myhost:4569)",
+	HTHREETWOTHREEHINT: "H.323 URI (a host or IP with an optional port eg. myhost:1720)",
+	PSTNHINT: "Public telephone number"
 }

@@ -323,20 +323,27 @@ fetch_domain_user(Node, State) ->
 					case agent_manager:query_agent(User) of
 						{true, Pid} ->
 							try agent:dump_state(Pid) of
-								#agent{remotenumber = Number} when is_list(Number) ->
-									% TODO expand out agent state checking to get full routing path/method
-									%GW = "{ignore_early_media=true}sofia/gateway/cpxvgw.fusedsolutions.com/"++Number,
-									GW = case string:to_integer(Number) of
-										{Ext, []} when Ext =< 9999, Ext > 0 ->
-											"{ignore_early_media=true}sofia/default/" ++ Number ++ "%" ++ Domain;
-										_Else ->
-											"{ignore_eary_media=true}sofia/gateway/" ++ proplists:get_value(voicegateway, State, "") ++ "/" ++ Number
+								Agent ->
+									DialString = case Agent#agent.endpointtype of
+										sip_registration ->
+											case Agent#agent.endpointdata of
+												undefined ->
+													"sofia/default/"++User++"%"++Domain;
+												_ ->
+													"sofia/default/"++Agent#agent.endpointdata++"%"++Domain
+											end;
+										sip ->
+											"sofia/default/sip:"++Agent#agent.endpointdata;
+										iax2 ->
+											"iax2/"++Agent#agent.endpointdata;
+										h323 ->
+											"opal/h323:"++Agent#agent.endpointdata;
+										pstn ->
+											% TODO - make the entire dialstring configurable, so openzap is also an option
+											"{ignore_early_media=true}sofia/gateway/" ++ proplists:get_value(voicegateway, State, "") ++ "/" ++ Agent#agent.endpointdata
 									end,
-									%GW = "{ignore_early_media=true}sofia/gateway/"++ proplists:get_value(voicegateway, State, "") ++"/" ++ Number,
-									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, GW]))});
-								Else ->
-									?DEBUG("state: ~p", [Else]),
-									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, "sofia/default/"++User++"%"++Domain]))})
+									?NOTICE("returning ~s for user directory entry ~s", [DialString, User]),
+									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, DialString]))})
 							catch
 								_:_ -> % agent pid is toast?
 									freeswitch:send(Node, {fetch_reply, ID, ?NOTFOUNDRESPONSE})

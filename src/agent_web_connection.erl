@@ -333,7 +333,7 @@ do_action([Node | Tail], ["agent_profiles"] = Do, Acc) ->
 		Else ->
 			Else
 	end,
-	F = fun({Login, Pid}, Accin) -> 
+	F = fun({_Login, Pid}, Accin) -> 
 		#agent{profile = Profile} = agent:dump_state(Pid),
 		dict:store(Profile, dict:fetch(Profile, Accin) + 1, Accin)
 	end,
@@ -378,7 +378,7 @@ do_action([Node | Tail], ["agent", Profile] = Do, Acc) ->
 	Newacc = [{struct, [{<<"node">>, list_to_binary(atom_to_list(Node))}, {<<"agents">>, Agentstructs}]} | Acc],
 	do_action(Tail, Do, Newacc);
 %% get the agent state data (id call).
-do_action([Node | Tail], ["agent", Agent, "callid"] = Do, Acc) ->
+do_action([_Node | _Tail], ["agent", Agent, "callid"], _Acc) ->
 	case agent_manager:query_agent(Agent) of
 		false ->
 			{false, <<"agent not found">>};
@@ -392,7 +392,7 @@ do_action([Node | Tail], ["agent", Agent, "callid"] = Do, Acc) ->
 			end
 	end;
 %% get a summary of the given queue
-do_action([Node | Tail], ["queue", Queue] = Do, Acc) ->
+do_action([_Node | _Tail], ["queue", Queue], _Acc) ->
 	case queue_manager:get_queue(Queue) of
 		undefined ->
 			{false, <<"no such queue">>};
@@ -408,7 +408,7 @@ do_action([Node | Tail], ["queue", Queue] = Do, Acc) ->
 			{true, Encoded}
 	end;
 %% get a call from the given queue
-do_action([Node | Tail], ["queue", Queue, Callid] = Do, Acc) ->
+do_action([_Node | _Tail], ["queue", Queue, Callid], _Acc) ->
 	case queue_manager:get_queue(Queue) of
 		undefined ->
 			{false, <<"no such queue">>};
@@ -495,7 +495,7 @@ encode_clients([Head | Tail], Acc) ->
 
 encode_queue_list([], Acc) ->
 	lists:reverse(Acc);
-encode_queue_list([{{Priority, {Mega, Sec, Micro}}, Call} | Tail], Acc) ->
+encode_queue_list([{{Priority, {Mega, Sec, _Micro}}, Call} | Tail], Acc) ->
 	Time = (Mega * 1000000) + Sec,
 	Struct = {struct, [
 		{<<"queued">>, Time},

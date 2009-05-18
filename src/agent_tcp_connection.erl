@@ -225,7 +225,7 @@ handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integ
 					case agent:set_connection(Pid, self()) of
 						ok ->
 							% TODO validate this?
-							agent:set_remote_number(Pid, RemoteNumber),
+							agent:set_endpoint(Pid, {pstn, RemoteNumber}),
 							State2 = State#state{agent_fsm=Pid, securitylevel=Security},
 							?DEBUG("User ~p has authenticated using ~p.~n", [Username, Password]),
 							{MegaSecs, Secs, _MicroSecs} = now(),

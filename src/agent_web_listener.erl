@@ -339,7 +339,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 	end,
 	case Endpoint of
 		{_, error} ->
-			?WARNING("%s specified an invalid endpoint ~p when trying to log in", [Username, Endpoint]),
+			?WARNING("~s specified an invalid endpoint ~p when trying to log in", [Username, Endpoint]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Invalid endpoint">>}]})};
 	 _ ->
 		 case agent_auth:auth(Username, Password, Salt) of
@@ -613,7 +613,7 @@ web_connection_login_test_() ->
 				fun() ->
 					Unsalted = util:bin_to_hexstr(erlang:md5("badpass")),
 					Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt(), Unsalted))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", Salted])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", Salted, "&voipendpoint=SIP Registration"])}, [], []),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json))
 					%?assertEqual(<<"login err">>, proplists:get_value(<<"message">>, Json))
@@ -624,7 +624,7 @@ web_connection_login_test_() ->
 				fun() ->
 					Unsalted = util:bin_to_hexstr(erlang:md5("pass")),
 					Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt(), Unsalted))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", Salted])}, [], []),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {"http://127.0.0.1:5050/login", Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", Salted, "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json))

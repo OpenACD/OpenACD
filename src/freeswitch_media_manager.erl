@@ -163,7 +163,7 @@ stop() ->
 init([Nodename, Options]) -> 
 	?DEBUG("starting...", []),
 	process_flag(trap_exit, true),
-	Self = self(),
+	%Self = self(),
 	Lpid = start_listener(Nodename),
 	Voicegateway = proplists:get_value(voicegateway, Options, ""),
 	monitor_node(Nodename, true),

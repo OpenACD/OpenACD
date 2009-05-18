@@ -759,7 +759,7 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({hangup, Call, 10, "notagent"}, State),
 			?assert(Newstate#state.hangup),
 			?assertEqual(State#state.transactions, Newstate#state.transactions),
-			{atomic, [H | Tail] = Trans} = Pull(),
+			{atomic, [H | _Tail] = Trans} = Pull(),
 			?assertEqual(1, length(Trans)),
 			?assertEqual({hangup, 10, agent}, H#cdr_raw.transaction)
 		end}
@@ -772,7 +772,7 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
 			?assert(Newstate#state.hangup),
 			?assertEqual(State#state.transactions, Newstate#state.transactions),
-			{atomic, [H | Tail] = Trans} = Pull(),
+			{atomic, [H | _Tail] = Trans} = Pull(),
 			?assertEqual(1, length(Trans)),
 			?assertEqual({hangup, 10, "notagent"}, H#cdr_raw.transaction)
 		end}
@@ -806,7 +806,7 @@ handle_event_test_() ->
 			?assertEqual({atomic, []}, Pull())
 		end}
 	end,
-	fun({Call, Pull}) ->
+	fun({Call, _Pull}) ->
 		{"Recovery!",
 		fun() ->
 			State = #state{id = "testcall"},

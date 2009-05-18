@@ -29,9 +29,10 @@ supervisorTab.pollAgentProfiles = function(node){
 		load:function(response, ioargs){
 			if(response.success){
 				EventLog.log("Agent profile poll success, handling data...");
-				for(var i in response.result){
-					dojo.publish("supervisor/" + response.result[i].node + "/agent_profiles", [response.result[i].profiles]);
-				}
+				dojo.publish("supervisor/agent_profiles", [response.result[0].node, response.result[0].profiles]);
+//				for(var i in response.result){
+//					dojo.publish("supervisor/" + response.result[i].node + "/agent_profiles", [response.result[i].profiles]);
+//				}
 			}
 		}
 	});
@@ -47,9 +48,10 @@ supervisorTab.pollQueues = function(node){
 		load:function(response, ioargs){
 			if(response.success){
 				EventLog.log("Queue poll success, handling data...");
-				for(var i in response.result){
-					dojo.publish("supervisor/" + response.result[i].node + "/queues", [response.result[i].queues]);
-				}
+				dojo.publish("supervisor/queues", [response.result[0].node, response.result[0].queues]);
+//				for(var i in response.result){
+//					dojo.publish("supervisor/" + response.result[i].node + "/queues", [response.result[i].queues]);
+//				}
 			}
 		}
 	});
@@ -65,9 +67,10 @@ supervisorTab.pollProfile = function(node, profile){
 		load:function(response, ioargs){
 			if(response.success){
 				EventLog.log("Profile polling success, handling data...");
-				for(var i in response.result){
-					dojo.publish("supervisor/" + response.result[i].node + "/agent/" + profile, [response.result[i].agents]);
-				}
+				dojo.publish("supervisor/agent/profile", [response.result[0].node, response.result[0].agents]);
+//				for(var i in response.result){
+//					dojo.publish("supervisor/" + response.result[i].node + "/agent/" + profile, [response.result[i].agents]);
+//				}
 			}
 		}
 	})
@@ -83,7 +86,8 @@ supervisorTab.pollAgentCall = function(node, agent){
 		load:function(response, ioargs){
 			if(response.success){
 				EventLog.log("Pulling agent call success, handling data...");
-				dojo.publish("supervisor/" + node + "/agent/" + agent + "/callid", [response.result])
+				//dojo.publish("supervisor/" + node + "/agent/" + agent + "/callid", [response.result])
+				dojo.publish("supervisor/agent/callid", [response.result]);
 			}
 		}
 	});
@@ -99,7 +103,8 @@ supervisorTab.pollQueue = function(node, queue){
 		load:function(response, ioargs){
 			if(response.success){
 				EventLog.log("Polling queue data success, handling data...");
-				dojo.publish("supervisor/" + node + "/queue/" + queue, [response.result])
+				//dojo.publish("supervisor/" + node + "/queue/" + queue, [response.result])
+				dojo.publish("supervisor/queue", [queue, response.result]);
 			}
 		}
 	});
@@ -115,7 +120,8 @@ supervisorTab.pollQueuedCall = function(node, queue, callid){
 		load:function(response, ioargs){
 			if(response.success){
 				EventLog.log("pulling queued call success");
-				dojo.publish("supervisor/" + node + "queue/" + queue + "/" + callid, [response.result]);
+				//dojo.publish("supervisor/" + node + "/queue/" + queue + "/" + callid, [response.result]);
+				dojo.publish("supervisor/queue/callid", [response.result]);
 			}
 		}
 	})

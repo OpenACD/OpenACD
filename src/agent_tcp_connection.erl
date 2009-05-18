@@ -225,7 +225,12 @@ handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integ
 					case agent:set_connection(Pid, self()) of
 						ok ->
 							% TODO validate this?
-							agent:set_endpoint(Pid, {pstn, RemoteNumber}),
+							case RemoteNumber of
+								[] ->
+									agent:set_endpoint(Pid, {sip_registration, Username});
+								_ ->
+									agent:set_endpoint(Pid, {pstn, RemoteNumber})
+							end,
 							State2 = State#state{agent_fsm=Pid, securitylevel=Security},
 							?DEBUG("User ~p has authenticated using ~p.~n", [Username, Password]),
 							{MegaSecs, Secs, _MicroSecs} = now(),
@@ -431,7 +436,7 @@ send(Event, Message, State) ->
 flush_send_queue([], _Socket) ->
 	[];
 flush_send_queue([H|T], Socket) ->
-	io:format("sent ~p to socket~n", [H]),
+	?DEBUG("sent ~s to socket~n", [lists:flatten(H)]),
 	gen_tcp:send(Socket, H ++ "\r\n"),
 	flush_send_queue(T, Socket).
 

@@ -64,11 +64,11 @@
 %%====================================================================
 %% API
 %%====================================================================
-start(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_record(Qcall, call) ->
-	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Domain], []).
+start(Fnode, AgentRec, Apid, Qcall, Ringout, Fun) when is_pid(Apid), is_record(Qcall, call) ->
+	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Fun], []).
 
-start_link(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_record(Qcall, call) ->
-	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Domain], []).
+start_link(Fnode, AgentRec, Apid, Qcall, Ringout, Fun) when is_pid(Apid), is_record(Qcall, call) ->
+	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Fun], []).
 
 hangup(Pid) ->
 	gen_server:cast(Pid, hangup).
@@ -77,20 +77,12 @@ hangup(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Qcall, Ringout, _Domain]) when is_record(Qcall, call) ->
+init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun]) when is_record(Qcall, call) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " &park()",
 			?INFO("originating ring channel with args: ~p", [Args]),
-			F = fun(ok, _Reply) ->
-					% agent picked up?
-					freeswitch:api(Fnode, uuid_bridge, UUID ++ " " ++ Qcall#call.id);
-				(error, Reply) ->
-					?WARNING("originate failed: ~p", [Reply]),
-					%agent:set_state(Apid, idle),
-					gen_server:cast(Qcall#call.cook, {stop_ringing, Apid})
-			end,
-			case freeswitch:bgapi(Fnode, originate, Args, F) of
+			case freeswitch:bgapi(Fnode, originate, Args, Fun(UUID)) of
 				ok ->
 					Gethandle = fun(Recusef, Count) ->
 						?DEBUG("Counted ~p", [Count]),

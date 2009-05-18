@@ -137,7 +137,19 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 	?DEBUG("ringout ~p", [Ringout]),
 	case agent:set_state(AgentPid, ringing, Call#call{cook=QCall#queued_call.cook}) of
 		ok ->
-			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call#call{cook=QCall#queued_call.cook}, Ringout, State#state.domain) of
+			% fun that returns another fun when passed the UUID of the new channel
+			% (what fun!)
+			F = fun(UUID) ->
+				fun(ok, _Reply) ->
+					% agent picked up?
+					freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Call#call.id);
+				(error, Reply) ->
+					?WARNING("originate failed: ~p", [Reply]),
+					%agent:set_state(Apid, idle),
+					gen_server:cast(Call#call.cook, {stop_ringing, AgentPid})
+				end
+			end,
+			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call#call{cook=QCall#queued_call.cook}, Ringout, F) of
 				{ok, Pid} ->
 					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook, ringchannel=Pid}};
 				{error, Error} ->
@@ -145,64 +157,41 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 					agent:set_state(AgentPid, released, "badring"),
 					{reply, invalid, State#state{cook = QCall#queued_call.cook}}
 			end;
-		
-		
-		
-		%	{ok, UUID} = freeswitch:api(State#state.cnode, create_uuid),
-%			Args = "{origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " &park()",
-%			F = fun(ok, _Reply) ->
-%					% agent picked up?
-%					freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Call#call.id);
-%				(error, Reply) ->
-%					?CONSOLE("originate failed: ~p", [Reply]),
-%					gen_server:cast(QCall#queued_call.cook, {stop_ringing, AgentPid})
-%			end,
-%			case freeswitch:bgapi(State#state.cnode, originate, Args, F) of
-%			%	{ok, _Msg} ->
-%				ok ->
-%					case freeswitch_ring:start(State#state.cnode, UUID, AgentPid, Call) of
-%						{ok, Pid} when is_pid(Pid) ->
-%							?CONSOLE("Started the freeswitch_ring got ~p", [Pid]),
-%							{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
-%						{error, {error, baduuid}} ->
-%							?CONSOLE("Bad uuid (~p)got passed in, resetting this for another tick pass", [UUID]),
-%							agent:set_state(AgentPid, idle),
-%							{reply, invalid, State#state{cook = QCall#queued_call.cook}}
-%					end;
-%					%{ok, Pid} = freeswitch_ring:start(State#state.cnode, UUID, AgentPid, Call),
-%					%F2 = fun(F2) ->
-%					%		receive
-%					%			X ->
-%					%				%io:format("got message ~p~n", [X]),
-%					%				F2(F2)
-%					%		end
-%					%end,
-%					%spawn(fun() ->
-%					%	freeswitch:handlecall(State#state.cnode, UUID),
-%					%	F2(F2)
-%					%end),
-%						
-%					%{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook}};
-%				{error, Msg} ->
-%					?CONSOLE("Failed to ring agent ~p with error ~p", [AgentRec#agent.login, Msg]),
-%					X = agent:set_state(AgentPid, released, "reason"),
-%					?CONSOLE("------- ~p", [X]),
-%					{reply, invalid, State#state{cook = QCall#queued_call.cook}};
-%				timeout ->
-%					?CONSOLE("timed out waiting for bgapi response", []),
-%					agent:set_state(AgentPid, released, "failure!"),
-%					{reply, invalid, State#state{cook = QCall#queued_call.cook}}
-%			end;
-			%	Else ->
-			%		?CONSOLE("Freeswitch api response: ~p",[Else]),
-			%		{reply, {invalid, Else}, State}
-			%end;
 		Else ->
 			?INFO("Agent ringing response:  ~p", [Else]),
 			{reply, invalid, State#state{cook = QCall#queued_call.cook}}
 	end;
-	%Reply = freeswitch_media_manager:ring_agent(AgentPid, Call),
-	%{reply, Reply, State};
+handle_call({transfer_agent, AgentPid, Timeout}, _From, #state{callrec = Call} = State) ->
+	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
+	AgentRec = agent:dump_state(AgentPid),
+	Ringout = Timeout div 1000,
+	?DEBUG("ringout ~p", [Ringout]),
+	case agent:set_state(AgentPid, ringing, Call) of
+		ok ->
+			% fun that returns another fun when passed the UUID of the new channel
+			% (what fun!)
+			F = fun(UUID) ->
+				fun(ok, _Reply) ->
+					% agent picked up?
+					freeswitch:sendmsg(State#state.cnode, UUID,
+						[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]);
+				(error, Reply) ->
+					?WARNING("originate failed: ~p", [Reply]),
+					agent:set_state(AgentPid, idle)
+				end
+			end,
+			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Ringout, F) of
+				{ok, Pid} ->
+					{reply, ok, State#state{agent_pid = AgentPid, ringchannel=Pid}};
+				{error, Error} ->
+					?ERROR("error:  ~p", [Error]),
+					agent:set_state(AgentPid, released, "badring"),
+					{reply, invalid, State}
+			end;
+		Else ->
+			?INFO("Agent ringing response:  ~p", [Else]),
+			{reply, invalid, State}
+	end;
 handle_call(get_call, _From, State) ->
 	{reply, State#state.callrec, State};
 handle_call(get_queue, _From, State) ->
@@ -233,7 +222,7 @@ handle_call({announce, Announcement}, _From, #state{callrec = Callrec} = State) 
 			{"execute-app-arg", Announcement}]),
 	{reply, ok, State};
 handle_call(_Request, _From, State) ->
-    {reply, ok, State}.
+	{reply, ok, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages

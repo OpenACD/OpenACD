@@ -373,6 +373,22 @@ handle_event(["DIAL", Counter, _Brand, "outbound", Number, "1"], State) when is_
 	freeswitch_media_manager:make_outbound_call(Number, State#state.agent_fsm, agent:dump_state(State#state.agent_fsm)),
 	{ack(Counter), State};
 
+handle_event(["TRANSFER", Counter, "agent", Agent], State) when is_integer(Counter) ->
+	case agent_manager:query_agent(Agent) of
+		{true, AgentPid} ->
+			AState = agent:dump_state(State#state.agent_fsm),
+			case AState#agent.state of
+				oncall ->
+					Call = AState#agent.statedata,
+					gen_server:call(Call#call.source, {transfer_agent, AgentPid, 100}),
+					{ack(Counter), State};
+				_ ->
+					{err(Counter, "Agent must be oncall to make a transfer"), State}
+			end;
+		false ->
+			{err(Counter, "No such agent logged in"), State}
+	end;
+
 handle_event(["ACK" | [Counter | _Args]], State) when is_integer(Counter) ->
 	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
 

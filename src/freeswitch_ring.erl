@@ -160,6 +160,16 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 			cdr:hangup(State#state.callrec, agent),
 			%cdr:wrapup(State#state.callrec, Agent#agent.login),
 			{noreply, State};
+		"CHANNEL_HANGUP" ->
+			AState = agent:dump_state(State#state.agent_pid),
+			case AState#agent.state of
+				oncall ->
+					?NOTICE("Agent ~s still oncall when ring channel hungup", [AState#agent.login]),
+					agent:set_state(State#state.agent_pid, wrapup, AState#agent.statedata);
+				_ ->
+					ok
+			end,
+			{noreply, State};
 		_Else ->
 			?DEBUG("call_event ~p", [Event]),
 			{noreply, State}

@@ -225,8 +225,11 @@ handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integ
 					case agent:set_connection(Pid, self()) of
 						ok ->
 							% TODO validate this?
+							?NOTICE("remote number is ~p~n", [RemoteNumber]),
 							case RemoteNumber of
 								[] ->
+									agent:set_endpoint(Pid, {sip_registration, Username});
+								undefined ->
 									agent:set_endpoint(Pid, {sip_registration, Username});
 								_ ->
 									agent:set_endpoint(Pid, {pstn, RemoteNumber})

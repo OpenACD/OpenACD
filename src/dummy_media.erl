@@ -44,7 +44,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 
--define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook]).
+-define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall]).
 
 %% API
 -export([
@@ -212,10 +212,10 @@ handle_call({set_action, Action, success}, _From, #state{fail = Curfail} = State
 handle_call({set_action, Action, fail_once}, _From, #state{fail = Curfail} = State) ->
 	Newfail = dict:store(Action, fail_once, Curfail),
 	{reply, ok, State#state{fail = Newfail}};
-handle_call({set_skills, Skills}, _From, #state{callrec = Call} = State) ->
-	{reply, ok, State#state{callrec = Call#call{skills=Skills}}};
-handle_call({set_brand, Brand}, _From, #state{callrec = Call} = State) ->
-	{reply, ok, State#state{callrec = Call#call{client=Brand}}};
+%handle_call({set_skills, Skills}, _From, #state{callrec = Call} = State) ->
+%	{reply, ok, State#state{callrec = Call#call{skills=Skills}}};
+%handle_call({set_brand, Brand}, _From, #state{callrec = Call} = State) ->
+%	{reply, ok, State#state{callrec = Call#call{client=Brand}}};
 %handle_call({ring_agent, AgentPid, Queuedcall, Ringout}, _From, #state{fail = Fail} = State) -> 
 %	case dict:fetch(ring_agent, Fail) of
 %		success -> 
@@ -333,7 +333,7 @@ handle_announce(_Annouce, State) ->
 handle_answer(Agent, Call, #state{fail = Fail} = State) ->
 	case dict:fetch(oncall, Fail) of
 		success ->
-			agent:set_state(Agent, oncall, Call),
+			%agent:set_state(Agent, oncall, Call),
 			{ok, State};
 		fail ->
 			{error, dummy_fail, State};

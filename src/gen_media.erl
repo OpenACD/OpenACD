@@ -67,7 +67,8 @@
 	callback,
 	substate,
 	callrec,
-	agent_pid
+	agent_pid,
+	ringout = false
 }).
 
 -type(state() :: #state{}).
@@ -101,7 +102,7 @@ stop_ringing(Genmedia) ->
 	Genmedia ! '$gen_media_stop_ring'.
 
 oncall(Genmedia) ->
-	gen_server:cast(Genmedia, '$gen_media_agent_oncall').
+	gen_server:call(Genmedia, '$gen_media_agent_oncall').
 
 call(Genmedia, Request) ->
 	gen_server:call(Genmedia, Request).
@@ -164,12 +165,13 @@ handle_call('$gen_media_get_call', From, State) ->
 	{reply, State#state.callrec, State};
 handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = Call, callback = Callback} = State) ->
 	% TODO set the cook to the call directly
+	?INFO("Trying to ring ~p with timeout ~p", [Agent, Timeout]),
 	case agent:set_state(Agent, ringing, Call#call{cook=QCall#queued_call.cook}) of
 		ok ->
 			case Callback:handle_ring(Agent, State#state.callrec, State#state.substate) of
 				{ok, Substate} ->
 					{ok, _Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
-					{reply, ok, State#state{substate = Substate, agent_pid = Agent}};
+					{reply, ok, State#state{substate = Substate, agent_pid = Agent, ringout=true}};
 				{invalid, Substate} ->
 					agent:set_state(Agent, idle),
 					{reply, invalid, State#state{substate = Substate}}
@@ -179,11 +181,33 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = C
 			{reply, invalid, State}
 	end;
 handle_call({'$gen_media_annouce', Annouce}, From, #state{callback = Callback} = State) ->
+	?INFO("Doing announce", []),
 	{ok, Substate} = Callback:handle_announce(Annouce, State),
 	{reply, ok, State#state{substate = Substate}};
 handle_call('$gen_media_voicemail', From, #state{callback = Callback} = State) ->
+	?INFO("trying to send media to voicemail", []),
 	{Res, Substate} = Callback:handle_voicemail(State#state.substate),
 	{reply, Res, State#state{substate = Substate}};
+handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback, agent_pid = Apid, callrec = #call{ring_path = inband} = Callrec} = State) ->
+	?INFO("oncall request from agent ~p", [Apid]),
+	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
+		{ok, NewState} ->
+			{reply, ok, State#state{substate = NewState, ringout = false}};
+		{error, Reason, NewState} ->
+			{reply, invalid, State#state{substate = NewState}}
+	end;
+handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{agent_pid = Apid} = State) ->
+	?INFO("Cannot accept on call requests from agent (~p) unless ring_path is inband", [Apid]),
+	{reply, invalid, State};
+handle_call('$gen_media_agent_oncall', From, #state{agent_pid = Apid, callback = Callback} = State) ->
+	?INFO("oncall request from ~p; agent to set on call is ~p", [From, Apid]),
+	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
+		{ok, NewState} ->
+			agent:set_state(Apid, oncall, State#state.callrec),
+			{reply, ok, State#state{substate = NewState, ringout = false}};
+		{error, Reason, NewState} ->
+			{reply, invalid, State#state{substate = NewState}}
+	end;
 handle_call(Request, From, #state{callback = Callback} = State) ->
 	case Callback:handle_call(Request, From, State#state.substate) of
 		{reply, Reply, NewState} ->
@@ -205,6 +229,7 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 
 handle_cast('$gen_media_agent_oncall', #state{callback = Callback} = State) ->
+	?INFO("Agent going oncall", []),
 	case State#state.agent_pid of
 		undefined ->
 			?WARNING("No agent to set state to",[]),
@@ -213,7 +238,7 @@ handle_cast('$gen_media_agent_oncall', #state{callback = Callback} = State) ->
 			case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
 				{ok, Newstate} ->
 					agent:set_state(State#state.agent_pid, oncall, State#state.callrec),
-					{noreply, State#state{substate = Newstate}};
+					{noreply, State#state{substate = Newstate, ringout=false}};
 				{error, Reason, Newstate} ->
 					?WARNING("Counld not set agent to on call due to ~p", [Reason]),
 					{noreply, State#state{substate = Newstate}}
@@ -233,12 +258,17 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 handle_info({'$gen_media_stop_ring', _Cook}, #state{agent_pid = undefined} = State) ->
+	?NOTICE("No agent is ringing for this call", []),
 	{noreply, State};
-handle_info({'$gen_media_stop_ring', Cook}, #state{agent_pid = Apid, callback = Callback} = State) when is_pid(Apid) ->
+handle_info({'$gen_media_stop_ring', _Cook}, #state{ringout = false} = State) ->
+	?NOTICE("Ringout is set not to be handled", []),
+	{noreply, State};
+handle_info({'$gen_media_stop_ring', Cook}, #state{agent_pid = Apid, callback = Callback, ringout=true} = State) when is_pid(Apid) ->
+	?INFO("Handling ringout...", []),
 	agent:set_state(Apid, idle),
 	gen_server:cast(Cook, stop_ringing),
 	{ok, Newsub} = Callback:handle_ring_stop(State#state.substate),
-	{noreply, State#state{substate = Newsub, agent_pid = undefined}};
+	{noreply, State#state{substate = Newsub, ringout = false}};
 handle_info(Info, #state{callback = Callback} = State) ->
 	case Callback:handle_info(Info, State#state.substate) of
 		{noreply, NewState} ->

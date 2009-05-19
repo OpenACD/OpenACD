@@ -226,10 +226,15 @@ idle(Event, From, State) ->
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'ringing', #agent{}}).
 ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.defaultringpath =:= inband, Statecall#call.ring_path =/= outband ->
 	?DEBUG("default ringpath inband, ring_path not outband", []),
-	gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
-	gen_server:cast(Statecall#call.cook, remove_from_queue),
-	cdr:oncall(Statecall, State#agent.login),
-	{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};
+	case gen_media:oncall(Statecall#call.source) of
+		ok ->
+			gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
+			gen_server:cast(Statecall#call.cook, remove_from_queue),
+			cdr:oncall(Statecall, State#agent.login),
+			{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};
+		invalid ->
+			{reply, invalid, ringing, State}
+	end;
 ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} = State) ->
 	case Statecall#call.id of
 		Callid -> 

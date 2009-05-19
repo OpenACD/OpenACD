@@ -56,8 +56,8 @@
 	stop/1,
 	stop/2,
 	set_mode/3,
-	set_skills/2,
-	set_brand/2,
+	%set_skills/2,
+	%set_brand/2,
 	q/0,
 	q/1,
 	q_x/1,
@@ -66,7 +66,7 @@
 
 %% gen_media callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3, handle_ring/3, handle_answer/3, handle_voicemail/1, handle_announce/2
+	 terminate/2, code_change/3, handle_ring/3, handle_answer/3, handle_voicemail/1, handle_announce/2, handle_ring_stop/1
 ]).
 
 -ifndef(R13B).
@@ -82,25 +82,29 @@
 %%====================================================================
 %% API
 %%====================================================================
+start_link([H | _Tail] = Props) when is_tuple(H) ->
+	start_link(Props, success);
 start_link(Callid) ->
-	start_link(Callid, success).
+	start_link([{id, Callid}], success).
 
-start_link(Callid, success) ->
-	gen_media:start_link(?MODULE, [Callid, success]);
-start_link(Callid, failure) ->
-	gen_media:start_link(?MODULE, [Callid, failure]);
-start_link(Callid, Fails) when is_list(Fails) ->
-	gen_media:start_link(?MODULE, [Callid, Fails]).
-	
+start_link(Props, success) ->
+	gen_media:start_link(?MODULE, [Props, success]);
+start_link(Props, failure) ->
+	gen_media:start_link(?MODULE, [Props, failure]);
+start_link(Props, Fails) when is_list(Fails) ->
+	gen_media:start_link(?MODULE, [Props, Fails]).
+
+start([H | _Tail] = Props) when is_tuple(H) ->
+	start(Props, success);
 start(Callid) ->
-	start(Callid, success).
+	start([{id, Callid}], success).
 
-start(Callid, success) ->
-	gen_media:start(?MODULE, [Callid, success]);
-start(Callid, failure) ->
-	gen_media:start(?MODULE, [Callid, failure]);
-start(Callid, Fails) when is_list(Fails) ->
-	gen_media:start(?MODULE, [Callid, Fails]).
+start(Props, success) ->
+	gen_media:start(?MODULE, [Props, success]);
+start(Props, failure) ->
+	gen_media:start(?MODULE, [Props, failure]);
+start(Props, Fails) when is_list(Fails) ->
+	gen_media:start(?MODULE, [Props, Fails]).
 
 stop(Pid) -> 
 	stop(Pid, normal).
@@ -115,17 +119,17 @@ set_mode(Pid, Action, Mode) ->
 	gen_media:call(Pid, {set_action, Action, Mode}).
 
 
-set_skills(Pid, Skills) ->
-	gen_media:call(Pid, {set_skills, Skills}).
-
-set_brand(Pid, Brand) ->
-	gen_media:call(Pid, {set_brand, Brand}).
+%set_skills(Pid, Skills) ->
+%	gen_media:call(Pid, {set_skills, Skills}).
+%
+%set_brand(Pid, Brand) ->
+%	gen_media:call(Pid, {set_brand, Brand}).
 	
 q() ->
 	q("default_queue").
 
 q(Queuename) ->
-	{ok, Dummypid} = start_link(erlang:ref_to_list(make_ref())),
+	{ok, Dummypid} = start_link([{id, erlang:ref_to_list(make_ref())}]),
 	Qpid = queue_manager:get_queue(Queuename),
 	{call_queue:add(Qpid, Dummypid), Dummypid}.
 
@@ -150,25 +154,42 @@ q_x(N, Queues) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Callid, success]) ->
+init([Props, Fails]) ->
 	process_flag(trap_exit, true),
-	Newfail = lists:map(fun(E) -> {E, success} end, ?MEDIA_ACTIONS),
-	Callrec = #call{id=Callid, source=self(), media_path = inband, ring_path = inband},
-	cdr:cdrinit(Callrec),
-	{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}, Callrec}};
-init([Callid, failure]) ->
-	process_flag(trap_exit, true),
-	Newfail = lists:map(fun(E) -> {E, fail} end, ?MEDIA_ACTIONS),
-	Callrec = #call{id=Callid, source=self(), media_path = inband, ring_path = inband},
-	{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}, Callrec}};
-init([Callid, Fails]) when is_list(Fails) ->
-	process_flag(trap_exit, true),
-	F = fun(E) ->
-		{E, fail}
+	Proto = #call{id = "dummy", source = self(), ring_path = inband, media_path = inband},
+	Callrec = build_call_rec(Props, Proto),
+	Newfail = case Fails of
+		success ->
+			lists:map(fun(E) -> {E, success} end, ?MEDIA_ACTIONS);
+		failure ->
+			lists:map(fun(E) -> {E, fail} end, ?MEDIA_ACTIONS);
+		_Other when is_list(Fails) ->
+			F = fun(E) ->
+				{E, fail}
+			end,
+			lists:map(F, Fails)
 	end,
-	Newfails = lists:map(F, Fails),
-	Callrec = #call{id=Callid, source=self(), media_path = inband, ring_path = inband},
-	{ok, {#state{callrec = Callrec, fail = Newfails}, Callrec}}.
+	{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}, Callrec}}.
+
+	
+	
+%	Newfail = lists:map(fun(E) -> {E, success} end, ?MEDIA_ACTIONS),
+%	Callrec = #call{id=Callid, source=self(), media_path = inband, ring_path = inband},
+%	%cdr:cdrinit(Callrec),
+%	{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}, Callrec}};
+%init([Props, failure]) ->
+%	process_flag(trap_exit, true),
+%	Newfail = lists:map(fun(E) -> {E, fail} end, ?MEDIA_ACTIONS),
+%	Callrec = #call{id=Callid, source=self(), media_path = inband, ring_path = inband},
+%	{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}, Callrec}};
+%init([Props, Fails]) when is_list(Fails) ->
+%	process_flag(trap_exit, true),
+%	F = fun(E) ->
+%		{E, fail}
+%	end,
+%	Newfails = lists:map(F, Fails),
+%	Callrec = #call{id=Callid, source=self(), media_path = inband, ring_path = inband},
+%	{ok, {#state{callrec = Callrec, fail = Newfails}, Callrec}}.
 		
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -336,14 +357,34 @@ handle_voicemail(#state{fail = Fail} = State) ->
 	case dict:fetch(voicemail, Fail) of
 		fail_once ->
 			Newfail = dict:store(voicemail, success, Fail),
-			{ok, State#state{fail = Newfail}};
+			{invalid, State#state{fail = Newfail}};
+		fail ->
+			{invalid, State};
 		_Other ->
 			{ok, State}
 	end.
 
+handle_ring_stop(State) ->
+	{ok, State}.
+
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+build_call_rec([], Rec) ->
+	Rec;
+build_call_rec([{id, Id} | Tail], Rec) ->
+	build_call_rec(Tail, Rec#call{id = Id});
+build_call_rec([{type, Type} | Tail], Rec) ->
+	build_call_rec(Tail, Rec#call{type = Type});
+build_call_rec([{callerid, Id} | Tail], Rec) ->
+	build_call_rec(Tail, Rec#call{callerid = Id});
+build_call_rec([{source, Pid} | Tail], Rec) ->
+	build_call_rec(Tail, Rec#call{source = Pid});
+build_call_rec([{client, Client} | Tail], Rec) ->
+	build_call_rec(Tail, Rec#call{client = Client});
+build_call_rec([{skills, Skills} | Tail], Rec) ->
+	build_call_rec(Tail, Rec#call{skills = Skills}).
 
 -ifdef(EUNIT).
 
@@ -381,7 +422,7 @@ dummy_test_() ->
 			fun() -> 
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
-				{ok, Dummypid} = dummy_media:start("testcall", failure),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
 				?assertMatch(invalid, gen_media:ring(Dummypid, Agentpid, #queued_call{media=Dummypid, id = "testcall"}, 4000))
 			end
 		},
@@ -411,7 +452,7 @@ dummy_test_() ->
 		{
 			"Start cook when set to fail",
 			fun() -> 
-				{ok, Dummypid} = dummy_media:start("testcall", failure),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
 				?assertMatch(invalid, gen_media:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
 			end
 		},
@@ -425,8 +466,8 @@ dummy_test_() ->
 		{
 			"Answer voicemail call when set to fail",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start("testcall", failure),
-				?assertMatch(ok, gen_media:voicemail(Dummypid))
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
+				?assertMatch(invalid, gen_media:voicemail(Dummypid))
 			end
 		},
 		{
@@ -439,7 +480,7 @@ dummy_test_() ->
 		{
 			"Announce when set to fail",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start("testcall", failure),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
 				?assertMatch(ok, gen_media:announce(Dummypid, "Random data"))
 			end
 		}

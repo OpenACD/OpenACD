@@ -81,7 +81,7 @@
 	(Info :: any()) -> 'undefined').
 behaviour_info(callbacks) ->
 	GS = gen_server:behaviour_info(callbacks),
-	lists:append([{handle_ring, 3}, {handle_answer, 3}, {handle_voicemail, 1}, {handle_annouce, 2}], GS);
+	lists:append([{handle_ring, 3}, {handle_ring_stop, 1}, {handle_answer, 3}, {handle_voicemail, 1}, {handle_annouce, 2}], GS);
 behaviour_info(_Other) ->
     undefined.
 
@@ -98,7 +98,7 @@ announce(Genmedia, Annouce) ->
 	gen_server:call(Genmedia, {'$gen_media_annouce', Annouce}).
 
 stop_ringing(Genmedia) ->
-	gen_server:cast(Genmedia, '$gen_media_stop_ring').
+	Genmedia ! '$gen_media_stop_ring'.
 
 oncall(Genmedia) ->
 	gen_server:cast(Genmedia, '$gen_media_agent_oncall').
@@ -163,12 +163,15 @@ init([Callback, Args]) ->
 handle_call('$gen_media_get_call', From, State) ->
 	{reply, State#state.callrec, State};
 handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = Call, callback = Callback} = State) ->
+	% TODO set the cook to the call directly
 	case agent:set_state(Agent, ringing, Call#call{cook=QCall#queued_call.cook}) of
 		ok ->
 			case Callback:handle_ring(Agent, State#state.callrec, State#state.substate) of
 				{ok, Substate} ->
+					{ok, _Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
 					{reply, ok, State#state{substate = Substate, agent_pid = Agent}};
 				{invalid, Substate} ->
+					agent:set_state(Agent, idle),
 					{reply, invalid, State#state{substate = Substate}}
 			end;
 		Else ->
@@ -179,8 +182,8 @@ handle_call({'$gen_media_annouce', Annouce}, From, #state{callback = Callback} =
 	{ok, Substate} = Callback:handle_announce(Annouce, State),
 	{reply, ok, State#state{substate = Substate}};
 handle_call('$gen_media_voicemail', From, #state{callback = Callback} = State) ->
-	{ok, Substate} = Callback:handle_voicemail(State#state.substate),
-	{reply, ok, State#state{substate = Substate}};
+	{Res, Substate} = Callback:handle_voicemail(State#state.substate),
+	{reply, Res, State#state{substate = Substate}};
 handle_call(Request, From, #state{callback = Callback} = State) ->
 	case Callback:handle_call(Request, From, State#state.substate) of
 		{reply, Reply, NewState} ->
@@ -229,6 +232,13 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+handle_info({'$gen_media_stop_ring', _Cook}, #state{agent_pid = undefined} = State) ->
+	{noreply, State};
+handle_info({'$gen_media_stop_ring', Cook}, #state{agent_pid = Apid, callback = Callback} = State) when is_pid(Apid) ->
+	agent:set_state(Apid, idle),
+	gen_server:cast(Cook, stop_ringing),
+	{ok, Newsub} = Callback:handle_ring_stop(State#state.substate),
+	{noreply, State#state{substate = Newsub, agent_pid = undefined}};
 handle_info(Info, #state{callback = Callback} = State) ->
 	case Callback:handle_info(Info, State#state.substate) of
 		{noreply, NewState} ->
@@ -255,7 +265,6 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-
 
 -ifdef(EUNIT).
 

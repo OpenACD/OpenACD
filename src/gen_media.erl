@@ -68,7 +68,7 @@
 	substate,
 	callrec,
 	agent_pid,
-	ringout = false
+	ringout
 }).
 
 -type(state() :: #state{}).
@@ -170,8 +170,8 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = C
 		ok ->
 			case Callback:handle_ring(Agent, State#state.callrec, State#state.substate) of
 				{ok, Substate} ->
-					{ok, _Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
-					{reply, ok, State#state{substate = Substate, agent_pid = Agent, ringout=true}};
+					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
+					{reply, ok, State#state{substate = Substate, agent_pid = Agent, ringout=Tref}};
 				{invalid, Substate} ->
 					agent:set_state(Agent, idle),
 					{reply, invalid, State#state{substate = Substate}}
@@ -192,6 +192,7 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 	?INFO("oncall request from agent ~p", [Apid]),
 	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
+			timer:cancel(State#state.ringout),
 			{reply, ok, State#state{substate = NewState, ringout = false}};
 		{error, Reason, NewState} ->
 			{reply, invalid, State#state{substate = NewState}}
@@ -204,6 +205,7 @@ handle_call('$gen_media_agent_oncall', From, #state{agent_pid = Apid, callback =
 	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
 			agent:set_state(Apid, oncall, State#state.callrec),
+			timer:cancel(State#state.ringout),
 			{reply, ok, State#state{substate = NewState, ringout = false}};
 		{error, Reason, NewState} ->
 			{reply, invalid, State#state{substate = NewState}}

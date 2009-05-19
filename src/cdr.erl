@@ -330,6 +330,7 @@ handle_event({recover, #call{id = CallID}}, #state{id = CallID} = State) ->
 	{ok, State#state{unterminated = Unterminated, transactions = Termed, hangup = Hangup}};
 handle_event({agent_transfer, #call{id = CallID}, Time, {Offerer, Recipient}}, #state{id = CallID} = State) ->
 	push_raw(CallID, {agent_transfer, Time, {Offerer, Recipient}}),
+	push_raw(CallID, {transfer, Time, Recipient}),
 	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({agent_transfer, Time, {Offerer, Recipient}}, State#state.unterminated),
 	Miduntermed = [{agent_transfer, Time, {Offerer, Recipient}} | Midunterminated],
 	Newuntermed = [{transfer, Time, Recipient} | Miduntermed],
@@ -961,7 +962,8 @@ handle_event_test_() ->
 			{ok, State2} = handle_event({agent_transfer, Call, 10, {"offerer", "recipient"}}, State),
 			{ok, State3} = handle_event({wrapup, Call, 15, "offerer"}, State2),
 			{ok, State4} = handle_event({oncall, Call, 15, "recipient"}, State3),
-			{atomic, [Trans]} = Pull(),
+			{atomic, Trans} = Pull(),
+			?DEBUG("~p", [Trans]),
 			?assert(lists:member(#cdr_raw{id = "testcall", transaction = {transfer, 10, "recipient"}}, Trans)),
 			?assert(lists:member(#cdr_raw{id = "testcall", transaction = {agent_transfer, 10, {"offerer", "recipient"}}}, Trans))
 		end}

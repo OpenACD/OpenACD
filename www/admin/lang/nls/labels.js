@@ -45,5 +45,7 @@
 	SUPERVISORDESCRIPTION: "Agent + can route media and view agent states.",
 	ADMINDESCRIPTION: "Supervisor + can access managment interface",
 	TOCREATESKILLGROUP: "To create a skill group, give a skill a group that does not exist.",
-	TODELETESKILLGROUP: "A group is automatically deleted when there are no skills in it."
+	TODELETESKILLGROUP: "A group is automatically deleted when there are no skills in it.",
+	AGENTLASTNAME: "Last name",
+	AGENTFIRSTNAME: "First name"
 }

@@ -288,6 +288,22 @@ dojo.requireLocalization("admin", "labels");
 					<input dojoType="dijit.form.TextBox" type="password" id="agentConfirm" name="confirm" />
 				</p>
 				<p>
+					<label for="agentFirstName" id="AGENTFIRSTNAME">FIRSTNAME:
+						<script type="text/javascript">
+							dojo.byId("AGENTFIRSTNAME").innerHTML = dojo.i18n.getLocalization("admin", "labels").AGENTFIRSTNAME + ":";
+						</script>
+					</label>
+					<input dojoType="dijit.form.TextBox" name="firstname" id="agentFirstName" />
+				</p>
+				<p>
+					<label for="agentLastName" id="AGENTLASTNAME">LASTNAME:
+						<script type="text/javascript">
+							dojo.byId("AGENTLASTNAME").innerHTML = dojo.i18n.getLocalization("admin", "labels").AGENTLASTNAME + ":";
+						</script>
+					</label>
+					<input dojoType="dijit.form.TextBox" name="lastname" id="agentLastName" />
+				</p>
+				<p>
 					<label for="agentProfile" id="agentPROFILENAME">PROFILENAME:
 						<script type="text/javascript">
 							dojo.byId("agentPROFILENAME").innerHTML = dojo.i18n.getLocalization("admin", "labels").PROFILENAME + ":";

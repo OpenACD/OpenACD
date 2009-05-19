@@ -340,18 +340,26 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
 	case proplists:get_value("password", Post) of
 		"" ->
-			agent_auth:set_agent(Agent, 
-				proplists:get_value("login", Post),
-				Fixedskills,
-				list_to_existing_atom(proplists:get_value("security", Post)),
-				proplists:get_value("profile", Post));
+			?DEBUG("Not updating password.", []),
+			agent_auth:set_agent(Agent, [
+				{login, proplists:get_value("login", Post)},
+				{skills, Fixedskills},
+				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
+				{profile, proplists:get_value("profile", Post)},
+				{lastname, proplists:get_value("lastname", Post)},
+				{firstname, proplists:get_value("firstname", Post)}
+			]);
 		Confirmpw ->
-			agent_auth:set_agent(Agent,
-				proplists:get_value("login", Post),
-				proplists:get_value("password", Post),
-				Fixedskills,
-				list_to_existing_atom(proplists:get_value("security", Post)),
-				proplists:get_value("profile", Post))
+			?DEBUG("Updating password", []),
+			agent_auth:set_agent(Agent, [
+				{login, proplists:get_value("login", Post)},
+				{password, proplists:get_value("password", Post)},
+				{skills, Fixedskills},
+				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
+				{profile, proplists:get_value("profile", Post)},
+				{lastname, proplists:get_value("lastname", Post)},
+				{firstname, proplists:get_value("firstname", Post)}
+			])
 	end,
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, "agents", "new"}, ?COOKIE, Post) ->
@@ -383,13 +391,16 @@ api({agents, "agents", "new"}, ?COOKIE, Post) ->
 				end
 			end,
 			Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
-			agent_auth:add_agent(
-				proplists:get_value("login", Post),
-				Confirmpw,
-				Fixedskills,
-				list_to_existing_atom(proplists:get_value("security", Post)),
-				proplists:get_value("profile", Post)),
-				{200, [], mochijson2:encode({struct, [{success, true}]})}
+			agent_auth:add_agent([
+				{login, proplists:get_value("login", Post)},
+				{password, Confirmpw},
+				{skills, Fixedskills},
+				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
+				{profile, proplists:get_value("profile", Post)},
+				{lastname, proplists:get_value("lastname", Post)},
+				{firstname, proplists:get_value("firstname", Post)}
+			]),
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
 	
 %% =====
@@ -802,7 +813,9 @@ encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 		{skills, encode_skills(Agentrec#agent_auth.skills)},
 		{securitylevel, Agentrec#agent_auth.securitylevel},
 		{integrated, Agentrec#agent_auth.integrated},
-		{profile, list_to_binary(Agentrec#agent_auth.profile)}
+		{profile, list_to_binary(Agentrec#agent_auth.profile)},
+		{lastname, list_to_binary(Agentrec#agent_auth.lastname)},
+		{firstname, list_to_binary(Agentrec#agent_auth.firstname)}
 	]}.
 	
 decode_recipe([Test | Tail]) when is_tuple(Test) ->

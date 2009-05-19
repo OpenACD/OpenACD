@@ -161,11 +161,13 @@ handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call
 			?INFO("Agent ringing response:  ~p", [Else]),
 			{reply, invalid, State#state{cook = QCall#queued_call.cook}}
 	end;
-handle_call({transfer_agent, AgentPid, Timeout}, _From, #state{callrec = Call} = State) ->
+handle_call({transfer_agent, AgentPid, Timeout}, _From, #state{callrec = Call, agent_pid = Offererpid} = State) ->
 	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
-	AgentRec = agent:dump_state(AgentPid),
+	#agent{login = Recipient} = AgentRec = agent:dump_state(AgentPid),
+	#agent{login = Offerer} = agent:dump_state(Offererpid),
 	Ringout = Timeout div 1000,
 	?DEBUG("ringout ~p", [Ringout]),
+	cdr:agent_transfer(Call, {Offerer, Recipient}),
 	case agent:set_state(AgentPid, ringing, Call) of
 		ok ->
 			% fun that returns another fun when passed the UUID of the new channel

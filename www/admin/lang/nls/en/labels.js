@@ -50,5 +50,7 @@
 	ADDSKILL: "+",
 	CNODE: "C Node",
 	DOMAIN: "Domain",
-	FREESWITCHENABLED: "FreeSWITCH Enabled"
+	FREESWITCHENABLED: "FreeSWITCH Enabled",
+	AGENTLASTNAME: "Last name",
+	AGENTFIRSTNAME: "First name"
 }

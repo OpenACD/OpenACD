@@ -6,6 +6,7 @@ debug_ebin/*
 coverage/*
 erl_crash.dump
 .gen_leader*
+*_manager_*@*
 doc/*
 
 contrib/**/ebin/*

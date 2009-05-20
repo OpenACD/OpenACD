@@ -64,14 +64,14 @@
 
 % gen_leader callbacks
 -export([init/1,
-		elected/2,
+		elected/3,
 		surrendered/3,
 		handle_DOWN/3,
 		handle_leader_call/4,
 		handle_leader_cast/3,
 		from_leader/3,
-		handle_call/3,
-		handle_cast/2,
+		handle_call/4,
+		handle_cast/3,
 		handle_info/2,
 		terminate/2,
 		code_change/4]).
@@ -199,8 +199,8 @@ init([]) ->
 	{ok, State}.
 
 %% @private
--spec(elected/2 :: (State :: #state{}, Election :: election()) -> {'ok', dict(), #state{}}).
-elected(State, _Election) ->
+-spec(elected/3 :: (State :: #state{}, Election :: election(), Node :: atom()) -> {'ok', dict(), #state{}}).
+elected(State, _Election, _Node) ->
 	?INFO("elected",[]),
 	mnesia:subscribe(system),
 	{ok, State#state.qdict, State}.
@@ -270,14 +270,14 @@ handle_leader_call(_Msg, _From, State, _Election) ->
 
 
 %% @private
--spec(handle_call/3 :: (Request :: any(), From :: pid(), State :: #state{}) -> {'ok', any(), #state{}}).
-handle_call({notify, Name, Pid}, _From, #state{qdict = Qdict} = State) ->
+-spec(handle_call/4 :: (Request :: any(), From :: pid(), State :: #state{}, Election :: election()) -> {'ok', any(), #state{}}).
+handle_call({notify, Name, Pid}, _From, #state{qdict = Qdict} = State, _Election) ->
 	link(Pid),
 	Newdict = dict:store(Name, Pid, Qdict),
 	{reply, ok, State#state{qdict = Newdict}};
-handle_call({exists, Name}, _From, #state{qdict = Qdict} = State) ->
+handle_call({exists, Name}, _From, #state{qdict = Qdict} = State, _Election) ->
 	{reply, dict:is_key(Name, Qdict), State};
-handle_call({get_queue, Name}, _From, #state{qdict = Qdict} = State) ->
+handle_call({get_queue, Name}, _From, #state{qdict = Qdict} = State, _Election) ->
 	?DEBUG("get_queue start...", []),
 	case dict:find(Name, Qdict) of
 		{ok, Pid} ->
@@ -287,14 +287,14 @@ handle_call({get_queue, Name}, _From, #state{qdict = Qdict} = State) ->
 	end;
 %handle_call({notify, Name, Pid}, _From, State) ->
 	%{reply, ok, dict:store(Name, Pid, State)};
-handle_call(print, _From, State) ->
+handle_call(print, _From, State, _Election) ->
 	{reply, State#state.qdict, State};
-handle_call(queues_as_list, _From, State) ->
+handle_call(queues_as_list, _From, State, _Election) ->
 	{reply, dict:to_list(State#state.qdict), State};
-handle_call(stop, _From, State) ->
+handle_call(stop, _From, State, _Election) ->
 	?INFO("stop requested",[]),
 	{stop, normal, ok, State};
-handle_call(_Request, _From, State) ->
+handle_call(_Request, _From, State, _Election) ->
 	{reply, unknown, State}.
 
 
@@ -312,8 +312,8 @@ handle_leader_cast(_Msg, State, _Election) ->
 	{noreply, State}.
 
 %% @private
--spec(handle_cast/2 :: (Msg :: any(), State :: #state{}) -> {'noreply', #state{}}).
-handle_cast(_Msg, State) ->
+-spec(handle_cast/3 :: (Msg :: any(), State :: #state{}, Election :: election()) -> {'noreply', #state{}}).
+handle_cast(_Msg, State, _Election) ->
 	{noreply, State}.
 
 %% @private

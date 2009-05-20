@@ -48,8 +48,7 @@
 -endif.
 
 -record(state, {
-	agents = dict:new() :: dict(),
-	status = unknown :: 'unknown' | 'leader' | 'notleader'
+	agents = dict:new() :: dict()
 	}).
 
 -type(state() :: #state{}).
@@ -183,7 +182,7 @@ init([]) ->
 %% @hidden
 elected(State, _Election, _Node) -> 
 	?INFO("elected", []),
-	{ok, ok, State#state{status = leader}}.
+	{ok, ok, State}.
 	
 %% @hidden
 %% TODO what about an agent started at both places?
@@ -199,7 +198,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 		gen_leader:leader_cast(?MODULE, {notify, Login, Apid})
 	end,
 	lists:foreach(Notify, dict:to_list(Locals)),
-	{ok, State#state{agents=Locals, status = notleader}}.
+	{ok, State#state{agents=Locals}}.
 	
 %% @hidden
 handle_DOWN(Node, #state{agents = Agents} = State, _Election) -> 
@@ -219,8 +218,11 @@ handle_leader_call({exists, Agent}, _From, #state{agents = Agents} = State, _Ele
 		{ok, Apid} -> 
 			{reply, {true, Apid}, State}
 	end;
-handle_leader_call(get_pid, _From, State, _Election) -> 
-	{reply, {ok, self()}, State}.
+handle_leader_call(get_pid, _From, State, _Election) ->
+	{reply, {ok, self()}, State};
+handle_leader_call(Message, From, State, _Election) ->
+	?WARNING("received unexpected leader_call ~p from ~p", [Message, From]),
+	{reply, ok, State}.
 
 %% @hidden
 handle_leader_cast({notify, Agent, Apid}, #state{agents = Agents} = State, _Election) -> 
@@ -237,6 +239,9 @@ handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Elect
 	{noreply, State#state{agents = dict:erase(Agent, Agents)}};
 handle_leader_cast(dump_election, State, Election) -> 
 	?DEBUG("Dumping leader election.~nSelf:  ~p~nDump:  ~p", [self(), Election]),
+	{noreply, State};
+handle_leader_cast(Message, State, Election) ->
+	?WARNING("received unexpected leader_cast ~p", [Message]),
 	{noreply, State}.
 
 %% @hidden
@@ -258,9 +263,10 @@ handle_call({start_agent, #agent{login = ALogin} = Agent}, _From, #state{agents 
 	Agents2 = dict:store(ALogin, Apid, Agents),
 	gen_server:cast(dispatch_manager, {end_avail, Apid}),
 	{reply, {ok, Apid}, State#state{agents = Agents2}};
-handle_call({exists, Login}, _From, #state{agents = Agents} = State, _Election) ->
+handle_call({exists, Login}, _From, #state{agents = Agents} = State, Election) ->
+	Leader = gen_leader:leader_node(Election),
 	case dict:find(Login, Agents) of
-		error when State#state.status =:= notleader ->
+		error when Leader =/= node() ->
 			case gen_leader:leader_call(?MODULE, {exists, Login}) of
 				false ->
 					{reply, false, State};
@@ -277,12 +283,12 @@ handle_call({exists, Login}, _From, #state{agents = Agents} = State, _Election) 
 		{ok, Pid} ->
 			{reply, {true, Pid}, State}
 	end;
-handle_call({notify, Login, Pid}, _From, #state{agents = Agents} = State, _Election) when is_pid(Pid) andalso node(Pid) =:= node() ->
+handle_call({notify, Login, Pid}, _From, #state{agents = Agents} = State, Election) when is_pid(Pid) andalso node(Pid) =:= node() ->
 	case dict:find(Login, Agents) of
 		error ->
 			link(Pid),
-			case State#state.status of
-				notleader -> 
+			case gen_leader:leader_node(Election) =:= node() of
+				false -> 
 					gen_leader:leader_cast(?MODULE, {notify, Login, Pid});
 				_Else ->
 					ok

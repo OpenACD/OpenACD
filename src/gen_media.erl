@@ -255,7 +255,16 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 		{stop, Reason, Reply, NewState} ->
 			{stop, Reason, Reply, State#state{substate = NewState}};
 		{stop, Reason, NewState} ->
-			{stop, Reason, State#state{substate = NewState}}
+			{stop, Reason, State#state{substate = NewState}};
+		{stop_ring, Reply, NewState} when is_pid(State#state.agent_pid) ->
+			agent_interact(stop_ring, State#state.agent_pid, State#state.callrec),
+			{reply, Reply, State#state{substate = NewState, agent_pid = undefined}};
+		{wrapup, Reply, NewState} when is_pid(State#state.agent_pid) ->
+			agent_interact(wrapup, State#state.agent_pid, State#state.callrec),
+			{reply, Reply, State#state{substate = NewState, agent_pid = undefined}};
+		{Agentact, Reply, NewState} when is_pid(State#state.agent_pid) ->
+			agent_interact(Agentact, State#state.agent_pid, State#state.callrec),
+			{reply, Reply, State#state{substate = NewState}}
 	end.
 	
 %%--------------------------------------------------------------------
@@ -286,7 +295,17 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 		{noreply, NewState, Timeout} ->
 			{noreply, State#state{substate = NewState}, Timeout};
 		{stop, Reason, NewState} ->
-			{stop, Reason, State#state{substate = NewState}}
+			{stop, Reason, State#state{substate = NewState}};
+		{wrapup, NewState} when is_pid(State#state.agent_pid) ->
+			agent_interact(wrapup, State#state.agent_pid, State#state.callrec),
+			{noreply, State#state{agent_pid = undefined, substate = NewState}};
+		{stop_ring, NewState} when is_pid(State#state.agent_pid), State#state.ringout =/= false ->
+			agent_interact(stop_ring, State#state.agent_pid, State#state.callrec),
+			timer:cancel(State#state.ringout),
+			{noreply, State#state{ringout = false, agent_pid = undefined, substate = NewState}};
+		{Agentact, NewState} when is_pid(State#state.agent_pid) ->
+			agent_interact(Agentact, State#state.agent_pid, State#state.callrec),
+			{noreply, State#state{substate = NewState}}
 	end.
 
 %%--------------------------------------------------------------------
@@ -314,7 +333,17 @@ handle_info(Info, #state{callback = Callback} = State) ->
 		{noreply, NewState,  Timeout} ->
 			{noreply, State#state{substate = NewState}, Timeout};
 		{stop, Reason, NewState} ->
-			{stop, Reason, State#state{substate = NewState}}
+			{stop, Reason, State#state{substate = NewState}};
+		{stop_ring, NewState} when is_pid(State#state.agent_pid), State#state.ringout =/= false ->
+			agent_interact(stop_ring, State#state.agent_pid, State#state.callrec),
+			timer:cancel(State#state.ringout),
+			{noreply, State#state{substate = NewState, ringout = false, agent_pid = undefined}};
+		{wrapup, NewState} when is_pid(State#state.agent_pid) ->
+			agent_interact(wrapup, State#state.agent_pid, State#state.callrec),
+			{noreply, State#state{substate = NewState, agent_pid = undefined}};
+		{Interact, NewState} when is_pid(State#state.agent_pid) ->
+			agent_interact(Interact, State#state.agent_pid, State#state.callrec),
+			{noreply, State#state{substate = NewState}}
 	end.
 
 %%--------------------------------------------------------------------
@@ -338,6 +367,15 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+agent_interact(ring, Apid, Call) ->
+	agent:set_state(Apid, ringing, Call);
+agent_interact(oncall, Apid, Call) ->
+	agent:set_state(Apid, oncall, Call);
+agent_interact(wrapup, Apid, Call) ->
+	agent:set_state(Apid, wrapup, Call);
+agent_interact(stop_ring, Apid, Call) ->
+	agent:set_state(Apid, idle).
 
 -ifdef(EUNIT).
 

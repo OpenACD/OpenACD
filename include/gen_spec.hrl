@@ -153,7 +153,6 @@
 	{'noreply', state(), gen_timeout()} | 
 	{'stop', any(), any(), state()} | 
 	{'stop', any(), state()} |
-	{'ring', pos_integer(), any(), state()} | 
 	{'stop_ring', any(), state()} |
 	{'answer', any(), state()} |
 	{'wrapup', any(), state()}).
@@ -161,7 +160,6 @@
 	{'noreply', state()} | 
 	{'noreply', state(),  gen_timeout()} | 
 	{'stop', any(), state()} | 
-	{'ring', pos_integer(), state()} | 
 	{'stop_ring', state()} | 
 	{'answer', state()} | 
 	{'wrapup', state()}).
@@ -169,7 +167,6 @@
 	{'noreply', state()} | 
 	{'noreply', state(),  gen_timeout()} | 
 	{'stop', any(), state()} | 
-	{'ring', pos_integer(), state()} | 
 	{'stop_ring', state()} | 
 	{'answer', state()} | 
 	{'wrapup', state()}).

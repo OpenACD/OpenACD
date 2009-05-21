@@ -1,5 +1,4 @@
 % a basic release file.
-% version numbers taken from man pages.
 {release,
 	{"cpx_1", "0.1"},
 	erts,

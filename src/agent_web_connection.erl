@@ -45,6 +45,7 @@
 -include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
+-include("queue.hrl").
 
 %% API
 -export([
@@ -210,8 +211,8 @@ handle_call({set_state, Statename, Statedata}, _From, #state{agent_fsm = Apid} =
 		Status ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"status">>, Status}]})}, State}
 	end;
-handle_call({set_remote_number, Number}, _From, #state{agent_fsm = Apid} = State) ->
-	{reply, agent:set_remote_number(Apid, Number), State};
+handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) ->
+	{reply, agent:set_endpoint(Apid, Endpoint), State};
 handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 	%% don't like it, but hardcoding freeswitch
 	case whereis(freeswitch_media_manager) of
@@ -225,6 +226,23 @@ handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
 	{reply, Astate, State};
+handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
+	?INFO("Handing supervisor request ~s", [lists:flatten(Request)]),
+	case Request of
+		["nodes"] ->
+			Nodes = lists:sort([node() | nodes()]),
+			F = fun(I) ->
+				list_to_binary(atom_to_list(I))
+			end,
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"nodes">>, lists:map(F, Nodes)}]})}, State};
+		[Node | Do] ->
+			Nodes = get_nodes(Node),
+			{Success, Result} = do_action(Nodes, Do, []),
+			{reply, {200, [], mochijson2:encode({struct, [{success, Success}, {<<"result">>, Result}]})}, State}
+	end;
+handle_call({supervisor, _Request}, _From, State) ->
+	?NOTICE("Unauthorized access to a supervisor web call", []),
+	{reply, {403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"insufficient privledges">>}]})}, State};
 handle_call(Allothers, _From, State) ->
 	{reply, {unknown_call, Allothers}, State}.
 
@@ -284,7 +302,210 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-	
+
+get_nodes("all") ->
+	[node() | nodes()];
+get_nodes(Nodestring) ->
+	case atom_to_list(node()) of
+		Nodestring ->
+			[node()];
+		_Else ->
+			F = fun(N) ->
+				atom_to_list(N) =/= Nodestring
+			end,
+			[Out | _Tail] = lists:dropwhile(F, nodes()),
+			[Out]
+	end.
+
+-spec(do_action/3 :: (Nodes :: [atom()], Do :: any(), Acc :: [any()]) -> {'true' | 'false', any()}).
+do_action([], _Do, Acc) ->
+	{true, Acc};
+%% get a list of the agent profiles and how many agents are logged into each
+do_action([Node | Tail], ["agent_profiles"] = Do, Acc) ->
+	Profiles = agent_auth:get_profiles(),
+	Makeprops = fun({Name, _Skills}) ->
+		{Name, 0}
+	end,
+	Dict = dict:from_list(lists:map(Makeprops, Profiles)),
+	Agents = case rpc:call(Node, agent_manager, list, [], 1000) of
+		{badrpc, timeout} ->
+			[];
+		Else ->
+			Else
+	end,
+	F = fun({_Login, Pid}, Accin) -> 
+		#agent{profile = Profile} = agent:dump_state(Pid),
+		dict:store(Profile, dict:fetch(Profile, Accin) + 1, Accin)
+	end,
+	Newdict = lists:foldl(F, Dict, Agents),
+	Proplist = dict:to_list(Newdict),
+	Makestruct = fun({Name, Count}) ->
+		{struct, [{<<"name">>, list_to_binary(Name)}, {<<"count">>, Count}]}
+	end,
+	Newacc = [{struct, [{<<"node">>, list_to_binary(atom_to_list(Node))}, {<<"profiles">>, lists:map(Makestruct, Proplist)}]} | Acc],
+	do_action(Tail, Do, Newacc);
+%% get a list of the queues, and how many calls are in each.
+do_action([Node | Tail], ["queues"] = Do, Acc) ->
+	Queuedict = case rpc:call(Node, queue_manager, print, [], 1000) of
+		{badrpc, timeout} ->
+			dict:new();
+		Else ->
+			Else
+	end,
+	Queuelist = dict:to_list(Queuedict),
+	Makeprops = fun({Qname, Qpid}) ->
+		Count = call_queue:call_count(Qpid),
+		{struct, [{<<"name">>, list_to_binary(Qname)}, {<<"count">>, Count}]}
+	end,
+	Queues = lists:map(Makeprops, Queuelist),
+	Newacc = [{struct, [{<<"node">>, list_to_binary(atom_to_list(Node))}, {<<"queues">>, Queues}]} | Acc],
+	do_action(Tail, Do, Newacc);
+%% get the agents that are a member of the given profile, and thier data.
+do_action([Node | Tail], ["agent", Profile] = Do, Acc) ->
+	Binprof = list_to_binary(Profile),
+	Agents = case rpc:call(Node, agent_manager, list, [], 1000) of
+		{badrpc, timeout} ->
+			[];
+		Else ->
+			Else
+	end,
+	States = lists:map(fun({_, Pid}) -> agent:dump_state(Pid) end, Agents),
+	Filter = fun(#agent{profile = Aprof}) ->
+		list_to_binary(Aprof) =:= Binprof
+	end,
+	Filtered = lists:filter(Filter, States),
+	Agentstructs = encode_agents(Filtered, []),
+	Newacc = [{struct, [{<<"node">>, list_to_binary(atom_to_list(Node))}, {<<"agents">>, Agentstructs}]} | Acc],
+	do_action(Tail, Do, Newacc);
+%% get the agent state data (id call).
+do_action([_Node | _Tail], ["agent", Agent, "callid"], _Acc) ->
+	case agent_manager:query_agent(Agent) of
+		false ->
+			{false, <<"agent not found">>};
+		{true, Pid} ->
+			#agent{statedata = Call} = agent:dump_state(Pid),
+			case Call of
+				Call when is_record(Call, call) ->
+					{true, encode_call(Call)};
+				_Else ->
+					{false, <<"not a call">>}
+			end
+	end;
+%% get a summary of the given queue
+do_action([_Node | _Tail], ["queue", Queue], _Acc) ->
+	case queue_manager:get_queue(Queue) of
+		undefined ->
+			{false, <<"no such queue">>};
+		Pid when is_pid(Pid) ->
+			Weight = call_queue:get_weight(Pid),
+			Count = call_queue:call_count(Pid),
+			Calls = encode_queue_list(call_queue:get_calls(Pid), []),
+			Encoded = {struct, [
+				{<<"weight">>, Weight},
+				{<<"count">>, Count},
+				{<<"calls">>, Calls}
+			]},
+			{true, Encoded}
+	end;
+%% get a call from the given queue
+do_action([_Node | _Tail], ["queue", Queue, Callid], _Acc) ->
+	case queue_manager:get_queue(Queue) of
+		undefined ->
+			{false, <<"no such queue">>};
+		Pid when is_pid(Pid) ->
+			case call_queue:get_call(Pid, Callid) of
+				{{Weight, {Mega, Sec, _Micro}}, Call} ->
+					{struct, Preweight} = encode_call(Call),
+					Time = (Mega * 100000) + Sec,
+					Props = lists:append([{<<"weight">>, Weight}, {<<"queued">>, Time}], Preweight),
+					{true, {struct, Props}};
+				none ->
+					{false, <<"no such call">>}
+			end
+	end;
+do_action(Nodes, Do, _Acc) ->
+	?INFO("Bumping back unknown request ~p for nodes ~p", [Do, Nodes]),
+	{false, <<"unknown request">>}.
+
+encode_agent(Agent) when is_record(Agent, agent) ->
+	{Mega, Sec, _Micro} = Agent#agent.lastchangetimestamp,
+	Now = (Mega * 1000000) + Sec,
+	%Remnum = case Agent#agent.remotenumber of
+		%undefined ->
+			%<<"undefined">>;
+		%Else when is_list(Else) ->
+			%list_to_binary(Else)
+	%end,
+	Prestatedata = [
+		{<<"login">>, list_to_binary(Agent#agent.login)},
+		{<<"skills">>, cpx_web_management:encode_skills(Agent#agent.skills)},
+		{<<"profile">>, list_to_binary(Agent#agent.profile)},
+		{<<"state">>, Agent#agent.state},
+		{<<"lastchanged">>, Now}
+		%{<<"remotenumber">>, Remnum}
+	],
+	Statedata = case Agent#agent.state of
+		Call when is_record(Call, call) ->
+			list_to_binary(Call#call.id);
+		_Else ->
+			<<"niy">>
+	end,
+	Proplist = [{<<"statedata">>, Statedata} | Prestatedata],
+	{struct, Proplist}.
+
+encode_agents([], Acc) -> 
+	lists:reverse(Acc);
+encode_agents([Head | Tail], Acc) ->
+	encode_agents(Tail, [encode_agent(Head) | Acc]).
+
+encode_call(Call) when is_record(Call, call) ->
+	{struct, [
+		{<<"id">>, list_to_binary(Call#call.id)},
+		{<<"type">>, Call#call.type},
+		{<<"callerid">>, list_to_binary(Call#call.callerid)},
+		{<<"client">>, encode_client(Call#call.client)},
+		{<<"skills">>, cpx_web_management:encode_skills(Call#call.skills)},
+		{<<"ringpath">>, Call#call.ring_path},
+		{<<"mediapath">>, Call#call.media_path}
+	]};
+encode_call(Call) when is_record(Call, queued_call) ->
+	Basecall = gen_server:call(Call#queued_call.media, get_call),
+	{struct, Encodebase} = encode_call(Basecall),
+	Newlist = [{<<"skills">>, cpx_web_management:encode_skills(Call#queued_call.skills)} | proplists:delete(<<"skills">>, Encodebase)],
+	{struct, Newlist}.
+
+encode_calls([], Acc) ->
+	lists:reverse(Acc);
+encode_calls([Head | Tail], Acc) ->
+	encode_calls(Tail, [encode_call(Head) | Acc]).
+
+encode_client(undefined) ->
+	undefined;
+encode_client(Client) when is_record(Client, client) ->
+	{struct, [
+		{<<"label">>, list_to_binary(Client#client.label)},
+		{<<"tenant">>, Client#client.tenant},
+		{<<"brand">>, Client#client.brand}
+	]}.
+
+encode_clients([], Acc) ->
+	lists:reverse(Acc);
+encode_clients([Head | Tail], Acc) ->
+	encode_clients(Tail, [encode_client(Head) | Acc]).
+
+encode_queue_list([], Acc) ->
+	lists:reverse(Acc);
+encode_queue_list([{{Priority, {Mega, Sec, _Micro}}, Call} | Tail], Acc) ->
+	Time = (Mega * 1000000) + Sec,
+	Struct = {struct, [
+		{<<"queued">>, Time},
+		{<<"priority">>, Priority},
+		{<<"id">>, list_to_binary(Call#queued_call.id)}
+	]},
+	Newacc = [Struct | Acc],
+	encode_queue_list(Tail, Newacc).
+
+
 build_acks([], Acks) -> 
 	Acks;
 build_acks([{struct, Pollprops} | Pollqueue], Acks) -> 

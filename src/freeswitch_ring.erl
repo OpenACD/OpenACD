@@ -64,11 +64,11 @@
 %%====================================================================
 %% API
 %%====================================================================
-start(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_record(Qcall, call) ->
-	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Domain], []).
+start(Fnode, AgentRec, Apid, Qcall, Ringout, Fun) when is_pid(Apid), is_record(Qcall, call) ->
+	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Fun], []).
 
-start_link(Fnode, AgentRec, Apid, Qcall, Ringout, Domain) when is_pid(Apid), is_record(Qcall, call) ->
-	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Domain], []).
+start_link(Fnode, AgentRec, Apid, Qcall, Ringout, Fun) when is_pid(Apid), is_record(Qcall, call) ->
+	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Fun], []).
 
 hangup(Pid) ->
 	gen_server:cast(Pid, hangup).
@@ -77,20 +77,12 @@ hangup(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Qcall, Ringout, _Domain]) when is_record(Qcall, call) ->
+init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun]) when is_record(Qcall, call) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " &park()",
 			?INFO("originating ring channel with args: ~p", [Args]),
-			F = fun(ok, _Reply) ->
-					% agent picked up?
-					freeswitch:api(Fnode, uuid_bridge, UUID ++ " " ++ Qcall#call.id);
-				(error, Reply) ->
-					?WARNING("originate failed: ~p", [Reply]),
-					%agent:set_state(Apid, idle),
-					gen_server:cast(Qcall#call.cook, {stop_ringing, Apid})
-			end,
-			case freeswitch:bgapi(Fnode, originate, Args, F) of
+			case freeswitch:bgapi(Fnode, originate, Args, Fun(UUID)) of
 				ok ->
 					Gethandle = fun(Recusef, Count) ->
 						?DEBUG("Counted ~p", [Count]),
@@ -164,9 +156,19 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 					{noreply, State}
 			end;
 		"CHANNEL_UNBRIDGE" ->
-			Agent = agent:dump_state(State#state.agent_pid),
+			%Agent = agent:dump_state(State#state.agent_pid),
 			cdr:hangup(State#state.callrec, agent),
 			%cdr:wrapup(State#state.callrec, Agent#agent.login),
+			{noreply, State};
+		"CHANNEL_HANGUP" ->
+			AState = agent:dump_state(State#state.agent_pid),
+			case AState#agent.state of
+				oncall ->
+					?NOTICE("Agent ~s still oncall when ring channel hungup", [AState#agent.login]),
+					agent:set_state(State#state.agent_pid, wrapup, AState#agent.statedata);
+				_ ->
+					ok
+			end,
 			{noreply, State};
 		_Else ->
 			?DEBUG("call_event ~p", [Event]),

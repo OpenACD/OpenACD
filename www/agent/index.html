@@ -48,37 +48,11 @@
 	dojo.require("dijit.Dialog");
 	dojo.require("dojox.encoding.digests.MD5");
 	dojo.require("dijit.form.ComboBox");
+	dojo.require("dojox.layout.ContentPane");
 	//dojo.require("dijit.Menu");
 	dojo.requireLocalization("agentUI", "labels");
 	function init()
 	{
-		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		dojo.byId("usernamelabel").innerHTML = nlsStrings.USERNAME + ":";
-		dojo.byId("passwordlabel").innerHTML = nlsStrings.PASSWORD + ":";
-		dojo.byId("remotenumberlabel").innerHTML = nlsStrings.REMOTENUM + ":";
-		dojo.byId("agentlabel").innerHTML = nlsStrings.AGENT + ":";
-		dojo.byId("statelabel").innerHTML = nlsStrings.STATE + ":";
-		dojo.byId("brandlabel").innerHTML = nlsStrings.BRAND + ":";
-		dojo.byId("calleridlabel").innerHTML = nlsStrings.CALLERID + ":";
-		dijit.byId("loginsubmit").setLabel(nlsStrings.LOGIN);
-		dijit.byId("bgoavail").setLabel(nlsStrings.GOAVAILABLE);
-		dijit.byId("boutboundcall").setLabel(nlsStrings.MKOUTBOUND);
-		dijit.byId("bdial").setLabel(nlsStrings.DIAL);
-		dijit.byId("bcancel").setLabel(nlsStrings.CANCEL);
-		dijit.byId("banswer").setLabel(nlsStrings.ANSWER);
-		dijit.byId("bhangup").setLabel(nlsStrings.HANGUP);
-		dijit.byId("miHangup").setLabel(nlsStrings.HANGUP);
-		dijit.byId("miLogout").setLabel(nlsStrings.LOGOUT);
-		dijit.byId("filemenubutton").setLabel(nlsStrings.FILE);
-		dijit.byId("editmenubutton").setLabel(nlsStrings.EDIT);
-		dijit.byId("viewmenubutton").setLabel(nlsStrings.VIEW);
-		dijit.byId("tabsmenubutton").setLabel(nlsStrings.TABS);
-		dijit.byId("maintab").attr("title", nlsStrings.MAIN);
-		dijit.byId("loginpane").attr("title", nlsStrings.LOGIN);
-		dijit.byId("tabPanel").tablist.pane2button[dijit.byId("maintab")].setLabel(nlsStrings.MAIN);
-		dijit.byId("tabPanel").tablist.pane2button[dijit.byId("agentstab")].setLabel(nlsStrings.AGENTS);
-		dijit.byId("tabPanel").tablist.pane2button[dijit.byId("queuestab")].setLabel(nlsStrings.QUEUES);
-		dijit.byId("tabPanel").tablist.pane2button[dijit.byId("eventLog")].setLabel(nlsStrings.EVENTLOG);
 		if (dojo.config.locale == "") {
 			dojo.byId("loginerrp").style.display = "block";
 			dojo.byId("loginerrspan").innerHTML="No translation for any locales<br/>matching your request, sorry.";
@@ -98,25 +72,62 @@
 <body class="nihilo">
 
 <div dojoType="dijit.Dialog" title="Login" id="loginpane">
+	<script type="dojo/connect" event="onShow">
+		this.setAttribute("title", dojo.i18n.getLocalization("agentUI", "labels").LOGIN);
+	</script>
+
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
 		<p  id="loginerrp" style="font-size:smaller;display:none"><center><span id="loginerrspan" style="color:#ff0000"></span></center></p>
 		<p>
-			<label for="username" id="usernamelabel">Username:</label>
+			<label for="username" id="usernamelabel">
+				<script type="text/javascript">
+					dojo.byId("usernamelabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").USERNAME + ":";
+				</script>
+			</label>
 			<input type="text" name="username" value="" dojoType="dijit.form.TextBox" trim="true" id="username" />
 		</p>
 		<p>
-			<label for="password" id="passwordlabel">Password:</label>
+			<label for="password" id="passwordlabel">
+				<script type="text/javascript">
+					dojo.byId("passwordlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PASSWORD + ":";
+				</script>
+			</label>
 			<input type="password" name="password" value="" dojoType="dijit.form.TextBox" id="password" />
 		</p>
 		<p>
-			<label for="remotenumber" id="remotenumberlabel">Remote Number:</label>
-			<input type="text" name="remotenumber" value="" dojoType="dijit.form.TextBox" trim="true" id="remotenumber" />
-			<div dojoType="dijit.Tooltip" connectId="remotenumber" label="A normal telephone number if you're not using a SIP phone"></div>
+			<label for="voipendpoint" id="voipendpointlabel">
+				<script type="text/javascript">
+					dojo.byId("voipendpointlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").VOIPENDPOINT + ":";
+				</script>
+			</label>
+			<select dojoType="dijit.form.ComboBox" autocomplete="false" value="SIP Registration" id="voipendpoint" name="voipendpoint" onchange="endpointselect()">
+				<option selected="selected">SIP Registration</option>
+				<option >SIP URI</option>
+				<option >IAX2 URI</option>
+				<option >H323 URI</option>
+				<option >PSTN Number</option>
+			</select>
 		</p>
-	
+		<p>
+			<label for="voipendpointdata" id="voipendpointdatalabel">
+				<script type="text/javascript">
+					dojo.byId("voipendpointdatalabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").VOIPENDPOINTDATA + ":";
+				</script>
+			</label>
+			<input type="text" name="voipendpointdata" value="" dojoType="dijit.form.TextBox" trim="true" id="voipendpointdata" />
+			<div dojoType="dijit.Tooltip" connectId="voipendpointdata" label="UNTRANSLATED" id="voipendpointdatahint">
+				<script type="dojo/method" event="postCreate">
+					endpointselect();
+				</script>
+			</div>
+		</p>
 		<p>
 			<label for="loginsubmit">&nbsp;</label>
-			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">Login</button>
+			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">
+				<script type="dojo/method" event="postCreate">
+					this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").LOGIN);
+				</script>
+			</button>
 		</p>
 	</div>
 </div>
@@ -130,32 +141,79 @@
 		</span>
 
 		<div dojoType="dijit.form.DropDownButton" id="filemenubutton">
-			<span>File</span>
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").FILE);
+			</script>
+			<span>000</span>
 			<div dojoType="dijit.Menu" id="Filemenu">
-				<div dojoType="dijit.MenuItem" label="Hangup" id="miHangup" onclick=agent.setState("wrapup");></div>
-				<div dojoType="dijit.MenuItem" label="Logout" id="miLogout" onclick=logout(agent);></div>
+				<div dojoType="dijit.MenuItem" label="000" id="miHangup" onclick=agent.setState("wrapup");>
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").HANGUP);
+					</script>
+				</div>
+				<div dojoType="dijit.MenuItem" label="000" id="miLogout" onclick=logout(agent);>
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").LOGOUT);
+					</script>
+				</div>
 			</div>
 		</div>
 		<div dojoType="dijit.form.DropDownButton" id="editmenubutton">
-			<span>Edit</span>
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").EDIT);
+			</script>
+			<span>000</span>
 			<div dojoType="dijit.Menu" id="Editmenu">
-				<div dojoType="dijit.MenuItem" label="Config" onclick="alert('NYI');"></div>
+				<div dojoType="dijit.MenuItem" label="000" onclick="alert('NYI');">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").CONFIG);
+					</script>
+				</div>
 			</div>
 		</div>
 		<div dojoType="dijit.form.DropDownButton" id="viewmenubutton">
-			<span>View</span>
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").VIEW);
+			</script>
+			<span>000</span>
 			<div dojoType="dijit.Menu" id="Viewmenu">
-				<div dojoType="dijit.MenuItem" label="Tundra" onclick="alert('NYI Tundra');"></div>
-				<div dojoType="dijit.MenuItem" label="Nihilo" onclick="alert('NYI nihilo');"></div>
+				<div dojoType="dijit.MenuItem" label="000" onclick="alert('NYI Tundra');">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").TUNDRA);
+					</script>
+				</div>
+				<div dojoType="dijit.MenuItem" label="000" onclick="alert('NYI nihilo');">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").NIHILO);
+					</script>
+				</div>
 			</div>
 		</div>
 		<div dojoType="dijit.form.DropDownButton" id="tabsmenubutton">
-			<span>Tabs</span>
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").TABS);
+			</script>
+			<span>000</span>
 			<div dojoType="dijit.Menu" id="Tabsmenu">
 				<div dojoType="dijit.PopupMenuItem">
-					<span>Load Tab</span>
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").LOADTAB);
+					</script>
+					<span>000</span>
 					<div dojoType="dijit.Menu">
-						<div dojoType="dijit.MenuItem" onClick="alert('NYI this thing')">Abuh?</div>
+						<div dojoType="dijit.MenuItem">Supervisor
+							<script type="dojo/connect" event="onClick">
+								var t = new dojox.layout.ContentPane({
+									href:"tabs/supervisor.html",
+									title:"Supervisor",
+									executeScripts: "true",
+									id:"supervisorTab"
+								});
+								dijit.byId("tabPanel").addChild(t);
+								this.setDisabled(true);
+								dijit.byId("tabPanel").selectChild("supervisorTab");
+							</script>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -163,15 +221,37 @@
 		
 	</div>
 	<div dojoType="dijit.layout.TabContainer" region="center" id="tabPanel">
-		<div dojoType="dijit.layout.ContentPane" title="Main" id="maintab">
-			<p id="agentnamep"><label for="agentname" id="agentlabel">Agent:</label><span id="agentname"></span></p>
-			<p id="agentstatep"><label for="state" id="statelabel">State:</label><span id="state">Login needed</span></p>
-			<p id="agentbrandp" style="display:none"><label for="brand" id="brandlabel">Brand:</label><span id="brand"></span></p>
-			<p id="calleridp" style="display:none"><label for="callerid" id="calleridlabel">Caller id:</label><span id="callerid"></span></p>
+		<div dojoType="dijit.layout.ContentPane" title="000" id="maintab">
+			<script type="dojo/method" event="postCreate">
+				this.title = dojo.i18n.getLocalization("agentUI", "labels").MAIN;
+			</script>
+			<p id="agentnamep"><label for="agentname" id="agentlabel">
+				<script type="text/javascript">
+					dojo.byId("agentlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").AGENT;
+				</script>
+			</label><span id="agentname"></span></p>
+			<p id="agentstatep"><label for="state" id="statelabel">
+				<script type="text/javascript">
+					dojo.byId("statelabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").STATE;
+				</script>
+			</label><span id="state">Login needed</span></p>
+			<p id="agentbrandp" style="display:none"><label for="brand" id="brandlabel">
+				<script type="text/javascript">
+					dojo.byId("brandlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").BRAND;
+				</script>
+			</label><span id="brand"></span></p>
+			<p id="calleridp" style="display:none"><label for="callerid" id="calleridlabel">
+				<script type="text/javascript">
+					dojo.byId("calleridlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").CALLERID;
+				</script>
+			</label><span id="callerid"></span></p>
 		</div>
-		<div dojoType="dijit.layout.ContentPane" title="Agents" id="agentstab">Tab 2</div>
-		<div dojoType="dijit.layout.ContentPane" title="Queues" id="queuestab">Tab 2</div>
-		<div dojoType="dijit.layout.ContentPane" title="Event Log" id="eventLog">
+		<!--<div dojoType="dijit.layout.ContentPane" title="Agents" id="agentstab">Tab 2</div>
+		<div dojoType="dijit.layout.ContentPane" title="Queues" id="queuestab">Tab 2</div>-->
+		<div dojoType="dijit.layout.ContentPane" title="000" id="eventLog">
+			<script type="dojo/method" event="postCreate">
+				this.title = dojo.i18n.getLocalization("agentUI", "labels").EVENTLOG;
+			</script>
 			<textarea dojoType="dijit.form.SimpleTextarea" id="eventLogText" name="eventLogText" width="80%" rows="1000" readonly>
 			</textarea>
 		</div>
@@ -179,25 +259,51 @@
 	</div>
 	
 	<div dojoType = "dijit.layout.ContentPane" region="bottom" style="text-align:center">
-		<button dojoType="dijit.form.Button" id="bgoavail" onclick=agent.setState("idle")>Go Available</button>
+		<button dojoType="dijit.form.Button" id="bgoavail" onclick=agent.setState("idle")>
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").GOAVAILABLE);
+			</script>
+		</button>
 		<div dojoType="dijit.form.DropDownButton" id="bgoreleased" style="display:none">
-			<span>Go Released...</span>
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").GORELEASED);
+			</script>
+			<span>000</span>
 			<div dojoType="dijit.Menu" id="releasedmenu">
 			</div>
 		</div>
 
 		<div dojoType="dijit.form.DropDownButton" id="boutboundcall" style="display:none">
-			<span>Outbound call to...</span>
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").MKOUTBOUND);
+			</script>
+			<span>000</span>
 			<div dojoType="dijit.Menu" id="outboundmenu">
 			</div>
 		</div>
 
 
 		<div id="foo" style="clear:both;"><input type="text" value="" dojoType="dijit.form.ValidationTextBox" regExp="[\d]+" invalidMessage="Invalid number" id="dialbox" /></div>
-		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=agent.dial()>Dial</button>
-		<button dojoType="dijit.form.Button" id="bcancel" style="display:none" onclick=agent.setState("idle")>Cancel</button>
-		<button dojoType="dijit.form.Button" id="banswer" style="display:none" onclick=agent.setState("oncall")>Answer</button>
-		<button dojoType="dijit.form.Button" id="bhangup" style="display:none" onclick=agent.setState("wrapup")>Hang up</button>
+		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=agent.dial()>
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").DIAL);
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button" id="bcancel" style="display:none" onclick=agent.setState("idle")>
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").CANCEL);
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button" id="banswer" style="display:none" onclick=agent.setState("oncall")>
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").ANSWER);
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button" id="bhangup" style="display:none" onclick=agent.setState("wrapup")>
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").HANGUP);
+			</script>
+		</button>
 	</div>
 
 </div>

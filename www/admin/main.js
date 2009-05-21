@@ -297,6 +297,8 @@ var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(d
 					dijit.byId("agentProfile").setDisplayedValue(agent.profile);
 					dijit.byId("agentPassword").setValue("");
 					dijit.byId("agentConfirm").setValue("");
+					dijit.byId("agentLastName").setValue(agent.lastname);
+					dijit.byId("agentFirstName").setValue(agent.firstname);
 					var selectSkill = function(skill){
 						if(/{_\w+,[-a-zA-Z0-9_ ]+}/.test(skill)){
 							var split = skill.split(',');

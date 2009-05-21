@@ -59,8 +59,10 @@
 	cache/4,
 	destroy/1,
 	add_agent/5,
+	add_agent/1,
 	set_agent/5,
 	set_agent/6,
+	set_agent/2,
 	get_agent/1,
 	get_agents/0,
 	get_agents/1
@@ -248,37 +250,39 @@ get_profiles() ->
 %% @doc Update the agent `string() Oldlogin' without changing the password.
 -spec(set_agent/5 :: (Oldlogin :: string(), Newlogin :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'ok'}).
 set_agent(Oldlogin, Newlogin, Newskills, NewSecurity, Newprofile) ->
+	Props = [
+		{login, Newlogin},
+		{skills, Newskills},
+		{securitylevel, NewSecurity},
+		{profile, Newprofile}
+	],
+	set_agent(Oldlogin, Props).
+
+%% @doc Sets the agent `string() Oldlogin' with new data in `proplist Props'; 
+%% does not change data that is not in the proplist.
+-spec(set_agent/2 :: (Oldlogin :: string(), Props :: [{atom(), any()}]) -> {'atomic', 'ok'}).
+set_agent(Oldlogin, Props) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Oldlogin]),
 		[Agent] = qlc:e(QH),
-		Newrec = #agent_auth{
-			login = Newlogin,
-			profile = Newprofile,
-			securitylevel = NewSecurity,
-			skills = Newskills,
-			password = Agent#agent_auth.password
-		},
+		Newrec = build_agent_record(Props, Agent),
 		destroy(Oldlogin),
 		mnesia:write(Newrec),
 		ok
 	end,
 	mnesia:transaction(F).
-
+	
 %% @doc Update the agent `string() Oldlogin' with a new password (as well as everything else).
 -spec(set_agent/6 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
 set_agent(Oldlogin, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
-	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Oldlogin]),
-		case qlc:e(QH) of
-			[] ->
-				error;
-			_Agent ->
-				destroy(Oldlogin),
-				add_agent(Newlogin, Newpass, Newskills, NewSecurity, Newprofile),
-				ok
-		end
-	end,
-	mnesia:transaction(F).
+	Props = [
+		{login, Newlogin},
+		{password, Newpass},
+		{skills, Newskills},
+		{securitylevel, NewSecurity},
+		{profile, Newprofile}
+	],
+	set_agent(Oldlogin, Props).
 
 %% @doc Gets `#agent_auth{}' associated with `string() Login'.
 -spec(get_agent/1 :: (Login :: string()) -> {'atomic', [#agent_auth{}]}).
@@ -526,6 +530,14 @@ add_agent(Username, Password, Skills, Security, Profile) ->
 		skills = Skills,
 		securitylevel = Security,
 		profile = Profile},
+	add_agent(Rec).
+
+%% @doc adds a user to the local cache; more flexible than `add_agent/5'.
+-spec(add_agent/1 :: (Proplist :: [{atom(), any()}, ...] | #agent_auth{}) -> {'atomic', 'ok'}).
+add_agent(Proplist) when is_list(Proplist) ->
+	Rec = build_agent_record(Proplist, #agent_auth{}),
+	add_agent(Rec);
+add_agent(Rec) when is_record(Rec, agent_auth) ->
 	F = fun() ->
 		mnesia:write(Rec)
 	end,
@@ -583,6 +595,24 @@ salt(Hash, Salt) when is_list(Hash) ->
 stop() -> 
 	gen_server:call(?MODULE, stop).
 
+%% @doc Builds up an `#agent_auth{}' from the given `proplist() Proplist';
+-spec(build_agent_record/2 :: (Proplist :: [{atom(), any()}], Rec :: #agent_auth{}) -> #agent_auth{}).
+build_agent_record([], Rec) ->
+	Rec;
+build_agent_record([{login, Login} | Tail], Rec) ->
+	build_agent_record(Tail, Rec#agent_auth{login = Login});
+build_agent_record([{password, Password} | Tail], Rec) ->
+	build_agent_record(Tail, Rec#agent_auth{password = Password});
+build_agent_record([{skills, Skills} | Tail], Rec) when is_list(Skills) ->
+	build_agent_record(Tail, Rec#agent_auth{skills = Skills});
+build_agent_record([{securitylevel, Sec} | Tail], Rec) ->
+	build_agent_record(Tail, Rec#agent_auth{securitylevel = Sec});
+build_agent_record([{profile, Profile} | Tail], Rec) ->
+	build_agent_record(Tail, Rec#agent_auth{profile = Profile});
+build_agent_record([{firstname, Name} | Tail], Rec) ->
+	build_agent_record(Tail, Rec#agent_auth{firstname = Name});
+build_agent_record([{lastname, Name} | Tail], Rec) ->
+	build_agent_record(Tail, Rec#agent_auth{lastname = Name}).
 -ifdef(EUNIT).
 
 %%--------------------------------------------------------------------

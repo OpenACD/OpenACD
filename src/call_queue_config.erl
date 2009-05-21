@@ -124,7 +124,7 @@ build_tables() ->
 %TODO So why aren't we using Nodes here?
 %% @doc Attempts to set-up and create the required mnesia table `call_queue' on the specified nodes
 -spec(build_tables/1 :: (Nodes :: [atom()]) -> 'ok').
-build_tables(Nodes) -> 
+build_tables(_Nodes) -> 
 	?DEBUG("~p building tables...", [?MODULE]),
 	A = util:build_table(call_queue, ?QUEUE_TABLE([node()])),
 	case A of
@@ -590,7 +590,7 @@ get_clients() ->
 test_queue() -> 
 	Recipe = [{2, add_skills, [true], run_once}],
 	new_queue("test queue", 3, [testskill], Recipe, "Default"),
-	Default = #call_queue{name = "goober"},
+	%Default = #call_queue{name = "goober"},
 	#call_queue{name = "test queue", weight = 3, skills = [testskill], recipe = Recipe, group = "Default"}.
 	
 call_queue_test_() ->

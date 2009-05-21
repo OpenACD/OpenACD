@@ -50,6 +50,7 @@
 	wrapup/2,
 	endwrapup/2,
 	transfer/2,
+	agent_transfer/2,
 	status/1,
 	recover/1,
 	recoveryinit/1
@@ -183,6 +184,12 @@ endwrapup(Call, Agent) ->
 transfer(Call, Transferto) ->
 	catch gen_event:notify(cdr, {transfer, Call, nowsec(now()), Transferto}).
 
+%% @doc Notify cdr handler that `#call{} Call' is being offered by `string() Offerer'
+%% to `string() Recipient'.
+-spec(agent_transfer/2 :: (Call :: #call{}, {Offerer :: string(), Recipient :: string()}) -> 'ok').
+agent_transfer(Call, {Offerer, Recipient}) ->
+	catch gen_event:notify(cdr, {agent_transfer, Call, nowsec(now()), {Offerer, Recipient}}).
+	
 %% @doc Return the completed and partial transactions for `#call{} Call'.
 -spec(status/1 :: (Call :: #call{}) -> {[tuple()], [tuple()]}).
 status(Call) ->
@@ -321,6 +328,14 @@ handle_event({recover, #call{id = CallID}}, #state{id = CallID} = State) ->
 	?NOTICE("Doing a recovery for ~s", [CallID]),
 	{Unterminated, Termed, Hangup} = load_recover(CallID),
 	{ok, State#state{unterminated = Unterminated, transactions = Termed, hangup = Hangup}};
+handle_event({agent_transfer, #call{id = CallID}, Time, {Offerer, Recipient}}, #state{id = CallID} = State) ->
+	push_raw(CallID, {agent_transfer, Time, {Offerer, Recipient}}),
+	push_raw(CallID, {transfer, Time, Recipient}),
+	{{Event, Oldtime, Data}, Midunterminated} = find_initiator({agent_transfer, Time, {Offerer, Recipient}}, State#state.unterminated),
+	Miduntermed = [{agent_transfer, Time, {Offerer, Recipient}} | Midunterminated],
+	Newuntermed = [{transfer, Time, Recipient} | Miduntermed],
+	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
+	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event(_Event, State) ->
 	{ok, State}.
 
@@ -380,6 +395,17 @@ find_initiator_limbo(Rawtrans, Unterminated, Limbo) ->
 %% @doc Find the most recent transaction that can be used as an opening pair
 %% for the passed event.
 -spec(find_initiator/2 :: ({Event :: atom(), Time :: integer(), Datalist :: any()}, Unterminated :: [tuple()]) -> {tuple(), [tuple()]}).
+find_initiator({agent_transfer, _Time, {Offerer, _Recipient}} = H, Unterminated) ->
+	?DEBUG("~p", [H]),
+	F = fun(I) ->
+		case I of
+			{oncall, _Oldtime, Offerer} ->
+				false;
+			_Else ->
+				true
+		end
+	end,
+	check_split(F, Unterminated);
 find_initiator({ringing, _Time, _Datalist} = H, Unterminated) ->
 	?DEBUG("~p", [H]),
 	F = fun(I) ->
@@ -401,6 +427,8 @@ find_initiator({oncall, _Time, Agent} = H, Unterminated) ->
 				false;
 			{transfer, _Oldtime, Agent} ->
 				false;
+			{agent_transfer, _Oldtime, {Agent, _Whoever}} ->
+				false;
 			_Other ->
 				true
 		end
@@ -411,6 +439,8 @@ find_initiator({wrapup, _Time, Agent} = H, Unterminated) ->
 	F = fun(I) ->
 		case I of
 			{oncall, _Oldtime, Agent} ->
+				false;
+			{agent_transfer, _Oldtime, {Agent, _Whoever}} ->
 				false;
 			_Other ->
 				true
@@ -613,6 +643,32 @@ find_initiator_test_() ->
 		Res = find_initiator({endwrapup, 15, "catch"}, Unterminated),
 		?CONSOLE("res:  ~p", [Res]),
 		?assertEqual({{wrapup, 10, "catch"}, [{oncall, 10, "ignore"}, {wrapup, 5, "alsoignore"}]}, Res)
+	end},
+	{"agent_transfer ends an oncall",
+	fun() ->
+		Unterminated = [{oncall, 10, "offerer"}],
+		Res = find_initiator({agent_transfer, 15, {"offerer", "recipient"}}, Unterminated),
+		?CONSOLE("res:  ~p", [Res]),
+		?assertEqual({{oncall, 10, "offerer"}, []}, Res)
+	end},
+	{"oncall of the offerer ends an agent_transfer.",
+	fun() ->
+		Unterminated = [{agent_transfer, 10, {"offerer", "recipient"}}],
+		Res = find_initiator({oncall, 15, "offerer"}, Unterminated),
+		?CONSOLE("res:  ~p", [Res]),
+		?assertEqual({{agent_transfer, 10, {"offerer", "recipient"}}, []}, Res)
+	end},
+	{"wrapup of the offerer ends an agent_transfer.",
+	fun() ->
+		Unterminated = [{agent_transfer, 10, {"offerer", "recipient"}}],
+		Res = find_initiator({wrapup, 15, "offerer"}, Unterminated),
+		?CONSOLE("res:  ~p", [Res]),
+		?assertEqual({{agent_transfer, 10, {"offerer", "recipient"}}, []}, Res)
+	end},
+	{"oncall of the recipient does not terminate the agent_transfer",
+	fun() ->
+		Unterminated = [{agent_transfer, 10, {"offerer", "recipient"}}],
+		?assertError(split_check_fail, find_initiator({oncall, 15, "recipient"}, Unterminated))
 	end}].
 
 find_initiator_limbo_test_() ->
@@ -759,7 +815,7 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({hangup, Call, 10, "notagent"}, State),
 			?assert(Newstate#state.hangup),
 			?assertEqual(State#state.transactions, Newstate#state.transactions),
-			{atomic, [H | Tail] = Trans} = Pull(),
+			{atomic, [H | _Tail] = Trans} = Pull(),
 			?assertEqual(1, length(Trans)),
 			?assertEqual({hangup, 10, agent}, H#cdr_raw.transaction)
 		end}
@@ -772,7 +828,7 @@ handle_event_test_() ->
 			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
 			?assert(Newstate#state.hangup),
 			?assertEqual(State#state.transactions, Newstate#state.transactions),
-			{atomic, [H | Tail] = Trans} = Pull(),
+			{atomic, [H | _Tail] = Trans} = Pull(),
 			?assertEqual(1, length(Trans)),
 			?assertEqual({hangup, 10, "notagent"}, H#cdr_raw.transaction)
 		end}
@@ -806,7 +862,7 @@ handle_event_test_() ->
 			?assertEqual({atomic, []}, Pull())
 		end}
 	end,
-	fun({Call, Pull}) ->
+	fun({Call, _Pull}) ->
 		{"Recovery!",
 		fun() ->
 			State = #state{id = "testcall"},
@@ -894,6 +950,22 @@ handle_event_test_() ->
 			?assertEqual({oncall, 20, "agent"}, Newstate#state.limbo),
 			?assertEqual([{ringing, 10, "someagent"}], Newstate#state.unterminated),
 			?assertEqual([{inqueue, 5, 10, 5, "testqueue"}], Newstate#state.transactions)  
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"agent_transfer ends successfully",
+		fun() ->
+			State = #state{
+				id = "testcall",
+				unterminated = [{oncall, 5, "offerer"}]
+			},
+			{ok, State2} = handle_event({agent_transfer, Call, 10, {"offerer", "recipient"}}, State),
+			{ok, State3} = handle_event({wrapup, Call, 15, "offerer"}, State2),
+			{ok, State4} = handle_event({oncall, Call, 15, "recipient"}, State3),
+			{atomic, Trans} = Pull(),
+			?DEBUG("~p", [Trans]),
+			?assert(lists:member(#cdr_raw{id = "testcall", transaction = {transfer, 10, "recipient"}}, Trans)),
+			?assert(lists:member(#cdr_raw{id = "testcall", transaction = {agent_transfer, 10, {"offerer", "recipient"}}}, Trans))
 		end}
 	end]}.
 		

@@ -170,8 +170,8 @@ startup_test_() ->
 			start_function = start_link,
 			start_args = []
 		},
-		{ok, Top} = start_named(3, 5, testsup),
-		Middle = add_with_middleman(testsup, 3, 5, Dummyspec),
+		{ok, _Top} = start_named(3, 5, testsup),
+		_Middle = add_with_middleman(testsup, 3, 5, Dummyspec),
 		drop_child(testsup, dummy_media_manager),
 		?assertEqual(undefined, whereis(dummy_media_manager))
 	end}].

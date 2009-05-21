@@ -64,14 +64,14 @@
 
 % gen_leader callbacks
 -export([init/1,
-		elected/2,
+		elected/3,
 		surrendered/3,
 		handle_DOWN/3,
 		handle_leader_call/4,
 		handle_leader_cast/3,
 		from_leader/3,
-		handle_call/3,
-		handle_cast/2,
+		handle_call/4,
+		handle_cast/3,
 		handle_info/2,
 		terminate/2,
 		code_change/4]).
@@ -199,8 +199,8 @@ init([]) ->
 	{ok, State}.
 
 %% @private
--spec(elected/2 :: (State :: #state{}, Election :: election()) -> {'ok', dict(), #state{}}).
-elected(State, _Election) ->
+-spec(elected/3 :: (State :: #state{}, Election :: election(), Node :: atom()) -> {'ok', dict(), #state{}}).
+elected(State, _Election, _Node) ->
 	?INFO("elected",[]),
 	mnesia:subscribe(system),
 	{ok, State#state.qdict, State}.
@@ -237,7 +237,7 @@ surrendered(#state{qdict = Qdict} = State, LeaderDict, _Election) ->
 	{ok, State#state{qdict = Noleader}}.
 
 %% @private
--spec(handle_DOWN/3 :: (Node :: node(), State :: #state{}, Election :: election()) -> {'ok', #state{}}).
+-spec(handle_DOWN/3 :: (Node :: atom(), State :: #state{}, Election :: election()) -> {'ok', #state{}}).
 handle_DOWN(Node, #state{qdict = Qdict} = State, _Election) ->
 	?INFO("in handle_DOWN",[]),
 	mnesia:set_master_nodes(call_queue, [node()]),
@@ -270,14 +270,14 @@ handle_leader_call(_Msg, _From, State, _Election) ->
 
 
 %% @private
--spec(handle_call/3 :: (Request :: any(), From :: pid(), State :: #state{}) -> {'ok', any(), #state{}}).
-handle_call({notify, Name, Pid}, _From, #state{qdict = Qdict} = State) ->
+-spec(handle_call/4 :: (Request :: any(), From :: pid(), State :: #state{}, Election :: election()) -> {'ok', any(), #state{}}).
+handle_call({notify, Name, Pid}, _From, #state{qdict = Qdict} = State, _Election) ->
 	link(Pid),
 	Newdict = dict:store(Name, Pid, Qdict),
 	{reply, ok, State#state{qdict = Newdict}};
-handle_call({exists, Name}, _From, #state{qdict = Qdict} = State) ->
+handle_call({exists, Name}, _From, #state{qdict = Qdict} = State, _Election) ->
 	{reply, dict:is_key(Name, Qdict), State};
-handle_call({get_queue, Name}, _From, #state{qdict = Qdict} = State) ->
+handle_call({get_queue, Name}, _From, #state{qdict = Qdict} = State, _Election) ->
 	?DEBUG("get_queue start...", []),
 	case dict:find(Name, Qdict) of
 		{ok, Pid} ->
@@ -287,14 +287,14 @@ handle_call({get_queue, Name}, _From, #state{qdict = Qdict} = State) ->
 	end;
 %handle_call({notify, Name, Pid}, _From, State) ->
 	%{reply, ok, dict:store(Name, Pid, State)};
-handle_call(print, _From, State) ->
+handle_call(print, _From, State, _Election) ->
 	{reply, State#state.qdict, State};
-handle_call(queues_as_list, _From, State) ->
+handle_call(queues_as_list, _From, State, _Election) ->
 	{reply, dict:to_list(State#state.qdict), State};
-handle_call(stop, _From, State) ->
+handle_call(stop, _From, State, _Election) ->
 	?INFO("stop requested",[]),
 	{stop, normal, ok, State};
-handle_call(_Request, _From, State) ->
+handle_call(_Request, _From, State, _Election) ->
 	{reply, unknown, State}.
 
 
@@ -312,8 +312,8 @@ handle_leader_cast(_Msg, State, _Election) ->
 	{noreply, State}.
 
 %% @private
--spec(handle_cast/2 :: (Msg :: any(), State :: #state{}) -> {'noreply', #state{}}).
-handle_cast(_Msg, State) ->
+-spec(handle_cast/3 :: (Msg :: any(), State :: #state{}, Election :: election()) -> {'noreply', #state{}}).
+handle_cast(_Msg, State, _Election) ->
 	{noreply, State}.
 
 %% @private
@@ -439,18 +439,18 @@ single_node_test_() ->
 					?assertMatch([], get_best_bindable_queues()),
 					{ok, Dummy1} = dummy_media:start("Call1"),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
-					?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
+					?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
 					{ok, Dummy2} = dummy_media:start("Call2"),
 					?assertEqual(ok, call_queue:add(Pid2, 10, Dummy2)),
 					?assertMatch([
-							{"goober2", Pid2, {{10,_},#queued_call{id="Call2"}}, 12},
-							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
+							{"goober2", Pid2, {{10,_},#queued_call{id="Call2"}}, 11},
+							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}],
 						get_best_bindable_queues()),
 					{ok, Dummy3} = dummy_media:start("Call3"),
 					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy3)),
 					?assertMatch([
-							{"goober2", Pid2, {{0,_},#queued_call{id="Call3"}}, 22},
-							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
+							{"goober2", Pid2, {{0,_},#queued_call{id="Call3"}}, 21},
+							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}],
 						get_best_bindable_queues())
 				end
 			},{
@@ -460,12 +460,12 @@ single_node_test_() ->
 					?assertMatch([], get_best_bindable_queues()),
 					{ok, Dummy1} = dummy_media:start("Call1"),
 					?assertEqual(ok, call_queue:add(Pid, 10, Dummy1)),
-					?assertMatch([{"goober", Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
+					?assertMatch([{"goober", Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
 					{ok, Dummy2} = dummy_media:start("Call2"),
 					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy2)), % higher priority
 					?assertMatch([
-							{"goober2", Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT+2},
-							{"goober", Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}],
+							{"goober2", Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT+1},
+							{"goober", Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}],
 						get_best_bindable_queues())
 				end
 			},{
@@ -475,12 +475,12 @@ single_node_test_() ->
 					?assertMatch([], get_best_bindable_queues()),
 					{ok, Dummy1} = dummy_media:start("Call1"),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
-					?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], get_best_bindable_queues()),
+					?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
 					{ok, Dummy2} = dummy_media:start("Call2"),
 					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy2)),
 					?assertMatch([
-							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+2},
-							{"goober2", Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT+1}],
+							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1},
+							{"goober2", Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT}],
 						get_best_bindable_queues())
 				end
 			},{
@@ -639,7 +639,7 @@ multi_node_test_() ->
 					{ok, Dummy1} = rpc:call(Slave, dummy_media, start, ["Call1"]),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
 					slave:stop(Master),
-					?assertMatch([{"queue2", Pid, {_, #queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1}], rpc:call(Slave, ?MODULE, get_best_bindable_queues, []))
+					?assertMatch([{"queue2", Pid, {_, #queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], rpc:call(Slave, ?MODULE, get_best_bindable_queues, []))
 				end
 			}, {
 				"Leader is told about a call_queue that dies and did not come back", fun() ->

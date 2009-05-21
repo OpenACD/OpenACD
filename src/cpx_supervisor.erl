@@ -163,7 +163,7 @@ restart(Branch, _Args) when is_atom(Branch) ->
 %% Supervisor callbacks
 %%====================================================================
 %% @private
-init([Nodes]) ->
+init([_Nodes]) ->
 	% TODO Nodes is no longer used here.
 	% TODO Create warnings for missing/requires specs (at least one media manager, the agent_auth).
 	?DEBUG("starting cpx_supervisor on ~p", [node()]),

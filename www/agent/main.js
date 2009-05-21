@@ -364,3 +364,26 @@ dojo.addOnLoad(function(){
 		});
 	}
 });
+
+function endpointselect() {
+	switch(dijit.byId("voipendpoint").attr('value')) {
+		case "SIP Registration":
+			dijit.byId("voipendpointdatahint").label = dojo.i18n.getLocalization("agentUI", "labels").SIPREGHINT;
+			break;
+		case "SIP URI":
+			dijit.byId("voipendpointdatahint").label = dojo.i18n.getLocalization("agentUI", "labels").SIPHINT;
+			break;
+		case "IAX2 URI":
+			dijit.byId("voipendpointdatahint").label = dojo.i18n.getLocalization("agentUI", "labels").IAXTWOHINT;
+			break;
+		case "H323 URI":
+			dijit.byId("voipendpointdatahint").label = dojo.i18n.getLocalization("agentUI", "labels").HTHREETWOTHREEHINT;
+			break;
+		case "PSTN Number":
+			dijit.byId("voipendpointdatahint").label = dojo.i18n.getLocalization("agentUI", "labels").PSTNHINT;
+			break;
+		default:
+			dijit.byId("voipendpointdatahint").label = "???";
+			break;
+	}
+}

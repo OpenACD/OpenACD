@@ -49,8 +49,8 @@ function Agent(username){
 				}	
 			},
 			load:function(response, ioargs){
-				console.log(response);
-				EventLog.log("Poll success, handling data");
+				//console.log(response);
+				//EventLog.log("Poll success, handling data");
 				agentref.handleData(response.data);
 				agentref.pollfailures = 0;
 			}

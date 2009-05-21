@@ -225,7 +225,15 @@ handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integ
 					case agent:set_connection(Pid, self()) of
 						ok ->
 							% TODO validate this?
-							agent:set_remote_number(Pid, RemoteNumber),
+							?NOTICE("remote number is ~p~n", [RemoteNumber]),
+							case RemoteNumber of
+								[] ->
+									agent:set_endpoint(Pid, {sip_registration, Username});
+								undefined ->
+									agent:set_endpoint(Pid, {sip_registration, Username});
+								_ ->
+									agent:set_endpoint(Pid, {pstn, RemoteNumber})
+							end,
 							State2 = State#state{agent_fsm=Pid, securitylevel=Security},
 							?DEBUG("User ~p has authenticated using ~p.~n", [Username, Password]),
 							{MegaSecs, Secs, _MicroSecs} = now(),
@@ -368,6 +376,22 @@ handle_event(["DIAL", Counter, _Brand, "outbound", Number, "1"], State) when is_
 	freeswitch_media_manager:make_outbound_call(Number, State#state.agent_fsm, agent:dump_state(State#state.agent_fsm)),
 	{ack(Counter), State};
 
+handle_event(["TRANSFER", Counter, "agent", Agent], State) when is_integer(Counter) ->
+	case agent_manager:query_agent(Agent) of
+		{true, AgentPid} ->
+			AState = agent:dump_state(State#state.agent_fsm),
+			case AState#agent.state of
+				oncall ->
+					Call = AState#agent.statedata,
+					gen_server:call(Call#call.source, {transfer_agent, AgentPid, 100}),
+					{ack(Counter), State};
+				_ ->
+					{err(Counter, "Agent must be oncall to make a transfer"), State}
+			end;
+		false ->
+			{err(Counter, "No such agent logged in"), State}
+	end;
+
 handle_event(["ACK" | [Counter | _Args]], State) when is_integer(Counter) ->
 	State#state{unacked = lists:filter(fun(X) -> element(1, X) =/= Counter end, State#state.unacked), resend_counter=0};
 
@@ -431,7 +455,7 @@ send(Event, Message, State) ->
 flush_send_queue([], _Socket) ->
 	[];
 flush_send_queue([H|T], Socket) ->
-	io:format("sent ~p to socket~n", [H]),
+	?DEBUG("sent ~s to socket~n", [lists:flatten(H)]),
 	gen_tcp:send(Socket, H ++ "\r\n"),
 	flush_send_queue(T, Socket).
 

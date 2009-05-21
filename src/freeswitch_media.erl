@@ -41,7 +41,7 @@
 -module(freeswitch_media).
 -author("Micah").
 
--behaviour(gen_server).
+-behaviour(gen_media).
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
@@ -60,16 +60,26 @@
 	start/2,
 	start_link/2,
 	get_call/1,
-	get_queue/1,
-	get_agent/1,
-	unqueue/1,
-	set_agent/3,
+	%get_queue/1,
+	%get_agent/1,
+	%unqueue/1,
+	%set_agent/3,
 	dump_state/1
 	]).
 
-%% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3]).
+%% gen_media callbacks
+-export([
+	init/1, 
+	handle_ring/3,
+	handle_ring_stop/1,
+	handle_answer/3,
+	handle_voicemail/1,
+	handle_announce/2,
+	handle_call/3, 
+	handle_cast/2, 
+	handle_info/2,
+	terminate/2,
+	code_change/3]).
 
 -record(state, {
 	callrec = undefined :: #call{} | 'undefined',
@@ -88,79 +98,118 @@
 %%====================================================================
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
 start(Cnode, Domain) ->
-	gen_server:start(?MODULE, [Cnode, Domain], []).
+	gen_media:start(?MODULE, [Cnode, Domain], []).
 
 start_link(Cnode, Domain) ->
-	gen_server:start_link(?MODULE, [Cnode, Domain], []).
+	gen_media:start_link(?MODULE, [Cnode, Domain], []).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
 -spec(get_call/1 :: (MPid :: pid()) -> #call{}).
 get_call(MPid) ->
-	gen_server:call(MPid, get_call).
+	gen_media:get_call(MPid).
 
 -spec(get_queue/1 :: (MPid :: pid()) -> pid()).
 get_queue(MPid) ->
-	gen_server:call(MPid, get_queue).
+	gen_media:call(MPid, get_queue).
 
 -spec(get_agent/1 :: (MPid :: pid()) -> pid()).
 get_agent(MPid) ->
-	gen_server:call(MPid, get_agent).
+	gen_media:call(MPid, get_agent).
 
--spec(unqueue/1 :: (Mpid :: pid()) -> 'ok').
-unqueue(MPid) ->
-	gen_server:call(MPid, unqueue).
+%-spec(unqueue/1 :: (Mpid :: pid()) -> 'ok').
+%unqueue(MPid) ->
+%	gen_server:call(MPid, unqueue).
 
--spec(set_agent/3 :: (Mpid :: pid(), Agent :: any(), Apid :: pid()) -> 'ok').
-set_agent(MPid, Agent, Apid) when is_pid(MPid), is_pid(Apid) ->
-	gen_server:call(MPid, {set_agent, Agent, Apid}).
+%-spec(set_agent/3 :: (Mpid :: pid(), Agent :: any(), Apid :: pid()) -> 'ok').
+%set_agent(MPid, Agent, Apid) when is_pid(MPid), is_pid(Apid) ->
+%	gen_server:call(MPid, {set_agent, Agent, Apid}).
 
 -spec(dump_state/1 :: (Mpid :: pid()) -> #state{}).
 dump_state(Mpid) when is_pid(Mpid) ->
-	gen_server:call(Mpid, dump_state).
+	gen_media:call(Mpid, dump_state).
 	
 %%====================================================================
-%% gen_server callbacks
+%% gen_media callbacks
 %%====================================================================
 %% @private
 init([Cnode, Domain]) ->
-	{ok, #state{cnode=Cnode, domain=Domain}}.
+	{ok, {#state{cnode=Cnode, domain=Domain}, undefined}}.
+
+handle_announce(Announcement, State) ->
+	{ok, State}.
+
+handle_answer(Apid, Callrec, State) ->
+	{error, outband_ring_only, State}.
+
+handle_ring(Apid, Callrec, State) ->
+	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
+	F = fun(UUID) ->
+		fun(ok, _Reply) ->
+			freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Callrec#call.id);
+		(error, Reply) ->
+			?WARNING("originate failed: ~p", [Reply]),
+			ok
+		end
+	end,
+	AgentRec = agent:dump_state(Apid),
+	%Ringout = Timeout div 1000,
+	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F) of
+		{ok, Pid} ->
+			{ok, State#state{ringchannel = Pid}};
+		{error, Error} ->
+			?ERROR("error:  ~p", [Error]),
+			{invalid, State}
+	end.
+
+handle_ring_stop(State) ->
+	?DEBUG("hanging up ring channel", []),
+	case State#state.ringchannel of
+		undefined ->
+			ok;
+		RingChannel ->
+			freeswitch_ring:hangup(RingChannel)
+	end,
+	{ok, State#state{ringchannel=undefined}}.
+
+handle_voicemail(State) ->
+	{invalid, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
 % TODO If this module's state has the call, why does this need the call passed in?  (part of the spec for a generic media_manager, change spec?)
-handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call} = State) ->
-	?INFO("ring_agent to ~p for call ~p with cook ~p", [AgentPid, QCall#queued_call.id, QCall#queued_call.cook]),
-	AgentRec = agent:dump_state(AgentPid),
-	Ringout = Timeout div 1000,
-	?DEBUG("ringout ~p", [Ringout]),
-	case agent:set_state(AgentPid, ringing, Call#call{cook=QCall#queued_call.cook}) of
-		ok ->
-			% fun that returns another fun when passed the UUID of the new channel
-			% (what fun!)
-			F = fun(UUID) ->
-				fun(ok, _Reply) ->
-					% agent picked up?
-					freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Call#call.id);
-				(error, Reply) ->
-					?WARNING("originate failed: ~p", [Reply]),
-					%agent:set_state(Apid, idle),
-					gen_server:cast(Call#call.cook, {stop_ringing, AgentPid})
-				end
-			end,
-			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call#call{cook=QCall#queued_call.cook}, Ringout, F) of
-				{ok, Pid} ->
-					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook, ringchannel=Pid}};
-				{error, Error} ->
-					?ERROR("error:  ~p", [Error]),
-					agent:set_state(AgentPid, released, "badring"),
-					{reply, invalid, State#state{cook = QCall#queued_call.cook}}
-			end;
-		Else ->
-			?INFO("Agent ringing response:  ~p", [Else]),
-			{reply, invalid, State#state{cook = QCall#queued_call.cook}}
-	end;
+%handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call} = State) ->
+%	?INFO("ring_agent to ~p for call ~p with cook ~p", [AgentPid, QCall#queued_call.id, QCall#queued_call.cook]),
+%	AgentRec = agent:dump_state(AgentPid),
+%	Ringout = Timeout div 1000,
+%	?DEBUG("ringout ~p", [Ringout]),
+%	case agent:set_state(AgentPid, ringing, Call#call{cook=QCall#queued_call.cook}) of
+%		ok ->
+%			% fun that returns another fun when passed the UUID of the new channel
+%			% (what fun!)
+%			F = fun(UUID) ->
+%				fun(ok, _Reply) ->
+%					% agent picked up?
+%					freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Call#call.id);
+%				(error, Reply) ->
+%					?WARNING("originate failed: ~p", [Reply]),
+%					%agent:set_state(Apid, idle),
+%					gen_server:cast(Call#call.cook, {stop_ringing, AgentPid})
+%				end
+%			end,
+%			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call#call{cook=QCall#queued_call.cook}, Ringout, F) of
+%				{ok, Pid} ->
+%					{reply, ok, State#state{agent_pid = AgentPid, cook=QCall#queued_call.cook, ringchannel=Pid}};
+%				{error, Error} ->
+%					?ERROR("error:  ~p", [Error]),
+%					agent:set_state(AgentPid, released, "badring"),
+%					{reply, invalid, State#state{cook = QCall#queued_call.cook}}
+%			end;
+%		Else ->
+%			?INFO("Agent ringing response:  ~p", [Else]),
+%			{reply, invalid, State#state{cook = QCall#queued_call.cook}}
+%	end;
 handle_call({transfer_agent, AgentPid, Timeout}, _From, #state{callrec = Call, agent_pid = Offererpid} = State) ->
 	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
 	#agent{login = Recipient} = AgentRec = agent:dump_state(AgentPid),
@@ -230,33 +279,33 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_cast(unqueue, #state{callrec = Callrec} = State) ->
-	case State#state.queue_pid of
-		undefined -> 
-			?ERROR("not queued, something's borked", []),
-			{noreply, State};
-		QPid ->
-			?DEBUG("queue removal result:  ~p", [call_queue:remove(QPid, Callrec#call.id)]),
-			{noreply, State}
-	end;
-handle_cast(agent_oncall, State) ->
-	case State#state.agent_pid of
-		undefined ->
-			?WARNING("No agent to set state to",[]),
-			{noreply, State};
-		Apid ->
-			agent:set_state(Apid, oncall, State#state.callrec),
-			{noreply, State}
-	end;
-handle_cast(stop_ringing, State) ->
-	?DEBUG("hanging up ring channel", []),
-	case State#state.ringchannel of
-		undefined ->
-			ok;
-		RingChannel ->
-			freeswitch_ring:hangup(RingChannel)
-	end,
-	{noreply, State#state{ringchannel=undefined, agent=undefined, agent_pid=undefined}};
+%handle_cast(unqueue, #state{callrec = Callrec} = State) ->
+%	case State#state.queue_pid of
+%		undefined -> 
+%			?ERROR("not queued, something's borked", []),
+%			{noreply, State};
+%		QPid ->
+%			?DEBUG("queue removal result:  ~p", [call_queue:remove(QPid, Callrec#call.id)]),
+%			{noreply, State}
+%	end;
+%handle_cast(agent_oncall, State) ->
+%	case State#state.agent_pid of
+%		undefined ->
+%			?WARNING("No agent to set state to",[]),
+%			{noreply, State};
+%		Apid ->
+%			agent:set_state(Apid, oncall, State#state.callrec),
+%			{noreply, State}
+%	end;
+%handle_cast(stop_ringing, State) ->
+%	?DEBUG("hanging up ring channel", []),
+%	case State#state.ringchannel of
+%		undefined ->
+%			ok;
+%		RingChannel ->
+%			freeswitch_ring:hangup(RingChannel)
+%	end,
+%	{noreply, State#state{ringchannel=undefined, agent=undefined, agent_pid=undefined}};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
@@ -282,24 +331,27 @@ handle_info({bgok, Reply}, State) ->
 	{noreply, State};
 handle_info({bgerror, "-ERR NO_ANSWER\n"}, State) ->
 	?INFO("Potential ringout.  Statecook:  ~p", [State#state.cook]),
-	case State#state.agent_pid of
-		Apid when is_pid(Apid) ->
-			gen_server:cast(State#state.cook, {stop_ringing, Apid}),
-			?INFO("potential should be fulfilled", []),
-			{noreply, State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}};
-		_Else ->
-			?INFO("disregarding potential ringout, not ringing to an agent", []),
-			{noreply, State}
-	end;
+	%% the apid is known by gen_media, let it handle if it is not not.
+	{stop_ring, State};
+%	case State#state.agent_pid of
+%		Apid when is_pid(Apid) ->
+%			gen_server:cast(State#state.cook, {stop_ringing, Apid}),
+%			?INFO("potential should be fulfilled", []),
+%			{noreply, State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}};
+%		_Else ->
+%			?INFO("disregarding potential ringout, not ringing to an agent", []),
+%			{noreply, State}
+%	end;
 handle_info({bgerror, "-ERR USER_BUSY\n"}, State) ->
 	?NOTICE("Agent rejected the call", []),
-	case State#state.agent_pid of
-		Apid when is_pid(Apid) ->
-			gen_server:cast(State#state.cook, {stop_ringing, Apid}),
-			{noreply, State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}};
-		_Else ->
-			{noreply, State}
-	end;
+	{stop_ring, State};
+%	case State#state.agent_pid of
+%		Apid when is_pid(Apid) ->
+%			gen_server:cast(State#state.cook, {stop_ringing, Apid}),
+%			{noreply, State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}};
+%		_Else ->
+%			{noreply, State}
+%	end;
 handle_info({bgerror, Reply}, State) ->
 	?WARNING("unhandled bgerror: ~p", [Reply]),
 	{noreply, State};
@@ -355,18 +407,20 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 						[{"call-command", "execute"},
 							{"execute-app-name", "playback"},
 							{"execute-app-arg", "local_stream://moh"}]),
-					case queue_manager:get_queue(Queue) of
-						undefined ->
-							% TODO what to do w/ the call w/ no queue?
-							?WARNING("Uh oh, no queue of ~p", [Queue]),
-							{noreply, State};
-						Qpid ->
-							?DEBUG("Trying to add to queue...", []),
-							R = call_queue:add(Qpid, self(), NewCall),
-							?DEBUG("q response:  ~p", [R]),
-							%freeswitch_media_manager:queued_call(UUID, Qpid),
-							{noreply, State#state{queue_pid=Qpid, queue=Queue, callrec=NewCall}}
-					end;
+						%% tell gen_media to (finally) queue the media
+					{queue, Queue, Callrec, State#state{queue = Queue}};
+%					case queue_manager:get_queue(Queue) of
+%						undefined ->
+%							% TODO what to do w/ the call w/ no queue?
+%							?WARNING("Uh oh, no queue of ~p", [Queue]),
+%							{noreply, State};
+%						Qpid ->
+%							?DEBUG("Trying to add to queue...", []),
+%							R = call_queue:add(Qpid, self(), NewCall),
+%							?DEBUG("q response:  ~p", [R]),
+%							%freeswitch_media_manager:queued_call(UUID, Qpid),
+%							{noreply, State#state{queue_pid=Qpid, queue=Queue, callrec=NewCall}}
+%					end;
 				_Otherwise ->
 					{noreply, State}
 			end;
@@ -389,11 +443,12 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 									ok;
 								RingChannel ->
 									freeswitch_ring:hangup(RingChannel)
-							end,
-							agent:set_state(Apid, idle);
+							end;
+							%agent:set_state(Apid, idle);
 						{ok, oncall} ->
 							%Agent = agent:dump_state(Apid),
-							agent:set_state(Apid, wrapup, State#state.callrec);
+							%agent:set_state(Apid, wrapup, State#state.callrec);
+							ok;
 						{ok, released} ->
 							ok
 					end,
@@ -407,7 +462,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 					call_queue:remove(Qpid, self()),
 					State3 = State2#state{queue = undefined, queue_pid = undefined}
 			end,
-			{noreply, State3};
+			{hangup, State3};
 		"CHANNEL_DESTROY" ->
 			?DEBUG("Last message this will recieve, channel destroy", []),
 			{stop, normal, State};

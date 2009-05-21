@@ -27,6 +27,13 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
+%% @doc Behaviour module for media types in the Spice-Telephony software.
+%% Gen_media uses gen_server as the underlying framework for what it does.
+%% It has a few specific call, cast, and info callbacks it implements, 
+%% everything else it passes to it's callback module to process.  Replies from 
+%% handle_call, handle_cast, and handle_info are extended to allow for specific 
+%% events only media would need.
+
 -module(gen_media).
 -author(micahw).
 
@@ -82,34 +89,54 @@
 	(Info :: any()) -> 'undefined').
 behaviour_info(callbacks) ->
 	GS = gen_server:behaviour_info(callbacks),
-	lists:append([{handle_ring, 3}, {handle_ring_stop, 1}, {handle_answer, 3}, {handle_voicemail, 1}, {handle_annouce, 2}], GS);
+	lists:append([{handle_ring, 3}, {handle_ring_stop, 1}, {handle_answer, 3}, {handle_voicemail, 1}, {handle_announce, 2}], GS);
 behaviour_info(_Other) ->
     undefined.
 
+%% @doc Make the `pid() Genmedia' ring to `pid() Agent' based off of
+%% `#queued_call{} Qcall' with a ringout of `pos_integer() Timeout' miliseconds.
+-spec(ring/4 :: (Genmedia :: pid(), Agent :: pid(), Qcall :: #queued_call{}, Timeout :: pos_integer())  -> 'ok' | 'invalid').
 ring(Genmedia, Agent, Qcall, Timeout) ->
 	gen_server:call(Genmedia, {'$gen_media_ring', Agent, Qcall, Timeout}).
 
+%% @doc Get the call record associated with `pid() Genmedia'.
+-spec(get_call/1 :: (Genmedia :: pid()) -> #call{}).
 get_call(Genmedia) ->
 	gen_server:call(Genmedia, '$gen_media_get_call').
 
+%% @doc Send the passed `pid() Genmedia' to voicemail.
+-spec(voicemail/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 voicemail(Genmedia) ->
 	gen_server:call(Genmedia, '$gen_media_voicemail').
 
+%% @doc Pass `any() Annouce' message to `pid() Genmedia'.
+-spec(announce/2 :: (Genmedia :: pid(), Annouce :: any()) -> 'ok').
 announce(Genmedia, Annouce) ->
 	gen_server:call(Genmedia, {'$gen_media_annouce', Annouce}).
 
+%% @doc Send a stop ringing message to `pid() Genmedia'.
+-spec(stop_ringing/1 :: (Genmedia :: pid()) -> 'ok').
 stop_ringing(Genmedia) ->
-	Genmedia ! '$gen_media_stop_ring'.
+	Genmedia ! '$gen_media_stop_ring',
+	ok.
 
+%% @doc Set the agent associated with `pid() Genmedia' to oncall.
+-spec(oncall/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 oncall(Genmedia) ->
 	gen_server:call(Genmedia, '$gen_media_agent_oncall').
 
+%% @doc Do the equivalent of a `gen_server:call/2'.
+-spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
 call(Genmedia, Request) ->
 	gen_server:call(Genmedia, Request).
 
+%% @doc Do the equivalent of `gen_server:call/3'.
+-spec(call/3 :: (Genmedia :: pid(), Request :: any(), Timeout :: pos_integer()) -> any()).
 call(Genmedia, Request, Timeout) ->
 	gen_server:call(Genmedia, Request, Timeout).
-	
+
+%% @doc Do the equivalent of `gen_server:cast/2'.
+-spec(cast/2 :: (Genmedia :: pid(), Request:: any()) -> 'ok').
 cast(Genmedia, Request) ->
 	gen_server:cast(Genmedia, Request).
 %
@@ -143,9 +170,12 @@ cast(Genmedia, Request) ->
 %% API
 %%====================================================================
 
+%% @doc Start a gen_media linked to the calling process.
+-spec(start_link/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | {'error', any()}).
 start_link(Callback, Args) ->
     gen_server:start_link(?MODULE, [Callback, Args], []).
 
+-spec(start/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | {'error', any()}).
 start(Callback, Args) ->
 	gen_server:start(?MODULE, [Callback, Args], []).
 
@@ -153,6 +183,7 @@ start(Callback, Args) ->
 %% gen_server callbacks
 %%====================================================================
 
+%% @private
 init([Callback, Args]) ->
 	{ok, {Substate, Callrec}} = Callback:init(Args),
     {ok, #state{callback = Callback, substate = Substate, callrec = Callrec}}.
@@ -161,6 +192,7 @@ init([Callback, Args]) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 
+%% @private
 handle_call('$gen_media_get_call', From, State) ->
 	{reply, State#state.callrec, State};
 handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = Call, callback = Callback} = State) ->
@@ -230,6 +262,7 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 
+%% @private
 handle_cast('$gen_media_agent_oncall', #state{callback = Callback} = State) ->
 	?INFO("Agent going oncall", []),
 	case State#state.agent_pid of
@@ -259,19 +292,22 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+
+%% @private
 handle_info({'$gen_media_stop_ring', _Cook}, #state{agent_pid = undefined} = State) ->
 	?NOTICE("No agent is ringing for this call", []),
 	{noreply, State};
 handle_info({'$gen_media_stop_ring', _Cook}, #state{ringout = false} = State) ->
 	?NOTICE("Ringout is set not to be handled", []),
 	{noreply, State};
-handle_info({'$gen_media_stop_ring', Cook}, #state{agent_pid = Apid, callback = Callback, ringout=true} = State) when is_pid(Apid) ->
+handle_info({'$gen_media_stop_ring', Cook}, #state{agent_pid = Apid, callback = Callback} = State) when is_pid(Apid) ->
 	?INFO("Handling ringout...", []),
 	agent:set_state(Apid, idle),
 	gen_server:cast(Cook, stop_ringing),
 	{ok, Newsub} = Callback:handle_ring_stop(State#state.substate),
 	{noreply, State#state{substate = Newsub, ringout = false}};
 handle_info(Info, #state{callback = Callback} = State) ->
+	?DEBUG("Other info message, going directly to callback.  ~p", [Info]),
 	case Callback:handle_info(Info, State#state.substate) of
 		{noreply, NewState} ->
 			{noreply, State#state{substate = NewState}};
@@ -284,12 +320,17 @@ handle_info(Info, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
+
+%% @private
 terminate(Reason, #state{callback = Callback} = State) ->
+	?DEBUG("gen_media termination due to ~p", [Reason]),
 	Callback:terminate(Reason, State#state.substate).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
+
+%% @private
 code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 	{ok, Newsub} = Callback:code_change(OldVsn, State#state.substate, Extra),
     {ok, State#state{substate = Newsub}}.

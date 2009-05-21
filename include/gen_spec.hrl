@@ -137,3 +137,43 @@
 -spec(init/1 :: (Args :: [any]) -> 'ignore' | {'ok', {{restart_strat(), non_neg_integer(), non_neg_integer()}, [child_spec()]}}).
 
 -endif.
+
+-ifdef(GEN_MEDIA).
+
+-spec(init/1 :: (Args :: any()) -> {'ok', {any(), #call{}}}).
+-spec(handle_ring/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'invalid', state()}).
+-spec(handle_ring_stop/1 :: (State :: state()) -> {'ok', state()}).
+-spec(handle_answer/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'error', any(), state()}).
+-spec(handle_voicemail/1 :: (State :: state()) -> {'ok', state()} | {'invalid', state()}).
+-spec(handle_announce/2 :: (Annouce :: any(), State :: state()) -> {'ok', state()}).
+-spec(handle_call/3 :: (Event :: any(), From :: {pid(), any()}, State :: state()) -> 
+	{'reply', any(), state()} | 
+	{'reply', any(), state(), gen_timeout()} | 
+	{'noreply', state()} | 
+	{'noreply', state(), gen_timeout()} | 
+	{'stop', any(), any(), state()} | 
+	{'stop', any(), state()} |
+	{'ring', pos_integer(), any(), state()} | 
+	{'stop_ring', any(), state()} |
+	{'answer', any(), state()} |
+	{'wrapup', any(), state()}).
+-spec(handle_cast/2 :: (Request :: any(), State :: state()) ->
+	{'noreply', state()} | 
+	{'noreply', state(),  gen_timeout()} | 
+	{'stop', any(), state()} | 
+	{'ring', pos_integer(), state()} | 
+	{'stop_ring', state()} | 
+	{'answer', state()} | 
+	{'wrapup', state()}).
+-spec(handle_info/2 :: (Request :: any(), State :: state()) ->
+	{'noreply', state()} | 
+	{'noreply', state(),  gen_timeout()} | 
+	{'stop', any(), state()} | 
+	{'ring', pos_integer(), state()} | 
+	{'stop_ring', state()} | 
+	{'answer', state()} | 
+	{'wrapup', state()}).
+-spec(terminate/2 :: (Reason :: any(), State :: state()) -> any()).
+-spec(code_change/3 :: (Vsn :: {'down', any()} | any(), State :: state(), Extra :: any()) -> {'ok', state()}).
+
+-endif.

@@ -32,7 +32,7 @@
 -module(dummy_media).
 -author(micahw).
 
--behaviour(gen_server).
+-behaviour(gen_media).
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
@@ -78,6 +78,10 @@
 	%mode = success :: 'success' | 'failure' | 'fail_once',
 	fail = dict:new() :: dict()
 	}).
+
+-type(state() :: #state{}).
+-define(GEN_MEDIA, true).
+-include("gen_spec.hrl").
 
 %%====================================================================
 %% API

@@ -98,10 +98,10 @@
 %%====================================================================
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
 start(Cnode, Domain) ->
-	gen_media:start(?MODULE, [Cnode, Domain], []).
+	gen_media:start(?MODULE, [Cnode, Domain]).
 
 start_link(Cnode, Domain) ->
-	gen_media:start_link(?MODULE, [Cnode, Domain], []).
+	gen_media:start_link(?MODULE, [Cnode, Domain]).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
 -spec(get_call/1 :: (MPid :: pid()) -> #call{}).
@@ -139,7 +139,7 @@ handle_announce(Announcement, State) ->
 	{ok, State}.
 
 handle_answer(Apid, Callrec, State) ->
-	{error, outband_ring_only, State}.
+	{ok, State}.
 
 handle_ring(Apid, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),

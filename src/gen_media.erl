@@ -257,15 +257,6 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 			{stop, Reason, Reply, State#state{substate = NewState}};
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
-		{stop_ring, Reply, NewState} when is_pid(State#state.agent_pid) ->
-			agent_interact(stop_ring, State#state.agent_pid, State#state.callrec),
-			{reply, Reply, State#state{substate = NewState, agent_pid = undefined}};
-		{wrapup, Reply, NewState} when is_pid(State#state.agent_pid) ->
-			agent_interact(wrapup, State#state.agent_pid, State#state.callrec),
-			{reply, Reply, State#state{substate = NewState, agent_pid = undefined}};
-		{Agentact, Reply, NewState} when is_pid(State#state.agent_pid) ->
-			agent_interact(Agentact, State#state.agent_pid, State#state.callrec),
-			{reply, Reply, State#state{substate = NewState, queue_pid = undefined}};
 		{queue, Queue, Callrec, NewState} ->
 			case queue(Queue, Callrec) of
 				invalid ->
@@ -273,21 +264,9 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 				Qpid ->
 					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
-		{hangup, Reply, NewState} when is_pid(State#state.queue_pid) ->
-			call_queue:remove(State#state.queue_pid, self()),
-			{reply, Reply, State#state{queue_pid = undefined, substate = NewState}};
-		{hangup, Reply, NewState} when is_pid(State#state.agent_pid) ->
-			case agent:query_state(State#state.agent_pid) of
-				{ok, ringing} ->
-					?NOTICE("Caller hungup while agent was ringing", []),
-					agent:set_state(State#state.agent_pid, idle);
-				{ok, oncall} ->
-					agent:set_state(State#state.agent_pid, wrapup, State#state.callrec);
-				{ok, released} ->
-					ok
-			end,
-			{reply, Reply, State#state{agent_pid = undefined, substate = NewState}}
-
+		{Agentact, Reply, NewState} when is_pid(State#state.agent_pid) ->
+			Midstate = agent_interact(Agentact, State),
+			{reply, Reply, Midstate#state{substate = NewState}}
 	end.
 	
 %%--------------------------------------------------------------------
@@ -319,16 +298,6 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 			{noreply, State#state{substate = NewState}, Timeout};
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
-		{wrapup, NewState} when is_pid(State#state.agent_pid) ->
-			agent_interact(wrapup, State#state.agent_pid, State#state.callrec),
-			{noreply, State#state{agent_pid = undefined, substate = NewState}};
-		{stop_ring, NewState} when is_pid(State#state.agent_pid), State#state.ringout =/= false ->
-			agent_interact(stop_ring, State#state.agent_pid, State#state.callrec),
-			timer:cancel(State#state.ringout),
-			{noreply, State#state{ringout = false, agent_pid = undefined, substate = NewState}};
-		{Agentact, NewState} when is_pid(State#state.agent_pid) ->
-			agent_interact(Agentact, State#state.agent_pid, State#state.callrec),
-			{noreply, State#state{substate = NewState, queue_pid = undefined}};
 		{queue, Queue, Callrec, NewState} ->
 			case queue(Queue, Callrec) of
 				invalid ->
@@ -336,20 +305,9 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 				Qpid ->
 					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
-		{hangup, NewState} when is_pid(State#state.queue_pid) ->
-			call_queue:remove(State#state.queue_pid, self()),
-			{noreply, State#state{queue_pid = undefined, substate = NewState}};
-		{hangup, NewState} when is_pid(State#state.agent_pid) ->
-			case agent:query_state(State#state.agent_pid) of
-				{ok, ringing} ->
-					?NOTICE("Caller hungup while agent was ringing", []),
-					agent:set_state(State#state.agent_pid, idle);
-				{ok, oncall} ->
-					agent:set_state(State#state.agent_pid, wrapup, State#state.callrec);
-				{ok, released} ->
-					ok
-			end,
-			{noreply, State#state{agent_pid = undefined, substate = NewState}}
+		{Agentact, NewState} when is_pid(State#state.agent_pid) ->
+			Midstate = agent_interact(Agentact, State),
+			{noreply, Midstate#state{substate = NewState}}
 	end.
 
 %%--------------------------------------------------------------------
@@ -378,38 +336,16 @@ handle_info(Info, #state{callback = Callback} = State) ->
 			{noreply, State#state{substate = NewState}, Timeout};
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
-		{stop_ring, NewState} when is_pid(State#state.agent_pid), State#state.ringout =/= false ->
-			agent_interact(stop_ring, State#state.agent_pid, State#state.callrec),
-			timer:cancel(State#state.ringout),
-			{noreply, State#state{substate = NewState, ringout = false, agent_pid = undefined}};
-		{wrapup, NewState} when is_pid(State#state.agent_pid) ->
-			agent_interact(wrapup, State#state.agent_pid, State#state.callrec),
-			{noreply, State#state{substate = NewState, agent_pid = undefined}};
-		{Interact, NewState} when is_pid(State#state.agent_pid) ->
-			agent_interact(Interact, State#state.agent_pid, State#state.callrec),
-			{noreply, State#state{substate = NewState, queue_pid = undefined}};
-		{queue, Queue, Callrec, State} ->
+		{queue, Queue, Callrec, NewState} ->
 			case queue(Queue, Callrec) of
 				invalid ->
-					{noreply, State#state{callrec = Callrec, substate = State}};
+					{noreply, State#state{callrec = Callrec, substate = NewState}};
 				Qpid ->
-					{noreply, State#state{callrec = Callrec, substate = State, queue_pid = Qpid}}
+					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
-		{hangup, NewState} when is_pid(State#state.queue_pid) ->
-			call_queue:remove(State#state.queue_pid, self()),
-			{noreply, State#state{queue_pid = undefined, substate = NewState}};
-		{hangup, NewState} when is_pid(State#state.agent_pid) ->
-			case agent:query_state(State#state.agent_pid) of
-				{ok, ringing} ->
-					?NOTICE("Caller hungup while agent was ringing", []),
-					agent:set_state(State#state.agent_pid, idle);
-				{ok, oncall} ->
-					agent:set_state(State#state.agent_pid, wrapup, State#state.callrec);
-				{ok, released} ->
-					ok
-			end,
-			{noreply, State#state{agent_pid = undefined, substate = NewState}}
-
+		{Interact, NewState} when is_pid(State#state.agent_pid) ->
+			Midstate = agent_interact(Interact, State),
+			{noreply, Midstate#state{substate = NewState}}
 	end.
 
 %%--------------------------------------------------------------------
@@ -434,15 +370,6 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-agent_interact(ring, Apid, Call) ->
-	agent:set_state(Apid, ringing, Call);
-agent_interact(oncall, Apid, Call) ->
-	agent:set_state(Apid, oncall, Call);
-agent_interact(wrapup, Apid, Call) ->
-	agent:set_state(Apid, wrapup, Call);
-agent_interact(stop_ring, Apid, Call) ->
-	agent:set_state(Apid, idle).
-
 queue(Queue, Callrec) ->
 	case queue_manager:get_queue(Queue) of
 		undefined ->
@@ -456,7 +383,29 @@ queue(Queue, Callrec) ->
 			%freeswitch_media_manager:queued_call(UUID, Qpid),
 			Qpid
 	end.
-	
+
+agent_interact(stop_ring, #state{agent_pid = Apid} = State) when State#state.ringout =/= false ->
+	timer:cancel(State#state.ringout),
+	State#state{ringout = false};
+agent_interact(wrapup, #state{agent_pid = Apid} = State) ->
+	agent:set_state(wrapup, Apid, State#state.callrec),
+	State;
+agent_interact(hangup, #state{agent_pid = Apid} = State) when is_pid(Apid) ->
+	case agent:query_state(Apid) of
+		{ok, ringing} ->
+			?NOTICE("Caller hungup while agent was ringing", []),
+			agent:set_state(Apid, idle),
+			State#state{agent_pid = undefined};
+		{ok, oncall} ->
+			agent:set_state(Apid, wrapup, State#state.callrec),
+			State;
+		{ok, released} ->
+			State
+	end;
+agent_interact(hangup, #state{queue_pid = Qpid} = State) when is_pid(Qpid) ->
+	call_queue:remove(Qpid, self()),
+	State#state{queue_pid = undefined}.
+
 -ifdef(EUNIT).
 
 

@@ -75,6 +75,7 @@
 	handle_answer/3,
 	handle_voicemail/1,
 	handle_announce/2,
+	handle_agent_transfer/4,
 	handle_call/3, 
 	handle_cast/2, 
 	handle_info/2,
@@ -173,43 +174,70 @@ handle_ring_stop(State) ->
 handle_voicemail(State) ->
 	{invalid, State}.
 
+handle_agent_transfer(AgentPid, Call, Timeout, State) ->
+	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
+	#agent{login = Recipient} = AgentRec = agent:dump_state(AgentPid),
+	%#agent{login = Offerer} = agent:dump_state(Offererpid),
+	%Ringout = Timeout div 1000,
+	%?DEBUG("ringout ~p", [Ringout]),
+	%cdr:agent_transfer(Call, {Offerer, Recipient}),
+	% fun that returns another fun when passed the UUID of the new channel
+	% (what fun!)
+	F = fun(UUID) ->
+		fun(ok, _Reply) ->
+			% agent picked up?
+			freeswitch:sendmsg(State#state.cnode, UUID,
+				[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]);
+		(error, Reply) ->
+			?WARNING("originate failed: ~p", [Reply])
+			%agent:set_state(AgentPid, idle)
+		end
+	end,
+	case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F) of
+		{ok, Pid} ->
+			{ok, State#state{agent_pid = AgentPid, ringchannel=Pid}};
+		{error, Error} ->
+			?ERROR("error:  ~p", [Error]),
+			{error, Error, State}
+	end.
+
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call({transfer_agent, AgentPid, Timeout}, _From, #state{callrec = Call, agent_pid = Offererpid} = State) ->
-	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
-	#agent{login = Recipient} = AgentRec = agent:dump_state(AgentPid),
-	#agent{login = Offerer} = agent:dump_state(Offererpid),
-	Ringout = Timeout div 1000,
-	?DEBUG("ringout ~p", [Ringout]),
-	cdr:agent_transfer(Call, {Offerer, Recipient}),
-	case agent:set_state(AgentPid, ringing, Call) of
-		ok ->
-			% fun that returns another fun when passed the UUID of the new channel
-			% (what fun!)
-			F = fun(UUID) ->
-				fun(ok, _Reply) ->
-					% agent picked up?
-					freeswitch:sendmsg(State#state.cnode, UUID,
-						[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]);
-				(error, Reply) ->
-					?WARNING("originate failed: ~p", [Reply]),
-					agent:set_state(AgentPid, idle)
-				end
-			end,
-			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Ringout, F) of
-				{ok, Pid} ->
-					{reply, ok, State#state{agent_pid = AgentPid, ringchannel=Pid}};
-				{error, Error} ->
-					?ERROR("error:  ~p", [Error]),
-					agent:set_state(AgentPid, released, "badring"),
-					{reply, invalid, State}
-			end;
-		Else ->
-			?INFO("Agent ringing response:  ~p", [Else]),
-			{reply, invalid, State}
-	end;
+%handle_call({transfer_agent, AgentPid, Timeout}, _From, #state{callrec = Call, agent_pid = Offererpid} = State) ->
+%	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
+%	#agent{login = Recipient} = AgentRec = agent:dump_state(AgentPid),
+%	#agent{login = Offerer} = agent:dump_state(Offererpid),
+%	Ringout = Timeout div 1000,
+%	?DEBUG("ringout ~p", [Ringout]),
+%	cdr:agent_transfer(Call, {Offerer, Recipient}),
+%	case agent:set_state(AgentPid, ringing, Call) of
+%		ok ->
+%			% fun that returns another fun when passed the UUID of the new channel
+%			% (what fun!)
+%			F = fun(UUID) ->
+%				fun(ok, _Reply) ->
+%					% agent picked up?
+%					freeswitch:sendmsg(State#state.cnode, UUID,
+%						[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]);
+%				(error, Reply) ->
+%					?WARNING("originate failed: ~p", [Reply]),
+%					agent:set_state(AgentPid, idle)
+%				end
+%			end,
+%			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Ringout, F) of
+%				{ok, Pid} ->
+%					{reply, ok, State#state{agent_pid = AgentPid, ringchannel=Pid}};
+%				{error, Error} ->
+%					?ERROR("error:  ~p", [Error]),
+%					agent:set_state(AgentPid, released, "badring"),
+%					{reply, invalid, State}
+%			end;
+%		Else ->
+%			?INFO("Agent ringing response:  ~p", [Else]),
+%			{reply, invalid, State}
+%	end;
 handle_call(get_call, _From, State) ->
 	{reply, State#state.callrec, State};
 handle_call(get_queue, _From, State) ->

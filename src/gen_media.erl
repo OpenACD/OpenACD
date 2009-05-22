@@ -210,7 +210,7 @@
 	announce/2,
 	stop_ringing/1,
 	oncall/1,
-	agent_transfer/2,
+	agent_transfer/3,
 	call/2,
 	call/3,
 	cast/2
@@ -238,7 +238,7 @@
 	(Info :: any()) -> 'undefined').
 behaviour_info(callbacks) ->
 	GS = gen_server:behaviour_info(callbacks),
-	lists:append([{handle_ring, 3}, {handle_ring_stop, 1}, {handle_answer, 3}, {handle_voicemail, 1}, {handle_announce, 2}, {handle_agent_transfer, 3}], GS);
+	lists:append([{handle_ring, 3}, {handle_ring_stop, 1}, {handle_answer, 3}, {handle_voicemail, 1}, {handle_announce, 2}, {handle_agent_transfer, 4}], GS);
 behaviour_info(_Other) ->
     undefined.
 
@@ -275,9 +275,9 @@ oncall(Genmedia) ->
 	gen_server:call(Genmedia, '$gen_media_agent_oncall').
 
 %% @doc Transfer the call from the agent it is associated with to a new agent.
--spec(agent_transfer/2 :: (Genmedia :: pid(), Apid :: pid()) -> 'ok' | 'invalid').
-agent_transfer(Genmedia, Apid) ->
-	gen_server:call(Genmedia, {'$gen_media_agent_transfer', Apid}).
+-spec(agent_transfer/3 :: (Genmedia :: pid(), Apid :: pid(), Timeout :: pos_integer()) -> 'ok' | 'invalid').
+agent_transfer(Genmedia, Apid, Timeout) ->
+	gen_server:call(Genmedia, {'$gen_media_agent_transfer', Apid, Timeout}).
 
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
@@ -343,8 +343,22 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = C
 handle_call({'$gen_media_agent_transfer', Apid}, From, #state{callback = Callback, oncall_pid = Apid} = State) ->
 	?NOTICE("Can't transfer to yourself, silly ~p!", [Apid]),
 	{reply, invalid, State};
-%handle_call({'$gen_media_agent_transfer', Apid}, From, #state{callback = Callback} = State) ->
-	
+handle_call({'$gen_media_agent_transfer', Apid, Timeout}, From, #state{callback = Callback, ring_pid = undefined, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
+	case agent:set_state(Apid, ringing, State#state.callrec) of
+		ok ->
+			case Callback:handle_agent_transfer(Apid, State#state.callrec, Timeout, State#state.substate) of
+				{ok, NewState} ->
+					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', dummy}),
+					{reply, ok, State#state{ring_pid = Apid, ringout = Tref}};
+				{error, Error, NewState} ->
+					?NOTICE("Could not set agent ringing for transfer due to ~p", [Error]),
+					agent:set_state(Apid, idle),
+					{reply, invalid, State#state{substate = NewState}}
+			end;
+		invalid ->
+			?NOTICE("Could not ring to target agent ~p", [Apid]),
+			{reply, invalid, State}
+	end;
 handle_call({'$gen_media_annouce', Annouce}, From, #state{callback = Callback} = State) ->
 	?INFO("Doing announce", []),
 	{ok, Substate} = Callback:handle_announce(Annouce, State),
@@ -366,6 +380,17 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{ring_pid = Apid} = State) ->
 	?INFO("Cannot accept on call requests from agent (~p) unless ring_path is inband", [Apid]),
 	{reply, invalid, State};
+handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
+	?INFO("oncall request during what looks like an agent transfer", []),
+	case Callback:handle_answer(Rpid, State#state.callrec, State#state.substate) of
+		{ok, NewState} ->
+			agent:set_state(Rpid, oncall, State#state.callrec),
+			timer:cancel(State#state.ringout),
+			agent:set_state(Ocpid, wrapup, State#state.callrec),
+			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}};
+		{error, Reason, NewState} ->
+			{reply, invalid, State#state{substate = NewState}}
+	end;
 handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = Callback} = State) ->
 	?INFO("oncall request from ~p; agent to set on call is ~p", [From, Apid]),
 	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of

@@ -42,7 +42,7 @@
 		source = erlang:error({undefined, source}) :: pid(),
 		bound = [] :: [pid()],
 		% client record
-		client :: #client{},
+		client = #client{label="Unknown", tenant=0, brand=0} :: #client{},
 		skills = [english] :: [atom(), ...],
 		cook :: pid(), % TODO is this ever set?
 		ring_path = outband :: 'inband' | 'outband' | 'any',

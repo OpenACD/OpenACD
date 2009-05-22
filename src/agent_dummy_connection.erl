@@ -61,6 +61,10 @@
 	agent_fsm :: pid()
 }).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
 start_x(N) ->
 	start_x(N, []).
 

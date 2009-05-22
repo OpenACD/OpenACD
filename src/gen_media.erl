@@ -226,7 +226,8 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
 			timer:cancel(State#state.ringout),
-			{reply, ok, State#state{substate = NewState, ringout = false}};
+			unqueue(State#state.queue_pid, self()),
+			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined}};
 		{error, Reason, NewState} ->
 			{reply, invalid, State#state{substate = NewState}}
 	end;
@@ -239,7 +240,8 @@ handle_call('$gen_media_agent_oncall', From, #state{agent_pid = Apid, callback =
 		{ok, NewState} ->
 			agent:set_state(Apid, oncall, State#state.callrec),
 			timer:cancel(State#state.ringout),
-			{reply, ok, State#state{substate = NewState, ringout = false}};
+			call_queue:remove(State#state.queue_pid, self()),
+			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined}};
 		{error, Reason, NewState} ->
 			{reply, invalid, State#state{substate = NewState}}
 	end;
@@ -277,22 +279,22 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 
 %% @private
-handle_cast('$gen_media_agent_oncall', #state{callback = Callback} = State) ->
-	?INFO("Agent going oncall", []),
-	case State#state.agent_pid of
-		undefined ->
-			?WARNING("No agent to set state to",[]),
-			{noreply, State};
-		Apid when is_pid(Apid) ->
-			case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
-				{ok, Newstate} ->
-					agent:set_state(State#state.agent_pid, oncall, State#state.callrec),
-					{noreply, State#state{substate = Newstate, ringout=false}};
-				{error, Reason, Newstate} ->
-					?WARNING("Counld not set agent to on call due to ~p", [Reason]),
-					{noreply, State#state{substate = Newstate}}
-			end
-	end;
+%handle_cast('$gen_media_agent_oncall', #state{callback = Callback} = State) ->
+%	?INFO("Agent going oncall", []),
+%	case State#state.agent_pid of
+%		undefined ->
+%			?WARNING("No agent to set state to",[]),
+%			{noreply, State};
+%		Apid when is_pid(Apid) ->
+%			case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
+%				{ok, Newstate} ->
+%					agent:set_state(State#state.agent_pid, oncall, State#state.callrec),
+%					{noreply, State#state{substate = Newstate, ringout=false}};
+%				{error, Reason, Newstate} ->
+%					?WARNING("Counld not set agent to on call due to ~p", [Reason]),
+%					{noreply, State#state{substate = Newstate}}
+%			end
+%	end;
 handle_cast(Msg, #state{callback = Callback} = State) ->
 	case Callback:handle_cast(Msg, State#state.substate) of
 		{noreply, NewState} ->
@@ -394,6 +396,12 @@ queue(Queue, Callrec) ->
 			Qpid
 	end.
 
+unqueue(undefined, _Callpid) ->
+	ok;
+unqueue(Qpid, Callpid) when is_pid(Qpid) ->
+	call_queue:remove(Qpid, Callpid),
+	ok.
+
 agent_interact(stop_ring, #state{agent_pid = Apid} = State) when State#state.ringout =/= false ->
 	timer:cancel(State#state.ringout),
 	State#state{ringout = false};
@@ -406,15 +414,18 @@ agent_interact(hangup, #state{agent_pid = Apid} = State) when is_pid(Apid) ->
 		{ok, ringing} ->
 			?NOTICE("Caller hungup while agent was ringing", []),
 			agent:set_state(Apid, idle),
+			unqueue(State#state.queue_pid, self()),
 			State#state{agent_pid = undefined};
 		{ok, oncall} ->
 			agent:set_state(Apid, wrapup, State#state.callrec),
-			State;
+			State#state{queue_pid = undefined};
 		{ok, released} ->
+			State;
+		{ok, idle} ->
 			State
 	end;
 agent_interact(hangup, #state{queue_pid = Qpid} = State) when is_pid(Qpid) ->
-	call_queue:remove(Qpid, self()),
+	unqueue(Qpid, self()),
 	State#state{queue_pid = undefined}.
 
 outgoing({outbound, Agent, NewState}, State) when is_record(State#state.callrec, call) ->

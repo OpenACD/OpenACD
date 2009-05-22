@@ -433,7 +433,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 			?DEBUG("Channel hangup", []),
 			Qpid = State#state.queue_pid,
 			Apid = State#state.agent_pid,
-			cdr:hangup(State#state.callrec, caller),
+			%cdr:hangup(State#state.callrec, caller),
 			case Apid of
 				undefined ->
 					?WARNING("Agent undefined", []),
@@ -470,18 +470,6 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 		"CHANNEL_DESTROY" ->
 			?DEBUG("Last message this will recieve, channel destroy", []),
 			{stop, normal, State};
-		%"PRESENCE_IN" ->
-		%	?CONSOLE("Lets see if presence in will let me get out of queue...", []),
-		%	Qpid = State#state.queue_pid,
-		%	case Qpid of
-		%		undefined ->
-		%			?CONSOLE("I'm not sure if this is even possible, undefined queue during ~p", [Ename]),
-		%			{noreply, State};
-		%		_Else ->
-		%			call_queue:remove(Qpid, self()),
-		%			State2 = State#state{queue = undefined},
-		%			{noreply, State2}
-		%	end;
 		{error, notfound} ->
 			?WARNING("event name not found: ~p", [freeswitch:get_event_header(Rawcall, "Content-Type")]),
 			{noreply, State};

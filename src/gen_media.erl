@@ -33,6 +33,151 @@
 %% everything else it passes to it's callback module to process.  Replies from 
 %% handle_call, handle_cast, and handle_info are extended to allow for specific 
 %% events only media would need.
+%%
+%%	Callback functions:
+%%
+%%	<b>init(Args) -> {ok, {State, Call}}</b>
+%%		types:  Args = any()
+%%				State = any()
+%%				Call = #call{} | undefined
+%%
+%%		When gen_media starts, this function is called.  It should initialize
+%%		All required data.
+%%
+%%		Some media may not be able to provide a call record on start-up, thus
+%%		allowing the media to finish prepping and then queue later.
+%%
+%%	<b>handle_ring(Agent, Call, State) -> Result</b>
+%%		types:	Agent = pid()
+%%				Call = #call{}
+%%				State = any()
+%%				Result = {ok, NewState} | {invalid, NewState}
+%%					NewState = any()
+%%
+%%		When a call must ring to an agent (either due to out of queue or the 
+%%		start of a transfer), this is called.
+%%
+%%		Agent is the pid of the agent that will be set to ringing if Result is
+%%		{ok, NewState}.
+%%
+%%		Call is the #call{} maintained by the gen_media and passed in for 
+%%		Reference.
+%%		
+%%		State is the internal state of the gen_media callbacks.
+%%
+%%		If Result is {ok, NewState}, Agent is set to ringing, and execution 
+%%		continues with NewState.
+%%
+%%		If Result is {invalid, NewState}, Agent is set to idle, and execution
+%%		continues with NewState.
+%%
+%%	<b>handle_ring_stop(State) -> Result</b>
+%%		types:	State = any()
+%%				Result = {ok, NewState}
+%%
+%%		When an agent should no longer be ringing, such as due to ringout, this
+%%		function is called.
+%%
+%%		State is the internal state of the gen_media callbacks.
+%%
+%%		Execution will continue with NewState.
+%%
+%%	<b>handle_answer(Agent, Call, State) -> Result</b>
+%%		types:	Agent = pid()
+%%				Call = #call{}
+%%				State = any()
+%%				Result = {ok, NewState} | {error, Error, NewState}
+%%					Error = any()
+%%
+%%		When an agent should be placed on call after ringing, this function
+%%		is called.
+%%
+%%		Agent is the agent that will be set oncall if Result is {ok, NewState}.
+%%
+%%		Call is the #call{} the agent will be answering.
+%%
+%%		State is the internal state of the gen_media callbacks.
+%%
+%%		If Result is {ok, NewState} and the callpath is inband, it is assumed 
+%%		the agent has already set themselves oncall.  If it is out of band,
+%%		the agent is set to oncall.  Execution then continues with NewState.
+%%
+%%		If Result is {error, Error, NewState}, the agent's state is not changed
+%%		And execution continues with NewState.
+%%
+%%	<b>handle_voicemail(State) -> Result</b>
+%%		types:	State = any()
+%%				Result = {ok, NewState} | {invalid, NewState}
+%%
+%%		When a media should be removed from queue and moved to voicemail, this
+%%		is called.
+%%
+%%		State is the internal state of the gen_media callbacks.
+%%
+%%		If Result is {ok, NewState}, the call is removed from queue and 
+%%		execution continues with NewState.
+%%
+%%		If Result is {invalid, NewState} execution continues with NewState.
+%%
+%%	<b>handle_annouce(Announce, State) -> {ok, NewState}</b>
+%%		types:	Announce = any()
+%%				State = NewState = any()
+%%
+%%		When a recipe calls for a call in queue to play an announcement, this
+%%		function is called.  Execution then continues with NewState.
+%%
+%%	<b>Extended gen_server Callbacks</b>
+%%
+%%	In addition to the usual replies gen_server expects from it's callbacks of
+%%	handle_call/3, handle_cast/2, and handle_info/2, gen_media will take some 
+%%	action based on the following Returns.
+%%
+%%	{queue, Queue, Callrec, NewState}
+%%		types:  Queue = string()
+%%				Callrec = #call{}
+%%				NewState = any()
+%%
+%%		This result is only valid if the callbacks init/1 returned undefined
+%%		for the call record.  This sets the call record and queues the call.
+%%		Execution then continues on with NewState.  If this is replied to a 
+%%		call, ok is set as the reply.
+%%
+%%	{outbound, Agent, NewState}
+%%	{outbound, Agent, Call, NewState}
+%%		types:  Agent = pid()
+%%				Call = #call{}
+%%				NewState = any()
+%%
+%%		This result is valid only if the call is not queued.  The second form
+%%		is only valid if init/1 retuned an undefined call.  This also assumes 
+%%		the agent at pid() is already in precall state.  If The agent can be set
+%%		to outgoing, it will be.  Execution continues on with NewState.
+%%
+%%	{Agentaction, NewState}
+%%	{Agentaction, Reply, NewState}
+%%		types:	Agentaction = stop_ring | wrapup | hangup
+%%				Reply = any()
+%%				NewState = any()
+%%
+%%		This result is only valid if an agent has been associated with this 
+%%		media by ringing.  The second form is only valid if the request came in
+%%		as a gen_media:call.  This attempts to take the specified action on the 
+%%		agent, the continues execution with NewState.
+%%
+%%		stop_ring is used to stop the gen_media from handling a ringout.  It 
+%%		does not change the agent's state.  Execution will continue with 
+%%		NewState.  This is useful if there is an error ringing to an agent that
+%%		only becomes apparent at a later time.
+%%
+%%		wrapup is only valid if there is an agent associated with a media, and
+%%		that agent is oncall or outgoing.  This sets the agent to wrapup and
+%%		continues execution with NewState.
+%%
+%%		hangup is valid at any time an agent is (or was) associated a call.
+%%		It is useful when the remote party of a media disconnects, as the 
+%%		callback does not have any knowledge of what state an agent is in.
+%%		This determine's the agent's state, then set's the agent's state 
+%%		apropriately.  Execution then coninues with NewState.
 
 -module(gen_media).
 -author(micahw).

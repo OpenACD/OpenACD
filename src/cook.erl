@@ -47,7 +47,7 @@
 -endif.
 -define(TICK_LENGTH, 500).
 
--define(RINGOUT, 4).
+-define(RINGOUT, 60).
 -define(DEFAULT_PATHCOST, 15).
 
 %% API
@@ -368,7 +368,7 @@ offer_call([], _Call) ->
 	?DEBUG("No valid agents found", []),
 	none;
 offer_call([{_ACost, Apid} | Tail], Call) ->
-	case gen_media:ring(Call#queued_call.media, Apid, Call, ?TICK_LENGTH * (?RINGOUT + 1)) of
+	case gen_media:ring(Call#queued_call.media, Apid, Call, ?TICK_LENGTH * ?RINGOUT) of
 	%case gen_server:call(Call#queued_call.media, {ring_agent, Apid, Call, ?TICK_LENGTH * (?RINGOUT + 1)}) of
 		ok ->
 			Agent = agent:dump_state(Apid),

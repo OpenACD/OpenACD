@@ -131,7 +131,7 @@ dump_state(Mpid) when is_pid(Mpid) ->
 init([Cnode, Domain]) ->
 	{ok, {#state{cnode=Cnode, domain=Domain}, undefined}}.
 
-handle_announce(Announcement, State) ->
+handle_announce(Announcement, #state{callrec = Callrec} = State) ->
 	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
 		[{"call-command", "execute"},
 			{"execute-app-name", "playback"},

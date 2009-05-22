@@ -140,32 +140,6 @@ call(Genmedia, Request, Timeout) ->
 -spec(cast/2 :: (Genmedia :: pid(), Request:: any()) -> 'ok').
 cast(Genmedia, Request) ->
 	gen_server:cast(Genmedia, Request).
-%
-%handle_call({ring_agent, AgentPid, QCall, Timeout}, _From, #state{callrec = Call} = State) ->
-%handle_call(get_call, _From, State) ->
-%handle_call(get_queue, _From, State) ->
-%handle_call(get_agent, _From, State) ->
-%handle_call(unqueue, _From, #state{queue_pid = undefined} = State) ->
-%handle_call(unqueue, _From, #state{queue_pid = Qpid, callrec = Callrec} = State) when is_pid(Qpid) ->
-%handle_call({set_agent, Agent, Apid}, _From, State) ->
-%handle_call(dump_state, _From, State) ->
-%handle_call({announce, Announcement}, _From, #state{callrec = Callrec} = State) ->
-%handle_cast(unqueue, #state{callrec = Callrec} = State) ->
-%handle_cast(agent_oncall, State) ->
-%handle_cast(stop_ringing, State) ->
-%
-%
-%handle_call({ring_agent, AgentPid, Queuedcall, Ringout}, _From, #state{fail = Fail} = State) -> 
-%handle_call(get_call, _From, #state{fail = Fail} = State) -> 
-%handle_call({start_cook, Recipe, Queuename}, _From, #state{callrec = Call, fail = Fail} = State) -> 
-%handle_call({stop, Reason}, _From, State) ->
-%handle_call(stop_cook, _From, #state{callrec = Call, fail = Fail} = State) -> 
-%handle_call(voicemail, _From, #state{fail = Fail} = State) ->
-%handle_call({announce, _Args}, _From, #state{fail = Fail} = State) ->
-%	
-%	
-%	
-	
 	
 %%====================================================================
 %% API
@@ -279,22 +253,6 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 
 %% @private
-%handle_cast('$gen_media_agent_oncall', #state{callback = Callback} = State) ->
-%	?INFO("Agent going oncall", []),
-%	case State#state.agent_pid of
-%		undefined ->
-%			?WARNING("No agent to set state to",[]),
-%			{noreply, State};
-%		Apid when is_pid(Apid) ->
-%			case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
-%				{ok, Newstate} ->
-%					agent:set_state(State#state.agent_pid, oncall, State#state.callrec),
-%					{noreply, State#state{substate = Newstate, ringout=false}};
-%				{error, Reason, Newstate} ->
-%					?WARNING("Counld not set agent to on call due to ~p", [Reason]),
-%					{noreply, State#state{substate = Newstate}}
-%			end
-%	end;
 handle_cast(Msg, #state{callback = Callback} = State) ->
 	case Callback:handle_cast(Msg, State#state.substate) of
 		{noreply, NewState} ->
@@ -392,7 +350,6 @@ queue(Queue, Callrec) ->
 			R = call_queue:add(Qpid, self(), Callrec),
 			?DEBUG("q response:  ~p", [R]),
 			?INFO("Queueing call ~s into ~s", [Callrec#call.id, Queue]),
-			%freeswitch_media_manager:queued_call(UUID, Qpid),
 			Qpid
 	end.
 

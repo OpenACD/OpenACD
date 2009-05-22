@@ -100,12 +100,10 @@ init([Fnode, AgentRec, Apid, Number, Ringout, _Domain]) ->
 			?INFO("Originating outbound call with args: ~p", [Args]),
 			F = fun(ok, _Reply) ->
 					% agent picked up?
-					%agent:set_state(Apid, outgoing, Call);
 					ok;
 				(error, Reply) ->
 					?WARNING("originate failed: ~p", [Reply]),
 					ok
-					%agent:set_state(Apid, idle)
 			end,
 			case freeswitch:bgapi(Fnode, originate, Args, F) of
 				ok ->
@@ -188,21 +186,12 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 		"CHANNEL_BRIDGE" ->
 			?INFO("Call bridged", []),
 			{outbound, State#state.agent, State};
-%			Call = State#state.callrec,
-%			case agent:set_state(State#state.agent_pid, outgoing, Call) of
-%				ok ->
-%					{noreply, State};
-%				invalid ->
-%					?WARNING("Cannot set agent ~p to oncall with media ~p", [State#state.agent_pid, Call#call.id]),
-%					{noreply, State}
-%			end;
 		"CHANNEL_HANGUP" ->
 			Elem1 = case proplists:get_value("variable_hangup_cause", Rest) of
 				"NO_ROUTE_DESTINATION" ->
 					?ERROR("No route to destination for outbound call", []),
 					noreply;
 				"NORMAL_CLEARING" ->
-					%agent:set_state(State#state.agent_pid, wrapup, State#state.callrec);
 					?INFO("Normal clearing", []),
 					wrapup;
 				"USER_BUSY" ->

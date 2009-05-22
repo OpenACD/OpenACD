@@ -147,27 +147,14 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 			Call = State#state.callrec,
 			gen_media:oncall(Call#call.source),
 			{noreply, State};
-%			case agent:set_state(State#state.agent_pid, oncall, Call) of
-%				ok ->
-%					Agent = agent:dump_state(State#state.agent_pid),
-%					cdr:oncall(Call, Agent#agent.login),
-%					gen_server:call(Call#call.source, unqueue),
-%					{noreply, State};
-%				invalid ->
-%					?WARNING("Cannot set agent ~p to oncall with media ~p", [State#state.agent_pid, Call#call.id]),
-%					{noreply, State}
-%			end;
 		"CHANNEL_UNBRIDGE" ->
-			%Agent = agent:dump_state(State#state.agent_pid),
 			cdr:hangup(State#state.callrec, agent),
-			%cdr:wrapup(State#state.callrec, Agent#agent.login),
 			{noreply, State};
 		"CHANNEL_HANGUP" ->
 			AState = agent:dump_state(State#state.agent_pid),
 			case AState#agent.state of
 				oncall ->
 					?NOTICE("Agent ~s still oncall when ring channel hungup", [AState#agent.login]),
-					%agent:set_state(State#state.agent_pid, wrapup, AState#agent.statedata);
 					ok;
 				_ ->
 					ok

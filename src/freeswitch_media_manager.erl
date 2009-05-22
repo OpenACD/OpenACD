@@ -163,13 +163,10 @@ stop() ->
 init([Nodename, Options]) -> 
 	?DEBUG("starting...", []),
 	process_flag(trap_exit, true),
-	%Self = self(),
 	Lpid = start_listener(Nodename),
 	Voicegateway = proplists:get_value(voicegateway, Options, ""),
 	monitor_node(Nodename, true),
 	freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{voicegateway, Voicegateway}]),
-	%T = freeswitch:event(Nodename, [channel_create, channel_answer, channel_destroy, channel_hangup, custom, 'fifo::info']),
-	%?CONSOLE("Attempted to start events:  ~p", [T]),
 	Domain = proplists:get_value(domain, Options, "localhost"),
 	{ok, #state{nodename=Nodename, domain=Domain, voicegateway = Voicegateway, xmlserver = Lpid}}.
 
@@ -177,13 +174,6 @@ init([Nodename, Options]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-%handle_call({ring_agent, AgentPid, Call}, _From, State) ->
-%	?CONSOLE("ring_agent to ~p for call ~p", [AgentPid, Call#queued_call.id]),
-%	AgentRec = agent:dump_state(AgentPid),
-%	Args = "{dstchan=" ++ Call#queued_call.id ++ ",agent="++ AgentRec#agent.login ++"}sofia/default/" ++ AgentRec#agent.login ++ "%" ++ State#state.domain ++ " '&erlang("++atom_to_list(?MODULE)++":! "++atom_to_list(node())++")'",
-%	X = freeswitch:api(State#state.nodename, originate, Args),
-%	?CONSOLE("Bgapi call res:  ~p;  With args: ~p", [X, Args]),
-%	{reply, agent:set_state(AgentPid, ringing, Call), State};
 
 handle_call({make_outbound_call, Number, AgentPid, AgentRec}, _From, #state{nodename = Node, domain = Domain} = State) ->
 	freeswitch_outbound:start(Node, AgentRec, AgentPid, Number, 30, Domain),
@@ -222,9 +212,6 @@ handle_info({new_pid, Ref, From}, State) ->
 	{ok, Pid} = freeswitch_media:start_link(State#state.nodename, State#state.domain),
 	From ! {Ref, Pid},
 	% even the media won't know the proper data for the call until later.
-	%Callrec = freeswitch_media:get_call(Pid),
-	%?CONSOLE("Callrec:  ~p", [Callrec]),
-	%NewDict = dict:store(Callrec#call.id, Pid, Dict),
 	{noreply, State};
 handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) -> 
 	?NOTICE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
@@ -303,7 +290,6 @@ listener(Node) ->
 	receive
 		{event, [UUID | _Event]} ->
 			?DEBUG("recieved event '~p' from c node.", [UUID]),
-			%gen_server:cast(?MODULE, Event), 
 			listener(Node);
 		{nodedown, Node} -> 
 			gen_server:cast(?MODULE, nodedown);

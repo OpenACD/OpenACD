@@ -264,6 +264,9 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 				Qpid ->
 					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
+		Tuple when element(1, Tuple) =:= outbound ->
+			{Reply, NewState} = outgoing(Tuple, State),
+			{reply, Reply, NewState};
 		{Agentact, Reply, NewState} when is_pid(State#state.agent_pid) ->
 			Midstate = agent_interact(Agentact, State),
 			{reply, Reply, Midstate#state{substate = NewState}}
@@ -305,6 +308,9 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 				Qpid ->
 					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
+		Tuple when element(1, Tuple) =:= outbound ->
+			{_Reply, NewState} = outgoing(Tuple, State),
+			{noreply, NewState};
 		{Agentact, NewState} when is_pid(State#state.agent_pid) ->
 			Midstate = agent_interact(Agentact, State),
 			{noreply, Midstate#state{substate = NewState}}
@@ -343,6 +349,9 @@ handle_info(Info, #state{callback = Callback} = State) ->
 				Qpid ->
 					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
+		Tuple when element(1, Tuple) =:= outbound ->
+			{_Reply, NewState} = outgoing(Tuple, State),
+			{noreply, NewState};
 		{Interact, NewState} when is_pid(State#state.agent_pid) ->
 			Midstate = agent_interact(Interact, State),
 			{noreply, Midstate#state{substate = NewState}}
@@ -380,6 +389,7 @@ queue(Queue, Callrec) ->
 			?DEBUG("Trying to add to queue...", []),
 			R = call_queue:add(Qpid, self(), Callrec),
 			?DEBUG("q response:  ~p", [R]),
+			?INFO("Queueing call ~s into ~s", [Callrec#call.id, Queue]),
 			%freeswitch_media_manager:queued_call(UUID, Qpid),
 			Qpid
 	end.
@@ -388,7 +398,8 @@ agent_interact(stop_ring, #state{agent_pid = Apid} = State) when State#state.rin
 	timer:cancel(State#state.ringout),
 	State#state{ringout = false};
 agent_interact(wrapup, #state{agent_pid = Apid} = State) ->
-	agent:set_state(wrapup, Apid, State#state.callrec),
+	?INFO("Attempting to set agent at ~p to wrapup", [Apid]),
+	agent:set_state(Apid, wrapup, State#state.callrec),
 	State;
 agent_interact(hangup, #state{agent_pid = Apid} = State) when is_pid(Apid) ->
 	case agent:query_state(Apid) of
@@ -405,6 +416,27 @@ agent_interact(hangup, #state{agent_pid = Apid} = State) when is_pid(Apid) ->
 agent_interact(hangup, #state{queue_pid = Qpid} = State) when is_pid(Qpid) ->
 	call_queue:remove(Qpid, self()),
 	State#state{queue_pid = undefined}.
+
+outgoing({outbound, Agent, NewState}, State) when is_record(State#state.callrec, call) ->
+	?INFO("Told to set ~s to outbound", [Agent]),
+	case agent_manager:query_agent(Agent) of
+		{true, Apid} ->
+			agent:set_state(Apid, outgoing, State#state.callrec),
+			{ok, State#state{agent_pid = Apid, substate = NewState}};
+		false ->
+			?ERROR("Agent ~s doesn't exists; can't set outgoing", [Agent]),
+			{{error, {noagent, Agent}}, State#state{substate = NewState}}
+	end;
+outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call), State#state.callrec =:= undefined ->
+	?INFO("Told to set ~s to outbound and call ~p", [Agent, Call]),
+	case agent_manager:query_agent(Agent) of
+		{true, Apid} ->
+			agent:set_state(Apid, outgoing, Call),
+			{ok, State#state{callrec = Call, substate = NewState, agent_pid = Apid}};
+		false ->
+			?ERROR("Agent ~s doesn't exists; can't set outgoing", [Agent]),
+			{{error, {noagent, Agent}}, State#state{substate = NewState, callrec = Call}}
+	end.
 
 -ifdef(EUNIT).
 

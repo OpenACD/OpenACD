@@ -210,6 +210,7 @@
 	announce/2,
 	stop_ringing/1,
 	oncall/1,
+	agent_transfer/2,
 	call/2,
 	call/3,
 	cast/2
@@ -219,7 +220,9 @@
 	callback,
 	substate,
 	callrec,
-	agent_pid,
+	ring_pid,
+	oncall_pid,
+	%agent_pid,
 	queue_pid,
 	ringout
 }).
@@ -235,7 +238,7 @@
 	(Info :: any()) -> 'undefined').
 behaviour_info(callbacks) ->
 	GS = gen_server:behaviour_info(callbacks),
-	lists:append([{handle_ring, 3}, {handle_ring_stop, 1}, {handle_answer, 3}, {handle_voicemail, 1}, {handle_announce, 2}], GS);
+	lists:append([{handle_ring, 3}, {handle_ring_stop, 1}, {handle_answer, 3}, {handle_voicemail, 1}, {handle_announce, 2}, {handle_agent_transfer, 3}], GS);
 behaviour_info(_Other) ->
     undefined.
 
@@ -270,6 +273,11 @@ stop_ringing(Genmedia) ->
 -spec(oncall/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 oncall(Genmedia) ->
 	gen_server:call(Genmedia, '$gen_media_agent_oncall').
+
+%% @doc Transfer the call from the agent it is associated with to a new agent.
+-spec(agent_transfer/2 :: (Genmedia :: pid(), Apid :: pid()) -> 'ok' | 'invalid').
+agent_transfer(Genmedia, Apid) ->
+	gen_server:call(Genmedia, {'$gen_media_agent_transfer', Apid}).
 
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
@@ -323,7 +331,7 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = C
 			case Callback:handle_ring(Agent, State#state.callrec, State#state.substate) of
 				{ok, Substate} ->
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
-					{reply, ok, State#state{substate = Substate, agent_pid = Agent, ringout=Tref}};
+					{reply, ok, State#state{substate = Substate, ring_pid = Agent, ringout=Tref}};
 				{invalid, Substate} ->
 					agent:set_state(Agent, idle),
 					{reply, invalid, State#state{substate = Substate}}
@@ -332,6 +340,11 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = C
 			?INFO("Agent ringing response:  ~p", [Else]),
 			{reply, invalid, State}
 	end;
+handle_call({'$gen_media_agent_transfer', Apid}, From, #state{callback = Callback, oncall_pid = Apid} = State) ->
+	?NOTICE("Can't transfer to yourself, silly ~p!", [Apid]),
+	{reply, invalid, State};
+%handle_call({'$gen_media_agent_transfer', Apid}, From, #state{callback = Callback} = State) ->
+	
 handle_call({'$gen_media_annouce', Annouce}, From, #state{callback = Callback} = State) ->
 	?INFO("Doing announce", []),
 	{ok, Substate} = Callback:handle_announce(Annouce, State),
@@ -340,27 +353,27 @@ handle_call('$gen_media_voicemail', From, #state{callback = Callback} = State) -
 	?INFO("trying to send media to voicemail", []),
 	{Res, Substate} = Callback:handle_voicemail(State#state.substate),
 	{reply, Res, State#state{substate = Substate}};
-handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback, agent_pid = Apid, callrec = #call{ring_path = inband} = Callrec} = State) ->
+handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback, ring_pid = Apid, callrec = #call{ring_path = inband} = Callrec} = State) ->
 	?INFO("oncall request from agent ~p", [Apid]),
 	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
 			timer:cancel(State#state.ringout),
 			unqueue(State#state.queue_pid, self()),
-			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined}};
+			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = Apid}};
 		{error, Reason, NewState} ->
 			{reply, invalid, State#state{substate = NewState}}
 	end;
-handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{agent_pid = Apid} = State) ->
+handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{ring_pid = Apid} = State) ->
 	?INFO("Cannot accept on call requests from agent (~p) unless ring_path is inband", [Apid]),
 	{reply, invalid, State};
-handle_call('$gen_media_agent_oncall', From, #state{agent_pid = Apid, callback = Callback} = State) ->
+handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = Callback} = State) ->
 	?INFO("oncall request from ~p; agent to set on call is ~p", [From, Apid]),
 	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
 			agent:set_state(Apid, oncall, State#state.callrec),
 			timer:cancel(State#state.ringout),
 			call_queue:remove(State#state.queue_pid, self()),
-			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined}};
+			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = Apid, ring_pid = undefined}};
 		{error, Reason, NewState} ->
 			{reply, invalid, State#state{substate = NewState}}
 	end;
@@ -388,7 +401,7 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 		Tuple when element(1, Tuple) =:= outbound ->
 			{Reply, NewState} = outgoing(Tuple, State),
 			{reply, Reply, NewState};
-		{Agentact, Reply, NewState} when is_pid(State#state.agent_pid) ->
+		{Agentact, Reply, NewState} when is_pid(State#state.oncall_pid) or is_pid(State#state.ring_pid) ->
 			Midstate = agent_interact(Agentact, State),
 			{reply, Reply, Midstate#state{substate = NewState}}
 	end.
@@ -416,7 +429,7 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 		Tuple when element(1, Tuple) =:= outbound ->
 			{_Reply, NewState} = outgoing(Tuple, State),
 			{noreply, NewState};
-		{Agentact, NewState} when is_pid(State#state.agent_pid) ->
+		{Agentact, NewState} when is_pid(State#state.oncall_pid) or is_pid(State#state.ring_pid) ->
 			Midstate = agent_interact(Agentact, State),
 			{noreply, Midstate#state{substate = NewState}}
 	end.
@@ -426,18 +439,18 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 
 %% @private
-handle_info({'$gen_media_stop_ring', _Cook}, #state{agent_pid = undefined} = State) ->
+handle_info({'$gen_media_stop_ring', _Cook}, #state{ring_pid = undefined} = State) ->
 	?NOTICE("No agent is ringing for this call", []),
 	{noreply, State};
 handle_info({'$gen_media_stop_ring', _Cook}, #state{ringout = false} = State) ->
 	?NOTICE("Ringout is set not to be handled", []),
 	{noreply, State};
-handle_info({'$gen_media_stop_ring', Cook}, #state{agent_pid = Apid, callback = Callback} = State) when is_pid(Apid) ->
+handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = Callback} = State) when is_pid(Apid) ->
 	?INFO("Handling ringout...", []),
 	agent:set_state(Apid, idle),
 	gen_server:cast(Cook, stop_ringing),
 	{ok, Newsub} = Callback:handle_ring_stop(State#state.substate),
-	{noreply, State#state{substate = Newsub, ringout = false}};
+	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined}};
 handle_info(Info, #state{callback = Callback} = State) ->
 	?DEBUG("Other info message, going directly to callback.  ~p", [Info]),
 	case Callback:handle_info(Info, State#state.substate) of
@@ -457,7 +470,7 @@ handle_info(Info, #state{callback = Callback} = State) ->
 		Tuple when element(1, Tuple) =:= outbound ->
 			{_Reply, NewState} = outgoing(Tuple, State),
 			{noreply, NewState};
-		{Interact, NewState} when is_pid(State#state.agent_pid) ->
+		{Interact, NewState} when is_pid(State#state.oncall_pid) or is_pid(State#state.ring_pid) ->
 			Midstate = agent_interact(Interact, State),
 			{noreply, Midstate#state{substate = NewState}}
 	end.
@@ -467,8 +480,12 @@ handle_info(Info, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 
 %% @private
-terminate(Reason, #state{callback = Callback} = State) ->
-	?DEBUG("gen_media termination due to ~p", [Reason]),
+terminate(Reason, #state{callback = Callback, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
+	Callback:terminate(Reason, State#state.substate);
+terminate(Reason, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
+	?NOTICE("gen_media termination due to ~p", [Reason]),
+	?INFO("Qpid ~p  oncall ~p  ring ~p", [Qpid, Ocpid, Rpid]),
+	agent_interact(hangup, State),
 	Callback:terminate(Reason, State#state.substate).
 
 %%--------------------------------------------------------------------
@@ -504,29 +521,29 @@ unqueue(Qpid, Callpid) when is_pid(Qpid) ->
 	call_queue:remove(Qpid, Callpid),
 	ok.
 
-agent_interact(stop_ring, #state{agent_pid = Apid} = State) when State#state.ringout =/= false ->
+agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ringout =/= false ->
+	?INFO("stop_ring", []),
 	timer:cancel(State#state.ringout),
-	State#state{ringout = false};
-agent_interact(wrapup, #state{agent_pid = Apid} = State) ->
+	State#state{ringout = false, ring_pid = undefined};
+agent_interact(wrapup, #state{oncall_pid = Apid} = State) ->
 	?INFO("Attempting to set agent at ~p to wrapup", [Apid]),
 	agent:set_state(Apid, wrapup, State#state.callrec),
-	State;
-agent_interact(hangup, #state{agent_pid = Apid} = State) when is_pid(Apid) ->
-	case agent:query_state(Apid) of
-		{ok, ringing} ->
-			?NOTICE("Caller hungup while agent was ringing", []),
-			agent:set_state(Apid, idle),
-			unqueue(State#state.queue_pid, self()),
-			State#state{agent_pid = undefined};
-		{ok, oncall} ->
-			agent:set_state(Apid, wrapup, State#state.callrec),
-			State#state{queue_pid = undefined};
-		{ok, released} ->
-			State;
-		{ok, idle} ->
-			State
-	end;
+	State#state{oncall_pid = undefined};
+agent_interact(hangup, #state{oncall_pid = Oncallpid, ring_pid = Ringpid} = State) when is_pid(Oncallpid), is_pid(Ringpid) ->
+	?INFO("hangup when both oncall and ring are pids", []),
+	agent:set_state(Ringpid, idle),
+	agent:set_state(Oncallpid, wrapup, State#state.callrec),
+	State#state{oncall_pid = undefined, ring_pid = undefined};
+agent_interact(hangup, #state{oncall_pid = Apid} = State) when is_pid(Apid) ->
+	?INFO("hangup when only oncall is a pid", []),
+	agent:set_state(Apid, wrapup, State#state.callrec),
+	State#state{oncall_pid = undefined};
+agent_interact(hangup, #state{ring_pid = Apid} = State) when is_pid(Apid) ->
+	?INFO("hangup when only ringing is a pid", []),
+	agent:set_state(Apid, idle),
+	State#state{ring_pid = undefined};
 agent_interact(hangup, #state{queue_pid = Qpid} = State) when is_pid(Qpid) ->
+	?INFO("hang up when only queue is a pid", []),
 	unqueue(Qpid, self()),
 	State#state{queue_pid = undefined}.
 
@@ -535,7 +552,7 @@ outgoing({outbound, Agent, NewState}, State) when is_record(State#state.callrec,
 	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
 			agent:set_state(Apid, outgoing, State#state.callrec),
-			{ok, State#state{agent_pid = Apid, substate = NewState}};
+			{ok, State#state{oncall_pid = Apid, substate = NewState}};
 		false ->
 			?ERROR("Agent ~s doesn't exists; can't set outgoing", [Agent]),
 			{{error, {noagent, Agent}}, State#state{substate = NewState}}
@@ -545,7 +562,7 @@ outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call), S
 	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
 			agent:set_state(Apid, outgoing, Call),
-			{ok, State#state{callrec = Call, substate = NewState, agent_pid = Apid}};
+			{ok, State#state{callrec = Call, substate = NewState, oncall_pid = Apid}};
 		false ->
 			?ERROR("Agent ~s doesn't exists; can't set outgoing", [Agent]),
 			{{error, {noagent, Agent}}, State#state{substate = NewState, callrec = Call}}

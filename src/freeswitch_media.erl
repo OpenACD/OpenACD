@@ -212,19 +212,19 @@ handle_call(get_queue, _From, State) ->
 	{reply, State#state.queue_pid, State};
 handle_call(get_agent, _From, State) ->
 	{reply, State#state.agent_pid, State};
-handle_call(unqueue, _From, #state{queue_pid = undefined} = State) ->
-	?WARNING("Cannot unqueue because there is no queue pid defined", []),
-	{reply, ok, State};
-handle_call(unqueue, _From, #state{queue_pid = Qpid, callrec = Callrec} = State) when is_pid(Qpid) ->
-	%% using a try in case the Qpid is dead.
-	try call_queue:remove(Qpid, Callrec#call.id) of
-		_Any ->
-			{reply, ok, State#state{queue_pid = undefined, queue = undefined}}
-	catch
-		_:_ ->
-			?WARNING("Cannot unqueue from ~p because it's dead.", [Qpid]),
-			{reply, ok, State#state{queue_pid = undefined, queue = undefined}}
-	end;
+%handle_call(unqueue, _From, #state{queue_pid = undefined} = State) ->
+%	?WARNING("Cannot unqueue because there is no queue pid defined", []),
+%	{reply, ok, State};
+%handle_call(unqueue, _From, #state{queue_pid = Qpid, callrec = Callrec} = State) when is_pid(Qpid) ->
+%	%% using a try in case the Qpid is dead.
+%	try call_queue:remove(Qpid, Callrec#call.id) of
+%		_Any ->
+%			{reply, ok, State#state{queue_pid = undefined, queue = undefined}}
+%	catch
+%		_:_ ->
+%			?WARNING("Cannot unqueue from ~p because it's dead.", [Qpid]),
+%			{reply, ok, State#state{queue_pid = undefined, queue = undefined}}
+%	end;
 handle_call({set_agent, Agent, Apid}, _From, State) ->
 	{reply, ok, State#state{agent = Agent, agent_pid = Apid}};
 handle_call(dump_state, _From, State) ->

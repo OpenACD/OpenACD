@@ -178,7 +178,7 @@ dojo.addOnLoad(function(){
 	});
 	
 	dijit.byId("btransfer").stateChanger = dojo.subscribe("agent/state", function(data){
-		var widget = diji.byId("btransfer");
+		var widget = dijit.byId("btransfer");
 		switch(data.state){
 			case "oncall":
 			case "warmtransfer":
@@ -188,6 +188,21 @@ dojo.addOnLoad(function(){
 			default:
 				widget.attr('style', 'display:onone');
 		}
+	});
+	
+	dijit.byId("transferToAgentMenuDyn").agentsAvail = dojo.subscribe("agent/available", function(data){
+		var widget = dijit.byId("transferToAgentMenuDyn");
+		widget.destroyDescendants()
+		dojo.forEach(data, function(i){
+			console.log(i);
+			var m = new dijit.MenuItem({
+				label: i,
+				onClick: function(){
+					Agent.transfer(escape(i));
+				}
+			});
+			widget.addChild(m);
+		});
 	});
 	
 	dijit.byId("bhangup").stateChanger = dojo.subscribe("agent/state", function(data){

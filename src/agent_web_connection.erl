@@ -230,6 +230,19 @@ handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
 	{reply, Astate, State};
+handle_call({agent_transfer, Agentname}, From, #state{agent_fsm = Apid} = State) ->
+	case agent_manager:query_agent(Agentname) of
+		{true, Target} ->
+			Reply = case agent:agent_transfer(Apid, Target) of
+				ok ->
+					{200, [], mochijson2:encode({struct, [{success, true}]})};
+				invalid ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
+			end,
+			{reply, Reply, State};
+		false ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}]})}, State}
+	end;
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?INFO("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of

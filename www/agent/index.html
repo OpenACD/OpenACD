@@ -288,13 +288,24 @@
 			</script>
 			<span>000</span>
 			<div dojoType="dijit.Menu" id="transfertomenu">
-				<div dojoType="dijit.MenuItem">000
-					<script type="dojo/method" evnet="postCreate">
-						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").AGENTS);
+				<div dojoType="dijit.PopupMenuItem" id="transferToAgentMenu">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").AGENT);
 					</script>
-					<script type="dojo/connect" event="onClick">
-						alert('nyi');
+					<script type="dojo/connect" event="onMouseEnter">
+						Agent.getAvailAgents();
 					</script>
+					<span>000</span>
+					<div dojoType="dijit.Menu" id="transferToAgentMenuDyn">
+					</div>
+				</div>
+				<div dojoType="dijit.PopupMenuItem">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").QUEUE);
+					</script>
+					<span>000</span>
+					<div dojoType="dijit.Menu">
+					</div>
 				</div>
 			</div>
 		</div>

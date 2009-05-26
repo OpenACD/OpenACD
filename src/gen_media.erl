@@ -397,6 +397,31 @@ handle_call('$gen_media_voicemail', From, #state{callback = Callback} = State) -
 	?INFO("trying to send media to voicemail", []),
 	{Res, Substate} = Callback:handle_voicemail(State#state.substate),
 	{reply, Res, State#state{substate = Substate}};
+handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{ring_pid = Apid, callrec = #call{ring_path = outband}} = State) ->
+	?INFO("Cannot accept on call requests from agent (~p) unless ring_path is inband", [Apid]),
+	{reply, invalid, State};
+handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid, callrec = #call{ring_path = inband} = Callrec} = State) when is_pid(Ocpid) ->
+	?INFO("oncall request during what looks like an agent transfer (inband)", []),
+	case Callback:handle_answer(Rpid, State#state.callrec, State#state.substate) of
+		{ok, NewState} ->
+			%agent:set_state(Rpid, oncall, State#state.callrec),
+			timer:cancel(State#state.ringout),
+			agent:set_state(Ocpid, wrapup, State#state.callrec),
+			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}};
+		{error, Reason, NewState} ->
+			{reply, invalid, State#state{substate = NewState}}
+	end;
+handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
+	?INFO("oncall request during what looks like an agent transfer (outofband)", []),
+	case Callback:handle_answer(Rpid, State#state.callrec, State#state.substate) of
+		{ok, NewState} ->
+			agent:set_state(Rpid, oncall, State#state.callrec),
+			timer:cancel(State#state.ringout),
+			agent:set_state(Ocpid, wrapup, State#state.callrec),
+			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}};
+		{error, Reason, NewState} ->
+			{reply, invalid, State#state{substate = NewState}}
+	end;
 handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback, ring_pid = Apid, callrec = #call{ring_path = inband} = Callrec} = State) ->
 	?INFO("oncall request from agent ~p", [Apid]),
 	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
@@ -407,20 +432,7 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 		{error, Reason, NewState} ->
 			{reply, invalid, State#state{substate = NewState}}
 	end;
-handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{ring_pid = Apid} = State) ->
-	?INFO("Cannot accept on call requests from agent (~p) unless ring_path is inband", [Apid]),
-	{reply, invalid, State};
-handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
-	?INFO("oncall request during what looks like an agent transfer", []),
-	case Callback:handle_answer(Rpid, State#state.callrec, State#state.substate) of
-		{ok, NewState} ->
-			agent:set_state(Rpid, oncall, State#state.callrec),
-			timer:cancel(State#state.ringout),
-			agent:set_state(Ocpid, wrapup, State#state.callrec),
-			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}};
-		{error, Reason, NewState} ->
-			{reply, invalid, State#state{substate = NewState}}
-	end;
+
 handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = Callback} = State) ->
 	?INFO("oncall request from ~p; agent to set on call is ~p", [From, Apid]),
 	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of

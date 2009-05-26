@@ -44,10 +44,17 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--endif.
--define(TICK_LENGTH, 500).
 
+-define(TICK_LENGTH, 500).
+-define(RINGOUT, 3).
+
+-else.
+
+-define(TICK_LENGTH, 500).
 -define(RINGOUT, 60).
+
+-endif.
+
 -define(DEFAULT_PATHCOST, 15).
 
 %% API
@@ -514,7 +521,7 @@ do_operation({_Conditions, Op, Args, _Runs}, Queuename, Callpid) when is_list(Qu
 		add_recipe ->
 			list_to_tuple(Args);
 		announce ->
-			gen_media:annouce(Callpid, Args),
+			gen_media:announce(Callpid, Args),
 			%gen_server:call(Callpid, {announce, Args}),
 			ok
 	end.
@@ -981,30 +988,34 @@ condition_checking_test_() ->
 
 
 agent_interaction_test_() ->
+	{timeout, 300,
 	{foreach,
 	fun() ->
 		test_primer(),
-		queue_manager:start([node()]),
+		?DEBUG("queue_manager:  ~p", [queue_manager:start([node()])]),
 		{ok, QPid} = queue_manager:add_queue("testqueue"),
+		?DEBUG("call_queue:  ~p", [QPid]),
 		{ok, MPid} = dummy_media:start("testcall"),
-		dispatch_manager:start(),
-		agent_auth:start(),
-		agent_manager:start([node()]),
+		?DEBUG("dummy_media:  ~p", [MPid]),
+		?DEBUG("dispatch_manager:  ~p", [dispatch_manager:start()]),
+		?DEBUG("agent_auth:  ~p", [agent_auth:start()]),
+		?DEBUG("agent_manager:  ~p", [agent_manager:start([node()])]),
 		{ok, APid} = agent_manager:start_agent(#agent{login = "testagent"}),
+		?DEBUG("agent:  ~p", [APid]),
 		{QPid, MPid, APid}
 	end,
 	fun({QPid, MPid, APid}) ->
-		dummy_media:stop(MPid),
+		?DEBUG("stopping dummy_media:  ~p", [dummy_media:stop(MPid)]),
+		?DEBUG("stopping dispatch_manager:  ~p", [dispatch_manager:stop()]),
 		try call_queue:stop(QPid)
 		catch
 			exit:{noproc, Detail} ->
 				?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
 		end,
-		agent_auth:stop(),
-		queue_manager:stop(),
-		dispatch_manager:stop(),
-		agent:stop(APid),
-		agent_manager:stop()
+		?DEBUG("stopping agent_auth:  ~p", [agent_auth:stop()]),
+		?DEBUG("stopping queue_manager:  ~p", [queue_manager:stop()]),
+		?DEBUG("stopping agent:  ~p", [agent:stop(APid)]),
+		?DEBUG("Stopping agent_manager:  ~p", [agent_manager:stop()])
 	end,
 	[
 		fun({QPid, MPid, APid}) ->
@@ -1042,7 +1053,7 @@ agent_interaction_test_() ->
 				% dispather unbinds, tests new agent
 				% ringout'th + 1 tick, rings to an agent
 				receive
-				after ?TICK_LENGTH * (?RINGOUT + 3) + 100 ->
+				after ?TICK_LENGTH * (?RINGOUT) + 100 ->
 					ok
 				end,
 				?CONSOLE("2nd test time!", []),
@@ -1114,6 +1125,7 @@ agent_interaction_test_() ->
 		end
 
 	]
+	}
 	}.
 
 multinode_test_() ->

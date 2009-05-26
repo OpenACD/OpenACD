@@ -282,6 +282,22 @@
 			</div>
 		</div>
 
+		<div dojoType="dijit.form.DropDownButton" id="btransfer" style="disply:none">
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").TRANSFERTOMENU);
+			</script>
+			<span>000</span>
+			<div dojoType="dijit.Menu" id="transfertomenu">
+				<div dojoType="dijit.MenuItem">000
+					<script type="dojo/method" evnet="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").AGENTS);
+					</script>
+					<script type="dojo/connect" event="onClick">
+						alert('nyi');
+					</script>
+				</div>
+			</div>
+		</div>
 
 		<div id="foo" style="clear:both;"><input type="text" value="" dojoType="dijit.form.ValidationTextBox" regExp="[\d]+" invalidMessage="Invalid number" id="dialbox" /></div>
 		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=agent.dial()>

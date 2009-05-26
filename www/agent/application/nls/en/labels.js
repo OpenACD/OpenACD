@@ -47,5 +47,6 @@
 	SIPHINT: "SIP URI (a host or IP with an optional port eg. myhost:5060)",
 	IAXTWOHINT: "IAX2 URI (a host or IP with an optional port eg. myhost:4569)",
 	HTHREETWOTHREEHINT: "H.323 URI (a host or IP with an optional port eg. myhost:1720)",
-	PSTNHINT: "Public telephone number"
+	PSTNHINT: "Public telephone number",
+	TRANSFERTOMENU: "Transfer to..."
 }

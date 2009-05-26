@@ -177,6 +177,19 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
+	dijit.byId("btransfer").stateChanger = dojo.subscribe("agent/state", function(data){
+		var widget = diji.byId("btransfer");
+		switch(data.state){
+			case "oncall":
+			case "warmtransfer":
+			case "outbound":
+				widget.attr('style', 'display:inline');
+				break;
+			default:
+				widget.attr('style', 'display:onone');
+		}
+	});
+	
 	dijit.byId("bhangup").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("bhangup");
 		console.log("bhangup");

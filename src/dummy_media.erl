@@ -144,9 +144,10 @@ q() ->
 	q("default_queue").
 
 q(Queuename) ->
-	{ok, Dummypid} = start_link([{id, erlang:ref_to_list(make_ref())}]),
-	Qpid = queue_manager:get_queue(Queuename),
-	{call_queue:add(Qpid, Dummypid), Dummypid}.
+	start_link([{id, erlang:ref_to_list(make_ref())}, {queue, Queuename}]).
+	%{ok, Dummypid} = start_link([{id, erlang:ref_to_list(make_ref())}]),
+	%Qpid = queue_manager:get_queue(Queuename),
+	%{call_queue:add(Qpid, Dummypid), Dummypid}.
 
 q_x(N) ->
 	F = fun() ->
@@ -184,7 +185,12 @@ init([Props, Fails]) ->
 			end,
 			lists:map(F, Fails)
 	end,
-	{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}, Callrec}}.
+	case proplists:get_value(queue, Props) of
+		undefined ->
+			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}, Callrec}};
+		Q ->
+			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}}, {Q, Callrec}}
+	end.
 
 	
 	
@@ -399,6 +405,9 @@ handle_ring_stop(State) ->
 
 build_call_rec([], Rec) ->
 	Rec;
+build_call_rec([{queue, _Q} | Tail], Rec) ->
+	% used by other parts of the init, ignore here.
+	build_call_rec(Tail, Rec);
 build_call_rec([{id, Id} | Tail], Rec) ->
 	build_call_rec(Tail, Rec#call{id = Id});
 build_call_rec([{type, Type} | Tail], Rec) ->

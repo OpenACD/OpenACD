@@ -140,7 +140,7 @@
 
 -ifdef(GEN_MEDIA).
 
--type(route_hint() :: {string(), #call{}} | 'undefined').
+-type(route_hint() :: {string(), #call{}} | 'undefined' | #call{}).
 
 -spec(init/1 :: (Args :: any()) -> {'ok', {any(), route_hint}}).
 -spec(handle_ring/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'invalid', state()}).

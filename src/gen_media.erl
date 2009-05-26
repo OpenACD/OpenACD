@@ -39,7 +39,7 @@
 %%	<b>init(Args) -> {ok, {State, Route_hint}}</b>
 %%		types:  Args = any()
 %%				State = any()
-%%				Route_hint = {Queue, #call{}} | undefined
+%%				Route_hint = {Queue, #call{}} | undefined | #call{}
 %%					Queue = string()
 %%
 %%		When gen_media starts, this function is called.  It should initialize
@@ -328,8 +328,20 @@ start(Callback, Args) ->
 
 %% @private
 init([Callback, Args]) ->
-	{ok, {Substate, Callrec}} = Callback:init(Args),
-    {ok, #state{callback = Callback, substate = Substate, callrec = Callrec}}.
+	case Callback:init(Args) of
+		{ok, {Substate, undefined}} ->
+		    {ok, #state{callback = Callback, substate = Substate, callrec = undefined}};
+		{ok, {Substate, {Queue, Callrec}}} when is_record(Callrec, call) ->
+			Qpid = case queue(Queue, Callrec) of
+				invalid when Queue =/= "default_queue" ->
+					queue("default_queue", Callrec);
+				Else ->
+					Else
+			end,
+			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec, queue_pid = Qpid}};
+		{ok, {Substate, Callrec}} when is_record(Callrec, call) ->
+			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec}}
+	end.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |

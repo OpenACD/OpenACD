@@ -58,6 +58,7 @@
 	handle_ring/3,
 	handle_voicemail/1,
 	handle_ring_stop/1,
+	handle_agent_transfer/4,
 	handle_call/3,
 	handle_cast/2,
 	handle_info/2,

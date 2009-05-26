@@ -186,7 +186,7 @@ dojo.addOnLoad(function(){
 				widget.attr('style', 'display:inline');
 				break;
 			default:
-				widget.attr('style', 'display:onone');
+				widget.attr('style', 'display:none');
 		}
 	});
 	

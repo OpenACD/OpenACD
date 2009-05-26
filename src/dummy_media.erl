@@ -189,7 +189,7 @@ init([Props, Fails]) ->
 		undefined ->
 			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}, Callrec}};
 		Q ->
-			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}}, {Q, Callrec}}
+			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}, {Q, Callrec}}}
 	end.
 
 	

@@ -376,7 +376,7 @@ handle_call({'$gen_media_agent_transfer', Apid, Timeout}, From, #state{callback 
 			case Callback:handle_agent_transfer(Apid, State#state.callrec, Timeout, State#state.substate) of
 				{ok, NewState} ->
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', dummy}),
-					{reply, ok, State#state{ring_pid = Apid, ringout = Tref}};
+					{reply, ok, State#state{ring_pid = Apid, ringout = Tref, substate = NewState}};
 				{error, Error, NewState} ->
 					?NOTICE("Could not set agent ringing for transfer due to ~p", [Error]),
 					agent:set_state(Apid, idle),
@@ -386,6 +386,9 @@ handle_call({'$gen_media_agent_transfer', Apid, Timeout}, From, #state{callback 
 			?NOTICE("Could not ring to target agent ~p", [Apid]),
 			{reply, invalid, State}
 	end;
+handle_call({'$gen_media_agent_transfer', _Apid, _Timeout}, _From, State) ->
+	?ERROR("Invalid agent transfer sent when state is ~p.", [State]),
+	{reply, invalid, State};
 handle_call({'$gen_media_annouce', Annouce}, From, #state{callback = Callback} = State) ->
 	?INFO("Doing announce", []),
 	{ok, Substate} = Callback:handle_announce(Annouce, State),
@@ -400,7 +403,7 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 		{ok, NewState} ->
 			timer:cancel(State#state.ringout),
 			unqueue(State#state.queue_pid, self()),
-			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = Apid}};
+			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, ring_pid = undefined, oncall_pid = Apid}};
 		{error, Reason, NewState} ->
 			{reply, invalid, State#state{substate = NewState}}
 	end;

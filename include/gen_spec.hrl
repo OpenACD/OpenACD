@@ -140,12 +140,15 @@
 
 -ifdef(GEN_MEDIA).
 
--spec(init/1 :: (Args :: any()) -> {'ok', {any(), #call{}}}).
+-type(route_hint() :: {string(), #call{}} | 'undefined').
+
+-spec(init/1 :: (Args :: any()) -> {'ok', {any(), route_hint}}).
 -spec(handle_ring/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'invalid', state()}).
 -spec(handle_ring_stop/1 :: (State :: state()) -> {'ok', state()}).
 -spec(handle_answer/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'error', any(), state()}).
 -spec(handle_voicemail/1 :: (State :: state()) -> {'ok', state()} | {'invalid', state()}).
 -spec(handle_announce/2 :: (Annouce :: any(), State :: state()) -> {'ok', state()}).
+-spec(handle_agent_transfer/4 :: (Agent :: pid(), Call :: #call{}, Timeout :: pos_integer(), State :: state()) -> {'ok', state()} | {'error', any(), state()}).
 -spec(handle_call/3 :: (Event :: any(), From :: {pid(), any()}, State :: state()) -> 
 	{'reply', any(), state()} | 
 	{'reply', any(), state(), gen_timeout()} | 

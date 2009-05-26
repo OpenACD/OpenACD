@@ -156,6 +156,9 @@ handle_ring_stop(State) ->
 handle_voicemail(State) ->
 	{invalid, State}.
 
+handle_agent_transfer(Agent, Call, Timeout, State) ->
+	{error, outgoing_only, State}.
+
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------

@@ -36,10 +36,11 @@
 %%
 %%	Callback functions:
 %%
-%%	<b>init(Args) -> {ok, {State, Call}}</b>
+%%	<b>init(Args) -> {ok, {State, Route_hint}}</b>
 %%		types:  Args = any()
 %%				State = any()
-%%				Call = #call{} | undefined
+%%				Route_hint = {Queue, #call{}} | undefined
+%%					Queue = string()
 %%
 %%		When gen_media starts, this function is called.  It should initialize
 %%		All required data.
@@ -125,6 +126,20 @@
 %%
 %%		When a recipe calls for a call in queue to play an announcement, this
 %%		function is called.  Execution then continues with NewState.
+%%	<b>handle_agent_transfer(Agent, Call, Timeout, State) -> Result</b>
+%%		types:	Agent = pid()
+%%				Call = #call{}
+%%				Timeout = pos_integer()
+%%				State = any()
+%%				Result = {ok, NewState} | {error, Error, NewState}
+%%					NewState = State = any()
+%%					Error = any()
+%%
+%%		When a media should be transfered to another agent, this is one of the
+%%		first step.  The target agent is set to ringing, then this callback
+%%		is used to verify that.  If the callback returns {ok, NewState}, 
+%%		execution continues with NewState, and gen_media handles with oncall or
+%%		a ringout.
 %%
 %%	<b>Extended gen_server Callbacks</b>
 %%

@@ -988,7 +988,6 @@ condition_checking_test_() ->
 
 
 agent_interaction_test_() ->
-	{timeout, 300,
 	{foreach,
 	fun() ->
 		test_primer(),
@@ -1125,7 +1124,6 @@ agent_interaction_test_() ->
 		end
 
 	]
-	}
 	}.
 
 multinode_test_() ->

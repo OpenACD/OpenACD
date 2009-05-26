@@ -141,6 +141,13 @@
 %%		execution continues with NewState, and gen_media handles with oncall or
 %%		a ringout.
 %%
+%%	<b>handle_queue_transfer(State) -> {ok, NewState}</b>
+%%		types:	State = NewState = any()
+%%
+%%		When a media is placed back into queue from an agent, this is called
+%%		To allow the media to do any required clean up or unbridging.
+%%		Execution then continues with NewState.
+%%
 %%	<b>Extended gen_server Callbacks</b>
 %%
 %%	In addition to the usual replies gen_server expects from it's callbacks of
@@ -226,6 +233,7 @@
 	stop_ringing/1,
 	oncall/1,
 	agent_transfer/3,
+	queue/2,
 	call/2,
 	call/3,
 	cast/2
@@ -253,7 +261,15 @@
 	(Info :: any()) -> 'undefined').
 behaviour_info(callbacks) ->
 	GS = gen_server:behaviour_info(callbacks),
-	lists:append([{handle_ring, 3}, {handle_ring_stop, 1}, {handle_answer, 3}, {handle_voicemail, 1}, {handle_announce, 2}, {handle_agent_transfer, 4}], GS);
+	lists:append(GS, [
+		{handle_ring, 3},
+		{handle_ring_stop, 1},
+		{handle_answer, 3}, 
+		{handle_voicemail, 1}, 
+		{handle_announce, 2}, 
+		{handle_agent_transfer, 4},
+		{handle_queue_transfer, 1}
+	]);
 behaviour_info(_Other) ->
     undefined.
 
@@ -294,6 +310,11 @@ oncall(Genmedia) ->
 agent_transfer(Genmedia, Apid, Timeout) ->
 	gen_server:call(Genmedia, {'$gen_media_agent_transfer', Apid, Timeout}).
 
+%% @doc Transfer the passed media into the given queue.
+-spec(queue/2 :: (Genmedia :: pid(), Queue :: string()) -> 'ok' | 'invalid').
+queue(Genmedia, Queue) ->
+	gen_server:call(Genmedia, {'$gen_media_queue', Queue}).
+
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
 call(Genmedia, Request) ->
@@ -332,9 +353,9 @@ init([Callback, Args]) ->
 		{ok, {Substate, undefined}} ->
 		    {ok, #state{callback = Callback, substate = Substate, callrec = undefined}};
 		{ok, {Substate, {Queue, Callrec}}} when is_record(Callrec, call) ->
-			Qpid = case queue(Queue, Callrec) of
+			Qpid = case priv_queue(Queue, Callrec) of
 				invalid when Queue =/= "default_queue" ->
-					queue("default_queue", Callrec);
+					priv_queue("default_queue", Callrec);
 				Else ->
 					Else
 			end,
@@ -348,6 +369,23 @@ init([Callback, Args]) ->
 %%--------------------------------------------------------------------
 
 %% @private
+handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = Ocpid} = State) ->
+	case priv_queue(Queue, State#state.callrec) of
+		invalid ->
+			{reply, invalid, State};
+		Qpid when is_pid(Qpid) ->
+			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
+			{reply, ok, State#state{substate = NewState, oncall_pid = undefined}}
+	end;
+handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = State) when is_pid(State#state.oncall_pid) ->
+	case priv_queue(Queue, State#state.callrec) of
+		invalid ->
+			{reply, invalid, State};
+		Qpid when is_pid(Qpid) ->
+			agent:set_state(State#state.oncall_pid, wrapup, State#state.callrec),
+			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
+			{reply, ok, State#state{substate = NewState, oncall_pid = undefined}}
+	end;
 handle_call('$gen_media_get_call', From, State) ->
 	{reply, State#state.callrec, State};
 handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = Call, callback = Callback} = State) ->
@@ -459,7 +497,7 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
 		{queue, Queue, Callrec, NewState} ->
-			case queue(Queue, Callrec) of
+			case priv_queue(Queue, Callrec) of
 				invalid ->
 					{reply, {error, {noqueue, Queue}}, State#state{callrec = Callrec, substate = NewState}};
 				Qpid ->
@@ -487,7 +525,7 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
 		{queue, Queue, Callrec, NewState} ->
-			case queue(Queue, Callrec) of
+			case priv_queue(Queue, Callrec) of
 				invalid ->
 					{noreply, State#state{callrec = Callrec, substate = NewState}};
 				Qpid ->
@@ -528,7 +566,7 @@ handle_info(Info, #state{callback = Callback} = State) ->
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
 		{queue, Queue, Callrec, NewState} ->
-			case queue(Queue, Callrec) of
+			case priv_queue(Queue, Callrec) of
 				invalid ->
 					{noreply, State#state{callrec = Callrec, substate = NewState}};
 				Qpid ->
@@ -568,7 +606,7 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-queue(Queue, Callrec) ->
+priv_queue(Queue, Callrec) ->
 	case queue_manager:get_queue(Queue) of
 		undefined ->
 			% TODO what to do w/ the call w/ no queue?

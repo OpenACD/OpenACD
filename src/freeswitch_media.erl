@@ -201,6 +201,9 @@ handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 			{error, Error, State}
 	end.
 
+handle_queue_transfer(State) ->
+	% TODO fully implement this.
+	{ok, State}.
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------

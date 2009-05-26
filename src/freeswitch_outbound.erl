@@ -160,6 +160,10 @@ handle_voicemail(State) ->
 handle_agent_transfer(Agent, Call, Timeout, State) ->
 	{error, outgoing_only, State}.
 
+handle_queue_transfer(State) ->
+	% TODO flesh this out.
+	{ok, State}.
+
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------

@@ -481,7 +481,8 @@ handle_info({'EXIT', From, Reason}, StateName, State) ->
 		From ->
 			agent_manager_exit(Reason, StateName, State);
 		_Else ->
-			?INFO("unknown exit", [])
+			?INFO("unknown exit from ~p", [From]),
+			{next_state, StateName, State}
 	end;
 handle_info(_Info, StateName, State) ->
 	{next_state, StateName, State}.

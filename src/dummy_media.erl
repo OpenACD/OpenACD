@@ -353,7 +353,7 @@ code_change(_OldVsn, State, _Extra) ->
 handle_announce(_Annouce, State) ->
 	{ok, State}.
 
-handle_answer(Agent, Call, #state{fail = Fail} = State) ->
+handle_answer(_Agent, _Call, #state{fail = Fail} = State) ->
 	case dict:fetch(oncall, Fail) of
 		success ->
 			%agent:set_state(Agent, oncall, Call),
@@ -365,7 +365,7 @@ handle_answer(Agent, Call, #state{fail = Fail} = State) ->
 			{error, dummy_fail, State#state{fail = Newfail}}
 	end.
 
-handle_ring(Agent, Call, #state{fail = Fail} = State) ->
+handle_ring(_Agent, _Call, #state{fail = Fail} = State) ->
 	case dict:fetch(ring_agent, Fail) of
 		success ->
 			{ok, State};
@@ -544,9 +544,9 @@ set_action_test_() ->
 		{"Setting everything to a success",
 		fun() ->
 			{reply, ok, Newstate} = handle_call(set_success, self(), State),
-			Test = fun(Key, success, Acc) ->
+			Test = fun(_Key, success, Acc) ->
 					[true | Acc];
-				(Key, _Other, Acc) ->
+				(_Key, _Other, Acc) ->
 					[false | Acc]
 			end,
 			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
@@ -556,9 +556,9 @@ set_action_test_() ->
 		{"Setting everything to a failure",
 		fun() ->
 			{reply, ok, Newstate} = handle_call(set_failure, self(), State),
-			Test = fun(Key, fail, Acc) ->
+			Test = fun(_Key, fail, Acc) ->
 					[true | Acc];
-				(Key, _Other, Acc) ->
+				(_Key, _Other, Acc) ->
 					[false | Acc]
 			end,
 			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
@@ -572,7 +572,7 @@ set_action_test_() ->
 					[true | Acc];
 				(announce, "goober", Acc) ->
 					[true | Acc];
-				(Key, Val, Acc) ->
+				(_Key, _Val, Acc) ->
 					[false, Acc]
 			end,
 			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
@@ -586,7 +586,7 @@ set_action_test_() ->
 					[true | Acc];
 				(announce, "goober", Acc) ->
 					[true | Acc];
-				(Key, Val, Acc) ->
+				(_Key, _Val, Acc) ->
 					[false | Acc]
 			end,
 			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
@@ -600,7 +600,7 @@ set_action_test_() ->
 					[true | Acc];
 				(announce, "goober", Acc) ->
 					[true | Acc];
-				(Key, Val, Acc) ->
+				(_Key, _Val, Acc) ->
 					[false | Acc]
 			end,
 			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))

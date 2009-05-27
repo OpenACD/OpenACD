@@ -197,7 +197,7 @@ handle_call(poll, _From, #state{poll_queue = Pollq} = State) ->
 	{reply, {200, [], mochijson2:encode(Json2)}, State2};
 handle_call(logout, _From, State) ->
 	{stop, normal, {200, [{"Set-Cookie", "cpx_id=dead"}], mochijson2:encode({struct, [{success, true}]})}, State};
-handle_call(get_avail_agents, From, State) ->
+handle_call(get_avail_agents, _From, State) ->
 	Agents = agent_manager:find_avail_agents_by_skill(['_all']),
 	Noms = [list_to_binary(N) || {N, _Pid, _Rec} <- Agents],
 	{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"agents">>, Noms}]})}, State};
@@ -230,7 +230,7 @@ handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
 	{reply, Astate, State};
-handle_call({agent_transfer, Agentname}, From, #state{agent_fsm = Apid} = State) ->
+handle_call({agent_transfer, Agentname}, _From, #state{agent_fsm = Apid} = State) ->
 	case agent_manager:query_agent(Agentname) of
 		{true, Target} ->
 			Reply = case agent:agent_transfer(Apid, Target) of
@@ -491,10 +491,10 @@ encode_call(Call) when is_record(Call, queued_call) ->
 	Newlist = [{<<"skills">>, cpx_web_management:encode_skills(Call#queued_call.skills)} | proplists:delete(<<"skills">>, Encodebase)],
 	{struct, Newlist}.
 
-encode_calls([], Acc) ->
-	lists:reverse(Acc);
-encode_calls([Head | Tail], Acc) ->
-	encode_calls(Tail, [encode_call(Head) | Acc]).
+%encode_calls([], Acc) ->
+%	lists:reverse(Acc);
+%encode_calls([Head | Tail], Acc) ->
+%	encode_calls(Tail, [encode_call(Head) | Acc]).
 
 encode_client(undefined) ->
 	undefined;
@@ -505,10 +505,10 @@ encode_client(Client) when is_record(Client, client) ->
 		{<<"brand">>, Client#client.brand}
 	]}.
 
-encode_clients([], Acc) ->
-	lists:reverse(Acc);
-encode_clients([Head | Tail], Acc) ->
-	encode_clients(Tail, [encode_client(Head) | Acc]).
+%encode_clients([], Acc) ->
+%	lists:reverse(Acc);
+%encode_clients([Head | Tail], Acc) ->
+%	encode_clients(Tail, [encode_client(Head) | Acc]).
 
 encode_queue_list([], Acc) ->
 	lists:reverse(Acc);

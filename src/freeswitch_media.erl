@@ -76,6 +76,7 @@
 	handle_voicemail/1,
 	handle_announce/2,
 	handle_agent_transfer/4,
+	handle_queue_transfer/1,
 	handle_wrapup/1,
 	handle_call/3, 
 	handle_cast/2, 
@@ -114,13 +115,13 @@ start_link(Cnode, Domain) ->
 get_call(MPid) ->
 	gen_media:get_call(MPid).
 
--spec(get_queue/1 :: (MPid :: pid()) -> pid()).
-get_queue(MPid) ->
-	gen_media:call(MPid, get_queue).
-
--spec(get_agent/1 :: (MPid :: pid()) -> pid()).
-get_agent(MPid) ->
-	gen_media:call(MPid, get_agent).
+%-spec(get_queue/1 :: (MPid :: pid()) -> pid()).
+%get_queue(MPid) ->
+%	gen_media:call(MPid, get_queue).
+%
+%-spec(get_agent/1 :: (MPid :: pid()) -> pid()).
+%get_agent(MPid) ->
+%	gen_media:call(MPid, get_agent).
 
 -spec(dump_state/1 :: (Mpid :: pid()) -> #state{}).
 dump_state(Mpid) when is_pid(Mpid) ->
@@ -140,7 +141,7 @@ handle_announce(Announcement, #state{callrec = Callrec} = State) ->
 			{"execute-app-arg", Announcement}]),
 	{ok, State}.
 
-handle_answer(Apid, Callrec, State) ->
+handle_answer(_Apid, _Callrec, State) ->
 	{ok, State}.
 
 handle_ring(Apid, Callrec, State) ->
@@ -177,7 +178,7 @@ handle_voicemail(State) ->
 
 handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
-	#agent{login = Recipient} = AgentRec = agent:dump_state(AgentPid),
+	AgentRec = agent:dump_state(AgentPid),
 	%#agent{login = Offerer} = agent:dump_state(Offererpid),
 	%Ringout = Timeout div 1000,
 	%?DEBUG("ringout ~p", [Ringout]),
@@ -340,7 +341,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 							ok
 					end,
 					Callerid = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
-					NewCall = Callrec#call{id=UUID, client=Clientrec, callerid=Callerid, source=self()},
+					_NewCall = Callrec#call{id=UUID, client=Clientrec, callerid=Callerid, source=self()},
 					freeswitch:sendmsg(State#state.cnode, UUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "answer"}]),

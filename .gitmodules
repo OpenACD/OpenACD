@@ -1,0 +1,3 @@
+[submodule "contrib/gen_smtp"]
+	path = contrib/gen_smtp
+	url = git://github.com/Vagabond/gen_smtp.git

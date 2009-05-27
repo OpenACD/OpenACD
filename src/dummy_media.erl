@@ -145,8 +145,10 @@ set_mode(Pid, Action, Mode) ->
 q() ->
 	q("default_queue").
 
+q([H | _Tail] = Props) when is_tuple(H) ->
+	start_link(Props);
 q(Queuename) ->
-	start_link([{id, erlang:ref_to_list(make_ref())}, {queue, Queuename}]).
+	q([{id, erlang:ref_to_list(make_ref())}, {queue, Queuename}]).
 	%{ok, Dummypid} = start_link([{id, erlang:ref_to_list(make_ref())}]),
 	%Qpid = queue_manager:get_queue(Queuename),
 	%{call_queue:add(Qpid, Dummypid), Dummypid}.
@@ -507,8 +509,8 @@ dummy_test_() ->
 		{
 			"Answer voicemail call when set to fail",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
-				?assertMatch(invalid, gen_media:voicemail(Dummypid))
+				{ok, {State, _Call}} = init([[], failure]),
+				?assertMatch({invalid, State}, handle_voicemail(State))
 			end
 		},
 		{

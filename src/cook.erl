@@ -543,13 +543,14 @@ queue_interaction_test_() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue("testqueue"),
-			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
+			%{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
 			%dummy_media:set_skills(Dummy, [english, testskill]),
-			register(media_dummy, Dummy),
-			{Pid, Dummy}
+			%register(media_dummy, Dummy),
+			Dummyprops = [{id, "testcall"}, {skills, [english, testskill]}, {queue, "testqueue"}],
+			{Pid, Dummyprops}
 		end,
-		fun({Pid, _Dummy}) ->
-			unregister(media_dummy),
+		fun({Pid, _Dummyprops}) ->
+			%unregister(media_dummy),
 			try call_queue:stop(Pid)
 			catch
 				exit:{noproc, Detail} ->
@@ -558,245 +559,263 @@ queue_interaction_test_() ->
 			queue_manager:stop()
 		end,
 		[
-			{"Add skills once",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]),
-				call_queue:add(Pid, whereis(media_dummy)),
-				receive
-				after ?TICK_LENGTH + 2000 ->
-					true
-				end,
-				{_Key, #queued_call{skills=CallSkills}} = call_queue:ask(Pid),
-				?assertEqual(lists:sort([english, testskill, newskill1, newskill2, {'_node', node()}]), lists:sort(CallSkills))
-			end},
-			{"remove skills once",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], remove_skills, [testskill], run_once}]),
-				call_queue:add(Pid, whereis(media_dummy)),
-				receive
-				after ?TICK_LENGTH + 2000 ->
-					true
-				end,
-				{_Key, #queued_call{skills=CallSkills}} = call_queue:ask(Pid),
-				?assertEqual([{'_node', node()}, english], CallSkills)
-			end},
-			{"Set Priority once",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], set_priority, [5], run_once}]),
-				call_queue:add(Pid, whereis(media_dummy)),
-				receive
-				after ?TICK_LENGTH + 2000 ->
-					true
-				end,
-				{{Prior, _Time}, _Call} = call_queue:ask(Pid),
-				?assertEqual(5, Prior)
-			end},
-			{"Prioritize once",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], prioritize, [], run_once}]),
-				{ok, Dummy1} = dummy_media:start("C1"),
-				call_queue:add(Pid, Dummy1),
-				receive
-				after ?TICK_LENGTH * 3 ->
-					ok
-				end,
-				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
-				?assertEqual(2, Prior)
-			end},
-			{"Prioritize many (waiting for 2 ticks)",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], prioritize, [], run_many}]),
-				{ok, Dummy1} = dummy_media:start("C1"),
-				call_queue:add(Pid, Dummy1),
-				receive
-				after ?TICK_LENGTH * 2 + 100 ->
-					ok
-				end,
-				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
-				?assertEqual(3, Prior)
-			end},
-			{"Deprioritize once",
-			fun() -> 
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], deprioritize, [], run_once}]),
-				{ok, Dummy1} = dummy_media:start("C1"),
-				call_queue:add(Pid, 2, Dummy1),
-				receive
-				after ?TICK_LENGTH * 3 ->
-					ok
-				end,
-				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
-				?assertEqual(1, Prior)
-			end},
-			{"Deprioritize many (waiting for 2 ticks)",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], deprioritize, [], run_many}]),
-				{ok, Dummy1} = dummy_media:start("C1"),
-				call_queue:add(Pid, 4, Dummy1),
-				receive
-				after ?TICK_LENGTH * 2 + 100 ->
-					ok
-				end,
-				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
-				?assertEqual(2, Prior)
-			end},
-			{"Deprioritize to below zero",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], deprioritize, [], run_many}]),
-				{ok, Dummy1} = dummy_media:start("C1"),
-				call_queue:add(Pid, 1, Dummy1),
-				receive
-				after ?TICK_LENGTH * 2 + 100 ->
-					ok
-				end,
-				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
-				?assertEqual(0, Prior)
-			end},
-			{"Add recipe once",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], add_recipe, [[], prioritize, [], run_once], run_once}]),
-				Dummy1 = whereis(media_dummy),
-				call_queue:add(Pid, Dummy1),
-				receive
-				after ?TICK_LENGTH * 2 + 100 ->
-					ok
-				end,
-				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
-				?assertEqual(2, Prior)
-			end},
-			{"Add recipe many",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				Subrecipe = [[], prioritize, [], run_many],
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], add_recipe, Subrecipe, run_many}]),
-				Dummy1 = whereis(media_dummy),
-				call_queue:add(Pid, Dummy1),
-				receive
-				after ?TICK_LENGTH * 3 + 100 ->
-					ok
-				end,
-				{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
-				?assertEqual(4, Prior)
-			end},
-			{"Voice mail once for supported media",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], voicemail, [], run_once}]),
-				Dummy1 = whereis(media_dummy),
-				call_queue:add(Pid, Dummy1),
-				receive
-				after ?TICK_LENGTH * 2 + 100 ->
-					ok
-				end,
-				?assertEqual(none, call_queue:get_call(Pid, Dummy1))
-			end},
-			{"Voicemail for unsupported media",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], voicemail, [], run_once}]),
-				Dummy1 = whereis(media_dummy),
-				call_queue:add(Pid, Dummy1),
-				gen_media:call(Dummy1, set_failure),
-				receive
-				after ?TICK_LENGTH + 100 ->
-					gen_media:call(Dummy1, set_success)
-				end,
-				?assertMatch({_Key, #queued_call{id="testcall"}}, call_queue:get_call(Pid, Dummy1))
-			end},
-			{"Annouce (media doesn't matter)",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], announce, "random data", run_once}]),
-				Dummy1 = whereis(media_dummy),
-				call_queue:add(Pid, Dummy1),
-				receive
-				after ?TICK_LENGTH + 100 ->
-					ok
-				end,
-				?assertMatch({_Key, #queued_call{id="testcall"}}, call_queue:get_call(Pid, Dummy1))
-			end},
-			{"Skip some ticks",
-			fun() ->
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:set_recipe(Pid, [{[{ticks, 2}], prioritize, [], run_many}]),
-				Dummy1 = whereis(media_dummy),
-				call_queue:add(Pid, Dummy1),
-				receive
-				after ?TICK_LENGTH * 4 + 100 ->
-					ok
-				end,
-				{{Priority, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
-				?assertEqual(3, Priority)
-			end
-			},
-			{"Waiting for queue rebirth",
-			fun() ->
-				call_queue_config:new_queue(#call_queue{
-					name = "testqueue",
-					recipe = [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]
-				}),
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				call_queue:add(Pid, whereis(media_dummy)),
-				{_Pri, _CallRec} = call_queue:ask(Pid),
-				?assertEqual(1, call_queue:call_count(Pid)),
-				timer:sleep(100), % TODO this is hear because the cook is not started quickly.
-					% thus, if the queue dies while the cook is starting, the media is orphaned.
-					% we should prolly do somthing about that.
-				gen_server:call(Pid, {stop, testy}),
-				?assert(is_process_alive(Pid) =:= false),
-				receive
-				after 1000 ->
-					ok
-				end,
-				NewPid = queue_manager:get_queue("testqueue"),
-				?CONSOLE("The calls:  ~p", [call_queue:print(NewPid)]),
-				?assertEqual(1, call_queue:call_count(NewPid)),
-				call_queue:stop(NewPid),
-				call_queue_config:destroy_queue("testqueue")
-			end
-			},
-			{"Queue Manager dies",
-			fun() ->
-				call_queue_config:new_queue(#call_queue{
-					name = "testqueue",
-					recipe = [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]
-				}),
-				QMPid = whereis(queue_manager),
-				{exists, Pid} = queue_manager:add_queue("testqueue"),
-				?assertEqual(0, call_queue:call_count(Pid)),
-				call_queue:add(Pid, whereis(media_dummy)),
-				{_Pri, _CallRec} = call_queue:ask(Pid),
-				?assertEqual(1, call_queue:call_count(Pid)),
-				?CONSOLE("before death:  ~p", [call_queue:print(Pid)]),
-				exit(QMPid, kill),
-				receive
-				after 300 ->
-					ok
-				end,
+			fun({Pid, Dummyprops}) ->
+				{"Add skills once",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]),
+					dummy_media:q(Dummyprops),
+					%call_queue:add(Pid, whereis(media_dummy)),
+					receive
+					after ?TICK_LENGTH + 2000 ->
+						true
+					end,
+					{_Key, #queued_call{skills=CallSkills}} = call_queue:ask(Pid),
+					?assertEqual(lists:sort([english, testskill, newskill1, newskill2, {'_node', node()}]), lists:sort(CallSkills))
+				end}
+			end,
+			fun({Pid, Props}) ->
+				{"remove skills once",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], remove_skills, [testskill], run_once}]),
+					dummy_media:q(Props),
+					receive
+					after ?TICK_LENGTH + 2000 ->
+						true
+					end,
+					{_Key, #queued_call{skills=CallSkills}} = call_queue:ask(Pid),
+					?assertEqual([{'_node', node()}, english], CallSkills)
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Set Priority once",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], set_priority, [5], run_once}]),
+					dummy_media:q(D),
+					receive
+					after ?TICK_LENGTH + 2000 ->
+						true
+					end,
+					{{Prior, _Time}, _Call} = call_queue:ask(Pid),
+					?assertEqual(5, Prior)
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Prioritize once",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], prioritize, [], run_once}]),
+					%{ok, Dummy1} = dummy_media:start("C1"),
+					%call_queue:add(Pid, Dummy1),
+					{ok, Dummy1} = dummy_media:q(D),
+					receive
+					after ?TICK_LENGTH * 3 ->
+						ok
+					end,
+					{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+					?assertEqual(2, Prior)
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Prioritize many (waiting for 2 ticks)",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], prioritize, [], run_many}]),
+					%{ok, Dummy1} = dummy_media:start("C1"),
+					%call_queue:add(Pid, Dummy1),
+					{ok, Dummy1} = dummy_media:q(D),
+					receive
+					after ?TICK_LENGTH * 2 + 100 ->
+						ok
+					end,
+					{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+					?assertEqual(3, Prior)
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Deprioritize once",
+				fun() -> 
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], deprioritize, [], run_once}]),
+					%{ok, Dummy1} = dummy_media:start("C1"),
+					%call_queue:add(Pid, 2, Dummy1),
+					{ok, Dummy1} = dummy_media:q(D),
+					call_queue:set_priority(Pid, Dummy1, 2),
+					receive
+					after ?TICK_LENGTH * 3 ->
+						ok
+					end,
+					{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+					?assertEqual(1, Prior)
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Deprioritize many (waiting for 2 ticks)",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], deprioritize, [], run_many}]),
+					%{ok, Dummy1} = dummy_media:start("C1"),
+					%call_queue:add(Pid, 4, Dummy1),
+					{ok, Dummy1} = dummy_media:q(D),
+					call_queue:set_priority(Pid, Dummy1, 4),
+					receive
+					after ?TICK_LENGTH * 2 + 100 ->
+						ok
+					end,
+					{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+					?assertEqual(2, Prior)
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Deprioritize to below zero",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], deprioritize, [], run_many}]),
+					%{ok, Dummy1} = dummy_media:start("C1"),
+					%call_queue:add(Pid, 1, Dummy1),
+					{ok, Dummy1} = dummy_media:q(D),
+					receive
+					after ?TICK_LENGTH * 2 + 100 ->
+						ok
+					end,
+					{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+					?assertEqual(0, Prior)
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Add recipe once",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], add_recipe, [[], prioritize, [], run_once], run_once}]),
+					{ok, Dummy1} = dummy_media:q(D),
+					receive
+					after ?TICK_LENGTH * 2 + 100 ->
+						ok
+					end,
+					{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+					?assertEqual(2, Prior)
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Add recipe many",
+				fun() ->
+					Subrecipe = [[], prioritize, [], run_many],
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], add_recipe, Subrecipe, run_many}]),
+					{ok, Dummy1} = dummy_media:q(D),
+					receive
+					after ?TICK_LENGTH * 3 + 100 ->
+						ok
+					end,
+					{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+					?assertEqual(4, Prior)
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Voice mail once for supported media",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], voicemail, [], run_once}]),
+					{ok, Dummy1} = dummy_media:q(D),
+					receive
+					after ?TICK_LENGTH * 2 + 100 ->
+						ok
+					end,
+					?assertEqual(none, call_queue:get_call(Pid, Dummy1))
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Voicemail for unsupported media",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], voicemail, [], run_once}]),
+					{ok, Dummy1} = dummy_media:q(D),
+					dummy_media:set_mode(Dummy1, voicemail, fail),
+					%gen_media:call(Dummy1, set_failure),
+					receive
+					after ?TICK_LENGTH + 100 ->
+						%gen_media:call(Dummy1, set_success)
+						ok
+					end,
+					?assertMatch({_Key, #queued_call{id="testcall"}}, call_queue:get_call(Pid, Dummy1))
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Annouce (media doesn't matter)",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 1}], announce, "random data", run_once}]),
+					{ok, Dummy1} = dummy_media:q(D),
+					receive
+					after ?TICK_LENGTH + 100 ->
+						ok
+					end,
+					?assertMatch({_Key, #queued_call{id="testcall"}}, call_queue:get_call(Pid, Dummy1))
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Skip some ticks",
+				fun() ->
+					call_queue:set_recipe(Pid, [{[{ticks, 2}], prioritize, [], run_many}]),
+					{ok, Dummy1} = dummy_media:q(D),
+					receive
+					after ?TICK_LENGTH * 4 + 100 ->
+						ok
+					end,
+					{{Priority, _Time}, _Call} = call_queue:get_call(Pid, Dummy1),
+					?assertEqual(3, Priority)
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Waiting for queue rebirth",
+				fun() ->
+					call_queue_config:new_queue(#call_queue{
+						name = "testqueue",
+						recipe = [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]
+					}),
+					dummy_media:q(D),
+					%call_queue:add(Pid, whereis(media_dummy)),
+					{_Pri, _CallRec} = call_queue:ask(Pid),
+					?assertEqual(1, call_queue:call_count(Pid)),
+					timer:sleep(100), % TODO this is hear because the cook is not started quickly.
+						% thus, if the queue dies while the cook is starting, the media is orphaned.
+						% we should prolly do somthing about that.
+					gen_server:call(Pid, {stop, testy}),
+					?assert(is_process_alive(Pid) =:= false),
+					receive
+					after 1000 ->
+						ok
+					end,
+					NewPid = queue_manager:get_queue("testqueue"),
+					?CONSOLE("The calls:  ~p", [call_queue:print(NewPid)]),
+					?assertEqual(1, call_queue:call_count(NewPid)),
+					call_queue:stop(NewPid),
+					call_queue_config:destroy_queue("testqueue")
+				end}
+			end,
+			fun({Pid, D}) ->
+				{"Queue Manager dies",
+				fun() ->
+					call_queue_config:new_queue(#call_queue{
+						name = "testqueue",
+						recipe = [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]
+					}),
+					QMPid = whereis(queue_manager),
+					?assertEqual(0, call_queue:call_count(Pid)),
+					dummy_media:q(D),
+					{_Pri, _CallRec} = call_queue:ask(Pid),
+					?assertEqual(1, call_queue:call_count(Pid)),
+					?CONSOLE("before death:  ~p", [call_queue:print(Pid)]),
+					exit(QMPid, kill),
+					receive
+					after 300 ->
+						ok
+					end,
 
-				?assert(is_process_alive(QMPid) =:= false),
-				?assert(is_process_alive(Pid) =:= false),
-				queue_manager:start([node()]),
-				receive
-				after 1000 ->
-					ok
-				end,
-				NewPid = queue_manager:get_queue("testqueue"),
-				?assertNot(QMPid =:= NewPid),
+					?assert(is_process_alive(QMPid) =:= false),
+					?assert(is_process_alive(Pid) =:= false),
+					queue_manager:start([node()]),
+					receive
+					after 1000 ->
+						ok
+					end,
+					NewPid = queue_manager:get_queue("testqueue"),
+					?assertNot(QMPid =:= NewPid),
 
-				?assertEqual(1, call_queue:call_count(NewPid)),
-				call_queue:stop(NewPid),
-				call_queue_config:destroy_queue("testqueue")
+					?assertEqual(1, call_queue:call_count(NewPid)),
+					call_queue:stop(NewPid),
+					call_queue_config:destroy_queue("testqueue")
+				end}
 			end
-			}
 		]
 	}
 	}.	

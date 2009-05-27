@@ -488,9 +488,13 @@ handle_call({'$gen_media_annouce', Annouce}, _From, #state{callback = Callback} 
 	{reply, ok, State#state{substate = Substate}};
 handle_call('$gen_media_voicemail', _From, #state{callback = Callback} = State) when is_pid(State#state.queue_pid) ->
 	?INFO("trying to send media to voicemail", []),
-	{Res, Substate} = Callback:handle_voicemail(State#state.substate),
-	call_queue:remove(State#state.queue_pid, self()),
-	{reply, Res, State#state{substate = Substate}};
+	case Callback:handle_voicemail(State#state.substate) of
+		{ok, Substate} ->
+			call_queue:remove(State#state.queue_pid, self()),
+			{reply, ok, State#state{substate = Substate}};
+		{invalid, Substate} ->
+			{reply, invalid, State#state{substate = Substate}}
+	end;
 handle_call('$gen_media_voicemail', _From, #state{queue_pid = undefined} = State) ->
 	?ERROR("voicemail only valid when the media is queued", []),
 	{reply, invalid, State};

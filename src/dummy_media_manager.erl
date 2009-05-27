@@ -93,6 +93,9 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+handle_info(spawn, State) ->
+	dummy_media:q(),
+	{noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 

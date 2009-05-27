@@ -33,10 +33,10 @@ ERLC_FLAGS = "-I#{INCLUDE} -D #{OTPVERSION} +warn_unused_vars +warn_unused_impor
 
 SRC = FileList['src/*.erl']
 HEADERS = FileList['include/*.hrl']
-OBJ = SRC.pathmap("%{src,ebin}X.beam").reject{|x| x.include? 'test_coverage'}
+OBJ = SRC.pathmap("%{src,ebin}X.beam")
 CONTRIB = FileList['contrib/*']
 DEBUGOBJ = SRC.pathmap("%{src,debug_ebin}X.beam")
-COVERAGE = SRC.pathmap("%{src,coverage}X.txt").reject{|x| x.include? 'test_coverage'}
+COVERAGE = SRC.pathmap("%{src,coverage}X.txt")
 RELEASE = FileList['src/*.rel.src'].pathmap("%{src,ebin}X")
 
 # check to see if gmake is available, if not fall back on the system make
@@ -99,7 +99,7 @@ rule ".rel" => ["%{ebin,src}X.rel.src"] do |t|
 	end
 end
 
-rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam'] do |t|
+rule ".txt" => ["%{coverage,debug_ebin}X.beam"] do |t|
 	mod = File.basename(t.source, '.beam')
 	if ENV['modules'] and not ENV['modules'].split(',').include? mod
 		puts "skipping tests for #{mod}"
@@ -108,7 +108,7 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam", 'debug_ebin/test_coverage.beam']
 
 	print "  #{mod.ljust(@maxwidth - 1)} : "
 	STDOUT.flush
-	test_output = `erl -pa debug_ebin -pa contrib/mochiweb/ebin -sname testpx -s test_coverage start #{mod} -run init stop`
+	test_output = `erl -noshell -pa debug_ebin -pa contrib/mochiweb/ebin -sname testpx -eval '  cover:start(), cover:compile_beam("#{t.source}"), try eunit:test(#{mod}, [verbose]) of _Any -> cover:analyse_to_file(#{mod}, "coverage/#{mod}.txt"), cover:analyse_to_file(#{mod}, "coverage/#{mod}.html", [html]) catch _:_ -> io:format("This module does not provide a test() function~n"), ok end.' -s erlang halt`
 	if /(All \d+ tests (successful|passed)|There were no tests to run|This module does not provide a test\(\) function|Test (successful|passed))/ =~ test_output
 		File.delete(t.to_s+'.failed') if File.exists?(t.to_s+'.failed')
 		if ENV['verbose']
@@ -151,6 +151,11 @@ task :contrib do
 			Dir.chdir(cont)
 			sh "#{$0}"
 			Dir.chdir(pwd)
+		else
+			STDERR.puts "Don't know how to build for #{cont}"
+		end
+		unless Dir["#{cont}/ebin/*.beam"].length.zero?
+			sh "cp #{cont}/ebin/*.beam ebin"
 		end
 	end
 	unless Dir["src/*.app"].length.zero?
@@ -182,11 +187,18 @@ namespace :test do
 			elsif File.exists? File.join(cont, 'Rakefile')
 				pwd = Dir.pwd
 				Dir.chdir(cont)
-				sh "#{$0} debug=yes"
+				sh "#{$0}"
 				Dir.chdir(pwd)
+			else
+				STDERR.puts "Don't know how to build for #{cont}"
+			end
+			unless Dir["#{cont}/ebin/*.beam"].length.zero?
+				sh "cp #{cont}/ebin/*.beam debug_ebin"
 			end
 		end
-		sh "cp src/*.app debug_ebin/"
+		unless Dir["src/*.app"].length.zero?
+			sh "cp src/*.app debug_ebin/"
+		end
 	end
 
 	desc "run eunit tests and output coverage reports"
@@ -264,7 +276,8 @@ namespace :test do
 		dialyzer_flags = ""
 		dialyzer_flags += " -DEUNIT=1" if ENV['dialyzer_debug']
 		dialyzer_flags += " -Wunderspecs" if ENV['dialyzer_underspecced']
-		dialyzer_output = `dialyzer -D#{OTPVERSION}=1 #{dialyzer_flags} --src -I include -c #{SRC.reject{|x| x =~ /test_coverage/}.join(' ')} contrib/misc/src/*.erl contrib/mochiweb/src/*.erl`
+		contribfiles = Dir['contrib**/*.erl'].join(' ')
+		dialyzer_output = `dialyzer -D#{OTPVERSION}=1 #{dialyzer_flags} --src -I include -c #{SRC.join(' ')} #{contribfiles}`
 		#puts dialyzer_output
 		if $?.exitstatus.zero?
 			puts 'ok'
@@ -278,6 +291,6 @@ namespace :test do
 	task :build_plt do
 		out = `which erlc`
 		foo = out.split('/')[0..-3].join('/')+'/lib/erlang/lib'
-		sh "dialyzer --build_plt -r #{foo}/kernel*/ebin #{foo}/stdlib*/ebin #{foo}/mnesia*/ebin #{foo}/crypto*/ebin"
+		sh "dialyzer --build_plt -r #{foo}/kernel*/ebin #{foo}/stdlib*/ebin #{foo}/mnesia*/ebin #{foo}/crypto*/ebin #{foo}/eunit*/ebin"
 	end
 end

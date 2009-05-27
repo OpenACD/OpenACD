@@ -91,5 +91,5 @@ end
 #end
 
 #puts "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
-exec "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
+exec "erl -pa #{$ebin} -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
 #erl -pa ebin/ -pa contrib/mochiweb/ebin/ -setcookie ClueCon -sname testme -config single -boot ebin/cpx-rel-0.1

@@ -3,11 +3,7 @@ require 'rake/clean'
 ERLC_FLAGS = "+warn_unused_vars +warn_unused_import"
 
 SRC = FileList['src/*.erl']
-if ENV['debug'] == 'yes'
-	DESTDIR = '../../debug_ebin'
-else
-	DESTDIR = '../../ebin'
-end
+DESTDIR = 'ebin'
 OBJ = SRC.pathmap("%{src,#{DESTDIR}}X.beam")
 
 verbose(true)

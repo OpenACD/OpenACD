@@ -143,6 +143,10 @@ task :compile => [:contrib, 'ebin'] + HEADERS + OBJ + RELEASE do
 end
 
 task :contrib do
+	if File.directory? ".git"
+		sh "git submodule init"
+		sh "git submodule update"
+	end
 	CONTRIB.each do |cont|
 		if File.exists? File.join(cont, 'Makefile')
 			sh "#{MAKE} -C #{cont}"
@@ -181,6 +185,10 @@ namespace :test do
 	task :compile => [:contrib, 'debug_ebin'] + HEADERS + DEBUGOBJ
 
 	task :contrib do
+		if File.directory? ".git"
+			sh "git submodule init"
+			sh "git submodule update"
+		end
 		CONTRIB.each do |cont|
 			if File.exists? File.join(cont, 'Makefile')
 				sh "#{MAKE} -C #{cont}"

@@ -31,7 +31,7 @@
 -module(freeswitch_outbound).
 -author("Micah").
 
--behaviour(gen_server).
+-behaviour(gen_media).
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
@@ -51,27 +51,44 @@
 	]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3]).
+-export([
+	init/1,
+	handle_announce/2,
+	handle_answer/3,
+	handle_ring/3,
+	handle_voicemail/1,
+	handle_ring_stop/1,
+	handle_agent_transfer/4,
+	handle_wrapup/1,
+	handle_call/3,
+	handle_cast/2,
+	handle_info/2,
+	terminate/2,
+	code_change/3]).
 
 -record(state, {
 	cnode :: atom(),
 	uuid :: any(),
 	agent_pid :: pid(),
+	agent :: string(),
 	callrec :: #call{}
 	}).
+
+-type(state() :: #state{}).
+-define(GEN_MEDIA, true).
+-include("gen_spec.hrl").
 
 %%====================================================================
 %% API
 %%====================================================================
 start(Fnode, AgentRec, Apid, Number, Ringout, Domain) when is_pid(Apid) ->
-	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout, Domain], []).
+	gen_media:start(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout, Domain]).
 
 start_link(Fnode, AgentRec, Apid, Number, Ringout, Domain) when is_pid(Apid) ->
-	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout, Domain], []).
+	gen_media:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout, Domain]).
 
 hangup(Pid) ->
-	gen_server:cast(Pid, hangup).
+	gen_media:cast(Pid, hangup).
 
 %%====================================================================
 %% gen_server callbacks
@@ -85,11 +102,10 @@ init([Fnode, AgentRec, Apid, Number, Ringout, _Domain]) ->
 			?INFO("Originating outbound call with args: ~p", [Args]),
 			F = fun(ok, _Reply) ->
 					% agent picked up?
-					%agent:set_state(Apid, outgoing, Call);
 					ok;
 				(error, Reply) ->
 					?WARNING("originate failed: ~p", [Reply]),
-					agent:set_state(Apid, idle)
+					ok
 			end,
 			case freeswitch:bgapi(Fnode, originate, Args, F) of
 				ok ->
@@ -116,14 +132,42 @@ init([Fnode, AgentRec, Apid, Number, Ringout, _Domain]) ->
 							{stop, {error, Other}};
 						_Else ->
 							?DEBUG("starting for ~p", [UUID]),
-							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Call}}
+							{ok, {#state{cnode = Fnode, uuid = UUID, agent_pid = Apid, agent = AgentRec#agent.login, callrec = Call}, Call}}
 					end;
 				Else ->
 					?ERROR("bgapi call failed ~p", [Else]),
 					{stop, {error, Else}}
 			end
 	end.
+%%--------------------------------------------------------------------
+%% Description: gen_media
+%%--------------------------------------------------------------------
 
+handle_announce(_Announce, State) ->
+	{ok, State}.
+	
+handle_answer(_Apid, _Call, State) ->
+	{error, outgoing_only, State}.
+
+handle_ring(_Apid, _Call, State) ->
+	{error, outgoing_only, State}.
+	
+handle_ring_stop(State) ->
+	{ok, State}.
+
+handle_voicemail(State) ->
+	{invalid, State}.
+
+handle_agent_transfer(Agent, Call, Timeout, State) ->
+	{error, outgoing_only, State}.
+
+handle_queue_transfer(State) ->
+	% TODO flesh this out.
+	{ok, State}.
+
+handle_wrapup(State) ->
+	{ok, State}.
+	
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
@@ -153,28 +197,26 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 	case Event of
 		"CHANNEL_BRIDGE" ->
 			?INFO("Call bridged", []),
-			Call = State#state.callrec,
-			case agent:set_state(State#state.agent_pid, outgoing, Call) of
-				ok ->
-					{noreply, State};
-				invalid ->
-					?WARNING("Cannot set agent ~p to oncall with media ~p", [State#state.agent_pid, Call#call.id]),
-					{noreply, State}
-			end;
+			{outbound, State#state.agent, State};
 		"CHANNEL_HANGUP" ->
-			case proplists:get_value("variable_hangup_cause", Rest) of
+			Elem1 = case proplists:get_value("variable_hangup_cause", Rest) of
 				"NO_ROUTE_DESTINATION" ->
-					?ERROR("No route to destination for outbound call", []);
+					?ERROR("No route to destination for outbound call", []),
+					noreply;
 				"NORMAL_CLEARING" ->
-					agent:set_state(State#state.agent_pid, wrapup, State#state.callrec);
+					?INFO("Normal clearing", []),
+					wrapup;
 				"USER_BUSY" ->
-					?WARNING("Agent's phone rejected the call", []);
+					?WARNING("Agent's phone rejected the call", []),
+					noreply;
 				"NO_ANSWER" ->
-					?NOTICE("Agent rangout on outbound call", []);
+					?NOTICE("Agent rangout on outbound call", []),
+					noreply;
 				Else ->
-					?INFO("Hangup cause: ~p", [Else])
+					?INFO("Hangup cause: ~p", [Else]),
+					noreply
 			end,
-			{noreply, State};
+			{Elem1, State};
 		_Else ->
 			?DEBUG("call_event ~p", [Event]),
 			{noreply, State}

@@ -383,7 +383,9 @@ handle_event(["TRANSFER", Counter, "agent", Agent], State) when is_integer(Count
 			case AState#agent.state of
 				oncall ->
 					Call = AState#agent.statedata,
-					gen_server:call(Call#call.source, {transfer_agent, AgentPid, 100}),
+					% TODO Move this to a more logical place.  Maybe agent?
+					gen_media:agent_transfer(Call#call.source, AgentPid, 60000),
+					%gen_server:call(Call#call.source, {transfer_agent, AgentPid, 100}),
 					{ack(Counter), State};
 				_ ->
 					{err(Counter, "Agent must be oncall to make a transfer"), State}

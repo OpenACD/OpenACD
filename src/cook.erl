@@ -44,10 +44,17 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--endif.
--define(TICK_LENGTH, 500).
 
--define(RINGOUT, 4).
+-define(TICK_LENGTH, 500).
+-define(RINGOUT, 3).
+
+-else.
+
+-define(TICK_LENGTH, 500).
+-define(RINGOUT, 60).
+
+-endif.
+
 -define(DEFAULT_PATHCOST, 15).
 
 %% API
@@ -167,15 +174,17 @@ handle_cast(restart_tick, State) ->
 handle_cast(stop_tick, State) ->
 	timer:cancel(State#state.tref),
 	{noreply, State#state{tref=undefined}};
-handle_cast({stop_ringing, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
-	?DEBUG("Ordered to stop ringing ~p", [AgentPid]),
-	agent:set_state(AgentPid, idle),
-	gen_server:cast(State#state.call, stop_ringing),
-	{noreply, State#state{ringingto=undefined}};
-handle_cast({stop_ringing_keep_state, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
-	?DEBUG("Ordered to stop ringing without changing state ~p", [AgentPid]),
-	gen_server:cast(State#state.call, stop_ringing),
-	{noreply, State#state{ringingto=undefined}};
+handle_cast(stop_ringing, State) ->
+	{noreply, State#state{ringingto = undefined, ringcount = 0}};
+%handle_cast({stop_ringing, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
+%	?DEBUG("Ordered to stop ringing ~p", [AgentPid]),
+%	agent:set_state(AgentPid, idle),
+%	%gen_media:stop_ringing(State#state.call),
+%	{noreply, State#state{ringingto=undefined}};
+%handle_cast({stop_ringing_keep_state, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
+%	?DEBUG("Ordered to stop ringing without changing state ~p", [AgentPid]),
+%	%gen_media:stop_ringing(State#state.call),
+%	{noreply, State#state{ringingto=undefined}};
 handle_cast(remove_from_queue, State) ->
 	Qpid = queue_manager:get_queue(State#state.queue),
 	call_queue:remove(Qpid, State#state.call),
@@ -366,10 +375,11 @@ offer_call([], _Call) ->
 	?DEBUG("No valid agents found", []),
 	none;
 offer_call([{_ACost, Apid} | Tail], Call) ->
-	case gen_server:call(Call#queued_call.media, {ring_agent, Apid, Call, ?TICK_LENGTH * (?RINGOUT + 1)}) of
+	case gen_media:ring(Call#queued_call.media, Apid, Call, ?TICK_LENGTH * ?RINGOUT) of
+	%case gen_server:call(Call#queued_call.media, {ring_agent, Apid, Call, ?TICK_LENGTH * (?RINGOUT + 1)}) of
 		ok ->
 			Agent = agent:dump_state(Apid),
-			Callrec = gen_server:call(Call#queued_call.media, get_call),
+			Callrec = gen_media:get_call(Call#queued_call.media),
 			?INFO("cook offering call:  ~p to ~p", [Callrec#call.id, Agent#agent.login]),
 			cdr:ringing(Callrec, Agent#agent.login),
 			Apid;
@@ -475,34 +485,35 @@ do_recipe([{Conditions, Op, Args, Runs} | Recipe], Ticked, Queuename, Call) when
 %	[Head | do_recipe(Recipe, Ticked, Queuename, Call)].
 
 %% @private
--spec(do_operation/3 :: (Recipe :: recipe_step(), Queuename :: string(), Callid :: pid()) -> 'ok' | recipe_step()).
-do_operation({_Conditions, Op, Args, _Runs}, Queuename, Callid) when is_list(Queuename), is_pid(Callid) ->
+-spec(do_operation/3 :: (Recipe :: recipe_step(), Queuename :: string(), Callpid :: pid()) -> 'ok' | recipe_step()).
+do_operation({_Conditions, Op, Args, _Runs}, Queuename, Callpid) when is_list(Queuename), is_pid(Callpid) ->
 	?INFO("do_operation ~p with args ~p", [Op, Args]),
 	Pid = queue_manager:get_queue(Queuename), %TODO look up the pid only once, maybe?
 	case Op of
 		add_skills ->
-			call_queue:add_skills(Pid, Callid, Args),
+			call_queue:add_skills(Pid, Callpid, Args),
 			ok;
 		remove_skills ->
-			call_queue:remove_skills(Pid, Callid, Args),
+			call_queue:remove_skills(Pid, Callpid, Args),
 			ok;
 		set_priority ->
 			[Priority] = Args,
-			call_queue:set_priority(Pid, Callid, Priority),
+			call_queue:set_priority(Pid, Callpid, Priority),
 			ok;
 		prioritize ->
-			{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Callid),
-			call_queue:set_priority(Pid, Callid, Prior + 1),
+			{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Callpid),
+			call_queue:set_priority(Pid, Callpid, Prior + 1),
 			ok;
 		deprioritize ->
-			{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Callid),
-			call_queue:set_priority(Pid, Callid, Prior - 1),
+			{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Callpid),
+			call_queue:set_priority(Pid, Callpid, Prior - 1),
 			ok;
 		voicemail ->
-			case gen_server:call(Callid, voicemail) of
+			case gen_media:voicemail(Callpid) of
+			%case gen_server:call(Callpid, voicemail) of
 				ok ->
 					?DEBUG("voicemail successfully, removing from queue", []),
-					call_queue:bgremove(Pid, Callid);
+					call_queue:bgremove(Pid, Callpid);
 				invalid ->
 					?WARNING("voicemail failed.", []),
 					ok
@@ -510,7 +521,8 @@ do_operation({_Conditions, Op, Args, _Runs}, Queuename, Callid) when is_list(Que
 		add_recipe ->
 			list_to_tuple(Args);
 		announce ->
-			gen_server:call(Callid, {announce, Args}),
+			gen_media:announce(Callpid, Args),
+			%gen_server:call(Callpid, {announce, Args}),
 			ok
 	end.
 
@@ -531,8 +543,8 @@ queue_interaction_test_() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue("testqueue"),
-			{ok, Dummy} = dummy_media:start("testcall"),
-			dummy_media:set_skills(Dummy, [english, testskill]),
+			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
+			%dummy_media:set_skills(Dummy, [english, testskill]),
 			register(media_dummy, Dummy),
 			{Pid, Dummy}
 		end,
@@ -692,10 +704,10 @@ queue_interaction_test_() ->
 				call_queue:set_recipe(Pid, [{[{ticks, 1}], voicemail, [], run_once}]),
 				Dummy1 = whereis(media_dummy),
 				call_queue:add(Pid, Dummy1),
-				gen_server:call(Dummy1, set_failure),
+				gen_media:call(Dummy1, set_failure),
 				receive
 				after ?TICK_LENGTH + 100 ->
-					gen_server:call(Dummy1, set_success)
+					gen_media:call(Dummy1, set_success)
 				end,
 				?assertMatch({_Key, #queued_call{id="testcall"}}, call_queue:get_call(Pid, Dummy1))
 			end},
@@ -795,8 +807,8 @@ tick_manipulation_test_() ->
 		test_primer(),
 		queue_manager:start([node()]),
 		{ok, Pid} = queue_manager:add_queue("testqueue"),
-		{ok, Dummy} = dummy_media:start("testcall"),
-		dummy_media:set_skills(Dummy, [english, testskill]),
+		{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
+		%dummy_media:set_skills(Dummy, [english, testskill]),
 		{Pid, Dummy}
 	end,
 	fun({Pid, Dummy}) ->
@@ -879,16 +891,17 @@ condition_checking_test_() ->
 				?assertEqual(false, check_conditions([{ticks, 2}], 3, "testqueue", Mpid))
 			end}
 		end,
-		fun({Qpid, Mpid}) ->
+		fun({Qpid, _Mpid}) ->
 			{"Checks for the number of eligible agents correctly",
 			fun() ->
+				{ok, Mpid} = dummy_media:start([{id, "testcall"}, {skills, [cando]}]),
 				{ok, Eligible1} = agent_manager:start_agent(#agent{login = "eligible1", skills = [cando]}),
 				{ok, Eligible2} = agent_manager:start_agent(#agent{login = "eligible2", skills = [cando]}),
 				{ok, Eligible3} = agent_manager:start_agent(#agent{login = "elibible3", skills = [cando]}),
 				agent:set_state(Eligible2, idle),
 				agent:set_state(Eligible3, idle),
 				{ok, Noteligible} = agent_manager:start_agent(#agent{login = "noteligible", skills = [nodo]}),
-				dummy_media:set_skills(Mpid, [cando]),
+				%dummy_media:set_skills(Mpid, [cando]),
 				call_queue:add(Qpid, Mpid),
 				call_queue:remove_skills(Qpid, Mpid, [english, '_node']),
 				?assertEqual(false, check_conditions([{eligible_agents, '>', 3}], 0, "testqueue", Mpid)),
@@ -978,27 +991,30 @@ agent_interaction_test_() ->
 	{foreach,
 	fun() ->
 		test_primer(),
-		queue_manager:start([node()]),
+		?DEBUG("queue_manager:  ~p", [queue_manager:start([node()])]),
 		{ok, QPid} = queue_manager:add_queue("testqueue"),
+		?DEBUG("call_queue:  ~p", [QPid]),
 		{ok, MPid} = dummy_media:start("testcall"),
-		dispatch_manager:start(),
-		agent_auth:start(),
-		agent_manager:start([node()]),
+		?DEBUG("dummy_media:  ~p", [MPid]),
+		?DEBUG("dispatch_manager:  ~p", [dispatch_manager:start()]),
+		?DEBUG("agent_auth:  ~p", [agent_auth:start()]),
+		?DEBUG("agent_manager:  ~p", [agent_manager:start([node()])]),
 		{ok, APid} = agent_manager:start_agent(#agent{login = "testagent"}),
+		?DEBUG("agent:  ~p", [APid]),
 		{QPid, MPid, APid}
 	end,
 	fun({QPid, MPid, APid}) ->
-		dummy_media:stop(MPid),
+		?DEBUG("stopping dummy_media:  ~p", [dummy_media:stop(MPid)]),
+		?DEBUG("stopping dispatch_manager:  ~p", [dispatch_manager:stop()]),
 		try call_queue:stop(QPid)
 		catch
 			exit:{noproc, Detail} ->
 				?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
 		end,
-		agent_auth:stop(),
-		queue_manager:stop(),
-		dispatch_manager:stop(),
-		agent:stop(APid),
-		agent_manager:stop()
+		?DEBUG("stopping agent_auth:  ~p", [agent_auth:stop()]),
+		?DEBUG("stopping queue_manager:  ~p", [queue_manager:stop()]),
+		?DEBUG("stopping agent:  ~p", [agent:stop(APid)]),
+		?DEBUG("Stopping agent_manager:  ~p", [agent_manager:stop()])
 	end,
 	[
 		fun({QPid, MPid, APid}) ->
@@ -1036,7 +1052,7 @@ agent_interaction_test_() ->
 				% dispather unbinds, tests new agent
 				% ringout'th + 1 tick, rings to an agent
 				receive
-				after ?TICK_LENGTH * (?RINGOUT + 3) + 100 ->
+				after ?TICK_LENGTH * (?RINGOUT) + 100 ->
 					ok
 				end,
 				?CONSOLE("2nd test time!", []),
@@ -1066,9 +1082,9 @@ agent_interaction_test_() ->
 		fun({QPid, _MPid, APid}) ->
 			{"Agent cannot take the call in queue (regrab)",
 			fun() ->
-				{ok, Media} = dummy_media:start("testcall"),
-				dummy_media:set_skills(Media, [german]),
-				?CONSOLE("Media response to getting call:  ~p", [gen_server:call(Media, get_call)]),
+				{ok, Media} = dummy_media:start([{id, "testcall"}, {skills, [german]}]),
+				%dummy_media:set_skills(Media, [german]),
+				?CONSOLE("Media response to getting call:  ~p", [gen_media:get_call(Media)]),
 				call_queue:add(QPid, Media),
 				agent:set_state(APid, idle),
 				receive
@@ -1080,10 +1096,11 @@ agent_interaction_test_() ->
 				dummy_media:stop(Media)
 			end}
 		end,
-		fun({QPid, MPid, _APid}) ->
+		fun({QPid, _MPid, _APid}) ->
 			{"Agent with the _all skill overrides other skill checking",
 			fun() ->
-				dummy_media:set_skills(MPid, [german]),
+				{ok, MPid} = dummy_media:start([{id, "testcall"}, {skills, [german]}]),
+				%dummy_media:set_skills(MPid, [german]),
 				call_queue:add(QPid, MPid),
 				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2", skills=[english, '_all']}),
 				agent:set_state(APid2, idle),
@@ -1093,10 +1110,11 @@ agent_interaction_test_() ->
 				agent:stop(APid2)
 			end}
 		end,
-		fun({QPid, MPid, APid}) ->
+		fun({QPid, _MPid, APid}) ->
 			{"Call with the _all skill overrides other skill checking",
 			fun() ->
-				dummy_media:set_skills(MPid, [german, '_all']),
+				{ok, MPid} = dummy_media:start([{id, "testcall"}, {skills, [german, '_all']}]),
+				%dummy_media:set_skills(MPid, [german, '_all']),
 				call_queue:add(QPid, MPid),
 				agent:set_state(APid, idle),
 				timer:sleep(?TICK_LENGTH * 2 + 100),

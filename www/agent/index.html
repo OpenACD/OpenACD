@@ -282,6 +282,33 @@
 			</div>
 		</div>
 
+		<div dojoType="dijit.form.DropDownButton" id="btransfer" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").TRANSFERTOMENU);
+			</script>
+			<span>000</span>
+			<div dojoType="dijit.Menu" id="transfertomenu">
+				<div dojoType="dijit.PopupMenuItem" id="transferToAgentMenu">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").AGENT);
+					</script>
+					<script type="dojo/connect" event="onMouseEnter">
+						Agent.getAvailAgents();
+					</script>
+					<span>000</span>
+					<div dojoType="dijit.Menu" id="transferToAgentMenuDyn">
+					</div>
+				</div>
+				<div dojoType="dijit.PopupMenuItem">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").QUEUE);
+					</script>
+					<span>000</span>
+					<div dojoType="dijit.Menu">
+					</div>
+				</div>
+			</div>
+		</div>
 
 		<div id="foo" style="clear:both;"><input type="text" value="" dojoType="dijit.form.ValidationTextBox" regExp="[\d]+" invalidMessage="Invalid number" id="dialbox" /></div>
 		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=agent.dial()>

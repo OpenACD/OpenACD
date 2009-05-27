@@ -177,6 +177,34 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
+	dijit.byId("btransfer").stateChanger = dojo.subscribe("agent/state", function(data){
+		var widget = dijit.byId("btransfer");
+		switch(data.state){
+			case "oncall":
+			case "warmtransfer":
+			case "outbound":
+				widget.attr('style', 'display:inline');
+				break;
+			default:
+				widget.attr('style', 'display:none');
+		}
+	});
+	
+	dijit.byId("transferToAgentMenuDyn").agentsAvail = dojo.subscribe("agent/available", function(data){
+		var widget = dijit.byId("transferToAgentMenuDyn");
+		widget.destroyDescendants()
+		dojo.forEach(data, function(i){
+			console.log(i);
+			var m = new dijit.MenuItem({
+				label: i,
+				onClick: function(){
+					Agent.transfer(escape(i));
+				}
+			});
+			widget.addChild(m);
+		});
+	});
+	
 	dijit.byId("bhangup").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("bhangup");
 		console.log("bhangup");

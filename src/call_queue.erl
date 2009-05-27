@@ -141,7 +141,7 @@ add(Pid, Priority, Mediapid, Callrec) when is_pid(Pid), is_pid(Mediapid), Priori
 add(Pid, Mediapid, Callrec) when is_pid(Pid), is_pid(Mediapid), is_record(Callrec, call) ->
 	add(Pid, 1, Mediapid, Callrec);
 add(Pid, Priority, Mediapid) when is_pid(Pid), is_pid(Mediapid), Priority >= 0 ->
-	Callrec = gen_server:call(Mediapid, get_call),
+	Callrec = gen_media:get_call(Mediapid),
 	gen_server:call(Pid, {add, Priority, Mediapid, Callrec}).
 
 %% @doc Add to queue at `pid()' `Pid' a call taken from `pid()' `Mediapid'.
@@ -179,7 +179,7 @@ grab(Pid) when is_pid(Pid) ->
 %% bound dispatchers at queue `pid()' `Pid'.  Returns `ok'.
 -spec(ungrab/2 :: (Pid :: pid(), Callid :: string() | pid()) -> 'ok').
 ungrab(Pid, Mediapid) when is_pid(Mediapid), is_pid(Pid) ->
-	#call{id = Cid} = gen_server:call(Mediapid, get_call),
+	#call{id = Cid} = gen_media:get_call(Mediapid),
 	gen_server:call(Pid, {ungrab, Cid});
 ungrab(Pid, Callid) when is_pid(Pid) ->
 	gen_server:call(Pid, {ungrab, Callid}).
@@ -188,7 +188,7 @@ ungrab(Pid, Callid) when is_pid(Pid) ->
 %% Returns `ok' on success, `none' on failure.
 -spec(add_skills/3 :: (Pid :: pid(), Callid :: string() | pid(), Skills :: [atom(),...]) -> 'none' | 'ok').
 add_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) ->
-	#call{id = Callid} = gen_server:call(Mediapid, get_call),
+	#call{id = Callid} = gen_media:get_call(Mediapid),
 	gen_server:call(Pid, {add_skills, Callid, Skills});
 add_skills(Pid, Callid, Skills) ->
 	gen_server:call(Pid, {add_skills, Callid, Skills}).
@@ -197,7 +197,7 @@ add_skills(Pid, Callid, Skills) ->
 %% Returns `ok' on success, `none' on failure.
 -spec(remove_skills/3 :: (Pid :: pid(), Callid :: string() | pid(), Skills :: [atom(),...]) -> 'none' | 'ok').
 remove_skills(Pid, Mediapid, Skills) when is_pid(Mediapid) ->
-	#call{id = Callid} = gen_server:call(Mediapid, get_call),
+	#call{id = Callid} = gen_media:get_call(Mediapid),
 	gen_server:call(Pid, {remove_skills, Callid, Skills});
 remove_skills(Pid, Callid, Skills) ->
 	gen_server:call(Pid, {remove_skills, Callid, Skills}).
@@ -322,7 +322,7 @@ expand_magic_skills(State, Call, Skills) ->
 			%('_queue') when is_atom(State#state.name) -> State#state.name;
 			%('_queue') -> ?CONSOLE("Can't expand magic skill _queue~n", []), [];
 			('_brand') when is_pid(Call#queued_call.media) ->
-				AState = gen_server:call(Call#queued_call.media, get_call),
+				AState = gen_media:get_call(Call#queued_call.media),
 				case AState#call.client of
 					undefined ->
 						{'_brand', "Unknown"};
@@ -587,8 +587,8 @@ call_in_out_grab_test_() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue("testqueue"),
-			{ok, Dummy} = dummy_media:start("testcall"),
-			dummy_media:set_skills(Dummy, [english, testskill]),
+			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
+			%dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
 			register(media_dummy, Dummy),
 			register(testqueue, Pid),
@@ -757,8 +757,8 @@ call_update_test_() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue("testqueue"),
-			{ok, Dummy} = dummy_media:start("testcall"),
-			dummy_media:set_skills(Dummy, [english, testskill]),
+			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
+			%dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
 			register(media_dummy, Dummy),
 			register(testqueue, Pid),
@@ -851,8 +851,8 @@ call_update_test_() ->
 			}, {
 				"Skill integrity test", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start("C1"),
-					dummy_media:set_skills(Dummy1, [foo, bar, '_node']),
+					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, [foo, bar, '_node']}]),
+					%dummy_media:set_skills(Dummy1, [foo, bar, '_node']),
 					add(Pid, Dummy1),
 					{_Key, Call} = get_call(Pid, Dummy1),
 					?assertEqual(true, lists:member(foo, Call#queued_call.skills)),
@@ -933,9 +933,9 @@ call_update_test_() ->
 			}, {
 				"Test _brand skill expansion", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start("C1"),
-					dummy_media:set_skills(Dummy1, ['_brand']),
-					dummy_media:set_brand(Dummy1, #client{label="Test Brand"}),
+					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_brand']}, {client, #client{label="Test Brand"}}]),
+					%dummy_media:set_skills(Dummy1, ['_brand']),
+					%dummy_media:set_brand(Dummy1, #client{label="Test Brand"}),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call2} = get_call(Pid, "C1"),
 					?assertEqual(true, lists:member({'_brand', "Test Brand"}, Call2#queued_call.skills))
@@ -943,8 +943,8 @@ call_update_test_() ->
 			}, {
 				"_brand skill should expand to \"Unknown\" if the call doesn't have a brand tagged", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start("C1"),
-					dummy_media:set_skills(Dummy1, ['_brand']),
+					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_brand']}]),
+					%dummy_media:set_skills(Dummy1, ['_brand']),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call2} = get_call(Pid, "C1"),
 					?assertEqual(true, lists:member({'_brand', "Unknown"}, Call2#queued_call.skills))
@@ -952,8 +952,8 @@ call_update_test_() ->
 			}, {
 				"Remove magic skills test", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start("C1"),
-					dummy_media:set_skills(Dummy1, ['_node']),
+					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_node']}]),
+					%dummy_media:set_skills(Dummy1, ['_node']),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
 					?assertEqual(true, lists:member({'_node', node()}, Call#queued_call.skills)),
@@ -964,8 +964,8 @@ call_update_test_() ->
 			}, {
 				"Ensure that call_skills are merged into the call's skill list on add", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start("C1"),
-					dummy_media:set_skills(Dummy1, [madness]),
+					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, [madness]}]),
+					%dummy_media:set_skills(Dummy1, [madness]),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call} = get_call(Pid, "C1"),
 					?assertEqual(true, lists:member({'_node', node()}, Call#queued_call.skills)),
@@ -1001,8 +1001,8 @@ queue_update_and_info_test_() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue("testqueue"),
-			{ok, Dummy} = dummy_media:start("testcall"),
-			dummy_media:set_skills(Dummy, [english, testskill]),
+			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
+			%dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
 			register(media_dummy, Dummy),
 			register(testqueue, Pid),
@@ -1091,8 +1091,8 @@ queue_manager_and_cook_test_() ->
 			fun() ->
 				queue_manager:start([node()]),
 				{ok, Pid} = queue_manager:add_queue("testqueue"),
-				{ok, Dummy} = dummy_media:start("testcall"),
-				dummy_media:set_skills(Dummy, [english, testskill]),
+				{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
+				%dummy_media:set_skills(Dummy, [english, testskill]),
 				call_queue:add(Pid, 1, Dummy),
 				register(media_dummy, Dummy),
 				{Pid, Dummy}
@@ -1200,8 +1200,8 @@ multi_node_test_() ->
 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
 					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
-					{ok, Dummy} = rpc:call(node(Queue), dummy_media, start, ["testcall"]),
-					dummy_media:set_skills(Dummy, [english, testskill]),
+					{ok, Dummy} = rpc:call(node(Queue), dummy_media, start, [[{id, "testcall"}, {skills, [english, testskill]}]]),
+					%dummy_media:set_skills(Dummy, [english, testskill]),
 					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
 					{_Key, Callrec} = rpc:call(Master, call_queue, ask, [Queue]),
 					?assertEqual("testcall", Callrec#queued_call.id),

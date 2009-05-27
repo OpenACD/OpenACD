@@ -49,7 +49,7 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 
 %% other exports
--export([start/1, start_link/1, stop/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2, set_endpoint/2]).
+-export([start/1, start_link/1, stop/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2, set_endpoint/2, agent_transfer/2]).
 
 %% @doc Start an agent fsm for the passed in agent record `Agent' that is linked to the calling process
 -spec(start_link/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
@@ -146,6 +146,11 @@ list_to_state(String) ->
 			end
 	end.
 
+%% @doc Start the agent_transfer procedure.  Gernally the media will handle it from here.
+-spec(agent_transfer/2 :: (Pid :: pid(), Target :: pid()) -> 'ok').
+agent_transfer(Pid, Target) ->
+	gen_fsm:sync_send_event(Pid, {agent_transfer, Target}).
+
 %% @doc Translate the integer `Int' to the corresponding internally used atom.
 -spec(integer_to_state/1 :: (Int :: 2) -> 'idle';
                             (Int :: 3) -> 'ringing';
@@ -226,10 +231,15 @@ idle(Event, From, State) ->
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'ringing', #agent{}}).
 ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.defaultringpath =:= inband, Statecall#call.ring_path =/= outband ->
 	?DEBUG("default ringpath inband, ring_path not outband", []),
-	gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
-	gen_server:cast(Statecall#call.cook, remove_from_queue),
-	cdr:oncall(Statecall, State#agent.login),
-	{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};
+	case gen_media:oncall(Statecall#call.source) of
+		ok ->
+			gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
+			gen_server:cast(Statecall#call.cook, remove_from_queue),
+			%cdr:oncall(Statecall, State#agent.login),
+			{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};
+		invalid ->
+			{reply, invalid, ringing, State}
+	end;
 ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} = State) ->
 	case Statecall#call.id of
 		Callid -> 
@@ -291,14 +301,15 @@ oncall({released, Reason}, _From, State) ->
 	{reply, queued, oncall, State#agent{queuedrelease=Reason}};
 oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_path =:= inband ->
 	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-	cdr:hangup(Call, agent),
-	cdr:wrapup(Call, State#agent.login),
+	%cdr:hangup(Call, agent),
+	%cdr:wrapup(Call, State#agent.login),
+	gen_media:wrapup(Call#call.source),
 	{reply, ok, wrapup, State#agent{state=wrapup, lastchangetimestamp=now()}};
 oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
 	case Currentcall#call.id of
 		Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-			cdr:wrapup(Call, State#agent.login),
+			%cdr:wrapup(Call, State#agent.login),
 			{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};
 		_Else ->
 			{reply, invalid, oncall, State}
@@ -306,6 +317,9 @@ oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcal
 oncall({warmtransfer, Transferto}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
 	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()}};
+oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
+	Reply = gen_media:agent_transfer(Call#call.source, Agent, 10000),
+	{reply, Reply, oncall, State};
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
 	
@@ -468,7 +482,8 @@ handle_info({'EXIT', From, Reason}, StateName, State) ->
 		From ->
 			agent_manager_exit(Reason, StateName, State);
 		_Else ->
-			?INFO("unknown exit", [])
+			?INFO("unknown exit from ~p", [From]),
+			{next_state, StateName, State}
 	end;
 handle_info(_Info, StateName, State) ->
 	{next_state, StateName, State}.

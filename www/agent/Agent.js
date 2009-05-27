@@ -143,3 +143,43 @@ Agent.prototype.dial = function() {
 		});
 	}
 }
+
+Agent.transfer = function(aname) {
+	dojo.xhrGet({
+		url:"/agent_transfer/" + aname,
+		handleAs:"json",
+		error:function(response, ioargs){
+			console.log("error on transfer");
+			console.log(response);
+		},
+		load:function(response, ioargs){
+			if(response.success){
+				dojo.publish("agent/transfer", [response.success]);
+			}
+			else{
+				console.log("Failed to ring to 2nd agent"),
+				console.log(response)
+			}
+		}
+	})
+}
+
+Agent.getAvailAgents = function() {
+	dojo.xhrGet({
+		url:"/get_avail_agents",
+		handleAs:"json",
+		error:function(response, ioargs){
+			console.log("error getting available agents");
+			console.log(response);
+		},
+		load:function(response, ioargs){
+			if(response.success){
+				dojo.publish("agent/available", [response.agents]);
+			}
+			else{
+				console.log("Failed to get agents due to");
+				console.log(response);
+			}
+		}
+	});
+}

@@ -424,6 +424,10 @@ parse_path(Path) ->
 					{api, {err, Counter, Message}};
 				["dial", Number] ->
 					{api, {dial, Number}};
+				["get_avail_agents"] ->
+					{api, get_avail_agents};
+				["agent_transfer", Agent] ->
+					{api, {agent_transfer, Agent}};
 				["supervisor" | Supertail] ->
 					{api, {supervisor, Supertail}};
 				_Allother ->
@@ -654,7 +658,9 @@ web_connection_login_test_() ->
 		{"/releaseopts", {api, releaseopts}},
 		{"/brandlist", {api, brandlist}},
 		{"/checkcookie", {api, checkcookie}},
-		{"/dial/12345", {api, {dial, "12345"}}}
+		{"/dial/12345", {api, {dial, "12345"}}},
+		{"/get_avail_agents", {api, get_avail_agents}},
+		{"/agent_transfer/agent", {api, {agent_transfer, "agent"}}}
 	]
 ).
 

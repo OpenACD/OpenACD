@@ -56,10 +56,15 @@
 	calltimer :: any(),
 	wrapup = random :: pos_integer() | 'random',
 	wrapuptimer :: any(),
+	scale = 1 :: pos_integer(),
 	maxcalls = unlimited :: pos_integer() | 'unlimited',
 	call :: #call{} | 'undefined',
 	agent_fsm :: pid()
 }).
+
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
 
 start_x(N) ->
 	start_x(N, []).
@@ -97,25 +102,26 @@ init([Args]) ->
 		ringing = proplists:get_value(ringing, Args, random),
 		oncall = proplists:get_value(oncall, Args, random),
 		wrapup = proplists:get_value(wrapup, Args, random),
-		maxcalls = proplists:get_value(maxcalls, Args, unlimited)}}.
+		maxcalls = proplists:get_value(maxcalls, Args, unlimited),
+		scale = proplists:get_value(scale, Args, 1)}}.
 
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 
 handle_cast({change_state, ringing, #call{} = Call}, State) ->
-	Time = get_time(State#state.ringing),
+	Time = get_time(State#state.ringing) * State#state.scale,
 	?INFO("answering call after ~p", [Time]),
 	Tref = timer:send_after(Time, answer),
 	{noreply, State#state{ringtimer = Tref, call = Call}};
 handle_cast({change_state, oncall, #call{} = Call}, State) ->
 	timer:cancel(State#state.ringtimer),
-	Time = get_time(State#state.oncall),
+	Time = get_time(State#state.oncall) * State#state.scale,
 	?INFO("hanging up call after ~p", [Time]),
 	Tref = timer:send_after(Time, hangup),
 	{noreply, State#state{ringtimer = undefined, calltimer = Tref, call = Call}};
 handle_cast({change_state, wrapup, #call{} = Call}, State) ->
 	timer:cancel(State#state.calltimer),
-	Time = get_time(State#state.wrapup),
+	Time = get_time(State#state.wrapup) * State#state.scale,
 	?INFO("ending wrapup after ~p", [Time]),
 	Tref = timer:send_after(Time, endwrapup),
 	{noreply, State#state{calltimer = undefined, wrapuptimer = Tref, call = Call}};
@@ -166,11 +172,10 @@ handle_info(endwrapup, State) ->
 handle_info(_Info, State) ->
 	{noreply, State}.
 
+get_time(random) ->
+	crypto:rand_uniform(0, 300);
 get_time(T) ->
-	case T of
-		random -> crypto:rand_uniform(0, 300);% * 1000;
-		Else -> Else
-	end.
+	T.
 
 terminate(_Reason, _State) ->
 	ok.

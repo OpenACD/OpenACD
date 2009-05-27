@@ -491,6 +491,9 @@ handle_call('$gen_media_voicemail', _From, #state{callback = Callback} = State) 
 	{Res, Substate} = Callback:handle_voicemail(State#state.substate),
 	call_queue:remove(State#state.queue_pid, self()),
 	{reply, Res, State#state{substate = Substate}};
+handle_call('$gen_media_voicemail', _From, #state{queue_pid = undefined} = State) ->
+	?ERROR("voicemail only valid when the media is queued", []),
+	{reply, invalid, State};
 handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{ring_pid = Apid, callrec = #call{ring_path = outband}} = State) ->
 	?INFO("Cannot accept on call requests from agent (~p) unless ring_path is inband", [Apid]),
 	{reply, invalid, State};
@@ -505,9 +508,10 @@ handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = Rpid, cal
 			cdr:wrapup(State#state.callrec, Ocpid),
 			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}};
 		{error, Reason, NewState} ->
+			?ERROR("Cannot set ~p to oncall due to ~p", [Rpid, Reason]),
 			{reply, invalid, State#state{substate = NewState}}
 	end;
-handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
+handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
 	?INFO("oncall request during what looks like an agent transfer (outofband)", []),
 	case Callback:handle_answer(Rpid, State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
@@ -518,9 +522,10 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Rpid, callback = 
 			cdr:wrapup(State#state.callrec, Ocpid),
 			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}};
 		{error, Reason, NewState} ->
+			?ERROR("Cannot set ~p to oncall due to ~p", [Rpid, Reason]),
 			{reply, invalid, State#state{substate = NewState}}
 	end;
-handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback, ring_pid = Apid, callrec = #call{ring_path = inband} = Callrec} = State) ->
+handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback, ring_pid = Apid, callrec = #call{ring_path = inband}} = State) ->
 	?INFO("oncall request from agent ~p", [Apid]),
 	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
 		{ok, NewState} ->

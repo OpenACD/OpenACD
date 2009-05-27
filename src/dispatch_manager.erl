@@ -271,7 +271,7 @@ balance_test_() ->
 					State1 = dump(),
 					?assertEqual(State1#state.agents, [Apid]),
 					?assertEqual(1, length(State1#state.dispatchers)),
-					exit(Apid, test_kill),
+					exit(Apid, kill),
 					receive
 					after 100 ->
 						ok

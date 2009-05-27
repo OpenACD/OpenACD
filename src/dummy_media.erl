@@ -78,7 +78,8 @@
 	handle_announce/2, 
 	handle_ring_stop/1,
 	handle_agent_transfer/4,
-	handle_queue_transfer/1
+	handle_queue_transfer/1,
+	handle_wrapup/1
 ]).
 
 -ifndef(R13B).
@@ -403,6 +404,9 @@ handle_queue_transfer(State) ->
 handle_ring_stop(State) ->
 	{ok, State}.
 
+handle_wrapup(State) ->
+	{hangup, State}.
+	
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------

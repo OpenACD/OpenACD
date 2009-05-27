@@ -150,6 +150,7 @@
 -spec(handle_announce/2 :: (Annouce :: any(), State :: state()) -> {'ok', state()}).
 -spec(handle_agent_transfer/4 :: (Agent :: pid(), Call :: #call{}, Timeout :: pos_integer(), State :: state()) -> {'ok', state()} | {'error', any(), state()}).
 -spec(handle_queue_transfer/1 :: (State :: state()) -> {'ok', state()}).
+-spec(handle_wrapup/1 :: (State :: state()) -> {'ok', state()}).
 -spec(handle_call/3 :: (Event :: any(), From :: {pid(), any()}, State :: state()) -> 
 	{'reply', any(), state()} | 
 	{'reply', any(), state(), gen_timeout()} | 

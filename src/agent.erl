@@ -235,7 +235,7 @@ ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.d
 		ok ->
 			gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
 			gen_server:cast(Statecall#call.cook, remove_from_queue),
-			cdr:oncall(Statecall, State#agent.login),
+			%cdr:oncall(Statecall, State#agent.login),
 			{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};
 		invalid ->
 			{reply, invalid, ringing, State}
@@ -301,14 +301,15 @@ oncall({released, Reason}, _From, State) ->
 	{reply, queued, oncall, State#agent{queuedrelease=Reason}};
 oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_path =:= inband ->
 	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-	cdr:hangup(Call, agent),
-	cdr:wrapup(Call, State#agent.login),
+	%cdr:hangup(Call, agent),
+	%cdr:wrapup(Call, State#agent.login),
+	gen_media:wrapup(Call#call.source),
 	{reply, ok, wrapup, State#agent{state=wrapup, lastchangetimestamp=now()}};
 oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
 	case Currentcall#call.id of
 		Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-			cdr:wrapup(Call, State#agent.login),
+			%cdr:wrapup(Call, State#agent.login),
 			{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};
 		_Else ->
 			{reply, invalid, oncall, State}

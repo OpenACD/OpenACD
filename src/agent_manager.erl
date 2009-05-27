@@ -64,6 +64,7 @@
 	query_agent/1, 
 	find_by_skill/1,
 	find_avail_agents_by_skill/1,
+	find_by_pid/1,
 	get_leader/0,
 	list/0,
 	notify/2
@@ -141,7 +142,12 @@ find_avail_agents_by_skill(Skills) ->
 -spec(find_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
 find_by_skill(Skills) ->
 	[{K, V, AgState} || {K, V} <- gen_leader:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], lists:member('_all', AgState#agent.skills) orelse util:list_contains_all(AgState#agent.skills, Skills)].
-	
+
+%% @doc Gets the login associated with the passed pid().
+-spec(find_by_pid/1 :: (Apid :: pid()) -> string() | 'notfound').
+find_by_pid(Apid) ->
+	gen_leader:leader_call(?MODULE, {get_login, Apid}).
+
 %% @doc Get a list of agents at the node this `agent_manager' is running on.
 -spec(list/0 :: () -> [any()]).
 list() ->
@@ -220,6 +226,10 @@ handle_leader_call({exists, Agent}, _From, #state{agents = Agents} = State, _Ele
 	end;
 handle_leader_call(get_pid, _From, State, _Election) ->
 	{reply, {ok, self()}, State};
+handle_leader_call({get_login, Apid}, _From, #state{agents = Agents} = State, _Election) ->
+	List = dict:to_list(Agents),
+	Out = find(Apid, List),
+	{reply, Out, State};
 handle_leader_call(Message, From, State, _Election) ->
 	?WARNING("received unexpected leader_call ~p from ~p", [Message, From]),
 	{reply, ok, State}.
@@ -335,7 +345,15 @@ terminate(Reason, _State) ->
 %% @hidden
 code_change(_OldVsn, State, _Election, _Extra) ->
 	{ok, State}.
-	
+
+%% @private
+find(_Needle, []) ->
+	notfound;
+find(Needle, [{Key, Needle} | _Tail]) ->
+	Key;
+find(Needle, [{_Key, _NotNeedle} | Tail]) ->
+	find(Needle, Tail).
+
 -ifdef('EUNIT').
 
 handle_call_start_test() ->

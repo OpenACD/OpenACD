@@ -76,6 +76,7 @@
 	handle_voicemail/1,
 	handle_announce/2,
 	handle_agent_transfer/4,
+	handle_wrapup/1,
 	handle_call/3, 
 	handle_cast/2, 
 	handle_info/2,
@@ -201,6 +202,11 @@ handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 			{error, Error, State}
 	end.
 
+handle_wrapup(State) ->
+	% This intentionally left blank; media is out of band, so there's
+	% no direct hangup by the agent
+	{ok, State}.
+	
 handle_queue_transfer(State) ->
 	% TODO fully implement this.
 	{ok, State}.
@@ -268,7 +274,7 @@ handle_cast(_Msg, State) ->
 handle_info({call, {event, [UUID | Rest]}}, State) ->
 	?DEBUG("reporting new call ~p.", [UUID]),
 	Callrec = #call{id = UUID, source = self()},
-	cdr:cdrinit(Callrec),
+	%cdr:cdrinit(Callrec),
 	freeswitch_media_manager:notify(UUID, self()),
 	State2 = State#state{callrec = Callrec},
 	case_event_name([UUID | Rest], State2);

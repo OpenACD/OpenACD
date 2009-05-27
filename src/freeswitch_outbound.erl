@@ -59,6 +59,7 @@
 	handle_voicemail/1,
 	handle_ring_stop/1,
 	handle_agent_transfer/4,
+	handle_wrapup/1,
 	handle_call/3,
 	handle_cast/2,
 	handle_info/2,
@@ -164,6 +165,9 @@ handle_queue_transfer(State) ->
 	% TODO flesh this out.
 	{ok, State}.
 
+handle_wrapup(State) ->
+	{ok, State}.
+	
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------

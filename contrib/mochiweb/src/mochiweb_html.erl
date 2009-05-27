@@ -7,8 +7,8 @@
          escape_attr/1, to_html/1, test/0]).
 
 % This is a macro to placate syntax highlighters..
--define(QUOTE, $\").  %").  This is a comment to placate a syntax highlighter
--define(SQUOTE, $\').  %').  This is a comment to placate a syntax highlighter
+-define(QUOTE, $\"). %"
+-define(SQUOTE, $\'). %'
 -define(ADV_COL(S, N),
         S#decoder{column=N+S#decoder.column,
                   offset=N+S#decoder.offset}).
@@ -305,6 +305,18 @@ test_tokens() ->
      {data, <<" A= B <= C ">>, false},
      {end_tag, <<"script">>}] =
         tokens(<<"<script type=\"text/javascript\"> A= B <= C </script>">>),
+    [{start_tag, <<"script">>, [{<<"type">>, <<"text/javascript">>}], false},
+     {data, <<" A= B <= C ">>, false},
+     {end_tag, <<"script">>}] =
+        tokens(<<"<script type =\"text/javascript\"> A= B <= C </script>">>),
+    [{start_tag, <<"script">>, [{<<"type">>, <<"text/javascript">>}], false},
+     {data, <<" A= B <= C ">>, false},
+     {end_tag, <<"script">>}] =
+        tokens(<<"<script type = \"text/javascript\"> A= B <= C </script>">>),
+    [{start_tag, <<"script">>, [{<<"type">>, <<"text/javascript">>}], false},
+     {data, <<" A= B <= C ">>, false},
+     {end_tag, <<"script">>}] =
+        tokens(<<"<script type= \"text/javascript\"> A= B <= C </script>">>),
     [{start_tag, <<"textarea">>, [], false},
      {data, <<"<html></body>">>, false},
      {end_tag, <<"textarea">>}] =
@@ -672,7 +684,8 @@ tokenize_attr_value(Attr, B, S) ->
     O = S1#decoder.offset,
     case B of
         <<_:O/binary, "=", _/binary>> ->
-            tokenize_word_or_literal(B, ?INC_COL(S1));
+            S2 = skip_whitespace(B, ?INC_COL(S1)),
+            tokenize_word_or_literal(B, S2);
         _ ->
             {Attr, S1}
     end.

@@ -76,9 +76,7 @@
 		ticked = 1 :: pos_integer(), % number of ticks we've done
 		call :: pid() | 'undefined',
 		queue :: string() | 'undefined',
-		continue = true :: bool(),
-		ringingto :: pid(),
-		ringcount = 0 :: non_neg_integer(),
+		ringstate = none :: 'none' | 'ringing',
 		tref :: any() % timer reference
 }).
 
@@ -106,14 +104,9 @@ start(Call, Recipe, Queue) when is_pid(Call) ->
 -spec(start_at/4 :: (Node :: atom(), Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_at(Node, Call, Recipe, Queue) ->
 	F = fun() ->
-		case init([Call, Recipe, Queue]) of
-			{ok, State} ->
-				?DEBUG("about to enter loop", []),
-				gen_server:enter_loop(?MODULE, [], State)%;
-			%{stop, Reason} ->
-			%	?CONSOLE("not entering loop due to ~p", [Reason]),
-			%	{error, Reason}
-		end
+		{ok, State} = init([Call, Recipe, Queue]),
+		?DEBUG("about to enter loop", []),
+		gen_server:enter_loop(?MODULE, [], State)%;
 	end,
 	{ok, proc_lib:spawn_link(Node, F)}.
 	
@@ -126,16 +119,9 @@ init([Call, Recipe, Queue]) ->
 	?DEBUG("Cook starting for call ~p from queue ~p", [Call, Queue]),
 	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
 	process_flag(trap_exit, true),
-	%case is_process_alive(Call) of
-	%	true ->
-			%process_flag(trap_exit, true),
-			{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
-			State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref},
-			{ok, State}.%;
-	%	false ->
-	%		?CONSOLE("Call process not alive, aborting start", []),
-	%		{stop, media_pid_dead}
-%	end.
+	{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
+	State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref},
+	{ok, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -155,40 +141,21 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_cast(restart_tick, State) ->
-	case do_route(State#state.ringcount, State#state.queue, State#state.ringingto, State#state.call) of
+	case do_route(State#state.ringstate, State#state.queue, State#state.call) of
 		nocall -> 
 			{stop, {call_not_queued, State#state.call}, State};
-		rangout -> 
-			State2 = State#state{ringingto = undefined, ringcount = 0},
-			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
-			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
-			{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
-			{noreply, State3#state{tref=Tref}};
-		{ringing, Apid, Ringcount} -> 
-			State2 = State#state{ringingto = Apid, ringcount = Ringcount},
+		Ringstate -> 
+			State2 = State#state{ringstate = Ringstate},
 			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
 			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
 			{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
 			{noreply, State3#state{tref=Tref}}
 	end;
+handle_cast(stop_ringing, State) ->
+	{noreply, State#state{ringstate = none}};
 handle_cast(stop_tick, State) ->
 	timer:cancel(State#state.tref),
 	{noreply, State#state{tref=undefined}};
-handle_cast(stop_ringing, State) ->
-	{noreply, State#state{ringingto = undefined, ringcount = 0}};
-%handle_cast({stop_ringing, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
-%	?DEBUG("Ordered to stop ringing ~p", [AgentPid]),
-%	agent:set_state(AgentPid, idle),
-%	%gen_media:stop_ringing(State#state.call),
-%	{noreply, State#state{ringingto=undefined}};
-%handle_cast({stop_ringing_keep_state, AgentPid}, State) when AgentPid =:= State#state.ringingto ->
-%	?DEBUG("Ordered to stop ringing without changing state ~p", [AgentPid]),
-%	%gen_media:stop_ringing(State#state.call),
-%	{noreply, State#state{ringingto=undefined}};
-handle_cast(remove_from_queue, State) ->
-	Qpid = queue_manager:get_queue(State#state.queue),
-	call_queue:remove(Qpid, State#state.call),
-	{noreply, State};
 handle_cast(stop, State) ->
 	{stop, normal, State};
 handle_cast(Msg, State) ->
@@ -210,17 +177,11 @@ handle_info(do_tick, State) ->
 					{stop, {queue_undefined, State#state.queue}, State};
 				_Other ->
 					?DEBUG("Doing tick ~p", [State]),
-					case do_route(State#state.ringcount, State#state.queue, State#state.ringingto, State#state.call) of
+					case do_route(State#state.ringstate, State#state.queue, State#state.call) of
 						nocall -> 
 							{stop, {call_not_queued, State#state.call}, State};
-						rangout -> 
-							State2 = State#state{ringingto = undefined, ringcount = 0},
-							NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
-							{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
-							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe, tref = Tref},
-							{noreply, State3};
-						{ringing, Apid, Ringcount} -> 
-							State2 = State#state{ringingto = Apid, ringcount = Ringcount},
+						Ringstate -> 
+							State2 = State#state{ringstate = Ringstate},
 							NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
 							{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
 							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe, tref = Tref},
@@ -306,15 +267,11 @@ stop(Pid) ->
 	gen_server:call(Pid, stop).
 
 %% @private
--spec(do_route/4 :: (Ringcount :: non_neg_integer(), Queue :: string(), 'undefined' | pid(), pid()) -> 'nocall' | {'ringing', pid(), non_neg_integer()} | 'rangout').
-do_route(Ringcount, _Queue, Agentpid, _Callpid) when is_pid(Agentpid) ->
-	?DEBUG("still ringing: ~p times", [Ringcount]),
-	{ringing, Agentpid, Ringcount + 1};
-%do_route(Ringcount, _Queue, Agentpid, Callpid) when is_pid(Agentpid), Ringcount > ?RINGOUT, is_pid(Callpid) ->
-%	?CONSOLE("rang out",[]),
-	%agent:set_state(Agentpid, idle),
-%	rangout;
-do_route(_Ringcount, Queue, undefined, Callpid) when is_pid(Callpid), is_list(Queue) ->
+-spec(do_route/3 :: (Ringstate :: 'ringing' | 'none', Queue :: string(), Callpid :: pid()) -> 'nocall' | {'ringing', pid(), non_neg_integer()} | 'rangout').
+do_route(ringing, _Queue, _Callpid) ->
+	?DEBUG("still ringing", []),
+	ringing;
+do_route(none, Queue, Callpid) ->
 	?DEBUG("Searching for agent to ring to...",[]),
 	Qpid = queue_manager:get_queue(Queue),
 	case call_queue:get_call(Qpid, Callpid) of
@@ -322,12 +279,7 @@ do_route(_Ringcount, Queue, undefined, Callpid) when is_pid(Callpid), is_list(Qu
 			Dispatchers = Call#queued_call.dispatchers,
 			Agents = sort_agent_list(Dispatchers),
 			?DEBUG("Dispatchers:  ~p; Agents:  ~p", [Dispatchers, Agents]),
-			case offer_call(Agents, Call) of
-				none -> 
-					rangout;
-				Apid when is_pid(Apid) -> 
-					{ringing, Apid, 0}
-			end;
+			offer_call(Agents, Call);
 		none -> 
 			?DEBUG("No call to ring",[]),
 			nocall
@@ -376,13 +328,11 @@ offer_call([], _Call) ->
 	none;
 offer_call([{_ACost, Apid} | Tail], Call) ->
 	case gen_media:ring(Call#queued_call.media, Apid, Call, ?TICK_LENGTH * ?RINGOUT) of
-	%case gen_server:call(Call#queued_call.media, {ring_agent, Apid, Call, ?TICK_LENGTH * (?RINGOUT + 1)}) of
 		ok ->
 			Agent = agent:dump_state(Apid),
 			Callrec = gen_media:get_call(Call#queued_call.media),
 			?INFO("cook offering call:  ~p to ~p", [Callrec#call.id, Agent#agent.login]),
-			cdr:ringing(Callrec, Agent#agent.login),
-			Apid;
+			ringing;
 		invalid ->
 			offer_call(Tail, Call)
 	end.
@@ -480,9 +430,6 @@ do_recipe([{Conditions, Op, Args, Runs} | Recipe], Ticked, Queuename, Call) when
 		false ->
 			[{Conditions, Op, Args, Runs} | do_recipe(Recipe, Ticked, Queuename, Call)]
 	end.
-%do_recipe([Head | Recipe], Ticked, Queuename, Call) when is_list(Queuename), is_pid(Call) ->
-%	% this is here in case a recipe is not due to be run.
-%	[Head | do_recipe(Recipe, Ticked, Queuename, Call)].
 
 %% @private
 -spec(do_operation/3 :: (Recipe :: recipe_step(), Queuename :: string(), Callpid :: pid()) -> 'ok' | recipe_step()).
@@ -522,7 +469,6 @@ do_operation({_Conditions, Op, Args, _Runs}, Queuename, Callpid) when is_list(Qu
 			list_to_tuple(Args);
 		announce ->
 			gen_media:announce(Callpid, Args),
-			%gen_server:call(Callpid, {announce, Args}),
 			ok
 	end.
 
@@ -543,14 +489,10 @@ queue_interaction_test_() ->
 			test_primer(),
 			queue_manager:start([node()]),
 			{ok, Pid} = queue_manager:add_queue("testqueue"),
-			%{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
-			%dummy_media:set_skills(Dummy, [english, testskill]),
-			%register(media_dummy, Dummy),
 			Dummyprops = [{id, "testcall"}, {skills, [english, testskill]}, {queue, "testqueue"}],
 			{Pid, Dummyprops}
 		end,
 		fun({Pid, _Dummyprops}) ->
-			%unregister(media_dummy),
 			try call_queue:stop(Pid)
 			catch
 				exit:{noproc, Detail} ->

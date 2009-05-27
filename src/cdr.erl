@@ -131,11 +131,11 @@ cdrinit(Call) ->
 		ok ->
 			ok;
 		Else ->
-			?ERROR("Initializing CDR for ~s failed with: ~p", [Call#call.id, Else]),
+			?ERROR("Initializing CDR for ~s erred with: ~p", [Call#call.id, Else]),
 			error
 	catch
 		What:Why ->
-			?ERROR("Initializing CDR for ~s failed with: ~p:~p", [Call#call.id, What, Why]),
+			?ERROR("Initializing CDR for ~s erred with: ~p:~p", [Call#call.id, What, Why]),
 			error
 	end.
 
@@ -375,7 +375,7 @@ check_split(Fun, List) ->
 	?DEBUG("checking split with list ~p", [List]),
 	case lists:splitwith(Fun, List) of
 		{List, []} ->
-			?ERROR("Split check failed on list ~p", [List]),
+			?ERROR("Split check erred on list ~p", [List]),
 			erlang:error(split_check_fail);
 		{Head, [Tuple | Tail]} ->
 			?DEBUG("Head:  ~p;  Tuple:  ~p;  Tail:  ~p", [Head, Tuple, Tail]),

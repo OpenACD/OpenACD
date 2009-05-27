@@ -59,6 +59,7 @@
 	handle_voicemail/1,
 	handle_ring_stop/1,
 	handle_agent_transfer/4,
+	handle_queue_transfer/1,
 	handle_wrapup/1,
 	handle_call/3,
 	handle_cast/2,
@@ -158,7 +159,7 @@ handle_ring_stop(State) ->
 handle_voicemail(State) ->
 	{invalid, State}.
 
-handle_agent_transfer(Agent, Call, Timeout, State) ->
+handle_agent_transfer(_Agent, _Call, _Timeout, State) ->
 	{error, outgoing_only, State}.
 
 handle_queue_transfer(State) ->

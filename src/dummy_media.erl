@@ -145,8 +145,10 @@ set_mode(Pid, Action, Mode) ->
 q() ->
 	q("default_queue").
 
+q([H | _Tail] = Props) when is_tuple(H) ->
+	start_link(Props);
 q(Queuename) ->
-	start_link([{id, erlang:ref_to_list(make_ref())}, {queue, Queuename}]).
+	q([{id, erlang:ref_to_list(make_ref())}, {queue, Queuename}]).
 	%{ok, Dummypid} = start_link([{id, erlang:ref_to_list(make_ref())}]),
 	%Qpid = queue_manager:get_queue(Queuename),
 	%{call_queue:add(Qpid, Dummypid), Dummypid}.
@@ -353,7 +355,7 @@ code_change(_OldVsn, State, _Extra) ->
 handle_announce(_Annouce, State) ->
 	{ok, State}.
 
-handle_answer(Agent, Call, #state{fail = Fail} = State) ->
+handle_answer(_Agent, _Call, #state{fail = Fail} = State) ->
 	case dict:fetch(oncall, Fail) of
 		success ->
 			%agent:set_state(Agent, oncall, Call),
@@ -365,7 +367,7 @@ handle_answer(Agent, Call, #state{fail = Fail} = State) ->
 			{error, dummy_fail, State#state{fail = Newfail}}
 	end.
 
-handle_ring(Agent, Call, #state{fail = Fail} = State) ->
+handle_ring(_Agent, _Call, #state{fail = Fail} = State) ->
 	case dict:fetch(ring_agent, Fail) of
 		success ->
 			{ok, State};
@@ -454,10 +456,8 @@ dummy_test_() ->
 		{
 			"Set agent ringing when set to success",
 			fun() -> 
-				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
-				agent:set_state(Agentpid, idle),
-				{ok, Dummypid} = dummy_media:start("testcall"),
-				?assertMatch(ok, gen_media:ring(Dummypid, Agentpid, #queued_call{media = Dummypid, id = "testcall"}, 4000))
+				{ok, {State, _Call}} = init([[], success]),
+				?assertEqual({ok, State}, handle_ring("apid", "callrec", State))
 			end
 		},
 		{
@@ -502,15 +502,15 @@ dummy_test_() ->
 		{
 			"Answer voicemail call when set to success",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start("testcall"),
-				?assertMatch(ok, gen_media:voicemail(Dummypid))
+				{ok, {State, _Call}} = init([[], success]),
+				?assertMatch({ok, State}, handle_voicemail(State))
 			end
 		},
 		{
 			"Answer voicemail call when set to fail",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
-				?assertMatch(invalid, gen_media:voicemail(Dummypid))
+				{ok, {State, _Call}} = init([[], failure]),
+				?assertMatch({invalid, State}, handle_voicemail(State))
 			end
 		},
 		{
@@ -544,9 +544,9 @@ set_action_test_() ->
 		{"Setting everything to a success",
 		fun() ->
 			{reply, ok, Newstate} = handle_call(set_success, self(), State),
-			Test = fun(Key, success, Acc) ->
+			Test = fun(_Key, success, Acc) ->
 					[true | Acc];
-				(Key, _Other, Acc) ->
+				(_Key, _Other, Acc) ->
 					[false | Acc]
 			end,
 			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
@@ -556,9 +556,9 @@ set_action_test_() ->
 		{"Setting everything to a failure",
 		fun() ->
 			{reply, ok, Newstate} = handle_call(set_failure, self(), State),
-			Test = fun(Key, fail, Acc) ->
+			Test = fun(_Key, fail, Acc) ->
 					[true | Acc];
-				(Key, _Other, Acc) ->
+				(_Key, _Other, Acc) ->
 					[false | Acc]
 			end,
 			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
@@ -572,7 +572,7 @@ set_action_test_() ->
 					[true | Acc];
 				(announce, "goober", Acc) ->
 					[true | Acc];
-				(Key, Val, Acc) ->
+				(_Key, _Val, Acc) ->
 					[false, Acc]
 			end,
 			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
@@ -586,7 +586,7 @@ set_action_test_() ->
 					[true | Acc];
 				(announce, "goober", Acc) ->
 					[true | Acc];
-				(Key, Val, Acc) ->
+				(_Key, _Val, Acc) ->
 					[false | Acc]
 			end,
 			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))
@@ -600,7 +600,7 @@ set_action_test_() ->
 					[true | Acc];
 				(announce, "goober", Acc) ->
 					[true | Acc];
-				(Key, Val, Acc) ->
+				(_Key, _Val, Acc) ->
 					[false | Acc]
 			end,
 			?assertEqual([true, true], dict:fold(Test, [], Newstate#state.fail))

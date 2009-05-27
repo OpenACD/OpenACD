@@ -454,10 +454,8 @@ dummy_test_() ->
 		{
 			"Set agent ringing when set to success",
 			fun() -> 
-				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
-				agent:set_state(Agentpid, idle),
-				{ok, Dummypid} = dummy_media:start("testcall"),
-				?assertMatch(ok, gen_media:ring(Dummypid, Agentpid, #queued_call{media = Dummypid, id = "testcall"}, 4000))
+				{ok, {State, _Call}} = init([[], success]),
+				?assertEqual({ok, State}, handle_ring("apid", "callrec", State))
 			end
 		},
 		{
@@ -502,8 +500,8 @@ dummy_test_() ->
 		{
 			"Answer voicemail call when set to success",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start("testcall"),
-				?assertMatch(ok, gen_media:voicemail(Dummypid))
+				{ok, {State, _Call}} = init([[], success]),
+				?assertMatch({ok, State}, handle_voicemail(State))
 			end
 		},
 		{

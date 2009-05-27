@@ -384,10 +384,10 @@ init([Callback, Args]) ->
 				Else ->
 					Else
 			end,
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec, queue_pid = Qpid}};
+			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = Qpid}};
 		{ok, {Substate, Callrec}} when is_record(Callrec, call) ->
 			cdr:cdrinit(Callrec),
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec}}
+			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}}
 	end.
 
 %%--------------------------------------------------------------------

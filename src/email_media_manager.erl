@@ -54,7 +54,9 @@
 -include("smtp.hrl").
 
 -record(state, {
-	mails = [] :: [pid()]
+	mails = [] :: [pid()],
+	relays = [] :: [string()],
+	server :: pid()
 }).
 
 -type(state() :: #state{}).
@@ -83,8 +85,14 @@ stop() ->
 init([Options]) ->
 	process_flag(trap_exit, true),
 	build_table(),
-	gen_smtp_server:start_link(email_media_session, proplists:get_value(port, Options, 2525)),
-    {ok, #state{}}.
+	{ok, Pid} = gen_smtp_server:start_link(email_media_session, Options),
+	case proplists:get_value(relays, Options) of
+		undefined ->
+			{ok, #state{server = Pid}};
+		Else ->
+			?INFO("Reserved for future use.", []),
+			{ok, #state{relays = Else, server=Pid}}
+	end.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -117,8 +125,9 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(Reason, _State) ->
+terminate(Reason, State) ->
 	?INFO("terminating due to ~p", [Reason]),
+	gen_smtp_server:stop(State#state.server),
     ok.
 
 %%--------------------------------------------------------------------

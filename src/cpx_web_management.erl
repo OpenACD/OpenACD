@@ -644,11 +644,13 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 		_Else ->
 			Buildprops = fun(_F, [], Acc) ->
 					Acc;
+				(F, [{_Whatever, []} | Tail], Acc) ->
+					F(F, Tail, Acc);
 				(F, [{"relays", Val} | Tail], Acc) ->
-					Newacc = [{relays, lists:map(fun(S) -> string:strip(util:string_chomp(S)) end, util:string_split(Val))} | Acc],
+					Newacc = [{relays, lists:map(fun(S) -> string:strip(util:string_chomp(S)) end, util:string_split(Val, ","))} | Acc],
 					F(F, Tail, Newacc);
 				(F, [{"host", Val} | Tail], Acc) ->
-					F(F, Tail, [{host, Val} | Acc]);
+					F(F, Tail, [{domain, Val} | Acc]);
 				(F, [{"bindip", Val} | Tail], Acc) ->
 					Newval = case util:string_split(Val, ".") of
 						Val ->
@@ -656,16 +658,18 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 						Else ->
 							list_to_tuple(Else)
 					end,
-					F(F, Tail, [{bindip, Newval} | Acc]);
+					F(F, Tail, [{ip, Newval} | Acc]);
 				(F, [{"port", Val} | Tail], Acc) ->
-					F(F, Tail, [{post, list_to_integer(Val)} | Acc])
+					F(F, Tail, [{port, list_to_integer(Val)} | Acc]);
+				(F, [_Whatever | Tail], Acc) ->
+					F(F, Tail, Acc)
 			end,
 			Props = Buildprops(Buildprops, Post, []),
 			Conf = #cpx_conf{
 				id = email_media_manager,
 				module_name = email_media_manager,
 				start_function = start_link,
-				start_args = Props
+				start_args = [Props]
 			},
 			rpc:call(Atomnode, cpx_supervisor, update_conf, [email_media_manager, Conf], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
@@ -685,9 +689,9 @@ api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 				list_to_binary(Str)
 			end,
 			Sendargs = [
-				{<<"host">>, list_to_binary(proplists:get_value(host, Args, "localhost"))},
-				{<<"port">>, proplists:get_value(port, Args, 2525)},
-				{<<"bindip">>, list_to_binary(proplists:get_value(bindip, Args, "0.0.0.0"))},
+				{<<"host">>, list_to_binary(proplists:get_value(host, Args, ""))},
+				{<<"port">>, proplists:get_value(port, Args, <<"">>)},
+				{<<"bindip">>, list_to_binary(proplists:get_value(bindip, Args, ""))},
 				{<<"relays">>, lists:map(Stringtobin, proplists:get_value(relays, Args, []))},
 				{<<"enabled">>, true},
 				{success, true}

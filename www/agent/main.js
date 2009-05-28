@@ -1,3 +1,15 @@
+function encodeHTML(str) {
+	if (!str || !str.replace)
+		return str;
+	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/, '&gt;');
+}
+
+function decodeHTML(str) {
+	if (!str || !str.replace)
+		return str;
+	return str.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+}
+
 dojo.addOnLoad(function(){
 	EventLog.log("Inteface loaded");
 
@@ -56,6 +68,19 @@ dojo.addOnLoad(function(){
 		}
 	});
 
+	dojo.byId("callerid").stateChanger = dojo.subscribe("agent/state", function(data){
+		switch(data.state){
+			case 'ringing':
+			case 'oncall':
+			case 'wrapup':
+				dojo.byId("callerid").innerHTML = encodeHTML(data.statedata.callerid);
+				dojo.byId("calleridp").style.display = "block";
+				break;
+			default:
+				dojo.byId("calleridp").style.display = "none";
+		}
+	});
+	
 	dojo.byId("statedisp").stateChanger = dojo.subscribe("agent/state", function(data){
 		var node = dojo.byId("statedisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");

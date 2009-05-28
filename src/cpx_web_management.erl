@@ -577,7 +577,10 @@ api({queues, "queue", "new"}, ?COOKIE, Post) ->
 api({medias, "poll"}, ?COOKIE, _Post) ->
 	Nodes = [node() | nodes()],
 	F = fun(Node) ->
-		{Node, [{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)}]}
+		{Node, [
+			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
+			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)}
+		]}
 	end,
 	Rpcs = lists:map(F, Nodes),
 	Json = encode_medias(Rpcs, []),
@@ -588,15 +591,15 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 %% =====
 
 api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
 	case proplists:get_value("enabled", Post) of
 		undefined ->
-			cpx_supervisor:destroy(freeswitch_media_manager),
+			rpc:call(Atomnode, cpx_supervisor, destroy, [freeswitch_media_manager], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
 			Args = [list_to_atom(proplists:get_value("cnode", Post)), [
 				{domain, proplists:get_value("domain", Post, "")},
 				{voicegateway, proplists:get_value("voicegw", Post, "")}]],
-			Atomnode = list_to_existing_atom(Node),
 			Conf = #cpx_conf{
 				id = freeswitch_media_manager,
 				module_name = freeswitch_media_manager,
@@ -631,7 +634,68 @@ api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 				{<<"voicegw">>, list_to_binary(Voicegw)}
 			]},
 			{200, [], mochijson2:encode(Json)}
+	end;
+api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case proplists:get_value("enabled", Post) of
+		undefined ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [email_media_manager], 2000),
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		_Else ->
+			Buildprops = fun(_F, [], Acc) ->
+					Acc;
+				(F, [{"relays", Val} | Tail], Acc) ->
+					Newacc = [{relays, lists:map(fun(S) -> string:strip(util:string_chomp(S)) end, util:string_split(Val))} | Acc],
+					F(F, Tail, Newacc);
+				(F, [{"host", Val} | Tail], Acc) ->
+					F(F, Tail, [{host, Val} | Acc]);
+				(F, [{"bindip", Val} | Tail], Acc) ->
+					Newval = case util:string_split(Val, ".") of
+						Val ->
+							list_to_tuple(util:string_split(Val, ":"));
+						Else ->
+							list_to_tuple(Else)
+					end,
+					F(F, Tail, [{bindip, Newval} | Acc]);
+				(F, [{"port", Val} | Tail], Acc) ->
+					F(F, Tail, [{post, list_to_integer(Val)} | Acc])
+			end,
+			Props = Buildprops(Buildprops, Post, []),
+			Conf = #cpx_conf{
+				id = email_media_manager,
+				module_name = email_media_manager,
+				start_function = start_link,
+				start_args = Props
+			},
+			rpc:call(Atomnode, cpx_supervisor, update_conf, [email_media_manager, Conf], 2000),
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
+api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_conf, [email_media_manager]) of
+		undefined ->
+			Json = {struct, [
+				{success, true},
+				{<<"enabled">>, false}
+			]},
+			{200, [], mochijson2:encode(Json)};
+		Rec when is_record(Rec, cpx_conf) ->
+			Args = Rec#cpx_conf.start_args,
+			Stringtobin = fun(Str) ->
+				list_to_binary(Str)
+			end,
+			Sendargs = [
+				{<<"host">>, list_to_binary(proplists:get_value(host, Args, "localhost"))},
+				{<<"port">>, proplists:get_value(port, Args, 2525)},
+				{<<"bindip">>, list_to_binary(proplists:get_value(bindip, Args, "0.0.0.0"))},
+				{<<"relays">>, lists:map(Stringtobin, proplists:get_value(relays, Args, []))},
+				{<<"enabled">>, true},
+				{success, true}
+			],
+			{200, [], mochijson2:encode({struct, Sendargs})}
 	end.
+	
+	
 	
 % path spec:
 % /basiccommand

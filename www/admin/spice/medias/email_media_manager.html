@@ -17,11 +17,11 @@
 
 <p>
 	<label for="bindip" id="lbindip">BINDIP</label>
-	<input dojoType="dijit.form.ValidationTextBox" name="bindip" regExp="/(\d{1,3}\.){3}\d{1,3}/" />
+	<input dojoType="dijit.form.ValidationTextBox" name="bindip" regExp="(\d{1,3}\.){3}\d{1,3}" />
 </p>
 
 <p>
-	<label for="relays" id="lrelays">RELAYS:</label>
+	<label for="relays" id="lrelays">RELAYS:</label><div style="font-size:smaller">Comma separated list</div>
 	<textarea dojoType="dijit.form.Textarea" name="relays" style="width:50em"></textarea>
 </p>
 
@@ -33,6 +33,7 @@
 			dojo.byId("lport").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").PORT + ":";
 			dojo.byId("lrelays").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").RELAYS + ":";
 			dojo.byId("lhost").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").HOST + ":";
+			dojo.byId("lbindip").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").BINDIP + ":";
 			this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 		</script>
 	</button>

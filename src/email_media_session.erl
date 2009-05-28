@@ -88,7 +88,7 @@ handle_MAIL(From, State) ->
 handle_MAIL_extension(Extension, State) ->
 	{ok, State}.
 
-handle_RCPT(To, State) ->
+handle_RCPT(To, #state{mail_map = undefined} = State) ->
 	F = fun() ->
 		mnesia:read({mail_map, To})
 	end,
@@ -98,14 +98,17 @@ handle_RCPT(To, State) ->
 			{ok, State#state{mail_map = #mail_map{address = To}}};
 		{atomic, [Mailmap]} ->
 			{ok, State#state{mail_map = Mailmap}}
-	end.
+	end;
+handle_RCPT(To, State) ->
+	{error, "452 only one recipient, fool!", State}.
 
 handle_RCPT_extension(Extension, State) ->
 	{ok, State}.
 
-handle_DATA(From, To, Headers, Data, #state{mail_map = Mailmap} = State) when To =:= Mailmap#mail_map.address ->
+handle_DATA(From, [To | _Allelse], Headers, Data, #state{mail_map = Mailmap} = State) when To =:= Mailmap#mail_map.address ->
 	Reference = io_lib:format("~p", [make_ref()]),
-	gen_server:cast(email_media_manager, {queue, Mailmap, Headers, Data}),
+	?INFO("headers:  ~p", [Headers]),
+	gen_server:call(email_media_manager, {queue, Mailmap, Headers, Data}),
 	%mimemail:decode(Headers, Data),
 	{ok, Reference, State#state{mail_map = undefined}}.
 

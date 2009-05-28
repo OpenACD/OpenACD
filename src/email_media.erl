@@ -101,7 +101,8 @@ init([Mailmap, Headers, Data]) ->
 		client = Mailmap#mail_map.client,
 		skills = Mailmap#mail_map.skills,
 		ring_path = inband,
-		media_path = inband
+		media_path = inband,
+		source = self()
 	},
 	{ok, {#state{headers = Headers, data = Data}, {Mailmap#mail_map.queue, Proto}}}.
 	

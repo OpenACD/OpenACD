@@ -89,6 +89,9 @@ init([Options]) ->
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
+handle_call({queue, Mailmap, Headers, Data}, From, #state{mails = Mails} = State) ->
+	{ok, Mpid} = email_media:start_link(Mailmap, Headers, Data),
+	{reply, ok, State#state{mails = [Mpid | Mails]}};
 handle_call(stop, From, State) ->
 	?INFO("Received request to stop from ~p", [From]),
 	{stop, normal, ok, State};
@@ -99,9 +102,6 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_cast({queue, Mailmap, Headers, Data}, #state{mails = Mails} = State) ->
-	{ok, Mpid} = email_media:start_link(Mailmap, Headers, Data),
-	{noreply, State#state{mails = [Mpid | Mails]}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 

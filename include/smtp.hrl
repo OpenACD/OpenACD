@@ -31,5 +31,5 @@
 	address = erlang:error({undefined, address}) :: string(),
 	queue = "default_queue" :: string(),
 	skills = [] :: [{atom(), any()} | atom()],
-	client = "unknown" :: string()
+	client :: string() | 'undefined'
 }).

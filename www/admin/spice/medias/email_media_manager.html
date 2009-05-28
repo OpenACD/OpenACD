@@ -1,0 +1,40 @@
+<form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
+<p>
+	<label for="mediaEnabled">&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" />
+	<span id="emailEnabled">EMAILENABLED</span>
+</p>
+
+<p>
+	<label for="port" id="lport">PORT:</label>
+	<input dojoType="dijit.form.ValidationTextBox" name="port" regExp="[\d]+" />
+</p>
+
+<p>
+	<label for="host" id="lhost">HOST:</label>
+	<input dojoType="dijit.form.TextBox" name="host" id="host" />
+</p>
+
+<p>
+	<label for="bindip" id="lbindip">BINDIP</label>
+	<input dojoType="dijit.form.ValidationTextBox" name="bindip" regExp="/(\d{1,3}\.){3}\d{1,3}/" />
+</p>
+
+<p>
+	<label for="relays" id="lrelays">RELAYS:</label>
+	<textarea dojoType="dijit.form.Textarea" name="relays" style="width:50em"></textarea>
+</p>
+
+<p>
+	<label for="mediaSubmit">&nbsp;</label>
+	<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">
+		<script type="dojo/method" event="postCreate">
+			dojo.byId("emailEnabled").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").EMAILENABLED + ":";
+			dojo.byId("lport").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").PORT + ":";
+			dojo.byId("lrelays").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").RELAYS + ":";
+			dojo.byId("lhost").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").HOST + ":";
+			this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
+	</button>
+</form>
+

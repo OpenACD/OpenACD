@@ -106,9 +106,18 @@ handle_RCPT_extension(Extension, State) ->
 	{ok, State}.
 
 handle_DATA(From, [To | _Allelse], Headers, Data, #state{mail_map = Mailmap} = State) when To =:= Mailmap#mail_map.address ->
-	Reference = io_lib:format("~p", [make_ref()]),
-	?INFO("headers:  ~p", [Headers]),
-	gen_server:call(email_media_manager, {queue, Mailmap, Headers, Data}),
+	{Reference, Heads} = case proplists:get_value("Message-ID", Headers) of
+		undefined ->
+			Ref = erlang:ref_to_list(make_ref()),
+			Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
+			[Domain, _To] = util:string_split(lists:reverse(Mailmap#mail_map.address), "@", 2),
+			Fullref = lists:flatten(io_lib:format("~s@~s", [Refstr, lists:reverse(Domain)])),
+			{Fullref, [{"Message-ID", Fullref} | Headers]};
+		Else ->
+			{Else, Headers}
+	end,
+	?DEBUG("headers:  ~p", [Heads]),
+	gen_server:call(email_media_manager, {queue, Mailmap, Heads, Data}),
 	%mimemail:decode(Headers, Data),
 	{ok, Reference, State#state{mail_map = undefined}}.
 

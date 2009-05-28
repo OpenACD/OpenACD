@@ -94,10 +94,18 @@ start_link(Mailmap, Headers, Data) ->
 %%====================================================================
 
 init([Mailmap, Headers, Data]) ->
+	Callerid = case proplists:get_value("From", Headers) of
+		undefined -> 
+			"unknown";
+		Else ->
+			Else
+	end,
+	?INFO("callerid:  ~s", [Callerid]),
+	?INFO("headers:  ~p", [Headers]),
 	Proto = #call{
-		id = "uberfail", 
+		id = proplists:get_value("Message-ID", Headers), 
 		type = email,
-		callerid = Mailmap#mail_map.address,
+		callerid = Callerid,
 		client = Mailmap#mail_map.client,
 		skills = Mailmap#mail_map.skills,
 		ring_path = inband,

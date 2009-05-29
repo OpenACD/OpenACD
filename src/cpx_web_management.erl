@@ -40,6 +40,7 @@
 -include("agent.hrl").
 -include("queue.hrl").
 -include("cpx.hrl").
+-include("smtp.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
 -ifdef(EUNIT).
@@ -697,9 +698,61 @@ api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 				{success, true}
 			],
 			{200, [], mochijson2:encode({struct, Sendargs})}
+	end;
+api({medias, Node, "email_media_manager", "getMappings"}, ?COOKIE, _Post) ->
+	{atomic, Mappings} = email_media_manager:get_mappings(),
+	Encode = fun(Mapping) ->
+		Client = case Mapping#mail_map.client of
+			undefined ->
+				"undefined";
+			Else ->
+				Else
+		end,
+		{struct, [
+			{<<"address">>, list_to_binary(Mapping#mail_map.address)},
+			{<<"queue">>, list_to_binary(Mapping#mail_map.queue)},
+			{<<"client">>, list_to_binary(Client)},
+			{<<"skills">>, encode_skills(Mapping#mail_map.skills)}
+		]}
+	end,
+	Jarray = lists:map(Encode, Mappings),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Jarray}]})};
+api({medias, Node, "email_media_manager", "setMapping"}, ?COOKIE, Post) ->
+	Newprops = proplists:substitute_aliases([
+		{"address", address},
+		{"skills", skills},
+		{"queue", queue},
+		{"client", client}
+	], Post),
+	case email_media_manager:set_mapping(proplists:get_value("oldaddress", Post), Newprops) of
+		{aborted, Reason} ->
+			Json = {struct, [{success, false}, {message, list_to_binary(lists:flatten(io_lib:format("~p", [Reason])))}]},
+			{200, [], mochijson2:encode(Json)};
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
+api({medias, Node, "email_media_manager", "destroyMapping"}, ?COOKIE, Post) ->
+	case email_media_manager:destroy_mapping(proplists:get_value("address", Post)) of
+		{aborted, Reason} ->
+			Json = {struct, [{success, false}, {message, list_to_binary(lists:flatten(io_lib:format("~p", [Reason])))}]},
+			{200, [], mochijson2:encode(Json)};
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
+api({medias, Node, "email_media_manager", "new"}, ?COOKIE, Post) ->
+	Newprops = proplists:substitute_aliases([
+		{"address", address},
+		{"skills", skills},
+		{"queue", queue},
+		{"client", client}
+	], Post),
+	case email_media_manager:new_mapping(Newprops) of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		{aborted, Reason} ->
+			Json = {struct, [{success, false}, {message, list_to_binary(lists:flatten(io_lib:format("~p", [Reason])))}]},
+			{200, [], mochijson2:encode(Json)}
 	end.
-	
-	
 	
 % path spec:
 % /basiccommand

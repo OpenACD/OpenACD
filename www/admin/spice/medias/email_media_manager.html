@@ -1,3 +1,43 @@
+<style type="text/css">
+  @import "/dojo/dojox/grid/resources/Grid.css";
+  @import "/dojo/dojox/grid/resources/nihiloGrid.css";
+
+  .dojoxGrid table {
+    margin: 0;
+  }
+</style>
+
+<script type="text/javascript">
+    dojo.require("dojox.grid.DataGrid");
+	
+	var spit = function(){
+		console.log("spit");
+		console.log(arguments)
+	};
+	
+	mailMappings = new dojo.data.ItemFileWriteStore({
+		url:"/medias/anynode/email_media_manager/getMappings"
+	});
+	mailMappings._saveCustom = function(savecomplete){
+		var changeset = mailMappings._pending;
+		var updates = [];
+		for(var i in changeset._modifiedItems){
+			var item = null;
+			if(mailMappings._itemsByIdentity){
+				item = mailMappings._itemsByIdentity[i];
+			}
+			else{
+				item = mailMappings._arrayOfAllItems[i];
+			}
+			updates.push(item);
+		}
+		console.log(updates);
+		savecomplete();
+	}
+</script>
+
+<div>
+
 <form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
 <p>
 	<label for="mediaEnabled">&nbsp;</label>
@@ -38,4 +78,102 @@
 		</script>
 	</button>
 </form>
+</div>
 
+<div id="mappingsDiv" style="height:250px">
+</div>
+
+<div>
+<button dojoType="dijit.form.Button" label="Add Mapping" id="mailMapAdd">
+	<script type="dojo/connect" event="onClick">
+		var count = 1;
+		var foundIt = function(item, request){
+			if(item.length > 0){
+				count++;
+				mailMappings.fetch({
+					query:{"address":"support" + count + "@example.com"},
+					onComplete:foundIt
+				});
+			}
+			else{
+				var updateLocal = function(){
+					mailMappings.newItem({
+						"address":"support" + count + "@example.com",
+						"client":"undefined",
+						"queue":"default_queue",
+						"skills":""
+					});
+					mailMappings.save();
+				};
+				dojo.xhrPost({
+					url:"/medias/node/email_media_manager/new",
+					content:{
+						"address":"support" + count + "@example.com",
+						"client":"undefined",
+						"queue":"default_queue",
+						"skills":""
+					},
+					load:updateLocal
+				});
+			}
+		}
+		foundIt(["goober"]);
+	</script>
+</button>
+<button dojoType="dijit.form.Button" label="Drop Mapping" id="mailMapDrop">
+	<script type="dojo/connect" event="onClick">
+		var item = mapGrid.selection.getSelected();
+		if(item.length < 1){
+			//nothing
+		}
+		else{
+			item = item[0];
+			if(item !== null){
+				dojo.xhrPost({
+					url:"/medias/node/email_media_manager/destroyMapping",
+					content:{
+						"address":mailMappings.getValue(item, "address")
+					},
+					handleAs:"json",
+					load:function(res, ioargs){
+						mailMappings.deleteItem(item);
+						mailMappings.save();
+					}
+				});
+			}
+		}
+	</script>
+</button>
+</div>
+
+<script type="text/javascript">
+
+var queueOpt = [];
+var clientOpt = ["undefined"];
+
+var mapGrid = new dojox.grid.DataGrid({
+	store: mailMappings,
+	jsId: "mapGrid",
+	query: {address: "*"},
+	selectionMode:"single",
+	structure: [{
+		cells: [[
+			{field: "address", name: "Address", width:"200px", editable: "true"},
+			{field: "queue", name: "Queue", width:"150px", editable: true, type:dojox.grid.cells.Select, options: queueOpt},
+			{field: "client", name: "Client", width:"159px", editable: true, type:dojox.grid.cells.Select, options: clientOpt},
+			{field: "skills", name: "Skills", width:"300px", editable:true}
+		]]
+	}]
+}, dojo.byId("mappingsDiv"));
+
+var onQueue = function(item, request){
+	queueOpt.push(queues.store.getValue(item, "name"));
+}
+
+queues.store.fetch({
+	query: {type:"queue"},
+	queryOptions:{deep:true},
+	onItem:onQueue
+});
+
+</script>

@@ -166,6 +166,10 @@ var mapGrid = new dojox.grid.DataGrid({
 	}]
 }, dojo.byId("mappingsDiv"));
 
+dojo.connect(mapGrid, "onApplyEdit", function(row){
+	mailMappings.save();
+});
+
 var onQueue = function(item, request){
 	queueOpt.push(queues.store.getValue(item, "name"));
 }

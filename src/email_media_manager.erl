@@ -40,7 +40,11 @@
 -export([
 	start_link/1,
 	start/1,
-	stop/0]).
+	stop/0,
+	get_mappings/0,
+	set_mapping/2,
+	new_mapping/1,
+	destroy_mapping/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -52,6 +56,7 @@
 
 -include("log.hrl").
 -include("smtp.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 -record(state, {
 	mails = [] :: [pid()],
@@ -74,6 +79,48 @@ start(Options) ->
 
 stop() ->
 	gen_server:call(?MODULE, stop).
+	
+get_mappings() ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(mail_map)]),
+		qlc:e(QH)
+	end,
+	mnesia:transaction(F).
+
+set_mapping(Address, Options) when is_list(Options) ->
+	Rec = #mail_map{
+		address = proplists:get_value(address, Options),
+		queue = proplists:get_value(queue, Options, "default_queue"),
+		skills = proplists:get_value(skills, Options, []),
+		client = proplists:get_value(client, Options)
+	},
+	set_mapping(Address, Rec);		
+set_mapping(Address, Rec) when is_record(Rec, mail_map) ->
+	F = fun() ->
+		mnesia:delete({mail_map, Address}),
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F).
+
+new_mapping(Options) when is_list(Options) ->
+	Rec = #mail_map{
+		address = proplists:get_value(address, Options),
+		queue = proplists:get_value(queue, Options, "default_queue"),
+		skills = proplists:get_value(skills, Options, []),
+		client = proplists:get_value(client, Options)
+	},
+	new_mapping(Rec);
+new_mapping(Rec) when is_record(Rec, mail_map) ->
+	F = fun() ->
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F).
+	
+destroy_mapping(Address) ->
+	F = fun() ->
+		mnesia:delete({mail_map, Address})
+	end,
+	mnesia:transaction(F).
 
 %%====================================================================
 %% gen_server callbacks

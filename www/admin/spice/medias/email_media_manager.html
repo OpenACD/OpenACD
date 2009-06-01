@@ -166,8 +166,34 @@ var mapGrid = new dojox.grid.DataGrid({
 	}]
 }, dojo.byId("mappingsDiv"));
 
+dojo.connect(mapGrid, "onRowClick", function(e){
+	mapGrid.cachedAddress = mailMappings.getValue(mapGrid.getItem(e.rowIndex), "address");
+});
+
 dojo.connect(mapGrid, "onApplyEdit", function(row){
-	mailMappings.save();
+	var ajax = function(oldaddy, newitem){
+		dojo.xhrPost({
+			url:"/medias/anynode/email_media_manager/setMapping",
+			content:{
+				"oldaddress":oldaddy,
+				"address":mailMappings.getValue(newitem, "address"),
+				"queue":mailMappings.getValue(newitem, "queue"),
+				"client":mailMappings.getValue(newitem, "client"),
+				"skills":mailMappings.getValue(newitem, "skills")
+			},
+			handleAs:"json",
+			load:function(resp, ioargs){
+				if(resp.success){
+					mailMappings.save();
+				}
+				else{
+					console.log(resp.message);
+				}
+			}
+		});
+	}
+	
+	ajax(mapGrid.cachedAddress, mapGrid.getItem(row));
 });
 
 var onQueue = function(item, request){

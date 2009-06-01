@@ -223,8 +223,10 @@ handle_warm_transfer_begin(Number, #state{agent_pid = AgentPid, callrec = Call, 
 					?NOTICE("members ~p", [Members]),
 					[[Id | _Rest]] = lists:filter(fun(X) -> lists:nth(3, X) =:= Call#call.id end, Members),
 					freeswitch:api(Node, conference, Call#call.id ++ " play local_stream://moh " ++ Id),
+					freeswitch:api(Node, conference, Call#call.id ++ " mute " ++ Id),
 					?NOTICE("Muting ~s in conference", [Id]),
-					freeswitch:api(Node, conference, lists:flatten(io_lib:format("~s dial {originate_timeout=30}sofia/gateway/cpxvgw.fusedsolutions.com/~s 1234567890 FreeSWITCH_Conference", [Call#call.id, Number]))),
+					DialResult = freeswitch:api(Node, conference, lists:flatten(io_lib:format("~s dial {originate_timeout=30}sofia/gateway/cpxvgw.fusedsolutions.com/~s 1234567890 FreeSWITCH_Conference", [Call#call.id, Number]))),
+					?NOTICE("warmxfer dial result: ~p", [DialResult]),
 					{ok, State}
 			end
 	end;

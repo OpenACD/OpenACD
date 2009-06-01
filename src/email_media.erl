@@ -100,8 +100,8 @@ init([Mailmap, Headers, Data]) ->
 		Else ->
 			Else
 	end,
-	?INFO("callerid:  ~s", [Callerid]),
-	?INFO("headers:  ~p", [Headers]),
+	?DEBUG("callerid:  ~s", [Callerid]),
+	?DEBUG("headers:  ~p", [Headers]),
 	Proto = #call{
 		id = proplists:get_value("Message-ID", Headers), 
 		type = email,

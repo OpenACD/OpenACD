@@ -71,7 +71,9 @@
 
 -record(state, {
 	headers,
-	data
+	data,
+	foragent,
+	links
 }).
 
 -type(state() :: #state{}).
@@ -102,6 +104,9 @@ init([Mailmap, Headers, Data]) ->
 	end,
 	?DEBUG("callerid:  ~s", [Callerid]),
 	?DEBUG("headers:  ~p", [Headers]),
+	Mimed = mimemail:decode(Headers, Data),
+	Looped = loop_mail(Mimed, []),
+	{Foragent, Links} = clean_display(Looped, [], []),
 	Proto = #call{
 		id = proplists:get_value("Message-ID", Headers), 
 		type = email,
@@ -112,13 +117,22 @@ init([Mailmap, Headers, Data]) ->
 		media_path = inband,
 		source = self()
 	},
-	{ok, {#state{headers = Headers, data = Data}, {Mailmap#mail_map.queue, Proto}}}.
+	{ok, {#state{headers = Headers, data = Data, foragent = Foragent, links = Links}, {Mailmap#mail_map.queue, Proto}}}.
 	
 	
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 
+handle_call({get_linked, Name}, _From, State) ->
+	Out = proplists:get_value(Name, State#state.links),
+	{reply, Out, State};
+handle_call(get_agent_display, _From, State) ->
+	{reply, State#state.foragent, State};
+handle_call(get_headers, _From, State) ->
+	{reply, State#state.headers, State};
+handle_call(get_data, _From, State) ->
+	{reply, State#state.data, State};
 handle_call(_Msg, _From, State) ->
 	{reply, ok, State}.
 
@@ -176,3 +190,50 @@ handle_wrapup(State) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+-type(display_type() :: 'link' | 'html' | 'text').
+-type(mail_display() :: [{display_type(), any()}]).
+
+loop_mail({"multipart", _, _, _, []}, Acc) ->
+	lists:reverse(Acc);
+loop_mail({"multipart", _, _, _, [Head | Tail]}, Acc) ->
+	Onto = loop_mail(Head, Acc),
+	Newacc = lists:append(Onto, Acc),
+	loop_mail(Tail, Newacc);
+loop_mail({"text", "plain", _, _, Body}, Acc) ->
+	[{text, Body} | Acc];
+loop_mail({"text", "html", _, _, Body}, Acc) ->
+	[{html, Body} | Acc];
+loop_mail(Tuple, Acc) ->
+	[{link, Tuple} | Acc].
+
+clean_display([], Foragent, Links) ->
+	{lists:reverse(Foragent), lists:reverse(Links)};
+clean_display([{link, {_, _, Headers, Properties, Body} = Int} | Tail], Foragent, Links) ->
+	Len = length(Links) + 1,
+	Name = lists:flatten(io_lib:format("~B~s", [Len, proplists:get_value("name", Properties, "unnamed")])),
+	clean_display(Tail, [{link, Name} | Foragent], [{Name, Int} | Links]);
+clean_display([Head | Tail], Foragent, Links) ->
+	clean_display(Tail, [Head | Foragent], Links).
+	
+-ifdef(EUNIT).
+
+loop_mail_test_() ->
+	Getmail = fun(File) ->
+		{ok, Bin} = file:read_file(string:concat("tests/email/", File)),
+		Email = binary_to_list(Bin),
+		mimemail:decode(Email)
+	end,
+	[{"Simple plain text mail",
+	fun() ->
+		Decoded = Getmail("Plain-text-only.eml"),
+		?assertEqual([{text, "This message contains only plain text.\r\n"}], loop_mail(Decoded, []))
+%	end},
+%	{"html text mail",
+%	fun() ->
+%		Decoded = Getmail("html.eml"),
+%		?assertEqual([{html, "<html><body style=\"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; \"><ul class=\"MailOutline\"><li>this</li><li>is</li><li>html</li></ul></body></html>"}], loop_mail(Decoded, []))
+	end}].
+	
+
+
+-endif.

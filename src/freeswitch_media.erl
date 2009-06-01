@@ -81,6 +81,7 @@
 	handle_call/3, 
 	handle_cast/2, 
 	handle_info/2,
+	handle_warm_transfer_begin/2,
 	terminate/2,
 	code_change/3]).
 
@@ -141,8 +142,8 @@ handle_announce(Announcement, #state{callrec = Callrec} = State) ->
 			{"execute-app-arg", Announcement}]),
 	{ok, State}.
 
-handle_answer(_Apid, _Callrec, State) ->
-	{ok, State}.
+handle_answer(Apid, _Callrec, State) ->
+	{ok, State#state{agent_pid = Apid}}.
 
 handle_ring(Apid, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
@@ -202,6 +203,35 @@ handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 			?ERROR("error:  ~p", [Error]),
 			{error, Error, State}
 	end.
+
+handle_warm_transfer_begin(Number, #state{agent_pid = AgentPid, callrec = Call, cnode = Node} = State) when is_pid(AgentPid) ->
+	case freeswitch:api(Node, uuid_transfer, lists:flatten(io_lib:format("~s -both 'conference:~s+flags{mintwo}' inline", [Call#call.id, Call#call.id]))) of
+		{error, Error} ->
+			?WARNING("transferring into a conference failed: ~s", [Error]),
+			{error, Error, State};
+		{ok, _Whatever} ->
+			% okay, now figure out the member IDs
+			NF = io_lib:format("Conference ~s not found", [Call#call.id]),
+			timer:sleep(100),
+			case freeswitch:api(Node, conference, lists:flatten(io_lib:format("~s list", [Call#call.id]))) of
+				{ok, NF} ->
+					% TODO uh-oh!
+					?WARNING("newly created conference not found", []),
+					{ok, State};
+				{ok, Output} ->
+					Members = lists:map(fun(Y) -> util:string_split(Y, ";") end, util:string_split(Output, "\n")),
+					?NOTICE("members ~p", [Members]),
+					[[Id | _Rest]] = lists:filter(fun(X) -> lists:nth(3, X) =:= Call#call.id end, Members),
+					freeswitch:api(Node, conference, Call#call.id ++ " play local_stream://moh " ++ Id),
+					?NOTICE("Muting ~s in conference", [Id]),
+					freeswitch:api(Node, conference, lists:flatten(io_lib:format("~s dial {originate_timeout=30}sofia/gateway/cpxvgw.fusedsolutions.com/~s 1234567890 FreeSWITCH_Conference", [Call#call.id, Number]))),
+					{ok, State}
+			end
+	end;
+handle_warm_transfer_begin(Number, #state{agent_pid = AgentPid} = State) ->
+	?WARNING("wtf?! agent pid is ~p", [AgentPid]),
+	{error, "error: no agent bridged to this call~n", State}.
+
 
 handle_wrapup(State) ->
 	% This intentionally left blank; media is out of band, so there's

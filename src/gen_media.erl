@@ -247,6 +247,7 @@
 	stop_ringing/1,
 	oncall/1,
 	agent_transfer/3,
+	warm_transfer_begin/2,
 	queue/2,
 	call/2,
 	call/3,
@@ -284,6 +285,9 @@ behaviour_info(callbacks) ->
 		{handle_announce, 2}, 
 		{handle_agent_transfer, 4},
 		{handle_queue_transfer, 1},
+		{handle_warm_transfer_begin, 2},
+		{handle_warm_transfer_cancel, 1},
+		{handle_warm_transfer_complete, 1},
 		{handle_wrapup, 1}
 	]);
 behaviour_info(_Other) ->
@@ -332,6 +336,10 @@ oncall(Genmedia) ->
 -spec(agent_transfer/3 :: (Genmedia :: pid(), Apid :: pid(), Timeout :: pos_integer()) -> 'ok' | 'invalid').
 agent_transfer(Genmedia, Apid, Timeout) ->
 	gen_server:call(Genmedia, {'$gen_media_agent_transfer', Apid, Timeout}).
+
+-spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> 'ok' | 'invalid').
+warm_transfer_begin(Genmedia, Number) ->
+	gen_server:call(Genmedia, {'$gen_media_warm_transfer_begin', Number}).
 
 %% @doc Transfer the passed media into the given queue.
 -spec(queue/2 :: (Genmedia :: pid(), Queue :: string()) -> 'ok' | 'invalid').
@@ -482,6 +490,9 @@ handle_call({'$gen_media_agent_transfer', Apid, Timeout}, _From, #state{callback
 handle_call({'$gen_media_agent_transfer', _Apid, _Timeout}, _From, State) ->
 	?ERROR("Invalid agent transfer sent when state is ~p.", [State]),
 	{reply, invalid, State};
+handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback} = State) ->
+	Callback:handle_warm_transfer_begin(Number, State#state.substate),
+	{reply, ok, State};
 handle_call({'$gen_media_annouce', Annouce}, _From, #state{callback = Callback} = State) ->
 	?INFO("Doing announce", []),
 	{ok, Substate} = Callback:handle_announce(Annouce, State),

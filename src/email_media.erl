@@ -194,16 +194,20 @@ handle_wrapup(State) ->
 -type(mail_display() :: [{display_type(), any()}]).
 
 loop_mail({"multipart", _, _, _, []}, Acc) ->
+	?DEBUG("multipart completed", []),
 	lists:reverse(Acc);
-loop_mail({"multipart", _, _, _, [Head | Tail]}, Acc) ->
-	Onto = loop_mail(Head, Acc),
-	Newacc = lists:append(Onto, Acc),
-	loop_mail(Tail, Newacc);
+loop_mail({"multipart", Subtype, Headers, Prop, [Head | Tail]}, Acc) ->
+	?DEBUG("multipart continuation", []),
+	Newacc = loop_mail(Head, Acc),
+	loop_mail({"multipart", Subtype, Headers, Prop, Tail}, Newacc);
 loop_mail({"text", "plain", _, _, Body}, Acc) ->
+	?DEBUG("text/plain", []),
 	[{text, Body} | Acc];
 loop_mail({"text", "html", _, _, Body}, Acc) ->
+	?DEBUG("text/html", []),
 	[{html, Body} | Acc];
-loop_mail(Tuple, Acc) ->
+loop_mail(Tuple, Acc) when is_tuple(Tuple) ->
+	?DEBUG("some other tuple ~p", [Tuple]),
 	[{link, Tuple} | Acc].
 
 clean_display([], Foragent, Links) ->
@@ -227,11 +231,18 @@ loop_mail_test_() ->
 	fun() ->
 		Decoded = Getmail("Plain-text-only.eml"),
 		?assertEqual([{text, "This message contains only plain text.\r\n"}], loop_mail(Decoded, []))
-%	end},
-%	{"html text mail",
-%	fun() ->
-%		Decoded = Getmail("html.eml"),
-%		?assertEqual([{html, "<html><body style=\"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; \"><ul class=\"MailOutline\"><li>this</li><li>is</li><li>html</li></ul></body></html>"}], loop_mail(Decoded, []))
+	end},
+	{"html text mail",
+	fun() ->
+		Decoded = Getmail("html.eml"),
+		?DEBUG("~p", [Decoded]),
+		Res = loop_mail(Decoded, []),
+		?DEBUG("res:  ~p", [Res]),
+		Expected = [
+			{text,"this\r\nis\r\nhtml"},
+			{html,"<html><body style=\"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; \"><ul class=\"MailOutline\"><li>this</li><li>is</li><li>html</li></ul></body></html>"}
+		],
+		?assertEqual(Expected, Res)
 	end}].
 	
 

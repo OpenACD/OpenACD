@@ -219,7 +219,7 @@ clean_display([Head | Tail], Foragent, Links) ->
 
 loop_mail_test_() ->
 	Getmail = fun(File) ->
-		{ok, Bin} = file:read_file(string:concat("tests/email/", File)),
+		{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
 		Email = binary_to_list(Bin),
 		mimemail:decode(Email)
 	end,

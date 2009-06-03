@@ -72,8 +72,8 @@
 -record(state, {
 	headers,
 	data,
-	foragent,
-	links
+	html,
+	files
 }).
 
 -type(state() :: #state{}).
@@ -105,8 +105,7 @@ init([Mailmap, Headers, Data]) ->
 	?DEBUG("callerid:  ~s", [Callerid]),
 	?DEBUG("headers:  ~p", [Headers]),
 	Mimed = mimemail:decode(Headers, Data),
-	Looped = loop_mail(Mimed, []),
-	{Foragent, Links} = clean_display(Looped, [], []),
+	{Html, Files} = mime_to_html(Mimed),
 	Proto = #call{
 		id = proplists:get_value("Message-ID", Headers), 
 		type = email,
@@ -117,18 +116,18 @@ init([Mailmap, Headers, Data]) ->
 		media_path = inband,
 		source = self()
 	},
-	{ok, {#state{headers = Headers, data = Data, foragent = Foragent, links = Links}, {Mailmap#mail_map.queue, Proto}}}.
+	{ok, {#state{headers = Headers, data = Data, html = Html, files = Files}, {Mailmap#mail_map.queue, Proto}}}.
 	
 	
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 
-handle_call({get_linked, Name}, _From, State) ->
-	Out = proplists:get_value(Name, State#state.links),
+handle_call({get_file, Name}, _From, State) ->
+	Out = proplists:get_value(Name, State#state.files),
 	{reply, Out, State};
 handle_call(get_agent_display, _From, State) ->
-	{reply, State#state.foragent, State};
+	{reply, State#state.html, State};
 handle_call(get_headers, _From, State) ->
 	{reply, State#state.headers, State};
 handle_call(get_data, _From, State) ->
@@ -193,33 +192,186 @@ handle_wrapup(State) ->
 -type(display_type() :: 'link' | 'html' | 'text').
 -type(mail_display() :: [{display_type(), any()}]).
 
-loop_mail({"multipart", _, _, _, []}, Acc) ->
-	?DEBUG("multipart completed", []),
-	lists:reverse(Acc);
-loop_mail({"multipart", Subtype, Headers, Prop, [Head | Tail]}, Acc) ->
-	?DEBUG("multipart continuation", []),
-	Newacc = loop_mail(Head, Acc),
-	loop_mail({"multipart", Subtype, Headers, Prop, Tail}, Newacc);
-loop_mail({"text", "plain", _, _, Body}, Acc) ->
-	?DEBUG("text/plain", []),
-	[{text, Body} | Acc];
-loop_mail({"text", "html", _, _, Body}, Acc) ->
-	?DEBUG("text/html", []),
-	[{html, Body} | Acc];
-loop_mail(Tuple, Acc) when is_tuple(Tuple) ->
-	?DEBUG("some other tuple ~p", [Tuple]),
-	[{link, Tuple} | Acc].
+mime_to_html(Tuple) when is_tuple(Tuple) ->
+	mime_to_html(Tuple, [], [], drop_none).
 
-clean_display([], Foragent, Links) ->
-	{lists:reverse(Foragent), lists:reverse(Links)};
-clean_display([{link, {_, _, Headers, Properties, Body} = Int} | Tail], Foragent, Links) ->
-	Len = length(Links) + 1,
-	Name = lists:flatten(io_lib:format("~B~s", [Len, proplists:get_value("name", Properties, "unnamed")])),
-	clean_display(Tail, [{link, Name} | Foragent], [{Name, Int} | Links]);
-clean_display([Head | Tail], Foragent, Links) ->
-	clean_display(Tail, [Head | Foragent], Links).
+check_disposition(Headers) ->
+	case proplists:get_value("Content-Disposition", Headers) of
+		undefined ->
+			inline;
+		Text ->
+			parse_disposition(Text)
+	end.
+						
+parse_disposition(Text) ->
+	[Disposition | Rest] = string:token(Text, ";"),
+	Disatom = case Disposition of
+		"inline" ->
+			inline;
+		_Else ->
+			attachment
+	end,
+	F = fun(Str) ->
+		[Key, Val] = util:string_split(Str, "=", 2),
+		{Key, Val}
+	end,
+	Props = lists:map(F, Rest),
+	case proplists:get_value("filename", Props) of
+		undefined ->
+			Disatom;
+		Filename ->
+			{Disatom, Filename}
+	end.
+
+append_file(Name, Headers, Content, []) ->
+	{Name, [{Name, {Headers, Content}}]};
+append_file(Name, Headers, Content, Files) ->
+	case proplists:get_value(Name, Files) of
+		undefined ->
+			{Name, [{Name, {Headers, Content}} | Files]};
+		{Headers, Content} ->
+			{Name, Files};
+		{_Other, _Data} ->
+			Newname = name_loop(Name, Files, 1),
+			{Newname, [{Newname, {Headers, Content}} | Files]}
+	end.
+
+mochi_parse_lower({Tag, Attr, Kids}) ->
+	NewTag = list_to_binary(string:to_lower(binary_to_list(Tag))),
+	Newkids = mochi_parse_lower(Kids, []),
+	{NewTag, Attr, Newkids}.
+
+mochi_parse_lower([], Acc) ->
+	lists:reverse(Acc);
+mochi_parse_lower([{Tag, Attr, []} | Rest], Acc) ->
+	NewTag = list_to_binary(string:to_lower(binary_to_list(Tag))),
+	mochi_parse_lower(Rest, [{NewTag, Attr, []} | Acc]);
+mochi_parse_lower([{Tag, Attr, Kids} | Rest], Acc) ->
+	Newkids = mochi_parse_lower(Kids, []),
+	NewTag = list_to_binary(string:to_lower(binary_to_list(Tag))),
+	mochi_parse_lower(Rest, [{NewTag, Attr, Newkids} | Acc]);
+mochi_parse_lower([Bin | Rest], Acc) when is_binary(Bin) ->
+	mochi_parse_lower(Rest, [Bin, Acc]).	
+	
+html_append(Html, Appendments) ->
+	lists:flatten(io_lib:format("~s~s", [Html, Appendments])).
+
+download_link(Href, Display) ->
+	lists:flatten(io_lib:format("<span class=\"download\"><a href=\"mediapull/~s\" target=\"_blank\">~s</a></span>")).
+
+name_loop(Name, Props, Count) ->
+	Testname = string:concat(Name, integer_to_list(Count)),
+	case proplists:get_value(Testname, Props) of
+		undefined ->
+			Testname;
+		_Else ->
+			name_loop(Name, Props, Count + 1)
+	end.
+			
+
+mime_to_html({"multipart", _, _, _, []}, Html, Files, _Anyflag) ->
+	?DEBUG("multipart complete", []),
+	{Html, Files};
+mime_to_html({"multipart", "alternative", Headers, Props, [Head | Tail]}, Html, Files, Anyflag) ->
+	?DEBUG("multipart/alternative", []),
+	{Newhtml, Newfiles} = mime_to_html(Head, Html, Files, drop_plain),
+	mime_to_html({"multipart", "alternative", Headers, Props, Tail}, Newhtml, Newfiles, Anyflag);
+mime_to_html({"text", "plain", _, _, _}, Html, Files, drop_plain) ->
+	?DEBUG("dropping text/plain", []),
+	{Html, Files};
+mime_to_html({"text", "plain", Headers, _, Body}, Html, Files, _Anydrop) ->
+	?DEBUG("text/plain", []),
+	case check_disposition(Headers) of
+		inline ->
+			{lists:append([Html, "<pre>", Body, "</pre>"]), Files};
+		{inline, Filename} ->
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, [download_link(Newname, Filename), Body]),
+			{Newhtml, Newfiles};
+		{attachment, Filename} ->
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
+			{Newhtml, Newfiles}
+	end;
+mime_to_html({"text", "html", Headers, _, Body}, Html, Files, _Anydrop) ->
+	?DEBUG("text/html", []),
+	Fixedbody = case string:str(Body, "<html") of
+		0 ->
+			lists:append(["<div>", Body, "</div>"]);
+		Start ->
+			Subbody = case string:str(Body, "</html") of
+				0 ->
+					string:substr(Body, Start);
+				End ->
+					string:submstr(Body, Start, End - Start)
+			end,
+			lists:append(["<div>", Subbody, "</div>"])
+	end,
+	case check_disposition(Headers) of
+		inline ->
+			Newhtml = lists:append(Html, Fixedbody),
+			{Newhtml, Files};
+		{inline, Filename} ->
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, [download_link(Newname, Filename), Fixedbody]),
+			{Newhtml, Newfiles};
+		{attachment, Filename} ->
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
+			{Newhtml, Newfiles}
+	end;
+mime_to_html({"message", "rfc822", Headers, Properties, Body}, Html, Files, _Anydrop) ->
+	?DEBUG("message/rfc822", []),
+	Name = proplists:get_value("name", Properties, "unnamed"),
+	{Newname, Newfiles} = append_file(Name, Headers, Body, Files),
+	Newhtml = html_append(Html, [download_link(Newname, Name)]),
+	{Newhtml, Newfiles};
+mime_to_html({"image", _, Headers, Properties, Body}, Html, Files, _Anydrop) ->
+	?DEBUG("image.  I didn't bother w/ the subtype.", []),
+	case check_disposition(Headers) of
+		{inline, Filename} ->
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, ["<img src=\"mediapull/", Newname, "\">"]),
+			{Newhtml, Newfiles};
+		{attachment, Filename} ->
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
+			{Newhtml, Newfiles}
+	end;
+mime_to_html({_Type, _Subtype, Headers, Props, Body}, Html, Files, _Anydrop) ->
+	?DEBUG("some other type and subtype.", []),
+	Name = proplists:get_value("name", Props, "unnamed"),
+	{Newname, Newfiles} = append_file(Name, Headers, Body, Files),
+	Newhtml = html_append(Html, [download_link(Newname, Name)]),
+	{Newhtml, Newfiles}.
 	
 -ifdef(EUNIT).
+
+mochi_parse_lower_test_() ->
+	[{"Simple lowercasing of empty element",
+	fun() ->
+		Input = {<<"DIV">>, [], []},
+		Res = mochi_parse_lower(Input),
+		?assertEqual({<<"div">>, [], []}, Res)
+	end},
+	{"nested lowercasing",
+	fun() ->
+		Input = {<<"DIV">>, [], [{<<"SPAN">>, [], []}]},
+		Res = mochi_parse_lower(Input),
+		?assertEqual({<<"div">>, [], [{<<"span">>, [], []}]}, Res)
+	end},
+	{"Mixed cases",
+	fun() ->
+		Input = {<<"SpAn">>, [], []},
+		Res = mochi_parse_lower(Input),
+		?assertEqual({<<"span">>, [], []}, Res)
+	end},
+	{"attributes are maintained",
+	fun() ->
+		Input = {<<"DIV">>, [{<<"style">>, <<"background:grey">>}], []},
+		Res = mochi_parse_lower(Input),
+		?assertEqual({<<"div">>, [{<<"style">>, <<"background:grey">>}], []}, Res)
+	end}].
 
 loop_mail_test_() ->
 	Getmail = fun(File) ->
@@ -230,19 +382,73 @@ loop_mail_test_() ->
 	[{"Simple plain text mail",
 	fun() ->
 		Decoded = Getmail("Plain-text-only.eml"),
-		?assertEqual([{text, "This message contains only plain text.\r\n"}], loop_mail(Decoded, []))
-	end},
-	{"html text mail",
-	fun() ->
-		Decoded = Getmail("html.eml"),
-		?DEBUG("~p", [Decoded]),
-		Res = loop_mail(Decoded, []),
-		?DEBUG("res:  ~p", [Res]),
-		Expected = [
-			{text,"this\r\nis\r\nhtml"},
-			{html,"<html><body style=\"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; \"><ul class=\"MailOutline\"><li>this</li><li>is</li><li>html</li></ul></body></html>"}
-		],
-		?assertEqual(Expected, Res)
+		?assertEqual({"<pre>This message contains only plain text.\r\n</pre>", []}, mime_to_html(Decoded))
+%	end},
+%	{"html text mail",
+%	fun() ->
+%		Decoded = Getmail("html.eml"),
+%		?DEBUG("~p", [Decoded]),
+%		{Html, Files} = mime_to_html(Decoded),
+%		?assertEqual([], Files),
+%		?assertEqual(<body style="word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; "><ul class="MailOutline"><li>this</li><li>is</li><li>html</li></ul></body>
+%		
+%		
+%		Res = loop_mail(Decoded, []),
+%		?DEBUG("res:  ~p", [Res]),
+%		Expected = [
+%			{text,"this\r\nis\r\nhtml"},
+%			{html,"<html><body style=\"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; \"><ul class=\"MailOutline\"><li>this</li><li>is</li><li>html</li></ul></body></html>"}
+%		],
+%		?assertEqual(Expected, Res)
+%	end},
+%	{"email with an image",
+%	fun() ->
+%		Decoded = Getmail("image-attachment-only.eml"),
+%		?DEBUG("~p", [Decoded]),
+%		Res = loop_mail(Decoded, []),
+%		?DEBUG("res:  ~p", [Res]),
+%		[Inside] = element(5, Decoded),
+%		Expected = [{link, Inside}],
+%		?assertEqual(Expected, Res)
+%	end},
+%	{"The gamut",
+%	fun() ->
+%		% multipart/alternative
+%		%	text/plain
+%		%	multipart/mixed
+%		%		text/html
+%		%		message/rf822
+%		%			multipart/mixed
+%		%				message/rfc822
+%		%					text/plain
+%		%		text/html
+%		%		message/rtc822
+%		%			text/plain
+%		%		text/html
+%		%		image/jpeg
+%		%		text/html
+%		%		text/rtf
+%		%		text/html
+%		Decoded = Getmail("the-gamut.eml"),
+%		?DEBUG("decoded ~p:  ", [Decoded]),
+%		Expected = [
+%			{text, "text"},
+%			{html, "html"},
+%			{link, "message1"},
+%			{link, "message2"},
+%			{text, "text"},
+%			{html, "html"},
+%			{link, "message3"},
+%			{text, "text"},
+%			{html, "html"},
+%			{link, "image"},
+%			{html, "html"},
+%			{link, "rtf"},
+%			{html, "html"}
+%		],
+%		Res = loop_mail(Decoded),
+%		?DEBUG("res:  ~p", [Res]),
+%		?assertEqual(Expected, Res)
 	end}].
 	
 

@@ -252,7 +252,39 @@ mochi_parse_lower([{Tag, Attr, Kids} | Rest], Acc) ->
 	mochi_parse_lower(Rest, [{NewTag, Attr, Newkids} | Acc]);
 mochi_parse_lower([Bin | Rest], Acc) when is_binary(Bin) ->
 	mochi_parse_lower(Rest, [Bin, Acc]).	
+
+html_strip_heads(In) ->
+	html_strip_heads(In, {undefined, []}).
 	
+html_strip_heads({<<"html">>, _Attr, Kids}, Acc)->
+	?DEBUG("html tag, diving deeper", []),
+	html_strip_heads(Kids, Acc);
+html_strip_heads({Tag, Attr, Kids} = Tuple, Acc) ->
+	html_strip_heads([Tuple], Acc);
+html_strip_heads([{<<"head">>, _Attr, Kids} | Rest], {Acctitle, AccStyle}) ->
+	?DEBUG("head tag, diving into then out", []),
+	Folder = fun
+		({<<"style">>, _, [Body]}, {Title, Style}) ->
+			{Title, lists:concat([Style, binary_to_list(Body)])};
+		({<<"title">>, _, [Body]}, {Title, Style}) ->
+			{Body, Style};
+		({_, _, _}, {Title, Style}) ->
+			{Title, Style}
+	end,
+	{Title, Style} = lists:foldl(Folder, {Acctitle, []}, Kids),
+	?DEBUG("Style thus far:  ~p", [Style]),
+	html_strip_heads(Rest, {Title, lists:concat([AccStyle, Style])});
+html_strip_heads([{<<"body">>, Attr, Kids} | Rest], {Title, AccStyle}) ->
+	case proplists:get_value(<<"style">>, Attr) of
+		undefined ->
+			{Kids, Title, list_to_binary(AccStyle), undefined};
+		Style ->
+			{Kids, Title, list_to_binary(AccStyle), Style}
+	end;
+html_strip_heads(Nodes, {Title, AccStyle}) ->
+	{Nodes, Title, list_to_binary(AccStyle), undefined}.
+
+			
 html_append(Html, Appendments) ->
 	lists:flatten(io_lib:format("~s~s", [Html, Appendments])).
 
@@ -295,18 +327,28 @@ mime_to_html({"text", "plain", Headers, _, Body}, Html, Files, _Anydrop) ->
 	end;
 mime_to_html({"text", "html", Headers, _, Body}, Html, Files, _Anydrop) ->
 	?DEBUG("text/html", []),
-	Fixedbody = case string:str(Body, "<html") of
-		0 ->
-			lists:append(["<div>", Body, "</div>"]);
-		Start ->
-			Subbody = case string:str(Body, "</html") of
-				0 ->
-					string:substr(Body, Start);
-				End ->
-					string:submstr(Body, Start, End - Start)
-			end,
-			lists:append(["<div>", Subbody, "</div>"])
+	Parsed = mochiweb_html:parse(Body),
+	Tolower = mochi_parse_lower(Parsed),
+	{Stripped, Title, Styleelem, Styleattr} = html_strip_heads(Tolower),
+	Titlespan = case Title of
+		undefined -> 
+			{<<"span">>, [], []};
+		Title ->
+			{<<"span">>, [{<<"class">>, <<"mimehtmltitle">>}], [Title]}
 	end,
+	Styled = case Styleelem of
+		<<"">> ->
+			<<"">>;
+		Styleelem ->
+			{<<"style">>, [], [Styleelem]}
+	end,
+	Outerdiv = case Styleattr of
+		undefined ->
+			{<<"div">>, [{<<"class">>, <<"mimehtmlbody">>}], lists:append([[Styled], [Titlespan], Stripped])};
+		Styleattr ->
+			{<<"div">>, [{<<"class">>, <<"mimehtmlbody">>}, {<<"style">>, Styleattr}], lists:append([[Styled], [Titlespan], Stripped])}
+	end,
+	Fixedbody = lists:flatten(io_lib:format("~s", [mochiweb_html:to_html(Outerdiv)])),
 	case check_disposition(Headers) of
 		inline ->
 			Newhtml = lists:append(Html, Fixedbody),
@@ -373,7 +415,48 @@ mochi_parse_lower_test_() ->
 		?assertEqual({<<"div">>, [{<<"style">>, <<"background:grey">>}], []}, Res)
 	end}].
 
-loop_mail_test_() ->
+html_strip_heads_test_() ->
+	[{"grab the bodies style attribute",
+	fun() ->
+		Input = [{<<"body">>, [{<<"style">>, <<"background-color:grey">>}], []}],
+		Res = html_strip_heads(Input),
+		?assertEqual({[], undefined, <<"">>, <<"background-color:grey">>}, Res)
+	end},
+	{"grabs styles down to the body tag",
+	fun() ->
+		Input = {<<"html">>, [], [
+			{<<"head">>, [], [
+				{<<"style">>, [], [<<"background-color:pink">>]}
+			]},
+			{<<"body">>, [{<<"style">>, <<"background-color:grey">>}], [
+				{<<"div">>, [], []},
+				{<<"div">>, [], []}
+			]}
+		]},
+		Res = html_strip_heads(Input),
+		?assertEqual({[{<<"div">>, [], []}, {<<"div">>, [], []}], undefined, <<"background-color:pink">>, <<"background-color:grey">>}, Res)
+	end},
+	{"grabs the title",
+	fun() ->
+		Input = {<<"html">>, [], [
+			{<<"head">>, [], [
+				{<<"title">>, [], [<<"title of the song">>]}
+			]},
+			{<<"body">>, [], [
+				{<<"div">>, [], [<<"hi!">>]}
+			]}
+		]},
+		Res = html_strip_heads(Input),
+		?assertEqual({[{<<"div">>, [], [<<"hi!">>]}], <<"title of the song">>, <<"">>, undefined}, Res)
+	end},
+	{"jump straignt to below a body",
+	fun() ->
+		Input = {<<"div">>, [], [<<"hi!">>]},
+		Res = html_strip_heads(Input),
+		?assertEqual({[{<<"div">>, [], [<<"hi!">>]}], undefined, <<"">>, undefined}, Res)
+	end}].
+
+mime_to_html_test_() ->
 	Getmail = fun(File) ->
 		{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
 		Email = binary_to_list(Bin),

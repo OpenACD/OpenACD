@@ -192,9 +192,6 @@ handle_wrapup(State) ->
 -type(display_type() :: 'link' | 'html' | 'text').
 -type(mail_display() :: [{display_type(), any()}]).
 
-mime_to_html(Tuple) when is_tuple(Tuple) ->
-	mime_to_html(Tuple, [], [], drop_none).
-
 check_disposition(Headers) ->
 	case proplists:get_value("Content-Disposition", Headers) of
 		undefined ->
@@ -204,7 +201,7 @@ check_disposition(Headers) ->
 	end.
 						
 parse_disposition(Text) ->
-	[Disposition | Rest] = string:token(Text, ";"),
+	[Disposition | Rest] = string:tokens(Text, ";"),
 	Disatom = case Disposition of
 		"inline" ->
 			inline;
@@ -289,7 +286,7 @@ html_append(Html, Appendments) ->
 	lists:flatten(io_lib:format("~s~s", [Html, Appendments])).
 
 download_link(Href, Display) ->
-	lists:flatten(io_lib:format("<span class=\"download\"><a href=\"mediapull/~s\" target=\"_blank\">~s</a></span>")).
+	lists:flatten(io_lib:format("<span class=\"download\"><a href=\"mediapull/~s\" target=\"_blank\">~s</a></span>", [Href, Display])).
 
 name_loop(Name, Props, Count) ->
 	Testname = string:concat(Name, integer_to_list(Count)),
@@ -299,8 +296,11 @@ name_loop(Name, Props, Count) ->
 		_Else ->
 			name_loop(Name, Props, Count + 1)
 	end.
-			
 
+mime_to_html(Tuple) when is_tuple(Tuple) ->
+	{Html, Files} = mime_to_html(Tuple, [], [], drop_none),
+	{lists:concat(["<div class=\"mimemail\">", Html, "</div>"]), Files}.
+	
 mime_to_html({"multipart", _, _, _, []}, Html, Files, _Anyflag) ->
 	?DEBUG("multipart complete", []),
 	{Html, Files};
@@ -308,6 +308,9 @@ mime_to_html({"multipart", "alternative", Headers, Props, [Head | Tail]}, Html, 
 	?DEBUG("multipart/alternative", []),
 	{Newhtml, Newfiles} = mime_to_html(Head, Html, Files, drop_plain),
 	mime_to_html({"multipart", "alternative", Headers, Props, Tail}, Newhtml, Newfiles, Anyflag);
+mime_to_html({"multipart", "mixed", Headers, Props, [Head | Tail]}, Html, Files, Anyflag) ->
+	{Newhtml, Newfiles} = mime_to_html(Head, Html, Files, Anyflag),
+	mime_to_html({"multipart", "mixed", Headers, Props, Tail}, Newhtml, Newfiles, Anyflag);
 mime_to_html({"text", "plain", _, _, _}, Html, Files, drop_plain) ->
 	?DEBUG("dropping text/plain", []),
 	{Html, Files};
@@ -372,16 +375,18 @@ mime_to_html({"image", _, Headers, Properties, Body}, Html, Files, _Anydrop) ->
 	?DEBUG("image.  I didn't bother w/ the subtype.", []),
 	case check_disposition(Headers) of
 		{inline, Filename} ->
+			?DEBUG("twas inline it twas.", []),
 			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
-			Newhtml = html_append(Html, ["<img src=\"mediapull/", Newname, "\">"]),
+			Newhtml = html_append(Html, ["<img src=\"/mediapull/", Newname, "\"/>"]),
 			{Newhtml, Newfiles};
 		{attachment, Filename} ->
+			?DEBUG("tis an attachment it is.", []),
 			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
 			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
 			{Newhtml, Newfiles}
 	end;
-mime_to_html({_Type, _Subtype, Headers, Props, Body}, Html, Files, _Anydrop) ->
-	?DEBUG("some other type and subtype.", []),
+mime_to_html({Type, Subtype, Headers, Props, Body}, Html, Files, _Anydrop) ->
+	?DEBUG("some other type and subtype:  ~s/~s.", [Type, Subtype]),
 	Name = proplists:get_value("name", Props, "unnamed"),
 	{Newname, Newfiles} = append_file(Name, Headers, Body, Files),
 	Newhtml = html_append(Html, [download_link(Newname, Name)]),
@@ -389,6 +394,25 @@ mime_to_html({_Type, _Subtype, Headers, Props, Body}, Html, Files, _Anydrop) ->
 	
 -ifdef(EUNIT).
 
+parse_disposition_test_() ->
+	[{"Basic parse",
+	fun() ->
+		Res = parse_disposition("inline;filename=spice-logo.jpg"),
+		?assertEqual({inline, "spice-logo.jpg"}, Res)
+	end}].
+
+check_disposition_test_() ->
+	[{"The header exists",
+	fun() ->
+		Res = check_disposition([{"Content-Disposition","inline;filename=spice-logo.jpg"}]),
+		?assertEqual({inline, "spice-logo.jpg"}, Res)
+	end},
+	{"The header doesn't exists",
+	fun() ->
+		Res = check_disposition([]),
+		?assertEqual(inline, Res)
+	end}].
+		
 mochi_parse_lower_test_() ->
 	[{"Simple lowercasing of empty element",
 	fun() ->
@@ -465,34 +489,40 @@ mime_to_html_test_() ->
 	[{"Simple plain text mail",
 	fun() ->
 		Decoded = Getmail("Plain-text-only.eml"),
-		?assertEqual({"<pre>This message contains only plain text.\r\n</pre>", []}, mime_to_html(Decoded))
-%	end},
-%	{"html text mail",
-%	fun() ->
-%		Decoded = Getmail("html.eml"),
-%		?DEBUG("~p", [Decoded]),
-%		{Html, Files} = mime_to_html(Decoded),
-%		?assertEqual([], Files),
-%		?assertEqual(<body style="word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; "><ul class="MailOutline"><li>this</li><li>is</li><li>html</li></ul></body>
-%		
-%		
-%		Res = loop_mail(Decoded, []),
-%		?DEBUG("res:  ~p", [Res]),
-%		Expected = [
-%			{text,"this\r\nis\r\nhtml"},
-%			{html,"<html><body style=\"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; \"><ul class=\"MailOutline\"><li>this</li><li>is</li><li>html</li></ul></body></html>"}
-%		],
-%		?assertEqual(Expected, Res)
-%	end},
-%	{"email with an image",
-%	fun() ->
-%		Decoded = Getmail("image-attachment-only.eml"),
-%		?DEBUG("~p", [Decoded]),
-%		Res = loop_mail(Decoded, []),
-%		?DEBUG("res:  ~p", [Res]),
-%		[Inside] = element(5, Decoded),
-%		Expected = [{link, Inside}],
-%		?assertEqual(Expected, Res)
+		{Html, Files} = mime_to_html(Decoded),
+		Reshtml = mochiweb_html:parse(Html),
+		?assertEqual([], Files),
+		?assertEqual({<<"div">>, [{<<"class">>, <<"mimemail">>}], [
+			{<<"pre">>, [], [
+				<<"This message contains only plain text.\r\n">>
+			]}
+		]}, Reshtml)
+	end},
+	{"html text mail",
+	fun() ->
+		Decoded = Getmail("html.eml"),
+		?DEBUG("~p", [Decoded]),
+		{Html, Files} = mime_to_html(Decoded),
+		{_Div, _Divatter, [Reshtml]} = mochiweb_html:parse(Html),
+		?assertEqual(<<"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; ">>, proplists:get_value(<<"style">>, element(2, Reshtml))),
+		?assertEqual(<<"mimehtmlbody">>, proplists:get_value(<<"class">>, element(2, Reshtml))),
+		[Titlespan, Ul] = element(3, Reshtml),
+		?assertEqual({<<"span">>, [], []}, Titlespan),
+		?assertEqual({<<"ul">>, [{<<"class">>, <<"MailOutline">>}], [
+			{<<"li">>, [], [<<"this">>]},
+			{<<"li">>, [], [<<"is">>]},
+			{<<"li">>, [], [<<"html">>]}
+		]}, Ul)
+	end},
+	{"email with an image",
+	fun() ->
+		Decoded = Getmail("image-attachment-only.eml"),
+		?DEBUG("~p", [Decoded]),
+		{Html, Files} = mime_to_html(Decoded),
+		{_Div, _Divattr, [Img]} = mochiweb_html:parse(Html),
+		?DEBUG("~p", [Html]),
+		?assertEqual({<<"img">>, [{<<"src">>, <<"/mediapull/spice-logo.jpg">>}], []}, Img),
+		?assertMatch({_Head, _Body}, proplists:get_value("spice-logo.jpg", Files))
 %	end},
 %	{"The gamut",
 %	fun() ->

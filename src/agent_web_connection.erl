@@ -243,6 +243,15 @@ handle_call({agent_transfer, Agentname}, _From, #state{agent_fsm = Apid} = State
 		false ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}]})}, State}
 	end;
+handle_call({warm_transfer, Number}, _From, #state{agent_fsm = Apid} = State) ->
+	?NOTICE("warm transfer to ~p", [Number]),
+	Reply = case agent:warm_transfer_begin(Apid, Number) of
+		ok ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		invalid ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
+	end,
+	{reply, Reply, State};
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?INFO("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of

@@ -225,9 +225,14 @@ handle_warm_transfer_begin(Number, #state{agent_pid = AgentPid, callrec = Call, 
 					freeswitch:api(Node, conference, Call#call.id ++ " play local_stream://moh " ++ Id),
 					freeswitch:api(Node, conference, Call#call.id ++ " mute " ++ Id),
 					?NOTICE("Muting ~s in conference", [Id]),
-					DialResult = freeswitch:api(Node, conference, lists:flatten(io_lib:format("~s dial {originate_timeout=30}sofia/gateway/cpxvgw.fusedsolutions.com/~s 1234567890 FreeSWITCH_Conference", [Call#call.id, Number]))),
-					?NOTICE("warmxfer dial result: ~p", [DialResult]),
-					{ok, State}
+					case freeswitch:api(Node, create_uuid) of
+						{ok, UUID} ->
+							DialResult = freeswitch:api(Node, conference, lists:flatten(io_lib:format("~s dial {origination_uuid=~s,originate_timeout=30}sofia/gateway/cpxvgw.fusedsolutions.com/~s 1234567890 FreeSWITCH_Conference", [Call#call.id, UUID, Number]))),
+							?NOTICE("warmxfer dial result: ~p, UUID requested: ~s", [DialResult, UUID]),
+							{ok, UUID, State};
+						_ ->
+							{error, "allocating UUID failed", State}
+					end
 			end
 	end;
 handle_warm_transfer_begin(Number, #state{agent_pid = AgentPid} = State) ->
@@ -408,6 +413,9 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 						{ok, oncall} ->
 							ok;
 						{ok, released} ->
+							ok;
+						{ok, warmtransfer} ->
+							% caller hungup during warm transfer
 							ok
 					end,
 					State2 = State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}

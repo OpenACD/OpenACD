@@ -164,6 +164,26 @@ Agent.transfer = function(aname) {
 	})
 }
 
+Agent.warmtransfer = function(num) {
+	dojo.xhrGet({
+		url:"/warm_transfer/" + num,
+		handleAs:"json",
+		error:function(response, ioargs){
+			console.log("error on transfer");
+			console.log(response);
+		},
+		load:function(response, ioargs){
+			if(response.success){
+				dojo.publish("agent/warmtransfer", [response.success]);
+			}
+			else{
+				console.log("Failed to initiate warm transfer"),
+				console.log(response)
+			}
+		}
+	})
+}
+
 Agent.getAvailAgents = function() {
 	dojo.xhrGet({
 		url:"/get_avail_agents",

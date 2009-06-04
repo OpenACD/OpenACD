@@ -49,7 +49,7 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 
 %% other exports
--export([start/1, start_link/1, stop/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2, set_endpoint/2, agent_transfer/2]).
+-export([start/1, start_link/1, stop/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2, set_endpoint/2, agent_transfer/2, warm_transfer_begin/2]).
 
 %% @doc Start an agent fsm for the passed in agent record `Agent' that is linked to the calling process
 -spec(start_link/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
@@ -150,6 +150,12 @@ list_to_state(String) ->
 -spec(agent_transfer/2 :: (Pid :: pid(), Target :: pid()) -> 'ok').
 agent_transfer(Pid, Target) ->
 	gen_fsm:sync_send_event(Pid, {agent_transfer, Target}).
+
+%% @doc Start the warm_transfer procedure.  Gernally the media will handle it from here.
+-spec(warm_transfer_begin/2 :: (Pid :: pid(), Target :: string()) -> 'ok').
+warm_transfer_begin(Pid, Target) ->
+	gen_fsm:sync_send_event(Pid, {warm_transfer_begin, Target}).
+
 
 %% @doc Translate the integer `Int' to the corresponding internally used atom.
 -spec(integer_to_state/1 :: (Int :: 2) -> 'idle';
@@ -320,6 +326,15 @@ oncall({warmtransfer, Transferto}, _From, State) ->
 oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
 	Reply = gen_media:agent_transfer(Call#call.source, Agent, 10000),
 	{reply, Reply, oncall, State};
+oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
+	case gen_media:warm_transfer_begin(Call#call.source, Number) of
+		{ok, UUID} ->
+			% TODO - should we store the called number too?
+			gen_server:cast(State#agent.connection, {change_state, warmtransfer, UUID}),
+			{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, UUID}, lastchangetimestamp=now()}};
+		_ ->
+			{reply, invalid, oncall, State}
+	end;
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
 	

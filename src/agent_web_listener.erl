@@ -428,6 +428,8 @@ parse_path(Path) ->
 					{api, get_avail_agents};
 				["agent_transfer", Agent] ->
 					{api, {agent_transfer, Agent}};
+				["warm_transfer", Number] ->
+					{api, {warm_transfer, Number}};
 				["supervisor" | Supertail] ->
 					{api, {supervisor, Supertail}};
 				_Allother ->

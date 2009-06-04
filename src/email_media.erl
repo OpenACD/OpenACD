@@ -132,6 +132,16 @@ handle_call(get_headers, _From, State) ->
 	{reply, State#state.headers, State};
 handle_call(get_data, _From, State) ->
 	{reply, State#state.data, State};
+handle_call({mediapull, ""}, _From, #state{html = Html} = State) ->
+	{reply, {[], Html}, State};
+handle_call({mediapull, Filename}, _From, #state{files = Files} = State) ->
+	Reply = case proplists:get_value(Filename, Files) of
+		undefined ->
+			invalid;
+		{Headers, Content} = Rep ->
+			Rep
+	end,
+	{reply, Reply, State};
 handle_call(_Msg, _From, State) ->
 	{reply, ok, State}.
 

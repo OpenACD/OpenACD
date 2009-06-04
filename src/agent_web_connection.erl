@@ -260,6 +260,13 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 handle_call({supervisor, _Request}, _From, State) ->
 	?NOTICE("Unauthorized access to a supervisor web call", []),
 	{reply, {403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"insufficient privledges">>}]})}, State};
+handle_call({mediapull, Data}, _From, #state{agent_fsm = Apid} = State) ->
+	case agent:media_pull(Data) of
+		invalid ->
+			{reply, {200, [], "Nodata"}, State};
+		{Heads, Html} ->
+			{reply, {200, Heads, Html}, State}
+	end;
 handle_call(Allothers, _From, State) ->
 	{reply, {unknown_call, Allothers}, State}.
 

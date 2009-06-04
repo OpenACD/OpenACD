@@ -320,6 +320,9 @@ oncall({warmtransfer, Transferto}, _From, State) ->
 oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
 	Reply = gen_media:agent_transfer(Call#call.source, Agent, 10000),
 	{reply, Reply, oncall, State};
+oncall({mediapull, Data}, _From, #agent{statedata = Call} = State) ->
+	Reply = gen_media:call(Call#call.source, {mediapull, Data}),
+	{reply, Reply, oncall, State};
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
 	

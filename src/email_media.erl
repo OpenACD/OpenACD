@@ -133,15 +133,21 @@ handle_call(get_headers, _From, State) ->
 handle_call(get_data, _From, State) ->
 	{reply, State#state.data, State};
 handle_call({mediapull, ""}, _From, #state{html = Html} = State) ->
+	?DEBUG("outgoing html:  ~p", [Html]),
 	{reply, {[], Html}, State};
 handle_call({mediapull, Filename}, _From, #state{files = Files} = State) ->
+	?DEBUG("Files:  ~p", [Files]),
 	Reply = case proplists:get_value(Filename, Files) of
 		undefined ->
+			?DEBUG("No such file ~s", [Filename]),
 			invalid;
 		{Headers, Content} = Rep ->
+			?DEBUG("Hey look, a file!  ~p", [Rep]),
 			Rep
 	end,
 	{reply, Reply, State};
+handle_call(dump, _From, State) ->
+	{reply, State, State};
 handle_call(_Msg, _From, State) ->
 	{reply, ok, State}.
 
@@ -246,6 +252,7 @@ append_file(Name, Headers, Content, Files) ->
 mochi_parse_lower({Tag, Attr, Kids}) ->
 	NewTag = list_to_binary(string:to_lower(binary_to_list(Tag))),
 	Newkids = mochi_parse_lower(Kids, []),
+	?DEBUG("parse lower:  ~p", [{NewTag, Attr, Newkids}]),
 	{NewTag, Attr, Newkids}.
 
 mochi_parse_lower([], Acc) ->
@@ -258,13 +265,13 @@ mochi_parse_lower([{Tag, Attr, Kids} | Rest], Acc) ->
 	NewTag = list_to_binary(string:to_lower(binary_to_list(Tag))),
 	mochi_parse_lower(Rest, [{NewTag, Attr, Newkids} | Acc]);
 mochi_parse_lower([Bin | Rest], Acc) when is_binary(Bin) ->
-	mochi_parse_lower(Rest, [Bin, Acc]).	
+	mochi_parse_lower(Rest, [Bin | Acc]).	
 
 html_strip_heads(In) ->
 	html_strip_heads(In, {undefined, []}).
 	
 html_strip_heads({<<"html">>, _Attr, Kids}, Acc)->
-	?DEBUG("html tag, diving deeper", []),
+	?DEBUG("html tag, diving deeper.  Kids:  ~p", [Kids]),
 	html_strip_heads(Kids, Acc);
 html_strip_heads({Tag, Attr, Kids} = Tuple, Acc) ->
 	html_strip_heads([Tuple], Acc);
@@ -282,6 +289,7 @@ html_strip_heads([{<<"head">>, _Attr, Kids} | Rest], {Acctitle, AccStyle}) ->
 	?DEBUG("Style thus far:  ~p", [Style]),
 	html_strip_heads(Rest, {Title, lists:concat([AccStyle, Style])});
 html_strip_heads([{<<"body">>, Attr, Kids} | Rest], {Title, AccStyle}) ->
+	?DEBUG("Body tag.  Nabbing style and diving deeper", []),
 	case proplists:get_value(<<"style">>, Attr) of
 		undefined ->
 			{Kids, Title, list_to_binary(AccStyle), undefined};
@@ -447,6 +455,14 @@ mochi_parse_lower_test_() ->
 		Input = {<<"DIV">>, [{<<"style">>, <<"background:grey">>}], []},
 		Res = mochi_parse_lower(Input),
 		?assertEqual({<<"div">>, [{<<"style">>, <<"background:grey">>}], []}, Res)
+	end},
+	{"order preserved",
+	fun() ->
+		Input = mochiweb_html:parse("<html><body style=\"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; \"><b>This</b> is <i>rich</i> text.<div><br></div><div>The list is html.</div><div><br></div><div>Attchments:</div><div><ul class=\"MailOutline\"><li>an email containing an attachment of an email.</li><li>an email of only plain text.</li><li>an image</li><li>an rtf file.</li></ul></div><div></div></body></html>"),
+		Res = mochi_parse_lower(Input),
+		?DEBUG("input:  ~p;", [Input]),  
+		?DEBUG("Res:  ~p", [Res]),
+		?assertEqual(Input, Res)
 	end}].
 
 html_strip_heads_test_() ->
@@ -530,50 +546,42 @@ mime_to_html_test_() ->
 		?DEBUG("~p", [Decoded]),
 		{Html, Files} = mime_to_html(Decoded),
 		{_Div, _Divattr, [Img]} = mochiweb_html:parse(Html),
-		?DEBUG("~p", [Html]),
+		?DEBUG("~s", [Html]),
 		?assertEqual({<<"img">>, [{<<"src">>, <<"/mediapull/spice-logo.jpg">>}], []}, Img),
 		?assertMatch({_Head, _Body}, proplists:get_value("spice-logo.jpg", Files))
-%	end},
-%	{"The gamut",
-%	fun() ->
-%		% multipart/alternative
-%		%	text/plain
-%		%	multipart/mixed
-%		%		text/html
-%		%		message/rf822
-%		%			multipart/mixed
-%		%				message/rfc822
-%		%					text/plain
-%		%		text/html
-%		%		message/rtc822
-%		%			text/plain
-%		%		text/html
-%		%		image/jpeg
-%		%		text/html
-%		%		text/rtf
-%		%		text/html
-%		Decoded = Getmail("the-gamut.eml"),
-%		?DEBUG("decoded ~p:  ", [Decoded]),
-%		Expected = [
-%			{text, "text"},
-%			{html, "html"},
-%			{link, "message1"},
-%			{link, "message2"},
-%			{text, "text"},
-%			{html, "html"},
-%			{link, "message3"},
-%			{text, "text"},
-%			{html, "html"},
-%			{link, "image"},
-%			{html, "html"},
-%			{link, "rtf"},
-%			{html, "html"}
-%		],
-%		Res = loop_mail(Decoded),
-%		?DEBUG("res:  ~p", [Res]),
-%		?assertEqual(Expected, Res)
+	end},
+	{"The gamut",
+	fun() ->
+		% multipart/alternative
+		%	text/plain
+		%	multipart/mixed
+		%		text/html
+		%		message/rf822
+		%			multipart/mixed
+		%				message/rfc822
+		%					text/plain
+		%		text/html
+		%		message/rtc822
+		%			text/plain
+		%		text/html
+		%		image/jpeg
+		%		text/html
+		%		text/rtf
+		%		text/html
+		Decoded = Getmail("the-gamut.eml"),
+		?DEBUG("decoded ~p:  ", [Decoded]),
+		{Html, Files} = mime_to_html(Decoded),
+		?DEBUG("Html: ~s", [Html]),
+		{_Div, _Divattr, Kids} = mochiweb_html:parse(Html)
 	end}].
 	
-
+%init_test_() ->
+%	[{"image inline",
+%	fun() ->
+%		Getmail = fun(File) ->
+%		{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
+%		Email = binary_to_list(Bin),
+%		
+%	end}]
 
 -endif.

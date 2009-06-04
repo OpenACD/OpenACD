@@ -21,6 +21,7 @@ dojo.addOnLoad(function(){
 		EventLog.log(line);
 	});
 	
+	//dijit.byId("emaildisp").hide();
 	//dijit.byId("loginpane").show();
 	dojo.xhrGet({
 		url:"/checkcookie",
@@ -48,6 +49,20 @@ dojo.addOnLoad(function(){
 	
 	//Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
 
+	dijit.byId("emaildisp").stateChanger = dojo.subscribe("agent/state", function(data){
+		console.log(data);
+		if(data.state == "oncall"){
+			if(data.statedata.type == "email"){
+				console.log("Imma chargin' mah lazer!");
+				dijit.byId("emaildisp").show();
+				dijit.byId("emaildisp").setHref("/mediapull/");
+			}
+		}
+		else{
+			dijit.byId("emaildisp").hide();
+		}
+	});
+	
 	dojo.byId("brand").stateChanger = dojo.subscribe("agent/state", function(data){
 		var node = dojo.byId("brand");
 		console.log(data.statedata);

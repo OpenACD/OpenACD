@@ -71,7 +71,9 @@
 
 -record(state, {
 	headers,
-	data
+	data,
+	html,
+	files
 }).
 
 -type(state() :: #state{}).
@@ -100,8 +102,10 @@ init([Mailmap, Headers, Data]) ->
 		Else ->
 			Else
 	end,
-	?INFO("callerid:  ~s", [Callerid]),
-	?INFO("headers:  ~p", [Headers]),
+	?DEBUG("callerid:  ~s", [Callerid]),
+	?DEBUG("headers:  ~p", [Headers]),
+	Mimed = mimemail:decode(Headers, Data),
+	{Html, Files} = mime_to_html(Mimed),
 	Proto = #call{
 		id = proplists:get_value("Message-ID", Headers), 
 		type = email,
@@ -112,13 +116,22 @@ init([Mailmap, Headers, Data]) ->
 		media_path = inband,
 		source = self()
 	},
-	{ok, {#state{headers = Headers, data = Data}, {Mailmap#mail_map.queue, Proto}}}.
+	{ok, {#state{headers = Headers, data = Data, html = Html, files = Files}, {Mailmap#mail_map.queue, Proto}}}.
 	
 	
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 
+handle_call({get_file, Name}, _From, State) ->
+	Out = proplists:get_value(Name, State#state.files),
+	{reply, Out, State};
+handle_call(get_agent_display, _From, State) ->
+	{reply, State#state.html, State};
+handle_call(get_headers, _From, State) ->
+	{reply, State#state.headers, State};
+handle_call(get_data, _From, State) ->
+	{reply, State#state.data, State};
 handle_call(_Msg, _From, State) ->
 	{reply, ok, State}.
 
@@ -176,3 +189,381 @@ handle_wrapup(State) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+-type(display_type() :: 'link' | 'html' | 'text').
+-type(mail_display() :: [{display_type(), any()}]).
+
+check_disposition(Headers) ->
+	case proplists:get_value("Content-Disposition", Headers) of
+		undefined ->
+			inline;
+		Text ->
+			parse_disposition(Text)
+	end.
+						
+parse_disposition(Text) ->
+	[Disposition | Rest] = string:tokens(Text, ";"),
+	Disatom = case Disposition of
+		"inline" ->
+			inline;
+		_Else ->
+			attachment
+	end,
+	F = fun(Str) ->
+		[Key, Val] = util:string_split(Str, "=", 2),
+		{Key, Val}
+	end,
+	Props = lists:map(F, Rest),
+	case proplists:get_value("filename", Props) of
+		undefined ->
+			Disatom;
+		Filename ->
+			{Disatom, Filename}
+	end.
+
+append_file(Name, Headers, Content, []) ->
+	{Name, [{Name, {Headers, Content}}]};
+append_file(Name, Headers, Content, Files) ->
+	case proplists:get_value(Name, Files) of
+		undefined ->
+			{Name, [{Name, {Headers, Content}} | Files]};
+		{Headers, Content} ->
+			{Name, Files};
+		{_Other, _Data} ->
+			Newname = name_loop(Name, Files, 1),
+			{Newname, [{Newname, {Headers, Content}} | Files]}
+	end.
+
+mochi_parse_lower({Tag, Attr, Kids}) ->
+	NewTag = list_to_binary(string:to_lower(binary_to_list(Tag))),
+	Newkids = mochi_parse_lower(Kids, []),
+	{NewTag, Attr, Newkids}.
+
+mochi_parse_lower([], Acc) ->
+	lists:reverse(Acc);
+mochi_parse_lower([{Tag, Attr, []} | Rest], Acc) ->
+	NewTag = list_to_binary(string:to_lower(binary_to_list(Tag))),
+	mochi_parse_lower(Rest, [{NewTag, Attr, []} | Acc]);
+mochi_parse_lower([{Tag, Attr, Kids} | Rest], Acc) ->
+	Newkids = mochi_parse_lower(Kids, []),
+	NewTag = list_to_binary(string:to_lower(binary_to_list(Tag))),
+	mochi_parse_lower(Rest, [{NewTag, Attr, Newkids} | Acc]);
+mochi_parse_lower([Bin | Rest], Acc) when is_binary(Bin) ->
+	mochi_parse_lower(Rest, [Bin, Acc]).	
+
+html_strip_heads(In) ->
+	html_strip_heads(In, {undefined, []}).
+	
+html_strip_heads({<<"html">>, _Attr, Kids}, Acc)->
+	?DEBUG("html tag, diving deeper", []),
+	html_strip_heads(Kids, Acc);
+html_strip_heads({Tag, Attr, Kids} = Tuple, Acc) ->
+	html_strip_heads([Tuple], Acc);
+html_strip_heads([{<<"head">>, _Attr, Kids} | Rest], {Acctitle, AccStyle}) ->
+	?DEBUG("head tag, diving into then out", []),
+	Folder = fun
+		({<<"style">>, _, [Body]}, {Title, Style}) ->
+			{Title, lists:concat([Style, binary_to_list(Body)])};
+		({<<"title">>, _, [Body]}, {Title, Style}) ->
+			{Body, Style};
+		({_, _, _}, {Title, Style}) ->
+			{Title, Style}
+	end,
+	{Title, Style} = lists:foldl(Folder, {Acctitle, []}, Kids),
+	?DEBUG("Style thus far:  ~p", [Style]),
+	html_strip_heads(Rest, {Title, lists:concat([AccStyle, Style])});
+html_strip_heads([{<<"body">>, Attr, Kids} | Rest], {Title, AccStyle}) ->
+	case proplists:get_value(<<"style">>, Attr) of
+		undefined ->
+			{Kids, Title, list_to_binary(AccStyle), undefined};
+		Style ->
+			{Kids, Title, list_to_binary(AccStyle), Style}
+	end;
+html_strip_heads(Nodes, {Title, AccStyle}) ->
+	{Nodes, Title, list_to_binary(AccStyle), undefined}.
+
+			
+html_append(Html, Appendments) ->
+	lists:flatten(io_lib:format("~s~s", [Html, Appendments])).
+
+download_link(Href, Display) ->
+	lists:flatten(io_lib:format("<span class=\"download\"><a href=\"mediapull/~s\" target=\"_blank\">~s</a></span>", [Href, Display])).
+
+name_loop(Name, Props, Count) ->
+	Testname = string:concat(Name, integer_to_list(Count)),
+	case proplists:get_value(Testname, Props) of
+		undefined ->
+			Testname;
+		_Else ->
+			name_loop(Name, Props, Count + 1)
+	end.
+
+mime_to_html(Tuple) when is_tuple(Tuple) ->
+	{Html, Files} = mime_to_html(Tuple, [], [], drop_none),
+	{lists:concat(["<div class=\"mimemail\">", Html, "</div>"]), Files}.
+	
+mime_to_html({"multipart", _, _, _, []}, Html, Files, _Anyflag) ->
+	?DEBUG("multipart complete", []),
+	{Html, Files};
+mime_to_html({"multipart", "alternative", Headers, Props, [Head | Tail]}, Html, Files, Anyflag) ->
+	?DEBUG("multipart/alternative", []),
+	{Newhtml, Newfiles} = mime_to_html(Head, Html, Files, drop_plain),
+	mime_to_html({"multipart", "alternative", Headers, Props, Tail}, Newhtml, Newfiles, Anyflag);
+mime_to_html({"multipart", "mixed", Headers, Props, [Head | Tail]}, Html, Files, Anyflag) ->
+	{Newhtml, Newfiles} = mime_to_html(Head, Html, Files, Anyflag),
+	mime_to_html({"multipart", "mixed", Headers, Props, Tail}, Newhtml, Newfiles, Anyflag);
+mime_to_html({"text", "plain", _, _, _}, Html, Files, drop_plain) ->
+	?DEBUG("dropping text/plain", []),
+	{Html, Files};
+mime_to_html({"text", "plain", Headers, _, Body}, Html, Files, _Anydrop) ->
+	?DEBUG("text/plain", []),
+	case check_disposition(Headers) of
+		inline ->
+			{lists:append([Html, "<pre>", Body, "</pre>"]), Files};
+		{inline, Filename} ->
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, [download_link(Newname, Filename), Body]),
+			{Newhtml, Newfiles};
+		{attachment, Filename} ->
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
+			{Newhtml, Newfiles}
+	end;
+mime_to_html({"text", "html", Headers, _, Body}, Html, Files, _Anydrop) ->
+	?DEBUG("text/html", []),
+	Parsed = mochiweb_html:parse(Body),
+	Tolower = mochi_parse_lower(Parsed),
+	{Stripped, Title, Styleelem, Styleattr} = html_strip_heads(Tolower),
+	Titlespan = case Title of
+		undefined -> 
+			{<<"span">>, [], []};
+		Title ->
+			{<<"span">>, [{<<"class">>, <<"mimehtmltitle">>}], [Title]}
+	end,
+	Styled = case Styleelem of
+		<<"">> ->
+			<<"">>;
+		Styleelem ->
+			{<<"style">>, [], [Styleelem]}
+	end,
+	Outerdiv = case Styleattr of
+		undefined ->
+			{<<"div">>, [{<<"class">>, <<"mimehtmlbody">>}], lists:append([[Styled], [Titlespan], Stripped])};
+		Styleattr ->
+			{<<"div">>, [{<<"class">>, <<"mimehtmlbody">>}, {<<"style">>, Styleattr}], lists:append([[Styled], [Titlespan], Stripped])}
+	end,
+	Fixedbody = lists:flatten(io_lib:format("~s", [mochiweb_html:to_html(Outerdiv)])),
+	case check_disposition(Headers) of
+		inline ->
+			Newhtml = lists:append(Html, Fixedbody),
+			{Newhtml, Files};
+		{inline, Filename} ->
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, [download_link(Newname, Filename), Fixedbody]),
+			{Newhtml, Newfiles};
+		{attachment, Filename} ->
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
+			{Newhtml, Newfiles}
+	end;
+mime_to_html({"message", "rfc822", Headers, Properties, Body}, Html, Files, _Anydrop) ->
+	?DEBUG("message/rfc822", []),
+	Name = proplists:get_value("name", Properties, "unnamed"),
+	{Newname, Newfiles} = append_file(Name, Headers, Body, Files),
+	Newhtml = html_append(Html, [download_link(Newname, Name)]),
+	{Newhtml, Newfiles};
+mime_to_html({"image", _, Headers, Properties, Body}, Html, Files, _Anydrop) ->
+	?DEBUG("image.  I didn't bother w/ the subtype.", []),
+	case check_disposition(Headers) of
+		{inline, Filename} ->
+			?DEBUG("twas inline it twas.", []),
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, ["<img src=\"/mediapull/", Newname, "\"/>"]),
+			{Newhtml, Newfiles};
+		{attachment, Filename} ->
+			?DEBUG("tis an attachment it is.", []),
+			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
+			{Newhtml, Newfiles}
+	end;
+mime_to_html({Type, Subtype, Headers, Props, Body}, Html, Files, _Anydrop) ->
+	?DEBUG("some other type and subtype:  ~s/~s.", [Type, Subtype]),
+	Name = proplists:get_value("name", Props, "unnamed"),
+	{Newname, Newfiles} = append_file(Name, Headers, Body, Files),
+	Newhtml = html_append(Html, [download_link(Newname, Name)]),
+	{Newhtml, Newfiles}.
+	
+-ifdef(EUNIT).
+
+parse_disposition_test_() ->
+	[{"Basic parse",
+	fun() ->
+		Res = parse_disposition("inline;filename=spice-logo.jpg"),
+		?assertEqual({inline, "spice-logo.jpg"}, Res)
+	end}].
+
+check_disposition_test_() ->
+	[{"The header exists",
+	fun() ->
+		Res = check_disposition([{"Content-Disposition","inline;filename=spice-logo.jpg"}]),
+		?assertEqual({inline, "spice-logo.jpg"}, Res)
+	end},
+	{"The header doesn't exists",
+	fun() ->
+		Res = check_disposition([]),
+		?assertEqual(inline, Res)
+	end}].
+		
+mochi_parse_lower_test_() ->
+	[{"Simple lowercasing of empty element",
+	fun() ->
+		Input = {<<"DIV">>, [], []},
+		Res = mochi_parse_lower(Input),
+		?assertEqual({<<"div">>, [], []}, Res)
+	end},
+	{"nested lowercasing",
+	fun() ->
+		Input = {<<"DIV">>, [], [{<<"SPAN">>, [], []}]},
+		Res = mochi_parse_lower(Input),
+		?assertEqual({<<"div">>, [], [{<<"span">>, [], []}]}, Res)
+	end},
+	{"Mixed cases",
+	fun() ->
+		Input = {<<"SpAn">>, [], []},
+		Res = mochi_parse_lower(Input),
+		?assertEqual({<<"span">>, [], []}, Res)
+	end},
+	{"attributes are maintained",
+	fun() ->
+		Input = {<<"DIV">>, [{<<"style">>, <<"background:grey">>}], []},
+		Res = mochi_parse_lower(Input),
+		?assertEqual({<<"div">>, [{<<"style">>, <<"background:grey">>}], []}, Res)
+	end}].
+
+html_strip_heads_test_() ->
+	[{"grab the bodies style attribute",
+	fun() ->
+		Input = [{<<"body">>, [{<<"style">>, <<"background-color:grey">>}], []}],
+		Res = html_strip_heads(Input),
+		?assertEqual({[], undefined, <<"">>, <<"background-color:grey">>}, Res)
+	end},
+	{"grabs styles down to the body tag",
+	fun() ->
+		Input = {<<"html">>, [], [
+			{<<"head">>, [], [
+				{<<"style">>, [], [<<"background-color:pink">>]}
+			]},
+			{<<"body">>, [{<<"style">>, <<"background-color:grey">>}], [
+				{<<"div">>, [], []},
+				{<<"div">>, [], []}
+			]}
+		]},
+		Res = html_strip_heads(Input),
+		?assertEqual({[{<<"div">>, [], []}, {<<"div">>, [], []}], undefined, <<"background-color:pink">>, <<"background-color:grey">>}, Res)
+	end},
+	{"grabs the title",
+	fun() ->
+		Input = {<<"html">>, [], [
+			{<<"head">>, [], [
+				{<<"title">>, [], [<<"title of the song">>]}
+			]},
+			{<<"body">>, [], [
+				{<<"div">>, [], [<<"hi!">>]}
+			]}
+		]},
+		Res = html_strip_heads(Input),
+		?assertEqual({[{<<"div">>, [], [<<"hi!">>]}], <<"title of the song">>, <<"">>, undefined}, Res)
+	end},
+	{"jump straignt to below a body",
+	fun() ->
+		Input = {<<"div">>, [], [<<"hi!">>]},
+		Res = html_strip_heads(Input),
+		?assertEqual({[{<<"div">>, [], [<<"hi!">>]}], undefined, <<"">>, undefined}, Res)
+	end}].
+
+mime_to_html_test_() ->
+	Getmail = fun(File) ->
+		{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
+		Email = binary_to_list(Bin),
+		mimemail:decode(Email)
+	end,
+	[{"Simple plain text mail",
+	fun() ->
+		Decoded = Getmail("Plain-text-only.eml"),
+		{Html, Files} = mime_to_html(Decoded),
+		Reshtml = mochiweb_html:parse(Html),
+		?assertEqual([], Files),
+		?assertEqual({<<"div">>, [{<<"class">>, <<"mimemail">>}], [
+			{<<"pre">>, [], [
+				<<"This message contains only plain text.\r\n">>
+			]}
+		]}, Reshtml)
+	end},
+	{"html text mail",
+	fun() ->
+		Decoded = Getmail("html.eml"),
+		?DEBUG("~p", [Decoded]),
+		{Html, Files} = mime_to_html(Decoded),
+		{_Div, _Divatter, [Reshtml]} = mochiweb_html:parse(Html),
+		?assertEqual(<<"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; ">>, proplists:get_value(<<"style">>, element(2, Reshtml))),
+		?assertEqual(<<"mimehtmlbody">>, proplists:get_value(<<"class">>, element(2, Reshtml))),
+		[Titlespan, Ul] = element(3, Reshtml),
+		?assertEqual({<<"span">>, [], []}, Titlespan),
+		?assertEqual({<<"ul">>, [{<<"class">>, <<"MailOutline">>}], [
+			{<<"li">>, [], [<<"this">>]},
+			{<<"li">>, [], [<<"is">>]},
+			{<<"li">>, [], [<<"html">>]}
+		]}, Ul)
+	end},
+	{"email with an image",
+	fun() ->
+		Decoded = Getmail("image-attachment-only.eml"),
+		?DEBUG("~p", [Decoded]),
+		{Html, Files} = mime_to_html(Decoded),
+		{_Div, _Divattr, [Img]} = mochiweb_html:parse(Html),
+		?DEBUG("~p", [Html]),
+		?assertEqual({<<"img">>, [{<<"src">>, <<"/mediapull/spice-logo.jpg">>}], []}, Img),
+		?assertMatch({_Head, _Body}, proplists:get_value("spice-logo.jpg", Files))
+%	end},
+%	{"The gamut",
+%	fun() ->
+%		% multipart/alternative
+%		%	text/plain
+%		%	multipart/mixed
+%		%		text/html
+%		%		message/rf822
+%		%			multipart/mixed
+%		%				message/rfc822
+%		%					text/plain
+%		%		text/html
+%		%		message/rtc822
+%		%			text/plain
+%		%		text/html
+%		%		image/jpeg
+%		%		text/html
+%		%		text/rtf
+%		%		text/html
+%		Decoded = Getmail("the-gamut.eml"),
+%		?DEBUG("decoded ~p:  ", [Decoded]),
+%		Expected = [
+%			{text, "text"},
+%			{html, "html"},
+%			{link, "message1"},
+%			{link, "message2"},
+%			{text, "text"},
+%			{html, "html"},
+%			{link, "message3"},
+%			{text, "text"},
+%			{html, "html"},
+%			{link, "image"},
+%			{html, "html"},
+%			{link, "rtf"},
+%			{html, "html"}
+%		],
+%		Res = loop_mail(Decoded),
+%		?DEBUG("res:  ~p", [Res]),
+%		?assertEqual(Expected, Res)
+	end}].
+	
+
+
+-endif.

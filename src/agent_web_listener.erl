@@ -429,9 +429,14 @@ parse_path(Path) ->
 					{api, get_avail_agents};
 				["agent_transfer", Agent] ->
 					{api, {agent_transfer, Agent}};
+<<<<<<< HEAD:src/agent_web_listener.erl
 				["mediapull" | Pulltail] ->
 					?INFO("pulltail:  ~p", [Pulltail]),
 					{api, {mediapull, Pulltail}};
+=======
+				["warm_transfer", Number] ->
+					{api, {warm_transfer, Number}};
+>>>>>>> 734a2e8f798f13b43ff4631bf1dfaf484ece2d08:src/agent_web_listener.erl
 				["supervisor" | Supertail] ->
 					{api, {supervisor, Supertail}};
 				_Allother ->

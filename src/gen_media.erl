@@ -490,9 +490,13 @@ handle_call({'$gen_media_agent_transfer', Apid, Timeout}, _From, #state{callback
 handle_call({'$gen_media_agent_transfer', _Apid, _Timeout}, _From, State) ->
 	?ERROR("Invalid agent transfer sent when state is ~p.", [State]),
 	{reply, invalid, State};
-handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback} = State) ->
-	Callback:handle_warm_transfer_begin(Number, State#state.substate),
-	{reply, ok, State};
+handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback, oncall_pid = Apid} = State) ->
+	case Callback:handle_warm_transfer_begin(Number, State#state.substate) of
+		{ok, UUID, NewState} ->
+			{reply, {ok, UUID}, State#state{substate = NewState}};
+		{error, Error, NewState} ->
+			{reply, invalid, State#state{substate = NewState}}
+	end;
 handle_call({'$gen_media_annouce', Annouce}, _From, #state{callback = Callback} = State) ->
 	?INFO("Doing announce", []),
 	{ok, Substate} = Callback:handle_announce(Annouce, State),

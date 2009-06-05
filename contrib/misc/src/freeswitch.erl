@@ -79,6 +79,7 @@ api(Node, Cmd) ->
 %% sent to calling process after it is received. This function
 %% returns the result of the initial bgapi call or `timeout' if FreeSWITCH fails
 %% to respond.
+-spec(bgapi/3 :: (Node :: atom(), Cmd :: atom(), Args :: string()) -> {'ok', string()} | {'error', any()} | 'timeout').
 bgapi(Node, Cmd, Args) ->
 	Self = self(),
 	% spawn a new process so that both responses go here instead of directly to
@@ -91,13 +92,13 @@ bgapi(Node, Cmd, Args) ->
 				Self ! {api, {error, Reason}};
 			{ok, JobID} ->
 				% send the reply to the calling process
-				Self ! {api, ok},
+				Self ! {api, {ok, JobID}},
 				receive % wait for the job's reply
 					{bgok, JobID, Reply} ->
 						% send the actual command output back to the calling process
-						Self ! {bgok, Reply};
+						Self ! {bgok, JobID, Reply};
 					{bgerror, JobID, Reply} ->
-						Self ! {bgerror, Reply}
+						Self ! {bgerror, JobID, Reply}
 				end
 		after ?TIMEOUT ->
 			% send a timeout to the calling process
@@ -115,6 +116,7 @@ bgapi(Node, Cmd, Args) ->
 %% passed as the argument to `Fun' after it is received. This function
 %% returns the result of the initial bgapi call or `timeout' if FreeSWITCH fails
 %% to respond.
+-spec(bgapi/4 :: (Node :: atom(), Cmd :: atom(), Args :: string(), Fun :: fun()) -> 'ok' | {'error', any()} | 'timeout').
 bgapi(Node, Cmd, Args, Fun) ->
 	Self = self(),
 	% spawn a new process so that both responses go here instead of directly to

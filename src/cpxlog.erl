@@ -61,32 +61,40 @@ start_link() ->
 	gen_event:add_handler(cpxlog, cpxlog_terminal, []),
 	ok.
 
--spec(log/7 :: (Level :: level(), Time :: integer(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
+-spec(log/7 :: (Level :: level(), Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 log(Level, Time, Module, Line, Pid, Message, Args) ->
 	catch gen_event:notify(cpxlog, {Level, Time, Module, Line, Pid, Message, Args}),
 	ok.
 
+-spec(debug/6 :: (Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 debug(Time, Module, Line, Pid, Message, Args) ->
 	log(debug, Time, Module, Line, Pid, Message, Args).
 
+-spec(info/6 :: (Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 info(Time, Module, Line, Pid, Message, Args) ->
 	log(info, Time, Module, Line, Pid, Message, Args).
 
+-spec(notice/6 :: (Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 notice(Time, Module, Line, Pid, Message, Args) ->
 	log(notice, Time, Module, Line, Pid, Message, Args).
 
+-spec(warning/6 :: (Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 warning(Time, Module, Line, Pid, Message, Args) ->
 	log(warning, Time, Module, Line, Pid, Message, Args).
 
+-spec(error/6 :: (Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 error(Time, Module, Line, Pid, Message, Args) ->
 	log(error, Time, Module, Line, Pid, Message, Args).
 
+-spec(critical/6 :: (Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 critical(Time, Module, Line, Pid, Message, Args) ->
 	log(critical, Time, Module, Line, Pid, Message, Args).
 
+-spec(alert/6 :: (Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 alert(Time, Module, Line, Pid, Message, Args) ->
 	log(alert, Time, Module, Line, Pid, Message, Args).
 
+-spec(emergency/6 :: (Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 emergency(Time, Module, Line, Pid, Message, Args) ->
 	log(emergency, Time, Module, Line, Pid, Message, Args).
 

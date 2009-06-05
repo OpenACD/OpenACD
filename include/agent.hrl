@@ -40,7 +40,7 @@
 						#call{} |	% when state is ringing, oncall, outgoing, or wrapup
 						any() |	% state = precall
 						{integer(), -1} | {integer(), 0} | {integer(), 1} | default |	% released
-						{onhold, #call{}, calling, #call{}},	% warmtransfer
+						{onhold, #call{}, calling, string()},	% warmtransfer
 	queuedrelease :: any(),	% is the current state is to go to released, what is the released type
 	lastchangetimestamp = now() :: any(),	% at what time did the last state change occur
 	defaultringpath = inband :: 'inband' | 'outband',
@@ -57,7 +57,7 @@
 %% oncall :: #call{}
 %% outgoing :: #call{}
 %% released :: {int(), -1 } | {int(), 0} | {int(), 1} | default
-%% warmtransfer :: {onhold, #call{}, calling, #call{}},
+%% warmtransfer :: {onhold, #call{}, calling, string()},
 %% wrapup :: #call{}
 
 -type(security_level() :: 'agent' | 'supervisor' | 'admin').

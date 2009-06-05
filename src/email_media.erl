@@ -366,7 +366,26 @@ name_loop(Name, Props, Count) ->
 
 mime_to_html(Tuple) when is_tuple(Tuple) ->
 	{Html, Files} = mime_to_html(Tuple, [], [], drop_none),
-	{lists:concat(["<div class=\"mimemail\">", Html, "</div>"]), Files}.
+	Headers = element(3, Tuple),
+	Todiv = case proplists:get_value("To", Headers) of
+		undefined ->
+			[];
+		Else ->
+			lists:concat(["<div class=\"mimemailheader\">To: ", Else, "</div>"])
+	end,
+	Fromdiv = case proplists:get_value("From", Headers) of
+		undefined ->
+			[];
+		Else2 ->
+			lists:concat(["<div class=\"mimemailheader\">From: ", Else2, "</div>"])
+	end,
+	Subjdiv = case proplists:get_value("Subject", Headers) of
+		undefined ->
+			[];
+		Else3 ->
+			lists:concat(["<div class=\"mimemailheader\">Subject: ", Else3, "</div>"])
+	end,
+	{lists:concat(["<div class=\"mimemail\">", Todiv, Fromdiv, Subjdiv, Html, "</div>"]), Files}.
 	
 mime_to_html({"multipart", _, _, _, []}, Html, Files, _Anyflag) ->
 	?DEBUG("multipart complete", []),
@@ -434,6 +453,14 @@ mime_to_html({"text", "html", Headers, _, Body}, Html, Files, _Anydrop) ->
 	end;
 mime_to_html({"message", "rfc822", Headers, Properties, Body}, Html, Files, _Anydrop) ->
 	?DEBUG("message/rfc822", []),
+%	case check_disposition(Properties) of
+%		inline ->
+%			
+%		{inline, Filename, Heads} ->
+%		
+%		{attachment, Filename, Heads} ->
+		
+		
 	Contentparams = proplists:get_value("content-params", Properties, []),
 	Name = proplists:get_value("name", Contentparams, "unnamed"),
 	Heads = [{"Content-Disposition", lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name]))}],

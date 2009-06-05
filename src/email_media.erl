@@ -423,19 +423,21 @@ mime_to_html({"text", "html", Headers, _, Body}, Html, Files, _Anydrop) ->
 		inline ->
 			Newhtml = lists:append(Html, Fixedbody),
 			{Newhtml, Files};
-		{inline, Filename} ->
-			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+		{inline, Filename, Heads} ->
+			{Newname, Newfiles} = append_file(Filename, Heads, Body, Files),
 			Newhtml = html_append(Html, [download_link(Newname, Filename), Fixedbody]),
 			{Newhtml, Newfiles};
-		{attachment, Filename} ->
-			{Newname, Newfiles} = append_file(Filename, Headers, Body, Files),
+		{attachment, Filename, Heads} ->
+			{Newname, Newfiles} = append_file(Filename, Heads, Body, Files),
 			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
 			{Newhtml, Newfiles}
 	end;
 mime_to_html({"message", "rfc822", Headers, Properties, Body}, Html, Files, _Anydrop) ->
 	?DEBUG("message/rfc822", []),
-	Name = proplists:get_value("name", Properties, "unnamed"),
-	{Newname, Newfiles} = append_file(Name, Headers, Body, Files),
+	Contentparams = proplists:get_value("content-params", Properties, []),
+	Name = proplists:get_value("name", Contentparams, "unnamed"),
+	Heads = [{"Content-Disposition", lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name]))}],
+	{Newname, Newfiles} = append_file(Name, Heads, io_lib:format("~p", [Body]), Files),
 	Newhtml = html_append(Html, [download_link(Newname, Name)]),
 	{Newhtml, Newfiles};
 mime_to_html({"image", _, Headers, Properties, Body}, Html, Files, _Anydrop) ->
@@ -454,8 +456,12 @@ mime_to_html({"image", _, Headers, Properties, Body}, Html, Files, _Anydrop) ->
 	end;
 mime_to_html({Type, Subtype, Headers, Props, Body}, Html, Files, _Anydrop) ->
 	?DEBUG("some other type and subtype:  ~s/~s.", [Type, Subtype]),
-	Name = proplists:get_value("name", Props, "unnamed"),
-	{Newname, Newfiles} = append_file(Name, Headers, Body, Files),
+	Contentparams = proplists:get_value("content-params", Props, []),
+	Name = proplists:get_value("name", Contentparams, "unnamed"),
+	Heads = [
+		{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))},
+		{"Content-Type", lists:flatten(io_lib:format("~s/~s", [Type, Subtype]))}],
+	{Newname, Newfiles} = append_file(Name, Heads, Body, Files),
 	Newhtml = html_append(Html, [download_link(Newname, Name)]),
 	{Newhtml, Newfiles}.
 	

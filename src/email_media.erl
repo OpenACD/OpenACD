@@ -451,22 +451,71 @@ mime_to_html({"text", "html", Headers, _, Body}, Html, Files, _Anydrop) ->
 			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
 			{Newhtml, Newfiles}
 	end;
-mime_to_html({"message", "rfc822", Headers, Properties, Body}, Html, Files, _Anydrop) ->
+mime_to_html({"message", "rfc822", _UslessHeaders, Properties, {_, _, Headers, _, _} = Body}, Html, Files, Anydrop) ->
 	?DEBUG("message/rfc822", []),
-%	case check_disposition(Properties) of
-%		inline ->
-%			
-%		{inline, Filename, Heads} ->
-%		
-%		{attachment, Filename, Heads} ->
+	case check_disposition(Properties) of
+		inline ->
+			?DEBUG("inline only", []),
+			Todiv = case proplists:get_value("To", Headers) of
+				undefined ->
+					[];
+				Else ->
+					lists:concat(["<div class=\"mimemailheader\">To: ", Else, "</div>"])
+			end,
+			Fromdiv = case proplists:get_value("From", Headers) of
+				undefined ->
+					[];
+				Else2 ->
+					lists:concat(["<div class=\"mimemailheader\">From: ", Else2, "</div>"])
+			end,
+			Subjdiv = case proplists:get_value("Subject", Headers) of
+				undefined ->
+					[];
+				Else3 ->
+					lists:concat(["<div class=\"mimemailheader\">Subject: ", Else3, "</div>"])
+			end,
+			Midhtml = html_append(Html, [Todiv, Fromdiv, Subjdiv]),
+			{Newhtml, Newfiles} = mime_to_html(Body, Midhtml, Files, Anydrop),
+			{lists:concat(["<div class=\"mimemail\">", Newhtml, "</div>"]), Newfiles};
+		{inline, Filename, Heads} ->
+			?DEBUG("attempting to display the message inline with headers ~p", [Headers]),
+			{Newname, Midfiles} = append_file(Filename, Heads, lists:flatten(io_lib:format("~p", [Body])), Files),
+			Midhtml = html_append(Html, [download_link(Newname, Filename)]),
+			Todiv = case proplists:get_value("To", Headers) of
+				undefined ->
+					[];
+				Else ->
+					lists:concat(["<div class=\"mimemailheader\">To: ", Else, "</div>"])
+			end,
+			Fromdiv = case proplists:get_value("From", Headers) of
+				undefined ->
+					[];
+				Else2 ->
+					lists:concat(["<div class=\"mimemailheader\">From: ", Else2, "</div>"])
+			end,
+			Subjdiv = case proplists:get_value("Subject", Headers) of
+				undefined ->
+					[];
+				Else3 ->
+					lists:concat(["<div class=\"mimemailheader\">Subject: ", Else3, "</div>"])
+			end,
+			Mid2html = html_append(Midhtml, [Todiv, Fromdiv, Subjdiv]),
+			{Newhtml, Newfiles} = mime_to_html(Body, Mid2html, Midfiles, Anydrop),
+			?DEBUG("HTML:  ~s", [Newhtml]),
+			{lists:concat(["<div class=\"mimemail\">", Newhtml, "</div>"]), Newfiles};
+		{attachment, Filename, Heads} ->
+			?DEBUG("attachement link only", []),
+			{Newname, Newfiles} = append_file(Filename, Heads, lists:flatten(io_lib:format("~p", [Body])), Files),
+			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
+			{Newhtml, Newfiles}
+	end;
 		
-		
-	Contentparams = proplists:get_value("content-params", Properties, []),
-	Name = proplists:get_value("name", Contentparams, "unnamed"),
-	Heads = [{"Content-Disposition", lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name]))}],
-	{Newname, Newfiles} = append_file(Name, Heads, io_lib:format("~p", [Body]), Files),
-	Newhtml = html_append(Html, [download_link(Newname, Name)]),
-	{Newhtml, Newfiles};
+%	Contentparams = proplists:get_value("content-params", Properties, []),
+%	Name = proplists:get_value("name", Contentparams, "unnamed"),
+%	Heads = [{"Content-Disposition", lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name]))}],
+%	{Newname, Newfiles} = append_file(Name, Heads, io_lib:format("~p", [Body]), Files),
+%	Newhtml = html_append(Html, [download_link(Newname, Name)]),
+%	{Newhtml, Newfiles};
 mime_to_html({"image", _, Headers, Properties, Body}, Html, Files, _Anydrop) ->
 	?DEBUG("image.  I didn't bother w/ the subtype.", []),
 	case check_disposition(Properties) of

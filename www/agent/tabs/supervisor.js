@@ -2,127 +2,51 @@ supervisorTab = function(){
 	{};
 };
 
-supervisorTab.pollNodes = function(){
-	dojo.xhrGet({
-		url:"/supervisor/nodes",
-		handleAs:"json",
-		error:function(response, ioargs){
-			EventLog.log("Node poll failed:  " + response.responseText);
-		},
-		load:function(response, ioargs){
-			console.log(response);
-			if(response.success){
-				EventLog.log("Node poll success, handling data...");
-				dojo.publish("supervisor/node/poll", [response.nodes]);
-			}
-		}
+supervisorTab.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), 600, 400);
+dojo.connect(supervisorTab.surface, "ondragstart",   dojo, "stopEvent");
+dojo.connect(supervisorTab.surface, "onselectstart", dojo, "stopEvent");
+
+supervisorTab.testDraw = function(){
+//	var rect = supervisorTab.surface.createRect({
+//		y: 50,
+//		x: 100,
+//		width: 400,
+//		height: 300,
+//		r: 50
+//	});
+//	rect.setStroke("black");
+//	supervisorTab.surface.connect("onmouseover", rect, function(){ console.log("gooberpants!") });
+//	supervisorTab.surface.add(rect);
+
+	var rect2 = supervisorTab.surface.createRect({
+		y: 50,
+		x:  500,
+		width: 50,
+		height: 50,
+		r: 10
 	});
-};
-
-supervisorTab.pollAgentProfiles = function(node){
-	dojo.xhrGet({
-		url:"/supervisor/" + node + "/agent_profiles",
-		handleAs:"json",
-		error:function(response, ioargs){
-			EventLog.log("Pulling agents profiles failed:  " + response.responseText);
-		},
-		load:function(response, ioargs){
-			if(response.success){
-				EventLog.log("Agent profile poll success, handling data...");
-				dojo.publish("supervisor/agent_profiles", [response.result[0].node, response.result[0].profiles]);
-//				for(var i in response.result){
-//					dojo.publish("supervisor/" + response.result[i].node + "/agent_profiles", [response.result[i].profiles]);
-//				}
-			}
-		}
+	rect2.setFill([255, 255, 255, 100]);
+	rect2.setStroke("red");
+	rect2.connect("onmouseenter", rect2, function(ev){
+		supervisorTab.thiis = this;
+		var p = {
+			x: this.getShape().x + 25,
+			y: this.getShape().y + 25
+		};
+		this.setTransform([dojox.gfx.matrix.scaleAt(1.1, p)]);
 	});
-};
-
-supervisorTab.pollQueues = function(node){
-	dojo.xhrGet({
-		url:"/supervisor/" + node + "/queues",
-		handleAs:"json",
-		error:function(response, ioargs){
-			EventLog.log("Pulling queues failed:  " + response.responseText);
-		},
-		load:function(response, ioargs){
-			if(response.success){
-				EventLog.log("Queue poll success, handling data...");
-				dojo.publish("supervisor/queues", [response.result[0].node, response.result[0].queues]);
-//				for(var i in response.result){
-//					dojo.publish("supervisor/" + response.result[i].node + "/queues", [response.result[i].queues]);
-//				}
-			}
-		}
+	rect2.connect("onmouseleave", rect2, function(ev){
+		supervisorTab.thiis = this;
+		var p = {
+			x: this.getShape().x + (this.getShape().width/2),
+			y: this.getShape().y + (this.getShape().width/2)
+		};
+		this.setTransform([dojox.gfx.matrix.scaleAt(.9, p)]);
 	});
-};
+	//dojo.connect(rect2, "onclick", dojo, function(){ console.log("i'm hit!") });
+	//supervisorTab.surface.connect("onclick", rect, function(){ console.log("niftytoes!")});
+	//supervisorTab.surface.add(rect2);
+	new dojox.gfx.Moveable(rect2);
+	
 
-supervisorTab.pollProfile = function(node, profile){
-	dojo.xhrGet({
-		url:"/supervisor/" + node + "/agent/" + profile,
-		handleAs:"json",
-		error:function(response, ioargs){
-			EventLog.log("Pulling agents failed:  " + response.responseText);
-		},
-		load:function(response, ioargs){
-			if(response.success){
-				EventLog.log("Profile polling success, handling data...");
-				dojo.publish("supervisor/agent/profile", [response.result[0].node, response.result[0].agents]);
-//				for(var i in response.result){
-//					dojo.publish("supervisor/" + response.result[i].node + "/agent/" + profile, [response.result[i].agents]);
-//				}
-			}
-		}
-	})
-};
-
-supervisorTab.pollAgentCall = function(node, agent){
-	dojo.xhrGet({
-		url:"/supervisor/" + node + "/agent/" + agent + "/callid",
-		handleAs:"json",
-		error:function(response, ioargs){
-			EventLog.log("Pulling agent call failed:  " + response.responseText);
-		},
-		load:function(response, ioargs){
-			if(response.success){
-				EventLog.log("Pulling agent call success, handling data...");
-				//dojo.publish("supervisor/" + node + "/agent/" + agent + "/callid", [response.result])
-				dojo.publish("supervisor/agent/callid", [response.result]);
-			}
-		}
-	});
-};
-
-supervisorTab.pollQueue = function(node, queue){
-	dojo.xhrGet({
-		url:"/supervisor/" + node + "/queue/" + queue,
-		handleAs:"json",
-		error:function(response, ioargs){
-			EventLog.log("Pulling queue data failed:  " + response.responseText);
-		},
-		load:function(response, ioargs){
-			if(response.success){
-				EventLog.log("Polling queue data success, handling data...");
-				//dojo.publish("supervisor/" + node + "/queue/" + queue, [response.result])
-				dojo.publish("supervisor/queue", [queue, response.result]);
-			}
-		}
-	});
-};
-
-supervisorTab.pollQueuedCall = function(node, queue, callid){
-	dojo.xhrGet({
-		url:"/supervisor/" + node + "/queue/" + queue + "/" + callid,
-		handleAs:"json",
-		error:function(response, ioargs){
-			EventLog.log("pulling queued call failed:  " + response.responseText);
-		},
-		load:function(response, ioargs){
-			if(response.success){
-				EventLog.log("pulling queued call success");
-				//dojo.publish("supervisor/" + node + "/queue/" + queue + "/" + callid, [response.result]);
-				dojo.publish("supervisor/queue/callid", [response.result]);
-			}
-		}
-	})
-};
+}

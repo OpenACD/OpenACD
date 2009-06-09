@@ -371,19 +371,19 @@ mime_to_html(Tuple) when is_tuple(Tuple) ->
 		undefined ->
 			[];
 		Else ->
-			lists:concat(["<div class=\"mimemailheader\">To: ", Else, "</div>"])
+			lists:concat(["<div class=\"mimemailheader\">To: ", html_encode(Else), "</div>"])
 	end,
 	Fromdiv = case proplists:get_value("From", Headers) of
 		undefined ->
 			[];
 		Else2 ->
-			lists:concat(["<div class=\"mimemailheader\">From: ", Else2, "</div>"])
+			lists:concat(["<div class=\"mimemailheader\">From: ", html_encode(Else2), "</div>"])
 	end,
 	Subjdiv = case proplists:get_value("Subject", Headers) of
 		undefined ->
 			[];
 		Else3 ->
-			lists:concat(["<div class=\"mimemailheader\">Subject: ", Else3, "</div>"])
+			lists:concat(["<div class=\"mimemailheader\">Subject: ", html_encode(Else3), "</div>"])
 	end,
 	{lists:concat(["<div class=\"mimemail\">", Todiv, Fromdiv, Subjdiv, Html, "</div>"]), Files}.
 	
@@ -460,19 +460,19 @@ mime_to_html({"message", "rfc822", _UslessHeaders, Properties, {_, _, Headers, _
 				undefined ->
 					[];
 				Else ->
-					lists:concat(["<div class=\"mimemailheader\">To: ", Else, "</div>"])
+					lists:concat(["<div class=\"mimemailheader\">To: ", html_encode(Else), "</div>"])
 			end,
 			Fromdiv = case proplists:get_value("From", Headers) of
 				undefined ->
 					[];
 				Else2 ->
-					lists:concat(["<div class=\"mimemailheader\">From: ", Else2, "</div>"])
+					lists:concat(["<div class=\"mimemailheader\">From: ", html_encode(Else2), "</div>"])
 			end,
 			Subjdiv = case proplists:get_value("Subject", Headers) of
 				undefined ->
 					[];
 				Else3 ->
-					lists:concat(["<div class=\"mimemailheader\">Subject: ", Else3, "</div>"])
+					lists:concat(["<div class=\"mimemailheader\">Subject: ", html_encode(Else3), "</div>"])
 			end,
 			Midhtml = html_append(Html, [Todiv, Fromdiv, Subjdiv]),
 			{Newhtml, Newfiles} = mime_to_html(Body, Midhtml, Files, Anydrop),
@@ -540,7 +540,24 @@ mime_to_html({Type, Subtype, Headers, Props, Body}, Html, Files, _Anydrop) ->
 	{Newname, Newfiles} = append_file(Name, Heads, Body, Files),
 	Newhtml = html_append(Html, [download_link(Newname, Name)]),
 	{Newhtml, Newfiles}.
-	
+
+html_encode(String) ->
+	F = fun(Chr) ->
+		case Chr of
+			$< ->
+				"&lt;";
+			$> ->
+				"&gt;";
+			$" -> %"
+				"&quot;";
+			$& ->
+				"&amp;";
+			E ->
+				E
+		end
+	end,
+	lists:flatten(lists:map(F, String)).
+
 -ifdef(EUNIT).
 
 %parse_disposition_test_() ->
@@ -649,19 +666,18 @@ mime_to_html_test_() ->
 		Decoded = Getmail("Plain-text-only.eml"),
 		{Html, Files} = mime_to_html(Decoded),
 		Reshtml = mochiweb_html:parse(Html),
+		{_Div, _Divattr, [_To, _From, _Subj, Body]} = Reshtml,
 		?assertEqual([], Files),
-		?assertEqual({<<"div">>, [{<<"class">>, <<"mimemail">>}], [
-			{<<"pre">>, [], [
-				<<"This message contains only plain text.\r\n">>
-			]}
-		]}, Reshtml)
+		?assertEqual({<<"pre">>, [], [
+			<<"This message contains only plain text.\r\n">>
+		]}, Body)
 	end},
 	{"html text mail",
 	fun() ->
 		Decoded = Getmail("html.eml"),
 		?DEBUG("~p", [Decoded]),
 		{Html, Files} = mime_to_html(Decoded),
-		{_Div, _Divatter, [Reshtml]} = mochiweb_html:parse(Html),
+		{_Div, _Divatter, [_To, _From, _Sub, Reshtml]} = mochiweb_html:parse(Html),
 		?assertEqual(<<"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; ">>, proplists:get_value(<<"style">>, element(2, Reshtml))),
 		?assertEqual(<<"mimehtmlbody">>, proplists:get_value(<<"class">>, element(2, Reshtml))),
 		[Titlespan, Ul] = element(3, Reshtml),
@@ -677,7 +693,8 @@ mime_to_html_test_() ->
 		Decoded = Getmail("image-attachment-only.eml"),
 		?DEBUG("~p", [Decoded]),
 		{Html, Files} = mime_to_html(Decoded),
-		{_Div, _Divattr, [Img]} = mochiweb_html:parse(Html),
+		?DEBUG("Html ~p", [Html]),
+		{_Div, _Divattr, [_To, _From, _Subject, Img]} = mochiweb_html:parse(Html),
 		?DEBUG("~s", [Html]),
 		?assertEqual({<<"img">>, [{<<"src">>, <<"/mediapull/spice-logo.jpg">>}], []}, Img),
 		?assertMatch({_Head, _Body}, proplists:get_value("spice-logo.jpg", Files))
@@ -706,7 +723,10 @@ mime_to_html_test_() ->
 		?DEBUG("Html: ~s", [Html]),
 		{_Div, _Divattr, Kids} = mochiweb_html:parse(Html)
 	end}].
-	
+
+html_encode_test_() ->
+	[?_assertEqual("&lt;hi!&gt;", html_encode("<hi!>")),
+	?_assertEqual("&lt;&gt;&quot;&amp;", html_encode("<>\"&"))].
 %init_test_() ->
 %	[{"image inline",
 %	fun() ->

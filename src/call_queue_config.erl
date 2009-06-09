@@ -248,7 +248,11 @@ new_queue(Queue) when is_record(Queue, call_queue) ->
 		undefined ->
 			Trans;
 		Qmpid when is_pid(Qmpid) ->
-			queue_manager:add_queue(Queue#call_queue.name, Queue#call_queue.recipe, Queue#call_queue.weight),
+			queue_manager:add_queue(Queue#call_queue.name, [
+				{recipe, Queue#call_queue.recipe}, 
+				{weight, Queue#call_queue.weight},
+				{skills, Queue#call_queue.skills}
+			]),
 			Trans
 	end.
 

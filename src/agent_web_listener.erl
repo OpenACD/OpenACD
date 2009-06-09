@@ -392,6 +392,7 @@ check_cookie(Allothers) ->
 %% @doc determine if the given path is an api call, or if it's a file request.
 parse_path(Path) ->
 	% easy tests first.
+	?DEBUG("Path:  ~s", [Path]),
 	case Path of
 		"/" ->
 			{file, {"index.html", "www/agent/"}};
@@ -428,6 +429,9 @@ parse_path(Path) ->
 					{api, get_avail_agents};
 				["agent_transfer", Agent] ->
 					{api, {agent_transfer, Agent}};
+				["mediapull" | Pulltail] ->
+					?INFO("pulltail:  ~p", [Pulltail]),
+					{api, {mediapull, Pulltail}};
 				["warm_transfer", Number] ->
 					{api, {warm_transfer, Number}};
 				["supervisor" | Supertail] ->

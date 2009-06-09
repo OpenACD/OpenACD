@@ -43,7 +43,7 @@
 		bound = [] :: [pid()],
 		% client record
 		client = #client{label="Unknown", tenant=0, brand=0} :: #client{},
-		skills = [english] :: [atom(), ...],
+		skills = [] :: [atom(), ...],
 		cook :: pid(), % TODO is this ever set?
 		ring_path = outband :: 'inband' | 'outband' | 'any',
 		media_path = outband :: 'inband' | 'outband'

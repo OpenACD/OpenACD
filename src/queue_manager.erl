@@ -54,7 +54,6 @@
 	queues/0,
 	add_queue/1,
 	add_queue/2,
-	add_queue/3,
 	get_queue/1,
 	query_queue/1,
 	stop/0,
@@ -101,19 +100,19 @@ start(Nodes) ->
 %% @doc Add a queue named `Name' using the default weight and recipe.
 -spec(add_queue/1 :: (Name :: string()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name) when is_list(Name) ->
-	add_queue(Name, ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT).
+	add_queue(Name, []).
 
 %% @doc Add a queue named `Name' using a givien `Recipe' or `Weight'.
 -spec(add_queue/2 :: (Name :: string(), Recipe :: recipe()) -> {'ok', pid()} | {'exists', pid()};
 	(Name :: string(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
-add_queue(Name, Recipe) when is_list(Name), is_list(Recipe) ->
-	add_queue(Name, Recipe, ?DEFAULT_WEIGHT);
+add_queue(Name, [H | Tail] = Recipe) when is_list(Name), is_list(element(1, H)) ->
+	add_queue(Name, [{recipe, Recipe}]);
 add_queue(Name, Weight) when is_list(Name), is_integer(Weight), Weight > 0 ->
-	add_queue(Name, ?DEFAULT_RECIPE, Weight).
+	add_queue(Name, [{recipe, ?DEFAULT_RECIPE}]);
 
 %% @doc Add a queue named `Name' using the given `Recipe' and `Weight'.
--spec(add_queue/3 :: (Name :: string(), Recipe :: recipe(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
-add_queue(Name, Recipe, Weight) when is_list(Name) ->
+%-spec(add_queue/2 :: (Name :: string(), Opts :: [{atom(), any()}]) -> {'ok', pid()} | {'exists', pid()}).
+add_queue(Name, Opts) when is_list(Name) ->
 	case gen_leader:call(?MODULE, {exists, Name}) of
 		true ->
 			?DEBUG("Queue exists locally", []),
@@ -128,7 +127,7 @@ add_queue(Name, Recipe, Weight) when is_list(Name) ->
 					{exists, Pid};
 				false ->
 					?DEBUG("Queue does not exist at all, starting it", []),
-					{ok, Pid} = call_queue:start(Name, Recipe, Weight),
+					{ok, Pid} = call_queue:start(Name, Opts),
 					ok = gen_leader:call(?MODULE, {notify, Name, Pid}),
 					ok = gen_leader:leader_call(?MODULE, {notify, Name, Pid}),
 					{ok, Pid}
@@ -192,7 +191,11 @@ init([]) ->
 	% load the queues in the db and start them.
 	Queues = call_queue_config:get_queues(),
 	F = fun(Queuerec, Acc) ->
-		{ok, Pid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
+		{ok, Pid} = call_queue:start_link(Queuerec#call_queue.name, [
+			{recipe, Queuerec#call_queue.recipe}, 
+			{weight, Queuerec#call_queue.weight},
+			{skills, Queuerec#call_queue.skills}
+		]),
 		dict:store(Queuerec#call_queue.name, Pid, Acc)
 	end,
 	State = #state{qdict = lists:foldr(F, dict:new(), Queues)},
@@ -358,7 +361,10 @@ handle_info({'EXIT', Pid, Reason}, #state{qdict = Qdict} = State) ->
 					{noreply, State};
 				Queuerec ->
 					?DEBUG("Got call_queue_config of ~p", [Queuerec]),
-					{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
+					{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, [
+						{recipe, Queuerec#call_queue.recipe}, 
+						{weight, Queuerec#call_queue.weight},
+						{skills, Queuerec#call_queue.skills}]),
 					Newdict = dict:store(Queuerec#call_queue.name, NewQPid, Qdict),
 					ok = gen_leader:leader_cast(?MODULE, {notify, Qname, NewQPid}),
 					{noreply, State#state{qdict = Newdict}}
@@ -434,7 +440,7 @@ single_node_test_() ->
 			}, {
 				"best bindable queues by weight test", fun() ->
 					{ok, Pid} = add_queue("goober"),
-					{ok, Pid2} = add_queue("goober2", 10), % higher weighted queue
+					{ok, Pid2} = add_queue("goober2", [{weight, 10}]), % higher weighted queue
 					{ok, _Pid3} = add_queue("goober3"),
 					?assertMatch([], get_best_bindable_queues()),
 					{ok, Dummy1} = dummy_media:start("Call1"),

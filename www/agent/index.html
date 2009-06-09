@@ -18,7 +18,9 @@
         clear:both;
 	}
 </style>
-
+	<link rel="stylesheet" href="/dojo/dojox/layout/Resources/FloatingPane.css">	
+	<link rel="stylesheet" href="/dojo/dojox/layout/Resources/ResizeHandle.css">
+	<link rel="stylesheet" href="/application/css/email.css">
 <script type="text/javascript">
 	/* this is lame, why do cookies suck in JS? */
 	var cookies = document.cookie.split('; ');
@@ -49,6 +51,7 @@
 	dojo.require("dojox.encoding.digests.MD5");
 	dojo.require("dijit.form.ComboBox");
 	dojo.require("dojox.layout.ContentPane");
+	dojo.require("dojox.layout.FloatingPane");
 	//dojo.require("dijit.Menu");
 	dojo.requireLocalization("agentUI", "labels");
 	function init()
@@ -68,8 +71,12 @@
 <script type="text/javascript" src="/Agent.js"></script>
 
 <script type="text/javascript" src="/main.js"></script>
-
+</head>
 <body class="nihilo">
+
+<div dojoType="dojox.layout.FloatingPane" resizable="true" style="width:60%; height:400px; top:100px; left:400px; position:absolute; z-index:50000;" title="Email" closable="false" dockable="true" dockTo="rightDock" id="emaildisp"><p style="padding:12px;">
+	<p>nocontent</p>
+</div> 
 
 <div dojoType="dijit.Dialog" title="Login" id="loginpane">
 	<script type="dojo/connect" event="onShow">
@@ -203,14 +210,17 @@
 					<div dojoType="dijit.Menu">
 						<div dojoType="dijit.MenuItem">Supervisor
 							<script type="dojo/connect" event="onClick">
-								var t = new dojox.layout.ContentPane({
-									href:"tabs/supervisor.html",
-									title:"Supervisor",
-									executeScripts: "true",
-									id:"supervisorTab"
-								});
-								dijit.byId("tabPanel").addChild(t);
-								this.setDisabled(true);
+								if(! dijit.byId("supervisorTab")){							
+									var t = new dojox.layout.ContentPane({
+										//href:"tabs/supervisor.html",
+										title:"Supervisor",
+										executeScripts: "true",
+										id:"supervisorTab"
+									});
+									dijit.byId("tabPanel").addChild(t);
+								}
+								//this.setDisabled(true);
+								dijit.byId("supervisorTab").setHref("tabs/supervisor.html");
 								dijit.byId("tabPanel").selectChild("supervisorTab");
 							</script>
 						</div>
@@ -336,6 +346,10 @@
 		</button>
 	</div>
 
+	<div dojoType="dojox.layout.Dock" id="rightDock" region="right">
+	
+	</div>
 </div>
+
 </body>
 </html>

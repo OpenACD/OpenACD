@@ -57,8 +57,8 @@
 -endif.
 
 -export([
-	start/3,
-	start_link/3,
+	start/2,
+	start_link/2,
 	set_recipe/2,
 	set_weight/2,
 	get_weight/1,
@@ -95,17 +95,20 @@
 %gen_server support
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+-type(opt_name() :: 'weight' | 'recipe' | 'skills').
+-type(start_opt() :: {opt_name(), any()}).
+-type(opts() :: [start_opt()]).
 %% @doc Start a queue named `Name' with no link to the current process.  Sets the `recipe()' to `Recipe' and 
 %% `Weight' to pos_integer.
--spec(start/3 :: (Name :: string(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
-start(Name, Recipe, Weight) -> % Start linked queue custom default recipe and weight
-	gen_server:start(?MODULE, [Name, Recipe, Weight], []).
+-spec(start/2 :: (Name :: string(), Opts :: opts()) -> {ok, pid()}).
+start(Name, Opts) -> % Start linked queue custom default recipe and weight
+	gen_server:start(?MODULE, [Name, Opts], []).
 
 %% @doc Start a queue names `Name' with a link to the current process.
 %% @see start/3
--spec(start_link/3 :: (Name :: string(), Recipe :: recipe(), Weight :: pos_integer()) -> {ok, pid()}).
-start_link(Name, Recipe, Weight) -> % Start linked queue with custom recipe and weight
-	gen_server:start_link(?MODULE, [Name, Recipe, Weight], []).
+-spec(start_link/2 :: (Name :: string(), Opts :: opts()) -> {ok, pid()}).
+start_link(Name, Opts) -> % Start linked queue with custom recipe and weight
+	gen_server:start_link(?MODULE, [Name, Opts], []).
 
 %% @doc Set the queue at pid() `Pid''s recipe to `recipe()' `Recipe'.
 -spec(set_recipe/2 :: (Pid :: pid(), Recipe :: recipe()) -> 'ok' | 'error').
@@ -337,10 +340,16 @@ expand_magic_skills(State, Call, Skills) ->
 %=====
 
 %% @private
-init([Name, Recipe, Weight]) ->
+init([Name, Opts]) ->
 	?DEBUG("Starting queue ~p at ~p", [Name, node()]),
 	process_flag(trap_exit, true),
-	{ok, #state{name=Name, recipe=Recipe, weight=Weight}}.
+	State = #state{
+		name = Name,
+		recipe = proplists:get_value(recipe, Opts, ?DEFAULT_RECIPE),
+		weight = proplists:get_value(weight, Opts, ?DEFAULT_WEIGHT),
+		call_skills = proplists:get_value(skills, Opts, [])
+	},
+	{ok, State}.
 
 %% @private
 handle_call({get_call, Callpid}, _From, State) when is_pid(Callpid) ->
@@ -756,7 +765,7 @@ call_update_test_() ->
 		fun() ->
 			test_primer(),
 			queue_manager:start([node()]),
-			{ok, Pid} = queue_manager:add_queue("testqueue"),
+			{ok, Pid} = queue_manager:add_queue("testqueue", [{skills, [english, '_node']}]),
 			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
 			%dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
@@ -1238,7 +1247,7 @@ multi_node_test_() ->
 		]
 	}.
 
--define(MYSERVERFUNC, fun() -> {ok, Pid} = start("testq", ?DEFAULT_RECIPE, ?DEFAULT_WEIGHT), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Pid} = start("testq", []), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

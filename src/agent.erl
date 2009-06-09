@@ -49,7 +49,7 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 
 %% other exports
--export([start/1, start_link/1, stop/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2, set_endpoint/2, agent_transfer/2, warm_transfer_begin/2]).
+-export([start/1, start_link/1, stop/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2, set_endpoint/2, agent_transfer/2, media_pull/2, warm_transfer_begin/2]).
 
 %% @doc Start an agent fsm for the passed in agent record `Agent' that is linked to the calling process
 -spec(start_link/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
@@ -126,6 +126,12 @@ set_state(Pid, State) ->
                      (Pid :: pid(), State :: 'released', Data :: any()) -> 'ok' | 'invalid' | 'queued').
 set_state(Pid, State, Data) ->
 	gen_fsm:sync_send_event(Pid, {State, Data}).
+
+%% @doc Attempt to pull media head and body data from an associated call.  Only 
+%% works if the passed agent is oncall and the media supports it.
+-spec(media_pull/2 :: (Pid :: pid(), Request :: any()) -> any()).
+media_pull(Pid, Request) ->
+	gen_fsm:sync_send_event(Pid, {mediapull, Request}).
 
 %% @doc Translate the state `String' into the internally used atom.  `String' can either be the human readable string or a number in string form (`"1"').
 -spec(list_to_state/1 :: (String :: string()) -> atom()).
@@ -325,6 +331,9 @@ oncall({warmtransfer, Transferto}, _From, State) ->
 	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()}};
 oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
 	Reply = gen_media:agent_transfer(Call#call.source, Agent, 10000),
+	{reply, Reply, oncall, State};
+oncall({mediapull, Data}, _From, #agent{statedata = Call} = State) ->
+	Reply = gen_media:call(Call#call.source, {mediapull, Data}),
 	{reply, Reply, oncall, State};
 oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
 	case gen_media:warm_transfer_begin(Call#call.source, Number) of

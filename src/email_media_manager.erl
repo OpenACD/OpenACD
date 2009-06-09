@@ -44,7 +44,8 @@
 	get_mappings/0,
 	set_mapping/2,
 	new_mapping/1,
-	destroy_mapping/1]).
+	destroy_mapping/1,
+	requeue/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -122,6 +123,9 @@ destroy_mapping(Address) ->
 	end,
 	mnesia:transaction(F).
 
+requeue(Filename) ->
+	gen_server:call(email_media_manager, {queue, Filename}).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -146,6 +150,27 @@ init([Options]) ->
 %%--------------------------------------------------------------------
 handle_call({queue, Mailmap, Headers, Data}, From, #state{mails = Mails} = State) ->
 	{ok, Mpid} = email_media:start_link(Mailmap, Headers, Data),
+	{reply, ok, State#state{mails = [Mpid | Mails]}};
+handle_call({queue, Filename}, From, #state{mails = Mails} = State) ->
+	{ok, Bin} = file:read_file(Filename),
+	Email = binary_to_list(Bin),
+	{_, _, Headers, _, _} = mimemail:decode(Email),
+	Mailmap = case proplists:get_value("From", Headers) of
+		undefined ->
+			#mail_map{address = "unknown@example.com"};
+		Address ->
+			F = fun() ->
+				QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= Address]),
+				qlc:e(QH)
+			end,
+			case mnesia:transaction(F) of
+				{atomic, []} ->
+					#mail_map{address = Address};
+				{atomic, [Map]} ->
+					Map
+			end
+	end,
+	{ok, Mpid} = email_media:start_link(Mailmap, Email),
 	{reply, ok, State#state{mails = [Mpid | Mails]}};
 handle_call(stop, From, State) ->
 	?INFO("Received request to stop from ~p", [From]),

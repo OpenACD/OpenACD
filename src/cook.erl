@@ -488,7 +488,7 @@ queue_interaction_test_() ->
 		fun() ->
 			test_primer(),
 			queue_manager:start([node()]),
-			{ok, Pid} = queue_manager:add_queue("testqueue"),
+			{ok, Pid} = queue_manager:add_queue("testqueue", [{skills, [english, '_node']}]),
 			Dummyprops = [{id, "testcall"}, {skills, [english, testskill]}, {queue, "testqueue"}],
 			{Pid, Dummyprops}
 		end,

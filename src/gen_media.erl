@@ -596,7 +596,7 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 		Tuple when element(1, Tuple) =:= outbound ->
 			{Reply, NewState} = outgoing(Tuple, State),
 			{reply, Reply, NewState};
-		{Agentact, Reply, NewState} when is_pid(State#state.oncall_pid) or is_pid(State#state.ring_pid) ->
+		{Agentact, Reply, NewState} ->
 			Midstate = agent_interact(Agentact, State),
 			{reply, Reply, Midstate#state{substate = NewState}}
 	end.
@@ -626,7 +626,7 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 		Tuple when element(1, Tuple) =:= outbound ->
 			{_Reply, NewState} = outgoing(Tuple, State),
 			{noreply, NewState};
-		{Agentact, NewState} when is_pid(State#state.oncall_pid) or is_pid(State#state.ring_pid) ->
+		{Agentact, NewState} ->
 			Midstate = agent_interact(Agentact, State),
 			{noreply, Midstate#state{substate = NewState}}
 	end.
@@ -669,7 +669,7 @@ handle_info(Info, #state{callback = Callback} = State) ->
 		Tuple when element(1, Tuple) =:= outbound ->
 			{_Reply, NewState} = outgoing(Tuple, State),
 			{noreply, NewState};
-		{Interact, NewState} when is_pid(State#state.oncall_pid) or is_pid(State#state.ring_pid) ->
+		{Interact, NewState} ->
 			Midstate = agent_interact(Interact, State),
 			{noreply, Midstate#state{substate = NewState}}
 	end.

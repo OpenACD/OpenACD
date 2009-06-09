@@ -21,7 +21,7 @@ dojo.addOnLoad(function(){
 		EventLog.log(line);
 	});
 	
-	//dijit.byId("emaildisp").hide();
+	dijit.byId("emaildisp").hide();
 	//dijit.byId("loginpane").show();
 	dojo.xhrGet({
 		url:"/checkcookie",

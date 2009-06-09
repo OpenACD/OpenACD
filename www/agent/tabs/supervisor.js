@@ -58,7 +58,7 @@ supervisorTab.bubbleZoom = function(ev){
 		x: rect.getShape().x,// + rect.getShape().width/2,
 		y: rect.getShape().y + rect.getShape().height/2
 	};
-	this.setTransform([dojox.gfx.matrix.scaleAt(2, p)]);
+	this.setTransform([dojox.gfx.matrix.scaleAt(1.4, p)]);
 };
 
 supervisorTab.bubbleOut = function(ev){
@@ -90,26 +90,19 @@ supervisorTab.drawBubble = function(scale, point, data){
 	var bubble = group.createRect({
 		x: point.x,
 		y: point.y,
-		width: 100 * scale,
+		width: 200 * scale,
 		height: 20 * scale,
 		r: 10 * scale
 	});
 	
-	var fill;
+	var rmod = Math.abs(-(255/50) * data.health + 255);
+	var gmod = 255;
 	var textcolors = "black";
-	if(data.health == 50){
-		bubblefill = [0, 255, 0, 100];
-	}
-	else if(data.health < 50){
-		var ymod = -(255/50) * data.health + 255;
-		bubblefill = [ymod, 255, 0, 100];
-	}
-	else{
-		var rmod = 255/50 * data.health - 255;
+	if(data.health > 50){
 		var gmod = -255/50 * 1.3 * data.health + (255 * 2);
-		bubblefill = [rmod, gmod, 0, 100];
 		textcolors = "white";
 	}
+	var bubblefill = [rmod, gmod, 0, 100];
 	
 	bubble.setFill(bubblefill);
 	bubble.setStroke("black");
@@ -117,7 +110,7 @@ supervisorTab.drawBubble = function(scale, point, data){
 	group.connect("onmouseleave", group, supervisorTab.bubbleOut);
 	
 	var text = group.createText({
-		x: point.x + (50 * scale),
+		x: point.x + (100 * scale),
 		y: point.y + 15 *scale,
 		align: "middle",
 		text: data.display
@@ -131,39 +124,93 @@ supervisorTab.drawBubble = function(scale, point, data){
 	new dojox.gfx.Moveable(group);
 }
 
-supervisorTab.drawBubbleStack = function(mousept, datas){
-	if(arguments[2]){
-		var parent = arguments[2];
+supervisorTab.drawSystemStack = function(datas){
+	console.log(datas);
+	if(arguments[1]){
+		var parent = arguments[1];
 	}
 	else{
 		var parent = supervisorTab.surface;
 	}
 	
-	var groupHeight = datas.length * 40;
-	var viewHeight = 400;//supervisorTab.surface.rawNode.height;
+	if(datas.length > 0){
+		var culm = 0;
+		for(var i = 0; i < datas.length; i++){
+			culm += datas[i].health;
+		}
+		var averageHp = culm/datas.length;
+	}
+	else{
+		var averageHp = 0;
+	}
+	console.log(datas);
+	datas.unshift({"display":"System", "health":averageHp});
+	console.log(datas);
+	var yi = 385;
+	var drawIt = function(obj, index, arr){
+		console.log(obj);
+		supervisorTab.drawBubble(.75, {x:20, y:yi}, obj);
+		yi = yi - 40;
+	}
+	dojo.forEach(datas, drawIt);
+}
+
+supervisorTab.drawSystemStackTest = function(count){
+	var data = [];
+	console.log(count);
+	for(var i = 1; i <= count; i++){
+		var hp = Math.round(100 * (i / count));
+		var o = {
+			"display":"node" + i.toString() + "@example",
+			"health":hp
+		};
+		data.push(o);
+	};
+	console.log(data);
+	supervisorTab.drawSystemStack(data);
+}
+
+supervisorTab.drawAgentQueueBubbles = function(agenthp, queuehp){
+	supervisorTab.drawBubble(.75, {x:20, y:20}, {"health":agenthp, "display":"Agents"});
+	supervisorTab.drawBubble(.75, {x:20, y:60}, {"health":queuehp, "display":"Queues"});
+}
+
+supervisorTab.drawBubbleStack = function(props){
+	var conf = {
+		parent: supervisorTab.surface,
+		mousept: {x:100, y:100},
+		data: [],
+		viewHeight: 400
+	}
+	
+	conf = dojo.mixin(conf, props);
+	
+	var groupHeight = conf.data.length * 40;
+	var viewHeight = conf.viewHeight;//supervisorTab.surface.rawNode.height;
 	
 	var ratio = groupHeight / viewHeight;
-		
+	
+	var parent = conf.parent;
 	var group = parent.createGroup();
 	
 	var yi = 0;
 	var pt = {
-		x:100,
-		y:mousept.y
+		x:conf.mousept.x,
+		y:conf.mousept.y
 	};
 	
-	group.createRect({x:pt.x - 50, y:0, width:100, height: groupHeight}).setFill("white").setStroke("white");
+	group.createRect({x:pt.x - 50, y:-100, width:100, height: groupHeight + 200}).setFill("white").setStroke("white");
 	
 	var drawIt = function(obj, index, arr){
 		supervisorTab.drawBubble(.75, {x:pt.x - 50, y:yi}, obj, group);
 		yi = yi + 40;
 	}
 	
-	dojo.forEach(datas, drawIt);
+	dojo.forEach(conf.data, drawIt);
 	
 	group.connect("onmousemove", group, function(ev){
 		//console.log(ev);
-		this.setTransform([dojox.gfx.matrix.translate(0, -ev.layerY * ratio)]);
+		this.setTransform([dojox.gfx.matrix.translate(0, -ev.layerY * ratio + 100)]);
 	});
 }
 
@@ -180,8 +227,15 @@ supervisorTab.drawBubbleStackTest = function(mousept, count){
 		datas.push(o);
 	}
 	
-	supervisorTab.surface.clear();
-	supervisorTab.drawBubbleStack(mousept, datas);
+	//supervisorTab.surface.clear();
+	supervisorTab.drawBubbleStack({
+		"mousept":mousept,
+		"data": datas
+	});
 };
 
-supervisorTab.drawBubbleStackTest({x:100, y:100}, 100);
+supervisorTab.drawSystemStackTest(5);
+supervisorTab.drawAgentQueueBubbles(20, 80);
+supervisorTab.drawBubbleStackTest({x:300, y:100}, 10);
+supervisorTab.drawBubbleStackTest({x:500, y:100}, 20);
+supervisorTab.drawBubbleStackTest({x:700, y:100}, 100);

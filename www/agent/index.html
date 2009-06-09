@@ -210,14 +210,17 @@
 					<div dojoType="dijit.Menu">
 						<div dojoType="dijit.MenuItem">Supervisor
 							<script type="dojo/connect" event="onClick">
-								var t = new dojox.layout.ContentPane({
-									href:"tabs/supervisor.html",
-									title:"Supervisor",
-									executeScripts: "true",
-									id:"supervisorTab"
-								});
-								dijit.byId("tabPanel").addChild(t);
-								this.setDisabled(true);
+								if(! dijit.byId("supervisorTab")){							
+									var t = new dojox.layout.ContentPane({
+										//href:"tabs/supervisor.html",
+										title:"Supervisor",
+										executeScripts: "true",
+										id:"supervisorTab"
+									});
+									dijit.byId("tabPanel").addChild(t);
+								}
+								//this.setDisabled(true);
+								dijit.byId("supervisorTab").setHref("tabs/supervisor.html");
 								dijit.byId("tabPanel").selectChild("supervisorTab");
 							</script>
 						</div>

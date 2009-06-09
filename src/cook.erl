@@ -767,7 +767,7 @@ tick_manipulation_test_() ->
 	fun() ->
 		test_primer(),
 		queue_manager:start([node()]),
-		{ok, Pid} = queue_manager:add_queue("testqueue"),
+		{ok, Pid} = queue_manager:add_queue("testqueue", []),
 		{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
 		%dummy_media:set_skills(Dummy, [english, testskill]),
 		{Pid, Dummy}
@@ -828,7 +828,7 @@ condition_checking_test_() ->
 		test_primer(),
 		agent_auth:start(),
 		queue_manager:start([node()]),
-		{ok, Qpid} = queue_manager:add_queue("testqueue"),
+		{ok, Qpid} = queue_manager:add_queue("testqueue", []),
 		{ok, Mpid} = dummy_media:start("testcall"),
 		dispatch_manager:start(),
 		agent_manager:start([node()]),
@@ -953,7 +953,7 @@ agent_interaction_test_() ->
 	fun() ->
 		test_primer(),
 		?DEBUG("queue_manager:  ~p", [queue_manager:start([node()])]),
-		{ok, QPid} = queue_manager:add_queue("testqueue"),
+		{ok, QPid} = queue_manager:add_queue("testqueue", []),
 		?DEBUG("call_queue:  ~p", [QPid]),
 		{ok, MPid} = dummy_media:start("testcall"),
 		?DEBUG("dummy_media:  ~p", [MPid]),

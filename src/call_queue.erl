@@ -595,7 +595,7 @@ call_in_out_grab_test_() ->
 		fun() ->
 			test_primer(),
 			queue_manager:start([node()]),
-			{ok, Pid} = queue_manager:add_queue("testqueue"),
+			{ok, Pid} = queue_manager:add_queue("testqueue", []),
 			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
 			%dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
@@ -1009,7 +1009,7 @@ queue_update_and_info_test_() ->
 		fun() ->
 			test_primer(),
 			queue_manager:start([node()]),
-			{ok, Pid} = queue_manager:add_queue("testqueue"),
+			{ok, Pid} = queue_manager:add_queue("testqueue", []),
 			{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
 			%dummy_media:set_skills(Dummy, [english, testskill]),
 			call_queue:add(Pid, 1, Dummy),
@@ -1099,7 +1099,7 @@ queue_manager_and_cook_test_() ->
 			foreach,
 			fun() ->
 				queue_manager:start([node()]),
-				{ok, Pid} = queue_manager:add_queue("testqueue"),
+				{ok, Pid} = queue_manager:add_queue("testqueue", []),
 				{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
 				%dummy_media:set_skills(Dummy, [english, testskill]),
 				call_queue:add(Pid, 1, Dummy),
@@ -1132,7 +1132,7 @@ queue_manager_and_cook_test_() ->
 				{
 					"Slaughter the cook",
 					fun() ->
-						{exists, Pid} = queue_manager:add_queue("testqueue"),
+						{exists, Pid} = queue_manager:add_queue("testqueue", []),
 						Dummy1 = whereis(media_dummy),
 						{_Key1, Call1} = get_call(Pid, Dummy1),
 						?assertEqual(Call1#queued_call.media, Dummy1),
@@ -1184,7 +1184,7 @@ multi_node_test_() ->
 			{ok, _Pid} = rpc:call(Master, queue_manager, start, [[Master, Slave]]),
 			{ok, _Pid2} = rpc:call(Slave, queue_manager, start, [[Master, Slave]]),
 
-			{ok, Pid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue"]),
+			{ok, Pid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue", []]),
 			Pid
 		end,
 		fun(Pid) ->

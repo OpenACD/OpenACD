@@ -52,7 +52,6 @@
 	start_link/1,
 	start/1,
 	queues/0,
-	add_queue/1,
 	add_queue/2,
 	get_queue/1,
 	query_queue/1,
@@ -102,16 +101,8 @@ start(Nodes) ->
 add_queue(Name) when is_list(Name) ->
 	add_queue(Name, []).
 
-%% @doc Add a queue named `Name' using a givien `Recipe' or `Weight'.
--spec(add_queue/2 :: (Name :: string(), Recipe :: recipe()) -> {'ok', pid()} | {'exists', pid()};
-	(Name :: string(), Weight :: pos_integer()) -> {'ok', pid()} | {'exists', pid()}).
-add_queue(Name, [H | Tail] = Recipe) when is_list(Name), is_list(element(1, H)) ->
-	add_queue(Name, [{recipe, Recipe}]);
-add_queue(Name, Weight) when is_list(Name), is_integer(Weight), Weight > 0 ->
-	add_queue(Name, [{recipe, ?DEFAULT_RECIPE}]);
-
-%% @doc Add a queue named `Name' using the given `Recipe' and `Weight'.
-%-spec(add_queue/2 :: (Name :: string(), Opts :: [{atom(), any()}]) -> {'ok', pid()} | {'exists', pid()}).
+%% @doc Add a queue named `Name' using the given Options.
+-spec(add_queue/2 :: (Name :: string(), Opts :: [{atom(), any()}]) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name, Opts) when is_list(Name) ->
 	case gen_leader:call(?MODULE, {exists, Name}) of
 		true ->
@@ -581,7 +572,7 @@ multi_node_test_() ->
 					rpc:call(Master, ?MODULE, stop, []),
 
 					%?assertMatch(undefined, global:whereis_name(?MODULE)),
-					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1"])),
+					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1", []])),
 					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"]))
 				end
 
@@ -589,7 +580,7 @@ multi_node_test_() ->
 				"Slave Death", fun() ->
 					%rpc:call(Maste, erlang, disconnect_node, [Slave]),
 					%cover:stop([Master]),
-					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1"])),
+					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1", []])),
 					ok = rpc:call(Slave, ?MODULE, stop, []),
 
 					%?assertMatch(undefined, global:whereis_name(?MODULE)),
@@ -598,8 +589,8 @@ multi_node_test_() ->
 
 			},{
 				"Net Split",fun() ->
-					rpc:call(Master, ?MODULE, add_queue, ["queue1"]),
-					rpc:call(Slave, ?MODULE, add_queue, ["queue2"]),
+					rpc:call(Master, ?MODULE, add_queue, ["queue1", []]),
+					rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
 
 					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"])),
 					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
@@ -618,18 +609,18 @@ multi_node_test_() ->
 					%?assertMatch(Newmaster, Master),
 					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue1"])),
 					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
-					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2"])),
-					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue1"]))
+					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
+					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue1", []]))
 				end
 			},{
 				"Queues in sync", fun() ->
-					rpc:call(Master, ?MODULE, add_queue, ["queue1"]),
+					rpc:call(Master, ?MODULE, add_queue, ["queue1", []]),
 
 					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue1"])),
-					?assertMatch({exists, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1"])),
-					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue2"])),
+					?assertMatch({exists, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1", []])),
+					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue2", []])),
 					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
-					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2"])),
+					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
 
 					?assertMatch(ok, rpc:call(Master, ?MODULE, stop, [])),
 					?assertMatch(ok, rpc:call(Slave, ?MODULE, stop, []))
@@ -641,7 +632,7 @@ multi_node_test_() ->
 				end
 			},{
 				"Best bindable queues with failed master", fun() ->
-					{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2"]),
+					{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
 					{ok, Dummy1} = rpc:call(Slave, dummy_media, start, ["Call1"]),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
 					slave:stop(Master),
@@ -649,8 +640,8 @@ multi_node_test_() ->
 				end
 			}, {
 				"Leader is told about a call_queue that dies and did not come back", fun() ->
-					{ok, QPid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2"]),
-					?assertMatch({exists, QPid}, rpc:call(Master, ?MODULE, add_queue, ["queue2"])),
+					{ok, QPid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
+					?assertMatch({exists, QPid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
 					gen_server:call(QPid, {stop, test_kill}),
 					receive
 					after 100 ->

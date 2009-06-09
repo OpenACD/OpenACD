@@ -22,7 +22,7 @@ end
 
 INCLUDE = "include"
 
-vertest = `erl -noshell -eval "io:format(\\"~n~s~n\\", [erlang:system_info(otp_release)])." -s erlang halt | tail -n 1`.chomp.split("\n")[-1]
+vertest = `erl -noshell -eval "io:format(\\"~n~s~n\\", [erlang:system_info(otp_release)])." -s erlang halt`.chomp.split("\n")[-1]
 if vertest =~ /(R\d\d[AB])/
 	OTPVERSION = $1
 else
@@ -83,9 +83,9 @@ rule ".rel" => ["%{ebin,src}X.rel.src"] do |t|
 	while contents =~ /^[\s\t]*([-a-zA-Z0-9_]+),[\s\t]*$/
 		app = $1
 		if app == "erts"
-			version = `erl -noshell -eval "io:format(\\"~n~s~n\\", [erlang:system_info(version)])." -s erlang halt | tail -n 1`.chomp.split("\n")[-1]
+			version = `erl -noshell -eval "io:format(\\"~n~s~n\\", [erlang:system_info(version)])." -s erlang halt`.chomp.split("\n")[-1]
 		else
-			version = `erl -noshell -eval "application:load(#{app}), io:format(\\"~n~s~n\\", [proplists:get_value(#{app}, lists:map(fun({Name, Desc, Vsn}) -> {Name, Vsn} end, application:loaded_applications()))])." -s erlang halt | tail -n 1`.chomp.split("\n")[-1]
+			version = `erl -noshell -eval "application:load(#{app}), io:format(\\"~n~s~n\\", [proplists:get_value(#{app}, lists:map(fun({Name, Desc, Vsn}) -> {Name, Vsn} end, application:loaded_applications()))])." -s erlang halt`.chomp.split("\n")[-1]
 		end
 		if md = /(\d+\.\d+(\.\d+(\.\d+|)|))/.match(version)
 			contents.sub!(app, "{#{app}, \"#{md[1]}\"}")

@@ -55,7 +55,7 @@ supervisorTab.testDraw = function(){
 supervisorTab.bubbleZoom = function(ev){
 	var rect = this.children[0];
 	var p = {
-		x: rect.getShape().x + rect.getShape().width/2,
+		x: rect.getShape().x,// + rect.getShape().width/2,
 		y: rect.getShape().y + rect.getShape().height/2
 	};
 	this.setTransform([dojox.gfx.matrix.scaleAt(2, p)]);
@@ -64,13 +64,20 @@ supervisorTab.bubbleZoom = function(ev){
 supervisorTab.bubbleOut = function(ev){
 	var rect = this.children[0];
 	var p = {
-		x: rect.getShape().x + rect.getShape().width/2,
+		x: rect.getShape().x,// + rect.getShape().width/2,
 		y: rect.getShape().y + rect.getShape().height/2
 	}
 	this.setTransform([dojox.gfx.matrix.scaleAt(1, p)]);
 };
 
 supervisorTab.drawBubble = function(scale, point, data){
+	if(arguments[3]){
+		var parent = arguments[3];
+	}
+	else{
+		var parent = supervisorTab.surface;
+	}
+
 	if(scale > 2){
 		scale = 2;
 	}
@@ -78,7 +85,7 @@ supervisorTab.drawBubble = function(scale, point, data){
 		scale = .75
 	}
 	
-	var group = supervisorTab.surface.createGroup();
+	var group = parent.createGroup();
 	
 	var bubble = group.createRect({
 		x: point.x,
@@ -87,7 +94,24 @@ supervisorTab.drawBubble = function(scale, point, data){
 		height: 20 * scale,
 		r: 10 * scale
 	});
-	bubble.setFill([255, 255, 255, 100]);
+	
+	var fill;
+	var textcolors = "black";
+	if(data.health == 50){
+		bubblefill = [0, 255, 0, 100];
+	}
+	else if(data.health < 50){
+		var ymod = -(255/50) * data.health + 255;
+		bubblefill = [ymod, 255, 0, 100];
+	}
+	else{
+		var rmod = 255/50 * data.health - 255;
+		var gmod = -255/50 * 1.3 * data.health + (255 * 2);
+		bubblefill = [rmod, gmod, 0, 100];
+		textcolors = "white";
+	}
+	
+	bubble.setFill(bubblefill);
 	bubble.setStroke("black");
 	group.connect("onmouseenter", group, supervisorTab.bubbleZoom);
 	group.connect("onmouseleave", group, supervisorTab.bubbleOut);
@@ -99,50 +123,59 @@ supervisorTab.drawBubble = function(scale, point, data){
 		text: data.display
 	});
 	
-	text.setStroke("black");
+	text.setStroke(textcolors);
+	text.setFill(textcolors);
 	
-	console.log(group);
+	//console.log(group);
 	
 	new dojox.gfx.Moveable(group);
 }
 
 supervisorTab.drawBubbleStack = function(mousept, datas){
-	var count = datas.length;
-	var height = supervisorTab.surface.rawNode.height;
-	var y = mousept.y;
+	if(arguments[2]){
+		var parent = arguments[2];
+	}
+	else{
+		var parent = supervisorTab.surface;
+	}
 	
-	var actualPercentile = y/height;
+	var groupHeight = datas.length * 40;
+	var viewHeight = 400;//supervisorTab.surface.rawNode.height;
 	
-	var totalHeight = datas.length * 20;
+	var ratio = groupHeight / viewHeight;
+		
+	var group = parent.createGroup();
 	
-	var stackPercentile = datas.length * y/height;
-	
-	var didBig = false;
 	var yi = 0;
+	var pt = {
+		x:100,
+		y:mousept.y
+	};
+	
+	group.createRect({x:pt.x - 50, y:0, width:100, height: groupHeight}).setFill("white").setStroke("white");
 	
 	var drawIt = function(obj, index, arr){
-		if(index + 1 > stackPercentile){
-			if( ! didBig){
-				didBig = true;
-				supervisorTab.drawBubble(2, {x:mousept.x, y:yi}, obj);
-				yi = yi + 40;
-				return;
-			}
-		}
-		
-		supervisorTab.drawBubble(2, {x:mousept.x - 50, y:yi}, obj);
+		supervisorTab.drawBubble(.75, {x:pt.x - 50, y:yi}, obj, group);
 		yi = yi + 40;
 	}
 	
 	dojo.forEach(datas, drawIt);
+	
+	group.connect("onmousemove", group, function(ev){
+		//console.log(ev);
+		this.setTransform([dojox.gfx.matrix.translate(0, -ev.layerY * ratio)]);
+	});
 }
 
 supervisorTab.drawBubbleStackTest = function(mousept, count){
 	var datas = [];
 	
 	for(var i = 0; i < count; i++){
+		//var hp = Math.round(Math.random() * 100);
+		var hp = Math.round(100 * (i / count));
 		var o = {
-			"display":i.toString()
+			"display":i.toString() + "(" + hp + ")",
+			"health":hp
 		};
 		datas.push(o);
 	}
@@ -151,6 +184,4 @@ supervisorTab.drawBubbleStackTest = function(mousept, count){
 	supervisorTab.drawBubbleStack(mousept, datas);
 };
 
-supervisorTab.surface.connect("onmousemove", supervisorTab.surface, function(ev){
-	supervisorTab.drawBubbleStackTest({x:ev.clientX, y:ev.clientY}, 10);
-});
+supervisorTab.drawBubbleStackTest({x:100, y:100}, 100);

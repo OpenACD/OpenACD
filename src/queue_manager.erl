@@ -361,7 +361,10 @@ handle_info({'EXIT', Pid, Reason}, #state{qdict = Qdict} = State) ->
 					{noreply, State};
 				Queuerec ->
 					?DEBUG("Got call_queue_config of ~p", [Queuerec]),
-					{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, Queuerec#call_queue.recipe, Queuerec#call_queue.weight),
+					{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, [
+						{recipe, Queuerec#call_queue.recipe}, 
+						{weight, Queuerec#call_queue.weight},
+						{skills, Queuerec#call_queue.skills}]),
 					Newdict = dict:store(Queuerec#call_queue.name, NewQPid, Qdict),
 					ok = gen_leader:leader_cast(?MODULE, {notify, Qname, NewQPid}),
 					{noreply, State#state{qdict = Newdict}}
@@ -437,7 +440,7 @@ single_node_test_() ->
 			}, {
 				"best bindable queues by weight test", fun() ->
 					{ok, Pid} = add_queue("goober"),
-					{ok, Pid2} = add_queue("goober2", 10), % higher weighted queue
+					{ok, Pid2} = add_queue("goober2", [{weight, 10}]), % higher weighted queue
 					{ok, _Pid3} = add_queue("goober3"),
 					?assertMatch([], get_best_bindable_queues()),
 					{ok, Dummy1} = dummy_media:start("Call1"),

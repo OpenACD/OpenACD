@@ -394,7 +394,7 @@ api({agents, "agents", "new"}, ?COOKIE, Post) ->
 			Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
 			agent_auth:add_agent([
 				{login, proplists:get_value("login", Post)},
-				{password, Confirmpw},
+				{password, util:bin_to_hexstr(erlang:md5(Confirmpw))},
 				{skills, Fixedskills},
 				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
 				{profile, proplists:get_value("profile", Post)},

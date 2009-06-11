@@ -57,8 +57,8 @@
 
 %% API
 -export([
-	start/2,
-	start_link/2,
+	start/1,
+	start_link/1,
 	get_call/1,
 	%get_queue/1,
 	%get_agent/1,
@@ -91,7 +91,6 @@
 	queue :: string() | 'undefined',
 	queue_pid :: pid() | 'undefined',
 	cnode :: atom(),
-	domain :: string(),
 	agent :: string() | 'undefined',
 	agent_pid :: pid() | 'undefined',
 	ringchannel :: pid() | 'undefined'
@@ -105,11 +104,11 @@
 %% API
 %%====================================================================
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
-start(Cnode, Domain) ->
-	gen_media:start(?MODULE, [Cnode, Domain]).
+start(Cnode) ->
+	gen_media:start(?MODULE, [Cnode]).
 
-start_link(Cnode, Domain) ->
-	gen_media:start_link(?MODULE, [Cnode, Domain]).
+start_link(Cnode) ->
+	gen_media:start_link(?MODULE, [Cnode]).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
 -spec(get_call/1 :: (MPid :: pid()) -> #call{}).
@@ -132,8 +131,8 @@ dump_state(Mpid) when is_pid(Mpid) ->
 %% gen_media callbacks
 %%====================================================================
 %% @private
-init([Cnode, Domain]) ->
-	{ok, {#state{cnode=Cnode, domain=Domain}, undefined}}.
+init([Cnode]) ->
+	{ok, {#state{cnode=Cnode}, undefined}}.
 
 handle_announce(Announcement, #state{callrec = Callrec} = State) ->
 	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,

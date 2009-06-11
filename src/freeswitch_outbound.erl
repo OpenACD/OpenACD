@@ -45,8 +45,8 @@
 
 %% API
 -export([
-	start_link/6,
-	start/6,
+	start_link/5,
+	start/5,
 	hangup/1
 	]).
 
@@ -82,11 +82,11 @@
 %%====================================================================
 %% API
 %%====================================================================
-start(Fnode, AgentRec, Apid, Number, Ringout, Domain) when is_pid(Apid) ->
-	gen_media:start(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout, Domain]).
+start(Fnode, AgentRec, Apid, Number, Ringout) when is_pid(Apid) ->
+	gen_media:start(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout]).
 
-start_link(Fnode, AgentRec, Apid, Number, Ringout, Domain) when is_pid(Apid) ->
-	gen_media:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout, Domain]).
+start_link(Fnode, AgentRec, Apid, Number, Ringout) when is_pid(Apid) ->
+	gen_media:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout]).
 
 hangup(Pid) ->
 	gen_media:cast(Pid, hangup).
@@ -95,7 +95,7 @@ hangup(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Number, Ringout, _Domain]) ->
+init([Fnode, AgentRec, Apid, Number, Ringout]) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Call = #call{id=UUID, source=self(), type=voice},

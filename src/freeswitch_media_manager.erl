@@ -97,7 +97,6 @@
 	nodename :: atom(),
 	freeswitch_c_pid :: pid(),
 	call_dict = dict:new() :: dict(),
-	domain :: string(),
 	voicegateway = "" :: string(),
 	xmlserver :: pid() | 'undefined'
 	}).
@@ -118,14 +117,14 @@
 %% <li>`voicegateway :: string()'</li>
 %% </ul>
 start(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
-	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, Options], []);
+	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, Options], []).
 	
 %% @doc Start the media manager unlinked to the parent process.  `Nodename' is the name of the C node for mod_erlang in freeswitch; 
 %% `Domain' is the domain to ring to sip agents.
 %% @clear
 % Domain is there to help ring agents.
-start(Nodename, Domain) -> 
-	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, [{domain, Domain}]], []).
+start(Nodename) -> 
+	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, []], []).
 	
 %% @doc Start the media manager linked to the parant process with C node `node() Nodemane' 
 %% and `[{atom(), term()] Options'.
@@ -134,13 +133,13 @@ start(Nodename, Domain) ->
 %% <li>`voicegateway :: string()'</li>
 %% </ul>
 start_link(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Options], []);
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Options], []).
 
 %% @doc Start the media manager linked to the parent process.  `Nodename' is the name of the C node for mod_erlang in freeswitch; 
 %% `Domain' is the domain to ring to sip agents.
 %% @clear
-start_link(Nodename, Domain) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, [{domain, Domain}]], []).
+start_link(Nodename) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, []], []).
 
 %% @doc returns {`ok', pid()} if there is a freeswitch media process handling the given `UUID'.
 -spec(get_handler/1 :: (UUID :: string()) -> {'ok', pid()} | 'noexists').
@@ -167,16 +166,15 @@ init([Nodename, Options]) ->
 	Voicegateway = proplists:get_value(voicegateway, Options, ""),
 	monitor_node(Nodename, true),
 	freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{voicegateway, Voicegateway}]),
-	Domain = proplists:get_value(domain, Options, "localhost"),
-	{ok, #state{nodename=Nodename, domain=Domain, voicegateway = Voicegateway, xmlserver = Lpid}}.
+	{ok, #state{nodename=Nodename, voicegateway = Voicegateway, xmlserver = Lpid}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
 
-handle_call({make_outbound_call, Number, AgentPid, AgentRec}, _From, #state{nodename = Node, domain = Domain} = State) ->
-	freeswitch_outbound:start(Node, AgentRec, AgentPid, Number, 30, Domain),
+handle_call({make_outbound_call, Number, AgentPid, AgentRec}, _From, #state{nodename = Node} = State) ->
+	freeswitch_outbound:start(Node, AgentRec, AgentPid, Number, 30),
 	{reply, ok, State};
 handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) -> 
 	case dict:find(UUID, Dict) of
@@ -209,7 +207,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info({new_pid, Ref, From}, State) ->
-	{ok, Pid} = freeswitch_media:start_link(State#state.nodename, State#state.domain),
+	{ok, Pid} = freeswitch_media:start_link(State#state.nodename),
 	From ! {Ref, Pid},
 	% even the media won't know the proper data for the call until later.
 	{noreply, State};

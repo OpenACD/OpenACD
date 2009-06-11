@@ -599,7 +599,6 @@ api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
 			Args = [list_to_atom(proplists:get_value("cnode", Post)), [
-				{domain, proplists:get_value("domain", Post, "")},
 				{voicegateway, proplists:get_value("voicegw", Post, "")}]],
 			Conf = #cpx_conf{
 				id = freeswitch_media_manager,
@@ -621,7 +620,7 @@ api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 		Rec when is_record(Rec, cpx_conf) ->
 			[Cnode, [Head | _Tail] = Args] = Rec#cpx_conf.start_args,
 			?DEBUG("Args: ~p", [Args]),
-			{Domain, Voicegw} = case Head of
+			{_Domain, Voicegw} = case Head of
 				X when is_tuple(X) ->
 					{proplists:get_value(domain, Args, ""), proplists:get_value(voicegateway, Args, "")};
 				X ->
@@ -631,7 +630,6 @@ api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 				{success, true},
 				{<<"enabled">>, true},
 				{<<"cnode">>, list_to_binary(atom_to_list(Cnode))},
-				{<<"domain">>, list_to_binary(Domain)},
 				{<<"voicegw">>, list_to_binary(Voicegw)}
 			]},
 			{200, [], mochijson2:encode(Json)}

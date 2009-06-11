@@ -2,75 +2,124 @@ supervisorTab = function(){
 	{};
 };
 
-supervisorTab.healthData = {
-	identifier:"id",
-	label:"display",
-	items:[
-		{
-			id:"1",
-			display:"system",
-			type:"system",
-			health:50,
-			uptime:100
-		},
-		{
-			id:"2",
-			display:"node1@example",
-			type:"node",
-			health:50,
-			uptime:100
-		},
-		{
-			id:"3",
-			display:"queuegruop1",
-			type:"queuegroup",
-			health:50
-		},
-		{
-			id:"4",
-			display:"queue1",
-			type:"queue",
-			group:"queuegroup1",
-			node:"node1@example",
-			health:50
-		},
-		{
-			id:"5",
-			display:"queue2",
-			type:"queue",
-			group:"queuegroup1",
-			node:"node1@example",
-			health:35
-		},
-		{
-			id:"6",
-			display:"agentprofile1",
-			type:"agentprofile",
-			health:50
-		},
-		{
-			id:"7",
-			display:"agent1",
-			type:"agent",
-			health:50,
-			profile:"agentprofile1",
-			node:"node1@example"
-		},
-		{
-		   id:"8",
-		   display:"call1",
-		   type:"media",
-		   health:50,
-		   queue:"queue1",
-		   node:"node1@example"
-		}
-	]
+supervisorTab.healthData = {identifier:"id",
+label:"display",
+items:[{id:"1",
+	   display:"system",
+	   type:"system",
+	   health:50,
+	   uptime:100},
+	   {id:"2",
+	   display:"node1@example",
+	   type:"node",
+	   health:50,
+	   uptime:100},
+	   {id:"3",
+	   display:"node2@example",
+	   type:"node",
+	   health:50,
+	   uptime:100},
+	   {id:"4",
+	   display:"queuegroup1",
+	   type:"queuegroup",
+	   health:50},
+	   {id:"5",
+	   display:"queuegroup2",
+	   type:"queuegroup",
+	   health:50},
+	   {id:"6",
+	   display:"queue1",
+	   type:"queue",
+	   group:"queuegroup1",
+	   node:"node1@example",
+	   health:50},
+	   {id:"7",
+	   display:"queue2",
+	   type:"queue",
+	   group:"queuegroup2",
+	   node:"node1@example",
+	   health:50},
+	   {id:"8",
+	   display:"queue3",
+	   type:"queue",
+	   group:"queuegroup1",
+	   node:"node2@example",
+	   health:50},
+	   {id:"9",
+	   display:"queue4",
+	   type:"queue",
+	   group:"queuegroup2",
+	   node:"node2@example",
+	   health:50},
+	   {id:"10",
+	   display:"media1",
+	   type:"media",
+	   node:"node1@example",
+	   queue:"queue1"},
+	   {id:"11",
+	   display:"media2",
+	   type:"media",
+	   node:"node2@example",
+	   queue:"queue1"},
+	   {id:"12",
+	   display:"media3",
+	   type:"media",
+	   node:"node1@example",
+	   queue:"queue2"},
+	   {id:"13",
+	   display:"media4",
+	   node:"node2@example",
+	   queue:"queue2"},
+	   {id:"14",
+	   display:"agentprofile1",
+	   type:"agentprofile",
+	   health:50},
+	   {id:"15",
+	   display:"agentprofile2",
+	   type:"agentprofile",
+	   health:50},
+	   {id:"16",
+	   display:"agent1",
+	   type:"agent",
+	   profile:"agentprofile1",
+	   node:"node1@example",
+	   health:50},
+	   {id:"17",
+	   display:"agent2",
+	   type:"agent",
+	   profile:"agentprofile2",
+	   node:"node1@example",
+	   health:50},
+	   {id:"18",
+	   display:"agent3",
+	   type:"agent",
+	   profile:"agentprofile1",
+	   node:"node2@example",
+	   health:50},
+	   {id:"19",
+	   display:"agent4",
+	   profile:"agentprofile2",
+	   node:"node2@example",
+	   health:50},
+	   {id:"20",
+	   display:"media5",
+	   type:"media",
+	   agent:"agent1",
+	   node:"node1@example",
+	   health:50},
+	   {id:"21",
+	   display:"media6",
+	   type:"media",
+	   agent:"agent2",
+	   node:"node2@example",
+	   health:50}]
 };
 
 supervisorTab.dataStore = new dojo.data.ItemFileReadStore({data: supervisorTab.healthData});
 
 supervisorTab.systemStack = [];
 
+supervisorTab.node = "*";
 supervisorTab.groupsStack = {clear:function(){ return true}};
 supervisorTab.individualsStack = {clear:function(){ return true}};
 supervisorTab.callsStack = {clear:function(){return true}};
@@ -128,9 +177,9 @@ supervisorTab.drawBubble = function(opts){
 		point:{x:100,y:100},
 		parent:supervisorTab.surface,
 		data:{"display":"bubble", "health":50},
-		onmouseenter:function(){return true},
+		onmouseenter:function(){ return false},
 		onmouseleave:function(){return false},
-		onclick:function(){return false}
+		onclick:function(){ return false}
 	};
 	
 	conf = dojo.mixin(conf, opts);
@@ -163,6 +212,9 @@ supervisorTab.drawBubble = function(opts){
 	
 	bubble.setFill(bubblefill);
 	bubble.setStroke("black");
+	
+	group.data = conf.data;
+	
 	group.connect("onmouseenter", group, conf.onmouseenter);
 	group.connect("onmouseleave", group, conf.onmouseleave);
 	group.connect("onclick", group, conf.onclick);
@@ -204,12 +256,21 @@ supervisorTab.drawSystemStack = function(opts){
 			point: {x:20, y:yi},
 			data: obj,
 			onmouseenter: supervisorTab.bubbleZoom,
-			onmouseleave: supervisorTab.bubbleOut
+			onmouseleave: supervisorTab.bubbleOut,
+			onclick: function(ev){
+				if(this.data.display == "System"){
+					supervisorTab.node = "*";
+				}
+				else{
+					supervisorTab.node = this.data.display
+				}
+			}
 		});
 		yi = yi - 40;
 		out.push(o);
 	}
 	dojo.forEach(conf.data, drawIt);
+	supervisorTab.systemStack = out;
 	return out;
 }
 
@@ -234,7 +295,7 @@ supervisorTab.drawAgentQueueBubbles = function(agenthp, queuehp){
 		point:{x:20, y:20},
 		data: {"health":agenthp, "display":"Agents"},
 		onclick: function(){
-			supervisorTab.refreshGroupsStack({type:"agentprofile"});
+			supervisorTab.refreshGroupsStack("agentprofile");
 		}
 	});
 	supervisorTab.queueBubble = supervisorTab.drawBubble({
@@ -242,7 +303,7 @@ supervisorTab.drawAgentQueueBubbles = function(agenthp, queuehp){
 		point:{x:20, y:60}, 
 		data:{"health":queuehp, "display":"Queues"},
 		onclick: function(){
-			supervisorTab.refreshGroupsStack({type:"queuegroup"});
+			supervisorTab.refreshGroupsStack("queuegroup");
 		}
 	});
 }
@@ -341,23 +402,45 @@ supervisorTab.simplifyData = function(items){
 	return acc;
 }
 
-supervisorTab.refreshGroupsStack = function(opts){
+supervisorTab.refreshGroupsStack = function(stackfor){
 	var conf = {
-		type:"agentprofile"
+		type:stackfor
 	}
 	
-	conf = dojo.mixin(conf, opts);
+	//conf = dojo.mixin(conf, opts);
 	
 	var fetchdone = function(items, request){
 		var acc = supervisorTab.simplifyData(items)
-		console.log(acc);
+
+		supervisorTab.callsStack.clear();
+		supervisorTab.individualsStack.clear();
 		supervisorTab.groupsStack.clear();
 		supervisorTab.groupsStack = supervisorTab.drawBubbleStack({
 			mousept:{
 				x:300,
 				y:100
 			},
-			data:acc
+			data:acc,
+			bubbleenter: function(ev){
+				var opt = {};
+				console.log(conf);
+				if(conf.type == "agentprofile"){
+					supervisorTab.refreshIndividualsStack("agent", "profile", this.data.display, supervisorTab.node)
+//					console.log("agent profile path");
+//					opt.type = "agent";
+//					opt.detailname = "profile";
+//					opt.detailvalue = this.data.display;
+				}
+				else{
+					supervisorTab.refreshIndividualsStack("queue", "group", this.data.display, supervisorTab.node);
+//					console.log("queue group path");
+//					opt.type = "queue";
+//					opt.detailname = "group";
+//					opt.detailvalue = this.data.display;
+				}
+//				console.log(opt);
+//				supervisorTab.refreshIndividualsStack(opt);
+			}
 		});
 	}
 	
@@ -369,43 +452,80 @@ supervisorTab.refreshGroupsStack = function(opts){
 	});
 };
 
-supervisorTab.refreshIndividualsStack = function(opts){
-	var conf = {
-		type:"agent",
-		node:"*"
-	}
-	
-	conf = dojo.mixin(conf, opts);
-	
+supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
+//	console.log("opts ris got");
+//	console.log(opts);
+//
+//	var cnf = {
+//		node:"*",
+//		detailname:"profile",
+//		detailvalue:"*"
+//	};
+//	console.log("pre mixins");
+//	console.log(cnf);
+//	//cnf = 
+//	dojo.mixin(cnf, opts);
+//	//conf.type = opts.type;
+//	console.log("refresh individ stack conf");
+//	console.log(cnf);
+//	console.log(opts);
+	console.log("refreshing group stack for " + seek + " " + dkey + " " + dval + " " + node);
 	var fetchdone = function(items, request){
+		console.log("fetch done!");
 		var acc = supervisorTab.simplifyData(items);
+		supervisorTab.callsStack.clear();
 		supervisorTab.individualsStack.clear();
 		supervisorTab.individualsStack = supervisorTab.drawBubbleStack({
 			mousept:{
 				x:540,
 				y:100
 			},
-			data:acc
+			data:acc,
+			bubbleenter: function(ev){
+//				console.log("conf while setting up cb");
+//				console.log(cnf);
+//				var opt = {
+//					node:cnf.node
+//				};
+				console.log(seek);
+				if(seek == "agent"){
+					supervisorTab.refreshCallsStack("agent", this.data.display, supervisorTab.node);
+//					opt.detailname = "agent";
+//					opt.detailvalue = this.data.display
+				}
+				else{
+					supervisorTab.refreshCallsStack("queue", this.data.display, supervisorTab.node);
+//					opt.detailname = "queue";
+//					opt.detailvalue = this.data.display
+				};
+//				supervisorTab.refreshCallsStack(dkey, dval, supervisorTab.node);
+			}
 		});
 	}
 	
+	var queryo = {
+		type:seek,
+		node:node
+	};
+	queryo[dkey] = dval;
+	
 	supervisorTab.dataStore.fetch({
-		query:{
-			type:conf.type,
-			node:conf.node
-		},
+		query:queryo,
 		onComplete:fetchdone
 	});
 }
 
-supervisorTab.refreshCallsStack = function(opts){
-	var conf = {
-		node:"*",
-		queue:"*"
-	}
-	
-	conf = dojo.mixin(conf, opts);
-	
+supervisorTab.refreshCallsStack = function(dkey, dval, node){
+//	console.log(opts);
+//	var conf = {
+//		node:"*",
+//		detailname:"queue",
+//		detailvalue:"*"
+//	};
+//
+//	conf = dojo.mixin(conf, opts);
+
+	console.log("refreshing call stack for " + dkey + " " + dval + " " + node);
 	var fetchdone = function(items, request){
 		var acc = supervisorTab.simplifyData(items);
 		supervisorTab.callsStack.clear();
@@ -418,18 +538,39 @@ supervisorTab.refreshCallsStack = function(opts){
 		});
 	}
 	
+	var queryo = {
+		node:node,
+		type:"media"
+	};
+	queryo[dkey] = dval;
+
+	supervisorTab.dataStore.fetch({
+		query:queryo,
+		onComplete:fetchdone
+	});
+}
+
+supervisorTab.refreshSystemStack = function(){
+
+	var fetchdone = function(items, request){
+		var acc = supervisorTab.simplifyData(items);
+		dojo.forEach(supervisorTab.systemStack, function(obj){
+			obj.clear();
+		});
+		console.log(acc);
+		supervisorTab.systemStack = supervisorTab.drawSystemStack({data:acc});
+	}
+	
 	supervisorTab.dataStore.fetch({
 		query:{
-			node:conf.node,
-			queue:conf.queue,
-			type:"media"
+			type:"node"
 		},
 		onComplete:fetchdone
 	});
 }
 
-supervisorTab.drawSystemStack({});
 supervisorTab.drawAgentQueueBubbles(0, 0);
+supervisorTab.refreshSystemStack();
 
 //supervisorTab.drawBubbleStackTest({x:300, y:100}, 10);
 //supervisorTab.drawBubbleStackTest({x:540, y:100}, 20);

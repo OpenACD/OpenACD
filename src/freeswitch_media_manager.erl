@@ -234,6 +234,7 @@ handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
 			?NOTICE("Freeswitch node ~p is back up", [Nodename]),
 			monitor_node(Nodename, true),
 			Lpid = start_listener(Nodename),
+			freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{voicegateway, State#state.voicegateway}]),
 			{noreply, State#state{xmlserver = Lpid}};
 		pang ->
 			timer:send_after(1000, freeswitch_ping),

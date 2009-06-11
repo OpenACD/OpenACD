@@ -231,6 +231,24 @@ supervisorTab.drawBubble = function(opts){
 	
 	new dojox.gfx.Moveable(group);
 	
+	group.size = function(scale){
+		var rect = group.children[0];
+		var p = {
+			x: rect.getShape().x,// + rect.getShape().width/2,
+			y: rect.getShape().y + rect.getShape().height/2
+		}
+		group.setTransform([dojox.gfx.matrix.scaleAt(scale, p)]);
+		
+	}
+
+	group.shrink = function(){
+		group.size(1);
+	};
+
+	group.grow = function(){
+		group.size(1.4);
+	}
+	
 	return group;
 }
 
@@ -255,8 +273,8 @@ supervisorTab.drawSystemStack = function(opts){
 			scale:.75,
 			point: {x:20, y:yi},
 			data: obj,
-			onmouseenter: supervisorTab.bubbleZoom,
-			onmouseleave: supervisorTab.bubbleOut,
+			//onmouseenter: supervisorTab.bubbleZoom,
+			//onmouseleave: supervisorTab.bubbleOut,
 			onclick: function(ev){
 				if(this.data.display == "System"){
 					supervisorTab.node = "*";
@@ -264,6 +282,20 @@ supervisorTab.drawSystemStack = function(opts){
 				else{
 					supervisorTab.node = this.data.display
 				}
+				dojo.forEach(supervisorTab.systemStack, function(obj){
+					var rect = obj.children[0];
+					var p = {
+						x: rect.getShape().x,
+						y: rect.getShape().y + rect.getShape().height/2
+					};
+					obj.setTransform([dojox.gfx.matrix.scaleAt(1, p)]);
+				});
+				var rect = this.children[0];
+				var p = {
+					x: rect.getShape().x,
+					y: rect.getShape().y + rect.getShape().height/2
+				};
+				this.setTransform([dojox.gfx.matrix.scaleAt(1.4, p)]);
 			}
 		});
 		yi = yi - 40;
@@ -274,21 +306,6 @@ supervisorTab.drawSystemStack = function(opts){
 	return out;
 }
 
-supervisorTab.drawSystemStackTest = function(count){
-	var data = [];
-	for(var i = 1; i <= count; i++){
-		var hp = Math.round(100 * (i / count));
-		var o = {
-			"display":"node" + i.toString() + "@example",
-			"health":hp
-		};
-		data.push(o);
-	};
-
-	supervisorTab.systemStack = supervisorTab.drawSystemStack({"data":data});
-	return supervisorTab.systemStack;
-}
-
 supervisorTab.drawAgentQueueBubbles = function(agenthp, queuehp){
 	supervisorTab.agentBubble = supervisorTab.drawBubble({
 		scale:.75, 
@@ -296,6 +313,8 @@ supervisorTab.drawAgentQueueBubbles = function(agenthp, queuehp){
 		data: {"health":agenthp, "display":"Agents"},
 		onclick: function(){
 			supervisorTab.refreshGroupsStack("agentprofile");
+			this.grow();
+			supervisorTab.queueBubble.shrink();
 		}
 	});
 	supervisorTab.queueBubble = supervisorTab.drawBubble({
@@ -304,6 +323,8 @@ supervisorTab.drawAgentQueueBubbles = function(agenthp, queuehp){
 		data:{"health":queuehp, "display":"Queues"},
 		onclick: function(){
 			supervisorTab.refreshGroupsStack("queuegroup");
+			this.grow();
+			supervisorTab.agentBubble.shrink();
 		}
 	});
 }
@@ -353,43 +374,45 @@ supervisorTab.drawBubbleStack = function(props){
 	}
 	
 	dojo.forEach(conf.data, drawIt);
-	
+
+	group.bubbles = stack;
+
 	group.connect("onmousemove", group, function(ev){
+		var o = [];
+		dojo.forEach(group.bubbles, function(obj, index, arr){
+			var d = obj.children[0].getTransformedBoundingBox()[0].y - ev.layerY
+			var report = {
+				obj:obj.children[0].getShape().y,
+				distance: d,
+				scale: supervisorTab.sizeFromDistance(d)
+			}
+			o.push(report);
+			obj.size(supervisorTab.sizeFromDistance(d));
+		})
+		
+		console.log(ev.layerY);
+		console.log(o);
 		this.setTransform([dojox.gfx.matrix.translate(0, -ev.layerY * ratio + 100)]);
 	});
 	
-	group.bubbles = stack;
 	return group;
 }
 
 supervisorTab.sizeFromDistance = function(distance){
-	// y = -.000004x^2 + 1
+	// y = -.00003x^2 + 1.4
 	// Don't want it vanishing totally, so there's a minimum size.
-	var scale = -.000004 * Math.pow(250, 2) + 1;
+	// Don't want it exploding on the screen, thus the max.
+	// Don't want it flipping around, so there Math.abs
+	var scale = -.00003 * Math.pow(distance, 2) + 1.4;
 	if(scale < .75){
 		return .75;
 	}
-	
-	return scale;
-}
-
-supervisorTab.drawBubbleStackTest = function(mousept, count){
-	var datas = [];
-	
-	for(var i = 0; i < count; i++){
-		var hp = Math.round(100 * (i / count));
-		var o = {
-			"display":i.toString() + "(" + hp + ")",
-			"health":hp
-		};
-		datas.push(o);
+	else if(scale > 2){
+		return 2;
 	}
 	
-	supervisorTab.drawBubbleStack({
-		"mousept":mousept,
-		"data": datas
-	});
-};
+	return Math.abs(scale);
+}
 
 supervisorTab.simplifyData = function(items){
 	var acc = [];
@@ -407,8 +430,6 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 		type:stackfor
 	}
 	
-	//conf = dojo.mixin(conf, opts);
-	
 	var fetchdone = function(items, request){
 		var acc = supervisorTab.simplifyData(items)
 
@@ -423,23 +444,12 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 			data:acc,
 			bubbleenter: function(ev){
 				var opt = {};
-				console.log(conf);
 				if(conf.type == "agentprofile"){
 					supervisorTab.refreshIndividualsStack("agent", "profile", this.data.display, supervisorTab.node)
-//					console.log("agent profile path");
-//					opt.type = "agent";
-//					opt.detailname = "profile";
-//					opt.detailvalue = this.data.display;
 				}
 				else{
 					supervisorTab.refreshIndividualsStack("queue", "group", this.data.display, supervisorTab.node);
-//					console.log("queue group path");
-//					opt.type = "queue";
-//					opt.detailname = "group";
-//					opt.detailvalue = this.data.display;
 				}
-//				console.log(opt);
-//				supervisorTab.refreshIndividualsStack(opt);
 			}
 		});
 	}
@@ -453,25 +463,7 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 };
 
 supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
-//	console.log("opts ris got");
-//	console.log(opts);
-//
-//	var cnf = {
-//		node:"*",
-//		detailname:"profile",
-//		detailvalue:"*"
-//	};
-//	console.log("pre mixins");
-//	console.log(cnf);
-//	//cnf = 
-//	dojo.mixin(cnf, opts);
-//	//conf.type = opts.type;
-//	console.log("refresh individ stack conf");
-//	console.log(cnf);
-//	console.log(opts);
-	console.log("refreshing group stack for " + seek + " " + dkey + " " + dval + " " + node);
 	var fetchdone = function(items, request){
-		console.log("fetch done!");
 		var acc = supervisorTab.simplifyData(items);
 		supervisorTab.callsStack.clear();
 		supervisorTab.individualsStack.clear();
@@ -482,23 +474,12 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 			},
 			data:acc,
 			bubbleenter: function(ev){
-//				console.log("conf while setting up cb");
-//				console.log(cnf);
-//				var opt = {
-//					node:cnf.node
-//				};
-				console.log(seek);
 				if(seek == "agent"){
 					supervisorTab.refreshCallsStack("agent", this.data.display, supervisorTab.node);
-//					opt.detailname = "agent";
-//					opt.detailvalue = this.data.display
 				}
 				else{
 					supervisorTab.refreshCallsStack("queue", this.data.display, supervisorTab.node);
-//					opt.detailname = "queue";
-//					opt.detailvalue = this.data.display
 				};
-//				supervisorTab.refreshCallsStack(dkey, dval, supervisorTab.node);
 			}
 		});
 	}
@@ -516,16 +497,6 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 }
 
 supervisorTab.refreshCallsStack = function(dkey, dval, node){
-//	console.log(opts);
-//	var conf = {
-//		node:"*",
-//		detailname:"queue",
-//		detailvalue:"*"
-//	};
-//
-//	conf = dojo.mixin(conf, opts);
-
-	console.log("refreshing call stack for " + dkey + " " + dval + " " + node);
 	var fetchdone = function(items, request){
 		var acc = supervisorTab.simplifyData(items);
 		supervisorTab.callsStack.clear();
@@ -557,7 +528,6 @@ supervisorTab.refreshSystemStack = function(){
 		dojo.forEach(supervisorTab.systemStack, function(obj){
 			obj.clear();
 		});
-		console.log(acc);
 		supervisorTab.systemStack = supervisorTab.drawSystemStack({data:acc});
 	}
 	
@@ -571,7 +541,4 @@ supervisorTab.refreshSystemStack = function(){
 
 supervisorTab.drawAgentQueueBubbles(0, 0);
 supervisorTab.refreshSystemStack();
-
-//supervisorTab.drawBubbleStackTest({x:300, y:100}, 10);
-//supervisorTab.drawBubbleStackTest({x:540, y:100}, 20);
-//supervisorTab.drawBubbleStackTest({x:580 + 240, y:100}, 100);
+supervisorTab.systemStack[0].grow();

@@ -5,13 +5,13 @@ supervisorTab = function(){
 supervisorTab.healthData = {identifier:"id",
 label:"display",
 items:[{id:"1",
-	   display:"system",
+	   display:"System",
 	   type:"system",
 	   health:50,
 	   details:{
 		_type:"details",
 		_value:{
-			key:"value"
+			uptime:99
 		}}},
 	   {id:"2",
 	   display:"node1@example",
@@ -20,7 +20,8 @@ items:[{id:"1",
 	   details:{
 		_type:"details",
 		_value:{
-			uptime:100
+			uptime:100,
+			location:"here"
 		}
 	   }
 	   },
@@ -28,11 +29,22 @@ items:[{id:"1",
 	   display:"node2@example",
 	   type:"node",
 	   health:50,
-	   uptime:100},
+	   uptime:100,
+	   details:{
+		_type:"details",
+		_value:{
+			uptime:100,
+			location:"there"
+		}
+	   }},
 	   {id:"4",
 	   display:"queuegroup1",
 	   type:"queuegroup",
-	   health:50},
+	   health:50,
+	   details:{
+		_type:"details",
+		_value:{}
+	   }},
 	   {id:"5",
 	   display:"queuegroup2",
 	   type:"queuegroup",
@@ -281,6 +293,22 @@ supervisorTab.drawBubble = function(opts){
 	return group;
 }
 
+supervisorTab.setDetails = function(fquery){
+	var fetchdone = function(item){
+		var obj = supervisorTab.dataStore.getValue(item, "details");
+		var out = "";
+		for(var i in obj){
+			out += "<p><label class=\"narrow\">" + i + ":</label>" + obj[i].toString() + "</p>";
+		}
+		dijit.byId("supervisorDetails").setContent(out);
+		dijit.byId("supervisorDetails").setTitle(supervisorTab.dataStore.getValue(item, "type") + ": " + supervisorTab.dataStore.getValue(item, "display"));
+	}
+	
+	supervisorTab.dataStore.fetch({
+			query:fquery,
+			onItem:fetchdone
+	});
+}
 supervisorTab.drawSystemStack = function(opts){
 	for(var i =0; i < supervisorTab.systemStack.length; i++){
 		supervisorTab.systemStack[i].clear();
@@ -325,22 +353,24 @@ supervisorTab.drawSystemStack = function(opts){
 				this.setTransform([dojox.gfx.matrix.scaleAt(1.4, p)]);
 			},
 			onmouseenter:function(ev){
-				var fetchdone = function(item){
-					var out = "";
-					var obj = supervisorTab.dataStore.getValue(item, "details");
-					console.log(obj);
-					for(var i in obj){
-						out += "<p><label class=\"narrow\">" + i + ":</label>" + obj[i].toString() + "</p>";
-					}
-					dijit.byId("supervisorDetails").setContent(out);
-				}
+//				console.log("goober!");
+//				var fetchdone = function(item){
+//					var out = "";
+//					var obj = supervisorTab.dataStore.getValue(item, "details");
+//					for(var i in obj){
+//						out += "<p><label class=\"narrow\">" + i + ":</label>" + obj[i].toString() + "</p>";
+//					}
+//					dijit.byId("supervisorDetails").setContent(out);
+//				}
+//				
+//				supervisorTab.dataStore.fetch({
+//					query:{
+//						display:this.data.display
+//					},
+//					onItem:fetchdone
+//				});
 				
-				supervisorTab.dataStore.fetch({
-					query:{
-						display:this.data.display
-					},
-					onItem:fetchdone
-				});
+				supervisorTab.setDetails({display:this.data.display});
 			}
 		});
 		yi = yi - 40;
@@ -485,7 +515,11 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 					}
 					else{
 						supervisorTab.refreshIndividualsStack("queue", "group", this.data.display, supervisorTab.node);
-					}
+					};
+					supervisorTab.setDetails({
+						type:supervisorTab.dataStore.getValue(obj, "type"),
+						display:supervisorTab.dataStore.getValue(obj, "display")
+					});
 				}
 			});
 			hps.push(supervisorTab.dataStore.getValue(obj, "health"));
@@ -540,7 +574,11 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 					}
 					else{
 						supervisorTab.refreshCallsStack("queue", this.data.display, supervisorTab.node);
-					}
+					};
+					supervisorTab.setDetails({
+						display:supervisorTab.dataStore.getValue(obj, "display"),
+						type:supervisorTab.dataStore.getValue(obj, "type")
+					});
 				}
 			})
 		});
@@ -591,6 +629,12 @@ supervisorTab.refreshCallsStack = function(dkey, dval, node){
 				data:{
 					display:supervisorTab.dataStore.getValue(obj, "display"),
 					health:supervisorTab.dataStore.getValue(obj, "health")
+				},
+				onmouseenter:function(ev){
+					supervisorTab.setDetails({
+						type:"media",
+						display:supervisorTab.dataStore.getValue(obj, "display")
+					});
 				}
 			})
 		})

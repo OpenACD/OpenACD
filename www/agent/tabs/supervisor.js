@@ -1,3 +1,7 @@
+dojo.require("dojo.dnd.Source");
+dojo.require("dojo.dnd.Selector");
+dojo.require("dojo.dnd.Container");
+
 supervisorTab = function(){
 	{};
 };
@@ -217,7 +221,7 @@ supervisorTab.drawBubble = function(opts){
 		scale:1,
 		point:{x:100,y:100},
 		parent:supervisorTab.surface,
-		data:{"display":"bubble", "health":50},
+		data:{"display":"bubble", "health":50, "type":"text"},
 		onmouseenter:function(){ return false},
 		onmouseleave:function(){return false},
 		onclick:function(){ return false}
@@ -270,7 +274,12 @@ supervisorTab.drawBubble = function(opts){
 	text.setStroke(textcolors);
 	text.setFill(textcolors);
 	
-	new dojox.gfx.Moveable(group);
+	var dnder = new dojox.gfx.Moveable(group);
+	console.log(dnder);
+	
+//	dnder.connect("onFirstMove", dnder, function(){
+//		console.log("arrrrrrgggggg!");
+//	});
 	
 	group.size = function(scale){
 		var rect = group.children[0];
@@ -281,6 +290,11 @@ supervisorTab.drawBubble = function(opts){
 		group.setTransform([dojox.gfx.matrix.scaleAt(scale, p)]);
 		
 	}
+	
+//	group.connect("onDndSourceOver", group, function(){
+//		console.log("goober pants!");
+//		console.log(arguments);
+//	})
 
 	group.shrink = function(){
 		group.size(1);
@@ -309,6 +323,7 @@ supervisorTab.setDetails = function(fquery){
 			onItem:fetchdone
 	});
 }
+
 supervisorTab.drawSystemStack = function(opts){
 	for(var i =0; i < supervisorTab.systemStack.length; i++){
 		supervisorTab.systemStack[i].clear();
@@ -352,24 +367,7 @@ supervisorTab.drawSystemStack = function(opts){
 				};
 				this.setTransform([dojox.gfx.matrix.scaleAt(1.4, p)]);
 			},
-			onmouseenter:function(ev){
-//				console.log("goober!");
-//				var fetchdone = function(item){
-//					var out = "";
-//					var obj = supervisorTab.dataStore.getValue(item, "details");
-//					for(var i in obj){
-//						out += "<p><label class=\"narrow\">" + i + ":</label>" + obj[i].toString() + "</p>";
-//					}
-//					dijit.byId("supervisorDetails").setContent(out);
-//				}
-//				
-//				supervisorTab.dataStore.fetch({
-//					query:{
-//						display:this.data.display
-//					},
-//					onItem:fetchdone
-//				});
-				
+			onmouseenter:function(ev){				
 				supervisorTab.setDetails({display:this.data.display});
 			}
 		});
@@ -428,12 +426,12 @@ supervisorTab.drawBubbleStack = function(props){
 		y:conf.mousept.y
 	};
 	
-	group.createRect({x:pt.x - 50, y:-100, width:100, height: groupHeight + 200}).setFill("white").setStroke("white");
+	group.createRect({x:pt.x - 50, y:-100, width:100, height: groupHeight + 200}).setFill([0, 0, 0, 0]).setStroke([0, 0, 0, 0]);
 	
 	var stack = [];
 	var hps = [];
 	
-	var drawIt = function(obj, index, arr){
+	var drawIt = function(obj){//, index, arr){
 		var bubbleconf = {
 			scale:.75,
 			point:{x:pt.x - 50, y:yi},
@@ -442,17 +440,28 @@ supervisorTab.drawBubbleStack = function(props){
 		};
 		
 		var o = supervisorTab.drawBubble(dojo.mixin(bubbleconf, obj));
-
+		o.connect("onmousedown", group, function(ev){
+			group.scrollLocked = true;
+		});
+		
+		o.connect("onmouseup", group, function(ev){
+			group.scrollLocked = false;
+		});
 		yi = yi + 30;
 		stack.push(o);
 		hps.push(obj.health);
+		return {
+			node: o.getNode(),
+			data: obj,
+			type: ["agent", "queue", "media"]
+		}
 	}
 	
-	dojo.forEach(conf.bubbleConfs, drawIt);
-		
-	group.bubbles = stack;
-
 	group.connect("onmousemove", group, function(ev){
+		if(this.scrollLocked){
+			return false;
+		}
+		
 		var o = [];
 		dojo.forEach(group.bubbles, function(obj, index, arr){
 			var d = obj.children[0].getTransformedBoundingBox()[0].y - ev.layerY
@@ -461,7 +470,29 @@ supervisorTab.drawBubbleStack = function(props){
 		
 		this.setTransform([dojox.gfx.matrix.translate(0, -ev.layerY * ratio + 100)]);
 	});
+		
+	var dnder = new dojo.dnd.Source(group.getNode(), {
+		creator:function(item, hint){
+			var out = drawIt(item);
+			return out;
+		},
+		accept:["agent", "queue", "media"],
+		singular:true		
+	});
 	
+	dnder.insertNodes(false, conf.bubbleConfs, true, group.children[0]);
+	
+	group.connect("onDraggingOver", group, function(ev){
+		console.log("goober");
+		this.onmousemove(ev);
+	});
+	console.log(group);
+//	dnder.connect("onDraggingOver", group, function(ev){
+//		console.log("goober");
+//		this.onmousemove(ev);
+//	});
+	
+	group.bubbles = stack;
 	return group;
 }
 

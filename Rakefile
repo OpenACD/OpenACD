@@ -135,7 +135,7 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam"] do |t|
 	end
 end
 
-task :compile => [:contrib, 'ebin'] + HEADERS + OBJ + RELEASE do
+task :compile => ['ebin', :contrib] + HEADERS + OBJ + RELEASE do
 	Dir["ebin/*.rel"].each do |rel|
 		rel = File.basename(rel, '.rel')
 		sh "erl -noshell -eval \"systools:make_script(\\\"ebin/#{rel}\\\", [{outdir, \\\"ebin\\\"}]).\" -s erlang halt -pa ebin"
@@ -182,7 +182,7 @@ end
 
 namespace :test do
 	desc "Compile .beam files with -DEUNIT and +debug_info => debug_ebin"
-	task :compile => [:contrib, 'debug_ebin'] + HEADERS + DEBUGOBJ
+	task :compile => ['debug_ebin', :contrib] + HEADERS + DEBUGOBJ
 
 	task :contrib do
 		if File.directory? ".git"

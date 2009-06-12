@@ -933,7 +933,7 @@ skill_rec_test_() ->
 					],
 					Gotten = get_skills(),
 					lists:foreach(fun(X) -> ?debugFmt("~p", [X]) end, Gotten),
-					?assertEqual(Skills, Gotten)
+					?assertEqual(lists:sort(Skills), lists:sort(Gotten))
 				end
 			},
 			{

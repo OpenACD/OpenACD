@@ -190,7 +190,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({'EXIT', From, Reason}, #state{mails = Mails} = State) ->
 	Newmail = lists:delete(From, Mails),
-	{noreply, State#state{mails = Mails}};
+	{noreply, State#state{mails = Newmail}};
 handle_info(_Info, State) ->
     {noreply, State}.
 

@@ -21,7 +21,7 @@ dojo.addOnLoad(function(){
 		EventLog.log(line);
 	});
 	
-	dijit.byId("emaildisp").hide();
+	dijit.byId("emaildispfloater").hide();
 	//dijit.byId("loginpane").show();
 	dojo.xhrGet({
 		url:"/checkcookie",
@@ -49,17 +49,17 @@ dojo.addOnLoad(function(){
 	
 	//Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
 
-	dijit.byId("emaildisp").stateChanger = dojo.subscribe("agent/state", function(data){
+	dijit.byId("emaildispfloater").stateChanger = dojo.subscribe("agent/state", function(data){
 		console.log(data);
 		if(data.state == "oncall"){
 			if(data.statedata.type == "email"){
 				console.log("Imma chargin' mah lazer!");
-				dijit.byId("emaildisp").show();
+				dijit.byId("emaildispfloater").show();
 				dijit.byId("emaildisp").setHref("/mediapull/");
 			}
 		}
 		else{
-			dijit.byId("emaildisp").hide();
+			dijit.byId("emaildispfloater").hide();
 		}
 	});
 	
@@ -295,6 +295,27 @@ dojo.addOnLoad(function(){
 	dijit.byId("eventLogText").eventLogPushed = dojo.subscribe("eventlog/push", function(text){
 		var oldval = dijit.byId("eventLogText").value;
 		dijit.byId("eventLogText").setValue(oldval + "\n" + text)
+	});
+	
+	dojo.connect(dijit.byId("emailform"), "onSubmit", function(e){
+		e.preventDefault();
+		dojo.xhrPost({
+			url:"/mediapush",
+			handleAs:"json",
+			error:function(response, ioargs){
+				console.log("email send error " + response)
+			},
+			load:function(response, ioargs){
+				if(response.success){
+					EventLog.log("sent mail");
+					console.log("success pushing mail");
+				}
+				else{
+					console.log("pusing mail failed: " + response.message);
+				}
+			},
+			form:dijit.byId("emailform").domNode
+		});
 	});
 	
 	var loginform = dijit.byId("loginform")

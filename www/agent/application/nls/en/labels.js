@@ -49,5 +49,6 @@
 	HTHREETWOTHREEHINT: "H.323 URI (a host or IP with an optional port eg. myhost:1720)",
 	PSTNHINT: "Public telephone number",
 	TRANSFERTOMENU: "Transfer to...",
-	QUEUE: "Queue"
+	QUEUE: "Queue",
+	SUBMIT: "Submit"
 }

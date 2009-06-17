@@ -78,8 +78,16 @@
 </head>
 <body class="nihilo">
 
-<div dojoType="dojox.layout.FloatingPane" resizable="true" style="width:60%; height:400px; top:100px; left:400px; position:absolute; z-index:50000;" title="Email" closable="false" dockable="true" dockTo="rightDock" id="emaildisp">
-		<p style="padding:12px;">nocontent</p>
+<div dojoType="dojox.layout.FloatingPane" resizable="true" style="width:60%; height:400px; top:100px; left:400px; position:absolute; z-index:50000;" title="Email" closable="false" dockable="true" dockTo="rightDock" id="emaildispfloater">
+		<div dojoType="dijit.layout.ContentPane" id="emaildisp" height="50%"><p style="padding:12px;">nocontent</p></div>
+		<div dojoType="dijit.form.Form" id="emailform" action="/mediapush" method="post">
+			<p><textarea dojoType="dijit.form.SimpleTextarea" id="emailtext" name="emailtext" width="80%" rows="10"></textarea></p>
+			<p><button dojoType="dijit.form.Button" id="emailsubmit" type="submit">
+				<script type="dojo/method" event="postCreate">
+					this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").SUBMIT);
+				</script>
+			</button></p>
+		</div>
 </div> 
 
 <div dojoType="dijit.Dialog" title="Login" id="loginpane">

@@ -364,8 +364,13 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 				 end
 		 end
  end;
-api(Api, {_Reflist, _Salt, Conn}, _Post) when is_pid(Conn) ->
+api(Api, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
 	case agent_web_connection:api(Conn, Api) of
+		{Code, Headers, Body} ->
+			{Code, Headers, Body}
+	end;
+api(Api, {_Reflist, _Salt, Conn}, Post) when is_pid(Conn) ->
+	case agent_web_connection:api(Conn, {Api, Post}) of
 		{Code, Headers, Body} ->
 			{Code, Headers, Body}
 	end;
@@ -432,6 +437,8 @@ parse_path(Path) ->
 				["mediapull" | Pulltail] ->
 					?INFO("pulltail:  ~p", [Pulltail]),
 					{api, {mediapull, Pulltail}};
+				["mediapush"] ->
+					{api, mediapush};
 				["warm_transfer", Number] ->
 					{api, {warm_transfer, Number}};
 				["supervisor" | Supertail] ->

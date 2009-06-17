@@ -172,6 +172,9 @@ handle_call({mediapull, [Filename]}, _From, #state{files = Files} = State) ->
 			Rep
 	end,
 	{reply, Reply, State};
+handle_call({mediapush, Data}, _From, State) ->
+	?WARNING("pushing data out is NYI", []),
+	{reply, invalid, State};
 handle_call(dump, _From, State) ->
 	{reply, State, State};
 handle_call(_Msg, _From, State) ->

@@ -1,6 +1,3 @@
-dojo.require("dojo.dnd.Source");
-dojo.require("dojo.dnd.Selector");
-dojo.require("dojo.dnd.Container");
 
 supervisorTab = function(){
 	{};
@@ -162,6 +159,63 @@ supervisorTab.groupsStack = {clear:function(){ return true}};
 supervisorTab.individualsStack = {clear:function(){ return true}};
 supervisorTab.callsStack = {clear:function(){return true}};
 
+supervisorTab.dndManager = {
+	_dragging: null,
+	_eventHandle:null,
+	_dropCandidate: null,
+	checkCollision:function(pt){
+		//console.log(pt);
+		var out;
+		if(out = supervisorTab.individualsStack.pointCollision(pt)){
+			return out;
+		}
+		
+		if(out = supervisorTab.groupsStack.pointCollision(pt)){
+			return out;
+		}
+	
+		if(supervisorTab.agentBubble.pointCollision(pt)){
+			return supervisorTab.agentBubble;
+		}
+		
+		if(supervisorTab.queueBubble.pointCollision(pt)){
+			return supervisorTab.queueBubble;
+		}
+		
+		for(var i = 0; i < supervisorTab.systemStack.length; i++){
+			if(out = supervisorTab.systemStack[i].pointCollision(pt)){
+				return out;
+			}
+		}
+		
+		return null;
+	},
+	startDrag:function(obj){
+		supervisorTab.dndManager._eventHandle = obj.connect("mousemove", obj, function(ev){
+			//console.log(ev);
+			var point = {
+				x:ev.layerX,
+				y:ev.layerY
+			};
+			var collided = supervisorTab.dndManager.checkCollision(point)
+			if(collided && collided.dragOver){
+				collided.dragOver(obj);
+				supervisorTab.dndManager._dropCandidate = collided;
+			}
+			else{
+				supervisorTab.dndManager._dropCandidate = null;
+			}
+		});
+		supervisorTab.dndManager._dragging = obj;
+	},
+	endDrag:function(){
+		supervisorTab.dndManager._dragging.disconnect(supervisorTab.dndManager._eventHandle);
+		if(supervisorTab.dndManager._dropCandidate){
+			supervisorTab.dndManager._dropCandidate.dropped(supervisorTab.dndManager._dragging);
+		}
+	}
+};
+
 supervisorTab.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
 dojo.connect(supervisorTab.surface, "ondragstart",   dojo, "stopEvent");
 dojo.connect(supervisorTab.surface, "onselectstart", dojo, "stopEvent");
@@ -237,15 +291,7 @@ supervisorTab.drawBubble = function(opts){
 	}
 	
 	var group = conf.parent.createGroup();
-	
-	var bubble = group.createRect({
-		x: conf.point.x,
-		y: conf.point.y,
-		width: 200 * conf.scale,
-		height: 20 * conf.scale,
-		r: 10 * conf.scale
-	});
-	
+		
 	var rmod = Math.abs(-(255/50) * conf.data.health + 255);
 	var gmod = 255;
 	var textcolors = "black";
@@ -254,9 +300,14 @@ supervisorTab.drawBubble = function(opts){
 		textcolors = "white";
 	}
 	var bubblefill = [rmod, gmod, 0, 100];
-	
-	bubble.setFill(bubblefill);
-	bubble.setStroke("black");
+
+	group.bubble = group.createRect({
+		x: conf.point.x,
+		y: conf.point.y,
+		width: 200 * conf.scale,
+		height: 20 * conf.scale,
+		r: 10 * conf.scale
+	}).setFill(bubblefill).setStroke("black");
 	
 	group.data = conf.data;
 	
@@ -273,14 +324,7 @@ supervisorTab.drawBubble = function(opts){
 	
 	text.setStroke(textcolors);
 	text.setFill(textcolors);
-	
-	var dnder = new dojox.gfx.Moveable(group);
-	console.log(dnder);
-	
-//	dnder.connect("onFirstMove", dnder, function(){
-//		console.log("arrrrrrgggggg!");
-//	});
-	
+		
 	group.size = function(scale){
 		var rect = group.children[0];
 		var p = {
@@ -291,17 +335,22 @@ supervisorTab.drawBubble = function(opts){
 		
 	}
 	
-//	group.connect("onDndSourceOver", group, function(){
-//		console.log("goober pants!");
-//		console.log(arguments);
-//	})
-
 	group.shrink = function(){
 		group.size(1);
 	};
 
 	group.grow = function(){
 		group.size(1.4);
+	}
+	
+	group.pointCollision = function(point){
+		var [topleft, topright, bottomright, bottomleft] = group.bubble.getTransformedBoundingBox();
+		return (topleft.x <= point.x && bottomright.x >= point.x) && (topleft.y <= point.y && bottomright.y >= point.y)
+	}
+	
+	group.boxCollision = function(intopleft, inbottomright){
+		var [topleft, topright, bottomright, bottomleft] = group.bubble.getTransformedBoundingBox();
+		return (!(topleft.x > inbottomright.x || intopleft.x > bottomright.x || topleft.y > inbottomright.y || inbottomright.y > bottomright.y));
 	}
 	
 	return group;
@@ -344,32 +393,32 @@ supervisorTab.drawSystemStack = function(opts){
 		var o = supervisorTab.drawBubble({
 			scale:.75,
 			point: {x:20, y:yi},
-			data: obj,
-			onclick: function(ev){
-				if(this.data.display == "System"){
-					supervisorTab.node = "*";
-				}
-				else{
-					supervisorTab.node = this.data.display
-				}
-				dojo.forEach(supervisorTab.systemStack, function(obj){
-					var rect = obj.children[0];
-					var p = {
-						x: rect.getShape().x,
-						y: rect.getShape().y + rect.getShape().height/2
-					};
-					obj.setTransform([dojox.gfx.matrix.scaleAt(1, p)]);
-				});
-				var rect = this.children[0];
+			data: obj
+		});
+		o.connect("onclick", o, function(ev){
+			if(this.data.display == "System"){
+				supervisorTab.node = "*";
+			}
+			else{
+				supervisorTab.node = this.data.display
+			}
+			dojo.forEach(supervisorTab.systemStack, function(obj){
+				var rect = obj.children[0];
 				var p = {
 					x: rect.getShape().x,
 					y: rect.getShape().y + rect.getShape().height/2
 				};
-				this.setTransform([dojox.gfx.matrix.scaleAt(1.4, p)]);
-			},
-			onmouseenter:function(ev){				
-				supervisorTab.setDetails({display:this.data.display});
-			}
+				obj.setTransform([dojox.gfx.matrix.scaleAt(1, p)]);
+			});
+			var rect = this.children[0];
+			var p = {
+				x: rect.getShape().x,
+				y: rect.getShape().y + rect.getShape().height/2
+			};
+			this.setTransform([dojox.gfx.matrix.scaleAt(1.4, p)]);
+		});
+		o.connect("onmouseenter", o, function(ev){				
+			supervisorTab.setDetails({display:this.data.display});
 		});
 		yi = yi - 40;
 		out.push(o);
@@ -383,22 +432,22 @@ supervisorTab.drawAgentQueueBubbles = function(agenthp, queuehp){
 	supervisorTab.agentBubble = supervisorTab.drawBubble({
 		scale:.75, 
 		point:{x:20, y:20},
-		data: {"health":agenthp, "display":"Agents"},
-		onclick: function(){
-			supervisorTab.refreshGroupsStack("agentprofile");
-			this.grow();
-			supervisorTab.queueBubble.shrink();
-		}
+		data: {"health":agenthp, "display":"Agents"}
+	});
+	supervisorTab.agentBubble.connect("onclick", supervisorTab.agentBubble, function(ev){
+		supervisorTab.refreshGroupsStack("agentprofile");
+		this.grow();
+		supervisorTab.queueBubble.shrink();
 	});
 	supervisorTab.queueBubble = supervisorTab.drawBubble({
 		scale:.75, 
 		point:{x:20, y:60}, 
-		data:{"health":queuehp, "display":"Queues"},
-		onclick: function(){
-			supervisorTab.refreshGroupsStack("queuegroup");
-			this.grow();
-			supervisorTab.agentBubble.shrink();
-		}
+		data:{"health":queuehp, "display":"Queues"}
+	});
+	supervisorTab.queueBubble.connect("onclick", supervisorTab.queueBubble, function(ev){
+		supervisorTab.refreshGroupsStack("queuegroup");
+		this.grow();
+		supervisorTab.agentBubble.shrink();
 	});
 }
 
@@ -411,7 +460,7 @@ supervisorTab.drawBubbleStack = function(props){
 	}
 	
 	conf = dojo.mixin(conf, props);
-	
+
 	var groupHeight = conf.bubbleConfs.length * 40;
 	var viewHeight = conf.viewHeight;
 	
@@ -426,73 +475,98 @@ supervisorTab.drawBubbleStack = function(props){
 		y:conf.mousept.y
 	};
 	
-	group.createRect({x:pt.x - 50, y:-100, width:100, height: groupHeight + 200}).setFill([0, 0, 0, 0]).setStroke([0, 0, 0, 0]);
+	group.viewHeight = conf.viewHeight;
 	
-	var stack = [];
+	group.backing = group.createRect({x:pt.x - 50, y:-100, width:200, height: groupHeight + 200}).setFill([0, 0, 0, 100]).setStroke([0, 0, 0, 0]);
+	
+	group.bubbles = [];
 	var hps = [];
 	
-	var drawIt = function(obj){//, index, arr){
-		var bubbleconf = {
-			scale:.75,
-			point:{x:pt.x - 50, y:yi},
-			data:{},
-			parent:group
+	group.addBubble = function(bubbleconf){
+		bubbleconf.scale = .75;
+		bubbleconf.point = {
+			x: conf.mousept.x -50,
+			y: (group.bubbles.length + 1) * 40
 		};
-		
-		var o = supervisorTab.drawBubble(dojo.mixin(bubbleconf, obj));
-		o.connect("onmousedown", group, function(ev){
+		bubbleconf.parent = group;
+
+		var bubble = supervisorTab.drawBubble(bubbleconf);
+		bubble.connect("onmousedown", group, function(ev){
 			group.scrollLocked = true;
 		});
-		
-		o.connect("onmouseup", group, function(ev){
+		bubble.connect("onmouseup", group, function(ev){
 			group.scrollLocked = false;
 		});
-		yi = yi + 30;
-		stack.push(o);
-		hps.push(obj.health);
-		return {
-			node: o.getNode(),
-			data: obj,
-			type: ["agent", "queue", "media"]
-		}
+		group.bubbles.push(bubble);
+		group.backing.setShape({height: group.backing.getShape().height + 40});
+		return bubble;
 	}
+		
+	dojo.forEach(conf.bubbleConfs, function(obj, ind, arr){
+		group.addBubble(obj);
+	});
 	
-	group.connect("onmousemove", group, function(ev){
-		if(this.scrollLocked){
+	group.scroll = function(y){
+		if(group.scrollLocked){
 			return false;
 		}
 		
 		var o = [];
 		dojo.forEach(group.bubbles, function(obj, index, arr){
-			var d = obj.children[0].getTransformedBoundingBox()[0].y - ev.layerY
+			var d = obj.children[0].getTransformedBoundingBox()[0].y - y
 			obj.size(supervisorTab.sizeFromDistance(d));
-		})
+		});
 		
-		this.setTransform([dojox.gfx.matrix.translate(0, -ev.layerY * ratio + 100)]);
-	});
+		var groupHeight = group.bubbles.length * 40;
 		
-	var dnder = new dojo.dnd.Source(group.getNode(), {
-		creator:function(item, hint){
-			var out = drawIt(item);
-			return out;
-		},
-		accept:["agent", "queue", "media"],
-		singular:true		
+		var ratio = groupHeight / group.viewHeight;
+		
+		this.setTransform([dojox.gfx.matrix.translate(0, -y * ratio + 100)]);
+	}
+	
+	group.connect("onmousemove", group, function(ev){
+		group.scroll(ev.layerY);
 	});
 	
-	dnder.insertNodes(false, conf.bubbleConfs, true, group.children[0]);
+	group._clear = group.clear;
 	
-	group.connect("onDraggingOver", group, function(ev){
-		console.log("goober");
-		this.onmousemove(ev);
-	});
-	console.log(group);
-//	dnder.connect("onDraggingOver", group, function(ev){
-//		console.log("goober");
-//		this.onmousemove(ev);
-//	});
+	group.clear = function(){
+		if(this.scrollLocked){
+			return;
+		}
+		
+		group._clear();
+	};
+
+	group.pointCollision = function(point){
+		if (group.backing.getShape().x <= point.x && group.backing.getShape().x + group.backing.getShape().width >= point.x){
+			group.scroll(point.y);
+			for(var i = 0; i < group.bubbles.length; i++){
+				if(group.bubbles[i].pointCollision(point)){
+					console.log(group.bubbles[i]);
+					if(group.bubbles[i].onEnter){
+						group.bubbles[i].onEnter();
+					}
+					return group.bubbles[i];
+				}
+			}
+		};
+		
+		return null;
+	};
 	
-	group.bubbles = stack;
+	group.boxCollision = function(intopleft, intopright, inbottomright, inbottomright){
+		if(! (group.backing.getShape().x > inbottomright.x || intopleft.x > (group.backing.getShape().x + group.backing.getShape().width))){
+			for(var i =0; i < group.bubbles.length; i++){
+				if(group.bubbles[i].boxCollision(intopleft, inbottomright)){
+					return group.bubbles[i];
+				}
+			}
+		}
+		
+		return null;
+	}
+	
 	return group;
 }
 
@@ -520,13 +594,18 @@ supervisorTab.simplifyData = function(items){
 	dojo.forEach(items, function(obj, index, arr){
 		acc.push({
 			"display":supervisorTab.dataStore.getValue(obj, "display"),
-			"health":supervisorTab.dataStore.getValue(obj, "health")
+			"health":supervisorTab.dataStore.getValue(obj, "health"),
+			"type":supervisorTab.dataStore.getValue(obj, "type")
 		});
 	})
 	return acc;
 }
 
 supervisorTab.refreshGroupsStack = function(stackfor){
+	if(supervisorTab.groupsStack.scrollLocked){
+		return false;
+	}
+	
 	var conf = {
 		type:stackfor
 	}
@@ -556,7 +635,18 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 			hps.push(supervisorTab.dataStore.getValue(obj, "health"));
 		});
 	
-		acc.push({
+		supervisorTab.callsStack.clear();
+		supervisorTab.individualsStack.clear();
+		supervisorTab.groupsStack.clear();
+		supervisorTab.groupsStack = supervisorTab.drawBubbleStack({
+			mousept:{
+				x:300,
+				y:100
+			},
+			bubbleConfs:acc
+		});
+		
+		supervisorTab.groupsStack.addBubble({
 			data:{display:"All", health:supervisorTab.averageHp(hps)},
 			onmouseenter:function(ev){
 				if(conf.type == "agentprofile"){
@@ -567,16 +657,9 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 				}
 			}
 		});
-
-		supervisorTab.callsStack.clear();
-		supervisorTab.individualsStack.clear();
-		supervisorTab.groupsStack.clear();
-		supervisorTab.groupsStack = supervisorTab.drawBubbleStack({
-			mousept:{
-				x:300,
-				y:100
-			},
-			bubbleConfs:acc
+		
+		dojo.forEach(supervisorTab.groupsStack.bubbles, function(obj, ind, arr){
+			
 		});
 	}
 	
@@ -589,32 +672,73 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 };
 
 supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
+	if(supervisorTab.individualsStack.scrollLocked){
+		return false;
+	}
+		
 	var fetchdone = function(items, request){
+	
+		supervisorTab.callsStack.clear();
+		supervisorTab.individualsStack.clear();
+		supervisorTab.individualsStack = supervisorTab.drawBubbleStack({
+			mousept:{
+				x:540,
+				y:100
+			},
+		});
+		
 		var acc = [];
 		var hps = [];
 		dojo.forEach(items, function(obj){
 			hps.push(supervisorTab.dataStore.getValue(obj, "health"));
-			acc.push({
+			
+			var detailsObj = {
+				display:supervisorTab.dataStore.getValue(obj, "display"),
+				type:supervisorTab.dataStore.getValue(obj, "type")
+			};
+			
+			var onEnterf = function(){
+				if(seek == "agent"){
+					supervisorTab.refreshCallsStack("agent", detailsObj.display, supervisorTab.node);
+				}
+				else{
+					supervisorTab.refreshCallsStack("queue", detailsObj.display, supervisorTab.node);
+				};
+				supervisorTab.setDetails(detailsObj);
+			}
+			
+			var bub = supervisorTab.individualsStack.addBubble({
 				data:{
 					display:supervisorTab.dataStore.getValue(obj, "display"), 
 					health:supervisorTab.dataStore.getValue(obj, "health")
 				},
-				onmouseenter:function(ev){
-					if(seek == "agent"){
-						supervisorTab.refreshCallsStack("agent", this.data.display, supervisorTab.node);
-					}
-					else{
-						supervisorTab.refreshCallsStack("queue", this.data.display, supervisorTab.node);
-					};
-					supervisorTab.setDetails({
-						display:supervisorTab.dataStore.getValue(obj, "display"),
-						type:supervisorTab.dataStore.getValue(obj, "type")
-					});
+				onmouseenter:function(){
+					onEnterf();
 				}
-			})
+			});
+
+			if(seek == "agent"){
+				var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
+			}
+			else{
+				var message = "queue " + bub.data.display + " accepted drop, meaning it forwared request to server";
+			}
+			bub.onEnter = onEnterf;
+			bub.dropped = function(obj){
+				if(obj.data.type == "media"){
+					console.log(message);
+				}
+			}
+			if(bub.data.display != "All"){
+				bub.dragOver = function(){
+					bub.onEnter();
+					return true;
+				}
+			}
+			
 		});
 	
-		acc.push({
+		supervisorTab.individualsStack.addBubble({
 			data:{
 				display:"All",
 				health:supervisorTab.averageHp(hps)
@@ -627,16 +751,6 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 					supervisorTab.refreshCallsStack("queue", "*", supervisorTab.node);
 				}
 			}
-		})
-	
-		supervisorTab.callsStack.clear();
-		supervisorTab.individualsStack.clear();
-		supervisorTab.individualsStack = supervisorTab.drawBubbleStack({
-			mousept:{
-				x:540,
-				y:100
-			},
-			bubbleConfs:acc
 		});
 	}
 	
@@ -653,13 +767,17 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 }
 
 supervisorTab.refreshCallsStack = function(dkey, dval, node){
+	if(supervisorTab.callsStack.scrollLocked){
+		return false;
+	}
 	var fetchdone = function(items, request){
 		var acc = [];
 		dojo.forEach(items, function(obj){
 			acc.push({
 				data:{
 					display:supervisorTab.dataStore.getValue(obj, "display"),
-					health:supervisorTab.dataStore.getValue(obj, "health")
+					health:supervisorTab.dataStore.getValue(obj, "health"),
+					type:"media"
 				},
 				onmouseenter:function(ev){
 					supervisorTab.setDetails({
@@ -678,7 +796,17 @@ supervisorTab.refreshCallsStack = function(dkey, dval, node){
 			},
 			bubbleConfs:acc
 		});
-	}
+		
+		dojo.forEach(supervisorTab.callsStack.bubbles, function(obj, ind, arr){
+			var dnd = new dojox.gfx.Moveable(obj);
+			obj.connect("onmousedown", obj, function(ev){
+				supervisorTab.dndManager.startDrag(obj);
+			});
+			obj.connect("onmouseup", obj, function(ev){
+				supervisorTab.dndManager.endDrag();
+			});
+		});
+	};
 	
 	var queryo = {
 		node:node,
@@ -712,3 +840,4 @@ supervisorTab.refreshSystemStack = function(){
 supervisorTab.drawAgentQueueBubbles(0, 0);
 supervisorTab.refreshSystemStack();
 supervisorTab.systemStack[0].grow();
+

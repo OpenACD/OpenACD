@@ -204,8 +204,8 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("banswer").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("banswer");
-		console.log("banswer");
-		console.log(data);
+//		console.log("banswer");
+//		console.log(data);
 		if(data.statedata && data.statedata.ringpath == "inband"){
 			switch(data.state){
 				case "ringing":
@@ -234,7 +234,7 @@ dojo.addOnLoad(function(){
 		var widget = dijit.byId("transferToAgentMenuDyn");
 		widget.destroyDescendants()
 		dojo.forEach(data, function(i){
-			console.log(i);
+//			console.log(i);
 			var m = new dijit.MenuItem({
 				label: i,
 				onClick: function(){
@@ -247,8 +247,8 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("bhangup").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("bhangup");
-		console.log("bhangup");
-		console.log(data);
+//		console.log("bhangup");
+//		console.log(data);
 		if(data.statedata && data.statedata.mediapath == "inband"){
 			switch(data.state){
 				case "oncall":
@@ -279,9 +279,9 @@ dojo.addOnLoad(function(){
 
 	dijit.byId("boutboundcall").stateChanger = dojo.subscribe("agent/state", function(data) {
 		var widget = dijit.byId("boutboundcall");
-		console.log("boutboundcall");
-		console.log(data);
-		console.log(data.state);
+//		console.log("boutboundcall");
+//		console.log(data);
+//		console.log(data.state);
 		switch(data.state){
 			case "idle":
 			case "released":
@@ -402,7 +402,7 @@ dojo.addOnLoad(function(){
 				menu.addChild(item);
 			},
 			load:function(response, ioargs){
-				console.log(response);
+//				console.log(response);
 				if(response.success){
 					for(var i in response.brands) {
 						var item = new dijit.MenuItem({

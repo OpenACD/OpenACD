@@ -3757,7 +3757,7 @@ dojo.declare("dijit._Templated",
 			// Cache contains a string because we need to do property replacement
 			// do the property replacement
 			return dojo.string.substitute(tmpl, this, function(value, key){
-				if(key.charAt(0) == '!'){ value = dojo.getObject(key.substr(1), _this); }
+				if(key.charAt(0) == '!'){ value = dojo.getObject(key.substr(1), false, _this); }
 				if(typeof value == "undefined"){ throw new Error(className+" template:"+key); } // a debugging aide
 				if(value == null){ return ""; }
 
@@ -6180,20 +6180,20 @@ dojo.provide("dojox.html.metrics");
 		fs.width = "5em";
 		fs.height = "10em";
 		fs.top = "-10000px";
-		f.src = dojo.config["dojoBlankHtmlUrl"] || dojo.moduleUrl("dojo", "resources/blank.html");
-		dojo.body().appendChild(f);
-
 		if(dojo.isIE){
 			f.onreadystatechange = function(){
 				if(f.contentWindow.document.readyState == "complete"){
-                    f.onresize = f.contentWindow.parent[dojox._scopeName].html.metrics._fontresize;
+					f.onresize = f.contentWindow.parent[dojox._scopeName].html.metrics._fontresize;
 				}
 			};
 		}else{
 			f.onload = function(){
-                f.contentWindow.onresize = f.contentWindow.parent[dojox._scopeName].html.metrics._fontresize;
+				f.contentWindow.onresize = f.contentWindow.parent[dojox._scopeName].html.metrics._fontresize;
 			};
 		}
+		//The script tag is to work around a known firebug race condition.  See comments in bug #9046
+		f.setAttribute("src", "javascript:'<html><head><script>if(\"loadFirebugConsole\" in window){window.loadFirebugConsole();}</script></head><body></body></html>'");
+		dojo.body().appendChild(f);
 		dhm.initOnFontResize = function(){};
 	};
 
@@ -6842,6 +6842,7 @@ dojo.provide("dojox.grid.cells._base");
 			// grid row index
 			// returns: html for a given grid cell
 			var f, i=this.grid.edit.info, d=this.get ? this.get(inRowIndex, inItem) : (this.value || this.defaultValue);
+			d = (d && d.replace) ? d.replace(/</g, '&lt;') : d;
 			if(this.editable && (this.alwaysEditing || (i.rowIndex==inRowIndex && i.cell==this))){
 				return this.formatEditing(d, inRowIndex);
 			}else{

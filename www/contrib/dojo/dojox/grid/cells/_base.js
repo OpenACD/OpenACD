@@ -27,6 +27,7 @@ this._props=_5||{};
 dojo.mixin(this,_5);
 },format:function(_6,_7){
 var f,i=this.grid.edit.info,d=this.get?this.get(_6,_7):(this.value||this.defaultValue);
+d=(d&&d.replace)?d.replace(/</g,"&lt;"):d;
 if(this.editable&&(this.alwaysEditing||(i.rowIndex==_6&&i.cell==this))){
 return this.formatEditing(d,_6);
 }else{

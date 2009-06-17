@@ -79,9 +79,9 @@ this.connect(this.textbox,"onpaste",this._onInput);
 this.connect(this.textbox,"oncut",this._onInput);
 }
 this._layoutHack();
-},filter:function(_d){
+},_blankValue:"",filter:function(_d){
 if(_d===null){
-return "";
+return this._blankValue;
 }
 if(typeof _d!="string"){
 return _d;

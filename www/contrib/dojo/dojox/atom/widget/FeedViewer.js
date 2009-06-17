@@ -12,7 +12,7 @@ dojo.require("dijit._Widget");
 dojo.require("dijit._Templated");
 dojo.require("dijit._Container");
 dojo.require("dojox.atom.io.Connection");
-dojo.requireLocalization("dojox.atom.widget","FeedViewerEntry",null,"ROOT,cs,de,es,fr,hu,it,ja,ko,pl,pt,ru,zh,zh-tw");
+dojo.requireLocalization("dojox.atom.widget","FeedViewerEntry",null,"ROOT,ar,cs,da,de,el,es,fi,fr,he,hu,it,ja,ko,nb,nl,pl,pt,pt-pt,ru,sv,tr,zh,zh-tw");
 dojo.experimental("dojox.atom.widget.FeedViewer");
 dojo.declare("dojox.atom.widget.FeedViewer",[dijit._Widget,dijit._Templated,dijit._Container],{feedViewerTableBody:null,feedViewerTable:null,entrySelectionTopic:"",url:"",xmethod:false,localSaveOnly:false,templateString:"<div class=\"feedViewerContainer\" dojoAttachPoint=\"feedViewerContainerNode\">\n\t<table cellspacing=\"0\" cellpadding=\"0\" class=\"feedViewerTable\">\n\t\t<tbody dojoAttachPoint=\"feedViewerTableBody\" class=\"feedViewerTableBody\">\n\t\t</tbody>\n\t</table>\n</div>\n",_feed:null,_currentSelection:null,_includeFilters:null,alertsEnabled:false,postCreate:function(){
 this._includeFilters=[];

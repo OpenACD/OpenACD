@@ -164,7 +164,7 @@ var _29=false;
 var _30=(tag[2])({swallowNode:function(){
 _29=true;
 return _26;
-}},new dd.Token(dd.TOKEN_ATTR,_2f));
+}},new dd.Token(dd.TOKEN_ATTR,tag[0]+" "+_2f));
 if(_29){
 if(_26.parentNode&&_26.parentNode.removeChild){
 _26.parentNode.removeChild(_26);

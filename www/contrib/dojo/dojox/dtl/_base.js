@@ -533,11 +533,11 @@ fn=fn[1];
 }
 if(typeof key=="string"){
 if(key.substr(0,5)=="attr:"){
-var _98=fn.toLowerCase();
+var _98=fn;
 if(_98.substr(0,5)=="attr:"){
 _98=_98.slice(5);
 }
-dd.register._registry.attributes.push([_98,_92+"."+_94+"."+_98]);
+dd.register._registry.attributes.push([_98.toLowerCase(),_92+"."+_94+"."+_98]);
 }
 key=key.toLowerCase();
 }

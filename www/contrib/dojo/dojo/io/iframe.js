@@ -237,17 +237,12 @@ if(_30){
 var _31=_2e._contentToClean;
 for(var i=0;i<_31.length;i++){
 var key=_31[i];
-if(dojo.isSafari<3){
 for(var j=0;j<_30.childNodes.length;j++){
 var _35=_30.childNodes[j];
 if(_35.name==key){
 dojo.destroy(_35);
 break;
 }
-}
-}else{
-dojo.destroy(_30[key]);
-_30[key]=null;
 }
 }
 if(_2e["_originalAction"]){

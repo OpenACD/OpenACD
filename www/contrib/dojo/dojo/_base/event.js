@@ -322,8 +322,9 @@ var ap=Array.prototype,h=dojo._ie_listener.handlers,c=_62.callee,ls=c[dojo._ieLi
 var r=t&&t.apply(_63,_62);
 var lls=[].concat(ls);
 for(var i in lls){
-if(!(i in ap)){
-h[lls[i]].apply(_63,_62);
+var f=h[lls[i]];
+if(!(i in ap)&&f){
+f.apply(_63,_62);
 }
 }
 return r;

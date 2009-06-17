@@ -514,7 +514,7 @@ dojo.attr(this.document.body,"spellcheck",!_48);
 var c=(e.keyChar&&e.keyChar.toLowerCase())||e.keyCode;
 var _4b=this._keyHandlers[c];
 var _4c=arguments;
-if(_4b){
+if(_4b&&!e.altKey){
 dojo.forEach(_4b,function(h){
 if((!!h.shift==!!e.shiftKey)&&(!!h.ctrl==!!e.ctrlKey)){
 if(!h.handler.apply(this,_4c)){

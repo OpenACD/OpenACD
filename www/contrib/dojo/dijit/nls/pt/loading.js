@@ -1,1 +1,1 @@
-({"loadingState":"Carregando...","errorState":"Ocorreu um erro"})
+({"loadingState":"Carregando...","errorState":"Desculpe, ocorreu um erro"})

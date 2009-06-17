@@ -1,1 +1,1 @@
-({"add":"Hozzáadás:","addAuthor":"Szerző hozzáadása","addContributor":"Közreműködő hozzáadása"})
+({"add":"Hozzáadás","addAuthor":"Szerző hozzáadása","addContributor":"Közreműködő hozzáadása"})

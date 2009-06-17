@@ -12,7 +12,7 @@ dojo.require("dijit._editor._Plugin");
 dojo.require("dijit._editor.selection");
 dojo.require("dijit.Menu");
 dojo.require("dojo.i18n");
-dojo.requireLocalization("dojox.editor.plugins","TableDialog",null,"ROOT");
+dojo.requireLocalization("dojox.editor.plugins","TableDialog",null,"ROOT,ar,cs,da,de,el,es,fi,fr,he,hu,it,ja,ko,nb,nl,pl,pt,pt-pt,ru,sv,tr,zh,zh-tw");
 dojo.experimental("dojox.editor.plugins.TablePlugins");
 dojo.declare("dojox.editor.plugins.GlobalTableHandler",dijit._editor._Plugin,{tablesConnected:false,currentlyAvailable:false,alwaysAvailable:false,availableCurrentlySet:false,initialized:false,tableData:null,shiftKeyDown:false,editorDomNode:null,undoEnabled:dojo.isIE,doMixins:function(){
 dojo.mixin(this.editor,{getAncestorElement:function(_1){

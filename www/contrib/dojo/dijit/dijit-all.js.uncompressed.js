@@ -3136,7 +3136,7 @@ dojo.declare(
 		// over a node
 		this.domNode.title = "";
 
-		if (!dijit.hasWaiRole(this.domNode)){
+		if (!dojo.attr(this.domNode,"role")){
 			dijit.setWaiRole(this.domNode, "group");
 		}
 
@@ -6038,7 +6038,7 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 		var handlers = this._keyHandlers[c];
 		//
 		var args = arguments;
-		if(handlers){
+		if(handlers && !e.altKey){
 			dojo.forEach(handlers, function(h){
 				if((!!h.shift == !!e.shiftKey)&&(!!h.ctrl == !!e.ctrlKey)){
 					if(!h.handler.apply(this, args)){
@@ -13449,6 +13449,7 @@ dojo.declare(
 			this._layoutHack();
 		},
 
+		_blankValue: '', // if the textbox is blank, what value should be reported
 		filter: function(val){
 			// summary:
 			//		Auto-corrections (such as trimming) that are applied to textbox
@@ -13467,7 +13468,7 @@ dojo.declare(
 			//
 			// tags:
 			//		protected extension
-			if(val === null){ return ''; }
+			if(val === null){ return this._blankValue; }
 			if(typeof val != "string"){ return val; }
 			if(this.trim){
 				val = dojo.trim(val);
@@ -17642,6 +17643,15 @@ dojo.declare(
 			dojo.deprecated("dijit.Calendar:setValue() is deprecated.  Use attr('value', ...) instead.", "", "2.0");
 			this.attr('value', value);
 		},
+
+		_getValueAttr: function(/*String*/ value){
+			// summary:
+			//		Hook so attr('value') works.
+			var value = new Date(this.value);
+			value.setHours(0, 0, 0, 0);
+			return value;
+		},
+
 		_setValueAttr: function(/*Date*/ value){
 			// summary:
 			//		Hook to make attr("value", ...) work.
@@ -17655,7 +17665,8 @@ dojo.declare(
 				value.setHours(1); // to avoid DST issues in Brazil see #8521
 				this.displayMonth = new Date(value);
 				if(!this.isDisabledDate(value, this.lang)){
-					this.onChange(this.value = value);
+					this.value = value;
+					this.onChange(this.attr('value'));
 				}
 				this._populateGrid();
 			}
@@ -17828,7 +17839,7 @@ dojo.declare(
 			for(var node = evt.target; node && !node.dijitDateValue; node = node.parentNode);
 			if(node && !dojo.hasClass(node, "dijitCalendarDisabledDate")){
 				this.attr('value', node.dijitDateValue);
-				this.onValueSelected(this.value);
+				this.onValueSelected(this.attr('value'));
 			}
 		},
 
@@ -17964,6 +17975,7 @@ dojo.declare(
 		//		The value of this widget as a JavaScript Date object.  Use attr("value") / attr("value", val) to manipulate.
 		//		When passed to the parser in markup, must be specified according to `dojo.date.stamp.fromISOString`
 		value: new Date(""),	// value.toString()="NaN"
+		_blankValue: null,    // used by filter() when the textbox is blank
 
 		//	popupClass: [protected extension] String
 		//		Name of the popup widget class used to select a date/time.

@@ -1,1 +1,1 @@
-({"next":"Avançar","done":"Concluído","previous":"Voltar"})
+({"next":"Próximo","done":"Concluído","previous":"Anterior"})

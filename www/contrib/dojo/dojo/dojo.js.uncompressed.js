@@ -246,7 +246,7 @@ dojo.global = {
 =====*/
 	dojo.locale = d.config.locale;
 
-	var rev = "$Rev: 17136 $".match(/\d+/); 
+	var rev = "$Rev: 17468 $".match(/\d+/); 
 
 	dojo.version = {
 		// summary: 
@@ -261,7 +261,7 @@ dojo.global = {
 		//		Descriptor flag. If total version is "1.2.0beta1", will be "beta1"
 		//	revision: Number
 		//		The SVN rev from which dojo was pulled
-		major: 1, minor: 3, patch: 0, flag: "",
+		major: 1, minor: 3, patch: 1, flag: "",
 		revision: rev ? +rev[0] : NaN,
 		toString: function(){
 			with(d.version){
@@ -4077,8 +4077,9 @@ if(dojo.isIE){
 		var lls = [].concat(ls);
 		// invoke listeners after target function
 		for(var i in lls){
-			if(!(i in ap)){
-				h[lls[i]].apply(sender, args);
+			var f = h[lls[i]];
+			if(!(i in ap) && f){
+				f.apply(sender, args);
 			}
 		}
 		return r;
@@ -7475,22 +7476,26 @@ if(typeof dojo != "undefined"){
 				// ignore class and ID filters since we will have handled both
 				filterFunc = getSimpleFilterFunc(query, { el: 1, classes: 1, id: 1 });
 				var classesString = query.classes.join(" ");
-				retFunc = function(root, arr){
+				retFunc = function(root, arr, bag){
 					var ret = getArr(0, arr), te, x=0;
 					var tret = root.getElementsByClassName(classesString);
 					while((te = tret[x++])){
-						if(filterFunc(te, root)){ ret.push(te); }
+						if(filterFunc(te, root) && _isUnique(te, bag)){
+							ret.push(te);
+						}
 					}
 					return ret;
 				};
 
 			}else if(!wildcardTag && !query.loops){
 				// it's tag only. Fast-path it.
-				retFunc = function(root, arr){
+				retFunc = function(root, arr, bag){
 					var ret = getArr(0, arr), te, x=0;
 					var tret = root.getElementsByTagName(query.getTag());
 					while((te = tret[x++])){
-						ret.push(te);
+						if(_isUnique(te, bag)){
+							ret.push(te);
+						}
 					}
 					return ret;
 				};
@@ -7500,12 +7505,14 @@ if(typeof dojo != "undefined"){
 				//		to have a tag selector, even if it's just "*" so we query
 				//		by that and filter
 				filterFunc = getSimpleFilterFunc(query, { el: 1, tag: 1, id: 1 });
-				retFunc = function(root, arr){
+				retFunc = function(root, arr, bag){
 					var ret = getArr(0, arr), te, x=0;
 					// we use getTag() to avoid case sensitivity issues
 					var tret = root.getElementsByTagName(query.getTag());
 					while((te = tret[x++])){
-						if(filterFunc(te, root)){ ret.push(te); }
+						if(filterFunc(te, root) && _isUnique(te, bag)){
+							ret.push(te);
+						}
 					}
 					return ret;
 				};

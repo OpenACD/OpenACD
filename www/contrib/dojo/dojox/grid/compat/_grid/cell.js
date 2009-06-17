@@ -15,6 +15,7 @@ this.editor=new this.editor(this);
 }
 },format:function(_2){
 var f,i=this.grid.edit.info,d=this.get?this.get(_2):this.value;
+d=(d&&d.replace)?d.replace(/</g,"&lt;"):d;
 if(this.editor&&(this.editor.alwaysOn||(i.rowIndex==_2&&i.cell==this))){
 return this.editor.format(d,_2);
 }else{

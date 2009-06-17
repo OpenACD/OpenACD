@@ -15,7 +15,7 @@ dojo.declare("dijit._Templated",null,{templateString:null,templatePath:null,widg
 var _2=this.declaredClass,_3=this;
 return dojo.string.substitute(_1,this,function(_4,_5){
 if(_5.charAt(0)=="!"){
-_4=dojo.getObject(_5.substr(1),_3);
+_4=dojo.getObject(_5.substr(1),false,_3);
 }
 if(typeof _4=="undefined"){
 throw new Error(_2+" template:"+_5);

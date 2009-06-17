@@ -1,1 +1,1 @@
-({"loadingState":"جاري التحميل...","errorState":"عفوا، حدث خطأ "})
+({"loadingState":"جاري التحميل...","errorState":"عفوا، حدث خطأ"})

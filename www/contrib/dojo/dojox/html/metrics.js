@@ -87,8 +87,6 @@ fs.position="absolute";
 fs.width="5em";
 fs.height="10em";
 fs.top="-10000px";
-f.src=dojo.config["dojoBlankHtmlUrl"]||dojo.moduleUrl("dojo","resources/blank.html");
-dojo.body().appendChild(f);
 if(dojo.isIE){
 f.onreadystatechange=function(){
 if(f.contentWindow.document.readyState=="complete"){
@@ -100,6 +98,8 @@ f.onload=function(){
 f.contentWindow.onresize=f.contentWindow.parent[dojox._scopeName].html.metrics._fontresize;
 };
 }
+f.setAttribute("src","javascript:'<html><head><script>if(\"loadFirebugConsole\" in window){window.loadFirebugConsole();}</script></head><body></body></html>'");
+dojo.body().appendChild(f);
 _1.initOnFontResize=function(){
 };
 };

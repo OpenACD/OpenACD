@@ -19,7 +19,7 @@ return "";
 return dojo.date.locale.format(_1,_2);
 },parse:function(_3,_4){
 return dojo.date.locale.parse(_3,_4)||(this._isEmpty(_3)?null:undefined);
-},serialize:dojo.date.stamp.toISOString,value:new Date(""),popupClass:"",_selector:"",postMixInProperties:function(){
+},serialize:dojo.date.stamp.toISOString,value:new Date(""),_blankValue:null,popupClass:"",_selector:"",postMixInProperties:function(){
 this.inherited(arguments);
 if(!this.value||this.value.toString()==dijit.form._DateTimeTextBox.prototype.value.toString()){
 this.value=null;

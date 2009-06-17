@@ -16,7 +16,7 @@ o=o||d.global;
 f.call(o,_4);
 if(_4 instanceof g.Surface||_4 instanceof g.Group){
 d.forEach(_4.children,function(_7){
-gu.inspect(_7,f,o);
+gu.forEach(_7,f,o);
 });
 }
 },serialize:function(_8){
@@ -58,7 +58,7 @@ return t;
 return d.toJson(gu.serialize(_c),_d);
 },deserialize:function(_e,_f){
 if(_f instanceof Array){
-return d.map(_f,d.hitch(null,gu.serialize,_e));
+return d.map(_f,d.hitch(null,gu.deserialize,_e));
 }
 var _10=("shape" in _f)?_e.createShape(_f.shape):_e.createGroup();
 if("transform" in _f){

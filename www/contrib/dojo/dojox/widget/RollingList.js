@@ -763,7 +763,7 @@ _ac.attr("disabled",true);
 _ac.store=this.store;
 _ac.item=_a6;
 if(!_ac.label){
-_ac.attr("label",this.store.getLabel(_a6));
+_ac.attr("label",this.store.getLabel(_a6).replace(/</,"&lt;"));
 }
 if(_ac.focusNode){
 var _ae=this;

@@ -247,7 +247,7 @@ handle_DOWN(Node, #state{qdict = Qdict} = State, _Election) ->
 	{Protodict, Deads} = dict:fold(Fold, {[], []}, Qdict),
 	Newdict = dict:from_list(Protodict),
 	Ressurect = fun(Qname) ->
-		{atomic, [Qrec]} = call_queue_config:get_queue(Qname),
+		Qrec = call_queue_config:get_queue(Qname),
 		add_queue(Qname, [
 			{weight, Qrec#call_queue.weight},
 			{skills, Qrec#call_queue.skills},
@@ -756,8 +756,11 @@ node_death_test_() ->
 				?DEBUG("~p", [rpc:call(Master, ?MODULE, get_queue, ["queue2"])]),
 				?assertEqual(Pid, rpc:call(Master, ?MODULE, get_queue, ["queue2"])),
 				slave:stop(Slave),
+				timer:sleep(1000), % because starting a queue takes time.
 				Newpid = rpc:call(Master, queue_manager, get_queue, ["queue2"]),
-				?assertNot(Pid =:= Newpid)
+				?assertNot(undefined =:= Newpid),
+				?assertNot(Pid =:= Newpid),
+				?assertEqual(Master, node(Newpid))
 			end}
 		end]
 	}.

@@ -837,8 +837,12 @@ queue_group_test_() ->
 					new_queue_group(Sort5),
 					new_queue_group(Sort7),
 					Test = [#queue_group{name = "Default", sort = 0, protected = true, timestamp = util:now()}, Sort5, Sort7, Sort10],
-					Gotten = get_queue_groups(),
-					?assertEqual(Test, Gotten)
+					[G1, G2, G3, G4] = Gotten = get_queue_groups(),
+					?assertEqual(length(Test), length(Gotten)),
+					?assertMatch(#queue_group{name = "Default", sort = 0, protected = true}, G1),
+					?assertMatch(#queue_group{name = "Added 2nd", sort = 5, protected = false}, G2),
+					?assertMatch(#queue_group{name = "Added 3rd", sort = 7, protected = false}, G3),
+					?assertMatch(#queue_group{name = "Added 1st", sort = 10, protected = false}, G4)
 				end
 			},
 			{
@@ -851,7 +855,7 @@ queue_group_test_() ->
 					Setres = set_queue_group(Default#queue_group.name, Updateto),
 					?CONSOLE("res:  ~p", [Setres]),
 					?assertEqual({atomic, ok}, Setres),
-					?assertEqual({atomic, [Test]}, get_queue_group("newname"))
+					?assertMatch({atomic, [#queue_group{name = "newname", sort = 5, recipe = Recipe}]}, get_queue_group("newname"))
 				end
 			},
 			{
@@ -861,7 +865,7 @@ queue_group_test_() ->
 					Default = ?DEFAULT_QUEUE_GROUP,
 					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe, timestamp = util:now()},
 					set_queue_group(Default#queue_group.name, "newname", 5, Recipe),
-					?assertEqual({atomic, [Test]}, get_queue_group("newname"))
+					?assertMatch({atomic, [#queue_group{name = "newname", sort = 5, recipe = Recipe}]}, get_queue_group("newname"))
 				end
 			},
 			{
@@ -1071,7 +1075,7 @@ client_rec_test_() ->
 						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
 						qlc:e(Select)
 					end,
-					?assertEqual({atomic, [Client]}, mnesia:transaction(F))
+					?assertMatch({atomic, [#client{label = "testclient", tenant = 23, brand = 1}]}, mnesia:transaction(F))
 				end
 			},
 			{
@@ -1082,7 +1086,7 @@ client_rec_test_() ->
 						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
 						qlc:e(Select)
 					end,
-					?assertEqual({atomic, [#client{label = "testclient", tenant = 23, brand = 1, timestamp=util:now()}]}, mnesia:transaction(F))
+					?assertMatch({atomic, [#client{label = "testclient", tenant = 23, brand = 1}]}, mnesia:transaction(F))
 				end
 			},
 			{
@@ -1111,7 +1115,7 @@ client_rec_test_() ->
 						qlc:e(Select)
 					end,
 					?assertEqual({atomic, []}, mnesia:transaction(Findold)),
-					?assertEqual({atomic, [#client{label = "newname", tenant = 47, brand = 2, timestamp=util:now()}]}, mnesia:transaction(Findnew))
+					?assertMatch({atomic, [#client{label = "newname", tenant = 47, brand = 2}]}, mnesia:transaction(Findnew))
 				end
 			},
 			{
@@ -1130,7 +1134,7 @@ client_rec_test_() ->
 						qlc:e(Select)
 					end,
 					?assertEqual({atomic, []}, mnesia:transaction(Findold)),
-					?assertEqual({atomic, [Client2]}, mnesia:transaction(Findnew))
+					?assertMatch({atomic, [#client{label = "Client2"}]}, mnesia:transaction(Findnew))
 				end
 			},
 			{
@@ -1143,7 +1147,7 @@ client_rec_test_() ->
 					new_client(Client1),
 					new_client(Client2),
 					new_client(Client3),
-					?assertEqual([Client3, Client1, Client2, DemoClient], get_clients())
+					?assertMatch([#client{label = "Aclient"}, #client{label = "Client1"}, #client{label = "Client2"}, #client{label = "Demo Client"}], get_clients())
 				end
 			},
 			{
@@ -1155,7 +1159,8 @@ client_rec_test_() ->
 					new_client(Client1),
 					new_client(Client2),
 					new_client(Client3),
-					?assertEqual(Client2, get_client("Client2"))
+					Res = get_client("Client2"),
+					?assertEqual(Client2#client.label, Res#client.label)
 				end
 			},
 			{

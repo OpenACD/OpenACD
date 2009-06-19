@@ -893,7 +893,7 @@ release_opt_test_() ->
 						Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
 						qlc:e(Select)
 					end,
-					?assertEqual({atomic, [Releaseopt]}, mnesia:transaction(F))
+					?assertMatch({atomic, [#release_opt{label ="testopt"}]}, mnesia:transaction(F))
 				end
 			},
 			{
@@ -925,7 +925,7 @@ release_opt_test_() ->
 						qlc:e(Select)
 					end,
 					?assertEqual({atomic, []}, mnesia:transaction(Getold)),
-					?assertEqual({atomic, [Newopt]}, mnesia:transaction(Getnew))
+					?assertMatch({atomic, [#release_opt{label = "newopt"}]}, mnesia:transaction(Getnew))
 				end
 			},
 			{
@@ -937,7 +937,7 @@ release_opt_test_() ->
 					new_release(Copt),
 					new_release(Bopt),
 					new_release(Aopt),
-					?assertEqual([Aopt, Bopt, Copt], get_releases())
+					?assertMatch([#release_opt{label = "aoption"}, #release_opt{label = "boption"}, #release_opt{label = "coption"}], get_releases())
 				end
 			}
 		]
@@ -968,7 +968,7 @@ profile_test_() ->
 					?assertEqual({atomic, []}, mnesia:transaction(F)),
 					?assertEqual({atomic, ok}, new_profile("test profile", [testskill])),
 					Test = #agent_profile{name = "test profile", skills = [testskill], timestamp = util:now()},
-					?assertEqual({atomic, [Test]}, mnesia:transaction(F))
+					?assertEqual({atomic, [Test#agent_profile{name = "test profile"}]}, mnesia:transaction(F))
 				end
 			},
 			{

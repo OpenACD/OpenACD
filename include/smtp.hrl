@@ -31,5 +31,6 @@
 	address = erlang:error({undefined, address}) :: string(),
 	queue = "default_queue" :: string(),
 	skills = [] :: [{atom(), any()} | atom()],
-	client :: string() | 'undefined'
+	client :: string() | 'undefined',
+	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
 }).

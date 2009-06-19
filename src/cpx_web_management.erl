@@ -190,7 +190,8 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 						module_name = agent_tcp_listener,
 						start_function = start_link,
 						start_args = [N],
-						supervisor = agent_connection_sup
+						supervisor = agent_connection_sup,
+						timestamp = 1
 					},
 					cpx_supervisor:update_conf(agent_tcp_listener, Tcprec),
 					{struct, [{success, true}, {<<"message">>, <<"TCP Server enabled">>}]};
@@ -221,7 +222,8 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 						module_name = agent_web_listener,
 						start_function = start_link,
 						start_args = [M],
-						supervisor = agent_connection_sup
+						supervisor = agent_connection_sup,
+						timestamp = 1
 					},
 					cpx_supervisor:update_conf(agent_web_listener, Webrec),
 					{struct, [{success, true}, {<<"message">>, <<"Web Server enabled">>}]};
@@ -466,7 +468,8 @@ api({skills, "skill", Skill, "update"}, ?COOKIE, Post) ->
 						atom = Skillrec#skill_rec.atom,
 						name = proplists:get_value("name", Post),
 						description = proplists:get_value("description", Post),
-						group = proplists:get_value("group", Post)},
+						group = proplists:get_value("group", Post),
+						timestamp = 1},
 					call_queue_config:set_skill(Skillrec#skill_rec.atom, Rec),
 					{200, [], mochijson2:encode({struct, [{success, true}]})}
 			end
@@ -548,7 +551,8 @@ api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
 		weight = Weight,
 		skills = Atomizedskills,
 		recipe = Recipe,
-		group = Group
+		group = Group,
+		timestamp = 1
 	},
 	call_queue_config:set_queue(Queue, Qrec),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
@@ -567,7 +571,8 @@ api({queues, "queue", "new"}, ?COOKIE, Post) ->
 		weight = Weight,
 		skills = Atomizedskills,
 		recipe = Recipe,
-		group = Group
+		group = Group,
+		timestamp = 1
 	},
 	call_queue_config:new_queue(Qrec),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
@@ -604,7 +609,8 @@ api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 				id = freeswitch_media_manager,
 				module_name = freeswitch_media_manager,
 				start_function = start_link,
-				start_args = Args},
+				start_args = Args,
+				timestamp = 1},
 			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, Conf], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
@@ -1135,6 +1141,36 @@ encode_medias_confs(Node, [{Mod, undefined} | Tail], Acc) ->
 
 -ifdef(EUNIT).
 
+rec_equals(	#agent_auth{login = Ln, password = Pw, skills = SK, securitylevel = SL, integrated = In, profile = Prof, firstname = Fn, lastname = Lastn},
+			#agent_auth{login = Ln, password = Pw, skills = SK, securitylevel = SL, integrated = In, profile = Prof, firstname = Fn, lastname = Lastn}) ->
+	true;
+rec_equals(	#agent_profile{name = Nom, skills = Skills},
+			#agent_profile{name = Nom, skills = Skills}) ->
+	true;
+rec_equals(	#release_opt{label = Lb, id = Id, bias = Bias},
+			#release_opt{label = Lb, id = Id, bias = Bias}) ->
+	true;
+rec_equals(	#cpx_conf{id = A, module_name = B, start_function = C, start_args = D, supervisor = E},
+			#cpx_conf{id = A, module_name = B, start_function = C, start_args = D, supervisor = E}) ->
+	true;
+rec_equals(	#client{label = A, tenant = B, brand = C},
+			#client{label = A, tenant = B, brand = C}) ->
+	true;
+rec_equals(	#call_queue{name = A, weight = B, skills = C, recipe = D, hold_music = E, group = F},
+			#call_queue{name = A, weight = B, skills = C, recipe = D, hold_music = E, group = F}) ->
+	true;
+rec_equals(	#queue_group{name = A, recipe = B, sort = C, protected = D},
+			#queue_group{name = A, recipe = B, sort = C, protected = D}) ->
+	true;
+rec_equals(	#mail_map{address = A, queue = B, skills = C, client = D},
+			#mail_map{address = A, queue = B, skills = C, client = D}) ->
+	true;
+rec_equals(	#skill_rec{atom = A, name = B, protected = C, description = D, group = E},
+			#skill_rec{atom = A, name = B, protected = C, description = D, group = E}) ->
+	true;
+rec_equals(_A, _B) ->
+	false.
+
 cookie_test_() ->
 	{setup,
 	fun() ->
@@ -1432,8 +1468,9 @@ api_test_() ->
 					name = "Test Skill",
 					protected = false,
 					description = "Test skill for gooberness",
-					group = "Magic"},
-				?assertEqual(Testrec, Rec),
+					group = "Magic",
+					timestamp = 1},
+				?assert(rec_equals(Testrec, Rec)),
 				F = fun() ->
 					mnesia:delete({skill_rec, testskill})
 				end,
@@ -1448,7 +1485,8 @@ api_test_() ->
 					name = "Test Skill",
 					protected = false,
 					description = "Test skill for gooberness",
-					group = "Magic"},
+					group = "Magic",
+					timestamp = 1},
 				call_queue_config:new_skill(Oldrec),
 				Post = [
 					{"name", "New Name"},
@@ -1460,9 +1498,10 @@ api_test_() ->
 					name = "New Name",
 					protected = false,
 					description = "Blah blah blah",
-					group = "Languages"},
+					group = "Languages",
+					timestamp = 1},
 				api({skills, "skill", "testskill", "update"}, Cookie, Post),
-				?assertEqual(Newrec, call_queue_config:get_skill(testskill)),
+				?assert(rec_equals(Newrec, call_queue_config:get_skill(testskill))),
 				F = fun() ->
 					mnesia:delete({skill_rec, testskill})
 				end,
@@ -1486,9 +1525,10 @@ api_test_() ->
 					name = "Test Q Group",
 					recipe = Recipe,
 					sort = 27,
-					protected = false
+					protected = false,
+					timestamp = 1
 				},
-				?assertEqual(Testrec, Rec),
+				?assert(rec_equals(Testrec, Rec)),
 				call_queue_config:destroy_queue_group("Test Q Group")
 			end}
 		end,
@@ -1499,7 +1539,8 @@ api_test_() ->
 				Qgrouprec = #queue_group{
 					name = "Test Q Group",
 					recipe = Recipe,
-					sort = 35
+					sort = 35,
+					timestamp = 1
 				},
 				call_queue_config:new_queue_group(Qgrouprec),
 				Newrecipe = [{[{calls_queued, '<', 200}], deprioritize, [], run_once}],
@@ -1515,10 +1556,12 @@ api_test_() ->
 					name = "Renamed Q Group",
 					recipe = Newrecipe,
 					sort = 27,
-					protected = false
+					protected = false,
+					timestamp = 1
 				},
-				?assertNot(Qgrouprec =:= Rec),
-				?assertEqual(Testrec, Rec),
+				?assertNot(rec_equals(Qgrouprec, Rec)),
+				?DEBUG("~p", [Rec]),
+				?assert(rec_equals(Testrec, Rec)),
 				?assertEqual({atomic, []}, call_queue_config:get_queue_group("Test Q Group")),
 				call_queue_config:destroy_queue_group("Renamed Q Group")
 			end}
@@ -1530,7 +1573,8 @@ api_test_() ->
 				Qgrouprec = #queue_group{
 					name = "Test Q Group",
 					recipe = Recipe,
-					sort = 35
+					sort = 35,
+					timestamp = 1
 				},
 				call_queue_config:new_queue_group(Qgrouprec),
 				?assertMatch({atomic, [_Rec]}, call_queue_config:get_queue_group("Test Q Group")),
@@ -1550,10 +1594,11 @@ api_test_() ->
 				Q = #call_queue{
 					name = "test queue",
 					skills = [], 
-					recipe = []
+					recipe = [],
+					timestamp = 1
 				},
 				api({queues, "queue", "new"}, Cookie, Post),
-				?assertEqual(Q, call_queue_config:get_queue("test queue")),
+				?assert(rec_equals(Q, call_queue_config:get_queue("test queue"))),
 				call_queue_config:destroy_queue("test queue")
 			end}
 		end,
@@ -1572,12 +1617,13 @@ api_test_() ->
 					skills = [english],
 					recipe = [],
 					weight = 57,
-					group = "Group"
+					group = "Group",
+					timestamp = 1
 				},
 				call_queue_config:new_queue("test queue", 1, [], [], "Default"),
 				api({queues, "queue", "test queue", "update"}, Cookie, Post),
 				?assertEqual(noexists, call_queue_config:get_queue("test queue")),
-				?assertEqual(Q, call_queue_config:get_queue("test name"))
+				?assert(rec_equals(Q, call_queue_config:get_queue("test name")))
 			end}
 		end,
 		fun(Cookie) ->
@@ -1599,12 +1645,14 @@ api_test_() ->
 						module_name = freeswitch_media_manager,
 						start_function = start_link,
 						start_args = [freeswitch@localhost, "localhost"],
-						supervisor = management_sup},
+						supervisor = management_sup,
+						timestamp = 1},
 					cpx_supervisor:destroy(freeswitch_media_manager),
 					?CONSOLE("post destroy", []),
 					cpx_supervisor:add_conf(Fsconf),
 					?CONSOLE("post add", []),
-					?assertEqual(Fsconf, cpx_supervisor:get_conf(freeswitch_media_manager)),
+					Res = cpx_supervisor:get_conf(freeswitch_media_manager),
+					?assert(rec_equals(Fsconf, Res)),
 					?CONSOLE("post get", []),
 					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, []),
 					?CONSOLE("post api", []),
@@ -1632,9 +1680,11 @@ api_test_() ->
 						module_name = freeswitch_media_manager,
 						start_function = start_link,
 						start_args = [freeswitch@localhost, [{voicegateway, "whatever"}]],
-						supervisor = management_sup},
+						supervisor = management_sup,
+						timestamp = 1},
 					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, Post),
-					?assertEqual(Fsconf, cpx_supervisor:get_conf(freeswitch_media_manager)),
+					Res = cpx_supervisor:get_conf(freeswitch_media_manager),
+					?assert(rec_equals(Fsconf, Res)),
 					cpx_supervisor:destroy(freeswitch_media_manager)
 				end}
 			]}

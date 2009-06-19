@@ -168,7 +168,7 @@ get_releases() ->
 %% @doc Create a new agent profile `string() Name' with `[atom()] Skills'.
 -spec(new_profile/2 :: (Name :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
 new_profile(Name, Skills) ->
-	Rec = #agent_profile{name = Name, skills = Skills},
+	Rec = #agent_profile{name = Name, skills = Skills, timestamp = util:now()},
 	F = fun() ->
 		mnesia:write(Rec)
 	end,
@@ -177,14 +177,14 @@ new_profile(Name, Skills) ->
 %% @doc Update the proflie `string() Oldname' to `string() Newname' with `[atom()] Skills'.
 -spec(set_profile/3 :: (Oldname :: string(), Newname :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
 set_profile(Oldname, Oldname, Skills) ->
-	Rec = #agent_profile{name = Oldname, skills = Skills},
+	Rec = #agent_profile{name = Oldname, skills = Skills, timestamp = util:now()},
 	F = fun() ->
 		mnesia:delete({agent_profile, Oldname}),
 		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F);
 set_profile(Oldname, Newname, Skills) ->
-	Rec = #agent_profile{name = Newname, skills = Skills},
+	Rec = #agent_profile{name = Newname, skills = Skills, timestamp = util:now()},
 	F = fun() ->
 		mnesia:delete({agent_profile, Oldname}),
 		mnesia:write(Rec),
@@ -267,7 +267,7 @@ set_agent(Oldlogin, Props) ->
 		[Agent] = qlc:e(QH),
 		Newrec = build_agent_record(Props, Agent),
 		destroy(Oldlogin),
-		mnesia:write(Newrec),
+		mnesia:write(Newrec#agent_auth{timestamp = util:now()}),
 		ok
 	end,
 	mnesia:transaction(F).
@@ -447,8 +447,8 @@ build_tables() ->
 	case A of
 		{atomic, ok} ->
 			F = fun() ->
-				mnesia:write(#agent_auth{login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english], profile="Default"}),
-				mnesia:write(#agent_auth{login="administrator", password=util:bin_to_hexstr(erlang:md5("Password123")), securitylevel=admin, skills=[english], profile="Default"})
+				mnesia:write(#agent_auth{login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english], profile="Default", timestamp = util:now()}),
+				mnesia:write(#agent_auth{login="administrator", password=util:bin_to_hexstr(erlang:md5("Password123")), securitylevel=admin, skills=[english], profile="Default", timestamp = util:now()})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 
@@ -512,7 +512,8 @@ cache(Username, Password, Profile, Security) when is_atom(Security) ->
 		skills = [],
 		securitylevel = Security,
 		integrated = Integrated,
-		profile = Profile},
+		profile = Profile,
+		timestamp = util:now()},
 	F = fun() ->
 		mnesia:write(Agent)
 	end,
@@ -529,13 +530,14 @@ add_agent(Username, Password, Skills, Security, Profile) ->
 		password = util:bin_to_hexstr(erlang:md5(Password)),
 		skills = Skills,
 		securitylevel = Security,
-		profile = Profile},
+		profile = Profile,
+		timestamp = util:now()},
 	add_agent(Rec).
 
 %% @doc adds a user to the local cache; more flexible than `add_agent/5'.
 -spec(add_agent/1 :: (Proplist :: [{atom(), any()}, ...] | #agent_auth{}) -> {'atomic', 'ok'}).
 add_agent(Proplist) when is_list(Proplist) ->
-	Rec = build_agent_record(Proplist, #agent_auth{}),
+	Rec = build_agent_record(Proplist, #agent_auth{timestamp = 1}),
 	add_agent(Rec);
 add_agent(Rec) when is_record(Rec, agent_auth) ->
 	F = fun() ->
@@ -885,7 +887,7 @@ release_opt_test_() ->
 			{
 				"Add new release option",
 				fun() ->
-					Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
+					Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1, timestamp=util:now()},
 					new_release(Releaseopt),
 					F = fun() ->
 						Select = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= "testopt"]),
@@ -897,7 +899,7 @@ release_opt_test_() ->
 			{
 				"Destroy a release option",
 				fun() ->
-					Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1},
+					Releaseopt = #release_opt{label = "testopt", id = 500, bias = 1, timestamp=util:now()},
 					new_release(Releaseopt),
 					destroy_release("testopt"),
 					F = fun() ->
@@ -910,8 +912,8 @@ release_opt_test_() ->
 			{
 				"Update a release option",
 				fun() ->
-					Oldopt = #release_opt{label = "oldopt", id = 500, bias = 1},
-					Newopt = #release_opt{label = "newopt", id = 500, bias = 1},
+					Oldopt = #release_opt{label = "oldopt", id = 500, bias = 1, timestamp=util:now()},
+					Newopt = #release_opt{label = "newopt", id = 500, bias = 1, timestamp=util:now()},
 					new_release(Oldopt),
 					update_release("oldopt", Newopt),
 					Getold = fun() ->
@@ -929,9 +931,9 @@ release_opt_test_() ->
 			{
 				"Get all release options",
 				fun() ->
-					Aopt = #release_opt{label = "aoption", id = 300, bias = 1},
-					Bopt = #release_opt{label = "boption", id = 200, bias = 1},
-					Copt = #release_opt{label = "coption", id = 100, bias = -1},
+					Aopt = #release_opt{label = "aoption", id = 300, bias = 1, timestamp=util:now()},
+					Bopt = #release_opt{label = "boption", id = 200, bias = 1, timestamp=util:now()},
+					Copt = #release_opt{label = "coption", id = 100, bias = -1, timestamp=util:now()},
 					new_release(Copt),
 					new_release(Bopt),
 					new_release(Aopt),
@@ -965,7 +967,7 @@ profile_test_() ->
 					end,
 					?assertEqual({atomic, []}, mnesia:transaction(F)),
 					?assertEqual({atomic, ok}, new_profile("test profile", [testskill])),
-					Test = #agent_profile{name = "test profile", skills = [testskill]},
+					Test = #agent_profile{name = "test profile", skills = [testskill], timestamp = util:now()},
 					?assertEqual({atomic, [Test]}, mnesia:transaction(F))
 				end
 			},
@@ -986,7 +988,7 @@ profile_test_() ->
 						qlc:e(QH)
 					end,
 					new_profile("test profile", [english]),
-					?assertEqual({atomic, [#agent_profile{name = "test profile", skills=[english]}]}, mnesia:transaction(F)),
+					?assertEqual({atomic, [#agent_profile{name = "test profile", skills=[english], timestamp = util:now()}]}, mnesia:transaction(F)),
 					?assertEqual({atomic, ok}, destroy_profile("test profile")),
 					?assertEqual({atomic, []}, mnesia:transaction(F))
 				end

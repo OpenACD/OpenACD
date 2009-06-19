@@ -185,13 +185,13 @@ init([_Nodes]) ->
 %% by other modules rather than call it directly from a shell.
 -spec(add_conf/5 :: (Id :: atom(), Mod :: atom(), Start :: atom(), Args :: [any()], Super :: supervisor_name()) -> {'atomic', 'ok'}).
 add_conf(Id, Mod, Start, Args, Super) -> 
-	Rec = #cpx_conf{id = Id, module_name = Mod, start_function = Start, start_args = Args, supervisor = Super},
+	Rec = #cpx_conf{id = Id, module_name = Mod, start_function = Start, start_args = Args, supervisor = Super, timestamp = 1},
 	add_conf(Rec).
 
 -spec(add_conf/1 :: (Rec :: #cpx_conf{}) -> {'atomic', 'ok'}).
 add_conf(Rec) ->
 	F = fun() -> 
-		mnesia:write(Rec),
+		mnesia:write(Rec#cpx_conf{timestamp = util:now()}),
 		start_spec(Rec)
 	end,
 	mnesia:transaction(F).
@@ -222,9 +222,9 @@ build_tables() ->
 		Result when Result =:= {atomic, ok}; Result =:= copied -> 
 			% create some default info so the system is at least a bit usable.
 			F = fun() -> 
-				mnesia:write(#cpx_conf{id = agent_auth, module_name = agent_auth, start_function = start, start_args = [], supervisor=agent_connection_sup}),
-				mnesia:write(#cpx_conf{id = agent_tcp_listener, module_name = agent_tcp_listener, start_function = start, start_args = [1337], supervisor=agent_connection_sup}),
-				mnesia:write(#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start, start_args = [], supervisor = management_sup})
+				mnesia:write(#cpx_conf{id = agent_auth, module_name = agent_auth, start_function = start, start_args = [], supervisor=agent_connection_sup, timestamp = util:now()}),
+				mnesia:write(#cpx_conf{id = agent_tcp_listener, module_name = agent_tcp_listener, start_function = start, start_args = [1337], supervisor=agent_connection_sup, timestamp = util:now()}),
+				mnesia:write(#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start, start_args = [], supervisor = management_sup, timestamp = util:now()})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 
@@ -262,7 +262,7 @@ update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	F = fun() ->
 		destroy(Id),
 		start_spec(Conf),
-		mnesia:write(Conf)
+		mnesia:write(Conf#cpx_conf{timestamp = util:now()})
 	end,
 	mnesia:transaction(F).
 
@@ -345,21 +345,21 @@ config_test_() ->
 			{
 				"Adding a Valid Config gets it to start",
 				fun() -> 
-					Valid = #cpx_conf{id = dummy_media_manager, module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup},
+					Valid = #cpx_conf{id = dummy_media_manager, module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup, timestamp=1},
 					add_conf(dummy_media_manager, dummy_media_manager, start_link, ["dummy_arg"], management_sup),
 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_media_manager]),
 					F = fun() -> 
 						qlc:e(QH)
 					end,
 					?CONSOLE("~p", [mnesia:transaction(F)]),
-					?assertEqual({atomic, [Valid]}, mnesia:transaction(F)),
+					?assertMatch({atomic, [#cpx_conf{}]}, mnesia:transaction(F)),
 					?assert(is_pid(whereis(dummy_media_manager)))
 				end
 			},
 			{
 				"Destroy a Config by full spec, ensure it also kills what was running.",
 				fun() -> 
-					Spec = #cpx_conf{id = dummy_id, module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup},
+					Spec = #cpx_conf{id = dummy_id, module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup, timestamp = util:now()},
 					try add_conf(dummy_id, dummy_media_manager, start_link, ["dummy_arg"], management_sup)
 					catch
 						_:_ -> ok
@@ -404,7 +404,8 @@ config_test_() ->
 						module_name = dummy_media_manager,
 						start_function = start_link,
 						start_args = ["new_arg"],
-						supervisor = management_sup
+						supervisor = management_sup,
+						timestamp = util:now()
 					},
 					update_conf(dummy_media_manager, Newrec),
 					Newpid = whereis(dummy_media_manager),
@@ -421,7 +422,7 @@ config_test_() ->
 			{
 				"Build a Spec from Record",
 				fun() -> 
-					Record = #cpx_conf{id = dummy_id, module_name = dummy_mod, start_function = start, start_args = []},
+					Record = #cpx_conf{id = dummy_id, module_name = dummy_mod, start_function = start, start_args = [], timestamp = util:now()},
 					?assertMatch({dummy_id, {dummy_mod, start, []}, permanent, 20000, worker, [?MODULE]}, build_spec(Record))
 				end
 			}

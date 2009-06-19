@@ -59,7 +59,7 @@
 		{disc_copies, Nodes}
 	]
 ).
--define(DEFAULT_QUEUE_GROUP, #queue_group{name = "Default", sort = 0, protected = true}).
+-define(DEFAULT_QUEUE_GROUP, #queue_group{name = "Default", sort = 0, protected = true, timestamp = 1}).
 
 -include("log.hrl").
 -include("queue.hrl").
@@ -130,7 +130,7 @@ build_tables(_Nodes) ->
 	case A of
 		{atomic, ok} -> 
 			% since the table didn't already exist, build up the default queue
-			new_queue(#call_queue{name = "default_queue"}),
+			new_queue(#call_queue{name = "default_queue", timestamp = util:now()}),
 			ok;
 		_Else -> 
 			ok
@@ -140,13 +140,13 @@ build_tables(_Nodes) ->
 		{atomic, ok} ->
 			% since the table didn't already exist, build up some default skills
 			F = fun() -> 
-				mnesia:write(#skill_rec{name="English", atom=english, description="English", group = "Language"}),
-				mnesia:write(#skill_rec{name="German", atom=german, description="German", group = "Language"}),
-				mnesia:write(#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name.", group = "Magic", protected = true}),
-				mnesia:write(#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier.", group = "Magic", protected = true}),
-				mnesia:write(#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name", group = "Magic", protected = true}),
-				mnesia:write(#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills.", group = "Magic", protected = true}),
-				mnesia:write(#skill_rec{name="Brand", atom='_brand', description="Magic skill to expand to a client's label (brand)", group="Magic", protected=true})
+				mnesia:write(#skill_rec{name="English", atom=english, description="English", group = "Language", timestamp = util:now()}),
+				mnesia:write(#skill_rec{name="German", atom=german, description="German", group = "Language", timestamp = util:now()}),
+				mnesia:write(#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name.", group = "Magic", protected = true, timestamp = util:now()}),
+				mnesia:write(#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier.", group = "Magic", protected = true, timestamp = util:now()}),
+				mnesia:write(#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name", group = "Magic", protected = true, timestamp = util:now()}),
+				mnesia:write(#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills.", group = "Magic", protected = true, timestamp = util:now()}),
+				mnesia:write(#skill_rec{name="Brand", atom='_brand', description="Magic skill to expand to a client's label (brand)", group="Magic", protected=true, timestamp = util:now()})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 
@@ -161,7 +161,7 @@ build_tables(_Nodes) ->
 	case C of
 		{atomic, ok} ->
 			Addc = fun() ->
-				mnesia:write(#client{label = "Demo Client", tenant = 99, brand = 99})
+				mnesia:write(#client{label = "Demo Client", tenant = 99, brand = 99, timestamp = util:now()})
 			end,
 			mnesia:transaction(Addc);
 		_Orelse ->
@@ -241,7 +241,7 @@ get_queues() ->
 -spec(new_queue/1 :: (QueueName :: #call_queue{} ) -> {'aborted', any()} | {'atomic', #call_queue{}}).
 new_queue(Queue) when is_record(Queue, call_queue) ->
 	F = fun() ->
-		mnesia:write(Queue)
+		mnesia:write(Queue#call_queue{timestamp = util:now()})
 	end,
 	Trans = mnesia:transaction(F),
 	case whereis(queue_manager) of
@@ -264,7 +264,8 @@ new_queue(Name, Weight, Skills, Recipe, Group) when Weight > 0, is_integer(Weigh
 		weight = Weight,
 		skills = Skills,
 		recipe = Recipe,
-		group = Group},
+		group = Group,
+		timestamp = 1},
 	new_queue(Rec).
 
 %% @doc Sets the queue name `Queue' to the passed `#call_queue{}'.
@@ -274,7 +275,7 @@ set_queue(Queue, Rec) ->
 		case mnesia:read({call_queue, Queue}) of
 			[_OldRec] ->
 				mnesia:delete({call_queue, Queue}),
-				mnesia:write(Rec)
+				mnesia:write(Rec#call_queue{timestamp = util:now()})
 		end
 	end,
 	mnesia:transaction(F).
@@ -287,14 +288,14 @@ set_queue(Queue, Rec) ->
 -spec(new_queue_group/1 :: (Rec :: #queue_group{}) -> {'atomic', 'ok'}).
 new_queue_group(Rec) when is_record(Rec, queue_group) ->
 	F = fun() ->
-		mnesia:write(Rec)
+		mnesia:write(Rec#queue_group{timestamp = util:now()})
 	end,
 	mnesia:transaction(F).
 
 %% @doc Add a new group with name, sort order and recipe
 -spec(new_queue_group/3 :: (Name :: string(), Sort :: non_neg_integer(), Recipe :: recipe()) -> {'atomic', 'ok'}).
 new_queue_group(Name, Sort, Recipe) when is_integer(Sort) ->
-	Qgroup = #queue_group{name = Name, sort = Sort, recipe = Recipe},
+	Qgroup = #queue_group{name = Name, sort = Sort, recipe = Recipe, timestamp=1},
 	new_queue_group(Qgroup).
 
 %% @doc get a `#queue_group{}' named `Name'
@@ -329,13 +330,13 @@ set_queue_group(Oldname, Rec) when is_record(Rec, queue_group) ->
 			[#queue_group{protected = Prot}] ->
 				Newrec = Rec#queue_group{protected = Prot},
 				mnesia:delete({queue_group, Oldname}),
-				mnesia:write(Newrec),
+				mnesia:write(Newrec#queue_group{timestamp = util:now()}),
 				QH = qlc:q([Queue || Queue <- mnesia:table(call_queue), Queue#call_queue.group =:= Oldname]),
 				Queues = qlc:e(QH),
 				Regroupqs = fun(Queue) ->
 					Newqrec = Queue#call_queue{group = Rec#queue_group.name},
 					mnesia:delete({call_queue, Queue#call_queue.name}),
-					mnesia:write(Newqrec)
+					mnesia:write(Newqrec#call_queue{timestamp = util:now()})
 				end,
 				lists:map(Regroupqs, Queues),
 				ok
@@ -346,7 +347,7 @@ set_queue_group(Oldname, Rec) when is_record(Rec, queue_group) ->
 %% @doc Set the Name, Sort, and recipe of the `#queue_group{}' named `Oldname' to `Newname', `Newsort', and `Newrecipe'.
 -spec(set_queue_group/4 :: (Oldname :: string(), Newname :: string(), Newsort :: non_neg_integer(), Newrecipe :: recipe()) -> {'atomic', 'ok'}).
 set_queue_group(Oldname, Newname, Newsort, Newrecipe) when is_integer(Newsort) ->
-	Rec = #queue_group{name = Newname, sort = Newsort, recipe = Newrecipe},
+	Rec = #queue_group{name = Newname, sort = Newsort, recipe = Newrecipe, timestamp=util:now()},
 	set_queue_group(Oldname, Rec).
 
 %% @doc remove the queue_group named `Groupname' from the database.
@@ -374,14 +375,14 @@ destroy_queue_group(Groupname) ->
 %% @see new_skill
 -spec(new_skill/4 :: (Skillatom :: atom(), Skillname :: string(), Skilldesc :: string(), Group :: string()) -> {'atomic', 'ok'}).
 new_skill(Skillatom, Skillname, Skilldesc, Group) when is_atom(Skillatom), is_list(Group) ->
-	Rec = #skill_rec{atom = Skillatom, name = Skillname, description = Skilldesc, group = Group},
+	Rec = #skill_rec{atom = Skillatom, name = Skillname, description = Skilldesc, group = Group, timestamp = 1},
 	new_skill(Rec).
 
 %% @doc Add `#skill_rec{}' `Rec' to the configuration database.
 -spec(new_skill/1 :: (Rec :: #skill_rec{}) -> {'atomic', 'ok'}).
 new_skill(Rec) when is_record(Rec, skill_rec) ->
 	F = fun() -> 
-		mnesia:write(Rec)
+		mnesia:write(Rec#skill_rec{timestamp = util:now()})
 	end,
 	mnesia:transaction(F).
 	
@@ -434,7 +435,7 @@ set_skill(Oldskill, Newrec) when is_atom(Oldskill), is_record(Newrec, skill_rec)
 			[] ->
 				undefined;
 			[_Oldrec] ->
-				Forwrite = Newrec#skill_rec{atom = Oldskill},
+				Forwrite = Newrec#skill_rec{atom = Oldskill, timestamp = util:now()},
 				mnesia:delete({skill_rec, Oldskill}),
 				mnesia:write(Forwrite),
 				ok
@@ -503,7 +504,7 @@ rename_skill_group(Oldgroup, Newgroup) when is_list(Newgroup) ->
 				Update = fun(Oldskill) ->
 					Newskill = Oldskill#skill_rec{group = Newgroup},
 					mnesia:delete({skill_rec, Oldskill#skill_rec.atom}),
-					mnesia:write(Newskill)
+					mnesia:write(Newskill#skill_rec{timestamp = util:now()})
 				end,
 				lists:map(Update, Skills),
 				ok
@@ -522,14 +523,14 @@ rename_skill_group(Oldgroup, Newgroup) when is_list(Newgroup) ->
 %% @see new_client/1
 -spec(new_client/3 :: (Label :: string(), Tenantid :: pos_integer(), Brandid :: pos_integer()) -> {'atomic', 'ok'}).
 new_client(Label, Tenantid, Brandid) when is_integer(Tenantid), is_integer(Brandid) ->
-	Rec = #client{label = Label, tenant = Tenantid, brand = Brandid},
+	Rec = #client{label = Label, tenant = Tenantid, brand = Brandid, timestamp = 0},
 	new_client(Rec).
 
 -spec(new_client/1 :: (Rec :: #client{}) -> {'atomic', 'ok'}).
 %% @doc Add a new client based on `#client{}' `Rec'.
 new_client(Rec) when is_record(Rec, client) ->
 	F = fun() ->
-		mnesia:write(Rec)
+		mnesia:write(Rec#client{timestamp = util:now()})
 	end,
 	mnesia:transaction(F).
 
@@ -537,7 +538,7 @@ new_client(Rec) when is_record(Rec, client) ->
 %% @see set_client/2
 -spec(set_client/4 :: (Label :: string(), Newlabel :: string(), Tenantid :: pos_integer(), Brandid :: pos_integer()) -> {'atomic', 'ok'}).
 set_client(Label, Newlabel, Tenantid, Brandid) when is_integer(Tenantid), is_integer(Brandid) ->
-	Client = #client{label = Newlabel, tenant = Tenantid, brand = Brandid},
+	Client = #client{label = Newlabel, tenant = Tenantid, brand = Brandid, timestamp = 1},
 	set_client(Label, Client).
 
 %% @doc Update the client `string()' `Label' to the `#client{}' `Client'.
@@ -545,7 +546,7 @@ set_client(Label, Newlabel, Tenantid, Brandid) when is_integer(Tenantid), is_int
 set_client(Label, Client) when is_record(Client, client) ->
 	F = fun() ->
 		mnesia:delete({client, Label}),
-		mnesia:write(Client)
+		mnesia:write(Client#client{timestamp = util:now()})
 	end,
 	mnesia:transaction(F).
 
@@ -595,7 +596,7 @@ test_queue() ->
 	Recipe = [{2, add_skills, [true], run_once}],
 	new_queue("test queue", 3, [testskill], Recipe, "Default"),
 	%Default = #call_queue{name = "goober"},
-	#call_queue{name = "test queue", weight = 3, skills = [testskill], recipe = Recipe, group = "Default"}.
+	#call_queue{name = "test queue", weight = 3, skills = [testskill], recipe = Recipe, group = "Default", timestamp = util:now()}.
 	
 call_queue_test_() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
@@ -633,7 +634,8 @@ call_queue_test_() ->
 						name = "test queue",
 						weight = 3,
 						recipe = [],
-						skills = []},
+						skills = [], 
+						timestamp = util:now()},
 					?CONSOLE("trans:  ~p", [mnesia:transaction(F)]),
 					?CONSOLE("rec:  ~p", [Q]),
 					?assertEqual({atomic, [Q]}, mnesia:transaction(F))
@@ -650,7 +652,7 @@ call_queue_test_() ->
 			{
 				"New Queue with Skills",
 				fun() ->
-					TestQueue = #call_queue{skills = [testskill], name = "test queue", weight = 1, recipe = []},
+					TestQueue = #call_queue{skills = [testskill], name = "test queue", weight = 1, recipe = [], timestamp = util:now()},
 					?assertEqual({atomic, ok}, new_queue("test queue", 1, [testskill], [], "Default")),
 					F = fun() ->
 						mnesia:read({call_queue, "test queue"})
@@ -664,7 +666,7 @@ call_queue_test_() ->
 				"New Queue with Recipe",
 				fun() -> 
 					Recipe = [{[{ticks, 2}], add_skills, [true], run_once}],
-					Queue = #call_queue{name="test queue", recipe=Recipe, skills = []},
+					Queue = #call_queue{name="test queue", recipe=Recipe, skills = [], timestamp = util:now()},
 					?assertEqual({atomic, ok}, new_queue("test queue", 1, [], Recipe, "Default")),
 					F = fun() ->
 						mnesia:read({call_queue, "test queue"})
@@ -678,7 +680,7 @@ call_queue_test_() ->
 				"New Queue with active Queue Manager",
 				fun() ->
 					queue_manager:start([node()]),
-					_Queue = new_queue(#call_queue{name = "test queue"}),
+					_Queue = new_queue(#call_queue{name = "test queue", timestamp = util:now()}),
 					?assertMatch(true, queue_manager:query_queue("test queue")),
 					queue_manager:stop()
 				end
@@ -692,7 +694,8 @@ call_queue_test_() ->
 						name = "new name",
 						skills = [],
 						recipe = [],
-						group = "New Group"
+						group = "New Group", 
+						timestamp = util:now()
 					},
 					set_queue("test queue", Newqueue),
 					?assertEqual(noexists, get_queue("test queue")),
@@ -717,7 +720,7 @@ call_queue_test_() ->
 				"Get All",
 				fun() -> 
 					Queue = test_queue(),
-					Queue2 = Queue#call_queue{name="test queue 2"},
+					Queue2 = Queue#call_queue{name="test queue 2", timestamp = util:now()},
 					new_queue(Queue),
 					new_queue(Queue2),
 					?assertEqual([Queue, Queue2], get_queues()),
@@ -729,7 +732,7 @@ call_queue_test_() ->
 				"Get One Queue",
 				fun() -> 
 					Queue = test_queue(),
-					Queue2 = Queue#call_queue{name="test queue 2"},
+					Queue2 = Queue#call_queue{name="test queue 2", timestamp = util:now()},
 					new_queue(Queue),
 					new_queue(Queue2),
 					?assertEqual(Queue, get_queue(Queue#call_queue.name)),
@@ -769,7 +772,7 @@ queue_group_test_() ->
 			{
 				"New call group by record",
 				fun() ->
-					Qgroup = #queue_group{name = "test group"},
+					Qgroup = #queue_group{name = "test group", timestamp = util:now()},
 					new_queue_group(Qgroup),
 					F = fun() ->
 						mnesia:read({queue_group, "test group"})
@@ -781,7 +784,7 @@ queue_group_test_() ->
 				"New call group explicit",
 				fun() ->
 					Recipe = [{[{ticks, 3}], prioritize, [], run_once}],
-					Qgroup = #queue_group{name = "test group", sort = 15, recipe = Recipe},
+					Qgroup = #queue_group{name = "test group", sort = 15, recipe = Recipe, timestamp = util:now()},
 					new_queue_group("test group", 15, Recipe),
 					F = fun() ->
 						mnesia:read({queue_group, "test group"})
@@ -792,7 +795,7 @@ queue_group_test_() ->
 			{
 				"destroy unprotected call group",
 				fun() ->
-					Qgroup = #queue_group{name = "test group"},
+					Qgroup = #queue_group{name = "test group", timestamp = util:now()},
 					new_queue_group(Qgroup),
 					F = fun() ->
 						mnesia:read({queue_group, "test group"})
@@ -809,25 +812,31 @@ queue_group_test_() ->
 					F = fun() ->
 						mnesia:read({queue_group, "Default"})
 					end,
-					?assertEqual({atomic, [?DEFAULT_QUEUE_GROUP]}, mnesia:transaction(F))
+					{atomic, [Res]} = mnesia:transaction(F),
+					?assertEqual("Default", Res#queue_group.name)
 				end
 			},
 			{
 				"get a call group",
 				fun() ->
-					?assertEqual({atomic, [?DEFAULT_QUEUE_GROUP]}, get_queue_group("Default"))
+					Default = ?DEFAULT_QUEUE_GROUP,
+					{atomic, [Res]} = get_queue_group("Default"),
+					?assertEqual(Default#queue_group.name, Res#queue_group.name),
+					?assertEqual(Default#queue_group.sort, Res#queue_group.sort),
+					?assertEqual(Default#queue_group.recipe, Res#queue_group.recipe),
+					?assertEqual(Default#queue_group.protected, Res#queue_group.protected)
 				end
 			},
 			{
 				"get all call groups (order matters)",
 				fun() ->
-					Sort10 = #queue_group{name = "Added 1st", sort = 10},
-					Sort5 = #queue_group{name = "Added 2nd", sort = 5},
-					Sort7 = #queue_group{name = "Added 3rd", sort = 7},
+					Sort10 = #queue_group{name = "Added 1st", sort = 10, timestamp = util:now()},
+					Sort5 = #queue_group{name = "Added 2nd", sort = 5, timestamp = util:now()},
+					Sort7 = #queue_group{name = "Added 3rd", sort = 7, timestamp = util:now()},
 					new_queue_group(Sort10),
 					new_queue_group(Sort5),
 					new_queue_group(Sort7),
-					Test = [#queue_group{name = "Default", sort = 0, protected = true}, Sort5, Sort7, Sort10],
+					Test = [#queue_group{name = "Default", sort = 0, protected = true, timestamp = util:now()}, Sort5, Sort7, Sort10],
 					Gotten = get_queue_groups(),
 					?assertEqual(Test, Gotten)
 				end
@@ -836,9 +845,9 @@ queue_group_test_() ->
 				"update a protected call group by record",
 				fun() ->
 					Recipe = [{[{ticks, 3}], prioritize, [], run_once}],
-					Updateto = #queue_group{name = "newname", sort = 5, protected = false, recipe = Recipe},
+					Updateto = #queue_group{name = "newname", sort = 5, protected = false, recipe = Recipe, timestamp = util:now()},
 					Default = ?DEFAULT_QUEUE_GROUP,
-					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
+					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe, timestamp = util:now()},
 					Setres = set_queue_group(Default#queue_group.name, Updateto),
 					?CONSOLE("res:  ~p", [Setres]),
 					?assertEqual({atomic, ok}, Setres),
@@ -850,7 +859,7 @@ queue_group_test_() ->
 				fun() ->
 					Recipe = [{[{ticks, 3}], prioritize, [], run_once}],
 					Default = ?DEFAULT_QUEUE_GROUP,
-					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
+					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe, timestamp = util:now()},
 					set_queue_group(Default#queue_group.name, "newname", 5, Recipe),
 					?assertEqual({atomic, [Test]}, get_queue_group("newname"))
 				end
@@ -873,7 +882,17 @@ skill_rec_test_() ->
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
 			mnesia:start(),
-			build_tables()
+			build_tables(),
+			Test = fun(_F, [], []) ->
+					ok;
+				(F, [H1 | T1], [H2 | T2]) ->
+					?assertEqual(H1#skill_rec.name, H2#skill_rec.name),
+					?assertEqual(H1#skill_rec.atom, H2#skill_rec.atom),
+					?assertEqual(H1#skill_rec.description, H2#skill_rec.description),
+					?assertEqual(H1#skill_rec.group, H2#skill_rec.group),
+					F(F, T1, T2)
+			end,
+			Test
 		end,
 		fun(_Whatever) -> 
 			mnesia:stop(),
@@ -895,58 +914,70 @@ skill_rec_test_() ->
 					?assertMatch(undefined, Skillrec)
 				end
 			},
-			{
-				"Set a skill by record",
-				fun() ->
-					Skillrec = #skill_rec{name = "testskill", atom = testskill, description = "test skill", group = "Misc", protected = false},
-					new_skill(Skillrec),
-					F = fun() ->
-						QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.atom =:= testskill]),
-						qlc:e(QH)
-					end,
-					?assertEqual({atomic, [Skillrec]}, mnesia:transaction(F))
-				end
-			},
-			{
-				"Set a skill explicit",
-				fun() ->
-					Skillrec = #skill_rec{name = "testskill", atom = testskill, description = "test skill", group = "Misc", protected = false},
-					new_skill(testskill, "testskill", "test skill", "Misc"),
-					F = fun() ->
-						QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.atom =:= testskill]),
-						qlc:e(QH)
-					end,
-					?assertEqual({atomic, [Skillrec]}, mnesia:transaction(F))
-				end
-			},
-			{
-				"get all skills",
-				fun() ->
-					Skills = [
-						#skill_rec{name="English", atom=english, description="English", group = "Language"},
-						#skill_rec{name="German", atom=german, description="German", group = "Language"},
-						#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name", group = "Magic", protected = true},
-						#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier.", group = "Magic", protected = true},
-						#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name.", group = "Magic", protected = true},
-						#skill_rec{name="Brand", atom='_brand', description="Magic skill to expand to a client's label (brand)", group="Magic", protected=true},
-						#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills.", group = "Magic", protected = true}
-					],
-					Gotten = get_skills(),
-					lists:foreach(fun(X) -> ?debugFmt("~p", [X]) end, Gotten),
-					?assertEqual(lists:sort(Skills), lists:sort(Gotten))
-				end
-			},
-			{
-				"get all skills in a group",
-				fun() ->
-					Skills = [
-						#skill_rec{name="English", atom=english, description="English", group = "Language"},
-						#skill_rec{name="German", atom=german, description="German", group = "Language"}
-					],
-					Gotten = get_skills("Language"),
-					?assertEqual(Skills, Gotten)
-				end
-			},
+			fun(Test) -> 
+				{
+					"Set a skill by record",
+					fun() ->
+						Skillrec = #skill_rec{name = "testskill", atom = testskill, description = "test skill", group = "Misc", protected = false, timestamp = util:now()},
+						new_skill(Skillrec),
+						F = fun() ->
+							QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.atom =:= testskill]),
+							qlc:e(QH)
+						end,
+						{atomic, [Res]} = mnesia:transaction(F),
+						Test(Test, [Skillrec], [Res])
+					end
+				}
+			end,
+			fun(Test) ->
+				{
+					"Set a skill explicit",
+					fun() ->
+						Skillrec = #skill_rec{name = "testskill", atom = testskill, description = "test skill", group = "Misc", protected = false, timestamp = util:now()},
+						new_skill(testskill, "testskill", "test skill", "Misc"),
+						F = fun() ->
+							QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.atom =:= testskill]),
+							qlc:e(QH)
+						end,
+						{atomic, [Res]} = mnesia:transaction(F),
+						Test(Test, [Skillrec], [Res])
+					end
+				}
+			end,
+			fun(Testfun) ->
+				{
+					"get all skills",
+					fun() ->
+						Skills = lists:sort([
+							#skill_rec{name="English", atom=english, description="English", group = "Language", timestamp = util:now()},
+							#skill_rec{name="German", atom=german, description="German", group = "Language", timestamp = util:now()},
+							#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name", group = "Magic", protected = true, timestamp = util:now()},
+							#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier.", group = "Magic", protected = true, timestamp = util:now()},
+							#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name.", group = "Magic", protected = true, timestamp = util:now()},
+							#skill_rec{name="Brand", atom='_brand', description="Magic skill to expand to a client's label (brand)", group="Magic", protected=true, timestamp = util:now()},
+							#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills.", group = "Magic", protected = true, timestamp = util:now()}
+						]),
+						Gotten = lists:sort(get_skills()),
+						lists:foreach(fun(X) -> ?debugFmt("~p", [X]) end, Gotten),
+						?assertEqual(length(Skills), length(Gotten)),
+						Testfun(Testfun, Skills, Gotten)
+					end
+				}
+			end,
+			fun(Testfun) ->
+				{
+					"get all skills in a group",
+					fun() ->
+						Skills = lists:sort([
+							#skill_rec{name="English", atom=english, description="English", group = "Language", timestamp = util:now()},
+							#skill_rec{name="German", atom=german, description="German", group = "Language", timestamp = util:now()}
+						]),
+						Gotten = lists:sort(get_skills("Language")),
+						?assertEqual(length(Skills), length(Gotten)),
+						Testfun(Testfun, Skills, Gotten)
+					end
+				}
+			end,
 			{
 				"destroy a non-protected skill",
 				fun() ->
@@ -967,44 +998,50 @@ skill_rec_test_() ->
 					?assertMatch({atomic, [#skill_rec{}]}, mnesia:transaction(F))
 				end
 			},
-			{
-				"change group on skills",
-				fun() ->
-					Skills = [
-						#skill_rec{name="English", atom=english, description="English", group = "Talky"},
-						#skill_rec{name="German", atom=german, description="German", group = "Talky"}
-					],
-					Rgres = rename_skill_group("Language", "Talky"),
-					Gottennew = get_skills("Talky"),
-					Gottenold = get_skills("Language"),
-					?assertEqual({atomic, ok}, Rgres),
-					?assertEqual([], Gottenold),
-					?assertEqual(Skills, Gottennew)
-				end
-			},
+			fun(Test) ->
+				{
+					"change group on skills",
+					fun() ->
+						Skills = [
+							#skill_rec{name="English", atom=english, description="English", group = "Talky", timestamp = util:now()},
+							#skill_rec{name="German", atom=german, description="German", group = "Talky", timestamp = util:now()}
+						],
+						Rgres = rename_skill_group("Language", "Talky"),
+						Gottennew = get_skills("Talky"),
+						Gottenold = get_skills("Language"),
+						?assertEqual({atomic, ok}, Rgres),
+						?assertEqual([], Gottenold),
+						Test(Test, Skills, Gottennew)
+					end
+				}
+			end,
 			{
 				"Change group, but group exists",
 				fun() ->
 					?assertEqual({error, {exists, "Magic"}}, rename_skill_group("Language", "Magic"))
 				end
 			},
-			{
-				"get a single skill",
-				fun() ->
-					Test = #skill_rec{name="English", atom=english, description="English", group = "Language"},
-					?assertEqual(Test, get_skill(english))
-				end
-			},
-			{
-				"update a skill",
-				fun() ->
-					New = #skill_rec{name="Newname", atom=testskill, description="Newdesc", group = "Newgroup"},
-					Result = #skill_rec{name="Newname", atom=english, description="Newdesc", group = "Newgroup"},
-					?assertEqual({atomic, ok}, set_skill(english, New)),
-					?assertEqual(Result, get_skill(english)),
-					?assertEqual(undefined, get_skill(testskill))
-				end
-			}
+			fun(Testfun) ->
+				{
+					"get a single skill",
+					fun() ->
+						Test = #skill_rec{name="English", atom=english, description="English", group = "Language", timestamp = util:now()},
+						Testfun(Testfun, [Test], [get_skill(english)])
+					end
+				}
+			end,
+			fun(Test) ->
+				{
+					"update a skill",
+					fun() ->
+						New = #skill_rec{name="Newname", atom=testskill, description="Newdesc", group = "Newgroup", timestamp = util:now()},
+						Result = #skill_rec{name="Newname", atom=english, description="Newdesc", group = "Newgroup", timestamp = util:now()},
+						?assertEqual({atomic, ok}, set_skill(english, New)),
+						Test(Test, [Result], [get_skill(english)]),
+						?assertEqual(undefined, get_skill(testskill))
+					end
+				}
+			end
 		]
 	}.
 
@@ -1028,7 +1065,7 @@ client_rec_test_() ->
 			{
 				"Create a client by record",
 				fun() ->
-					Client = #client{label = "testclient", tenant = 23, brand = 1},
+					Client = #client{label = "testclient", tenant = 23, brand = 1, timestamp=util:now()},
 					new_client(Client),
 					F = fun() ->
 						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
@@ -1045,7 +1082,7 @@ client_rec_test_() ->
 						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
 						qlc:e(Select)
 					end,
-					?assertEqual({atomic, [#client{label = "testclient", tenant = 23, brand = 1}]}, mnesia:transaction(F))
+					?assertEqual({atomic, [#client{label = "testclient", tenant = 23, brand = 1, timestamp=util:now()}]}, mnesia:transaction(F))
 				end
 			},
 			{
@@ -1074,14 +1111,14 @@ client_rec_test_() ->
 						qlc:e(Select)
 					end,
 					?assertEqual({atomic, []}, mnesia:transaction(Findold)),
-					?assertEqual({atomic, [#client{label = "newname", tenant = 47, brand = 2}]}, mnesia:transaction(Findnew))
+					?assertEqual({atomic, [#client{label = "newname", tenant = 47, brand = 2, timestamp=util:now()}]}, mnesia:transaction(Findnew))
 				end
 			},
 			{
 				"Update a client by record",
 				fun() ->
-					Client1 = #client{label = "Client1", tenant = 23, brand = 1},
-					Client2 = #client{label = "Client2", tenant = 47, brand = 2},
+					Client1 = #client{label = "Client1", tenant = 23, brand = 1, timestamp = util:now()},
+					Client2 = #client{label = "Client2", tenant = 47, brand = 2, timestamp = util:now()},
 					new_client(Client1),
 					set_client("Client1", Client2),
 					Findold = fun() ->
@@ -1099,10 +1136,10 @@ client_rec_test_() ->
 			{
 				"Get a client list",
 				fun() ->
-					Client1 = #client{label = "Client1", tenant = 23, brand = 1},
-					Client2 = #client{label = "Client2", tenant = 47, brand = 2},
-					Client3 = #client{label = "Aclient", tenant = 56, brand = 1},
-					DemoClient = #client{label="Demo Client", tenant=99, brand=99},
+					Client1 = #client{label = "Client1", tenant = 23, brand = 1, timestamp = util:now()},
+					Client2 = #client{label = "Client2", tenant = 47, brand = 2, timestamp = util:now()},
+					Client3 = #client{label = "Aclient", tenant = 56, brand = 1, timestamp = util:now()},
+					DemoClient = #client{label="Demo Client", tenant=99, brand=99, timestamp = util:now()},
 					new_client(Client1),
 					new_client(Client2),
 					new_client(Client3),
@@ -1112,9 +1149,9 @@ client_rec_test_() ->
 			{
 				"Get a single client",
 				fun() ->
-					Client1 = #client{label = "Client1", tenant = 23, brand = 1},
-					Client2 = #client{label = "Client2", tenant = 47, brand = 2},
-					Client3 = #client{label = "Aclient", tenant = 56, brand = 1},
+					Client1 = #client{label = "Client1", tenant = 23, brand = 1, timestamp = util:now()},
+					Client2 = #client{label = "Client2", tenant = 47, brand = 2, timestamp = util:now()},
+					Client3 = #client{label = "Aclient", tenant = 56, brand = 1, timestamp = util:now()},
 					new_client(Client1),
 					new_client(Client2),
 					new_client(Client3),

@@ -121,7 +121,8 @@ startup_test_() ->
 			id = dummy_media_manager, 
 			module_name = dummy_media_manager, 
 			start_function = start_link,
-			start_args = []
+			start_args = [],
+			timestamp = util:now()
 		},
 		Out = start_anon(3, 5, Dummyspec),
 		?CONSOLE("1:~p, ~p", [Out, self()]),
@@ -150,7 +151,8 @@ startup_test_() ->
 			id = dummy_media_manager, 
 			module_name = dummy_media_manager, 
 			start_function = start_link,
-			start_args = []
+			start_args = [],
+			timestamp = util:now()
 		},
 		Out2 = add_with_middleman(testsup, 3, 5, Dummyspec),
 		?assertMatch({ok, _P2}, Out2),
@@ -168,7 +170,8 @@ startup_test_() ->
 			id = dummy_media_manager, 
 			module_name = dummy_media_manager, 
 			start_function = start_link,
-			start_args = []
+			start_args = [],
+			timestamp = util:now()
 		},
 		{ok, _Top} = start_named(3, 5, testsup),
 		_Middle = add_with_middleman(testsup, 3, 5, Dummyspec),

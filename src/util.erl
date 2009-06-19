@@ -59,7 +59,8 @@
 	merge_skill_lists/3,
 	subtract_skill_lists/2,
 	list_index/2,
-	list_index/3]).
+	list_index/3,
+	now/0]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];
@@ -303,7 +304,19 @@ list_index_(Fun, Needle, [Head | Tail], Index) ->
 			Index
 	end.
 
+%% @doc For those times when {Macro, Sec, Micro} is too much, this smooshes
+%% Macro and Sec together.
+-spec(now/0 :: () -> pos_integer()).
+now() ->
+	{Mega, Sec, _} = erlang:now(),
+	Mega * 1000000 + Sec.
+
 -ifdef(EUNIT).
+
+now_test() ->
+	{Mega, Sec, _} = erlang:now(),
+	Res = ?MODULE:now(),
+	?assertEqual(Mega * 1000000 + Sec, Res).
 
 split_test_() ->
 	[{"splitting an empty string",

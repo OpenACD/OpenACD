@@ -71,18 +71,21 @@
 	integrated :: 'undefined' | pos_integer(),
 	profile = "Default" :: string(),
 	firstname = "" :: string(),
-	lastname = "" :: string()
+	lastname = "" :: string(),
+	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
 }).
 
 -record(agent_profile, {
 	name = erlang:error({undefined, name}) :: string(),
-	skills = [] :: [atom()]
+	skills = [] :: [atom()],
+	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
 }).
 
--define(DEFAULT_PROFILE, #agent_profile{name = "Default"}).
+-define(DEFAULT_PROFILE, #agent_profile{name = "Default", timestamp = util:now()}).
 
 -record(release_opt, {
 	label :: string(),
 	id :: pos_integer(),
-	bias = 0 :: -1 | 0 | 1
+	bias = 0 :: -1 | 0 | 1,
+	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
 	}).

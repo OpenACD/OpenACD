@@ -31,7 +31,8 @@
 -record(client, {
 		label :: string(),
 		tenant :: non_neg_integer(),
-		brand :: non_neg_integer()
+		brand :: non_neg_integer(),
+		timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
 }).
 
 -record(call, {
@@ -42,7 +43,7 @@
 		source = erlang:error({undefined, source}) :: pid(),
 		bound = [] :: [pid()],
 		% client record
-		client = #client{label="Unknown", tenant=0, brand=0} :: #client{},
+		client = #client{label="Unknown", tenant=0, brand=0, timestamp = 1} :: #client{},
 		skills = [] :: [atom(), ...],
 		cook :: pid(), % TODO is this ever set?
 		ring_path = outband :: 'inband' | 'outband' | 'any',

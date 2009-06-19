@@ -702,7 +702,8 @@ queue_interaction_test_() ->
 				fun() ->
 					call_queue_config:new_queue(#call_queue{
 						name = "testqueue",
-						recipe = [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]
+						recipe = [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}],
+						timestamp = util:now()
 					}),
 					dummy_media:q(D),
 					%call_queue:add(Pid, whereis(media_dummy)),
@@ -729,7 +730,8 @@ queue_interaction_test_() ->
 				fun() ->
 					call_queue_config:new_queue(#call_queue{
 						name = "testqueue",
-						recipe = [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}]
+						recipe = [{[{ticks, 1}], add_skills, [newskill1, newskill2], run_once}],
+						timestamp = util:now()
 					}),
 					QMPid = whereis(queue_manager),
 					?assertEqual(0, call_queue:call_count(Pid)),

@@ -1172,5 +1172,116 @@ client_rec_test_() ->
 		]
 	}.
 
+timestamp_test_() ->
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	{
+		foreach,
+		fun() -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			mnesia:create_schema([node()]),
+			mnesia:start(),
+			build_tables()
+		end,
+		fun(_Whatever) -> 
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+			ok
+		end,
+		[{"Adding a queue updates timestamp",
+		fun() ->
+			Inrec = #call_queue{name = "test", timestamp = 1},
+			new_queue(Inrec),
+			F = fun() ->
+				QH = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "test"]),
+				qlc:e(QH)
+			end,
+			{atomic, [Rec]} = mnesia:transaction(F),
+			?assertNot(1 =:= Rec#call_queue.timestamp)
+		end},
+		{"Updating a queue updates the timestamp",
+		fun() ->
+			Inrec = #call_queue{name = "test", timestamp = 1},
+			new_queue(Inrec),
+			F = fun() ->
+				QH = qlc:q([X || X <- mnesia:table(call_queue), X#call_queue.name =:= "test"]),
+				qlc:e(QH)
+			end,
+			{atomic, [#call_queue{timestamp = Oldtime}]} = mnesia:transaction(F),
+			timer:sleep(2000),
+			set_queue("test", #call_queue{name = "test", timestamp = 1}),
+			{atomic, [#call_queue{timestamp = Newtime}]} = mnesia:transaction(F),
+			?assert(Oldtime < Newtime)
+		end},
+		{"Adding a queue group updates the timestamp",
+		fun() ->
+			new_queue_group(#queue_group{name = "test", timestamp = 1}),
+			F = fun() ->
+				QH = qlc:q([X || X <- mnesia:table(queue_group), X#queue_group.name =:= "test"]),
+				qlc:e(QH)
+			end,
+			{atomic, [#queue_group{timestamp = T}]} = mnesia:transaction(F),
+			?assert(1 < T)
+		end},
+		{"Updating a queue group updates the timestamp",
+		fun() ->
+			new_queue_group(#queue_group{name = "test", timestamp = 1}),
+			F = fun() ->
+				QH = qlc:q([X || X <- mnesia:table(queue_group), X#queue_group.name =:= "test"]),
+				qlc:e(QH)
+			end,
+			{atomic, [#queue_group{timestamp = Oldt}]} = mnesia:transaction(F),
+			timer:sleep(2000),	
+			set_queue_group("test", #queue_group{name = "test", timestamp = 1}),
+			{atomic, [#queue_group{timestamp = Newt}]} = mnesia:transaction(F),
+			?assert(Oldt < Newt)
+		end},
+		{"Adding a skill updates the timestamp",
+		fun() ->
+			new_skill(#skill_rec{atom = testskill, name = "test", timestamp = 1}),
+			F = fun() ->
+				QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.name =:= "test"]),
+				qlc:e(QH)
+			end,
+			{atomic, [#skill_rec{timestamp = T}]} = mnesia:transaction(F),
+			?assert(1 < T)
+		end},
+		{"Updating a skill updates the timestamp",
+		fun() ->
+			new_skill(#skill_rec{atom = testskill, name = "test", timestamp = 1}),
+			F = fun() ->
+				QH = qlc:q([X || X <- mnesia:table(skill_rec), X#skill_rec.name =:= "test"]),
+				qlc:e(QH)
+			end,
+			{atomic, [#skill_rec{timestamp = Oldt}]} = mnesia:transaction(F),
+			timer:sleep(2000),
+			set_skill(testskill, #skill_rec{atom = testskill, name = "test", timestamp = 1}),
+			{atomic, [#skill_rec{timestamp = Newt}]} = mnesia:transaction(F),
+			?assert(Oldt < Newt)
+		end},
+		{"Adding a client",
+		fun() ->
+			new_client(#client{label = "test", timestamp = 1}),
+			F = fun() ->
+				QH = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "test"]),
+				qlc:e(QH)
+			end,
+			{atomic, [#client{timestamp = T}]} = mnesia:transaction(F),
+			?assert(1 < T)
+		end},
+		{"Updating a client",
+		fun() ->
+			new_client(#client{label = "test", timestamp = 1}),
+			F = fun() ->
+				QH = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "test"]),
+				qlc:e(QH)
+			end,
+			{atomic, [#client{timestamp = Oldt}]} = mnesia:transaction(F),
+			timer:sleep(2000),
+			set_client("test", #client{label = "test", timestamp = 1}),
+			{atomic, [#client{timestamp = Newt}]} = mnesia:transaction(F),
+			?assert(Oldt < Newt)
+		end}]
+	}.
 
 -endif.

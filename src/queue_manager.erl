@@ -236,7 +236,31 @@ handle_DOWN(Node, #state{qdict = Qdict} = State, _Election) ->
 	?INFO("in handle_DOWN",[]),
 	mnesia:set_master_nodes(call_queue, [node()]),
 	mnesia:set_master_nodes(skill_rec, [node()]),
-	Newdict = dict:filter(fun(K,V) -> ?INFO("Trying to remove ~p", [K]), Node =/= node(V) end, Qdict),
+	Fold = fun(Qname, Qpid, {Props, Deads}) ->
+		case node(Qpid) of
+			Node ->
+				{Props, [Qname | Deads]};
+			_Else ->
+				{[{Qname, Qpid} | Props], Deads}
+		end
+	end,
+	{Protodict, Deads} = dict:fold(Fold, {[], []}, Qdict),
+	Newdict = dict:from_list(Protodict),
+	Ressurect = fun(Qname) ->
+		{atomic, [Qrec]} = call_queue_config:get_queue(Qname),
+		add_queue(Qname, [
+			{weight, Qrec#call_queue.weight},
+			{skills, Qrec#call_queue.skills},
+			{recipe, Qrec#call_queue.recipe},
+			{hold_music, Qrec#call_queue.hold_music},
+			{group, Qrec#call_queue.group}
+		])
+	end,
+	Sfun = fun() ->
+		lists:foreach(Ressurect, Deads)
+	end,
+	spawn(Sfun),
+	%Newdict = dict:filter(fun(K,V) -> ?INFO("Trying to remove ~p", [K]), Node =/= node(V) end, Qdict),
 	{ok, State#state{qdict = Newdict}}.
 
 %% @private
@@ -680,6 +704,62 @@ multi_node_test_() ->
 				end
 			}
 		]
+	}.
+
+node_death_test_() ->
+	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
+	{Master, Slave} = get_nodes(),
+	{
+		foreach,
+		fun() ->
+			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
+			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+
+			mnesia:change_config(extra_db_nodes, [Master, Slave]),
+			mnesia:delete_schema([node(), Master, Slave]),
+			mnesia:create_schema([node(), Master, Slave]),
+
+			cover:start([Master, Slave]),
+
+			rpc:call(Master, mnesia, start, []),
+			rpc:call(Slave, mnesia, start, []),
+			mnesia:start(),
+
+			mnesia:change_table_copy_type(schema, Master, disc_copies),
+			mnesia:change_table_copy_type(schema, Slave, disc_copies),
+
+			{ok, _Pid} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
+			{ok, _Pid2} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
+			{}
+		end,
+		fun(_Whatever) ->
+
+			cover:stop([Master, Slave]),
+
+			%rpc:call(Master, mnesia, stop, []),
+			%rpc:call(Slave, mnesia, stop, []),
+			%rpc:call(Master, mnesia, delete_schema, [[Master]]),
+			%rpc:call(Slave, mnesia, delete_schema, [[Slave]]),
+
+			slave:stop(Master),
+			slave:stop(Slave),
+			mnesia:stop(),
+			mnesia:delete_schema([node()]),
+
+			ok
+		end,
+		[fun(_Whatever) ->
+			{"The slave dies, but the queue on that is brought back by master",
+			fun() ->
+				call_queue_config:new_queue(#call_queue{name = "queue2", timestamp = 1}),
+				{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
+				?DEBUG("~p", [rpc:call(Master, ?MODULE, get_queue, ["queue2"])]),
+				?assertEqual(Pid, rpc:call(Master, ?MODULE, get_queue, ["queue2"])),
+				slave:stop(Slave),
+				Newpid = rpc:call(Master, queue_manager, get_queue, ["queue2"]),
+				?assertNot(Pid =:= Newpid)
+			end}
+		end]
 	}.
 
 -endif.

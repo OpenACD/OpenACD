@@ -1148,6 +1148,21 @@ multinode_test_() ->
 					{{Priority, _Time}, _Mediarec} = call_queue:get_call(QPid, Media),
 					?assertEqual(3, Priority)
 				end}
+			end,
+			fun({Master, Slave}) ->
+				{"Cook is on master, queue is on slave, the slave dies, cook re-inserts",
+				fun() ->
+					call_queue_config:new_queue(#call_queue{name = "testqueue", timestamp = 1}),
+					{ok, Qpid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue", []]),
+					{ok, Media} = rpc:call(Master, dummy_media, start, ["testcall"]),
+					call_queue:add(Qpid, Media),
+					slave:stop(Slave),
+					timer:sleep(1000),
+					Newpid = rpc:call(Master, queue_manager, get_queue, ["testqueue"]),
+					?assertNot(undefined =:= Newpid),
+					?assertNot(Qpid =:= Newpid),
+					?assertMatch({{_Priority, _Time}, _Mediarec}, call_queue:get_call(Newpid, Media))
+				end}
 			end
 		]
 	}.

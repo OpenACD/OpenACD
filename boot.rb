@@ -80,7 +80,7 @@ if ! File.exists?($conf + ".config")
 	f.puts "%% If you are comfortable editing erlang application configuration scripts"
 	f.puts "%% there is no harm in editing the file."
 	f.puts "[{cpx, ["
-	f.puts "	{nodes, [#{node}]}"
+	f.puts "	{nodes, ['#{node}']}"
 	f.puts "]}]."
 	f.close
 end

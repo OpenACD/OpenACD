@@ -219,11 +219,7 @@ dojo.requireLocalization("admin", "labels");
 					</p>
 					<p>
 						<label for="agentModuleWebListenEnabled">&nbsp;</label>
-						<input id="agentModuleWebListenEnabled" name="agentModuleWebListenEnabled" dojoType="dijit.form.CheckBox" value="webEnabled" checked>
-							<script type="dojo/connect" event="onChange">
-								dijit.byId('agentModuleWebListen').setAttribute('disabled', !this.checked);
-							</script>
-						</input>
+						<input id="agentModuleWebListenEnabled" name="agentModuleWebListenEnabled" dojoType="dijit.form.CheckBox" value="webEnabled" checked onChange="dijit.byId('agentModuleWebListen').setAttribute('disabled', !this.checked)" />
 						<span id="ENABLEAGENTWEB">ENABLEAGENTWEB
 							<script type="text/javascript">
 								dojo.byId("ENABLEAGENTWEB").innerHTML = dojo.i18n.getLocalization("admin","labels").ENABLEAGENTWEB;

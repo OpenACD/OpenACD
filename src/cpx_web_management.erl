@@ -1238,11 +1238,14 @@ api_test_() ->
 		fun(Cookie) ->
 			{"/agents/modules/set disabling all",
 			fun() ->
+				{atomic, {ok, Atcppid}} = cpx_supervisor:add_conf(agent_web_listener, agent_web_listener, start_link, [5050], agent_connection_sup),
+				?assert(is_pid(Atcppid)),
+				?assert(is_pid(whereis(agent_web_listener))),
 				{200, [], Json} = api({agents, "modules", "update"}, Cookie, []),
 				{struct, Props} = mochijson2:decode(Json),
 				?assertEqual(true, proplists:get_value(<<"success">>, Props)),
-				?assertEqual(undefined, whereis(agent_tcp_listener)),
-				?assertEqual(undefined, whereis(agent_web_listener))
+				?assertEqual(undefined, cpx_supervisor:get_conf(agent_tcp_listener)),
+				?assertEqual(undefined, cpx_supervisor:get_conf(agent_web_listener))
 			end}
 		end,
 		fun(Cookie) ->
@@ -1258,7 +1261,7 @@ api_test_() ->
 			fun() ->
 				{200, [], _Json} = api({agents, "modules", "update"}, Cookie, [{"agentModuleWebListen", "8787"}]),
 				?assert(is_pid(whereis(agent_web_listener))),
-				?assertEqual(undefined, whereis(agent_tcp_listener))
+				?assertEqual(undefined, cpx_supervisor:get_conf(agent_tcp_listener))
 			end}
 		end,
 		fun(Cookie) ->

@@ -557,7 +557,7 @@ safe_loop(#server{mod = Mod, state = State} = Server, Role,
             end;
 
         {heartbeat, _Node} = Msg ->
-             io:format("Got {heartbeat, ~w} - ~w (safe_loop)\n", [_Node, E#election.leadernode]),
+            %% io:format("Got {heartbeat, ~w} - ~w (safe_loop)\n", [_Node, E#election.leadernode]),
             safe_loop(Server,Role,E,Msg);
         {candidate_timer} = Msg ->
             NewE =
@@ -570,7 +570,7 @@ safe_loop(#server{mod = Mod, state = State} = Server, Role,
                     Down ->
                         %% Some of potential master candidate nodes are down - try to wake them up
                         F = fun(N) ->
-                                     io:format("Sending {heartbeat, ~w} to ~w\n", [N, node()]),
+                                    %% io:format("Sending {heartbeat, ~w} to ~w\n", [N, node()]),
                                     {E#election.name, N} ! {heartbeat, node()}
                             end,
                         [F(N) || N <- Down, {ok, up} =/= net_kernel:node_info(N, state)],
@@ -735,7 +735,7 @@ loop(#server{parent = Parent,
                 {heartbeat, _Node} ->
                     case (E#election.leader == self()) of
                         true ->
-                             io:format("Got {heartbeat, ~w} - ~w (loop)\n", [_Node, self]),
+                            %% io:format("Got {heartbeat, ~w} - ~w (loop)\n", [_Node, self]),
                             Candidates = E#election.down -- [lists:nth(1,E#election.candidate_nodes)],
                             lists:foreach(
                               fun(N) ->
@@ -750,7 +750,7 @@ loop(#server{parent = Parent,
                               end,E#election.work_down);
                         %% timer:send_after(E#election.cand_timer_int,{heartbeat})
                         false ->
-                             io:format("Got {heartbeat, ~w} - ~w (loop)\n", [_Node, E#election.leadernode]),
+                            %% io:format("Got {heartbeat, ~w} - ~w (loop)\n", [_Node, E#election.leadernode]),
                             ok
                     end,
                     loop(Server,Role,E,Msg);
@@ -1169,7 +1169,7 @@ mon_nodes(E,Nodes) ->
     foldl(
       fun(ToNode,El) ->
               Pid  = {El#election.name, ToNode},
-               io:format("Sending {heartbeat, ~w} to node ~w\n", [FromNode, ToNode]),
+              %% io:format("Sending {heartbeat, ~w} to node ~w\n", [FromNode, ToNode]),
               Pid ! {heartbeat, FromNode},
               mon_node(El, Pid)
       end,E1,Nodes -- [node()]).

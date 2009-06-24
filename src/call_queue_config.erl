@@ -177,7 +177,7 @@ build_tables(_Nodes) ->
 		_Or3 ->
 			ok
 	end.
-
+	
 %% =====
 %% Call queue
 %% =====
@@ -279,7 +279,39 @@ set_queue(Queue, Rec) ->
 		end
 	end,
 	mnesia:transaction(F).
+
+diff_queues(Left, Right) ->
+	Sort = fun(A, B) ->
+		A#call_queue.name < B#call_queue.name
+	end,
+	Sleft = lists:sort(Sort, Left),
+	Sright = lists:sort(Sort, Right),
+	diff_queues_loop(Sleft, Sright, []).
 	
+diff_queues_loop([], [], Acc) ->
+	lists:reverse(Acc);
+diff_queues_loop([_H | _T] = Left, [], Acc) ->
+	lists:append(lists:reverse(Acc), Left);
+diff_queues_loop([], [_H | _T] = Right, Acc) ->
+	lists:append(lists:reverse(Acc), Right);
+diff_queues_loop([#call_queue{name = Nom} = Lhead | LTail] = Left, [#call_queue{name = Nom} = Rhead | Rtail] = Right, Acc) ->
+	Newacc = case Lhead#call_queue.timestamp < Rhead#call_queue.timestamp of
+		true ->
+			[Rhead | Acc];
+		false ->
+			[Lhead | Acc]
+	end,
+	diff_queues_loop(LTail, Rtail, Newacc);
+diff_queues_loop([#call_queue{name = Lnom} = Lhead | LTail] = Left, [#call_queue{name = Rnom} = Rhead | Rtail] = Right, Acc) ->
+	case Lnom < Rnom of
+		true ->
+			Newacc = [Lhead | Acc],
+			diff_queues_loop(LTail, Right, Newacc);
+		false ->
+			Newacc = [Rhead | Acc],
+			diff_queues_loop(Left, Rtail, Newacc)
+	end.
+		
 %% =====
 %% call queue groups Configs
 %% =====
@@ -365,7 +397,40 @@ destroy_queue_group(Groupname) ->
 		end
 	end,
 	mnesia:transaction(F).
-	
+
+diff_queue_groups(Left, Right) ->
+	Sort = fun(A, B) ->
+		A#queue_group.name < B#queue_group.name
+	end,
+	Sleft = lists:sort(Sort, Left),
+	Sright = lists:sort(Sort, Right),
+	diff_queue_groups_loop(Sleft, Sright, []).
+
+diff_queue_groups_loop([], [], Acc) ->
+	lists:reverse(Acc);
+diff_queue_groups_loop([_H | _T] = Left, [], Acc) ->
+	lists:append(lists:reverse(Acc), Left);
+diff_queue_groups_loop([], [_H | _T] = Right, Acc) ->
+	lists:append(lists:reverse(Acc), Right);
+diff_queue_groups_loop([#queue_group{name = Nom} = Lhead | LTail] = Left, [#queue_group{name = Nom} = Rhead | Rtail] = Right, Acc) ->
+	Newacc = case Lhead#queue_group.timestamp < Rhead#queue_group.timestamp of
+		true ->
+			[Rhead | Acc];
+		false ->
+			[Lhead | Acc]
+	end,
+	diff_queue_groups_loop(LTail, Rtail, Newacc);
+diff_queue_groups_loop([#queue_group{name = Lnom} = Lhead | LTail] = Left, [#queue_group{name = Rnom} = Rhead | Rtail] = Right, Acc) ->
+	case Lnom < Rnom of
+		true ->
+			Newacc = [Lhead | Acc],
+			diff_queue_groups_loop(LTail, Right, Newacc);
+		false ->
+			Newacc = [Rhead | Acc],
+			diff_queue_groups_loop(Left, Rtail, Newacc)
+	end.
+
+
 %% =====
 %% Skill Configs
 %% =====
@@ -514,7 +579,39 @@ rename_skill_group(Oldgroup, Newgroup) when is_list(Newgroup) ->
 			?ERROR("error, target name ~p exists", [Newgroup]),
 			{error, {exists, Newgroup}}
 	end.
-				
+			
+diff_skills(Left, Right) ->
+	Sort = fun(A, B) ->
+		A#skill_rec.name < B#skill_rec.name
+	end,
+	Sleft = lists:sort(Sort, Left),
+	Sright = lists:sort(Sort, Right),
+	diff_skills_loop(Sleft, Sright, []).
+
+diff_skills_loop([], [], Acc) ->
+	lists:reverse(Acc);
+diff_skills_loop([_H | _T] = Left, [], Acc) ->
+	lists:append(lists:reverse(Acc), Left);
+diff_skills_loop([], [_H | _T] = Right, Acc) ->
+	lists:append(lists:reverse(Acc), Right);
+diff_skills_loop([#skill_rec{name = Nom} = Lhead | LTail] = Left, [#skill_rec{name = Nom} = Rhead | Rtail] = Right, Acc) ->
+	Newacc = case Lhead#skill_rec.timestamp < Rhead#skill_rec.timestamp of
+		true ->
+			[Rhead | Acc];
+		false ->
+			[Lhead | Acc]
+	end,
+	diff_skills_loop(LTail, Rtail, Newacc);
+diff_skills_loop([#skill_rec{name = Lnom} = Lhead | LTail] = Left, [#skill_rec{name = Rnom} = Rhead | Rtail] = Right, Acc) ->
+	case Lnom < Rnom of
+		true ->
+			Newacc = [Lhead | Acc],
+			diff_skills_loop(LTail, Right, Newacc);
+		false ->
+			Newacc = [Rhead | Acc],
+			diff_skills_loop(Left, Rtail, Newacc)
+	end.
+
 %% =====
 %% Client configs
 %% =====
@@ -582,6 +679,8 @@ get_clients() ->
 	{atomic, Clients} = mnesia:transaction(F),
 	lists:sort(Clients).
 
+diff_clients(Left, Right) ->
+	[].
 %% =====
 %% Internal / helper functions
 %% =====
@@ -1284,4 +1383,69 @@ timestamp_test_() ->
 		end}]
 	}.
 
+diff_test_() ->
+	[{"diff queues",
+	fun() ->
+		Left = [
+			#call_queue{name = "aname", timestamp = 1},
+			#call_queue{name = "bname", timestamp = 5}
+		],
+		Right = [
+			#call_queue{name = "aname", timestamp = 3},
+			#call_queue{name = "canme", timestamp = 7}
+		],
+		Sort = fun(A, B) ->
+			A#call_queue.name < B#call_queue.name
+		end,
+		Res = lists:sort(Sort, diff_queues(Left, Right)),
+		Expected = [
+			#call_queue{name = "aname", timestamp = 3},
+			#call_queue{name = "bname", timestamp = 5},
+			#call_queue{name = "canme", timestamp = 7}
+		],
+		?assertEqual(Expected, Res)
+	end},
+	{"diff queue groups",
+	fun() ->
+		Left = [
+			#queue_group{name = "aname", timestamp = 1},
+			#queue_group{name = "bname", timestamp = 5}
+		],
+		Right = [
+			#queue_group{name = "aname", timestamp = 3},
+			#queue_group{name = "cname", timestamp = 7}
+		],
+		Sort = fun(A, B) ->
+			A#queue_group.name < B#queue_group.name
+		end,
+		Res = lists:sort(Sort, diff_queue_groups(Left, Right)),
+		Expected = [
+			#queue_group{name = "aname", timestamp = 3},
+			#queue_group{name = "bname", timestamp = 5},
+			#queue_group{name = "cname", timestamp = 7}
+		],
+		?assertEqual(Expected, Res)
+	end},
+	{"diff skills",
+	fun() ->
+		Left = [
+			#skill_rec{name = "aname", timestamp = 1},
+			#skill_rec{name = "bname", timestamp = 5}
+		],
+		Right = [
+			#skill_rec{name = "aname", timestamp = 3},
+			#skill_rec{name = "cname", timestamp = 7}
+		],
+		Sort = fun(A, B) ->
+			A#skill_rec.name < B#skill_rec.name
+		end,
+		Res = lists:sort(Sort, diff_skills(Left, Right)),
+		Expected = [
+			#skill_rec{name = "aname", timestamp = 3},
+			#skill_rec{name = "bname", timestamp = 5},
+			#skill_rec{name = "cname", timestamp = 7}
+		],
+		?assertEqual(Expected, Res)
+	end}].	
+	
 -endif.

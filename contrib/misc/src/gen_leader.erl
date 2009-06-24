@@ -732,6 +732,20 @@ loop(#server{parent = Parent,
                         false ->
                             loop(Server,Role,E,Msg)
                     end;
+				{heartbeat} ->
+					case E#election.down of
+						[] ->
+							%% io:format("Nothing down, no need to send hb\n", []),
+							loop(Server, Role, E, Msg);
+						_ ->
+							lists:foreach(
+										fun(N) ->
+											%% io:format("Sent hb to down ~w\n", [N]),
+											{Name, N} ! {heartbeat, node()}
+										end,E#election.down),
+							timer:send_after(E#election.cand_timer_int, {heartbeat}),
+							loop(Server, Role, E, Msg)
+					end;
                 {heartbeat, _Node} ->
                     case (E#election.leader == self()) of
                         true ->
@@ -747,13 +761,22 @@ loop(#server{parent = Parent,
                               fun(N) ->
                                       Elid = E#election.elid,
                                       {Name,N} ! {workerAlive,Elid,self()}
-                              end,E#election.work_down);
-                        %% timer:send_after(E#election.cand_timer_int,{heartbeat})
+                              end,E#election.work_down),
+							  case lists:member(_Node, E#election.down) of
+								true ->
+									%% io:format("handling potential node recovery ~w\n", [_Node]),
+									NewE = startStage1(E),
+									safe_loop(Server, candidate, NewE,Msg);
+								false ->
+									timer:send_after(E#election.cand_timer_int,{heartbeat}),
+									loop(Server, Role, E, Msg)
+							end;
                         false ->
                             %% io:format("Got {heartbeat, ~w} - ~w (loop)\n", [_Node, E#election.leadernode]),
-                            ok
-                    end,
-                    loop(Server,Role,E,Msg);
+                           % ok
+						   loop(Server, Role, E, Msg)
+                    end;%,
+                   % loop(Server,Role,E,Msg);
                 {candidate_timer} = Msg ->
                     NewE =
                         if E#election.down =:= [] orelse (Role =/= elected andalso E#election.leadernode =/= none) ->
@@ -805,6 +828,7 @@ loop(#server{parent = Parent,
                                             {ok, Synch, NewState1} ->
                                                 {NewState1, broadcast({from_leader,Synch}, E1)}
                                         end,
+									{Name, node()} ! {heartbeat},
                                     loop(Server#server{state=NewState}, Role, NewE, Msg);
                                 false ->
                                     loop(Server, Role, E1,Msg)
@@ -1139,7 +1163,7 @@ continStage2(E) ->
             NewE#election{pendack = Pendack};
         false ->
                                                 % I am the leader
-                                                % io:format("I am the leader (Node ~w) ~n", [node()]),
+                                                 %% io:format("I am the leader (Node ~w) ~n", [node()]),
             E#election{leader = self(),
                        leadernode = node(),
                        status = norm}

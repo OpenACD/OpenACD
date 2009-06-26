@@ -337,10 +337,12 @@ handle_cast(_Msg, State, _Election) ->
 %% @private
 -spec(handle_info/2 :: (Info :: any(), State :: #state{}) -> {'noreply', #state{}}).
 handle_info({mnesia_system_event, {inconsistent_database, _Context, _Node}}, State) ->
+	?WARNING("inconsistant_database event, setting master nodes...", []),
 	mnesia:set_master_nodes(call_queue, [node()]),
 	mnesia:set_master_nodes(skill_rec, [node()]),
 	{noreply, State};
-handle_info({mnesia_system_event, _MEvent}, State) ->
+handle_info({mnesia_system_event, MEvent}, State) ->
+	?INFO("other mnesia syste event:  ~p", [MEvent]),
 	{noreply, State};
 handle_info({'EXIT', Pid, normal}, #state{qdict = Qdict} = State) ->
 	?NOTICE("~p died normally", [Pid]),

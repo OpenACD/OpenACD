@@ -58,6 +58,7 @@
 -export([
 	cache/4,
 	destroy/1,
+	merge/3,
 	add_agent/5,
 	add_agent/1,
 	set_agent/5,
@@ -318,6 +319,59 @@ get_agents(Profile) ->
 		 L1 < L2
 	end,
 	lists:sort(Sort, Agents).
+
+%% @doc Utility function to handle merging data after a net split.  Note this 
+%% will restart mnesia on the node it is called as well as the node passed in.
+%% Since a merge can take a significant amount of time, a process is spawned to
+%% handle the actual calculations.
+-spec(merge/3 :: (Node1 :: atom(), Node2 :: atom(), Time :: pos_integer()) -> 'ok' | {'error', any()}).
+merge(Node1, Node2, Time) ->
+	Getauths = fun() ->
+		AuthQH = qlc:q([Auth || Auth <- mnesia:table(agent_auth), Auth#agent_auth.timestamp >= Time]),
+		qlc:e(AuthQH)
+	end,
+	Getprofs = fun() ->
+		ProfQH = qlc:q([Prof || Prof <- mnesia:table(agent_profile), Prof#agent_profile.timestamp >= Time]),
+		qlc:e(ProfQH)
+	end,
+	Getrels = fun() ->
+		RelQH = qlc:q([Rel || Rel <- mnesia:table(release_opt), Rel#release_opt.timestamp >= Time]),
+		qlc:e(RelQH)
+	end,
+	Write = fun(Rec) ->
+		mnesia:write(Rec)
+	end,
+	Domerge = fun() ->
+		N1auths = rpc:call(Node1, mnesia, transaction, [Getauths]),
+		N2auths = rpc:call(Node2, mnesia, transaction, [Getauths]),
+		N1profs = rpc:call(Node1, mnesia, transaction, [Getprofs]),
+		N2profs = rpc:call(Node2, mnesia, transaction, [Getprofs]),
+		N1rels = rpc:call(Node1, mnesia, transaction, [Getrels]),
+		N2rels = rpc:call(Node2, mnesia, transaction, [Getrels]),
+		Mergedauths = diff_recs(N1auths, N2auths),
+		Mergedprofs = diff_recs(N1profs, N2profs),
+		Mergedrels = diff_recs(N1rels, N2rels),
+		rpc:call(Node1, lists, foreach, [Write, Mergedrels]),
+		rpc:call(Node1, lists, foreach, [Write, Mergedprofs]),
+		rpc:call(Node1, lists, foreach, [Write, Mergedauths]),
+		ok
+	end,
+	Spawnfun = fun() ->
+		case mnesia:transaction(Domerge) of
+			{atomic, ok} ->
+				?INFO("Merge between master ~w and other ~w successful", [Node1, Node2]),
+				rpc:call(Node2, mnesia, stop, []),
+				rpc:call(Node2, mnesia, start, []),
+				ok;
+			{aborted, Error} ->
+				?ERROR("Merge between master ~w and other ~w failed due to ~p", [Node1, Node2, Error]),
+				ok
+		end
+	end,
+	spawn(Spawnfun).
+	
+
+
 
 %%====================================================================
 %% gen_server callbacks
@@ -615,6 +669,65 @@ build_agent_record([{firstname, Name} | Tail], Rec) ->
 	build_agent_record(Tail, Rec#agent_auth{firstname = Name});
 build_agent_record([{lastname, Name} | Tail], Rec) ->
 	build_agent_record(Tail, Rec#agent_auth{lastname = Name}).
+
+diff_recs(Left, Right) ->
+	Sort = fun(A, B) when is_record(A, agent_auth) ->
+			A#agent_auth.login < B#agent_auth.login;
+		(A, B) when is_record(A, release_opt) ->
+			A#release_opt.label < B#release_opt.label;
+		(A, B) when is_record(A, agent_profile) ->
+			A#agent_profile.name < B#agent_profile.name
+	end,
+	Sleft = lists:sort(Sort, Left),
+	Sright = lists:sort(Sort, Right),
+	diff_recs_loop(Sleft, Sright, []).
+
+diff_recs_loop([], [], Acc) ->
+	lists:reverse(Acc);
+diff_recs_loop([_H | _T] = Left, [], Acc) ->
+	lists:append(lists:reverse(Acc), Left);
+diff_recs_loop([], [_H | _T] = Right, Acc) ->
+	lists:append(lists:reverse(Acc), Right);
+diff_recs_loop([Lhead | LTail] = Left, [Rhead | Rtail] = Right, Acc) ->
+	case nom_equal(Lhead, Rhead) of
+		true ->
+			case timestamp_comp(Lhead, Rhead) of
+				false ->
+					diff_recs_loop(LTail, Rtail, [Lhead | Acc]);
+				true ->
+					diff_recs_loop(LTail, Rtail, [Rhead | Acc])
+			end;
+		false ->
+			case nom_comp(Lhead, Rhead) of
+				true ->
+					diff_recs_loop(LTail, Right, [Lhead | Acc]);
+				false ->
+					diff_recs_loop(Left, Rtail, [Rhead | Acc])
+			end
+	end.
+	
+nom_equal(A, B) when is_record(A, agent_auth) ->
+	A#agent_auth.login =:= B#agent_auth.login;
+nom_equal(A, B) when is_record(A, release_opt) ->
+	B#release_opt.label =:= A#release_opt.label;
+nom_equal(A, B) when is_record(A, agent_profile) ->
+	A#agent_profile.name =:= B#agent_profile.name.
+	
+nom_comp(A, B) when is_record(A, agent_auth) ->
+	A#agent_auth.login < B#agent_auth.login;
+nom_comp(A, B) when is_record(A, release_opt) ->
+	A#release_opt.label < B#release_opt.label;
+nom_comp(A, B) when is_record(A, agent_profile) ->
+	A#agent_profile.name < B#agent_profile.name.
+
+timestamp_comp(A, B) when is_record(A, agent_auth) ->
+	A#agent_auth.timestamp < B#agent_auth.timestamp;
+timestamp_comp(A, B) when is_record(B, release_opt) ->
+	A#release_opt.timestamp < B#release_opt.timestamp;
+timestamp_comp(A, B) when is_record(A, agent_profile) ->
+	A#agent_profile.timestamp < B#agent_profile.timestamp.
+
+
 -ifdef(EUNIT).
 
 %%--------------------------------------------------------------------
@@ -1018,6 +1131,64 @@ profile_test_() ->
 		]
 	}.
 	
+diff_recs_test_() ->
+	[{"agent_auth records",
+	fun() ->
+		Left = [
+			#agent_auth{login = "A", timestamp = 1},
+			#agent_auth{login = "B", timestamp = 3},
+			#agent_auth{login = "C", timestamp = 5}
+		],
+		Right = [
+			#agent_auth{login = "A", timestamp = 5},
+			#agent_auth{login = "B", timestamp = 3},
+			#agent_auth{login = "C", timestamp = 1}
+		],
+		Expected = [
+			#agent_auth{login = "A", timestamp = 5},
+			#agent_auth{login = "B", timestamp = 3},
+			#agent_auth{login = "C", timestamp = 5}
+		],
+		?assertEqual(Expected, diff_recs(Left, Right))
+	end},
+	{"release_opts records",
+	fun() ->
+		Left = [
+			#release_opt{label = "A", timestamp = 1},
+			#release_opt{label = "B", timestamp = 3},
+			#release_opt{label = "C", timestamp = 5}
+		],
+		Right = [
+			#release_opt{label = "A", timestamp = 5},
+			#release_opt{label = "B", timestamp = 3},
+			#release_opt{label = "C", timestamp = 1}
+		],
+		Expected = [
+			#release_opt{label = "A", timestamp = 5},
+			#release_opt{label = "B", timestamp = 3},
+			#release_opt{label = "C", timestamp = 5}
+		],
+		?assertEqual(Expected, diff_recs(Left, Right))
+	end},
+	{"agent_prof records",
+	fun() ->
+		Left = [
+			#agent_profile{name = "A", timestamp = 1},
+			#agent_profile{name = "B", timestamp = 3},
+			#agent_profile{name = "C", timestamp = 5}
+		],
+		Right = [
+			#agent_profile{name = "A", timestamp = 5},
+			#agent_profile{name = "B", timestamp = 3},
+			#agent_profile{name = "C", timestamp = 1}
+		],
+		Expected = [
+			#agent_profile{name = "A", timestamp = 5},
+			#agent_profile{name = "B", timestamp = 3},
+			#agent_profile{name = "C", timestamp = 5}
+		],
+		?assertEqual(Expected, diff_recs(Left, Right))
+	end}].
 -define(MYSERVERFUNC, 
 	fun() -> 
 		mnesia:stop(),

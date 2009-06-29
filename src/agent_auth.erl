@@ -342,12 +342,12 @@ merge(Node1, Node2, Time) ->
 		mnesia:write(Rec)
 	end,
 	Domerge = fun() ->
-		N1auths = rpc:call(Node1, mnesia, transaction, [Getauths]),
-		N2auths = rpc:call(Node2, mnesia, transaction, [Getauths]),
-		N1profs = rpc:call(Node1, mnesia, transaction, [Getprofs]),
-		N2profs = rpc:call(Node2, mnesia, transaction, [Getprofs]),
-		N1rels = rpc:call(Node1, mnesia, transaction, [Getrels]),
-		N2rels = rpc:call(Node2, mnesia, transaction, [Getrels]),
+		{atomic, N1auths} = rpc:call(Node1, mnesia, transaction, [Getauths]),
+		{atomic, N2auths} = rpc:call(Node2, mnesia, transaction, [Getauths]),
+		{atomic, N1profs} = rpc:call(Node1, mnesia, transaction, [Getprofs]),
+		{atomic, N2profs} = rpc:call(Node2, mnesia, transaction, [Getprofs]),
+		{atomic, N1rels} = rpc:call(Node1, mnesia, transaction, [Getrels]),
+		{atomic, N2rels} = rpc:call(Node2, mnesia, transaction, [Getrels]),
 		Mergedauths = diff_recs(N1auths, N2auths),
 		Mergedprofs = diff_recs(N1profs, N2profs),
 		Mergedrels = diff_recs(N1rels, N2rels),

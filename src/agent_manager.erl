@@ -48,7 +48,9 @@
 -endif.
 
 -record(state, {
-	agents = dict:new() :: dict()
+	agents = dict:new() :: dict(),
+	automerge = undefined :: 'undefined' | 'true',
+	splitat = [] :: [{atom(), pos_integer()}]
 	}).
 
 -type(state() :: #state{}).
@@ -58,7 +60,9 @@
 % API exports
 -export([
 	start_link/1, 
-	start/1, 
+	start_link/2,
+	start/1,
+	start/2, 
 	stop/0, 
 	start_agent/1, 
 	query_agent/1, 
@@ -91,11 +95,19 @@
 start_link(Nodes) -> 
 	gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, [], []).
 
+-spec(start_link/2 :: (Nodes :: [atom()], Opts :: [any()]) -> {'ok', pid()}).
+start_link(Nodes, Opts) ->
+	gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, Opts, []).
+
 %% @doc Starts the `agent_manager' without linking to the calling process.
 -spec(start/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start(Nodes) -> 
 	gen_leader:start(?MODULE, Nodes, [], ?MODULE, [], []).
-	
+
+-spec(start/2 :: (Nodes :: [atom()], Opts :: [any()]) -> {'ok', pid()}).
+start(Nodes, Opts) ->
+	gen_leader:start(?MODULE, Nodes, [], ?MODULE, Opts, []).
+
 %% @doc stops the `agent_manager'.
 -spec(stop/0 :: () -> {'ok', pid()}).
 stop() -> 
@@ -180,20 +192,30 @@ get_leader() ->
 	
 %% gen_leader callbacks
 %% @hidden
-init([]) ->
+init(Opts) ->
 	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
-	{ok, #state{}}.
+	{ok, #state{automerge = proplists:get_value(automerge, Opts)}}.
 	
 %% @hidden
-elected(State, _Election, _Node) -> 
-	?INFO("elected", []),
-	{ok, ok, State}.
+elected(State, _Election, Node) -> 
+	?INFO("elected by ~w", [Node]),
+	mnesia:subscribe(system),
+	case proplists:get_value(Node, State#state.splitat) of
+		undefined ->
+			{ok, ok, State};
+		Time ->
+			agent_auth:merge(node(), Node, Time),
+			Newsplit = proplists:delete(Node, State#state.splitat),
+			{ok, ok, State#state{splitat = Newsplit}}
+	end.
 	
 %% @hidden
 %% TODO what about an agent started at both places?
 surrendered(#state{agents = Agents} = State, _LeaderState, _Election) -> 
 	?INFO("surrendered", []),
+	mnesia:unsubscribe(system),
+
 	% clean out non-local pids
 	F = fun(_Login, Apid) -> 
 		node() =:= node(Apid)
@@ -333,6 +355,16 @@ handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
 		end
 	end,
 	{noreply, State#state{agents=dict:filter(F, Agents)}};
+handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
+	?WARNING("mnesia down at ~w", [Node]),
+	Newsplit = case proplists:get_value(Node, State#state.splitat) of
+		undefined ->
+			[{Node, util:now()} | State#state.splitat];
+		_Time ->
+			?DEBUG("Was already in listing for down", []),
+			State#state.splitat
+	end,
+	{noreply, State#state{splitat = Newsplit}};
 handle_info(Msg, State) ->
 	?DEBUG("Stub handle_info for ~p", [Msg]),
 	{noreply, State}.

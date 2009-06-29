@@ -198,17 +198,25 @@ init(Opts) ->
 	{ok, #state{automerge = proplists:get_value(automerge, Opts)}}.
 	
 %% @hidden
-elected(State, _Election, Node) -> 
+elected(State, Election, Node) -> 
 	?INFO("elected by ~w", [Node]),
 	mnesia:subscribe(system),
-	case proplists:get_value(Node, State#state.splitat) of
-		undefined ->
-			{ok, ok, State};
-		Time ->
-			agent_auth:merge(node(), Node, Time),
-			Newsplit = proplists:delete(Node, State#state.splitat),
-			{ok, ok, State#state{splitat = Newsplit}}
-	end.
+	Realdown = gen_leader:down(Election),
+	F = fun({N, Time}, {Up, Down}) ->
+		case lists:member(N, Realdown) of
+			true ->
+				{Up, [{N, Time} | Down]};
+			false ->
+				{[{N, Time} | Up], Down}
+		end
+	end,
+	{Merge, Stilldown} = lists:foldl(F, {[], []}, State#state.splitat),
+	Thisnode = node(),
+	MF = fun({N, Time}) ->
+		agent_auth:merge(Thisnode, N, Time)
+	end,
+	lists:foreach(MF, Merge),
+	{ok, ok, State#state{splitat = Stilldown}}.
 	
 %% @hidden
 %% TODO what about an agent started at both places?

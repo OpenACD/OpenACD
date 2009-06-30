@@ -102,13 +102,14 @@
 -spec(start_link/1 :: (Args :: options()) -> {'ok', pid()}).
 start_link(Args) ->
 	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
-	?INFO("nodes:  ~p", [Nodes]),
+	?DEBUG("nodes:  ~p", [Nodes]),
     gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, Args, []).
 
 %% @doc See {@link start_link/1}
 -spec(start/1 :: (Args :: options()) -> {'ok', pid()}).
 start(Args) ->
-	Nodes = proplists:get_all_values(nodes, Args),
+	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
+	?DEBUG("nodes:  ~p", [Nodes]),
 	gen_leader:start(?MODULE, Nodes, [], ?MODULE, Args, []).
 
 %% @doc Stops the monitor.
@@ -136,9 +137,10 @@ init(Args) when is_list(Args) ->
 elected(State, Election, Node) -> 
 	?INFO("elected by ~w", [Node]),
 	% what was down and is now up?
+	% TODO extend this to do more than agent_auth
 	Edown = gen_leader:down(Election),
 	Foldf = fun({N, T}, {Up, Down}) ->
-		case lists:memeber(N, Edown) of
+		case lists:member(N, Edown) of
 			true ->
 				{Up, [{N, T} | Down]};
 			false ->
@@ -229,8 +231,8 @@ handle_info({merge_complete, Mod, Recs}, #state{status = merging} = State) ->
 	Newmerged = dict:store(Mod, Recs, State#state.merge_status),
 	case merge_complete(Newmerged) of
 		true ->
+			write_rows(State#state.merging),
 			F = fun() ->
-				sync_mnesia(State#state.monitoring, State#state.merging),
 				case State#state.auto_restart_mnesia of
 					true ->
 						?WARNING("automatically restarting mnesia on formerly split nodes", []),
@@ -324,23 +326,14 @@ merge_complete(Dict) ->
 			true
 	end.
 
-sync_mnesia([], _Rows) ->
+write_rows([]) ->
 	ok;
-sync_mnesia([Node | Nodes], Rows) when Node =:= node() ->
-	sync_mnesia(Nodes, Rows);
-sync_mnesia([Node | Nodes], Rows) ->
-	write_rows(Node, Rows),
-	rpc:call(Node, mnesia, stop, [], 1000),
-	sync_mnesia(Nodes, Rows).
-
-write_rows(_Node, []) ->
-	ok;
-write_rows(Node, [{atomic, Rows} | Tail]) ->
+write_rows([{atomic, Rows} | Tail]) ->
 	F = fun() ->
 		lists:foreach(fun(R) -> mnesia:write(R) end, Rows)
 	end,
-	rpc:call(mnesia, transaction, [F], 10000),
-	write_rows(Node, Tail).
+	mnesia:transaction(F),
+	write_rows(Tail).
 	
 
 -ifdef(EUNIT).
@@ -374,7 +367,116 @@ state_test_() ->
 		{noreply, Newstate} = handle_cast({recover, node}, State, {}),
 		?assertEqual(State, Newstate)
 	end}].
-	
+
+multinode_test_() ->
+	{foreach,
+	fun() ->
+		[_Name, Host] = string:tokens(atom_to_list(node()), "@"),
+		Master = list_to_atom(lists:append("master@", Host)),
+		Slave = list_to_atom(lists:append("slave@", Host)),
+		slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
+		slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+		mnesia:stop(),
+		
+		mnesia:change_config(extra_db_nodes, [Master, Slave]),
+		mnesia:delete_schema([node(), Master, Slave]),
+		mnesia:create_schema([node(), Master, Slave]),
+		
+		cover:start([Master, Slave]),
+		
+		rpc:call(Master, mnesia, start, []),
+		rpc:call(Slave, mnesia, start, []),
+		mnesia:start(),
+		
+		mnesia:change_table_copy_type(schema, Master, disc_copies),
+		mnesia:change_table_copy_type(schema, Slave, disc_copies),
+		
+		rpc:call(Master, agent_auth, start, []),
+		rpc:call(Slave, agent_auth, start, []),
+		
+		{Master, Slave}
+	end,
+	fun({Master, Slave}) ->
+		rpc:call(Master, agent_auth, stop, []),
+		rpc:call(Slave, agent_auth, stop, []),
+		cover:stop([Master, Slave])
+	end,
+	[fun({Master, Slave}) ->
+		{"Happy fun start!",
+		fun() ->
+			Mrez = rpc:call(Master, cpx_monitor, start, [[{nodes, [Master, Slave]}]]),
+			Srez = rpc:call(Slave, cpx_monitor, start, [[{nodes, [Master, Slave]}]]),
+			?INFO("Mrez  ~p", [Mrez]),
+			?INFO("Srez ~p", [Srez]),
+			?assertNot(Mrez =:= Srez),
+			?assertMatch({ok, _Pid}, Mrez),
+			?assertMatch({ok, _Pid}, Srez)
+		end}
+	end,
+	fun({Master, Slave}) ->
+		{"Merging after net split",
+		fun() ->
+			rpc:call(Slave, erlang, disconnect_node, [Master]),
+			
+			?DEBUG("~p", [rpc:call(Master, agent_auth, add_agent, ["agent", "badpass", [], agent, "Default"])]),
+			
+			Mrez = rpc:call(Master, agent_auth, get_agent, ["agent"]),
+			Srez = rpc:call(Slave, agent_auth, get_agent, ["agent"]),
+			?INFO("Mrez  ~p", [Mrez]),
+			?INFO("Srez ~p", [Srez]),
+			?assertNot(Mrez =:= Srez),
+			
+			Mmon = rpc:call(Master, cpx_monitor, start, [[{nodes, [Master, Slave]}]]),
+			Smon = rpc:call(Slave, cpx_monitor, start, [[{nodes, [Master, Slave]}]]),
+			
+			Mrez2 = rpc:call(Master, agent_auth, get_agent, ["agent"]),
+			Srez2 = rpc:call(Slave, agent_auth, get_agent, ["agent"]),
+			?INFO("Mrez2  ~p", [Mrez2]),
+			?INFO("Srez2 ~p", [Srez2]),
+			?assertEqual(Mrez2, Srez2)
+		end}
+	end]}.
+
+
+
+
+
+
+
+%				"Net Split",fun() ->
+%					rpc:call(Master, ?MODULE, add_queue, ["queue1", []]),
+%					rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
+%
+%					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"])),
+%					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
+%
+%					%rpc:call(Master, erlang, disconnect_node, [Slave]),
+%					rpc:call(Slave, erlang, disconnect_node, [Master]),
+%
+%					%receive after 300 -> ok end,
+%
+%					?debugFmt("Master queues ~p~n", [rpc:call(Master, ?MODULE, queues, [])]),
+%					?debugFmt("Slave queues ~p~n", [rpc:call(Slave, ?MODULE, queues, [])]),
+%
+%					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue2"])),
+%					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"])),
+%
+%					%?assertMatch(Newmaster, Master),
+%					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue1"])),
+%					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
+%					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
+%					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue1", []]))
+%				end
+
+
+
+
+
+
+
+
+
+
 
 -endif.
 

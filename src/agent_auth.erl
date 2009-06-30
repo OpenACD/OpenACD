@@ -320,58 +320,63 @@ get_agents(Profile) ->
 	end,
 	lists:sort(Sort, Agents).
 
-%% @doc Utility function to handle merging data after a net split.  Note this 
-%% will restart mnesia on the node it is called as well as the node passed in.
-%% Since a merge can take a significant amount of time, a process is spawned to
-%% handle the actual calculations.
--spec(merge/3 :: (Node1 :: atom(), Node2 :: atom(), Time :: pos_integer()) -> 'ok' | {'error', any()}).
-merge(Node1, Node2, Time) ->
-	Getauths = fun() ->
-		AuthQH = qlc:q([Auth || Auth <- mnesia:table(agent_auth), Auth#agent_auth.timestamp >= Time]),
-		qlc:e(AuthQH)
-	end,
-	Getprofs = fun() ->
-		ProfQH = qlc:q([Prof || Prof <- mnesia:table(agent_profile), Prof#agent_profile.timestamp >= Time]),
-		qlc:e(ProfQH)
-	end,
-	Getrels = fun() ->
-		RelQH = qlc:q([Rel || Rel <- mnesia:table(release_opt), Rel#release_opt.timestamp >= Time]),
-		qlc:e(RelQH)
-	end,
-	Write = fun(Rec) ->
-		mnesia:write(Rec)
-	end,
-	Domerge = fun() ->
-		{atomic, N1auths} = rpc:call(Node1, mnesia, transaction, [Getauths]),
-		{atomic, N2auths} = rpc:call(Node2, mnesia, transaction, [Getauths]),
-		{atomic, N1profs} = rpc:call(Node1, mnesia, transaction, [Getprofs]),
-		{atomic, N2profs} = rpc:call(Node2, mnesia, transaction, [Getprofs]),
-		{atomic, N1rels} = rpc:call(Node1, mnesia, transaction, [Getrels]),
-		{atomic, N2rels} = rpc:call(Node2, mnesia, transaction, [Getrels]),
-		Mergedauths = diff_recs(N1auths, N2auths),
-		Mergedprofs = diff_recs(N1profs, N2profs),
-		Mergedrels = diff_recs(N1rels, N2rels),
-		rpc:call(Node1, lists, foreach, [Write, Mergedrels]),
-		rpc:call(Node1, lists, foreach, [Write, Mergedprofs]),
-		rpc:call(Node1, lists, foreach, [Write, Mergedauths]),
-		ok
-	end,
-	Spawnfun = fun() ->
-		case mnesia:transaction(Domerge) of
-			{atomic, ok} ->
-				?INFO("Merge between master ~w and other ~w successful", [Node1, Node2]),
-				rpc:call(Node2, mnesia, stop, []),
-				rpc:call(Node2, mnesia, start, []),
-				ok;
-			{aborted, Error} ->
-				?ERROR("Merge between master ~w and other ~w failed due to ~p", [Node1, Node2, Error]),
-				ok
-		end
-	end,
-	spawn(Spawnfun).
-	
+%% @doc Utility function to handle merging data after a net split.  Takes the 
+%% given nodes, selects all records with a timestamp greater than the given 
+%% time, merges them, and passes the resulting list back to Pid.  Best if used
+%% inside a spawn.
+-spec(merge/3 :: (Nodes :: [atom()], Time :: pos_integer(), Replyto :: pid()) -> 'ok' | {'error', any()}).
+merge(Nodes, Time, Replyto) ->
+	Auths = merge_agent_auth(Nodes, Time),
+	Profs = merge_profiles(Nodes, Time),
+	Rels = merge_release(Nodes, Time),
+	Recs = lists:append([Auths, Profs, Rels]),
+	Replyto ! {merge_complete, agent_auth, Recs},
+	ok.
 
+merge_agent_auth(Nodes, Time) ->
+	F = fun() ->
+		QH = qlc:q([Auth || Auth <- mnesia:table(agent_auth), Auth#agent_auth.timestamp >= Time]),
+		qlc:e(QH)
+	end,
+	merge_results(query_nodes(Nodes, F)).
 
+merge_results(Res) ->
+	merge_results_loop([], Res).
+
+merge_results_loop(Return, []) ->
+	Return;
+merge_results_loop(Return, [{atomic, List} | Tail]) ->
+	Newreturn = diff_recs(Return, List),
+	merge_results_loop(Newreturn, Tail).
+
+merge_profiles(Nodes, Time) ->
+	F = fun() ->
+		QH = qlc:q([Prof || Prof <- mnesia:table(agent_profile), Prof#agent_profile.timestamp >= Time]),
+		qlc:e(QH)
+	end,
+	merge_results(query_nodes(Nodes, F)).
+
+merge_release(Nodes, Time) ->
+	F = fun() ->
+		QH = qlc:q([Rel || Rel <- mnesia:table(release_opt), Rel#release_opt.timestamp >= Time]),
+		qlc:e(QH)
+	end,
+	merge_results(query_nodes(Nodes, F)).
+
+query_nodes(Nodes, Fun) ->
+	query_nodes(Nodes, Fun, []).
+
+query_nodes([], _Fun, Acc) ->
+	Acc;
+query_nodes([Node | Tail], Fun, Acc) ->
+	Newacc = case rpc:call(Node, mnesia, transaction, [Fun]) of
+		{atomic, Rows} = Rez ->
+			[Rez | Acc];
+		_Else ->
+			?WARNING("Unable to get rows during merge for node ~w", [Node]),
+			Acc
+	end,
+	query_nodes(Tail, Fun, Acc).
 
 %%====================================================================
 %% gen_server callbacks

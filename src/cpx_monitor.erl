@@ -27,7 +27,7 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
-%% @doc Stat tracker and monitoring module.  A combination of the cdr handler
+%% @doc Stat tracker and monitoring gen_leader module.  A combination of the cdr handler
 %% and cpx_supervisor.  This handles health stats, and non-process monitoring.
 
 -module(cpx_monitor).
@@ -81,25 +81,45 @@
 	merging = none :: 'none' | [atom()]
 }).
 
+-type(state() :: #state{}).
+-define(GEN_LEADER, true).
+-include("gen_spec.hrl").
+
 %%====================================================================
 %% API
 %%====================================================================
-	
+
+-type(node_opt() :: {nodes, [atom()] | atom()}).
+-type(auto_restart_mnesia_opt() :: 'auto_restart_mnesia' | {'auto_restart_mnesia', bool()}).
+-type(option() :: [node_opt() | auto_restart_mnesia_opt()]).
+-type(options() :: [option()]).
+%% @doc Start the monitor using the passed options.<ul>
+%% <li>nodes :: Nodes to monitor, multiple uses append new values.</li>
+%% <li>auto_restart_mnesia :: if set to true, this will restart mnesia after
+%% a merge when recoving from a net-split.  Otherwise mnesia must be started
+%% manuall.</li>
+%% </ul>
+-spec(start_link/1 :: (Args :: options()) -> {'ok', pid()}).
 start_link(Args) ->
 	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
 	?INFO("nodes:  ~p", [Nodes]),
     gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, Args, []).
 
+%% @doc See {@link start_link/1}
+-spec(start/1 :: (Args :: options()) -> {'ok', pid()}).
 start(Args) ->
 	Nodes = proplists:get_all_values(nodes, Args),
 	gen_leader:start(?MODULE, Nodes, [], ?MODULE, Args, []).
-	
+
+%% @doc Stops the monitor.
+-spec(stop/0 :: () -> any()).
 stop() ->
 	gen_leader:call(?MODULE, stop).
 
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
+%% @hidden
 init(Args) when is_list(Args) ->
 	process_flag(trap_exit, true),
 	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
@@ -173,6 +193,7 @@ from_leader(_Msg, State, _Election) ->
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
+%% @hidden
 handle_call(stop, _From, State, Election) ->
 	{stop, normal, ok, State};
 handle_call(_Request, _From, State, Election) ->
@@ -182,6 +203,7 @@ handle_call(_Request, _From, State, Election) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+%% @hidden
 handle_cast({recover, Node}, State, _Election) ->
 	case lists:member(Node, State#state.down) of
 		false ->
@@ -199,6 +221,7 @@ handle_cast(_Request, State, _Election) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+%% @hidden
 handle_info({merge_complete, Mod, _Recs}, #state{merge_status = none, status = Status}= State) when Status == stable; Status == split ->
 	?INFO("Prolly a late merge complete from ~w.", [Mod]),
 	{noreply, State};
@@ -253,12 +276,14 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
+%% @hidden
 terminate(_Reason, _State) ->
     ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
+%% @hidden
 code_change(_OldVsn, State, _Election, _Extra) ->
     {ok, State}.
 

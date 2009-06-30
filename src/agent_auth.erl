@@ -1193,7 +1193,29 @@ diff_recs_test_() ->
 			#agent_profile{name = "C", timestamp = 5}
 		],
 		?assertEqual(Expected, diff_recs(Left, Right))
+	end},
+	{"3 way merge",
+	fun() ->
+		One = [
+			#agent_auth{login = "A", timestamp = 1},
+			#agent_auth{login = "B", timestamp = 3}
+		],
+		Two = [
+			#agent_auth{login = "B", timestamp = 3},
+			#agent_auth{login = "C", timestamp = 5}
+		],
+		Three = [
+			#agent_auth{login = "A", timestamp = 5},
+			#agent_auth{login = "C", timestamp = 1}
+		],
+		Expected = [
+			#agent_auth{login = "A", timestamp = 5},
+			#agent_auth{login = "B", timestamp = 3},
+			#agent_auth{login = "C", timestamp = 5}
+		],
+		?assertEqual(Expected, merge_results([{atomic, One}, {atomic, Two}, {atomic, Three}]))
 	end}].
+	
 -define(MYSERVERFUNC, 
 	fun() -> 
 		mnesia:stop(),

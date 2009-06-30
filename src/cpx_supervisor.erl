@@ -115,7 +115,7 @@ start_link(Nodes) ->
 	
 	supervisor:start_child(Pid, Managementspec),
 	%load_specs(),
-	Cpxmonitorspec = {cpx_monitor, {cpx_monitor, start_link, [{nodes, Nodes}, auto_restart_mnesia]}, permanent, 2000, worker, [?MODULE]},
+	Cpxmonitorspec = {cpx_monitor, {cpx_monitor, start_link, [[{nodes, Nodes}, auto_restart_mnesia]]}, permanent, 2000, worker, [?MODULE]},
 	supervisor:start_child(management_sup, Cpxmonitorspec),
 	
 	{ok, Pid}.

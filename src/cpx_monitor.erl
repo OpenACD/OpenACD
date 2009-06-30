@@ -77,7 +77,8 @@
 	auto_restart_mnesia = true :: 'false' | 'false',
 	status = stable :: 'stable' | 'merging' | 'split',	
 	splits = [] :: [{atom(), integer()}],
-	merge_status = none :: 'none' | any()
+	merge_status = none :: 'none' | any(),
+	merging = none :: 'none' | [atom()]
 }).
 
 %%====================================================================
@@ -85,7 +86,8 @@
 %%====================================================================
 	
 start_link(Args) ->
-	Nodes = proplists:get_all_values(nodes, Args),
+	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
+	?INFO("nodes:  ~p", [Nodes]),
     gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, Args, []).
 
 start(Args) ->
@@ -100,7 +102,7 @@ stop() ->
 %%====================================================================
 init(Args) when is_list(Args) ->
 	process_flag(trap_exit, true),
-	Nodes = proplists:get_all_values(nodes, Args),
+	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
 	Mons = Nodes,
 	lists:foreach(fun(N) -> monitor_node(N, true) end, Mons),
     {ok, #state{
@@ -129,10 +131,15 @@ elected(State, Election, Node) ->
 		({_N, T}, Time) ->
 			Time
 	end,
-	Oldest = lists:foldl(Findoldest, Merge),
-	Mergenodes = lists:map(fun({N, _T}) -> N end, Merge),
-	spawn(agent_auth, merge, [Mergenodes, Oldest, self()]),
-	{ok, ok, State#state{status = merging, merge_status = [{agent_auth, waiting}]}}.
+	case Merge of
+		[] ->
+			{ok, ok, State};
+		_Else ->
+			Oldest = lists:foldl(Findoldest, 0, Merge),
+			Mergenodes = lists:map(fun({N, _T}) -> N end, Merge),
+			spawn(agent_auth, merge, [Mergenodes, Oldest, self()]),
+			{ok, ok, State#state{status = merging, merge_status = [{agent_auth, waiting}], merging = Mergenodes}}
+	end.
 
 %% @hidden
 surrendered(State, _LeaderState, _Election) -> 
@@ -196,7 +203,30 @@ handle_info({merge_complete, Mod, _Recs}, #state{merge_status = none, status = S
 	?INFO("Prolly a late merge complete from ~w.", [Mod]),
 	{noreply, State};
 handle_info({merge_complete, Mod, Recs}, #state{status = merging} = State) ->
-	{noreply, State};
+	Newmerged = dict:store(Mod, Recs, State#state.merge_status),
+	case merge_complete(Newmerged) of
+		true ->
+			F = fun() ->
+				sync_mnesia(State#state.monitoring, State#state.merging),
+				case State#state.auto_restart_mnesia of
+					true ->
+						?WARNING("automatically restarting mnesia on formerly split nodes", []),
+						lists:foreach(fun(N) -> rpc:call(mnesia, stop, [], 1000), rpc:call(mnesia, start, [], 1000) end, State#state.monitoring);
+					false ->
+						?WARNING("Mnesia will remain split until it is restarted on all other nodes.", []),
+						ok
+				end
+			end,
+			spawn(F),
+			case State#state.down of
+				[] ->
+					{noreply, State#state{status = stable, merging = [], merge_status = none}};
+				_Else ->
+					{noreply, State#state{status = split, merging = [], merge_status = none}}
+			end;
+		false ->
+			{noreply, State#state{merge_status = Newmerged}}
+	end;
 handle_info({nodedown, Node}, State) ->
 	case lists:member(Node, State#state.monitoring) of
 		true ->
@@ -257,6 +287,36 @@ check_loop(Node) ->
 		_Otherwise -> 
 			check_loop(Node)
 	end.
+	
+merge_complete(Dict) ->
+	% TODO extend this to more than just agent_auth
+	case dict:find(agent_auth, Dict) of
+		error ->
+			false;
+		{ok, waiting} ->
+			false;
+		{ok, _Rows} ->
+			true
+	end.
+
+sync_mnesia([], _Rows) ->
+	ok;
+sync_mnesia([Node | Nodes], Rows) when Node =:= node() ->
+	sync_mnesia(Nodes, Rows);
+sync_mnesia([Node | Nodes], Rows) ->
+	write_rows(Node, Rows),
+	rpc:call(Node, mnesia, stop, [], 1000),
+	sync_mnesia(Nodes, Rows).
+
+write_rows(_Node, []) ->
+	ok;
+write_rows(Node, [{atomic, Rows} | Tail]) ->
+	F = fun() ->
+		lists:foreach(fun(R) -> mnesia:write(R) end, Rows)
+	end,
+	rpc:call(mnesia, transaction, [F], 10000),
+	write_rows(Node, Tail).
+	
 
 -ifdef(EUNIT).
 

@@ -72,11 +72,12 @@
 
 -record(state, {
 	nodes = [] :: [atom()],
-	monitoring = [] :: [{atom(), any()}],
+	monitoring = [] :: [atom()],
 	down = [] :: [atom()],
 	auto_restart_mnesia = true :: 'false' | 'false',
 	status = stable :: 'stable' | 'merging' | 'split',	
-	splits = [] :: [{atom(), integer()}]
+	splits = [] :: [{atom(), integer()}],
+	merge_status = none :: 'none' | any()
 }).
 
 %%====================================================================
@@ -131,7 +132,7 @@ elected(State, Election, Node) ->
 	Oldest = lists:foldl(Findoldest, Merge),
 	Mergenodes = lists:map(fun({N, _T}) -> N end, Merge),
 	spawn(agent_auth, merge, [Mergenodes, Oldest, self()]),
-	{ok, ok, State}.
+	{ok, ok, State#state{status = merging, merge_status = [{agent_auth, waiting}]}}.
 
 %% @hidden
 surrendered(State, _LeaderState, _Election) -> 
@@ -191,6 +192,11 @@ handle_cast(_Request, State, _Election) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+handle_info({merge_complete, Mod, _Recs}, #state{merge_status = none, status = Status}= State) when Status == stable; Status == split ->
+	?INFO("Prolly a late merge complete from ~w.", [Mod]),
+	{noreply, State};
+handle_info({merge_complete, Mod, Recs}, #state{status = merging} = State) ->
+	{noreply, State};
 handle_info({nodedown, Node}, State) ->
 	case lists:member(Node, State#state.monitoring) of
 		true ->
@@ -203,7 +209,7 @@ handle_info({nodedown, Node}, State) ->
 			end,
 			Pid = spawn_link(Sfun),
 			timer:send_after(10000, Pid, check),
-			{noreply, State#state{down = Newdown, monitoring = Newmon}};
+			{noreply, State#state{down = Newdown, monitoring = Newmon, status = split}};
 		false ->
 			% just chill
 			{noreply, State}
@@ -261,7 +267,7 @@ state_test_() ->
 			monitoring = [node]
 		},
 		{noreply, Newstate} = handle_info({nodedown, node}, State),
-		Expect = #state{down = [node], monitoring = []},
+		Expect = #state{down = [node], monitoring = [], status = split},
 		?assertEqual(Expect, Newstate)
 	end},
 	{"node down message about a node we aren't monitoring",

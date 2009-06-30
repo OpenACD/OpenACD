@@ -75,7 +75,8 @@
 	monitoring = [] :: [{atom(), any()}],
 	down = [] :: [atom()],
 	auto_restart_mnesia = true :: 'false' | 'false',
-	merge_status = []
+	status = stable :: 'stable' | 'merging' | 'split',	
+	splits = [] :: [{atom(), integer()}]
 }).
 
 %%====================================================================
@@ -111,16 +112,40 @@ init(Args) when is_list(Args) ->
 %% @hidden
 elected(State, Election, Node) -> 
 	?INFO("elected by ~w", [Node]),
+	% what was down and is now up?
+	Edown = gen_leader:down(Election),
+	Foldf = fun({N, T}, {Up, Down}) ->
+		case lists:memeber(N, Edown) of
+			true ->
+				{Up, [{N, T} | Down]};
+			false ->
+				{[{N, T} | Up], Down}
+		end
+	end,
+	{Merge, Stilldown} = lists:foldl(Foldf, {[], []}, State#state.splits),
+	Findoldest = fun({_N, T}, Time) when T > Time ->
+			T;
+		({_N, T}, Time) ->
+			Time
+	end,
+	Oldest = lists:foldl(Findoldest, Merge),
+	Mergenodes = lists:map(fun({N, _T}) -> N end, Merge),
+	spawn(agent_auth, merge, [Mergenodes, Oldest, self()]),
 	{ok, ok, State}.
-	
+
 %% @hidden
-%% TODO what about an agent started at both places?
 surrendered(State, _LeaderState, _Election) -> 
 	{ok, State}.
 	
 %% @hidden
-handle_DOWN(Node, State, _Election) -> 
-	{ok, State}.
+handle_DOWN(Node, State, _Election) ->
+	Newsplits = case proplists:get_value(Node, State#state.splits) of
+		undefined ->
+			[{Node, util:now()} | State#state.splits];
+		_Time ->
+			State#state.splits
+	end,
+	{ok, State#state{splits = Newsplits}}.
 
 %% @hidden
 handle_leader_call(Message, From, State, _Election) ->

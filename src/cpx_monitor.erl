@@ -159,7 +159,7 @@ elected(State, Election, Node) ->
 		_Else ->
 			Oldest = lists:foldl(Findoldest, 0, Merge),
 			Mergenodes = lists:map(fun({N, _T}) -> N end, Merge),
-			P = spawn_link(agent_auth, merge, [Mergenodes, Oldest, self()]),
+			P = spawn_link(agent_auth, merge, [[node() | Mergenodes], Oldest, self()]),
 			?DEBUG("spawned for agent_auth:  ~p", [P]),
 			{ok, ok, State#state{status = merging, merge_status = dict:new(), merging = Mergenodes}}
 	end.

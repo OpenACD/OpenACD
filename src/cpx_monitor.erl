@@ -412,30 +412,30 @@ multinode_test_() ->
 			?assertMatch({ok, _Pid}, Mrez),
 			?assertMatch({ok, _Pid}, Srez)
 		end}
-	end,
-	fun({Master, Slave}) ->
-		{"Merging after net split",
-		fun() ->
-			rpc:call(Slave, erlang, disconnect_node, [Master]),
-			
-			?DEBUG("~p", [rpc:call(Master, agent_auth, add_agent, ["agent", "badpass", [], agent, "Default"])]),
-			
-			Mrez = rpc:call(Master, agent_auth, get_agent, ["agent"]),
-			Srez = rpc:call(Slave, agent_auth, get_agent, ["agent"]),
-			?INFO("Mrez  ~p", [Mrez]),
-			?INFO("Srez ~p", [Srez]),
-			?assertNot(Mrez =:= Srez),
-			
-			Mmon = rpc:call(Master, cpx_monitor, start, [[{nodes, [Master, Slave]}]]),
-			Smon = rpc:call(Slave, cpx_monitor, start, [[{nodes, [Master, Slave]}]]),
-			
-			Mrez2 = rpc:call(Master, agent_auth, get_agent, ["agent"]),
-			Srez2 = rpc:call(Slave, agent_auth, get_agent, ["agent"]),
-			?INFO("Mrez2  ~p", [Mrez2]),
-			?INFO("Srez2 ~p", [Srez2]),
-			?assertEqual(Mrez2, Srez2)
-		end}
-	end]}.
+	end]}.%,
+%	fun({Master, Slave}) ->
+%		{"Merging after net split",
+%		fun() ->
+%			rpc:call(Slave, erlang, disconnect_node, [Master]),
+%			
+%			?DEBUG("~p", [rpc:call(Master, agent_auth, add_agent, ["agent", "badpass", [], agent, "Default"])]),
+%			
+%			Mrez = rpc:call(Master, agent_auth, get_agent, ["agent"]),
+%			Srez = rpc:call(Slave, agent_auth, get_agent, ["agent"]),
+%			?INFO("Mrez  ~p", [Mrez]),
+%			?INFO("Srez ~p", [Srez]),
+%			?assertNot(Mrez =:= Srez),
+%			
+%			Mmon = rpc:call(Master, cpx_monitor, start, [[{nodes, [Master, Slave]}]]),
+%			Smon = rpc:call(Slave, cpx_monitor, start, [[{nodes, [Master, Slave]}]]),
+%			
+%			Mrez2 = rpc:call(Master, agent_auth, get_agent, ["agent"]),
+%			Srez2 = rpc:call(Slave, agent_auth, get_agent, ["agent"]),
+%			?INFO("Mrez2  ~p", [Mrez2]),
+%			?INFO("Srez2 ~p", [Srez2]),
+%			?assertEqual(Mrez2, Srez2)
+%		end}
+%	end]}.
 
 
 

@@ -346,6 +346,7 @@ merge_results(Res) ->
 	merge_results_loop([], Res).
 
 merge_results_loop(Return, []) ->
+	?DEBUG("Merge complete:  ~p", [Return]),
 	Return;
 merge_results_loop(Return, [{atomic, List} | Tail]) ->
 	Newreturn = diff_recs(Return, List),
@@ -369,10 +370,12 @@ query_nodes(Nodes, Fun) ->
 	query_nodes(Nodes, Fun, []).
 
 query_nodes([], _Fun, Acc) ->
+	?DEBUG("Full acc:  ~p", [Acc]),
 	Acc;
 query_nodes([Node | Tail], Fun, Acc) ->
 	Newacc = case rpc:call(Node, mnesia, transaction, [Fun]) of
 		{atomic, Rows} = Rez ->
+			?DEBUG("Node ~w Got the following rows:  ~p", [Node, Rows]),
 			[Rez | Acc];
 		_Else ->
 			?WARNING("Unable to get rows during merge for node ~w", [Node]),

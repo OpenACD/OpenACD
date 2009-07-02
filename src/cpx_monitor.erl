@@ -159,8 +159,8 @@ elected(State, Election, Node) ->
 		_Else ->
 			Oldest = lists:foldl(Findoldest, 0, Merge),
 			Mergenodes = lists:map(fun({N, _T}) -> N end, Merge),
-			?DEBUG("Spawning merge for agent_auth", []),
-			spawn(agent_auth, merge, [Mergenodes, Oldest, self()]),
+			P = spawn_link(agent_auth, merge, [Mergenodes, Oldest, self()]),
+			?DEBUG("spawned for agent_auth:  ~p", [P]),
 			{ok, ok, State#state{status = merging, merge_status = dict:new(), merging = Mergenodes}}
 	end.
 
@@ -331,6 +331,7 @@ write_rows(Dict) ->
 	write_rows_loop(dict:to_list(Dict)).
 
 write_rows_loop([]) ->
+	?DEBUG("No more to write.", []),
 	ok;
 write_rows_loop([{_Mod, Recs} | Tail]) ->
 	?DEBUG("Writing ~p to mnesia", [Recs]),

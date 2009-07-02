@@ -334,7 +334,7 @@ merge(Nodes, Time, Replyto) ->
 	ok.
 
 merge_agent_auth(Nodes, Time) ->
-	?DEBUG("Staring merge.  Nodes:  ~p.  Time:  %w", [Nodes, Time]),
+	?DEBUG("Staring merge.  Nodes:  ~p.  Time:  ~B", [Nodes, Time]),
 	F = fun() ->
 		QH = qlc:q([Auth || Auth <- mnesia:table(agent_auth), Auth#agent_auth.timestamp >= Time]),
 		qlc:e(QH)

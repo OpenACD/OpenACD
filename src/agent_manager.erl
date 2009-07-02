@@ -48,9 +48,7 @@
 -endif.
 
 -record(state, {
-	agents = dict:new() :: dict(),
-	automerge = undefined :: 'undefined' | 'true',
-	splitat = [] :: [{atom(), pos_integer()}]
+	agents = dict:new() :: dict()
 	}).
 
 -type(state() :: #state{}).
@@ -195,28 +193,13 @@ get_leader() ->
 init(Opts) ->
 	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
-	{ok, #state{automerge = proplists:get_value(automerge, Opts)}}.
+	{ok, #state{}}.
 	
 %% @hidden
 elected(State, Election, Node) -> 
 	?INFO("elected by ~w", [Node]),
 	mnesia:subscribe(system),
-	Realdown = gen_leader:down(Election),
-	F = fun({N, Time}, {Up, Down}) ->
-		case lists:member(N, Realdown) of
-			true ->
-				{Up, [{N, Time} | Down]};
-			false ->
-				{[{N, Time} | Up], Down}
-		end
-	end,
-	{Merge, Stilldown} = lists:foldl(F, {[], []}, State#state.splitat),
-	Thisnode = node(),
-	MF = fun({N, Time}) ->
-		agent_auth:merge(Thisnode, N, Time)
-	end,
-	lists:foreach(MF, Merge),
-	{ok, ok, State#state{splitat = Stilldown}}.
+	{ok, ok, State}.
 	
 %% @hidden
 %% TODO what about an agent started at both places?
@@ -365,14 +348,7 @@ handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
 	{noreply, State#state{agents=dict:filter(F, Agents)}};
 handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
 	?WARNING("mnesia down at ~w", [Node]),
-	Newsplit = case proplists:get_value(Node, State#state.splitat) of
-		undefined ->
-			[{Node, util:now()} | State#state.splitat];
-		_Time ->
-			?DEBUG("Was already in listing for down", []),
-			State#state.splitat
-	end,
-	{noreply, State#state{splitat = Newsplit}};
+	{noreply, State};
 handle_info(Msg, State) ->
 	?DEBUG("Stub handle_info for ~p", [Msg]),
 	{noreply, State}.

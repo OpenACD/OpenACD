@@ -232,18 +232,24 @@ handle_info({merge_complete, Mod, Recs}, #state{status = merging} = State) ->
 	Newmerged = dict:store(Mod, Recs, State#state.merge_status),
 	case merge_complete(Newmerged) of
 		true ->
-			write_rows(State#state.merge_status),
+			write_rows(Newmerged),
 			F = fun() ->
 				case State#state.auto_restart_mnesia of
 					true ->
-						?WARNING("automatically restarting mnesia on formerly split nodes: ~p", [State#state.monitoring]),
-						lists:foreach(fun(N) -> rpc:call(mnesia, stop, [], 1000), rpc:call(mnesia, start, [], 1000) end, State#state.monitoring);
+						?WARNING("automatically restarting mnesia on formerly split nodes: ~p", [State#state.monitoring -- [node()]]),
+						lists:foreach(fun(N) -> 
+							S = rpc:call(mnesia, stop, [], 1000), 
+							?DEBUG("stoping mnesia on ~w got ~p", [N, S]),
+							G = rpc:call(mnesia, start, [], 1000),
+							?DEBUG("Starging mnesia on ~w got ~p", [N, G])
+						end, State#state.monitoring -- [node()]);
 					false ->
 						?WARNING("Mnesia will remain split until it is restarted on all other nodes.", []),
 						ok
 				end
 			end,
-			spawn(F),
+			P = spawn_link(F),
+			?DEBUG("process to restart mnesia:  ~p", [P]),
 			case State#state.down of
 				[] ->
 					{noreply, State#state{status = stable, merging = [], merge_status = none}};

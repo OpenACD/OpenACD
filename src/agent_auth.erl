@@ -381,7 +381,7 @@ query_nodes([Node | Tail], Fun, Acc) ->
 			?WARNING("Unable to get rows during merge for node ~w", [Node]),
 			Acc
 	end,
-	query_nodes(Tail, Fun, Acc).
+	query_nodes(Tail, Fun, Newacc).
 
 %%====================================================================
 %% gen_server callbacks

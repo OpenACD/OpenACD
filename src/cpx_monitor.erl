@@ -160,7 +160,7 @@ elected(State, Election, Node) ->
 			Oldest = lists:foldl(Findoldest, 0, Merge),
 			Mergenodes = lists:map(fun({N, _T}) -> N end, Merge),
 			spawn(agent_auth, merge, [Mergenodes, Oldest, self()]),
-			{ok, ok, State#state{status = merging, merge_status = [{agent_auth, waiting}], merging = Mergenodes}}
+			{ok, ok, State#state{status = merging, merge_status = dict:new(), merging = Mergenodes}}
 	end.
 
 %% @hidden

@@ -231,7 +231,7 @@ handle_info({merge_complete, Mod, Recs}, #state{status = merging} = State) ->
 	Newmerged = dict:store(Mod, Recs, State#state.merge_status),
 	case merge_complete(Newmerged) of
 		true ->
-			write_rows(State#state.merging),
+			write_rows(State#state.merge_status),
 			F = fun() ->
 				case State#state.auto_restart_mnesia of
 					true ->
@@ -326,15 +326,17 @@ merge_complete(Dict) ->
 			true
 	end.
 
-write_rows([]) ->
+write_rows(Dict) ->
+	write_rows_loop(dict:to_list(Dict)).
+
+write_rows_loop([]) ->
 	ok;
-write_rows([{atomic, Rows} | Tail]) ->
+write_rows_loop([{_Mod, Recs} | Tail]) ->
 	F = fun() ->
-		lists:foreach(fun(R) -> mnesia:write(R) end, Rows)
+		lists:foreach(fun(R) -> mnesia:write(R) end, Recs)
 	end,
 	mnesia:transaction(F),
-	write_rows(Tail).
-	
+	write_rows_loop(Tail).	
 
 -ifdef(EUNIT).
 

@@ -238,10 +238,15 @@ handle_info({merge_complete, Mod, Recs}, #state{status = merging} = State) ->
 					true ->
 						?WARNING("automatically restarting mnesia on formerly split nodes: ~p", [State#state.monitoring -- [node()]]),
 						lists:foreach(fun(N) -> 
-							S = rpc:call(mnesia, stop, [], 1000), 
-							?DEBUG("stoping mnesia on ~w got ~p", [N, S]),
-							G = rpc:call(mnesia, start, [], 1000),
-							?DEBUG("Starging mnesia on ~w got ~p", [N, G])
+							case net_adm:ping(N) of
+								pong ->
+									S = rpc:call(mnesia, stop, [], 1000), 
+									?DEBUG("stoping mnesia on ~w got ~p", [N, S]),
+									G = rpc:call(mnesia, start, [], 1000),
+									?DEBUG("Starging mnesia on ~w got ~p", [N, G]);
+								pang ->
+									?ALERT("Not restarting mnesia on ~w, it's not pingable!", [N])
+							end
 						end, State#state.monitoring -- [node()]);
 					false ->
 						?WARNING("Mnesia will remain split until it is restarted on all other nodes.", []),

@@ -159,6 +159,7 @@ elected(State, Election, Node) ->
 		_Else ->
 			Oldest = lists:foldl(Findoldest, 0, Merge),
 			Mergenodes = lists:map(fun({N, _T}) -> N end, Merge),
+			?DEBUG("Spawning merge for agent_auth", []),
 			spawn(agent_auth, merge, [Mergenodes, Oldest, self()]),
 			{ok, ok, State#state{status = merging, merge_status = dict:new(), merging = Mergenodes}}
 	end.
@@ -235,7 +236,7 @@ handle_info({merge_complete, Mod, Recs}, #state{status = merging} = State) ->
 			F = fun() ->
 				case State#state.auto_restart_mnesia of
 					true ->
-						?WARNING("automatically restarting mnesia on formerly split nodes", []),
+						?WARNING("automatically restarting mnesia on formerly split nodes: ~p", [State#state.monitoring]),
 						lists:foreach(fun(N) -> rpc:call(mnesia, stop, [], 1000), rpc:call(mnesia, start, [], 1000) end, State#state.monitoring);
 					false ->
 						?WARNING("Mnesia will remain split until it is restarted on all other nodes.", []),
@@ -332,6 +333,7 @@ write_rows(Dict) ->
 write_rows_loop([]) ->
 	ok;
 write_rows_loop([{_Mod, Recs} | Tail]) ->
+	?DEBUG("Writing ~p to mnesia", [Recs]),
 	F = fun() ->
 		lists:foreach(fun(R) -> mnesia:write(R) end, Recs)
 	end,

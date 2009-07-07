@@ -1264,6 +1264,90 @@ merge_test_() ->
 		Expected = ["a", "b", "c", "d", "e"],
 		Res = lists:sort(Sort, get_ids(Raws)),
 		?assertEqual(Expected, Res)
+	end},
+	{"merge raws",
+	fun() ->
+		Raws = [{atomic, [
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "e"}]},
+			{atomic, [
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "d"},
+			#cdr_raw{id = "d"}]},
+			{atomic, [
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "e"}]}],
+		Sort = fun(A, B) ->
+			A#cdr_raw.id < B#cdr_raw.id
+		end,
+		Expected = [
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "d"},
+			#cdr_raw{id = "d"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "e"}],
+		Res = lists:sort(Sort, merge_raw(Raws)),
+		?assertEqual(Expected, Res)
+	end},
+	{"merge summaries",
+	fun() ->
+		Recs = [{atomic, [
+			#cdr_rec{id = "a", summary = inprogress, transactions = inprogress},
+			#cdr_rec{
+				id = "b",
+				summary = [{"key", "value"}],
+				transactions = [#cdr_raw{id = "b"}]
+			},
+			#cdr_rec{
+				id="c",
+				summary = [{"key", "value"}],
+				transactions = [#cdr_raw{id = "c"}]
+			}]},
+			{atomic, [
+			#cdr_rec{id = "a", summary = inprogress, transactions = inprogress},
+			#cdr_rec{id = "c", summary = inprogress, transactions = inprogress},
+			#cdr_rec{id = "d", summary = [{"key", "value"}], transactions = [#cdr_raw{id = "d"}]}
+			]}],
+		Expected = [
+			#cdr_rec{id = "a", summary = inprogress, transactions = inprogress},
+			#cdr_rec{
+				id = "b",
+				summary = [{"key", "value"}],
+				transactions = [#cdr_raw{id = "b"}]
+			},
+			#cdr_rec{
+				id="c",
+				summary = [{"key", "value"}],
+				transactions = [#cdr_raw{id = "c"}]
+			},
+			#cdr_rec{id = "d", summary = [{"key", "value"}], transactions = [#cdr_raw{id = "d"}]}],
+		Sort = fun(A, B) ->
+			A#cdr_rec.id < B#cdr_rec.id
+		end,
+		Res = lists:sort(Sort, merge_sum(Recs)),
+		?assertEqual(Expected, Res)
 	end}].
 
 -endif.

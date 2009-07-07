@@ -53,7 +53,8 @@
 	agent_transfer/2,
 	status/1,
 	recover/1,
-	recoveryinit/1
+	recoveryinit/1,
+	merge/3
 ]).
 
 -export([
@@ -565,7 +566,119 @@ recover([{Event, Time, _Details} = Head | Tail], Untermed, Termed, Hangup) ->
 			[Head | Miduntermed]
 	end,
 	recover(Tail, Newuntermed, Newtermed, Hangup).
-			
+
+%% @doc Given the list of nodes, merge the cdrs.  Since this can take a long
+%% time, it can help to just spawn a new process for it.
+-spec(merge/3 :: (Nodes :: [atom()], Time :: pos_integer(), Replyto :: pid()) -> 'ok').
+merge(Nodes, Time, Replyto) ->
+	Raws = get_raws(Nodes, Time),
+	Touchedcalls = get_ids(Raws),
+	Sums = get_summaries(Nodes, Touchedcalls),
+	Mergedraws = merge_raw(Raws),
+	MergedSums = merge_sum(Sums),
+	Replyto ! {merge_complete, ?MODULE, lists:append([Mergedraws, MergedSums])}.
+	
+%% @private
+get_raws(Nodes, Time) ->
+	get_raws(Nodes, Time, []).
+
+%% @private
+get_raws([], _Time, Acc) ->
+	Acc;
+get_raws([Node | Tail], Time, Acc) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(cdr_raw), element(2, X#cdr_raw.transaction) =< Time]),
+		qlc:e(QH)
+	end,
+	Out = rpc:call(Node, mnesia, transaction, [F]),
+	get_raws(Tail, Time, [Out | Acc]).
+
+%% @private
+get_ids(Raws) ->
+	get_ids(Raws, []).
+
+%% @private
+get_ids([], Acc) ->
+	Acc;
+get_ids([{atomic, Raws} | Tail], Acc) ->
+	Newacc = get_ids_sub(Raws, Acc),
+	get_ids(Tail, Newacc).
+
+get_ids_sub([], Acc) ->
+	Acc;
+get_ids_sub([#cdr_raw{id = ID} | Tail], Acc) ->
+	case lists:member(ID, Acc) of
+		true ->
+			get_ids_sub(Tail, Acc);
+		false ->
+			get_ids_sub(Tail, [ID | Acc])
+	end.
+
+%% @private
+get_summaries(Nodes, Ids) ->
+	get_summaries(Nodes, Ids, []).
+
+%% @private
+get_summaries([], _Ids, Acc) ->
+	Acc;
+get_summaries([Node | Nodes], Ids, Acc) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(cdr_rec), lists:member(X#cdr_rec.id, Ids)]),
+		qlc:e(QH)
+	end,
+	case rpc:call(Node, mnesia, transaction, [F]) of
+		{atomic, _Rows} = Rez ->
+			get_summaries(Nodes, Ids, [Rez | Acc]);
+		Else ->
+			?WARNING("Could not get cdr_rec from ~w", [Node]),
+			get_summaries(Nodes, Ids, Acc)
+	end.
+
+%% @private
+merge_raw(Recs) ->
+	merge_raw(Recs, []).
+
+merge_raw([], Acc) ->
+	Acc;
+merge_raw([{atomic, Raws} | Tail], Acc) ->
+	Newacc = lists:append([Raws, Acc]),
+	merge_raw(Tail, Newacc).
+
+merge_sum(Sums) ->
+	merge_sum(Sums, []).
+
+merge_sum([], Acc) ->
+	Acc;
+merge_sum([{atomic, Sums} | Tail], Acc) ->
+	Newacc = diff_sum(Sums, Acc),
+	merge_sum(Tail, Newacc).
+
+diff_sum(Left, Right) ->
+	Sort = fun(A, B) ->
+		A#cdr_rec.id < B#cdr_rec.id
+	end,
+	Sleft = lists:sort(Sort, Left),
+	Sright = lists:sort(Sort, Right),
+	diff_sum(Sleft, Sright, []).
+
+diff_sum([], Right, Acc) ->
+	lists:append([Right, Acc]);
+diff_sum(Left, [], Acc) ->
+	lists:append([Left, Acc]);
+diff_sum([#cdr_rec{summary = inprogress, id = Id} = Hleft | Tleft], [#cdr_rec{summary = inprogress, id = Id} = _Hright | Tright], Acc) ->
+	diff_sum(Tleft, Tright, [Hleft | Acc]);
+diff_sum([#cdr_rec{summary = inprogress, id = Id} | Tleft], [#cdr_rec{id = Id} = Hright | Tright], Acc) ->
+	diff_sum(Tleft, Tright, [Hright | Acc]);
+diff_sum([#cdr_rec{id = Id} = Hleft | Tleft], [#cdr_rec{id = Id} = Hright | Tright], Acc) ->
+	diff_sum(Tleft, Tright, [Hleft | Acc]);
+diff_sum([Hleft | Tleft] = Left, [Hright | Tright] = Right, Acc) ->
+	case Hleft#cdr_rec.id < Hright#cdr_rec.id of
+		true ->
+			diff_sum(Tleft, Right, [Hleft | Acc]);
+		false ->
+			diff_sum(Left, Tright, [Hright | Acc])
+	end.
+
 %% @private Get a standarized unix epoch integer from `now()'.
 -spec(nowsec/1 :: ({Mega :: non_neg_integer(), Sec :: non_neg_integer(), Micro :: non_neg_integer()}) -> non_neg_integer()).
 nowsec({Mega, Sec, _Micro}) ->
@@ -575,6 +688,7 @@ nowsec({Mega, Sec, _Micro}) ->
 -spec(push_raw/2 :: (Callid :: string(), Trans :: tuple()) -> {'atomic', 'ok'}).
 push_raw(Callid, Trans) ->
 	mnesia:transaction(fun() -> mnesia:write(#cdr_raw{id = Callid, transaction = Trans}) end).
+
 
 -ifdef(EUNIT).
 
@@ -1120,6 +1234,37 @@ recover_test_() ->
 		?assertEqual(Expected, recover(Transactions, [], [], false))
 	end}
 	].
-	
+
+merge_test_() ->
+	[{"Get ids",
+	fun() ->
+		Raws = [{atomic, [
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "e"}]},
+			{atomic, [
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "d"},
+			#cdr_raw{id = "d"}]},
+			{atomic, [
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "e"}]}],
+		Sort = fun(A, B) ->
+			A < B
+		end,
+		Expected = ["a", "b", "c", "d", "e"],
+		Res = lists:sort(Sort, get_ids(Raws)),
+		?assertEqual(Expected, Res)
+	end}].
+
 -endif.
 

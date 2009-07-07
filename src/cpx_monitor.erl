@@ -160,7 +160,9 @@ elected(State, Election, Node) ->
 			Oldest = lists:foldl(Findoldest, 0, Merge),
 			Mergenodes = lists:map(fun({N, _T}) -> N end, Merge),
 			P = spawn_link(agent_auth, merge, [[node() | Mergenodes], Oldest, self()]),
+			Qspawn = spawn_link(call_queue_config, merge, [[node() | Mergenodes], Oldest, self()]),
 			?DEBUG("spawned for agent_auth:  ~p", [P]),
+			?DEBUG("Spawned for call_queue_config:  ~w", [Qspawn]),
 			{ok, ok, State#state{status = merging, merge_status = dict:new(), merging = Mergenodes}}
 	end.
 
@@ -331,13 +333,27 @@ check_loop(Node) ->
 	
 merge_complete(Dict) ->
 	% TODO extend this to more than just agent_auth
-	case dict:find(agent_auth, Dict) of
+	Agent = case dict:find(agent_auth, Dict) of
 		error ->
 			false;
 		{ok, waiting} ->
 			false;
-		{ok, _Rows} ->
+		{ok, _AgentRows} ->
 			true
+	end,
+	Queue = case dict:find(call_queue_config, Dict) of
+		error ->
+			false;
+		{ok, waiting} ->
+			false;
+		{ok, _QueueRows} ->
+			true
+	end,
+	case {Agent, Queue} of
+		{true, true} ->
+			true;
+		_Else ->
+			false
 	end.
 
 write_rows(Dict) ->

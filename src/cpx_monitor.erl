@@ -282,23 +282,6 @@ handle_info({merge_complete, Mod, Recs}, #state{status = merging} = State) ->
 		false ->
 			{noreply, State#state{merge_status = Newmerged}}
 	end;
-handle_info({nodedown, Node}, State) ->
-	case lists:member(Node, State#state.monitoring) of
-		true ->
-			%monitor_node(Node, false),
-			?ALERT("Node ~w is detected as being down!", [Node]),
-			Newdown = [Node | State#state.down],
-			Newmon = lists:delete(Node, State#state.monitoring),
-			Sfun = fun() ->
-				check_loop(Node)
-			end,
-			Pid = spawn_link(Sfun),
-			timer:send_after(10000, Pid, check),
-			{noreply, State#state{down = Newdown, monitoring = Newmon, status = split}};
-		false ->
-			% just chill
-			{noreply, State}
-	end;
 handle_info({'EXIT', From, Reason}, State) ->
 	?INFO("~p said it died due to ~p.", [From, Reason]),
 	{noreply, State};
@@ -426,36 +409,6 @@ health_test_() ->
 		?assertEqual(25.0, health(0, 8, 10, 4))
 	end}].
 	
-state_test_() ->
-	[{"node down message recieved",
-	fun() ->
-		State = #state{
-			monitoring = [node]
-		},
-		{noreply, Newstate} = handle_info({nodedown, node}, State),
-		Expect = #state{down = [node], monitoring = [], status = split},
-		?assertEqual(Expect, Newstate)
-	end},
-	{"node down message about a node we aren't monitoring",
-	fun() ->
-		State = #state{down = [node]},
-		{noreply, Newstate} = handle_info({nodedown, node}, State),
-		?assertEqual(State, Newstate)
-	end},
-	{"recovery message",
-	fun() ->
-		State = #state{down = [node]},
-		{noreply, Newstate} = handle_cast({recover, node}, State, {}),
-		Expected = #state{monitoring = [node], down = []},
-		?assertEqual(Expected, Newstate)
-	end},
-	{"recovery about a node that isn't down",
-	fun() ->
-		State = #state{monitoring = [node]},
-		{noreply, Newstate} = handle_cast({recover, node}, State, {}),
-		?assertEqual(State, Newstate)
-	end}].
-
 multinode_test_() ->
 	{foreach,
 	fun() ->

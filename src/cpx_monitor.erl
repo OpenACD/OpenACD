@@ -39,11 +39,12 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-type(parent() :: 'none' | string()).
 -type(health_type() :: 'system' | 'node' | 'queue' | 'agent' | 'media').
 -type(health_key() :: {health_type(), Name :: string() | atom()}).
 -type(health_details() :: {string() | atom(), integer()}).
 -type(other_details() :: {string() | atom(), any()}).
--type(health_tuple() :: {health_key(), integer(), health_details(), other_details()}).
+-type(health_tuple() :: {health_key(), parent(), health_details(), other_details()}).
 
 -include("log.hrl").
 
@@ -116,6 +117,41 @@ start(Args) ->
 stop() ->
 	gen_leader:call(?MODULE, stop).
 
+%% @doc Creates a health entry into the ets table using the given params.
+%% If there is an entry with the given name already, it is updated with the
+%% passed params.
+-spec(set/4 :: (Key :: health_key() | string(), Parent :: string(), Health :: health_details(), Other :: other_details()) -> 'ok').
+set({Node, Name} = Key, Parent, Health, Other) ->
+	gen_leader:cast(?MODULE, {set, {Key, Parent, Health, Other}});
+set(Name, Parent, Health, Other) ->
+	set({node(), Name}, Parent, Health, Other).
+
+%% @doc Give the three numbers min, goal, and max, calculate a number from
+%% 0 to 100 indicating how 'healthy' X is.  Values at or below Min are 0, at or
+%% above Max are set to 100.
+-spec(health/4 :: (Min :: float(), Goal :: float(), Max :: float(), X :: float()) -> float()).
+health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max ->
+	case {X =< Min, X >= Max, X == Goal} of
+		{true, _, _} ->
+			0.0;
+		{_, true, _} ->
+			100.0;
+		{_, _, true} ->
+			50.0;
+		{false, false, false} ->
+			case X < Goal of
+				true ->
+					Range = Goal - Min,
+					Ratio = (Goal - X) / Range,
+					Ratio * 50;
+				false ->
+					Range = Max - Goal,
+					Ratio = (X - Goal) / Range,
+					Ratio * 50 + 50
+			end
+	end.
+			
+			
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -201,7 +237,7 @@ from_leader(_Msg, State, _Election) ->
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
-%% @hidden
+%% @hidden	
 handle_call(stop, _From, State, Election) ->
 	{stop, normal, ok, State};
 handle_call(_Request, _From, State, Election) ->
@@ -212,6 +248,9 @@ handle_call(_Request, _From, State, Election) ->
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 %% @hidden
+handle_cast({set, Entry}, #state{ets = Tid} = State, _Election) when is_tuple(Entry), size(4) ->
+	ets:insert(Tid, Entry),
+	{noreply, State};
 handle_cast(_Request, State, _Election) -> 
     {noreply, State}.
 
@@ -372,6 +411,21 @@ write_rows_loop([{_Mod, Recs} | Tail]) ->
 
 -ifdef(EUNIT).
 
+health_test_() ->
+	[{"straight translations",
+	fun() ->
+		?assertEqual(50.0, health(0, 50, 100, 50)),
+		?assertEqual(0.0, health(0, 50, 100, 0)),
+		?assertEqual(100.0, health(0, 50, 100, 100)),
+		?assertEqual(25.0, health(0, 50, 100, 25))
+	end},
+	{"lopsied",
+	fun() ->
+		?assertEqual(50.0, health(0, 70, 100, 70)),
+		?assertEqual(75.0, health(0, 8, 10, 9)),
+		?assertEqual(25.0, health(0, 8, 10, 4))
+	end}].
+	
 state_test_() ->
 	[{"node down message recieved",
 	fun() ->

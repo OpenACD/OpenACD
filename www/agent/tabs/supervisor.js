@@ -8,20 +8,29 @@ label:"display",
 items:[{id:"1",
 	   display:"System",
 	   type:"system",
-	   health:50,
+	   health:{
+		_type:"details",
+		_value:{
+			happiness:50
+		}
+		},
 	   details:{
 		_type:"details",
 		_value:{
-			uptime:99
+			sysdata:"goober"
 		}}},
 	   {id:"2",
 	   display:"node1@example",
 	   type:"node",
-	   health:50,
+	   health:{
+		_type:"details",
+		_value:{
+			uptime:50
+		}
+	   },
 	   details:{
 		_type:"details",
 		_value:{
-			uptime:100,
 			location:"here"
 		}
 	   }
@@ -29,19 +38,25 @@ items:[{id:"1",
 	   {id:"3",
 	   display:"node2@example",
 	   type:"node",
-	   health:50,
-	   uptime:100,
+	   health:{
+		_type:"details",
+		_value:{
+			uptime:100
+		}
+	   },
 	   details:{
 		_type:"details",
 		_value:{
-			uptime:100,
 			location:"there"
 		}
 	   }},
 	   {id:"4",
 	   display:"queuegroup1",
 	   type:"queuegroup",
-	   health:50,
+	   health:{
+		_type:"details",
+		_value:{}
+		},
 	   details:{
 		_type:"details",
 		_value:{}
@@ -49,100 +64,163 @@ items:[{id:"1",
 	   {id:"5",
 	   display:"queuegroup2",
 	   type:"queuegroup",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{}
+		}},
 	   {id:"6",
 	   display:"queue1",
 	   type:"queue",
 	   group:"queuegroup1",
 	   node:"node1@example",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{
+			abandonment:100
+		}}},
 	   {id:"7",
 	   display:"queue2",
 	   type:"queue",
 	   group:"queuegroup2",
 	   node:"node1@example",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{
+			abandonment:20
+		}}},
 	   {id:"8",
 	   display:"queue3",
 	   type:"queue",
 	   group:"queuegroup1",
 	   node:"node2@example",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{
+			abandonment:50
+		}}},
 	   {id:"9",
 	   display:"queue4",
 	   type:"queue",
 	   group:"queuegroup2",
 	   node:"node2@example",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{
+			abandonment:50}
+		}},
 	   {id:"10",
 	   display:"media1",
 	   type:"media",
 	   node:"node1@example",
 	   queue:"queue1",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{}}},
 	   {id:"11",
 	   display:"media2",
 	   type:"media",
 	   node:"node2@example",
 	   queue:"queue1",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{
+			holdtime:50
+		}}},
 	   {id:"12",
 	   display:"media3",
 	   type:"media",
 	   node:"node1@example",
 	   queue:"queue2",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{
+			holdtime:100
+		}}},
 	   {id:"13",
 	   display:"media4",
 	   node:"node2@example",
 	   queue:"queue2",
-	   health:50},
+	   type:"media",
+	   health:{
+		_type:"details",
+		_value:{
+			holdtime:20
+		}}},
 	   {id:"14",
 	   display:"agentprofile1",
 	   type:"agentprofile",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{}}},
 	   {id:"15",
 	   display:"agentprofile2",
 	   type:"agentprofile",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{}}},
 	   {id:"16",
 	   display:"agent1",
 	   type:"agent",
 	   profile:"agentprofile1",
 	   node:"node1@example",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{
+			gooberness:50
+		}}},
 	   {id:"17",
 	   display:"agent2",
 	   type:"agent",
 	   profile:"agentprofile2",
 	   node:"node1@example",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{
+			gooberness:100
+		}}},
 	   {id:"18",
 	   display:"agent3",
 	   type:"agent",
 	   profile:"agentprofile1",
 	   node:"node2@example",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{
+			gooberness:50
+		}}},
 	   {id:"19",
 	   display:"agent4",
+	   type:"agent",
 	   profile:"agentprofile2",
 	   node:"node2@example",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{
+			gooberness:20
+		}}},
 	   {id:"20",
 	   display:"media5",
 	   type:"media",
 	   agent:"agent1",
 	   node:"node1@example",
-	   health:50},
+	   health:{
+		_type:"details",
+		_value:{
+			danceocity:50
+		}}},
 	   {id:"21",
 	   display:"media6",
 	   type:"media",
 	   agent:"agent2",
 	   node:"node2@example",
-	   health:50}]
+	   health:{
+		_type:"details",
+		_value:{
+			flameon:50
+		}}}]
 };
 
-supervisorTab.dataStore = new dojo.data.ItemFileReadStore({
+supervisorTab.dataStore = new dojo.data.ItemFileWriteStore({
 	data: supervisorTab.healthData,
 	typeMap:{
 		"details":{
@@ -221,6 +299,10 @@ dojo.connect(supervisorTab.surface, "ondragstart",   dojo, "stopEvent");
 dojo.connect(supervisorTab.surface, "onselectstart", dojo, "stopEvent");
 
 supervisorTab.averageHp = function(hps){
+	if(hps.length == 0){
+		return 50;
+	}
+	
 	var findweight = function(hp){
 		if(hp > 50){
 			// y = floor(.0039(x-50)^2 + 1)
@@ -250,6 +332,225 @@ supervisorTab.averageHp = function(hps){
 	dojo.forEach(hps, f);
 		
 	return Math.round(total / count);
+}
+
+supervisorTab.setMediaHps = function(){
+	var setHps = function(items){
+		var setHp = function(obj, ind, arr){
+			var healthobj = supervisorTab.dataStore.getValue(obj, "health");
+			var hpsvars = [];
+			for(var i in healthobj){
+				hpsvars.push(healthobj[i]);
+			}
+			var hp = supervisorTab.averageHp(hpsvars);
+			supervisorTab.dataStore.setValue(obj, "aggregate", hp);
+		}
+		dojo.forEach(items, setHp);
+		supervisorTab.dataStore.save();
+	}
+	supervisorTab.dataStore.fetch({
+		query:{"type":"media"},
+		onComplete:setHps
+	});
+								  
+}
+
+supervisorTab.setQueueHps = function(){
+	var setHp = function(item){
+		var healthobj = supervisorTab.dataStore.getValue(item, "health");
+		var hpsvars = [];
+		for(var i in healthobj){
+			hpsvars.push(healthobj[i]);
+		}
+		var gotMedia = function(mitems){
+			if(mitems.length > 0){
+				dojo.forEach(mitems, function(mitem){
+					hpsvars.push(supervisorTab.dataStore.getValue(mitem, "aggregate"));
+				});
+			}
+			var hp = supervisorTab.averageHp(hpsvars);
+			supervisorTab.dataStore.setValue(item, "aggregate", hp);
+			supervisorTab.dataStore.save();
+		}
+		
+		supervisorTab.dataStore.fetch({
+			query:{
+				type:"media",
+				queue:supervisorTab.dataStore.getValue(item, "display"),
+				node:supervisorTab.node
+			},
+			onComplete:gotMedia
+		});
+	}
+
+	var setHps = function(items){
+		dojo.forEach(items, setHp);
+	}
+
+	supervisorTab.dataStore.fetch({
+		query:{"type":"queue"},
+		onComplete:setHps
+	})
+}
+
+supervisorTab.setAgentHps = function(){
+	var setHp = function(item){
+		var healthobj = supervisorTab.dataStore.getValue(item, "health");
+		var hpsvars = [];
+		for(var i in healthobj){
+			hpsvars.push(healthobj[i]);
+		}
+		
+		var gotMedia = function(mitems){
+			if(mitems.length > 0){
+				hpsvars.push(supervisorTab.dataStore.getValue(mitems[0], "aggregate"));
+			}
+			var hp = supervisorTab.averageHp(hpsvars);
+			supervisorTab.dataStore.setValue(item, "aggregate", hp);
+			supervisorTab.dataStore.save();
+		}
+		
+		supervisorTab.dataStore.fetch({
+			query:{
+				"type":"media",
+				"agent":supervisorTab.dataStore.getValue(item, "display")
+			},
+			onComplete:gotMedia
+		});
+	}
+	
+	var setHps = function(items){
+		dojo.forEach(items, setHp);
+	}
+	
+	supervisorTab.dataStore.fetch({
+		query:{"type":"agent"},
+		onComplete:setHps
+	})
+}
+
+supervisorTab.setQueueGroupHps = function(){
+	var setHp = function(item){
+		var hpsvars = [];
+		var gotQueues = function(items){
+			dojo.forEach(items, function(i){
+				hpsvars.push(supervisorTab.dataStore.getValue(i, "aggregate"));
+			});
+			var hp = supervisorTab.averageHp(hpsvars);
+			supervisorTab.dataStore.setValue(item, "aggregate", hp);
+			supervisorTab.dataStore.save();
+		}
+		
+		supervisorTab.dataStore.fetch({
+			query:{
+				"type":"queue",
+				"group":supervisorTab.dataStore.getValue(item, "display"),
+				"node":supervisorTab.node
+			},
+			onComplete:gotQueues
+		});
+	}
+
+	var setHps = function(items){
+		dojo.forEach(items, setHp);
+	}
+	
+	supervisorTab.dataStore.fetch({
+		query:{"type":"queuegroup"},
+		onComplete:setHps
+	})
+}
+
+supervisorTab.setAgentProfileHps = function(){
+	var setHp = function(item){
+		var hpsvars = [];
+		var gotAgents = function(aitems){
+			dojo.forEach(aitems, function(i){
+				hpsvars.push(supervisorTab.dataStore.getValue(i, "aggregate"));
+			});
+			var hp = supervisorTab.averageHp(hpsvars);
+			supervisorTab.dataStore.setValue(item, "aggregate", hp);
+			supervisorTab.dataStore.save();
+		}
+		
+		supervisorTab.dataStore.fetch({
+			query:{
+				"type":"agent",
+				"profile":supervisorTab.dataStore.getValue(item, "display"),
+				"node":supervisorTab.node
+			},
+			onComplete:gotAgents
+		});
+	}
+	
+	var setHps = function(items){
+		dojo.forEach(items, setHp);
+	}
+	
+	supervisorTab.dataStore.fetch({
+		query:{"type":"agentprofile"},
+		onComplete:setHps
+	})
+}
+
+supervisorTab.setGlobalAgentHp = function(){
+	var setHp = function(items){
+		var hplist = [];
+		dojo.forEach(items, function(item){
+			hplist.push(supervisorTab.dataStore.getValue(item, "aggregate"));
+		});
+		var hp = supervisorTab.averageHp(hplist);
+		supervisorTab.agentBubble.setHp(hp);
+	}
+	supervisorTab.dataStore.fetch({
+		query:{"type":"agentprofile"},
+		onComplete:setHp
+	});
+}
+
+supervisorTab.setGlobalQueueHp = function(){
+	var setHp = function(items){
+		var hplist = [];
+		dojo.forEach(items, function(item){
+			hplist.push(supervisorTab.dataStore.getValue(item, "aggregate"));
+		});
+		var hp = supervisorTab.averageHp(hplist);
+		supervisorTab.queueBubble.setHp(hp);
+	}
+	supervisorTab.dataStore.fetch({
+		query:{"type":"queuegroup"},
+		onComplete:setHp
+	})
+}
+
+supervisorTab.setNodeHps = function(){
+	var gotNodes = function(items){
+		dojo.forEach(items, function(item){
+			var gotNodeItems = function(nitems){
+				var hplist = [];
+				dojo.forEach(nitems, function(nitem){
+					hplist.push(supervisorTab.dataStore.getValue(nitem, "aggregate"));
+				});
+				var hpobj = supervisorTab.dataStore.getValue(item, "health");
+				for(var i in hpobj){
+					hplist.push(hpobj[i]);
+				}
+				var hp = supervisorTab.averageHp(hplist);
+				supervisorTab.dataStore.setValue(item, "aggregate", hp);
+			}
+			supervisorTab.dataStore.save();
+			
+			supervisorTab.dataStore.fetch({
+				query:{node:supervisorTab.dataStore.getValue(item, "display")},
+				onComplete:gotNodeItems
+			});
+		});
+	}
+	
+	supervisorTab.dataStore.fetch({
+		query:{type:"node"},
+		onComplete:gotNodes
+	});
 }
 
 supervisorTab.bubbleZoom = function(ev){
@@ -324,7 +625,9 @@ supervisorTab.drawBubble = function(opts){
 	
 	text.setStroke(textcolors);
 	text.setFill(textcolors);
-		
+	
+	group.text = text;
+	
 	group.size = function(scale){
 		var rect = group.children[0];
 		var p = {
@@ -341,6 +644,20 @@ supervisorTab.drawBubble = function(opts){
 
 	group.grow = function(){
 		group.size(1.4);
+	}
+	
+	group.setHp = function(hp){
+		var rmod = Math.abs(-(255/50) * hp + 255);
+		var gmod = 255;
+		var textcolors = "black";
+		if(hp > 50){
+			var gmod = -255/50 * 1.3 * hp + (255 * 2);
+			textcolors = "white";
+		}
+		var bubblefill = [rmod, gmod, 0, 100];
+		group.text.setStroke(textcolors);
+		group.text.setFill(textcolors);
+		group.bubble.setFill(bubblefill);
 	}
 	
 	group.pointCollision = function(point){
@@ -360,8 +677,16 @@ supervisorTab.setDetails = function(fquery){
 	var fetchdone = function(item){
 		var obj = supervisorTab.dataStore.getValue(item, "details");
 		var out = "";
+		if(supervisorTab.dataStore.getValue(item, "node")){
+			out += "<p class=\"smaller\"><label class=\"narrow\">Node:</label>" + supervisorTab.dataStore.getValue(item, "node");
+		}
 		for(var i in obj){
-			out += "<p><label class=\"narrow\">" + i + ":</label>" + obj[i].toString() + "</p>";
+			out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + obj[i].toString() + "</p>";
+		}
+		out += "<p>Health Report</p>";
+		var hps = supervisorTab.dataStore.getValue(item, "health");
+		for(var i in hps){
+			out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + hps[i].toString() + "</p>";
 		}
 		dijit.byId("supervisorDetails").setContent(out);
 		dijit.byId("supervisorDetails").setTitle(supervisorTab.dataStore.getValue(item, "type") + ": " + supervisorTab.dataStore.getValue(item, "display"));
@@ -439,6 +764,11 @@ supervisorTab.drawAgentQueueBubbles = function(agenthp, queuehp){
 		this.grow();
 		supervisorTab.queueBubble.shrink();
 	});
+	supervisorTab.agentBubble.dragOver = function(obj){
+		supervisorTab.refreshGroupsStack("agentprofile");
+		this.grow();
+		supervisorTab.queueBubble.shrink();
+	}
 	supervisorTab.queueBubble = supervisorTab.drawBubble({
 		scale:.75, 
 		point:{x:20, y:60}, 
@@ -449,6 +779,11 @@ supervisorTab.drawAgentQueueBubbles = function(agenthp, queuehp){
 		this.grow();
 		supervisorTab.agentBubble.shrink();
 	});
+	supervisorTab.queueBubble.dragOver = function(obj){
+		supervisorTab.refreshGroupsStack("queuegroup");
+		this.grow();
+		supervisorTab.agentBubble.shrink();
+	}
 }
 
 supervisorTab.drawBubbleStack = function(props){
@@ -477,7 +812,7 @@ supervisorTab.drawBubbleStack = function(props){
 	
 	group.viewHeight = conf.viewHeight;
 	
-	group.backing = group.createRect({x:pt.x - 50, y:-100, width:200, height: groupHeight + 200}).setFill([0, 0, 0, 100]).setStroke([0, 0, 0, 0]);
+	group.backing = group.createRect({x:pt.x - 50, y:-100, width:200, height: groupHeight + 200}).setFill([0, 0, 0, 0]).setStroke([0, 0, 0, 0]);
 	
 	group.bubbles = [];
 	var hps = [];
@@ -543,7 +878,7 @@ supervisorTab.drawBubbleStack = function(props){
 			group.scroll(point.y);
 			for(var i = 0; i < group.bubbles.length; i++){
 				if(group.bubbles[i].pointCollision(point)){
-					console.log(group.bubbles[i]);
+					//console.log(group.bubbles[i]);
 					if(group.bubbles[i].onEnter){
 						group.bubbles[i].onEnter();
 					}
@@ -594,7 +929,7 @@ supervisorTab.simplifyData = function(items){
 	dojo.forEach(items, function(obj, index, arr){
 		acc.push({
 			"display":supervisorTab.dataStore.getValue(obj, "display"),
-			"health":supervisorTab.dataStore.getValue(obj, "health"),
+			"health":supervisorTab.dataStore.getValue(obj, "aggregate"),
 			"type":supervisorTab.dataStore.getValue(obj, "type")
 		});
 	})
@@ -617,7 +952,7 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 			acc.push({
 				data:{
 					display:supervisorTab.dataStore.getValue(obj, "display"),
-					health:supervisorTab.dataStore.getValue(obj, "health")
+					health:supervisorTab.dataStore.getValue(obj, "aggregate")
 				},
 				onmouseenter:function(ev){
 					if(conf.type == "agentprofile"){
@@ -632,7 +967,7 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 					});
 				}
 			});
-			hps.push(supervisorTab.dataStore.getValue(obj, "health"));
+			hps.push(supervisorTab.dataStore.getValue(obj, "aggregate"));
 		});
 	
 		supervisorTab.callsStack.clear();
@@ -690,7 +1025,7 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 		var acc = [];
 		var hps = [];
 		dojo.forEach(items, function(obj){
-			hps.push(supervisorTab.dataStore.getValue(obj, "health"));
+			hps.push(supervisorTab.dataStore.getValue(obj, "aggregate"));
 			
 			var detailsObj = {
 				display:supervisorTab.dataStore.getValue(obj, "display"),
@@ -710,7 +1045,7 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 			var bub = supervisorTab.individualsStack.addBubble({
 				data:{
 					display:supervisorTab.dataStore.getValue(obj, "display"), 
-					health:supervisorTab.dataStore.getValue(obj, "health")
+					health:supervisorTab.dataStore.getValue(obj, "aggregate")
 				},
 				onmouseenter:function(){
 					onEnterf();
@@ -726,7 +1061,7 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 			bub.onEnter = onEnterf;
 			bub.dropped = function(obj){
 				if(obj.data.type == "media"){
-					console.log(message);
+					//console.log(message);
 				}
 			}
 			if(bub.data.display != "All"){
@@ -776,7 +1111,7 @@ supervisorTab.refreshCallsStack = function(dkey, dval, node){
 			acc.push({
 				data:{
 					display:supervisorTab.dataStore.getValue(obj, "display"),
-					health:supervisorTab.dataStore.getValue(obj, "health"),
+					health:supervisorTab.dataStore.getValue(obj, "aggregate"),
 					type:"media"
 				},
 				onmouseenter:function(ev){
@@ -837,7 +1172,30 @@ supervisorTab.refreshSystemStack = function(){
 	});
 }
 
+supervisorTab.healthDump = function(){
+	var dump = function(items){
+		dojo.forEach(items, function(item){
+			var out = supervisorTab.dataStore.getValue(item, "aggregate");
+			var nom = supervisorTab.dataStore.getValue(item, "display");
+			console.log(nom + ": " + out);
+		})
+	}
+	
+	supervisorTab.dataStore.fetch({
+		onComplete:dump
+	});
+}
+
 supervisorTab.drawAgentQueueBubbles(0, 0);
+
+supervisorTab.setMediaHps();
+supervisorTab.setQueueHps();
+supervisorTab.setAgentHps();
+supervisorTab.setQueueGroupHps();
+supervisorTab.setAgentProfileHps();
+supervisorTab.setGlobalAgentHp();
+supervisorTab.setGlobalQueueHp();
+supervisorTab.setNodeHps();
+
 supervisorTab.refreshSystemStack();
 supervisorTab.systemStack[0].grow();
-

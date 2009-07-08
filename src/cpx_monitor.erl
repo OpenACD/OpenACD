@@ -407,6 +407,12 @@ health_test_() ->
 		?assertEqual(50.0, health(0, 70, 100, 70)),
 		?assertEqual(75.0, health(0, 8, 10, 9)),
 		?assertEqual(25.0, health(0, 8, 10, 4))
+	end},
+	{"lopsided the other way",
+	fun() ->
+		?assertEqual(50.0, health(0, 3, 10, 3)),
+		?assertEqual(25.0, health(0, 2, 10, 1)),
+		?assertEqual(75.0, health(0, 4, 10, 7))
 	end}].
 	
 multinode_test_() ->
@@ -453,71 +459,7 @@ multinode_test_() ->
 			?assertMatch({ok, _Pid}, Mrez),
 			?assertMatch({ok, _Pid}, Srez)
 		end}
-	end]}.%,
-%	fun({Master, Slave}) ->
-%		{"Merging after net split",
-%		fun() ->
-%			rpc:call(Slave, erlang, disconnect_node, [Master]),
-%			
-%			?DEBUG("~p", [rpc:call(Master, agent_auth, add_agent, ["agent", "badpass", [], agent, "Default"])]),
-%			
-%			Mrez = rpc:call(Master, agent_auth, get_agent, ["agent"]),
-%			Srez = rpc:call(Slave, agent_auth, get_agent, ["agent"]),
-%			?INFO("Mrez  ~p", [Mrez]),
-%			?INFO("Srez ~p", [Srez]),
-%			?assertNot(Mrez =:= Srez),
-%			
-%			Mmon = rpc:call(Master, cpx_monitor, start, [[{nodes, [Master, Slave]}]]),
-%			Smon = rpc:call(Slave, cpx_monitor, start, [[{nodes, [Master, Slave]}]]),
-%			
-%			Mrez2 = rpc:call(Master, agent_auth, get_agent, ["agent"]),
-%			Srez2 = rpc:call(Slave, agent_auth, get_agent, ["agent"]),
-%			?INFO("Mrez2  ~p", [Mrez2]),
-%			?INFO("Srez2 ~p", [Srez2]),
-%			?assertEqual(Mrez2, Srez2)
-%		end}
-%	end]}.
-
-
-
-
-
-
-
-%				"Net Split",fun() ->
-%					rpc:call(Master, ?MODULE, add_queue, ["queue1", []]),
-%					rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
-%
-%					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"])),
-%					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
-%
-%					%rpc:call(Master, erlang, disconnect_node, [Slave]),
-%					rpc:call(Slave, erlang, disconnect_node, [Master]),
-%
-%					%receive after 300 -> ok end,
-%
-%					?debugFmt("Master queues ~p~n", [rpc:call(Master, ?MODULE, queues, [])]),
-%					?debugFmt("Slave queues ~p~n", [rpc:call(Slave, ?MODULE, queues, [])]),
-%
-%					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue2"])),
-%					?assertMatch(true, rpc:call(Slave, ?MODULE, query_queue, ["queue1"])),
-%
-%					%?assertMatch(Newmaster, Master),
-%					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue1"])),
-%					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
-%					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
-%					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue1", []]))
-%				end
-
-
-
-
-
-
-
-
-
-
-
+	end]}.
+	
 -endif.
 

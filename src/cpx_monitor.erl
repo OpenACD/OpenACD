@@ -39,13 +39,11 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--type(call_health() :: {Aggregate :: integer()}).
--type(agent_health() :: {Aggregate :: integer(), [{string(), call_health()}]}).
--type(queue_health() :: {Aggregate :: integer(), [{string(), call_health()}]}).
--type(agent_profile_health() :: {Aggregate :: integer(), [{string(), agent_health()}]}).
--type(queue_group_health() :: {Aggregate :: integer(), [{string(), queue_health()}]}).
--type(node_health() :: {Aggregate :: integer(), Queuegroups :: [{string(), queue_group_health()}], Agentprofiles :: [{string(), agent_profile_health()}]}).
--type(system_health() :: {Aggregate :: integer(), Nodes :: [{atom(), node_health()}]}).
+-type(health_type() :: 'system' | 'node' | 'queue' | 'agent' | 'media').
+-type(health_key() :: {health_type(), Name :: string() | atom()}).
+-type(health_details() :: {string() | atom(), integer()}).
+-type(other_details() :: {string() | atom(), any()}).
+-type(health_tuple() :: {health_key(), integer(), health_details(), other_details()}).
 
 -include("log.hrl").
 
@@ -78,7 +76,8 @@
 	status = stable :: 'stable' | 'merging' | 'split',	
 	splits = [] :: [{atom(), integer()}],
 	merge_status = none :: 'none' | any(),
-	merging = none :: 'none' | [atom()]
+	merging = none :: 'none' | [atom()],
+	ets :: any()
 }).
 
 -type(state() :: #state{}).
@@ -126,10 +125,12 @@ init(Args) when is_list(Args) ->
 	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
 	Mons = Nodes,
 	lists:foreach(fun(N) -> monitor_node(N, true) end, Mons),
+	Tid = ets:new(?MODULE, []),
     {ok, #state{
 		nodes = Nodes, 
 		monitoring = Mons,
-		auto_restart_mnesia = proplists:get_value(auto_restart_mnesia, Args, true)
+		auto_restart_mnesia = proplists:get_value(auto_restart_mnesia, Args, true),
+		ets = Tid
 	}}.
 
 

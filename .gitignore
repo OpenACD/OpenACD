@@ -7,6 +7,7 @@ coverage/*
 erl_crash.dump
 .gen_leader*
 *_manager_*@*
+cpx_monitor_*@*
 doc/*
 
 contrib/**/ebin/*

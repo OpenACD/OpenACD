@@ -212,17 +212,6 @@ handle_call(_Request, _From, State, Election) ->
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 %% @hidden
-handle_cast({recover, Node}, State, _Election) ->
-	case lists:member(Node, State#state.down) of
-		false ->
-			% just chill
-			{noreply, State};
-		true ->
-			?INFO("~w appears to have recovered.", [Node]),
-			Newdown = lists:delete(Node, State#state.down),
-			Newmon = [Node | State#state.monitoring],
-			{noreply, State#state{down = Newdown, monitoring = Newmon}}
-	end;
 handle_cast(_Request, State, _Election) -> 
     {noreply, State}.
 

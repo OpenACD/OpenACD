@@ -253,8 +253,29 @@ handle_call({warm_transfer, Number}, _From, #state{agent_fsm = Apid} = State) ->
 	end,
 	{reply, Reply, State};
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
-	?INFO("Handing supervisor request ~s", [lists:flatten(Request)]),
+	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
+		["status"] ->
+			case file:read_file_info("sup_test_data.js") of
+				{error, Error} ->
+					?WARNING("Couldn't get test data due to ~p", [Error]),
+					{reply, {500, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not get data">>}]})}, State};
+				_Else ->
+					{ok, Io} = file:open("sup_test_data.js", [raw, binary]),
+					Read = fun(F, Acc) ->
+						case file:read(Io, 20) of
+							{ok, Data} ->
+								F(F, [Data | Acc]);
+							eof ->
+								lists:flatten(lists:reverse(Acc));
+							{error, Err} ->
+								Err
+						end
+					end,
+					Data = Read(Read, []),
+					file:close(Io),
+					{reply, {200, [], Data}, State}
+			end;
 		["nodes"] ->
 			Nodes = lists:sort([node() | nodes()]),
 			F = fun(I) ->

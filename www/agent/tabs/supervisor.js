@@ -5,219 +5,7 @@ supervisorTab = function(){
 
 supervisorTab.healthData = {identifier:"id",
 label:"display",
-items:[{id:"1",
-	   display:"System",
-	   type:"system",
-	   health:{
-		_type:"details",
-		_value:{
-			happiness:50
-		}
-		},
-	   details:{
-		_type:"details",
-		_value:{
-			sysdata:"goober"
-		}}},
-	   {id:"2",
-	   display:"node1@example",
-	   type:"node",
-	   health:{
-		_type:"details",
-		_value:{
-			uptime:50
-		}
-	   },
-	   details:{
-		_type:"details",
-		_value:{
-			location:"here"
-		}
-	   }
-	   },
-	   {id:"3",
-	   display:"node2@example",
-	   type:"node",
-	   health:{
-		_type:"details",
-		_value:{
-			uptime:100
-		}
-	   },
-	   details:{
-		_type:"details",
-		_value:{
-			location:"there"
-		}
-	   }},
-	   {id:"4",
-	   display:"queuegroup1",
-	   type:"queuegroup",
-	   health:{
-		_type:"details",
-		_value:{}
-		},
-	   details:{
-		_type:"details",
-		_value:{}
-	   }},
-	   {id:"5",
-	   display:"queuegroup2",
-	   type:"queuegroup",
-	   health:{
-		_type:"details",
-		_value:{}
-		}},
-	   {id:"6",
-	   display:"queue1",
-	   type:"queue",
-	   group:"queuegroup1",
-	   node:"node1@example",
-	   health:{
-		_type:"details",
-		_value:{
-			abandonment:100
-		}}},
-	   {id:"7",
-	   display:"queue2",
-	   type:"queue",
-	   group:"queuegroup2",
-	   node:"node1@example",
-	   health:{
-		_type:"details",
-		_value:{
-			abandonment:20
-		}}},
-	   {id:"8",
-	   display:"queue3",
-	   type:"queue",
-	   group:"queuegroup1",
-	   node:"node2@example",
-	   health:{
-		_type:"details",
-		_value:{
-			abandonment:50
-		}}},
-	   {id:"9",
-	   display:"queue4",
-	   type:"queue",
-	   group:"queuegroup2",
-	   node:"node2@example",
-	   health:{
-		_type:"details",
-		_value:{
-			abandonment:50}
-		}},
-	   {id:"10",
-	   display:"media1",
-	   type:"media",
-	   node:"node1@example",
-	   queue:"queue1",
-	   health:{
-		_type:"details",
-		_value:{}}},
-	   {id:"11",
-	   display:"media2",
-	   type:"media",
-	   node:"node2@example",
-	   queue:"queue1",
-	   health:{
-		_type:"details",
-		_value:{
-			holdtime:50
-		}}},
-	   {id:"12",
-	   display:"media3",
-	   type:"media",
-	   node:"node1@example",
-	   queue:"queue2",
-	   health:{
-		_type:"details",
-		_value:{
-			holdtime:100
-		}}},
-	   {id:"13",
-	   display:"media4",
-	   node:"node2@example",
-	   queue:"queue2",
-	   type:"media",
-	   health:{
-		_type:"details",
-		_value:{
-			holdtime:20
-		}}},
-	   {id:"14",
-	   display:"agentprofile1",
-	   type:"agentprofile",
-	   health:{
-		_type:"details",
-		_value:{}}},
-	   {id:"15",
-	   display:"agentprofile2",
-	   type:"agentprofile",
-	   health:{
-		_type:"details",
-		_value:{}}},
-	   {id:"16",
-	   display:"agent1",
-	   type:"agent",
-	   profile:"agentprofile1",
-	   node:"node1@example",
-	   health:{
-		_type:"details",
-		_value:{
-			gooberness:50
-		}}},
-	   {id:"17",
-	   display:"agent2",
-	   type:"agent",
-	   profile:"agentprofile2",
-	   node:"node1@example",
-	   health:{
-		_type:"details",
-		_value:{
-			gooberness:100
-		}}},
-	   {id:"18",
-	   display:"agent3",
-	   type:"agent",
-	   profile:"agentprofile1",
-	   node:"node2@example",
-	   health:{
-		_type:"details",
-		_value:{
-			gooberness:50
-		}}},
-	   {id:"19",
-	   display:"agent4",
-	   type:"agent",
-	   profile:"agentprofile2",
-	   node:"node2@example",
-	   health:{
-		_type:"details",
-		_value:{
-			gooberness:20
-		}}},
-	   {id:"20",
-	   display:"media5",
-	   type:"media",
-	   agent:"agent1",
-	   node:"node1@example",
-	   health:{
-		_type:"details",
-		_value:{
-			danceocity:50
-		}}},
-	   {id:"21",
-	   display:"media6",
-	   type:"media",
-	   agent:"agent2",
-	   node:"node2@example",
-	   health:{
-		_type:"details",
-		_value:{
-			flameon:50
-		}}}]
+items:[]
 };
 
 supervisorTab.dataStore = new dojo.data.ItemFileWriteStore({
@@ -553,6 +341,17 @@ supervisorTab.setNodeHps = function(){
 	});
 }
 
+supervisorTab.setAllHps = function(){
+	supervisorTab.setMediaHps();
+	supervisorTab.setQueueHps();
+	supervisorTab.setAgentHps();
+	supervisorTab.setQueueGroupHps();
+	supervisorTab.setAgentProfileHps();
+	supervisorTab.setGlobalAgentHp();
+	supervisorTab.setGlobalQueueHp();
+	supervisorTab.setNodeHps();	
+}
+
 supervisorTab.bubbleZoom = function(ev){
 	var rect = this.children[0];
 	var p = {
@@ -720,6 +519,12 @@ supervisorTab.drawSystemStack = function(opts){
 			point: {x:20, y:yi},
 			data: obj
 		});
+		if(supervisorTab.node == "*" && obj.display == "System"){
+			o.grow();
+		}
+		else if(supervisorTab.node == obj.display){
+			o.grow();
+		}
 		o.connect("onclick", o, function(ev){
 			if(this.data.display == "System"){
 				supervisorTab.node = "*";
@@ -993,9 +798,7 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 			}
 		});
 		
-		dojo.forEach(supervisorTab.groupsStack.bubbles, function(obj, ind, arr){
-			
-		});
+		supervisorTab.groupsStack.moveToBack();
 	}
 	
 	supervisorTab.dataStore.fetch({
@@ -1061,7 +864,7 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 			bub.onEnter = onEnterf;
 			bub.dropped = function(obj){
 				if(obj.data.type == "media"){
-					//console.log(message);
+					console.log(message);
 				}
 			}
 			if(bub.data.display != "All"){
@@ -1087,6 +890,7 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 				}
 			}
 		});
+		supervisorTab.individualsStack.moveToBack();
 	}
 	
 	var queryo = {
@@ -1188,14 +992,41 @@ supervisorTab.healthDump = function(){
 
 supervisorTab.drawAgentQueueBubbles(0, 0);
 
-supervisorTab.setMediaHps();
-supervisorTab.setQueueHps();
-supervisorTab.setAgentHps();
-supervisorTab.setQueueGroupHps();
-supervisorTab.setAgentProfileHps();
-supervisorTab.setGlobalAgentHp();
-supervisorTab.setGlobalQueueHp();
-supervisorTab.setNodeHps();
+supervisorTab.reloadDataStore = function(){
+	dojo.xhrGet({
+		url:"/supervisor/status",
+		handleAs:"json",
+		load:function(data){
+			if(data.data){
+				supervisorTab.healthData = data.data;
+				supervisorTab.dataStore = new dojo.data.ItemFileWriteStore({
+					data: supervisorTab.healthData,
+					typeMap:{
+						"details":{
+							"type":Object,
+							"deserialize":function(obj){return obj}
+						}
+					}
+				});
+				supervisorTab.setAllHps();
+				supervisorTab.refreshSystemStack();
+				supervisorTab.poller.start();
+			}
+			else{
+				console.log(data);
+			}
+		}
+	})
+}
 
 supervisorTab.refreshSystemStack();
 supervisorTab.systemStack[0].grow();
+
+supervisorTab.poller = new dojox.timing.Timer(5000);
+supervisorTab.poller.onTick = function(){
+	supervisorTab.poller.stop();
+	supervisorTab.reloadDataStore();
+}
+
+supervisorTab.reloadDataStore();
+

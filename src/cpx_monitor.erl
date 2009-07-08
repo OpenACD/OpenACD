@@ -119,12 +119,17 @@ stop() ->
 
 %% @doc Creates a health entry into the ets table using the given params.
 %% If there is an entry with the given name already, it is updated with the
-%% passed params.
+%% passed params.  Returns 'ok' immediately.
 -spec(set/4 :: (Key :: health_key() | string(), Parent :: string(), Health :: health_details(), Other :: other_details()) -> 'ok').
 set({Node, Name} = Key, Parent, Health, Other) ->
 	gen_leader:cast(?MODULE, {set, {Key, Parent, Health, Other}});
 set(Name, Parent, Health, Other) ->
 	set({node(), Name}, Parent, Health, Other).
+
+%% @Gets all the records of the given type from the ets
+-spec(get/1 :: (Type :: health_type()) -> {'ok', [health_tuple()]}).
+get(Type) ->
+	gen_leader:call(?MODULE, {get, Type}).
 
 %% @doc Give the three numbers min, goal, and max, calculate a number from
 %% 0 to 100 indicating how 'healthy' X is.  Values at or below Min are 0, at or
@@ -237,7 +242,11 @@ from_leader(_Msg, State, _Election) ->
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
-%% @hidden	
+%% @hidden
+handle_call({get, What}, _From, #state{ets = Tid} = State, _Election) ->
+	Pattern = {{What, '_'}, '_', '_', '_'},
+	Results = ets:match_object(Tid, Pattern),
+	{reply, {ok, Results}, State};
 handle_call(stop, _From, State, Election) ->
 	{stop, normal, ok, State};
 handle_call(_Request, _From, State, Election) ->

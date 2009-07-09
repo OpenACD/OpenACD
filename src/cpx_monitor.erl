@@ -119,12 +119,11 @@ stop() ->
 
 %% @doc Creates a health entry into the ets table using the given params.
 %% If there is an entry with the given name already, it is updated with the
-%% passed params.  Returns 'ok' immediately.
+%% passed params.  Returns 'ok' immediately.  If Other does not contain an
+%% entry with the key of `node', `{node, node()}' is prepended to it.
 -spec(set/4 :: (Key :: health_key() | string(), Parent :: string(), Health :: health_details(), Other :: other_details()) -> 'ok').
-set({Node, Name} = Key, Parent, Health, Other) ->
-	gen_leader:cast(?MODULE, {set, {Key, Parent, Health, Other}});
-set(Name, Parent, Health, Other) ->
-	set({node(), Name}, Parent, Health, Other).
+set({Type, Name} = Key, Parent, Health, Other) ->
+	gen_leader:cast(?MODULE, {set, {Key, Parent, Health, Other}}).
 
 %% @Gets all the records of the given type from the ets
 -spec(get/1 :: (Type :: health_type()) -> {'ok', [health_tuple()]}).
@@ -179,7 +178,6 @@ init(Args) when is_list(Args) ->
 elected(State, Election, Node) -> 
 	?INFO("elected by ~w", [Node]),
 	% what was down and is now up?
-	% TODO extend this to do more than agent_auth
 	Edown = gen_leader:down(Election),
 	Foldf = fun({N, T}, {Up, Down}) ->
 		case lists:member(N, Edown) of
@@ -215,12 +213,18 @@ surrendered(State, _LeaderState, _Election) ->
 	{ok, State}.
 	
 %% @hidden
-handle_DOWN(Node, State, _Election) ->
+handle_DOWN(Node, #state{ets = Tid} = State, _Election) ->
 	Newsplits = case proplists:get_value(Node, State#state.splits) of
 		undefined ->
 			[{Node, util:now()} | State#state.splits];
 		_Time ->
 			State#state.splits
+	end,
+	case ets:lookup(Tid, {node, Node}) of
+		[] ->
+			ets:insert({{node, Node}, none, [down], []});
+		[{Key, Parent, _Hp, Details}] ->
+			ets:insert(Tid, {Key, Parent, [down], Details})
 	end,
 	{ok, State#state{splits = Newsplits}}.
 
@@ -257,8 +261,15 @@ handle_call(_Request, _From, State, Election) ->
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 %% @hidden
-handle_cast({set, Entry}, #state{ets = Tid} = State, _Election) when is_tuple(Entry), size(4) ->
-	ets:insert(Tid, Entry),
+handle_cast({set, {Key, Parent, Hp, Details} = Entry}, #state{ets = Tid} = State, _Election)  ->
+	Trueentry = case proplists:get_value(node, Details) of
+		undefined ->
+			Newdetails = [{node, node()} | Details],
+			{Key, Parent, Hp, Details};
+		_Else ->
+			Entry
+	end,
+	ets:insert(Tid, Trueentry),
 	{noreply, State};
 handle_cast(_Request, State, _Election) -> 
     {noreply, State}.
@@ -355,7 +366,6 @@ check_loop(Node) ->
 	end.
 	
 merge_complete(Dict) ->
-	% TODO extend this to more than just agent_auth
 	Agent = case dict:find(agent_auth, Dict) of
 		error ->
 			false;

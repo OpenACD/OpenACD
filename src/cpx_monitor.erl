@@ -52,7 +52,10 @@
 -export([
 	start_link/1,
 	start/1,
-	stop/0
+	stop/0,
+	set/4,
+	get_health/1,
+	health/4
 	]).
 
 %% gen_server callbacks
@@ -122,12 +125,12 @@ stop() ->
 %% passed params.  Returns 'ok' immediately.  If Other does not contain an
 %% entry with the key of `node', `{node, node()}' is prepended to it.
 -spec(set/4 :: (Key :: health_key() | string(), Parent :: string(), Health :: health_details(), Other :: other_details()) -> 'ok').
-set({Type, Name} = Key, Parent, Health, Other) ->
+set({_Type, _Name} = Key, Parent, Health, Other) ->
 	gen_leader:cast(?MODULE, {set, {Key, Parent, Health, Other}}).
 
 %% @Gets all the records of the given type from the ets
--spec(get/1 :: (Type :: health_type()) -> {'ok', [health_tuple()]}).
-get(Type) ->
+-spec(get_health/1 :: (Type :: health_type()) -> {'ok', [health_tuple()]}).
+get_health(Type) ->
 	gen_leader:call(?MODULE, {get, Type}).
 
 %% @doc Give the three numbers min, goal, and max, calculate a number from
@@ -190,7 +193,7 @@ elected(State, Election, Node) ->
 	{Merge, Stilldown} = lists:foldl(Foldf, {[], []}, State#state.splits),
 	Findoldest = fun({_N, T}, Time) when T > Time ->
 			T;
-		({_N, T}, Time) ->
+		({_N, _T}, Time) ->
 			Time
 	end,
 	case Merge of
@@ -234,7 +237,7 @@ handle_leader_call(Message, From, State, _Election) ->
 	{reply, ok, State}.
 
 %% @hidden
-handle_leader_cast(Message, State, Election) ->
+handle_leader_cast(Message, State, _Election) ->
 	?WARNING("received unexpected leader_cast ~p", [Message]),
 	{noreply, State}.
 
@@ -251,9 +254,9 @@ handle_call({get, What}, _From, #state{ets = Tid} = State, _Election) ->
 	Pattern = {{What, '_'}, '_', '_', '_'},
 	Results = ets:match_object(Tid, Pattern),
 	{reply, {ok, Results}, State};
-handle_call(stop, _From, State, Election) ->
+handle_call(stop, _From, State, _Election) ->
 	{stop, normal, ok, State};
-handle_call(_Request, _From, State, Election) ->
+handle_call(_Request, _From, State, _Election) ->
     Reply = ok,
     {reply, Reply, State}.
 
@@ -265,7 +268,7 @@ handle_cast({set, {Key, Parent, Hp, Details} = Entry}, #state{ets = Tid} = State
 	Trueentry = case proplists:get_value(node, Details) of
 		undefined ->
 			Newdetails = [{node, node()} | Details],
-			{Key, Parent, Hp, Details};
+			{Key, Parent, Hp, Newdetails};
 		_Else ->
 			Entry
 	end,
@@ -342,28 +345,6 @@ restart_mnesia(Nodes) ->
 		end, Nodes)
 	end,
 	spawn_link(F).
-
-recover(Node) ->
-	gen_server:cast(?MODULE, {recover, Node}).
-
-recovery_watch(Node) ->
-	monitor_node(Node, false),
-	receive
-		{nodedown, Node} ->
-			timer:send_after(1000, check)
-	after 100 ->
-		recover(Node),
-		ok
-	end,
-	check_loop(Node).
-
-check_loop(Node) ->
-	receive
-		check ->
-			recovery_watch(Node); 
-		_Otherwise -> 
-			check_loop(Node)
-	end.
 	
 merge_complete(Dict) ->
 	Agent = case dict:find(agent_auth, Dict) of

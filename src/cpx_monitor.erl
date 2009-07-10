@@ -184,7 +184,6 @@ init(Args) when is_list(Args) ->
 	process_flag(trap_exit, true),
 	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
 	Mons = Nodes,
-	lists:foreach(fun(N) -> monitor_node(N, true) end, Mons),
 	Tid = ets:new(?MODULE, []),
     {ok, #state{
 		nodes = Nodes, 

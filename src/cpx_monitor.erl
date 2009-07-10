@@ -55,6 +55,7 @@
 	start/1,
 	stop/0,
 	set/4,
+	drop/1,
 	get_health/1,
 	health/4
 	]).
@@ -267,7 +268,7 @@ handle_call({get, When}, _From, #state{ets = Tid} = State, _Election) when is_in
 	Out = ets:foldl(F, [], Tid),
 	{reply, {ok, Out}, State};
 handle_call({get, What}, _From, #state{ets = Tid} = State, _Election) when is_atom(What) ->
-	F = fun({{What, Name} = Key, Parent, Hp, Details, Time}, Acc) ->
+	F = fun({{What, _Name} = Key, Parent, Hp, Details, _Time}, Acc) ->
 		[{Key, Parent, Hp, Details} | Acc];
 	(_, Acc) ->
 		Acc
@@ -288,7 +289,7 @@ handle_call(Request, _From, State, _Election) ->
 handle_cast({drop, Key}, #state{ets = Tid} = State, _Election) ->
 	ets:delete(Tid, Key),
 	{noreply, State};
-handle_cast({set, {Key, Parent, Hp, Details} = Entry}, #state{ets = Tid} = State, _Election)  ->
+handle_cast({set, {Key, Parent, Hp, Details}}, #state{ets = Tid} = State, _Election)  ->
 	Trueentry = case proplists:get_value(node, Details) of
 		undefined ->
 			Newdetails = [{node, node()} | Details],

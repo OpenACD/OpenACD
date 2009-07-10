@@ -256,26 +256,45 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
 		["status"] ->
-			case file:read_file_info("sup_test_data.js") of
-				{error, Error} ->
-					?WARNING("Couldn't get test data due to ~p", [Error]),
-					{reply, {500, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not get data">>}]})}, State};
-				_Else ->
-					{ok, Io} = file:open("sup_test_data.js", [raw, binary]),
-					Read = fun(F, Acc) ->
-						case file:read(Io, 20) of
-							{ok, Data} ->
-								F(F, [Data | Acc]);
-							eof ->
-								lists:flatten(lists:reverse(Acc));
-							{error, Err} ->
-								Err
-						end
-					end,
-					Data = Read(Read, []),
-					file:close(Io),
-					{reply, {200, [], Data}, State}
-			end;
+			% nodes, agents, queues, media, and system.
+			{ok, Nodestats} = cpx_monitor:get_health(node),
+			{ok, Agentstats} = cpx_monitor:get_health(agent),
+			{ok, Queuestats} = cpx_monitor:get_health(queue),
+			{ok, Systemstats} = cpx_monitor:get_health(system),
+			{ok, Mediastats} = cpx_monitor:get_health(media),
+			Stats = lists:append([Nodestats, Agentstats, Queuestats, Systemstats, Mediastats]),
+			{_Count, Encoded} = encode_stats(Stats),
+			Json = mochijson2:encode({struct, [
+				{success, true},
+				{<<"data">>, {struct, [
+					{<<"identifier">>, <<"id">>},
+					{<<"label">>, <<"display">>},
+					{<<"items">>, Encoded}
+				]}}
+			]}),
+			{reply, {200, [], Json}, State};
+		
+		
+%			case file:read_file_info("sup_test_data.js") of
+%				{error, Error} ->
+%					?WARNING("Couldn't get test data due to ~p", [Error]),
+%					{reply, {500, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not get data">>}]})}, State};
+%				_Else ->
+%					{ok, Io} = file:open("sup_test_data.js", [raw, binary]),
+%					Read = fun(F, Acc) ->
+%						case file:read(Io, 20) of
+%							{ok, Data} ->
+%								F(F, [Data | Acc]);
+%							eof ->
+%								lists:flatten(lists:reverse(Acc));
+%							{error, Err} ->
+%								Err
+%						end
+%					end,
+%					Data = Read(Read, []),
+%					file:close(Io),
+%					{reply, {200, [], Data}, State}
+%			end;
 		["nodes"] ->
 			Nodes = lists:sort([node() | nodes()]),
 			F = fun(I) ->
@@ -567,6 +586,93 @@ encode_queue_list([{{Priority, {Mega, Sec, _Micro}}, Call} | Tail], Acc) ->
 	Newacc = [Struct | Acc],
 	encode_queue_list(Tail, Newacc).
 
+encode_stats(Stats) ->
+	encode_stats(Stats, 1, []).
+
+encode_stats([], Count, Acc) ->
+	{Count - 1, Acc};
+encode_stats([Head | Tail], Count, Acc) ->
+	Proplisted = cpx_monitor:to_proplist(Head),
+	Id = [{<<"id">>, Count}],
+	Display = [{<<"display">>, proplists:get_value(name, Proplisted)}],
+	Type = [{<<"type">>, proplists:get_value(type, Proplisted)}],
+	Protohealth = proplists:get_value(health, Proplisted),
+	Protodetails = proplists:get_value(details, Proplisted),
+	Node = case Type of
+		{_, system} ->
+			[];
+		{_, node} ->
+			[];
+		{_, _Else} ->
+			[{node, proplist:get_value(node, Protodetails)}]
+	end,
+	Parent = case Type of
+		{_, system} ->
+			[];
+		{_, node} ->
+			[];
+		{_, agent} ->
+			{<<"profile">>, proplists:get_value(profile, Protodetails)};
+		{_, queue} ->
+			{<<"group">>, proplists:get_value(group, Protodetails)};
+		{_, media} ->
+			case {proplists:get_value(agent, Protodetails), proplists:get_value(queue, Protodetails)} of
+				{undefined, undefined} ->
+					?WARNING("Even though this media seems fully orphaned, I'm saying it's under the default queue for now.", []),
+					[{queue, <<"default_queue">>}];
+				{undefined, Queue} ->
+					[{queue, list_to_binary(Queue)}];
+				{Agent, undefined} ->
+					[{agent, list_to_binary(Agent)}]
+			end
+	end,
+	Scrubbedhealth = scrub_proplist(Protohealth),
+	Scrubbeddetails = scrub_proplist(Protodetails),
+	Health = [{<<"health">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbedhealth)}]}}],
+	Details = [{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbeddetails)}]}}],
+	Encoded = lists:append(Id, Display, Type, Node, Parent, Health, Details),
+	Newacc = [Encoded | Acc],
+	encode_stats(Tail, Count + 1, Newacc).
+
+scrub_proplist(Proplist) ->
+	scrub_proplist(Proplist, []).
+
+scrub_proplist([], Acc) ->
+	Acc;
+scrub_proplist([Head | Tail], Acc) ->
+	Newacc = case Head of
+		{Key, Value} ->
+			case lists:member(Key, [queue, parent, node, agent, profile, group, type]) of
+				true ->
+					Acc;
+				false ->
+					[Head | Acc]
+			end;
+		Val when is_list(Val); is_binary(Val); is_atom(Val) ->
+			[{Val, true} | Acc];
+		_Val ->
+			Acc
+	end,
+	scrub_proplist(Tail, Newacc).
+		
+encode_proplist(Proplist) ->
+	Struct = encode_proplist(Proplist, []),
+	{struct, Struct}.
+	
+encode_proplist([], Acc) ->
+	lists:reverse(Acc);
+encode_proplist([Entry | Tail], Acc) when is_atom(Entry) ->
+	Newacc = [{Entry, true} | Acc],
+	encode_proplist(Tail, Newacc);
+encode_proplist([{Key, Value} | Tail], Acc) when is_list(Value) ->
+	Newval = list_to_binary(Value),
+	Newacc = [{Key, Newval} | Acc],
+	encode_proplist(Tail, Newacc);
+encode_proplist([{Key, Value} | Tail], Acc) when is_binary(Value) ->
+	Newacc = [{Key, Value} | Acc],
+	encode_proplist(Tail, Newacc);
+encode_proplist([_Head | Tail], Acc) ->
+	encode_proplist(Tail, Acc).
 
 build_acks([], Acks) -> 
 	Acks;

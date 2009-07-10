@@ -45,7 +45,7 @@
 -type(health_details() :: {string() | atom(), integer()}).
 -type(other_details() :: {string() | atom(), any()}).
 -type(time() :: integer()).
--type(health_tuple() :: {health_key(), parent(), health_details(), other_details(), time()}).
+-type(health_tuple() :: {health_key(), health_details(), other_details(), time()}).
 
 -include("log.hrl").
 
@@ -57,7 +57,8 @@
 	set/4,
 	drop/1,
 	get_health/1,
-	health/4
+	health/4,
+	to_proplist/1
 	]).
 
 %% gen_server callbacks
@@ -166,8 +167,15 @@ health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max ->
 					Ratio * 50 + 50
 			end
 	end.
-			
-			
+
+%% @doc turns the passed health tuple into a proplist.
+-spec(to_proplist/1 :: (Tuple :: tuple()) -> [{atom() | binary(), any()}]).
+to_proplist({{Type, Name}, Health, Details}) ->
+	[{type, Type},
+	{name, Name},
+	{health, Health},
+	{details, Details}].
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -260,16 +268,16 @@ from_leader(_Msg, State, _Election) ->
 %%--------------------------------------------------------------------
 %% @hidden
 handle_call({get, When}, _From, #state{ets = Tid} = State, _Election) when is_integer(When) ->
-	F = fun({Key, Parent, Hp, Details, Time}, Acc) when Time >= When ->
-		[{Key, Parent, Hp, Details} | Acc];
+	F = fun({Key, Hp, Details, Time}, Acc) when Time >= When ->
+		[{Key, Hp, Details} | Acc];
 	(_, Acc) ->
 		Acc
 	end,
 	Out = ets:foldl(F, [], Tid),
 	{reply, {ok, Out}, State};
 handle_call({get, What}, _From, #state{ets = Tid} = State, _Election) when is_atom(What) ->
-	F = fun({{What, _Name} = Key, Parent, Hp, Details, _Time}, Acc) ->
-		[{Key, Parent, Hp, Details} | Acc];
+	F = fun({{What, _Name} = Key, Hp, Details, _Time}, Acc) ->
+		[{Key, Hp, Details} | Acc];
 	(_, Acc) ->
 		Acc
 	end,
@@ -289,13 +297,13 @@ handle_call(Request, _From, State, _Election) ->
 handle_cast({drop, Key}, #state{ets = Tid} = State, _Election) ->
 	ets:delete(Tid, Key),
 	{noreply, State};
-handle_cast({set, {Key, Parent, Hp, Details}}, #state{ets = Tid} = State, _Election)  ->
+handle_cast({set, {Key, Hp, Details}}, #state{ets = Tid} = State, _Election)  ->
 	Trueentry = case proplists:get_value(node, Details) of
 		undefined ->
 			Newdetails = [{node, node()} | Details],
-			{Key, Parent, Hp, Newdetails, util:now()};
+			{Key, Hp, Newdetails, util:now()};
 		_Else ->
-			{Key, Parent, Hp, Details, util:now()}
+			{Key, Hp, Details, util:now()}
 	end,
 	ets:insert(Tid, Trueentry),
 	{noreply, State};

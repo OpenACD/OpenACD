@@ -184,6 +184,7 @@ loop(Req, Table) ->
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
 			Cookielist = Req:parse_cookie(),
+			?DEBUG("Cookielist:  ~p", [Cookielist]),
 			case proplists:get_value("cpx_id", Cookielist) of
 				undefined ->
 					Reflist = erlang:ref_to_list(make_ref()),
@@ -374,7 +375,8 @@ api(Api, {_Reflist, _Salt, Conn}, Post) when is_pid(Conn) ->
 		{Code, Headers, Body} ->
 			{Code, Headers, Body}
 	end;
-api(_Api, _Whatever, _Post) ->
+api(Api, Whatever, _Post) ->
+	?DEBUG("Login required for api ~p with ref/salt/conn ~p", [Api, Whatever]),
 	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Login required">>}]})}.
 
 %% @doc determine if hte given cookie data is valid

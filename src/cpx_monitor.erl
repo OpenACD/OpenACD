@@ -44,7 +44,8 @@
 -type(health_key() :: {health_type(), Name :: string() | atom()}).
 -type(health_details() :: {string() | atom(), integer()}).
 -type(other_details() :: {string() | atom(), any()}).
--type(health_tuple() :: {health_key(), parent(), health_details(), other_details()}).
+-type(time() :: integer()).
+-type(health_tuple() :: {health_key(), parent(), health_details(), other_details(), time()}).
 
 -include("log.hrl").
 
@@ -124,12 +125,19 @@ stop() ->
 %% If there is an entry with the given name already, it is updated with the
 %% passed params.  Returns 'ok' immediately.  If Other does not contain an
 %% entry with the key of `node', `{node, node()}' is prepended to it.
--spec(set/4 :: (Key :: health_key() | string(), Parent :: string(), Health :: health_details(), Other :: other_details()) -> 'ok').
+-spec(set/4 :: (Key :: health_key(), Parent :: string(), Health :: health_details(), Other :: other_details()) -> 'ok').
 set({_Type, _Name} = Key, Parent, Health, Other) ->
 	gen_leader:cast(?MODULE, {set, {Key, Parent, Health, Other}}).
 
-%% @Gets all the records of the given type from the ets
--spec(get_health/1 :: (Type :: health_type()) -> {'ok', [health_tuple()]}).
+%% @doc Remove the entry with the key `Key' from being tracked.
+-spec(drop/1 :: (Key :: health_key()) -> 'ok').
+drop({_Type, _Name} = Key) ->
+	gen_leader:cast(?MODULE, {drop, Key}).
+
+%% @Gets all the records of the given type or after a given time from the ets
+-spec(get_health/1 :: (Type :: health_type() | time()) -> {'ok', [health_tuple()]}).
+get_health(Time) when is_integer(Time) ->
+	gen_leader:call(?MODULE, {get, Time});
 get_health(Type) ->
 	gen_leader:call(?MODULE, {get, Type}).
 
@@ -250,13 +258,26 @@ from_leader(_Msg, State, _Election) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 %% @hidden
-handle_call({get, What}, _From, #state{ets = Tid} = State, _Election) ->
-	Pattern = {{What, '_'}, '_', '_', '_'},
-	Results = ets:match_object(Tid, Pattern),
+handle_call({get, When}, _From, #state{ets = Tid} = State, _Election) when is_integer(When) ->
+	F = fun({Key, Parent, Hp, Details, Time}, Acc) when Time >= When ->
+		[{Key, Parent, Hp, Details} | Acc];
+	(_, Acc) ->
+		Acc
+	end,
+	Out = ets:foldl(F, [], Tid),
+	{reply, {ok, Out}, State};
+handle_call({get, What}, _From, #state{ets = Tid} = State, _Election) when is_atom(What) ->
+	F = fun({{What, Name} = Key, Parent, Hp, Details, Time}, Acc) ->
+		[{Key, Parent, Hp, Details} | Acc];
+	(_, Acc) ->
+		Acc
+	end,
+	Results = ets:foldl(F, [], Tid),
 	{reply, {ok, Results}, State};
 handle_call(stop, _From, State, _Election) ->
 	{stop, normal, ok, State};
-handle_call(_Request, _From, State, _Election) ->
+handle_call(Request, _From, State, _Election) ->
+	?WARNING("Unable to fulfill call request ~p", [Request]),
     Reply = ok,
     {reply, Reply, State}.
 
@@ -264,17 +285,21 @@ handle_call(_Request, _From, State, _Election) ->
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 %% @hidden
+handle_cast({drop, Key}, #state{ets = Tid} = State, _Election) ->
+	ets:delete(Tid, Key),
+	{noreply, State};
 handle_cast({set, {Key, Parent, Hp, Details} = Entry}, #state{ets = Tid} = State, _Election)  ->
 	Trueentry = case proplists:get_value(node, Details) of
 		undefined ->
 			Newdetails = [{node, node()} | Details],
-			{Key, Parent, Hp, Newdetails};
+			{Key, Parent, Hp, Newdetails, util:now()};
 		_Else ->
-			Entry
+			{Key, Parent, Hp, Details, util:now()}
 	end,
 	ets:insert(Tid, Trueentry),
 	{noreply, State};
-handle_cast(_Request, State, _Election) -> 
+handle_cast(Request, State, _Election) ->
+	?WARNING("Unable to fulfill cast request ~p.", [Request]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------

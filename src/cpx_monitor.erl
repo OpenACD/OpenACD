@@ -48,13 +48,14 @@
 -type(health_tuple() :: {health_key(), health_details(), other_details(), time()}).
 
 -include("log.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 %% API
 -export([
 	start_link/1,
 	start/1,
 	stop/0,
-	set/4,
+	set/3,
 	drop/1,
 	get_health/1,
 	health/4,
@@ -127,9 +128,9 @@ stop() ->
 %% If there is an entry with the given name already, it is updated with the
 %% passed params.  Returns 'ok' immediately.  If Other does not contain an
 %% entry with the key of `node', `{node, node()}' is prepended to it.
--spec(set/4 :: (Key :: health_key(), Parent :: string(), Health :: health_details(), Other :: other_details()) -> 'ok').
-set({_Type, _Name} = Key, Parent, Health, Other) ->
-	gen_leader:cast(?MODULE, {set, {Key, Parent, Health, Other}}).
+-spec(set/3 :: (Key :: health_key(), Health :: health_details(), Other :: other_details()) -> 'ok').
+set({_Type, _Name} = Key, Health, Other) ->
+	gen_leader:cast(?MODULE, {set, {Key, Health, Other}}).
 
 %% @doc Remove the entry with the key `Key' from being tracked.
 -spec(drop/1 :: (Key :: health_key()) -> 'ok').
@@ -214,7 +215,7 @@ elected(State, Election, Node) ->
 	end,
 	case Merge of
 		[] ->
-			{ok, ok, State};
+			{ok, {Merge, Stilldown}, State};
 		_Else ->
 			Oldest = lists:foldl(Findoldest, 0, Merge),
 			Mergenodes = lists:map(fun({N, _T}) -> N end, Merge),
@@ -224,11 +225,24 @@ elected(State, Election, Node) ->
 			?DEBUG("spawned for agent_auth:  ~p", [P]),
 			?DEBUG("Spawned for call_queue_config:  ~w", [Qspawn]),
 			?DEBUG("Spawned for cdr:  ~w", [Cdrspawn]),
-			{ok, ok, State#state{status = merging, merge_status = dict:new(), merging = Mergenodes}}
+			{ok, {Merge, Stilldown}, State#state{status = merging, merge_status = dict:new(), merging = Mergenodes}}
 	end.
 
 %% @hidden
-surrendered(State, _LeaderState, _Election) -> 
+surrendered(#state{ets = Tid} = State, {Merge, Stilldown}, _Election) ->
+	QH = qlc:q([Tuple || {{Type, Name}, Hp, Data, Time} = Tuple <- ets:table(Tid), Type =:= node]),
+	Matches = qlc:e(QH),
+	F = fun({{node, Name} = Key, Hp, Data, Time}) ->
+		case lists:member(Name, Merge) =:= proplists:get_value(down, Hp) of
+			true ->
+				Now = util:now(),
+				ets:insert(Tid, {Key, [{upsince, Now}], [], Now}),
+				ok;
+			false ->
+				ok
+		end
+	end,
+	lists:foreach(F, Matches),
 	{ok, State}.
 	
 %% @hidden
@@ -241,9 +255,9 @@ handle_DOWN(Node, #state{ets = Tid} = State, _Election) ->
 	end,
 	case ets:lookup(Tid, {node, Node}) of
 		[] ->
-			ets:insert({{node, Node}, none, [down], []});
-		[{Key, Parent, _Hp, Details}] ->
-			ets:insert(Tid, {Key, Parent, [down], Details})
+			ets:insert({{node, Node}, [down], [], util:now()});
+		[{Key, _Hp, Details, _Time2}] ->
+			ets:insert(Tid, {Key, [down], Details, util:now()})
 	end,
 	{ok, State#state{splits = Newsplits}}.
 

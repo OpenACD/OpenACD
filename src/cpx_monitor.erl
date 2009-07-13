@@ -148,26 +148,20 @@ get_health(Type) ->
 %% 0 to 100 indicating how 'healthy' X is.  Values at or below Min are 0, at or
 %% above Max are set to 100.
 -spec(health/4 :: (Min :: float(), Goal :: float(), Max :: float(), X :: float()) -> float()).
+health(Min, Goal, Max, Goal) when Min =< Goal, Goal =< Max ->
+	50.0;
+health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max, X =< Min ->
+	0.0;
+health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max, Max =< X ->
+	100.0;
+health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max, Goal =< X ->
+	Range = Max - Goal,
+	Ratio = (X - Goal) / Range,
+	Ratio * 50 + 50;
 health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max ->
-	case {X =< Min, X >= Max, X == Goal} of
-		{true, _, _} ->
-			0.0;
-		{_, true, _} ->
-			100.0;
-		{_, _, true} ->
-			50.0;
-		{false, false, false} ->
-			case X < Goal of
-				true ->
-					Range = Goal - Min,
-					Ratio = (Goal - X) / Range,
-					Ratio * 50;
-				false ->
-					Range = Max - Goal,
-					Ratio = (X - Goal) / Range,
-					Ratio * 50 + 50
-			end
-	end.
+	Range = Goal - Min,
+	Ratio = (Goal - X) / Range,
+	Ratio * 50.
 
 %% @doc turns the passed health tuple into a proplist.
 -spec(to_proplist/1 :: (Tuple :: tuple()) -> [{atom() | binary(), any()}]).
@@ -484,6 +478,10 @@ health_test_() ->
 		?assertEqual(50.0, health(0, 3, 10, 3)),
 		?assertEqual(25.0, health(0, 2, 10, 1)),
 		?assertEqual(75.0, health(0, 4, 10, 7))
+	end},
+	{"Type check",
+	fun() ->
+		?assert(is_float(health(1, 3, 5, 4)))
 	end}].
 	
 multinode_test_() ->

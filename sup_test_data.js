@@ -37,7 +37,7 @@ items:[{id:"1",
 	   health:{
 		_type:"details",
 		_value:{
-			uptime:10
+			down:100
 		}
 	   },
 	   details:{

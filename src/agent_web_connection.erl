@@ -256,45 +256,45 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
 		["status"] ->
-%			% nodes, agents, queues, media, and system.
-%			{ok, Nodestats} = cpx_monitor:get_health(node),
-%			{ok, Agentstats} = cpx_monitor:get_health(agent),
-%			{ok, Queuestats} = cpx_monitor:get_health(queue),
-%			{ok, Systemstats} = cpx_monitor:get_health(system),
-%			{ok, Mediastats} = cpx_monitor:get_health(media),
-%			Stats = lists:append([Nodestats, Agentstats, Queuestats, Systemstats, Mediastats]),
-%			{_Count, Encoded} = encode_stats(Stats),
-%			Json = mochijson2:encode({struct, [
-%				{success, true},
-%				{<<"data">>, {struct, [
-%					{<<"identifier">>, <<"id">>},
-%					{<<"label">>, <<"display">>},
-%					{<<"items">>, Encoded}
-%				]}}
-%			]}),
-%			{reply, {200, [], Json}, State};
+			% nodes, agents, queues, media, and system.
+			{ok, Nodestats} = cpx_monitor:get_health(node),
+			{ok, Agentstats} = cpx_monitor:get_health(agent),
+			{ok, Queuestats} = cpx_monitor:get_health(queue),
+			{ok, Systemstats} = cpx_monitor:get_health(system),
+			{ok, Mediastats} = cpx_monitor:get_health(media),
+			Stats = lists:append([Nodestats, Agentstats, Queuestats, Systemstats, Mediastats]),
+			{_Count, Encoded} = encode_stats(Stats),
+			Json = mochijson2:encode({struct, [
+				{success, true},
+				{<<"data">>, {struct, [
+					{<<"identifier">>, <<"id">>},
+					{<<"label">>, <<"display">>},
+					{<<"items">>, Encoded}
+				]}}
+			]}),
+			{reply, {200, [], Json}, State};
 		
 		
-			case file:read_file_info("sup_test_data.js") of
-				{error, Error} ->
-					?WARNING("Couldn't get test data due to ~p", [Error]),
-					{reply, {500, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not get data">>}]})}, State};
-				_Else ->
-					{ok, Io} = file:open("sup_test_data.js", [raw, binary]),
-					Read = fun(F, Acc) ->
-						case file:read(Io, 20) of
-							{ok, Data} ->
-								F(F, [Data | Acc]);
-							eof ->
-								lists:flatten(lists:reverse(Acc));
-							{error, Err} ->
-								Err
-						end
-					end,
-					Data = Read(Read, []),
-					file:close(Io),
-					{reply, {200, [], Data}, State}
-			end;
+%			case file:read_file_info("sup_test_data.js") of
+%				{error, Error} ->
+%					?WARNING("Couldn't get test data due to ~p", [Error]),
+%					{reply, {500, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not get data">>}]})}, State};
+%				_Else ->
+%					{ok, Io} = file:open("sup_test_data.js", [raw, binary]),
+%					Read = fun(F, Acc) ->
+%						case file:read(Io, 20) of
+%							{ok, Data} ->
+%								F(F, [Data | Acc]);
+%							eof ->
+%								lists:flatten(lists:reverse(Acc));
+%							{error, Err} ->
+%								Err
+%						end
+%					end,
+%					Data = Read(Read, []),
+%					file:close(Io),
+%					{reply, {200, [], Data}, State}
+%			end;
 		["nodes"] ->
 			Nodes = lists:sort([node() | nodes()]),
 			F = fun(I) ->

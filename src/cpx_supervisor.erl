@@ -93,6 +93,11 @@ start_link(Nodes) ->
 	Agentspec = {agent_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	Specs = [Routingspec, Agentspec, Managementspec],
 	?DEBUG("specs:  ~p", [supervisor:check_childspecs(Specs)]),
+	
+	supervisor:start_child(Pid, Managementspec),
+	%load_specs(),
+	Cpxmonitorspec = {cpx_monitor, {cpx_monitor, start_link, [[{nodes, Nodes}, auto_restart_mnesia]]}, permanent, 2000, worker, [?MODULE]},
+	supervisor:start_child(management_sup, Cpxmonitorspec),
 
 	supervisor:start_child(Pid, Routingspec),
 	
@@ -113,10 +118,6 @@ start_link(Nodes) ->
 	supervisor:start_child(agent_sup, AgentManagerSpec),
 	supervisor:start_child(agent_sup, Agentconnspec),
 	
-	supervisor:start_child(Pid, Managementspec),
-	%load_specs(),
-	Cpxmonitorspec = {cpx_monitor, {cpx_monitor, start_link, [[{nodes, Nodes}, auto_restart_mnesia]]}, permanent, 2000, worker, [?MODULE]},
-	supervisor:start_child(management_sup, Cpxmonitorspec),
 	
 	{ok, Pid}.
 	

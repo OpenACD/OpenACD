@@ -195,7 +195,7 @@ init(Args) when is_list(Args) ->
 
 
 %% @hidden
-elected(State, Election, Node) -> 
+elected(#state{ets = Tid} = State, Election, Node) -> 
 	?INFO("elected by ~w", [Node]),
 	% what was down and is now up?
 	Edown = gen_leader:down(Election),
@@ -213,6 +213,7 @@ elected(State, Election, Node) ->
 		({_N, _T}, Time) ->
 			Time
 	end,
+	store_node_state(Tid, node(), [{leader, 50}]),
 	case Merge of
 		[] ->
 			{ok, {Merge, Stilldown}, State};
@@ -376,6 +377,29 @@ code_change(_OldVsn, State, _Election, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+store_node_state(Tid, Node, Hp) ->
+	case ets:lookup(Tid, {node, Node}) of
+		[] ->
+			ets:insert(Tid, {{node, Node}, Hp, [], util:now()});
+		[{Key, Health, Details, _Time2}] ->
+			case Hp of
+				down ->
+					ets:insert(Tid, {Key, [down], Details, util:now()});
+				Proplist ->
+					Newlist = merge_properties(Health, Proplist),
+					ets:insert(Tid, {Key, Newlist, Details, util:now()})
+			end
+	end.
+
+merge_properties([], Mutable) ->
+	Mutable;
+merge_properties([{Key, Value} = Prop | Tail], Mutable) ->
+	Midmut = proplists:delete(Key, Mutable),
+	merge_properties(Tail, [Prop | Mutable]);
+merge_properties([Atom | Tail], Mutable) ->
+	Midmut = proplists:delete(Atom, Mutable),
+	merge_properties(Tail, [Atom | Mutable]).
+	
 restart_mnesia(Nodes) ->
 	F = fun() ->
 		?WARNING("automatically restarting mnesia on formerly split nodes: ~p", [Nodes]),

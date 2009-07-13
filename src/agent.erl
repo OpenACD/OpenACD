@@ -499,6 +499,7 @@ handle_sync_event({set_connection, Pid}, _From, StateName, #agent{connection = u
 	gen_server:cast(Pid, {change_state, State#agent.state, State#agent.statedata}),
 	{reply, ok, StateName, State#agent{connection=Pid}};
 handle_sync_event({set_connection, _Pid}, _From, StateName, State) ->
+	?WARNING("An attempt to set connection to ~w when there is already a connection ~w", [_Pid, State#agent.connection]),
 	{reply, error, StateName, State};
 handle_sync_event({set_endpoint, {Endpointtype, Endpointdata}}, _From, StateName, State) ->
 	{reply, ok, StateName, State#agent{endpointtype = Endpointtype, endpointdata = Endpointdata}};
@@ -507,6 +508,9 @@ handle_sync_event(_Event, _From, StateName, State) ->
 
 %% @private
 %-spec(handle_info/3 :: (Event :: any(), StateName :: statename(), State :: #agent{}) -> {'stop', 'normal', #agent{}} | {'stop', 'shutdown', #agent{}} | {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
+handle_info({'EXIT', From, Reason}, StateName, #state{connection = From} = State) ->
+	?INFO("Got exit message from conneciton ~w.", [From]),
+	{next_state, StateName, State#state{conneciton = undefined}};
 handle_info({'EXIT', From, Reason}, StateName, State) ->
 	?INFO("Got exit message from ~p with reason ~p", [From, Reason]),
 	case whereis(agent_manager) of

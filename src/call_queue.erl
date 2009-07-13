@@ -83,6 +83,7 @@
 
 -record(state, {
 	queue = gb_trees:empty() :: call_queue(),
+	group = "Default" :: string(),
 	name = erlang:error({undefined, name}) :: string(),
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	weight = ?DEFAULT_WEIGHT :: pos_integer(),
@@ -345,10 +346,12 @@ init([Name, Opts]) ->
 	process_flag(trap_exit, true),
 	State = #state{
 		name = Name,
+		group = proplists:get_value(group, Opts, "Default"),
 		recipe = proplists:get_value(recipe, Opts, ?DEFAULT_RECIPE),
 		weight = proplists:get_value(weight, Opts, ?DEFAULT_WEIGHT),
 		call_skills = proplists:get_value(skills, Opts, [])
 	},
+	set_cpx_mon(State),
 	{ok, State}.
 
 %% @private
@@ -364,6 +367,7 @@ handle_call({ungrab, Callid}, {From, _Tag}, State) ->
 			{reply, ok, State#state{queue=gb_trees:update(Key, Value#queued_call{dispatchers=lists:delete(From, Value#queued_call.dispatchers)}, State#state.queue)}}
 	end;
 handle_call({set_weight, Weight}, _From, State) when is_integer(Weight), Weight > 0 ->
+	set_cpx_mon(State#state{weight=Weight}),
 	{reply, ok, State#state{weight=Weight}};
 handle_call({set_weight, _Weight}, _From, State) -> % invalid weight
 	{reply, error, State};
@@ -386,6 +390,7 @@ handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid)
 			Value = Queuedrec#queued_call{skills=Expandedskills},
 			Trees = gb_trees:insert({Priority, now()}, Value, State#state.queue),
 			cdr:inqueue(Callrec, State#state.name),
+			set_cpx_mon(State#state{queue=Trees}),
 			{reply, ok, State#state{queue=Trees}}%;
 		%ignore ->
 		%	?CONSOLE("Cook ignored start", []),
@@ -454,9 +459,9 @@ handle_call({remove, Callpid}, _From, State) ->
 			unlink(Cookpid),
 			gen_server:cast(Cookpid, stop),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
+			set_cpx_mon(State2),
 			{reply, ok, State2}
-		end;
-
+	end;
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
 handle_call({stop, Reason}, _From, State) ->
@@ -504,9 +509,9 @@ handle_cast({remove, Callpid}, State) ->
 			unlink(Cookpid),
 			gen_server:cast(Cookpid, stop),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
+			set_cpx_mon(State2),
 			{noreply, State2}
-		end;
-
+	end;
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
@@ -519,13 +524,14 @@ handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
 		{Key, #queued_call{cook=Cookpid}} ->
 			cook:stop(Cookpid),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
+			set_cpx_mon(State2),
 			{noreply, State2}
 	end;
 handle_info({'EXIT', From, Reason}, State) ->
 	case whereis(queue_manager) of
 		undefined ->
 			?ERROR("Can't find the manager.  dying", []),
-			{stop, {queue_manager, noproc}, State};
+			{stop, {queue_manager, Reason}, State};
 		From ->
 			?NOTICE("Handling exit of queue manager with reason ~p.  Dying with it.", [Reason]),
 			{stop, {queue_manager_died, Reason}, State};
@@ -533,6 +539,7 @@ handle_info({'EXIT', From, Reason}, State) ->
 			Calls = gb_trees:to_list(State#state.queue),
 			Cleancalls = clean_pid(From, State#state.recipe, Calls, State#state.name),
 			Newtree = gb_trees:from_orddict(Cleancalls),
+			set_cpx_mon(State#state{queue=Newtree}),
 			{noreply, State#state{queue=Newtree}}
 	end;
 handle_info(Info, State) ->
@@ -543,14 +550,34 @@ handle_info(Info, State) ->
 terminate(Reason, State) when is_atom(Reason) andalso Reason =:= normal orelse Reason =:= shutdown ->
 	?NOTICE("~p terminate", [atom_to_list(Reason)]),
 	lists:foreach(fun({_K,V}) when is_pid(V#call.cook) -> cook:stop(V#call.cook); (_) -> ok end, gb_trees:to_list(State#state.queue)),
+	set_cpx_mon(State, delete),
 	ok;
-terminate(Reason, _State) ->
+terminate(Reason, State) ->
 	?NOTICE("unusual terminate:  ~p", [Reason]),
+	set_cpx_mon(State, delete),
 	ok.
 
 %% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+%% @private
+-spec(set_cpx_mon/1 :: (State :: #state{}) -> 'ok').
+set_cpx_mon(State) ->
+	Key = {queue, State#state.name},
+	Details = [
+		{weight, State#state.weight},
+		{group, State#state.group}
+	],
+	Hp = [
+		{calls, {0, 5, 10, gb_trees:size(State#state.queue)}}
+	],
+	cpx_monitor:set(Key, Hp, Details).
+
+%% @private
+-spec(set_cpx_mon/2 :: (State :: #state{}, 'delete') -> 'ok').
+set_cpx_mon(State, delete) ->
+	cpx_monitor:drop({queue, State#state.name}).
 
 % TODO - this function kinda sucks, it shouldn't keep iterating after it matches
 % a pid, for example. It should also probably be aware of the exit reason so it

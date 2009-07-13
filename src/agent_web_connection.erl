@@ -612,9 +612,9 @@ encode_stats([Head | Tail], Count, Acc) ->
 		[{_, node}] ->
 			[];
 		[{_, agent}] ->
-			[{<<"profile">>, proplists:get_value(profile, Protodetails)}];
+			[{<<"profile">>, list_to_binary(proplists:get_value(profile, Protodetails))}];
 		[{_, queue}] ->
-			[{<<"group">>, proplists:get_value(group, Protodetails)}];
+			[{<<"group">>, list_to_binary(proplists:get_value(group, Protodetails))}];
 		[{_, media}] ->
 			case {proplists:get_value(agent, Protodetails), proplists:get_value(queue, Protodetails)} of
 				{undefined, undefined} ->

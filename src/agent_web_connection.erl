@@ -604,7 +604,7 @@ encode_stats([Head | Tail], Count, Acc) ->
 		[{_, node}] ->
 			[];
 		[{_, _Else}] ->
-			[{node, proplist:get_value(node, Protodetails)}]
+			[{node, proplists:get_value(node, Protodetails)}]
 	end,
 	Parent = case Type of
 		[{_, system}] ->
@@ -612,9 +612,9 @@ encode_stats([Head | Tail], Count, Acc) ->
 		[{_, node}] ->
 			[];
 		[{_, agent}] ->
-			{<<"profile">>, proplists:get_value(profile, Protodetails)};
+			[{<<"profile">>, proplists:get_value(profile, Protodetails)}];
 		[{_, queue}] ->
-			{<<"group">>, proplists:get_value(group, Protodetails)};
+			[{<<"group">>, proplists:get_value(group, Protodetails)}];
 		[{_, media}] ->
 			case {proplists:get_value(agent, Protodetails), proplists:get_value(queue, Protodetails)} of
 				{undefined, undefined} ->

@@ -385,6 +385,22 @@ store_node_state(Tid, Node, Hp) ->
 			end
 	end.
 
+fix_entries(Proplist) ->
+	fix_entries(Proplist, []).
+
+fix_entries([], Acc) ->
+	Acc;
+fix_entries([{Key, {Min, Goal, Max, {time, Start}}} | Tail], Acc) ->
+	Newval = health(Min, Goal, Max, util:now() - Start),
+	Newacc = [{Key, Newval} | Acc],
+	fix_entries(Tail, Newacc);
+fix_entries([{Key, {Min, Goal, Max, Val}} | Tail], Acc) ->
+	Newval = health(Min, Goal, Max, Val),
+	Newacc = [{Key, Newval} | Acc],
+	fix_entries(Tail, Newacc);
+fix_entries([{Key, Val} = E | Tail], Acc) ->
+	fix_entries(Tail, [E | Acc]).
+
 merge_properties([], Mutable) ->
 	Mutable;
 merge_properties([{Key, Value} = Prop | Tail], Mutable) ->

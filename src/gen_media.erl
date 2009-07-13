@@ -388,8 +388,10 @@ init([Callback, Args]) ->
 			Qpid = case priv_queue(Queue, Callrec) of
 				invalid when Queue =/= "default_queue" ->
 					priv_queue("default_queue", Callrec),
+					set_cpx_mon(#state{callrec = Callrec}, [{queue, "default_queue"}]),
 					cdr:inqueue(Callrec, "default_queue");
 				Else ->
+					set_cpx_mon(#state{callrec = Callrec}, [{queue, Queue}]),
 					Else
 			end,
 			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = Qpid}};
@@ -433,6 +435,7 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 		Qpid when is_pid(Qpid) ->
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
 			cdr:inqueue(State#state.callrec, Queue),
+			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined}}
 	end;
 handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = State) when is_pid(State#state.oncall_pid) ->
@@ -444,6 +447,7 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = Sta
 			agent:set_state(State#state.oncall_pid, wrapup, State#state.callrec),
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
 			cdr:inqueue(State#state.callrec, Queue),
+			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined}}
 	end;
 handle_call('$gen_media_get_call', _From, State) ->
@@ -525,6 +529,8 @@ handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = Rpid, cal
 			timer:cancel(State#state.ringout),
 			agent:set_state(Ocpid, wrapup, State#state.callrec),
 			cdr:wrapup(State#state.callrec, Ocpid),
+			Agent = agent_manager:find_by_pid(Rpid),
+			set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}, [{agent, Agent}]),
 			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}};
 		{error, Reason, NewState} ->
 			?ERROR("Cannot set ~p to oncall due to ~p", [Rpid, Reason]),
@@ -539,6 +545,8 @@ handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = Rpid, callback =
 			timer:cancel(State#state.ringout),
 			agent:set_state(Ocpid, wrapup, State#state.callrec),
 			cdr:wrapup(State#state.callrec, Ocpid),
+			Agent = agent_manager:find_by_pid(Rpid),
+			set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}, [{agent, Agent}]),
 			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}};
 		{error, Reason, NewState} ->
 			?ERROR("Cannot set ~p to oncall due to ~p", [Rpid, Reason]),
@@ -551,6 +559,8 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 			timer:cancel(State#state.ringout),
 			unqueue(State#state.queue_pid, self()),
 			cdr:oncall(State#state.callrec, Apid),
+			Agent = agent_manager:find_by_pid(Apid),
+			set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, ring_pid = undefined, oncall_pid = Apid}, [{agent, Agent}]),
 			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, ring_pid = undefined, oncall_pid = Apid}};
 		{error, Reason, NewState} ->
 			?ERROR("Could not set ~p on call due to ~p", [Apid, Reason]),
@@ -565,6 +575,8 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = 
 			cdr:oncall(State#state.callrec, Apid),
 			timer:cancel(State#state.ringout),
 			call_queue:remove(State#state.queue_pid, self()),
+			Agent = agent_manager:find_by_pid(Apid),
+			set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = Apid, ring_pid = undefined}, [{agent, Agent}]),
 			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = Apid, ring_pid = undefined}};
 		{error, Reason, NewState} ->
 			?ERROR("Could not set ~p on call due to ~p", [Apid, Reason]),
@@ -591,6 +603,7 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 				Qpid ->
 					cdr:cdrinit(Callrec),
 					cdr:inqueue(Callrec, Queue),
+					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
 					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
 		Tuple when element(1, Tuple) =:= outbound ->
@@ -621,6 +634,7 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 				Qpid ->
 					cdr:cdrinit(Callrec),
 					cdr:inqueeu(Callrec, Queue),
+					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
 					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
 		Tuple when element(1, Tuple) =:= outbound ->
@@ -664,6 +678,7 @@ handle_info(Info, #state{callback = Callback} = State) ->
 				Qpid ->
 					cdr:cdrinit(Callrec),
 					cdr:inqueue(Callrec, Queue),
+					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
 					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
 		Tuple when element(1, Tuple) =:= outbound ->
@@ -680,12 +695,14 @@ handle_info(Info, #state{callback = Callback} = State) ->
 
 %% @private
 terminate(Reason, #state{callback = Callback, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
-	Callback:terminate(Reason, State#state.substate);
+	Callback:terminate(Reason, State#state.substate),
+	set_cpx_mon(State, delete);
 terminate(Reason, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
 	?NOTICE("gen_media termination due to ~p", [Reason]),
 	?INFO("Qpid ~p  oncall ~p  ring ~p", [Qpid, Ocpid, Rpid]),
 	agent_interact(hangup, State),
-	Callback:terminate(Reason, State#state.substate).
+	Callback:terminate(Reason, State#state.substate),
+	set_cpx_mon(State, delete).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -699,6 +716,26 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+set_cpx_mon(#state{callrec = Call} = State, delete) ->
+	cpx_monitor:drop({media, Call#call.id});
+set_cpx_mon(#state{callrec = Call} = State, Details) ->
+	Client = Call#call.client,
+	Basedet = [
+		{type, Call#call.type},
+		{callerid, Call#call.callerid},
+		{client, Client#client.label},
+		{ring_path, Call#call.ring_path},
+		{media_path, Call#call.media_path}
+	],
+	Hp = case proplists:get_value(queue, Details) of
+		undefined ->
+			[{agent_link, {0, 60 * 5, 60 * 15, {time, util:now()}}}];
+		_Q ->
+			[{inqueue, {0, 60 * 5, 60 * 10, {time, util:now()}}}]
+	end,
+	Fulldet = lists:append([Basedet, Details]),
+	cpx_monitor:set({media, Call#call.id}, Hp, Fulldet).
 
 priv_queue(Queue, Callrec) ->
 	case queue_manager:get_queue(Queue) of

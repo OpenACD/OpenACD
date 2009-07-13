@@ -525,28 +525,35 @@ supervisorTab.drawSystemStack = function(opts){
 		else if(supervisorTab.node == obj.display){
 			o.grow();
 		}
-		o.connect("onclick", o, function(ev){
-			if(this.data.display == "System"){
-				supervisorTab.node = "*";
-			}
-			else{
-				supervisorTab.node = this.data.display
-			}
-			dojo.forEach(supervisorTab.systemStack, function(obj){
-				var rect = obj.children[0];
+		
+		if(obj.allhealth && obj.allhealth.down){
+			o.createLine({x1:20, x2:60, y1:yi-5, y2:yi+20}).setStroke({width:3, color:[255, 153, 51, 100]});
+			o.createLine({x1:20, x2:60, y1:yi + 20, y2:yi-5}).setStroke({width:3, color:[255, 153, 51, 100]});
+		}
+		else{
+			o.connect("onclick", o, function(ev){
+				if(this.data.display == "System"){
+					supervisorTab.node = "*";
+				}
+				else{
+					supervisorTab.node = this.data.display
+				}
+				dojo.forEach(supervisorTab.systemStack, function(obj){
+					var rect = obj.children[0];
+					var p = {
+						x: rect.getShape().x,
+						y: rect.getShape().y + rect.getShape().height/2
+					};
+					obj.setTransform([dojox.gfx.matrix.scaleAt(1, p)]);
+				});
+				var rect = this.children[0];
 				var p = {
 					x: rect.getShape().x,
 					y: rect.getShape().y + rect.getShape().height/2
 				};
-				obj.setTransform([dojox.gfx.matrix.scaleAt(1, p)]);
+				this.setTransform([dojox.gfx.matrix.scaleAt(1.4, p)]);
 			});
-			var rect = this.children[0];
-			var p = {
-				x: rect.getShape().x,
-				y: rect.getShape().y + rect.getShape().height/2
-			};
-			this.setTransform([dojox.gfx.matrix.scaleAt(1.4, p)]);
-		});
+		}
 		o.connect("onmouseenter", o, function(ev){				
 			supervisorTab.setDetails({display:this.data.display});
 		});
@@ -735,7 +742,8 @@ supervisorTab.simplifyData = function(items){
 		acc.push({
 			"display":supervisorTab.dataStore.getValue(obj, "display"),
 			"health":supervisorTab.dataStore.getValue(obj, "aggregate"),
-			"type":supervisorTab.dataStore.getValue(obj, "type")
+			"type":supervisorTab.dataStore.getValue(obj, "type"),
+			"allhealth":supervisorTab.dataStore.getValue(obj, "health")
 		});
 	})
 	return acc;

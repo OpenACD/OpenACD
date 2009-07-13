@@ -599,23 +599,23 @@ encode_stats([Head | Tail], Count, Acc) ->
 	Protohealth = proplists:get_value(health, Proplisted),
 	Protodetails = proplists:get_value(details, Proplisted),
 	Node = case Type of
-		{_, system} ->
+		[{_, system}] ->
 			[];
-		{_, node} ->
+		[{_, node}] ->
 			[];
-		{_, _Else} ->
+		[{_, _Else}] ->
 			[{node, proplist:get_value(node, Protodetails)}]
 	end,
 	Parent = case Type of
-		{_, system} ->
+		[{_, system}] ->
 			[];
-		{_, node} ->
+		[{_, node}] ->
 			[];
-		{_, agent} ->
+		[{_, agent}] ->
 			{<<"profile">>, proplists:get_value(profile, Protodetails)};
-		{_, queue} ->
+		[{_, queue}] ->
 			{<<"group">>, proplists:get_value(group, Protodetails)};
-		{_, media} ->
+		[{_, media}] ->
 			case {proplists:get_value(agent, Protodetails), proplists:get_value(queue, Protodetails)} of
 				{undefined, undefined} ->
 					?WARNING("Even though this media seems fully orphaned, I'm saying it's under the default queue for now.", []),
@@ -630,8 +630,8 @@ encode_stats([Head | Tail], Count, Acc) ->
 	Scrubbeddetails = scrub_proplist(Protodetails),
 	Health = [{<<"health">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbedhealth)}]}}],
 	Details = [{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbeddetails)}]}}],
-	Encoded = lists:append(Id, Display, Type, Node, Parent, Health, Details),
-	Newacc = [Encoded | Acc],
+	Encoded = lists:append([Id, Display, Type, Node, Parent, Health, Details]),
+	Newacc = [{struct, Encoded} | Acc],
 	encode_stats(Tail, Count + 1, Newacc).
 
 scrub_proplist(Proplist) ->
@@ -648,7 +648,7 @@ scrub_proplist([Head | Tail], Acc) ->
 				false ->
 					[Head | Acc]
 			end;
-		Val when is_list(Val); is_binary(Val); is_atom(Val) ->
+		Val when is_atom(Val) ->
 			[{Val, true} | Acc];
 		_Val ->
 			Acc
@@ -668,7 +668,7 @@ encode_proplist([{Key, Value} | Tail], Acc) when is_list(Value) ->
 	Newval = list_to_binary(Value),
 	Newacc = [{Key, Newval} | Acc],
 	encode_proplist(Tail, Newacc);
-encode_proplist([{Key, Value} | Tail], Acc) when is_binary(Value) ->
+encode_proplist([{Key, Value} | Tail], Acc) when is_binary(Value); is_float(Value); is_integer(Value) ->
 	Newacc = [{Key, Value} | Acc],
 	encode_proplist(Tail, Newacc);
 encode_proplist([_Head | Tail], Acc) ->

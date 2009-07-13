@@ -290,7 +290,7 @@ handle_call({get, When}, _From, #state{ets = Tid} = State, _Election) when is_in
 	Out = ets:foldl(F, [], Tid),
 	{reply, {ok, Out}, State};
 handle_call({get, What}, _From, #state{ets = Tid} = State, _Election) when is_atom(What) ->
-	F = fun({{What, _Name} = Key, Hp, Details, _Time}, Acc) ->
+	F = fun({{Type, _Name} = Key, Hp, Details, _Time}, Acc) when Type =:= What ->
 		[{Key, Hp, Details} | Acc];
 	(_, Acc) ->
 		Acc

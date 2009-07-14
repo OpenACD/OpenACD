@@ -275,8 +275,11 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 			{ok, Queuestats} = cpx_monitor:get_health(queue),
 			{ok, Systemstats} = cpx_monitor:get_health(system),
 			{ok, Mediastats} = cpx_monitor:get_health(media),
+			Groupstats = extract_groups(lists:append(Queuestats, Agentstats)),
 			Stats = lists:append([Nodestats, Agentstats, Queuestats, Systemstats, Mediastats]),
-			{_Count, Encoded} = encode_stats(Stats),
+			{Count, Encodedstats} = encode_stats(Stats),
+			{_Count2, Encodedgroups} = encode_groups(Groupstats, Count),
+			Encoded = lists:append(Encodedstats, Encodedgroups),
 			Json = mochijson2:encode({struct, [
 				{success, true},
 				{<<"data">>, {struct, [
@@ -654,6 +657,24 @@ encode_stats([Head | Tail], Count, Acc) ->
 	Newacc = [{struct, Encoded} | Acc],
 	encode_stats(Tail, Count + 1, Newacc).
 
+encode_groups(Stats, Count) ->
+	?DEBUG("Stats to encode:  ~p", [Stats]),
+	encode_groups(Stats, Count + 1, []).
+
+encode_groups([], Count, Acc) ->
+	{Count - 1, Acc};
+encode_groups([{Type, Name} | Tail], Count, Acc) ->
+	Out = {struct, [
+		{<<"id">>, Count},
+		{<<"type">>, list_to_binary(Type)},
+		{<<"display">>, list_to_binary(Name)},
+		{<<"health">>, {struct, [
+			{<<"_type">>, <<"details">>},
+			{<<"_value">>, {struct, []}}
+		]}}
+	]},
+	encode_groups(Tail, Count + 1, [Out | Acc]).
+
 scrub_proplist(Proplist) ->
 	scrub_proplist(Proplist, []).
 
@@ -694,6 +715,39 @@ encode_proplist([{Key, Value} | Tail], Acc) when is_binary(Value); is_float(Valu
 encode_proplist([_Head | Tail], Acc) ->
 	encode_proplist(Tail, Acc).
 
+extract_groups(Stats) ->
+	?DEBUG("Stats to extract groups from:  ~p", [Stats]),
+	extract_groups(Stats, []).
+
+extract_groups([], Acc) ->
+	Acc;
+extract_groups([Head | Tail], Acc) ->
+	Proplisted = cpx_monitor:to_proplist(Head),
+	Details = proplists:get_value(details, Proplisted, []),
+	case proplists:get_value(type, Proplisted) of
+		queue ->
+			Display = proplists:get_value(group, Details),
+			case lists:member({"queuegroup", Display}, Acc) of
+				true ->
+					extract_groups(Tail, Acc);
+				false ->
+					Top = {"queuegroup", Display},
+					extract_groups(Tail, [Top | Acc])
+			end;
+		agent ->
+			Display = proplists:get_value(profile, Details),
+			case lists:member({"agentprofile", Display}, Acc) of
+				true ->
+					extract_groups(Tail, Acc);
+				false ->
+					Top = {"agentprofile", Display},
+					extract_groups(Tail, [Top | Acc])
+			end;
+		Else ->
+			?DEBUG("no group to extract for type ~w", [Else]),
+			extract_groups(Tail, Acc)
+	end.
+	
 build_acks([], Acks) -> 
 	Acks;
 build_acks([{struct, Pollprops} | Pollqueue], Acks) -> 

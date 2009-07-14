@@ -155,13 +155,24 @@ health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max, X =< Min ->
 health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max, Max =< X ->
 	100.0;
 health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max, Goal =< X ->
-	Range = Max - Goal,
-	Ratio = (X - Goal) / Range,
-	Ratio * 50 + 50;
+	% g = Goal
+	% m = Max
+	% x = X
+	% y = (100g - 50m - 50x)/(g - m)
+	(100 * Goal - 50 * Max - 50 * X) / (Goal - Max);
+%	Range = Max - Goal,
+%	Ratio = (X - Goal) / Range,
+%	Ratio * 50 + 50;
 health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max ->
-	Range = Goal - Min,
-	Ratio = (Goal - X) / Range,
-	Ratio * 50.
+	% similar to above, but w/ a twist!
+	% g = Goal
+	% m = Min
+	% x = X
+	% y = (50x - 50m) / (g - m)
+	(50 * X - 50 * Min) / (Goal - Min).
+%	Range = Goal - Min,
+%	Ratio = (Goal - X) / Range,
+%	Ratio * 50.
 
 %% @doc turns the passed health tuple into a proplist.
 -spec(to_proplist/1 :: (Tuple :: tuple()) -> [{atom() | binary(), any()}]).
@@ -277,7 +288,8 @@ from_leader(_Msg, State, _Election) ->
 %% @hidden
 handle_call({get, When}, _From, #state{ets = Tid} = State, _Election) when is_integer(When) ->
 	F = fun({Key, Hp, Details, Time}, Acc) when Time >= When ->
-		[{Key, Hp, Details} | Acc];
+		Realhp = calc_healths(Hp),
+		[{Key, Realhp, Details} | Acc];
 	(_, Acc) ->
 		Acc
 	end,
@@ -285,7 +297,8 @@ handle_call({get, When}, _From, #state{ets = Tid} = State, _Election) when is_in
 	{reply, {ok, Out}, State};
 handle_call({get, What}, _From, #state{ets = Tid} = State, _Election) when is_atom(What) ->
 	F = fun({{Type, _Name} = Key, Hp, Details, _Time}, Acc) when Type =:= What ->
-		[{Key, Hp, Details} | Acc];
+		Realhp = calc_healths(Hp),
+		[{Key, Realhp, Details} | Acc];
 	(_, Acc) ->
 		Acc
 	end,
@@ -473,6 +486,21 @@ write_rows_loop([{_Mod, Recs} | Tail]) ->
 	mnesia:transaction(F),
 	write_rows_loop(Tail).	
 
+calc_healths(Hp) ->
+	calc_healths(Hp, []).
+
+calc_healths([], Acc) ->
+	Acc;
+calc_healths([{_Key, Val} = Head | Tail], Acc) when is_integer(Val); is_float(Val) ->
+	calc_healths(Tail, [Head | Acc]);
+calc_healths([{Key, {Min, Mid, Max, X}} | Tail], Acc) when is_integer(X); is_float(X) ->
+	Hp = health(Min, Mid, Max, X),
+	calc_healths(Tail, [{Key, Hp} | Acc]);
+calc_healths([{Key, {Min, Mid, Max, {time, X}}} | Tail], Acc) ->
+	Diff = util:now() - X,
+	Hp = health(Min, Mid, Max, Diff),
+	calc_healths(Tail, [{Key, Hp} | Acc]).
+
 -ifdef(EUNIT).
 
 health_test_() ->
@@ -498,6 +526,38 @@ health_test_() ->
 	{"Type check",
 	fun() ->
 		?assert(is_float(health(1, 3, 5, 4)))
+	end}].
+
+time_dependant_test_() ->
+	[{"Low health by time",
+	fun() ->
+		Now = util:now(),
+		Out = calc_healths([{"key", {0, 5, 10, {time, Now}}}]),
+		?assertEqual([{"key", 0.0}], Out)
+	end},
+	{"Low mid health by time",
+	fun() ->
+		Now = util:now(),
+		Out = calc_healths([{"key", {0, 5, 10, {time, Now - 3}}}]),
+		?assertEqual([{"key", 30.0}], Out)
+	end},
+	{"mid Health by time",
+	fun() ->
+		Now = util:now(),
+		Out = calc_healths([{"key", {0, 5, 10, {time, Now - 5}}}]),
+		?assertEqual([{"key", 50.0}], Out)
+	end},
+	{"Mid high healthy by time",
+	fun() ->
+		Now = util:now(),
+		Out = calc_healths([{"key", {0, 5, 10, {time, Now - 7}}}]),
+		?assertEqual([{"key", 70.0}], Out)
+	end},
+	{"High health by time",
+	fun() ->
+		Now = util:now(),
+		Out = calc_healths([{"key", {0, 5, 10, {time, Now - 10}}}]),
+		?assertEqual([{"key", 100.0}], Out)
 	end}].
 	
 multinode_test_() ->

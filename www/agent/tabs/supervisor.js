@@ -871,8 +871,22 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 			}
 			bub.onEnter = onEnterf;
 			bub.dropped = function(obj){
+				console.log("dropped called");
 				if(obj.data.type == "media"){
 					console.log(message);
+					console.log(obj.data);
+					if(obj.data.agent){
+						var ajaxdone = function(json, args){
+							console.log(json.message);
+						}
+						var geturl = "/supervisor/agent_transfer/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
+						console.log(geturl);
+						dojo.xhrGet({
+							url:geturl,
+							handleAs:"json",
+							load:ajaxdone
+						})
+					}
 				}
 			}
 			if(bub.data.display != "All"){
@@ -920,12 +934,19 @@ supervisorTab.refreshCallsStack = function(dkey, dval, node){
 	var fetchdone = function(items, request){
 		var acc = [];
 		dojo.forEach(items, function(obj){
+			var datas = {
+				display:supervisorTab.dataStore.getValue(obj, "display"),
+				health:supervisorTab.dataStore.getValue(obj, "aggregate"),
+				type:"media"
+			};
+			if(supervisorTab.dataStore.getValue(obj, "agent")){
+				datas['agent'] = supervisorTab.dataStore.getValue(obj, "agent");
+			}
+			else{
+				datas['queue'] = supervisorTab.dataStore.getValue(obj, "queue");
+			}
 			acc.push({
-				data:{
-					display:supervisorTab.dataStore.getValue(obj, "display"),
-					health:supervisorTab.dataStore.getValue(obj, "aggregate"),
-					type:"media"
-				},
+				data:datas,
 				onmouseenter:function(ev){
 					supervisorTab.setDetails({
 						type:"media",

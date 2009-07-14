@@ -255,6 +255,19 @@ handle_call({warm_transfer, Number}, _From, #state{agent_fsm = Apid} = State) ->
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
+		["agent_transfer", Fromagent, Toagent] ->
+			Json = case {agent_manager:query_agent(Fromagent), agent_manager:query_agent(Toagent)} of
+				{false, false} ->
+					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agents don't exist">>}]});
+				{{true, From}, {true, To}} ->
+					agent:agent_transfer(From, To),
+					mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"Transfer beginning">>}]});
+				{false, _} ->
+					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"From agent doesn't exist.">>}]});
+				{_, false} ->
+					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"To agent doesn't exist.">>}]})
+			end,
+			{reply, {200, [], Json}, State};
 		["status"] ->
 			% nodes, agents, queues, media, and system.
 			{ok, Nodestats} = cpx_monitor:get_health(node),

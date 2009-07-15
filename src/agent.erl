@@ -43,6 +43,15 @@
 -define(GEN_FSM, true).
 -include("gen_spec.hrl").
 
+-define(IDLE_LIMITS, {60 * 2, 0, 0, {time, util:now()}}).
+-define(PRECALL_LIMITS, {precall, {0, 0, 60 * 2, {time, util:now()}}}).
+-define(RELEASED_LIMITS, {released, {0, 0, 60 * 5, {time, util:now()}}}).
+-define(OUTGOING_LIMITS, {outgoing, {0, 60 * 5, 60 * 15, {time, util:now()}}}).
+-define(ONCALL_LIMITS, {oncall, {0, 60 * 5, 60 * 15, {time, util:now()}}}).
+-define(WRAPUP_LIMITS, {wrapup, {0, 0, 60 * 5, {time, util:now()}}}).
+-define(RINGING_LIMITS, {ringing, {0, 0, 60, {time, util:now()}}}).
+-define(WARMTRANSFER_LIMITS, {warmtransfer, {0, 60 * 2, 60 * 5, {time, util:now()}}}).
+
 %% gen_fsm exports
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 %% defined state exports
@@ -109,7 +118,7 @@ init([State = #agent{}]) ->
 		_Other ->
 			gen_server:cast(dispatch_manager, {end_avail, self()})
 	end,
-	set_cpx_monitor(State, {released, {0, 0, 60 * 5, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?RELEASED_LIMITS, []),
 	{ok, State#agent.state, State2}.
 
 % actual functions we'll call
@@ -246,17 +255,17 @@ state_to_integer(State) ->
 idle({precall, Client}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
-	set_cpx_monitor(State, {idle, {0, 0, 60 * 2, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?PRECALL_LIMITS, []),
 	{reply, ok, precall, State#agent{state=precall, statedata=Client, lastchangetimestamp=now()}};
 idle({ringing, Call = #call{}}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
-	set_cpx_monitor(State, {ringing, {0, 0, 60 * 1, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, State#agent{state=ringing, statedata=Call, lastchangetimestamp=now()}};
 idle({released, Reason}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
-	set_cpx_monitor(State, {released, {0, 0, 60 * 5, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?RELEASED_LIMITS, []),
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 idle(Event, From, State) ->
 	?WARNING("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
@@ -280,7 +289,7 @@ ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.d
 			gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
 			gen_server:cast(Statecall#call.cook, remove_from_queue),
 			%cdr:oncall(Statecall, State#agent.login),
-			set_cpx_monitor(State, {oncall, {0, 60 * 5, 60 * 15, {time, util:now()}}}, []),
+			set_cpx_monitor(State, ?ONCALL_LIMITS, []),
 			{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};
 		invalid ->
 			{reply, invalid, ringing, State}
@@ -289,7 +298,7 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} 
 	case Statecall#call.id of
 		Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
-			set_cpx_monitor(State, {oncall, {0, 60 * 5, 60 * 15, {time, util:now()}}}, []),
+			set_cpx_monitor(State, ?ONCALL_LIMITS, []),
 			{reply, ok, oncall, State#agent{state=oncall, statedata=Call, lastchangetimestamp=now()}};
 		_Other -> 
 			{reply, invalid, ringing, State}
@@ -298,12 +307,12 @@ ringing({released, Reason}, _From, #agent{statedata = Call} = State) ->
 	?DEBUG("going released from ringing", []),
 	gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
-	set_cpx_monitor(State, {released, {0, 0, 60* 5, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?RELEASED_LIMITS, []),
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 ringing(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
-	set_cpx_monitor(State, {idle, {0, 0, 60 * 2, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?IDLE_LIMITS, []),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 ringing(_Event, _From, State) ->
 	{reply, invalid, ringing, State}.
@@ -319,16 +328,16 @@ ringing(_Event, _From, State) ->
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'precall', #agent{}}).
 precall({outgoing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, outgoing, Call}),
-	set_cpx_monitor(State, {outgoing, {0, 60 * 5, 60 * 15, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?OUTGOING_LIMITS, []),
 	{reply, ok, outgoing, State#agent{state=outgoing, statedata=Call, lastchangetimestamp=now()}};
 precall(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
-	set_cpx_monitor(State, {outgoing, {0, 0, 60 * 5, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?IDLE_LIMITS, []),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 precall({released, Reason}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
-	set_cpx_monitor(State, {released, {0, 0, 60 * 5, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?RELEASED_LIMITS, []),
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 precall(_Event, _From, State) -> 
 	{reply, invalid, precall, State}.
@@ -355,21 +364,21 @@ oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_pat
 	%cdr:hangup(Call, agent),
 	%cdr:wrapup(Call, State#agent.login),
 	gen_media:wrapup(Call#call.source),
-	set_cpx_monitor(State, {wrapup, {0, 0, 60 * 5, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?WRAPUP_LIMITS, []),
 	{reply, ok, wrapup, State#agent{state=wrapup, lastchangetimestamp=now()}};
 oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
 	case Currentcall#call.id of
 		Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 			%cdr:wrapup(Call, State#agent.login),
-			set_cpx_monitor(State, {wrapup, {0, 0, 60 * 5, {time, util:now()}}}, []), 
+			set_cpx_monitor(State, ?WRAPUP_LIMITS, []), 
 			{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};
 		_Else ->
 			{reply, invalid, oncall, State}
 	end;
 oncall({warmtransfer, Transferto}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
-	set_cpx_monitor(State, {warmtransfer, {0, 0, 60 * 2, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()}};
 oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
 	Reply = gen_media:agent_transfer(Call#call.source, Agent, 10000),
@@ -385,7 +394,7 @@ oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) -
 		{ok, UUID} ->
 			% TODO - should we store the called number too?
 			gen_server:cast(State#agent.connection, {change_state, warmtransfer, UUID}),
-			set_cpx_monitor(State, {warmtransfer, {0, 0, 60 * 2, {time, util:now()}}}, []),
+			set_cpx_monitor(State, ?WARMTRANSFER_LIMITS, []),
 			{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, UUID}, lastchangetimestamp=now()}};
 		_ ->
 			{reply, invalid, oncall, State}
@@ -414,14 +423,14 @@ outgoing({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentc
 	case Currentcall#call.id of
 		Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-			set_cpx_monitor(State, {wrapup, {0, 0, 60 * 2, {time, util:now()}}}, []),
+			set_cpx_monitor(State, ?WRAPUP_LIMITS, []),
 			{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};
 		_Else -> 
 			{reply, invalid, outgoing, State}
 	end;
 outgoing({warmtransfer, Transferto}, _From, State) -> 
 	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
-	set_cpx_monitor(State, {warmtransfer, {0, 60 * 2, 60 * 5, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()}};
 outgoing(get_media, _From, #agent{statedata = Media} = State) ->
 	{reply, {ok, Media}, outgoing, State};
@@ -442,19 +451,19 @@ outgoing(_Event, _From, State) ->
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'released', #agent{}}).
 released({precall, Client}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
-	set_cpx_monitor(State, {precall, {0, 0, 60 * 2, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?PRECALL_LIMITS, []),
 	{reply, ok, precall, State#agent{state=precall, statedata=Client, lastchangetimestamp=now()}};
 released(idle, _From, State) ->	
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
-	set_cpx_monitor(State, {idle, {0, 0, 60 * 5, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?IDLE_LIMITS, []),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 released({released, Reason}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
 	{reply, ok, released, State#agent{statedata=Reason, lastchangetimestamp=now()}};
 released({ringing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
-	set_cpx_monitor(State, {idle, {0, 0, 60 * 2, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, State#agent{state=ringing, statedata=Call, lastchangetimestamp=now()}};
 released(_Event, _From, State) ->
 	{reply, invalid, released, State}.
@@ -480,7 +489,7 @@ warmtransfer({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = {onh
 	case Onhold#call.id of
 		 Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-			set_cpx_monitor(State, {wrapup, {0, 0, 60 * 5, {time, util:now()}}}, []),
+			set_cpx_monitor(State, ?WRAPUP_LIMITS, []),
 			{reply, ok, wrapup, State#agent{state=wrapup,statedata=Call, lastchangetimestamp=now()}};
 		_Else -> 
 			{reply, invalid, warmtransfer, State}
@@ -489,14 +498,14 @@ warmtransfer({oncall, #call{id = Callid} = Call}, _From, #agent{statedata = {onh
 	case Onhold#call.id of
 		 Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
-			set_cpx_monitor(State, {oncall, {0, 60 * 5, 60 * 15, {time, util:now()}}}, []),
+			set_cpx_monitor(State, ?ONCALL_LIMITS, []),
 			{reply, ok, oncall, State#agent{state=oncall, statedata=Call, lastchangetimestamp=now()}};
 		_Else -> 
 			{reply, invalid, warmtransfer, State}
 	end;
 warmtransfer({outgoing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, outgoing, Call}),
-	set_cpx_monitor(State, {outgoing, {0, 60 * 5, 60 * 15, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?OUTGOING_LIMITS, []),
 	{reply, ok, outgoing, State#agent{state=outgoing, statedata=Call, lastchangetimestamp=now()}};
 warmtransfer(_Event, _From, State) ->
 	{reply, invalid, warmtransfer, State}.
@@ -518,12 +527,12 @@ wrapup(idle, _From, State= #agent{statedata = Call, queuedrelease = undefined}) 
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
 	cdr:endwrapup(Call, State#agent.login),
-	set_cpx_monitor(State, {idle, {0, 0, 60 * 2, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?IDLE_LIMITS, []),
 	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
 wrapup(idle, _From, #agent{statedata=Call} = State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, State#agent.queuedrelease}),
 	cdr:endwrapup(Call, State#agent.login),
-	set_cpx_monitor(State, {released, {0, 0, 60 * 5, {time, util:now()}}}, []),
+	set_cpx_monitor(State, ?RELEASED_LIMITS, []),
 	{reply, ok, released, State#agent{state=released, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()}};
 wrapup(Event, From, State) ->
 	?WARNING("Invalid event '~p' from ~p while in wrapup.", [Event, From]),

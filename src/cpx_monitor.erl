@@ -146,7 +146,8 @@ get_health(Type) ->
 
 %% @doc Give the three numbers min, goal, and max, calculate a number from
 %% 0 to 100 indicating how 'healthy' X is.  Values at or below Min are 0, at or
-%% above Max are set to 100.
+%% above Max are set to 100.  the Min can be the larger value, indicating that
+%% as X gets bigger the utilization/health value should get smaller.
 -spec(health/4 :: (Min :: float(), Goal :: float(), Max :: float(), X :: float()) -> float()).
 health(Min, Goal, Max, Goal) when Min =< Goal, Goal =< Max ->
 	50.0;

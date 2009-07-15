@@ -658,7 +658,12 @@ handle_info({'$gen_media_stop_ring', _Cook}, #state{ringout = false} = State) ->
 	{noreply, State};
 handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = Callback} = State) when is_pid(Apid) ->
 	?INFO("Handling ringout...", []),
-	agent:set_state(Apid, idle),
+	case is_process_alive(Apid) of
+		true ->
+			agent:set_state(Apid, idle);
+		false ->
+			ok
+	end,
 	gen_server:cast(Cook, stop_ringing),
 	{ok, Newsub} = Callback:handle_ring_stop(State#state.substate),
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined}};

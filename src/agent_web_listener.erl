@@ -48,7 +48,7 @@
 -define(MOCHI_NAME, aweb_mochi).
 
 %% API
--export([start_link/1, start/1, start/0, start_link/0, stop/0]).
+-export([start_link/1, start/1, start/0, start_link/0, stop/0, linkto/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,

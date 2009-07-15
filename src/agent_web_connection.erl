@@ -183,6 +183,7 @@ init([Agent, Security]) ->
 			{stop, "Agent is already logged in"};
 		_Else ->
 			{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
+			agent_web_listener:linkto(self()),
 			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security}}
 	end.
 

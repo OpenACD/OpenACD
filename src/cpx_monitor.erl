@@ -154,15 +154,21 @@ health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max, X =< Min ->
 	0.0;
 health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max, Max =< X ->
 	100.0;
+health(Bigmin, Goal, Smallmax, X) when Bigmin >= Goal, Goal >= Smallmax, X >= Bigmin ->
+	0.0;
+health(Bigmin, Goal, Smallmax, X) when Bigmin >= Goal, Goal >= Smallmax, X =< Smallmax ->
+	100.0;
+health(Bigmin, Goal, Smallmax, X) when Bigmin >= Goal, Goal >= Smallmax, X > Goal ->
+	(50 * (Goal - X)) / (Goal - Bigmin);
+health(Bigmin, Goal, Smallmax, X) when Bigmin >= Goal, Goal >= Smallmax, X > Smallmax ->
+	(50 * (2 * Goal - X - Smallmax)) / (Goal - Smallmax);
+%	( 50 * (3 * X - 2 * Smallmax + Goal) ) / (Goal - Smallmax);
 health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max, Goal =< X ->
 	% g = Goal
 	% m = Max
 	% x = X
 	% y = (100g - 50m - 50x)/(g - m)
 	(100 * Goal - 50 * Max - 50 * X) / (Goal - Max);
-%	Range = Max - Goal,
-%	Ratio = (X - Goal) / Range,
-%	Ratio * 50 + 50;
 health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max ->
 	% similar to above, but w/ a twist!
 	% g = Goal
@@ -170,9 +176,6 @@ health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max ->
 	% x = X
 	% y = (50x - 50m) / (g - m)
 	(50 * X - 50 * Min) / (Goal - Min).
-%	Range = Goal - Min,
-%	Ratio = (Goal - X) / Range,
-%	Ratio * 50.
 
 %% @doc turns the passed health tuple into a proplist.
 -spec(to_proplist/1 :: (Tuple :: tuple()) -> [{atom() | binary(), any()}]).
@@ -522,6 +525,13 @@ health_test_() ->
 		?assertEqual(50.0, health(0, 3, 10, 3)),
 		?assertEqual(25.0, health(0, 2, 10, 1)),
 		?assertEqual(75.0, health(0, 4, 10, 7))
+	end},
+	{"Bigger is underutilized",
+	fun() ->
+		?assertEqual(25.0, health(100, 50, 0, 75)),
+		?assertEqual(75.0, health(100, 50, 0, 25)),
+		?assertEqual(75.0, health(150, 100, 0, 50)),
+		?assertEqual(25.0, health(150, 50, 0, 100))
 	end},
 	{"Type check",
 	fun() ->

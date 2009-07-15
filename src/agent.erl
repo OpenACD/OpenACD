@@ -568,31 +568,85 @@ handle_sync_event(_Event, _From, StateName, State) ->
 
 %% @private
 %-spec(handle_info/3 :: (Event :: any(), StateName :: statename(), State :: #agent{}) -> {'stop', 'normal', #agent{}} | {'stop', 'shutdown', #agent{}} | {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
-handle_info({'EXIT', From, Reason}, StateName, #agent{connection = From} = State) ->
-	?INFO("Connection exited while ~w", [StateName]),
-	case StateName of
-		idle ->
-			{stop, {error, conn_exit, Reason}, State};
-		ringing ->
-			% gen media will take care of a ringout, so we can just exit.
-			{stop, {error, conn_exit, Reason}, State};
-		precall ->
-			% fortunately, no actual call has been placed, so simply exiting.
-			{stop, {error, conn_exit, Reason}, State};
-		oncall ->
-			% Maintain, but update the connection so the agent can try again.
-			{next_state, StateName, State#agent{connection = undefined}};
-		outgoing ->
-			% Same as above
-			{next_state, StateName, State#agent{connection = undefined}};
-		released ->
-			{stop, {error, conn_exit, Reason}, State};
-		warmtransfer ->
-			{next_state, StateName, State#agent{connection = undefined}};
-		wrapup ->
-			cdr:endwrapup(State#agent.statedata, State#agent.login),
-			{stop, {error, conn_exit, Reason}, State}
+handle_info({'EXIT', From, Reason}, oncall, #agent{connection = From, statedata = Call} = State) ->
+	?WARNING("agent connection died while ~w with ~w media", [oncall, Call#call.media_path]),
+	case Call#call.media_path of
+		inband ->
+			Stopwhy = case Reason of
+				normal ->
+					normal;
+				shutdown ->
+					shutdown;
+				Other ->
+					{error, conn_exit, Other}
+			end,
+			gen_media:wrapup(Call#call.source),
+			cdr:endwrapup(Call, State#agent.login),
+			{stop, Stopwhy, State};
+		outband ->
+			% to avoid sudden dropped calls, hang around.
+			{next_state, oncall, State#agent{connection = undefined}}
 	end;
+handle_info({'EXIT', From, Reason}, outgoing, #agent{connection = From, statedata = Call} = State) ->
+	?WARNING("agent connection died while ~w with ~w media", [outgoing, Call#call.media_path]),
+	case Call#call.media_path of
+		inband ->
+			Stopwhy = case Reason of
+				normal ->
+					normal;
+				shutdown ->
+					shutdown;
+				Other ->
+					{error, conn_exit, Other}
+			end,
+			gen_media:wrapup(Call#call.source),
+			cdr:endwrapup(Call, State#agent.login),
+			{stop, Stopwhy, State};
+		outband ->
+			{next_state, outgoing, State#agent{connection = undefined}}
+	end;
+handle_info({'EXIT', From, Reason}, warmtransfer, #agent{connection = From, statedata = Tuple} = State) ->
+	{onhold, Call, calling, _Whoever} = Tuple,
+	?WARNING("agent connection died while ~w with ~w media", [warmtransfer, Call#call.media_path]),
+	case Call#call.media_path of
+		inband ->
+			Stopwhy = case Reason of
+				normal ->
+					normal;
+				shutdown ->
+					shutdown;
+				Other ->
+					{error, conn_exit, Other}
+			end,
+			gen_media:wrapup(Call#call.source),
+			cdr:endwrapup(Call, State#agent.login),
+			{stop, Stopwhy, State};
+		outband ->
+			{next_state, warmtransfer, State#agent{connection = undefined}}
+	end;
+handle_info({'EXIT', From, Reason}, wrapup, #agent{connection = From} = State) ->
+	?WARNING("agent connection died while ~w with ~w media", [wrapup, "doesn't matter"]),
+	cdr:endwrapup(State#agent.statedata, State#agent.login),
+	Stopwhy = case Reason of
+		normal ->
+			normal;
+		shutdown ->
+			shutdown;
+		Other ->
+			{error, conn_exit, Other}
+	end,
+	{stop, Stopwhy, State};
+handle_info({'EXIT', From, Reason}, StateName, #agent{connection = From} = State) ->
+	?WARNING("agent connection died while ~w with ~w media", [StateName, "doesn't matter"]),
+	Stopwhy = case Reason of
+		normal ->
+			normal;
+		shutdown ->
+			shutdown;
+		Other ->
+			{error, conn_exit, Other}
+	end,
+	{stop, Stopwhy, State};
 handle_info({'EXIT', From, Reason}, StateName, State) ->
 	?INFO("Got exit message from ~p with reason ~p", [From, Reason]),
 	case whereis(agent_manager) of
@@ -983,10 +1037,11 @@ generate_state([]) ->
 cross_check_state_test_() ->
 	generate_state().
 
-handle_conn_exit_test_() ->
+handle_conn_exit_inband_test_() ->
 	{foreach,
 	fun() ->
-		{#agent{login = "test", connection = self()}, self()}
+		Call = #call{id = "test", source = self()},
+		{#agent{login = "test", connection = self(), statedata = Call}, self()}
 	end,
 	fun(_) ->
 		ok
@@ -1036,8 +1091,10 @@ handle_conn_exit_test_() ->
 	fun({A, P}) ->
 		{"Death in warm transfer",
 		fun() ->
-			Res = handle_info({'EXIT', P, "fail"}, warmtransfer, A),
-			?assertEqual({next_state, warmtransfer, A#agent{connection = undefined}}, Res)
+			Call = A#agent.statedata,
+			Agent = A#agent{statedata = {onhold, Call, calling, "target"}},
+			Res = handle_info({'EXIT', P, "fail"}, warmtransfer, Agent),
+			?assertEqual({next_state, warmtransfer, Agent#agent{connection = undefined}}, Res)
 		end}
 	end,
 	fun({A, P}) ->
@@ -1048,4 +1105,73 @@ handle_conn_exit_test_() ->
 		end}
 	end]}.
 
+handle_conn_exit_outband_test_() ->
+	{foreach,
+	fun() ->
+		{ok, Callpid} = dummy_media:start("test"),
+		Callrec = #call{id = "test", source = Callpid, media_path = outband},
+		{#agent{login = "test", connection = self()}, self(), Callpid, Callrec}
+	end,
+	fun(_) ->
+		ok
+	end,
+	[fun({A, P, Mp, C}) ->
+		{"Death in idle",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, idle, A),
+			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
+		end}
+	end,
+	fun({A, P, Mp, C}) ->
+		{"Death in ringing",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, ringing, A),
+			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
+		end}
+	end,
+	fun({A, P, Mp, C}) ->
+		{"Death in precall",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, precall, A),
+			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
+		end}
+	end,
+	fun({A, P, Mp, C}) ->
+		{"Death in oncall",
+		fun() ->
+			Agent = A#agent{statedata = C},
+			Res = handle_info({'EXIT', P, "fail"}, oncall, Agent),
+			?assertEqual({next_state, oncall, Agent#agent{connection = undefined}}, Res)
+		end}
+	end,
+	fun({A, P, Mp, C}) ->
+		{"Death in outgoing",
+		fun() ->
+			Agent = A#agent{statedata = C},
+			Res = handle_info({'EXIT', P, "fail"}, outgoing, Agent),
+			?assertEqual({next_state, outgoing, Agent#agent{connection = undefined}}, Res)
+		end}
+	end,
+	fun({A, P, Mp, C}) ->
+		{"Death in released",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, released, A),
+			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
+		end}
+	end,
+	fun({A, P, Mp, C}) ->
+		{"Death in warm transfer",
+		fun() ->
+			Agent = A#agent{statedata = {onhold, C, calling, "target"}},
+			Res = handle_info({'EXIT', P, "fail"}, warmtransfer, Agent),
+			?assertEqual({next_state, warmtransfer, Agent#agent{connection = undefined}}, Res)
+		end}
+	end,
+	fun({A, P, Mp, C}) ->
+		{"Death in wrapup",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, wrapup, A),
+			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
+		end}
+	end]}.
 -endif.

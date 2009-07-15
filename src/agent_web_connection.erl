@@ -394,7 +394,7 @@ handle_info(check_acks, #state{missed_polls = Missedpolls} = State) when Missedp
 	{noreply, State#state{missed_polls = Missedpolls + 1}};
 handle_info(check_acks, State) ->
 	?NOTICE("too many missed polls.",[]),
-	{stop, normal, State};
+	{stop, missed_polls, State};
 handle_info(Info, State) ->
 	?DEBUG("info I can't handle:  ~p", [Info]),
 	{noreply, State}.
@@ -404,7 +404,7 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 terminate(Reason, State) ->
 	?NOTICE("terminated ~p", [Reason]),
-	agent:stop(State#state.agent_fsm),
+	%agent:stop(State#state.agent_fsm),
 	timer:cancel(State#state.ack_timer),
 	ok.
 

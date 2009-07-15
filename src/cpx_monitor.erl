@@ -160,7 +160,7 @@ health(Bigmin, Goal, Smallmax, X) when Bigmin >= Goal, Goal >= Smallmax, X >= Bi
 health(Bigmin, Goal, Smallmax, X) when Bigmin >= Goal, Goal >= Smallmax, X =< Smallmax ->
 	100.0;
 health(Bigmin, Goal, Smallmax, X) when Bigmin >= Goal, Goal >= Smallmax, X > Goal ->
-	(50 * (Goal - X)) / (Goal - Bigmin);
+	( (50 * (Goal - X)) / (Bigmin - Goal) ) + 50;
 health(Bigmin, Goal, Smallmax, X) when Bigmin >= Goal, Goal >= Smallmax, X > Smallmax ->
 	(50 * (2 * Goal - X - Smallmax)) / (Goal - Smallmax);
 %	( 50 * (3 * X - 2 * Smallmax + Goal) ) / (Goal - Smallmax);

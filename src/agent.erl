@@ -625,7 +625,7 @@ handle_info({'EXIT', From, Reason}, warmtransfer, #agent{connection = From, stat
 			{next_state, warmtransfer, State#agent{connection = undefined}}
 	end;
 handle_info({'EXIT', From, Reason}, wrapup, #agent{connection = From} = State) ->
-	?WARNING("agent connection died while ~w with ~w media", [wrapup, "doesn't matter"]),
+	?WARNING("agent connection died while ~w with ~p media", [wrapup, "doesn't matter"]),
 	cdr:endwrapup(State#agent.statedata, State#agent.login),
 	Stopwhy = case Reason of
 		normal ->
@@ -637,7 +637,7 @@ handle_info({'EXIT', From, Reason}, wrapup, #agent{connection = From} = State) -
 	end,
 	{stop, Stopwhy, State};
 handle_info({'EXIT', From, Reason}, StateName, #agent{connection = From} = State) ->
-	?WARNING("agent connection died while ~w with ~w media", [StateName, "doesn't matter"]),
+	?WARNING("agent connection died while ~w with ~p media", [StateName, "doesn't matter"]),
 	Stopwhy = case Reason of
 		normal ->
 			normal;

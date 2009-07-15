@@ -569,8 +569,30 @@ handle_sync_event(_Event, _From, StateName, State) ->
 %% @private
 %-spec(handle_info/3 :: (Event :: any(), StateName :: statename(), State :: #agent{}) -> {'stop', 'normal', #agent{}} | {'stop', 'shutdown', #agent{}} | {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
 handle_info({'EXIT', From, Reason}, StateName, #agent{connection = From} = State) ->
-	?INFO("Got exit message from conneciton ~w.", [From]),
-	{next_state, StateName, State#agent{connection = undefined}};
+	?INFO("Connection exited while ~w", [StateName]),
+	case StateName of
+		idle ->
+			{stop, {error, conn_exit, Reason}, State};
+		ringing ->
+			% gen media will take care of a ringout, so we can just exit.
+			{stop, {error, conn_exit, Reason}, State};
+		precall ->
+			% fortunately, no actual call has been placed, so simply exiting.
+			{stop, {error, conn_exit, Reason}, State};
+		oncall ->
+			% Maintain, but update the connection so the agent can try again.
+			{next_state, StateName, State#agent{connection = undefined}};
+		outgoing ->
+			% Same as above
+			{next_state, StateName, State#agent{connection = undefined}};
+		released ->
+			{stop, {error, conn_exit, Reason}, State};
+		warmtransfer ->
+			{next_state, StateName, State#agent{connection = undefined}};
+		wrapup ->
+			cdr:endwrapup(State#agent.statedata, State#agent.login),
+			{stop, {error, conn_exit, Reason}, State}
+	end;
 handle_info({'EXIT', From, Reason}, StateName, State) ->
 	?INFO("Got exit message from ~p with reason ~p", [From, Reason]),
 	case whereis(agent_manager) of
@@ -961,5 +983,69 @@ generate_state([]) ->
 cross_check_state_test_() ->
 	generate_state().
 
+handle_conn_exit_test_() ->
+	{foreach,
+	fun() ->
+		{#agent{login = "test", connection = self()}, self()}
+	end,
+	fun(_) ->
+		ok
+	end,
+	[fun({A, P}) ->
+		{"Death in idle",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, idle, A),
+			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
+		end}
+	end,
+	fun({A, P}) ->
+		{"Death in ringing",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, ringing, A),
+			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
+		end}
+	end,
+	fun({A, P}) ->
+		{"Death in precall",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, precall, A),
+			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
+		end}
+	end,
+	fun({A, P}) ->
+		{"Death in oncall",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, oncall, A),
+			?assertEqual({next_state, oncall, A#agent{connection = undefined}}, Res)
+		end}
+	end,
+	fun({A, P}) ->
+		{"Death in outgoing",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, outgoing, A),
+			?assertEqual({next_state, outgoing, A#agent{connection = undefined}}, Res)
+		end}
+	end,
+	fun({A, P}) ->
+		{"Death in released",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, released, A),
+			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
+		end}
+	end,
+	fun({A, P}) ->
+		{"Death in warm transfer",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, warmtransfer, A),
+			?assertEqual({next_state, warmtransfer, A#agent{connection = undefined}}, Res)
+		end}
+	end,
+	fun({A, P}) ->
+		{"Death in wrapup",
+		fun() ->
+			Res = handle_info({'EXIT', P, "fail"}, wrapup, A),
+			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
+		end}
+	end]}.
 
 -endif.

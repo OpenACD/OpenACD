@@ -43,7 +43,7 @@
 -define(GEN_FSM, true).
 -include("gen_spec.hrl").
 
--define(IDLE_LIMITS, {60 * 2, 0, 0, {time, util:now()}}).
+-define(IDLE_LIMITS, {idle, {60 * 2, 0, 0, {time, util:now()}}}).
 -define(PRECALL_LIMITS, {precall, {0, 0, 60 * 2, {time, util:now()}}}).
 -define(RELEASED_LIMITS, {released, {0, 0, 60 * 5, {time, util:now()}}}).
 -define(OUTGOING_LIMITS, {outgoing, {0, 60 * 5, 60 * 15, {time, util:now()}}}).

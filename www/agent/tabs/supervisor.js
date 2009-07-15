@@ -24,6 +24,7 @@ supervisorTab.node = "*";
 supervisorTab.groupsStack = {clear:function(){ return true}};
 supervisorTab.individualsStack = {clear:function(){ return true}};
 supervisorTab.callsStack = {clear:function(){return true}};
+supervisorTab.suppressPoll = false;
 
 supervisorTab.dndManager = {
 	_dragging: null,
@@ -72,9 +73,11 @@ supervisorTab.dndManager = {
 				supervisorTab.dndManager._dropCandidate = null;
 			}
 		});
+		supervisorTab.suppressPoll = true;
 		supervisorTab.dndManager._dragging = obj;
 	},
 	endDrag:function(){
+		supervisorTab.suppressPoll = false;
 		supervisorTab.dndManager._dragging.disconnect(supervisorTab.dndManager._eventHandle);
 		if(supervisorTab.dndManager._dropCandidate){
 			supervisorTab.dndManager._dropCandidate.dropped(supervisorTab.dndManager._dragging);
@@ -865,30 +868,50 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 
 			if(seek == "agent"){
 				var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
-			}
-			else{
-				var message = "queue " + bub.data.display + " accepted drop, meaning it forwared request to server";
-			}
-			bub.onEnter = onEnterf;
-			bub.dropped = function(obj){
-				console.log("dropped called");
-				if(obj.data.type == "media"){
-					console.log(message);
-					console.log(obj.data);
-					if(obj.data.agent){
-						var ajaxdone = function(json, args){
-							console.log(json.message);
+				bub.dropped = function(obj){
+					console.log("dropped called");
+					if(obj.data.type == "media"){
+						console.log(message);
+						console.log(obj.data);
+						if(obj.data.agent){
+							var ajaxdone = function(json, args){
+								console.log(json.message);
+							}
+							var geturl = "/supervisor/agent_transfer/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
+							console.log(geturl);
+							dojo.xhrGet({
+								url:geturl,
+								handleAs:"json",
+								load:ajaxdone
+							})
 						}
-						var geturl = "/supervisor/agent_transfer/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
-						console.log(geturl);
-						dojo.xhrGet({
-							url:geturl,
-							handleAs:"json",
-							load:ajaxdone
-						})
 					}
 				}
 			}
+			else{
+				var message = "queue " + bub.data.display + " accepted drop, meaning it forwared request to server";
+				bub.dropped = function(obj){
+					console.log("dropped something, likely a call");
+					if(obj.data.type == "media"){
+						console.log(message);
+						console.log(obj.data);
+						if(obj.data.agent){
+							var ajaxdone = function(json, args){
+								console.log(json.message);
+							}
+							var geturl = "/supervisor/requeue/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
+							console.log(geturl);
+							dojo.xhrGet({
+								url:geturl,
+								handleAs:"json",
+								load:ajaxdone
+							});
+						}
+					}
+				}
+			}
+			bub.onEnter = onEnterf;
+			
 			if(bub.data.display != "All"){
 				bub.dragOver = function(){
 					bub.onEnter();
@@ -1022,6 +1045,10 @@ supervisorTab.healthDump = function(){
 supervisorTab.drawAgentQueueBubbles(0, 0);
 
 supervisorTab.reloadDataStore = function(){
+	if(supervisorTab.suppressPoll){
+		return;
+	}
+	
 	dojo.xhrGet({
 		url:"/supervisor/status",
 		handleAs:"json",
@@ -1039,7 +1066,6 @@ supervisorTab.reloadDataStore = function(){
 				});
 				supervisorTab.setAllHps();
 				supervisorTab.refreshSystemStack();
-				supervisorTab.poller.start();
 			}
 			else{
 				console.log(data);
@@ -1053,9 +1079,9 @@ supervisorTab.systemStack[0].grow();
 
 supervisorTab.poller = new dojox.timing.Timer(5000);
 supervisorTab.poller.onTick = function(){
-	supervisorTab.poller.stop();
 	supervisorTab.reloadDataStore();
 }
 
 supervisorTab.reloadDataStore();
+supervisorTab.poller.start();
 

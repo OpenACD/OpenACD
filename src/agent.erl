@@ -49,7 +49,23 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 
 %% other exports
--export([start/1, start_link/1, stop/1, query_state/1, dump_state/1, set_state/2, set_state/3, list_to_state/1, integer_to_state/1, state_to_integer/1, set_connection/2, set_endpoint/2, agent_transfer/2, media_pull/2, media_push/2, warm_transfer_begin/2]).
+-export([start/1, 
+	start_link/1, 
+	stop/1, 
+	query_state/1, 
+	dump_state/1, 
+	get_media/1,
+	set_state/2, 
+	set_state/3, 
+	list_to_state/1, 
+	integer_to_state/1, 
+	state_to_integer/1, 
+	set_connection/2, 
+	set_endpoint/2, 
+	agent_transfer/2,
+	media_pull/2, 
+	media_push/2, 
+	warm_transfer_begin/2]).
 
 %% @doc Start an agent fsm for the passed in agent record `Agent' that is linked to the calling process
 -spec(start_link/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
@@ -110,6 +126,12 @@ expand_magic_skills(State, Skills) ->
 -spec(dump_state/1 :: (Pid :: pid()) -> #agent{}).
 dump_state(Pid) ->
 	gen_fsm:sync_send_all_state_event(Pid, dump_state).
+
+%% @doc Returns the #call{} of the current state if there is on, otherwise 
+%% returns `invalid'.
+-spec(get_media/1 :: (Apid :: pid()) -> #call{} | 'invalid').
+get_media(Apid) ->
+	gen_fsm:sync_send_event(Apid, get_media).
 
 %% @doc Returns `{ok, Statename :: atom()}', where `Statename' is the current state of the agent at `Pid'.
 -spec(query_state/1 :: (Pid :: pid()) -> {'ok', atom()}).
@@ -368,6 +390,8 @@ oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) -
 		_ ->
 			{reply, invalid, oncall, State}
 	end;
+oncall(get_media, _From, #agent{statedata = Media} = State) ->
+	{reply, {ok, Media}, oncall, State};
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
 	
@@ -399,6 +423,8 @@ outgoing({warmtransfer, Transferto}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
 	set_cpx_monitor(State, {warmtransfer, {0, 60 * 2, 60 * 5, {time, util:now()}}}, []),
 	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()}};
+outgoing(get_media, _From, #agent{statedata = Media} = State) ->
+	{reply, {ok, Media}, outgoing, State};
 outgoing(_Event, _From, State) -> 
 	{reply, invalid, outgoing, State}.
 

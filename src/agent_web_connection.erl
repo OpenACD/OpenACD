@@ -255,6 +255,24 @@ handle_call({warm_transfer, Number}, _From, #state{agent_fsm = Apid} = State) ->
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
+		["requeue", Fromagent, Toqueue] ->
+			Json = case agent_manager:query_agent(Fromagent) of
+				{true, Apid} ->
+					case agent:get_media(Apid) of
+						invalid ->
+							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent isn't in call">>}]});
+						{ok, #call{source = Mpid} = Mediarec} ->
+							case gen_media:queue(Mpid, Toqueue) of
+								invalid ->
+									mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Media said it couldn't be queued">>}]});
+								ok ->
+									mochijson2:encode({struct, [{success, true}]})
+							end
+					end;
+				_Whatever ->
+					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent doesn't exists">>}]})
+			end,
+			{reply, {200, [], Json}, State};
 		["agent_transfer", Fromagent, Toagent] ->
 			Json = case {agent_manager:query_agent(Fromagent), agent_manager:query_agent(Toagent)} of
 				{false, false} ->

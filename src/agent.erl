@@ -697,8 +697,9 @@ wait_for_agent_manager(Count, StateName, State) ->
 % obviousness below.
 %% @private
 %-spec(terminate/3 :: (Reason :: any(), StateName :: statename(), State :: #agent{}) -> 'ok').
-terminate(Reason, StateName, _State) ->
+terminate(Reason, StateName, State) ->
 	?NOTICE("Agent terminating:  ~p, State:  ~p", [Reason, StateName]),
+	cpx_monitor:drop({agent, State#agent.login}),
 	ok.
 
 %% @private

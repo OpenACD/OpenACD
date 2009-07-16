@@ -820,6 +820,145 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 	});
 };
 
+supervisorTab.IndividualStackAsAgents(){
+	var acc = [];
+	var hps = [];
+	dojo.forEach(items, function(obj){
+		hps.push(supervisorTab.dataStore.getValue(obj, "aggregate"));
+		
+		var detailsObj = {
+			display:supervisorTab.dataStore.getValue(obj, "display"),
+			type:supervisorTab.dataStore.getValue(obj, "type")
+		};
+		
+		var onEnterf = function(){
+			supervisorTab.refreshCallsStack("agent", detailsObj.display, supervisorTab.node);
+			supervisorTab.setDetails(detailsObj);
+		}
+				 
+		var bub = supervisorTab.individualsStack.addBubble({
+			data:{
+				display:supervisorTab.dataStore.getValue(obj, "display"), 
+				health:supervisorTab.dataStore.getValue(obj, "aggregate")
+			},
+			onmouseenter:function(){
+				onEnterf();
+			}
+		});
+		
+		var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
+		bub.dropped = function(obj){
+			console.log("dropped called");
+			if(obj.data.type == "media"){
+				console.log(message);
+				console.log(obj.data);
+				if(obj.data.agent){
+					var ajaxdone = function(json, args){
+						console.log(json.message);
+					}
+					var geturl = "/supervisor/agent_transfer/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
+					console.log(geturl);
+					dojo.xhrGet({
+						url:geturl,
+						handleAs:"json",
+						load:ajaxdone
+					})
+				}
+			}
+		}
+		bub.onEnter = onEnterf;
+		
+		if(bub.data.display != "All"){
+			bub.dragOver = function(){
+				bub.onEnter();
+				return true;
+			}
+		}				 
+	});
+	
+	supervisorTab.individualsStack.addBubble({
+		data:{
+			display:"All",
+			health:supervisorTab.averageHp(hps)
+		},
+		onmouseenter:function(ev){
+			supervisorTab.refreshCallsStack("agent", "*", supervisorTab.node);
+		}
+	});
+}
+
+supervisorTab.IndividualStackAsQueues(){
+	var acc = [];
+	var hps = [];
+	dojo.forEach(items, function(obj){
+		hps.push(supervisorTab.dataStore.getValue(obj, "aggregate"));
+		
+		var detailsObj = {
+			display:supervisorTab.dataStore.getValue(obj, "display"),
+			type:supervisorTab.dataStore.getValue(obj, "type")
+		};
+		
+		var onEnterf = function(){
+			if(seek == "agent"){
+				supervisorTab.refreshCallsStack("agent", detailsObj.display, supervisorTab.node);
+			}
+			else{
+				supervisorTab.refreshCallsStack("queue", detailsObj.display, supervisorTab.node);
+			};
+			supervisorTab.setDetails(detailsObj);
+		}
+
+		var bub = supervisorTab.individualsStack.addBubble({
+			data:{
+				display:supervisorTab.dataStore.getValue(obj, "display"), 
+				health:supervisorTab.dataStore.getValue(obj, "aggregate")
+			},
+			onmouseenter:function(){
+				onEnterf();
+			}
+		});
+
+		var message = "queue " + bub.data.display + " accepted drop, meaning it forwared request to server";
+		bub.dropped = function(obj){
+			console.log("dropped something, likely a call");
+			if(obj.data.type == "media"){
+				console.log(message);
+				console.log(obj.data);
+				if(obj.data.agent){
+					var ajaxdone = function(json, args){
+						console.log(json.message);
+					}
+					var geturl = "/supervisor/requeue/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
+					console.log(geturl);
+					dojo.xhrGet({
+						url:geturl,
+						handleAs:"json",
+						load:ajaxdone
+					});
+				}
+			}
+		}
+		bub.onEnter = onEnterf;
+				 
+		if(bub.data.display != "All"){
+			bub.dragOver = function(){
+				bub.onEnter();
+				return true;
+			}
+		}
+	});
+	
+	supervisorTab.individualsStack.addBubble({
+		data:{
+			display:"All",
+			health:supervisorTab.averageHp(hps)
+		},
+		onmouseenter:function(ev){
+			supervisorTab.refreshCallsStack("queue", "*", supervisorTab.node);
+		}
+	});
+}
+
 supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 	if(supervisorTab.individualsStack.scrollLocked){
 		return false;
@@ -836,105 +975,13 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 			},
 		});
 		
-		var acc = [];
-		var hps = [];
-		dojo.forEach(items, function(obj){
-			hps.push(supervisorTab.dataStore.getValue(obj, "aggregate"));
-			
-			var detailsObj = {
-				display:supervisorTab.dataStore.getValue(obj, "display"),
-				type:supervisorTab.dataStore.getValue(obj, "type")
-			};
-			
-			var onEnterf = function(){
-				if(seek == "agent"){
-					supervisorTab.refreshCallsStack("agent", detailsObj.display, supervisorTab.node);
-				}
-				else{
-					supervisorTab.refreshCallsStack("queue", detailsObj.display, supervisorTab.node);
-				};
-				supervisorTab.setDetails(detailsObj);
-			}
-			
-			var bub = supervisorTab.individualsStack.addBubble({
-				data:{
-					display:supervisorTab.dataStore.getValue(obj, "display"), 
-					health:supervisorTab.dataStore.getValue(obj, "aggregate")
-				},
-				onmouseenter:function(){
-					onEnterf();
-				}
-			});
-
-			if(seek == "agent"){
-				var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
-				bub.dropped = function(obj){
-					console.log("dropped called");
-					if(obj.data.type == "media"){
-						console.log(message);
-						console.log(obj.data);
-						if(obj.data.agent){
-							var ajaxdone = function(json, args){
-								console.log(json.message);
-							}
-							var geturl = "/supervisor/agent_transfer/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
-							console.log(geturl);
-							dojo.xhrGet({
-								url:geturl,
-								handleAs:"json",
-								load:ajaxdone
-							})
-						}
-					}
-				}
-			}
-			else{
-				var message = "queue " + bub.data.display + " accepted drop, meaning it forwared request to server";
-				bub.dropped = function(obj){
-					console.log("dropped something, likely a call");
-					if(obj.data.type == "media"){
-						console.log(message);
-						console.log(obj.data);
-						if(obj.data.agent){
-							var ajaxdone = function(json, args){
-								console.log(json.message);
-							}
-							var geturl = "/supervisor/requeue/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
-							console.log(geturl);
-							dojo.xhrGet({
-								url:geturl,
-								handleAs:"json",
-								load:ajaxdone
-							});
-						}
-					}
-				}
-			}
-			bub.onEnter = onEnterf;
-			
-			if(bub.data.display != "All"){
-				bub.dragOver = function(){
-					bub.onEnter();
-					return true;
-				}
-			}
-			
-		});
-	
-		supervisorTab.individualsStack.addBubble({
-			data:{
-				display:"All",
-				health:supervisorTab.averageHp(hps)
-			},
-			onmouseenter:function(ev){
-				if(seek == "agent"){
-					supervisorTab.refreshCallsStack("agent", "*", supervisorTab.node);
-				}
-				else{
-					supervisorTab.refreshCallsStack("queue", "*", supervisorTab.node);
-				}
-			}
-		});
+		if(seek == "agent"){
+			supervisorTab.IndividualStackAsAgents();
+		}
+		else{
+			supervisorTab.IndividualStackAsQueues();
+		}
+		
 		supervisorTab.individualsStack.moveToBack();
 	}
 	

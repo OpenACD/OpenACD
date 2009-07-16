@@ -287,6 +287,28 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"To agent doesn't exist.">>}]})
 			end,
 			{reply, {200, [], Json}, State};
+		["agent_ring", Fromqueue, Callid, Toagent] ->
+			Json = case {agent_manager:query_agent(Toagent), queue_manager:get_queue(Fromqueue)} of
+				{false, undefined} ->
+					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Neither agent nor queue exist">>}]});
+				{false, _Pid} ->
+					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"agent doesn't exist">>}]});
+				{_Worked, undefined} ->
+					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"queue doesn't exist">>}]});
+				{{true, Apid}, Qpid} ->
+					case call_queue:get_call(Qpid, Callid) of
+						none ->
+							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Call is not in the given queue">>}]});
+						{_Key, #queued_call{media = Mpid} = Qcall} ->
+							case gen_media:ring(Mpid, Apid, Qcall, 30000) of
+								ok ->
+									mochijson2:encode({struct, [{success, true}]});
+								invalid ->
+									mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not ring agent">>}]})
+							end
+					end
+			end,
+			{reply, {200, [], Json}, State};
 		["status"] ->
 			% nodes, agents, queues, media, and system.
 			{ok, Nodestats} = cpx_monitor:get_health(node),

@@ -820,7 +820,7 @@ supervisorTab.refreshGroupsStack = function(stackfor){
 	});
 };
 
-supervisorTab.IndividualStackAsAgents(){
+supervisorTab.IndividualStackAsAgents = function(items){
 	var acc = [];
 	var hps = [];
 	dojo.forEach(items, function(obj){
@@ -864,6 +864,18 @@ supervisorTab.IndividualStackAsAgents(){
 						load:ajaxdone
 					})
 				}
+				else if(obj.data.queue){
+					var ajaxdone = function(json, args){
+						console.log(json.message);
+					}
+					var geturl = "/supervisor/agent_ring/" + escape(obj.data.queue) + "/" + escape(obj.data.display) + "/" + escape(bub.data.display);
+					console.log(geturl);
+					dojo.xhrGet({
+						url:geturl,
+						handleAs:"json",
+						load:ajaxdone
+					})
+				}
 			}
 		}
 		bub.onEnter = onEnterf;
@@ -887,7 +899,7 @@ supervisorTab.IndividualStackAsAgents(){
 	});
 }
 
-supervisorTab.IndividualStackAsQueues(){
+supervisorTab.IndividualStackAsQueues = function(items){
 	var acc = [];
 	var hps = [];
 	dojo.forEach(items, function(obj){
@@ -899,12 +911,7 @@ supervisorTab.IndividualStackAsQueues(){
 		};
 		
 		var onEnterf = function(){
-			if(seek == "agent"){
-				supervisorTab.refreshCallsStack("agent", detailsObj.display, supervisorTab.node);
-			}
-			else{
-				supervisorTab.refreshCallsStack("queue", detailsObj.display, supervisorTab.node);
-			};
+			supervisorTab.refreshCallsStack("queue", detailsObj.display, supervisorTab.node);
 			supervisorTab.setDetails(detailsObj);
 		}
 
@@ -976,10 +983,10 @@ supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
 		});
 		
 		if(seek == "agent"){
-			supervisorTab.IndividualStackAsAgents();
+			supervisorTab.IndividualStackAsAgents(items);
 		}
 		else{
-			supervisorTab.IndividualStackAsQueues();
+			supervisorTab.IndividualStackAsQueues(items);
 		}
 		
 		supervisorTab.individualsStack.moveToBack();

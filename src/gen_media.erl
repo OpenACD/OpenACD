@@ -261,7 +261,7 @@
 	callrec,
 	ring_pid,
 	oncall_pid,
-	%agent_pid,
+	queue_failover = true,
 	queue_pid,
 	ringout
 }).
@@ -385,9 +385,9 @@ init([Callback, Args]) ->
 		    {ok, #state{callback = Callback, substate = Substate, callrec = undefined}};
 		{ok, {Substate, {Queue, Callrec}}} when is_record(Callrec, call) ->
 			cdr:cdrinit(Callrec),
-			Qpid = case priv_queue(Queue, Callrec) of
+			Qpid = case priv_queue(Queue, Callrec, true) of
 				invalid when Queue =/= "default_queue" ->
-					priv_queue("default_queue", Callrec),
+					priv_queue("default_queue", Callrec, true),
 					set_cpx_mon(#state{callrec = Callrec}, [{queue, "default_queue"}]),
 					cdr:inqueue(Callrec, "default_queue");
 				Else ->
@@ -429,7 +429,7 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = Ocpid} = Sta
 %	end;
 handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = Ocpid} = State) ->
 	?INFO("requat to queue call from agent", []),
-	case priv_queue(Queue, State#state.callrec) of
+	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
 		Qpid when is_pid(Qpid) ->
@@ -440,7 +440,7 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 	end;
 handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = State) when is_pid(State#state.oncall_pid) ->
 	?INFO("Request to queue from ~p", [From]),
-	case priv_queue(Queue, State#state.callrec) of
+	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
 		Qpid when is_pid(Qpid) ->
@@ -597,7 +597,7 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
 		{queue, Queue, Callrec, NewState} ->
-			case priv_queue(Queue, Callrec) of
+			case priv_queue(Queue, Callrec, State#state.queue_failover) of
 				invalid ->
 					{reply, {error, {noqueue, Queue}}, State#state{callrec = Callrec, substate = NewState}};
 				Qpid ->
@@ -628,7 +628,7 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
 		{queue, Queue, Callrec, NewState} ->
-			case priv_queue(Queue, Callrec) of
+			case priv_queue(Queue, Callrec, State#state.queue_failover) of
 				invalid ->
 					{noreply, State#state{callrec = Callrec, substate = NewState}};
 				Qpid ->
@@ -677,7 +677,7 @@ handle_info(Info, #state{callback = Callback} = State) ->
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
 		{queue, Queue, Callrec, NewState} ->
-			case priv_queue(Queue, Callrec) of
+			case priv_queue(Queue, Callrec, State#state.queue_failover) of
 				invalid ->
 					{noreply, State#state{callrec = Callrec, substate = NewState}};
 				Qpid ->
@@ -742,12 +742,19 @@ set_cpx_mon(#state{callrec = Call} = State, Details) ->
 	Fulldet = lists:append([Basedet, Details]),
 	cpx_monitor:set({media, Call#call.id}, Hp, Fulldet).
 
-priv_queue(Queue, Callrec) ->
+priv_queue(Queue, Callrec, Failover) ->
 	case queue_manager:get_queue(Queue) of
 		undefined ->
 			% TODO what to do w/ the call w/ no queue?
-			?WARNING("Uh oh, no queue of ~p", [Queue]),
-			invalid;
+			?WARNING("Uh oh, no queue of ~p, failover:  ~w", [Queue, Failover]),
+			case Failover of
+				true ->
+					Dqpid = queue_manager:get_queue("default_queue"),
+					call_queue:add(Dqpid, self(), Callrec),
+					Dqpid;
+				false ->
+					invalid
+			end;
 		Qpid ->
 			?DEBUG("Trying to add to queue...", []),
 			R = call_queue:add(Qpid, self(), Callrec),
@@ -791,7 +798,10 @@ agent_interact(hangup, #state{queue_pid = Qpid, callrec = Call} = State) when is
 	?INFO("hang up when only queue is a pid", []),
 	unqueue(Qpid, self()),
 	cdr:hangup(State#state.callrec, Call#call.callerid),
-	State#state{queue_pid = undefined}.
+	State#state{queue_pid = undefined};
+agent_interact(hangup, #state{queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
+	?INFO("orphaned call, no queue or agents at all", []),
+	State.
 
 outgoing({outbound, Agent, NewState}, State) when is_record(State#state.callrec, call) ->
 	?INFO("Told to set ~s to outbound", [Agent]),

@@ -404,6 +404,13 @@ supervisorTab.drawBubble = function(opts){
 	}
 	var bubblefill = [rmod, gmod, 0, 100];
 
+	group.hpline = group.createLine({
+		x1: conf.point.x + (conf.data.health * 2) * conf.scale,
+		x2: conf.point.x + (conf.data.health * 2) * conf.scale,
+		y1: conf.point.y - 3,
+		y2: conf.point.y + 3 + 20 * conf.scale
+	}).setStroke({width:7, color:"black", cap:"round"});
+	
 	group.bubble = group.createRect({
 		x: conf.point.x,
 		y: conf.point.y,
@@ -431,7 +438,7 @@ supervisorTab.drawBubble = function(opts){
 	group.text = text;
 	
 	group.size = function(scale){
-		var rect = group.children[0];
+		var rect = group.bubble;
 		var p = {
 			x: rect.getShape().x,
 			y: rect.getShape().y + rect.getShape().height/2
@@ -460,6 +467,10 @@ supervisorTab.drawBubble = function(opts){
 		group.text.setStroke(textcolors);
 		group.text.setFill(textcolors);
 		group.bubble.setFill(bubblefill);
+		var bshape = group.bubble.getShape();
+		
+		var thex = hp * 200/bshape.width + bshape.x;
+		group.hpline.setShape({x1: thex, x2:thex})
 	}
 	
 	group.pointCollision = function(point){

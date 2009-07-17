@@ -3,13 +3,14 @@
 require 'socket'
 
 def helpdump
-	STDERR.puts "usage: #{$0} [-c cookiename] [-s shortname | -n longname] [-b bootfile] [-f configfile] [-d]"
+	STDERR.puts "usage: #{$0} [-c cookiename] [-s shortname | -n longname] [-b bootfile] [-f configfile] [-d] [-r]"
 	STDERR.puts
 	STDERR.puts "  -c defaults to \"ClueCon\"."
 	STDERR.puts "  -s and -n override each other.  Defaults to \"-s testme\"."
 	STDERR.puts "  -b only needs the file name, ebin is assumed.  Defaults to \"cpx-rel-0.1\"."
 	STDERR.puts "  -f defaults to \"single\"."
 	STDERR.puts "  -d uses the debug compile."
+	STDERR.puts "  -r to add -run reloader to the erl command line flags."
 	STDERR.puts ""
 	STDERR.puts "If you have not yet run rake (or rake test if you are using"
 	STDERR.puts "-d), erl will fail to start.  If the config file does not"
@@ -24,6 +25,7 @@ $nametype = '-sname'
 $name = 'testme'
 $conf = 'single'
 $boot = 'cpx-rel-0.1'
+$reloader = ''
 
 while true do
 	case ARGV[0]
@@ -56,7 +58,11 @@ while true do
 		when '-d'
 			ARGV.shift
 			$ebin = 'debug_ebin/'
-
+			
+		when '-r'
+			ARGV.shift
+			$reloader = ' -run reloader'
+		
 		else
 			break
 	end
@@ -91,5 +97,5 @@ end
 #end
 
 #puts "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
-exec "erl -pa #{$ebin} -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
+exec "erl -pa #{$ebin} -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot} #{$reloader}"
 #erl -pa ebin/ -pa contrib/mochiweb/ebin/ -setcookie ClueCon -sname testme -config single -boot ebin/cpx-rel-0.1

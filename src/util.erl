@@ -370,6 +370,11 @@ reload_all(Mode) ->
 	
 -ifdef(EUNIT).
 
+code_reload_test_() ->
+	[{spawn, [{"Standard reload", ?_assertEqual({ok, dummy_media}, reload(dummy_media))}]},
+	{spawn, [{"Hard reload", ?_assertEqual({error, {purging, false, dummy_media}}, reload(dummy_media, hard))}]},
+	{spawn, [{"Reloading everything", ?_assertEqual(ok, reload_all())}]}].
+
 now_test() ->
 	{Mega, Sec, _} = erlang:now(),
 	Res = ?MODULE:now(),
@@ -567,8 +572,5 @@ list_index_test_() ->
 		?assertEqual(0, list_index(F, {a, b}, []))
 	end}].
 
-code_reload_test_() ->
-	[{spawn, [{"Standard reload", ?_assertEqual({ok, util}, reload(?MODULE))}]},
-	{spawn, [{"Reloading everything", ?_assertEqual({error, [{purging, false, util}]}, reload_all())}]}].
 	
 -endif.

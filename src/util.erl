@@ -60,7 +60,11 @@
 	subtract_skill_lists/2,
 	list_index/2,
 	list_index/3,
-	now/0]).
+	now/0,
+	reload/1,
+	reload/2,
+	reload_all/0,
+	reload_all/1]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];
@@ -311,6 +315,59 @@ now() ->
 	{Mega, Sec, _} = erlang:now(),
 	Mega * 1000000 + Sec.
 
+%% @doc For those times when you don't need a code reload with release files
+%% and version.  For obvious reasons, this should be used for developement only.
+-spec(reload/1 :: (Module :: atom()) -> {'ok', atom()} | {'error', any()}).
+reload(Module) ->
+	reload(Module, soft).
+
+%% @doc Does a code reload for the given module.  if Mode is `soft' a soft purge
+%% is done; if it's `hard' a straight purge is done.
+-spec(reload/2 :: (Module :: atom(), Mode :: 'soft' | 'hard') -> {'ok', atom()} | {'error', any()}).
+reload(Module, Mode) ->
+	Purging = case Mode of
+		soft ->
+			code:soft_purge(Module);
+		hard ->
+			code:purge(Module)
+	end,
+	case Purging of
+		false ->
+			{error, {purging, Purging, Module}};
+		true ->
+			case code:load_file(Module) of
+				{module, Module} ->
+					{ok, Module};
+				Else ->
+					{error, {Purging, Module, Else}}
+			end
+	end.
+
+%% @doc Reloads code for all modules in the spice-telephony path using soft purge.
+-spec(reload_all/0 :: () -> 'ok' | {'error', any()}).
+reload_all() ->
+	reload_all(soft).
+
+-ifdef(EUNIT).
+-define(BEAM_DIR, "spice-telephony/debug_ebin").
+-else.
+-define(BEAM_DIR, "spice-telephony/ebin").
+-endif.
+
+%% @doc Reloads code for all modules using either the hard or soft method for 
+%% purge, whichever `Mode' happens to be.
+-spec(reload_all/1 :: (Mode :: 'hard' | 'soft') -> 'ok' | {'error', any()}).
+reload_all(Mode) ->
+	Modules = [M || {M, Path} <- code:all_loaded(), is_list(Path) andalso string:str(Path, ?BEAM_DIR) > 0],
+	Out = [reload(M, Mode) || M <- Modules],
+	case lists:all(fun ({ok, _E}) -> true; (_) -> false end, Out) of
+		true ->
+			ok;
+		false ->
+			Errors = [E || {Ok, E} <- Out, Ok == error],
+			{error, Errors}
+	end.
+	
 -ifdef(EUNIT).
 
 now_test() ->
@@ -510,4 +567,8 @@ list_index_test_() ->
 		?assertEqual(0, list_index(F, {a, b}, []))
 	end}].
 
+code_reload_test_() ->
+	[{spawn, [{"Standard reload", ?_assertEqual({ok, util}, reload(?MODULE))}]},
+	{spawn, [{"Reloading everything", ?_assertEqual({error, [{purging, false, util}]}, reload_all())}]}].
+	
 -endif.

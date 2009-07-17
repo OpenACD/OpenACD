@@ -469,8 +469,8 @@ supervisorTab.drawBubble = function(opts){
 		group.bubble.setFill(bubblefill);
 		var bshape = group.bubble.getShape();
 		
-		var thex = hp * 200/bshape.width + bshape.x;
-		group.hpline.setShape({x1: thex, x2:thex})
+		var thex = hp * (200 + bshape.x)/bshape.width + bshape.x;
+		group.hpline.setShape({x1: thex, x2:thex});
 	}
 	
 	group.pointCollision = function(point){

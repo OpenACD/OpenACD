@@ -74,7 +74,8 @@
 -record(state, {
 	initargs,
 	html,
-	files
+	files,
+	manager
 }).
 
 -type(state() :: #state{}).
@@ -102,6 +103,7 @@ start_link(Mailmap, Rawmessage) ->
 %%====================================================================
 
 init(Args) ->
+	process_flag(trap_exit, true),
 	{_, _, Mheads, _, _} = Mimed = case Args of
 		[Mailmap, Rawmessage] ->
 			mimemail:decode(Rawmessage);
@@ -120,17 +122,23 @@ init(Args) ->
 	Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
 	[Domain, _To] = util:string_split(lists:reverse(Mailmap#mail_map.address), "@", 2),
 	Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, lists:reverse(Domain)])),
+	Client = case call_queue_config:get_client(Mailmap#mail_map.client) of
+		none ->
+			#client{label="Unknown", tenant=0, brand=0, timestamp = 1};
+		Or ->
+			Or
+	end,
 	Proto = #call{
 		id = proplists:get_value("Message-ID", Mheads, Defaultid), 
 		type = email,
 		callerid = Callerid,
-		client = Mailmap#mail_map.client,
+		client = Client,
 		skills = Mailmap#mail_map.skills,
 		ring_path = inband,
 		media_path = inband,
 		source = self()
 	},
-	{ok, {#state{initargs = Args, html = Html, files = Files}, {Mailmap#mail_map.queue, Proto}}}.
+	{ok, {#state{initargs = Args, html = Html, files = Files, manager = whereis(email_media_manager)}, {Mailmap#mail_map.queue, Proto}}}.
 	
 	
 %%--------------------------------------------------------------------
@@ -189,6 +197,19 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+handle_info(check_manager, State) ->
+	case whereis(email_media_manager) of
+		Pid when is_pid(Pid) ->
+			link(Pid),
+			{noreply, State#state{manager = Pid}};
+		_Else ->
+			{ok, Tref} = timer:send_after(1000, check_manager),
+			{noreply, State#state{manager = Tref}}
+	end;
+handle_info({'EXIT', Pid, Reason}, #state{manager = Pid} = State) ->
+	?WARNING("Handling media manager ~w death of ~p", [Pid, Reason]),
+	{ok, Tref} = timer:send_after(1000, check_manager),
+	{noreply, State#state{manager = Tref}};
 handle_info(Info, State) ->
 	?DEBUG("Info: ~p", [Info]),
 	{noreply, State}.

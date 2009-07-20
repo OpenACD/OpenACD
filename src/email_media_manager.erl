@@ -93,13 +93,14 @@ set_mapping(Address, Options) when is_list(Options) ->
 		address = proplists:get_value(address, Options),
 		queue = proplists:get_value(queue, Options, "default_queue"),
 		skills = proplists:get_value(skills, Options, []),
-		client = proplists:get_value(client, Options)
+		client = proplists:get_value(client, Options),
+		timestamp = util:now()
 	},
 	set_mapping(Address, Rec);		
 set_mapping(Address, Rec) when is_record(Rec, mail_map) ->
 	F = fun() ->
 		mnesia:delete({mail_map, Address}),
-		mnesia:write(Rec)
+		mnesia:write(Rec#mail_map{timestamp = util:now()})
 	end,
 	mnesia:transaction(F).
 
@@ -108,12 +109,13 @@ new_mapping(Options) when is_list(Options) ->
 		address = proplists:get_value(address, Options),
 		queue = proplists:get_value(queue, Options, "default_queue"),
 		skills = proplists:get_value(skills, Options, []),
-		client = proplists:get_value(client, Options)
+		client = proplists:get_value(client, Options),
+		timestamp = util:now()
 	},
 	new_mapping(Rec);
 new_mapping(Rec) when is_record(Rec, mail_map) ->
 	F = fun() ->
-		mnesia:write(Rec)
+		mnesia:write(Rec#mail_map{timestamp = util:now()})
 	end,
 	mnesia:transaction(F).
 	
@@ -136,7 +138,21 @@ requeue(Filename) ->
 init([Options]) ->
 	process_flag(trap_exit, true),
 	build_table(),
-	{ok, Pid} = gen_smtp_server:start_link(email_media_session, Options),
+	%% the smtp server doesn't die along w/ this (it's trapping exits and
+	%% throwing away anything not from a session).  So, when this starts, if
+	%% something's not already registered, it will attempt to start the server
+	%% and register.  If the server fails to start for any reason, this will
+	%% die a horrible death (which is good!).
+	Pid = case whereis(cpx_smtp_server) of
+		undefined ->
+			{ok, Server} = gen_smtp_server:start(email_media_session, Options),
+			register(cpx_smtp_server, Server),
+			link(Server),
+			Server;
+		Reg when is_pid(Reg) ->
+			link(Reg),
+			Reg
+	end,
 	case proplists:get_value(relays, Options) of
 		undefined ->
 			{ok, #state{server = Pid}};
@@ -149,7 +165,8 @@ init([Options]) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 handle_call({queue, Mailmap, Headers, Data}, From, #state{mails = Mails} = State) ->
-	{ok, Mpid} = email_media:start_link(Mailmap, Headers, Data),
+	{ok, Mpid} = email_media:start(Mailmap, Headers, Data),
+	link(Mpid),
 	{reply, ok, State#state{mails = [Mpid | Mails]}};
 handle_call({queue, Filename}, From, #state{mails = Mails} = State) ->
 	{ok, Bin} = file:read_file(Filename),
@@ -157,7 +174,7 @@ handle_call({queue, Filename}, From, #state{mails = Mails} = State) ->
 	{_, _, Headers, _, _} = mimemail:decode(Email),
 	Mailmap = case proplists:get_value("From", Headers) of
 		undefined ->
-			#mail_map{address = "unknown@example.com"};
+			#mail_map{address = "unknown@example.com", timestamp = 1};
 		Address ->
 			F = fun() ->
 				QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= Address]),
@@ -165,12 +182,13 @@ handle_call({queue, Filename}, From, #state{mails = Mails} = State) ->
 			end,
 			case mnesia:transaction(F) of
 				{atomic, []} ->
-					#mail_map{address = Address};
+					#mail_map{address = Address, timestamp = 1};
 				{atomic, [Map]} ->
 					Map
 			end
 	end,
-	{ok, Mpid} = email_media:start_link(Mailmap, Email),
+	{ok, Mpid} = email_media:start(Mailmap, Email),
+	link(Mpid),
 	{reply, ok, State#state{mails = [Mpid | Mails]}};
 handle_call(stop, From, State) ->
 	?INFO("Received request to stop from ~p", [From]),
@@ -188,6 +206,9 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+handle_info({'EXIT', Pid, Reason}, #state{server = Pid} = State) ->
+	?WARNING("The server at ~w exited due to ~p", [Pid, Reason]),
+	{stop, Reason, State#state{server = undefined}};
 handle_info({'EXIT', From, Reason}, #state{mails = Mails} = State) ->
 	Newmail = lists:delete(From, Mails),
 	{noreply, State#state{mails = Newmail}};
@@ -197,8 +218,11 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
+terminate(Reason, #state{server = undefined}) ->
+	?INFO("Terminating due to ~p; no known server to drag down", [Reason]),
+	ok;
 terminate(Reason, State) ->
-	?INFO("terminating due to ~p", [Reason]),
+	?INFO("terminating due to ~p, taking server w/ us.", [Reason]),
 	gen_smtp_server:stop(State#state.server),
     ok.
 
@@ -222,7 +246,7 @@ build_table() ->
 		{atomic, ok} ->
 			?INFO("Writing default data...", []),
 			F = fun() ->
-				mnesia:write(#mail_map{address = "support@example.com"})
+				mnesia:write(#mail_map{address = "support@example.com", timestamp = util:now()})
 			end,
 			mnesia:transaction(F);
 		_Else when A =:= copied; A =:= exists ->

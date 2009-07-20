@@ -95,7 +95,7 @@ handle_RCPT(To, #state{mail_map = undefined} = State) ->
 	case mnesia:transaction(F) of
 		{atomic, []} ->
 			?WARNING("Could not find mapping for mail to ~s", [To]),
-			{ok, State#state{mail_map = #mail_map{address = To}}};
+			{ok, State#state{mail_map = #mail_map{address = To, timestamp = util:now()}}};
 		{atomic, [Mailmap]} ->
 			{ok, State#state{mail_map = Mailmap}}
 	end;

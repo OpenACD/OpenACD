@@ -674,7 +674,8 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 				id = email_media_manager,
 				module_name = email_media_manager,
 				start_function = start_link,
-				start_args = [Props]
+				start_args = [Props],
+				timestamp = util:now()
 			},
 			rpc:call(Atomnode, cpx_supervisor, update_conf, [email_media_manager, Conf], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}

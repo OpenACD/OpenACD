@@ -314,12 +314,12 @@ fetch_domain_user(Node, State) ->
 										sip_registration ->
 											case Agent#agent.endpointdata of
 												undefined ->
-													"sofia/default/"++User++"%"++Domain;
+													"${sofia_contact("++User++"@"++Domain++")}";
 												_ ->
-													"sofia/default/"++Agent#agent.endpointdata++"%"++Domain
+													"${sofia_contact("++Agent#agent.endpointdata++"@"++Domain++")}"
 											end;
 										sip ->
-											"sofia/default/sip:"++Agent#agent.endpointdata;
+											"sofia/internal/sip:"++Agent#agent.endpointdata;
 										iax2 ->
 											"iax2/"++Agent#agent.endpointdata;
 										h323 ->

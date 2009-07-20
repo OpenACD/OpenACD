@@ -207,7 +207,8 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info({new_pid, Ref, From}, State) ->
-	{ok, Pid} = freeswitch_media:start_link(State#state.nodename),
+	{ok, Pid} = freeswitch_media:start(State#state.nodename),
+	link(Pid),
 	From ! {Ref, Pid},
 	% even the media won't know the proper data for the call until later.
 	{noreply, State};

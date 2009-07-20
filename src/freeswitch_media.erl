@@ -93,7 +93,8 @@
 	cnode :: atom(),
 	agent :: string() | 'undefined',
 	agent_pid :: pid() | 'undefined',
-	ringchannel :: pid() | 'undefined'
+	ringchannel :: pid() | 'undefined',
+	manager_pid :: 'undefined' | any()
 	}).
 
 -type(state() :: #state{}).
@@ -132,7 +133,9 @@ dump_state(Mpid) when is_pid(Mpid) ->
 %%====================================================================
 %% @private
 init([Cnode]) ->
-	{ok, {#state{cnode=Cnode}, undefined}}.
+	process_flag(trap_exit, true),
+	Manager = whereis(freeswitch_media_manager),
+	{ok, {#state{cnode=Cnode, manager_pid = Manager}, undefined}}.
 
 handle_announce(Announcement, #state{callrec = Callrec} = State) ->
 	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
@@ -157,6 +160,7 @@ handle_ring(Apid, Callrec, State) ->
 	AgentRec = agent:dump_state(Apid),
 	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F) of
 		{ok, Pid} ->
+			link(Pid),
 			{ok, State#state{ringchannel = Pid}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
@@ -308,6 +312,24 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
+handle_info(check_recovery, State) ->
+	case whereis(freeswitch_media_manager) of
+		Pid when is_pid(Pid) ->
+			link(Pid),
+			Call = State#state.callrec,
+			gen_server:cast(freeswitch_media_manager, {notify, Call#call.id, self()}),
+			{noreply, State#state{manager_pid = Pid}};
+		_Else ->
+			{ok, Tref} = timer:send_after(1000, check_recovery),
+			{noreply, State#state{manager_pid = Tref}}
+	end;
+handle_info({'EXIT', Pid, Reason}, #state{ringchannel = Pid} = State) ->
+	?WARNING("Handling ring channel ~w exit ~p", [Pid, Reason]),
+	{stop_ring, State#state{ringchannel = undefined}};
+handle_info({'EXIT', Pid, Reason}, #state{manager_pid = Pid} = State) ->
+	?WARNING("Handling manager exit from ~w due to ~p", [Pid, Reason]),
+	{ok, Tref} = timer:send_after(1000, check_recovery),
+	{noreply, State#state{manager_pid = Tref}};
 handle_info({call, {event, [UUID | Rest]}}, State) ->
 	?DEBUG("reporting new call ~p.", [UUID]),
 	Callrec = #call{id = UUID, source = self()},

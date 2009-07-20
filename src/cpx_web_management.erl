@@ -47,7 +47,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([start/0, stop/0, loop/1]).
+-export([start_link/0, start_link/1, start/0, start/1, stop/0, loop/1]).
 
 -export([
 	encode_skill/1,
@@ -67,6 +67,14 @@ start(Port) ->
 	?DEBUG("Starting mochiweb...", []),
 	ets:new(cpx_management_logins, [set, public, named_table]),
 	mochiweb_http:start([{loop, {?MODULE, loop}}, {name, ?MODULE}, {port, Port}]).
+
+start_link() ->
+	start_link(?PORT).
+
+start_link(Port) ->
+	{ok, Pid} = Out = start(Port),
+	link(Pid),
+	Out.
 
 %% @doc Stops the web management.
 -spec(stop/0 :: () -> 'ok').

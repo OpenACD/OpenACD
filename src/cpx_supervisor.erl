@@ -225,9 +225,9 @@ build_tables() ->
 		Result when Result =:= {atomic, ok}; Result =:= copied -> 
 			% create some default info so the system is at least a bit usable.
 			F = fun() -> 
-				mnesia:write(#cpx_conf{id = agent_auth, module_name = agent_auth, start_function = start, start_args = [], supervisor=agent_connection_sup, timestamp = util:now()}),
-				mnesia:write(#cpx_conf{id = agent_tcp_listener, module_name = agent_tcp_listener, start_function = start, start_args = [1337], supervisor=agent_connection_sup, timestamp = util:now()}),
-				mnesia:write(#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start, start_args = [], supervisor = management_sup, timestamp = util:now()})
+				mnesia:write(#cpx_conf{id = agent_auth, module_name = agent_auth, start_function = start_link, start_args = [], supervisor=agent_connection_sup, timestamp = util:now()}),
+				mnesia:write(#cpx_conf{id = agent_tcp_listener, module_name = agent_tcp_listener, start_function = start_link, start_args = [1337], supervisor=agent_connection_sup, timestamp = util:now()}),
+				mnesia:write(#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start_link, start_args = [], supervisor = management_sup, timestamp = util:now()})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 

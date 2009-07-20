@@ -112,7 +112,7 @@ start() ->
 %% @doc Starts with no integration linked to the calling process.  All authentication requests are done against the mnesia cache.
 -spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() -> 
-	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Starts with integration.  All authentication requests are done against the mnesia cache only if the integration fails.
 %% When the agent_auth starts, `apply(Mod, StartFunc, StartArgs)' is called as the last step. When an authenticaiton request 

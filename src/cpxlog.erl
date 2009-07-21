@@ -51,15 +51,15 @@
 
 -spec(start/0 :: () -> 'ok').
 start() ->
-	gen_event:start({local, cpxlog}),
+	Out = gen_event:start({local, cpxlog}),
 	gen_event:add_handler(cpxlog, cpxlog_terminal, []),
-	ok.
+	Out.
 	
 -spec(start_link/0 :: () -> 'ok').
 start_link() ->
-	gen_event:start_link({local, cpxlog}),
+	Out = gen_event:start_link({local, cpxlog}),
 	gen_event:add_handler(cpxlog, cpxlog_terminal, []),
-	ok.
+	Out.
 
 -spec(log/7 :: (Level :: level(), Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 log(Level, Time, Module, Line, Pid, Message, Args) ->

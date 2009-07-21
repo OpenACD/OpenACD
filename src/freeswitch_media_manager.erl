@@ -340,14 +340,14 @@ fetch_domain_user(Node, State) ->
 				_Else ->
 					freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
 			end,
-			fetch_domain_user(Node, State);
+			?MODULE:fetch_domain_user(Node, State);
 		{fetch, _Section, _Something, _Key, _Value, ID, [undefined | _Data]} ->
 			freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE}),
-			fetch_domain_user(Node, State);
+			?MODULE:fetch_domain_user(Node, State);
 		{nodedown, Node} ->
 			?DEBUG("Node we were serving XML search requests to exited", []),
 			ok;
 		Other ->
 			?DEBUG("got other response: ~p", [Other]),
-			fetch_domain_user(Node, State)
+			?MODULE:fetch_domain_user(Node, State)
 	end.

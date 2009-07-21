@@ -42,6 +42,7 @@
 
 -export([
 	start/0,
+	start_link/0,
 	cdrinit/1,
 	inqueue/2,
 	ringing/2,
@@ -123,7 +124,13 @@
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	build_tables(),
-	gen_event:start({local, cdr}).
+	gen_event:start({local, ?MODULE}).
+
+%% @doc Starts the cdr event server linked.
+-spec(start_link/0 :: () -> {'ok', pid()}).
+start_link() ->
+	build_tables(),
+	gen_event:start_link({local, ?MODULE}).
 
 %% @doc Create a handler specifically for `#call{} Call' with default options.
 -spec(cdrinit/1 :: (Call :: #call{}) -> 'ok' | 'error').
@@ -315,6 +322,7 @@ handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} =
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 	case {State#state.hangup, Midunterminated} of
 		{true, []} ->
+			% TODO Spawn this out to another process.
 			Summary = summarize(Newtrans),
 			F = fun() ->
 				mnesia:delete({cdr_rec, CallID}),

@@ -104,7 +104,7 @@ start_link(Nodes) ->
 	Cpxlogspec = {cpxlog, {cpxlog, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
-	Cdrspec = {cdr, {cdr, start, []}, permanent, brutal_kill, worker, [?MODULE]},
+	Cdrspec = {cdr, {cdr, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	
 	supervisor:start_child(routing_sup, DispatchSpec),
 	supervisor:start_child(routing_sup, QueueManagerSpec),
@@ -144,7 +144,7 @@ restart(routing_sup, [Nodes]) ->
 	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
 	Cpxlogspec = {cpxlog, {cpxlog, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
-	Cdrspec = {cdr, {cdr, start, []}, permanent, brutal_kill, worker, [?MODULE]},
+	Cdrspec = {cdr, {cdr, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	supervisor:start_child(routing_sup, DispatchSpec),
 	supervisor:start_child(routing_sup, QueueManagerSpec),
 	supervisor:start_child(routing_sup, Cpxlogspec),

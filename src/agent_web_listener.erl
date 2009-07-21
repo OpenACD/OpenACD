@@ -48,7 +48,7 @@
 -define(MOCHI_NAME, aweb_mochi).
 
 %% API
--export([start_link/1, start/1, start/0, start_link/0, stop/0, linkto/1]).
+-export([start_link/1, start/1, start/0, start_link/0, stop/0, linkto/1, linkto/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -101,6 +101,11 @@ stop() ->
 linkto(Pid) ->
 	gen_server:cast(?MODULE, {linkto, Pid}).
 
+%% @doc Register an already running web_connection.
+-spec(linkto/3 :: (Ref :: ref(), Salt :: any(), Pid :: pid()) -> 'ok').
+linkto(Ref, Salt, Pid) ->
+	gen_server:cast(?MODULE, {linkto, Ref, Salt, Pid}).
+	
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -126,6 +131,11 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast({linkto, Pid}, State) ->
 	link(Pid),
+	{noreply, State};
+handle_cast({linkto, Ref, Salt, Pid}, State) ->
+	link(Pid),
+	Reflist = erlang:ref_to_list(Ref),
+	ets:insert(web_connections, {Reflist, Salt, Pid}),
 	{noreply, State};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
@@ -290,85 +300,53 @@ api(login, {_Reflist, undefined, _Conn}, _Post) ->
 api(login, {Reflist, Salt, _Conn}, Post) ->
 	Username = proplists:get_value("username", Post, ""),
 	Password = proplists:get_value("password", Post, ""),
+	Endpointdata = case proplists:get_value("voipendpointdata", Post) of
+		undefined ->
+			error;
+		[] ->
+			error;
+		Other ->
+			Other
+	end,
 	Endpoint = case proplists:get_value("voipendpoint", Post) of
 		"SIP Registration" ->
-			Endpointdata = case proplists:get_value("voipendpointdata", Post) of
-				undefined ->
-					Username;
-				[] ->
-					Username;
-				Other ->
-					Other
-			end,
 			{sip_registration, Endpointdata};
 		"SIP URI" ->
-			Endpointdata = case proplists:get_value("voipendpointdata", Post) of
-				undefined ->
-					error;
-				[] ->
-					error;
-				Other ->
-					Other
-			end,
 			{sip, Endpointdata};
 		"IAX2 URI" ->
-			Endpointdata = case proplists:get_value("voipendpointdata", Post) of
-				undefined ->
-					error;
-				[] ->
-					error;
-				Other ->
-					Other
-			end,
 			{iax2, Endpointdata};
 		"H323 URI" ->
-			Endpointdata = case proplists:get_value("voipendpointdata", Post) of
-				undefined ->
-					error;
-				[] ->
-					error;
-				Other ->
-					Other
-			end,
 			{h323, Endpointdata};
 		"PSTN Number" ->
-			Endpointdata = case proplists:get_value("voipendpointdata", Post) of
-				undefined ->
-					error;
-				[] ->
-					error;
-				Other ->
-					Other
-			end,
 			{pstn, Endpointdata}
 	end,
 	case Endpoint of
 		{_, error} ->
 			?WARNING("~s specified an invalid endpoint ~p when trying to log in", [Username, Endpoint]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Invalid endpoint">>}]})};
-	 _ ->
-		 case agent_auth:auth(Username, Password, Salt) of
-			 deny ->
-				 {200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
-			 {allow, Skills, Security, Profile} ->
-				 Agent = #agent{login = Username, skills = Skills, profile=Profile},
-				 case agent_web_connection:start(Agent, Security) of
-					 {ok, Pid} ->
-						 ?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
-						 gen_server:call(Pid, {set_endpoint, Endpoint}),
-						 linkto(Pid),
-						 ets:insert(web_connections, {Reflist, Salt, Pid}),
-						 ?DEBUG("connection started for ~p", [Reflist]),
-						 {200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
-					 ignore ->
-						 ?WARNING("Ignore message trying to start connection for ~p", [Reflist]),
-						 {200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
-					 {error, Error} ->
-						 ?ERROR("Error ~p trying to start connection for ~p", [Error, Reflist]),
-						 {200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(Error)}]})}
-				 end
-		 end
- end;
+		_ ->
+			case agent_auth:auth(Username, Password, Salt) of
+				deny ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
+				{allow, Skills, Security, Profile} ->
+					Agent = #agent{login = Username, skills = Skills, profile=Profile},
+					case agent_web_connection:start(Agent, Security) of
+						{ok, Pid} ->
+							?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
+							gen_server:call(Pid, {set_endpoint, Endpoint}),
+							linkto(Pid),
+							ets:insert(web_connections, {Reflist, Salt, Pid}),
+							?DEBUG("connection started for ~p", [Reflist]),
+							{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
+						ignore ->
+							?WARNING("Ignore message trying to start connection for ~p", [Reflist]),
+							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
+						{error, Error} ->
+							?ERROR("Error ~p trying to start connection for ~p", [Error, Reflist]),
+							{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(Error)}]})}
+					end
+			end
+	end;
 api(Api, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
 	case agent_web_connection:api(Conn, Api) of
 		{Code, Headers, Body} ->

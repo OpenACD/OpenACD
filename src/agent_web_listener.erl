@@ -130,11 +130,12 @@ handle_call(Request, _From, State) ->
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 handle_cast({linkto, Pid}, State) ->
+	?DEBUG("Linking to ~w", [Pid]),
 	link(Pid),
 	{noreply, State};
-handle_cast({linkto, Ref, Salt, Pid}, State) ->
+handle_cast({linkto, Reflist, Salt, Pid}, State) ->
+	?DEBUG("Linking to ~w with ref ~w and salt ~p", [Pid, Reflist, Salt]),
 	link(Pid),
-	Reflist = erlang:ref_to_list(Ref),
 	ets:insert(web_connections, {Reflist, Salt, Pid}),
 	{noreply, State};
 handle_cast(_Msg, State) ->
@@ -280,6 +281,7 @@ api(brandlist, {_Reflist, _Salt, _Conn}, _Post) ->
 api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
 	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
 	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
+	agent_web_connection:set_salt(Conn, Newsalt),
 	?DEBUG("created and sent salt for ~p", [Reflist]),
 	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})};
 api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
@@ -310,7 +312,12 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 	end,
 	Endpoint = case proplists:get_value("voipendpoint", Post) of
 		"SIP Registration" ->
-			{sip_registration, Endpointdata};
+			case Endpointdata of
+				error ->
+					{sip_registration, Username};
+				_Other ->
+					{sip_registration, Endpointdata}
+			end;
 		"SIP URI" ->
 			{sip, Endpointdata};
 		"IAX2 URI" ->
@@ -330,7 +337,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
 				{allow, Skills, Security, Profile} ->
 					Agent = #agent{login = Username, skills = Skills, profile=Profile},
-					case agent_web_connection:start(Agent, Security) of
+					case agent_web_connection:start(Agent, Security, Reflist) of
 						{ok, Pid} ->
 							?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
 							gen_server:call(Pid, {set_endpoint, Endpoint}),

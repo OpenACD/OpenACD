@@ -49,12 +49,13 @@
 
 %% API
 -export([
-	start_link/2,
-	start/2,
+	start_link/3,
+	start/3,
 	stop/1,
 	api/2,
 	dump_agent/1,
-	encode_statedata/1
+	encode_statedata/1,
+	set_salt/2
 ]).
 
 %% gen_server callbacks
@@ -80,7 +81,8 @@
 	ack_timer :: {'ok', {'interval', ref()}} | 'undefined',
 	poll_state :: atom(),
 	poll_statedata :: any(),
-	securitylevel = agent :: 'agent' | 'supervisor' | 'admin'
+	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
+	listener :: 'undefined' | pid()
 }).
 
 -type(state() :: #state{}).
@@ -97,14 +99,14 @@
 %%--------------------------------------------------------------------
 
 %% @doc Starts the passed agent at the given security level.
--spec(start_link/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()}).
-start_link(Agent, Security) ->
-	gen_server:start_link(?MODULE, [Agent, Security], [{timeout, 10000}]).
+-spec(start_link/3 :: (Agent :: #agent{}, Security :: security_level(), Reflist :: string()) -> {'ok', pid()}).
+start_link(Agent, Security, Reflist) ->
+	gen_server:start_link(?MODULE, [Agent, Security, Reflist], [{timeout, 10000}]).
 
 %% @doc Starts the passed agent at the given security level.
--spec(start/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()}).
-start(Agent, Security) ->
-	gen_server:start(?MODULE, [Agent, Security], [{timeout, 10000}]).
+-spec(start/3 :: (Agent :: #agent{}, Security :: security_level(), Reflist :: string()) -> {'ok', pid()}).
+start(Agent, Security, Reflist) ->
+	gen_server:start(?MODULE, [Agent, Security, Reflist], [{timeout, 10000}]).
 
 %% @doc Stops the passed Web connection process.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -120,6 +122,11 @@ api(Pid, Apicall) ->
 -spec(dump_agent/1 :: (Pid :: pid()) -> #agent{}).
 dump_agent(Pid) ->
 	gen_server:call(Pid, dump_agent).
+
+%% @doc Sets the salt.  Hmmm, salt....
+-spec(set_salt/2 :: (Pid :: pid(), Salt :: any()) -> 'ok').
+set_salt(Pid, Salt) ->
+	gen_server:cast(Pid, {set_salt, Salt}).
 
 %% @doc Encode the given data into a structure suitable for mochijson2:encode
 -spec(encode_statedata/1 :: 
@@ -170,8 +177,9 @@ encode_statedata({}) ->
 %%--------------------------------------------------------------------
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Agent, Security]) ->
+init([Agent, Security, Reflist]) ->
 	?DEBUG("web_connection init ~p", [Agent]),
+	process_flag(trap_exit, true),
 	case agent_manager:start_agent(Agent) of
 		{ok, Apid} ->
 			ok;
@@ -184,7 +192,7 @@ init([Agent, Security]) ->
 		_Else ->
 			{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
 			agent_web_listener:linkto(self()),
-			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security}}
+			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security, listener = whereis(agent_web_listener), ref = Reflist}}
 	end.
 
 %%--------------------------------------------------------------------
@@ -388,6 +396,8 @@ handle_call(Allothers, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 
+handle_cast({set_salt, Salt}, State) ->
+	{noreply, State#state{salt = Salt}};
 handle_cast({change_state, AgState, Data}, #state{poll_queue = Pollq, counter = Counter} = State) ->
 	?DEBUG("State:  ~p; Data:  ~p", [AgState, Data]),
 	Newqueue =
@@ -418,6 +428,20 @@ handle_info(check_acks, #state{missed_polls = Missedpolls} = State) when Missedp
 handle_info(check_acks, State) ->
 	?NOTICE("too many missed polls.",[]),
 	{stop, missed_polls, State};
+%handle_info(check_listener, State) ->
+%	case whereis(agent_web_listener) of
+%		undefined ->
+%			{ok, _Tref} = timer:send_after(1000, check_listener),
+%			{noreply, State#state{listener = undefined}};
+%		Pid when is_pid(Pid) ->
+%			agent_web_listener:linkto(State#state.ref, State#state.salt, self()),
+%			{noreply, State#state{listener = Pid}}
+%	end;
+handle_info({'EXIT', Pid, Reason}, #state{listener = Pid} = State) ->
+	?WARNING("The listener at ~w died due to ~p", [Pid, Reason]),
+	%{ok, _Tref} = timer:send_after(1000, check_listener),
+	{stop, {listener_exit, Reason}, State};
+%	{noreply, State#state{listener = undefined}};
 handle_info(Info, State) ->
 	?DEBUG("info I can't handle:  ~p", [Info]),
 	{noreply, State}.

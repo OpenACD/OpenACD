@@ -65,7 +65,13 @@ start() ->
 
 start(Port) ->
 	?DEBUG("Starting mochiweb...", []),
-	ets:new(cpx_management_logins, [set, public, named_table]),
+	case ets:info(cpx_management_logins) of
+		undefined ->
+			ets:new(cpx_management_logins, [set, public, named_table]);
+		Else when is_list(Else) ->
+			?DEBUG("looks like the table exists already", []),
+			ok
+	end,
 	mochiweb_http:start([{loop, {?MODULE, loop}}, {name, ?MODULE}, {port, Port}]).
 
 start_link() ->

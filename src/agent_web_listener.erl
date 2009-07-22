@@ -337,7 +337,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
 				{allow, Skills, Security, Profile} ->
 					Agent = #agent{login = Username, skills = Skills, profile=Profile},
-					case agent_web_connection:start(Agent, Security, Reflist) of
+					case agent_web_connection:start(Agent, Security) of
 						{ok, Pid} ->
 							?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
 							gen_server:call(Pid, {set_endpoint, Endpoint}),

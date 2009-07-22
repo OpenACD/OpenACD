@@ -49,8 +49,8 @@
 
 %% API
 -export([
-	start_link/3,
-	start/3,
+	start_link/2,
+	start/2,
 	stop/1,
 	api/2,
 	dump_agent/1,
@@ -99,14 +99,14 @@
 %%--------------------------------------------------------------------
 
 %% @doc Starts the passed agent at the given security level.
--spec(start_link/3 :: (Agent :: #agent{}, Security :: security_level(), Reflist :: string()) -> {'ok', pid()}).
-start_link(Agent, Security, Reflist) ->
-	gen_server:start_link(?MODULE, [Agent, Security, Reflist], [{timeout, 10000}]).
+-spec(start_link/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()}).
+start_link(Agent, Security) ->
+	gen_server:start_link(?MODULE, [Agent, Security], [{timeout, 10000}]).
 
 %% @doc Starts the passed agent at the given security level.
--spec(start/3 :: (Agent :: #agent{}, Security :: security_level(), Reflist :: string()) -> {'ok', pid()}).
-start(Agent, Security, Reflist) ->
-	gen_server:start(?MODULE, [Agent, Security, Reflist], [{timeout, 10000}]).
+-spec(start/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()}).
+start(Agent, Security) ->
+	gen_server:start(?MODULE, [Agent, Security], [{timeout, 10000}]).
 
 %% @doc Stops the passed Web connection process.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -177,7 +177,7 @@ encode_statedata({}) ->
 %%--------------------------------------------------------------------
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Agent, Security, Reflist]) ->
+init([Agent, Security]) ->
 	?DEBUG("web_connection init ~p", [Agent]),
 	process_flag(trap_exit, true),
 	case agent_manager:start_agent(Agent) of
@@ -192,7 +192,7 @@ init([Agent, Security, Reflist]) ->
 		_Else ->
 			{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
 			agent_web_listener:linkto(self()),
-			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security, listener = whereis(agent_web_listener), ref = Reflist}}
+			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security, listener = whereis(agent_web_listener)}}
 	end.
 
 %%--------------------------------------------------------------------

@@ -856,6 +856,36 @@ supervisorTab.IndividualStackAsAgents = function(items){
 				onEnterf();
 			}
 		});
+		var details = supervisorTab.dataStore.getValue(obj, "details");
+		var imgsrc = "images/";
+		switch(details.state){
+			case "idle":
+				imgsrc += "idle.png";
+				break;
+			
+			case "oncall":
+				imgsrc += "oncall.png";
+				break;
+			
+			case "wrapup":
+				imgsrc += "wraupup.png";
+				break;
+			
+			case "ringing":
+				imgsrc += "ringing.png";
+				break;
+			
+			default:
+				imgsrc += "released.png"
+		}
+		
+		bub.createImage({
+			src:imgsrc,
+			width:14,
+			height:14,
+			x:bub.bubble.getShape().x,
+			y:bub.bubble.getShape().y
+		});
 		
 		var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
 		bub.dropped = function(obj){

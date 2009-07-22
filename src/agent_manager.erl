@@ -341,6 +341,7 @@ handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
 			true -> true;
 			false ->
 				?NOTICE("notifying leader of ~p exit", [Key]),
+				cpx_monitor:drop({agent, Key}),
 				gen_leader:leader_cast(?MODULE, {notify_down, Key}),
 				false
 		end

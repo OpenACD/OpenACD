@@ -868,7 +868,7 @@ supervisorTab.IndividualStackAsAgents = function(items){
 				break;
 			
 			case "wrapup":
-				imgsrc += "wraupup.png";
+				imgsrc += "wrapup.png";
 				break;
 			
 			case "ringing":

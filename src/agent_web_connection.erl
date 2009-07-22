@@ -774,6 +774,8 @@ encode_proplist([{Key, Value} | Tail], Acc) when is_list(Value) ->
 	Newval = list_to_binary(Value),
 	Newacc = [{Key, Newval} | Acc],
 	encode_proplist(Tail, Newacc);
+encode_proplist([{Key, Value} = Head | Tail], Acc) when is_atom(Value), is_atom(Key) ->
+	encode_proplist(Tail, [Head | Acc]);
 encode_proplist([{Key, Value} | Tail], Acc) when is_binary(Value); is_float(Value); is_integer(Value) ->
 	Newacc = [{Key, Value} | Acc],
 	encode_proplist(Tail, Newacc);

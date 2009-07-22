@@ -1182,3 +1182,12 @@ supervisorTab.poller.onTick = function(){
 supervisorTab.reloadDataStore();
 supervisorTab.poller.start();
 
+supervisorTab.logoutListener = dojo.subscribe("agent/logout", function(data){
+	supervisorTab.poller.stop();
+});
+
+supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(child){
+	if(child.title == "Supervisor"){
+		supervisorTab.poller.stop();
+	}
+});

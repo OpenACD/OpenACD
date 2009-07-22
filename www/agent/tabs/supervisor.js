@@ -879,13 +879,15 @@ supervisorTab.IndividualStackAsAgents = function(items){
 				imgsrc += "released.png"
 		}
 		
-		bub.createImage({
+		var icon = bub.createImage({
 			src:imgsrc,
 			width:14,
 			height:14,
 			x:bub.bubble.getShape().x,
 			y:bub.bubble.getShape().y
 		});
+		
+		bub.icon = icon;
 		
 		var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
 		bub.dropped = function(obj){

@@ -660,7 +660,12 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = C
 	?INFO("Handling ringout...", []),
 	case is_process_alive(Apid) of
 		true ->
-			agent:set_state(Apid, idle);
+			case agent:query_state(Apid) of
+				{ok, ringing} ->
+					agent:set_state(Apid, idle);
+				Else ->
+					ok
+			end;
 		false ->
 			ok
 	end,

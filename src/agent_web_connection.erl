@@ -400,7 +400,14 @@ handle_call(Allothers, _From, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-handle_cast({poll, Frompid}, #state{poll_pid = undefined} = State) ->
+handle_cast({poll, Frompid}, State) ->
+	?DEBUG("Replacing poll_pid ~w with ~w", [State#state.poll_pid, Frompid]),
+	case State#state.poll_pid of
+		undefined -> 
+			ok;
+		Pid when is_pid(Pid) ->
+			Pid ! {kill, {[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Poll pid replaced">>}]})}}
+	end,
 	case State#state.poll_queue of
 		[] ->
 			link(Frompid),
@@ -441,6 +448,7 @@ handle_cast(Msg, State) ->
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
 	case util:now() - Last of
 		N when N > 5 ->
+			?DEBUG("Stopping due to missed_polls; last:  ~w", [Last]),
 			{stop, missed_polls, State};
 		_N ->
 			{noreply, State}

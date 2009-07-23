@@ -465,7 +465,7 @@ terminate(Reason, State) ->
 		undefined ->
 			ok;
 		Pid when is_pid(Pid) ->
-			Pid ! {kill, [], <<"Connection terminated!">>},
+			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout">>}]})},
 			ok
 	end.
 

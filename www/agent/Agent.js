@@ -38,9 +38,9 @@ function Agent(username){
 				EventLog.log("Poll failed:  " + response.responseText);
 				agentref.pollfailures += 1;
 				if (agentref.pollfailures >= 5) {
-					agentref.stopwatch.stop();
-					agentref.stopwatch.reset();
-					agentref.poller.stop();
+					//agentref.stopwatch.stop();
+					//agentref.stopwatch.reset();
+					//agentref.poller.stop();
 					dojo.publish("agent/logout", []);
 					dojo.byId("loginerrp").style.display = "block";
 					dojo.byId("loginerrspan").innerHTML = "Server is not responding";
@@ -125,9 +125,9 @@ Agent.prototype.logout = function(callback){
 		},
 		load:function(response, ioargs){
 			if(response.success){
-				agentref.stopwatch.stop();
-				agentref.stopwatch.reset();
-				agentref.poller.stop();
+				//agentref.stopwatch.stop();
+				//agentref.stopwatch.reset();
+				//agentref.poller.stop();
 				dojo.publish("agent/logout", []);
 				callback();
 			}			

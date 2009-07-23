@@ -52,29 +52,31 @@ function Agent(username){
 				//console.log(response);
 				//EventLog.log("Poll success, handling data");
 				if(response.success == false){
-					agentref.poller.stop();
+					//agentref.poller.stop();
 					dojo.publish("agent/logout", []);
 					dojo.byId("loginerrp").style.display = "block";
 					dojo.byId("loginerrspan").innerHTML = "Logged out";
 					dijit.byId("loginpane").show();
 					dijit.byId("main").attr('style', 'visibility:hidden');
+					agentref.poll();
 				}
 				else{
 					agentref.handleData(response.data);
 					agentref.pollfailures = 0;
+					agentref.poll()
 				}
 			}
 		})
 	}
 	
-	this.poller = new dojox.timing.Timer(1000);
+	/*this.poller = new dojox.timing.Timer(1000);
 	this.poller.onTick = function(){
 		agentref.poll();
 	}
 	
 	this.poller.start();
 	this.stopwatch.start();
-	
+	*/
 	this.poll()
 }
 

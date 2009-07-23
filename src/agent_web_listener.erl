@@ -355,6 +355,14 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 					end
 			end
 	end;
+api(poll, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
+	agent_web_connection:poll(Conn, self()),
+	receive
+		{poll, Return} ->
+			 Return; 
+		{kill, Headers, Body} -> 
+			{408, Headers, Body}
+	end;
 api(Api, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
 	case agent_web_connection:api(Conn, Api) of
 		{Code, Headers, Body} ->

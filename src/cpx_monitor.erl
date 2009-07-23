@@ -148,15 +148,15 @@ get_health(Type) ->
 %% above Max are set to 100.  the Min can be the larger value, indicating that
 %% as X gets bigger the utilization/health value should get smaller.
 -spec(health/4 :: (Min :: float(), Goal :: float(), Max :: float(), X :: float()) -> float()).
-health(Min, Goal, Max, Goal) when Min =< Goal, Goal =< Max ->
+health(Min, Goal, Max, Goal) ->
 	50.0;
-health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max, X =< Min ->
-	0.0;
-health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max, Max =< X ->
+health(Min, _Goal, Max, X) when Min < Max, X >= Max ->
 	100.0;
-health(Bigmin, Goal, Smallmax, X) when Bigmin >= Goal, Goal >= Smallmax, X >= Bigmin ->
+health(Min, _Goal, Max, X) when Min < Max, X =< Min ->
 	0.0;
-health(Bigmin, Goal, Smallmax, X) when Bigmin >= Goal, Goal >= Smallmax, X =< Smallmax ->
+health(Max, _Goal, Min, X) when Min < Max, X >= Max ->
+	0.0;
+health(Max, _Goal, Min, X) when Min < Max, X =< Min ->
 	100.0;
 health(Bigmin, Goal, Smallmax, X) when Bigmin >= Goal, Goal >= Smallmax, X > Goal ->
 	( (50 * (Goal - X)) / (Bigmin - Goal) ) + 50;
@@ -536,6 +536,46 @@ health_test_() ->
 	{"Type check",
 	fun() ->
 		?assert(is_float(health(1, 3, 5, 4)))
+	end},
+	{"min == goal < Max",
+	fun() ->
+		?assertEqual(50.0, health(0, 0, 10, 0)),
+		?assertEqual(75.0, health(0, 0, 10, 5)),
+		?assertEqual(100.0, health(0, 0, 10, 10))
+	end},
+	{"min < goal = Max",
+	fun() -> 
+		?assertEqual(0.0, health(0, 10, 10, 0)),
+		?assertEqual(25.0, health(0, 10, 10, 5)),
+		?assertEqual(50.0, health(0, 10, 10, 10))
+	end},
+	{"min = goal > max",
+	fun() ->
+		?assertEqual(50.0, health(10, 10, 0, 10)),
+		?assertEqual(75.0, health(10, 10, 0, 5)),
+		?assertEqual(100.0, health(10, 10, 0, 0))
+	end},
+	{"min > goal = max",
+	fun() ->
+		?assertEqual(0.0, health(10, 0, 0, 10)),
+		?assertEqual(25.0, health(10, 0, 0, 5)),
+		?assertEqual(50.0, health(10, 0, 0, 0))
+	end},
+	{"X < min < max",
+	fun() ->
+		?assertEqual(0.0, health(0, 5, 10, -5))
+	end},
+	{"X > min > max",
+	fun() ->
+		?assertEqual(0.0, health(10, 5, 0, 15))
+	end},
+	{"min < max < X",
+	fun() ->
+		?assertEqual(100.0, health(0, 5, 10, 15))
+	end},
+	{"max < min < X",
+	fun() ->
+		?assertEqual(0.0, health(10, 5, 0, 15))
 	end}].
 
 time_dependant_test_() ->

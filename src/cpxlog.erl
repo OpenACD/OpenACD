@@ -98,11 +98,14 @@ alert(Time, Module, Line, Pid, Message, Args) ->
 emergency(Time, Module, Line, Pid, Message, Args) ->
 	log(emergency, Time, Module, Line, Pid, Message, Args).
 
+-spec(set_loglevel/1 :: (Level :: pos_integer()) -> 'ok').
 set_loglevel(Level) ->
 	catch gen_event:notify(cpxlog, {set_log_level, Level}).
 
+-spec(debug_module/1 :: (Module :: atom()) -> {'ok', atom()}).
 debug_module(Module) ->
 	catch gen_event:notify(cpxlog, {debug_module, Module}).
 
+-spec(nodebug_module/1 :: (Module :: atom()) -> {'ok', atom()}).
 nodebug_module(Module) ->
 	catch gen_event:notify(cpxlog, {nodebug_module, Module}).

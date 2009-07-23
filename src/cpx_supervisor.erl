@@ -295,20 +295,20 @@ stop_spec(Spec) when is_record(Spec, cpx_conf) ->
 	Out.
 
 %% @private
--spec(load_specs/0 :: () -> {'error', any()} | none()).
-load_specs() -> 
-	?DEBUG("loading specs...",[]),
-	F = fun() -> 
-		QH = qlc:q([X || X <- mnesia:table(cpx_conf)]),
-		qlc:e(QH)
-	end,
-	case mnesia:transaction(F) of
-		{atomic, Records} -> 
-			lists:map(fun(I) -> start_spec(I) end, Records);
-		Else -> 
-			?ERROR("unable to retrieve specs:  ~p", [Else]),
-			Else
-	end.
+%-spec(load_specs/0 :: () -> {'error', any()} | none()).
+%load_specs() -> 
+%	?DEBUG("loading specs...",[]),
+%	F = fun() -> 
+%		QH = qlc:q([X || X <- mnesia:table(cpx_conf)]),
+%		qlc:e(QH)
+%	end,
+%	case mnesia:transaction(F) of
+%		{atomic, Records} -> 
+%			lists:map(fun(I) -> start_spec(I) end, Records);
+%		Else -> 
+%			?ERROR("unable to retrieve specs:  ~p", [Else]),
+%			Else
+%	end.
 
 -spec(load_specs/1 :: (Super :: supervisor_name()) -> {'error', any()} | none()).
 load_specs(Super) ->

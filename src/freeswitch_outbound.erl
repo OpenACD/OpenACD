@@ -82,12 +82,16 @@
 %%====================================================================
 %% API
 %%====================================================================
+
+-spec(start/5 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), Ringout :: pos_integer()) -> {'ok', pid()}).
 start(Fnode, AgentRec, Apid, Number, Ringout) when is_pid(Apid) ->
 	gen_media:start(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout]).
 
+-spec(start_link/5 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), Ringout :: pos_integer()) -> {'ok', pid()}).
 start_link(Fnode, AgentRec, Apid, Number, Ringout) when is_pid(Apid) ->
 	gen_media:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout]).
 
+-spec(hangup/1 :: (Pid :: pid()) -> 'ok').
 hangup(Pid) ->
 	gen_media:cast(Pid, hangup).
 

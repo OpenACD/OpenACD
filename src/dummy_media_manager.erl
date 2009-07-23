@@ -51,22 +51,32 @@
 
 -record(state, {}).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
+
 %%====================================================================
 %% API
 %%====================================================================
 
+-spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
 	start_link([]).
-	
+
+-spec(start_link/1 :: (Args :: [any()]) -> {'ok', pid()}).
 start_link(Args) when is_list(Args) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
-
+	
+-spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	start([]).
-	
+
+-spec(start/1 :: (Args :: [any()]) -> {'ok', pid()}).	
 start(Args) ->
 	gen_server:start({local, ?MODULE}, ?MODULE, Args, []).
-	
+
+-spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:call(?MODULE, stop).
 

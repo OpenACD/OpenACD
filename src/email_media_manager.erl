@@ -72,15 +72,19 @@
 %%====================================================================
 %% API
 %%====================================================================
+-spec(start_link/1 :: (Options :: [any()]) -> {'ok', pid()}).
 start_link(Options) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Options], []).
 
+-spec(start/1 :: (Options :: [any()]) -> {'ok', pid()}).
 start(Options) ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [Options], []).
 
+-spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:call(?MODULE, stop).
-	
+
+-spec(get_mappings/0 :: () -> {'atomic', [#mail_map{}]}).
 get_mappings() ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(mail_map)]),
@@ -88,6 +92,7 @@ get_mappings() ->
 	end,
 	mnesia:transaction(F).
 
+-spec(set_mapping/2 :: (Address :: string(), Options :: #mail_map{} | [any()]) -> {'atomic', 'ok'}).
 set_mapping(Address, Options) when is_list(Options) ->
 	Rec = #mail_map{
 		address = proplists:get_value(address, Options),
@@ -104,6 +109,7 @@ set_mapping(Address, Rec) when is_record(Rec, mail_map) ->
 	end,
 	mnesia:transaction(F).
 
+-spec(new_mapping/1 :: (Options :: #mail_map{} | [any()]) -> {'atomic', 'ok'}).
 new_mapping(Options) when is_list(Options) ->
 	Rec = #mail_map{
 		address = proplists:get_value(address, Options),
@@ -118,13 +124,15 @@ new_mapping(Rec) when is_record(Rec, mail_map) ->
 		mnesia:write(Rec#mail_map{timestamp = util:now()})
 	end,
 	mnesia:transaction(F).
-	
+
+-spec(destroy_mapping/1 :: (Address :: string()) -> {'atomic', 'ok'}).
 destroy_mapping(Address) ->
 	F = fun() ->
 		mnesia:delete({mail_map, Address})
 	end,
 	mnesia:transaction(F).
 
+-spec(requeue/1 :: (Filename :: string()) -> 'ok').
 requeue(Filename) ->
 	gen_server:call(email_media_manager, {queue, Filename}).
 
@@ -164,11 +172,11 @@ init([Options]) ->
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
-handle_call({queue, Mailmap, Headers, Data}, From, #state{mails = Mails} = State) ->
+handle_call({queue, Mailmap, Headers, Data}, _From, #state{mails = Mails} = State) ->
 	{ok, Mpid} = email_media:start(Mailmap, Headers, Data),
 	link(Mpid),
 	{reply, ok, State#state{mails = [Mpid | Mails]}};
-handle_call({queue, Filename}, From, #state{mails = Mails} = State) ->
+handle_call({queue, Filename}, _From, #state{mails = Mails} = State) ->
 	{ok, Bin} = file:read_file(Filename),
 	Email = binary_to_list(Bin),
 	{_, _, Headers, _, _} = mimemail:decode(Email),
@@ -210,6 +218,7 @@ handle_info({'EXIT', Pid, Reason}, #state{server = Pid} = State) ->
 	?WARNING("The server at ~w exited due to ~p", [Pid, Reason]),
 	{stop, Reason, State#state{server = undefined}};
 handle_info({'EXIT', From, Reason}, #state{mails = Mails} = State) ->
+	?DEBUG("Handling exit from ~w due to ~p", [From, Reason]),
 	Newmail = lists:delete(From, Mails),
 	{noreply, State#state{mails = Newmail}};
 handle_info(_Info, State) ->

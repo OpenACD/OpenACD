@@ -148,9 +148,6 @@ handle_info({'EXIT', Pid, Reason}, State) ->
 	?DEBUG("Doing a match_delete for pid ~w which died due to ~p", [Pid, Reason]),
 	ets:match_delete(web_connections, {'$1', '_', Pid}),
 	{noreply, State};
-handle_info({'EXIT', Pid, normal}, State) ->
-	ets:match_delete(web_connections, {'$1', '_', Pid}),
-	{noreply, State};
 handle_info(Info, State) ->
 	?DEBUG("Info:  ~p", [Info]),
 	{noreply, State}.

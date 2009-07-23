@@ -39,7 +39,6 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--type(parent() :: 'none' | string()).
 -type(health_type() :: 'system' | 'node' | 'queue' | 'agent' | 'media').
 -type(health_key() :: {health_type(), Name :: string() | atom()}).
 -type(health_details() :: {string() | atom(), integer()}).
@@ -239,10 +238,10 @@ elected(#state{ets = Tid} = State, Election, Node) ->
 	end.
 
 %% @hidden
-surrendered(#state{ets = Tid} = State, {Merge, Stilldown}, _Election) ->
-	QH = qlc:q([Tuple || {{Type, Name}, Hp, Data, Time} = Tuple <- ets:table(Tid), Type =:= node]),
+surrendered(#state{ets = Tid} = State, {Merge, _Stilldown}, _Election) ->
+	QH = qlc:q([Tuple || {{Type, _Name}, _Hp, _Data, _Time} = Tuple <- ets:table(Tid), Type =:= node]),
 	Matches = qlc:e(QH),
-	F = fun({{node, Name} = Key, Hp, Data, Time}) ->
+	F = fun({{node, Name} = Key, Hp, _Data, _Time}) ->
 		case lists:member(Name, Merge) =:= proplists:get_value(down, Hp) of
 			true ->
 				Now = util:now(),
@@ -402,30 +401,30 @@ store_node_state(Tid, Node, Hp) ->
 			end
 	end.
 
-fix_entries(Proplist) ->
-	fix_entries(Proplist, []).
-
-fix_entries([], Acc) ->
-	Acc;
-fix_entries([{Key, {Min, Goal, Max, {time, Start}}} | Tail], Acc) ->
-	Newval = health(Min, Goal, Max, util:now() - Start),
-	Newacc = [{Key, Newval} | Acc],
-	fix_entries(Tail, Newacc);
-fix_entries([{Key, {Min, Goal, Max, Val}} | Tail], Acc) ->
-	Newval = health(Min, Goal, Max, Val),
-	Newacc = [{Key, Newval} | Acc],
-	fix_entries(Tail, Newacc);
-fix_entries([{Key, Val} = E | Tail], Acc) ->
-	fix_entries(Tail, [E | Acc]).
+%fix_entries(Proplist) ->
+%	fix_entries(Proplist, []).
+%
+%fix_entries([], Acc) ->
+%	Acc;
+%fix_entries([{Key, {Min, Goal, Max, {time, Start}}} | Tail], Acc) ->
+%	Newval = health(Min, Goal, Max, util:now() - Start),
+%	Newacc = [{Key, Newval} | Acc],
+%	fix_entries(Tail, Newacc);
+%fix_entries([{Key, {Min, Goal, Max, Val}} | Tail], Acc) ->
+%	Newval = health(Min, Goal, Max, Val),
+%	Newacc = [{Key, Newval} | Acc],
+%	fix_entries(Tail, Newacc);
+%fix_entries([{_Key, _Val} = E | Tail], Acc) ->
+%	fix_entries(Tail, [E | Acc]).
 
 merge_properties([], Mutable) ->
 	Mutable;
-merge_properties([{Key, Value} = Prop | Tail], Mutable) ->
+merge_properties([{Key, _Value} = Prop | Tail], Mutable) ->
 	Midmut = proplists:delete(Key, Mutable),
-	merge_properties(Tail, [Prop | Mutable]);
+	merge_properties(Tail, [Prop | Midmut]);
 merge_properties([Atom | Tail], Mutable) ->
 	Midmut = proplists:delete(Atom, Mutable),
-	merge_properties(Tail, [Atom | Mutable]).
+	merge_properties(Tail, [Atom | Midmut]).
 	
 restart_mnesia(Nodes) ->
 	F = fun() ->

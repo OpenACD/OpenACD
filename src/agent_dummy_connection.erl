@@ -66,24 +66,30 @@
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
 
+-spec(start_x/1 :: (N :: pos_integer()) -> 'ok').
 start_x(N) ->
 	start_x(N, []).
 
+-spec(start_x/2 :: (N :: pos_integer(), Args :: [any()]) -> 'ok').
 start_x(N, Args) ->
 	F = fun(_I) ->
 		start(Args)
 	end,
 	lists:foreach(F, lists:seq(1, N)).
 
+-spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	start([]).
-
+	
+-spec(start/1 :: (Args :: [any()]) -> {'ok', pid()}).
 start(Args) ->
 	gen_server:start(?MODULE, [Args], []).
 
+-spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
 	start_link([]).
 
+-spec(start_link/1 :: (Args :: [any()]) -> {'ok', pid()}).
 start_link(Args) ->
 	gen_server:start_link(?MODULE, [Args], []).
 

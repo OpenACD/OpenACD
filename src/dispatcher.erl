@@ -56,15 +56,21 @@
 	tref :: any(), % timer reference
 	qpid :: pid(),
 	agents = [] :: [pid()]}).
+	
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
 
 %%====================================================================
 %% API
 %%====================================================================
 %% @doc Start linked to the calling process.  Ususally done by the {@link dispatch_manager}.
+-spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
 	gen_server:start_link(?MODULE, [], []).
 	
 %% @doc Starts not linked to a process.
+-spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	gen_server:start(?MODULE, [], []).
 

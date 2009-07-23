@@ -100,7 +100,11 @@
 	voicegateway = "" :: string(),
 	xmlserver :: pid() | 'undefined'
 	}).
-	
+
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
 % watched calls structure:
 % callid, pid of gen_server handling it
 
@@ -116,6 +120,7 @@
 %% <li>`domain :: string()'</li>
 %% <li>`voicegateway :: string()'</li>
 %% </ul>
+-spec(start/2 :: (Nodename :: atom(), Options :: [any()]) -> {'ok', pid()}).
 start(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, Options], []).
 	
@@ -123,8 +128,8 @@ start(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
 %% `Domain' is the domain to ring to sip agents.
 %% @clear
 % Domain is there to help ring agents.
-start(Nodename) -> 
-	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, []], []).
+%start(Nodename) -> 
+%	gen_server:start({local, ?MODULE}, ?MODULE, [Nodename, []], []).
 	
 %% @doc Start the media manager linked to the parant process with C node `node() Nodemane' 
 %% and `[{atom(), term()] Options'.
@@ -132,26 +137,30 @@ start(Nodename) ->
 %% <li>`domain :: string()'</li>
 %% <li>`voicegateway :: string()'</li>
 %% </ul>
+-spec(start_link/2 :: (Nodename :: atom(), Options :: [any()]) -> {'ok', pid()}).
 start_link(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, Options], []).
 
 %% @doc Start the media manager linked to the parent process.  `Nodename' is the name of the C node for mod_erlang in freeswitch; 
 %% `Domain' is the domain to ring to sip agents.
 %% @clear
-start_link(Nodename) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, []], []).
+%start_link(Nodename) ->
+%    gen_server:start_link({local, ?MODULE}, ?MODULE, [Nodename, []], []).
 
 %% @doc returns {`ok', pid()} if there is a freeswitch media process handling the given `UUID'.
 -spec(get_handler/1 :: (UUID :: string()) -> {'ok', pid()} | 'noexists').
 get_handler(UUID) -> 
 	gen_server:call(?MODULE, {get_handler, UUID}).
-	
+
+-spec(notify/2 :: (UUID :: string(), Pid :: pid()) -> 'ok').
 notify(UUID, Pid) ->
 	gen_server:cast(?MODULE, {notify, UUID, Pid}).
 
+-spec(make_outbound_call/3 :: (Number :: any(), AgentPid :: pid(), AgentRec :: #agent{}) -> 'ok').
 make_outbound_call(Number, AgentPid, AgentRec) ->
 	gen_server:call(?MODULE, {make_outbound_call, Number, AgentPid, AgentRec}).
 
+-spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:call(?MODULE, stop).
 
@@ -265,6 +274,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 % TODO add supporting code so fmm can get the right media to ring it.
 %% @doc Ring `AgentPid' with `Call'.
+-spec(ring_agent/2 :: (AgentPid :: pid(), Call :: #call{}) -> 'ok').
 ring_agent(AgentPid, Call) -> 
 	gen_server:call(?MODULE, {ring_agent, AgentPid, Call}).
 
@@ -298,6 +308,7 @@ listener(Node) ->
 			 listener(Node)
 	end.
 
+-spec(fetch_domain_user/2 :: (Node :: atom(), State :: #state{}) -> 'ok').
 fetch_domain_user(Node, State) ->
 	?DEBUG("entering fetch loop with state ~p", [State]),
 	receive

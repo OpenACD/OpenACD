@@ -256,14 +256,14 @@
 ]).
 
 -record(state, {
-	callback,
-	substate,
-	callrec,
-	ring_pid,
-	oncall_pid,
-	queue_failover = true,
-	queue_pid,
-	ringout
+	callback :: atom(),
+	substate :: any(),
+	callrec :: #call{},
+	ring_pid :: 'undefined' | pid(),
+	oncall_pid :: 'undefined' | pid(),
+	queue_failover = true :: 'true' | 'false',
+	queue_pid :: 'undefined' | pid(),
+	ringout :: pos_integer() | 'undefined'
 }).
 
 -type(state() :: #state{}).
@@ -494,11 +494,12 @@ handle_call({'$gen_media_agent_transfer', Apid, Timeout}, _From, #state{callback
 handle_call({'$gen_media_agent_transfer', _Apid, _Timeout}, _From, State) ->
 	?ERROR("Invalid agent transfer sent when state is ~p.", [State]),
 	{reply, invalid, State};
-handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback, oncall_pid = Apid} = State) ->
+handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback, oncall_pid = Apid} = State) when is_pid(Apid) ->
 	case Callback:handle_warm_transfer_begin(Number, State#state.substate) of
 		{ok, UUID, NewState} ->
 			{reply, {ok, UUID}, State#state{substate = NewState}};
 		{error, Error, NewState} ->
+			?DEBUG("Callback module ~w errored for warm transfer begin:  ~p", [Callback, Error]),
 			{reply, invalid, State#state{substate = NewState}}
 	end;
 handle_call({'$gen_media_annouce', Annouce}, _From, #state{callback = Callback} = State) ->
@@ -663,7 +664,7 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = C
 			case agent:query_state(Apid) of
 				{ok, ringing} ->
 					agent:set_state(Apid, idle);
-				Else ->
+				_Else ->
 					ok
 			end;
 		false ->
@@ -727,9 +728,9 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-set_cpx_mon(#state{callrec = Call} = State, delete) ->
+set_cpx_mon(#state{callrec = Call} = _State, delete) ->
 	cpx_monitor:drop({media, Call#call.id});
-set_cpx_mon(#state{callrec = Call} = State, Details) ->
+set_cpx_mon(#state{callrec = Call} = _State, Details) ->
 	Client = Call#call.client,
 	Basedet = [
 		{type, Call#call.type},

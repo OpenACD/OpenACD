@@ -270,7 +270,7 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 					case agent:get_media(Apid) of
 						invalid ->
 							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent isn't in call">>}]});
-						{ok, #call{source = Mpid} = Mediarec} ->
+						{ok, #call{source = Mpid} = _Mediarec} ->
 							case gen_media:queue(Mpid, Toqueue) of
 								invalid ->
 									mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Media said it couldn't be queued">>}]});
@@ -747,7 +747,7 @@ scrub_proplist([], Acc) ->
 	Acc;
 scrub_proplist([Head | Tail], Acc) ->
 	Newacc = case Head of
-		{Key, Value} ->
+		{Key, _Value} ->
 			case lists:member(Key, [queue, parent, node, agent, profile, group, type]) of
 				true ->
 					Acc;

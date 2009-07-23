@@ -637,7 +637,7 @@ get_summaries([Node | Nodes], Ids, Acc) ->
 	case rpc:call(Node, mnesia, transaction, [F]) of
 		{atomic, _Rows} = Rez ->
 			get_summaries(Nodes, Ids, [Rez | Acc]);
-		Else ->
+		_Else ->
 			?WARNING("Could not get cdr_rec from ~w", [Node]),
 			get_summaries(Nodes, Ids, Acc)
 	end.
@@ -677,7 +677,7 @@ diff_sum([#cdr_rec{summary = inprogress, id = Id} = Hleft | Tleft], [#cdr_rec{su
 	diff_sum(Tleft, Tright, [Hleft | Acc]);
 diff_sum([#cdr_rec{summary = inprogress, id = Id} | Tleft], [#cdr_rec{id = Id} = Hright | Tright], Acc) ->
 	diff_sum(Tleft, Tright, [Hright | Acc]);
-diff_sum([#cdr_rec{id = Id} = Hleft | Tleft], [#cdr_rec{id = Id} = Hright | Tright], Acc) ->
+diff_sum([#cdr_rec{id = Id} = Hleft | Tleft], [#cdr_rec{id = Id} = _Hright | Tright], Acc) ->
 	diff_sum(Tleft, Tright, [Hleft | Acc]);
 diff_sum([Hleft | Tleft] = Left, [Hright | Tright] = Right, Acc) ->
 	case Hleft#cdr_rec.id < Hright#cdr_rec.id of

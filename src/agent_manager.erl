@@ -190,13 +190,13 @@ get_leader() ->
 	
 %% gen_leader callbacks
 %% @hidden
-init(Opts) ->
+init(_Opts) ->
 	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
 	{ok, #state{}}.
 	
 %% @hidden
-elected(State, Election, Node) -> 
+elected(State, _Election, Node) -> 
 	?INFO("elected by ~w", [Node]),
 	mnesia:subscribe(system),
 	{ok, ok, State}.
@@ -263,7 +263,7 @@ handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Elect
 handle_leader_cast(dump_election, State, Election) -> 
 	?DEBUG("Dumping leader election.~nSelf:  ~p~nDump:  ~p", [self(), Election]),
 	{noreply, State};
-handle_leader_cast(Message, State, Election) ->
+handle_leader_cast(Message, State, _Election) ->
 	?WARNING("received unexpected leader_cast ~p", [Message]),
 	{noreply, State}.
 

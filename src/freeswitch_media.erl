@@ -105,9 +105,11 @@
 %% API
 %%====================================================================
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
+-spec(start/1 :: (Cnode :: atom()) -> {'ok', pid()}).
 start(Cnode) ->
 	gen_media:start(?MODULE, [Cnode]).
 
+-spec(start_link/1 :: (Cnode :: atom()) -> {'ok', pid()}).
 start_link(Cnode) ->
 	gen_media:start_link(?MODULE, [Cnode]).
 
@@ -238,7 +240,7 @@ handle_warm_transfer_begin(Number, #state{agent_pid = AgentPid, callrec = Call, 
 					end
 			end
 	end;
-handle_warm_transfer_begin(Number, #state{agent_pid = AgentPid} = State) ->
+handle_warm_transfer_begin(_Number, #state{agent_pid = AgentPid} = State) ->
 	?WARNING("wtf?! agent pid is ~p", [AgentPid]),
 	{error, "error: no agent bridged to this call~n", State}.
 

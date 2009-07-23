@@ -58,11 +58,14 @@
 	encode_agents/1
 ]).
 
+-type(simple_json() :: {'struct', [{atom() | binary(), atom() | binary()}]}).
+
 %% @doc Start the web management server unlinked to the parent process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	start(?PORT).
 
+-spec(start/1 :: (Port :: pos_integer()) -> {'ok', pid()}).
 start(Port) ->
 	?DEBUG("Starting mochiweb...", []),
 	case ets:info(cpx_management_logins) of
@@ -74,9 +77,11 @@ start(Port) ->
 	end,
 	mochiweb_http:start([{loop, {?MODULE, loop}}, {name, ?MODULE}, {port, Port}]).
 
+-spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
 	start_link(?PORT).
 
+-spec(start_link/1 :: (Port :: pos_integer()) -> {'ok', pid()}).
 start_link(Port) ->
 	{ok, Pid} = Out = start(Port),
 	link(Pid),
@@ -718,7 +723,7 @@ api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 			],
 			{200, [], mochijson2:encode({struct, Sendargs})}
 	end;
-api({medias, Node, "email_media_manager", "getMappings"}, ?COOKIE, _Post) ->
+api({medias, _Node, "email_media_manager", "getMappings"}, ?COOKIE, _Post) ->
 	{atomic, Mappings} = email_media_manager:get_mappings(),
 	Encode = fun(Mapping) ->
 		Client = case Mapping#mail_map.client of
@@ -736,7 +741,7 @@ api({medias, Node, "email_media_manager", "getMappings"}, ?COOKIE, _Post) ->
 	end,
 	Jarray = lists:map(Encode, Mappings),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Jarray}]})};
-api({medias, Node, "email_media_manager", "setMapping"}, ?COOKIE, Post) ->
+api({medias, _Node, "email_media_manager", "setMapping"}, ?COOKIE, Post) ->
 	Newprops = proplists:substitute_aliases([
 		{"address", address},
 		{"skills", skills},
@@ -750,7 +755,7 @@ api({medias, Node, "email_media_manager", "setMapping"}, ?COOKIE, Post) ->
 		{atomic, ok} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-api({medias, Node, "email_media_manager", "destroyMapping"}, ?COOKIE, Post) ->
+api({medias, _Node, "email_media_manager", "destroyMapping"}, ?COOKIE, Post) ->
 	case email_media_manager:destroy_mapping(proplists:get_value("address", Post)) of
 		{aborted, Reason} ->
 			Json = {struct, [{success, false}, {message, list_to_binary(lists:flatten(io_lib:format("~p", [Reason])))}]},
@@ -758,7 +763,7 @@ api({medias, Node, "email_media_manager", "destroyMapping"}, ?COOKIE, Post) ->
 		{atomic, ok} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-api({medias, Node, "email_media_manager", "new"}, ?COOKIE, Post) ->
+api({medias, _Node, "email_media_manager", "new"}, ?COOKIE, Post) ->
 	Newprops = proplists:substitute_aliases([
 		{"address", address},
 		{"skills", skills},
@@ -854,6 +859,9 @@ check_cookie(Allothers) ->
 			end
 	end.
 
+-type(raw_skill() :: atom() | {atom(), any()} | #skill_rec{}).
+
+-spec(encode_skill/1 :: (Skill :: raw_skill()) -> simple_json()).
 encode_skill(Atom) when is_atom(Atom), Atom =/= undefined ->
 	Skill = call_queue_config:get_skill(Atom),
 	encode_skill(Skill);
@@ -876,7 +884,7 @@ encode_skill(Skill) when is_record(Skill, skill_rec) ->
 encode_skill(_) ->
 	[].
 
-
+-spec(encode_skills/1 :: (Skills :: [raw_skill()]) -> [simple_json()]).
 encode_skills(Skills) ->
 	encode_skills(Skills, []).
 
@@ -908,6 +916,7 @@ encode_skills_with_groups([Skill | Skills], Acc) ->
 %			{type, group},
 %			{children, encode_skills(Group)}]} | encode_skills_with_groups(Groups)].
 
+-spec(encode_queue/1 :: (Queue :: #call_queue{}) -> simple_json()).
 encode_queue(Queue) ->
 	{struct, [{name, list_to_binary(Queue#call_queue.name)},
 			{type, queue}, {weight, Queue#call_queue.weight},
@@ -915,6 +924,7 @@ encode_queue(Queue) ->
 			{recipe, encode_recipe(Queue#call_queue.recipe)},
 			{group, list_to_binary(Queue#call_queue.group)}]}.
 
+-spec(encode_queues/1 :: (Queues :: #call_queue{}) -> [simple_json()]).
 encode_queues(Queues) ->
 	encode_queues(Queues, []).
 
@@ -939,12 +949,14 @@ encode_queues_with_groups([Group | Groups], Acc) ->
 		{<<"type">>, <<"group">>},
 		{queues, encode_queues(Queues)}]},
 	encode_queues_with_groups(Groups, [Head | Acc]).
-	
+
+-spec(encode_agents/1 :: ([#agent{}]) -> [simple_json()]).
 encode_agents([]) ->
 	[];
 encode_agents([Agent|Agents]) ->
 	[encode_agent(Agent) | encode_agents(Agents)].
 
+-spec(encode_agent/1 :: (Agentrec :: #agent{}) -> simple_json()).
 encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 	{struct, [
 		{name, list_to_binary(Agentrec#agent_auth.login)},

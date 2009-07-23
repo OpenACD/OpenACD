@@ -51,8 +51,18 @@ function Agent(username){
 			load:function(response, ioargs){
 				//console.log(response);
 				//EventLog.log("Poll success, handling data");
-				agentref.handleData(response.data);
-				agentref.pollfailures = 0;
+				if(response.success == false){
+					agentref.poller.stop();
+					dojo.publish("agent/logout", []);
+					dojo.byId("loginerrp").style.display = "block";
+					dojo.byId("loginerrspan").innerHTML = "Logged out";
+					dijit.byId("loginpane").show();
+					dijit.byId("main").attr('style', 'visibility:hidden');
+				}
+				else{
+					agentref.handleData(response.data);
+					agentref.pollfailures = 0;
+				}
 			}
 		})
 	}

@@ -68,26 +68,31 @@
 %% API
 
 %% gen_smtp_server_session callbacks
-
+-spec(init/3 :: (Hostname :: string(), SessionCount :: pos_integer(), Address :: string()) -> {'stop', 'normal', any(), [string()]} | {'ok', string(), #state{}}).
 init(Hostname, SessionCount, Address) when SessionCount > 20 ->
 	?ERROR("Session limit exceeded at ~s by ~s", [Hostname, Address]),
 	{stop, normal, io_lib:format("421 ~s is too busy to accecpt mail right now", [Hostname])};
-init(Hostname, SessionCount, Address) ->
+init(Hostname, _SessionCount, _Address) ->
 	Banner = io_lib:format("~s ESMTP spice_telephony", [Hostname]),
 	{ok, Banner, #state{}}.
 
-handle_HELO(Hostname, State) ->
+-spec(handle_HELO/2 :: (Hostname :: string(), State :: #state{}) -> {'ok', #state{}}).
+handle_HELO(_Hostname, State) ->
 	{ok, State}.
 
-handle_EHLO(Hostname, Extensions, State) ->
+-spec(handle_EHLO/3 :: (Hostname :: string(), Extension :: [string()], State :: #state{}) -> {'ok', [string()], #state{}}).
+handle_EHLO(_Hostname, Extensions, State) ->
 	{ok, Extensions, State}.
 
-handle_MAIL(From, State) ->
-	{ok, State}.
-	
-handle_MAIL_extension(Extension, State) ->
+-spec(handle_MAIL/2 :: (From :: string(), State :: #state{}) -> {'ok', #state{}}).
+handle_MAIL(_From, State) ->
 	{ok, State}.
 
+-spec(handle_MAIL_extension/2 :: (Extension :: any(), State :: #state{}) -> {'ok', #state{}}).
+handle_MAIL_extension(_Extension, State) ->
+	{ok, State}.
+
+-spec(handle_RCPT/2 :: (To :: string(), State :: #state{}) -> {'ok', #state{}} | {'error', string(), #state{}}).
 handle_RCPT(To, #state{mail_map = undefined} = State) ->
 	F = fun() ->
 		mnesia:read({mail_map, To})
@@ -99,13 +104,15 @@ handle_RCPT(To, #state{mail_map = undefined} = State) ->
 		{atomic, [Mailmap]} ->
 			{ok, State#state{mail_map = Mailmap}}
 	end;
-handle_RCPT(To, State) ->
+handle_RCPT(_To, State) ->
 	{error, "452 only one recipient, fool!", State}.
 
-handle_RCPT_extension(Extension, State) ->
+-spec(handle_RCPT_extension/2 :: (Extension :: any(), State :: #state{}) -> {'ok', #state{}}).
+handle_RCPT_extension(_Extension, State) ->
 	{ok, State}.
 
-handle_DATA(From, [To | _Allelse], Headers, Data, #state{mail_map = Mailmap} = State) when To =:= Mailmap#mail_map.address ->
+-spec(handle_DATA/5 :: (From :: string(), To :: [string()], Headers :: [any()], Data :: string(), State :: #state{}) -> {'ok', string(), #state{}}).
+handle_DATA(_From, [To | _Allelse], Headers, Data, #state{mail_map = Mailmap} = State) when To =:= Mailmap#mail_map.address ->
 	{Reference, Heads} = case proplists:get_value("Message-ID", Headers) of
 		undefined ->
 			Ref = erlang:ref_to_list(make_ref()),
@@ -121,10 +128,12 @@ handle_DATA(From, [To | _Allelse], Headers, Data, #state{mail_map = Mailmap} = S
 	%mimemail:decode(Headers, Data),
 	{ok, Reference, State#state{mail_map = undefined}}.
 
+-spec(handle_RSET/1 :: (State :: #state{}) -> #state{}).
 handle_RSET(State) ->
 	% reset any relevant internal state
 	State#state{mail_map = undefined}.
 
+-spec(handle_VRFY/2 :: (Address :: string(), State :: #state{}) -> {'error', any(), #state{}} | {'ok', any(), #state{}}).
 handle_VRFY(Address, State) ->
 	F = fun() ->
 		mnesia:read({mail_map, Address})
@@ -137,11 +146,14 @@ handle_VRFY(Address, State) ->
 			{ok, io_lib:format("250 will queue the mail to ~s", [Mailmap#mail_map.queue]), State}
 	end.
 
+-spec(handle_other/3 :: (Verb :: any(), Args :: any(), State :: #state{}) -> {string(), #state{}}).
 handle_other(_Verb, _Args, State) ->
 	{"500 Error: command not recognized", State}.
 
+-spec(terminate/2 :: (Reason :: any(), State :: #state{}) -> 'ok').
 terminate(_Reason, _State) ->
 	ok.
 
-code_change(OldVsn, State, Extra) ->
+-spec(code_change/3 :: (Oldvsn :: any(), State :: #state{}, Extra :: any()) -> {'ok', #state{}}).
+code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.

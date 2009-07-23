@@ -671,7 +671,7 @@ diff_recs(Left, Right) ->
 	end,
 	Sleft = lists:sort(Sort, Left),
 	Sright = lists:sort(Sort, Right),
-	diff_recs_loop(Left, Right, []).
+	diff_recs_loop(Sleft, Sright, []).
 
 diff_recs_loop([], Right, Acc) ->
 	lists:append(lists:reverse(Acc), Right);

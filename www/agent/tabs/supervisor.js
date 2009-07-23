@@ -856,6 +856,38 @@ supervisorTab.IndividualStackAsAgents = function(items){
 				onEnterf();
 			}
 		});
+		var details = supervisorTab.dataStore.getValue(obj, "details");
+		var imgsrc = "images/";
+		switch(details.state){
+			case "idle":
+				imgsrc += "idle.png";
+				break;
+			
+			case "oncall":
+				imgsrc += "oncall.png";
+				break;
+			
+			case "wrapup":
+				imgsrc += "wrapup.png";
+				break;
+			
+			case "ringing":
+				imgsrc += "ringing.png";
+				break;
+			
+			default:
+				imgsrc += "released.png"
+		}
+		
+		var icon = bub.createImage({
+			src:imgsrc,
+			width:14,
+			height:14,
+			x:bub.bubble.getShape().x,
+			y:bub.bubble.getShape().y
+		});
+		
+		bub.icon = icon;
 		
 		var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
 		bub.dropped = function(obj){
@@ -1150,3 +1182,12 @@ supervisorTab.poller.onTick = function(){
 supervisorTab.reloadDataStore();
 supervisorTab.poller.start();
 
+supervisorTab.logoutListener = dojo.subscribe("agent/logout", function(data){
+	supervisorTab.poller.stop();
+});
+
+supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(child){
+	if(child.title == "Supervisor"){
+		supervisorTab.poller.stop();
+	}
+});

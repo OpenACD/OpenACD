@@ -51,15 +51,15 @@
 
 -spec(start/0 :: () -> 'ok').
 start() ->
-	gen_event:start({local, cpxlog}),
+	Out = gen_event:start({local, cpxlog}),
 	gen_event:add_handler(cpxlog, cpxlog_terminal, []),
-	ok.
+	Out.
 	
 -spec(start_link/0 :: () -> 'ok').
 start_link() ->
-	gen_event:start_link({local, cpxlog}),
+	Out = gen_event:start_link({local, cpxlog}),
 	gen_event:add_handler(cpxlog, cpxlog_terminal, []),
-	ok.
+	Out.
 
 -spec(log/7 :: (Level :: level(), Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 log(Level, Time, Module, Line, Pid, Message, Args) ->
@@ -98,11 +98,14 @@ alert(Time, Module, Line, Pid, Message, Args) ->
 emergency(Time, Module, Line, Pid, Message, Args) ->
 	log(emergency, Time, Module, Line, Pid, Message, Args).
 
+-spec(set_loglevel/1 :: (Level :: pos_integer()) -> 'ok').
 set_loglevel(Level) ->
 	catch gen_event:notify(cpxlog, {set_log_level, Level}).
 
+-spec(debug_module/1 :: (Module :: atom()) -> {'ok', atom()}).
 debug_module(Module) ->
 	catch gen_event:notify(cpxlog, {debug_module, Module}).
 
+-spec(nodebug_module/1 :: (Module :: atom()) -> {'ok', atom()}).
 nodebug_module(Module) ->
 	catch gen_event:notify(cpxlog, {nodebug_module, Module}).

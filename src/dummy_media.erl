@@ -99,11 +99,13 @@
 %%====================================================================
 %% API
 %%====================================================================
+-spec(start_link/1 :: (Props :: [any()]) -> {'ok', pid()}).
 start_link([H | _Tail] = Props) when is_tuple(H) ->
 	start_link(Props, success);
 start_link(Callid) ->
 	start_link([{id, Callid}], success).
 
+-spec(start_link/2 :: (Props :: [any()], Fails :: 'success' | 'failure' | [atom()]) -> {'ok', pid()}).
 start_link(Props, success) ->
 	gen_media:start_link(?MODULE, [Props, success]);
 start_link(Props, failure) ->
@@ -111,11 +113,13 @@ start_link(Props, failure) ->
 start_link(Props, Fails) when is_list(Fails) ->
 	gen_media:start_link(?MODULE, [Props, Fails]).
 
+-spec(start/1 :: (Props :: [any()]) -> {'ok', pid()}).
 start([H | _Tail] = Props) when is_tuple(H) ->
 	start(Props, success);
 start(Callid) ->
 	start([{id, Callid}], success).
 
+-spec(start/2 :: (Props :: [any()], Fails :: 'success' | 'failure' | [atom()]) -> {'ok', pid()}).
 start(Props, success) ->
 	gen_media:start(?MODULE, [Props, success]);
 start(Props, failure) ->
@@ -123,15 +127,19 @@ start(Props, failure) ->
 start(Props, Fails) when is_list(Fails) ->
 	gen_media:start(?MODULE, [Props, Fails]).
 
+-spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) -> 
 	stop(Pid, normal).
 
+-spec(stop/2 :: (Pid :: pid(), Reason :: any()) -> 'ok').
 stop(Pid, Reason) ->
 	gen_media:call(Pid, {stop, Reason}).
 
+-spec(ring_agent/2 :: (Pid :: pid(), Agentpid :: pid()) -> 'ok').
 ring_agent(Pid, Agentpid) when is_pid(Pid), is_pid(Agentpid) -> 
 	gen_media:call(Pid, {ring_agent, Agentpid}).
-	
+
+-spec(set_mode/3 :: (Pid :: pid(), Action :: atom(), Mode :: 'success' | 'fail' | 'fail_once') -> 'ok').
 set_mode(Pid, Action, Mode) ->
 	gen_media:call(Pid, {set_action, Action, Mode}).
 
@@ -141,10 +149,12 @@ set_mode(Pid, Action, Mode) ->
 %
 %set_brand(Pid, Brand) ->
 %	gen_media:call(Pid, {set_brand, Brand}).
-	
+
+-spec(q/0 :: () -> {'ok', pid()}).
 q() ->
 	q("default_queue").
 
+-spec(q/1 :: (Opts :: string() | [any()]) -> {'ok', pid()}).
 q([H | _Tail] = Props) when is_tuple(H) ->
 	start_link(Props);
 q(Queuename) ->
@@ -153,6 +163,7 @@ q(Queuename) ->
 	%Qpid = queue_manager:get_queue(Queuename),
 	%{call_queue:add(Qpid, Dummypid), Dummypid}.
 
+-spec(q_x/1 :: (N :: pos_integer()) -> 'ok').
 q_x(N) ->
 	F = fun() ->
 		QH = qlc:q([Queue#call_queue.name || Queue <- mnesia:table(call_queue)]),
@@ -162,6 +173,7 @@ q_x(N) ->
 	?INFO("~p", [Qs]),
 	q_x(N, Qs).
 
+-spec(q_x/2 :: (N :: pos_integer(), Queues :: [string()]) -> 'ok').
 q_x(N, Queues) ->
 	F = fun(_I) ->
 		Index = crypto:rand_uniform(1, length(Queues) + 1),

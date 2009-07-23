@@ -236,7 +236,8 @@
 										//href:"tabs/supervisor.html",
 										title:"Supervisor",
 										executeScripts: "true",
-										id:"supervisorTab"
+										id:"supervisorTab",
+										closable:true
 									});
 									dijit.byId("tabPanel").addChild(t);
 								}else{
@@ -245,6 +246,10 @@
 								//this.setDisabled(true);
 								dijit.byId("supervisorTab").setHref("tabs/supervisor.html");
 								dijit.byId("tabPanel").selectChild("supervisorTab");
+								dijit.byId("tabPanel").logoutListener = dojo.subscribe("agent/logout", function(data){
+									dijit.byId("tabPanel").closeChild(dijit.byId("supervisorTab"));
+									dojo.unsubscribe(dijit.byId("tabPanel").logoutListener);
+								});
 							</script>
 						</div>
 					</div>

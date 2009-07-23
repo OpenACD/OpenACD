@@ -448,6 +448,7 @@ dojo.addOnLoad(function(){
 	
 	logout = function(agent){
 		agent.logout(function(){
+			dojo.publish("agent/logout", []);
 			dojo.byId("loginerrp").style.display = "none";
 			dijit.byId("loginpane").show();
 			dijit.byId("main").attr('style', 'visibility:hidden');

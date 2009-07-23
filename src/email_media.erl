@@ -72,10 +72,10 @@
 ]).
 
 -record(state, {
-	initargs,
-	html,
-	files,
-	manager
+	initargs :: any(),
+	html :: string(),
+	files :: [string()],
+	manager :: pid()
 }).
 
 -type(state() :: #state{}).
@@ -85,16 +85,19 @@
 %%====================================================================
 %% API
 %%====================================================================
-
+-spec(start/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: string()) -> {'ok', pid()}).
 start(Mailmap, Headers, Data) ->
 	gen_media:start(?MODULE, [Mailmap, Headers, Data]).
 
+-spec(start/2 :: (Mailmap :: #mail_map{}, Rawmessage :: string()) -> {'ok', pid()}).
 start(Mailmap, Rawmessage) ->
 	gen_media:start(?MODULE, [Mailmap, Rawmessage]).
 	
+-spec(start_link/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: string()) -> {'ok', pid()}).
 start_link(Mailmap, Headers, Data) ->
 	gen_media:start(?MODULE, [Mailmap, Headers, Data]).
 
+-spec(start_link/2 :: (Mailmap :: #mail_map{}, Rawmessage :: string()) -> {'ok', pid()}).
 start_link(Mailmap, Rawmessage) ->
 	gen_media:start_link(?MODULE, [Mailmap, Rawmessage]).
 
@@ -162,7 +165,7 @@ handle_call({mediapull, [Filename]}, _From, #state{files = Files} = State) ->
 		undefined ->
 			?DEBUG("No such file ~s", [Filename]),
 			invalid;
-		{Headers, Content} = Rep->
+		{_Headers, _Content} = Rep->
 %			H1 = case proplists:get_value("Content-Type", Headers) of
 %				undefined ->
 %					[];
@@ -180,7 +183,7 @@ handle_call({mediapull, [Filename]}, _From, #state{files = Files} = State) ->
 			Rep
 	end,
 	{reply, Reply, State};
-handle_call({mediapush, Data}, _From, State) ->
+handle_call({mediapush, _Data}, _From, State) ->
 	?WARNING("pushing data out is NYI", []),
 	{reply, invalid, State};
 handle_call(dump, _From, State) ->
@@ -255,8 +258,8 @@ handle_wrapup(State) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
--type(display_type() :: 'link' | 'html' | 'text').
--type(mail_display() :: [{display_type(), any()}]).
+% -type(display_type() :: 'link' | 'html' | 'text').
+% -type(mail_display() :: [{display_type(), any()}]).
 
 check_disposition(Properties) ->
 	?DEBUG("~p", [Properties]),
@@ -346,14 +349,14 @@ html_strip_heads(In) ->
 html_strip_heads({<<"html">>, _Attr, Kids}, Acc)->
 	?DEBUG("html tag, diving deeper.  Kids:  ~p", [Kids]),
 	html_strip_heads(Kids, Acc);
-html_strip_heads({Tag, Attr, Kids} = Tuple, Acc) ->
+html_strip_heads({_Tag, _Attr, _Kids} = Tuple, Acc) ->
 	html_strip_heads([Tuple], Acc);
 html_strip_heads([{<<"head">>, _Attr, Kids} | Rest], {Acctitle, AccStyle}) ->
 	?DEBUG("head tag, diving into then out", []),
 	Folder = fun
 		({<<"style">>, _, [Body]}, {Title, Style}) ->
 			{Title, lists:concat([Style, binary_to_list(Body)])};
-		({<<"title">>, _, [Body]}, {Title, Style}) ->
+		({<<"title">>, _, [Body]}, {_Title, Style}) ->
 			{Body, Style};
 		({_, _, _}, {Title, Style}) ->
 			{Title, Style}
@@ -361,7 +364,7 @@ html_strip_heads([{<<"head">>, _Attr, Kids} | Rest], {Acctitle, AccStyle}) ->
 	{Title, Style} = lists:foldl(Folder, {Acctitle, []}, Kids),
 	?DEBUG("Style thus far:  ~p", [Style]),
 	html_strip_heads(Rest, {Title, lists:concat([AccStyle, Style])});
-html_strip_heads([{<<"body">>, Attr, Kids} | Rest], {Title, AccStyle}) ->
+html_strip_heads([{<<"body">>, Attr, Kids} | _Rest], {Title, AccStyle}) ->
 	?DEBUG("Body tag.  Nabbing style and diving deeper", []),
 	case proplists:get_value(<<"style">>, Attr) of
 		undefined ->
@@ -540,7 +543,7 @@ mime_to_html({"message", "rfc822", _UslessHeaders, Properties, {_, _, Headers, _
 %	{Newname, Newfiles} = append_file(Name, Heads, io_lib:format("~p", [Body]), Files),
 %	Newhtml = html_append(Html, [download_link(Newname, Name)]),
 %	{Newhtml, Newfiles};
-mime_to_html({"image", _, Headers, Properties, Body}, Html, Files, _Anydrop) ->
+mime_to_html({"image", _, _Headers, Properties, Body}, Html, Files, _Anydrop) ->
 	?DEBUG("image.  I didn't bother w/ the subtype.", []),
 	case check_disposition(Properties) of
 		{inline, Filename, Heads} ->
@@ -554,7 +557,7 @@ mime_to_html({"image", _, Headers, Properties, Body}, Html, Files, _Anydrop) ->
 			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
 			{Newhtml, Newfiles}
 	end;
-mime_to_html({Type, Subtype, Headers, Props, Body}, Html, Files, _Anydrop) ->
+mime_to_html({Type, Subtype, _Headers, Props, Body}, Html, Files, _Anydrop) ->
 	?DEBUG("some other type and subtype:  ~s/~s.", [Type, Subtype]),
 	Contentparams = proplists:get_value("content-params", Props, []),
 	Name = proplists:get_value("name", Contentparams, "unnamed"),

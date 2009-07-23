@@ -55,16 +55,22 @@
 	dispatchers = [] :: [pid()],
 	agents = [] :: [pid()]
 	}).
+	
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
 
 %%====================================================================
 %% API
 %%====================================================================
 
 %% @doc start a dispatch manager linked to the calling process.
+-spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc start a dispatch manager linked to no process.
+-spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
@@ -199,8 +205,8 @@ balance(State) ->
 	?DEBUG("It is fully balanced!",[]),
 	State.
 
-dump() ->
-	gen_server:call(?MODULE, dump).
+%dump() ->
+%	gen_server:call(?MODULE, dump).
 
 -ifdef(EUNIT).
 

@@ -58,6 +58,10 @@
 -type(connection_handler() :: pid() | 'undefined').
 -type(web_connection() :: {string(), salt(), connection_handler()}).
 
+-ifdef(R13B).
+-type(ref() :: reference()).
+-endif.
+
 -record(state, {
 	connections:: any(), % ets table of the connections
 	mochipid :: pid() % pid of the mochiweb process.

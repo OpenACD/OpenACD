@@ -53,6 +53,7 @@ dojo.addOnLoad(function(){
 				buildOutboundMenu(agent);
 				dojo.byId("agentname").innerHTML = response.login;
 				agent.state = response.state;
+				dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response.profile;
 				dojo.publish("agent/state", [{"state":response.state, "statedata":response.statedata}]);
 				agent.stopwatch.onTick = function(){
 					var elapsed = agent.stopwatch.time();
@@ -233,6 +234,9 @@ dojo.addOnLoad(function(){
 					widget.attr('style', 'display:none');
 			}
 		}
+		else{
+			widget.attr('style', 'display:none');
+		}
 	});
 	
 	dijit.byId("btransfer").stateChanger = dojo.subscribe("agent/state", function(data){
@@ -374,6 +378,7 @@ dojo.addOnLoad(function(){
 							dojo.byId("main").style.display="block";
 							dojo.byId("main").style.visibility = "visible";
 							dojo.byId("agentname").innerHTML = attrs.username;
+							dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response2.profile;
 							console.log(response2);
 							agent = new Agent(attrs.username);
 							agent.stopwatch.onTick = function(){

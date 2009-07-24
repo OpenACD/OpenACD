@@ -8,11 +8,45 @@
 	dojo.require("dojox.gfx.move");
 	//dojo.require("dojo.data.ItemFileReadStore");
 	dojo.require("dojo.data.ItemFileWriteStore");
+	dojo.require("dijit.Menu");
 </script>
 
 <div dojoType="dojox.layout.FloatingPane" resizable="true" style="width:150px; height:350px; top:10%; left:80%; position:absolute; z-index:50000;" title="Details" closable="false" dockable="false" id="supervisorDetails">
 	<p style="padding:12px">nocontent</p>
 </div> 
+
+<div dojoType="dijit.Menu" id="agentAction" style="display:none">
+	<div dojoType="dijit.MenuItem">Released
+		<script type="dojo/method" event="onClick">
+			console.log(arguments[0]);
+			var ev = arguments[0];
+			console.log(dijit.byId("agentAction").agentBubbleHit);
+			console.log(supervisorTab.dndManager.checkCollision({
+				x:ev.screenX,
+				y:ev.screenY
+			}));
+		</script>
+	</div>
+	<div dojoType="dijit.MenuItem">Idle</div>
+	<div dojoType="dijit.MenuSeparator"></div>
+	<div dojoType="dijit.MenuItem">Kick
+		<script type="dojo/method" event="onClick">
+			var geturl = "/supervisor/kick_agent/" + escape(dijit.byId("agentAction").agentBubbleHit);
+			dojo.xhrGet({
+				url:geturl,
+				handleAs: "json",
+				load:function(resp){
+					if(resp.success){
+						conosle.log("kick good!");
+					}
+					else{
+						console.log(resp.message);
+					}
+				}
+			});
+		</script>
+	</div>
+</div>
 
 <div dojoType="dijit.layout.ContentPane" id="supervisorMain">
 	<div id="supervisorMonitor" style="border: black"></div>

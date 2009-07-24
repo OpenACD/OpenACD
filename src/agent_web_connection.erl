@@ -269,6 +269,30 @@ handle_call({warm_transfer, Number}, _From, #state{agent_fsm = Apid} = State) ->
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
+		["agentstate" | [Agent | Tail]] ->
+			Json = case agent_manager:query_agent(Agent) of
+				{true, Apid} ->
+					?DEBUG("Tail:  ~p", [Tail]),
+					Statechange = case Tail of
+						[Statename, Statedata] ->
+							Astate = agent:list_to_state(Statename),
+							agent:set_state(Apid, Astate, Statedata);
+						[Statename] ->
+							Astate = agent:list_to_state(Statename),
+							agent:set_state(Apid, Astate)
+					end,
+					case Statechange of
+						invalid ->
+							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid state change">>}]});
+						ok ->
+							mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"agent state set">>}]});
+						queued ->
+							mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"agent release queued">>}]})
+					end;
+				_Else ->
+					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}]})
+			end,
+			{reply, {200, [], Json}, State};
 		["kick_agent", Agent] ->
 			Json = case agent_manager:query_agent(Agent) of
 				{true, Apid} ->

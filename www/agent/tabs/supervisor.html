@@ -18,16 +18,36 @@
 <div dojoType="dijit.Menu" id="agentAction" style="display:none">
 	<div dojoType="dijit.MenuItem">Released
 		<script type="dojo/method" event="onClick">
-			console.log(arguments[0]);
-			var ev = arguments[0];
-			console.log(dijit.byId("agentAction").agentBubbleHit);
-			console.log(supervisorTab.dndManager.checkCollision({
-				x:ev.screenX,
-				y:ev.screenY
-			}));
+			geturl = "/supervisor/agentstate/" + escape(dijit.byId("agentAction").agentBubbleHit) + "/released/default";
+			dojo.xhrGet({
+				url:geturl,
+				handleAs: "json",
+				load: function(resp){
+					if(resp.success){
+						return true;
+					}
+					
+					console.log(resp.message);
+				}
+			})
 		</script>
 	</div>
-	<div dojoType="dijit.MenuItem">Idle</div>
+	<div dojoType="dijit.MenuItem">Idle
+		<script type="dojo/method" event="onClick">
+			var geturl = "/supervisor/agentstate/" + escape(dijit.byId("agentAction").agentBubbleHit) + "/idle";
+			dojo.xhrGet({
+				url:geturl,
+				handleAs: "json",
+				load: function(resp){
+					if(resp.success){
+						return true;
+					}
+					
+					console.log(resp.message);
+				}
+			});
+		</script>
+	</div>
 	<div dojoType="dijit.MenuSeparator"></div>
 	<div dojoType="dijit.MenuItem">Kick
 		<script type="dojo/method" event="onClick">
@@ -37,7 +57,7 @@
 				handleAs: "json",
 				load:function(resp){
 					if(resp.success){
-						conosle.log("kick good!");
+						return true;
 					}
 					else{
 						console.log(resp.message);

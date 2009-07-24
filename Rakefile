@@ -135,7 +135,7 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam"] do |t|
 	end
 end
 
-task :compile => ['ebin', :contrib] + HEADERS + OBJ + RELEASE do
+task :compile => ['ebin', :contrib, :keygen] + HEADERS + OBJ + RELEASE do
 	Dir["ebin/*.rel"].each do |rel|
 		rel = File.basename(rel, '.rel')
 		sh "erl -noshell -eval \"systools:make_script(\\\"ebin/#{rel}\\\", [{outdir, \\\"ebin\\\"}]).\" -s erlang halt -pa ebin"
@@ -178,6 +178,18 @@ desc "Generate Documentation"
 task :doc do
 	sh('mkdir doc') unless File.directory? 'doc'
 	sh("rm -rf doc/*.html && cd doc && erl -noshell -run edoc files ../#{SRC.join(" ../")} -run init stop")
+end
+
+desc "Generate a RSA key to encrypt HTTP passwords"
+task :keygen do
+	unless File.exists?("key")
+		puts "Generating RSA key..."
+		`ssh-keygen -t rsa -f key -N ""`
+		if $?.exitstatus != 0
+			STDERR.puts "RSA key generation FAILED!"
+			exit -1
+		end
+	end
 end
 
 namespace :test do

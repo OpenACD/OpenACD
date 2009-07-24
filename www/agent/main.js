@@ -336,11 +336,19 @@ dojo.addOnLoad(function(){
 				load:function(response, ioargs){
 					EventLog.log("Recieved salt");
 					salt = response.salt;
+					var e = response.pubkey.E;
+					var n = response.pubkey.N;
 					attrs = loginform.attr("value");
 					md5pass = dojox.encoding.digests.MD5(attrs.password, dojox.encoding.digests.outputTypes.Hex);
 					salted = dojox.encoding.digests.MD5(salt + md5pass, dojox.encoding.digests.outputTypes.Hex);
 					values = attrs;
-					values.password = salted;
+					/*values.password = salted;*/
+					var rsa = new RSAKey();
+					rsa.setPublic(n, e);
+					console.log("e: " + e);
+					console.log("n: " + n);
+					console.log("password: " + attrs.password);
+					values.password = rsa.encrypt(attrs.password);
 					dojo.xhrPost({
 						url:"/login",
 						handleAs:"json",

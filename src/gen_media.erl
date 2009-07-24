@@ -467,7 +467,7 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 					{reply, invalid, State#state{substate = Substate}}
 			end;
 		Else ->
-			?INFO("Agent ringing response:  ~p", [Else]),
+			?INFO("Agent ~p ringing response:  ~p", [Agent, Else]),
 			{reply, invalid, State}
 	end;
 handle_call({'$gen_media_agent_transfer', Apid}, _From, #state{oncall_pid = Apid} = State) ->

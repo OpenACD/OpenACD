@@ -854,6 +854,7 @@ supervisorTab.IndividualStackAsAgents = function(items){
 			},
 			onmouseenter:function(){
 				onEnterf();
+				dijit.byId("agentAction").agentBubbleHit = detailsObj.display;
 			}
 		});
 		var details = supervisorTab.dataStore.getValue(obj, "details");
@@ -927,9 +928,20 @@ supervisorTab.IndividualStackAsAgents = function(items){
 			bub.dragOver = function(){
 				bub.onEnter();
 				return true;
-			}
+			};
+//			bub.connect("onclick", bub, function(){
+//				dijit.byId("agentAction").agentBubbleHit = bub;
+//			});
+			dijit.byId("agentAction").bindDomNode(bub.rawNode);
+			/*bub.connect("onclick", bub, function(ev){
+				console.log(ev);
+			});*/
 		}				 
 	});
+	
+	dijit.byId("agentAction").onClose = function(ev){
+		supervisorTab.individualsStack.scrollLocked = false;
+	};
 	
 	supervisorTab.individualsStack.addBubble({
 		data:{

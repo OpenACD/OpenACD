@@ -54,6 +54,15 @@ dojo.addOnLoad(function(){
 				dojo.byId("agentname").innerHTML = response.login;
 				agent.state = response.state;
 				dojo.publish("agent/state", [{"state":response.state, "statedata":response.statedata}]);
+				agent.stopwatch.onTick = function(){
+					var elapsed = agent.stopwatch.time();
+					var d = new Date();
+					d.setHours(0);
+					d.setMinutes(0);
+					d.setSeconds(elapsed);
+					dojo.byId("timerdisp").innerHTML = d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
+				}
+				agent.stopwatch.start();				
 			}
 			else{
 				dijit.byId("loginpane").show();
@@ -367,8 +376,9 @@ dojo.addOnLoad(function(){
 								d.setSeconds(elapsed);
 								dojo.byId("timerdisp").innerHTML = d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
 							}
-								buildReleaseMenu(agent);
-								buildOutboundMenu(agent);
+							buildReleaseMenu(agent);
+							buildOutboundMenu(agent);
+							agent.stopwatch.start();
 							}
 							else{
 								dojo.byId("loginerrp").style.display = "block";

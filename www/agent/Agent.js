@@ -109,6 +109,7 @@ Agent.prototype.setState = function(state){
 			agentref.state = state;
 			agentref.statedata = statedata;
 			agentref.stopwatch.reset();
+			agentref.stopwatch.start();
 			//dojo.publish("agent/state", [{"success":true, "state":state, "statedata":statedata}]);
 		}
 	})

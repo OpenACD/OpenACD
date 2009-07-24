@@ -249,6 +249,7 @@ api(checkcookie, Cookie, _Post) ->
 			Json = {struct, [
 				{<<"success">>, true},
 				{<<"login">>, list_to_binary(Agentrec#agent.login)},
+				{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
 				{<<"state">>, Agentrec#agent.state},
 				{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)}]},
 			{200, [], mochijson2:encode(Json)};
@@ -354,7 +355,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 									linkto(Pid),
 									ets:insert(web_connections, {Reflist, Salt, Pid}),
 									?DEBUG("connection started for ~p", [Reflist]),
-									{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
+									{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}, {<<"profile">>, list_to_binary(Profile)}]})};
 								ignore ->
 									?WARNING("Ignore message trying to start connection for ~p", [Reflist]),
 									{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};

@@ -9,7 +9,8 @@ erl_crash.dump
 *_manager_*@*
 cpx_monitor_*@*
 doc/*
-
+key
+key.pub
 contrib/**/ebin/*
 contrib/**/doc/*
 

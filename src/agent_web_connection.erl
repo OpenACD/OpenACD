@@ -55,7 +55,8 @@
 	api/2,
 	dump_agent/1,
 	encode_statedata/1,
-	set_salt/2
+	set_salt/2,
+	poll/2
 ]).
 
 %% gen_server callbacks
@@ -64,18 +65,17 @@
 
 -ifdef(R13B).
 -type(ref() :: reference()).
--else.
--type(dict() :: any()).
 -endif.
 
 -record(state, {
 	salt :: any(),
 	ref :: ref() | 'undefined',
 	agent_fsm :: pid() | 'undefined',
-	ack_queue = dict:new() :: dict(), % key = counter, value is {when_qed, tries, pollitem} so that a message can be resent
 	poll_queue = [] :: [{struct, [{binary(), any()}]}],
 		% list of json structs to be sent to the client on poll.
 		% struct MUST contain a counter, used to handle acks/errs
+	poll_pid :: 'undefined' | pid(),
+	poll_pid_established = 1 :: pos_integer(),
 	missed_polls = 0 :: non_neg_integer(),
 	counter = 1 :: non_neg_integer(),
 	ack_timer :: {'ok', {'interval', ref()}} | 'undefined',
@@ -112,6 +112,11 @@ start(Agent, Security) ->
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
 stop(Pid) ->
 	gen_server:call(Pid, stop).
+
+%% @doc Register Frompid as the poll_pid.
+-spec(poll/2 :: (Pid :: pid(), Frompid :: pid()) -> 'ok').
+poll(Pid, Frompid) ->
+	gen_server:cast(Pid, {poll, Frompid}).
 
 %% @doc Do a web api call.
 -spec(api/2 :: (Pid :: pid(), Apicall :: any()) -> any()).
@@ -190,7 +195,7 @@ init([Agent, Security]) ->
 		error ->
 			{stop, "Agent is already logged in"};
 		_Else ->
-			{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_acks),
+			{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_live_poll),
 			agent_web_listener:linkto(self()),
 			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security, listener = whereis(agent_web_listener)}}
 	end.
@@ -200,10 +205,10 @@ init([Agent, Security]) ->
 %%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
 	{stop, shutdown, ok, State};
-handle_call(poll, _From, #state{poll_queue = Pollq} = State) ->
-	State2 = State#state{poll_queue=[], missed_polls = 0, ack_queue = build_acks(State#state.poll_queue, State#state.ack_queue)},
-	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}]},
-	{reply, {200, [], mochijson2:encode(Json2)}, State2};
+%handle_call(poll, _From, #state{poll_queue = Pollq} = State) ->
+%	State2 = State#state{poll_queue=[], missed_polls = 0},
+%	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}]},
+%	{reply, {200, [], mochijson2:encode(Json2)}, State2};
 handle_call(logout, _From, State) ->
 	{stop, normal, {200, [{"Set-Cookie", "cpx_id=dead"}], mochijson2:encode({struct, [{success, true}]})}, State};
 handle_call(get_avail_agents, _From, State) ->
@@ -395,27 +400,44 @@ handle_call(Allothers, _From, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-
+handle_cast({poll, Frompid}, State) ->
+	?DEBUG("Replacing poll_pid ~w with ~w", [State#state.poll_pid, Frompid]),
+	case State#state.poll_pid of
+		undefined -> 
+			ok;
+		Pid when is_pid(Pid) ->
+			Pid ! {kill, {[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Poll pid replaced">>}]})}}
+	end,
+	case State#state.poll_queue of
+		[] ->
+			link(Frompid),
+			{noreply, State#state{poll_pid = Frompid, poll_pid_established = util:now()}};
+		Pollq ->
+			Newstate = State#state{poll_queue=[], poll_pid_established = util:now(), poll_pid = undefined},
+			Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}]},
+			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
+			{noreply, Newstate}
+	end;
 handle_cast({set_salt, Salt}, State) ->
 	{noreply, State#state{salt = Salt}};
-handle_cast({change_state, AgState, Data}, #state{poll_queue = Pollq, counter = Counter} = State) ->
+handle_cast({change_state, AgState, Data}, #state{counter = Counter} = State) ->
 	?DEBUG("State:  ~p; Data:  ~p", [AgState, Data]),
-	Newqueue =
-		[{struct, [
-			{<<"counter">>, Counter},
-			{<<"command">>, <<"astate">>},
-			{<<"state">>, AgState},
-			{<<"statedata">>, encode_statedata(Data)}
-		]} | Pollq],
-	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
-handle_cast({change_state, AgState}, #state{poll_queue = Pollq, counter = Counter} = State) ->
-	Newqueue =
-		[{struct, [
+	Headjson = {struct, [
+		{<<"counter">>, Counter},
+		{<<"command">>, <<"astate">>},
+		{<<"state">>, AgState},
+		{<<"statedata">>, encode_statedata(Data)}
+	]},
+	Newstate = push_event(Headjson, State),
+	{noreply, Newstate};
+handle_cast({change_state, AgState}, #state{counter = Counter} = State) ->
+	Headjson = {struct, [
 			{<<"counter">>, Counter},
 			{<<"command">>, <<"astate">>},
 			{<<"state">>, AgState}
-		]} | Pollq],
-	{noreply, State#state{counter = Counter + 1, poll_queue = Newqueue}};
+		]},
+	Newstate = push_event(Headjson, State),
+	{noreply, Newstate};
 handle_cast(Msg, State) ->
 	?DEBUG("Other case ~p", [Msg]),
 	{noreply, State}.
@@ -423,25 +445,20 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(check_acks, #state{missed_polls = Missedpolls} = State) when Missedpolls < 4 ->
-	{noreply, State#state{missed_polls = Missedpolls + 1}};
-handle_info(check_acks, State) ->
-	?NOTICE("too many missed polls.",[]),
-	{stop, missed_polls, State};
-%handle_info(check_listener, State) ->
-%	case whereis(agent_web_listener) of
-%		undefined ->
-%			{ok, _Tref} = timer:send_after(1000, check_listener),
-%			{noreply, State#state{listener = undefined}};
-%		Pid when is_pid(Pid) ->
-%			agent_web_listener:linkto(State#state.ref, State#state.salt, self()),
-%			{noreply, State#state{listener = Pid}}
-%	end;
+handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
+	case util:now() - Last of
+		N when N > 5 ->
+			?DEBUG("Stopping due to missed_polls; last:  ~w", [Last]),
+			{stop, missed_polls, State};
+		_N ->
+			{noreply, State}
+	end;
+handle_info({'EXIT', Pollpid, Reason}, #state{poll_pid = Pollpid} = State) ->
+	?DEBUG("The pollpid died due to ~p", [Reason]),
+	{noreply, State#state{poll_pid = undefined}};
 handle_info({'EXIT', Pid, Reason}, #state{listener = Pid} = State) ->
 	?WARNING("The listener at ~w died due to ~p", [Pid, Reason]),
-	%{ok, _Tref} = timer:send_after(1000, check_listener),
 	{stop, {listener_exit, Reason}, State};
-%	{noreply, State#state{listener = undefined}};
 handle_info(Info, State) ->
 	?DEBUG("info I can't handle:  ~p", [Info]),
 	{noreply, State}.
@@ -451,9 +468,14 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 terminate(Reason, State) ->
 	?NOTICE("terminated ~p", [Reason]),
-	%agent:stop(State#state.agent_fsm),
 	timer:cancel(State#state.ack_timer),
-	ok.
+	case State#state.poll_pid of
+		undefined ->
+			ok;
+		Pid when is_pid(Pid) ->
+			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout">>}]})},
+			ok
+	end.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -814,20 +836,18 @@ extract_groups([Head | Tail], Acc) ->
 			?DEBUG("no group to extract for type ~w", [Else]),
 			extract_groups(Tail, Acc)
 	end.
-	
-build_acks([], Acks) -> 
-	Acks;
-build_acks([{struct, Pollprops} | Pollqueue], Acks) -> 
-	%[{Counter, Tried, Type, Data} | Pollqueue]
-	Counter = proplists:get_value(<<"counter">>, Pollprops),
-	case dict:find(Counter, Acks) of
-		error ->
-			Acks2 = dict:store(Counter, {now(), 0, {struct, Pollprops}}, Acks);
-		{ok, {Time, Tried, _Struct}} ->
-			Acks2 = dict:store(Counter, {Time, Tried+1, {struct, Pollprops}}, Acks)
-	end,
-	build_acks(Pollqueue, Acks2).
-	
+
+-spec(push_event/2 :: (Eventjson :: json_simple(), State :: #state{}) -> #state{}).
+push_event(Eventjson, State) ->
+	Newqueue = [Eventjson | State#state.poll_queue],
+	case State#state.poll_pid of
+		undefined ->
+			State#state{poll_queue = Newqueue};
+		Pid when is_pid(Pid) ->
+			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, Newqueue}]})}},
+			State#state{poll_queue = [], poll_pid = undefined}
+	end.
+
 -ifdef(TEST).
 
 set_state_test_() ->

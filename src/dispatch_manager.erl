@@ -205,10 +205,10 @@ balance(State) ->
 	?DEBUG("It is fully balanced!",[]),
 	State.
 
-%dump() ->
-%	gen_server:call(?MODULE, dump).
-
 -ifdef(EUNIT).
+
+dump() ->
+	gen_server:call(?MODULE, dump).
 
 test_primer() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),

@@ -499,7 +499,8 @@ supervisorTab.setDetails = function(fquery){
 		out += "<p>Health Report</p>";
 		var hps = supervisorTab.dataStore.getValue(item, "health");
 		for(var i in hps){
-			out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + hps[i].toString() + "</p>";
+			var sigdigited = Math.floor(hps[i] * 100) / 100;
+			out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + sigdigited.toString() + "</p>";
 		}
 		dijit.byId("supervisorDetails").setContent(out);
 		dijit.byId("supervisorDetails").setTitle(supervisorTab.dataStore.getValue(item, "type") + ": " + supervisorTab.dataStore.getValue(item, "display"));

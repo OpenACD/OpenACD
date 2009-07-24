@@ -74,6 +74,7 @@
 	agent_transfer/2,
 	media_pull/2, 
 	media_push/2, 
+	url_pop/2, 
 	warm_transfer_begin/2]).
 
 %% @doc Start an agent fsm for the passed in agent record `Agent' that is linked to the calling process
@@ -170,6 +171,10 @@ media_pull(Pid, Request) ->
 -spec(media_push/2 :: (Pid :: pid(), Data :: any()) -> any()).
 media_push(Pid, Data) ->
 	gen_fsm:sync_send_event(Pid, {mediapush, Data}).
+
+-spec(url_pop/2 :: (Pid :: pid(), Data :: list()) -> any()).
+url_pop(Pid, Data) ->
+	gen_fsm:sync_send_all_state_event(Pid, {url_pop, Data}).
 
 %% @doc Translate the state `String' into the internally used atom.  `String' can either be the human readable string or a number in string form (`"1"').
 -spec(list_to_state/1 :: (String :: string()) -> atom()).
@@ -563,6 +568,9 @@ handle_sync_event({set_connection, _Pid}, _From, StateName, State) ->
 	{reply, error, StateName, State};
 handle_sync_event({set_endpoint, {Endpointtype, Endpointdata}}, _From, StateName, State) ->
 	{reply, ok, StateName, State#agent{endpointtype = Endpointtype, endpointdata = Endpointdata}};
+handle_sync_event({url_pop, URL}, _From, StateName, #agent{connection=Connection} = State) when is_pid(Connection) ->
+	gen_server:cast(Connection, {url_pop, URL}),
+	{reply, ok, StateName, State};
 handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.
 

@@ -476,6 +476,13 @@ handle_cast({change_state, AgState}, #state{counter = Counter} = State) ->
 		]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};
+handle_cast({url_pop, URL}, State) ->
+	Headjson = {struct, [
+			{<<"command">>, <<"urlpop">>},
+			{<<"url">>, list_to_binary(URL)}
+		]},
+	Newstate = push_event(Headjson, State),
+	{noreply, Newstate};
 handle_cast(Msg, State) ->
 	?DEBUG("Other case ~p", [Msg]),
 	{noreply, State}.

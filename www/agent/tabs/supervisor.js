@@ -1162,6 +1162,9 @@ supervisorTab.reloadDataStore = function(){
 	dojo.xhrGet({
 		url:"/supervisor/status",
 		handleAs:"json",
+		error:function(){
+			supervisorTab.poller.stop();
+		},
 		load:function(data){
 			if(data.data){
 				supervisorTab.healthData = data.data;
@@ -1193,7 +1196,12 @@ supervisorTab.poller.onTick = function(){
 }
 
 supervisorTab.reloadDataStore();
-supervisorTab.poller.start();
+if(supervisorTab.poller){
+	//la la la
+}
+else{
+	supervisorTab.poller.start();
+}
 
 supervisorTab.logoutListener = dojo.subscribe("agent/logout", function(data){
 	supervisorTab.poller.stop();

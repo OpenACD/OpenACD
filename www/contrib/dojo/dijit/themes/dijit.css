@@ -35,9 +35,6 @@
 .dj_ie .dijitInputField INPUT { 
 	margin: -1px 0 !important;
 }
-.dj_iequirks .dijitInputField INPUT { 
-	margin-top: -3px !important;
-}
 .dijitInlineTable {
 	
 	display: -moz-inline-stack;	

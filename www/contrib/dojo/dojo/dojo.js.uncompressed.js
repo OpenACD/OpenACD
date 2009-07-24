@@ -246,7 +246,7 @@ dojo.global = {
 =====*/
 	dojo.locale = d.config.locale;
 
-	var rev = "$Rev: 17468 $".match(/\d+/); 
+	var rev = "$Rev: 18832 $".match(/\d+/); 
 
 	dojo.version = {
 		// summary: 
@@ -261,7 +261,7 @@ dojo.global = {
 		//		Descriptor flag. If total version is "1.2.0beta1", will be "beta1"
 		//	revision: Number
 		//		The SVN rev from which dojo was pulled
-		major: 1, minor: 3, patch: 1, flag: "",
+		major: 1, minor: 3, patch: 2, flag: "",
 		revision: rev ? +rev[0] : NaN,
 		toString: function(){
 			with(d.version){
@@ -3140,7 +3140,7 @@ dojo.provide("dojo._base.array");
 			// example:
 			//	|	// returns true 
 			//	|	dojo.every([1, 2, 3, 4], function(item){ return item>0; });
-			return this._everyOrSome(true, arr, callback, thisObject); // Boolean
+			return dojo._everyOrSome(true, arr, callback, thisObject); // Boolean
 		},
 
 		some: function(/*Array|String*/arr, /*Function|String*/callback, /*Object?*/thisObject){
@@ -3164,7 +3164,7 @@ dojo.provide("dojo._base.array");
 			// example:
 			//	|	// is false
 			//	|	dojo.some([1, 2, 3, 4], function(item){ return item<1; });
-			return this._everyOrSome(false, arr, callback, thisObject); // Boolean
+			return dojo._everyOrSome(false, arr, callback, thisObject); // Boolean
 		},
 
 		map: function(/*Array|String*/arr, /*Function|String*/callback, /*Function?*/thisObject){
@@ -4439,17 +4439,15 @@ if(dojo.isIE || dojo.isOpera){
 =====*/
 
 	// Although we normally eschew argument validation at this
-	// level, here we test argument 'node' for (duck)type.
-	// Argument node must also implement Element.  (Note: we check
-	// against HTMLElement rather than Element for interop with prototype.js)
-	// Because 'document' is the 'parentNode' of 'body'
+	// level, here we test argument 'node' for (duck)type,
+	// by testing nodeType, ecause 'document' is the 'parentNode' of 'body'
 	// it is frequently sent to this function even 
 	// though it is not Element.
 	var gcs;
 		if(d.isWebKit){
 			gcs = function(/*DomNode*/node){
 			var s;
-			if(node instanceof HTMLElement){
+			if(node.nodeType == 1){
 				var dv = node.ownerDocument.defaultView;
 				s = dv.getComputedStyle(node, null);
 				if(!s && node.style){ 
@@ -4466,7 +4464,7 @@ if(dojo.isIE || dojo.isOpera){
 		};
 	}else{
 		gcs = function(node){
-			return node instanceof HTMLElement ? 
+			return node.nodeType == 1 ? 
 				node.ownerDocument.defaultView.getComputedStyle(node, null) : {};
 		};
 	}
@@ -5801,6 +5799,10 @@ dojo.provide("dojo._base.NodeList");
 
 	var loopBody = function(f, a, o){
 		a = [0].concat(aps.call(a, 0));
+		if(!a.sort){
+			// make sure it's a real array before we pass it on to be wrapped
+			a = aps.call(a, 0);
+		}
 		o = o || d.global;
 		return function(node){
 			a[0] = node;
@@ -6348,7 +6350,7 @@ dojo.provide("dojo._base.NodeList");
 			//		|	"only"
 			//		|	"replace"
 			// 		or an offset in the childNodes property
-			return d.query(queryOrListOrNode).place(item[0], position);	// dojo.NodeList
+			return d.query(queryOrListOrNode).place(this[0], position);	// dojo.NodeList
 		},
 
 		// FIXME: do we need this?
@@ -6602,7 +6604,8 @@ if(typeof dojo != "undefined"){
 	var isString = 		d.isString;
 
 	var getDoc = function(){ return d.doc; };
-	var cssCaseBug = (d.isWebKit && ((getDoc().compatMode) == "BackCompat"));
+	// NOTE(alex): the spec is idiotic. CSS queries should ALWAYS be case-sensitive, but nooooooo
+	var cssCaseBug = ((d.isWebKit||d.isMozilla) && ((getDoc().compatMode) == "BackCompat"));
 
 	////////////////////////////////////////////////////////////////////////
 	// Global utilities
@@ -7468,7 +7471,6 @@ if(typeof dojo != "undefined"){
 				// isAlien check. Workaround for Prototype.js being totally evil/dumb.
 				/\{\s*\[native code\]\s*\}/.test(String(ecs)) && 
 				query.classes.length &&
-				// WebKit bug where quirks-mode docs select by class w/o case sensitivity
 				!cssCaseBug
 			){
 				// it's a class-based query and we've got a fast way to run it.

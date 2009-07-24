@@ -52,9 +52,9 @@ return _1c;
 }
 return _15;
 },every:function(arr,_1e,_1f){
-return this._everyOrSome(true,arr,_1e,_1f);
+return dojo._everyOrSome(true,arr,_1e,_1f);
 },some:function(arr,_21,_22){
-return this._everyOrSome(false,arr,_21,_22);
+return dojo._everyOrSome(false,arr,_21,_22);
 },map:function(arr,_24,_25){
 var _p=_1(arr,_25,_24);
 arr=_p[0];

@@ -153,7 +153,7 @@ var gcs;
 if(d.isWebKit){
 gcs=function(_1f){
 var s;
-if(_1f instanceof HTMLElement){
+if(_1f.nodeType==1){
 var dv=_1f.ownerDocument.defaultView;
 s=dv.getComputedStyle(_1f,null);
 if(!s&&_1f.style){
@@ -170,7 +170,7 @@ return _22.nodeType==1?_22.currentStyle:{};
 };
 }else{
 gcs=function(_23){
-return _23 instanceof HTMLElement?_23.ownerDocument.defaultView.getComputedStyle(_23,null):{};
+return _23.nodeType==1?_23.ownerDocument.defaultView.getComputedStyle(_23,null):{};
 };
 }
 }

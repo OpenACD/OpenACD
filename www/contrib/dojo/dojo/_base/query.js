@@ -20,7 +20,7 @@ var _5=d.isString;
 var _6=function(){
 return d.doc;
 };
-var _7=(d.isWebKit&&((_6().compatMode)=="BackCompat"));
+var _7=((d.isWebKit||d.isMozilla)&&((_6().compatMode)=="BackCompat"));
 var _8=!!_6().firstChild["children"]?"children":"childNodes";
 var _9=">~+";
 var _a=false;

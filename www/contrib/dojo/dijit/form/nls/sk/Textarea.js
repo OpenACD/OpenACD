@@ -1,1 +1,1 @@
-({"iframeEditTitle":"oblasť úprav","iframeFocusTitle":"rámec oblasti úprav"})
+({"iframeEditTitle":"upraviť oblasť","iframeFocusTitle":"upraviť rám oblasti"})

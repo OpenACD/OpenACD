@@ -226,6 +226,9 @@ dojo.addOnLoad(function(){
 					widget.attr('style', 'display:none');
 			}
 		}
+		else{
+			widget.attr('style', 'display:none');
+		}
 	});
 	
 	dijit.byId("btransfer").stateChanger = dojo.subscribe("agent/state", function(data){

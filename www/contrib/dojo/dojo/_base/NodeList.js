@@ -20,6 +20,9 @@ return a;
 };
 var _7=function(f,a,o){
 a=[0].concat(_3.call(a,0));
+if(!a.sort){
+a=_3.call(a,0);
+}
 o=o||d.global;
 return function(_b){
 a[0]=_b;
@@ -106,7 +109,7 @@ d.place(_33,_32,_31);
 },orphan:function(_34){
 return (_34?d._filterQueryResult(this,_34):this).forEach(_1d);
 },adopt:function(_35,_36){
-return d.query(_35).place(item[0],_36);
+return d.query(_35).place(this[0],_36);
 },query:function(_37){
 if(!_37){
 return this;

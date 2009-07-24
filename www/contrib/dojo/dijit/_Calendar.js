@@ -19,6 +19,9 @@ this.attr("value",_1);
 },_getValueAttr:function(_2){
 var _2=new Date(this.value);
 _2.setHours(0,0,0,0);
+if(_2.getDate()<this.value.getDate()){
+_2=dojo.date.add(_2,"hour",1);
+}
 return _2;
 },_setValueAttr:function(_3){
 if(!this.value||dojo.date.compare(_3,this.value)){

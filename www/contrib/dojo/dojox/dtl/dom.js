@@ -36,7 +36,7 @@ _4=_4.replace(/\b(checked|disabled|readonly|style)="/g,"t$1=\"");
 _4=_4.replace(/\bstyle="/g,"tstyle=\"");
 var _6;
 var _7=dojo.isWebKit;
-var _8=[[true,"select","option"],[_7,"tr","td|th"],[_7,"thead","tr","th"],[_7,"tbody","tr","td"],[_7,"table","tbody|thead|tr","tr","td"],];
+var _8=[[true,"select","option"],[_7,"tr","td|th"],[_7,"thead","tr","th"],[_7,"tbody","tr","td"],[_7,"table","tbody|thead|tr","tr","td"]];
 var _9=[];
 for(var i=0,_b;_b=_8[i];i++){
 if(!_b[0]){

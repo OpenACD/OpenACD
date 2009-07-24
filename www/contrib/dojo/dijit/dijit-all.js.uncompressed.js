@@ -5550,7 +5550,7 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 				this.onLoad();
 				this.savedContent = this.getValue(true);
 			});
-			var s = 'javascript:parent.dijit.byId("'+this.id+'")._iframeSrc';
+			var s = 'javascript:parent.' + dijit._scopeName + '.byId("'+this.id+'")._iframeSrc';
 			ifr.setAttribute('src', s);
 			this.editingArea.appendChild(ifr);
 			if(dojo.isWebKit){ // Safari seems to always append iframe with src=about:blank
@@ -5600,9 +5600,21 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 		}
 		var userStyle = "";
 		this.style.replace(/(^|;)(line-|font-?)[^;]+/g, function(match){ userStyle += match.replace(/^;/g,"") + ';' });
+
+		/*
+		 * On IE the iframe needs to have the same codepage as the main page does, or the
+		 * src=javascript:..._iframeSrc won't handle non-ascii characters correctly
+		 */
+		var d = dojo.doc;
+		var charset =
+			/*IE*/ d.charset || 
+			/*FF, Webkit, Opera, etc */ d.characterSet || 
+			/*nothing, look for defaults */ d.defaultCharset || "UTF-8";
+
 		return [
 			this.isLeftToRight() ? "<html><head>" : "<html dir='rtl'><head>",
 			(dojo.isMoz ? "<title>" + this._localizedIframeTitles.iframeEditTitle + "</title>" : ""),
+			"<meta http-equiv='Content-Type' content='text/html; charset=" + charset + "'>",
 			"<style>",
 			"body,html {",
 			"\tbackground:transparent;",
@@ -5829,7 +5841,7 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 	// 		The editor is disabled; the text cannot be changed.
 	disabled: false,
 
-	_mozSettingProps: ['styleWithCSS','insertBrOnReturn'],
+	_mozSettingProps: {'styleWithCSS':false},
 	_setDisabledAttr: function(/*Boolean*/ value){
 		this.disabled = value;
 		if(!this.isLoaded){ return; } // this method requires init to be complete
@@ -5843,10 +5855,6 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 				setTimeout(function(){ _this.editNode.unselectable = "off"; }, 0);
 			}
 		}else{ //moz
-			if(value){
-				//AP: why isn't this set in the constructor, or put in mozSettingProps as a hash?
-				this._mozSettings=[false,this.blockNodeForEnter==='BR'];
-			}
 			try{
 				this.document.designMode=(value?'off':'on');
 			}catch(e){ return; } // ! _disabledOK
@@ -5912,6 +5920,14 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 			// give the node Layout on IE
 			this.connect(this.document, "onmousedown", "_onIEMouseDown"); // #4996 fix focus
 			this.editNode.style.zoom = 1.0;
+		}
+
+		if(dojo.isWebKit){ 
+			//WebKit sometimes doesn't fire right on selections, so the toolbar
+			//doesn't update right.  Therefore, help it out a bit with an additional
+			//listener.  A mouse up will typically indicate a display change, so fire this
+			//and get the toolbar to adapt.  Reference: #9532 
+			this._webkitListener = this.connect(this.document, "onmouseup", "onDisplayChanged");
 		}
 
 		this.isLoaded = true;
@@ -6446,22 +6462,6 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 				return true;
 			}
 		}
-		//should not allow user to indent neither a non-list node nor list item which is the first item in its parent 
-		if(command == 'indent'){
-			var li = this._sCall("getAncestorElement", ["li"]);
-			var n = li && li.previousSibling;
-			while(n){
-				if(n.nodeType == 1){
-				  return true;
-				}
-				n = n.previousSibling;
-			}
-			return false;
-		}else if(command == 'outdent'){
-			//should not allow user to outdent a non-list node
-			return this._sCall("hasAncestorElement", ["li"]);
-		}
-
 		// return this.document.queryCommandEnabled(command);
 		var elem = dojo.isIE ? this.document.selection.createRange() : this.document;
 		return elem.queryCommandEnabled(command);
@@ -6836,6 +6836,18 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 		// FIXME: why was this here? if (this.iframe){ this.domNode.style.lineHeight = null; }
 
 		if(this.interval){ clearInterval(this.interval); }
+
+		if(this._webkitListener){
+			//Cleaup of WebKit fix: #9532
+			this.disconnect(this._webkitListener);
+			delete this._webkitListener;
+		}
+
+		// Guard against memory leaks on IE (see #9268)
+		if(dojo.isIE){
+		   this.iframe.onfocus = null;
+		}
+		this.iframe._loadFunc = null;
 
 		if(this.textarea){
 			var s = this.textarea.style;
@@ -9097,12 +9109,12 @@ dojo.declare(
 			//		private
 			if(this._savedSelection){
 				//only restore the selection if the current range is collapsed
-    			//if not collapsed, then it means the editor does not lose 
-    			//selection and there is no need to restore it
-    			//if(dojo.withGlobal(this.window,'isCollapsed',dijit)){
-    				//
+    				//if not collapsed, then it means the editor does not lose 
+    				//selection and there is no need to restore it
+    				if(dojo.withGlobal(this.window,'isCollapsed',dijit)){
+    					//
 					this._moveToBookmark(this._savedSelection);
-				//}
+				}
 				delete this._savedSelection;
 			}
 		},
@@ -17361,11 +17373,22 @@ dojo.date.locale.parse = function(/*String*/value, /*dojo.date.locale.__FormatOp
 
 	// Check for overflow.  The Date() constructor normalizes things like April 32nd...
 	//TODO: why isn't this done for times as well?
-	var allTokens = tokens.join("");
+	var allTokens = tokens.join(""),
+		dateToken = allTokens.indexOf('d') != -1,
+		monthToken = allTokens.indexOf('M') != -1;
+
 	if(!valid ||
-		(allTokens.indexOf('M') != -1 && dateObject.getMonth() != result[1]) ||
-		(allTokens.indexOf('d') != -1 && dateObject.getDate() != result[2])){
+		(monthToken && dateObject.getMonth() > result[1]) ||
+		(dateToken && dateObject.getDate() > result[2])){
 		return null;
+	}
+
+	// Check for underflow, due to DST shifts.  See #9366
+	// This assumes a 1 hour dst shift correction at midnight
+	// We could compare the timezone offset after the shift and add the difference instead.
+	if((monthToken && dateObject.getMonth() < result[1]) ||
+		(dateToken && dateObject.getDate() < result[2])){
+		dateObject = dojo.date.add(dateObject, "hour", 1);
 	}
 
 	return dateObject; // Date
@@ -17534,27 +17557,6 @@ dojo.date.locale.getNames = function(/*String*/item, /*String*/type, /*String?*/
 	return (label || lookup[props.join('-')]).concat(); /*Array*/
 };
 
-dojo.date.locale.displayPattern = function(/*String*/fixedPattern, /*String?*/locale){
-	// summary:
-	//	Provides a localized representation of a date/time pattern string
-	//
-	// description:
-	//	Takes a date/time pattern string like "MM/dd/yyyy" and substitutes
-	//	the letters appropriate to show a user in a particular locale, as
-	//	defined in [the CLDR specification](http://www.unicode.org/reports/tr35/tr35-4.html#Date_Format_Patterns)
-	// fixedPattern:
-	//	A date string using symbols from this set: "GyMdkHmsSEDFwWahKzYeugAZvcL"
-	// locale:
-	//	use a special locale, otherwise takes the default
-
-	var fixed = "GyMdkHmsSEDFwWahKzYeugAZvcL",
-		local = dojo.date.locale._getGregorianBundle(locale).patternChars;
-	return dojo.map(fixedPattern, function(c){
-		 var i = fixed.indexOf(c);
-		 return i < 0 ? c : local.charAt(i);
-	}).join(""); // String
-}
-
 dojo.date.locale.isWeekend = function(/*Date?*/dateObject, /*String?*/locale){
 	// summary:
 	//	Determines if the date falls on a weekend, according to local custom.
@@ -17648,7 +17650,13 @@ dojo.declare(
 			// summary:
 			//		Hook so attr('value') works.
 			var value = new Date(this.value);
-			value.setHours(0, 0, 0, 0);
+			value.setHours(0, 0, 0, 0); // return midnight, local time for back-compat
+
+			// If daylight savings pushes midnight to the previous date, fix the Date
+			// object to point at 1am so it will represent the correct day. See #9366
+			if(value.getDate() < this.value.getDate()){
+				value = dojo.date.add(value, "hour", 1);
+			}
 			return value;
 		},
 
@@ -17662,7 +17670,7 @@ dojo.declare(
 			//      protected
 			if(!this.value || dojo.date.compare(value, this.value)){
 				value = new Date(value);
-				value.setHours(1); // to avoid DST issues in Brazil see #8521
+				value.setHours(1); // to avoid issues when DST shift occurs at midnight, see #8521, #9366
 				this.displayMonth = new Date(value);
 				if(!this.isDisabledDate(value, this.lang)){
 					this.value = value;
@@ -19366,63 +19374,82 @@ dojo.declare(
 			newH += textarea.offsetHeight - textarea.clientHeight - ((dojo.isIE < 8 && this._strictMode)? dojo._getPadBorderExtents(textarea).h : 0);
 		}else if(dojo.isMoz){
 			newH += textarea.offsetHeight - textarea.clientHeight; // creates room for horizontal scrollbar
-		}else{
+		}else if(dojo.isWebKit && !(dojo.isSafari < 4)){ // Safari 4.0 && Chrome
+			newH += dojo._getBorderExtents(textarea).h;
+		}else{ // Safari 3.x and Opera 9.6
 			newH += dojo._getPadBorderExtents(textarea).h;
 		}
 		return newH;
 	},
+
+	_estimateHeight: function(textarea){
+		// summary:
+		// 		Approximate the height when the textarea is invisible with the number of lines in the text.
+		// 		Fails when someone calls setValue with a long wrapping line, but the layout fixes itself when the user clicks inside so . . .
+		// 		In IE, the resize event is supposed to fire when the textarea becomes visible again and that will correct the size automatically.
+		//
+		textarea.style.maxHeight = "";
+		textarea.style.height = "auto";
+		// #rows = #newlines+1
+		// Note: on Moz, the following #rows appears to be 1 too many.
+		// Actually, Moz is reserving room for the scrollbar.
+		// If you increase the font size, this behavior becomes readily apparent as the last line gets cut off without the +1.
+		textarea.rows = (textarea.value.match(/\n/g) || []).length + 1;
+	},
+
+	_needsHelpShrinking: dojo.isMoz || dojo.isWebKit,
 
 	_onInput: function(){
 		// Override SimpleTextArea._onInput() to deal with height adjustment
 		this.inherited(arguments);
 		if(this._busyResizing){ return; }
 		this._busyResizing = true;
-		var textarea = this.domNode;
-		textarea.scrollTop = 0;
-		var oldH = parseFloat(dojo.getComputedStyle(textarea).height);  // TODO: unused, remove
-		var newH = this._getHeight(textarea);
-		if(newH > 0 && textarea.style.height != newH){
-			textarea.style.maxHeight = textarea.style.height = newH + "px";
+		var textarea = this.textbox;
+		if(textarea.scrollHeight){
+			var newH = this._getHeight(textarea) + "px";
+			if(textarea.style.height != newH){
+				textarea.style.maxHeight = textarea.style.height = newH;
+			}
+			if(this._needsHelpShrinking){
+				if(this._setTimeoutHandle){
+					clearTimeout(this._setTimeoutHandle);
+				}
+				this._setTimeoutHandle = setTimeout(dojo.hitch(this, "_shrink"), 0); // try to collapse multiple shrinks into 1
+			}
+		}else{
+			// hidden content of unknown size
+			this._estimateHeight(textarea);
 		}
 		this._busyResizing = false;
-		if(dojo.isMoz || dojo.isWebKit){
-			var newlines = (textarea.value.match(/\n/g) || []).length;
-			if(newlines < this._previousNewlines){
-				this._shrink();
-			}
-			this._previousNewlines = newlines;
-		}
 	},
 
 	_busyResizing: false,
 	_shrink: function(){
 		// grow paddingBottom to see if scrollHeight shrinks (when it is unneccesarily big)
-		if((dojo.isMoz || dojo.isSafari/*NOT isWebKit*/) && !this._busyResizing){
+		this._setTimeoutHandle = null;
+		if(this._needsHelpShrinking && !this._busyResizing){
 			this._busyResizing = true;
-			var textarea = this.domNode;
+			var textarea = this.textbox;
 			var empty = false;
 			if(textarea.value == ''){
 				textarea.value = ' '; // prevent collapse all the way back to 0
 				empty = true;
 			}
-			var newH = this._getHeight(textarea);
-			if(newH > 0){
-				var newScrollHeight = textarea.scrollHeight;
-				var scrollHeight = -1;
-				var oldPadding = dojo.getComputedStyle(textarea).paddingBottom;
-				var padding = dojo._getPadExtents(textarea);
-				var paddingBottom = padding.h - padding.t;
-				textarea.style.maxHeight = newH + "px";
-				while(scrollHeight != newScrollHeight){
-					scrollHeight = newScrollHeight;
-					paddingBottom += 16; // try a big chunk at a time
-					textarea.style.paddingBottom = paddingBottom + "px";
+			var scrollHeight = textarea.scrollHeight;
+			if(!scrollHeight){
+				this._estimateHeight(textarea);
+			}else{
+				var oldPadding = textarea.style.paddingBottom;
+				var newPadding = dojo._getPadExtents(textarea);
+				newPadding = newPadding.h - newPadding.t;
+				textarea.style.paddingBottom = newPadding + 1 + "px"; // tweak padding to see if height can be reduced
+				var newH = this._getHeight(textarea) - 1 + "px"; // see if the height changed by the 1px added
+				if(textarea.style.maxHeight != newH){ // if can be reduced, so now try a big chunk
+					textarea.style.paddingBottom = newPadding + scrollHeight + "px";
 					textarea.scrollTop = 0;
-					newScrollHeight = textarea.scrollHeight;
-					newH -= scrollHeight - newScrollHeight;
+					textarea.style.maxHeight = this._getHeight(textarea) - scrollHeight + "px"; // scrollHeight is the added padding
 				}
 				textarea.style.paddingBottom = oldPadding;
-				textarea.style.maxHeight = textarea.style.height = newH + "px";
 			}
 			if(empty){
 				textarea.value = '';
@@ -19435,7 +19462,6 @@ dojo.declare(
 		// summary:
 		//		Resizes the textarea vertically (should be called after a style/value change)
 		this._onInput();
-		this._shrink();
 	},
 
 	_setValueAttr: function(){
@@ -19446,9 +19472,10 @@ dojo.declare(
 	postCreate: function(){
 		this.inherited(arguments);
 		// tweak textarea style to reduce browser differences
-		dojo.style(this.domNode, { overflowY: 'hidden', overflowX: 'auto', boxSizing: 'border-box', MsBoxSizing: 'border-box', WebkitBoxSizing: 'border-box', MozBoxSizing: 'border-box' });
-		this.connect(this.domNode, "onscroll", this._onInput);
-		this.connect(this.domNode, "onresize", this._onInput);
+		dojo.style(this.textbox, { overflowY: 'hidden', overflowX: 'auto', boxSizing: 'border-box', MsBoxSizing: 'border-box', WebkitBoxSizing: 'border-box', MozBoxSizing: 'border-box' });
+		this.connect(this.textbox, "onscroll", this._onInput);
+		this.connect(this.textbox, "onresize", this._onInput);
+		this.connect(this.textbox, "onfocus", this._onInput); // useful when a previous estimate was off a bit
 		setTimeout(dojo.hitch(this, "resize"), 0);
 	}
 });

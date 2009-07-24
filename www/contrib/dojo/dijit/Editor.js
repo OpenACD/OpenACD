@@ -300,7 +300,9 @@ this.endEditing(true);
 this._savedSelection=this._getBookmark();
 },_restoreSelection:function(){
 if(this._savedSelection){
+if(dojo.withGlobal(this.window,"isCollapsed",dijit)){
 this._moveToBookmark(this._savedSelection);
+}
 delete this._savedSelection;
 }
 },_onFocus:function(){

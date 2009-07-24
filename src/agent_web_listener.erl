@@ -35,6 +35,8 @@
 
 -behaviour(gen_server).
 
+-include_lib("public_key/include/public_key.hrl").
+
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -284,7 +286,9 @@ api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
 	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
 	agent_web_connection:set_salt(Conn, Newsalt),
 	?DEBUG("created and sent salt for ~p", [Reflist]),
-	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})};
+	[E, N] = get_pubkey(),
+	PubKey = {struct, [{<<"E">>, list_to_binary(erlang:integer_to_list(E, 16))}, {<<"N">>, list_to_binary(erlang:integer_to_list(N, 16))}]},
+	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}, {pubkey, PubKey}]})};
 api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
 	Releaseopts = agent_auth:get_releases(),
 	Converter = fun(#release_opt{label = Label, id = Id}) ->
@@ -333,26 +337,33 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 			?WARNING("~s specified an invalid endpoint ~p when trying to log in", [Username, Endpoint]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Invalid endpoint">>}]})};
 		_ ->
-			case agent_auth:auth(Username, Password, Salt) of
-				deny ->
-					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
-				{allow, Skills, Security, Profile} ->
-					Agent = #agent{login = Username, skills = Skills, profile=Profile},
-					case agent_web_connection:start(Agent, Security) of
-						{ok, Pid} ->
-							?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
-							gen_server:call(Pid, {set_endpoint, Endpoint}),
-							linkto(Pid),
-							ets:insert(web_connections, {Reflist, Salt, Pid}),
-							?DEBUG("connection started for ~p", [Reflist]),
-							{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
-						ignore ->
-							?WARNING("Ignore message trying to start connection for ~p", [Reflist]),
-							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
-						{error, Error} ->
-							?ERROR("Error ~p trying to start connection for ~p", [Error, Reflist]),
-							{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(Error)}]})}
+			try decrypt_password(Password) of
+				DecryptedPassword ->
+					Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt, util:bin_to_hexstr(erlang:md5(DecryptedPassword))))),
+					case agent_auth:auth(Username, Salted, Salt) of
+						deny ->
+							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
+						{allow, Skills, Security, Profile} ->
+							Agent = #agent{login = Username, skills = Skills, profile=Profile},
+							case agent_web_connection:start(Agent, Security) of
+								{ok, Pid} ->
+									?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
+									gen_server:call(Pid, {set_endpoint, Endpoint}),
+									linkto(Pid),
+									ets:insert(web_connections, {Reflist, Salt, Pid}),
+									?DEBUG("connection started for ~p", [Reflist]),
+									{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
+								ignore ->
+									?WARNING("Ignore message trying to start connection for ~p", [Reflist]),
+									{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
+								{error, Error} ->
+									?ERROR("Error ~p trying to start connection for ~p", [Error, Reflist]),
+									{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(Error)}]})}
+							end
 					end
+			catch
+				error:decrypt_failed ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary("Password decryption failed")}]})}
 			end
 	end;
 api(Api, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
@@ -445,6 +456,18 @@ parse_path(Path) ->
 					end
 			end
 	end.
+
+get_pubkey() ->
+	{ok,[Entry]} = public_key:pem_to_der("./key"),
+	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
+	[E, N].
+
+decrypt_password(Password) ->
+	{ok,[Entry]} = public_key:pem_to_der("./key"),
+	{ok,{'RSAPrivateKey', 'two-prime', N , E, D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
+	PrivKey = [crypto:mpint(E), crypto:mpint(N), crypto:mpint(D)],
+	Bar = crypto:rsa_private_decrypt(util:hexstr_to_bin(Password), PrivKey, rsa_pkcs1_padding),
+	binary_to_list(Bar).
 
 -ifdef(EUNIT).
 

@@ -1,13 +1,17 @@
 function Stopwatch(){
-	this.t = new dojox.timing.Timer(1000);
+	this.tref = null;
 	this.elapsed = 0;
 	this.onTick = function(){};
 	
 	var stopwatch = this;
 	
-	this.t.onTick = function(){
-		stopwatch.elapsed += 1;
+	this.onTickInternal = function(){
 		stopwatch.onTick();
+		function tick() {
+			stopwatch.elapsed +=1;
+			stopwatch.onTickInternal();
+		}
+		stopwatch.tref = setTimeout(tick, 1000);
 	}
 	
 	this.time = function(){
@@ -19,10 +23,20 @@ function Stopwatch(){
 	}
 	
 	this.start = function(){
-		this.t.start();
+		if (stopwatch.tref) {
+			stopwatch.stop();
+		}
+		function tick() {
+			stopwatch.elapsed +=1;
+			stopwatch.onTickInternal();
+		}
+		stopwatch.tref = setTimeout(tick, 1000);
 	}
 	
 	this.stop = function(){
-		this.t.stop();
+		if (stopwatch.tref) {
+			clearTimeout(stopwatch.tref);
+			stopwatch.tref = null;
+		}
 	}
 }

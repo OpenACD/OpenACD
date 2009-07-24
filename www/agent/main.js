@@ -60,7 +60,15 @@ dojo.addOnLoad(function(){
 					d.setHours(0);
 					d.setMinutes(0);
 					d.setSeconds(elapsed);
-					dojo.byId("timerdisp").innerHTML = d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
+					var s = "" + d.getSeconds();
+					if (d.getSeconds() < 10) {
+						s = "0"+s;
+					}
+					s = d.getMinutes()+":"+s;
+					if (d.getHours > 0) {
+						s = d.getHours() + ":" + s;
+					}
+					dojo.byId("timerdisp").innerHTML = s;
 				}
 				agent.stopwatch.start();				
 			}

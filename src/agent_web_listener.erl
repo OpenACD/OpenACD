@@ -206,13 +206,13 @@ loop(Req, Table) ->
 			case proplists:get_value("cpx_id", Cookielist) of
 				undefined ->
 					Reflist = erlang:ref_to_list(make_ref()),
-					Cookie = io_lib:format("cpx_id=~p; path=/", [Reflist]),
+					Cookie = make_cookie(Reflist),
 					ets:insert(Table, {Reflist, undefined, undefined}),
 					Language = io_lib:format("cpx_lang=~s; path=/", [determine_language(Req:get_header_value("Accept-Language"))]),
 					?DEBUG("Setting cookie and serving file ~p", [string:concat(Docroot, File)]),
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie}, {"Set-Cookie", Language}]);
 				_Reflist ->
-					Language = io_lib:format("cpx_lang=~s", [determine_language(Req:get_header_value("Accept-Language"))]),
+					Language = io_lib:format("cpx_lang=~s; path=/", [determine_language(Req:get_header_value("Accept-Language"))]),
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Language}])
 			end;
 		{api, Api} ->
@@ -240,7 +240,10 @@ determine_language(String) ->
 					determine_language(Other)
 			end
 	end.
-		
+
+make_cookie(Value) ->
+	io_lib:format("cpx_id=~p; path=/", [Value]).
+
 api(checkcookie, Cookie, _Post) ->
 	case Cookie of
 		{_Reflist, _Salt, Conn} when is_pid(Conn) ->
@@ -256,7 +259,7 @@ api(checkcookie, Cookie, _Post) ->
 		badcookie ->
 			?INFO("cookie not in ets", []),
 			Reflist = erlang:ref_to_list(make_ref()),
-			NewCookie = io_lib:format("cpx_id=~p", [Reflist]),
+			NewCookie = make_cookie(Reflist),
 			ets:insert(web_connections, {Reflist, undefined, undefined}),
 			Json = {struct, [{<<"success">>, false}]},
 			{200, [{"Set-Cookie", NewCookie}], mochijson2:encode(Json)};
@@ -268,7 +271,7 @@ api(checkcookie, Cookie, _Post) ->
 api(Apirequest, badcookie, _Post) ->
 	?INFO("bad cookie for request ~p", [Apirequest]),
 	Reflist = erlang:ref_to_list(make_ref()),
-	Cookie = io_lib:format("cpx_id=~p", [Reflist]),
+	Cookie = make_cookie(Reflist),
 	ets:insert(web_connections, {Reflist, undefined, undefined}),
 	{403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>};
 api(brandlist, {_Reflist, _Salt, _Conn}, _Post) ->
@@ -300,7 +303,7 @@ api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
 api(logout, {_Reflist, _Salt, Conn}, _Post) ->
 	Newref = erlang:ref_to_list(make_ref()),
 	ets:insert(web_connections, {Newref, undefined, undefined}),
-	Cookie = io_lib:format("cpx_id=~p", [Newref]),
+	Cookie = make_cookie(Newref),
 	agent_web_connection:api(Conn, logout),
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
 api(login, {_Reflist, undefined, _Conn}, _Post) ->

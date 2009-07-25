@@ -73,6 +73,20 @@
 	</section>
 </document>").
 
+-define(REGISTERRESPONSE,
+"<document type=\"freeswitch/xml\">
+	<section name=\"directory\">
+		<domain name=\"~s\">
+			<user id=\"~s\">
+				<params>
+					<param name=\"a1-hash\" value=\"~s\"/>
+				</params>
+			</user>
+		</domain>
+	</section>
+</document>").
+
+
 %% API
 -export([
 	start_link/2, 
@@ -349,7 +363,27 @@ fetch_domain_user(Node, State) ->
 							freeswitch:send(Node, {fetch_reply, ID, ?NOTFOUNDRESPONSE})
 					end;
 				_Else ->
-					freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
+					case proplists:get_value("action", Data) of
+						"sip_auth" ->
+							User = proplists:get_value("user", Data),
+							Domain = proplists:get_value("domain", Data),
+							Realm = proplists:get_value("sip_auth_realm", Data),
+							case agent_manager:query_agent(User) of
+								{true, Pid} ->
+									try agent:dump_state(Pid) of
+										Agent ->
+											Password=Agent#agent.password,
+											freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password))]))})
+									catch
+										_:_ -> % agent pid is toast?
+											freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
+									end;
+								false ->
+									freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
+							end;
+						_ ->
+							freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
+					end
 			end,
 			?MODULE:fetch_domain_user(Node, State);
 		{fetch, _Section, _Something, _Key, _Value, ID, [undefined | _Data]} ->

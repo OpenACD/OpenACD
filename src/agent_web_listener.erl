@@ -347,7 +347,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 						deny ->
 							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
 						{allow, Skills, Security, Profile} ->
-							Agent = #agent{login = Username, skills = Skills, profile=Profile},
+							Agent = #agent{login = Username, skills = Skills, profile=Profile, password=DecryptedPassword},
 							case agent_web_connection:start(Agent, Security) of
 								{ok, Pid} ->
 									?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),

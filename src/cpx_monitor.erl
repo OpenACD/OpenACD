@@ -81,7 +81,7 @@
 	nodes = [] :: [atom()],
 	monitoring = [] :: [atom()],
 	down = [] :: [atom()],
-	auto_restart_mnesia = true :: 'false' | 'false',
+	auto_restart_mnesia = true :: 'true' | 'false',
 	status = stable :: 'stable' | 'merging' | 'split',	
 	splits = [] :: [{atom(), integer()}],
 	merge_status = none :: 'none' | any(),

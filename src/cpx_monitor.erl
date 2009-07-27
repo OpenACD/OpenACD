@@ -58,7 +58,9 @@
 	drop/1,
 	get_health/1,
 	health/4,
-	to_proplist/1
+	to_proplist/1,
+	subscribe/0,
+	unsubscribe/0
 	]).
 
 %% gen_server callbacks
@@ -84,7 +86,8 @@
 	splits = [] :: [{atom(), integer()}],
 	merge_status = none :: 'none' | any(),
 	merging = none :: 'none' | [atom()],
-	ets :: any()
+	ets :: any(),
+	subscribers = [] :: [pid()]
 }).
 
 -type(state() :: #state{}).
@@ -142,6 +145,18 @@ get_health(Time) when is_integer(Time) ->
 	gen_leader:leader_call(?MODULE, {get, Time});
 get_health(Type) ->
 	gen_leader:leader_call(?MODULE, {get, Type}).
+
+%% @doc Subscribe the calling process to events from cpx_monitor.
+-spec(subscribe/0 :: () -> 'ok').
+subscribe() ->
+	Pid = self(),
+	gen_leader:leader_cast(?MODULE, {subscribe, Pid}).
+
+%% @doc Unsubscribe the calling process to events from cpx_monitor.
+-spec(unsubscribe/0 :: () -> 'ok').
+unsubscribe() ->
+	Pid = self(),
+	gen_leader:leader_cast(?MODULE, {unsubscribe, Pid}).
 
 %% @doc Give the three numbers min, goal, and max, calculate a number from
 %% 0 to 100 indicating how 'healthy' X is.  Values at or below Min are 0, at or
@@ -319,8 +334,21 @@ handle_leader_call(Message, From, State, _Election) ->
 	{reply, ok, State}.
 
 %% @hidden
+handle_leader_cast({subscribe, Pid}, #state{subscribers = Subs} = State, _Election) ->
+	case lists:member(Pid, Subs) of
+		true ->
+			{noreply, State};
+		false ->
+			link(Pid),
+			{noreply, State#state{subscribers = [Pid | Subs]}}
+	end;
+handle_leader_cast({unsubscribe, Pid}, #state{subscribers = Subs} = State, _Election) ->
+	unlink(Pid),
+	Newsubs = lists:delete(Pid, Subs),
+	{noreply, State#state{subscribers = Newsubs}};
 handle_leader_cast({drop, Key}, #state{ets = Tid} = State, _Election) ->
 	ets:delete(Tid, Key),
+	tell_subs({drop, Key}, State#state.subscribers),
 	{noreply, State};
 handle_leader_cast({set, {Key, Hp, Details, Node}}, #state{ets = Tid} = State, _Election)  ->
 	Trueentry = case proplists:get_value(node, Details) of
@@ -331,17 +359,22 @@ handle_leader_cast({set, {Key, Hp, Details, Node}}, #state{ets = Tid} = State, _
 			{Key, Hp, Details, util:now()}
 	end,
 	ets:insert(Tid, Trueentry),
+	tell_subs({set, Trueentry}, State#state.subscribers),
 	{noreply, State};
 handle_leader_cast({ensure_live, Node, Time}, #state{ets = Tid} = State, Election) ->
 	Alive = gen_leader:alive(Election),
 	case lists:member(Node, Alive) of
 		true ->
 			?DEBUG("Node ~w is in election alive list", [Node]),
-			ets:insert(Tid, {{node, Node}, [{up, 50}], [{up, Time}], Time}),
+			Entry = {{node, Node}, [{up, 50}], [{up, Time}], Time},
+			ets:insert(Tid, Entry),
+			tell_subs({set, Entry}, State#state.subscribers),
 			{noreply, State};
 		false ->
 			?WARNING("Node ~w does not appear in the election alive list", [Node]),
-			ets:insert(Tid, {{node, Node}, [{up, 50}], [{up, Time}], Time}),
+			Entry = {{node, Node}, [{up, 50}], [{up, Time}], Time},
+			ets:insert(Tid, Entry),
+			tell_subs({set, Entry}, State#state.subscribers),
 			{noreply, State}
 	end;
 handle_leader_cast(Message, State, _Election) ->
@@ -400,9 +433,10 @@ handle_info({merge_complete, Mod, Recs}, #state{status = merging} = State) ->
 		false ->
 			{noreply, State#state{merge_status = Newmerged}}
 	end;
-handle_info({'EXIT', From, Reason}, State) ->
+handle_info({'EXIT', From, Reason}, #state{subscribers = Subs} = State) ->
 	?INFO("~p said it died due to ~p.", [From, Reason]),
-	{noreply, State};
+	Newsubs = lists:delete(From, Subs),
+	{noreply, State#state{subscribers = Newsubs}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -540,6 +574,11 @@ calc_healths([{Key, {Min, Mid, Max, {time, X}}} | Tail], Acc) ->
 	Diff = util:now() - X,
 	Hp = health(Min, Mid, Max, Diff),
 	calc_healths(Tail, [{Key, Hp} | Acc]).
+
+tell_subs(Message, Subs) ->
+	lists:foreach(fun(Pid) ->
+		Pid ! {cpx_monitor_event, Message}
+	end, Subs).
 
 -ifdef(EUNIT).
 

@@ -87,9 +87,9 @@ if(typeof(supervisorTab) == "undefined"){
 		}
 	};
 
-	supervisorTab.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
+	/*supervisorTab.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
 	dojo.connect(supervisorTab.surface, "ondragstart",   dojo, "stopEvent");
-	dojo.connect(supervisorTab.surface, "onselectstart", dojo, "stopEvent");
+	dojo.connect(supervisorTab.surface, "onselectstart", dojo, "stopEvent");*/
 
 	supervisorTab.averageHp = function(hps){
 		if(hps.length == 0){
@@ -1154,8 +1154,6 @@ if(typeof(supervisorTab) == "undefined"){
 		});
 	}
 
-	supervisorTab.drawAgentQueueBubbles(0, 0);
-
 	supervisorTab.reloadDataStore = function(){
 		if(supervisorTab.suppressPoll){
 			return;
@@ -1189,30 +1187,42 @@ if(typeof(supervisorTab) == "undefined"){
 		})
 	}
 
-	supervisorTab.refreshSystemStack();
-	supervisorTab.systemStack[0].grow();
+}
 
-	supervisorTab.poller = new dojox.timing.Timer(5000);
-	supervisorTab.poller.onTick = function(){
-		supervisorTab.reloadDataStore();
-	}
+supervisorTab.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
+dojo.connect(supervisorTab.surface, "ondragstart",   dojo, "stopEvent");
+dojo.connect(supervisorTab.surface, "onselectstart", dojo, "stopEvent");
 
+supervisorTab.drawAgentQueueBubbles(0, 0);
+
+supervisorTab.refreshSystemStack();
+supervisorTab.systemStack[0].grow();
+
+supervisorTab.poller = new dojox.timing.Timer(5000);
+supervisorTab.poller.onTick = function(){
 	supervisorTab.reloadDataStore();
-	if(supervisorTab.poller){
+}
+
+supervisorTab.reloadDataStore();
+if(supervisorTab.poller){
+	if(supervisorTab.poller.isRunning){
 		//la la la
 	}
 	else{
 		supervisorTab.poller.start();
 	}
-
-	supervisorTab.logoutListener = dojo.subscribe("agent/logout", function(data){
-		supervisorTab.poller.stop();
-	});
-
-	supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(child){
-		if(child.title == "Supervisor"){
-			supervisorTab.poller.stop();
-		}
-		dojo.unsubscribe(supervisorTab.logoutListener);
-	});
 }
+else{
+	supervisorTab.poller.start();
+}
+
+supervisorTab.logoutListener = dojo.subscribe("agent/logout", function(data){
+	supervisorTab.poller.stop();
+});
+
+supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(child){
+	if(child.title == "Supervisor"){
+		supervisorTab.poller.stop();
+	}
+	dojo.unsubscribe(supervisorTab.logoutListener);
+});

@@ -99,6 +99,9 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun]) when is_record(Qcall, call) -
 							{error, badsession} ->
 								timer:sleep(100),
 								Recusef(Recusef, Count+1);
+							{error, baduuid} ->
+								timer:sleep(100),
+								Recusef(Recusef, Count+1);
 							{error, Other} ->
 								{error, Other};
 							Else ->

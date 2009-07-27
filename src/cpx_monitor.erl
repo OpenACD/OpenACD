@@ -129,19 +129,19 @@ stop() ->
 %% entry with the key of `node', `{node, node()}' is prepended to it.
 -spec(set/3 :: (Key :: health_key(), Health :: health_details(), Other :: other_details()) -> 'ok').
 set({_Type, _Name} = Key, Health, Other) ->
-	gen_leader:cast(?MODULE, {set, {Key, Health, Other}}).
+	gen_leader:leader_cast(?MODULE, {set, {Key, Health, Other}}).
 
 %% @doc Remove the entry with the key `Key' from being tracked.
 -spec(drop/1 :: (Key :: health_key()) -> 'ok').
 drop({_Type, _Name} = Key) ->
-	gen_leader:cast(?MODULE, {drop, Key}).
+	gen_leader:leader_cast(?MODULE, {drop, Key}).
 
 %% @Gets all the records of the given type or after a given time from the ets
 -spec(get_health/1 :: (Type :: health_type() | time()) -> {'ok', [health_tuple()]}).
 get_health(Time) when is_integer(Time) ->
-	gen_leader:call(?MODULE, {get, Time});
+	gen_leader:leader_call(?MODULE, {get, Time});
 get_health(Type) ->
-	gen_leader:call(?MODULE, {get, Type}).
+	gen_leader:leader_call(?MODULE, {get, Type}).
 
 %% @doc Give the three numbers min, goal, and max, calculate a number from
 %% 0 to 100 indicating how 'healthy' X is.  Values at or below Min are 0, at or
@@ -209,12 +209,12 @@ elected(#state{ets = Tid} = State, Election, Node) ->
 	Edown = gen_leader:down(Election),
 	Ealive = gen_leader:alive(Election),
 	
-	lists:foreach(fun(Node) -> 
-		ets:insert(Tid, {{node, Node}, [{down, 100}], [], util:now()})
+	lists:foreach(fun(Lnode) -> 
+		ets:insert(Tid, {{node, Lnode}, [{down, 100}], [], util:now()})
 	end, Edown),
 
-	lists:foreach(fun(Node) ->
-		ets:insert(Tid, {{node, Node}, [{up, 50}], [{up, util:now()}]})
+	lists:foreach(fun(Lnode) ->
+		ets:insert(Tid, {{node, Lnode}, [{up, 50}], [{up, util:now()}]})
 	end, Ealive),
 	
 	Foldf = fun({N, T}, {Up, Down}) ->
@@ -248,7 +248,7 @@ elected(#state{ets = Tid} = State, Election, Node) ->
 	end.
 
 %% @hidden
-surrendered(#state{ets = Tid} = State, {Merge, _Stilldown}, Election) ->
+surrendered(#state{ets = Tid} = State, {_Merge, _Stilldown}, Election) ->
 %	QH = qlc:q([Tuple || {{Type, _Name}, _Hp, _Data, _Time} = Tuple <- ets:table(Tid), Type =:= node]),
 %	Matches = qlc:e(QH),
 %	F = fun({{node, Name} = Key, Hp, _Data, _Time}) ->
@@ -296,11 +296,42 @@ handle_DOWN(Node, #state{ets = Tid} = State, _Election) ->
 	{ok, State#state{splits = Newsplits}}.
 
 %% @hidden
+handle_leader_call({get, When}, _From, #state{ets = Tid} = State, _Election) when is_integer(When) ->
+	F = fun({Key, Hp, Details, Time}, Acc) when Time >= When ->
+		Realhp = calc_healths(Hp),
+		[{Key, Realhp, Details} | Acc];
+	(_, Acc) ->
+		Acc
+	end,
+	Out = ets:foldl(F, [], Tid),
+	{reply, {ok, Out}, State};
+handle_leader_call({get, What}, _From, #state{ets = Tid} = State, _Election) when is_atom(What) ->
+	F = fun({{Type, _Name} = Key, Hp, Details, _Time}, Acc) when Type =:= What ->
+		Realhp = calc_healths(Hp),
+		[{Key, Realhp, Details} | Acc];
+	(_, Acc) ->
+		Acc
+	end,
+	Results = ets:foldl(F, [], Tid),
+	{reply, {ok, Results}, State};
 handle_leader_call(Message, From, State, _Election) ->
 	?WARNING("received unexpected leader_call ~p from ~p", [Message, From]),
 	{reply, ok, State}.
 
 %% @hidden
+handle_leader_cast({drop, Key}, #state{ets = Tid} = State, _Election) ->
+	ets:delete(Tid, Key),
+	{noreply, State};
+handle_leader_cast({set, {Key, Hp, Details}}, #state{ets = Tid} = State, _Election)  ->
+	Trueentry = case proplists:get_value(node, Details) of
+		undefined ->
+			Newdetails = [{node, node()} | Details],
+			{Key, Hp, Newdetails, util:now()};
+		_Else ->
+			{Key, Hp, Details, util:now()}
+	end,
+	ets:insert(Tid, Trueentry),
+	{noreply, State};
 handle_leader_cast({ensure_live, Node, Time}, #state{ets = Tid} = State, Election) ->
 	Alive = gen_leader:alive(Election),
 	case lists:member(Node, Alive) of
@@ -326,24 +357,6 @@ from_leader(_Msg, State, _Election) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 %% @hidden
-handle_call({get, When}, _From, #state{ets = Tid} = State, _Election) when is_integer(When) ->
-	F = fun({Key, Hp, Details, Time}, Acc) when Time >= When ->
-		Realhp = calc_healths(Hp),
-		[{Key, Realhp, Details} | Acc];
-	(_, Acc) ->
-		Acc
-	end,
-	Out = ets:foldl(F, [], Tid),
-	{reply, {ok, Out}, State};
-handle_call({get, What}, _From, #state{ets = Tid} = State, _Election) when is_atom(What) ->
-	F = fun({{Type, _Name} = Key, Hp, Details, _Time}, Acc) when Type =:= What ->
-		Realhp = calc_healths(Hp),
-		[{Key, Realhp, Details} | Acc];
-	(_, Acc) ->
-		Acc
-	end,
-	Results = ets:foldl(F, [], Tid),
-	{reply, {ok, Results}, State};
 handle_call(stop, _From, State, _Election) ->
 	{stop, normal, ok, State};
 handle_call(Request, _From, State, _Election) ->
@@ -355,19 +368,6 @@ handle_call(Request, _From, State, _Election) ->
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 %% @hidden
-handle_cast({drop, Key}, #state{ets = Tid} = State, _Election) ->
-	ets:delete(Tid, Key),
-	{noreply, State};
-handle_cast({set, {Key, Hp, Details}}, #state{ets = Tid} = State, _Election)  ->
-	Trueentry = case proplists:get_value(node, Details) of
-		undefined ->
-			Newdetails = [{node, node()} | Details],
-			{Key, Hp, Newdetails, util:now()};
-		_Else ->
-			{Key, Hp, Details, util:now()}
-	end,
-	ets:insert(Tid, Trueentry),
-	{noreply, State};
 handle_cast(Request, State, _Election) ->
 	?WARNING("Unable to fulfill cast request ~p.", [Request]),
     {noreply, State}.

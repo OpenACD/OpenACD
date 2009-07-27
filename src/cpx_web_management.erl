@@ -1265,7 +1265,7 @@ api_test_() ->
 		fun(Cookie) ->
 			{"/agents/modules/set disabling all",
 			fun() ->
-				{atomic, {ok, Atcppid}} = cpx_supervisor:add_conf(agent_web_listener, agent_web_listener, start_link, [5050], agent_connection_sup),
+				{atomic, {ok, Atcppid}} = cpx_supervisor:add_conf(agent_tcp_listener, agent_tcp_listener, start_link, [1337], agent_connection_sup),
 				?assert(is_pid(Atcppid)),
 				?assert(is_pid(whereis(agent_web_listener))),
 				{200, [], Json} = api({agents, "modules", "update"}, Cookie, []),

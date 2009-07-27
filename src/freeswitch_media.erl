@@ -400,8 +400,9 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 						Clientrec ->
 							ok
 					end,
-					Callerid = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
-					_NewCall = Callrec#call{id=UUID, client=Clientrec, callerid=Callerid, source=self()},
+					Calleridname = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
+					Calleridnum = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Number"),
+					NewCall = Callrec#call{client=Clientrec, callerid=Calleridname++ " "++Calleridnum},
 					freeswitch:sendmsg(State#state.cnode, UUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "answer"}]),
@@ -411,7 +412,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 							{"execute-app-name", "playback"},
 							{"execute-app-arg", "local_stream://moh"}]),
 						%% tell gen_media to (finally) queue the media
-					{queue, Queue, Callrec, State#state{queue = Queue}};
+					{queue, Queue, NewCall, State#state{queue = Queue}};
 				_Otherwise ->
 					{noreply, State}
 			end;

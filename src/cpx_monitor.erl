@@ -207,6 +207,16 @@ elected(#state{ets = Tid} = State, Election, Node) ->
 	?INFO("elected by ~w", [Node]),
 	% what was down and is now up?
 	Edown = gen_leader:down(Election),
+	Ealive = gen_leader:alive(Election),
+	
+	lists:foreach(fun(Node) -> 
+		ets:insert(Tid, {{node, Node}, [{down, 100}], [], util:now()})
+	end, Edown),
+
+	lists:foreach(fun(Node) ->
+		ets:insert(Tid, {{node, Node}, [{up, 50}], [{up, util:now()}]})
+	end, Ealive),
+	
 	Foldf = fun({N, T}, {Up, Down}) ->
 		case lists:member(N, Edown) of
 			true ->
@@ -234,24 +244,39 @@ elected(#state{ets = Tid} = State, Election, Node) ->
 			?DEBUG("spawned for agent_auth:  ~p", [P]),
 			?DEBUG("Spawned for call_queue_config:  ~w", [Qspawn]),
 			?DEBUG("Spawned for cdr:  ~w", [Cdrspawn]),
-			{ok, {Merge, Stilldown}, State#state{status = merging, merge_status = dict:new(), merging = Mergenodes}}
+			{ok, {Merge, Stilldown}, State#state{status = merging, merge_status = dict:new(), merging = Mergenodes, splits = Stilldown}}
 	end.
 
 %% @hidden
-surrendered(#state{ets = Tid} = State, {Merge, _Stilldown}, _Election) ->
-	QH = qlc:q([Tuple || {{Type, _Name}, _Hp, _Data, _Time} = Tuple <- ets:table(Tid), Type =:= node]),
-	Matches = qlc:e(QH),
-	F = fun({{node, Name} = Key, Hp, _Data, _Time}) ->
-		case lists:member(Name, Merge) =:= proplists:get_value(down, Hp) of
-			true ->
-				Now = util:now(),
-				ets:insert(Tid, {Key, [{upsince, Now}], [], Now}),
-				ok;
-			false ->
-				ok
-		end
-	end,
-	lists:foreach(F, Matches),
+surrendered(#state{ets = Tid} = State, {Merge, _Stilldown}, Election) ->
+%	QH = qlc:q([Tuple || {{Type, _Name}, _Hp, _Data, _Time} = Tuple <- ets:table(Tid), Type =:= node]),
+%	Matches = qlc:e(QH),
+%	F = fun({{node, Name} = Key, Hp, _Data, _Time}) ->
+%		case lists:member(Name, Merge) =:= proplists:get_value(down, Hp) of
+%			true ->
+%				Now = util:now(),
+%				ets:insert(Tid, {Key, [{upsince, Now}], [], Now}),
+%				ok;
+%			false ->
+%				ok
+%		end
+%	end,
+%	lists:foreach(F, Matches),
+	
+	
+	Edown = gen_leader:down(Election),
+	Ealive = gen_leader:alive(Election),
+	
+	lists:foreach(fun(Node) -> 
+		ets:insert(Tid, {{node, Node}, [{down, 100}], [], util:now()})
+	end, Edown),
+
+	lists:foreach(fun(Node) ->
+		ets:insert(Tid, {{node, Node}, [{up, 50}], [{up, util:now()}], util:now()})
+	end, Ealive),
+	
+	gen_leader:leader_cast(cpx_monitor, {ensure_live, node(), util:now()}),
+	
 	{ok, State}.
 	
 %% @hidden
@@ -264,9 +289,9 @@ handle_DOWN(Node, #state{ets = Tid} = State, _Election) ->
 	end,
 	case ets:lookup(Tid, {node, Node}) of
 		[] ->
-			ets:insert({{node, Node}, [down], [], util:now()});
+			ets:insert({{node, Node}, [{down, 100}], [], util:now()});
 		[{Key, _Hp, Details, _Time2}] ->
-			ets:insert(Tid, {Key, [down], Details, util:now()})
+			ets:insert(Tid, {Key, [{down, 100}], Details, util:now()})
 	end,
 	{ok, State#state{splits = Newsplits}}.
 
@@ -276,6 +301,18 @@ handle_leader_call(Message, From, State, _Election) ->
 	{reply, ok, State}.
 
 %% @hidden
+handle_leader_cast({ensure_live, Node, Time}, #state{ets = Tid} = State, Election) ->
+	Alive = gen_leader:alive(Election),
+	case lists:member(Node, Alive) of
+		true ->
+			?DEBUG("Node ~w is in election alive list", [Node]),
+			ets:insert(Tid, {{node, Node}, [{up, 50}], [{up, Time}], Time}),
+			{noreply, State};
+		false ->
+			?WARNING("Node ~w does not appear in the election alive list", [Node]),
+			ets:insert(Tid, {{node, Node}, [{up, 50}], [{up, Time}], Time}),
+			{noreply, State}
+	end;
 handle_leader_cast(Message, State, _Election) ->
 	?WARNING("received unexpected leader_cast ~p", [Message]),
 	{noreply, State}.
@@ -394,7 +431,7 @@ store_node_state(Tid, Node, Hp) ->
 		[{Key, Health, Details, _Time2}] ->
 			case Hp of
 				down ->
-					ets:insert(Tid, {Key, [down], Details, util:now()});
+					ets:insert(Tid, {Key, [{down, 100}], Details, util:now()});
 				Proplist ->
 					Newlist = merge_properties(Health, Proplist),
 					ets:insert(Tid, {Key, Newlist, Details, util:now()})

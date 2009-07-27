@@ -3,6 +3,8 @@
 <head>
 <title>Agent UI</title>
 <style type="text/css">
+  @import "/dojo/dijit/themes/soria/soria.css";
+  @import "/dojo/dijit/themes/tundra/tundra.css";
   @import "/dojo/dijit/themes/nihilo/nihilo.css";
   .statusdisplay {
 		padding:1.5em
@@ -50,6 +52,7 @@
 		isDebug: false,
 		locale: locale
 	};
+
 </script>
 
 <!-- Javascript RSA encryption support -->
@@ -72,17 +75,19 @@
 	dojo.require("dijit.form.ComboBox");
 	dojo.require("dojox.layout.ContentPane");
 	dojo.require("dojox.layout.FloatingPane");
+	dojo.require("dojo.cookie");
 	//dojo.require("dijit.Menu");
 	dojo.requireLocalization("agentUI", "labels");
-	function init()
-	{
+	function init() {
+	if (dojo.cookie("agentui-theme")) {
+		document.getElementsByTagName("body")[0].className=dojo.cookie("agentui-theme");
+	}
 		if (dojo.config.locale == "") {
 			dojo.byId("loginerrp").style.display = "block";
 			dojo.byId("loginerrspan").innerHTML="No translation for any locales<br/>matching your request, sorry.";
 		}
 	}
 	dojo.addOnLoad(init);
-
 </script>
 
 <script type="text/javascript" src="/eventLog.js"></script>
@@ -211,14 +216,31 @@
 			</script>
 			<span>000</span>
 			<div dojoType="dijit.Menu" id="Viewmenu">
-				<div dojoType="dijit.MenuItem" label="000" onclick="alert('NYI Tundra');">
+				<div dojoType="dijit.MenuItem" label="000" onclick="dojo.cookie('agentui-theme', 'tundra');window.location.reload();">
 					<script type="dojo/method" event="postCreate">
-						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").TUNDRA);
+						if (dojo.cookie("agentui-theme") == "tundra") {
+							this.setLabel("* tundra");
+						} else {
+							this.setLabel("  tundra");
+						}
 					</script>
 				</div>
-				<div dojoType="dijit.MenuItem" label="000" onclick="alert('NYI nihilo');">
+				<div dojoType="dijit.MenuItem" label="000" onclick="dojo.cookie('agentui-theme', 'nihilo');window.location.reload();">
 					<script type="dojo/method" event="postCreate">
-						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").NIHILO);
+						if (dojo.cookie("agentui-theme") == "nihilo") {
+							this.setLabel("* nihilo");
+						} else {
+							this.setLabel("  nihilo");
+						}
+					</script>
+				</div>
+				<div dojoType="dijit.MenuItem" label="000" onclick="dojo.cookie('agentui-theme', 'soria');window.location.reload();">
+					<script type="dojo/method" event="postCreate">
+						if (dojo.cookie("agentui-theme") == "soria") {
+							this.setLabel("* soria");
+						} else {
+							this.setLabel("  soria");
+						}
 					</script>
 				</div>
 			</div>

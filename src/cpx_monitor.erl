@@ -148,7 +148,7 @@ get_health(Type) ->
 %% above Max are set to 100.  the Min can be the larger value, indicating that
 %% as X gets bigger the utilization/health value should get smaller.
 -spec(health/4 :: (Min :: float(), Goal :: float(), Max :: float(), X :: float()) -> float()).
-health(Min, Goal, Max, Goal) ->
+health(_Min, Goal, _Max, Goal) ->
 	50.0;
 health(Min, _Goal, Max, X) when Min < Max, X >= Max ->
 	100.0;

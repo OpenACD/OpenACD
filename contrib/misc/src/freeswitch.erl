@@ -18,7 +18,7 @@
 		nixevent/2, noevents/1, close/1,
 		get_event_header/2, get_event_body/1,
 		get_event_name/1, getpid/1, sendmsg/3,
-		sendevent/3, handlecall/2, handlecall/3, start_fetch_handler/5,
+		sendevent/3, sendevent_custom/3, handlecall/2, handlecall/3, start_fetch_handler/5,
 		start_log_handler/4, start_event_handler/4]).
 -define(TIMEOUT, 5000).
 
@@ -202,6 +202,19 @@ sendevent(Node, EventName, Headers) ->
 	after ?TIMEOUT ->
 		timeout
 	end.
+
+%% @doc Send a CUSTOM event to FreeSWITCH. `SubClassName' is the name of the event
+%% subclass and `Headers' is a list of `{Key, Value}' string tuples. See the
+%% mod_event_socket documentation for more information.
+sendevent_custom(Node, SubClassName, Headers) ->
+	{sendevent, Node} ! {sendevent, 'CUSTOM',  SubClassName, Headers},
+	receive
+		ok -> ok;
+		{error, Reason} -> {error, Reason}
+	after ?TIMEOUT ->
+		timeout
+	end.
+
 
 %% @doc Send a message to the call identified by `UUID'. `Headers' is a list of
 %% `{Key, Value}' string tuples.

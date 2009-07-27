@@ -129,7 +129,7 @@ stop() ->
 %% entry with the key of `node', `{node, node()}' is prepended to it.
 -spec(set/3 :: (Key :: health_key(), Health :: health_details(), Other :: other_details()) -> 'ok').
 set({_Type, _Name} = Key, Health, Other) ->
-	gen_leader:leader_cast(?MODULE, {set, {Key, Health, Other}}).
+	gen_leader:leader_cast(?MODULE, {set, {Key, Health, Other, node()}}).
 
 %% @doc Remove the entry with the key `Key' from being tracked.
 -spec(drop/1 :: (Key :: health_key()) -> 'ok').
@@ -322,10 +322,10 @@ handle_leader_call(Message, From, State, _Election) ->
 handle_leader_cast({drop, Key}, #state{ets = Tid} = State, _Election) ->
 	ets:delete(Tid, Key),
 	{noreply, State};
-handle_leader_cast({set, {Key, Hp, Details}}, #state{ets = Tid} = State, _Election)  ->
+handle_leader_cast({set, {Key, Hp, Details, Node}}, #state{ets = Tid} = State, _Election)  ->
 	Trueentry = case proplists:get_value(node, Details) of
 		undefined ->
-			Newdetails = [{node, node()} | Details],
+			Newdetails = [{node, Node} | Details],
 			{Key, Hp, Newdetails, util:now()};
 		_Else ->
 			{Key, Hp, Details, util:now()}

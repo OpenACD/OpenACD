@@ -556,19 +556,21 @@ if(typeof(supervisorTab) == "undefined"){
 						supervisorTab.node = this.data.display
 					}
 					dojo.forEach(supervisorTab.systemStack, function(obj){
-						var rect = obj.children[0];
+						/*var rect = obj.children[0];
 						var p = {
 							x: rect.getShape().x,
 							y: rect.getShape().y + rect.getShape().height/2
 						};
-						obj.setTransform([dojox.gfx.matrix.scaleAt(1, p)]);
+						obj.setTransform([dojox.gfx.matrix.scaleAt(1, p)]);*/
+						obj.shrink();
 					});
-					var rect = this.children[0];
+					/*var rect = this.children[0];
 					var p = {
 						x: rect.getShape().x,
 						y: rect.getShape().y + rect.getShape().height/2
 					};
-					this.setTransform([dojox.gfx.matrix.scaleAt(1.4, p)]);
+					this.setTransform([dojox.gfx.matrix.scaleAt(1.4, p)]);*/
+					this.grow();
 				});
 			}
 			o.connect("onmouseenter", o, function(ev){				

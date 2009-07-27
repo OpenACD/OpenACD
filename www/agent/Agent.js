@@ -115,7 +115,7 @@ Agent.prototype.setState = function(state){
 	})
 }
 
-Agent.prototype.logout = function(callback){
+Agent.prototype.logout = function(/*callback*/){
 	var agentref = this;
 	dojo.xhrGet({
 		url:"/logout",
@@ -123,6 +123,7 @@ Agent.prototype.logout = function(callback){
 		error:function(response, ioargs){
 			console.log("error logging out");
 			console.log(response);
+			//callback();
 		},
 		load:function(response, ioargs){
 			if(response.success){
@@ -130,7 +131,7 @@ Agent.prototype.logout = function(callback){
 				//agentref.stopwatch.reset();
 				//agentref.poller.stop();
 				dojo.publish("agent/logout", []);
-				callback();
+				//callback();
 			}			
 		}
 	});

@@ -481,14 +481,21 @@ dojo.addOnLoad(function(){
 		})
 	}
 
+	dojo.byId("loginerrp").logout = dojo.subscribe("agent/logout", function(data){
+		dojo.byId("loginerrp").style.display = "none";
+	});
+	
+	dojo.byId("loginpane").logout = dojo.subscribe("agent/logout", function(data){
+		dijit.byId("loginpane").show();
+	})
+
+	dijit.byId("main").logout = dojo.subscribe("agent/logout", function(data){
+		dijit.byId("main").attr('style', 'visibility:hidden');
+	});
+	
 	
 	logout = function(agent){
-		agent.logout(function(){
-			dojo.publish("agent/logout", []);
-			dojo.byId("loginerrp").style.display = "none";
-			dijit.byId("loginpane").show();
-			dijit.byId("main").attr('style', 'visibility:hidden');
-		});
+		agent.logout();
 	}
 });
 

@@ -21,7 +21,11 @@ function Agent(username){
 					dojo.publish("agent/state", [datalist[i]]);
 					agentref.stopwatch.reset();
 					break;
-					
+				
+				case "urlpop":
+					dojo.publish("agent/urlpop", [datalist[i]]);
+					break;
+				
 				default:
 					console.log("unhandled command");
 					console.log(datalist[i].command);

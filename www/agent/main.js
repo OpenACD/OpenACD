@@ -493,7 +493,28 @@ dojo.addOnLoad(function(){
 		dijit.byId("main").attr('style', 'visibility:hidden');
 	});
 	
-	
+	dijit.byId("main").pop = dojo.subscribe("agent/urlpop", function(data){
+		if(dijit.byId("popup")){
+			dijit.byId("popup").destroy();
+		}
+		
+		var elem = document.createElement('div');
+		elem.id = "popup";
+		
+		document.body.insertBefore(elem, document.body.firstChild);
+		
+		var popup = new dojox.layout.FloatingPane({
+			title:"Url Pop",
+			resizable: true,
+			dockable:false,
+			style: 'position:absolute; top: 100px; left: 400px; z-index:1000',
+			content: '<iframe width="100%", height="100%" src="' + data.url + '" />'
+		}, dojo.byId("popup"));
+		
+		popup.startup();
+		popup.show();
+	});
+
 	logout = function(agent){
 		agent.logout();
 	}

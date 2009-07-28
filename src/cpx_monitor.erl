@@ -246,7 +246,7 @@ elected(#state{ets = Tid} = State, Election, Node) ->
 		({_N, _T}, Time) ->
 			Time
 	end,
-	store_node_state(Tid, node(), [{leader, 50}]),
+	ets:insert(Tid, {{node, node()}, [{leader, 50}], [], util:now()}),
 	case Merge of
 		[] ->
 			{ok, {Merge, Stilldown}, State};
@@ -304,7 +304,7 @@ handle_DOWN(Node, #state{ets = Tid} = State, _Election) ->
 	end,
 	case ets:lookup(Tid, {node, Node}) of
 		[] ->
-			ets:insert({{node, Node}, [{down, 100}], [], util:now()});
+			ets:insert(Tid, {{node, Node}, [{down, 100}], [], util:now()});
 		[{Key, _Hp, Details, _Time2}] ->
 			ets:insert(Tid, {Key, [{down, 100}], Details, util:now()})
 	end,
@@ -458,19 +458,19 @@ code_change(_OldVsn, State, _Election, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-store_node_state(Tid, Node, Hp) ->
-	case ets:lookup(Tid, {node, Node}) of
-		[] ->
-			ets:insert(Tid, {{node, Node}, Hp, [], util:now()});
-		[{Key, Health, Details, _Time2}] ->
-			case Hp of
-				down ->
-					ets:insert(Tid, {Key, [{down, 100}], Details, util:now()});
-				Proplist ->
-					Newlist = merge_properties(Health, Proplist),
-					ets:insert(Tid, {Key, Newlist, Details, util:now()})
-			end
-	end.
+%store_node_state(Tid, Node, Hp) ->
+%	case ets:lookup(Tid, {node, Node}) of
+%		[] ->
+%			ets:insert(Tid, {{node, Node}, Hp, [], util:now()});
+%		[{Key, Health, Details, _Time2}] ->
+%			case Hp of
+%				down ->
+%					ets:insert(Tid, {Key, [{down, 100}], Details, util:now()});
+%				Proplist ->
+%					Newlist = merge_properties(Health, Proplist),
+%					ets:insert(Tid, {Key, Newlist, Details, util:now()})
+%			end
+%	end.
 
 %fix_entries(Proplist) ->
 %	fix_entries(Proplist, []).
@@ -488,14 +488,14 @@ store_node_state(Tid, Node, Hp) ->
 %fix_entries([{_Key, _Val} = E | Tail], Acc) ->
 %	fix_entries(Tail, [E | Acc]).
 
-merge_properties([], Mutable) ->
-	Mutable;
-merge_properties([{Key, _Value} = Prop | Tail], Mutable) ->
-	Midmut = proplists:delete(Key, Mutable),
-	merge_properties(Tail, [Prop | Midmut]);
-merge_properties([Atom | Tail], Mutable) ->
-	Midmut = proplists:delete(Atom, Mutable),
-	merge_properties(Tail, [Atom | Midmut]).
+%merge_properties([], Mutable) ->
+%	Mutable;
+%merge_properties([{Key, _Value} = Prop | Tail], Mutable) ->
+%	Midmut = proplists:delete(Key, Mutable),
+%	merge_properties(Tail, [Prop | Midmut]);
+%merge_properties([Atom | Tail], Mutable) ->
+%	Midmut = proplists:delete(Atom, Mutable),
+%	merge_properties(Tail, [Atom | Midmut]).
 	
 restart_mnesia(Nodes) ->
 	F = fun() ->

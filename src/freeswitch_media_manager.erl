@@ -86,6 +86,17 @@
 	</section>
 </document>").
 
+-define(USERRESPONSE,
+"<document type=\"freeswitch/xml\">
+	<section name=\"directory\">
+		<domain name=\"~s\">
+			<user id=\"~s\">
+			</user>
+		</domain>
+	</section>
+</document>").
+
+
 
 %% API
 -export([
@@ -378,6 +389,15 @@ fetch_domain_user(Node, State) ->
 										_:_ -> % agent pid is toast?
 											freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
 									end;
+								false ->
+									freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
+							end;
+						undefined -> % I guess we're just looking up a user?
+							User = proplists:get_value("user", Data),
+							Domain = proplists:get_value("domain", Data),
+							case agent_manager:query_agent(User) of
+								{true, Pid} ->
+									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?USERRESPONSE, [Domain, User]))});
 								false ->
 									freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
 							end;

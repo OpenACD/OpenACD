@@ -99,9 +99,6 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun]) when is_record(Qcall, call) -
 							{error, badsession} ->
 								timer:sleep(100),
 								Recusef(Recusef, Count+1);
-							{error, baduuid} ->
-								timer:sleep(100),
-								Recusef(Recusef, Count+1);
 							{error, Other} ->
 								{error, Other};
 							Else ->
@@ -171,7 +168,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 			end,
 			{noreply, State};
 		_Else ->
-			?DEBUG("call_event ~p", [Event]),
+			%?DEBUG("call_event ~p", [Event]),
 			{noreply, State}
 	end;
 handle_info(call_hangup, State) ->

@@ -42,10 +42,6 @@ function Agent(username){
 					//agentref.stopwatch.reset();
 					//agentref.poller.stop();
 					dojo.publish("agent/logout", []);
-					dojo.byId("loginerrp").style.display = "block";
-					dojo.byId("loginerrspan").innerHTML = "Server is not responding";
-					dijit.byId("loginpane").show();
-					dijit.byId("main").attr('style', 'visibility:hidden');
 				}	
 			},
 			load:function(response, ioargs){
@@ -54,10 +50,6 @@ function Agent(username){
 				if(response.success == false){
 					//agentref.poller.stop();
 					dojo.publish("agent/logout", []);
-					dojo.byId("loginerrp").style.display = "block";
-					dojo.byId("loginerrspan").innerHTML = "Logged out";
-					dijit.byId("loginpane").show();
-					dijit.byId("main").attr('style', 'visibility:hidden');
 					agentref.poll();
 				}
 				else{

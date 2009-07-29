@@ -126,6 +126,7 @@ add_queue(Name, Opts) when is_list(Name) ->
 get_queue(Name) ->
 	case gen_leader:leader_call(?MODULE, {get_queue, Name}) of
 		undefined ->
+			?DEBUG("Queue does not exis, checking mnesia...", []),
 			case call_queue_config:get_queue(Name) of
 				noexists ->
 					undefined;

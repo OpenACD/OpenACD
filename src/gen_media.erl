@@ -390,6 +390,10 @@ init([Callback, Args]) ->
 					priv_queue("default_queue", Callrec, true),
 					set_cpx_mon(#state{callrec = Callrec}, [{queue, "default_queue"}]),
 					cdr:inqueue(Callrec, "default_queue");
+				{default, Pid} ->
+					set_cpx_mon(#state{callrec = Callrec}, [{queue, "default_queue"}]),
+					cdr:inqueue(Callrec, "default_queue"),
+					Pid;
 				Else ->
 					set_cpx_mon(#state{callrec = Callrec}, [{queue, Queue}]),
 					Else
@@ -432,6 +436,11 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
+		{default, Qpid} ->
+			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
+			cdr:inqueue(State#state.callrec, "default_queue"),
+			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
+			{reply, ok, State#state{substate = NewState, oncall_pid = undefined}};
 		Qpid when is_pid(Qpid) ->
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
 			cdr:inqueue(State#state.callrec, Queue),
@@ -443,6 +452,12 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = Sta
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
+		{default, Qpid} ->
+			agent:set_state(State#state.oncall_pid, wrapup, State#state.callrec),
+			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
+			cdr:inqueue(State#state.callrec, "default_queue"),
+			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
+			{reply, ok, State#state{substate = NewState, oncall_pid = undefined}};
 		Qpid when is_pid(Qpid) ->
 			agent:set_state(State#state.oncall_pid, wrapup, State#state.callrec),
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
@@ -601,6 +616,11 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 			case priv_queue(Queue, Callrec, State#state.queue_failover) of
 				invalid ->
 					{reply, {error, {noqueue, Queue}}, State#state{callrec = Callrec, substate = NewState}};
+				{default, Qpid} ->
+					cdr:cdrinit(Callrec),
+					cdr:inqueue(Callrec, "default_queue"),
+					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, "default_queue"}]),
+					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}};
 				Qpid ->
 					cdr:cdrinit(Callrec),
 					cdr:inqueue(Callrec, Queue),
@@ -632,9 +652,14 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 			case priv_queue(Queue, Callrec, State#state.queue_failover) of
 				invalid ->
 					{noreply, State#state{callrec = Callrec, substate = NewState}};
+				{default, Qpid} ->
+					cdr:cdrinit(Callrec),
+					cdr:inqueue(Callrec, Queue),
+					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, "default_queue"}]),
+					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}};
 				Qpid ->
 					cdr:cdrinit(Callrec),
-					cdr:inqueeu(Callrec, Queue),
+					cdr:inqueue(Callrec, Queue),
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
 					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
@@ -684,6 +709,11 @@ handle_info(Info, #state{callback = Callback} = State) ->
 			{stop, Reason, State#state{substate = NewState}};
 		{queue, Queue, Callrec, NewState} ->
 			case priv_queue(Queue, Callrec, State#state.queue_failover) of
+				{default, Qpid} ->
+					cdr:cdrinit(Callrec),
+					cdr:inqueue(Callrec, "default_queue"),
+					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, "default_queue"}]),
+					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}};
 				invalid ->
 					{noreply, State#state{callrec = Callrec, substate = NewState}};
 				Qpid ->
@@ -757,7 +787,7 @@ priv_queue(Queue, Callrec, Failover) ->
 				true ->
 					Dqpid = queue_manager:get_queue("default_queue"),
 					call_queue:add(Dqpid, self(), Callrec),
-					Dqpid;
+					{default, Dqpid};
 				false ->
 					invalid
 			end;

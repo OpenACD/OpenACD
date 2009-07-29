@@ -57,7 +57,8 @@
 	query_queue/1,
 	stop/0,
 	print/0,
-	get_best_bindable_queues/0
+	get_best_bindable_queues/0,
+	get_leader/0
 	]).
 
 % gen_leader callbacks
@@ -126,6 +127,7 @@ add_queue(Name, Opts) when is_list(Name) ->
 get_queue(Name) ->
 	case gen_leader:leader_call(?MODULE, {get_queue, Name}) of
 		undefined ->
+			?DEBUG("Queue does not exis, checking mnesia...", []),
 			case call_queue_config:get_queue(Name) of
 				noexists ->
 					undefined;
@@ -192,6 +194,11 @@ stop() ->
 -spec(print/0 :: () -> any()).
 print() ->
 	gen_leader:call(?MODULE, print).
+
+%% @doc Returns `{ok, pid()}' where `pid()' is the pid of the leader process.
+-spec(get_leader/0 :: () -> {'ok', pid()}).
+get_leader() -> 
+	gen_leader:leader_call(?MODULE, get_pid).
 
 % gen_leader stuff
 
@@ -305,6 +312,8 @@ handle_leader_call({get_queue, Name}, _From, #state{qdict = Qdict} = State, _Ele
 handle_leader_call({exists, Name}, _From, #state{qdict = Qdict} = State, _Election) ->
 	?DEBUG("got an exists request",[]),
 	{reply, dict:is_key(Name, Qdict), State};
+handle_leader_call(get_pid, _From, State, _Election) ->
+	{reply, {ok, self()}, State};
 handle_leader_call(_Msg, _From, State, _Election) ->
 	{reply, unknown, State}.
 

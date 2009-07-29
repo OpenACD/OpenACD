@@ -45,7 +45,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start/0, stop/0]).
+-export([start_link/0, start/0, stop/0, count_dispatchers/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -78,6 +78,10 @@ start() ->
 -spec(stop/0 :: () -> any()).
 stop() -> 
 	gen_server:call(?MODULE, stop).
+
+-spec(count_dispatchers/0 :: () -> non_neg_integer()).
+count_dispatchers() ->
+	gen_server:call(?MODULE, count_dispatchers).
 
 %%====================================================================
 %% gen_server callbacks
@@ -113,6 +117,8 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
+handle_call(count_dispatchers, _From, State) ->
+	{reply, length(State#state.dispatchers), State};
 handle_call(stop, _From, State) -> 
 	{stop, normal, ok, State};
 handle_call(dump, _From, State) ->

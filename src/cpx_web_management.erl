@@ -709,14 +709,21 @@ api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 			]},
 			{200, [], mochijson2:encode(Json)};
 		Rec when is_record(Rec, cpx_conf) ->
-			Args = Rec#cpx_conf.start_args,
+			[Args] = Rec#cpx_conf.start_args,
 			Stringtobin = fun(Str) ->
 				list_to_binary(Str)
 			end,
+			Ip = case proplists:get_value(ip, Args) of
+				undefined ->
+					<<"0.0.0.0">>;
+				{_, _, _, _} = Iptuple ->
+					Protoip = tuple_to_list(Iptuple),
+					list_to_binary(string:join(Protoip, "."))
+			end,
 			Sendargs = [
-				{<<"host">>, list_to_binary(proplists:get_value(host, Args, ""))},
+				{<<"host">>, list_to_binary(proplists:get_value(domain, Args, ""))},
 				{<<"port">>, proplists:get_value(port, Args, <<"">>)},
-				{<<"bindip">>, list_to_binary(proplists:get_value(bindip, Args, ""))},
+				{<<"bindip">>, Ip},
 				{<<"relays">>, lists:map(Stringtobin, proplists:get_value(relays, Args, []))},
 				{<<"enabled">>, true},
 				{success, true}

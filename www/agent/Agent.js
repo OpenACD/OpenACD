@@ -57,7 +57,7 @@ function Agent(username){
 				if(response.success == false){
 					//agentref.poller.stop();
 					dojo.publish("agent/logout", []);
-					agentref.poll();
+					//agentref.poll();
 				}
 				else{
 					agentref.handleData(response.data);

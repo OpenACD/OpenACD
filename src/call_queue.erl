@@ -454,11 +454,13 @@ handle_call({remove, Callpid}, _From, State) ->
 	?INFO("Trying to remove call ~p...", [Callpid]),
 	case find_by_pid(Callpid, State#state.queue) of
 		none ->
+			?INFO("Did not find call ~w", [Callpid]),
 			{reply, none, State};
-		{Key, #queued_call{cook=Cookpid}} ->
+		{Key, #queued_call{cook=Cookpid} = Qcall} ->
 			unlink(Cookpid),
 			gen_server:cast(Cookpid, stop),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
+			lists:foreach(fun(D) -> exit(D, kill) end, Qcall#queued_call.dispatchers),
 			set_cpx_mon(State2),
 			{reply, ok, State2}
 	end;
@@ -520,9 +522,11 @@ handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
 	?NOTICE("Handling down process ~p due to ~p", [Pid, Reason]),
 	case find_by_pid(Pid, State#state.queue) of
 		none ->
+			?INFO("Did not find pid ~w", [Pid]),
 			{noreply, State};
-		{Key, #queued_call{cook=Cookpid}} ->
+		{Key, #queued_call{cook=Cookpid, dispatchers = Dips}} ->
 			cook:stop(Cookpid),
+			lists:foreach(fun(D) -> exit(D, kill) end, Dips),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			set_cpx_mon(State2),
 			{noreply, State2}

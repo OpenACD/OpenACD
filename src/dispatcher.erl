@@ -193,6 +193,7 @@ loop_queues(Queues) ->
 			none -> 
 				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues));
 			{_Key, Call2} -> 
+				link(Call2#queued_call.cook),
 				{Qpid, Call2}
 	end.
 
@@ -222,6 +223,7 @@ grab_best() ->
 	Queues = queue_manager:get_best_bindable_queues(),
 	loop_queues(Queues).
 
+% TODO make this not block, please.
 %% @doc tries to grab a new call ignoring the queue it's current call is bound to
 -spec(regrab/1 :: (pid()) -> #queued_call{} | 'none').
 regrab(Pid) -> 

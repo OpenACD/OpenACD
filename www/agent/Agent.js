@@ -46,7 +46,10 @@ function Agent(username){
 					//agentref.stopwatch.reset();
 					//agentref.poller.stop();
 					dojo.publish("agent/logout", []);
-				}	
+				}
+				else{
+					agentref.poll();
+				}
 			},
 			load:function(response, ioargs){
 				//console.log(response);

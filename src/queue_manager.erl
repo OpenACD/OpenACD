@@ -120,9 +120,37 @@ add_queue(Name, Opts) when is_list(Name) ->
 	end.
 
 %% @doc Get the `pid()' of the passed queue name.  If there is no queue, returns 'undefined'.
+%% If the queue is not running, it is looked up in the config database and started
+%% if found there.  If that also fails, undefined is returned.
 -spec(get_queue/1 :: (Name :: string()) -> pid() | undefined).
 get_queue(Name) ->
-	gen_leader:leader_call(?MODULE, {get_queue, Name}).
+	case gen_leader:leader_call(?MODULE, {get_queue, Name}) of
+		undefined ->
+			case call_queue_config:get_queue(Name) of
+				noexists ->
+					undefined;
+				{noexists, Else} ->
+					?WARNING("Could not load up the queue, at all, becaus of ~p", [Else]),
+					undefined;
+				Qrec when is_record(Qrec, call_queue) ->
+					Opts = [
+						{weight, Qrec#call_queue.weight},
+						{skills, Qrec#call_queue.skills},
+						{recipe, Qrec#call_queue.recipe}
+					],
+					case add_queue(Qrec#call_queue.name, Opts) of
+						{ok, Pid} ->
+							Pid;
+						{exists, Pid} ->
+							Pid;
+						Else ->
+							?WARNING("Unable to start queue even though it is in the config due to ~p", [Else]),
+							undefined
+					end
+			end;
+		Pid ->
+			Pid
+	end.			
 
 %% @doc `true' or `false' if the passed queue name exists.
 -spec(query_queue/1 :: (Name :: string()) -> bool()).
@@ -534,7 +562,7 @@ single_node_test_() ->
 					{exists, QPid} = add_queue("default_queue"),
 					gen_server:call(QPid, {stop, shutdown}),
 					timer:sleep(100),
-					?assertEqual(undefined, get_queue("default_queue"))
+					?assertEqual(false, query_queue("default_queue"))
 				end
 			},{
 				"Queue exits on normal, thus not restarted",
@@ -542,7 +570,7 @@ single_node_test_() ->
 					{exists, QPid} = add_queue("default_queue"),
 					gen_server:call(QPid, stop),
 					timer:sleep(100),
-					?assertEqual(undefined, get_queue("default_queue"))
+					?assertEqual(false, query_queue("default_queue"))
 				end
 			}
 		]

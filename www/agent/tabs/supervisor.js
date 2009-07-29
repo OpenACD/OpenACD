@@ -1162,10 +1162,6 @@ if(typeof(supervisorTab) == "undefined"){
 	}
 
 	supervisorTab.reloadDataStore = function(){
-		if(supervisorTab.suppressPoll){
-			return;
-		}
-		
 		dojo.xhrGet({
 			url:"/supervisor/status",
 			handleAs:"json",
@@ -1186,6 +1182,10 @@ if(typeof(supervisorTab) == "undefined"){
 					});
 					supervisorTab.setAllHps();
 					supervisorTab.refreshSystemStack();
+					if(supervisorTab.suppressPoll){
+						return;
+					}
+					window.setTimeout(supervisorTab.reloadDataStore, 5000);
 				}
 				else{
 					console.log(data);
@@ -1205,31 +1205,31 @@ supervisorTab.drawAgentQueueBubbles(0, 0);
 supervisorTab.refreshSystemStack();
 supervisorTab.systemStack[0].grow();
 
-supervisorTab.poller = new dojox.timing.Timer(5000);
-supervisorTab.poller.onTick = function(){
-	supervisorTab.reloadDataStore();
-}
+//supervisorTab.poller = new dojox.timing.Timer(5000);
+//supervisorTab.poller.onTick = function(){
+//	supervisorTab.reloadDataStore();
+//}
 
 supervisorTab.reloadDataStore();
-if(supervisorTab.poller){
-	if(supervisorTab.poller.isRunning){
-		//la la la
-	}
-	else{
-		supervisorTab.poller.start();
-	}
-}
-else{
-	supervisorTab.poller.start();
-}
+//if(supervisorTab.poller){
+//	if(supervisorTab.poller.isRunning){
+//		//la la la
+//	}
+//	else{
+//		supervisorTab.poller.start();
+//	}
+//}
+//else{
+//	supervisorTab.poller.start();
+//}
 
-supervisorTab.logoutListener = dojo.subscribe("agent/logout", function(data){
-	supervisorTab.poller.stop();
-});
-
-supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(child){
-	if(child.title == "Supervisor"){
-		supervisorTab.poller.stop();
-	}
-	dojo.unsubscribe(supervisorTab.logoutListener);
-});
+//supervisorTab.logoutListener = dojo.subscribe("agent/logout", function(data){
+//	supervisorTab.poller.stop();
+//});
+//
+//supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(child){
+//	if(child.title == "Supervisor"){
+//		supervisorTab.poller.stop();
+//	}
+//	dojo.unsubscribe(supervisorTab.logoutListener);
+//});

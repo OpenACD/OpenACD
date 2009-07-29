@@ -427,11 +427,16 @@ if(typeof(supervisorTab) == "undefined"){
 		group.connect("onmouseleave", group, conf.onmouseleave);
 		group.connect("onclick", group, conf.onclick);
 		
+		var textdisp = conf.data.display;
+		if(textdisp.length > 18){
+			textdisp = textdisp.substring(0, 16) + "...";
+		}
+		
 		var text = group.createText({
 			x: conf.point.x + (100 * conf.scale),
 			y: conf.point.y + 15 * conf.scale,
 			align: "middle",
-			text: conf.data.display
+			text: textdisp
 		});
 		
 		text.setStroke(textcolors);

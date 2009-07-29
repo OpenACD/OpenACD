@@ -15,6 +15,10 @@ function Agent(username){
 	this.handleData = function(datalist){
 		for(var i in datalist){
 			 switch (datalist[i].command){
+				case "pong":
+					// la la la
+					break;
+				
 				case "astate":
 					agentref.state = datalist[i].state;
 					agentref.statedata = datalist[i].statedata;

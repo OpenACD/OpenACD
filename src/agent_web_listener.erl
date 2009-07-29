@@ -261,11 +261,11 @@ api(checkcookie, Cookie, _Post) ->
 			Reflist = erlang:ref_to_list(make_ref()),
 			NewCookie = make_cookie(Reflist),
 			ets:insert(web_connections, {Reflist, undefined, undefined}),
-			Json = {struct, [{<<"success">>, false}]},
+			Json = {struct, [{<<"success">>, false}, {<<"message">>, <<"cookie reset">>}]},
 			{200, [{"Set-Cookie", NewCookie}], mochijson2:encode(Json)};
 		{_Reflist, _Salt, undefined} ->
 			?INFO("cookie found, no agent", []),
-			Json = {struct, [{<<"success">>, false}]},
+			Json = {struct, [{<<"success">>, false}, {<<"message">>, <<"have cookie, but no agent">>}]},
 			{200, [], mochijson2:encode(Json)}
 	end;
 api(Apirequest, badcookie, _Post) ->

@@ -221,17 +221,14 @@ init(Args) when is_list(Args) ->
 elected(#state{ets = Tid} = State, Election, Node) -> 
 	?INFO("elected by ~w", [Node]),
 	% what was down and is now up?
+	Cands = gen_leader:candidates(Election),
+	lists:foreach(fun(Cnode) ->
+		ets:insert(Tid, {{node, Cnode}, [{down, 100}], [{state, unreported}], util:now()})
+	end, Cands),
+	
+	tell_cands(report, Election),
+	
 	Edown = gen_leader:down(Election),
-	Ealive = gen_leader:alive(Election),
-	
-	lists:foreach(fun(Lnode) -> 
-		ets:insert(Tid, {{node, Lnode}, [{down, 100}], [], util:now()})
-	end, Edown),
-
-	lists:foreach(fun(Lnode) ->
-		ets:insert(Tid, {{node, Lnode}, [{up, 50}], [{up, util:now()}]})
-	end, Ealive),
-	
 	Foldf = fun({N, T}, {Up, Down}) ->
 		case lists:member(N, Edown) of
 			true ->
@@ -246,7 +243,9 @@ elected(#state{ets = Tid} = State, Election, Node) ->
 		({_N, _T}, Time) ->
 			Time
 	end,
-	ets:insert(Tid, {{node, node()}, [{leader, 50}], [], util:now()}),
+	Entry = {{node, node()}, [{leader, 50}], [], util:now()},
+	entry(Entry, State, Election),
+	
 	case Merge of
 		[] ->
 			{ok, {Merge, Stilldown}, State};
@@ -295,19 +294,20 @@ surrendered(#state{ets = Tid} = State, {_Merge, _Stilldown}, Election) ->
 	{ok, State}.
 	
 %% @hidden
-handle_DOWN(Node, #state{ets = Tid} = State, _Election) ->
+handle_DOWN(Node, #state{ets = Tid} = State, Election) ->
 	Newsplits = case proplists:get_value(Node, State#state.splits) of
 		undefined ->
 			[{Node, util:now()} | State#state.splits];
 		_Time ->
 			State#state.splits
 	end,
-	case ets:lookup(Tid, {node, Node}) of
+	Entry = case ets:lookup(Tid, {node, Node}) of
 		[] ->
-			ets:insert(Tid, {{node, Node}, [{down, 100}], [], util:now()});
+			{{node, Node}, [{down, 100}], [], util:now()};
 		[{Key, _Hp, Details, _Time2}] ->
-			ets:insert(Tid, {Key, [{down, 100}], Details, util:now()})
+			{Key, [{down, 100}], Details, util:now()}
 	end,
+	entry(Entry, State, Election),
 	{ok, State#state{splits = Newsplits}}.
 
 %% @hidden
@@ -334,6 +334,9 @@ handle_leader_call(Message, From, State, _Election) ->
 	{reply, ok, State}.
 
 %% @hidden
+handle_leader_cast({reporting, Node}, State, Election) ->
+	entry({{node, Node}, [{up, 50}], [{state, reported}], util:now()}, State, Election),
+	{noreply, State};
 handle_leader_cast({subscribe, Pid}, #state{subscribers = Subs} = State, _Election) ->
 	case lists:member(Pid, Subs) of
 		true ->
@@ -346,11 +349,10 @@ handle_leader_cast({unsubscribe, Pid}, #state{subscribers = Subs} = State, _Elec
 	unlink(Pid),
 	Newsubs = lists:delete(Pid, Subs),
 	{noreply, State#state{subscribers = Newsubs}};
-handle_leader_cast({drop, Key}, #state{ets = Tid} = State, _Election) ->
-	ets:delete(Tid, Key),
-	tell_subs({drop, Key}, State#state.subscribers),
+handle_leader_cast({drop, Key}, #state{ets = Tid} = State, Election) ->
+	entry({drop, Key}, State, Election),
 	{noreply, State};
-handle_leader_cast({set, {Key, Hp, Details, Node}}, #state{ets = Tid} = State, _Election)  ->
+handle_leader_cast({set, {Key, Hp, Details, Node}}, #state{ets = Tid} = State, Election)  ->
 	Trueentry = case proplists:get_value(node, Details) of
 		undefined ->
 			Newdetails = [{node, Node} | Details],
@@ -358,8 +360,7 @@ handle_leader_cast({set, {Key, Hp, Details, Node}}, #state{ets = Tid} = State, _
 		_Else ->
 			{Key, Hp, Details, util:now()}
 	end,
-	ets:insert(Tid, Trueentry),
-	tell_subs({set, Trueentry}, State#state.subscribers),
+	entry(Trueentry, State, Election),
 	{noreply, State};
 handle_leader_cast({ensure_live, Node, Time}, #state{ets = Tid} = State, Election) ->
 	Alive = gen_leader:alive(Election),
@@ -367,14 +368,12 @@ handle_leader_cast({ensure_live, Node, Time}, #state{ets = Tid} = State, Electio
 		true ->
 			?DEBUG("Node ~w is in election alive list", [Node]),
 			Entry = {{node, Node}, [{up, 50}], [{up, Time}], Time},
-			ets:insert(Tid, Entry),
-			tell_subs({set, Entry}, State#state.subscribers),
+			entry(Entry, State, Election),
 			{noreply, State};
 		false ->
 			?WARNING("Node ~w does not appear in the election alive list", [Node]),
 			Entry = {{node, Node}, [{up, 50}], [{up, Time}], Time},
-			ets:insert(Tid, Entry),
-			tell_subs({set, Entry}, State#state.subscribers),
+			entry(Entry, State, Election),
 			{noreply, State}
 	end;
 handle_leader_cast(Message, State, _Election) ->
@@ -409,6 +408,19 @@ handle_cast(Request, State, _Election) ->
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 %% @hidden
+handle_info({leader_event, report}, State) ->
+	gen_leader:leader_cast(?MODULE, {reporting, node()}),
+	{noreply, State};
+handle_info({leader_event, Message}, #state{ets = Tid} = State) ->
+	?DEBUG("Got message leader_event ~p", [Message]),
+	case Message of
+		{drop, Key} ->
+			ets:delete(Tid, Key),
+			{noreply, State};
+		{set, Entry} ->
+			ets:insert(Tid, Entry),
+			{noreply, State}
+	end;
 handle_info({merge_complete, Mod, _Recs}, #state{merge_status = none, status = Status}= State) when Status == stable; Status == split ->
 	?INFO("Prolly a late merge complete from ~w.", [Mod]),
 	{noreply, State};
@@ -575,10 +587,36 @@ calc_healths([{Key, {Min, Mid, Max, {time, X}}} | Tail], Acc) ->
 	Hp = health(Min, Mid, Max, Diff),
 	calc_healths(Tail, [{Key, Hp} | Acc]).
 
+entry(Entry, #state{ets = Tid} = State, Election) ->
+	Message = case Entry of
+		{drop, Key} ->
+			ets:delete(Tid, Key),
+			Entry;
+		_ ->
+			ets:insert(Tid, Entry),
+			{set, Entry}
+	end,
+	tell_subs(Message, State#state.subscribers),
+	tell_cands(Message, Election).
+
 tell_subs(Message, Subs) ->
 	lists:foreach(fun(Pid) ->
 		Pid ! {cpx_monitor_event, Message}
 	end, Subs).
+
+tell_cands(Message, Election) ->
+	Nodes = gen_leader:candidates(Election),
+	Leader = gen_leader:leader_node(Election),
+	?DEBUG("Leader ~p is telling nodes ~p", [Leader, Nodes]),
+	tell_cands(Message, Nodes, Leader).
+
+tell_cands(_Message, [], _Leader) ->
+	ok;
+tell_cands(Message, [Leader | Tail], Leader) ->
+	tell_cands(Message, Tail, Leader);
+tell_cands(Message, [Node | Tail], Leader) ->
+	{cpx_monitor, Node} ! {leader_event, Message},
+	tell_cands(Message, Tail, Leader).
 
 -ifdef(EUNIT).
 

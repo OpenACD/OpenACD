@@ -109,19 +109,19 @@ handle_call(stop, _From, State) when is_record(State#state.call, queued_call) ->
 	{stop, normal, ok, State};
 handle_call(stop, _From, State) ->
 	{stop, normal, ok, State};
-handle_call(regrab, _From, State) ->
-	OldQ = State#state.qpid,
-	Queues = queue_manager:get_best_bindable_queues(),
-	Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
-	?DEBUG("looping through filtered queues... ~p", [Filtered]),
-	case loop_queues(Filtered) of
-		none -> 
-			{reply, State#state.call, State};
-		{Qpid, Call} ->
-			OldCall = State#state.call,
-			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
-			{reply, Call, State#state{qpid=Qpid, call=Call}}
-	end;
+%handle_call(regrab, _From, State) ->
+	%OldQ = State#state.qpid,
+	%Queues = queue_manager:get_best_bindable_queues(),
+	%Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
+	%?DEBUG("looping through filtered queues... ~p", [Filtered]),
+	%case loop_queues(Filtered) of
+		%none -> 
+			%{reply, State#state.call, State};
+		%{Qpid, Call} ->
+			%OldCall = State#state.call,
+			%call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
+			%{reply, Call, State#state{qpid=Qpid, call=Call}}
+	%end;
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 
@@ -132,6 +132,19 @@ handle_call(Request, _From, State) ->
 handle_cast({update_skills, Skills}, #state{call = Call} = State) ->
 	Newcall = Call#queued_call{skills = Skills},
 	{noreply, State#state{call = Newcall}};
+handle_cast(regrab, State) ->
+	OldQ = State#state.qpid,
+	Queues = queue_manager:get_best_bindable_queues(),
+	Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
+	?DEBUG("looping through filtered queues... ~p", [Filtered]),
+	case loop_queues(Filtered) of
+		none -> 
+			{noreply, State};
+		{Qpid, Call} ->
+			OldCall = State#state.call,
+			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
+			{noreply, State#state{qpid=Qpid, call=Call}}
+	end;
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
@@ -223,12 +236,12 @@ grab_best() ->
 	Queues = queue_manager:get_best_bindable_queues(),
 	loop_queues(Queues).
 
-% TODO make this not block, please.
 %% @doc tries to grab a new call ignoring the queue it's current call is bound to
--spec(regrab/1 :: (pid()) -> #queued_call{} | 'none').
+-spec(regrab/1 :: (pid()) -> 'ok').
 regrab(Pid) -> 
 	?DEBUG("dispatcher trying to regrab", []),
-	gen_server:call(Pid, regrab).
+	gen_server:cast(Pid, regrab),
+	ok.
 
 %% @doc Stops the dispatcher at `pid() Pid' with reason `normal'.
 -spec(stop/1 :: (pid()) -> 'ok').
@@ -373,7 +386,8 @@ grab_test_() ->
 					call_queue:add(Pid1, MPid),
 					{ok, DPid} = dispatcher:start(),
 					Queuedcall = dispatcher:bound_call(DPid),
-					?assertEqual(Queuedcall, dispatcher:regrab(DPid))
+					dispatcher:regrab(DPid),
+					?assertEqual(Queuedcall, dispatcher:bound_call(DPid))
 				end}
 			end,
 			fun([Pid1, Pid2, _Pid3]) ->
@@ -385,7 +399,8 @@ grab_test_() ->
 					call_queue:add(Pid2, MPid2),
 					{ok, DPid} = dispatcher:start(),
 					Queuedcall = dispatcher:bound_call(DPid),
-					Regrabbed = dispatcher:regrab(DPid),
+					dispatcher:regrab(DPid),
+					Regrabbed = dispatcher:bound_call(DPid),
 					?assert(is_record(Regrabbed, queued_call)),
 					?assertNot(Queuedcall =:= Regrabbed)
 				end}
@@ -399,7 +414,8 @@ grab_test_() ->
 					call_queue:add(Pid1, MPid2),
 					{ok, DPid} = dispatcher:start(),
 					Queuedcall = dispatcher:bound_call(DPid),
-					Regrabbed = dispatcher:regrab(DPid),
+					dispatcher:regrab(DPid),
+					Regrabbed = dispatcher:bound_call(DPid),
 					?assertEqual(Queuedcall, Regrabbed)
 				end}
 			end,

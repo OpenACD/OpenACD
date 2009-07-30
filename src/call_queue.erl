@@ -460,7 +460,7 @@ handle_call({remove, Callpid}, _From, State) ->
 			unlink(Cookpid),
 			gen_server:cast(Cookpid, stop),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
-			lists:foreach(fun(D) -> exit(D, kill) end, Qcall#queued_call.dispatchers),
+			lists:foreach(fun(D) -> dispatcher:regrab(D) end, Qcall#queued_call.dispatchers),
 			set_cpx_mon(State2),
 			{reply, ok, State2}
 	end;
@@ -526,7 +526,7 @@ handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
 			{noreply, State};
 		{Key, #queued_call{cook=Cookpid, dispatchers = Dips}} ->
 			cook:stop(Cookpid),
-			lists:foreach(fun(D) -> exit(D, kill) end, Dips),
+			lists:foreach(fun(D) -> dispatcher:regrab(D) end, Dips),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			set_cpx_mon(State2),
 			{noreply, State2}

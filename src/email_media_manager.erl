@@ -92,7 +92,7 @@ get_mappings() ->
 	end,
 	mnesia:transaction(F).
 
--spec(set_mapping/2 :: (Address :: string(), Options :: #mail_map{} | [any()]) -> {'atomic', 'ok'}).
+-spec(set_mapping/2 :: (Address :: string(), Options :: #mail_map{} | [any()]) -> {'atomic', 'ok'} | {'aborted', any()}).
 set_mapping(Address, Options) when is_list(Options) ->
 	Rec = #mail_map{
 		address = proplists:get_value(address, Options),
@@ -109,7 +109,7 @@ set_mapping(Address, Rec) when is_record(Rec, mail_map) ->
 	end,
 	mnesia:transaction(F).
 
--spec(new_mapping/1 :: (Options :: #mail_map{} | [any()]) -> {'atomic', 'ok'}).
+-spec(new_mapping/1 :: (Options :: #mail_map{} | [any()]) -> {'atomic', 'ok'} | {'aborted', any()}).
 new_mapping(Options) when is_list(Options) ->
 	Rec = #mail_map{
 		address = proplists:get_value(address, Options),
@@ -125,7 +125,7 @@ new_mapping(Rec) when is_record(Rec, mail_map) ->
 	end,
 	mnesia:transaction(F).
 
--spec(destroy_mapping/1 :: (Address :: string()) -> {'atomic', 'ok'}).
+-spec(destroy_mapping/1 :: (Address :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
 destroy_mapping(Address) ->
 	F = fun() ->
 		mnesia:delete({mail_map, Address})

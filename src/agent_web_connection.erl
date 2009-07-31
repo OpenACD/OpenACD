@@ -146,10 +146,10 @@ set_salt(Pid, Salt) ->
 	({}) -> 'false').
 encode_statedata(Callrec) when is_record(Callrec, call) ->
 	case Callrec#call.client of
-		undefined ->
-			Brand = "unknown client";
 		Clientrec when is_record(Clientrec, client) ->
-			Brand = Clientrec#client.label
+			Brand = Clientrec#client.label;
+		_ ->
+			Brand = "unknown client"
 	end,
 	{struct, [
 		{<<"callerid">>, list_to_binary(Callrec#call.callerid)},
@@ -808,10 +808,12 @@ encode_stats([Head | Tail], Count, Acc) ->
 	Newacc = [{struct, Encoded} | Acc],
 	encode_stats(Tail, Count + 1, Newacc).
 
+-spec(encode_groups/2 :: (Stats :: [{string(), string()}], Count :: non_neg_integer()) -> {non_neg_integer(), [tuple()]}).
 encode_groups(Stats, Count) ->
 	?DEBUG("Stats to encode:  ~p", [Stats]),
 	encode_groups(Stats, Count + 1, []).
 
+-spec(encode_groups/3 :: (Groups :: [{string(), string()}], Count :: non_neg_integer(), Acc :: [tuple()]) -> {non_neg_integer(), [tuple()]}).
 encode_groups([], Count, Acc) ->
 	{Count - 1, Acc};
 encode_groups([{Type, Name} | Tail], Count, Acc) ->

@@ -275,8 +275,7 @@
 -define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook]).
 
 -spec(behaviour_info/1 :: 
-	(Info :: 'callbacks') -> [{atom(), non_neg_integer()}];
-	(Info :: any()) -> 'undefined').
+	(Info :: 'callbacks' | any()) -> [{atom(), non_neg_integer()}] | 'undefined').
 behaviour_info(callbacks) ->
 	GS = gen_server:behaviour_info(callbacks),
 	lists:append(GS, [

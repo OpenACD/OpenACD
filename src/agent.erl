@@ -139,7 +139,7 @@ dump_state(Pid) ->
 
 %% @doc Returns the #call{} of the current state if there is on, otherwise 
 %% returns `invalid'.
--spec(get_media/1 :: (Apid :: pid()) -> #call{} | 'invalid').
+-spec(get_media/1 :: (Apid :: pid()) -> {ok, #call{}} | 'invalid').
 get_media(Apid) ->
 	gen_fsm:sync_send_event(Apid, get_media).
 

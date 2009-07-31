@@ -158,8 +158,8 @@ add(Pid, Mediapid) when is_pid(Pid), is_pid(Mediapid) ->
 	add(Pid, 1, Mediapid).
 
 %% @doc Query the queue at `pid()' `Pid' for a call with the ID `string()' or `pid()' of `Callid'.
--spec(get_call/2 :: (Pid :: pid(), Callid :: pid()) -> 'none' | {key(), #queued_call{}};
-					(Pid :: pid(), Callid :: string()) -> 'none' | {key(), #queued_call{}}).
+-spec(get_call/2 :: (Pid :: pid(), Callid :: pid()) -> {key(), #queued_call{}} | 'none';
+	(Pid :: pid(), Callid :: string()) -> {key(), #queued_call{}} | 'none').
 get_call(Pid, Callid) when is_pid(Pid) ->
 	gen_server:call(Pid, {get_call, Callid}).
 

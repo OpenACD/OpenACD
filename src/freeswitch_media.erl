@@ -332,14 +332,14 @@ handle_info({'EXIT', Pid, Reason}, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p", [Pid, Reason]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),
 	{noreply, State#state{manager_pid = Tref}};
-handle_info({call, {event, [UUID | Rest]}}, State) ->
+handle_info({call, {event, [UUID | Rest]}}, State) when is_list(UUID) ->
 	?DEBUG("reporting new call ~p.", [UUID]),
 	Callrec = #call{id = UUID, source = self()},
 	%cdr:cdrinit(Callrec),
 	freeswitch_media_manager:notify(UUID, self()),
 	State2 = State#state{callrec = Callrec},
 	case_event_name([UUID | Rest], State2);
-handle_info({call_event, {event, [UUID | Rest]}}, State) ->
+handle_info({call_event, {event, [UUID | Rest]}}, State) when is_list(UUID) ->
 	?DEBUG("reporting existing call progess ~p.", [UUID]),
 	% TODO flesh out for all call events.
 	case_event_name([ UUID | Rest], State);

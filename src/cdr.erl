@@ -584,7 +584,8 @@ merge(Nodes, Time, Replyto) ->
 	Sums = get_summaries(Nodes, Touchedcalls),
 	Mergedraws = merge_raw(Raws),
 	MergedSums = merge_sum(Sums),
-	Replyto ! {merge_complete, ?MODULE, lists:append([Mergedraws, MergedSums])}.
+	Replyto ! {merge_complete, ?MODULE, lists:append([Mergedraws, MergedSums])},
+	ok.
 	
 %% @private
 get_raws(Nodes, Time) ->

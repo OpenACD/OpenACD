@@ -196,12 +196,12 @@ list_to_state(String) ->
 	end.
 
 %% @doc Start the agent_transfer procedure.  Gernally the media will handle it from here.
--spec(agent_transfer/2 :: (Pid :: pid(), Target :: pid()) -> 'ok').
+-spec(agent_transfer/2 :: (Pid :: pid(), Target :: pid()) -> 'ok' | 'invalid').
 agent_transfer(Pid, Target) ->
 	gen_fsm:sync_send_event(Pid, {agent_transfer, Target}).
 
 %% @doc Start the warm_transfer procedure.  Gernally the media will handle it from here.
--spec(warm_transfer_begin/2 :: (Pid :: pid(), Target :: string()) -> 'ok').
+-spec(warm_transfer_begin/2 :: (Pid :: pid(), Target :: string()) -> 'ok' | 'invalid').
 warm_transfer_begin(Pid, Target) ->
 	gen_fsm:sync_send_event(Pid, {warm_transfer_begin, Target}).
 
@@ -404,7 +404,7 @@ oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) -
 		_ ->
 			{reply, invalid, oncall, State}
 	end;
-oncall(get_media, _From, #agent{statedata = Media} = State) ->
+oncall(get_media, _From, #agent{statedata = Media} = State) when is_record(Media, call) ->
 	{reply, {ok, Media}, oncall, State};
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
@@ -437,7 +437,7 @@ outgoing({warmtransfer, Transferto}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
 	set_cpx_monitor(State#agent{state = warmtransfer}, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()}};
-outgoing(get_media, _From, #agent{statedata = Media} = State) ->
+outgoing(get_media, _From, #agent{statedata = Media} = State) when is_record(Media, call) ->
 	{reply, {ok, Media}, outgoing, State};
 outgoing(_Event, _From, State) -> 
 	{reply, invalid, outgoing, State}.

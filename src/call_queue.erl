@@ -288,7 +288,7 @@ find_unbound_({Key, #queued_call{dispatchers = Dispatchers} = Callrec, Iter}, Fr
 % return the {Key, Value} pair where Value#call.id == Needle or none
 % ie:  lookup a call by ID, return the key in queue and the full call data
 %% @private
--spec(find_key/2 :: (Needle :: string(), GbTree :: {non_neg_integer(), tuple()}) -> {key(), #queued_call{}} | 'none').
+-spec(find_key/2 :: (Needle :: string(), GbTree :: call_queue()) -> {key(), #queued_call{}} | 'none').
 find_key(Needle, GbTree) ->
 	find_key_(Needle, gb_trees:next(gb_trees:iterator(GbTree))).
 
@@ -328,10 +328,10 @@ expand_magic_skills(State, Call, Skills) ->
 			('_brand') when is_pid(Call#queued_call.media) ->
 				AState = gen_media:get_call(Call#queued_call.media),
 				case AState#call.client of
-					undefined ->
-						{'_brand', "Unknown"};
-					Name ->
-						{'_brand', Name#client.label}
+					Name when is_record(Name, client) ->
+						{'_brand', Name#client.label};
+					_ ->
+						{'_brand', "Unknown"}
 				end;
 			(Skill) -> Skill
 		end, Skills)).

@@ -255,6 +255,8 @@
 	wrapup/1
 ]).
 
+-type(tref() :: any()).
+
 -record(state, {
 	callback :: atom(),
 	substate :: any(),
@@ -263,7 +265,7 @@
 	oncall_pid :: 'undefined' | pid(),
 	queue_failover = true :: 'true' | 'false',
 	queue_pid :: 'undefined' | pid(),
-	ringout :: pos_integer() | 'undefined'
+	ringout :: tref() | 'undefined'
 }).
 
 -type(state() :: #state{}).
@@ -337,7 +339,7 @@ oncall(Genmedia) ->
 agent_transfer(Genmedia, Apid, Timeout) ->
 	gen_server:call(Genmedia, {'$gen_media_agent_transfer', Apid, Timeout}).
 
--spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> 'ok' | 'invalid').
+-spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> {'ok', string()} | 'invalid').
 warm_transfer_begin(Genmedia, Number) ->
 	gen_server:call(Genmedia, {'$gen_media_warm_transfer_begin', Number}).
 
@@ -368,7 +370,7 @@ cast(Genmedia, Request) ->
 %% @doc Start a gen_media linked to the calling process.
 -spec(start_link/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | {'error', any()}).
 start_link(Callback, Args) ->
-    gen_server:start_link(?MODULE, [Callback, Args], []).
+	gen_server:start_link(?MODULE, [Callback, Args], []).
 
 -spec(start/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | {'error', any()}).
 start(Callback, Args) ->
@@ -436,7 +438,7 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
-		{default, Qpid} ->
+		{default, _Qpid} ->
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
 			cdr:inqueue(State#state.callrec, "default_queue"),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
@@ -452,7 +454,7 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = Sta
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
-		{default, Qpid} ->
+		{default, _Qpid} ->
 			agent:set_state(State#state.oncall_pid, wrapup, State#state.callrec),
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
 			cdr:inqueue(State#state.callrec, "default_queue"),

@@ -155,7 +155,7 @@ handle_answer(_Apid, _Call, State) ->
 	{error, outgoing_only, State}.
 
 handle_ring(_Apid, _Call, State) ->
-	{error, outgoing_only, State}.
+	{invalid, State}.
 	
 handle_ring_stop(State) ->
 	{ok, State}.

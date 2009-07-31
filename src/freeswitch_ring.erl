@@ -68,13 +68,13 @@
 %%====================================================================
 %% API
 %%====================================================================
--spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Qcall :: #queued_call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()}).
-start(Fnode, AgentRec, Apid, Qcall, Ringout, Fun) when is_pid(Apid), is_record(Qcall, call) ->
-	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Fun], []).
+-spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()} | 'ngore' | {'error', any()}).
+start(Fnode, AgentRec, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Call, call) ->
+	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun], []).
 
--spec(start_link/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Qcall :: #queued_call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()}).
-start_link(Fnode, AgentRec, Apid, Qcall, Ringout, Fun) when is_pid(Apid), is_record(Qcall, call) ->
-	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Qcall, Ringout, Fun], []).
+-spec(start_link/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_link(Fnode, AgentRec, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Call, call) ->
+	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun], []).
 
 -spec(hangup/1 :: (Pid :: pid()) -> 'ok').
 hangup(Pid) ->

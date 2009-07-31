@@ -113,7 +113,7 @@
 -spec(surrendered/3 :: (State :: state(), Elected :: any(), Election :: election()) -> {'ok', state()}).
 -spec(handle_DOWN/3 :: (Node :: atom(), State :: state(), Election :: election()) -> {'ok', state()}).
 -spec(handle_leader_call/4 :: (Request :: any(), From :: pid(), State :: state(), Election :: election()) -> {'reply', any(), state()}).
--spec(handle_call/4 :: (Request :: any(), From :: pid(), State :: state(), Election :: election()) -> {'ok', any(), state()}).
+-spec(handle_call/4 :: (Request :: any(), From :: pid(), State :: state(), Election :: election()) -> {'reply', any(), state()} | {'stop', any(), any(), state()} | {'noreply', any(), state()}).
 -spec(handle_leader_cast/3 :: (Request :: any(), State :: state(), Election :: election()) -> {'noreply', state()}).
 -spec(handle_cast/3 :: (Msg :: any(), State :: state(), Election :: election()) -> {'noreply', state()}).
 -spec(handle_info/2 :: (Info :: any(), State :: state()) -> {'noreply', state()}).
@@ -142,7 +142,7 @@
 
 -type(route_hint() :: {string(), #call{}} | 'undefined' | #call{}).
 
--spec(init/1 :: (Args :: any()) -> {'ok', {any(), route_hint}}).
+-spec(init/1 :: (Args :: any()) -> {'ok', {any(), route_hint()}}).
 -spec(handle_ring/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'invalid', state()}).
 -spec(handle_ring_stop/1 :: (State :: state()) -> {'ok', state()}).
 -spec(handle_answer/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'error', any(), state()}).
@@ -150,7 +150,7 @@
 -spec(handle_announce/2 :: (Annouce :: any(), State :: state()) -> {'ok', state()}).
 -spec(handle_agent_transfer/4 :: (Agent :: pid(), Call :: #call{}, Timeout :: pos_integer(), State :: state()) -> {'ok', state()} | {'error', any(), state()}).
 -spec(handle_queue_transfer/1 :: (State :: state()) -> {'ok', state()}).
--spec(handle_wrapup/1 :: (State :: state()) -> {'ok', state()}).
+-spec(handle_wrapup/1 :: (State :: state()) -> {'ok', state()} | {'hangup', state()}).
 -spec(handle_call/3 :: (Event :: any(), From :: {pid(), any()}, State :: state()) -> 
 	{'reply', any(), state()} | 
 	{'reply', any(), state(), gen_timeout()} | 

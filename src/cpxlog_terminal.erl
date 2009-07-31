@@ -46,7 +46,7 @@
 -record(state, {
 	level = info :: loglevels(),
 	debugmodules = [] :: [atom()],
-	lasttime = erlang:localtime() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}
+	lasttime = erlang:localtime() :: {{non_neg_integer(), non_neg_integer(), non_neg_integer()}, {non_neg_integer(), non_neg_integer(), non_neg_integer()}}
 }).
 
 -type(state() :: #state{}).

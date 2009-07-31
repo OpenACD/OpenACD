@@ -49,13 +49,13 @@
 
 -type(level() :: 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency').
 
--spec(start/0 :: () -> 'ok').
+-spec(start/0 :: () -> 'ok' | {'error', any()}).
 start() ->
 	Out = gen_event:start({local, cpxlog}),
 	gen_event:add_handler(cpxlog, cpxlog_terminal, []),
 	Out.
 	
--spec(start_link/0 :: () -> 'ok').
+-spec(start_link/0 :: () -> 'ok' | {'error', any()}).
 start_link() ->
 	Out = gen_event:start_link({local, cpxlog}),
 	gen_event:add_handler(cpxlog, cpxlog_terminal, []),

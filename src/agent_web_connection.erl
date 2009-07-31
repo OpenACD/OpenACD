@@ -99,12 +99,12 @@
 %%--------------------------------------------------------------------
 
 %% @doc Starts the passed agent at the given security level.
--spec(start_link/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()}).
+-spec(start_link/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Agent, Security) ->
 	gen_server:start_link(?MODULE, [Agent, Security], [{timeout, 10000}]).
 
 %% @doc Starts the passed agent at the given security level.
--spec(start/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()}).
+-spec(start/2 :: (Agent :: #agent{}, Security :: security_level()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Agent, Security) ->
 	gen_server:start(?MODULE, [Agent, Security], [{timeout, 10000}]).
 
@@ -690,7 +690,7 @@ encode_agent(Agent) when is_record(Agent, agent) ->
 		{<<"lastchanged">>, Now}
 		%{<<"remotenumber">>, Remnum}
 	],
-	Statedata = case Agent#agent.state of
+	Statedata = case Agent#agent.statedata of
 		Call when is_record(Call, call) ->
 			list_to_binary(Call#call.id);
 		_Else ->
@@ -725,14 +725,14 @@ encode_call(Call) when is_record(Call, queued_call) ->
 %encode_calls([Head | Tail], Acc) ->
 %	encode_calls(Tail, [encode_call(Head) | Acc]).
 
-encode_client(undefined) ->
-	undefined;
 encode_client(Client) when is_record(Client, client) ->
 	{struct, [
 		{<<"label">>, list_to_binary(Client#client.label)},
 		{<<"tenant">>, Client#client.tenant},
 		{<<"brand">>, Client#client.brand}
-	]}.
+	]};
+encode_client(_) ->
+	undefined.
 
 %encode_clients([], Acc) ->
 %	lists:reverse(Acc);

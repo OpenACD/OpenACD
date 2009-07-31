@@ -163,14 +163,14 @@ inqueue(Call, Queue) ->
 	catch gen_event:notify(cdr, {inqueue, Call, nowsec(now()), Queue}).
 
 %% @doc Notify cdr handler that `#call{} Call' is now ringing to `string() Agent'.
--spec(ringing/2 :: (Call :: #call{}, Agent :: string()) -> 'ok').
+-spec(ringing/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
 ringing(Call, Agent) when is_pid(Agent) ->
 	ringing(Call, agent_manager:find_by_pid(Agent));
 ringing(Call, Agent) ->
 	catch gen_event:notify(cdr, {ringing, Call, nowsec(now()), Agent}).
 
 %% @doc Notify cdr handler that `#call{} Call' is currently oncall with `string() Agent'.
--spec(oncall/2 :: (Call :: #call{}, Agent :: string()) -> 'ok').
+-spec(oncall/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
 oncall(Call, Agent) when is_pid(Agent) ->
 	oncall(Call, agent_manager:find_by_pid(Agent));
 oncall(Call, Agent) ->
@@ -182,7 +182,7 @@ hangup(Call, By) ->
 	catch gen_event:notify(cdr, {hangup, Call, nowsec(now()), By}).
 
 %% @doc Notify cdr handler that `#call{} Call' has been put in wrapup by `string() Agent'.
--spec(wrapup/2 :: (Call :: #call{}, Agent :: string()) -> 'ok').
+-spec(wrapup/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
 wrapup(Call, Agent) when is_pid(Agent) ->
 	wrapup(Call, agent_manager:find_by_pid(Agent));
 wrapup(Call, Agent) ->
@@ -200,7 +200,7 @@ transfer(Call, Transferto) ->
 
 %% @doc Notify cdr handler that `#call{} Call' is being offered by `string() Offerer'
 %% to `string() Recipient'.
--spec(agent_transfer/2 :: (Call :: #call{}, {Offerer :: string(), Recipient :: string()}) -> 'ok').
+-spec(agent_transfer/2 :: (Call :: #call{}, {Offerer :: string() | pid(), Recipient :: string() | pid()}) -> 'ok').
 agent_transfer(Call, {Offerer, Recipient}) when is_pid(Offerer) ->
 	agent_transfer(Call, {agent_manager:find_by_pid(Offerer), Recipient});
 agent_transfer(Call, {Offerer, Recipient}) when is_pid(Recipient) ->

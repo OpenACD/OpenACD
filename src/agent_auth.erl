@@ -219,7 +219,7 @@ destroy_profile(Name) ->
 	mnesia:transaction(F).
 
 %% @doc Gets the proflie `string() Name'
--spec(get_profile/1 :: (Name :: string()) -> {string(), [atom()]}).
+-spec(get_profile/1 :: (Name :: string()) -> {string(), [atom()]} | 'undefined').
 get_profile(Name) ->
 	F = fun() ->
 		mnesia:read({agent_profile, Name})

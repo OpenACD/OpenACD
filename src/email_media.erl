@@ -71,11 +71,13 @@
 	handle_wrapup/1
 ]).
 
+-type(tref() :: any()).
+
 -record(state, {
 	initargs :: any(),
 	html :: string(),
 	files :: [string()],
-	manager :: pid()
+	manager :: pid() | tref()
 }).
 
 -type(state() :: #state{}).

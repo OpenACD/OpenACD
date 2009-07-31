@@ -296,7 +296,7 @@ namespace :test do
 		dialyzer_flags = ""
 		dialyzer_flags += " -DEUNIT=1" if ENV['dialyzer_debug']
 		dialyzer_flags += " -Wunderspecs" if ENV['dialyzer_underspecced']
-		contribfiles = Dir['contrib**/*.erl'].join(' ')
+		contribfiles = Dir['contrib/*/src/*.erl'].join(' ')
 		dialyzer_output = `dialyzer -D#{OTPVERSION}=1 #{dialyzer_flags} --src -I include -c #{SRC.join(' ')} #{contribfiles}`
 		#puts dialyzer_output
 		if $?.exitstatus.zero?

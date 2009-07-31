@@ -310,7 +310,7 @@ stop_spec(Spec) when is_record(Spec, cpx_conf) ->
 %			Else
 %	end.
 
--spec(load_specs/1 :: (Super :: supervisor_name()) -> {'error', any()} | none()).
+-spec(load_specs/1 :: (Super :: supervisor_name()) -> {'aborted', any()} | 'ok').
 load_specs(Super) ->
 	?DEBUG("loading specs for supervisor ~s", [Super]),
 	F = fun() ->

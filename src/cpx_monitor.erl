@@ -393,8 +393,8 @@ handle_call(stop, _From, State, _Election) ->
 	{stop, normal, ok, State};
 handle_call(Request, _From, State, _Election) ->
 	?WARNING("Unable to fulfill call request ~p", [Request]),
-    Reply = ok,
-    {reply, Reply, State}.
+	Reply = ok,
+	{reply, Reply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -402,7 +402,7 @@ handle_call(Request, _From, State, _Election) ->
 %% @hidden
 handle_cast(Request, State, _Election) ->
 	?WARNING("Unable to fulfill cast request ~p.", [Request]),
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |

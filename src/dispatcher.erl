@@ -157,7 +157,6 @@ handle_info(grab_best, State) ->
 		none ->
 			{noreply, State};
 		{Qpid, Call} ->
-			% TODO problem if the tref doesn't exist?
 			timer:cancel(State#state.tref),
 			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined}}
 	end;

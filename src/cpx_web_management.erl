@@ -931,7 +931,7 @@ encode_queue(Queue) ->
 			{recipe, encode_recipe(Queue#call_queue.recipe)},
 			{group, list_to_binary(Queue#call_queue.group)}]}.
 
--spec(encode_queues/1 :: (Queues :: #call_queue{}) -> [simple_json()]).
+-spec(encode_queues/1 :: (Queues :: [#call_queue{}]) -> [simple_json()]).
 encode_queues(Queues) ->
 	encode_queues(Queues, []).
 
@@ -963,7 +963,7 @@ encode_agents([]) ->
 encode_agents([Agent|Agents]) ->
 	[encode_agent(Agent) | encode_agents(Agents)].
 
--spec(encode_agent/1 :: (Agentrec :: #agent{}) -> simple_json()).
+-spec(encode_agent/1 :: (Agentrec :: #agent_auth{}) -> simple_json()).
 encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 	{struct, [
 		{name, list_to_binary(Agentrec#agent_auth.login)},

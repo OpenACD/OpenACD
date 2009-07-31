@@ -243,7 +243,7 @@ build_tables() ->
 	end.
 
 %% @doc Removes the passed `childspec()' or `#cpx_conf{}' from the database.
--spec(destroy/1 :: (Spec :: child_spec() | #cpx_conf{}) -> {'atomic', 'ok'}).
+-spec(destroy/1 :: (Spec :: child_spec() | atom()) -> {'atomic', 'ok'}).
 destroy(Spec) when is_record(Spec, cpx_conf) ->
 	F = fun() ->
 		stop_spec(Spec),

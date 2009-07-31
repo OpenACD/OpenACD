@@ -67,6 +67,8 @@
 -type(ref() :: reference()).
 -endif.
 
+-type(tref() :: any()).
+
 -record(state, {
 	salt :: any(),
 	ref :: ref() | 'undefined',
@@ -78,7 +80,7 @@
 	poll_pid_established = 1 :: pos_integer(),
 	missed_polls = 0 :: non_neg_integer(),
 	counter = 1 :: non_neg_integer(),
-	ack_timer :: {'ok', {'interval', ref()}} | 'undefined',
+	ack_timer :: tref() | 'undefined',
 	poll_state :: atom(),
 	poll_statedata :: any(),
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',

@@ -163,7 +163,7 @@ handle_ring(Apid, Callrec, State) ->
 	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F) of
 		{ok, Pid} ->
 			link(Pid),
-			{ok, State#state{ringchannel = Pid}};
+			{ok, State#state{ringchannel = Pid, agent_pid = Apid}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{invalid, State}
@@ -369,7 +369,7 @@ handle_info(Info, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(Reason, _State) ->
+terminate(Reason, State) ->
 	?NOTICE("terminating: ~p", [Reason]),
 	ok.
 

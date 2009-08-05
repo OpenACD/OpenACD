@@ -811,6 +811,19 @@ agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ring
 	timer:cancel(State#state.ringout),
 	agent:set_state(Apid, idle),
 	State#state{ringout = false, ring_pid = undefined};
+agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ringout =:= false; Apid =:= undefined ->
+	?INFO("stop_ring when there's not much of a ring to handle", []),
+	case {State#state.ringout, Apid} of
+		{false, undefined} ->
+			% Nothin' doing.
+			State;
+		{false, Apid} ->
+			agent:set_state(Apid, idle),
+			State#state{ring_pid = undefined};
+		{Tref, undefined} ->
+			timer:cancel(Tref),
+			State#state{ringout = false}
+	end;
 agent_interact(wrapup, #state{oncall_pid = Apid} = State) ->
 	?INFO("Attempting to set agent at ~p to wrapup", [Apid]),
 	agent:set_state(Apid, wrapup, State#state.callrec),

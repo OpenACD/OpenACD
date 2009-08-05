@@ -91,20 +91,20 @@
 %% @doc Starts the `agent_manger' linked to the calling process.
 -spec(start_link/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start_link(Nodes) -> 
-	gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, [], []).
+	gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, [], []).
 
 -spec(start_link/2 :: (Nodes :: [atom()], Opts :: [any()]) -> {'ok', pid()}).
 start_link(Nodes, Opts) ->
-	gen_leader:start_link(?MODULE, Nodes, [], ?MODULE, Opts, []).
+	gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, Opts, []).
 
 %% @doc Starts the `agent_manager' without linking to the calling process.
 -spec(start/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start(Nodes) -> 
-	gen_leader:start(?MODULE, Nodes, [], ?MODULE, [], []).
+	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, [], []).
 
 -spec(start/2 :: (Nodes :: [atom()], Opts :: [any()]) -> {'ok', pid()}).
 start(Nodes, Opts) ->
-	gen_leader:start(?MODULE, Nodes, [], ?MODULE, Opts, []).
+	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, Opts, []).
 
 %% @doc stops the `agent_manager'.
 -spec(stop/0 :: () -> {'ok', pid()}).

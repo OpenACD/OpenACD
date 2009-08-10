@@ -89,6 +89,9 @@ if ! File.exists?($conf + ".config")
 	f.puts "	{nodes, ['#{node}']},"
 	f.puts "	{console_loglevel, info},"
 	f.puts "	{logfiles, [{\"full.log\", debug}, {\"console.log\", info}]}"
+	f.puts "]},"
+	f.puts "{sasl, ["
+	f.puts "	{errlog_type, error} % disable SASL progress reports"
 	f.puts "]}]."
 	f.close
 end

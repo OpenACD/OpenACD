@@ -1,7 +1,7 @@
 {success:true,
 data:{identifier:"id",
 label:"display",
-items:[{id:"1",
+items:[{id:"system-System",
 	   display:"System",
 	   type:"system",
 	   health:{
@@ -15,7 +15,7 @@ items:[{id:"1",
 		_value:{
 			sysdata:"goober"
 		}}},
-	   {id:"2",
+	   {id:"node-node1@example",
 	   display:"node1@example",
 	   type:"node",
 	   health:{
@@ -31,7 +31,7 @@ items:[{id:"1",
 		}
 	   }
 	   },
-	   {id:"3",
+	   {id:"node-node2@example",
 	   display:"node2@example",
 	   type:"node",
 	   health:{
@@ -46,7 +46,7 @@ items:[{id:"1",
 			location:"there"
 		}
 	   }},
-	   {id:"4",
+	   {id:"queuegroup-queuegroup1",
 	   display:"queuegroup1",
 	   type:"queuegroup",
 	   health:{
@@ -57,14 +57,14 @@ items:[{id:"1",
 		_type:"details",
 		_value:{}
 	   }},
-	   {id:"5",
+	   {id:"queuegroup-queuegroup2",
 	   display:"queuegroup2",
 	   type:"queuegroup",
 	   health:{
 		_type:"details",
 		_value:{}
 		}},
-	   {id:"6",
+	   {id:"queue-queue1",
 	   display:"queue1",
 	   type:"queue",
 	   group:"queuegroup1",
@@ -74,7 +74,7 @@ items:[{id:"1",
 		_value:{
 			abandonment:10
 		}}},
-	   {id:"7",
+	   {id:"queue-queue2",
 	   display:"queue2",
 	   type:"queue",
 	   group:"queuegroup2",
@@ -84,7 +84,7 @@ items:[{id:"1",
 		_value:{
 			abandonment:20
 		}}},
-	   {id:"8",
+	   {id:"queue-queue3",
 	   display:"queue3",
 	   type:"queue",
 	   group:"queuegroup1",
@@ -94,7 +94,7 @@ items:[{id:"1",
 		_value:{
 			abandonment:50
 		}}},
-	   {id:"9",
+	   {id:"queue-queue4",
 	   display:"queue4",
 	   type:"queue",
 	   group:"queuegroup2",
@@ -104,7 +104,7 @@ items:[{id:"1",
 		_value:{
 			abandonment:50}
 		}},
-	   {id:"10",
+	   {id:"media-media1",
 	   display:"media1",
 	   type:"media",
 	   node:"node1@example",
@@ -114,7 +114,7 @@ items:[{id:"1",
 		_value:{
 			moisteness:10
 		}}},
-	   {id:"11",
+	   {id:"media-media2",
 	   display:"media2",
 	   type:"media",
 	   node:"node2@example",
@@ -124,7 +124,7 @@ items:[{id:"1",
 		_value:{
 			holdtime:50
 		}}},
-	   {id:"12",
+	   {id:"media-media3",
 	   display:"media3",
 	   type:"media",
 	   node:"node1@example",
@@ -134,7 +134,7 @@ items:[{id:"1",
 		_value:{
 			holdtime:10
 		}}},
-	   {id:"13",
+	   {id:"media-media4",
 	   display:"media4",
 	   node:"node2@example",
 	   queue:"queue2",
@@ -144,19 +144,19 @@ items:[{id:"1",
 		_value:{
 			holdtime:20
 		}}},
-	   {id:"14",
+	   {id:"agentprofile-agentprofile1",
 	   display:"agentprofile1",
 	   type:"agentprofile",
 	   health:{
 		_type:"details",
 		_value:{}}},
-	   {id:"15",
+	   {id:"agentprofile-agentprofile2",
 	   display:"agentprofile2",
 	   type:"agentprofile",
 	   health:{
 		_type:"details",
 		_value:{}}},
-	   {id:"16",
+	   {id:"agent-agent1",
 	   display:"agent1",
 	   type:"agent",
 	   profile:"agentprofile1",
@@ -166,7 +166,7 @@ items:[{id:"1",
 		_value:{
 			gooberness:50
 		}}},
-	   {id:"17",
+	   {id:"agent-agent2",
 	   display:"agent2",
 	   type:"agent",
 	   profile:"agentprofile2",
@@ -176,7 +176,7 @@ items:[{id:"1",
 		_value:{
 			gooberness:10
 		}}},
-	   {id:"18",
+	   {id:"agent-agent3",
 	   display:"agent3",
 	   type:"agent",
 	   profile:"agentprofile1",
@@ -186,7 +186,7 @@ items:[{id:"1",
 		_value:{
 			gooberness:50
 		}}},
-	   {id:"19",
+	   {id:"agent-agent4",
 	   display:"agent4",
 	   type:"agent",
 	   profile:"agentprofile2",
@@ -196,7 +196,7 @@ items:[{id:"1",
 		_value:{
 			gooberness:20
 		}}},
-	   {id:"20",
+	   {id:"media-media5",
 	   display:"media5",
 	   type:"media",
 	   agent:"agent1",
@@ -206,7 +206,7 @@ items:[{id:"1",
 		_value:{
 			danceocity:50
 		}}},
-	   {id:"21",
+	   {id:"media-media6",
 	   display:"media6",
 	   type:"media",
 	   agent:"agent2",

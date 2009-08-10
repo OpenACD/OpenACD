@@ -340,12 +340,15 @@ handle_leader_cast({reporting, Node}, State, Election) ->
 handle_leader_cast({subscribe, Pid}, #state{subscribers = Subs} = State, _Election) ->
 	case lists:member(Pid, Subs) of
 		true ->
+			?DEBUG("~w is already a sub", [Pid]),
 			{noreply, State};
 		false ->
 			link(Pid),
+			?DEBUG("adding ~w to subscribers", [Pid]),
 			{noreply, State#state{subscribers = [Pid | Subs]}}
 	end;
 handle_leader_cast({unsubscribe, Pid}, #state{subscribers = Subs} = State, _Election) ->
+	?DEBUG("removing ~w from subscribers", [Pid]),
 	unlink(Pid),
 	Newsubs = lists:delete(Pid, Subs),
 	{noreply, State#state{subscribers = Newsubs}};
@@ -600,6 +603,7 @@ entry(Entry, #state{ets = Tid} = State, Election) ->
 	tell_cands(Message, Election).
 
 tell_subs(Message, Subs) ->
+	?DEBUG("Telling subs ~p message ~p", [Subs, Message]),
 	lists:foreach(fun(Pid) ->
 		Pid ! {cpx_monitor_event, Message}
 	end, Subs).

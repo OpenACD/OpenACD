@@ -376,8 +376,10 @@ api(poll, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
 	agent_web_connection:poll(Conn, self()),
 	receive
 		{poll, Return} ->
+			?DEBUG("Got poll message, spitting back ~p", [Return]),
 			 Return; 
 		{kill, Headers, Body} -> 
+			?DEBUG("Got a kill message with heads ~p and body ~p", [Headers, Body]),
 			{408, Headers, Body}
 	end;
 api(Api, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->

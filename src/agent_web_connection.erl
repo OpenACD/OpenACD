@@ -185,7 +185,7 @@ encode_statedata({}) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([Agent, Security]) ->
-	?DEBUG("web_connection init ~p", [Agent]),
+	?DEBUG("web_connection init ~p with security ~w", [Agent, Security]),
 	process_flag(trap_exit, true),
 	case agent_manager:start_agent(Agent) of
 		{ok, Apid} ->
@@ -199,6 +199,14 @@ init([Agent, Security]) ->
 		_Else ->
 			{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_live_poll),
 			agent_web_listener:linkto(self()),
+			case Security of
+				agent ->
+					ok;
+				supervisor ->
+					cpx_monitor:subscribe();
+				admin ->
+					cpx_monitor:subscribe()
+			end,
 			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security, listener = whereis(agent_web_listener)}}
 	end.
 
@@ -450,9 +458,11 @@ handle_cast({poll, Frompid}, State) ->
 	end,
 	case State#state.poll_queue of
 		[] ->
+			?DEBUG("Empty poll queue", []),
 			link(Frompid),
 			{noreply, State#state{poll_pid = Frompid, poll_pid_established = util:now()}};
 		Pollq ->
+			?DEBUG("Poll queue of ~p", [Pollq]),
 			Newstate = State#state{poll_queue=[], poll_pid_established = util:now(), poll_pid = undefined},
 			Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}]},
 			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
@@ -508,6 +518,44 @@ handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Poll
 		_N ->
 			{noreply, State}
 	end;
+handle_info({cpx_monitor_event, _Message}, #state{securitylevel = agent} = State) ->
+	?WARNING("Not eligible for supervisor view, so shouldn't be getting events.  Unsubbing", []),
+	cpx_monitor:unsubscribe(),
+	{noreply, State};
+handle_info({cpx_monitor_event, Message}, State) ->
+	?DEBUG("Ingesting cpx_monitor_event ~p", [Message]),
+	Json = case Message of
+		{drop, {Type, Name}} ->
+			{struct, [
+				{<<"command">>, <<"supervisortab">>},
+				{<<"data">>, {struct, [
+					{<<"action">>, drop},
+					{<<"id">>, list_to_binary(lists:append([atom_to_list(Type), "-", Name]))}
+				]}}
+			]};
+		{set, {{Type, Name}, Healthprop, Detailprop, Timestamp}} ->
+			Encodedhealth = encode_proplist(Healthprop),
+			Encodeddetail = encode_proplist(Detailprop),
+			{struct, [
+				{<<"command">>, <<"supervisortab">>},
+				{<<"data">>, {struct, [
+					{<<"action">>, set},
+					{<<"id">>, list_to_binary(lists:append([atom_to_list(Type), "-", Name]))},
+					{<<"type">>, Type},
+					{<<"display">>, list_to_binary(Name)},
+					{<<"health">>, {struct, [
+						{<<"_type">>, <<"details">>},
+						{<<"_value">>, Encodedhealth}
+					]}},
+					{<<"details">>, {struct, [
+						{<<"_type">>, <<"details">>},
+						{<<"_value">>, Encodeddetail}
+					]}}
+				]}}
+			]}
+	end,
+	Newstate = push_event(Json, State),
+	{noreply, Newstate};
 handle_info({'EXIT', Pollpid, Reason}, #state{poll_pid = Pollpid} = State) ->
 	?DEBUG("The pollpid died due to ~p", [Reason]),
 	{noreply, State#state{poll_pid = undefined}};
@@ -908,8 +956,10 @@ push_event(Eventjson, State) ->
 	Newqueue = [Eventjson | State#state.poll_queue],
 	case State#state.poll_pid of
 		undefined ->
+			?DEBUG("No poll pid to send to", []),
 			State#state{poll_queue = Newqueue};
 		Pid when is_pid(Pid) ->
+			?DEBUG("Sending to the ~w", [Pid]),
 			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, Newqueue}]})}},
 			State#state{poll_queue = [], poll_pid = undefined}
 	end.

@@ -104,7 +104,8 @@ handle_call(_Request, State) ->
 handle_info(_Info, State) ->
 	{ok, State}.
 
-terminate(_Args, _State) ->
+terminate(_Args, State) ->
+	lists:foreach(fun({_, FH, _}) -> file:close(FH) end, State#state.filehandles),
 	ok.
 
 code_change(_OldVsn, State, _Extra) ->

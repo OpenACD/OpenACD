@@ -808,7 +808,6 @@ encode_stats([], Count, Acc) ->
 	{Count - 1, Acc};
 encode_stats([Head | Tail], Count, Acc) ->
 	Proplisted = cpx_monitor:to_proplist(Head),
-	Id = [{<<"id">>, Count}],
 	Display = case proplists:get_value(name, Proplisted) of
 		Name when is_binary(Name) ->
 			[{<<"display">>, Name}];
@@ -818,6 +817,13 @@ encode_stats([Head | Tail], Count, Acc) ->
 			[{<<"display">>, Name}]
 	end,
 	Type = [{<<"type">>, proplists:get_value(type, Proplisted)}],
+	[{_, Rawtype}] = Type,
+	Id = case Display of
+		[{_, D}] when is_atom(D) ->
+			[{<<"id">>, list_to_binary(lists:append([atom_to_list(Rawtype), "-", atom_to_list(D)]))}];
+		[{_, D}] when is_binary(D) ->
+			[{<<"id">>, list_to_binary(lists:append([atom_to_list(Rawtype), "-", binary_to_list(D)]))}]
+	end,
 	Protohealth = proplists:get_value(health, Proplisted),
 	Protodetails = proplists:get_value(details, Proplisted),
 	Node = case Type of

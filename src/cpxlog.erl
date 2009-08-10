@@ -44,7 +44,9 @@
 	emergency/6,
 	set_loglevel/1,
 	debug_module/1,
-	nodebug_module/1
+	debug_modules/1,
+	nodebug_module/1,
+	nodebug_modules/1
 ]).
 
 -type(level() :: 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency').
@@ -106,6 +108,22 @@ set_loglevel(Level) ->
 debug_module(Module) ->
 	catch gen_event:notify(cpxlog, {debug_module, Module}).
 
+-spec(debug_modules/1 :: (Modules :: [atom()]) -> 'ok').
+debug_modules(Modules) ->
+	Fun = fun(Mod) ->
+		debug_module(Mod)
+	end,
+	lists:foreach(Fun, Modules),
+	ok.
+
 -spec(nodebug_module/1 :: (Module :: atom()) -> {'ok', atom()}).
 nodebug_module(Module) ->
 	catch gen_event:notify(cpxlog, {nodebug_module, Module}).
+
+-spec(nodebug_modules/1 :: (Modules :: [atom()]) -> 'ok').
+nodebug_modules(Modules) ->
+	Fun = fun(Mod) ->
+		nodebug_module(Mod)
+	end,
+	lists:foreach(Fun, Modules),
+	ok.

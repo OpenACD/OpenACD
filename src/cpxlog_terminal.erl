@@ -65,10 +65,10 @@ handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 	end,
 	case ((lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(State#state.level, ?LOGLEVELS))) orelse lists:member(Module, State#state.debugmodules)) of
 		true ->
-			io:format("~w:~w:~w [~s] ~w@~s:~w ~s~n", [
+			io:format("~w:~s:~s [~s] ~w@~s:~w ~s~n", [
 					element(1, element(2, Time)),
-					element(2, element(2, Time)),
-					element(3, element(2, Time)),
+					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
 					string:to_upper(atom_to_list(Level)),
 					Pid, Module, Line,
 					io_lib:format(Message, Args)]);

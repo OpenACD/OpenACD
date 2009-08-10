@@ -31,8 +31,9 @@ function Agent(username){
 					break;
 				
 				default:
-					console.log("unhandled command");
-					console.log(datalist[i].command);
+					dojo.publish("agent/" + datalist[i].command, [datalist[i]]);
+					//console.log("unhandled command");
+					//console.log(datalist[i].command);
 			 }
 		}
 	}

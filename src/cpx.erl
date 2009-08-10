@@ -45,8 +45,8 @@
 
 -spec(start/2 :: (Type :: 'normal' | {'takeover', atom()} | {'failover', atom()}, StartArgs :: [any()]) -> {'ok', pid(), any()} | {'ok', pid()} | {'error', any()}).
 start(_Type, StartArgs) ->
-	?DEBUG("Start args ~p", [StartArgs]),
-	?DEBUG("All env: ~p", [application:get_all_env(cpx)]),
+	io:format("Start args ~p~n", [StartArgs]),
+	io:format("All env: ~p~n", [application:get_all_env(cpx)]),
 	crypto:start(),
 	%Nodes = lists:append([nodes(), [node()]]),
 	%mnesia:create_schema(Nodes),
@@ -58,7 +58,7 @@ start(_Type, StartArgs) ->
 				[] ->
 					ok;
 				AliveNodes ->
-					?NOTICE("Alive nodes: ~p", [AliveNodes]),
+					io:format("Alive nodes: ~p~n", [AliveNodes]),
 					mnesia:change_config(extra_db_nodes, AliveNodes)
 			end,
 			ok;

@@ -900,6 +900,10 @@ if(typeof(supervisorTab) == "undefined"){
 			
 			bub.icon = icon;
 			
+			bub.setSubscription = dojo.subscribe("supervisortab/set/" + supervisorTab.dataStore.getValue(obj, "id"), function(storeref, dataobj){
+				bub.setHp(dataobj.aggregate);
+			});
+			
 			var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
 			bub.dropped = function(obj){
 				console.log("dropped called");
@@ -1176,7 +1180,8 @@ if(typeof(supervisorTab) == "undefined"){
 						typeMap:{
 							"details":{
 								"type":Object,
-								"deserialize":function(obj){return obj}
+								"deserialize":function(obj){return obj},
+								"serialize":function(obj){return obj}
 							}
 						}
 					});
@@ -1185,7 +1190,7 @@ if(typeof(supervisorTab) == "undefined"){
 					if(supervisorTab.suppressPoll){
 						return;
 					}
-					window.setTimeout(supervisorTab.reloadDataStore, 5000);
+					//window.setTimeout(supervisorTab.reloadDataStore, 5000);
 				}
 				else{
 					console.log(data);
@@ -1205,31 +1210,74 @@ supervisorTab.drawAgentQueueBubbles(0, 0);
 supervisorTab.refreshSystemStack();
 supervisorTab.systemStack[0].grow();
 
-//supervisorTab.poller = new dojox.timing.Timer(5000);
-//supervisorTab.poller.onTick = function(){
-//	supervisorTab.reloadDataStore();
-//}
-
 supervisorTab.reloadDataStore();
-//if(supervisorTab.poller){
-//	if(supervisorTab.poller.isRunning){
-//		//la la la
-//	}
-//	else{
-//		supervisorTab.poller.start();
-//	}
-//}
-//else{
-//	supervisorTab.poller.start();
-//}
 
-//supervisorTab.logoutListener = dojo.subscribe("agent/logout", function(data){
-//	supervisorTab.poller.stop();
-//});
-//
-//supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(child){
-//	if(child.title == "Supervisor"){
-//		supervisorTab.poller.stop();
-//	}
-//	dojo.unsubscribe(supervisorTab.logoutListener);
-//});
+supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
+	console.log("master sub!");
+	console.log(data);
+	if(data.action == "set"){
+		var fetched = function(items){
+			// items to be scapped out and put top leve:
+			// node, profile, group, queue, agent.
+			// check if profile or group exists, and if not, create a stub for them
+			// finally, store the 'corrected' object, 
+			// then publish.
+			var scrapped = {};
+			var savedata = {
+				"details":{},
+				"health":{},
+				"id":data.id,
+				"type":data.type,
+				"display":data.display
+			};
+			for(var i in data.details._value){
+				switch(i){
+					case "node":
+					case "profile":
+					case "group":
+					case "queue":
+					case "agent":
+						savedata[i] = data.details._value[i];
+						break;
+					default:
+						savedata.details[i] = data.details._value[i];
+				}
+			}
+			var hps = [];
+			for(var i in data.health._value){
+				hps.push(data.health._value[i]);
+				savedata.health[i] = data.health._value[i];
+			}
+			var aggregate = 50;
+			if(hps.length > 0){
+				aggregate = supervisorTab.averageHp(hps);
+			}
+			savedata.aggregate = aggregate;
+			for(var i in savedata){
+				supervisorTab.dataStore.setValue(items[0], i, savedata[i]);
+			}
+			supervisorTab.dataStore.save();
+			dojo.publish("supervisortab/set/" + data.id, [items[0], savedata]);
+		}
+	
+		supervisorTab.dataStore.fetch({
+			query:{"id":data.id},
+			onComplete:fetched
+		});
+	}
+	else if(data.action == "drop"){
+		var fetched = function(items){
+			supervisorTab.dataStore.deleteItem(items[0]);
+			dojo.publish("supervisortab/drop/" + data.id, [data]);
+		}
+		
+		supervisorTab.dataStore.fetch({
+			query:{"id":data.id},
+			onComplete:fetched
+		});
+	}
+	else{
+		// la la la
+	}
+});
+

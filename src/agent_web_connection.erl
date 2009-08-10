@@ -534,7 +534,7 @@ handle_info({cpx_monitor_event, Message}, State) ->
 				]}}
 			]};
 		{set, {{Type, Name}, Healthprop, Detailprop, Timestamp}} ->
-			Encodedhealth = encode_proplist(Healthprop),
+			Encodedhealth = encode_health(Healthprop),
 			Encodeddetail = encode_proplist(Detailprop),
 			{struct, [
 				{<<"command">>, <<"supervisortab">>},
@@ -854,14 +854,53 @@ encode_stats([Head | Tail], Count, Acc) ->
 					[{agent, list_to_binary(Agent)}]
 			end
 	end,
-	Scrubbedhealth = scrub_proplist(Protohealth),
+	Scrubbedhealth = encode_health(Protohealth),
 	Scrubbeddetails = scrub_proplist(Protodetails),
-	Health = [{<<"health">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbedhealth)}]}}],
+	Health = [{<<"health">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, Scrubbedhealth}]}}],
 	Details = [{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbeddetails)}]}}],
 	Encoded = lists:append([Id, Display, Type, Node, Parent, Health, Details]),
 	Newacc = [{struct, Encoded} | Acc],
 	encode_stats(Tail, Count + 1, Newacc).
 
+-spec(encode_health/1 :: (Health :: [{atom(), any()}]) -> json_simple()).
+encode_health(Health) ->
+	List = encode_health(Health, []),
+	{struct, List}.
+
+encode_health([], Acc) ->
+	Acc;
+encode_health([{Key, {Min, Goal, Max, {time, Time}}} | Tail], Acc) ->
+	Json = {struct, [
+		{<<"min">>, Min},
+		{<<"goal">>, Goal},
+		{<<"max">>, Max},
+		{<<"time">>, Time}
+	]},
+	encode_health(Tail, [{Key, Json} | Acc]);
+encode_health([{Key, {Min, Goal, Max, Val}} | Tail], Acc) ->
+	Json = {struct, [
+		{<<"min">>, Min},
+		{<<"goal">>, Goal},
+		{<<"max">>, Max},
+		{<<"value">>, Val}
+	]},
+	encode_health(Tail, [{Key, Json} | Acc]);
+encode_health([{Key, Val} | Tail], Acc) ->
+	Newacc = case Val of
+		Val when is_integer(Val); is_float(Val); is_binary(Val); is_atom(Val) ->
+			[{Key, Val} | Acc];
+		Val when is_list(Val) ->
+			[{Key, list_to_binary(Val)} | Acc];
+		Val ->
+			Acc
+	end,
+	encode_health(Tail, Newacc);
+encode_health([Key | Tail], Acc) when is_atom(Key) ->
+	encode_health(Tail, [{Key, true} | Acc]);
+encode_health([_Whatever | Tail], Acc) ->
+	encode_health(Tail, Acc).
+	
+	
 -spec(encode_groups/2 :: (Stats :: [{string(), string()}], Count :: non_neg_integer()) -> {non_neg_integer(), [tuple()]}).
 encode_groups(Stats, Count) ->
 	?DEBUG("Stats to encode:  ~p", [Stats]),

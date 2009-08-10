@@ -27,7 +27,7 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
-%% @doc A terminal output backend for cpxlog.
+%% @doc A file output backend for cpxlog.
 
 -module(cpxlog_file).
 -behaviour(gen_event).
@@ -47,53 +47,54 @@
 	%level = info :: loglevels(),
 	%debugmodules = [] :: [atom()],
 	lasttime = erlang:localtime() :: {{non_neg_integer(), non_neg_integer(), non_neg_integer()}, {non_neg_integer(), non_neg_integer(), non_neg_integer()}},
-	filehandle :: any()
+	filehandles = [] :: [{string(), any(), loglevels()}]
 }).
 
 -type(state() :: #state{}).
 -define(GEN_EVENT, true).
 -include("gen_spec.hrl").
 
-init(_Args) ->
-	case file:open("st.log", [append, raw]) of
+init(undefined) ->
+	{'EXIT', "no logfiles defined"};
+init([Files]) ->
+	open_files(Files, #state{}).
+
+open_files([], State) ->
+	{ok, State};
+open_files([{Filename, LogLevel} | Tail], State) ->
+	case file:open(Filename, [append, raw]) of
 		{ok, FileHandle} ->
-			{ok, #state{filehandle = FileHandle}};
+			open_files(Tail, State#state{filehandles = [{Filename, FileHandle, LogLevel} | State#state.filehandles]});
 		{error, _Reason} ->
-			?ERROR("can't start file logger!", []),
-			{stop, "busted"}
+			io:format("can't open logfile ~p~n", [Filename]),
+			{'EXIT', "unable to open logfile " ++ Filename}
 	end.
 
 handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of
 		true ->
-			file:write(State#state.filehandle, io_lib:format("Day changed from ~p to ~p~n", [element(1, State#state.lasttime), element(1, Time)]));
+			lists:foreach(fun({_, FH, _}) ->
+						file:write(FH, io_lib:format("Day changed from ~p to ~p~n", [element(1, State#state.lasttime), element(1, Time)]))
+			end, State#state.filehandles);
 		false ->
 			ok
 	end,
-	file:write(State#state.filehandle,
-		io_lib:format("~w:~s:~s [~s] ~w@~s:~w ~s~n", [
-				element(1, element(2, Time)),
-				string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
-				string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
-				string:to_upper(atom_to_list(Level)),
-				Pid, Module, Line,
-				io_lib:format(Message, Args)])),
+	lists:foreach(fun({_, FH, LogLevel}) ->
+				case ((lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(LogLevel, ?LOGLEVELS)))) of
+					true ->
+						file:write(FH,
+							io_lib:format("~w:~s:~s [~s] ~w@~s:~w ~s~n", [
+									element(1, element(2, Time)),
+									string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+									string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+									string:to_upper(atom_to_list(Level)),
+									Pid, Module, Line,
+									io_lib:format(Message, Args)]));
+					false ->
+						ok
+				end
+		end, State#state.filehandles),
 	{ok, State#state{lasttime = Time}};
-%handle_event({set_log_level, Level}, State) ->
-	%case lists:member(Level, ?LOGLEVELS) of
-		%true ->
-			%io:format("Loglevel changed to: ~s~n", [string:to_upper(atom_to_list(Level))]),
-			%{ok, State#state{level = Level}};
-		%false ->
-			%io:format("Invalid loglevel: ~s~n", [string:to_upper(atom_to_list(Level))]),
-			%{ok, State}
-	%end;
-%handle_event({debug_module, Module}, State) ->
-	%io:format("Now showing all messages for module ~s~n", [Module]),
-	%{ok, State#state{debugmodules = lists:umerge(State#state.debugmodules, [Module])}};
-%handle_event({nodebug_module, Module}, State) ->
-	%io:format("No longer showing all messages for module ~s~n", [Module]),
-	%{ok, State#state{debugmodules = lists:subtract(State#state.debugmodules, [Module])}};
 handle_event(_Event, State) ->
 	{ok, State}.
 

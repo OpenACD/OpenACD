@@ -53,8 +53,17 @@
 -define(GEN_EVENT, true).
 -include("gen_spec.hrl").
 
-init(_Args) ->
-	{ok, #state{}}.
+init([]) ->
+	io:format("Loglevel is info~n"),
+	{ok, #state{}};
+init([LogLevel]) ->
+	io:format("Loglevel is ~p~n", [LogLevel]),
+	case lists:member(LogLevel, ?LOGLEVELS) of
+		true ->
+			{ok, #state{level = LogLevel}};
+		false ->
+			{'EXIT', "bad loglevel"}
+	end.
 
 handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of

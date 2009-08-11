@@ -465,7 +465,8 @@ if(typeof(supervisorTab) == "undefined"){
 			data:{"display":"bubble", "health":50, "type":"text"},
 			onmouseenter:function(){ return false},
 			onmouseleave:function(){return false},
-			onclick:function(){ return false}
+			onclick:function(){ return false},
+			subscriptions:[]
 		};
 		
 		conf = dojo.mixin(conf, opts);
@@ -478,7 +479,9 @@ if(typeof(supervisorTab) == "undefined"){
 		}
 		
 		var group = conf.parent.createGroup();
-			
+		
+		group.subscriptions = conf.subscriptions;
+		
 		var rmod = Math.abs(-(255/50) * conf.data.health + 255);
 		var gmod = 255;
 		var textcolors = "black";
@@ -559,7 +562,6 @@ if(typeof(supervisorTab) == "undefined"){
 			var bshape = group.bubble.getShape();
 			
 			var thex = (hp * bshape.width)/100 + bshape.x
-			//hp * (200 + bshape.x)/bshape.width + bshape.x;
 			group.hpline.setShape({x1: thex, x2:thex});
 		}
 		
@@ -573,6 +575,14 @@ if(typeof(supervisorTab) == "undefined"){
 			return (!(topleft.x > inbottomright.x || intopleft.x > bottomright.x || topleft.y > inbottomright.y || inbottomright.y > bottomright.y));
 		}
 		
+		group._clear = group.clear;
+		
+		group.clear = function(){
+			for(var i in group.subscriptions){
+				dojo.unsubscribe(group.subscriptions[i]);
+			}
+			group._clear();
+		}
 		return group;
 	}
 
@@ -710,7 +720,7 @@ if(typeof(supervisorTab) == "undefined"){
 			parent: supervisorTab.surface,
 			mousept: {x:100, y:100},
 			viewHeight:400,
-			bubbleConfs: []		
+			bubbleConfs: [],
 		}
 		
 		conf = dojo.mixin(conf, props);
@@ -728,7 +738,7 @@ if(typeof(supervisorTab) == "undefined"){
 			x:conf.mousept.x,
 			y:conf.mousept.y
 		};
-		
+				
 		group.viewHeight = conf.viewHeight;
 		
 		group.backing = group.createRect({x:pt.x - 50, y:-100, width:200, height: groupHeight + 200}).setFill([0, 0, 0, 0]).setStroke([0, 0, 0, 0]);
@@ -789,6 +799,9 @@ if(typeof(supervisorTab) == "undefined"){
 				return;
 			}
 			
+			for(var i in group.subscriptions){
+				dojo.unsubscribe(group.subscriptions[i]);
+			}
 			group._clear();
 		};
 
@@ -983,7 +996,7 @@ if(typeof(supervisorTab) == "undefined"){
 			
 			bub.icon = icon;
 			
-			bub.setSubscription = dojo.subscribe("supervisortab/set/" + supervisorTab.dataStore.getValue(obj, "id"), function(storeref, dataobj){
+			bub.subscriptions.push(dojo.subscribe("supervisortab/set/" + supervisorTab.dataStore.getValue(obj, "id"), function(storeref, dataobj){
 				var imgsrc = "images/";
 				switch(supervisorTab.dataStore.getValue(storeref, "details").state){
 					case "idle":
@@ -1007,8 +1020,10 @@ if(typeof(supervisorTab) == "undefined"){
 				}
 				bub.icon.setShape({src:imgsrc});
 				bub.setHp(dataobj.aggregate);
-			});
-			
+			}));
+			bub.subscriptions.push(dojo.subscribe("supervisortab/drop/" + supervisorTab.dataStore.getValue(obj, "id"), function(storeref, dataobj){
+				bub.clear();
+			}));
 			var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
 			bub.dropped = function(obj){
 				//console.log("dropped called");
@@ -1389,8 +1404,4 @@ supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
 	else{
 		// la la la
 	}
-});
-
-supervisorTab.testSub = dojo.subscribe("supervisortab/set/agent-administrator", function(a, b){
-	//console.log(["tiny update", a, b]);
 });

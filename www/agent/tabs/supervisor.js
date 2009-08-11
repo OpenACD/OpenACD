@@ -699,7 +699,7 @@ if(typeof(supervisorTab) == "undefined"){
 			hps.push(conf.data[i].aggregate);
 		}
 		debug(["drawSystemStack wants averaged", hps]);
-		conf.data.unshift({"display":"System", "id":"system-System", "type":"system", "aggregate":supervisorTab.averageHp(hps)});
+		conf.data.unshift({"display":"System", "id":"system-System", "type":"system", "health":supervisorTab.averageHp(hps)});
 
 		var yi = 385;
 		out = [];
@@ -1381,7 +1381,8 @@ if(typeof(supervisorTab) == "undefined"){
 					id:supervisorTab.dataStore.getValue(item, "id"),
 					type:supervisorTab.dataStore.getValue(item, "type"),
 					display:supervisorTab.dataStore.getValue(item, "display"),
-					"aggregate":aggregate
+					"aggregate":aggregate,
+					health:aggregate
 				}
 				acc.push(out);
 			});

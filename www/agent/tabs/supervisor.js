@@ -558,7 +558,8 @@ if(typeof(supervisorTab) == "undefined"){
 			group.bubble.setFill(bubblefill);
 			var bshape = group.bubble.getShape();
 			
-			var thex = hp * (200 + bshape.x)/bshape.width + bshape.x;
+			var thex = (hp * bshape.width)/100 + bshape.x
+			//hp * (200 + bshape.x)/bshape.width + bshape.x;
 			group.hpline.setShape({x1: thex, x2:thex});
 		}
 		
@@ -983,7 +984,29 @@ if(typeof(supervisorTab) == "undefined"){
 			bub.icon = icon;
 			
 			bub.setSubscription = dojo.subscribe("supervisortab/set/" + supervisorTab.dataStore.getValue(obj, "id"), function(storeref, dataobj){
-				//bub.setHp(dataobj.aggregate);
+				var imgsrc = "images/";
+				switch(supervisorTab.dataStore.getValue(storeref, "details").state){
+					case "idle":
+						imgsrc += "idle.png";
+						break;
+
+					case "oncall":
+						imgsrc += "oncall.png";
+						break;
+
+					case "wrapup":
+						imgsrc += "wrapup.png";
+						break;
+
+					case "ringing":
+						imgsrc += "ringing.png";
+						break;
+
+					default:
+						imgsrc += "released.png"
+				}
+				bub.icon.setShape({src:imgsrc});
+				bub.setHp(dataobj.aggregate);
 			});
 			
 			var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";

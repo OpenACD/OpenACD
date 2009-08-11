@@ -53,6 +53,98 @@
 		locale: locale
 	};
 
+	window._logLevelToString = function(level){
+		switch(level){
+			case 7:
+				return "debug";
+			case 6:
+				return "info";
+			case 5:
+				return "notice";
+			case 4:
+				return "warning";
+			case 3:
+				return "error";
+			case 2:
+				return "critical";
+			case 1:
+				return "alert";
+			case 0:
+				return "emergency";
+			default:
+				return "unknown";
+		}
+	}
+	window._logLevelToNumber = function(level){
+		switch(level){
+			case "debug":
+				return 7;
+			case "info":
+				return 6;
+			case "notice":
+				return 5;
+			case "warning":
+				return 4;
+			case "error":
+				return 3;
+			case "critical":
+				return 2;
+			case "alert":
+				return 1;
+			case "emergency":
+				return 0;
+			default:
+				return -1;
+		}
+	}
+	
+	window.getLogLevel = function(){
+		return window._logLevelToString(window._logLevel);
+	}
+	
+	window.setLogLevel = function(levelstring){
+		window._logLevel = window._logLevelToNumber(levelstring);
+	}
+	
+	window.log = function(level, data){
+		if(window._logLevelToNumber(level) <= window._logLevel){
+			console.log([level, data]);
+		}
+	}
+	
+	window.debug = function(data){
+		window.log("debug", data);
+	}
+	
+	window.info = function(data){
+		window.log("info", data);
+	}
+	
+	window.notice = function(data){
+		window.log("notice", data);
+	}
+	
+	window.warning = function(data){
+		window.log("warning", data);
+	}
+	
+	window.error = function(data){
+		window.log("error", data);
+	}
+	
+	window.critical = function(data){
+		window.log("critical", data);
+	}
+	
+	window.alert = function(data){
+		window.log("alert", data);
+	}
+	
+	window.emergency = function(data){
+		window.log("emergency", data)
+	}
+	
+	window._logLevel = 4;
 </script>
 
 <!-- Javascript RSA encryption support -->

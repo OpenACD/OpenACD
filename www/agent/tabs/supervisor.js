@@ -1445,5 +1445,6 @@ supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(
 		clearTimeout(supervisorTab.hpCalcTimer);
 	}
 	dojo.unsubscribe(supervisorTab.logoutListener);
+	dojo.unsubscribe(supervisorTab.masterSub);
 });
 

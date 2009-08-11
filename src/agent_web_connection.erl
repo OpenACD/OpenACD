@@ -905,7 +905,7 @@ encode_groups([], Count, Acc) ->
 	{Count - 1, Acc};
 encode_groups([{Type, Name} | Tail], Count, Acc) ->
 	Out = {struct, [
-		{<<"id">>, Count},
+		{<<"id">>, list_to_binary(lists:append([Type, "-", Name]))},
 		{<<"type">>, list_to_binary(Type)},
 		{<<"display">>, list_to_binary(Name)},
 		{<<"health">>, {struct, [

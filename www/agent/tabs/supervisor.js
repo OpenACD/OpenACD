@@ -110,7 +110,11 @@ if(typeof(supervisorTab) == "undefined"){
 		
 		var f = function(obj, index, arr){
 			info(["averageing hp obj", obj]);
-			if(typeof(obj) == "number"){
+			if(obj == undefined){
+				// la la la
+				warning("obj was undefined in averageHp");
+			}
+			else if(typeof(obj) == "number"){
 				debug("number");
 				var c = findweight(obj);
 				count += c;
@@ -215,6 +219,7 @@ if(typeof(supervisorTab) == "undefined"){
 				for(var i in healthobj){
 					hpsvars.push(healthobj[i]);
 				}
+				debug(["setMediaHps wants avergaed:  ", hpsvars]);
 				var hp = supervisorTab.averageHp(hpsvars);
 				supervisorTab.dataStore.setValue(obj, "aggregate", hp);
 				var rawobj = {
@@ -301,6 +306,7 @@ if(typeof(supervisorTab) == "undefined"){
 				if(mitems.length > 0){
 					hpsvars.push(supervisorTab.dataStore.getValue(mitems[0], "aggregate"));
 				}
+				debug(["setAgentHps wants averaged:", hpsvars]);
 				var hp = supervisorTab.averageHp(hpsvars);
 
 				supervisorTab.dataStore.setValue(item, "aggregate", hp);
@@ -345,6 +351,7 @@ if(typeof(supervisorTab) == "undefined"){
 				dojo.forEach(items, function(i){
 					hpsvars.push(supervisorTab.dataStore.getValue(i, "aggregate"));
 				});
+				info(["setQueueGroupHps wants averaged:  ", hpsvars]);
 				var hp = supervisorTab.averageHp(hpsvars);
 				supervisorTab.dataStore.setValue(item, "aggregate", hp);
 				supervisorTab.dataStore.save();
@@ -390,6 +397,7 @@ if(typeof(supervisorTab) == "undefined"){
 				dojo.forEach(aitems, function(i){
 					hpsvars.push(supervisorTab.dataStore.getValue(i, "aggregate"));
 				});
+				debug(["setAGentProfileHps is averaging:", hpsvars]);
 				var hp = supervisorTab.averageHp(hpsvars);
 				supervisorTab.dataStore.setValue(item, "aggregate", hp);
 				supervisorTab.dataStore.save();
@@ -433,6 +441,7 @@ if(typeof(supervisorTab) == "undefined"){
 			dojo.forEach(items, function(item){
 				hplist.push(supervisorTab.dataStore.getValue(item, "aggregate"));
 			});
+			info(["setGlobalAgentHp wants averaged:", hplist]);
 			var hp = supervisorTab.averageHp(hplist);
 			supervisorTab.agentBubble.setHp(hp);
 		}
@@ -448,6 +457,7 @@ if(typeof(supervisorTab) == "undefined"){
 			dojo.forEach(items, function(item){
 				hplist.push(supervisorTab.dataStore.getValue(item, "aggregate"));
 			});
+			debug(["setGlobalQueueHp wants averaged:", hplist]);
 			var hp = supervisorTab.averageHp(hplist);
 			supervisorTab.queueBubble.setHp(hp);
 		}
@@ -469,6 +479,7 @@ if(typeof(supervisorTab) == "undefined"){
 					for(var i in hpobj){
 						hplist.push(hpobj[i]);
 					}
+					debug(["setNodeHps wants averaged", hplist]);
 					var hp = supervisorTab.averageHp(hplist);
 					supervisorTab.dataStore.setValue(item, "aggregate", hp);
 				}
@@ -687,6 +698,7 @@ if(typeof(supervisorTab) == "undefined"){
 		for(var i = 0; i < conf.data.length; i++){
 			hps.push(conf.data[i].aggregate);
 		}
+		debug(["drawSystemStack wants averaged", hps]);
 		conf.data.unshift({"display":"System", "id":"system-System", "type":"system", "aggregate":supervisorTab.averageHp(hps)});
 
 		var yi = 385;
@@ -985,6 +997,7 @@ if(typeof(supervisorTab) == "undefined"){
 					bub.setHp(rawobj.aggregate);
 				}));
 			});
+			debug(["refreshGroupsStack wants averaged", hps]);
 			var allbub = supervisorTab.groupsStack.addBubble({
 				data:{display:"All", health:supervisorTab.averageHp(hps)},
 				onmouseenter:function(ev){
@@ -1008,11 +1021,14 @@ if(typeof(supervisorTab) == "undefined"){
 				var end = supervisorTab.groupsStack.bubbles.length - 1;
 				var hps = [];
 				for(var i = 0; i < end; i++){
-					hps.push(supervisorTab.groupsStack.bubbles[i].health);
+					if(supervisorTab.groupsStack.bubbles[i].data.health){
+						hps.push(supervisorTab.groupsStack.bubbles[i].data.health);
+					}
 				}
 				if(hps.length < 1){
 					hps = [0]
 				}
+				debug(["allbub.subscriptions.push (refreshGroupsStack) wants averaged ", hps]);
 				hps = supervisorTab.averageHp(hps);
 				allbub.setHp(hps);
 			}));
@@ -1158,7 +1174,7 @@ if(typeof(supervisorTab) == "undefined"){
 		dijit.byId("agentAction").onClose = function(ev){
 			supervisorTab.individualsStack.scrollLocked = false;
 		};
-		
+		debug(["Individual Stacks as agents averging", hps]);
 		supervisorTab.individualsStack.addBubble({
 			data:{
 				display:"All",
@@ -1231,6 +1247,7 @@ if(typeof(supervisorTab) == "undefined"){
 			}
 		});
 		
+		debug(["individualsStacks.addBubble averaging", hps]);
 		supervisorTab.individualsStack.addBubble({
 			data:{
 				display:"All",
@@ -1358,6 +1375,7 @@ if(typeof(supervisorTab) == "undefined"){
 				for(var i in temphp){
 					hps.push(temphp[i]);
 				}
+				debug(["refresh system stack averaging", hps]);
 				var aggregate = supervisorTab.averageHp(hps);
 				var out = {
 					id:supervisorTab.dataStore.getValue(item, "id"),
@@ -1479,6 +1497,7 @@ supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
 			}
 			var aggregate = 50;
 			if(hps.length > 0){
+				debug(["masterSub averaging", hps]);
 				aggregate = supervisorTab.averageHp(hps);
 			}
 			savedata.aggregate = aggregate;

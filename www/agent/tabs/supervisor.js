@@ -1428,3 +1428,22 @@ supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
 		// la la la
 	}
 });
+
+supervisorTab.hpCalcTimer = '';
+supervisorTab.hpcalc = function(){
+	supervisorTab.hpCalcTimer = setTimeout(function(){
+		supervisorTab.setAllHps();
+		supervisorTab.hpcalc()}, 5000);
+}
+
+supervisorTab.logoutListener = dojo.subscribe("agent/logout", function(data){
+	clearTimeout(supervisorTab.hpCalcTimer)
+});
+
+supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(child){
+	if(child.title == "Supervisor"){
+		clearTimeout(supervisorTab.hpCalcTimer);
+	}
+	dojo.unsubscribe(supervisorTab.logoutListener);
+});
+

@@ -543,14 +543,8 @@ handle_info({cpx_monitor_event, Message}, State) ->
 					{<<"id">>, list_to_binary(lists:append([atom_to_list(Type), "-", Name]))},
 					{<<"type">>, Type},
 					{<<"display">>, list_to_binary(Name)},
-					{<<"health">>, {struct, [
-						{<<"_type">>, <<"details">>},
-						{<<"_value">>, Encodedhealth}
-					]}},
-					{<<"details">>, {struct, [
-						{<<"_type">>, <<"details">>},
-						{<<"_value">>, Encodeddetail}
-					]}}
+					{<<"health">>, Encodedhealth},
+					{<<"details">>, Encodeddetail}
 				]}}
 			]}
 	end,

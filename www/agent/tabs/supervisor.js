@@ -33,7 +33,7 @@ if(typeof(supervisorTab) == "undefined"){
 		_eventHandle:null,
 		_dropCandidate: null,
 		checkCollision:function(pt){
-			//console.log(pt);
+			////console.log(pt);
 			var out;
 			if(out = supervisorTab.individualsStack.pointCollision(pt)){
 				return out;
@@ -61,7 +61,7 @@ if(typeof(supervisorTab) == "undefined"){
 		},
 		startDrag:function(obj){
 			supervisorTab.dndManager._eventHandle = obj.connect("mousemove", obj, function(ev){
-				//console.log(ev);
+				////console.log(ev);
 				var point = {
 					x:ev.layerX,
 					y:ev.layerY
@@ -96,6 +96,7 @@ if(typeof(supervisorTab) == "undefined"){
 			return 50;
 		}
 		
+		//console.log("averaging hps");
 		var findweight = function(hp){
 			if(hp > 50){
 				// y = floor(.0039(x-50)^2 + 1)
@@ -110,15 +111,96 @@ if(typeof(supervisorTab) == "undefined"){
 		var count = 0;
 		
 		var f = function(obj, index, arr){
+			//console.log(["averageing hp obj", obj]);
 			if(typeof(obj) == "number"){
+				//console.log("number");
 				var c = findweight(obj);
 				count += c;
 				total += c * obj;
 			}
-			else{
+			else if(obj.health != undefined){
+				//console.log("health");
 				var c = findweight(obj.health);
 				count += c;
 				total += c * obj.health;
+			}
+			else if(obj.goal != undefined){
+				//console.log("goal");
+				var value = 0;
+				if(obj.time){
+					//console.log("time");
+					value = Math.floor(new Date().getTime()/1000) - obj.time;
+				}
+				else{
+					//console.log("value");
+					value = obj.value;
+				}
+				//console.log(["value", value]);
+				var hp = 50;
+				if(obj.goal == value){
+					//console.log("goal match");
+					var c = findweight(50);
+					count += c;
+					total += c * 50;
+				}
+				else if( (obj.min < obj.max) && (obj.max <= value) ){
+					//console.log("min < max < value");
+					var c = findweight(100);
+					count += c;
+					total += c * 100;
+				}
+				else if( ( obj.min < obj.max) && (value <= obj.min) ){
+					//console.log("value < min < max");
+					var c = findweight(0);
+					count += c;
+					total += c * 0;
+				}
+				else if( (obj.max < obj.min) && (value <= obj.max) ){
+					//console.log("value < max < min");
+					var c = findweight(100);
+					count += c;
+					total += c * 100;
+				}
+				else if( (obj.max < obj.min) && (obj.min <= value) ){
+					//console.log("max < min < value");
+					var c = findweight(0);
+					count += c;
+					total += c * 0;
+				}
+				else if( (obj.min < obj.max) && ( value < obj.goal) ){
+					//console.log("min < value < goal"); 
+					var hp = (50 * value - 50 * obj.min) / (obj.goal - obj.min);
+					var c = findweight(hp);
+					count += c;
+					total += c * hp;
+				}
+				else if( (obj.min < obj.max) && ( obj.goal < value)){
+					//console.log("min < goal < value");
+					var hp = (100 * obj.goal - 50 * obj.max - 50 * value) / (obj.goal - obj.max);
+					var c = findweight(hp);
+					count += c;
+					total += c * hp;
+				}
+				else if( (obj.max < obj.min) && (value < obj.goal) ){
+					//console.log("max < value < goal");
+					var hp = (50 * (2 * obj.goal - value - obj.max) ) / (obj.goal - obj.max);
+					var c = findweight(hp);
+					count += c;
+					total += c * hp;
+				}
+				else if( (obj.max < obj.min) && (obj.goal < value) ){
+					//console.log("everything else");
+					var hp = ( ( 50 * ( obj.goal - value) ) / (obj.min - obj.goal) ) + 50;
+					var c = findweight(hp);
+					count += c;
+					total += c * hp;
+				}
+				else{
+					//console.log("very confused...");
+				}				
+			}
+			else{
+				//console.log(["Not number, .health, or .goal", obj]);
 			}
 		}
 		
@@ -506,7 +588,7 @@ if(typeof(supervisorTab) == "undefined"){
 			out += "<p>Health Report</p>";
 			var hps = supervisorTab.dataStore.getValue(item, "health");
 			for(var i in hps){
-				var sigdigited = Math.floor(hps[i] * 100) / 100;
+				var sigdigited = Math.floor(supervisorTab.averageHp([hps[i]]) * 100) / 100;
 				out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + sigdigited.toString() + "</p>";
 			}
 			dijit.byId("supervisorDetails").setContent(out);
@@ -714,7 +796,7 @@ if(typeof(supervisorTab) == "undefined"){
 				group.scroll(point.y);
 				for(var i = 0; i < group.bubbles.length; i++){
 					if(group.bubbles[i].pointCollision(point)){
-						//console.log(group.bubbles[i]);
+						////console.log(group.bubbles[i]);
 						if(group.bubbles[i].onEnter){
 							group.bubbles[i].onEnter();
 						}
@@ -901,21 +983,21 @@ if(typeof(supervisorTab) == "undefined"){
 			bub.icon = icon;
 			
 			bub.setSubscription = dojo.subscribe("supervisortab/set/" + supervisorTab.dataStore.getValue(obj, "id"), function(storeref, dataobj){
-				bub.setHp(dataobj.aggregate);
+				//bub.setHp(dataobj.aggregate);
 			});
 			
 			var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
 			bub.dropped = function(obj){
-				console.log("dropped called");
+				//console.log("dropped called");
 				if(obj.data.type == "media"){
-					console.log(message);
-					console.log(obj.data);
+					//console.log(message);
+					//console.log(obj.data);
 					if(obj.data.agent){
 						var ajaxdone = function(json, args){
-							console.log(json.message);
+							//console.log(json.message);
 						}
 						var geturl = "/supervisor/agent_transfer/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
-						console.log(geturl);
+						//console.log(geturl);
 						dojo.xhrGet({
 							url:geturl,
 							handleAs:"json",
@@ -924,10 +1006,10 @@ if(typeof(supervisorTab) == "undefined"){
 					}
 					else if(obj.data.queue){
 						var ajaxdone = function(json, args){
-							console.log(json.message);
+							//console.log(json.message);
 						}
 						var geturl = "/supervisor/agent_ring/" + escape(obj.data.queue) + "/" + escape(obj.data.display) + "/" + escape(bub.data.display);
-						console.log(geturl);
+						//console.log(geturl);
 						dojo.xhrGet({
 							url:geturl,
 							handleAs:"json",
@@ -948,7 +1030,7 @@ if(typeof(supervisorTab) == "undefined"){
 	//			});
 				dijit.byId("agentAction").bindDomNode(bub.rawNode);
 				/*bub.connect("onclick", bub, function(ev){
-					console.log(ev);
+					//console.log(ev);
 				});*/
 			}				 
 		});
@@ -996,16 +1078,16 @@ if(typeof(supervisorTab) == "undefined"){
 
 			var message = "queue " + bub.data.display + " accepted drop, meaning it forwared request to server";
 			bub.dropped = function(obj){
-				console.log("dropped something, likely a call");
+				//console.log("dropped something, likely a call");
 				if(obj.data.type == "media"){
-					console.log(message);
-					console.log(obj.data);
+					//console.log(message);
+					//console.log(obj.data);
 					if(obj.data.agent){
 						var ajaxdone = function(json, args){
-							console.log(json.message);
+							//console.log(json.message);
 						}
 						var geturl = "/supervisor/requeue/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
-						console.log(geturl);
+						//console.log(geturl);
 						dojo.xhrGet({
 							url:geturl,
 							handleAs:"json",
@@ -1156,7 +1238,7 @@ if(typeof(supervisorTab) == "undefined"){
 			dojo.forEach(items, function(item){
 				var out = supervisorTab.dataStore.getValue(item, "aggregate");
 				var nom = supervisorTab.dataStore.getValue(item, "display");
-				console.log(nom + ": " + out);
+				//console.log(nom + ": " + out);
 			})
 		}
 		
@@ -1193,7 +1275,7 @@ if(typeof(supervisorTab) == "undefined"){
 					//window.setTimeout(supervisorTab.reloadDataStore, 5000);
 				}
 				else{
-					console.log(data);
+					//console.log(data);
 				}
 			}
 		})
@@ -1213,8 +1295,9 @@ supervisorTab.systemStack[0].grow();
 supervisorTab.reloadDataStore();
 
 supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
-	console.log("master sub!");
-	console.log(data);
+	//console.log("master sub!");
+	//console.log(data);
+	data = data.data;
 	if(data.action == "set"){
 		var fetched = function(items){
 			// items to be scapped out and put top leve:
@@ -1230,23 +1313,23 @@ supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
 				"type":data.type,
 				"display":data.display
 			};
-			for(var i in data.details._value){
+			for(var i in data.details){
 				switch(i){
 					case "node":
 					case "profile":
 					case "group":
 					case "queue":
 					case "agent":
-						savedata[i] = data.details._value[i];
+						savedata[i] = data.details[i];
 						break;
 					default:
-						savedata.details[i] = data.details._value[i];
+						savedata.details[i] = data.details[i];
 				}
 			}
 			var hps = [];
-			for(var i in data.health._value){
-				hps.push(data.health._value[i]);
-				savedata.health[i] = data.health._value[i];
+			for(var i in data.health){
+				hps.push(data.health[i]);
+				savedata.health[i] = data.health[i];
 			}
 			var aggregate = 50;
 			if(hps.length > 0){
@@ -1254,10 +1337,14 @@ supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
 			}
 			savedata.aggregate = aggregate;
 			for(var i in savedata){
-				supervisorTab.dataStore.setValue(items[0], i, savedata[i]);
+				if(i != "id"){
+					supervisorTab.dataStore.setValue(items[0], i, savedata[i]);
+				}
 			}
 			supervisorTab.dataStore.save();
-			dojo.publish("supervisortab/set/" + data.id, [items[0], savedata]);
+			//console.log("savedata");
+			//console.log(savedata);
+			dojo.publish("supervisortab/set/" + savedata.id, [items[0], savedata]);
 		}
 	
 		supervisorTab.dataStore.fetch({
@@ -1281,3 +1368,6 @@ supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
 	}
 });
 
+supervisorTab.testSub = dojo.subscribe("supervisortab/set/agent-administrator", function(a, b){
+	//console.log(["tiny update", a, b]);
+});

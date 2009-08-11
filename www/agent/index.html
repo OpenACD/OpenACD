@@ -53,6 +53,12 @@
 		locale: locale
 	};
 
+	if(window.console.log == undefined){
+		//stupid ie.
+		window.console.log = function(){
+			// la la la
+		}
+	}
 	window._logLevelToString = function(level){
 		switch(level){
 			case 7:

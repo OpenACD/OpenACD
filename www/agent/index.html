@@ -360,10 +360,7 @@
 										closable:true
 									});
 									dijit.byId("tabPanel").addChild(t);
-								}else{
-									supervisorTab.poller.stop();
 								}
-								//this.setDisabled(true);
 								dijit.byId("supervisorTab").setHref("tabs/supervisor.html");
 								dijit.byId("tabPanel").selectChild("supervisorTab");
 								dijit.byId("tabPanel").logoutListener = dojo.subscribe("agent/logout", function(data){

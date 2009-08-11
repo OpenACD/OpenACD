@@ -54,13 +54,37 @@
 -spec(start/0 :: () -> 'ok' | {'error', any()}).
 start() ->
 	Out = gen_event:start({local, cpxlog}),
-	gen_event:add_handler(cpxlog, cpxlog_terminal, []),
+	case application:get_env(cpx, console_loglevel) of
+		{ok, LogLevel} ->
+			gen_event:add_handler(cpxlog, cpxlog_terminal, [LogLevel]);
+		_ ->
+			gen_event:add_handler(cpxlog, cpxlog_terminal, [])
+	end,
+	case application:get_env(cpx, logfiles) of
+		{ok, Files} ->
+			gen_event:add_handler(cpxlog, cpxlog_file, [Files]);
+		_ ->
+			io:format("Logging to disk is not configured~n"),
+			ok
+	end,
 	Out.
 	
 -spec(start_link/0 :: () -> 'ok' | {'error', any()}).
 start_link() ->
 	Out = gen_event:start_link({local, cpxlog}),
-	gen_event:add_handler(cpxlog, cpxlog_terminal, []),
+	case application:get_env(cpx, console_loglevel) of
+		{ok, LogLevel} ->
+			gen_event:add_handler(cpxlog, cpxlog_terminal, [LogLevel]);
+		_ ->
+			gen_event:add_handler(cpxlog, cpxlog_terminal, [])
+	end,
+	case application:get_env(cpx, logfiles) of
+		{ok, Files} ->
+			gen_event:add_handler(cpxlog, cpxlog_file, [Files]);
+		_ ->
+			io:format("Logging to disk is not configured~n"),
+			ok
+	end,
 	Out.
 
 -spec(log/7 :: (Level :: level(), Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').

@@ -127,7 +127,7 @@ init([State = #agent{}]) ->
 -spec(expand_magic_skills/2 :: (State :: #agent{}, Skills :: [atom()]) -> [atom()]).
 expand_magic_skills(State, Skills) ->
 	lists:map(
-		fun('_agent') -> {'_agent', list_to_atom(State#agent.login)};
+		fun('_agent') -> {'_agent', list_to_atom(State#agent.login)}; % TODO - why pollute the atom table?
 		('_node') -> {'_node', node()};
 		(Skill) -> Skill
 	end, Skills).

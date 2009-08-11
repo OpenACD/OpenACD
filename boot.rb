@@ -86,15 +86,15 @@ if ! File.exists?($conf + ".config")
 	f.puts "%% If you are comfortable editing erlang application configuration scripts"
 	f.puts "%% there is no harm in editing the file."
 	f.puts "[{cpx, ["
-	f.puts "	{nodes, ['#{node}']}"
+	f.puts "	{nodes, ['#{node}']},"
+	f.puts "	{console_loglevel, info},"
+	f.puts "	{logfiles, [{\"full.log\", debug}, {\"console.log\", info}]}"
+	f.puts "]},"
+	f.puts "{sasl, ["
+	f.puts "	{errlog_type, error} % disable SASL progress reports"
 	f.puts "]}]."
 	f.close
 end
-
-#if Dir["Mnesia.#{$name}@*"].length.zero?
-	#puts "Mnesia directory not found, trying to create the schema"
-	#`erl -noshell #{$nametype} #{$name} -eval 'mnesia:create_schema([node()]).' -s erlang halt -pa ebin`
-#end
 
 #puts "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
 exec "erl -pa #{$ebin} -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot} #{$reloader}"

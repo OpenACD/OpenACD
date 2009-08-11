@@ -53,8 +53,17 @@
 -define(GEN_EVENT, true).
 -include("gen_spec.hrl").
 
-init(_Args) ->
-	{ok, #state{}}.
+init([]) ->
+	io:format("Loglevel is info~n"),
+	{ok, #state{}};
+init([LogLevel]) ->
+	io:format("Loglevel is ~p~n", [LogLevel]),
+	case lists:member(LogLevel, ?LOGLEVELS) of
+		true ->
+			{ok, #state{level = LogLevel}};
+		false ->
+			{'EXIT', "bad loglevel"}
+	end.
 
 handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of
@@ -65,10 +74,10 @@ handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 	end,
 	case ((lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(State#state.level, ?LOGLEVELS))) orelse lists:member(Module, State#state.debugmodules)) of
 		true ->
-			io:format("~w:~w:~w [~s] ~w@~s:~w ~s~n", [
+			io:format("~w:~s:~s [~s] ~w@~s:~w ~s~n", [
 					element(1, element(2, Time)),
-					element(2, element(2, Time)),
-					element(3, element(2, Time)),
+					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
 					string:to_upper(atom_to_list(Level)),
 					Pid, Module, Line,
 					io_lib:format(Message, Args)]);

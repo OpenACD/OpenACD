@@ -41,12 +41,12 @@
 	-include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([start/2, stop/1]).
+-export([start/2, prep_stop/1, stop/1]).
 
 -spec(start/2 :: (Type :: 'normal' | {'takeover', atom()} | {'failover', atom()}, StartArgs :: [any()]) -> {'ok', pid(), any()} | {'ok', pid()} | {'error', any()}).
 start(_Type, StartArgs) ->
-	?DEBUG("Start args ~p", [StartArgs]),
-	?DEBUG("All env: ~p", [application:get_all_env(cpx)]),
+	io:format("Start args ~p~n", [StartArgs]),
+	io:format("All env: ~p~n", [application:get_all_env(cpx)]),
 	crypto:start(),
 	%Nodes = lists:append([nodes(), [node()]]),
 	%mnesia:create_schema(Nodes),
@@ -58,7 +58,7 @@ start(_Type, StartArgs) ->
 				[] ->
 					ok;
 				AliveNodes ->
-					?NOTICE("Alive nodes: ~p", [AliveNodes]),
+					io:format("Alive nodes: ~p~n", [AliveNodes]),
 					mnesia:change_config(extra_db_nodes, AliveNodes)
 			end,
 			ok;
@@ -67,8 +67,20 @@ start(_Type, StartArgs) ->
 	end,
 	mnesia:change_table_copy_type(schema, node(), disc_copies),
 	mnesia:set_master_nodes(lists:umerge(Nodes, [node()])),
-	cpx_supervisor:start_link(Nodes).
+	case cpx_supervisor:start_link(Nodes) of
+		{ok, Pid} ->
+			?NOTICE("Application cpx started sucessfully!", []),
+			{ok, Pid};
+		Else ->
+			?ERROR("Application cpx failed to start successfully!", []),
+			Else
+	end.
+
+-spec(prep_stop/1 :: (State :: any()) -> any()).
+prep_stop(State) ->
+	?NOTICE("Application cpx stopping...", []),
+	State.
 
 -spec(stop/1 :: (State :: any()) -> 'ok').
-stop(_State) -> 
+stop(_State) ->
 	ok.

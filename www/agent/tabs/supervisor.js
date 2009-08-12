@@ -1660,4 +1660,4 @@ supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(
 	dojo.unsubscribe(supervisorTab.masterSub);
 });
 
-//supervisorTab.hpcalc();
+supervisorTab.hpcalc();

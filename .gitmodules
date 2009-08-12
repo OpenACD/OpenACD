@@ -1,3 +1,6 @@
 [submodule "contrib/gen_smtp"]
 	path = contrib/gen_smtp
 	url = git://github.com/Vagabond/gen_smtp.git
+[submodule "contrib/gen_server_mock"]
+	path = contrib/gen_server_mock
+	url = git://github.com/lordnull/gen_server_mock.git

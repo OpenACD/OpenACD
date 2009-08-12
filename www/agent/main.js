@@ -21,21 +21,7 @@ dojo.addOnLoad(function(){
 		EventLog.log(line);
 	});
 	
-	dijit.byId("emaildispfloater").stateChanger = dojo.subscribe("agent/state", function(data){
-		console.log(data);
-		if(data.state == "oncall"){
-			if(data.statedata.type == "email"){
-				console.log("Imma chargin' mah lazer!");
-				dijit.byId("emaildispfloater").show();
-				dijit.byId("emaildisp").setHref("/mediapull/");
-			}
-		}
-		else{
-			dijit.byId("emaildispfloater").hide();
-		}
-	});
-
-	dijit.byId("emaildispfloater").hide();
+	//dijit.byId("emaildispfloater").hide();
 	//dijit.byId("loginpane").show();
 	dojo.xhrGet({
 		url:"/checkcookie",
@@ -518,6 +504,34 @@ dojo.addOnLoad(function(){
 	logout = function(agent){
 		agent.logout();
 	}
+	
+	dijit.byId("main").mediapush = dojo.subscribe("agent/mediapush", function(eventdata){
+		info(["main listing for media push paid off", eventdata]);
+		if(dijit.byId("mediapush") == undefined){
+			var mediaPane = new dojox.layout.FloatingPane({
+				id:"mediapush",
+				title:eventdata.media.id,
+				resizable: true,
+				dockable:false,
+				style: 'position:absolute; top:100px; left: 400px; z-index:50000',
+				content: eventdata.content
+			}, dojo.create("div"));
+			mediaPane.agentStateSub = dojo.subscribe("agent/state", function(data){
+				mediaPane.destroy();
+			});
+			mediaPane.show();
+			return;
+		}
+		
+		if(eventdata.mode == "append"){
+			var oldcontent = dijit.byId("mediapush").content;
+		}
+		else{
+			oldcontent = '';
+		}
+		
+		dijit.byId("mediapush").content = oldcontent + eventdata.content;
+	});		   
 });
 
 function endpointselect() {

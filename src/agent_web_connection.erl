@@ -475,6 +475,21 @@ handle_cast({poll, Frompid}, State) ->
 			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
 			{noreply, Newstate}
 	end;
+handle_cast({mediapush, Callrec, Data, Mode}, State) when is_binary(Data); is_list(Data) ->
+	Contentline = case {is_list(Data), is_binary(Data)} of
+		{false, true} ->
+			{<<"content">>, Data};
+		{true, false} ->
+			{<<"content">>, list_to_binary(Data)}
+	end,
+	Json = {struct, [
+		{<<"command">>, <<"mediapush">>},
+		{<<"mode">>, Mode},
+		{<<"media">>, encode_call(Callrec)},
+		Contentline
+	]},
+	Newstate = push_event(Json, State),
+	{noreply, Newstate};
 handle_cast({set_salt, Salt}, State) ->
 	{noreply, State#state{salt = Salt}};
 handle_cast({change_state, AgState, Data}, #state{counter = Counter} = State) ->

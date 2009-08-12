@@ -56,6 +56,9 @@
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 %% defined state exports
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
+%% defining async stat exports
+% TODO define for all states
+-export([oncall/2]).
 
 %% other exports
 -export([start/1, 
@@ -73,7 +76,7 @@
 	set_endpoint/2, 
 	agent_transfer/2,
 	media_pull/2, 
-	media_push/2, 
+	media_push/3, 
 	url_pop/2, 
 	warm_transfer_begin/2]).
 
@@ -168,9 +171,9 @@ media_pull(Pid, Request) ->
 
 %% @doc Attempt to push data to the media.  Only works if the passed agent is 
 %% oncall and the media supports it.
--spec(media_push/2 :: (Pid :: pid(), Data :: any()) -> any()).
-media_push(Pid, Data) ->
-	gen_fsm:sync_send_event(Pid, {mediapush, Data}).
+-spec(media_push/3 :: (Pid :: pid(), Data :: any(), Mode :: 'append' | 'replace') -> 'ok').
+media_push(Pid, Data, Mode) ->
+	gen_fsm:send_event(Pid, {mediapush, self(), Data, Mode}).
 
 -spec(url_pop/2 :: (Pid :: pid(), Data :: list()) -> any()).
 url_pop(Pid, Data) ->
@@ -408,7 +411,19 @@ oncall(get_media, _From, #agent{statedata = Media} = State) when is_record(Media
 	{reply, {ok, Media}, oncall, State};
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
-	
+
+oncall({mediapush, Mediapid, Data, Mode}, #agent{statedata = Media} = State) when Media#call.source =:= Mediapid, is_atom(Mode) ->
+	case State#agent.connection of
+		undefined ->
+			{next_state, oncall, State};
+		Conn when is_pid(Conn) ->
+			gen_server:cast(Conn, {mediapush, Media, Data, Mode}),
+			{next_state, oncall, State}
+	end;
+oncall(Message, State) ->
+	?DEBUG("Disregarding event ~p", [Message]),
+	{next_state, oncall, State}.
+
 %% @doc The various state changes available when an agent is in an outgoing call. <ul>
 %%<li>`{released, undefined}'<br />Note this only unsets a previously queued release.</li>
 %%<li>`{released, Reason :: string()}'<br />Note this only queues a release for when the call is over.</li>

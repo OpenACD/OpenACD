@@ -191,9 +191,12 @@
 %%
 %%	{Agentaction, NewState}
 %%	{Agentaction, Reply, NewState}
-%%		types:	Agentaction = stop_ring | wrapup | hangup
+%%		types:	Agentaction = stop_ring | wrapup | hangup | 
+%%					{mediapush, Data, Mode}
 %%				Reply = any()
 %%				NewState = any()
+%%				Data = any()
+%%				Mode = replace | append
 %%
 %%		This result is only valid if an agent has been associated with this 
 %%		media by ringing.  The second form is only valid if the request came in
@@ -214,6 +217,10 @@
 %%		callback does not have any knowledge of what state an agent is in.
 %%		This determine's the agent's state, then set's the agent's state 
 %%		apropriately.  Execution then coninues with NewState.
+%%
+%%		mediapush is only valid if there is an agent oncall with the media, and
+%%		the media is inband.  The given Data is casted to the associaed agent 
+%%		as a media push.
 
 -module(gen_media).
 -author(micahw).
@@ -806,6 +813,13 @@ unqueue(Qpid, Callpid) when is_pid(Qpid) ->
 	call_queue:remove(Qpid, Callpid),
 	ok.
 
+agent_interact({mediapush, Data, Mode}, #state{oncall_pid = Ocpid, callrec = Call} = State) when is_pid(Ocpid), Call#call.media_path =:= inband ->
+	?INFO("Shoving ~p", [Data]),
+	agent:media_push(Ocpid, Data, Mode),
+	State;
+agent_interact({mediapush, _Data}, State) ->
+	?INFO("Cannot do a media push in current state:  ~p", [State]),
+	State;
 agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ringout =/= false ->
 	?INFO("stop_ring", []),
 	timer:cancel(State#state.ringout),

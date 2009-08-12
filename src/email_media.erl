@@ -235,7 +235,9 @@ code_change(_OldVsn, State, _Extra) ->
 handle_announce(_Annouce, State) ->
 	{ok, State}.
 
-handle_answer(_Agent, _Call, State) ->
+handle_answer(Agent, _Call, State) ->
+	?DEBUG("Shoving ~w to the agent ~w", [State#state.html, Agent]),
+	agent:media_push(Agent, State#state.html, replace),
 	{ok, State}.
 
 handle_ring(_Agent, _Call, State) ->

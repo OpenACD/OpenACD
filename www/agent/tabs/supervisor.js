@@ -1617,6 +1617,7 @@ supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
 			supervisorTab.dataStore.save();
 			debug(["1488", "savedata", savedata]);
 			dojo.publish("supervisortab/set/" + savedata.id, [items[0], savedata]);
+			supervisorTab.setAllHps();
 		}
 	
 		supervisorTab.dataStore.fetch({
@@ -1659,4 +1660,4 @@ supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(
 	dojo.unsubscribe(supervisorTab.masterSub);
 });
 
-supervisorTab.hpcalc();
+//supervisorTab.hpcalc();

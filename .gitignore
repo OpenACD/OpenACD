@@ -19,6 +19,9 @@ contrib/**/doc/*
 *.boot
 *.script
 
+# from the logger
+*.log
+
 # Xcode
 build/*
 *.xcodeproj/*

@@ -236,7 +236,7 @@ if(typeof(supervisorTab) == "undefined"){
 			}
 			dojo.forEach(items, setHp);
 			supervisorTab.dataStore.save();
-			
+			dojo.publish("supervisortab/aggregate/media", []);
 		}
 		supervisorTab.dataStore.fetch({
 			query:{"type":"media"},
@@ -280,7 +280,7 @@ if(typeof(supervisorTab) == "undefined"){
 				},
 				onComplete:function(got){
 					gotMedia(got);
-					dojo.publish("supervisortab/aggregates/queues", []);
+					dojo.publish("supervisortab/aggregate/queues", []);
 				}
 			});
 		}
@@ -1076,19 +1076,19 @@ if(typeof(supervisorTab) == "undefined"){
 			};
 			
 			allbub.subscriptions.push(dojo.subscribe(chan, function(){
-				var end = supervisorTab.groupsStack.bubbles.length - 1;
-				var hps = [];
-				for(var i = 0; i < end; i++){
-					if(supervisorTab.groupsStack.bubbles[i].data.health){
-						hps.push(supervisorTab.groupsStack.bubbles[i].data.health);
-					}
+				var fetched = function(items){
+					var hps = [];
+					dojo.forEach(items, function(item){
+						hps.push(supervisorTab.dataStore.getValue(item, "aggregate"));
+					});
+					var hp = supervisorTab.averageHp(hps);
+					allbub.setHp(hp);
 				}
-				if(hps.length < 1){
-					hps = [0]
-				}
-				debug(["allbub.subscriptions.push (refreshGroupsStack) wants averaged ", hps]);
-				hps = supervisorTab.averageHp(hps);
-				allbub.setHp(hps);
+				
+				supervisorTab.dataStore.fetch({
+					query:{"type":conf.type},
+					onComplete:fetched
+				});
 			}));
 			supervisorTab.groupsStack.moveToBack();
 		}
@@ -1101,7 +1101,7 @@ if(typeof(supervisorTab) == "undefined"){
 		});
 	};
 
-	supervisorTab.IndividualStackAsAgents = function(items){
+	supervisorTab.IndividualStackAsAgents = function(items, groupingValue, node){
 		var acc = [];
 		var hps = [];
 		dojo.forEach(items, function(obj){
@@ -1233,7 +1233,7 @@ if(typeof(supervisorTab) == "undefined"){
 			supervisorTab.individualsStack.scrollLocked = false;
 		};
 		debug(["Individual Stacks as agents averging", hps]);
-		supervisorTab.individualsStack.addBubble({
+		var allbub = supervisorTab.individualsStack.addBubble({
 			data:{
 				display:"All",
 				health:supervisorTab.averageHp(hps)
@@ -1242,9 +1242,28 @@ if(typeof(supervisorTab) == "undefined"){
 				supervisorTab.refreshCallsStack("agent", "*", supervisorTab.node);
 			}
 		});
+		allbub.subscriptions.push(dojo.subscribe("supervisortab/aggregate/agents", function(){
+			var fetched = function(items){
+				var hps = [];
+				dojo.forEach(items, function(item){
+					hps.push(supervisorTab.dataStore.getValue(item, "aggregate"));
+				});
+				var hp = supervisorTab.averageHp(hps);
+				allbub.setHp(hp);
+			}
+			
+			supervisorTab.dataStore.fetch({
+				query:{
+					"type":"agent",
+					"node":node,
+					"profile":groupingValue
+				},
+				onComplete:fetched
+			});
+		}));
 	}
 
-	supervisorTab.IndividualStackAsQueues = function(items){
+	supervisorTab.IndividualStackAsQueues = function(items, groupingValue, node){
 		var acc = [];
 		var hps = [];
 		dojo.forEach(items, function(obj){
@@ -1306,7 +1325,7 @@ if(typeof(supervisorTab) == "undefined"){
 		});
 		
 		debug(["individualsStacks.addBubble averaging", hps]);
-		supervisorTab.individualsStack.addBubble({
+		var allbub = supervisorTab.individualsStack.addBubble({
 			data:{
 				display:"All",
 				health:supervisorTab.averageHp(hps)
@@ -1315,9 +1334,29 @@ if(typeof(supervisorTab) == "undefined"){
 				supervisorTab.refreshCallsStack("queue", "*", supervisorTab.node);
 			}
 		});
+		
+		allbub.subscriptions.push(dojo.subscribe("supervisortab/aggregate/queues", function(){
+			var fetched = function(items){
+				var hps = [];
+				dojo.forEach(items, function(item){
+					hps.push(supervisorTab.dataStore.getValue(item, "aggregate"));
+				});
+				var hp = supervisorTab.averageHp(hps);
+				allbub.setHp(hp);
+			}
+			
+			supervisorTab.dataStore.fetch({
+				query:{
+					"type":"queue",
+					"group":groupingValue,
+					"node":node
+				},
+				onComplete:fetched
+			});
+		}));
 	}
 
-	supervisorTab.refreshIndividualsStack = function(seek, dkey, dval, node){
+	supervisorTab.refreshIndividualsStack = function(seek, groupingType, groupingValue, node){
 		if(supervisorTab.individualsStack.scrollLocked){
 			return false;
 		}
@@ -1334,10 +1373,10 @@ if(typeof(supervisorTab) == "undefined"){
 			});
 			
 			if(seek == "agent"){
-				supervisorTab.IndividualStackAsAgents(items);
+				supervisorTab.IndividualStackAsAgents(items, groupingValue, node);
 			}
 			else{
-				supervisorTab.IndividualStackAsQueues(items);
+				supervisorTab.IndividualStackAsQueues(items, groupingValue, node);
 			}
 			
 			supervisorTab.individualsStack.moveToBack();
@@ -1347,7 +1386,7 @@ if(typeof(supervisorTab) == "undefined"){
 			type:seek,
 			node:node
 		};
-		queryo[dkey] = dval;
+		queryo[groupingType] = groupingValue;
 		
 		supervisorTab.dataStore.fetch({
 			query:queryo,
@@ -1535,7 +1574,12 @@ supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
 				"health":{},
 				"id":data.id,
 				"type":data.type,
-				"display":data.display
+				"display":data.display,
+				"node":null,
+				"profile":null,
+				"group":null,
+				"queue":null,
+				"agent":null
 			};
 			for(var i in data.details){
 				switch(i){
@@ -1561,6 +1605,10 @@ supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
 				aggregate = supervisorTab.averageHp(hps);
 			}
 			savedata.aggregate = aggregate;
+			//course, there may be no item yet...
+			if(items.length == 0){
+				supervisorTab.dataStore.newItem(savedata);
+			}
 			for(var i in savedata){
 				if(i != "id"){
 					supervisorTab.dataStore.setValue(items[0], i, savedata[i]);

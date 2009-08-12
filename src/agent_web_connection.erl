@@ -382,12 +382,19 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 			{Count, Encodedstats} = encode_stats(Stats),
 			{_Count2, Encodedgroups} = encode_groups(Groupstats, Count),
 			Encoded = lists:append(Encodedstats, Encodedgroups),
+			Systemjson = {struct, [
+				{<<"id">>, <<"system-System">>},
+				{<<"type">>, <<"system">>},
+				{<<"display">>, <<"System">>},
+				{<<"health">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, {struct, []}}]}},
+				{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, {struct, []}}]}}
+			]},
 			Json = mochijson2:encode({struct, [
 				{success, true},
 				{<<"data">>, {struct, [
 					{<<"identifier">>, <<"id">>},
 					{<<"label">>, <<"display">>},
-					{<<"items">>, Encoded}
+					{<<"items">>, [Systemjson | Encoded]}
 				]}}
 			]}),
 			{reply, {200, [], Json}, State};

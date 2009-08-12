@@ -533,6 +533,9 @@ if(typeof(supervisorTab) == "undefined"){
 				"details":{}
 			};
 			var gotSystem = function(items){
+				if(items.length < 1){
+					warning(["Trying to get the system entry failed", items]);
+				}
 				supervisorTab.dataStore.setValue(items[0], "aggreagate", hp);
 				supervisorTab.dataStore.save();
 				dojo.publish("supervisortab/set/system-System", [items[0], rawobj]);
@@ -1423,6 +1426,7 @@ if(typeof(supervisorTab) == "undefined"){
 	supervisorTab.refreshSystemStack = function(){
 		debug("refreshing system stack");
 		var fetchdone = function(items, request){
+			info(["refreshSystemStack fetch done", items]);
 			var acc = [];
 			dojo.forEach(items, function(item){
 				var temphp = supervisorTab.dataStore.getValue(item, "health");

@@ -109,7 +109,14 @@
 	}
 	
 	window.setLogLevel = function(levelstring){
-		window._logLevel = window._logLevelToNumber(levelstring);
+		var int = window._logLevelToNumber(levelstring);
+		if(int >= 0){
+			window._logLevel = int;
+			notice(["log level set", levelstring]);
+		}
+		else{
+			error(["log level cannot be", levelstring]);
+		}
 	}
 	
 	window.log = function(level, data){
@@ -150,7 +157,7 @@
 		window.log("emergency", data)
 	}
 	
-	window._logLevel = 4;
+	window._logLevel = 4; //default is warning
 </script>
 
 <!-- Javascript RSA encryption support -->

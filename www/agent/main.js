@@ -21,8 +21,6 @@ dojo.addOnLoad(function(){
 		EventLog.log(line);
 	});
 	
-	//dijit.byId("emaildispfloater").hide();
-	//dijit.byId("loginpane").show();
 	dojo.xhrGet({
 		url:"/checkcookie",
 		handleAs:"json",
@@ -513,12 +511,14 @@ dojo.addOnLoad(function(){
 				title:eventdata.media.id,
 				resizable: true,
 				dockable:false,
+				closable:false,
 				style: 'position:absolute; top:100px; left: 400px; z-index:50000',
 				content: eventdata.content
-			}, dojo.create("div"));
+			}, dojo.create("div", null, "main"));
 			mediaPane.agentStateSub = dojo.subscribe("agent/state", function(data){
 				mediaPane.destroy();
 			});
+			mediaPane.startup();
 			mediaPane.show();
 			return;
 		}

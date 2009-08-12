@@ -39,6 +39,18 @@ dojo.addOnLoad(function(){
 				agent.state = response.state;
 				dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response.profile;
 				dojo.publish("agent/state", [{"state":response.state, "statedata":response.statedata}]);
+				if( (response.state == "oncall") && (response.statedata.mediapath == "inband") ){
+					dojo.xhrGet({
+						url:"/mediapull/",
+						handleAs:"text",
+						load:function(mediadata){
+							dojo.publish("agent/mediapush", [{
+								"media":response.statedata,
+								"content":mediadata
+							}]);
+						}
+					});
+				}
 				agent.stopwatch.onTick = function(){
 					var elapsed = agent.stopwatch.time();
 					var d = new Date();

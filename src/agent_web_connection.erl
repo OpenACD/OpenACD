@@ -1077,7 +1077,8 @@ extract_groups_test() ->
 		{{agent, "agent1"}, [], [{profile, "profile1"}]},
 		{{media, "media1"}, [], []},
 		{{queue, "queue3"}, [], [{group, "Default"}]},
-		{{agent, "agent2"}, [], [{profile, "Default"}]}
+		{{agent, "agent2"}, [], [{profile, "Default"}]},
+		{{agent, "agent3"}, [], [{profile, "profile1"}]}
 	],
 	Expected = [
 		{"agentprofile", "Default"},

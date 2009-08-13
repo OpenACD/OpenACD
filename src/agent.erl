@@ -108,12 +108,15 @@ set_endpoint(Pid, Endpoint) ->
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
 init([State]) when is_record(State, agent) ->
 	process_flag(trap_exit, true),
-	{_Profile, Skills} = case agent_auth:get_profile(State#agent.profile) of
+	{_Profile, Skills} = try agent_auth:get_profile(State#agent.profile) of
 		undefined ->
 			?WARNING("Agent ~p has an invalid profile of ~p, using Default", [State#agent.login, State#agent.profile]),
 			agent_auth:get_profile("Default");
 		Else ->
 			Else
+	catch
+		error:{case_clause, {aborted, _}} ->
+			{error, []}
 	end,
 	State2 = State#agent{skills = util:merge_skill_lists(expand_magic_skills(State, Skills), expand_magic_skills(State, State#agent.skills))},
 	case State#agent.state of
@@ -1045,6 +1048,21 @@ wrapup_state_test() ->
 	set_state(Pid, released, default),
 	set_state(Pid, idle),
 	?assertMatch({ok, released}, query_state(Pid)).
+
+
+init_test_() ->
+	[{"agent_auth's mnesia tables not available",
+	fun() ->
+		catch agent_auth:stop(),
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		Agent = #agent{
+			login = "testagent",
+			skills = [english],
+			profile = "testprofile"
+		},
+		?assertEqual({ok, released, Agent}, init([Agent]))
+	end}].
 	
 generate_state() ->
 	generate_state([{2, idle, "Idle"}, {3, ringing, "Ringing"}, {4, precall, "Precall"}, {5, oncall, "Oncall"}, {6, outgoing, "Outgoing"}, {7, released, "Released"}, {8, warmtransfer, "WarmTransfer"}, {9, wrapup, "Wrapup"}]).

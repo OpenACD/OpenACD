@@ -106,7 +106,7 @@ set_endpoint(Pid, Endpoint) ->
 
 %% @private
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
-init([State = #agent{}]) ->
+init([State]) when is_record(State, agent) ->
 	process_flag(trap_exit, true),
 	{_Profile, Skills} = case agent_auth:get_profile(State#agent.profile) of
 		undefined ->
@@ -1045,7 +1045,7 @@ wrapup_state_test() ->
 	set_state(Pid, released, default),
 	set_state(Pid, idle),
 	?assertMatch({ok, released}, query_state(Pid)).
-
+	
 generate_state() ->
 	generate_state([{2, idle, "Idle"}, {3, ringing, "Ringing"}, {4, precall, "Precall"}, {5, oncall, "Oncall"}, {6, outgoing, "Outgoing"}, {7, released, "Released"}, {8, warmtransfer, "WarmTransfer"}, {9, wrapup, "Wrapup"}]).
 generate_state([{Int, Atom, String}|T]) -> 

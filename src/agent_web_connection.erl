@@ -1031,12 +1031,13 @@ set_state_test_() ->
 	{
 		foreach,
 		fun() ->
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			agent_auth:start(),
-			agent_manager:start([node()]),
+			%agent_manager:start([node()]),
+			gen_leader_mock:start(agent_manager),
+			gen_leader_mock:expect_leader_call(agent_manager, 
+				fun({exists, "testagent"}, _From, State, _Elec) -> 
+					{ok, Apid} = agent:start(#agent{login = "testagent"}),
+					{ok, {true, Apid}, State} 
+				end),
 			{ok, Connpid} = agent_web_connection:start(#agent{login = "testagent", skills = [english]}, agent),
 			{Connpid}
 		end,

@@ -1042,9 +1042,9 @@ set_state_test_() ->
 			{Connpid}
 		end,
 		fun({Connpid}) ->
-			stop(Connpid),
-			agent_auth:stop(),
-			agent_manager:stop()
+			stop(Connpid)
+			%agent_auth:stop(),
+			%agent_manager:stop()
 		end,
 		[
 			fun({Connpid}) ->
@@ -1070,6 +1070,24 @@ set_state_test_() ->
 		]
 	}.
 
+extract_groups_test() ->
+	Rawlist = [
+		{{queue, "queue1"}, [], [{group, "group1"}]},
+		{{queue, "queue2"}, [], [{group, "Default"}]},
+		{{agent, "agent1"}, [], [{profile, "profile1"}]},
+		{{media, "media1"}, [], []},
+		{{queue, "queue3"}, [], [{group, "Default"}]},
+		{{agent, "agent2"}, [], [{profile, "Default"}]}
+	],
+	Expected = [
+		{"agentprofile", "Default"},
+		{"agentprofile", "profile1"},
+		{"queuegroup", "Default"},
+		{"queuegroup", "group1"}
+	],
+	Out = extract_groups(Rawlist),
+	?assertEqual(Expected, Out).
+
 -define(MYSERVERFUNC, 
 	fun() ->
 		["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
@@ -1088,7 +1106,7 @@ set_state_test_() ->
 		unlink(Pid),
 		Stopfun = fun() ->
 			?CONSOLE("stopping agent_auth", []),
-			agent_auth:stop(),
+			%agent_auth:stop(),
 			?CONSOLE("stopping agent_manager", []),
 			%agent_manager:stop(),
 			gen_leader_mock:stop(agent_manager),

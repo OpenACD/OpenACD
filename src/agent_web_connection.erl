@@ -1109,7 +1109,32 @@ encode_proplist_test() ->
 	]},
 	Out = encode_proplist(Input),
 	?assertEqual(Expected, Out).
-	
+
+scrub_proplist_test() ->
+	Input = [
+		{queue, "scrubbed"},
+		{parent, "scrubbed"},
+		{node, "scrubbed"},
+		{agent, "scrubbed"},
+		{profile, "scrubbed"},
+		{group, "scrubbed"},
+		{type, "scrubbed"},
+		{list, "list"},
+		{binary, <<"binary">>},
+		{queue, "also scrubbed"},
+		boolean,
+		{"This", "gets", "scrubbed"},
+		{"this", {"is", "not"}}
+	],
+	Expected = [
+		{"this", {"is", "not"}},
+		{boolean, true},
+		{binary, <<"binary">>},
+		{list, "list"}
+	],
+	Out = scrub_proplist(Input),
+	?assertEqual(Expected, Out).
+		
 -define(MYSERVERFUNC, 
 	fun() ->
 		["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),

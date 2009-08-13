@@ -1089,6 +1089,27 @@ extract_groups_test() ->
 	Out = extract_groups(Rawlist),
 	?assertEqual(Expected, Out).
 
+encode_proplist_test() ->
+	Input = [
+		boolean,
+		{list, "This is a list"},
+		{keyatom, valatom},
+		{binary, <<"binary data">>},
+		{integer, 42},
+		{float, 23.5},
+		{tuple, {<<"this">>, <<"gets">>, <<"stripped">>}}
+	],
+	Expected = {struct, [
+		{boolean, true},
+		{list, <<"This is a list">>},
+		{keyatom, valatom},
+		{binary, <<"binary data">>},
+		{integer, 42},
+		{float, 23.5}
+	]},
+	Out = encode_proplist(Input),
+	?assertEqual(Expected, Out).
+	
 -define(MYSERVERFUNC, 
 	fun() ->
 		["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),

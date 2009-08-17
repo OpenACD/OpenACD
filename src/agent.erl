@@ -743,43 +743,12 @@ set_cpx_monitor(State, Hp, Otherdeatils) ->
 
 -ifdef(EUNIT).
 
-start_arbitrary_test() ->
-	catch agent_auth:stop(),
-	mnesia:stop(),
-	mnesia:delete_schema([node()]),
-	mnesia:create_schema([node()]),
-	mnesia:start(),
-	agent_auth:start(),
+start_arbitrary_state_test() ->
 	{ok, Pid} = start(#agent{login = "testagent", state = idle}),
 	?assertEqual({ok, idle}, query_state(Pid)),
 	agent:stop(Pid).		
-
-state_change_test() ->
-	catch agent_auth:stop(),
-	mnesia:stop(),
-	mnesia:delete_schema([node()]),
-	mnesia:create_schema([node()]),
-	mnesia:start(),
-	agent_auth:start(),
-	{_, Pid} = start(#agent{login="testagent"}),
-	?assertMatch({ok, released}, query_state(Pid)),
-	?assertEqual(ok, set_state(Pid, idle)),
-	?assertMatch({ok, idle}, query_state(Pid)),
-	?assertEqual(invalid, set_state(Pid, oncall)),
-	?assertMatch({ok, idle}, query_state(Pid)),
-	?assertEqual(ok, set_state(Pid, ringing, #call{id="foo", source=self()})),
-	?assertMatch({ok, ringing}, query_state(Pid)),
-	?assertEqual(ok, set_state(Pid, oncall, #call{id="foo", source=self()})),
-	?assertMatch({ok, oncall}, query_state(Pid)),
-	?assertMatch(queued, set_state(Pid, released, {1, 0})).
 	
 ring_oncall_mismatch_test() ->
-	catch agent_auth:stop(),
-	mnesia:stop(),
-	mnesia:delete_schema([node()]),
-	mnesia:create_schema([node()]),
-	mnesia:start(),
-	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	Goodcall = #call{id="Goodcall", source=self()},
 	Badcall = #call{id="Badcall", source=self()},

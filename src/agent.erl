@@ -964,6 +964,17 @@ from_ringing_test_() ->
 			Assertmocks()
 		end}
 	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to oncall with failing inband media",
+		fun() ->
+			Callrec = Agent#agent.statedata,
+			gen_server_mock:expect_call(Callrec#call.source, fun(_Message, _From, State) ->
+				{ok, invalid, State}
+			end),
+			?assertMatch({reply, invalid, ringing, _State}, ringing(oncall, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
 	fun({Oldagent, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to oncall with outband media path",
 		fun() ->

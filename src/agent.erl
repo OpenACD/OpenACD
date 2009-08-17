@@ -787,7 +787,7 @@ ring_oncall_mismatch_test() ->
 	?assertMatch(ok, set_state(Pid, ringing, Goodcall)),
 	?assertMatch(invalid, set_state(Pid, oncall, Badcall)).
 
-idle_state_test() ->
+idle_state_test_old() ->
 	catch agent_auth:stop(),
 	mnesia:stop(),
 	mnesia:delete_schema([node()]),
@@ -810,7 +810,71 @@ idle_state_test() ->
 	?assertMatch({ok, released}, query_state(Pid)),
 	?assertMatch(ok, set_state(Pid, idle)),
 	?assertMatch({ok, idle}, query_state(Pid)).
-	
+
+from_idle_test_() ->
+	{foreach,
+	fun() ->
+		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
+		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, Connmock} = gen_server_mock:new(),
+		Agent = #agent{login = "testagent", connection = Connmock},
+		{Agent, Dmock, Monmock, Connmock}
+	end,
+	fun({_Agent, Dmock, Monmock, Connmock}) ->
+		lists:foreach(fun gen_server_mock:stop/1, [Dmock, Monmock, Connmock]),
+		ok
+	end,
+	[fun({Agent, Dmock, Monmock, Connmock}) ->
+		{"to precall",
+		fun() ->
+			Client = #client{label = "testclient", timestamp = 0},
+			Aself = self(),
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, Self}, _State) ->
+				Self = Aself,
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{precall, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, precall, Inclient}, _State) -> 
+				Inclient = Client,
+				ok
+			end),
+			?assertMatch({reply, ok, precall, _State}, idle({precall, Client}, {"ref", "pid"}, Agent))
+		end}
+	end]}.
+		
+%		idle({precall, Client}, _From, State) ->
+%	gen_server:cast(dispatch_manager, {end_avail, self()}),
+%	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
+%	set_cpx_monitor(State#agent{state = precall}, ?PRECALL_LIMITS, []),
+%	{reply, ok, precall, State#agent{state=precall, statedata=Client, lastchangetimestamp=now()}};
+%idle({ringing, Call = #call{}}, _From, State) ->
+%	gen_server:cast(dispatch_manager, {end_avail, self()}),
+%	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
+%	set_cpx_monitor(State#agent{state = ringing}, ?RINGING_LIMITS, []),
+%	{reply, ok, ringing, State#agent{state=ringing, statedata=Call, lastchangetimestamp=now()}};
+%idle({released, Reason}, _From, State) ->
+%	gen_server:cast(dispatch_manager, {end_avail, self()}),
+%	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
+%	set_cpx_monitor(State#agent{state = released}, ?RELEASED_LIMITS, []),
+%	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
+%idle(Event, From, State) ->
+%	?WARNING("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
+%	{reply, invalid, idle, State}.
+
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
 ringing_state_test() ->
 	catch agent_auth:stop(),
 	mnesia:stop(),

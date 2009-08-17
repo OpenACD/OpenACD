@@ -824,11 +824,14 @@ from_idle_test_() ->
 		gen_server_mock:stop(Dmock),
 		gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
+		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
+		% before the next test runs.
 		ok
 	end,
-	[fun({Agent, Dmock, Monmock, Connmock}) ->
+	[fun({Agent, Dmock, Monmock, Connmock} = Testargs) ->
 		{"to precall",
 		fun() ->
+			?CONSOLE("test args: ~p", [Testargs]),
 			Client = #client{label = "testclient", timestamp = 0},
 			Aself = self(),
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, Self}, _State) ->
@@ -850,12 +853,37 @@ from_idle_test_() ->
 			gen_server_mock:assert_expectations(Connmock)
 		end}
 	end,
-	fun({Agent, Dmock, Monmock, Connmock}) ->
+	fun({Agent, Dmock, Monmock, Connmock} = Testargs) ->
 		{"to ringing",
 		fun() ->
-			?assert(true)
+			?CONSOLE("test args: ~p", [Testargs]),
+			Self = self(),
+			Call = #call{
+				id = "testcall",
+				source = Self
+			},
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, Pid}, _State) -> Pid = Self, ok end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{ringing, _Limits}] = Health,
+				?assertEqual(node(), Node),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, Incall}, _State) -> 
+				Call = Incall,
+				ok
+			end),
+			?assertMatch({reply, ok, ringing, _State}, idle({ringing, Call}, "from", Agent)),
+			gen_server_mock:assert_expectations(Dmock),
+			gen_server_mock:assert_expectations(Connmock),
+			gen_leader_mock:assert_expectations(Monmock)
 		end}
 	end]}.
+	
+
+	
+	
+	
+	
 		
 %		idle({precall, Client}, _From, State) ->
 %	gen_server:cast(dispatch_manager, {end_avail, self()}),

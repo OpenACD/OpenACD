@@ -821,7 +821,9 @@ from_idle_test_() ->
 		{Agent, Dmock, Monmock, Connmock}
 	end,
 	fun({_Agent, Dmock, Monmock, Connmock}) ->
-		lists:foreach(fun gen_server_mock:stop/1, [Dmock, Monmock, Connmock]),
+		gen_server_mock:stop(Dmock),
+		gen_leader_mock:stop(Monmock),
+		gen_server_mock:stop(Connmock),
 		ok
 	end,
 	[fun({Agent, Dmock, Monmock, Connmock}) ->
@@ -842,7 +844,16 @@ from_idle_test_() ->
 				Inclient = Client,
 				ok
 			end),
-			?assertMatch({reply, ok, precall, _State}, idle({precall, Client}, {"ref", "pid"}, Agent))
+			?assertMatch({reply, ok, precall, _State}, idle({precall, Client}, {"ref", "pid"}, Agent)),
+			gen_server_mock:assert_expectations(Dmock),
+			gen_leader_mock:assert_expectations(Monmock),
+			gen_server_mock:assert_expectations(Connmock)
+		end}
+	end,
+	fun({Agent, Dmock, Monmock, Connmock}) ->
+		{"to ringing",
+		fun() ->
+			?assert(true)
 		end}
 	end]}.
 		

@@ -19,10 +19,15 @@ def percent_to_color(per)
 	end
 end
 
+if RUBY_PLATFORM =~ /win32/i
+	win32 = true
+else
+	win32 = false
+end
 
 INCLUDE = "include"
 
-vertest = `erl -noshell -eval "io:format(\\"~n~s~n\\", [erlang:system_info(otp_release)])." -s erlang halt`.chomp.split("\n")[-1]
+vertest = `erl -noshell -eval "io:format(\\"~n~s~n\\", [erlang:system_info(otp_release)]), timer:sleep(10)." -s erlang halt`.chomp.split("\n")[-1]
 if vertest =~ /(R\d\d[AB])/
 	OTPVERSION = $1
 else
@@ -40,7 +45,7 @@ COVERAGE = SRC.pathmap("%{src,coverage}X.txt")
 RELEASE = FileList['src/*.rel.src'].pathmap("%{src,ebin}X")
 
 # check to see if gmake is available, if not fall back on the system make
-if res = `which gmake` and $?.exitstatus.zero? and not res =~ /no gmake in/
+if (not win32) and res = `which gmake` and $?.exitstatus.zero? and not res =~ /no gmake in/
 	MAKE = File.basename(res.chomp)
 else
 	MAKE = 'make'
@@ -61,6 +66,7 @@ CLEAN.include("coverage/*.txt")
 CLEAN.include("coverage/*.txt.failed")
 CLEAN.include("coverage/*.html")
 CLEAN.include("doc/*.html")
+
 
 verbose(true) unless ENV['quiet']
 
@@ -83,9 +89,9 @@ rule ".rel" => ["%{ebin,src}X.rel.src"] do |t|
 	while contents =~ /^[\s\t]*([-a-zA-Z0-9_]+),[\s\t]*$/
 		app = $1
 		if app == "erts"
-			version = `erl -noshell -eval "io:format(\\"~n~s~n\\", [erlang:system_info(version)])." -s erlang halt`.chomp.split("\n")[-1]
+			version = `erl -noshell -eval "io:format(\\"~n~s~n\\", [erlang:system_info(version)]), timer:sleep(10)." -s erlang halt`.chomp.split("\n")[-1]
 		else
-			version = `erl -noshell -eval "application:load(#{app}), io:format(\\"~n~s~n\\", [proplists:get_value(#{app}, lists:map(fun({Name, Desc, Vsn}) -> {Name, Vsn} end, application:loaded_applications()))])." -s erlang halt`.chomp.split("\n")[-1]
+			version = `erl -noshell -eval "application:load(#{app}), io:format(\\"~n~s~n\\", [proplists:get_value(#{app}, lists:map(fun({Name, Desc, Vsn}) -> {Name, Vsn} end, application:loaded_applications()))]), timer:sleep(10)." -s erlang halt`.chomp.split("\n")[-1]
 		end
 		if md = /(\d+\.\d+(\.\d+(\.\d+|)|))/.match(version)
 			contents.sub!(app, "{#{app}, \"#{md[1]}\"}")
@@ -127,9 +133,17 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam"] do |t|
 			#puts "  #{mod.ljust(@maxwidth - 1)} : #{out}"
 		end
 	else
-		puts "\e[1;35mFAILED\e[0m"
+		if ENV['COLORTERM'].to_s.downcase == 'yes' or ENV['TERM'] =~ /-color$/
+			puts "\e[1;35mFAILED\e[0m"
+		else
+			puts "FAILED"
+		end
 		puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
-		puts "  #{mod.ljust(@maxwidth - 1)} : \e[1;35mFAILED\e[0m"
+		if ENV['COLORTERM'].to_s.downcase == 'yes' or ENV['TERM'] =~ /-color$/
+			puts "  #{mod.ljust(@maxwidth - 1)} : \e[1;35mFAILED\e[0m"
+		else
+			puts "  #{mod.ljust(@maxwidth - 1)} : FAILED"
+		end
 		File.delete(t.to_s) if File.exists?(t.to_s)
 		File.new(t.to_s+'.failed', 'w').close
 	end
@@ -148,22 +162,34 @@ task :contrib do
 		sh "git submodule update"
 	end
 	CONTRIB.each do |cont|
-		if File.exists? File.join(cont, 'Makefile')
-			sh "#{MAKE} -C #{cont}"
-		elsif File.exists? File.join(cont, 'Rakefile')
+		if File.exists? File.join(cont, 'Rakefile')
 			pwd = Dir.pwd
 			Dir.chdir(cont)
-			sh "#{$0}"
+			if win32
+				sh "ruby #{$0}"
+			else
+				sh "#{$0}"
+			end
 			Dir.chdir(pwd)
+		elsif File.exists? File.join(cont, 'Makefile')
+			sh "#{MAKE} -C #{cont}"
 		else
 			STDERR.puts "Don't know how to build for #{cont}"
 		end
 		unless Dir["#{cont}/ebin/*.beam"].length.zero?
-			sh "cp #{cont}/ebin/*.beam ebin"
+			if win32
+				sh "copy /Y \"#{cont}/ebin\\*.beam\" ebin"
+			else
+				sh "cp #{cont}/ebin/*.beam ebin"
+			end
 		end
 	end
 	unless Dir["src/*.app"].length.zero?
-		sh "cp src/*.app ebin/"
+		if win32
+			sh "copy /Y src\\*.app ebin\\"
+		else
+			sh "cp src/*.app ebin/"
+		end
 	end
 end
 
@@ -202,22 +228,34 @@ namespace :test do
 			sh "git submodule update"
 		end
 		CONTRIB.each do |cont|
-			if File.exists? File.join(cont, 'Makefile')
-				sh "#{MAKE} -C #{cont}"
-			elsif File.exists? File.join(cont, 'Rakefile')
+			if File.exists? File.join(cont, 'Rakefile')
 				pwd = Dir.pwd
 				Dir.chdir(cont)
-				sh "#{$0}"
+				if win32
+					sh "ruby #{$0}"
+				else
+					sh "#{$0}"
+				end
 				Dir.chdir(pwd)
+			elsif File.exists? File.join(cont, 'Makefile')
+				sh "#{MAKE} -C #{cont}"
 			else
 				STDERR.puts "Don't know how to build for #{cont}"
 			end
 			unless Dir["#{cont}/ebin/*.beam"].length.zero?
-				sh "cp #{cont}/ebin/*.beam debug_ebin"
+				if win32
+					sh "copy /Y \"#{cont}/ebin\\*.beam\" debug_ebin"
+				else
+					sh "cp #{cont}/ebin/*.beam debug_ebin"
+				end
 			end
 		end
 		unless Dir["src/*.app"].length.zero?
-			sh "cp src/*.app debug_ebin/"
+			if win32
+				sh "copy /Y src\\*.app debug_ebin\\"
+			else
+				sh "cp src/*.app debug_ebin/"
+			end
 		end
 	end
 

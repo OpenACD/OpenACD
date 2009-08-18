@@ -743,43 +743,12 @@ set_cpx_monitor(State, Hp, Otherdeatils) ->
 
 -ifdef(EUNIT).
 
-start_arbitrary_test() ->
-	catch agent_auth:stop(),
-	mnesia:stop(),
-	mnesia:delete_schema([node()]),
-	mnesia:create_schema([node()]),
-	mnesia:start(),
-	agent_auth:start(),
+start_arbitrary_state_test() ->
 	{ok, Pid} = start(#agent{login = "testagent", state = idle}),
 	?assertEqual({ok, idle}, query_state(Pid)),
 	agent:stop(Pid).		
-
-state_change_test() ->
-	catch agent_auth:stop(),
-	mnesia:stop(),
-	mnesia:delete_schema([node()]),
-	mnesia:create_schema([node()]),
-	mnesia:start(),
-	agent_auth:start(),
-	{_, Pid} = start(#agent{login="testagent"}),
-	?assertMatch({ok, released}, query_state(Pid)),
-	?assertEqual(ok, set_state(Pid, idle)),
-	?assertMatch({ok, idle}, query_state(Pid)),
-	?assertEqual(invalid, set_state(Pid, oncall)),
-	?assertMatch({ok, idle}, query_state(Pid)),
-	?assertEqual(ok, set_state(Pid, ringing, #call{id="foo", source=self()})),
-	?assertMatch({ok, ringing}, query_state(Pid)),
-	?assertEqual(ok, set_state(Pid, oncall, #call{id="foo", source=self()})),
-	?assertMatch({ok, oncall}, query_state(Pid)),
-	?assertMatch(queued, set_state(Pid, released, {1, 0})).
 	
 ring_oncall_mismatch_test() ->
-	catch agent_auth:stop(),
-	mnesia:stop(),
-	mnesia:delete_schema([node()]),
-	mnesia:create_schema([node()]),
-	mnesia:start(),
-	agent_auth:start(),
 	{_, Pid} = start(#agent{login="testagent"}),
 	Goodcall = #call{id="Goodcall", source=self()},
 	Badcall = #call{id="Badcall", source=self()},
@@ -787,64 +756,278 @@ ring_oncall_mismatch_test() ->
 	?assertMatch(ok, set_state(Pid, ringing, Goodcall)),
 	?assertMatch(invalid, set_state(Pid, oncall, Badcall)).
 
-idle_state_test() ->
-	catch agent_auth:stop(),
-	mnesia:stop(),
-	mnesia:delete_schema([node()]),
-	mnesia:create_schema([node()]),
-	mnesia:start(),
-	agent_auth:start(),
-	{_, Pid} = start(#agent{login="testagent"}),
-	?assertMatch(ok, set_state(Pid, idle)),
-	Call = #call{id="testcall", source=self()},
-	?assertMatch(invalid, set_state(Pid, ringing, nothing)),
-	?assertMatch(invalid, set_state(Pid, oncall, nothing)),
-	?assertMatch(invalid, set_state(Pid, outgoing, nothing)),
-	?assertMatch(invalid, set_state(Pid, warmtransfer, nothing)),
-	?assertMatch(invalid, set_state(Pid, wrapup, nothing)),
-	?assertMatch(ok, set_state(Pid, ringing, Call)),
-	?assertMatch({ok, ringing}, query_state(Pid)),
-	?assertMatch(ok, set_state(Pid, idle)),
-	?assertMatch({ok, idle}, query_state(Pid)),
-	?assertMatch(ok, set_state(Pid, released, default)),
-	?assertMatch({ok, released}, query_state(Pid)),
-	?assertMatch(ok, set_state(Pid, idle)),
-	?assertMatch({ok, idle}, query_state(Pid)).
-	
-ringing_state_test() ->
-	catch agent_auth:stop(),
-	mnesia:stop(),
-	mnesia:delete_schema([node()]),
-	mnesia:create_schema([node()]),
-	mnesia:start(),
-	agent_auth:start(),
-	{_, Pid} = start(#agent{login="testagent"}),
-	?assertMatch(ok, set_state(Pid, idle)),
-	Call = #call{id="testcall", source=self()},
-	?assertMatch(ok, set_state(Pid, ringing, Call)),
-	?assertMatch(invalid, set_state(Pid, ringing)),
-	?assertMatch(invalid, set_state(Pid, ringing, Call)),
-	?assertMatch(invalid, set_state(Pid, precall)),
-	?assertMatch(invalid, set_state(Pid, oncall, #call{id="invalid", source=self()})),
-	?assertMatch(invalid, set_state(Pid, outgoing)),
-	?assertMatch(invalid, set_state(Pid, outgoing, Call)),
-	?assertMatch(invalid, set_state(Pid, warmtransfer)),
-	?assertMatch(invalid, set_state(Pid, warmtransfer, Call)),
-	?assertMatch(invalid, set_state(Pid, wrapup)),
-	?assertMatch(invalid, set_state(Pid, wrapup, Call)),
-	
-	%% now the successes
-	?assertMatch(ok, set_state(Pid, idle)),
-	?assertMatch({ok, idle}, query_state(Pid)),
-	set_state(Pid, ringing, Call),
-	?assertMatch(ok, set_state(Pid, oncall, Call)),
-	?assertMatch({ok, oncall}, query_state(Pid)),
-	set_state(Pid, wrapup, Call),
-	set_state(Pid, idle),
-	set_state(Pid, ringing, Call),
-	?assertMatch(ok, set_state(Pid, released, default)),
-	?assertMatch({ok, released}, query_state(Pid)).
-	
+from_idle_test_() ->
+	{foreach,
+	fun() ->
+		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
+		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, Connmock} = gen_server_mock:new(),
+		Agent = #agent{login = "testagent", connection = Connmock},
+		Assertmocks = fun() ->
+			gen_server_mock:assert_expectations(Dmock),
+			gen_leader_mock:assert_expectations(Monmock),
+			gen_server_mock:assert_expectations(Connmock),
+			ok
+		end,
+		{Agent, Dmock, Monmock, Connmock, Assertmocks}
+	end,
+	fun({_Agent, Dmock, Monmock, Connmock, _Assertmocks}) ->
+		gen_server_mock:stop(Dmock),
+		gen_leader_mock:stop(Monmock),
+		gen_server_mock:stop(Connmock),
+		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
+		% before the next test runs.
+		ok
+	end,
+	[fun({Agent, Dmock, Monmock, Connmock, Assertmocks} = Testargs) ->
+		{"to precall",
+		fun() ->
+			?CONSOLE("test args: ~p", [Testargs]),
+			Client = #client{label = "testclient", timestamp = 0},
+			Aself = self(),
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, Self}, _State) ->
+				Self = Aself,
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{precall, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, precall, Inclient}, _State) -> 
+				Inclient = Client,
+				ok
+			end),
+			?assertMatch({reply, ok, precall, _State}, idle({precall, Client}, {"ref", "pid"}, Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, Dmock, Monmock, Connmock, Assertmocks} = Testargs) ->
+		{"to ringing",
+		fun() ->
+			?CONSOLE("test args: ~p", [Testargs]),
+			Self = self(),
+			Call = #call{
+				id = "testcall",
+				source = Self
+			},
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, Pid}, _State) -> Pid = Self, ok end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{ringing, _Limits}] = Health,
+				?assertEqual(node(), Node),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, Incall}, _State) -> 
+				Call = Incall,
+				ok
+			end),
+			?assertMatch({reply, ok, ringing, _State}, idle({ringing, Call}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to released",
+		fun() ->
+			Self = self(),
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, Apid}, _State) ->
+				Self = Apid,
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{released, _Limits}] = Health,
+				?assertEqual(node(), Node),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "just 'cause"}, _State) ->
+				ok
+			end),
+			?assertMatch({reply, ok, released, _State}, idle({released, "just 'cause"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to oncall",
+		fun() ->
+			?assertMatch({reply, invalid, idle, _State}, idle({oncall, "doesn't matter"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to ringing with invalid call",
+		fun() ->
+			?assertMatch({reply, invalid, idle, _State}, idle({ringing, "not a call rec"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to outgoing",
+		fun() ->
+			?assertMatch({reply, invalid, idle, _State}, idle({outgoing, "doesn't matter"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to warmtransfer",
+		fun() ->
+			?assertMatch({reply, invalid, idle, _State}, idle({warmtransfer, "doesn't matter"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to wrapup",
+		fun() ->
+			?assertMatch({reply, invalid, idle, _State}, idle({wrapup, "doesn't matter"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end]}.
+
+from_ringing_test_() ->
+	{foreach,
+	fun() ->
+		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
+		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, Connmock} = gen_server_mock:new(),
+		{ok, Mpid} = dummy_media:start("testcall"),
+		ProtoCallrec = gen_media:get_call(Mpid),
+		exit(Mpid, kill),
+		{ok, Mediamock} = gen_server_mock:new(),
+		Callrec = ProtoCallrec#call{source = Mediamock},
+		Agent = #agent{login = "testagent", connection = Connmock, statedata = Callrec, state = ringing},
+		Assertmocks = fun() ->
+			gen_server_mock:assert_expectations(Dmock),
+			gen_leader_mock:assert_expectations(Monmock),
+			gen_server_mock:assert_expectations(Connmock),
+			ok
+		end,
+		{Agent, Dmock, Monmock, Connmock, Assertmocks}
+	end,
+	fun({#agent{statedata = Callrec}, Dmock, Monmock, Connmock, _Assertmocks}) ->
+		gen_server_mock:stop(Dmock),
+		gen_leader_mock:stop(Monmock),
+		gen_server_mock:stop(Connmock),
+		exit(Callrec#call.source, kill),
+		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
+		% before the next test runs.
+		ok
+	end,
+	[fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to idle",
+		fun() ->
+			Aself = self(),
+			gen_server_mock:expect_cast(Dmock, fun({now_avail, Self}, _State) ->
+				Self = Aself,
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{idle, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
+				ok
+			end),
+			?assertMatch({reply, ok, idle, _State}, ringing(idle, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to ringing",
+		fun() ->
+			?assertMatch({reply, invalid, ringing, _State}, ringing({ringing, "doens't matter"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to precall",
+		fun() ->
+			?assertMatch({reply, invalid, ringing, _State}, ringing({precall, "doesn't matter"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to oncall with inband media path",
+		fun() ->
+			Callrec = Agent#agent.statedata, 
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{oncall, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, oncall, Inrec}, _State) ->
+				Inrec = Agent#agent.statedata,
+				ok
+			end),
+			gen_server_mock:expect_call(Callrec#call.source, fun(_Message, _From, _State) ->
+				ok
+			end),
+			?assertMatch({reply, ok, oncall, _State}, ringing(oncall, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Oldagent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to oncall with outband media path",
+		fun() ->
+			Oldcall = Oldagent#agent.statedata, 
+			Callrec = Oldcall#call{ring_path = outband, media_path = outband},
+			Agent = Oldagent#agent{statedata = Callrec},
+			gen_server_mock:expect_cast(Connmock, fun({change_state, oncall, Inrec}, _State) ->
+				Inrec = Agent#agent.statedata,
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{oncall, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			?assertMatch({reply, ok, oncall, _State}, ringing({oncall, Callrec}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to oncall with call id mismatch",
+		fun() ->
+			Oldcall = Agent#agent.statedata,
+			Callrec = Oldcall#call{id = "invalid"},
+			?assertMatch({reply, invalid, ringing, _State}, ringing({oncall, Callrec}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to outgoing",
+		fun() ->
+			?assertMatch({reply, invalid, ringing, _State}, ringing({outgoing, "doesn't matter"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to released",
+		fun() ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{released, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "default"}, _State) ->
+				ok
+			end),
+			?assertMatch({reply, ok, released, _State}, ringing({released, "default"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to warmtransfer",
+		fun() ->
+			?assertMatch({reply, invalid, ringing, _State}, ringing({warmtransfer, "doesn't matter"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to wrapup",
+		fun() ->
+			?assertMatch({reply, invalid, ringing, _State}, ringing({wrapup, "doesn't matter"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end]}.
 	
 precall_state_test() ->
 	catch agent_auth:stop(),

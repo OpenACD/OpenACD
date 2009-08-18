@@ -608,7 +608,7 @@ handle_info({'EXIT', From, Reason}, oncall, #agent{connection = From, statedata 
 			end,
 			gen_media:wrapup(Call#call.source),
 			cdr:endwrapup(Call, State#agent.login),
-			{stop, Stopwhy, State};
+			{stop, Stopwhy, State#agent{connection = undefined}};
 		outband ->
 			% to avoid sudden dropped calls, hang around.
 			{next_state, oncall, State#agent{connection = undefined}}
@@ -627,7 +627,7 @@ handle_info({'EXIT', From, Reason}, outgoing, #agent{connection = From, statedat
 			end,
 			gen_media:wrapup(Call#call.source),
 			cdr:endwrapup(Call, State#agent.login),
-			{stop, Stopwhy, State};
+			{stop, Stopwhy, State#agent{connection = undefined}};
 		outband ->
 			{next_state, outgoing, State#agent{connection = undefined}}
 	end;
@@ -646,7 +646,7 @@ handle_info({'EXIT', From, Reason}, warmtransfer, #agent{connection = From, stat
 			end,
 			gen_media:wrapup(Call#call.source),
 			cdr:endwrapup(Call, State#agent.login),
-			{stop, Stopwhy, State};
+			{stop, Stopwhy, State#agent{connection = undefined}};
 		outband ->
 			{next_state, warmtransfer, State#agent{connection = undefined}}
 	end;
@@ -1854,8 +1854,10 @@ handle_sync_event_test_() ->
 handle_conn_exit_inband_test_() ->
 	{foreach,
 	fun() ->
-		Call = #call{id = "test", source = self()},
-		{#agent{login = "test", connection = self(), statedata = Call}, self()}
+		{ok, Callmock} = gen_server_mock:new(),
+		{ok, Connmock} = gen_server_mock:new(),
+		Call = #call{id = "test", source = Callmock, media_path = inband},
+		{#agent{login = "test", connection = Connmock, statedata = Call}, Connmock}
 	end,
 	fun(_) ->
 		ok
@@ -1884,15 +1886,21 @@ handle_conn_exit_inband_test_() ->
 	fun({A, P}) ->
 		{"Death in oncall",
 		fun() ->
+			#call{source = Callmock} = A#agent.statedata,
+			gen_server_mock:expect_call(Callmock, fun('$gen_media_wrapup', _From, _State) -> ok end),
 			Res = handle_info({'EXIT', P, "fail"}, oncall, A),
-			?assertEqual({next_state, oncall, A#agent{connection = undefined}}, Res)
+			?assertEqual({stop, {error, conn_exit, "fail"}, A#agent{connection = undefined}}, Res),
+			gen_server_mock:assert_expectations(Callmock)
 		end}
 	end,
 	fun({A, P}) ->
 		{"Death in outgoing",
 		fun() ->
+			#call{source = Callmock} = A#agent.statedata,
+			gen_server_mock:expect_call(Callmock, fun('$gen_media_wrapup', _From, _State) -> ok end),
 			Res = handle_info({'EXIT', P, "fail"}, outgoing, A),
-			?assertEqual({next_state, outgoing, A#agent{connection = undefined}}, Res)
+			?assertEqual({stop, {error, conn_exit, "fail"}, A#agent{connection = undefined}}, Res),
+			gen_server_mock:assert_expectations(Callmock)
 		end}
 	end,
 	fun({A, P}) ->
@@ -1905,10 +1913,12 @@ handle_conn_exit_inband_test_() ->
 	fun({A, P}) ->
 		{"Death in warm transfer",
 		fun() ->
-			Call = A#agent.statedata,
+			#call{source = Callmock} = Call = A#agent.statedata,
 			Agent = A#agent{statedata = {onhold, Call, calling, "target"}},
+			gen_server_mock:expect_call(Callmock, fun('$gen_media_wrapup', _From, _State) -> ok end),
 			Res = handle_info({'EXIT', P, "fail"}, warmtransfer, Agent),
-			?assertEqual({next_state, warmtransfer, Agent#agent{connection = undefined}}, Res)
+			?assertEqual({stop, {error, conn_exit, "fail"}, Agent#agent{connection = undefined}}, Res),
+			gen_server_mock:assert_expectations(Callmock)
 		end}
 	end,
 	fun({A, P}) ->

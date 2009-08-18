@@ -1786,6 +1786,71 @@ generate_state([]) ->
 cross_check_state_test_() ->
 	generate_state().
 
+handle_sync_event_test_() ->
+	{foreach,
+	fun() ->
+		ok
+	end,
+	fun(_) ->
+		ok
+	end,
+	[fun(_) ->
+		{"query state",
+		fun() ->
+			?assertMatch({reply, {ok, statename}, statename, "state"}, handle_sync_event(query_state, "from", statename, "state"))
+		end}
+	end,
+	fun(_) ->
+		{"set connectoin when connection is not defined",
+		fun() ->
+			{ok, Connmock} = gen_server_mock:new(),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, idle, undefined}, _State) -> ok end),
+			Agent = #agent{
+				login = "testagent",
+				state = idle,
+				statedata = undefined
+			},
+			?assertMatch({reply, ok, idle, #agent{connection = Connmock}}, handle_sync_event({set_connection, Connmock}, "from", idle, Agent)),
+			gen_server_mock:assert_expectations(Connmock)
+		end}
+	end,
+	fun(_) ->
+		{"set connection when connection is already defined",
+		fun() ->
+			{ok, Curmock} = gen_server_mock:new(),
+			{ok, Newmock} = gen_server_mock:new(),
+			Agent = #agent{
+				login = "testagent",
+				state = idle,
+				statedata = undefined,
+				connection = Curmock
+			},
+			?assertMatch({reply, error, idle, #agent{connection = Curmock}}, handle_sync_event({set_connection, Newmock}, "from", idle, Agent)),
+			gen_server_mock:assert_expectations(Curmock),
+			gen_server_mock:assert_expectations(Newmock)
+		end}
+	end,
+	fun(_) ->
+		{"pop url",
+		fun() ->
+			{ok, Connmock} = gen_server_mock:new(),
+			Agent = #agent{
+				login = "testagent",
+				state = idle,
+				connection = Connmock
+			},
+			gen_server_mock:expect_cast(Connmock, fun({url_pop, "localhost"}, _State) -> ok end),
+			?assertMatch({reply, ok, idle, _State}, handle_sync_event({url_pop, "localhost"}, "from", idle, Agent)),
+			gen_server_mock:assert_expectations(Connmock)
+		end}
+	end,
+	fun(_) ->
+		{"garbage data",
+		fun() ->
+			?assertMatch({reply, ok, state, "state"}, handle_sync_event(<<"garbage data">>, "from", state, "state"))
+		end}
+	end]}.
+
 handle_conn_exit_inband_test_() ->
 	{foreach,
 	fun() ->

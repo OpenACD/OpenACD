@@ -154,9 +154,7 @@ task :contrib do
 		sh "git submodule update"
 	end
 	CONTRIB.each do |cont|
-		if File.exists? File.join(cont, 'Makefile')
-			sh "#{MAKE} -C #{cont}"
-		elsif File.exists? File.join(cont, 'Rakefile')
+		if File.exists? File.join(cont, 'Rakefile')
 			pwd = Dir.pwd
 			Dir.chdir(cont)
 			puts "running #{$0} in #{cont}"
@@ -166,6 +164,8 @@ task :contrib do
 				sh "#{$0}"
 			end
 			Dir.chdir(pwd)
+		elsif File.exists? File.join(cont, 'Makefile')
+			sh "#{MAKE} -C #{cont}"
 		else
 			STDERR.puts "Don't know how to build for #{cont}"
 		end
@@ -221,13 +221,13 @@ namespace :test do
 			sh "git submodule update"
 		end
 		CONTRIB.each do |cont|
-			if File.exists? File.join(cont, 'Makefile')
-				sh "#{MAKE} -C #{cont}"
-			elsif File.exists? File.join(cont, 'Rakefile')
+			if File.exists? File.join(cont, 'Rakefile')
 				pwd = Dir.pwd
 				Dir.chdir(cont)
 				sh "#{$0}"
 				Dir.chdir(pwd)
+			elsif File.exists? File.join(cont, 'Makefile')
+				sh "#{MAKE} -C #{cont}"
 			else
 				STDERR.puts "Don't know how to build for #{cont}"
 			end

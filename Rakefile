@@ -133,9 +133,17 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam"] do |t|
 			#puts "  #{mod.ljust(@maxwidth - 1)} : #{out}"
 		end
 	else
-		puts "\e[1;35mFAILED\e[0m"
+		if ENV['COLORTERM'].to_s.downcase == 'yes' or ENV['TERM'] =~ /-color$/
+			puts "\e[1;35mFAILED\e[0m"
+		else
+			puts "FAILED"
+		end
 		puts test_output.split("\n")[1..-1].map{|x| x.include?('1>') ? x.gsub(/\([a-zA-Z0-9\-@]+\)1>/, '') : x}.join("\n")
-		puts "  #{mod.ljust(@maxwidth - 1)} : \e[1;35mFAILED\e[0m"
+		if ENV['COLORTERM'].to_s.downcase == 'yes' or ENV['TERM'] =~ /-color$/
+			puts "  #{mod.ljust(@maxwidth - 1)} : \e[1;35mFAILED\e[0m"
+		else
+			puts "  #{mod.ljust(@maxwidth - 1)} : FAILED"
+		end
 		File.delete(t.to_s) if File.exists?(t.to_s)
 		File.new(t.to_s+'.failed', 'w').close
 	end
@@ -157,7 +165,6 @@ task :contrib do
 		if File.exists? File.join(cont, 'Rakefile')
 			pwd = Dir.pwd
 			Dir.chdir(cont)
-			puts "running #{$0} in #{cont}"
 			if win32
 				sh "ruby #{$0}"
 			else
@@ -224,7 +231,11 @@ namespace :test do
 			if File.exists? File.join(cont, 'Rakefile')
 				pwd = Dir.pwd
 				Dir.chdir(cont)
-				sh "#{$0}"
+				if win32
+					sh "ruby #{$0}"
+				else
+					sh "#{$0}"
+				end
 				Dir.chdir(pwd)
 			elsif File.exists? File.join(cont, 'Makefile')
 				sh "#{MAKE} -C #{cont}"

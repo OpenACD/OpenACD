@@ -316,7 +316,8 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} 
 	end;
 ringing({released, Reason}, _From, #agent{statedata = Call} = State) ->
 	?DEBUG("going released from ringing", []),
-	gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
+	%gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
+	gen_media:stop_ringing(Call#call.source),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	set_cpx_monitor(State#agent{state = released}, ?RELEASED_LIMITS, []),
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};

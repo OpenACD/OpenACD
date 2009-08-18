@@ -332,7 +332,8 @@ wrapup(Genmedia) ->
 %% @doc Send a stop ringing message to `pid() Genmedia'.
 -spec(stop_ringing/1 :: (Genmedia :: pid()) -> 'ok').
 stop_ringing(Genmedia) ->
-	Genmedia ! '$gen_media_stop_ring',
+	Self = self(),
+	Genmedia ! {'$gen_media_stop_ring', Self},
 	ok.
 
 %% @doc Set the agent associated with `pid() Genmedia' to oncall.
@@ -484,7 +485,8 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 				{ok, Substate} ->
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
 					cdr:ringing(Call, Agent),
-					{reply, ok, State#state{substate = Substate, ring_pid = Agent, ringout=Tref}};
+					Newcall = Call#call{cook = QCall#queued_call.cook},
+					{reply, ok, State#state{substate = Substate, ring_pid = Agent, ringout=Tref, callrec = Newcall}};
 				{invalid, Substate} ->
 					agent:set_state(Agent, idle),
 					{reply, invalid, State#state{substate = Substate}}
@@ -684,6 +686,11 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 
 %% @private
+handle_info({'$gen_media_stop_ring', Apid}, #state{ring_pid = Apid, callback = Callback, callrec = Callrec} = State) ->
+	?INFO("ring agent ~w requested a stop to ringing", [Apid]),
+	{ok, Newsub} = Callback:handle_ring_stop(State#state.substate),
+	gen_server:cast(Callrec#call.cook, stop_ringing),
+	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined}};
 handle_info({'$gen_media_stop_ring', _Cook}, #state{ring_pid = undefined} = State) ->
 	?NOTICE("No agent is ringing for this call", []),
 	{noreply, State};

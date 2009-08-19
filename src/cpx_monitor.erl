@@ -47,7 +47,8 @@
 -type(health_value() :: number() | {number(), number(), number(), number() | {'time', time()}}).
 -type(health_details() :: [{string() | atom() | binary(), health_value()}]).
 -type(other_details() :: proplist()).
--type(health_tuple() :: {health_key(), health_details(), other_details(), time()}).
+% internal struct of the ets table.
+%-type(health_tuple() :: {health_key(), health_details(), other_details(), time()}).
 
 -include("log.hrl").
 -include_lib("stdlib/include/qlc.hrl").
@@ -143,7 +144,7 @@ drop({_Type, _Name} = Key) ->
 	gen_leader:leader_cast(?MODULE, {drop, Key}).
 
 %% @Gets all the records of the given type or after a given time from the ets
--spec(get_health/1 :: (Type :: health_type() | time()) -> {'ok', [health_tuple()]}).
+-spec(get_health/1 :: (Type :: health_type() | time()) -> {'ok', [{health_key(), health_details(), other_details()}]}).
 get_health(Time) when is_integer(Time) ->
 	gen_leader:leader_call(?MODULE, {get, Time});
 get_health(Type) ->
@@ -196,7 +197,7 @@ health(Min, Goal, Max, X) when Min =< Goal, Goal =< Max ->
 	(50 * X - 50 * Min) / (Goal - Min).
 
 %% @doc turns the passed health tuple into a proplist.
--spec(to_proplist/1 :: (Tuple :: tuple()) -> [{atom() | binary(), any()}]).
+-spec(to_proplist/1 :: (Tuple :: {health_key(), health_details(), other_details()}) -> proplist()).
 to_proplist({{Type, Name}, Health, Details}) ->
 	[{type, Type},
 	{name, Name},

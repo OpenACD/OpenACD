@@ -1127,5 +1127,59 @@ outgoing_test_() ->
 			gen_leader_mock:assert_expectations(Ammock)
 		end}
 	end]}.
-	
+
+priv_queue_test_() ->
+	{foreach,
+	fun() ->
+		{ok, QMpid} = gen_leader_mock:start(queue_manager),
+		{ok, Qpid} = gen_server_mock:new(),
+		Callrec = #call{id = "testcall", source = self()},
+		Assertmocks = fun() ->
+			gen_leader_mock:assert_expectations(QMpid),
+			gen_server_mock:assert_expectations(Qpid)
+		end,
+		{QMpid, Qpid, Callrec, Assertmocks}
+	end,
+	fun({QMpid, Qpid, _Callrec, _Mocks}) ->
+		gen_leader_mock:stop(QMpid),
+		gen_server_mock:stop(Qpid),
+		timer:sleep(10),
+		ok
+	end,
+	[fun({QMpid, Qpid, Callrec, Mocks}) ->
+		{"All is well",
+		fun() ->
+			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
+				{ok, Qpid, State}
+			end),
+			gen_server_mock:expect_call(Qpid, fun({add, 1, Inpid, Callrec}, _From, _State) -> ok end),
+			?assertEqual(Qpid, priv_queue("testqueue", Callrec, "doesn't matter")),
+			Mocks()
+		end}
+	end,
+	fun({QMpid, _Qpid, Callrec, Mocks}) ->
+		{"failover is false",
+		fun() ->
+			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
+				{ok, undefined, State}
+			end),
+			?assertEqual(invalid, priv_queue("testqueue", Callrec, false)),
+			Mocks()
+		end}
+	end,
+	fun({QMpid, Qpid, Callrec, Mocks}) ->
+		{"failover is true",
+		fun() ->
+			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
+				{ok, undefined, State}
+			end),
+			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
+				{ok, Qpid, State}
+			end),
+			gen_server_mock:expect_call(Qpid, fun({add, 1, Inpid, Callrec}, _From, _State) -> ok end),
+			?assertEqual({default, Qpid}, priv_queue("testqueue", Callrec, true)),
+			Mocks()
+		end}
+	end]}.
+
 -endif.

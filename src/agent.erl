@@ -906,7 +906,7 @@ from_ringing_test_() ->
 		gen_server_mock:stop(Dmock),
 		gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
-		exit(Callrec#call.source, kill),
+		gen_server_mock:stop(Callrec#call.source),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
@@ -1020,6 +1020,12 @@ from_ringing_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "default"}, _State) ->
+				ok
+			end),
+			Callrec = Agent#agent.statedata,
+			Self = self(),
+			gen_server_mock:expect_info(Callrec#call.source, fun({'$gen_media_stop_ring', Inpid}, _State) ->
+				Inpid = Self,
 				ok
 			end),
 			?assertMatch({reply, ok, released, _State}, ringing({released, "default"}, "from", Agent)),

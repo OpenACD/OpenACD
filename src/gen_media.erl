@@ -828,15 +828,16 @@ agent_interact({mediapush, Data, Mode}, #state{oncall_pid = Ocpid, callrec = Cal
 	?INFO("Shoving ~p", [Data]),
 	agent:media_push(Ocpid, Data, Mode),
 	State;
-agent_interact({mediapush, _Data}, State) ->
+agent_interact({mediapush, _Data, _Mode}, State) ->
 	?INFO("Cannot do a media push in current state:  ~p", [State]),
 	State;
-agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ringout =/= false ->
-	?INFO("stop_ring", []),
-	timer:cancel(State#state.ringout),
-	agent:set_state(Apid, idle),
-	State#state{ringout = false, ring_pid = undefined};
-agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ringout =:= false; Apid =:= undefined ->
+%agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ringout =/= false ->
+%	?INFO("stop_ring", []),
+%	timer:cancel(State#state.ringout),
+%	agent:set_state(Apid, idle),
+%	State#state{ringout = false, ring_pid = undefined};
+%agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ringout =:= false; Apid =:= undefined ->
+agent_interact(stop_ring, #state{ring_pid = Apid} = State)  ->
 	?INFO("stop_ring when there's not much of a ring to handle", []),
 	case {State#state.ringout, Apid} of
 		{false, undefined} ->
@@ -847,7 +848,11 @@ agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ring
 			State#state{ring_pid = undefined};
 		{Tref, undefined} ->
 			timer:cancel(Tref),
-			State#state{ringout = false}
+			State#state{ringout = false};
+		{Tref, Apid} ->
+			timer:cancel(Tref),
+			agent:set_state(Apid, idle),
+			State#state{ring_pid = undefined, ringout = false}
 	end;
 agent_interact(wrapup, #state{oncall_pid = Apid} = State) ->
 	?INFO("Attempting to set agent at ~p to wrapup", [Apid]),
@@ -901,6 +906,226 @@ outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call), S
 
 -ifdef(EUNIT).
 
+-include("agent.hrl").
 
+agent_interact_test_() ->
+	{foreach,
+	fun() ->
+		Callrec = #call{id = "testcall", source = self()},
+		{ok, Mock} = gen_leader_mock:start(agent_manager),
+		gen_leader_mock:expect_leader_call(Mock, fun(_Data, _From, State, _Elec) -> {ok, "testagent", State} end),
+		{#agent{login = "testagent"}, Callrec}
+	end,
+	fun({_Arec, _Callrec}) ->
+		Mock = whereis(agent_manager),
+		gen_leader_mock:stop(Mock),
+		timer:sleep(10), % because mocks don't like to die quickly.
+		ok
+	end,
+	[fun({Arec, Callrecbase}) ->
+		{"mediapush",
+		fun() ->
+			Callrec = Callrecbase#call{media_path = inband},
+			{ok, Apid} = agent:start(Arec#agent{statedata = Callrec, state = oncall}),
+			State = #state{oncall_pid = Apid, callrec = Callrec},
+			Expected = State,
+			?assertEqual(Expected, agent_interact({mediapush, "data", append}, State)),
+			agent:stop(Apid)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"media push when media_path doesn't match",
+		fun() ->
+			{ok, Apid} = agent:start(Arec#agent{statedata = Callrec, state = oncall}),
+			State = #state{oncall_pid = Apid, callrec = Callrec},
+			Expected = State,
+			agent:stop(Apid),
+			?assertEqual(Expected, agent_interact({mediapush, "data", append}, State))
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"stop_ring with a ringout timer going",
+		fun() ->
+			{ok, Apid} = agent:start(Arec#agent{statedata = Callrec, state = ringing}),
+			{ok, Tref} = timer:send_interval(1000, <<"timer">>),
+			State = #state{ring_pid = Apid, ringout = Tref},
+			Res = agent_interact(stop_ring, State),
+			agent:stop(Apid),
+			receive
+				<<"timer">> ->
+					 erlang:error(timer_lives)
+			after 1500 ->
+				ok
+			end,
+			?assertEqual(false, Res#state.ringout),
+			?assertEqual(undefined, Res#state.ring_pid)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"stop_ring with no ringout or ring_pid defined",
+		fun() ->
+			State = #state{ring_pid = undefined, ringout = false},
+			Res = agent_interact(stop_ring, State),
+			?assertEqual(State, Res)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"stop_ring with only ring_pid defined",
+		fun() ->
+			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
+			State = #state{ring_pid = Apid, ringout = false},
+			Res = agent_interact(stop_ring, State),
+			agent:stop(Apid),
+			?assertEqual(undefined, Res#state.ring_pid)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"stop_ring with only ringout defined",
+		fun() ->
+			{ok, Tref} = timer:send_interval(1000, <<"timer">>),
+			State = #state{ringout = Tref},
+			Res = agent_interact(stop_ring, State),
+			receive
+				<<"timer">>	->
+					 erlang:error(timer_lives)
+			after 1500 ->
+				ok
+			end,
+			?assertEqual(false, Res#state.ringout)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"wrapup",
+		fun() ->
+			{ok, Apid} = agent:start(Arec#agent{state = oncall, statedata = Callrec}),
+			State = #state{oncall_pid = Apid, callrec = Callrec},
+			Res = agent_interact(wrapup, State),
+			agent:stop(Apid),
+			?assertEqual(undefined, Res#state.oncall_pid)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"hangup when both oncall and ring are pids",
+		fun() ->
+			{ok, Oncall} = agent:start(Arec#agent{state = oncall, statedata = Callrec}),
+			{ok, Ringing} = agent:start(Arec#agent{state = ringing, statedata = Callrec, login = "ringing"}),
+			State = #state{oncall_pid = Oncall, ring_pid = Ringing, callrec = Callrec},
+			Res = agent_interact(hangup, State),
+			agent:stop(Oncall),
+			agent:stop(Ringing),
+			?assertEqual(undefined, Res#state.oncall_pid),
+			?assertEqual(undefined, Res#state.ring_pid)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"hang up when only oncall is a pid",
+		fun() ->
+			{ok, Apid} = agent:start(Arec#agent{state = oncall, statedata = Callrec}),
+			State = #state{oncall_pid = Apid, callrec = Callrec},
+			Res = agent_interact(hangup, State),
+			agent:stop(Apid),
+			?assertEqual(undefined, Res#state.oncall_pid)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"hang up when only ringing is a pid",
+		fun() ->
+			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
+			State = #state{ring_pid = Apid, callrec = Callrec},
+			Res = agent_interact(hangup, State),
+			agent:stop(Apid),
+			?assertEqual(undefined, Res#state.ring_pid)
+		end}
+	end,
+	fun({Arec, Callrec}) ->
+		{"hang up when only queue is a pid",
+		fun() ->
+			{ok, Qpid} = gen_server_mock:new(),
+			gen_server_mock:expect_call(Qpid, fun({remove, Incpid}, _From, _State) -> ok end),
+			State = #state{queue_pid = Qpid, callrec = Callrec},
+			Res = agent_interact(hangup, State),
+			?assertEqual(undefined, Res#state.queue_pid),
+			gen_server_mock:assert_expectations(Qpid),
+			gen_server_mock:stop(Qpid)
+		end}
+	end,
+	fun({_Arec, _Callrec}) ->
+		{"orphaned call, or just not yet queued",
+		fun() ->
+			Res = agent_interact(hangup, #state{}),
+			?assertEqual(#state{}, Res)
+		end}
+	end]}.
 
+outgoing_test_() ->
+	{foreach,
+	fun() ->
+		{ok, Apid} = agent:start(#agent{login = "testagent", state = precall, statedata = "clientrec"}),
+		{ok, Ammock} = gen_leader_mock:start(agent_manager),
+		{Apid, Ammock}
+	end,
+	fun({Apid, Ammock}) ->
+		agent:stop(Apid),
+		gen_leader_mock:stop(Ammock),
+		timer:sleep(10)
+	end,
+	[fun({Apid, Ammock}) ->
+		{"set agent outbound with known call, and agent exists",
+		fun() ->
+			gen_leader_mock:expect_leader_call(Ammock, fun({exists, "testagent"}, _From, State, _Elec) ->
+				{ok, {true, Apid}, State}
+			end),
+			State = #state{callrec = #call{id = "testcall", source = self()}},
+			{ok, Res} = outgoing({outbound, "testagent", "newsubstate"}, State),
+			?assertEqual(Apid, Res#state.oncall_pid),
+			?assertEqual("newsubstate", Res#state.substate),
+			gen_leader_mock:assert_expectations(Ammock)
+		end}
+	end,
+	fun({_Apid, Ammock}) ->
+		{"set agent outbound with known call, but agent doesn't exist",
+		fun() ->
+			gen_leader_mock:expect_leader_call(Ammock, fun({exists, "testagent"}, _From, State, _Elec) ->
+				{ok, false, State}
+			end),
+			State = #state{callrec = #call{id = "testcall", source = self()}},
+			Res = outgoing({outbound, "testagent", "newsubstate"}, State),
+			?assertMatch({{error, {noagent, "testagent"}}, _Newstate}, Res),
+			{_, Newstate} = Res,
+			?assertEqual("newsubstate", Newstate#state.substate),
+			gen_leader_mock:assert_expectations(Ammock)
+		end}
+	end,
+	fun({Apid, Ammock}) ->
+		{"set agent outbound with a new callrec",
+		fun() ->
+			gen_leader_mock:expect_leader_call(Ammock, fun({exists, "testagent"}, _From, State, _Elec) ->
+				{ok, {true, Apid}, State}
+			end),
+			Callrec = #call{id = "testcall", source = self()},
+			State = #state{},
+			{ok, Res} = outgoing({outbound, "testagent", Callrec, "newsubstate"}, State),
+			?assertEqual(Apid, Res#state.oncall_pid),
+			?assertEqual(Callrec, Res#state.callrec),
+			?assertEqual("newsubstate", Res#state.substate),
+			gen_leader_mock:assert_expectations(Ammock)
+		end}
+	end,
+	fun({Apid, Ammock}) ->
+		{"set agent outbound iwth a new call rec, but agent doesn't exist",
+		fun() ->
+			gen_leader_mock:expect_leader_call(Ammock, fun({exists, "testagent"}, _From, State, _Elec) ->
+				{ok, false, State}
+			end),
+			Callrec = #call{id = "testcall", source = self()},
+			State = #state{},
+			Res = outgoing({outbound, "testagent", Callrec, "newsubstate"}, State),
+			?assertMatch({{error, {noagent, "testagent"}}, _State}, Res),
+			{_, Newstate} = Res,
+			?assertEqual("newsubstate", Newstate#state.substate),
+			?assertEqual(Callrec, Newstate#state.callrec),
+			gen_leader_mock:assert_expectations(Ammock)
+		end}
+	end]}.
+	
 -endif.

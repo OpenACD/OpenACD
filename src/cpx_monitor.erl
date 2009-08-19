@@ -39,11 +39,14 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-type(proplist_item() :: atom() | {any(), any()}).
+-type(proplist() :: [proplist_item()]).
 -type(health_type() :: 'system' | 'node' | 'queue' | 'agent' | 'media').
 -type(health_key() :: {health_type(), Name :: string() | atom()}).
--type(health_details() :: {string() | atom(), integer()}).
--type(other_details() :: {string() | atom(), any()}).
 -type(time() :: integer()).
+-type(health_value() :: number() | {number(), number(), number(), number() | {'time', time()}}).
+-type(health_details() :: [{string() | atom() | binary(), health_value()}]).
+-type(other_details() :: proplist()).
 -type(health_tuple() :: {health_key(), health_details(), other_details(), time()}).
 
 -include("log.hrl").

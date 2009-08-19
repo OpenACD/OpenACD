@@ -262,7 +262,10 @@
 	wrapup/1
 ]).
 
+% TODO - add these to a global .hrl, cpx perhaps?
 -type(tref() :: any()).
+-type(proplist_item() :: atom() | {any(), any()}).
+-type(proplist() :: [proplist_item()]).
 
 -record(state, {
 	callback :: atom(),
@@ -773,6 +776,7 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+-spec(set_cpx_mon/2 :: (State :: #state{}, Action :: proplist() | 'delete') -> 'ok').
 set_cpx_mon(#state{callrec = Call} = _State, delete) ->
 	cpx_monitor:drop({media, Call#call.id});
 set_cpx_mon(#state{callrec = Call} = _State, Details) ->

@@ -908,6 +908,61 @@ outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call), S
 
 -include("agent.hrl").
 
+init_test_() ->
+	{foreach,
+	fun() ->
+		{ok, QMmock} = gen_leader_mock:start(queue_manager),
+		{ok, Qpid} = gen_server_mock:new(),
+		Assertmocks = fun() ->
+			gen_server_mock:assert_expectations(Qpid),
+			gen_leader_mock:assert_expectations(QMmock)
+		end,
+		{QMmock, Qpid, Assertmocks}
+	end,
+	fun({QMmock, Qpid, _Assertmocks}) ->
+		gen_leader_mock:stop(QMmock),
+		gen_server_mock:stop(Qpid),
+		timer:sleep(10)
+	end,
+	[fun({_, _, Assertmocks}) ->
+		{"call rec returned, but no queue",
+		fun() ->
+			Args = [[], success],
+			Res = init([dummy_media, Args]),
+			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}}}, Res),
+			Assertmocks()
+		end}
+	end,
+	fun({QMmock, Qpid, Assertmocks}) ->
+		{"call rec and queue name returned",
+		fun() ->
+			Args = [[{queue, "testqueue"}], success],
+			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
+				{ok, Qpid, State}
+			end),
+			gen_server_mock:expect_call(Qpid, fun({add, 1, Inpid, Callrec}, _From, _State) -> ok end),
+			Res = init([dummy_media, Args]),
+			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = Qpid}}, Res),
+			Assertmocks()
+		end}
+	end,
+	fun({QMmock, Qpid, Assertmocks}) ->
+		{"call rec and queue name returned, but queue doesn't exist",
+		fun() ->
+			Args = [[{queue, "testqueue"}], success],
+			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
+				{ok, undefined, State}
+			end),
+			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
+				{ok, Qpid, State}
+			end),
+			gen_server_mock:expect_call(Qpid, fun({add, 1, Inpid, Callrec}, _From, _State) -> ok end),
+			Res = init([dummy_media, Args]),
+			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = Qpid}}, Res),
+			Assertmocks()
+		end}
+	end]}.
+
 agent_interact_test_() ->
 	{foreach,
 	fun() ->

@@ -275,7 +275,7 @@
 	oncall_pid :: 'undefined' | pid(),
 	queue_failover = true :: 'true' | 'false',
 	queue_pid :: 'undefined' | pid(),
-	ringout :: tref() | 'undefined'
+	ringout = false:: tref() | 'false'
 }).
 
 -type(state() :: #state{}).
@@ -963,6 +963,88 @@ init_test_() ->
 		end}
 	end]}.
 
+handle_info_test_() ->
+	{foreach,
+	fun() ->
+		{ok, Seedstate} = init([dummy_media, [[], success]]),
+		{Seedstate}
+	end,
+	fun(_) ->
+		ok
+	end,
+	[fun({#state{callrec = Oldcall} = Seedstate}) ->
+		{"agent requests a ring stop",
+		fun() ->
+			{ok, Apid} = agent:start(#agent{login = "testagent", state = ringing, statedata = Seedstate#state.callrec}),
+			{ok, Cook} = gen_server_mock:new(),
+			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
+			Callrec = Oldcall#call{cook = Cook},
+			State = Seedstate#state{ring_pid = Apid, callrec = Callrec},
+			{noreply, Newstate} = handle_info({'$gen_media_stop_ring', Apid}, State),
+			?assertNot(Newstate#state.ringout),
+			?assertEqual(undefined, Newstate#state.ring_pid),
+			gen_server_mock:assert_expectations(Cook),
+			gen_server_mock:stop(Cook)
+		end}
+	end,
+	fun({Seedstate}) ->
+		{"ring stop request with no ring_pid defined",
+		fun() ->
+			{noreply, Newstate} = handle_info({'$gen_media_stop_ring', "doesn't matter"}, Seedstate),
+			?assertEqual(Seedstate, Newstate)
+		end}
+	end,
+	fun({Seedstate}) ->
+		{"ring stop request with no ringout handled",
+		fun() ->
+			Pid = spawn(fun() -> ok end),
+			State = Seedstate#state{ring_pid = Pid},
+			{noreply, Newstate} = handle_info({'$gen_media_stop_ring', "doesn't matter"}, State),
+			?assertEqual(State, Newstate)
+		end}
+	end,
+	fun({Seedstate}) ->
+		{"ring stop request with a live agent ringing",
+		fun() ->
+			{ok, Cook} = gen_server_mock:new(),
+			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
+			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Seedstate#state.callrec}),
+			State = Seedstate#state{ring_pid = Agent, ringout = true},
+			{noreply, Newstate} = handle_info({'$gen_media_stop_ring', Cook}, State),
+			gen_server_mock:assert_expectations(Cook),
+			?assertEqual({ok, idle}, agent:query_state(Agent)),
+			?assertNot(Newstate#state.ringout),
+			?assertEqual(undefined, Newstate#state.ring_pid)
+		end}
+	end,
+	fun({Seedstate}) ->
+		{"ring stop request with a live agent in wrong state",
+		fun() ->
+			{ok, Cook} = gen_server_mock:new(),
+			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
+			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
+			State = Seedstate#state{ring_pid = Agent, ringout = true},
+			{noreply, Newstate} = handle_info({'$gen_media_stop_ring', Cook}, State),
+			gen_server_mock:assert_expectations(Cook),
+			?assertEqual({ok, oncall}, agent:query_state(Agent)),
+			?assertNot(Newstate#state.ringout),
+			?assertEqual(undefined, Newstate#state.ring_pid)
+		end}
+	end,
+	fun({Seedstate}) ->
+		{"ring stop request with a dead agent",
+		fun() ->
+			{ok, Cook} = gen_server_mock:new(),
+			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
+			Agent = spawn(fun() -> ok end),
+			State = Seedstate#state{ring_pid = Agent, ringout = true},
+			{noreply, Newstate} = handle_info({'$gen_media_stop_ring', Cook}, State),
+			gen_server_mock:assert_expectations(Cook),
+			?assertNot(Newstate#state.ringout),
+			?assertEqual(undefined, Newstate#state.ring_pid)
+		end}
+	end]}.
+	
 agent_interact_test_() ->
 	{foreach,
 	fun() ->

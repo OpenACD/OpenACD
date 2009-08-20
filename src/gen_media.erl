@@ -448,16 +448,16 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
-		{default, _Qpid} ->
+		{default, Qpid} ->
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
 			cdr:inqueue(State#state.callrec, "default_queue"),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
-			{reply, ok, State#state{substate = NewState, oncall_pid = undefined}};
+			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}};
 		Qpid when is_pid(Qpid) ->
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
 			cdr:inqueue(State#state.callrec, Queue),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
-			{reply, ok, State#state{substate = NewState, oncall_pid = undefined}}
+			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}}
 	end;
 handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = State) when is_pid(State#state.oncall_pid) ->
 	?INFO("Request to queue from ~p", [From]),
@@ -962,6 +962,100 @@ init_test_() ->
 			Assertmocks()
 		end}
 	end]}.
+
+handle_call_test_() ->
+	{foreach,
+	fun() ->
+		{ok, Seedstate} = init([dummy_media, [[], success]]),
+		{ok, QMmock} = gen_leader_mock:start(queue_manager),
+		{ok, Qpid} = gen_server_mock:new(),
+		{ok, Ammock} = gen_leader_mock:start(agent_manager),
+		Assertmocks = fun() ->
+			gen_server_mock:assert_expectations(Qpid),
+			gen_leader_mock:assert_expectations(QMmock),
+			gen_leader_mock:assert_expectations(Ammock)
+		end,
+		Makestate = fun() ->
+			{ok, Out} = init([dummy_media, [[], success]]),
+			Out
+		end,
+		{Makestate, QMmock, Qpid, Ammock, Assertmocks}
+	end,
+	fun({_Makestate, QMmock, Qpid, Ammock, _Assertmocks}) ->
+		gen_server_mock:stop(Qpid),
+		gen_leader_mock:stop(QMmock),
+		gen_leader_mock:stop(Ammock),
+		timer:sleep(10)
+	end,
+	[fun({Makestate, _, _, Ammock, Assertmocks}) ->
+		{"oncall_pid requests wrapup",
+		fun() ->
+			Seedstate = Makestate(),
+			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
+			gen_leader_mock:expect_leader_call(Ammock, fun({get_login, Apid}, _From, State, _Elec) ->
+				Apid = Agent,
+				{ok, "testagent", State}
+			end),
+			State = Seedstate#state{oncall_pid = Agent},
+			?assertMatch({stop, normal, ok, _State}, handle_call('$gen_media_wrapup', {Agent, "tag"}, State)),
+			Assertmocks()
+		end}
+	end,
+	fun({Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
+		{"oncall_pid can't request wrapup when media_path is outband",
+		fun() ->
+			#state{callrec = Oldcall} = Seedstate = Makestate(),
+			Callrec = Oldcall#call{media_path = outband},
+			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
+			State = Seedstate#state{oncall_pid = Agent, callrec = Callrec},
+			?assertMatch({reply, invalid, _State}, handle_call('$gen_media_wrapup', {Agent, "tag"}, State)),
+			Assertmocks()
+		end}
+	end,
+	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+		{"sending to queue requested by oncall pid, all works",
+		fun() ->
+			#state{callrec = Callrec} = Seedstate = Makestate(),
+			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
+			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
+				{ok, Qpid, State}
+			end),
+			gen_server_mock:expect_call(Qpid, fun({add, 1, Mpid, Rec}, _From, _State) ->
+				Mpid = Callrec#call.source,
+				Rec = Callrec,
+				ok
+			end),
+			State = Seedstate#state{oncall_pid = Agent},
+			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, {Agent, "tag"}, State),
+			?assertEqual(undefined, Newstate#state.oncall_pid),
+			?assertEqual(Qpid, Newstate#state.queue_pid),
+			Assertmocks()
+		end}
+	end,
+	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+		{"oncall pid sends call to queue, but falls back to default queue",
+		fun() ->
+			#state{callrec = Callrec} = Seedstate = Makestate(),
+			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
+			State = Seedstate#state{oncall_pid = Agent},
+			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
+				{ok, undefined, State}
+			end),
+			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
+				{ok, Qpid, State}
+			end),
+			gen_server_mock:expect_call(Qpid, fun({add, 1, Mpid, Rec}, _From, _State) ->
+				Mpid = Callrec#call.source,
+				Rec = Callrec,
+				ok
+			end),
+			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, {Agent, "tag"}, State),
+			?assertEqual(undefined, Newstate#state.oncall_pid),
+			?assertEqual(Qpid, Newstate#state.queue_pid),
+			Assertmocks()
+		end}
+	end]}.
+		
 
 handle_info_test_() ->
 	{foreach,

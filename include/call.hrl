@@ -32,7 +32,7 @@
 		label :: string(),
 		tenant :: non_neg_integer(),
 		brand :: non_neg_integer(),
-		timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
+		timestamp = 1 :: pos_integer()
 }).
 
 -record(call, {

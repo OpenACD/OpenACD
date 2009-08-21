@@ -70,7 +70,7 @@
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	hold_music :: string(),
 	group = "Default" :: string(),
-	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
+	timestamp = 1 :: pos_integer()
 }).
 
 -record(queue_group, {
@@ -78,7 +78,7 @@
 	recipe = [] :: recipe(),
 	sort = 10 :: non_neg_integer(),
 	protected = false :: 'true' | 'false',
-	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
+	timestamp = 1 :: pos_integer()
 }).
 
 -record(skill_rec, {
@@ -87,5 +87,5 @@
 	protected = false :: 'true' | 'false',
 	description = "Default description" :: string(),
 	group = "Misc" :: string(),
-	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
+	timestamp = 1 :: pos_integer()
 }).

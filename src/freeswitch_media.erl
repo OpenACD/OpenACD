@@ -94,7 +94,8 @@
 	agent :: string() | 'undefined',
 	agent_pid :: pid() | 'undefined',
 	ringchannel :: pid() | 'undefined',
-	manager_pid :: 'undefined' | any()
+	manager_pid :: 'undefined' | any(),
+	voicemail = false :: 'false' | string()
 	}).
 
 -type(state() :: #state{}).
@@ -181,18 +182,8 @@ handle_ring_stop(State) ->
 
 handle_voicemail(#state{callrec = Call} = State) ->
 	UUID = Call#call.id,
-	F = fun(ok, _Reply) ->
-			F2 = fun(ok, _Reply2) ->
-					?NOTICE("voicemail for ~s recorded", [UUID]);
-				(err, Reply2) ->
-					?WARNING("Recording voicemail for ~s failed: ~p", [UUID, Reply2])
-			end,
-			freeswitch:bgapi(State#state.cnode, uuid_record, UUID ++ " start", F2);
-		(error, Reply) ->
-			?WARNING("Playing voicemail prompt to ~s failed: ~p", [UUID, Reply])
-	end,
-	freeswitch:bgapi(State#state.cnode, uuid_broadcast, lists:flatten(io_lib:format("~s voicemail/vm-record_message.wav aleg", [UUID])), F),
-	{ok, State}.
+	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:voicemail/vm-record_message.wav,record:/tmp/${uuid}.wav' inline"),
+	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
 
 handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
@@ -463,6 +454,17 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 				_Else ->
 					call_queue:remove(Qpid, self()),
 					State3 = State2#state{queue = undefined, queue_pid = undefined}
+			end,
+			case State#state.voicemail of
+				false -> % no voicemail
+					ok;
+				FileName ->
+					case filelib:is_regular(FileName) of
+						true ->
+							?NOTICE("~s left a voicemail", [UUID]);
+						false ->
+							?NOTICE("~s hungup without leaving a voicemail", [UUID])
+					end
 			end,
 			{hangup, State3};
 		"CHANNEL_DESTROY" ->

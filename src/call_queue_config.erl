@@ -557,7 +557,7 @@ merge_skills(Nodes, Time) ->
 %% @see new_client/1
 -spec(new_client/3 :: (Label :: string(), Tenantid :: pos_integer(), Brandid :: pos_integer()) -> {'atomic', 'ok'}).
 new_client(Label, Tenantid, Brandid) when is_integer(Tenantid), is_integer(Brandid) ->
-	Rec = #client{label = Label, tenant = Tenantid, brand = Brandid, timestamp = 1}, % TODO why the timestamp?
+	Rec = #client{label = Label, tenant = Tenantid, brand = Brandid},
 	new_client(Rec).
 
 -spec(new_client/1 :: (Rec :: #client{}) -> {'atomic', 'ok'}).
@@ -572,7 +572,7 @@ new_client(Rec) when is_record(Rec, client) ->
 %% @see set_client/2
 -spec(set_client/4 :: (Label :: string(), Newlabel :: string(), Tenantid :: pos_integer(), Brandid :: pos_integer()) -> {'atomic', 'ok'}).
 set_client(Label, Newlabel, Tenantid, Brandid) when is_integer(Tenantid), is_integer(Brandid) ->
-	Client = #client{label = Newlabel, tenant = Tenantid, brand = Brandid, timestamp = 1}, % TODO why the timestamp?
+	Client = #client{label = Newlabel, tenant = Tenantid, brand = Brandid},
 	set_client(Label, Client).
 
 %% @doc Update the client `string()' `Label' to the `#client{}' `Client'.

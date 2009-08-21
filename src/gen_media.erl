@@ -480,7 +480,6 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = Sta
 handle_call('$gen_media_get_call', _From, State) ->
 	{reply, State#state.callrec, State};
 handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = Call, callback = Callback} = State) ->
-	% TODO set the cook to the call directly
 	?INFO("Trying to ring ~p with timeout ~p", [Agent, Timeout]),
 	case agent:set_state(Agent, ringing, Call#call{cook=QCall#queued_call.cook}) of
 		ok ->
@@ -800,12 +799,12 @@ set_cpx_mon(#state{callrec = Call} = _State, Details) ->
 priv_queue(Queue, Callrec, Failover) ->
 	case queue_manager:get_queue(Queue) of
 		undefined ->
-			% TODO what to do w/ the call w/ no queue?
 			?WARNING("Uh oh, no queue of ~p, failover:  ~w", [Queue, Failover]),
 			case Failover of
 				true ->
 					Dqpid = queue_manager:get_queue("default_queue"),
 					call_queue:add(Dqpid, self(), Callrec),
+					%% yes, we do want this to die if the default queue can't be found
 					{default, Dqpid};
 				false ->
 					invalid

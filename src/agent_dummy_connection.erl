@@ -157,7 +157,6 @@ handle_info(answer, #state{call = Call} = State) ->
 	{noreply, State};
 handle_info(hangup, #state{call = Call} = State) ->
 	?INFO("time to hangup", []),
-	% TODO the media needs to implement a hangup message
 	case Call#call.ring_path of
 		inband ->
 			agent:set_state(State#state.agent_fsm, wrapup);

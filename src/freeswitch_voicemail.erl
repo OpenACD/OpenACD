@@ -27,19 +27,7 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
-%% @doc An on demand gen_server for watching a freeswitch call.
-%% This is started by freeswitch_media_manager when a new call id is found.
-%% This is responsible for:
-%% <ul>
-%% <li>Connecting an agent to a call</li>
-%% <li>Moving a call into queue.</li>
-%% <li>Removing a call from queue.</li>
-%% <li>Signalling when a call has hung up.</li>
-%% </ul>
-%% @see freeswitch_media_manager
-
--module(freeswitch_media).
--author("Micah").
+-module(freeswitch_voicemail).
 
 -behaviour(gen_media).
 
@@ -57,8 +45,8 @@
 
 %% API
 -export([
-	start/1,
-	start_link/1,
+	start/4,
+	start_link/4,
 	get_call/1,
 	%get_queue/1,
 	%get_agent/1,
@@ -106,13 +94,13 @@
 %% API
 %%====================================================================
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
--spec(start/1 :: (Cnode :: atom()) -> {'ok', pid()}).
-start(Cnode) ->
-	gen_media:start(?MODULE, [Cnode]).
+%-spec(start/1 :: (Cnode :: atom()) -> {'ok', pid()}).
+start(Cnode, UUID, File, Queue) ->
+	gen_media:start(?MODULE, [Cnode, UUID, File, Queue]).
 
--spec(start_link/1 :: (Cnode :: atom()) -> {'ok', pid()}).
-start_link(Cnode) ->
-	gen_media:start_link(?MODULE, [Cnode]).
+%-spec(start_link/1 :: (Cnode :: atom()) -> {'ok', pid()}).
+start_link(Cnode, UUID, File, Queue) ->
+	gen_media:start_link(?MODULE, [Cnode, UUID, File, Queue]).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
 -spec(get_call/1 :: (MPid :: pid()) -> #call{}).
@@ -135,19 +123,16 @@ dump_state(Mpid) when is_pid(Mpid) ->
 %% gen_media callbacks
 %%====================================================================
 %% @private
-init([Cnode]) ->
+init([Cnode, UUID, File, Queue]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	{ok, {#state{cnode=Cnode, manager_pid = Manager}, undefined}}.
+	{ok, {#state{cnode=Cnode, manager_pid = Manager}, {Queue, #call{id=UUID++"-vm", type=voice, source=self()}}}}.
 
 handle_announce(Announcement, #state{callrec = Callrec} = State) ->
-	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
-		[{"call-command", "execute"},
-			{"execute-app-name", "playback"},
-			{"execute-app-arg", Announcement}]),
-	{ok, State}.
+	{invalid, State}.
 
 handle_answer(Apid, _Callrec, State) ->
+
 	{ok, State#state{agent_pid = Apid}}.
 
 handle_ring(Apid, Callrec, State) ->
@@ -181,9 +166,7 @@ handle_ring_stop(State) ->
 	{ok, State#state{ringchannel=undefined}}.
 
 handle_voicemail(#state{callrec = Call} = State) ->
-	UUID = Call#call.id,
-	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:voicemail/vm-record_message.wav,record:/tmp/${uuid}.wav' inline"),
-	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
+	{invalid, State}.
 
 handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
@@ -213,36 +196,7 @@ handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 	end.
 
 handle_warm_transfer_begin(Number, #state{agent_pid = AgentPid, callrec = Call, cnode = Node} = State) when is_pid(AgentPid) ->
-	case freeswitch:api(Node, uuid_transfer, lists:flatten(io_lib:format("~s -both 'conference:~s+flags{mintwo}' inline", [Call#call.id, Call#call.id]))) of
-		{error, Error} ->
-			?WARNING("transferring into a conference failed: ~s", [Error]),
-			{error, Error, State};
-		{ok, _Whatever} ->
-			% okay, now figure out the member IDs
-			NF = io_lib:format("Conference ~s not found", [Call#call.id]),
-			timer:sleep(100),
-			case freeswitch:api(Node, conference, lists:flatten(io_lib:format("~s list", [Call#call.id]))) of
-				{ok, NF} ->
-					% TODO uh-oh!
-					?WARNING("newly created conference not found", []),
-					{ok, State};
-				{ok, Output} ->
-					Members = lists:map(fun(Y) -> util:string_split(Y, ";") end, util:string_split(Output, "\n")),
-					?NOTICE("members ~p", [Members]),
-					[[Id | _Rest]] = lists:filter(fun(X) -> lists:nth(3, X) =:= Call#call.id end, Members),
-					freeswitch:api(Node, conference, Call#call.id ++ " play local_stream://moh " ++ Id),
-					freeswitch:api(Node, conference, Call#call.id ++ " mute " ++ Id),
-					?NOTICE("Muting ~s in conference", [Id]),
-					case freeswitch:api(Node, create_uuid) of
-						{ok, UUID} ->
-							DialResult = freeswitch:api(Node, conference, lists:flatten(io_lib:format("~s dial {origination_uuid=~s,originate_timeout=30}sofia/gateway/cpxvgw.fusedsolutions.com/~s 1234567890 FreeSWITCH_Conference", [Call#call.id, UUID, Number]))),
-							?NOTICE("warmxfer dial result: ~p, UUID requested: ~s", [DialResult, UUID]),
-							{ok, UUID, State};
-						_ ->
-							{error, "allocating UUID failed", State}
-					end
-			end
-	end;
+	{invalid, State};
 handle_warm_transfer_begin(_Number, #state{agent_pid = AgentPid} = State) ->
 	?WARNING("wtf?! agent pid is ~p", [AgentPid]),
 	{error, "error: no agent bridged to this call~n", State}.
@@ -335,35 +289,6 @@ handle_info({'EXIT', Pid, Reason}, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p", [Pid, Reason]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),
 	{noreply, State#state{manager_pid = Tref}};
-handle_info({call, {event, [UUID | Rest]}}, State) when is_list(UUID) ->
-	?DEBUG("reporting new call ~p.", [UUID]),
-	Callrec = #call{id = UUID, source = self()},
-	%cdr:cdrinit(Callrec),
-	freeswitch_media_manager:notify(UUID, self()),
-	State2 = State#state{callrec = Callrec},
-	case_event_name([UUID | Rest], State2);
-handle_info({call_event, {event, [UUID | Rest]}}, State) when is_list(UUID) ->
-	?DEBUG("reporting existing call progess ~p.", [UUID]),
-	% TODO flesh out for all call events.
-	case_event_name([ UUID | Rest], State);
-handle_info({set_agent, Login, Apid}, State) ->
-	{noreply, State#state{agent = Login, agent_pid = Apid}};
-handle_info({bgok, Reply}, State) ->
-	?DEBUG("bgok:  ~p", [Reply]),
-	{noreply, State};
-handle_info({bgerror, "-ERR NO_ANSWER\n"}, State) ->
-	?INFO("Potential ringout.  Statecook:  ~p", [State#state.cook]),
-	%% the apid is known by gen_media, let it handle if it is not not.
-	{stop_ring, State};
-handle_info({bgerror, "-ERR USER_BUSY\n"}, State) ->
-	?NOTICE("Agent rejected the call", []),
-	{stop_ring, State};
-handle_info({bgerror, Reply}, State) ->
-	?WARNING("unhandled bgerror: ~p", [Reply]),
-	{noreply, State};
-handle_info(call_hangup, State) ->
-	?NOTICE("Call hangup info, terminating", []),
-	{stop, normal, State};
 handle_info(Info, State) ->
 	?INFO("unhandled info ~p", [Info]),
 	{noreply, State}.
@@ -388,93 +313,3 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 %% @private
-case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
-	Ename = freeswitch:get_event_name(Rawcall),
-	?DEBUG("Event:  ~p;  UUID:  ~p", [Ename, UUID]),
-	case Ename of
-		"CHANNEL_PARK" ->
-			case State#state.queue_pid of
-				undefined ->
-					Queue = freeswitch:get_event_header(Rawcall, "variable_queue"),
-					Brand = freeswitch:get_event_header(Rawcall, "variable_brand"),
-					case call_queue_config:get_client(Brand) of
-						none ->
-							Clientrec = #client{label="Unknown", tenant=0, brand=0, timestamp = 1};
-						Clientrec ->
-							ok
-					end,
-					Calleridname = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
-					Calleridnum = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Number"),
-					NewCall = Callrec#call{client=Clientrec, callerid=Calleridname++ " "++Calleridnum},
-					freeswitch:sendmsg(State#state.cnode, UUID,
-						[{"call-command", "execute"},
-							{"execute-app-name", "answer"}]),
-					% play musique d'attente
-					freeswitch:sendmsg(State#state.cnode, UUID,
-						[{"call-command", "execute"},
-							{"execute-app-name", "playback"},
-							{"execute-app-arg", "local_stream://moh"}]),
-						%% tell gen_media to (finally) queue the media
-					{queue, Queue, NewCall, State#state{queue = Queue}};
-				_Otherwise ->
-					{noreply, State}
-			end;
-		"CHANNEL_HANGUP" ->
-			?DEBUG("Channel hangup", []),
-			Qpid = State#state.queue_pid,
-			Apid = State#state.agent_pid,
-			case Apid of
-				undefined ->
-					?WARNING("Agent undefined", []),
-					State2 = State#state{agent = undefined, agent_pid = undefined};
-				_Other ->
-					case agent:query_state(Apid) of
-						{ok, ringing} ->
-							?NOTICE("caller hung up while we were ringing an agent", []),
-							case State#state.ringchannel of
-								undefined ->
-									ok;
-								RingChannel ->
-									freeswitch_ring:hangup(RingChannel)
-							end;
-						{ok, oncall} ->
-							ok;
-						{ok, released} ->
-							ok;
-						{ok, warmtransfer} ->
-							% caller hungup during warm transfer
-							ok
-					end,
-					State2 = State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}
-			end,
-			case Qpid of
-				undefined ->
-					?WARNING("Queue undefined", []),
-					State3 = State2#state{agent = undefined, agent_pid = undefined};
-				_Else ->
-					call_queue:remove(Qpid, self()),
-					State3 = State2#state{queue = undefined, queue_pid = undefined}
-			end,
-			case State#state.voicemail of
-				false -> % no voicemail
-					ok;
-				FileName ->
-					case filelib:is_regular(FileName) of
-						true ->
-							?NOTICE("~s left a voicemail", [UUID]),
-							freeswitch_media_manager:new_voicemail(UUID, FileName, State#state.queue);
-						false ->
-							?NOTICE("~s hungup without leaving a voicemail", [UUID])
-					end
-			end,
-			{hangup, State3};
-		"CHANNEL_DESTROY" ->
-			?DEBUG("Last message this will recieve, channel destroy", []),
-			{stop, normal, State};
-		{error, notfound} ->
-			?WARNING("event name not found: ~p", [freeswitch:get_event_header(Rawcall, "Content-Type")]),
-			{noreply, State};
-		Else ->
-			?DEBUG("Event unhandled ~p", [Else]),
-			{noreply, State}
-	end.

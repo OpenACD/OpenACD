@@ -68,7 +68,7 @@
 	ask/1,
 	get_call/2,
 	get_calls/1,
-	print/1,
+	dump/1,
 	remove/2,
 	bgremove/2,
 	stop/1,
@@ -220,10 +220,9 @@ to_list(Pid) ->
 	gen_server:call(Pid, to_list).
 
 %% @doc returns the state of the queue at `pid()' `Pid'.
--spec(print/1 :: (Pid :: pid()) -> any()).
-print(Pid) ->
-% TODO call this dump?
-	gen_server:call(Pid, print).
+-spec(dump/1 :: (Pid :: pid()) -> any()).
+dump(Pid) ->
+	gen_server:call(Pid, dump).
 
 %% @doc Remove the call with id `string()' of `Calldata' or `pid()' `Callpid' from the queue at `Pid'.  
 %% Returns `ok' on success, `none' on failure.
@@ -447,7 +446,7 @@ handle_call(grab, {From, _Tag}, State) ->
 			{reply, {Key, Value}, State2}
 	end;
 
-handle_call(print, _From, State) ->
+handle_call(dump, _From, State) ->
 	{reply, State, State};
 
 handle_call({remove, Callpid}, _From, State) ->
@@ -1115,10 +1114,10 @@ queue_update_and_info_test_() ->
 			}, {
 				"Change recipe", fun() ->
 					Pid = whereis(testqueue),
-					#state{recipe = ?DEFAULT_RECIPE} = print(Pid),
+					#state{recipe = ?DEFAULT_RECIPE} = dump(Pid),
 					NewRecipe = [{[{ticks, 3}], set_priority, 5, run_many}],
 					?assertEqual(ok, set_recipe(Pid, NewRecipe)),
-					?assertMatch(#state{recipe = NewRecipe}, print(Pid))
+					?assertMatch(#state{recipe = NewRecipe}, dump(Pid))
 				end
 			}
 		]

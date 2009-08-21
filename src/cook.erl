@@ -600,7 +600,7 @@ do_operation_test_() ->
 	fun({_QMPid, _QPid, Mpid, Assertmocks}) ->
 		{"announce",
 		fun() ->
-			gen_server_mock:expect_call(Mpid, fun({'$gen_media_annouce', "do the robot"}, _From, _State) -> ok end),
+			gen_server_mock:expect_call(Mpid, fun({'$gen_media_announce', "do the robot"}, _From, _State) -> ok end),
 			ok = do_operation({"conditions", announce, "do the robot", "runs"}, "testqueue", Mpid),
 			Assertmocks()
 		end}

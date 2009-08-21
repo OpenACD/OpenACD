@@ -322,18 +322,20 @@ handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} =
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 	case {State#state.hangup, Midunterminated} of
 		{true, []} ->
-			% TODO Spawn this out to another process.
-			Summary = summarize(Newtrans),
-			F = fun() ->
-				mnesia:delete({cdr_rec, CallID}),
-				mnesia:write(#cdr_rec{
-					id = CallID,
-					summary = Summary,
-					transactions = Newtrans
-				})
+			Summarize = fun() ->
+				Summary = summarize(Newtrans),
+				F = fun() ->
+					mnesia:delete({cdr_rec, CallID}),
+					mnesia:write(#cdr_rec{
+						id = CallID,
+						summary = Summary,
+						transactions = Newtrans
+					})
+				end,
+				mnesia:transaction(F)
 			end,
-			mnesia:transaction(F),
-			?DEBUG("Summarize complete, now to remove the handler...", []),
+			spawn(Summarize),
+			?DEBUG("Summarize inprogress with ~w, now to remove the handler...", [Summarize]),
 			remove_handler;
 		_Else ->
 			{ok, State#state{unterminated = Midunterminated, transactions = Newtrans}}
@@ -1172,6 +1174,7 @@ mnesia_test_() ->
 			Unterminated = [{wrapup, 20, "agent"}],
 			State = #state{unterminated = Unterminated, id="testcall", transactions = StateTrans, hangup=true},
 			remove_handler = handle_event({endwrapup, Call, 24, "agent"}, State),
+			timer:sleep(10), % give the spawned summarizer time to work
 			F = fun() ->
 				mnesia:read(cdr_rec, "testcall")
 			end,

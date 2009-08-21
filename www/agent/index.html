@@ -149,7 +149,10 @@
 		window.log("critical", data);
 	}
 	
+	window._alert = window.alert;
+	
 	window.alert = function(data){
+		window._alert(data);
 		window.log("alert", data);
 	}
 	

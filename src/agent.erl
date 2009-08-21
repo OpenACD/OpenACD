@@ -57,7 +57,6 @@
 %% defined state exports
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 %% defining async stat exports
-% TODO define for all states
 -export([idle/2, ringing/2, precall/2, oncall/2, outgoing/2, released/2, warmtransfer/2, wrapup/2]).
 
 %% other exports
@@ -776,6 +775,15 @@ ring_oncall_mismatch_test() ->
 	?assertMatch(ok, set_state(Pid, idle)),
 	?assertMatch(ok, set_state(Pid, ringing, Goodcall)),
 	?assertMatch(invalid, set_state(Pid, oncall, Badcall)).
+
+expand_magic_skills_test() ->
+	fun() ->
+		Agent = #agent{login = "testagent", skills = ['_agent', '_node', english]},
+		Newskills = expand_magic_skills(Agent, Agent#agent.skills),
+		?assert(lists:member({'_agent', "testagent"}, Newskills)),
+		?assert(lists:member({'_node', node()}, Newskills)),
+		?assert(lists:member(english, Newskills))
+	end.
 
 from_idle_test_() ->
 	{foreach,

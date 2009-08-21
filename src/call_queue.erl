@@ -614,7 +614,7 @@ clean_pid_(Deadpid, Recipe, QName, [{Key, Call} | Calls], Acc) ->
 	
 % begin the defintions of the tests.
 
--ifdef(TEST).
+-ifdef(EUNIT).
 test_primer() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),

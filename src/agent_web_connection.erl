@@ -1026,7 +1026,7 @@ push_event(Eventjson, State) ->
 			State#state{poll_queue = [], poll_pid = undefined}
 	end.
 
--ifdef(TEST).
+-ifdef(EUNIT).
 
 set_state_test_() ->
 	{

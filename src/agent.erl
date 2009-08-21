@@ -58,7 +58,7 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 %% defining async stat exports
 % TODO define for all states
--export([oncall/2]).
+-export([ringing/2, precall/2, oncall/2, outgoing/2, released/2, warmtransfer/2, wrapup/2]).
 
 %% other exports
 -export([start/1, 
@@ -282,6 +282,9 @@ idle(Event, From, State) ->
 	?WARNING("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
 	{reply, invalid, idle, State}.
 
+idle(_Message, State) ->
+	{next_state, idle, State}.
+
 %% @doc The various state changes available when an agent is ringing. <ul>
 %%<li>`oncall'<br />When default ring path is `inband' and the call's ring path is not outband.</li>
 %%<li>`{oncall, Call :: #call{}}'</li>
@@ -329,6 +332,9 @@ ringing(idle, _From, State) ->
 ringing(_Event, _From, State) ->
 	{reply, invalid, ringing, State}.
 
+ringing(_Msg, State) ->
+	{next_state, ringing, State}.
+
 %% @doc The various state changes available when an agent is in precall. <ul>
 %%<li>`{outgoing, Call :: #call{}'}</li>
 %%<li>`idle'</li>
@@ -353,6 +359,9 @@ precall({released, Reason}, _From, State) ->
 	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
 precall(_Event, _From, State) -> 
 	{reply, invalid, precall, State}.
+
+precall(_Msg, State) ->
+	{next_state, precall, State}.
 
 %% @doc The various state changes available when an agent is oncall. <ul>
 %%<li>`{released, undefined}'<br />Note this 'un-queues' a released state when the call is done.</li>
@@ -461,6 +470,9 @@ outgoing(get_media, _From, #agent{statedata = Media} = State) when is_record(Med
 outgoing(_Event, _From, State) -> 
 	{reply, invalid, outgoing, State}.
 
+outgoing(_Msg, State) ->
+	{next_state, outgoing, State}.
+
 %% @doc The various state changes available when an agent is released. <ul>
 %%<li>`{precall, Client :: #client{}}'</li>
 %%<li>`idle'</li>
@@ -491,6 +503,9 @@ released({ringing, Call}, _From, State) ->
 	{reply, ok, ringing, State#agent{state=ringing, statedata=Call, lastchangetimestamp=now()}};
 released(_Event, _From, State) ->
 	{reply, invalid, released, State}.
+
+released(_Msg, State) ->
+	{next_state, released, State}.
 
 %% @doc The various calls available when an agent is warmtransfering. <ul>
 %%<li>`{released, undefined}'<br />Unqueues a preveiouosly set release request.</li>
@@ -534,6 +549,9 @@ warmtransfer({outgoing, Call}, _From, State) ->
 warmtransfer(_Event, _From, State) ->
 	{reply, invalid, warmtransfer, State}.
 
+warmtransfer(_Msg, State) ->
+	{next_state, warmtransfer, State}.
+
 %% @doc The various state changes available when either the agent or remote has hung-up. <ul>
 %%<li>`{released, undefined}'<br />Unqueues a release.</li>
 %%<li>`{released, Reason :: string()}'<br />Queues a release the next time the agent tries to go `idle'.</li>
@@ -562,6 +580,8 @@ wrapup(Event, From, State) ->
 	?WARNING("Invalid event '~p' from ~p while in wrapup.", [Event, From]),
 	{reply, invalid, wrapup, State}.
 
+wrapup(_Msg, State) ->
+	{next_state, wrapup, State}.
 
 % generic handlers independant of state
 %% @private

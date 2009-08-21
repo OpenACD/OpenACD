@@ -103,7 +103,6 @@
 	start_link/2, 
 	start/2, 
 	stop/0,
-	ring_agent/2,
 	get_handler/1,
 	notify/2,
 	make_outbound_call/3,
@@ -296,12 +295,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-
-% TODO add supporting code so fmm can get the right media to ring it.
-%% @doc Ring `AgentPid' with `Call'.
--spec(ring_agent/2 :: (AgentPid :: pid(), Call :: #call{}) -> 'ok').
-ring_agent(AgentPid, Call) -> 
-	gen_server:call(?MODULE, {ring_agent, AgentPid, Call}).
 
 %% @private
 start_listener(Nodename) ->

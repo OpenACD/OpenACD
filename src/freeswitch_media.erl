@@ -179,8 +179,20 @@ handle_ring_stop(State) ->
 	end,
 	{ok, State#state{ringchannel=undefined}}.
 
-handle_voicemail(State) ->
-	{invalid, State}.
+handle_voicemail(#state{callrec = Call} = State) ->
+	UUID = Call#call.id,
+	F = fun(ok, _Reply) ->
+			F2 = fun(ok, _Reply2) ->
+					?NOTICE("voicemail for ~s recorded", [UUID]);
+				(err, Reply2) ->
+					?WARNING("Recording voicemail for ~s failed: ~p", [UUID, Reply2])
+			end,
+			freeswitch:bgapi(State#state.cnode, uuid_record, UUID ++ " start", F2);
+		(error, Reply) ->
+			?WARNING("Playing voicemail prompt to ~s failed: ~p", [UUID, Reply])
+	end,
+	freeswitch:bgapi(State#state.cnode, uuid_broadcast, lists:flatten(io_lib:format("~s voicemail/vm-record_message.wav aleg", [UUID])), F),
+	{ok, State}.
 
 handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),

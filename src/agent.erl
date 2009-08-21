@@ -58,7 +58,7 @@
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 %% defining async stat exports
 % TODO define for all states
--export([ringing/2, precall/2, oncall/2, outgoing/2, released/2, warmtransfer/2, wrapup/2]).
+-export([idle/2, ringing/2, precall/2, oncall/2, outgoing/2, released/2, warmtransfer/2, wrapup/2]).
 
 %% other exports
 -export([start/1, 
@@ -133,7 +133,7 @@ init([State]) when is_record(State, agent) ->
 -spec(expand_magic_skills/2 :: (State :: #agent{}, Skills :: [atom()]) -> [atom()]).
 expand_magic_skills(State, Skills) ->
 	lists:map(
-		fun('_agent') -> {'_agent', list_to_atom(State#agent.login)}; % TODO - why pollute the atom table?
+		fun('_agent') -> {'_agent', State#agent.login};
 		('_node') -> {'_node', node()};
 		(Skill) -> Skill
 	end, Skills).

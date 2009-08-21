@@ -86,7 +86,7 @@
 %% @doc Start the cpx_supervisor linked to the parent process.
 -spec(start_link/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start_link(Nodes) ->
-	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]),
+	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
 	
 	Routingspec = {routing_sup, {cpx_middle_supervisor, start_named, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	Managementspec = {management_sup, {cpx_middle_supervisor, start_named, [3, 5, management_sup]}, permanent, 2000, supervisor, [?MODULE]},
@@ -166,8 +166,7 @@ restart(Branch, _Args) when is_atom(Branch) ->
 %% Supervisor callbacks
 %%====================================================================
 %% @private
-init([_Nodes]) ->
-	% TODO Nodes is no longer used here.
+init([]) ->
 	% TODO Create warnings for missing/requires specs (at least one media manager, the agent_auth).
 	?DEBUG("starting cpx_supervisor on ~p", [node()]),
 	case build_tables() of

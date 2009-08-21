@@ -538,7 +538,7 @@ handle_call('$gen_media_voicemail', _From, #state{callback = Callback} = State) 
 	case Callback:handle_voicemail(State#state.substate) of
 		{ok, Substate} ->
 			call_queue:remove(State#state.queue_pid, self()),
-			{reply, ok, State#state{substate = Substate}};
+			{reply, ok, State#state{substate = Substate, queue_pid = undefined}};
 		{invalid, Substate} ->
 			{reply, invalid, State#state{substate = Substate}}
 	end;

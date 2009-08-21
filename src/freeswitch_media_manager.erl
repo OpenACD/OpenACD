@@ -106,7 +106,8 @@
 	get_handler/1,
 	notify/2,
 	make_outbound_call/3,
-	fetch_domain_user/2
+	fetch_domain_user/2,
+	new_voicemail/3
 ]).
 
 %% gen_server callbacks
@@ -184,6 +185,9 @@ notify(UUID, Pid) ->
 make_outbound_call(Number, AgentPid, AgentRec) ->
 	gen_server:call(?MODULE, {make_outbound_call, Number, AgentPid, AgentRec}).
 
+new_voicemail(UUID, File, Queue) ->
+	gen_server:cast(?MODULE, {new_voicemail, UUID, File, Queue}).
+
 -spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:call(?MODULE, stop).
@@ -231,6 +235,10 @@ handle_call(Request, _From, State) ->
 handle_cast({notify, Callid, Pid}, #state{call_dict = Dict} = State) ->
 	NewDict = dict:store(Callid, Pid, Dict),
 	{noreply, State#state{call_dict = NewDict}};
+handle_cast({new_voicemail, UUID, File, Queue}, #state{nodename = Node} = State) ->
+	{ok, Pid} = freeswitch_voicemail:start(Node, UUID, File, Queue),
+	link(Pid),
+	{noreply, State};
 handle_cast(_Msg, State) ->
 	%?CONSOLE("Cast:  ~p", [Msg]),
 	{noreply, State}.

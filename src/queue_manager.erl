@@ -33,7 +33,7 @@
 
 %% depends on call_queue
 
-% TODO - ability to remove a queue? migrate a queue to another node?
+% TODO - migrate a queue to another node?
 %        both of these operations need to ensure that the leader is notified
 
 -ifdef(EUNIT).
@@ -64,6 +64,7 @@
 	start/1,
 	queues/0,
 	add_queue/2,
+	load_queue/1,
 	get_queue/1,
 	query_queue/1,
 	stop/0,
@@ -125,6 +126,20 @@ add_queue(Name, Opts) when is_list(Name) ->
 			end
 	end.
 
+%% @doc load a queue from call_queue_config and start it
+-spec(load_queue/1 :: (Name :: string()) -> 'ok' | 'noexists').
+load_queue(Name) ->
+	case call_queue_config:get_queue(Name) of
+		Qrec when is_record(Qrec, call_queue) ->
+			add_queue(Name, [
+				{weight, Qrec#call_queue.weight},
+				{skills, Qrec#call_queue.skills},
+				{recipe, Qrec#call_queue.recipe}
+			]);
+		_Else ->
+			noexists
+	end.
+	
 %% @doc Get the `pid()' of the passed queue name.  If there is no queue, returns 'undefined'.
 %% If the queue is not running, it is looked up in the config database and started
 %% if found there.  If that also fails, undefined is returned.
@@ -411,10 +426,27 @@ handle_info({'EXIT', Pid, Reason}, #state{qdict = Qdict} = State) ->
 					{noreply, State};
 				Queuerec ->
 					?DEBUG("Got call_queue_config of ~p", [Queuerec]),
-					{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, [
-						{recipe, Queuerec#call_queue.recipe}, 
-						{weight, Queuerec#call_queue.weight},
-						{skills, Queuerec#call_queue.skills}]),
+					NewQPid = case Reason of
+						{move, Node} when Node =/= node() ->
+							case net_adm:ping(Node) of
+								pong ->
+									spawn(Node, queue_manager, load_queue, [Qname]);
+								pang ->
+									{ok, NPid} = call_queue:start_link(Queuerec#call_queue.name, [
+										{recipe, Queuerec#call_queue.recipe}, 
+										{weight, Queuerec#call_queue.weight},
+										{skills, Queuerec#call_queue.skills}
+									]),
+									NPid
+							end;
+						Else ->
+							{ok, NPid} = call_queue:start_link(Queuerec#call_queue.name, [
+								{recipe, Queuerec#call_queue.recipe}, 
+								{weight, Queuerec#call_queue.weight},
+								{skills, Queuerec#call_queue.skills}
+							]),
+							NPid
+					end,
 					Newdict = dict:store(Queuerec#call_queue.name, NewQPid, Qdict),
 					ok = gen_leader:leader_cast(?MODULE, {notify, Qname, NewQPid}),
 					{noreply, State#state{qdict = Newdict}}

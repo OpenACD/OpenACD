@@ -167,7 +167,6 @@ restart(Branch, _Args) when is_atom(Branch) ->
 %%====================================================================
 %% @private
 init([]) ->
-	% TODO Create warnings for missing/requires specs (at least one media manager, the agent_auth).
 	?DEBUG("starting cpx_supervisor on ~p", [node()]),
 	case build_tables() of
 		ok ->
@@ -318,6 +317,13 @@ load_specs(Super) ->
 	end,
 	case mnesia:transaction(F) of
 		{atomic, Records} ->
+			case length(Records) of
+				0 ->
+					?WARNING("No specs to load for ~w", [Super]),
+					ok;
+				_Else ->
+					ok
+			end,
 			lists:foreach(fun(I) -> start_spec(I) end, Records);
 		Else ->
 			?ERROR("unable to retrieve specs for ~s:  ~p", [Super, Else]),

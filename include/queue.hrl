@@ -30,9 +30,9 @@
 %% @hidden
 -define(DEFAULT_WEIGHT, 5).
 -ifdef(EUNIT).
--define(DEFAULT_RECIPE, [{[{ticks, 3}], remove_skills, ['_node'], run_once}]). % TODO - flesh this out?
+-define(DEFAULT_RECIPE, [{[{ticks, 3}], remove_skills, ['_node'], run_once}]).
 -else.
--define(DEFAULT_RECIPE, [{[{ticks, 15}], remove_skills, ['_node'], run_once}]). % TODO - flesh this out?
+-define(DEFAULT_RECIPE, [{[{ticks, 15}], remove_skills, ['_node'], run_once}]).
 -endif.
 
 %-type(recipe_step() :: {non_neg_integer(),

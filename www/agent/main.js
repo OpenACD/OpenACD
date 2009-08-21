@@ -25,8 +25,7 @@ dojo.addOnLoad(function(){
 		url:"/checkcookie",
 		handleAs:"json",
 		error:function(response, ioargs){
-			console.log("checkcookie failed!");
-			console.log(response);
+			error(["checkcookie failed!", response]);
 		},
 		load:function(response, ioargs){
 			if(response.success){
@@ -80,7 +79,7 @@ dojo.addOnLoad(function(){
 	
 	dojo.byId("brand").stateChanger = dojo.subscribe("agent/state", function(data){
 		var node = dojo.byId("brand");
-		console.log(data.statedata);
+		debug(["byId('brand') stateChanger", data.statedata]);
 		switch(data.state){
 			case "ringing":
 			case "oncall":
@@ -160,15 +159,6 @@ dojo.addOnLoad(function(){
 
 	dijit.byId("boutboundcall").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("boutboundcall");
-		/*console.log("boutboundcall" + widget.attr('style'));
-		switch(data.state){
-			case "released":
-			case "idle":
-				widget.attr('style', 'display:inline');
-				break;
-			default:
-				widget.attr('style', 'display:none');
-		}*/
 	});
 	
 	dijit.byId("outboundmenu").logout = dojo.subscribe("agent/logout", function(data){
@@ -219,8 +209,7 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("banswer").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("banswer");
-//		console.log("banswer");
-//		console.log(data);
+		debug(["banswer", data]);
 		if(data.statedata && data.statedata.ringpath == "inband"){
 			switch(data.state){
 				case "ringing":
@@ -252,7 +241,6 @@ dojo.addOnLoad(function(){
 		var widget = dijit.byId("transferToAgentMenuDyn");
 		widget.destroyDescendants()
 		dojo.forEach(data, function(i){
-//			console.log(i);
 			var m = new dijit.MenuItem({
 				label: i,
 				onClick: function(){
@@ -265,8 +253,7 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("bhangup").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("bhangup");
-//		console.log("bhangup");
-//		console.log(data);
+		debug(["bhangup", data]);
 		if(data.statedata && data.statedata.mediapath == "inband"){
 			switch(data.state){
 				case "oncall":
@@ -300,9 +287,7 @@ dojo.addOnLoad(function(){
 
 	dijit.byId("boutboundcall").stateChanger = dojo.subscribe("agent/state", function(data) {
 		var widget = dijit.byId("boutboundcall");
-//		console.log("boutboundcall");
-//		console.log(data);
-//		console.log(data.state);
+		debug(["boutboundcall", data, data.state]);
 		switch(data.state){
 			case "idle":
 			case "released":
@@ -324,15 +309,15 @@ dojo.addOnLoad(function(){
 			url:"/mediapush",
 			handleAs:"json",
 			error:function(response, ioargs){
-				console.log("email send error " + response)
+				warning(["email send error ", response]);
 			},
 			load:function(response, ioargs){
 				if(response.success){
 					EventLog.log("sent mail");
-					console.log("success pushing mail");
+					debug("success pushing mail");
 				}
 				else{
-					console.log("pusing mail failed: " + response.message);
+					warning(["pusing mail failed: ", response.message]);
 				}
 			},
 			form:dijit.byId("emailform").domNode
@@ -362,9 +347,9 @@ dojo.addOnLoad(function(){
 					var values = attrs;
 					var rsa = new RSAKey();
 					rsa.setPublic(n, e);
-					console.log("e: " + e);
-					console.log("n: " + n);
-					console.log("password: " + attrs.password);
+					debug("e: " + e);
+					debug("n: " + n);
+					debug("password: " + attrs.password);
 					values.password = rsa.encrypt(salt + attrs.password);
 					dojo.xhrPost({
 						url:"/login",
@@ -378,7 +363,7 @@ dojo.addOnLoad(function(){
 							dojo.byId("main").style.visibility = "visible";
 							dojo.byId("agentname").innerHTML = attrs.username;
 							dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response2.profile;
-							console.log(response2);
+							debug(response2);
 							agent = new Agent(attrs.username);
 							agent.stopwatch.onTick = function(){
 							var elapsed = agent.stopwatch.time();
@@ -451,7 +436,7 @@ dojo.addOnLoad(function(){
 			url:"/brandlist",
 			handleAs:"json",
 			error:function(response, ioargs){
-				console.log(response);
+				debug(response);
 				var item = new dijit.MenuItem({
 					label:"Failed to get brandlist1",
 					disabled: true
@@ -459,7 +444,7 @@ dojo.addOnLoad(function(){
 				menu.addChild(item);
 			},
 			load:function(response, ioargs){
-//				console.log(response);
+				debug(["buildOutboundMenu", response]);
 				if(response.success){
 					for(var i in response.brands) {
 						var item = new dijit.MenuItem({

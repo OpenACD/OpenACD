@@ -32,8 +32,7 @@ function Agent(username){
 				
 				default:
 					dojo.publish("agent/" + datalist[i].command, [datalist[i]]);
-					//console.log("unhandled command");
-					//console.log(datalist[i].command);
+					warning(["unhandled command", datalist[i].command]);
 			 }
 		}
 	}
@@ -43,7 +42,7 @@ function Agent(username){
 			url:"/poll",
 			handleAs:"json",
 			error:function(response, ioargs){
-				console.log(response);
+				warning(["poll failed", response]);
 				EventLog.log("Poll failed:  " + response.responseText);
 				agentref.pollfailures += 1;
 				if (agentref.pollfailures >= 5) {
@@ -57,7 +56,7 @@ function Agent(username){
 				}
 			},
 			load:function(response, ioargs){
-				//console.log(response);
+				debug([response]);
 				//EventLog.log("Poll success, handling data");
 				if(response.success == false){
 					//agentref.poller.stop();
@@ -103,8 +102,7 @@ Agent.prototype.setState = function(state){
 		url:requesturl,
 		handleAs:"json",
 		error:function(response, ioargs){
-			console.log("error for set state");
-			console.log(response);
+			warning(["error for set data", response]);
 			//EventLog.log("state change failed:  " + response.responseText);
 			//dojo.publish("agent/state", [{"success":false, "state":state, "statedata":statedata, "message":responseText}]);
 		},
@@ -125,8 +123,7 @@ Agent.prototype.logout = function(/*callback*/){
 		url:"/logout",
 		handleAs:"json",
 		error:function(response, ioargs){
-			console.log("error logging out");
-			console.log(response);
+			error(["error logging out", response]);
 			//callback();
 		},
 		load:function(response, ioargs){
@@ -147,16 +144,14 @@ Agent.prototype.dial = function() {
 			url:"/dial/"+dijit.byId("dialbox").getValue(),
 			handleAs:"json",
 			error:function(response, ioargs){
-				console.log("error for dial");
-				console.log(response);
+				error(["error for dial", response]);
 			},
 			load:function(response, ioargs){
 				if (response.success) {
-				console.log("success for dial");
+					debug(["success for dial", response]);
 				} else {
-					console.log("failure for dial!");
+					warning(["failure for dial", response]);
 				}
-				console.log(response);
 			}
 		});
 	}
@@ -167,16 +162,14 @@ Agent.transfer = function(aname) {
 		url:"/agent_transfer/" + aname,
 		handleAs:"json",
 		error:function(response, ioargs){
-			console.log("error on transfer");
-			console.log(response);
+			warning(["error on transfer", response]);
 		},
 		load:function(response, ioargs){
 			if(response.success){
 				dojo.publish("agent/transfer", [response.success]);
 			}
 			else{
-				console.log("Failed to ring to 2nd agent"),
-				console.log(response)
+				warning(["failed to ring to 2nd agent", response]);
 			}
 		}
 	})
@@ -187,16 +180,14 @@ Agent.warmtransfer = function(num) {
 		url:"/warm_transfer/" + num,
 		handleAs:"json",
 		error:function(response, ioargs){
-			console.log("error on transfer");
-			console.log(response);
+			warning(["error on transfer", response]);
 		},
 		load:function(response, ioargs){
 			if(response.success){
 				dojo.publish("agent/warmtransfer", [response.success]);
 			}
 			else{
-				console.log("Failed to initiate warm transfer"),
-				console.log(response)
+				warning(["failed to initiate warm transfer", response]);
 			}
 		}
 	})
@@ -207,16 +198,14 @@ Agent.getAvailAgents = function() {
 		url:"/get_avail_agents",
 		handleAs:"json",
 		error:function(response, ioargs){
-			console.log("error getting available agents");
-			console.log(response);
+			warning(["error getting available agents", response]);
 		},
 		load:function(response, ioargs){
 			if(response.success){
 				dojo.publish("agent/available", [response.agents]);
 			}
 			else{
-				console.log("Failed to get agents due to");
-				console.log(response);
+				warning(["Failed to get agents due to", response]);
 			}
 		}
 	});

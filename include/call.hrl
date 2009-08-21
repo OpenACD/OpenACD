@@ -45,7 +45,7 @@
 		% client record
 		client = #client{label="Unknown", tenant=0, brand=0, timestamp = 1} :: #client{},
 		skills = [] :: [atom()],
-		cook :: pid() | 'undefined', % TODO is this ever set?  Yes, the gen_media uses it
+		cook :: pid() | 'undefined', % gen_media uses this
 		ring_path = outband :: 'inband' | 'outband' | 'any',
 		media_path = outband :: 'inband' | 'outband'
 }).

@@ -71,7 +71,6 @@
 %%
 -export([
 	build_tables/0,
-	build_tables/1,
 	merge/3
 ]).
 -export([
@@ -116,16 +115,10 @@
 %% All configs
 %% =====
 
-%% @doc Attempts to set-up and create the required mnesia table `call_queue' on all visible nodes.
-%% @see build_tables/1
+%% @doc Attempts to set-up and create the required mnesia table `call_queue' on 
+%% the local node if it does not exist.
 -spec(build_tables/0 :: () ->'ok').
 build_tables() -> 
-	build_tables(lists:append(nodes(), [node()])).
-
-%TODO So why aren't we using Nodes here?
-%% @doc Attempts to set-up and create the required mnesia table `call_queue' on the specified nodes
--spec(build_tables/1 :: (Nodes :: [atom()]) -> 'ok').
-build_tables(_Nodes) -> 
 	?DEBUG("~p building tables...", [?MODULE]),
 	A = util:build_table(call_queue, ?QUEUE_TABLE([node()])),
 	case A of

@@ -92,13 +92,13 @@
 %% @doc start linked to the parent process.
 -spec(start_link/1 :: (Nodes :: [atom(),...]) -> {'ok', pid()}).
 start_link(Nodes) ->
-	call_queue_config:build_tables(Nodes),
+	call_queue_config:build_tables(),
 	gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, [], []).
 
 %% @doc start unlinked to the parent process.
 -spec(start/1 :: (Nodes :: [atom(),...]) -> {'ok', pid()}).
 start(Nodes) ->
-	call_queue_config:build_tables(Nodes),
+	call_queue_config:build_tables(),
 	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, [], []).
 
 %% @doc Add a queue named `Name' using the given Options.

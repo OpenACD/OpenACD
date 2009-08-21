@@ -183,7 +183,7 @@ set_sockopt(ListSock, CliSocket) ->
 			Error % return error
 	end.
 
--ifdef(TEST).
+-ifdef(EUNIT).
 
 start_test() -> 
 	{ok, Pid} = start(6666),

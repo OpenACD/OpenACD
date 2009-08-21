@@ -202,7 +202,8 @@ elected(State, _Election, Node) ->
 	{ok, ok, State}.
 	
 %% @hidden
-%% TODO what about an agent started at both places?
+%% if an agent is started at two locations, the 2nd notify will be told that
+%% the register failed, allowing the agent to hagurk at that point.
 surrendered(#state{agents = Agents} = State, _LeaderState, _Election) -> 
 	?INFO("surrendered", []),
 	mnesia:unsubscribe(system),
@@ -254,7 +255,10 @@ handle_leader_cast({notify, Agent, Apid}, #state{agents = Agents} = State, _Elec
 		error -> 
 			Agents2 = dict:store(Agent, Apid, Agents),
 			{noreply, State#state{agents = Agents2}};
+		{ok, Apid} ->
+			{noreply, State};
 		_Else -> 
+			agent:register_rejected(Apid),
 			{noreply, State}
 	end;
 handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Election) ->
@@ -593,7 +597,7 @@ multi_node_test_() ->
 						?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
 						?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent2])),
 						?assertMatch({true, _Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent])),
-						rpc:call(Master, erlang, disconnect_node, [Slave]),
+						%rpc:call(Master, erlang, disconnect_node, [Slave]),
 						cover:stop(Slave),
 						slave:stop(Slave),
 						?assertEqual(false, rpc:call(Master, ?MODULE, query_agent, [Agent])),

@@ -77,7 +77,8 @@
 	media_pull/2, 
 	media_push/3, 
 	url_pop/2, 
-	warm_transfer_begin/2]).
+	warm_transfer_begin/2,
+	register_rejected/1]).
 
 %% @doc Start an agent fsm for the passed in agent record `Agent' that is linked to the calling process
 -spec(start_link/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
@@ -103,6 +104,11 @@ set_connection(Pid, Socket) ->
 set_endpoint(Pid, Endpoint) ->
 	gen_fsm:sync_send_all_state_event(Pid, {set_endpoint, Endpoint}).
 
+%% @doc When the agent manager can't register an agent, it 'casts' to this.
+-spec(register_rejected/1 :: (Pid :: pid()) -> 'ok').
+register_rejected(Pid) ->
+	gen_fsm:send_event(Pid, register_rejected).
+	
 %% @private
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
 init([State]) when is_record(State, agent) ->
@@ -331,6 +337,8 @@ ringing(idle, _From, State) ->
 ringing(_Event, _From, State) ->
 	{reply, invalid, ringing, State}.
 
+ringing(register_rejected, State) ->
+	{stop, register_rejected, State};
 ringing(_Msg, State) ->
 	{next_state, ringing, State}.
 
@@ -359,6 +367,8 @@ precall({released, Reason}, _From, State) ->
 precall(_Event, _From, State) -> 
 	{reply, invalid, precall, State}.
 
+precall(register_rejected, State) ->
+	{stop, register_rejected, State};
 precall(_Msg, State) ->
 	{next_state, precall, State}.
 
@@ -424,6 +434,11 @@ oncall(get_media, _From, #agent{statedata = Media} = State) when is_record(Media
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
 
+oncall(register_rejected, #agent{statedata = Media} = State) when Media#call.media_path =:= inband ->
+	gen_media:wrapup(Media#call.source),
+	{stop, register_rejected, State};
+oncall(register_rejected, #agent{statedata = Media} = State) ->
+	{stop, register_rejected, State};
 oncall({mediapush, Mediapid, Data, Mode}, #agent{statedata = Media} = State) when Media#call.source =:= Mediapid, is_atom(Mode) ->
 	case State#agent.connection of
 		undefined ->
@@ -469,6 +484,11 @@ outgoing(get_media, _From, #agent{statedata = Media} = State) when is_record(Med
 outgoing(_Event, _From, State) -> 
 	{reply, invalid, outgoing, State}.
 
+outgoing(register_rejected, #agent{statedata = Media} = State) when Media#call.media_path =:= inband ->
+	gen_media:wrapup(Media#call.source),
+	{stop, register_rejected, State};
+outgoing(register_rejected, #agent{statedata = Media} = State) ->
+	{stop, register_rejected, State};
 outgoing(_Msg, State) ->
 	{next_state, outgoing, State}.
 
@@ -503,6 +523,8 @@ released({ringing, Call}, _From, State) ->
 released(_Event, _From, State) ->
 	{reply, invalid, released, State}.
 
+released(register_rejected, State) ->
+	{stop, register_rejected, State};
 released(_Msg, State) ->
 	{next_state, released, State}.
 
@@ -548,6 +570,9 @@ warmtransfer({outgoing, Call}, _From, State) ->
 warmtransfer(_Event, _From, State) ->
 	{reply, invalid, warmtransfer, State}.
 
+warmtransfer(register_rejected, #agent{statedata = {onhold, Media, calling, Target}} = State) ->
+	gen_media:wrapup(Media#call.source),
+	{stop, register_rejected, State};
 warmtransfer(_Msg, State) ->
 	{next_state, warmtransfer, State}.
 
@@ -579,6 +604,8 @@ wrapup(Event, From, State) ->
 	?WARNING("Invalid event '~p' from ~p while in wrapup.", [Event, From]),
 	{reply, invalid, wrapup, State}.
 
+wrapup(register_rejected, State) ->
+	{stop, register_rejected, State};
 wrapup(_Msg, State) ->
 	{next_state, wrapup, State}.
 

@@ -767,6 +767,17 @@ multi_node_test_() ->
 					?assert(node(MasterQ) =:= node(SlaveQ)),
 					?assert(MasterQ =:= SlaveQ)
 				end
+			}, {
+				"Queue migration", fun() ->
+					Oldq = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
+					call_queue:migrate(Oldq, Slave),
+					timer:sleep(10),
+					OldNode = node(Oldq),
+					Newq = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
+					NewNode = node(Newq),
+					?assertNot(Oldq =:= Newq),
+					?assertNot(OldNode =:= NewNode)
+				end
 			}
 		]
 	}.

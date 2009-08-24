@@ -541,6 +541,7 @@ handle_info({'EXIT', From, Reason}, State) ->
 			?NOTICE("Handling exit of queue manager with reason ~p.  Dying with it.", [Reason]),
 			{stop, {queue_manager_died, Reason}, State};
 		_Else ->
+			?DEBUG("~w exited due to ~p; looping through calls", [From, Reason]),
 			Calls = gb_trees:to_list(State#state.queue),
 			Cleancalls = clean_pid(From, State#state.recipe, Calls, State#state.name),
 			Newtree = gb_trees:from_orddict(Cleancalls),
@@ -584,9 +585,6 @@ set_cpx_mon(State) ->
 set_cpx_mon(State, delete) ->
 	cpx_monitor:drop({queue, State#state.name}).
 
-% TODO - this function kinda sucks, it shouldn't keep iterating after it matches
-% a pid, for example. It should also probably be aware of the exit reason so it
-% can log things more appropiately.
 %% @private
 %% Cleans up both dead dispatchers and dead cooks from the calls.
 -spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [{key(), #queued_call{}}], QName :: string()) -> [{key(), #queued_call{}}]).
@@ -600,7 +598,7 @@ clean_pid_(Deadpid, Recipe, QName, [{Key, #queued_call{cook = Deadpid} = Call} |
 	{ok, Pid} = cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName),
 	link(Pid),
 	Cleancall = Call#queued_call{cook = Pid},
-	clean_pid_(Deadpid, Recipe, QName, Calls, [{Key, Cleancall} | Acc]);
+	lists:append(lists:reverse(Acc), [{Key, Cleancall} | Calls]);
 clean_pid_(Deadpid, Recipe, QName, [{Key, Call} | Calls], Acc) ->
 	case lists:member(Deadpid, Call#queued_call.dispatchers) of
 		false ->

@@ -478,7 +478,6 @@ find_queue_name(NeedlePid, Dict) ->
 
 -ifdef('EUNIT').
 
-% TODO tie add_queue to the call_queue_config
 %% @doc Add a queue named `Name' using the default weight and recipe.
 %-spec(add_queue/1 :: (Name :: string()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name) when is_list(Name) ->

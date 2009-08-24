@@ -33,9 +33,6 @@
 
 %% depends on call_queue
 
-% TODO - migrate a queue to another node?
-%        both of these operations need to ensure that the leader is notified
-
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.

@@ -239,7 +239,6 @@ stop_tick(Pid) ->
 
 %% @private
 wait_for_queue(Qname) ->
-	%% TODO - try to put the call with the same key ({priority, time})
 	case whereis(queue_manager) of
 		undefined ->
 			?INFO("Waiting on the queue manager", []),

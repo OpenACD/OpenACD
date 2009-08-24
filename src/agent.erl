@@ -422,7 +422,6 @@ oncall({mediapush, Data}, _From, #agent{statedata = Call} = State) ->
 oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
 	case gen_media:warm_transfer_begin(Call#call.source, Number) of
 		{ok, UUID} ->
-			% TODO - should we store the called number too?
 			gen_server:cast(State#agent.connection, {change_state, warmtransfer, UUID}),
 			set_cpx_monitor(State#agent{state = warmtransfer}, ?WARMTRANSFER_LIMITS, []),
 			{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, UUID}, lastchangetimestamp=now()}};
@@ -533,7 +532,7 @@ released(_Msg, State) ->
 %%<li>`{released, Reason :: string()}'<br />Queues a reason after the call is done.</li>
 %%<li>`{wrapup, Call :: #call{}}'</li>
 %%<li>`{oncall, Call :: #call{}}'<br />If the agent goes back to the orignal call</li>
-%%<li>`{outgoing, Call :: #call{}}'</li> TODO really?!
+%%<li>`{outgoing, Call :: #call{}}'</li> TODO outgoing state will go away when callrec supports in/out directions
 %%</ul>
 -spec(warmtransfer/3 :: (Event :: {'released', undefined}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'warmtransfer', #agent{}};
 	(Event :: {'released', string()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'released', #agent{}};

@@ -320,10 +320,7 @@ find_by_pid_(_Needle, none) ->
 expand_magic_skills(State, Call, Skills) ->
 	lists:filter(fun(X) -> X =/= [] end, lists:map(
 		fun('_node') when is_pid(Call#queued_call.media) -> {'_node', node(Call#queued_call.media)};
-			%('_node') -> ?CONSOLE("Can't expand magic skill _node~n", []), [];
 			('_queue') -> {'_queue', State#state.name};
-			%('_queue') when is_atom(State#state.name) -> State#state.name;
-			%('_queue') -> ?CONSOLE("Can't expand magic skill _queue~n", []), [];
 			('_brand') when is_pid(Call#queued_call.media) ->
 				AState = gen_media:get_call(Call#queued_call.media),
 				case AState#call.client of
@@ -377,7 +374,6 @@ handle_call({set_recipe, Recipe}, _From, State) ->
 handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid) ->
 	% cook is started on the same node callpid is on
 	?INFO("adding call ~p request from ~p on node ~p", [Callpid, From, node(Callpid)]),
-%	case rpc:call(node(Callpid), gen_server, start, [cook, [Callpid, State#state.recipe, State#state.name], []]) of
 	case cook:start_at(node(Callpid), Callpid, State#state.recipe, State#state.name) of
 		{ok, Cookpid} ->
 			link(Cookpid),
@@ -391,15 +387,6 @@ handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid)
 			cdr:inqueue(Callrec, State#state.name),
 			set_cpx_mon(State#state{queue=Trees}),
 			{reply, ok, State#state{queue=Trees}}%;
-		%ignore ->
-		%	?CONSOLE("Cook ignored start", []),
-		%	{reply, {error, {cook_not_started}}, State};
-		%{badrpc, nodedown} ->
-		%	?CONSOLE("Cook failed to start on downed node  ~p", [node(Callpid)]),
-		%	{reply, {error, nodedown}, State};
-		%{error, Error} ->
-		%	?CONSOLE("Cook failed to start:  ~p", [Error]),
-		%	{reply, {error, Error}, State}
 	end;
 handle_call({add_skills, Callid, Skills}, _From, State) ->
 	case find_key(Callid, State#state.queue) of
@@ -459,7 +446,6 @@ handle_call({remove, Callpid}, _From, State) ->
 			unlink(Cookpid),
 			gen_server:cast(Cookpid, stop),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
-			%lists:foreach(fun(D) -> dispatcher:regrab(D) end, Qcall#queued_call.dispatchers),
 			lists:foreach(fun(D) -> exit(D, kill) end, Qcall#queued_call.dispatchers),
 			set_cpx_mon(State2),
 			{reply, ok, State2}
@@ -527,7 +513,6 @@ handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
 		{Key, #queued_call{cook=Cookpid, dispatchers = Dips}} ->
 			cook:stop(Cookpid),
 			lists:foreach(fun(D) -> exit(D, kill) end, Dips),
-			%lists:foreach(fun(D) -> dispatcher:regrab(D) end, Dips),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			set_cpx_mon(State2),
 			{noreply, State2}

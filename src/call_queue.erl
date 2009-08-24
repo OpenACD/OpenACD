@@ -65,6 +65,7 @@
 	add/4,
 	add/3,
 	add/2,
+	add_at/3,
 	ask/1,
 	get_call/2,
 	get_calls/1,
@@ -81,6 +82,7 @@
 	call_count/1
 ]).
 
+-type(call_key() :: {pos_integer(), {pos_integer(), pos_integer(), pos_integer()}}).
 -record(state, {
 	queue = gb_trees:empty() :: call_queue(),
 	group = "Default" :: string(),
@@ -156,6 +158,13 @@ add(Pid, Priority, Mediapid) when is_pid(Pid), is_pid(Mediapid), Priority >= 0 -
 -spec(add/2 :: (Pid :: pid(), Calldata :: pid()) -> ok).
 add(Pid, Mediapid) when is_pid(Pid), is_pid(Mediapid) ->
 	add(Pid, 1, Mediapid).
+
+%% @doc Add to queue at `pid()' `Pid' a call taken from `pid()' `Mediapid' with
+%% a given key `Key'.
+-spec(add_at/3 :: (Pid :: pid(), Key :: call_key(), Mediapid :: pid()) -> ok).
+add_at(Pid, Key, Mediapid) ->
+	Callrec = gen_media:get_call(Mediapid),
+	gen_server:cast(Pid, {add_at, Key, Mediapid, Callrec}).
 
 %% @doc Query the queue at `pid()' `Pid' for a call with the ID `string()' or `pid()' of `Callid'.
 -spec(get_call/2 :: (Pid :: pid(), Callid :: pid()) -> {key(), #queued_call{}} | 'none';
@@ -350,6 +359,10 @@ init([Name, Opts]) ->
 	set_cpx_mon(State),
 	{ok, State}.
 
+%% =====
+%% handle_call
+%% =====
+
 %% @private
 handle_call({get_call, Callpid}, _From, State) when is_pid(Callpid) ->
 	{reply, find_by_pid(Callpid, State#state.queue), State};
@@ -374,20 +387,10 @@ handle_call({set_recipe, Recipe}, _From, State) ->
 handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid) ->
 	% cook is started on the same node callpid is on
 	?INFO("adding call ~p request from ~p on node ~p", [Callpid, From, node(Callpid)]),
-	case cook:start_at(node(Callpid), Callpid, State#state.recipe, State#state.name) of
-		{ok, Cookpid} ->
-			link(Cookpid),
-			erlang:monitor(process, Callpid),
-			Queuedrec = #queued_call{media=Callpid, id=Callrec#call.id, cook=Cookpid},
-			?DEBUG("queuedrec: ~p", [Queuedrec]),
-			NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
-			Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
-			Value = Queuedrec#queued_call{skills=Expandedskills},
-			Trees = gb_trees:insert({Priority, now()}, Value, State#state.queue),
-			cdr:inqueue(Callrec, State#state.name),
-			set_cpx_mon(State#state{queue=Trees}),
-			{reply, ok, State#state{queue=Trees}}%;
-	end;
+	Key = {Priority, now()},
+	{ok, Cookpid} = cook:start_at(node(Callpid), Callpid, State#state.recipe, State#state.name, Key),
+	NewState = queue_call(Cookpid, Callrec, Key, State),
+	{reply, ok, NewState};
 handle_call({add_skills, Callid, Skills}, _From, State) ->
 	case find_key(Callid, State#state.queue) of
 		none ->
@@ -487,6 +490,10 @@ handle_call(call_count, _From, State) ->
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 
+%% =====
+%% handle_cast
+%% =====
+
 %% @private
 handle_cast({remove, Callpid}, State) ->
 	?INFO("Trying to remove call ~p (cast)...", [Callpid]),
@@ -500,8 +507,19 @@ handle_cast({remove, Callpid}, State) ->
 			set_cpx_mon(State2),
 			{noreply, State2}
 	end;
-handle_cast(_Msg, State) ->
+handle_cast({add_at, Key, Mediapid, Mediarec}, State) ->
+	?INFO("adding call ~p on node ~p at position ~p", [Mediapid, node(Mediapid), Key]),
+	% cook is started on the same node Mediapid is on
+	{ok, Cookpid} = cook:start_at(node(Mediapid), Mediapid, State#state.recipe, State#state.name, Key),
+	NewState = queue_call(Cookpid, Mediarec, Key, State),
+	{noreply, NewState};
+handle_cast(Msg, State) ->
+	?DEBUG("Unhandled cast ~p", [Msg]),
 	{noreply, State}.
+
+%% =====
+%% handle_info
+%% =====
 
 %% @private
 handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
@@ -537,6 +555,10 @@ handle_info(Info, State) ->
 	?DEBUG("got info ~p", [Info]),
 	{noreply, State}.
 
+%% =====
+%% terminate
+%% =====
+
 %% @private
 terminate(Reason, State) when is_atom(Reason) andalso Reason =:= normal orelse Reason =:= shutdown ->
 	?NOTICE("~p terminate", [atom_to_list(Reason)]),
@@ -548,9 +570,29 @@ terminate(Reason, State) ->
 	set_cpx_mon(State, delete),
 	ok.
 
+%% =====
+%% code_chnage
+%% =====
+
 %% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+	
+%% =====
+%% Internal Functions
+%% =====
+
+queue_call(Cookpid, Callrec, Key, State) ->
+	link(Cookpid),
+	erlang:monitor(process, Callrec#call.source),
+	Queuedrec = #queued_call{media = Callrec#call.source, cook = Cookpid, id = Callrec#call.id},
+	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
+	Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
+	Value = Queuedrec#queued_call{skills=Expandedskills},
+	Trees = gb_trees:insert(Key, Value, State#state.queue),
+	cdr:inqueue(Callrec, State#state.name),
+	set_cpx_mon(State#state{queue=Trees}),
+	State#state{queue = Trees}.
 
 %% @private
 -spec(set_cpx_mon/1 :: (State :: #state{}) -> 'ok').
@@ -580,7 +622,7 @@ clean_pid(Deadpid, Recipe, Calls, QName) ->
 clean_pid_(_Deadpid, _Recipe, _QName, [], Acc) ->
 	lists:reverse(Acc);
 clean_pid_(Deadpid, Recipe, QName, [{Key, #queued_call{cook = Deadpid} = Call} | Calls], Acc) ->
-	{ok, Pid} = cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName),
+	{ok, Pid} = cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName, Key),
 	link(Pid),
 	Cleancall = Call#queued_call{cook = Pid},
 	lists:append(lists:reverse(Acc), [{Key, Cleancall} | Calls]);

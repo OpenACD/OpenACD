@@ -59,23 +59,25 @@
 
 %% API
 -export([
-	start_link/3,
-	start/3,
+	start_link/4,
+	start/4,
 	stop/1,
 	restart_tick/1,
 	stop_tick/1,
-	start_at/4
+	start_at/5
 ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	terminate/2, code_change/3]).
 
+-type(call_key() :: {pos_integer(), {pos_integer(), pos_integer(), pos_integer()}}).
 -record(state, {
 		recipe = [] :: recipe(),
 		ticked = 1 :: pos_integer(), % number of ticks we've done
 		call :: pid() | 'undefined',
 		queue :: string() | 'undefined',
+		key :: call_key(),
 		ringstate = none :: 'none' | 'ringing',
 		tref :: any() % timer reference
 }).
@@ -89,22 +91,22 @@
 %%====================================================================
 
 %% @doc Starts a cook linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
--spec(start_link/3 :: (Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start_link(Call, Recipe, Queue) when is_pid(Call) ->
-    gen_server:start_link(?MODULE, [Call, Recipe, Queue], []).
+-spec(start_link/4 :: (Call :: pid(), Recipe :: recipe(), Queue :: string(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_link(Call, Recipe, Queue, Key) when is_pid(Call) ->
+    gen_server:start_link(?MODULE, [Call, Recipe, Queue, Key], []).
 
 %% @doc Starts a cook not linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
--spec(start/3 :: (Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start(Call, Recipe, Queue) when is_pid(Call) ->
-	gen_server:start(?MODULE, [Call, Recipe, Queue], []).
+-spec(start/4 :: (Call :: pid(), Recipe :: recipe(), Queue :: string(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start(Call, Recipe, Queue, Key) when is_pid(Call) ->
+	gen_server:start(?MODULE, [Call, Recipe, Queue, Key], []).
 
 %% @doc starts a new cook on the give `node()' `Node' for `Call' to be process by `Recipe' for the call_queue named `Queue'.
 %% This is used in place of start and start_link to allow a queue on a different node to start the cook on the same node
 %% the media exists on.
--spec(start_at/4 :: (Node :: atom(), Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start_at(Node, Call, Recipe, Queue) ->
+-spec(start_at/5 :: (Node :: atom(), Call :: pid(), Recipe :: recipe(), Queue :: string(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_at(Node, Call, Recipe, Queue, Key) ->
 	F = fun() ->
-		{ok, State} = init([Call, Recipe, Queue]),
+		{ok, State} = init([Call, Recipe, Queue, Key]),
 		?DEBUG("about to enter loop", []),
 		gen_server:enter_loop(?MODULE, [], State)%;
 	end,
@@ -115,12 +117,12 @@ start_at(Node, Call, Recipe, Queue) ->
 %%====================================================================
 
 %% @private
-init([Call, Recipe, Queue]) ->
+init([Call, Recipe, Queue, Key]) ->
 	?DEBUG("Cook starting for call ~p from queue ~p", [Call, Queue]),
 	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
 	process_flag(trap_exit, true),
 	{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
-	State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref},
+	State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref, key = Key},
 	{ok, State}.
 
 %%--------------------------------------------------------------------
@@ -210,8 +212,8 @@ terminate(Reason, State) ->
 	?WARNING("Unusual death:  ~p", [Reason]),
 	timer:cancel(State#state.tref),
 	Qpid = wait_for_queue(State#state.queue),
-	?INFO("Looks like the queue recovered, dieing now",[]),
-	call_queue:add(Qpid, State#state.call),
+	?INFO("Looks like the queue recovered (~w), dieing now",[Qpid]),
+	call_queue:add_at(Qpid, State#state.key, State#state.call),
 	ok.
 
 %%--------------------------------------------------------------------
@@ -1257,7 +1259,7 @@ multinode_test_() ->
 
 
 	
--define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start("testcall"), {ok, Pid} = start(Dummy,[{[{ticks, 1}], set_priority, 5, run_once}], "testqueue"), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start("testcall"), {ok, Pid} = start(Dummy,[{[{ticks, 1}], set_priority, 5, run_once}], "testqueue", {1, now()}), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

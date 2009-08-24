@@ -47,7 +47,10 @@
 -export([
 	start_link/6,
 	start/6,
-	hangup/1
+	start_link/7,
+	start/7,
+	hangup/1,
+	get_uuid/1
 	]).
 
 %% gen_server callbacks
@@ -56,9 +59,10 @@
 
 -record(state, {
 	cnode :: atom(),
-	uuid :: any(),
+	uuid :: string(),
 	agent_pid :: pid(),
-	callrec :: #call{}
+	callrec :: #call{},
+	options = [] :: [any()]
 	}).
 
 -type(state() :: #state{}).
@@ -68,23 +72,34 @@
 %%====================================================================
 %% API
 %%====================================================================
--spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()} | 'ngore' | {'error', any()}).
+-spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Fnode, AgentRec, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Call, call) ->
-	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun], []).
+	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, []], []).
 
 -spec(start_link/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Fnode, AgentRec, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Call, call) ->
-	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun], []).
+	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, []], []).
+
+-spec(start/7 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun(), Options :: [any()]) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start(Fnode, AgentRec, Apid, Call, Ringout, Fun, Options) when is_pid(Apid), is_record(Call, call) ->
+	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, Options], []).
+
+-spec(start_link/7 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun(), Options :: [any()]) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_link(Fnode, AgentRec, Apid, Call, Ringout, Fun, Options) when is_pid(Apid), is_record(Call, call) ->
+	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, Options], []).
 
 -spec(hangup/1 :: (Pid :: pid()) -> 'ok').
 hangup(Pid) ->
 	gen_server:cast(Pid, hangup).
 
+get_uuid(Pid) ->
+	gen_server:call(Pid, get_uuid).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun]) when is_record(Qcall, call) ->
+init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun, Options]) when is_record(Qcall, call) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " &park()",
@@ -114,7 +129,7 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun]) when is_record(Qcall, call) -
 							{stop, {error, Other}};
 						_Else ->
 							?DEBUG("starting for ~p", [UUID]),
-							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Qcall}}
+							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Qcall, options = Options}}
 					end;
 				Else ->
 					?ERROR("bgapi call failed ~p", [Else]),
@@ -125,6 +140,8 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun]) when is_record(Qcall, call) -
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call(get_uuid, _From, #state{uuid = UUID} = State) ->
+	{reply, UUID, State};
 handle_call(Request, _From, State) ->
 	Reply = {unknown, Request},
 	{reply, Reply, State}.
@@ -149,6 +166,16 @@ handle_info({call, {event, [UUID | _Rest]}}, #state{uuid = UUID} = State) ->
 handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) ->
 	Event = freeswitch:get_event_name(Rest),
 	case Event of
+		"CHANNEL_ANSWER" ->
+			case lists:member(single_leg, State#state.options) of
+				true ->
+					?INFO("Call with single leg answered", []),
+					Call = State#state.callrec,
+					gen_media:oncall(Call#call.source),
+					{noreply, State};
+				false ->
+					{noreply, State}
+			end;
 		"CHANNEL_BRIDGE" ->
 			?INFO("Call bridged", []),
 			Call = State#state.callrec,
@@ -168,7 +195,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 			end,
 			{noreply, State};
 		_Else ->
-			%?DEBUG("call_event ~p", [Event]),
+			?DEBUG("call_event ~p", [Event]),
 			{noreply, State}
 	end;
 handle_info(call_hangup, State) ->

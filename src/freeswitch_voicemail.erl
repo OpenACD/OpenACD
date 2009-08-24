@@ -82,8 +82,9 @@
 	agent :: string() | 'undefined',
 	agent_pid :: pid() | 'undefined',
 	ringchannel :: pid() | 'undefined',
+	ringuuid :: string() | 'undefined',
 	manager_pid :: 'undefined' | any(),
-	voicemail = false :: 'false' | string()
+	file = erlang:error({undefined, file}):: string()
 	}).
 
 -type(state() :: #state{}).
@@ -126,13 +127,17 @@ dump_state(Mpid) when is_pid(Mpid) ->
 init([Cnode, UUID, File, Queue]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	{ok, {#state{cnode=Cnode, manager_pid = Manager}, {Queue, #call{id=UUID++"-vm", type=voice, source=self()}}}}.
+	{ok, {#state{cnode=Cnode, manager_pid = Manager, file=File}, {Queue, #call{id=UUID++"-vm", type=voice, source=self()}}}}.
 
 handle_announce(Announcement, #state{callrec = Callrec} = State) ->
 	{invalid, State}.
 
-handle_answer(Apid, _Callrec, State) ->
-
+handle_answer(Apid, Callrec, #state{file=File} = State) ->
+	?NOTICE("Voicemail ~s answered! Time to play ~s", [Callrec#call.id, File]),
+	freeswitch:sendmsg(State#state.cnode, State#state.ringuuid,
+		[{"call-command", "execute"},
+			{"execute-app-name", "playback"},
+			{"execute-app-arg", File}]),
 	{ok, State#state{agent_pid = Apid}}.
 
 handle_ring(Apid, Callrec, State) ->
@@ -146,10 +151,10 @@ handle_ring(Apid, Callrec, State) ->
 		end
 	end,
 	AgentRec = agent:dump_state(Apid),
-	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F) of
+	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F, [single_leg]) of
 		{ok, Pid} ->
 			link(Pid),
-			{ok, State#state{ringchannel = Pid, agent_pid = Apid}};
+			{ok, State#state{ringchannel = Pid, ringuuid = freeswitch_ring:get_uuid(Pid), agent_pid = Apid}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{invalid, State}
@@ -284,7 +289,7 @@ handle_info(check_recovery, State) ->
 	end;
 handle_info({'EXIT', Pid, Reason}, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p", [Pid, Reason]),
-	{stop_ring, State#state{ringchannel = undefined}};
+	{wrapup, State};
 handle_info({'EXIT', Pid, Reason}, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p", [Pid, Reason]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),

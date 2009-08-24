@@ -72,6 +72,7 @@
 	dump/1,
 	remove/2,
 	bgremove/2,
+	migrate/2,
 	stop/1,
 	grab/1,
 	ungrab/2,
@@ -341,6 +342,11 @@ expand_magic_skills(State, Call, Skills) ->
 			(Skill) -> Skill
 		end, Skills)).
 
+%% @doc Move the queue at `Pid' to `node() Node'.
+-spec(migrate/2 :: (Qpid :: pid(), Node :: atom()) -> ok).
+migrate(Qpid, Node) ->
+	gen_server:cast(Qpid, {migrate, Node}).
+
 %=====
 % gen_server callbacks
 %=====
@@ -513,6 +519,8 @@ handle_cast({add_at, Key, Mediapid, Mediarec}, State) ->
 	{ok, Cookpid} = cook:start_at(node(Mediapid), Mediapid, State#state.recipe, State#state.name, Key),
 	NewState = queue_call(Cookpid, Mediarec, Key, State),
 	{noreply, NewState};
+handle_cast({migrate, Node}, State) when is_atom(Node) ->
+	{stop, {move, Node}, State};
 handle_cast(Msg, State) ->
 	?DEBUG("Unhandled cast ~p", [Msg]),
 	{noreply, State}.

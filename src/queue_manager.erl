@@ -120,8 +120,8 @@ add_queue(Name, Opts) when is_list(Name) ->
 				false ->
 					?DEBUG("Queue does not exist at all, starting it", []),
 					{ok, Pid} = call_queue:start(Name, Opts),
-					ok = gen_leader:call(?MODULE, {notify, Name, Pid}),
-					ok = gen_leader:leader_call(?MODULE, {notify, Name, Pid}),
+					ok = gen_leader:cast(?MODULE, {notify, Name, Pid}),
+					%ok = gen_leader:leader_call(?MODULE, {notify, Name, Pid}),
 					{ok, Pid}
 			end
 	end.
@@ -313,10 +313,6 @@ handle_DOWN(Node, #state{qdict = Qdict} = State, _Election) ->
 %-spec(handle_leader_call/4 :: (Request :: any(), From :: pid(), State :: #state{}, Election :: election()) -> {'reply', any(), #state{}}).
 handle_leader_call(queues_as_list, _From, #state{qdict = Qdict} = State, _Election) ->
 		{reply, dict:to_list(Qdict), State};
-handle_leader_call({notify, Name, Pid}, _From, #state{qdict = Qdict} = State, _Election) ->
-	?INFO("Leader storing queue ~p named ~p", [Pid, Name]),
-	Newdict = dict:store(Name, Pid, Qdict),
-	{reply, ok, State#state{qdict = Newdict}};
 handle_leader_call({get_queue, Name}, _From, #state{qdict = Qdict} = State, _Election) ->
 	case dict:find(Name, Qdict) of
 		{ok, Pid} ->
@@ -379,6 +375,12 @@ handle_leader_cast(_Msg, State, _Election) ->
 
 %% @private
 %-spec(handle_cast/3 :: (Msg :: any(), State :: #state{}, Election :: election()) -> {'noreply', #state{}}).
+handle_cast({notify, Name, Pid}, #state{qdict = Qdict} = State, _Election) ->
+	?INFO("local alerted about new queue ~p at ~p", [Name, Pid]),
+	Newdict = dict:store(Name, Pid, Qdict),
+	link(Pid),
+	gen_leader:leader_cast(?MODULE, {notify, Name, Pid}),
+	{noreply, State#state{qdict = Newdict}};
 handle_cast(_Msg, State, _Election) ->
 	{noreply, State}.
 
@@ -425,30 +427,23 @@ handle_info({'EXIT', Pid, Reason}, #state{qdict = Qdict} = State) ->
 					gen_leader:leader_cast(?MODULE, {notify, Qname}),
 					{noreply, State};
 				Queuerec ->
+					gen_leader:leader_cast(?MODULE, {notify, Qname}),
 					?DEBUG("Got call_queue_config of ~p", [Queuerec]),
-					NewQPid = case Reason of
-						{move, Node} when Node =/= node() ->
-							case net_adm:ping(Node) of
-								pong ->
-									spawn(Node, queue_manager, load_queue, [Qname]);
-								pang ->
-									{ok, NPid} = call_queue:start_link(Queuerec#call_queue.name, [
-										{recipe, Queuerec#call_queue.recipe}, 
-										{weight, Queuerec#call_queue.weight},
-										{skills, Queuerec#call_queue.skills}
-									]),
-									NPid
-							end;
-						Else ->
-							{ok, NPid} = call_queue:start_link(Queuerec#call_queue.name, [
-								{recipe, Queuerec#call_queue.recipe}, 
-								{weight, Queuerec#call_queue.weight},
-								{skills, Queuerec#call_queue.skills}
-							]),
-							NPid
+					Newdict = dict:erase(Queuerec#call_queue.name, Qdict),
+					Fun = fun() ->
+						case Reason of
+							{move, Node} when Node =/= node() -> 
+								case net_adm:ping(Node) of
+									pong ->
+										rpc:call(Node, queue_manager, load_queue, [Qname]);
+									pang ->
+										load_queue(Qname)
+								end;
+							Else ->
+								load_queue(Qname)
+						end
 					end,
-					Newdict = dict:store(Queuerec#call_queue.name, NewQPid, Qdict),
-					ok = gen_leader:leader_cast(?MODULE, {notify, Qname, NewQPid}),
+					spawn(Fun),
 					{noreply, State#state{qdict = Newdict}}
 			end
 	end;
@@ -716,6 +711,7 @@ multi_node_test_() ->
 					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue1"])),
 					?assertMatch({exists, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1", []])),
 					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue2", []])),
+					timer:sleep(10),
 					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
 					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
 

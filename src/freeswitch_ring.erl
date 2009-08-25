@@ -92,6 +92,7 @@ start_link(Fnode, AgentRec, Apid, Call, Ringout, Fun, Options) when is_pid(Apid)
 hangup(Pid) ->
 	gen_server:cast(Pid, hangup).
 
+-spec(get_uuid/1 :: (Pid :: pid()) -> string()).
 get_uuid(Pid) ->
 	gen_server:call(Pid, get_uuid).
 
@@ -163,40 +164,56 @@ handle_cast(_Msg, State) ->
 handle_info({call, {event, [UUID | _Rest]}}, #state{uuid = UUID} = State) ->
 	?DEBUG("call", []),
 	{noreply, State};
-handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) ->
+handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid = UUID} = State) ->
 	Event = freeswitch:get_event_name(Rest),
-	case Event of
-		"CHANNEL_ANSWER" ->
-			case lists:member(single_leg, State#state.options) of
-				true ->
-					?INFO("Call with single leg answered", []),
+	Continue = case lists:keysearch(eventfun, 1, Options) of
+		{value, {eventfun, Fun}} when is_function(Fun) ->
+			case Fun(UUID, Event, Rest) of
+				Fun2 when is_function(Fun2) ->
+					Fun2();
+				_ ->
+					true
+			end;
+		_ ->
+			true
+	end,
+	case Continue of
+		true ->
+			case Event of
+				"CHANNEL_ANSWER" ->
+					case lists:member(single_leg, State#state.options) of
+						true ->
+							?INFO("Call with single leg answered", []),
+							Call = State#state.callrec,
+							gen_media:oncall(Call#call.source),
+							{noreply, State};
+						false ->
+							{noreply, State}
+					end;
+				"CHANNEL_BRIDGE" ->
+					?INFO("Call bridged", []),
 					Call = State#state.callrec,
 					gen_media:oncall(Call#call.source),
 					{noreply, State};
-				false ->
+				"CHANNEL_UNBRIDGE" ->
+					cdr:hangup(State#state.callrec, agent),
+					{noreply, State};
+				"CHANNEL_HANGUP" ->
+					AState = agent:dump_state(State#state.agent_pid),
+					case AState#agent.state of
+						oncall ->
+							?NOTICE("Agent ~s still oncall when ring channel hungup", [AState#agent.login]),
+							ok;
+						_ ->
+							ok
+					end,
+					{noreply, State};
+				_Else ->
+					?DEBUG("call_event ~p", [Event]),
 					{noreply, State}
 			end;
-		"CHANNEL_BRIDGE" ->
-			?INFO("Call bridged", []),
-			Call = State#state.callrec,
-			gen_media:oncall(Call#call.source),
-			{noreply, State};
-		"CHANNEL_UNBRIDGE" ->
-			cdr:hangup(State#state.callrec, agent),
-			{noreply, State};
-		"CHANNEL_HANGUP" ->
-			AState = agent:dump_state(State#state.agent_pid),
-			case AState#agent.state of
-				oncall ->
-					?NOTICE("Agent ~s still oncall when ring channel hungup", [AState#agent.login]),
-					ok;
-				_ ->
-					ok
-			end,
-			{noreply, State};
-		_Else ->
-			?DEBUG("call_event ~p", [Event]),
-			{noreply, State}
+		ReturnVal ->
+			ReturnVal
 	end;
 handle_info(call_hangup, State) ->
 	?DEBUG("Call hangup info", []),

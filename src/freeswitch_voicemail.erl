@@ -138,8 +138,25 @@ handle_ring(Apid, Callrec, State) ->
 			ok
 		end
 	end,
+	F2 = fun(UUID, EventName, Event) ->
+			case EventName of
+				"DTMF" ->
+					case proplists:get_value("DTMF-Digit", Event) of
+						"5" ->
+							freeswitch:sendmsg(State#state.cnode, UUID,
+								[{"call-command", "execute"},
+									{"execute-app-name", "playback"},
+									{"execute-app-arg", State#state.file}]);
+						_ ->
+							ok
+					end;
+					_ ->
+						ok
+				end,
+			true
+	end,
 	AgentRec = agent:dump_state(Apid),
-	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F, [single_leg]) of
+	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F, [single_leg, {eventfun, F2}]) of
 		{ok, Pid} ->
 			link(Pid),
 			{ok, State#state{ringchannel = Pid, ringuuid = freeswitch_ring:get_uuid(Pid), agent_pid = Apid}};

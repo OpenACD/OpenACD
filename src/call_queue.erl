@@ -1290,25 +1290,27 @@ multi_node_test_() ->
 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue]))
 				end
 			}, { "ensure cook is started on same node as call", fun() ->
+					timer:sleep(10),
 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
 					{ok, Dummy} = rpc:call(Master, dummy_media, start, ["testcall"]),
 					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
 					receive after 300 -> ok end,
-					{_Key, Callrec} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Callrec#queued_call.cook))
+					{_Key, #queued_call{cook = Cook}} = rpc:call(Slave, call_queue, ask, [Queue]),
+					?assertEqual(Master, node(Cook))
 				end
 			}, { "a respawned cook should be on the same node as its call", fun() ->
+					timer:sleep(10),
 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
 					{ok, Dummy} = rpc:call(Master, dummy_media, start, ["testcall"]),
 					rpc:call(Slave, call_queue, add, [Queue, 1, Dummy]),
 					receive after 300 -> ok end,
-					{_Key, Callrec} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Callrec#queued_call.cook)),
-					exit(Callrec#queued_call.cook, kill),
+					{_Key, #queued_call{cook = Cook1}} = rpc:call(Slave, call_queue, ask, [Queue]),
+					?assertEqual(Master, node(Cook1)),
+					exit(Cook1, kill),
 					receive after 300 -> ok end,
-					{_Key, Callrec2} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Callrec2#queued_call.cook)),
-					?assertNot(Callrec#queued_call.cook =:= Callrec2#queued_call.cook)
+					{_Key, #queued_call{cook = Cook2}} = rpc:call(Slave, call_queue, ask, [Queue]),
+					?assertEqual(Master, node(Cook2)),
+					?assertNot(Cook1 =:= Cook2)
 				end
 			}
 		]

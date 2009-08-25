@@ -407,6 +407,7 @@ init([Callback, Args]) ->
 					cdr:inqueue(Callrec, "default_queue"),
 					Pid;
 				Else ->
+					cdr:inqueue(Callrec, Queue),
 					set_cpx_mon(#state{callrec = Callrec}, [{queue, Queue}]),
 					Else
 			end,

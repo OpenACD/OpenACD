@@ -59,23 +59,25 @@
 
 %% API
 -export([
-	start_link/3,
-	start/3,
+	start_link/4,
+	start/4,
 	stop/1,
 	restart_tick/1,
 	stop_tick/1,
-	start_at/4
+	start_at/5
 ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	terminate/2, code_change/3]).
 
+-type(call_key() :: {pos_integer(), {pos_integer(), pos_integer(), pos_integer()}}).
 -record(state, {
 		recipe = [] :: recipe(),
 		ticked = 1 :: pos_integer(), % number of ticks we've done
 		call :: pid() | 'undefined',
 		queue :: string() | 'undefined',
+		key :: call_key(),
 		ringstate = none :: 'none' | 'ringing',
 		tref :: any() % timer reference
 }).
@@ -89,22 +91,22 @@
 %%====================================================================
 
 %% @doc Starts a cook linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
--spec(start_link/3 :: (Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start_link(Call, Recipe, Queue) when is_pid(Call) ->
-    gen_server:start_link(?MODULE, [Call, Recipe, Queue], []).
+-spec(start_link/4 :: (Call :: pid(), Recipe :: recipe(), Queue :: string(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_link(Call, Recipe, Queue, Key) when is_pid(Call) ->
+    gen_server:start_link(?MODULE, [Call, Recipe, Queue, Key], []).
 
 %% @doc Starts a cook not linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
--spec(start/3 :: (Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start(Call, Recipe, Queue) when is_pid(Call) ->
-	gen_server:start(?MODULE, [Call, Recipe, Queue], []).
+-spec(start/4 :: (Call :: pid(), Recipe :: recipe(), Queue :: string(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start(Call, Recipe, Queue, Key) when is_pid(Call) ->
+	gen_server:start(?MODULE, [Call, Recipe, Queue, Key], []).
 
 %% @doc starts a new cook on the give `node()' `Node' for `Call' to be process by `Recipe' for the call_queue named `Queue'.
 %% This is used in place of start and start_link to allow a queue on a different node to start the cook on the same node
 %% the media exists on.
--spec(start_at/4 :: (Node :: atom(), Call :: pid(), Recipe :: recipe(), Queue :: string()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start_at(Node, Call, Recipe, Queue) ->
+-spec(start_at/5 :: (Node :: atom(), Call :: pid(), Recipe :: recipe(), Queue :: string(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_at(Node, Call, Recipe, Queue, Key) ->
 	F = fun() ->
-		{ok, State} = init([Call, Recipe, Queue]),
+		{ok, State} = init([Call, Recipe, Queue, Key]),
 		?DEBUG("about to enter loop", []),
 		gen_server:enter_loop(?MODULE, [], State)%;
 	end,
@@ -115,12 +117,12 @@ start_at(Node, Call, Recipe, Queue) ->
 %%====================================================================
 
 %% @private
-init([Call, Recipe, Queue]) ->
+init([Call, Recipe, Queue, Key]) ->
 	?DEBUG("Cook starting for call ~p from queue ~p", [Call, Queue]),
 	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
 	process_flag(trap_exit, true),
 	{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
-	State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref},
+	State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref, key = Key},
 	{ok, State}.
 
 %%--------------------------------------------------------------------
@@ -146,7 +148,8 @@ handle_cast(restart_tick, State) ->
 			{stop, {call_not_queued, State#state.call}, State};
 		Ringstate -> 
 			State2 = State#state{ringstate = Ringstate},
-			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
+			Qpid = queue_manager:get_queue(State2#state.queue),
+			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, Qpid, State2#state.call),
 			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
 			{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
 			{noreply, State3#state{tref=Tref}}
@@ -182,7 +185,8 @@ handle_info(do_tick, State) ->
 							{stop, {call_not_queued, State#state.call}, State};
 						Ringstate -> 
 							State2 = State#state{ringstate = Ringstate},
-							NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, State2#state.queue, State2#state.call),
+							Qpid = queue_manager:get_queue(State2#state.queue),
+							NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, Qpid, State2#state.call),
 							{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
 							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe, tref = Tref},
 							{noreply, State3}
@@ -210,8 +214,8 @@ terminate(Reason, State) ->
 	?WARNING("Unusual death:  ~p", [Reason]),
 	timer:cancel(State#state.tref),
 	Qpid = wait_for_queue(State#state.queue),
-	?INFO("Looks like the queue recovered, dieing now",[]),
-	call_queue:add(Qpid, State#state.call),
+	?INFO("Looks like the queue recovered (~w), dieing now",[Qpid]),
+	call_queue:add_at(Qpid, State#state.key, State#state.call),
 	ok.
 
 %%--------------------------------------------------------------------
@@ -237,7 +241,6 @@ stop_tick(Pid) ->
 
 %% @private
 wait_for_queue(Qname) ->
-	%% TODO - try to put the call with the same key ({priority, time})
 	case whereis(queue_manager) of
 		undefined ->
 			?INFO("Waiting on the queue manager", []),
@@ -339,59 +342,55 @@ offer_call([{_ACost, Apid} | Tail], Call) ->
 	end.
 
 %% @private
--spec(check_conditions/4 :: (Conditions :: [recipe_condition()], Ticked :: non_neg_integer(), Queue :: string(), Call :: pid()) -> 'true' | 'false').
-check_conditions([], _Ticked, _Queue, _Call) ->
+-spec(check_conditions/4 :: (Conditions :: [recipe_condition()], Ticked :: non_neg_integer(), Qpid :: pid(), Call :: pid()) -> 'true' | 'false').
+check_conditions([], _Ticked, _Qpid, _Call) ->
 	true;
-check_conditions([{ticks, Ticks} | Conditions], Ticked, Queue, Call) when Ticked > 0 andalso (Ticked rem Ticks) == 0 ->
-	check_conditions(Conditions, Ticked, Queue, Call);
-check_conditions([{ticks, _Ticks} | _Conditions], _Ticked, _Queue, _Call) ->
+check_conditions([{ticks, Ticks} | Conditions], Ticked, Qpid, Call) when Ticked > 0 andalso (Ticked rem Ticks) == 0 ->
+	check_conditions(Conditions, Ticked, Qpid, Call);
+check_conditions([{ticks, _Ticks} | _Conditions], _Ticked, _Qpid, _Call) ->
 	false;
-check_conditions([{available_agents, Comparision, Number} | Conditions], Ticked, Queue, Call) ->
-	Qpid = queue_manager:get_queue(Queue),
+check_conditions([{available_agents, Comparision, Number} | Conditions], Ticked, Qpid, Call) ->
 	{_Key, Callrec} = call_queue:get_call(Qpid, Call),
 	L = agent_manager:find_avail_agents_by_skill(Callrec#queued_call.skills),
 	Agents = length(L),
 	case Comparision of
 		'>' when Agents > Number ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		'<' when Agents < Number ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		'=' when Agents =:= Number ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		_Else ->
 			false
 	end;
-check_conditions([{eligible_agents, Comparision, Number} | Conditions], Ticked, Queue, Call) ->
-	Qpid = queue_manager:get_queue(Queue),
+check_conditions([{eligible_agents, Comparision, Number} | Conditions], Ticked, Qpid, Call) ->
 	{_Key, Callrec} = call_queue:get_call(Qpid, Call),
 	L = agent_manager:find_by_skill(Callrec#queued_call.skills),
 	Agents = length(L),
 	?DEBUG("Number: ~p; agents: ~p", [Number, Agents]),
 	case Comparision of
 		'>' when Agents > Number ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		'<' when Agents < Number ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		'=' when Number =:= Agents ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		_Else ->
 			false
 	end;
-check_conditions([{calls_queued, Comparision, Number} | Conditions], Ticked, Queue, Call) ->
-	Qpid = queue_manager:get_queue(Queue),
+check_conditions([{calls_queued, Comparision, Number} | Conditions], Ticked, Qpid, Call) ->
 	Count = call_queue:call_count(Qpid),
 	case Comparision of
 		'>' when Count > Number ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		'<' when Count < Number ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		'=' when Number =:= Count ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		_Else ->
 			false
 	end;
-check_conditions([{queue_position, Comparision, Number} | Conditions], Ticked, Queue, Call) ->
-	Qpid = queue_manager:get_queue(Queue),
+check_conditions([{queue_position, Comparision, Number} | Conditions], Ticked, Qpid, Call) ->
 	Calls = call_queue:to_list(Qpid),
 	Test = fun(Needle, #queued_call{media = Mpid}) ->
 		Needle =:= Mpid
@@ -399,69 +398,67 @@ check_conditions([{queue_position, Comparision, Number} | Conditions], Ticked, Q
 	Position = util:list_index(Test, Call, Calls),
 	case Comparision of
 		'>' when Position > Number ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		'<' when Position < Number, Position > 0 ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		'=' when Position =:= Number ->
-			check_conditions(Conditions, Ticked, Queue, Call);
+			check_conditions(Conditions, Ticked, Qpid, Call);
 		_Else ->
 			false
 	end.
 		
 %% @private
--spec(do_recipe/4 :: (Recipe :: recipe(), Ticked :: non_neg_integer(), Queuename :: string(), Call :: pid()) -> recipe()).
-do_recipe([], _Ticked, _Queuename, _Call) ->
+-spec(do_recipe/4 :: (Recipe :: recipe(), Ticked :: non_neg_integer(), Qpid :: pid(), Call :: pid()) -> recipe()).
+do_recipe([], _Ticked, _Qpid, _Call) ->
 	[];
-do_recipe([{Conditions, Op, Args, Runs} | Recipe], Ticked, Queuename, Call) when is_list(Queuename), is_pid(Call) ->
-	case check_conditions(Conditions, Ticked, Queuename, Call) of
+do_recipe([{Conditions, Op, Args, Runs} | Recipe], Ticked, Qpid, Call) when is_pid(Qpid), is_pid(Call) ->
+	case check_conditions(Conditions, Ticked, Qpid, Call) of
 		true ->
-			Doneop = do_operation({Conditions, Op, Args, Runs}, Queuename, Call),
+			Doneop = do_operation({Conditions, Op, Args, Runs}, Qpid, Call),
 			case Doneop of
 				{Newconds, Newop, Newargs, Newruns} when Runs =:= run_once ->
 					%add to the output recipe
-					[{Newconds, Newop, Newargs, Newruns} | do_recipe(Recipe, Ticked, Queuename, Call)];
+					[{Newconds, Newop, Newargs, Newruns} | do_recipe(Recipe, Ticked, Qpid, Call)];
 				{Newconds, Newop, Newargs, Newruns} when Runs =:= run_many ->
-					lists:append([{Newconds, Newop, Newargs, Newruns}, {Conditions, Op, Args, Runs}], do_recipe(Recipe, Ticked, Queuename, Call));
+					lists:append([{Newconds, Newop, Newargs, Newruns}, {Conditions, Op, Args, Runs}], do_recipe(Recipe, Ticked, Qpid, Call));
 				ok when Runs =:= run_many ->
-					[{Conditions, Op, Args, Runs} | do_recipe(Recipe, Ticked, Queuename, Call)];
+					[{Conditions, Op, Args, Runs} | do_recipe(Recipe, Ticked, Qpid, Call)];
 				ok when Runs =:= run_once ->
-					do_recipe(Recipe, Ticked, Queuename, Call)
+					do_recipe(Recipe, Ticked, Qpid, Call)
 					% don't, just dance.
 			end;
 		false ->
-			[{Conditions, Op, Args, Runs} | do_recipe(Recipe, Ticked, Queuename, Call)]
+			[{Conditions, Op, Args, Runs} | do_recipe(Recipe, Ticked, Qpid, Call)]
 	end.
 
 %% @private
--spec(do_operation/3 :: (Recipe :: recipe_step(), Queuename :: string(), Callpid :: pid()) -> 'ok' | recipe_step()).
-do_operation({_Conditions, Op, Args, _Runs}, Queuename, Callpid) when is_list(Queuename), is_pid(Callpid) ->
+-spec(do_operation/3 :: (Recipe :: recipe_step(), Qpid :: pid(), Callpid :: pid()) -> 'ok' | recipe_step()).
+do_operation({_Conditions, Op, Args, _Runs}, Qpid, Callpid) when is_pid(Qpid), is_pid(Callpid) ->
 	?INFO("do_operation ~p with args ~p", [Op, Args]),
-	Pid = queue_manager:get_queue(Queuename), %TODO look up the pid only once, maybe?
 	case Op of
 		add_skills ->
-			call_queue:add_skills(Pid, Callpid, Args),
+			call_queue:add_skills(Qpid, Callpid, Args),
 			ok;
 		remove_skills ->
-			call_queue:remove_skills(Pid, Callpid, Args),
+			call_queue:remove_skills(Qpid, Callpid, Args),
 			ok;
 		set_priority ->
 			[Priority] = Args,
-			call_queue:set_priority(Pid, Callpid, Priority),
+			call_queue:set_priority(Qpid, Callpid, Priority),
 			ok;
 		prioritize ->
-			{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Callpid),
-			call_queue:set_priority(Pid, Callpid, Prior + 1),
+			{{Prior, _Time}, _Call} = call_queue:get_call(Qpid, Callpid),
+			call_queue:set_priority(Qpid, Callpid, Prior + 1),
 			ok;
 		deprioritize ->
-			{{Prior, _Time}, _Call} = call_queue:get_call(Pid, Callpid),
-			call_queue:set_priority(Pid, Callpid, Prior - 1),
+			{{Prior, _Time}, _Call} = call_queue:get_call(Qpid, Callpid),
+			call_queue:set_priority(Qpid, Callpid, Prior - 1),
 			ok;
 		voicemail ->
 			case gen_media:voicemail(Callpid) of
-			%case gen_server:call(Callpid, voicemail) of
 				ok ->
 					?DEBUG("voicemail successfully, removing from queue", []),
-					call_queue:bgremove(Pid, Callpid);
+					call_queue:bgremove(Qpid, Callpid);
 				invalid ->
 					?WARNING("voicemail failed.", []),
 					ok
@@ -488,7 +485,6 @@ do_operation_test_() ->
 		{ok, QMPid} = gen_leader_mock:start(queue_manager),
 		{ok, QPid} = gen_server_mock:new(),
 		{ok, Mpid} = gen_server_mock:new(),
-		gen_leader_mock:expect_leader_call(QMPid, fun({get_queue, "testqueue"}, _From, State, _Elec) -> {ok, QPid, State} end),
 		Assertmocks = fun() ->
 			gen_leader_mock:assert_expectations(QMPid),
 			gen_server_mock:assert_expectations(QPid),
@@ -510,7 +506,7 @@ do_operation_test_() ->
 				{ok, #call{id = "testcall", source = Mpid}, State}
 			end),
 			gen_server_mock:expect_call(QPid, fun({add_skills, "testcall", [skill1, skill2]}, _From, _State) -> ok end),
-			ok = do_operation({"conditions", add_skills, [skill1, skill2], "runs"}, "testqueue", Mpid),
+			ok = do_operation({"conditions", add_skills, [skill1, skill2], "runs"}, QPid, Mpid),
 			Assertmocks()
 		end}
 	end,
@@ -521,7 +517,7 @@ do_operation_test_() ->
 				{ok, #call{id = "testcall", source = Mpid}, State}
 			end),
 			gen_server_mock:expect_call(QPid, fun({remove_skills, "testcall", [english]}, _From, _State) -> ok end),
-			ok = do_operation({"conditions", remove_skills, [english], "runs"}, "testqueue", Mpid),
+			ok = do_operation({"conditions", remove_skills, [english], "runs"}, QPid, Mpid),
 			Assertmocks()
 		end}
 	end,
@@ -532,7 +528,7 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				ok
 			end),
-			ok = do_operation({"conditions", set_priority, [5], "runs"}, "testqueue", Mpid),
+			ok = do_operation({"conditions", set_priority, [5], "runs"}, QPid, Mpid),
 			Assertmocks()
 		end}
 	end,
@@ -548,7 +544,7 @@ do_operation_test_() ->
 				ok
 			end),
 			
-			ok = do_operation({"conditions", prioritize, "doesn't matter", "runs"}, "testqueue", Mpid),
+			ok = do_operation({"conditions", prioritize, "doesn't matter", "runs"}, QPid, Mpid),
 			Assertmocks()
 		end}
 	end,
@@ -563,7 +559,7 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				ok
 			end),
-			ok = do_operation({"conditions", deprioritize, "doesn't matter", "runs"}, "testqueue", Mpid),
+			ok = do_operation({"conditions", deprioritize, "doesn't matter", "runs"}, QPid, Mpid),
 			Assertmocks()
 		end}
 	end,
@@ -577,36 +573,35 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				ok
 			end),
-			ok = do_operation({"conditions", voicemail, "doesn't matter", "runs"}, "testqueue", Mpid),
+			ok = do_operation({"conditions", voicemail, "doesn't matter", "runs"}, QPid, Mpid),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
 		{"voicemail with media that doesn't support it",
 		fun() ->
 			gen_server_mock:expect_call(Mpid, fun('$gen_media_voicemail', _From, State) ->
 				{ok, invalid, State}
 			end),
-			ok = do_operation({"conditions", voicemail, "doesn't matter", "runs"}, "testqueue", Mpid),
+			ok = do_operation({"conditions", voicemail, "doesn't matter", "runs"}, QPid, Mpid),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
 		{"add recipe",
 		fun() ->
-			?assertEqual({1, 2, 3}, do_operation({"conditions", add_recipe, [1, 2, 3], "runs"}, "testqueue", Mpid)),
+			?assertEqual({1, 2, 3}, do_operation({"conditions", add_recipe, [1, 2, 3], "runs"}, QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
 		{"announce",
 		fun() ->
 			gen_server_mock:expect_call(Mpid, fun({'$gen_media_announce', "do the robot"}, _From, _State) -> ok end),
-			ok = do_operation({"conditions", announce, "do the robot", "runs"}, "testqueue", Mpid),
+			ok = do_operation({"conditions", announce, "do the robot", "runs"}, QPid, Mpid),
 			Assertmocks()
 		end}
 	end]}.
-
 
 check_conditions_test_() ->
 	[{"ticks tests",
@@ -638,24 +633,24 @@ check_conditions_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, _Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, _Mpid, _AMpid, Assertmocks}) ->
 		{"checking ticks",
 		fun() ->
-			?assert(check_conditions([{ticks, 5}], 5, "queue", "call")),
+			?assert(check_conditions([{ticks, 5}], 5, QPid, "call")),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, _Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, _Mpid, _AMpid, Assertmocks}) ->
 		{"checking ticks that aren't equal, but at right frequency",
 		fun() ->
-			?assert(check_conditions([{ticks, 7}], 42, "queue", "call")),
+			?assert(check_conditions([{ticks, 7}], 42, QPid, "call")),
 			Assertmocks()
 		end}
 	end,
-	fun({_, _, _, _, Assertmocks}) ->
+	fun({_, QPid, _, _, Assertmocks}) ->
 		{"checking ticks not at the right frequency",
 		fun() ->
-			?assertNot(check_conditions([{ticks, 3}], 7, "queue", "call")),
+			?assertNot(check_conditions([{ticks, 3}], 7, QPid, "call")),
 			Assertmocks()
 		end}
 	end]}},
@@ -673,10 +668,6 @@ check_conditions_test_() ->
 			gen_leader_mock:assert_expectations(AMpid)
 		end,
 		?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
-		gen_leader_mock:expect_leader_call(QMPid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
-			?CONSOLE("get_queue", []),
-			{ok, QPid, State}
-		end),
 		gen_server_mock:expect_call(QPid, fun({get_call, Incpid}, _From, State) ->
 			?CONSOLE("get_call", []),
 			Mpid = Incpid,
@@ -701,45 +692,45 @@ check_conditions_test_() ->
 		gen_leader_mock:stop(AMpid),
 		timer:sleep(10)
 	end,
-	[fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) -> 
+	[fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) -> 
 		{"available agents > condition is true",
 		fun() ->
-			?assert(check_conditions([{available_agents, '>', 2}], "doesn't matter", "testqueue", Mpid)),
+			?assert(check_conditions([{available_agents, '>', 2}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"available agents > condition is false",
 		fun() ->
-			?assertNot(check_conditions([{available_agents, '>', 4}], "doesn't matter", "testqueue", Mpid)),
+			?assertNot(check_conditions([{available_agents, '>', 4}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"available agents = condition is true",
 		fun() ->
-			?assert(check_conditions([{available_agents, '=', 3}], "doesn't matter", "testqueue", Mpid)),
+			?assert(check_conditions([{available_agents, '=', 3}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"available agents = condition is false",
 		fun() ->
-			?assertNot(check_conditions([{available_agents, '=', 52}], "doesn't matter", "testqueue", Mpid)),
+			?assertNot(check_conditions([{available_agents, '=', 52}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"available agents < condition is true",
 		fun() ->
-			?assert(check_conditions([{available_agents, '<', 4}], "doesn't matter", "testqueue", Mpid)),
+			?assert(check_conditions([{available_agents, '<', 4}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"available agents < condition is false",
 		fun() ->
-			?assertNot(check_conditions([{available_agents, '<', 2}], "doesn't matter", "testqueue", Mpid)),
+			?assertNot(check_conditions([{available_agents, '<', 2}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end]}},
@@ -757,10 +748,6 @@ check_conditions_test_() ->
 			gen_leader_mock:assert_expectations(AMpid)
 		end,
 		?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
-		gen_leader_mock:expect_leader_call(QMPid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
-			?CONSOLE("get_queue", []),
-			{ok, QPid, State}
-		end),
 		gen_server_mock:expect_call(QPid, fun({get_call, Incpid}, _From, State) ->
 			?CONSOLE("get_call", []),
 			Mpid = Incpid,
@@ -785,45 +772,45 @@ check_conditions_test_() ->
 		gen_leader_mock:stop(AMpid),
 		timer:sleep(10)
 	end,
-	[fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	[fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"eleigible > comparision is true",
 		fun() ->
-			?assert(check_conditions([{eligible_agents, '>', 2}], "doesn't matter", "testqueue", Mpid)),
+			?assert(check_conditions([{eligible_agents, '>', 2}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"eleigible > comparision is false",
 		fun() ->
-			?assertNot(check_conditions([{eligible_agents, '>', 4}], "doesn't matter", "testqueue", Mpid)),
+			?assertNot(check_conditions([{eligible_agents, '>', 4}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"eleigible = comparision is true",
 		fun() ->
-			?assert(check_conditions([{eligible_agents, '=', 3}], "doesn't matter", "testqueue", Mpid)),
+			?assert(check_conditions([{eligible_agents, '=', 3}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"eleigible = comparision is false",
 		fun() ->
-			?assertNot(check_conditions([{eligible_agents, '=', 4}], "doesn't matter", "testqueue", Mpid)),
+			?assertNot(check_conditions([{eligible_agents, '=', 4}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"eleigible < comparision is true",
 		fun() ->
-			?assert(check_conditions([{eligible_agents, '<', 4}], "doesn't matter", "testqueue", Mpid)),
+			?assert(check_conditions([{eligible_agents, '<', 4}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"eleigible < comparision is false",
 		fun() ->
-			?assertNot(check_conditions([{eligible_agents, '<', 2}], "doesn't matter", "testqueue", Mpid)),
+			?assertNot(check_conditions([{eligible_agents, '<', 2}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end
@@ -842,10 +829,6 @@ check_conditions_test_() ->
 			gen_leader_mock:assert_expectations(AMpid)
 		end,
 		?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
-		gen_leader_mock:expect_leader_call(QMPid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
-			?CONSOLE("get_queue", []),
-			{ok, QPid, State}
-		end),
 		gen_server_mock:expect_call(QPid, fun(call_count, _From, State) ->
 			{ok, 3, State}
 		end),
@@ -858,45 +841,45 @@ check_conditions_test_() ->
 		gen_leader_mock:stop(AMpid),
 		timer:sleep(10)
 	end,
-	[fun({_QMPid, _QPid, _Mpid, _AMpid, Assertmocks}) ->
+	[fun({_QMPid, QPid, _Mpid, _AMpid, Assertmocks}) ->
 		{"calls > cond is true",
 		fun() ->
-			?assert(check_conditions([{calls_queued, '>', 2}], "doesn't matter", "testqueue", "doesn't matter")),
+			?assert(check_conditions([{calls_queued, '>', 2}], "doesn't matter", QPid, "doesn't matter")),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, _Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, _Mpid, _AMpid, Assertmocks}) ->
 		{"calls > cond is false",
 		fun() ->
-			?assertNot(check_conditions([{calls_queued, '>', 4}], "doesn't matter", "testqueue", "doesn't matter")),
+			?assertNot(check_conditions([{calls_queued, '>', 4}], "doesn't matter", QPid, "doesn't matter")),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, _Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, _Mpid, _AMpid, Assertmocks}) ->
 		{"calls = cond is true",
 		fun() ->
-			?assert(check_conditions([{calls_queued, '=', 3}], "doesn't matter", "testqueue", "doesn't matter")),
+			?assert(check_conditions([{calls_queued, '=', 3}], "doesn't matter", QPid, "doesn't matter")),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, _Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, _Mpid, _AMpid, Assertmocks}) ->
 		{"calls = cond is false",
 		fun() ->
-			?assertNot(check_conditions([{calls_queued, '=', 4}], "doesn't matter", "testqueue", "doesn't matter")),
+			?assertNot(check_conditions([{calls_queued, '=', 4}], "doesn't matter", QPid, "doesn't matter")),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, _Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, _Mpid, _AMpid, Assertmocks}) ->
 		{"calls < cond is true",
 		fun() ->
-			?assert(check_conditions([{calls_queued, '<', 4}], "doesn't matter", "testqueue", "doesn't matter")),
+			?assert(check_conditions([{calls_queued, '<', 4}], "doesn't matter", QPid, "doesn't matter")),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, _Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, _Mpid, _AMpid, Assertmocks}) ->
 		{"calls < cond is false",
 		fun() ->
-			?assertNot(check_conditions([{calls_queued, '<', 2}], "doesn't matter", "testqueue", "doesn't matter")),
+			?assertNot(check_conditions([{calls_queued, '<', 2}], "doesn't matter", QPid, "doesn't matter")),
 			Assertmocks()
 		end}
 	end]}},
@@ -914,10 +897,6 @@ check_conditions_test_() ->
 			gen_leader_mock:assert_expectations(AMpid)
 		end,
 		?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
-		gen_leader_mock:expect_leader_call(QMPid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
-			?CONSOLE("get_queue", []),
-			{ok, QPid, State}
-		end),
 		gen_server_mock:expect_call(QPid, fun(to_list, _From, State) ->
 			Out = [#queued_call{media = undefined, id = 1},
 				#queued_call{media = Mpid, id = 2},
@@ -933,45 +912,45 @@ check_conditions_test_() ->
 		gen_leader_mock:stop(AMpid),
 		timer:sleep(10)
 	end,
-	[fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	[fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"pos > cond true",
 		fun() ->
-			?assert(check_conditions([{queue_position, '>', 1}], "doesn't matter", "testqueue", Mpid)),
+			?assert(check_conditions([{queue_position, '>', 1}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"pos > cond false",
 		fun() ->
-			?assertNot(check_conditions([{queue_position, '>', 3}], "doesn't matter", "testqueue", Mpid)),
+			?assertNot(check_conditions([{queue_position, '>', 3}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"pos = cond true",
 		fun() ->
-			?assert(check_conditions([{queue_position, '=', 2}], "doesn't matter", "testqueue", Mpid)),
+			?assert(check_conditions([{queue_position, '=', 2}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"pos = cond false",
 		fun() ->
-			?assertNot(check_conditions([{queue_position, '=', 1}], "doesn't matter", "testqueue", Mpid)),
+			?assertNot(check_conditions([{queue_position, '=', 1}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"pos < cond true",
 		fun() ->
-			?assert(check_conditions([{queue_position, '<', 3}], "doesn't matter", "testqueue", Mpid)),
+			?assert(check_conditions([{queue_position, '<', 3}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
-	fun({_QMPid, _QPid, Mpid, _AMpid, Assertmocks}) ->
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"pos < cond false",
 		fun() ->
-			?assertNot(check_conditions([{queue_position, '<', 1}], "doesn't matter", "testqueue", Mpid)),
+			?assertNot(check_conditions([{queue_position, '<', 1}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end]}}].
@@ -983,7 +962,6 @@ tick_manipulation_test_() ->
 		queue_manager:start([node()]),
 		{ok, Pid} = queue_manager:add_queue("testqueue", []),
 		{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
-		%dummy_media:set_skills(Dummy, [english, testskill]),
 		{Pid, Dummy}
 	end,
 	fun({Pid, Dummy}) ->
@@ -1257,7 +1235,7 @@ multinode_test_() ->
 
 
 	
--define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start("testcall"), {ok, Pid} = start(Dummy,[{[{ticks, 1}], set_priority, 5, run_once}], "testqueue"), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start("testcall"), {ok, Pid} = start(Dummy,[{[{ticks, 1}], set_priority, 5, run_once}], "testqueue", {1, now()}), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

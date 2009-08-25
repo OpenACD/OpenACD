@@ -136,7 +136,7 @@ list_contains_all(List, [H | Members]) when is_list(List) ->
 %% @doc Apply the `Fun(Index, Element)' to each element of `List' along with the element's index in `List'.
 %% @see lists:map/2
 list_map_with_index(Fun, List) when is_function(Fun), is_list(List) ->
-	% TODO  If erlang uses 1 index for lists, why does thi treat the first item at 0?
+	% erlang uses 1 index for lists.
 	list_map_with_index(Fun, List, 1, []).
 
 -spec(list_map_with_index/4 :: (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [any(),...], Counter :: non_neg_integer(), Acc :: [any(),...]) -> [any(), ...];

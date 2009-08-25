@@ -280,7 +280,7 @@ handle_call({start_cook, Recipe, Queuename}, _From, #state{callrec = Call, fail 
 		fail -> 
 			{reply, invalid, State};
 		success -> 
-			{ok, Pid} = cook:start_link(self(), Recipe, Queuename),
+			{ok, Pid} = cook:start_link(self(), Recipe, Queuename, #queued_call{id = Call#call.id, media = self()}),
 			NewCall = Call#call{cook = Pid},
 			{reply, ok, State#state{callrec = NewCall}};
 		fail_once ->

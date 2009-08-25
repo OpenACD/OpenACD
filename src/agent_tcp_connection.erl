@@ -237,7 +237,6 @@ handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integ
 							State2 = State#state{agent_fsm=Pid, securitylevel=Security},
 							?DEBUG("User ~p has authenticated using ~p.~n", [Username, Password]),
 							{MegaSecs, Secs, _MicroSecs} = now(),
-							% TODO 1 1 1 should be updated to correct info (security level, profile id, current timestamp).
 							{ack(Counter, io_lib:format("~p 1 ~p~p", [securitylevel_to_id(Security), MegaSecs, Secs])), State2};
 						error ->
 							{err(Counter, Username ++ " is already logged in"), State}
@@ -379,19 +378,14 @@ handle_event(["DIAL", Counter, _Brand, "outbound", Number, "1"], State) when is_
 handle_event(["TRANSFER", Counter, "agent", Agent], State) when is_integer(Counter) ->
 	case agent_manager:query_agent(Agent) of
 		{true, AgentPid} ->
-			AState = agent:dump_state(State#state.agent_fsm),
-			case AState#agent.state of
-				oncall ->
-					Call = AState#agent.statedata,
-					% TODO Move this to a more logical place.  Maybe agent?
-					gen_media:agent_transfer(Call#call.source, AgentPid, 60000),
-					%gen_server:call(Call#call.source, {transfer_agent, AgentPid, 100}),
+			case agent:agent_transfer(State#state.agent_fsm, AgentPid) of
+				ok -> 
 					{ack(Counter), State};
-				_ ->
-					{err(Counter, "Agent must be oncall to make a transfer"), State}
+				invalid ->
+					{err(Counter, "Could not transfer"), State}
 			end;
 		false ->
-			{err(Counter, "No such agent logged in"), State}
+			{err(Counter, "No such agent logged int"), State}
 	end;
 
 handle_event(["ACK" | [Counter | _Args]], State) when is_integer(Counter) ->

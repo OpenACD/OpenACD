@@ -539,6 +539,7 @@ handle_call('$gen_media_voicemail', _From, #state{callback = Callback} = State) 
 	case Callback:handle_voicemail(State#state.substate) of
 		{ok, Substate} ->
 			call_queue:remove(State#state.queue_pid, self()),
+			cdr:voicemail(State#state.callrec, State#state.queue_pid),
 			{reply, ok, State#state{substate = Substate, queue_pid = undefined}};
 		{invalid, Substate} ->
 			{reply, invalid, State#state{substate = Substate}}
@@ -1252,6 +1253,10 @@ handle_call_test_() ->
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			State = Seedstate#state{queue_pid = Qpid},
+			% this expect is because the cdr is going to want it.
+			gen_leader_mock:expect_leader_call(QMmock, fun(queues_as_list, _From, State, _Elec) ->
+				{ok, [{"default_queue", Qpid}], State}
+			end),
 			gen_server_mock:expect_call(Qpid, fun({remove, Inpid}, _From, _State) ->
 				Inpid = Callrec#call.source,
 				ok

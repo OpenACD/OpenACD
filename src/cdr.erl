@@ -51,6 +51,7 @@
 	wrapup/2,
 	endwrapup/2,
 	transfer/2,
+	voicemail/2,
 	agent_transfer/2,
 	status/1,
 	recover/1,
@@ -207,7 +208,17 @@ agent_transfer(Call, {Offerer, Recipient}) when is_pid(Recipient) ->
 	agent_transfer(Call, {Offerer, agent_manager:find_by_pid(Recipient)});
 agent_transfer(Call, {Offerer, Recipient}) ->
 	catch gen_event:notify(cdr, {agent_transfer, Call, nowsec(now()), {Offerer, Recipient}}).
-	
+
+%% @doc Notify the cdr handler the `#call{} Call' is being sent to voicemail
+%% from `string() Queue'.
+-spec(voicemail/2 :: (Call :: #call{}, Queue :: string() | pid()) -> 'ok').
+voicemail(Call, Qpid) when is_pid(Qpid) ->
+	List = queue_manager:queues(),
+	[Queue] = util:find_keys(Qpid, List),
+	voicemail(Call, Queue);
+voicemail(Call, Queue) ->
+	catch gen_event:notify(cdr, {voicemail, Call, nowsec(now()), Queue}).
+
 %% @doc Return the completed and partial transactions for `#call{} Call'.
 -spec(status/1 :: (Call :: #call{}) -> {[tuple()], [tuple()]}).
 status(Call) ->
@@ -357,6 +368,12 @@ handle_event({agent_transfer, #call{id = CallID}, Time, {Offerer, Recipient}}, #
 	Newuntermed = [{transfer, Time, Recipient} | Miduntermed],
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
+handle_event({voicemail, #call{id = CallID}, Time, Queue}, #state{id = CallID} = State) ->
+	push_raw(CallID, {voicemail, Time, Queue}),
+	{{Event, Oldtime, Data}, Miduntermed} = find_initiator({voicemail, Time, Queue}, State#state.unterminated),
+	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
+	Newuntermed = [{voicemail, Time, Queue} | Miduntermed],
+	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event(_Event, State) ->
 	{ok, State}.
 
@@ -473,6 +490,17 @@ find_initiator({endwrapup, _Time, Agent} = H, Unterminated) ->
 	F = fun(I) ->
 		case I of
 			{wrapup, _Oldtime, Agent} ->
+				false;
+			_Other ->
+				true
+		end
+	end,
+	check_split(F, Unterminated);
+find_initiator({voicemail, _Time, Queue} = H, Unterminated) ->
+	?DEBUG("~p", [H]),
+	F = fun(I) ->
+		case I of
+			{inqueue, _Oldtime, Queue} ->
 				false;
 			_Other ->
 				true
@@ -804,6 +832,13 @@ find_initiator_test_() ->
 	fun() ->
 		Unterminated = [{agent_transfer, 10, {"offerer", "recipient"}}],
 		?assertError(split_check_fail, find_initiator({oncall, 15, "recipient"}, Unterminated))
+	end},
+	{"voicemail with an inqueue before it",
+	fun() ->
+		Unterminated = [{inqueue, 10, "default_queue"}],
+		Res = find_initiator({voicemail, 15, "default_queue"}, Unterminated),
+		?CONSOLE("res:  ~p", [Res]),
+		?assertEqual({{inqueue, 10, "default_queue"}, []}, Res)
 	end}].
 
 find_initiator_limbo_test_() ->

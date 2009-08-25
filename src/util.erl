@@ -60,6 +60,7 @@
 	subtract_skill_lists/2,
 	list_index/2,
 	list_index/3,
+	find_keys/2,
 	now/0,
 	reload/1,
 	reload/2,
@@ -307,6 +308,21 @@ list_index_(Fun, Needle, [Head | Tail], Index) ->
 		true ->
 			Index
 	end.
+
+%% @doc Finds the Keys associated with the given Value in Proplist.
+-spec(find_keys/2 :: (Value :: any(), Proplist :: [{any(), any()}]) -> [any()]).
+find_keys(Value, Proplist) ->
+	find_keys(Value, Proplist, []).
+
+%% @private
+find_keys(_Value, [], Acc) ->
+	lists:reverse(Acc);
+find_keys(true, [Head | Tail], Acc) when is_atom(Head) ->
+	find_keys(true, Tail, [Head | Acc]);
+find_keys(Value, [{Key, Value} | Tail], Acc) ->
+	find_keys(Value, Tail, [Key | Acc]);
+find_keys(Value, [{_Key, _NotValue} | Tail], Acc) ->
+	find_keys(Value, Tail, Acc).
 
 %% @doc For those times when {Macro, Sec, Micro} is too much, this smooshes
 %% Macro and Sec together.
@@ -573,5 +589,16 @@ list_index_test_() ->
 		?assertEqual(0, list_index(F, {a, b}, []))
 	end}].
 
+find_keys_test_() ->
+	[{"normal use",
+	fun() ->
+		List = [{a, b}, {c, b}, {d, e}],
+		?assertEqual([a, c], find_keys(b, List))
+	end},
+	{"handling atoms",
+	fun() ->
+		List = [{a, b}, c, d],
+		?assertEqual([c, d], find_keys(true, List))
+	end}].
 	
 -endif.

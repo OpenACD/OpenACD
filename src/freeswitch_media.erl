@@ -183,6 +183,7 @@ handle_ring_stop(State) ->
 handle_voicemail(#state{callrec = Call} = State) ->
 	UUID = Call#call.id,
 	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:voicemail/vm-record_message.wav,record:/tmp/${uuid}.wav' inline"),
+	% TODO CDR transaction for leaving voicemail?
 	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
 
 handle_agent_transfer(AgentPid, Call, Timeout, State) ->

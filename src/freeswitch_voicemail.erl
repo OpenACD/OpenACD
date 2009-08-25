@@ -201,9 +201,36 @@ handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 		end
 	end,
 	% TODO - test that handle_answer gets called again...
-	case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg]) of
+
+	F2 = fun(UUID, EventName, Event) ->
+			case EventName of
+				"DTMF" ->
+					case proplists:get_value("DTMF-Digit", Event) of
+						"5" ->
+							freeswitch:sendmsg(State#state.cnode, UUID,
+								[{"call-command", "execute"},
+									{"execute-app-name", "playback"},
+									{"execute-app-arg", State#state.file}]);
+						_ ->
+							ok
+					end;
+				"CHANNEL_EXECUTE_COMPLETE" ->
+					File = State#state.file,
+					case proplists:get_value("Application-Data", Event) of
+						File ->
+							?NOTICE("Finished playing voicemail recording", []);
+						_ ->
+							ok
+					end;
+				_ ->
+					ok
+			end,
+			true
+	end,
+
+	case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, {eventfun, F2}]) of
 		{ok, Pid} ->
-			{ok, State#state{agent_pid = AgentPid, ringchannel=Pid}};
+			{ok, State#state{agent_pid = AgentPid, ringchannel = Pid, ringuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{error, Error, State}

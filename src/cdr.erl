@@ -211,10 +211,10 @@ agent_transfer(Call, {Offerer, Recipient}) ->
 
 %% @doc Notify the cdr handler the `#call{} Call' is being sent to voicemail
 %% from `string() Queue'.
--spec(voicemail/2 :: (Call :: #call{}, Queue :: string() | pid()) -> 'ok').
+-spec(voicemail/2 :: (Call :: #call{}, Queue :: pid() | string()) -> 'ok').
 voicemail(Call, Qpid) when is_pid(Qpid) ->
 	List = queue_manager:queues(),
-	[Queue] = util:find_keys(Qpid, List),
+	{value, {Queue, Qpid}} = lists:keysearch(Qpid, 2, List),
 	voicemail(Call, Queue);
 voicemail(Call, Queue) ->
 	catch gen_event:notify(cdr, {voicemail, Call, nowsec(now()), Queue}).

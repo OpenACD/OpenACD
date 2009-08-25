@@ -150,9 +150,17 @@ handle_ring(Apid, Callrec, State) ->
 						_ ->
 							ok
 					end;
-					_ ->
-						ok
-				end,
+				"CHANNEL_EXECUTE_COMPLETE" ->
+					File = State#state.file,
+					case proplists:get_value("Application-Data", Event) of
+						File ->
+							?NOTICE("Finished playing voicemail recording", []);
+						_ ->
+							ok
+					end;
+				_ ->
+					ok
+			end,
 			true
 	end,
 	AgentRec = agent:dump_state(Apid),

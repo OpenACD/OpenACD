@@ -220,9 +220,11 @@ voicemail(Call, Queue) ->
 	catch gen_event:notify(cdr, {voicemail, Call, nowsec(now()), Queue}).
 
 %% @doc Return the completed and partial transactions for `#call{} Call'.
--spec(status/1 :: (Call :: #call{}) -> {[tuple()], [tuple()]}).
-status(Call) ->
-	gen_event:call(cdr, {?MODULE, Call#call.id}, status).
+-spec(status/1 :: (Call :: #call{} | string()) -> {[tuple()], [tuple()]}).
+status(#call{id = Cid} = Call) ->
+	status(Cid);
+status(Cid) ->
+	gen_event:call(cdr, {?MODULE, Cid}, status).
 
 %% @doc Pulls the transactions from the cdr_raw (recovery) database.
 -spec(recover/1 :: (Call :: #call{}) -> 'ok').

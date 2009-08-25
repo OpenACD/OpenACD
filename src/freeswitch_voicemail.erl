@@ -79,6 +79,8 @@
 	agent_pid :: pid() | 'undefined',
 	ringchannel :: pid() | 'undefined',
 	ringuuid :: string() | 'undefined',
+	xferchannel :: pid() | 'undefined',
+	xferuuid :: string() | 'undefined',
 	manager_pid :: 'undefined' | any(),
 	file = erlang:error({undefined, file}):: string()
 	}).
@@ -120,8 +122,18 @@ init([Cnode, UUID, File, Queue]) ->
 handle_announce(Announcement, #state{callrec = Callrec} = State) ->
 	{invalid, State}.
 
+handle_answer(Apid, Callrec, #state{file=File, xferchannel = XferChannel} = State) when is_pid(XferChannel) ->
+	link(XferChannel),
+	freeswitch_ring:hangup(State#state.ringchannel),
+	?NOTICE("Voicemail ~s successfully transferred! Time to play ~s", [Callrec#call.id, File]),
+	freeswitch:sendmsg(State#state.cnode, State#state.xferuuid,
+		[{"call-command", "execute"},
+			{"execute-app-name", "playback"},
+			{"execute-app-arg", File}]),
+	{ok, State#state{agent_pid = Apid, ringchannel = State#state.xferchannel,
+			ringuuid = State#state.xferuuid, xferuuid = undefined, xferchannel = undefined}};
 handle_answer(Apid, Callrec, #state{file=File} = State) ->
-	?NOTICE("Voicemail ~s answered! Time to play ~s", [Callrec#call.id, File]),
+	?NOTICE("Voicemail ~s successfully transferred! Time to play ~s", [Callrec#call.id, File]),
 	freeswitch:sendmsg(State#state.cnode, State#state.ringuuid,
 		[{"call-command", "execute"},
 			{"execute-app-name", "playback"},
@@ -200,7 +212,6 @@ handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 			%agent:set_state(AgentPid, idle)
 		end
 	end,
-	% TODO - test that handle_answer gets called again...
 
 	F2 = fun(UUID, EventName, Event) ->
 			case EventName of
@@ -227,10 +238,9 @@ handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 			end,
 			true
 	end,
-
 	case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, {eventfun, F2}]) of
 		{ok, Pid} ->
-			{ok, State#state{agent_pid = AgentPid, ringchannel = Pid, ringuuid = freeswitch_ring:get_uuid(Pid)}};
+			{ok, State#state{agent_pid = AgentPid, xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{error, Error, State}

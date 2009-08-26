@@ -453,7 +453,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 					?WARNING("Queue undefined", []),
 					State3 = State2#state{agent = undefined, agent_pid = undefined};
 				_Else ->
-					call_queue:remove(Qpid, self()),
+					%call_queue:remove(Qpid, self()),
 					State3 = State2#state{queue = undefined, queue_pid = undefined}
 			end,
 			case State#state.voicemail of

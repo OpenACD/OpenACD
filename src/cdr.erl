@@ -549,6 +549,8 @@ find_initiator({voicemail, _Time, Queue} = H, Unterminated) ->
 		case I of
 			{inqueue, _Oldtime, Queue} ->
 				false;
+			{ringing, _Oldtime, _Agent} ->
+				false;
 			_Other ->
 				true
 		end
@@ -886,6 +888,13 @@ find_initiator_test_() ->
 		Res = find_initiator({voicemail, 15, "default_queue"}, Unterminated),
 		?CONSOLE("res:  ~p", [Res]),
 		?assertEqual({{inqueue, 10, "default_queue"}, []}, Res)
+	end},
+	{"voicemail with a ringing before it",
+	fun() ->
+		Unterminated = [{ringing, 10, "agent"}],
+		Res = find_initiator({voicemail, 15, "default_queue"}, Unterminated),
+		?CONSOLE("res:  ~p", [Res]),
+		?assertEqual({{ringing, 10, "agent"}, []}, Res)
 	end}].
 
 find_initiator_limbo_test_() ->

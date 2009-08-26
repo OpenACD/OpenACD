@@ -971,13 +971,16 @@ handle_call_test_() ->
 		{ok, QMmock} = gen_leader_mock:start(queue_manager),
 		{ok, Qpid} = gen_server_mock:new(),
 		{ok, Ammock} = gen_leader_mock:start(agent_manager),
+		gen_event:start({local, cdr}),
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Qpid),
 			gen_leader_mock:assert_expectations(QMmock),
-			gen_leader_mock:assert_expectations(Ammock)
+			gen_leader_mock:assert_expectations(Ammock),
+			gen_event_mock:assert_expectations(cdr)
 		end,
 		Makestate = fun() ->
-			{ok, Out} = init([dummy_media, [[], success]]),
+			{ok, #state{callrec = Callrec} = Out} = init([dummy_media, [[], success]]),
+			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}), 
 			Out
 		end,
 		{Makestate, QMmock, Qpid, Ammock, Assertmocks}
@@ -997,6 +1000,8 @@ handle_call_test_() ->
 				Apid = Agent,
 				{ok, "testagent", State}
 			end),
+			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, Callrer, _Time, agent}, _State) -> ok end),
 			State = Seedstate#state{oncall_pid = Agent},
 			?assertMatch({stop, normal, ok, _State}, handle_call('$gen_media_wrapup', {Agent, "tag"}, State)),
 			Assertmocks()

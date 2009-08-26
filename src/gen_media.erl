@@ -989,6 +989,7 @@ handle_call_test_() ->
 		gen_server_mock:stop(Qpid),
 		gen_leader_mock:stop(QMmock),
 		gen_leader_mock:stop(Ammock),
+		gen_event:stop(cdr),
 		timer:sleep(10)
 	end,
 	[fun({Makestate, _, _, Ammock, Assertmocks}) ->
@@ -1031,6 +1032,7 @@ handle_call_test_() ->
 				Rec = Callrec,
 				ok
 			end),
+			gen_event_mock:expect_event(cdr, fun({inqueue, _Callrec, _Time, "testqueue"}, _State) -> ok end),
 			State = Seedstate#state{oncall_pid = Agent},
 			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, {Agent, "tag"}, State),
 			?assertEqual(undefined, Newstate#state.oncall_pid),
@@ -1055,6 +1057,7 @@ handle_call_test_() ->
 				Rec = Callrec,
 				ok
 			end),
+			gen_event_mock:expect_event(cdr, fun({inqueue, Callrec, _Time, "default_queue"}, _State) -> ok end),
 			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, {Agent, "tag"}, State),
 			?assertEqual(undefined, Newstate#state.oncall_pid),
 			?assertEqual(Qpid, Newstate#state.queue_pid),

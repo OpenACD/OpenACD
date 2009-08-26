@@ -91,12 +91,15 @@
 -record(cdr_rec, {
 	id :: callid(),
 	summary = inprogress :: 'inprogress' | proplist(),
-	transactions = inprogress :: 'inprogress' | transactions()
+	transactions = inprogress :: 'inprogress' | transactions(),
+	timestamp :: time(),
+	nodes = [] :: [atom()]
 }).
 
 -record(cdr_raw, {
 	id :: callid(),
-	transaction :: raw_transaction()
+	transaction :: raw_transaction(),
+	nodes = [] :: [atom()]
 }).
 
 -type(state() :: #state{}).
@@ -298,12 +301,12 @@ handle_event({oncall, #call{id = CallID}, Time, Agent}, #state{id = CallID} = St
 				_Else ->
 					[{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions]
 			end,
-			{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}}
+			{ok, State#state{transactions = Newtrans, unterminated = Newuntermed, wrapup = true}}
 	catch
 		error:split_check_fail ->
 			case State#state.limbo of
 				undefined ->
-					{ok, State#state{limbo = {oncall, Time, Agent}}};
+					{ok, State#state{limbo = {oncall, Time, Agent}, wrapup = true}};
 				_Else ->
 					erlang:error(split_check_fail)
 			end
@@ -316,6 +319,16 @@ handle_event({hangup, #call{id = CallID}, Time, agent}, #state{id = CallID} = St
 	push_raw(CallID, {hangup, Time, agent}),
 	Newtrans = [{hangup, Time, Time, 0, agent} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans, hangup = true}};
+handle_event({hangup, #call{id = CallID}, Time, By}, #state{id = CallID, wrapup = false} = State) ->
+	% wrapup = false indicates an agent has never answered this call.  Go to summary.
+	push_raw(CallID, {hangup, Time, By}),
+	Midtrans = [{hangup, Time, Time, 0, By} | State#state.transactions],
+	F = fun({Event, Oldtime, Data}, Acc) ->
+		[{Event, Oldtime, Time, Time - Oldtime, Data} | Acc]
+	end,
+	Newtrans = lists:foldl(F, Midtrans, State#state.unterminated),
+	spawn_summarizer(Newtrans, CallID),
+	remove_handler;
 handle_event({hangup, #call{id = CallID}, Time, By}, #state{id = CallID} = State) ->
 	?NOTICE("Hangup for ~s", [CallID]),
 	push_raw(CallID, {hangup, Time, By}),
@@ -335,20 +348,28 @@ handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} =
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 	case {State#state.hangup, Midunterminated} of
 		{true, []} ->
-			Summarize = fun() ->
-				Summary = summarize(Newtrans),
-				F = fun() ->
-					mnesia:delete({cdr_rec, CallID}),
-					mnesia:write(#cdr_rec{
-						id = CallID,
-						summary = Summary,
-						transactions = Newtrans
-					})
-				end,
-				mnesia:transaction(F)
-			end,
-			spawn(Summarize),
-			?DEBUG("Summarize inprogress with ~w, now to remove the handler...", [Summarize]),
+			spawn_summarizer(Newtrans, CallID),
+%			Summarize = fun() ->
+%				Summary = summarize(Newtrans),
+%				F = fun() ->
+%					Nodes = case whereis(cdr_exporter) of
+%						undefined ->
+%							[];
+%						Pid ->
+%							cdr_exporter:get_nodes()
+%					end,
+%					mnesia:delete({cdr_rec, CallID}),
+%					mnesia:write(#cdr_rec{
+%						id = CallID,
+%						summary = Summary,
+%						transactions = Newtrans,
+%						timestamp = util:now(),
+%						nodes = Nodes
+%					})
+%				end,
+%				mnesia:transaction(F)
+%			end,
+%			spawn(Summarize),
 			remove_handler;
 		_Else ->
 			{ok, State#state{unterminated = Midunterminated, transactions = Newtrans}}
@@ -397,6 +418,30 @@ terminate(Args, _State) ->
 %% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+spawn_summarizer(Transactions, CallID) ->
+	Summarize = fun() ->
+		Summary = summarize(Transactions),
+		F = fun() ->
+			Nodes = case whereis(cdr_exporter) of
+				undefined ->
+					[];
+				Pid ->
+					cdr_exporter:get_nodes()
+			end,
+			mnesia:delete({cdr_rec, CallID}),
+			mnesia:write(#cdr_rec{
+				id = CallID,
+				summary = Summary,
+				transactions = Transactions,
+				timestamp = util:now(),
+				nodes = Nodes
+			})
+		end,
+		mnesia:transaction(F)
+	end,
+	?DEBUG("Summarize inprogress with ~w...", [Summarize]),
+	spawn(Summarize).
 	
 %% @doc Using `fun() Fun' as the search function, extract the first item that 
 %% causes `Fun' to return false from `[any()] List'.  Returns `{Found, Remaininglist}'.
@@ -953,6 +998,14 @@ handle_event_test_() ->
 			?assertEqual([], Newstate#state.unterminated),
 			{atomic, [Trans]} = Pull(),
 			?assertEqual({endwrapup, 15, "agent"}, Trans#cdr_raw.transaction)
+		end}
+	end,
+	fun({Call, Pull}) ->
+		{"hangup while in queue",
+		fun() ->
+			State = #state{id = "testcall"},
+			{ok, Newstate} = handle_event({hangup, Call, 10, "Unknown Unknown"}, State),
+			?assert(false)
 		end}
 	end,
 	fun({Call, Pull}) ->

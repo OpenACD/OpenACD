@@ -865,11 +865,15 @@ agent_interact(hangup, #state{oncall_pid = Oncallpid, ring_pid = Ringpid} = Stat
 	agent:set_state(Ringpid, idle),
 	agent:set_state(Oncallpid, wrapup, State#state.callrec),
 	cdr:wrapup(State#state.callrec, Oncallpid),
+	Callrec = State#state.callrec,
+	cdr:hangup(Callrec, Callrec#call.callerid),
 	State#state{oncall_pid = undefined, ring_pid = undefined};
 agent_interact(hangup, #state{oncall_pid = Apid} = State) when is_pid(Apid) ->
 	?INFO("hangup when only oncall is a pid", []),
 	agent:set_state(Apid, wrapup, State#state.callrec),
 	cdr:wrapup(State#state.callrec, Apid),
+	Callrec = State#state.callrec,
+	cdr:hangup(Callrec, Callrec#call.callerid),
 	State#state{oncall_pid = undefined};
 agent_interact(hangup, #state{ring_pid = Apid, callrec = Call} = State) when is_pid(Apid) ->
 	?INFO("hangup when only ringing is a pid", []),
@@ -1706,6 +1710,7 @@ agent_interact_test_() ->
 			{ok, Ringing} = agent:start(Arec#agent{state = ringing, statedata = Callrec, login = "ringing"}),
 			State = #state{oncall_pid = Oncall, ring_pid = Ringing, callrec = Callrec},
 			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
 			Res = agent_interact(hangup, State),
 			agent:stop(Oncall),
 			agent:stop(Ringing),
@@ -1720,6 +1725,7 @@ agent_interact_test_() ->
 			{ok, Apid} = agent:start(Arec#agent{state = oncall, statedata = Callrec}),
 			State = #state{oncall_pid = Apid, callrec = Callrec},
 			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
 			Res = agent_interact(hangup, State),
 			agent:stop(Apid),
 			?assertEqual(undefined, Res#state.oncall_pid),

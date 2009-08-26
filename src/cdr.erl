@@ -1003,15 +1003,15 @@ handle_event_test_() ->
 	fun({Call, Pull}) ->
 		{"hangup while in queue",
 		fun() ->
-			State = #state{id = "testcall"},
-			{ok, Newstate} = handle_event({hangup, Call, 10, "Unknown Unknown"}, State),
-			?assert(false)
+			Unterminated = [{inqueue, 10, "testqueue"}],
+			State = #state{id = "testcall", unterminated = Unterminated},
+			?assertEqual(remove_handler, handle_event({hangup, Call, 10, "Unknown Unknown"}, State))
 		end}
 	end,
 	fun({Call, Pull}) ->
 		{"hangup from agent",
 		fun() ->
-			State = #state{id = "testcall"},
+			State = #state{id = "testcall", wrapup = true},
 			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
 			?assertEqual([{hangup, 10, 10, 0, agent}], Newstate#state.transactions),
 			?assertEqual([], Newstate#state.unterminated),
@@ -1023,7 +1023,7 @@ handle_event_test_() ->
 	fun({Call, Pull}) ->
 		{"hangup from caller",
 		fun() ->
-			State = #state{id = "testcall"},
+			State = #state{id = "testcall", wrapup = true},
 			{ok, Newstate} = handle_event({hangup, Call, 10, "caller"}, State),
 			?assertEqual([{hangup, 10, 10, 0, "caller"}], Newstate#state.transactions),
 			?assertEqual([], Newstate#state.unterminated),
@@ -1035,7 +1035,7 @@ handle_event_test_() ->
 	fun({Call, Pull}) ->
 		{"hangup from caller when a hangup is already received",
 		fun() ->
-			Protostate = #state{id = "testcall"},
+			Protostate = #state{id = "testcall", wrapup = true},
 			{ok, State} = handle_event({hangup, Call, 10, agent}, Protostate),
 			{ok, Newstate} = handle_event({hangup, Call, 10, "notagent"}, State),
 			?assert(Newstate#state.hangup),
@@ -1048,7 +1048,7 @@ handle_event_test_() ->
 	fun({Call, Pull}) ->
 		{"hangup from agent when hangup from caller is already recieved",
 		fun() ->
-			Protostate = #state{id = "testcall"},
+			Protostate = #state{id = "testcall", wrapup = true},
 			{ok, State} = handle_event({hangup, Call, 10, "notagent"}, Protostate),
 			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
 			?assert(Newstate#state.hangup),

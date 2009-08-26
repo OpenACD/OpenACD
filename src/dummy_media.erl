@@ -74,7 +74,7 @@
 	code_change/3,
 	handle_ring/3, 
 	handle_answer/3, 
-	handle_voicemail/1, 
+	handle_voicemail/2, 
 	handle_announce/2, 
 	handle_ring_stop/1,
 	handle_agent_transfer/4,
@@ -390,7 +390,7 @@ handle_ring(_Agent, _Call, #state{fail = Fail} = State) ->
 			{invalid, State#state{fail = Newfail}}
 	end.
 
-handle_voicemail(#state{fail = Fail} = State) ->
+handle_voicemail(_Whatever, #state{fail = Fail} = State) ->
 	case dict:fetch(voicemail, Fail) of
 		fail_once ->
 			Newfail = dict:store(voicemail, success, Fail),
@@ -515,14 +515,14 @@ dummy_test_() ->
 			"Answer voicemail call when set to success",
 			fun() ->
 				{ok, {State, _Call}} = init([[], success]),
-				?assertMatch({ok, State}, handle_voicemail(State))
+				?assertMatch({ok, State}, handle_voicemail("doesn't matter", State))
 			end
 		},
 		{
 			"Answer voicemail call when set to fail",
 			fun() ->
 				{ok, {State, _Call}} = init([[], failure]),
-				?assertMatch({invalid, State}, handle_voicemail(State))
+				?assertMatch({invalid, State}, handle_voicemail("doesn't matter", State))
 			end
 		},
 		{

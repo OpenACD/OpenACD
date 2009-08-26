@@ -56,7 +56,7 @@
 	handle_announce/2,
 	handle_answer/3,
 	handle_ring/3,
-	handle_voicemail/1,
+	handle_voicemail/2,
 	handle_ring_stop/1,
 	handle_agent_transfer/4,
 	handle_queue_transfer/1,
@@ -160,7 +160,7 @@ handle_ring(_Apid, _Call, State) ->
 handle_ring_stop(State) ->
 	{ok, State}.
 
-handle_voicemail(State) ->
+handle_voicemail(_Whatever, State) ->
 	{invalid, State}.
 
 handle_agent_transfer(_Agent, _Call, _Timeout, State) ->

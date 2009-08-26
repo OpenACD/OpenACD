@@ -106,14 +106,18 @@
 %%		If Result is {error, Error, NewState}, the agent's state is not changed
 %%		And execution continues with NewState.
 %%
-%%	<b>handle_voicemail(State) -> Result</b>
-%%		types:	State = any()
+%%	<b>handle_voicemail(Ringing, State) -> Result</b>
+%%		types:	Ringing = undefined | pid()
+%%				State = any()
 %%				Result = {ok, NewState} | {invalid, NewState}
 %%
 %%		When a media should be removed from queue and moved to voicemail, this
 %%		is called.
 %%
 %%		State is the internal state of the gen_media callbacks.
+%%
+%%		Ringing is the pid of the agent ringing with the media, or undefined if
+%%		there is no agent.
 %%
 %%		If Result is {ok, NewState}, the call is removed from queue and 
 %%		execution continues with NewState.
@@ -292,7 +296,7 @@ behaviour_info(callbacks) ->
 		{handle_ring, 3},
 		{handle_ring_stop, 1},
 		{handle_answer, 3}, 
-		{handle_voicemail, 1}, 
+		{handle_voicemail, 2}, 
 		{handle_announce, 2}, 
 		{handle_agent_transfer, 4},
 		{handle_queue_transfer, 1},
@@ -536,7 +540,7 @@ handle_call({'$gen_media_announce', Annouce}, _From, #state{callback = Callback,
 	{reply, ok, State#state{substate = Substate}};
 handle_call('$gen_media_voicemail', _From, #state{callback = Callback} = State) when is_pid(State#state.queue_pid) ->
 	?INFO("trying to send media to voicemail", []),
-	case Callback:handle_voicemail(State#state.substate) of
+	case Callback:handle_voicemail(State#state.ring_pid, State#state.substate) of
 		{ok, Substate} ->
 			call_queue:remove(State#state.queue_pid, self()),
 			cdr:voicemail(State#state.callrec, State#state.queue_pid),

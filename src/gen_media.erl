@@ -544,7 +544,13 @@ handle_call('$gen_media_voicemail', _From, #state{callback = Callback} = State) 
 		{ok, Substate} ->
 			call_queue:remove(State#state.queue_pid, self()),
 			cdr:voicemail(State#state.callrec, State#state.queue_pid),
-			{reply, ok, State#state{substate = Substate, queue_pid = undefined}};
+			case State#state.ring_pid of
+				undefined ->
+					ok;
+				Apid when is_pid(Apid) ->
+					agent:set_state(Apid, idle)
+			end,
+			{reply, ok, State#state{substate = Substate, queue_pid = undefined, ring_pid = undefined}};
 		{invalid, Substate} ->
 			{reply, invalid, State#state{substate = Substate}}
 	end;
@@ -1287,6 +1293,26 @@ handle_call_test_() ->
 			end),
 			gen_event_mock:expect_event(cdr, fun({voicemail, Callrec, _Time, "default_queue"}, _State) -> ok end),
 			?assertMatch({reply, ok, _State}, handle_call('$gen_media_voicemail', "from", State)),
+			Assertmocks()
+		end}
+	end,
+	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+		{"gen_media_voicemail while an agent's ringing",
+		fun() ->
+			#state{callrec = Callrec} = Seedstate = Makestate(),
+			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Callrec}),
+			State = Seedstate#state{queue_pid = Qpid, ring_pid = Agent},
+			gen_leader_mock:expect_leader_call(QMmock, fun(queues_as_list, _From, State, _Elec) ->
+				{ok, [{"default_queue", Qpid}], State}
+			end),
+			gen_server_mock:expect_call(Qpid, fun({remove, Inpid}, _From, _State) ->
+				Inpid = Callrec#call.source,
+				ok
+			end),
+			gen_event_mock:expect_event(cdr, fun({voicemail, Callrec, _Time, "default_queue"}, _State) -> ok end),
+			{reply, ok, NewState} = handle_call('$gen_media_voicemail', "from", State),
+			?assertEqual(undefined, NewState#state.ring_pid),
+			?assertEqual({ok, idle}, agent:query_state(Agent)),
 			Assertmocks()
 		end}
 	end,

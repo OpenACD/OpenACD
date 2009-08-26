@@ -443,12 +443,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 								RingChannel ->
 									freeswitch_ring:hangup(RingChannel)
 							end;
-						{ok, oncall} ->
-							ok;
-						{ok, released} ->
-							ok;
-						{ok, warmtransfer} ->
-							% caller hungup during warm transfer
+						_Whatever ->
 							ok
 					end,
 					State2 = State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}

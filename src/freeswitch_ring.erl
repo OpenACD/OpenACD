@@ -196,7 +196,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid
 					gen_media:oncall(Call#call.source),
 					{noreply, State};
 				"CHANNEL_UNBRIDGE" ->
-					cdr:hangup(State#state.callrec, agent),
+					%cdr:hangup(State#state.callrec, agent),
 					{noreply, State};
 				"CHANNEL_HANGUP" ->
 					AState = agent:dump_state(State#state.agent_pid),

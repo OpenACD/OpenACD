@@ -647,7 +647,7 @@ handle_sync_event({add_skills, Skills}, _From, StateName, State) ->
 	NewSkills = util:merge_skill_lists(expand_magic_skills(State, Skills), State#agent.skills),
 	{reply, ok, StateName, State#agent{skills = NewSkills}};
 handle_sync_event({remove_skills, Skills}, _From, StateName, State) ->
-	NewSkills = util:merge_subtract_lists(expand_magic_skills(State, Skills), State#agent.skills),
+	NewSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, Skills)),
 	{reply, ok, StateName, State#agent{skills = NewSkills}};
 handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.

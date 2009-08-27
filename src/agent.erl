@@ -369,8 +369,9 @@ ringing({released, Reason}, _From, #agent{statedata = Call} = State) ->
 ringing(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
-	set_cpx_monitor(State#agent{state = idle}, ?IDLE_LIMITS, []),
-	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=idle, statedata={}, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
+	{reply, ok, idle, Newstate};
 ringing(_Event, _From, State) ->
 	{reply, invalid, ringing, State}.
 
@@ -396,8 +397,9 @@ precall({outgoing, Call}, _From, State) ->
 precall(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
-	set_cpx_monitor(State#agent{state = idle}, ?IDLE_LIMITS, []),
-	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=idle, statedata={}, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
+	{reply, ok, idle, Newstate};
 precall({released, Reason}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
 	Newstate = State#agent{state=released, statedata=Reason, lastchangetimestamp=now()},
@@ -641,13 +643,15 @@ wrapup(idle, _From, State= #agent{statedata = Call, queuedrelease = undefined}) 
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
 	cdr:endwrapup(Call, State#agent.login),
-	set_cpx_monitor(State#agent{state = idle}, ?IDLE_LIMITS, []),
-	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=idle, statedata={}, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
+	{reply, ok, idle, Newstate};
 wrapup(idle, _From, #agent{statedata=Call} = State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, State#agent.queuedrelease}),
 	cdr:endwrapup(Call, State#agent.login),
-	set_cpx_monitor(State#agent{state = released}, ?RELEASED_LIMITS, []),
-	{reply, ok, released, State#agent{state=released, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=released, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?RELEASED_LIMITS, []),
+	{reply, ok, released, Newstate};
 wrapup(Event, From, State) ->
 	?WARNING("Invalid event '~p' from ~p while in wrapup.", [Event, From]),
 	{reply, invalid, wrapup, State}.
@@ -1101,7 +1105,7 @@ from_ringing_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, _Data}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, ringing(idle, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1267,7 +1271,7 @@ from_precall_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, _Data}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, precall(idle, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1647,7 +1651,7 @@ from_released_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, _Data}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, released(idle, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1862,7 +1866,8 @@ from_wrapup_test_() ->
 			source = Mediapid,
 			client = Client
 		},
-		Agent = #agent{login = "testagent", connection = Connmock, state = warmtransfer, statedata = Callrec},
+		{ok, Logpid} = gen_server_mock:new(),
+		Agent = #agent{login = "testagent", connection = Connmock, state = warmtransfer, statedata = Callrec, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
@@ -1895,6 +1900,7 @@ from_wrapup_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, wrapup(idle, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1911,12 +1917,13 @@ from_wrapup_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, "default"}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, wrapup(idle, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
 	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
-		{"to idle with a release queued",
+		{"to precall",
 		fun() ->
 			?assertMatch({reply, invalid, wrapup, _State}, wrapup({precall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()

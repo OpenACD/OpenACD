@@ -151,7 +151,6 @@ init([State, Options]) when is_record(State, agent) ->
 		_Other ->
 			gen_server:cast(dispatch_manager, {end_avail, self()})
 	end,
-	set_cpx_monitor(State, ?RELEASED_LIMITS, []),
 	State3 = case proplists:get_value(logging, Options) of
 		true ->
 			Nodes = case proplists:get_value(nodes, Options) of
@@ -164,6 +163,7 @@ init([State, Options]) when is_record(State, agent) ->
 		_Orelse ->
 			State2
 	end,
+	set_cpx_monitor(State3, ?RELEASED_LIMITS, []),
 	{ok, State#agent.state, State3#agent{start_opts = Options}}.
 
 % actual functions we'll call
@@ -306,18 +306,19 @@ idle({precall, Client}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
 	Newstate = State#agent{state=precall, statedata=Client, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?PRECALL_LIMITS, []),
-	log_change(Newstate),
 	{reply, ok, precall, Newstate};
 idle({ringing, Call = #call{}}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
-	set_cpx_monitor(State#agent{state = ringing}, ?RINGING_LIMITS, []),
-	{reply, ok, ringing, State#agent{state=ringing, statedata=Call, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=ringing, statedata=Call, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
+	{reply, ok, ringing, Newstate};
 idle({released, Reason}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
-	set_cpx_monitor(State#agent{state = released}, ?RELEASED_LIMITS, []),
-	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=released, statedata=Reason, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?RELEASED_LIMITS, []),
+	{reply, ok, released, Newstate};
 idle(Event, From, State) ->
 	?WARNING("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
 	{reply, invalid, idle, State}.
@@ -827,11 +828,14 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %% =====
 
 set_cpx_monitor(State, Hp, Otherdeatils) ->
+	log_change(State),
 	Deatils = lists:append([{profile, State#agent.profile}, {state, State#agent.state}], Otherdeatils),
 	cpx_monitor:set({agent, State#agent.login}, [Hp], Deatils).
 
-log_change(State) ->
-	State#agent.log_pid ! {State#agent.login, State#agent.state, State#agent.statedata},
+log_change(#agent{log_pid = undefined}) ->
+	ok;
+log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
+	Pid ! {State#agent.login, State#agent.state, State#agent.statedata},
 	ok.
 
 log_loop(Agentname, Nodes) ->
@@ -975,6 +979,7 @@ from_idle_test_() ->
 				Call = Incall,
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, Call}, _State) -> ok end),
 			?assertMatch({reply, ok, ringing, _State}, idle({ringing, Call}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -995,6 +1000,7 @@ from_idle_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "just 'cause"}, _State) ->
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, "just 'cause"}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, idle({released, "just 'cause"}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1042,15 +1048,17 @@ from_ringing_test_() ->
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Mpid} = dummy_media:start("testcall"),
+		{ok, Logpid} = gen_server_mock:new(),
 		ProtoCallrec = gen_media:get_call(Mpid),
 		exit(Mpid, kill),
 		{ok, Mediamock} = gen_server_mock:new(),
 		Callrec = ProtoCallrec#call{source = Mediamock},
-		Agent = #agent{login = "testagent", connection = Connmock, statedata = Callrec, state = ringing},
+		Agent = #agent{login = "testagent", connection = Connmock, statedata = Callrec, state = ringing, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
+			gen_server_mock:assert_expectations(Logpid),
 			ok
 		end,
 		{Agent, Dmock, Monmock, Connmock, Assertmocks}

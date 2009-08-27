@@ -46,7 +46,9 @@
 	lastchangetimestamp = now() :: any(),	% at what time did the last state change occur
 	defaultringpath = inband :: 'inband' | 'outband',
 	endpointtype = sip_registration :: endpoints(),
-	endpointdata = undefined :: 'undefined' | string()
+	endpointdata = undefined :: 'undefined' | string(),
+	start_opts = [] :: [any()],
+	log_pid :: 'undefined' | pid()
 }).
 	
 %% 10/10/2008 Micah
@@ -90,3 +92,12 @@
 	bias = 0 :: -1 | 0 | 1,
 	timestamp = 1 :: pos_integer()
 	}).
+
+-record(agent_state, {
+	agent :: string(),
+	state :: statename(),
+	statedata :: any(),
+	start :: integer(),
+	ended :: 'undefined' | integer(),
+	nodes :: [atom()]
+}).

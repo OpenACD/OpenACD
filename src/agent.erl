@@ -38,6 +38,10 @@
 -include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
+-include_lib("stdlib/include/qlc.hrl").
+
+-type(agent_opt() :: {'nodes', [atom()]} | 'logging').
+-type(agent_opts() :: [agent_opt()]).
 
 -type(state() :: #agent{}).
 -define(GEN_FSM, true).
@@ -60,8 +64,10 @@
 -export([idle/2, ringing/2, precall/2, oncall/2, outgoing/2, released/2, warmtransfer/2, wrapup/2]).
 
 %% other exports
--export([start/1, 
-	start_link/1, 
+-export([start/1,
+	start/2,
+	start_link/1,
+	start_link/2,
 	stop/1, 
 	query_state/1, 
 	dump_state/1, 
@@ -78,17 +84,32 @@
 	media_push/3, 
 	url_pop/2, 
 	warm_transfer_begin/2,
-	register_rejected/1]).
+	register_rejected/1,
+	log_loop/2]).
 
-%% @doc Start an agent fsm for the passed in agent record `Agent' that is linked to the calling process
+%% @doc Start an agent fsm for the passed in agent record `Agent' that is linked
+%% to the calling process with default options.
 -spec(start_link/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
-start_link(Agent = #agent{}) -> 
-	gen_fsm:start_link(?MODULE, [Agent], []).
+start_link(Agent = #agent{}) ->
+	start_link(Agent, []).
 
-%% @doc Start an agent fsm for the passed in agent record `Agent'.
+%% @doc Start an agent fsm for the passed in agent record `Agent' that is linked
+%% to the calling process with the given options.
+-spec(start_link/2 :: (Agent :: #agent{}, Options :: agent_opts()) -> {'ok', pid()}).
+start_link(Agent, Options) when is_record(Agent, agent) ->
+	gen_fsm:start_link(?MODULE, [Agent, Options], []).
+
+%% @doc Start an agent fsm for the passed in agent record `Agent' with default
+%% options.
 -spec(start/1 :: (Agent :: #agent{}) -> {'ok', pid()}).
-start(Agent = #agent{}) -> 
-	gen_fsm:start(?MODULE, [Agent], []).
+start(Agent = #agent{}) ->
+	start(Agent, []).
+
+%% @doc Start an agent fsm for the passed in agent record `Agent' with the given
+%% options.
+-spec(start/2 :: (Agent :: #agent{}, Options :: agent_opts()) -> {'ok', pid()}).
+start(Agent, Options) when is_record(Agent, agent) ->
+	gen_fsm:start(?MODULE, [Agent, Options], []).
 
 %% @doc Stop the passed agent fsm `Pid'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -111,7 +132,7 @@ register_rejected(Pid) ->
 	
 %% @private
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
-init([State]) when is_record(State, agent) ->
+init([State, Options]) when is_record(State, agent) ->
 	process_flag(trap_exit, true),
 	{_Profile, Skills} = try agent_auth:get_profile(State#agent.profile) of
 		undefined ->
@@ -131,7 +152,19 @@ init([State]) when is_record(State, agent) ->
 			gen_server:cast(dispatch_manager, {end_avail, self()})
 	end,
 	set_cpx_monitor(State, ?RELEASED_LIMITS, []),
-	{ok, State#agent.state, State2}.
+	State3 = case proplists:get_value(logging, Options) of
+		true ->
+			Nodes = case proplists:get_value(nodes, Options) of
+				undefined -> [node()];
+				Orelse -> Orelse
+			end,
+			Pid = spawn_link(agent, log_loop, [State#agent.login, Nodes]),
+			Pid ! {State#agent.login, login, State#agent.state, State#agent.statedata},
+			State2#agent{log_pid = Pid};
+		_Orelse ->
+			State2
+	end,
+	{ok, State#agent.state, State3#agent{start_opts = Options}}.
 
 % actual functions we'll call
 %% @private
@@ -271,8 +304,10 @@ state_to_integer(State) ->
 idle({precall, Client}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
-	set_cpx_monitor(State#agent{state = precall}, ?PRECALL_LIMITS, []),
-	{reply, ok, precall, State#agent{state=precall, statedata=Client, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=precall, statedata=Client, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?PRECALL_LIMITS, []),
+	log_change(Newstate),
+	{reply, ok, precall, Newstate};
 idle({ringing, Call = #call{}}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
@@ -640,6 +675,14 @@ handle_sync_event(_Event, _From, StateName, State) ->
 
 %% @private
 %-spec(handle_info/3 :: (Event :: any(), StateName :: statename(), State :: #agent{}) -> {'stop', 'normal', #agent{}} | {'stop', 'shutdown', #agent{}} | {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
+handle_info({'EXIT', From, Reason}, Statename, #agent{log_pid = From} = State) ->
+	?INFO("Log pid ~w died due to ~p", [From, Reason]),
+	Nodes = case proplists:get_value(nodes, State#agent.start_opts) of
+		undefined -> [node()];
+		Else -> Else
+	end,
+	Pid = spawn_link(agent, log_loop, [State#agent.login, Nodes]),
+	{next_state, Statename, State#agent{log_pid = Pid}};
 handle_info({'EXIT', From, Reason}, oncall, #agent{connection = From, statedata = Call} = State) ->
 	?WARNING("agent connection died while ~w with ~w media", [oncall, Call#call.media_path]),
 	case Call#call.media_path of
@@ -787,6 +830,60 @@ set_cpx_monitor(State, Hp, Otherdeatils) ->
 	Deatils = lists:append([{profile, State#agent.profile}, {state, State#agent.state}], Otherdeatils),
 	cpx_monitor:set({agent, State#agent.login}, [Hp], Deatils).
 
+log_change(State) ->
+	State#agent.log_pid ! {State#agent.login, State#agent.state, State#agent.statedata},
+	ok.
+
+log_loop(Agentname, Nodes) ->
+	receive
+		{Agentname, login, State, Statedata} ->
+			F = fun() ->
+				Now = util:now(),
+				mnesia:dirty_write(#agent_state{agent = Agentname, state = login, statedata = "see next entry", start = Now, ended = Now, nodes = Nodes}),
+				mnesia:dirty_write(#agent_state{agent = Agentname, state = State, statedata = Statedata, start = Now, nodes = Nodes}),
+				ok
+			end,
+			Res = mnesia:async_dirty(F),
+			?DEBUG("res of agent state login:  ~p", [Res]);
+		{Agentname, logout} ->
+			F = fun() ->
+				Now = util:now(),
+				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.agent =:= Agentname, Rec#agent_state.ended =:= undefined]),
+				Recs = qlc:e(QH),
+				lists:foreach(
+					fun(Untermed) -> 
+						mnesia:delete_object(Untermed), 
+						mnesia:write(Untermed#agent_state{ended = Now})
+					end,
+					Recs
+				),
+				Newrec = #agent_state{agent = Agentname, state = logout, statedata = "job done", start = Now, ended = Now, nodes = Nodes},
+				mnesia:write(Newrec),
+				ok
+			end,
+			Res = mnesia:async_dirty(F),
+			?DEBUG("res of agent state change log:  ~p", [Res]);
+		{Agentname, State, Statedata} ->
+			F = fun() ->
+				Now = util:now(),
+				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.agent =:= Agentname, Rec#agent_state.ended =:= undefined]),
+				Recs = qlc:e(QH),
+				lists:foreach(
+					fun(Untermed) -> 
+						mnesia:delete_object(Untermed), 
+						mnesia:write(Untermed#agent_state{ended = Now})
+					end,
+					Recs
+				),
+				Newrec = #agent_state{agent = Agentname, state = State, statedata = Statedata, start = Now, nodes = Nodes},
+				mnesia:write(Newrec),
+				ok
+			end,
+			Res = mnesia:async_dirty(F),
+			?DEBUG("res of agent state change log:  ~p", [Res])
+	end,
+	agent:log_loop(Agentname, Nodes).
+
 -ifdef(EUNIT).
 
 start_arbitrary_state_test() ->
@@ -817,13 +914,16 @@ from_idle_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
-		Agent = #agent{login = "testagent", connection = Connmock},
+		{ok, Logpid} = gen_server_mock:new(),
+		Agent = #agent{login = "testagent", connection = Connmock, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
+			gen_server_mock:assert_expectations(Logpid),
 			ok
 		end,
+		?CONSOLE("Test args:  ~p", [[Agent, Dmock, Monmock, Connmock, Logpid, Assertmocks]]),
 		{Agent, Dmock, Monmock, Connmock, Assertmocks}
 	end,
 	fun({_Agent, Dmock, Monmock, Connmock, _Assertmocks}) ->
@@ -837,7 +937,6 @@ from_idle_test_() ->
 	[fun({Agent, Dmock, Monmock, Connmock, Assertmocks} = Testargs) ->
 		{"to precall",
 		fun() ->
-			?CONSOLE("test args: ~p", [Testargs]),
 			Client = #client{label = "testclient", timestamp = 0},
 			Aself = self(),
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, Self}, _State) ->
@@ -853,6 +952,7 @@ from_idle_test_() ->
 				Inclient = Client,
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", precall, Client}, _State) -> ok end),
 			?assertMatch({reply, ok, precall, _State}, idle({precall, Client}, {"ref", "pid"}, Agent)),
 			Assertmocks()
 		end}
@@ -860,7 +960,6 @@ from_idle_test_() ->
 	fun({Agent, Dmock, Monmock, Connmock, Assertmocks} = Testargs) ->
 		{"to ringing",
 		fun() ->
-			?CONSOLE("test args: ~p", [Testargs]),
 			Self = self(),
 			Call = #call{
 				id = "testcall",
@@ -1828,7 +1927,16 @@ init_test_() ->
 			skills = [english],
 			profile = "testprofile"
 		},
-		?assertEqual({ok, released, Agent}, init([Agent]))
+		?assertEqual({ok, released, Agent}, init([Agent, []]))
+	end},
+	{"agent should do logging of state changes",
+	fun() ->
+		Agent = #agent{
+			login = "testagent",
+			skills = [english]
+		},
+		{ok, released, Newagent} = init([Agent, [logging]]),
+		?assert(is_pid(Newagent#agent.log_pid))
 	end}].
 	
 generate_state() ->

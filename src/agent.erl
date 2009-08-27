@@ -846,6 +846,12 @@ wait_for_agent_manager(Count, StateName, State) ->
 %-spec(terminate/3 :: (Reason :: any(), StateName :: statename(), State :: #agent{}) -> 'ok').
 terminate(Reason, StateName, State) ->
 	?NOTICE("Agent terminating:  ~p, State:  ~p", [Reason, StateName]),
+	case State#agent.log_pid of
+		Pid when is_pid(Pid) ->
+			Pid ! {State#agent.login, logout};
+		undefined ->
+			ok
+	end,
 	cpx_monitor:drop({agent, State#agent.login}),
 	ok.
 
@@ -874,8 +880,8 @@ log_loop(Agentname, Nodes) ->
 		{Agentname, login, State, Statedata} ->
 			F = fun() ->
 				Now = util:now(),
-				mnesia:dirty_write(#agent_state{agent = Agentname, state = login, statedata = "see next entry", start = Now, ended = Now, nodes = Nodes}),
-				mnesia:dirty_write(#agent_state{agent = Agentname, state = State, statedata = Statedata, start = Now, nodes = Nodes}),
+				mnesia:dirty_write(#agent_state{agent = Agentname, state = login, statedata = {state, State, data, Statedata}, start = Now, nodes = Nodes}),
+				%mnesia:dirty_write(#agent_state{agent = Agentname, state = State, statedata = Statedata, start = Now, nodes = Nodes}),
 				ok
 			end,
 			Res = mnesia:async_dirty(F),
@@ -888,11 +894,11 @@ log_loop(Agentname, Nodes) ->
 				lists:foreach(
 					fun(Untermed) -> 
 						mnesia:delete_object(Untermed), 
-						mnesia:write(Untermed#agent_state{ended = Now})
+						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now})
 					end,
 					Recs
 				),
-				Newrec = #agent_state{agent = Agentname, state = logout, statedata = "job done", start = Now, ended = Now, nodes = Nodes},
+				Newrec = #agent_state{agent = Agentname, state = logout, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
 				mnesia:write(Newrec),
 				ok
 			end,
@@ -901,12 +907,12 @@ log_loop(Agentname, Nodes) ->
 		{Agentname, State, Statedata} ->
 			F = fun() ->
 				Now = util:now(),
-				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.agent =:= Agentname, Rec#agent_state.ended =:= undefined]),
+				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.agent =:= Agentname, Rec#agent_state.ended =:= undefined, Rec#agent_state.state =/= login]),
 				Recs = qlc:e(QH),
 				lists:foreach(
 					fun(Untermed) -> 
 						mnesia:delete_object(Untermed), 
-						mnesia:write(Untermed#agent_state{ended = Now})
+						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now})
 					end,
 					Recs
 				),

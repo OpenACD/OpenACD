@@ -99,5 +99,6 @@
 	statedata :: any(),
 	start :: integer(),
 	ended :: 'undefined' | integer(),
+	timestamp :: integer(),
 	nodes :: [atom()]
 }).

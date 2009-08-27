@@ -546,20 +546,25 @@ outgoing(_Msg, State) ->
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'released', #agent{}}).
 released({precall, Client}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
-	set_cpx_monitor(State#agent{state=precall}, ?PRECALL_LIMITS, []),
-	{reply, ok, precall, State#agent{state=precall, statedata=Client, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=precall, statedata=Client, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?PRECALL_LIMITS, []),
+	{reply, ok, precall, Newstate};
 released(idle, _From, State) ->	
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
-	set_cpx_monitor(State#agent{state=idle}, ?IDLE_LIMITS, []),
-	{reply, ok, idle, State#agent{state=idle, statedata={}, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=idle, statedata={}, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
+	{reply, ok, idle, Newstate};
 released({released, Reason}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
-	{reply, ok, released, State#agent{statedata=Reason, lastchangetimestamp=now()}};
+	Newstate = State#agent{statedata=Reason, lastchangetimestamp=now()},
+	log_change(Newstate),
+	{reply, ok, released, Newstate};
 released({ringing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
-	set_cpx_monitor(State#agent{state=ringing}, ?RINGING_LIMITS, []),
-	{reply, ok, ringing, State#agent{state=ringing, statedata=Call, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=ringing, statedata=Call, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
+	{reply, ok, ringing, Newstate};
 released(_Event, _From, State) ->
 	{reply, invalid, released, State}.
 
@@ -1604,11 +1609,13 @@ from_released_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
-		Agent = #agent{login = "testagent", connection = Connmock, state = oncall, statedata = "testrelease"},
+		{ok, Logpid} = gen_server_mock:new(),
+		Agent = #agent{login = "testagent", connection = Connmock, state = released, statedata = "testrelease", log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
+			gen_server_mock:assert_expectations(Logpid),
 			ok
 		end,
 		{Agent, Dmock, Monmock, Connmock, Assertmocks}
@@ -1637,6 +1644,7 @@ from_released_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, _Data}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, released(idle, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1652,6 +1660,7 @@ from_released_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, "callrec"}, _State) -> ok end),
 			?assertMatch({reply, ok, ringing, _State}, released({ringing, "callrec"}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1667,6 +1676,7 @@ from_released_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", precall, "client"}, _State) -> ok end),
 			?assertMatch({reply, ok, precall, _State}, released({precall, "client"}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1691,6 +1701,7 @@ from_released_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "reason"}, _State) ->
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, "reason"}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, released({released, "reason"}, "from", Agent)),
 			Assertmocks()
 		end}

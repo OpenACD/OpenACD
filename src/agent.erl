@@ -363,8 +363,9 @@ ringing({released, Reason}, _From, #agent{statedata = Call} = State) ->
 	%gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
 	gen_media:stop_ringing(Call#call.source),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
-	set_cpx_monitor(State#agent{state = released}, ?RELEASED_LIMITS, []),
-	{reply, ok, released, State#agent{state=released, statedata=Reason, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=released, statedata=Reason, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?RELEASED_LIMITS, []),
+	{reply, ok, released, Newstate};
 ringing(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
@@ -1088,6 +1089,7 @@ from_ringing_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, _Data}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, ringing(idle, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1122,6 +1124,7 @@ from_ringing_test_() ->
 			gen_server_mock:expect_call(Callrec#call.source, fun(_Message, _From, _State) ->
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, ringing(oncall, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1152,6 +1155,7 @@ from_ringing_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, ringing({oncall, Callrec}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1189,6 +1193,7 @@ from_ringing_test_() ->
 				Inpid = Self,
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, "default"}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, ringing({released, "default"}, "from", Agent)),
 			Assertmocks()
 		end}

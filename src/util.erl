@@ -246,12 +246,14 @@ merge_skill_lists(List1, List2, Whitelist) ->
 		(_Skill) -> true
 	end, NewList).
 
-%% @doc Returns all skills in `[{atom(), string()} | atom()] List1' where the skills' atom exists in 
-%% `[{atom(), string()} | atom()} List2'.
+%% @doc Returns all skills in `[{atom(), string()} | atom()] List1' where the
+% skills' atom  does not exist in `[{atom(), string()} | atom()} List2'.
 -spec(subtract_skill_lists/2 :: (List1 :: [{atom(), string()} | atom()], List2 :: [{atom(), string()} | atom()]) -> [{atom(), string()} | atom()]).
 subtract_skill_lists(List1, List2) ->
 	FilterList = lists:map(fun({SkillAtom, _SkillString}) -> SkillAtom; (Skill) -> Skill end, List2),
-	lists:filter(fun({SkillAtom, _SkillString}) -> lists:member(SkillAtom, FilterList); (Skill) -> lists:member(Skill, FilterList) end, List1).
+	lists:filter(fun({SkillAtom, _SkillString}) -> not lists:member(SkillAtom, FilterList);
+									(Skill) -> not lists:member(Skill, FilterList) end,
+								List1).
 
 %% @doc build the given mnesia table `Tablename' with `Options'.
 %% This will exit the calling process if mnesia is not started or if the schema is not stored on disc.  
@@ -549,9 +551,9 @@ merge_skill_lists_test_() ->
 	].
 
 subtract_skill_lists_test() ->
-	?assertEqual([{'_agent',"Foo"},baz], util:subtract_skill_lists([{'_agent', "Foo"}, bar, baz], ['_agent', baz])),
-	?assertEqual([{'_agent',"Foo"},baz], util:subtract_skill_lists([{'_agent', "Foo"}, bar, baz], [{'_agent', "Whatever"}, baz])),
-	?assertEqual([baz], util:subtract_skill_lists([bar, baz], [{'_agent', "Whatever"}, baz])).
+	?assertEqual([bar], util:subtract_skill_lists([{'_agent', "Foo"}, bar, baz], ['_agent', baz])),
+	?assertEqual([bar], util:subtract_skill_lists([{'_agent', "Foo"}, bar, baz], [{'_agent', "Whatever"}, baz])),
+	?assertEqual([bar], util:subtract_skill_lists([bar, baz], [{'_agent', "Whatever"}, baz])).
 
 list_index_test_() ->
 	[{"Default check of =:=",

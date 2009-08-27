@@ -60,7 +60,7 @@
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 %% defined state exports
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
-%% defining async stat exports
+%% defining async state exports
 -export([idle/2, ringing/2, precall/2, oncall/2, outgoing/2, released/2, warmtransfer/2, wrapup/2]).
 
 %% other exports
@@ -69,6 +69,8 @@
 	start_link/1,
 	start_link/2,
 	stop/1, 
+	add_skills/2,
+	remove_skills/2,
 	query_state/1, 
 	dump_state/1, 
 	get_media/1,
@@ -186,6 +188,12 @@ dump_state(Pid) ->
 -spec(get_media/1 :: (Apid :: pid()) -> {ok, #call{}} | 'invalid').
 get_media(Apid) ->
 	gen_fsm:sync_send_event(Apid, get_media).
+
+add_skills(Apid, Skills) when is_list(Skills), is_pid(Apid) ->
+	gen_fsm:sync_send_all_state_event(Apid, {add_skills, Skills}).
+
+remove_skills(Apid, Skills) when is_list(Skills), is_pid(Apid) ->
+	gen_fsm:sync_send_all_state_event(Apid, {remove_skills, Skills}).
 
 %% @doc Returns `{ok, Statename :: atom()}', where `Statename' is the current state of the agent at `Pid'.
 -spec(query_state/1 :: (Pid :: pid()) -> {'ok', atom()}).
@@ -688,6 +696,12 @@ handle_sync_event({set_endpoint, {Endpointtype, Endpointdata}}, _From, StateName
 handle_sync_event({url_pop, URL}, _From, StateName, #agent{connection=Connection} = State) when is_pid(Connection) ->
 	gen_server:cast(Connection, {url_pop, URL}),
 	{reply, ok, StateName, State};
+handle_sync_event({add_skills, Skills}, _From, StateName, State) ->
+	NewSkills = util:merge_skill_lists(expand_magic_skills(State, Skills), State#agent.skills),
+	{reply, ok, StateName, State#agent{skills = NewSkills}};
+handle_sync_event({remove_skills, Skills}, _From, StateName, State) ->
+	NewSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, Skills)),
+	{reply, ok, StateName, State#agent{skills = NewSkills}};
 handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.
 

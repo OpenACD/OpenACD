@@ -594,8 +594,9 @@ warmtransfer({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = {onh
 	case Onhold#call.id of
 		 Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-			set_cpx_monitor(State#agent{state = wrapup}, ?WRAPUP_LIMITS, []),
-			{reply, ok, wrapup, State#agent{state=wrapup,statedata=Call, lastchangetimestamp=now()}};
+			Newstate = State#agent{state=wrapup,statedata=Call, lastchangetimestamp=now()},
+			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
+			{reply, ok, wrapup, Newstate};
 		_Else -> 
 			{reply, invalid, warmtransfer, State}
 	end;
@@ -603,15 +604,17 @@ warmtransfer({oncall, #call{id = Callid} = Call}, _From, #agent{statedata = {onh
 	case Onhold#call.id of
 		 Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
-			set_cpx_monitor(State#agent{state = oncall}, ?ONCALL_LIMITS, []),
-			{reply, ok, oncall, State#agent{state=oncall, statedata=Call, lastchangetimestamp=now()}};
+			Newstate = State#agent{state=oncall, statedata=Call, lastchangetimestamp=now()},
+			set_cpx_monitor(Newstate, ?ONCALL_LIMITS, []),
+			{reply, ok, oncall, Newstate};
 		_Else -> 
 			{reply, invalid, warmtransfer, State}
 	end;
 warmtransfer({outgoing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, outgoing, Call}),
-	set_cpx_monitor(State#agent{state = outgoing}, ?OUTGOING_LIMITS, []),
-	{reply, ok, outgoing, State#agent{state=outgoing, statedata=Call, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=outgoing, statedata=Call, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
+	{reply, ok, outgoing, Newstate};
 warmtransfer(_Event, _From, State) ->
 	{reply, invalid, warmtransfer, State}.
 
@@ -1727,6 +1730,7 @@ from_warmtransfer_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
+		{ok, Logpid} = gen_server_mock:new(),
 		Client = #client{label = "testclient", timestamp = 0},
 		{ok, Mediapid} = gen_server_mock:new(),
 		Callrec = #call{
@@ -1734,11 +1738,12 @@ from_warmtransfer_test_() ->
 			source = Mediapid,
 			client = Client
 		},
-		Agent = #agent{login = "testagent", connection = Connmock, state = warmtransfer, statedata = {onhold, Callrec, calling, "testtarget"}},
+		Agent = #agent{login = "testagent", connection = Connmock, state = warmtransfer, statedata = {onhold, Callrec, calling, "testtarget"}, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
+			gen_server_mock:assert_expectations(Logpid),
 			ok
 		end,
 		{Agent, Dmock, Monmock, Connmock, Assertmocks}
@@ -1785,6 +1790,7 @@ from_warmtransfer_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, warmtransfer({oncall, Callrec}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1808,6 +1814,10 @@ from_warmtransfer_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", outgoing, Callrec}, _State) ->
+				Callrec = element(2, Agent#agent.statedata),
+				ok
+			end),
 			?assertMatch({reply, ok, outgoing, _State}, warmtransfer({outgoing, element(2, Agent#agent.statedata)}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1825,6 +1835,7 @@ from_warmtransfer_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, wrapup, _State}, warmtransfer({wrapup, Callrec}, "from", Agent)),
 			Assertmocks()
 		end}

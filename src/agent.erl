@@ -447,8 +447,9 @@ oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcal
 	end;
 oncall({warmtransfer, Transferto}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
-	set_cpx_monitor(State#agent{state = warmtransfer}, ?WARMTRANSFER_LIMITS, []),
-	{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
+	{reply, ok, warmtransfer, Newstate};
 oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
 	Reply = gen_media:agent_transfer(Call#call.source, Agent, 10000),
 	{reply, Reply, oncall, State};
@@ -1338,16 +1339,18 @@ from_oncall_test_() ->
 		{ok, Connmock} = gen_server_mock:new(),
 		Client = #client{label = "testclient", timestamp = 0},
 		{ok, Mediapid} = gen_server_mock:new(),
+		{ok, Logpid} = gen_server_mock:new(),
 		Callrec = #call{
 			id = "testcall",
 			source = Mediapid,
 			client = Client
 		},
-		Agent = #agent{login = "testagent", connection = Connmock, state = oncall, statedata = Callrec},
+		Agent = #agent{login = "testagent", connection = Connmock, state = oncall, statedata = Callrec, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
+			gen_server_mock:assert_expectations(Logpid),
 			ok
 		end,
 		{Agent, Dmock, Monmock, Connmock, Assertmocks}
@@ -1429,6 +1432,11 @@ from_oncall_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, 
+				fun({"testagent", warmtransfer, {onhold, Call, calling, "transferto"}}, _State) -> 
+					Call = Agent#agent.statedata,
+					ok 
+				end),
 			?assertMatch({reply, ok, warmtransfer, _State}, oncall({warmtransfer, "transferto"}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1445,6 +1453,7 @@ from_oncall_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
 			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, "from", Agent)),
 			Assertmocks()
 		end}

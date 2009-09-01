@@ -90,9 +90,10 @@
 	
 -record(cdr_rec, {
 	id :: callid(),
+	fullcall :: #call{},
 	summary = inprogress :: 'inprogress' | proplist(),
 	transactions = inprogress :: 'inprogress' | transactions(),
-	timestamp :: time(),
+	timestamp = util:now() :: time(),
 	nodes = [] :: [atom()]
 }).
 
@@ -434,7 +435,7 @@ spawn_summarizer(Transactions, CallID) ->
 				id = CallID,
 				summary = Summary,
 				transactions = Transactions,
-				timestamp = util:now(),
+				%timestamp = util:now(),
 				nodes = Nodes
 			})
 		end,

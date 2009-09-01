@@ -98,14 +98,13 @@ set_mapping(Address, Options) when is_list(Options) ->
 		address = proplists:get_value(address, Options),
 		queue = proplists:get_value(queue, Options, "default_queue"),
 		skills = proplists:get_value(skills, Options, []),
-		client = proplists:get_value(client, Options),
-		timestamp = util:now()
+		client = proplists:get_value(client, Options)
 	},
 	set_mapping(Address, Rec);		
 set_mapping(Address, Rec) when is_record(Rec, mail_map) ->
 	F = fun() ->
 		mnesia:delete({mail_map, Address}),
-		mnesia:write(Rec#mail_map{timestamp = util:now()})
+		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F).
 
@@ -115,13 +114,12 @@ new_mapping(Options) when is_list(Options) ->
 		address = proplists:get_value(address, Options),
 		queue = proplists:get_value(queue, Options, "default_queue"),
 		skills = proplists:get_value(skills, Options, []),
-		client = proplists:get_value(client, Options),
-		timestamp = util:now()
+		client = proplists:get_value(client, Options)
 	},
 	new_mapping(Rec);
 new_mapping(Rec) when is_record(Rec, mail_map) ->
 	F = fun() ->
-		mnesia:write(Rec#mail_map{timestamp = util:now()})
+		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F).
 
@@ -182,7 +180,7 @@ handle_call({queue, Filename}, _From, #state{mails = Mails} = State) ->
 	{_, _, Headers, _, _} = mimemail:decode(Email),
 	Mailmap = case proplists:get_value("From", Headers) of
 		undefined ->
-			#mail_map{address = "unknown@example.com", timestamp = 1};
+			#mail_map{address = "unknown@example.com"};
 		Address ->
 			F = fun() ->
 				QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= Address]),
@@ -190,7 +188,7 @@ handle_call({queue, Filename}, _From, #state{mails = Mails} = State) ->
 			end,
 			case mnesia:transaction(F) of
 				{atomic, []} ->
-					#mail_map{address = Address, timestamp = 1};
+					#mail_map{address = Address};
 				{atomic, [Map]} ->
 					Map
 			end
@@ -255,7 +253,7 @@ build_table() ->
 		{atomic, ok} ->
 			?INFO("Writing default data...", []),
 			F = fun() ->
-				mnesia:write(#mail_map{address = "support@example.com", timestamp = util:now()})
+				mnesia:write(#mail_map{address = "support@example.com"})
 			end,
 			mnesia:transaction(F);
 		_Else when A =:= copied; A =:= exists ->

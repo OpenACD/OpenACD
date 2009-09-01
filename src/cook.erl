@@ -1216,7 +1216,7 @@ multinode_test_() ->
 			fun({Master, Slave}) ->
 				{"Cook is on master, queue is on slave, the slave dies, cook re-inserts",
 				fun() ->
-					call_queue_config:new_queue(#call_queue{name = "testqueue", timestamp = 1}),
+					call_queue_config:new_queue(#call_queue{name = "testqueue"}),
 					{ok, Qpid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue", []]),
 					{ok, Media} = rpc:call(Master, dummy_media, start, ["testcall"]),
 					call_queue:add(Qpid, Media),

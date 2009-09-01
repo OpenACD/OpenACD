@@ -75,13 +75,13 @@
 	profile = "Default" :: string(),
 	firstname = "" :: string(),
 	lastname = "" :: string(),
-	timestamp = 1 :: pos_integer()
+	timestamp = util:now() :: pos_integer()
 }).
 
 -record(agent_profile, {
 	name = erlang:error({undefined, name}) :: string(),
 	skills = [] :: [atom()],
-	timestamp = 1 :: pos_integer()
+	timestamp = util:now() :: pos_integer()
 }).
 
 -define(DEFAULT_PROFILE, #agent_profile{name = "Default", timestamp = util:now()}).
@@ -90,7 +90,7 @@
 	label :: string(),
 	id :: pos_integer(),
 	bias = 0 :: -1 | 0 | 1,
-	timestamp = 1 :: pos_integer()
+	timestamp = util:now() :: pos_integer()
 	}).
 
 -record(agent_state, {
@@ -99,6 +99,6 @@
 	statedata :: any(),
 	start :: integer(),
 	ended :: 'undefined' | integer(),
-	timestamp :: integer(),
+	timestamp = util:now() :: integer(),
 	nodes :: [atom()]
 }).

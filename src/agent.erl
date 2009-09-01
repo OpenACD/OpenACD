@@ -978,7 +978,7 @@ from_idle_test_() ->
 	[fun({Agent, Dmock, Monmock, Connmock, Assertmocks} = Testargs) ->
 		{"to precall",
 		fun() ->
-			Client = #client{label = "testclient", timestamp = 0},
+			Client = #client{label = "testclient"},
 			Aself = self(),
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, Self}, _State) ->
 				Self = Aself,
@@ -1256,7 +1256,7 @@ from_precall_test_() ->
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
-		Client = #client{label = "testclient", timestamp = 0},
+		Client = #client{label = "testclient"},
 		Agent = #agent{login = "testagent", connection = Connmock, state = precall, statedata = Client, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
@@ -1370,7 +1370,7 @@ from_oncall_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
-		Client = #client{label = "testclient", timestamp = 0},
+		Client = #client{label = "testclient"},
 		{ok, Mediapid} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
 		Callrec = #call{
@@ -1498,7 +1498,7 @@ from_outgoing_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
-		Client = #client{label = "testclient", timestamp = 0},
+		Client = #client{label = "testclient"},
 		{ok, Mediapid} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
 		Callrec = #call{
@@ -1755,7 +1755,7 @@ from_warmtransfer_test_() ->
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
-		Client = #client{label = "testclient", timestamp = 0},
+		Client = #client{label = "testclient"},
 		{ok, Mediapid} = gen_server_mock:new(),
 		Callrec = #call{
 			id = "testcall",
@@ -1879,7 +1879,7 @@ from_wrapup_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
-		Client = #client{label = "testclient", timestamp = 0},
+		Client = #client{label = "testclient"},
 		{ok, Mediapid} = gen_server_mock:new(),
 		Callrec = #call{
 			id = "testcall",

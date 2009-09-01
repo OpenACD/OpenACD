@@ -405,7 +405,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 					Brand = freeswitch:get_event_header(Rawcall, "variable_brand"),
 					case call_queue_config:get_client(Brand) of
 						none ->
-							Clientrec = #client{label="Unknown", tenant=0, brand=0, timestamp = 1};
+							Clientrec = #client{label="Unknown", tenant=0, brand=0};
 						Clientrec ->
 							ok
 					end,

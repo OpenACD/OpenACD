@@ -32,5 +32,5 @@
 	queue = "default_queue" :: string(),
 	skills = [] :: [{atom(), any()} | atom()],
 	client :: string() | 'undefined',
-	timestamp = 1 :: pos_integer()
+	timestamp = util:now() :: pos_integer()
 }).

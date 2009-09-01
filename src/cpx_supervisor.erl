@@ -186,13 +186,13 @@ init([]) ->
 %% by other modules rather than call it directly from a shell.
 -spec(add_conf/5 :: (Id :: atom(), Mod :: atom(), Start :: atom(), Args :: [any()], Super :: supervisor_name()) -> {'atomic', 'ok'}).
 add_conf(Id, Mod, Start, Args, Super) -> 
-	Rec = #cpx_conf{id = Id, module_name = Mod, start_function = Start, start_args = Args, supervisor = Super, timestamp = 1},
+	Rec = #cpx_conf{id = Id, module_name = Mod, start_function = Start, start_args = Args, supervisor = Super},
 	add_conf(Rec).
 
 -spec(add_conf/1 :: (Rec :: #cpx_conf{}) -> {'atomic', 'ok'}).
 add_conf(Rec) ->
 	F = fun() -> 
-		mnesia:write(Rec#cpx_conf{timestamp = util:now()}),
+		mnesia:write(Rec),
 		start_spec(Rec)
 	end,
 	mnesia:transaction(F).
@@ -223,9 +223,9 @@ build_tables() ->
 		Result when Result =:= {atomic, ok}; Result =:= copied -> 
 			% create some default info so the system is at least a bit usable.
 			F = fun() -> 
-				mnesia:write(#cpx_conf{id = agent_auth, module_name = agent_auth, start_function = start_link, start_args = [], supervisor=agent_connection_sup, timestamp = util:now()}),
-				mnesia:write(#cpx_conf{id = agent_web_listener, module_name = agent_web_listener, start_function = start_link, start_args = [5050], supervisor=agent_connection_sup, timestamp = util:now()}),
-				mnesia:write(#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start_link, start_args = [], supervisor = management_sup, timestamp = util:now()})
+				mnesia:write(#cpx_conf{id = agent_auth, module_name = agent_auth, start_function = start_link, start_args = [], supervisor=agent_connection_sup}),
+				mnesia:write(#cpx_conf{id = agent_web_listener, module_name = agent_web_listener, start_function = start_link, start_args = [5050], supervisor=agent_connection_sup}),
+				mnesia:write(#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start_link, start_args = [], supervisor = management_sup})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 
@@ -353,7 +353,7 @@ config_test_() ->
 			{
 				"Adding a Valid Config gets it to start",
 				fun() -> 
-					Valid = #cpx_conf{id = dummy_media_manager, module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup, timestamp=1},
+					Valid = #cpx_conf{id = dummy_media_manager, module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup},
 					add_conf(dummy_media_manager, dummy_media_manager, start_link, ["dummy_arg"], management_sup),
 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_media_manager]),
 					F = fun() -> 
@@ -367,7 +367,7 @@ config_test_() ->
 			{
 				"Destroy a Config by full spec, ensure it also kills what was running.",
 				fun() -> 
-					Spec = #cpx_conf{id = dummy_id, module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup, timestamp = util:now()},
+					Spec = #cpx_conf{id = dummy_id, module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup},
 					try add_conf(dummy_id, dummy_media_manager, start_link, ["dummy_arg"], management_sup)
 					catch
 						_:_ -> ok
@@ -412,8 +412,7 @@ config_test_() ->
 						module_name = dummy_media_manager,
 						start_function = start_link,
 						start_args = ["new_arg"],
-						supervisor = management_sup,
-						timestamp = util:now()
+						supervisor = management_sup
 					},
 					update_conf(dummy_media_manager, Newrec),
 					Newpid = whereis(dummy_media_manager),
@@ -430,7 +429,7 @@ config_test_() ->
 			{
 				"Build a Spec from Record",
 				fun() -> 
-					Record = #cpx_conf{id = dummy_id, module_name = dummy_mod, start_function = start, start_args = [], timestamp = util:now()},
+					Record = #cpx_conf{id = dummy_id, module_name = dummy_mod, start_function = start, start_args = []},
 					?assertMatch({dummy_id, {dummy_mod, start, []}, permanent, 20000, worker, [?MODULE]}, build_spec(Record))
 				end
 			}

@@ -827,7 +827,7 @@ node_death_test_() ->
 		[fun(_Whatever) ->
 			{"The slave dies, but the queue on that is brought back by master",
 			fun() ->
-				call_queue_config:new_queue(#call_queue{name = "queue2", timestamp = 1}),
+				call_queue_config:new_queue(#call_queue{name = "queue2"}),
 				{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
 				?DEBUG("~p", [rpc:call(Master, ?MODULE, get_queue, ["queue2"])]),
 				?assertEqual(Pid, rpc:call(Master, ?MODULE, get_queue, ["queue2"])),

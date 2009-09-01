@@ -27,12 +27,11 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
-%% @hidden
 -record(client, {
 		label :: string(),
 		tenant :: non_neg_integer(),
 		brand :: non_neg_integer(),
-		timestamp = 1 :: pos_integer()
+		timestamp = util:now() :: pos_integer()
 }).
 
 -record(call, {
@@ -47,7 +46,8 @@
 		skills = [] :: [atom()],
 		cook :: pid() | 'undefined', % gen_media uses this
 		ring_path = outband :: 'inband' | 'outband' | 'any',
-		media_path = outband :: 'inband' | 'outband'
+		media_path = outband :: 'inband' | 'outband',
+		direction = inbound :: 'inbound' | 'outbound'
 }).
 
 -record(queued_call, {

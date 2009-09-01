@@ -37,7 +37,7 @@
 	start_function = erlang:error({undefined, start_function}) :: atom(),
 	start_args = [] :: [any()],
 	supervisor = management_sup :: 'routing_sup' | 'agent_sup' | 'agent_connection_sup' | 'management_sup',
-	timestamp = 1 :: pos_integer()
+	timestamp = util:now() :: pos_integer()
 }).
 
 

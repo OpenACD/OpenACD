@@ -1007,7 +1007,7 @@ call_update_test_() ->
 			}, {
 				"Test _brand skill expansion", fun() ->
 					Pid = whereis(testqueue),
-					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_brand']}, {client, #client{label="Test Brand", timestamp = util:now()}}]),
+					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_brand']}, {client, #client{label="Test Brand"}}]),
 					%dummy_media:set_skills(Dummy1, ['_brand']),
 					%dummy_media:set_brand(Dummy1, #client{label="Test Brand"}),
 					?assertEqual(ok, add(Pid, Dummy1)),

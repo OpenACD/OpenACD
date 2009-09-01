@@ -819,7 +819,7 @@ post_login_test_() ->
 			fun({_Tcplistener, Clientsock, APid}) ->
 				{"set ringing",
 				fun() ->
-					Call = #call{id="testcall", source = self(), client=#client{label="testclient", brand = 1, tenant = 57, timestamp=1}},
+					Call = #call{id="testcall", source = self(), client=#client{label="testclient", brand = 1, tenant = 57}},
 					agent:set_state(APid, ringing, Call),
 					receive {tcp, Clientsock, Packet} -> inet:setopts(Clientsock, [{active, once}]) end,
 					?assertEqual("ASTATE 2 " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n", Packet),
@@ -854,7 +854,7 @@ post_login_test_() ->
 			fun({_Tcplistener, Clientsock, APid}) ->
 				{"Client requests release, but it's queued",
 				fun() ->
-					Call = #call{id="testcall", source = self(), client=#client{label="testclient", brand = 1, tenant = 57, timestamp=1}},
+					Call = #call{id="testcall", source = self(), client=#client{label="testclient", brand = 1, tenant = 57}},
 					agent:set_state(APid, ringing, Call),
 					receive {tcp, Clientsock, _Packet} -> inet:setopts(Clientsock, [{active, once}]) end,
 					receive {tcp, Clientsock, _Packet2} -> inet:setopts(Clientsock, [{active, once}]) end,
@@ -877,9 +877,9 @@ post_login_test_() ->
 				{"Brandlist requested",
 				fun() ->
 					call_queue_config:build_tables(),
-					call_queue_config:new_client(#client{label = "Aclient", tenant = 10, brand = 1, timestamp=1}),
-					call_queue_config:new_client(#client{label = "Bclient", tenant = 5, brand = 2, timestamp=1}),
-					call_queue_config:new_client(#client{label = "Cclient", tenant = 20, brand = 3, timestamp=1}),
+					call_queue_config:new_client(#client{label = "Aclient", tenant = 10, brand = 1}),
+					call_queue_config:new_client(#client{label = "Bclient", tenant = 5, brand = 2}),
+					call_queue_config:new_client(#client{label = "Cclient", tenant = 20, brand = 3}),
 					gen_tcp:send(Clientsock, "BRANDLIST 7\r\n"),
 					receive {tcp, Clientsock, Packet} -> ok end,
 					?assertEqual("ACK 7 (00100001|Aclient),(00050002|Bclient),(00200003|Cclient),(00990099|Demo Client)\r\n", Packet)
@@ -888,8 +888,8 @@ post_login_test_() ->
 			fun({_Tcplistener, Clientsock, _APid}) ->
 				{"Release options requested",
 				fun() ->
-					agent_auth:new_release(#release_opt{label = "Bathroom", id=1, bias=0, timestamp=1}),
-					agent_auth:new_release(#release_opt{label = "Default", id = 2, bias = -1, timestamp=1}),
+					agent_auth:new_release(#release_opt{label = "Bathroom", id=1, bias=0}),
+					agent_auth:new_release(#release_opt{label = "Default", id = 2, bias = -1}),
 					gen_tcp:send(Clientsock, "RELEASEOPTIONS 7\r\n"),
 					receive {tcp, Clientsock, Packet} -> ok end,
 					?assertEqual("ACK 7 1:Bathroom:0,2:Default:-1\r\n", Packet)
@@ -915,7 +915,7 @@ post_login_test_() ->
 	}.
 
 clientrec_to_id_test() ->
-	Client = #client{label = "testclient", tenant = 50, brand = 7, timestamp=1},
+	Client = #client{label = "testclient", tenant = 50, brand = 7},
 	?assertEqual("00500007", clientrec_to_id(Client)).
 
 

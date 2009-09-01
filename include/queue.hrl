@@ -30,9 +30,9 @@
 %% @hidden
 -define(DEFAULT_WEIGHT, 5).
 -ifdef(EUNIT).
--define(DEFAULT_RECIPE, [{[{ticks, 3}], remove_skills, ['_node'], run_once}]). % TODO - flesh this out?
+-define(DEFAULT_RECIPE, [{[{ticks, 3}], remove_skills, ['_node'], run_once}]).
 -else.
--define(DEFAULT_RECIPE, [{[{ticks, 15}], remove_skills, ['_node'], run_once}]). % TODO - flesh this out?
+-define(DEFAULT_RECIPE, [{[{ticks, 15}], remove_skills, ['_node'], run_once}]).
 -endif.
 
 %-type(recipe_step() :: {non_neg_integer(),
@@ -70,7 +70,7 @@
 	recipe = ?DEFAULT_RECIPE :: recipe(),
 	hold_music :: string(),
 	group = "Default" :: string(),
-	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
+	timestamp = 1 :: pos_integer()
 }).
 
 -record(queue_group, {
@@ -78,7 +78,7 @@
 	recipe = [] :: recipe(),
 	sort = 10 :: non_neg_integer(),
 	protected = false :: 'true' | 'false',
-	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
+	timestamp = 1 :: pos_integer()
 }).
 
 -record(skill_rec, {
@@ -87,5 +87,5 @@
 	protected = false :: 'true' | 'false',
 	description = "Default description" :: string(),
 	group = "Misc" :: string(),
-	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
+	timestamp = 1 :: pos_integer()
 }).

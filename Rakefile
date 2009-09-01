@@ -114,7 +114,7 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam"] do |t|
 
 	print "  #{mod.ljust(@maxwidth - 1)} : "
 	STDOUT.flush
-	test_output = `erl -noshell -pa debug_ebin -pa contrib/mochiweb/ebin -sname testpx -eval "cover:start(), cover:compile_beam(\\"#{t.source}\\"), try eunit:test(#{mod}, [verbose]) of _Any -> cover:analyse_to_file(#{mod}, \\"coverage/#{mod}.txt\\"), cover:analyse_to_file(#{mod}, \\"coverage/#{mod}.html\\", [html]) catch _:_ -> io:format(\\"This module does not provide a test() function~n\\"), ok end." -s erlang halt`
+	test_output = `erl -noshell -pa debug_ebin -sname testpx -eval "cover:start(), cover:compile_beam(\\"#{t.source}\\"), try eunit:test(#{mod}, [verbose]) of _Any -> cover:analyse_to_file(#{mod}, \\"coverage/#{mod}.txt\\"), cover:analyse_to_file(#{mod}, \\"coverage/#{mod}.html\\", [html]) catch _:_ -> io:format(\\"This module does not provide a test() function~n\\"), ok end." -s erlang halt`
 	if /(All \d+ tests (successful|passed)|There were no tests to run|This module does not provide a test\(\) function|Test (successful|passed))/ =~ test_output
 		File.delete(t.to_s+'.failed') if File.exists?(t.to_s+'.failed')
 		if ENV['verbose']

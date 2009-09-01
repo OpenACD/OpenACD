@@ -146,7 +146,7 @@
 -spec(handle_ring/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'invalid', state()}).
 -spec(handle_ring_stop/1 :: (State :: state()) -> {'ok', state()}).
 -spec(handle_answer/3 :: (Agent :: pid(), Call :: #call{}, State :: state()) -> {'ok', state()} | {'error', any(), state()}).
--spec(handle_voicemail/1 :: (State :: state()) -> {'ok', state()} | {'invalid', state()}).
+-spec(handle_voicemail/2 :: (Ringing :: pid() | 'undefined', State :: state()) -> {'ok', state()} | {'invalid', state()}).
 -spec(handle_announce/2 :: (Annouce :: any(), State :: state()) -> {'ok', state()}).
 -spec(handle_agent_transfer/4 :: (Agent :: pid(), Call :: #call{}, Timeout :: pos_integer(), State :: state()) -> {'ok', state()} | {'error', any(), state()}).
 -spec(handle_queue_transfer/1 :: (State :: state()) -> {'ok', state()}).

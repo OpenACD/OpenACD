@@ -54,6 +54,8 @@
 
 -define(TIMEOUT, 10000).
 
+% TODO hangup occurs in reverse order.  eg:  if the agent hangs up, it looks
+% like the the caller did, and vice versa.
 
 %% API
 -export([
@@ -73,7 +75,7 @@
 	handle_ring/3,
 	handle_ring_stop/1,
 	handle_answer/3,
-	handle_voicemail/1,
+	handle_voicemail/2,
 	handle_announce/2,
 	handle_agent_transfer/4,
 	handle_queue_transfer/1,
@@ -94,7 +96,8 @@
 	agent :: string() | 'undefined',
 	agent_pid :: pid() | 'undefined',
 	ringchannel :: pid() | 'undefined',
-	manager_pid :: 'undefined' | any()
+	manager_pid :: 'undefined' | any(),
+	voicemail = false :: 'false' | string()
 	}).
 
 -type(state() :: #state{}).
@@ -179,20 +182,14 @@ handle_ring_stop(State) ->
 	end,
 	{ok, State#state{ringchannel=undefined}}.
 
-handle_voicemail(#state{callrec = Call} = State) ->
+handle_voicemail(Agent, State) when is_pid(Agent) ->
+	{ok, Midstate} = handle_ring_stop(State),
+	handle_voicemail(undefined, Midstate);
+handle_voicemail(undefined, #state{callrec = Call} = State) ->
 	UUID = Call#call.id,
-	F = fun(ok, _Reply) ->
-			F2 = fun(ok, _Reply2) ->
-					?NOTICE("voicemail for ~s recorded", [UUID]);
-				(err, Reply2) ->
-					?WARNING("Recording voicemail for ~s failed: ~p", [UUID, Reply2])
-			end,
-			freeswitch:bgapi(State#state.cnode, uuid_record, UUID ++ " start", F2);
-		(error, Reply) ->
-			?WARNING("Playing voicemail prompt to ~s failed: ~p", [UUID, Reply])
-	end,
-	freeswitch:bgapi(State#state.cnode, uuid_broadcast, lists:flatten(io_lib:format("~s voicemail/vm-record_message.wav aleg", [UUID])), F),
-	{ok, State}.
+	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:voicemail/vm-record_message.wav,record:/tmp/${uuid}.wav' inline"),
+	% TODO CDR transaction for leaving voicemail?
+	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
 
 handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
@@ -446,12 +443,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 								RingChannel ->
 									freeswitch_ring:hangup(RingChannel)
 							end;
-						{ok, oncall} ->
-							ok;
-						{ok, released} ->
-							ok;
-						{ok, warmtransfer} ->
-							% caller hungup during warm transfer
+						_Whatever ->
 							ok
 					end,
 					State2 = State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}
@@ -461,8 +453,20 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 					?WARNING("Queue undefined", []),
 					State3 = State2#state{agent = undefined, agent_pid = undefined};
 				_Else ->
-					call_queue:remove(Qpid, self()),
+					%call_queue:remove(Qpid, self()),
 					State3 = State2#state{queue = undefined, queue_pid = undefined}
+			end,
+			case State#state.voicemail of
+				false -> % no voicemail
+					ok;
+				FileName ->
+					case filelib:is_regular(FileName) of
+						true ->
+							?NOTICE("~s left a voicemail", [UUID]),
+							freeswitch_media_manager:new_voicemail(UUID, FileName, State#state.queue);
+						false ->
+							?NOTICE("~s hungup without leaving a voicemail", [UUID])
+					end
 			end,
 			{hangup, State3};
 		"CHANNEL_DESTROY" ->

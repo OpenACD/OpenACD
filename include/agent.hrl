@@ -46,7 +46,9 @@
 	lastchangetimestamp = now() :: any(),	% at what time did the last state change occur
 	defaultringpath = inband :: 'inband' | 'outband',
 	endpointtype = sip_registration :: endpoints(),
-	endpointdata = undefined :: 'undefined' | string()
+	endpointdata = undefined :: 'undefined' | string(),
+	start_opts = [] :: [any()],
+	log_pid :: 'undefined' | pid()
 }).
 	
 %% 10/10/2008 Micah
@@ -73,13 +75,13 @@
 	profile = "Default" :: string(),
 	firstname = "" :: string(),
 	lastname = "" :: string(),
-	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
+	timestamp = 1 :: pos_integer()
 }).
 
 -record(agent_profile, {
 	name = erlang:error({undefined, name}) :: string(),
 	skills = [] :: [atom()],
-	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
+	timestamp = 1 :: pos_integer()
 }).
 
 -define(DEFAULT_PROFILE, #agent_profile{name = "Default", timestamp = util:now()}).
@@ -88,5 +90,15 @@
 	label :: string(),
 	id :: pos_integer(),
 	bias = 0 :: -1 | 0 | 1,
-	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
+	timestamp = 1 :: pos_integer()
 	}).
+
+-record(agent_state, {
+	agent :: string(),
+	state :: statename(),
+	statedata :: any(),
+	start :: integer(),
+	ended :: 'undefined' | integer(),
+	timestamp :: integer(),
+	nodes :: [atom()]
+}).

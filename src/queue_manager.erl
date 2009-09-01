@@ -33,9 +33,6 @@
 
 %% depends on call_queue
 
-% TODO - ability to remove a queue? migrate a queue to another node?
-%        both of these operations need to ensure that the leader is notified
-
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -64,6 +61,7 @@
 	start/1,
 	queues/0,
 	add_queue/2,
+	load_queue/1,
 	get_queue/1,
 	query_queue/1,
 	stop/0,
@@ -92,13 +90,13 @@
 %% @doc start linked to the parent process.
 -spec(start_link/1 :: (Nodes :: [atom(),...]) -> {'ok', pid()}).
 start_link(Nodes) ->
-	call_queue_config:build_tables(Nodes),
+	call_queue_config:build_tables(),
 	gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, [], []).
 
 %% @doc start unlinked to the parent process.
 -spec(start/1 :: (Nodes :: [atom(),...]) -> {'ok', pid()}).
 start(Nodes) ->
-	call_queue_config:build_tables(Nodes),
+	call_queue_config:build_tables(),
 	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, [], []).
 
 %% @doc Add a queue named `Name' using the given Options.
@@ -119,12 +117,26 @@ add_queue(Name, Opts) when is_list(Name) ->
 				false ->
 					?DEBUG("Queue does not exist at all, starting it", []),
 					{ok, Pid} = call_queue:start(Name, Opts),
-					ok = gen_leader:call(?MODULE, {notify, Name, Pid}),
-					ok = gen_leader:leader_call(?MODULE, {notify, Name, Pid}),
+					ok = gen_leader:cast(?MODULE, {notify, Name, Pid}),
+					%ok = gen_leader:leader_call(?MODULE, {notify, Name, Pid}),
 					{ok, Pid}
 			end
 	end.
 
+%% @doc load a queue from call_queue_config and start it
+-spec(load_queue/1 :: (Name :: string()) -> 'ok' | 'noexists').
+load_queue(Name) ->
+	case call_queue_config:get_queue(Name) of
+		Qrec when is_record(Qrec, call_queue) ->
+			add_queue(Name, [
+				{weight, Qrec#call_queue.weight},
+				{skills, Qrec#call_queue.skills},
+				{recipe, Qrec#call_queue.recipe}
+			]);
+		_Else ->
+			noexists
+	end.
+	
 %% @doc Get the `pid()' of the passed queue name.  If there is no queue, returns 'undefined'.
 %% If the queue is not running, it is looked up in the config database and started
 %% if found there.  If that also fails, undefined is returned.
@@ -298,10 +310,6 @@ handle_DOWN(Node, #state{qdict = Qdict} = State, _Election) ->
 %-spec(handle_leader_call/4 :: (Request :: any(), From :: pid(), State :: #state{}, Election :: election()) -> {'reply', any(), #state{}}).
 handle_leader_call(queues_as_list, _From, #state{qdict = Qdict} = State, _Election) ->
 		{reply, dict:to_list(Qdict), State};
-handle_leader_call({notify, Name, Pid}, _From, #state{qdict = Qdict} = State, _Election) ->
-	?INFO("Leader storing queue ~p named ~p", [Pid, Name]),
-	Newdict = dict:store(Name, Pid, Qdict),
-	{reply, ok, State#state{qdict = Newdict}};
 handle_leader_call({get_queue, Name}, _From, #state{qdict = Qdict} = State, _Election) ->
 	case dict:find(Name, Qdict) of
 		{ok, Pid} ->
@@ -364,6 +372,12 @@ handle_leader_cast(_Msg, State, _Election) ->
 
 %% @private
 %-spec(handle_cast/3 :: (Msg :: any(), State :: #state{}, Election :: election()) -> {'noreply', #state{}}).
+handle_cast({notify, Name, Pid}, #state{qdict = Qdict} = State, _Election) ->
+	?INFO("local alerted about new queue ~p at ~p", [Name, Pid]),
+	Newdict = dict:store(Name, Pid, Qdict),
+	link(Pid),
+	gen_leader:leader_cast(?MODULE, {notify, Name, Pid}),
+	{noreply, State#state{qdict = Newdict}};
 handle_cast(_Msg, State, _Election) ->
 	{noreply, State}.
 
@@ -410,13 +424,23 @@ handle_info({'EXIT', Pid, Reason}, #state{qdict = Qdict} = State) ->
 					gen_leader:leader_cast(?MODULE, {notify, Qname}),
 					{noreply, State};
 				Queuerec ->
+					gen_leader:leader_cast(?MODULE, {notify, Qname}),
 					?DEBUG("Got call_queue_config of ~p", [Queuerec]),
-					{ok, NewQPid} = call_queue:start_link(Queuerec#call_queue.name, [
-						{recipe, Queuerec#call_queue.recipe}, 
-						{weight, Queuerec#call_queue.weight},
-						{skills, Queuerec#call_queue.skills}]),
-					Newdict = dict:store(Queuerec#call_queue.name, NewQPid, Qdict),
-					ok = gen_leader:leader_cast(?MODULE, {notify, Qname, NewQPid}),
+					Newdict = dict:erase(Queuerec#call_queue.name, Qdict),
+					Fun = fun() ->
+						case Reason of
+							{move, Node} when Node =/= node() -> 
+								case net_adm:ping(Node) of
+									pong ->
+										rpc:call(Node, queue_manager, load_queue, [Qname]);
+									pang ->
+										load_queue(Qname)
+								end;
+							Else ->
+								load_queue(Qname)
+						end
+					end,
+					spawn(Fun),
 					{noreply, State#state{qdict = Newdict}}
 			end
 	end;
@@ -451,7 +475,6 @@ find_queue_name(NeedlePid, Dict) ->
 
 -ifdef('EUNIT').
 
-% TODO tie add_queue to the call_queue_config
 %% @doc Add a queue named `Name' using the default weight and recipe.
 %-spec(add_queue/1 :: (Name :: string()) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name) when is_list(Name) ->
@@ -684,6 +707,7 @@ multi_node_test_() ->
 					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue1"])),
 					?assertMatch({exists, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue1", []])),
 					?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, add_queue, ["queue2", []])),
+					timer:sleep(10),
 					?assertMatch(true, rpc:call(Master, ?MODULE, query_queue, ["queue2"])),
 					?assertMatch({exists, _Pid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
 
@@ -742,6 +766,17 @@ multi_node_test_() ->
 					?CONSOLE("dah qs:  ~p and ~p", [MasterQ, SlaveQ]),
 					?assert(node(MasterQ) =:= node(SlaveQ)),
 					?assert(MasterQ =:= SlaveQ)
+				end
+			}, {
+				"Queue migration", fun() ->
+					Oldq = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
+					call_queue:migrate(Oldq, Slave),
+					timer:sleep(10),
+					OldNode = node(Oldq),
+					Newq = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
+					NewNode = node(Newq),
+					?assertNot(Oldq =:= Newq),
+					?assertNot(OldNode =:= NewNode)
 				end
 			}
 		]

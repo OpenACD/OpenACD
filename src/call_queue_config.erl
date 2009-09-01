@@ -71,7 +71,6 @@
 %%
 -export([
 	build_tables/0,
-	build_tables/1,
 	merge/3
 ]).
 -export([
@@ -116,16 +115,10 @@
 %% All configs
 %% =====
 
-%% @doc Attempts to set-up and create the required mnesia table `call_queue' on all visible nodes.
-%% @see build_tables/1
+%% @doc Attempts to set-up and create the required mnesia table `call_queue' on 
+%% the local node if it does not exist.
 -spec(build_tables/0 :: () ->'ok').
 build_tables() -> 
-	build_tables(lists:append(nodes(), [node()])).
-
-%TODO So why aren't we using Nodes here?
-%% @doc Attempts to set-up and create the required mnesia table `call_queue' on the specified nodes
--spec(build_tables/1 :: (Nodes :: [atom()]) -> 'ok').
-build_tables(_Nodes) -> 
 	?DEBUG("~p building tables...", [?MODULE]),
 	A = util:build_table(call_queue, ?QUEUE_TABLE([node()])),
 	case A of
@@ -564,7 +557,7 @@ merge_skills(Nodes, Time) ->
 %% @see new_client/1
 -spec(new_client/3 :: (Label :: string(), Tenantid :: pos_integer(), Brandid :: pos_integer()) -> {'atomic', 'ok'}).
 new_client(Label, Tenantid, Brandid) when is_integer(Tenantid), is_integer(Brandid) ->
-	Rec = #client{label = Label, tenant = Tenantid, brand = Brandid, timestamp = 1}, % TODO why the timestamp?
+	Rec = #client{label = Label, tenant = Tenantid, brand = Brandid},
 	new_client(Rec).
 
 -spec(new_client/1 :: (Rec :: #client{}) -> {'atomic', 'ok'}).
@@ -579,7 +572,7 @@ new_client(Rec) when is_record(Rec, client) ->
 %% @see set_client/2
 -spec(set_client/4 :: (Label :: string(), Newlabel :: string(), Tenantid :: pos_integer(), Brandid :: pos_integer()) -> {'atomic', 'ok'}).
 set_client(Label, Newlabel, Tenantid, Brandid) when is_integer(Tenantid), is_integer(Brandid) ->
-	Client = #client{label = Newlabel, tenant = Tenantid, brand = Brandid, timestamp = 1}, % TODO why the timestamp?
+	Client = #client{label = Newlabel, tenant = Tenantid, brand = Brandid},
 	set_client(Label, Client).
 
 %% @doc Update the client `string()' `Label' to the `#client{}' `Client'.

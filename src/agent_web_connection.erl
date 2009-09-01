@@ -199,14 +199,14 @@ init([Agent, Security]) ->
 		_Else ->
 			{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_live_poll),
 			agent_web_listener:linkto(self()),
-			case Security of
-				agent ->
-					ok;
-				supervisor ->
-					cpx_monitor:subscribe();
-				admin ->
-					cpx_monitor:subscribe()
-			end,
+%			case Security of
+%				agent ->
+%					ok;
+%				supervisor ->
+%					cpx_monitor:subscribe();
+%				admin ->
+%					cpx_monitor:subscribe()
+%			end,
 			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security, listener = whereis(agent_web_listener)}}
 	end.
 
@@ -372,6 +372,7 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 			{reply, {200, [], Json}, State};
 		["status"] ->
 			% nodes, agents, queues, media, and system.
+			cpx_monitor:subscribe(),
 			{ok, Nodestats} = cpx_monitor:get_health(node),
 			{ok, Agentstats} = cpx_monitor:get_health(agent),
 			{ok, Queuestats} = cpx_monitor:get_health(queue),

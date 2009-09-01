@@ -51,6 +51,8 @@
 	agents = dict:new() :: dict()
 	}).
 
+-type(agent_state() :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup').
+
 -type(state() :: #state{}).
 -define(GEN_LEADER, true).
 -include("gen_spec.hrl").
@@ -69,7 +71,8 @@
 	find_by_pid/1,
 	get_leader/0,
 	list/0,
-	notify/2
+	notify/2,
+	log_state/3
 ]).
 
 % gen_leader callbacks
@@ -183,6 +186,11 @@ notify(Login, Pid) ->
 			erlang:error({duplicate_registration, Login})
 	end.
 
+%% @doc Used by agents to write to the agent states table.
+-spec(log_state/3 :: (Agent :: string(), State :: atom(), Statedata :: any()) -> 'ok').
+log_state(Agent, State, Statedata) ->
+	gen_leader:cast(?MODULE, {log_state, Agent, State, Statedata}).
+	
 %% @doc Returns `{ok, pid()}' where `pid()' is the pid of the leader process.
 -spec(get_leader/0 :: () -> {'ok', pid()}).
 get_leader() -> 
@@ -193,6 +201,15 @@ get_leader() ->
 init(_Opts) ->
 	?DEBUG("~p starting at ~p", [?MODULE, node()]),
 	process_flag(trap_exit, true),
+	try build_tables() of
+		Whatever ->
+			?DEBUG("building agent_state table:  ~p", [Whatever]),
+			ok
+	catch
+		What:Why ->
+			?WARNING("What:  ~w; Why:  ~p", [What, Why]),
+			ok
+	end,
 	{ok, #state{}}.
 	
 %% @hidden
@@ -202,7 +219,8 @@ elected(State, _Election, Node) ->
 	{ok, ok, State}.
 	
 %% @hidden
-%% TODO what about an agent started at both places?
+%% if an agent is started at two locations, the 2nd notify will be told that
+%% the register failed, allowing the agent to hagurk at that point.
 surrendered(#state{agents = Agents} = State, _LeaderState, _Election) -> 
 	?INFO("surrendered", []),
 	mnesia:unsubscribe(system),
@@ -254,7 +272,10 @@ handle_leader_cast({notify, Agent, Apid}, #state{agents = Agents} = State, _Elec
 		error -> 
 			Agents2 = dict:store(Agent, Apid, Agents),
 			{noreply, State#state{agents = Agents2}};
+		{ok, Apid} ->
+			{noreply, State};
 		_Else -> 
+			agent:register_rejected(Apid),
 			{noreply, State}
 	end;
 handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Election) ->
@@ -277,10 +298,10 @@ handle_call(list_agents, _From, #state{agents = Agents} = State, _Election) ->
 	{reply, dict:to_list(Agents), State};
 handle_call(stop, _From, State, _Election) -> 
 	{stop, normal, ok, State};
-handle_call({start_agent, #agent{login = ALogin} = Agent}, _From, #state{agents = Agents} = State, _Election) -> 
+handle_call({start_agent, #agent{login = ALogin} = Agent}, _From, #state{agents = Agents} = State, Election) -> 
 	% This should not be called directly!  use the wrapper start_agent/1
 	?INFO("Starting new agent ~p", [Agent]),
-	{ok, Apid} = agent:start(Agent),
+	{ok, Apid} = agent:start(Agent, [logging, gen_leader:candidates(Election)]),
 	link(Apid),
 	gen_leader:leader_cast(?MODULE, {notify, ALogin, Apid}),
 	Agents2 = dict:store(ALogin, Apid, Agents),
@@ -370,6 +391,13 @@ find(Needle, [{Key, Needle} | _Tail]) ->
 	Key;
 find(Needle, [{_Key, _NotNeedle} | Tail]) ->
 	find(Needle, Tail).
+
+build_tables() ->
+	util:build_table(agent_state, [
+		{attributes, record_info(fields, agent_state)},
+		{disc_copies, [node()]},
+		{type, bag}
+	]).
 
 -ifdef('EUNIT').
 
@@ -593,7 +621,7 @@ multi_node_test_() ->
 						?assertMatch({ok, _Pid}, rpc:call(Slave, ?MODULE, start_agent, [Agent])),
 						?assertMatch({ok, _Pid}, rpc:call(Master, ?MODULE, start_agent, [Agent2])),
 						?assertMatch({true, _Pid}, rpc:call(Master, ?MODULE, query_agent, [Agent])),
-						rpc:call(Master, erlang, disconnect_node, [Slave]),
+						%rpc:call(Master, erlang, disconnect_node, [Slave]),
 						cover:stop(Slave),
 						slave:stop(Slave),
 						?assertEqual(false, rpc:call(Master, ?MODULE, query_agent, [Agent])),

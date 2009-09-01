@@ -65,12 +65,14 @@
 	add/4,
 	add/3,
 	add/2,
+	add_at/3,
 	ask/1,
 	get_call/2,
 	get_calls/1,
-	print/1,
+	dump/1,
 	remove/2,
 	bgremove/2,
+	migrate/2,
 	stop/1,
 	grab/1,
 	ungrab/2,
@@ -81,6 +83,7 @@
 	call_count/1
 ]).
 
+-type(call_key() :: {pos_integer(), {pos_integer(), pos_integer(), pos_integer()}}).
 -record(state, {
 	queue = gb_trees:empty() :: call_queue(),
 	group = "Default" :: string(),
@@ -157,6 +160,13 @@ add(Pid, Priority, Mediapid) when is_pid(Pid), is_pid(Mediapid), Priority >= 0 -
 add(Pid, Mediapid) when is_pid(Pid), is_pid(Mediapid) ->
 	add(Pid, 1, Mediapid).
 
+%% @doc Add to queue at `pid()' `Pid' a call taken from `pid()' `Mediapid' with
+%% a given key `Key'.
+-spec(add_at/3 :: (Pid :: pid(), Key :: call_key(), Mediapid :: pid()) -> ok).
+add_at(Pid, Key, Mediapid) ->
+	Callrec = gen_media:get_call(Mediapid),
+	gen_server:cast(Pid, {add_at, Key, Mediapid, Callrec}).
+
 %% @doc Query the queue at `pid()' `Pid' for a call with the ID `string()' or `pid()' of `Callid'.
 -spec(get_call/2 :: (Pid :: pid(), Callid :: pid()) -> {key(), #queued_call{}} | 'none';
 	(Pid :: pid(), Callid :: string()) -> {key(), #queued_call{}} | 'none').
@@ -220,10 +230,9 @@ to_list(Pid) ->
 	gen_server:call(Pid, to_list).
 
 %% @doc returns the state of the queue at `pid()' `Pid'.
--spec(print/1 :: (Pid :: pid()) -> any()).
-print(Pid) ->
-% TODO call this dump?
-	gen_server:call(Pid, print).
+-spec(dump/1 :: (Pid :: pid()) -> any()).
+dump(Pid) ->
+	gen_server:call(Pid, dump).
 
 %% @doc Remove the call with id `string()' of `Calldata' or `pid()' `Callpid' from the queue at `Pid'.  
 %% Returns `ok' on success, `none' on failure.
@@ -321,10 +330,7 @@ find_by_pid_(_Needle, none) ->
 expand_magic_skills(State, Call, Skills) ->
 	lists:filter(fun(X) -> X =/= [] end, lists:map(
 		fun('_node') when is_pid(Call#queued_call.media) -> {'_node', node(Call#queued_call.media)};
-			%('_node') -> ?CONSOLE("Can't expand magic skill _node~n", []), [];
 			('_queue') -> {'_queue', State#state.name};
-			%('_queue') when is_atom(State#state.name) -> State#state.name;
-			%('_queue') -> ?CONSOLE("Can't expand magic skill _queue~n", []), [];
 			('_brand') when is_pid(Call#queued_call.media) ->
 				AState = gen_media:get_call(Call#queued_call.media),
 				case AState#call.client of
@@ -335,6 +341,11 @@ expand_magic_skills(State, Call, Skills) ->
 				end;
 			(Skill) -> Skill
 		end, Skills)).
+
+%% @doc Move the queue at `Pid' to `node() Node'.
+-spec(migrate/2 :: (Qpid :: pid(), Node :: atom()) -> ok).
+migrate(Qpid, Node) ->
+	gen_server:cast(Qpid, {migrate, Node}).
 
 %=====
 % gen_server callbacks
@@ -353,6 +364,10 @@ init([Name, Opts]) ->
 	},
 	set_cpx_mon(State),
 	{ok, State}.
+
+%% =====
+%% handle_call
+%% =====
 
 %% @private
 handle_call({get_call, Callpid}, _From, State) when is_pid(Callpid) ->
@@ -378,30 +393,10 @@ handle_call({set_recipe, Recipe}, _From, State) ->
 handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid) ->
 	% cook is started on the same node callpid is on
 	?INFO("adding call ~p request from ~p on node ~p", [Callpid, From, node(Callpid)]),
-%	case rpc:call(node(Callpid), gen_server, start, [cook, [Callpid, State#state.recipe, State#state.name], []]) of
-	case cook:start_at(node(Callpid), Callpid, State#state.recipe, State#state.name) of
-		{ok, Cookpid} ->
-			link(Cookpid),
-			erlang:monitor(process, Callpid),
-			Queuedrec = #queued_call{media=Callpid, id=Callrec#call.id, cook=Cookpid},
-			?DEBUG("queuedrec: ~p", [Queuedrec]),
-			NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
-			Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
-			Value = Queuedrec#queued_call{skills=Expandedskills},
-			Trees = gb_trees:insert({Priority, now()}, Value, State#state.queue),
-			cdr:inqueue(Callrec, State#state.name),
-			set_cpx_mon(State#state{queue=Trees}),
-			{reply, ok, State#state{queue=Trees}}%;
-		%ignore ->
-		%	?CONSOLE("Cook ignored start", []),
-		%	{reply, {error, {cook_not_started}}, State};
-		%{badrpc, nodedown} ->
-		%	?CONSOLE("Cook failed to start on downed node  ~p", [node(Callpid)]),
-		%	{reply, {error, nodedown}, State};
-		%{error, Error} ->
-		%	?CONSOLE("Cook failed to start:  ~p", [Error]),
-		%	{reply, {error, Error}, State}
-	end;
+	Key = {Priority, now()},
+	{ok, Cookpid} = cook:start_at(node(Callpid), Callpid, State#state.recipe, State#state.name, Key),
+	NewState = queue_call(Cookpid, Callrec, Key, State),
+	{reply, ok, NewState};
 handle_call({add_skills, Callid, Skills}, _From, State) ->
 	case find_key(Callid, State#state.queue) of
 		none ->
@@ -447,7 +442,7 @@ handle_call(grab, {From, _Tag}, State) ->
 			{reply, {Key, Value}, State2}
 	end;
 
-handle_call(print, _From, State) ->
+handle_call(dump, _From, State) ->
 	{reply, State, State};
 
 handle_call({remove, Callpid}, _From, State) ->
@@ -460,7 +455,6 @@ handle_call({remove, Callpid}, _From, State) ->
 			unlink(Cookpid),
 			gen_server:cast(Cookpid, stop),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
-			%lists:foreach(fun(D) -> dispatcher:regrab(D) end, Qcall#queued_call.dispatchers),
 			lists:foreach(fun(D) -> exit(D, kill) end, Qcall#queued_call.dispatchers),
 			set_cpx_mon(State2),
 			{reply, ok, State2}
@@ -502,6 +496,10 @@ handle_call(call_count, _From, State) ->
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 
+%% =====
+%% handle_cast
+%% =====
+
 %% @private
 handle_cast({remove, Callpid}, State) ->
 	?INFO("Trying to remove call ~p (cast)...", [Callpid]),
@@ -515,8 +513,21 @@ handle_cast({remove, Callpid}, State) ->
 			set_cpx_mon(State2),
 			{noreply, State2}
 	end;
-handle_cast(_Msg, State) ->
+handle_cast({add_at, Key, Mediapid, Mediarec}, State) ->
+	?INFO("adding call ~p on node ~p at position ~p", [Mediapid, node(Mediapid), Key]),
+	% cook is started on the same node Mediapid is on
+	{ok, Cookpid} = cook:start_at(node(Mediapid), Mediapid, State#state.recipe, State#state.name, Key),
+	NewState = queue_call(Cookpid, Mediarec, Key, State),
+	{noreply, NewState};
+handle_cast({migrate, Node}, State) when is_atom(Node) ->
+	{stop, {move, Node}, State};
+handle_cast(Msg, State) ->
+	?DEBUG("Unhandled cast ~p", [Msg]),
 	{noreply, State}.
+
+%% =====
+%% handle_info
+%% =====
 
 %% @private
 handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
@@ -528,7 +539,6 @@ handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
 		{Key, #queued_call{cook=Cookpid, dispatchers = Dips}} ->
 			cook:stop(Cookpid),
 			lists:foreach(fun(D) -> exit(D, kill) end, Dips),
-			%lists:foreach(fun(D) -> dispatcher:regrab(D) end, Dips),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			set_cpx_mon(State2),
 			{noreply, State2}
@@ -542,6 +552,7 @@ handle_info({'EXIT', From, Reason}, State) ->
 			?NOTICE("Handling exit of queue manager with reason ~p.  Dying with it.", [Reason]),
 			{stop, {queue_manager_died, Reason}, State};
 		_Else ->
+			?DEBUG("~w exited due to ~p; looping through calls", [From, Reason]),
 			Calls = gb_trees:to_list(State#state.queue),
 			Cleancalls = clean_pid(From, State#state.recipe, Calls, State#state.name),
 			Newtree = gb_trees:from_orddict(Cleancalls),
@@ -551,6 +562,10 @@ handle_info({'EXIT', From, Reason}, State) ->
 handle_info(Info, State) ->
 	?DEBUG("got info ~p", [Info]),
 	{noreply, State}.
+
+%% =====
+%% terminate
+%% =====
 
 %% @private
 terminate(Reason, State) when is_atom(Reason) andalso Reason =:= normal orelse Reason =:= shutdown ->
@@ -563,9 +578,29 @@ terminate(Reason, State) ->
 	set_cpx_mon(State, delete),
 	ok.
 
+%% =====
+%% code_chnage
+%% =====
+
 %% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+	
+%% =====
+%% Internal Functions
+%% =====
+
+queue_call(Cookpid, Callrec, Key, State) ->
+	link(Cookpid),
+	erlang:monitor(process, Callrec#call.source),
+	Queuedrec = #queued_call{media = Callrec#call.source, cook = Cookpid, id = Callrec#call.id},
+	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
+	Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
+	Value = Queuedrec#queued_call{skills=Expandedskills},
+	Trees = gb_trees:insert(Key, Value, State#state.queue),
+	cdr:inqueue(Callrec, State#state.name),
+	set_cpx_mon(State#state{queue=Trees}),
+	State#state{queue = Trees}.
 
 %% @private
 -spec(set_cpx_mon/1 :: (State :: #state{}) -> 'ok').
@@ -585,9 +620,6 @@ set_cpx_mon(State) ->
 set_cpx_mon(State, delete) ->
 	cpx_monitor:drop({queue, State#state.name}).
 
-% TODO - this function kinda sucks, it shouldn't keep iterating after it matches
-% a pid, for example. It should also probably be aware of the exit reason so it
-% can log things more appropiately.
 %% @private
 %% Cleans up both dead dispatchers and dead cooks from the calls.
 -spec(clean_pid/4 :: (Deadpid :: pid(), Recipe :: recipe(), Calls :: [{key(), #queued_call{}}], QName :: string()) -> [{key(), #queued_call{}}]).
@@ -598,10 +630,10 @@ clean_pid(Deadpid, Recipe, Calls, QName) ->
 clean_pid_(_Deadpid, _Recipe, _QName, [], Acc) ->
 	lists:reverse(Acc);
 clean_pid_(Deadpid, Recipe, QName, [{Key, #queued_call{cook = Deadpid} = Call} | Calls], Acc) ->
-	{ok, Pid} = cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName),
+	{ok, Pid} = cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName, Key),
 	link(Pid),
 	Cleancall = Call#queued_call{cook = Pid},
-	clean_pid_(Deadpid, Recipe, QName, Calls, [{Key, Cleancall} | Acc]);
+	lists:append(lists:reverse(Acc), [{Key, Cleancall} | Calls]);
 clean_pid_(Deadpid, Recipe, QName, [{Key, Call} | Calls], Acc) ->
 	case lists:member(Deadpid, Call#queued_call.dispatchers) of
 		false ->
@@ -1115,10 +1147,10 @@ queue_update_and_info_test_() ->
 			}, {
 				"Change recipe", fun() ->
 					Pid = whereis(testqueue),
-					#state{recipe = ?DEFAULT_RECIPE} = print(Pid),
+					#state{recipe = ?DEFAULT_RECIPE} = dump(Pid),
 					NewRecipe = [{[{ticks, 3}], set_priority, 5, run_many}],
 					?assertEqual(ok, set_recipe(Pid, NewRecipe)),
-					?assertMatch(#state{recipe = NewRecipe}, print(Pid))
+					?assertMatch(#state{recipe = NewRecipe}, dump(Pid))
 				end
 			}
 		]
@@ -1239,7 +1271,9 @@ multi_node_test_() ->
 		end,
 		[
 			{ "multi node grab test", fun() ->
+					timer:sleep(10),
 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
+					?DEBUG("queue: ~p", [Queue]),
 					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
 					{ok, Dummy} = rpc:call(node(Queue), dummy_media, start, [[{id, "testcall"}, {skills, [english, testskill]}]]),
@@ -1256,25 +1290,27 @@ multi_node_test_() ->
 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue]))
 				end
 			}, { "ensure cook is started on same node as call", fun() ->
+					timer:sleep(10),
 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
 					{ok, Dummy} = rpc:call(Master, dummy_media, start, ["testcall"]),
 					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
 					receive after 300 -> ok end,
-					{_Key, Callrec} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Callrec#queued_call.cook))
+					{_Key, #queued_call{cook = Cook}} = rpc:call(Slave, call_queue, ask, [Queue]),
+					?assertEqual(Master, node(Cook))
 				end
 			}, { "a respawned cook should be on the same node as its call", fun() ->
+					timer:sleep(10),
 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
 					{ok, Dummy} = rpc:call(Master, dummy_media, start, ["testcall"]),
 					rpc:call(Slave, call_queue, add, [Queue, 1, Dummy]),
 					receive after 300 -> ok end,
-					{_Key, Callrec} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Callrec#queued_call.cook)),
-					exit(Callrec#queued_call.cook, kill),
+					{_Key, #queued_call{cook = Cook1}} = rpc:call(Slave, call_queue, ask, [Queue]),
+					?assertEqual(Master, node(Cook1)),
+					exit(Cook1, kill),
 					receive after 300 -> ok end,
-					{_Key, Callrec2} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual(Master, node(Callrec2#queued_call.cook)),
-					?assertNot(Callrec#queued_call.cook =:= Callrec2#queued_call.cook)
+					{_Key, #queued_call{cook = Cook2}} = rpc:call(Slave, call_queue, ask, [Queue]),
+					?assertEqual(Master, node(Cook2)),
+					?assertNot(Cook1 =:= Cook2)
 				end
 			}
 		]

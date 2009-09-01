@@ -86,7 +86,7 @@
 %% @doc Start the cpx_supervisor linked to the parent process.
 -spec(start_link/1 :: (Nodes :: [atom()]) -> {'ok', pid()}).
 start_link(Nodes) ->
-	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, [Nodes]),
+	{ok, Pid} = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
 	
 	Routingspec = {routing_sup, {cpx_middle_supervisor, start_named, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	Managementspec = {management_sup, {cpx_middle_supervisor, start_named, [3, 5, management_sup]}, permanent, 2000, supervisor, [?MODULE]},
@@ -166,9 +166,7 @@ restart(Branch, _Args) when is_atom(Branch) ->
 %% Supervisor callbacks
 %%====================================================================
 %% @private
-init([_Nodes]) ->
-	% TODO Nodes is no longer used here.
-	% TODO Create warnings for missing/requires specs (at least one media manager, the agent_auth).
+init([]) ->
 	?DEBUG("starting cpx_supervisor on ~p", [node()]),
 	case build_tables() of
 		ok ->
@@ -319,6 +317,13 @@ load_specs(Super) ->
 	end,
 	case mnesia:transaction(F) of
 		{atomic, Records} ->
+			case length(Records) of
+				0 ->
+					?WARNING("No specs to load for ~w", [Super]),
+					ok;
+				_Else ->
+					ok
+			end,
 			lists:foreach(fun(I) -> start_spec(I) end, Records);
 		Else ->
 			?ERROR("unable to retrieve specs for ~s:  ~p", [Super, Else]),

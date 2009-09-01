@@ -11,8 +11,126 @@ function decodeHTML(str) {
 }
 
 dojo.addOnLoad(function(){
-	EventLog.log("Inteface loaded");
+	if(window.console.log == undefined){
+		//stupid ie.
+		window.console.log = function(){
+			// la la la
+		}
+	}
+	
+	window._logLevelToString = function(level){
+		switch(level){
+			case 7:
+				return "debug";
+			case 6:
+				return "info";
+			case 5:
+				return "notice";
+			case 4:
+				return "warning";
+			case 3:
+				return "error";
+			case 2:
+				return "critical";
+			case 1:
+				return "alert";
+			case 0:
+				return "emergency";
+			default:
+				return "unknown";
+		}
+	}
 
+	window._logLevelToNumber = function(level){
+		switch(level){
+			case "debug":
+				return 7;
+			case "info":
+				return 6;
+			case "notice":
+				return 5;
+			case "warning":
+				return 4;
+			case "error":
+				return 3;
+			case "critical":
+				return 2;
+			case "alert":
+				return 1;
+			case "emergency":
+				return 0;
+			default:
+				return -1;
+		}
+	}
+
+	window.getLogLevel = function(){
+		return window._logLevelToString(window._logLevel);
+	}
+
+	window.setLogLevel = function(levelstring){
+		var int = window._logLevelToNumber(levelstring);
+			if(int >= 0){
+				window._logLevel = int;
+				notice(["log level set", levelstring]);
+			}
+			else{
+				error(["log level cannot be", levelstring]);
+			}
+		}
+
+	if(! window.console){
+		window.console = {};
+		window.console.log = function(){
+			return true
+		}
+	}
+
+	window.log = function(level, data){
+		if(window._logLevelToNumber(level) <= window._logLevel){
+			console.log([level, data]);
+		}
+	}
+
+	window.debug = function(data){
+		window.log("debug", data);
+	}
+
+	window.info = function(data){
+		window.log("info", data);
+	}
+
+	window.notice = function(data){
+		window.log("notice", data);
+	}
+
+	window.warning = function(data){
+		window.log("warning", data);
+	}
+
+	window.error = function(data){
+		window.log("error", data);
+	}
+
+	window.critical = function(data){
+		window.log("critical", data);
+	}
+
+	window._alert = window.alert;
+
+	window.alert = function(data){
+		window._alert(data);
+		window.log("alert", data);
+	}
+
+	window.emergency = function(data){
+		window.log("emergency", data)
+	}
+
+	window._logLevel = 4; //default is warning
+
+	EventLog.log("Inteface loaded");
+	
 	EventLog.logAgentState = dojo.subscribe("agent/state", function(data){
 		var line = "Agent state changed to " + data.state;
 		if(data.statedata){
@@ -25,8 +143,7 @@ dojo.addOnLoad(function(){
 		url:"/checkcookie",
 		handleAs:"json",
 		error:function(response, ioargs){
-			console.log("checkcookie failed!");
-			console.log(response);
+			error(["checkcookie failed!", response]);
 		},
 		load:function(response, ioargs){
 			if(response.success){
@@ -80,7 +197,7 @@ dojo.addOnLoad(function(){
 	
 	dojo.byId("brand").stateChanger = dojo.subscribe("agent/state", function(data){
 		var node = dojo.byId("brand");
-		console.log(data.statedata);
+		debug(["byId('brand') stateChanger", data.statedata]);
 		switch(data.state){
 			case "ringing":
 			case "oncall":
@@ -160,15 +277,6 @@ dojo.addOnLoad(function(){
 
 	dijit.byId("boutboundcall").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("boutboundcall");
-		/*console.log("boutboundcall" + widget.attr('style'));
-		switch(data.state){
-			case "released":
-			case "idle":
-				widget.attr('style', 'display:inline');
-				break;
-			default:
-				widget.attr('style', 'display:none');
-		}*/
 	});
 	
 	dijit.byId("outboundmenu").logout = dojo.subscribe("agent/logout", function(data){
@@ -219,8 +327,7 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("banswer").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("banswer");
-//		console.log("banswer");
-//		console.log(data);
+		debug(["banswer", data]);
 		if(data.statedata && data.statedata.ringpath == "inband"){
 			switch(data.state){
 				case "ringing":
@@ -252,7 +359,6 @@ dojo.addOnLoad(function(){
 		var widget = dijit.byId("transferToAgentMenuDyn");
 		widget.destroyDescendants()
 		dojo.forEach(data, function(i){
-//			console.log(i);
 			var m = new dijit.MenuItem({
 				label: i,
 				onClick: function(){
@@ -265,8 +371,7 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("bhangup").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("bhangup");
-//		console.log("bhangup");
-//		console.log(data);
+		debug(["bhangup", data]);
 		if(data.statedata && data.statedata.mediapath == "inband"){
 			switch(data.state){
 				case "oncall":
@@ -300,9 +405,7 @@ dojo.addOnLoad(function(){
 
 	dijit.byId("boutboundcall").stateChanger = dojo.subscribe("agent/state", function(data) {
 		var widget = dijit.byId("boutboundcall");
-//		console.log("boutboundcall");
-//		console.log(data);
-//		console.log(data.state);
+		debug(["boutboundcall", data, data.state]);
 		switch(data.state){
 			case "idle":
 			case "released":
@@ -324,15 +427,15 @@ dojo.addOnLoad(function(){
 			url:"/mediapush",
 			handleAs:"json",
 			error:function(response, ioargs){
-				console.log("email send error " + response)
+				warning(["email send error ", response]);
 			},
 			load:function(response, ioargs){
 				if(response.success){
 					EventLog.log("sent mail");
-					console.log("success pushing mail");
+					debug("success pushing mail");
 				}
 				else{
-					console.log("pusing mail failed: " + response.message);
+					warning(["pusing mail failed: ", response.message]);
 				}
 			},
 			form:dijit.byId("emailform").domNode
@@ -348,10 +451,13 @@ dojo.addOnLoad(function(){
 				handleAs:"json",
 				error:function(response, ioargs){
 					dojo.byId("loginerrp").style.display = "block";
-					if (response.status)
+					if (response.status){
 						dojo.byId("loginerrspan").innerHTML = response.responseText;
-					else
+					}
+					else{
 						dojo.byId("loginerrspan").innerHTML = "Server is not responding";
+						alert(response)
+					}
 				},
 				load:function(response, ioargs){
 					EventLog.log("Recieved salt");
@@ -362,9 +468,9 @@ dojo.addOnLoad(function(){
 					var values = attrs;
 					var rsa = new RSAKey();
 					rsa.setPublic(n, e);
-					console.log("e: " + e);
-					console.log("n: " + n);
-					console.log("password: " + attrs.password);
+					debug("e: " + e);
+					debug("n: " + n);
+					debug("password: " + attrs.password);
 					values.password = rsa.encrypt(salt + attrs.password);
 					dojo.xhrPost({
 						url:"/login",
@@ -378,7 +484,7 @@ dojo.addOnLoad(function(){
 							dojo.byId("main").style.visibility = "visible";
 							dojo.byId("agentname").innerHTML = attrs.username;
 							dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response2.profile;
-							console.log(response2);
+							debug(response2);
 							agent = new Agent(attrs.username);
 							agent.stopwatch.onTick = function(){
 							var elapsed = agent.stopwatch.time();
@@ -451,7 +557,7 @@ dojo.addOnLoad(function(){
 			url:"/brandlist",
 			handleAs:"json",
 			error:function(response, ioargs){
-				console.log(response);
+				debug(response);
 				var item = new dijit.MenuItem({
 					label:"Failed to get brandlist1",
 					disabled: true
@@ -459,7 +565,7 @@ dojo.addOnLoad(function(){
 				menu.addChild(item);
 			},
 			load:function(response, ioargs){
-//				console.log(response);
+				debug(["buildOutboundMenu", response]);
 				if(response.success){
 					for(var i in response.brands) {
 						var item = new dijit.MenuItem({

@@ -32,5 +32,5 @@
 	queue = "default_queue" :: string(),
 	skills = [] :: [{atom(), any()} | atom()],
 	client :: string() | 'undefined',
-	timestamp = erlang:error({undefined, timestamp}) :: pos_integer()
+	timestamp = 1 :: pos_integer()
 }).

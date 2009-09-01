@@ -51,6 +51,7 @@
 	wrapup/2,
 	endwrapup/2,
 	transfer/2,
+	voicemail/2,
 	agent_transfer/2,
 	status/1,
 	recover/1,
@@ -90,12 +91,15 @@
 -record(cdr_rec, {
 	id :: callid(),
 	summary = inprogress :: 'inprogress' | proplist(),
-	transactions = inprogress :: 'inprogress' | transactions()
+	transactions = inprogress :: 'inprogress' | transactions(),
+	timestamp :: time(),
+	nodes = [] :: [atom()]
 }).
 
 -record(cdr_raw, {
 	id :: callid(),
-	transaction :: raw_transaction()
+	transaction :: raw_transaction(),
+	nodes = [] :: [atom()]
 }).
 
 -type(state() :: #state{}).
@@ -207,11 +211,23 @@ agent_transfer(Call, {Offerer, Recipient}) when is_pid(Recipient) ->
 	agent_transfer(Call, {Offerer, agent_manager:find_by_pid(Recipient)});
 agent_transfer(Call, {Offerer, Recipient}) ->
 	catch gen_event:notify(cdr, {agent_transfer, Call, nowsec(now()), {Offerer, Recipient}}).
-	
+
+%% @doc Notify the cdr handler the `#call{} Call' is being sent to voicemail
+%% from `string() Queue'.
+-spec(voicemail/2 :: (Call :: #call{}, Queue :: pid() | string()) -> 'ok').
+voicemail(Call, Qpid) when is_pid(Qpid) ->
+	List = queue_manager:queues(),
+	{value, {Queue, Qpid}} = lists:keysearch(Qpid, 2, List),
+	voicemail(Call, Queue);
+voicemail(Call, Queue) ->
+	catch gen_event:notify(cdr, {voicemail, Call, nowsec(now()), Queue}).
+
 %% @doc Return the completed and partial transactions for `#call{} Call'.
--spec(status/1 :: (Call :: #call{}) -> {[tuple()], [tuple()]}).
-status(Call) ->
-	gen_event:call(cdr, {?MODULE, Call#call.id}, status).
+-spec(status/1 :: (Call :: #call{} | string()) -> {[tuple()], [tuple()]}).
+status(#call{id = Cid} = Call) ->
+	status(Cid);
+status(Cid) ->
+	gen_event:call(cdr, {?MODULE, Cid}, status).
 
 %% @doc Pulls the transactions from the cdr_raw (recovery) database.
 -spec(recover/1 :: (Call :: #call{}) -> 'ok').
@@ -285,12 +301,12 @@ handle_event({oncall, #call{id = CallID}, Time, Agent}, #state{id = CallID} = St
 				_Else ->
 					[{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions]
 			end,
-			{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}}
+			{ok, State#state{transactions = Newtrans, unterminated = Newuntermed, wrapup = true}}
 	catch
 		error:split_check_fail ->
 			case State#state.limbo of
 				undefined ->
-					{ok, State#state{limbo = {oncall, Time, Agent}}};
+					{ok, State#state{limbo = {oncall, Time, Agent}, wrapup = true}};
 				_Else ->
 					erlang:error(split_check_fail)
 			end
@@ -303,6 +319,16 @@ handle_event({hangup, #call{id = CallID}, Time, agent}, #state{id = CallID} = St
 	push_raw(CallID, {hangup, Time, agent}),
 	Newtrans = [{hangup, Time, Time, 0, agent} | State#state.transactions],
 	{ok, State#state{transactions = Newtrans, hangup = true}};
+handle_event({hangup, #call{id = CallID}, Time, By}, #state{id = CallID, wrapup = false} = State) ->
+	% wrapup = false indicates an agent has never answered this call.  Go to summary.
+	push_raw(CallID, {hangup, Time, By}),
+	Midtrans = [{hangup, Time, Time, 0, By} | State#state.transactions],
+	F = fun({Event, Oldtime, Data}, Acc) ->
+		[{Event, Oldtime, Time, Time - Oldtime, Data} | Acc]
+	end,
+	Newtrans = lists:foldl(F, Midtrans, State#state.unterminated),
+	spawn_summarizer(Newtrans, CallID),
+	remove_handler;
 handle_event({hangup, #call{id = CallID}, Time, By}, #state{id = CallID} = State) ->
 	?NOTICE("Hangup for ~s", [CallID]),
 	push_raw(CallID, {hangup, Time, By}),
@@ -322,18 +348,28 @@ handle_event({endwrapup, #call{id = CallID}, Time, Agent}, #state{id = CallID} =
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
 	case {State#state.hangup, Midunterminated} of
 		{true, []} ->
-			% TODO Spawn this out to another process.
-			Summary = summarize(Newtrans),
-			F = fun() ->
-				mnesia:delete({cdr_rec, CallID}),
-				mnesia:write(#cdr_rec{
-					id = CallID,
-					summary = Summary,
-					transactions = Newtrans
-				})
-			end,
-			mnesia:transaction(F),
-			?DEBUG("Summarize complete, now to remove the handler...", []),
+			spawn_summarizer(Newtrans, CallID),
+%			Summarize = fun() ->
+%				Summary = summarize(Newtrans),
+%				F = fun() ->
+%					Nodes = case whereis(cdr_exporter) of
+%						undefined ->
+%							[];
+%						Pid ->
+%							cdr_exporter:get_nodes()
+%					end,
+%					mnesia:delete({cdr_rec, CallID}),
+%					mnesia:write(#cdr_rec{
+%						id = CallID,
+%						summary = Summary,
+%						transactions = Newtrans,
+%						timestamp = util:now(),
+%						nodes = Nodes
+%					})
+%				end,
+%				mnesia:transaction(F)
+%			end,
+%			spawn(Summarize),
 			remove_handler;
 		_Else ->
 			{ok, State#state{unterminated = Midunterminated, transactions = Newtrans}}
@@ -354,6 +390,12 @@ handle_event({agent_transfer, #call{id = CallID}, Time, {Offerer, Recipient}}, #
 	Miduntermed = [{agent_transfer, Time, {Offerer, Recipient}} | Midunterminated],
 	Newuntermed = [{transfer, Time, Recipient} | Miduntermed],
 	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
+	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
+handle_event({voicemail, #call{id = CallID}, Time, Queue}, #state{id = CallID} = State) ->
+	push_raw(CallID, {voicemail, Time, Queue}),
+	{{Event, Oldtime, Data}, Miduntermed} = find_initiator({voicemail, Time, Queue}, State#state.unterminated),
+	Newtrans = [{Event, Oldtime, Time, Time - Oldtime, Data} | State#state.transactions],
+	Newuntermed = [{voicemail, Time, Queue} | Miduntermed],
 	{ok, State#state{transactions = Newtrans, unterminated = Newuntermed}};
 handle_event(_Event, State) ->
 	{ok, State}.
@@ -376,6 +418,30 @@ terminate(Args, _State) ->
 %% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+spawn_summarizer(Transactions, CallID) ->
+	Summarize = fun() ->
+		Summary = summarize(Transactions),
+		F = fun() ->
+			Nodes = case whereis(cdr_exporter) of
+				undefined ->
+					[];
+				Pid ->
+					cdr_exporter:get_nodes()
+			end,
+			mnesia:delete({cdr_rec, CallID}),
+			mnesia:write(#cdr_rec{
+				id = CallID,
+				summary = Summary,
+				transactions = Transactions,
+				timestamp = util:now(),
+				nodes = Nodes
+			})
+		end,
+		mnesia:transaction(F)
+	end,
+	?DEBUG("Summarize inprogress with ~w...", [Summarize]),
+	spawn(Summarize).
 	
 %% @doc Using `fun() Fun' as the search function, extract the first item that 
 %% causes `Fun' to return false from `[any()] List'.  Returns `{Found, Remaininglist}'.
@@ -471,6 +537,19 @@ find_initiator({endwrapup, _Time, Agent} = H, Unterminated) ->
 	F = fun(I) ->
 		case I of
 			{wrapup, _Oldtime, Agent} ->
+				false;
+			_Other ->
+				true
+		end
+	end,
+	check_split(F, Unterminated);
+find_initiator({voicemail, _Time, Queue} = H, Unterminated) ->
+	?DEBUG("~p", [H]),
+	F = fun(I) ->
+		case I of
+			{inqueue, _Oldtime, Queue} ->
+				false;
+			{ringing, _Oldtime, _Agent} ->
 				false;
 			_Other ->
 				true
@@ -802,6 +881,20 @@ find_initiator_test_() ->
 	fun() ->
 		Unterminated = [{agent_transfer, 10, {"offerer", "recipient"}}],
 		?assertError(split_check_fail, find_initiator({oncall, 15, "recipient"}, Unterminated))
+	end},
+	{"voicemail with an inqueue before it",
+	fun() ->
+		Unterminated = [{inqueue, 10, "default_queue"}],
+		Res = find_initiator({voicemail, 15, "default_queue"}, Unterminated),
+		?CONSOLE("res:  ~p", [Res]),
+		?assertEqual({{inqueue, 10, "default_queue"}, []}, Res)
+	end},
+	{"voicemail with a ringing before it",
+	fun() ->
+		Unterminated = [{ringing, 10, "agent"}],
+		Res = find_initiator({voicemail, 15, "default_queue"}, Unterminated),
+		?CONSOLE("res:  ~p", [Res]),
+		?assertEqual({{ringing, 10, "agent"}, []}, Res)
 	end}].
 
 find_initiator_limbo_test_() ->
@@ -917,9 +1010,17 @@ handle_event_test_() ->
 		end}
 	end,
 	fun({Call, Pull}) ->
+		{"hangup while in queue",
+		fun() ->
+			Unterminated = [{inqueue, 10, "testqueue"}],
+			State = #state{id = "testcall", unterminated = Unterminated},
+			?assertEqual(remove_handler, handle_event({hangup, Call, 10, "Unknown Unknown"}, State))
+		end}
+	end,
+	fun({Call, Pull}) ->
 		{"hangup from agent",
 		fun() ->
-			State = #state{id = "testcall"},
+			State = #state{id = "testcall", wrapup = true},
 			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
 			?assertEqual([{hangup, 10, 10, 0, agent}], Newstate#state.transactions),
 			?assertEqual([], Newstate#state.unterminated),
@@ -931,7 +1032,7 @@ handle_event_test_() ->
 	fun({Call, Pull}) ->
 		{"hangup from caller",
 		fun() ->
-			State = #state{id = "testcall"},
+			State = #state{id = "testcall", wrapup = true},
 			{ok, Newstate} = handle_event({hangup, Call, 10, "caller"}, State),
 			?assertEqual([{hangup, 10, 10, 0, "caller"}], Newstate#state.transactions),
 			?assertEqual([], Newstate#state.unterminated),
@@ -943,7 +1044,7 @@ handle_event_test_() ->
 	fun({Call, Pull}) ->
 		{"hangup from caller when a hangup is already received",
 		fun() ->
-			Protostate = #state{id = "testcall"},
+			Protostate = #state{id = "testcall", wrapup = true},
 			{ok, State} = handle_event({hangup, Call, 10, agent}, Protostate),
 			{ok, Newstate} = handle_event({hangup, Call, 10, "notagent"}, State),
 			?assert(Newstate#state.hangup),
@@ -956,7 +1057,7 @@ handle_event_test_() ->
 	fun({Call, Pull}) ->
 		{"hangup from agent when hangup from caller is already recieved",
 		fun() ->
-			Protostate = #state{id = "testcall"},
+			Protostate = #state{id = "testcall", wrapup = true},
 			{ok, State} = handle_event({hangup, Call, 10, "notagent"}, Protostate),
 			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
 			?assert(Newstate#state.hangup),
@@ -1172,6 +1273,7 @@ mnesia_test_() ->
 			Unterminated = [{wrapup, 20, "agent"}],
 			State = #state{unterminated = Unterminated, id="testcall", transactions = StateTrans, hangup=true},
 			remove_handler = handle_event({endwrapup, Call, 24, "agent"}, State),
+			timer:sleep(10), % give the spawned summarizer time to work
 			F = fun() ->
 				mnesia:read(cdr_rec, "testcall")
 			end,

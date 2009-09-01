@@ -391,8 +391,14 @@ query_nodes([Node | Tail], Fun, Acc) ->
 init([Mod, StartFunc, StartArgs, CheckFunc, CheckArgs]) ->
 	?DEBUG("~p starting at ~p with integration", [?MODULE, node()]),
 	case build_tables() of
-		ok -> 
-			apply(Mod, StartFunc, StartArgs),
+		ok ->
+			try apply(Mod, StartFunc, StartArgs) of
+				_ ->
+					ok
+			catch
+				What:Why ->
+					?ERROR("Starting integration failed:  ~w:~p", [What, Why])
+			end,
 			{ok, #state{mod=Mod, start_func=StartFunc, start_args=StartArgs, check_func = CheckFunc, check_args = CheckArgs}}
 	end;
 init([]) -> 
@@ -638,8 +644,7 @@ local_auth(Username, Password, Salt) ->
 					deny
 			end;
 		Else ->
-% TODO better error reporting/handling here?
-			?WARNING("Unusual response from local auth query: ~p", [Else]),
+			?ERROR("Unusual response from local auth query: ~p", [Else]),
 			deny
 	end. 
 
@@ -944,7 +949,7 @@ mock_integration_test_() ->
 			{
 				"Integration fails to start",
 				fun() ->
-					% this test is for current (2009/03/04) implementation; TODO - do we really just want to ignore this failure?
+					
 					?assertMatch({ok, _Pid}, start(?MODULE, mock_start_failure, ["mock1", "mock2"], mock_auth_success, ["mock1", "mock2"])),
 					stop()
 				end

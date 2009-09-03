@@ -157,6 +157,29 @@ Agent.prototype.dial = function() {
 	}
 }
 
+Agent.prototype.mediaPush = function(data){
+	if(this.state == "oncall"){
+		dojo.xhrPost({
+			url:"/mediapush",
+			handleAs:"json",
+			error:function(response, ioargs){
+				warning(["media push request failure", response]);
+			},
+			load:function(response, ioargs){
+				if(response.success){
+					info(["media push success", response]);
+				}
+				else{
+					warning(["media push failed", response])
+				}
+			}
+		});
+		return true;
+	}
+	
+	return false;
+}
+
 Agent.transfer = function(aname) {
 	dojo.xhrGet({
 		url:"/agent_transfer/" + aname,

@@ -854,12 +854,12 @@ wait_for_agent_manager(Count, StateName, State) ->
 %-spec(terminate/3 :: (Reason :: any(), StateName :: statename(), State :: #agent{}) -> 'ok').
 terminate(Reason, StateName, State) ->
 	?NOTICE("Agent terminating:  ~p, State:  ~p", [Reason, StateName]),
-	case State#agent.log_pid of
-		Pid when is_pid(Pid) ->
-			Pid ! {State#agent.login, logout};
-		undefined ->
-			ok
-	end,
+%	case State#agent.log_pid of
+%		Pid when is_pid(Pid) ->
+%			Pid ! {State#agent.login, logout};
+%		undefined ->
+%			ok
+%	end,
 	cpx_monitor:drop({agent, State#agent.login}),
 	ok.
 
@@ -884,6 +884,7 @@ log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
 	ok.
 
 log_loop(Agentname, Nodes) ->
+	process_flag(trap_exit, true),
 	receive
 		{Agentname, login, State, Statedata} ->
 			F = fun() ->
@@ -893,14 +894,16 @@ log_loop(Agentname, Nodes) ->
 				ok
 			end,
 			Res = mnesia:async_dirty(F),
-			?DEBUG("res of agent state login:  ~p", [Res]);
-		{Agentname, logout} ->
+			?DEBUG("res of agent state login:  ~p", [Res]),
+			agent:log_loop(Agentname, Nodes);
+		{'EXIT', Apid, Reason} ->
 			F = fun() ->
 				Now = util:now(),
 				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.agent =:= Agentname, Rec#agent_state.ended =:= undefined]),
 				Recs = qlc:e(QH),
+				?DEBUG("Recs to loop through:  ~p", [Recs]),
 				lists:foreach(
-					fun(Untermed) -> 
+					fun(Untermed) ->
 						mnesia:delete_object(Untermed), 
 						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now})
 					end,
@@ -911,7 +914,8 @@ log_loop(Agentname, Nodes) ->
 				ok
 			end,
 			Res = mnesia:async_dirty(F),
-			?DEBUG("res of agent state change log:  ~p", [Res]);
+			?DEBUG("res of agent state change log:  ~p", [Res]),
+			ok;
 		{Agentname, State, Statedata} ->
 			F = fun() ->
 				Now = util:now(),
@@ -929,9 +933,9 @@ log_loop(Agentname, Nodes) ->
 				ok
 			end,
 			Res = mnesia:async_dirty(F),
-			?DEBUG("res of agent state change log:  ~p", [Res])
-	end,
-	agent:log_loop(Agentname, Nodes).
+			?DEBUG("res of agent state change log:  ~p", [Res]),
+			agent:log_loop(Agentname, Nodes)
+	end.
 
 -ifdef(EUNIT).
 

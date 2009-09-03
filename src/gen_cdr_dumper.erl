@@ -27,6 +27,12 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
+%% @doc Behavior for cdr dumping modules.  A cdr dumper is a module that takes 
+%% the erlang record stored in mnesia and stores it in another place, be it a 
+%% flat file, database, or the great datastore in the sky.  This module handles
+%% the communication with mnesia, and merely passes the record to be written to
+%% any handlers.  If a handler errors or fails, it is uncerimoniously dropped.
+
 -module(gen_cdr_dumper).
 -author(micahw).
 
@@ -198,7 +204,12 @@ handle_info({mnesia_table_event, {write, #agent_state{nodes = Nodes} = Staterec,
 			Newcallbacks = lists:foldl(F, [], State#state.callbacks),
 			Transfun = fun() ->
 				mnesia:delete_object(Staterec),
-				mnesia:write(Staterec#agent_state{nodes = Newnodes, timestamp = util:now()})
+				case Newnodes of
+					[] ->
+						ok;
+					_Else ->
+						mnesia:write(Staterec#agent_state{nodes = Newnodes, timestamp = util:now()})
+				end
 			end,
 			mnesia:transaction(Transfun),
 			{noreply, State#state{callbacks = Newcallbacks}, hibernate}

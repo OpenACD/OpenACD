@@ -124,7 +124,7 @@ handle_DATA(_From, [To | _Allelse], Headers, Data, #state{mail_map = Mailmap} = 
 			{Else, Headers}
 	end,
 	?DEBUG("headers:  ~p", [Heads]),
-	gen_server:call(email_media_manager, {queue, Mailmap, Heads, Data}),
+	gen_server:cast(email_media_manager, {queue, Mailmap, Heads, Data}),
 	%mimemail:decode(Headers, Data),
 	{ok, Reference, State#state{mail_map = undefined}}.
 

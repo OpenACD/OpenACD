@@ -170,10 +170,6 @@ init([Options]) ->
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
-handle_call({queue, Mailmap, Headers, Data}, _From, #state{mails = Mails} = State) ->
-	{ok, Mpid} = email_media:start(Mailmap, Headers, Data),
-	link(Mpid),
-	{reply, ok, State#state{mails = [Mpid | Mails]}};
 handle_call({queue, Filename}, _From, #state{mails = Mails} = State) ->
 	{ok, Bin} = file:read_file(Filename),
 	Email = binary_to_list(Bin),
@@ -206,6 +202,10 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+handle_cast({queue, Mailmap, Headers, Data}, #state{mails = Mails} = State) ->
+	{ok, Mpid} = email_media:start(Mailmap, Headers, Data),
+	link(Mpid),
+	{noreply, State#state{mails = [Mpid | Mails]}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 

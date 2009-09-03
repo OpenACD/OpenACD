@@ -83,6 +83,7 @@
 	set_endpoint/2, 
 	agent_transfer/2,
 	media_pull/2, 
+	media_push/2,
 	media_push/3, 
 	url_pop/2, 
 	warm_transfer_begin/2,
@@ -218,11 +219,16 @@ set_state(Pid, State, Data) ->
 media_pull(Pid, Request) ->
 	gen_fsm:sync_send_event(Pid, {mediapull, Request}).
 
-%% @doc Attempt to push data to the media.  Only works if the passed agent is 
-%% oncall and the media supports it.
+%% @doc Attempt to push data from media to agent.  Only works if the passed 
+%% agent is oncall and the media supports it.
 -spec(media_push/3 :: (Pid :: pid(), Data :: any(), Mode :: 'append' | 'replace') -> 'ok').
 media_push(Pid, Data, Mode) ->
 	gen_fsm:send_event(Pid, {mediapush, self(), Data, Mode}).
+
+%% @doc attmept to push data from the agent connection to the media.
+-spec(media_push/2 :: (Pid :: pid(), Data :: any()) -> any()).
+media_push(Pid, Data) ->
+	gen_fsm:sync_send_event(Pid, {mediapush, Data}).
 
 -spec(url_pop/2 :: (Pid :: pid(), Data :: list()) -> any()).
 url_pop(Pid, Data) ->
@@ -465,10 +471,10 @@ oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is
 	{reply, Reply, oncall, State};
 % TODO mediapull and mediapush have no unified support in gen_media, they go right
 % to the callback.
-oncall({mediapull, Data}, _From, #agent{statedata = Call} = State) ->
+oncall({mediapull, Data}, {Pid, _Tag}, #agent{statedata = Call, connection = Pid} = State) ->
 	Reply = gen_media:call(Call#call.source, {mediapull, Data}),
 	{reply, Reply, oncall, State};
-oncall({mediapush, Data}, _From, #agent{statedata = Call} = State) -> 
+oncall({mediapush, Data}, {Pid, _Tag}, #agent{statedata = Call, connection = Pid} = State) -> 
 	Reply = gen_media:call(Call#call.source, {mediapush, Data}),
 	{reply, Reply, oncall, State};
 oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->

@@ -443,14 +443,15 @@ handle_call({mediapull, Data}, _From, #state{agent_fsm = Apid} = State) ->
 		{Heads, Html} ->
 			{reply, {200, Heads, Html}, State}
 	end;
-handle_call({mediapush, Data}, _From, #state{agent_fsm = Apid} = State) ->
-	{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"not yet implemented">>}]})}, State};
-%	case agent:media_push(Apid, Data) of
-%		invalid ->
-%			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Invalid request">>}]})}, State};
-%		_Else ->
-%			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
-%	end;
+handle_call({mediapush, Post}, _From, #state{agent_fsm = Apid} = State) ->
+%	{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"not yet implemented">>}]})}, State};
+	Data = proplists:get_value("data", Post),
+	case agent:media_push(Apid, Data) of
+		invalid ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Invalid request">>}]})}, State};
+		_Else ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
+	end;
 handle_call(Allothers, _From, State) ->
 	{reply, {unknown_call, Allothers}, State}.
 

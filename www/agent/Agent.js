@@ -172,6 +172,9 @@ Agent.prototype.mediaPush = function(data){
 				else{
 					warning(["media push failed", response])
 				}
+			},
+			content:{
+				"data":data
 			}
 		});
 		return true;

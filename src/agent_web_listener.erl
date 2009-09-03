@@ -704,7 +704,8 @@ web_connection_login_test_() ->
 		{"/checkcookie", {api, checkcookie}},
 		{"/dial/12345", {api, {dial, "12345"}}},
 		{"/get_avail_agents", {api, get_avail_agents}},
-		{"/agent_transfer/agent", {api, {agent_transfer, "agent"}}}
+		{"/agent_transfer/agent", {api, {agent_transfer, "agent"}}},
+		{"/mediapush", {api, mediapush}}
 	]
 ).
 

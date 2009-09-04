@@ -180,7 +180,7 @@ handle_info({mnesia_table_event, {write, #agent_state{nodes = Nodes} = Staterec,
 		Newnodes ->
 			% TODO better error handling if a callback fails.
 			F = fun({Callback, Substate}, Acc) ->
-				Newacc = try Callback:dump(Staterec) of
+				Newacc = try Callback:dump(Staterec, Substate) of
 					{ok, Newsub} ->
 						[{Callback, Newsub} | Acc];
 					{error, Error, Newsub} ->

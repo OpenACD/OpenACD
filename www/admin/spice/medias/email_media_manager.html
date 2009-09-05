@@ -1,6 +1,9 @@
 <div id="emailMain" dojoType="dijit.layout.TabContainer">
 
 	<div id="emailConfig" dojoType="dijit.layout.ContentPane" title="CONFIG" selected="true">
+		<script type="dojo/method" event="postCreate">
+			this.title = dojo.i18n.getLocalization("admin", "email_media_manager").CONFIG;
+		</script>
 		<form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
 		<p>
 			<label for="mediaEnabled">&nbsp;</label>
@@ -29,20 +32,102 @@
 		</p>
 
 		<p>
-			<label for="outrelays" id="loutrelays">OUT_RELAYS:</label><div style="font-size:smaller">Comma separated list</div>
-			<textarea dojoType="dijit.form.Textarea" name="outrelays" style="width:50em"></textarea>
+			<label for="outrelay" id="loutrelay">OUT_RELAY:</label>
+			<input dojoType="dijit.form.TextBox" name="outrelay" id="outrelay" />
+		</p>
+
+		<p>
+			<label for="outrelayport" id="loutrelayport">PORT:</label>
+			<input dojoType="dijit.form.ValidationTextBox" name="port" regExp="[\d]+" />
+		</p>
+		
+		<p>
+			<label for="outrelayauth" id="loutrelayauth">REQUIRE_AUTH:</label>
+				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_always" value="always">
+					<script type="dojo/connect" event="postCreate">
+						dijit.byId("auth_username").setDisabled(false);
+						dijit.byId("auth_password").setDisabled(false);
+					</script>
+				</input>
+				<label class="radio" id="lauth_always" for="auth_always">ALWAYS</label>&nbsp;
+				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_ifcan" value="ifcan">
+					<script type="dojo/method" event="onClick">
+						dijit.byId("auth_username").setDisabled(false);
+						dijit.byId("auth_password").setDisabled(false);
+					</script>
+				</input>
+				<label class="radio" id="lauth_ifcan" for="auth_ifcan">IF_AVAILABLE</label>&nbsp;
+				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_never" value="never">
+					<script type="dojo/method" event="onclick">
+						dijit.byId("auth_username").setDisabled(true);
+						dijit.byId("auth_password").setDisabled(true);
+					</script>
+				</input>
+				<label class="radio" id="lauth_never" for="auth_never">NEVER</label>
+		</p>
+		
+		<p>
+			<label for="auth_username" id="lusername">USERNAME:</label>
+			<input dojoType="dijit.form.TextBox" name="username" id="auth_username" />
+		</p>
+		
+		<p>
+			<label for="auth_password" id="lpassword">PASSWORD:</label>
+			<input dojoType="dijit.form.TextBox" type="password" name="password" id="auth_password" />
+		</p>
+		
+		<p>
+			<label for="outssl">&nbsp;</label>
+			<input dojoType="dijit.form.CheckBox" name="ssl" id="usessl" value="usessl" />
+			<span id="lssl">SSL</span>
+		</p>
+		
+		<p>
+			<label for="outtls" id="ltls">TLS:</label>
+				<input type="radio" dojoType="dijit.form.RadioButton" name="tls" id="tls_always" value="always" />
+					<label class="radio" id="ltls_always" for="tls_always">ALWAYS</label>&nbsp;
+				<input type="radio" dojoType="dijit.form.RadioButton" name="tls" id="tls_ifcan" value="ifcan" />
+					<label class="radio" id="ltls_ifcan" for="tls_ifcan">IF_AVAILABLE</label>&nbsp;
+				<input type="radio" dojoType="dijit.form.RadioButton" name="tls" id="tls_never" value="never" />
+					<label class="radio" id="ltls_never" for="tls_never">NEVER</label>
+			</label>
 		</p>
 
 		<p>
 			<label for="mediaSubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">
 				<script type="dojo/method" event="postCreate">
-					dojo.byId("emailEnabled").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").EMAILENABLED + ":";
-					dojo.byId("lport").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").PORT + ":";
-					dojo.byId("linrelays").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").IN_RELAYS + ":";
-					dojo.byId("loutrelays").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").OUT_RELAYS + ":";
-					dojo.byId("lhost").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").HOST + ":";
-					dojo.byId("lbindip").innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager").BINDIP + ":";
+					//id of node, key for replacement text, postscript
+					var trans = [
+						["emailEnabled", "EMAILENABLED", ""],
+						["lport", "PORT", ":"],
+						["loutrelayport", "PORT", ":"],
+						["linrelays", "IN_RELAYS", ":"],
+						["loutrelay", "OUT_RELAY", ":"],
+						["lhost", "HOST", ":"],
+						["lbindip", "BINDIP", ":"],
+						["loutrelayauth", "REQUIRE_AUTH", ":"],
+						["lauth_always", "ALWAYS", ""],
+						["lauth_ifcan", "IF_AVAILABLE", ""],
+						["lauth_never", "NEVER", ""],
+						["lusername", "USERNAME", ":"],
+						["lpassword", "PASSWORD", ":"],
+						["lssl", "SSL", ""],
+						["ltls", "TLS", ""],
+						["ltls_always", "ALWAYS", ""],
+						["ltls_ifcan", "IF_AVAILABLE", ""],
+						["ltls_never", "NEVER", ""]
+					];
+					
+					for(var i = 0; i < trans.length; i++){
+						try{
+							dojo.byId(trans[i][0]).innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager")[trans[i][1]] + trans[i][2];
+						}
+						catch(err){
+							console.log(["err", trans[i][0], err]);
+						}
+					}
+					
 					this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 				</script>
 			</button>
@@ -80,6 +165,7 @@
 			}
 		</script>
 		<script type="dojo/method" event="postCreate">
+			this.title = dojo.i18n.getLocalization("admin", "email_media_manager").MAIL_MAPPINGS;
 			var queueOpt = [];
 			var clientOpt = ["undefined"];
 			console.log(["post create", mailMappings]);

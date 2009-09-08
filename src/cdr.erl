@@ -89,8 +89,7 @@
 	wrapup = false :: bool()}).
 	
 -record(cdr_rec, {
-	id :: callid(),
-	fullcall :: #call{},
+	media :: #call{},
 	summary = inprogress :: 'inprogress' | proplist(),
 	transactions = inprogress :: 'inprogress' | transactions(),
 	timestamp = util:now() :: time(),
@@ -99,7 +98,11 @@
 
 -record(cdr_raw, {
 	id :: callid(),
-	transaction :: raw_transaction(),
+	transaction_type :: transaction_type(),
+	eventdata :: any(),
+	start = util:now() :: time(),
+	ended :: 'undefined' | time(),
+	timestamp = util:now() :: time(),
 	nodes = [] :: [atom()]
 }).
 
@@ -165,43 +168,43 @@ recoveryinit(Call) ->
 %% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
 -spec(inqueue/2 :: (Call :: #call{}, Queue :: string()) -> 'ok').
 inqueue(Call, Queue) ->
-	catch gen_event:notify(cdr, {inqueue, Call, nowsec(now()), Queue}).
+	event({inqueue, Call, nowsec(now()), Queue}).
 
 %% @doc Notify cdr handler that `#call{} Call' is now ringing to `string() Agent'.
 -spec(ringing/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
 ringing(Call, Agent) when is_pid(Agent) ->
 	ringing(Call, agent_manager:find_by_pid(Agent));
 ringing(Call, Agent) ->
-	catch gen_event:notify(cdr, {ringing, Call, nowsec(now()), Agent}).
+	event({ringing, Call, nowsec(now()), Agent}).
 
 %% @doc Notify cdr handler that `#call{} Call' is currently oncall with `string() Agent'.
 -spec(oncall/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
 oncall(Call, Agent) when is_pid(Agent) ->
 	oncall(Call, agent_manager:find_by_pid(Agent));
 oncall(Call, Agent) ->
-	catch gen_event:notify(cdr, {oncall, Call, nowsec(now()), Agent}).
+	event({oncall, Call, nowsec(now()), Agent}).
 
 %% @doc Notify cdr handler that `#call{} Call' has been hungup by `string() | agent By'.
 -spec(hangup/2 :: (Call :: #call{}, By :: string() | 'agent') -> 'ok').
 hangup(Call, By) ->
-	catch gen_event:notify(cdr, {hangup, Call, nowsec(now()), By}).
+	event({hangup, Call, nowsec(now()), By}).
 
 %% @doc Notify cdr handler that `#call{} Call' has been put in wrapup by `string() Agent'.
 -spec(wrapup/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
 wrapup(Call, Agent) when is_pid(Agent) ->
 	wrapup(Call, agent_manager:find_by_pid(Agent));
 wrapup(Call, Agent) ->
-	catch gen_event:notify(cdr, {wrapup, Call, nowsec(now()), Agent}).
+	event({wrapup, Call, nowsec(now()), Agent}).
 
 %% @doc Notify cdr handler that `#call{} Call' has had a wrapup ended by `string() Agent'.
 -spec(endwrapup/2 :: (Call :: #call{}, Agent :: string()) -> 'ok').
 endwrapup(Call, Agent) ->
-	catch gen_event:notify(cdr, {endwrapup, Call, nowsec(now()), Agent}).
+	event({endwrapup, Call, nowsec(now()), Agent}).
 
 %% @doc Notify cdr handler that `#call{} Call' is to be transfered to `string() Transferto'.
 -spec(transfer/2 :: (Call :: #call{}, Transferto :: string()) -> 'ok').
 transfer(Call, Transferto) ->
-	catch gen_event:notify(cdr, {transfer, Call, nowsec(now()), Transferto}).
+	event({transfer, Call, nowsec(now()), Transferto}).
 
 %% @doc Notify cdr handler that `#call{} Call' is being offered by `string() Offerer'
 %% to `string() Recipient'.
@@ -211,7 +214,7 @@ agent_transfer(Call, {Offerer, Recipient}) when is_pid(Offerer) ->
 agent_transfer(Call, {Offerer, Recipient}) when is_pid(Recipient) ->
 	agent_transfer(Call, {Offerer, agent_manager:find_by_pid(Recipient)});
 agent_transfer(Call, {Offerer, Recipient}) ->
-	catch gen_event:notify(cdr, {agent_transfer, Call, nowsec(now()), {Offerer, Recipient}}).
+	event({agent_transfer, Call, nowsec(now()), {Offerer, Recipient}}).
 
 %% @doc Notify the cdr handler the `#call{} Call' is being sent to voicemail
 %% from `string() Queue'.
@@ -221,8 +224,10 @@ voicemail(Call, Qpid) when is_pid(Qpid) ->
 	{value, {Queue, Qpid}} = lists:keysearch(Qpid, 2, List),
 	voicemail(Call, Queue);
 voicemail(Call, Queue) ->
-	catch gen_event:notify(cdr, {voicemail, Call, nowsec(now()), Queue}).
+	event({voicemail, Call, nowsec(now()), Queue}).
 
+event(Tuple) ->
+	catch gen_event:notify(cdr, Tuple).
 %% @doc Return the completed and partial transactions for `#call{} Call'.
 -spec(status/1 :: (Call :: #call{} | string()) -> {[tuple()], [tuple()]}).
 status(#call{id = Cid} = Call) ->
@@ -240,8 +245,23 @@ recover(Call) ->
 %% @private
 init([Call]) ->
 	?NOTICE("Starting new CDR handler for ~s", [Call#call.id]),
-	Cdrrec = #cdr_rec{id = Call#call.id},
-	mnesia:transaction(fun() -> mnesia:write(Cdrrec) end),
+	Node = case application:get_env(cpx, nodes) of
+		undefined ->
+			[node()];
+		Else ->
+			Else
+	end,
+	Cdrrec = #cdr_rec{media = Call, nodes = Nodes},
+	Initraw = $cdr_raw{
+		id = Call#call.id,
+		transaction_type = 'init',
+		eventdata = Call,
+		nodes = Nodes
+	},
+	mnesia:transaction(fun() -> 
+		mnesia:write(Cdrrec) 
+		mnesia:write(Initraw)
+	end),
 	{ok, #state{id=Call#call.id}}.
 
 %% @private
@@ -558,6 +578,90 @@ find_initiator({voicemail, _Time, Queue} = H, Unterminated) ->
 	end,
 	check_split(F, Unterminated).
 
+-spec(find_untermed/3 :: (Event :: transaction_type(), Call :: #call{}, Data :: any()) -> [#cdr_raw{}]).
+find_untermed(inqueue, #call{id = Cid} = Call, Queuename) ->
+	F = fun() ->
+		QH = qlc:q([X || 
+			X <- mnesia:table(cdr_raw), 
+			X#cdr_raw.id =:= Cid, 
+			X#cdr_raw.transaction_type =:= inqueue,
+			X#cdr_raw.eventdata =/= Queuename,
+			X#cdr_raw.ended =:= undefined
+		]),
+		qlc:e(QH)
+	end,
+	mnesia:sync_dirty(F);
+find_untermed(ringing, _Call, _Data) ->
+	% ringing doesn't end anything w/ the call
+	[];
+find_untermed(oncall, #call{id = Cid} = Call, Agent) ->
+	F = fun() ->
+		QH = qlc:q([X ||
+			X <- mnesia:table(cdr_raw),
+			X#cdr_raw.id =:= Cid,
+			X#cdr_raw.transaction_type =:= ringing,
+			X#cdr_raw.eventdata =:= Agent,
+			X#cdr_raw.ended =:= undefined
+		]),
+		qlc:e(QH)
+	end,
+	mnesia:sync_dirty(F);
+find_untermed(wrapup, #call{id = Cid} = Call, Agent) ->
+	F = fun() ->
+		QH = qlc:q([X ||
+			X <- mnesia:table(cdr_raw),
+			X#cdr_raw.id =:= Cid,
+			X#cdr_raw.transaction_type =:= oncall,
+			X#cdr_raw.eventdata =:= Agent,
+			X#cdr_raw.ended =:= undefined
+		]),
+		qlc:e(QH)
+	end,
+	mnesia:sync_dirty(F);
+find_untermed(endwrapup, #call{id = Cid} = Call, Agent) ->
+	F = fun() ->
+		QH = qlc:q([X ||
+			X <- mnesia:table(cdr_raw),
+			X#cdr_raw.id =:= Cid,
+			X#cdr_raw.transaction_type =:= wrapup,
+			X#cdr_raw.eventdata =:= Agent,
+			X#cdr_raw.ended =:= undefined
+		]),
+		qlc:e(QH)
+	end,
+	mnesia:sync_dirty(F);
+find_untermed(ringout, #call{id = Cid} = Call, Agent) ->
+	F = fun() ->
+		QH = qlc:q([X ||
+			X <- mnesia:table(cdr_raw),
+			X#cdr_raw.id =:= Cid,
+			X#cdr_raw.transaction_type =:= ringing,
+			X#cdr_raw.eventdata =:= Agent,
+			X#cdr_raw.ended =:= undefined
+		]),
+		qlc:e(QH)
+	end,
+	mnesia:sync_dirty(F);
+find_untermed(voicemail, #call{id = Cid} = Call, _Whatever) ->
+	F = fun() ->
+		QH = qlc:q([X ||
+			X <- mnesia:table(cdr_raw),
+			X#cdr_raw.id =:= Cid,
+			X#cdr_raw.transaction_type =:= inqueue,
+			X#cdr_raw.ended =:= undefined
+		]),
+		qlc:e(QH)
+	end,
+	mnesia:sync_dirty(F);
+find_untermed(annouce, _, _) ->
+	%% announce doesn't terminate anything
+	[];
+find_untermed(agent_transfer, _, _) ->
+	%% agent transfer doesn't terminate anything
+	[];
+find_untermed(warm_transfer, _, _) -
+	[].
+	
 build_tables() ->
 	util:build_table(cdr_rec, [
 		{attributes, record_info(fields, cdr_rec)},
@@ -774,9 +878,18 @@ nowsec({Mega, Sec, _Micro}) ->
 	(Mega * 1000000) + Sec.
 
 %% @private Push the raw transaction into the cdr_raw table.
--spec(push_raw/2 :: (Callid :: string(), Trans :: tuple()) -> {'atomic', 'ok'}).
-push_raw(Callid, Trans) ->
-	mnesia:transaction(fun() -> mnesia:write(#cdr_raw{id = Callid, transaction = Trans}) end).
+-spec(push_raw/1 :: (Callrec :: #call{}, Trans :: #cdr_raw{}) -> {'atomic', 'ok'}).
+push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
+	F = fun() ->
+		Untermed = find_untermed(Trans#cdr_raw.transaction_type, Callrec, Trans#cdr_raw.eventdata),
+		Terminate = fun(Rec) ->
+			mnesia:delete(Rec),
+			mnesia:write(Rec#cdr_raw{ended = Now})
+		end,
+		lists:foreach(Untermed, Terminate),
+		mnesia:write(Trans)
+	end,
+	mnesia:transaction(F).
 
 
 -ifdef(EUNIT).

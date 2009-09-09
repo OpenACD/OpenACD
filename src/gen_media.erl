@@ -577,7 +577,7 @@ handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = Rpid, cal
 			{reply, invalid, State#state{substate = NewState}}
 	end;
 handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
-	?INFO("oncall request during what looks like an agent transfer (outofband)", []),
+	?INFO("oncall request during what looks like an agent transfer (outofband) to ~p", [Rpid]),
 	case Callback:handle_answer(Rpid, State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
 			agent:set_state(Rpid, oncall, State#state.callrec),

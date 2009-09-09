@@ -174,6 +174,7 @@ handle_cast(_Msg, State) ->
 handle_info({mnesia_table_event, {write, #agent_state{ended = undefined}, _Activityid}}, State) ->
 	{noreply, State, hibernate};
 handle_info({mnesia_table_event, {write, #agent_state{nodes = Nodes} = Staterec, _Activityid}}, State) ->
+	?INFO("write table event: ~p", [Nodes]),
 	case lists:delete(node(), Nodes) of
 		Nodes ->
 			{noreply, State, hibernate};
@@ -206,8 +207,10 @@ handle_info({mnesia_table_event, {write, #agent_state{nodes = Nodes} = Staterec,
 				mnesia:delete_object(Staterec),
 				case Newnodes of
 					[] ->
+						?DEBUG("Discarding record", []),
 						ok;
 					_Else ->
+						?DEBUG("writing back record with new nodelist ~p", [Newnodes]),
 						mnesia:write(Staterec#agent_state{nodes = Newnodes, timestamp = util:now()})
 				end
 			end,

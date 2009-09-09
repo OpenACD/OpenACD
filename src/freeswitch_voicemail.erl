@@ -246,12 +246,8 @@ handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 			{error, Error, State}
 	end.
 
-handle_warm_transfer_begin(Number, #state{agent_pid = AgentPid, callrec = Call, cnode = Node} = State) when is_pid(AgentPid) ->
-	{invalid, State};
-handle_warm_transfer_begin(_Number, #state{agent_pid = AgentPid} = State) ->
-	?WARNING("wtf?! agent pid is ~p", [AgentPid]),
-	{error, "error: no agent bridged to this call~n", State}.
-
+handle_warm_transfer_begin(Number, #state{agent_pid = AgentPid, callrec = Call, cnode = Node} = State) ->
+	{invalid, State}.
 
 handle_wrapup(State) ->
 	% This intentionally left blank; media is out of band, so there's

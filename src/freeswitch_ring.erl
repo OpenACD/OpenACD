@@ -181,20 +181,25 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid
 		true ->
 			case Event of
 				"CHANNEL_ANSWER" ->
-					case lists:member(single_leg, State#state.options) of
+					case proplists:get_value(single_leg, State#state.options) of
 						true ->
 							?INFO("Call with single leg answered", []),
 							Call = State#state.callrec,
 							gen_media:oncall(Call#call.source),
 							{noreply, State};
-						false ->
+						_ ->
 							{noreply, State}
 					end;
 				"CHANNEL_BRIDGE" ->
-					?INFO("Call bridged", []),
-					Call = State#state.callrec,
-					gen_media:oncall(Call#call.source),
-					{noreply, State};
+					case proplists:get_value(no_oncall_on_bridge, State#state.options) of
+						true ->
+							{noreply, State};
+						_ ->
+							?INFO("Call bridged", []),
+							Call = State#state.callrec,
+							gen_media:oncall(Call#call.source),
+							{noreply, State}
+					end;
 				"CHANNEL_UNBRIDGE" ->
 					%cdr:hangup(State#state.callrec, agent),
 					{noreply, State};

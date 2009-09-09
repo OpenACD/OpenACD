@@ -157,7 +157,11 @@ init([State, Options]) when is_record(State, agent) ->
 	State3 = case proplists:get_value(logging, Options) of
 		true ->
 			Nodes = case proplists:get_value(nodes, Options) of
-				undefined -> [node()];
+				undefined ->
+					case application:get_env(cpx, nodes) of
+						{ok, N} -> N;
+						undefined -> [node()]
+					end;
 				Orelse -> Orelse
 			end,
 			Pid = spawn_link(agent, log_loop, [State#agent.login, Nodes]),

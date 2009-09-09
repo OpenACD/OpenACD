@@ -575,53 +575,51 @@ build_tables() ->
 %% so there does need to be some form of pair checking.
 % pair checking is done as the transactions are built up.
 % All this needs to do is sum up the data.
-%% @doc Given a list of `[tuple()] Transactions' summarize how long the call was
+
+%% @doc Given `[#cdr_raw{}] Transactions' summarize how long the call was
 %% in each state, and a break down of each agent involved.
-%-spec(summarize/1 :: (Transactions :: [tuple()]) -> [tuple()]).
-%summarize(Transactions) ->
-%	?DEBUG("Summarizing ~p", [Transactions]),
-%	Acc = dict:from_list([
-%		{total, {0, 0, 0, 0}}
-%	]),
-%	Count = fun({Event, _State, _End, Duration, Data}, Dict) ->
-%		{ok, {Inqueue, Ringing, Oncall, Wrapup}} = dict:find(total, Dict),
-%		case Event of
-%			inqueue ->
-%				dict:store(total, {Inqueue + Duration, Ringing, Oncall, Wrapup}, Dict);
-%			ringing ->
-%				{_Aqueue, Aring, Aoncall, Awrapup} = case dict:find(Data, Dict) of
-%					error ->
-%						{0, 0, 0, 0};
-%					{ok, Tuple} when is_tuple(Tuple) ->
-%						Tuple
-%				end,
-%				Dict2 = dict:store(total, {Inqueue, Ringing + Duration, Oncall, Wrapup}, Dict),
-%				dict:store(Data, {0, Aring + Duration, Aoncall, Awrapup}, Dict2);
-%			oncall ->
-%				{_Aqueue, Aring, Aoncall, Awrapup} = case dict:find(Data, Dict) of
-%					error ->
-%						{0, 0, 0, 0};
-%					{ok, Tuple} when is_tuple(Tuple) ->
-%						Tuple
-%				end,
-%				Dict2 = dict:store(total, {Inqueue, Ringing, Oncall + Duration, Wrapup}, Dict),
-%				dict:store(Data, {0, Aring, Aoncall + Duration, Awrapup}, Dict2);
-%			wrapup ->
-%				{_Aqueue, Aring, Aoncall, Awrapup} = case dict:find(Data, Dict) of
-%					error ->
-%						{0, 0, 0, 0};
-%					{ok, Tuple} when is_tuple(Tuple) ->
-%						Tuple
-%				end,
-%				Dict2 = dict:store(total, {Inqueue, Ringing, Oncall, Wrapup + Duration}, Dict),
-%				dict:store(Data, {0, Aring, Aoncall, Awrapup + Duration}, Dict2);
-%			_Other ->
-%				?DEBUG("Can't summarize ~s", [Event]),
-%				Dict
-%		end
-%	end,
-%	SummaryDict = lists:foldl(Count, Acc, Transactions),
-%	dict:to_list(SummaryDict).
+%% dict :: key :: `transaction_type()' of `inqueue, ringing, oncall, wrapup'.
+%% dict :: value :: `{total(), breakdown()}'
+%% breakdown :: `[{agent_login() | queue_name(), total()}]'
+-spec(summarize/1 :: (Transactions :: [#cdr_raw{}]) -> [dict()]).
+summarize(Transactions) ->
+	?DEBUG("Summarizing ~p", [Transactions]),
+	summarize(Transactions, dict:new()).
+
+-spec(summarize/2 :: (Transactions :: [#cdr_raw{}], Sumacc :: dict()) -> any()).
+summarize([], Acc) ->
+	dict:to_list(Acc);
+summarize([#cdr_raw{transaction = inqueue} = Cdr | Tail], Acc) ->
+	Newacc = summarize(Cdr, inqueue, Cdr#cdr_raw.eventdata, Acc),
+	summarize(Tail, Newacc);
+summarize([#cdr_raw{transaction = ringing} = Cdr | Tail], Acc) ->
+	Newacc = summarize(Cdr, ringing, Cdr#cdr_raw.eventdata, Acc),
+	summarize(Tail, Newacc);
+summarize([#cdr_raw{transaction = oncall} = Cdr | Tail], Acc) ->
+	Newacc = summarize(Cdr, oncall, Cdr#cdr_raw.eventdata, Acc),
+	summarize(Tail, Newacc);
+summarize([#cdr_raw{transaction = wrapup} = Cdr | Tail], Acc) ->
+	Newacc = summarize(Cdr, wrapup, Cdr#cdr_raw.eventdata, Acc),
+	summarize(Tail, Newacc);
+summarize([_ | Tail], Acc) ->
+	summarize(Tail, Acc).
+
+-spec(summarize/4 :: (Cdr :: #cdr_raw{}, Catagory :: transaction_type(), Individual :: any(), Acc :: dict()) -> dict()).
+summarize(Cdr, Catagory, Individual, Acc) ->
+	{Total, Propdict} = case dict:find(Catagory, Acc) of
+		error ->
+			{0, []};
+		Else ->
+			Else
+	end,
+	Duration = Cdr#cdr_raw.ended - Cdr#cdr_raw.start,
+	Detail = proplists:get_value(Individual, Propdict, 0),
+	Cleanedprops = proplists:delete(Individual, Propdict),
+	Newdetail = Detail + Duration,
+	Newtotal = Total + Duration,
+	Newprops = [{Individual, Newdetail} | Cleanedprops],
+	Newacc = dict:store(Catagory, {Newtotal, Newprops}, Acc),
+	Newacc.
 
 %% @doc Given the list of nodes, merge the cdrs.  Since this can take a long
 %% time, it can help to just spawn a new process for it.

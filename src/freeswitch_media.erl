@@ -97,7 +97,9 @@
 	agent_pid :: pid() | 'undefined',
 	ringchannel :: pid() | 'undefined',
 	manager_pid :: 'undefined' | any(),
-	voicemail = false :: 'false' | string()
+	voicemail = false :: 'false' | string(),
+	xferchannel :: pid() | 'undefined',
+	xferuuid :: string() | 'undefined'
 	}).
 
 -type(state() :: #state{}).
@@ -149,6 +151,14 @@ handle_announce(Announcement, #state{callrec = Callrec} = State) ->
 			{"execute-app-arg", Announcement}]),
 	{ok, State}.
 
+handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUUID} = State) when is_pid(XferChannel) ->
+	link(XferChannel),
+	?INFO("intercepting ~s from channel ~s", [XferUUID, Callrec#call.id]),
+	freeswitch:sendmsg(State#state.cnode, XferUUID,
+		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Callrec#call.id}]),
+	%freeswitch_ring:hangup(State#state.ringchannel),
+	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
+			xferchannel = undefined, xferuuid = undefined}};
 handle_answer(Apid, _Callrec, State) ->
 	{ok, State#state{agent_pid = Apid}}.
 
@@ -203,16 +213,20 @@ handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 	F = fun(UUID) ->
 		fun(ok, _Reply) ->
 			% agent picked up?
-			freeswitch:sendmsg(State#state.cnode, UUID,
-				[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]);
+			%unlink(State#state.ringchannel),
+			%freeswitch:sendmsg(State#state.cnode, UUID,
+				%[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
+				%gen_media:oncall(Call#call.source),
+				?INFO("Agent transfer picked up?~n", []);
 		(error, Reply) ->
 			?WARNING("originate failed: ~p", [Reply])
 			%agent:set_state(AgentPid, idle)
 		end
 	end,
-	case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F) of
+	case freeswitch_ring:start_link(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge]) of
 		{ok, Pid} ->
-			{ok, State#state{agent_pid = AgentPid, ringchannel=Pid}};
+			%{ok, State#state{agent_pid = AgentPid, ringchannel=Pid}};
+			{ok, State#state{xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{error, Error, State}
@@ -334,6 +348,9 @@ handle_info(check_recovery, State) ->
 			{ok, Tref} = timer:send_after(1000, check_recovery),
 			{noreply, State#state{manager_pid = Tref}}
 	end;
+handle_info({'EXIT', Pid, Reason}, #state{xferchannel = Pid} = State) ->
+	?WARNING("Handling transfer channel ~w exit ~p", [Pid, Reason]),
+	{stop_ring, State#state{ringchannel = undefined}};
 handle_info({'EXIT', Pid, Reason}, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p", [Pid, Reason]),
 	{stop_ring, State#state{ringchannel = undefined}};

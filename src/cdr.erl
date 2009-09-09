@@ -308,7 +308,12 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 		nodes = State#state.nodes
 	},
 	Termed = push_raw(Call, Cdr),
-	analyze(Transaction, Call, Time, Data, Termed),
+	Extra = analyze(Transaction, Call, Time, Data, Termed),
+	mnesia:transaction(fun() ->
+		lists:foreach(fun(Rec) ->
+			mnesia:write(Rec#cdr_raw{nodes = State#state.nodes})
+		end, Extra)
+	end),
 	Newstate = case Transaction of
 		endwrapup ->
 			State#state{limbo_wrapup_count = Limbocount - 1};
@@ -398,8 +403,15 @@ push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 	?INFO("push_raw:  ~p", [Out]),
 	Out.
 
+%% @doc Determine any info messages that should be input based on what the last
+%% actual message ended.
+-spec(analyze/5 :: (Trans :: transaction_type(), Call :: #call{}, Time :: time(), Data :: any(), Termed :: transaction_type()) -> [#cdr_raw{}]).
+analyze(hangup, #call{id = Cid}, Time, _, [inivr]) ->
+	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonivr}];
+analyze(hangup, #call{id = Cid}, Time, _, [inqueue]) ->
+	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonequeue}];
 analyze(_, _, _, _, _) ->
-	ok.
+	[].
 	
 -spec(find_untermed/3 :: (Event :: transaction_type(), Call :: #call{}, Data :: any()) -> [#cdr_raw{}]).
 find_untermed(inivr, _, _) ->
@@ -930,6 +942,20 @@ merge(_, _, _) ->
 %		?assertError(split_check_fail, find_initiator_limbo(Event, Unterminated, Limbo))
 %	end}].
 
+analyze_test_() ->
+	[{"hangup in inv",
+	fun() ->
+		Now = util:now(),
+		Res = analyze(hangup, #call{id = "testcall", source = self()}, Now, "ivr", [inivr]),
+		?assertMatch([#cdr_raw{id = "testcall", start = Now, ended = Now, transaction = abandonivr}], Res)
+	end},
+	{"hangup in q",
+	fun() ->
+		Now = util:now(),
+		Res = analyze(hangup, #call{id = "testcall", source = self()}, Now, "queue", [inqueue]),
+		?assertMatch([#cdr_raw{id = "testcall", start = Now, ended = Now, transaction = abandonequeue}], Res)
+	end}].
+
 push_raw_test_() ->
 	{foreach,
 	fun() ->
@@ -1182,6 +1208,7 @@ push_raw_test_() ->
 			])
 		end}
 	end]}.
+
 
 % handle_event's primary duty is to see if the call is ready for summary.
 handle_event_test_() ->

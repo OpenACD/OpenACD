@@ -54,8 +54,6 @@
 	voicemail/2,
 	agent_transfer/2,
 	status/1,
-	recover/1,
-	recoveryinit/1,
 	merge/3
 ]).
 
@@ -165,16 +163,6 @@ cdrinit(Call) ->
 			?ERROR("Initializing CDR for ~s erred with: ~p:~p", [Call#call.id, What, Why]),
 			error
 	end.
-
-%% @doc Create a handler for `#call{} Call', then use the recovery database.
--spec(recoveryinit/1 :: (Call :: #call{}) -> 'ok' | 'error').
-recoveryinit(Call) ->
-	case cdrinit(Call) of
-		ok ->
-			recover(Call);
-		error ->
-			error
-	end.
 	
 %% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
 -spec(inqueue/2 :: (Call :: #call{}, Queue :: string()) -> 'ok').
@@ -252,11 +240,6 @@ status(#call{id = Cid} = Call) ->
 	status(Cid);
 status(Cid) ->
 	gen_event:call(cdr, {?MODULE, Cid}, status).
-
-%% @doc Pulls the transactions from the cdr_raw (recovery) database.
--spec(recover/1 :: (Call :: #call{}) -> 'ok').
-recover(Call) ->
-	catch gen_event:notify(cdr, {recover, Call}).
 
 %% Gen event callbacks
 
@@ -630,39 +613,6 @@ build_tables() ->
 %	end,
 %	SummaryDict = lists:foldl(Count, Acc, Transactions),
 %	dict:to_list(SummaryDict).
-
-%load_recover(Callid) ->
-%	?DEBUG("Starting recovery for ~s", [Callid]),
-%	F = fun() ->
-%		QH = qlc:q([X#cdr_raw.transaction || X <- mnesia:table(cdr_raw), X#cdr_raw.id =:= Callid]),
-%		qlc:e(QH)
-%	end,
-%	{atomic, Transactions} = mnesia:transaction(F),
-%	Sort = fun({_Atrans, Atime, _Adata}, {_Btrans, Btime, _Bdata}) ->
-%		Btime >= Atime
-%	end,
-%	Sorted = lists:sort(Sort, Transactions),
-%	?DEBUG("Recovery list:  ~p", [Sorted]),
-%	recover(Sorted, [], [], false).
-%
-%recover([], Untermed, Termed, Hangup) ->
-%	{Untermed, Termed, Hangup};
-%recover([{inqueue, _Time, _Details} = Head | Tail], Untermed, Termed, Hangup) ->
-%	recover(Tail, [Head | Untermed], Termed, Hangup);
-%recover([{hangup, Time, Details} = _Head | Tail], Untermed, Termed, _Hangup) ->
-%	recover(Tail, Untermed, [{hangup, Time, Time, 0, Details} | Termed], true);
-%recover([{transfer, Time, Details} = _Head | Tail], Untermed, Termed, Hangup) ->
-%	recover(Tail, [{transfer, Time, Details} | Untermed], Termed, Hangup);
-%recover([{Event, Time, _Details} = Head | Tail], Untermed, Termed, Hangup) ->
-%	{{Priorevent, Oldtime, Olddetails}, Miduntermed} = find_initiator(Head, Untermed),
-%	Newtermed = [{Priorevent, Oldtime, Time, Time - Oldtime, Olddetails} | Termed],
-%	Newuntermed = case Event of
-%		endwrapup ->
-%			Miduntermed;
-%		_Else ->
-%			[Head | Miduntermed]
-%	end,
-%	recover(Tail, Newuntermed, Newtermed, Hangup).
 
 %% @doc Given the list of nodes, merge the cdrs.  Since this can take a long
 %% time, it can help to just spawn a new process for it.

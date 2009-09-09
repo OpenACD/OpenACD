@@ -69,7 +69,33 @@
 ]).
 
 
--type(transaction_type() :: 'inqueue' | 'ringing' | 'oncall' | 'wrapup').
+
+
+-type(transaction_type() :: 
+	'cdrinit' | 
+	'inivr' | 
+	'dialoutgoing' |
+	'inqueue' |
+	'ringing' |
+	'precall' |
+	'oncall' |
+	'outgoing' |
+	'failedoutgoing' |
+	'agent_transfer' |
+	'queue_transfer' |
+	'warmxfer' |
+	'warmxfercomplete' |
+	'warmxferfailed' |
+	'warmxferleg' |
+	'wrapup' |
+	'endwrapup' |
+	'abandonqueue' |
+	'abandonivr' |
+	'voicemail' |
+	'hangup' |
+	'undefined' |
+	'cdrend'
+).
 -type(callid() :: string()).
 -type(time() :: integer()).
 -type(datalist() :: [{atom(), string()}]).
@@ -102,6 +128,7 @@
 	eventdata :: any(),
 	start = util:now() :: time(),
 	ended :: 'undefined' | time(),
+	terminates = [] :: [transaction_type()] | 'infoevent',
 	timestamp = util:now() :: time(),
 	nodes = [] :: [atom()]
 }).
@@ -247,6 +274,7 @@ init([Call]) ->
 		id = Call#call.id,
 		transaction = cdrinit,
 		eventdata = Call,
+		terminates = infoevent,
 		nodes = Nodes
 	},
 	mnesia:transaction(fun() -> 
@@ -256,6 +284,14 @@ init([Call]) ->
 	{ok, #state{id=Call#call.id, callrec = Call, nodes = Nodes}}.
 
 %% @private
+handle_event({mutate, Oldid, Newcallrec}, #state{id = Oldid} = State) when is_record(Newcallrec, call) ->
+	case mutate(Oldid, Newcallrec) of
+		{atomic, ok} ->
+			{ok, State#state{id = Newcallrec#call.id}};
+		Else ->
+			?ERROR("could not update cdr handle ~p to ~p:  ~p", [Oldid, Newcallrec, Else]),
+			{ok, State}
+	end;
 handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = Callid, limbo_wrapup_count = Limbocount} = State) ->
 	Ended = case lists:member(Transaction, [hangup, agent_transfer, voicemail]) of
 		true ->
@@ -271,7 +307,8 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 		ended = Ended,
 		nodes = State#state.nodes
 	},
-	push_raw(Call, Cdr),
+	Termed = push_raw(Call, Cdr),
+	analyze(Transaction, Call, Time, Data, Termed),
 	Newstate = case Transaction of
 		endwrapup ->
 			State#state{limbo_wrapup_count = Limbocount - 1};
@@ -322,12 +359,31 @@ code_change(_OldVsn, State, _Extra) ->
 
 spawn_summarizer(#call{id = Id}) ->
 	ok.
-	
+
+mutate(Oldid, Newcallrec) ->
+	F = fun() ->
+		RawsQh = qlc:q([ R || R <- mnesia:table(cdr_raw), R#cdr_raw.id =:= Oldid]),
+		SumsQh = qlc:q([ S || #cdr_rec{media = Media} = S <- mnesia:table(cdr_rec), Media#call.id =:= Oldid]),
+		Raws = qlc:e(RawsQh),
+		lists:foreach(fun(Rawrec) ->
+			mnesia:delete_object(Rawrec),
+			mnesia:write(Rawrec#cdr_raw{id= Newcallrec#call.id})
+		end, Raws),
+		Sums = qlc:e(SumsQh),
+		lists:foreach(fun(Sumrec) ->
+			mnesia:delete_object(Sumrec),
+			mnesia:write(Sumrec#cdr_rec{media = Newcallrec})
+		end, Sums),
+		ok
+	end,
+	mnesia:transaction(F).
+
 %% @private Push the raw transaction into the cdr_raw table.
 -spec(push_raw/2 :: (Callrec :: #call{}, Trans :: #cdr_raw{}) -> {'atomic', 'ok'}).
 push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 	F = fun() ->
 		Untermed = find_untermed(Trans#cdr_raw.transaction, Callrec, Trans#cdr_raw.eventdata),
+		Termedatoms = lists:map(fun(#cdr_raw{transaction = T}) -> T end, Untermed),
 		?DEBUG("closing cdr records ~p", [Untermed]),
 		Terminate = fun(Rec) ->
 			mnesia:delete_object(Rec),
@@ -335,109 +391,145 @@ push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 		end,
 		lists:foreach(Terminate, Untermed),
 		?DEBUG("Writing ~p", [Trans]),
-		mnesia:write(Trans),
-		Untermed
+		mnesia:write(Trans#cdr_raw{terminates = Termedatoms}),
+		Termedatoms
 	end,
 	Out = mnesia:transaction(F),
 	?INFO("push_raw:  ~p", [Out]),
 	Out.
 
+analyze(_, _, _, _, _) ->
+	ok.
+	
 -spec(find_untermed/3 :: (Event :: transaction_type(), Call :: #call{}, Data :: any()) -> [#cdr_raw{}]).
+find_untermed(inivr, _, _) ->
+	% Does not terminate anything
+	[];
+find_untermed(dialoutgoing, _, _) ->
+	% info event, precall terminated by outgoing/oncall
+	[];
 find_untermed(inqueue, #call{id = Cid} = Call, Queuename) ->
-	F = fun() ->
-		QH = qlc:q([X || 
-			X <- mnesia:table(cdr_raw), 
-			X#cdr_raw.id =:= Cid, 
-			X#cdr_raw.transaction =:= inqueue,
-			X#cdr_raw.eventdata =/= Queuename,
-			X#cdr_raw.ended =:= undefined
-		]),
-		qlc:e(QH)
-	end,
-	mnesia:sync_dirty(F);
+	% queue to queue transfers
+	QH = qlc:q([X || 
+		X <- mnesia:table(cdr_raw), 
+		X#cdr_raw.id =:= Cid, 
+		X#cdr_raw.transaction =:= inqueue,
+		X#cdr_raw.eventdata =/= Queuename,
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
+find_untermed(ringing, _, _) ->
+	% doesn't term anything, but not info event
+	[];
+find_untermed(precall, _, _) ->
+	% same as above,
+	[];
 find_untermed(oncall, #call{id = Cid} = Call, Agent) ->
-	F = fun() ->
-		QH = qlc:q([X ||
-			X <- mnesia:table(cdr_raw),
-			X#cdr_raw.id =:= Cid,
-			( ( (X#cdr_raw.transaction =:= ringing) and (X#cdr_raw.eventdata =:= Agent) ) orelse X#cdr_raw.transaction =:= inqueue),
-			X#cdr_raw.ended =:= undefined
-		]),
-		qlc:e(QH)
-	end,
-	mnesia:sync_dirty(F);
+	% terminates precall so I don't have to change it should outgoing state go away.
+	QH = qlc:q([X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		( ( (X#cdr_raw.transaction =:= ringing) and (X#cdr_raw.eventdata =:= Agent) ) orelse (X#cdr_raw.transaction =:= inqueue) orelse (X#cdr_raw.transaction =:= precall) ),
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
+find_untermed(outgoing, #call{id = Cid} = Call, Agent) ->
+	QH = qlc:q([X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		X#cdr_raw.transaction =:= precall,
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
+find_untermed(failedoutgoing, _, _) ->
+	% just an info
+	[];
+find_untermed(agent_transfer, _, _) ->
+	% the associated oncall and ringings do the terminations.  This is info
+	[];
+find_untermed(queue_transfer, _, _) ->
+	% inqueue to inqueue for the actual terminations
+	[];
+find_untermed(warmxfer, _, _) ->
+	% start of new events, terminates noting (like ringing)
+	[];
+find_untermed(warmxferfailed, #call{id = Cid} = Call, _) ->
+	QH = qlc:q([X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		(X#cdr_raw.transaction =:= warmxfer orelse X#cdr_raw.transaction =:= warmxferleg),
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
+find_untermed(warmxferleg, #call{id = Cid} = Call, _) ->
+	QH = qlc:q([ X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		X#cdr_raw.transaction =:= warmxfer,
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
+find_untermed(warmxfercomplete, #call{id = Cid} = Call, _) ->
+	% a wrapup terminates the oncall that the agent will be in
+	QH = qlc:q([X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		X#cdr_raw.ended =:= undefined,
+		X#cdr_raw.transaction =:= warmxferleg
+	]),
+	qlc:e(QH);
 find_untermed(wrapup, #call{id = Cid} = Call, Agent) ->
-	F = fun() ->
-		QH = qlc:q([X ||
-			X <- mnesia:table(cdr_raw),
-			X#cdr_raw.id =:= Cid,
-			X#cdr_raw.transaction =:= oncall,
-			X#cdr_raw.eventdata =:= Agent,
-			X#cdr_raw.ended =:= undefined
-		]),
-		qlc:e(QH)
-	end,
-	mnesia:sync_dirty(F);
+	QH = qlc:q([X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		X#cdr_raw.transaction =:= oncall,
+		X#cdr_raw.eventdata =:= Agent,
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
 find_untermed(endwrapup, #call{id = Cid} = Call, Agent) ->
-	F = fun() ->
-		QH = qlc:q([X ||
-			X <- mnesia:table(cdr_raw),
-			X#cdr_raw.id =:= Cid,
-			X#cdr_raw.transaction =:= wrapup,
-			X#cdr_raw.eventdata =:= Agent,
-			X#cdr_raw.ended =:= undefined
-		]),
-		qlc:e(QH)
-	end,
-	mnesia:sync_dirty(F);
+	QH = qlc:q([X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		X#cdr_raw.transaction =:= wrapup,
+		X#cdr_raw.eventdata =:= Agent,
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
 find_untermed(ringout, #call{id = Cid} = Call, Agent) ->
-	F = fun() ->
-		QH = qlc:q([X ||
-			X <- mnesia:table(cdr_raw),
-			X#cdr_raw.id =:= Cid,
-			X#cdr_raw.transaction =:= ringing,
-			X#cdr_raw.eventdata =:= Agent,
-			X#cdr_raw.ended =:= undefined
-		]),
-		qlc:e(QH)
-	end,
-	mnesia:sync_dirty(F);
+	QH = qlc:q([X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		X#cdr_raw.transaction =:= ringing,
+		X#cdr_raw.eventdata =:= Agent,
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
 find_untermed(voicemail, #call{id = Cid} = Call, _Whatever) ->
-	F = fun() ->
-		QH = qlc:q([X ||
-			X <- mnesia:table(cdr_raw),
-			X#cdr_raw.id =:= Cid,
-			X#cdr_raw.transaction =:= inqueue,
-			X#cdr_raw.ended =:= undefined
-		]),
-		qlc:e(QH)
-	end,
-	mnesia:sync_dirty(F);
+	QH = qlc:q([X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		X#cdr_raw.transaction =:= inqueue,
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
 find_untermed(hangup, #call{id = Cid} = Call, _Whatever) ->
-	F = fun() ->
-		QH = qlc:q([X ||
-			X <- mnesia:table(cdr_raw),
-			X#cdr_raw.id =:= Cid,
-			X#cdr_raw.transaction =:= inqueue,
-			X#cdr_raw.ended =:= undefined
-		]),
-		qlc:e(QH)
-	end,
-	mnesia:sync_dirty(F);
+	QH = qlc:q([X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		( (X#cdr_raw.transaction =:= inqueue) orelse (X#cdr_raw.transaction =:= inivr) ),
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
 find_untermed(cdrend, #call{id = Cid} = Call, _Whatever) ->
-	F = fun() ->
-		QH = qlc:q([X ||
-			X <- mnesia:table(cdr_raw),
-			X#cdr_raw.id =:= Cid,
-			X#cdr_raw.transaction =:= cdrinit,
-			X#cdr_raw.ended =:= undefined
-		]),
-		qlc:e(QH)
-	end,
-	mnesia:sync_dirty(F);
+	QH = qlc:q([X ||
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id =:= Cid,
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
 find_untermed(_, _, _) ->
-	%% annouce, agent_transfer, ringing, warm_transfer
-	%% none of these end another state.
+	%% some other event, prolly an info.  unknowns terminate nothing.
 	[].
 	
 build_tables() ->
@@ -969,16 +1061,29 @@ push_raw_test_() ->
 		Call = #call{id = "testcall", source = self()},
 		init([Call]),
 		Basedata = [
+			{inivr, "na"},
+			{dialoutgoing, "na"},
 			{inqueue, "testqueue"},
 			{ringing, "testagent"},
+			{precall, "na"},
 			{oncall, "testagent"},
+			{outgoing, "na"},
+			{failedoutgoing, "na"},
+			{agent_transfer, "na"},
+			{queue_transfer, "na"},
+			{warmxfer, "na"},
+			{warmxfercomplete, "na"},
+			{warmxferfailed, "na"},
+			{warmxferleg, "na"},
 			{wrapup, "testagent"},
 			{endwrapup, "testagent"},
+			{abandonqueue, "testqueue"},
+			{abandonivr, "na"},
 			{ringout, "testagent"},
 			{voicemail, "na"},
 			{hangup, "na"},
 			{annouce, "na"},
-			{warm_transfer, "na"}
+			{cdrend, "na"}
 		],
 		Seedfun = fun() ->
 			lists:foreach(fun({Trans, Data}) ->
@@ -1012,6 +1117,20 @@ push_raw_test_() ->
 		mnesia:delete_schema([node()])
 	end,
 	[fun({Call, Pull, Ended}) ->
+		{"ivr",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = inivr}),
+			Ended(Pull(), [])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"dialoutgoing",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = dialoutgoing}),
+			Ended(Pull(), [])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
 		{"inqueue",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = inqueue, eventdata = "newqueue"}),
@@ -1031,8 +1150,64 @@ push_raw_test_() ->
 		{"oncall",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = oncall, eventdata = "testagent"}),
-			Testend = [inqueue, ringing],
+			Testend = [inqueue, ringing, precall],
 			Ended(Pull(), Testend)
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"outgoing",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = outgoing, eventdata = "testagent"}),
+			Ended(Pull(), [precall])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"failedoutgoing",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = failedoutgoing}),
+			Ended(Pull(), [])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"agent_transfer",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = agent_transfer}),
+			Ended(Pull(), [])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"queue_transfer",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = queue_transfer}),
+			Ended(Pull(), [])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"warmxfer",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxfer}),
+			Ended(Pull(), [])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"warmxferleg",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxferleg}),
+			Ended(Pull(), [warmxfer])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"warmxfercomplete",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxfercomplete}),
+			Ended(Pull(), [warmxferleg])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"warmxferfailed",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxferfailed}),
+			Ended(Pull(), [warmxferleg, warmxfer])
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
@@ -1050,6 +1225,20 @@ push_raw_test_() ->
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
+		{"abandonequeue",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = abandonequeue}),
+			Ended(Pull(), [])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
+		{"abandonivr",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = abandonivr}),
+			Ended(Pull(), [])
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
 		{"ringout",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = ringout, eventdata = "testagent"}),
@@ -1060,14 +1249,14 @@ push_raw_test_() ->
 		{"voicemail",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = voicemail, eventdata = "na"}),
-			Ended(Pull(), [])
+			Ended(Pull(), [inqueue])
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
 		{"hangup",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = hangup, eventdata = "na"}),
-			Ended(Pull(), [])
+			Ended(Pull(), [inqueue, inivr])
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
@@ -1078,116 +1267,118 @@ push_raw_test_() ->
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
-		{"warm_transfer",
+		{"cdrend",
 		fun() ->
-			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warm_transfer, eventdata = "na"}),
-			Ended(Pull(), [])
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = cdrend, eventdata = "na"}),
+			Ended(Pull(), [
+				cdrinit,
+				inivr,
+				dialoutgoing,
+				inqueue,
+				ringing,
+				precall,
+				oncall,
+				outgoing,
+				failedoutgoing,
+				agent_transfer,
+				queue_transfer,
+				warmxfer,
+				warmxfercomplete,
+				warmxferfailed,
+				warmxferleg,
+				wrapup,
+				endwrapup,
+				abandonqueue,
+				abandonivr,
+				ringout,
+				voicemail,
+				hangup,
+				annouce,
+				cdrend
+			])
 		end}
 	end]}.
-			
-%			{oncall, "testagent"},
-%			{wrapup, "testagent"},
-%			{endwrapup, "testagent"},
-%			{ringout, "testagent"},
-%			{voicemail, "na"},
-%			{hangup, "na"},
-%			{annouce, "na"},
-%			{warm_transfer, "na"}
-%]}.
-	%,
-%	fun({Call, Pull}) ->
-%		{"inqueue -> ringing",
-%		fun() ->
-%			Inqueuerec = #cdr_raw{
-%				id = Call#call.id,
-%				transaction = inqueue,
-%				eventdata = "testqueue"
-%			},
-%			push_raw(Call, Inqueuerec),
-%			Ringrec = #cdr_raw{
-%				id = Call#call.id,
-%				transaction = ringing,
-%				eventdata = "testagent"
-%			},
-%			push_raw(Call, Ringrec),
-%			{atomic, List} = Pull(),
-%			?assertEqual(3, length(List)),
-%			lists:foreach(fun(Rec) -> ?assertEqual(undefined, Rec#cdr_raw.ended) end, List)
-%		end}
+
+% handle_event's primary duty is to see if the call is ready for summary.
+handle_event_test_() ->
+	{foreach,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		build_tables(),
+		Call = #call{
+			id = "testcall",
+			source = self()
+		},
+		{ok, Basestate} = init([Call]),
+		{Call, Basestate}
+	end,
+	fun(_) ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()])
+	end,
+	[fun({Call, Basestate}) ->
+		{"oncall increments",
+		fun() ->
+			{ok, Newstate} = handle_event({oncall, Call, util:now(), "testagent"}, Basestate),
+			?assertEqual(Basestate#state.limbo_wrapup_count + 1, Newstate#state.limbo_wrapup_count),
+			?assertNot(Newstate#state.hangup)
+		end}
+	end,
+	fun({Call, #state{limbo_wrapup_count = C} = Basestate}) ->
+		{"endwrapup decrements",
+		fun() ->
+			Instate = Basestate#state{limbo_wrapup_count = C + 1},
+			{ok, Newstate} = handle_event({endwrapup, Call, util:now(), "testagent"}, Instate),
+			?assertEqual(Instate#state.limbo_wrapup_count, Newstate#state.limbo_wrapup_count + 1)
+		end}
+	end]}.
+
+		
+		
+%		
+%		
+%handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = Callid, limbo_wrapup_count = Limbocount} = State) ->
+%	Ended = case lists:member(Transaction, [hangup, agent_transfer, voicemail]) of
+%		true ->
+%			Time;
+%		false ->
+%			undefined
 %	end,
-%	fun({Call, Pull}) ->
-%		{"inqueue -> ringing -> oncall",
-%		fun() ->
-%			Inqueuerec = #cdr_raw{
-%				id = Call#call.id,
-%				transaction = inqueue,
-%				eventdata = "testqueue"
-%			},
-%			push_raw(Call, Inqueuerec),
-%			Ringrec = #cdr_raw{
-%				id = Call#call.id,
-%				transaction = ringing,
-%				eventdata = "testagent"
-%			},
-%			push_raw(Call, Ringrec),
-%			Oncallrec = #cdr_raw{
-%				id = Call#call.id,
-%				transaction = oncall,
-%				eventdata = "testagent"
-%			},
-%			push_raw(Call, Oncallrec),
-%			{atomic, List} = Pull(),
-%			?DEBUG("~p", [List]),
-%			?assertEqual(4, length(List)),
-%			Test = fun	(#cdr_raw{transaction = inqueue, ended = End}) ->
-%					?assertNot(End =:= undefined);
-%				(#cdr_raw{transaction = ringing, ended = End}) ->
-%					?assertNot(End =:= undefined);
-%				(#cdr_raw{ended = End}) ->
-%					?assertEqual(undefined, End)
-%			end,
-%			lists:foreach(Test, List)
-%		end}
+%	Cdr = #cdr_raw{
+%		id = Callid,
+%		transaction = Transaction,
+%		eventdata = Data,
+%		start = Time,
+%		ended = Ended,
+%		nodes = State#state.nodes
+%	},
+%	push_raw(Call, Cdr),
+%	Newstate = case Transaction of
+%		endwrapup ->
+%			State#state{limbo_wrapup_count = Limbocount - 1};
+%		oncall ->
+%			State#state{limbo_wrapup_count = Limbocount + 1};
+%		hangup ->
+%			State#state{hangup = true};
+%		Else ->
+%			State
 %	end,
-%	fun({Call, Pull}) ->
-%		{"inqueue -> ringing -> oncall -> wrapup",
-%		fun() ->
-%			Inqueuerec = #cdr_raw{
-%				id = Call#call.id,
-%				transaction = inqueue,
-%				eventdata = "testqueue"
-%			},
-%			push_raw(Call, Inqueuerec),
-%			Ringrec = #cdr_raw{
-%				id = Call#call.id,
-%				transaction = ringing,
-%				eventdata = "testagent"
-%			},
-%			push_raw(Call, Ringrec),
-%			Oncallrec = #cdr_raw{
-%				id = Call#call.id,
-%				transaction = oncall,
-%				eventdata = "testagent"
-%			},
-%			push_raw(Call, Oncallrec),
-%			Wrapuprec = #cdr_raw{
-%				id = Call#call.id,
-%				transaction = wrapup,
-%				eventdata = "testagent"
-%			},
-%			push_raw(Call, Wrapuprec),
-%			{atomic, List} = Pull(),
-%			?DEBUG("~p", [List]),
-%			?assertEqual(5, length(List)),
-%			Test = fun
-%				(#cdr_raw{transaction = Trans, ended = End}) when Trans =:= ringing; Trans =:= inqueue; Trans =:= oncall ->
-%					?assertNot(End =:= undefined);
-%				(#cdr_raw{ended = End}) ->
-%					?assertEqual(undefined, End)
-%			end,
-%			lists:foreach(Test, List)
-%		end}
-%	end]}.
+%	case {Newstate#state.hangup, Newstate#state.limbo_wrapup_count} of
+%		{true, 0} ->
+%			remove_handler;
+%		_Anything_else ->
+%			{ok, Newstate}
+%	end.		
+%		
+%		
+%		
+		
+		
+		
+		
 
 %handle_event_test_() ->
 %	{foreach,

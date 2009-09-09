@@ -134,8 +134,10 @@
 -type(state() :: #state{}).
 -define(GEN_EVENT, true).
 -include("gen_spec.hrl").
-	
+
+%% =====
 %% API
+%% =====
 
 %% @doc starts the cdr event server.
 -spec(start/0 :: () -> {'ok', pid()}).
@@ -235,13 +237,16 @@ voicemail(Call, Queue) ->
 event(Tuple) ->
 	catch gen_event:notify(cdr, Tuple).
 %% @doc Return the completed and partial transactions for `#call{} Call'.
+
 -spec(status/1 :: (Call :: #call{} | string()) -> {[tuple()], [tuple()]}).
 status(#call{id = Cid} = Call) ->
 	status(Cid);
 status(Cid) ->
 	gen_event:call(cdr, {?MODULE, Cid}, status).
 
+%% =====
 %% Gen event callbacks
+%%=====
 
 %% @private
 init([Call]) ->
@@ -344,6 +349,10 @@ terminate(Args, _State) ->
 %% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+%% =====
+%% Internal Functions
+%% =====
 
 spawn_summarizer(#call{id = Id}) ->
 	ok.

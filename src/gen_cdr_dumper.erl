@@ -53,11 +53,19 @@
 	add_handler/2,
 	drop_handler/2,
 	start_link/0,
-	start_link/1]).
+	start_link/1,
+	update_notify/1
+]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3]).
+-export([
+	init/1,
+	handle_call/3,
+	handle_cast/2,
+	handle_info/2,
+	terminate/2,
+	code_change/3
+]).
 
 -record(state, {
 	callbacks = [] :: [{atom(), any()}]
@@ -102,6 +110,10 @@ start_link() ->
 start_link(Callbacks) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Callbacks], []).
 
+update_notify(TableName) ->
+	Nodes = [node() | nodes()],
+	lists:foreach(fun(Node) -> {?MODULE, Node} ! {update, TableName} end, Nodes).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -133,13 +145,14 @@ init([Callbacks]) ->
 			qlc:e(S)
 	end,
 	{atomic, Rows} = mnesia:transaction(F2),
-	State = lists:foldl(fun(Row, IState) ->
-				dump_row(Row, IState,
-					lists:delete(node(), Row#agent_state.nodes))
-		end,
-		#state{callbacks = Validmods}, Rows),
-	mnesia:subscribe({table, agent_state, simple}),
-	{ok, State, hibernate}.
+	%State = lists:foldl(fun(Row, IState) ->
+				%dump_row(Row, IState,
+					%lists:delete(node(), Row#agent_state.nodes))
+		%end,
+		%#state{callbacks = Validmods}, Rows),
+	%mnesia:subscribe({table, agent_state, simple}),
+	%{ok, State, hibernate}.
+	{ok, #state{callbacks = Validmods}, hibernate}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -185,17 +198,21 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info({mnesia_table_event, {write, #agent_state{ended = undefined}, _Activityid}}, State) ->
-	{noreply, State, hibernate};
-handle_info({mnesia_table_event, {write, #agent_state{nodes = Nodes} = Staterec, _Activityid}}, State) ->
-	?INFO("write table event: ~p", [Nodes]),
-	case lists:delete(node(), Nodes) of
-		Nodes ->
-			{noreply, State, hibernate};
-		Newnodes ->
-			NewState = dump_row(Staterec, State, Newnodes),
-			{noreply, NewState, hibernate}
-	end;
+%handle_info({mnesia_table_event, {write, #agent_state{ended = undefined}, _Activityid}}, State) ->
+	%{noreply, State, hibernate};
+%handle_info({mnesia_table_event, {write, #agent_state{nodes = Nodes} = Staterec, _Activityid}}, State) ->
+	%?INFO("write table event: ~p", [Nodes]),
+	%case lists:delete(node(), Nodes) of
+		%Nodes ->
+			%{noreply, State, hibernate};
+		%Newnodes ->
+			%NewState = dump_row(Staterec, State, Newnodes),
+			%{noreply, NewState, hibernate}
+	%end;
+handle_info({update, TableName}, State) ->
+	?NOTICE("got update for ~p", [TableName]),
+	NewState = dump_table(TableName, State),
+	{noreply, NewState, hibernate};
 handle_info(_Info, State) ->
 	{noreply, State, hibernate}.
 
@@ -240,7 +257,7 @@ code_change(OldVsn, #state{callbacks = Callbacks} = State, Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-dump_row(#agent_state{} = Staterec, State, Newnodes) ->
+dump_row(#agent_state{} = Staterec, State) ->
 	% TODO better error handling if a callback fails.
 	F = fun({Callback, Substate}, Acc) ->
 		Newacc = try Callback:dump(Staterec, Substate) of
@@ -265,20 +282,35 @@ dump_row(#agent_state{} = Staterec, State, Newnodes) ->
 			Newacc
 	end,
 	Newcallbacks = lists:foldl(F, [], State#state.callbacks),
-	Transfun = fun() ->
-			% TODO - shouldn't we be reading the record from the db and writing it
-			% back in one transaction so that the record isn't changed from under
-			% us?
-			mnesia:delete_object(Staterec),
-			case Newnodes of
-				[] ->
-					?DEBUG("Discarding record", []),
-					ok;
-				_Else ->
-					?DEBUG("writing back record with new nodelist ~p", [Newnodes]),
-					mnesia:write(Staterec#agent_state{nodes = Newnodes, timestamp = util:now()})
-			end
+	% return record to write back
+	Staterec#agent_state{nodes = lists:delete(node(), Staterec#agent_state.nodes),
+		timestamp = util:now()}.
+
+dump_rows(QC, State) ->
+	case qlc:next_answers(QC, 1) of
+		[] ->
+			State;
+		[Row] ->
+			NewRow = dump_row(Row, State),
+			mnesia:delete_object(Row),
+			?NOTICE("writing updated row ~p", [NewRow]),
+			?NOTICE("old row ~p", [Row]),
+			mnesia:write(NewRow),
+			dump_rows(QC, State)
+	end.
+
+dump_table(agent_state, State) ->
+	F = fun() ->
+			QH = qlc:q([AgentState || AgentState <- mnesia:table(agent_state),
+					lists:member(node(), AgentState#agent_state.nodes),
+					AgentState#agent_state.ended =/= undefined
+				]),
+			QC = qlc:cursor(QH),
+
+			%Rows = qlc:e(S),
+			%?NOTICE("qlc execute ~p", [Rows]),
+			dump_rows(QC, State)
 	end,
-	mnesia:transaction(Transfun),
-	State#state{callbacks = Newcallbacks}.
+	{atomic, NewState} = mnesia:transaction(F),
+	NewState.
 

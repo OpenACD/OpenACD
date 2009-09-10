@@ -642,7 +642,7 @@ get_raws([], _Time, Acc) ->
 	Acc;
 get_raws([Node | Tail], Time, Acc) ->
 	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(cdr_raw), element(2, X#cdr_raw.transaction) =< Time]),
+		QH = qlc:q([X || X <- mnesia:table(cdr_raw), X#cdr_raw.timestamp =< Time]),
 		qlc:e(QH)
 	end,
 	Out = rpc:call(Node, mnesia, transaction, [F]),

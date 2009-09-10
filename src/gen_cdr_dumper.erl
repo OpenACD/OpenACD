@@ -301,14 +301,12 @@ dump_rows(QC, State) ->
 
 dump_table(agent_state, State) ->
 	F = fun() ->
+			mnesia:lock({table, agent_state}, write),
 			QH = qlc:q([AgentState || AgentState <- mnesia:table(agent_state),
 					lists:member(node(), AgentState#agent_state.nodes),
 					AgentState#agent_state.ended =/= undefined
 				]),
 			QC = qlc:cursor(QH),
-
-			%Rows = qlc:e(S),
-			%?NOTICE("qlc execute ~p", [Rows]),
 			dump_rows(QC, State)
 	end,
 	{atomic, NewState} = mnesia:transaction(F),

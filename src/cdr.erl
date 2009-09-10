@@ -624,117 +624,115 @@ summarize(Cdr, Catagory, Individual, Acc) ->
 %% @doc Given the list of nodes, merge the cdrs.  Since this can take a long
 %% time, it can help to just spawn a new process for it.
 -spec(merge/3 :: (Nodes :: [atom()], Time :: pos_integer(), Replyto :: pid()) -> 'ok').
-merge(_, _, _) ->
+merge(Nodes, Time, Replyto) ->
+	Raws = get_raws(Nodes, Time),
+	Touchedcalls = get_ids(Raws),
+	Sums = get_summaries(Nodes, Touchedcalls),
+	Mergedraws = merge_raw(Raws),
+	MergedSums = merge_sum(Sums),
+	Replyto ! {merge_complete, ?MODULE, lists:append([Mergedraws, MergedSums])},
 	ok.
-%merge(Nodes, Time, Replyto) ->
-%	Raws = get_raws(Nodes, Time),
-%	Touchedcalls = get_ids(Raws),
-%	Sums = get_summaries(Nodes, Touchedcalls),
-%	Mergedraws = merge_raw(Raws),
-%	MergedSums = merge_sum(Sums),
-%	Replyto ! {merge_complete, ?MODULE, lists:append([Mergedraws, MergedSums])},
-%	ok.
-%	
-%%% @private
-%get_raws(Nodes, Time) ->
-%	get_raws(Nodes, Time, []).
-%
-%%% @private
-%get_raws([], _Time, Acc) ->
-%	Acc;
-%get_raws([Node | Tail], Time, Acc) ->
-%	F = fun() ->
-%		QH = qlc:q([X || X <- mnesia:table(cdr_raw), element(2, X#cdr_raw.transaction) =< Time]),
-%		qlc:e(QH)
-%	end,
-%	Out = rpc:call(Node, mnesia, transaction, [F]),
-%	get_raws(Tail, Time, [Out | Acc]).
-%
-%%% @private
-%get_ids(Raws) ->
-%	get_ids(Raws, []).
-%
-%%% @private
-%get_ids([], Acc) ->
-%	Acc;
-%get_ids([{atomic, Raws} | Tail], Acc) ->
-%	Newacc = get_ids_sub(Raws, Acc),
-%	get_ids(Tail, Newacc).
-%
-%get_ids_sub([], Acc) ->
-%	Acc;
-%get_ids_sub([#cdr_raw{id = ID} | Tail], Acc) ->
-%	case lists:member(ID, Acc) of
-%		true ->
-%			get_ids_sub(Tail, Acc);
-%		false ->
-%			get_ids_sub(Tail, [ID | Acc])
-%	end.
-%
-%%% @private
-%get_summaries(Nodes, Ids) ->
-%	get_summaries(Nodes, Ids, []).
-%
-%%% @private
-%get_summaries([], _Ids, Acc) ->
-%	Acc;
-%get_summaries([Node | Nodes], Ids, Acc) ->
-%	F = fun() ->
-%		QH = qlc:q([X || X <- mnesia:table(cdr_rec), lists:member(X#cdr_rec.id, Ids)]),
-%		qlc:e(QH)
-%	end,
-%	case rpc:call(Node, mnesia, transaction, [F]) of
-%		{atomic, _Rows} = Rez ->
-%			get_summaries(Nodes, Ids, [Rez | Acc]);
-%		_Else ->
-%			?WARNING("Could not get cdr_rec from ~w", [Node]),
-%			get_summaries(Nodes, Ids, Acc)
-%	end.
-%
-%%% @private
-%merge_raw(Recs) ->
-%	merge_raw(Recs, []).
-%
-%merge_raw([], Acc) ->
-%	Acc;
-%merge_raw([{atomic, Raws} | Tail], Acc) ->
-%	Newacc = lists:append([Raws, Acc]),
-%	merge_raw(Tail, Newacc).
-%
-%merge_sum(Sums) ->
-%	merge_sum(Sums, []).
-%
-%merge_sum([], Acc) ->
-%	Acc;
-%merge_sum([{atomic, Sums} | Tail], Acc) ->
-%	Newacc = diff_sum(Sums, Acc),
-%	merge_sum(Tail, Newacc).
-%
-%diff_sum(Left, Right) ->
-%	Sort = fun(A, B) ->
-%		A#cdr_rec.id < B#cdr_rec.id
-%	end,
-%	Sleft = lists:sort(Sort, Left),
-%	Sright = lists:sort(Sort, Right),
-%	diff_sum(Sleft, Sright, []).
-%
-%diff_sum([], Right, Acc) ->
-%	lists:append([Right, Acc]);
-%diff_sum(Left, [], Acc) ->
-%	lists:append([Left, Acc]);
-%diff_sum([#cdr_rec{summary = inprogress, id = Id} = Hleft | Tleft], [#cdr_rec{summary = inprogress, id = Id} = _Hright | Tright], Acc) ->
-%	diff_sum(Tleft, Tright, [Hleft | Acc]);
-%diff_sum([#cdr_rec{summary = inprogress, id = Id} | Tleft], [#cdr_rec{id = Id} = Hright | Tright], Acc) ->
-%	diff_sum(Tleft, Tright, [Hright | Acc]);
-%diff_sum([#cdr_rec{id = Id} = Hleft | Tleft], [#cdr_rec{id = Id} = _Hright | Tright], Acc) ->
-%	diff_sum(Tleft, Tright, [Hleft | Acc]);
-%diff_sum([Hleft | Tleft] = Left, [Hright | Tright] = Right, Acc) ->
-%	case Hleft#cdr_rec.id < Hright#cdr_rec.id of
-%		true ->
-%			diff_sum(Tleft, Right, [Hleft | Acc]);
-%		false ->
-%			diff_sum(Left, Tright, [Hright | Acc])
-%	end.
+	
+%% @private
+get_raws(Nodes, Time) ->
+	get_raws(Nodes, Time, []).
+
+%% @private
+get_raws([], _Time, Acc) ->
+	Acc;
+get_raws([Node | Tail], Time, Acc) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(cdr_raw), element(2, X#cdr_raw.transaction) =< Time]),
+		qlc:e(QH)
+	end,
+	Out = rpc:call(Node, mnesia, transaction, [F]),
+	get_raws(Tail, Time, [Out | Acc]).
+
+%% @private
+get_ids(Raws) ->
+	get_ids(Raws, []).
+
+%% @private
+get_ids([], Acc) ->
+	Acc;
+get_ids([{atomic, Raws} | Tail], Acc) ->
+	Newacc = get_ids_sub(Raws, Acc),
+	get_ids(Tail, Newacc).
+
+get_ids_sub([], Acc) ->
+	Acc;
+get_ids_sub([#cdr_raw{id = ID} | Tail], Acc) ->
+	case lists:member(ID, Acc) of
+		true ->
+			get_ids_sub(Tail, Acc);
+		false ->
+			get_ids_sub(Tail, [ID | Acc])
+	end.
+
+%% @private
+get_summaries(Nodes, Ids) ->
+	get_summaries(Nodes, Ids, []).
+
+%% @private
+get_summaries([], _Ids, Acc) ->
+	Acc;
+get_summaries([Node | Nodes], Ids, Acc) ->
+	F = fun() ->
+		QH = qlc:q([X || #cdr_rec{media = Media} = X <- mnesia:table(cdr_rec), lists:member(Media#call.id, Ids)]),
+		qlc:e(QH)
+	end,
+	case rpc:call(Node, mnesia, transaction, [F]) of
+		{atomic, _Rows} = Rez ->
+			get_summaries(Nodes, Ids, [Rez | Acc]);
+		_Else ->
+			?WARNING("Could not get cdr_rec from ~w", [Node]),
+			get_summaries(Nodes, Ids, Acc)
+	end.
+
+%% @private
+merge_raw(Recs) ->
+	merge_raw(Recs, []).
+
+merge_raw([], Acc) ->
+	Acc;
+merge_raw([{atomic, Raws} | Tail], Acc) ->
+	Newacc = lists:append([Raws, Acc]),
+	merge_raw(Tail, Newacc).
+
+merge_sum(Sums) ->
+	merge_sum(Sums, []).
+
+merge_sum([], Acc) ->
+	Acc;
+merge_sum([{atomic, Sums} | Tail], Acc) ->
+	Newacc = diff_sum(Sums, Acc),
+	merge_sum(Tail, Newacc).
+
+diff_sum(Left, Right) ->
+	Sort = fun(#cdr_rec{media = MediaA} = A, #cdr_rec{media = MediaB} = B) ->
+		MediaA#call.id < MediaB#call.id
+	end,
+	Sleft = lists:sort(Sort, Left),
+	Sright = lists:sort(Sort, Right),
+	diff_sum(Sleft, Sright, []).
+
+diff_sum([], Right, Acc) ->
+	lists:append([Right, Acc]);
+diff_sum(Left, [], Acc) ->
+	lists:append([Left, Acc]);
+diff_sum([#cdr_rec{summary = inprogress, media = Media} = Hleft | Tleft], [#cdr_rec{summary = inprogress, media = Media} = _Hright | Tright], Acc) ->
+	diff_sum(Tleft, Tright, [Hleft | Acc]);
+diff_sum([#cdr_rec{summary = inprogress, media = Media} | Tleft], [#cdr_rec{media = Media} = Hright | Tright], Acc) ->
+	diff_sum(Tleft, Tright, [Hright | Acc]);
+diff_sum([#cdr_rec{media = Media} = Hleft | Tleft], [#cdr_rec{media = Media} = _Hright | Tright], Acc) ->
+	diff_sum(Tleft, Tright, [Hleft | Acc]);
+diff_sum([#cdr_rec{media = Lmedia} = Hleft | Tleft] = Left, [#cdr_rec{media = Rmedia} = Hright | Tright] = Right, Acc) ->
+	case Lmedia#call.id < Rmedia#call.id of
+		true ->
+			diff_sum(Tleft, Right, [Hleft | Acc]);
+		false ->
+			diff_sum(Left, Tright, [Hright | Acc])
+	end.
 %
 %%% @private Get a standarized unix epoch integer from `now()'.
 %-spec(nowsec/1 :: ({Mega :: non_neg_integer(), Sec :: non_neg_integer(), Micro :: non_neg_integer()}) -> non_neg_integer()).
@@ -1050,319 +1048,121 @@ handle_event_test_() ->
 		end}
 	end]}.
 
-		
-		
-%		
-%		
-%handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = Callid, limbo_wrapup_count = Limbocount} = State) ->
-%	Ended = case lists:member(Transaction, [hangup, agent_transfer, voicemail]) of
-%		true ->
-%			Time;
-%		false ->
-%			undefined
-%	end,
-%	Cdr = #cdr_raw{
-%		id = Callid,
-%		transaction = Transaction,
-%		eventdata = Data,
-%		start = Time,
-%		ended = Ended,
-%		nodes = State#state.nodes
-%	},
-%	push_raw(Call, Cdr),
-%	Newstate = case Transaction of
-%		endwrapup ->
-%			State#state{limbo_wrapup_count = Limbocount - 1};
-%		oncall ->
-%			State#state{limbo_wrapup_count = Limbocount + 1};
-%		hangup ->
-%			State#state{hangup = true};
-%		Else ->
-%			State
-%	end,
-%	case {Newstate#state.hangup, Newstate#state.limbo_wrapup_count} of
-%		{true, 0} ->
-%			remove_handler;
-%		_Anything_else ->
-%			{ok, Newstate}
-%	end.		
-%		
-%		
-%		
-		
-		
-		
-		
-
-%handle_event_test_() ->
-%	{foreach,
-%	fun() ->
-%		mnesia:stop(),
-%		mnesia:delete_schema([node()]),
-%		mnesia:create_schema([node()]),
-%		mnesia:start(),
-%		build_tables(),
-%		Pull = fun() ->
-%			mnesia:transaction(fun() -> mnesia:read(cdr_raw, "testcall") end)
-%		end,
-%		{#call{id = "testcall", source = self()}, Pull}
-%	end,
-%	fun(_Whatever) ->
-%		ok
-%	end,
-%	[fun({Call, Pull}) ->
-%		{"handle_event inqueue",
-%		fun() ->
-%			State = #state{id = "testcall"},
-%			{ok, Newstate} = handle_event({inqueue, Call, 10, "testqueue"}, State),
-%			?assertEqual([], Newstate#state.transactions),
-%			?assertEqual([{inqueue, 10, "testqueue"}], Newstate#state.unterminated),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual({inqueue, 10, "testqueue"}, Trans#cdr_raw.transaction)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"ringing",
-%		fun() ->
-%			Unterminated = [{inqueue, 10, "testqueue"}],
-%			State = #state{unterminated = Unterminated, id = "testcall"},
-%			{ok, Newstate} = handle_event({ringing, Call, 15, "agent"}, State),
-%			?assertEqual([{inqueue, 10, 15, 5, "testqueue"}], Newstate#state.transactions),
-%			?assertEqual([{ringing, 15, "agent"}], Newstate#state.unterminated),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual({ringing, 15, "agent"}, Trans#cdr_raw.transaction)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"oncall",
-%		fun() ->
-%			Unterminated = [{ringing, 10, "agent"}],
-%			State = #state{unterminated = Unterminated, id = "testcall"},
-%			{ok, Newstate} = handle_event({oncall, Call, 15, "agent"}, State),
-%			?assertEqual([{ringing, 10, 15, 5, "agent"}], Newstate#state.transactions),
-%			?assertEqual([{oncall, 15, "agent"}], Newstate#state.unterminated),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual({oncall, 15, "agent"}, Trans#cdr_raw.transaction)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"wrapup",
-%		fun() ->
-%			Unterminated = [{oncall, 10, "agent"}],
-%			State = #state{unterminated = Unterminated, id="testcall"},
-%			{ok, Newstate} = handle_event({wrapup, Call, 15, "agent"}, State),
-%			?assertEqual([{oncall, 10, 15, 5, "agent"}], Newstate#state.transactions),
-%			?assertEqual([{wrapup, 15, "agent"}], Newstate#state.unterminated),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual({wrapup, 15, "agent"}, Trans#cdr_raw.transaction)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"endwrapup",
-%		fun() ->
-%			Unterminated = [{wrapup, 10, "agent"}],
-%			State = #state{unterminated = Unterminated, id="testcall"},
-%			{ok, Newstate} = handle_event({endwrapup, Call, 15, "agent"}, State),
-%			?assertEqual([{wrapup, 10, 15, 5, "agent"}], Newstate#state.transactions),
-%			?assertEqual([], Newstate#state.unterminated),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual({endwrapup, 15, "agent"}, Trans#cdr_raw.transaction)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"hangup while in queue",
-%		fun() ->
-%			Unterminated = [{inqueue, 10, "testqueue"}],
-%			State = #state{id = "testcall", unterminated = Unterminated},
-%			?assertEqual(remove_handler, handle_event({hangup, Call, 10, "Unknown Unknown"}, State))
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"hangup from agent",
-%		fun() ->
-%			State = #state{id = "testcall", wrapup = true},
-%			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
-%			?assertEqual([{hangup, 10, 10, 0, agent}], Newstate#state.transactions),
-%			?assertEqual([], Newstate#state.unterminated),
-%			?assert(Newstate#state.hangup),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual({hangup, 10, agent}, Trans#cdr_raw.transaction)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"hangup from caller",
-%		fun() ->
-%			State = #state{id = "testcall", wrapup = true},
-%			{ok, Newstate} = handle_event({hangup, Call, 10, "caller"}, State),
-%			?assertEqual([{hangup, 10, 10, 0, "caller"}], Newstate#state.transactions),
-%			?assertEqual([], Newstate#state.unterminated),
-%			?assert(Newstate#state.hangup),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual({hangup, 10, "caller"}, Trans#cdr_raw.transaction)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"hangup from caller when a hangup is already received",
-%		fun() ->
-%			Protostate = #state{id = "testcall", wrapup = true},
-%			{ok, State} = handle_event({hangup, Call, 10, agent}, Protostate),
-%			{ok, Newstate} = handle_event({hangup, Call, 10, "notagent"}, State),
-%			?assert(Newstate#state.hangup),
-%			?assertEqual(State#state.transactions, Newstate#state.transactions),
-%			{atomic, [H | _Tail] = Trans} = Pull(),
-%			?assertEqual(1, length(Trans)),
-%			?assertEqual({hangup, 10, agent}, H#cdr_raw.transaction)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"hangup from agent when hangup from caller is already recieved",
-%		fun() ->
-%			Protostate = #state{id = "testcall", wrapup = true},
-%			{ok, State} = handle_event({hangup, Call, 10, "notagent"}, Protostate),
-%			{ok, Newstate} = handle_event({hangup, Call, 10, agent}, State),
-%			?assert(Newstate#state.hangup),
-%			?assertEqual(State#state.transactions, Newstate#state.transactions),
-%			{atomic, [H | _Tail] = Trans} = Pull(),
-%			?assertEqual(1, length(Trans)),
-%			?assertEqual({hangup, 10, "notagent"}, H#cdr_raw.transaction)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"transfer event",
-%		fun() ->
-%			State = #state{id = "testcall"},
-%			{ok, Newstate} = handle_event({transfer, Call, 10, "target"}, State),
-%			?assertEqual([], Newstate#state.unterminated),
-%			?assertEqual([{transfer, 10, 10, 0, "target"}], Newstate#state.transactions),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual({transfer, 10, "target"}, Trans#cdr_raw.transaction)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"endwrapup when a hangup has already been recieved",
-%		fun() ->
-%			State = #state{id = "testcall", hangup = true, unterminated = [{wrapup, 10, "agent"}]},
-%			?assertEqual(remove_handler, handle_event({endwrapup, Call, 15, "agent"}, State)),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual({endwrapup, 15, "agent"}, Trans#cdr_raw.transaction)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"handling an event for a differnt call id (ie, not handling it)",
-%		fun() ->
-%			State = #state{id = "differs"},
-%			{ok, Newstate} = handle_event({inqueue, Call, 15, "queue"}, State),
-%			?assertEqual(State, Newstate),
-%			?assertEqual({atomic, []}, Pull())
-%		end}
-%	end,
-%	fun({Call, _Pull}) ->
-%		{"Recovery!",
-%		fun() ->
-%			State = #state{id = "testcall"},
-%			Transactions = [
-%				{inqueue, 5, "testqueue"},
-%				{ringing, 10, "agent1"},
-%				{ringing, 15, "agent2"},
-%				{oncall, 20, "agent2"},
-%				{transfer, 25, "agent3"},
-%				{oncall, 25, "agent3"},
-%				{wrapup, 25, "agent2"},
-%				{endwrapup, 30, "agent2"},
-%				{hangup, 35, agent},
-%				{wrapup, 35, "agent3"}
-%			],
-%			F = fun() ->
-%				Foreach = fun(I) ->
-%					mnesia:write(#cdr_raw{id = Call#call.id, transaction = I})
-%				end,
-%				lists:foreach(Foreach, Transactions)
-%			end,
-%			mnesia:transaction(F),
-%			{ok, Newstate} = handle_event({recover, Call}, State),
-%			Expectedstate = #state{
-%				id = "testcall",
-%				hangup = true,
-%				transactions = [
-%					{oncall, 25, 35, 10, "agent3"},
-%					{hangup, 35, 35, 0, agent},
-%					{wrapup, 25, 30, 5, "agent2"},
-%					{oncall, 20, 25, 5, "agent2"},
-%					{transfer, 25, 25, 0, "agent3"},
-%					{ringing, 15, 20, 5, "agent2"},
-%					{ringing, 10, 15, 5, "agent1"},
-%					{inqueue, 5, 10, 5, "testqueue"}
-%				],
-%				unterminated = [{wrapup, 35, "agent3"}]
-%			},
-%			?DEBUG("Expected:  ~p;  Recieved:  ~p", [Expectedstate, Newstate]),
-%			?assertEqual(Expectedstate, Newstate)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"On call comes in before ringing",
-%		fun() ->
-%			State = #state{
-%				id = "testcall",
-%				unterminated = [{inqueue, 5, "testqueue"}]
-%			},
-%			{ok, Newstate} = handle_event({oncall, Call, 15, "agent"}, State),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual(#cdr_raw{id = "testcall", transaction = {oncall, 15, "agent"}}, Trans),
-%			?assertEqual({oncall, 15, "agent"}, Newstate#state.limbo),
-%			?assertEqual([{inqueue, 5, "testqueue"}], Newstate#state.unterminated),
-%			?assertEqual([], Newstate#state.transactions)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"Ringing comes in while an oncall is in limbo",
-%		fun() ->
-%			State = #state{
-%				id = "testcall",
-%				unterminated = [{inqueue, 55, "testqueue"}],
-%				limbo = {oncall, 90, "agent"}
-%			},
-%			{ok, Newstate} = handle_event({ringing, Call, 66, "agent"}, State),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual(#cdr_raw{id = "testcall", transaction = {ringing, 66, "agent"}}, Trans),
-%			?assertEqual(undefined, Newstate#state.limbo),
-%			?assertEqual([{oncall, 90, "agent"}], Newstate#state.unterminated),
-%			?assertEqual([{ringing, 66, 90, 24, "agent"}, {inqueue, 55, 66, 11, "testqueue"}], Newstate#state.transactions)
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"Ringing for a different agent comes in while oncall is in limbo",
-%		fun() ->
-%			State = #state{
-%				id = "testcall",
-%				unterminated = [{inqueue, 5, "testqueue"}],
-%				limbo = {oncall, 20, "agent"}
-%			},
-%			{ok, Newstate} = handle_event({ringing, Call, 10, "someagent"}, State),
-%			{atomic, [Trans]} = Pull(),
-%			?assertEqual(#cdr_raw{id = "testcall", transaction = {ringing, 10, "someagent"}}, Trans),
-%			?assertEqual({oncall, 20, "agent"}, Newstate#state.limbo),
-%			?assertEqual([{ringing, 10, "someagent"}], Newstate#state.unterminated),
-%			?assertEqual([{inqueue, 5, 10, 5, "testqueue"}], Newstate#state.transactions)  
-%		end}
-%	end,
-%	fun({Call, Pull}) ->
-%		{"agent_transfer ends successfully",
-%		fun() ->
-%			State = #state{
-%				id = "testcall",
-%				unterminated = [{oncall, 5, "offerer"}]
-%			},
-%			{ok, State2} = handle_event({agent_transfer, Call, 10, {"offerer", "recipient"}}, State),
-%			{ok, State3} = handle_event({wrapup, Call, 15, "offerer"}, State2),
-%			{ok, State4} = handle_event({oncall, Call, 15, "recipient"}, State3),
-%			{atomic, Trans} = Pull(),
-%			?DEBUG("~p", [Trans]),
-%			?assert(lists:member(#cdr_raw{id = "testcall", transaction = {transfer, 10, "recipient"}}, Trans)),
-%			?assert(lists:member(#cdr_raw{id = "testcall", transaction = {agent_transfer, 10, {"offerer", "recipient"}}}, Trans))
-%		end}
-%	end]}.
-%		
+merge_test_() ->
+	[{"Get ids",
+	fun() ->
+		Raws = [{atomic, [
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "e"}]},
+			{atomic, [
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "d"},
+			#cdr_raw{id = "d"}]},
+			{atomic, [
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "e"}]}],
+		Sort = fun(A, B) ->
+			A < B
+		end,
+		Expected = ["a", "b", "c", "d", "e"],
+		Res = lists:sort(Sort, get_ids(Raws)),
+		?assertEqual(Expected, Res)
+	end},
+	{"merge raws",
+	fun() ->
+		Raws = [{atomic, [
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "e"}]},
+			{atomic, [
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "d"},
+			#cdr_raw{id = "d"}]},
+			{atomic, [
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "e"}]}],
+		Sort = fun(A, B) ->
+			A#cdr_raw.id < B#cdr_raw.id
+		end,
+		Expected = [
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "a"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "b"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "c"},
+			#cdr_raw{id = "d"},
+			#cdr_raw{id = "d"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "e"},
+			#cdr_raw{id = "e"}],
+		Res = lists:sort(Sort, merge_raw(Raws)),
+		?assertEqual(Expected, Res)
+	end},
+	{"merge summaries",
+	fun() ->
+		Recs = [{atomic, [
+			#cdr_rec{media = #call{id = "a", source = self()}, summary = inprogress, transactions = inprogress},
+			#cdr_rec{
+				media = #call{id = "b", source = self()},
+				summary = [{"key", "value"}],
+				transactions = [#cdr_raw{id = "b"}]
+			},
+			#cdr_rec{
+				media = #call{id = "c", source = self()},
+				summary = [{"key", "value"}],
+				transactions = [#cdr_raw{id = "c"}]
+			}]},
+			{atomic, [
+			#cdr_rec{media = #call{id = "a", source = self()}, summary = inprogress, transactions = inprogress},
+			#cdr_rec{media = #call{id = "c", source = self()}, summary = inprogress, transactions = inprogress},
+			#cdr_rec{media = #call{id = "d", source = self()}, summary = [{"key", "value"}], transactions = [#cdr_raw{id = "d"}]}
+			]}],
+		Expected = [
+			#cdr_rec{media = #call{id = "a", source = self()}, summary = inprogress, transactions = inprogress},
+			#cdr_rec{
+				media = #call{id = "b", source = self()},
+				summary = [{"key", "value"}],
+				transactions = [#cdr_raw{id = "b"}]
+			},
+			#cdr_rec{
+				media = #call{id="c", source = self()},
+				summary = [{"key", "value"}],
+				transactions = [#cdr_raw{id = "c"}]
+			},
+			#cdr_rec{media = #call{id = "d", source = self()}, summary = [{"key", "value"}], transactions = [#cdr_raw{id = "d"}]}],
+		Sort = fun(#cdr_rec{media = Ma} = A, #cdr_rec{media = Mb} = B) ->
+			Ma#call.id < Mb#call.id
+		end,
+		Res = lists:sort(Sort, merge_sum(Recs)),
+		?assertEqual(Expected, Res)
+	end}].
+	
 %summarize_test_() ->
 %	[{"Simple summary, one call, one agent",
 %	fun() ->
@@ -1506,120 +1306,7 @@ handle_event_test_() ->
 %	end}
 %	].
 %
-%merge_test_() ->
-%	[{"Get ids",
-%	fun() ->
-%		Raws = [{atomic, [
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "c"},
-%			#cdr_raw{id = "e"}]},
-%			{atomic, [
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "e"},
-%			#cdr_raw{id = "d"},
-%			#cdr_raw{id = "d"}]},
-%			{atomic, [
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "c"},
-%			#cdr_raw{id = "e"},
-%			#cdr_raw{id = "e"}]}],
-%		Sort = fun(A, B) ->
-%			A < B
-%		end,
-%		Expected = ["a", "b", "c", "d", "e"],
-%		Res = lists:sort(Sort, get_ids(Raws)),
-%		?assertEqual(Expected, Res)
-%	end},
-%	{"merge raws",
-%	fun() ->
-%		Raws = [{atomic, [
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "c"},
-%			#cdr_raw{id = "e"}]},
-%			{atomic, [
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "e"},
-%			#cdr_raw{id = "d"},
-%			#cdr_raw{id = "d"}]},
-%			{atomic, [
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "c"},
-%			#cdr_raw{id = "e"},
-%			#cdr_raw{id = "e"}]}],
-%		Sort = fun(A, B) ->
-%			A#cdr_raw.id < B#cdr_raw.id
-%		end,
-%		Expected = [
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "a"},
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "b"},
-%			#cdr_raw{id = "c"},
-%			#cdr_raw{id = "c"},
-%			#cdr_raw{id = "d"},
-%			#cdr_raw{id = "d"},
-%			#cdr_raw{id = "e"},
-%			#cdr_raw{id = "e"},
-%			#cdr_raw{id = "e"},
-%			#cdr_raw{id = "e"}],
-%		Res = lists:sort(Sort, merge_raw(Raws)),
-%		?assertEqual(Expected, Res)
-%	end},
-%	{"merge summaries",
-%	fun() ->
-%		Recs = [{atomic, [
-%			#cdr_rec{id = "a", summary = inprogress, transactions = inprogress},
-%			#cdr_rec{
-%				id = "b",
-%				summary = [{"key", "value"}],
-%				transactions = [#cdr_raw{id = "b"}]
-%			},
-%			#cdr_rec{
-%				id="c",
-%				summary = [{"key", "value"}],
-%				transactions = [#cdr_raw{id = "c"}]
-%			}]},
-%			{atomic, [
-%			#cdr_rec{id = "a", summary = inprogress, transactions = inprogress},
-%			#cdr_rec{id = "c", summary = inprogress, transactions = inprogress},
-%			#cdr_rec{id = "d", summary = [{"key", "value"}], transactions = [#cdr_raw{id = "d"}]}
-%			]}],
-%		Expected = [
-%			#cdr_rec{id = "a", summary = inprogress, transactions = inprogress},
-%			#cdr_rec{
-%				id = "b",
-%				summary = [{"key", "value"}],
-%				transactions = [#cdr_raw{id = "b"}]
-%			},
-%			#cdr_rec{
-%				id="c",
-%				summary = [{"key", "value"}],
-%				transactions = [#cdr_raw{id = "c"}]
-%			},
-%			#cdr_rec{id = "d", summary = [{"key", "value"}], transactions = [#cdr_raw{id = "d"}]}],
-%		Sort = fun(A, B) ->
-%			A#cdr_rec.id < B#cdr_rec.id
-%		end,
-%		Res = lists:sort(Sort, merge_sum(Recs)),
-%		?assertEqual(Expected, Res)
-%	end}].
+
 
 -endif.
 

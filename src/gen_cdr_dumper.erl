@@ -50,10 +50,10 @@
 %% API
 -export([
 	behaviour_info/1,
-	add_handler/2,
-	drop_handler/2,
-	start_link/0,
-	start_link/1,
+	%add_handler/2,
+	%drop_handler/2,
+	%start_link/0,
+	start_link/2,
 	update_notify/1
 ]).
 
@@ -68,8 +68,10 @@
 ]).
 
 -record(state, {
-	callbacks = [] :: [{atom(), any()}]
+		module :: atom(),
+		substate :: any()
 }).
+
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
@@ -89,26 +91,26 @@ behaviour_info(_Other) ->
 	undefined.
 
 %% @doc Add a new handler for cdr dumping.
--spec(add_handler/2 :: (Module :: atom(), Options :: any()) -> 'ok').
-add_handler(Module, Options) ->
-	gen_server:cast(?MODULE, {add_handler, Module, Options}).
+%-spec(add_handler/2 :: (Module :: atom(), Options :: any()) -> 'ok').
+%add_handler(Module, Options) ->
+	%gen_server:cast(?MODULE, {add_handler, Module, Options}).
 
 %% @doc Drop an existing handler for cdr dumping.
--spec(drop_handler/2 :: (Module :: atom(), Reason :: any()) -> 'ok').
-drop_handler(Module, Reason) ->
-	gen_server:cast(?MODULE, {drop_handler, Module, Reason}).
+%-spec(drop_handler/2 :: (Module :: atom(), Reason :: any()) -> 'ok').
+%drop_handler(Module, Reason) ->
+	%gen_server:cast(?MODULE, {drop_handler, Module, Reason}).
 
 %% @doc Start using the default options, and no handlers.
--spec(start_link/0 :: () -> {'ok', pid()}).
-start_link() ->
-	start_link([]).
+%-spec(start_link/0 :: () -> {'ok', pid()}).
+%start_link() ->
+	%start_link([]).
 
 -type(callback_init() :: {atom(), any()}).
 %% @doc given `[{Module :: atom(), Startargs :: any()}]' start the dumper with
 %% a handler for each `Module' started with `Startargs'
--spec(start_link/1 :: (Callbacks :: [callback_init()]) -> {'ok', pid()}).
-start_link(Callbacks) ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [Callbacks], []).
+-spec(start_link/2 :: (Module :: atom(), Args :: list()) -> {'ok', pid()}).
+start_link(Module, Args) ->
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [Module, Args], []).
 
 update_notify(TableName) ->
 	Nodes = [node() | nodes()],
@@ -121,38 +123,9 @@ update_notify(TableName) ->
 %%--------------------------------------------------------------------
 %% Function: init(Args) -> {ok, State} |
 %%--------------------------------------------------------------------
-init([Callbacks]) ->
-	F = fun({Module, Args}, Acc) ->
-		Newacc = try Module:init(Args) of
-			{ok, Substate} ->
-				[{Module, Substate} | Acc];
-			Else ->
-				?WARNING("callback ~w failed to start:  ~p", [Module, Else]),
-				Acc
-		catch
-			What:Why ->
-				?WARNING("callback ~w failed to start:  ~w:~p", [Module, What, Why]),
-				Acc
-		end,
-		Newacc
-	end,
-	Validmods = lists:foldl(F, [], Callbacks),
-	F2 = fun() ->
-			S = qlc:q([AgentState || AgentState <- mnesia:table(agent_state),
-					lists:member(node(), AgentState#agent_state.nodes),
-					AgentState#agent_state.ended =/= undefined
-				]),
-			qlc:e(S)
-	end,
-	{atomic, Rows} = mnesia:transaction(F2),
-	%State = lists:foldl(fun(Row, IState) ->
-				%dump_row(Row, IState,
-					%lists:delete(node(), Row#agent_state.nodes))
-		%end,
-		%#state{callbacks = Validmods}, Rows),
-	%mnesia:subscribe({table, agent_state, simple}),
-	%{ok, State, hibernate}.
-	{ok, #state{callbacks = Validmods}, hibernate}.
+init([Module, Args]) ->
+	{ok, Substate} = Module:init(Args),
+	{ok, #state{substate = Substate, module = Module}, hibernate}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -164,34 +137,34 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_cast({add_handler, Module, Init}, #state{callbacks = Callbacks} = State) ->
-	Newcallbacks = try Module:init(Init) of
-		{ok, Substate} ->
-			[{Module, Substate} | Callbacks];
-		Else ->
-			?INFO("Couldn't add handler ~w.  Bad return:  ~w", [Module, Else]),
-			Callbacks
-	catch
-		What:Why ->
-			?INFO("Couln't add handler ~w.  ~w:~p", [Module, What, Why]),
-			Callbacks
-	end,
-	{noreply, State#state{callbacks = Newcallbacks}, hibernate};
-handle_cast({drop_handler, Module, Reason}, #state{callbacks = Callbacks} = State) ->
-	case proplists:get_value(Module, Callbacks) of
-		undefined ->
-			ok;
-		Substate ->
-			try Module:terminate(Reason, Substate) of
-				_Whatever ->
-					ok
-			catch
-				_:_ ->
-					ok
-			end
-	end,
-	Newcallbacks = proplists:delete(Module, Callbacks),
-	{noreply, State#state{callbacks = Newcallbacks}, hibernate};
+%handle_cast({add_handler, Module, Init}, #state{callbacks = Callbacks} = State) ->
+	%Newcallbacks = try Module:init(Init) of
+		%{ok, Substate} ->
+			%[{Module, Substate} | Callbacks];
+		%Else ->
+			%?INFO("Couldn't add handler ~w.  Bad return:  ~w", [Module, Else]),
+			%Callbacks
+	%catch
+		%What:Why ->
+			%?INFO("Couln't add handler ~w.  ~w:~p", [Module, What, Why]),
+			%Callbacks
+	%end,
+	%{noreply, State#state{callbacks = Newcallbacks}, hibernate};
+%handle_cast({drop_handler, Module, Reason}, #state{callbacks = Callbacks} = State) ->
+	%case proplists:get_value(Module, Callbacks) of
+		%undefined ->
+			%ok;
+		%Substate ->
+			%try Module:terminate(Reason, Substate) of
+				%_Whatever ->
+					%ok
+			%catch
+				%_:_ ->
+					%ok
+			%end
+	%end,
+	%Newcallbacks = proplists:delete(Module, Callbacks),
+	%{noreply, State#state{callbacks = Newcallbacks}, hibernate};
 handle_cast(_Msg, State) ->
     {noreply, State, hibernate}.
 
@@ -219,72 +192,45 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(Reason, #state{callbacks = Callbacks}) ->
-	F = fun({Module, Substate}) ->
-		try Module:terminate(Reason, Substate) of
-			_Whatever ->
-				ok
+terminate(Reason, #state{module = Module, substate = SubState}) ->
+	try Module:terminate(Reason, SubState) of
+		_Whatever ->
+			ok
 		catch
 			_:_ ->
 				ok
-		end
-	end,
-	lists:foreach(F, Callbacks),
-	ok.
+		end,
+		ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
-code_change(OldVsn, #state{callbacks = Callbacks} = State, Extra) ->
-	F = fun({Module, Substate}, Acc) ->
-		Newacc = try Module:code_change(OldVsn, Substate, Extra) of
+code_change(OldVsn, #state{module = Module, substate = SubState} = State, Extra) ->
+		NewSubState = try Module:code_change(OldVsn, SubState, Extra) of
 			{ok, Newsub} ->
-				[{Module, Newsub} | Acc];
+				Newsub;
 			Else ->
 				?INFO("Improper response to code change for ~w.  ~p", [Module, Else]),
-				Acc
+				SubState
 		catch
 			What:Why ->
 				?INFO("Complete failure for ~w.  ~w:~p", [Module, What, Why]),
-				Acc
+				SubState
 		end,
-		Newacc
-	end,
-	Newsubs = lists:foldl(F, [], Callbacks),
-    {ok, State#state{callbacks = Newsubs}}.
+		{ok, State#state{substate = NewSubState}}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-dump_row(#agent_state{} = Staterec, State) ->
-	% TODO better error handling if a callback fails.
-	F = fun({Callback, Substate}, Acc) ->
-		Newacc = try Callback:dump(Staterec, Substate) of
-			{ok, Newsub} ->
-				[{Callback, Newsub} | Acc];
-			{error, Error, Newsub} ->
-				?WARNING("Graceful error from ~w:  ~p", [Callback, Error]),
-				[{Callback, Newsub} | Acc]
-			catch
-				What:Why ->
-					?WARNING("Not so graceful error from ~w:  ~w:~p", [Callback, What, Why]),
-					% last chace for it to clean up after itself.
-					try Callback:terminate({What, Why}, Substate) of
-						_Whatever ->
-							Acc
-					catch
-						_:_ ->
-							% wow, this really fails hard-core.
-							Acc
-					end
-			end,
-			Newacc
-	end,
-	Newcallbacks = lists:foldl(F, [], State#state.callbacks),
-	% return record to write back
-	Staterec#agent_state{nodes = lists:delete(node(), Staterec#agent_state.nodes),
-		timestamp = util:now()}.
+dump_row(#agent_state{} = Staterec, #state{module = Callback,
+		substate = SubState} = State) ->
+	{ok, NewSub} = Callback:dump(Staterec, SubState),
+	% return new state and record to write back
+	{State#state{substate = NewSub},
+		Staterec#agent_state{nodes = lists:delete(node(),
+				Staterec#agent_state.nodes),
+			timestamp = util:now()}}.
 
 dump_rows(QC, State) ->
 	case qlc:next_answers(QC, 1) of
@@ -292,12 +238,12 @@ dump_rows(QC, State) ->
 			qlc:delete_cursor(QC),
 			State;
 		[Row] ->
-			NewRow = dump_row(Row, State),
+			{NewState, NewRow} = dump_row(Row, State),
 			mnesia:delete_object(Row),
 			?NOTICE("writing updated row ~p", [NewRow]),
 			?NOTICE("old row ~p", [Row]),
 			mnesia:write(NewRow),
-			dump_rows(QC, State)
+			dump_rows(QC, NewState)
 	end.
 
 dump_table(agent_state, State) ->

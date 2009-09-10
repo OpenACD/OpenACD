@@ -30,6 +30,10 @@ function Agent(username){
 					dojo.publish("agent/urlpop", [datalist[i]]);
 					break;
 				
+				case "blab":
+					dojo.publish("agent/blab", [datalist[i].text]);
+					break;
+				
 				default:
 					dojo.publish("agent/" + datalist[i].command, [datalist[i]]);
 					warning(["unhandled command", datalist[i].command]);

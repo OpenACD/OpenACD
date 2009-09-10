@@ -85,7 +85,8 @@
 	media_pull/2, 
 	media_push/2,
 	media_push/3, 
-	url_pop/2, 
+	url_pop/2,
+	blab/2,
 	warm_transfer_begin/2,
 	register_rejected/1,
 	log_loop/2]).
@@ -237,6 +238,11 @@ media_push(Pid, Data) ->
 -spec(url_pop/2 :: (Pid :: pid(), Data :: list()) -> any()).
 url_pop(Pid, Data) ->
 	gen_fsm:sync_send_all_state_event(Pid, {url_pop, Data}).
+
+%% @doc Send a message to the human agent.  If there's no connection, it black-holes.
+-spec(blab/2 :: (Pid :: pid(), Text :: string()) -> 'ok').
+blab(Pid, Text) ->
+	gen_fsm:send_all_state_event(Pid, {blab, Text}).
 
 %% @doc Translate the state `String' into the internally used atom.  `String' can either be the human readable string or a number in string form (`"1"').
 -spec(list_to_state/1 :: (String :: string()) -> atom()).
@@ -685,6 +691,10 @@ wrapup(_Msg, State) ->
 %% @private
 %-spec(handle_event/3 :: (Event :: 'stop', StateName :: statename(), State :: #agent{}) -> {'stop','normal', #agent{}}).
 	%(Event :: any(), StateName :: atom(), State :: #agent{}) -> {'next_state', atom(), #agent{}}).
+handle_event({blab, Text}, Statename, #agent{connection = Conpid} = State) when is_pid(Conpid) ->
+	?DEBUG("sending blab ~p", [Text]),
+	gen_server:cast(Conpid, {blab, Text}),
+	{next_state, Statename, State};
 handle_event(stop, _StateName, State) -> 
 	{stop, normal, State};
 handle_event(_Event, StateName, State) ->

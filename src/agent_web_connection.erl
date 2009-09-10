@@ -520,6 +520,13 @@ handle_cast({url_pop, URL}, State) ->
 		]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};
+handle_cast({blab, Text}, State) ->
+	Headjson = {struct, [
+		{<<"command">>, <<"blab">>},
+		{<<"text">>, list_to_binary(Text)}
+	]},
+	Newstate = push_event(Headjson, State),
+	{noreply, Newstate};
 handle_cast(Msg, State) ->
 	?DEBUG("Other case ~p", [Msg]),
 	{noreply, State}.

@@ -620,6 +620,15 @@ dojo.addOnLoad(function(){
 		popup.show();
 	});
 
+	dijit.byId("main").blab = dojo.subscribe("agent/blab", function(data){
+		debug(["blab data", data]);
+		var dia = new dijit.Dialog({
+			title: "Message from Supervisor",
+			content: '<div style="width: 200px; height: 100px; overflow: auto;">' + data + '</div>'
+		});
+		dia.show();
+	});
+
 	logout = function(agent){
 		agent.logout();
 	}

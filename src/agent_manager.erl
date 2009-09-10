@@ -69,6 +69,7 @@
 	find_by_skill/1,
 	find_avail_agents_by_skill/1,
 	find_by_pid/1,
+	blab/2,
 	get_leader/0,
 	list/0,
 	notify/2,
@@ -195,7 +196,12 @@ log_state(Agent, State, Statedata) ->
 -spec(get_leader/0 :: () -> {'ok', pid()}).
 get_leader() -> 
 	gen_leader:leader_call(?MODULE, get_pid).
-	
+
+%% @doc Send the message `string() Text' to all agents that match the given filter.
+-spec(blab/2 :: (Text :: string(), {Key :: 'agent' | 'node' | 'profile', Value :: string() | atom()}) -> 'ok').
+blab(Text, {Key, Value}) ->
+	gen_leader:leader_cast(?MODULE, {blab, Text, {Key, Value}}).
+
 %% gen_leader callbacks
 %% @hidden
 init(_Opts) ->
@@ -281,6 +287,45 @@ handle_leader_cast({notify, Agent, Apid}, #state{agents = Agents} = State, _Elec
 handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Election) ->
 	?NOTICE("leader notified of ~p exiting", [Agent]),
 	{noreply, State#state{agents = dict:erase(Agent, Agents)}};
+handle_leader_cast({blab, Text, {agent, Value}}, #state{agents = Agents} = State, _Election) ->
+	case dict:find(Value, Agents) of
+		error ->
+			% /shrug.  Meh.
+			{noreply, State};
+		{ok, Apid} ->
+			agent:blab(Apid, Text),
+			{noreply, State}
+	end;
+handle_leader_cast({blab, Text, {node, Value}}, #state{agents = Agents} = State, _Election) ->
+	Alist = dict:to_list(Agents),
+	F = fun({_Aname, Apid}) -> 
+		case node(Apid) of
+			Value ->
+				agent:blab(Apid, Text);
+			_Else -> ok
+		end
+	end,
+	lists:foreach(F, Alist),
+	{noreply, State};
+handle_leader_cast({blab, Text, {profile, Value}}, #state{agents = Agents} = State, _Election) ->
+	Alist = dict:to_list(Agents),
+	Foreach = fun({_Aname, Apid}) ->
+		try agent:dump_state(Apid) of
+			#agent{profile = Value} ->
+				agent:blab(Apid, Text);
+			_Else ->
+				ok
+		catch
+			What:Why ->
+				?WARNING("could not blab to ~p.  ~p:~p", [Apid, What, Why]),
+				ok
+		end
+	end,
+	F = fun() ->
+		lists:foreach(Foreach, Alist)
+	end,
+	spawn(F),
+	{noreply, State};
 handle_leader_cast(dump_election, State, Election) -> 
 	?DEBUG("Dumping leader election.~nSelf:  ~p~nDump:  ~p", [self(), Election]),
 	{noreply, State};

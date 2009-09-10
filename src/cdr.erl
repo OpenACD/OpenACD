@@ -609,15 +609,17 @@ summarize(Cdr, Catagory, Individual, Acc) ->
 	{Total, Propdict} = case dict:find(Catagory, Acc) of
 		error ->
 			{0, []};
-		Else ->
+		{ok, Else} ->
 			Else
 	end,
+	?DEBUG("total:  ~p;  propdict:  ~p", [Total, Propdict]),
 	Duration = Cdr#cdr_raw.ended - Cdr#cdr_raw.start,
 	Detail = proplists:get_value(Individual, Propdict, 0),
 	Cleanedprops = proplists:delete(Individual, Propdict),
 	Newdetail = Detail + Duration,
 	Newtotal = Total + Duration,
 	Newprops = [{Individual, Newdetail} | Cleanedprops],
+	?DEBUG("newtotal:  ~p;  newpropdict:  ~p", [Newtotal, Newprops]),
 	Newacc = dict:store(Catagory, {Newtotal, Newprops}, Acc),
 	Newacc.
 
@@ -1172,21 +1174,21 @@ summarize_test_() ->
 		Assertfun = fun
 			(_F, []) ->
 				ok;
-			(F, [{inqueue, Props} | Tail]) ->
+			(F, [{inqueue, {Total, Props}} | Tail]) ->
 				?assertEqual(10, proplists:get_value("queue", Props)),
-				?assertEqual(10, proplists:get_value(total, Props)),
+				?assertEqual(10, Total),
 				F(F, Tail);
-			(F, [{ringing, Props} | Tail]) ->
+			(F, [{ringing, {Total, Props}} | Tail]) ->
 				?assertEqual(5, proplists:get_value("agent", Props)),
-				?assertEqual(5, proplists:get_value(total, Props)),
+				?assertEqual(5, Total),
 				F(F, Tail);
-			(F, [{oncall, Props} | Tail]) ->
+			(F, [{oncall, {Total, Props}} | Tail]) ->
 				?assertEqual(5, proplists:get_value("agent", Props)),
-				?assertEqual(5, proplists:get_value(total, Props)),
+				?assertEqual(5, Total),
 				F(F, Tail);
-			(F, [{wrapup, Props} | Tail]) ->
+			(F, [{wrapup, {Total, Props}} | Tail]) ->
 				?assertEqual(5, proplists:get_value("agent", Props)),
-				?assertEqual(5, proplists:get_value(total, Props)),
+				?assertEqual(5, Total),
 				F(F, Tail)
 		end,
 		Assertfun(Assertfun, Topprop)
@@ -1207,24 +1209,24 @@ summarize_test_() ->
 		Test = fun
 			(_F, []) ->
 				ok;
-			(F, [{inqueue, Props} | Tail]) ->
-				?assertEqual(15, proplists:get_value(total, Props)),
+			(F, [{inqueue, {Total, Props}} | Tail]) ->
+				?assertEqual(15, Total),
 				?assertEqual(15, proplists:get_value("queue", Props)),
 				F(F, Tail);
-			(F, [{ringing, Props} | Tail]) ->
-				?assertEqual(10, proplists:get_value(total, Props)),
+			(F, [{ringing, {Total, Props}} | Tail]) ->
+				?assertEqual(10, Total),
 				?assertEqual(5, proplists:get_value("agent1", Props)),
 				?assertEqual(5, proplists:get_value("agent2", Props)),
 				F(F, Tail);
-			(F, [{oncall, Props} | Tail]) ->
-				?assertEqual(5, proplists:get_value(total, Props)),
+			(F, [{oncall, {Total, Props}} | Tail]) ->
+				?assertEqual(5, Total),
 				?assertEqual(5, proplists:get_value("agent2", Props)),
-				?assertEqual(undefined, proplists:get_value("agent2", Props)),
+				?assertEqual(undefined, proplists:get_value("agent1", Props)),
 				F(F, Tail);
-			(F, [{wrapup, Props} | Tail]) ->
-				?assertEqual(5, proplists:get_value(total, Props)),
+			(F, [{wrapup, {Total, Props}} | Tail]) ->
+				?assertEqual(5, Total),
 				?assertEqual(5, proplists:get_value("agent2", Props)),
-				?assertEqual(5, proplists:get_value("agent1", Props)),
+				?assertEqual(undefined, proplists:get_value("agent1", Props)),
 				F(F, Tail)
 		end,
 		Test(Test, Dict)
@@ -1254,30 +1256,30 @@ summarize_test_() ->
 		Test = fun
 			(_F, []) ->
 				ok;
-			(F, [{inqueue, Props} | Tail]) ->
-				?assertEqual(25, proplists:get_value(total, Props)),
+			(F, [{inqueue, {Total, Props}} | Tail]) ->
+				?assertEqual(25, Total),
 				?assertEqual(15, proplists:get_value("queue", Props)),
 				?assertEqual(10, proplists:get_value("new_queue", Props)),
 				F(F, Tail);
-			(F, [{ringing, Props} | Tail]) ->
-				?assertEqual(20, proplists:get_value(total, Props)),
+			(F, [{ringing, {Total, Props}} | Tail]) ->
+				?assertEqual(20, Total),
 				?assertEqual(5, proplists:get_value("ringout_agent", Props)),
 				?assertEqual(5, proplists:get_value("from_agent", Props)),
 				?assertEqual(5, proplists:get_value("target_agent", Props)),
 				?assertEqual(5, proplists:get_value("competent_agent", Props)),
 				F(F, Tail);
-			(F, [{oncall, Props} | Tail]) ->
+			(F, [{oncall, {Total, Props}} | Tail]) ->
 				?assertEqual(undefined, proplists:get_value("ringout_agent", Props)),
-				?assertEqual(20, proplists:get_value(total, Props)),
+				?assertEqual(20, Total),
 				?assertEqual(10, proplists:get_value("from_agent", Props)),
 				?assertEqual(5, proplists:get_value("target_agent", Props)),
 				?assertEqual(5, proplists:get_value("competent_agent", Props)),
 				F(F, Tail);
-			(F, [{wrapup, Props} | Tail]) ->
-				?assertEqual(15, proplists:get_value(total, Props)),
+			(F, [{wrapup, {Total, Props}} | Tail]) ->
+				?assertEqual(15, Total),
 				?assertEqual(5, proplists:get_value("from_agent", Props)),
 				?assertEqual(5, proplists:get_value("target_agent", Props)),
-				?assertEqual(5, proplists:get_value("competnet_agent", Props)),
+				?assertEqual(5, proplists:get_value("competent_agent", Props)),
 				?assertEqual(undefined, proplists:get_value("ringout_agent", Props)),
 				F(F, Tail)
 		end,

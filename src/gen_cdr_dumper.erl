@@ -289,6 +289,7 @@ dump_row(#agent_state{} = Staterec, State) ->
 dump_rows(QC, State) ->
 	case qlc:next_answers(QC, 1) of
 		[] ->
+			qlc:delete_cursor(QC),
 			State;
 		[Row] ->
 			NewRow = dump_row(Row, State),

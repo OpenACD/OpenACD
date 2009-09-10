@@ -1155,50 +1155,134 @@ merge_test_() ->
 		Res = lists:sort(Sort, merge_sum(Recs)),
 		?assertEqual(Expected, Res)
 	end}].
-	
-%summarize_test_() ->
-%	[{"Simple summary, one call, one agent",
-%	fun() ->
-%		Transactions = [
-%			{inqueue, 5, 10, 5, "testqueue"},
-%			{ringing, 10, 13, 3, "agent"},
-%			{oncall, 13, 20, 7, "agent"},
-%			{wrapup, 20, 24, 4, "agent"}
-%		],
-%		Dict = summarize(Transactions),
-%		?assertEqual({5, 3, 7, 4}, proplists:get_value(total, Dict)),
-%		?assertEqual({0, 3, 7, 4}, proplists:get_value("agent", Dict))
-%	end},
-%	{"summary with a ringout",
-%	fun() ->
-%		Transactions = [
-%			{inqueue, 5, 10, 5, "testqueue"},
-%			{ringing, 10, 20, 10, "agent1"},
-%			{ringing, 20, 28, 8, "agent2"},
-%			{oncall, 28, 22, 5, "agent2"},
-%			{wrapup, 22, 23, 1, "agent2"}
-%		],
-%		Dict = summarize(Transactions),
-%		?assertEqual({5, 18, 5, 1}, proplists:get_value(total, Dict)),
-%		?assertEqual({0, 10, 0, 0}, proplists:get_value("agent1", Dict)),
-%		?assertEqual({0, 8, 5, 1}, proplists:get_value("agent2", Dict))
-%	end},
-%	{"summary with a transfer to another agent",
-%	fun() ->
-%		Transactions = [
-%			{inqueue, 5, 10, 5, "testqueue"},
-%			{ringing, 10, 20, 10, "agent1"},
-%			{oncall, 20, 30, 10, "agent1"},
-%			{transfer, 30, 30, 0, "agent2"},
-%			{oncall, 30, 35, 5, "agent2"},
-%			{wrapup, 30, 40, 10, "agent1"},
-%			{wrapup, 35, 40, 5, "agent2"}
-%		],
-%		Dict = summarize(Transactions),
-%		?assertEqual({5, 10, 15, 15}, proplists:get_value(total, Dict)),
-%		?assertEqual({0, 10, 10, 10}, proplists:get_value("agent1", Dict)),
-%		?assertEqual({0, 0, 5, 5}, proplists:get_value("agent2", Dict))
-%	end}].
+
+summarize_test_() ->
+	[{"Simple summary, one call, one agent",
+	fun() ->
+		Transactions = [
+			#cdr_raw{id = "id", transaction = cdrinit, start = 5, ended = 35},
+			#cdr_raw{id = "id", transaction = inqueue, start = 10, ended = 20, eventdata = "queue"},
+			#cdr_raw{id = "id", transaction = ringing, start = 15, ended = 20, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = oncall, start = 20, ended = 25, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = wrapup, start = 25, ended = 30, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = endwrapup, start = 30, ended = 30, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = cdrend, start = 35, ended = 35}
+		],
+		Topprop = summarize(Transactions),
+		Assertfun = fun
+			(_F, []) ->
+				ok;
+			(F, [{inqueue, Props} | Tail]) ->
+				?assertEqual(10, proplists:get_value("queue", Props)),
+				?assertEqual(10, proplists:get_value(total, Props)),
+				F(F, Tail);
+			(F, [{ringing, Props} | Tail]) ->
+				?assertEqual(5, proplists:get_value("agent", Props)),
+				?assertEqual(5, proplists:get_value(total, Props)),
+				F(F, Tail);
+			(F, [{oncall, Props} | Tail]) ->
+				?assertEqual(5, proplists:get_value("agent", Props)),
+				?assertEqual(5, proplists:get_value(total, Props)),
+				F(F, Tail);
+			(F, [{wrapup, Props} | Tail]) ->
+				?assertEqual(5, proplists:get_value("agent", Props)),
+				?assertEqual(5, proplists:get_value(total, Props)),
+				F(F, Tail)
+		end,
+		Assertfun(Assertfun, Topprop)
+	end},
+	{"summary with a ringout",
+	fun() ->
+		Transactions = [
+			#cdr_raw{id = "id", transaction = cdrinit, start = 5, ended = 40},
+			#cdr_raw{id = "id", transaction = inqueue, start = 10, ended = 25, eventdata = "queue"},
+			#cdr_raw{id = "id", transaction = ringing, start = 15, ended = 20, eventdata = "agent1"},
+			#cdr_raw{id = "id", transaction = ringing, start = 20, ended = 25, eventdata = "agent2"},
+			#cdr_raw{id = "id", transaction = oncall, start = 25, ended = 30, eventdata = "agent2"},
+			#cdr_raw{id = "id", transaction = wrapup, start = 35, ended = 40, eventdata = "agent2"},
+			#cdr_raw{id = "id", transaction = endwrapup, start = 40, ended = 40, eventdata = "agent2"},
+			#cdr_raw{id = "id", transaction = cdrend, start = 40, ended = 40}
+		],
+		Dict = summarize(Transactions),
+		Test = fun
+			(_F, []) ->
+				ok;
+			(F, [{inqueue, Props} | Tail]) ->
+				?assertEqual(15, proplists:get_value(total, Props)),
+				?assertEqual(15, proplists:get_value("queue", Props)),
+				F(F, Tail);
+			(F, [{ringing, Props} | Tail]) ->
+				?assertEqual(10, proplists:get_value(total, Props)),
+				?assertEqual(5, proplists:get_value("agent1", Props)),
+				?assertEqual(5, proplists:get_value("agent2", Props)),
+				F(F, Tail);
+			(F, [{oncall, Props} | Tail]) ->
+				?assertEqual(5, proplists:get_value(total, Props)),
+				?assertEqual(5, proplists:get_value("agent2", Props)),
+				?assertEqual(undefined, proplists:get_value("agent2", Props)),
+				F(F, Tail);
+			(F, [{wrapup, Props} | Tail]) ->
+				?assertEqual(5, proplists:get_value(total, Props)),
+				?assertEqual(5, proplists:get_value("agent2", Props)),
+				?assertEqual(5, proplists:get_value("agent1", Props)),
+				F(F, Tail)
+		end,
+		Test(Test, Dict)
+	end},
+	{"big kahuna:  queue hop, agent ringout, agent transfer, to queue again, then an agent handles it fully.",
+	fun() ->
+		Transactions = [
+			#cdr_raw{id = "id", transaction = cdrinit, start = 5, ended = 60},
+			#cdr_raw{id = "id", transaction = inqueue, start = 10, ended = 25, eventdata = "queue"},
+			#cdr_raw{id = "id", transaction = ringing, start = 15, ended = 20, eventdata = "ringout_agent"},
+			#cdr_raw{id = "id", transaction = ringing, start = 20, ended = 25, eventdata = "from_agent"},
+			#cdr_raw{id = "id", transaction = oncall, start = 25, ended = 35, eventdata = "from_agent"},
+			#cdr_raw{id = "id", transaction = ringing, start = 30, ended = 35, eventdata = "target_agent"},
+			#cdr_raw{id = "id", transaction = oncall, start = 35, ended = 40, eventdata = "target_agent"},
+			#cdr_raw{id = "id", transaction = wrapup, start = 35, ended = 40, eventdata = "from_agent"},
+			#cdr_raw{id = "id", transaction = endwrapup, start = 40, ended = 40, eventdata = "from_agent"},
+			#cdr_raw{id = "id", transaction = wrapup, start = 40, ended = 45, eventdata = "target_agent"},
+			#cdr_raw{id = "id", transaction = inqueue, start = 40, ended = 50, eventdata = "new_queue"},
+			#cdr_raw{id = "id", transaction = endwrapup, start = 45, ended = 45, eventdata = "target_agent"},
+			#cdr_raw{id = "id", transaction = ringing, start = 45, ended = 50, eventdata = "competent_agent"},
+			#cdr_raw{id = "id", transaction = oncall, start = 50, ended = 55, eventdata = "competent_agent"},
+			#cdr_raw{id = "id", transaction = wrapup, start = 55, ended = 60, eventdata = "competent_agent"},
+			#cdr_raw{id = "id", transaction = endwrapup, start = 60, ended = 60, eventdata = "competent_agent"},
+			#cdr_raw{id = "id", transaction = cdrend, start = 60, ended = 60}
+		],
+		Dict = summarize(Transactions),
+		Test = fun
+			(_F, []) ->
+				ok;
+			(F, [{inqueue, Props} | Tail]) ->
+				?assertEqual(25, proplists:get_value(total, Props)),
+				?assertEqual(15, proplists:get_value("queue", Props)),
+				?assertEqual(10, proplists:get_value("new_queue", Props)),
+				F(F, Tail);
+			(F, [{ringing, Props} | Tail]) ->
+				?assertEqual(20, proplists:get_value(total, Props)),
+				?assertEqual(5, proplists:get_value("ringout_agent", Props)),
+				?assertEqual(5, proplists:get_value("from_agent", Props)),
+				?assertEqual(5, proplists:get_value("target_agent", Props)),
+				?assertEqual(5, proplists:get_value("competent_agent", Props)),
+				F(F, Tail);
+			(F, [{oncall, Props} | Tail]) ->
+				?assertEqual(undefined, proplists:get_value("ringout_agent", Props)),
+				?assertEqual(20, proplists:get_value(total, Props)),
+				?assertEqual(10, proplists:get_value("from_agent", Props)),
+				?assertEqual(5, proplists:get_value("target_agent", Props)),
+				?assertEqual(5, proplists:get_value("competent_agent", Props)),
+				F(F, Tail);
+			(F, [{wrapup, Props} | Tail]) ->
+				?assertEqual(15, proplists:get_value(total, Props)),
+				?assertEqual(5, proplists:get_value("from_agent", Props)),
+				?assertEqual(5, proplists:get_value("target_agent", Props)),
+				?assertEqual(5, proplists:get_value("competnet_agent", Props)),
+				?assertEqual(undefined, proplists:get_value("ringout_agent", Props)),
+				F(F, Tail)
+		end,
+		Test(Test, Dict)
+	end}].
 %
 %mnesia_test_() ->
 %	{foreach,

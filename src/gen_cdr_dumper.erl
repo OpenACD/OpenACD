@@ -230,6 +230,14 @@ dump_row(#agent_state{} = Staterec, #state{module = Callback,
 	{State#state{substate = NewSub},
 		Staterec#agent_state{nodes = lists:delete(node(),
 				Staterec#agent_state.nodes),
+			timestamp = util:now()}};
+dump_row(#cdr_rec{} = CDR, #state{module = Callback,
+		substate = SubState} = State) ->
+	{ok, NewSub} = Callback:dump(CDR, SubState),
+	% return new state and record to write back
+	{State#state{substate = NewSub},
+		CDR#cdr_rec{nodes = lists:delete(node(),
+				CDR#cdr_rec.nodes),
 			timestamp = util:now()}}.
 
 dump_rows(QC, State) ->
@@ -246,6 +254,17 @@ dump_rows(QC, State) ->
 			dump_rows(QC, NewState)
 	end.
 
+dump_table(cdr_rec, State) ->
+	F = fun() ->
+			mnesia:lock({table, agent_state}, write),
+			QH = qlc:q([CDR || CDR <- mnesia:table(agent_state),
+					lists:member(node(), CDR#cdr_rec.nodes)
+				]),
+			QC = qlc:cursor(QH),
+			dump_rows(QC, State)
+	end,
+	{atomic, NewState} = mnesia:transaction(F),
+	NewState;
 dump_table(agent_state, State) ->
 	F = fun() ->
 			mnesia:lock({table, agent_state}, write),
@@ -257,5 +276,9 @@ dump_table(agent_state, State) ->
 			dump_rows(QC, State)
 	end,
 	{atomic, NewState} = mnesia:transaction(F),
-	NewState.
+	NewState;
+dump_table(TableName, State) ->
+	?WARNING("Unknown table ~p", [TableName]),
+	State.
+
 

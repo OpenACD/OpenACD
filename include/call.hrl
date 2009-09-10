@@ -58,16 +58,55 @@
 	cook :: pid()
 	}).
 
-%-record(cdr_summary, {
-%	callid = erlang:error({undefined, callid}) :: string(),
-%	queued = 0 :: non_neg_interger(),
-%	ringing = 0 :: non_neg_interger(),
-%	oncall = 0 :: non_neg_interger(),
-%	wrapup = 0 :: non_neg_interger()
-%}).
-%
-%-record(cdr_transaction, {
-%	callid = erlang:error({undefined, callid}) :: string(),
-%	changedto = erlang:error({undefined, changedto}) :: 'inqueue' | 'ringing' | 'oncall' | 'transfer' | 'wrapup' | 'endwrapup',
-%	details = [] :: any()
-%}).
+-type(transaction_type() :: 
+	'cdrinit' | 
+	'inivr' | 
+	'dialoutgoing' |
+	'inqueue' |
+	'ringing' |
+	'precall' |
+	'oncall' |
+	'outgoing' |
+	'failedoutgoing' |
+	'agent_transfer' |
+	'queue_transfer' |
+	'warmxfer' |
+	'warmxfercomplete' |
+	'warmxferfailed' |
+	'warmxferleg' |
+	'wrapup' |
+	'endwrapup' |
+	'abandonqueue' |
+	'abandonivr' |
+	'voicemail' |
+	'hangup' |
+	'undefined' |
+	'cdrend'
+).
+
+-type(time() :: pos_integer()).
+-type(callid() :: string()).
+-type(datalist() :: [{atom(), string()}]).
+-type(cdr_proplist() :: [{any(), any()}]).
+-type(transaction() :: {transaction_type(), callid(), time(), datalist()}).
+-type(transactions() :: [transaction()]).
+-type(raw_transaction() :: {transaction_type(), time(), any()}).
+
+-record(cdr_rec, {
+	media :: #call{},
+	summary = inprogress :: 'inprogress' | cdr_proplist(),
+	transactions = inprogress :: 'inprogress' | transactions(),
+	timestamp = util:now() :: time(),
+	nodes = [] :: [atom()]
+}).
+
+-record(cdr_raw, {
+	id :: callid(),
+	transaction :: transaction_type(),
+	eventdata :: any(),
+	start = util:now() :: time(),
+	ended :: 'undefined' | time(),
+	terminates = [] :: [transaction_type()] | 'infoevent',
+	timestamp = util:now() :: time(),
+	nodes = [] :: [atom()]
+}).

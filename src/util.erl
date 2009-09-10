@@ -263,27 +263,29 @@ subtract_skill_lists(List1, List2) ->
 %% @see mnesia:create_table/2
 -spec(build_table/2 :: (atom(), [any()]) -> 'exists' | {'atomic', 'ok'} | 'copied').
 build_table(Tablename, Options) when is_atom(Tablename) ->
-	case mnesia:system_info(is_running) of
-		yes -> 
-			case mnesia:system_info(use_dir) of
-				true -> 					
-					case lists:member(Tablename, mnesia:system_info(local_tables)) of
-						true -> 
-							exists;
-						false ->
-							case lists:member(Tablename, mnesia:system_info(tables)) of
-								true ->
-									mnesia:add_table_copy(Tablename ,node(), disc_copies),
-									copied;
-								false ->
-									mnesia:create_table(Tablename, Options)
-						end
-					end;
-				false -> 
-					exit(mnesia_schema_not_found)
-			end;
-		_Else -> 
-			exit(mnesia_stopped)
+	case mnesia:system_info(is_running) =:= yes of
+		false ->
+			exit(mnesia_stopped);
+		true ->
+			ok
+	end,
+	case mnesia:system_info(use_dir) of
+		false ->
+			exit(mnesia_schema_not_found);
+		true ->
+			ok
+	end,
+	case lists:member(Tablename, mnesia:system_info(local_tables)) of
+		true -> 
+			exists;
+		false ->
+			case lists:member(Tablename, mnesia:system_info(tables)) of
+				true ->
+					mnesia:add_table_copy(Tablename ,node(), disc_copies),
+					copied;
+				false ->
+					mnesia:create_table(Tablename, Options)
+		end
 	end.
 
 %% @doc Find the position of `Needle' (`any()') in a list.  Remember, the first element in an erlang list is 1.

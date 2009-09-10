@@ -852,6 +852,14 @@ push_raw_test_() ->
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
+		{"precall",
+		fun() ->
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = precall, eventdata = "testagent"}),
+			Testend = [],
+			Ended(Pull(), Testend)
+		end}
+	end,
+	fun({Call, Pull, Ended}) ->
 		{"oncall",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = oncall, eventdata = "testagent"}),

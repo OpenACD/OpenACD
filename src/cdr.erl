@@ -66,44 +66,6 @@
 	code_change/3
 ]).
 
-
-
-
--type(transaction_type() :: 
-	'cdrinit' | 
-	'inivr' | 
-	'dialoutgoing' |
-	'inqueue' |
-	'ringing' |
-	'precall' |
-	'oncall' |
-	'outgoing' |
-	'failedoutgoing' |
-	'agent_transfer' |
-	'queue_transfer' |
-	'warmxfer' |
-	'warmxfercomplete' |
-	'warmxferfailed' |
-	'warmxferleg' |
-	'wrapup' |
-	'endwrapup' |
-	'abandonqueue' |
-	'abandonivr' |
-	'voicemail' |
-	'hangup' |
-	'undefined' |
-	'cdrend'
-).
--type(callid() :: string()).
--type(time() :: integer()).
--type(datalist() :: [{atom(), string()}]).
--type(proplist() :: [{any(), any()}]).
--type(transaction() :: {transaction_type(), callid(), time(), datalist()}).
--type(transactions() :: [transaction()]).
--type(raw_transaction() :: {transaction_type(), time(), any()}).
-%-type(proto_transactions() :: [proto_transaction()]).
-%	-type(proto_transaction() :: {transaction_type(), callid(), time(), datalist()}).
-
 -record(state, {
 	id :: callid(),
 	callrec :: #call{},
@@ -112,24 +74,6 @@
 	hangup = false :: 'false' | 'true'
 }).
 	
--record(cdr_rec, {
-	media :: #call{},
-	summary = inprogress :: 'inprogress' | proplist(),
-	transactions = inprogress :: 'inprogress' | transactions(),
-	timestamp = util:now() :: time(),
-	nodes = [] :: [atom()]
-}).
-
--record(cdr_raw, {
-	id :: callid(),
-	transaction :: transaction_type(),
-	eventdata :: any(),
-	start = util:now() :: time(),
-	ended :: 'undefined' | time(),
-	terminates = [] :: [transaction_type()] | 'infoevent',
-	timestamp = util:now() :: time(),
-	nodes = [] :: [atom()]
-}).
 
 -type(state() :: #state{}).
 -define(GEN_EVENT, true).
@@ -564,7 +508,8 @@ spawn_summarizer(Transactions, #call{id = CallID} = Callrec) ->
 				summary = Summary,
 				transactions = Transactions,
 				nodes = Nodes
-			})
+			}),
+			gen_cdr_dumper:update_notify(cdr_rec)
 		end,
 		mnesia:transaction(F)
 	end,

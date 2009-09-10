@@ -45,7 +45,8 @@
 ]).
 
 -record(state, {
-	csvfile
+	agent_states_file,
+	cdr_file
 }).
 
 %% =====
@@ -55,11 +56,12 @@
 init(Opts) ->
 	case proplists:get_value(file, Opts) of
 		undefined ->
-			{ok, File} = file:open("./cpx_cdr.csv", [append]),
-			{ok, #state{csvfile = File}};
+			{ok, File1} = file:open("./cpx_agent_states.csv", [append]),
+			{ok, File2} = file:open("./cpx_cdr.csv", [append]),
+			{ok, #state{agent_states_file = File1, cdr_file = File2}};
 		Filename ->
 			{ok, File} = file:open(Filename, [append]),
-			{ok, #state{csvfile = File}}
+			{ok, #state{agent_states_file = File}}
 	end.
 
 terminate(_Reason, _State) ->
@@ -68,10 +70,19 @@ terminate(_Reason, _State) ->
 code_change(_Oldvsn, State, _Extra) ->
 	{ok, State}.
 
-dump(Agentstate, #state{csvfile = File} = State) when is_record(Agentstate, agent_state) ->
-	io:fwrite(File, "~p, ~w, ~B, ~B~n", [
+dump(Agentstate, #state{agent_states_file = File} = State) when is_record(Agentstate, agent_state) ->
+	io:fwrite(File, "~s, ~w, ~B, ~B~n", [
 		Agentstate#agent_state.agent, 
 		Agentstate#agent_state.state, 
 		Agentstate#agent_state.start, 
 		Agentstate#agent_state.ended]),
+	{ok, State};
+dump(CDR, #state{cdr_file = File} = State) when is_record(CDR, cdr_rec) ->
+	Media = CDR#cdr_rec.media,
+	io:fwrite(File, "~s, ~w, ~B, ~B~n", [
+		Media#call.id,
+		CDR#cdr_rec.summary]),
+		%Agentstate#agent_state.state, 
+		%Agentstate#agent_state.start, 
+		%Agentstate#agent_state.ended]),
 	{ok, State}.

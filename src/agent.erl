@@ -909,7 +909,8 @@ log_loop(Agentname, Nodes) ->
 				lists:foreach(
 					fun(Untermed) ->
 						mnesia:delete_object(Untermed), 
-						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now})
+						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now}),
+						gen_cdr_dumper:update_notify(agent_state)
 					end,
 					Recs
 				),
@@ -928,7 +929,8 @@ log_loop(Agentname, Nodes) ->
 				lists:foreach(
 					fun(Untermed) -> 
 						mnesia:delete_object(Untermed), 
-						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now})
+						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now}),
+						gen_cdr_dumper:update_notify(agent_state)
 					end,
 					Recs
 				),

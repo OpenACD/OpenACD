@@ -547,29 +547,28 @@ build_tables() ->
 		{type, bag}
 	]),
 	ok.
-%spawn_summarizer(Transactions, CallID) ->
-%	Summarize = fun() ->
-%		Summary = summarize(Transactions),
-%		F = fun() ->
-%			Nodes = case whereis(cdr_exporter) of
-%				undefined ->
-%					[];
-%				Pid ->
-%					cdr_exporter:get_nodes()
-%			end,
-%			mnesia:delete({cdr_rec, CallID}),
-%			mnesia:write(#cdr_rec{
-%				id = CallID,
-%				summary = Summary,
-%				transactions = Transactions,
-%				%timestamp = util:now(),
-%				nodes = Nodes
-%			})
-%		end,
-%		mnesia:transaction(F)
-%	end,
-%	?DEBUG("Summarize inprogress with ~w...", [Summarize]),
-%	spawn(Summarize).
+spawn_summarizer(Transactions, #call{id = CallID} = Callrec) ->
+	Summarize = fun() ->
+		?DEBUG("Summarize inprogress for ~p", [CallID]),
+		Summary = summarize(Transactions),
+		F = fun() ->
+			Nodes = case application:get_env(cpx, nodes) of
+				undefined ->
+					[node()];
+				{ok, List} ->
+					List
+			end,
+			mnesia:delete({cdr_rec, Callrec}),
+			mnesia:write(#cdr_rec{
+				media = Callrec,
+				summary = Summary,
+				transactions = Transactions,
+				nodes = Nodes
+			})
+		end,
+		mnesia:transaction(F)
+	end,
+	spawn(Summarize).
 	
 %% Need to keep in mind that not all agents are to be billed the same,
 %% so there does need to be some form of pair checking.

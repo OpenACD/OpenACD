@@ -59,6 +59,12 @@
 
 -behaviour(supervisor).
 
+-define(DEFAULT_CONF, [
+	#cpx_conf{id = agent_auth, module_name = agent_auth, start_function = start_link, start_args = [], supervisor=agent_connection_sup},
+	#cpx_conf{id = agent_web_listener, module_name = agent_web_listener, start_function = start_link, start_args = [5050], supervisor = agent_connection_sup},
+	#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start_link, start_args = [], supervisor = management_sup}
+]).
+	
 %% API
 -export([start_link/1, start/1]).
 -export([
@@ -66,6 +72,7 @@
 	add_conf/1,
 	build_spec/1,
 	build_tables/0,
+	default_conf/0,
 	destroy/1,
 	update_conf/2,
 	get_conf/1,
@@ -221,11 +228,10 @@ build_tables() ->
 	]),
 	case A of
 		Result when Result =:= {atomic, ok}; Result =:= copied -> 
+			io:format("cpx_supervisor:build tables result:  ~p~n", [Result]),
 			% create some default info so the system is at least a bit usable.
-			F = fun() -> 
-				mnesia:write(#cpx_conf{id = agent_auth, module_name = agent_auth, start_function = start_link, start_args = [], supervisor=agent_connection_sup}),
-				mnesia:write(#cpx_conf{id = agent_web_listener, module_name = agent_web_listener, start_function = start_link, start_args = [5050], supervisor=agent_connection_sup}),
-				mnesia:write(#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start_link, start_args = [], supervisor = management_sup})
+			F = fun() ->
+				lists:foreach(fun(Rec) -> mnesia:write(Rec) end, ?DEFAULT_CONF)
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 
@@ -234,11 +240,21 @@ build_tables() ->
 					Else
 			end;
 		exists ->
+			io:format("cpx_supervisor:build_tables, table exists~n"),
 			ok;
 		Else ->
 			?NOTICE("unusual response building tables: ~p", [Else]),
 			Else
 	end.
+
+%% @doc Adds the default configuration to the database.
+-spec(default_conf/0 :: () -> {'atomic', 'ok'}).
+default_conf() ->
+	F = fun() ->
+		lists:foreach(fun(Rec) -> add_conf(Rec) end, ?DEFAULT_CONF),
+		ok
+	end,
+	mnesia:transaction(F).
 
 %% @doc Removes the passed `childspec()' or `#cpx_conf{}' from the database.
 -spec(destroy/1 :: (Spec :: child_spec() | atom()) -> {'atomic', 'ok'}).

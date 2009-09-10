@@ -133,9 +133,11 @@ init([Callbacks]) ->
 			qlc:e(S)
 	end,
 	{atomic, Rows} = mnesia:transaction(F2),
-	State = lists:foldl(fun(Row, IState) -> dump_row(Row, IState, lists:delete(node(),
-						Row#agent_state.nodes)) end, #state{callbacks = Validmods}, Rows),
-	?NOTICE("previously undumped rows: ~p", [Rows]),
+	State = lists:foldl(fun(Row, IState) ->
+				dump_row(Row, IState,
+					lists:delete(node(), Row#agent_state.nodes))
+		end,
+		#state{callbacks = Validmods}, Rows),
 	mnesia:subscribe({table, agent_state, simple}),
 	{ok, State, hibernate}.
 

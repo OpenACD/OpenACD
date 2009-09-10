@@ -733,13 +733,6 @@ diff_sum([#cdr_rec{media = Lmedia} = Hleft | Tleft] = Left, [#cdr_rec{media = Rm
 		false ->
 			diff_sum(Left, Tright, [Hright | Acc])
 	end.
-%
-%%% @private Get a standarized unix epoch integer from `now()'.
-%-spec(nowsec/1 :: ({Mega :: non_neg_integer(), Sec :: non_neg_integer(), Micro :: non_neg_integer()}) -> non_neg_integer()).
-%nowsec({Mega, Sec, _Micro}) ->
-%	(Mega * 1000000) + Sec.
-
-
 
 -ifdef(EUNIT).
 

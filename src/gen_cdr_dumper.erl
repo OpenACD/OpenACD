@@ -41,6 +41,7 @@
 -include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
@@ -99,7 +100,7 @@ start_link() ->
 %% a handler for each `Module' started with `Startargs'
 -spec(start_link/1 :: (Callbacks :: [callback_init()]) -> {'ok', pid()}).
 start_link(Callbacks) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Callbacks], []).
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [Callbacks], []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -124,15 +125,26 @@ init([Callbacks]) ->
 		Newacc
 	end,
 	Validmods = lists:foldl(F, [], Callbacks),
+	F2 = fun() ->
+			S = qlc:q([AgentState || AgentState <- mnesia:table(agent_state),
+					lists:member(node(), AgentState#agent_state.nodes),
+					AgentState#agent_state.ended =/= undefined
+				]),
+			qlc:e(S)
+	end,
+	{atomic, Rows} = mnesia:transaction(F2),
+	State = lists:foldl(fun(Row, IState) -> dump_row(Row, IState, lists:delete(node(),
+						Row#agent_state.nodes)) end, #state{callbacks = Validmods}, Rows),
+	?NOTICE("previously undumped rows: ~p", [Rows]),
 	mnesia:subscribe({table, agent_state, simple}),
-    {ok, #state{callbacks = Validmods}, hibernate}.
+	{ok, State, hibernate}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State, hibernate}.
+	Reply = ok,
+	{reply, Reply, State, hibernate}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -179,46 +191,11 @@ handle_info({mnesia_table_event, {write, #agent_state{nodes = Nodes} = Staterec,
 		Nodes ->
 			{noreply, State, hibernate};
 		Newnodes ->
-			% TODO better error handling if a callback fails.
-			F = fun({Callback, Substate}, Acc) ->
-				Newacc = try Callback:dump(Staterec, Substate) of
-					{ok, Newsub} ->
-						[{Callback, Newsub} | Acc];
-					{error, Error, Newsub} ->
-						?WARNING("Graceful error from ~w:  ~p", [Callback, Error]),
-						[{Callback, Newsub} | Acc]
-				catch
-					What:Why ->
-						?WARNING("Not so graceful error from ~w:  ~w:~p", [Callback, What, Why]),
-						% last chace for it to clean up after itself.
-						try Callback:terminate({What, Why}, Substate) of
-							_Whatever ->
-								Acc
-						catch
-							_:_ ->
-								% wow, this really fails hard-core.
-								Acc
-						end
-				end,
-				Newacc
-			end,
-			Newcallbacks = lists:foldl(F, [], State#state.callbacks),
-			Transfun = fun() ->
-				mnesia:delete_object(Staterec),
-				case Newnodes of
-					[] ->
-						?DEBUG("Discarding record", []),
-						ok;
-					_Else ->
-						?DEBUG("writing back record with new nodelist ~p", [Newnodes]),
-						mnesia:write(Staterec#agent_state{nodes = Newnodes, timestamp = util:now()})
-				end
-			end,
-			mnesia:transaction(Transfun),
-			{noreply, State#state{callbacks = Newcallbacks}, hibernate}
+			NewState = dump_row(Staterec, State, Newnodes),
+			{noreply, NewState, hibernate}
 	end;
 handle_info(_Info, State) ->
-    {noreply, State, hibernate}.
+	{noreply, State, hibernate}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
@@ -234,7 +211,7 @@ terminate(Reason, #state{callbacks = Callbacks}) ->
 		end
 	end,
 	lists:foreach(F, Callbacks),
-    ok.
+	ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -260,3 +237,46 @@ code_change(OldVsn, #state{callbacks = Callbacks} = State, Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+dump_row(#agent_state{} = Staterec, State, Newnodes) ->
+	% TODO better error handling if a callback fails.
+	F = fun({Callback, Substate}, Acc) ->
+		Newacc = try Callback:dump(Staterec, Substate) of
+			{ok, Newsub} ->
+				[{Callback, Newsub} | Acc];
+			{error, Error, Newsub} ->
+				?WARNING("Graceful error from ~w:  ~p", [Callback, Error]),
+				[{Callback, Newsub} | Acc]
+			catch
+				What:Why ->
+					?WARNING("Not so graceful error from ~w:  ~w:~p", [Callback, What, Why]),
+					% last chace for it to clean up after itself.
+					try Callback:terminate({What, Why}, Substate) of
+						_Whatever ->
+							Acc
+					catch
+						_:_ ->
+							% wow, this really fails hard-core.
+							Acc
+					end
+			end,
+			Newacc
+	end,
+	Newcallbacks = lists:foldl(F, [], State#state.callbacks),
+	Transfun = fun() ->
+			% TODO - shouldn't we be reading the record from the db and writing it
+			% back in one transaction so that the record isn't changed from under
+			% us?
+			mnesia:delete_object(Staterec),
+			case Newnodes of
+				[] ->
+					?DEBUG("Discarding record", []),
+					ok;
+				_Else ->
+					?DEBUG("writing back record with new nodelist ~p", [Newnodes]),
+					mnesia:write(Staterec#agent_state{nodes = Newnodes, timestamp = util:now()})
+			end
+	end,
+	mnesia:transaction(Transfun),
+	State#state{callbacks = Newcallbacks}.
+

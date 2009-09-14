@@ -32,8 +32,15 @@
 	.wide label{
 		width: 10em;
 	}
-</style>    
+</style> 
+<style>
+	@import "/dojo/dojox/grid/resources/Grid.css";
+	@import "/dojo/dojox/grid/resources/nihilo/Grid.css";
 
+	.dojoxGrid table {
+		margin: 0;
+	}
+</style>
 <script type="text/javascript">
 	//Can't use dojo.cookie because we need the language to configure dojo.
 	//Thus, the hard parsing.
@@ -93,6 +100,8 @@ dojo.require("spice.queues");
 dojo.require("spice.PredicateEditor");
 dojo.require("spice.RecipeEditor");
 dojo.require("spice.medias");
+dojo.require("spice.clients");
+dojo.require("dojox.grid.DataGrid");
 dojo.requireLocalization("admin", "labels");
 
 </script>
@@ -695,6 +704,41 @@ dojo.requireLocalization("admin", "labels");
 							</script>
 							<script type="dojo/method" event="postCreate">
 								this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+							</script>
+						</button>
+					</p>
+				</form>
+			</div>
+		</div>
+	</div>
+	
+	<div id="clientsTab" dojoType="dijit.layout.BorderContainer" title="CLIENTS">
+		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="clientsNav">
+			<p><button dojoType="dijit.form.Button" label="DEFAULTS">
+				<script type="dojo/method" event="postCreate">
+					this.setLabel(dojo.i18n.getLocalization("admin", "labels").DEFAULTS);
+				</script>
+				<script type="dojo/connect" event="onClick">
+					dijit.byId('clientsMain').selectChild('clientsDefaults');
+				</script>
+			</button></p>
+		</div>
+		
+		<div dojoType="dijit.layout.StackContainer" region="center" id="clientsMain">
+			<div dojoType="dijit.layout.ContentPane" id="clientsDefaults">
+				<form dojoType="dijit.form.Form" method="post" id="clientsDefaultsForm">
+					<p>
+						<label for="clientDefaultUrl" id="lclientDefaultUrl">URL_POP:</label>
+						<input name="clientDefaultUrl" dojoType="dijit.form.TextBox" id="clientDefaultUrl" type="text" width="100em" />
+					</p>
+					
+					<p>
+						<label>&nbsp;</label>
+						<button name="submit" dojoType="dijit.form.Button" label="SUBMIT" id="clientDefaultSubmit">
+							<script type="dojo/connect" event="onClick">
+								clients.setDefault({
+									url: dijit.byId("clientDefaultUrl").value
+								});
 							</script>
 						</button>
 					</p>

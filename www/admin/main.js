@@ -445,6 +445,7 @@ dojo.addOnLoad(function(){
 								queues.refreshTree('queuesList');
 								medias.init();
 								medias.refreshTree('mediaList');
+								clients.init();
 							}
 							else{
 								dojo.byId("loginerrp").style.display = "block";

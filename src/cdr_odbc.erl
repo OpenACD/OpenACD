@@ -86,7 +86,7 @@ dump(Agentstate, State) when is_record(Agentstate, agent_state) ->
 		{error, Reason} ->
 			{error, Reason};
 		Else ->
-			?NOTICE ("SQL query result: ~p", [Else]),
+			%?NOTICE ("SQL query result: ~p", [Else]),
 			{ok, State}
 	end;
 dump(_, State) -> % trap_all, CDRs aren't ready yet

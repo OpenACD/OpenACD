@@ -37,6 +37,7 @@
 	profile = "Default" :: string(),
 	password = "" :: string(),
 	state = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
+	oldstate = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
 	statedata = default ::	{} |		% when state is released
 						#call{} |	% when state is ringing, oncall, outgoing, or wrapup
 						any() |	% state = precall
@@ -96,9 +97,11 @@
 -record(agent_state, {
 	agent :: string(),
 	state :: statename(),
+	oldstate :: statename(),
 	statedata :: any(),
 	start :: integer(),
 	ended :: 'undefined' | integer(),
+	profile :: string(),
 	timestamp = util:now() :: integer(),
 	nodes :: [atom()]
 }).

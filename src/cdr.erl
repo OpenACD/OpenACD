@@ -298,8 +298,12 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Functions
 %% =====
 
-spawn_summarizer(#call{id = Id}) ->
-	ok.
+spawn_summarizer(#call{id = Id} = Call) ->
+	{atomic, Transactions} = mnesia:transaction(fun() ->
+		QH = qlc:q([X || X <- mnesia:table(cdr_raw), X#cdr_raw.id =:= Id]),
+		qlc:e(QH)
+	end),
+	spawn_summarizer(Transactions, Call).
 
 mutate(Oldid, Newcallrec) ->
 	F = fun() ->

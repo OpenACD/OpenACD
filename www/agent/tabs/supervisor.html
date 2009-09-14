@@ -42,10 +42,41 @@
 					if(resp.success){
 						return true;
 					}
-					
 					console.log(resp.message);
 				}
 			});
+		</script>
+	</div>
+	<div dojoType="dijit.MenuSeparator"></div>
+	<div dojoType="dijit.MenuItem">Blab
+		<script type="dojo/method" event="onClick">
+			var dialog = new dijit.Dialog({
+				title: "Blab",
+				content: '<p><textarea name="message" dojoType="dijit.form.SimpleTextarea">Type your message here.</textarea></p><p><input type="submit" dojoType="dijit.form.Button" label="Submit" /></p>',
+				execute: function(){
+					alert(["goober!", arguments]);
+				}
+			});
+			var submitblab = function(){
+				var data = dialog.attr('value');
+				dojo.xhrPost({
+					handleAs:"json",
+					url:"/supervisor/blab",
+					content:{
+						message:data.message,
+						type: "agent",
+						value: escape(dijit.byId("agentAction").agentBubbleHit)
+					},
+					load:function(res){
+						debug(["blab worked", res])
+					},
+					error:function(res){
+						warning(["blab failed", res])
+					}
+				})
+			}
+			dialog.attr('execute', submitblab);
+			dialog.show();
 		</script>
 	</div>
 	<div dojoType="dijit.MenuSeparator"></div>

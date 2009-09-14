@@ -793,6 +793,7 @@ if(typeof(supervisorTab) == "undefined"){
 			}
 			o.connect("onmouseenter", o, function(ev){				
 				supervisorTab.setDetails({display:this.data.display});
+				dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
 			});
 			
 			if(obj.display == "System"){
@@ -815,6 +816,9 @@ if(typeof(supervisorTab) == "undefined"){
 						o.lines.push(o.createLine({x1:20, x2:60, y1:yi + 20, y2:yi-5}).setStroke({width:3, color:[255, 153, 51, 100]}));
 					}
 				}));
+				if(obj.display != "System"){
+					dijit.byId("nodeAction").bindDomNode(o.rawNode);
+				}
 			}
 			yi = yi - 40;
 			out.push(o);

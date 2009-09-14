@@ -97,6 +97,21 @@
 		</script>
 	</div>
 </div>
+
+<div dojoType="dijit.Menu" id="nodeAction" style="display:none">
+	<div dojoType="dijit.MenuItem">Blab
+		<script type="dojo/method" event="onClick">
+			var dialog = dijit.byId("blabDialog");
+			var submitblab = function(){
+				var data = dialog.attr('value');
+				supervisorTab.blab(data.message, "node", escape(dijit.byId("nodeAction").nodeBubbleHit));
+			};
+			dialog.attr('execute', submitblab);
+			dialog.show();
+		</script>
+	</div>
+</div>
+
 <div dojoType="dijit.layout.ContentPane" id="supervisorMain">
 	<div id="supervisorMonitor" style="border: black"></div>
 </div>

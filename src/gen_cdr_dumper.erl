@@ -256,8 +256,8 @@ dump_rows(QC, State) ->
 
 dump_table(cdr_rec, State) ->
 	F = fun() ->
-			mnesia:lock({table, agent_state}, write),
-			QH = qlc:q([CDR || CDR <- mnesia:table(agent_state),
+			mnesia:lock({table, cdr_rec}, write),
+			QH = qlc:q([CDR || CDR <- mnesia:table(cdr_rec),
 					lists:member(node(), CDR#cdr_rec.nodes)
 				]),
 			QC = qlc:cursor(QH),

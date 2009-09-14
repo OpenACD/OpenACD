@@ -198,8 +198,8 @@ init([Call]) ->
 	Nodes = case application:get_env(cpx, nodes) of
 		undefined ->
 			[node()];
-		Else ->
-			Else
+		{ok, List} ->
+			List
 	end,
 	Cdrrec = #cdr_rec{media = Call, nodes = Nodes},
 	Initraw = #cdr_raw{

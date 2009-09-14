@@ -1019,6 +1019,7 @@ if(typeof(supervisorTab) == "undefined"){
 					onmouseenter:function(ev){
 						if(conf.type == "agentprofile"){
 							supervisorTab.refreshIndividualsStack("agent", "profile", this.data.display, supervisorTab.node);
+							dijit.byId("agentProfileAction").agentProfileBubbleHit = this.data.display;
 						}
 						else{
 							supervisorTab.refreshIndividualsStack("queue", "group", this.data.display, supervisorTab.node);
@@ -1047,6 +1048,9 @@ if(typeof(supervisorTab) == "undefined"){
 				var chan = "supervisortab/set/";
 				if(conf.type == "agentprofile"){
 					chan += "agentprofile-" + bub.data.display;
+					if(bub.data.display != "All"){
+						dijit.byId("agentProfileAction").bindDomNode(bub.rawNode);
+					}
 				}
 				else{
 					chan += "queuegroup-" + bub.data.display;
@@ -1055,6 +1059,9 @@ if(typeof(supervisorTab) == "undefined"){
 					bub.setHp(rawobj.aggregate);
 				}));
 			});
+			dijit.byId("agentProfileAction").onClose = function(ev){
+				supervisorTab.groupsStack.scrollLocked = false;
+			};
 			debug(["refreshGroupsStack wants averaged", hps]);
 			var allbub = supervisorTab.groupsStack.addBubble({
 				data:{display:"All", health:supervisorTab.averageHp(hps)},
@@ -1548,6 +1555,23 @@ if(typeof(supervisorTab) == "undefined"){
 		})
 	}
 
+	supervisorTab.blab = function(message, type, target){
+		dojo.xhrPost({
+			handleAs:"json",
+			url:"/supervisor/blab",
+			content:{
+				message:message,
+				type: type,
+				value: target
+			},
+			load:function(res){
+				debug(["blab worked", res])
+			},
+			error:function(res){
+				warning(["blab failed", res])
+			}
+		})
+	}
 }
 
 supervisorTab.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);

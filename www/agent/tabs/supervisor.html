@@ -15,6 +15,11 @@
 	<p style="padding:12px">nocontent</p>
 </div> 
 
+<div dojoType="dijit.Dialog" id="blabDialog" title="Blab" style="display:none">
+	<p><textarea name="message" dojoType="dijit.form.SimpleTextarea">Type your message here.</textarea></p>
+	<p><input type="submit" dojoType="dijit.form.Button" label="Submit" /></p>
+</div>
+
 <div dojoType="dijit.Menu" id="agentAction" style="display:none">
 	<div dojoType="dijit.MenuItem">Released
 		<script type="dojo/method" event="onClick">
@@ -50,30 +55,10 @@
 	<div dojoType="dijit.MenuSeparator"></div>
 	<div dojoType="dijit.MenuItem">Blab
 		<script type="dojo/method" event="onClick">
-			var dialog = new dijit.Dialog({
-				title: "Blab",
-				content: '<p><textarea name="message" dojoType="dijit.form.SimpleTextarea">Type your message here.</textarea></p><p><input type="submit" dojoType="dijit.form.Button" label="Submit" /></p>',
-				execute: function(){
-					alert(["goober!", arguments]);
-				}
-			});
+			var dialog = dijit.byId("blabDialog");
 			var submitblab = function(){
 				var data = dialog.attr('value');
-				dojo.xhrPost({
-					handleAs:"json",
-					url:"/supervisor/blab",
-					content:{
-						message:data.message,
-						type: "agent",
-						value: escape(dijit.byId("agentAction").agentBubbleHit)
-					},
-					load:function(res){
-						debug(["blab worked", res])
-					},
-					error:function(res){
-						warning(["blab failed", res])
-					}
-				})
+				supervisorTab.blab(data.message, "agent", escape(dijit.byId("agentAction").agentBubbleHit));
 			}
 			dialog.attr('execute', submitblab);
 			dialog.show();
@@ -99,6 +84,19 @@
 	</div>
 </div>
 
+<div dojoType="dijit.Menu" id="agentProfileAction" style="display:none">
+	<div dojoType="dijit.MenuItem">Blab
+		<script type="dojo/method" event="onClick">
+			var dialog = dijit.byId("blabDialog");
+			var submitblab = function(){
+				var data = dialog.attr('value');
+				supervisorTab.blab(data.message, "profile", escape(dijit.byId("agentProfileAction").agentProfileBubbleHit));
+			};
+			dialog.attr('execute', submitblab);
+			dialog.show();
+		</script>
+	</div>
+</div>
 <div dojoType="dijit.layout.ContentPane" id="supervisorMain">
 	<div id="supervisorMonitor" style="border: black"></div>
 </div>

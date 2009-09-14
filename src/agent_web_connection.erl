@@ -276,6 +276,38 @@ handle_call({warm_transfer, Number}, _From, #state{agent_fsm = Apid} = State) ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
 	end,
 	{reply, Reply, State};
+handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
+	?DEBUG("Supervisor request with post data:  ~s", [lists:flatten(Request)]),
+	case Request of
+		["blab"] ->
+			{Key, Value} = case proplists:get_value("type", Post) of
+				"agent" ->
+					{"agent", proplists:get_value("value", Post, "")};
+				"node" ->
+					try list_to_existing_atom(proplists:get_value("value", Post)) of
+						Atom ->
+							case lists:member(Atom, [node() | nodes()]) of
+								true ->
+									{node, Atom};
+								false ->
+									{false, false}
+							end
+					catch
+						error:badarg ->
+							{false, false}
+					end;
+				"profile" ->
+					{profile, proplists:get_value("value", Post, "")}
+			end,
+			Json = case {Key, Value} of
+				{false, false} ->
+					{struct, [{success, false}, {<<"message">>, <<"bad type or value">>}]};
+				_Else ->
+					agent_manager:blab(proplists:get_value("text", Post, ""), {Key, Value}),
+					{struct, [{success, true}, {<<"message">>, <<"blabbing">>}]}
+			end,
+			{reply, {200, [], Json}, State}
+	end;
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of

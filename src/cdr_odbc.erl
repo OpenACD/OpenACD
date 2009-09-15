@@ -77,9 +77,10 @@ code_change(_Oldvsn, State, _Extra) ->
 
 dump(Agentstate, State) when is_record(Agentstate, agent_state) ->
 	Query = io_lib:format("INSERT INTO agent_states set agent='~s', newstate=~B,
-		start=~B, end=~B;", [
+		oldstate=~B, start=~B, end=~B;", [
 		Agentstate#agent_state.agent, 
 		agent:state_to_integer(Agentstate#agent_state.state), 
+		agent:state_to_integer(Agentstate#agent_state.oldstate), 
 		Agentstate#agent_state.start, 
 		Agentstate#agent_state.ended]),
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
@@ -89,15 +90,50 @@ dump(Agentstate, State) when is_record(Agentstate, agent_state) ->
 			%?NOTICE ("SQL query result: ~p", [Else]),
 			{ok, State}
 	end;
-dump(_, State) -> % trap_all, CDRs aren't ready yet
-	{ok, State};
+%dump(_, State) -> % trap_all, CDRs aren't ready yet
+	%{ok, State};
 dump(CDR, State) when is_record(CDR, cdr_rec) ->
 	Media = CDR#cdr_rec.media,
-	{value, {oncall,{Oncall,_}}} = lists:keysearch(oncall, 1, CDR#cdr_rec.summary),
-	{value, {ringing,{Ringing,_}}} = lists:keysearch(ringing, 1, CDR#cdr_rec.summary),
-	{value, {inqueue,{Inqueue,_}}} = lists:keysearch(inqueue, 1, CDR#cdr_rec.summary),
-	{value, {wrapup,{Wrapup,_}}} = lists:keysearch(wrapup, 1, CDR#cdr_rec.summary),
-	%io:fwrite(File, "~s, ~B, ~B, ~B, ~B~n", [
-		%Media#call.id,
-		%Ringing, Inqueue, Oncall, Wrapup]),
-	{ok, State}.
+	Client = Media#call.client,
+	{InQueue, Oncall, Wrapup, Agent, Queue} = lists:foldl(
+		fun({oncall, {Time, [{Agent,_}]}}, {Q, C, W, A, Qu}) ->
+				{Q, C + Time, W, Agent, Qu};
+			({inqueue, {Time, [{Queue, _}]}}, {Q, C, W, A, Qu}) ->
+				{Q + Time, C, W, A, Queue};
+			({wrapup, {Time, _}}, {Q, C, W, A, Qu}) ->
+				{Q, C, W + Time, A, Qu};
+			(_, {Q, C, W, A, Qu}) ->
+				{Q, C, W, A, Qu}
+		end, {0, 0, 0, undefined, undefined}, CDR#cdr_rec.summary),
+
+	T = lists:sort(fun(#cdr_raw{start = Start1, ended = End1}, #cdr_raw{start =
+					Start2, ended = End2}) ->
+				Start1 =< Start2 andalso End1 =< End2
+		end, CDR#cdr_rec.transactions),
+
+	[First | _] = T,
+	[Last | _] = lists:reverse(T),
+
+	Start = First#cdr_raw.start,
+	End = Last#cdr_raw.ended,
+
+	Query = io_lib:format("INSERT INTO billing_summaries set UniqueID='~s',
+		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~w', AgentID='~s', LastQueue='~s';", [
+		Media#call.id,
+		Client#client.tenant,
+		Client#client.brand,
+		Start,
+		End,
+		InQueue,
+		Oncall,
+		Wrapup,
+		Media#call.type,
+		Agent,
+		Queue]),
+	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
+		{error, Reason} ->
+			{error, Reason};
+		Else ->
+			%?NOTICE ("SQL query result: ~p", [Else]),
+			{ok, State}
+	end.

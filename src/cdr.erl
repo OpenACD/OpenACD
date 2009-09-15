@@ -276,7 +276,10 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 			remove_handler;
 		_Anything_else ->
 			{ok, Newstate}
-	end.
+	end;
+handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = Callid2, limbo_wrapup_count = Limbocount} = State) ->
+	% this is an event for a different CDR handler, ignore it
+	{ok, State}.
 
 %% @private
 handle_call(status, State) ->

@@ -296,7 +296,9 @@ integer_to_state(Int) ->
 	end.
 
 %% @doc Translate the interally used atom `State' to the integer equivalent.
--spec(state_to_integer/1 :: (State :: 'idle') -> 2;
+-spec(state_to_integer/1 :: (State :: 'undefined') -> 0;
+                            (State :: 'logout') -> 1;
+                            (State :: 'idle') -> 2;
                             (State :: 'ringing') -> 3;
                             (State :: 'precall') -> 4;
                             (State :: 'oncall') -> 5;
@@ -306,6 +308,8 @@ integer_to_state(Int) ->
                             (State :: 'wrapup') -> 9).
 state_to_integer(State) ->
 	case State of
+		undefined -> 0;
+		logout -> 1;
 		idle -> 2;
 		ringing -> 3;
 		precall -> 4;

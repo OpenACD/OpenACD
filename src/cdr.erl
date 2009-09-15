@@ -44,6 +44,7 @@
 	start/0,
 	start_link/0,
 	cdrinit/1,
+	inivr/2,
 	inqueue/2,
 	ringing/2,
 	oncall/2,
@@ -119,6 +120,11 @@ cdrinit(Call) ->
 			error
 	end.
 	
+%% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
+-spec(inivr/2 :: (Call :: #call{}, DNIS :: string()) -> 'ok').
+inivr(Call, DNIS) ->
+	event({inivr, Call, util:now(), DNIS}).
+
 %% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
 -spec(inqueue/2 :: (Call :: #call{}, Queue :: string()) -> 'ok').
 inqueue(Call, Queue) ->

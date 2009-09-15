@@ -150,8 +150,9 @@ dump_state(Mpid) when is_pid(Mpid) ->
 init([Cnode, UUID]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
+	{ok, DNIS} = freeswitch:api(Cnode, uuid_getvar, UUID++" destination_number"),
 	Call = #call{id = UUID, source = self()},
-	{ok, {#state{cnode=Cnode, manager_pid = Manager, callrec = Call}, Call}}.
+	{ok, {#state{cnode=Cnode, manager_pid = Manager, callrec = Call}, Call, {inivr, [DNIS]}}}.
 
 handle_announce(Announcement, #state{callrec = Callrec} = State) ->
 	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,

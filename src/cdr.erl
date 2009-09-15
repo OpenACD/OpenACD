@@ -98,12 +98,21 @@ start_link() ->
 %% @doc Create a handler specifically for `#call{} Call' with default options.
 -spec(cdrinit/1 :: (Call :: #call{}) -> 'ok' | 'error').
 cdrinit(Call) ->
-	try gen_event:add_handler(cdr, {?MODULE, Call#call.id}, [Call]) of
-		ok ->
-			ok;
-		Else ->
-			?ERROR("Initializing CDR for ~s erred with: ~p", [Call#call.id, Else]),
-			error
+	try lists:member({?MODULE, Call#call.id}, gen_event:which_handlers(cdr)) of
+		false ->
+			try gen_event:add_handler(cdr, {?MODULE, Call#call.id}, [Call]) of
+				ok ->
+					ok;
+				Else ->
+					?ERROR("Initializing CDR for ~s erred with: ~p", [Call#call.id, Else]),
+					error
+				catch
+					What:Why ->
+						?ERROR("Initializing CDR for ~s erred with: ~p:~p", [Call#call.id, What, Why]),
+						error
+			end;
+		true ->
+			?WARNING("CDR already initialized for ~s", [Call#call.id])
 	catch
 		What:Why ->
 			?ERROR("Initializing CDR for ~s erred with: ~p:~p", [Call#call.id, What, Why]),

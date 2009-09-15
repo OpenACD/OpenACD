@@ -247,12 +247,27 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({new_pid, Ref, From}, State) ->
-	{ok, Pid} = freeswitch_media:start(State#state.nodename),
-	link(Pid),
+handle_info({freeswitch_sendmsg, "inivr "++UUID}, #state{call_dict = Dict} = State) ->
+	?NOTICE("call ~s entered IVR", [UUID]),
+	case dict:find(UUID, Dict) of
+		{ok, Pid} ->
+			Pid;
+		error ->
+			{ok, Pid} = freeswitch_media:start(State#state.nodename, UUID),
+			link(Pid)
+	end,
+	{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
+handle_info({get_pid, UUID, Ref, From}, #state{call_dict = Dict} = State) ->
+	case dict:find(UUID, Dict) of
+		{ok, Pid} ->
+			?NOTICE("pid for ~s already allocated", [UUID]),
+			Pid;
+		error ->
+			{ok, Pid} = freeswitch_media:start_link(State#state.nodename, UUID),
+			link(Pid)
+	end,
 	From ! {Ref, Pid},
-	% even the media won't know the proper data for the call until later.
-	{noreply, State};
+	{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
 handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) -> 
 	?NOTICE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
 	F = fun(Key, Value, Acc) -> 

@@ -59,8 +59,8 @@
 
 %% API
 -export([
-	start/1,
-	start_link/1,
+	start/2,
+	start_link/2,
 	get_call/1,
 	%get_queue/1,
 	%get_agent/1,
@@ -110,13 +110,21 @@
 %% API
 %%====================================================================
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
--spec(start/1 :: (Cnode :: atom()) -> {'ok', pid()}).
-start(Cnode) ->
-	gen_media:start(?MODULE, [Cnode]).
+%-spec(start/1 :: (Cnode :: atom()) -> {'ok', pid()}).
+%start(Cnode) ->
+	%gen_media:start(?MODULE, [Cnode]).
 
--spec(start_link/1 :: (Cnode :: atom()) -> {'ok', pid()}).
-start_link(Cnode) ->
-	gen_media:start_link(?MODULE, [Cnode]).
+%-spec(start_link/1 :: (Cnode :: atom()) -> {'ok', pid()}).
+%start_link(Cnode) ->
+	%gen_media:start_link(?MODULE, [Cnode]).
+
+-spec(start/2 :: (Cnode :: atom(), UUID :: string()) -> {'ok', pid()}).
+start(Cnode, UUID) ->
+	gen_media:start(?MODULE, [Cnode, UUID]).
+
+-spec(start_link/2 :: (Cnode :: atom(), UUID :: string()) -> {'ok', pid()}).
+start_link(Cnode, UUID) ->
+	gen_media:start_link(?MODULE, [Cnode, UUID]).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
 -spec(get_call/1 :: (MPid :: pid()) -> #call{}).
@@ -139,10 +147,11 @@ dump_state(Mpid) when is_pid(Mpid) ->
 %% gen_media callbacks
 %%====================================================================
 %% @private
-init([Cnode]) ->
+init([Cnode, UUID]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	{ok, {#state{cnode=Cnode, manager_pid = Manager}, undefined}}.
+	Call = #call{id = UUID, source = self()},
+	{ok, {#state{cnode=Cnode, manager_pid = Manager, callrec = Call}, Call}}.
 
 handle_announce(Announcement, #state{callrec = Callrec} = State) ->
 	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
@@ -360,11 +369,11 @@ handle_info({'EXIT', Pid, Reason}, #state{manager_pid = Pid} = State) ->
 	{noreply, State#state{manager_pid = Tref}};
 handle_info({call, {event, [UUID | Rest]}}, State) when is_list(UUID) ->
 	?DEBUG("reporting new call ~p.", [UUID]),
-	Callrec = #call{id = UUID, source = self()},
+	%Callrec = #call{id = UUID, source = self()},
 	%cdr:cdrinit(Callrec),
 	freeswitch_media_manager:notify(UUID, self()),
-	State2 = State#state{callrec = Callrec},
-	case_event_name([UUID | Rest], State2);
+	%State2 = State#state{callrec = Callrec},
+	case_event_name([UUID | Rest], State);
 handle_info({call_event, {event, [UUID | Rest]}}, State) when is_list(UUID) ->
 	?DEBUG("reporting existing call progess ~p.", [UUID]),
 	% TODO flesh out for all call events.

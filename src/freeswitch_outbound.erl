@@ -102,7 +102,7 @@ hangup(Pid) ->
 init([Fnode, AgentRec, Apid, Number, Ringout]) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} when is_list(UUID) ->
-			Call = #call{id=UUID, source=self(), type=voice},
+			Call = #call{id=UUID, source=self(), type=voice, direction=outbound},
 			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " " ++ Number ++ " xml outbound",
 			?INFO("Originating outbound call with args: ~p", [Args]),
 			F = fun(ok, _Reply) ->

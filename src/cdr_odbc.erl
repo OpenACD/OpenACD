@@ -111,14 +111,32 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 				Start1 =< Start2 andalso End1 =< End2
 		end, CDR#cdr_rec.transactions),
 
+	Type = case {Media#call.type, Media#call.direction} of
+		{voice, inbound} -> "call";
+		{voice, outbound} -> "outgoing";
+		{IType, _ } -> atom_to_list(IType)
+	end,
+
 	[First | _] = T,
 	[Last | _] = lists:reverse(T),
 
 	Start = First#cdr_raw.start,
 	End = Last#cdr_raw.ended,
 
+	lists:foreach(
+		fun(Transaction) ->
+				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B",
+					[Media#call.id,
+					cdr_transaction_to_integer(Transaction#cdr_raw.transaction),
+					Transaction#cdr_raw.start,
+					Transaction#cdr_raw.ended]),
+			odbc:sql_query(State#state.ref, lists:flatten(Q))
+	end,
+	T),
+
+
 	Query = io_lib:format("INSERT INTO billing_summaries set UniqueID='~s',
-		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~w', AgentID='~s', LastQueue='~s';", [
+		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~s', LastQueue='~s';", [
 		Media#call.id,
 		Client#client.tenant,
 		Client#client.brand,
@@ -127,7 +145,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		InQueue,
 		Oncall,
 		Wrapup,
-		Media#call.type,
+		Type,
 		Agent,
 		Queue]),
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
@@ -137,3 +155,31 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 			%?NOTICE ("SQL query result: ~p", [Else]),
 			{ok, State}
 	end.
+
+
+cdr_transaction_to_integer(T) ->
+	case T of
+		cdrinit -> 0;
+		inivr -> 1;
+		dialoutgoing -> 2;
+		inqueue -> 3;
+		ringing -> 4;
+		precall -> 5;
+		oncall -> 6; % was ONCALL
+		inoutgoing -> 7;
+		failedoutgoing -> 8;
+		transfer -> 9;
+		warmtransfer -> 10;
+		warmtransfercomplete -> 11;
+		warmtransferfailed -> 12;
+		warmxferleg -> 13;
+		wrapup -> 14; % was INWRAPUP
+		endwrapup -> 15;
+		abaondonqueue -> 16;
+		abaondonivr -> 17;
+		leftvoicemail -> 18;
+		hangup -> 19; % was ENDCALL
+		unknowntermination -> 20;
+		cdrend -> 21
+	end.
+

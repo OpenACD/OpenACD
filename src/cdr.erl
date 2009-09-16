@@ -379,12 +379,12 @@ find_untermed(dialoutgoing, _, _) ->
 	% info event, precall terminated by outgoing/oncall
 	[];
 find_untermed(inqueue, #call{id = Cid} = Call, Queuename) ->
-	% queue to queue transfers
+	% queue to queue transfers, IVR time
 	QH = qlc:q([X || 
 		X <- mnesia:table(cdr_raw), 
 		X#cdr_raw.id =:= Cid, 
-		X#cdr_raw.transaction =:= inqueue,
-		X#cdr_raw.eventdata =/= Queuename,
+		( X#cdr_raw.transaction =:= inqueue andalso X#cdr_raw.eventdata =/= Queuename) orelse
+		( X#cdr_raw.transaction =:= inivr),
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);

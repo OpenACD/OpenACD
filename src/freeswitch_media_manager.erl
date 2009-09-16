@@ -202,6 +202,8 @@ init([Nodename, Options]) ->
 	Lpid = start_listener(Nodename),
 	Voicegateway = proplists:get_value(voicegateway, Options, ""),
 	monitor_node(Nodename, true),
+	%{api, Nodename} ! register_event_handler,
+	freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 	freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{voicegateway, Voicegateway}]),
 	{ok, #state{nodename=Nodename, voicegateway = Voicegateway, xmlserver = Lpid}}.
 
@@ -232,6 +234,14 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
+handle_cast({channel_destroy, UUID}, #state{call_dict = Dict} = State) ->
+	case dict:find(UUID, Dict) of
+		{ok, Pid} ->
+			Pid ! channel_destroy,
+			{noreply, State};
+		error ->
+			{noreply, State}
+	end;
 handle_cast({notify, Callid, Pid}, #state{call_dict = Dict} = State) ->
 	NewDict = dict:store(Callid, Pid, Dict),
 	{noreply, State#state{call_dict = NewDict}};
@@ -292,6 +302,7 @@ handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
 			monitor_node(Nodename, true),
 			Lpid = start_listener(Nodename),
 			freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{voicegateway, State#state.voicegateway}]),
+			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 			{noreply, State#state{xmlserver = Lpid}};
 		pang ->
 			timer:send_after(1000, freeswitch_ping),
@@ -339,8 +350,15 @@ start_listener(Nodename) ->
 % listens for info from the freeswitch c node.
 listener(Node) ->
 	receive
-		{event, [UUID | _Event]} ->
+		{event, [UUID | Event]} ->
 			?DEBUG("recieved event '~p' from c node.", [UUID]),
+			Ename = freeswitch:get_event_name(Event),
+			case Ename of
+				"CHANNEL_DESTROY" ->
+					gen_server:cast(?MODULE, {channel_destroy, UUID});
+				_ ->
+					ok
+			end,
 			listener(Node);
 		{nodedown, Node} -> 
 			gen_server:cast(?MODULE, nodedown);

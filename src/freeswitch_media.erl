@@ -99,7 +99,8 @@
 	manager_pid :: 'undefined' | any(),
 	voicemail = false :: 'false' | string(),
 	xferchannel :: pid() | 'undefined',
-	xferuuid :: string() | 'undefined'
+	xferuuid :: string() | 'undefined',
+	in_control = false :: bool()
 	}).
 
 -type(state() :: #state{}).
@@ -151,6 +152,7 @@ init([Cnode, UUID]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
 	{ok, DNIS} = freeswitch:api(Cnode, uuid_getvar, UUID++" destination_number"),
+	%freeswitch:handlecall(Cnode, UUID),
 	Call = #call{id = UUID, source = self()},
 	{ok, {#state{cnode=Cnode, manager_pid = Manager, callrec = Call}, Call, {inivr, [DNIS]}}}.
 
@@ -374,7 +376,7 @@ handle_info({call, {event, [UUID | Rest]}}, State) when is_list(UUID) ->
 	%cdr:cdrinit(Callrec),
 	freeswitch_media_manager:notify(UUID, self()),
 	%State2 = State#state{callrec = Callrec},
-	case_event_name([UUID | Rest], State);
+	case_event_name([UUID | Rest], State#state{in_control = true});
 handle_info({call_event, {event, [UUID | Rest]}}, State) when is_list(UUID) ->
 	?DEBUG("reporting existing call progess ~p.", [UUID]),
 	% TODO flesh out for all call events.
@@ -394,6 +396,9 @@ handle_info({bgerror, "-ERR USER_BUSY\n"}, State) ->
 handle_info({bgerror, Reply}, State) ->
 	?WARNING("unhandled bgerror: ~p", [Reply]),
 	{noreply, State};
+handle_info(channel_destroy, #state{in_control = InControl} = State) when not InControl ->
+	?NOTICE("Hangup in IVR", []),
+	{hangup, State};
 handle_info(call_hangup, State) ->
 	?NOTICE("Call hangup info, terminating", []),
 	{stop, normal, State};

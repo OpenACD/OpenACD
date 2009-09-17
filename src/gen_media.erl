@@ -416,6 +416,10 @@ init([Callback, Args]) ->
 					Else
 			end,
 			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = Qpid}};
+		{ok, {Substate, Callrec, {CDRState, CDRArgs}}} when is_record(Callrec, call) ->
+			cdr:cdrinit(Callrec),
+			apply(cdr, CDRState, [Callrec | CDRArgs]),
+			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
 		{ok, {Substate, Callrec}} when is_record(Callrec, call) ->
 			cdr:cdrinit(Callrec),
 			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}}
@@ -895,8 +899,9 @@ agent_interact(hangup, #state{queue_pid = Qpid, callrec = Call} = State) when is
 	unqueue(Qpid, self()),
 	cdr:hangup(State#state.callrec, Call#call.callerid),
 	State#state{queue_pid = undefined};
-agent_interact(hangup, #state{queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
+agent_interact(hangup, #state{callrec = Call, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
 	?INFO("orphaned call, no queue or agents at all", []),
+	cdr:hangup(State#state.callrec, Call#call.callerid),
 	State.
 
 outgoing({outbound, Agent, NewState}, State) when is_record(State#state.callrec, call) ->

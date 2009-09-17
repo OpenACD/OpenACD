@@ -44,6 +44,7 @@
 	start/0,
 	start_link/0,
 	cdrinit/1,
+	inivr/2,
 	inqueue/2,
 	ringing/2,
 	oncall/2,
@@ -98,18 +99,32 @@ start_link() ->
 %% @doc Create a handler specifically for `#call{} Call' with default options.
 -spec(cdrinit/1 :: (Call :: #call{}) -> 'ok' | 'error').
 cdrinit(Call) ->
-	try gen_event:add_handler(cdr, {?MODULE, Call#call.id}, [Call]) of
-		ok ->
-			ok;
-		Else ->
-			?ERROR("Initializing CDR for ~s erred with: ~p", [Call#call.id, Else]),
-			error
+	try lists:member({?MODULE, Call#call.id}, gen_event:which_handlers(cdr)) of
+		false ->
+			try gen_event:add_handler(cdr, {?MODULE, Call#call.id}, [Call]) of
+				ok ->
+					ok;
+				Else ->
+					?ERROR("Initializing CDR for ~s erred with: ~p", [Call#call.id, Else]),
+					error
+				catch
+					What:Why ->
+						?ERROR("Initializing CDR for ~s erred with: ~p:~p", [Call#call.id, What, Why]),
+						error
+			end;
+		true ->
+			?WARNING("CDR already initialized for ~s", [Call#call.id])
 	catch
 		What:Why ->
 			?ERROR("Initializing CDR for ~s erred with: ~p:~p", [Call#call.id, What, Why]),
 			error
 	end.
 	
+%% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
+-spec(inivr/2 :: (Call :: #call{}, DNIS :: string()) -> 'ok').
+inivr(Call, DNIS) ->
+	event({inivr, Call, util:now(), DNIS}).
+
 %% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
 -spec(inqueue/2 :: (Call :: #call{}, Queue :: string()) -> 'ok').
 inqueue(Call, Queue) ->
@@ -198,8 +213,8 @@ init([Call]) ->
 	Nodes = case application:get_env(cpx, nodes) of
 		undefined ->
 			[node()];
-		Else ->
-			Else
+		{ok, List} ->
+			List
 	end,
 	Cdrrec = #cdr_rec{media = Call, nodes = Nodes},
 	Initraw = #cdr_raw{
@@ -261,7 +276,10 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 			remove_handler;
 		_Anything_else ->
 			{ok, Newstate}
-	end.
+	end;
+handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = Callid2, limbo_wrapup_count = Limbocount} = State) ->
+	% this is an event for a different CDR handler, ignore it
+	{ok, State}.
 
 %% @private
 handle_call(status, State) ->
@@ -361,12 +379,12 @@ find_untermed(dialoutgoing, _, _) ->
 	% info event, precall terminated by outgoing/oncall
 	[];
 find_untermed(inqueue, #call{id = Cid} = Call, Queuename) ->
-	% queue to queue transfers
+	% queue to queue transfers, IVR time
 	QH = qlc:q([X || 
 		X <- mnesia:table(cdr_raw), 
 		X#cdr_raw.id =:= Cid, 
-		X#cdr_raw.transaction =:= inqueue,
-		X#cdr_raw.eventdata =/= Queuename,
+		( X#cdr_raw.transaction =:= inqueue andalso X#cdr_raw.eventdata =/= Queuename) orelse
+		( X#cdr_raw.transaction =:= inivr),
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);

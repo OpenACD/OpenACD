@@ -79,10 +79,11 @@ dump(Agentstate, #state{agent_states_file = File} = State) when is_record(Agents
 	{ok, State};
 dump(CDR, #state{cdr_file = File} = State) when is_record(CDR, cdr_rec) ->
 	Media = CDR#cdr_rec.media,
-	io:fwrite(File, "~s, ~w, ~B, ~B~n", [
+	{value, {oncall,{Oncall,_}}} = lists:keysearch(oncall, 1, CDR#cdr_rec.summary),
+	{value, {ringing,{Ringing,_}}} = lists:keysearch(ringing, 1, CDR#cdr_rec.summary),
+	{value, {inqueue,{Inqueue,_}}} = lists:keysearch(inqueue, 1, CDR#cdr_rec.summary),
+	{value, {wrapup,{Wrapup,_}}} = lists:keysearch(wrapup, 1, CDR#cdr_rec.summary),
+	io:fwrite(File, "~s, ~B, ~B, ~B, ~B~n", [
 		Media#call.id,
-		CDR#cdr_rec.summary]),
-		%Agentstate#agent_state.state, 
-		%Agentstate#agent_state.start, 
-		%Agentstate#agent_state.ended]),
+		Ringing, Inqueue, Oncall, Wrapup]),
 	{ok, State}.

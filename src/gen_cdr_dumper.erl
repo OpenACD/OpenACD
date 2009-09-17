@@ -54,6 +54,7 @@
 	%drop_handler/2,
 	%start_link/0,
 	start_link/2,
+	start/2,
 	update_notify/1
 ]).
 
@@ -111,6 +112,10 @@ behaviour_info(_Other) ->
 -spec(start_link/2 :: (Module :: atom(), Args :: list()) -> {'ok', pid()}).
 start_link(Module, Args) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Module, Args], []).
+
+-spec(start/2 :: (Module :: atom(), Args :: list()) -> {'ok', pid()}).
+start(Module, Args) ->
+	gen_server:start({local, ?MODULE}, ?MODULE, [Module, Args], []).
 
 update_notify(TableName) ->
 	Nodes = [node() | nodes()],
@@ -256,9 +261,10 @@ dump_rows(QC, State) ->
 
 dump_table(cdr_rec, State) ->
 	F = fun() ->
-			mnesia:lock({table, agent_state}, write),
-			QH = qlc:q([CDR || CDR <- mnesia:table(agent_state),
-					lists:member(node(), CDR#cdr_rec.nodes)
+			mnesia:lock({table, cdr_rec}, write),
+			QH = qlc:q([CDR || CDR <- mnesia:table(cdr_rec),
+					lists:member(node(), CDR#cdr_rec.nodes),
+					CDR#cdr_rec.transactions =/= inprogress
 				]),
 			QC = qlc:cursor(QH),
 			dump_rows(QC, State)

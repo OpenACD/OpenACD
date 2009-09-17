@@ -482,6 +482,7 @@ dojo.addOnLoad(function(){
 				queues.refreshTree('queuesList');
 				medias.init();
 				medias.refreshTree('mediaList');
+				clients.init();
 				//skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);
 			}
 			else{

@@ -155,7 +155,8 @@ build_tables() ->
 	case C of
 		{atomic, ok} ->
 			Addc = fun() ->
-				mnesia:write(#client{label = "Demo Client", tenant = 99, brand = 99})
+				mnesia:write(#client{label = "Demo Client", tenant = 99, brand = 99}),
+				mnesia:write(#client{label = undefined, tenant = 0, brand = 0})
 			end,
 			mnesia:transaction(Addc);
 		_Orelse ->
@@ -585,6 +586,8 @@ set_client(Label, Client) when is_record(Client, client) ->
 
 %% @doc Removed the client labeled `Label' from the client database.
 -spec(destroy_client/1 :: (Label :: string()) -> {'atomic', 'ok'}).
+destroy_client(undefined) ->
+	{aborted, protected};
 destroy_client(Label) ->
 	F = fun() -> 
 		mnesia:delete({client, Label})

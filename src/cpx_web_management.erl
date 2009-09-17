@@ -471,10 +471,15 @@ api({skills, "skill", "_agent", "expand"}, {_Reflist, _Salt, _Login}, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
 api({skills, "skill", "_brand", "expand"}, ?COOKIE, _Post) ->
 	Clients = call_queue_config:get_clients(),
-	F = fun(Clientrec) ->
-		list_to_binary(Clientrec#client.label)
+	F = fun(Clientrec, Acc) ->
+		case Clientrec#client.label of
+			undefined ->
+				Acc;
+			Else ->
+				[list_to_binary(Else) | Acc]
+		end
 	end,
-	Converted = lists:map(F, Clients),
+	Converted = lists:foldl(F, [], Clients),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
 api({skills, "skill", Skill, "update"}, ?COOKIE, Post) ->
 	case call_queue_config:get_skill(Skill) of
@@ -776,7 +781,34 @@ api({medias, _Node, "email_media_manager", "new"}, ?COOKIE, Post) ->
 		{aborted, Reason} ->
 			Json = {struct, [{success, false}, {message, list_to_binary(lists:flatten(io_lib:format("~p", [Reason])))}]},
 			{200, [], mochijson2:encode(Json)}
-	end.
+	end;
+
+% =====
+% clients => *
+% =====
+
+api({clients, "getDefault"}, ?COOKIE, _Post) ->
+	Client = call_queue_config:get_client(undefined),
+	Json = encode_client(Client),
+	{200, [], mochijson2:encode(Json)};
+api({clients, "setDefault"}, ?COOKIE, Post) ->
+	Client = #client{
+		label = undefined,
+		tenant = 0,
+		brand = 0,
+		options = [{url_pop, proplists:get_value("url_pop", Post, "")}]
+	},
+	call_queue_config:set_client(undefined, Client),
+	{200, [], mochijson2:encode({struct, [{success, true}]})};
+api({clients, "getClients"}, ?COOKIE, _Post) ->
+	Clients = call_queue_config:get_clients(),
+	Encoded = lists:map(fun(C) -> encode_client(C) end, Clients),
+	Json = {struct, [
+		{success, true},
+		{identifier, <<"label">>},
+		{items, Encoded}
+	]},
+	{200, [], mochijson2:encode(Json)}.
 	
 % path spec:
 % /basiccommand
@@ -832,6 +864,10 @@ parse_path(Path) ->
 					{api, {medias, Action}};
 				["", "medias", Node, Media, Action] ->
 					{api, {medias, Node, Media, Action}};
+				["", "clients", Action] ->
+					{api, {clients, Action}};
+				["", "clients", Client, Action] ->
+					{api, {clients, Client, Action}};
 				_Allothers ->
 					case filelib:is_regular(string:concat("www/admin", Path)) of
 						true ->
@@ -858,6 +894,25 @@ check_cookie(Allothers) ->
 					{Reflist, Salt, Login}
 			end
 	end.
+
+encode_client(Client) ->
+	Optionslist = encode_client_options(Client#client.options),
+	{struct, [
+		{<<"label">>, (case is_list(Client#client.label) of true -> list_to_binary(Client#client.label); false -> <<"">> end)},
+		{<<"tennant">>, Client#client.tenant},
+		{<<"brand">>, Client#client.brand},
+		{<<"options">>, {struct, Optionslist}}
+	]}.
+		
+encode_client_options(List) ->
+	encode_client_options(List, []).
+
+encode_client_options([], Acc) ->
+	lists:reverse(Acc);
+encode_client_options([{url_pop, Format} | Tail], Acc) ->
+	encode_client_options(Tail, [{url_pop, list_to_binary(Format)} | Acc]);
+encode_client_options([_Head | Tail], Acc) ->
+	encode_client_options(Tail, Acc).
 
 -type(raw_skill() :: atom() | {atom(), any()} | #skill_rec{}).
 

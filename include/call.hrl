@@ -27,10 +27,14 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
+-type(url_format() :: string()).
+-type(client_opt() :: {'url_pop', url_format()}).
+-type(client_opts() :: [client_opt()]).
 -record(client, {
-		label :: string(),
+		label :: string() | 'undefined',
 		tenant :: non_neg_integer(),
 		brand :: non_neg_integer(),
+		options = [] :: client_opts(),
 		timestamp = util:now() :: pos_integer()
 }).
 

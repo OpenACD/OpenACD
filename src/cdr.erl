@@ -254,7 +254,8 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 		ended = Ended,
 		nodes = State#state.nodes
 	},
-	Termed = push_raw(Call, Cdr),
+	{atomic, Termed} = push_raw(Call, Cdr),
+	?DEBUG("Termed:  ~p", [Termed]),
 	Extra = analyze(Transaction, Call, Time, Data, Termed),
 	mnesia:transaction(fun() ->
 		lists:foreach(fun(Rec) ->

@@ -368,7 +368,7 @@ push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 analyze(hangup, #call{id = Cid}, Time, _, [inivr]) ->
 	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonivr}];
 analyze(hangup, #call{id = Cid}, Time, _, [inqueue]) ->
-	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonequeue}];
+	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonqueue}];
 analyze(_, _, _, _, _) ->
 	[].
 	
@@ -716,7 +716,7 @@ analyze_test_() ->
 	fun() ->
 		Now = util:now(),
 		Res = analyze(hangup, #call{id = "testcall", source = self()}, Now, "queue", [inqueue]),
-		?assertMatch([#cdr_raw{id = "testcall", start = Now, ended = Now, transaction = abandonequeue}], Res)
+		?assertMatch([#cdr_raw{id = "testcall", start = Now, ended = Now, transaction = abandonqueue}], Res)
 	end}].
 
 push_raw_test_() ->
@@ -906,9 +906,9 @@ push_raw_test_() ->
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
-		{"abandonequeue",
+		{"abandonqueue",
 		fun() ->
-			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = abandonequeue}),
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = abandonqueue}),
 			Ended(Pull(), [])
 		end}
 	end,

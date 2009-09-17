@@ -175,8 +175,8 @@ cdr_transaction_to_integer(T) ->
 		warmxferleg -> 13;
 		wrapup -> 14; % was INWRAPUP
 		endwrapup -> 15;
-		abaondonqueue -> 16;
-		abaondonivr -> 17;
+		abandonqueue -> 16;
+		abandonivr -> 17;
 		leftvoicemail -> 18;
 		hangup -> 19; % was ENDCALL
 		unknowntermination -> 20;

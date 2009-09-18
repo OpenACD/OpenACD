@@ -807,7 +807,7 @@ push_raw_test_() ->
 		{"inqueue",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = inqueue, eventdata = "newqueue"}),
-			Testend = [inqueue],
+			Testend = [inqueue, inivr],
 			Ended(Pull(), Testend)
 		end}
 	end,

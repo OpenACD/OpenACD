@@ -314,14 +314,19 @@ handle_event(["BRANDLIST", Counter], State) when is_integer(Counter) ->
 		[] ->
 			{err(Counter, "No brands configured"), State};
 		Brands ->
-			F = fun(Elem) ->
+			F = fun(Elem, Acc) ->
 					%Idbase = integer_to_list(Elem#client.tenant * 10000 + Elem#client.brand),
 					%Padding = lists:duplicate(8 - length(Idbase), "0"),
 					%Idstring = lists:append([Padding, Idbase]),
-					Idstring = clientrec_to_id(Elem),
-					lists:append(["(", Idstring, "|", Elem#client.label, ")"])
+					case is_list(Elem#client.label) of
+						true ->
+							Idstring = clientrec_to_id(Elem),
+							[lists:append(["(", Idstring, "|", Elem#client.label, ")"]) | Acc];
+						false ->
+							Acc
+					end
 			end,
-			Brandstringed = lists:map(F, Brands),
+			Brandstringed = lists:reverse(lists:foldl(F, [], Brands)),
 			{ack(Counter, string:join(Brandstringed, ",")), State}
 	end;
 handle_event(["PROFILES", Counter], State) when is_integer(Counter) ->

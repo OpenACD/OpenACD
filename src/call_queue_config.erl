@@ -1276,7 +1276,7 @@ client_rec_test_() ->
 					new_client(Client1),
 					new_client(Client2),
 					new_client(Client3),
-					?assertMatch([#client{label = "Aclient"}, #client{label = "Client1"}, #client{label = "Client2"}, #client{label = "Demo Client"}], get_clients())
+					?assertMatch([#client{label = undefined}, #client{label = "Aclient"}, #client{label = "Client1"}, #client{label = "Client2"}, #client{label = "Demo Client"}], get_clients())
 				end
 			},
 			{

@@ -46,7 +46,7 @@
 		source = erlang:error({undefined, source}) :: pid(),
 		bound = [] :: [pid()],
 		% client record
-		client = #client{label="Unknown", tenant=0, brand=0, timestamp = 1} :: #client{},
+		client = undefined :: 'undefined' | #client{}, %#client{label="Unknown", tenant=0, brand=0, timestamp = 1} :: ,
 		skills = [] :: [atom()],
 		cook :: pid() | 'undefined', % gen_media uses this
 		ring_path = outband :: 'inband' | 'outband' | 'any',

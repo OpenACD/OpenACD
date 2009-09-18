@@ -90,7 +90,7 @@
 	blab/2,
 	warm_transfer_begin/2,
 	register_rejected/1,
-	log_loop/2]).
+	log_loop/3]).
 
 %% @doc Start an agent fsm for the passed in agent record `Agent' that is linked
 %% to the calling process with default options.
@@ -166,7 +166,7 @@ init([State, Options]) when is_record(State, agent) ->
 					end;
 				Orelse -> Orelse
 			end,
-			Pid = spawn_link(agent, log_loop, [State#agent.login, Nodes]),
+			Pid = spawn_link(agent, log_loop, [State#agent.login, Nodes, State#agent.profile]),
 			Pid ! {State#agent.login, login, State#agent.state, State#agent.statedata},
 			State2#agent{log_pid = Pid};
 		_Orelse ->
@@ -336,19 +336,19 @@ state_to_integer(State) ->
 idle({precall, Client}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
-	Newstate = State#agent{state=precall, oldstate=State#agent.state, statedata=Client, lastchangetimestamp=now()},
+	Newstate = State#agent{state=precall, oldstate=idle, statedata=Client, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?PRECALL_LIMITS, []),
 	{reply, ok, precall, Newstate};
 idle({ringing, Call = #call{}}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
-	Newstate = State#agent{state=ringing, oldstate=State#agent.state, statedata=Call, lastchangetimestamp=now()},
+	Newstate = State#agent{state=ringing, oldstate=idle, statedata=Call, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, Newstate};
 idle({released, Reason}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
-	Newstate = State#agent{state=released, oldstate=State#agent.state, statedata=Reason, lastchangetimestamp=now()},
+	Newstate = State#agent{state=released, oldstate=idle, statedata=Reason, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?RELEASED_LIMITS, []),
 	{reply, ok, released, Newstate};
 idle(Event, From, State) ->
@@ -373,20 +373,22 @@ ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.d
 	?DEBUG("default ringpath inband, ring_path not outband", []),
 	case gen_media:oncall(Statecall#call.source) of
 		ok ->
+			Newstate = State#agent{state=oncall, oldstate = ringing, lastchangetimestamp=now()},
 			gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
 			gen_server:cast(Statecall#call.cook, remove_from_queue),
 			%cdr:oncall(Statecall, State#agent.login),
-			set_cpx_monitor(State#agent{state = oncall}, ?ONCALL_LIMITS, []),
-			{reply, ok, oncall, State#agent{state=oncall, lastchangetimestamp=now()}};
+			set_cpx_monitor(Newstate, ?ONCALL_LIMITS, []),
+			{reply, ok, oncall, Newstate};
 		invalid ->
 			{reply, invalid, ringing, State}
 	end;
 ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} = State) ->
 	case Statecall#call.id of
 		Callid -> 
+			Newstate = State#agent{state = oncall, statedata = Call, oldstate = ringing, lastchangetimestamp = now()},
 			gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
-			set_cpx_monitor(State#agent{state = oncall}, ?ONCALL_LIMITS, []),
-			{reply, ok, oncall, State#agent{state=oncall, statedata=Call, lastchangetimestamp=now()}};
+			set_cpx_monitor(Newstate, ?ONCALL_LIMITS, []),
+			{reply, ok, oncall, Newstate};
 		_Other -> 
 			{reply, invalid, ringing, State}
 	end;
@@ -395,13 +397,13 @@ ringing({released, Reason}, _From, #agent{statedata = Call} = State) ->
 	%gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
 	gen_media:stop_ringing(Call#call.source),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
-	Newstate = State#agent{state=released, oldstate=State#agent.state, statedata=Reason, lastchangetimestamp=now()},
+	Newstate = State#agent{state=released, oldstate=ringing, statedata=Reason, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?RELEASED_LIMITS, []),
 	{reply, ok, released, Newstate};
 ringing(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
-	Newstate = State#agent{state=idle, oldstate=State#agent.state, statedata={}, lastchangetimestamp=now()},
+	Newstate = State#agent{state=idle, oldstate=ringing, statedata={}, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
 	{reply, ok, idle, Newstate};
 ringing(_Event, _From, State) ->
@@ -467,15 +469,17 @@ oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_pat
 	%cdr:hangup(Call, agent),
 	%cdr:wrapup(Call, State#agent.login),
 	gen_media:wrapup(Call#call.source),
-	set_cpx_monitor(State#agent{state = wrapup}, ?WRAPUP_LIMITS, []),
-	{reply, ok, wrapup, State#agent{state=wrapup, lastchangetimestamp=now()}};
+	Newstate = State#agent{state=wrapup, lastchangetimestamp=now(), oldstate = oncall},
+	set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
+	{reply, ok, wrapup, Newstate};
 oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
 	case Currentcall#call.id of
 		Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 			%cdr:wrapup(Call, State#agent.login),
-			set_cpx_monitor(State#agent{state = wrapup}, ?WRAPUP_LIMITS, []), 
-			{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};
+			Newstate = State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now(), oldstate = oncall},
+			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []), 
+			{reply, ok, wrapup, Newstate};
 		_Else ->
 			{reply, invalid, oncall, State}
 	end;
@@ -544,15 +548,16 @@ outgoing({released, Reason}, _From, State) ->
 outgoing({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
 	case Currentcall#call.id of
 		Callid -> 
+			Newstate = State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now(), oldstate = outgoing},
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-			set_cpx_monitor(State#agent{state = wrapup}, ?WRAPUP_LIMITS, []),
-			{reply, ok, wrapup, State#agent{state=wrapup, statedata=Call, lastchangetimestamp=now()}};
+			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
+			{reply, ok, wrapup, Newstate};
 		_Else -> 
 			{reply, invalid, outgoing, State}
 	end;
 outgoing({warmtransfer, Transferto}, _From, State) -> 
 	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
-	Newstate = State#agent{state=warmtransfer, oldstate=State#agent.state, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()},
+	Newstate = State#agent{state=warmtransfer, oldstate=outgoing, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};
 outgoing(get_media, _From, #agent{statedata = Media} = State) when is_record(Media, call) ->
@@ -582,23 +587,23 @@ outgoing(_Msg, State) ->
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'released', #agent{}}).
 released({precall, Client}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
-	Newstate = State#agent{state=precall, oldstate=State#agent.state, statedata=Client, lastchangetimestamp=now()},
+	Newstate = State#agent{state=precall, oldstate=released, statedata=Client, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?PRECALL_LIMITS, []),
 	{reply, ok, precall, Newstate};
 released(idle, _From, State) ->	
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
-	Newstate = State#agent{state=idle, oldstate=State#agent.state, statedata={}, lastchangetimestamp=now()},
+	Newstate = State#agent{state=idle, oldstate=released, statedata={}, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
 	{reply, ok, idle, Newstate};
 released({released, Reason}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
-	Newstate = State#agent{statedata=Reason, oldstate=State#agent.state, lastchangetimestamp=now()},
+	Newstate = State#agent{statedata=Reason, oldstate=released, lastchangetimestamp=now()},
 	log_change(Newstate),
 	{reply, ok, released, Newstate};
 released({ringing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
-	Newstate = State#agent{state=ringing, oldstate=State#agent.state, statedata=Call, lastchangetimestamp=now()},
+	Newstate = State#agent{state=ringing, oldstate=released, statedata=Call, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, Newstate};
 released(_Event, _From, State) ->
@@ -630,7 +635,7 @@ warmtransfer({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = {onh
 	case Onhold#call.id of
 		 Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-			Newstate = State#agent{state=wrapup, oldstate=State#agent.state, statedata=Call, lastchangetimestamp=now()},
+			Newstate = State#agent{state=wrapup, oldstate=warmtransfer, statedata=Call, lastchangetimestamp=now()},
 			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
 			{reply, ok, wrapup, Newstate};
 		_Else -> 
@@ -640,7 +645,7 @@ warmtransfer({oncall, #call{id = Callid} = Call}, _From, #agent{statedata = {onh
 	case Onhold#call.id of
 		 Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
-			Newstate = State#agent{state=oncall, oldstate=State#agent.state, statedata=Call, lastchangetimestamp=now()},
+			Newstate = State#agent{state=oncall, oldstate=warmtransfer, statedata=Call, lastchangetimestamp=now()},
 			set_cpx_monitor(Newstate, ?ONCALL_LIMITS, []),
 			{reply, ok, oncall, Newstate};
 		_Else -> 
@@ -648,7 +653,7 @@ warmtransfer({oncall, #call{id = Callid} = Call}, _From, #agent{statedata = {onh
 	end;
 warmtransfer({outgoing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, outgoing, Call}),
-	Newstate = State#agent{state=outgoing, oldstate=State#agent.state, statedata=Call, lastchangetimestamp=now()},
+	Newstate = State#agent{state=outgoing, oldstate=warmtransfer, statedata=Call, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, outgoing, Newstate};
 warmtransfer(_Event, _From, State) ->
@@ -677,13 +682,13 @@ wrapup(idle, _From, State= #agent{statedata = Call, queuedrelease = undefined}) 
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
 	cdr:endwrapup(Call, State#agent.login),
-	Newstate = State#agent{state=idle, oldstate=State#agent.state, statedata={}, lastchangetimestamp=now()},
+	Newstate = State#agent{state=idle, oldstate=wrapup, statedata={}, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
 	{reply, ok, idle, Newstate};
 wrapup(idle, _From, #agent{statedata=Call} = State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, State#agent.queuedrelease}),
 	cdr:endwrapup(Call, State#agent.login),
-	Newstate = State#agent{state=released, oldstate=State#agent.state, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()},
+	Newstate = State#agent{state=released, oldstate=wrapup, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?RELEASED_LIMITS, []),
 	{reply, ok, released, Newstate};
 wrapup(Event, From, State) ->
@@ -918,13 +923,13 @@ set_cpx_monitor(State, Hp, Otherdeatils) ->
 log_change(#agent{log_pid = undefined}) ->
 	ok;
 log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
-	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, State#agent.statedata, State#agent.profile},
+	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, State#agent.statedata},
 	ok.
 
-log_loop(Agentname, Nodes) ->
+log_loop(Agentname, Nodes, Profile) ->
 	process_flag(trap_exit, true),
 	receive
-		{Agentname, login, State, OldState, Statedata, Profile} ->
+		{Agentname, login, State, OldState, Statedata} ->
 			F = fun() ->
 				Now = util:now(),
 				mnesia:dirty_write(#agent_state{agent = Agentname, state = login, oldstate=OldState,
@@ -934,7 +939,7 @@ log_loop(Agentname, Nodes) ->
 			end,
 			Res = mnesia:async_dirty(F),
 			?DEBUG("res of agent state login:  ~p", [Res]),
-			agent:log_loop(Agentname, Nodes);
+			agent:log_loop(Agentname, Nodes, Profile);
 		{'EXIT', Apid, Reason} ->
 			F = fun() ->
 				Now = util:now(),
@@ -957,7 +962,7 @@ log_loop(Agentname, Nodes) ->
 			Res = mnesia:async_dirty(F),
 			?DEBUG("res of agent state change log:  ~p", [Res]),
 			ok;
-		{Agentname, State, OldState, Statedata, Profile} ->
+		{Agentname, State, OldState, Statedata} ->
 			F = fun() ->
 				Now = util:now(),
 				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.agent =:= Agentname, Rec#agent_state.ended =:= undefined, Rec#agent_state.state =/= login]),
@@ -976,7 +981,7 @@ log_loop(Agentname, Nodes) ->
 			end,
 			Res = mnesia:async_dirty(F),
 			?DEBUG("res of agent state change log:  ~p", [Res]),
-			agent:log_loop(Agentname, Nodes)
+			agent:log_loop(Agentname, Nodes, Profile)
 	end.
 
 -ifdef(EUNIT).
@@ -1018,7 +1023,7 @@ from_idle_test_() ->
 			gen_server_mock:assert_expectations(Logpid),
 			ok
 		end,
-		%?CONSOLE("Test args:  ~p", [[Agent, Dmock, Monmock, Connmock, Logpid, Assertmocks]]),
+		?CONSOLE("Test args:  ~p", [[Agent, Dmock, Monmock, Connmock, Logpid, Assertmocks]]),
 		{Agent, Dmock, Monmock, Connmock, Assertmocks}
 	end,
 	fun({_Agent, Dmock, Monmock, Connmock, _Assertmocks}) ->
@@ -1047,7 +1052,7 @@ from_idle_test_() ->
 				Inclient = Client,
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", precall, Client}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", precall, idle, Client}, _State) -> ok end),
 			?assertMatch({reply, ok, precall, _State}, idle({precall, Client}, {"ref", "pid"}, Agent)),
 			Assertmocks()
 		end}
@@ -1070,7 +1075,7 @@ from_idle_test_() ->
 				Call = Incall,
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, Call}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, idle, Call}, _State) -> ok end),
 			?assertMatch({reply, ok, ringing, _State}, idle({ringing, Call}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1091,7 +1096,7 @@ from_idle_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "just 'cause"}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, "just 'cause"}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, idle, "just 'cause"}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, idle({released, "just 'cause"}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1179,7 +1184,7 @@ from_ringing_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, {}}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, ringing, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, ringing(idle, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1214,7 +1219,7 @@ from_ringing_test_() ->
 			gen_server_mock:expect_call(Callrec#call.source, fun(_Message, _From, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, Callrec}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, ringing, Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, ringing(oncall, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1245,7 +1250,7 @@ from_ringing_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, Callrec}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, ringing, Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, ringing({oncall, Callrec}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1283,7 +1288,7 @@ from_ringing_test_() ->
 				Inpid = Self,
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, "default"}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, ringing, "default"}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, ringing({released, "default"}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1345,7 +1350,7 @@ from_precall_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, {}}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, precall, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, precall(idle, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1382,7 +1387,7 @@ from_precall_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", outgoing, "callrec"}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", outgoing, precall, "callrec"}, _State) -> ok end),
 			?assertMatch({reply, ok, outgoing, _State}, precall({outgoing, "callrec"}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1398,7 +1403,7 @@ from_precall_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "reason"}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, "reason"}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, precall, "reason"}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, precall({released, "reason"}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1520,7 +1525,7 @@ from_oncall_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, 
-				fun({"testagent", warmtransfer, {onhold, Call, calling, "transferto"}}, _State) -> 
+				fun({"testagent", warmtransfer, oncall, {onhold, Call, calling, "transferto"}}, _State) -> 
 					Call = Agent#agent.statedata,
 					ok 
 				end),
@@ -1540,7 +1545,7 @@ from_oncall_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
 			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1647,7 +1652,7 @@ from_outgoing_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, 
-				fun({"testagent", warmtransfer, {onhold, Call, calling, "transferto"}}, _State) ->
+				fun({"testagent", warmtransfer, outgoing, {onhold, Call, calling, "transferto"}}, _State) ->
 					Call = Agent#agent.statedata,
 					ok
 				end),
@@ -1666,7 +1671,7 @@ from_outgoing_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, Call}, _State) ->
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, outgoing, Call}, _State) ->
 				Call = Agent#agent.statedata, 
 				ok
 			end),
@@ -1725,7 +1730,7 @@ from_released_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, {}}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, released, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, released(idle, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1741,7 +1746,7 @@ from_released_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, "callrec"}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, released, "callrec"}, _State) -> ok end),
 			?assertMatch({reply, ok, ringing, _State}, released({ringing, "callrec"}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1757,7 +1762,7 @@ from_released_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", precall, "client"}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", precall, released, "client"}, _State) -> ok end),
 			?assertMatch({reply, ok, precall, _State}, released({precall, "client"}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1782,7 +1787,7 @@ from_released_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "reason"}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, "reason"}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, released, "reason"}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, released({released, "reason"}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1868,7 +1873,7 @@ from_warmtransfer_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, Callrec}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, warmtransfer, Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, warmtransfer({oncall, Callrec}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1892,7 +1897,7 @@ from_warmtransfer_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", outgoing, Callrec}, _State) ->
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", outgoing, warmtransfer, Callrec}, _State) ->
 				Callrec = element(2, Agent#agent.statedata),
 				ok
 			end),
@@ -1913,7 +1918,7 @@ from_warmtransfer_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, Callrec}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, warmtransfer, Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, wrapup, _State}, warmtransfer({wrapup, Callrec}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1974,7 +1979,7 @@ from_wrapup_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, {}}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, wrapup, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, wrapup(idle, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1991,7 +1996,7 @@ from_wrapup_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, "default"}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, wrapup, "default"}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, wrapup(idle, "from", Agent)),
 			Assertmocks()
 		end}

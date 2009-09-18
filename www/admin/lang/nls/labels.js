@@ -1,4 +1,7 @@
 {
+	CLIENTS:  "Clients",
+	DEFAULTS:  "Defaults",
+	URL_POP:  "Url pop",
 	USERNAME: "Username",
 	PASSWORD: "Password",
 	LOGIN: "Login",

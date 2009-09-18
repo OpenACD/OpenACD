@@ -717,6 +717,8 @@ dojo.requireLocalization("admin", "labels");
 			<p><button dojoType="dijit.form.Button" label="DEFAULTS">
 				<script type="dojo/method" event="postCreate">
 					this.setLabel(dojo.i18n.getLocalization("admin", "labels").DEFAULTS);
+					var oldinner = dojo.byId("lclientDefaultUrl").innerHTML;
+					dojo.byId("lclientDefaultUrl").innerHTML = dojo.i18n.getLocalization("admin", "labels")[oldinner] + ":";
 				</script>
 				<script type="dojo/method" event="onClick">
 					clients.store.fetch({
@@ -739,24 +741,16 @@ dojo.requireLocalization("admin", "labels");
 			<div dojoType="dijit.layout.ContentPane" id="clientsDefaults">
 				<form dojoType="dijit.form.Form" method="post" id="clientsDefaultsForm">
 					<p>
-						<label for="clientDefaultUrl" id="lclientDefaultUrl">URL_POP:</label>
-						<input name="clientDefaultUrl" dojoType="dijit.form.TextBox" id="clientDefaultUrl" type="text" width="100em">
-							<script type="dojo/connect" event="postMixInProperties">
-								clients.store.fetch({
-									query:{label:""},
-									onComplete:function(items){
-										var item = items[0];
-										var options = clients.store.getValue(item, "options")
-										this.setValue(options["url_pop"]);
-									}
-								});
-							</script>
-						</input>
+						<label for="clientDefaultUrl" id="lclientDefaultUrl">URL_POP</label>
+						<input name="clientDefaultUrl" dojoType="dijit.form.TextBox" id="clientDefaultUrl" type="text" width="100em" />
 					</p>
 					
 					<p>
 						<label>&nbsp;</label>
 						<button name="submit" dojoType="dijit.form.Button" label="SUBMIT" id="clientDefaultSubmit">
+							<script type="dojo/method" event="postCreate">
+								this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+							</script>
 							<script type="dojo/connect" event="onClick">
 								clients.setDefault({
 									url_pop: dijit.byId("clientDefaultUrl").value

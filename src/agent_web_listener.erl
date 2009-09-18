@@ -279,10 +279,13 @@ api(brandlist, {_Reflist, _Salt, _Conn}, _Post) ->
 	[] ->
 		{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No brands defined">>}]})};
 	Brands ->
-		Converter = fun(#client{label = Label, tenant = Tenant, brand = Brand}) ->
-			{struct, [{<<"label">>, list_to_binary(Label)}, {<<"tenant">>, Tenant}, {<<"brand">>, Brand}]}
+		Converter = fun
+			(#client{label = undefined}, Acc) ->
+				Acc;
+			(#client{label = Label, tenant = Tenant, brand = Brand}, Acc) ->
+				[{struct, [{<<"label">>, list_to_binary(Label)}, {<<"tenant">>, Tenant}, {<<"brand">>, Brand}]} | Acc]
 		end,
-		Jsons = lists:map(Converter, Brands),
+		Jsons = lists:foldl(Converter, [], Brands),
 		{200, [], mochijson2:encode({struct, [{success, true}, {<<"brands">>, Jsons}]})}
 	end;
 api(getsalt, {Reflist, _Salt, Conn}, _Post) ->

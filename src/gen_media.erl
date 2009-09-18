@@ -496,6 +496,7 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 				{ok, Substate} ->
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
 					cdr:ringing(Call, Agent),
+					url_pop(Call, Agent),
 					Newcall = Call#call{cook = QCall#queued_call.cook},
 					{reply, ok, State#state{substate = Substate, ring_pid = Agent, ringout=Tref, callrec = Newcall}};
 				{invalid, Substate} ->
@@ -790,6 +791,36 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+url_pop(#call{client = undefined} = Call, Agent) ->
+	Client = call_queue_config:get_client(undefined),
+	?DEBUG("Set client to the default", []),
+	url_pop(Call#call{client = Client}, Agent);
+url_pop(#call{client = Client} = Call, Agent) ->
+	case {Client#client.label, proplists:get_value(url_pop, Client#client.options)} of
+		{undefined, Nil} when Nil =:= undefined; Nil =:= ""->
+			%% no url pop defined at all, just ignore;
+			?DEBUG("No url pop, ignoring.  Client:  ~p", [Client]),
+			ok;
+		{undefined, _Notnil} ->
+			url_pop(Client, Agent);
+		{_Defined, Nil} when Nil =:= undefined; Nil =:= "" ->
+			NewClient = call_queue_config:get_client(undefined),
+			url_pop(Call#call{client = NewClient}, Agent);
+		{_Defined, _Notnil} ->
+			url_pop(Client, Agent)
+	end;
+url_pop(#client{label = Label, tenant = Tenant, brand = Brand, options = Options} = C, Agent) ->
+	?DEBUG("finalizing url pop.  Client:  ~p", [C]),
+	Protourl = proplists:get_value(url_pop, Options, ""),
+	Words = [
+		{"label", (case is_atom(Label) of true -> atom_to_list(Label); false -> Label end)},
+		{"tenant", integer_to_list(Tenant)},
+		{"brand", integer_to_list(Brand)},
+		{"combo_id", string:right(integer_to_list(Tenant * 1000 + Brand), 8, "0")}
+	],
+	Url = util:string_interpolate(Protourl, Words),
+	agent:url_pop(Agent, Url).
 
 -spec(set_cpx_mon/2 :: (State :: #state{}, Action :: proplist() | 'delete') -> 'ok').
 set_cpx_mon(#state{callrec = Call} = _State, delete) ->

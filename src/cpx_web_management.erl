@@ -908,7 +908,7 @@ encode_client_options(List) ->
 	encode_client_options(List, []).
 
 encode_client_options([], Acc) ->
-	lists:reverse(Acc);
+	[{<<"_type">>, <<"json">>}, {<<"_value">>, {struct, lists:reverse(Acc)}}];
 encode_client_options([{url_pop, Format} | Tail], Acc) ->
 	encode_client_options(Tail, [{url_pop, list_to_binary(Format)} | Acc]);
 encode_client_options([_Head | Tail], Acc) ->

@@ -48,6 +48,7 @@
 	string_split/3,
 	string_split/2,
 	string_chomp/1,
+	string_interpolate/2,
 	list_contains_all/2,
 	list_map_with_index/2,
 	bin_to_hexstr/1,
@@ -120,6 +121,24 @@ string_split_(String, Separator, Acc) ->
 %% @doc Remove any trailing newlines or carraige returns from `String'.
 string_chomp(String) ->
 	string:strip(string:strip(String, right, $\n), right, $\r).
+
+-type(word_entry() :: {string(), string()}).
+-type(word_list() :: [word_entry()]).
+-spec(string_interpolate/2 :: (String :: string(), Words :: word_list()) -> string()).
+string_interpolate(String, Words) ->
+	{ok, Re} = re:compile("#{([\\w_]+)}"),
+	string_interpolate(re:run(String, Re, [{offset, 0}]), String, Re, Words, 0).
+
+string_interpolate(nomatch, String, _Re, _Words, _Offset) ->
+	String;
+string_interpolate({match, [{Fullmin1, FullLen}, {Startmin1, Len}]}, String, Re, Words, Offset) ->
+	Pre = string:substr(String, 1, Fullmin1),
+	Key = string:substr(String, Startmin1 + 1, Len),
+	Post = string:substr(String, Fullmin1 + 1 + FullLen),
+	Val = proplists:get_value(Key, Words, ""),
+	Newstring = lists:flatten(lists:append([Pre, Val, Post])),
+	io:format("Input:  ~w; Output:  ~w", [String, Newstring]),
+	string_interpolate(re:run(Newstring, Re, [{offset, Offset + FullLen}]), Newstring, Re, Words, Offset + FullLen).
 
 -spec(list_contains_all/2 :: (List :: [any()], Members :: []) -> 'true';
                              (List :: [any()], Members :: [any(),...]) -> 'true' | 'false').
@@ -425,7 +444,15 @@ split_test_() ->
 
 chomp_test() ->
 	?assertEqual("Fooo", string_chomp("Fooo\r\n")).
-	
+
+string_interpolate_test_() ->
+	[{"interpolate nominal", ?_assertEqual("word:  goober", string_interpolate("word:  #{word}", [{"word", "goober"}]))},
+	{"interpolate missing", ?_assertEqual("word:  ", string_interpolate("word:  #{word}", []))},
+	{"grab bag", ?_assertEqual("1:uno;  none:; under:untder", string_interpolate("1:#{one};  none:#{none}; under:#{un_der}", 
+		[{"one", "uno"}, {"un_der", "untder"}]))},
+	{"replacemnet no looping", ?_assertEqual("1:#{one}, 2:duo", string_interpolate("1:#{one}, 2:#{two}", 
+		[{"one", "#{one}"}, {"two", "duo"}]))}].
+
 list_contains_all_test() ->
 	?assertEqual(true, list_contains_all([foo, bar, baz], [foo])),
 	?assertEqual(true, list_contains_all([foo, bar, baz], [foo, bar])),

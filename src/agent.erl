@@ -71,6 +71,7 @@
 	stop/1, 
 	add_skills/2,
 	remove_skills/2,
+	change_profile/2,
 	query_state/1, 
 	dump_state/1, 
 	get_media/1,
@@ -200,6 +201,9 @@ add_skills(Apid, Skills) when is_list(Skills), is_pid(Apid) ->
 
 remove_skills(Apid, Skills) when is_list(Skills), is_pid(Apid) ->
 	gen_fsm:sync_send_all_state_event(Apid, {remove_skills, Skills}).
+
+change_profile(Apid, Profile) ->
+	gen_fsm:sync_send_all_state_event(Apid, {change_profile, Profile}).
 
 %% @doc Returns `{ok, Statename :: atom()}', where `Statename' is the current state of the agent at `Pid'.
 -spec(query_state/1 :: (Pid :: pid()) -> {'ok', atom()}).
@@ -728,6 +732,22 @@ handle_sync_event({add_skills, Skills}, _From, StateName, State) ->
 handle_sync_event({remove_skills, Skills}, _From, StateName, State) ->
 	NewSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, Skills)),
 	{reply, ok, StateName, State#agent{skills = NewSkills}};
+handle_sync_event({change_profile, Profile}, _From, StateName, State) when StateName =:= idle; StateName =:= released ->
+	OldProfile = State#agent.profile,
+	OldSkills = case agent_auth:get_profile(OldProfile) of
+		{OldProfile, Skills} ->
+			Skills;
+		_ ->
+			[]
+	end,
+	case agent_auth:get_profile(Profile) of
+		{Profile, Skills2} ->
+			NewAgentSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, OldSkills)),
+			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(State, Skills2)),
+			{reply, ok, StateName, State#agent{skills = NewAgentSkills2, profile = Profile}};
+		_ ->
+			{reply, {error, unknown_profile}, StateName, State}
+	end;
 handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.
 

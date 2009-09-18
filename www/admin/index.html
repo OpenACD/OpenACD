@@ -750,6 +750,7 @@ dojo.requireLocalization("admin", "labels");
 						<button name="submit" dojoType="dijit.form.Button" label="SUBMIT" id="clientDefaultSubmit">
 							<script type="dojo/method" event="postCreate">
 								this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+								dojo.byId("url_pop_explanation").innerHTML = dojo.i18n.getLocalization("admin", "labels").URL_POP_EXPLANATION;
 							</script>
 							<script type="dojo/connect" event="onClick">
 								clients.setDefault({
@@ -758,6 +759,7 @@ dojo.requireLocalization("admin", "labels");
 							</script>
 						</button>
 					</p>
+					<p id="url_pop_explanation">URL_POP_EXPLANATION</p>
 				</form>
 			</div>
 		</div>

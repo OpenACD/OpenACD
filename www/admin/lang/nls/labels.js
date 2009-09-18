@@ -2,6 +2,7 @@
 	CLIENTS:  "Clients",
 	DEFAULTS:  "Defaults",
 	URL_POP:  "Url pop",
+	URL_POP_EXPLANATION: "The url pop uses ruby-style interpoation for variables.  Available variables are #{label}, #{tennant}, #{brand}, and #{combo_id}.",
 	USERNAME: "Username",
 	PASSWORD: "Password",
 	LOGIN: "Login",

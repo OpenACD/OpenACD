@@ -153,7 +153,16 @@ init([Cnode, UUID]) ->
 	Manager = whereis(freeswitch_media_manager),
 	{ok, DNIS} = freeswitch:api(Cnode, uuid_getvar, UUID++" destination_number"),
 	%freeswitch:handlecall(Cnode, UUID),
-	Call = #call{id = UUID, source = self()},
+	{ok, Brand} = freeswitch:api(Cnode, uuid_getvar, UUID++" brand"),
+	case call_queue_config:get_client(Brand) of
+		none ->
+			% TODO gen_media should handle us setting this 'undefined'?
+			Clientrec = #client{label="Unknown", tenant=0, brand=0};
+		Clientrec ->
+			ok
+	end,
+	?NOTICE("Client: ~p", [Clientrec]),
+	Call = #call{id = UUID, source = self(), client = Clientrec},
 	{ok, {#state{cnode=Cnode, manager_pid = Manager, callrec = Call}, Call, {inivr, [DNIS]}}}.
 
 handle_announce(Announcement, #state{callrec = Callrec} = State) ->
@@ -437,6 +446,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 					Brand = freeswitch:get_event_header(Rawcall, "variable_brand"),
 					case call_queue_config:get_client(Brand) of
 						none ->
+							% TODO gen_media should handle us setting this 'undefined'?
 							Clientrec = #client{label="Unknown", tenant=0, brand=0};
 						Clientrec ->
 							ok

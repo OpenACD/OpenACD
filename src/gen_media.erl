@@ -798,35 +798,49 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-url_pop(#call{client = undefined} = Call, Agent) ->
-	Client = call_queue_config:get_client(undefined),
-	?DEBUG("Set client to the default", []),
-	url_pop(Call#call{client = Client}, Agent);
 url_pop(#call{client = Client} = Call, Agent) ->
-	case {Client#client.label, proplists:get_value(url_pop, Client#client.options)} of
-		{undefined, Nil} when Nil =:= undefined; Nil =:= ""->
-			%% no url pop defined at all, just ignore;
-			?DEBUG("No url pop, ignoring.  Client:  ~p", [Client]),
-			ok;
-		{undefined, _Notnil} ->
-			url_pop(Client, Agent);
-		{_Defined, Nil} when Nil =:= undefined; Nil =:= "" ->
-			NewClient = call_queue_config:get_client(undefined),
-			url_pop(Call#call{client = NewClient}, Agent);
-		{_Defined, _Notnil} ->
-			url_pop(Client, Agent)
-	end;
-url_pop(#client{label = Label, tenant = Tenant, brand = Brand, options = Options} = C, Agent) ->
-	?DEBUG("finalizing url pop.  Client:  ~p", [C]),
-	Protourl = proplists:get_value(url_pop, Options, ""),
+	Protourl = proplists:get_value(url_pop, Client#client.options, ""),
 	Words = [
-		{"label", (case is_atom(Label) of true -> atom_to_list(Label); false -> Label end)},
-		{"tenant", integer_to_list(Tenant)},
-		{"brand", integer_to_list(Brand)},
-		{"combo_id", string:right(integer_to_list(Tenant * 1000 + Brand), 8, $0)}
+		{"label", (case is_atom(Client#client.label) of true -> atom_to_list(Client#client.label); false -> Client#client.label end)},
+		{"tenant", integer_to_list(Client#client.tenant)},
+		{"brand", integer_to_list(Client#client.brand)},
+		{"combo_id", string:right(integer_to_list(Client#client.tenant * 1000 + Client#client.brand), 8, $0)},
+		{"callerid", Call#call.callerid}
 	],
 	Url = util:string_interpolate(Protourl, Words),
 	agent:url_pop(Agent, Url).
+%
+%
+%url_pop(#call{client = undefined} = Call, Agent) ->
+%	Client = call_queue_config:get_client(undefined),
+%	?DEBUG("Set client to the default", []),
+%	url_pop(Call#call{client = Client}, Agent);
+%url_pop(#call{client = Client} = Call, Agent) ->
+%	case {Client#client.label, proplists:get_value(url_pop, Client#client.options)} of
+%		{undefined, Nil} when Nil =:= undefined; Nil =:= ""->
+%			%% no url pop defined at all, just ignore;
+%			?DEBUG("No url pop, ignoring.  Client:  ~p", [Client]),
+%			ok;
+%		{undefined, _Notnil} ->
+%			url_pop(Client, Agent);
+%		{_Defined, Nil} when Nil =:= undefined; Nil =:= "" ->
+%			NewClient = call_queue_config:get_client(undefined),
+%			url_pop(Call#call{client = NewClient}, Agent);
+%		{_Defined, _Notnil} ->
+%			url_pop(Client, Agent)
+%	end;
+%url_pop(#client{label = Label, tenant = Tenant, brand = Brand, options = Options} = C, Agent) ->
+%	?DEBUG("finalizing url pop.  Client:  ~p", [C]),
+%	Protourl = proplists:get_value(url_pop, Options, ""),
+%	Words = [
+%		{"label", (case is_atom(Label) of true -> atom_to_list(Label); false -> Label end)},
+%		{"tenant", integer_to_list(Tenant)},
+%		{"brand", integer_to_list(Brand)},
+%		{"combo_id", string:right(integer_to_list(Tenant * 1000 + Brand), 8, $0)},
+%		{"callerid", C#call.callerid}
+%	],
+%	Url = util:string_interpolate(Protourl, Words),
+%	agent:url_pop(Agent, Url).
 
 %% @doc Set the client record to an actual client record.
 -spec(correct_client/1 :: (Callrec :: #call{}) -> #call{}).

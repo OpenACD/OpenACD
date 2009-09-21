@@ -823,7 +823,7 @@ url_pop(#client{label = Label, tenant = Tenant, brand = Brand, options = Options
 		{"label", (case is_atom(Label) of true -> atom_to_list(Label); false -> Label end)},
 		{"tenant", integer_to_list(Tenant)},
 		{"brand", integer_to_list(Brand)},
-		{"combo_id", string:right(integer_to_list(Tenant * 1000 + Brand), 8, "0")}
+		{"combo_id", string:right(integer_to_list(Tenant * 1000 + Brand), 8, $0)}
 	],
 	Url = util:string_interpolate(Protourl, Words),
 	agent:url_pop(Agent, Url).

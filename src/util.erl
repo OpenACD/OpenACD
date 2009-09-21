@@ -137,7 +137,6 @@ string_interpolate({match, [{Fullmin1, FullLen}, {Startmin1, Len}]}, String, Re,
 	Post = string:substr(String, Fullmin1 + 1 + FullLen),
 	Val = proplists:get_value(Key, Words, ""),
 	Newstring = lists:flatten(lists:append([Pre, Val, Post])),
-	io:format("Input:  ~w; Output:  ~w", [String, Newstring]),
 	string_interpolate(re:run(Newstring, Re, [{offset, Offset + FullLen}]), Newstring, Re, Words, Offset + FullLen).
 
 -spec(list_contains_all/2 :: (List :: [any()], Members :: []) -> 'true';

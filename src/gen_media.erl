@@ -399,7 +399,8 @@ init([Callback, Args]) ->
 	case Callback:init(Args) of
 		{ok, {Substate, undefined}} ->
 		    {ok, #state{callback = Callback, substate = Substate, callrec = undefined}};
-		{ok, {Substate, {Queue, Callrec}}} when is_record(Callrec, call) ->
+		{ok, {Substate, {Queue, PCallrec}}} when is_record(PCallrec, call) ->
+			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
 			Qpid = case priv_queue(Queue, Callrec, true) of
 				invalid when Queue =/= "default_queue" ->
@@ -416,11 +417,13 @@ init([Callback, Args]) ->
 					Else
 			end,
 			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = Qpid}};
-		{ok, {Substate, Callrec, {CDRState, CDRArgs}}} when is_record(Callrec, call) ->
+		{ok, {Substate, PCallrec, {CDRState, CDRArgs}}} when is_record(PCallrec, call) ->
+			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
 			apply(cdr, CDRState, [Callrec | CDRArgs]),
 			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
-		{ok, {Substate, Callrec}} when is_record(Callrec, call) ->
+		{ok, {Substate, PCallrec}} when is_record(PCallrec, call) ->
+			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
 			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}}
 	end.
@@ -641,7 +644,8 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 			{stop, Reason, Reply, State#state{substate = NewState}};
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
-		{queue, Queue, Callrec, NewState} ->
+		{queue, Queue, PCallrec, NewState} ->
+			Callrec = correct_client(PCallrec),
 			case priv_queue(Queue, Callrec, State#state.queue_failover) of
 				invalid ->
 					{reply, {error, {noqueue, Queue}}, State#state{callrec = Callrec, substate = NewState}};
@@ -677,7 +681,8 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 			{noreply, State#state{substate = NewState}, Timeout};
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
-		{queue, Queue, Callrec, NewState} ->
+		{queue, Queue, PCallrec, NewState} ->
+			Callrec = correct_client(PCallrec),
 			case priv_queue(Queue, Callrec, State#state.queue_failover) of
 				invalid ->
 					{noreply, State#state{callrec = Callrec, substate = NewState}};
@@ -741,7 +746,8 @@ handle_info(Info, #state{callback = Callback} = State) ->
 			{noreply, State#state{substate = NewState}, Timeout};
 		{stop, Reason, NewState} ->
 			{stop, Reason, State#state{substate = NewState}};
-		{queue, Queue, Callrec, NewState} ->
+		{queue, Queue, PCallrec, NewState} ->
+			Callrec = correct_client(PCallrec),
 			case priv_queue(Queue, Callrec, State#state.queue_failover) of
 				{default, Qpid} ->
 					cdr:cdrinit(Callrec),
@@ -821,6 +827,30 @@ url_pop(#client{label = Label, tenant = Tenant, brand = Brand, options = Options
 	],
 	Url = util:string_interpolate(Protourl, Words),
 	agent:url_pop(Agent, Url).
+
+%% @doc Set the client record to an actual client record.
+-spec(correct_client/1 :: (Callrec :: #call{}) -> #call{}).
+correct_client(#call{client = undefined} = Callrec) ->
+	Client = try call_queue_config:get_client(undefined) of
+		Whatever ->
+			Whatever
+	catch
+		error:{case_clause, {aborted, {node_not_running, _Node}}} ->
+			#client{}
+	end,
+	Callrec#call{client = Client};
+correct_client(#call{client = Label} = Callrec) when is_list(Label) ->
+	try call_queue_config:get_client(Label) of
+		none ->
+			correct_client(Callrec#call{client = undefined});
+		Else ->
+			Callrec#call{client = Else}
+	catch
+		error:{case_clause,{aborted,{node_not_running, _Node}}} ->
+			Callrec#call{client = #client{}}
+	end;
+correct_client(#call{client = Clientrec} = Callrec) when is_record(Clientrec, client) ->
+	Callrec.
 
 -spec(set_cpx_mon/2 :: (State :: #state{}, Action :: proplist() | 'delete') -> 'ok').
 set_cpx_mon(#state{callrec = Call} = _State, delete) ->

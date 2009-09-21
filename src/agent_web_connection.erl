@@ -145,22 +145,35 @@ set_salt(Pid, Salt) ->
 	(List :: string()) -> binary();
 	({}) -> 'false').
 encode_statedata(Callrec) when is_record(Callrec, call) ->
-	case Callrec#call.client of
-		Clientrec when is_record(Clientrec, client) ->
-			Brand = Clientrec#client.label;
-		_ ->
-			Brand = "unknown client"
+%	case Callrec#call.client of
+%		Clientrec when is_record(Clientrec, client) ->
+%			Brand = Clientrec#client.label;
+%		_ ->
+%			Brand = "unknown client"
+%	end,
+	Clientrec = Callrec#call.client,
+	Client = case Clientrec#client.label of
+		undefined ->
+			<<"unknown client">>;
+		Else ->
+			list_to_binary(Else)
 	end,
 	{struct, [
 		{<<"callerid">>, list_to_binary(Callrec#call.callerid)},
-		{<<"brandname">>, list_to_binary(Brand)},
+		{<<"brandname">>, Client},
 		{<<"ringpath">>, Callrec#call.ring_path},
 		{<<"mediapath">>, Callrec#call.media_path},
 		{<<"callid">>, list_to_binary(Callrec#call.id)},
 		{<<"type">>, Callrec#call.type}]};
 encode_statedata(Clientrec) when is_record(Clientrec, client) ->
+	Label = case Clientrec#client.label of
+		undefined ->
+			undefined;
+		Else ->
+			list_to_binary(Else)
+	end,
 	{struct, [
-		{<<"brandname">>, list_to_binary(Clientrec#client.label)}]};
+		{<<"brandname">>, Label}]};
 encode_statedata({onhold, Holdcall, calling, Calling}) ->
 	Holdjson = encode_statedata(Holdcall),
 	Callingjson = encode_statedata(Calling),

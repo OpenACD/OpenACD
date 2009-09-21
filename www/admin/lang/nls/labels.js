@@ -2,7 +2,7 @@
 	CLIENTS:  "Clients",
 	DEFAULTS:  "Defaults",
 	URL_POP:  "Url pop",
-	URL_POP_EXPLANATION: "The url pop uses ruby-style interpoation for variables.  Available variables are #{callerid}, #{label}, #{tenant}, #{brand}, and #{combo_id}.  Http should be prepended in front of the url.",
+	URL_POP_EXPLANATION: "The url pop uses ruby-style interpoation for variables.  Available variables are #{callerid}, #{callid}, #{label}, #{tenant}, #{brand}, and #{combo_id}.  Http should be prepended in front of the url.",
 	USERNAME: "Username",
 	PASSWORD: "Password",
 	LOGIN: "Login",

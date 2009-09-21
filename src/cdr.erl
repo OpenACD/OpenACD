@@ -359,7 +359,7 @@ push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 		Termedatoms
 	end,
 	Out = mnesia:transaction(F),
-	?INFO("push_raw:  ~p", [Out]),
+	?DEBUG("push_raw:  ~p", [Out]),
 	Out.
 
 %% @doc Determine any info messages that should be input based on what the last

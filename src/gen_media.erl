@@ -806,7 +806,11 @@ url_pop(#call{client = Client} = Call, Agent) ->
 		{"brand", integer_to_list(Client#client.brand)},
 		{"combo_id", string:right(integer_to_list(Client#client.tenant * 1000 + Client#client.brand), 8, $0)},
 		{"callerid", Call#call.callerid},
-		{"callid", Call#call.id}
+		{"callid", Call#call.id},
+		{"destination", ""},
+		{"ivroption", ""},
+		{"media_type", atom_to_list(Call#call.type)},
+		{"direction", atom_to_list(Call#call.direction)}
 	],
 	Url = util:string_interpolate(Protourl, Words),
 	agent:url_pop(Agent, Url).

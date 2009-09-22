@@ -594,9 +594,32 @@ destroy_client(Label) ->
 	end,
 	mnesia:transaction(F).
 
-%% @doc Get the `#client{}' associated with the label `Label'.
+%% @doc Get the `#client{}' associated with the label `Label' using integration
+%% if possible.
 -spec(get_client/1 :: (Label :: string()) -> #client{} | 'none').
 get_client(Label) ->
+	try integration:get_client(label, Label) of
+		none ->
+			?DEBUG("integration has no such client ~p", [Label]),
+			destroy_client(Label),
+			none;
+		{ok, Label, Tenant, Brand, Options} ->
+			?DEBUG("integration found client ~p", [Label]),
+			Client = #client{label = Label, tenant = Tenant, brand = Brand, options = Options, last_integrated = util:now()},
+			set_client(Label, Client),
+			local_get_client(Label);
+		{error, nointegration} ->
+			?DEBUG("No integration, falling back for ~p", [Label]),
+			local_get_client(Label)
+	catch
+		throw:{badreturn, Err} ->
+			?WARNING("Integration failed with message:  ~p", [Err]),
+			local_get_client(Label)
+	end.
+	
+%% @doc Skips integration, goes right for the local cache.
+-spec(local_get_client/1 :: (Label :: string()) -> #client{} | 'none').
+local_get_client(Label) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(client), X#client.label =:= Label]),
 		qlc:e(QH)
@@ -1180,126 +1203,149 @@ skill_rec_test_() ->
 
 client_rec_test_() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
-	{
-		foreach,
-		fun() -> 
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			mnesia:create_schema([node()]),
-			mnesia:start(),
-			build_tables()
+	{foreach,
+	fun() -> 
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		build_tables()
+	end,
+	fun(_Whatever) -> 
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		ok
+	end,
+	[{"Create a client by record",
+	fun() ->
+		Client = #client{label = "testclient", tenant = 23, brand = 1},
+		new_client(Client),
+		F = fun() ->
+			Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
+			qlc:e(Select)
 		end,
-		fun(_Whatever) -> 
-			mnesia:stop(),
-			mnesia:delete_schema([node()]),
-			ok
+		?assertMatch({atomic, [#client{label = "testclient", tenant = 23, brand = 1}]}, mnesia:transaction(F))
+	end},
+	{"Create a client by explicit",
+	fun() ->
+		new_client("testclient", 23, 1),
+		F = fun() ->
+			Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
+			qlc:e(Select)
 		end,
-		[
-			{
-				"Create a client by record",
-				fun() ->
-					Client = #client{label = "testclient", tenant = 23, brand = 1},
-					new_client(Client),
-					F = fun() ->
-						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
-						qlc:e(Select)
-					end,
-					?assertMatch({atomic, [#client{label = "testclient", tenant = 23, brand = 1}]}, mnesia:transaction(F))
-				end
-			},
-			{
-				"Create a client by explicit",
-				fun() ->
-					new_client("testclient", 23, 1),
-					F = fun() ->
-						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
-						qlc:e(Select)
-					end,
-					?assertMatch({atomic, [#client{label = "testclient", tenant = 23, brand = 1}]}, mnesia:transaction(F))
-				end
-			},
-			{
-				"Destroy a client",
-				fun() ->
-					new_client("testclient", 23, 1),
-					destroy_client("testclient"),
-					F = fun() ->
-						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
-						qlc:e(Select)
-					end,
-					?assertEqual({atomic, []}, mnesia:transaction(F))
-				end
-			},
-			{
-				"Update a client explicit",
-				fun() ->
-					new_client("oldname", 23, 1),
-					set_client("oldname", "newname", 47, 2),
-					Findold = fun() ->
-						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "oldname"]),
-						qlc:e(Select)
-					end,
-					Findnew = fun() ->
-						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "newname"]),
-						qlc:e(Select)
-					end,
-					?assertEqual({atomic, []}, mnesia:transaction(Findold)),
-					?assertMatch({atomic, [#client{label = "newname", tenant = 47, brand = 2}]}, mnesia:transaction(Findnew))
-				end
-			},
-			{
-				"Update a client by record",
-				fun() ->
-					Client1 = #client{label = "Client1", tenant = 23, brand = 1},
-					Client2 = #client{label = "Client2", tenant = 47, brand = 2},
-					new_client(Client1),
-					set_client("Client1", Client2),
-					Findold = fun() ->
-						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "Client1"]),
-						qlc:e(Select)
-					end,
-					Findnew = fun() ->
-						Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "Client2"]),
-						qlc:e(Select)
-					end,
-					?assertEqual({atomic, []}, mnesia:transaction(Findold)),
-					?assertMatch({atomic, [#client{label = "Client2"}]}, mnesia:transaction(Findnew))
-				end
-			},
-			{
-				"Get a client list",
-				fun() ->
-					Client1 = #client{label = "Client1", tenant = 23, brand = 1},
-					Client2 = #client{label = "Client2", tenant = 47, brand = 2},
-					Client3 = #client{label = "Aclient", tenant = 56, brand = 1},
-					DemoClient = #client{label="Demo Client", tenant=99, brand=99},
-					new_client(Client1),
-					new_client(Client2),
-					new_client(Client3),
-					?assertMatch([#client{label = undefined}, #client{label = "Aclient"}, #client{label = "Client1"}, #client{label = "Client2"}, #client{label = "Demo Client"}], get_clients())
-				end
-			},
-			{
-				"Get a single client",
-				fun() ->
-					Client1 = #client{label = "Client1", tenant = 23, brand = 1},
-					Client2 = #client{label = "Client2", tenant = 47, brand = 2},
-					Client3 = #client{label = "Aclient", tenant = 56, brand = 1},
-					new_client(Client1),
-					new_client(Client2),
-					new_client(Client3),
-					Res = get_client("Client2"),
-					?assertEqual(Client2#client.label, Res#client.label)
-				end
-			},
-			{
-				"Get a client that's not there",
-				fun() ->
-					?assertEqual(none, get_client("Noexists"))
-				end
-			}
-		]
-	}.
+		?assertMatch({atomic, [#client{label = "testclient", tenant = 23, brand = 1}]}, mnesia:transaction(F))
+	end},
+	{"Destroy a client",
+	fun() ->
+		new_client("testclient", 23, 1),
+		destroy_client("testclient"),
+		F = fun() ->
+			Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
+			qlc:e(Select)
+		end,
+		?assertEqual({atomic, []}, mnesia:transaction(F))
+	end},
+	{"Update a client explicit",
+	fun() ->
+		new_client("oldname", 23, 1),
+		set_client("oldname", "newname", 47, 2),
+		Findold = fun() ->
+			Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "oldname"]),
+			qlc:e(Select)
+		end,
+		Findnew = fun() ->
+			Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "newname"]),
+			qlc:e(Select)
+		end,
+		?assertEqual({atomic, []}, mnesia:transaction(Findold)),
+		?assertMatch({atomic, [#client{label = "newname", tenant = 47, brand = 2}]}, mnesia:transaction(Findnew))
+	end},
+	{"Update a client by record",
+	fun() ->
+		Client1 = #client{label = "Client1", tenant = 23, brand = 1},
+		Client2 = #client{label = "Client2", tenant = 47, brand = 2},
+		new_client(Client1),
+		set_client("Client1", Client2),
+		Findold = fun() ->
+			Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "Client1"]),
+			qlc:e(Select)
+		end,
+		Findnew = fun() ->
+			Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "Client2"]),
+			qlc:e(Select)
+		end,
+		?assertEqual({atomic, []}, mnesia:transaction(Findold)),
+		?assertMatch({atomic, [#client{label = "Client2"}]}, mnesia:transaction(Findnew))
+	end},
+	{"Get a client list",
+	fun() ->
+		Client1 = #client{label = "Client1", tenant = 23, brand = 1},
+		Client2 = #client{label = "Client2", tenant = 47, brand = 2},
+		Client3 = #client{label = "Aclient", tenant = 56, brand = 1},
+		DemoClient = #client{label="Demo Client", tenant=99, brand=99},
+		new_client(Client1),
+		new_client(Client2),
+		new_client(Client3),
+		?assertMatch([#client{label = undefined}, #client{label = "Aclient"}, #client{label = "Client1"}, #client{label = "Client2"}, #client{label = "Demo Client"}], get_clients())
+	end},
+	{"Get a single client without integration",
+	fun() ->
+		Client1 = #client{label = "Client1", tenant = 23, brand = 1},
+		Client2 = #client{label = "Client2", tenant = 47, brand = 2},
+		Client3 = #client{label = "Aclient", tenant = 56, brand = 1},
+		new_client(Client1),
+		new_client(Client2),
+		new_client(Client3),
+		Res = get_client("Client2"),
+		?assertEqual(Client2#client.label, Res#client.label)
+	end},
+	{"Get a client that's not there without integration",
+	fun() ->
+		?assertEqual(none, get_client("Noexists"))
+	end},
+	{"integration mocking",
+		{foreach,
+		fun() ->
+			{ok, Mock} = gen_server_mock:named({local, integration}),
+			Mock
+		end,
+		fun(Mock) ->
+			unregister(integration),
+			gen_server_mock:stop(Mock)
+		end,
+		[fun(Mock) ->
+			{"client from integration",
+			fun() ->
+				gen_server_mock:expect_call(Mock, fun({get_client, label, "client"}, _, State) ->
+					{ok, {ok, "client", 2, 4, []}, State}
+				end),
+				?assertMatch(#client{label = "client", tenant = 2, brand = 4, options = []}, get_client("client")),
+				?assertMatch(#client{label = "client", tenant = 2, brand = 4, options = []}, local_get_client("client"))
+			end}
+		end,
+		fun(Mock) ->
+			{"client not found in integration",
+			fun() ->
+				gen_server_mock:expect_call(Mock, fun({get_client, label, "client"}, _, State) ->
+					{ok, none, State}
+				end),
+				new_client(#client{label = "client", tenant = 2, brand = 4}),
+				?assertMatch(#client{label = "client", tenant = 2, brand = 4}, local_get_client("client")),
+				?assertEqual(none, get_client("client")),
+				?assertEqual(none, local_get_client("client"))
+			end}
+		end,
+		fun(Mock) ->
+			{"integration fail",
+			fun() ->
+				gen_server_mock:expect_call(Mock, fun({get_client, label, "client"}, _, State) ->
+					{ok, gooberpants, State}
+				end),
+				new_client(#client{label = "client", tenant = 2, brand = 4}),
+				?assertMatch(#client{label = "client", tenant = 2, brand = 4}, get_client("client"))
+			end}
+		end]}
+	}]}.
 
 timestamp_test_() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),

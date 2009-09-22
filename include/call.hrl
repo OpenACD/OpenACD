@@ -35,6 +35,7 @@
 		tenant = 0 :: non_neg_integer(),
 		brand = 0 :: non_neg_integer(),
 		options = [] :: client_opts(),
+		last_integrated :: 'undefined' | pos_integer(),
 		timestamp = util:now() :: pos_integer()
 }).
 

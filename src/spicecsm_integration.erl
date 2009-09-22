@@ -100,7 +100,6 @@ init(Options) ->
 	Username = proplists:get_value(username, Options, ""),
 	Password = proplists:get_value(password, Options, ""),
 	{ok, Count, Submitbody} = build_request(<<"connect">>, [Username, Password], 1),
-	io:format("dag body:~n~p~n", [Submitbody]),
 	{ok, {{_Version, 200, _Ok}, _Headers, Body}} = http:request(post, {Server, [], "application/x-www-form-urlencoded", Submitbody}, [], []),
 	{struct, Results} = mochijson2:decode(Body),
 	case proplists:get_value(<<"result">>, Results) of
@@ -111,11 +110,14 @@ init(Options) ->
 			{stop, {auth_fail, no_results, Results}};
 		{struct, Details} ->
 			Sid = proplists:get_value(<<"session">>, Details),
-			case Sid of
-				undefined ->
+			Access = proplists:get_value(<<"security_level">>, Details),
+			case {Sid, Access} of
+				{undefined, _} ->
 					?WARNING("No sid was defined in the details.  ~p", [Details]),
 					{stop, {auth_fail, no_sid}};
-				_Otherwise ->
+				{_, Num} when Num < 4 ->
+					{stop, {auth_fail, insufficient_access}};
+				{_Otherwise, _Goodnumm} ->
 					?INFO("Starting integration with server ~w as user ~w", [Server, Username]),
 					{ok, #state{count = Count, server = Server, session = Sid}}
 			end
@@ -124,6 +126,15 @@ init(Options) ->
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
+handle_call({agent_exists, Agent}, _From, State) when is_list(Agent) ->
+	Query = lists:append(["SELECT Login FROM tblAgent WHERE Login=\"", Agent, "\" AND Active=1 LIMIT 1"]),
+	{ok, Count, Reply} = request(State, <<"query">>, [Query]),
+	case Reply of
+		[] ->
+			{reply, false, State#state{count = Count}};
+		_Else ->
+			{reply, true, State#state{count = Count}}
+	end;
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -171,3 +182,9 @@ build_request(Apicall, Params, Count) when is_binary(Apicall) ->
 	]},
 	Body = iolist_to_binary(lists:append(["request=", mochijson2:encode(Struct)])),
 	{ok, Count + 1, Body}.
+	
+request(State, Apicall, Params) ->
+	{ok, Count, Submitbody} = build_request(Apicall, lists:append(Params, State#state.session), State#state.count),
+	{ok, {{_Version, 200, _Ok}, _Headers, Body}} = http:request(post, {State#state.server, [], "application/x-www-form-urlencoded", Submitbody}, [], []),
+	{struct, Reply} = mochijson2:decode(Body),
+	{ok, Count, Reply}.

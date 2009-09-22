@@ -349,7 +349,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 					Salt = string:substr(Decrypted, 1, length(Salt)),
 					DecryptedPassword = string:substr(Decrypted, length(Salt) + 1),
 					Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt, util:bin_to_hexstr(erlang:md5(DecryptedPassword))))),
-					case agent_auth:auth(Username, Salted, Salt) of
+					case agent_auth:auth(Username, DecryptedPassword) of
 						deny ->
 							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
 						{allow, Skills, Security, Profile} ->

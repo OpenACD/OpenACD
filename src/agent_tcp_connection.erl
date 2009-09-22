@@ -27,7 +27,13 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
-%% @doc The connection handler that communicates with a client UI; in this case the desktop client.
+%% @doc WARNING!  This module is known to be broken, and will likely never be
+%% fixed!  It is here only as a (once was) function example.  We strongly 
+%% recommend using the web interface instead, as that is (at this point) more
+%% feature rich.
+%%
+%% The connection handler that communicates with a client UI; in this case the 
+%% desktop client.
 
 -module(agent_tcp_connection).
 
@@ -215,7 +221,8 @@ handle_event(["LOGIN", Counter, _Credentials], State) when is_integer(Counter), 
 handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integer(Counter), is_atom(State#state.agent_fsm) ->
 	case util:string_split(Credentials, ":", 2) of
 		[Username, Password] ->
-			case agent_auth:auth(Username, Password, integer_to_list(State#state.salt)) of
+			%% Yes this will always fail.
+			case agent_auth:auth(Username, Password) of
 				deny -> 
 					?INFO("Authentication failure for ~s",[Username]),
 					{err(Counter, "Authentication Failure"), State};
@@ -479,7 +486,7 @@ securitylevel_to_id(supervisor) ->
 securitylevel_to_id(admin) ->
 	4.
 
--ifdef(EUNIT).
+-ifdef(TEST_DEPRICATED).
 
 unauthenticated_agent_test_() ->
 	{
@@ -489,7 +496,6 @@ unauthenticated_agent_test_() ->
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
 			mnesia:start(),
-			agent_auth:start(),
 			agent_auth:new_profile("Testprofile", [skill1, skill2]),
 			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
 			agent_manager:start([node()]),
@@ -497,7 +503,6 @@ unauthenticated_agent_test_() ->
 		end,
 		fun(_State) ->
 			agent_auth:destroy_profile("Testprofile"),
-			agent_auth:stop(),
 			agent_manager:stop(),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
@@ -586,7 +591,6 @@ unauthenticated_agent_test_() ->
 		]
 	}.
 
-
 authenticated_agent_test_() ->
 	{
 		foreach,
@@ -595,7 +599,6 @@ authenticated_agent_test_() ->
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
 			mnesia:start(),
-			agent_auth:start(),
 			agent_auth:new_profile("Testprofile", [skill1, skill2]),
 			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
 			agent_manager:start([node()]),
@@ -608,7 +611,6 @@ authenticated_agent_test_() ->
 		end,
 		fun(_State) ->
 			agent_auth:destroy_profile("Testprofile"),
-			agent_auth:stop(),
 			agent_manager:stop(),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
@@ -672,7 +674,6 @@ socket_enabled_test_() ->
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
 			mnesia:start(),
-			agent_auth:start(),
 			agent_auth:new_profile("Testprofile", [skill1, skill2]),
 			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
 			agent_manager:start([node()]),
@@ -689,7 +690,6 @@ socket_enabled_test_() ->
 		end,
 		fun({Socket, Pid}) ->
 			agent_auth:destroy_profile("Testprofile"),
-			agent_auth:stop(),
 			agent_manager:stop(),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
@@ -755,7 +755,7 @@ socket_enabled_test_() ->
 			end
 		]
 	}.
-	
+
 post_login_test_() ->
 	{
 		foreach,
@@ -766,7 +766,6 @@ post_login_test_() ->
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
 			mnesia:start(),
-			agent_auth:start(),
 			agent_auth:new_profile("Testprofile", [skill1, skill2]),
 			agent_auth:cache("Username", erlang:md5("Password"), "Testprofile", agent),
 			agent_manager:start([node()]),
@@ -793,7 +792,6 @@ post_login_test_() ->
 			?CONSOLE("Cleanup", []),
 			agent:stop(APid),
 			agent_auth:destroy("Testprofile"),
-			agent_auth:stop(),
 			agent_manager:stop(),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),

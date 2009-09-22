@@ -1024,7 +1024,6 @@ agent_interaction_test_() ->
 		{ok, MPid} = dummy_media:start("testcall"),
 		?DEBUG("dummy_media:  ~p", [MPid]),
 		?DEBUG("dispatch_manager:  ~p", [dispatch_manager:start()]),
-		?DEBUG("agent_auth:  ~p", [agent_auth:start()]),
 		?DEBUG("agent_manager:  ~p", [agent_manager:start([node()])]),
 		{ok, APid} = agent_manager:start_agent(#agent{login = "testagent"}),
 		?DEBUG("agent:  ~p", [APid]),
@@ -1038,7 +1037,6 @@ agent_interaction_test_() ->
 			exit:{noproc, Detail} ->
 				?debugFmt("caught exit:~p ; some tests will kill the original call_queue process.", [Detail])
 		end,
-		?DEBUG("stopping agent_auth:  ~p", [agent_auth:stop()]),
 		?DEBUG("stopping queue_manager:  ~p", [queue_manager:stop()]),
 		?DEBUG("stopping agent:  ~p", [agent:stop(APid)]),
 		?DEBUG("Stopping agent_manager:  ~p", [agent_manager:stop()])

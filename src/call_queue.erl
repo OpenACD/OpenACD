@@ -1015,13 +1015,14 @@ call_update_test_() ->
 					?assertEqual(true, lists:member({'_brand', "Test Brand"}, Call2#queued_call.skills))
 				end
 			}, {
-				"_brand skill should expand to \"Unknown\" if the call doesn't have a brand tagged", fun() ->
+				"_brand skill should expand to 'undefined' if the call doesn't have a brand tagged", fun() ->
 					Pid = whereis(testqueue),
 					{ok, Dummy1} = dummy_media:start([{id, "C1"}, {skills, ['_brand']}]),
 					%dummy_media:set_skills(Dummy1, ['_brand']),
 					?assertEqual(ok, add(Pid, Dummy1)),
 					{_Key, Call2} = get_call(Pid, "C1"),
-					?assertEqual(true, lists:member({'_brand', "Unknown"}, Call2#queued_call.skills))
+					?DEBUG("skills:  ~p", [Call2#queued_call.skills]),
+					?assertEqual(true, lists:member({'_brand', undefined}, Call2#queued_call.skills))
 				end
 			}, {
 				"Remove magic skills test", fun() ->

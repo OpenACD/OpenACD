@@ -32,8 +32,8 @@
 -type(client_opts() :: [client_opt()]).
 -record(client, {
 		label :: string() | 'undefined',
-		tenant :: non_neg_integer(),
-		brand :: non_neg_integer(),
+		tenant = 0 :: non_neg_integer(),
+		brand = 0 :: non_neg_integer(),
 		options = [] :: client_opts(),
 		timestamp = util:now() :: pos_integer()
 }).

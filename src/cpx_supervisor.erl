@@ -40,7 +40,7 @@
 %% the supervisor does not start, thus halting all of cpx from starting.
 %%
 %% If the system starts without a cpx_conf table, it will build one, placing some default information there.
-%% #cpx_conf{agent_auth, start, []} is added and started, as well as #cpx_conf{agent_tcp_listener}.
+%% #cpx_conf{agent_tcp_listener} is the only one.
 %% 
 %% The 3 most important function are {@link add_conf/5}, {@link destroy/1}, {@link update_conf/4}.
 
@@ -60,7 +60,6 @@
 -behaviour(supervisor).
 
 -define(DEFAULT_CONF, [
-	#cpx_conf{id = agent_auth, module_name = agent_auth, start_function = start_link, start_args = [], supervisor=agent_connection_sup},
 	#cpx_conf{id = agent_web_listener, module_name = agent_web_listener, start_function = start_link, start_args = [5050], supervisor = agent_connection_sup},
 	#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start_link, start_args = [], supervisor = management_sup}
 ]).
@@ -487,8 +486,7 @@ murder_test_() ->
 		timer:sleep(5),
 		restart(agent_connection_sup, []),
 		Newwhere = whereis(agent_connection_sup),
-		?assertNot(Where =:= Newwhere),
-		?assertNot(whereis(agent_auth) =:= undefined)
+		?assertNot(Where =:= Newwhere)
 	end},
 	{"Killing the agent branch (and bringing it back)",
 	fun() ->

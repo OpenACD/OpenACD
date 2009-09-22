@@ -452,11 +452,11 @@ dummy_test_() ->
 		mnesia:delete_schema([node()]),
 		mnesia:create_schema([node()]),
 		mnesia:start(),
-		agent_auth:start(),
+		call_queue_config:build_tables(),
 		ok
 	end,
 	fun(_Ok) ->
-		agent_auth:stop()
+		ok
 	end,
 	[
 		{

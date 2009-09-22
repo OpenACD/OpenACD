@@ -626,7 +626,6 @@ web_connection_login_test_() ->
 			?CONSOLE("request head ~p", [Head]),
 			Cookies = proplists:get_all_values("set-cookie", Head),
 			Cookielist = lists:map(fun(I) -> {"Cookie", I} end, Cookies), 
-			agent_auth:start(),
 			?CONSOLE("~p", [agent_auth:add_agent("testagent", "pass", [english], agent, "Default")]),
 			Getsalt = fun() ->
 				{ok, {_Statusline2, _Head2, Body2}} = http:request(get, {"http://127.0.0.1:5050/getsalt", Cookielist}, [], []),
@@ -643,7 +642,6 @@ web_connection_login_test_() ->
 			agent_web_listener:stop(),
 			agent_manager:stop(),
 			agent_auth:destroy("testagent"),
-			agent_auth:stop(),
 			mnesia:stop(),
 			mnesia:delete_schema([node()])
 		end,

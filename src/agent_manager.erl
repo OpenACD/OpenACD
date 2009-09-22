@@ -455,12 +455,10 @@ single_node_test_() ->
 	{foreach,
 		fun() ->
 			Agent = #agent{login="testagent"},
-			catch agent_auth:stop(),
 			mnesia:stop(),
 			mnesia:delete_schema([node()]),
 			mnesia:create_schema([node()]),
 			mnesia:start(),
-			agent_auth:start(),
 			start([node()]),
 			Agent
 		end,
@@ -568,9 +566,6 @@ multi_node_test_() ->
 			
 			mnesia:change_table_copy_type(schema, Master, disc_copies),
 			mnesia:change_table_copy_type(schema, Slave, disc_copies),
-
-			{ok, _P3} = rpc:call(Master, agent_auth, start, []),
-			{ok, _P4} = rpc:call(Slave, agent_auth, start, []),
 
 			{ok, _P1} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
 			?CONSOLE("Master started!", []),

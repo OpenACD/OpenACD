@@ -438,6 +438,7 @@ find(Needle, [{_Key, _NotNeedle} | Tail]) ->
 	find(Needle, Tail).
 
 build_tables() ->
+	agent_auth:build_tables(),
 	util:build_table(agent_state, [
 		{attributes, record_info(fields, agent_state)},
 		{disc_copies, [node()]},

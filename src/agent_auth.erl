@@ -342,19 +342,19 @@ query_nodes([Node | Tail], Fun, Acc) ->
 auth(Username, Password) ->
 	try integration:agent_auth(Username, Password) of
 		deny ->
-			?INFO("integration denial for ~w", [Username]),
+			?INFO("integration denial for ~p", [Username]),
 			destroy(Username),
 			deny;
 		{ok, Profile, Security} ->
-			?INFO("integration allow for ~w", [Username]),
+			?INFO("integration allow for ~p", [Username]),
 			cache(Username, Password, Profile, Security),
 			local_auth(Username, Password);
 		{error, nointegration} ->
-			?INFO("No integration, local authing ~w", [Username]),
+			?INFO("No integration, local authing ~p", [Username]),
 			local_auth(Username, Password)
 	catch
 		throw:{badreturn, Err} ->
-			?WARNING("Integration gave a bad return of ~w", [Err]),
+			?WARNING("Integration gave a bad return of ~p", [Err]),
 			local_auth(Username, Password)
 	end.
 
@@ -502,9 +502,11 @@ local_auth(Username, BasePassword) ->
 	end,
 	case mnesia:transaction(F) of
 		{atomic, [Agent]} when is_record(Agent, agent_auth) ->
+			?DEBUG("Auth is coolbeans for ~p", [Username]),
 			Skills = lists:umerge(lists:sort(Agent#agent_auth.skills), lists:sort(['_agent', '_node'])),
 			{allow, Skills, Agent#agent_auth.securitylevel, Agent#agent_auth.profile};
-		_Else ->
+		Else ->
+			?DEBUG("Denying auth due to ~p", [Else]),
 			deny
 	end.
 

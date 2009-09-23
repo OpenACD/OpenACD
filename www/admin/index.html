@@ -223,36 +223,19 @@ dojo.requireLocalization("admin", "labels");
 					<p>
 						<label for="agentModuleTCPListenEnabled">&nbsp;</label>
 						<input id="agentModuleTCPListenEnabled" name="agentModuleTCPListenEnabled" dojoType="dijit.form.CheckBox" value="tcpEnabled" checked onChange="dijit.byId('agentModuleTCPListen').setAttribute('disabled', !this.checked)" />
-						<span id="ENABLEAGENTTCP">ENABLEAGENTTCP
-							<script type="text/javascript">
-								dojo.byId("ENABLEAGENTTCP").innerHTML = dojo.i18n.getLocalization("admin","labels").ENABLEAGENTTCP;
-							</script>
-						</span>
+						<span class="translate">ENABLEAGENTTCP</span>
 					</p>
 					<p>
-						<label for="agentModuleTCPListen" id="agentModuleTCPListen">
-							<script type="text/javascript">
-								dojo.byId("agentModuleTCPListen").innerHTML = dojo.i18n.getLocalization("admin","labels").TCPPORT + ":";
-							</script>
-						</label>
+						<label for="agentModuleTCPListen" class="translatecol">TCPPORT</label>
 						<input id="agentModuleTCPListen" dojoType="dijit.form.NumberTextBox" name="agentModuleTCPListen" constraints="{min:1024,max:49151,places:0}", required="true", invalidMessage="Not a valid port to bind to.">
 					</p>
 					<p>
 						<label for="agentModuleWebListenEnabled">&nbsp;</label>
 						<input id="agentModuleWebListenEnabled" name="agentModuleWebListenEnabled" dojoType="dijit.form.CheckBox" value="webEnabled" checked onChange="dijit.byId('agentModuleWebListen').setAttribute('disabled', !this.checked)" />
-						<span id="ENABLEAGENTWEB">ENABLEAGENTWEB
-							<script type="text/javascript">
-								dojo.byId("ENABLEAGENTWEB").innerHTML = dojo.i18n.getLocalization("admin","labels").ENABLEAGENTWEB;
-							</script>
-						</span>
-
+						<span class="translate">ENABLEAGENTWEB</span>
 					</p>
 					<p>
-						<label for="agentModuleWebListen" id="WEBPORT">WEBPORT:
-							<script type="text/javascript">
-								dojo.byId("WEBPORT").innerHTML = dojo.i18n.getLocalization("admin","labels").WEBPORT;
-							</script>
-						</label>
+						<label for="agentModuleWebListen" class="translatecol">WEBPORT</label>
 						<input id="agentModuleWebListen" dojoType="dijit.form.NumberTextBox" name="agentModuleWebListen" constraints="{min:1024,max:49151,places:0}", required="true", invalidMessage="Not a valid port to bind to.">
 					</p>
 					<p>

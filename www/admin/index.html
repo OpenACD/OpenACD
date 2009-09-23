@@ -271,13 +271,36 @@ dojo.requireLocalization("admin", "labels");
 					<p>
 						<label for="spiceIntegrationEnabled">&nbsp;</label>
 						<input id="spiceIntegrationEnabled" name="spiceIntegrationEnabled" dojoType="dijit.form.CheckBox" value="spiceIntegrationsEnabled">
-							<script type="dojo/method" event="onClick">
-								dijit.byId("spiceServer").setDisabled(false);
+							<script type="dojo/connect" event="onClick">
+								dijit.byId("spiceServer").setDisabled(this.checked);
 								dijit.byId("spiceUsername").setDisabled(false);
 								dijit.byId("spicePassword").setDisabled(false);
 							</script>
 						</input>
 						<span class="translate">ENABLESPICEINTEGRATION</span>
+					</p>
+					<p>
+						<label for="spiceServer" class="translatecol">SERVER</label>
+						<input id="spiceServer" name="server" dojoType="dijit.form.TextBox" />
+					</p>
+					<p>
+						<label for="spiceUsername" class="translatecol">USERNAME</label>
+						<input id="spiceUsername" name="username" dojoType="dijit.form.TextBox" />
+					</p>
+					<p>
+						<label for="spicePassword" class="translatecol">PASSWORD</label>
+						<input id="spicePassword" name="password" dojoType="dijit.form.TextBox" />
+					</p>
+					<p>
+						<label>&nbsp;</label>
+						<button dojoType="dijit.form.Button" label="SUBMIT" id="spiceIntegrationSubmit">
+							<script type="dojo/connect" event="onClick">
+								agents.setSpiceIntegration('editSpicecsmIntegration');
+							</script>
+							<script type="dojo/method" event="postCreate">
+								this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+							</script>
+						</button>
 					</p>
 				</form>
 			</div>

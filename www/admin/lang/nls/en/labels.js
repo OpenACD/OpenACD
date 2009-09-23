@@ -57,5 +57,6 @@
 	FREESWITCHENABLED: "FreeSWITCH Enabled",
 	AGENTLASTNAME: "Last name",
 	AGENTFIRSTNAME: "First name",
-	ENABLESPICEINTEGRATION: "Integrate with SpiceCSM"
+	ENABLESPICEINTEGRATION: "Integrate with SpiceCSM",
+	SERVER: "Server"
 }

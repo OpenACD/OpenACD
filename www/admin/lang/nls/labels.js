@@ -52,5 +52,6 @@
 	TODELETESKILLGROUP: "A group is automatically deleted when there are no skills in it.",
 	AGENTLASTNAME: "Last name",
 	AGENTFIRSTNAME: "First name",
-	ENABLESPICEINTEGRATION: "Integrate with SpiceCSM"
+	ENABLESPICEINTEGRATION: "Integrate with SpiceCSM",
+	SERVER: "Server"
 }

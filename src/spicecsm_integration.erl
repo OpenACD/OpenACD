@@ -27,7 +27,8 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
-%% @doc Module to integrate with SpiceCSM
+%% @doc Module to integrate with SpiceCSM.  See the integration module for what
+%% the base API is.
 -module(spicecsm_integration).
 -author(micahw).
 
@@ -80,6 +81,9 @@ start_link(Options) ->
 -spec(start/1 :: (Options :: option_list()) -> {'ok', pid()}).
 start(Options) ->
 	gen_server:start({local, integration}, ?MODULE, Options, []).
+
+raw_request(Apicall, Params) ->
+	gen_server:call(integration, {raw_request, Apicall, Params}).
 	
 %%====================================================================
 %% gen_server callbacks
@@ -135,6 +139,9 @@ handle_call({agent_exists, Agent}, _From, State) when is_list(Agent) ->
 		_Else ->
 			{reply, true, State#state{count = Count}}
 	end;
+handle_call({raw_request, Apicall, Params}, _From, State) ->
+	{ok, Count, Reply} = request(State, Apicall, Params),
+	{reply, Reply, State#state{count = Count}};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.

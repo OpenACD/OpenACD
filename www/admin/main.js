@@ -418,15 +418,23 @@ dojo.addOnLoad(function(){
 				handleAs:"json",
 				error:function(response, ioargs){
 					dojo.byId("loginerrp").style.display = "block";
-					dojo.byId("loginerrspan").innerHTML = response.responseText;
+					console.log(response);
+					if (response.status){
+						dojo.byId("loginerrspan").innerHTML = response.responseText;
+					}
+					else{
+						dojo.byId("loginerrspan").innerHTML = "Server is not responding";
+					}
 				},
 				load:function(response, ioargs){
-					salt = response.salt;
-					attrs = loginform.attr("value");
-					md5pass = dojox.encoding.digests.MD5(attrs.password, dojox.encoding.digests.outputTypes.Hex);
-					salted = dojox.encoding.digests.MD5(salt + md5pass, dojox.encoding.digests.outputTypes.Hex);
-					values = attrs;
-					values.password = salted;
+					var salt = response.salt;
+					var e = response.pubkey.E;
+					var n = response.pubkey.N;
+					var attrs = loginform.attr("value");
+					var values = attrs;
+					var rsa = new RSAKey();
+					rsa.setPublic(n, e);
+					values.password = rsa.encrypt(salt + attrs.password);
 					dojo.xhrPost({
 						url:"/login",
 						handleAs:"json",
@@ -448,8 +456,7 @@ dojo.addOnLoad(function(){
 								clients.init();
 							}
 							else{
-								dojo.byId("loginerrp").style.display = "block";
-								dojo.byId("loginerrspan").innerHTML = response2.message;
+								dijit.byId("loginpane").show();
 							}
 						}
 					});
@@ -457,7 +464,6 @@ dojo.addOnLoad(function(){
 			});
 		}
 	});
-
 //	var theForm = dijit.byId("editSkillPane");
 	// another dojo.connect syntax: call a function directly	
 //	dojo.connect(theForm,"onsubmit",setSkill);

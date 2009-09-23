@@ -41,6 +41,13 @@
 		margin: 0;
 	}
 </style>
+
+<!-- Javascript RSA encryption support -->
+<script language="JavaScript" type="text/javascript" src="jsbn/jsbn.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/prng4.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/rng.js"></script>
+<script language="JavaScript" type="text/javascript" src="jsbn/rsa.js"></script>
+
 <script type="text/javascript">
 	//Can't use dojo.cookie because we need the language to configure dojo.
 	//Thus, the hard parsing.
@@ -265,6 +272,23 @@ dojo.requireLocalization("admin", "labels");
 								this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 							</script>
 						</button>
+					</p>
+				</form>
+				<form dojoType="dijit.form.Form" id="editSpicecsmIntegration" action="javascript:void(0)" method="post">
+					<p>
+						<label for="spiceIntegrationEnabled">&nbsp;</label>
+						<input id="spiceIntegrationEnabled" name="spiceIntegrationEnabled" dojoType="dijit.form.CheckBox" value="spiceIntegrationsEnabled">
+							<script type="dojo/method" event="onClick">
+								dijit.byId("spiceServer").setDisabled(false);
+								dijit.byId("spiceUsername").setDisabled(false);
+								dijit.byId("spicePassword").setDisabled(false);
+							</script>
+						</input>
+						<span id="ENABLESPICEINTEGRATION">ENABLESPICEINTEGRATION
+							<script type="text/javascript">
+								dojo.byId("ENABLESPICEINTEGRATION").innerHTML = dojo.i18n.getLocalization("admin", "labels").ENABLESPICEINTEGRATION;
+							</script>
+						</span>
 					</p>
 				</form>
 			</div>

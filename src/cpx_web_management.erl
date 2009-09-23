@@ -163,20 +163,31 @@ api(_Apirequest, badcookie, _Post) ->
 api(getsalt, {Reflist, _Salt, Login}, _Post) ->
 	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
 	ets:insert(cpx_management_logins, {Reflist, Newsalt, Login}),
-	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}]})};
-api(login, {_Reflist, undefined, _Login}, _Post)  ->
+	[E, N] = get_pubkey(),
+	PubKey = {struct, [{<<"E">>, list_to_binary(erlang:integer_to_list(E, 16))}, {<<"N">>, list_to_binary(erlang:integer_to_list(N, 16))}]},
+	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}, {pubkey, PubKey}]})};
+api(login, {_Reflist, undefined, _Conn}, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})};
 api(login, {Reflist, Salt, _Login}, Post) ->
 	Username = proplists:get_value("username", Post, ""),
 	Password = proplists:get_value("password", Post, ""),
-	case agent_auth:auth(Username, Password, Salt) of
-		deny ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
-		{allow, _Skills, admin, _Profile} ->
-			ets:insert(cpx_management_logins, {Reflist, Salt, Username}),
-			{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
-		{allow, _Skills, _Security, _Profile} ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})}
+	try decrypt_password(Password) of
+		Decrypted ->
+			Salt = string:substr(Decrypted, 1, length(Salt)),
+			DecryptedPassword = string:substr(Decrypted, length(Salt) + 1),
+			Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt, util:bin_to_hexstr(erlang:md5(DecryptedPassword))))),
+			case agent_auth:auth(Username, DecryptedPassword) of
+				deny ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
+				{allow, _Skills, admin, _Profile} ->
+					ets:insert(cpx_management_logins, {Reflist, Salt, Username}),
+					{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
+				{allow, _Skills, _Security, _Profile} ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})}
+			end
+	catch
+		error:decrypt_failed ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary("Password decryption failed")}]})}
 	end;
 api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	ets:delete(cpx_management_logins, Reflist),
@@ -894,6 +905,18 @@ check_cookie(Allothers) ->
 					{Reflist, Salt, Login}
 			end
 	end.
+
+get_pubkey() ->
+	{ok,[Entry]} = public_key:pem_to_der("./key"),
+	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
+	[E, N].
+
+decrypt_password(Password) ->
+	{ok,[Entry]} = public_key:pem_to_der("./key"),
+	{ok,{'RSAPrivateKey', 'two-prime', N , E, D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
+	PrivKey = [crypto:mpint(E), crypto:mpint(N), crypto:mpint(D)],
+	Bar = crypto:rsa_private_decrypt(util:hexstr_to_bin(Password), PrivKey, rsa_pkcs1_padding),
+	binary_to_list(Bar).
 
 encode_client(Client) ->
 	Optionslist = encode_client_options(Client#client.options),

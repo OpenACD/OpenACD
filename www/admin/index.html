@@ -61,7 +61,7 @@
 		}
 	}
 	var djConfig = {
-		parseOnLoad:true,
+		parseOnLoad:false,
 		isDebug:false,
 		locale:locale,
 		modulePaths:{
@@ -73,6 +73,7 @@
 <script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
 <script type="text/javascript">
 /* dependancies */
+dojo.require("dojo.parser");
 dojo.require("dijit.Dialog");
 dojo.require("dijit.layout.LayoutContainer");
 dojo.require("dijit.layout.ContentPane");
@@ -284,11 +285,7 @@ dojo.requireLocalization("admin", "labels");
 								dijit.byId("spicePassword").setDisabled(false);
 							</script>
 						</input>
-						<span id="ENABLESPICEINTEGRATION">ENABLESPICEINTEGRATION
-							<script type="text/javascript">
-								dojo.byId("ENABLESPICEINTEGRATION").innerHTML = dojo.i18n.getLocalization("admin", "labels").ENABLESPICEINTEGRATION;
-							</script>
-						</span>
+						<span class="translate">ENABLESPICEINTEGRATION</span>
 					</p>
 				</form>
 			</div>

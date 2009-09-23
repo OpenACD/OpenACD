@@ -56,5 +56,6 @@
 	DOMAIN: "Domain",
 	FREESWITCHENABLED: "FreeSWITCH Enabled",
 	AGENTLASTNAME: "Last name",
-	AGENTFIRSTNAME: "First name"
+	AGENTFIRSTNAME: "First name",
+	ENABLESPICEINTEGRATION: "Integrate with SpiceCSM"
 }

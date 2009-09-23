@@ -429,6 +429,7 @@ dojo.addOnLoad(function(){
 									agents.refreshTree("agentsList");
 									skills.init();
 									agents.getModules(dijit.byId('editAgentModuleForm'));
+									agents.getSpiceIntegration(dijit.byId('editSpicecsmIntegration'));
 									queues.init();
 									queues.refreshTree('queuesList');
 									medias.init();
@@ -464,6 +465,7 @@ dojo.addOnLoad(function(){
 					agents.refreshTree("agentsList");
 					skills.init();
 					agents.getModules(dijit.byId('editAgentModuleForm'));
+					agents.getSpiceIntegration(dijit.byId('editSpicecsmIntegration'));
 					queues.init();
 					queues.refreshTree('queuesList');
 					medias.init();

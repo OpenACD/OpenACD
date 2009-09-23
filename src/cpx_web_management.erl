@@ -288,12 +288,13 @@ api({agents, "spiceintegration", "get"}, ?COOKIE, _Post) ->
 	Settings = case cpx_supervisor:get_conf(spicecsm_integration) of
 		undefined ->
 			{struct, [{<<"spiceIntegrationEnabled">>, false}]};
-		Conf ->
+		#cpx_conf{start_args = [Args | _]} = Conf ->
+			?DEBUG("conf:  ~p", [Conf]),
 			{struct, [
 				{<<"spiceIntegrationEnabled">>, true},
-				{<<"server">>, list_to_binary(proplists:get_value(server, Conf#cpx_conf.start_args))},
-				{<<"username">>, list_to_binary(proplists:get_value(username, Conf#cpx_conf.start_args, ""))},
-				{<<"password">>, list_to_binary(proplists:get_value(password, Conf#cpx_conf.start_args, ""))}
+				{<<"server">>, list_to_binary(proplists:get_value(server, Args))},
+				{<<"username">>, list_to_binary(proplists:get_value(username, Args, ""))},
+				{<<"password">>, list_to_binary(proplists:get_value(password, Args, ""))}
 			]}
 	end,
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, Settings}]})};

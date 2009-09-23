@@ -325,7 +325,7 @@ api({agents, "spiceintegration", "set"}, ?COOKIE, Post) ->
 							cpx_supervisor:update_conf(spicecsm_integration, Conf)
 					end,
 					case Addres of
-						{atomic, ok} ->
+						{atomic, _} ->
 							{200, [], mochijson2:encode({struct, [{success, true}]})};
 						Else ->
 							?WARNING("Could not start spicecsm integration:  ~p", [Else]),

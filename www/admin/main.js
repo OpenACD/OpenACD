@@ -151,21 +151,31 @@ dojo.addOnLoad(function(){
 
 	var mediaTreeRefreshHandle = dojo.subscribe("medias/tree/refreshed", function(data){
 		dojo.connect(medias.tree, "onClick", function(item){
+			medias.activeNode = item.node[0];
 			dijit.byId("mediaConf").onDownloadEnd = function(){
 				dijit.byId("mediaSubmit").onClick = function(){
 					medias.setMedia(item.node[0], item.name[0], dijit.byId("mediaForm").getValues(), 'mediaList');
 				}
+				dojo.publish("media/node/changed", [item.node[0]]);
 				dojo.xhrGet({
 					url:"medias/" + item.node[0] + "/" + item.name[0] + "/get",
 					handleAs:"json",
 					load:function(resp, ioargs){
 						if(resp.success){
-							dijit.byId("mediaForm").setValues(resp);
-							dijit.byId("mediaEnabled").setValue(resp.enabled);
+							try{
+								dijit.byId("mediaForm").setValues(resp);
+								dijit.byId("mediaEnabled").setValue(resp.enabled);
+							}
+							catch(err){
+								console.log(["setting media data err", err]);
+							}
 						}
 						else{
 							console.log(resp.message);
 						}
+					},
+					error:function(resp){
+						console.log(["error get media", item.node[0], item.name[0]]);
 					}
 				})
 			}

@@ -1,0 +1,63 @@
+<div id="cpx_media">
+<p>
+	<label for="archivePath" class="translatecol">ARCHIVEPATH</label>
+	<input dojoType="dijit.form.TextBox" name="archivepath" id="archivepath" />
+	<button dojoType="dijit.form.Button" label="SAVE">
+		<script type="dojo/method" event="postCreate">
+			console.log("starting translation");
+			dojo.query(".translate, .translatecol", 'cpx_media').forEach(function(node){
+				var trans = dojo.i18n.getLocalization('admin', 'cpx_supervisor')[node.innerHTML];
+				if(trans){
+					node.innerHTML = trans;
+				}
+				if(node.className == "translatecol"){
+					node.innerHTML += ':';
+				}
+			});
+			this.setLabel(dojo.i18n.getLocalization("admin", 'labels').SUBMIT);
+			console.log("end postCreate");
+			dojo.xhrGet({
+				url:"medias/" + medias.activeNode + "/cpx_supervisor/get",
+				handleAs:"json",
+				load:function(res){
+					if(res.success){
+						dijit.byId('archivepath').attr('value', res.result);
+					}
+					else{
+						console.log(["load fail", res.message]);
+					}
+				},
+				error:function(err){
+					console.log(["other fail", err]);
+				}
+			});
+		</script>
+		<script type="dojo/connect" event="onClick">
+			dojo.xhrPost({
+				url:"medias/" + medias.activeNode + "/cpx_supervisor/update",
+				content:{
+					'key':'archivepath',
+					'value':dijit.byId('archivepath').value
+				},
+				handleAs:"json",
+				load:function(res){
+					if(res.success){
+						// coolbeans
+					}
+					else{
+						console.log(["res success false", res.message]);
+					}
+				},
+				error:function(err){
+					console.log(["fail!", err]);
+				}
+			});
+		</script>
+	</button>
+</p>
+
+<form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
+<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" style="display:none" />
+<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit" style="display:none"></button>
+</form>
+</div>

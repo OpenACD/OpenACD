@@ -669,7 +669,8 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 	F = fun(Node) ->
 		{Node, [
 			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
-			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)}
+			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)},
+			{cpx_supervisor, rpc:call(Node, cpx_supervisor, get_value, [archivepath], 2000)}
 		]}
 	end,
 	Rpcs = lists:map(F, Nodes),
@@ -680,6 +681,29 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 %% media -> node -> media
 %% =====
 
+api({medias, Node, "cpx_supervisor", "get"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_value, [archivepath]) of
+		none ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, <<"">>}]})};
+		{ok, Value} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, list_to_binary(Value)}]})}
+	end;
+api({medias, Node, "cpx_supervisor", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_atom(Node),
+	{Func, Args} = case proplists:get_value("value", Post) of
+		"" ->
+			{drop_value, [archivepath]};
+		Data ->
+			{set_value, [archivepath, Data]}
+	end,
+	case rpc:call(Atomnode, cpx_supervisor, Func, Args) of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Else ->
+			?INFO("dropping archivepath: ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"shrug">>}]})}
+	end;
 api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case proplists:get_value("enabled", Post) of
@@ -1274,6 +1298,23 @@ encode_medias([{Node, Medias} | Tail], Acc) ->
 
 encode_medias_confs(_Node, [], Acc) ->
 	lists:reverse(Acc);
+encode_medias_confs(Node, [{cpx_supervisor, BadConf} | Tail], Acc) ->
+	Conf = case BadConf of
+		none ->
+			"";
+		{ok, Else} ->
+			Else
+	end,
+	Json = {struct, [
+		{<<"id">>, list_to_binary(atom_to_list(Node) ++ "/cpx_supervisor")},
+		{<<"mediatype">>, <<"cpx_supervisor">>},
+		{<<"name">>, <<"cpx_supervisor">>},
+		{<<"type">>, <<"conf">>},
+		{<<"archivepath">>, list_to_binary(Conf)},
+		{<<"enabled">>, true},
+		{<<"node">>, list_to_binary(atom_to_list(Node))}
+	]},
+	encode_medias_confs(Node, Tail, [Json | Acc]);
 encode_medias_confs(Node, [{Mod, Conf} | Tail], Acc) when is_record(Conf, cpx_conf) ->
 	Json = {struct, [
 		{<<"name">>, list_to_binary(atom_to_list(Conf#cpx_conf.module_name))},

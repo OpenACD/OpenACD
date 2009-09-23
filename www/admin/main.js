@@ -389,44 +389,6 @@ dojo.addOnLoad(function(){
 	dojo.addOnLoad(function(){
 		var nlsStrings = dojo.i18n.getLocalization("admin", "labels");
 		
-				  // function init()
-	//			   {
-	//			   var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-	//			   dojo.byId("usernamelabel").innerHTML = nlsStrings.USERNAME + ":";
-	//			   dojo.byId("passwordlabel").innerHTML = nlsStrings.PASSWORD + ":";
-	//			   dojo.byId("remotenumberlabel").innerHTML = nlsStrings.REMOTENUM + ":";
-	//			   dojo.byId("agentlabel").innerHTML = nlsStrings.AGENT + ":";
-	//			   dojo.byId("statelabel").innerHTML = nlsStrings.STATE + ":";
-	//			   dojo.byId("brandlabel").innerHTML = nlsStrings.BRAND + ":";
-	//			   dojo.byId("calleridlabel").innerHTML = nlsStrings.CALLERID + ":";
-	//			   dijit.byId("loginsubmit").setLabel(nlsStrings.LOGIN);
-	//			   dijit.byId("bgoavail").setLabel(nlsStrings.GOAVAILABLE);
-	//			   dijit.byId("boutboundcall").setLabel(nlsStrings.MKOUTBOUND);
-	//			   dijit.byId("bdial").setLabel(nlsStrings.DIAL);
-	//			   dijit.byId("bcancel").setLabel(nlsStrings.CANCEL);
-	//			   dijit.byId("banswer").setLabel(nlsStrings.ANSWER);
-	//			   dijit.byId("bhangup").setLabel(nlsStrings.HANGUP);
-	//			   dijit.byId("miHangup").setLabel(nlsStrings.HANGUP);
-	//			   dijit.byId("miLogout").setLabel(nlsStrings.LOGOUT);
-	//			   dijit.byId("filemenubutton").setLabel(nlsStrings.FILE);
-	//			   dijit.byId("editmenubutton").setLabel(nlsStrings.EDIT);
-	//			   dijit.byId("viewmenubutton").setLabel(nlsStrings.VIEW);
-	//			   dijit.byId("tabsmenubutton").setLabel(nlsStrings.TABS);
-	//			   dijit.byId("maintab").attr("title", nlsStrings.MAIN);
-	//			   dijit.byId("loginpane").attr("title", nlsStrings.LOGIN);
-	//			   dijit.byId("tabPanel").tablist.pane2button[dijit.byId("maintab")].setLabel(nlsStrings.MAIN);
-	//			   dijit.byId("tabPanel").tablist.pane2button[dijit.byId("agentstab")].setLabel(nlsStrings.AGENTS);
-	//			   dijit.byId("tabPanel").tablist.pane2button[dijit.byId("queuestab")].setLabel(nlsStrings.QUEUES);
-	//			   dijit.byId("tabPanel").tablist.pane2button[dijit.byId("eventLog")].setLabel(nlsStrings.EVENTLOG);
-	//			   if (dojo.config.locale == "") {
-	//			   dojo.byId("loginerrp").style.display = "block";
-	//			   dojo.byId("loginerrspan").innerHTML="No translation for any locales<br/>matching your request, sorry.";
-	//			   }
-	//			   }
-				   
-
-
-
 		var loginform = dijit.byId("loginform")
 		dojo.connect(loginform, "onSubmit", function(e){
 			e.preventDefault();

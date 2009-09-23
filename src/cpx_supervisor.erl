@@ -66,6 +66,7 @@
 	
 %% API
 -export([start_link/1, start/1]).
+%% Conf handling
 -export([
 	add_conf/5,
 	add_conf/1,
@@ -79,7 +80,13 @@
 	load_specs/1,
 	restart/2
 	]).
-	
+%% General system settings
+-export([
+	set_value/2,
+	get_value/1,
+	drop_value/1
+]).
+
 %% Supervisor callbacks
 -export([init/1]).
 
@@ -167,7 +174,40 @@ restart(agent_sup, [Nodes]) ->
 restart(Branch, _Args) when is_atom(Branch) ->
 	supervisor:restart_child(cpx_supervisor, Branch),
 	load_specs(Branch).
-	
+
+%% @doc Set a node data `Key' to `Value'.
+-spec(set_value/2 :: (Key :: any(), Value :: any()) -> {'atomic', 'ok'}).
+set_value(Key, Value) ->
+	F = fun() ->
+		mnesia:write(#cpx_value{key = Key, value = Value})
+	end,
+	mnesia:transaction(F).
+
+%% @doc Get the value for node data `Key'.
+-spec(get_value/1 :: (Key :: any()) -> 'none' | {'ok', any()}).
+get_value(Key) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(cpx_value), X#cpx_value.key =:= Key]),
+		qlc:e(QH)
+	end,
+	case mnesia:transaction(F) of
+		{atomic, []} ->
+			none;
+		{atomic, [Rec]} ->
+			{ok, Rec#cpx_value.value};
+		Else ->
+			?NOTICE("Error getting value for ~p:  ~p", [Key, Else]),
+			none
+	end.
+
+%% @doc Drop the node data `Key'.
+-spec(drop_value/1 :: (Key :: any()) -> {'atomic', 'ok'}).
+drop_value(Key) ->
+	F = fun() ->
+		mnesia:delete({cpx_value, Key})
+	end,
+	mnesia:transaction(F).
+
 %%====================================================================
 %% Supervisor callbacks
 %%====================================================================
@@ -244,6 +284,17 @@ build_tables() ->
 		Else ->
 			?NOTICE("unusual response building tables: ~p", [Else]),
 			Else
+	end,
+	B = util:build_table(cpx_value, [
+		{attributes, record_info(fields, cpx_value)},
+		{disc_copies, [node()]},
+		{local_content, true}
+	]),
+	case B of
+		Result2 when Result2 =:= {atomic, ok}; Result2 =:= copied; Result2 =:= exists ->
+			ok;
+		Else2 ->
+			?NOTICE("unusual response building cpx_value table", [Else2])
 	end.
 
 %% @doc Adds the default configuration to the database.

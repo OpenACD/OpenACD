@@ -40,6 +40,11 @@
 	timestamp = util:now() :: pos_integer()
 }).
 
+-record(cpx_value, {
+	key :: any(),
+	value :: any(),
+	timestamp = util:now()
+}).
 
 %cpx ->
 %	cpx_web_mangement

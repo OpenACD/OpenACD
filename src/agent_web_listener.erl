@@ -56,6 +56,15 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
+-ifndef(NOWEB).
+-include("web.hrl").
+-webconf([
+	{label, "AGENTWEBCONNECTION"},
+	{file, "agent_web_listener.html"},
+	{callback, web_api}
+]).
+-endif.
+
 -type(salt() :: string() | 'undefined').
 -type(connection_handler() :: pid() | 'undefined').
 -type(web_connection() :: {string(), salt(), connection_handler()}).
@@ -111,7 +120,12 @@ linkto(Pid) ->
 -spec(linkto/3 :: (Ref :: ref(), Salt :: any(), Pid :: pid()) -> 'ok').
 linkto(Ref, Salt, Pid) ->
 	gen_server:cast(?MODULE, {linkto, Ref, Salt, Pid}).
-	
+
+-ifndef(NOWEB).
+web_api(_Message, _Post) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}.
+-endif.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================

@@ -134,6 +134,11 @@ destroy_mapping(Address) ->
 requeue(Filename) ->
 	gen_server:call(email_media_manager, {queue, Filename}).
 
+-ifndef(NOWEB).
+web_api(_Message, _Post) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}.
+-endif.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================

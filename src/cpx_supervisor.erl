@@ -90,6 +90,15 @@
 %% Supervisor callbacks
 -export([init/1]).
 
+-ifndef(NOWEB).
+-include("web.hrl").
+-webconf([
+	{label, "CPXCONF"},
+	{file, "cpx_supervisor.html"},
+	{callback, web_api}
+]).
+-endif.
+
 -define(SUPERVISOR, true).
 -include("gen_spec.hrl").
 
@@ -207,6 +216,12 @@ drop_value(Key) ->
 		mnesia:delete({cpx_value, Key})
 	end,
 	mnesia:transaction(F).
+	
+-ifndef(NOWEB).
+%% @doc Responses to web calls.
+web_api(_Path, _Post) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}.
+-endif.
 
 %%====================================================================
 %% Supervisor callbacks

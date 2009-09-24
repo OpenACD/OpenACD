@@ -157,8 +157,8 @@ build_tables() ->
 	case C of
 		{atomic, ok} ->
 			Addc = fun() ->
-				mnesia:write(#client{label = "Demo Client", id="00000000"}),
-				mnesia:write(#client{label = undefined, id = ""})
+				mnesia:write(#client{label = "Demo Client", id="00990099"}),
+				mnesia:write(#client{label = undefined, id = undefined})
 			end,
 			mnesia:transaction(Addc);
 		_Orelse ->
@@ -1264,7 +1264,7 @@ client_rec_test_() ->
 	{"Destroy a client",
 	fun() ->
 		new_client("testclient", "00230001", []),
-		destroy_client("testclient"),
+		destroy_client("00230001"),
 		F = fun() ->
 			Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "testclient"]),
 			qlc:e(Select)
@@ -1289,9 +1289,9 @@ client_rec_test_() ->
 	{"Update a client by record",
 	fun() ->
 		Client1 = #client{label = "Client1", id = "00230001"},
-		Client2 = #client{label = "Client2", id = "00470002"},
+		Client2 = #client{label = "Client2", id = "00230001"},
 		new_client(Client1),
-		set_client("Client1", Client2),
+		set_client("00230001", Client2),
 		Findold = fun() ->
 			Select = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "Client1"]),
 			qlc:e(Select)
@@ -1312,7 +1312,14 @@ client_rec_test_() ->
 		new_client(Client1),
 		new_client(Client2),
 		new_client(Client3),
-		?assertMatch([#client{label = undefined}, #client{label = "Aclient"}, #client{label = "Client1"}, #client{label = "Client2"}, #client{label = "Demo Client"}], get_clients())
+		Expected = lists:sort([
+			#client{label = undefined}, 
+			#client{label = "Aclient", id = "00560001"}, 
+			#client{label = "Client1", id = "00230001"}, 
+			#client{label = "Client2", id = "00470002"}, 
+			#client{label = "Demo Client", id = "00990099"}]),
+		Got = lists:sort(get_clients()),
+		?assertEqual(Expected, Got)
 	end},
 	{"Get a single client without integration",
 	fun() ->
@@ -1343,10 +1350,10 @@ client_rec_test_() ->
 			{"client from integration",
 			fun() ->
 				gen_server_mock:expect_call(Mock, fun({get_client, label, "client"}, _, State) ->
-					{ok, {ok, "client", 2, 4, []}, State}
+					{ok, {ok, "0020004", "client", []}, State}
 				end),
-				?assertMatch(#client{label = "client", id = "0020004", options = []}, get_client("client")),
-				?assertMatch(#client{label = "client", id = "0020004", options = []}, local_get_client("client"))
+				?assertMatch(#client{label = "client", id = "0020004", options = []}, get_client(label, "client")),
+				?assertMatch(#client{label = "client", id = "0020004", options = []}, local_get_client(label, "client"))
 			end}
 		end,
 		fun(Mock) ->
@@ -1356,9 +1363,9 @@ client_rec_test_() ->
 					{ok, none, State}
 				end),
 				new_client(#client{label = "client", id = "0020004"}),
-				?assertMatch(#client{label = "client", id = "0020004"}, local_get_client("client")),
-				?assertEqual(none, get_client("client")),
-				?assertEqual(none, local_get_client("client"))
+				?assertMatch(#client{label = "client", id = "0020004"}, local_get_client(label, "client")),
+				?assertEqual(none, get_client(label, "client")),
+				?assertEqual(none, local_get_client(label, "client"))
 			end}
 		end,
 		fun(Mock) ->
@@ -1474,7 +1481,7 @@ timestamp_test_() ->
 %		end},
 		{"Updating a client",
 		fun() ->
-			new_client(#client{label = "test", timestamp = 1}),
+			new_client(#client{label = "test", id = "test", timestamp = 1}),
 			F = fun() ->
 				QH = qlc:q([X || X <- mnesia:table(client), X#client.label =:= "test"]),
 				qlc:e(QH)

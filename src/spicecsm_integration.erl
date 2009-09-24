@@ -44,7 +44,8 @@
 -export([
 	start/1,
 	start_link/1,
-	raw_request/2
+	raw_request/2,
+	state_dump/0
 ]).
 
 %% gen_server callbacks
@@ -85,7 +86,9 @@ start(Options) ->
 
 raw_request(Apicall, Params) ->
 	gen_server:call(integration, {raw_request, Apicall, Params}).
-	
+
+state_dump() ->
+	gen_server:call(integration, state_dump).
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -102,8 +105,8 @@ init(Options) ->
 			lists:append([Else, "/api/spiceAPIServer/spiceAPIServer.php"])
 	end,
 	application:start(inets),
-	Username = proplists:get_value(username, Options, ""),
-	Password = proplists:get_value(password, Options, ""),
+	Username = list_to_binary(proplists:get_value(username, Options, "")),
+	Password = list_to_binary(proplists:get_value(password, Options, "")),
 	{ok, Count, Submitbody} = build_request(<<"connect">>, [Username, Password], 1),
 	{ok, {{_Version, 200, _Ok}, _Headers, Body}} = http:request(post, {Server, [], "application/x-www-form-urlencoded", Submitbody}, [], []),
 	{struct, Results} = mochijson2:decode(Body),
@@ -123,7 +126,7 @@ init(Options) ->
 				{_, Num} when Num < 4 ->
 					{stop, {auth_fail, insufficient_access}};
 				{_Otherwise, _Goodnumm} ->
-					?INFO("Starting integration with server ~w as user ~w", [Server, Username]),
+					?INFO("Starting integration with server ~p as user ~p", [Server, Username]),
 					{ok, #state{count = Count, server = Server, session = Sid}}
 			end
 	end.
@@ -131,21 +134,50 @@ init(Options) ->
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
+handle_call(state_dump, _From, State) ->
+	{reply, {ok, State}, State};
 handle_call({agent_exists, Agent}, _From, State) when is_list(Agent) ->
 	Login = list_to_binary(Agent),
 	{ok, Count, Reply} = request(State, <<"agentExists">>, [Login]),
-	case proplists:get_value(<<"error">>, Reply) of
-		null ->
-			case proplists:get_value(<<"result">>, Reply) of
-				{struct, [{<<"msg">>, <<"no results">>}]} ->
-					{reply, false, State#state{count = Count}};
-				[{struct, _Proplist}] ->
-					{reply, true, State#state{count = Count}}
-			end;
-		Message ->
-			?WARNING("agent_exists request got error'ed:  ~p", [Message]),
-			%% yes I'm purposefully breaking the contract to force a fallback.
-			{reply, {error, Message}, State#state{count = Count}}
+	case check_error(Reply) of
+		{error, Message} ->
+			?WARNING("Integration error'ed:  ~p", [Message]),
+			{reply, {error, Message}, State#state{count = Count}};
+		{ok, {struct, [{<<"msg">>, <<"no results">>}]}} ->
+			{reply, false, State#state{count = Count}};
+		{ok, [{struct, _Proplist}]} ->
+			{reply, true, State#state{count = Count}}
+	end;
+handle_call({agent_auth, Agent, PlainPassword}, _From, State) when is_list(Agent), is_list(PlainPassword) ->
+	Login = list_to_binary(Agent),
+	Password = list_to_binary(util:bin_to_hexstr(erlang:md5(PlainPassword))),
+	{ok, Count, Reply} = request(State, <<"agentAuth">>, [{struct, [{<<"login">>, Login}, {<<"password">>, Password}]}]),
+	case check_error(Reply) of
+		{error, Message} ->
+			?WARNING("Integration error'ed:  ~p", [Message]),
+			{reply, {error, Message}, State#state{count = Count}};
+		{ok, {struct, [{<<"msg">>, <<"deny">>}]}} ->
+			{reply, deny, State#state{count = Count}};
+		{ok, [{struct, Proplist}]} ->
+			Intsec = list_to_integer(binary_to_list(proplists:get_value(<<"securitylevelid">>, Proplist))),
+			Intprof = list_to_integer(binary_to_list(proplists:get_value(<<"tierid">>, Proplist))),
+			{Profile, Security} = case {Intsec, Intprof} of
+				{Secid, 4} when Secid < 4 ->
+					{"Default", supervisor};
+				{Secid, TierID} ->
+					P = case TierID of
+						1 -> "Tier 1";
+						2 -> "Tier 2";
+						3 -> "Tier 3";
+						4 -> "Supervisor"
+					end,
+					S = case Secid of
+						4 -> admin;
+						_Else -> agent
+					end,
+					{P, S}
+			end,
+			{reply, {ok, Profile, Security}, State#state{count = Count}}
 	end;
 handle_call({raw_request, Apicall, Params}, _From, State) ->
 	{ok, Count, Reply} = request(State, Apicall, Params),
@@ -183,13 +215,14 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 build_request(Apicall, Params, Count) when is_binary(Apicall) ->
-	Clean = fun
-		(Elem, Acc) when is_list(Elem) ->
-			[list_to_binary(Elem) | Acc];
-		(Elem, Acc) when is_atom(Elem); is_binary(Elem); is_float(Elem), is_integer(Elem) ->
-			[Elem | Acc]
-	end,
-	Cleanparams = lists:reverse(lists:foldl(Clean, [], Params)),
+%	Clean = fun
+%		(Elem, Acc) when is_list(Elem) ->
+%			[list_to_binary(Elem) | Acc];
+%		(Elem, Acc) when is_atom(Elem); is_binary(Elem); is_float(Elem), is_integer(Elem) ->
+%			[Elem | Acc]
+%	end,
+%	Cleanparams = lists:reverse(lists:foldl(Clean, [], Params)),
+	Cleanparams = Params,
 	Struct = {struct, [
 		{<<"method">>, Apicall},
 		{<<"params">>, Cleanparams},
@@ -201,5 +234,14 @@ build_request(Apicall, Params, Count) when is_binary(Apicall) ->
 request(State, Apicall, Params) ->
 	{ok, Count, Submitbody} = build_request(Apicall, lists:append(Params, [State#state.session]), State#state.count),
 	{ok, {{_Version, 200, _Ok}, _Headers, Body}} = http:request(post, {State#state.server, [], "application/x-www-form-urlencoded", Submitbody}, [], []),
+	?DEBUG("The body:  ~p", [Body]),
 	{struct, Reply} = mochijson2:decode(Body),
 	{ok, Count, Reply}.
+
+check_error(Reply) ->
+	case proplists:get_value(<<"error">>, Reply) of
+		null ->
+			{ok, proplists:get_value(<<"result">>, Reply)};
+		Else ->
+			{error, Else}
+	end.

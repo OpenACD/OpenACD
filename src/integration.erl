@@ -65,8 +65,11 @@ agent_exists(Agent) ->
 
 %% @doc Attempts to authenticate `Agent' with plaintext password `Password'.
 -type(profile() :: string()).
+-type(skill() :: atom() | {atom(), any()}).
+-type(skill_list() :: [skill()]).
+-type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
 -type(security() :: 'admin' | 'agent' | 'supervisor').
--spec(agent_auth/2 :: (Agent :: string(), Password :: string()) -> {ok, profile(), security()} | 'deny').
+-spec(agent_auth/2 :: (Agent :: string(), Password :: string()) -> {ok, profile_data(), security()} | 'deny').
 agent_auth(Agent, Password) ->
 	Out = do_call({agent_auth, Agent, Password}),
 	Test = fun

@@ -157,7 +157,7 @@ init([Cnode, UUID]) ->
 	case call_queue_config:get_client(Brand) of
 		none ->
 			% TODO gen_media should handle us setting this 'undefined'?
-			Clientrec = #client{label="Unknown", tenant=0, brand=0};
+			Clientrec = #client{label="Unknown", id=""};
 		Clientrec ->
 			ok
 	end,
@@ -447,7 +447,7 @@ case_event_name([UUID | Rawcall], #state{callrec = Callrec} = State) ->
 					case call_queue_config:get_client(Brand) of
 						none ->
 							% TODO gen_media should handle us setting this 'undefined'?
-							Clientrec = #client{label="Unknown", tenant=0, brand=0};
+							Clientrec = #client{label="Unknown", id = ""};
 						Clientrec ->
 							ok
 					end,

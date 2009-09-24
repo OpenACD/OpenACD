@@ -883,8 +883,7 @@ api({clients, "getDefault"}, ?COOKIE, _Post) ->
 api({clients, "setDefault"}, ?COOKIE, Post) ->
 	Client = #client{
 		label = undefined,
-		tenant = 0,
-		brand = 0,
+		id = undefined,
 		options = [{url_pop, proplists:get_value("url_pop", Post, "")}]
 	},
 	call_queue_config:set_client(undefined, Client),
@@ -1002,8 +1001,7 @@ encode_client(Client) ->
 	Optionslist = encode_client_options(Client#client.options),
 	{struct, [
 		{<<"label">>, (case is_list(Client#client.label) of true -> list_to_binary(Client#client.label); false -> <<"">> end)},
-		{<<"tennant">>, Client#client.tenant},
-		{<<"brand">>, Client#client.brand},
+		{<<"id">>, (case is_list(Client#client.id) of true -> list_to_binary(Client#client.id); false -> <<"">> end)},
 		{<<"options">>, {struct, Optionslist}}
 	]}.
 		
@@ -1355,8 +1353,8 @@ rec_equals(	#release_opt{label = Lb, id = Id, bias = Bias},
 rec_equals(	#cpx_conf{id = A, module_name = B, start_function = C, start_args = D, supervisor = E},
 			#cpx_conf{id = A, module_name = B, start_function = C, start_args = D, supervisor = E}) ->
 	true;
-rec_equals(	#client{label = A, tenant = B, brand = C},
-			#client{label = A, tenant = B, brand = C}) ->
+rec_equals(	#client{label = A, id = B},
+			#client{label = A, id = B}) ->
 	true;
 rec_equals(	#call_queue{name = A, weight = B, skills = C, recipe = D, hold_music = E, group = F},
 			#call_queue{name = A, weight = B, skills = C, recipe = D, hold_music = E, group = F}) ->

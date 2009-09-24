@@ -475,7 +475,7 @@ resend_events([{Counter, Event, Data, _Time}|T], State) ->
 	resend_events(T, send(Event, Data, State)).
 
 clientrec_to_id(Rec) ->
-	Idbase = integer_to_list(Rec#client.tenant * 10000 + Rec#client.brand),
+	Idbase = Rec#client.id,
 	Padding = lists:duplicate(8 - length(Idbase), "0"),
 	lists:flatten(lists:append([Padding, Idbase])).
 

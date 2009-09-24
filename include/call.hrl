@@ -31,9 +31,8 @@
 -type(client_opt() :: {'url_pop', url_format()}).
 -type(client_opts() :: [client_opt()]).
 -record(client, {
+		id :: string() | 'undefined',
 		label :: string() | 'undefined',
-		tenant = 0 :: non_neg_integer(),
-		brand = 0 :: non_neg_integer(),
 		options = [] :: client_opts(),
 		last_integrated :: 'undefined' | pos_integer(),
 		timestamp = util:now() :: pos_integer()

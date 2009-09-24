@@ -296,8 +296,8 @@ api(brandlist, {_Reflist, _Salt, _Conn}, _Post) ->
 		Converter = fun
 			(#client{label = undefined}, Acc) ->
 				Acc;
-			(#client{label = Label, tenant = Tenant, brand = Brand}, Acc) ->
-				[{struct, [{<<"label">>, list_to_binary(Label)}, {<<"tenant">>, Tenant}, {<<"brand">>, Brand}]} | Acc]
+			(#client{label = Label, id = ID}, Acc) ->
+				[{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, list_to_binary(ID)}]} | Acc]
 		end,
 		Jsons = lists:foldl(Converter, [], Brands),
 		{200, [], mochijson2:encode({struct, [{success, true}, {<<"brands">>, Jsons}]})}

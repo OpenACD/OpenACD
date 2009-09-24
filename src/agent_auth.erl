@@ -449,7 +449,7 @@ cache(Username, Password, {Profile, Skills}, Security) ->
 					securitylevel = Security,
 					integrated = util:now(),
 					profile = Profile,
-					skills = util:merge_skill_list(Baserec#agent_auth.skills, Skills)
+					skills = util:merge_skill_lists(Baserec#agent_auth.skills, Skills)
 				}
 		end,
 		mnesia:write(Writerec)

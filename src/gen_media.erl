@@ -802,7 +802,7 @@ url_pop(#call{client = Client} = Call, Agent) ->
 	Protourl = proplists:get_value(url_pop, Client#client.options, ""),
 	Words = [
 		{"label", (case is_atom(Client#client.label) of true -> atom_to_list(Client#client.label); false -> Client#client.label end)},
-		{"id", Client#client.id},
+		{"clientid", Client#client.id},
 		{"callerid", Call#call.callerid},
 		{"callid", Call#call.id},
 		{"destination", ""},

@@ -93,7 +93,7 @@ client_exists(Label) ->
 	client_exists(label, Label).
 
 %% @doc `true' or `false' based on the existance of a client who's `Key' is `Value'.
--type(client_key() :: 'label' | 'comboid').
+-type(client_key() :: 'label' | 'id').
 -spec(client_exists/2 :: (Key :: client_key(), Value :: string()) -> bool()).
 client_exists(Key, Value) ->
 	Out = do_call({client_exists, Key, Value}),

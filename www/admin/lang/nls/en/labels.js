@@ -2,7 +2,7 @@
 	CLIENTS:  "Clients",
 	DEFAULTS:  "Defaults",
 	URL_POP:  "Url pop",
-	URL_POP_EXPLANATION: "Http should be prepended to the front of the url.  The url pop uses ruby-style interpoation for variables.  Anything of form #{variable_name} is replaced.  The available variables are:<ul><li>label</li><li>id</li><li>callerid</li><li>callid</li><li>destination</li><li>ivroption</li><li>media_type</li><li>direction</li></ul>",
+	URL_POP_EXPLANATION: "Http should be prepended to the front of the url.  The url pop uses ruby-style interpoation for variables.  Anything of form #{variable_name} is replaced.  The available variables are:<ul><li>label</li><li>clientid</li><li>callerid</li><li>callid</li><li>destination</li><li>ivroption</li><li>media_type</li><li>direction</li></ul>",
 	USERNAME: "Username",
 	PASSWORD: "Password",
 	LOGIN: "Login",

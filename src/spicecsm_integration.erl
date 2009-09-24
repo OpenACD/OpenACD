@@ -244,13 +244,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 build_request(Apicall, Params, Count) when is_binary(Apicall) ->
-%	Clean = fun
-%		(Elem, Acc) when is_list(Elem) ->
-%			[list_to_binary(Elem) | Acc];
-%		(Elem, Acc) when is_atom(Elem); is_binary(Elem); is_float(Elem), is_integer(Elem) ->
-%			[Elem | Acc]
-%	end,
-%	Cleanparams = lists:reverse(lists:foldl(Clean, [], Params)),
 	Cleanparams = Params,
 	Struct = {struct, [
 		{<<"method">>, Apicall},

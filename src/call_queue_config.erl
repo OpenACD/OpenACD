@@ -111,6 +111,7 @@
 	set_client/3,
 	get_client/1,
 	get_client/2,
+	get_default_client/0,
 	get_clients/0]).
 
 %% =====
@@ -633,7 +634,12 @@ get_client(Key, Value) ->
 			?WARNING("Integration failed with message:  ~p", [Err]),
 			local_get_client(Key, Value)
 	end.
-	
+
+%% @doc Gets the default client.
+-spec(get_default_client/0 :: () -> #client{}).
+get_default_client() ->
+	local_get_client(undefined).
+
 %% @doc Skips integration, goes right for the local cache using key as id.
 -spec(local_get_client/1 :: (Id :: string()) -> #client{} | 'none').
 local_get_client(Id) ->

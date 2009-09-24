@@ -29,7 +29,7 @@
 		float:none
 	}
 	
-	.wide label{
+	label.wide{
 		width: 10em;
 	}
 </style> 
@@ -292,35 +292,35 @@ dojo.requireLocalization("admin", "labels");
 				<form dojoType="dijit.form.Form" id="editAgent" action="javascript:void(0)" method="post">
 				<input type="hidden" dojoType="dijit.form.TextBox" name="oldlogin" id="agentOldLogin" value="" />
 				<p>
-					<label for="agentLogin" class="translatecol">LOGINNAME</label>
+					<label for="agentLogin" class="translatecol wide">LOGINNAME</label>
 					<input dojoType="dijit.form.TextBox" name="login" id="agentLogin" />
 				</p>
 				<p>
-					<label for="agentIntegrated" class="translatecol">LASTINTEGRATED</label>
+					<label for="agentIntegrated" class="translatecol wide">LASTINTEGRATED</label>
 					<span id="agentIntegrated">undefined</span>
 				</p>
 				<p>
-					<label for="agentPassword" class="translatecol">PASSWORD</label>
+					<label for="agentPassword" class="translatecol wide">PASSWORD</label>
 					<input dojoType="dijit.form.TextBox" type="password" id="agentPassword" name="password" />
 				</p>
 				<p>
-					<label for="agentConfirm" class="translatecol">CONFIRM</label>
+					<label for="agentConfirm" class="translatecol wide">CONFIRM</label>
 					<input dojoType="dijit.form.TextBox" type="password" id="agentConfirm" name="confirm" />
 				</p>
 				<p>
-					<label for="agentFirstName" class="translatecol">AGENTFIRSTNAME</label>
+					<label for="agentFirstName" class="translatecol wide">AGENTFIRSTNAME</label>
 					<input dojoType="dijit.form.TextBox" name="firstname" id="agentFirstName" />
 				</p>
 				<p>
-					<label for="agentLastName" class="translatecol">AGENTLASTNAME</label>
+					<label for="agentLastName" class="translatecol wide">AGENTLASTNAME</label>
 					<input dojoType="dijit.form.TextBox" name="lastname" id="agentLastName" />
 				</p>
 				<p>
-					<label for="agentProfile" class="translatecol">PROFILENAME</label>
+					<label for="agentProfile" class="translatecol wide">PROFILENAME</label>
 					<input dojoType="dijit.form.FilteringSelect" id="agentProfile" name="profile" store="agents.store" value="Default" searchAttr="name" query="{type:'profile'}"/>
 				</p>
 				<p>
-					<label for="agentSecurity" class="translatecol">SECURITY</label>
+					<label for="agentSecurity" class="translatecol wide">SECURITY</label>
 					<select dojoType="dijit.form.FilteringSelect" id="agentSecurity" name="security">
 						<option value="agent" title="AGENTDESCRIPTION">AGENT</option>
 						<option value="supervisor" title="SUPERVISORDESCRIPTION">SUPERVISOR</option>
@@ -356,13 +356,13 @@ dojo.requireLocalization("admin", "labels");
 					</select>
 				</p>
 				<p>
-					<label for="agentSkills" class="translatecol">SKILLS</label>
+					<label for="agentSkills" class="translatecol wide">SKILLS</label>
 					<div id="agentSkills">
 						<select dojoType="dijit.form.MultiSelect" id="agentSkills" name="skills" size="10" multiple="true"></select>
 					</div>
 				</p>
 				<p>
-					<label for="agentSubmit">&nbsp;</label>
+					<label for="agentSubmit wide">&nbsp;</label>
 					<button dojoType="dijit.form.Button" label="SUBMIT" id="agentSubmit">
 						<script type="dojo/connect" event="onClick">
 							agents.updateAgent('editAgent', 'agentsList')

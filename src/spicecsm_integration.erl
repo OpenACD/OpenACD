@@ -43,7 +43,8 @@
 %% API
 -export([
 	start/1,
-	start_link/1
+	start_link/1,
+	raw_request/2
 ]).
 
 %% gen_server callbacks
@@ -131,13 +132,20 @@ init(Options) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 handle_call({agent_exists, Agent}, _From, State) when is_list(Agent) ->
-	Query = lists:append(["SELECT Login FROM tblAgent WHERE Login=\"", Agent, "\" AND Active=1 LIMIT 1"]),
-	{ok, Count, Reply} = request(State, <<"query">>, [Query]),
-	case Reply of
-		[] ->
-			{reply, false, State#state{count = Count}};
-		_Else ->
-			{reply, true, State#state{count = Count}}
+	Login = list_to_binary(Agent),
+	{ok, Count, Reply} = request(State, <<"agentExists">>, [Login]),
+	case proplists:get_value(<<"error">>, Reply) of
+		null ->
+			case proplists:get_value(<<"result">>, Reply) of
+				{struct, [{<<"msg">>, <<"no results">>}]} ->
+					{reply, false, State#state{count = Count}};
+				[{struct, _Proplist}] ->
+					{reply, true, State#state{count = Count}}
+			end;
+		Message ->
+			?WARNING("agent_exists request got error'ed:  ~p", [Message]),
+			%% yes I'm purposefully breaking the contract to force a fallback.
+			{reply, {error, Message}, State#state{count = Count}}
 	end;
 handle_call({raw_request, Apicall, Params}, _From, State) ->
 	{ok, Count, Reply} = request(State, Apicall, Params),
@@ -191,7 +199,7 @@ build_request(Apicall, Params, Count) when is_binary(Apicall) ->
 	{ok, Count + 1, Body}.
 	
 request(State, Apicall, Params) ->
-	{ok, Count, Submitbody} = build_request(Apicall, lists:append(Params, State#state.session), State#state.count),
+	{ok, Count, Submitbody} = build_request(Apicall, lists:append(Params, [State#state.session]), State#state.count),
 	{ok, {{_Version, 200, _Ok}, _Headers, Body}} = http:request(post, {State#state.server, [], "application/x-www-form-urlencoded", Submitbody}, [], []),
 	{struct, Reply} = mochijson2:decode(Body),
 	{ok, Count, Reply}.

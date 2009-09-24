@@ -179,7 +179,16 @@ handle_call({agent_auth, Agent, PlainPassword}, _From, State) when is_list(Agent
 			end,
 			{reply, {ok, Profile, Security}, State#state{count = Count}}
 	end;
-handle_call({client_exists, comboid, Value}, _From, State) ->
+handle_call({client_exists, comboid, Value}, From, State) ->
+	case handle_call({get_client, comboid, Value}, From, State) of
+		{reply, none, Newstate} ->
+			{reply, false, Newstate};
+		{reply, Tuple, Newstate} when element(1, Tuple) =:= ok ->
+			{reply, true, Newstate};
+		Else ->
+			Else
+	end;
+handle_call({get_client, comboid, Value}, _From, State) ->
 	Tenant = list_to_integer(string:substr(Value, 1, 4)),
 	Brand = list_to_integer(string:substr(Value, 5, 4)),
 	Request = [{struct, [
@@ -193,9 +202,11 @@ handle_call({client_exists, comboid, Value}, _From, State) ->
 			{reply, {error, Message}, State#state{count = Count}};
 		{ok, {struct, [{<<"msg">>, Message}]}} ->
 			?INFO("Real message for noexists client:  ~p", [Message]),
-			{reply, false, State#state{count = Count}};
-		{ok, {struct, _Proplist}} ->
-			{reply, true, State#state{count = Count}}
+			{reply, none, State#state{count = Count}};
+		{ok, {struct, Proplist}} ->
+			Label = binary_to_list(proplists:get_value(<<"brandlabel">>, Proplist)),
+			Res = {ok, Label, Tenant, Brand, []},		
+			{reply, Res, State#state{count = Count}}
 	end;
 handle_call({raw_request, Apicall, Params}, _From, State) ->
 	{ok, Count, Reply} = request(State, Apicall, Params),

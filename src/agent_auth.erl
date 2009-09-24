@@ -454,7 +454,8 @@ cache(Username, Password, {Profile, Skills}, Security) ->
 		end,
 		case get_profile(Writerec#agent_auth.profile) of
 			undefined ->
-				new_profile(Writerec#agent_auth.profile, []);
+				{"Default", Defaultskills} = get_profile("Default"),
+				new_profile(Writerec#agent_auth.profile, Defaultskills);
 			{_Pname, _PSkills} ->
 				ok
 		end,

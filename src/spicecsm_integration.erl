@@ -45,7 +45,9 @@
 	start/1,
 	start_link/1,
 	raw_request/2,
-	state_dump/0
+	state_dump/0,
+	split_id/1,
+	combine_id/2
 ]).
 
 %% gen_server callbacks
@@ -84,11 +86,33 @@ start_link(Options) ->
 start(Options) ->
 	gen_server:start({local, integration}, ?MODULE, Options, []).
 
+%% @doc Perform a direct request to the integtation.  This will, of course, fail
+%% horribly if the integration server is not spicecsm_integration.  Don't encode
+%% your json structs.
+-spec(raw_request/2 :: (Apicall :: binary(), Params :: any()) -> any()).
 raw_request(Apicall, Params) ->
 	gen_server:call(integration, {raw_request, Apicall, Params}).
 
+%% @doc Return the current state of the integration server.  May fail if the 
+%% integration server is not spicecsm_integration.
+-spec(state_dump/0 :: () -> #state{}).
 state_dump() ->
 	gen_server:call(integration, state_dump).
+
+%% @doc Return `{Tenantid, Brandid}' when given a `ComboId'
+-spec(split_id/1 :: (Comboid :: string()) -> {pos_integer(), pos_integer()}).
+split_id(Comboid) ->
+	Tenant = list_to_integer(string:substr(Comboid, 1, 4)),
+	Brand = list_to_integer(string:substr(Comboid, 5, 4)),
+	{Tenant, Brand}.
+
+%% @doc Combine the `Tenantid' and `Brandid' to the 8 character `Comboid' used
+%% for the general client id
+-spec(combine_id/2 :: (Tenantid :: pos_integer(), Brandid :: pos_integer()) -> string()).
+combine_id(Tenantid, Brandid) ->
+	Prepadded = integer_to_list(Tenantid * 1000 + Brandid),
+	string:right(Prepadded, 8, $0).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -189,8 +213,7 @@ handle_call({client_exists, id, Value}, From, State) ->
 			Else
 	end;
 handle_call({get_client, id, Value}, _From, State) ->
-	Tenant = list_to_integer(string:substr(Value, 1, 4)),
-	Brand = list_to_integer(string:substr(Value, 5, 4)),
+	{Tenant, Brand} = split_id(Value),
 	Request = [{struct, [
 		{<<"tenant">>, Tenant},
 		{<<"brand">>, Brand}

@@ -452,13 +452,13 @@ cache(Username, Password, {Profile, Skills}, Security) ->
 					skills = util:merge_skill_lists(Baserec#agent_auth.skills, Skills)
 				}
 		end,
-		case get_profile(Writerec#agent_auth.profile) of
-			undefined ->
-				{"Default", Defaultskills} = get_profile("Default"),
-				new_profile(Writerec#agent_auth.profile, Defaultskills);
-			{_Pname, _PSkills} ->
-				ok
-		end,
+%		case get_profile(Writerec#agent_auth.profile) of
+%			undefined ->
+%				{"Default", Defaultskills} = get_profile("Default"),
+%				new_profile(Writerec#agent_auth.profile, Defaultskills);
+%			{_Pname, _PSkills} ->
+%				ok
+%		end,
 		mnesia:write(Writerec)
 	end,
 	Out = mnesia:transaction(F),

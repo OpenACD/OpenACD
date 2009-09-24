@@ -322,7 +322,7 @@ api({agents, "spiceintegration", "set"}, ?COOKIE, Post) ->
 					Addres = case cpx_supervisor:get_conf(spicecsm_integration) of
 						undefined ->
 							cpx_supervisor:add_conf(Conf);
-						_Else ->
+						_Else2 ->
 							cpx_supervisor:update_conf(spicecsm_integration, Conf)
 					end,
 					case Addres of

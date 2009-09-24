@@ -220,8 +220,8 @@ good_integration_test_() ->
 	fun(Mock) ->
 		{"can get client",
 		fun() ->
-			gen_server_mock:expect_call(Mock, fun({get_client, label, "client"}, _, State) -> {ok, {ok, "client", 1, 1, []}, State} end),
-			?assertEqual({ok, "client", 1, 1, []}, get_client(label, "client"))
+			gen_server_mock:expect_call(Mock, fun({get_client, label, "client"}, _, State) -> {ok, {ok, "00010001", "client", []}, State} end),
+			?assertEqual({ok, "00010001", "client", []}, get_client(label, "client"))
 		end}
 	end,
 	fun(Mock) ->

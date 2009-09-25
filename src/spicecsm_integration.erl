@@ -130,7 +130,14 @@ import(Options) ->
 		{tier2, "Tier 2", "Tier 2", "SpiceCSM"},
 		{tier3, "Tier 3", "Tier 3", "SpiceCSM"}
 	],
-	ok = import_skills_and_profiles(Skills).
+	ok = import_skills_and_profiles(Skills),
+	case proplists:get_value(add_conf, Options) of
+		true ->
+			Cleanlist = proplists:delete(add_conf, Options),
+			cpx_supervisor:add_conf(?MODULE, ?MODULE, start_link, [Cleanlist], management_sup);
+		_Else ->
+			ok
+	end.
 
 import_brands([], _Pid) ->
 	ok;

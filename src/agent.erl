@@ -182,6 +182,7 @@ expand_magic_skills(State, Skills) ->
 	lists:map(
 		fun('_agent') -> {'_agent', State#agent.login};
 		('_node') -> {'_node', node()};
+		('_profile') -> {'_profile', State#agent.profile};
 		(Skill) -> Skill
 	end, Skills).
 

@@ -681,24 +681,29 @@ dojo.requireLocalization("admin", "labels");
 				</form>
 			</div>
 			<div dojoType="dijit.layout.ContentPane" id="clientsGridPane">
-				
-				<table dojoType="dojox.grid.DataGrid" id="clientsEditableGrid" style="margin:1em; display:inline-block; width:420px; height:400px" query="{id:'?*',integration:'undefined'}">
-					<thead>
-						<tr>
-							<th field="id" width="200px" class="translate">CLIENTID</th>
-							<th field="label" width="200px" editable="true" class="translate">CLIENTLABEL</th>
-						</tr>
-					</thead>
-				</table>
-				<table dojoType="dojox.grid.DataGrid" id="clientsStaticGrid" style="margin:1em; display:inline-block; width:625px; height:400px" query="{id:'?*',integration:'12*'}">
-					<thead>
-						<tr>
-							<th field="id" width="200px" class="translate">CLIENTID</th>
-							<th field="label" width="200px" class="translate">CLIENTLABEL</th>
-							<th field="integration" width="200px" formatter='timeSince' class="translate">INTEGRATEDSINCE</th>
-						</tr>
-					</thead>
-				</table>
+				<div style="margin:1em; display:inline-block; width:420px; height:400px" >
+					<label class="wide translate">CLIENT_STAND_ALONE_LIST</label><br clear="none" />
+					<table dojoType="dojox.grid.DataGrid" id="clientsEditableGrid" query="{id:'?*',integration:'undefined'}">
+						<thead>
+							<tr>
+								<th field="id" width="200px" class="translate">CLIENTID</th>
+								<th field="label" width="200px" editable="true" class="translate">CLIENTLABEL</th>
+							</tr>
+						</thead>
+					</table>
+				</div>
+				<div style="margin:1em; display:inline-block; width:625px; height:400px" >
+					<label class="wide translate">CLIENT_INTEGRATION_LIST</label><br clear="none" />
+					<table dojoType="dojox.grid.DataGrid" id="clientsStaticGrid" query="{id:'?*',integration:'12*'}">
+						<thead>
+							<tr>
+								<th field="id" width="200px" class="translate">CLIENTID</th>
+								<th field="label" width="200px" class="translate">CLIENTLABEL</th>
+								<th field="integration" width="200px" formatter='timeSince' class="translate">INTEGRATEDSINCE</th>
+							</tr>
+						</thead>
+					</table>
+				</div>
 			</div>
 		</div>
 	</div>

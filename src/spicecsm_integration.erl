@@ -69,6 +69,8 @@
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
 
+-define(API_PATH, "/api/spiceAPIServer/spiceAPIServer.php").
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -113,6 +115,21 @@ combine_id(Tenantid, Brandid) ->
 	Prepadded = integer_to_list(Tenantid * 1000 + Brandid),
 	string:right(Prepadded, 8, $0).
 
+%% @doc Imports some data into the mnesia data to enable the spicecsm_integration
+%% to start much more quickly.
+-spec(import/1 :: (Options :: option_list()) -> 'ok' | {'ok', pid()}).
+import(Options) ->
+	Server = case proplists:get_value(server, Options) of
+		undefined ->
+			erlang:error({badarg, no_server});
+		Else ->
+			Else
+	end,
+	Username = list_to_binary(proplists:get_value(username, Options, "")),
+	Password = list_to_binary(proplists:get_value(password, Options, "")),
+	{ok, Sid} = connect(Server, Username, Password).
+	
+	
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -121,37 +138,19 @@ combine_id(Tenantid, Brandid) ->
 %% Function: init(Args) -> {ok, State} |
 %%--------------------------------------------------------------------
 init(Options) ->
-	BaseServer = proplists:get_value(server, Options),
-	Server = case BaseServer of
+	case proplists:get_value(server, Options) of
 		undefined ->
-			erlang:error(no_server);
-		Else ->
-			lists:append([Else, "/api/spiceAPIServer/spiceAPIServer.php"])
-	end,
-	application:start(inets),
-	Username = list_to_binary(proplists:get_value(username, Options, "")),
-	Password = list_to_binary(proplists:get_value(password, Options, "")),
-	{ok, Count, Submitbody} = build_request(<<"connect">>, [Username, Password], 1),
-	{ok, {{_Version, 200, _Ok}, _Headers, Body}} = http:request(post, {Server, [], "application/x-www-form-urlencoded", Submitbody}, [], []),
-	{struct, Results} = mochijson2:decode(Body),
-	case proplists:get_value(<<"result">>, Results) of
-		null ->
-			?WARNING("auth failure starting integration.  ~p", [Results]),
-			{stop, {auth_fail, proplists:get_value(<<"error">>, Results, no_message)}};
-		undefined ->
-			{stop, {auth_fail, no_results, Results}};
-		{struct, Details} ->
-			Sid = proplists:get_value(<<"session">>, Details),
-			Access = proplists:get_value(<<"security_level">>, Details),
-			case {Sid, Access} of
-				{undefined, _} ->
-					?WARNING("No sid was defined in the details.  ~p", [Details]),
-					{stop, {auth_fail, no_sid}};
-				{_, Num} when Num < 4 ->
-					{stop, {auth_fail, insufficient_access}};
-				{_Otherwise, _Goodnumm} ->
-					?INFO("Starting integration with server ~p as user ~p", [Server, Username]),
-					{ok, #state{count = Count, server = Server, session = Sid}}
+			{stop, no_server};
+		BaseServer ->
+			Username = list_to_binary(proplists:get_value(username, Options, "")),
+			Password = list_to_binary(proplists:get_value(password, Options, "")),
+			case connect(BaseServer, Username, Password) of
+				{ok, Sid} ->
+					Server = lists:append([BaseServer, ?API_PATH]),
+					{ok, #state{server = Server, count = 2, session = Sid}};
+				{error, Err} ->
+					?WARNING("integration failed:  ~p", [Err]),
+					{stop, Err}
 			end
 	end.
 
@@ -266,6 +265,33 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+connect(BaseServer, Username, Password) ->
+	Server = lists:append([BaseServer, ?API_PATH]),
+	application:start(inets),
+	{ok, Count, Submitbody} = build_request(<<"connect">>, [Username, Password], 1),
+	{ok, {{_Version, 200, _Ok}, _Headers, Body}} = http:request(post, {Server, [], "application/x-www-form-urlencoded", Submitbody}, [], []),
+	{struct, Results} = mochijson2:decode(Body),
+	case proplists:get_value(<<"result">>, Results) of
+		null ->
+			?WARNING("auth failure starting integration.  ~p", [Results]),
+			{error, {auth_fail, proplists:get_value(<<"error">>, Results, no_message)}};
+		undefined ->
+			{error, {auth_fail, no_results, Results}};
+		{struct, Details} ->
+			Sid = proplists:get_value(<<"session">>, Details),
+			Access = proplists:get_value(<<"security_level">>, Details),
+			case {Sid, Access} of
+				{undefined, _} ->
+					?WARNING("No sid was defined in the details.  ~p", [Details]),
+					{error, {auth_fail, no_sid}};
+				{_, Num} when Num < 4 ->
+					{stop, {auth_fail, insufficient_access}};
+				{_Otherwise, _Goodnumm} ->
+					?INFO("Starting integration with server ~p as user ~p", [Server, Username]),
+					{ok, Sid}
+			end
+	end.
+	
 build_request(Apicall, Params, Count) when is_binary(Apicall) ->
 	Cleanparams = Params,
 	Struct = {struct, [

@@ -53,5 +53,6 @@
 	AGENTLASTNAME: "Last name",
 	AGENTFIRSTNAME: "First name",
 	ENABLESPICEINTEGRATION: "Integrate with SpiceCSM",
-	SERVER: "Server"
+	SERVER: "Server",
+	IMPORTSPICEINTEGRATION: "Import SpiceCSM Data"
 }

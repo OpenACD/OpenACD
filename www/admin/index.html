@@ -253,26 +253,27 @@ dojo.requireLocalization("admin", "labels");
 				<form dojoType="dijit.form.Form" id="editSpicecsmIntegration" action="javascript:void(0)" method="post">
 					<p>
 						<label for="spiceIntegrationEnabled">&nbsp;</label>
-						<input id="spiceIntegrationEnabled" name="spiceIntegrationEnabled" dojoType="dijit.form.CheckBox" value="spiceIntegrationsEnabled">
-							<script type="dojo/connect" event="onClick">
-								dijit.byId("spiceServer").setDisabled(this.checked);
-								dijit.byId("spiceUsername").setDisabled(false);
-								dijit.byId("spicePassword").setDisabled(false);
-							</script>
+						<input id="spiceIntegrationEnabled" name="spiceIntegrationEnabled" dojoType="dijit.form.CheckBox" value="spiceIntegrationsEnabled" onChange='dojo.publish("agent/modules/spicecsm_integration/enabled_changed", [dijit.byId("spiceIntegrationEnabled").checked]);'>
 						</input>
 						<span class="translate">ENABLESPICEINTEGRATION</span>
 					</p>
 					<p>
+						<label for="spiceIntegrationImport">&nbsp;</label>
+						<span style="width:1em;display:inline-block"></span>
+						<input id="spiceIntegrationImport" name="spiceIntegratoinImport" dojoType="dijit.form.CheckBox" value="spiceIntegrationImport" disabled="true" postCreate='dijit.byId("spiceIntegrationImport").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data) { dijit.byId("spiceIntegrationImport").setDisabled(! data) } );' />
+						<span class="translate">IMPORTSPICEINTEGRATION</span>
+					<p>
 						<label for="spiceServer" class="translatecol">SERVER</label>
-						<input id="spiceServer" name="server" dojoType="dijit.form.TextBox" />
+						<input id="spiceServer" name="server" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceServer").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceServer").setDisabled(! data) });'>
+						</input>
 					</p>
 					<p>
 						<label for="spiceUsername" class="translatecol">USERNAME</label>
-						<input id="spiceUsername" name="username" dojoType="dijit.form.TextBox" />
+						<input id="spiceUsername" name="username" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceUsername").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceUsername").setDisabled(! data) });' />
 					</p>
 					<p>
 						<label for="spicePassword" class="translatecol">PASSWORD</label>
-						<input id="spicePassword" name="password" dojoType="dijit.form.TextBox" />
+						<input id="spicePassword" name="password" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spicePassword").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spicePassword").setDisabled(! data) });' />
 					</p>
 					<p>
 						<label>&nbsp;</label>

@@ -140,6 +140,7 @@ build_tables() ->
 				mnesia:write(#skill_rec{name="English", atom=english, description="English", group = "Language"}),
 				mnesia:write(#skill_rec{name="German", atom=german, description="German", group = "Language"}),
 				mnesia:write(#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name.", group = "Magic", protected = true}),
+				mnesia:write(#skill_rec{name="Agent Profile", atom='_profile', description="Magic skill that is replaced by the agent's profile name", group = "Magic", protected = true}),
 				mnesia:write(#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier.", group = "Magic", protected = true}),
 				mnesia:write(#skill_rec{name="Queue", atom='_queue', description="Magic skill replaced by a queue's name", group = "Magic", protected = true}),
 				mnesia:write(#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills.", group = "Magic", protected = true}),

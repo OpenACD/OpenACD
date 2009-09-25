@@ -2,7 +2,7 @@
 	CLIENTS:  "Clients",
 	DEFAULTS:  "Defaults",
 	URL_POP:  "Url pop",
-	URL_POP_EXPLANATION: "The url pop uses ruby-style interpoation for variables.  Available variables are #{callerid}, #{callid}, #{label}, #{tenant}, #{brand}, and #{combo_id}.  Http should be prepended in front of the url.",
+	URL_POP_EXPLANATION: "Http should be prepended to the front of the url.  The url pop uses ruby-style interpoation for variables.  Anything of form #{variable_name} is replaced.  The available variables are:<ul><li>label</li><li>id</li><li>callerid</li><li>callid</li><li>destination</li><li>ivroption</li><li>media_type</li><li>direction</li></ul>",
 	USERNAME: "Username",
 	PASSWORD: "Password",
 	LOGIN: "Login",
@@ -51,5 +51,7 @@
 	TOCREATESKILLGROUP: "To create a skill group, give a skill a group that does not exist.",
 	TODELETESKILLGROUP: "A group is automatically deleted when there are no skills in it.",
 	AGENTLASTNAME: "Last name",
-	AGENTFIRSTNAME: "First name"
+	AGENTFIRSTNAME: "First name",
+	ENABLESPICEINTEGRATION: "Integrate with SpiceCSM",
+	SERVER: "Server"
 }

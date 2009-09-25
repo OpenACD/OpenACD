@@ -65,8 +65,11 @@ agent_exists(Agent) ->
 
 %% @doc Attempts to authenticate `Agent' with plaintext password `Password'.
 -type(profile() :: string()).
+-type(skill() :: atom() | {atom(), any()}).
+-type(skill_list() :: [skill()]).
+-type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
 -type(security() :: 'admin' | 'agent' | 'supervisor').
--spec(agent_auth/2 :: (Agent :: string(), Password :: string()) -> {ok, profile(), security()} | 'deny').
+-spec(agent_auth/2 :: (Agent :: string(), Password :: string()) -> {ok, profile_data(), security()} | 'deny').
 agent_auth(Agent, Password) ->
 	Out = do_call({agent_auth, Agent, Password}),
 	Test = fun
@@ -101,18 +104,17 @@ client_exists(Key, Value) ->
 
 %% @doc Retrieve a client who's unique Attribute (label or comboid) is Value.
 -type(label() :: string()).
--type(tenant() :: integer()).
--type(brand() :: integer()).
+-type(client_id() :: string()).
 -type(url_option() :: {url_pop, string()}).
 -type(client_option() :: url_option()).
 -type(client_options() :: [client_option()]).
--spec(get_client/2 :: (Key :: client_key(), Value :: string()) -> 'none' | {ok, label(), tenant(), brand(), client_options()}).
+-spec(get_client/2 :: (Key :: client_key(), Value :: string()) -> 'none' | {ok, client_id(), label(), client_options()}).
 get_client(Key, Value) ->
 	Out = do_call({get_client, Key, Value}),
 	Test = fun
 		(none) ->
 			true;
-		({ok, _Label, _Tenant, _Brand, _Options}) ->
+		({ok, _Id, _Label, _Options}) ->
 			true;
 		(_Else) ->
 			false
@@ -218,8 +220,8 @@ good_integration_test_() ->
 	fun(Mock) ->
 		{"can get client",
 		fun() ->
-			gen_server_mock:expect_call(Mock, fun({get_client, label, "client"}, _, State) -> {ok, {ok, "client", 1, 1, []}, State} end),
-			?assertEqual({ok, "client", 1, 1, []}, get_client(label, "client"))
+			gen_server_mock:expect_call(Mock, fun({get_client, label, "client"}, _, State) -> {ok, {ok, "00010001", "client", []}, State} end),
+			?assertEqual({ok, "00010001", "client", []}, get_client(label, "client"))
 		end}
 	end,
 	fun(Mock) ->

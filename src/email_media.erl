@@ -129,7 +129,7 @@ init(Args) ->
 	Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, lists:reverse(Domain)])),
 	Client = case call_queue_config:get_client(Mailmap#mail_map.client) of
 		none ->
-			#client{label="Unknown", tenant=0, brand=0};
+			#client{label="Unknown", id = ""};
 		Or ->
 			Or
 	end,

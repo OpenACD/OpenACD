@@ -133,13 +133,14 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 			odbc:sql_query(State#state.ref, lists:flatten(Q))
 	end,
 	T),
-
+	Tenantid = list_to_integer(string:substr(Client#client.id, 1, 4)),
+	Brandid = list_to_integer(string:substr(Client#client.id, 5, 4)),
 
 	Query = io_lib:format("INSERT INTO billing_summaries set UniqueID='~s',
 		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~s', LastQueue='~s';", [
 		Media#call.id,
-		Client#client.tenant,
-		Client#client.brand,
+		Tenantid,
+		Brandid,
 		Start,
 		End,
 		InQueue,

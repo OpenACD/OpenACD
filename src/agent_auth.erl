@@ -426,11 +426,11 @@ build_tables() ->
 %% `Username' is the plaintext name and used as the key. 
 %% `Password' is assumed to be plaintext; will be erlang:md5'ed.  `Security' is 
 %% either `agent', `supervisor', or `admin'.
--spec(cache/4 ::	(Username :: string(), Password :: string(), Profile :: string(), Security :: 'agent' | 'supervisor' | 'admin') -> 
-						{'atomic', 'ok'} | {'aborted', any()};
-					(Username :: string(), Password :: binary(), Profile :: string(), Security :: 'agent' | 'supervisor' | 'admin') -> 
+-type(profile() :: string()).
+-type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
+-spec(cache/4 ::	(Username :: string(), Password :: string(), Profile :: profile_data(), Security :: 'agent' | 'supervisor' | 'admin') -> 
 						{'atomic', 'ok'} | {'aborted', any()}).
-cache(Username, Password, Profile, Security) ->
+cache(Username, Password, {Profile, Skills}, Security) ->
 	F = fun() ->
 		QH = qlc:q([A || A <- mnesia:table(agent_auth), A#agent_auth.login =:= Username]),
 		Writerec = case qlc:e(QH) of
@@ -448,14 +448,24 @@ cache(Username, Password, Profile, Security) ->
 					password = util:bin_to_hexstr(erlang:md5(Password)),
 					securitylevel = Security,
 					integrated = util:now(),
-					profile = Profile
+					profile = Profile,
+					skills = util:merge_skill_lists(Baserec#agent_auth.skills, Skills)
 				}
 		end,
 		mnesia:write(Writerec)
 	end,
 	Out = mnesia:transaction(F),
 	?DEBUG("Cache username result:  ~p", [Out]),
-	Out.
+	Out;
+cache(Username, Password, [Isskill | _Tail] = Skills, Security) when is_atom(Isskill); is_tuple(Isskill) ->
+	case get_agent(Username) of
+		{atomic, [Agent]} ->
+			cache(Username, Password, {Agent#agent_auth.profile, Skills}, Security);
+		{atomic, []} ->
+			cache(Username, Password, {"Default", Skills}, Security)
+	end;
+cache(Username, Password, Profile, Security) ->
+	cache(Username, Password, {Profile, []}, Security).
 	
 %% @doc adds a user to the local cache bypassing the integrated at check.  Note that unlike {@link cache/4} this expects the password 
 %% in plain text!

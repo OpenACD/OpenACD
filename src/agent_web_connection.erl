@@ -849,8 +849,7 @@ encode_call(Call) when is_record(Call, queued_call) ->
 encode_client(Client) when is_record(Client, client) ->
 	{struct, [
 		{<<"label">>, list_to_binary(Client#client.label)},
-		{<<"tenant">>, Client#client.tenant},
-		{<<"brand">>, Client#client.brand}
+		{<<"id">>, list_to_binary(Client#client.id)}
 	]};
 encode_client(_) ->
 	undefined.

@@ -27,34 +27,15 @@
 %%	Micah Warren <mwarren at spicecsm dot com>
 %%
 
-%% @hidden
+%% @doc Some common helper funtions for implementing web_api in modules.
 
-% child_spec() = {Id,StartFunc,Restart,Shutdown,Type,Modules}
+-export([web_api/2]).
 
--record(cpx_conf, {
-	id = erlang:error({undefined, id}) :: any(),
-	module_name = erlang:error({undefined, module_name}) :: atom(),
-	start_function = erlang:error({undefined, start_function}) :: atom(),
-	start_args = [] :: [any()],
-	supervisor = management_sup :: 'routing_sup' | 'agent_sup' | 'agent_connection_sup' | 'management_sup',
-	timestamp = util:now() :: pos_integer()
-}).
+-type(http_response_code() :: pos_integer()).
+-type(http_headers() :: [string()]).
+-type(http_body() :: string()).
+-spec(web_api/2 :: (Path :: string(), Post :: [{string(), string()}]) -> {http_response_code(), http_headers(), http_body()}).
 
--record(cpx_value, {
-	key :: any(),
-	value :: any(),
-	timestamp = util:now()
-}).
-
-%cpx ->
-%	cpx_web_mangement
-%	{routing, temp, 1for1} ->
-%		{dispatch_manager, permanent}
-%		{queue_manager, permanent}
-%	agent ->
-%		agent_manager
-%		agent_connections ->
-%			agent_tcp_connection
-%			agent_web_connection
-%	media ->
-%		freeswitch
+-define(json(Struct), mochiweb2:json_encode(Struct)).
+-define(reply_err(Message), {200, [], ?json({struct, [{success, false}, {message, Message}]})}).
+-define(reply_success(Struct), {200, [], ?json({struct, [{success, true}, {result, Struct}]})}).

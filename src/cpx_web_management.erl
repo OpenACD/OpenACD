@@ -282,6 +282,60 @@ api({agents, "modules", "get"}, ?COOKIE, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})};
 
 %% =====
+%% agents -> spiceintegration
+%% =====
+api({agents, "spiceintegration", "get"}, ?COOKIE, _Post) ->
+	Settings = case cpx_supervisor:get_conf(spicecsm_integration) of
+		undefined ->
+			{struct, [{<<"spiceIntegrationEnabled">>, false}]};
+		#cpx_conf{start_args = [Args | _]} = Conf ->
+			?DEBUG("conf:  ~p", [Conf]),
+			{struct, [
+				{<<"spiceIntegrationEnabled">>, true},
+				{<<"server">>, list_to_binary(proplists:get_value(server, Args))},
+				{<<"username">>, list_to_binary(proplists:get_value(username, Args, ""))},
+				{<<"password">>, list_to_binary(proplists:get_value(password, Args, ""))}
+			]}
+	end,
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, Settings}]})};
+api({agents, "spiceintegration", "set"}, ?COOKIE, Post) ->
+	case proplists:get_value("spiceIntegrationEnabled", Post) of
+		undefined ->
+			cpx_supervisor:destroy(spicecsm_integration),
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		_Else ->
+			case proplists:get_value("server", Post) of
+				undefined ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Server required">>}]})};
+				Server ->
+					Username = proplists:get_value("username", Post, ""),
+					Password = proplists:get_value("password", Post, ""),
+					Conf = #cpx_conf{
+						id = spicecsm_integration,
+						module_name = spicecsm_integration,
+						start_function = start_link,
+						start_args = [[
+							{server, Server},
+							{username, Username},
+							{password, Password}
+						]]},
+					Addres = case cpx_supervisor:get_conf(spicecsm_integration) of
+						undefined ->
+							cpx_supervisor:add_conf(Conf);
+						_Else2 ->
+							cpx_supervisor:update_conf(spicecsm_integration, Conf)
+					end,
+					case Addres of
+						{atomic, _} ->
+							{200, [], mochijson2:encode({struct, [{success, true}]})};
+						Else ->
+							?WARNING("Could not start spicecsm integration:  ~p", [Else]),
+							{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"service errored on start">>}]})}
+					end
+			end
+	end;
+						
+%% =====
 %% agents -> profiles
 %% =====
 api({agents, "profiles", "get"}, ?COOKIE, _Post) ->
@@ -615,7 +669,8 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 	F = fun(Node) ->
 		{Node, [
 			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
-			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)}
+			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)},
+			{cpx_supervisor, rpc:call(Node, cpx_supervisor, get_value, [archivepath], 2000)}
 		]}
 	end,
 	Rpcs = lists:map(F, Nodes),
@@ -626,6 +681,29 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 %% media -> node -> media
 %% =====
 
+api({medias, Node, "cpx_supervisor", "get"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_value, [archivepath]) of
+		none ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, <<"">>}]})};
+		{ok, Value} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, list_to_binary(Value)}]})}
+	end;
+api({medias, Node, "cpx_supervisor", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_atom(Node),
+	{Func, Args} = case proplists:get_value("value", Post) of
+		"" ->
+			{drop_value, [archivepath]};
+		Data ->
+			{set_value, [archivepath, Data]}
+	end,
+	case rpc:call(Atomnode, cpx_supervisor, Func, Args) of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Else ->
+			?INFO("dropping archivepath: ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"shrug">>}]})}
+	end;
 api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case proplists:get_value("enabled", Post) of
@@ -805,8 +883,7 @@ api({clients, "getDefault"}, ?COOKIE, _Post) ->
 api({clients, "setDefault"}, ?COOKIE, Post) ->
 	Client = #client{
 		label = undefined,
-		tenant = 0,
-		brand = 0,
+		id = undefined,
 		options = [{url_pop, proplists:get_value("url_pop", Post, "")}]
 	},
 	call_queue_config:set_client(undefined, Client),
@@ -847,6 +924,8 @@ parse_path(Path) ->
 			case util:string_split(Path, "/") of
 				["", "agents", "modules", Action] ->
 					{api, {agents, "modules", Action}};
+				["", "agents", "spiceintegration", Action] ->
+					{api, {agents, "spiceintegration", Action}};
 				["", "agents", "profiles", Action] ->
 					{api, {agents, "profiles", Action}};
 				["", "agents", "profiles", Profile, Action] ->
@@ -922,8 +1001,7 @@ encode_client(Client) ->
 	Optionslist = encode_client_options(Client#client.options),
 	{struct, [
 		{<<"label">>, (case is_list(Client#client.label) of true -> list_to_binary(Client#client.label); false -> <<"">> end)},
-		{<<"tennant">>, Client#client.tenant},
-		{<<"brand">>, Client#client.brand},
+		{<<"id">>, (case is_list(Client#client.id) of true -> list_to_binary(Client#client.id); false -> <<"">> end)},
 		{<<"options">>, {struct, Optionslist}}
 	]}.
 		
@@ -1218,6 +1296,23 @@ encode_medias([{Node, Medias} | Tail], Acc) ->
 
 encode_medias_confs(_Node, [], Acc) ->
 	lists:reverse(Acc);
+encode_medias_confs(Node, [{cpx_supervisor, BadConf} | Tail], Acc) ->
+	Conf = case BadConf of
+		none ->
+			"";
+		{ok, Else} ->
+			Else
+	end,
+	Json = {struct, [
+		{<<"id">>, list_to_binary(atom_to_list(Node) ++ "/cpx_supervisor")},
+		{<<"mediatype">>, <<"cpx_supervisor">>},
+		{<<"name">>, <<"cpx_supervisor">>},
+		{<<"type">>, <<"conf">>},
+		{<<"archivepath">>, list_to_binary(Conf)},
+		{<<"enabled">>, true},
+		{<<"node">>, list_to_binary(atom_to_list(Node))}
+	]},
+	encode_medias_confs(Node, Tail, [Json | Acc]);
 encode_medias_confs(Node, [{Mod, Conf} | Tail], Acc) when is_record(Conf, cpx_conf) ->
 	Json = {struct, [
 		{<<"name">>, list_to_binary(atom_to_list(Conf#cpx_conf.module_name))},
@@ -1258,8 +1353,8 @@ rec_equals(	#release_opt{label = Lb, id = Id, bias = Bias},
 rec_equals(	#cpx_conf{id = A, module_name = B, start_function = C, start_args = D, supervisor = E},
 			#cpx_conf{id = A, module_name = B, start_function = C, start_args = D, supervisor = E}) ->
 	true;
-rec_equals(	#client{label = A, tenant = B, brand = C},
-			#client{label = A, tenant = B, brand = C}) ->
+rec_equals(	#client{label = A, id = B},
+			#client{label = A, id = B}) ->
 	true;
 rec_equals(	#call_queue{name = A, weight = B, skills = C, recipe = D, hold_music = E, group = F},
 			#call_queue{name = A, weight = B, skills = C, recipe = D, hold_music = E, group = F}) ->

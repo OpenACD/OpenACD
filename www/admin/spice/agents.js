@@ -39,6 +39,33 @@ agents.getModules = function(targetform){
 	})
 }
 
+agents.getSpiceIntegration = function(targetform){
+	dojo.xhrGet({
+		url:"agents/spiceintegration/get",
+		handleAs:"json",
+		load:function(response){
+			targetform.setValues(response.result);
+			var kids = targetform.getDescendants();
+			for(var i in kids){
+				if(kids[i].id == 'spiceIntegrationEnabled'){
+					kids[i].setChecked(response.result.spiceIntegrationEnabled);
+				}
+			}
+		}
+	});
+}
+
+agents.setSpiceIntegration = function(subform){
+	dojo.xhrPost({
+		url:"agents/spiceintegration/set",
+		handleAs:"json",
+		form:subform,
+		error:function(response){
+			console.log(["error setting spice integration", response]);
+		}
+	});
+}
+
 agents.store = new dojo.data.ItemFileReadStore({
 	data:{
 		"items":[]

@@ -19,6 +19,27 @@ function inspect(obj){
 	}
 }
 
+function timeSince(timestamp){
+	if(isNaN(timestamp)){
+		return timestamp;
+	};
+	
+	var now = Math.floor(new Date().getTime() / 1000);
+	var elapsed = now - timestamp;
+	if(elapsed < 60){
+		return elapsed + " Sec";
+	}
+	elapsed = Math.floor(elapsed/60);
+	if(elapsed < 60){
+		return elapsed + " Min";
+	}
+	elapsed = Math.floor(elapsed/60);
+	if(elapsed < 24){
+		return elapsed + " Hours";
+	};
+	elapsed = Math.floor(elapsed/24);
+	return elapsed + " Days";
+}
 
 dojo.addOnLoad(function(){
 	dojo.query(".translate").forEach(function(node){

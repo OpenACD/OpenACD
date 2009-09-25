@@ -31,9 +31,17 @@ clients.init = function(){
 		}
 		savecomplete();
 	}
-	dijit.byId('clientsGrid')._setStore(clients.store);
-	dijit.byId('clientsGrid')._refresh();
+	dijit.byId('clientsEditableGrid')._setStore(clients.store);
+	dijit.byId('clientsEditableGrid')._refresh();
+	dijit.byId('clientsStaticGrid')._setStore(clients.store);
+	dijit.byId('clientsStaticGrid')._refresh();
+
 }	
+
+clients.gridHackFilter = function(){
+	console.log(arguments);
+	true;
+}
 
 clients.setDefault = function(inconf){
 	var defaultConf = {

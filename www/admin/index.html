@@ -681,12 +681,20 @@ dojo.requireLocalization("admin", "labels");
 				</form>
 			</div>
 			<div dojoType="dijit.layout.ContentPane" id="clientsGridPane">
-				<table dojoType="dojox.grid.DataGrid" id="clientsGrid" style="margin:3em">
+				<table dojoType="dojox.grid.DataGrid" id="clientsEditableGrid" style="margin:1em; display:inline-block; width:420px; height:400px" query="{id:'?*',integration:'undefined'}">
+					<thead>
+						<tr>
+							<th field="id" width="200px">Client ID</th>
+							<th field="label" width="200px" editable="true">Label</th>
+						</tr>
+					</thead>
+				</table>
+				<table dojoType="dojox.grid.DataGrid" id="clientsStaticGrid" style="margin:1em; display:inline-block; width:625px; height:400px" query="{id:'?*'}">
 					<thead>
 						<tr>
 							<th field="id" width="200px">Client ID</th>
 							<th field="label" width="200px">Label</th>
-							<th field="integration" width="200px">Integrated</th>
+							<th field="integration" width="200px" formatter='timeSince'>Integrated</th>
 						</tr>
 					</thead>
 				</table>

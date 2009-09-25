@@ -212,8 +212,8 @@ init([Nodename, Options]) ->
 %%--------------------------------------------------------------------
 %% @private
 
-handle_call({make_outbound_call, Number, AgentPid, AgentRec}, _From, #state{nodename = Node} = State) ->
-	freeswitch_outbound:start(Node, AgentRec, AgentPid, Number, 30),
+handle_call({make_outbound_call, Number, AgentPid, AgentRec}, _From, #state{nodename = Node, voicegateway = Vgw} = State) ->
+	freeswitch_outbound:start(Node, AgentRec, AgentPid, Number, Vgw, 30),
 	{reply, ok, State};
 handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) -> 
 	case dict:find(UUID, Dict) of

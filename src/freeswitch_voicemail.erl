@@ -125,8 +125,8 @@ init([Cnode, UUID, File, Queue]) ->
 			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
 		Path ->
 			Ext = filename:extension(File),
-			?DEBUG("archiving to ~s.~s", [Path, Ext]),
-			file:copy(File, Path++"."++Ext)
+			?DEBUG("archiving to ~s~s", [Path, Ext]),
+			file:copy(File, Path++Ext)
 	end,
 	{ok, {#state{cnode=Cnode, manager_pid = Manager, file=File}, {Queue, Callrec}}}.
 

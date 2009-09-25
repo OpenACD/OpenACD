@@ -35,6 +35,7 @@
 -behaviour(gen_server).
 
 -include("log.hrl").
+-include("call.hrl").
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
@@ -163,7 +164,11 @@ write_brands([{struct, Proplist} | Tail], Companyid, Companylabel) ->
 	Brandid = list_to_integer(binary_to_list(proplists:get_value(<<"brandid">>, Proplist))),
 	Brandlabel = binary_to_list(proplists:get_value(<<"brandlistlabel">>, Proplist)),
 	Comboid = combine_id(Companyid, Brandid),
-	call_queue_config:new_client(Brandlabel, Comboid, []),
+	call_queue_config:new_client(#client{
+		label = Brandlabel, 
+		id = Comboid,
+		last_integrated = util:now()
+	}),
 	write_brands(Tail, Companyid, Companylabel).
 	
 %%====================================================================

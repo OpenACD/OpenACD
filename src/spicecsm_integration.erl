@@ -47,7 +47,8 @@
 	raw_request/2,
 	state_dump/0,
 	split_id/1,
-	combine_id/2
+	combine_id/2,
+	import/1
 ]).
 
 %% gen_server callbacks
@@ -119,16 +120,44 @@ combine_id(Tenantid, Brandid) ->
 %% to start much more quickly.
 -spec(import/1 :: (Options :: option_list()) -> 'ok' | {'ok', pid()}).
 import(Options) ->
-	Server = case proplists:get_value(server, Options) of
-		undefined ->
-			erlang:error({badarg, no_server});
-		Else ->
-			Else
-	end,
-	Username = list_to_binary(proplists:get_value(username, Options, "")),
-	Password = list_to_binary(proplists:get_value(password, Options, "")),
-	{ok, Sid} = connect(Server, Username, Password).
-	
+	{ok, Pid} = gen_server:start_link(?MODULE, Options, []),
+	Reslist = gen_server:call(Pid, {raw_request, <<"companyList">>, []}),
+	CompanyList = proplists:get_value(<<"result">>, Reslist),
+	ok = import_brands(CompanyList, Pid),
+	Skills = [
+		{supervisor, "Supervisor", "Supervisor Tier", "SpiceCSM"},
+		{tier1, "Tier 1", "Tier 1", "SpiceCSM"},
+		{tier2, "Tier 2", "Tier 2", "SpiceCSM"},
+		{tier3, "Tier 3", "Tier 3", "SpiceCSM"}
+	],
+	ok = import_skills_and_profiles(Skills).
+
+import_brands([], _Pid) ->
+	ok;
+import_brands([{struct, Proplist} | Tail], Pid) ->
+	Companyid = binary_to_list(proplists:get_value(<<"companyid">>, Proplist)),
+	Query = list_to_binary(lists:append(["select BrandID, BrandLabel, BrandListLabel from ", Companyid, "_tblBrand where Active=1"])),
+	Res = gen_server:call(Pid, {raw_request, <<"query">>, [Query]}),
+	Reslist = proplists:get_value(<<"result">>, Res),
+	write_brands(Reslist, list_to_integer(Companyid), binary_to_list(proplists:get_value(<<"companylabel">>, Proplist))),
+	import_brands(Tail, Pid).
+
+import_skills_and_profiles([]) ->
+	ok;
+import_skills_and_profiles([{Atom, Name, Enddesc, Group} | Tail]) ->
+	Desc = lists:append("Added by spicecsm_integration:import.  Corresponds to ", Enddesc),
+	call_queue_config:new_skill(Atom, Name, Desc, Group),
+	agent_auth:new_profile(Name, [Atom]),
+	import_skills_and_profiles(Tail).
+		
+write_brands([], _, _) ->
+	ok;
+write_brands([{struct, Proplist} | Tail], Companyid, Companylabel) ->
+	Brandid = list_to_integer(binary_to_list(proplists:get_value(<<"brandid">>, Proplist))),
+	Brandlabel = binary_to_list(proplists:get_value(<<"brandlistlabel">>, Proplist)),
+	Comboid = combine_id(Companyid, Brandid),
+	call_queue_config:new_client(Brandlabel, Comboid, []),
+	write_brands(Tail, Companyid, Companylabel).
 	
 %%====================================================================
 %% gen_server callbacks

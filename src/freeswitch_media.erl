@@ -180,7 +180,8 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	%freeswitch_ring:hangup(State#state.ringchannel),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined}};
-handle_answer(Apid, _Callrec, State) ->
+handle_answer(Apid, Callrec, State) ->
+	freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start /tmp/"++Callrec#call.id++".wav"),
 	{ok, State#state{agent_pid = Apid}}.
 
 handle_ring(Apid, Callrec, State) ->

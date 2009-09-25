@@ -78,7 +78,8 @@
 	get_conf/1,
 	stop/0,
 	load_specs/1,
-	restart/2
+	restart/2,
+	get_archive_path/1
 	]).
 %% General system settings
 -export([
@@ -410,6 +411,33 @@ load_specs(Super) ->
 			?ERROR("unable to retrieve specs for ~s:  ~p", [Super, Else]),
 			Else
 	end.
+
+%% @doc interpolate the system's archivepath with date and call info
+get_archive_path(Call) ->
+	case get_value(archivepath) of
+		{ok, Path} ->
+			{Year, Month, Day} = date(),
+			ExpandedPath = util:string_interpolate(Path,  [
+					{"year", integer_to_list(Year)},
+					{"month", integer_to_list(Month)},
+					{"day", integer_to_list(Day)},
+					{"callid", Call#call.id},
+					{"calltype", atom_to_list(Call#call.type)},
+					{"calldirection", atom_to_list(Call#call.direction)}
+			]),
+			io:format("expanded path is: ~p~n", [ExpandedPath]),
+			
+			case filelib:ensure_dir(ExpandedPath) of
+				ok ->
+					ExpandedPath;
+				{error, Reason} ->
+					{error, Reason, ExpandedPath}
+			end;
+		X ->
+			?NOTICE("got ~p", [X]),
+			none
+	end.
+
 
 -ifdef(EUNIT).
 

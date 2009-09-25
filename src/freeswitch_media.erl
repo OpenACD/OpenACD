@@ -180,7 +180,17 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	%freeswitch_ring:hangup(State#state.ringchannel),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined}};
-handle_answer(Apid, _Callrec, State) ->
+handle_answer(Apid, Callrec, State) ->
+	case cpx_supervisor:get_archive_path(Callrec) of
+		none ->
+			?DEBUG("archiving is not configured", []);
+		{error, Reason, Path} ->
+			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
+		Path ->
+			% TODO - if Freeswitch can't create this file, the call gets aborted!
+			?DEBUG("archiving to ~s.wav", [Path]),
+			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start "++Path++".wav")
+	end,
 	{ok, State#state{agent_pid = Apid}}.
 
 handle_ring(Apid, Callrec, State) ->

@@ -45,8 +45,8 @@
 
 %% API
 -export([
-	start_link/5,
-	start/5,
+	start_link/6,
+	start/6,
 	hangup/1
 	]).
 
@@ -83,13 +83,13 @@
 %% API
 %%====================================================================
 
--spec(start/5 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), Ringout :: pos_integer()) -> {'ok', pid()}).
-start(Fnode, AgentRec, Apid, Number, Ringout) when is_pid(Apid) ->
-	gen_media:start(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout]).
+-spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), Gateway :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
+start(Fnode, AgentRec, Apid, Number, Gateway, Ringout) when is_pid(Apid) ->
+	gen_media:start(?MODULE, [Fnode, AgentRec, Apid, Number, Gateway, Ringout]).
 
--spec(start_link/5 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), Ringout :: pos_integer()) -> {'ok', pid()}).
-start_link(Fnode, AgentRec, Apid, Number, Ringout) when is_pid(Apid) ->
-	gen_media:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, Ringout]).
+-spec(start_link/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), Gateway :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
+start_link(Fnode, AgentRec, Apid, Number, Gateway, Ringout) when is_pid(Apid) ->
+	gen_media:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, Gateway, Ringout]).
 
 -spec(hangup/1 :: (Pid :: pid()) -> 'ok').
 hangup(Pid) ->
@@ -99,11 +99,11 @@ hangup(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Number, Ringout]) ->
+init([Fnode, AgentRec, Apid, Number, Gateway, Ringout]) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} when is_list(UUID) ->
 			Call = #call{id=UUID, source=self(), type=voice, direction=outbound},
-			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " " ++ Number ++ " xml outbound",
+			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " 'set:ignore_early_media=true,bridge:sofia/gateway/"++Gateway++"/"++Number++"' inline",
 			?INFO("Originating outbound call with args: ~p", [Args]),
 			F = fun(ok, _Reply) ->
 					% agent picked up?
@@ -202,6 +202,16 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 	case Event of
 		"CHANNEL_BRIDGE" ->
 			?INFO("Call bridged", []),
+			case cpx_supervisor:get_archive_path(State#state.callrec) of
+				none ->
+					?DEBUG("archiving is not configured", []);
+				{error, Reason, Path} ->
+					?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
+				Path ->
+					% TODO - if Freeswitch can't create this file, the call gets aborted!
+					?DEBUG("archiving to ~s.wav", [Path]),
+					freeswitch:api(State#state.cnode, uuid_record, UUID ++ " start "++Path++".wav")
+			end,
 			{outbound, State#state.agent, State};
 		"CHANNEL_HANGUP" ->
 			Elem1 = case proplists:get_value("variable_hangup_cause", Rest) of

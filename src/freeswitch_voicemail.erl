@@ -117,7 +117,18 @@ dump_state(Mpid) when is_pid(Mpid) ->
 init([Cnode, UUID, File, Queue]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	{ok, {#state{cnode=Cnode, manager_pid = Manager, file=File}, {Queue, #call{id=UUID++"-vm", type=voice, source=self()}}}}.
+	Callrec = #call{id=UUID++"-vm", type=voice, source=self()},
+	case cpx_supervisor:get_archive_path(Callrec) of
+		none ->
+			?DEBUG("archiving is not configured", []);
+		{error, Reason, Path} ->
+			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
+		Path ->
+			Ext = filename:extension(File),
+			?DEBUG("archiving to ~s~s", [Path, Ext]),
+			file:copy(File, Path++Ext)
+	end,
+	{ok, {#state{cnode=Cnode, manager_pid = Manager, file=File}, {Queue, Callrec}}}.
 
 handle_announce(Announcement, #state{callrec = Callrec} = State) ->
 	{invalid, State}.
@@ -312,6 +323,7 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% @private
 terminate(Reason, State) ->
+	% TODO - delete the recording?
 	?NOTICE("terminating: ~p", [Reason]),
 	ok.
 

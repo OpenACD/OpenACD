@@ -999,15 +999,14 @@ ring_oncall_mismatch_test() ->
 	?assertMatch(ok, set_state(Pid, ringing, Goodcall)),
 	?assertMatch(invalid, set_state(Pid, oncall, Badcall)).
 
-expand_magic_skills_test() ->
-	fun() ->
-		Agent = #agent{login = "testagent", skills = ['_agent', '_node', english]},
-		Newskills = expand_magic_skills(Agent, Agent#agent.skills),
-		?assert(lists:member({'_agent', "testagent"}, Newskills)),
-		?assert(lists:member({'_node', node()}, Newskills)),
-		?assert(lists:member(english, Newskills))
-	end.
-
+expand_magic_skills_test_() ->
+	Agent = #agent{login = "testagent", profile = "testprofile", skills = ['_agent', '_node', '_profile', english]},
+	Newskills = expand_magic_skills(Agent, Agent#agent.skills),
+	[?_assert(lists:member({'_agent', "testagent"}, Newskills)),
+	?_assert(lists:member({'_node', node()}, Newskills)),
+	?_assert(lists:member(english, Newskills)),
+	?_assert(lists:member({'_profile', "testprofile"}, Newskills))].
+	
 from_idle_test_() ->
 	{foreach,
 	fun() ->

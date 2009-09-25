@@ -31,6 +31,8 @@ clients.init = function(){
 		}
 		savecomplete();
 	}
+	dijit.byId('clientsGrid')._setStore(clients.store);
+	dijit.byId('clientsGrid')._refresh();
 }	
 
 clients.setDefault = function(inconf){

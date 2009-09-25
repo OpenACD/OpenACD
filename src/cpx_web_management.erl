@@ -905,7 +905,15 @@ api({clients, "setDefault"}, ?COOKIE, Post) ->
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({clients, "getClients"}, ?COOKIE, _Post) ->
 	Clients = call_queue_config:get_clients(),
-	Encoded = lists:map(fun(C) -> encode_client(C) end, Clients),
+	Encoded = lists:foldl(
+		fun(C, Acc) -> 
+			case C#client.label of
+				undefined ->
+					Acc;
+				_Else ->
+					[encode_client(C) | Acc]
+			end
+		end, [], Clients),
 	Json = {struct, [
 		{success, true},
 		{identifier, <<"label">>},
@@ -1017,6 +1025,7 @@ encode_client(Client) ->
 	{struct, [
 		{<<"label">>, (case is_list(Client#client.label) of true -> list_to_binary(Client#client.label); false -> <<"">> end)},
 		{<<"id">>, (case is_list(Client#client.id) of true -> list_to_binary(Client#client.id); false -> <<"">> end)},
+		{<<"integration">>, Client#client.last_integrated},
 		{<<"options">>, {struct, Optionslist}}
 	]}.
 		

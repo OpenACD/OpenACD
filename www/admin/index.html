@@ -646,12 +646,17 @@ dojo.requireLocalization("admin", "labels");
 					dijit.byId('clientsMain').selectChild('clientsDefaults');
 				</script>
 			</button></p>
+			<p><button dojoType="dijit.form.Button" label="CLIENTS">
+				<script type="dojo/method" event="postCreate">
+					this.setLabel(dojo.i18n.getLocalization("admin", "labels").CLIENTS);
+				</script>
+				<script type="dojo/method" event="onClick">
+					dijit.byId('clientsMain').selectChild('clientsGridPane');
+				</script>
+			</button></p>
 		</div>
 		
 		<div dojoType="dijit.layout.StackContainer" region="center" id="clientsMain">
-			<div dojoType="dijit.layout.ContentPane" id="clientsSplash">
-				&nbsp;
-			</div>
 			<div dojoType="dijit.layout.ContentPane" id="clientsDefaults">
 				<form dojoType="dijit.form.Form" method="post" id="clientsDefaultsForm">
 					<p>
@@ -674,6 +679,17 @@ dojo.requireLocalization("admin", "labels");
 					</p>
 					<p class="translate">URL_POP_EXPLANATION</p>
 				</form>
+			</div>
+			<div dojoType="dijit.layout.ContentPane" id="clientsGridPane">
+				<table dojoType="dojox.grid.DataGrid" id="clientsGrid" style="margin:3em">
+					<thead>
+						<tr>
+							<th field="id" width="200px">Client ID</th>
+							<th field="label" width="200px">Label</th>
+							<th filed="integration" width="100px">Integrated</th>
+						</tr>
+					</thead>
+				</table>
 			</div>
 		</div>
 	</div>

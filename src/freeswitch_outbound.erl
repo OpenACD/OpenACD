@@ -202,6 +202,16 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 	case Event of
 		"CHANNEL_BRIDGE" ->
 			?INFO("Call bridged", []),
+			case cpx_supervisor:get_archive_path(State#state.callrec) of
+				none ->
+					?DEBUG("archiving is not configured", []);
+				{error, Reason, Path} ->
+					?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
+				Path ->
+					% TODO - if Freeswitch can't create this file, the call gets aborted!
+					?DEBUG("archiving to ~s.wav", [Path]),
+					freeswitch:api(State#state.cnode, uuid_record, UUID ++ " start "++Path++".wav")
+			end,
 			{outbound, State#state.agent, State};
 		"CHANNEL_HANGUP" ->
 			Elem1 = case proplists:get_value("variable_hangup_cause", Rest) of

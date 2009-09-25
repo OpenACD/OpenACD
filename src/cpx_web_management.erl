@@ -310,27 +310,42 @@ api({agents, "spiceintegration", "set"}, ?COOKIE, Post) ->
 				Server ->
 					Username = proplists:get_value("username", Post, ""),
 					Password = proplists:get_value("password", Post, ""),
-					Conf = #cpx_conf{
-						id = spicecsm_integration,
-						module_name = spicecsm_integration,
-						start_function = start_link,
-						start_args = [[
-							{server, Server},
-							{username, Username},
-							{password, Password}
-						]]},
-					Addres = case cpx_supervisor:get_conf(spicecsm_integration) of
+					case proplists:get_value("spiceIntegratoinImport", Post) of
 						undefined ->
-							cpx_supervisor:add_conf(Conf);
-						_Else2 ->
-							cpx_supervisor:update_conf(spicecsm_integration, Conf)
-					end,
-					case Addres of
-						{atomic, _} ->
-							{200, [], mochijson2:encode({struct, [{success, true}]})};
-						Else ->
-							?WARNING("Could not start spicecsm integration:  ~p", [Else]),
-							{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"service errored on start">>}]})}
+							Conf = #cpx_conf{
+								id = spicecsm_integration,
+								module_name = spicecsm_integration,
+								start_function = start_link,
+								start_args = [[
+									{server, Server},
+									{username, Username},
+									{password, Password}
+								]]},
+							Addres = case cpx_supervisor:get_conf(spicecsm_integration) of
+								undefined ->
+									cpx_supervisor:add_conf(Conf);
+								_Else2 ->
+									cpx_supervisor:update_conf(spicecsm_integration, Conf)
+							end,
+							case Addres of
+								{atomic, _} ->
+									{200, [], mochijson2:encode({struct, [{success, true}]})};
+								Else ->
+									?WARNING("Could not start spicecsm integration:  ~p", [Else]),
+									{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"service errored on start">>}]})}
+							end;
+						"spiceIntegrationImport" ->
+							Args = [
+								{server, Server},
+								{username, Username},
+								{password, Password},
+								add_conf
+							],
+							F = fun() ->
+								spicecsm_integration:import(Args)
+							end,
+							spawn(F),
+							{200, [], mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"import in progress">>}]})}
 					end
 			end
 	end;

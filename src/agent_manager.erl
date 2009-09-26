@@ -256,8 +256,14 @@ handle_DOWN(Node, #state{agents = Agents} = State, _Election) ->
 handle_leader_call({exists, Agent}, _From, #state{agents = Agents} = State, _Election) when is_list(Agent) -> 
 	?DEBUG("Trying to determine if ~p exists", [Agent]),
 	case dict:find(Agent, Agents) of
-		error -> 
-			{reply, false, State};
+		error ->
+			%% TODO - a nasty hack for when the agent has a @ sign in their username
+			case dict:find(re:replace(Agent, "_", "@", [{return, list}]), Agents) of
+				error ->
+					{reply, false, State};
+				{ok, Apid} ->
+					{reply, {true, Apid}, State}
+			end;
 		{ok, Apid} -> 
 			{reply, {true, Apid}, State}
 	end;

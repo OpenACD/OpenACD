@@ -103,7 +103,7 @@ get_uuid(Pid) ->
 init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun, Options]) when is_record(Qcall, call) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
-			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " &park()",
+			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ re:replace(AgentRec#agent.login, "@", "_", [{return, list}]) ++ " &park()",
 			?INFO("originating ring channel with args: ~p", [Args]),
 			case freeswitch:bgapi(Fnode, originate, Args, Fun(UUID)) of
 				ok ->

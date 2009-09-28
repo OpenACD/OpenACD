@@ -936,7 +936,17 @@ api({clients, "add"}, ?COOKIE, Post) ->
 					?WARNING("Count not add client:  ~p", [Else]),
 					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"could not add client">>}]})}
 			end
+	end;
+api({clients, ClientId, "set"}, ?COOKIE, Post) ->
+	Label = proplists:get_value("label", Post),
+	case call_queue_config:set_client(ClientId, Label, []) of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Else ->
+			?WARNING("Count not set client:  ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Count not set client">>}]})}
 	end.
+	
 % path spec:
 % /basiccommand
 % /section/subsection/action

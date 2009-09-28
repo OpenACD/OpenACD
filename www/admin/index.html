@@ -704,6 +704,7 @@ dojo.requireLocalization("admin", "labels");
 												label:postData.label
 											});
 											clients.store.save();
+											dijit.byId('clientsStaticGrid')._refresh();
 											dijit.byId('addClientDialog').hide();
 										}
 										else{

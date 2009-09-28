@@ -193,7 +193,7 @@ get_agents(Pid) ->
 
 -spec(loop_queues/1 :: (Queues :: [{string(), pid(), {any(), #queued_call{}}, non_neg_integer()}]) -> {pid(), #queued_call{}} | 'none').
 loop_queues([]) ->
-	?DEBUG("queue list is empty", []),
+	%?DEBUG("queue list is empty", []),
 	none;
 loop_queues(Queues) ->
 	?DEBUG("queues: ~p", [Queues]),

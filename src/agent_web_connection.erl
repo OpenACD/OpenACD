@@ -324,6 +324,20 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
+		["spy", Agentname] ->
+			Json = case agent_manager:query_agent(Agentname) of
+				{true, Apid} ->
+					Mepid = State#state.agent_fsm,
+					case agent:spy(Mepid, Apid) of
+						ok ->
+							mochijson2:encode({struct, [{success, true}]});
+						invalid ->
+							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid action">>}]})
+					end;
+				false ->
+					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such agent">>}]})
+			end,
+			{reply, {200, [], Json}, State};
 		["agentstate" | [Agent | Tail]] ->
 			Json = case agent_manager:query_agent(Agent) of
 				{true, Apid} ->

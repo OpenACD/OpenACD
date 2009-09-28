@@ -458,26 +458,20 @@ handle_call({'$gen_media_spy', Spy}, _From, #state{oncall_pid = Spy} = State) ->
 	?DEBUG("Can't spy on yourself", []),
 	{reply, invalid, State};
 handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
-	Spyrec = agent:dump_state(Spy),
-	case Spyrec#agent.state of
-		released ->
-			case erlang:function_exported(Callback, handle_spy, 2) of
-				false ->
-					?DEBUG("Callback ~p doesn't support spy", [Callback]),
-					{reply, invalid, State};
-				true ->
-					case Callback:handle_spy(Spy, State#state.substate) of
-						{ok, Newstate} ->
-							{reply, ok, State#state{substate = Newstate}};
-						{invalid, Newstate} ->
-							{reply, invalid, State#state{substate = Newstate}};
-						{error, Error, Newstate} ->
-							?INFO("Callback ~p errored ~p on spy", [Callback, Error]),
-							{reply, {error, Error}, State#state{substate = Newstate}}
-					end
-			end;
-		_Else ->
-			{reply, invalid, State}
+	case erlang:function_exported(Callback, handle_spy, 2) of
+		false ->
+			?DEBUG("Callback ~p doesn't support spy", [Callback]),
+			{reply, invalid, State};
+		true ->
+			case Callback:handle_spy(Spy, State#state.substate) of
+				{ok, Newstate} ->
+					{reply, ok, State#state{substate = Newstate}};
+				{invalid, Newstate} ->
+					{reply, invalid, State#state{substate = Newstate}};
+				{error, Error, Newstate} ->
+					?INFO("Callback ~p errored ~p on spy", [Callback, Error]),
+					{reply, {error, Error}, State#state{substate = Newstate}}
+			end
 	end;
 handle_call({'$gen_media_spy', _Spy}, _From, State) ->
 	{reply, invalid, State};
@@ -1147,16 +1141,6 @@ handle_call_test_() ->
 		fun() ->
 			Seedstate = Makestate(),
 			?assertMatch({reply, invalid, Seedstate}, handle_call({'$gen_media_spy', "Pid"}, "from", Seedstate)),
-			Assertmocks()
-		end}
-	end,
-	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
-		{"spying when there's an agent oncall, spy is not released",
-		fun() ->
-			{ok, Spy} = agent:start(#agent{login = "testagent", state = idle, statedata = {}}),
-			Seedstate = Makestate(),
-			State = Seedstate#state{oncall_pid = dead_spawn()},
-			?assertMatch({reply, invalid, State}, handle_call({'$gen_media_spy', Spy}, {Spy, "tag"}, State)),
 			Assertmocks()
 		end}
 	end,

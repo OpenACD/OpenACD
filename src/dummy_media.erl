@@ -422,9 +422,10 @@ handle_ring_stop(State) ->
 handle_wrapup(State) ->
 	{hangup, State}.
 
-handle_spy(_Spy, #state{fail = Fail} = State) ->
+handle_spy(Spy, #state{fail = Fail} = State) ->
 	case check_fail(spy, Fail) of
 		{success, Dict} ->
+			agent:blab(Spy, "dummy_media fakes spy real gud like"),
 			{ok, State#state{fail = Dict}};
 		{fail_once, Dict} ->
 			{error, fail_once, State#state{fail = Dict}};

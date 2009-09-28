@@ -88,6 +88,7 @@
 	media_push/3, 
 	url_pop/2,
 	blab/2,
+	spy/2,
 	warm_transfer_begin/2,
 	register_rejected/1,
 	log_loop/3]).
@@ -248,6 +249,11 @@ url_pop(Pid, Data) ->
 -spec(blab/2 :: (Pid :: pid(), Text :: string()) -> 'ok').
 blab(Pid, Text) ->
 	gen_fsm:send_all_state_event(Pid, {blab, Text}).
+
+%% @doc Make the give `pid() Spy' spy on `pid() Target'.
+-spec(spy/2 :: (Spy :: pid(), Target :: pid()) -> 'ok').
+spy(Spy, Target) ->
+	gen_fsm:sync_send_event(Spy, {spy, Target}).
 
 %% @doc Translate the state `String' into the internally used atom.  `String' can either be the human readable string or a number in string form (`"1"').
 -spec(list_to_state/1 :: (String :: string()) -> atom()).
@@ -607,6 +613,15 @@ released({ringing, Call}, _From, State) ->
 	Newstate = State#agent{state=ringing, oldstate=released, statedata=Call, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, Newstate};
+released({spy, Target}, {Conn, _Tag}, #agent{connection = Conn} = State) ->
+	Out = case agent:dump_state(Target) of
+		#agent{state = oncall, statedata = Callrec} ->
+			Self = self(),
+			gen_media:spy(Callrec#call.source, Self);
+		_Else ->
+			invalid
+	end,
+	{reply, Out, released, State};
 released(_Event, _From, State) ->
 	{reply, invalid, released, State}.
 

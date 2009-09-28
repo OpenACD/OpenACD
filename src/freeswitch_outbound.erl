@@ -191,8 +191,13 @@ handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 			{error, Error, State}
 	end.
 
-handle_queue_transfer(State) ->
-	% TODO flesh this out.
+handle_queue_transfer(#state{cnode = Fnode, uuid = UUID} = State) ->
+	freeswitch:api(Fnode, uuid_park, UUID),
+	% play musique d'attente
+	freeswitch:sendmsg(Fnode, UUID,
+		[{"call-command", "execute"},
+			{"execute-app-name", "playback"},
+			{"execute-app-arg", "local_stream://moh"}]),
 	{ok, State}.
 
 handle_wrapup(State) ->

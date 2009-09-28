@@ -681,6 +681,46 @@ dojo.requireLocalization("admin", "labels");
 				</form>
 			</div>
 			<div dojoType="dijit.layout.ContentPane" id="clientsGridPane">
+				<div dojoType="dijit.Dialog" id="addClientDialog">
+					<div dojoType="dijit.layout.ContentPane" title="boo">
+						<form dojoType="dijit.form.Form" method="post" action="javascript:void(0)">
+							<script type="dojo/method" event="onSubmit">
+								console.log(this.getValues());
+								var postData = this.getValues();
+								dojo.xhrPost({
+									url:'/clients/add',
+									handleAs:'json',
+									content:postData,
+									load:function(res){
+										if(res.success){
+											clients.store.newItem({
+												id:postData.id,
+												label:postData.label
+											});
+											clients.store.save();
+											this.close();
+										}
+										else{
+											console.log(res)
+										}
+									},
+									error:function(res){
+										console.log(res)
+									}
+								});
+							</script>
+							<p><label class="translatecol">ID</label>
+							<input dojoType="dijit.form.TextBox" name="id" /></p>
+							<p><label class="translatecol">LABEL</label>
+							<input dojoType="dijit.form.TextBox" name="label" /></p>
+							<p><label>&nbsp;</label><button dojoType="dijit.form.Button" type="submit" label="submit">
+								<script type="dojo/method" event="postCreate">
+									this.label=dojo.i18n.getLocalization('admin', 'labels').SUBMIT;
+								</script>
+							</button></p>
+						</form>
+					</div>
+				</div>
 				<div style="margin:1em; display:inline-block; width:420px; height:400px" >
 					<label class="wide translate">CLIENT_STAND_ALONE_LIST</label><br clear="none" />
 					<table dojoType="dojox.grid.DataGrid" id="clientsEditableGrid" query="{id:'?*',integration:'undefined'}" selectionMode="single">
@@ -719,6 +759,13 @@ dojo.requireLocalization("admin", "labels");
 							}
 						</script>
 					</button>
+					<button dojoType="dijit.form.Button" label="+">
+						<script type="dojo/method" event="onClick">
+							dijit.byId('addClientDialog').show();
+						</script>
+					</button>
+					<br clear="none" />
+					
 				</div>
 				<div style="margin:1em; display:inline-block; width:625px; height:400px" >
 					<label class="wide translate">CLIENT_INTEGRATION_LIST</label><br clear="none" />

@@ -254,11 +254,8 @@ handle_call({client_exists, id, Value}, From, State) ->
 	end;
 handle_call({get_client, id, Value}, _From, State) ->
 	{Tenant, Brand} = split_id(Value),
-	Request = [{struct, [
-		{<<"tenant">>, Tenant},
-		{<<"brand">>, Brand}
-	]}],
-	{ok, Count, Reply} = request(State, <<"brandExists">>, Request),
+	Query = list_to_binary(lists:append(["select BrandListLabel from ", integer_to_list(Tenant), "_tblBrand where BrandID=", integer_to_list(Brand)])),
+	{ok, Count, Reply} = request(State, <<"query">>, [Query]),
 	case check_error(Reply) of
 		{error, Message} ->
 			?WARNING("Integration error'ed:  ~p", [Message]),
@@ -266,9 +263,9 @@ handle_call({get_client, id, Value}, _From, State) ->
 		{ok, {struct, [{<<"msg">>, Message}]}} ->
 			?INFO("Real message for noexists client:  ~p", [Message]),
 			{reply, none, State#state{count = Count}};
-		{ok, {struct, Proplist}} ->
-			Label = binary_to_list(proplists:get_value(<<"brandlabel">>, Proplist)),
-			Res = {ok, Label, Tenant, Brand, []},		
+		{ok, [{struct, Proplist}]} ->
+			Label = binary_to_list(proplists:get_value(<<"brandlistlabel">>, Proplist)),
+			Res = {ok, Value, Label, []},		
 			{reply, Res, State#state{count = Count}}
 	end;
 handle_call({raw_request, Apicall, Params}, _From, State) ->

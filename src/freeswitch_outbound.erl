@@ -73,7 +73,10 @@
 	agent_pid :: pid(),
 	agent :: string(),
 	callrec :: #call{},
-	ringchannel :: pid()
+	ringchannel :: pid(),
+	xferchannel :: pid(),
+	xferuuid :: pid(),
+	voicemail = false :: 'false' | string()
 	}).
 
 -type(state() :: #state{}).
@@ -112,7 +115,7 @@ init([Fnode, AgentRec, Apid, Number, Gateway, Ringout]) ->
 					freeswitch:sendmsg(Fnode, RingUUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "bridge"},
-							{"execute-app-arg", "[origination_uuid="++UUID++"]sofia/gateway/"++Gateway++"/"++Number}]),
+							{"execute-app-arg", "[ignore_early_media=true,origination_uuid="++UUID++"]sofia/gateway/"++Gateway++"/"++Number}]),
 					Self ! connect_uuid;
 				(error, Reply) ->
 					?WARNING("originate failed: ~p", [Reply]),
@@ -138,9 +141,20 @@ init([Fnode, AgentRec, Apid, Number, Gateway, Ringout]) ->
 %% Description: gen_media
 %%--------------------------------------------------------------------
 
-handle_announce(_Announce, State) ->
+handle_announce(Announcement, #state{callrec = Callrec} = State) ->
+	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
+		[{"call-command", "execute"},
+			{"execute-app-name", "playback"},
+			{"execute-app-arg", Announcement}]),
 	{ok, State}.
-	
+
+handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUUID} = State) when is_pid(XferChannel) ->
+	link(XferChannel),
+	?INFO("intercepting ~s from channel ~s", [XferUUID, Callrec#call.id]),
+	freeswitch:sendmsg(State#state.cnode, XferUUID,
+		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Callrec#call.id}]),
+	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
+			xferchannel = undefined, xferuuid = undefined}};
 handle_answer(_Apid, _Call, State) ->
 	{error, outgoing_only, State}.
 
@@ -150,11 +164,32 @@ handle_ring(_Apid, _Call, State) ->
 handle_ring_stop(State) ->
 	{ok, State}.
 
-handle_voicemail(_Whatever, State) ->
-	{invalid, State}.
+handle_voicemail(undefined, #state{callrec = Call} = State) ->
+	UUID = Call#call.id,
+	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:voicemail/vm-record_message.wav,record:/tmp/${uuid}.wav' inline"),
+	% TODO CDR transaction for leaving voicemail?
+	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
 
 handle_agent_transfer(AgentPid, Call, Timeout, State) ->
-	{ok, State}.
+	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
+	AgentRec = agent:dump_state(AgentPid),
+	% fun that returns another fun when passed the UUID of the new channel
+	% (what fun!)
+	F = fun(UUID) ->
+		fun(ok, _Reply) ->
+			% agent picked up?
+				?INFO("Agent transfer picked up?~n", []);
+		(error, Reply) ->
+			?WARNING("originate failed: ~p", [Reply])
+		end
+	end,
+	case freeswitch_ring:start_link(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge]) of
+		{ok, Pid} ->
+			{ok, State#state{xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
+		{error, Error} ->
+			?ERROR("error:  ~p", [Error]),
+			{error, Error, State}
+	end.
 
 handle_queue_transfer(State) ->
 	% TODO flesh this out.

@@ -44,7 +44,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 
--define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer]).
+-define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer, spy]).
 
 %% API
 -export([
@@ -79,7 +79,8 @@
 	handle_ring_stop/1,
 	handle_agent_transfer/4,
 	handle_queue_transfer/1,
-	handle_wrapup/1
+	handle_wrapup/1,
+	handle_spy/2
 ]).
 
 -ifndef(R13B).
@@ -420,10 +421,31 @@ handle_ring_stop(State) ->
 
 handle_wrapup(State) ->
 	{hangup, State}.
+
+handle_spy(_Spy, #state{fail = Fail} = State) ->
+	case check_fail(spy, Fail) of
+		{success, Dict} ->
+			{ok, State#state{fail = Dict}};
+		{fail_once, Dict} ->
+			{error, fail_once, State#state{fail = Dict}};
+		{fail, Dict} ->
+			{invalid, State#state{fail = Dict}}
+	end.
 	
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+check_fail(Key, Dict) ->
+	case dict:fetch(Key, Dict) of
+		fail_once ->
+			Newfail = dict:store(Key, success, Dict),
+			{fail_once, Newfail};
+		fail ->
+			{fail, Dict};
+		success ->
+			{success, Dict}
+	end.
 
 build_call_rec([], Rec) ->
 	Rec;

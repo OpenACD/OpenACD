@@ -682,8 +682,14 @@ dojo.requireLocalization("admin", "labels");
 			</div>
 			<div dojoType="dijit.layout.ContentPane" id="clientsGridPane">
 				<div dojoType="dijit.Dialog" id="addClientDialog">
+					<script type="dojo/method" event="onShow">
+						dijit.byId('addClientForm').setValues({
+							'id':'',
+							'label':''
+						});
+					</script>
 					<div dojoType="dijit.layout.ContentPane" title="boo">
-						<form dojoType="dijit.form.Form" method="post" action="javascript:void(0)">
+						<form dojoType="dijit.form.Form" method="post" id="addClientForm" action="javascript:void(0)">
 							<script type="dojo/method" event="onSubmit">
 								console.log(this.getValues());
 								var postData = this.getValues();
@@ -698,7 +704,7 @@ dojo.requireLocalization("admin", "labels");
 												label:postData.label
 											});
 											clients.store.save();
-											this.close();
+											dijit.byId('addClientDialog').hide();
 										}
 										else{
 											console.log(res)
@@ -746,7 +752,7 @@ dojo.requireLocalization("admin", "labels");
 									load:function(res){
 										if(res.success){
 											clients.store.deleteItem(item);
-											clients.store.save
+											clients.store.save();
 										}
 										else{
 											console.log(["client drop fail", res])

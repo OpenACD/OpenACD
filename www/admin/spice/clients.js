@@ -17,15 +17,15 @@ clients.init = function(){
 		}
 	});
 	clients.store._saveCustom = function(savecomplete){
-		var changeset = mailMappings._pending;
+		var changeset = clients.store._pending;
 		var updates = [];
 		for(var i in changeset._modifiedItems){
 			var item = null;
-			if(mailMappings._itemsByIdentity){
-				item = mailMappings._itemsByIdentity[i];
+			if(clients.store._itemsByIdentity){
+				item = clients.store._itemsByIdentity[i];
 			}
 			else{
-				item = mailMappings._arrayOfAllItems[i];
+				item = clients.store._arrayOfAllItems[i];
 			}
 			updates.push(item);
 		}

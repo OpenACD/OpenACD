@@ -923,6 +923,19 @@ api({clients, ClientId, "drop"}, ?COOKIE, _Post) ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"protected client">>}]})};
 		{atomic, ok} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end;
+api({clients, "add"}, ?COOKIE, Post) ->
+	case {proplists:get_value("id", Post), proplists:get_value("label", Post)} of
+		{A, B} when A =:= undefined; B =:= undefined ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid id or label">>}]})};
+		{Id, Label} ->
+			case call_queue_config:new_client(Label, Id, []) of
+				{atomic, ok} ->
+					{200, [], mochijson2:encode({struct, [{success, true}]})};
+				Else ->
+					?WARNING("Count not add client:  ~p", [Else]),
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"could not add client">>}]})}
+			end
 	end.
 % path spec:
 % /basiccommand

@@ -265,9 +265,12 @@ handle_wrapup(State) ->
 	% no direct hangup by the agent
 	{ok, State}.
 	
+handle_queue_transfer(#state{cnode = FNode, ringchannel = Channel} = State) when is_pid(Channel) ->
+	freeswitch_ring:hangup(Channel),
+	{ok, State#state{ringchannel = undefined, xferchannel=undefined, xferuuid=undefined}};
 handle_queue_transfer(State) ->
-	% TODO fully implement this.
 	{ok, State}.
+
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------

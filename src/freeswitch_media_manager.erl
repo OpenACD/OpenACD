@@ -386,7 +386,7 @@ fetch_domain_user(Node, State) ->
 												undefined ->
 													"${sofia_contact("++User++"@"++Domain++")}";
 												_ ->
-													"${sofia_contact("++Agent#agent.endpointdata++"@"++Domain++")}"
+													"${sofia_contact("++re:replace(Agent#agent.endpointdata, "@", "_", [{return, list}])++"@"++Domain++")}"
 											end;
 										sip ->
 											"sofia/internal/sip:"++Agent#agent.endpointdata;

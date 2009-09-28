@@ -731,6 +731,30 @@ dojo.requireLocalization("admin", "labels");
 				<div style="margin:1em; display:inline-block; width:420px; height:400px" >
 					<label class="wide translate">CLIENT_STAND_ALONE_LIST</label><br clear="none" />
 					<table dojoType="dojox.grid.DataGrid" id="clientsEditableGrid" query="{id:'?*',integration:'undefined'}" selectionMode="single">
+						<script type="dojo/method" event="onApplyEdit">
+							var row = arguments[0];
+							var item = this.getItem(row);
+							var id = clients.store.getValue(item, 'id');
+							var label = clients.store.getValue(item, 'label');
+							dojo.xhrPost({
+								url:'/clients/' + id + '/set',
+								content:{
+									'label':label
+								},
+								handleAs:'json',
+								load:function(res){
+									if(res.success){
+										clients.store.save();
+									}
+									else{
+										console.log(res)
+									}
+								},
+								error:function(res){
+									console.log(['load fail', res])
+								}
+							});
+						</script>
 						<thead>
 							<tr>
 								<th field="id" width="200px" class="translate">CLIENTID</th>

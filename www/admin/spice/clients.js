@@ -17,23 +17,31 @@ clients.init = function(){
 		}
 	});
 	clients.store._saveCustom = function(savecomplete){
-		var changeset = mailMappings._pending;
+		var changeset = clients.store._pending;
 		var updates = [];
 		for(var i in changeset._modifiedItems){
 			var item = null;
-			if(mailMappings._itemsByIdentity){
-				item = mailMappings._itemsByIdentity[i];
+			if(clients.store._itemsByIdentity){
+				item = clients.store._itemsByIdentity[i];
 			}
 			else{
-				item = mailMappings._arrayOfAllItems[i];
+				item = clients.store._arrayOfAllItems[i];
 			}
 			updates.push(item);
 		}
 		savecomplete();
 	}
-	dijit.byId('clientsGrid')._setStore(clients.store);
-	dijit.byId('clientsGrid')._refresh();
+	dijit.byId('clientsEditableGrid')._setStore(clients.store);
+	dijit.byId('clientsEditableGrid')._refresh();
+	dijit.byId('clientsStaticGrid')._setStore(clients.store);
+	dijit.byId('clientsStaticGrid')._refresh();
+
 }	
+
+clients.gridHackFilter = function(){
+	console.log(arguments);
+	true;
+}
 
 clients.setDefault = function(inconf){
 	var defaultConf = {

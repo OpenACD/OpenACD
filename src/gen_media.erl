@@ -166,6 +166,19 @@
 %%
 %%		If {ok, NewState} is returned, execution continues with state NewState.
 %%
+%%	<b>handle_spy(Spy, State) -> {ok, NewState} | {invalid, NewState} | {error, Error, NewState}</b>
+%%		types:  State = NewState = any()
+%%				Spy = pid()
+%%
+%%		This callback is only valid when the Spy is released and there is an
+%%		Agent oncall with the call.  This signals the callback that a supervisor
+%%		is attempting to observe the agent that is oncall.  The other callbacks
+%%		Should take into account the possibility of a spy if 'ok' is returned.
+%%		
+%%		Be aware that when calling this, gen_media does not have a reliable 
+%%		to determine an agent's security level.  The agent connecitons, however,
+%%		do.
+%%
 %%	<b>Extended gen_server Callbacks</b>
 %%
 %%	In addition to the usual replies gen_server expects from it's callbacks of
@@ -233,6 +246,7 @@
 
 -include("log.hrl").
 -include("call.hrl").
+-include("agent.hrl").
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
@@ -263,7 +277,8 @@
 	call/2,
 	call/3,
 	cast/2,
-	wrapup/1
+	wrapup/1,
+	spy/2
 ]).
 
 % TODO - add these to a global .hrl, cpx perhaps?
@@ -361,6 +376,11 @@ warm_transfer_begin(Genmedia, Number) ->
 -spec(queue/2 :: (Genmedia :: pid(), Queue :: string()) -> 'ok' | 'invalid').
 queue(Genmedia, Queue) ->
 	gen_server:call(Genmedia, {'$gen_media_queue', Queue}).
+	
+%% @doc Attempt to spy on the agent oncall with the given media.
+-spec(spy/2 :: (Genmedia :: pid(), Spy :: pid()) -> 'ok' | 'invalid' | {'error', any()}).
+spy(Genmedia, Spy) ->
+	gen_server:call(Genmedia, {'$gen_media_spy', Spy}).
 
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
@@ -376,7 +396,7 @@ call(Genmedia, Request, Timeout) ->
 -spec(cast/2 :: (Genmedia :: pid(), Request:: any()) -> 'ok').
 cast(Genmedia, Request) ->
 	gen_server:cast(Genmedia, Request).
-	
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -433,6 +453,28 @@ init([Callback, Args]) ->
 %%--------------------------------------------------------------------
 
 %% @private
+handle_call({'$gen_media_spy', Spy}, _From, #state{oncall_pid = Spy} = State) ->
+	%% Can't spy on yourself.
+	?DEBUG("Can't spy on yourself", []),
+	{reply, invalid, State};
+handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
+	case erlang:function_exported(Callback, handle_spy, 2) of
+		false ->
+			?DEBUG("Callback ~p doesn't support spy", [Callback]),
+			{reply, invalid, State};
+		true ->
+			case Callback:handle_spy(Spy, State#state.substate) of
+				{ok, Newstate} ->
+					{reply, ok, State#state{substate = Newstate}};
+				{invalid, Newstate} ->
+					{reply, invalid, State#state{substate = Newstate}};
+				{error, Error, Newstate} ->
+					?INFO("Callback ~p errored ~p on spy", [Callback, Error]),
+					{reply, {error, Error}, State#state{substate = Newstate}}
+			end
+	end;
+handle_call({'$gen_media_spy', _Spy}, _From, State) ->
+	{reply, invalid, State};
 handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = Ocpid, callrec = Call} = State) when Call#call.media_path =:= inband ->
 	?INFO("Request to end call from agent", []),
 	cdr:wrapup(State#state.callrec, Ocpid),
@@ -1008,7 +1050,8 @@ outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call), S
 
 -ifdef(EUNIT).
 
--include("agent.hrl").
+dead_spawn() ->
+	spawn(fun() -> ok end).
 
 init_test_() ->
 	{foreach,
@@ -1093,7 +1136,58 @@ handle_call_test_() ->
 		gen_event:stop(cdr),
 		timer:sleep(10)
 	end,
-	[fun({Makestate, _, _, Ammock, Assertmocks}) ->
+	[fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
+		{"spying when there's no agent oncall fails",
+		fun() ->
+			Seedstate = Makestate(),
+			?assertMatch({reply, invalid, Seedstate}, handle_call({'$gen_media_spy', "Pid"}, "from", Seedstate)),
+			Assertmocks()
+		end}
+	end,
+	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
+		{"Spy is not the pid making the request",
+		fun() ->
+			{ok, Spy} = agent:start(#agent{login = "testagent", state = released, statedata = "default"}),
+			Pid = spawn(fun() -> ok end),
+			Seedstate = Makestate(),
+			State = Seedstate#state{oncall_pid = Spy},
+			?assertMatch({reply, invalid, State}, handle_call({'$gen_media_spy', Spy}, {self(), "tag"}, State)),
+			Assertmocks()
+		end}
+	end,
+	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
+		{"Can't spy on yourself", 
+		fun() ->
+			Seedstate = Makestate(),
+			Spy = dead_spawn(),
+			State = Seedstate#state{oncall_pid = Spy},
+			?assertMatch({reply, invalid, State}, handle_call({'$gen_media_spy', Spy}, {Spy, "tag"}, State))
+		end}
+	end,
+	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
+		{"Spy valid, callback says no",
+		fun() ->
+			{ok, Seedstate} = init([dummy_media, [[], failure]]),
+			Callrec = Seedstate#state.callrec,
+			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
+			Ocpid = dead_spawn(),
+			{ok, Spy} = agent:start(#agent{login = "testagent", state = released, statedata = "defaut"}),
+			?assertMatch({reply, invalid, _Newstate}, handle_call({'$gen_media_spy', Spy}, {Spy, "tag"}, Seedstate#state{oncall_pid = Ocpid})),
+			Assertmocks()
+		end}
+	end,
+	fun({Makestate, _QMock, Qpid, _Ammock, Assertmocks}) ->
+		{"Spy valid, callback says ok",
+		fun() ->
+			Seedstate = Makestate(),
+			Ocpid = dead_spawn(),
+			State = Seedstate#state{oncall_pid = Ocpid},
+			{ok, Spy} = agent:start(#agent{login = "testagent", state= released, statedata = "default"}),
+			?assertMatch({reply, ok, _Newstate}, handle_call({'$gen_media_spy', Spy}, {Spy, "tag"}, State)),
+			Assertmocks()
+		end}
+	end,	
+	fun({Makestate, _, _, Ammock, Assertmocks}) ->
 		{"oncall_pid requests wrapup",
 		fun() ->
 			Seedstate = Makestate(),

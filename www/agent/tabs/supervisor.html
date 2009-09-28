@@ -64,6 +64,26 @@
 			dialog.show();
 		</script>
 	</div>
+	<div dojoType="dijit.MenuItem">Spy
+		<script type="dojo/method" event="onClick">
+			var agent = escape(dijit.byId("agentAction").agentBubbleHit);
+			dojo.xhrGet({
+				url:"/supervisor/spy/" + agent,
+				handleAs:"json",
+				load:function(res){
+					if(res.success){
+						// cool
+					}
+					else{
+						warning(["couldn't spy", res.message]);
+					}
+				},
+				error:function(res){
+					warning(["error spying", res]);
+				}
+			});
+		</script>
+	</div>
 	<div dojoType="dijit.MenuSeparator"></div>
 	<div dojoType="dijit.MenuItem">Kick
 		<script type="dojo/method" event="onClick">

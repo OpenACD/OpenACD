@@ -72,7 +72,8 @@
 	uuid :: any(),
 	agent_pid :: pid(),
 	agent :: string(),
-	callrec :: #call{}
+	callrec :: #call{},
+	ringchannel :: pid()
 	}).
 
 -type(state() :: #state{}).
@@ -100,50 +101,39 @@ hangup(Pid) ->
 %%====================================================================
 
 init([Fnode, AgentRec, Apid, Number, Gateway, Ringout]) ->
+	
 	case freeswitch:api(Fnode, create_uuid) of
-		{ok, UUID} when is_list(UUID) ->
+		{ok, UUID} ->
 			Call = #call{id=UUID, source=self(), type=voice, direction=outbound},
-			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ AgentRec#agent.login ++ " 'set:ignore_early_media=true,bridge:sofia/gateway/"++Gateway++"/"++Number++"' inline",
-			?INFO("Originating outbound call with args: ~p", [Args]),
-			F = fun(ok, _Reply) ->
-					% agent picked up?
-					ok;
+			Self = self(),
+
+			F = fun(RingUUID) ->
+				fun(ok, _Reply) ->
+					freeswitch:sendmsg(Fnode, RingUUID,
+						[{"call-command", "execute"},
+							{"execute-app-name", "bridge"},
+							{"execute-app-arg", "[origination_uuid="++UUID++"]sofia/gateway/"++Gateway++"/"++Number}]),
+					Self ! connect_uuid;
 				(error, Reply) ->
 					?WARNING("originate failed: ~p", [Reply]),
 					ok
+				end
 			end,
-			case freeswitch:bgapi(Fnode, originate, Args, F) of
-				ok ->
-					Gethandle = fun(Recusef, Count) ->
-						?DEBUG("Counted ~p", [Count]),
-						case freeswitch:handlecall(Fnode, UUID) of
-							{error, badsession} when Count > 4 ->
-								{error, badsession};
-							{error, badsession} ->
-								timer:sleep(100),
-								Recusef(Recusef, Count+1);
-							{error, Other} ->
-								{error, Other};
-							Else ->
-								Else
-						end
-					end,
-					case Gethandle(Gethandle, 0) of
-						{error, badsession} ->
-							?ERROR("bad uuid ~p", [UUID]),
-							{stop, {error, session}};
-						{error, Other} ->
-							?ERROR("other error starting; ~p", [Other]),
-							{stop, {error, Other}};
-						_Else ->
-							?DEBUG("starting for ~p", [UUID]),
-							{ok, {#state{cnode = Fnode, uuid = UUID, agent_pid = Apid, agent = AgentRec#agent.login, callrec = Call}, Call}}
-					end;
-				Else ->
-					?ERROR("bgapi call failed ~p", [Else]),
-					{stop, {error, Else}}
-			end
+
+			case freeswitch_ring:start(Fnode, AgentRec, Apid, Call, 600, F, [no_oncall_on_bridge]) of
+				{ok, Pid} ->
+					link(Pid),
+					%{ok, State#state{ringchannel = Pid, agent_pid = Apid}};
+					{ok, {#state{cnode = Fnode, uuid = UUID, ringchannel = Pid, agent_pid = Apid, agent = AgentRec#agent.login, callrec = Call}, Call}};
+				{error, Error} ->
+					?ERROR("error:  ~p", [Error]),
+					{stop, {error, Error}}
+			end;
+		Else ->
+			?ERROR("bgapi call failed ~p", [Else]),
+			{stop, {error, Else}}
 	end.
+
 %%--------------------------------------------------------------------
 %% Description: gen_media
 %%--------------------------------------------------------------------
@@ -163,8 +153,8 @@ handle_ring_stop(State) ->
 handle_voicemail(_Whatever, State) ->
 	{invalid, State}.
 
-handle_agent_transfer(_Agent, _Call, _Timeout, State) ->
-	{error, outgoing_only, State}.
+handle_agent_transfer(AgentPid, Call, Timeout, State) ->
+	{ok, State}.
 
 handle_queue_transfer(State) ->
 	% TODO flesh this out.
@@ -200,19 +190,6 @@ handle_info({call, {event, [UUID | _Rest]}}, #state{uuid = UUID} = State) ->
 handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) ->
 	Event = freeswitch:get_event_name(Rest),
 	case Event of
-		"CHANNEL_BRIDGE" ->
-			?INFO("Call bridged", []),
-			case cpx_supervisor:get_archive_path(State#state.callrec) of
-				none ->
-					?DEBUG("archiving is not configured", []);
-				{error, Reason, Path} ->
-					?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
-				Path ->
-					% TODO - if Freeswitch can't create this file, the call gets aborted!
-					?DEBUG("archiving to ~s.wav", [Path]),
-					freeswitch:api(State#state.cnode, uuid_record, UUID ++ " start "++Path++".wav")
-			end,
-			{outbound, State#state.agent, State};
 		"CHANNEL_HANGUP" ->
 			Elem1 = case proplists:get_value("variable_hangup_cause", Rest) of
 				"NO_ROUTE_DESTINATION" ->
@@ -239,6 +216,42 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 handle_info(call_hangup, State) ->
 	?DEBUG("Call hangup info", []),
 	{stop, normal, State};
+handle_info(connect_uuid, #state{cnode = Fnode, uuid = UUID, agent = Agent} = State) ->
+	Gethandle = fun(Recusef, Count) ->
+			?DEBUG("Counted ~p", [Count]),
+			case freeswitch:handlecall(Fnode, UUID) of
+				{error, badsession} when Count > 4 ->
+					{error, badsession};
+				{error, badsession} ->
+					timer:sleep(100),
+					Recusef(Recusef, Count+1);
+				{error, Other} ->
+					{error, Other};
+				Else ->
+					Else
+			end
+	end,
+	case Gethandle(Gethandle, 0) of
+		{error, badsession} ->
+			?ERROR("bad uuid ~p", [UUID]),
+			{stop, {error, session}};
+		{error, Other} ->
+			?ERROR("other error starting; ~p", [Other]),
+			{stop, {error, Other}};
+		_Else ->
+			?NOTICE("starting for ~p", [UUID]),
+			case cpx_supervisor:get_archive_path(State#state.callrec) of
+				none ->
+					?DEBUG("archiving is not configured", []);
+				{error, Reason, Path} ->
+					?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
+				Path ->
+					% TODO - if Freeswitch can't create this file, the call gets aborted!
+					?DEBUG("archiving to ~s.wav", [Path]),
+					freeswitch:api(Fnode, uuid_record, UUID ++ " start "++Path++".wav")
+			end,
+			{outbound, Agent, State}
+	end;
 handle_info(Info, State) ->
 	?DEBUG("unhandled info ~p", [Info]),
 	{noreply, State}.

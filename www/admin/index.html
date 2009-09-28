@@ -683,14 +683,42 @@ dojo.requireLocalization("admin", "labels");
 			<div dojoType="dijit.layout.ContentPane" id="clientsGridPane">
 				<div style="margin:1em; display:inline-block; width:420px; height:400px" >
 					<label class="wide translate">CLIENT_STAND_ALONE_LIST</label><br clear="none" />
-					<table dojoType="dojox.grid.DataGrid" id="clientsEditableGrid" query="{id:'?*',integration:'undefined'}">
+					<table dojoType="dojox.grid.DataGrid" id="clientsEditableGrid" query="{id:'?*',integration:'undefined'}" selectionMode="single">
 						<thead>
 							<tr>
 								<th field="id" width="200px" class="translate">CLIENTID</th>
 								<th field="label" width="200px" editable="true" class="translate">CLIENTLABEL</th>
 							</tr>
 						</thead>
-					</table>
+					</table><br clear="none" />
+					<button dojoType="dijit.form.Button" label="-">
+						<script type="dojo/method" event="onClick">
+							var items = dijit.byId('clientsEditableGrid').selection.getSelected();
+							if(items.length == 0){
+								return;
+							}
+							var item = items[0];
+							if(item != null){
+								var id = clients.store.getValue(item, 'id');
+								dojo.xhrPost({
+									url:"/clients/" + id + "/drop",
+									handleAs:"json",
+									load:function(res){
+										if(res.success){
+											clients.store.deleteItem(item);
+											clients.store.save
+										}
+										else{
+											console.log(["client drop fail", res])
+										}
+									},
+									error:function(res){
+										console.log(["client drop uberfail", res])
+									}
+								});
+							}
+						</script>
+					</button>
 				</div>
 				<div style="margin:1em; display:inline-block; width:625px; height:400px" >
 					<label class="wide translate">CLIENT_INTEGRATION_LIST</label><br clear="none" />

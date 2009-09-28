@@ -911,8 +911,19 @@ api({clients, "getClients"}, ?COOKIE, _Post) ->
 		{identifier, <<"id">>},
 		{items, Encoded}
 	]},
-	{200, [], mochijson2:encode(Json)}.
-	
+	{200, [], mochijson2:encode(Json)};
+
+%% =====
+%% clients => Client => *
+%% =====
+
+api({clients, ClientId, "drop"}, ?COOKIE, _Post) ->
+	case call_queue_config:destroy_client(ClientId) of
+		{aborted, protected} ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"protected client">>}]})};
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})}
+	end.
 % path spec:
 % /basiccommand
 % /section/subsection/action

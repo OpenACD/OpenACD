@@ -1144,7 +1144,8 @@ skill_rec_test_() ->
 							#skill_rec{name="Node", atom='_node', description="Magic skill that is replaced by the node identifier.", group = "Magic", protected = true},
 							#skill_rec{name="Agent Name", atom='_agent', description="Magic skill that is replaced by the agent's name.", group = "Magic", protected = true},
 							#skill_rec{name="Brand", atom='_brand', description="Magic skill to expand to a client's label (brand)", group="Magic", protected=true},
-							#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills.", group = "Magic", protected = true}
+							#skill_rec{name="All", atom='_all', description="Magic skill to denote an agent that can answer any call regardless of other skills.", group = "Magic", protected = true},
+							#skill_rec{name="Agent Profile", atom='_profile', description="Magic skill that is replaced by the agent's profile name", group = "Magic", protected = true}
 						]),
 						Gotten = lists:sort(get_skills()),
 						lists:foreach(fun(X) -> ?debugFmt("~p", [X]) end, Gotten),

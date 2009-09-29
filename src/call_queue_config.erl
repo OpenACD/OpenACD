@@ -568,7 +568,19 @@ new_client(Label, ID, Options) ->
 %% @doc Add a new client based on `#client{}' `Rec'.
 new_client(Rec) when is_record(Rec, client) ->
 	F = fun() ->
-		mnesia:write(Rec)
+		NewOptions = case proplists:get_value(url_pop, Rec#client.options) of
+			undefined ->
+				#client{options = Options} = get_default_client(),
+				case proplists:get_value(url_pop, Options) of
+					undefined ->
+						Rec#client.options;
+					Else ->
+						[{url_pop, Else} | Rec#client.options]
+				end;
+			Else ->
+				Rec#client.options
+		end,
+		mnesia:write(Rec#client{options = NewOptions})
 	end,
 	mnesia:transaction(F).
 
@@ -586,7 +598,7 @@ set_client(Id, Client) when is_record(Client, client) ->
 		mnesia:delete({client, Id}),
 		Newoptions = case proplists:get_value(url_pop, Client#client.options) of
 			undefined ->
-				[#client{options = Options}] = mnesia:read({client, undefined}),
+				#client{options = Options} = get_default_client(),
 				case proplists:get_value(url_pop, Options) of
 					undefined ->
 						Client#client.options;

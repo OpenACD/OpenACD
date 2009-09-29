@@ -289,6 +289,15 @@ handle_call({warm_transfer, Number}, _From, #state{agent_fsm = Apid} = State) ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
 	end,
 	{reply, Reply, State};
+handle_call({queue_transfer, Queue}, _From, #state{agent_fsm = Apid} = State) ->
+	?NOTICE("queue transfer to ~p", [Queue]),
+	Reply = case agent:queue_transfer(Apid, Queue) of
+		ok ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		invalid ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
+	end,
+	{reply, Reply, State};
 handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Supervisor request with post data:  ~s", [lists:flatten(Request)]),
 	case Request of

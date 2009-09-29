@@ -83,6 +83,7 @@
 	set_connection/2, 
 	set_endpoint/2, 
 	agent_transfer/2,
+	queue_transfer/2,
 	media_pull/2, 
 	media_push/2,
 	media_push/3, 
@@ -278,6 +279,12 @@ list_to_state(String) ->
 -spec(agent_transfer/2 :: (Pid :: pid(), Target :: pid()) -> 'ok' | 'invalid').
 agent_transfer(Pid, Target) ->
 	gen_fsm:sync_send_event(Pid, {agent_transfer, Target}).
+
+%% @doc Start the queue_transfer procedure.  Gernally the media will handle it from here.
+-spec(queue_transfer/2 :: (Pid :: pid(), Queue :: string()) -> 'ok' | 'invalid').
+queue_transfer(Pid, Queue) ->
+	gen_fsm:sync_send_event(Pid, {queue_transfer, Queue}).
+
 
 %% @doc Start the warm_transfer procedure.  Gernally the media will handle it from here.
 -spec(warm_transfer_begin/2 :: (Pid :: pid(), Target :: string()) -> 'ok' | 'invalid').
@@ -498,6 +505,12 @@ oncall({warmtransfer, Transferto}, _From, State) ->
 oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
 	Reply = gen_media:agent_transfer(Call#call.source, Agent, 10000),
 	{reply, Reply, oncall, State};
+oncall({queue_transfer, Queue}, _From, #agent{statedata = Call} = State) ->
+	Reply = gen_media:queue(Call#call.source, Queue),
+	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
+	Newstate = State#agent{state=wrapup, oldstate=State#agent.state, statedata=Call, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
+	{reply, Reply, wrapup, Newstate};
 % TODO mediapull and mediapush have no unified support in gen_media, they go right
 % to the callback.
 oncall({mediapull, Data}, {Pid, _Tag}, #agent{statedata = Call, connection = Pid} = State) ->
@@ -567,6 +580,15 @@ outgoing({warmtransfer, Transferto}, _From, State) ->
 	Newstate = State#agent{state=warmtransfer, oldstate=outgoing, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};
+outgoing({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
+	Reply = gen_media:agent_transfer(Call#call.source, Agent, 10000),
+	{reply, Reply, outgoing, State};
+outgoing({queue_transfer, Queue}, _From, #agent{statedata = Call} = State) ->
+	Reply = gen_media:queue(Call#call.source, Queue),
+	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
+	Newstate = State#agent{state=wrapup, oldstate=State#agent.state, statedata=Call, lastchangetimestamp=now()},
+	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
+	{reply, Reply, wrapup, Newstate};
 outgoing(get_media, _From, #agent{statedata = Media} = State) when is_record(Media, call) ->
 	{reply, {ok, Media}, outgoing, State};
 outgoing(_Event, _From, State) -> 

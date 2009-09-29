@@ -67,20 +67,20 @@
 %% gen_media callbacks
 -export([
 	init/1, 
-	handle_call/3, 
-	handle_cast/2, 
-	handle_info/2,
-	terminate/2, 
-	code_change/3,
+	handle_call/4, 
+	handle_cast/3, 
+	handle_info/3,
+	terminate/3, 
+	code_change/4,
 	handle_ring/3, 
 	handle_answer/3, 
-	handle_voicemail/2, 
-	handle_announce/2, 
-	handle_ring_stop/1,
+	handle_voicemail/3, 
+	handle_announce/3, 
+	handle_ring_stop/2,
 	handle_agent_transfer/4,
-	handle_queue_transfer/1,
-	handle_wrapup/1,
-	handle_spy/2
+	handle_queue_transfer/2,
+	handle_wrapup/2,
+	handle_spy/3
 ]).
 
 -ifndef(R13B).
@@ -233,21 +233,21 @@ init([Props, Fails]) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 
-handle_call(set_success, _From, #state{fail = Fail} = State) -> 
+handle_call(set_success, _From, _Callrec, #state{fail = Fail} = State) -> 
 	Newfail = dict:map(fun(_Key, _Value) -> success end, Fail),
 	{reply, ok, State#state{fail = Newfail}};
-handle_call(set_failure, _From, #state{fail = Fail} = State) -> 
+handle_call(set_failure, _From, _Callrec, #state{fail = Fail} = State) -> 
 	Newfail = dict:map(fun(_Key, _Value) -> fail end, Fail),
 	{reply, ok, State#state{fail = Newfail}};
 %handle_call(set_fail_once, _From, State) ->
 %	{reply, ok, State#state{mode = fail_once}};
-handle_call({set_action, Action, fail}, _From, #state{fail = Curfail} = State) ->
+handle_call({set_action, Action, fail}, _From, _Callrec, #state{fail = Curfail} = State) ->
 	Newfails = dict:store(Action, fail, Curfail),
 	{reply, ok, State#state{fail = Newfails}};
-handle_call({set_action, Action, success}, _From, #state{fail = Curfail} = State) ->
+handle_call({set_action, Action, success}, _From, _Callrec, #state{fail = Curfail} = State) ->
 	Newfail = dict:store(Action, success, Curfail),
 	{reply, ok, State#state{fail = Newfail}};
-handle_call({set_action, Action, fail_once}, _From, #state{fail = Curfail} = State) ->
+handle_call({set_action, Action, fail_once}, _From, _Callrec, #state{fail = Curfail} = State) ->
 	Newfail = dict:store(Action, fail_once, Curfail),
 	{reply, ok, State#state{fail = Newfail}};
 %handle_call({set_skills, Skills}, _From, #state{callrec = Call} = State) ->
@@ -276,7 +276,7 @@ handle_call({set_action, Action, fail_once}, _From, #state{fail = Curfail} = Sta
 %			Newfail = dict:store(get_call, success, Fail),
 %			{reply, invalid, State#state{fail = Newfail}}
 %	end;
-handle_call({start_cook, Recipe, Queuename}, _From, #state{callrec = Call, fail = Fail} = State) -> 
+handle_call({start_cook, Recipe, Queuename}, _From, _Callrec, #state{callrec = Call, fail = Fail} = State) -> 
 	case dict:fetch(start_cook, Fail) of
 		fail -> 
 			{reply, invalid, State};
@@ -288,9 +288,9 @@ handle_call({start_cook, Recipe, Queuename}, _From, #state{callrec = Call, fail 
 			Newfail = dict:store(start_cook, success, Fail),
 			{reply, invalid, State#state{fail = Newfail}}
 	end;
-handle_call({stop, Reason}, _From, State) ->
+handle_call({stop, Reason}, _From, _Callrec, State) ->
 	{stop, Reason, ok, State};
-handle_call(stop_cook, _From, #state{callrec = Call, fail = Fail} = State) -> 
+handle_call(stop_cook, _From, _Callrec, #state{callrec = Call, fail = Fail} = State) -> 
 	case dict:fetch(stop_cook, Fail) of
 		success -> 
 			case Call#call.cook of
@@ -334,7 +334,7 @@ handle_call(stop_cook, _From, #state{callrec = Call, fail = Fail} = State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-handle_cast(_Msg, State) ->
+handle_cast(_Msg, _Callrec, State) ->
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -343,7 +343,7 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(Info, State) ->
+handle_info(Info, _Callrec, State) ->
 	?DEBUG("Info: ~p", [Info]),
 	{noreply, State}.
 
@@ -354,18 +354,18 @@ handle_info(Info, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, _Callrec, _State) ->
 	ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
+code_change(_OldVsn, _Callrec, State, _Extra) ->
 	{ok, State}.
 
 %% gen_media specific callbacks
-handle_announce(_Annouce, State) ->
+handle_announce(_Annouce, _Callrec, State) ->
 	{ok, State}.
 
 handle_answer(_Agent, _Call, #state{fail = Fail} = State) ->
@@ -391,7 +391,7 @@ handle_ring(_Agent, _Call, #state{fail = Fail} = State) ->
 			{invalid, State#state{fail = Newfail}}
 	end.
 
-handle_voicemail(_Whatever, #state{fail = Fail} = State) ->
+handle_voicemail(_Whatever, _Callrec, #state{fail = Fail} = State) ->
 	case dict:fetch(voicemail, Fail) of
 		fail_once ->
 			Newfail = dict:store(voicemail, success, Fail),
@@ -402,7 +402,7 @@ handle_voicemail(_Whatever, #state{fail = Fail} = State) ->
 			{ok, State}
 	end.
 
-handle_agent_transfer(_Agent, _Call, _Timeout, #state{fail = Fail} = State) ->
+handle_agent_transfer(_Agent, _Timeout, _Callrec, #state{fail = Fail} = State) ->
 	case dict:fetch(agent_transfer, Fail) of
 		fail_once ->
 			Newfail = dict:store(agent_transfer, success, Fail),
@@ -413,16 +413,16 @@ handle_agent_transfer(_Agent, _Call, _Timeout, #state{fail = Fail} = State) ->
 			{ok, State}
 	end.
 
-handle_queue_transfer(State) ->
+handle_queue_transfer(_Callrec, State) ->
 	{ok, State}.
 
-handle_ring_stop(State) ->
+handle_ring_stop(_Callrec, State) ->
 	{ok, State}.
 
-handle_wrapup(State) ->
+handle_wrapup(_Callrec, State) ->
 	{hangup, State}.
 
-handle_spy(Spy, #state{fail = Fail} = State) ->
+handle_spy(Spy, _Callrec, #state{fail = Fail} = State) ->
 	case check_fail(spy, Fail) of
 		{success, Dict} ->
 			agent:blab(Spy, "dummy_media fakes spy real gud like"),
@@ -538,14 +538,14 @@ dummy_test_() ->
 			"Answer voicemail call when set to success",
 			fun() ->
 				{ok, {State, _Call}} = init([[], success]),
-				?assertMatch({ok, State}, handle_voicemail("doesn't matter", State))
+				?assertMatch({ok, State}, handle_voicemail("doesn't matter", "doesn't matter", State))
 			end
 		},
 		{
 			"Answer voicemail call when set to fail",
 			fun() ->
 				{ok, {State, _Call}} = init([[], failure]),
-				?assertMatch({invalid, State}, handle_voicemail("doesn't matter", State))
+				?assertMatch({invalid, State}, handle_voicemail("doesn't matter", "doesn't matter", State))
 			end
 		},
 		{
@@ -578,7 +578,7 @@ set_action_test_() ->
 	[fun(State) ->
 		{"Setting everything to a success",
 		fun() ->
-			{reply, ok, Newstate} = handle_call(set_success, self(), State),
+			{reply, ok, Newstate} = handle_call(set_success, self(), "doesn't matter", State),
 			Test = fun(_Key, success, Acc) ->
 					[true | Acc];
 				(_Key, _Other, Acc) ->
@@ -590,7 +590,7 @@ set_action_test_() ->
 	fun(State) ->
 		{"Setting everything to a failure",
 		fun() ->
-			{reply, ok, Newstate} = handle_call(set_failure, self(), State),
+			{reply, ok, Newstate} = handle_call(set_failure, self(), "doesn't matter", State),
 			Test = fun(_Key, fail, Acc) ->
 					[true | Acc];
 				(_Key, _Other, Acc) ->
@@ -602,7 +602,7 @@ set_action_test_() ->
 	fun(State) ->
 		{"setting a single action to fail",
 		fun() ->
-			{reply, ok, Newstate} = handle_call({set_action, oncall, fail}, self(), State),
+			{reply, ok, Newstate} = handle_call({set_action, oncall, fail}, self(), "doesn't matter", State),
 			Test = fun(oncall, fail, Acc) -> 
 					[true | Acc];
 				(announce, "goober", Acc) ->
@@ -616,7 +616,7 @@ set_action_test_() ->
 	fun(State) ->
 		{"Setting a single action to succeed",
 		fun() ->
-			{reply, ok, Newstate} = handle_call({set_action, oncall, success}, self(), State),
+			{reply, ok, Newstate} = handle_call({set_action, oncall, success}, self(), "doesn't matter", State),
 			Test = fun(oncall, success, Acc) ->
 					[true | Acc];
 				(announce, "goober", Acc) ->
@@ -630,7 +630,7 @@ set_action_test_() ->
 	fun(State) ->
 		{"Setting a single action to fail_once",
 		fun() ->
-			{reply, ok, Newstate} = handle_call({set_action, oncall, fail_once}, self(), State),
+			{reply, ok, Newstate} = handle_call({set_action, oncall, fail_once}, self(), "doesn't matter", State),
 			Test = fun(oncall, fail_once, Acc) ->
 					[true | Acc];
 				(announce, "goober", Acc) ->

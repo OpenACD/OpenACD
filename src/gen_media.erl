@@ -72,8 +72,9 @@
 %%		If Result is {invalid, NewState}, Agent is set to idle, and execution
 %%		continues with NewState.
 %%
-%%	<b>handle_ring_stop(State) -> Result</b>
-%%		types:	State = any()
+%%	<b>handle_ring_stop(Call, State) -> Result</b>
+%%		types:	Call = #call{}
+%%				State = any()
 %%				Result = {ok, NewState}
 %%
 %%		When an agent should no longer be ringing, such as due to ringout, this
@@ -106,8 +107,9 @@
 %%		If Result is {error, Error, NewState}, the agent's state is not changed
 %%		And execution continues with NewState.
 %%
-%%	<b>handle_voicemail(Ringing, State) -> Result</b>
+%%	<b>handle_voicemail(Ringing, Call, State) -> Result</b>
 %%		types:	Ringing = undefined | pid()
+%%				Call = #call{}
 %%				State = any()
 %%				Result = {ok, NewState} | {invalid, NewState}
 %%
@@ -124,12 +126,14 @@
 %%
 %%		If Result is {invalid, NewState} execution continues with NewState.
 %%
-%%	<b>handle_annouce(Announce, State) -> {ok, NewState}</b>
+%%	<b>handle_annouce(Announce, Call, State) -> {ok, NewState}</b>
 %%		types:	Announce = any()
+%%				Call = any()
 %%				State = NewState = any()
 %%
 %%		When a recipe calls for a call in queue to play an announcement, this
 %%		function is called.  Execution then continues with NewState.
+%%
 %%	<b>handle_agent_transfer(Agent, Call, Timeout, State) -> Result</b>
 %%		types:	Agent = pid()
 %%				Call = #call{}
@@ -145,15 +149,17 @@
 %%		execution continues with NewState, and gen_media handles with oncall or
 %%		a ringout.
 %%
-%%	<b>handle_queue_transfer(State) -> {ok, NewState}</b>
-%%		types:	State = NewState = any()
+%%	<b>handle_queue_transfer(Call, State) -> {ok, NewState}</b>
+%%		types:	Call = #call{}
+%%				State = NewState = any()
 %%
 %%		When a media is placed back into queue from an agent, this is called
 %%		To allow the media to do any required clean up or unbridging.
 %%		Execution then continues with NewState.
 %%
-%%	<b>handle_wrapup(State) -> {Finality, NewState}</b>
-%%		types:	State = NewState = any()
+%%	<b>handle_wrapup(Call, State) -> {Finality, NewState}</b>
+%%		types:	Call = #call{}
+%%				State = NewState = any()
 %%				Finality = ok | hangup
 %%
 %%		This callback is only used if the call record's media path is inband.
@@ -166,8 +172,9 @@
 %%
 %%		If {ok, NewState} is returned, execution continues with state NewState.
 %%
-%%	<b>handle_spy(Spy, State) -> {ok, NewState} | {invalid, NewState} | {error, Error, NewState}</b>
-%%		types:  State = NewState = any()
+%%	<b>handle_spy(Spy, Call, State) -> {ok, NewState} | {invalid, NewState} | {error, Error, NewState}</b>
+%%		types:  Call = #call{}
+%%				State = NewState = any()
 %%				Spy = pid()
 %%
 %%		This callback is only valid when the Spy is released and there is an
@@ -306,19 +313,23 @@
 -spec(behaviour_info/1 :: 
 	(Info :: 'callbacks' | any()) -> [{atom(), non_neg_integer()}] | 'undefined').
 behaviour_info(callbacks) ->
-	GS = gen_server:behaviour_info(callbacks),
-	lists:append(GS, [
+	lists:append([
 		{handle_ring, 3},
-		{handle_ring_stop, 1},
+		{handle_ring_stop, 2},
 		{handle_answer, 3}, 
-		{handle_voicemail, 2}, 
-		{handle_announce, 2}, 
+		{handle_voicemail, 3}, 
+		{handle_announce, 3}, 
 		{handle_agent_transfer, 4},
-		{handle_queue_transfer, 1},
-		{handle_warm_transfer_begin, 2},
-		{handle_warm_transfer_cancel, 1},
-		{handle_warm_transfer_complete, 1},
-		{handle_wrapup, 1}
+		{handle_queue_transfer, 2},
+		{handle_warm_transfer_begin, 3},
+		{handle_warm_transfer_cancel, 2},
+		{handle_warm_transfer_complete, 2},
+		{handle_wrapup, 2},
+		{handle_call, 4},
+		{handle_cast, 3},
+		{handle_info, 3},
+		{terminate, 3},
+		{code_change, 4}
 	]);
 behaviour_info(_Other) ->
     undefined.
@@ -458,12 +469,12 @@ handle_call({'$gen_media_spy', Spy}, _From, #state{oncall_pid = Spy} = State) ->
 	?DEBUG("Can't spy on yourself", []),
 	{reply, invalid, State};
 handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
-	case erlang:function_exported(Callback, handle_spy, 2) of
+	case erlang:function_exported(Callback, handle_spy, 3) of
 		false ->
 			?DEBUG("Callback ~p doesn't support spy", [Callback]),
 			{reply, invalid, State};
 		true ->
-			case Callback:handle_spy(Spy, State#state.substate) of
+			case Callback:handle_spy(Spy, State#state.callrec, State#state.substate) of
 				{ok, Newstate} ->
 					{reply, ok, State#state{substate = Newstate}};
 				{invalid, Newstate} ->
@@ -478,7 +489,7 @@ handle_call({'$gen_media_spy', _Spy}, _From, State) ->
 handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = Ocpid, callrec = Call} = State) when Call#call.media_path =:= inband ->
 	?INFO("Request to end call from agent", []),
 	cdr:wrapup(State#state.callrec, Ocpid),
-	case Callback:handle_wrapup(State#state.substate) of
+	case Callback:handle_wrapup(State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
 			{reply, ok, State#state{oncall_pid = undefined, substate = NewState}};
 		{hangup, NewState} ->
@@ -503,12 +514,12 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 		invalid ->
 			{reply, invalid, State};
 		{default, Qpid} ->
-			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
+			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
 			cdr:inqueue(State#state.callrec, "default_queue"),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}};
 		Qpid when is_pid(Qpid) ->
-			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
+			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
 			cdr:inqueue(State#state.callrec, Queue),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}}
@@ -520,13 +531,13 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = Sta
 			{reply, invalid, State};
 		{default, Qpid} ->
 			agent:set_state(State#state.oncall_pid, wrapup, State#state.callrec),
-			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
+			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
 			cdr:inqueue(State#state.callrec, "default_queue"),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}};
 		Qpid when is_pid(Qpid) ->
 			agent:set_state(State#state.oncall_pid, wrapup, State#state.callrec),
-			{ok, NewState} = Callback:handle_queue_transfer(State#state.substate),
+			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
 			cdr:inqueue(State#state.callrec, Queue),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}}
@@ -558,7 +569,7 @@ handle_call({'$gen_media_agent_transfer', Apid}, _From, #state{oncall_pid = Apid
 handle_call({'$gen_media_agent_transfer', Apid, Timeout}, _From, #state{callback = Callback, ring_pid = undefined, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
 	case agent:set_state(Apid, ringing, State#state.callrec) of
 		ok ->
-			case Callback:handle_agent_transfer(Apid, State#state.callrec, Timeout, State#state.substate) of
+			case Callback:handle_agent_transfer(Apid, Timeout, State#state.callrec, State#state.substate) of
 				{ok, NewState} ->
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', dummy}),
 					cdr:agent_transfer(State#state.callrec, {Ocpid, Apid}),
@@ -577,7 +588,7 @@ handle_call({'$gen_media_agent_transfer', _Apid, _Timeout}, _From, State) ->
 	?ERROR("Invalid agent transfer sent when state is ~p.", [State]),
 	{reply, invalid, State};
 handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback, oncall_pid = Apid} = State) when is_pid(Apid) ->
-	case Callback:handle_warm_transfer_begin(Number, State#state.substate) of
+	case Callback:handle_warm_transfer_begin(Number, State#state.callrec, State#state.substate) of
 		{ok, UUID, NewState} ->
 			{reply, {ok, UUID}, State#state{substate = NewState}};
 		{error, Error, NewState} ->
@@ -586,23 +597,34 @@ handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback =
 	end;
 handle_call({'$gen_media_announce', Annouce}, _From, #state{callback = Callback, substate = InSubstate} = State) ->
 	?INFO("Doing announce", []),
-	{ok, Substate} = Callback:handle_announce(Annouce, InSubstate),
+	Substate = case erlang:function_exported(Callback, handle_announce, 3) of
+		true ->
+			{ok, N} = Callback:handle_announce(Annouce, State#state.callrec, InSubstate),
+			N;
+		false ->
+			State#state.substate
+	end,
 	{reply, ok, State#state{substate = Substate}};
 handle_call('$gen_media_voicemail', _From, #state{callback = Callback} = State) when is_pid(State#state.queue_pid) ->
 	?INFO("trying to send media to voicemail", []),
-	case Callback:handle_voicemail(State#state.ring_pid, State#state.substate) of
-		{ok, Substate} ->
-			call_queue:remove(State#state.queue_pid, self()),
-			cdr:voicemail(State#state.callrec, State#state.queue_pid),
-			case State#state.ring_pid of
-				undefined ->
-					ok;
-				Apid when is_pid(Apid) ->
-					agent:set_state(Apid, idle)
-			end,
-			{reply, ok, State#state{substate = Substate, queue_pid = undefined, ring_pid = undefined}};
-		{invalid, Substate} ->
-			{reply, invalid, State#state{substate = Substate}}
+	case erlang:function_exported(Callback, handle_voicemail, 3) of
+		false ->
+			{reply, invalid, State};
+		true ->
+			case  Callback:handle_voicemail(State#state.ring_pid, State#state.callrec, State#state.substate) of
+				{ok, Substate} ->
+					call_queue:remove(State#state.queue_pid, self()),
+					cdr:voicemail(State#state.callrec, State#state.queue_pid),
+					case State#state.ring_pid of
+						undefined ->
+							ok;
+						Apid when is_pid(Apid) ->
+							agent:set_state(Apid, idle)
+					end,
+					{reply, ok, State#state{substate = Substate, queue_pid = undefined, ring_pid = undefined}};
+				{invalid, Substate} ->
+					{reply, invalid, State#state{substate = Substate}}
+			end
 	end;
 handle_call('$gen_media_voicemail', _From, #state{queue_pid = undefined} = State) ->
 	?ERROR("voicemail only valid when the media is queued", []),
@@ -673,7 +695,7 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = 
 			{reply, invalid, State#state{substate = NewState}}
 	end;
 handle_call(Request, From, #state{callback = Callback} = State) ->
-	case Callback:handle_call(Request, From, State#state.substate) of
+	case Callback:handle_call(Request, From, State#state.callrec, State#state.substate) of
 		{reply, Reply, NewState} ->
 			{reply, Reply, State#state{substate = NewState}};
 		{reply, Reply, Newstate, Timeout}  ->
@@ -716,7 +738,7 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 
 %% @private
 handle_cast(Msg, #state{callback = Callback} = State) ->
-	case Callback:handle_cast(Msg, State#state.substate) of
+	case Callback:handle_cast(Msg, State#state.callrec, State#state.substate) of
 		{noreply, NewState} ->
 			{noreply, State#state{substate = NewState}};
 		{noreply, NewState, Timeout} ->
@@ -754,7 +776,7 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 %% @private
 handle_info({'$gen_media_stop_ring', Apid}, #state{ring_pid = Apid, callback = Callback, callrec = Callrec} = State) ->
 	?INFO("ring agent ~w requested a stop to ringing", [Apid]),
-	{ok, Newsub} = Callback:handle_ring_stop(State#state.substate),
+	{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
 	gen_server:cast(Callrec#call.cook, stop_ringing),
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined}};
 handle_info({'$gen_media_stop_ring', _Cook}, #state{ring_pid = undefined} = State) ->
@@ -777,11 +799,11 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = C
 			ok
 	end,
 	gen_server:cast(Cook, stop_ringing),
-	{ok, Newsub} = Callback:handle_ring_stop(State#state.substate),
+	{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined}};
 handle_info(Info, #state{callback = Callback} = State) ->
 	?DEBUG("Other info message, going directly to callback.  ~p", [Info]),
-	case Callback:handle_info(Info, State#state.substate) of
+	case Callback:handle_info(Info, State#state.callrec, State#state.substate) of
 		{noreply, NewState} ->
 			{noreply, State#state{substate = NewState}};
 		{noreply, NewState,  Timeout} ->
@@ -818,13 +840,13 @@ handle_info(Info, #state{callback = Callback} = State) ->
 
 %% @private
 terminate(Reason, #state{callback = Callback, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
-	Callback:terminate(Reason, State#state.substate),
+	Callback:terminate(Reason, State#state.callrec, State#state.substate),
 	set_cpx_mon(State, delete);
 terminate(Reason, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
 	?NOTICE("gen_media termination due to ~p", [Reason]),
 	?INFO("Qpid ~p  oncall ~p  ring ~p", [Qpid, Ocpid, Rpid]),
 	agent_interact(hangup, State),
-	Callback:terminate(Reason, State#state.substate),
+	Callback:terminate(Reason, State#state.callrec, State#state.substate),
 	set_cpx_mon(State, delete).
 
 %%--------------------------------------------------------------------
@@ -833,7 +855,7 @@ terminate(Reason, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocp
 
 %% @private
 code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
-	{ok, Newsub} = Callback:code_change(OldVsn, State#state.substate, Extra),
+	{ok, Newsub} = Callback:code_change(OldVsn, State#state.callrec, State#state.substate, Extra),
     {ok, State#state{substate = Newsub}}.
 
 %%--------------------------------------------------------------------

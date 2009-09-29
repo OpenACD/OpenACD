@@ -53,26 +53,25 @@
 %% gen_server callbacks
 -export([
 	init/1,
-	handle_announce/2,
+	handle_announce/3,
 	handle_answer/3,
 	handle_ring/3,
-	handle_voicemail/2,
-	handle_ring_stop/1,
+	handle_voicemail/3,
+	handle_ring_stop/2,
 	handle_agent_transfer/4,
-	handle_queue_transfer/1,
-	handle_wrapup/1,
-	handle_call/3,
-	handle_cast/2,
-	handle_info/2,
-	terminate/2,
-	code_change/3]).
+	handle_queue_transfer/2,
+	handle_wrapup/2,
+	handle_call/4,
+	handle_cast/3,
+	handle_info/3,
+	terminate/3,
+	code_change/4]).
 
 -record(state, {
 	cnode :: atom(),
 	uuid :: any(),
 	agent_pid :: pid(),
-	agent :: string(),
-	callrec :: #call{}
+	agent :: string()
 	}).
 
 -type(state() :: #state{}).
@@ -137,7 +136,7 @@ init([Fnode, AgentRec, Apid, Number, Gateway, Ringout]) ->
 							{stop, {error, Other}};
 						_Else ->
 							?DEBUG("starting for ~p", [UUID]),
-							{ok, {#state{cnode = Fnode, uuid = UUID, agent_pid = Apid, agent = AgentRec#agent.login, callrec = Call}, Call}}
+							{ok, {#state{cnode = Fnode, uuid = UUID, agent_pid = Apid, agent = AgentRec#agent.login}, Call}}
 					end;
 				Else ->
 					?ERROR("bgapi call failed ~p", [Else]),
@@ -148,7 +147,7 @@ init([Fnode, AgentRec, Apid, Number, Gateway, Ringout]) ->
 %% Description: gen_media
 %%--------------------------------------------------------------------
 
-handle_announce(_Announce, State) ->
+handle_announce(_Announce, _Call, State) ->
 	{ok, State}.
 	
 handle_answer(_Apid, _Call, State) ->
@@ -157,52 +156,52 @@ handle_answer(_Apid, _Call, State) ->
 handle_ring(_Apid, _Call, State) ->
 	{invalid, State}.
 	
-handle_ring_stop(State) ->
+handle_ring_stop(_Call, State) ->
 	{ok, State}.
 
-handle_voicemail(_Whatever, State) ->
+handle_voicemail(_Whatever, _Call, State) ->
 	{invalid, State}.
 
-handle_agent_transfer(_Agent, _Call, _Timeout, State) ->
+handle_agent_transfer(_Agent, _Timeout, _Call, State) ->
 	{error, outgoing_only, State}.
 
-handle_queue_transfer(State) ->
+handle_queue_transfer(_Call, State) ->
 	% TODO flesh this out.
 	{ok, State}.
 
-handle_wrapup(State) ->
+handle_wrapup(_Call, State) ->
 	{ok, State}.
 	
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(Request, _From, State) ->
+handle_call(Request, _From, _Call, State) ->
 	Reply = {unknown, Request},
 	{reply, Reply, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-handle_cast(hangup, #state{uuid = UUID} = State) ->
+handle_cast(hangup, _Call, #state{uuid = UUID} = State) ->
 	freeswitch:sendmsg(State#state.cnode, UUID,
 		[{"call-command", "hangup"},
 			{"hangup-cause", "NORMAL_CLEARING"}]),
 	{noreply, State};
-handle_cast(_Msg, State) ->
+handle_cast(_Msg, _Call, State) ->
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({call, {event, [UUID | _Rest]}}, #state{uuid = UUID} = State) ->
+handle_info({call, {event, [UUID | _Rest]}}, _Call, #state{uuid = UUID} = State) ->
 	?DEBUG("call", []),
 	{noreply, State};
-handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) ->
+handle_info({call_event, {event, [UUID | Rest]}}, Call, #state{uuid = UUID} = State) ->
 	Event = freeswitch:get_event_name(Rest),
 	case Event of
 		"CHANNEL_BRIDGE" ->
 			?INFO("Call bridged", []),
-			case cpx_supervisor:get_archive_path(State#state.callrec) of
+			case cpx_supervisor:get_archive_path(Call) of
 				none ->
 					?DEBUG("archiving is not configured", []);
 				{error, Reason, Path} ->
@@ -236,24 +235,24 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{uuid = UUID} = State) -
 			?DEBUG("call_event ~p", [Event]),
 			{noreply, State}
 	end;
-handle_info(call_hangup, State) ->
+handle_info(call_hangup, _Call, State) ->
 	?DEBUG("Call hangup info", []),
 	{stop, normal, State};
-handle_info(Info, State) ->
+handle_info(Info, _Call, State) ->
 	?DEBUG("unhandled info ~p", [Info]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(Reason, _State) ->
+terminate(Reason, _Call, _State) ->
 	?NOTICE("FreeSWITCH outbound channel teminating ~p", [Reason]),
 	ok.
 
 %%--------------------------------------------------------------------
 %% Description: Convert process state when code is changed
 %%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
+code_change(_OldVsn, _Call, State, _Extra) ->
 	{ok, State}.
 
 %%--------------------------------------------------------------------

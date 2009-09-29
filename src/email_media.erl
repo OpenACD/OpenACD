@@ -56,19 +56,17 @@
 %% gen_media callbacks
 -export([
 	init/1, 
-	handle_call/3, 
-	handle_cast/2, 
-	handle_info/2,
-	terminate/2, 
-	code_change/3,
+	handle_call/4, 
+	handle_cast/3, 
+	handle_info/3,
+	terminate/3, 
+	code_change/4,
 	handle_ring/3, 
 	handle_answer/3, 
-	handle_voicemail/2, 
-	handle_announce/2, 
-	handle_ring_stop/1,
+	handle_ring_stop/2,
 	handle_agent_transfer/4,
-	handle_queue_transfer/1,
-	handle_wrapup/1
+	handle_queue_transfer/2,
+	handle_wrapup/2
 ]).
 
 -type(tref() :: any()).
@@ -150,17 +148,17 @@ init(Args) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 
-handle_call({get_file, Name}, _From, State) ->
+handle_call({get_file, Name}, _From, _Callrec, State) ->
 	Out = proplists:get_value(Name, State#state.files),
 	{reply, Out, State};
-handle_call(get_agent_display, _From, State) ->
+handle_call(get_agent_display, _From, _Callrec, State) ->
 	{reply, State#state.html, State};
-handle_call(get_init, _From, State) ->
+handle_call(get_init, _From, _Callrec, State) ->
 	{reply, State#state.initargs, State};
-handle_call({mediapull, ""}, _From, #state{html = Html} = State) ->
+handle_call({mediapull, ""}, _From, _Callrec, #state{html = Html} = State) ->
 	?DEBUG("outgoing html:  ~p", [Html]),
 	{reply, {[], Html}, State};
-handle_call({mediapull, [Filename]}, _From, #state{files = Files} = State) ->
+handle_call({mediapull, [Filename]}, _From, _Callrec, #state{files = Files} = State) ->
 	?DEBUG("You are requesting ~p (~s as string)", [Filename, Filename]),
 	?DEBUG("Files:  ~p", [Files]),
 	Reply = case proplists:get_value(Filename, Files) of
@@ -185,24 +183,24 @@ handle_call({mediapull, [Filename]}, _From, #state{files = Files} = State) ->
 			Rep
 	end,
 	{reply, Reply, State};
-handle_call({mediapush, _Data}, _From, State) ->
+handle_call({mediapush, _Data}, _From, _Callrec, State) ->
 	?WARNING("pushing data out is NYI", []),
 	{reply, invalid, State};
-handle_call(dump, _From, State) ->
+handle_call(dump, _From, _Callrec, State) ->
 	{reply, State, State};
-handle_call(_Msg, _From, State) ->
+handle_call(_Msg, _From, _Callrec, State) ->
 	{reply, ok, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_cast(_Msg, State) ->
+handle_cast(_Msg, _Callrec, State) ->
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(check_manager, State) ->
+handle_info(check_manager, _Callrec, State) ->
 	case whereis(email_media_manager) of
 		Pid when is_pid(Pid) ->
 			link(Pid),
@@ -211,30 +209,27 @@ handle_info(check_manager, State) ->
 			{ok, Tref} = timer:send_after(1000, check_manager),
 			{noreply, State#state{manager = Tref}}
 	end;
-handle_info({'EXIT', Pid, Reason}, #state{manager = Pid} = State) ->
+handle_info({'EXIT', Pid, Reason}, _Callrec, #state{manager = Pid} = State) ->
 	?WARNING("Handling media manager ~w death of ~p", [Pid, Reason]),
 	{ok, Tref} = timer:send_after(1000, check_manager),
 	{noreply, State#state{manager = Tref}};
-handle_info(Info, State) ->
+handle_info(Info, _Callrec, State) ->
 	?DEBUG("Info: ~p", [Info]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, _Callrec, _State) ->
 	ok.
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
+code_change(_OldVsn, _Callrec, State, _Extra) ->
 	{ok, State}.
 
 %% gen_media specific callbacks
-handle_announce(_Annouce, State) ->
-	{ok, State}.
-
 handle_answer(Agent, _Call, State) ->
 	?DEBUG("Shoving ~w to the agent ~w", [State#state.html, Agent]),
 	agent:media_push(Agent, State#state.html, replace),
@@ -243,19 +238,19 @@ handle_answer(Agent, _Call, State) ->
 handle_ring(_Agent, _Call, State) ->
 	{ok, State}.
 
-handle_voicemail(_Whatever, State) ->
+handle_voicemail(_Whatever, _Callrec, State) ->
 	{invalid, State}.
 
-handle_agent_transfer(_Agent, _Call, _Timeout, State) ->
+handle_agent_transfer(_Agent, _Timeout, _Callrec, State) ->
 	{ok, State}.
 
-handle_queue_transfer(State) ->
+handle_queue_transfer(_Callrec, State) ->
 	{ok, State}.
 
-handle_ring_stop(State) ->
+handle_ring_stop(_Callrec, State) ->
 	{ok, State}.
 
-handle_wrapup(State) ->
+handle_wrapup(_Callrec, State) ->
 	{hangup, State}.
 	
 %%--------------------------------------------------------------------

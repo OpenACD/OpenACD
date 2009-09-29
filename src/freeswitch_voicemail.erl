@@ -55,22 +55,19 @@
 -export([
 	init/1, 
 	handle_ring/3,
-	handle_ring_stop/1,
+	handle_ring_stop/2,
 	handle_answer/3,
-	handle_voicemail/2,
-	handle_announce/2,
 	handle_agent_transfer/4,
-	handle_queue_transfer/1,
-	handle_wrapup/1,
-	handle_call/3, 
-	handle_cast/2, 
-	handle_info/2,
-	handle_warm_transfer_begin/2,
-	terminate/2,
-	code_change/3]).
+	handle_queue_transfer/2,
+	handle_wrapup/2,
+	handle_call/4, 
+	handle_cast/3, 
+	handle_info/3,
+	handle_warm_transfer_begin/3,
+	terminate/3,
+	code_change/4]).
 
 -record(state, {
-	callrec = undefined :: #call{} | 'undefined',
 	cook :: pid() | 'undefined',
 	queue :: string() | 'undefined',
 	queue_pid :: pid() | 'undefined',
@@ -129,9 +126,6 @@ init([Cnode, UUID, File, Queue]) ->
 			file:copy(File, Path++Ext)
 	end,
 	{ok, {#state{cnode=Cnode, manager_pid = Manager, file=File}, {Queue, Callrec}}}.
-
-handle_announce(Announcement, #state{callrec = Callrec} = State) ->
-	{invalid, State}.
 
 handle_answer(Apid, Callrec, #state{file=File, xferchannel = XferChannel} = State) when is_pid(XferChannel) ->
 	link(XferChannel),
@@ -196,7 +190,7 @@ handle_ring(Apid, Callrec, State) ->
 			{invalid, State}
 	end.
 
-handle_ring_stop(State) ->
+handle_ring_stop(_Callrec, State) ->
 	?DEBUG("hanging up ring channel", []),
 	case State#state.ringchannel of
 		undefined ->
@@ -206,10 +200,7 @@ handle_ring_stop(State) ->
 	end,
 	{ok, State#state{ringchannel=undefined}}.
 
-handle_voicemail(_Whatever, #state{callrec = Call} = State) ->
-	{invalid, State}.
-
-handle_agent_transfer(AgentPid, Call, Timeout, State) ->
+handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
 	AgentRec = agent:dump_state(AgentPid),
 	% fun that returns another fun when passed the UUID of the new channel
@@ -257,64 +248,63 @@ handle_agent_transfer(AgentPid, Call, Timeout, State) ->
 			{error, Error, State}
 	end.
 
-handle_warm_transfer_begin(Number, #state{agent_pid = AgentPid, callrec = Call, cnode = Node} = State) ->
+handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = Node} = State) ->
 	{invalid, State}.
 
-handle_wrapup(State) ->
+handle_wrapup(_Call, State) ->
 	% This intentionally left blank; media is out of band, so there's
 	% no direct hangup by the agent
 	{ok, State}.
 	
-handle_queue_transfer(State) ->
+handle_queue_transfer(_Call, State) ->
 	% TODO fully implement this.
 	{ok, State}.
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call(get_call, _From, State) ->
-	{reply, State#state.callrec, State};
-handle_call(get_queue, _From, State) ->
+handle_call(get_call, _From, Call, State) ->
+	{reply, Call, State};
+handle_call(get_queue, _From, _Call, State) ->
 	{reply, State#state.queue_pid, State};
-handle_call(get_agent, _From, State) ->
+handle_call(get_agent, _From, _Call, State) ->
 	{reply, State#state.agent_pid, State};
-handle_call({set_agent, Agent, Apid}, _From, State) ->
+handle_call({set_agent, Agent, Apid}, _From, _Call, State) ->
 	{reply, ok, State#state{agent = Agent, agent_pid = Apid}};
-handle_call(dump_state, _From, State) ->
+handle_call(dump_state, _From, _Call, State) ->
 	{reply, State, State};
-handle_call(_Request, _From, State) ->
+handle_call(_Request, _From, _Call, State) ->
 	{reply, ok, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_cast(_Msg, State) ->
+handle_cast(_Msg, _Call, State) ->
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info(check_recovery, State) ->
+handle_info(check_recovery, Call, State) ->
 	case whereis(freeswitch_media_manager) of
 		Pid when is_pid(Pid) ->
 			link(Pid),
-			Call = State#state.callrec,
 			gen_server:cast(freeswitch_media_manager, {notify, Call#call.id, self()}),
 			{noreply, State#state{manager_pid = Pid}};
 		_Else ->
 			{ok, Tref} = timer:send_after(1000, check_recovery),
 			{noreply, State#state{manager_pid = Tref}}
 	end;
-handle_info({'EXIT', Pid, Reason}, #state{ringchannel = Pid} = State) ->
+handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p", [Pid, Reason]),
 	{wrapup, State};
-handle_info({'EXIT', Pid, Reason}, #state{manager_pid = Pid} = State) ->
+handle_info({'EXIT', Pid, Reason}, _Call, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p", [Pid, Reason]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),
 	{noreply, State#state{manager_pid = Tref}};
-handle_info(Info, State) ->
+handle_info(Info, _Call, State) ->
 	?INFO("unhandled info ~p", [Info]),
 	{noreply, State}.
 
@@ -322,7 +312,7 @@ handle_info(Info, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(Reason, State) ->
+terminate(Reason, _Call, State) ->
 	% TODO - delete the recording?
 	?NOTICE("terminating: ~p", [Reason]),
 	ok.
@@ -331,6 +321,6 @@ terminate(Reason, State) ->
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
 %% @private
-code_change(_OldVsn, State, _Extra) ->
+code_change(_OldVsn, _Call, State, _Extra) ->
 	{ok, State}.
 

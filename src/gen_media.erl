@@ -556,7 +556,7 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 					Newcall = Call#call{cook = QCall#queued_call.cook},
 					{reply, ok, State#state{substate = Substate, ring_pid = Agent, ringout=Tref, callrec = Newcall}};
 				{invalid, Substate} ->
-					agent:set_state(Agent, idle),
+					agent:set_state(Agent, released, "Ring Fail"),
 					{reply, invalid, State#state{substate = Substate}}
 			end;
 		Else ->
@@ -1404,7 +1404,7 @@ handle_call_test_() ->
 				ok
 			end,
 			?assertEqual(undefined, Newstate#state.ring_pid),
-			?assertEqual({ok, idle}, agent:query_state(Agent)),
+			?assertEqual({ok, released}, agent:query_state(Agent)),
 			Assertmocks()
 		end}
 	end,

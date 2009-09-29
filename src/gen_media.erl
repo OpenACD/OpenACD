@@ -1895,7 +1895,7 @@ agent_interact_test_() ->
 		fun() ->
 			{ok, Apid} = agent:start(Arec#agent{statedata = Callrec, state = ringing}),
 			{ok, Tref} = timer:send_interval(1000, <<"timer">>),
-			State = #state{ring_pid = Apid, ringout = Tref},
+			State = #state{ring_pid = Apid, ringout = Tref, callrec = Callrec},
 			Res = agent_interact(stop_ring, State),
 			agent:stop(Apid),
 			receive
@@ -1912,7 +1912,7 @@ agent_interact_test_() ->
 	fun({Arec, Callrec}) ->
 		{"stop_ring with no ringout or ring_pid defined",
 		fun() ->
-			State = #state{ring_pid = undefined, ringout = false},
+			State = #state{ring_pid = undefined, ringout = false, callrec = Callrec},
 			Res = agent_interact(stop_ring, State),
 			?assertEqual(State, Res),
 			gen_event_mock:assert_expectations(cdr)
@@ -1922,7 +1922,7 @@ agent_interact_test_() ->
 		{"stop_ring with only ring_pid defined",
 		fun() ->
 			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
-			State = #state{ring_pid = Apid, ringout = false},
+			State = #state{ring_pid = Apid, ringout = false, callrec = Callrec},
 			Res = agent_interact(stop_ring, State),
 			agent:stop(Apid),
 			?assertEqual(undefined, Res#state.ring_pid),
@@ -1933,7 +1933,7 @@ agent_interact_test_() ->
 		{"stop_ring with only ringout defined",
 		fun() ->
 			{ok, Tref} = timer:send_interval(1000, <<"timer">>),
-			State = #state{ringout = Tref},
+			State = #state{ringout = Tref, callrec = Callrec},
 			Res = agent_interact(stop_ring, State),
 			receive
 				<<"timer">>	->

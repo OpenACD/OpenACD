@@ -313,7 +313,7 @@
 -spec(behaviour_info/1 :: 
 	(Info :: 'callbacks' | any()) -> [{atom(), non_neg_integer()}] | 'undefined').
 behaviour_info(callbacks) ->
-	lists:append([
+	[
 		{handle_ring, 3},
 		{handle_ring_stop, 2},
 		{handle_answer, 3}, 
@@ -330,7 +330,7 @@ behaviour_info(callbacks) ->
 		{handle_info, 3},
 		{terminate, 3},
 		{code_change, 4}
-	]);
+	];
 behaviour_info(_Other) ->
     undefined.
 

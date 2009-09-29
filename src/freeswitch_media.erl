@@ -76,6 +76,7 @@
 	handle_ring_stop/2,
 	handle_answer/3,
 	handle_voicemail/3,
+	handle_spy/3,
 	handle_announce/3,
 	handle_agent_transfer/4,
 	handle_queue_transfer/2,
@@ -233,12 +234,16 @@ handle_voicemail(undefined, Call, State) ->
 	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
 
 handle_spy(Agent, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
-	try agent:dump_state(Agent) of
-		AgentRec ->
-			freeswitch:api(Fnode, originate, "user/" ++ re:replace(AgentRec#agent.login, "@", "_", [{return, list}]) ++ " &eavesdrop(" ++ Call#call.id ++ ")"),
-			{ok, State}
-	catch
-		_:_ ->
+	case agent_manager:find_by_pid(Agent) of
+		AgentName ->
+			agent:blab(Agent, "While spying, you have the following options:\n"++
+				"* To whisper to the agent; press 1\n"++
+				"* To whisper to the caller; press 2\n"++
+				"* To talk to both parties; press 3\n"++
+				"* To resume spying; press 0"),
+			freeswitch:bgapi(Fnode, originate, "user/" ++ re:replace(AgentName, "@", "_", [{return, list}]) ++ " &eavesdrop(" ++ Call#call.id ++ ")"),
+			{ok, State};
+		notfound ->
 			{error, bad_agent, State}
 	end;
 handle_spy(_Agent, _Call, State) ->

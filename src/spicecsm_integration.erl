@@ -114,7 +114,7 @@ split_id(Comboid) ->
 %% for the general client id
 -spec(combine_id/2 :: (Tenantid :: pos_integer(), Brandid :: pos_integer()) -> string()).
 combine_id(Tenantid, Brandid) ->
-	Prepadded = integer_to_list(Tenantid * 1000 + Brandid),
+	Prepadded = integer_to_list(Tenantid * 10000 + Brandid),
 	string:right(Prepadded, 8, $0).
 
 %% @doc Imports some data into the mnesia data to enable the spicecsm_integration

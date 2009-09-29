@@ -152,6 +152,7 @@ dojo.addOnLoad(function(){
 				agent = new Agent(response.login);
 				buildReleaseMenu(agent);
 				buildOutboundMenu(agent);
+				buildQueueMenu(agent);
 				dojo.byId("agentname").innerHTML = response.login;
 				agent.state = response.state;
 				dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response.profile;
@@ -281,6 +282,11 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("outboundmenu").logout = dojo.subscribe("agent/logout", function(data){
 		var menu = dijit.byId("outboundmenu");
+		menu.destroyDescendants();
+	});
+
+	dijit.byId("transferToQueueMenu").logout = dojo.subscribe("agent/logout", function(data){
+		var menu = dijit.byId("transferToQueueMenu");
 		menu.destroyDescendants();
 	});
 
@@ -504,6 +510,7 @@ dojo.addOnLoad(function(){
 							}
 							buildReleaseMenu(agent);
 							buildOutboundMenu(agent);
+							buildQueueMenu(agent);
 							agent.stopwatch.start();
 							}
 							else{
@@ -578,6 +585,41 @@ dojo.addOnLoad(function(){
 				else{
 					var item = new dijit.MenuItem({
 						label:"Failed to get brandlist",
+						disabled: true
+					});
+					menu.addChild(item);
+				}
+			}
+		})
+	}
+
+	buildQueueMenu = function(agent){
+		var menu = dijit.byId("transferToQueueMenu");
+		dojo.xhrGet({
+			url: "/queuelist",
+			handleAs: "json",
+			error:function(response, ioargs){
+				debug(response);
+				var item = new dijit.MenuItem({
+					label:"Failed to get queuelist1",
+					disabled: true
+				});
+				menu.addChild(item);
+			},
+			load:function(response, ioargs){
+				debug(["buildQueueMenu", response]);
+				if(response.success){
+					for(var i in response.queues) {
+						var item = new dijit.MenuItem({
+							label: response.queues[i].name,
+							onClick:function(){ Agent.queuetransfer(response.queues[i].name); }
+						});
+						menu.addChild(item);
+					}
+				}
+				else{
+					var item = new dijit.MenuItem({
+						label:"Failed to get queuelist",
 						disabled: true
 					});
 					menu.addChild(item);

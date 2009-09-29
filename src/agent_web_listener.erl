@@ -43,6 +43,7 @@
 
 -include("log.hrl").
 -include("call.hrl").
+-include("queue.hrl").
 -include("agent.hrl").
 
 -define(PORT, 5050).
@@ -302,6 +303,19 @@ api(brandlist, {_Reflist, _Salt, _Conn}, _Post) ->
 		Jsons = lists:foldl(Converter, [], Brands),
 		{200, [], mochijson2:encode({struct, [{success, true}, {<<"brands">>, Jsons}]})}
 	end;
+api(queuelist, {_Reflist, _Salt, _Conn}, _Post) ->
+	case call_queue_config:get_queues() of
+	[] ->
+		{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No queues defined">>}]})};
+	Brands ->
+		Converter = fun
+			(#call_queue{name = Name}, Acc) ->
+				[{struct, [{<<"name">>, list_to_binary(Name)}]} | Acc]
+		end,
+		Jsons = lists:foldl(Converter, [], Brands),
+		{200, [], mochijson2:encode({struct, [{success, true}, {<<"queues">>, Jsons}]})}
+	end;
+
 api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
 	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
 	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
@@ -449,6 +463,8 @@ parse_path(Path) ->
 			{api, releaseopts};
 		"/brandlist" ->
 			{api, brandlist};
+		"/queuelist" ->
+			{api, queuelist};
 		"/checkcookie" ->
 			{api, checkcookie};
 		_Other ->
@@ -477,6 +493,8 @@ parse_path(Path) ->
 					{api, mediapush};
 				["warm_transfer", Number] ->
 					{api, {warm_transfer, Number}};
+				["queue_transfer", Number] ->
+					{api, {queue_transfer, Number}};
 				["supervisor" | Supertail] ->
 					{api, {supervisor, Supertail}};
 				_Allother ->
@@ -716,6 +734,7 @@ web_connection_login_test_() ->
 		{"/other/path", {file, {"other/path", "www/contrib/"}}},
 		{"/releaseopts", {api, releaseopts}},
 		{"/brandlist", {api, brandlist}},
+		{"/queuelist", {api, queuelist}},
 		{"/checkcookie", {api, checkcookie}},
 		{"/dial/12345", {api, {dial, "12345"}}},
 		{"/get_avail_agents", {api, get_avail_agents}},

@@ -223,6 +223,25 @@ Agent.warmtransfer = function(num) {
 	})
 }
 
+Agent.queuetransfer = function(queue) {
+	dojo.xhrGet({
+		url:"/queue_transfer/" + queue,
+		handleAs:"json",
+		error:function(response, ioargs){
+			warning(["error on transfer", response]);
+		},
+		load:function(response, ioargs){
+			if(response.success){
+				dojo.publish("agent/queuetransfer", [response.success]);
+			}
+			else{
+				warning(["failed to initiate queue transfer", response]);
+			}
+		}
+	})
+}
+
+
 Agent.getAvailAgents = function() {
 	dojo.xhrGet({
 		url:"/get_avail_agents",

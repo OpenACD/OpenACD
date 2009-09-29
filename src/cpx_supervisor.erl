@@ -425,7 +425,6 @@ get_archive_path(Call) ->
 					{"calltype", atom_to_list(Call#call.type)},
 					{"calldirection", atom_to_list(Call#call.direction)}
 			]),
-			io:format("expanded path is: ~p~n", [ExpandedPath]),
 			
 			case filelib:ensure_dir(ExpandedPath) of
 				ok ->

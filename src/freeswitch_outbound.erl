@@ -121,7 +121,26 @@ init([Fnode, AgentRec, Apid, Number, Gateway, Ringout]) ->
 					ok
 				end
 			end,
-			case freeswitch_ring:start(Fnode, AgentRec, Apid, Call, 600, F, [no_oncall_on_bridge]) of
+			F2 = fun(RingUUID, EventName, Event) ->
+					case EventName of
+						"CHANNEL_BRIDGE" ->
+								case cpx_supervisor:get_archive_path(Call) of
+									none ->
+										?DEBUG("archiving is not configured", []);
+									{error, Reason, Path} ->
+										?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
+									Path ->
+										% TODO - if Freeswitch can't create this file, the call gets aborted!
+										?DEBUG("archiving to ~s.wav", [Path]),
+										freeswitch:api(Fnode, uuid_record, UUID ++ " start "++Path++".wav")
+								end;
+						_ ->
+							ok
+					end,
+					true
+			end,
+
+			case freeswitch_ring:start(Fnode, AgentRec, Apid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}]) of
 				{ok, Pid} ->
 					link(Pid),
 					%{ok, State#state{ringchannel = Pid, agent_pid = Apid}};
@@ -251,10 +270,10 @@ handle_info({call_event, {event, [UUID | Rest]}}, Call, #state{uuid = UUID} = St
 			?DEBUG("call_event ~p", [Event]),
 			{noreply, State}
 	end;
-handle_info(call_hangup, _Call, State) ->
+handle_info(call_hangup, Call, State) ->
 	?DEBUG("Call hangup info", []),
 	{stop, normal, State};
-handle_info(connect_uuid, _Call, #state{cnode = Fnode, uuid = UUID, agent = Agent} = State) ->
+handle_info(connect_uuid, Call, #state{cnode = Fnode, uuid = UUID, agent = Agent} = State) ->
 	Gethandle = fun(Recusef, Count) ->
 			?DEBUG("Counted ~p", [Count]),
 			case freeswitch:handlecall(Fnode, UUID) of
@@ -278,16 +297,6 @@ handle_info(connect_uuid, _Call, #state{cnode = Fnode, uuid = UUID, agent = Agen
 			{stop, {error, Other}};
 		_Else ->
 			?NOTICE("starting for ~p", [UUID]),
-			case cpx_supervisor:get_archive_path(State#state.callrec) of
-				none ->
-					?DEBUG("archiving is not configured", []);
-				{error, Reason, Path} ->
-					?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
-				Path ->
-					% TODO - if Freeswitch can't create this file, the call gets aborted!
-					?DEBUG("archiving to ~s.wav", [Path]),
-					freeswitch:api(Fnode, uuid_record, UUID ++ " start "++Path++".wav")
-			end,
 			{outbound, Agent, State}
 	end;
 handle_info(Info, _Call, State) ->

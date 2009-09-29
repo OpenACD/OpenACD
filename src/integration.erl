@@ -73,7 +73,7 @@ agent_exists(Agent) ->
 agent_auth(Agent, Password) ->
 	Out = do_call({agent_auth, Agent, Password}),
 	Test = fun
-		({ok, _Profile, Security}) ->
+		({ok, _Id, _Profile, Security}) ->
 			case Security of
 				Lvl when Lvl =:= admin; Lvl =:= agent; Lvl =:= supervisor ->
 					true;
@@ -192,8 +192,8 @@ good_integration_test_() ->
 	fun(Mock) ->
 		{"agent auth success",
 		fun() ->
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "password"}, _, State) -> {ok, {ok, "Default", agent}, State} end),
-			?assertEqual({ok, "Default", agent}, agent_auth("agent", "password"))
+			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "password"}, _, State) -> {ok, {ok, "testid", "Default", agent}, State} end),
+			?assertEqual({ok, "testid", "Default", agent}, agent_auth("agent", "password"))
 		end}
 	end,
 	fun(Mock) ->

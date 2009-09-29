@@ -187,6 +187,18 @@ handle_voicemail(undefined, Call, State) ->
 	% TODO CDR transaction for leaving voicemail?
 	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
 
+handle_spy(Agent, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
+	try agent:dump_state(Agent) of
+		AgentRec ->
+			freeswitch:api(Fnode, originate, "user/" ++ re:replace(AgentRec#agent.login, "@", "_", [{return, list}]) ++ " &eavesdrop(" ++ Call#call.id ++ ")"),
+			{ok, State}
+	catch
+		_:_ ->
+			{error, bad_agent, State}
+	end;
+handle_spy(_Agent, _Call, State) ->
+	{invalid, State}.
+
 handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
 	AgentRec = agent:dump_state(AgentPid),

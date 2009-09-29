@@ -863,19 +863,25 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%--------------------------------------------------------------------
 
 url_pop(#call{client = Client} = Call, Agent) ->
-	Protourl = proplists:get_value(url_pop, Client#client.options, ""),
-	Words = [
-		{"label", (case is_atom(Client#client.label) of true -> atom_to_list(Client#client.label); false -> Client#client.label end)},
-		{"clientid", Client#client.id},
-		{"callerid", Call#call.callerid},
-		{"callid", Call#call.id},
-		{"destination", ""},
-		{"ivroption", ""},
-		{"media_type", atom_to_list(Call#call.type)},
-		{"direction", atom_to_list(Call#call.direction)}
-	],
-	Url = util:string_interpolate(Protourl, Words),
-	agent:url_pop(Agent, Url).
+	case proplists:get_value(url_pop, Client#client.options) of
+		undefined ->
+			ok;
+		[] ->
+			ok;
+		String ->
+			Words = [
+				{"label", (case is_atom(Client#client.label) of true -> atom_to_list(Client#client.label); false -> Client#client.label end)},
+				{"clientid", Client#client.id},
+				{"callerid", Call#call.callerid},
+				{"callid", Call#call.id},
+				{"destination", ""},
+				{"ivroption", ""},
+				{"media_type", atom_to_list(Call#call.type)},
+				{"direction", atom_to_list(Call#call.direction)}
+			],
+			Url = util:string_interpolate(String, Words),
+			agent:url_pop(Agent, Url)
+	end.
 %
 %
 %url_pop(#call{client = undefined} = Call, Agent) ->

@@ -584,7 +584,19 @@ set_client(Id, Newlabel, Options) ->
 set_client(Id, Client) when is_record(Client, client) ->
 	F = fun() ->
 		mnesia:delete({client, Id}),
-		mnesia:write(Client#client{id = Id, timestamp = util:now()})
+		Newoptions = case proplists:get_value(url_pop, Client#client.options) of
+			undefined ->
+				[#client{options = Options}] = mnesia:read({client, undefined}),
+				case proplists:get_value(url_pop, Options) of
+					undefined ->
+						Client#client.options;
+					Else ->
+						[{url_pop, Else} | Client#client.options]
+				end;
+			Else ->
+				Client#client.options
+		end,
+		mnesia:write(Client#client{id = Id, options = Newoptions, timestamp = util:now()})
 	end,
 	mnesia:transaction(F).
 

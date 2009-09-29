@@ -1010,7 +1010,13 @@ agent_interact({mediapush, _Data, _Mode}, State) ->
 %	agent:set_state(Apid, idle),
 %	State#state{ringout = false, ring_pid = undefined};
 %agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ringout =:= false; Apid =:= undefined ->
-agent_interact(stop_ring, #state{ring_pid = Apid} = State)  ->
+agent_interact(stop_ring, #state{callrec = Call, ring_pid = Apid} = State)  ->
+	case Call#call.cook of
+		CookPid when is_pid(CookPid) ->
+			gen_server:cast(CookPid, stop_ringing);
+		_ ->
+			ok
+	end,
 	?INFO("stop_ring when there's not much of a ring to handle", []),
 	case {State#state.ringout, Apid} of
 		{false, undefined} ->

@@ -318,8 +318,9 @@ dojo.addOnLoad(function(){
 				});
 				
 				dijit.byId("agentsDestroyButton").onClick = function(){
+					var name = agents.store.getValue(item, 'name');
 					dojo.xhrGet({
-						url:"agents/profiles/" + item.name[0] + "/delete",
+						url:"agents/profiles/" + name + "/delete",
 						handleAs:"json",
 						load:function(response, ioargs){
 							if( ! response.success){
@@ -333,13 +334,14 @@ dojo.addOnLoad(function(){
 				}
 			}
 			else{
+				var id = agents.store.getValue(item, 'id');
 				dojo.xhrGet({
-					url:"/agents/agents/" + item.name[0] + "/get",
+					url:"/agents/agents/" + id + "/get",
 					handleAs:"json",
 					load:function(response, ioargs){
 						var agent = response.agent;
 						dijit.byId("agentLogin").attr("value", agent.login);
-						dojo.byId("agentOldLogin").value = agent.login;
+						dojo.byId("agentOldLogin").value = agent.id;
 						//dijit.byId("agentProfile").attr("value", agent.profile);
 						dojo.byId("agentIntegrated").innerHTML = agent.integrated;
 						dijit.byId("agentSecurity").setValue(agent.securitylevel);
@@ -400,8 +402,9 @@ dojo.addOnLoad(function(){
 			
 				dijit.byId('agentsMain').selectChild('agentEditor');
 				dijit.byId('agentsDestroyButton').onClick = function(){
+					var id = agents.store.getValue(item, 'id');
 					dojo.xhrGet({
-						url:"agents/agents/" + item.name[0] + "/delete",
+						url:"agents/agents/" + id + "/delete",
 						handleAs:"json",
 						load:function(response, ioargs){
 							if(response.success){

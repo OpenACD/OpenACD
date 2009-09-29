@@ -1166,6 +1166,7 @@ encode_agents([Agent|Agents]) ->
 encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 	{struct, [
 		{name, list_to_binary(Agentrec#agent_auth.login)},
+		{id, list_to_binary(Agentrec#agent_auth.id)},
 		{<<"type">>, <<"agent">>},
 		{login, list_to_binary(Agentrec#agent_auth.login)},
 		{skills, encode_skills(Agentrec#agent_auth.skills)},

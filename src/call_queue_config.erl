@@ -616,6 +616,8 @@ get_client(Label) ->
 
 %% @doc Get the `#client{}' associated with the give `Key Value'.
 -spec(get_client/2 :: (Key :: 'label' | 'id', Value :: string()) -> #client{} | 'none').
+get_client(_Key, undefined) ->
+	get_default_client();
 get_client(Key, Value) ->
 	try integration:get_client(Key, Value) of
 		none ->

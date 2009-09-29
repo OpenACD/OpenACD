@@ -910,28 +910,38 @@ url_pop(#call{client = Client} = Call, Agent) ->
 %	agent:url_pop(Agent, Url).
 
 %% @doc Set the client record to an actual client record.
--spec(correct_client/1 :: (Callrec :: #call{}) -> #call{}).
-correct_client(#call{client = undefined} = Callrec) ->
-	Client = try call_queue_config:get_client(undefined) of
+-spec(correct_client/1 :: (Callid :: #call{}) -> #call{}).
+correct_client(#call{client = Client} = Callrec) ->
+	Newclient = case Client of
+		#client{id = Id} ->
+			correct_client_sub(Id);
+		undefined ->
+			correct_client_sub(undefined);
+		String ->
+			correct_client_sub(String)
+	end,
+	Callrec#call{client = Newclient}.
+	
+correct_client_sub(undefined) ->
+	Client = try call_queue_config:get_client(id, undefined) of
 		Whatever ->
 			Whatever
 	catch
 		error:{case_clause, {aborted, {node_not_running, _Node}}} ->
 			#client{}
 	end,
-	Callrec#call{client = Client};
-correct_client(#call{client = Label} = Callrec) when is_list(Label) ->
-	try call_queue_config:get_client(Label) of
+	Client;
+correct_client_sub(Id) ->
+	Client = try call_queue_config:get_client(id, Id) of
 		none ->
-			correct_client(Callrec#call{client = undefined});
+			correct_client_sub(undefined);
 		Else ->
-			Callrec#call{client = Else}
+			Else
 	catch
-		error:{case_clause,{aborted,{node_not_running, _Node}}} ->
-			Callrec#call{client = #client{}}
-	end;
-correct_client(#call{client = Clientrec} = Callrec) when is_record(Clientrec, client) ->
-	Callrec.
+		error:{case_clause, {aborted, {node_not_running, _Node}}} ->
+			#client{}
+	end,
+	Client.
 
 -spec(set_cpx_mon/2 :: (State :: #state{}, Action :: proplist() | 'delete') -> 'ok').
 set_cpx_mon(#state{callrec = Call} = _State, delete) ->

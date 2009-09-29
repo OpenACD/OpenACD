@@ -304,9 +304,15 @@ handle_wrapup(_Call, State) ->
 	% no direct hangup by the agent
 	{ok, State}.
 	
-handle_queue_transfer(_Call, State) ->
-	% TODO fully implement this.
+handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
+	freeswitch:api(Fnode, uuid_park, Call#call.id),
+	% play musique d'attente
+	freeswitch:sendmsg(Fnode, Call#call.id,
+		[{"call-command", "execute"},
+			{"execute-app-name", "playback"},
+			{"execute-app-arg", "local_stream://moh"}]),
 	{ok, State}.
+
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------

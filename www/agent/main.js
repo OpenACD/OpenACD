@@ -347,7 +347,7 @@ dojo.addOnLoad(function(){
 		switch(data.state){
 			case "oncall":
 			case "warmtransfer":
-			case "outbound":
+			case "outgoing":
 				widget.attr('style', 'display:inline');
 				break;
 			default:
@@ -376,7 +376,7 @@ dojo.addOnLoad(function(){
 			switch(data.state){
 				case "oncall":
 				case "warmtransfer":
-				case "outbound":
+				case "outgoing":
 					widget.attr('style', 'display:inline');
 					break;
 				default:

@@ -615,7 +615,7 @@ released({ringing, Call}, _From, State) ->
 	{reply, ok, ringing, Newstate};
 released({spy, Target}, {Conn, _Tag}, #agent{connection = Conn} = State) ->
 	Out = case agent:dump_state(Target) of
-		#agent{state = oncall, statedata = Callrec} ->
+		#agent{state = Statename, statedata = Callrec} when Statename =:= oncall; Statename =:= outgoing ->
 			Self = self(),
 			gen_media:spy(Callrec#call.source, Self);
 		_Else ->

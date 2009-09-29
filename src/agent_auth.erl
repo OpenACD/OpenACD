@@ -50,7 +50,7 @@
 	build_tables/0
 ]).
 -export([
-	cache/4,
+	cache/5,
 	destroy/1,
 	merge/3,
 	add_agent/5,
@@ -59,6 +59,7 @@
 	set_agent/6,
 	set_agent/2,
 	get_agent/1,
+	get_agent/2,
 	get_agents/0,
 	get_agents/1
 ]).
@@ -199,25 +200,25 @@ get_profiles() ->
 	lists:sort(Sort, Cprofs).
 
 %% @doc Update the agent `string() Oldlogin' without changing the password.
--spec(set_agent/5 :: (Oldlogin :: string(), Newlogin :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'ok'}).
-set_agent(Oldlogin, Newlogin, Newskills, NewSecurity, Newprofile) ->
+-spec(set_agent/5 :: (Id :: string(), Newlogin :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'ok'}).
+set_agent(Id, Newlogin, Newskills, NewSecurity, Newprofile) ->
 	Props = [
 		{login, Newlogin},
 		{skills, Newskills},
 		{securitylevel, NewSecurity},
 		{profile, Newprofile}
 	],
-	set_agent(Oldlogin, Props).
+	set_agent(Id, Props).
 
 %% @doc Sets the agent `string() Oldlogin' with new data in `proplist Props'; 
 %% does not change data that is not in the proplist.
 -spec(set_agent/2 :: (Oldlogin :: string(), Props :: [{atom(), any()}]) -> {'atomic', 'ok'}).
-set_agent(Oldlogin, Props) ->
+set_agent(Id, Props) ->
 	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Oldlogin]),
+		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.id =:= Id]),
 		[Agent] = qlc:e(QH),
 		Newrec = build_agent_record(Props, Agent),
-		destroy(Oldlogin),
+		destroy(Id),
 		mnesia:write(Newrec#agent_auth{timestamp = util:now()}),
 		ok
 	end,
@@ -225,7 +226,7 @@ set_agent(Oldlogin, Props) ->
 	
 %% @doc Update the agent `string() Oldlogin' with a new password (as well as everything else).
 -spec(set_agent/6 :: (Oldlogin :: string(), Newlogin :: string(), Newpass :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'error'} | {'atomic', 'ok'}).
-set_agent(Oldlogin, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
+set_agent(Id, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 	Props = [
 		{login, Newlogin},
 		{password, Newpass},
@@ -233,13 +234,24 @@ set_agent(Oldlogin, Newlogin, Newpass, Newskills, NewSecurity, Newprofile) ->
 		{securitylevel, NewSecurity},
 		{profile, Newprofile}
 	],
-	set_agent(Oldlogin, Props).
+	set_agent(Id, Props).
 
 %% @doc Gets `#agent_auth{}' associated with `string() Login'.
 -spec(get_agent/1 :: (Login :: string()) -> {'atomic', [#agent_auth{}]}).
 get_agent(Login) ->
+	get_agent(login, Login).
+
+%% @doc Get an agent who's `Key' is `Value'.
+-spec(get_agent/2 :: (Key :: 'id' | 'login', Value :: string()) -> {'atomic', [#agent_auth{}]}).
+get_agent(login, Value) ->
 	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Login]),
+		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Value]),
+		qlc:e(QH)
+	end,
+	mnesia:transaction(F);
+get_agent(id, Value) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.id =:= Value]),
 		qlc:e(QH)
 	end,
 	mnesia:transaction(F).
@@ -345,9 +357,9 @@ auth(Username, Password) ->
 			?INFO("integration denial for ~p", [Username]),
 			destroy(Username),
 			deny;
-		{ok, Profile, Security} ->
+		{ok, Id, Profile, Security} ->
 			?INFO("integration allow for ~p", [Username]),
-			cache(Username, Password, Profile, Security),
+			cache(Id, Username, Password, Profile, Security),
 			local_auth(Username, Password);
 		{error, nointegration} ->
 			?INFO("No integration, local authing ~p", [Username]),
@@ -371,8 +383,8 @@ build_tables() ->
 	case A of
 		{atomic, ok} ->
 			F = fun() ->
-				mnesia:write(#agent_auth{login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english], profile="Default"}),
-				mnesia:write(#agent_auth{login="administrator", password=util:bin_to_hexstr(erlang:md5("Password123")), securitylevel=admin, skills=[english], profile="Default"})
+				mnesia:write(#agent_auth{id = "1", login="agent", password=util:bin_to_hexstr(erlang:md5("Password123")), skills=[english], profile="Default"}),
+				mnesia:write(#agent_auth{id = "2", login="administrator", password=util:bin_to_hexstr(erlang:md5("Password123")), securitylevel=admin, skills=[english], profile="Default"})
 			end,
 			case mnesia:transaction(F) of
 				{atomic, ok} -> 
@@ -428,14 +440,15 @@ build_tables() ->
 %% either `agent', `supervisor', or `admin'.
 -type(profile() :: string()).
 -type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
--spec(cache/4 ::	(Username :: string(), Password :: string(), Profile :: profile_data(), Security :: 'agent' | 'supervisor' | 'admin') -> 
+-spec(cache/5 ::	(Id :: string(), Username :: string(), Password :: string(), Profile :: profile_data(), Security :: 'agent' | 'supervisor' | 'admin') -> 
 						{'atomic', 'ok'} | {'aborted', any()}).
-cache(Username, Password, {Profile, Skills}, Security) ->
+cache(Id, Username, Password, {Profile, Skills}, Security) ->
 	F = fun() ->
-		QH = qlc:q([A || A <- mnesia:table(agent_auth), A#agent_auth.login =:= Username]),
+		QH = qlc:q([A || A <- mnesia:table(agent_auth), A#agent_auth.id =:= Id]),
 		Writerec = case qlc:e(QH) of
 			[] ->
 				#agent_auth{
+					id = Id,
 					login = Username,
 					password = util:bin_to_hexstr(erlang:md5(Password)),
 					skills = [],
@@ -445,6 +458,7 @@ cache(Username, Password, {Profile, Skills}, Security) ->
 				};
 			[Baserec] ->
 				Baserec#agent_auth{
+					login = Username,
 					password = util:bin_to_hexstr(erlang:md5(Password)),
 					securitylevel = Security,
 					integrated = util:now(),
@@ -464,15 +478,15 @@ cache(Username, Password, {Profile, Skills}, Security) ->
 	Out = mnesia:transaction(F),
 	?DEBUG("Cache username result:  ~p", [Out]),
 	Out;
-cache(Username, Password, [Isskill | _Tail] = Skills, Security) when is_atom(Isskill); is_tuple(Isskill) ->
-	case get_agent(Username) of
+cache(Id, Username, Password, [Isskill | _Tail] = Skills, Security) when is_atom(Isskill); is_tuple(Isskill) ->
+	case get_agent(id, Id) of
 		{atomic, [Agent]} ->
-			cache(Username, Password, {Agent#agent_auth.profile, Skills}, Security);
+			cache(Id, Username, Password, {Agent#agent_auth.profile, Skills}, Security);
 		{atomic, []} ->
-			cache(Username, Password, {"Default", Skills}, Security)
+			cache(Id, Username, Password, {"Default", Skills}, Security)
 	end;
-cache(Username, Password, Profile, Security) ->
-	cache(Username, Password, {Profile, []}, Security).
+cache(Id, Username, Password, Profile, Security) ->
+	cache(Id, Username, Password, {Profile, []}, Security).
 	
 %% @doc adds a user to the local cache bypassing the integrated at check.  Note that unlike {@link cache/4} this expects the password 
 %% in plain text!
@@ -494,16 +508,43 @@ add_agent(Proplist) when is_list(Proplist) ->
 	Rec = build_agent_record(Proplist, #agent_auth{}),
 	add_agent(Rec);
 add_agent(Rec) when is_record(Rec, agent_auth) ->
+	Id = make_id(),
 	F = fun() ->
-		mnesia:write(Rec)
+		mnesia:write(Rec#agent_auth{id = Id})
 	end,
 	mnesia:transaction(F).
 
+make_id() ->
+	Ref = erlang:ref_to_list(make_ref()),
+	RemovedRef = string:sub_string(Ref, 6),
+	FixedRef = string:strip(RemovedRef, right, $>),
+	F = fun(Elem, Acc) ->
+		case Elem of
+			$. ->
+				Acc;
+			Else ->
+				[Else | Acc]
+		end
+	end,
+	lists:reverse(lists:foldl(F, [], FixedRef)).
+	
 %% @doc Removes the passed user with login of `Username' from the local cache.  Called when integration returns a deny.
 -spec(destroy/1 :: (Username :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
-destroy(Username) -> 
+destroy(Username) ->
+	destroy(login, Username).
+
+%% @doc Destory either by id or login.
+-spec(destroy/2 :: (Key :: 'id' | 'login', Value :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
+destroy(id, Value) ->
 	F = fun() -> 
-		mnesia:delete({agent_auth, Username})
+		mnesia:delete({agent_auth, Value})
+	end,
+	mnesia:transaction(F);
+destroy(login, Value) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.login =:= Value]),
+		[#agent_auth{id = Id}] = qlc:e(QH),
+		mnesia:delete({agent_auth, Id})
 	end,
 	mnesia:transaction(F).
 
@@ -548,7 +589,7 @@ build_agent_record([{lastname, Name} | Tail], Rec) ->
 
 diff_recs(Left, Right) ->
 	Sort = fun(A, B) when is_record(A, agent_auth) ->
-			A#agent_auth.login < B#agent_auth.login;
+			A#agent_auth.id < B#agent_auth.id;
 		(A, B) when is_record(A, release_opt) ->
 			A#release_opt.label < B#release_opt.label;
 		(A, B) when is_record(A, agent_profile) ->
@@ -583,14 +624,14 @@ diff_recs_loop([Lhead | LTail] = Left, [Rhead | Rtail] = Right, Acc) ->
 	end.
 	
 nom_equal(A, B) when is_record(A, agent_auth) ->
-	A#agent_auth.login =:= B#agent_auth.login;
+	A#agent_auth.id =:= B#agent_auth.id;
 nom_equal(A, B) when is_record(A, release_opt) ->
 	B#release_opt.label =:= A#release_opt.label;
 nom_equal(A, B) when is_record(A, agent_profile) ->
 	A#agent_profile.name =:= B#agent_profile.name.
 	
 nom_comp(A, B) when is_record(A, agent_auth) ->
-	A#agent_auth.login < B#agent_auth.login;
+	A#agent_auth.id < B#agent_auth.id;
 nom_comp(A, B) when is_record(A, release_opt) ->
 	A#release_opt.label < B#release_opt.label;
 nom_comp(A, B) when is_record(A, agent_profile) ->
@@ -657,7 +698,7 @@ auth_integration_test_() ->
 		{"auth an agent that's not cached",
 		fun() ->
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "password"}, _, State) ->
-				{ok, {ok, "Default", agent}, State}
+				{ok, {ok, "testid", "Default", agent}, State}
 			end),
 			?assertMatch({allow, _Skills, agent, "Default"}, auth("testagent", "password")),
 			?assertMatch({allow, _Skills, agent, "Default"}, local_auth("testagent", "password"))
@@ -666,10 +707,10 @@ auth_integration_test_() ->
 	fun(Mock) ->
 		{"auth an agent overwrites the cache",
 		fun() ->
-			cache("testagent", "password", "Default", agent),
+			cache("testid", "testagent", "password", "Default", agent),
 			?assertMatch({allow, _Skills, agent, "Default"}, local_auth("testagent", "password")),
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "newpass"}, _, State) ->
-				{ok, {ok, "Default", agent}, State}
+				{ok, {ok, "testid", "Default", agent}, State}
 			end),
 			?assertMatch({allow, _Skills, agent, "Default"}, auth("testagent", "newpass")),
 			?assertMatch({allow, _Skills, agent, "Default"}, local_auth("testagent", "newpass")),
@@ -851,19 +892,19 @@ diff_recs_test_() ->
 	[{"agent_auth records",
 	fun() ->
 		Left = [
-			#agent_auth{login = "A", timestamp = 1},
-			#agent_auth{login = "B", timestamp = 3},
-			#agent_auth{login = "C", timestamp = 5}
+			#agent_auth{id = "A", login = "A", timestamp = 1},
+			#agent_auth{id = "B", login = "B", timestamp = 3},
+			#agent_auth{id = "C", login = "C", timestamp = 5}
 		],
 		Right = [
-			#agent_auth{login = "A", timestamp = 5},
-			#agent_auth{login = "B", timestamp = 3},
-			#agent_auth{login = "C", timestamp = 1}
+			#agent_auth{id = "A", login = "A", timestamp = 5},
+			#agent_auth{id = "B", login = "B", timestamp = 3},
+			#agent_auth{id = "C", login = "C", timestamp = 1}
 		],
 		Expected = [
-			#agent_auth{login = "A", timestamp = 5},
-			#agent_auth{login = "B", timestamp = 3},
-			#agent_auth{login = "C", timestamp = 5}
+			#agent_auth{id = "A", login = "A", timestamp = 5},
+			#agent_auth{id = "B", login = "B", timestamp = 3},
+			#agent_auth{id = "C", login = "C", timestamp = 5}
 		],
 		?assertEqual(Expected, diff_recs(Left, Right))
 	end},
@@ -908,21 +949,21 @@ diff_recs_test_() ->
 	{"3 way merge",
 	fun() ->
 		One = [
-			#agent_auth{login = "A", timestamp = 1},
-			#agent_auth{login = "B", timestamp = 3}
+			#agent_auth{id = "A", login = "A", timestamp = 1},
+			#agent_auth{id = "B", login = "B", timestamp = 3}
 		],
 		Two = [
-			#agent_auth{login = "B", timestamp = 3},
-			#agent_auth{login = "C", timestamp = 5}
+			#agent_auth{id = "B", login = "B", timestamp = 3},
+			#agent_auth{id = "C", login = "C", timestamp = 5}
 		],
 		Three = [
-			#agent_auth{login = "A", timestamp = 5},
-			#agent_auth{login = "C", timestamp = 1}
+			#agent_auth{id = "A", login = "A", timestamp = 5},
+			#agent_auth{id = "C", login = "C", timestamp = 1}
 		],
 		Expected = [
-			#agent_auth{login = "A", timestamp = 5},
-			#agent_auth{login = "B", timestamp = 3},
-			#agent_auth{login = "C", timestamp = 5}
+			#agent_auth{id = "A", login = "A", timestamp = 5},
+			#agent_auth{id = "B", login = "B", timestamp = 3},
+			#agent_auth{id = "C", login = "C", timestamp = 5}
 		],
 		?assertEqual(Expected, merge_results([{atomic, One}, {atomic, Two}, {atomic, Three}]))
 	end}].

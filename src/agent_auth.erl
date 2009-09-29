@@ -52,6 +52,7 @@
 -export([
 	cache/5,
 	destroy/1,
+	destroy/2,
 	merge/3,
 	add_agent/5,
 	add_agent/1,

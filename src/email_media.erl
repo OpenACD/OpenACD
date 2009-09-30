@@ -73,6 +73,7 @@
 
 -record(state, {
 	initargs :: any(),
+	mimed :: {string(), string(), [{string(), string()}], [{string(), string()}], any()},
 	html :: string(),
 	files :: [string()],
 	manager :: pid() | tref()
@@ -107,7 +108,7 @@ start_link(Mailmap, Rawmessage) ->
 
 init(Args) ->
 	process_flag(trap_exit, true),
-	{_, _, Mheads, _, _} = Mimed = case Args of
+	{_Type, _Subtype, Mheads, _Properties, _Body} = Mimed = case Args of
 		[Mailmap, Rawmessage] ->
 			mimemail:decode(Rawmessage);
 		[Mailmap, Headers, Data] ->
@@ -141,7 +142,7 @@ init(Args) ->
 		media_path = inband,
 		source = self()
 	},
-	{ok, {#state{initargs = Args, html = Html, files = Files, manager = whereis(email_media_manager)}, {Mailmap#mail_map.queue, Proto}}}.
+	{ok, {#state{initargs = Args, html = Html, mimed = Mimed, files = Files, manager = whereis(email_media_manager)}, {Mailmap#mail_map.queue, Proto}}}.
 	
 	
 %%--------------------------------------------------------------------
@@ -259,6 +260,29 @@ handle_wrapup(_Callrec, State) ->
 
 % -type(display_type() :: 'link' | 'html' | 'text').
 % -type(mail_display() :: [{display_type(), any()}]).
+
+skeletonize({"multipart", Subtype, _Headers, _Properties, List}) ->
+	{"multipart", Subtype, skeletonize(List)};
+skeletonize({"message", Subtype, _Headers, _Properties, Body}) ->
+	{"message", Subtype, skeletonize([Body])};
+skeletonize({Type, Subtype, _Headers, _Properties, _Body}) ->
+	{Type, Subtype};
+skeletonize(List) when is_list(List) ->
+	skeletonize(List, []).
+
+skeletonize([], Acc) ->
+	lists:reverse(Acc);
+skeletonize([{"multipart", Subtype, _Headers, _Properties, List} | Tail], Acc) ->
+	Sublist = skeletonize(List),
+	Newacc = [{"multipart", Subtype, Sublist} | Acc],
+	skeletonize(Tail, Newacc);
+skeletonize([{"message", Subtype, _Headers, _Properties, Body} | Tail], Acc) ->
+	Sublist = skeletonize([Body]),
+	Newacc = [{"message", Subtype, Sublist} | Acc],
+	skeletonize(Tail, Newacc);
+skeletonize([{Type, Subtype, _Headers, _Properties, _Body} | Tail], Acc) ->
+	Newacc = [{Type, Subtype} | Acc],
+	skeletonize(Tail, Newacc).
 
 check_disposition(Properties) ->
 	?DEBUG("~p", [Properties]),
@@ -681,11 +705,14 @@ html_strip_heads_test_() ->
 		?assertEqual({[{<<"div">>, [], [<<"hi!">>]}], undefined, <<"">>, undefined}, Res)
 	end}].
 
+getmail(File) ->
+	{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
+	Email = binary_to_list(Bin),
+	mimemail:decode(Email).
+
 mime_to_html_test_() ->
 	Getmail = fun(File) ->
-		{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
-		Email = binary_to_list(Bin),
-		mimemail:decode(Email)
+		getmail(File)
 	end,
 	[{"Simple plain text mail",
 	fun() ->
@@ -761,5 +788,73 @@ html_encode_test_() ->
 %		Email = binary_to_list(Bin),
 %		
 %	end}]
+	
+skeletonize_test_() ->
+	[{"Simple plain text mail",
+	fun() ->
+		Decoded = getmail("Plain-text-only.eml"),
+		Skel = skeletonize(Decoded),
+		?assertEqual({"text", "plain"}, Skel)
+	end},
+	{"html text mail",
+	fun() ->
+		Decoded = getmail("html.eml"),
+		Skel = skeletonize(Decoded),
+		?assertEqual({"multipart", "alternative", [{"text", "plain"}, {"text", "html"}]}, Skel)
+	end},
+	{"email with image",
+	fun() ->
+		Decoded = getmail("image-attachment-only.eml"),
+		Skel = skeletonize(Decoded),
+		?assertEqual({"multipart", "mixed", [{"image", "jpeg"}]}, Skel)
+	end},
+	{"the gamut",
+	fun() ->
+		% multipart/alternative
+		%	text/plain
+		%	multipart/mixed
+		%		text/html
+		%		message/rf822
+		%			multipart/mixed
+		%				message/rfc822
+		%					text/plain
+		%		text/html
+		%		message/rtc822
+		%			text/plain
+		%		text/html
+		%		image/jpeg
+		%		text/html
+		%		text/rtf
+		%		text/html
+		Decoded = getmail("the-gamut.eml"),
+		Skel = skeletonize(Decoded),
+		Expected = {"multipart", "alternative", [
+			{"text", "plain"},
+			{"multipart", "mixed", [
+				{"text", "html"},
+				{"message", "rfc822", [
+					{"multipart", "mixed", [
+						{"message", "rfc822", [
+							{"text", "plain"}
+						]}
+					]}
+				]},
+				{"text", "html"},
+				{"message", "rfc822", [
+					{"text", "plain"}
+				]},
+				{"text", "html"},
+				{"image", "jpeg"},
+				{"text", "html"},
+				{"text", "rtf"},
+				{"text", "html"}
+			]}
+		]},
+		?DEBUG("Ecpected:  ~p", [Expected]),
+		?DEBUG("Skel:  ~p", [Skel]),
+		?assertEqual(Expected, Skel)
+	end}].
+		
+		
 
 -endif.

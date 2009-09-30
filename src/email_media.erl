@@ -75,7 +75,6 @@
 	initargs :: any(),
 	mimed :: {string(), string(), [{string(), string()}], [{string(), string()}], any()},
 	skeleton :: any(),
-	files :: [string()],
 	manager :: pid() | tref()
 }).
 
@@ -122,22 +121,15 @@ init(Args) ->
 			Else
 	end,
 	?DEBUG("callerid:  ~s", [Callerid]),
-	{Html, Files} = mime_to_html(Mimed),
 	Ref = erlang:ref_to_list(make_ref()),
 	Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
 	[Domain, _To] = util:string_split(lists:reverse(Mailmap#mail_map.address), "@", 2),
 	Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, lists:reverse(Domain)])),
-	Client = case call_queue_config:get_client(Mailmap#mail_map.client) of
-		none ->
-			#client{label="Unknown", id = ""};
-		Or ->
-			Or
-	end,
 	Proto = #call{
 		id = proplists:get_value("Message-ID", Mheads, Defaultid), 
 		type = email,
 		callerid = Callerid,
-		client = Client,
+		client = Mailmap#mail_map.client,
 		skills = Mailmap#mail_map.skills,
 		ring_path = inband,
 		media_path = inband,
@@ -150,36 +142,36 @@ init(Args) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 
-handle_call({get_file, Name}, _From, _Callrec, State) ->
-	Out = proplists:get_value(Name, State#state.files),
-	{reply, Out, State};
 handle_call(get_init, _From, _Callrec, State) ->
 	{reply, State#state.initargs, State};
-handle_call({mediapull, [Filename]}, _From, _Callrec, #state{files = Files} = State) ->
-	?DEBUG("You are requesting ~p (~s as string)", [Filename, Filename]),
-	?DEBUG("Files:  ~p", [Files]),
-	Reply = case proplists:get_value(Filename, Files) of
-		undefined ->
-			?DEBUG("No such file ~s", [Filename]),
-			invalid;
-		{_Headers, _Content} = Rep->
-%			H1 = case proplists:get_value("Content-Type", Headers) of
-%				undefined ->
-%					[];
-%				Else ->
-%					[{"Content-Type", Else}]
-%			end,
-%			H2 = case proplists:get_value("Content-Disposition", Headers) of
-%				undefined ->
-%					H1;
-%				Other ->
-%					[{"Content-Disposition", Other} | H1]
-%			end,
-%			Rep = {H2, Content},
-			?DEBUG("Hey look, a file!  ~p", [Rep]),
-			Rep
-	end,
+handle_call({get_part, Path}, _From, _Callrec, #state{mimed = Mime} = State) when is_list(Path) ->
+	Reply = get_part(Path, Mime),
 	{reply, Reply, State};
+%handle_call({mediapull, [Filename]}, _From, _Callrec, #state{files = Files} = State) ->
+%	?DEBUG("You are requesting ~p (~s as string)", [Filename, Filename]),
+%	?DEBUG("Files:  ~p", [Files]),
+%	Reply = case proplists:get_value(Filename, Files) of
+%		undefined ->
+%			?DEBUG("No such file ~s", [Filename]),
+%			invalid;
+%		{_Headers, _Content} = Rep->
+%%			H1 = case proplists:get_value("Content-Type", Headers) of
+%%				undefined ->
+%%					[];
+%%				Else ->
+%%					[{"Content-Type", Else}]
+%%			end,
+%%			H2 = case proplists:get_value("Content-Disposition", Headers) of
+%%				undefined ->
+%%					H1;
+%%				Other ->
+%%					[{"Content-Disposition", Other} | H1]
+%%			end,
+%%			Rep = {H2, Content},
+%			?DEBUG("Hey look, a file!  ~p", [Rep]),
+%			Rep
+%	end,
+%	{reply, Reply, State};
 handle_call({mediapush, _Data}, _From, _Callrec, State) ->
 	?WARNING("pushing data out is NYI", []),
 	{reply, invalid, State};
@@ -299,7 +291,6 @@ get_part([1 | Tail], {"message", Subtype, _Headers, _Properties, Body}) ->
 get_part(Path, Mime) ->
 	?INFO("Invalid path ~p.  ~p/~p", [Path, element(1, Mime), element(2, Mime)]),
 	none.
-
 
 check_disposition(Properties) ->
 	?DEBUG("~p", [Properties]),

@@ -974,7 +974,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 set_cpx_monitor(State, Hp, Otherdeatils) ->
 	log_change(State),
 	Deatils = lists:append([{profile, State#agent.profile}, {state, State#agent.state}], Otherdeatils),
-	cpx_monitor:set({agent, State#agent.login}, [Hp], Deatils).
+	cpx_monitor:set({agent, State#agent.id}, [Hp], Deatils).
 
 log_change(#agent{log_pid = undefined}) ->
 	ok;
@@ -1070,7 +1070,7 @@ from_idle_test_() ->
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
-		Agent = #agent{login = "testagent", connection = Connmock, log_pid = Logpid},
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
@@ -1098,7 +1098,7 @@ from_idle_test_() ->
 				Self = Aself,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{precall, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -1121,7 +1121,7 @@ from_idle_test_() ->
 				source = Self
 			},
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, Pid}, _State) -> Pid = Self, ok end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{ringing, _Limits}] = Health,
 				?assertEqual(node(), Node),
 				ok
@@ -1143,7 +1143,7 @@ from_idle_test_() ->
 				Self = Apid,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{released, _Limits}] = Health,
 				?assertEqual(node(), Node),
 				ok
@@ -1204,7 +1204,7 @@ from_ringing_test_() ->
 		exit(Mpid, kill),
 		{ok, Mediamock} = gen_server_mock:new(),
 		Callrec = ProtoCallrec#call{source = Mediamock},
-		Agent = #agent{login = "testagent", connection = Connmock, statedata = Callrec, state = ringing, log_pid = Logpid},
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, statedata = Callrec, state = ringing, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
@@ -1231,7 +1231,7 @@ from_ringing_test_() ->
 				Self = Aself,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{idle, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -1262,7 +1262,7 @@ from_ringing_test_() ->
 		{"to oncall with inband media path",
 		fun() ->
 			Callrec = Agent#agent.statedata, 
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{oncall, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -1300,7 +1300,7 @@ from_ringing_test_() ->
 				Inrec = Agent#agent.statedata,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{oncall, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -1329,7 +1329,7 @@ from_ringing_test_() ->
 	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released",
 		fun() ->
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{released, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -1371,7 +1371,7 @@ from_precall_test_() ->
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
 		Client = #client{label = "testclient"},
-		Agent = #agent{login = "testagent", connection = Connmock, state = precall, statedata = Client, log_pid = Logpid},
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = precall, statedata = Client, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
@@ -1397,7 +1397,7 @@ from_precall_test_() ->
 				Apid = Pid,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{idle, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -1437,7 +1437,7 @@ from_precall_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, outgoing, _Data}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{outgoing, _Limits}] = Health, 
 				Node = node(),
 				ok
@@ -1450,7 +1450,7 @@ from_precall_test_() ->
 	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released",
 		fun() ->
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				Node = node(),
 				[{released, _Limits}] = Health,
 				ok
@@ -1492,7 +1492,7 @@ from_oncall_test_() ->
 			source = Mediapid,
 			client = Client
 		},
-		Agent = #agent{login = "testagent", connection = Connmock, state = oncall, statedata = Callrec, log_pid = Logpid},
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = oncall, statedata = Callrec, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
@@ -1574,7 +1574,7 @@ from_oncall_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, warmtransfer, "transferto"}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{warmtransfer, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -1595,7 +1595,7 @@ from_oncall_test_() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{wrapup, _Limits}] = Health, 
 				Node = node(),
 				ok
@@ -1620,7 +1620,7 @@ from_outgoing_test_() ->
 			source = Mediapid,
 			client = Client
 		},
-		Agent = #agent{login = "testagent", connection = Connmock, state = oncall, statedata = Callrec, log_pid = Logpid},
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = oncall, statedata = Callrec, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
@@ -1701,7 +1701,7 @@ from_outgoing_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, warmtransfer, "transferto"}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{warmtransfer, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -1721,7 +1721,7 @@ from_outgoing_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, _Calldata}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{wrapup, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -1751,7 +1751,7 @@ from_released_test_() ->
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
-		Agent = #agent{login = "testagent", connection = Connmock, state = released, statedata = "testrelease", log_pid = Logpid},
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = released, statedata = "testrelease", log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
@@ -1780,7 +1780,7 @@ from_released_test_() ->
 				Self = Apid,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{idle, _Limits}] = Health, 
 				Node = node(),
 				ok
@@ -1796,7 +1796,7 @@ from_released_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, "callrec"}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{ringing, _Limits}] = Health, 
 				Node = node(),
 				ok
@@ -1812,7 +1812,7 @@ from_released_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, precall, "client"}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{precall, _Limits}] = Health, 
 				Node = node(),
 				ok
@@ -1876,7 +1876,7 @@ from_warmtransfer_test_() ->
 			source = Mediapid,
 			client = Client
 		},
-		Agent = #agent{login = "testagent", connection = Connmock, state = warmtransfer, statedata = {onhold, Callrec, calling, "testtarget"}, log_pid = Logpid},
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = warmtransfer, statedata = {onhold, Callrec, calling, "testtarget"}, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
@@ -1923,7 +1923,7 @@ from_warmtransfer_test_() ->
 				Callrec = Inrec,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{oncall, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -1947,7 +1947,7 @@ from_warmtransfer_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, outgoing, _Inrec}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock,fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock,fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{outgoing, _Limits}] = Health, 
 				Node = node(),
 				ok
@@ -1968,7 +1968,7 @@ from_warmtransfer_test_() ->
 				Callrec = Inrec,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{wrapup, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -2001,7 +2001,7 @@ from_wrapup_test_() ->
 			client = Client
 		},
 		{ok, Logpid} = gen_server_mock:new(),
-		Agent = #agent{login = "testagent", connection = Connmock, state = warmtransfer, statedata = Callrec, log_pid = Logpid},
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = warmtransfer, statedata = Callrec, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
@@ -2029,7 +2029,7 @@ from_wrapup_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{idle, _Limits}] = Health,
 				Node = node(),
 				ok
@@ -2046,7 +2046,7 @@ from_wrapup_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "default"}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testagent"}, Health, _Details, Node}}, _State, _Elec) ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{released, _Limits}] = Health,
 				Node = node(),
 				ok

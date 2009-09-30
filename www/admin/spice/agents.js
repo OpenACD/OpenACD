@@ -146,7 +146,7 @@ agents.updateAgent = function(subform, node){
 	agents.store.fetchItemByIdentity({
 		identity:values.profile,
 		onItem:function(item, req){
-			values.profile = item.name[0];
+			values.profile = agents.store.getValue(item, 'name');
 		}
 	});
 	dojo.xhrPost({

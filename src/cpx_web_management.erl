@@ -179,10 +179,10 @@ api(login, {Reflist, Salt, _Login}, Post) ->
 			case agent_auth:auth(Username, DecryptedPassword) of
 				deny ->
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
-				{allow, _Skills, admin, _Profile} ->
+				{allow, _id, _Skills, admin, _Profile} ->
 					ets:insert(cpx_management_logins, {Reflist, Salt, Username}),
 					{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
-				{allow, _Skills, _Security, _Profile} ->
+				{allow, _id, _Skills, _Security, _Profile} ->
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})}
 			end
 	catch
@@ -404,13 +404,13 @@ api({agents, "profiles", Profile, "delete"}, ?COOKIE, _Post) ->
 %% agents -> agents
 %% =====
 api({agents, "agents", Agent, "get"}, ?COOKIE, _Post) ->
-	{atomic, [Agentrec]} = agent_auth:get_agent(Agent),
+	{atomic, [Agentrec]} = agent_auth:get_agent(id, Agent),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"agent">>, encode_agent(Agentrec)}]})};
 api({agents, "agents", Agent, "delete"}, ?COOKIE, _Post) ->
-	agent_auth:destroy(Agent),
+	agent_auth:destroy(id, Agent),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
-	{atomic, [_Agentrec]} = agent_auth:get_agent(Agent),
+	{atomic, [_Agentrec]} = agent_auth:get_agent(id, Agent),
 	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
 	Postedskills = proplists:get_all_values("skills", Post),
 	Convertskills = fun(Skill) ->
@@ -1166,6 +1166,7 @@ encode_agents([Agent|Agents]) ->
 encode_agent(Agentrec) when is_record(Agentrec, agent_auth) ->
 	{struct, [
 		{name, list_to_binary(Agentrec#agent_auth.login)},
+		{id, list_to_binary(Agentrec#agent_auth.id)},
 		{<<"type">>, <<"agent">>},
 		{login, list_to_binary(Agentrec#agent_auth.login)},
 		{skills, encode_skills(Agentrec#agent_auth.skills)},
@@ -1604,8 +1605,8 @@ api_test_() ->
 			{"/agents/agents/someagent/delete deleting an agent",
 			fun() ->
 				agent_auth:add_agent("someagent", "somepassword", [], agent, "Default"),
-				?assertMatch({atomic, [_Rec]}, agent_auth:get_agent("someagent")),
-				{200, [], _Json} = api({agents, "agents", "someagent", "delete"}, Cookie, []),
+				{atomic, [Rec]} = agent_auth:get_agent("someagent"),
+				{200, [], _Json} = api({agents, "agents", Rec#agent_auth.id, "delete"}, Cookie, []),
 				?assertEqual({atomic, []}, agent_auth:get_agent("someagent"))
 			end}
 		end,
@@ -1623,7 +1624,7 @@ api_test_() ->
 					{"profile", "Default"},
 					{"login", "renamed"}
 				],
-				api({agents, "agents", "someagent", "update"}, Cookie, Post),
+				api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post),
 				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
 				{atomic, [Rec]} = agent_auth:get_agent("renamed"),
 				?assertEqual(agent, Rec#agent_auth.securitylevel),
@@ -1647,7 +1648,7 @@ api_test_() ->
 					{"profile", "Default"},
 					{"login", "renamed"}
 				],
-				api({agents, "agents", "someagent", "update"}, Cookie, Post),
+				api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post),
 				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
 				{atomic, [Rec]} = agent_auth:get_agent("renamed"),
 				?assertEqual(agent, Rec#agent_auth.securitylevel),
@@ -1671,7 +1672,7 @@ api_test_() ->
 					{"profile", "Default"},
 					{"login", "renamed"}
 				],
-				?assertError({case_clause, "newpass"}, api({agents, "agents", "someagent", "update"}, Cookie, Post)),
+				?assertError({case_clause, "newpass"}, api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post)),
 				?assertEqual({atomic, []}, agent_auth:get_agent("renamed")),
 				{atomic, [Rec]} = agent_auth:get_agent("someagent"),
 				?assertEqual(supervisor, Rec#agent_auth.securitylevel),
@@ -1695,7 +1696,7 @@ api_test_() ->
 					{"profile", "Default"},
 					{"login", "renamed"}
 				],
-				api({agents, "agents", "someagent", "update"}, Cookie, Post),
+				api({agents, "agents", Oldrec#agent_auth.id, "update"}, Cookie, Post),
 				?assertEqual({atomic, []}, agent_auth:get_agent("someagent")),
 				{atomic, [Rec]} = agent_auth:get_agent("renamed"),
 				?assertEqual(agent, Rec#agent_auth.securitylevel),

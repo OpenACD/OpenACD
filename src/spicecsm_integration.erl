@@ -225,6 +225,7 @@ handle_call({agent_auth, Agent, PlainPassword}, _From, State) when is_list(Agent
 		{ok, [{struct, Proplist}]} ->
 			Intsec = list_to_integer(binary_to_list(proplists:get_value(<<"securitylevelid">>, Proplist))),
 			Intprof = list_to_integer(binary_to_list(proplists:get_value(<<"tierid">>, Proplist))),
+			Id = binary_to_list(proplists:get_value(<<"agentid">>, Proplist)),
 			{Profile, Security} = case {Intsec, Intprof} of
 				{Secid, 4} when Secid < 4 ->
 					{"Default", supervisor};
@@ -241,7 +242,7 @@ handle_call({agent_auth, Agent, PlainPassword}, _From, State) when is_list(Agent
 					end,
 					{P, S}
 			end,
-			{reply, {ok, Profile, Security}, State#state{count = Count}}
+			{reply, {ok, Id, Profile, Security}, State#state{count = Count}}
 	end;
 handle_call({client_exists, id, Value}, From, State) ->
 	case handle_call({get_client, id, Value}, From, State) of

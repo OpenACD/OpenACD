@@ -32,6 +32,7 @@
 
 -record(agent, {
 	login = erlang:error({undefined, login}) :: string(),
+	id :: 'undefined' | string(),
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
 	connection :: pid(),
 	profile = "Default" :: string(),
@@ -68,6 +69,7 @@
 -type(statename() :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup').
 
 -record(agent_auth, {
+	id :: string(),
 	login :: string(),
 	password :: string(),
 	skills = [english, '_agent', '_node'] :: [atom()],
@@ -95,6 +97,7 @@
 	}).
 
 -record(agent_state, {
+	id :: string(),
 	agent :: string(),
 	state :: statename(),
 	oldstate :: statename(),

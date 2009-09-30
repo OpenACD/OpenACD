@@ -351,7 +351,7 @@ query_nodes([Node | Tail], Fun, Acc) ->
 -type(skill() :: atom() | {atom(), any()}).
 -type(skill_list() :: [skill()]).
 -type(profile_name() :: string()).
--spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', skill_list(), security_level(), profile_name()}).
+-spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', string(), skill_list(), security_level(), profile_name()}).
 auth(Username, Password) ->
 	try integration:agent_auth(Username, Password) of
 		deny ->
@@ -563,7 +563,7 @@ local_auth(Username, BasePassword) ->
 		{atomic, [Agent]} when is_record(Agent, agent_auth) ->
 			?DEBUG("Auth is coolbeans for ~p", [Username]),
 			Skills = lists:umerge(lists:sort(Agent#agent_auth.skills), lists:sort(['_agent', '_node'])),
-			{allow, Skills, Agent#agent_auth.securitylevel, Agent#agent_auth.profile};
+			{allow, Agent#agent_auth.id, Skills, Agent#agent_auth.securitylevel, Agent#agent_auth.profile};
 		Else ->
 			?DEBUG("Denying auth due to ~p", [Else]),
 			deny

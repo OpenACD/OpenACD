@@ -97,6 +97,7 @@
 	}).
 
 -record(agent_state, {
+	id :: string(),
 	agent :: string(),
 	state :: statename(),
 	oldstate :: statename(),

@@ -179,10 +179,10 @@ api(login, {Reflist, Salt, _Login}, Post) ->
 			case agent_auth:auth(Username, DecryptedPassword) of
 				deny ->
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
-				{allow, _Skills, admin, _Profile} ->
+				{allow, _id, _Skills, admin, _Profile} ->
 					ets:insert(cpx_management_logins, {Reflist, Salt, Username}),
 					{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}]})};
-				{allow, _Skills, _Security, _Profile} ->
+				{allow, _id, _Skills, _Security, _Profile} ->
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})}
 			end
 	catch

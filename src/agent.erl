@@ -168,7 +168,7 @@ init([State, Options]) when is_record(State, agent) ->
 					end;
 				Orelse -> Orelse
 			end,
-			Pid = spawn_link(agent, log_loop, [State#agent.login, Nodes, State#agent.profile]),
+			Pid = spawn_link(agent, log_loop, [State#agent.id, State#agent.login, Nodes, State#agent.profile]),
 			Pid ! {State#agent.login, login, State#agent.state, State#agent.statedata},
 			State2#agent{log_pid = Pid};
 		_Orelse ->
@@ -964,20 +964,20 @@ log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
 	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, State#agent.statedata},
 	ok.
 
-log_loop(Agentname, Nodes, Profile) ->
+log_loop(Id, Agentname, Nodes, Profile) ->
 	process_flag(trap_exit, true),
 	receive
 		{Agentname, login, State, OldState, Statedata} ->
 			F = fun() ->
 				Now = util:now(),
-				mnesia:dirty_write(#agent_state{agent = Agentname, state = login, oldstate=OldState,
+				mnesia:dirty_write(#agent_state{id = Id, agent = Agentname, state = login, oldstate=OldState,
 						statedata = {state, State, data, Statedata}, start = Now, profile= Profile, nodes = Nodes}),
 				%mnesia:dirty_write(#agent_state{agent = Agentname, state = State, statedata = Statedata, start = Now, nodes = Nodes}),
 				ok
 			end,
 			Res = mnesia:async_dirty(F),
 			?DEBUG("res of agent state login:  ~p", [Res]),
-			agent:log_loop(Agentname, Nodes, Profile);
+			agent:log_loop(Id, Agentname, Nodes, Profile);
 		{'EXIT', Apid, Reason} ->
 			F = fun() ->
 				Now = util:now(),
@@ -993,7 +993,7 @@ log_loop(Agentname, Nodes, Profile) ->
 					Recs
 				),
 				% TODO oldstate
-				Newrec = #agent_state{agent = Agentname, state = logout, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
+				Newrec = #agent_state{id = Id, agent = Agentname, state = logout, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
 				mnesia:write(Newrec),
 				ok
 			end,
@@ -1003,7 +1003,7 @@ log_loop(Agentname, Nodes, Profile) ->
 		{Agentname, State, OldState, Statedata} ->
 			F = fun() ->
 				Now = util:now(),
-				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.agent =:= Agentname, Rec#agent_state.ended =:= undefined, Rec#agent_state.state =/= login]),
+				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined, Rec#agent_state.state =/= login]),
 				Recs = qlc:e(QH),
 				lists:foreach(
 					fun(Untermed) -> 
@@ -1013,13 +1013,13 @@ log_loop(Agentname, Nodes, Profile) ->
 					end,
 					Recs
 				),
-				Newrec = #agent_state{agent = Agentname, state = State, oldstate=OldState, statedata = Statedata, profile=Profile, start = Now, nodes = Nodes},
+				Newrec = #agent_state{id = Id, agent = Agentname, state = State, oldstate=OldState, statedata = Statedata, profile=Profile, start = Now, nodes = Nodes},
 				mnesia:write(Newrec),
 				ok
 			end,
 			Res = mnesia:async_dirty(F),
 			?DEBUG("res of agent state change log:  ~p", [Res]),
-			agent:log_loop(Agentname, Nodes, Profile)
+			agent:log_loop(Id, Agentname, Nodes, Profile)
 	end.
 
 -ifdef(EUNIT).

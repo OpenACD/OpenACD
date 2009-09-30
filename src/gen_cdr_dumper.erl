@@ -253,13 +253,13 @@ dump_rows(QC, State) ->
 		[Row] ->
 			{NewState, NewRow} = dump_row(Row, State),
 			mnesia:delete_object(Row),
-			?NOTICE("writing updated row ~p", [NewRow]),
-			?NOTICE("old row ~p", [Row]),
+			%?NOTICE("writing updated row ~p", [NewRow]),
+			%?NOTICE("old row ~p", [Row]),
 			mnesia:write(NewRow),
 			dump_rows(QC, NewState)
 	end.
 
-dump_table(cdr_rec, State) ->
+dump_table(cdr_rec, #state{module = Callback} = State) ->
 	F = fun() ->
 			mnesia:lock({table, cdr_rec}, write),
 			QH = qlc:q([CDR || CDR <- mnesia:table(cdr_rec),
@@ -267,11 +267,13 @@ dump_table(cdr_rec, State) ->
 					CDR#cdr_rec.transactions =/= inprogress
 				]),
 			QC = qlc:cursor(QH),
-			dump_rows(QC, State)
+			NewState = dump_rows(QC, State),
+			Callback:commit(NewState#state.substate),
+			NewState
 	end,
 	{atomic, NewState} = mnesia:transaction(F),
 	NewState;
-dump_table(agent_state, State) ->
+dump_table(agent_state, #state{module = Callback} = State) ->
 	F = fun() ->
 			mnesia:lock({table, agent_state}, write),
 			QH = qlc:q([AgentState || AgentState <- mnesia:table(agent_state),
@@ -279,7 +281,9 @@ dump_table(agent_state, State) ->
 					AgentState#agent_state.ended =/= undefined
 				]),
 			QC = qlc:cursor(QH),
-			dump_rows(QC, State)
+			NewState = dump_rows(QC, State),
+			Callback:commit(NewState#state.substate),
+			NewState
 	end,
 	{atomic, NewState} = mnesia:transaction(F),
 	NewState;

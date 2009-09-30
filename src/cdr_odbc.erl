@@ -41,7 +41,9 @@
 	init/1,
 	terminate/2,
 	code_change/3,
-	dump/2
+	dump/2,
+	commit/1,
+	rollback/1
 ]).
 
 -record(state, {
@@ -58,7 +60,7 @@
 init([DSN, Options]) ->
 	try odbc:start() of
 		_ -> % ok or {error, {already_started, odbc}}
-			case odbc:connect(DSN, [{trace_driver, on}]) of
+			case odbc:connect(DSN, [{trace_driver, on}, {auto_commit, off}]) of
 				{ok, Ref} ->
 					{ok, #state{dsn = DSN, ref = Ref}};
 				Else ->
@@ -104,7 +106,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 				{Q, C, W + Time, A, Qu};
 			(_, {Q, C, W, A, Qu}) ->
 				{Q, C, W, A, Qu}
-		end, {0, 0, 0, undefined, undefined}, CDR#cdr_rec.summary),
+		end, {0, 0, 0, undefined, ""}, CDR#cdr_rec.summary),
 
 	T = lists:sort(fun(#cdr_raw{start = Start1, ended = End1}, #cdr_raw{start =
 					Start2, ended = End2}) ->
@@ -133,11 +135,29 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 			odbc:sql_query(State#state.ref, lists:flatten(Q))
 	end,
 	T),
-	Tenantid = list_to_integer(string:substr(Client#client.id, 1, 4)),
-	Brandid = list_to_integer(string:substr(Client#client.id, 5, 4)),
+	case Client#client.id of
+		ClientID when is_list(ClientID), length(ClientID) =:= 8->
+			Tenantid = list_to_integer(string:substr(ClientID, 1, 4)),
+			Brandid = list_to_integer(string:substr(ClientID, 5, 4));
+		_ ->
+			Tenantid = 0,
+			Brandid = 0
+	end,
+
+	%?WARNING("agent is ~p", [Agent]),
+
+	AgentID = case agent_auth:get_agent(Agent) of
+		{atomic, [Rec]} when is_tuple(Rec) ->
+			list_to_integer(element(2, Rec));
+		_ ->
+			0
+	end,
+
+
+	?WARNING("callid is ~p", [Media#call.id]),
 
 	Query = io_lib:format("INSERT INTO billing_summaries set UniqueID='~s',
-		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~s', LastQueue='~s';", [
+		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~B', LastQueue='~s';", [
 		Media#call.id,
 		Tenantid,
 		Brandid,
@@ -147,7 +167,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		Oncall,
 		Wrapup,
 		Type,
-		Agent,
+		AgentID,
 		Queue]),
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
 		{error, Reason} ->
@@ -157,6 +177,12 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 			{ok, State}
 	end.
 
+commit(State) ->
+	?NOTICE("committing pending operations", []),
+	odbc:commit(State#state.ref, commit).
+
+rollback(State) ->
+	odbc:commit(State#state.ref, rollback).
 
 cdr_transaction_to_integer(T) ->
 	case T of
@@ -170,6 +196,7 @@ cdr_transaction_to_integer(T) ->
 		inoutgoing -> 7;
 		failedoutgoing -> 8;
 		transfer -> 9;
+		agent_transfer -> 9;
 		warmtransfer -> 10;
 		warmtransfercomplete -> 11;
 		warmtransferfailed -> 12;
@@ -178,7 +205,7 @@ cdr_transaction_to_integer(T) ->
 		endwrapup -> 15;
 		abandonqueue -> 16;
 		abandonivr -> 17;
-		leftvoicemail -> 18;
+		voicemail -> 18; % was LEFTVOICEMAIL
 		hangup -> 19; % was ENDCALL
 		unknowntermination -> 20;
 		cdrend -> 21

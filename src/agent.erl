@@ -92,7 +92,7 @@
 	spy/2,
 	warm_transfer_begin/2,
 	register_rejected/1,
-	log_loop/3]).
+	log_loop/4]).
 
 %% @doc Start an agent fsm for the passed in agent record `Agent' that is linked
 %% to the calling process with default options.
@@ -802,7 +802,7 @@ handle_info({'EXIT', From, Reason}, Statename, #agent{log_pid = From} = State) -
 		undefined -> [node()];
 		Else -> Else
 	end,
-	Pid = spawn_link(agent, log_loop, [State#agent.login, Nodes]),
+	Pid = spawn_link(agent, log_loop, [State#agent.id, State#agent.login, Nodes, State#agent.profile]),
 	{next_state, Statename, State#agent{log_pid = Pid}};
 handle_info({'EXIT', From, Reason}, oncall, #agent{connection = From, statedata = Call} = State) ->
 	?WARNING("agent connection died while ~w with ~w media", [oncall, Call#call.media_path]),

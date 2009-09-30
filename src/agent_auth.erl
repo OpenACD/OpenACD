@@ -667,7 +667,7 @@ auth_no_integration_test_() ->
 	end,
 	[{"authing the default agent success",
 	fun() ->
-		?assertMatch({allow, _Skills, agent, "Default"}, auth("agent", "Password123"))
+		?assertMatch({allow, "1", _Skills, agent, "Default"}, auth("agent", "Password123"))
 	end},
 	{"auth an agent that doesn't exist",
 	fun() ->
@@ -701,27 +701,27 @@ auth_integration_test_() ->
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "password"}, _, State) ->
 				{ok, {ok, "testid", "Default", agent}, State}
 			end),
-			?assertMatch({allow, _Skills, agent, "Default"}, auth("testagent", "password")),
-			?assertMatch({allow, _Skills, agent, "Default"}, local_auth("testagent", "password"))
+			?assertMatch({allow, "testid", _Skills, agent, "Default"}, auth("testagent", "password")),
+			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "password"))
 		end}
 	end,
 	fun(Mock) ->
 		{"auth an agent overwrites the cache",
 		fun() ->
 			cache("testid", "testagent", "password", "Default", agent),
-			?assertMatch({allow, _Skills, agent, "Default"}, local_auth("testagent", "password")),
+			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "password")),
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "newpass"}, _, State) ->
 				{ok, {ok, "testid", "Default", agent}, State}
 			end),
-			?assertMatch({allow, _Skills, agent, "Default"}, auth("testagent", "newpass")),
-			?assertMatch({allow, _Skills, agent, "Default"}, local_auth("testagent", "newpass")),
+			?assertMatch({allow, "testid", _Skills, agent, "Default"}, auth("testagent", "newpass")),
+			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "newpass")),
 			?assertEqual(deny, local_auth("testagent", "password"))
 		end}
 	end,
 	fun(Mock) ->
 		{"integration denies, thus removing from cache",
 		fun() ->
-			?assertMatch({allow, _, agent, "Default"}, local_auth("agent", "Password123")),
+			?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123")),
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123"}, _, State) ->
 				{ok, deny, State}
 			end),
@@ -735,8 +735,8 @@ auth_integration_test_() ->
 			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123"}, _, State) ->
 				{ok, gooberpants, State}
 			end),
-			?assertMatch({allow, _Skills, agent, "Default"}, auth("agent", "Password123")),
-			?assertMatch({allow, _Skills, agent, "Default"}, local_auth("agent", "Password123"))
+			?assertMatch({allow, "1", _Skills, agent, "Default"}, auth("agent", "Password123")),
+			?assertMatch({allow, "1", _Skills, agent, "Default"}, local_auth("agent", "Password123"))
 		end}
 	end]}.
 

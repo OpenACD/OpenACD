@@ -74,7 +74,7 @@
 -record(state, {
 	initargs :: any(),
 	mimed :: {string(), string(), [{string(), string()}], [{string(), string()}], any()},
-	html :: string(),
+	skeleton :: any(),
 	files :: [string()],
 	manager :: pid() | tref()
 }).
@@ -114,6 +114,7 @@ init(Args) ->
 		[Mailmap, Headers, Data] ->
 			mimemail:decode(Headers, Data)
 	end,
+	Skeleton = skeletonize(Mimed),
 	Callerid = case proplists:get_value("From", Mheads) of
 		undefined -> 
 			"unknown";
@@ -142,7 +143,7 @@ init(Args) ->
 		media_path = inband,
 		source = self()
 	},
-	{ok, {#state{initargs = Args, html = Html, mimed = Mimed, files = Files, manager = whereis(email_media_manager)}, {Mailmap#mail_map.queue, Proto}}}.
+	{ok, {#state{initargs = Args, skeleton = Skeleton, mimed = Mimed, manager = whereis(email_media_manager)}, {Mailmap#mail_map.queue, Proto}}}.
 	
 	
 %%--------------------------------------------------------------------
@@ -152,13 +153,8 @@ init(Args) ->
 handle_call({get_file, Name}, _From, _Callrec, State) ->
 	Out = proplists:get_value(Name, State#state.files),
 	{reply, Out, State};
-handle_call(get_agent_display, _From, _Callrec, State) ->
-	{reply, State#state.html, State};
 handle_call(get_init, _From, _Callrec, State) ->
 	{reply, State#state.initargs, State};
-handle_call({mediapull, ""}, _From, _Callrec, #state{html = Html} = State) ->
-	?DEBUG("outgoing html:  ~p", [Html]),
-	{reply, {[], Html}, State};
 handle_call({mediapull, [Filename]}, _From, _Callrec, #state{files = Files} = State) ->
 	?DEBUG("You are requesting ~p (~s as string)", [Filename, Filename]),
 	?DEBUG("Files:  ~p", [Files]),
@@ -232,8 +228,8 @@ code_change(_OldVsn, _Callrec, State, _Extra) ->
 
 %% gen_media specific callbacks
 handle_answer(Agent, _Call, State) ->
-	?DEBUG("Shoving ~w to the agent ~w", [State#state.html, Agent]),
-	agent:media_push(Agent, State#state.html, replace),
+	%?DEBUG("Shoving ~w to the agent ~w", [State#state.html, Agent]),
+	%agent:media_push(Agent, State#state.html, replace),
 	{ok, State}.
 
 handle_ring(_Agent, _Call, State) ->
@@ -283,6 +279,27 @@ skeletonize([{"message", Subtype, _Headers, _Properties, Body} | Tail], Acc) ->
 skeletonize([{Type, Subtype, _Headers, _Properties, _Body} | Tail], Acc) ->
 	Newacc = [{Type, Subtype} | Acc],
 	skeletonize(Tail, Newacc).
+
+get_part([], {"multipart", Subtype, _Headers, _Properties, List}) ->
+	?DEBUG("[], \"multipart\"", []),
+	{multipart, List};
+get_part([], {"message", Subtype, _Headers, _Properties, Body}) ->
+	?DEBUG("[], \"message\"", []),
+	{message, Body};
+get_part([], Mime) ->
+	?DEBUG("[], ~p/~p", [element(1, Mime), element(2, Mime)]),
+	{ok, Mime};
+get_part([Child | Tail], {"multipart", Subtype, _Headers, _Properties, List}) when Child =< length(List) ->
+	?DEBUG("[~p | ~p], multipart/~p", [Child, Tail, Subtype]),
+	Part = lists:nth(Child, List),
+	get_part(Tail, Part);
+get_part([1 | Tail], {"message", Subtype, _Headers, _Properties, Body}) ->
+	?DEBUG("[1 | ~p], message/~p", [Tail, Subtype]),
+	get_part(Tail, Body);
+get_part(Path, Mime) ->
+	?INFO("Invalid path ~p.  ~p/~p", [Path, element(1, Mime), element(2, Mime)]),
+	none.
+
 
 check_disposition(Properties) ->
 	?DEBUG("~p", [Properties]),
@@ -854,7 +871,65 @@ skeletonize_test_() ->
 		?DEBUG("Skel:  ~p", [Skel]),
 		?assertEqual(Expected, Skel)
 	end}].
-		
-		
+	
 
+% multipart/alternative []
+%	text/plain [1]
+%	multipart/mixed [2]
+%		text/html [2, 1]
+%		message/rf822 [2, 2]
+%			multipart/mixed [2, 2, 1]
+%				message/rfc822 [2, 2, 1, 1]
+%					text/plain [2, 2, 1, 1, 1]
+%		text/html [2, 3]
+%		message/rtc822 [2, 4]
+%			text/plain [2, 4, 1]
+%		text/html [2, 5]
+%		image/jpeg [2, 6]
+%		text/html [2, 7]
+%		text/rtf [2, 8]
+%		text/html [2, 9]
+get_part_test_() ->
+	{setup,
+	fun() ->
+		getmail("the-gamut.eml")
+	end,
+	fun(Gamut) ->
+		[{"A simple path",
+		fun() ->
+			Path = [1],
+			?assertMatch({ok, {"text", "plain", _Head, _Prop, _Body}}, get_part(Path, Gamut))
+		end},
+		{"Getting the base", 
+		fun() ->
+			Path = [],
+			?assertMatch({multipart, [Tuple1, Tuple2]}, get_part(Path, Gamut))
+		end},
+		{"Getting a multipart",
+		fun() ->
+			Path = [2],
+			?assertMatch({multipart, List}, get_part(Path, Gamut))
+		end},
+		{"Getting a message",
+		fun() ->
+			Path = [2, 2],
+			?assertMatch({message, {"multipart", "mixed", _Headers, _Properties, _List}}, get_part(Path, Gamut))
+		end},
+		{"Getting a deep text",
+		fun() ->
+			Path = [2, 2, 1, 1, 1],
+			?assertMatch({ok, {"text", "plain", _Headers, _Properties, _Body}}, get_part(Path, Gamut))
+		end},
+		{"getting a far away text",
+		fun() ->
+			Path = [2, 9],
+			?assertMatch({ok, {"text", "html", _Headers, _Properties, _Body}}, get_part(Path, Gamut))
+		end},
+		{"getting a path that doesn't exist",
+		fun() ->
+			Path = [299, 768, 124],
+			?assertMatch(none, get_part(Path, Gamut))
+		end}]
+	end}.
+		
 -endif.

@@ -193,7 +193,11 @@ task :contrib do
 	end
 end
 
-task :default => :compile
+task :default => :compile do
+	if File.exists?('success_message')
+		puts File.read('success_message')
+	end
+end
 
 task :release => :compile
 

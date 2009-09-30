@@ -87,6 +87,8 @@
 	media_pull/2, 
 	media_push/2,
 	media_push/3, 
+	media_call/2,
+	media_cast/2,
 	url_pop/2,
 	blab/2,
 	spy/2,
@@ -136,7 +138,17 @@ set_endpoint(Pid, Endpoint) ->
 -spec(register_rejected/1 :: (Pid :: pid()) -> 'ok').
 register_rejected(Pid) ->
 	gen_fsm:send_event(Pid, register_rejected).
-	
+
+%% @doc The connection can request to call to the agent's media when oncall.
+-spec(media_call/2 :: (Apid :: pid(), Request :: any()) -> any()).
+media_call(Apid, Request) ->
+	gen_fsm:sync_send_event(Apid, {mediacall, Request}).
+
+%% @doc To cast to the media while oncall, use this.
+-spec(media_cast/2 :: (Apid :: pid(), Request :: any()) -> 'ok').
+media_cast(Apid, Request) ->
+	gen_fsm:sync_send_event(Apid, {mediacast, Request}).
+
 %% @private
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
 init([State, Options]) when is_record(State, agent) ->
@@ -519,6 +531,9 @@ oncall({mediapull, Data}, {Pid, _Tag}, #agent{statedata = Call, connection = Pid
 oncall({mediapush, Data}, {Pid, _Tag}, #agent{statedata = Call, connection = Pid} = State) -> 
 	Reply = gen_media:call(Call#call.source, {mediapush, Data}),
 	{reply, Reply, oncall, State};
+oncall({mediacall, Request}, {Pid, _Tag}, #agent{statedata = Call, connection = Pid} = State) ->
+	Reply = gen_media:call(Call#call.source, Request),
+	{reply, Reply, oncall, State};
 oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
 	case gen_media:warm_transfer_begin(Call#call.source, Number) of
 		{ok, UUID} ->
@@ -533,6 +548,9 @@ oncall(get_media, _From, #agent{statedata = Media} = State) when is_record(Media
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
 
+oncall({mediacast, Request}, #agent{statedata = Call} = State) ->
+	gen_media:cast(Call#call.source, Request),
+	{next_state, oncall, State};
 oncall(register_rejected, #agent{statedata = Media} = State) when Media#call.media_path =:= inband ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};

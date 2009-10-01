@@ -118,10 +118,10 @@ startup_test_() ->
 	[{"start as an anonymous direct supervisor with one spec.",
 	fun() ->
 		Dummyspec = #cpx_conf{
-			id = dummy_media_manager, 
-			module_name = dummy_media_manager, 
-			start_function = start_link,
-			start_args = []
+			id = gen_server_mock, 
+			module_name = gen_server_mock, 
+			start_function = named,
+			start_args = [{local, dummy_media_manager}]
 		},
 		Out = start_anon(3, 5, Dummyspec),
 		?CONSOLE("1:~p, ~p", [Out, self()]),
@@ -147,10 +147,10 @@ startup_test_() ->
 		?assertMatch({ok, _P}, Out),
 		{ok, Pid} = Out,
 		Dummyspec = #cpx_conf{
-			id = dummy_media_manager, 
-			module_name = dummy_media_manager, 
-			start_function = start_link,
-			start_args = []
+			id = gen_server_mock, 
+			module_name = gen_server_mock, 
+			start_function = named,
+			start_args = [{local, dummy_media_manager}]
 		},
 		Out2 = add_with_middleman(testsup, 3, 5, Dummyspec),
 		?assertMatch({ok, _P2}, Out2),
@@ -165,14 +165,14 @@ startup_test_() ->
 	{"Stop a child that has a middleman.",
 	fun() ->
 		Dummyspec = #cpx_conf{
-			id = dummy_media_manager, 
-			module_name = dummy_media_manager, 
-			start_function = start_link,
-			start_args = []
+			id = gen_server_mock, 
+			module_name = gen_server_mock, 
+			start_function = named,
+			start_args = [{local, dummy_media_manager}]
 		},
 		{ok, _Top} = start_named(3, 5, testsup),
 		_Middle = add_with_middleman(testsup, 3, 5, Dummyspec),
-		drop_child(testsup, dummy_media_manager),
+		drop_child(testsup, gen_server_mock),
 		?assertEqual(undefined, whereis(dummy_media_manager))
 	end}].
 	

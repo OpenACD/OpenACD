@@ -290,10 +290,10 @@ api(Apirequest, badcookie, _Post) ->
 	ets:insert(web_connections, {Reflist, undefined, undefined}),
 	{403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>};
 	
-api(logout, {_Reflist, _Salt, Conn}, _Post) ->
+api(logout, {Reflist, _Salt, Conn}, _Post) ->
 	Newref = erlang:ref_to_list(make_ref()),
-	ets:insert(web_connections, {Newref, undefined, undefined}),
-	Cookie = make_cookie(Newref),
+	ets:insert(web_connections, {Reflist, undefined, undefined}),
+	Cookie = io_lib:format("cpx_id=~p; path=/; Expires=Tue, 29-Mar-2005 19:30: 42 GMT; Max-Age=86400", [Reflist]),
 	agent_web_connection:api(Conn, logout),
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
 api(login, {_Reflist, undefined, _Conn}, _Post) ->

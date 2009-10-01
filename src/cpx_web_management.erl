@@ -191,9 +191,10 @@ api(login, {Reflist, Salt, _Login}, Post) ->
 	end;
 api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	ets:delete(cpx_management_logins, Reflist),
-	Newref = erlang:ref_to_list(make_ref()),
-	Cookie = io_lib:format("cpx_management=~p; path=/", [Newref]),
-	ets:insert(cpx_management_logins, {Newref, undefined, undefined}),
+	%Newref = erlang:ref_to_list(make_ref()),
+	Cookie = io_lib:format("cpx_management=~p; path=/; Expires=Tue, 29-Mar-2005 19:30: 42 GMT; Max-Age=86400", [Reflist]),
+	%Cookie = io_lib:format("cpx_management=~p; path=/", [Newref]),
+	ets:insert(cpx_management_logins, {Reflist, undefined, undefined}),
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
 api(_Api, {Reflist, _Salt, undefined}, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"login required">>}]})};

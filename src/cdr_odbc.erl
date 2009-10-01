@@ -37,6 +37,10 @@
 -include("call.hrl").
 -include("agent.hrl").
 
+-ifdef(EUNIT).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -export([
 	init/1,
 	terminate/2,

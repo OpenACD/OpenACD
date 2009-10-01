@@ -675,7 +675,35 @@ dojo.addOnLoad(function(){
 		agent.logout();
 	}
 	
-	dijit.byId("main").mediapush = dojo.subscribe("agent/mediapush", function(eventdata){
+	dijit.byId("main").mediaload = dojo.subscribe("agent/mediaload", function(eventdata){
+		info(["listening for media load fired:  ", eventdata]);
+		var mediaPanelId = eventdata.media + 'Panel';
+		if(dijit.byId(mediaPanelId)){
+			return false; 
+		}
+		
+		var pane = new dojox.layout.ContentPane({
+			title:eventdata.media,
+			executeScripts: "true",
+			id: mediaPanelId,
+			closable: false
+		});
+		pane.unloadListener = dojo.subscribe('agent/state', function(data){
+			if(data.state == 'idle'){				
+				dojo.unsubscribe(pane.unloadListener);
+				dojo.unsubscribe(pane.logoutListener);
+				dijit.byId('tabPanel').closeChild(pane);
+			}
+		});
+		pane.logoutListener = dojo.subscribe('agent/logout', function(){
+			dojo.unsubscribe(pane.unloadListener);
+			dojo.unsubscribe(pane.logoutListener);
+			dijit.byId('tabPanel').closeChild(pane);
+		});
+		dijit.byId('tabPanel').addChild(pane);
+	});
+	
+	/*dijit.byId("main").mediapush = dojo.subscribe("agent/mediapush", function(eventdata){
 		info(["main listing for media push paid off", eventdata]);
 		if(dijit.byId("mediapush") == undefined){
 			var mediaPane = new dojox.layout.FloatingPane({
@@ -714,7 +742,7 @@ dojo.addOnLoad(function(){
 		}
 		
 		dojo.byId("media-content").innerHTML = oldcontent + eventdata.content;
-	});		   
+	});	*/	   
 });
 
 function endpointselect() {

@@ -84,9 +84,8 @@
 	set_endpoint/2, 
 	agent_transfer/2,
 	queue_transfer/2,
-	media_pull/2, 
-	media_push/2,
-	media_push/3, 
+	conn_cast/2,
+	conn_call/2, 
 	media_call/2,
 	media_cast/2,
 	url_pop/2,
@@ -139,6 +138,16 @@ set_endpoint(Pid, Endpoint) ->
 register_rejected(Pid) ->
 	gen_fsm:send_event(Pid, register_rejected).
 
+%% @doc When the media wants to cast to the connnection.
+-spec(conn_cast/2 :: (Apid :: pid(), Request :: any()) -> 'ok').
+conn_cast(Apid, Request) ->
+	gen_fsm:send_event(Apid, {conn_cast, Request}).
+
+%% @doc When the media wants to call to the connection.
+-spec(conn_call/2 :: (Apid :: pid(), Request :: any()) -> any()).
+conn_call(Apid, Request) ->
+	gen_fsm:synce_send_event(Apid, {conn_call, Request}).
+	
 %% @doc The connection can request to call to the agent's media when oncall.
 -spec(media_call/2 :: (Apid :: pid(), Request :: any()) -> any()).
 media_call(Apid, Request) ->
@@ -545,9 +554,27 @@ oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) -
 	end;
 oncall(get_media, _From, #agent{statedata = Media} = State) when is_record(Media, call) ->
 	{reply, {ok, Media}, oncall, State};
+oncall({conn_call, Request}, {Pid, _Tag}, #agent{statedata = Media} = State) ->
+	case {Media#call.source, State#agent.connection} of
+		{_, undefined} ->
+			{reply, {error, noconnection}, oncall, State};
+		{Pid, Connpid} ->
+			Reply = gen_server:call(Connpid, Request),
+			{reply, Reply, oncall, State};
+		{_, _} ->
+			{reply, invalid, oncall, State}
+	end;
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
 
+oncall({conn_cast, Request}, #agent{connection = Pid} = State) ->
+	case is_pid(Pid) of
+		true ->
+			gen_server:cast(Pid, Request);
+		false ->
+			ok
+	end,
+	{next_state, oncall, State};
 oncall({mediacast, Request}, #agent{statedata = Call} = State) ->
 	gen_media:cast(Call#call.source, Request),
 	{next_state, oncall, State};
@@ -556,12 +583,12 @@ oncall(register_rejected, #agent{statedata = Media} = State) when Media#call.med
 	{stop, register_rejected, State};
 oncall(register_rejected, #agent{statedata = Media} = State) ->
 	{stop, register_rejected, State};
-oncall({mediapush, Mediapid, Data, Mode}, #agent{statedata = Media} = State) when Media#call.source =:= Mediapid, is_atom(Mode) ->
+oncall({mediapush, Mediapid, Data}, #agent{statedata = Media} = State) when Media#call.source =:= Mediapid ->
 	case State#agent.connection of
 		undefined ->
 			{next_state, oncall, State};
 		Conn when is_pid(Conn) ->
-			gen_server:cast(Conn, {mediapush, Media, Data, Mode}),
+			gen_server:cast(Conn, {mediapush, Media, Data}),
 			{next_state, oncall, State}
 	end;
 oncall(Message, State) ->

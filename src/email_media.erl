@@ -53,6 +53,11 @@
 	start/2
 ]).
 
+%% Web interface helper functions
+-export([
+	post_to_api/1
+]).
+
 %% gen_media callbacks
 -export([
 	init/1, 
@@ -102,6 +107,21 @@ start_link(Mailmap, Headers, Data) ->
 start_link(Mailmap, Rawmessage) ->
 	gen_media:start_link(?MODULE, [Mailmap, Rawmessage]).
 
+-spec(post_to_api/1 :: (Post :: [{string(), string()}]) -> {'cast', any()} | {'call', any()}).
+post_to_api(Post) ->
+	case proplists:get_value("command", Post) of
+		"get_path" ->
+			Path = proplists:get_value("path", Post, ""),
+			Tokenpath = string:tokens(Path, [$.]),
+			PathProper = lists:map(fun(Elem) -> list_to_integer(Elem) end, Tokenpath),
+			{call, {get_path, PathProper}};
+		"get_id" ->
+			Id = proplists:get_value("id", Post),
+			{call, {get_id, Id}};
+		_Else ->
+			none
+	end.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -147,7 +167,7 @@ handle_call(get_init, _From, _Callrec, State) ->
 	{reply, State#state.initargs, State};
 handle_call({get_path, Path}, _From, _Callrec, #state{mimed = Mime} = State) when is_list(Path) ->
 	Reply = get_part(Path, Mime),
-	{reply, Reply, State};
+	{reply, {ok, Reply}, State};
 handle_call({get_id, Id}, From, Callrec, #state{file_map = Map} = State) when is_list(Id) ->
 	case proplists:get_value(Id, Map) of
 		undefined ->
@@ -228,9 +248,9 @@ code_change(_OldVsn, _Callrec, State, _Extra) ->
 	{ok, State}.
 
 %% gen_media specific callbacks
-handle_answer(Agent, _Call, State) ->
+handle_answer(Agent, Call, State) ->
 	%?DEBUG("Shoving ~w to the agent ~w", [State#state.html, Agent]),
-	%agent:media_push(Agent, State#state.html, replace),
+	agent:conn_cast(Agent, {mediaload, Call}),
 	{ok, State}.
 
 handle_ring(_Agent, _Call, State) ->

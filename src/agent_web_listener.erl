@@ -492,6 +492,8 @@ parse_path(Path) ->
 					{api, get_avail_agents};
 				["agent_transfer", Agent] ->
 					{api, {agent_transfer, Agent}};
+				["media"] ->
+					{api, media};
 				["mediapull" | Pulltail] ->
 					?INFO("pulltail:  ~p", [Pulltail]),
 					{api, {mediapull, Pulltail}};

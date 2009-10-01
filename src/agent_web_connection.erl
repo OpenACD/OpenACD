@@ -546,21 +546,32 @@ handle_cast({poll, Frompid}, State) ->
 			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
 			{noreply, Newstate}
 	end;
-handle_cast({mediapush, Callrec, Data, Mode}, State) when is_binary(Data); is_list(Data) ->
-	Contentline = case {is_list(Data), is_binary(Data)} of
-		{false, true} ->
-			{<<"content">>, Data};
-		{true, false} ->
-			{<<"content">>, list_to_binary(Data)}
-	end,
+handle_cast({mediaload, #call{type = email}}, State) ->
 	Json = {struct, [
-		{<<"command">>, <<"mediapush">>},
-		{<<"mode">>, Mode},
-		{<<"media">>, encode_call(Callrec)},
-		Contentline
+		{<<"command">>, <<"mediaload">>},
+		{<<"media">>, <<"email">>}
 	]},
 	Newstate = push_event(Json, State),
 	{noreply, Newstate};
+handle_cast({mediapush, #call{type = Mediatype} = Callrec, Data, Mode}, State) when is_binary(Data); is_list(Data) ->
+	case Mediatype of
+		email ->
+			case Data of
+				load ->
+					Json = {struct, [
+						{<<"command">>, <<"mediaload">>},
+						{<<"media">>, <<"email">>}
+					]},
+					Newstate = push_event(Json, State),
+					{noreply, Newstate};
+				Else ->
+					?INFO("No other data's supported", []),
+					{noreply, State}
+			end;
+		Else ->
+			?INFO("Currently no supporting other media pushings: ~p", [Else]),
+			{noreply, State}
+	end;
 handle_cast({set_salt, Salt}, State) ->
 	{noreply, State#state{salt = Salt}};
 handle_cast({change_state, AgState, Data}, #state{counter = Counter} = State) ->

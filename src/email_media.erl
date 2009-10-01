@@ -145,9 +145,17 @@ init(Args) ->
 
 handle_call(get_init, _From, _Callrec, State) ->
 	{reply, State#state.initargs, State};
-handle_call({get_part, Path}, _From, _Callrec, #state{mimed = Mime} = State) when is_list(Path) ->
+handle_call({get_path, Path}, _From, _Callrec, #state{mimed = Mime} = State) when is_list(Path) ->
 	Reply = get_part(Path, Mime),
 	{reply, Reply, State};
+handle_call({get_id, Id}, From, Callrec, #state{file_map = Map} = State) when is_list(Id) ->
+	case proplists:get_value(Id, Map) of
+		undefined ->
+			{reply, none, State};
+		Path ->
+			?DEBUG("path:  ~p", [Path]),
+			handle_call({get_path, Path}, From, Callrec, State)
+	end;
 %handle_call({mediapull, [Filename]}, _From, _Callrec, #state{files = Files} = State) ->
 %	?DEBUG("You are requesting ~p (~s as string)", [Filename, Filename]),
 %	?DEBUG("Files:  ~p", [Files]),
@@ -267,7 +275,7 @@ skeletonize({Type, Subtype, Headers, _Properties, _Body}, Path, Files) ->
 		Contentid ->
 			Len = length(Contentid),
 			Id = lists:append(["cid:", string:sub_string(Contentid, 2, Len - 1)]),
-			[{Id, Path} | Files]
+			[{Id, lists:reverse(Path)} | Files]
 	end,
 	{{Type, Subtype}, Newfiles};
 skeletonize(List, Path, Files) when is_list(List) ->
@@ -884,7 +892,7 @@ skeletonize_test_() ->
 	fun() ->
 		Decoded = getmail("testcase1"),
 		{_Skel, Files} = skeletonize(Decoded),
-		Expected = [{"cid:part1.03050108.02070304@gmail.com", [2, 2, 1, 2]}],
+		Expected = [{"cid:part1.03050108.02070304@gmail.com", [2, 1, 2, 2]}],
 		?assertEqual(Expected, Files)
 	end}].
 	
@@ -930,6 +938,11 @@ get_part_test_() ->
 		fun() ->
 			Path = [2, 2],
 			?assertMatch({message, {"multipart", "mixed", _Headers, _Properties, _List}}, get_part(Path, Gamut))
+		end},
+		{"Getting below a message",
+		fun() ->
+			Path = [2, 2, 1],
+			?assertMatch({multipart, [{"message", "rfc822", _Headers, _Properties, _Body}]}, get_part(Path, Gamut))
 		end},
 		{"Getting a deep text",
 		fun() ->

@@ -75,6 +75,7 @@
 	initargs :: any(),
 	mimed :: {string(), string(), [{string(), string()}], [{string(), string()}], any()},
 	skeleton :: any(),
+	file_map = [] :: [{string(), [pos_integer()]}],
 	manager :: pid() | tref()
 }).
 
@@ -113,7 +114,7 @@ init(Args) ->
 		[Mailmap, Headers, Data] ->
 			mimemail:decode(Headers, Data)
 	end,
-	Skeleton = skeletonize(Mimed),
+	{Skeleton, Files} = skeletonize(Mimed),
 	Callerid = case proplists:get_value("From", Mheads) of
 		undefined -> 
 			"unknown";
@@ -135,7 +136,7 @@ init(Args) ->
 		media_path = inband,
 		source = self()
 	},
-	{ok, {#state{initargs = Args, skeleton = Skeleton, mimed = Mimed, manager = whereis(email_media_manager)}, {Mailmap#mail_map.queue, Proto}}}.
+	{ok, {#state{initargs = Args, skeleton = Skeleton, file_map = Files, mimed = Mimed, manager = whereis(email_media_manager)}, {Mailmap#mail_map.queue, Proto}}}.
 	
 	
 %%--------------------------------------------------------------------
@@ -249,28 +250,43 @@ handle_wrapup(_Callrec, State) ->
 % -type(display_type() :: 'link' | 'html' | 'text').
 % -type(mail_display() :: [{display_type(), any()}]).
 
-skeletonize({"multipart", Subtype, _Headers, _Properties, List}) ->
-	{"multipart", Subtype, skeletonize(List)};
-skeletonize({"message", Subtype, _Headers, _Properties, Body}) ->
-	{"message", Subtype, skeletonize([Body])};
-skeletonize({Type, Subtype, _Headers, _Properties, _Body}) ->
-	{Type, Subtype};
-skeletonize(List) when is_list(List) ->
-	skeletonize(List, []).
+skeletonize(Mime) ->
+	%% skeletonize(Mime, Path, Filemap) -> {Skeleton, Filemap}
+	skeletonize(Mime, [], []).
 
-skeletonize([], Acc) ->
-	lists:reverse(Acc);
-skeletonize([{"multipart", Subtype, _Headers, _Properties, List} | Tail], Acc) ->
-	Sublist = skeletonize(List),
+skeletonize({"multipart", Subtype, _Headers, _Properties, List}, Path, Files) ->
+	{Subskel, Newfiles} = skeletonize(List, [1 | Path], Files),
+	{{"multipart", Subtype, Subskel}, Newfiles};
+skeletonize({"message", Subtype, _Headers, _Properties, Body}, Path, Files) ->
+	{Subskel, Newfiles} = skeletonize([Body], [1 | Path], Files),
+	{{"message", Subtype, Subskel}, Newfiles};
+skeletonize({Type, Subtype, Headers, _Properties, _Body}, Path, Files) ->
+	Newfiles = case proplists:get_value("Content-ID", Headers) of
+		undefined ->
+			Files;
+		Contentid ->
+			Len = length(Contentid),
+			Id = lists:append(["cid:", string:sub_string(Contentid, 2, Len - 1)]),
+			[{Id, Path} | Files]
+	end,
+	{{Type, Subtype}, Newfiles};
+skeletonize(List, Path, Files) when is_list(List) ->
+	skeletonize(List, Path, Files, []).
+
+skeletonize([], Path, Files, Acc) ->
+	{lists:reverse(Acc), Files};
+skeletonize([{"multipart", Subtype, _Headers, _Properties, List} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+	{Sublist, Newfiles} = skeletonize(List, [1 | Path], Files),
 	Newacc = [{"multipart", Subtype, Sublist} | Acc],
-	skeletonize(Tail, Newacc);
-skeletonize([{"message", Subtype, _Headers, _Properties, Body} | Tail], Acc) ->
-	Sublist = skeletonize([Body]),
+	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
+skeletonize([{"message", Subtype, _Headers, _Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+	{Sublist, Newfiles} = skeletonize([Body], [1 | Path], Files),
 	Newacc = [{"message", Subtype, Sublist} | Acc],
-	skeletonize(Tail, Newacc);
-skeletonize([{Type, Subtype, _Headers, _Properties, _Body} | Tail], Acc) ->
-	Newacc = [{Type, Subtype} | Acc],
-	skeletonize(Tail, Newacc).
+	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
+skeletonize([Head | Tail], [Count | Ptail] = Path, Files, Acc) ->
+	{Skel, Newfiles} = skeletonize(Head, Path, Files),
+	Newacc = [{element(1, Head), element(2, Head)} | Acc],
+	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc).
 
 get_part([], {"multipart", Subtype, _Headers, _Properties, List}) ->
 	?DEBUG("[], \"multipart\"", []),
@@ -801,19 +817,20 @@ skeletonize_test_() ->
 	[{"Simple plain text mail",
 	fun() ->
 		Decoded = getmail("Plain-text-only.eml"),
-		Skel = skeletonize(Decoded),
+		{Skel, []} = skeletonize(Decoded),
 		?assertEqual({"text", "plain"}, Skel)
 	end},
 	{"html text mail",
 	fun() ->
 		Decoded = getmail("html.eml"),
-		Skel = skeletonize(Decoded),
+		{Skel, []} = skeletonize(Decoded),
+		?DEBUG("Skel:  ~p", [Skel]),
 		?assertEqual({"multipart", "alternative", [{"text", "plain"}, {"text", "html"}]}, Skel)
 	end},
 	{"email with image",
 	fun() ->
 		Decoded = getmail("image-attachment-only.eml"),
-		Skel = skeletonize(Decoded),
+		{Skel, []} = skeletonize(Decoded),
 		?assertEqual({"multipart", "mixed", [{"image", "jpeg"}]}, Skel)
 	end},
 	{"the gamut",
@@ -835,7 +852,7 @@ skeletonize_test_() ->
 		%		text/rtf
 		%		text/html
 		Decoded = getmail("the-gamut.eml"),
-		Skel = skeletonize(Decoded),
+		{Skel, Files} = skeletonize(Decoded),
 		Expected = {"multipart", "alternative", [
 			{"text", "plain"},
 			{"multipart", "mixed", [
@@ -860,7 +877,15 @@ skeletonize_test_() ->
 		]},
 		?DEBUG("Ecpected:  ~p", [Expected]),
 		?DEBUG("Skel:  ~p", [Skel]),
-		?assertEqual(Expected, Skel)
+		?assertEqual(Expected, Skel),
+		?assertEqual([], Files)
+	end},
+	{"Files with id's logged (testcase1)",
+	fun() ->
+		Decoded = getmail("testcase1"),
+		{_Skel, Files} = skeletonize(Decoded),
+		Expected = [{"cid:part1.03050108.02070304@gmail.com", [2, 2, 1, 2]}],
+		?assertEqual(Expected, Files)
 	end}].
 	
 

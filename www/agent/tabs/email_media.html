@@ -1,0 +1,39 @@
+<script type="text/javascript">
+	dojo.require("dijit.form.Form");
+	dojo.require("dijit.form.TextBox");
+	dojo.require("dijit.Editor");
+	dojo.require("dijit.form.Button");
+</script>
+
+<form dojoType="dijit.form.Form" action="javascript:void(0)" id="emailReplyForm">
+<p>
+	<label class="translatecol">TO</label>
+	<input dojoType="dojo.form.TextBox" id="emailTo" />
+</p>
+
+<p>
+	<label class="translatecol">FROM</label>
+	<input dojoType="dojo.form.TextBox" id="emailFrom" />
+</p>
+
+<p>
+	<label class="translatecol">SUBJECT</label>
+	<input dojoType="dojo.form.TextBox" id="emailSubject" />
+</p>
+
+<p>
+	<label class="translate">BODY</label>
+</p>
+
+<p>
+	<textarea dojoType="dijit.Editor" id="emailBody"></textarea>
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<button label="SUBMIT" dojoType="dijit.form.Button"></button>
+</p>
+	
+</form>
+
+<script type="text/javascript" src="tabs/email_media.js"></script>

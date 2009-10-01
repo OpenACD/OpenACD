@@ -289,48 +289,7 @@ api(Apirequest, badcookie, _Post) ->
 	Cookie = make_cookie(Reflist),
 	ets:insert(web_connections, {Reflist, undefined, undefined}),
 	{403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>};
-api(brandlist, {_Reflist, _Salt, _Conn}, _Post) ->
-	case call_queue_config:get_clients() of
-	[] ->
-		{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No brands defined">>}]})};
-	Brands ->
-		Converter = fun
-			(#client{label = undefined}, Acc) ->
-				Acc;
-			(#client{label = Label, id = ID}, Acc) ->
-				[{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, list_to_binary(ID)}]} | Acc]
-		end,
-		Jsons = lists:foldl(Converter, [], Brands),
-		{200, [], mochijson2:encode({struct, [{success, true}, {<<"brands">>, Jsons}]})}
-	end;
-api(queuelist, {_Reflist, _Salt, _Conn}, _Post) ->
-	case call_queue_config:get_queues() of
-	[] ->
-		{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No queues defined">>}]})};
-	Brands ->
-		Converter = fun
-			(#call_queue{name = Name}, Acc) ->
-				[{struct, [{<<"name">>, list_to_binary(Name)}]} | Acc]
-		end,
-		Jsons = lists:foldl(Converter, [], Brands),
-		{200, [], mochijson2:encode({struct, [{success, true}, {<<"queues">>, Jsons}]})}
-	end;
-
-api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
-	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
-	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
-	agent_web_connection:set_salt(Conn, Newsalt),
-	?DEBUG("created and sent salt for ~p", [Reflist]),
-	[E, N] = get_pubkey(),
-	PubKey = {struct, [{<<"E">>, list_to_binary(erlang:integer_to_list(E, 16))}, {<<"N">>, list_to_binary(erlang:integer_to_list(N, 16))}]},
-	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}, {pubkey, PubKey}]})};
-api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
-	Releaseopts = agent_auth:get_releases(),
-	Converter = fun(#release_opt{label = Label, id = Id}) ->
-		{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, Id}]}
-	end,
-	Jsons = lists:map(Converter, Releaseopts),
-	{200, [], mochijson2:encode(Jsons)};
+	
 api(logout, {_Reflist, _Salt, Conn}, _Post) ->
 	Newref = erlang:ref_to_list(make_ref()),
 	ets:insert(web_connections, {Newref, undefined, undefined}),
@@ -403,6 +362,53 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary("Password decryption failed")}]})}
 			end
 	end;
+api(getsalt, {Reflist, _Salt, Conn}, _Post) ->
+	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
+	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
+	agent_web_connection:set_salt(Conn, Newsalt),
+	?DEBUG("created and sent salt for ~p", [Reflist]),
+	[E, N] = get_pubkey(),
+	PubKey = {struct, [{<<"E">>, list_to_binary(erlang:integer_to_list(E, 16))}, {<<"N">>, list_to_binary(erlang:integer_to_list(N, 16))}]},
+	{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}, {pubkey, PubKey}]})};
+
+api(_Api, {_Reflist, _Salt, undefined}, _Post) ->
+	{403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no connection">>}]})};
+	
+api(brandlist, {_Reflist, _Salt, _Conn}, _Post) ->
+	case call_queue_config:get_clients() of
+	[] ->
+		{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No brands defined">>}]})};
+	Brands ->
+		Converter = fun
+			(#client{label = undefined}, Acc) ->
+				Acc;
+			(#client{label = Label, id = ID}, Acc) ->
+				[{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, list_to_binary(ID)}]} | Acc]
+		end,
+		Jsons = lists:foldl(Converter, [], Brands),
+		{200, [], mochijson2:encode({struct, [{success, true}, {<<"brands">>, Jsons}]})}
+	end;
+api(queuelist, {_Reflist, _Salt, _Conn}, _Post) ->
+	case call_queue_config:get_queues() of
+	[] ->
+		{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No queues defined">>}]})};
+	Brands ->
+		Converter = fun
+			(#call_queue{name = Name}, Acc) ->
+				[{struct, [{<<"name">>, list_to_binary(Name)}]} | Acc]
+		end,
+		Jsons = lists:foldl(Converter, [], Brands),
+		{200, [], mochijson2:encode({struct, [{success, true}, {<<"queues">>, Jsons}]})}
+	end;
+
+api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
+	Releaseopts = agent_auth:get_releases(),
+	Converter = fun(#release_opt{label = Label, id = Id}) ->
+		{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, Id}]}
+	end,
+	Jsons = lists:map(Converter, Releaseopts),
+	{200, [], mochijson2:encode(Jsons)};	
+	
 api(poll, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
 	agent_web_connection:poll(Conn, self()),
 	receive

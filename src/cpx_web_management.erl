@@ -195,7 +195,9 @@ api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	Cookie = io_lib:format("cpx_management=~p; path=/", [Newref]),
 	ets:insert(cpx_management_logins, {Newref, undefined, undefined}),
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
-
+api(_Api, {Reflist, _Salt, undefined}, _Post) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"login required">>}]})};
+	
 %% =====
 %% agents -> modules
 %% =====

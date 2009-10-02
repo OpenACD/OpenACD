@@ -158,7 +158,12 @@ dojo.addOnLoad(function(){
 				dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response.profile;
 				dojo.publish("agent/state", [{"state":response.state, "statedata":response.statedata}]);
 				if( (response.state == "oncall") && (response.statedata.mediapath == "inband") ){
-					dojo.xhrGet({
+					var fixedres = response.statedata;
+					fixedres.media = fixedres.type;
+					dojo.publish("agent/mediaload", [fixedres]);
+				};
+				
+					/*dojo.xhrGet({
 						url:"/mediapull/",
 						handleAs:"text",
 						load:function(mediadata){
@@ -168,7 +173,7 @@ dojo.addOnLoad(function(){
 							}]);
 						}
 					});
-				}
+				}*/
 				agent.stopwatch.onTick = function(){
 					var elapsed = agent.stopwatch.time();
 					var d = new Date();

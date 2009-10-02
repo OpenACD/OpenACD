@@ -700,7 +700,9 @@ dojo.addOnLoad(function(){
 			dojo.unsubscribe(pane.logoutListener);
 			dijit.byId('tabPanel').closeChild(pane);
 		});
+		pane.setHref("tabs/email_media.html");
 		dijit.byId('tabPanel').addChild(pane);
+		dijit.byId('tabPanel').selectChild(mediaPanelId);
 	});
 	
 	/*dijit.byId("main").mediapush = dojo.subscribe("agent/mediapush", function(eventdata){

@@ -6,6 +6,7 @@
 </script>
 
 <form dojoType="dijit.form.Form" action="javascript:void(0)" id="emailReplyForm">
+<div style="width:30%; float:left; padding: 2%">
 <p>
 	<label class="translatecol">TO</label>
 	<input dojoType="dijit.form.TextBox" id="emailTo" />
@@ -22,18 +23,19 @@
 </p>
 
 <p>
-	<label class="translate">BODY</label>
-</p>
-
-<p>
-	<div dojoType="dijit.Editor" id="emailBody" />
-</p>
-
-<p>
 	<label>&nbsp;</label>
 	<button label="SUBMIT" dojoType="dijit.form.Button"></button>
 </p>
-	
+
+</div>
+
+<div style="width:60%; float:right; padding:2%">
+
+<p>
+	<div dojoType="dijit.Editor" id="emailBody" height="300px"/>
+</p>
+
+</div>	
 </form>
 
 <script type="text/javascript" src="tabs/email_media.js"></script>

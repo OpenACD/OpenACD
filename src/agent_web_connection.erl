@@ -520,6 +520,24 @@ handle_call({mediapush, Post}, _From, #state{agent_fsm = Apid} = State) ->
 		_Else ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
 	end;
+handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
+	Commande = proplists:get_value("command", Post),
+	Arguments = proplists:get_value("arguments", Post), 
+	case proplists:get_value("mode", Post) of
+		"call" ->
+			{Heads, Data} = case agent:media_call(Apid, {Commande, Arguments}) of
+				invalid ->
+					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid media call">>}]})};
+				{ok, Response, Mediarec} ->
+					parse_media_call(Mediarec, Commande, Response)
+			end,
+			{reply, {200, Heads, Data}, State};
+		"cast" ->
+			agent:media_cast(Apid, {Commande, Arguments}),
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+		undefined ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
+	end;
 handle_call(Allothers, _From, State) ->
 	{reply, {unknown_call, Allothers}, State}.
 
@@ -717,6 +735,35 @@ get_nodes(Nodestring) ->
 			[Out | _Tail] = lists:dropwhile(F, nodes()),
 			[Out]
 	end.
+
+-type(headers() :: [{string(), string()}]).
+-type(mochi_out() :: binary()).
+-spec(parse_media_call/3 :: (Mediarec :: #call{}, Command :: string, Response :: any()) -> {headers(), mochi_out()}).
+parse_media_call(#call{type = email}, "get_skeleton", {TopType, TopSubType, Parts}) ->
+	Fun = fun
+		({Type, Subtype}, {F, Acc}) ->
+			Head = {struct, [
+				{<<"type">>, list_to_binary(Type)},
+				{<<"subtype">>, list_to_binary(Subtype)}
+			]},
+			{F, [Head | Acc]};
+		({Type, Subtype, List}, {F, Acc}) ->
+			{_, Revlist} = lists:foldl(F, [], List),
+			Newlist = lists:reverse(Revlist),
+			Head = {struct, [
+				{<<"type">>, list_to_binary(Type)},
+				{<<"subtype">>, list_to_binary(Subtype)},
+				{<<"parts">>, Newlist}
+			]},
+			{F, [Head | Acc]}
+	end,
+	{_, Jsonlist} = lists:foldl(Fun, {Fun, []}, Parts),
+	Json = {struct, [{<<"type">>, list_to_binary(TopType)}, {<<"subtype">>, list_to_binary(TopSubType)}, {<<"parts">>, lists:reverse(Jsonlist)}]},
+	?DEBUG("json:  ~p", [Json]),
+	{[], mochijson2:encode(Json)};
+parse_media_call(Mediarec, Command, _Response) ->
+	?WARNING("Unparsable result for ~p:~p", [Mediarec#call.type, Command]),
+	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}]})}.
 
 -spec(do_action/3 :: (Nodes :: [atom()], Do :: any(), Acc :: [any()]) -> {'true' | 'false', any()}).
 do_action([], _Do, Acc) ->

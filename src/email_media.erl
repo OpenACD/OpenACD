@@ -206,7 +206,11 @@ handle_call({mediapush, _Data}, _From, _Callrec, State) ->
 	{reply, invalid, State};
 handle_call(dump, _From, _Callrec, State) ->
 	{reply, State, State};
-handle_call(_Msg, _From, _Callrec, State) ->
+%% now the web calls.
+handle_call({"get_skeleton", undefined}, _From, _Callrec, State) ->
+	{reply, State#state.skeleton, State};
+handle_call(Msg, _From, _Callrec, State) ->
+	?INFO("unhandled mesage ~p", [Msg]),
 	{reply, ok, State}.
 
 %%--------------------------------------------------------------------

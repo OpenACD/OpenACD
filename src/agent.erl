@@ -542,7 +542,7 @@ oncall({mediapush, Data}, {Pid, _Tag}, #agent{statedata = Call, connection = Pid
 	{reply, Reply, oncall, State};
 oncall({mediacall, Request}, {Pid, _Tag}, #agent{statedata = Call, connection = Pid} = State) ->
 	Reply = gen_media:call(Call#call.source, Request),
-	{reply, Reply, oncall, State};
+	{reply, {ok, Reply, Call}, oncall, State};
 oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
 	case gen_media:warm_transfer_begin(Call#call.source, Number) of
 		{ok, UUID} ->

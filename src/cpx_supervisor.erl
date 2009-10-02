@@ -406,7 +406,21 @@ load_specs(Super) ->
 				_Else ->
 					ok
 			end,
-			lists:foreach(fun(I) -> start_spec(I) end, Records);
+			Startthese = case Super of
+				management_sup ->
+					{ok, Nodes} = application:get_env(cpx, nodes),
+					Monrec = #cpx_conf{
+						id = cpx_monitor,
+						module_name = cpx_monitor,
+						start_function = start_link,
+						start_args = [[{nodes, Nodes}, auto_restart_mnesia]],
+						supervisor = management_sup
+					},
+					[Monrec | Records];
+				_ ->
+					Records
+			end,
+			lists:foreach(fun(I) -> start_spec(I) end, Startthese);
 		Else ->
 			?ERROR("unable to retrieve specs for ~s:  ~p", [Super, Else]),
 			Else

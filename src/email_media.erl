@@ -50,7 +50,8 @@
 	start_link/3,
 	start_link/2,
 	start/3,
-	start/2
+	start/2,
+	get_disposition/1
 ]).
 
 %% Web interface helper functions
@@ -120,6 +121,35 @@ post_to_api(Post) ->
 			{call, {get_id, Id}};
 		_Else ->
 			none
+	end.
+
+-spec(get_disposition/1 :: (Mime :: tuple()) -> 'inline' | {'inline', string()} | {'attachment', string()}).
+get_disposition({_, _, _, Properties, _}) ->
+	Params = proplists:get_value("disposition-params", Properties),
+	case proplists:get_value("disposition", Properties, inline) of
+		inline ->
+			inline;
+		"inline" ->
+			case proplists:get_value("filename", Params) of
+				undefined ->
+					inline;
+				Name ->
+					{inline, Name}
+			end;
+		_Else ->
+			case proplists:get_value("filename", Params) of
+				undefined ->
+					TypeParams = proplists:get_value("content-type-params", Properties),
+					case proplists:get_value("name", TypeParams) of
+						undefined ->
+							Nom = util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref()))),
+							{attachment, Nom};
+						Nom ->
+							{attachment, Nom}
+					end;
+				Nom ->
+					{attachment, Nom}
+			end
 	end.
 
 %%====================================================================
@@ -206,9 +236,17 @@ handle_call({mediapush, _Data}, _From, _Callrec, State) ->
 	{reply, invalid, State};
 handle_call(dump, _From, _Callrec, State) ->
 	{reply, State, State};
+	
 %% now the web calls.
 handle_call({"get_skeleton", undefined}, _From, _Callrec, State) ->
 	{reply, State#state.skeleton, State};
+handle_call({"get_path", Path}, _From, _Callrec, #state{mimed = Mime} = State) ->
+	Splitpath = util:string_split(Path, "/"),
+	Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
+	Out = get_part(Intpath, Mime),
+	{reply, Out, State};
+	
+%% and anything else
 handle_call(Msg, _From, _Callrec, State) ->
 	?INFO("unhandled mesage ~p", [Msg]),
 	{reply, ok, State}.
@@ -341,33 +379,43 @@ get_part(Path, Mime) ->
 	none.
 
 check_disposition(Properties) ->
-	?DEBUG("~p", [Properties]),
-	Params = proplists:get_value("disposition-params", Properties),
-	case proplists:get_value("disposition", Properties, inline) of
+	case get_disposition({1, 1, 1, Properties, 1}) of
 		inline ->
 			inline;
-		"inline" ->
-			case proplists:get_value("filename", Params) of
-				undefined ->
-					inline;
-				Name ->
-					{inline, Name, [{"Content-Disposition", lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name]))}]}
-			end;
-		_Else ->
-			case proplists:get_value("filename", Params) of
-				undefined ->
-					Contenttypeparams = proplists:get_value("content-type-params", Properties),
-					case proplists:get_value("name", Contenttypeparams) of
-						undefined ->
-							Nom = util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref()))),
-							{attachment, Nom, [{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Nom]))}]};
-						Yetanotherelse ->
-							{attachment, Yetanotherelse, [{"Content-Dispostion", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Yetanotherelse]))}]}
-					end;
-				Nom ->
-					{attachment, Nom, [{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Nom]))}]}
-			end
+		{inline, Name} ->
+			{inline, Name, [{"Content-Disposition", lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name]))}]};
+		{attachment, Name} ->
+			{attachment, Name, [{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))}]}
 	end.
+
+%check_disposition(Properties) ->
+%	?DEBUG("~p", [Properties]),
+%	Params = proplists:get_value("disposition-params", Properties),
+%	case proplists:get_value("disposition", Properties, inline) of
+%		inline ->
+%			inline;
+%		"inline" ->
+%			case proplists:get_value("filename", Params) of
+%				undefined ->
+%					inline;
+%				Name ->
+%					{inline, Name, [{"Content-Disposition", lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name]))}]}
+%			end;
+%		_Else ->
+%			case proplists:get_value("filename", Params) of
+%				undefined ->
+%					Contenttypeparams = proplists:get_value("content-type-params", Properties),
+%					case proplists:get_value("name", Contenttypeparams) of
+%						undefined ->
+%							Nom = util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref()))),
+%							{attachment, Nom, [{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Nom]))}]};
+%						Yetanotherelse ->
+%							{attachment, Yetanotherelse, [{"Content-Dispostion", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Yetanotherelse]))}]}
+%					end;
+%				Nom ->
+%					{attachment, Nom, [{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Nom]))}]}
+%			end
+%	end.
 															
 %parse_disposition(Text) ->
 %	[Disposition | Rest] = string:tokens(Text, ";"),

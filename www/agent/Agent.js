@@ -121,6 +121,19 @@ Agent.prototype.setState = function(state){
 	})
 }
 
+Agent.prototype.initOutbound = function(Client, Type) {
+	dojo.xhrGet({
+		url: "init_outbound/" + Client + '/' + Type,
+		handleAs: 'json',
+		error:function(response, ioargs){
+			warning(["error for init outbound", response]);
+		},
+		load:function(response, ioargs){
+			EventLog.log("init outbound success");
+		}
+	})
+}
+
 Agent.prototype.logout = function(/*callback*/){
 	var agentref = this;
 	dojo.xhrGet({

@@ -255,14 +255,19 @@ handle_call({set_state, Statename, Statedata}, _From, #state{agent_fsm = Apid} =
 handle_call({set_endpoint, Endpoint}, _From, #state{agent_fsm = Apid} = State) ->
 	{reply, agent:set_endpoint(Apid, Endpoint), State};
 handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
-	%% don't like it, but hardcoding freeswitch
-	case whereis(freeswitch_media_manager) of
-		undefined ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Freeswitch not available">>}]})}, State};
-		_Pid ->
-			AgentRec = agent:dump_state(AgentPid),
-			freeswitch_media_manager:make_outbound_call(Number, AgentPid, AgentRec),
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
+	AgentRec = agent:dump_state(AgentPid),
+	case AgentRec#agent.state of
+		precall ->
+			#agent{statedata = Call} = AgentRec,
+			case Call#call.direction of
+				outbound ->
+					gen_media:call(Call#call.source, {dial, Number}),
+					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+				_ ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"This is not an outbound call">>}]})}, State}
+			end;
+		_ ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent is not in pre-call">>}]})}, State}
 	end;
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
@@ -296,6 +301,37 @@ handle_call({queue_transfer, Queue}, _From, #state{agent_fsm = Apid} = State) ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		invalid ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
+	end,
+	{reply, Reply, State};
+handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = State) ->
+	?NOTICE("Request to initiate outbound call of type ~p to ~p", [Type, Client]),
+	AgentRec = agent:dump_state(Apid),
+	Reply = case AgentRec#agent.state of
+		Agentstate when Agentstate =:= released; Agentstate =:= idle ->
+			try list_to_existing_atom(Type) of
+				freeswitch ->
+					case whereis(freeswitch_media_manager) of
+						P when is_pid(P) ->
+							case freeswitch_media_manager:make_outbound_call(Client, Apid, AgentRec) of
+								{ok, Pid} ->
+									Call = gen_media:get_call(Pid),
+									agent:set_state(Apid, precall, Call),
+									{200, [], mochijson2:encode({struct, [{success, true}]})};
+								{error, Reason} ->
+									{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Initializing outbound call failed">>}]})}
+							end;
+						_ ->
+							{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}]})}
+					end;
+				% TODO - more outbound types go here :)
+				_ ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Unknown call type">>}]})}
+			catch
+				_:_ ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Unknown call type">>}]})}
+			end;
+		_ ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent must be released or idle">>}]})}
 	end,
 	{reply, Reply, State};
 handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->

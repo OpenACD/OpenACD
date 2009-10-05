@@ -197,7 +197,7 @@ handle_call(get_init, _From, _Callrec, State) ->
 	{reply, State#state.initargs, State};
 handle_call({get_path, Path}, _From, _Callrec, #state{mimed = Mime} = State) when is_list(Path) ->
 	Reply = get_part(Path, Mime),
-	{reply, {ok, Reply}, State};
+	{reply, Reply, State};
 handle_call({get_id, Id}, From, Callrec, #state{file_map = Map} = State) when is_list(Id) ->
 	case proplists:get_value(Id, Map) of
 		undefined ->
@@ -1030,6 +1030,12 @@ get_part_test_() ->
 		fun() ->
 			Path = [299, 768, 124],
 			?assertMatch(none, get_part(Path, Gamut))
+		end},
+		{"trying with testcase1",
+		fun() ->
+			Testcase1 = getmail("testcase1"),
+			Path = [2, 1 , 2, 2],
+			?assertMatch({ok, {"image", "jpeg", _Head, _Prop, _Body}}, get_part(Path, Testcase1))
 		end}]
 	end}.
 		

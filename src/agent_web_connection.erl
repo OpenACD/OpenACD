@@ -574,13 +574,15 @@ handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 		undefined ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
 	end;
-handle_call({undefined, Path, Post}, _From, #state{agent_fsm = Apid} = State) ->
+handle_call({undefined, [$/ | Path], Post}, _From, #state{agent_fsm = Apid} = State) ->
 	%% considering how things have gone, the best guess is this is a media call.
+	?DEBUG("forwarding request to media.  Path: ~p; Post: ~p", [Path, Post]),
 	case agent:media_call(Apid, {get_id, Path}) of
-		{ok, {ok, Mime}} ->
+		{ok, {ok, Mime}, _Call} ->
 			Body = element(5, Mime),
 			{reply, {200, [], list_to_binary(Body)}, State};
-		_Else ->
+		Else ->
+			?DEBUG("Not a mime tuple ~p", [Else]),
 			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}
 	end;
 handle_call(Allothers, _From, State) ->

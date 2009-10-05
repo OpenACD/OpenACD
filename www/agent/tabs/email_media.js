@@ -55,7 +55,7 @@ if(typeof(emailPane) == 'undefined'){
 			return out;
 		}
 		
-		debug(["pathsToFetch path", path]);
+		debug(["pathsToFetch", skeleton, path]);
 		if( (skeleton.type == "multipart") && (skeleton.subtype == "alternative") ){
 			var getting = 0;
 			var pushon = false;
@@ -81,7 +81,7 @@ if(typeof(emailPane) == 'undefined'){
 					fetches = emailPane.pathsToFetch(skeleton.parts[pushon - 1], tpath, fetches);
 				}
 				else{
-					fetches.push(path);
+					fetches.push(tpath);
 				}
 			}
 			
@@ -89,7 +89,7 @@ if(typeof(emailPane) == 'undefined'){
 			return fetches;
 		}
 		
-		if( (skeleton.type == "multipart") && (skeleton.subtype == "mixed") ){
+		if( (skeleton.type == "multipart") ){
 			for(var i = 0; i < skeleton.parts.length; i++){
 				var tpath = copyPath(path);
 				tpath.push(i + 1);

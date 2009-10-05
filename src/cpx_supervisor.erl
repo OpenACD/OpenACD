@@ -408,7 +408,12 @@ load_specs(Super) ->
 			end,
 			Startthese = case Super of
 				management_sup ->
-					{ok, Nodes} = application:get_env(cpx, nodes),
+					{ok, Nodes} = case application:get_env(cpx, nodes) of
+						undefined ->
+							{ok, [node()]};
+						Else ->
+							Else
+					end,
 					Monrec = #cpx_conf{
 						id = cpx_monitor,
 						module_name = cpx_monitor,

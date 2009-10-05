@@ -339,6 +339,7 @@ integer_to_state(Int) ->
 state_to_integer(State) ->
 	case State of
 		undefined -> 0;
+		login -> 0;
 		logout -> 1;
 		idle -> 2;
 		ringing -> 3;

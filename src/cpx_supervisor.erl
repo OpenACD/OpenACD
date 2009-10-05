@@ -419,8 +419,8 @@ get_archive_path(Call) ->
 			{Year, Month, Day} = date(),
 			ExpandedPath = util:string_interpolate(Path,  [
 					{"year", integer_to_list(Year)},
-					{"month", integer_to_list(Month)},
-					{"day", integer_to_list(Day)},
+					{"month", string:right(integer_to_list(Month), 2, $0)},
+					{"day", string:right(integer_to_list(Day), 2, $0)},
 					{"callid", Call#call.id},
 					{"calltype", atom_to_list(Call#call.type)},
 					{"calldirection", atom_to_list(Call#call.direction)}

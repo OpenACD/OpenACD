@@ -111,6 +111,11 @@ if(typeof(emailPane) == 'undefined'){
 			return fetches;
 		}
 		
+		if(skeleton.type == "image"){
+			fetches.push(path);
+			return fetches;
+		}
+		
 		return fetches;
 	}
 	

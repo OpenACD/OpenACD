@@ -850,6 +850,14 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 			{[], mochiweb_html:to_html({<<"span">>, [], Newhtml})};
 		{"text", _, _} ->
 			{[], list_to_binary(Body)};
+		{"image", Subtype, {Linedness, Name}} ->
+			Html = case Linedness of
+				inline ->
+					{<<"img">>, [{<<"src">>, list_to_binary(Name)}], []};
+				attachment ->
+					{<<"a">>, [{<<"href">>, list_to_binary(Name)}], list_to_binary(Name)}
+			end,
+			{[], mochiweb_html:to_html(Html)};
 		{Type, Subtype, Disposition} ->
 			?WARNING("unsure how to handle ~p/~p disposed to ~p", [Type, Subtype, Disposition]),
 			{[], <<"404">>}

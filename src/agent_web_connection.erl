@@ -814,10 +814,40 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 				{"Content-Type", lists:append([Type, "/", Subtype])}
 			], list_to_binary(Body)};
 		{"text", "rtf", {inline, Name}} ->
-			{[
-				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))},
-				{"Content-Type", lists:append([Type, "/", Subtype])}
-			], list_to_binary(Body)};
+			Newbod = lists:append(["<a href=\"", Name, "\">", Name, "</a>"]),
+			{[], list_to_binary(Newbod)};
+		
+%			{[
+%				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))},
+%				{"Content-Type", lists:append([Type, "/", Subtype])}
+%			], list_to_binary(Body)};
+		{"text", "html", _} ->
+			Parsed = case mochiweb_html:parse(Body) of
+				Islist when is_list(Islist) ->
+					Islist;
+				Isntlist ->
+					[Isntlist]
+			end,
+			Lowertag = fun(E) -> string:to_lower(binary_to_list(E)) end,
+			Stripper = fun
+				(F, [], Acc) ->
+					lists:reverse(Acc);
+				(F, [{Tag, Attr, Kids} | Rest], Acc) ->
+					case Lowertag(Tag) of
+						"html" ->
+							F(F, Kids, []);
+						"head" ->
+							F(F, Rest, Acc);
+						"body" ->
+							F(F, Kids, Acc);
+						_Else ->
+							F(F, Rest, [{Tag, Attr, Kids} | Acc])
+					end;
+				(F, [Bin | Rest], Acc) when is_binary(Bin) ->
+					F(F, Rest, [Bin | Acc])
+			end,
+			Newhtml = Stripper(Stripper, Parsed, []),
+			{[], mochiweb_html:to_html({<<"span">>, [], Newhtml})};
 		{"text", _, _} ->
 			{[], list_to_binary(Body)};
 		{Type, Subtype, Disposition} ->

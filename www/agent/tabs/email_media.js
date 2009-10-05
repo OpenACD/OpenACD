@@ -47,44 +47,66 @@ if(typeof(emailPane) == 'undefined'){
 			fetches = [];
 		}
 
+		var copyPath = function(arr){
+			var out = [];
+			for(var i = 0; i < arr.length; i++){
+				out.push(arr[i]);
+			}
+			return out;
+		}
+		
+		debug(["pathsToFetch path", path]);
 		if( (skeleton.type == "multipart") && (skeleton.subtype == "alternative") ){
-			var getting = "";
+			var getting = 0;
 			var pushon = false;
 			for(var i = 0; i < skeleton.parts.length; i++){
-				if(skeleton.parts[i].subtype == "html"){
-					getting = "html";
+				if( (skeleton.parts[i].subtype == "plain") && (getting < 1) ){
+					getting = 1;
+					pushon = i + 1;
+				}				
+				if( (skeleton.parts[i].subtype == "html") && ( getting < 2 ) ){
+					getting = 2;
 					pushon = i + 1;
 				}
-				if( (skeleton.parts[i].subtype == "plain") && (getting != "html") ){
-					getting = "plain";
+				if( (skeleton.parts[i].type == "multipart") && (getting < 3) ){
+					getting = 3;
 					pushon = i + 1;
 				}
 			}
 			
 			if(pushon){
-				path.push(pushon);
-				fetches.push(path);
+				var tpath = copyPath(path);
+				tpath.push(pushon);
+				if(getting == 3){
+					fetches = emailPane.pathsToFetch(skeleton.parts[pushon - 1], tpath, fetches);
+				}
+				else{
+					fetches.push(path);
+				}
 			}
 			
+			debug(["fetches", fetches]);
 			return fetches;
 		}
 		
 		if( (skeleton.type == "multipart") && (skeleton.subtype == "mixed") ){
 			for(var i = 0; i < skeleton.parts.length; i++){
-				path.push(i + 1);
-				fetches = emailPane.pathsToFetch(skeleton.parts[i], path, fetches);
+				var tpath = copyPath(path);
+				tpath.push(i + 1);
+				fetches = emailPane.pathsToFetch(skeleton.parts[i], tpath, fetches);
 			}
 			
 			return fetches;
 		}
 		
 		if(skeleton.type == "message"){
-			path.push(1);
-			fetches = emailPane.pathsToFetch(skeleton.parts[0], path, fetches);
+			var tpath = copyPath(path);
+			tpath.push(1);
+			fetches = emailPane.pathsToFetch(skeleton.parts[0], tpath, fetches);
 			return fetches;
 		}
 		
-		if(skeleton.type == "text"){
+		if(skeleton.type == "text" && skeleton.subtype != "rtf"){
 			fetches.push(path);
 			return fetches;
 		}
@@ -92,12 +114,14 @@ if(typeof(emailPane) == 'undefined'){
 		return fetches;
 	}
 	
-	emailPane.fetchPaths = function(paths){
+	emailPane.fetchPaths = function(paths, fetched){
 		if(emailPane.fetchSub){
 			return false;
 		}
 		
-		var fetched = "";
+		if(! fetched){
+			fetched = "";
+		}
 		
 		debug(["subbed to", "emailPane/get_path/" + paths[0].join("/")]);
 		emailPane.fetchSub = dojo.subscribe("emailPane/get_path/" + paths[0].join("/"), function(res){
@@ -107,7 +131,7 @@ if(typeof(emailPane) == 'undefined'){
 			fetched += res;
 			paths.shift();
 			if(paths.length > 0){
-				emailPane.fetchPaths(paths);
+				emailPane.fetchPaths(paths, fetched);
 			}
 			else{
 				dojo.publish("emailPane/fetchPaths/done", [fetched]);
@@ -125,18 +149,13 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	var paths = emailPane.pathsToFetch(skel);
 	var widget = dijit.byId('emailBody');
 	widget.subs = [];
-	/*for(var i = 0; i < paths.length; i++){
-		widget.subs.push(dojo.subscribe("emailPane/get_path/" + paths[i].join("/"), function(res){
-			var val = widget.getValue();
-			widget.setValue(val + res);
-		}));
-	}*/
 	
 	widget.subs.push(dojo.subscribe("emailPane/fetchPaths/done", function(fetched){
 		debug(fetched);
 		while(widget.subs.length > 0){
 			var sub = widget.subs.pop();
 			dojo.unsubscribe(sub);
+			emailPane.fetchCache = fetched;
 			widget.setValue(fetched);
 		}
 	}));

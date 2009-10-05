@@ -1400,8 +1400,9 @@ from_precall_test_() ->
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
-		Client = #client{label = "testclient"},
-		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = precall, statedata = Client, log_pid = Logpid},
+		Client = #client{label = "testclient", id = "testclient"},
+		Call = #call{id = "testcall", client = Client, source = spawn(fun() -> ok end)},
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = precall, statedata = Call, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
@@ -1472,8 +1473,8 @@ from_precall_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", outgoing, precall, "callrec"}, _State) -> ok end),
-			?assertMatch({reply, ok, outgoing, _State}, precall({outgoing, "callrec"}, "from", Agent)),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", outgoing, precall, _}, _State) -> ok end),
+			?assertMatch({reply, ok, outgoing, _State}, precall({outgoing, #call{id = "testcall", source = spawn(fun() -> ok end)} }, "from", Agent)),
 			Assertmocks()
 		end}
 	end,

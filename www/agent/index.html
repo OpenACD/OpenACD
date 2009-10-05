@@ -89,6 +89,9 @@
 			dojo.byId("loginerrspan").innerHTML="No translation for any locales<br/>matching your request, sorry.";
 		}
 	}
+	if(dojo.cookie("agentui-log")){
+		window.setLogLevel(dojo.cookie("agentui-log"));
+	}
 	dojo.addOnLoad(init);
 </script>
 

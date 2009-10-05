@@ -529,7 +529,7 @@ handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 				invalid ->
 					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid media call">>}]})};
 				{ok, Response, Mediarec} ->
-					parse_media_call(Mediarec, Commande, Response)
+					parse_media_call(Mediarec, {Commande, Arguments}, Response)
 			end,
 			{reply, {200, Heads, Data}, State};
 		"cast" ->
@@ -537,6 +537,15 @@ handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 		undefined ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
+	end;
+handle_call({undefined, Path, Post}, _From, #state{agent_fsm = Apid} = State) ->
+	%% considering how things have gone, the best guess is this is a media call.
+	case agent:media_call(Apid, {get_id, Path}) of
+		{ok, {ok, Mime}} ->
+			Body = element(5, Mime),
+			{reply, {200, [], list_to_binary(Body)}, State};
+		_Else ->
+			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}
 	end;
 handle_call(Allothers, _From, State) ->
 	{reply, {unknown_call, Allothers}, State}.
@@ -739,7 +748,7 @@ get_nodes(Nodestring) ->
 -type(headers() :: [{string(), string()}]).
 -type(mochi_out() :: binary()).
 -spec(parse_media_call/3 :: (Mediarec :: #call{}, Command :: string, Response :: any()) -> {headers(), mochi_out()}).
-parse_media_call(#call{type = email}, "get_skeleton", {TopType, TopSubType, Parts}) ->
+parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubType, Parts}) ->
 	Fun = fun
 		({Type, Subtype}, {F, Acc}) ->
 			Head = {struct, [
@@ -748,7 +757,7 @@ parse_media_call(#call{type = email}, "get_skeleton", {TopType, TopSubType, Part
 			]},
 			{F, [Head | Acc]};
 		({Type, Subtype, List}, {F, Acc}) ->
-			{_, Revlist} = lists:foldl(F, [], List),
+			{_, Revlist} = lists:foldl(F, {F, []}, List),
 			Newlist = lists:reverse(Revlist),
 			Head = {struct, [
 				{<<"type">>, list_to_binary(Type)},
@@ -761,8 +770,26 @@ parse_media_call(#call{type = email}, "get_skeleton", {TopType, TopSubType, Part
 	Json = {struct, [{<<"type">>, list_to_binary(TopType)}, {<<"subtype">>, list_to_binary(TopSubType)}, {<<"parts">>, lists:reverse(Jsonlist)}]},
 	?DEBUG("json:  ~p", [Json]),
 	{[], mochijson2:encode(Json)};
-parse_media_call(Mediarec, Command, _Response) ->
-	?WARNING("Unparsable result for ~p:~p", [Mediarec#call.type, Command]),
+parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, Headers, Properties, Body} = Mime}) ->
+	case {Type, Subtype, email_media:get_disposition(Mime)} of
+		{Type, Subtype, {attachment, Name}} ->
+			{[
+				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))},
+				{"Content-Type", lists:append([Type, "/", Subtype])}
+			], list_to_binary(Body)};
+		{"text", "rtf", {inline, Name}} ->
+			{[
+				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))},
+				{"Content-Type", lists:append([Type, "/", Subtype])}
+			], list_to_binary(Body)};
+		{"text", _, _} ->
+			{[], list_to_binary(Body)};
+		{Type, Subtype, Disposition} ->
+			?WARNING("unsure how to handle ~p/~p disposed to ~p", [Type, Subtype, Disposition]),
+			{[], <<"404">>}
+	end;
+parse_media_call(Mediarec, Command, Response) ->
+	?DEBUG("Unparsable result for ~p:~p.  ~p", [Mediarec#call.type, Command, Response]),
 	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}]})}.
 
 -spec(do_action/3 :: (Nodes :: [atom()], Do :: any(), Acc :: [any()]) -> {'true' | 'false', any()}).

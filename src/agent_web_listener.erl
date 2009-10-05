@@ -419,6 +419,8 @@ api(poll, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
 			?DEBUG("Got a kill message with heads ~p and body ~p", [Headers, Body]),
 			{408, Headers, Body}
 	end;
+api({undefined, Path}, Cookie, Post)  ->
+	api({undefined, Path, Post}, Cookie, Post);
 api(Api, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
 	case agent_web_connection:api(Conn, Api) of
 		{Code, Headers, Body} ->
@@ -507,11 +509,13 @@ parse_path(Path) ->
 					{api, {supervisor, Supertail}};
 				_Allother ->
 					% is there an actual file to serve?
-					case filelib:is_regular(string:concat("www/agent", Path)) of
-						true ->
+					case {filelib:is_regular(string:concat("www/agent", Path)), filelib:is_regular(string:concat("www/contrib", Path))} of
+						{true, false} ->
 							{file, {string:strip(Path, left, $/), "www/agent/"}};
-						false ->
-							{file, {string:strip(Path, left, $/), "www/contrib/"}}
+						{false, true} ->
+							{file, {string:strip(Path, left, $/), "www/contrib/"}};
+						{false, false} ->
+							{api, {undefined, Path}}
 					end
 			end
 	end.

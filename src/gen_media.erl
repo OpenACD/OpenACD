@@ -1076,16 +1076,18 @@ outgoing({outbound, Agent, NewState}, State) when is_record(State#state.callrec,
 	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
 			agent:set_state(Apid, outgoing, State#state.callrec),
+			cdr:oncall(State#state.callrec, Apid),
 			{ok, State#state{oncall_pid = Apid, substate = NewState}};
 		false ->
 			?ERROR("Agent ~s doesn't exists; can't set outgoing", [Agent]),
 			{{error, {noagent, Agent}}, State#state{substate = NewState}}
 	end;
-outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call), State#state.callrec =:= undefined ->
+outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call) ->
 	?INFO("Told to set ~s to outbound and call ~p", [Agent, Call]),
 	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
 			agent:set_state(Apid, outgoing, Call),
+			cdr:oncall(Call, Apid),
 			{ok, State#state{callrec = Call, substate = NewState, oncall_pid = Apid}};
 		false ->
 			?ERROR("Agent ~s doesn't exists; can't set outgoing", [Agent]),

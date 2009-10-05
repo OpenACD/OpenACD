@@ -505,6 +505,8 @@ parse_path(Path) ->
 					{api, {warm_transfer, Number}};
 				["queue_transfer", Number] ->
 					{api, {queue_transfer, Number}};
+				["init_outbound", Client, Type] ->
+					{api, {init_outbound, Client, Type}};
 				["supervisor" | Supertail] ->
 					{api, {supervisor, Supertail}};
 				_Allother ->

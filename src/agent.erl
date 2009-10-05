@@ -348,6 +348,7 @@ integer_to_state(Int) ->
 state_to_integer(State) ->
 	case State of
 		undefined -> 0;
+		login -> 0;
 		logout -> 1;
 		idle -> 2;
 		ringing -> 3;
@@ -364,14 +365,14 @@ state_to_integer(State) ->
 %%<li>`{ringing, Call :: #call{}}'</li>
 %%<li>`{released, Reason :: string()}'</li>
 %%</ul>
--spec(idle/3 :: (Event :: {'precall', #client{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'precall', #agent{}};
+-spec(idle/3 :: (Event :: {'precall', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'precall', #agent{}};
 	(Event :: {'ringing', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'ringing', #agent{}};
 	(Event :: {'released', string()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}}).
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'idle', #agent{}}).
-idle({precall, Client}, _From, State) ->
+idle({precall, Call}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
-	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
-	Newstate = State#agent{state=precall, oldstate=idle, statedata=Client, lastchangetimestamp=now()},
+	gen_server:cast(State#agent.connection, {change_state, precall, Call}),
+	Newstate = State#agent{state=precall, oldstate=idle, statedata=Call, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?PRECALL_LIMITS, []),
 	{reply, ok, precall, Newstate};
 idle({ringing, Call = #call{}}, _From, State) ->
@@ -458,18 +459,20 @@ ringing(_Msg, State) ->
 	(Event :: 'idle', From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'idle', #agent{}};
 	(Event :: {'released', any()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}}).
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'precall', #agent{}}).
-precall({outgoing, Call}, _From, State) ->
+precall({outgoing, Call}, _From, #agent{statedata = StateCall} = State) when Call#call.id =:= StateCall#call.id ->
 	gen_server:cast(State#agent.connection, {change_state, outgoing, Call}),
 	Newstate = State#agent{state=outgoing, oldstate=State#agent.state, statedata=Call, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, outgoing, Newstate};
-precall(idle, _From, State) ->
+precall(idle, _From, #agent{statedata = Call} = State) ->
+	gen_server:cast(Call#call.source, cancel),
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
 	Newstate = State#agent{state=idle, oldstate=State#agent.state, statedata={}, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
 	{reply, ok, idle, Newstate};
-precall({released, Reason}, _From, State) ->
+precall({released, Reason}, _From, #agent{statedata = Call} = State) ->
+	gen_server:cast(Call#call.source, cancel),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
 	Newstate = State#agent{state=released, oldstate=State#agent.state, statedata=Reason, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?RELEASED_LIMITS, []),
@@ -654,14 +657,14 @@ outgoing(_Msg, State) ->
 %%<li>`{ringing, Call :: #call{}}'<br />While the system cannot automatically route to a released agent,
 %%there is functionality for a supervisor to force it through.</li>
 %%</ul>
--spec(released/3 :: (Event :: {'precall', #client{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'precall', #agent{}};
+-spec(released/3 :: (Event :: {'precall', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'precall', #agent{}};
 	(Event :: 'idle', From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'idle', #agent{}};
 	(Event :: {'released', string()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}};
 	(Event :: {'ringing', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'ringing', #agent{}}).
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'released', #agent{}}).
-released({precall, Client}, _From, State) ->
-	gen_server:cast(State#agent.connection, {change_state, precall, Client}),
-	Newstate = State#agent{state=precall, oldstate=released, statedata=Client, lastchangetimestamp=now()},
+released({precall, Call}, _From, State) ->
+	gen_server:cast(State#agent.connection, {change_state, precall, Call}),
+	Newstate = State#agent{state=precall, oldstate=released, statedata=Call, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?PRECALL_LIMITS, []),
 	{reply, ok, precall, Newstate};
 released(idle, _From, State) ->	

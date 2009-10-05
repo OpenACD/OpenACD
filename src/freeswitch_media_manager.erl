@@ -181,9 +181,9 @@ get_handler(UUID) ->
 notify(UUID, Pid) ->
 	gen_server:cast(?MODULE, {notify, UUID, Pid}).
 
--spec(make_outbound_call/3 :: (Number :: any(), AgentPid :: pid(), AgentRec :: #agent{}) -> 'ok').
-make_outbound_call(Number, AgentPid, AgentRec) ->
-	gen_server:call(?MODULE, {make_outbound_call, Number, AgentPid, AgentRec}).
+-spec(make_outbound_call/3 :: (Client :: any(), AgentPid :: pid(), AgentRec :: #agent{}) -> 'ok').
+make_outbound_call(Client, AgentPid, AgentRec) ->
+	gen_server:call(?MODULE, {make_outbound_call, Client, AgentPid, AgentRec}).
 
 new_voicemail(UUID, File, Queue) ->
 	gen_server:cast(?MODULE, {new_voicemail, UUID, File, Queue}).
@@ -212,9 +212,9 @@ init([Nodename, Options]) ->
 %%--------------------------------------------------------------------
 %% @private
 
-handle_call({make_outbound_call, Number, AgentPid, AgentRec}, _From, #state{nodename = Node, voicegateway = Vgw} = State) ->
-	freeswitch_outbound:start(Node, AgentRec, AgentPid, Number, Vgw, 30),
-	{reply, ok, State};
+handle_call({make_outbound_call, Client, AgentPid, AgentRec}, _From, #state{nodename = Node, voicegateway = Vgw} = State) ->
+	Result = freeswitch_outbound:start(Node, AgentRec, AgentPid, Client, Vgw, 30),
+	{reply, Result, State};
 handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) -> 
 	case dict:find(UUID, Dict) of
 		error -> 

@@ -213,7 +213,7 @@ dojo.addOnLoad(function(){
 				dojo.byId("agentbrandp").style.display = "block";
 			break;
 			case "precall":
-				node.innerHTML = data.statedata;
+				node.innerHTML = data.statedata.brandname;
 				dojo.byId("agentbrandp").style.display = "block";
 				break;
 			default:
@@ -582,7 +582,7 @@ dojo.addOnLoad(function(){
 					for(var i in response.brands) {
 						var item = new dijit.MenuItem({
 							label:response.brands[i].label,
-							onClick:function(){agent.setState("precall", response.brands[i].label); }
+							onClick:function(){agent.initOutbound(response.brands[i].id, "freeswitch"); }
 						});
 						menu.addChild(item);
 					}

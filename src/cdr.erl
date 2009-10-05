@@ -45,6 +45,7 @@
 	start_link/0,
 	cdrinit/1,
 	inivr/2,
+	precall/2,
 	inqueue/2,
 	ringing/2,
 	oncall/2,
@@ -124,6 +125,11 @@ cdrinit(Call) ->
 -spec(inivr/2 :: (Call :: #call{}, DNIS :: string()) -> 'ok').
 inivr(Call, DNIS) ->
 	event({inivr, Call, util:now(), DNIS}).
+
+%% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
+-spec(precall/2 :: (Call :: #call{}, Client :: string()) -> 'ok').
+precall(Call, Client) ->
+	event({precall, Call, util:now(), Client}).
 
 %% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
 -spec(inqueue/2 :: (Call :: #call{}, Queue :: string()) -> 'ok').
@@ -488,7 +494,7 @@ find_untermed(hangup, #call{id = Cid} = Call, _Whatever) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
-		( (X#cdr_raw.transaction =:= inqueue) orelse (X#cdr_raw.transaction =:= inivr) ),
+		( (X#cdr_raw.transaction =:= inqueue) orelse (X#cdr_raw.transaction =:= inivr) orelse (X#cdr_raw.transaction =:= precall) ),
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);

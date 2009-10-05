@@ -64,7 +64,7 @@
 init([DSN, Options]) ->
 	try odbc:start() of
 		_ -> % ok or {error, {already_started, odbc}}
-			case odbc:connect(DSN, [{trace_driver, on}, {auto_commit, off}]) of
+			case odbc:connect(DSN, [{trace_driver, on}, {auto_commit, off}, {scrollable_cursors, off}]) of
 				{ok, Ref} ->
 					{ok, #state{dsn = DSN, ref = Ref}};
 				Else ->
@@ -82,13 +82,19 @@ code_change(_Oldvsn, State, _Extra) ->
 	{ok, State}.
 
 dump(Agentstate, State) when is_record(Agentstate, agent_state) ->
+	CallID = case Agentstate#agent_state.statedata of
+		Call when is_record(Call, call) ->
+			Call#call.id;
+		_ ->
+			""
+	end,
 	Query = io_lib:format("INSERT INTO agent_states set agent='~s', newstate=~B,
-		oldstate=~B, start=~B, end=~B;", [
-		Agentstate#agent_state.agent, 
+		oldstate=~B, start=~B, end=~B, data='~s';", [
+		Agentstate#agent_state.id, 
 		agent:state_to_integer(Agentstate#agent_state.state), 
 		agent:state_to_integer(Agentstate#agent_state.oldstate), 
 		Agentstate#agent_state.start, 
-		Agentstate#agent_state.ended]),
+		Agentstate#agent_state.ended, CallID]),
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
 		{error, Reason} ->
 			{error, Reason};
@@ -131,11 +137,12 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 
 	lists:foreach(
 		fun(Transaction) ->
-				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B",
+				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
 					[Media#call.id,
 					cdr_transaction_to_integer(Transaction#cdr_raw.transaction),
 					Transaction#cdr_raw.start,
-					Transaction#cdr_raw.ended]),
+					Transaction#cdr_raw.ended,
+					get_transaction_data(Transaction, CDR)]),
 			odbc:sql_query(State#state.ref, lists:flatten(Q))
 	end,
 	T),
@@ -214,4 +221,14 @@ cdr_transaction_to_integer(T) ->
 		unknowntermination -> 20;
 		cdrend -> 21
 	end.
+
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when t =:= oncall; T =:= wrapup  ->
+	case agent_auth:get_agent(Transaction#cdr_raw.eventdata) of
+		{atomic, [Rec]} when is_tuple(Rec) ->
+			element(2, Rec);
+		_ ->
+			"0"
+	end;
+get_transaction_data(Transaction, CDR) ->
+	"".
 

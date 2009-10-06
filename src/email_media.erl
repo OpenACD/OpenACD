@@ -304,7 +304,7 @@ skeletonize({"multipart", Subtype, _Headers, _Properties, List}, Path, Files) ->
 	{{"multipart", Subtype, Subskel}, Newfiles};
 skeletonize({"message", Subtype, Headers, Properties, Body}, Path, Files) ->
 	{Subskel, Midfiles} = skeletonize([Body], [1 | Path], Files),
-	Newfiles = append_files(Headers, Properties, Path, Files),
+	Newfiles = append_files(Headers, Properties, Path, Midfiles),
 	{{"message", Subtype, Subskel}, Newfiles};
 skeletonize({Type, Subtype, Headers, Properties, _Body}, Path, Files) ->
 	Newfiles = append_files(Headers, Properties, Path, Files),

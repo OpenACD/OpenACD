@@ -585,6 +585,9 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{agent_fsm = Apid} = St
 			{reply, {200, Heads, Data}, State};
 		{ok, none, _Call} ->
 			{reply, {404, [], <<"path not found">>}, State};
+		{ok, {message, Mime}, Call} ->
+			{Heads, Data} = parse_media_call(Call, {"get_path", Path}, {ok, Mime}),
+			{reply, {200, Heads, Data}, State};
 		Else ->
 			?DEBUG("Not a mime tuple ~p", [Else]),
 			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}
@@ -787,32 +790,69 @@ get_nodes(Nodestring) ->
 			[Out]
 	end.
 
+email_props_to_json(Proplist) ->
+	email_props_to_json(Proplist, []).
+
+email_props_to_json([], Acc) ->
+	{struct, lists:reverse(Acc)};
+email_props_to_json([{Key, Value} | Tail], Acc) ->
+	{Dokey, Newkey} = case {is_binary(Key), is_list(Key)} of
+		{true, _} -> {ok, Key};
+		{_, true} -> {ok, list_to_binary(Key)};
+		{_, _} -> {false, false}
+	end,
+	{Doval, Newval} = case {is_binary(Value), is_list(Value)} of
+		{true, _} -> {ok, Value};
+		{_, true} -> {ok, email_props_to_json(Value)};
+		{_, _} -> {false, false}
+	end,
+	case {Dokey, Doval} of
+		{ok, ok} ->
+			email_props_to_json(Tail, [{Newkey, Newval} | Acc]);
+		Else ->
+			email_props_to_json(Tail, Acc)
+	end.
+
 -type(headers() :: [{string(), string()}]).
 -type(mochi_out() :: binary()).
 -spec(parse_media_call/3 :: (Mediarec :: #call{}, Command :: string, Response :: any()) -> {headers(), mochi_out()}).
-parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {Type, Subtype}) ->
-	Json = {struct, [{<<"type">>, list_to_binary(Type)}, {<<"subtype">>, list_to_binary(Subtype)}]},
+parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {Type, Subtype, Heads, Props}) ->
+	Json = {struct, [
+		{<<"type">>, Type}, 
+		{<<"subtype">>, list_to_binary(Subtype)},
+		{<<"headers">>, email_props_to_json(Heads)},
+		{<<"properties">>, email_props_to_json(Props)}
+	]},
 	{[], mochijson2:encode(Json)};
-parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubType, Parts}) ->
+parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubType, Tophead, Topprop, Parts}) ->
 	Fun = fun
-		({Type, Subtype}, {F, Acc}) ->
+		({Type, Subtype, Heads, Props}, {F, Acc}) ->
 			Head = {struct, [
-				{<<"type">>, list_to_binary(Type)},
-				{<<"subtype">>, list_to_binary(Subtype)}
+				{<<"type">>, Type},
+				{<<"subtype">>, Subtype},
+				{<<"headers">>, email_props_to_json(Heads)},
+				{<<"properties">>, email_props_to_json(Props)}
 			]},
 			{F, [Head | Acc]};
-		({Type, Subtype, List}, {F, Acc}) ->
+		({Type, Subtype, Heads, Props, List}, {F, Acc}) ->
 			{_, Revlist} = lists:foldl(F, {F, []}, List),
 			Newlist = lists:reverse(Revlist),
 			Head = {struct, [
-				{<<"type">>, list_to_binary(Type)},
-				{<<"subtype">>, list_to_binary(Subtype)},
+				{<<"type">>, Type},
+				{<<"subtype">>, Subtype},
+				{<<"headers">>, email_props_to_json(Heads)},
+				{<<"properties">>, email_props_to_json(Props)},
 				{<<"parts">>, Newlist}
 			]},
 			{F, [Head | Acc]}
 	end,
 	{_, Jsonlist} = lists:foldl(Fun, {Fun, []}, Parts),
-	Json = {struct, [{<<"type">>, list_to_binary(TopType)}, {<<"subtype">>, list_to_binary(TopSubType)}, {<<"parts">>, lists:reverse(Jsonlist)}]},
+	Json = {struct, [
+		{<<"type">>, TopType}, 
+		{<<"subtype">>, TopSubType}, 
+		{<<"headers">>, email_props_to_json(Tophead)},
+		{<<"properties">>, email_props_to_json(Topprop)},
+		{<<"parts">>, lists:reverse(Jsonlist)}]},
 	?DEBUG("json:  ~p", [Json]),
 	{[], mochijson2:encode(Json)};
 parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, Headers, Properties, Body} = Mime}) ->
@@ -822,16 +862,16 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 		{Type, Subtype, {attachment, Name}} ->
 			?DEBUG("Trying to some ~p/~p (~p) as attachment", [Type, Subtype, Name]),
 			{[
-				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))},
-				{"Content-Type", lists:append([Type, "/", Subtype])}
-			], list_to_binary(Body)};
-		{"text", "rtf", {inline, Name}} ->
+				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [binary_to_list(Name)]))},
+				{"Content-Type", lists:append([binary_to_list(Type), "/", binary_to_list(Subtype)])}
+			], Body};
+		{<<"text">>, <<"rtf">>, {inline, Name}} ->
 			{[
-				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))},
-				{"Content-Type", lists:append([Type, "/", Subtype])}
-			], list_to_binary(Body)};
-		{"text", "html", _} ->
-			Parsed = case mochiweb_html:parse(Body) of
+				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [binary_to_list(Name)]))},
+				{"Content-Type", lists:append([binary_to_list(Type), "/", binary_to_list(Subtype)])}
+			], Body};
+		{<<"text">>, <<"html">>, _} ->
+			Parsed = case mochiweb_html:parse(binary_to_list(Body)) of
 				Islist when is_list(Islist) ->
 					Islist;
 				Isntlist ->
@@ -858,7 +898,7 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 			Newhtml = Stripper(Stripper, Parsed, []),
 			{[], mochiweb_html:to_html({<<"span">>, [], Newhtml})};
 		{Type, Subtype, _Disposition} ->
-			{[{"Content-Type", lists:append([Type, "/", Subtype])}], list_to_binary(Body)}
+			{[{"Content-Type", lists:append([binary_to_list(Type), "/", binary_to_list(Subtype)])}], Body}
 %
 %		{"text", _, _} ->
 %			{[], list_to_binary(Body)};

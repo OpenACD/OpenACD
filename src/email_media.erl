@@ -142,7 +142,7 @@ get_disposition({_, _, _, Properties, _}) ->
 					TypeParams = proplists:get_value(<<"content-type-params">>, Properties),
 					case proplists:get_value(<<"name">>, TypeParams) of
 						undefined ->
-							Nom = util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref()))),
+							Nom = list_to_binary(util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref())))),
 							{attachment, Nom};
 						Nom ->
 							{attachment, Nom}

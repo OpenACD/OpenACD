@@ -105,6 +105,11 @@ if(typeof(emailPane) == 'undefined'){
 		if(skeleton.type == "message"){
 			var tpath = copyPath(path);
 			tpath.push(1);
+			fetches.push({
+				'mode':'a',
+				'path':path,
+				'label':'message (' + path.join('/') + ')'
+			});
 			fetches = emailPane.pathsToFetch(skeleton.parts[0], tpath, fetches);
 			return fetches;
 		}
@@ -127,7 +132,8 @@ if(typeof(emailPane) == 'undefined'){
 		
 		fetches.push({
 			'mode':'a',
-			'path':path
+			'path':path,
+			'label':skeleton.type + ' (' + path.join('/') + ')'
 		});
 		
 		return fetches;
@@ -146,7 +152,7 @@ if(typeof(emailPane) == 'undefined'){
 		
 		debug(["subbed to", "emailPane/get_path/" + fetchObjs[0].path.join("/")]);
 		if(fetchObjs[0].mode == 'a'){
-			fetched += '<a href="/' + jpath + '" target="_blank">Attachement (' + jpath + ')</a>';
+			fetched += '<a href="/' + jpath + '" target="_blank">' + fetchObjs[0].label + '</a>';
 		}
 		else if(fetchObjs[0].mode == 'img'){
 			fetched += '<img src="/' + jpath + '" />';

@@ -156,7 +156,7 @@ init([Options]) ->
 	%% die a horrible death (which is good!).
 	Pid = case whereis(cpx_smtp_server) of
 		undefined ->
-			{ok, Server} = gen_smtp_server:start(email_media_session, Options),
+			{ok, Server} = gen_smtp_server:start(email_media_session, [Options]),
 			register(cpx_smtp_server, Server),
 			link(Server),
 			Server;
@@ -176,8 +176,7 @@ init([Options]) ->
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 handle_call({queue, Filename}, _From, #state{mails = Mails} = State) ->
-	{ok, Bin} = file:read_file(Filename),
-	Email = binary_to_list(Bin),
+	{ok, Email} = file:read_file(Filename),
 	{_, _, Headers, _, _} = mimemail:decode(Email),
 	Mailmap = case proplists:get_value("From", Headers) of
 		undefined ->

@@ -129,7 +129,7 @@ get_disposition({_, _, _, Properties, _}) ->
 	case proplists:get_value(<<"disposition">>, Properties, inline) of
 		inline ->
 			inline;
-		"inline" ->
+		<<"inline">> ->
 			case proplists:get_value(<<"filename">>, Params) of
 				undefined ->
 					inline;

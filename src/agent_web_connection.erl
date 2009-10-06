@@ -586,8 +586,23 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{agent_fsm = Apid} = St
 		{ok, none, _Call} ->
 			{reply, {404, [], <<"path not found">>}, State};
 		{ok, {message, Mime}, Call} ->
-			{Heads, Data} = parse_media_call(Call, {"get_path", Path}, {ok, Mime}),
-			{reply, {200, Heads, Data}, State};
+			% the commented out code below is for the day mimemail:encode/1 will
+			% use binaries instead of lists, and (hopefully) output binaries too.
+			% for now, tell the client we suck.
+			% 501 means not implemented, so good 'nough.
+			{reply, {501, [], <<"Can't parse back an email yet, sorry">>}, State};
+%			Filename = case email_media:get_disposition(Mime) of
+%				inline ->
+%					Nom = util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref())));
+%				{_, Nom} ->
+%					binary_to_list(Nom)
+%			end,
+%			Heads = [
+%				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Filename]))},
+%				{"Content-Type", lists:append([binary_to_list(element(1, Mime)), "/", binary_to_list(element(2, Mime))])}
+%			],
+%			Encoded = mimemail:encode(Mime),
+%			{reply, {200, Heads, Encoded}, State};
 		Else ->
 			?DEBUG("Not a mime tuple ~p", [Else]),
 			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}

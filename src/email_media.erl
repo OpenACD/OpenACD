@@ -310,33 +310,33 @@ skeletonize(Mime) ->
 	%% skeletonize(Mime, Path, Filemap) -> {Skeleton, Filemap}
 	skeletonize(Mime, [], []).
 
-skeletonize({"multipart", Subtype, _Headers, _Properties, List}, Path, Files) ->
+skeletonize({"multipart", Subtype, Headers, Properties, List}, Path, Files) ->
 	{Subskel, Newfiles} = skeletonize(List, [1 | Path], Files),
-	{{"multipart", Subtype, Subskel}, Newfiles};
+	{{"multipart", Subtype, Headers, Properties, Subskel}, Newfiles};
 skeletonize({"message", Subtype, Headers, Properties, Body}, Path, Files) ->
 	{Subskel, Midfiles} = skeletonize([Body], [1 | Path], Files),
 	Newfiles = append_files(Headers, Properties, Path, Midfiles),
-	{{"message", Subtype, Subskel}, Newfiles};
+	{{"message", Subtype, Headers, Properties, Subskel}, Newfiles};
 skeletonize({Type, Subtype, Headers, Properties, _Body}, Path, Files) ->
 	Newfiles = append_files(Headers, Properties, Path, Files),
-	{{Type, Subtype}, Newfiles};
+	{{Type, Subtype, Headers, Properties}, Newfiles};
 skeletonize(List, Path, Files) when is_list(List) ->
 	skeletonize(List, Path, Files, []).
 
 skeletonize([], Path, Files, Acc) ->
 	{lists:reverse(Acc), Files};
-skeletonize([{"multipart", Subtype, _Headers, _Properties, List} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+skeletonize([{"multipart", Subtype, Headers, Properties, List} | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Sublist, Newfiles} = skeletonize(List, [1 | Path], Files),
-	Newacc = [{"multipart", Subtype, Sublist} | Acc],
+	Newacc = [{"multipart", Subtype, Headers, Properties, Sublist} | Acc],
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
 skeletonize([{"message", Subtype, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Sublist, Midfiles} = skeletonize([Body], [1 | Path], Files),
-	Newacc = [{"message", Subtype, Sublist} | Acc],
+	Newacc = [{"message", Subtype, Headers, Properties, Sublist} | Acc],
 	Newfiles = append_files(Headers, Properties, Path, Midfiles),
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
 skeletonize([Head | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Skel, Newfiles} = skeletonize(Head, Path, Files),
-	Newacc = [{element(1, Head), element(2, Head)} | Acc],
+	Newacc = [{element(1, Head), element(2, Head), element(3, Head), element(4, Head)} | Acc],
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc).
 
 get_part([], {"multipart", Subtype, _Headers, _Properties, List}) ->
@@ -420,20 +420,20 @@ skeletonize_test_() ->
 	fun() ->
 		Decoded = getmail("Plain-text-only.eml"),
 		{Skel, []} = skeletonize(Decoded),
-		?assertEqual({"text", "plain"}, Skel)
+		?assertMatch({"text", "plain", _, _}, Skel)
 	end},
 	{"html text mail",
 	fun() ->
 		Decoded = getmail("html.eml"),
 		{Skel, []} = skeletonize(Decoded),
 		?DEBUG("Skel:  ~p", [Skel]),
-		?assertEqual({"multipart", "alternative", [{"text", "plain"}, {"text", "html"}]}, Skel)
+		?assertMatch({"multipart", "alternative", _Head, _Props, [{"text", "plain", _H2, _P2}, {"text", "html", _H3, P3}]}, Skel)
 	end},
 	{"email with image",
 	fun() ->
 		Decoded = getmail("image-attachment-only.eml"),
 		{Skel, Files} = skeletonize(Decoded),
-		?assertEqual({"multipart", "mixed", [{"image", "jpeg"}]}, Skel),
+		?assertMatch({"multipart", "mixed", _, _, [{"image", "jpeg", _, _}]}, Skel),
 		?assertEqual([{"spice-logo.jpg", [1]}], Files)
 	end},
 	{"the gamut",
@@ -456,32 +456,53 @@ skeletonize_test_() ->
 		%		text/html
 		Decoded = getmail("the-gamut.eml"),
 		{Skel, Files} = skeletonize(Decoded),
-		Expected = {"multipart", "alternative", [
-			{"text", "plain"},
-			{"multipart", "mixed", [
-				{"text", "html"},
-				{"message", "rfc822", [
-					{"multipart", "mixed", [
-						{"message", "rfc822", [
-							{"text", "plain"}
+		%{"multipart", "alternative", [
+%			{"text", "plain"},
+%			{"multipart", "mixed", [
+%				{"text", "html"},
+%				{"message", "rfc822", [
+%					{"multipart", "mixed", [
+%						{"message", "rfc822", [
+%							{"text", "plain"}
+%						]}
+%					]}
+%				]},
+%				{"text", "html"},
+%				{"message", "rfc822", [
+%					{"text", "plain"}
+%				]},
+%				{"text", "html"},
+%				{"image", "jpeg"},
+%				{"text", "html"},
+%				{"text", "rtf"},
+%				{"text", "html"}
+%			]}
+%		]},
+		?DEBUG("Skel:  ~p", [Skel]),
+		?DEBUG("Files:  ~p", [Files]),
+		?assertMatch(
+		{"multipart", "alternative", _, _, [
+			{"text", "plain", _, _},
+			{"multipart", "mixed", _, _, [
+				{"text", "html", _, _},
+				{"message", "rfc822", _, _, [
+					{"multipart", "mixed", _, _, [
+						{"message", "rfc822", _, _, [
+							{"text", "plain", _, _}
 						]}
 					]}
 				]},
-				{"text", "html"},
-				{"message", "rfc822", [
-					{"text", "plain"}
+				{"text", "html", _, _},
+				{"message", "rfc822", _, _, [
+					{"text", "plain", _, _}
 				]},
-				{"text", "html"},
-				{"image", "jpeg"},
-				{"text", "html"},
-				{"text", "rtf"},
-				{"text", "html"}
+				{"text", "html", _, _},
+				{"image", "jpeg", _, _},
+				{"text", "html", _, _},
+				{"text", "rtf", _, _},
+				{"text", "html", _, _}
 			]}
-		]},
-		?DEBUG("Ecpected:  ~p", [Expected]),
-		?DEBUG("Skel:  ~p", [Skel]),
-		?DEBUG("Files:  ~p", [Files]),
-		?assertEqual(Expected, Skel),
+		]}, Skel),
 		?assertEqual(5, length(Files)),
 		?assertEqual([2, 2, 1, 1], proplists:get_value("Plain text only", Files)),
 		?assertEqual([2, 4], proplists:get_value("Plain text only.eml", Files)),

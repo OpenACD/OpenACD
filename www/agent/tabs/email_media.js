@@ -108,7 +108,7 @@ if(typeof(emailPane) == 'undefined'){
 			fetches.push({
 				'mode':'a',
 				'path':path,
-				'label':'message (' + path.join('/') + ')'
+				'label':skeleton.properties['disposition-params'].filename
 			});
 			fetches = emailPane.pathsToFetch(skeleton.parts[0], tpath, fetches);
 			return fetches;
@@ -133,7 +133,7 @@ if(typeof(emailPane) == 'undefined'){
 		fetches.push({
 			'mode':'a',
 			'path':path,
-			'label':skeleton.type + ' (' + path.join('/') + ')'
+			'label':skeleton.properties['disposition-params'].filename
 		});
 		
 		return fetches;

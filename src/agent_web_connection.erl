@@ -577,10 +577,14 @@ handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 handle_call({undefined, [$/ | Path], Post}, _From, #state{agent_fsm = Apid} = State) ->
 	%% considering how things have gone, the best guess is this is a media call.
 	?DEBUG("forwarding request to media.  Path: ~p; Post: ~p", [Path, Post]),
-	case agent:media_call(Apid, {get_id, Path}) of
-		{ok, {ok, Mime}, _Call} ->
-			Body = element(5, Mime),
-			{reply, {200, [], list_to_binary(Body)}, State};
+	case agent:media_call(Apid, {get_blind, Path}) of
+		{ok, {ok, Mime}, Call} ->
+			{Heads, Data} = parse_media_call(Call, {"get_path", Path}, {ok, Mime}),
+%			Body = element(5, Mime),
+%			{reply, {200, [], list_to_binary(Body)}, State};
+			{reply, {200, Heads, Data}, State};
+		{ok, none, _Call} ->
+			{reply, {404, [], <<"path not found">>}, State};
 		Else ->
 			?DEBUG("Not a mime tuple ~p", [Else]),
 			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}
@@ -812,20 +816,20 @@ parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubT
 	?DEBUG("json:  ~p", [Json]),
 	{[], mochijson2:encode(Json)};
 parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, Headers, Properties, Body} = Mime}) ->
-	case {Type, Subtype, email_media:get_disposition(Mime)} of
+	Emaildispo = email_media:get_disposition(Mime),
+	?DEBUG("Type:  ~p; Subtype:  ~p;  Dispo:  ~p", [Type, Subtype, Emaildispo]),
+	case {Type, Subtype, Emaildispo} of
 		{Type, Subtype, {attachment, Name}} ->
+			?DEBUG("Trying to some ~p/~p (~p) as attachment", [Type, Subtype, Name]),
 			{[
 				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))},
 				{"Content-Type", lists:append([Type, "/", Subtype])}
 			], list_to_binary(Body)};
 		{"text", "rtf", {inline, Name}} ->
-			Newbod = lists:append(["<a href=\"", Name, "\">", Name, "</a>"]),
-			{[], list_to_binary(Newbod)};
-		
-%			{[
-%				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))},
-%				{"Content-Type", lists:append([Type, "/", Subtype])}
-%			], list_to_binary(Body)};
+			{[
+				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))},
+				{"Content-Type", lists:append([Type, "/", Subtype])}
+			], list_to_binary(Body)};
 		{"text", "html", _} ->
 			Parsed = case mochiweb_html:parse(Body) of
 				Islist when is_list(Islist) ->
@@ -853,19 +857,22 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 			end,
 			Newhtml = Stripper(Stripper, Parsed, []),
 			{[], mochiweb_html:to_html({<<"span">>, [], Newhtml})};
-		{"text", _, _} ->
-			{[], list_to_binary(Body)};
-		{"image", Subtype, {Linedness, Name}} ->
-			Html = case Linedness of
-				inline ->
-					{<<"img">>, [{<<"src">>, list_to_binary(Name)}], []};
-				attachment ->
-					{<<"a">>, [{<<"href">>, list_to_binary(Name)}], list_to_binary(Name)}
-			end,
-			{[], mochiweb_html:to_html(Html)};
-		{Type, Subtype, Disposition} ->
-			?WARNING("unsure how to handle ~p/~p disposed to ~p", [Type, Subtype, Disposition]),
-			{[], <<"404">>}
+		{Type, Subtype, _Disposition} ->
+			{[{"Content-Type", lists:append([Type, "/", Subtype])}], list_to_binary(Body)}
+%
+%		{"text", _, _} ->
+%			{[], list_to_binary(Body)};
+%		{"image", Subtype, {Linedness, Name}} ->
+%			Html = case Linedness of
+%				inline ->
+%					{<<"img">>, [{<<"src">>, list_to_binary(Name)}], []};
+%				attachment ->
+%					{<<"a">>, [{<<"href">>, list_to_binary(Name)}], list_to_binary(Name)}
+%			end,
+%			{[], mochiweb_html:to_html(Html)};
+%		{Type, Subtype, Disposition} ->
+%			?WARNING("unsure how to handle ~p/~p disposed to ~p", [Type, Subtype, Disposition]),
+%			{[], <<"404">>}
 	end;
 parse_media_call(Mediarec, Command, Response) ->
 	?DEBUG("Unparsable result for ~p:~p.  ~p", [Mediarec#call.type, Command, Response]),

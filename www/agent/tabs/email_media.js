@@ -81,7 +81,10 @@ if(typeof(emailPane) == 'undefined'){
 					fetches = emailPane.pathsToFetch(skeleton.parts[pushon - 1], tpath, fetches);
 				}
 				else{
-					fetches.push(tpath);
+					fetches.push({
+						'mode':'fetch',
+						'path':tpath
+					});
 				}
 			}
 			
@@ -107,19 +110,30 @@ if(typeof(emailPane) == 'undefined'){
 		}
 		
 		if(skeleton.type == "text" && skeleton.subtype != "rtf"){
-			fetches.push(path);
+			fetches.push({
+				'mode':'fetch',
+				'path':path
+			});
 			return fetches;
 		}
 		
 		if(skeleton.type == "image"){
-			fetches.push(path);
+			fetches.push({
+				'mode':'img',
+				'path':path
+			});
 			return fetches;
 		}
+		
+		fetches.push({
+			'mode':'a',
+			'path':path
+		});
 		
 		return fetches;
 	}
 	
-	emailPane.fetchPaths = function(paths, fetched){
+	emailPane.fetchPaths = function(fetchObjs, fetched){
 		if(emailPane.fetchSub){
 			return false;
 		}
@@ -128,22 +142,39 @@ if(typeof(emailPane) == 'undefined'){
 			fetched = "";
 		}
 		
-		debug(["subbed to", "emailPane/get_path/" + paths[0].join("/")]);
-		emailPane.fetchSub = dojo.subscribe("emailPane/get_path/" + paths[0].join("/"), function(res){
-			debug(["sub hit", "emailPane/get_path/" + paths[0].join("/"), res]);
-			dojo.unsubscribe(emailPane.fetchSub);
-			emailPane.fetchSub = false;
-			fetched += res;
-			paths.shift();
-			if(paths.length > 0){
-				emailPane.fetchPaths(paths, fetched);
-			}
-			else{
-				dojo.publish("emailPane/fetchPaths/done", [fetched]);
-			}
-		});
+		var jpath = fetchObjs[0].path.join("/");
 		
-		emailPane.getPath(paths[0]);
+		debug(["subbed to", "emailPane/get_path/" + fetchObjs[0].path.join("/")]);
+		if(fetchObjs[0].mode == 'a'){
+			fetched += '<a href="/' + jpath + '" target="_blank">Attachement (' + jpath + ')</a>';
+		}
+		else if(fetchObjs[0].mode == 'img'){
+			fetched += '<img src="/' + jpath + '" />';
+		}
+		else if(fetchObjs[0].mode == 'fetch'){
+			emailPane.fetchSub = dojo.subscribe("emailPane/get_path/" + jpath, function(res){
+				debug(["sub hit", "emailPane/get_path/" + jpath, res]);
+				dojo.unsubscribe(emailPane.fetchSub);
+				emailPane.fetchSub = false;
+				fetched += res;
+				fetchObjs.shift();
+				if(fetchObjs.length > 0){
+					emailPane.fetchPaths(fetchObjs, fetched);
+				}
+				else{
+					dojo.publish("emailPane/fetchPaths/done", [fetched]);
+				}
+			});			
+			emailPane.getPath(fetchObjs[0].path);
+			return;
+		}
+		fetchObjs.shift();
+		if(fetchObjs.length > 0){
+			emailPane.fetchPaths(fetchObjs, fetched);
+		}
+		else{
+			dojo.publish("emailPane/fetchPaths/done", [fetched]);
+		}
 	}
 }
 

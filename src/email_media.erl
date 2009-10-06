@@ -206,6 +206,17 @@ handle_call({get_id, Id}, From, Callrec, #state{file_map = Map} = State) when is
 			?DEBUG("path:  ~p", [Path]),
 			handle_call({get_path, Path}, From, Callrec, State)
 	end;
+handle_call({get_blind, Key}, _From, Callrec, #state{file_map = Map, mimed = Mime} = State) when is_list(Key) ->
+	case proplists:get_value(Key, Map) of
+		undefined ->
+			Splitpath = util:string_split(Key, "/"),
+			Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
+			Out = get_part(Intpath, Mime),
+			{reply, Out, State};
+		Path ->
+			Reply = get_part(Path, Mime),
+			{reply, Reply, State}
+	end;
 handle_call({mediapush, _Data}, _From, _Callrec, State) ->
 	?WARNING("pushing data out is NYI", []),
 	{reply, invalid, State};

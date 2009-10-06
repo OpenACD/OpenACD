@@ -318,9 +318,10 @@ skeletonize([{"multipart", Subtype, _Headers, _Properties, List} | Tail], [Count
 	{Sublist, Newfiles} = skeletonize(List, [1 | Path], Files),
 	Newacc = [{"multipart", Subtype, Sublist} | Acc],
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
-skeletonize([{"message", Subtype, _Headers, _Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
-	{Sublist, Newfiles} = skeletonize([Body], [1 | Path], Files),
+skeletonize([{"message", Subtype, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+	{Sublist, Midfiles} = skeletonize([Body], [1 | Path], Files),
 	Newacc = [{"message", Subtype, Sublist} | Acc],
+	Newfiles = append_files(Headers, Properties, Path, Midfiles),
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
 skeletonize([Head | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Skel, Newfiles} = skeletonize(Head, Path, Files),
@@ -358,10 +359,11 @@ check_disposition(Properties) ->
 	end.
 
 append_files(Headers, Properties, Path, Files) ->
-	case {proplists:get_value("Content-ID", Headers), check_disposition(Properties)} of
+	?DEBUG("append_files:  ~p, ~p", [Headers, Properties]),
+	case {proplists:get_value("Content-ID", Headers), get_disposition({1, 1, 1, Properties, 1})} of
 		{undefined, inline} ->
 			Files;
-		{undefined, {_Linedness, Name, _}} ->
+		{undefined, {_Linedness, Name}} ->
 			[{Name, lists:reverse(Path)} | Files];
 		{Contentid, Dispo} ->
 			Len = length(Contentid),
@@ -370,7 +372,7 @@ append_files(Headers, Properties, Path, Files) ->
 			case Dispo of
 				inline ->
 					Midfiles;
-				{_Linedness, Name, _} ->
+				{_Linedness, Name} ->
 					[{Name, lists:reverse(Path)} | Midfiles]
 			end
 	end.
@@ -469,12 +471,12 @@ skeletonize_test_() ->
 		?DEBUG("Skel:  ~p", [Skel]),
 		?DEBUG("Files:  ~p", [Files]),
 		?assertEqual(Expected, Skel),
-		?assertEqual(4, length(Files)),
-		?assertEqual([], proplists:get_value("Plain text only", Files)),
-		?assertEqual([], proplists:get_value("Plain text only.eml", Files)),
-		?assertEqual([], proplists:get_value("spice-logo.jpg", Files)),
-		?assertEqual([], proplists:get_value("test.rtf", Files)),
-		?assertEqual([], Files)
+		?assertEqual(5, length(Files)),
+		?assertEqual([2, 2, 1, 1], proplists:get_value("Plain text only", Files)),
+		?assertEqual([2, 4], proplists:get_value("Plain text only.eml", Files)),
+		?assertEqual([2, 6], proplists:get_value("spice-logo.jpg", Files)),
+		?assertEqual([2, 8], proplists:get_value("test.rtf", Files)),
+		?assertEqual([2, 2], proplists:get_value("message as attachment.eml", Files))
 	end},
 	{"Files with id's logged (testcase1)",
 	fun() ->

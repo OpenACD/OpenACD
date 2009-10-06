@@ -125,22 +125,22 @@ post_to_api(Post) ->
 
 -spec(get_disposition/1 :: (Mime :: tuple()) -> 'inline' | {'inline', string()} | {'attachment', string()}).
 get_disposition({_, _, _, Properties, _}) ->
-	Params = proplists:get_value("disposition-params", Properties),
-	case proplists:get_value("disposition", Properties, inline) of
+	Params = proplists:get_value(<<"disposition-params">>, Properties),
+	case proplists:get_value(<<"disposition">>, Properties, inline) of
 		inline ->
 			inline;
 		"inline" ->
-			case proplists:get_value("filename", Params) of
+			case proplists:get_value(<<"filename">>, Params) of
 				undefined ->
 					inline;
 				Name ->
 					{inline, Name}
 			end;
 		_Else ->
-			case proplists:get_value("filename", Params) of
+			case proplists:get_value(<<"filename">>, Params) of
 				undefined ->
-					TypeParams = proplists:get_value("content-type-params", Properties),
-					case proplists:get_value("name", TypeParams) of
+					TypeParams = proplists:get_value(<<"content-type-params">>, Properties),
+					case proplists:get_value(<<"name">>, TypeParams) of
 						undefined ->
 							Nom = util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref()))),
 							{attachment, Nom};
@@ -310,13 +310,13 @@ skeletonize(Mime) ->
 	%% skeletonize(Mime, Path, Filemap) -> {Skeleton, Filemap}
 	skeletonize(Mime, [], []).
 
-skeletonize({"multipart", Subtype, Headers, Properties, List}, Path, Files) ->
+skeletonize({<<"multipart">>, Subtype, Headers, Properties, List}, Path, Files) ->
 	{Subskel, Newfiles} = skeletonize(List, [1 | Path], Files),
-	{{"multipart", Subtype, Headers, Properties, Subskel}, Newfiles};
-skeletonize({"message", Subtype, Headers, Properties, Body}, Path, Files) ->
+	{{<<"multipart">>, Subtype, Headers, Properties, Subskel}, Newfiles};
+skeletonize({<<"message">>, Subtype, Headers, Properties, Body}, Path, Files) ->
 	{Subskel, Midfiles} = skeletonize([Body], [1 | Path], Files),
 	Newfiles = append_files(Headers, Properties, Path, Midfiles),
-	{{"message", Subtype, Headers, Properties, Subskel}, Newfiles};
+	{{<<"message">>, Subtype, Headers, Properties, Subskel}, Newfiles};
 skeletonize({Type, Subtype, Headers, Properties, _Body}, Path, Files) ->
 	Newfiles = append_files(Headers, Properties, Path, Files),
 	{{Type, Subtype, Headers, Properties}, Newfiles};
@@ -325,13 +325,13 @@ skeletonize(List, Path, Files) when is_list(List) ->
 
 skeletonize([], Path, Files, Acc) ->
 	{lists:reverse(Acc), Files};
-skeletonize([{"multipart", Subtype, Headers, Properties, List} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+skeletonize([{<<"multipart">>, Subtype, Headers, Properties, List} | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Sublist, Newfiles} = skeletonize(List, [1 | Path], Files),
-	Newacc = [{"multipart", Subtype, Headers, Properties, Sublist} | Acc],
+	Newacc = [{<<"multipart">>, Subtype, Headers, Properties, Sublist} | Acc],
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
-skeletonize([{"message", Subtype, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+skeletonize([{<<"message">>, Subtype, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Sublist, Midfiles} = skeletonize([Body], [1 | Path], Files),
-	Newacc = [{"message", Subtype, Headers, Properties, Sublist} | Acc],
+	Newacc = [{<<"message">>, Subtype, Headers, Properties, Sublist} | Acc],
 	Newfiles = append_files(Headers, Properties, Path, Midfiles),
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
 skeletonize([Head | Tail], [Count | Ptail] = Path, Files, Acc) ->
@@ -339,20 +339,20 @@ skeletonize([Head | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	Newacc = [{element(1, Head), element(2, Head), element(3, Head), element(4, Head)} | Acc],
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc).
 
-get_part([], {"multipart", Subtype, _Headers, _Properties, List}) ->
+get_part([], {<<"multipart">>, Subtype, _Headers, _Properties, List}) ->
 	?DEBUG("[], \"multipart\"", []),
 	{multipart, List};
-get_part([], {"message", Subtype, _Headers, _Properties, Body}) ->
+get_part([], {<<"message">>, Subtype, _Headers, _Properties, Body}) ->
 	?DEBUG("[], \"message\"", []),
 	{message, Body};
 get_part([], Mime) ->
 	?DEBUG("[], ~p/~p", [element(1, Mime), element(2, Mime)]),
 	{ok, Mime};
-get_part([Child | Tail], {"multipart", Subtype, _Headers, _Properties, List}) when Child =< length(List) ->
+get_part([Child | Tail], {<<"multipart">>, Subtype, _Headers, _Properties, List}) when Child =< length(List) ->
 	?DEBUG("[~p | ~p], multipart/~p", [Child, Tail, Subtype]),
 	Part = lists:nth(Child, List),
 	get_part(Tail, Part);
-get_part([1 | Tail], {"message", Subtype, _Headers, _Properties, Body}) ->
+get_part([1 | Tail], {<<"message">>, Subtype, _Headers, _Properties, Body}) ->
 	?DEBUG("[1 | ~p], message/~p", [Tail, Subtype]),
 	get_part(Tail, Body);
 get_part(Path, Mime) ->
@@ -364,27 +364,32 @@ check_disposition(Properties) ->
 		inline ->
 			inline;
 		{inline, Name} ->
-			{inline, Name, [{"Content-Disposition", lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name]))}]};
+			{inline, Name, [{<<"Content-Disposition">>, list_to_binary(lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name])))}]};
 		{attachment, Name} ->
-			{attachment, Name, [{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))}]}
+			{attachment, Name, [{<<"Content-Disposition">>, list_to_binary(lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name])))}]}
 	end.
 
 append_files(Headers, Properties, Path, Files) ->
 	?DEBUG("append_files:  ~p, ~p", [Headers, Properties]),
-	case {proplists:get_value("Content-ID", Headers), get_disposition({1, 1, 1, Properties, 1})} of
+	case {proplists:get_value(<<"Content-ID">>, Headers), get_disposition({1, 1, 1, Properties, 1})} of
 		{undefined, inline} ->
 			Files;
 		{undefined, {_Linedness, Name}} ->
 			[{Name, lists:reverse(Path)} | Files];
-		{Contentid, Dispo} ->
+		{Contentidbin, Dispo} ->
+			Contentid = binary_to_list(Contentidbin),
 			Len = length(Contentid),
-			Id = lists:append(["cid:", string:sub_string(Contentid, 2, Len - 1)]),
+			Id = list_to_binary(lists:append(["cid:", string:sub_string(Contentid, 2, Len - 1)])),
 			Midfiles = [{Id, lists:reverse(Path)} | Files],
 			case Dispo of
 				inline ->
 					Midfiles;
 				{_Linedness, Name} ->
-					[{Name, lists:reverse(Path)} | Midfiles]
+					Fixedname = case is_binary(Name) of
+						true -> Name;
+						false -> list_to_binary(Name)
+					end,
+					[{Fixedname, lists:reverse(Path)} | Midfiles]
 			end
 	end.
 
@@ -400,9 +405,9 @@ append_files(Headers, Properties, Path, Files) ->
 check_disposition_test_() ->
 	[{"The header exists",
 	fun() ->
-		Res = check_disposition([{"disposition","inline"}, {"disposition-params", [{"filename", "spice-logo.jpg"}]}]),
+		Res = check_disposition([{<<"disposition">>,"inline"}, {<<"disposition-params">>, [{<<"filename">>, <<"spice-logo.jpg">>}]}]),
 		?DEBUG("das res:  ~p", [Res]),
-		?assertEqual({inline, "spice-logo.jpg", [{"Content-Disposition", "inline; filename=\"spice-logo.jpg\""}]}, Res)
+		?assertEqual({inline, <<"spice-logo.jpg">>, [{<<"Content-Disposition">>, <<"inline; filename=\"spice-logo.jpg\"">>}]}, Res)
 	end},
 	{"The header doesn't exists",
 	fun() ->
@@ -412,29 +417,29 @@ check_disposition_test_() ->
 		
 getmail(File) ->
 	{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
-	Email = binary_to_list(Bin),
-	mimemail:decode(Email).
+	%Email = binary_to_list(Bin),
+	mimemail:decode(Bin).
 	
 skeletonize_test_() ->
 	[{"Simple plain text mail",
 	fun() ->
 		Decoded = getmail("Plain-text-only.eml"),
 		{Skel, []} = skeletonize(Decoded),
-		?assertMatch({"text", "plain", _, _}, Skel)
+		?assertMatch({<<"text">>, <<"plain">>, _, _}, Skel)
 	end},
 	{"html text mail",
 	fun() ->
 		Decoded = getmail("html.eml"),
 		{Skel, []} = skeletonize(Decoded),
 		?DEBUG("Skel:  ~p", [Skel]),
-		?assertMatch({"multipart", "alternative", _Head, _Props, [{"text", "plain", _H2, _P2}, {"text", "html", _H3, P3}]}, Skel)
+		?assertMatch({<<"multipart">>, <<"alternative">>, _Head, _Props, [{<<"text">>, <<"plain">>, _H2, _P2}, {<<"text">>, <<"html">>, _H3, P3}]}, Skel)
 	end},
 	{"email with image",
 	fun() ->
 		Decoded = getmail("image-attachment-only.eml"),
 		{Skel, Files} = skeletonize(Decoded),
-		?assertMatch({"multipart", "mixed", _, _, [{"image", "jpeg", _, _}]}, Skel),
-		?assertEqual([{"spice-logo.jpg", [1]}], Files)
+		?assertMatch({<<"multipart">>, <<"mixed">>, _, _, [{<<"image">>, <<"jpeg">>, _, _}]}, Skel),
+		?assertEqual([{<<"spice-logo.jpg">>, [1]}], Files)
 	end},
 	{"the gamut",
 	fun() ->
@@ -481,41 +486,41 @@ skeletonize_test_() ->
 		?DEBUG("Skel:  ~p", [Skel]),
 		?DEBUG("Files:  ~p", [Files]),
 		?assertMatch(
-		{"multipart", "alternative", _, _, [
-			{"text", "plain", _, _},
-			{"multipart", "mixed", _, _, [
-				{"text", "html", _, _},
-				{"message", "rfc822", _, _, [
-					{"multipart", "mixed", _, _, [
-						{"message", "rfc822", _, _, [
-							{"text", "plain", _, _}
+		{<<"multipart">>, <<"alternative">>, _, _, [
+			{<<"text">>, <<"plain">>, _, _},
+			{<<"multipart">>, <<"mixed">>, _, _, [
+				{<<"text">>, <<"html">>, _, _},
+				{<<"message">>, <<"rfc822">>, _, _, [
+					{<<"multipart">>, <<"mixed">>, _, _, [
+						{<<"message">>, <<"rfc822">>, _, _, [
+							{<<"text">>, <<"plain">>, _, _}
 						]}
 					]}
 				]},
-				{"text", "html", _, _},
-				{"message", "rfc822", _, _, [
-					{"text", "plain", _, _}
+				{<<"text">>, <<"html">>, _, _},
+				{<<"message">>, <<"rfc822">>, _, _, [
+					{<<"text">>, <<"plain">>, _, _}
 				]},
-				{"text", "html", _, _},
-				{"image", "jpeg", _, _},
-				{"text", "html", _, _},
-				{"text", "rtf", _, _},
-				{"text", "html", _, _}
+				{<<"text">>, <<"html">>, _, _},
+				{<<"image">>, <<"jpeg">>, _, _},
+				{<<"text">>, <<"html">>, _, _},
+				{<<"text">>, <<"rtf">>, _, _},
+				{<<"text">>, <<"html">>, _, _}
 			]}
 		]}, Skel),
 		?assertEqual(5, length(Files)),
-		?assertEqual([2, 2, 1, 1], proplists:get_value("Plain text only", Files)),
-		?assertEqual([2, 4], proplists:get_value("Plain text only.eml", Files)),
-		?assertEqual([2, 6], proplists:get_value("spice-logo.jpg", Files)),
-		?assertEqual([2, 8], proplists:get_value("test.rtf", Files)),
-		?assertEqual([2, 2], proplists:get_value("message as attachment.eml", Files))
+		?assertEqual([2, 2, 1, 1], proplists:get_value(<<"Plain text only">>, Files)),
+		?assertEqual([2, 4], proplists:get_value(<<"Plain text only.eml">>, Files)),
+		?assertEqual([2, 6], proplists:get_value(<<"spice-logo.jpg">>, Files)),
+		?assertEqual([2, 8], proplists:get_value(<<"test.rtf">>, Files)),
+		?assertEqual([2, 2], proplists:get_value(<<"message as attachment.eml">>, Files))
 	end},
 	{"Files with id's logged (testcase1)",
 	fun() ->
 		Decoded = getmail("testcase1"),
 		{_Skel, Files} = skeletonize(Decoded),
-		?assertEqual([2, 1, 2, 2], proplists:get_value("cid:part1.03050108.02070304@gmail.com", Files)),
-		?assertEqual([2, 1, 2, 2], proplists:get_value("moz-screenshot-1.jpg", Files))
+		?assertEqual([2, 1, 2, 2], proplists:get_value(<<"cid:part1.03050108.02070304@gmail.com">>, Files)),
+		?assertEqual([2, 1, 2, 2], proplists:get_value(<<"moz-screenshot-1.jpg">>, Files))
 	end}].
 	
 
@@ -544,7 +549,7 @@ get_part_test_() ->
 		[{"A simple path",
 		fun() ->
 			Path = [1],
-			?assertMatch({ok, {"text", "plain", _Head, _Prop, _Body}}, get_part(Path, Gamut))
+			?assertMatch({ok, {<<"text">>, <<"plain">>, _Head, _Prop, _Body}}, get_part(Path, Gamut))
 		end},
 		{"Getting the base", 
 		fun() ->
@@ -559,22 +564,22 @@ get_part_test_() ->
 		{"Getting a message",
 		fun() ->
 			Path = [2, 2],
-			?assertMatch({message, {"multipart", "mixed", _Headers, _Properties, _List}}, get_part(Path, Gamut))
+			?assertMatch({message, {<<"multipart">>, <<"mixed">>, _Headers, _Properties, _List}}, get_part(Path, Gamut))
 		end},
 		{"Getting below a message",
 		fun() ->
 			Path = [2, 2, 1],
-			?assertMatch({multipart, [{"message", "rfc822", _Headers, _Properties, _Body}]}, get_part(Path, Gamut))
+			?assertMatch({multipart, [{<<"message">>, <<"rfc822">>, _Headers, _Properties, _Body}]}, get_part(Path, Gamut))
 		end},
 		{"Getting a deep text",
 		fun() ->
 			Path = [2, 2, 1, 1, 1],
-			?assertMatch({ok, {"text", "plain", _Headers, _Properties, _Body}}, get_part(Path, Gamut))
+			?assertMatch({ok, {<<"text">>, <<"plain">>, _Headers, _Properties, _Body}}, get_part(Path, Gamut))
 		end},
 		{"getting a far away text",
 		fun() ->
 			Path = [2, 9],
-			?assertMatch({ok, {"text", "html", _Headers, _Properties, _Body}}, get_part(Path, Gamut))
+			?assertMatch({ok, {<<"text">>, <<"html">>, _Headers, _Properties, _Body}}, get_part(Path, Gamut))
 		end},
 		{"getting a path that doesn't exist",
 		fun() ->
@@ -585,7 +590,7 @@ get_part_test_() ->
 		fun() ->
 			Testcase1 = getmail("testcase1"),
 			Path = [2, 1 , 2, 2],
-			?assertMatch({ok, {"image", "jpeg", _Head, _Prop, _Body}}, get_part(Path, Testcase1))
+			?assertMatch({ok, {<<"image">>, <<"jpeg">>, _Head, _Prop, _Body}}, get_part(Path, Testcase1))
 		end}]
 	end}.
 		

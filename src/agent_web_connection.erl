@@ -786,6 +786,9 @@ get_nodes(Nodestring) ->
 -type(headers() :: [{string(), string()}]).
 -type(mochi_out() :: binary()).
 -spec(parse_media_call/3 :: (Mediarec :: #call{}, Command :: string, Response :: any()) -> {headers(), mochi_out()}).
+parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {Type, Subtype}) ->
+	Json = {struct, [{<<"type">>, list_to_binary(Type)}, {<<"subtype">>, list_to_binary(Subtype)}]},
+	{[], mochijson2:encode(Json)};
 parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubType, Parts}) ->
 	Fun = fun
 		({Type, Subtype}, {F, Acc}) ->

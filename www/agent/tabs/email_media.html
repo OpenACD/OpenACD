@@ -24,16 +24,39 @@
 
 <p>
 	<label>&nbsp;</label>
-	<button label="SUBMIT" dojoType="dijit.form.Button"></button>
+	<button label="REPLY" id="emailReply" dojoType="dijit.form.Button">
+		<script type="dojo/connect" event="onClick">
+			dojo.byId('emailView').style.display = 'none';
+			var replyBase = dojo.doc.createElement('div');
+			replyBase.id = 'emailReplyEditor';
+			replyBase.style.height = '300px';
+			dojo.byId('emailDisp').appendChild(replyBase);
+			var widget = new dijit.Editor({height:'300px'}, replyBase);
+			widget.setValue(dojo.byId('emailView').innerHTML);
+			dijit.byId('emailSubmit').attr('style', 'display:inline');
+			dijit.byId('emailCancel').attr('style', 'display:inline');
+			dijit.byId('emailReply').attr('style', 'display:none');
+		</script>
+	</button>
+	<button label="SUBMIT" dojoType="dijit.form.Button" id="emailSubmit" style="display:none"></button>
+	<button label="CANCEL" dojoType="dijit.form.Button" id="emailCancel" style="display:none">
+		<script type="dojo/connect" event="onClick">
+			dijit.byId('emailReplyEditor').destroy();
+			var node = dojo.byId('emailReplyEditor');
+			node.parentNode.removeChild(node);
+			dojo.byId('emailView').style.display = 'block';
+			dijit.byId('emailSubmit').attr('style', 'display:none');
+			dijit.byId('emailCancel').attr('style', 'display:none');
+			dijit.byId('emailReply').attr('style', 'display:inline');
+		</script>
+	</button>
 </p>
 
 </div>
 
-<div style="width:60%; float:right; padding:2%">
+<div id="emailDisp" style="width:60%; float:right; padding:2%">
 
-<p>
-	<div dojoType="dijit.Editor" id="emailBody" height="300px"/>
-</p>
+<div id="emailView" style="height:300px; overflow:auto" />
 
 </div>	
 </form>

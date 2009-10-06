@@ -152,19 +152,13 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	dojo.unsubscribe(emailPane.sub);
 	emailPane.skel = skel;
 	var paths = emailPane.pathsToFetch(skel);
-	var widget = dijit.byId('emailBody');
-	widget.subs = [];
-	
-	widget.subs.push(dojo.subscribe("emailPane/fetchPaths/done", function(fetched){
+	var disp = dojo.byId("emailView");
+	disp.sub = dojo.subscribe("emailPane/fetchPaths/done", function(fetched){
 		debug(fetched);
-		while(widget.subs.length > 0){
-			var sub = widget.subs.pop();
-			dojo.unsubscribe(sub);
-			emailPane.fetchCache = fetched;
-			widget.setValue(fetched);
-		}
-	}));
-	
+		dojo.unsubscribe(disp.sub);
+		disp.innerHTML = fetched;
+	});
+		
 	emailPane.fetchPaths(paths);
 });
 

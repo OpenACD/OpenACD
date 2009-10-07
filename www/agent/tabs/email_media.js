@@ -117,7 +117,8 @@ if(typeof(emailPane) == 'undefined'){
 		if(skeleton.type == "text" && skeleton.subtype != "rtf"){
 			fetches.push({
 				'mode':'fetch',
-				'path':path
+				'path':path,
+				'textType':skeleton.subtype
 			});
 			return fetches;
 		}
@@ -162,7 +163,14 @@ if(typeof(emailPane) == 'undefined'){
 				debug(["sub hit", "emailPane/get_path/" + jpath, res]);
 				dojo.unsubscribe(emailPane.fetchSub);
 				emailPane.fetchSub = false;
-				fetched += res;
+				if(fetchObjs[0].textType){
+					if(fetchObjs[0].textType == 'plain'){
+						fetched += '<pre>' + res + '</pre>';
+					}
+				}
+				else{
+					fetched += res;
+				}
 				fetchObjs.shift();
 				if(fetchObjs.length > 0){
 					emailPane.fetchPaths(fetchObjs, fetched);

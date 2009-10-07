@@ -182,14 +182,36 @@ if(typeof(emailPane) == 'undefined'){
 			dojo.publish("emailPane/fetchPaths/done", [fetched]);
 		}
 	}
+	
+	//scrub &, <, and > so it's displayable via html
+	emailPane.scrubString = function(instr){
+		instr = instr.replace('&', '&amp;');
+		instr = instr.replace('<', '&lt;');
+		instr = instr.replace('>', '&gt;');
+		instr = instr.replace('"', '&quot;');
+		return instr;
+	}
 }
 
 emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	debug(skel);
 	dojo.unsubscribe(emailPane.sub);
 	emailPane.skel = skel;
+	
+	dojo.byId('emailToSpan').innerHTML = emailPane.scrubString(skel.headers['To']);
+	dojo.byId('emailFromSpan').innerHTML = emailPane.scrubString(skel.headers['From']);
+	dojo.byId('emailSubjectSpan').innerHTML = emailPane.scrubString(skel.headers['Subject']);
+	dojo.byId('emailRawHeadersSpan').innerHTML = function(){
+		var out = ['<pre>'];
+		for(var i in skel.headers){
+			out.push(emailPane.scrubString(i) + ': ' + emailPane.scrubString(skel.headers[i]));
+		}
+		out.push('</pre>');
+		return out.join('<br />');
+	}();
+	
 	var paths = emailPane.pathsToFetch(skel);
-	var disp = dojo.byId("emailView");
+	var disp = dojo.byId("emailViewDiv");
 	disp.sub = dojo.subscribe("emailPane/fetchPaths/done", function(fetched){
 		debug(fetched);
 		dojo.unsubscribe(disp.sub);

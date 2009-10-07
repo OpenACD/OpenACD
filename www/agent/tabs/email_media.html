@@ -5,60 +5,98 @@
 	dojo.require("dijit.form.Button");
 </script>
 
-<form dojoType="dijit.form.Form" action="javascript:void(0)" id="emailReplyForm">
-<div style="width:30%; float:left; padding: 2%">
-<p>
-	<label class="translatecol">TO</label>
-	<input dojoType="dijit.form.TextBox" id="emailTo" />
-</p>
+<div id="emailView">
 
-<p>
-	<label class="translatecol">FROM</label>
-	<input dojoType="dijit.form.TextBox" id="emailFrom" />
-</p>
+	<p>
+		<label class="translatecol">TO</label>
+		<span id="emailToSpan"></span>
+	</p>
 
-<p>
-	<label class="translatecol">SUBJECT</label>
-	<input dojoType="dijit.form.TextBox" id="emailSubject" />
-</p>
+	<p>
+		<label class="translatecol">FROM</label>
+		<span id='emailFromSpan'></span>
+	</p>
 
-<p>
-	<label>&nbsp;</label>
-	<button label="REPLY" id="emailReply" dojoType="dijit.form.Button">
-		<script type="dojo/connect" event="onClick">
-			dojo.byId('emailView').style.display = 'none';
-			var replyBase = dojo.doc.createElement('div');
-			replyBase.id = 'emailReplyEditor';
-			replyBase.style.height = '300px';
-			dojo.byId('emailDisp').appendChild(replyBase);
-			var widget = new dijit.Editor({height:'300px'}, replyBase);
-			widget.setValue(dojo.byId('emailView').innerHTML);
-			dijit.byId('emailSubmit').attr('style', 'display:inline');
-			dijit.byId('emailCancel').attr('style', 'display:inline');
-			dijit.byId('emailReply').attr('style', 'display:none');
-		</script>
-	</button>
-	<button label="SUBMIT" dojoType="dijit.form.Button" id="emailSubmit" style="display:none"></button>
-	<button label="CANCEL" dojoType="dijit.form.Button" id="emailCancel" style="display:none">
-		<script type="dojo/connect" event="onClick">
-			dijit.byId('emailReplyEditor').destroy();
-			var node = dojo.byId('emailReplyEditor');
-			node.parentNode.removeChild(node);
-			dojo.byId('emailView').style.display = 'block';
-			dijit.byId('emailSubmit').attr('style', 'display:none');
-			dijit.byId('emailCancel').attr('style', 'display:none');
-			dijit.byId('emailReply').attr('style', 'display:inline');
-		</script>
-	</button>
-</p>
+	<p>
+		<label class="translatecol">SUBJECT</label>
+		<span id='emailSubjectSpan'></span>
+	</p>
 
+	<p>
+		<label class="translate">SHOW_HEADERS</label>
+		<button label='&rarr;' dojoType='dijit.form.Button' style="float:left">
+			<script type="dojo/connect" event="onClick">
+				var target = dojo.byId('emailRawHeadersSpan')
+				if(target.style.display == 'none'){
+					target.style.display = 'inline-block';
+					this.setLabel('&darr;');
+				}
+				else{
+					target.style.display = 'none';
+					this.setLabel('&rarr;');
+				}
+			</script>
+		</button>
+		<span id='emailRawHeadersSpan' style='display:none'></span>
+	</p>
+
+	<p style="clear:both">
+		<label>&nbsp;</label>
+		<button label="REPLY" id="emailReply" dojoType="dijit.form.Button">
+			<script type="dojo/connect" event="onClick">
+				dojo.byId('emailView').style.display = 'none';
+				dojo.byId('emailReplyDiv').style.visibility = 'visible';
+				var replyBase = dojo.doc.createElement('div');
+				replyBase.id = 'emailReplyEditor';
+				replyBase.style.height = '300px';
+				dojo.byId('emailDisp').appendChild(replyBase);
+				var widget = new dijit.Editor({height:'300px'}, replyBase);
+				widget.setValue(dojo.byId('emailViewDiv').innerHTML);
+			</script>
+		</button>
+	</p>
+
+	<div id="emailViewDiv" style="border: grey solid 1px"></div>
+	
 </div>
 
-<div id="emailDisp" style="width:60%; float:right; padding:2%">
+<div id="emailReplyDiv" style="visibility:hidden">
 
-<div id="emailView" style="height:300px; overflow:auto; border: grey solid 1px" />
+	<form dojoType="dijit.form.Form" action="javascript:void(0)" id="emailReplyForm">
+		<div style="width:30%; float:left; padding: 2%">
+			<p>
+				<label class="translatecol">TO</label>
+				<input dojoType="dijit.form.TextBox" id="emailTo" />
+			</p>
 
-</div>	
-</form>
+			<p>
+				<label class="translatecol">FROM</label>
+				<input dojoType="dijit.form.TextBox" id="emailFrom" />
+			</p>
+
+			<p>
+				<label class="translatecol">SUBJECT</label>
+				<input dojoType="dijit.form.TextBox" id="emailSubject" />
+			</p>
+
+			<p>
+				<label>&nbsp;</label>
+				<button label="SUBMIT" dojoType="dijit.form.Button" id="emailSubmit"></button>
+				<button label="CANCEL" dojoType="dijit.form.Button" id="emailCancel">
+					<script type="dojo/connect" event="onClick">
+						dijit.byId('emailReplyEditor').destroy();
+						var node = dojo.byId('emailReplyEditor');
+						node.parentNode.removeChild(node);
+						dojo.byId('emailView').style.display = 'block';
+						dojo.byId('emailReplyDiv').style.visibility = 'hidden';
+					</script>
+				</button>
+			</p>
+
+		</div>
+
+		<div id="emailDisp" style="width:60%; float:right; padding:2%">
+
+	</form>
 
 <script type="text/javascript" src="tabs/email_media.js"></script>

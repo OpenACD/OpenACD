@@ -49,8 +49,10 @@
 -export([
 	start_link/3,
 	start_link/2,
+	start_link/1,
 	start/3,
 	start/2,
+	start/1,
 	get_disposition/1
 ]).
 
@@ -92,21 +94,29 @@
 %%====================================================================
 %% API
 %%====================================================================
--spec(start/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: string()) -> {'ok', pid()}).
+-spec(start/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: binary()) -> {'ok', pid()}).
 start(Mailmap, Headers, Data) ->
 	gen_media:start(?MODULE, [Mailmap, Headers, Data]).
 
--spec(start/2 :: (Mailmap :: #mail_map{}, Rawmessage :: string()) -> {'ok', pid()}).
+-spec(start/2 :: (Mailmap :: #mail_map{}, Rawmessage :: binary()) -> {'ok', pid()}).
 start(Mailmap, Rawmessage) ->
 	gen_media:start(?MODULE, [Mailmap, Rawmessage]).
 	
--spec(start_link/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: string()) -> {'ok', pid()}).
+-spec(start_link/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: binary()) -> {'ok', pid()}).
 start_link(Mailmap, Headers, Data) ->
 	gen_media:start(?MODULE, [Mailmap, Headers, Data]).
 
--spec(start_link/2 :: (Mailmap :: #mail_map{}, Rawmessage :: string()) -> {'ok', pid()}).
+-spec(start_link/2 :: (Mailmap :: #mail_map{}, Rawmessage :: binary()) -> {'ok', pid()}).
 start_link(Mailmap, Rawmessage) ->
 	gen_media:start_link(?MODULE, [Mailmap, Rawmessage]).
+
+-spec(start_link/1 :: (Rawmessage :: binary()) -> {'ok', pid()}).
+start_link(Rawmessage) ->
+	gen_media:start_link(?MODULE, [Rawmessage]).
+
+-spec(start/1 :: (Rawmessage :: binary()) -> {'ok', pid()}).
+start(Rawmessage) ->
+	gen_media:start(?MODULE, [Rawmessage]).
 
 -spec(post_to_api/1 :: (Post :: [{string(), string()}]) -> {'cast', any()} | {'call', any()}).
 post_to_api(Post) ->
@@ -159,6 +169,25 @@ get_disposition({_, _, _, Properties, _}) ->
 init(Args) ->
 	process_flag(trap_exit, true),
 	{_Type, _Subtype, Mheads, _Properties, _Body} = Mimed = case Args of
+		[Rawmessage] ->
+			Out = mimemail:decode(Rawmessage),
+			Headers = element(3, Out),
+			Mailmap = case proplists:get_value("From", Headers) of
+				undefined ->
+					#mail_map{address = "unknown@example.com"};
+				Address ->
+					F = fun() ->
+						QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= Address]),
+						qlc:e(QH)
+					end,
+					case mnesia:transaction(F) of
+						{atomic, []} ->
+							#mail_map{address = Address};
+						{atomic, [Map]} ->
+							Map
+					end
+			end,
+			Out;
 		[Mailmap, Rawmessage] ->
 			mimemail:decode(Rawmessage);
 		[Mailmap, Headers, Data] ->

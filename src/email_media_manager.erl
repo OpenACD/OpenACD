@@ -45,7 +45,8 @@
 	set_mapping/2,
 	new_mapping/1,
 	destroy_mapping/1,
-	requeue/1]).
+	requeue/1,
+	batch_requeue/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -132,7 +133,11 @@ destroy_mapping(Address) ->
 
 -spec(requeue/1 :: (Filename :: string()) -> 'ok').
 requeue(Filename) ->
-	gen_server:call(email_media_manager, {queue, Filename}).
+	gen_server:cast(email_media_manager, {queue, Filename}).
+
+-spec(batch_requeue/1 :: (Dir :: string()) -> 'ok').
+batch_requeue(Dir) ->
+	gen_server:cast(email_media_manager, {batch_queue, Dir}).
 
 -ifndef(NOWEB).
 web_api(_Message, _Post) ->
@@ -175,27 +180,6 @@ init([Options]) ->
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
-handle_call({queue, Filename}, _From, #state{mails = Mails} = State) ->
-	{ok, Email} = file:read_file(Filename),
-	{_, _, Headers, _, _} = mimemail:decode(Email),
-	Mailmap = case proplists:get_value("From", Headers) of
-		undefined ->
-			#mail_map{address = "unknown@example.com"};
-		Address ->
-			F = fun() ->
-				QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= Address]),
-				qlc:e(QH)
-			end,
-			case mnesia:transaction(F) of
-				{atomic, []} ->
-					#mail_map{address = Address};
-				{atomic, [Map]} ->
-					Map
-			end
-	end,
-	{ok, Mpid} = email_media:start(Mailmap, Email),
-	link(Mpid),
-	{reply, ok, State#state{mails = [Mpid | Mails]}};
 handle_call(stop, From, State) ->
 	?INFO("Received request to stop from ~p", [From]),
 	{stop, normal, ok, State};
@@ -210,6 +194,35 @@ handle_cast({queue, Mailmap, Headers, Data}, #state{mails = Mails} = State) ->
 	{ok, Mpid} = email_media:start(Mailmap, Headers, Data),
 	link(Mpid),
 	{noreply, State#state{mails = [Mpid | Mails]}};
+handle_cast({queue, Filename}, #state{mails = Mails} = State) ->
+	case file:read_file(Filename) of
+		{error, Error} ->
+			?INFO("Error reading file ~p:  ~p", [Filename, Error]),
+			{noreply, State};
+		{ok, Email} ->
+			case email_media:start(Email) of
+				{ok, Mpid} ->
+					link(Mpid),
+					{noreply, State#state{mails = [Mpid | Mails]}};
+				Else ->
+					?WARNING("Couldn't start new mail media due to ~p", [Else]),
+					{noreply, State}
+			end
+	end;
+handle_cast({batch_queue, Dir}, State) ->
+	case file:list_dir(Dir) of
+		{ok, Files} ->
+			Fun = fun() ->
+				lists:foreach(
+					fun(Elem) -> 
+						email_media_manager:requeue(lists:append([Dir, "/", Elem]))
+					end, Files)
+			end,
+			spawn(Fun);
+		{error, Reason} ->
+			?INFO("batch requeue failed due to ~p", [Reason])
+	end,
+	{noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 

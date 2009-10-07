@@ -1,10 +1,3 @@
-<script type="text/javascript">
-	dojo.require("dijit.form.Form");
-	dojo.require("dijit.form.TextBox");
-	dojo.require("dijit.Editor");
-	dojo.require("dijit.form.Button");
-</script>
-
 <div id="emailView">
 
 	<p>
@@ -62,7 +55,7 @@
 
 <div id="emailReplyDiv" style="visibility:hidden">
 
-	<form dojoType="dijit.form.Form" action="javascript:void(0)" id="emailReplyForm">
+	<form dojoType="dijit.form.Form" action="javascript:void(0)" id="emailReplyForm" target="emailReplyTarget">
 		<div style="width:30%; float:left; padding: 2%">
 			<p>
 				<label class="translatecol">TO</label>
@@ -79,6 +72,23 @@
 				<input dojoType="dijit.form.TextBox" id="emailSubject" />
 			</p>
 
+			<p>
+				<label class="translatecol">ATTACHMENTS</label>
+				<button label="SELECT_FILE" dojoType="dijit.form.Button" id="emailAttachFiles"></button>
+				<span id="attachmentList"></span>
+				<button label="UPLOAD" dojoType="dijit.form.Button">
+					<script type="dojo/connect" event="onClick">
+						var uploader = dijit.byId('fileUploader');
+						uploader.upload();
+					</script>
+				</button>
+			</p>
+			
+			<p id="attachmentListP">
+				<label>&nbsp;</label>
+				<ul style="list-style-type:none" id="attachmentList"></ul>
+			</p>
+			
 			<p>
 				<label>&nbsp;</label>
 				<button label="SUBMIT" dojoType="dijit.form.Button" id="emailSubmit"></button>
@@ -98,5 +108,7 @@
 		<div id="emailDisp" style="width:60%; float:right; padding:2%">
 
 	</form>
+
+<iframe id="emailReplyTarget" src="about:blank" name="emailReplyTarget" style="display:none"></iframe>
 
 <script type="text/javascript" src="tabs/email_media.js"></script>

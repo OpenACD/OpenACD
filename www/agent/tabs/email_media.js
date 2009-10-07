@@ -1,3 +1,5 @@
+dojo.require("dojox.form.FileUploader");
+
 if(typeof(emailPane) == 'undefined'){
 
 	emailPane = function(){};
@@ -153,7 +155,7 @@ if(typeof(emailPane) == 'undefined'){
 		
 		debug(["subbed to", "emailPane/get_path/" + fetchObjs[0].path.join("/")]);
 		if(fetchObjs[0].mode == 'a'){
-			fetched += '<a href="/' + jpath + '" target="_blank"><img src="/application/css/dl.png" style="border:none"/>' + fetchObjs[0].label + '</a>';
+			fetched += '<a href="/' + jpath + '" target="_blank"><img src="/images/dl.png" style="border:none"/>' + fetchObjs[0].label + '</a>';
 		}
 		else if(fetchObjs[0].mode == 'img'){
 			fetched += '<img src="/' + jpath + '" />';
@@ -205,6 +207,28 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	debug(skel);
 	dojo.unsubscribe(emailPane.sub);
 	emailPane.skel = skel;
+	
+	var fileUpload = dijit.byId('emailAttachFiles');
+	if(! fileUpload.transformed){
+		var temp = new dojox.form.FileUploader({
+			id:'fileUploader',
+			button:dijit.byId("emailAttachFiles"),
+			uploadUrl:"/media",
+			postData:{
+				command:'attach',
+				mode:'call'
+			},
+			force:"html",
+			htmlFieldName:'attachFiles',
+			selectMultipleFiles:true
+		});
+		temp.transformed = true;
+		dojo.connect(temp, 'onChange', function(data){
+			var listNode = dojo.byId('attachmentList');
+			var newhtml = data[0].name;
+			listNode.innerHTML = newhtml;
+		});
+	}
 	
 	dojo.byId('emailToSpan').innerHTML = emailPane.scrubString(skel.headers['To']);
 	dojo.byId('emailFromSpan').innerHTML = emailPane.scrubString(skel.headers['From']);

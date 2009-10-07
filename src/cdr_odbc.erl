@@ -222,13 +222,22 @@ cdr_transaction_to_integer(T) ->
 		cdrend -> 21
 	end.
 
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when t =:= oncall; T =:= wrapup  ->
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= oncall; T =:= wrapup; T =:= ringing  ->
 	case agent_auth:get_agent(Transaction#cdr_raw.eventdata) of
 		{atomic, [Rec]} when is_tuple(Rec) ->
 			element(2, Rec);
 		_ ->
 			"0"
 	end;
-get_transaction_data(Transaction, CDR) ->
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= inqueue  ->
+	Transaction#cdr_raw.eventdata;
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, #cdr_rec{media = Media} = CDR) when T =:= cdrinit  ->
+	case {Media#call.type, Media#call.direction} of
+		{voice, inbound} -> "call";
+		{voice, outbound} -> "outgoing";
+		{Type, _ } -> atom_to_list(Type)
+	end;
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) ->
+	?NOTICE("eventdata for ~p is ~p", [T, Transaction#cdr_raw.eventdata]),
 	"".
 

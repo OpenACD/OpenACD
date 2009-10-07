@@ -253,13 +253,19 @@ handle_call(dump, _From, _Callrec, State) ->
 	{reply, State, State};
 	
 %% now the web calls.
-handle_call({"get_skeleton", undefined}, _From, _Callrec, State) ->
+handle_call({"get_skeleton", _Post}, _From, _Callrec, State) ->
 	{reply, State#state.skeleton, State};
-handle_call({"get_path", Path}, _From, _Callrec, #state{mimed = Mime} = State) ->
+handle_call({"get_path", Post}, _From, _Callrec, #state{mimed = Mime} = State) ->
+	Path = proplists:get_value("arguments", Post),
 	Splitpath = util:string_split(Path, "/"),
 	Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
 	Out = get_part(Intpath, Mime),
 	{reply, Out, State};
+handle_call({"attach", Postdata}, _From, _Callrec, State) ->
+	?WARNING("attach nyi:  ~p", [Postdata]),
+	{reply, {error, nyi}, State};
+handle_call({"send_mail", [To, From, Subject, Bodystruct, Files]}, _From, _Callrec, State) ->
+	{reply, {error, nyi}, State};
 	
 %% and anything else
 handle_call(Msg, _From, _Callrec, State) ->

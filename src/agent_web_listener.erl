@@ -144,7 +144,8 @@ init([Port]) ->
 %%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
 	{stop, shutdown, ok, State};
-handle_call(Request, _From, State) ->
+handle_call(Request, From, State) ->
+	?DEBUG("Call from ~p:  ~p", [From, Request]),
     {reply, {unknown_call, Request}, State}.
 
 %%--------------------------------------------------------------------
@@ -213,7 +214,22 @@ code_change(_OldVsn, State, _Extra) ->
 %% otherwise the request is denied.
 loop(Req, Table) ->
 	Path = Req:get(path),
-	Post = Req:parse_post(),
+	?DEBUG("headers:  ~p", [Req:get(headers)]),
+	Post = case Req:get_primary_header_value("content-type") of
+		"application/x-www-form-urlencoded" ++ _ ->
+			Req:parse_post();
+		_ ->
+			%% TODO Change this to a custom parser rather than mochi's default.
+			try mochiweb_multipart:parse_form(Req, fun file_handler/2) of
+				Whoa ->
+					Whoa
+			catch
+				What:Why ->
+					?DEBUG("Going with a blank post due to mulipart parse fail:  ~p:~p", [What, Why]),
+					[]
+			end
+	end,
+	?DEBUG("parsed posts:  ~p", [Post]),
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
 			Cookielist = Req:parse_cookie(),
@@ -234,6 +250,16 @@ loop(Req, Table) ->
 			Out = api(Api, check_cookie(Req:parse_cookie()), Post),
 			Req:respond(Out)
 	end.
+
+file_handler(Name, ContentType) ->
+	fun(N) -> file_data_handler(N, {Name, ContentType, <<>>}) end.
+
+file_data_handler(eof, {Name, ContentType, Acc}) ->
+	?DEBUG("eof gotten, bin:  ~p", [Acc]),
+	Acc;
+file_data_handler(Data, {Name, ContentType, Acc}) ->
+	Newacc = <<Acc/binary, Data/binary>>,
+	fun(N) -> file_data_handler(N, {Name, ContentType, Newacc}) end.
 
 determine_language(undefined) ->
 	"";

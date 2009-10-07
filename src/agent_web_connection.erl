@@ -561,15 +561,15 @@ handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 	Arguments = proplists:get_value("arguments", Post), 
 	case proplists:get_value("mode", Post) of
 		"call" ->
-			{Heads, Data} = case agent:media_call(Apid, {Commande, Arguments}) of
+			{Heads, Data} = case agent:media_call(Apid, {Commande, Post}) of
 				invalid ->
 					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid media call">>}]})};
 				{ok, Response, Mediarec} ->
-					parse_media_call(Mediarec, {Commande, Arguments}, Response)
+					parse_media_call(Mediarec, {Commande, Post}, Response)
 			end,
 			{reply, {200, Heads, Data}, State};
 		"cast" ->
-			agent:media_cast(Apid, {Commande, Arguments}),
+			agent:media_cast(Apid, {Commande, Post}),
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 		undefined ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
@@ -610,7 +610,8 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{agent_fsm = Apid} = St
 			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}
 	end;
 handle_call(Allothers, _From, State) ->
-	{reply, {unknown_call, Allothers}, State}.
+	?DEBUG("unknown call ~p", [Allothers]),
+	{reply, {404, [], <<"unknown_call">>}, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages

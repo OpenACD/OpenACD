@@ -434,7 +434,7 @@ append_files(Headers, Properties, Path, Files) ->
 check_disposition_test_() ->
 	[{"The header exists",
 	fun() ->
-		Res = check_disposition([{<<"disposition">>,"inline"}, {<<"disposition-params">>, [{<<"filename">>, <<"spice-logo.jpg">>}]}]),
+		Res = check_disposition([{<<"disposition">>,<<"inline">>}, {<<"disposition-params">>, [{<<"filename">>, <<"spice-logo.jpg">>}]}]),
 		?DEBUG("das res:  ~p", [Res]),
 		?assertEqual({inline, <<"spice-logo.jpg">>, [{<<"Content-Disposition">>, <<"inline; filename=\"spice-logo.jpg\"">>}]}, Res)
 	end},

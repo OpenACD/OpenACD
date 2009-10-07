@@ -576,6 +576,8 @@ handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 	end;
 handle_call({undefined, [$/ | Path], Post}, _From, #state{agent_fsm = Apid} = State) ->
 	%% considering how things have gone, the best guess is this is a media call.
+	%% Note that the results below are only for email, so this will need
+	%% to be refactored when we support more medias.
 	?DEBUG("forwarding request to media.  Path: ~p; Post: ~p", [Path, Post]),
 	case agent:media_call(Apid, {get_blind, Path}) of
 		{ok, {ok, Mime}, Call} ->
@@ -834,7 +836,7 @@ email_props_to_json([{Key, Value} | Tail], Acc) ->
 parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {Type, Subtype, Heads, Props}) ->
 	Json = {struct, [
 		{<<"type">>, Type}, 
-		{<<"subtype">>, list_to_binary(Subtype)},
+		{<<"subtype">>, Subtype},
 		{<<"headers">>, email_props_to_json(Heads)},
 		{<<"properties">>, email_props_to_json(Props)}
 	]},

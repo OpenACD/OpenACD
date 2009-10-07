@@ -153,7 +153,7 @@ if(typeof(emailPane) == 'undefined'){
 		
 		debug(["subbed to", "emailPane/get_path/" + fetchObjs[0].path.join("/")]);
 		if(fetchObjs[0].mode == 'a'){
-			fetched += '<a href="/' + jpath + '" target="_blank">' + fetchObjs[0].label + '</a>';
+			fetched += '<a href="/' + jpath + '" target="_blank"><img src="/application/css/dl.png" style="border:none"/>' + fetchObjs[0].label + '</a>';
 		}
 		else if(fetchObjs[0].mode == 'img'){
 			fetched += '<img src="/' + jpath + '" />';

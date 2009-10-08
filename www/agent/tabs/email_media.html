@@ -55,7 +55,7 @@
 
 <div id="emailReplyDiv" style="visibility:hidden">
 
-	<form dojoType="dijit.form.Form" action="javascript:void(0)" id="emailReplyForm" target="emailReplyTarget">
+	<form dojoType="dijit.form.Form" action="javascript:void(0)" id="emailReplyForm">
 		<div style="width:30%; float:left; padding: 2%">
 			<p>
 				<label class="translatecol">TO</label>
@@ -86,7 +86,7 @@
 			
 			<p id="attachmentListP">
 				<label>&nbsp;</label>
-				<ul style="list-style-type:none" id="attachmentList"></ul>
+				<ul style="list-style-type:none" id="attachedList"></ul>
 			</p>
 			
 			<p>
@@ -108,7 +108,4 @@
 		<div id="emailDisp" style="width:60%; float:right; padding:2%">
 
 	</form>
-
-<iframe id="emailReplyTarget" src="about:blank" name="emailReplyTarget" style="display:none"></iframe>
-
 <script type="text/javascript" src="tabs/email_media.js"></script>

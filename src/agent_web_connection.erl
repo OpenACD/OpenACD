@@ -567,6 +567,7 @@ handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 				{ok, Response, Mediarec} ->
 					parse_media_call(Mediarec, {Commande, Post}, Response)
 			end,
+			?DEBUG("Heads:  ~p; Data:  ~p", [Heads, Data]),
 			{reply, {200, Heads, Data}, State};
 		"cast" ->
 			agent:media_cast(Apid, {Commande, Post}),
@@ -834,6 +835,21 @@ email_props_to_json([{Key, Value} | Tail], Acc) ->
 -type(headers() :: [{string(), string()}]).
 -type(mochi_out() :: binary()).
 -spec(parse_media_call/3 :: (Mediarec :: #call{}, Command :: string, Response :: any()) -> {headers(), mochi_out()}).
+parse_media_call(#call{type = email}, {"attach", _Args}, {ok, Filenames}) ->
+	Binnames = lists:map(fun(N) -> list_to_binary(N) end, Filenames),
+	Json = {struct, [
+		{success, true},
+		{<<"filenames">>, Binnames}
+	]},
+	Html = mochiweb_html:to_html({
+		<<"html">>, [], [
+			{<<"head">>, [], []},
+			{<<"body">>, [], [
+				{<<"textarea">>, [], [mochijson2:encode(Json)]}
+			]}
+		]}),
+	?DEBUG("html:  ~p", [Html]),
+	{[], Html};
 parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {Type, Subtype, Heads, Props}) ->
 	Json = {struct, [
 		{<<"type">>, Type}, 

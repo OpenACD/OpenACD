@@ -84,7 +84,8 @@
 	mimed :: {string(), string(), [{string(), string()}], [{string(), string()}], any()},
 	skeleton :: any(),
 	file_map = [] :: [{string(), [pos_integer()]}],
-	manager :: pid() | tref()
+	manager :: pid() | tref(),
+	outgoing_attachments = [] :: [{string(), binary()}]
 }).
 
 -type(state() :: #state{}).
@@ -261,9 +262,21 @@ handle_call({"get_path", Post}, _From, _Callrec, #state{mimed = Mime} = State) -
 	Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
 	Out = get_part(Intpath, Mime),
 	{reply, Out, State};
-handle_call({"attach", Postdata}, _From, _Callrec, State) ->
-	?WARNING("attach nyi:  ~p", [Postdata]),
-	{reply, {error, nyi}, State};
+handle_call({"attach", Postdata}, _From, _Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
+	Loop = fun(F, Proplist, Count, Acc) ->
+		case proplists:get_value("attachFiles" ++ integer_to_list(Count), Proplist) of
+			undefined ->
+				Acc;
+			{Name, Bin} = T ->
+				Newacc = [T | Acc],
+				F(F, Proplist, Count + 1, Newacc)
+		end
+	end,
+	Newfiles = Loop(Loop, Postdata, 0, []),
+	Attachments = lists:append(Oldattachments, Newfiles),
+	Keys = proplists:get_keys(Attachments),
+	?DEBUG("files list:  ~p", [Keys]),
+	{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments}};
 handle_call({"send_mail", [To, From, Subject, Bodystruct, Files]}, _From, _Callrec, State) ->
 	{reply, {error, nyi}, State};
 	

@@ -834,6 +834,13 @@ email_props_to_json([{Key, Value} | Tail], Acc) ->
 -type(headers() :: [{string(), string()}]).
 -type(mochi_out() :: binary()).
 -spec(parse_media_call/3 :: (Mediarec :: #call{}, Command :: string, Response :: any()) -> {headers(), mochi_out()}).
+parse_media_call(#call{type = email}, {"attach", _Args}, {ok, Filenames}) ->
+	Binnames = lists:map(fun(N) -> list_to_binary(N) end, Filenames),
+	Json = {struct, [
+		{success, true},
+		{<<"filenames">>, Binnames}
+	]},
+	{[], mochiweb_html:to_html({<<"textarea">>, [], [mochijson2:encode(Json)]})};
 parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {Type, Subtype, Heads, Props}) ->
 	Json = {struct, [
 		{<<"type">>, Type}, 

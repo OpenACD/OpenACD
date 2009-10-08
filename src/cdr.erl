@@ -951,7 +951,7 @@ push_raw_test_() ->
 		{"hangup",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = hangup, eventdata = "na"}),
-			Ended(Pull(), [inqueue, inivr])
+			Ended(Pull(), [inqueue, inivr, precall])
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->

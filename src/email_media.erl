@@ -49,8 +49,16 @@
 -export([
 	start_link/3,
 	start_link/2,
+	start_link/1,
 	start/3,
-	start/2
+	start/2,
+	start/1,
+	get_disposition/1
+]).
+
+%% Web interface helper functions
+-export([
+	post_to_api/1
 ]).
 
 %% gen_media callbacks
@@ -75,6 +83,7 @@
 	initargs :: any(),
 	mimed :: {string(), string(), [{string(), string()}], [{string(), string()}], any()},
 	skeleton :: any(),
+	file_map = [] :: [{string(), [pos_integer()]}],
 	manager :: pid() | tref()
 }).
 
@@ -85,21 +94,73 @@
 %%====================================================================
 %% API
 %%====================================================================
--spec(start/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: string()) -> {'ok', pid()}).
+-spec(start/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: binary()) -> {'ok', pid()}).
 start(Mailmap, Headers, Data) ->
 	gen_media:start(?MODULE, [Mailmap, Headers, Data]).
 
--spec(start/2 :: (Mailmap :: #mail_map{}, Rawmessage :: string()) -> {'ok', pid()}).
+-spec(start/2 :: (Mailmap :: #mail_map{}, Rawmessage :: binary()) -> {'ok', pid()}).
 start(Mailmap, Rawmessage) ->
 	gen_media:start(?MODULE, [Mailmap, Rawmessage]).
 	
--spec(start_link/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: string()) -> {'ok', pid()}).
+-spec(start_link/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: binary()) -> {'ok', pid()}).
 start_link(Mailmap, Headers, Data) ->
 	gen_media:start(?MODULE, [Mailmap, Headers, Data]).
 
--spec(start_link/2 :: (Mailmap :: #mail_map{}, Rawmessage :: string()) -> {'ok', pid()}).
+-spec(start_link/2 :: (Mailmap :: #mail_map{}, Rawmessage :: binary()) -> {'ok', pid()}).
 start_link(Mailmap, Rawmessage) ->
 	gen_media:start_link(?MODULE, [Mailmap, Rawmessage]).
+
+-spec(start_link/1 :: (Rawmessage :: binary()) -> {'ok', pid()}).
+start_link(Rawmessage) ->
+	gen_media:start_link(?MODULE, [Rawmessage]).
+
+-spec(start/1 :: (Rawmessage :: binary()) -> {'ok', pid()}).
+start(Rawmessage) ->
+	gen_media:start(?MODULE, [Rawmessage]).
+
+-spec(post_to_api/1 :: (Post :: [{string(), string()}]) -> {'cast', any()} | {'call', any()}).
+post_to_api(Post) ->
+	case proplists:get_value("command", Post) of
+		"get_path" ->
+			Path = proplists:get_value("path", Post, ""),
+			Tokenpath = string:tokens(Path, [$.]),
+			PathProper = lists:map(fun(Elem) -> list_to_integer(Elem) end, Tokenpath),
+			{call, {get_path, PathProper}};
+		"get_id" ->
+			Id = proplists:get_value("id", Post),
+			{call, {get_id, Id}};
+		_Else ->
+			none
+	end.
+
+-spec(get_disposition/1 :: (Mime :: tuple()) -> 'inline' | {'inline', string()} | {'attachment', string()}).
+get_disposition({_, _, _, Properties, _}) ->
+	Params = proplists:get_value(<<"disposition-params">>, Properties),
+	case proplists:get_value(<<"disposition">>, Properties, inline) of
+		inline ->
+			inline;
+		<<"inline">> ->
+			case proplists:get_value(<<"filename">>, Params) of
+				undefined ->
+					inline;
+				Name ->
+					{inline, Name}
+			end;
+		_Else ->
+			case proplists:get_value(<<"filename">>, Params) of
+				undefined ->
+					TypeParams = proplists:get_value(<<"content-type-params">>, Properties),
+					case proplists:get_value(<<"name">>, TypeParams) of
+						undefined ->
+							Nom = list_to_binary(util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref())))),
+							{attachment, Nom};
+						Nom ->
+							{attachment, Nom}
+					end;
+				Nom ->
+					{attachment, Nom}
+			end
+	end.
 
 %%====================================================================
 %% gen_server callbacks
@@ -108,12 +169,31 @@ start_link(Mailmap, Rawmessage) ->
 init(Args) ->
 	process_flag(trap_exit, true),
 	{_Type, _Subtype, Mheads, _Properties, _Body} = Mimed = case Args of
+		[Rawmessage] ->
+			Out = mimemail:decode(Rawmessage),
+			Headers = element(3, Out),
+			Mailmap = case proplists:get_value("From", Headers) of
+				undefined ->
+					#mail_map{address = "unknown@example.com"};
+				Address ->
+					F = fun() ->
+						QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= Address]),
+						qlc:e(QH)
+					end,
+					case mnesia:transaction(F) of
+						{atomic, []} ->
+							#mail_map{address = Address};
+						{atomic, [Map]} ->
+							Map
+					end
+			end,
+			Out;
 		[Mailmap, Rawmessage] ->
 			mimemail:decode(Rawmessage);
 		[Mailmap, Headers, Data] ->
 			mimemail:decode(Headers, Data)
 	end,
-	Skeleton = skeletonize(Mimed),
+	{Skeleton, Files} = skeletonize(Mimed),
 	Callerid = case proplists:get_value("From", Mheads) of
 		undefined -> 
 			"unknown";
@@ -135,7 +215,7 @@ init(Args) ->
 		media_path = inband,
 		source = self()
 	},
-	{ok, {#state{initargs = Args, skeleton = Skeleton, mimed = Mimed, manager = whereis(email_media_manager)}, {Mailmap#mail_map.queue, Proto}}}.
+	{ok, {#state{initargs = Args, skeleton = Skeleton, file_map = Files, mimed = Mimed, manager = whereis(email_media_manager)}, {Mailmap#mail_map.queue, Proto}}}.
 	
 	
 %%--------------------------------------------------------------------
@@ -144,40 +224,52 @@ init(Args) ->
 
 handle_call(get_init, _From, _Callrec, State) ->
 	{reply, State#state.initargs, State};
-handle_call({get_part, Path}, _From, _Callrec, #state{mimed = Mime} = State) when is_list(Path) ->
+handle_call({get_path, Path}, _From, _Callrec, #state{mimed = Mime} = State) when is_list(Path) ->
 	Reply = get_part(Path, Mime),
 	{reply, Reply, State};
-%handle_call({mediapull, [Filename]}, _From, _Callrec, #state{files = Files} = State) ->
-%	?DEBUG("You are requesting ~p (~s as string)", [Filename, Filename]),
-%	?DEBUG("Files:  ~p", [Files]),
-%	Reply = case proplists:get_value(Filename, Files) of
-%		undefined ->
-%			?DEBUG("No such file ~s", [Filename]),
-%			invalid;
-%		{_Headers, _Content} = Rep->
-%%			H1 = case proplists:get_value("Content-Type", Headers) of
-%%				undefined ->
-%%					[];
-%%				Else ->
-%%					[{"Content-Type", Else}]
-%%			end,
-%%			H2 = case proplists:get_value("Content-Disposition", Headers) of
-%%				undefined ->
-%%					H1;
-%%				Other ->
-%%					[{"Content-Disposition", Other} | H1]
-%%			end,
-%%			Rep = {H2, Content},
-%			?DEBUG("Hey look, a file!  ~p", [Rep]),
-%			Rep
-%	end,
-%	{reply, Reply, State};
+handle_call({get_id, Id}, From, Callrec, #state{file_map = Map} = State) when is_list(Id) ->
+	case proplists:get_value(Id, Map) of
+		undefined ->
+			{reply, none, State};
+		Path ->
+			?DEBUG("path:  ~p", [Path]),
+			handle_call({get_path, Path}, From, Callrec, State)
+	end;
+handle_call({get_blind, Key}, _From, Callrec, #state{file_map = Map, mimed = Mime} = State) when is_list(Key) ->
+	case proplists:get_value(Key, Map) of
+		undefined ->
+			Splitpath = util:string_split(Key, "/"),
+			Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
+			Out = get_part(Intpath, Mime),
+			{reply, Out, State};
+		Path ->
+			Reply = get_part(Path, Mime),
+			{reply, Reply, State}
+	end;
 handle_call({mediapush, _Data}, _From, _Callrec, State) ->
 	?WARNING("pushing data out is NYI", []),
 	{reply, invalid, State};
 handle_call(dump, _From, _Callrec, State) ->
 	{reply, State, State};
-handle_call(_Msg, _From, _Callrec, State) ->
+	
+%% now the web calls.
+handle_call({"get_skeleton", _Post}, _From, _Callrec, State) ->
+	{reply, State#state.skeleton, State};
+handle_call({"get_path", Post}, _From, _Callrec, #state{mimed = Mime} = State) ->
+	Path = proplists:get_value("arguments", Post),
+	Splitpath = util:string_split(Path, "/"),
+	Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
+	Out = get_part(Intpath, Mime),
+	{reply, Out, State};
+handle_call({"attach", Postdata}, _From, _Callrec, State) ->
+	?WARNING("attach nyi:  ~p", [Postdata]),
+	{reply, {error, nyi}, State};
+handle_call({"send_mail", [To, From, Subject, Bodystruct, Files]}, _From, _Callrec, State) ->
+	{reply, {error, nyi}, State};
+	
+%% and anything else
+handle_call(Msg, _From, _Callrec, State) ->
+	?INFO("unhandled mesage ~p", [Msg]),
 	{reply, ok, State}.
 
 %%--------------------------------------------------------------------
@@ -219,9 +311,9 @@ code_change(_OldVsn, _Callrec, State, _Extra) ->
 	{ok, State}.
 
 %% gen_media specific callbacks
-handle_answer(Agent, _Call, State) ->
+handle_answer(Agent, Call, State) ->
 	%?DEBUG("Shoving ~w to the agent ~w", [State#state.html, Agent]),
-	%agent:media_push(Agent, State#state.html, replace),
+	agent:conn_cast(Agent, {mediaload, Call}),
 	{ok, State}.
 
 handle_ring(_Agent, _Call, State) ->
@@ -249,43 +341,53 @@ handle_wrapup(_Callrec, State) ->
 % -type(display_type() :: 'link' | 'html' | 'text').
 % -type(mail_display() :: [{display_type(), any()}]).
 
-skeletonize({"multipart", Subtype, _Headers, _Properties, List}) ->
-	{"multipart", Subtype, skeletonize(List)};
-skeletonize({"message", Subtype, _Headers, _Properties, Body}) ->
-	{"message", Subtype, skeletonize([Body])};
-skeletonize({Type, Subtype, _Headers, _Properties, _Body}) ->
-	{Type, Subtype};
-skeletonize(List) when is_list(List) ->
-	skeletonize(List, []).
+skeletonize(Mime) ->
+	%% skeletonize(Mime, Path, Filemap) -> {Skeleton, Filemap}
+	skeletonize(Mime, [], []).
 
-skeletonize([], Acc) ->
-	lists:reverse(Acc);
-skeletonize([{"multipart", Subtype, _Headers, _Properties, List} | Tail], Acc) ->
-	Sublist = skeletonize(List),
-	Newacc = [{"multipart", Subtype, Sublist} | Acc],
-	skeletonize(Tail, Newacc);
-skeletonize([{"message", Subtype, _Headers, _Properties, Body} | Tail], Acc) ->
-	Sublist = skeletonize([Body]),
-	Newacc = [{"message", Subtype, Sublist} | Acc],
-	skeletonize(Tail, Newacc);
-skeletonize([{Type, Subtype, _Headers, _Properties, _Body} | Tail], Acc) ->
-	Newacc = [{Type, Subtype} | Acc],
-	skeletonize(Tail, Newacc).
+skeletonize({<<"multipart">>, Subtype, Headers, Properties, List}, Path, Files) ->
+	{Subskel, Newfiles} = skeletonize(List, [1 | Path], Files),
+	{{<<"multipart">>, Subtype, Headers, Properties, Subskel}, Newfiles};
+skeletonize({<<"message">>, Subtype, Headers, Properties, Body}, Path, Files) ->
+	{Subskel, Midfiles} = skeletonize([Body], [1 | Path], Files),
+	Newfiles = append_files(Headers, Properties, Path, Midfiles),
+	{{<<"message">>, Subtype, Headers, Properties, Subskel}, Newfiles};
+skeletonize({Type, Subtype, Headers, Properties, _Body}, Path, Files) ->
+	Newfiles = append_files(Headers, Properties, Path, Files),
+	{{Type, Subtype, Headers, Properties}, Newfiles};
+skeletonize(List, Path, Files) when is_list(List) ->
+	skeletonize(List, Path, Files, []).
 
-get_part([], {"multipart", Subtype, _Headers, _Properties, List}) ->
+skeletonize([], Path, Files, Acc) ->
+	{lists:reverse(Acc), Files};
+skeletonize([{<<"multipart">>, Subtype, Headers, Properties, List} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+	{Sublist, Newfiles} = skeletonize(List, [1 | Path], Files),
+	Newacc = [{<<"multipart">>, Subtype, Headers, Properties, Sublist} | Acc],
+	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
+skeletonize([{<<"message">>, Subtype, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+	{Sublist, Midfiles} = skeletonize([Body], [1 | Path], Files),
+	Newacc = [{<<"message">>, Subtype, Headers, Properties, Sublist} | Acc],
+	Newfiles = append_files(Headers, Properties, Path, Midfiles),
+	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
+skeletonize([Head | Tail], [Count | Ptail] = Path, Files, Acc) ->
+	{Skel, Newfiles} = skeletonize(Head, Path, Files),
+	Newacc = [{element(1, Head), element(2, Head), element(3, Head), element(4, Head)} | Acc],
+	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc).
+
+get_part([], {<<"multipart">>, Subtype, _Headers, _Properties, List}) ->
 	?DEBUG("[], \"multipart\"", []),
 	{multipart, List};
-get_part([], {"message", Subtype, _Headers, _Properties, Body}) ->
+get_part([], {<<"message">>, Subtype, _Headers, _Properties, Body}) ->
 	?DEBUG("[], \"message\"", []),
 	{message, Body};
 get_part([], Mime) ->
 	?DEBUG("[], ~p/~p", [element(1, Mime), element(2, Mime)]),
 	{ok, Mime};
-get_part([Child | Tail], {"multipart", Subtype, _Headers, _Properties, List}) when Child =< length(List) ->
+get_part([Child | Tail], {<<"multipart">>, Subtype, _Headers, _Properties, List}) when Child =< length(List) ->
 	?DEBUG("[~p | ~p], multipart/~p", [Child, Tail, Subtype]),
 	Part = lists:nth(Child, List),
 	get_part(Tail, Part);
-get_part([1 | Tail], {"message", Subtype, _Headers, _Properties, Body}) ->
+get_part([1 | Tail], {<<"message">>, Subtype, _Headers, _Properties, Body}) ->
 	?DEBUG("[1 | ~p], message/~p", [Tail, Subtype]),
 	get_part(Tail, Body);
 get_part(Path, Mime) ->
@@ -293,328 +395,38 @@ get_part(Path, Mime) ->
 	none.
 
 check_disposition(Properties) ->
-	?DEBUG("~p", [Properties]),
-	Params = proplists:get_value("disposition-params", Properties),
-	case proplists:get_value("disposition", Properties, inline) of
+	case get_disposition({1, 1, 1, Properties, 1}) of
 		inline ->
 			inline;
-		"inline" ->
-			case proplists:get_value("filename", Params) of
-				undefined ->
-					inline;
-				Name ->
-					{inline, Name, [{"Content-Disposition", lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name]))}]}
-			end;
-		_Else ->
-			case proplists:get_value("filename", Params) of
-				undefined ->
-					Contenttypeparams = proplists:get_value("content-type-params", Properties),
-					case proplists:get_value("name", Contenttypeparams) of
-						undefined ->
-							Nom = util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref()))),
-							{attachment, Nom, [{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Nom]))}]};
-						Yetanotherelse ->
-							{attachment, Yetanotherelse, [{"Content-Dispostion", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Yetanotherelse]))}]}
-					end;
-				Nom ->
-					{attachment, Nom, [{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Nom]))}]}
+		{inline, Name} ->
+			{inline, Name, [{<<"Content-Disposition">>, list_to_binary(lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name])))}]};
+		{attachment, Name} ->
+			{attachment, Name, [{<<"Content-Disposition">>, list_to_binary(lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name])))}]}
+	end.
+
+append_files(Headers, Properties, Path, Files) ->
+	?DEBUG("append_files:  ~p, ~p", [Headers, Properties]),
+	case {proplists:get_value(<<"Content-ID">>, Headers), get_disposition({1, 1, 1, Properties, 1})} of
+		{undefined, inline} ->
+			Files;
+		{undefined, {_Linedness, Name}} ->
+			[{Name, lists:reverse(Path)} | Files];
+		{Contentidbin, Dispo} ->
+			Contentid = binary_to_list(Contentidbin),
+			Len = length(Contentid),
+			Id = list_to_binary(lists:append(["cid:", string:sub_string(Contentid, 2, Len - 1)])),
+			Midfiles = [{Id, lists:reverse(Path)} | Files],
+			case Dispo of
+				inline ->
+					Midfiles;
+				{_Linedness, Name} ->
+					Fixedname = case is_binary(Name) of
+						true -> Name;
+						false -> list_to_binary(Name)
+					end,
+					[{Fixedname, lists:reverse(Path)} | Midfiles]
 			end
 	end.
-															
-%parse_disposition(Text) ->
-%	[Disposition | Rest] = string:tokens(Text, ";"),
-%	Disatom = case Disposition of
-%		"inline" ->
-%			inline;
-%		_Else ->
-%			attachment
-%	end,
-%	F = fun(Str) ->
-%		[Key, Val] = util:string_split(Str, "=", 2),
-%		{Key, Val}
-%	end,
-%	Props = lists:map(F, Rest),
-%	case proplists:get_value("filename", Props) of
-%		undefined ->
-%			Disatom;
-%		Filename ->
-%			{Disatom, Filename}
-%	end.
-
-%append_file(Name, Headers, Content, []) ->
-%	{Name, [{Name, {Headers, Content}}]};
-append_file(Name, Headers, Content, Files) ->
-	Out = case proplists:get_value(Name, Files) of
-		undefined ->
-			{Name, [{Name, {Headers, Content}} | Files]};
-		{Headers, Content} ->
-			{Name, Files};
-		{_Other, _Data} ->
-			Newname = name_loop(Name, Files, 1),
-			{Newname, [{Newname, {Headers, Content}} | Files]}
-	end,
-	?DEBUG("after appending file:  ~p", [Out]),
-	Out.
-
-mochi_parse_lower({Tag, Attr, Kids}) ->
-	NewTag = list_to_binary(string:to_lower(binary_to_list(Tag))),
-	Newkids = mochi_parse_lower(Kids, []),
-	?DEBUG("parse lower:  ~p", [{NewTag, Attr, Newkids}]),
-	{NewTag, Attr, Newkids}.
-
-mochi_parse_lower([], Acc) ->
-	lists:reverse(Acc);
-mochi_parse_lower([{Tag, Attr, []} | Rest], Acc) ->
-	NewTag = list_to_binary(string:to_lower(binary_to_list(Tag))),
-	mochi_parse_lower(Rest, [{NewTag, Attr, []} | Acc]);
-mochi_parse_lower([{Tag, Attr, Kids} | Rest], Acc) ->
-	Newkids = mochi_parse_lower(Kids, []),
-	NewTag = list_to_binary(string:to_lower(binary_to_list(Tag))),
-	mochi_parse_lower(Rest, [{NewTag, Attr, Newkids} | Acc]);
-mochi_parse_lower([Bin | Rest], Acc) when is_binary(Bin) ->
-	mochi_parse_lower(Rest, [Bin | Acc]).	
-
-html_strip_heads(In) ->
-	html_strip_heads(In, {undefined, []}).
-	
-html_strip_heads({<<"html">>, _Attr, Kids}, Acc)->
-	?DEBUG("html tag, diving deeper.  Kids:  ~p", [Kids]),
-	html_strip_heads(Kids, Acc);
-html_strip_heads({_Tag, _Attr, _Kids} = Tuple, Acc) ->
-	html_strip_heads([Tuple], Acc);
-html_strip_heads([{<<"head">>, _Attr, Kids} | Rest], {Acctitle, AccStyle}) ->
-	?DEBUG("head tag, diving into then out", []),
-	Folder = fun
-		({<<"style">>, _, [Body]}, {Title, Style}) ->
-			{Title, lists:concat([Style, binary_to_list(Body)])};
-		({<<"title">>, _, [Body]}, {_Title, Style}) ->
-			{Body, Style};
-		({_, _, _}, {Title, Style}) ->
-			{Title, Style}
-	end,
-	{Title, Style} = lists:foldl(Folder, {Acctitle, []}, Kids),
-	?DEBUG("Style thus far:  ~p", [Style]),
-	html_strip_heads(Rest, {Title, lists:concat([AccStyle, Style])});
-html_strip_heads([{<<"body">>, Attr, Kids} | _Rest], {Title, AccStyle}) ->
-	?DEBUG("Body tag.  Nabbing style and diving deeper", []),
-	case proplists:get_value(<<"style">>, Attr) of
-		undefined ->
-			{Kids, Title, list_to_binary(AccStyle), undefined};
-		Style ->
-			{Kids, Title, list_to_binary(AccStyle), Style}
-	end;
-html_strip_heads(Nodes, {Title, AccStyle}) ->
-	{Nodes, Title, list_to_binary(AccStyle), undefined}.
-
-			
-html_append(Html, Appendments) ->
-	lists:flatten(io_lib:format("~s~s", [Html, Appendments])).
-
-download_link(Href, Display) ->
-	lists:flatten(io_lib:format("<span class=\"download\"><a href=\"mediapull/~s\" target=\"_blank\">~s</a></span>", [Href, Display])).
-
-name_loop(Name, Props, Count) ->
-	Testname = string:concat(Name, integer_to_list(Count)),
-	case proplists:get_value(Testname, Props) of
-		undefined ->
-			Testname;
-		_Else ->
-			name_loop(Name, Props, Count + 1)
-	end.
-
-mime_to_html(Tuple) when is_tuple(Tuple) ->
-	{Html, Files} = mime_to_html(Tuple, [], [], drop_none),
-	Headers = element(3, Tuple),
-	Todiv = case proplists:get_value("To", Headers) of
-		undefined ->
-			[];
-		Else ->
-			lists:concat(["<div class=\"mimemailheader\">To: ", html_encode(Else), "</div>"])
-	end,
-	Fromdiv = case proplists:get_value("From", Headers) of
-		undefined ->
-			[];
-		Else2 ->
-			lists:concat(["<div class=\"mimemailheader\">From: ", html_encode(Else2), "</div>"])
-	end,
-	Subjdiv = case proplists:get_value("Subject", Headers) of
-		undefined ->
-			[];
-		Else3 ->
-			lists:concat(["<div class=\"mimemailheader\">Subject: ", html_encode(Else3), "</div>"])
-	end,
-	{lists:concat(["<div class=\"mimemail\">", Todiv, Fromdiv, Subjdiv, Html, "</div>"]), Files}.
-	
-mime_to_html({"multipart", _, _, _, []}, Html, Files, _Anyflag) ->
-	?DEBUG("multipart complete", []),
-	{Html, Files};
-mime_to_html({"multipart", "alternative", Headers, Props, [Head | Tail]}, Html, Files, Anyflag) ->
-	?DEBUG("multipart/alternative", []),
-	{Newhtml, Newfiles} = mime_to_html(Head, Html, Files, drop_plain),
-	mime_to_html({"multipart", "alternative", Headers, Props, Tail}, Newhtml, Newfiles, Anyflag);
-mime_to_html({"multipart", "mixed", Headers, Props, [Head | Tail]}, Html, Files, Anyflag) ->
-	{Newhtml, Newfiles} = mime_to_html(Head, Html, Files, Anyflag),
-	mime_to_html({"multipart", "mixed", Headers, Props, Tail}, Newhtml, Newfiles, Anyflag);
-mime_to_html({"text", "plain", _, _, _}, Html, Files, drop_plain) ->
-	?DEBUG("dropping text/plain", []),
-	{Html, Files};
-mime_to_html({"text", "plain", Headers, _, Body}, Html, Files, _Anydrop) ->
-	?DEBUG("text/plain", []),
-	case check_disposition(Headers) of
-		inline ->
-			{lists:append([Html, "<pre>", Body, "</pre>"]), Files};
-		{inline, Filename, Heads} ->
-			{Newname, Newfiles} = append_file(Filename, Heads, Body, Files),
-			Newhtml = html_append(Html, [download_link(Newname, Filename), Body]),
-			{Newhtml, Newfiles};
-		{attachment, Filename, Heads} ->
-			{Newname, Newfiles} = append_file(Filename, Heads, Body, Files),
-			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
-			{Newhtml, Newfiles}
-	end;
-mime_to_html({"text", "html", Headers, _, Body}, Html, Files, _Anydrop) ->
-	?DEBUG("text/html", []),
-	Parsed = mochiweb_html:parse(Body),
-	Tolower = mochi_parse_lower(Parsed),
-	{Stripped, Title, Styleelem, Styleattr} = html_strip_heads(Tolower),
-	Titlespan = case Title of
-		undefined -> 
-			{<<"span">>, [], []};
-		Title ->
-			{<<"span">>, [{<<"class">>, <<"mimehtmltitle">>}], [Title]}
-	end,
-	Styled = case Styleelem of
-		<<"">> ->
-			<<"">>;
-		Styleelem ->
-			{<<"style">>, [], [Styleelem]}
-	end,
-	Outerdiv = case Styleattr of
-		undefined ->
-			{<<"div">>, [{<<"class">>, <<"mimehtmlbody">>}], lists:append([[Styled], [Titlespan], Stripped])};
-		Styleattr ->
-			{<<"div">>, [{<<"class">>, <<"mimehtmlbody">>}, {<<"style">>, Styleattr}], lists:append([[Styled], [Titlespan], Stripped])}
-	end,
-	Fixedbody = lists:flatten(io_lib:format("~s", [mochiweb_html:to_html(Outerdiv)])),
-	case check_disposition(Headers) of
-		inline ->
-			Newhtml = lists:append(Html, Fixedbody),
-			{Newhtml, Files};
-		{inline, Filename, Heads} ->
-			{Newname, Newfiles} = append_file(Filename, Heads, Body, Files),
-			Newhtml = html_append(Html, [download_link(Newname, Filename), Fixedbody]),
-			{Newhtml, Newfiles};
-		{attachment, Filename, Heads} ->
-			{Newname, Newfiles} = append_file(Filename, Heads, Body, Files),
-			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
-			{Newhtml, Newfiles}
-	end;
-mime_to_html({"message", "rfc822", _UslessHeaders, Properties, {_, _, Headers, _, _} = Body}, Html, Files, Anydrop) ->
-	?DEBUG("message/rfc822", []),
-	case check_disposition(Properties) of
-		inline ->
-			?DEBUG("inline only", []),
-			Todiv = case proplists:get_value("To", Headers) of
-				undefined ->
-					[];
-				Else ->
-					lists:concat(["<div class=\"mimemailheader\">To: ", html_encode(Else), "</div>"])
-			end,
-			Fromdiv = case proplists:get_value("From", Headers) of
-				undefined ->
-					[];
-				Else2 ->
-					lists:concat(["<div class=\"mimemailheader\">From: ", html_encode(Else2), "</div>"])
-			end,
-			Subjdiv = case proplists:get_value("Subject", Headers) of
-				undefined ->
-					[];
-				Else3 ->
-					lists:concat(["<div class=\"mimemailheader\">Subject: ", html_encode(Else3), "</div>"])
-			end,
-			Midhtml = html_append(Html, [Todiv, Fromdiv, Subjdiv]),
-			{Newhtml, Newfiles} = mime_to_html(Body, Midhtml, Files, Anydrop),
-			{lists:concat(["<div class=\"mimemail\">", Newhtml, "</div>"]), Newfiles};
-		{inline, Filename, Heads} ->
-			?DEBUG("attempting to display the message inline with headers ~p", [Headers]),
-			{Newname, Midfiles} = append_file(Filename, Heads, lists:flatten(io_lib:format("~p", [Body])), Files),
-			Midhtml = html_append(Html, [download_link(Newname, Filename)]),
-			Todiv = case proplists:get_value("To", Headers) of
-				undefined ->
-					[];
-				Else ->
-					lists:concat(["<div class=\"mimemailheader\">To: ", Else, "</div>"])
-			end,
-			Fromdiv = case proplists:get_value("From", Headers) of
-				undefined ->
-					[];
-				Else2 ->
-					lists:concat(["<div class=\"mimemailheader\">From: ", Else2, "</div>"])
-			end,
-			Subjdiv = case proplists:get_value("Subject", Headers) of
-				undefined ->
-					[];
-				Else3 ->
-					lists:concat(["<div class=\"mimemailheader\">Subject: ", Else3, "</div>"])
-			end,
-			Mid2html = html_append(Midhtml, [Todiv, Fromdiv, Subjdiv]),
-			{Newhtml, Newfiles} = mime_to_html(Body, Mid2html, Midfiles, Anydrop),
-			?DEBUG("HTML:  ~s", [Newhtml]),
-			{lists:concat(["<div class=\"mimemail\">", Newhtml, "</div>"]), Newfiles};
-		{attachment, Filename, Heads} ->
-			?DEBUG("attachement link only", []),
-			{Newname, Newfiles} = append_file(Filename, Heads, lists:flatten(io_lib:format("~p", [Body])), Files),
-			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
-			{Newhtml, Newfiles}
-	end;
-		
-%	Contentparams = proplists:get_value("content-params", Properties, []),
-%	Name = proplists:get_value("name", Contentparams, "unnamed"),
-%	Heads = [{"Content-Disposition", lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name]))}],
-%	{Newname, Newfiles} = append_file(Name, Heads, io_lib:format("~p", [Body]), Files),
-%	Newhtml = html_append(Html, [download_link(Newname, Name)]),
-%	{Newhtml, Newfiles};
-mime_to_html({"image", _, _Headers, Properties, Body}, Html, Files, _Anydrop) ->
-	?DEBUG("image.  I didn't bother w/ the subtype.", []),
-	case check_disposition(Properties) of
-		{inline, Filename, Heads} ->
-			?DEBUG("twas inline it twas.", []),
-			{Newname, Newfiles} = append_file(Filename, Heads, Body, Files),
-			Newhtml = html_append(Html, ["<img src=\"/mediapull/", Newname, "\"/>"]),
-			{Newhtml, Newfiles};
-		{attachment, Filename, Heads} ->
-			?DEBUG("tis an attachment it is.", []),
-			{Newname, Newfiles} = append_file(Filename, Heads, Body, Files),
-			Newhtml = html_append(Html, [download_link(Newname, Filename)]),
-			{Newhtml, Newfiles}
-	end;
-mime_to_html({Type, Subtype, _Headers, Props, Body}, Html, Files, _Anydrop) ->
-	?DEBUG("some other type and subtype:  ~s/~s.", [Type, Subtype]),
-	Contentparams = proplists:get_value("content-params", Props, []),
-	Name = proplists:get_value("name", Contentparams, "unnamed"),
-	Heads = [
-		{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name]))},
-		{"Content-Type", lists:flatten(io_lib:format("~s/~s", [Type, Subtype]))}],
-	{Newname, Newfiles} = append_file(Name, Heads, Body, Files),
-	Newhtml = html_append(Html, [download_link(Newname, Name)]),
-	{Newhtml, Newfiles}.
-
-html_encode(String) ->
-	F = fun(Chr) ->
-		case Chr of
-			$< ->
-				"&lt;";
-			$> ->
-				"&gt;";
-			$" -> %"
-				"&quot;";
-			$& ->
-				"&amp;";
-			E ->
-				E
-		end
-	end,
-	lists:flatten(lists:map(F, String)).
 
 -ifdef(EUNIT).
 
@@ -628,9 +440,9 @@ html_encode(String) ->
 check_disposition_test_() ->
 	[{"The header exists",
 	fun() ->
-		Res = check_disposition([{"disposition","inline"}, {"disposition-params", [{"filename", "spice-logo.jpg"}]}]),
+		Res = check_disposition([{<<"disposition">>,<<"inline">>}, {<<"disposition-params">>, [{<<"filename">>, <<"spice-logo.jpg">>}]}]),
 		?DEBUG("das res:  ~p", [Res]),
-		?assertEqual({inline, "spice-logo.jpg", [{"Content-Disposition", "inline; filename=\"spice-logo.jpg\""}]}, Res)
+		?assertEqual({inline, <<"spice-logo.jpg">>, [{<<"Content-Disposition">>, <<"inline; filename=\"spice-logo.jpg\"">>}]}, Res)
 	end},
 	{"The header doesn't exists",
 	fun() ->
@@ -638,183 +450,31 @@ check_disposition_test_() ->
 		?assertEqual(inline, Res)
 	end}].
 		
-mochi_parse_lower_test_() ->
-	[{"Simple lowercasing of empty element",
-	fun() ->
-		Input = {<<"DIV">>, [], []},
-		Res = mochi_parse_lower(Input),
-		?assertEqual({<<"div">>, [], []}, Res)
-	end},
-	{"nested lowercasing",
-	fun() ->
-		Input = {<<"DIV">>, [], [{<<"SPAN">>, [], []}]},
-		Res = mochi_parse_lower(Input),
-		?assertEqual({<<"div">>, [], [{<<"span">>, [], []}]}, Res)
-	end},
-	{"Mixed cases",
-	fun() ->
-		Input = {<<"SpAn">>, [], []},
-		Res = mochi_parse_lower(Input),
-		?assertEqual({<<"span">>, [], []}, Res)
-	end},
-	{"attributes are maintained",
-	fun() ->
-		Input = {<<"DIV">>, [{<<"style">>, <<"background:grey">>}], []},
-		Res = mochi_parse_lower(Input),
-		?assertEqual({<<"div">>, [{<<"style">>, <<"background:grey">>}], []}, Res)
-	end},
-	{"order preserved",
-	fun() ->
-		Input = mochiweb_html:parse("<html><body style=\"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; \"><b>This</b> is <i>rich</i> text.<div><br></div><div>The list is html.</div><div><br></div><div>Attchments:</div><div><ul class=\"MailOutline\"><li>an email containing an attachment of an email.</li><li>an email of only plain text.</li><li>an image</li><li>an rtf file.</li></ul></div><div></div></body></html>"),
-		Res = mochi_parse_lower(Input),
-		?DEBUG("input:  ~p;", [Input]),  
-		?DEBUG("Res:  ~p", [Res]),
-		?assertEqual(Input, Res)
-	end}].
-
-html_strip_heads_test_() ->
-	[{"grab the bodies style attribute",
-	fun() ->
-		Input = [{<<"body">>, [{<<"style">>, <<"background-color:grey">>}], []}],
-		Res = html_strip_heads(Input),
-		?assertEqual({[], undefined, <<"">>, <<"background-color:grey">>}, Res)
-	end},
-	{"grabs styles down to the body tag",
-	fun() ->
-		Input = {<<"html">>, [], [
-			{<<"head">>, [], [
-				{<<"style">>, [], [<<"background-color:pink">>]}
-			]},
-			{<<"body">>, [{<<"style">>, <<"background-color:grey">>}], [
-				{<<"div">>, [], []},
-				{<<"div">>, [], []}
-			]}
-		]},
-		Res = html_strip_heads(Input),
-		?assertEqual({[{<<"div">>, [], []}, {<<"div">>, [], []}], undefined, <<"background-color:pink">>, <<"background-color:grey">>}, Res)
-	end},
-	{"grabs the title",
-	fun() ->
-		Input = {<<"html">>, [], [
-			{<<"head">>, [], [
-				{<<"title">>, [], [<<"title of the song">>]}
-			]},
-			{<<"body">>, [], [
-				{<<"div">>, [], [<<"hi!">>]}
-			]}
-		]},
-		Res = html_strip_heads(Input),
-		?assertEqual({[{<<"div">>, [], [<<"hi!">>]}], <<"title of the song">>, <<"">>, undefined}, Res)
-	end},
-	{"jump straignt to below a body",
-	fun() ->
-		Input = {<<"div">>, [], [<<"hi!">>]},
-		Res = html_strip_heads(Input),
-		?assertEqual({[{<<"div">>, [], [<<"hi!">>]}], undefined, <<"">>, undefined}, Res)
-	end}].
-
 getmail(File) ->
 	{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
-	Email = binary_to_list(Bin),
-	mimemail:decode(Email).
-
-mime_to_html_test_() ->
-	Getmail = fun(File) ->
-		getmail(File)
-	end,
-	[{"Simple plain text mail",
-	fun() ->
-		Decoded = Getmail("Plain-text-only.eml"),
-		{Html, Files} = mime_to_html(Decoded),
-		Reshtml = mochiweb_html:parse(Html),
-		{_Div, _Divattr, [_To, _From, _Subj, Body]} = Reshtml,
-		?assertEqual([], Files),
-		?assertEqual({<<"pre">>, [], [
-			<<"This message contains only plain text.\r\n">>
-		]}, Body)
-	end},
-	{"html text mail",
-	fun() ->
-		Decoded = Getmail("html.eml"),
-		?DEBUG("~p", [Decoded]),
-		{Html, Files} = mime_to_html(Decoded),
-		{_Div, _Divatter, [_To, _From, _Sub, Reshtml]} = mochiweb_html:parse(Html),
-		?assertEqual(<<"word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; ">>, proplists:get_value(<<"style">>, element(2, Reshtml))),
-		?assertEqual(<<"mimehtmlbody">>, proplists:get_value(<<"class">>, element(2, Reshtml))),
-		[Titlespan, Ul] = element(3, Reshtml),
-		?assertEqual({<<"span">>, [], []}, Titlespan),
-		?assertEqual({<<"ul">>, [{<<"class">>, <<"MailOutline">>}], [
-			{<<"li">>, [], [<<"this">>]},
-			{<<"li">>, [], [<<"is">>]},
-			{<<"li">>, [], [<<"html">>]}
-		]}, Ul)
-	end},
-	{"email with an image",
-	fun() ->
-		Decoded = Getmail("image-attachment-only.eml"),
-		?DEBUG("~p", [Decoded]),
-		{Html, Files} = mime_to_html(Decoded),
-		?DEBUG("Html ~p", [Html]),
-		{_Div, _Divattr, [_To, _From, _Subject, Img]} = mochiweb_html:parse(Html),
-		?DEBUG("~s", [Html]),
-		?assertEqual({<<"img">>, [{<<"src">>, <<"/mediapull/spice-logo.jpg">>}], []}, Img),
-		?assertMatch({_Head, _Body}, proplists:get_value("spice-logo.jpg", Files))
-	end},
-	{"The gamut",
-	fun() ->
-		% multipart/alternative
-		%	text/plain
-		%	multipart/mixed
-		%		text/html
-		%		message/rf822
-		%			multipart/mixed
-		%				message/rfc822
-		%					text/plain
-		%		text/html
-		%		message/rtc822
-		%			text/plain
-		%		text/html
-		%		image/jpeg
-		%		text/html
-		%		text/rtf
-		%		text/html
-		Decoded = Getmail("the-gamut.eml"),
-		?DEBUG("decoded ~p:  ", [Decoded]),
-		{Html, Files} = mime_to_html(Decoded),
-		?DEBUG("Html: ~s", [Html]),
-		{_Div, _Divattr, Kids} = mochiweb_html:parse(Html)
-	end}].
-
-html_encode_test_() ->
-	[?_assertEqual("&lt;hi!&gt;", html_encode("<hi!>")),
-	?_assertEqual("&lt;&gt;&quot;&amp;", html_encode("<>\"&"))].
-%init_test_() ->
-%	[{"image inline",
-%	fun() ->
-%		Getmail = fun(File) ->
-%		{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
-%		Email = binary_to_list(Bin),
-%		
-%	end}]
+	%Email = binary_to_list(Bin),
+	mimemail:decode(Bin).
 	
 skeletonize_test_() ->
 	[{"Simple plain text mail",
 	fun() ->
 		Decoded = getmail("Plain-text-only.eml"),
-		Skel = skeletonize(Decoded),
-		?assertEqual({"text", "plain"}, Skel)
+		{Skel, []} = skeletonize(Decoded),
+		?assertMatch({<<"text">>, <<"plain">>, _, _}, Skel)
 	end},
 	{"html text mail",
 	fun() ->
 		Decoded = getmail("html.eml"),
-		Skel = skeletonize(Decoded),
-		?assertEqual({"multipart", "alternative", [{"text", "plain"}, {"text", "html"}]}, Skel)
+		{Skel, []} = skeletonize(Decoded),
+		?DEBUG("Skel:  ~p", [Skel]),
+		?assertMatch({<<"multipart">>, <<"alternative">>, _Head, _Props, [{<<"text">>, <<"plain">>, _H2, _P2}, {<<"text">>, <<"html">>, _H3, P3}]}, Skel)
 	end},
 	{"email with image",
 	fun() ->
 		Decoded = getmail("image-attachment-only.eml"),
-		Skel = skeletonize(Decoded),
-		?assertEqual({"multipart", "mixed", [{"image", "jpeg"}]}, Skel)
+		{Skel, Files} = skeletonize(Decoded),
+		?assertMatch({<<"multipart">>, <<"mixed">>, _, _, [{<<"image">>, <<"jpeg">>, _, _}]}, Skel),
+		?assertEqual([{<<"spice-logo.jpg">>, [1]}], Files)
 	end},
 	{"the gamut",
 	fun() ->
@@ -835,32 +495,67 @@ skeletonize_test_() ->
 		%		text/rtf
 		%		text/html
 		Decoded = getmail("the-gamut.eml"),
-		Skel = skeletonize(Decoded),
-		Expected = {"multipart", "alternative", [
-			{"text", "plain"},
-			{"multipart", "mixed", [
-				{"text", "html"},
-				{"message", "rfc822", [
-					{"multipart", "mixed", [
-						{"message", "rfc822", [
-							{"text", "plain"}
+		{Skel, Files} = skeletonize(Decoded),
+		%{"multipart", "alternative", [
+%			{"text", "plain"},
+%			{"multipart", "mixed", [
+%				{"text", "html"},
+%				{"message", "rfc822", [
+%					{"multipart", "mixed", [
+%						{"message", "rfc822", [
+%							{"text", "plain"}
+%						]}
+%					]}
+%				]},
+%				{"text", "html"},
+%				{"message", "rfc822", [
+%					{"text", "plain"}
+%				]},
+%				{"text", "html"},
+%				{"image", "jpeg"},
+%				{"text", "html"},
+%				{"text", "rtf"},
+%				{"text", "html"}
+%			]}
+%		]},
+		?DEBUG("Skel:  ~p", [Skel]),
+		?DEBUG("Files:  ~p", [Files]),
+		?assertMatch(
+		{<<"multipart">>, <<"alternative">>, _, _, [
+			{<<"text">>, <<"plain">>, _, _},
+			{<<"multipart">>, <<"mixed">>, _, _, [
+				{<<"text">>, <<"html">>, _, _},
+				{<<"message">>, <<"rfc822">>, _, _, [
+					{<<"multipart">>, <<"mixed">>, _, _, [
+						{<<"message">>, <<"rfc822">>, _, _, [
+							{<<"text">>, <<"plain">>, _, _}
 						]}
 					]}
 				]},
-				{"text", "html"},
-				{"message", "rfc822", [
-					{"text", "plain"}
+				{<<"text">>, <<"html">>, _, _},
+				{<<"message">>, <<"rfc822">>, _, _, [
+					{<<"text">>, <<"plain">>, _, _}
 				]},
-				{"text", "html"},
-				{"image", "jpeg"},
-				{"text", "html"},
-				{"text", "rtf"},
-				{"text", "html"}
+				{<<"text">>, <<"html">>, _, _},
+				{<<"image">>, <<"jpeg">>, _, _},
+				{<<"text">>, <<"html">>, _, _},
+				{<<"text">>, <<"rtf">>, _, _},
+				{<<"text">>, <<"html">>, _, _}
 			]}
-		]},
-		?DEBUG("Ecpected:  ~p", [Expected]),
-		?DEBUG("Skel:  ~p", [Skel]),
-		?assertEqual(Expected, Skel)
+		]}, Skel),
+		?assertEqual(5, length(Files)),
+		?assertEqual([2, 2, 1, 1], proplists:get_value(<<"Plain text only">>, Files)),
+		?assertEqual([2, 4], proplists:get_value(<<"Plain text only.eml">>, Files)),
+		?assertEqual([2, 6], proplists:get_value(<<"spice-logo.jpg">>, Files)),
+		?assertEqual([2, 8], proplists:get_value(<<"test.rtf">>, Files)),
+		?assertEqual([2, 2], proplists:get_value(<<"message as attachment.eml">>, Files))
+	end},
+	{"Files with id's logged (testcase1)",
+	fun() ->
+		Decoded = getmail("testcase1"),
+		{_Skel, Files} = skeletonize(Decoded),
+		?assertEqual([2, 1, 2, 2], proplists:get_value(<<"cid:part1.03050108.02070304@gmail.com">>, Files)),
+		?assertEqual([2, 1, 2, 2], proplists:get_value(<<"moz-screenshot-1.jpg">>, Files))
 	end}].
 	
 
@@ -889,7 +584,7 @@ get_part_test_() ->
 		[{"A simple path",
 		fun() ->
 			Path = [1],
-			?assertMatch({ok, {"text", "plain", _Head, _Prop, _Body}}, get_part(Path, Gamut))
+			?assertMatch({ok, {<<"text">>, <<"plain">>, _Head, _Prop, _Body}}, get_part(Path, Gamut))
 		end},
 		{"Getting the base", 
 		fun() ->
@@ -904,22 +599,33 @@ get_part_test_() ->
 		{"Getting a message",
 		fun() ->
 			Path = [2, 2],
-			?assertMatch({message, {"multipart", "mixed", _Headers, _Properties, _List}}, get_part(Path, Gamut))
+			?assertMatch({message, {<<"multipart">>, <<"mixed">>, _Headers, _Properties, _List}}, get_part(Path, Gamut))
+		end},
+		{"Getting below a message",
+		fun() ->
+			Path = [2, 2, 1],
+			?assertMatch({multipart, [{<<"message">>, <<"rfc822">>, _Headers, _Properties, _Body}]}, get_part(Path, Gamut))
 		end},
 		{"Getting a deep text",
 		fun() ->
 			Path = [2, 2, 1, 1, 1],
-			?assertMatch({ok, {"text", "plain", _Headers, _Properties, _Body}}, get_part(Path, Gamut))
+			?assertMatch({ok, {<<"text">>, <<"plain">>, _Headers, _Properties, _Body}}, get_part(Path, Gamut))
 		end},
 		{"getting a far away text",
 		fun() ->
 			Path = [2, 9],
-			?assertMatch({ok, {"text", "html", _Headers, _Properties, _Body}}, get_part(Path, Gamut))
+			?assertMatch({ok, {<<"text">>, <<"html">>, _Headers, _Properties, _Body}}, get_part(Path, Gamut))
 		end},
 		{"getting a path that doesn't exist",
 		fun() ->
 			Path = [299, 768, 124],
 			?assertMatch(none, get_part(Path, Gamut))
+		end},
+		{"trying with testcase1",
+		fun() ->
+			Testcase1 = getmail("testcase1"),
+			Path = [2, 1 , 2, 2],
+			?assertMatch({ok, {<<"image">>, <<"jpeg">>, _Head, _Prop, _Body}}, get_part(Path, Testcase1))
 		end}]
 	end}.
 		

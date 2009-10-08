@@ -34,6 +34,14 @@ function Agent(username){
 					dojo.publish("agent/blab", [datalist[i].text]);
 					break;
 				
+				case "mediaload":
+					dojo.publish("agent/mediaload", [datalist[i]]);
+					break;
+				
+				case "mediaevent":
+					dojo.publish("agent/mediaevent/" + datalist[i].media, [datalist[i]]);
+					break;
+				
 				default:
 					dojo.publish("agent/" + datalist[i].command, [datalist[i]]);
 					warning(["unhandled command", datalist[i].command]);

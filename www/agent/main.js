@@ -158,7 +158,12 @@ dojo.addOnLoad(function(){
 				dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response.profile;
 				dojo.publish("agent/state", [{"state":response.state, "statedata":response.statedata}]);
 				if( (response.state == "oncall") && (response.statedata.mediapath == "inband") ){
-					dojo.xhrGet({
+					var fixedres = response.statedata;
+					fixedres.media = fixedres.type;
+					dojo.publish("agent/mediaload", [fixedres]);
+				};
+				
+					/*dojo.xhrGet({
 						url:"/mediapull/",
 						handleAs:"text",
 						load:function(mediadata){
@@ -168,7 +173,7 @@ dojo.addOnLoad(function(){
 							}]);
 						}
 					});
-				}
+				}*/
 				agent.stopwatch.onTick = function(){
 					var elapsed = agent.stopwatch.time();
 					var d = new Date();
@@ -675,7 +680,37 @@ dojo.addOnLoad(function(){
 		agent.logout();
 	}
 	
-	dijit.byId("main").mediapush = dojo.subscribe("agent/mediapush", function(eventdata){
+	dijit.byId("main").mediaload = dojo.subscribe("agent/mediaload", function(eventdata){
+		info(["listening for media load fired:  ", eventdata]);
+		var mediaPanelId = eventdata.media + 'Panel';
+		if(dijit.byId(mediaPanelId)){
+			return false; 
+		}
+		
+		var pane = new dojox.layout.ContentPane({
+			title:eventdata.media,
+			executeScripts: "true",
+			id: mediaPanelId,
+			closable: false
+		});
+		pane.unloadListener = dojo.subscribe('agent/state', function(data){
+			if(data.state == 'idle'){				
+				dojo.unsubscribe(pane.unloadListener);
+				dojo.unsubscribe(pane.logoutListener);
+				dijit.byId('tabPanel').closeChild(pane);
+			}
+		});
+		pane.logoutListener = dojo.subscribe('agent/logout', function(){
+			dojo.unsubscribe(pane.unloadListener);
+			dojo.unsubscribe(pane.logoutListener);
+			dijit.byId('tabPanel').closeChild(pane);
+		});
+		pane.setHref("tabs/email_media.html");
+		dijit.byId('tabPanel').addChild(pane);
+		dijit.byId('tabPanel').selectChild(mediaPanelId);
+	});
+	
+	/*dijit.byId("main").mediapush = dojo.subscribe("agent/mediapush", function(eventdata){
 		info(["main listing for media push paid off", eventdata]);
 		if(dijit.byId("mediapush") == undefined){
 			var mediaPane = new dojox.layout.FloatingPane({
@@ -714,7 +749,7 @@ dojo.addOnLoad(function(){
 		}
 		
 		dojo.byId("media-content").innerHTML = oldcontent + eventdata.content;
-	});		   
+	});	*/	   
 });
 
 function endpointselect() {

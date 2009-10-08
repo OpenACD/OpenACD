@@ -556,8 +556,62 @@ handle_call({mediapush, Post}, _From, #state{agent_fsm = Apid} = State) ->
 		_Else ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
 	end;
+handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
+	Commande = proplists:get_value("command", Post),
+	Arguments = proplists:get_value("arguments", Post), 
+	case proplists:get_value("mode", Post) of
+		"call" ->
+			{Heads, Data} = case agent:media_call(Apid, {Commande, Post}) of
+				invalid ->
+					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid media call">>}]})};
+				{ok, Response, Mediarec} ->
+					parse_media_call(Mediarec, {Commande, Post}, Response)
+			end,
+			{reply, {200, Heads, Data}, State};
+		"cast" ->
+			agent:media_cast(Apid, {Commande, Post}),
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+		undefined ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
+	end;
+handle_call({undefined, [$/ | Path], Post}, _From, #state{agent_fsm = Apid} = State) ->
+	%% considering how things have gone, the best guess is this is a media call.
+	%% Note that the results below are only for email, so this will need
+	%% to be refactored when we support more medias.
+	?DEBUG("forwarding request to media.  Path: ~p; Post: ~p", [Path, Post]),
+	case agent:media_call(Apid, {get_blind, Path}) of
+		{ok, {ok, Mime}, Call} ->
+			{Heads, Data} = parse_media_call(Call, {"get_path", Path}, {ok, Mime}),
+%			Body = element(5, Mime),
+%			{reply, {200, [], list_to_binary(Body)}, State};
+			{reply, {200, Heads, Data}, State};
+		{ok, none, _Call} ->
+			{reply, {404, [], <<"path not found">>}, State};
+		{ok, {message, Mime}, Call} ->
+			% the commented out code below is for the day mimemail:encode/1 will
+			% use binaries instead of lists, and (hopefully) output binaries too.
+			% for now, tell the client we suck.
+			% 501 means not implemented, so good 'nough.
+			{reply, {501, [], <<"Can't parse back an email yet, sorry">>}, State};
+%			Filename = case email_media:get_disposition(Mime) of
+%				inline ->
+%					Nom = util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref())));
+%				{_, Nom} ->
+%					binary_to_list(Nom)
+%			end,
+%			Heads = [
+%				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Filename]))},
+%				{"Content-Type", lists:append([binary_to_list(element(1, Mime)), "/", binary_to_list(element(2, Mime))])}
+%			],
+%			Encoded = mimemail:encode(Mime),
+%			{reply, {200, Heads, Encoded}, State};
+		Else ->
+			?DEBUG("Not a mime tuple ~p", [Else]),
+			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}
+	end;
 handle_call(Allothers, _From, State) ->
-	{reply, {unknown_call, Allothers}, State}.
+	?DEBUG("unknown call ~p", [Allothers]),
+	{reply, {404, [], <<"unknown_call">>}, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
@@ -582,21 +636,32 @@ handle_cast({poll, Frompid}, State) ->
 			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
 			{noreply, Newstate}
 	end;
-handle_cast({mediapush, Callrec, Data, Mode}, State) when is_binary(Data); is_list(Data) ->
-	Contentline = case {is_list(Data), is_binary(Data)} of
-		{false, true} ->
-			{<<"content">>, Data};
-		{true, false} ->
-			{<<"content">>, list_to_binary(Data)}
-	end,
+handle_cast({mediaload, #call{type = email}}, State) ->
 	Json = {struct, [
-		{<<"command">>, <<"mediapush">>},
-		{<<"mode">>, Mode},
-		{<<"media">>, encode_call(Callrec)},
-		Contentline
+		{<<"command">>, <<"mediaload">>},
+		{<<"media">>, <<"email">>}
 	]},
 	Newstate = push_event(Json, State),
 	{noreply, Newstate};
+handle_cast({mediapush, #call{type = Mediatype} = Callrec, Data, Mode}, State) when is_binary(Data); is_list(Data) ->
+	case Mediatype of
+		email ->
+			case Data of
+				load ->
+					Json = {struct, [
+						{<<"command">>, <<"mediaload">>},
+						{<<"media">>, <<"email">>}
+					]},
+					Newstate = push_event(Json, State),
+					{noreply, Newstate};
+				Else ->
+					?INFO("No other data's supported", []),
+					{noreply, State}
+			end;
+		Else ->
+			?INFO("Currently no supporting other media pushings: ~p", [Else]),
+			{noreply, State}
+	end;
 handle_cast({set_salt, Salt}, State) ->
 	{noreply, State#state{salt = Salt}};
 handle_cast({change_state, AgState, Data}, #state{counter = Counter} = State) ->
@@ -742,6 +807,134 @@ get_nodes(Nodestring) ->
 			[Out | _Tail] = lists:dropwhile(F, nodes()),
 			[Out]
 	end.
+
+email_props_to_json(Proplist) ->
+	email_props_to_json(Proplist, []).
+
+email_props_to_json([], Acc) ->
+	{struct, lists:reverse(Acc)};
+email_props_to_json([{Key, Value} | Tail], Acc) ->
+	{Dokey, Newkey} = case {is_binary(Key), is_list(Key)} of
+		{true, _} -> {ok, Key};
+		{_, true} -> {ok, list_to_binary(Key)};
+		{_, _} -> {false, false}
+	end,
+	{Doval, Newval} = case {is_binary(Value), is_list(Value)} of
+		{true, _} -> {ok, Value};
+		{_, true} -> {ok, email_props_to_json(Value)};
+		{_, _} -> {false, false}
+	end,
+	case {Dokey, Doval} of
+		{ok, ok} ->
+			email_props_to_json(Tail, [{Newkey, Newval} | Acc]);
+		Else ->
+			email_props_to_json(Tail, Acc)
+	end.
+
+-type(headers() :: [{string(), string()}]).
+-type(mochi_out() :: binary()).
+-spec(parse_media_call/3 :: (Mediarec :: #call{}, Command :: string, Response :: any()) -> {headers(), mochi_out()}).
+parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {Type, Subtype, Heads, Props}) ->
+	Json = {struct, [
+		{<<"type">>, Type}, 
+		{<<"subtype">>, Subtype},
+		{<<"headers">>, email_props_to_json(Heads)},
+		{<<"properties">>, email_props_to_json(Props)}
+	]},
+	{[], mochijson2:encode(Json)};
+parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubType, Tophead, Topprop, Parts}) ->
+	Fun = fun
+		({Type, Subtype, Heads, Props}, {F, Acc}) ->
+			Head = {struct, [
+				{<<"type">>, Type},
+				{<<"subtype">>, Subtype},
+				{<<"headers">>, email_props_to_json(Heads)},
+				{<<"properties">>, email_props_to_json(Props)}
+			]},
+			{F, [Head | Acc]};
+		({Type, Subtype, Heads, Props, List}, {F, Acc}) ->
+			{_, Revlist} = lists:foldl(F, {F, []}, List),
+			Newlist = lists:reverse(Revlist),
+			Head = {struct, [
+				{<<"type">>, Type},
+				{<<"subtype">>, Subtype},
+				{<<"headers">>, email_props_to_json(Heads)},
+				{<<"properties">>, email_props_to_json(Props)},
+				{<<"parts">>, Newlist}
+			]},
+			{F, [Head | Acc]}
+	end,
+	{_, Jsonlist} = lists:foldl(Fun, {Fun, []}, Parts),
+	Json = {struct, [
+		{<<"type">>, TopType}, 
+		{<<"subtype">>, TopSubType}, 
+		{<<"headers">>, email_props_to_json(Tophead)},
+		{<<"properties">>, email_props_to_json(Topprop)},
+		{<<"parts">>, lists:reverse(Jsonlist)}]},
+	?DEBUG("json:  ~p", [Json]),
+	{[], mochijson2:encode(Json)};
+parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, Headers, Properties, Body} = Mime}) ->
+	Emaildispo = email_media:get_disposition(Mime),
+	?DEBUG("Type:  ~p; Subtype:  ~p;  Dispo:  ~p", [Type, Subtype, Emaildispo]),
+	case {Type, Subtype, Emaildispo} of
+		{Type, Subtype, {attachment, Name}} ->
+			?DEBUG("Trying to some ~p/~p (~p) as attachment", [Type, Subtype, Name]),
+			{[
+				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [binary_to_list(Name)]))},
+				{"Content-Type", lists:append([binary_to_list(Type), "/", binary_to_list(Subtype)])}
+			], Body};
+		{<<"text">>, <<"rtf">>, {inline, Name}} ->
+			{[
+				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [binary_to_list(Name)]))},
+				{"Content-Type", lists:append([binary_to_list(Type), "/", binary_to_list(Subtype)])}
+			], Body};
+		{<<"text">>, <<"html">>, _} ->
+			Parsed = case mochiweb_html:parse(binary_to_list(Body)) of
+				Islist when is_list(Islist) ->
+					Islist;
+				Isntlist ->
+					[Isntlist]
+			end,
+			Lowertag = fun(E) -> string:to_lower(binary_to_list(E)) end,
+			Stripper = fun
+				(F, [], Acc) ->
+					lists:reverse(Acc);
+				(F, [{Tag, Attr, Kids} | Rest], Acc) ->
+					case Lowertag(Tag) of
+						"html" ->
+							F(F, Kids, []);
+						"head" ->
+							F(F, Rest, Acc);
+						"body" ->
+							F(F, Kids, Acc);
+						_Else ->
+							F(F, Rest, [{Tag, Attr, Kids} | Acc])
+					end;
+				(F, [Bin | Rest], Acc) when is_binary(Bin) ->
+					F(F, Rest, [Bin | Acc])
+			end,
+			Newhtml = Stripper(Stripper, Parsed, []),
+			{[], mochiweb_html:to_html({<<"span">>, [], Newhtml})};
+		{Type, Subtype, _Disposition} ->
+			{[{"Content-Type", lists:append([binary_to_list(Type), "/", binary_to_list(Subtype)])}], Body}
+%
+%		{"text", _, _} ->
+%			{[], list_to_binary(Body)};
+%		{"image", Subtype, {Linedness, Name}} ->
+%			Html = case Linedness of
+%				inline ->
+%					{<<"img">>, [{<<"src">>, list_to_binary(Name)}], []};
+%				attachment ->
+%					{<<"a">>, [{<<"href">>, list_to_binary(Name)}], list_to_binary(Name)}
+%			end,
+%			{[], mochiweb_html:to_html(Html)};
+%		{Type, Subtype, Disposition} ->
+%			?WARNING("unsure how to handle ~p/~p disposed to ~p", [Type, Subtype, Disposition]),
+%			{[], <<"404">>}
+	end;
+parse_media_call(Mediarec, Command, Response) ->
+	?DEBUG("Unparsable result for ~p:~p.  ~p", [Mediarec#call.type, Command, Response]),
+	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}]})}.
 
 -spec(do_action/3 :: (Nodes :: [atom()], Do :: any(), Acc :: [any()]) -> {'true' | 'false', any()}).
 do_action([], _Do, Acc) ->

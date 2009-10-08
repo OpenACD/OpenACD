@@ -310,7 +310,7 @@ build_tables() ->
 		Result2 when Result2 =:= {atomic, ok}; Result2 =:= copied; Result2 =:= exists ->
 			ok;
 		Else2 ->
-			?NOTICE("unusual response building cpx_value table", [Else2])
+			?NOTICE("unusual response building cpx_value table:  ~p", [Else2])
 	end.
 
 %% @doc Adds the default configuration to the database.
@@ -406,7 +406,26 @@ load_specs(Super) ->
 				_Else ->
 					ok
 			end,
-			lists:foreach(fun(I) -> start_spec(I) end, Records);
+			Startthese = case Super of
+				management_sup ->
+					{ok, Nodes} = case application:get_env(cpx, nodes) of
+						undefined ->
+							{ok, [node()]};
+						Else ->
+							Else
+					end,
+					Monrec = #cpx_conf{
+						id = cpx_monitor,
+						module_name = cpx_monitor,
+						start_function = start_link,
+						start_args = [[{nodes, Nodes}, auto_restart_mnesia]],
+						supervisor = management_sup
+					},
+					[Monrec | Records];
+				_ ->
+					Records
+			end,
+			lists:foreach(fun(I) -> start_spec(I) end, Startthese);
 		Else ->
 			?ERROR("unable to retrieve specs for ~s:  ~p", [Super, Else]),
 			Else
@@ -461,9 +480,10 @@ config_test_() ->
 			{
 				"Adding a Valid Config gets it to start",
 				fun() -> 
-					Valid = #cpx_conf{id = dummy_media_manager, module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup},
-					add_conf(dummy_media_manager, dummy_media_manager, start_link, ["dummy_arg"], management_sup),
-					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_media_manager]),
+					Valid = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
+					Out = add_conf(gen_server_mock, gen_server_mock, named, [{local, dummy_media_manager}], management_sup),
+					?CONSOLE("Out:  ~p", [Out]),
+					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
 					F = fun() -> 
 						qlc:e(QH)
 					end,
@@ -475,15 +495,15 @@ config_test_() ->
 			{
 				"Destroy a Config by full spec, ensure it also kills what was running.",
 				fun() -> 
-					Spec = #cpx_conf{id = dummy_id, module_name = dummy_media_manager, start_function = start_link, start_args = ["dummy_arg"], supervisor = management_sup},
-					try add_conf(dummy_id, dummy_media_manager, start_link, ["dummy_arg"], management_sup)
+					Spec = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
+					try add_conf(gen_server_mock, gen_server_mock, named, [{local, dummy_media_manager}], management_sup)
 					catch
 						_:_ -> ok
 					end,
 					?assert(is_pid(whereis(dummy_media_manager))),
 					destroy(Spec),
 					?assertEqual(undefined, whereis(dummy_media_manager)),
-					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_media_manager]),
+					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
 					F = fun() -> 
 						qlc:e(QH)
 					end,
@@ -493,12 +513,12 @@ config_test_() ->
 			{
 				"Destroy a Config by id only",
 				fun() -> 
-					add_conf(dummy_media_manager, dummy_media_manager, start_link, ["dummy_arg"], management_sup),
+					add_conf(gen_server_mock, gen_server_mock, named, [{local, dummy_media_manager}], management_sup),
 					?assert(is_pid(whereis(dummy_media_manager))),
-					destroy(dummy_media_manager),
+					destroy(gen_server_mock),
 					?CONSOLE("~p", [whereis(dummy_media_manager)]),
 					?assertEqual(undefined, whereis(dummy_media_manager)),
-					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_media_manager]),
+					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
 					F = fun() -> 
 						qlc:e(QH)
 					end,
@@ -509,29 +529,29 @@ config_test_() ->
 				"Update a Config",
 				fun() -> 
 					%Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
-					add_conf(dummy_media_manager, dummy_media_manager, start_link, ["dummy_arg"], management_sup),
+					add_conf(gen_server_mock, gen_server_mock, named, [{local, dummy_media_manager}], management_sup),
 %					try add_conf(dummy_media_manager, dummy_media_manager, start_link, ["dummy_arg"], management_sup)
 %					catch
 %						_:_ -> ok
 %					end,
 					Oldpid = whereis(dummy_media_manager),
 					Newrec = #cpx_conf{
-						id=dummy_media_manager,
-						module_name = dummy_media_manager,
+						id=gen_server_mock,
+						module_name = gen_server_mock,
 						start_function = start_link,
-						start_args = ["new_arg"],
+						start_args = [{local, gen_server_mock}],
 						supervisor = management_sup
 					},
-					update_conf(dummy_media_manager, Newrec),
-					Newpid = whereis(dummy_media_manager),
+					update_conf(gen_server_mock, Newrec),
+					Newpid = whereis(gen_server_mock),
 					?assertNot(Oldpid =:= Newpid),
-					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= dummy_media_manager]),
+					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
 					F = fun() ->
 						qlc:e(QH)
 					end,
 					{atomic, [Rec]} = mnesia:transaction(F),
-					?assertEqual(["new_arg"], Rec#cpx_conf.start_args),
-					destroy(dummy_media_manager)
+					?assertEqual([{local, gen_server_mock}], Rec#cpx_conf.start_args),
+					destroy(gen_server_mock)
 				end
 			},
 			{

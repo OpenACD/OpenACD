@@ -173,7 +173,7 @@ init(Args) ->
 		[Rawmessage] ->
 			Out = mimemail:decode(Rawmessage),
 			Headers = element(3, Out),
-			Mailmap = case proplists:get_value("From", Headers) of
+			Mailmap = case proplists:get_value(<<"From">>, Headers) of
 				undefined ->
 					#mail_map{address = "unknown@example.com"};
 				Address ->
@@ -195,19 +195,19 @@ init(Args) ->
 			mimemail:decode(Headers, Data)
 	end,
 	{Skeleton, Files} = skeletonize(Mimed),
-	Callerid = case proplists:get_value("From", Mheads) of
+	Callerid = case proplists:get_value(<<"From">>, Mheads) of
 		undefined -> 
 			"unknown";
 		Else ->
-			Else
+			binary_to_list(Else)
 	end,
 	?DEBUG("callerid:  ~s", [Callerid]),
 	Ref = erlang:ref_to_list(make_ref()),
 	Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
-	[Domain, _To] = util:string_split(lists:reverse(Mailmap#mail_map.address), "@", 2),
-	Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, lists:reverse(Domain)])),
+	[Domain, _To] = binstr:split(binstr:reverse(Mailmap#mail_map.address), <<"@">>, 2),
+	Defaultid = list_to_binary(lists:flatten(io_lib:format("~s@~s", [Refstr, binstr:reverse(Domain)]))),
 	Proto = #call{
-		id = proplists:get_value("Message-ID", Mheads, Defaultid), 
+		id = binary_to_list(proplists:get_value(<<"Message-ID">>, Mheads, Defaultid)),
 		type = email,
 		callerid = Callerid,
 		client = Mailmap#mail_map.client,

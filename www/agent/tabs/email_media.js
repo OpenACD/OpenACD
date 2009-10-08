@@ -62,14 +62,17 @@ if(typeof(emailPane) == 'undefined'){
 		if( (skeleton.type == "multipart") && (skeleton.subtype == "alternative") ){
 			var getting = 0;
 			var pushon = false;
+			var texttype = "";
 			for(var i = 0; i < skeleton.parts.length; i++){
 				if( (skeleton.parts[i].subtype == "plain") && (getting < 1) ){
 					getting = 1;
 					pushon = i + 1;
+					texttype = 'plain';
 				}				
 				if( (skeleton.parts[i].subtype == "html") && ( getting < 2 ) ){
 					getting = 2;
 					pushon = i + 1;
+					texttype = 'html';
 				}
 				if( (skeleton.parts[i].type == "multipart") && (getting < 3) ){
 					getting = 3;
@@ -86,7 +89,8 @@ if(typeof(emailPane) == 'undefined'){
 				else{
 					fetches.push({
 						'mode':'fetch',
-						'path':tpath
+						'path':tpath,
+						'textType':texttype
 					});
 				}
 			}
@@ -144,6 +148,7 @@ if(typeof(emailPane) == 'undefined'){
 	}
 	
 	emailPane.fetchPaths = function(fetchObjs, fetched){
+		debug(["fetchPaths", fetchObjs[0]]);
 		if(emailPane.fetchSub){
 			return false;
 		}

@@ -1277,6 +1277,7 @@ handle_call_test_() ->
 				Rec = Callrec,
 				ok
 			end),
+			gen_event_mock:expect_event(cdr, fun({queue_transfer, Callrec, _Time, "testqueue"}, _State) -> ok end),
 			gen_event_mock:expect_event(cdr, fun({inqueue, _Callrec, _Time, "testqueue"}, _State) -> ok end),
 			State = Seedstate#state{oncall_pid = Agent},
 			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, {Agent, "tag"}, State),
@@ -1302,6 +1303,7 @@ handle_call_test_() ->
 				Rec = Callrec,
 				ok
 			end),
+			gen_event_mock:expect_event(cdr, fun({queue_transfer, Callrec, _Time, "default_queue"}, _State) -> ok end),
 			gen_event_mock:expect_event(cdr, fun({inqueue, Callrec, _Time, "default_queue"}, _State) -> ok end),
 			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, {Agent, "tag"}, State),
 			?assertEqual(undefined, Newstate#state.oncall_pid),
@@ -1335,6 +1337,7 @@ handle_call_test_() ->
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
+			gen_event_mock:expect_event(cdr, fun({queue_transfer, Callrec, _Time, "testqueue"}, _State) -> ok end),
 			gen_event_mock:expect_event(cdr, fun({inqueue, Callrec, _Time, "testqueue"}, _State) -> ok end),
 			State = Seedstate#state{oncall_pid = Agent},
 			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, "from", State),
@@ -1359,6 +1362,7 @@ handle_call_test_() ->
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
+			gen_event_mock:expect_event(cdr, fun({queue_transfer, Callrec, _Time, "default_queue"}, _State) -> ok end),
 			gen_event_mock:expect_event(cdr, fun({inqueue, Callrec, _Time, "default_queue"}, _State) -> ok end),
 			State = Seedstate#state{oncall_pid = Agent},
 			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, "from", State),

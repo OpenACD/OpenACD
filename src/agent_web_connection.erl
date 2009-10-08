@@ -1498,7 +1498,7 @@ scrub_proplist_test() ->
 	end
 ).
 
--include("gen_server_test.hrl").
+%-include("gen_server_test.hrl").
 
 
 -endif.

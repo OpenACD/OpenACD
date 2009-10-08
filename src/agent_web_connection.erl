@@ -567,6 +567,7 @@ handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 				{ok, Response, Mediarec} ->
 					parse_media_call(Mediarec, {Commande, Post}, Response)
 			end,
+			?INFO("Heads:  ~p; Data:  ~p", [Heads, Data]),
 			{reply, {200, Heads, Data}, State};
 		"cast" ->
 			agent:media_cast(Apid, {Commande, Post}),
@@ -840,7 +841,15 @@ parse_media_call(#call{type = email}, {"attach", _Args}, {ok, Filenames}) ->
 		{success, true},
 		{<<"filenames">>, Binnames}
 	]},
-	{[], mochiweb_html:to_html({<<"textarea">>, [], [mochijson2:encode(Json)]})};
+	Html = mochiweb_html:to_html({
+		<<"html">>, [], [
+			{<<"head">>, [], []},
+			{<<"body">>, [], [
+				{<<"textarea">>, [], [mochijson2:encode(Json)]}
+			]}
+		]}),
+	?INFO("html:  ~p", [Html]),
+	{[], Html};
 parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {Type, Subtype, Heads, Props}) ->
 	Json = {struct, [
 		{<<"type">>, Type}, 

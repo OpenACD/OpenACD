@@ -509,17 +509,19 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = Ocpid} = Sta
 %			{reply, invalid, State}
 %	end;
 handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = Ocpid} = State) ->
-	?INFO("requat to queue call from agent", []),
+	?INFO("request to queue call from agent", []),
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
 		{default, Qpid} ->
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
+			cdr:queue_transfer(State#state.callrec, "default_queue"),
 			cdr:inqueue(State#state.callrec, "default_queue"),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}};
 		Qpid when is_pid(Qpid) ->
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
+			cdr:queue_transfer(State#state.callrec, Queue),
 			cdr:inqueue(State#state.callrec, Queue),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}}
@@ -532,12 +534,14 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = Sta
 		{default, Qpid} ->
 			agent:set_state(State#state.oncall_pid, wrapup, State#state.callrec),
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
+			cdr:queue_transfer(State#state.callrec, "default_queue"),
 			cdr:inqueue(State#state.callrec, "default_queue"),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}};
 		Qpid when is_pid(Qpid) ->
 			agent:set_state(State#state.oncall_pid, wrapup, State#state.callrec),
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
+			cdr:queue_transfer(State#state.callrec, Queue),
 			cdr:inqueue(State#state.callrec, Queue),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}}

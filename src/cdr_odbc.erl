@@ -125,6 +125,8 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		{IType, _ } -> atom_to_list(IType)
 	end,
 
+	%[LastState | _] = lists:filter(fun(#cdr_raw{transaction = T2}) -> T2 =:= abandonqueue orelese T2 =:= abandonivr end, T),
+
 	[First | _] = T,
 	[Last | _] = lists:reverse(T),
 
@@ -204,6 +206,7 @@ cdr_transaction_to_integer(T) ->
 		failedoutgoing -> 8;
 		transfer -> 9;
 		agent_transfer -> 9;
+		queue_transfer -> 9;
 		warmtransfer -> 10;
 		warmtransfercomplete -> 11;
 		warmtransferfailed -> 12;
@@ -227,6 +230,11 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= on
 	end;
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= inqueue  ->
 	Transaction#cdr_raw.eventdata;
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= queue_transfer  ->
+	"queue " ++ Transaction#cdr_raw.eventdata;
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= abandonqueue  ->
+	% TODO - this should be the queue abandoned from, see related TODO in the cdr module
+	"";
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, #cdr_rec{media = Media} = CDR) when T =:= cdrinit  ->
 	case {Media#call.type, Media#call.direction} of
 		{voice, inbound} -> "call";

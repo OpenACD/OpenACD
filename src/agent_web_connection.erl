@@ -850,6 +850,13 @@ parse_media_call(#call{type = email}, {"attach", _Args}, {ok, Filenames}) ->
 		]}),
 	?DEBUG("html:  ~p", [Html]),
 	{[], Html};
+parse_media_call(#call{type = email}, {"detach", _Args}, {ok, Keys}) ->
+	Binnames = lists:map(fun(N) -> list_to_binary(N) end, Keys),
+	Json = {struct, [
+		{success, true},
+		{<<"filenames">>, Binnames}
+	]},
+	{[], mochijson2:encode(Json)};
 parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {Type, Subtype, Heads, Props}) ->
 	Json = {struct, [
 		{<<"type">>, Type}, 
@@ -949,7 +956,7 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 %			{[], <<"404">>}
 	end;
 parse_media_call(Mediarec, Command, Response) ->
-	?DEBUG("Unparsable result for ~p:~p.  ~p", [Mediarec#call.type, Command, Response]),
+	?WARNING("Unparsable result for ~p:~p.  ~p", [Mediarec#call.type, Command, Response]),
 	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}]})}.
 
 -spec(do_action/3 :: (Nodes :: [atom()], Do :: any(), Acc :: [any()]) -> {'true' | 'false', any()}).

@@ -1,4 +1,5 @@
 dojo.require("dojox.form.FileUploader");
+dojo.requireLocalization("agentUI", "emailPane");
 
 if(typeof(emailPane) == 'undefined'){
 
@@ -216,7 +217,9 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 			uploadUrl:"/media",
 			postData:{
 				command:'attach',
-				mode:'call'
+				mode:'call',
+				filename:'fileUpload',
+				htmlFieldName:'attachFiles'
 			},
 			force:"html",
 			htmlFieldName:'attachFiles',
@@ -226,7 +229,12 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		dojo.connect(temp, 'onChange', function(data){
 			var listNode = dojo.byId('attachmentList');
 			var newhtml = data[0].name;
+			fileUpload.filename = data[0].name;
 			listNode.innerHTML = newhtml;
+		});
+		dojo.connect(temp, 'onComplete', function(data){
+			debug(['fileUpload complete', data]);
+			dojo.publish("emailPane/attachment/add", [data[0]]);
 		});
 	}
 	
@@ -251,6 +259,51 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	});
 		
 	emailPane.fetchPaths(paths);
+});
+
+dojo.byId('attachedList').attachListSub = dojo.subscribe("emailPane/attachment/add", dojo.byId('attachedList'), function(data){
+	if(data.success){
+		while(this.firstChild){
+			this.removeChild(this.firstChild);
+		}
+		for(var i = 0; i < data.filenames.length; i++){
+			var li = this.appendChild(dojo.doc.createElement('li'));
+			li.innerHTML += data.filenames[i];
+			li.insertBefore(dojo.doc.createElement('input'), li.firstChild);
+			var buttonNode = li.firstChild;
+			buttonNode.type = 'image';
+			buttonNode.src = '/images/redx.png';
+			buttonNode.fileIndex = i;
+			buttonNode.filename = data.filenames[i];
+			li.firstChild.onclick = function(e){
+				var index = e.orginalTarget.fileIndex;
+				var nom = e.orginalTarget.filename;
+				dojo.xhrPost({
+					url:"/media",
+					content:{
+						command:'detach',
+						mode:'call',
+						arguments:[index, nom]
+					},
+					handleAs:'json',
+					load:function(res){
+						if(res.success){
+							return true;
+						}
+						
+						warning(['detach failed', res]);
+					},
+					error:function(res){
+						warning(['detach errored', res]);
+					}
+				});
+			}
+			console.log(li);
+		}
+		return true;
+	}
+	
+	warning(["attach failed", data]);
 });
 
 emailPane.getSkeleton();

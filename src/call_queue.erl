@@ -598,7 +598,7 @@ queue_call(Cookpid, Callrec, Key, State) ->
 	Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
 	Value = Queuedrec#queued_call{skills=Expandedskills},
 	Trees = gb_trees:insert(Key, Value, State#state.queue),
-	cdr:inqueue(Callrec, State#state.name),
+	%cdr:inqueue(Callrec, State#state.name),
 	set_cpx_mon(State#state{queue=Trees}),
 	State#state{queue = Trees}.
 

@@ -55,6 +55,7 @@
 	transfer/2,
 	voicemail/2,
 	agent_transfer/2,
+	queue_transfer/2,
 	status/1,
 	merge/3
 ]).
@@ -188,6 +189,12 @@ agent_transfer(Call, {Offerer, Recipient}) when is_pid(Recipient) ->
 	agent_transfer(Call, {Offerer, agent_manager:find_by_pid(Recipient)});
 agent_transfer(Call, {Offerer, Recipient}) ->
 	event({agent_transfer, Call, util:now(), {Offerer, Recipient}}).
+
+%% @doc Notify cdr handler that `#call{} Call' is being offered by `string() Offerer'
+%% to `string() Recipient'.
+-spec(queue_transfer/2 :: (Call :: #call{}, Queue :: string()) -> 'ok').
+queue_transfer(Call, Queue) ->
+	event({queue_transfer, Call, util:now(), Queue}).
 
 %% @doc Notify the cdr handler the `#call{} Call' is being sent to voicemail
 %% from `string() Queue'.
@@ -374,6 +381,7 @@ push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 analyze(hangup, #call{id = Cid}, Time, _, [inivr]) ->
 	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonivr}];
 analyze(hangup, #call{id = Cid}, Time, _, [inqueue]) ->
+	% TODO - queue abandoned from should be noted here, ideally
 	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonqueue}];
 analyze(_, _, _, _, _) ->
 	[].

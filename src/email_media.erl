@@ -205,9 +205,10 @@ init(Args) ->
 	Ref = erlang:ref_to_list(make_ref()),
 	Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
 	[Domain, _To] = binstr:split(binstr:reverse(Mailmap#mail_map.address), <<"@">>, 2),
-	Defaultid = list_to_binary(lists:flatten(io_lib:format("~s@~s", [Refstr, binstr:reverse(Domain)]))),
+	Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, binstr:reverse(Domain)])),
 	Proto = #call{
-		id = binary_to_list(proplists:get_value(<<"Message-ID">>, Mheads, Defaultid)),
+		%id = binary_to_list(proplists:get_value(<<"Message-ID">>, Mheads, Defaultid)),
+		id = Defaultid,
 		type = email,
 		callerid = Callerid,
 		client = Mailmap#mail_map.client,

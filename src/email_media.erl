@@ -204,7 +204,13 @@ init(Args) ->
 	?DEBUG("callerid:  ~s", [Callerid]),
 	Ref = erlang:ref_to_list(make_ref()),
 	Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
-	[Domain, _To] = binstr:split(binstr:reverse(Mailmap#mail_map.address), <<"@">>, 2),
+	[RawDomain, _To] = binstr:split(binstr:reverse(Mailmap#mail_map.address), <<"@">>, 2),
+	Domain = case RawDomain of
+		<<$>, Text/binary>> ->
+			Text;
+		_Else ->
+			RawDomain
+	end,
 	Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, binstr:reverse(Domain)])),
 	Proto = #call{
 		%id = binary_to_list(proplists:get_value(<<"Message-ID">>, Mheads, Defaultid)),

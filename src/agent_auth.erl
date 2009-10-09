@@ -75,6 +75,7 @@
 -export([
 	new_release/1,
 	destroy_release/1,
+	destroy_release/2,
 	update_release/2,
 	get_releases/0
 	]).
@@ -94,8 +95,27 @@ new_release(Rec) when is_record(Rec, release_opt) ->
 %% @doc Remove the release option `string() Label' from the database.
 -spec(destroy_release/1 :: (Label :: string()) -> {'atomic', 'ok'}).
 destroy_release(Label) when is_list(Label) ->
+	destroy_release(label, Label).
+
+%% @doc Remove the release option with the key (id, label) of value from the 
+%% database.
+-spec(destroy_release/2 :: (Key :: 'id' | 'label', Value :: pos_integer() | string()) -> {'atomic', 'ok'}).
+destroy_release(id, Id) ->
 	F = fun() ->
-		mnesia:delete({release_opt, Label})
+		mnesia:delete({release_opt, Id})
+	end,
+	mnesia:transaction(F);
+destroy_release(label, Label) ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(release_opt), X#release_opt.label =:= Label]),
+		case qlc:e(QH) of
+			[] ->
+				ok;
+			[#release_opt{id = Id}] ->
+				mnesia:delete({release_opt, Id});
+			Else ->
+				{error, ambiguous_label}
+		end
 	end,
 	mnesia:transaction(F).
 

@@ -568,7 +568,16 @@ api(["", "release_opts", "update", Idstr], ?COOKIE, Post) ->
 			?WARNING("update release failed:  ~p", [Else]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"write failed">>}]})}
 	end;
-
+api(["", "release_opts", "drop", Idstr], ?COOKIE, Post) ->
+	Id = list_to_integer(Idstr),
+	case agent_auth:destroy_release(id, Id) of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Else ->
+			?WARNING("destroy failed:  ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"delete failed">>}]})}
+	end;
+	
 %% =====
 %% skills -> groups
 %% =====

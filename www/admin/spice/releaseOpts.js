@@ -61,3 +61,22 @@ releaseOpts.updateOption = function(id, obj, loaded, err){
 		}
 	});
 }
+
+releaseOpts.dropOption = function(item, loaded, err){
+	var id = releaseOpts.store.getValue(item, 'id')
+	dojo.xhrPost({
+		url:'/release_opts/drop/' + id,
+		handleAs:'json',
+		load:function(res){
+			if(res.success){
+				releaseOpts.store.deleteItem(item);
+				loaded(res);
+				return;
+			}
+			console.log(['drop opt failed', id, res.message]);
+		},
+		error:function(res){
+			console.log(['drop opt erred', id, res]);
+		}
+	});
+}

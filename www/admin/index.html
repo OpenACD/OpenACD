@@ -396,6 +396,19 @@ dojo.requireLocalization("admin", "labels");
 					<script type="dojo/method" event="postCreate">
 						this.setLabel(dojo.i18n.getLocalization('admin', 'labels').DROP);
 					</script>
+					<script type="dojo/method" event="onClick">
+						var items = dijit.byId('agentReleaseCodesGrid').selection.getSelected();
+						if(items.length == 0){
+							return;
+						}
+						var item = items[0];
+						if(item == null){
+							return;
+						}
+						var good = function(){};
+						var fail = function(){};
+						releaseOpts.dropOption(item, good, fail);
+					</script>
 				</button>
 			</div>
 

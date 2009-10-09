@@ -505,7 +505,11 @@ api({agents, "agents", "new"}, ?COOKIE, Post) ->
 			]),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-	
+
+%% =====
+%% release_opts -> <command>
+%% =====
+
 %% =====
 %% skills -> groups
 %% =====
@@ -948,8 +952,12 @@ api({clients, ClientId, "set"}, ?COOKIE, Post) ->
 		Else ->
 			?WARNING("Count not set client:  ~p", [Else]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Count not set client">>}]})}
-	end.
-	
+	end;
+
+%% api catch-all
+api(_, _, _) ->
+	{404, [], <<"api command not found">>}.
+
 % path spec:
 % /basiccommand
 % /section/subsection/action
@@ -1010,12 +1018,16 @@ parse_path(Path) ->
 					{api, {clients, Action}};
 				["", "clients", Client, Action] ->
 					{api, {clients, Client, Action}};
-				_Allothers ->
-					case filelib:is_regular(string:concat("www/admin", Path)) of
-						true ->
+				Allothers ->
+					Adminpath = string:concat("www/admin", Path),
+					Contribpath = string:concat("www/contrib", Path),
+					case {filelib:is_regular(Adminpath), filelib:is_regular(Contribpath)} of
+						{true, _} ->
 							{file, {string:strip(Path, left, $/), "www/admin/"}};
-						false ->
-							{file, {string:strip(Path, left, $/), "www/contrib/"}}
+						{false, true} ->
+							{file, {string:strip(Path, left, $/), "www/contrib/"}};
+						{false, false} ->
+							{api, Allothers}
 					end
 			end
 	end.

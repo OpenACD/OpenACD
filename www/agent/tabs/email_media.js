@@ -62,14 +62,17 @@ if(typeof(emailPane) == 'undefined'){
 		if( (skeleton.type == "multipart") && (skeleton.subtype == "alternative") ){
 			var getting = 0;
 			var pushon = false;
+			var texttype = "";
 			for(var i = 0; i < skeleton.parts.length; i++){
 				if( (skeleton.parts[i].subtype == "plain") && (getting < 1) ){
 					getting = 1;
 					pushon = i + 1;
+					texttype = 'plain';
 				}				
 				if( (skeleton.parts[i].subtype == "html") && ( getting < 2 ) ){
 					getting = 2;
 					pushon = i + 1;
+					texttype = 'html';
 				}
 				if( (skeleton.parts[i].type == "multipart") && (getting < 3) ){
 					getting = 3;
@@ -86,7 +89,8 @@ if(typeof(emailPane) == 'undefined'){
 				else{
 					fetches.push({
 						'mode':'fetch',
-						'path':tpath
+						'path':tpath,
+						'textType':texttype
 					});
 				}
 			}
@@ -144,6 +148,7 @@ if(typeof(emailPane) == 'undefined'){
 	}
 	
 	emailPane.fetchPaths = function(fetchObjs, fetched){
+		debug(["fetchPaths", fetchObjs[0]]);
 		if(emailPane.fetchSub){
 			return false;
 		}
@@ -237,7 +242,9 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 			dojo.publish("emailPane/attachment/add", [data[0]]);
 		});
 	}
-	
+	dojo.byId('attachmentList').clearSub = dojo.subscribe('emailPane/attachment/add', dojo.byId('attachmentList'), function(){
+		this.innerHTML = '';
+	});
 	dojo.byId('emailToSpan').innerHTML = emailPane.scrubString(skel.headers['To']);
 	dojo.byId('emailFromSpan').innerHTML = emailPane.scrubString(skel.headers['From']);
 	dojo.byId('emailSubjectSpan').innerHTML = emailPane.scrubString(skel.headers['Subject']);
@@ -261,49 +268,53 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	emailPane.fetchPaths(paths);
 });
 
-dojo.byId('attachedList').attachListSub = dojo.subscribe("emailPane/attachment/add", dojo.byId('attachedList'), function(data){
-	if(data.success){
-		while(this.firstChild){
-			this.removeChild(this.firstChild);
-		}
-		for(var i = 0; i < data.filenames.length; i++){
-			var li = this.appendChild(dojo.doc.createElement('li'));
-			li.innerHTML += data.filenames[i];
-			li.insertBefore(dojo.doc.createElement('input'), li.firstChild);
-			var buttonNode = li.firstChild;
-			buttonNode.type = 'image';
-			buttonNode.src = '/images/redx.png';
-			buttonNode.fileIndex = i;
-			buttonNode.filename = data.filenames[i];
-			li.firstChild.onclick = function(e){
-				var index = e.orginalTarget.fileIndex;
-				var nom = e.orginalTarget.filename;
-				dojo.xhrPost({
-					url:"/media",
-					content:{
-						command:'detach',
-						mode:'call',
-						arguments:[index, nom]
-					},
-					handleAs:'json',
-					load:function(res){
-						if(res.success){
-							return true;
-						}
-						
-						warning(['detach failed', res]);
-					},
-					error:function(res){
-						warning(['detach errored', res]);
-					}
-				});
-			}
-			console.log(li);
-		}
-		return true;
+dojo.byId('attachedList').rebuildList = function(filenames){
+	while(this.firstChild){
+		this.removeChild(this.firstChild);
 	}
-	
-	warning(["attach failed", data]);
+	for(var i = 0; i < filenames.length; i++){
+		var li = this.appendChild(dojo.doc.createElement('li'));
+		li.innerHTML += filenames[i];
+		li.insertBefore(dojo.doc.createElement('input'), li.firstChild);
+		var buttonNode = li.firstChild;
+		buttonNode.type = 'image';
+		buttonNode.src = '/images/redx.png';
+		buttonNode.fileIndex = i;
+		buttonNode.filename = filenames[i];
+		li.firstChild.onclick = function(e){
+			var index = e.originalTarget.fileIndex;
+			var nom = e.originalTarget.filename;
+			dojo.xhrPost({
+				url:"/media",
+				content:{
+					command:'detach',
+					mode:'call',
+					arguments:dojo.toJson([index + 1, nom])
+				},
+				handleAs:'json',
+				load:function(res){
+					if(res.success){
+						dojo.publish("emailPane/attachment/drop", [res.filenames]);
+						return true;
+					}
+					
+					warning(['detach failed', res]);
+				},
+				error:function(res){
+					warning(['detach errored', res]);
+				}
+			});
+		}
+	}
+};
+
+dojo.byId('attachedList').attachListAddSub = dojo.subscribe("emailPane/attachment/add", dojo.byId('attachedList'), function(data){
+	this.rebuildList(data.filenames);
 });
+
+dojo.byId('attachedList').attachListDropSub = dojo.subscribe("emailPane/attachment/drop", dojo.byId('attachedList'), function(data){
+	this.rebuildList(data);
+});
+
 
 emailPane.getSkeleton();

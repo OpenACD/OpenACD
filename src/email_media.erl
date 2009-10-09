@@ -274,9 +274,29 @@ handle_call({"attach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 	end,
 	Newfiles = Loop(Loop, Postdata, 0, []),
 	Attachments = lists:append(Oldattachments, Newfiles),
-	Keys = proplists:get_keys(Attachments),
-	?DEBUG("files list:  ~p", [Keys]),
+	Keys = get_prop_keys(Attachments),
+	?DEBUG("files list:  ~p;  Full:  ~p", [Keys, Attachments]),
 	{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments}};
+handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments = Attachments} = State) ->
+	case mochijson2:decode(proplists:get_value("arguments", Postdata, "false")) of
+		false ->
+			{reply, {error, badarg}, State};
+		[Nth, Namebin] ->
+			Name = binary_to_list(Namebin),
+			case (Nth > length(Attachments)) of
+				true ->
+					{reply, {error, out_of_range, Nth}, State};
+				false ->
+					case lists:split(Nth - 1, Attachments) of
+						{Toplist, [{Name, _Bin} | Tail]} ->
+							Newattaches = lists:append(Toplist, Tail),
+							Keys = get_prop_keys(Newattaches),
+							{reply, {ok, Keys}, State#state{outgoing_attachments = Newattaches}};
+						{_, [{Gotname, _} | _]} ->
+							{reply, {error, bad_name, Gotname}, State}
+					end
+			end
+	end;
 handle_call({"send_mail", [To, From, Subject, Bodystruct, Files]}, _From, _Callrec, State) ->
 	{reply, {error, nyi}, State};
 	
@@ -350,6 +370,16 @@ handle_wrapup(_Callrec, State) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+%% @doc get the keys of a proplist, preserving order.
+%% proplists:get_keys/1 does not have predictable order.
+get_prop_keys(List) ->
+	get_prop_keys(List, []).
+
+get_prop_keys([], Acc) ->
+	lists:reverse(Acc);
+get_prop_keys([{Key, _Val} | Tail], Acc) ->
+	get_prop_keys(Tail, [Key | Acc]).
 
 % -type(display_type() :: 'link' | 'html' | 'text').
 % -type(mail_display() :: [{display_type(), any()}]).

@@ -469,6 +469,7 @@ dojo.addOnLoad(function(){
 									medias.init();
 									medias.refreshTree('mediaList');
 									clients.init();
+									releaseOpts.init();
 								}
 								else{
 									dijit.byId("loginpane").show();
@@ -505,6 +506,7 @@ dojo.addOnLoad(function(){
 					medias.init();
 					medias.refreshTree('mediaList');
 					clients.init();
+					releaseOpts.init();
 					//skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);
 				}
 				else{

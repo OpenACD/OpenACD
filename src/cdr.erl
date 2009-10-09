@@ -253,7 +253,7 @@ handle_event({mutate, Oldid, Newcallrec}, #state{id = Oldid} = State) when is_re
 			{ok, State}
 	end;
 handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = Callid, limbo_wrapup_count = Limbocount} = State) ->
-	Ended = case lists:member(Transaction, [hangup, agent_transfer, voicemail]) of
+	Ended = case lists:member(Transaction, [hangup, agent_transfer, voicemail, endwrapup, queue_transfer]) of
 		true ->
 			Time;
 		false ->

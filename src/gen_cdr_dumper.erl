@@ -54,8 +54,16 @@
 	%drop_handler/2,
 	%start_link/0,
 	start_link/2,
+	start_link/0,
 	start/2,
+	start/0,
 	update_notify/1
+]).
+
+%% for null dumping
+-export([
+	dump/2,
+	commit/1
 ]).
 
 %% gen_server callbacks
@@ -85,6 +93,7 @@
 						(Info :: any()) -> 'undefined').
 behaviour_info(callbacks) ->
 	[{dump, 2},
+	{commit, 1},
 	{init, 1},
 	{terminate, 2},
 	{code_change, 3}];
@@ -113,9 +122,18 @@ behaviour_info(_Other) ->
 start_link(Module, Args) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Module, Args], []).
 
+%% @doc Start the cdr_dumper with a null dumpter.
+-spec(start_link/0 :: () -> {'ok', pid()}).
+start_link() ->
+	gen_server:start_link({local, ?MODULE}, ?MODULE, null, []).
+
 -spec(start/2 :: (Module :: atom(), Args :: list()) -> {'ok', pid()}).
 start(Module, Args) ->
 	gen_server:start({local, ?MODULE}, ?MODULE, [Module, Args], []).
+
+-spec(start/0 :: () -> {'ok', pid()}).
+start() ->
+	gen_server:start({local, ?MODULE}, ?MODULE, null, []).
 
 update_notify(TableName) ->
 	Nodes = [node() | nodes()],
@@ -128,6 +146,8 @@ update_notify(TableName) ->
 %%--------------------------------------------------------------------
 %% Function: init(Args) -> {ok, State} |
 %%--------------------------------------------------------------------
+init(null) ->
+	{ok, #state{substate = null, module = ?MODULE}, hibernate};
 init([Module, Args]) ->
 	{ok, Substate} = Module:init(Args),
 	{ok, #state{substate = Substate, module = Module}, hibernate}.
@@ -197,6 +217,8 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
+terminate(Reason, #state{module = ?MODULE}) ->
+	ok;
 terminate(Reason, #state{module = Module, substate = SubState}) ->
 	try Module:terminate(Reason, SubState) of
 		_Whatever ->
@@ -210,6 +232,8 @@ terminate(Reason, #state{module = Module, substate = SubState}) ->
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
 %%--------------------------------------------------------------------
+code_change(_Oldvsn, #state{module = ?MODULE} = State, _Extra) ->
+	{ok, State};
 code_change(OldVsn, #state{module = Module, substate = SubState} = State, Extra) ->
 		NewSubState = try Module:code_change(OldVsn, SubState, Extra) of
 			{ok, Newsub} ->
@@ -255,7 +279,14 @@ dump_rows(QC, State) ->
 			mnesia:delete_object(Row),
 			%?NOTICE("writing updated row ~p", [NewRow]),
 			%?NOTICE("old row ~p", [Row]),
-			mnesia:write(NewRow),
+			case NewRow of
+				#cdr_rec{nodes = []} ->
+					ok;
+				#agent_state{nodes = []} ->
+					ok;
+				_Else ->
+					mnesia:write(NewRow)
+			end,
 			dump_rows(QC, NewState)
 	end.
 
@@ -291,4 +322,8 @@ dump_table(TableName, State) ->
 	?WARNING("Unknown table ~p", [TableName]),
 	State.
 
+commit(_) ->
+	null.
 
+dump(_, _) ->
+	{ok, null}.

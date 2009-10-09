@@ -41,7 +41,8 @@
 	init/1,
 	terminate/2,
 	code_change/3,
-	dump/2
+	dump/2,
+	commit/1
 ]).
 
 -record(state, {
@@ -87,3 +88,6 @@ dump(CDR, #state{cdr_file = File} = State) when is_record(CDR, cdr_rec) ->
 		Media#call.id,
 		Ringing, Inqueue, Oncall, Wrapup]),
 	{ok, State}.
+
+commit(In) ->
+	In.

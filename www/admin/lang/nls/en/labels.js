@@ -13,6 +13,8 @@
 	MEDIATYPES: "Media Types",
 	AGENTMODULES: "Agent Modules",
 	RELEASE_CODES: "Release Codes",
+	ADD: "+",
+	DROP: "-",
 	ADDAGENT: "+",
 	ADDAGENTPROFILE: "+ Profile",
 	DROPAGENTORPROFILE: "-",

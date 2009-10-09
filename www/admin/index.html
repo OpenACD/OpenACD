@@ -360,11 +360,25 @@ dojo.requireLocalization("admin", "labels");
 				</div>
 
 				<div style="width:500px; height: 500px">
-					<table dojoType="dojox.grid.DataGrid" id="agentReleaseCodesGrid">
+					<table dojoType="dojox.grid.DataGrid" id="agentReleaseCodesGrid" selectionMode="single">
+						<script type="dojo/method" event="onApplyEdit">
+							var row = arguments[0];
+							var item = this.getItem(row);
+							var id = releaseOpts.store.getValue(item, 'id');
+							var obj = {
+								label: releaseOpts.store.getValue(item, 'label'),
+								bias: releaseOpts.store.getValue(item, 'bias')
+							};
+							var loaded = function(res){
+								dijit.byId('agentReleaseCodesGrid')._refresh();
+							};
+							var error = function(){};
+							releaseOpts.updateOption(id, obj, loaded, error);
+						</script>
 						<thead>
 							<tr>
-								<th field="label" width="200px">Label</th>
-								<th field="bias" cellType="dojox.grid.cells.Select" options="-1,0,1">Bias</th>
+								<th field="label" editable="true" width="200px">Label</th>
+								<th field="bias" editable="true" cellType="dojox.grid.cells.Select" options="-1,0,1">Bias</th>
 							</tr>
 						</thead>
 					</table>

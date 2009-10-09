@@ -42,3 +42,22 @@ releaseOpts.addOption = function(obj, load, error){
 	});
 }
 
+releaseOpts.updateOption = function(id, obj, loaded, err){
+	dojo.xhrPost({
+		url:"/release_opts/update/" + id,
+		content: obj,
+		handleAs:'json',
+		load:function(res){
+			if(res.success){
+				loaded(res);
+				return true;
+			}
+			
+			console.log(['update opt failed', id, res.message]);
+		},
+		error:function(res){
+			console.log(['update opt errored', res]);
+			err(res);
+		}
+	});
+}

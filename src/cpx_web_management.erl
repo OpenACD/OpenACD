@@ -551,6 +551,23 @@ api(["", "release_opts", "add"], ?COOKIE, Post) ->
 			?WARNING("add_release failed:  ~p", [Else]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"write failed">>}]})}
 	end;
+api(["", "release_opts", "update", Idstr], ?COOKIE, Post) ->
+	Id = list_to_integer(Idstr),
+	Rec = #release_opt{
+		id = Id,
+		label = proplists:get_value("label", Post, "unlabeled"),
+		bias = list_to_integer(proplists:get_value("bias", Post, "0"))
+	},
+	case agent_auth:new_release(Rec) of
+		{atomic, ok} ->
+			Json = {struct, [
+				{success, true}
+			]},
+			{200, [], mochijson2:encode(Json)};
+		Else ->
+			?WARNING("update release failed:  ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"write failed">>}]})}
+	end;
 
 %% =====
 %% skills -> groups

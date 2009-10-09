@@ -1,4 +1,6 @@
 {
+	BIAS: "Bias",
+	LABEL: "Label",
 	CLIENTS:  "Clients",
 	DEFAULTS:  "Defaults",
 	URL_POP:  "Url pop",

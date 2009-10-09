@@ -509,6 +509,48 @@ api({agents, "agents", "new"}, ?COOKIE, Post) ->
 %% =====
 %% release_opts -> <command>
 %% =====
+api(["", "release_opts", "get_all"], ?COOKIE, _Post) ->
+	Releases = agent_auth:get_releases(),
+	Convert = fun(R) ->
+		{struct, [
+			{id, R#release_opt.id},
+			{label, list_to_binary(R#release_opt.label)},
+			{bias, R#release_opt.bias}
+		]}
+	end,
+	Converted = lists:map(Convert, Releases),
+	Json = {struct, [
+		{<<"identifier">>, id},
+		{<<"label">>, label},
+		{<<"items">>, Converted}
+	]},
+	{200, [], mochijson2:encode(Json)};
+api(["", "release_opts", "add"], ?COOKIE, Post) ->
+	Releases = agent_auth:get_releases(),
+	Maxid = case Releases of
+		[] ->
+			0;
+		List ->
+			#release_opt{id = Id} = lists:max(List),
+			Id
+	end,
+	Newid = Maxid + 1,
+	Rec = #release_opt{
+		id = Newid, 
+		label = proplists:get_value("label", Post, "unlabeled"),
+		bias = list_to_integer(proplists:get_value("bias", Post, "0"))
+	},
+	case agent_auth:new_release(Rec) of
+		{atomic, ok} ->
+			Json = {struct, [
+				{success, true},
+				{id, Newid}
+			]},
+			{200, [], mochijson2:encode(Json)};
+		Else ->
+			?WARNING("add_release failed:  ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"write failed">>}]})}
+	end;
 
 %% =====
 %% skills -> groups

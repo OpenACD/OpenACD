@@ -302,17 +302,85 @@ dojo.requireLocalization("admin", "labels");
 			</div>
 			
 			<div dojoType="dijit.layout.ContentPane" id="agentReleaseCodesSettings">
-				<table dojoType="dojox.grid.DataGrid" id="agentRelaseCodesGrid">
-					<thead>
-						<tr>
-							<th field="label" width="200px">Label</th>
-							<th field="bias" cellType="dojox.grid.cells.Select" options="-1,0,1">Bias</th>
-						</tr>
-					</thead>
-				</table>
-				<button type="dijit.form.Button" label="SUBMIT">
+				<script type="dojo/connect" event="_onShow">
+					dijit.byId('agentReleaseCodesGrid').setStore(releaseOpts.store);
+					dijit.byId('agentReleaseCodesGrid')._refresh();
+				</script>
+				<div dojoType="dijit.Dialog" title="RELEASE_CODES" id="releaseOptAddDialog">
+					<script type="dojo/connect" event="onShow">
+						this.setAttribute('title', dojo.i18n.getLocalization('admin', 'labels').RELEASE_CODES);
+						dijit.byId('releaseOptAddForm').reset();
+					</script>
+					<div dojoType="dijit.form.Form" id="releaseOptAddForm" action="/release_opts/add" method="post">
+						<p>
+							<label class="translatecol">LABEL</label>
+							<input dojoType="dijit.form.TextBox" name="label" type="text" />
+						</p>
+						
+						<p>
+							<label class="translatecol">BIAS</label>
+							<select dojoType="dijit.form.ComboBox" name="bias">
+								<option>-1</option>
+								<option>0</option>
+								<option>1</option>
+							</select>
+						</p>
+						
+						<p>
+							<label>&nbsp;</label>
+							<button dojoType="dijit.form.Button" label="SUBMIT">
+								<script type="dojo/method" event="postCreate">
+									this.setLabel(dojo.i18n.getLocalization('admin', 'labels').SUBMIT);
+								</script>
+								<script type="dojo/connect" event="onClick">
+									var vals = dijit.byId('releaseOptAddForm').getValues();
+									var loaded = function(res){
+										if(res.success){
+											releaseOpts.store.newItem({
+												id: res.id,
+												label: vals.label,
+												bias: vals.bias
+											});
+											releaseOpts.store.save();
+											dijit.byId('agentReleaseCodesGrid')._refresh();
+											return true;
+										}
+										
+										console.log(['add release failed', res.message]);
+									};
+									var error = function(res){
+										console.log(['add release erred', res]);
+									};
+									releaseOpts.addOption(vals, loaded, error);
+									dijit.byId('releaseOptAddDialog').hide();
+								</script>
+							</button>
+						</p>
+					</div>
+				</div>
+
+				<div style="width:500px; height: 500px">
+					<table dojoType="dojox.grid.DataGrid" id="agentReleaseCodesGrid">
+						<thead>
+							<tr>
+								<th field="label" width="200px">Label</th>
+								<th field="bias" cellType="dojox.grid.cells.Select" options="-1,0,1">Bias</th>
+							</tr>
+						</thead>
+					</table>
+				</div>
+				
+				<button dojoType="dijit.form.Button" label="ADD">
 					<script type="dojo/method" event="postCreate">
-						this.setLabel(dojo.i18n.getLocalization('admin', 'labels').SUBMIT);
+						this.setLabel(dojo.i18n.getLocalization('admin', 'labels').ADD);
+					</script>
+					<script type="dojo/connect" event="onClick">
+						dijit.byId('releaseOptAddDialog').show();
+					</script>
+				</button>
+				<button dojoType="dijit.form.Button" label="DROP">
+					<script type="dojo/method" event="postCreate">
+						this.setLabel(dojo.i18n.getLocalization('admin', 'labels').DROP);
 					</script>
 				</button>
 			</div>

@@ -90,8 +90,8 @@
 -define(DEFAULT_PROFILE, #agent_profile{name = "Default", timestamp = util:now()}).
 
 -record(release_opt, {
-	label :: string(),
 	id :: pos_integer(),
+	label :: string(),
 	bias = 0 :: -1 | 0 | 1,
 	timestamp = util:now() :: pos_integer()
 	}).

@@ -9,7 +9,7 @@ releaseOpts.store = releaseOpts.store = new dojo.data.ItemFileWriteStore({
 releaseOpts.init = function(){
 	releaseOpts.store._forceLoad();
 	releaseOpts.store._saveCustom = function(savecomplete){
-		var changeset = releaseOpts._pending;
+		var changeset = releaseOpts.store._pending;
 		var updates = [];
 		for(var i in changeset._modifiedItems){
 			var item = null;
@@ -24,6 +24,21 @@ releaseOpts.init = function(){
 		savecomplete();
 	}
 	
-	dijit.byId('agentRelaseCodesGrid').setStore = releaseOpts.store;
+	dijit.byId('agentReleaseCodesGrid')._setStore(releaseOpts.store);
+	dijit.byId('agentReleaseCodesGrid')._refresh();
+}
+
+releaseOpts.addOption = function(obj, load, error){
+	dojo.xhrPost({
+		url:"/release_opts/add",
+		content:obj,
+		handleAs:'json',
+		'load':function(res){
+			load(res);
+		},
+		'error':function(res){
+			error(res);
+		}
+	});
 }
 

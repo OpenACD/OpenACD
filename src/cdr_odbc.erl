@@ -225,7 +225,7 @@ cdr_transaction_to_integer(T) ->
 		cdrend -> 21
 	end.
 
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= oncall; T =:= wrapup; T =:= ringing  ->
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= oncall; T =:= wrapup; T =:= endwrapup; T =:= ringing  ->
 	case agent_auth:get_agent(Transaction#cdr_raw.eventdata) of
 		{atomic, [Rec]} when is_tuple(Rec) ->
 			element(2, Rec);
@@ -236,6 +236,15 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= in
 	Transaction#cdr_raw.eventdata;
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= queue_transfer  ->
 	"queue " ++ Transaction#cdr_raw.eventdata;
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= agent_transfer  ->
+	{From, To} = Transaction#cdr_raw.eventdata,
+	Agent = case agent_auth:get_agent(To) of
+		{atomic, [Rec]} when is_tuple(Rec) ->
+			element(2, Rec);
+		_ ->
+			"0"
+	end,
+	"agent " ++ Agent;
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= abandonqueue  ->
 	% TODO - this should be the queue abandoned from, see related TODO in the cdr module
 	"";

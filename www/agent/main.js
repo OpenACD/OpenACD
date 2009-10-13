@@ -149,7 +149,7 @@ dojo.addOnLoad(function(){
 			if(response.success){
 				dojo.byId("main").style.display="block";
 				dojo.byId("main").style.visibility = "visible";
-				agent = new Agent(response.login);
+				agent = new Agent(response.login, parseInt(response.statetime));
 				buildReleaseMenu(agent);
 				buildOutboundMenu(agent);
 				buildQueueMenu(agent);
@@ -185,7 +185,7 @@ dojo.addOnLoad(function(){
 						s = "0"+s;
 					}
 					s = d.getMinutes()+":"+s;
-					if (d.getHours > 0) {
+					if (d.getHours() > 0) {
 						s = d.getHours() + ":" + s;
 					}
 					dojo.byId("timerdisp").innerHTML = s;
@@ -489,36 +489,35 @@ dojo.addOnLoad(function(){
 						content:values,
 						load:function(response2, ioargs2){
 							if(response2.success){
-							EventLog.log("Logged in");
-							dijit.byId("loginpane").hide();
-							dojo.byId("main").style.display="block";
-							dojo.byId("main").style.visibility = "visible";
-							dojo.byId("agentname").innerHTML = attrs.username;
-							dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response2.profile;
-							debug(response2);
-							agent = new Agent(attrs.username);
-							agent.stopwatch.onTick = function(){
-							var elapsed = agent.stopwatch.time();
-							var d = new Date();
-							d.setHours(0);
-							d.setMinutes(0);
-							d.setSeconds(elapsed);
-							var s = "" + d.getSeconds();
-							if (d.getSeconds() < 10) {
-								s = "0"+s;
-							}
-							s = d.getMinutes()+":"+s;
-							if (d.getHours > 0) {
-								s = d.getHours() + ":" + s;
-							}
-							dojo.byId("timerdisp").innerHTML = s;
-							}
-							buildReleaseMenu(agent);
-							buildOutboundMenu(agent);
-							buildQueueMenu(agent);
-							agent.stopwatch.start();
-							}
-							else{
+								EventLog.log("Logged in");
+								dijit.byId("loginpane").hide();
+								dojo.byId("main").style.display="block";
+								dojo.byId("main").style.visibility = "visible";
+								dojo.byId("agentname").innerHTML = attrs.username;
+								dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response2.profile;
+								debug(response2);
+								agent = new Agent(attrs.username, parseInt(response2.statetime));
+								agent.stopwatch.onTick = function(){
+									var elapsed = agent.stopwatch.time();
+									var d = new Date();
+									d.setHours(0);
+									d.setMinutes(0);
+									d.setSeconds(elapsed);
+									var s = "" + d.getSeconds();
+									if (d.getSeconds() < 10) {
+										s = "0"+s;
+									}
+									s = d.getMinutes()+":"+s;
+									if (d.getHours() > 0) {
+										s = d.getHours() + ":" + s;
+									}
+									dojo.byId("timerdisp").innerHTML = s;
+								}
+								buildReleaseMenu(agent);
+								buildOutboundMenu(agent);
+								buildQueueMenu(agent);
+								agent.stopwatch.start();
+							} else{
 								dojo.byId("loginerrp").style.display = "block";
 								dojo.byId("loginerrspan").innerHTML = response2.message;
 							}

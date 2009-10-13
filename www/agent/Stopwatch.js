@@ -1,6 +1,17 @@
-function Stopwatch(){
+function Stopwatch(elapsed){
 	this.tref = null;
-	this.elapsed = 0;
+	if (isNaN(elapsed)) {
+		this.elapsed = 0;
+	} else {
+		var now = Math.round(new Date().getTime() / 1000);
+		if (now > elapsed) {
+			this.elapsed = now - elapsed;
+		} else {
+			console.log(now);
+			console.log(elapsed);
+			this.elapsed = 0;
+		}
+	}
 	this.onTick = function(){};
 	
 	var stopwatch = this;

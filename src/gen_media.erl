@@ -962,18 +962,18 @@ set_cpx_mon(#state{callrec = Call} = _State, delete) ->
 	cpx_monitor:drop({media, Call#call.id});
 set_cpx_mon(#state{callrec = Call} = _State, Details) ->
 	Client = Call#call.client,
-	Basedet = [
+	MidBasedet = [
 		{type, Call#call.type},
 		{callerid, Call#call.callerid},
 		{client, Client#client.label},
 		{ring_path, Call#call.ring_path},
 		{media_path, Call#call.media_path}
 	],
-	Hp = case proplists:get_value(queue, Details) of
+	{Hp, Basedet} = case proplists:get_value(queue, Details) of
 		undefined ->
-			[{agent_link, {0, 60 * 5, 60 * 15, {time, util:now()}}}];
+			{[{agent_link, {0, 60 * 5, 60 * 15, {time, util:now()}}}], MidBasedet};
 		_Q ->
-			[{inqueue, {0, 60 * 5, 60 * 10, {time, util:now()}}}]
+			{[{inqueue, {0, 60 * 5, 60 * 10, {time, util:now()}}}], [{queued_at, util:now()} | MidBasedet]}
 	end,
 	Fulldet = lists:append([Basedet, Details]),
 	cpx_monitor:set({media, Call#call.id}, Hp, Fulldet).

@@ -608,7 +608,8 @@ set_cpx_mon(State) ->
 	Key = {queue, State#state.name},
 	Details = [
 		{weight, State#state.weight},
-		{group, State#state.group}
+		{group, State#state.group},
+		{calls, gb_trees:size(State#state.queue)}
 	],
 	Hp = [
 		{calls, {0, 5, 10, gb_trees:size(State#state.queue)}}

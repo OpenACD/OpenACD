@@ -1003,7 +1003,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 
 set_cpx_monitor(State, Hp, Otherdeatils) ->
 	log_change(State),
-	Deatils = lists:append([{profile, State#agent.profile}, {state, State#agent.state}, {statedata, State#agent.statedata}, {login, State#agent.login}], Otherdeatils),
+	Deatils = lists:append([{profile, State#agent.profile}, {state, State#agent.state}, {statedata, State#agent.statedata}, {login, State#agent.login}, {lastchangetimestamp, State#agent.lastchangetimestamp}], Otherdeatils),
 	cpx_monitor:set({agent, State#agent.id}, [Hp], Deatils).
 
 log_change(#agent{log_pid = undefined}) ->

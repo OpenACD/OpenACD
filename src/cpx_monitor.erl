@@ -349,7 +349,7 @@ handle_leader_cast({reporting, Node}, State, Election) ->
 	entry({{node, Node}, [{up, 50}], [{state, reported}], util:now()}, State, Election),
 	{noreply, State};
 handle_leader_cast({subscribe, Pid, Fun}, #state{subscribers = Subs} = State, _Election) ->
-	Newsubs = case proplists:get(Pid, Subs) of
+	Newsubs = case proplists:get_value(Pid, Subs) of
 		undefined ->
 			link(Pid),
 			[{Pid, Fun} | Subs];

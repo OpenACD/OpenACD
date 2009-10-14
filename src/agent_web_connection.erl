@@ -369,6 +369,9 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
+		["endmonitor"] ->
+			cpx_monitor:unsubscribe(),
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 		["spy", Agentname] ->
 			Json = case agent_manager:query_agent(Agentname) of
 				{true, Apid} ->

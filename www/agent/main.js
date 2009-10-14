@@ -237,7 +237,11 @@ dojo.addOnLoad(function(){
 	dojo.byId("statedisp").stateChanger = dojo.subscribe("agent/state", function(data){
 		var node = dojo.byId("statedisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		node.innerHTML = nlsStrings.STATE + ":" + nlsStrings[data.state.toUpperCase()];
+		var innnerh = nlsStrings.STATE + ":  " + nlsStrings[data.state.toUpperCase()];
+		if(data.state == "released"){
+			innnerh += " (" + data.statedata + ")";
+		}
+		node.innerHTML = innnerh;
 	});
 
 	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("agent/state", function(data){

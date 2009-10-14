@@ -44,7 +44,7 @@ function Agent(username){
 				
 				default:
 					dojo.publish("agent/" + datalist[i].command, [datalist[i]]);
-					warning(["unhandled command", datalist[i].command]);
+					info(["non-local command", datalist[i].command]);
 			 }
 		}
 	}

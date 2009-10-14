@@ -1680,12 +1680,27 @@ supervisorTab.logoutListener = dojo.subscribe("agent/logout", function(data){
 	clearTimeout(supervisorTab.hpCalcTimer)
 });
 
-supervisorTab.tabKillListener = dojo.subscribe("tabPanel-removeChild", function(child){
+window.supervisorTabKillListen = dojo.subscribe("tabPanel-removeChild", function(child){
 	if(child.title == "Supervisor"){
 		clearTimeout(supervisorTab.hpCalcTimer);
+		dojo.unsubscribe(window.supervisorTabKillListen);
+		dojo.unsubscribe(supervisorTab.logoutListener);
+		dojo.unsubscribe(supervisorTab.masterSub);
+		dojo.xhrGet({
+			url:"/supervisor/endmonitor",
+			handleAs:'json',
+			load:function(res){
+				if(res.success){
+				}
+				else{
+					debug(["endmonitor failed", res.message]);
+				}
+			},
+			error:function(res){
+				warning(["endmonitor errored", res]);
+			}
+		});
 	}
-	dojo.unsubscribe(supervisorTab.logoutListener);
-	dojo.unsubscribe(supervisorTab.masterSub);
 });
 
 supervisorTab.hpcalc();

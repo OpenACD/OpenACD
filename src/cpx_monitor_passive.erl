@@ -126,7 +126,7 @@ init(Options) ->
 	Torec = fun({Name, Props}) ->
 		Fileout = proplists:get_value(xml_output, Props, lists:append(["./", Name])),
 		Filter = #filter{
-			file_output = Fileout,
+			file_output = lists:append([Fileout, ".", atom_to_list(json)]),
 			queues = proplists:get_value(queues, Props, all),
 			queue_groups = proplists:get_value(queue_groups, Props, all),
 			agents = proplists:get_value(agents, Props, all),

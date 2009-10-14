@@ -178,7 +178,7 @@ handle_info(write_output, #state{filters = Filters} = State) ->
 		Encoded = mochijson2:encode(Json),
 		{ok, File} = file:open(FilterRec#filter.file_output, [write, binary]),
 		ok = file:write(File, Encoded),
-		?INFO("wrote ~p to ~p", [Name, FilterRec#filter.file_output]),
+		?DEBUG("wrote ~p to ~p", [Name, FilterRec#filter.file_output]),
 		ok
 	end,
 	

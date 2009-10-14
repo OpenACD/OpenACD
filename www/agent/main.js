@@ -534,6 +534,7 @@ dojo.addOnLoad(function(){
 			url:"/releaseopts",
 			handleAs:"json",
 			error:function(response, ioargs){
+				warning(["getting release codes errored", response]);
 				var menu = dijit.byId("releasedmenu");
 				var item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
@@ -544,13 +545,16 @@ dojo.addOnLoad(function(){
 			load:function(response, ioargs){
 				if(response.success){
 					var menu = dijit.byId("releasedmenu");
-					var item = new dijit.MenuItem({
-						label: nlsStrings.DEFAULT,
-						onClick:function(){agent.setState("released", "Default"); }
+					dojo.forEach(response.options, function(obj){
+						var item = new dijit.MenuItem({
+							label: obj.label,
+							onClick:function(){agent.setState("released", obj.id + ":" + obj.label); }
+						});
+						menu.addChild(item);
 					});
-					menu.addChild(item);
 				}
 				else{
+					warning(["getting release codes failed", response.message]);
 					var menu = dijit.byId("releasedmenu");
 					var item = new dijit.MenuItem({
 						label: nlsStrings.DEFAULT,

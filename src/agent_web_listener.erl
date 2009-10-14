@@ -435,7 +435,7 @@ api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
 		{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, Id}]}
 	end,
 	Jsons = lists:map(Converter, Releaseopts),
-	{200, [], mochijson2:encode(Jsons)};	
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"options">>, Jsons}]})};	
 	
 api(poll, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
 	agent_web_connection:poll(Conn, self()),

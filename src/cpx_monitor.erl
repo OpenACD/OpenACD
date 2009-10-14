@@ -64,6 +64,7 @@
 	health/4,
 	to_proplist/1,
 	subscribe/0,
+	subscribe/1,
 	unsubscribe/0
 	]).
 
@@ -91,7 +92,7 @@
 	merge_status = none :: 'none' | any(),
 	merging = none :: 'none' | [atom()],
 	ets :: any(),
-	subscribers = [] :: [pid()]
+	subscribers = [] :: [{pid(), fun()}]
 }).
 
 -type(state() :: #state{}).
@@ -150,11 +151,17 @@ get_health(Time) when is_integer(Time) ->
 get_health(Type) ->
 	gen_leader:leader_call(?MODULE, {get, Type}).
 
-%% @doc Subscribe the calling process to events from cpx_monitor.
+%% @doc Subscribe the calling process to all events from cpx_monitor.
 -spec(subscribe/0 :: () -> 'ok').
 subscribe() ->
+	subscribe(fun(_) -> true end).
+
+%% @doc Subscribe the calling process to certain events.  If the fun returns
+%% true, the event is forwarded on, otherwise not.
+-spec(subscribe/1 :: (Fun :: fun()) -> 'ok').
+subscribe(Fun) ->
 	Pid = self(),
-	gen_leader:leader_cast(?MODULE, {subscribe, Pid}).
+	gen_leader:leader_cast(?MODULE, {subscribe, Pid, Fun}).
 
 %% @doc Unsubscribe the calling process to events from cpx_monitor.
 -spec(unsubscribe/0 :: () -> 'ok').
@@ -341,20 +348,20 @@ handle_leader_call(Message, From, State, _Election) ->
 handle_leader_cast({reporting, Node}, State, Election) ->
 	entry({{node, Node}, [{up, 50}], [{state, reported}], util:now()}, State, Election),
 	{noreply, State};
-handle_leader_cast({subscribe, Pid}, #state{subscribers = Subs} = State, _Election) ->
-	case lists:member(Pid, Subs) of
-		true ->
-			?DEBUG("~w is already a sub", [Pid]),
-			{noreply, State};
-		false ->
+handle_leader_cast({subscribe, Pid, Fun}, #state{subscribers = Subs} = State, _Election) ->
+	Newsubs = case proplists:get(Pid, Subs) of
+		undefined ->
 			link(Pid),
-			?DEBUG("adding ~w to subscribers", [Pid]),
-			{noreply, State#state{subscribers = [Pid | Subs]}}
-	end;
+			[{Pid, Fun} | Subs];
+		_Else ->
+			Midsub = proplists:delete(Pid, Subs),
+			[{Pid, Fun} | Midsub]
+	end,
+	{noreply, State#state{subscribers = Newsubs}};
 handle_leader_cast({unsubscribe, Pid}, #state{subscribers = Subs} = State, _Election) ->
 	?DEBUG("removing ~w from subscribers", [Pid]),
 	unlink(Pid),
-	Newsubs = lists:delete(Pid, Subs),
+	Newsubs = proplists:delete(Pid, Subs),
 	{noreply, State#state{subscribers = Newsubs}};
 handle_leader_cast({drop, Key}, #state{ets = Tid} = State, Election) ->
 	entry({drop, Key}, State, Election),
@@ -454,7 +461,7 @@ handle_info({merge_complete, Mod, Recs}, #state{status = merging} = State) ->
 	end;
 handle_info({'EXIT', From, Reason}, #state{subscribers = Subs} = State) ->
 	?INFO("~p said it died due to ~p.", [From, Reason]),
-	Newsubs = lists:delete(From, Subs),
+	Newsubs = proplists:delete(From, Subs),
 	{noreply, State#state{subscribers = Newsubs}};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -608,8 +615,13 @@ entry(Entry, #state{ets = Tid} = State, Election) ->
 
 tell_subs(Message, Subs) ->
 	?DEBUG("Telling subs ~p message ~p", [Subs, Message]),
-	lists:foreach(fun(Pid) ->
-		Pid ! {cpx_monitor_event, Message}
+	lists:foreach(fun({Pid, Fun}) ->
+		case Fun(Message) of
+			true ->
+				Pid ! {cpx_monitor_event, Message};
+			false ->
+				ok
+		end
 	end, Subs).
 
 tell_cands(Message, Election) ->

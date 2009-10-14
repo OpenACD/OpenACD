@@ -965,7 +965,7 @@ set_cpx_mon(#state{callrec = Call} = _State, Details) ->
 	MidBasedet = [
 		{type, Call#call.type},
 		{callerid, Call#call.callerid},
-		{client, Client#client.label},
+		{client, Client},
 		{ring_path, Call#call.ring_path},
 		{media_path, Call#call.media_path}
 	],

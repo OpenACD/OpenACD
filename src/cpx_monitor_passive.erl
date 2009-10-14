@@ -211,12 +211,13 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 create_queued_clients(Medias, Filter) ->
+	?DEBUG("Medias:  ~p", [Medias]),
 	create_queued_clients(Medias, Filter, []).
 
 create_queued_clients([], _Filter, Acc) ->
 	Acc;
 create_queued_clients([{{media, _Id}, _Hp, Det} = Head | Tail], #filter{queues = Queues, queue_groups = Qgroups, clients = Clients} = Filter, Acc) ->
-	Newacc = case proplists:get_value(queue, Det) of
+	NewAcc = case proplists:get_value(queue, Det) of
 		undefined ->
 			Acc;
 		Queue ->
@@ -227,12 +228,14 @@ create_queued_clients([{{media, _Id}, _Hp, Det} = Head | Tail], #filter{queues =
 					Time = proplists:get_value(queued_at, Det),
 					case proplists:get_value(Client, Acc) of
 						undefined ->
+							?DEBUG("Client ~p not found in Acc ~p", [Client, Acc]),
 							[{Client, {1, Time}} | Acc];
 						{Count, Othertime} ->
+							?DEBUG("Client ~p found with count ~p and time ~p", [Client, Count, Othertime]),
 							Midacc = proplists:delete(Client, Acc),
 							case Othertime < Time of
 								true ->
-									[{Client, {Count +1, Othertime}} | Midacc];
+									[{Client, {Count + 1, Othertime}} | Midacc];
 								false ->
 									[{Client, {Count + 1, Time}} | Midacc]
 							end
@@ -240,7 +243,8 @@ create_queued_clients([{{media, _Id}, _Hp, Det} = Head | Tail], #filter{queues =
 				_Else ->
 					Acc
 			end
-	end.
+	end,
+	create_queued_clients(Tail, Filter, NewAcc).
 
 clients_queued_to_json(List) ->
 	clients_queued_to_json(List, []).

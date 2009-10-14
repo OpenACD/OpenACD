@@ -295,7 +295,8 @@ api(checkcookie, Cookie, _Post) ->
 				{<<"login">>, list_to_binary(Agentrec#agent.login)},
 				{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
 				{<<"state">>, Agentrec#agent.state},
-				{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)}]},
+				{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
+				{<<"statetime">>, agent_web_connection:encode_statetime(Agentrec#agent.lastchangetimestamp)}]},
 			{200, [], mochijson2:encode(Json)};
 		badcookie ->
 			?INFO("cookie not in ets", []),
@@ -372,9 +373,10 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 									?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
 									gen_server:call(Pid, {set_endpoint, Endpoint}),
 									linkto(Pid),
+									#agent{lastchangetimestamp = StateTime} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Reflist, Salt, Pid}),
 									?DEBUG("connection started for ~p", [Reflist]),
-									{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}, {<<"profile">>, list_to_binary(Profile)}]})};
+									{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"logged in">>}, {<<"profile">>, list_to_binary(Profile)}, {<<"statetime">>, agent_web_connection:encode_statetime(StateTime)}]})};
 								ignore ->
 									?WARNING("Ignore message trying to start connection for ~p", [Reflist]),
 									{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};

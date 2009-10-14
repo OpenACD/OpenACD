@@ -1,4 +1,4 @@
-function Agent(username){
+function Agent(username, statetime){
 	this.login = username;
 	this.securitylevel = "";
 	this.profile = "";
@@ -9,7 +9,7 @@ function Agent(username){
 	
 	var agentref = this;
 
-	this.stopwatch = new Stopwatch();
+	this.stopwatch = new Stopwatch(statetime);
 	this.stopwatch.onTick = function(){}
 	
 	this.handleData = function(datalist){

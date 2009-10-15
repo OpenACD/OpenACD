@@ -144,7 +144,7 @@ handle_cast({change_state, _AgState}, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
-handle_info(answer, #state{call = Call} = State) ->
+handle_info(answer, #state{call = Call} = State) when is_record(Call, call)->
 	?INFO("time to answer", []),
 	%gen_server:call(Call#call.source, unqueue),
 	case Call#call.ring_path of
@@ -155,7 +155,7 @@ handle_info(answer, #state{call = Call} = State) ->
 	end,
 	gen_server:cast(Call#call.cook, remove_from_queue),
 	{noreply, State};
-handle_info(hangup, #state{call = Call} = State) ->
+handle_info(hangup, #state{call = Call} = State) when is_record(Call, call) ->
 	?INFO("time to hangup", []),
 	case Call#call.ring_path of
 		inband ->
@@ -164,7 +164,7 @@ handle_info(hangup, #state{call = Call} = State) ->
 			agent:set_state(State#state.agent_fsm, wrapup, State#state.call)
 	end,
 	{noreply, State};
-handle_info(endwrapup, State) ->
+handle_info(endwrapup, #state{call = Call} = State) when is_record(Call, call) ->
 	?INFO("time to endwrapup", []),
 	agent:set_state(State#state.agent_fsm, idle),
 	case State#state.maxcalls of
@@ -172,7 +172,7 @@ handle_info(endwrapup, State) ->
 		SomeNumber when (SomeNumber - 1) =< 0 ->
 			{stop, shutdown, State};
 		SomeNumber ->
-			{noreply, State#state{maxcalls = SomeNumber - 1}}
+			{noreply, State#state{call = undefined, maxcalls = SomeNumber - 1}}
 	end;
 handle_info(_Info, State) ->
 	{noreply, State}.

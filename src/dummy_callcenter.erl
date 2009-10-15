@@ -209,7 +209,7 @@ handle_cast(_Msg, State) ->
 handle_info({'EXIT', Pid, Why}, #state{conf = Conf} = State) ->
 	case lists:member(Pid, State#state.media_pids) of
 		true ->
-			Newmedias = lists:delete(State#state.media_pids),
+			Newmedias = lists:delete(Pid, State#state.media_pids),
 			{noreply, State#state{media_pids = Newmedias}};
 		false ->
 			case proplists:get_value(Pid, State#state.agent_pids) of

@@ -828,7 +828,7 @@ release_opt_test_() ->
 					new_release(Copt),
 					new_release(Bopt),
 					new_release(Aopt),
-					?assertMatch([#release_opt{label = "aoption"}, #release_opt{label = "boption"}, #release_opt{label = "coption"}], get_releases())
+					?assertMatch([#release_opt{label = "coption"}, #release_opt{label = "boption"}, #release_opt{label = "aoption"}], get_releases())
 				end
 			}
 		]

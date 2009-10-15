@@ -149,7 +149,8 @@ dojo.addOnLoad(function(){
 			if(response.success){
 				dojo.byId("main").style.display="block";
 				dojo.byId("main").style.visibility = "visible";
-				agent = new Agent(response.login, parseInt(response.statetime));
+				agent = new Agent(response.login, parseInt(response.statetime), response.timestamp);
+				agent.setSkew(response.timestamp);
 				buildReleaseMenu(agent);
 				buildOutboundMenu(agent);
 				buildQueueMenu(agent);
@@ -237,7 +238,11 @@ dojo.addOnLoad(function(){
 	dojo.byId("statedisp").stateChanger = dojo.subscribe("agent/state", function(data){
 		var node = dojo.byId("statedisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		node.innerHTML = nlsStrings.STATE + ":" + nlsStrings[data.state.toUpperCase()];
+		var innnerh = nlsStrings.STATE + ":  " + nlsStrings[data.state.toUpperCase()];
+		if(data.state == "released"){
+			innnerh += " (" + data.statedata + ")";
+		}
+		node.innerHTML = innnerh;
 	});
 
 	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("agent/state", function(data){
@@ -497,6 +502,7 @@ dojo.addOnLoad(function(){
 								dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response2.profile;
 								debug(response2);
 								agent = new Agent(attrs.username, parseInt(response2.statetime));
+								agent.setSkew(response2.timestamp);
 								agent.stopwatch.onTick = function(){
 									var elapsed = agent.stopwatch.time();
 									var d = new Date();
@@ -534,6 +540,7 @@ dojo.addOnLoad(function(){
 			url:"/releaseopts",
 			handleAs:"json",
 			error:function(response, ioargs){
+				warning(["getting release codes errored", response]);
 				var menu = dijit.byId("releasedmenu");
 				var item = new dijit.MenuItem({
 					label: nlsStrings.DEFAULT,
@@ -544,13 +551,16 @@ dojo.addOnLoad(function(){
 			load:function(response, ioargs){
 				if(response.success){
 					var menu = dijit.byId("releasedmenu");
-					var item = new dijit.MenuItem({
-						label: nlsStrings.DEFAULT,
-						onClick:function(){agent.setState("released", "Default"); }
+					dojo.forEach(response.options, function(obj){
+						var item = new dijit.MenuItem({
+							label: obj.label,
+							onClick:function(){agent.setState("released", obj.id + ":" + obj.label); }
+						});
+						menu.addChild(item);
 					});
-					menu.addChild(item);
 				}
 				else{
+					warning(["getting release codes failed", response.message]);
 					var menu = dijit.byId("releasedmenu");
 					var item = new dijit.MenuItem({
 						label: nlsStrings.DEFAULT,

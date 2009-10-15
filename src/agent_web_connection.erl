@@ -722,7 +722,7 @@ handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = unde
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Pollpid} = State) when is_pid(Pollpid) ->
 	case util:now() - Last of
 		N when N > 20 ->
-			Newstate = push_event({struct, [{success, true}, {<<"command">>, <<"pong">>}]}, State),
+			Newstate = push_event({struct, [{success, true}, {<<"command">>, <<"pong">>}, {<<"timestamp">>, util:now()}]}, State),
 			{noreply, Newstate};
 		_N ->
 			{noreply, State}
@@ -742,9 +742,15 @@ handle_info({cpx_monitor_event, Message}, State) ->
 					{<<"id">>, list_to_binary(lists:append([atom_to_list(Type), "-", Name]))}
 				]}}
 			]};
-		{set, {{Type, Name}, Healthprop, Detailprop, Timestamp}} ->
+		{set, {{Type, MaybeName}, Healthprop, Detailprop, Timestamp}} ->
 			Encodedhealth = encode_health(Healthprop),
 			Encodeddetail = encode_proplist(Detailprop),
+			Name = case Type of
+				agent ->
+					proplists:get_value(login, Detailprop);
+				_Else ->
+					MaybeName
+			end,
 			{struct, [
 				{<<"command">>, <<"supervisortab">>},
 				{<<"data">>, {struct, [
@@ -1160,12 +1166,17 @@ encode_stats([], Count, Acc) ->
 	{Count - 1, Acc};
 encode_stats([Head | Tail], Count, Acc) ->
 	Proplisted = cpx_monitor:to_proplist(Head),
-	Display = case proplists:get_value(name, Proplisted) of
-		Name when is_binary(Name) ->
+	Protohealth = proplists:get_value(health, Proplisted),
+	Protodetails = proplists:get_value(details, Proplisted),
+	Display = case {proplists:get_value(name, Proplisted), proplists:get_value(type, Proplisted)} of
+		{Name, agent} ->
+			Login = proplists:get_value(login, Protodetails),
+			[{<<"display">>, list_to_binary(Login)}];
+		{Name, _} when is_binary(Name) ->
 			[{<<"display">>, Name}];
-		Name when is_list(Name) ->
+		{Name, _} when is_list(Name) ->
 			[{<<"display">>, list_to_binary(Name)}];
-		Name when is_atom(Name) ->
+		{Name, _} when is_atom(Name) ->
 			[{<<"display">>, Name}]
 	end,
 	Type = [{<<"type">>, proplists:get_value(type, Proplisted)}],
@@ -1176,8 +1187,6 @@ encode_stats([Head | Tail], Count, Acc) ->
 		[{_, D}] when is_binary(D) ->
 			[{<<"id">>, list_to_binary(lists:append([atom_to_list(Rawtype), "-", binary_to_list(D)]))}]
 	end,
-	Protohealth = proplists:get_value(health, Proplisted),
-	Protodetails = proplists:get_value(details, Proplisted),
 	Node = case Type of
 		[{_, system}] ->
 			[];

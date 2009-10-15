@@ -989,7 +989,7 @@ terminate(Reason, StateName, State) ->
 %		undefined ->
 %			ok
 %	end,
-	cpx_monitor:drop({agent, State#agent.login}),
+	cpx_monitor:drop({agent, State#agent.id}),
 	ok.
 
 %% @private

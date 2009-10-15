@@ -1,4 +1,4 @@
-function Agent(username, statetime){
+function Agent(username, statetime, timestamp){
 	this.login = username;
 	this.securitylevel = "";
 	this.profile = "";
@@ -6,16 +6,29 @@ function Agent(username, statetime){
 	this.state = "";
 	this.statedata = "";
 	this.pollfailures = 0;
+	this.skew = 0;
 	
 	var agentref = this;
 
-	this.stopwatch = new Stopwatch(statetime);
+	
+	this.setSkew = function(timestamp){
+		var now = new Date();
+		now = Math.floor(now.getTime() / 1000);
+		agentref.skew = now - timestamp;
+	}
+	
+	if(timestamp){
+		agentref.setSkew(timestamp);
+	}
+	
+	this.stopwatch = new Stopwatch(statetime + this.skew);
 	this.stopwatch.onTick = function(){}
 	
 	this.handleData = function(datalist){
 		for(var i in datalist){
 			 switch (datalist[i].command){
 				case "pong":
+					agentref.setSkew(datalist[i].timestamp);
 					// la la la
 					break;
 				

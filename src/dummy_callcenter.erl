@@ -148,7 +148,7 @@ init(Options) ->
 		agent_max_calls_deviation_limit = proplists:get_value(agent_max_calls_deviation_limit, Options, 0),	
 		simulation_life = proplists:get_value(simulation_life, Options, infinity),
 		queues = proplists:get_value(queues, Options, any),
-		agent_opts = proplists:get_value(agent_opts, Options, [])
+		agent_opts = proplists:get_value(agent_opts, Options, [{ringing, 1}])
 	},
 	Newagentopts = proplists_replace(scale, 10000, Protoconf#conf.agent_opts),
 	Conf = Protoconf#conf{agent_opts = Newagentopts},

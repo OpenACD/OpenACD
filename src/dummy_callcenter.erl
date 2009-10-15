@@ -217,7 +217,7 @@ handle_info({'EXIT', Pid, Why}, #state{conf = Conf} = State) ->
 					?INFO("no idea where pid ~p came from", [Pid]),
 					{noreply, State};
 				Nom ->
-					[Headname | _] = Newnames = lists:append(State#state.agent_names, [Nom]),
+					[Headname | Newnames] = lists:append(State#state.agent_names, [Nom]),
 					{ok, Newagentpid} = spawn_agent(Conf, Headname),
 					Newagentlist = [{Newagentpid, Headname} | State#state.agent_pids],
 					{noreply, State#state{agent_pids = Newagentlist, agent_names = Newnames}}

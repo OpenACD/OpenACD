@@ -179,11 +179,13 @@ init(Options) ->
 	end,
 	{Pidlist, Namelist} = lists:foldl(Spawnagent, {[], Names}, lists:seq(1, Conf#conf.agents)),
 	Medias = lists:map(fun(_) -> [Pid] = queue_media(Conf#conf.queues), Pid end, lists:seq(1, Conf#conf.agents)),
+	{ok, Spawncall} = timer:send_after(Conf#conf.call_frequency * 1000, spawn_call),
 	State = #state{
 		life_timer = Lifetime,
 		agent_pids = Pidlist,
 		agent_names = Namelist,
 		media_pids = Medias,
+		call_timer = Spawncall,
 		conf = Conf
 	},
     {ok, State}.
@@ -224,12 +226,12 @@ handle_info({'EXIT', Pid, Why}, #state{conf = Conf} = State) ->
 			end
 	end;
 handle_info(spawn_call, #state{conf = Conf} = State) ->
-	{ok, Pid} = queue_media(Conf#conf.queues),
+	[Pid] = queue_media(Conf#conf.queues),
 	Medialist = [Pid | State#state.media_pids],
 	BaseDev = Conf#conf.call_deviation_limit,
 	Dev = crypto:rand_uniform(0, BaseDev * 2) - BaseDev,
 	Time = Conf#conf.call_frequency + Dev,
-	{ok, Timer} = timer:send_after(Time, spawn_call),
+	{ok, Timer} = timer:send_after(Time * 1000, spawn_call),
 	{noreply, State#state{media_pids = Medialist, call_timer = Timer}};
 handle_info(endoflife, State) ->
 	{stop, normal, State};

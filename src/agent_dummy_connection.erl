@@ -95,8 +95,10 @@ start_link(Args) ->
 
 init([Args]) ->
 	crypto:start(),
+	Login = proplists:get_value(login, Args, lists:flatten(io_lib:format("~p", [make_ref()]))),
 	{ok, Pid} = agent_manager:start_agent(#agent{
-			login = proplists:get_value(login, Args, lists:flatten(io_lib:format("~p", [make_ref()]))),
+			id = proplists:get_value(id, Args, Login),
+			login = Login,
 			profile = proplists:get_value(profile, Args, "Default"),
 			skills = proplists:get_value(skills, Args, [english, '_agent', '_node'])
 		}),

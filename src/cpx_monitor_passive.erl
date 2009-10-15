@@ -120,11 +120,22 @@ stop(Pid) ->
 %% Function: init(Args) -> {ok, State} |
 %%--------------------------------------------------------------------
 init(Options) ->
-	Subtest = fun
-		({{Type, _}, _, _}) when Type =:= media; Type =:= agent -> 
-			true; 
-		(_) -> 
-			false 
+	Subtest = fun(Message) ->
+		?DEBUG("passive sub testing message: ~p", [Message]),
+		Type = case Message of
+			{set, {{T, _}, _, _, _}} ->
+				T;
+			{drop, {T, _}} ->
+				T
+		end,
+		case Type of
+			media ->
+				true;
+			agent ->
+				true;
+			_ ->
+				false
+		end
 	end,
 	cpx_monitor:subscribe(Subtest),
 	Interval = proplists:get_value(write_interval, Options, ?WRITE_INTERVAL) * 1000,
@@ -177,7 +188,7 @@ handle_cast(_Msg, State) ->
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 handle_info(write_output, #state{filters = Filters, agent_cache = Agents, media_cache = Medias} = State) ->
-	?DEBUG("Writing output", []),
+	?DEBUG("Writing output with state:  ~p", [State]),
 	Fun = fun({Name, FilterRec} = Filter) ->
 		Fmedias = filter_medias(Medias, FilterRec),
 		Fagents = filter_agents(Agents, FilterRec),
@@ -198,7 +209,7 @@ handle_info(write_output, #state{filters = Filters, agent_cache = Agents, media_
 	
 	{ok, Timer} = timer:send_after(State#state.interval, write_output),
 	{noreply, State#state{timer = Timer}};
-handle_info({set, {{media, Id}, Hp, Det, _Time}}, #state{media_cache = Medias} = State) ->
+handle_info({cpx_monitor_event, {set, {{media, Id}, Hp, Det, _Time}}}, #state{media_cache = Medias} = State) ->
 	?DEBUG("setting a media", []),
 	Entry = {{media, Id}, Hp, Det},
 	case proplists:get_value(queue, Det) of
@@ -212,11 +223,11 @@ handle_info({set, {{media, Id}, Hp, Det, _Time}}, #state{media_cache = Medias} =
 			Newmedias = proplists_replace(Client, Newsub, Medias),
 			{noreply, State#state{media_cache = Newmedias}}
 	end;
-handle_info({drop, {media, Id}}, #state{media_cache = Medias} = State) ->
+handle_info({cpx_monitor_event, {drop, {media, Id}}}, #state{media_cache = Medias} = State) ->
 	?DEBUG("Dropping media", []),
 	Newmedias = deep_delete(Id, Medias),
 	{noreply, State#state{media_cache = Newmedias}};
-handle_info({set, {{agent, Id}, Hp, Det, _Time}}, #state{agent_cache = Agent} = State) ->
+handle_info({cpx_monitor_event, {set, {{agent, Id}, Hp, Det, _Time}}}, #state{agent_cache = Agent} = State) ->
 	?DEBUG("Setting agent", []),
 	Entry = {{media, Id}, Hp, Det},
 	Profile = proplists:get_value(profile, Det),
@@ -224,11 +235,12 @@ handle_info({set, {{agent, Id}, Hp, Det, _Time}}, #state{agent_cache = Agent} = 
 	Newsub = [{Id, Entry} | Midsub],
 	Newagents = proplists_replace(Profile, Newsub, Agent),
 	{noreply, State#state{agent_cache = Agent}};
-handle_info({drop, {agent, Id}}, #state{agent_cache = Agent} = State) ->
+handle_info({cpx_monitor_event, {drop, {agent, Id}}}, #state{agent_cache = Agent} = State) ->
 	?DEBUG("dropping agent", []),
 	Newagents = deep_delete(Id, Agent),
 	{noreply, State#state{agent_cache = Newagents}};
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+	?DEBUG("Someother info:  ~p", [Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -262,7 +274,7 @@ deep_seek(Id, [{Topkey, Toprops} | Tail]) ->
 deep_delete(Id, Toprops) ->
 	case deep_seek(Id, Toprops) of
 		undefined ->
-			ok;
+			Toprops;
 		{Key, Value} ->
 			Subprop = proplists:get_value(Key, Toprops),
 			Newsubprop = proplists:delete(Id, Subprop),
@@ -279,6 +291,7 @@ create_queued_clients(Medias) ->
 	create_queued_clients(Medias, []).
 
 create_queued_clients([], Acc) ->
+	?DEBUG("clients faking queues:  ~p", [Acc]),
 	Acc;
 create_queued_clients([{{media, Id}, _Hp, Det} = Head | Tail], Acc) ->
 	case proplists:get_value(queue, Det) of
@@ -301,16 +314,7 @@ filter_medias(Medias, Filter) ->
 
 filter_medias([], _, Acc) ->
 	Acc;
-filter_medias([{Client, Medias} | Tail], Filter, Acc) ->
-	case list_member(Client, Filter#filter.clients) of
-		true ->
-			Newsub = filter_medias(Medias, Filter, Acc),
-			Newacc = [{Client, Newsub} | Acc],
-			filter_medias(Tail, Filter, Newacc);
-		false ->
-			filter_medias(Tail, Filter, Acc)
-	end;
-filter_medias([{{media, Id}, _Hp, Det} = Entry | Tail], Filter, Acc) ->
+filter_medias([{Id, {{media, Id}, _Hp, Det} = Entry} | Tail], Filter, Acc) ->
 	Queue = proplists:get_value(queue, Det),
 	#call_queue{group = Group} = call_queue_config:get_queue(Queue),
 	#client{label = Client} = proplists:get_value(client, Det),
@@ -320,7 +324,18 @@ filter_medias([{{media, Id}, _Hp, Det} = Entry | Tail], Filter, Acc) ->
 			Newsubs = [{Id, Entry} | Midsub],
 			Newacc = proplists_replace(Client, Newsubs, Acc),
 			filter_medias(Tail, Filter, Newacc);
-		_Else ->
+		Else ->
+			?DEBUG("media filtered out:  ~p", [Else]),
+			filter_medias(Tail, Filter, Acc)
+	end;
+filter_medias([{Client, Medias} | Tail], Filter, Acc) ->
+	case list_member(Client, Filter#filter.clients) of
+		true ->
+			Newsub = filter_medias(Medias, Filter, Acc),
+			Newacc = [{Client, Newsub} | Acc],
+			filter_medias(Tail, Filter, Newacc);
+		false ->
+			?DEBUG("media filtered out at client level", []),
 			filter_medias(Tail, Filter, Acc)
 	end.
 
@@ -329,6 +344,14 @@ filter_agents(List, Filter) ->
 
 filter_agents([], _, Acc) ->
 	Acc;
+filter_agents([{Id, {{agent, Id}, _Hp, Det} = Entry} | Tail], Filter, Acc) ->
+	Login = proplists:get_value(login, Det),
+	case list_member(Login, Filter#filter.agents) of
+		true ->
+			filter_agents(Tail, Filter, [{Id, Entry} | Acc]);
+		false ->
+			filter_agents(Tail, Filter, Acc)
+	end;
 filter_agents([{Profile, Agents} | Tail], Filter, Acc) ->
 	case list_member(Profile, Filter#filter.agent_profiles) of
 		true ->
@@ -337,23 +360,20 @@ filter_agents([{Profile, Agents} | Tail], Filter, Acc) ->
 			filter_agents(Tail, Filter, Newacc);
 		false ->
 			filter_agents(Tail, Filter, Acc)
-	end;
-filter_agents([{Id, {{agent, Id}, _Hp, Det} = Entry} | Tail], Filter, Acc) ->
-	Login = proplists:get_value(login, Det),
-	case list_member(Login, Filter#filter.agents) of
-		true ->
-			filter_agents(Tail, Filter, [{Id, Entry} | Acc]);
-		false ->
-			filter_agents(Tail, Filter, Acc)
 	end.
-
-
 
 clients_queued_to_json(List) ->
 	clients_queued_to_json(List, []).
 
 clients_queued_to_json([], Acc) ->
 	Acc;
+clients_queued_to_json([{Id, {{media, Id}, _, Det}} | Tail], Acc) ->
+	Age = proplists:get_value(queued_at, Det),
+	Json = {struct, [
+		{<<"id">>, list_to_binary(Id)},
+		{<<"queued_at">>, Age}
+	]},
+	clients_queued_to_json(Tail, [Json | Acc]);
 clients_queued_to_json([{Client, Medias} | Tail], Acc) ->
 	Cbin = case Client of
 		undefined ->
@@ -366,19 +386,13 @@ clients_queued_to_json([{Client, Medias} | Tail], Acc) ->
 		{<<"client">>, Cbin},
 		{<<"medias">>, Jmedia}
 	]},
-	clients_queued_to_json(Tail, [Json | Acc]);
-clients_queued_to_json([{Id, {{media, Id}, _, Det}} | Tail], Acc) ->
-	Age = proplists:get_value(queued_at, Det),
-	Json = {struct, [
-		{<<"id">>, list_to_binary(id)},
-		{<<"queued_at">>, Age}
-	]},
 	clients_queued_to_json(Tail, [Json | Acc]).
 
 sort_agents(Agents) ->
 	sort_agents(Agents, []).
 
 sort_agents([], Acc) ->
+	?DEBUG("Sorted agents:  ~p", [Acc]),
 	Acc;
 sort_agents([{{agent, Id}, _Hp, Det} = Head | Tail], Acc) ->
 	Login = proplists:get_value(login, Det),
@@ -411,7 +425,7 @@ agents_to_json(Agents) ->
 
 agents_to_json([], Acc) ->
 	Acc;
-agents_to_json([{_, _, Det} | Tail], Acc) ->
+agents_to_json([{_, {_, _, Det}} | Tail], Acc) ->
 	Login = proplists:get_value(login, Det),
 	Lastchange = begin
 		{Mega, Sec, _} = proplists:get_value(lastchangetimestamp, Det),

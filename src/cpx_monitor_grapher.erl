@@ -70,6 +70,7 @@ init([]) ->
 	Now = now(),
 	GroupedAgents = get_agents(Now),
 	timer:send_after(30000, update),
+	timer:send_after(60000, graph),
 	cpx_monitor:subscribe(),
 	{ok, #state{rrd = Pid, lastrun = Now, agents = GroupedAgents}, hibernate}.
 
@@ -80,6 +81,11 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State, hibernate}.
 
+handle_info(graph, #state{rrd = RRD} = State) ->
+	io:format("graph time~n"),
+	timer:send_after(60000, graph),
+	errd_server:raw(RRD, "graph util-15m.png --end now --start end-900 --imgformat PNG --height 200 --width 600 DEF:foo=Tier1.rrd:Tier1:AVERAGE LINE2:foo#ffa800\n"),
+	{noreply, State};
 handle_info(update, State) ->
 	io:format("update time ~n"),
 	Now = now(),
@@ -169,6 +175,8 @@ update_utilization([{Profile, Util} | Tail], RRD) ->
 					step=30,
 					ds_defs = [#rrd_ds{name=Filename, args="60:0:100", type = gauge}],
 					rra_defs = [
+						#rrd_rra{cf=average, args="0.5:2:30"}, % 15 minutes of 1 minute averages
+						#rrd_rra{cf=average, args="0.5:10:12"}, % 1 hour of 5 minute averages
 						#rrd_rra{cf=average, args="0.5:120:24"}, % 1 day of 1 hour averages
 						#rrd_rra{cf=average, args="0.5:960:42"} % 2 weeks of 8 hour averages
 					]

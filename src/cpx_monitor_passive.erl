@@ -91,6 +91,8 @@
 -record(state, {
 	filters = [] :: [{string(), #filter{}}],
 	interval = ?WRITE_INTERVAL :: pos_integer(),
+	agent_cache = [],
+	media_cache = [],
 	timer :: any()
 }).
 
@@ -121,6 +123,13 @@ stop(Pid) ->
 %% Function: init(Args) -> {ok, State} |
 %%--------------------------------------------------------------------
 init(Options) ->
+	Subtest = fun
+		({{Type, _}, _, _}) when Type =:= media; Type =:= agent -> 
+			true; 
+		(_) -> 
+			false 
+	end,
+	cpx_monitor:subscribe(Subtest),
 	Interval = proplists:get_value(write_interval, Options, ?WRITE_INTERVAL) * 1000,
 	Outputs = proplists:get_value(outputs, Options),
 	Torec = fun({Name, Props}) ->
@@ -186,6 +195,15 @@ handle_info(write_output, #state{filters = Filters} = State) ->
 	
 	{ok, Timer} = timer:send_after(State#state.interval, write_output),
 	{noreply, State#state{timer = Timer}};
+handle_info({{media, Id}, _Hp, Det}, #state{media_cache = Medias} = State) ->
+	case proplists:get_value(queue, Det) of
+		undefined ->
+			{noreply, State};
+		Queue ->
+			#client{label = Client} = proplists:get_value(client, Det)
+	end,
+	{noreply, State};
+			
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -341,4 +359,6 @@ list_member(_Member, all) ->
 list_member(Member, List) ->
 	lists:member(Member, List).
 
-
+proplists_replace(Key, Value, List) ->
+	Midlist = proplists:delete(Key, List),
+	[{Key, Value} | List].

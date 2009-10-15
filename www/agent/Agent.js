@@ -1,4 +1,4 @@
-function Agent(username, statetime){
+function Agent(username, statetime, timestamp){
 	this.login = username;
 	this.securitylevel = "";
 	this.profile = "";
@@ -10,14 +10,19 @@ function Agent(username, statetime){
 	
 	var agentref = this;
 
-	this.stopwatch = new Stopwatch(statetime);
-	this.stopwatch.onTick = function(){}
 	
 	this.setSkew = function(timestamp){
 		var now = new Date();
 		now = Math.floor(now.getTime() / 1000);
 		agentref.skew = now - timestamp;
 	}
+	
+	if(timestamp){
+		agentref.setSkew(timestamp);
+	}
+	
+	this.stopwatch = new Stopwatch(statetime + this.skew);
+	this.stopwatch.onTick = function(){}
 	
 	this.handleData = function(datalist){
 		for(var i in datalist){

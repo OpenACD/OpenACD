@@ -149,7 +149,7 @@ dojo.addOnLoad(function(){
 			if(response.success){
 				dojo.byId("main").style.display="block";
 				dojo.byId("main").style.visibility = "visible";
-				agent = new Agent(response.login, parseInt(response.statetime));
+				agent = new Agent(response.login, parseInt(response.statetime), response.timestamp);
 				agent.setSkew(response.timestamp);
 				buildReleaseMenu(agent);
 				buildOutboundMenu(agent);

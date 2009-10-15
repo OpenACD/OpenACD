@@ -179,9 +179,10 @@ q_x(N, Queues) ->
 	F = fun(_I) ->
 		Index = crypto:rand_uniform(1, length(Queues) + 1),
 		Q = lists:nth(Index, Queues),
-		q(Q)
+		{ok, Pid} = q(Q),
+		Pid
 	end,
-	lists:foreach(F, lists:seq(1, N)).
+	lists:map(F, lists:seq(1, N)).
 
 %%====================================================================
 %% gen_server callbacks

@@ -191,7 +191,7 @@ handle_call(_Request, _From, State) ->
 	%Newcallbacks = proplists:delete(Module, Callbacks),
 	%{noreply, State#state{callbacks = Newcallbacks}, hibernate};
 handle_cast(_Msg, State) ->
-    {noreply, State, hibernate}.
+	{noreply, State, hibernate}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |

@@ -722,7 +722,7 @@ handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = unde
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Pollpid} = State) when is_pid(Pollpid) ->
 	case util:now() - Last of
 		N when N > 20 ->
-			Newstate = push_event({struct, [{success, true}, {<<"command">>, <<"pong">>}]}, State),
+			Newstate = push_event({struct, [{success, true}, {<<"command">>, <<"pong">>}, {<<"timestamp">>, util:now()}]}, State),
 			{noreply, Newstate};
 		_N ->
 			{noreply, State}

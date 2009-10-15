@@ -6,16 +6,24 @@ function Agent(username, statetime){
 	this.state = "";
 	this.statedata = "";
 	this.pollfailures = 0;
+	this.skew = 0;
 	
 	var agentref = this;
 
 	this.stopwatch = new Stopwatch(statetime);
 	this.stopwatch.onTick = function(){}
 	
+	this.setSkew = function(timestamp){
+		var now = new Date();
+		now = Math.floor(now.getTime() / 1000);
+		agentref.skew = now - timestamp;
+	}
+	
 	this.handleData = function(datalist){
 		for(var i in datalist){
 			 switch (datalist[i].command){
 				case "pong":
+					agentref.setSkew(datalist[i].timestamp);
 					// la la la
 					break;
 				

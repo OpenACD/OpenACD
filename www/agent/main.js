@@ -150,6 +150,7 @@ dojo.addOnLoad(function(){
 				dojo.byId("main").style.display="block";
 				dojo.byId("main").style.visibility = "visible";
 				agent = new Agent(response.login, parseInt(response.statetime));
+				agent.setSkew(response.timestamp);
 				buildReleaseMenu(agent);
 				buildOutboundMenu(agent);
 				buildQueueMenu(agent);
@@ -501,6 +502,7 @@ dojo.addOnLoad(function(){
 								dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response2.profile;
 								debug(response2);
 								agent = new Agent(attrs.username, parseInt(response2.statetime));
+								agent.setSkew(response2.timestamp);
 								agent.stopwatch.onTick = function(){
 									var elapsed = agent.stopwatch.time();
 									var d = new Date();

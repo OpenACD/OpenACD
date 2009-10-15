@@ -558,6 +558,11 @@ dojo.addOnLoad(function(){
 						});
 						menu.addChild(item);
 					});
+					var item = new dijit.MenuItem({
+						label: nlsStrings.DEFAULT,
+						onClick:function(){agent.setState("released", "Default"); }
+					});
+					menu.addChild(item);
 				}
 				else{
 					warning(["getting release codes failed", response.message]);

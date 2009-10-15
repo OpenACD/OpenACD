@@ -113,7 +113,7 @@
 %% * simullation_life: How many minutes the the simulation will run.  Defaults
 %%		to infinity.
 %% * queues: The queues to place calls in.  Defaults to any.
-%% * agent_opts:  The agent options used to start dummy agents.  A scale of 10
+%% * agent_opts:  The agent options used to start dummy agents.  A scale of 1000
 %%		is automatically added, overriding whatever is set.  Defaultst to [].
 
 -spec(start/1 :: (Options :: start_options()) -> {'ok', pid()}).
@@ -150,7 +150,7 @@ init(Options) ->
 		queues = proplists:get_value(queues, Options, any),
 		agent_opts = proplists:get_value(agent_opts, Options, [{ringing, 1}])
 	},
-	Newagentopts = proplists_replace(scale, 10000, Protoconf#conf.agent_opts),
+	Newagentopts = proplists_replace(scale, 1000, Protoconf#conf.agent_opts),
 	Conf = Protoconf#conf{agent_opts = Newagentopts},
 	Lifetime = case Conf#conf.simulation_life of
 		infinity ->

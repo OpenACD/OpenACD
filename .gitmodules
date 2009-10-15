@@ -4,3 +4,6 @@
 [submodule "contrib/gen_server_mock"]
 	path = contrib/gen_server_mock
 	url = git://github.com/lordnull/gen_server_mock.git
+[submodule "contrib/errd"]
+	path = contrib/errd
+	url = git://github.com/Vagabond/errd.git

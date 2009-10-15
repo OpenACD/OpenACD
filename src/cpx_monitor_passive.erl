@@ -96,9 +96,6 @@
 	timer :: any()
 }).
 
-
-
-
 %%====================================================================
 %% API
 %%====================================================================
@@ -147,10 +144,18 @@ init(Options) ->
 	end,
 	Filters = lists:map(Torec, proplists:get_value(outputs, Options)),
 	{ok, Timer} = timer:send_after(Interval, write_output),
+	{ok, Agents} = cpx_monitor:get_health(agent),
+	{ok, Medias} = cpx_monitor:get_health(media),
+
+	Agentcache = sort_agents(Agents),
+	Mediacache = create_queued_clients(Medias),
+	?DEBUG("started", []),
 	{ok, #state{
 		filters = Filters,
 		interval = Interval,
-		timer = Timer
+		timer = Timer,
+		agent_cache = Agentcache,
+		media_cache = Mediacache
 	}}.
 
 %%--------------------------------------------------------------------
@@ -171,13 +176,11 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(write_output, #state{filters = Filters} = State) ->
-	{ok, Agents} = cpx_monitor:get_health(agent),
-	{ok, Medias} = cpx_monitor:get_health(media),
-	
+handle_info(write_output, #state{filters = Filters, agent_cache = Agents, media_cache = Medias} = State) ->
+	?DEBUG("Writing output", []),
 	Fun = fun({Name, FilterRec} = Filter) ->
-		Fagents = sort_agents(Agents, FilterRec),
-		Fmedias = create_queued_clients(Medias, FilterRec),
+		Fmedias = filter_medias(Medias, FilterRec),
+		Fagents = filter_agents(Agents, FilterRec),
 		JsonQued = clients_queued_to_json(Fmedias),
 		JsonAgents = agent_profs_to_json(Fagents),
 		Json = {struct, [
@@ -195,15 +198,36 @@ handle_info(write_output, #state{filters = Filters} = State) ->
 	
 	{ok, Timer} = timer:send_after(State#state.interval, write_output),
 	{noreply, State#state{timer = Timer}};
-handle_info({{media, Id}, _Hp, Det}, #state{media_cache = Medias} = State) ->
+handle_info({set, {{media, Id}, Hp, Det, _Time}}, #state{media_cache = Medias} = State) ->
+	?DEBUG("setting a media", []),
+	Entry = {{media, Id}, Hp, Det},
 	case proplists:get_value(queue, Det) of
 		undefined ->
-			{noreply, State};
+			Newmedias = deep_delete(Id, Medias),
+			{noreply, State#state{media_cache = Newmedias}};
 		Queue ->
-			#client{label = Client} = proplists:get_value(client, Det)
-	end,
-	{noreply, State};
-			
+			#client{label = Client} = proplists:get_value(client, Det),
+			Midsub = proplists:get_value(Client, Medias, []),
+			Newsub = [{Id, Entry} | Midsub],
+			Newmedias = proplists_replace(Client, Newsub, Medias),
+			{noreply, State#state{media_cache = Newmedias}}
+	end;
+handle_info({drop, {media, Id}}, #state{media_cache = Medias} = State) ->
+	?DEBUG("Dropping media", []),
+	Newmedias = deep_delete(Id, Medias),
+	{noreply, State#state{media_cache = Newmedias}};
+handle_info({set, {{agent, Id}, Hp, Det, _Time}}, #state{agent_cache = Agent} = State) ->
+	?DEBUG("Setting agent", []),
+	Entry = {{media, Id}, Hp, Det},
+	Profile = proplists:get_value(profile, Det),
+	Midsub = proplists:get_value(Profile, Agent, []),
+	Newsub = [{Id, Entry} | Midsub],
+	Newagents = proplists_replace(Profile, Newsub, Agent),
+	{noreply, State#state{agent_cache = Agent}};
+handle_info({drop, {agent, Id}}, #state{agent_cache = Agent} = State) ->
+	?DEBUG("dropping agent", []),
+	Newagents = deep_delete(Id, Agent),
+	{noreply, State#state{agent_cache = Newagents}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -225,85 +249,148 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-
-
-
-create_queued_clients(Medias, Filter) ->
-	?DEBUG("Medias:  ~p", [Medias]),
-	create_queued_clients(Medias, Filter, []).
-
-create_queued_clients([], _Filter, Acc) ->
-	Acc;
-create_queued_clients([{{media, _Id}, _Hp, Det} = Head | Tail], #filter{queues = Queues, queue_groups = Qgroups, clients = Clients} = Filter, Acc) ->
-	NewAcc = case proplists:get_value(queue, Det) of
+deep_seek(Id, []) ->
+	undefined;
+deep_seek(Id, [{Topkey, Toprops} | Tail]) ->
+	case proplists:get_value(Id, Toprops) of
 		undefined ->
-			Acc;
-		Queue ->
-			#call_queue{group = Group} = call_queue_config:get_queue(Queue),
+			deep_seek(Id, Tail);
+		Value ->
+			{Topkey, Value}
+	end.
+
+deep_delete(Id, Toprops) ->
+	case deep_seek(Id, Toprops) of
+		undefined ->
+			ok;
+		{Key, Value} ->
+			Subprop = proplists:get_value(Key, Toprops),
+			Newsubprop = proplists:delete(Id, Subprop),
+			Midtop = proplists:delete(Key, Toprops),
+			[{Key, Newsubprop} | Midtop]
+	end.
+
+proplists_replace(Key, Value, List) ->
+	Mid = proplists:delete(Key, List),
+	[{Key, Value} | Mid].
+
+create_queued_clients(Medias) ->
+	?DEBUG("Medias:  ~p", [Medias]),
+	create_queued_clients(Medias, []).
+
+create_queued_clients([], Acc) ->
+	Acc;
+create_queued_clients([{{media, Id}, _Hp, Det} = Head | Tail], Acc) ->
+	case proplists:get_value(queue, Det) of
+		undefined ->
+			create_queued_clients(Tail, Acc);
+		_Else ->
 			#client{label = Client} = proplists:get_value(client, Det),
-			case {list_member(Queue, Queues), list_member(Group, Qgroups), list_member(Client, Clients)} of
-				{true, true, true} ->
-					Time = proplists:get_value(queued_at, Det),
-					case proplists:get_value(Client, Acc) of
-						undefined ->
-							?DEBUG("Client ~p not found in Acc ~p", [Client, Acc]),
-							[{Client, {1, Time}} | Acc];
-						{Count, Othertime} ->
-							?DEBUG("Client ~p found with count ~p and time ~p", [Client, Count, Othertime]),
-							Midacc = proplists:delete(Client, Acc),
-							case Othertime < Time of
-								true ->
-									[{Client, {Count + 1, Othertime}} | Midacc];
-								false ->
-									[{Client, {Count + 1, Time}} | Midacc]
-							end
-					end;
-				_Else ->
-					Acc
-			end
-	end,
-	create_queued_clients(Tail, Filter, NewAcc).
+			{Othermeds, Midacc} = case proplists:get_value(Client, Acc) of
+				undefined ->
+					{[], Acc};
+				List ->
+					{List, proplists:delete(Client, Acc)}
+			end,
+			NewAcc = [{Client, [{Id, Head} | Othermeds]} | Midacc],
+			create_queued_clients(Tail, NewAcc)
+	end.
+
+filter_medias(Medias, Filter) ->
+	filter_medias(Medias, Filter, []).
+
+filter_medias([], _, Acc) ->
+	Acc;
+filter_medias([{Client, Medias} | Tail], Filter, Acc) ->
+	case list_member(Client, Filter#filter.clients) of
+		true ->
+			Newsub = filter_medias(Medias, Filter, Acc),
+			Newacc = [{Client, Newsub} | Acc],
+			filter_medias(Tail, Filter, Newacc);
+		false ->
+			filter_medias(Tail, Filter, Acc)
+	end;
+filter_medias([{{media, Id}, _Hp, Det} = Entry | Tail], Filter, Acc) ->
+	Queue = proplists:get_value(queue, Det),
+	#call_queue{group = Group} = call_queue_config:get_queue(Queue),
+	#client{label = Client} = proplists:get_value(client, Det),
+	case {list_member(Queue, Filter#filter.queues), list_member(Group, Filter#filter.queue_groups), list_member(Client, Filter#filter.clients)} of
+		{true, true, true} ->
+			Midsub = proplists:get_value(Client, Acc, []),
+			Newsubs = [{Id, Entry} | Midsub],
+			Newacc = proplists_replace(Client, Newsubs, Acc),
+			filter_medias(Tail, Filter, Newacc);
+		_Else ->
+			filter_medias(Tail, Filter, Acc)
+	end.
+
+filter_agents(List, Filter) ->
+	filter_agents(List, Filter, []).
+
+filter_agents([], _, Acc) ->
+	Acc;
+filter_agents([{Profile, Agents} | Tail], Filter, Acc) ->
+	case list_member(Profile, Filter#filter.agent_profiles) of
+		true ->
+			Newsub = filter_agents(Agents, Filter, []),
+			Newacc = [{Profile, Newsub} | Acc],
+			filter_agents(Tail, Filter, Newacc);
+		false ->
+			filter_agents(Tail, Filter, Acc)
+	end;
+filter_agents([{Id, {{agent, Id}, _Hp, Det} = Entry} | Tail], Filter, Acc) ->
+	Login = proplists:get_value(login, Det),
+	case list_member(Login, Filter#filter.agents) of
+		true ->
+			filter_agents(Tail, Filter, [{Id, Entry} | Acc]);
+		false ->
+			filter_agents(Tail, Filter, Acc)
+	end.
+
+
 
 clients_queued_to_json(List) ->
 	clients_queued_to_json(List, []).
 
 clients_queued_to_json([], Acc) ->
 	Acc;
-clients_queued_to_json([{Client, {Count, Age}} | Tail], Acc) ->
+clients_queued_to_json([{Client, Medias} | Tail], Acc) ->
 	Cbin = case Client of
 		undefined ->
 			undefined;
 		_Else ->
 			list_to_binary(Client)
 	end,
+	Jmedia = clients_queued_to_json(Medias, []),
 	Json = {struct, [
 		{<<"client">>, Cbin},
-		{<<"oldest">>, Age},
-		{<<"count">>, Count}
+		{<<"medias">>, Jmedia}
+	]},
+	clients_queued_to_json(Tail, [Json | Acc]);
+clients_queued_to_json([{Id, {{media, Id}, _, Det}} | Tail], Acc) ->
+	Age = proplists:get_value(queued_at, Det),
+	Json = {struct, [
+		{<<"id">>, list_to_binary(id)},
+		{<<"queued_at">>, Age}
 	]},
 	clients_queued_to_json(Tail, [Json | Acc]).
 
-sort_agents(Agents, Filter) ->
-	sort_agents(Agents, Filter, []).
+sort_agents(Agents) ->
+	sort_agents(Agents, []).
 
-sort_agents([], Filter, Acc) ->
+sort_agents([], Acc) ->
 	Acc;
-sort_agents([{{agent, _Id}, _Hp, Det} = Head | Tail], #filter{agents = Agents, agent_profiles = Profs} = Filter, Acc) ->
+sort_agents([{{agent, Id}, _Hp, Det} = Head | Tail], Acc) ->
 	Login = proplists:get_value(login, Det),
 	Prof = proplists:get_value(profile, Det),
-	NewAcc = case {list_member(Login, Agents), list_member(Prof, Profs)} of
-		{true, true} ->
-			{Proflist, Midacc} = case proplists:get_value(Prof, Acc) of
-				undefined ->
-					{[], Acc};
-				List ->
-					{List, proplists:delete(Prof, Acc)}
-			end,
-			[{Prof, [Head | Proflist]} | Midacc];
-		_Else ->
-			Acc
+	{Proflist, Midacc} = case proplists:get_value(Prof, Acc) of
+		undefined ->
+			{[], Acc};
+		List ->
+			{List, proplists:delete(Prof, Acc)}
 	end,
-	sort_agents(Tail, Filter, NewAcc).
+	NewAcc = [{Prof, [{Id, Head} | Proflist]} | Midacc],
+	sort_agents(Tail, NewAcc).
 
 agent_profs_to_json(List) ->
 	agent_profs_to_json(List, []).
@@ -358,7 +445,3 @@ list_member(_Member, all) ->
 	true;
 list_member(Member, List) ->
 	lists:member(Member, List).
-
-proplists_replace(Key, Value, List) ->
-	Midlist = proplists:delete(Key, List),
-	[{Key, Value} | List].

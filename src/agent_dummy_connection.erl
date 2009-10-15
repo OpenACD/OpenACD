@@ -102,7 +102,7 @@ init([Args]) ->
 			profile = proplists:get_value(profile, Args, "Default"),
 			skills = proplists:get_value(skills, Args, [english, '_agent', '_node'])
 		}),
-	agent:set_state(Pid, idle),
+	ok = agent:set_state(Pid, idle),
 	agent:set_connection(Pid, self()),
 	?NOTICE("Created new dummy agent connection", []),
 	{ok, #state{
@@ -146,35 +146,35 @@ handle_cast({change_state, _AgState}, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
-handle_info(answer, #state{call = Call} = State) ->
+handle_info(answer, #state{call = Call} = State) when is_record(Call, call)->
 	?INFO("time to answer", []),
 	%gen_server:call(Call#call.source, unqueue),
 	case Call#call.ring_path of
 		inband ->
-			agent:set_state(State#state.agent_fsm, oncall);
+			ok = agent:set_state(State#state.agent_fsm, oncall);
 		outband ->
-			agent:set_state(State#state.agent_fsm, oncall, State#state.call)
+			ok = agent:set_state(State#state.agent_fsm, oncall, State#state.call)
 	end,
 	gen_server:cast(Call#call.cook, remove_from_queue),
 	{noreply, State};
-handle_info(hangup, #state{call = Call} = State) ->
+handle_info(hangup, #state{call = Call} = State) when is_record(Call, call) ->
 	?INFO("time to hangup", []),
 	case Call#call.ring_path of
 		inband ->
-			agent:set_state(State#state.agent_fsm, wrapup);
+			ok = agent:set_state(State#state.agent_fsm, wrapup);
 		outband ->
-			agent:set_state(State#state.agent_fsm, wrapup, State#state.call)
+			ok = agent:set_state(State#state.agent_fsm, wrapup, State#state.call)
 	end,
 	{noreply, State};
-handle_info(endwrapup, State) ->
+handle_info(endwrapup, #state{call = Call} = State) when is_record(Call, call) ->
 	?INFO("time to endwrapup", []),
-	agent:set_state(State#state.agent_fsm, idle),
+	ok = agent:set_state(State#state.agent_fsm, idle),
 	case State#state.maxcalls of
 		unlimited -> {noreply, State};
 		SomeNumber when (SomeNumber - 1) =< 0 ->
 			{stop, shutdown, State};
 		SomeNumber ->
-			{noreply, State#state{maxcalls = SomeNumber - 1}}
+			{noreply, State#state{call = undefined, maxcalls = SomeNumber - 1}}
 	end;
 handle_info(_Info, State) ->
 	{noreply, State}.

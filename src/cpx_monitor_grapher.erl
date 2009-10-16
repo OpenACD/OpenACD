@@ -98,19 +98,22 @@ handle_info(graph, #state{rrd = RRD} = State) ->
 
 	%Colors = get_colors
 
-	Fun = fun(F, {Defines, Lines}) ->
+	Fun = fun(F, {Defines, CDefines, Lines}) ->
 			FileName = filename:basename(F),
 			Name = filename:rootname(FileName),
 			{
-				["DEF:"++Name++"="++FileName++":"++Name++":AVERAGE" | Defines],
+				["DEF:"++Name++"raw="++FileName++":"++Name++":LAST:start=end-2h" | Defines],
+				["CDEF:"++Name++"="++Name++"raw,3600,TRENDNAN" | CDefines],
 				["LINE2:"++Name++name_to_color(Name)++":"++Name | Lines]
 			}
 	end,
 
-	{D, L} = filelib:fold_files("rrd", ".rrd", false, Fun , {[], []}),
+	{D, C, L} = filelib:fold_files("rrd", ".rrd", false, Fun , {[], [], []}),
 
-	errd_server:raw(RRD, "graph util-15m.png --end now --start end-900 --imgformat PNG --height 200 --width 600 "
-		++string:join(D, " ")++" "++string:join(L, " ")++"\n"),
+	Command = "graph util-15m.png --end now --start end-900 --imgformat PNG --height 200 --width 600 " ++
+		string:join(D, " ") ++ " " ++ string:join(C, " ") ++ " " ++ string:join(L, " ") ++ "\n",
+	io:format("command: ~s~n", [Command]),
+	errd_server:raw(RRD, Command),
 	{noreply, State};
 handle_info(update, State) ->
 	%io:format("update time ~n"),
@@ -126,7 +129,7 @@ handle_info({cpx_monitor_event, {set, {{agent, _}, _, Agent, _}}}, #state{agents
 	%io:format("Agents: ~p~n", [NewAgents]),
 	{noreply, State#state{agents = NewAgents}, hibernate};
 handle_info(Info, State) ->
-	io:format("info: ~p~n", [Info]),
+	%io:format("info: ~p~n", [Info]),
 	{noreply, State, hibernate}.
 
 terminate(_Reason, _State) ->
@@ -158,28 +161,28 @@ calculate_utilization_by_profile([], Acc) ->
 	Acc;
 calculate_utilization_by_profile([{Profile, Agents} | Tail], Acc) ->
 	GroupedAgents = util:group_by_with_key(fun(Agent) -> proplists:get_value(login, Agent) end, Agents),
-	Util = calculate_utilization_by_agent(GroupedAgents, 0),
-	%io:format("groupedagents for profile ~p: ~p~n", [Profile, GroupedAgents]),
+	Util = round(calculate_utilization_by_agent(GroupedAgents, 0) / length(GroupedAgents)),
+	io:format("utilization for profile ~p: ~p~n", [Profile, Util]),
 	calculate_utilization_by_profile(Tail, [{Profile, Util} | Acc]).
 
 calculate_utilization_by_agent([], Acc) ->
 	Acc;
 calculate_utilization_by_agent([{Agent, States} | Tail], Acc) ->
 	Util = calc(lists:reverse(States), 0, 0),
-	%io:format("Agent ~p's utilization is ~p~n", [Agent, Util]),
+	io:format("Agent ~p's utilization is ~p~n", [Agent, Util]),
 	calculate_utilization_by_agent(Tail, Acc + Util).
 
 
 calc([State], Util, Total) ->
 	Diff = round(timer:now_diff(now(), proplists:get_value(lastchangetimestamp, State)) /1000000),
 	AgentState = proplists:get_value(state, State),
-	%io:format("Agent was ~p for ~p~n", [AgentState, Diff]),
+	io:format("Agent was ~p for ~p~n", [AgentState, Diff]),
 	NUtil = get_util(AgentState, Diff, Util),
 	round((NUtil / (Total + Diff)) * 100);
 calc([State1, State2 | Tail], Util, Total) ->
 	Diff = round(timer:now_diff(proplists:get_value(lastchangetimestamp, State2), proplists:get_value(lastchangetimestamp, State1)) /1000000),
 	AgentState = proplists:get_value(state, State1),
-	%io:format("Agent was ~p for ~p~n", [AgentState, Diff]),
+	io:format("Agent was ~p for ~p~n", [AgentState, Diff]),
 	NUtil = get_util(AgentState, Diff, Util),
 	calc([State2 | Tail], NUtil, Total + Diff).
 
@@ -201,6 +204,7 @@ update_utilization([{Profile, Util} | Tail], RRD) ->
 					step=30,
 					ds_defs = [#rrd_ds{name=Filename, args="60:0:100", type = gauge}],
 					rra_defs = [
+						#rrd_rra{cf=last, args="0.5:2:1440"}, % 15 minutes of 1 minute averages
 						#rrd_rra{cf=average, args="0.5:2:30"}, % 15 minutes of 1 minute averages
 						#rrd_rra{cf=average, args="0.5:10:12"}, % 1 hour of 5 minute averages
 						#rrd_rra{cf=average, args="0.5:120:24"}, % 1 day of 1 hour averages
@@ -214,10 +218,15 @@ update_utilization([{Profile, Util} | Tail], RRD) ->
 	update_utilization(Tail, RRD).
 
 name_to_color(Name) ->
-	SeedIn = lists:sum(Name),
+	SeedIn = lists:sum(binary_to_list(erlang:md5(Name))) + length(Name),
 	Seed = {SeedIn bsl 4, SeedIn bsl 6, SeedIn bsl 9},
 	random:seed(Seed),
-	rgb2hex(hsv2rgb({random:uniform(360) -1, random:uniform(), random:uniform()})).
+
+	HSV = {random:uniform(360) -1, (random:uniform() * 0.6) + 0.4, (random:uniform() * 0.4) + 0.6},
+
+	io:format("HSV for ~p is ~p~n", [Name, HSV]),
+
+	rgb2hex(hsv2rgb(HSV)).
 
 %% HSL where
 %% H is 0-359 inclusive

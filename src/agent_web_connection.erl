@@ -373,6 +373,24 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
+		["set_profile", Agent, Profile] ->
+			case agent_manager:query_agent(Agent) of
+				{true, Apid} ->
+					case agent:change_profile(Apid, Profile) of
+						ok ->
+							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+						{error, unknown_profile} ->
+							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unknown_profile">>}]})}, State}
+					end;
+				false ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unknown agent">>}]})}, State}
+			end;
+		["get_profiles"] ->
+			Profiles = agent_auth:get_profiles(),
+			F = fun({Nom, _}) ->
+				list_to_binary(Nom)
+			end,
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"profiles">>, lists:map(F, Profiles)}]})}, State};
 		["endmonitor"] ->
 			cpx_monitor:unsubscribe(),
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};

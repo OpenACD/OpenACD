@@ -1576,6 +1576,25 @@ if(typeof(supervisorTab) == "undefined"){
 			}
 		})
 	}
+	
+	supervisorTab.setProfile = function(profile, agent){
+		dojo.xhrGet({
+			handleAs:"json",
+			url:"/supervisor/set_profile/" + agent + "/" + profile,
+			load:function(res){
+				if(res.success){
+					//kewl
+					return true
+				}
+				else{
+					warning(["set profile failed", res.message]);
+				}
+			},
+			error:function(res){
+				warning(["set profile errored", res]);
+			}
+		});
+	}
 }
 
 supervisorTab.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);

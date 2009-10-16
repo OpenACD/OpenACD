@@ -835,7 +835,14 @@ handle_sync_event({change_profile, Profile}, _From, StateName, State) when State
 		{Profile, Skills2} ->
 			NewAgentSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, OldSkills)),
 			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(State, Skills2)),
-			{reply, ok, StateName, State#agent{skills = NewAgentSkills2, profile = Profile}};
+			Newstate = State#agent{skills = NewAgentSkills2, profile = Profile}
+			%Deatils = [{profile, Newstate#agent.profile}, {state, Newstate#agent.state}, {statedata, Newstate#agent.statedata}, {login, Newstate#agent.login}, {lastchangetimestamp, Newstate#agent.lastchangetimestamp}],
+			%cpx_monitor:set({agent, State#agent.id}, [], Deatils).
+
+			
+			
+			
+			{reply, ok, StateName, Newstate};
 		_ ->
 			{reply, {error, unknown_profile}, StateName, State}
 	end;

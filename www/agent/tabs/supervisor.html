@@ -20,6 +20,16 @@
 	<p><input type="submit" dojoType="dijit.form.Button" label="Submit" /></p>
 </div>
 
+<div dojoType="dijit.Dialog" id="profileSwapDialog" title="Select Profile" style="display:none">
+	<p>
+		<label>Profile:</label>
+		<span id="profileSwapDialogParent"><select name="profile"></select></span>
+	</p>
+	<p>
+		<label>&nbsp;</label>
+		<input type="submit" dojoType="dijit.form.Button" label="Submit" />
+	</p>
+</div>
 <div dojoType="dijit.Menu" id="agentAction" style="display:none">
 	<div dojoType="dijit.MenuItem">Released
 		<script type="dojo/method" event="onClick">
@@ -80,6 +90,46 @@
 				},
 				error:function(res){
 					warning(["error spying", res]);
+				}
+			});
+		</script>
+	</div>
+	<div dojoType="dijit.MenuItem">Set Profile
+		<script type="dojo/method" event="onClick">
+			var agent = escape(dijit.byId("agentAction").agentBubbleHit);
+			var dialog = dijit.byId("profileSwapDialog");
+			var submitSetProf = function(){
+				var data = dialog.attr('value');
+				supervisorTab.setProfile(data.profile, agent);
+			}
+			dialog.attr('execute', submitSetProf);
+			dojo.xhrGet({
+				url:"/supervisor/get_profiles",
+				handleAs:"json",
+				load:function(r){
+					if(r.success){
+						var span = dojo.byId('profileSwapDialogParent');
+						while(span.hasChildNodes()){
+							span.removeChild(span.firstChild);
+						}
+						var html = '<select name="profile">';
+						dojo.forEach(r.profiles, function(item){
+							html += '<option>' + item + '</option>';
+						});
+						html += '</select>';
+						span.innerHTML = html;
+						var modenode = span.firstChild;
+						new dijit.form.ComboBox({
+							name:'profile'
+						}, modenode);
+						dialog.show();
+					}
+					else{
+						warning(["get_profiles failure", r.message]);
+					}
+				},
+				error:function(r){
+					warning(["get_profiles errored", r])
 				}
 			});
 		</script>

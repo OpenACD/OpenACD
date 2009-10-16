@@ -89,6 +89,7 @@
 
 -record(state, {
 	callrec = #call{} :: #call{},
+	life_timer = undefined :: any(),
 	%mode = success :: 'success' | 'failure' | 'fail_once',
 	fail = dict:new() :: dict()
 	}).
@@ -191,7 +192,14 @@ q_x(N, Queues) ->
 init([Props, Fails]) ->
 	process_flag(trap_exit, true),
 	Proto = #call{id = "dummy", source = self(), ring_path = inband, media_path = inband},
-	Callrec = build_call_rec(Props, Proto),
+	Callrec = #call{
+		id = proplists:get_value(id, Props, "dummy"),
+		source = proplists:get_value(source, Props, self()),
+		type = proplists:get_value(type, Props, voice),
+		callerid = proplists:get_value(callerid, Props, "Unknown Unknown"),
+		client = proplists:get_value(client, Props, #client{}),
+		skills = proplists:get_value(skills, Props, [])
+	},
 	Newfail = case Fails of
 		success ->
 			lists:map(fun(E) -> {E, success} end, ?MEDIA_ACTIONS);
@@ -203,11 +211,18 @@ init([Props, Fails]) ->
 			end,
 			lists:map(F, Fails)
 	end,
+	Life = case proplists:get_value(max_life, Props) of
+		undefined ->
+			undefined;
+		Number ->
+			{ok, Timer} = timer:send_after(Number * 1000, <<"hagurk">>),
+			Timer
+	end,
 	case proplists:get_value(queue, Props) of
 		undefined ->
-			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}, Callrec}};
+			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, Callrec}};
 		Q ->
-			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail)}, {Q, Callrec}}}
+			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, {Q, Callrec}}}
 	end.
 
 	
@@ -344,6 +359,8 @@ handle_cast(_Msg, _Callrec, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+handle_info(<<"hagurk">>, _Callrec, State) ->
+	{hangup, State};
 handle_info(Info, _Callrec, State) ->
 	?DEBUG("Info: ~p", [Info]),
 	{noreply, State}.

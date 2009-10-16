@@ -59,7 +59,8 @@
 	scale = 1 :: pos_integer(),
 	maxcalls = unlimited :: pos_integer() | 'unlimited',
 	call :: #call{} | 'undefined',
-	agent_fsm :: pid()
+	agent_fsm :: pid(),
+	life_watch :: any()
 }).
 
 -type(state() :: #state{}).
@@ -105,13 +106,21 @@ init([Args]) ->
 	ok = agent:set_state(Pid, idle),
 	agent:set_connection(Pid, self()),
 	?NOTICE("Created new dummy agent connection", []),
+	Lifewatch = case proplists:get_value(max_life, Args) of
+		undefined ->
+			undefined;
+		Number ->
+			{ok, Timer} = timer:send_after(Number * 1000, <<"hagurk">>),
+			Timer
+	end,
 	{ok, #state{
 		agent_fsm = Pid,
 		ringing = proplists:get_value(ringing, Args, random),
 		oncall = proplists:get_value(oncall, Args, random),
 		wrapup = proplists:get_value(wrapup, Args, random),
 		maxcalls = proplists:get_value(maxcalls, Args, unlimited),
-		scale = proplists:get_value(scale, Args, 1)}}.
+		scale = proplists:get_value(scale, Args, 1),
+		life_watch = Lifewatch}}.
 
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
@@ -146,6 +155,8 @@ handle_cast({change_state, _AgState}, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
+handle_info(<<"hagurk">>, State) ->
+	{stop, normal, State};
 handle_info(answer, #state{call = Call} = State) when is_record(Call, call)->
 	?INFO("time to answer", []),
 	%gen_server:call(Call#call.source, unqueue),

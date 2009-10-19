@@ -198,7 +198,9 @@ init([Props, Fails]) ->
 		type = proplists:get_value(type, Props, voice),
 		callerid = proplists:get_value(callerid, Props, "Unknown Unknown"),
 		client = proplists:get_value(client, Props, #client{}),
-		skills = proplists:get_value(skills, Props, [])
+		skills = proplists:get_value(skills, Props, []),
+		ring_path = inband,
+		media_path = inband
 	},
 	Newfail = case Fails of
 		success ->

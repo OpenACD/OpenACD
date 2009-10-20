@@ -256,9 +256,12 @@ if(typeof(supervisorView) == "undefined"){
 		var groupHeight = conf.bubbleConfs.length * 40;
 		var viewHeight = conf.viewHeight;
 		
-		var ratio = (groupHeight - viewHeight) / viewHeight;
+		var ratio = (groupHeight) / viewHeight;
 		if(groupHeight < viewHeight){
 			ratio = 0;
+		}
+		else{
+			ratio = 1;
 		}
 		this.ratio = ratio;
 		
@@ -297,8 +300,9 @@ if(typeof(supervisorView) == "undefined"){
 		this.scrollLocked = false;
 		
 		this.subscriptions = [];
-		this.backing.connect("onmousemove", this, function(ev){
-			this._scroll(ev.layerY);
+		this.group.connect("onmousemove", this, function(ev){
+			debug(["backing onmousemove", ev]);
+			this._scroll(ev.layerY - this.conf.mousept.y);
 		});
 		
 	};
@@ -307,8 +311,22 @@ if(typeof(supervisorView) == "undefined"){
 		return this.conf.mousept.y + index * 40;
 	}
 	
+	supervisorView.BubbleStack.prototype.viewYtoLocalY = function(viewY){
+		var stackHeight = 40 * this.bubbleConfs.length;
+		if(stackHeight <= this.conf.viewHeight){
+			return viewY;
+		}
+		
+		return Math.floor((stackHeight * viewY) / this.conf.viewHeight);
+	}
+	
 	supervisorView.BubbleStack.prototype.yToIndex = function(localY){
-		return Math.floor(localY / 40);
+		return Math.round(localY / 40);
+	}
+	
+	supervisorView.BubbleStack.prototype.viewYToIndex = function(viewY){
+		var localy = this.viewYtoLocalY(viewY);
+		return this.yToIndex(localy);
 	}
 	
 	supervisorView.BubbleStack.prototype.lockScroll = function(){
@@ -355,26 +373,23 @@ if(typeof(supervisorView) == "undefined"){
 			return false
 		}
 		
-		var deviation = Math.abs(Math.ceil(this.conf.viewHeight / 40));
-		var midIndex = this.yToIndex(viewY * this.ratio);
-		var min = midIndex - deviation;
-		var max = midIndex + deviation;
+		var range = Math.abs(Math.ceil(this.conf.viewHeight / 40));
+		var midIndex = this.viewYToIndex(viewY);
+		
+		var startSize = Math.ceil( (midIndex * range) / this.bubbleConfs.length);
+
+		var min = midIndex - startSize;
+		var max = midIndex + range;
 		
 		debug(["selected computeds", {
+			'range':range,
 			'min': min, 
 			'max': max,
 			'mid': midIndex,
-			'deviation': deviation,
+			'startSize': startSize,
 			'viewY': viewY,
 			'confViewHeight': this.conf.viewHeight
 		}]);
-		/*var shouldDraw = function(ind){
-			if( (min <= ind) && (ind <= max) ){
-				return true;
-			}
-			
-			return false;
-		}*/
 		
 		var acc = [];
 		if(min < 0){
@@ -419,38 +434,15 @@ if(typeof(supervisorView) == "undefined"){
 			}
 		})
 		
-		
-		
-		for(var i = 0; i < acc.length; i++){
-			var ind = acc[i];
-			var obj = this.bubbleConfs[ind];
-			if(! obj.bubble){
-				var drawy = this.indexToY(ind);
-				var bubbleConf = dojo.mixin(obj, {
-					mousept: {
-						x: this.conf.mousept.x,
-						y: drawy
-					},
-					parent: this.group
-				});
-
-				this.bubbleConfs[ind].bubble = new supervisorView.Bubble(bubbleConf);
-				this.bubbleConfs[ind].bubble.group.connect('onmouseenter', this, function(ev){
-					debug(["ind hit", ind]);
-					this._setSelected(ind);
-				});
-			}
-		}
-		
 		for(var i = max; i < this.bubbleConfs.length; i++){
 			var obj = this.bubbleConfs[i];
-			if(obj.bubble){
+			if(obj && obj.bubble){
 				obj.bubble.clear();
 				delete this.bubbleConfs[i].bubble;
 			}
 		}
 
-		debug(["localY and ration", viewY, this.ratio]);
+		debug(["viewY and ration", viewY, this.ratio]);
 		this.group.setTransform([dojox.gfx.matrix.translate(0, -viewY * this.ratio)]);
 	}
 	
@@ -1526,7 +1518,7 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.callsStack = new supervisorView.BubbleStack({
 				mousept:{
 					x:580 + 240,
-					y:100
+					y:20
 				},
 				bubbleConfs:acc
 			});

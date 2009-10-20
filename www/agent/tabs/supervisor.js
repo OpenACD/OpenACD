@@ -1,17 +1,17 @@
 
-if(typeof(supervisorTab) == "undefined"){
+if(typeof(supervisorView) == "undefined"){
 
-	supervisorTab = function(){
+	supervisorView = function(){
 		{};
 	};
 
-	supervisorTab.healthData = {identifier:"id",
+	supervisorView.healthData = {identifier:"id",
 	label:"display",
 	items:[]
 	};
 
-	supervisorTab.dataStore = new dojo.data.ItemFileWriteStore({
-		data: supervisorTab.healthData,
+	supervisorView.dataStore = new dojo.data.ItemFileWriteStore({
+		data: supervisorView.healthData,
 		typeMap:{
 			"details":{
 				"type":Object,
@@ -20,40 +20,40 @@ if(typeof(supervisorTab) == "undefined"){
 		}
 	});
 
-	supervisorTab.systemStack = [];
+	supervisorView.systemStack = [];
 
-	supervisorTab.node = "*";
-	supervisorTab.queueGroupsStack = {clear:function(){ return true}};
-	supervisorTab.queuesStack = {clear:function(){ return true}};
-	supervisorTab.agentsStack = {clear:function(){ return true}};
-	supervisorTab.agentProfilesStack = {clear:function(){ return true}};
-	supervisorTab.callsStack = {clear:function(){return true}};
-	supervisorTab.suppressPoll = false;
+	supervisorView.node = "*";
+	supervisorView.queueGroupsStack = {clear:function(){ return true}};
+	supervisorView.queuesStack = {clear:function(){ return true}};
+	supervisorView.agentsStack = {clear:function(){ return true}};
+	supervisorView.agentProfilesStack = {clear:function(){ return true}};
+	supervisorView.callsStack = {clear:function(){return true}};
+	supervisorView.suppressPoll = false;
 
-	supervisorTab.dndManager = {
+	supervisorView.dndManager = {
 		_dragging: null,
 		_eventHandle:null,
 		_dropCandidate: null,
 		checkCollision:function(pt){
 			var out;
-			if(out = supervisorTab.individualsStack.pointCollision(pt)){
+			if(out = supervisorView.individualsStack.pointCollision(pt)){
 				return out;
 			}
 			
-			if(out = supervisorTab.groupsStack.pointCollision(pt)){
+			if(out = supervisorView.groupsStack.pointCollision(pt)){
 				return out;
 			}
 		
-			if(supervisorTab.agentBubble.pointCollision(pt)){
-				return supervisorTab.agentBubble;
+			if(supervisorView.agentBubble.pointCollision(pt)){
+				return supervisorView.agentBubble;
 			}
 			
-			if(supervisorTab.queueBubble.pointCollision(pt)){
-				return supervisorTab.queueBubble;
+			if(supervisorView.queueBubble.pointCollision(pt)){
+				return supervisorView.queueBubble;
 			}
 			
-			for(var i = 0; i < supervisorTab.systemStack.length; i++){
-				if(out = supervisorTab.systemStack[i].pointCollision(pt)){
+			for(var i = 0; i < supervisorView.systemStack.length; i++){
+				if(out = supervisorView.systemStack[i].pointCollision(pt)){
 					return out;
 				}
 			}
@@ -61,35 +61,35 @@ if(typeof(supervisorTab) == "undefined"){
 			return null;
 		},
 		startDrag:function(obj){
-			supervisorTab.dndManager._eventHandle = obj.connect("mousemove", obj, function(ev){
+			supervisorView.dndManager._eventHandle = obj.connect("mousemove", obj, function(ev){
 				var point = {
 					x:ev.layerX,
 					y:ev.layerY
 				};
-				var collided = supervisorTab.dndManager.checkCollision(point)
+				var collided = supervisorView.dndManager.checkCollision(point)
 				if(collided && collided.dragOver){
 					collided.dragOver(obj);
-					supervisorTab.dndManager._dropCandidate = collided;
+					supervisorView.dndManager._dropCandidate = collided;
 				}
 				else{
-					supervisorTab.dndManager._dropCandidate = null;
+					supervisorView.dndManager._dropCandidate = null;
 				}
 			});
-			supervisorTab.suppressPoll = true;
-			supervisorTab.dndManager._dragging = obj;
+			supervisorView.suppressPoll = true;
+			supervisorView.dndManager._dragging = obj;
 		},
 		endDrag:function(){
-			supervisorTab.suppressPoll = false;
-			supervisorTab.dndManager._dragging.disconnect(supervisorTab.dndManager._eventHandle);
-			if(supervisorTab.dndManager._dropCandidate){
-				supervisorTab.dndManager._dropCandidate.dropped(supervisorTab.dndManager._dragging);
+			supervisorView.suppressPoll = false;
+			supervisorView.dndManager._dragging.disconnect(supervisorView.dndManager._eventHandle);
+			if(supervisorView.dndManager._dropCandidate){
+				supervisorView.dndManager._dropCandidate.dropped(supervisorView.dndManager._dragging);
 			}
 		}
 	};
 
-	/*supervisorTab.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
-	dojo.connect(supervisorTab.surface, "ondragstart",   dojo, "stopEvent");
-	dojo.connect(supervisorTab.surface, "onselectstart", dojo, "stopEvent");*/
+	/*supervisorView.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
+	dojo.connect(supervisorView.surface, "ondragstart",   dojo, "stopEvent");
+	dojo.connect(supervisorView.surface, "onselectstart", dojo, "stopEvent");*/
 
 	//=====
 	// And so begins defining useful classes
@@ -99,14 +99,14 @@ if(typeof(supervisorTab) == "undefined"){
 	// Bubble
 	//=====
 	
-	supervisorTab.Bubble = function(conf){
+	supervisorView.Bubble = function(conf){
 		this.defaultConf = {
 			point:{x:100,y:100},
 			scale:1,
-			parent:supervisorTab.surface,
+			parent:supervisorView.surface,
 			data:{"display":"bubble", "health":50, "type":"text"},
-			onmouseenter:function(){ return false},
-			onmouseleave:function(){return false},
+			onmouseenter:function(){ return true},
+			onmouseleave:function(){return true},
 			onclick:function(){ return false},
 			subscriptions:[]
 		};
@@ -172,7 +172,7 @@ if(typeof(supervisorTab) == "undefined"){
 		this.group.setTransform([dojox.gfx.matrix.scaleAt(conf.scale, p)]);
 	};
 	
-	supervisorTab.Bubble.prototype.size = function(scale){
+	supervisorView.Bubble.prototype.size = function(scale){
 		var rect = this.bubble;
 		var p = {
 			x: rect.getShape().x,
@@ -181,15 +181,15 @@ if(typeof(supervisorTab) == "undefined"){
 		this.group.setTransform([dojox.gfx.matrix.scaleAt(scale, p)]);
 	}
 		
-	supervisorTab.Bubble.prototype.shrink = function(){
+	supervisorView.Bubble.prototype.shrink = function(){
 		this.size(1);
 	}
 	
-	supervisorTab.Bubble.prototype.grow = function(){
+	supervisorView.Bubble.prototype.grow = function(){
 		this.size(1.4);
 	}
 
-	supervisorTab.Bubble.prototype.setHp = function(hp){
+	supervisorView.Bubble.prototype.setHp = function(hp){
 		var rmod = Math.abs(-(255/50) * hp + 255);
 		var gmod = 255;
 		var textcolors = "black";
@@ -207,7 +207,7 @@ if(typeof(supervisorTab) == "undefined"){
 		this.hpline.setShape({x1: thex, x2:thex});
 	}
 	
-	supervisorTab.Bubble.prototype.pointCollision = function(point){
+	supervisorView.Bubble.prototype.pointCollision = function(point){
 		var arr = this.bubble.getTransformedBoundingBox();
 		var topleft = arr[0];
 		var topright = arr[1];
@@ -216,7 +216,7 @@ if(typeof(supervisorTab) == "undefined"){
 		return (topleft.x <= point.x && bottomright.x >= point.x) && (topleft.y <= point.y && bottomright.y >= point.y)
 	}
 	
-	supervisorTab.Bubble.prototype.boxCollision = function(intopleft, inbottomright){
+	supervisorView.Bubble.prototype.boxCollision = function(intopleft, inbottomright){
 		var arr = this.bubble.getTransformedBoundingBox();
 		var topleft = arr[0];
 		var topright = arr[1];
@@ -225,7 +225,7 @@ if(typeof(supervisorTab) == "undefined"){
 		return (!(topleft.x > inbottomright.x || intopleft.x > bottomright.x || topleft.y > inbottomright.y || inbottomright.y > bottomright.y));
 	}
 	
-	supervisorTab.Bubble.prototype.clear = function(){
+	supervisorView.Bubble.prototype.clear = function(){
 		for(var i in this.subscriptions){
 			dojo.unsubscribe(this.subscriptions[i]);
 		}
@@ -233,7 +233,7 @@ if(typeof(supervisorTab) == "undefined"){
 		this.group.clear();
 	}
 	
-	supervisorTab.Bubble.prototype.connect = function(ev, scope, fun){
+	supervisorView.Bubble.prototype.connect = function(ev, scope, fun){
 		this.group.connect(ev, scope, fun);
 	}
 	
@@ -242,9 +242,9 @@ if(typeof(supervisorTab) == "undefined"){
 	// BubbleStack
 	//=====
 	
-	supervisorTab.BubbleStack = function(conf){
+	supervisorView.BubbleStack = function(conf){
 		this.defaultConf = {
-			parent: supervisorTab.surface,
+			parent: supervisorView.surface,
 			mousept: {x:100, y:50},
 			viewHeight:350,
 			bubbleConfs: [],
@@ -257,7 +257,7 @@ if(typeof(supervisorTab) == "undefined"){
 		var viewHeight = conf.viewHeight;
 		
 		var ratio = (groupHeight - viewHeight) / viewHeight;
-		if(ratio < 1){
+		if(groupHeight < viewHeight){
 			ratio = 0;
 		}
 		this.ratio = ratio;
@@ -303,32 +303,34 @@ if(typeof(supervisorTab) == "undefined"){
 		
 	};
 	
-	supervisorTab.BubbleStack.prototype.indexToY = function(index){
+	supervisorView.BubbleStack.prototype.indexToY = function(index){
 		return this.conf.mousept.y + index * 40;
 	}
 	
-	supervisorTab.BubbleStack.prototype.yToIndex = function(localY){
-		return Math.floor((localY - this.conf.mousept.y) / 40);
+	supervisorView.BubbleStack.prototype.yToIndex = function(localY){
+		return Math.floor(localY / 40);
 	}
 	
-	supervisorTab.BubbleStack.prototype.lockScroll = function(){
+	supervisorView.BubbleStack.prototype.lockScroll = function(){
 		this.scrollLocked = true;
 	}
 	
-	supervisorTab.BubbleStack.prototype.unlockScroll = function(){
+	supervisorView.BubbleStack.prototype.unlockScroll = function(){
 		this.scrollLocked = false;
 	}
 	
-	supervisorTab.BubbleStack.prototype._setSelected = function(index){
+	supervisorView.BubbleStack.prototype._setSelected = function(index){
 		debug(["_setSelected", index, this._selected]);
 		if(this._selected){
+			debug("shrinking old selected");
 			var bubConf = this.bubbleConfs[this._selected];
 			if(bubConf.bubble){
 				bubConf.bubble.size(1);
 			}
 		}
 		
-		if(index){
+		if(index && this.bubbleConfs[index]){
+			debug("enlarging new selected");
 			var bubConf = this.bubbleConfs[index];
 			if(bubConf.bubble){
 				bubConf.bubble.size(1.4);
@@ -340,15 +342,15 @@ if(typeof(supervisorTab) == "undefined"){
 		delete this._selected;
 	}
 	
-	supervisorTab.BubbleStack.prototype.getSelected = function(){
+	supervisorView.BubbleStack.prototype.getSelected = function(){
 		if(this._selected){
-			return this.bubbleConfs[this.selected];
+			return this.bubbleConfs[this._selected];
 		}
 		
 		return false
 	}
 	
-	supervisorTab.BubbleStack.prototype._scroll = function(viewY){
+	supervisorView.BubbleStack.prototype._scroll = function(viewY){
 		if(this.scrollLocked){
 			return false
 		}
@@ -358,39 +360,93 @@ if(typeof(supervisorTab) == "undefined"){
 		var min = midIndex - deviation;
 		var max = midIndex + deviation;
 		
-		debug(["min and max", min, max]);
-		var shouldDraw = function(ind){
+		debug(["selected computeds", {
+			'min': min, 
+			'max': max,
+			'mid': midIndex,
+			'deviation': deviation,
+			'viewY': viewY,
+			'confViewHeight': this.conf.viewHeight
+		}]);
+		/*var shouldDraw = function(ind){
 			if( (min <= ind) && (ind <= max) ){
 				return true;
 			}
 			
 			return false;
+		}*/
+		
+		var acc = [];
+		if(min < 0){
+			min = 0;
 		}
 		
-		for(var i = 0; i < this.bubbleConfs.length; i++){
+		if(max > this.bubbleConfs.length){
+			max = this.bubbleConfs.length;
+		}
+		
+		for(var i = min; i < max; i++){
+			acc.push(i);
+		}
+		
+		debug(["acc", acc]);
+		for(var i = 0; i < min; i++){
 			var obj = this.bubbleConfs[i];
-			if(shouldDraw(i)){
-				if(! obj.bubble){
-					var drawy = this.indexToY(i);
-					var bubbleConf = dojo.mixin(obj, {
-						mousept: {
-							x: this.conf.mousept.x,
-							y: drawy
-						},
-						parent: this.group
-					});
-					this.bubbleConfs[i].bubble = new supervisorTab.Bubble(bubbleConf);
-					var thei = i;
-					this.bubbleConfs[i].bubble.group.connect('onmouseenter', this, function(){
-						this._setSelected(thei);
-					});
-				}
+			if(obj.bubble){
+				obj.bubble.clear();
+				delete this.bubbleConfs[i].bubble;
 			}
-			else{
-				if(obj.bubble){
-					obj.bubble.clear();
-					delete this.bubbleConfs[i].bubble;
-				}
+		}
+		var thisref = this;
+		
+		dojo.forEach(acc, function(ind){
+			var obj = thisref.bubbleConfs[ind];
+			if(! obj.bubble){
+				var drawy = thisref.indexToY(ind);
+				var bubbleConf = dojo.mixin(obj, {
+					mousept: {
+						x: thisref.conf.mousept.x,
+						y: drawy
+					},
+					parent: thisref.group
+				});
+
+				thisref.bubbleConfs[ind].bubble = new supervisorView.Bubble(bubbleConf);
+				thisref.bubbleConfs[ind].bubble.group.connect('onmouseenter', thisref, function(ev){
+					debug(["ind hit", ind]);
+					thisref._setSelected(ind);
+				});
+			}
+		})
+		
+		
+		
+		for(var i = 0; i < acc.length; i++){
+			var ind = acc[i];
+			var obj = this.bubbleConfs[ind];
+			if(! obj.bubble){
+				var drawy = this.indexToY(ind);
+				var bubbleConf = dojo.mixin(obj, {
+					mousept: {
+						x: this.conf.mousept.x,
+						y: drawy
+					},
+					parent: this.group
+				});
+
+				this.bubbleConfs[ind].bubble = new supervisorView.Bubble(bubbleConf);
+				this.bubbleConfs[ind].bubble.group.connect('onmouseenter', this, function(ev){
+					debug(["ind hit", ind]);
+					this._setSelected(ind);
+				});
+			}
+		}
+		
+		for(var i = max; i < this.bubbleConfs.length; i++){
+			var obj = this.bubbleConfs[i];
+			if(obj.bubble){
+				obj.bubble.clear();
+				delete this.bubbleConfs[i].bubble;
 			}
 		}
 
@@ -398,14 +454,14 @@ if(typeof(supervisorTab) == "undefined"){
 		this.group.setTransform([dojox.gfx.matrix.translate(0, -viewY * this.ratio)]);
 	}
 	
-	supervisorTab.BubbleStack.prototype.clear = function(){
+	supervisorView.BubbleStack.prototype.clear = function(){
 		dojo.forEach(this.subscriptions, function(obj){
 			dojo.unsubscribe(obj);
 		});
 		this.group.clear();
 	}
 	
-	supervisorTab.BubbleStack.prototype.pointCollision = function(point){
+	supervisorView.BubbleStack.prototype.pointCollision = function(point){
 		if (this.backing.getShape().x <= point.x && this.backing.getShape().x + this.backing.getShape().width >= point.x){
 			this._scroll(point.y);
 			for(var i = 0; i < this.bubbleConfs.length; i++){
@@ -424,7 +480,7 @@ if(typeof(supervisorTab) == "undefined"){
 		return null;
 	}
 	
-	supervisorTab.BubbleStack.prototype.boxCollision = function(intopleft, intopright, inbottomright, inbottomright){
+	supervisorView.BubbleStack.prototype.boxCollision = function(intopleft, intopright, inbottomright, inbottomright){
 		if(! (this.backing.getShape().x > inbottomright.x || intopleft.x > (this.backing.getShape().x + this.backing.getShape().width))){
 			for(var i =0; i < this.bubbleConfs.length; i++){
 				var bc = this.bubbleConfs[i];
@@ -438,7 +494,7 @@ if(typeof(supervisorTab) == "undefined"){
 		return null;
 	}
 	
-	supervisorTab.BubbleStack.prototype.forEachBubble = function(callback){
+	supervisorView.BubbleStack.prototype.forEachBubble = function(callback){
 		// callback is just the bubble.
 		dojo.forEach(this.bubbleConfs, function(obj){
 			if(obj.bubble){
@@ -451,7 +507,7 @@ if(typeof(supervisorTab) == "undefined"){
 	//utility functions
 	//=====
 
-	supervisorTab.averageHp = function(hps){
+	supervisorView.averageHp = function(hps){
 		if(hps.length == 0){
 			return 50;
 		}
@@ -573,43 +629,43 @@ if(typeof(supervisorTab) == "undefined"){
 		return Math.round(total / count);
 	}
 
-	supervisorTab.setMediaHps = function(){
+	supervisorView.setMediaHps = function(){
 		var setHps = function(items){
 			info(["setMediaHps fetch done", items]);
 			var setHp = function(obj, ind, arr){
-				var healthobj = supervisorTab.dataStore.getValue(obj, "health");
+				var healthobj = supervisorView.dataStore.getValue(obj, "health");
 				var hpsvars = [];
 				for(var i in healthobj){
 					hpsvars.push(healthobj[i]);
 				}
 				debug(["setMediaHps wants avergaed:  ", hpsvars]);
-				var hp = supervisorTab.averageHp(hpsvars);
-				supervisorTab.dataStore.setValue(obj, "aggregate", hp);
+				var hp = supervisorView.averageHp(hpsvars);
+				supervisorView.dataStore.setValue(obj, "aggregate", hp);
 				var rawobj = {
-					"id":"media-" + supervisorTab.dataStore.getValue(obj, "display"),
-					"display":supervisorTab.dataStore.getValue(obj, "display"),
+					"id":"media-" + supervisorView.dataStore.getValue(obj, "display"),
+					"display":supervisorView.dataStore.getValue(obj, "display"),
 					"aggregate":hp,
 					"type":"media",
 					"health":{},
 					"details":{}
 				};
 				debug(["setMediaHps", obj]);
-				dojo.publish("supervisortab/set/" + rawobj.id, [obj, rawobj]);				
+				dojo.publish("supervisorView/set/" + rawobj.id, [obj, rawobj]);				
 			}
 			dojo.forEach(items, setHp);
-			supervisorTab.dataStore.save();
-			dojo.publish("supervisortab/aggregate/media", []);
+			supervisorView.dataStore.save();
+			dojo.publish("supervisorView/aggregate/media", []);
 		}
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{"type":"media"},
 			onComplete:setHps
 		});
 									  
 	}
 
-	supervisorTab.setQueueHps = function(){
+	supervisorView.setQueueHps = function(){
 		var setHp = function(item){
-			var healthobj = supervisorTab.dataStore.getValue(item, "health");
+			var healthobj = supervisorView.dataStore.getValue(item, "health");
 			var hpsvars = [];
 			for(var i in healthobj){
 				hpsvars.push(healthobj[i]);
@@ -617,32 +673,32 @@ if(typeof(supervisorTab) == "undefined"){
 			var gotMedia = function(mitems){
 				if(mitems.length > 0){
 					dojo.forEach(mitems, function(mitem){
-						hpsvars.push(supervisorTab.dataStore.getValue(mitem, "aggregate"));
+						hpsvars.push(supervisorView.dataStore.getValue(mitem, "aggregate"));
 					});
 				}
-				var hp = supervisorTab.averageHp(hpsvars);
-				supervisorTab.dataStore.setValue(item, "aggregate", hp);
-				supervisorTab.dataStore.save();
+				var hp = supervisorView.averageHp(hpsvars);
+				supervisorView.dataStore.setValue(item, "aggregate", hp);
+				supervisorView.dataStore.save();
 				var rawobj = {
-					"id":"queue-" + supervisorTab.dataStore.getValue(item, "display"),
-					"display":supervisorTab.dataStore.getValue(item, "display"),
+					"id":"queue-" + supervisorView.dataStore.getValue(item, "display"),
+					"display":supervisorView.dataStore.getValue(item, "display"),
 					"aggregate":hp,
 					"type":"queue",
 					"health":{},
 					"details":{}
 				};
-				dojo.publish("supervisortab/set/" + rawobj.id, [item, rawobj]);
+				dojo.publish("supervisorView/set/" + rawobj.id, [item, rawobj]);
 			}
 			
-			supervisorTab.dataStore.fetch({
+			supervisorView.dataStore.fetch({
 				query:{
 					type:"media",
-					queue:supervisorTab.dataStore.getValue(item, "display"),
-					node:supervisorTab.node
+					queue:supervisorView.dataStore.getValue(item, "display"),
+					node:supervisorView.node
 				},
 				onComplete:function(got){
 					gotMedia(got);
-					dojo.publish("supervisortab/aggregate/queues", []);
+					dojo.publish("supervisorView/aggregate/queues", []);
 				}
 			});
 		}
@@ -652,15 +708,15 @@ if(typeof(supervisorTab) == "undefined"){
 			dojo.forEach(items, setHp);
 		}
 
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{"type":"queue"},
 			onComplete:setHps
 		})
 	}
 
-	supervisorTab.setAgentHps = function(){
+	supervisorView.setAgentHps = function(){
 		var setHp = function(item){
-			var healthobj = supervisorTab.dataStore.getValue(item, "health");
+			var healthobj = supervisorView.dataStore.getValue(item, "health");
 			var hpsvars = [];
 			for(var i in healthobj){
 				hpsvars.push(healthobj[i]);
@@ -668,32 +724,32 @@ if(typeof(supervisorTab) == "undefined"){
 			
 			var gotMedia = function(mitems){
 				if(mitems.length > 0){
-					hpsvars.push(supervisorTab.dataStore.getValue(mitems[0], "aggregate"));
+					hpsvars.push(supervisorView.dataStore.getValue(mitems[0], "aggregate"));
 				}
 				debug(["setAgentHps wants averaged:", hpsvars]);
-				var hp = supervisorTab.averageHp(hpsvars);
+				var hp = supervisorView.averageHp(hpsvars);
 
-				supervisorTab.dataStore.setValue(item, "aggregate", hp);
-				supervisorTab.dataStore.save();
+				supervisorView.dataStore.setValue(item, "aggregate", hp);
+				supervisorView.dataStore.save();
 				var rawobj = {
-					"id":supervisorTab.dataStore.getValue(item, "id"),
-					"display":supervisorTab.dataStore.getValue(item, "display"),
+					"id":supervisorView.dataStore.getValue(item, "id"),
+					"display":supervisorView.dataStore.getValue(item, "display"),
 					"aggregate":hp,
 					"type":"agent",
 					"health":{},
-					"details":supervisorTab.dataStore.getValue(item, "details")
+					"details":supervisorView.dataStore.getValue(item, "details")
 				};
-				dojo.publish("supervisortab/set/" + rawobj.id, [item, rawobj]);
+				dojo.publish("supervisorView/set/" + rawobj.id, [item, rawobj]);
 			}
 			
-			supervisorTab.dataStore.fetch({
+			supervisorView.dataStore.fetch({
 				query:{
 					"type":"media",
-					"agent":supervisorTab.dataStore.getValue(item, "display")
+					"agent":supervisorView.dataStore.getValue(item, "display")
 				},
 				onComplete:function(got){
 					gotMedia(got);
-					dojo.publish("supervisortab/aggregate/agents", []);
+					dojo.publish("supervisorView/aggregate/agents", []);
 				}
 			});
 		}
@@ -703,44 +759,44 @@ if(typeof(supervisorTab) == "undefined"){
 			dojo.forEach(items, setHp);
 		}
 		
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{"type":"agent"},
 			onComplete:setHps
 		})
 	}
 
-	supervisorTab.setQueueGroupHps = function(){
+	supervisorView.setQueueGroupHps = function(){
 		var setHp = function(item){
 			var hpsvars = [];
 			var gotQueues = function(items){
 				dojo.forEach(items, function(i){
-					hpsvars.push(supervisorTab.dataStore.getValue(i, "aggregate"));
+					hpsvars.push(supervisorView.dataStore.getValue(i, "aggregate"));
 				});
 				info(["setQueueGroupHps wants averaged:  ", hpsvars]);
-				var hp = supervisorTab.averageHp(hpsvars);
-				supervisorTab.dataStore.setValue(item, "aggregate", hp);
-				supervisorTab.dataStore.save();
+				var hp = supervisorView.averageHp(hpsvars);
+				supervisorView.dataStore.setValue(item, "aggregate", hp);
+				supervisorView.dataStore.save();
 				var rawobj = {
-					"id":"queuegroup-" + supervisorTab.dataStore.getValue(item, "display"),
-					"display":supervisorTab.dataStore.getValue(item, "display"),
+					"id":"queuegroup-" + supervisorView.dataStore.getValue(item, "display"),
+					"display":supervisorView.dataStore.getValue(item, "display"),
 					"aggregate":hp,
 					"type":"queuegroup",
 					"health":{},
 					"details":{}
 				};
-				dojo.publish("supervisortab/set/queuegroup-" + rawobj.display, [item, rawobj]);
+				dojo.publish("supervisorView/set/queuegroup-" + rawobj.display, [item, rawobj]);
 				
 			}
 			
-			supervisorTab.dataStore.fetch({
+			supervisorView.dataStore.fetch({
 				query:{
 					"type":"queue",
-					"group":supervisorTab.dataStore.getValue(item, "display"),
-					"node":supervisorTab.node
+					"group":supervisorView.dataStore.getValue(item, "display"),
+					"node":supervisorView.node
 				},
 				onComplete:function(got){
 					gotQueues(got);
-					dojo.publish("supervisortab/aggregate/queuegroups", []);
+					dojo.publish("supervisorView/aggregate/queuegroups", []);
 				}
 			});
 		}
@@ -750,43 +806,43 @@ if(typeof(supervisorTab) == "undefined"){
 			dojo.forEach(items, setHp);
 		}
 		
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{"type":"queuegroup"},
 			onComplete:setHps
 		})
 	}
 
-	supervisorTab.setAgentProfileHps = function(){
+	supervisorView.setAgentProfileHps = function(){
 		var setHp = function(item){
 			var hpsvars = [];
 			var gotAgents = function(aitems){
 				dojo.forEach(aitems, function(i){
-					hpsvars.push(supervisorTab.dataStore.getValue(i, "aggregate"));
+					hpsvars.push(supervisorView.dataStore.getValue(i, "aggregate"));
 				});
 				debug(["setAGentProfileHps is averaging:", hpsvars]);
-				var hp = supervisorTab.averageHp(hpsvars);
-				supervisorTab.dataStore.setValue(item, "aggregate", hp);
-				supervisorTab.dataStore.save();
+				var hp = supervisorView.averageHp(hpsvars);
+				supervisorView.dataStore.setValue(item, "aggregate", hp);
+				supervisorView.dataStore.save();
 				var rawobj = {
-					"id":"agentprofile-" + supervisorTab.dataStore.getValue(item, "display"),
-					"display":supervisorTab.dataStore.getValue(item, "display"),
+					"id":"agentprofile-" + supervisorView.dataStore.getValue(item, "display"),
+					"display":supervisorView.dataStore.getValue(item, "display"),
 					"aggregate":hp,
 					"type":"agentprofile",
 					"health":{},
 					"details":{}
 				};
-				dojo.publish("supervisortab/set/agentprofile-" + rawobj.display, [item, rawobj]);
+				dojo.publish("supervisorView/set/agentprofile-" + rawobj.display, [item, rawobj]);
 			}
 			
-			supervisorTab.dataStore.fetch({
+			supervisorView.dataStore.fetch({
 				query:{
 					"type":"agent",
-					"profile":supervisorTab.dataStore.getValue(item, "display"),
-					"node":supervisorTab.node
+					"profile":supervisorView.dataStore.getValue(item, "display"),
+					"node":supervisorView.node
 				},
 				onComplete:function(got){
 					gotAgents(got);
-					dojo.publish("supervisortab/aggregate/agentprofiles", []);
+					dojo.publish("supervisorView/aggregate/agentprofiles", []);
 				}
 			});
 		}
@@ -796,96 +852,96 @@ if(typeof(supervisorTab) == "undefined"){
 			dojo.forEach(items, setHp);
 		}
 		
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{"type":"agentprofile"},
 			onComplete:setHps
 		})
 	}
 
-	supervisorTab.setGlobalAgentHp = function(){
+	supervisorView.setGlobalAgentHp = function(){
 		var setHp = function(items){
 			info(["setGlobalAgentHp fetch done", items]);
 			var hplist = [];
 			dojo.forEach(items, function(item){
-				hplist.push(supervisorTab.dataStore.getValue(item, "aggregate"));
+				hplist.push(supervisorView.dataStore.getValue(item, "aggregate"));
 			});
 			info(["setGlobalAgentHp wants averaged:", hplist]);
-			var hp = supervisorTab.averageHp(hplist);
-			supervisorTab.agentBubble.setHp(hp);
+			var hp = supervisorView.averageHp(hplist);
+			supervisorView.agentBubble.setHp(hp);
 		}
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{"type":"agentprofile"},
 			onComplete:setHp
 		});
 	}
 
-	supervisorTab.setGlobalQueueHp = function(){
+	supervisorView.setGlobalQueueHp = function(){
 		var setHp = function(items){
 			info(["setGlobalQueueHp fetch done", items]);
 			var hplist = [];
 			dojo.forEach(items, function(item){
-				hplist.push(supervisorTab.dataStore.getValue(item, "aggregate"));
+				hplist.push(supervisorView.dataStore.getValue(item, "aggregate"));
 			});
 			debug(["setGlobalQueueHp wants averaged:", hplist]);
-			var hp = supervisorTab.averageHp(hplist);
-			supervisorTab.queueBubble.setHp(hp);
+			var hp = supervisorView.averageHp(hplist);
+			supervisorView.queueBubble.setHp(hp);
 		}
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{"type":"queuegroup"},
 			onComplete:setHp
 		})
 	}
 
-	supervisorTab.setNodeHps = function(){
+	supervisorView.setNodeHps = function(){
 		var gotNodes = function(items){
 			info(["setNodeHps fetch done", items]);
 			dojo.forEach(items, function(item){
 				var gotNodeItems = function(nitems){
 					var hplist = [];
 					dojo.forEach(nitems, function(nitem){
-						hplist.push(supervisorTab.dataStore.getValue(nitem, "aggregate"));
+						hplist.push(supervisorView.dataStore.getValue(nitem, "aggregate"));
 					});
-					var hpobj = supervisorTab.dataStore.getValue(item, "health");
+					var hpobj = supervisorView.dataStore.getValue(item, "health");
 					for(var i in hpobj){
 						hplist.push(hpobj[i]);
 					}
 					debug(["setNodeHps wants averaged", hplist]);
-					var hp = supervisorTab.averageHp(hplist);
-					supervisorTab.dataStore.setValue(item, "aggregate", hp);
+					var hp = supervisorView.averageHp(hplist);
+					supervisorView.dataStore.setValue(item, "aggregate", hp);
 					var rawobj = {
-						"id":supervisorTab.dataStore.getValue(item, "id"),
-						"display":supervisorTab.dataStore.getValue(item, "display"),
+						"id":supervisorView.dataStore.getValue(item, "id"),
+						"display":supervisorView.dataStore.getValue(item, "display"),
 						"aggregate":hp,
 						"type":"node",
 						"health":{},
-						"details":supervisorTab.dataStore.getValue(item, "details")
+						"details":supervisorView.dataStore.getValue(item, "details")
 					};
-					supervisorTab.dataStore.save();
-					dojo.publish("supervisortab/set/" + rawobj.id, [item, rawobj]);
+					supervisorView.dataStore.save();
+					dojo.publish("supervisorView/set/" + rawobj.id, [item, rawobj]);
 				}
-				supervisorTab.dataStore.save();
-				//supervisorTab.refreshSystemStack();
-				supervisorTab.dataStore.fetch({
-					query:{node:supervisorTab.dataStore.getValue(item, "display")},
+				supervisorView.dataStore.save();
+				//supervisorView.refreshSystemStack();
+				supervisorView.dataStore.fetch({
+					query:{node:supervisorView.dataStore.getValue(item, "display")},
 					onComplete:gotNodeItems
 				});
 			});
 		}
 		
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{type:"node"},
 			onComplete:gotNodes
 		});
 	}
 
-	supervisorTab.setSystemHps = function(){
+	supervisorView.setSystemHps = function(){
 		var gotNodes = function(items){
 			info(["setSystemHps fetch done", items]);
 			var hps = [];
 			dojo.forEach(items, function(item){
-				hps.push(supervisorTab.dataStore.getValue(item, "aggregate"));
+				hps.push(supervisorView.dataStore.getValue(item, "aggregate"));
 			});
-			var hp = supervisorTab.averageHp(hps);
+			var hp = supervisorView.averageHp(hps);
 			var rawobj = {
 				"id":"system-System",
 				"display":"System",
@@ -898,36 +954,36 @@ if(typeof(supervisorTab) == "undefined"){
 				if(items.length < 1){
 					warning(["Trying to get the system entry failed", items]);
 				}
-				supervisorTab.dataStore.setValue(items[0], "aggreagate", hp);
-				supervisorTab.dataStore.save();
-				dojo.publish("supervisortab/set/system-System", [items[0], rawobj]);
+				supervisorView.dataStore.setValue(items[0], "aggreagate", hp);
+				supervisorView.dataStore.save();
+				dojo.publish("supervisorView/set/system-System", [items[0], rawobj]);
 			}
-			supervisorTab.dataStore.fetch({
+			supervisorView.dataStore.fetch({
 				query:{"type":"system"},
 				onComplete:gotSystem
 			});
 		}
 		
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{"type":"node"},
 			onComplete:gotNodes
 		});
 	}
 	
-	supervisorTab.setAllHps = function(){
+	supervisorView.setAllHps = function(){
 		info(["setAllHps..."]);
-		supervisorTab.setMediaHps();
-		supervisorTab.setQueueHps();
-		supervisorTab.setAgentHps();
-		supervisorTab.setQueueGroupHps();
-		supervisorTab.setAgentProfileHps();
-		supervisorTab.setGlobalAgentHp();
-		supervisorTab.setGlobalQueueHp();
-		supervisorTab.setNodeHps();
-		supervisorTab.setSystemHps();
+		supervisorView.setMediaHps();
+		supervisorView.setQueueHps();
+		supervisorView.setAgentHps();
+		supervisorView.setQueueGroupHps();
+		supervisorView.setAgentProfileHps();
+		supervisorView.setGlobalAgentHp();
+		supervisorView.setGlobalQueueHp();
+		supervisorView.setNodeHps();
+		supervisorView.setSystemHps();
 	}
 
-	supervisorTab.bubbleZoom = function(ev){
+	supervisorView.bubbleZoom = function(ev){
 		var rect = this.children[0];
 		var p = {
 			x: rect.getShape().x,
@@ -936,7 +992,7 @@ if(typeof(supervisorTab) == "undefined"){
 		this.setTransform([dojox.gfx.matrix.scaleAt(1.4, p)]);
 	};
 
-	supervisorTab.bubbleOut = function(ev){
+	supervisorView.bubbleOut = function(ev){
 		var rect = this.children[0];
 		var p = {
 			x: rect.getShape().x,
@@ -945,40 +1001,40 @@ if(typeof(supervisorTab) == "undefined"){
 		this.setTransform([dojox.gfx.matrix.scaleAt(1, p)]);
 	};
 
-	supervisorTab.setDetails = function(fquery){
+	supervisorView.setDetails = function(fquery){
 		var fetchdone = function(item){
-			var obj = supervisorTab.dataStore.getValue(item, "details");
+			var obj = supervisorView.dataStore.getValue(item, "details");
 			var out = "";
-			if(supervisorTab.dataStore.getValue(item, "node")){
-				out += "<p class=\"smaller\"><label class=\"narrow\">Node:</label>" + supervisorTab.dataStore.getValue(item, "node");
+			if(supervisorView.dataStore.getValue(item, "node")){
+				out += "<p class=\"smaller\"><label class=\"narrow\">Node:</label>" + supervisorView.dataStore.getValue(item, "node");
 			}
 			for(var i in obj){
 				out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + obj[i].toString() + "</p>";
 			}
 			out += "<p>Health Report</p>";
-			var hps = supervisorTab.dataStore.getValue(item, "health");
+			var hps = supervisorView.dataStore.getValue(item, "health");
 			for(var i in hps){
-				var sigdigited = Math.floor(supervisorTab.averageHp([hps[i]]) * 100) / 100;
+				var sigdigited = Math.floor(supervisorView.averageHp([hps[i]]) * 100) / 100;
 				out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + sigdigited.toString() + "</p>";
 			}
 			dijit.byId("supervisorDetails").setContent(out);
-			dijit.byId("supervisorDetails").setTitle(supervisorTab.dataStore.getValue(item, "type") + ": " + supervisorTab.dataStore.getValue(item, "display"));
+			dijit.byId("supervisorDetails").setTitle(supervisorView.dataStore.getValue(item, "type") + ": " + supervisorView.dataStore.getValue(item, "display"));
 		}
 		
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 				query:fquery,
 				onItem:fetchdone
 		});
 	}
 
-	supervisorTab.drawSystemStack = function(opts){
-		for(var i =0; i < supervisorTab.systemStack.length; i++){
-			supervisorTab.systemStack[i].clear();
+	supervisorView.drawSystemStack = function(opts){
+		for(var i =0; i < supervisorView.systemStack.length; i++){
+			supervisorView.systemStack[i].clear();
 		}
 
 		var conf = {
 			data: [],
-			parent: supervisorTab.surface
+			parent: supervisorView.surface
 		}
 
 		conf = dojo.mixin(conf, opts);
@@ -988,20 +1044,20 @@ if(typeof(supervisorTab) == "undefined"){
 			hps.push(conf.data[i].aggregate);
 		}
 		debug(["drawSystemStack wants averaged", hps]);
-		conf.data.unshift({"display":"System", "id":"system-System", "type":"system", "health":supervisorTab.averageHp(hps)});
+		conf.data.unshift({"display":"System", "id":"system-System", "type":"system", "health":supervisorView.averageHp(hps)});
 
 		var yi = 385;
 		out = [];
 		var drawIt = function(obj, index, arr){
-			var o = supervisorTab.drawBubble({
+			var o = supervisorView.drawBubble({
 				scale:.75,
 				point: {x:20, y:yi},
 				data: obj
 			});
-			if(supervisorTab.node == "*" && obj.display == "System"){
+			if(supervisorView.node == "*" && obj.display == "System"){
 				o.grow();
 			}
-			else if(supervisorTab.node == obj.display){
+			else if(supervisorView.node == obj.display){
 				o.grow();
 			}
 			
@@ -1013,30 +1069,30 @@ if(typeof(supervisorTab) == "undefined"){
 			else{
 				o.connect("onclick", o, function(ev){
 					if(this.data.display == "System"){
-						supervisorTab.node = "*";
+						supervisorView.node = "*";
 					}
 					else{
-						supervisorTab.node = this.data.display
+						supervisorView.node = this.data.display
 					}
-					dojo.forEach(supervisorTab.systemStack, function(obj){
+					dojo.forEach(supervisorView.systemStack, function(obj){
 						obj.shrink();
 					});
 					this.grow();
 				});
 			}
 			o.connect("onmouseenter", o, function(ev){				
-				supervisorTab.setDetails({display:this.data.display});
+				supervisorView.setDetails({display:this.data.display});
 				dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
 			});
 			
 			if(obj.display == "System"){
-				o.subscriptions.push(dojo.subscribe("supervisortab/set/system-System", function(storeref, rawobj){
+				o.subscriptions.push(dojo.subscribe("supervisorView/set/system-System", function(storeref, rawobj){
 					debug(["System set sub", storeref, rawobj]);
 					o.setHp(rawobj.aggregate);
 				}));
 			}
 			else{
-				o.subscriptions.push(dojo.subscribe("supervisortab/set/node-" + obj.display, function(storeref, rawobj){
+				o.subscriptions.push(dojo.subscribe("supervisorView/set/node-" + obj.display, function(storeref, rawobj){
 					debug(["node set sub", storeref, rawobj]);
 					o.setHp(rawobj.aggregate);
 					for(var i = 0; i < o.lines.length; i++){
@@ -1057,11 +1113,11 @@ if(typeof(supervisorTab) == "undefined"){
 			out.push(o);
 		}
 		dojo.forEach(conf.data, drawIt);
-		supervisorTab.systemStack = out;
+		supervisorView.systemStack = out;
 		return out;
 	}
 
-	supervisorTab.drawAgentQueueBubbles = function(agenthp, queuehp){
+	supervisorView.drawAgentQueueBubbles = function(agenthp, queuehp){
 		var clearStacks = function(){
 			var clearables = [
 				"queueGroupsStack",
@@ -1072,41 +1128,41 @@ if(typeof(supervisorTab) == "undefined"){
 			]
 			
 			for(var i in clearables){
-				if(supervisorTab[clearables[i]].clear){
-					supervisorTab[clearables[i]].clear();
+				if(supervisorView[clearables[i]].clear){
+					supervisorView[clearables[i]].clear();
 				}
 			}
 		}
 		
-		supervisorTab.agentBubble = new supervisorTab.Bubble({
+		supervisorView.agentBubble = new supervisorView.Bubble({
 			point:{x:20, y:20},
 			scale: .75,
 			data: {"health":agenthp, "display":"Agents"},
 			onclick:function(){
 				clearStacks();
-				supervisorTab.drawAgentProfilesStack();
+				supervisorView.drawAgentProfilesStack();
 				this.size(1);
-				supervisorTab.queueBubble.size(.75);
+				supervisorView.queueBubble.size(.75);
 			}
 		});
-		supervisorTab.agentBubble.dragOver = supervisorTab.agentBubble.onclick;
+		supervisorView.agentBubble.dragOver = supervisorView.agentBubble.onclick;
 		
-		supervisorTab.queueBubble = new supervisorTab.Bubble({
+		supervisorView.queueBubble = new supervisorView.Bubble({
 			point:{x:20, y:60},
 			scale: .75,
 			data:{"health":queuehp, "display":"Queues"},
 			onclick: function(){
 				clearStacks();
-				supervisorTab.drawQueueGroupsStack();
+				supervisorView.drawQueueGroupsStack();
 				this.size(1);
-				supervisorTab.agentBubble.size(.75);
+				supervisorView.agentBubble.size(.75);
 			}
 		});
 		
-		supervisorTab.queueBubble.dragOver = supervisorTab.queueBubble.onclick;
+		supervisorView.queueBubble.dragOver = supervisorView.queueBubble.onclick;
 	}
 
-	supervisorTab.sizeFromDistance = function(distance){
+	supervisorView.sizeFromDistance = function(distance){
 		// y = -.00003x^2 + 1.4 if you quad
 		// linear is a bit faster, though.
 		// y = -(.65/50)x + 1.4
@@ -1125,18 +1181,18 @@ if(typeof(supervisorTab) == "undefined"){
 		return scale;
 	}
 
-	supervisorTab.drawQueueGroupsStack = function(){
-		if(supervisorTab.queueGroupsStack && supervisorTab.queuesStack.scrollLocked){
+	supervisorView.drawQueueGroupsStack = function(){
+		if(supervisorView.queueGroupsStack && supervisorView.queuesStack.scrollLocked){
 			warning(["queueGroupsstack exists but is scroll-locked"]);
 			return false;
 		}
 		
-		if(supervisorTab.agentsStack && supervisorTab.agentsStack.scrollLocked){
+		if(supervisorView.agentsStack && supervisorView.agentsStack.scrollLocked){
 			warning(["agent profiles stack exists but is scroll-locked"]);
 			return false;
 		}
 		
-		//supervisorTab.queuesStack.clear();
+		//supervisorView.queuesStack.clear();
 		
 		var fetchdone = function(items, request){
 			//warning(["fetchdone"]);
@@ -1145,27 +1201,27 @@ if(typeof(supervisorTab) == "undefined"){
 			dojo.forEach(items, function(obj){
 				acc.push({
 					data:{
-						display:supervisorTab.dataStore.getValue(obj, "display"),
-						health:supervisorTab.dataStore.getValue(obj, "aggregate", 50)
+						display:supervisorView.dataStore.getValue(obj, "display"),
+						health:supervisorView.dataStore.getValue(obj, "aggregate", 50)
 					},
 					onmouseenter:function(ev){
-						supervisorTab.drawQueuesStack(this.data.display, supervisorTab.node, acc.length);
-						supervisorTab.setDetails({
-							type:supervisorTab.dataStore.getValue(obj, "type"),
-							display:supervisorTab.dataStore.getValue(obj, "display")
+						supervisorView.drawQueuesStack(this.data.display, supervisorView.node, acc.length);
+						supervisorView.setDetails({
+							type:supervisorView.dataStore.getValue(obj, "type"),
+							display:supervisorView.dataStore.getValue(obj, "display")
 						});
 					}
 				});
-				hps.push(supervisorTab.dataStore.getValue(obj, "aggregate"));
+				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
 			});
 			
-			supervisorTab.callsStack.clear();
+			supervisorView.callsStack.clear();
 			//warning(["calls stack cleared"]);
 			
-			/*supervisorTab.queueGroupsStack.clear();
-			supervisorTab.queuesStack.clear();
-			supervisorTab.agentProfilesStack.clear();*/
-			supervisorTab.queueGroupsStack = new supervisorTab.BubbleStack({
+			/*supervisorView.queueGroupsStack.clear();
+			supervisorView.queuesStack.clear();
+			supervisorView.agentProfilesStack.clear();*/
+			supervisorView.queueGroupsStack = new supervisorView.BubbleStack({
 				mousept:{
 					x:300,
 					y:100
@@ -1173,18 +1229,18 @@ if(typeof(supervisorTab) == "undefined"){
 				bubbleConfs:acc
 			});
 
-			supervisorTab.queueGroupsStack.forEachBubble(function(bubble){
-				var chan = "supervisortab/set/queuegroup-" + bubble.data.display;
+			supervisorView.queueGroupsStack.forEachBubble(function(bubble){
+				var chan = "supervisorView/set/queuegroup-" + bubble.data.display;
 				bubble.subscriptions.push(dojo.subscribe(chan, function(storeref, rawobj){
 					bubble.setHp(rawobj.aggregate);
 				}));
 			});
 			
-			supervisorTab.queueGroupsStack._scroll(0);
-			supervisorTab.queueGroupsStack.group.moveToBack();
+			supervisorView.queueGroupsStack._scroll(0);
+			supervisorView.queueGroupsStack.group.moveToBack();
 		}
 		
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{
 				type:"queuegroup",
 			},
@@ -1192,8 +1248,8 @@ if(typeof(supervisorTab) == "undefined"){
 		});
 	}
 
-	supervisorTab.drawQueuesStack = function(group, node, scrollIndex){
-		if(supervisorTab.queuesStack.scrollLocked){
+	supervisorView.drawQueuesStack = function(group, node, scrollIndex){
+		if(supervisorView.queuesStack.scrollLocked){
 			warning(["queues stack scroll lacked"]);
 			return false;
 		}
@@ -1202,31 +1258,31 @@ if(typeof(supervisorTab) == "undefined"){
 			var acc = [];
 			var hps = [];
 			dojo.forEach(items, function(obj){
-				hps.push(supervisorTab.dataStore.getValue(obj, "aggregate", 50));
+				hps.push(supervisorView.dataStore.getValue(obj, "aggregate", 50));
 				acc.push({
 					data:{
-						display:supervisorTab.dataStore.getValue(obj, "display"),
-						health:supervisorTab.dataStore.getValue(obj, "aggregate", 50)
+						display:supervisorView.dataStore.getValue(obj, "display"),
+						health:supervisorView.dataStore.getValue(obj, "aggregate", 50)
 					},
 					onmouseenter:function(ev){
 						var queryObj = {
 							'queue':this.data.display,
-							'node':supervisorTab.node
+							'node':supervisorView.node
 						};
-						supervisorTab.drawCallStack(queryObj, acc.length);
-						supervisorTab.setDetails({
+						supervisorView.drawCallStack(queryObj, acc.length);
+						supervisorView.setDetails({
 							type:"queue",
-							display:supervisorTab.dataStore.getValue(obj, "display")
+							display:supervisorView.dataStore.getValue(obj, "display")
 						});
 					}
 				});
-				hps.push(supervisorTab.dataStore.getValue(obj, "aggregate"));
+				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
 			});
 			
-			supervisorTab.callsStack.clear();
-			supervisorTab.queuesStack.clear();
+			supervisorView.callsStack.clear();
+			supervisorView.queuesStack.clear();
 			
-			supervisorTab.queuesStack = new supervisorTab.BubbleStack({
+			supervisorView.queuesStack = new supervisorView.BubbleStack({
 				mousept:{
 					x:540,
 					y:100
@@ -1234,11 +1290,11 @@ if(typeof(supervisorTab) == "undefined"){
 				bubbleConfs: acc
 			});
 			
-			supervisorTab.queuesStack.forEachBubble(function(bub){
-				bub.subscriptions.push(dojo.subscribe("supervisortab/set/queue-" + detailsObj.display, function(storeref, rawobj){
+			supervisorView.queuesStack.forEachBubble(function(bub){
+				bub.subscriptions.push(dojo.subscribe("supervisorView/set/queue-" + detailsObj.display, function(storeref, rawobj){
 					bub.setHp(rawobj.aggregate);
 				}));
-				bub.subscriptions.push(dojo.subscribe("supervisortab/drop/queue-" + detailsObj.display, function(storeref, rawobj){
+				bub.subscriptions.push(dojo.subscribe("supervisorView/drop/queue-" + detailsObj.display, function(storeref, rawobj){
 					bub.clear();
 				}));
 													
@@ -1262,8 +1318,8 @@ if(typeof(supervisorTab) == "undefined"){
 				}
 			});
 			
-			supervisorTab.queuesStack._scroll(supervisorTab.queuesStack.indexToY(scrollIndex));
-			supervisorTab.queuesStack.group.moveToBack();
+			supervisorView.queuesStack._scroll(supervisorView.queuesStack.indexToY(scrollIndex));
+			supervisorView.queuesStack.group.moveToBack();
 		}
 		
 		var queryo = {
@@ -1272,7 +1328,7 @@ if(typeof(supervisorTab) == "undefined"){
 			node:node
 		};
 		
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:queryo,
 			onComplete:fetchdone
 		});
@@ -1280,8 +1336,8 @@ if(typeof(supervisorTab) == "undefined"){
 		return true;
 	}
 	
-	supervisorTab.drawAgentProfilesStack = function(){
-		if(supervisorTab.agentProfilesStack && supervisorTab.agentProfilesStack.scrollLocked){
+	supervisorView.drawAgentProfilesStack = function(){
+		if(supervisorView.agentProfilesStack && supervisorView.agentProfilesStack.scrollLocked){
 			warning(["agentProfilesStack exists but is scroll-locked"]);
 			return false;
 		}
@@ -1293,25 +1349,25 @@ if(typeof(supervisorTab) == "undefined"){
 			dojo.forEach(items, function(obj){
 				acc.push({
 					data:{
-						display:supervisorTab.dataStore.getValue(obj, "display"),
-						health:supervisorTab.dataStore.getValue(obj, "aggregate", 50)
+						display:supervisorView.dataStore.getValue(obj, "display"),
+						health:supervisorView.dataStore.getValue(obj, "aggregate", 50)
 					},
 					onmouseenter:function(ev){
-						supervisorTab.drawAgentsStack(this.data.display, supervisorTab.node, acc.length);
-						supervisorTab.setDetails({
-							type:supervisorTab.dataStore.getValue(obj, "type"),
-							display:supervisorTab.dataStore.getValue(obj, "display")
+						supervisorView.drawAgentsStack(this.data.display, supervisorView.node, acc.length);
+						supervisorView.setDetails({
+							type:supervisorView.dataStore.getValue(obj, "type"),
+							display:supervisorView.dataStore.getValue(obj, "display")
 						});
 					}
 				});
-				hps.push(supervisorTab.dataStore.getValue(obj, "aggregate"));
+				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
 			});
 
-			supervisorTab.callsStack.clear();
+			supervisorView.callsStack.clear();
 			//warning(["calls stack cleared"]);
-			supervisorTab.queueGroupsStack.clear();
-			supervisorTab.queuesStack.clear();
-			supervisorTab.agentProfilesStack = new supervisorTab.BubbleStack({
+			supervisorView.queueGroupsStack.clear();
+			supervisorView.queuesStack.clear();
+			supervisorView.agentProfilesStack = new supervisorView.BubbleStack({
 				mousept:{
 					x:300,
 					y:100
@@ -1319,18 +1375,18 @@ if(typeof(supervisorTab) == "undefined"){
 				bubbleConfs:acc
 			});
 	
-			supervisorTab.queueGroupsStack.forEachBubble(function(bubble){
-				var chan = "supervisortab/set/agentprofile-" + bubble.data.display;
+			supervisorView.queueGroupsStack.forEachBubble(function(bubble){
+				var chan = "supervisorView/set/agentprofile-" + bubble.data.display;
 					bubble.subscriptions.push(dojo.subscribe(chan, function(storeref, rawobj){
 					bubble.setHp(rawobj.aggregate);
 				}));
 			});
 
-			supervisorTab.agentProfilesStack._scroll(0);
-			supervisorTab.agentProfilesStack.group.moveToBack();
+			supervisorView.agentProfilesStack._scroll(0);
+			supervisorView.agentProfilesStack.group.moveToBack();
 		}
 
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{
 				type:"agentprofile",
 			},
@@ -1340,8 +1396,8 @@ if(typeof(supervisorTab) == "undefined"){
 		return true;
 	}
 	
-	supervisorTab.drawAgentsStack = function(profile, node, scrollIndex){
-		if(supervisorTab.agentsStack.scrollLocked){
+	supervisorView.drawAgentsStack = function(profile, node, scrollIndex){
+		if(supervisorView.agentsStack.scrollLocked){
 			warning(["agents stack scroll lacked"]);
 			return false;
 		}
@@ -1350,31 +1406,31 @@ if(typeof(supervisorTab) == "undefined"){
 			var acc = [];
 			var hps = [];
 			dojo.forEach(items, function(obj){
-				hps.push(supervisorTab.dataStore.getValue(obj, "aggregate", 50));
+				hps.push(supervisorView.dataStore.getValue(obj, "aggregate", 50));
 				acc.push({
 					data:{
-						display:supervisorTab.dataStore.getValue(obj, "display"),
-						health:supervisorTab.dataStore.getValue(obj, "aggregate", 50)
+						display:supervisorView.dataStore.getValue(obj, "display"),
+						health:supervisorView.dataStore.getValue(obj, "aggregate", 50)
 					},
 					onmouseenter:function(ev){
 						var queryObj = {
 							'agent':this.data.display,
-							'node':supervisorTab.node
+							'node':supervisorView.node
 						};
-						supervisorTab.drawCallStack(queryObj);
-						supervisorTab.setDetails({
+						supervisorView.drawCallStack(queryObj);
+						supervisorView.setDetails({
 							type:"agent",
-							display:supervisorTab.dataStore.getValue(obj, "display")
+							display:supervisorView.dataStore.getValue(obj, "display")
 						});
 					}
 				});
-				hps.push(supervisorTab.dataStore.getValue(obj, "aggregate"));
+				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
 			});
 
-			supervisorTab.callsStack.clear();
-			supervisorTab.agentsStack.clear();
+			supervisorView.callsStack.clear();
+			supervisorView.agentsStack.clear();
 			
-			supervisorTab.agentsStack = new supervisorTab.BubbleStack({
+			supervisorView.agentsStack = new supervisorView.BubbleStack({
 				mousept:{
 					x:540,
 					y:100
@@ -1382,11 +1438,11 @@ if(typeof(supervisorTab) == "undefined"){
 				bubbleConfs: acc
 			});
 
-			supervisorTab.agentsStack.forEachBubble(function(bub){
-				bub.subscriptions.push(dojo.subscribe("supervisortab/set/agent-" + detailsObj.display, function(storeref, rawobj){
+			supervisorView.agentsStack.forEachBubble(function(bub){
+				bub.subscriptions.push(dojo.subscribe("supervisorView/set/agent-" + detailsObj.display, function(storeref, rawobj){
 					bub.setHp(rawobj.aggregate);
 				}));
-				bub.subscriptions.push(dojo.subscribe("supervisortab/drop/agent-" + detailsObj.display, function(storeref, rawobj){
+				bub.subscriptions.push(dojo.subscribe("supervisorView/drop/agent-" + detailsObj.display, function(storeref, rawobj){
 					bub.clear();
 				}));
 
@@ -1417,7 +1473,7 @@ if(typeof(supervisorTab) == "undefined"){
 				}
 			});
 			
-			supervisorTab.agentsStack._scroll(supervisorTab.agentsStack.indexToY(scrollIndex));
+			supervisorView.agentsStack._scroll(supervisorView.agentsStack.indexToY(scrollIndex));
 		}
 
 		var queryo = {
@@ -1426,7 +1482,7 @@ if(typeof(supervisorTab) == "undefined"){
 			'node':node
 		};
 
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:queryo,
 			onComplete:fetchdone
 		});
@@ -1434,8 +1490,8 @@ if(typeof(supervisorTab) == "undefined"){
 		return true;
 	}
 
-	supervisorTab.drawCallStack = function(queryObj, scrollIndex){
-		if(supervisorTab.callsStack.scrollLocked){
+	supervisorView.drawCallStack = function(queryObj, scrollIndex){
+		if(supervisorView.callsStack.scrollLocked){
 			return false;
 		}
 		
@@ -1443,31 +1499,31 @@ if(typeof(supervisorTab) == "undefined"){
 			var acc = [];
 			dojo.forEach(items, function(obj){
 				var datas = {
-					display:supervisorTab.dataStore.getValue(obj, "display"),
-					health:supervisorTab.dataStore.getValue(obj, "aggregate", 50),
+					display:supervisorView.dataStore.getValue(obj, "display"),
+					health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
 					type:"media"
 				};
 				
-				if(supervisorTab.dataStore.getValue(obj, "agent")){
-					datas['agent'] = supervisorTab.dataStore.getValue(obj, "agent");
+				if(supervisorView.dataStore.getValue(obj, "agent")){
+					datas['agent'] = supervisorView.dataStore.getValue(obj, "agent");
 				}
 				else{
-					datas['queue'] = supervisorTab.dataStore.getValue(obj, "queue");
+					datas['queue'] = supervisorView.dataStore.getValue(obj, "queue");
 				}
 				
 				acc.push({
 					data:datas,
 					onmouseenter:function(ev){
-						supervisorTab.setDetails({
+						supervisorView.setDetails({
 							type:"media",
-							display:supervisorTab.dataStore.getValue(obj, "display")
+							display:supervisorView.dataStore.getValue(obj, "display")
 						});
 					}
 				});
 			});
 			
-			supervisorTab.callsStack.clear();
-			supervisorTab.callsStack = new supervisorTab.BubbleStack({
+			supervisorView.callsStack.clear();
+			supervisorView.callsStack = new supervisorView.BubbleStack({
 				mousept:{
 					x:580 + 240,
 					y:100
@@ -1475,27 +1531,27 @@ if(typeof(supervisorTab) == "undefined"){
 				bubbleConfs:acc
 			});
 		
-			supervisorTab.callsStack.forEachBubble(function(obj){
+			supervisorView.callsStack.forEachBubble(function(obj){
 				obj.group.connect("onmousedown", obj, function(ev){
-					supervisorTab.dndManager.startDrag(obj);
+					supervisorView.dndManager.startDrag(obj);
 				});
 				obj.group.connect("onmouseup", obj, function(ev){
-					supervisorTab.dndManager.endDrag()
+					supervisorView.dndManager.endDrag()
 				});
 				
 				var nom = obj.data.display;
-				obj.subscriptions.push(dojo.subscribe("supervisortab/set/media-" + nom, function(storeref, rawobj){
+				obj.subscriptions.push(dojo.subscribe("supervisorView/set/media-" + nom, function(storeref, rawobj){
 					obj.setHp(rawobj.aggregate);
 				}));
-				obj.subscriptions.push(dojo.subscribe("supervisortab/drop/media-" + nom, function(storeref, rawobj){
+				obj.subscriptions.push(dojo.subscribe("supervisorView/drop/media-" + nom, function(storeref, rawobj){
 					obj.clear();
 				}));
 			});
 			
-			supervisorTab.callsStack._scroll(supervisorTab.callsStack.indexToY(scrollIndex));
+			supervisorView.callsStack._scroll(supervisorView.callsStack.indexToY(scrollIndex));
 		}
 
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:queryObj,
 			onComplete:fetchdone
 		});
@@ -1503,39 +1559,39 @@ if(typeof(supervisorTab) == "undefined"){
 		return true;
 	}
 	
-	supervisorTab.drawSystemStack = function(){
+	supervisorView.drawSystemStack = function(){
 		return true;
 	}
 
 /*
 
-	supervisorTab.IndividualStackAsAgents = function(items, groupingValue, node){
+	supervisorView.IndividualStackAsAgents = function(items, groupingValue, node){
 		var acc = [];
 		var hps = [];
 		dojo.forEach(items, function(obj){
-			hps.push(supervisorTab.dataStore.getValue(obj, "aggregate"));
+			hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
 			
 			var detailsObj = {
-				display:supervisorTab.dataStore.getValue(obj, "display"),
-				type:supervisorTab.dataStore.getValue(obj, "type")
+				display:supervisorView.dataStore.getValue(obj, "display"),
+				type:supervisorView.dataStore.getValue(obj, "type")
 			};
 			
 			var onEnterf = function(){
-				supervisorTab.refreshCallsStack("agent", detailsObj.display, supervisorTab.node);
-				supervisorTab.setDetails(detailsObj);
+				supervisorView.refreshCallsStack("agent", detailsObj.display, supervisorView.node);
+				supervisorView.setDetails(detailsObj);
 			}
 					 
-			var bub = supervisorTab.individualsStack.addBubble({
+			var bub = supervisorView.individualsStack.addBubble({
 				data:{
-					display:supervisorTab.dataStore.getValue(obj, "display"), 
-					health:supervisorTab.dataStore.getValue(obj, "aggregate")
+					display:supervisorView.dataStore.getValue(obj, "display"), 
+					health:supervisorView.dataStore.getValue(obj, "aggregate")
 				},
 				onmouseenter:function(){
 					onEnterf();
 					dijit.byId("agentAction").agentBubbleHit = detailsObj.display;
 				}
 			});
-			var details = supervisorTab.dataStore.getValue(obj, "details");
+			var details = supervisorView.dataStore.getValue(obj, "details");
 			var imgsrc = "images/";
 			switch(details.state){
 				case "idle":
@@ -1568,9 +1624,9 @@ if(typeof(supervisorTab) == "undefined"){
 			
 			bub.icon = icon;
 			
-			bub.subscriptions.push(dojo.subscribe("supervisortab/set/" + supervisorTab.dataStore.getValue(obj, "id"), function(storeref, dataobj){
+			bub.subscriptions.push(dojo.subscribe("supervisorView/set/" + supervisorView.dataStore.getValue(obj, "id"), function(storeref, dataobj){
 				var imgsrc = "images/";
-				switch(supervisorTab.dataStore.getValue(storeref, "details").state){
+				switch(supervisorView.dataStore.getValue(storeref, "details").state){
 					case "idle":
 						imgsrc += "idle.png";
 						break;
@@ -1593,7 +1649,7 @@ if(typeof(supervisorTab) == "undefined"){
 				bub.icon.setShape({src:imgsrc});
 				bub.setHp(dataobj.aggregate);
 			}));
-			bub.subscriptions.push(dojo.subscribe("supervisortab/drop/" + supervisorTab.dataStore.getValue(obj, "id"), function(storeref, dataobj){
+			bub.subscriptions.push(dojo.subscribe("supervisorView/drop/" + supervisorView.dataStore.getValue(obj, "id"), function(storeref, dataobj){
 				bub.clear();
 			}));
 			var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
@@ -1638,29 +1694,29 @@ if(typeof(supervisorTab) == "undefined"){
 		});
 		
 		dijit.byId("agentAction").onClose = function(ev){
-			supervisorTab.individualsStack.scrollLocked = false;
+			supervisorView.individualsStack.scrollLocked = false;
 		};
 		debug(["Individual Stacks as agents averging", hps]);
-		var allbub = supervisorTab.individualsStack.addBubble({
+		var allbub = supervisorView.individualsStack.addBubble({
 			data:{
 				display:"All",
-				health:supervisorTab.averageHp(hps)
+				health:supervisorView.averageHp(hps)
 			},
 			onmouseenter:function(ev){
-				supervisorTab.refreshCallsStack("agent", "*", supervisorTab.node);
+				supervisorView.refreshCallsStack("agent", "*", supervisorView.node);
 			}
 		});
-		allbub.subscriptions.push(dojo.subscribe("supervisortab/aggregate/agents", function(){
+		allbub.subscriptions.push(dojo.subscribe("supervisorView/aggregate/agents", function(){
 			var fetched = function(items){
 				var hps = [];
 				dojo.forEach(items, function(item){
-					hps.push(supervisorTab.dataStore.getValue(item, "aggregate"));
+					hps.push(supervisorView.dataStore.getValue(item, "aggregate"));
 				});
-				var hp = supervisorTab.averageHp(hps);
+				var hp = supervisorView.averageHp(hps);
 				allbub.setHp(hp);
 			}
 			
-			supervisorTab.dataStore.fetch({
+			supervisorView.dataStore.fetch({
 				query:{
 					"type":"agent",
 					"node":node,
@@ -1673,37 +1729,37 @@ if(typeof(supervisorTab) == "undefined"){
 
 	
 
-	supervisorTab.refreshSystemStack = function(){
+	supervisorView.refreshSystemStack = function(){
 		debug("refreshing system stack");
 		var fetchdone = function(items, request){
 			info(["refreshSystemStack fetch done", items]);
 			var acc = [];
 			dojo.forEach(items, function(item){
-				var temphp = supervisorTab.dataStore.getValue(item, "health");
+				var temphp = supervisorView.dataStore.getValue(item, "health");
 				var hps = [];
 				for(var i in temphp){
 					hps.push(temphp[i]);
 				}
 				debug(["refresh system stack averaging", hps]);
-				var aggregate = supervisorTab.averageHp(hps);
+				var aggregate = supervisorView.averageHp(hps);
 				var out = {
-					id:supervisorTab.dataStore.getValue(item, "id"),
-					type:supervisorTab.dataStore.getValue(item, "type"),
-					display:supervisorTab.dataStore.getValue(item, "display"),
+					id:supervisorView.dataStore.getValue(item, "id"),
+					type:supervisorView.dataStore.getValue(item, "type"),
+					display:supervisorView.dataStore.getValue(item, "display"),
 					"aggregate":aggregate,
 					health:aggregate
 				}
 				acc.push(out);
 			});
 		
-			dojo.forEach(supervisorTab.systemStack, function(obj){
+			dojo.forEach(supervisorView.systemStack, function(obj){
 				obj.clear();
 			});
 			debug(["fetchdone.  Acc:", acc]);
-			supervisorTab.systemStack = supervisorTab.drawSystemStack({data:acc});
+			supervisorView.systemStack = supervisorView.drawSystemStack({data:acc});
 		}
 		
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{
 				type:"node"
 			},
@@ -1711,33 +1767,33 @@ if(typeof(supervisorTab) == "undefined"){
 		});
 	}*/
 
-	supervisorTab.healthDump = function(){
+	supervisorView.healthDump = function(){
 		var dump = function(items){
 			dojo.forEach(items, function(item){
-				var out = supervisorTab.dataStore.getValue(item, "aggregate");
-				var nom = supervisorTab.dataStore.getValue(item, "display");
+				var out = supervisorView.dataStore.getValue(item, "aggregate");
+				var nom = supervisorView.dataStore.getValue(item, "display");
 				debug([nom, out]);
 			})
 		}
 		
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			onComplete:dump
 		});
 	}
 
-	supervisorTab.reloadDataStore = function(){
+	supervisorView.reloadDataStore = function(){
 		dojo.xhrGet({
 			url:"/supervisor/status",
 			handleAs:"json",
 			error:function(){
-				supervisorTab.poller.stop();
+				supervisorView.poller.stop();
 			},
 			load:function(data){
 				if(data.data){
 					info(["1400", "store reload ajax completed"]);
-					supervisorTab.healthData = data.data;
-					supervisorTab.dataStore = new dojo.data.ItemFileWriteStore({
-						data: supervisorTab.healthData,
+					supervisorView.healthData = data.data;
+					supervisorView.dataStore = new dojo.data.ItemFileWriteStore({
+						data: supervisorView.healthData,
 						typeMap:{
 							"details":{
 								"type":Object,
@@ -1746,9 +1802,9 @@ if(typeof(supervisorTab) == "undefined"){
 							}
 						}
 					});
-					supervisorTab.refreshSystemStack();
-					supervisorTab.setAllHps();
-					if(supervisorTab.suppressPoll){
+					supervisorView.refreshSystemStack();
+					supervisorView.setAllHps();
+					if(supervisorView.suppressPoll){
 						return;
 					}
 				}
@@ -1759,7 +1815,7 @@ if(typeof(supervisorTab) == "undefined"){
 		})
 	}
 
-	supervisorTab.blab = function(message, type, target){
+	supervisorView.blab = function(message, type, target){
 		dojo.xhrPost({
 			handleAs:"json",
 			url:"/supervisor/blab",
@@ -1777,7 +1833,7 @@ if(typeof(supervisorTab) == "undefined"){
 		})
 	}
 	
-	supervisorTab.setProfile = function(profile, agent){
+	supervisorView.setProfile = function(profile, agent){
 		dojo.xhrGet({
 			handleAs:"json",
 			url:"/supervisor/set_profile/" + agent + "/" + profile,
@@ -1797,15 +1853,15 @@ if(typeof(supervisorTab) == "undefined"){
 	}
 }
 
-supervisorTab.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
-dojo.connect(supervisorTab.surface, "ondragstart",   dojo, "stopEvent");
-dojo.connect(supervisorTab.surface, "onselectstart", dojo, "stopEvent");
+supervisorView.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
+dojo.connect(supervisorView.surface, "ondragstart",   dojo, "stopEvent");
+dojo.connect(supervisorView.surface, "onselectstart", dojo, "stopEvent");
 
-supervisorTab.reloadDataStore();
+supervisorView.reloadDataStore();
 
-supervisorTab.drawAgentQueueBubbles(0, 0);
+supervisorView.drawAgentQueueBubbles(0, 0);
 
-/*supervisorTab.masterSub = dojo.subscribe("agent/supervisortab", function(data){
+/*supervisorView.masterSub = dojo.subscribe("agent/supervisorView", function(data){
 	debug(["1442", "master sub", data]);
 	data = data.data;
 	if(data.action == "set"){
@@ -1850,36 +1906,36 @@ supervisorTab.drawAgentQueueBubbles(0, 0);
 			var aggregate = 50;
 			if(hps.length > 0){
 				debug(["masterSub averaging", hps]);
-				aggregate = supervisorTab.averageHp(hps);
+				aggregate = supervisorView.averageHp(hps);
 			}
 			savedata.aggregate = aggregate;
 			//course, there may be no item yet...
 			if(items.length == 0){
-				items.push(supervisorTab.dataStore.newItem(savedata));
+				items.push(supervisorView.dataStore.newItem(savedata));
 			}
 			for(var i in savedata){
 				if(i != "id"){
-					supervisorTab.dataStore.setValue(items[0], i, savedata[i]);
+					supervisorView.dataStore.setValue(items[0], i, savedata[i]);
 				}
 			}
-			supervisorTab.dataStore.save();
+			supervisorView.dataStore.save();
 			debug(["1488", "savedata", savedata]);
-			dojo.publish("supervisortab/set/" + savedata.id, [items[0], savedata]);
-			supervisorTab.setAllHps();
+			dojo.publish("supervisorView/set/" + savedata.id, [items[0], savedata]);
+			supervisorView.setAllHps();
 		}
 	
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{"id":data.id},
 			onComplete:fetched
 		});
 	}
 	else if(data.action == "drop"){
 		var fetched = function(items){
-			supervisorTab.dataStore.deleteItem(items[0]);
-			dojo.publish("supervisortab/drop/" + data.id, [data]);
+			supervisorView.dataStore.deleteItem(items[0]);
+			dojo.publish("supervisorView/drop/" + data.id, [data]);
 		}
 		
-		supervisorTab.dataStore.fetch({
+		supervisorView.dataStore.fetch({
 			query:{"id":data.id},
 			onComplete:fetched
 		});
@@ -1889,23 +1945,23 @@ supervisorTab.drawAgentQueueBubbles(0, 0);
 	}
 });
 
-supervisorTab.hpCalcTimer = '';
-supervisorTab.hpcalc = function(){
-	supervisorTab.hpCalcTimer = setTimeout(function(){
-		supervisorTab.setAllHps();
-		supervisorTab.hpcalc()}, 5000);
+supervisorView.hpCalcTimer = '';
+supervisorView.hpcalc = function(){
+	supervisorView.hpCalcTimer = setTimeout(function(){
+		supervisorView.setAllHps();
+		supervisorView.hpcalc()}, 5000);
 }
 
-supervisorTab.logoutListener = dojo.subscribe("agent/logout", function(data){
-	clearTimeout(supervisorTab.hpCalcTimer)
+supervisorView.logoutListener = dojo.subscribe("agent/logout", function(data){
+	clearTimeout(supervisorView.hpCalcTimer)
 });
 
-window.supervisorTabKillListen = dojo.subscribe("tabPanel-removeChild", function(child){
+window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", function(child){
 	if(child.title == "Supervisor"){
-		clearTimeout(supervisorTab.hpCalcTimer);
-		dojo.unsubscribe(window.supervisorTabKillListen);
-		dojo.unsubscribe(supervisorTab.logoutListener);
-		dojo.unsubscribe(supervisorTab.masterSub);
+		clearTimeout(supervisorView.hpCalcTimer);
+		dojo.unsubscribe(window.supervisorViewKillListen);
+		dojo.unsubscribe(supervisorView.logoutListener);
+		dojo.unsubscribe(supervisorView.masterSub);
 		dojo.xhrGet({
 			url:"/supervisor/endmonitor",
 			handleAs:'json',
@@ -1923,4 +1979,4 @@ window.supervisorTabKillListen = dojo.subscribe("tabPanel-removeChild", function
 	}
 });
 
-supervisorTab.hpcalc();*/
+supervisorView.hpcalc();*/

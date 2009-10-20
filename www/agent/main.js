@@ -240,7 +240,12 @@ dojo.addOnLoad(function(){
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		var innnerh = nlsStrings.STATE + ":  " + nlsStrings[data.state.toUpperCase()];
 		if(data.state == "released"){
-			innnerh += " (" + data.statedata + ")";
+			if(data.statedata.constructor == String){
+				innnerh += " (" + data.statedata + ")";
+			}
+			else{
+				innnerh += " (" + data.statedata.reason + ")";
+			}
 		}
 		node.innerHTML = innnerh;
 	});

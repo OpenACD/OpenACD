@@ -246,7 +246,7 @@ if(typeof(supervisorTab) == "undefined"){
 		this.defaultConf = {
 			parent: supervisorTab.surface,
 			mousept: {x:100, y:50},
-			viewHeight:300,
+			viewHeight:350,
 			bubbleConfs: [],
 		}
 		
@@ -307,15 +307,10 @@ if(typeof(supervisorTab) == "undefined"){
 		return this.conf.mousept.y + index * 40;
 	}
 	
-	supervisorTab.BubbleStack.prototype.shouldDrawBubble = function(index, localY){
-		var confY = this.indexToY(index);
-		if(Math.abs(localY - confY) < this.viewHeight){
-			return true;
-		}
-		
-		return false;
+	supervisorTab.BubbleStack.prototype.yToIndex = function(localY){
+		return Math.floor((localY - this.conf.mousept.y) / 40);
 	}
-
+	
 	supervisorTab.BubbleStack.prototype.lockScroll = function(){
 		this.scrollLocked = true;
 	}
@@ -324,16 +319,59 @@ if(typeof(supervisorTab) == "undefined"){
 		this.scrollLocked = false;
 	}
 	
-	supervisorTab.BubbleStack.prototype._scroll = function(localY){
+	supervisorTab.BubbleStack.prototype._setSelected = function(index){
+		debug(["_setSelected", index, this._selected]);
+		if(this._selected){
+			var bubConf = this.bubbleConfs[this._selected];
+			if(bubConf.bubble){
+				bubConf.bubble.size(1);
+			}
+		}
+		
+		if(index){
+			var bubConf = this.bubbleConfs[index];
+			if(bubConf.bubble){
+				bubConf.bubble.size(1.4);
+			}
+			this._selected = index;
+			return true;
+		}
+		
+		delete this._selected;
+	}
+	
+	supervisorTab.BubbleStack.prototype.getSelected = function(){
+		if(this._selected){
+			return this.bubbleConfs[this.selected];
+		}
+		
+		return false
+	}
+	
+	supervisorTab.BubbleStack.prototype._scroll = function(viewY){
 		if(this.scrollLocked){
 			return false
 		}
+		
+		var deviation = Math.abs(Math.ceil(this.conf.viewHeight / 40));
+		var midIndex = this.yToIndex(viewY * this.ratio);
+		var min = midIndex - deviation;
+		var max = midIndex + deviation;
+		
+		debug(["min and max", min, max]);
+		var shouldDraw = function(ind){
+			if( (min <= ind) && (ind <= max) ){
+				return true;
+			}
+			
+			return false;
+		}
+		
 		for(var i = 0; i < this.bubbleConfs.length; i++){
 			var obj = this.bubbleConfs[i];
-			if(this.shouldDrawBubble(i, localY)){
+			if(shouldDraw(i)){
 				if(! obj.bubble){
 					var drawy = this.indexToY(i);
-					//warning(["drawy:", drawy]);
 					var bubbleConf = dojo.mixin(obj, {
 						mousept: {
 							x: this.conf.mousept.x,
@@ -342,6 +380,10 @@ if(typeof(supervisorTab) == "undefined"){
 						parent: this.group
 					});
 					this.bubbleConfs[i].bubble = new supervisorTab.Bubble(bubbleConf);
+					var thei = i;
+					this.bubbleConfs[i].bubble.group.connect('onmouseenter', this, function(){
+						this._setSelected(thei);
+					});
 				}
 			}
 			else{
@@ -352,8 +394,8 @@ if(typeof(supervisorTab) == "undefined"){
 			}
 		}
 
-		debug(["localY and ration", localY, this.ratio]);
-		this.group.setTransform([dojox.gfx.matrix.translate(0, -localY * this.ratio)]);
+		debug(["localY and ration", viewY, this.ratio]);
+		this.group.setTransform([dojox.gfx.matrix.translate(0, -viewY * this.ratio)]);
 	}
 	
 	supervisorTab.BubbleStack.prototype.clear = function(){

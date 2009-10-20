@@ -321,7 +321,7 @@ if(typeof(supervisorView) == "undefined"){
 	
 	supervisorView.BubbleStack.prototype._setSelected = function(index){
 		debug(["_setSelected", index, this._selected]);
-		if(this._selected){
+		if(this._selected != undefined){
 			debug("shrinking old selected");
 			var bubConf = this.bubbleConfs[this._selected];
 			if(bubConf.bubble){
@@ -329,7 +329,7 @@ if(typeof(supervisorView) == "undefined"){
 			}
 		}
 		
-		if(index && this.bubbleConfs[index]){
+		if((index !== false) && this.bubbleConfs[index]){
 			debug("enlarging new selected");
 			var bubConf = this.bubbleConfs[index];
 			if(bubConf.bubble){

@@ -257,6 +257,7 @@ if(typeof(supervisorView) == "undefined"){
 		var viewHeight = conf.viewHeight;
 		
 		var ratio = (groupHeight) / viewHeight;
+		this.trueRatio = ratio;
 		if(groupHeight < viewHeight){
 			ratio = 0;
 		}
@@ -378,7 +379,7 @@ if(typeof(supervisorView) == "undefined"){
 		
 		var startSize = Math.ceil( (midIndex * range) / this.bubbleConfs.length);
 
-		var min = midIndex - startSize;
+		var min = midIndex - range;
 		var max = midIndex + range;
 		
 		debug(["selected computeds", {
@@ -443,7 +444,7 @@ if(typeof(supervisorView) == "undefined"){
 		}
 
 		debug(["viewY and ration", viewY, this.ratio]);
-		this.group.setTransform([dojox.gfx.matrix.translate(0, -viewY * this.ratio)]);
+		this.group.setTransform([dojox.gfx.matrix.translate(0, -viewY * this.trueRatio)]);
 	}
 	
 	supervisorView.BubbleStack.prototype.clear = function(){
@@ -1030,7 +1031,7 @@ if(typeof(supervisorView) == "undefined"){
 		}
 
 		conf = dojo.mixin(conf, opts);
-		info(["685", "drawing system stack from data", conf.data]);
+
 		var hps = [];
 		for(var i = 0; i < conf.data.length; i++){
 			hps.push(conf.data[i].aggregate);
@@ -1041,19 +1042,36 @@ if(typeof(supervisorView) == "undefined"){
 		var yi = 385;
 		out = [];
 		var drawIt = function(obj, index, arr){
-			var o = supervisorView.drawBubble({
+			var o = new supervisorView.Bubble({
 				scale:.75,
 				point: {x:20, y:yi},
-				data: obj
+				data: obj,
+				onclick:function(){
+					if(this.data.display == 'System'){
+						supervisorView.node = '*';
+					}
+					else{
+						supervisorView.node = this.data.display;
+					}
+					dojo.forEach(supervisorView.systemStack, function(obj){
+						obj.size(1);
+					})
+					this.size(1.4);
+				},
+				onmouseenter: function(){
+					supervisorView.setDetails({dsiplay:this.data.display});
+					dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
+				}
 			});
+			
 			if(supervisorView.node == "*" && obj.display == "System"){
-				o.grow();
+				o.size(1.4);
 			}
 			else if(supervisorView.node == obj.display){
-				o.grow();
+				o.size(1.4);
 			}
 			
-			o.lines = [];
+		/*	o.lines = [];
 			if(obj.allhealth && obj.allhealth.down){
 				o.lines.push(o.createLine({x1:20, x2:60, y1:yi-5, y2:yi+20}).setStroke({width:3, color:[255, 153, 51, 100]}));
 				o.lines.push(o.createLine({x1:20, x2:60, y1:yi + 20, y2:yi-5}).setStroke({width:3, color:[255, 153, 51, 100]}));
@@ -1075,7 +1093,7 @@ if(typeof(supervisorView) == "undefined"){
 			o.connect("onmouseenter", o, function(ev){				
 				supervisorView.setDetails({display:this.data.display});
 				dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
-			});
+			});*/
 			
 			if(obj.display == "System"){
 				o.subscriptions.push(dojo.subscribe("supervisorView/set/system-System", function(storeref, rawobj){
@@ -1087,7 +1105,7 @@ if(typeof(supervisorView) == "undefined"){
 				o.subscriptions.push(dojo.subscribe("supervisorView/set/node-" + obj.display, function(storeref, rawobj){
 					debug(["node set sub", storeref, rawobj]);
 					o.setHp(rawobj.aggregate);
-					for(var i = 0; i < o.lines.length; i++){
+					/*for(var i = 0; i < o.lines.length; i++){
 						o.lines[i].clear();
 					}
 					o.lines = [];								
@@ -1095,11 +1113,9 @@ if(typeof(supervisorView) == "undefined"){
 						o.lines = [];
 						o.lines.push(o.createLine({x1:20, x2:60, y1:yi-5, y2:yi+20}).setStroke({width:3, color:[255, 153, 51, 100]}));
 						o.lines.push(o.createLine({x1:20, x2:60, y1:yi + 20, y2:yi-5}).setStroke({width:3, color:[255, 153, 51, 100]}));
-					}
+					}*/
 				}));
-				if(obj.display != "System"){
-					dijit.byId("nodeAction").bindDomNode(o.rawNode);
-				}
+				dijit.byId("nodeAction").bindDomNode(o.rawNode);
 			}
 			yi = yi - 40;
 			out.push(o);
@@ -1551,173 +1567,44 @@ if(typeof(supervisorView) == "undefined"){
 		return true;
 	}
 	
-	supervisorView.drawSystemStack = function(){
-		return true;
-	}
-
-/*
-
-	supervisorView.IndividualStackAsAgents = function(items, groupingValue, node){
-		var acc = [];
-		var hps = [];
-		dojo.forEach(items, function(obj){
-			hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
-			
-			var detailsObj = {
-				display:supervisorView.dataStore.getValue(obj, "display"),
-				type:supervisorView.dataStore.getValue(obj, "type")
-			};
-			
-			var onEnterf = function(){
-				supervisorView.refreshCallsStack("agent", detailsObj.display, supervisorView.node);
-				supervisorView.setDetails(detailsObj);
-			}
-					 
-			var bub = supervisorView.individualsStack.addBubble({
-				data:{
-					display:supervisorView.dataStore.getValue(obj, "display"), 
-					health:supervisorView.dataStore.getValue(obj, "aggregate")
-				},
-				onmouseenter:function(){
-					onEnterf();
-					dijit.byId("agentAction").agentBubbleHit = detailsObj.display;
-				}
-			});
-			var details = supervisorView.dataStore.getValue(obj, "details");
-			var imgsrc = "images/";
-			switch(details.state){
-				case "idle":
-					imgsrc += "idle.png";
-					break;
-				
-				case "oncall":
-					imgsrc += "oncall.png";
-					break;
-				
-				case "wrapup":
-					imgsrc += "wrapup.png";
-					break;
-				
-				case "ringing":
-					imgsrc += "ringing.png";
-					break;
-				
-				default:
-					imgsrc += "released.png"
-			}
-			
-			var icon = bub.createImage({
-				src:imgsrc,
-				width:14,
-				height:14,
-				x:bub.bubble.getShape().x,
-				y:bub.bubble.getShape().y
-			});
-			
-			bub.icon = icon;
-			
-			bub.subscriptions.push(dojo.subscribe("supervisorView/set/" + supervisorView.dataStore.getValue(obj, "id"), function(storeref, dataobj){
-				var imgsrc = "images/";
-				switch(supervisorView.dataStore.getValue(storeref, "details").state){
-					case "idle":
-						imgsrc += "idle.png";
-						break;
-
-					case "oncall":
-						imgsrc += "oncall.png";
-						break;
-
-					case "wrapup":
-						imgsrc += "wrapup.png";
-						break;
-
-					case "ringing":
-						imgsrc += "ringing.png";
-						break;
-
-					default:
-						imgsrc += "released.png"
-				}
-				bub.icon.setShape({src:imgsrc});
-				bub.setHp(dataobj.aggregate);
-			}));
-			bub.subscriptions.push(dojo.subscribe("supervisorView/drop/" + supervisorView.dataStore.getValue(obj, "id"), function(storeref, dataobj){
-				bub.clear();
-			}));
-			var message = "agent " + bub.data.display + " accepted drop, meaning it forwared request to server";
-			bub.dropped = function(obj){
-				debug("dropped called");
-				if(obj.data.type == "media"){
-					debug(["bub.dropped, 1133", message, obj.data]);
-					if(obj.data.agent){
-						var ajaxdone = function(json, args){
-							// la la la
-							debug("1137, ajax done");
-						}
-						var geturl = "/supervisor/agent_transfer/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
-						dojo.xhrGet({
-							url:geturl,
-							handleAs:"json",
-							load:ajaxdone
-						})
-					}
-					else if(obj.data.queue){
-						var ajaxdone = function(json, args){
-							debug(["1148, ajax done", json.message]);
-						}
-						var geturl = "/supervisor/agent_ring/" + escape(obj.data.queue) + "/" + escape(obj.data.display) + "/" + escape(bub.data.display);
-						dojo.xhrGet({
-							url:geturl,
-							handleAs:"json",
-							load:ajaxdone
-						})
-					}
-				}
-			}
-			bub.onEnter = onEnterf;
-			
-			if(bub.data.display != "All"){
-				bub.dragOver = function(){
-					bub.onEnter();
-					return true;
-				};
-				dijit.byId("agentAction").bindDomNode(bub.rawNode);
-			}				 
-		});
-		
-		dijit.byId("agentAction").onClose = function(ev){
-			supervisorView.individualsStack.scrollLocked = false;
-		};
-		debug(["Individual Stacks as agents averging", hps]);
-		var allbub = supervisorView.individualsStack.addBubble({
-			data:{
-				display:"All",
-				health:supervisorView.averageHp(hps)
-			},
-			onmouseenter:function(ev){
-				supervisorView.refreshCallsStack("agent", "*", supervisorView.node);
-			}
-		});
-		allbub.subscriptions.push(dojo.subscribe("supervisorView/aggregate/agents", function(){
-			var fetched = function(items){
+	/*supervisorView.drawSystemStack = function(){
+		debug("refreshing system stack");
+		var fetchdone = function(items, request){
+			info(["refreshSystemStack fetch done", items]);
+			var acc = [];
+			dojo.forEach(items, function(item){
+				var temphp = supervisorView.dataStore.getValue(item, "health");
 				var hps = [];
-				dojo.forEach(items, function(item){
-					hps.push(supervisorView.dataStore.getValue(item, "aggregate"));
-				});
-				var hp = supervisorView.averageHp(hps);
-				allbub.setHp(hp);
-			}
-			
-			supervisorView.dataStore.fetch({
-				query:{
-					"type":"agent",
-					"node":node,
-					"profile":groupingValue
-				},
-				onComplete:fetched
+				for(var i in temphp){
+					hps.push(temphp[i]);
+				}
+				debug(["refresh system stack averaging", hps]);
+				var aggregate = supervisorView.averageHp(hps);
+				var out = {
+					id:supervisorView.dataStore.getValue(item, "id"),
+					type:supervisorView.dataStore.getValue(item, "type"),
+					display:supervisorView.dataStore.getValue(item, "display"),
+					"aggregate":aggregate,
+					health:aggregate
+				}
+				acc.push(out);
 			});
-		}));
+
+			dojo.forEach(supervisorView.systemStack, function(obj){
+				obj.clear();
+			});
+			debug(["fetchdone.  Acc:", acc]);
+			supervisorView.systemStack = new supervisorView.drawSystemStack({data:acc});
+		}
+
+		supervisorView.dataStore.fetch({
+			query:{
+				type:"node"
+			},
+			onComplete:fetchdone
+		});
 	}
+
 
 	
 
@@ -1852,6 +1739,7 @@ dojo.connect(supervisorView.surface, "onselectstart", dojo, "stopEvent");
 supervisorView.reloadDataStore();
 
 supervisorView.drawAgentQueueBubbles(0, 0);
+supervisorView.drawSystemStack();
 
 /*supervisorView.masterSub = dojo.subscribe("agent/supervisorView", function(data){
 	debug(["1442", "master sub", data]);

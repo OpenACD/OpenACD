@@ -444,7 +444,7 @@ if(typeof(supervisorView) == "undefined"){
 		}
 
 		debug(["viewY and ration", viewY, this.ratio]);
-		this.group.setTransform([dojox.gfx.matrix.translate(0, -viewY * this.trueRatio)]);
+		this.group.setTransform([dojox.gfx.matrix.translate(0, -viewY * this.trueRatio * this.ratio)]);
 	}
 	
 	supervisorView.BubbleStack.prototype.clear = function(){
@@ -1020,109 +1020,92 @@ if(typeof(supervisorView) == "undefined"){
 		});
 	}
 
-	supervisorView.drawSystemStack = function(opts){
-		for(var i =0; i < supervisorView.systemStack.length; i++){
-			supervisorView.systemStack[i].clear();
-		}
-
-		var conf = {
-			data: [],
-			parent: supervisorView.surface
-		}
-
-		conf = dojo.mixin(conf, opts);
-
-		var hps = [];
-		for(var i = 0; i < conf.data.length; i++){
-			hps.push(conf.data[i].aggregate);
-		}
-		debug(["drawSystemStack wants averaged", hps]);
-		conf.data.unshift({"display":"System", "id":"system-System", "type":"system", "health":supervisorView.averageHp(hps)});
-
-		var yi = 385;
-		out = [];
-		var drawIt = function(obj, index, arr){
-			var o = new supervisorView.Bubble({
-				scale:.75,
-				point: {x:20, y:yi},
-				data: obj,
-				onclick:function(){
-					if(this.data.display == 'System'){
-						supervisorView.node = '*';
-					}
-					else{
-						supervisorView.node = this.data.display;
-					}
-					dojo.forEach(supervisorView.systemStack, function(obj){
-						obj.size(1);
-					})
-					this.size(1.4);
+	supervisorView.drawSystemStack = function(){
+	
+		var fetchdone = function(items){
+		
+			while(supervisorView.systemStack.length){
+				var popped = supervisorView.systemStack.pop();
+				popped.clear();
+			}
+		
+			var acc = [{
+				data:{
+					display:'System',
+					id: 'system-System',
+					type: 'system',
+					health: 50
 				},
 				onmouseenter: function(){
-					supervisorView.setDetails({dsiplay:this.data.display});
+					supervisorView.setDetails({
+						display:'System'
+					});
 					dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
 				}
-			});
+			}];
 			
-			if(supervisorView.node == "*" && obj.display == "System"){
-				o.size(1.4);
-			}
-			else if(supervisorView.node == obj.display){
-				o.size(1.4);
-			}
-			
-		/*	o.lines = [];
-			if(obj.allhealth && obj.allhealth.down){
-				o.lines.push(o.createLine({x1:20, x2:60, y1:yi-5, y2:yi+20}).setStroke({width:3, color:[255, 153, 51, 100]}));
-				o.lines.push(o.createLine({x1:20, x2:60, y1:yi + 20, y2:yi-5}).setStroke({width:3, color:[255, 153, 51, 100]}));
-			}
-			else{
-				o.connect("onclick", o, function(ev){
-					if(this.data.display == "System"){
-						supervisorView.node = "*";
+			for(var i = 0; i < items.length; i++){
+				acc.push({
+					data:{
+						id:supervisorView.dataStore.getValue(items[i], 'id'),
+						type:'node',
+						display:supervisorView.dataStore.getValue(items[i], 'display'),
+						health:50,
+						aggregate:50
+					},
+					onmouseenter:function(){
+						supervisorView.setDetails({
+							display:this.data.display,
+							health:this.data.health
+						});
+						dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
 					}
-					else{
-						supervisorView.node = this.data.display
-					}
-					dojo.forEach(supervisorView.systemStack, function(obj){
-						obj.shrink();
-					});
-					this.grow();
 				});
 			}
-			o.connect("onmouseenter", o, function(ev){				
-				supervisorView.setDetails({display:this.data.display});
-				dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
-			});*/
 			
-			if(obj.display == "System"){
-				o.subscriptions.push(dojo.subscribe("supervisorView/set/system-System", function(storeref, rawobj){
-					debug(["System set sub", storeref, rawobj]);
-					o.setHp(rawobj.aggregate);
-				}));
-			}
-			else{
-				o.subscriptions.push(dojo.subscribe("supervisorView/set/node-" + obj.display, function(storeref, rawobj){
-					debug(["node set sub", storeref, rawobj]);
-					o.setHp(rawobj.aggregate);
-					/*for(var i = 0; i < o.lines.length; i++){
-						o.lines[i].clear();
+			var yi = 375;
+			dojo.forEach(acc, function(conf){
+				var o = new supervisorView.Bubble({
+					point: {x: 20, y:yi},
+					data: conf.data,
+					onmouseenter: conf.onmouseenter,
+					onclick:function(){
+						if(this.data.display == 'System'){
+							supervisorView.node = '*';
+						}
+						else{
+							supervisorView.node = this.data.display;
+						}
+						dojo.forEach(supervisorView.systemStack, function(obj){
+							obj.size(1);
+						});
+						this.size(1.4);
 					}
-					o.lines = [];								
-					if(rawobj.health.down){
-						o.lines = [];
-						o.lines.push(o.createLine({x1:20, x2:60, y1:yi-5, y2:yi+20}).setStroke({width:3, color:[255, 153, 51, 100]}));
-						o.lines.push(o.createLine({x1:20, x2:60, y1:yi + 20, y2:yi-5}).setStroke({width:3, color:[255, 153, 51, 100]}));
-					}*/
-				}));
-				dijit.byId("nodeAction").bindDomNode(o.rawNode);
-			}
-			yi = yi - 40;
-			out.push(o);
+				});
+				
+				if(conf.data.display == 'System'){
+					o.subscriptions.push(dojo.subscribe("supervisorView/set/system-System", function(storeref, rawobj){
+						debug(["System set sub", storeref, rawobj]);
+					}));
+				}
+				else{
+					o.subscriptions.push(dojo.subscribe("supervisorView/set/node-" + conf.data.display, function(storeref, rawobj){
+						debug(["node set sub", storeref, rawobj]);
+					}));
+					//dijit.byId("nodeAction").bindDomNode(o.rawNode);
+				}
+				yi = yi - 40;
+				supervisorView.systemStack.push(o);
+			});
 		}
-		dojo.forEach(conf.data, drawIt);
-		supervisorView.systemStack = out;
-		return out;
+
+		supervisorView.dataStore.fetch({
+			query:{
+				type:"node"
+			},
+			onComplete:fetchdone
+		});
+
 	}
 
 	supervisorView.drawAgentQueueBubbles = function(agenthp, queuehp){
@@ -1567,85 +1550,6 @@ if(typeof(supervisorView) == "undefined"){
 		return true;
 	}
 	
-	/*supervisorView.drawSystemStack = function(){
-		debug("refreshing system stack");
-		var fetchdone = function(items, request){
-			info(["refreshSystemStack fetch done", items]);
-			var acc = [];
-			dojo.forEach(items, function(item){
-				var temphp = supervisorView.dataStore.getValue(item, "health");
-				var hps = [];
-				for(var i in temphp){
-					hps.push(temphp[i]);
-				}
-				debug(["refresh system stack averaging", hps]);
-				var aggregate = supervisorView.averageHp(hps);
-				var out = {
-					id:supervisorView.dataStore.getValue(item, "id"),
-					type:supervisorView.dataStore.getValue(item, "type"),
-					display:supervisorView.dataStore.getValue(item, "display"),
-					"aggregate":aggregate,
-					health:aggregate
-				}
-				acc.push(out);
-			});
-
-			dojo.forEach(supervisorView.systemStack, function(obj){
-				obj.clear();
-			});
-			debug(["fetchdone.  Acc:", acc]);
-			supervisorView.systemStack = new supervisorView.drawSystemStack({data:acc});
-		}
-
-		supervisorView.dataStore.fetch({
-			query:{
-				type:"node"
-			},
-			onComplete:fetchdone
-		});
-	}
-
-
-	
-
-	supervisorView.refreshSystemStack = function(){
-		debug("refreshing system stack");
-		var fetchdone = function(items, request){
-			info(["refreshSystemStack fetch done", items]);
-			var acc = [];
-			dojo.forEach(items, function(item){
-				var temphp = supervisorView.dataStore.getValue(item, "health");
-				var hps = [];
-				for(var i in temphp){
-					hps.push(temphp[i]);
-				}
-				debug(["refresh system stack averaging", hps]);
-				var aggregate = supervisorView.averageHp(hps);
-				var out = {
-					id:supervisorView.dataStore.getValue(item, "id"),
-					type:supervisorView.dataStore.getValue(item, "type"),
-					display:supervisorView.dataStore.getValue(item, "display"),
-					"aggregate":aggregate,
-					health:aggregate
-				}
-				acc.push(out);
-			});
-		
-			dojo.forEach(supervisorView.systemStack, function(obj){
-				obj.clear();
-			});
-			debug(["fetchdone.  Acc:", acc]);
-			supervisorView.systemStack = supervisorView.drawSystemStack({data:acc});
-		}
-		
-		supervisorView.dataStore.fetch({
-			query:{
-				type:"node"
-			},
-			onComplete:fetchdone
-		});
-	}*/
-
 	supervisorView.healthDump = function(){
 		var dump = function(items){
 			dojo.forEach(items, function(item){

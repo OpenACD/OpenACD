@@ -34,44 +34,46 @@ if(typeof(supervisorView) == "undefined"){
 		_dragging: null,
 		_eventHandle:null,
 		_dropCandidate: null,
+		_collisionCandidates: [],
 		checkCollision:function(pt){
-			var out;
-			if(out = supervisorView.individualsStack.pointCollision(pt)){
-				return out;
-			}
-			
-			if(out = supervisorView.groupsStack.pointCollision(pt)){
-				return out;
-			}
-		
-			if(supervisorView.agentBubble.pointCollision(pt)){
-				return supervisorView.agentBubble;
-			}
-			
-			if(supervisorView.queueBubble.pointCollision(pt)){
-				return supervisorView.queueBubble;
-			}
-			
-			for(var i = 0; i < supervisorView.systemStack.length; i++){
-				if(out = supervisorView.systemStack[i].pointCollision(pt)){
-					return out;
+			var out = false;
+			for(var i = 0; i < supervisorView.dndManager._collisionCandidates.length; i++){
+				var obj = supervisorView.dndManager._collisionCandidates[i];
+				if(obj && obj.pointCollision){
+					if(obj.pointCollision(pt)){
+						return obj;
+					}
 				}
 			}
-			
-			return null;
+						
+			return false;
 		},
 		startDrag:function(obj){
-			supervisorView.dndManager._eventHandle = obj.connect("mousemove", obj, function(ev){
+			supervisorView.dndManager._eventHandle = supervisorView.surface.connect('onmousemove', function(ev){
 				var point = {
 					x:ev.layerX,
 					y:ev.layerY
 				};
+				debug(["checking collision", point]);
 				var collided = supervisorView.dndManager.checkCollision(point)
 				if(collided && collided.dragOver){
-					collided.dragOver(obj);
-					supervisorView.dndManager._dropCandidate = collided;
+					var setDrop = false;
+					if(collided.dragOver(obj)){
+						supervisorView.dndManager._dropCandidate = collided;
+						setDrop = true;
+					}
+					else{
+						debug(["collided.dragOver false", collided, obj]),
+						supervisorView.dndManager._dropCandidate = false;
+						setDrop = false;
+					}
+					
+					if(obj.setDroppable){
+						obj.setDroppable(setDrop);
+					}
 				}
 				else{
+					debug(["one of them's false", collided, collided.dragOver]),
 					supervisorView.dndManager._dropCandidate = null;
 				}
 			});
@@ -79,11 +81,29 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.dndManager._dragging = obj;
 		},
 		endDrag:function(){
+			debug("ending drag");
 			supervisorView.suppressPoll = false;
-			supervisorView.dndManager._dragging.disconnect(supervisorView.dndManager._eventHandle);
+			supervisorView.surface.disconnect(supervisorView.dndManager._eventHandle);
 			if(supervisorView.dndManager._dropCandidate){
 				supervisorView.dndManager._dropCandidate.dropped(supervisorView.dndManager._dragging);
 			}
+		},
+		registerCollider:function(obj){
+			if(obj.pointCollision && obj.dragOver){
+				var i = 0;
+				while(supervisorView.dndManager._collisionCandidates[i]){
+					i++;
+				}
+			
+				supervisorView.dndManager._collisionCandidates[i] = obj;
+				return i;
+			}
+			
+			return false;
+		},
+		unregisterCollider:function(index){
+			index = index - 1;
+			supervisorView.dndManager._collisionCandidates[index] = false;
 		}
 	};
 
@@ -105,10 +125,12 @@ if(typeof(supervisorView) == "undefined"){
 			scale:1,
 			parent:supervisorView.surface,
 			data:{"display":"bubble", "health":50, "type":"text"},
+			image: false,
 			onmouseenter:function(){ return true},
 			onmouseleave:function(){return true},
 			onclick:function(){ return false},
-			subscriptions:[]
+			subscriptions:[],
+			moveable: false
 		};
 		conf.data = dojo.mixin(this.defaultConf.data, conf.data);
 		conf = dojo.mixin(this.defaultConf, conf);
@@ -169,6 +191,14 @@ if(typeof(supervisorView) == "undefined"){
 			y: rect.getShape().y + rect.getShape().height/2
 		};
 		
+		if(conf.moveable){
+			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
+			this.moveable.delay = 1;
+			for(var i in conf.moveable){
+				this.moveable[i] = conf.moveable[i];
+			}
+		}
+		
 		this.group.setTransform([dojox.gfx.matrix.scaleAt(conf.scale, p)]);
 	};
 	
@@ -209,6 +239,7 @@ if(typeof(supervisorView) == "undefined"){
 	
 	supervisorView.Bubble.prototype.pointCollision = function(point){
 		var arr = this.bubble.getTransformedBoundingBox();
+		debug(["pointCollision", point, arr]);
 		var topleft = arr[0];
 		var topright = arr[1];
 		var bottomright = arr[2];
@@ -237,6 +268,29 @@ if(typeof(supervisorView) == "undefined"){
 		this.group.connect(ev, scope, fun);
 	}
 	
+	supervisorView.Bubble.prototype.setImage = function(imageSrc){
+		if(imageSrc == false){
+			if(this.image){
+				this.image.removeShape();
+				this.image = false;
+				return true;
+			}
+		}
+		
+		if(this.image){
+			this.image.removeShape();
+		}
+		
+		this.image = this.group.createImage({
+			x: this.bubble.getShape().x + 2,
+			y: this.bubble.getShape().y + 2,
+			width: this.bubble.getShape().height - 4,
+			height: this.bubble.getShape().height - 4,
+			src: imageSrc
+		});
+		
+		return this.image;
+	}
 
 	//=====
 	// BubbleStack
@@ -279,10 +333,12 @@ if(typeof(supervisorView) == "undefined"){
 		
 		this.bubbleConfs = conf.bubbleConfs;
 		
+		var thisref = this;
+		
 		for(var i = 0; i < this.bubbleConfs.length; i++){
 			var mixing = {
 				point:{x:pt.x, y:this.indexToY(i)},
-				parent:this.group
+				parent:this.group,
 			}
 		
 			this.bubbleConfs[i] = dojo.mixin(this.bubbleConfs[i], mixing);
@@ -340,6 +396,10 @@ if(typeof(supervisorView) == "undefined"){
 	
 	supervisorView.BubbleStack.prototype._setSelected = function(index){
 		debug(["_setSelected", index, this._selected]);
+		if(this.scrollLocked){
+			return false
+		}
+		
 		if(this._selected != undefined){
 			debug("shrinking old selected");
 			var bubConf = this.bubbleConfs[this._selected];
@@ -432,6 +492,27 @@ if(typeof(supervisorView) == "undefined"){
 					debug(["ind hit", ind]);
 					thisref._setSelected(ind);
 				});
+				obj = thisref.bubbleConfs[ind].bubble;
+				obj.mover = new dojox.gfx.Moveable(obj.group);
+				dojo.connect(obj.mover, 'onFirstMove', function(){
+					thisref.lockScroll();
+					supervisorView.dndManager.startDrag(obj);
+				});
+				obj.connect('onmouseup', function(){
+					thisref.unlockScroll();
+					supervisorView.dndManager.endDrag();
+				});
+				obj.setDroppable = function(bool){
+					if(bool == null){
+						obj.setImage(false);
+					}
+					else if(bool){
+						obj.setImage('/images/dl.png');
+					}
+					else{
+						obj.setImage('/images/redx.png');
+					}
+				}
 			}
 		})
 		
@@ -448,6 +529,10 @@ if(typeof(supervisorView) == "undefined"){
 	}
 	
 	supervisorView.BubbleStack.prototype.clear = function(){
+		if(this.scrollLocked){
+			return false;
+		}
+		
 		dojo.forEach(this.subscriptions, function(obj){
 			dojo.unsubscribe(obj);
 		});
@@ -1095,6 +1180,10 @@ if(typeof(supervisorView) == "undefined"){
 					//dijit.byId("nodeAction").bindDomNode(o.rawNode);
 				}
 				yi = yi - 40;
+				var coll = supervisorView.dndManager.registerCollider(o);
+				dojo.connect(o, 'clear', function(){
+					supervisorView.dndManager.unregisterCollider(coll);
+				});
 				supervisorView.systemStack.push(o);
 			});
 		}
@@ -1136,7 +1225,14 @@ if(typeof(supervisorView) == "undefined"){
 				supervisorView.queueBubble.size(.75);
 			}
 		});
-		supervisorView.agentBubble.dragOver = supervisorView.agentBubble.onclick;
+		supervisorView.agentBubble.dragOver = function(){
+			clearStacks();
+			supervisorView.drawAgentProfilesStack();
+			supervisorView.agentBubble.size(1);
+			supervisorView.queueBubble.size(.75);
+			return false;
+		}
+		supervisorView.agentBubble.coll = supervisorView.dndManager.registerCollider(supervisorView.agentBubble);
 		
 		supervisorView.queueBubble = new supervisorView.Bubble({
 			point:{x:20, y:60},
@@ -1151,6 +1247,7 @@ if(typeof(supervisorView) == "undefined"){
 		});
 		
 		supervisorView.queueBubble.dragOver = supervisorView.queueBubble.onclick;
+		supervisorView.queueBubble.coll = supervisorView.dndManager.registerCollider(supervisorView.queueBubble);
 	}
 
 	supervisorView.sizeFromDistance = function(distance){

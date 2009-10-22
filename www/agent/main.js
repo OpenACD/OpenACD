@@ -701,6 +701,10 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("main").mediaload = dojo.subscribe("agent/mediaload", function(eventdata){
 		info(["listening for media load fired:  ", eventdata]);
+		if(eventdata.media != 'email'){
+			return false
+		}
+		
 		var mediaPanelId = eventdata.media + 'Panel';
 		if(dijit.byId(mediaPanelId)){
 			return false; 

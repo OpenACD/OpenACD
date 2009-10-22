@@ -1384,7 +1384,7 @@ push_event(Eventjson, State) ->
 			State#state{poll_queue = Newqueue};
 		Pid when is_pid(Pid) ->
 			?DEBUG("Sending to the ~w", [Pid]),
-			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, Newqueue}]})}},
+			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, lists:reverse(Newqueue)}]})}},
 			State#state{poll_queue = [], poll_pid = undefined}
 	end.
 

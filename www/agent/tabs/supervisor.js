@@ -1329,25 +1329,6 @@ if(typeof(supervisorView) == "undefined"){
 		supervisorView.queueBubble.coll = supervisorView.dndManager.registerCollider(supervisorView.queueBubble);
 	}
 
-	supervisorView.sizeFromDistance = function(distance){
-		// y = -.00003x^2 + 1.4 if you quad
-		// linear is a bit faster, though.
-		// y = -(.65/50)x + 1.4
-		if(Math.abs(distance) > 100){
-			return .75;
-		}
-		if(Math.abs(distance) < 10){
-			return 1.4;
-		}
-		
-		var scale = -Math.abs(.013 * distance) + 1.4;
-		if(scale < .75){
-			return .75;
-		}
-		
-		return scale;
-	}
-
 	supervisorView.drawQueueGroupsStack = function(){
 		if(supervisorView.queueGroupsStack && supervisorView.queuesStack.scrollLocked){
 			warning(["queueGroupsstack exists but is scroll-locked"]);
@@ -1985,7 +1966,7 @@ supervisorView.drawSystemStack();
 	else{
 		// la la la
 	}
-});
+});*/
 
 supervisorView.hpCalcTimer = '';
 supervisorView.hpcalc = function(){
@@ -1994,7 +1975,7 @@ supervisorView.hpcalc = function(){
 		supervisorView.hpcalc()}, 5000);
 }
 
-supervisorView.logoutListener = dojo.subscribe("agent/logout", function(data){
+/*supervisorView.logoutListener = dojo.subscribe("agent/logout", function(data){
 	clearTimeout(supervisorView.hpCalcTimer)
 });
 
@@ -2019,6 +2000,6 @@ window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", functio
 			}
 		});
 	}
-});
+});*/
 
-supervisorView.hpcalc();*/
+supervisorView.hpcalc();

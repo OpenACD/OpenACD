@@ -535,7 +535,8 @@ if(typeof(supervisorView) == "undefined"){
 					subscriptions:[
 						{channel: 'supervisorView/set/' + obj.data.type + '-' + obj.data.display,
 						callback: function(rawobj){
-							obj.bubble.setHp(rawobj.aggregate);
+							debug(["got it!", obj, rawobj]);
+							obj.setHp(rawobj.aggregate);
 						}},
 						{channel: 'supervisorView/drop/' + obj.data.type + '-' + obj.data.display,
 						callback: function(){

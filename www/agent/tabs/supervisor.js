@@ -218,6 +218,16 @@ if(typeof(supervisorView) == "undefined"){
 			}
 		}
 		
+		if(conf.image){
+			this.image = this.group.createImage({
+				x: rect.getShape().x + 2,
+				y: rect.getShape().y + 2,
+				width: rect.getShape().height - 4,
+				height: rect.getShape().height - 4,
+				src: conf.image
+			});
+		}
+		
 		this.dropped = conf.dropped;
 		this.dragOver = conf.dragOver;
 		
@@ -1380,7 +1390,7 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.agentProfilesStack.clear();*/
 			supervisorView.queueGroupsStack = new supervisorView.BubbleStack({
 				mousept:{
-					x:300,
+					x:250,
 					y:100
 				},
 				bubbleConfs:acc,
@@ -1522,7 +1532,7 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.queuesStack.clear();
 			supervisorView.agentProfilesStack = new supervisorView.BubbleStack({
 				mousept:{
-					x:300,
+					x:250,
 					y:100
 				},
 				bubbleConfs:acc,
@@ -1561,6 +1571,8 @@ if(typeof(supervisorView) == "undefined"){
 			var hps = [];
 			dojo.forEach(items, function(obj){
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate", 50));
+				var details = supervisorView.dataStore.getValue(obj, 'details', {'state':'released'});
+				var imageUrl = '/images/' + details.state + '.png';
 				acc.push({
 					data:{
 						display:supervisorView.dataStore.getValue(obj, "display"),
@@ -1589,7 +1601,8 @@ if(typeof(supervisorView) == "undefined"){
 					dropped: function(droppedObj){
 						debug(["agentBubble accepted drop", droppedObj]);
 						supervisorView.sendMediaToAgent(droppedObj.data.display, this.data.display)
-					}
+					},
+					image: imageUrl
 				});
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
 			});

@@ -116,7 +116,6 @@ if(typeof(supervisorView) == "undefined"){
 			return false;
 		},
 		unregisterCollider:function(index){
-			index = index - 1;
 			supervisorView.dndManager._collisionCandidates[index] = false;
 		}
 	};
@@ -152,7 +151,11 @@ if(typeof(supervisorView) == "undefined"){
 		conf = dojo.mixin(this.defaultConf, conf);
 		
 		this.group = conf.parent.createGroup();
-		this.subscriptions = conf.subscriptions;
+		this.subscriptions = [];
+		for(var i = 0; i < conf.subscriptions.length; i++){
+			var subObj = conf.subscriptions[i];
+			this.subscriptions.push(dojo.subscribe(subObj.channel, this, subObj.callback));
+		}
 		
 		var rmod = Math.abs(-(255/50) * conf.data.health + 255);
 		var gmod = 255;
@@ -227,6 +230,7 @@ if(typeof(supervisorView) == "undefined"){
 			x: rect.getShape().x,
 			y: rect.getShape().y + rect.getShape().height/2
 		}
+		debug(["size point", p]);
 		this.group.setTransform([dojox.gfx.matrix.scaleAt(scale, p)]);
 	}
 		
@@ -395,6 +399,7 @@ if(typeof(supervisorView) == "undefined"){
 	
 	supervisorView.BubbleStack.prototype.viewYtoLocalY = function(viewY){
 		var stackHeight = 40 * this.bubbleConfs.length;
+		debug(['viewYtoLocalY', {'stackH':stackHeight, 'viewH':this.conf.viewHeight, 'viewY':viewY}]);
 		if(stackHeight <= this.conf.viewHeight){
 			return viewY;
 		}
@@ -408,6 +413,7 @@ if(typeof(supervisorView) == "undefined"){
 	
 	supervisorView.BubbleStack.prototype.viewYToIndex = function(viewY){
 		var localy = this.viewYtoLocalY(viewY);
+		debug(["localy", localy]);
 		return this.yToIndex(localy);
 	}
 	
@@ -454,11 +460,27 @@ if(typeof(supervisorView) == "undefined"){
 		return false
 	}
 	
+	supervisorView.BubbleStack.prototype.scroll = function(index){
+		if(index >= this.bubbleConfs.length){
+			index = this.bubbleConfs.length - 1;
+		}
+		
+		if(index < 0){
+			index = 0;
+		}
+		
+		var y = this.indexToY(index);
+		this._scroll(y);
+	}
+	
 	supervisorView.BubbleStack.prototype._scroll = function(viewY){
 		if(this.scrollLocked){
 			return false
 		}
 		
+		if(isNaN(viewY)){
+			return false;
+		}
 		var range = Math.abs(Math.ceil(this.conf.viewHeight / 40));
 		var midIndex = this.viewYToIndex(viewY);
 		
@@ -509,7 +531,17 @@ if(typeof(supervisorView) == "undefined"){
 						x: thisref.conf.mousept.x,
 						y: drawy
 					},
-					parent: thisref.group
+					parent: thisref.group,
+					subscriptions:[
+						{channel: 'supervisorView/set/' + obj.data.type + '-' + obj.data.display,
+						callback: function(rawobj){
+							obj.bubble.setHp(rawobj.aggregate);
+						}},
+						{channel: 'supervisorView/drop/' + obj.data.type + '-' + obj.data.display,
+						callback: function(){
+							this.clear();
+						}}
+					]
 				});
 
 				thisref.bubbleConfs[ind].bubble = new supervisorView.Bubble(bubbleConf);
@@ -550,7 +582,7 @@ if(typeof(supervisorView) == "undefined"){
 			}
 		}
 
-		debug(["viewY and ration", viewY, this.ratio]);
+		debug(["viewY and ration", {'1':viewY, '2':this.ratio, '3':this.trueRatio}]);
 		this.group.setTransform([dojox.gfx.matrix.translate(0, -viewY * this.trueRatio * this.ratio)]);
 	}
 	
@@ -1345,6 +1377,14 @@ if(typeof(supervisorView) == "undefined"){
 							type:supervisorView.dataStore.getValue(obj, "type"),
 							display:supervisorView.dataStore.getValue(obj, "display")
 						});
+					},
+					dragOver:function(){
+						supervisorView.drawQueuesStack(this.data.display, supervisorView.node, acc.length);
+						supervisorView.setDetails({
+							type:supervisorView.dataStore.getValue(obj, 'type'),
+							display:supervisorView.dataStore.getValue(obj, 'display')
+						});
+						return false;
 					}
 				});
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
@@ -1361,17 +1401,11 @@ if(typeof(supervisorView) == "undefined"){
 					x:300,
 					y:100
 				},
-				bubbleConfs:acc
-			});
-
-			supervisorView.queueGroupsStack.forEachBubble(function(bubble){
-				var chan = "supervisorView/set/queuegroup-" + bubble.data.display;
-				bubble.subscriptions.push(dojo.subscribe(chan, function(storeref, rawobj){
-					bubble.setHp(rawobj.aggregate);
-				}));
+				bubbleConfs:acc,
+				registerCollider:true
 			});
 			
-			supervisorView.queueGroupsStack._scroll(0);
+			supervisorView.queueGroupsStack.scroll(0);
 			supervisorView.queueGroupsStack.group.moveToBack();
 		}
 		
@@ -1438,35 +1472,7 @@ if(typeof(supervisorView) == "undefined"){
 				registerCollider: true
 			});
 			
-			supervisorView.queuesStack.forEachBubble(function(bub){
-				bub.subscriptions.push(dojo.subscribe("supervisorView/set/queue-" + detailsObj.display, function(storeref, rawobj){
-					bub.setHp(rawobj.aggregate);
-				}));
-				bub.subscriptions.push(dojo.subscribe("supervisorView/drop/queue-" + detailsObj.display, function(storeref, rawobj){
-					bub.clear();
-				}));
-													
-				bub.dropped = function(obj){
-					if(obj.data.type == "media"){
-						var ajaxdone = function(json, args){}
-						var geturl = "/supervisor/requeue/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
-						dojo.xhrGet({
-							url:geturl,
-							handleAs:"json",
-							load:ajaxdone
-						});
-					}
-				}
-													
-				if(bub.data.display != "All"){
-					bub.dragOver = function(){
-						bub.onEnter();
-						return true;
-					}
-				}
-			});
-			
-			supervisorView.queuesStack._scroll(supervisorView.queuesStack.indexToY(scrollIndex));
+			supervisorView.queuesStack.scroll(scrollIndex);
 			supervisorView.queuesStack.group.moveToBack();
 		}
 		
@@ -1508,6 +1514,11 @@ if(typeof(supervisorView) == "undefined"){
 						});
 					},
 					dragOver: function(testobj){
+						 supervisorView.drawAgentsStack(this.data.display, supervisorView.node, acc.length);
+						 supervisorView.setDetails({
+							type:supervisorView.dataStore.getValue(obj, "type"),
+							display:supervisorView.dataStore.getValue(obj, "display")
+						});
 						debug(["agentProfileBubble dragOver", testobj]);
 						if(testobj.data.type == 'agent'){
 							return true;
@@ -1543,7 +1554,7 @@ if(typeof(supervisorView) == "undefined"){
 				}));
 			});
 
-			supervisorView.agentProfilesStack._scroll(0);
+			supervisorView.agentProfilesStack.scroll(0);
 			supervisorView.agentProfilesStack.group.moveToBack();
 		}
 
@@ -1579,11 +1590,23 @@ if(typeof(supervisorView) == "undefined"){
 							'agent':this.data.display,
 							'node':supervisorView.node
 						};
-						supervisorView.drawCallStack(queryObj);
+						supervisorView.drawCallStack(queryObj, acc.length);
 						supervisorView.setDetails({
 							type:"agent",
 							display:supervisorView.dataStore.getValue(obj, "display")
 						});
+					},
+					dragOver: function(testObj){
+						debug(["agentBubble dragOver", testObj]);
+						if(testObj.data.type == 'media'){
+							return true;
+						}
+						
+						return false;
+					},
+					dropped: function(droppedObj){
+						debug(["agentBubble accepted drop", droppedObj]);
+						supervisorView.sendMediaToAgent(droppedObj.data.display, this.data.display)
 					}
 				});
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
@@ -1597,9 +1620,11 @@ if(typeof(supervisorView) == "undefined"){
 					x:540,
 					y:100
 				},
-				bubbleConfs: acc
+				bubbleConfs: acc,
+				registerCollider:true
 			});
-
+			supervisorView.agentsStack.group.moveToBack();
+			
 			supervisorView.agentsStack.forEachBubble(function(bub){
 				bub.subscriptions.push(dojo.subscribe("supervisorView/set/agent-" + detailsObj.display, function(storeref, rawobj){
 					bub.setHp(rawobj.aggregate);
@@ -1635,7 +1660,7 @@ if(typeof(supervisorView) == "undefined"){
 				}
 			});
 			
-			supervisorView.agentsStack._scroll(supervisorView.agentsStack.indexToY(scrollIndex));
+			supervisorView.agentsStack.scroll(scrollIndex);
 		}
 
 		var queryo = {
@@ -1709,8 +1734,8 @@ if(typeof(supervisorView) == "undefined"){
 					obj.clear();
 				}));
 			});
-			
-			supervisorView.callsStack._scroll(supervisorView.callsStack.indexToY(scrollIndex));
+		
+			supervisorView.callsStack.scroll(scrollIndex);
 		}
 
 		supervisorView.dataStore.fetch({
@@ -1808,6 +1833,63 @@ if(typeof(supervisorView) == "undefined"){
 	
 	supervisorView.queueTransfer = function(callid, newqueue){
 		warning(["queueTransfer nyi"]);
+		return false;
+		
+		/*var fetchdone = function(items){
+			if(items.length == 0){
+				return false
+			}
+			
+			var item = items[0];
+			var healthData = supervisorView.dataStore.getValue('health', item);
+			var url = '/supervisor/';
+			if(healthData.inqueue){
+				url += 'queue_transfer/' + escape(callid) + '/' + escape(newqueue);
+			}
+			else if(healthData.{
+				url += 'requeue/' + escape(
+			}
+		}
+		
+		
+		dojo.xhrGet({
+			url:'/supervisor/requeue/' + escape(
+		});
+		
+		supervisorView.queuesStack.forEachBubble(function(bub){
+												 bub.subscriptions.push(dojo.subscribe("supervisorView/set/queue-" + detailsObj.display, function(storeref, rawobj){
+																					   bub.setHp(rawobj.aggregate);
+																					   }));
+												 bub.subscriptions.push(dojo.subscribe("supervisorView/drop/queue-" + detailsObj.display, function(storeref, rawobj){
+																					   bub.clear();
+																					   }));
+												 
+												 bub.dropped = function(obj){
+												 if(obj.data.type == "media"){
+												 var ajaxdone = function(json, args){}
+												 var geturl = "/supervisor/requeue/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
+												 dojo.xhrGet({
+															 url:geturl,
+															 handleAs:"json",
+															 load:ajaxdone
+															 });
+												 }
+												 }
+												 
+												 if(bub.data.display != "All"){
+												 bub.dragOver = function(){
+												 bub.onEnter();
+												 return true;
+												 }
+												 }
+												 });*/
+		
+		
+		
+	}
+	
+	supervisorView.sendMediaToAgent = function(mediaid, agentlogin){
+		warning("sendMediaToAgent NYI");
 		return false;
 	}
 }

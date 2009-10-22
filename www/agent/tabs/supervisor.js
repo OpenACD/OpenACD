@@ -137,7 +137,7 @@ if(typeof(supervisorView) == "undefined"){
 			point:{x:100,y:100},
 			scale:1,
 			parent:supervisorView.surface,
-			data:{"display":"bubble", "health":50, "type":"text"},
+			data:{"display":"bubble", "health":50, "type":"text", "id":"id"},
 			image: false,
 			onmouseenter:function(){ return true},
 			onmouseleave:function(){return true},
@@ -565,12 +565,12 @@ if(typeof(supervisorView) == "undefined"){
 					},
 					parent: thisref.group,
 					subscriptions:[
-						{channel: 'supervisorView/set/' + obj.data.type + '-' + obj.data.display,
+						{channel: 'supervisorView/set/' + obj.data.id,
 						callback: function(rawobj){
 							debug(["got it!", obj, rawobj]);
 							obj.setHp(rawobj.aggregate);
 						}},
-						{channel: 'supervisorView/drop/' + obj.data.type + '-' + obj.data.display,
+						{channel: 'supervisorView/drop/' + obj.data.id,
 						callback: function(){
 							this.clear();
 						}}
@@ -1314,7 +1314,7 @@ if(typeof(supervisorView) == "undefined"){
 		supervisorView.agentBubble = new supervisorView.Bubble({
 			point:{x:20, y:20},
 			scale: .75,
-			data: {"health":agenthp, "display":"Agents"},
+			data: {"health":agenthp, "display":"Agents", "id":"Agents"},
 			onclick:function(){
 				clearStacks();
 				supervisorView.drawAgentProfilesStack();
@@ -1334,7 +1334,7 @@ if(typeof(supervisorView) == "undefined"){
 		supervisorView.queueBubble = new supervisorView.Bubble({
 			point:{x:20, y:60},
 			scale: .75,
-			data:{"health":queuehp, "display":"Queues"},
+			data:{"health":queuehp, "display":"Queues", "id":"Queues"},
 			onclick: function(){
 				clearStacks();
 				supervisorView.drawQueueGroupsStack();
@@ -1373,7 +1373,8 @@ if(typeof(supervisorView) == "undefined"){
 				acc.push({
 					data:{
 						display:supervisorView.dataStore.getValue(obj, "display"),
-						health:supervisorView.dataStore.getValue(obj, "aggregate", 50)
+						health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
+						id:supervisorView.dataStore.getValue(obj, "id")
 					},
 					onmouseenter:function(ev){
 						supervisorView.drawQueuesStack(this.data.display, supervisorView.node, acc.length);
@@ -1435,7 +1436,8 @@ if(typeof(supervisorView) == "undefined"){
 				acc.push({
 					data:{
 						display:supervisorView.dataStore.getValue(obj, "display"),
-						health:supervisorView.dataStore.getValue(obj, "aggregate", 50)
+						health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
+						id:supervisorView.dataStore.getValue(obj, "id")
 					},
 					onmouseenter:function(ev){
 						var queryObj = {
@@ -1508,7 +1510,8 @@ if(typeof(supervisorView) == "undefined"){
 				acc.push({
 					data:{
 						display:supervisorView.dataStore.getValue(obj, "display"),
-						health:supervisorView.dataStore.getValue(obj, "aggregate", 50)
+						health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
+						id:supervisorView.dataStore.getValue(obj, "id")
 					},
 					onmouseenter:function(ev){
 						supervisorView.drawAgentsStack(this.data.display, supervisorView.node, acc.length);
@@ -1589,6 +1592,7 @@ if(typeof(supervisorView) == "undefined"){
 					data:{
 						display:supervisorView.dataStore.getValue(obj, "display"),
 						health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
+						id:supervisorView.dataStore.getValue(obj, 'id'),
 						type:'agent'
 					},
 					onmouseenter:function(ev){
@@ -1695,6 +1699,7 @@ if(typeof(supervisorView) == "undefined"){
 				var datas = {
 					display:supervisorView.dataStore.getValue(obj, "display"),
 					health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
+					id:supervisorView.dataStore.getValue(obj, "id"),
 					type:"media"
 				};
 				
@@ -1899,6 +1904,10 @@ if(typeof(supervisorView) == "undefined"){
 		warning("sendMediaToAgent NYI");
 		return false;
 	}
+	
+	supervisorView.handleQueueEvent = function(queueItem){
+		
+	}
 }
 
 supervisorView.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
@@ -1910,12 +1919,38 @@ supervisorView.reloadDataStore();
 supervisorView.drawAgentQueueBubbles(0, 0);
 supervisorView.drawSystemStack();
 
-/*supervisorView.masterSub = dojo.subscribe("agent/supervisorView", function(data){
-	debug(["1442", "master sub", data]);
+supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(data){
+	debug(["for supervisor view master sub", data]);
+	if(data.action == 'drop'){
+		supervisorView.dataStore.fetch({
+			query:{'id':data.id},
+			onComplete:function(items){
+				if(items.length == 0){
+					return false
+				}
+				var i = items[0];
+				supervisorView.dataStore.deleteItem(items[0]);
+				dojo.publish("supervisorView/drop/" + data.id, [data]);
+			}
+		});
+		return true;
+	}
+	
+	if(data.action != 'set'){
+		return false;
+	}
+	
+	
+	
+	
+	
+	/*
+	
+	
 	data = data.data;
 	if(data.action == "set"){
 		var fetched = function(items){
-			warning(["fetched", items]);
+			debug(["fetched", items]);	
 			// items to be scapped out and put top leve:
 			// node, profile, group, queue, agent.
 			// check if profile or group exists, and if not, create a stub for them
@@ -1991,8 +2026,8 @@ supervisorView.drawSystemStack();
 	}
 	else{
 		// la la la
-	}
-});*/
+	}*/
+});
 
 supervisorView.hpCalcTimer = '';
 supervisorView.hpcalc = function(){

@@ -1532,10 +1532,11 @@ if(typeof(supervisorView) == "undefined"){
 					x:300,
 					y:100
 				},
-				bubbleConfs:acc
+				bubbleConfs:acc,
+				registerCollider: true
 			});
 	
-			supervisorView.queueGroupsStack.forEachBubble(function(bubble){
+			supervisorView.agentProfilesStack.forEachBubble(function(bubble){
 				var chan = "supervisorView/set/agentprofile-" + bubble.data.display;
 					bubble.subscriptions.push(dojo.subscribe(chan, function(storeref, rawobj){
 					bubble.setHp(rawobj.aggregate);
@@ -1570,7 +1571,8 @@ if(typeof(supervisorView) == "undefined"){
 				acc.push({
 					data:{
 						display:supervisorView.dataStore.getValue(obj, "display"),
-						health:supervisorView.dataStore.getValue(obj, "aggregate", 50)
+						health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
+						type:'agent'
 					},
 					onmouseenter:function(ev){
 						var queryObj = {

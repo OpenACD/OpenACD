@@ -324,6 +324,28 @@ if(typeof(supervisorView) == "undefined"){
 		
 		return this.image;
 	}
+	
+	supervisorView.Bubble.prototype.setDroppable = function(bool){
+		if(this.previousImage == null){
+			if(this.image){
+				this.previousImage = this.image.getShape().src;
+			}
+			else{
+				this.previousImage = false;
+			}
+		}
+			
+		if(bool == null){
+			this.setImage(this.previousImage);
+			delete this.previousImage;
+		}
+		else if(bool){
+			this.setImage('/images/dl.png');
+		}
+		else{
+			this.setImage('/images/redx.png');
+		}
+	}
 
 	//=====
 	// BubbleStack
@@ -568,20 +590,10 @@ if(typeof(supervisorView) == "undefined"){
 				});
 				obj.connect('onmouseup', function(){
 					thisref.unlockScroll();
-					obj.setImage(false);
+					obj.setDroppable(null);
+					//obj.setImage(false);
 					supervisorView.dndManager.endDrag();
 				});
-				obj.setDroppable = function(bool){
-					if(bool == null){
-						obj.setImage(false);
-					}
-					else if(bool){
-						obj.setImage('/images/dl.png');
-					}
-					else{
-						obj.setImage('/images/redx.png');
-					}
-				}
 			}
 		})
 		

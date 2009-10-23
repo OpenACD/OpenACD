@@ -50,11 +50,11 @@
 -include("agent.hrl").
 
 -record(state, {
-	ringing = random :: pos_integer() | 'random',
+	ringing = random :: pos_integer() | {pos_integer(), pos_integer()} | 'random',
 	ringtimer :: any(),
-	oncall = random :: pos_integer() | 'random',
+	oncall = random :: pos_integer() | {pos_integer(), pos_integer()} | 'random',
 	calltimer :: any(),
-	wrapup = random :: pos_integer() | 'random',
+	wrapup = random :: pos_integer() | {pos_integer(), pos_integer()} | 'random',
 	wrapuptimer :: any(),
 	scale = 1 :: pos_integer(),
 	maxcalls = unlimited :: pos_integer() | 'unlimited',
@@ -118,7 +118,8 @@ init([Args]) ->
 		undefined ->
 			{false, 0, undefined};
 		Alsonumber ->
-			{ok, RelTimer} = timer:send_after(Alsonumber * 1000, <<"toggle_release">>),
+			Actualreleased = get_time(Alsonumber),
+			{ok, RelTimer} = timer:send_after(Actualreleased * 1000, <<"toggle_release">>),
 			{false, {Alsonumber, (proplists:get_value(release_percent, Args, 10) / 100)}, RelTimer}
 	end,
 	{ok, #state{
@@ -166,7 +167,7 @@ handle_cast(_Msg, State) ->
 
 handle_info(<<"toggle_release">>, #state{release_data = {false, {Frequency, Percent} = Nums, _Timer}} = State) ->
 	ok = agent:set_state(State#state.agent_fsm, released, "Default"),
-	Newtime = round(Frequency * Percent) * 1000,
+	Newtime = round(get_time(Frequency) * Percent) * 1000,
 	{ok, Newtimer} = timer:send_after(Newtime, <<"toggle_release">>),
 	{noreply, State#state{release_data = {true, Nums, Newtimer}}};
 handle_info(<<"toggle_release">>, #state{release_data = {true, {Frequency, _Percent} = Nums, _Timer}, calltimer = Calltimer} = State) ->
@@ -215,6 +216,8 @@ handle_info(_Info, State) ->
 
 get_time(random) ->
 	crypto:rand_uniform(0, 300);
+get_time({Min, Max}) ->
+	crypto:rand_uniform(Min, Max);
 get_time(T) ->
 	T.
 

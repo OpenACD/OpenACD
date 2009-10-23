@@ -77,44 +77,50 @@
 %% API
 %%====================================================================
 
--type(call_frequency() :: {call_frequency, pos_integer()}).
--type(call_deviation_limit() :: {call_deviation_limit, non_neg_integer()}).
+-type(frequency() :: {pos_integer(), pos_integer()} | pos_integer()).
+-type(call_frequency() :: {call_frequency, frequency()}).
+%-type(call_deviation_limit() :: {call_deviation_limit, non_neg_integer()}).
 -type(agents() :: {agents, pos_integer()}).
--type(agent_max_calls() :: {agent_max_calls, pos_integer() | 'infinity'}).
--type(agent_max_calls_deviation_limit() :: {agent_max_calls_deviation_limit, non_neg_integer()}).
+-type(agent_max_calls() :: {agent_max_calls, frequency() | 'infinity'}).
+%-type(agent_max_calls_deviation_limit() :: {agent_max_calls_deviation_limit, non_neg_integer()}).
 -type(simulation_life() :: {simulation_life, pos_integer() | 'infinity'}).
 -type(queues() :: {queues, [string()] | 'any'}).
 -type(agent_opts() :: {agent_opts, [any()]}).
 
 -type(start_option() :: 
 	call_frequency() | 
-	call_deviation_limit() | 
 	agents() | 
 	agent_max_calls() | 
-	agent_max_calls_deviation_limit() | 
 	simulation_life() | 
 	queues()
 ).
 -type(start_options() :: [start_option()]).
 
 %% @doc Start the simulator with the given options.
-%% * call_frequency: how many seconds to wait before putting another call into
-%%		queue.  defaults to 15.
-%% * call_deviation_limit: the maximum number of seconds a call will be put into
-%%		a queue late or early.  Defaults to 0.
-%% * agents: How many agents to have running at any given time.  If an agent 
+%% * call_frequency: {60, 600}
+%%		how many seconds to wait before putting another call into queue.
+%% * agents: 10
+%%		How many agents to have running at any given time.  If an agent 
 %%		reaches it's max calls, a new one it automatically started.  Also 
-%%		sets the intial number of calls in queue(s).  Defaults to 10.
-%% * agent_max_calls: How many calls on average an agent will take before dying.
-%%		Defaults to infinity.
-%% * agent_max_calls_deviation_limit: How many extra or under calls an agent 
-%%		will take before dying.  Has no effect if agent_max_calls is infinity.
-%%		Defaults to 0.
-%% * simullation_life: How many minutes the the simulation will run.  Defaults
-%%		to infinity.
-%% * queues: The queues to place calls in.  Defaults to any.
+%%		sets the intial number of calls in queue(s).
+%% * agent_max_calls: {20, 40}
+%%		How many calls on average an agent will take before dying.
+%% * simullation_life: infinity
+%%		How many minutes the the simulation will run.
+%% * queues: any
+%%		The queues to place calls in.
 %% * agent_opts:  The agent options used to start dummy agents.  A scale of 1000
-%%		is automatically added, overriding whatever is set.  Defaultst to [].
+%%		is automatically added, overriding whatever is set.  Defaults to [].
+%%
+%% The following agent options are overridden:
+%% * scale: replaced by 1000, so all agent durations are in seconds.
+%%
+%% The defaults for a dummy_agent are:
+%% * ringing: {5, 30}
+%% * oncall: {30, 900}
+%% * wrapup: {5, 120}
+%% * release_frequency: {3600, 10800}
+%% * release_percent: 1
 
 -spec(start/1 :: (Options :: start_options()) -> {'ok', pid()}).
 start(Options) ->
@@ -141,14 +147,18 @@ init(Options) ->
 	process_flag(trap_exit, true),
 	crypto:start(),
 	Protoconf = #conf{
-		call_frequency = proplists:get_value(call_frequency, Options, 15),
-		call_deviation_limit = proplists:get_value(call_deviation_limit, Options, 0),
+		call_frequency = proplists:get_value(call_frequency, Options, {60, 600}),
 		agents = proplists:get_value(agents, Options, 10),
-		agent_max_calls = proplists:get_value(agent_max_calls, Options, infinity),
-		agent_max_calls_deviation_limit = proplists:get_value(agent_max_calls_deviation_limit, Options, 0),	
+		agent_max_calls = proplists:get_value(agent_max_calls, Options, {20, 40}),
 		simulation_life = proplists:get_value(simulation_life, Options, infinity),
 		queues = proplists:get_value(queues, Options, any),
-		agent_opts = proplists:get_value(agent_opts, Options, [{ringing, 1}])
+		agent_opts = proplists:get_value(agent_opts, Options, [
+			{ringing, {5, 30}},
+			{oncall, {30, 900}},
+			{wrapup, {5, 120}},
+			{release_frequency, {3600, 10800}},
+			{release_percent, 1}
+		])
 	},
 	Newagentopts = proplists_replace(scale, 1000, Protoconf#conf.agent_opts),
 	Conf = Protoconf#conf{agent_opts = Newagentopts},
@@ -179,7 +189,7 @@ init(Options) ->
 	end,
 	{Pidlist, Namelist} = lists:foldl(Spawnagent, {[], Names}, lists:seq(1, Conf#conf.agents)),
 	Medias = lists:map(fun(_) -> [Pid] = queue_media(Conf#conf.queues), Pid end, lists:seq(1, Conf#conf.agents)),
-	{ok, Spawncall} = timer:send_after(Conf#conf.call_frequency * 1000, spawn_call),
+	{ok, Spawncall} = timer:send_after(get_number(Conf#conf.call_frequency) * 1000, spawn_call),
 	State = #state{
 		life_timer = Lifetime,
 		agent_pids = Pidlist,
@@ -228,9 +238,7 @@ handle_info({'EXIT', Pid, Why}, #state{conf = Conf} = State) ->
 handle_info(spawn_call, #state{conf = Conf} = State) ->
 	[Pid] = queue_media(Conf#conf.queues),
 	Medialist = [Pid | State#state.media_pids],
-	BaseDev = Conf#conf.call_deviation_limit,
-	Dev = crypto:rand_uniform(0, BaseDev * 2) - BaseDev,
-	Time = Conf#conf.call_frequency + Dev,
+	Time = get_number(Conf#conf.call_frequency),
 	{ok, Timer} = timer:send_after(Time * 1000, spawn_call),
 	{noreply, State#state{media_pids = Medialist, call_timer = Timer}};
 handle_info(endoflife, State) ->
@@ -269,7 +277,7 @@ spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 		infinity ->
 			Midopts;
 		Number ->
-			Rand = crypto:rand_uniform(0, Number * 2) - Number,
+			Rand = get_number(Number),
 			[{maxcalls, Rand} | Midopts]
 	end,
 	Profiles = agent_auth:get_profiles(),
@@ -278,4 +286,10 @@ spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 	Midopts4 = proplists_replace(profile, Profile, Midopts3),
 	Midopts5 = proplists_replace(id, Login, Midopts4),
 	agent_dummy_connection:start_link(Midopts5).
-	
+
+get_number({Min, Max}) ->
+	crypto:rand_uniform(Min, Max);
+get_number(random) ->
+	get_number({0, 2000});
+get_number(Num) ->
+	Num.

@@ -675,11 +675,11 @@ check_conditions_test_() ->
 		end),
 		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
 			?CONSOLE("list_agents", []),
-			List = [#agent{login = "agent1", skills = ['_all'], state = idle},
-			#agent{login = "agent2", skills = ['_all'], state = idle},
-			#agent{login = "agent3", skills = ['_all'], state = idle}],
+			List = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
+			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
+			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
 			Out = lists:map(fun(Rec) ->
-				{Rec#agent.login, element(2, agent:start_link(Rec))}
+				{Rec#agent.login, {element(2, agent:start_link(Rec)), Rec#agent.id}}
 			end, List),
 			{ok, Out, State}
 		end),
@@ -755,11 +755,11 @@ check_conditions_test_() ->
 		end),
 		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
 			?CONSOLE("list_agents", []),
-			List = [#agent{login = "agent1", skills = ['_all'], state = idle},
-			#agent{login = "agent2", skills = ['_all'], state = idle},
-			#agent{login = "agent3", skills = ['_all'], state = idle}],
+			List = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
+			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
+			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
 			Out = lists:map(fun(Rec) ->
-				{Rec#agent.login, element(2, agent:start_link(Rec))}
+				{Rec#agent.login, {element(2, agent:start_link(Rec)), Rec#agent.id}}
 			end, List),
 			{ok, Out, State}
 		end),

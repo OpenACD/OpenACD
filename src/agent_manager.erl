@@ -155,7 +155,7 @@ find_avail_agents_by_skill(Skills) ->
 %% @doc Gets all the agents have have the given `[atom()] Skills'.
 -spec(find_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
 find_by_skill(Skills) ->
-	[{K, V, AgState} || {K, V} <- gen_leader:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], lists:member('_all', AgState#agent.skills) orelse util:list_contains_all(AgState#agent.skills, Skills)].
+	[{K, V, AgState} || {K, {V, _}} <- gen_leader:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], lists:member('_all', AgState#agent.skills) orelse util:list_contains_all(AgState#agent.skills, Skills)].
 
 %% @doc Gets the login associated with the passed pid().
 -spec(find_by_pid/1 :: (Apid :: pid()) -> string() | 'notfound').

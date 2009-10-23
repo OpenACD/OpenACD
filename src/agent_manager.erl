@@ -72,7 +72,7 @@
 	blab/2,
 	get_leader/0,
 	list/0,
-	notify/2,
+	notify/3,
 	log_state/3
 ]).
 
@@ -130,7 +130,7 @@ start_agent(#agent{login = ALogin} = Agent) ->
 -spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [{string(), pid(), #agent{}}]).
 find_avail_agents_by_skill(Skills) -> 
 	?DEBUG("skills passed:  ~p.", [Skills]),
-	AvailSkilledAgents = [{K, V, AgState} || {K, V} <-
+	AvailSkilledAgents = [{K, V, AgState} || {K, {V, _}} <-
 		gen_leader:call(?MODULE, list_agents), % get all the agents
 		AgState <- [agent:dump_state(V)], % dump their state
 		AgState#agent.state =:= idle, % only get the idle ones
@@ -176,11 +176,11 @@ query_agent(Login) ->
 	gen_leader:leader_call(?MODULE, {exists, Login}).
 
 %% @doc Notify the agent_manager of a local agent after an agent manager restart.
--spec(notify/2 :: (Login :: string(), Pid :: pid()) -> 'ok').
-notify(Login, Pid) ->
+-spec(notify/3 :: (Login :: string(), Id :: string(), Pid :: pid()) -> 'ok').
+notify(Login, Id, Pid) ->
 	case gen_leader:call(?MODULE, {exists, Login}) of
 		false ->
-			gen_leader:call(?MODULE, {notify, Login, Pid});
+			gen_leader:call(?MODULE, {notify, Login, Id, Pid});
 		{true, Pid} ->
 			ok;
 		{true, _OtherPid} ->
@@ -232,13 +232,13 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 	mnesia:unsubscribe(system),
 
 	% clean out non-local pids
-	F = fun(_Login, Apid) -> 
+	F = fun(_Login, {Apid, _}) -> 
 		node() =:= node(Apid)
 	end,
 	Locals = dict:filter(F, Agents),
 	% and tell the leader about local pids
-	Notify = fun({Login, Apid}) -> 
-		gen_leader:leader_cast(?MODULE, {notify, Login, Apid})
+	Notify = fun({Login, {Apid, Id}}) -> 
+		gen_leader:leader_cast(?MODULE, {notify, Login, Id, Apid})
 	end,
 	lists:foreach(Notify, dict:to_list(Locals)),
 	{ok, State#state{agents=Locals}}.
@@ -246,7 +246,7 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 %% @hidden
 handle_DOWN(Node, #state{agents = Agents} = State, _Election) -> 
 	% clean out the pids associated w/ the dead node
-	F = fun(_Login, Apid) -> 
+	F = fun(_Login, {Apid, _}) -> 
 		Node =/= node(Apid)
 	end,
 	Agents2 = dict:filter(F, Agents),
@@ -261,30 +261,34 @@ handle_leader_call({exists, Agent}, _From, #state{agents = Agents} = State, _Ele
 			case dict:find(re:replace(Agent, "_", "@", [{return, list}]), Agents) of
 				error ->
 					{reply, false, State};
-				{ok, Apid} ->
+				{ok, {Apid, _Id}} ->
 					{reply, {true, Apid}, State}
 			end;
-		{ok, Apid} -> 
+		{ok, {Apid, _Id}} -> 
 			{reply, {true, Apid}, State}
 	end;
 handle_leader_call(get_pid, _From, State, _Election) ->
 	{reply, {ok, self()}, State};
-handle_leader_call({get_login, Apid}, _From, #state{agents = Agents} = State, _Election) ->
+handle_leader_call({get_login, Apid}, _From, #state{agents = Agents} = State, _Election) when is_pid(Apid) ->
 	List = dict:to_list(Agents),
-	Out = find(Apid, List),
+	Out = find_via_pid(Apid, List),
+	{reply, Out, State};
+handle_leader_call({get_login, Id}, _From, #state{agents = Agents} = State, _Election) ->
+	List = dict:to_list(Agents),
+	Out = find_via_id(Id, List),
 	{reply, Out, State};
 handle_leader_call(Message, From, State, _Election) ->
 	?WARNING("received unexpected leader_call ~p from ~p", [Message, From]),
 	{reply, ok, State}.
 
 %% @hidden
-handle_leader_cast({notify, Agent, Apid}, #state{agents = Agents} = State, _Election) -> 
+handle_leader_cast({notify, Agent, Id, Apid}, #state{agents = Agents} = State, _Election) -> 
 	?INFO("Notified of ~p pid ~p", [Agent, Apid]),
 	case dict:find(Agent, Agents) of
 		error -> 
-			Agents2 = dict:store(Agent, Apid, Agents),
+			Agents2 = dict:store(Agent, {Apid, Id}, Agents),
 			{noreply, State#state{agents = Agents2}};
-		{ok, Apid} ->
+		{ok, {Apid, _}} ->
 			{noreply, State};
 		_Else -> 
 			agent:register_rejected(Apid),
@@ -298,13 +302,13 @@ handle_leader_cast({blab, Text, {agent, Value}}, #state{agents = Agents} = State
 		error ->
 			% /shrug.  Meh.
 			{noreply, State};
-		{ok, Apid} ->
+		{ok, {Apid, _Id}} ->
 			agent:blab(Apid, Text),
 			{noreply, State}
 	end;
 handle_leader_cast({blab, Text, {node, Value}}, #state{agents = Agents} = State, _Election) ->
 	Alist = dict:to_list(Agents),
-	F = fun({_Aname, Apid}) -> 
+	F = fun({_Aname, {Apid, _Id}}) -> 
 		case node(Apid) of
 			Value ->
 				agent:blab(Apid, Text);
@@ -315,7 +319,7 @@ handle_leader_cast({blab, Text, {node, Value}}, #state{agents = Agents} = State,
 	{noreply, State};
 handle_leader_cast({blab, Text, {profile, Value}}, #state{agents = Agents} = State, _Election) ->
 	Alist = dict:to_list(Agents),
-	Foreach = fun({_Aname, Apid}) ->
+	Foreach = fun({_Aname, {Apid, Id}}) ->
 		try agent:dump_state(Apid) of
 			#agent{profile = Value} ->
 				agent:blab(Apid, Text);
@@ -349,13 +353,13 @@ handle_call(list_agents, _From, #state{agents = Agents} = State, _Election) ->
 	{reply, dict:to_list(Agents), State};
 handle_call(stop, _From, State, _Election) -> 
 	{stop, normal, ok, State};
-handle_call({start_agent, #agent{login = ALogin} = Agent}, _From, #state{agents = Agents} = State, Election) -> 
+handle_call({start_agent, #agent{login = ALogin, id=Aid} = Agent}, _From, #state{agents = Agents} = State, Election) -> 
 	% This should not be called directly!  use the wrapper start_agent/1
 	?INFO("Starting new agent ~p", [Agent]),
 	{ok, Apid} = agent:start(Agent, [logging, gen_leader:candidates(Election)]),
 	link(Apid),
-	gen_leader:leader_cast(?MODULE, {notify, ALogin, Apid}),
-	Agents2 = dict:store(ALogin, Apid, Agents),
+	gen_leader:leader_cast(?MODULE, {notify, ALogin, Aid, Apid}),
+	Agents2 = dict:store(ALogin, {Apid, Aid}, Agents),
 	gen_server:cast(dispatch_manager, {end_avail, Apid}),
 	{reply, {ok, Apid}, State#state{agents = Agents2}};
 handle_call({exists, Login}, _From, #state{agents = Agents} = State, Election) ->
@@ -375,24 +379,26 @@ handle_call({exists, Login}, _From, #state{agents = Agents} = State, Election) -
 			end;
 		error -> % we're the leader
 			{reply, false, State};
-		{ok, Pid} ->
+		{ok, {Pid, Id}} ->
 			{reply, {true, Pid}, State}
 	end;
-handle_call({notify, Login, Pid}, _From, #state{agents = Agents} = State, Election) when is_pid(Pid) andalso node(Pid) =:= node() ->
+handle_call({notify, Login, Id, Pid}, _From, #state{agents = Agents} = State, Election) when is_pid(Pid) andalso node(Pid) =:= node() ->
 	case dict:find(Login, Agents) of
 		error ->
 			link(Pid),
 			case gen_leader:leader_node(Election) =:= node() of
 				false -> 
-					gen_leader:leader_cast(?MODULE, {notify, Login, Pid});
+					gen_leader:leader_cast(?MODULE, {notify, Login, Id, Pid});
 				_Else ->
 					ok
 			end,
-			Agents2 = dict:store(Login, Pid, Agents),
+			Agents2 = dict:store(Login, {Pid, Id}, Agents),
 			{reply, ok, State#state{agents = Agents2}};
-		{ok, Pid} ->
+		{ok, {Pid, _Id}} ->
 			{reply, ok, State};
 		{ok, _OtherPid} ->
+			% TODO - wait, so we get notified about an agent, we have a record of the an agent with that login already,
+			% and we just say 'ok'?
 			{reply, ok, State}
 	end;
 handle_call(Message, From, State, _Election) ->
@@ -408,12 +414,12 @@ handle_cast(_Request, State, _Election) ->
 %% @hidden
 handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
 	?NOTICE("Caught exit for ~p with reason ~p", [Pid, Reason]),
-	F = fun(Key, Value) ->
+	F = fun(Key, {Value, Id}) ->
 		case Value =/= Pid of
 			true -> true;
 			false ->
-				?NOTICE("notifying leader of ~p exit", [Key]),
-				cpx_monitor:drop({agent, Key}),
+				?NOTICE("notifying leader of ~p exit", [{Key, Id}]),
+				cpx_monitor:drop({agent, Id}),
 				gen_leader:leader_cast(?MODULE, {notify_down, Key}),
 				false
 		end
@@ -436,12 +442,20 @@ code_change(_OldVsn, State, _Election, _Extra) ->
 	{ok, State}.
 
 %% @private
-find(_Needle, []) ->
+find_via_pid(_Needle, []) ->
 	notfound;
-find(Needle, [{Key, Needle} | _Tail]) ->
+find_via_pid(Needle, [{Key, {Needle, _}} | _Tail]) ->
 	Key;
-find(Needle, [{_Key, _NotNeedle} | Tail]) ->
-	find(Needle, Tail).
+find_via_pid(Needle, [{_Key, _NotNeedle} | Tail]) ->
+	find_via_pid(Needle, Tail).
+
+%% @private
+find_via_id(_Needle, []) ->
+	notfound;
+find_via_id(Needle, [{Key, {_, Needle}} | _Tail]) ->
+	Key;
+find_via_id(Needle, [_Head | Tail]) ->
+	find_via_id(Needle, Tail).
 
 build_tables() ->
 	agent_auth:build_tables(),
@@ -554,8 +568,8 @@ multi_node_test_() ->
 		fun() ->
 			?CONSOLE("======multi node setup!=======", []),
 			{Master, Slave} = get_nodes(),
-			Agent = #agent{login="testagent"},
-			Agent2 = #agent{login="testagent2"},
+			Agent = #agent{login="testagent", id = "testagent"},
+			Agent2 = #agent{login="testagent2", id = "testagent2"},
 			slave:start(net_adm:localhost(), master, " -pa debug_ebin"), 
 			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
 			mnesia:stop(),

@@ -2024,6 +2024,9 @@ if(typeof(supervisorView) == "undefined"){
 				var item = items[0];
 			}
 			
+			supervisorView.dataStore.unsetAttribute(item, 'agent');
+			supervisorView.dataStore.unsetAttribute(item, 'queue');
+
 			var protoitem = {
 				'display':mediaData.display,
 				'details':mediaData.details,

@@ -316,7 +316,7 @@ proplists_replace(Key, Newvalue, Proplist) ->
 	[{Key, Newvalue} | Midlist].
 
 queue_media(Conf) ->
-	dummy_media:q_x(1, [{queues, Conf#conf.queues}, {max_life, Conf#conf.call_max_life}]).
+	dummy_media:q_x(1, [{queues, Conf#conf.queues}, {max_life, get_number(Conf#conf.call_max_life)}]).
 
 spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 	Midopts = proplists:delete(maxcalls, Baseopts),

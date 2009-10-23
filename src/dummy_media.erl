@@ -215,7 +215,7 @@ init([Props, Fails]) ->
 			{ok, Timer} = timer:send_after(Number * 1000, <<"hagurk">>),
 			Timer
 	end,
-	case proplists:get_value(queue, Props) of
+	case proplists:get_value(queues, Props) of
 		undefined ->
 			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, Callrec}};
 		[Q] ->

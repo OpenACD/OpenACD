@@ -620,7 +620,7 @@ set_cpx_mon(State) ->
 		{oldest, Oldest}
 	],
 	Hp = [
-		{calls, {0, 5, 10, gb_trees:size(State#state.queue)}}
+		{calls, {0, 0, 10, gb_trees:size(State#state.queue)}}
 	],
 	cpx_monitor:set(Key, Hp, Details).
 

@@ -61,7 +61,8 @@
 	q/0,
 	q/1,
 	q_x/1,
-	q_x/2
+	q_x/2,
+	make_id/0
 	]).
 
 %% gen_media callbacks
@@ -154,37 +155,31 @@ set_mode(Pid, Action, Mode) ->
 
 -spec(q/0 :: () -> {'ok', pid()}).
 q() ->
-	q("default_queue").
+	q([]).
 
 -spec(q/1 :: (Opts :: string() | [any()]) -> {'ok', pid()}).
-q([H | _Tail] = Props) when is_tuple(H) ->
-	start_link(Props);
-q(Queuename) ->
-	q([{id, erlang:ref_to_list(make_ref())}, {queue, Queuename}]).
-	%{ok, Dummypid} = start_link([{id, erlang:ref_to_list(make_ref())}]),
-	%Qpid = queue_manager:get_queue(Queuename),
-	%{call_queue:add(Qpid, Dummypid), Dummypid}.
+q(Opts) ->
+	start_link(Opts).
 
 -spec(q_x/1 :: (N :: pos_integer()) -> 'ok').
 q_x(N) ->
-	F = fun() ->
-		QH = qlc:q([Queue#call_queue.name || Queue <- mnesia:table(call_queue)]),
-		qlc:e(QH)
-	end,
-	{atomic, Qs} = mnesia:transaction(F),
-	?INFO("~p", [Qs]),
-	q_x(N, Qs).
+	q_x(N, []).
 
 -spec(q_x/2 :: (N :: pos_integer(), Queues :: [string()]) -> 'ok').
-q_x(N, Queues) ->
+q_x(N, Options) ->
 	F = fun(_I) ->
-		Index = crypto:rand_uniform(1, length(Queues) + 1),
-		Q = lists:nth(Index, Queues),
-		{ok, Pid} = q(Q),
+		{ok, Pid} = q(Options),
 		Pid
 	end,
 	lists:map(F, lists:seq(1, N)).
 
+-spec(make_id/0 :: () -> string()).
+make_id() ->
+	Now = integer_to_list(util:now()),
+	Ref = erlang:ref_to_list(make_ref()),
+	Fullmdf = erlang:md5(lists:append([Now, Ref])),
+	string:sub_string(util:bin_to_hexstr(Fullmdf), 1, 8).
+	
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -193,7 +188,7 @@ init([Props, Fails]) ->
 	process_flag(trap_exit, true),
 	Proto = #call{id = "dummy", source = self(), ring_path = inband, media_path = inband},
 	Callrec = #call{
-		id = proplists:get_value(id, Props, "dummy"),
+		id = proplists:get_value(id, Props, make_id()),
 		source = proplists:get_value(source, Props, self()),
 		type = proplists:get_value(type, Props, voice),
 		callerid = proplists:get_value(callerid, Props, "Unknown Unknown"),
@@ -223,7 +218,20 @@ init([Props, Fails]) ->
 	case proplists:get_value(queue, Props) of
 		undefined ->
 			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, Callrec}};
-		Q ->
+		[Q] ->
+			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, {Q, Callrec}}};
+		any ->
+			QF = fun() ->
+				QH = qlc:q([Queue#call_queue.name || Queue <- mnesia:table(call_queue)]),
+				qlc:e(QH)
+			end,
+			{atomic, Qs} = mnesia:transaction(QF),
+			Index = crypto:rand_uniform(1, length(Qs) + 1),
+			Q = lists:nth(Index, Qs),
+			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, {Q, Callrec}}};
+		List ->
+			Index = crypto:rand_uniform(1, length(List) + 1),
+			Q = lists:nth(Index, List),
 			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, {Q, Callrec}}}
 	end.
 

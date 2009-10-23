@@ -95,7 +95,7 @@ init([]) ->
 			{ok, #state{}};
 		_Else ->
 			Agents = agent_manager:list(),
-			F = fun({Login, Pid}) ->
+			F = fun({Login, {Pid, _}}) ->
 				?DEBUG("Checking status of ~s (~p)", [Login, Pid]),
 				case agent:query_state(Pid) of
 					{ok, idle} ->
@@ -353,7 +353,7 @@ balance_test_() ->
 					agent_dummy_connection:start_x(10),
 					Agents = agent_manager:list(),
 					Setrel = fun(I) ->
-						{_Login, Pid} = lists:nth(I, Agents),
+						{_Login, {Pid, _}} = lists:nth(I, Agents),
 						agent:set_state(Pid, released, default)
 					end,
 					lists:foreach(Setrel, lists:seq(1, 5)),

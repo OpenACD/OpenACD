@@ -760,15 +760,9 @@ handle_info({cpx_monitor_event, Message}, State) ->
 					{<<"id">>, list_to_binary(lists:append([atom_to_list(Type), "-", Name]))}
 				]}}
 			]};
-		{set, {{Type, MaybeName}, Healthprop, Detailprop, Timestamp}} ->
+		{set, {{Type, Name}, Healthprop, Detailprop, Timestamp}} ->
 			Encodedhealth = encode_health(Healthprop),
 			Encodeddetail = encode_proplist(Detailprop),
-			Name = case Type of
-				agent ->
-					proplists:get_value(login, Detailprop);
-				_Else ->
-					MaybeName
-			end,
 			{struct, [
 				{<<"command">>, <<"supervisortab">>},
 				{<<"data">>, {struct, [

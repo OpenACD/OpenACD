@@ -55,10 +55,8 @@
 
 -record(conf, {
 	call_frequency :: pos_integer(),
-	call_deviation_limit :: non_neg_integer(),
 	agents :: pos_integer(),
 	agent_max_calls :: pos_integer() | 'infinity',
-	agent_max_calls_deviation_limit :: non_neg_integer(),
 	simulation_life :: pos_integer | 'infinity',
 	queues :: [string()] | 'any',
 	agent_opts :: [any()]
@@ -135,6 +133,12 @@ start_link(Options) ->
 -spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:cast(?SERVER, stop).
+
+%% @doc Sets the passed option.  When an agent option, overwrites only the
+%% given options.
+-spec(set_option/2 :: (Option :: atom(), Value :: any()) -> 'ok').
+set_option(Option, Value) ->
+	gen_server:cast(?SERVER, {set_option, Option, Value}).
 	
 %%====================================================================
 %% gen_server callbacks
@@ -210,6 +214,41 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+handle_cast({set_option, agent_opts, Options}, #state{conf = Conf} = State) ->
+	Agentopts = Conf#conf.agent_opts,
+	F = fun({Key, Value}, Acc) ->
+		proplists_replace(Key, Value, Acc)
+	end,
+	New = lists:foldl(F, Agentopts, Options),
+	Newconf = Conf#conf{agent_opts = New},
+	{noreply, State#state{conf = Newconf}};
+handle_cast({set_option, simulation_life, Value}, #state{life_timer = Timer} = State) ->
+	case Timer of
+		undefined ->
+			ok;
+		_ ->
+			timer:cancel(Timer)
+	end,
+	Newtimer = case Value of
+		infinity ->
+			infinity;
+		_ ->
+			{ok, R} = timer:send_after(Value * 60 * 1000, endoflife),
+			R
+	end,
+	{noreply, State#state{life_timer = Newtimer}};
+handle_cast({set_option, Key, Value}, #state{conf = Conf} = State) ->
+	Newconf = case Key of
+		call_frequency ->
+			Conf#conf{call_frequency = Value};
+		agents ->
+			Conf#conf{agents = Value};
+		agent_max_calls ->
+			Conf#conf{agent_max_calls = Value};
+		queues ->
+			Conf#conf{queues = Value}
+	end,
+	{noreply, State#state{conf = Newconf}};
 handle_cast(stop, State) ->
 	{stop, normal, State};
 handle_cast(_Msg, State) ->
@@ -264,7 +303,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 proplists_replace(Key, Newvalue, Proplist) ->
 	Midlist = proplists:delete(Key, Proplist),
-	[{Key, Newvalue} | Proplist].
+	[{Key, Newvalue} | Midlist].
 
 queue_media(any) ->
 	dummy_media:q_x(1);

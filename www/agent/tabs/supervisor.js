@@ -1905,8 +1905,169 @@ if(typeof(supervisorView) == "undefined"){
 		return false;
 	}
 	
-	supervisorView.handleQueueEvent = function(queueItem){
+	supervisorView.saveItem = function(item, protoitem){
+		for(var i in protoitem){
+			supervisorView.dataStore.setValue(item, i, protoitem[i]);
+		}
 		
+		supervisorView.dataStore.save();
+	}
+	
+	supervisorView.setAgent = function(agentData){
+		var fetched = function(items){
+			if(items.length == 0){
+				var item = supervisorView.dataStore.newItem({
+					id:agentData.id
+				});
+			}
+			else{
+				var item = items[0];
+			}
+			
+			var profile	= agentData.details.profile;
+			var node = agentData.details.node;
+			var display = agentData.details.login;
+			
+			var protoitem = {
+				'display': display,
+				'node': node,
+				'profile': profile,
+				'details': agentData.details,
+				'health': agentData.health,
+				'type': 'agent'
+			};
+			
+			supervisorView.saveItem(item, protoitem);
+			supervisorView.setAgentProfile(profile);
+		}
+		
+		supervisorView.dataStore.fetch({
+			query:{'id':agentData.id},
+			onComplete:fetched
+		});
+	}
+	
+	supervisorView.setAgentProfile = function(profile){
+		var fetched = function(items){
+			if(items.length == 0){
+				var item = supervisorView.dataStore.newItem({
+					'id':'agentprofile-' + profile,
+					'type':'agentprofile',
+					'display':profile
+				});
+				supervisorView.dataStore.save();
+			}
+		}
+		
+		supervisorView.dataStore.fetch({
+			query:{'id':'agentprofile-' + profile},
+			onComplete:fetched
+		});
+	}
+	
+	supervisorView.setQueue = function(queueData){
+		var fetched = function(items){
+			if(items.length == 0){
+				var item = supervisorView.dataStore.newItem({
+					'id':queueData.id
+				});
+			}
+			else{
+				var item = items[0];
+			}
+			
+			var protoitem = {
+				'display':queueData.display,
+				'node':queueData.details.node,
+				'group':queueData.details.group,
+				'health':queueData.health,
+				'details':queueData.details,
+				'type':'queue'
+			};
+			
+			supervisorView.saveItem(item, protoitem);
+			supervisorView.setQueueGroup(queueData.details.group);
+		}
+		
+		supervisorView.dataStore.fetch({
+			query:{'id':queueData.id},
+			onComplete:fetched
+		});
+	}
+	
+	supervisorView.setQueueGroup = function(group){
+		var fetched = function(items){
+			if(items.length == 0){
+				var item = supervisorView.dataStore.newItem({
+					'id':'queuegroup-' + group,
+					'display':group,
+					'type':'queuegroup'
+				});
+				supervisorView.dataStore.save();
+			}
+		}
+		
+		supervisorView.dataStore.fetch({
+			query:{'id':'queuegroup-' + group},
+			onComplete:fetched
+		});
+	}
+	
+	supervisorView.setMedia = function(mediaData){
+		var fetched = function(items){
+			if(items.length == 0){
+				var item = supervisorView.dataStore.newItem({
+					'id':mediaData.id
+				});
+			}
+			else{
+				var item = items[0];
+			}
+			
+			var protoitem = {
+				'display':mediaData.display,
+				'details':mediaData.details,
+				'health':mediaData.health,
+				'type':'media',
+				'node':mediaData.details.node
+			};
+			
+			if(mediaData.details.queue){
+				protoitem.queue = mediaData.details.queue;
+			}
+			else if(mediaData.details.agent){
+				protoitem.agent = mediaData.details.agent;
+			}
+			
+			supervisorView.saveItem(item, protoitem);
+		}
+		
+		supervisorView.dataStore.fetch({
+			query:{'id':mediaData.id},
+			onComplete:fetched
+		});
+	}
+	
+	supervisorView.setNode = function(nodeData){
+		var fetched = function(items){
+			if(items.length == 0){
+				var item = supervisorView.dataStore.newItem({
+					'id':nodeData.id
+				});
+			}
+			else{
+				var item = items[0];
+			}
+			
+			var protoitem = {
+				'display':nodeData.display,
+				'details':nodeData.details,
+				'health':nodeData.health,
+				'type':'node'
+			};
+			
+			supervisorView.saveItem(item, protoitem);
+		}
 	}
 }
 
@@ -1919,9 +2080,9 @@ supervisorView.reloadDataStore();
 supervisorView.drawAgentQueueBubbles(0, 0);
 supervisorView.drawSystemStack();
 
-supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(data){
-	debug(["for supervisor view master sub", data]);
-	if(data.action == 'drop'){
+supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(event){
+	warning(["for supervisor view master sub", event]);
+	if(event.data.action == 'drop'){
 		supervisorView.dataStore.fetch({
 			query:{'id':data.id},
 			onComplete:function(items){
@@ -1936,10 +2097,30 @@ supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(data){
 		return true;
 	}
 	
-	if(data.action != 'set'){
+	if(event.data.action != 'set'){
 		return false;
 	}
 	
+	switch(event.data.type){
+		case 'agent':
+			supervisorView.setAgent(event.data);
+			break;
+		
+		case 'queue':
+			supervisorView.setQueue(event.data);
+			break;
+		
+		case 'media':
+			supervisorView.setMedia(event.data);
+			break;
+		
+		case 'node':
+			supervisorView.setNode(event.data);
+			break;
+			
+		default:
+			return false;
+	}
 	
 	
 	

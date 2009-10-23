@@ -2084,13 +2084,13 @@ supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(event)
 	warning(["for supervisor view master sub", event]);
 	if(event.data.action == 'drop'){
 		supervisorView.dataStore.fetch({
-			query:{'id':data.id},
+			query:{'id':event.data.id},
 			onComplete:function(items){
 				if(items.length == 0){
 					return false
 				}
-				var i = items[0];
 				supervisorView.dataStore.deleteItem(items[0]);
+				supervisorView.dataStore.save();
 				dojo.publish("supervisorView/drop/" + data.id, [data]);
 			}
 		});

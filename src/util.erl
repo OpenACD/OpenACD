@@ -65,7 +65,9 @@
 	reload/1,
 	reload/2,
 	reload_all/0,
-	reload_all/1]).
+	reload_all/1,
+	distribution/1
+]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];
@@ -389,7 +391,10 @@ reload_all(Mode) ->
 			Errors = [E || {Ok, E} <- Out, Ok == error],
 			{error, Errors}
 	end.
-	
+
+distribution(Mean) ->
+	(Mean)*math:log(1 - crypto:rand_uniform(1, 65535) / 65535) * -1.
+
 -ifdef(EUNIT).
 
 code_reload_test_() ->

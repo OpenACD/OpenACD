@@ -162,7 +162,7 @@ media_cast(Apid, Request) ->
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
 init([State, Options]) when is_record(State, agent) ->
 	process_flag(trap_exit, true),
-	{_Profile, Skills} = try agent_auth:get_profile(State#agent.profile) of
+	{Profile, Skills} = try agent_auth:get_profile(State#agent.profile) of
 		undefined ->
 			?WARNING("Agent ~p has an invalid profile of ~p, using Default", [State#agent.login, State#agent.profile]),
 			agent_auth:get_profile("Default");
@@ -172,7 +172,7 @@ init([State, Options]) when is_record(State, agent) ->
 		error:{case_clause, {aborted, _}} ->
 			{error, []}
 	end,
-	State2 = State#agent{skills = util:merge_skill_lists(expand_magic_skills(State, Skills), expand_magic_skills(State, State#agent.skills))},
+	State2 = State#agent{skills = util:merge_skill_lists(expand_magic_skills(State, Skills), expand_magic_skills(State, State#agent.skills)), profile = Profile},
 	case State#agent.state of
 		idle ->
 			gen_server:cast(dispatch_manager, {now_avail, self()});

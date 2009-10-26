@@ -182,7 +182,7 @@ handle_info(<<"toggle_release">>, #state{release_data = {true, {Frequency, _Perc
 		_Else ->
 			ok = agent:set_state(State#state.agent_fsm, released, undefined)
 	end,
-	{ok, Newtimer} = timer:send_after(Frequency * 1000, <<"toggle_release">>),
+	{ok, Newtimer} = timer:send_after(round(get_time(Frequency) * 1000), <<"toggle_release">>),
 	{noreply, State#state{release_data = {false, Nums, Newtimer}}};
 handle_info(<<"hagurk">>, State) ->
 	{stop, normal, State};

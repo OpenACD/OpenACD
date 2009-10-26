@@ -1315,7 +1315,7 @@ if(typeof(supervisorView) == "undefined"){
 			point:{x:20, y:20},
 			scale: .75,
 			data: {"health":agenthp, "display":"Agents", "id":"Agents"},
-			onclick:function(){
+			onmouseenter:function(){
 				clearStacks();
 				supervisorView.drawAgentProfilesStack();
 				this.size(1);
@@ -1335,7 +1335,7 @@ if(typeof(supervisorView) == "undefined"){
 			point:{x:20, y:60},
 			scale: .75,
 			data:{"health":queuehp, "display":"Queues", "id":"Queues"},
-			onclick: function(){
+			onmouseenter: function(){
 				clearStacks();
 				supervisorView.drawQueueGroupsStack();
 				this.size(1);

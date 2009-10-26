@@ -219,6 +219,8 @@ handle_info(endwrapup, #state{call = Call} = State) when is_record(Call, call) -
 handle_info(_Info, State) ->
 	{noreply, State}.
 
+get_time({distribution, Number}) ->
+	trunc(util:distribution(Number));
 get_time(random) ->
 	crypto:rand_uniform(0, 300);
 get_time({Min, Max}) ->

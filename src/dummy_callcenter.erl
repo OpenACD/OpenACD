@@ -156,16 +156,16 @@ init(Options) ->
 	process_flag(trap_exit, true),
 	crypto:start(),
 	Protoconf = #conf{
-		call_frequency = proplists:get_value(call_frequency, Options, {30, 900}),
-		call_max_life = proplists:get_value(call_max_life, Options, {60, 9000}),
+		call_frequency = proplists:get_value(call_frequency, Options, {distribution, 120}), % 30 calls per hour
+		call_max_life = proplists:get_value(call_max_life, Options, {distribution, 900}), % 5 minute calls
 		agents = proplists:get_value(agents, Options, 10),
 		agent_max_calls = proplists:get_value(agent_max_calls, Options, {20, 40}),
 		simulation_life = proplists:get_value(simulation_life, Options, infinity),
 		queues = proplists:get_value(queues, Options, any),
 		agent_opts = proplists:get_value(agent_opts, Options, [
-			{ringing, {5, 30}},
-			{oncall, {30, 900}},
-			{wrapup, {5, 120}},
+			{ringing, {distribution, 15}},
+			{oncall, {distribution, 300}},
+			{wrapup, {distribution, 120}},
 			{release_frequency, {3600, 10800}},
 			{release_percent, 1}
 		])
@@ -334,6 +334,8 @@ spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 	Midopts5 = proplists_replace(id, Login, Midopts4),
 	agent_dummy_connection:start_link(Midopts5).
 
+get_number({distribution, Number}) ->
+	trunc(util:distribution(Number));
 get_number({Min, Max}) ->
 	crypto:rand_uniform(Min, Max);
 get_number(random) ->

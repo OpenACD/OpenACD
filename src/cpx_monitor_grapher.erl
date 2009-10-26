@@ -71,7 +71,7 @@ init([]) ->
 			Now = now(),
 			GroupedAgents = get_agents(Now),
 			timer:send_after(30000, update),
-			timer:send_after(60000, graph),
+			timer:send_after(65000, graph),
 			cpx_monitor:subscribe(),
 			case filelib:ensure_dir("rrd") of
 				ok ->
@@ -96,24 +96,35 @@ handle_info(graph, #state{rrd = RRD} = State) ->
 	%io:format("graph time~n"),
 	timer:send_after(60000, graph),
 
-	%Colors = get_colors
+	Graphs = [
+		{"util-15m", "15 minute trend", "now-1d", 900},
+		{"util-1h", "1 hour trend", "now-1d", 3600},
+		{"util-8h", "8 hour trend", "now-1d", 28800}
+	],
 
 	Fun = fun(F, {Defines, CDefines, Lines}) ->
 			FileName = filename:basename(F),
 			Name = filename:rootname(FileName),
 			{
-				["DEF:"++Name++"raw="++FileName++":"++Name++":LAST:start=end-2h" | Defines],
-				["CDEF:"++Name++"="++Name++"raw,3600,TRENDNAN" | CDefines],
+				["DEF:"++Name++"raw="++FileName++":"++Name++":LAST:start=~s" | Defines],
+				["CDEF:"++Name++"="++Name++"raw,~B,TRENDNAN" | CDefines],
 				["LINE2:"++Name++name_to_color(Name)++":"++Name | Lines]
 			}
 	end,
 
 	{D, C, L} = filelib:fold_files("rrd", ".rrd", false, Fun , {[], [], []}),
 
-	Command = "graph util-15m.png --end now --start end-900 --imgformat PNG --height 200 --width 600 " ++
-		string:join(D, " ") ++ " " ++ string:join(C, " ") ++ " " ++ string:join(L, " ") ++ "\n",
-	io:format("command: ~s~n", [Command]),
-	errd_server:raw(RRD, Command),
+	%Command = "graph util-15m.png --end now --start end-~B --slope-mode --title \"~s\" --imgformat PNG --height 200 --width 600 " ++
+		%string:join(D, " ") ++ " " ++ string:join(C, " ") ++ " " ++ string:join(L, " ") ++ "\n",
+	
+	lists:map(fun({Imgname, Title, Start, Duration}) ->
+		Defines = re:replace(string:join(D, " "), "~s", Start, [{return, list}, global]),
+		CDefines = re:replace(string:join(C, " "), "~B", integer_to_list(Duration), [{return, list}, global]),
+		Command = "graph "++Imgname++".png --end now --start end-"++integer_to_list(Duration)++" --slope-mode --title \""++Title++"\" --imgformat PNG --height 200 --width 600 " ++
+			Defines ++ " " ++ CDefines ++ " " ++ string:join(L, " ") ++ "\n",
+		io:format("command: ~s~n", [Command]),
+		errd_server:raw(RRD, Command)
+	end, Graphs),
 	{noreply, State};
 handle_info(update, State) ->
 	%io:format("update time ~n"),
@@ -204,11 +215,11 @@ update_utilization([{Profile, Util} | Tail], RRD) ->
 					step=30,
 					ds_defs = [#rrd_ds{name=Filename, args="60:0:100", type = gauge}],
 					rra_defs = [
-						#rrd_rra{cf=last, args="0.5:2:1440"}, % 15 minutes of 1 minute averages
-						#rrd_rra{cf=average, args="0.5:2:30"}, % 15 minutes of 1 minute averages
-						#rrd_rra{cf=average, args="0.5:10:12"}, % 1 hour of 5 minute averages
-						#rrd_rra{cf=average, args="0.5:120:24"}, % 1 day of 1 hour averages
-						#rrd_rra{cf=average, args="0.5:960:42"} % 2 weeks of 8 hour averages
+						#rrd_rra{cf=last, args="0.5:1:2880"} % 1 day of 1 minute averages
+						%#rrd_rra{cf=average, args="0.5:2:30"}, % 15 minutes of 1 minute averages
+						%#rrd_rra{cf=average, args="0.5:10:12"}, % 1 hour of 5 minute averages
+						%#rrd_rra{cf=average, args="0.5:120:24"}, % 1 day of 1 hour averages
+						%#rrd_rra{cf=average, args="0.5:960:42"} % 2 weeks of 8 hour averages
 					]
 				});
 		_ ->

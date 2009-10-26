@@ -1135,7 +1135,7 @@ init_test_() ->
 	fun({QMmock, Qpid, Assertmocks}) ->
 		{"call rec and queue name returned",
 		fun() ->
-			Args = [[{queue, ["testqueue"]}, {id, "dummy"}], success],
+			Args = [[{queues, ["testqueue"]}, {id, "dummy"}], success],
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
@@ -1148,7 +1148,7 @@ init_test_() ->
 	fun({QMmock, Qpid, Assertmocks}) ->
 		{"call rec and queue name returned, but queue doesn't exist",
 		fun() ->
-			Args = [[{queue, ["testqueue"]}, {id, "dummy"}], success],
+			Args = [[{queues, ["testqueue"]}, {id, "dummy"}], success],
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
 				{ok, undefined, State}
 			end),

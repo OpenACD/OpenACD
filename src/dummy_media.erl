@@ -589,6 +589,19 @@ dummy_test_() ->
 				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
 				?assertMatch(ok, gen_media:announce(Dummypid, "Random data"))
 			end
+		},
+		{
+			"Set to die",
+			fun() ->
+				{ok, {_State, _Call}} = init([[{max_life, 1}], success]),
+				receive
+					<<"hagurk">> ->
+						 ?assert(true)
+				after 1500 ->
+					erlang:error(<<"missed_hagurk">>)
+				end
+
+			end
 		}
 	]
 	}.

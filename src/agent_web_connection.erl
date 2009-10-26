@@ -760,15 +760,9 @@ handle_info({cpx_monitor_event, Message}, State) ->
 					{<<"id">>, list_to_binary(lists:append([atom_to_list(Type), "-", Name]))}
 				]}}
 			]};
-		{set, {{Type, MaybeName}, Healthprop, Detailprop, Timestamp}} ->
+		{set, {{Type, Name}, Healthprop, Detailprop, Timestamp}} ->
 			Encodedhealth = encode_health(Healthprop),
 			Encodeddetail = encode_proplist(Detailprop),
-			Name = case Type of
-				agent ->
-					proplists:get_value(login, Detailprop);
-				_Else ->
-					MaybeName
-			end,
 			{struct, [
 				{<<"command">>, <<"supervisortab">>},
 				{<<"data">>, {struct, [
@@ -1199,10 +1193,12 @@ encode_stats([Head | Tail], Count, Acc) ->
 	end,
 	Type = [{<<"type">>, proplists:get_value(type, Proplisted)}],
 	[{_, Rawtype}] = Type,
-	Id = case Display of
-		[{_, D}] when is_atom(D) ->
+	Id = case {Display, proplists:get_value(type, Proplisted)} of
+		{_, agent} ->
+			[{<<"id">>, list_to_binary(lists:append([atom_to_list(agent), "-", proplists:get_value(name, Proplisted)]))}];
+		{[{_, D}], _} when is_atom(D) ->
 			[{<<"id">>, list_to_binary(lists:append([atom_to_list(Rawtype), "-", atom_to_list(D)]))}];
-		[{_, D}] when is_binary(D) ->
+		{[{_, D}], _} when is_binary(D) ->
 			[{<<"id">>, list_to_binary(lists:append([atom_to_list(Rawtype), "-", binary_to_list(D)]))}]
 	end,
 	Node = case Type of
@@ -1384,7 +1380,7 @@ push_event(Eventjson, State) ->
 			State#state{poll_queue = Newqueue};
 		Pid when is_pid(Pid) ->
 			?DEBUG("Sending to the ~w", [Pid]),
-			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, Newqueue}]})}},
+			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, lists:reverse(Newqueue)}]})}},
 			State#state{poll_queue = [], poll_pid = undefined}
 	end.
 

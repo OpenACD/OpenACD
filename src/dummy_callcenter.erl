@@ -46,7 +46,8 @@
 -export([
 	start/1,
 	start_link/1,
-	stop/0
+	stop/0,
+	set_option/2
 ]).
 
 %% gen_server callbacks
@@ -55,10 +56,9 @@
 
 -record(conf, {
 	call_frequency :: pos_integer(),
-	call_deviation_limit :: non_neg_integer(),
 	agents :: pos_integer(),
+	call_max_life :: pos_integer() | {pos_integer(), pos_integer()},
 	agent_max_calls :: pos_integer() | 'infinity',
-	agent_max_calls_deviation_limit :: non_neg_integer(),
 	simulation_life :: pos_integer | 'infinity',
 	queues :: [string()] | 'any',
 	agent_opts :: [any()]
@@ -77,44 +77,53 @@
 %% API
 %%====================================================================
 
--type(call_frequency() :: {call_frequency, pos_integer()}).
--type(call_deviation_limit() :: {call_deviation_limit, non_neg_integer()}).
+-type(frequency() :: {pos_integer(), pos_integer()} | pos_integer()).
+-type(call_frequency() :: {call_frequency, frequency()}).
+%-type(call_deviation_limit() :: {call_deviation_limit, non_neg_integer()}).
+-type(call_max_life() :: frequency()).
 -type(agents() :: {agents, pos_integer()}).
--type(agent_max_calls() :: {agent_max_calls, pos_integer() | 'infinity'}).
--type(agent_max_calls_deviation_limit() :: {agent_max_calls_deviation_limit, non_neg_integer()}).
+-type(agent_max_calls() :: {agent_max_calls, frequency() | 'infinity'}).
+%-type(agent_max_calls_deviation_limit() :: {agent_max_calls_deviation_limit, non_neg_integer()}).
 -type(simulation_life() :: {simulation_life, pos_integer() | 'infinity'}).
 -type(queues() :: {queues, [string()] | 'any'}).
 -type(agent_opts() :: {agent_opts, [any()]}).
 
 -type(start_option() :: 
 	call_frequency() | 
-	call_deviation_limit() | 
 	agents() | 
 	agent_max_calls() | 
-	agent_max_calls_deviation_limit() | 
 	simulation_life() | 
 	queues()
 ).
 -type(start_options() :: [start_option()]).
 
 %% @doc Start the simulator with the given options.
-%% * call_frequency: how many seconds to wait before putting another call into
-%%		queue.  defaults to 15.
-%% * call_deviation_limit: the maximum number of seconds a call will be put into
-%%		a queue late or early.  Defaults to 0.
-%% * agents: How many agents to have running at any given time.  If an agent 
-%%		reaches it's max calls, a new one it automatically started.  Also 
-%%		sets the intial number of calls in queue(s).  Defaults to 10.
-%% * agent_max_calls: How many calls on average an agent will take before dying.
-%%		Defaults to infinity.
-%% * agent_max_calls_deviation_limit: How many extra or under calls an agent 
-%%		will take before dying.  Has no effect if agent_max_calls is infinity.
-%%		Defaults to 0.
-%% * simullation_life: How many minutes the the simulation will run.  Defaults
-%%		to infinity.
-%% * queues: The queues to place calls in.  Defaults to any.
+%% * call_frequency: {30, 900}
+%%		how many seconds to wait before putting another call into queue.
+%% * call_max_life: {60, 9000}
+%%		How many seconds before the call hangs up.
+%% * agents: 10
+%%		How many agents to have running at any given time.  If an agent 
+%%		reaches it's max calls, a new one it automatically started.  Initial
+%%		number of calls will be 80% of this.
+%% * agent_max_calls: {20, 40}
+%%		How many calls on average an agent will take before dying.
+%% * simullation_life: infinity
+%%		How many minutes the the simulation will run.
+%% * queues: any
+%%		The queues to place calls in.
 %% * agent_opts:  The agent options used to start dummy agents.  A scale of 1000
-%%		is automatically added, overriding whatever is set.  Defaultst to [].
+%%		is automatically added, overriding whatever is set.  Defaults to [].
+%%
+%% The following agent options are overridden:
+%% * scale: replaced by 1000, so all agent durations are in seconds.
+%%
+%% The defaults for a dummy_agent are:
+%% * ringing: {5, 30}
+%% * oncall: {30, 900}
+%% * wrapup: {5, 120}
+%% * release_frequency: {3600, 10800}
+%% * release_percent: 1
 
 -spec(start/1 :: (Options :: start_options()) -> {'ok', pid()}).
 start(Options) ->
@@ -129,6 +138,12 @@ start_link(Options) ->
 -spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:cast(?SERVER, stop).
+
+%% @doc Sets the passed option.  When an agent option, overwrites only the
+%% given options.
+-spec(set_option/2 :: (Option :: atom(), Value :: any()) -> 'ok').
+set_option(Option, Value) ->
+	gen_server:cast(?SERVER, {set_option, Option, Value}).
 	
 %%====================================================================
 %% gen_server callbacks
@@ -141,14 +156,19 @@ init(Options) ->
 	process_flag(trap_exit, true),
 	crypto:start(),
 	Protoconf = #conf{
-		call_frequency = proplists:get_value(call_frequency, Options, 15),
-		call_deviation_limit = proplists:get_value(call_deviation_limit, Options, 0),
+		call_frequency = proplists:get_value(call_frequency, Options, {30, 900}),
+		call_max_life = proplists:get_value(call_max_life, Options, {60, 9000}),
 		agents = proplists:get_value(agents, Options, 10),
-		agent_max_calls = proplists:get_value(agent_max_calls, Options, infinity),
-		agent_max_calls_deviation_limit = proplists:get_value(agent_max_calls_deviation_limit, Options, 0),	
+		agent_max_calls = proplists:get_value(agent_max_calls, Options, {20, 40}),
 		simulation_life = proplists:get_value(simulation_life, Options, infinity),
 		queues = proplists:get_value(queues, Options, any),
-		agent_opts = proplists:get_value(agent_opts, Options, [{ringing, 1}])
+		agent_opts = proplists:get_value(agent_opts, Options, [
+			{ringing, {5, 30}},
+			{oncall, {30, 900}},
+			{wrapup, {5, 120}},
+			{release_frequency, {3600, 10800}},
+			{release_percent, 1}
+		])
 	},
 	Newagentopts = proplists_replace(scale, 1000, Protoconf#conf.agent_opts),
 	Conf = Protoconf#conf{agent_opts = Newagentopts},
@@ -178,8 +198,8 @@ init(Options) ->
 		{[{Pid, Nom} | Pidlist], Tail}
 	end,
 	{Pidlist, Namelist} = lists:foldl(Spawnagent, {[], Names}, lists:seq(1, Conf#conf.agents)),
-	Medias = lists:map(fun(_) -> [Pid] = queue_media(Conf#conf.queues), Pid end, lists:seq(1, Conf#conf.agents)),
-	{ok, Spawncall} = timer:send_after(Conf#conf.call_frequency * 1000, spawn_call),
+	Medias = lists:map(fun(_) -> [Pid] = queue_media(Conf), Pid end, lists:seq(1, round(Conf#conf.agents * 0.8))),
+	{ok, Spawncall} = timer:send_after(get_number(Conf#conf.call_frequency) * 1000, spawn_call),
 	State = #state{
 		life_timer = Lifetime,
 		agent_pids = Pidlist,
@@ -200,6 +220,41 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
+handle_cast({set_option, agent_opts, Options}, #state{conf = Conf} = State) ->
+	Agentopts = Conf#conf.agent_opts,
+	F = fun({Key, Value}, Acc) ->
+		proplists_replace(Key, Value, Acc)
+	end,
+	New = lists:foldl(F, Agentopts, Options),
+	Newconf = Conf#conf{agent_opts = New},
+	{noreply, State#state{conf = Newconf}};
+handle_cast({set_option, simulation_life, Value}, #state{life_timer = Timer} = State) ->
+	case Timer of
+		undefined ->
+			ok;
+		_ ->
+			timer:cancel(Timer)
+	end,
+	Newtimer = case Value of
+		infinity ->
+			infinity;
+		_ ->
+			{ok, R} = timer:send_after(Value * 60 * 1000, endoflife),
+			R
+	end,
+	{noreply, State#state{life_timer = Newtimer}};
+handle_cast({set_option, Key, Value}, #state{conf = Conf} = State) ->
+	Newconf = case Key of
+		call_frequency ->
+			Conf#conf{call_frequency = Value};
+		agents ->
+			Conf#conf{agents = Value};
+		agent_max_calls ->
+			Conf#conf{agent_max_calls = Value};
+		queues ->
+			Conf#conf{queues = Value}
+	end,
+	{noreply, State#state{conf = Newconf}};
 handle_cast(stop, State) ->
 	{stop, normal, State};
 handle_cast(_Msg, State) ->
@@ -211,6 +266,7 @@ handle_cast(_Msg, State) ->
 handle_info({'EXIT', Pid, Why}, #state{conf = Conf} = State) ->
 	case lists:member(Pid, State#state.media_pids) of
 		true ->
+			?INFO("Media ~p died because ~p", [Pid, Why]),
 			Newmedias = lists:delete(Pid, State#state.media_pids),
 			{noreply, State#state{media_pids = Newmedias}};
 		false ->
@@ -219,6 +275,7 @@ handle_info({'EXIT', Pid, Why}, #state{conf = Conf} = State) ->
 					?INFO("no idea where pid ~p came from", [Pid]),
 					{noreply, State};
 				Nom ->
+					?NOTICE("agent ~p (~p) died due to ~p", [Pid, Nom, Why]),
 					[Headname | Newnames] = lists:append(State#state.agent_names, [Nom]),
 					{ok, Newagentpid} = spawn_agent(Conf, Headname),
 					Newagentlist = [{Newagentpid, Headname} | State#state.agent_pids],
@@ -226,14 +283,14 @@ handle_info({'EXIT', Pid, Why}, #state{conf = Conf} = State) ->
 			end
 	end;
 handle_info(spawn_call, #state{conf = Conf} = State) ->
-	[Pid] = queue_media(Conf#conf.queues),
+	[Pid] = queue_media(Conf),
 	Medialist = [Pid | State#state.media_pids],
-	BaseDev = Conf#conf.call_deviation_limit,
-	Dev = crypto:rand_uniform(0, BaseDev * 2) - BaseDev,
-	Time = Conf#conf.call_frequency + Dev,
+	Time = get_number(Conf#conf.call_frequency),
+	?NOTICE("Next call will be spawned at ~p", [Time * 1000]),
 	{ok, Timer} = timer:send_after(Time * 1000, spawn_call),
 	{noreply, State#state{media_pids = Medialist, call_timer = Timer}};
 handle_info(endoflife, State) ->
+	?NOTICE("My life is over.", []),
 	{stop, normal, State};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -256,12 +313,10 @@ code_change(_OldVsn, State, _Extra) ->
 
 proplists_replace(Key, Newvalue, Proplist) ->
 	Midlist = proplists:delete(Key, Proplist),
-	[{Key, Newvalue} | Proplist].
+	[{Key, Newvalue} | Midlist].
 
-queue_media(any) ->
-	dummy_media:q_x(1);
-queue_media(Queues) ->
-	dummy_media:q_x(1, Queues).
+queue_media(Conf) ->
+	dummy_media:q_x(1, [{queues, Conf#conf.queues}, {max_life, get_number(Conf#conf.call_max_life)}]).
 
 spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 	Midopts = proplists:delete(maxcalls, Baseopts),
@@ -269,7 +324,7 @@ spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 		infinity ->
 			Midopts;
 		Number ->
-			Rand = crypto:rand_uniform(0, Number * 2) - Number,
+			Rand = get_number(Number),
 			[{maxcalls, Rand} | Midopts]
 	end,
 	Profiles = agent_auth:get_profiles(),
@@ -278,4 +333,10 @@ spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 	Midopts4 = proplists_replace(profile, Profile, Midopts3),
 	Midopts5 = proplists_replace(id, Login, Midopts4),
 	agent_dummy_connection:start_link(Midopts5).
-	
+
+get_number({Min, Max}) ->
+	crypto:rand_uniform(Min, Max);
+get_number(random) ->
+	get_number({0, 2000});
+get_number(Num) ->
+	Num.

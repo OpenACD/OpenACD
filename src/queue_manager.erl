@@ -131,7 +131,8 @@ load_queue(Name) ->
 			add_queue(Name, [
 				{weight, Qrec#call_queue.weight},
 				{skills, Qrec#call_queue.skills},
-				{recipe, Qrec#call_queue.recipe}
+				{recipe, Qrec#call_queue.recipe},
+				{group, Qrec#call_queue.group}
 			]);
 		_Else ->
 			noexists
@@ -228,7 +229,8 @@ init([]) ->
 		{ok, Pid} = call_queue:start_link(Queuerec#call_queue.name, [
 			{recipe, Queuerec#call_queue.recipe}, 
 			{weight, Queuerec#call_queue.weight},
-			{skills, Queuerec#call_queue.skills}
+			{skills, Queuerec#call_queue.skills},
+			{group, Queuerec#call_queue.group}
 		]),
 		dict:store(Queuerec#call_queue.name, Pid, Acc)
 	end,

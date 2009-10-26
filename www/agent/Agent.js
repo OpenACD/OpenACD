@@ -67,7 +67,7 @@ function Agent(username, statetime, timestamp){
 			url:"/poll",
 			handleAs:"json",
 			error:function(response, ioargs){
-				warning(["poll failed", response]);
+				warning(["poll errored", response]);
 				EventLog.log("Poll failed:  " + response.responseText);
 				agentref.pollfailures += 1;
 				if (agentref.pollfailures >= 5) {
@@ -84,6 +84,7 @@ function Agent(username, statetime, timestamp){
 				debug([response]);
 				//EventLog.log("Poll success, handling data");
 				if(response.success == false){
+					warning(["poll failed", response.message]);
 					//agentref.poller.stop();
 					dojo.publish("agent/logout", []);
 					//agentref.poll();

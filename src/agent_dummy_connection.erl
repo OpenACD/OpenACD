@@ -50,17 +50,18 @@
 -include("agent.hrl").
 
 -record(state, {
-	ringing = random :: pos_integer() | 'random',
+	ringing = random :: pos_integer() | {pos_integer(), pos_integer()} | 'random',
 	ringtimer :: any(),
-	oncall = random :: pos_integer() | 'random',
+	oncall = random :: pos_integer() | {pos_integer(), pos_integer()} | 'random',
 	calltimer :: any(),
-	wrapup = random :: pos_integer() | 'random',
+	wrapup = random :: pos_integer() | {pos_integer(), pos_integer()} | 'random',
 	wrapuptimer :: any(),
 	scale = 1 :: pos_integer(),
 	maxcalls = unlimited :: pos_integer() | 'unlimited',
 	call :: #call{} | 'undefined',
 	agent_fsm :: pid(),
-	life_watch :: any()
+	life_watch :: any(),
+	release_data = {false, 0, undefined} :: {boolean(), {non_neg_integer(), non_neg_integer()}, any()}
 }).
 
 -type(state() :: #state{}).
@@ -113,6 +114,14 @@ init([Args]) ->
 			{ok, Timer} = timer:send_after(Number * 1000, <<"hagurk">>),
 			Timer
 	end,
+	Release_data = case proplists:get_value(release_frequency, Args) of
+		undefined ->
+			{false, 0, undefined};
+		Alsonumber ->
+			Actualreleased = get_time(Alsonumber),
+			{ok, RelTimer} = timer:send_after(Actualreleased * 1000, <<"toggle_release">>),
+			{false, {Alsonumber, (proplists:get_value(release_percent, Args, 10) / 100)}, RelTimer}
+	end,
 	{ok, #state{
 		agent_fsm = Pid,
 		ringing = proplists:get_value(ringing, Args, random),
@@ -120,7 +129,8 @@ init([Args]) ->
 		wrapup = proplists:get_value(wrapup, Args, random),
 		maxcalls = proplists:get_value(maxcalls, Args, unlimited),
 		scale = proplists:get_value(scale, Args, 1),
-		life_watch = Lifewatch}}.
+		life_watch = Lifewatch,
+		release_data = Release_data}}.
 
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
@@ -155,6 +165,25 @@ handle_cast({change_state, _AgState}, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
+handle_info(<<"toggle_release">>, #state{release_data = {false, {Frequency, Percent} = Nums, _Timer}} = State) ->
+	case agent:set_state(State#state.agent_fsm, released, "Default") of
+		ok ->
+			ok;
+		queued ->
+			queued
+	end,
+	Newtime = round(get_time(Frequency) * Percent) * 1000,
+	{ok, Newtimer} = timer:send_after(Newtime, <<"toggle_release">>),
+	{noreply, State#state{release_data = {true, Nums, Newtimer}}};
+handle_info(<<"toggle_release">>, #state{release_data = {true, {Frequency, _Percent} = Nums, _Timer}, calltimer = Calltimer} = State) ->
+	case Calltimer of
+		undefined ->
+			ok = agent:set_state(State#state.agent_fsm, idle);
+		_Else ->
+			ok = agent:set_state(State#state.agent_fsm, released, undefined)
+	end,
+	{ok, Newtimer} = timer:send_after(Frequency * 1000, <<"toggle_release">>),
+	{noreply, State#state{release_data = {false, Nums, Newtimer}}};
 handle_info(<<"hagurk">>, State) ->
 	{stop, normal, State};
 handle_info(answer, #state{call = Call} = State) when is_record(Call, call)->
@@ -192,6 +221,8 @@ handle_info(_Info, State) ->
 
 get_time(random) ->
 	crypto:rand_uniform(0, 300);
+get_time({Min, Max}) ->
+	crypto:rand_uniform(Min, Max);
 get_time(T) ->
 	T.
 

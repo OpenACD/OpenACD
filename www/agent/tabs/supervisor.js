@@ -145,7 +145,8 @@ if(typeof(supervisorView) == "undefined"){
 			dropped: function(){ return false},
 			dragOver: function(){ debug(["default bubble dragOver"]); return false},
 			subscriptions:[],
-			moveable: false
+			moveable: false,
+			menu:false
 		};
 		conf.data = dojo.mixin(this.defaultConf.data, conf.data);
 		conf = dojo.mixin(this.defaultConf, conf);
@@ -230,6 +231,17 @@ if(typeof(supervisorView) == "undefined"){
 		
 		this.dropped = conf.dropped;
 		this.dragOver = conf.dragOver;
+
+		if(conf.menu){
+			var menu = dijit.byId(conf.menu);
+			if(menu){
+				menu.bindDomNode(this.group.rawNode);
+				this.boundMenu = conf.menu;
+			}
+			else{
+				warning(["menu id not found", conf.menu]);
+			}
+		}
 		
 		this.group.setTransform([dojox.gfx.matrix.scaleAt(conf.scale, p)]);
 	};
@@ -294,7 +306,13 @@ if(typeof(supervisorView) == "undefined"){
 			dojo.unsubscribe(this.subscriptions[i]);
 		}
 		
+		if(this.boundMenu){
+			var menu = dijit.byId(this.boundMenu);
+			menu.unbindDomNode(this.group.rawNode);
+		}
+		
 		this.group.clear();
+		this.conf.parent.rawNode.removeChild(this.group.rawNode);
 	}
 	
 	supervisorView.Bubble.prototype.connect = function(ev, scope, fun){
@@ -357,7 +375,8 @@ if(typeof(supervisorView) == "undefined"){
 			mousept: {x:100, y:50},
 			viewHeight:350,
 			bubbleConfs: [],
-			registerCollider: false
+			registerCollider: false,
+			menu: false
 		}
 		
 		var conf = dojo.mixin(this.defaultConf, conf);
@@ -395,6 +414,7 @@ if(typeof(supervisorView) == "undefined"){
 			var mixing = {
 				point:{x:pt.x, y:this.indexToY(i)},
 				parent:this.group,
+				menu:this.conf.menu
 			}
 		
 			this.bubbleConfs[i] = dojo.mixin(this.bubbleConfs[i], mixing);
@@ -621,6 +641,14 @@ if(typeof(supervisorView) == "undefined"){
 		
 		if(this.coll){
 			supervisorView.dndManager.unregisterCollider(this.coll);
+		}
+		
+		//console.log([this.conf.parent.rawNode, this.group.rawNode]);
+		
+		var p = this.group.rawNode.parentNode;
+		this.group.clear();
+		if(p){
+			p.removeChild(this.group.rawNode);
 		}
 	}
 	
@@ -1632,7 +1660,8 @@ if(typeof(supervisorView) == "undefined"){
 					y:100
 				},
 				bubbleConfs: acc,
-				registerCollider:true
+				registerCollider:true,
+				menu: 'agentAction'
 			});
 			supervisorView.agentsStack.group.moveToBack();
 			
@@ -2084,7 +2113,7 @@ supervisorView.drawAgentQueueBubbles(0, 0);
 supervisorView.drawSystemStack();
 
 supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(event){
-	warning(["for supervisor view master sub", event]);
+	debug(["for supervisor view master sub", event]);
 	if(event.data.action == 'drop'){
 		supervisorView.dataStore.fetch({
 			query:{'id':event.data.id},

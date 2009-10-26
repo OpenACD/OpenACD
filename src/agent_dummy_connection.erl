@@ -166,7 +166,12 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 handle_info(<<"toggle_release">>, #state{release_data = {false, {Frequency, Percent} = Nums, _Timer}} = State) ->
-	ok = agent:set_state(State#state.agent_fsm, released, "Default"),
+	case agent:set_state(State#state.agent_fsm, released, "Default") of
+		ok ->
+			ok;
+		queued ->
+			queued
+	end,
 	Newtime = round(get_time(Frequency) * Percent) * 1000,
 	{ok, Newtimer} = timer:send_after(Newtime, <<"toggle_release">>),
 	{noreply, State#state{release_data = {true, Nums, Newtimer}}};

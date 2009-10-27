@@ -2166,8 +2166,8 @@ init_test_() ->
 		mnesia:delete_schema([node()]),
 		Agent = #agent{
 			login = "testagent",
-			skills = [english],
-			profile = "testprofile"
+			skills = [],
+			profile = error
 		},
 		?assertEqual({ok, released, Agent}, init([Agent, []]))
 	end},

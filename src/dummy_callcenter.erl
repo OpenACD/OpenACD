@@ -157,14 +157,14 @@ init(Options) ->
 	crypto:start(),
 	Protoconf = #conf{
 		call_frequency = proplists:get_value(call_frequency, Options, {distribution, 120}), % 30 calls per hour
-		call_max_life = proplists:get_value(call_max_life, Options, {distribution, 900}), % 5 minute calls
-		agents = proplists:get_value(agents, Options, 10),
+		call_max_life = proplists:get_value(call_max_life, Options, {distribution, 900}), % 15 minute calls
+		agents = proplists:get_value(agents, Options, 6),
 		agent_max_calls = proplists:get_value(agent_max_calls, Options, {20, 40}),
 		simulation_life = proplists:get_value(simulation_life, Options, infinity),
 		queues = proplists:get_value(queues, Options, any),
 		agent_opts = proplists:get_value(agent_opts, Options, [
 			{ringing, {distribution, 15}},
-			{oncall, {distribution, 300}},
+			{oncall, {distribution, 330}},
 			{wrapup, {distribution, 120}},
 			{release_frequency, {3600, 10800}},
 			{release_percent, 1}

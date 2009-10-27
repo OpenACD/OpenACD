@@ -1653,6 +1653,7 @@ if(typeof(supervisorView) == "undefined"){
 							type:"agent",
 							display:supervisorView.dataStore.getValue(obj, "display")
 						});
+						dijit.byId('agentAction').agentBubbleHit = supervisorView.dataStore.getValue(obj, 'display');
 					},
 					dragOver: function(testObj){
 						debug(["agentBubble dragOver", testObj]);

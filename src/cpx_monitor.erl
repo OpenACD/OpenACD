@@ -318,6 +318,7 @@ handle_DOWN(Node, #state{ets = Tid} = State, Election) ->
 		[{Key, _Hp, Details, _Time2}] ->
 			{Key, [{down, 100}], Details, util:now()}
 	end,
+	ets:match_delete(Tid, {'_', '_', '_', Node}),
 	entry(Entry, State, Election),
 	{ok, State#state{splits = Newsplits}}.
 

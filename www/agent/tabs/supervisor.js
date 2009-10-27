@@ -120,10 +120,6 @@ if(typeof(supervisorView) == "undefined"){
 		}
 	};
 
-	/*supervisorView.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
-	dojo.connect(supervisorView.surface, "ondragstart",   dojo, "stopEvent");
-	dojo.connect(supervisorView.surface, "onselectstart", dojo, "stopEvent");*/
-
 	//=====
 	// And so begins defining useful classes
 	//=====	
@@ -211,14 +207,6 @@ if(typeof(supervisorView) == "undefined"){
 			y: rect.getShape().y + rect.getShape().height/2
 		};
 		
-		if(conf.moveable){
-			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
-			this.moveable.delay = 1;
-			for(var i in conf.moveable){
-				this.moveable[i] = conf.moveable[i];
-			}
-		}
-		
 		if(conf.image){
 			this.image = this.group.createImage({
 				x: rect.getShape().x + 2,
@@ -235,21 +223,41 @@ if(typeof(supervisorView) == "undefined"){
 		if(conf.menu){
 			var menu = dijit.byId(conf.menu);
 			if(menu){
-				if(dojo.isSafari){
+				menu.bindDomNode(this.group.rawNode);
+				this.boundMenu = conf.menu;
+				/*if(dojo.isFF){
 					menu.bindDomNode(this.group.rawNode);
 					this.boundMenu = conf.menu;
-				}
-				if(dojo.isFF){
-					menu.bindDomNode(this.group.rawNode);
-					this.boundMenu = conf.menu;
+					//menu._connectNode(this.group.rawNode);
 					dojo.connect(menu, 'onOpen', function(ev){
 						console.log(["onOpen!", ev]);
 					});
 				}
+				else{
+				}*/
 			}
 			else{
 				warning(["menu id not found", conf.menu]);
 			}
+		}
+		
+		if(conf.moveable){
+			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
+			if(dojo.isFF){
+				// Firefox is weird.  If a moveable is defined, it overrides
+				// the menu.  Safari does not have this issue.  Other browsers
+				// are untested.
+				dojo.connect(this.moveable, 'onMouseDown', function(ev){
+					if(ev.button == 2 && conf.menu){
+						var menu = dijit.byId(conf.menu);
+						menu._openMyself(ev);
+					}
+				});
+			}
+			/*this.moveable.delay = 1;
+			for(var i in conf.moveable){
+				this.moveable[i] = conf.moveable[i];
+			}*/
 		}
 		
 		this.group.setTransform([dojox.gfx.matrix.scaleAt(conf.scale, p)]);
@@ -1678,7 +1686,7 @@ if(typeof(supervisorView) == "undefined"){
 			});
 			supervisorView.agentsStack.group.moveToBack();
 			
-			supervisorView.agentsStack.forEachBubble(function(bub){
+			/*supervisorView.agentsStack.forEachBubble(function(bub){
 				bub.subscriptions.push(dojo.subscribe("supervisorView/set/agent-" + detailsObj.display, function(storeref, rawobj){
 					bub.setHp(rawobj.aggregate);
 				}));
@@ -1711,7 +1719,7 @@ if(typeof(supervisorView) == "undefined"){
 						return true;
 					}
 				}
-			});
+			});*/
 			
 			supervisorView.agentsStack.scroll(scrollIndex);
 		}

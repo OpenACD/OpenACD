@@ -174,7 +174,10 @@ this.rawNode.removeAttribute("transform");
 return this;
 },setRawNode:function(_1d){
 var r=this.rawNode=_1d;
-r.setAttribute("fill","none");
+if(this.shape.type!="image"){ 
+	r.setAttribute("fill", "none"); 
+}
+//r.setAttribute("fill","none");
 r.setAttribute("fill-opacity",0);
 r.setAttribute("stroke","none");
 r.setAttribute("stroke-opacity",0);

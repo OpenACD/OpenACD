@@ -120,10 +120,6 @@ if(typeof(supervisorView) == "undefined"){
 		}
 	};
 
-	/*supervisorView.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
-	dojo.connect(supervisorView.surface, "ondragstart",   dojo, "stopEvent");
-	dojo.connect(supervisorView.surface, "onselectstart", dojo, "stopEvent");*/
-
 	//=====
 	// And so begins defining useful classes
 	//=====	
@@ -145,7 +141,8 @@ if(typeof(supervisorView) == "undefined"){
 			dropped: function(){ return false},
 			dragOver: function(){ debug(["default bubble dragOver"]); return false},
 			subscriptions:[],
-			moveable: false
+			moveable: false,
+			menu:false
 		};
 		conf.data = dojo.mixin(this.defaultConf.data, conf.data);
 		conf = dojo.mixin(this.defaultConf, conf);
@@ -210,14 +207,6 @@ if(typeof(supervisorView) == "undefined"){
 			y: rect.getShape().y + rect.getShape().height/2
 		};
 		
-		if(conf.moveable){
-			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
-			this.moveable.delay = 1;
-			for(var i in conf.moveable){
-				this.moveable[i] = conf.moveable[i];
-			}
-		}
-		
 		if(conf.image){
 			this.image = this.group.createImage({
 				x: rect.getShape().x + 2,
@@ -230,6 +219,46 @@ if(typeof(supervisorView) == "undefined"){
 		
 		this.dropped = conf.dropped;
 		this.dragOver = conf.dragOver;
+
+		if(conf.menu){
+			var menu = dijit.byId(conf.menu);
+			if(menu){
+				menu.bindDomNode(this.group.rawNode);
+				this.boundMenu = conf.menu;
+				/*if(dojo.isFF){
+					menu.bindDomNode(this.group.rawNode);
+					this.boundMenu = conf.menu;
+					//menu._connectNode(this.group.rawNode);
+					dojo.connect(menu, 'onOpen', function(ev){
+						console.log(["onOpen!", ev]);
+					});
+				}
+				else{
+				}*/
+			}
+			else{
+				warning(["menu id not found", conf.menu]);
+			}
+		}
+		
+		if(conf.moveable){
+			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
+			if(dojo.isFF){
+				// Firefox is weird.  If a moveable is defined, it overrides
+				// the menu.  Safari does not have this issue.  Other browsers
+				// are untested.
+				dojo.connect(this.moveable, 'onMouseDown', function(ev){
+					if(ev.button == 2 && conf.menu){
+						var menu = dijit.byId(conf.menu);
+						menu._openMyself(ev);
+					}
+				});
+			}
+			/*this.moveable.delay = 1;
+			for(var i in conf.moveable){
+				this.moveable[i] = conf.moveable[i];
+			}*/
+		}
 		
 		this.group.setTransform([dojox.gfx.matrix.scaleAt(conf.scale, p)]);
 	};
@@ -294,7 +323,13 @@ if(typeof(supervisorView) == "undefined"){
 			dojo.unsubscribe(this.subscriptions[i]);
 		}
 		
+		if(this.boundMenu){
+			var menu = dijit.byId(this.boundMenu);
+			menu.unBindDomNode(this.group.rawNode);
+		}
+		
 		this.group.clear();
+		this.conf.parent.rawNode.removeChild(this.group.rawNode);
 	}
 	
 	supervisorView.Bubble.prototype.connect = function(ev, scope, fun){
@@ -357,7 +392,8 @@ if(typeof(supervisorView) == "undefined"){
 			mousept: {x:100, y:50},
 			viewHeight:350,
 			bubbleConfs: [],
-			registerCollider: false
+			registerCollider: false,
+			menu: false
 		}
 		
 		var conf = dojo.mixin(this.defaultConf, conf);
@@ -395,6 +431,7 @@ if(typeof(supervisorView) == "undefined"){
 			var mixing = {
 				point:{x:pt.x, y:this.indexToY(i)},
 				parent:this.group,
+				menu:this.conf.menu
 			}
 		
 			this.bubbleConfs[i] = dojo.mixin(this.bubbleConfs[i], mixing);
@@ -568,7 +605,7 @@ if(typeof(supervisorView) == "undefined"){
 						{channel: 'supervisorView/set/' + obj.data.id,
 						callback: function(rawobj){
 							debug(["got it!", obj, rawobj]);
-							obj.setHp(rawobj.aggregate);
+							this.setHp(rawobj.aggregate);
 						}},
 						{channel: 'supervisorView/drop/' + obj.data.id,
 						callback: function(){
@@ -582,18 +619,21 @@ if(typeof(supervisorView) == "undefined"){
 					debug(["ind hit", ind]);
 					thisref._setSelected(ind);
 				});
-				obj = thisref.bubbleConfs[ind].bubble;
-				obj.mover = new dojox.gfx.Moveable(obj.group);
-				dojo.connect(obj.mover, 'onFirstMove', function(){
-					thisref.lockScroll();
-					supervisorView.dndManager.startDrag(obj);
-				});
-				obj.connect('onmouseup', function(){
-					thisref.unlockScroll();
-					obj.setDroppable(null);
-					//obj.setImage(false);
-					supervisorView.dndManager.endDrag();
-				});
+				if(thisref.bubbleConfs[ind].moveable){
+					obj = thisref.bubbleConfs[ind].bubble;
+					//obj.mover = new dojox.gfx.Moveable(obj.group);
+					dojo.connect(obj.moveable, 'onFirstMove', function(){
+						thisref.lockScroll();
+						thisref.group.moveToFront();
+						supervisorView.dndManager.startDrag(obj);
+					});
+					obj.connect('onmouseup', function(){
+						thisref.unlockScroll();
+						obj.setDroppable(null);
+						//obj.setImage(false);
+						supervisorView.dndManager.endDrag();
+					});
+				}
 			}
 		})
 		
@@ -621,6 +661,14 @@ if(typeof(supervisorView) == "undefined"){
 		
 		if(this.coll){
 			supervisorView.dndManager.unregisterCollider(this.coll);
+		}
+		
+		//console.log([this.conf.parent.rawNode, this.group.rawNode]);
+		
+		var p = this.group.rawNode.parentNode;
+		this.group.clear();
+		if(p){
+			p.removeChild(this.group.rawNode);
 		}
 	}
 	
@@ -1315,7 +1363,7 @@ if(typeof(supervisorView) == "undefined"){
 			point:{x:20, y:20},
 			scale: .75,
 			data: {"health":agenthp, "display":"Agents", "id":"Agents"},
-			onclick:function(){
+			onmouseenter:function(){
 				clearStacks();
 				supervisorView.drawAgentProfilesStack();
 				this.size(1);
@@ -1335,7 +1383,7 @@ if(typeof(supervisorView) == "undefined"){
 			point:{x:20, y:60},
 			scale: .75,
 			data:{"health":queuehp, "display":"Queues", "id":"Queues"},
-			onclick: function(){
+			onmouseenter: function(){
 				clearStacks();
 				supervisorView.drawQueueGroupsStack();
 				this.size(1);
@@ -1354,12 +1402,12 @@ if(typeof(supervisorView) == "undefined"){
 
 	supervisorView.drawQueueGroupsStack = function(){
 		if(supervisorView.queueGroupsStack && supervisorView.queuesStack.scrollLocked){
-			warning(["queueGroupsstack exists but is scroll-locked"]);
+			info(["queueGroupsstack exists but is scroll-locked"]);
 			return false;
 		}
 		
 		if(supervisorView.agentsStack && supervisorView.agentsStack.scrollLocked){
-			warning(["agent profiles stack exists but is scroll-locked"]);
+			info(["agent profiles stack exists but is scroll-locked"]);
 			return false;
 		}
 		
@@ -1424,7 +1472,7 @@ if(typeof(supervisorView) == "undefined"){
 
 	supervisorView.drawQueuesStack = function(group, node, scrollIndex){
 		if(supervisorView.queuesStack.scrollLocked){
-			warning(["queues stack scroll lacked"]);
+			info(["queues stack scroll locked"]);
 			return false;
 		}
 		
@@ -1498,7 +1546,7 @@ if(typeof(supervisorView) == "undefined"){
 	
 	supervisorView.drawAgentProfilesStack = function(){
 		if(supervisorView.agentProfilesStack && supervisorView.agentProfilesStack.scrollLocked){
-			warning(["agentProfilesStack exists but is scroll-locked"]);
+			info(["agentProfilesStack exists but is scroll-locked"]);
 			return false;
 		}
 						
@@ -1577,7 +1625,7 @@ if(typeof(supervisorView) == "undefined"){
 	
 	supervisorView.drawAgentsStack = function(profile, node, scrollIndex){
 		if(supervisorView.agentsStack.scrollLocked){
-			warning(["agents stack scroll lacked"]);
+			info(["agents stack scroll locked"]);
 			return false;
 		}
 
@@ -1618,6 +1666,7 @@ if(typeof(supervisorView) == "undefined"){
 						debug(["agentBubble accepted drop", droppedObj]);
 						supervisorView.sendMediaToAgent(droppedObj.data.display, this.data.display)
 					},
+					moveable: true,
 					image: imageUrl
 				});
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
@@ -1632,11 +1681,12 @@ if(typeof(supervisorView) == "undefined"){
 					y:100
 				},
 				bubbleConfs: acc,
-				registerCollider:true
+				registerCollider:true,
+				menu: 'agentAction'
 			});
 			supervisorView.agentsStack.group.moveToBack();
 			
-			supervisorView.agentsStack.forEachBubble(function(bub){
+			/*supervisorView.agentsStack.forEachBubble(function(bub){
 				bub.subscriptions.push(dojo.subscribe("supervisorView/set/agent-" + detailsObj.display, function(storeref, rawobj){
 					bub.setHp(rawobj.aggregate);
 				}));
@@ -1669,7 +1719,7 @@ if(typeof(supervisorView) == "undefined"){
 						return true;
 					}
 				}
-			});
+			});*/
 			
 			supervisorView.agentsStack.scroll(scrollIndex);
 		}
@@ -1740,6 +1790,7 @@ if(typeof(supervisorView) == "undefined"){
 				
 				var nom = obj.data.display;
 				obj.subscriptions.push(dojo.subscribe("supervisorView/set/media-" + nom, function(storeref, rawobj){
+					debug(["media sub hit", obj, rawobj]);
 					obj.setHp(rawobj.aggregate);
 				}));
 				obj.subscriptions.push(dojo.subscribe("supervisorView/drop/media-" + nom, function(storeref, rawobj){
@@ -2084,7 +2135,7 @@ supervisorView.drawAgentQueueBubbles(0, 0);
 supervisorView.drawSystemStack();
 
 supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(event){
-	warning(["for supervisor view master sub", event]);
+	debug(["for supervisor view master sub", event]);
 	if(event.data.action == 'drop'){
 		supervisorView.dataStore.fetch({
 			query:{'id':event.data.id},

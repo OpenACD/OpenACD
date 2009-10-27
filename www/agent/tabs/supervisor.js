@@ -1402,12 +1402,12 @@ if(typeof(supervisorView) == "undefined"){
 
 	supervisorView.drawQueueGroupsStack = function(){
 		if(supervisorView.queueGroupsStack && supervisorView.queuesStack.scrollLocked){
-			warning(["queueGroupsstack exists but is scroll-locked"]);
+			info(["queueGroupsstack exists but is scroll-locked"]);
 			return false;
 		}
 		
 		if(supervisorView.agentsStack && supervisorView.agentsStack.scrollLocked){
-			warning(["agent profiles stack exists but is scroll-locked"]);
+			info(["agent profiles stack exists but is scroll-locked"]);
 			return false;
 		}
 		
@@ -1472,7 +1472,7 @@ if(typeof(supervisorView) == "undefined"){
 
 	supervisorView.drawQueuesStack = function(group, node, scrollIndex){
 		if(supervisorView.queuesStack.scrollLocked){
-			warning(["queues stack scroll lacked"]);
+			info(["queues stack scroll locked"]);
 			return false;
 		}
 		
@@ -1546,7 +1546,7 @@ if(typeof(supervisorView) == "undefined"){
 	
 	supervisorView.drawAgentProfilesStack = function(){
 		if(supervisorView.agentProfilesStack && supervisorView.agentProfilesStack.scrollLocked){
-			warning(["agentProfilesStack exists but is scroll-locked"]);
+			info(["agentProfilesStack exists but is scroll-locked"]);
 			return false;
 		}
 						
@@ -1625,7 +1625,7 @@ if(typeof(supervisorView) == "undefined"){
 	
 	supervisorView.drawAgentsStack = function(profile, node, scrollIndex){
 		if(supervisorView.agentsStack.scrollLocked){
-			warning(["agents stack scroll lacked"]);
+			info(["agents stack scroll locked"]);
 			return false;
 		}
 

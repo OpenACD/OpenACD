@@ -235,8 +235,17 @@ if(typeof(supervisorView) == "undefined"){
 		if(conf.menu){
 			var menu = dijit.byId(conf.menu);
 			if(menu){
-				menu.bindDomNode(this.group.rawNode);
-				this.boundMenu = conf.menu;
+				if(dojo.isSafari){
+					menu.bindDomNode(this.group.rawNode);
+					this.boundMenu = conf.menu;
+				}
+				if(dojo.isFF){
+					menu.bindDomNode(this.group.rawNode);
+					this.boundMenu = conf.menu;
+					dojo.connect(menu, 'onOpen', function(ev){
+						console.log(["onOpen!", ev]);
+					});
+				}
 			}
 			else{
 				warning(["menu id not found", conf.menu]);
@@ -308,7 +317,7 @@ if(typeof(supervisorView) == "undefined"){
 		
 		if(this.boundMenu){
 			var menu = dijit.byId(this.boundMenu);
-			menu.unbindDomNode(this.group.rawNode);
+			menu.unBindDomNode(this.group.rawNode);
 		}
 		
 		this.group.clear();
@@ -588,7 +597,7 @@ if(typeof(supervisorView) == "undefined"){
 						{channel: 'supervisorView/set/' + obj.data.id,
 						callback: function(rawobj){
 							debug(["got it!", obj, rawobj]);
-							obj.setHp(rawobj.aggregate);
+							this.setHp(rawobj.aggregate);
 						}},
 						{channel: 'supervisorView/drop/' + obj.data.id,
 						callback: function(){
@@ -602,18 +611,20 @@ if(typeof(supervisorView) == "undefined"){
 					debug(["ind hit", ind]);
 					thisref._setSelected(ind);
 				});
-				obj = thisref.bubbleConfs[ind].bubble;
-				obj.mover = new dojox.gfx.Moveable(obj.group);
-				dojo.connect(obj.mover, 'onFirstMove', function(){
-					thisref.lockScroll();
-					supervisorView.dndManager.startDrag(obj);
-				});
-				obj.connect('onmouseup', function(){
-					thisref.unlockScroll();
-					obj.setDroppable(null);
-					//obj.setImage(false);
-					supervisorView.dndManager.endDrag();
-				});
+				if(thisref.bubbleConfs[ind].moveable){
+					obj = thisref.bubbleConfs[ind].bubble;
+					//obj.mover = new dojox.gfx.Moveable(obj.group);
+					dojo.connect(obj.moveable, 'onFirstMove', function(){
+						thisref.lockScroll();
+						supervisorView.dndManager.startDrag(obj);
+					});
+					obj.connect('onmouseup', function(){
+						thisref.unlockScroll();
+						obj.setDroppable(null);
+						//obj.setImage(false);
+						supervisorView.dndManager.endDrag();
+					});
+				}
 			}
 		})
 		
@@ -1646,6 +1657,7 @@ if(typeof(supervisorView) == "undefined"){
 						debug(["agentBubble accepted drop", droppedObj]);
 						supervisorView.sendMediaToAgent(droppedObj.data.display, this.data.display)
 					},
+					moveable: true,
 					image: imageUrl
 				});
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
@@ -1769,6 +1781,7 @@ if(typeof(supervisorView) == "undefined"){
 				
 				var nom = obj.data.display;
 				obj.subscriptions.push(dojo.subscribe("supervisorView/set/media-" + nom, function(storeref, rawobj){
+					debug(["media sub hit", obj, rawobj]);
 					obj.setHp(rawobj.aggregate);
 				}));
 				obj.subscriptions.push(dojo.subscribe("supervisorView/drop/media-" + nom, function(storeref, rawobj){

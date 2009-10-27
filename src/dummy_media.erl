@@ -370,7 +370,7 @@ handle_cast(_Msg, _Callrec, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(<<"hagurk">>, _Callrec, State) ->
-	{hangup, State};
+	{stop, normal, State};
 handle_info(Info, _Callrec, State) ->
 	?DEBUG("Info: ~p", [Info]),
 	{noreply, State}.

@@ -616,6 +616,7 @@ if(typeof(supervisorView) == "undefined"){
 					//obj.mover = new dojox.gfx.Moveable(obj.group);
 					dojo.connect(obj.moveable, 'onFirstMove', function(){
 						thisref.lockScroll();
+						thisref.group.moveToFront();
 						supervisorView.dndManager.startDrag(obj);
 					});
 					obj.connect('onmouseup', function(){

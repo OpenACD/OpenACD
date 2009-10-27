@@ -836,12 +836,16 @@ handle_sync_event({change_profile, Profile}, _From, StateName, State) when State
 			NewAgentSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, OldSkills)),
 			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(State, Skills2)),
 			Newstate = State#agent{skills = NewAgentSkills2, profile = Profile},
-			%Deatils = [{profile, Newstate#agent.profile}, {state, Newstate#agent.state}, {statedata, Newstate#agent.statedata}, {login, Newstate#agent.login}, {lastchangetimestamp, Newstate#agent.lastchangetimestamp}],
-			%cpx_monitor:set({agent, State#agent.id}, [], Deatils).
-
-			
-			
-			
+			Deatils = [{profile, Newstate#agent.profile}, {state, Newstate#agent.state}, {statedata, Newstate#agent.statedata}, {login, Newstate#agent.login}, {lastchangetimestamp, Newstate#agent.lastchangetimestamp}],
+			{S, {T1, T2, T3, {time, _Now}}} = case StateName of
+				idle ->
+					?IDLE_LIMITS;
+				released ->
+					?RELEASED_LIMITS
+			end,
+			{Mega, Sec, _} = Newstate#agent.lastchangetimestamp,
+			Fixedhp = {S, {T1, T2, T3, {time, Mega * 1000000 + Sec}}},
+			cpx_monitor:set({agent, State#agent.id}, [Fixedhp], Deatils),
 			{reply, ok, StateName, Newstate};
 		_ ->
 			{reply, {error, unknown_profile}, StateName, State}

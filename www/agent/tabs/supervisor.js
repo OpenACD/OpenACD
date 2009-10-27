@@ -1762,6 +1762,7 @@ if(typeof(supervisorView) == "undefined"){
 				
 				acc.push({
 					data:datas,
+					moveable:true,
 					onmouseenter:function(ev){
 						supervisorView.setDetails({
 							type:"media",

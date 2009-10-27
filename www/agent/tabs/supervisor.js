@@ -1685,42 +1685,7 @@ if(typeof(supervisorView) == "undefined"){
 				menu: 'agentAction'
 			});
 			supervisorView.agentsStack.group.moveToBack();
-			
-			/*supervisorView.agentsStack.forEachBubble(function(bub){
-				bub.subscriptions.push(dojo.subscribe("supervisorView/set/agent-" + detailsObj.display, function(storeref, rawobj){
-					bub.setHp(rawobj.aggregate);
-				}));
-				bub.subscriptions.push(dojo.subscribe("supervisorView/drop/agent-" + detailsObj.display, function(storeref, rawobj){
-					bub.clear();
-				}));
-
-				bub.dropped = function(obj){
-					if(obj.data.type == "media"){
-						var geturl = "";
-						if(obj.data.queue){
-							geturl = "/supervisor/agent_ring/" + escape(obj.data.queue) + "/" + escape(obj.data.display) + "/" + escape(bub.data.display);
-						}
-						else if(obj.data.agent){
-							geturl = "/supervisor/agent_transfer/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
-						}
 						
-						var ajaxdone = function(json, args){};
-						dojo.xhrGet({
-							url:geturl,
-							handleAs:"json",
-							load:ajaxdone
-						});
-					}
-				}
-
-				if(bub.data.display != "All"){
-					bub.dragOver = function(){
-						bub.onEnter();
-						return true;
-					}
-				}
-			});*/
-			
 			supervisorView.agentsStack.scroll(scrollIndex);
 		}
 

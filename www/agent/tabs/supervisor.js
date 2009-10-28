@@ -1310,7 +1310,8 @@ if(typeof(supervisorView) == "undefined"){
 						display:'System'
 					});
 					dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
-				}
+				},
+				menu: false
 			}];
 			
 			for(var i = 0; i < items.length; i++){
@@ -1328,7 +1329,8 @@ if(typeof(supervisorView) == "undefined"){
 							health:this.data.health
 						});
 						dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
-					}
+					},
+					menu: 'nodeAction'
 				});
 			}
 			
@@ -1349,7 +1351,8 @@ if(typeof(supervisorView) == "undefined"){
 							obj.size(1);
 						});
 						this.size(1.4);
-					}
+					},
+					menu: conf.menu
 				});
 				
 				if(conf.data.display == 'System'){

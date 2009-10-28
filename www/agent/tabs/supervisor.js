@@ -715,9 +715,7 @@ if(typeof(supervisorView) == "undefined"){
 		if(this.coll){
 			supervisorView.dndManager.unregisterCollider(this.coll);
 		}
-		
-		//console.log([this.conf.parent.rawNode, this.group.rawNode]);
-		
+				
 		var p = this.group.rawNode.parentNode;
 		this.group.clear();
 		if(p){
@@ -1296,7 +1294,6 @@ if(typeof(supervisorView) == "undefined"){
 		
 			while(supervisorView.systemStack.length){
 				var popped = supervisorView.systemStack.pop();
-				console.log(popped);
 				popped.clear();
 			}
 		

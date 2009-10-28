@@ -210,17 +210,6 @@ if(typeof(supervisorView) == "undefined"){
 		this.dragOver = conf.dragOver;
 
 		this.setHp(conf.data.health);
-
-		if(conf.menu){
-			var menu = dijit.byId(conf.menu);
-			if(menu){
-				menu.bindDomNode(this.group.rawNode);
-				this.boundMenu = conf.menu;
-			}
-			else{
-				warning(["menu id not found", conf.menu]);
-			}
-		}
 		
 		if(conf.moveable){
 			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
@@ -233,10 +222,35 @@ if(typeof(supervisorView) == "undefined"){
 						var menu = dijit.byId(conf.menu);
 						menu._openMyself(ev);
 					}
-					console.log(this.mover);
-					this.mover = function(){return false};
+					return false;
 				}
 			});
+		}
+		
+		if(conf.menu){
+			var menu = dijit.byId(conf.menu);
+			this.group.rawNode.oncontextmenu = function(){
+				false
+			};
+			if(menu){
+				menu.bindDomNode(this.group.rawNode);
+				this.boundMenu = conf.menu;
+				
+				/*if(conf.moveable){
+					dojo.connect(menu, 'onOpen', this, function(){
+						console.log('onOpen!');
+						this.moveable.destroy();
+					});
+					dojo.connect(menu, 'onClose', this, function(){
+						console.log(this.moveable);
+						this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
+					});
+				}*/
+				
+			}
+			else{
+				warning(["menu id not found", conf.menu]);
+			}
 		}
 		
 		this.group.setTransform([dojox.gfx.matrix.scaleAt(conf.scale, p)]);

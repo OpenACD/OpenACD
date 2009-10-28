@@ -1914,60 +1914,48 @@ if(typeof(supervisorView) == "undefined"){
 	}
 	
 	supervisorView.queueTransfer = function(callid, newqueue){
-		warning(["queueTransfer nyi"]);
-		return false;
-		
-		/*var fetchdone = function(items){
+		var fetchdone = function(items){
 			if(items.length == 0){
 				return false
 			}
-			
+
 			var item = items[0];
-			var healthData = supervisorView.dataStore.getValue('health', item);
+			var healthData = supervisorView.dataStore.getValue(item, 'health');
 			var url = '/supervisor/';
 			if(healthData.inqueue){
-				url += 'queue_transfer/' + escape(callid) + '/' + escape(newqueue);
+				var oldqueue = supervisorView.dataStore.getValue(item, 'queue');
+				url += 'queue_transfer/' + escape(callid) + '/' + escape(oldqueue) + '/' + escape(newqueue);
 			}
-			else if(healthData.{
-				url += 'requeue/' + escape(
+			else if(healthData.agent_link){
+				var agent = supervisorView.dataStore.getValue(item, 'agent');
+				url += 'requeue/' + escape(agent) + '/' + escape(newqueue);
 			}
+			else{
+				warning(["orphaned call?", item]);
+				return false;
+			}
+
+			dojo.xhrGet({
+				'url':url,
+				handleAs:'json',
+				laod:function(res){
+					if(! res.success){
+						warning(["queueTransfer failed", res.message]);
+					}
+				},
+				error:function(res){
+					warning(["queueTransfer errored", res]);
+				}
+			});
 		}
 		
-		
-		dojo.xhrGet({
-			url:'/supervisor/requeue/' + escape(
+		supervisorView.dataStore.fetch({
+			query:{
+				'display':callid,
+				'type':'media'
+			},
+			onComplete:fetchdone
 		});
-		
-		supervisorView.queuesStack.forEachBubble(function(bub){
-												 bub.subscriptions.push(dojo.subscribe("supervisorView/set/queue-" + detailsObj.display, function(storeref, rawobj){
-																					   bub.setHp(rawobj.aggregate);
-																					   }));
-												 bub.subscriptions.push(dojo.subscribe("supervisorView/drop/queue-" + detailsObj.display, function(storeref, rawobj){
-																					   bub.clear();
-																					   }));
-												 
-												 bub.dropped = function(obj){
-												 if(obj.data.type == "media"){
-												 var ajaxdone = function(json, args){}
-												 var geturl = "/supervisor/requeue/" + escape(obj.data.agent) + "/" + escape(bub.data.display);
-												 dojo.xhrGet({
-															 url:geturl,
-															 handleAs:"json",
-															 load:ajaxdone
-															 });
-												 }
-												 }
-												 
-												 if(bub.data.display != "All"){
-												 bub.dragOver = function(){
-												 bub.onEnter();
-												 return true;
-												 }
-												 }
-												 });*/
-		
-		
-		
 	}
 	
 	supervisorView.sendMediaToAgent = function(media, agent){

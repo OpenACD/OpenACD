@@ -1853,7 +1853,8 @@ if(typeof(supervisorView) == "undefined"){
 		dojo.xhrGet({
 			url:"/supervisor/status",
 			handleAs:"json",
-			error:function(){
+			error:function(res){
+				warning(["reloadDataStore errored", res]);
 				supervisorView.poller.stop();
 			},
 			load:function(data){
@@ -1870,7 +1871,7 @@ if(typeof(supervisorView) == "undefined"){
 							}
 						}
 					});
-					supervisorView.refreshSystemStack();
+					supervisorView.drawSystemStack();
 					supervisorView.setAllHps();
 					if(supervisorView.suppressPoll){
 						return;
@@ -2170,7 +2171,7 @@ dojo.connect(supervisorView.surface, "onselectstart", dojo, "stopEvent");
 supervisorView.reloadDataStore();
 
 supervisorView.drawAgentQueueBubbles(0, 0);
-supervisorView.drawSystemStack();
+//supervisorView.drawSystemStack();
 
 supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(supevent){
 	debug(["for supervisor view master sub", supevent]);

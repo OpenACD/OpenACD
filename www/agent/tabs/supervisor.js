@@ -1709,7 +1709,7 @@ if(typeof(supervisorView) == "undefined"){
 					},
 					dropped: function(droppedObj){
 						debug(["agentBubble accepted drop", droppedObj]);
-						supervisorView.sendMediaToAgent(droppedObj.data.display, this.data.display)
+						supervisorView.sendMediaToAgent(droppedObj.data, this.data.display)
 					},
 					moveable: true,
 					image: imageUrl
@@ -1962,9 +1962,25 @@ if(typeof(supervisorView) == "undefined"){
 		
 	}
 	
-	supervisorView.sendMediaToAgent = function(mediaid, agentlogin){
-		warning("sendMediaToAgent NYI");
-		return false;
+	supervisorView.sendMediaToAgent = function(media, agent){
+		var queue = media.queue;
+		var id = media.display;
+		dojo.xhrGet({
+			handleAs:"json",
+			url:"/supervisor/agent_ring/" + queue + "/" + id + "/" + agent,
+			load:function(res){
+				if(res.success){
+					//kewl
+					return true
+				}
+				else{
+					warning(["agent ring failed", res.message]);
+				}
+			},
+			error:function(res){
+				warning(["agent ring errored", res]);
+			}
+		});
 	}
 	
 	supervisorView.saveItem = function(item, protoitem){

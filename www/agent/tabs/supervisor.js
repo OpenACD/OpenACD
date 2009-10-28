@@ -213,27 +213,37 @@ if(typeof(supervisorView) == "undefined"){
 		
 		if(conf.moveable){
 			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
-			dojo.connect(this.moveable, 'onMouseDown', this.moveable, function(ev){
-				if(ev.button == 2 && conf.menu){
-					if(dojo.isFF){
-						// Firefox is weird.  If a moveable is defined, it overrides
-						// the menu.  Safari does not have this issue.  Other browsers
-						// are untested.
-						var menu = dijit.byId(conf.menu);
-						menu._openMyself(ev);
-					}
-					return false;
-				}
-			});
+			console.log(this.moveable.events);
+			/*dojo.connect(this.moveable, 'onMouseDown', this.moveable, function(ev){*/
+				/*if(ev.button == 2 && conf.menu){*/
+					/*if(dojo.isFF){*/
+						/*// Firefox is weird.  If a moveable is defined, it overrides*/
+						/*// the menu.  Safari does not have this issue.  Other browsers*/
+						/*// are untested.*/
+						/*var menu = dijit.byId(conf.menu);*/
+						/*menu._openMyself(ev);*/
+						/*ev.preventDefault();*/
+						/*ev.stopPropagation();*/
+					/*}*/
+					/*return false;*/
+				/*}*/
+			/*});*/
 		}
 		
 		if(conf.menu){
 			var menu = dijit.byId(conf.menu);
-			this.group.rawNode.oncontextmenu = function(){
-				false
+			this.group.rawNode.oncontextmenu = function(ev){
+				console.log(ev);
+				menu._openMyself(ev);
+				if (dojo.isIE) {
+					ev.returnValue = false;
+				} else {
+					ev.preventDefault();
+					ev.stopPropagation();
+				}
 			};
 			if(menu){
-				menu.bindDomNode(this.group.rawNode);
+				/*menu.bindDomNode(this.group.rawNode);*/
 				this.boundMenu = conf.menu;
 				
 				/*if(conf.moveable){
@@ -2153,6 +2163,14 @@ if(typeof(supervisorView) == "undefined"){
 }
 
 supervisorView.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
+supervisorView.surface.rawNode.oncontextmenu = function(ev) {
+	if (dojo.isIE) {
+		ev.returnValue = false;
+	}else {
+		ev.preventDefault();
+		ev.stopPropagation();
+	}
+};
 dojo.connect(supervisorView.surface, "ondragstart",   dojo, "stopEvent");
 dojo.connect(supervisorView.surface, "onselectstart", dojo, "stopEvent");
 

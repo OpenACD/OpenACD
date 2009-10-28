@@ -199,6 +199,8 @@ get_leader() ->
 
 %% @doc Send the message `string() Text' to all agents that match the given filter.
 -spec(blab/2 :: (Text :: string(), {Key :: 'agent' | 'node' | 'profile', Value :: string() | atom()}) -> 'ok').
+blab(Text, all) ->
+	gen_leader:leader_cast(?MODULE, {blab, Text, all});
 blab(Text, {Key, Value}) ->
 	gen_leader:leader_cast(?MODULE, {blab, Text, {Key, Value}}).
 
@@ -319,7 +321,7 @@ handle_leader_cast({blab, Text, {node, Value}}, #state{agents = Agents} = State,
 	{noreply, State};
 handle_leader_cast({blab, Text, {profile, Value}}, #state{agents = Agents} = State, _Election) ->
 	Alist = dict:to_list(Agents),
-	Foreach = fun({_Aname, {Apid, Id}}) ->
+	Foreach = fun({_Aname, {Apid, _Id}}) ->
 		try agent:dump_state(Apid) of
 			#agent{profile = Value} ->
 				agent:blab(Apid, Text);
@@ -335,6 +337,12 @@ handle_leader_cast({blab, Text, {profile, Value}}, #state{agents = Agents} = Sta
 		lists:foreach(Foreach, Alist)
 	end,
 	spawn(F),
+	{noreply, State};
+handle_leader_cast({blab, Text, all}, #state{agents = Agents} = State, _Election) ->
+	F = fun(_, {Pid, _}) ->
+		agent:blab(Pid, Text)
+	end,
+	dict:map(F, Agents),
 	{noreply, State};
 handle_leader_cast(dump_election, State, Election) -> 
 	?DEBUG("Dumping leader election.~nSelf:  ~p~nDump:  ~p", [self(), Election]),

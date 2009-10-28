@@ -344,30 +344,35 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 	?DEBUG("Supervisor request with post data:  ~s", [lists:flatten(Request)]),
 	case Request of
 		["blab"] ->
-			{Key, Value} = case proplists:get_value("type", Post) of
+			Toagentmanager = case proplists:get_value("type", Post) of
 				"agent" ->
 					{agent, proplists:get_value("value", Post, "")};
 				"node" ->
-					try list_to_existing_atom(proplists:get_value("value", Post)) of
-						Atom ->
-							case lists:member(Atom, [node() | nodes()]) of
-								true ->
-									{node, Atom};
-								false ->
+					case proplists:get_value("value", Post) of
+						"System" ->
+							all;
+						AtomIsIt -> 
+							try list_to_existing_atom(proplists:get_value("value", Post)) of
+								Atom ->
+									case lists:member(Atom, [node() | nodes()]) of
+										true ->
+											{node, Atom};
+										false ->
+											{false, false}
+									end
+							catch
+								error:badarg ->
 									{false, false}
 							end
-					catch
-						error:badarg ->
-							{false, false}
 					end;
 				"profile" ->
 					{profile, proplists:get_value("value", Post, "")}
 			end,
-			Json = case {Key, Value} of
+			Json = case Toagentmanager of
 				{false, false} ->
 					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"bad type or value">>}]});
-				_Else ->
-					agent_manager:blab(proplists:get_value("message", Post, ""), {Key, Value}),
+				Else ->
+					agent_manager:blab(proplists:get_value("message", Post, ""), Else),
 					mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"blabbing">>}]})
 			end,
 			{reply, {200, [], Json}, State}

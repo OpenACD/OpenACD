@@ -1310,7 +1310,7 @@ if(typeof(supervisorView) == "undefined"){
 					});
 					dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
 				},
-				menu: false
+				menu: 'nodeAction'
 			}];
 			
 			for(var i = 0; i < items.length; i++){

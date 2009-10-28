@@ -1619,6 +1619,7 @@ if(typeof(supervisorView) == "undefined"){
 							type:supervisorView.dataStore.getValue(obj, "type"),
 							display:supervisorView.dataStore.getValue(obj, "display")
 						});
+						dijit.byId('agentProfileAction').agentProfileBubbleHit = supervisorView.dataStore.getValue(obj, "display");
 					},
 					dragOver: function(testobj){
 						 supervisorView.drawAgentsStack(this.data.display, supervisorView.node, acc.length);
@@ -1651,15 +1652,16 @@ if(typeof(supervisorView) == "undefined"){
 					y:100
 				},
 				bubbleConfs:acc,
-				registerCollider: true
+				registerCollider: true,
+				menu:'agentProfileAction'
 			});
 	
-			supervisorView.agentProfilesStack.forEachBubble(function(bubble){
+			/*supervisorView.agentProfilesStack.forEachBubble(function(bubble){
 				var chan = "supervisorView/set/agentprofile-" + bubble.data.display;
 					bubble.subscriptions.push(dojo.subscribe(chan, function(storeref, rawobj){
 					bubble.setHp(rawobj.aggregate);
 				}));
-			});
+			});*/
 
 			supervisorView.agentProfilesStack.scroll(0);
 			supervisorView.agentProfilesStack.group.moveToBack();

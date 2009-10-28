@@ -154,14 +154,6 @@ if(typeof(supervisorView) == "undefined"){
 			this.subscriptions.push(dojo.subscribe(subObj.channel, this, subObj.callback));
 		}
 		
-		var rmod = Math.abs(-(255/50) * conf.data.health + 255);
-		var gmod = 255;
-		var textcolors = "black";
-		if(conf.data.health > 50){
-			var gmod = -255/50 * 1.3 * conf.data.health + (255 * 2);
-			textcolors = "white";
-		}
-		var bubblefill = [rmod, gmod, 0, 100];
 		debug(["conf.data", conf.data]);
 		this.hpline = this.group.createLine({
 			x1: conf.point.x + (conf.data.health * 2),
@@ -176,7 +168,7 @@ if(typeof(supervisorView) == "undefined"){
 			width: 200,
 			height: 20,
 			r: 10
-		}).setFill(bubblefill).setStroke("black");
+		}).setStroke("black");
 		
 		this.data = conf.data;
 		
@@ -195,9 +187,6 @@ if(typeof(supervisorView) == "undefined"){
 			align: "middle",
 			text: textdisp
 		});
-		
-		text.setStroke(textcolors);
-		text.setFill(textcolors);
 		
 		this.text = text;
 		
@@ -220,21 +209,13 @@ if(typeof(supervisorView) == "undefined"){
 		this.dropped = conf.dropped;
 		this.dragOver = conf.dragOver;
 
+		this.setHp(conf.data.health);
+
 		if(conf.menu){
 			var menu = dijit.byId(conf.menu);
 			if(menu){
 				menu.bindDomNode(this.group.rawNode);
 				this.boundMenu = conf.menu;
-				/*if(dojo.isFF){
-					menu.bindDomNode(this.group.rawNode);
-					this.boundMenu = conf.menu;
-					//menu._connectNode(this.group.rawNode);
-					dojo.connect(menu, 'onOpen', function(ev){
-						console.log(["onOpen!", ev]);
-					});
-				}
-				else{
-				}*/
 			}
 			else{
 				warning(["menu id not found", conf.menu]);
@@ -243,21 +224,19 @@ if(typeof(supervisorView) == "undefined"){
 		
 		if(conf.moveable){
 			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
-			if(dojo.isFF){
-				// Firefox is weird.  If a moveable is defined, it overrides
-				// the menu.  Safari does not have this issue.  Other browsers
-				// are untested.
-				dojo.connect(this.moveable, 'onMouseDown', function(ev){
-					if(ev.button == 2 && conf.menu){
+			dojo.connect(this.moveable, 'onMouseDown', this.moveable, function(ev){
+				if(ev.button == 2 && conf.menu){
+					if(dojo.isFF){
+						// Firefox is weird.  If a moveable is defined, it overrides
+						// the menu.  Safari does not have this issue.  Other browsers
+						// are untested.
 						var menu = dijit.byId(conf.menu);
 						menu._openMyself(ev);
 					}
-				});
-			}
-			/*this.moveable.delay = 1;
-			for(var i in conf.moveable){
-				this.moveable[i] = conf.moveable[i];
-			}*/
+					console.log(this.mover);
+					this.mover = function(){return false};
+				}
+			});
 		}
 		
 		this.group.setTransform([dojox.gfx.matrix.scaleAt(conf.scale, p)]);
@@ -282,6 +261,57 @@ if(typeof(supervisorView) == "undefined"){
 	}
 
 	supervisorView.Bubble.prototype.setHp = function(hp){
+		var rmod;
+		var gmod;
+		var bmod;
+		
+		if(hp < 1){
+			var rmod = 0;
+			var gmod = 1;
+			var bmod = 1;
+		}
+		else if(hp < 50){
+			var rmod = 0;
+			var gmod = 1;
+			var bmod = 1 - (hp / 50);
+		}
+		else if(hp < 75){
+			var rmod = (hp - 50) / 25;
+			var gmod = 1;
+			var bmod = 0;
+		}
+		else if(hp < 100){
+			var rmod = 1;
+			var gmod = 1 - ( (hp - 75) / 25);
+			var bmod = 0;
+		}
+		else{
+			var rmod = 1;
+			var gmod = 0;
+			var bmod = 0;
+		}
+	
+		var r = Math.round(255 * rmod);
+		var g = Math.round(255 * gmod);
+		var b = Math.round(255 * bmod);
+		
+		var textcolors = "black";
+		
+		var bubblefill = [r, g, b, 100];
+		
+		this.text.setStroke(textcolors);
+		this.text.setFill(textcolors);
+		this.bubble.setFill(bubblefill);
+		
+		var bshape = this.bubble.getShape();
+		
+		var thex = (hp * bshape.width)/100 + bshape.x
+		this.hpline.setShape({x1: thex, x2:thex});
+			
+	
+	
+	/*
+	
 		var rmod = Math.abs(-(255/50) * hp + 255);
 		var gmod = 255;
 		var textcolors = "black";
@@ -296,7 +326,7 @@ if(typeof(supervisorView) == "undefined"){
 		var bshape = this.bubble.getShape();
 		
 		var thex = (hp * bshape.width)/100 + bshape.x
-		this.hpline.setShape({x1: thex, x2:thex});
+		this.hpline.setShape({x1: thex, x2:thex});*/
 	}
 	
 	supervisorView.Bubble.prototype.pointCollision = function(point){

@@ -39,7 +39,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -define(TICK_LENGTH, 5000000000).
 -else.
--define(TICK_LENGTH, 10000).
+-define(TICK_LENGTH, 11000).
 -endif.
 
 -include("log.hrl").
@@ -214,7 +214,7 @@ init([Agent, Security]) ->
 		error ->
 			{stop, "Agent is already logged in"};
 		_Else ->
-			{ok, Tref} = timer:send_interval(?TICK_LENGTH, check_live_poll),
+			Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
 			agent_web_listener:linkto(self()),
 %			case Security of
 %				agent ->
@@ -730,20 +730,22 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
-	case util:now() - Last of
+	Now = util:now(),
+	case Now - Last of
 		N when N > 5 ->
-			?DEBUG("Stopping due to missed_polls; last:  ~w", [Last]),
+			?DEBUG("Stopping due to missed_polls; last:  ~w now: ~w difference: ~w", [Last, Now, Now - Last]),
 			{stop, missed_polls, State};
 		_N ->
 			{noreply, State}
 	end;
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Pollpid} = State) when is_pid(Pollpid) ->
+	Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
 	case util:now() - Last of
 		N when N > 20 ->
 			Newstate = push_event({struct, [{success, true}, {<<"command">>, <<"pong">>}, {<<"timestamp">>, util:now()}]}, State),
-			{noreply, Newstate};
+			{noreply, Newstate#state{ack_timer = Tref}};
 		_N ->
-			{noreply, State}
+			{noreply, State#state{ack_timer = Tref}}
 	end;
 handle_info({cpx_monitor_event, _Message}, #state{securitylevel = agent} = State) ->
 	?WARNING("Not eligible for supervisor view, so shouldn't be getting events.  Unsubbing", []),

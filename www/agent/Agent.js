@@ -77,7 +77,8 @@ function Agent(username, statetime, timestamp){
 					dojo.publish("agent/logout", []);
 				}
 				else{
-					agentref.poll();
+					console.log("NOT re-polling");
+					/*agentref.poll();*/
 				}
 			},
 			load:function(response, ioargs){
@@ -90,9 +91,9 @@ function Agent(username, statetime, timestamp){
 					//agentref.poll();
 				}
 				else{
-					agentref.handleData(response.data);
 					agentref.pollfailures = 0;
-					agentref.poll()
+					agentref.poll();
+					agentref.handleData(response.data);
 				}
 			}
 		})

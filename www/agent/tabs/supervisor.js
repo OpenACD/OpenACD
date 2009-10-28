@@ -213,21 +213,19 @@ if(typeof(supervisorView) == "undefined"){
 		
 		if(conf.moveable){
 			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
-			debug(this.moveable.events);
-			/*dojo.connect(this.moveable, 'onMouseDown', this.moveable, function(ev){*/
-				/*if(ev.button == 2 && conf.menu){*/
-					/*if(dojo.isFF){*/
-						/*// Firefox is weird.  If a moveable is defined, it overrides*/
-						/*// the menu.  Safari does not have this issue.  Other browsers*/
-						/*// are untested.*/
-						/*var menu = dijit.byId(conf.menu);*/
-						/*menu._openMyself(ev);*/
-						/*ev.preventDefault();*/
-						/*ev.stopPropagation();*/
-					/*}*/
-					/*return false;*/
-				/*}*/
-			/*});*/
+			if (navigator.appVersion.indexOf("Mac")!=-1 && dojo.isFF) {
+				dojo.connect(this.moveable, 'onMouseDown', this.moveable, function(ev){
+					if(ev.button == 2 && conf.menu){
+						// Firefox is weird.  If a moveable is defined, it overrides
+						// the menu.  Safari does not have this issue.  Other browsers
+						// are untested.
+						var menu = dijit.byId(conf.menu);
+						menu._openMyself(ev);
+						ev.preventDefault();
+						ev.stopPropagation();
+					}
+				});
+			}
 		}
 		
 		if(conf.menu){

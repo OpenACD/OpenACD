@@ -67,18 +67,19 @@ function Agent(username, statetime, timestamp){
 			url:"/poll",
 			handleAs:"json",
 			error:function(response, ioargs){
-				warning(["poll errored", response]);
+				warning(["poll errored", response, ioargs.xhr.status]);
 				EventLog.log("Poll failed:  " + response.responseText);
 				agentref.pollfailures += 1;
-				if (agentref.pollfailures >= 5) {
+				if (agentref.pollfailures >= 5 || ioargs.xhr.status == 403) {
 					//agentref.stopwatch.stop();
 					//agentref.stopwatch.reset();
 					//agentref.poller.stop();
 					dojo.publish("agent/logout", []);
 				}
-				else{
+				else if (ioargs.xhr.status != 200) {
+					agentref.poll();
+				} else {
 					console.log("NOT re-polling");
-					/*agentref.poll();*/
 				}
 			},
 			load:function(response, ioargs){

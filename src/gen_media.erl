@@ -853,9 +853,9 @@ terminate(Reason, #state{callback = Callback, queue_pid = undefined, oncall_pid 
 terminate(Reason, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
 	?NOTICE("gen_media termination due to ~p", [Reason]),
 	?INFO("Qpid ~p  oncall ~p  ring ~p", [Qpid, Ocpid, Rpid]),
+	set_cpx_mon(State, delete),
 	agent_interact(hangup, State),
-	Callback:terminate(Reason, State#state.callrec, State#state.substate),
-	set_cpx_mon(State, delete).
+	Callback:terminate(Reason, State#state.callrec, State#state.substate).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}

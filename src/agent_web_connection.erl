@@ -47,6 +47,8 @@
 -include("agent.hrl").
 -include("queue.hrl").
 
+-include_lib("stdlib/include/qlc.hrl").
+
 %% API
 -export([
 	start_link/2,
@@ -1279,12 +1281,33 @@ encode_health([_Whatever | Tail], Acc) ->
 -spec(encode_groups/2 :: (Stats :: [{string(), string()}], Count :: non_neg_integer()) -> {non_neg_integer(), [tuple()]}).
 encode_groups(Stats, Count) ->
 	?DEBUG("Stats to encode:  ~p", [Stats]),
-	encode_groups(Stats, Count + 1, []).
+	encode_groups(Stats, Count + 1, [], [], []).
 
--spec(encode_groups/3 :: (Groups :: [{string(), string()}], Count :: non_neg_integer(), Acc :: [tuple()]) -> {non_neg_integer(), [tuple()]}).
-encode_groups([], Count, Acc) ->
-	{Count - 1, Acc};
-encode_groups([{Type, Name} | Tail], Count, Acc) ->
+-spec(encode_groups/5 :: (Groups :: [{string(), string()}], Count :: non_neg_integer(), Acc :: [tuple()], Gotqgroup :: [string()], Gotaprof :: [string()]) -> {non_neg_integer(), [tuple()]}).
+encode_groups([], Count, Acc, Gotqgroup, Gotaprof) ->
+	F = fun() ->
+		Qqh = qlc:q([{Qgroup, "queuegroup"} || #queue_group{name = Qgroup} <- mnesia:table(queue_group), lists:member(Qgroup, Gotqgroup) =:= false]),
+		Aqh = qlc:q([{Aprof, "agentprofile"} || #agent_profile{name = Aprof} <- mnesia:table(agent_profile), lists:member(Aprof, Gotaprof) =:= false]),
+		Qgroups = qlc:e(Qqh),
+		Aprofs = qlc:e(Aqh),
+		lists:append(Qgroups, Aprofs)
+	end,
+	Encode = fun({Name, Type}) ->
+		{struct, [
+			{<<"id">>, list_to_binary(lists:append([Type, "-", Name]))},
+			{<<"type">>, list_to_binary(Type)},
+			{<<"display">>, list_to_binary(Name)},
+			{<<"health">>, {struct, [
+				{<<"_type">>, <<"details">>},
+				{<<"_value">>, {struct, []}}
+			]}}
+		]}
+	end,
+	{atomic, List} = mnesia:transaction(F),
+	Encoded = lists:map(Encode, List),
+	Newacc = lists:append([Acc, Encoded]),
+	{Count + length(Newacc), Newacc};
+encode_groups([{Type, Name} | Tail], Count, Acc, Gotqgroup, Gotaprof) ->
 	Out = {struct, [
 		{<<"id">>, list_to_binary(lists:append([Type, "-", Name]))},
 		{<<"type">>, list_to_binary(Type)},
@@ -1294,7 +1317,13 @@ encode_groups([{Type, Name} | Tail], Count, Acc) ->
 			{<<"_value">>, {struct, []}}
 		]}}
 	]},
-	encode_groups(Tail, Count + 1, [Out | Acc]).
+	{Ngotqgroup, Ngotaprof} = case Type of
+		"queuegroup" ->
+			{[Name | Gotqgroup], Gotaprof};
+		"agentprofile" ->
+			{Gotqgroup, [Name | Gotaprof]}
+	end,
+	encode_groups(Tail, Count + 1, [Out | Acc], Ngotqgroup, Ngotaprof).
 
 scrub_proplist(Proplist) ->
 	scrub_proplist(Proplist, []).

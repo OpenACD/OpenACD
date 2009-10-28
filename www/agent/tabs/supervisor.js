@@ -2131,42 +2131,42 @@ supervisorView.reloadDataStore();
 supervisorView.drawAgentQueueBubbles(0, 0);
 supervisorView.drawSystemStack();
 
-supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(event){
-	debug(["for supervisor view master sub", event]);
-	if(event.data.action == 'drop'){
+supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(supevent){
+	debug(["for supervisor view master sub", supevent]);
+	if(supevent.data.action == 'drop') {
 		supervisorView.dataStore.fetch({
-			query:{'id':event.data.id},
+			query:{'id':supevent.data.id},
 			onComplete:function(items){
 				if(items.length == 0){
 					return false
 				}
 				supervisorView.dataStore.deleteItem(items[0]);
 				supervisorView.dataStore.save();
-				dojo.publish("supervisorView/drop/" + data.id, [data]);
+				dojo.publish("supervisorView/drop/" + supevent.data.id, [supevent.data]);
 			}
 		});
 		return true;
 	}
 	
-	if(event.data.action != 'set'){
+	if(supevent.data.action != 'set'){
 		return false;
 	}
 	
-	switch(event.data.type){
+	switch(supevent.data.type){
 		case 'agent':
-			supervisorView.setAgent(event.data);
+			supervisorView.setAgent(supevent.data);
 			break;
 		
 		case 'queue':
-			supervisorView.setQueue(event.data);
+			supervisorView.setQueue(supevent.data);
 			break;
 		
 		case 'media':
-			supervisorView.setMedia(event.data);
+			supervisorView.setMedia(supevent.data);
 			break;
 		
 		case 'node':
-			supervisorView.setNode(event.data);
+			supervisorView.setNode(supevent.data);
 			break;
 			
 		default:

@@ -97,9 +97,9 @@ handle_info(graph, #state{rrd = RRD} = State) ->
 	timer:send_after(60000, graph),
 
 	Graphs = [
-		{"util-15m", "15 minute trend", "now-1d", 900},
-		{"util-1h", "1 hour trend", "now-1d", 3600},
-		{"util-8h", "8 hour trend", "now-1d", 28800}
+		{"util-15m", "15 minute trend", "now-30m", 900},
+		{"util-1h", "1 hour trend", "now-2h", 3600},
+		{"util-8h", "8 hour trend", "now-16h", 28800}
 	],
 
 	Fun = fun(F, {Defines, CDefines, Lines}) ->

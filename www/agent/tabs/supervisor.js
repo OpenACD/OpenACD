@@ -213,7 +213,7 @@ if(typeof(supervisorView) == "undefined"){
 		
 		if(conf.moveable){
 			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
-			console.log(this.moveable.events);
+			debug(this.moveable.events);
 			/*dojo.connect(this.moveable, 'onMouseDown', this.moveable, function(ev){*/
 				/*if(ev.button == 2 && conf.menu){*/
 					/*if(dojo.isFF){*/
@@ -233,7 +233,7 @@ if(typeof(supervisorView) == "undefined"){
 		if(conf.menu){
 			var menu = dijit.byId(conf.menu);
 			this.group.rawNode.oncontextmenu = function(ev){
-				console.log(ev);
+				debug(ev);
 				menu._openMyself(ev);
 				if (dojo.isIE) {
 					ev.returnValue = false;

@@ -1317,9 +1317,10 @@ if(typeof(supervisorView) == "undefined"){
 			}];
 			
 			for(var i = 0; i < items.length; i++){
+				var id = supervisorView.dataStore.getValue(items[i], 'id');
 				acc.push({
 					data:{
-						id:supervisorView.dataStore.getValue(items[i], 'id'),
+						'id': id,
 						type:'node',
 						display:supervisorView.dataStore.getValue(items[i], 'display'),
 						health:50,
@@ -1354,6 +1355,16 @@ if(typeof(supervisorView) == "undefined"){
 						});
 						this.size(1.4);
 					},
+					subscriptions:[
+						{channel: 'supervisorView/set/' + id,
+						callback: function(rawobj){
+							this.setHp(rawobj.aggregate);
+						}},
+						{channel: 'supervisorView/drop/' + id,
+						callback: function(){
+							this.clear();
+						}}
+					],												  
 					menu: conf.menu
 				});
 				

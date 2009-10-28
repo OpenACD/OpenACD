@@ -380,8 +380,9 @@ if(typeof(supervisorView) == "undefined"){
 			menu.unBindDomNode(this.group.rawNode);
 		}
 		
+		var parent = this.group.rawNode.parentNode
 		this.group.clear();
-		this.conf.parent.rawNode.removeChild(this.group.rawNode);
+		parent.removeChild(this.group.rawNode);
 	}
 	
 	supervisorView.Bubble.prototype.connect = function(ev, scope, fun){
@@ -1295,6 +1296,7 @@ if(typeof(supervisorView) == "undefined"){
 		
 			while(supervisorView.systemStack.length){
 				var popped = supervisorView.systemStack.pop();
+				console.log(popped);
 				popped.clear();
 			}
 		

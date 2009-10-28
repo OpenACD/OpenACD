@@ -68,7 +68,7 @@
 			var dialog = dijit.byId("blabDialog");
 			var submitblab = function(){
 				var data = dialog.attr('value');
-				supervisorTab.blab(data.message, "agent", escape(dijit.byId("agentAction").agentBubbleHit));
+				supervisorView.blab(data.message, "agent", escape(dijit.byId("agentAction").agentBubbleHit));
 			}
 			dialog.attr('execute', submitblab);
 			dialog.show();
@@ -100,7 +100,7 @@
 			var dialog = dijit.byId("profileSwapDialog");
 			var submitSetProf = function(){
 				var data = dialog.attr('value');
-				supervisorTab.setProfile(data.profile, agent);
+				supervisorView.setProfile(data.profile, agent);
 			}
 			dialog.attr('execute', submitSetProf);
 			dojo.xhrGet({
@@ -160,7 +160,7 @@
 			var dialog = dijit.byId("blabDialog");
 			var submitblab = function(){
 				var data = dialog.attr('value');
-				supervisorTab.blab(data.message, "profile", escape(dijit.byId("agentProfileAction").agentProfileBubbleHit));
+				supervisorView.blab(data.message, "profile", escape(dijit.byId("agentProfileAction").agentProfileBubbleHit));
 			};
 			dialog.attr('execute', submitblab);
 			dialog.show();
@@ -174,7 +174,7 @@
 			var dialog = dijit.byId("blabDialog");
 			var submitblab = function(){
 				var data = dialog.attr('value');
-				supervisorTab.blab(data.message, "node", escape(dijit.byId("nodeAction").nodeBubbleHit));
+				supervisorView.blab(data.message, "node", escape(dijit.byId("nodeAction").nodeBubbleHit));
 			};
 			dialog.attr('execute', submitblab);
 			dialog.show();

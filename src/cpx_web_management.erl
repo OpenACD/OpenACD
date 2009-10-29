@@ -760,7 +760,10 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 		{Node, [
 			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
 			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)},
-			{cpx_supervisor, rpc:call(Node, cpx_supervisor, get_value, [archivepath], 2000)}
+			{cpx_supervisor, rpc:call(Node, cpx_supervisor, get_value, [archivepath], 2000)},
+			{cpx_monitor_grapher, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_grapher], 2000)},
+			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)},
+			{cpx_monitor_passive, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_passive], 2000)}
 		]}
 	end,
 	Rpcs = lists:map(F, Nodes),

@@ -56,12 +56,15 @@ start() ->
 	Out = gen_event:start({local, cpxlog}),
 	case application:get_env(cpx, console_loglevel) of
 		{ok, LogLevel} ->
+			ok = error_logger:add_report_handler(cpxlog_terminal, [LogLevel]),
 			gen_event:add_handler(cpxlog, cpxlog_terminal, [LogLevel]);
 		_ ->
+			ok = error_logger:add_report_handler(cpxlog_terminal, []),
 			gen_event:add_handler(cpxlog, cpxlog_terminal, [])
 	end,
 	case application:get_env(cpx, logfiles) of
 		{ok, Files} ->
+			ok = error_logger:add_report_handler(cpxlog_file, [Files]),
 			gen_event:add_handler(cpxlog, cpxlog_file, [Files]);
 		_ ->
 			io:format("Logging to disk is not configured~n"),
@@ -74,12 +77,15 @@ start_link() ->
 	Out = gen_event:start_link({local, cpxlog}),
 	case application:get_env(cpx, console_loglevel) of
 		{ok, LogLevel} ->
+			ok = error_logger:add_report_handler(cpxlog_terminal, [LogLevel]),
 			gen_event:add_handler(cpxlog, cpxlog_terminal, [LogLevel]);
 		_ ->
+			ok = error_logger:add_report_handler(cpxlog_terminal, []),
 			gen_event:add_handler(cpxlog, cpxlog_terminal, [])
 	end,
 	case application:get_env(cpx, logfiles) of
 		{ok, Files} ->
+			ok = error_logger:add_report_handler(cpxlog_file, [Files]),
 			gen_event:add_handler(cpxlog, cpxlog_file, [Files]);
 		_ ->
 			io:format("Logging to disk is not configured~n"),

@@ -100,7 +100,57 @@ handle_event({debug_module, Module}, State) ->
 handle_event({nodebug_module, Module}, State) ->
 	io:format("No longer showing all messages for module ~s~n", [Module]),
 	{ok, State#state{debugmodules = lists:subtract(State#state.debugmodules, [Module])}};
-handle_event(_Event, State) ->
+%% error_handler messages
+handle_event({error, Gleader, {Pid, Format, Data}}, State) ->
+	Time = erlang:localtime(),
+	io:format("~w:~s:~s [ERROR] ~s", [
+			element(1, element(2, Time)),
+			string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+			string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+			io_lib:format(Format, Data)]),
+	{ok, State};
+handle_event({error_report, Gleader, {Pid, std_error, Report}}, State) ->
+	Time = erlang:localtime(),
+	io:format("~w:~s:~s [ERROR] ~s~n", [
+			element(1, element(2, Time)),
+			string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+			string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+			Report]),
+	{ok, State};
+handle_event({warning_msg, Gleader, {Pid, Format, Data}}, State) ->
+	Time = erlang:localtime(),
+	io:format("~w:~s:~s [WARNING] ~s", [
+			element(1, element(2, Time)),
+			string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+			string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+			io_lib:format(Format, Data)]),
+	{ok, State};
+handle_event({warning_report, Gleader, {Pid, std_warning, Report}}, State) ->
+	Time = erlang:localtime(),
+	io:format("~w:~s:~s [WARNING] ~s~n", [
+			element(1, element(2, Time)),
+			string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+			string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+			Report]),
+	{ok, State};
+handle_event({info_msg, Gleader, {Pid, Format, Data}}, State) ->
+	Time = erlang:localtime(),
+	io:format("~w:~s:~s [INFO] ~s", [
+			element(1, element(2, Time)),
+			string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+			string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+			io_lib:format(Format, Data)]),
+	{ok, State};
+handle_event({info_report, Gleader, {Pid, std_info, Report}}, State) ->
+	Time = erlang:localtime(),
+	io:format("~w:~s:~s [INFO] ~s~n", [
+			element(1, element(2, Time)),
+			string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+			string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+			Report]),
+	{ok, State};
+handle_event(Event, State) ->
+	io:format("Event: ~p~n", [Event]),
 	{ok, State}.
 
 handle_call(_Request, State) ->

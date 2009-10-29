@@ -33,10 +33,13 @@
 
 -include("contrib/errd/include/errd.hrl").
 
+-include("log.hrl").
 %% API
 -export([
 	start_link/0,
-	start/0
+	start_link/1,
+	start/0,
+	start/1
 ]).
 
 %% gen_server callbacks
@@ -52,34 +55,44 @@
 -record(state, {
 		rrd :: pid(),
 		lastrun,
-		agents
+		agents,
+		outdir = "rrd"
 }).
 
 % API
 
 start() ->
-	gen_server:start(?MODULE, [], []).
+	start([]).
+
+%% @doc Props:
+%%	*	outdir Directory
+start(Props) ->
+	gen_server:start(?MODULE, Props, []).
 
 start_link() ->
-	gen_server:start_link(?MODULE, [], []).
+	start_link([]).
+
+start_link(Props) ->
+	gen_server:start_link(?MODULE, Props, []).
 
 % gen_server callbacks
 
-init([]) ->
+init(Props) ->
 	case errd_server:start_link() of
 		{ok, RRD} ->
+			Dir = proplists:get_value(outdir, Props, "rrd"),
 			Now = now(),
 			GroupedAgents = get_agents(Now),
 			timer:send_after(30000, update),
 			timer:send_after(65000, graph),
 			cpx_monitor:subscribe(),
-			case filelib:ensure_dir("rrd") of
+			case filelib:ensure_dir(Dir) of
 				ok ->
-					file:make_dir("rrd"),
-					errd_server:cd(RRD, "rrd"),
-					{ok, #state{rrd = RRD, lastrun = Now, agents = GroupedAgents}, hibernate};
+					file:make_dir(Dir),
+					errd_server:cd(RRD, Dir),
+					{ok, #state{rrd = RRD, lastrun = Now, agents = GroupedAgents, outdir = Dir}, hibernate};
 				_ ->
-					{stop, no_rrd_dir}
+					{stop, {no_rrd_dir, Dir}}
 			end;
 		_ ->
 			{stop, no_rrd}
@@ -92,8 +105,7 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State, hibernate}.
 
-handle_info(graph, #state{rrd = RRD} = State) ->
-	%io:format("graph time~n"),
+handle_info(graph, #state{rrd = RRD, outdir = Dir} = State) ->
 	timer:send_after(60000, graph),
 
 	Graphs = [
@@ -112,7 +124,7 @@ handle_info(graph, #state{rrd = RRD} = State) ->
 			}
 	end,
 
-	{D, C, L} = filelib:fold_files("rrd", ".rrd", false, Fun , {[], [], []}),
+	{D, C, L} = filelib:fold_files(Dir, ".rrd", false, Fun , {[], [], []}),
 
 	%Command = "graph util-15m.png --end now --start end-~B --slope-mode --title \"~s\" --imgformat PNG --height 200 --width 600 " ++
 		%string:join(D, " ") ++ " " ++ string:join(C, " ") ++ " " ++ string:join(L, " ") ++ "\n",
@@ -122,25 +134,20 @@ handle_info(graph, #state{rrd = RRD} = State) ->
 		CDefines = re:replace(string:join(C, " "), "~B", integer_to_list(Duration), [{return, list}, global]),
 		Command = "graph "++Imgname++".png --end now --start end-"++integer_to_list(Duration)++" --slope-mode --title \""++Title++"\" --imgformat PNG --height 200 --width 600 " ++
 			Defines ++ " " ++ CDefines ++ " " ++ string:join(L, " ") ++ "\n",
-		io:format("command: ~s~n", [Command]),
 		errd_server:raw(RRD, Command)
 	end, Graphs),
 	{noreply, State};
 handle_info(update, State) ->
-	%io:format("update time ~n"),
 	Now = now(),
 	GroupedAgents = get_agents(Now),
 	timer:send_after(30000, update),
 	Util = calculate_utilization(State#state.agents),
 	update_utilization(Util, State#state.rrd),
-	%io:format("Utilization is ~p~n", [Util]),
 	{noreply, State#state{lastrun = Now, agents = GroupedAgents}, hibernate};
 handle_info({cpx_monitor_event, {set, {{agent, _}, _, Agent, _}}}, #state{agents = Agents} = State) ->
 	NewAgents = update_agent(Agent, Agents),
-	%io:format("Agents: ~p~n", [NewAgents]),
 	{noreply, State#state{agents = NewAgents}, hibernate};
 handle_info(Info, State) ->
-	%io:format("info: ~p~n", [Info]),
 	{noreply, State, hibernate}.
 
 terminate(_Reason, _State) ->
@@ -173,27 +180,23 @@ calculate_utilization_by_profile([], Acc) ->
 calculate_utilization_by_profile([{Profile, Agents} | Tail], Acc) ->
 	GroupedAgents = util:group_by_with_key(fun(Agent) -> proplists:get_value(login, Agent) end, Agents),
 	Util = round(calculate_utilization_by_agent(GroupedAgents, 0) / length(GroupedAgents)),
-	io:format("utilization for profile ~p: ~p~n", [Profile, Util]),
 	calculate_utilization_by_profile(Tail, [{Profile, Util} | Acc]).
 
 calculate_utilization_by_agent([], Acc) ->
 	Acc;
 calculate_utilization_by_agent([{Agent, States} | Tail], Acc) ->
 	Util = calc(lists:reverse(States), 0, 0),
-	io:format("Agent ~p's utilization is ~p~n", [Agent, Util]),
 	calculate_utilization_by_agent(Tail, Acc + Util).
 
 
 calc([State], Util, Total) ->
 	Diff = round(timer:now_diff(now(), proplists:get_value(lastchangetimestamp, State)) /1000000),
 	AgentState = proplists:get_value(state, State),
-	io:format("Agent was ~p for ~p~n", [AgentState, Diff]),
 	NUtil = get_util(AgentState, Diff, Util),
 	round((NUtil / (Total + Diff)) * 100);
 calc([State1, State2 | Tail], Util, Total) ->
 	Diff = round(timer:now_diff(proplists:get_value(lastchangetimestamp, State2), proplists:get_value(lastchangetimestamp, State1)) /1000000),
 	AgentState = proplists:get_value(state, State1),
-	io:format("Agent was ~p for ~p~n", [AgentState, Diff]),
 	NUtil = get_util(AgentState, Diff, Util),
 	calc([State2 | Tail], NUtil, Total + Diff).
 
@@ -232,11 +235,7 @@ name_to_color(Name) ->
 	SeedIn = lists:sum(binary_to_list(erlang:md5(Name))) + length(Name),
 	Seed = {SeedIn bsl 4, SeedIn bsl 6, SeedIn bsl 9},
 	random:seed(Seed),
-
 	HSV = {random:uniform(360) -1, (random:uniform() * 0.6) + 0.4, (random:uniform() * 0.4) + 0.6},
-
-	io:format("HSV for ~p is ~p~n", [Name, HSV]),
-
 	rgb2hex(hsv2rgb(HSV)).
 
 %% HSL where
@@ -248,10 +247,6 @@ hsv2rgb({H, S, V}) ->
 	P = round((V * (1 - S)) * 255),
 	Q = round((V * (1 - F * S)) * 255),
 	T = round((V * (1 - (1 - F) * S)) * 255),
-
-	%io:format("HSV: ~p ~p ~p~n", [H, S, V]),
-
-	%io:format("Hi: ~p, F: ~p P: ~p Q: ~p T: ~p~n", [Hi, F, P, Q, T]),
 	V2 = round(V * 255),
 
 	case Hi of

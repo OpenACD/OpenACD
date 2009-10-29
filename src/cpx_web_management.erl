@@ -908,23 +908,27 @@ api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 			{200, [], mochijson2:encode({struct, Sendargs})}
 	end;
 api({medias, _Node, "email_media_manager", "getMappings"}, ?COOKIE, _Post) ->
-	{atomic, Mappings} = email_media_manager:get_mappings(),
-	Encode = fun(Mapping) ->
-		Client = case Mapping#mail_map.client of
-			undefined ->
-				"undefined";
-			Else ->
-				Else
-		end,
-		{struct, [
-			{<<"address">>, list_to_binary(Mapping#mail_map.address)},
-			{<<"queue">>, list_to_binary(Mapping#mail_map.queue)},
-			{<<"client">>, list_to_binary(Client)},
-			{<<"skills">>, encode_skills(Mapping#mail_map.skills)}
-		]}
-	end,
-	Jarray = lists:map(Encode, Mappings),
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Jarray}]})};
+	case email_media_manager:get_mappings() of
+		{atomic, Mappings} ->
+			Encode = fun(Mapping) ->
+				Client = case Mapping#mail_map.client of
+					undefined ->
+						"undefined";
+					Else ->
+						Else
+				end,
+				{struct, [
+					{<<"address">>, list_to_binary(Mapping#mail_map.address)},
+					{<<"queue">>, list_to_binary(Mapping#mail_map.queue)},
+					{<<"client">>, list_to_binary(Client)},
+					{<<"skills">>, encode_skills(Mapping#mail_map.skills)}
+				]}
+			end,
+			Jarray = lists:map(Encode, Mappings),
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Jarray}]})};
+		_Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mappings">>}]})}
+	end;
 api({medias, _Node, "email_media_manager", "setMapping"}, ?COOKIE, Post) ->
 	Newprops = proplists:substitute_aliases([
 		{"address", address},

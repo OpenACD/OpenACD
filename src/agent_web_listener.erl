@@ -512,6 +512,14 @@ parse_path(Path) ->
 		_Other ->
 			["" | Tail] = util:string_split(Path, "/"),
 			case Tail of 
+				["dynamic" | Moretail] ->
+					File = string:join(Moretail, "/"),
+					case filelib:is_regular(string:concat("www/dynamic/", File)) of
+						true ->
+							{file, {File, "www/dynamic"}};
+						false ->
+							{api, {undefined, Path}}
+					end;
 				["state", Statename] ->
 					{api, {set_state, Statename}};
 				["state", Statename, Statedata] ->
@@ -787,7 +795,8 @@ web_connection_login_test_() ->
 		{"/dial/12345", {api, {dial, "12345"}}},
 		{"/get_avail_agents", {api, get_avail_agents}},
 		{"/agent_transfer/agent", {api, {agent_transfer, "agent"}}},
-		{"/mediapush", {api, mediapush}}
+		{"/mediapush", {api, mediapush}},
+		{"/dynamic/test.html", {file, {"test.html", "www/dynamic"}}}
 	]
 ).
 

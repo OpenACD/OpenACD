@@ -1115,6 +1115,14 @@ parse_path(Path) ->
 		_Other ->
 			% section/action (params in post data)
 			case util:string_split(Path, "/") of
+				["", "dynamic" | Tail] ->
+					File = string:join(Tail, "/"),
+					case filelib:is_regular(string:concat("www/dynamic/", File)) of
+						true ->
+							{file, {File, "www/dynamic"}};
+						false ->
+							{api, {undefined, Path}}
+					end;
 				["", "agents", "modules", Action] ->
 					{api, {agents, "modules", Action}};
 				["", "agents", "spiceintegration", Action] ->

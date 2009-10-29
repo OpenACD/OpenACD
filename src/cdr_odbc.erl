@@ -192,10 +192,12 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 
 commit(State) ->
 	?NOTICE("committing pending operations", []),
-	odbc:commit(State#state.ref, commit).
+	odbc:commit(State#state.ref, commit),
+	{ok, State}.
 
 rollback(State) ->
-	odbc:commit(State#state.ref, rollback).
+	odbc:commit(State#state.ref, rollback),
+	{ok, State}.
 
 cdr_transaction_to_integer(T) ->
 	case T of

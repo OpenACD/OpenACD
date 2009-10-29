@@ -94,6 +94,7 @@
 behaviour_info(callbacks) ->
 	[{dump, 2},
 	{commit, 1},
+	{rollback, 1},
 	{init, 1},
 	{terminate, 2},
 	{code_change, 3}];
@@ -220,6 +221,7 @@ handle_info(_Info, State) ->
 terminate(Reason, #state{module = ?MODULE}) ->
 	ok;
 terminate(Reason, #state{module = Module, substate = SubState}) ->
+	Module:rollback(SubState),
 	try Module:terminate(Reason, SubState) of
 		_Whatever ->
 			ok
@@ -299,8 +301,8 @@ dump_table(cdr_rec, #state{module = Callback} = State) ->
 				]),
 			QC = qlc:cursor(QH),
 			NewState = dump_rows(QC, State),
-			Callback:commit(NewState#state.substate),
-			NewState
+			{ok, Sub} = Callback:commit(NewState#state.substate),
+			NewState#state{substate = Sub}
 	end,
 	{atomic, NewState} = mnesia:transaction(F),
 	NewState;
@@ -313,8 +315,8 @@ dump_table(agent_state, #state{module = Callback} = State) ->
 				]),
 			QC = qlc:cursor(QH),
 			NewState = dump_rows(QC, State),
-			Callback:commit(NewState#state.substate),
-			NewState
+			{ok, Sub} = Callback:commit(NewState#state.substate),
+			NewState#state{substate = Sub}
 	end,
 	{atomic, NewState} = mnesia:transaction(F),
 	NewState;
@@ -322,8 +324,11 @@ dump_table(TableName, State) ->
 	?WARNING("Unknown table ~p", [TableName]),
 	State.
 
-commit(_) ->
-	null.
+commit(State) ->
+	{ok, State}.
+
+rollback(State) ->
+	{ok, State}.
 
 dump(_, _) ->
 	{ok, null}.

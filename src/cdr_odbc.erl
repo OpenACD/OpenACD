@@ -62,9 +62,13 @@
 %% =====
 
 init([DSN, Options]) ->
+	Trace = case proplists:get_value(trace, Options) of
+		undefined -> off;
+		_ -> on
+	end,
 	try odbc:start() of
 		_ -> % ok or {error, {already_started, odbc}}
-			case odbc:connect(DSN, [{trace_driver, on}, {auto_commit, off}, {scrollable_cursors, off}]) of
+			case odbc:connect(DSN, [{trace_driver, Trace}, {auto_commit, off}, {scrollable_cursors, off}]) of
 				{ok, Ref} ->
 					{ok, #state{dsn = DSN, ref = Ref}};
 				Else ->
@@ -196,6 +200,7 @@ commit(State) ->
 	{ok, State}.
 
 rollback(State) ->
+	?NOTICE("committing pending operations", []),
 	odbc:commit(State#state.ref, rollback),
 	{ok, State}.
 

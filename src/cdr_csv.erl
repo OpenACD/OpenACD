@@ -117,6 +117,7 @@ dump(CDR, #state{cdr_buffer = Buf} = State) when is_record(CDR, cdr_rec) ->
 	{ok, State#state{cdr_buffer = [L | Buf]}}.
 
 commit(#state{cdr_buffer = CdrBuf, agent_states_buffer = AgentBuf, cdr_file = CdrFile, agent_states_file = AgentFile} = State) ->
+	?NOTICE("committing pending operations", []),
 	case CdrBuf of
 		[] -> ok;
 		Else -> file:write(CdrFile, lists:reverse(Else))
@@ -128,5 +129,6 @@ commit(#state{cdr_buffer = CdrBuf, agent_states_buffer = AgentBuf, cdr_file = Cd
 	{ok, State#state{cdr_buffer = [], agent_states_buffer = []}}.
 
 rollback(State) ->
+	?NOTICE("rolling back pending operations", []),
 	{ok, State#state{cdr_buffer = [], agent_states_buffer = []}}.
 

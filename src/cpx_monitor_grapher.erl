@@ -56,7 +56,8 @@
 		rrd :: pid(),
 		lastrun,
 		agents,
-		outdir = "rrd"
+		rrd_dir = "rrd",
+		image_dir = "rrd"
 }).
 
 % API
@@ -80,7 +81,8 @@ start_link(Props) ->
 init(Props) ->
 	case errd_server:start_link() of
 		{ok, RRD} ->
-			Dir = proplists:get_value(outdir, Props, "rrd"),
+			Dir = proplists:get_value(rrd_dir, Props, "rrd"),
+			Imagedir = proplists:get_value(image_dir, Props, "./"),
 			Now = now(),
 			GroupedAgents = get_agents(Now),
 			timer:send_after(30000, update),
@@ -90,7 +92,7 @@ init(Props) ->
 				ok ->
 					file:make_dir(Dir),
 					errd_server:cd(RRD, Dir),
-					{ok, #state{rrd = RRD, lastrun = Now, agents = GroupedAgents, outdir = Dir}, hibernate};
+					{ok, #state{rrd = RRD, lastrun = Now, agents = GroupedAgents, rrd_dir = Dir, image_dir = Imagedir}, hibernate};
 				_ ->
 					{stop, {no_rrd_dir, Dir}}
 			end;
@@ -105,7 +107,7 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State, hibernate}.
 
-handle_info(graph, #state{rrd = RRD, outdir = Dir} = State) ->
+handle_info(graph, #state{rrd = RRD, rrd_dir = Dir, image_dir = Imagedir} = State) ->
 	timer:send_after(60000, graph),
 
 	Graphs = [
@@ -132,7 +134,7 @@ handle_info(graph, #state{rrd = RRD, outdir = Dir} = State) ->
 	lists:map(fun({Imgname, Title, Start, Duration}) ->
 		Defines = re:replace(string:join(D, " "), "~s", Start, [{return, list}, global]),
 		CDefines = re:replace(string:join(C, " "), "~B", integer_to_list(Duration), [{return, list}, global]),
-		Command = "graph "++Imgname++".png --end now --start end-"++integer_to_list(Duration)++" --slope-mode --title \""++Title++"\" --imgformat PNG --height 200 --width 600 " ++
+		Command = "graph "++Imagedir++"/"++Imgname++".png --end now --start end-"++integer_to_list(Duration)++" --slope-mode --title \""++Title++"\" --imgformat PNG --height 200 --width 600 " ++
 			Defines ++ " " ++ CDefines ++ " " ++ string:join(L, " ") ++ "\n",
 		errd_server:raw(RRD, Command)
 	end, Graphs),

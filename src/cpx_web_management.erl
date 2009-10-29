@@ -795,19 +795,28 @@ api({medias, Node, "cpx_monitor_grapher", "update"}, ?COOKIE, Post) ->
 			rpc:call(Atomnode, cpx_supervisor, destroy, [cpx_monitor_grapher], 2000),
 			{struct, [{success, true}]};
 		"grapherEnabled" ->
+			Rrdpath = proplists:get_value("rrdPath", Post, "rrd"),
+			Imagepath = case proplists:get_value("imagePath", Post, Rrdpath) of
+				"rrd path" ->
+					Rrdpath;
+				"Agent Images" ->
+					"../www/agent/images";
+				Otherpath ->
+					Otherpath
+			end,
 			Startargs = [
-				{rrd_dir, proplists:get_value("rrdPath", Post, "rrd")},
-				{image_dir, proplists:get_value("imagePath", Post, "rrd")}
+				{rrd_dir, Rrdpath},
+				{image_dir, Imagepath}
 			],
-			case rpc:call(Atomnode, cpx_supervisor, add_conf, [cpx_monitor_grapher, cpx_monitor_grapher, start_link, Startargs, management_sup]) of
-				{atomic, ok} ->
+			case rpc:call(Atomnode, cpx_supervisor, add_conf, [cpx_monitor_grapher, cpx_monitor_grapher, start_link, [Startargs], management_sup]) of
+				{atomic, {ok, Pid}} when is_pid(Pid) ->
 					{struct, [{success, true}]};
 				Else ->
 					?WARNING("could not start cpx_web_grapher at ~p due to ~p", [Atomnode, Else]),
 					{struct, [{success, false}]}
 			end
 	end,
-	{200, [], Json};
+	{200, [], mochijson2:encode(Json)};
 api({medias, Node, "cpx_supervisor", "get"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_value, [archivepath]) of

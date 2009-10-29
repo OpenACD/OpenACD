@@ -778,13 +778,28 @@ api({medias, Node, "cpx_monitor_grapher", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_grapher]) of
 		undefined ->
-			{struct, [{success, true}, {<<"enabled">>, false}]};
+			{struct, [
+				{success, true}, 
+				{<<"enabled">>, false},
+				{<<"rrdPath">>, <<"rrd">>},
+				{<<"imagePath">>, <<"rrd path">>}
+			]};
 		#cpx_conf{start_args = [Args]} = Rec ->
+			Rrdpath = list_to_binary(proplists:get_value(rrd_dir, Args, "rrd")),
+			Protoimagepath = list_to_binary(proplists:get_value(image_dir, Args, "rrd path")),
+			Imagepath = case Protoimagepath of
+				Rrdpath ->
+					<<"rrd path">>;
+				<<"../www/dynamic">> ->
+					<<"Dynamic Files">>;
+				Else ->
+					Else
+			end,
 			{struct, [
 				{success, true},
 				{<<"enabled">>, true},
-				{<<"rrdPath">>, list_to_binary(proplists:get_value(rrd_dir, Args, "rrd"))},
-				{<<"imagePath">>, list_to_binary(proplists:get_value(image_dir, Args, "rrd"))}
+				{<<"rrdPath">>, Rrdpath},
+				{<<"imagePath">>, Imagepath}
 			]}
 	end,
 	{200, [], mochijson2:encode(Json)};
@@ -799,8 +814,8 @@ api({medias, Node, "cpx_monitor_grapher", "update"}, ?COOKIE, Post) ->
 			Imagepath = case proplists:get_value("imagePath", Post, Rrdpath) of
 				"rrd path" ->
 					Rrdpath;
-				"Agent Images" ->
-					"../www/agent/images";
+				"Dynamic Files" ->
+					"../www/dynamic";
 				Otherpath ->
 					Otherpath
 			end,

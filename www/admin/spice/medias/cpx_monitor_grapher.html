@@ -1,0 +1,73 @@
+<div id="cpx_media" class="wide">
+<form dojoType="dijit.form.Form" action="javascript:void(0)" id="grapher_form">
+	<script type="dojo/method" event="postCreate">
+		dojo.xhrGet({
+			url:"/medias/" + escape(medias.activeNode) + "/cpx_monitor_grapher/get",
+			handleAs:'json',
+			load:function(res){
+				if(res.success){
+					dijit.byId('grapher_form').attr('value', res);
+					dijit.byId('grapherEnabled').setChecked(res.enabled);
+				}
+				else{
+					warning(["getting grapher settings failed", res.message]);
+				}
+			},
+			error:function(res){
+				warning(["getting grapher settings errored", res]);
+			}
+		});
+	</script>
+<p>
+	<label for="grapherEnabled">&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" value="grapherEnabled" id="grapherEnabled" name="enabled" />
+	<span class="translate">ENABLED</span>
+</p>
+
+<p>
+	<label for="rrdPath" class="translatecol">RRD_DIRECTORY</label>
+	<input dojoType="dijit.form.TextBox" id="rrdPath" name="rrdPath" value="rrd" />
+</p>
+
+<p>
+	<label for="imagePath" class="translatecol">IMAGE_DIRECTORY</label>
+	<select dojoType="dijit.form.ComboBox" name="imagePath">
+		<option value="__default__">rrd path</option>
+		<option value="__dynamic__">Dynamic Files</option>
+	</select>
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<button dojoType="dijit.form.Button" label="SUBMIT">
+		<script type="dojo/connect" event="onClick">
+			var vals = dijit.byId('grapher_form').getValues();
+			if(vals.enabled.length == 0){
+				delete vals.enabled;
+			}
+			else{
+				vals.enabled = vals.enabled[0];
+			}
+			dojo.xhrPost({
+				url:"/medias/" + escape(medias.activeNode) + "/cpx_monitor_grapher/update",
+				content:vals,
+				handleAs:'json',
+				load:function(res){
+					if(! res.success){
+						warning(["updating cpx_monitor_grapher failed", res.message]);
+					}
+				},
+				error:function(res){
+					warning(["updating cpx_monitor_grapher errored", res]);
+				}
+			});
+		</script>
+	</button>
+</p>
+</form>
+
+<form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
+<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" style="display:none" />
+<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit" style="display:none"></button>
+</form>
+</div>

@@ -63,8 +63,8 @@
 
 init([DSN, Options]) ->
 	Trace = case proplists:get_value(trace, Options) of
-		undefined -> off;
-		_ -> on
+		X when X =:= on; X =:= true -> on;
+		_ -> off
 	end,
 	try odbc:start() of
 		_ -> % ok or {error, {already_started, odbc}}

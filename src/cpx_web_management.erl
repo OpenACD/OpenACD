@@ -758,12 +758,12 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 	Nodes = [node() | nodes()],
 	F = fun(Node) ->
 		{Node, [
-			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
-			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)},
-			{cpx_supervisor, rpc:call(Node, cpx_supervisor, get_value, [archivepath], 2000)},
 			{cpx_monitor_grapher, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_grapher], 2000)},
-			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)},
-			{cpx_monitor_passive, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_passive], 2000)}
+			{cpx_monitor_passive, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_passive], 2000)},
+			{cpx_supervisor, rpc:call(Node, cpx_supervisor, get_value, [archivepath], 2000)},
+			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)},
+			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
+			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)}
 		]}
 	end,
 	Rpcs = lists:map(F, Nodes),
@@ -774,6 +774,40 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 %% media -> node -> media
 %% =====
 
+api({medias, Node, "cpx_monitor_grapher", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_grapher]) of
+		undefined ->
+			{struct, [{success, true}, {<<"enabled">>, false}]};
+		#cpx_conf{start_args = [Args]} = Rec ->
+			{struct, [
+				{success, true},
+				{<<"enabled">>, true},
+				{<<"rrdPath">>, list_to_binary(proplists:get_value(rrd_dir, Args, "rrd"))},
+				{<<"imagePath">>, list_to_binary(proplists:get_value(image_dir, Args, "rrd"))}
+			]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+api({medias, Node, "cpx_monitor_grapher", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case proplists:get_value("enabled", Post) of
+		undefined ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [cpx_monitor_grapher], 2000),
+			{struct, [{success, true}]};
+		"grapherEnabled" ->
+			Startargs = [
+				{rrd_dir, proplists:get_value("rrdPath", Post, "rrd")},
+				{image_dir, proplists:get_value("imagePath", Post, "rrd")}
+			],
+			case rpc:call(Atomnode, cpx_supervisor, add_conf, [cpx_monitor_grapher, cpx_monitor_grapher, start_link, Startargs, management_sup]) of
+				{atomic, ok} ->
+					{struct, [{success, true}]};
+				Else ->
+					?WARNING("could not start cpx_web_grapher at ~p due to ~p", [Atomnode, Else]),
+					{struct, [{success, false}]}
+			end
+	end,
+	{200, [], Json};
 api({medias, Node, "cpx_supervisor", "get"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_value, [archivepath]) of

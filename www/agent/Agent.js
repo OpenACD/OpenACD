@@ -38,7 +38,12 @@ function Agent(username, statetime, timestamp){
 					dojo.publish("agent/state", [datalist[i]]);
 					agentref.stopwatch.reset();
 					break;
-				
+
+				case "aprofile":
+					agentref.state = datalist[i].profile;
+					dojo.publish("agent/profile", [datalist[i]]);
+					break;
+
 				case "urlpop":
 					dojo.publish("agent/urlpop", [datalist[i]]);
 					break;

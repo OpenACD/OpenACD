@@ -843,6 +843,7 @@ handle_sync_event({change_profile, Profile}, _From, StateName, State) when State
 				released ->
 					?RELEASED_LIMITS
 			end,
+			gen_server:cast(State#agent.connection, {change_profile, Profile}),
 			{Mega, Sec, _} = Newstate#agent.lastchangetimestamp,
 			Fixedhp = {S, {T1, T2, T3, {time, Mega * 1000000 + Sec}}},
 			cpx_monitor:set({agent, State#agent.id}, [Fixedhp], Deatils),

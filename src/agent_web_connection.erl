@@ -78,11 +78,9 @@
 	agent_fsm :: pid() | 'undefined',
 	poll_queue = [] :: [{struct, [{binary(), any()}]}],
 		% list of json structs to be sent to the client on poll.
-		% struct MUST contain a counter, used to handle acks/errs
 	poll_pid :: 'undefined' | pid(),
 	poll_pid_established = 1 :: pos_integer(),
 	missed_polls = 0 :: non_neg_integer(),
-	counter = 1 :: non_neg_integer(),
 	ack_timer :: tref() | 'undefined',
 	poll_state :: atom(),
 	poll_statedata :: any(),
@@ -697,21 +695,26 @@ handle_cast({mediapush, #call{type = Mediatype} = Callrec, Data, Mode}, State) w
 	end;
 handle_cast({set_salt, Salt}, State) ->
 	{noreply, State#state{salt = Salt}};
-handle_cast({change_state, AgState, Data}, #state{counter = Counter} = State) ->
+handle_cast({change_state, AgState, Data}, State) ->
 	?DEBUG("State:  ~p; Data:  ~p", [AgState, Data]),
 	Headjson = {struct, [
-		{<<"counter">>, Counter},
 		{<<"command">>, <<"astate">>},
 		{<<"state">>, AgState},
 		{<<"statedata">>, encode_statedata(Data)}
 	]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};
-handle_cast({change_state, AgState}, #state{counter = Counter} = State) ->
+handle_cast({change_state, AgState}, State) ->
 	Headjson = {struct, [
-			{<<"counter">>, Counter},
 			{<<"command">>, <<"astate">>},
 			{<<"state">>, AgState}
+		]},
+	Newstate = push_event(Headjson, State),
+	{noreply, Newstate};
+handle_cast({change_profile, Profile}, State) ->
+	Headjson = {struct, [
+			{<<"command">>, <<"aprofile">>},
+			{<<"profile">>, list_to_binary(Profile)}
 		]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};

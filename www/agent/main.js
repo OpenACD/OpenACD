@@ -238,16 +238,23 @@ dojo.addOnLoad(function(){
 	dojo.byId("statedisp").stateChanger = dojo.subscribe("agent/state", function(data){
 		var node = dojo.byId("statedisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
-		var innnerh = nlsStrings.STATE + ":  " + nlsStrings[data.state.toUpperCase()];
+		var innerh = nlsStrings.STATE + ":  " + nlsStrings[data.state.toUpperCase()];
 		if(data.state == "released"){
 			if(data.statedata.constructor == String){
-				innnerh += " (" + data.statedata + ")";
+				innerh += " (" + data.statedata + ")";
 			}
 			else{
-				innnerh += " (" + data.statedata.reason + ")";
+				innerh += " (" + data.statedata.reason + ")";
 			}
 		}
-		node.innerHTML = innnerh;
+		node.innerHTML = innerh;
+	});
+
+	dojo.byId("profiledisp").stateChanger = dojo.subscribe("agent/profile", function(data){
+		var node = dojo.byId("profiledisp");
+		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
+		var innerh = nlsStrings.PROFILE + ":  " + data.profile;
+		node.innerHTML = innerh;
 	});
 
 	dijit.byId("bgoreleased").stateChanger = dojo.subscribe("agent/state", function(data){

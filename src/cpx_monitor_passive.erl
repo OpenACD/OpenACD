@@ -153,7 +153,7 @@ init(Options) ->
 		},
 		{Name, Filter}
 	end,
-	Filters = lists:map(Torec, proplists:get_value(outputs, Options)),
+	Filters = lists:map(Torec, proplists:get_value(outputs, Options, [{"default", []}])),
 	{ok, Timer} = timer:send_after(Interval, write_output),
 	{ok, Agents} = cpx_monitor:get_health(agent),
 	{ok, Medias} = cpx_monitor:get_health(media),

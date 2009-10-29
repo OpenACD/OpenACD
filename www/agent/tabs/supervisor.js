@@ -1600,8 +1600,13 @@ if(typeof(supervisorView) == "undefined"){
 			'group':group,
 			node:node
 		};
+
+		var sortKey = [
+			{attribute: "display"}
+		];
 		
 		supervisorView.dataStore.fetch({
+			sort: sortKey,
 			query:queryo,
 			onComplete:fetchdone
 		});
@@ -1680,7 +1685,13 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.agentProfilesStack.group.moveToBack();
 		}
 
+		var sortKey = [
+			{attribute: "display"}
+		];
+
+
 		supervisorView.dataStore.fetch({
+			sort: sortKey,
 			query:{
 				type:"agentprofile",
 			},
@@ -1757,6 +1768,11 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.agentsStack.scroll(scrollIndex);
 		}
 
+		var sortKey = [
+			{attribute: "display"}
+		];
+
+
 		var queryo = {
 			type:"agent",
 			'profile':profile,
@@ -1764,6 +1780,7 @@ if(typeof(supervisorView) == "undefined"){
 		};
 
 		supervisorView.dataStore.fetch({
+			sort: sortKey,
 			query:queryo,
 			onComplete:fetchdone
 		});
@@ -1835,7 +1852,12 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.callsStack.scroll(scrollIndex);
 		}
 
+		var sortKey = [
+			{attribute: "display"}
+		];
+
 		supervisorView.dataStore.fetch({
+			/*sort: sortKey,*/ /*TODO sort by queuetime*/
 			query:queryObj,
 			onComplete:fetchdone
 		});

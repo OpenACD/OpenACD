@@ -61,7 +61,8 @@
 
 -define(DEFAULT_CONF, [
 	#cpx_conf{id = agent_web_listener, module_name = agent_web_listener, start_function = start_link, start_args = [5050], supervisor = agent_connection_sup},
-	#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start_link, start_args = [], supervisor = management_sup}
+	#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start_link, start_args = [], supervisor = management_sup},
+	#cpx_conf{id = gen_cdr_dumper, module_name = gen_cdr_dumper, start_function = start_link, start_args = [], supervisor = management_sup}
 ]).
 	
 %% API

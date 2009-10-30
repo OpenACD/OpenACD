@@ -36,6 +36,10 @@
 	.wide label{
 		width: 10em;
 	}
+	
+	.redText{
+		color:red
+	}
 </style> 
 <style>
 	@import "/dojo/dojox/grid/resources/Grid.css";
@@ -79,6 +83,7 @@
 /* dependancies */
 dojo.require("dojo.parser");
 dojo.require("dijit.Dialog");
+dojo.require("dijit.TooltipDialog");
 dojo.require("dijit.layout.LayoutContainer");
 dojo.require("dijit.layout.ContentPane");
 dojo.require("dijit.layout.TabContainer");
@@ -146,6 +151,10 @@ dojo.requireLocalization("admin", "labels");
 	</div>
 </div>
 
+<div dojoType="dijit.Dialog" title="<span class='redText'>Error</span>" id="errorDialog">
+	Goober
+</div>
+
 <div style="position: absolute; top:2%; right:2%; z-index:2000; display:none" id="logoutButtonDiv">
 	<button id="logoutbutton" dojoType="dijit.form.Button" label="Log Out">
 		<script type="dojo/method" event="postCreate">
@@ -168,8 +177,7 @@ dojo.requireLocalization("admin", "labels");
 	</button>
 </div>
 
-<div id="main" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px;visibility:hidden">
-
+<div id="main" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px;visibility:hidden">	
 	<div id="agentsTab" dojoType="dijit.layout.BorderContainer" title="AGENTS" selected="true">
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="agentsNav">
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="top">

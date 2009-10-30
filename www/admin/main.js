@@ -41,6 +41,11 @@ function timeSince(timestamp){
 	return elapsed + " Days";
 }
 
+function errMessage(message){
+	dijit.byId('errorDialog').setContent(message.toString());
+	dijit.byId('errorDialog').show();
+}
+
 dojo.addOnLoad(function(){
 	dojo.query(".translate").forEach(function(node){
 		var key = node.innerHTML;

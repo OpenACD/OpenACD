@@ -33,7 +33,9 @@
 -export([
 	start/0,
 	start_link/0,
+	stop/0,
 	log/7,
+	log/5,
 	debug/6,
 	info/6,
 	notice/6,
@@ -54,38 +56,22 @@
 -spec(start/0 :: () -> 'ok' | {'error', any()}).
 start() ->
 	Out = gen_event:start({local, cpxlog}),
+	case lists:member(cpxlog_terminal, gen_event:which_handlers(error_logger)) of
+		false ->
+			ok = error_logger:add_report_handler(cpxlog_error_logger_redirect, []),
+			error_logger:delete_report_handler(sasl_report_tty_h),
+			error_logger:delete_report_handler(error_logger_tty_h);
+		true -> ok
+	end,
+
 	case application:get_env(cpx, console_loglevel) of
 		{ok, LogLevel} ->
-			ok = error_logger:add_report_handler(cpxlog_terminal, [LogLevel]),
 			gen_event:add_handler(cpxlog, cpxlog_terminal, [LogLevel]);
 		_ ->
-			ok = error_logger:add_report_handler(cpxlog_terminal, []),
 			gen_event:add_handler(cpxlog, cpxlog_terminal, [])
 	end,
 	case application:get_env(cpx, logfiles) of
 		{ok, Files} ->
-			ok = error_logger:add_report_handler(cpxlog_file, [Files]),
-			gen_event:add_handler(cpxlog, cpxlog_file, [Files]);
-		_ ->
-			io:format("Logging to disk is not configured~n"),
-			ok
-	end,
-	Out.
-	
--spec(start_link/0 :: () -> 'ok' | {'error', any()}).
-start_link() ->
-	Out = gen_event:start_link({local, cpxlog}),
-	case application:get_env(cpx, console_loglevel) of
-		{ok, LogLevel} ->
-			ok = error_logger:add_report_handler(cpxlog_terminal, [LogLevel]),
-			gen_event:add_handler(cpxlog, cpxlog_terminal, [LogLevel]);
-		_ ->
-			ok = error_logger:add_report_handler(cpxlog_terminal, []),
-			gen_event:add_handler(cpxlog, cpxlog_terminal, [])
-	end,
-	case application:get_env(cpx, logfiles) of
-		{ok, Files} ->
-			ok = error_logger:add_report_handler(cpxlog_file, [Files]),
 			gen_event:add_handler(cpxlog, cpxlog_file, [Files]);
 		_ ->
 			io:format("Logging to disk is not configured~n"),
@@ -93,9 +79,48 @@ start_link() ->
 	end,
 	Out.
 
+	
+-spec(start_link/0 :: () -> 'ok' | {'error', any()}).
+start_link() ->
+	Out = gen_event:start_link({local, cpxlog}),
+	case lists:member(cpxlog_terminal, gen_event:which_handlers(error_logger)) of
+		false ->
+			ok = error_logger:add_report_handler(cpxlog_error_logger_redirect, []),
+			error_logger:delete_report_handler(sasl_report_tty_h),
+			error_logger:delete_report_handler(error_logger_tty_h);
+		true -> ok
+	end,
+
+	case application:get_env(cpx, console_loglevel) of
+		{ok, LogLevel} ->
+			gen_event:add_handler(cpxlog, cpxlog_terminal, [LogLevel]);
+		_ ->
+			gen_event:add_handler(cpxlog, cpxlog_terminal, [])
+	end,
+	case application:get_env(cpx, logfiles) of
+		{ok, Files} ->
+			gen_event:add_handler(cpxlog, cpxlog_file, [Files]);
+		_ ->
+			io:format("Logging to disk is not configured~n"),
+			ok
+	end,
+	Out.
+
+stop() ->
+	% try to clean everything up
+	gen_event:stop(cpxlog),
+	error_logger:delete_report_handler(cpxlog_error_logger_redirect),
+	error_logger:add_report_handler(error_logger_tty_h, []),
+	error_logger:add_report_handler(sasl_report_tty_h, all),
+	ok.
+
 -spec(log/7 :: (Level :: level(), Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
 log(Level, Time, Module, Line, Pid, Message, Args) ->
 	catch gen_event:notify(cpxlog, {Level, Time, Module, Line, Pid, Message, Args}),
+	ok.
+
+log(Level, Time, Pid, Message, Args) ->
+	catch gen_event:notify(cpxlog, {Level, Time, Pid, Message, Args}),
 	ok.
 
 -spec(debug/6 :: (Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').
@@ -132,7 +157,8 @@ emergency(Time, Module, Line, Pid, Message, Args) ->
 
 -spec(set_loglevel/1 :: (Level :: pos_integer()) -> 'ok').
 set_loglevel(Level) ->
-	catch gen_event:notify(cpxlog, {set_log_level, Level}).
+	catch gen_event:notify(cpxlog, {set_log_level, Level}),
+	catch gen_event:notify(error_logger, {set_log_level, Level}).
 
 -spec(debug_module/1 :: (Module :: atom()) -> {'ok', atom()}).
 debug_module(Module) ->

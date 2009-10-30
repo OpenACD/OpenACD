@@ -95,6 +95,31 @@ handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 				end
 		end, State#state.filehandles),
 	{ok, State#state{lasttime = Time}};
+handle_event({Level, Time, Pid, Message, Args}, State) ->
+	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of
+		true ->
+			lists:foreach(fun({_, FH, _}) ->
+						file:write(FH, io_lib:format("Day changed from ~p to ~p~n", [element(1, State#state.lasttime), element(1, Time)]))
+			end, State#state.filehandles);
+		false ->
+			ok
+	end,
+	lists:foreach(fun({_, FH, LogLevel}) ->
+				case ((lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(LogLevel, ?LOGLEVELS)))) of
+					true ->
+						file:write(FH,
+							io_lib:format("~w:~s:~s [~s] ~w ~s~n", [
+									element(1, element(2, Time)),
+									string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+									string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+									string:to_upper(atom_to_list(Level)),
+									Pid,
+									io_lib:format(Message, Args)]));
+					false ->
+						ok
+				end
+		end, State#state.filehandles),
+	{ok, State#state{lasttime = Time}};
 handle_event(_Event, State) ->
 	{ok, State}.
 

@@ -52,7 +52,7 @@ init([]) ->
 
 %% error_handler messages
 handle_event({error, Gleader, {Pid, Format, Data}}, State) ->
-	cpxlog:log(error, erlang:localtime(), Pid, Format, [Data]),
+	cpxlog:log(error, erlang:localtime(), Pid, Format, Data),
 	{ok, State};
 handle_event({error_report, Gleader, {Pid, std_error, Report}}, State) ->
 	cpxlog:log(error, erlang:localtime(), Pid, Report, []),
@@ -64,13 +64,13 @@ handle_event({error_report, Gleader, {Pid, crash_report, Report}}, State) ->
 	cpxlog:log(error, erlang:localtime(), Pid, "Crash Report: ~p", [Report]),
 	{ok, State};
 handle_event({warning_msg, Gleader, {Pid, Format, Data}}, State) ->
-	cpxlog:log(warning, erlang:localtime(), Pid, Format, [Data]),
+	cpxlog:log(warning, erlang:localtime(), Pid, Format, Data),
 	{ok, State};
 handle_event({warning_report, Gleader, {Pid, std_warning, Report}}, State) ->
 	cpxlog:log(warning, erlang:localtime(), Pid, Report, []),
 	{ok, State};
 handle_event({info_msg, Gleader, {Pid, Format, Data}}, State) ->
-	cpxlog:log(info, erlang:localtime(), Pid, Format, [Data]),
+	cpxlog:log(info, erlang:localtime(), Pid, Format, Data),
 	{ok, State};
 handle_event({info_report, Gleader, {Pid, std_info, Report}}, State) ->
 	cpxlog:log(info, erlang:localtime(), Pid, Report, []),

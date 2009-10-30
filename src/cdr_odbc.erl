@@ -64,7 +64,13 @@
 init([DSN, Options]) ->
 	try odbc:start() of
 		_ -> % ok or {error, {already_started, odbc}}
-			case odbc:connect(DSN, [{trace_driver, on}, {auto_commit, off}, {scrollable_cursors, off}]) of
+			Realopts = case proplists:get_value(trace_driver, Options) of
+				true ->
+					[{trace_driver, on}, {auto_commit, off}, {scrollable_cursors, off}];
+				undefined ->
+					[{auto_commit, off}, {scrollable_cursors, off}]
+			end,
+			case odbc:connect(DSN, Realopts) of
 				{ok, Ref} ->
 					{ok, #state{dsn = DSN, ref = Ref}};
 				Else ->

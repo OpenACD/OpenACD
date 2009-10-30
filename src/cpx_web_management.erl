@@ -872,7 +872,78 @@ api({medias, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
 			{struct, [{success, true}]}
 	end,
 	{200, [], mochijson2:encode(Json)};
-
+	
+api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [gen_cdr_dumper]) of
+		undefined ->
+			{struct, [
+				{success, false},
+				{<<"message">>, <<"no dumper enabled">>}
+			]};
+		#cpx_conf{start_args = Args} = Rec ->
+			case Args of
+				[] ->
+					{struct, [
+						{success, true},
+						{<<"dumper">>, <<"null">>},
+						{<<"agentFile">>, <<"">>},
+						{<<"cdrFile">>, <<"">>},
+						{<<"dsn">>, <<"">>},
+						{<<"traceEnabled">>, []}
+					]};
+				[cdr_csv, Options] ->
+					{struct, [
+						{success, true},
+						{<<"dumper">>, <<"csv">>},
+						{<<"agentFile">>, list_to_binary(proplists:get_value(agent_file, Options))},
+						{<<"cdrFile">>, list_to_binary(proplists:get_value(cdr_file, Options))},
+						{<<"traceEnabled">>, []}
+					]};
+				[cdr_odbc, Options] ->
+					Trace = case proplists:get_value(trace_enabled, Options) of
+						true ->
+							[<<"on">>];
+						undefined ->
+							[]
+					end,
+					{struct, [
+						{success, true},
+						{<<"dumper">>, <<"odbc">>},
+						{<<"agentFile">>, <<"">>},
+						{<<"cdrFile">>, <<"">>},
+						{<<"traceEnabled">>, Trace}
+					]}
+			end
+	end,
+	{200, [], mochijson2:encode(Json)};
+api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	?WARNING("post:  ~p", [Post]),
+	Json = case proplists:get_value("dumper", Post) of
+		"null" ->
+			rpc:call(Atomnode, cpx_supervisor, add_conf, [gen_cdr_dumper, gen_cdr_dumper, start_link, [], management_sup]),
+			{struct, [{success, true}]};
+		"csv" ->
+			Args = [
+				{cdr_file, proplists:get_value("cdrFile", Post)},
+				{agent_file, proplists:get_value("agentFile", Post)}
+			],
+			rpc:call(Atomnode, cpx_supervisor, add_conf, [gen_cdr_dumper, gen_cdr_dumper, start_link, [cdr_csv, Args], management_sup]),
+			{struct, [{success, true}]};
+		"odbc" ->
+			Options = case proplists:get_value("traceEnabled", Post) of
+				undefined -> 
+					[];
+				"on" ->
+					[trace_driver]
+			end,
+			Args = [proplists:get_value("dsn", Post), Options],
+			rpc:call(Atomnode, cpx_supervisor, add_conf, [gen_cdr_dumper, gen_cdr_dumper, start_link, [cdr_odbc, Args], management_sup]),
+			{struct, [{success, true}]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+	
 api({medias, Node, "cpx_monitor_passive", "get"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_passive]) of

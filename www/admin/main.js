@@ -196,7 +196,7 @@ dojo.addOnLoad(function(){
 						}
 					},
 					error:function(resp){
-						console.log(["error get media", item.node[0], item.name[0]]);
+						console.log(["error get media", item.node[0], item.name[0], resp]);
 					}
 				})
 			}

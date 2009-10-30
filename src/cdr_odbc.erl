@@ -62,6 +62,10 @@
 %% =====
 
 init([DSN, Options]) ->
+	Trace = case proplists:get_value(trace, Options) of
+		X when X =:= on; X =:= true -> on;
+		_ -> off
+	end,
 	try odbc:start() of
 		_ -> % ok or {error, {already_started, odbc}}
 			Realopts = case proplists:get_value(trace_driver, Options) of
@@ -198,10 +202,13 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 
 commit(State) ->
 	?NOTICE("committing pending operations", []),
-	odbc:commit(State#state.ref, commit).
+	odbc:commit(State#state.ref, commit),
+	{ok, State}.
 
 rollback(State) ->
-	odbc:commit(State#state.ref, rollback).
+	?NOTICE("committing pending operations", []),
+	odbc:commit(State#state.ref, rollback),
+	{ok, State}.
 
 cdr_transaction_to_integer(T) ->
 	case T of

@@ -85,6 +85,26 @@ handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 			ok
 	end,
 	{ok, State#state{lasttime = Time}};
+handle_event({Level, Time, Pid, Message, Args}, State) ->
+	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of
+		true ->
+			io:format("Day changed from ~p to ~p~n", [element(1, State#state.lasttime), element(1, Time)]);
+		false ->
+			ok
+	end,
+	case (lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(State#state.level, ?LOGLEVELS))) of
+		true ->
+			io:format("~w:~s:~s [~s] ~w ~s~n", [
+					element(1, element(2, Time)),
+					string:right(integer_to_list(element(2, element(2, Time))), 2, $0),
+					string:right(integer_to_list(element(3, element(2, Time))), 2, $0),
+					string:to_upper(atom_to_list(Level)),
+					Pid,
+					io_lib:format(Message, Args)]);
+		false ->
+			ok
+	end,
+	{ok, State#state{lasttime = Time}};
 handle_event({set_log_level, Level}, State) ->
 	case lists:member(Level, ?LOGLEVELS) of
 		true ->
@@ -109,7 +129,8 @@ handle_call(_Request, State) ->
 handle_info(_Info, State) ->
 	{ok, State}.
 
-terminate(_Args, _State) ->
+terminate(Args, _State) ->
+	io:format("~p terminated with reason ~p~n", [?MODULE, Args]),
 	ok.
 
 code_change(_OldVsn, State, _Extra) ->

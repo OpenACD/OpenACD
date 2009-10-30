@@ -42,12 +42,15 @@
 	terminate/2,
 	code_change/3,
 	dump/2,
-	commit/1
+	commit/1,
+	rollback/1
 ]).
 
 -record(state, {
 	agent_states_file,
-	cdr_file
+	agent_states_buffer = [],
+	cdr_file,
+	cdr_buffer = []
 }).
 
 %% =====
@@ -71,23 +74,61 @@ terminate(_Reason, _State) ->
 code_change(_Oldvsn, State, _Extra) ->
 	{ok, State}.
 
-dump(Agentstate, #state{agent_states_file = File} = State) when is_record(Agentstate, agent_state) ->
-	io:fwrite(File, "~s, ~w, ~B, ~B~n", [
+dump(Agentstate, #state{agent_states_buffer = Buf} = State) when is_record(Agentstate, agent_state) ->
+	L = io_lib:format("~s, ~w, ~B, ~B~n", [
 		Agentstate#agent_state.agent, 
 		Agentstate#agent_state.state, 
 		Agentstate#agent_state.start, 
 		Agentstate#agent_state.ended]),
-	{ok, State};
-dump(CDR, #state{cdr_file = File} = State) when is_record(CDR, cdr_rec) ->
+	{ok, State#state{agent_states_buffer = [L | Buf]}};
+dump(CDR, #state{cdr_buffer = Buf} = State) when is_record(CDR, cdr_rec) ->
 	Media = CDR#cdr_rec.media,
-	{value, {oncall,{Oncall,_}}} = lists:keysearch(oncall, 1, CDR#cdr_rec.summary),
-	{value, {ringing,{Ringing,_}}} = lists:keysearch(ringing, 1, CDR#cdr_rec.summary),
-	{value, {inqueue,{Inqueue,_}}} = lists:keysearch(inqueue, 1, CDR#cdr_rec.summary),
-	{value, {wrapup,{Wrapup,_}}} = lists:keysearch(wrapup, 1, CDR#cdr_rec.summary),
-	io:fwrite(File, "~s, ~B, ~B, ~B, ~B~n", [
+	case lists:keysearch(oncall, 1, CDR#cdr_rec.summary) of
+		{value, {oncall,{Oncall,_}}} ->
+			ok;
+		false ->
+			Oncall = 0
+	end,
+
+	case lists:keysearch(ringing, 1, CDR#cdr_rec.summary) of
+		{value, {ringing,{Ringing,_}}} ->
+			ok;
+		false ->
+			Ringing = 0
+	end,
+
+	case lists:keysearch(inqueue, 1, CDR#cdr_rec.summary) of
+		{value, {inqueue,{Inqueue,_}}} ->
+			ok;
+		false ->
+			Inqueue = 0
+	end,
+
+	case lists:keysearch(wrapup, 1, CDR#cdr_rec.summary) of
+		{value, {wrapup,{Wrapup,_}}} ->
+			ok;
+		false ->
+			Wrapup = 0
+	end,
+
+	L = io_lib:format("~s, ~B, ~B, ~B, ~B~n", [
 		Media#call.id,
 		Ringing, Inqueue, Oncall, Wrapup]),
-	{ok, State}.
+	{ok, State#state{cdr_buffer = [L | Buf]}}.
 
-commit(In) ->
-	In.
+commit(#state{cdr_buffer = CdrBuf, agent_states_buffer = AgentBuf, cdr_file = CdrFile, agent_states_file = AgentFile} = State) ->
+	?NOTICE("committing pending operations", []),
+	case CdrBuf of
+		[] -> ok;
+		Else -> file:write(CdrFile, lists:reverse(Else))
+	end,
+	case AgentBuf of
+		[] -> ok;
+		Else2 -> file:write(AgentFile, lists:reverse(Else2))
+	end,
+	{ok, State#state{cdr_buffer = [], agent_states_buffer = []}}.
+
+rollback(State) ->
+	?NOTICE("rolling back pending operations", []),
+	{ok, State#state{cdr_buffer = [], agent_states_buffer = []}}.
+

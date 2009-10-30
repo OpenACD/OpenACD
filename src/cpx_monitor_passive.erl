@@ -71,7 +71,7 @@
 -export([
 	start_link/1,
 	start/1,
-	stop/1
+	stop/0
 ]).
 
 %% gen_server callbacks
@@ -102,15 +102,15 @@
 
 -spec(start_link/1 :: (Options :: start_options()) -> {'ok', pid()}).
 start_link(Options) ->
-    gen_server:start_link(?MODULE, Options, []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, Options, []).
 
 -spec(start/1 :: (Options :: start_options()) -> {'ok', pid()}).
 start(Options) ->
-	gen_server:start(?MODULE, Options, []).
+	gen_server:start({local, ?MODULE}, ?MODULE, Options, []).
 
--spec(stop/1 :: (Pid :: pid()) -> 'ok').
-stop(Pid) ->
-	gen_server:cast(Pid, stop).
+-spec(stop/0 :: () -> 'ok').
+stop() ->
+	gen_server:cast(?MODULE, stop).
 
 %%====================================================================
 %% gen_server callbacks

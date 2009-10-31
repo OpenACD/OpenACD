@@ -82,7 +82,12 @@ init(Props) ->
 	case errd_server:start_link() of
 		{ok, RRD} ->
 			Dir = proplists:get_value(rrd_dir, Props, "rrd"),
-			Imagedir = proplists:get_value(image_dir, Props, "./"),
+			Imagedir = case proplists:get_value(image_dir, Props, "./") of
+				Dir ->
+					"";
+				Else ->
+					Else ++ "/" % TODO avoid doubling trailing slashes
+			end,
 			Now = now(),
 			GroupedAgents = get_agents(Now),
 			timer:send_after(30000, update),
@@ -134,7 +139,7 @@ handle_info(graph, #state{rrd = RRD, rrd_dir = Dir, image_dir = Imagedir} = Stat
 	lists:map(fun({Imgname, Title, Start, Duration}) ->
 		Defines = re:replace(string:join(D, " "), "~s", Start, [{return, list}, global]),
 		CDefines = re:replace(string:join(C, " "), "~B", integer_to_list(Duration), [{return, list}, global]),
-		Command = "graph "++Imagedir++"/"++Imgname++".png --end now --start end-"++integer_to_list(Duration)++" --slope-mode --title \""++Title++"\" --imgformat PNG --height 200 --width 600 " ++
+		Command = "graph "++Imagedir++Imgname++".png --end now --start end-"++integer_to_list(Duration)++" --slope-mode --title \""++Title++"\" --imgformat PNG --height 200 --width 600 " ++
 			Defines ++ " " ++ CDefines ++ " " ++ string:join(L, " ") ++ "\n",
 		errd_server:raw(RRD, Command)
 	end, Graphs),

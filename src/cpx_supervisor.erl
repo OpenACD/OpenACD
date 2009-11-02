@@ -352,6 +352,7 @@ update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 				mnesia:write(Conf#cpx_conf{timestamp = util:now()}),
 				ok;
 			Else ->
+				?WARNING("Starting new spec got ~p", [Else]),
 				start_spec(Oldrec),
 				erlang:error({start_fail, Else})
 		end
@@ -547,19 +548,21 @@ config_test_() ->
 					Newrec = #cpx_conf{
 						id=gen_server_mock,
 						module_name = gen_server_mock,
-						start_function = start_link,
+						start_function = named,
 						start_args = [{local, gen_server_mock}],
 						supervisor = management_sup
 					},
-					update_conf(gen_server_mock, Newrec),
-					Newpid = whereis(dummy_media_manager),
+					Out = update_conf(gen_server_mock, Newrec),
+					?assertMatch({atomic, ok}, Out),
+					Newpid = whereis(gen_server_mock),
 					?assertNot(Oldpid =:= Newpid),
+					?assert(is_pid(Newpid)),
 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
 					F = fun() ->
 						qlc:e(QH)
 					end,
 					{atomic, [Rec]} = mnesia:transaction(F),
-					?assertEqual([{local, dummy_media_manager}], Rec#cpx_conf.start_args),
+					?assertEqual([{local, gen_server_mock}], Rec#cpx_conf.start_args),
 					destroy(gen_server_mock)
 				end
 			},
@@ -575,7 +578,8 @@ config_test_() ->
 						start_args = [],
 						supervisor = management_sup
 					},
-					update_conf(gen_server_mock, Newrec),
+					Out = update_conf(gen_server_mock, Newrec),
+					?assertMatch({aborted, {{start_fail, _}, _}}, Out),
 					Newpid = whereis(dummy_media_manager),
 					?assertNot(Oldpid =:= Newpid),
 					?DEBUG("new pid:  ~p", [Newpid]),

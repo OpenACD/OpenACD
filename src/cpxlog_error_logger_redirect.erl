@@ -88,7 +88,8 @@ handle_call(_Request, State) ->
 handle_info(_Info, State) ->
 	{ok, State}.
 
-terminate(_Args, _State) ->
+terminate(Args, _State) ->
+	io:format("~p terminated with reason ~p~n", [?MODULE, Args]),
 	ok.
 
 code_change(_OldVsn, State, _Extra) ->

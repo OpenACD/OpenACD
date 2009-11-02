@@ -77,6 +77,7 @@
 	destroy/1,
 	update_conf/2,
 	get_conf/1,
+	get_conf/0,
 	stop/0,
 	load_specs/1,
 	restart/2,
@@ -370,6 +371,20 @@ get_conf(Name) ->
 		{atomic, []} ->
 			undefined;
 		{atomic, [Rec]} ->
+			Rec
+	end.
+
+%% @doc Pull all `#cpx_conf{}'s from the database
+-spec(get_conf/0 :: () -> 'undefined' | [#cpx_conf{}]).
+get_conf() ->
+	F = fun() ->
+		QH = qlc:q([X || X <- mnesia:table(cpx_conf)]),
+		qlc:e(QH)
+	end,
+	case mnesia:transaction(F) of
+		{atomic, []} ->
+			undefined;
+		{atomic, Rec} ->
 			Rec
 	end.
 

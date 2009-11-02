@@ -920,17 +920,34 @@ api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, Post) ->
 api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	?WARNING("post:  ~p", [Post]),
+	Conf = #cpx_conf{
+		id = gen_cdr_dumper,
+		module_name = gen_cdr_dumper,
+		start_function = start_link,
+		start_args = [],
+		supervisor = management_sup
+	},
 	Json = case proplists:get_value("dumper", Post) of
 		"null" ->
-			rpc:call(Atomnode, cpx_supervisor, add_conf, [gen_cdr_dumper, gen_cdr_dumper, start_link, [], management_sup]),
-			{struct, [{success, true}]};
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [gen_cdr_dumper, Conf]) of
+				{atomic, ok} ->
+					{struct, [{success, true}]};
+				Else ->
+					?WARNING("gen_cdr_dumper update:  ~p", [Else]),
+					{struct, [{success, false}, {<<"message">>, <<"Could not start new dumper">>}]}
+			end;
 		"csv" ->
 			Args = [
 				{cdr_file, proplists:get_value("cdrFile", Post)},
 				{agent_file, proplists:get_value("agentFile", Post)}
 			],
-			rpc:call(Atomnode, cpx_supervisor, add_conf, [gen_cdr_dumper, gen_cdr_dumper, start_link, [cdr_csv, Args], management_sup]),
-			{struct, [{success, true}]};
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [gen_cdr_dumper, Conf#cpx_conf{start_args = [cdr_csv, Args]}]) of
+				{atomic, ok} ->
+					{struct, [{success, true}]};
+				Else ->
+					?WARNING("gen_cdr_dumper update:  ~p", [Else]),
+					{struct, [{success, false}, {<<"message">>, <<"Could not start new dumper">>}]}
+			end;
 		"odbc" ->
 			Options = case proplists:get_value("traceEnabled", Post) of
 				undefined -> 
@@ -939,8 +956,13 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 					[trace_driver]
 			end,
 			Args = [proplists:get_value("dsn", Post), Options],
-			rpc:call(Atomnode, cpx_supervisor, add_conf, [gen_cdr_dumper, gen_cdr_dumper, start_link, [cdr_odbc, Args], management_sup]),
-			{struct, [{success, true}]}
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [gen_cdr_dumper, Conf#cpx_conf{start_args = [cdr_odbc, Args]}]) of
+				{atomic, ok} ->
+					{struct, [{success, true}]};
+				Else ->
+					?WARNING("gen_cdr_dumper update:  ~p", [Else]),
+					{struct, [{success, false}, {<<"message">>, <<"Could not start new dumper">>}]}
+			end
 	end,
 	{200, [], mochijson2:encode(Json)};
 	

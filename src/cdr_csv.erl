@@ -62,15 +62,11 @@
 %% =====
 
 init(Opts) ->
-	case proplists:get_value(file, Opts) of
-		undefined ->
-			{ok, File1} = file:open("./cpx_agent_states.csv", [append]),
-			{ok, File2} = file:open("./cpx_cdr.csv", [append]),
-			{ok, #state{agent_states_file = File1, cdr_file = File2}};
-		Filename ->
-			{ok, File} = file:open(Filename, [append]),
-			{ok, #state{agent_states_file = File}}
-	end.
+	Agentout = proplists:get_value(agent_file, Opts, "./cpx_agent_states.csv"),
+	Cdrout = proplists:get_value(cdr_file, Opts, "./cpx_cdr.csv"),
+	{ok, Agentfile} = file:open(Agentout, [append]),
+	{ok, Cdrfile} = file:open(Cdrout, [append]),
+	{ok, #state{agent_states_file = Agentfile, cdr_file = Cdrfile}}.
 
 terminate(_Reason, _State) ->
 	ok.

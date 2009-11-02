@@ -896,8 +896,8 @@ api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, Post) ->
 					{struct, [
 						{success, true},
 						{<<"dumper">>, <<"csv">>},
-						{<<"agentFile">>, list_to_binary(proplists:get_value(agent_file, Options))},
-						{<<"cdrFile">>, list_to_binary(proplists:get_value(cdr_file, Options))},
+						{<<"agentFile">>, list_to_binary(proplists:get_value(agent_file, Options, ""))},
+						{<<"cdrFile">>, list_to_binary(proplists:get_value(cdr_file, Options, ""))},
 						{<<"traceEnabled">>, []}
 					]};
 				[cdr_odbc, Options] ->
@@ -937,15 +937,28 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 					{struct, [{success, false}, {<<"message">>, <<"Could not start new dumper">>}]}
 			end;
 		"csv" ->
-			Args = [
-				{cdr_file, proplists:get_value("cdrFile", Post)},
-				{agent_file, proplists:get_value("agentFile", Post)}
-			],
+			Cdrfile = case proplists:get_value("cdrFile", Post) of
+				[] ->
+					[];
+				undefined ->
+					[];
+				CsvElse ->
+					[{cdr_file, CsvElse}]
+			end,
+			AgentFile = case proplists:get_value("agentFile", Post) of
+				[] ->
+					[];
+				undefined ->
+					[];
+				CsvAlsoElse ->
+					[{agent_file, CsvAlsoElse}]
+			end,
+			Args = lists:append([Cdrfile, AgentFile]),
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [gen_cdr_dumper, Conf#cpx_conf{start_args = [cdr_csv, Args]}]) of
 				{atomic, ok} ->
 					{struct, [{success, true}]};
-				Else ->
-					?WARNING("gen_cdr_dumper update:  ~p", [Else]),
+				CsvRpcElse ->
+					?WARNING("gen_cdr_dumper update:  ~p", [CsvRpcElse]),
 					{struct, [{success, false}, {<<"message">>, <<"Could not start new dumper">>}]}
 			end;
 		"odbc" ->

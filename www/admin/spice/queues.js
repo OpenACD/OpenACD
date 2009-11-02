@@ -132,11 +132,15 @@ queues.setGroup = function(form, reciper, refreshnode){
 		content:vals,
 		load:function(resp, ioargs){
 			if(! resp.success){
+				errMessage(["Setting queue group failed", resp.message]);
 				console.log(resp.message);
 			}
 			else{
 				queues.refreshTree(refreshnode);
 			}
+		},
+		error: function(res){
+			errMessage(["Setting queue group errored", res]);
 		}
 	});
 }
@@ -150,11 +154,15 @@ queues.newGroup = function(form, reciper, refreshnode){
 		content:vals,
 		load:function(resp, ioargs){
 			if(! resp.success){
+				errMessage(["Creating queue group failed", resp.message]);
 				console.log(resp.message);
 			}
 			else{
 				queues.refreshTree(refreshnode);
 			}
+		},
+		error: function(res){
+			errMessage(["Creating queue group errored", res]);
 		}
 	});
 }
@@ -194,11 +202,15 @@ queues.deleteGroup = function(group, node){
 		handleAs:"json",
 		load:function(resp, ioargs){
 			if(! resp.success){
+				errMessage(["Deleting queue group failed", resp.message]);
 				console.log(resp.message);
 			}
 			else{
 				queues.refreshTree(node);
 			}
+		},
+		error: function(res){
+			errMessage(["Deleting queue group errored", res]);
 		}
 	});
 }
@@ -212,8 +224,13 @@ queues.getQueue = function(queue, callback){
 				callback(resp.queue);
 			}
 			else{
+				errMessage(["Getting queues failed", resp.message]);
 				console.log(resp.message);
 			}
+		},
+		error: function(res){
+			errMessage(["Getting queues errored", res]);
+			console.log(res);
 		}
 	});
 }
@@ -231,8 +248,13 @@ queues.setQueue = function(queue, form, reciper, refreshnode){
 					queues.refreshTree(refreshnode);
 				}
 				else{
-					console.log(resp.message);
+					errMessage(["queue update failed", resp.message]);
+					console.log(["queue update failed", resp.message]);
 				}
+			},
+			error: function(res){
+				errMessage(["queue update errored", res]);
+				console.log(["queue update errored", res]);
 			}
 		});
 	};
@@ -254,8 +276,13 @@ queues.deleteQueue = function(queue, refreshnode){
 				queues.refreshTree(refreshnode);
 			}
 			else{
+				errMessage(["Queue delete failed", resp.message]);
 				console.log(resp.message);
 			}
+		},
+		error: function(res){
+			errMessage(["queue delete errored", res]);
+			console.log(res);
 		}
 	});
 }
@@ -273,8 +300,13 @@ queues.newQueue = function(form, reciper, node){
 					queues.refreshTree(node);
 				}
 				else{
-					console.log(resp.message);
+					errMessage(["new queue failed", resp.message]);
+					console.log(["new queue failed", resp.message]);
 				}
+			},
+			error: function(res){
+				errMessage(["new queue errored", res]);
+				console.log(["new queue errored", res]);
 			}
 		});
 	};

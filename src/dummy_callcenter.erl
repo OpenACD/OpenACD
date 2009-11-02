@@ -188,7 +188,7 @@ init(Options) ->
 	end,
 	Makename = fun(Num) ->
 		Listnum = integer_to_list(Num),
-		lists:append(Listnum, "_dummy_agent")
+		lists:append(Listnum, "_dummy_agent@" ++ atom_to_list(node()))
 	end,
 	Names = lists:map(Makename, lists:seq(1, Conf#conf.agents * 2)),
 	Spawnagent = fun(_, {Pidlist, [Nom | Tail]}) ->

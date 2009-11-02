@@ -12,6 +12,7 @@ agents.updateModule = function(subform){
 		handleAs:"json",
 		form:subform,
 		error:function(response, ioargs){
+			errMessage(["update module errored", response]);
 			console.log(response);
 		},
 		load:function(response, ioargs){
@@ -61,7 +62,13 @@ agents.setSpiceIntegration = function(subform){
 		handleAs:"json",
 		form:subform,
 		error:function(response){
+			errMessage(["setting spicecsm integration errored", response]);
 			console.log(["error setting spice integration", response]);
+		},
+		load:function(res){
+			if(! res.success){
+				errMessage(["Spice Integration Failed", res.message]);
+			}
 		}
 	});
 }
@@ -175,10 +182,16 @@ agents.newAgent = function(subform, node){
 		handleAs:"json",
 		content:values,
 		error:function(response, ioargs){
+			errMessage(["New agent errored", response]);
 			console.log(response);
 		},
 		load:function(response, ioargs){
-			agents.refreshTree(node);
+			if(! response.success){
+				errMessage(["New agent failed", response.message]);
+			}
+			else{
+				agents.refreshTree(node);
+			}
 		}
 	})
 }

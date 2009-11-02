@@ -152,6 +152,10 @@ skills.expandSkill = function(callback, magicskill){
 		handleAs:"json",
 		load:function(response, ioargs){
 			callback(response.items);
+		},
+		error: function(res){
+			errMessage(["expanding skill errored", res]);
+			console.log(["expanding skill errored", res]);
 		}
 	});
 }
@@ -166,7 +170,8 @@ skills.updateGroup = function(submform, node){
 			skills.refreshTree(node);
 		},
 		error:function(response, ioargs){
-			console.log(response.message);
+			errMessage(["skill group update errored", response]);
+			console.log(["skill group update errored", response]);
 		}
 	});
 }
@@ -185,7 +190,8 @@ skills.updateSkill = function(submform, node){
 			skills.refreshTree(node);
 		},
 		error:function(response, ioargs){
-			console.log(response.message);
+			errMessage(["update skill errored", response]);
+			console.log(["update skill errored", response]);
 		}
 	})
 }
@@ -200,7 +206,8 @@ skills.newSkill = function(submform, node){
 			skills.refreshTree(node);
 		},
 		error:function(response, ioargs){
-			console.log(response.message);
+			errMessage(["create skill errored", response]);
+			console.log(["create skill errored", response]);
 		}
 	});
 }

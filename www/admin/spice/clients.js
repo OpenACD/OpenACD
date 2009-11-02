@@ -56,6 +56,7 @@ clients.setDefault = function(inconf){
 		content:conf,
 		load:function(res){
 			if(! res.success){
+				errMessage(["client default set failure", res.message]);
 				console.log(["client default set failure", res]);
 				return;
 			}
@@ -74,7 +75,8 @@ clients.setDefault = function(inconf){
 			});
 		},
 		error:function(res){
-			console.log(["client default set error", res])
+			errMessage(["client default set error", res]);
+			console.log(["client default set error", res]);
 		}
 	});
 }

@@ -76,7 +76,7 @@ handle_event({info_report, Gleader, {Pid, std_info, Report}}, State) ->
 	cpxlog:log(info, erlang:localtime(), Pid, Report, []),
 	{ok, State};
 handle_event({info_report, Gleader, {Pid, progress, Report}}, State) ->
-	cpxlog:log(info, erlang:localtime(), Pid, "Progress Report: ~p", [Report]),
+	cpxlog:log(debug, erlang:localtime(), Pid, "Progress Report: ~p", [Report]),
 	{ok, State};
 handle_event(Event, State) ->
 	io:format("Event: ~p~n", [Event]),

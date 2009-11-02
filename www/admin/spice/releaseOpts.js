@@ -52,7 +52,7 @@ releaseOpts.updateOption = function(id, obj, loaded, err){
 				loaded(res);
 				return true;
 			}
-			
+			errMessage(['update opt failed', id, res.message]);
 			console.log(['update opt failed', id, res.message]);
 		},
 		error:function(res){
@@ -73,9 +73,11 @@ releaseOpts.dropOption = function(item, loaded, err){
 				loaded(res);
 				return;
 			}
+			errMessage(['drop opt failed', id, res.message]);
 			console.log(['drop opt failed', id, res.message]);
 		},
 		error:function(res){
+			errMessage(['drop opt erred', id, res]);
 			console.log(['drop opt erred', id, res]);
 		}
 	});

@@ -344,9 +344,17 @@ destroy(Spec) ->
 -spec(update_conf/2 :: (Id :: atom(), Conf :: #cpx_conf{}) -> {'atomic', 'ok'}).
 update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	F = fun() ->
-		destroy(Id),
-		start_spec(Conf),
-		mnesia:write(Conf#cpx_conf{timestamp = util:now()})
+		[Oldrec] = mnesia:read({cpx_conf, Id}),
+		stop_spec(Oldrec),
+		case start_spec(Conf) of
+			{ok, Pid} when is_pid(Pid) ->
+				mnesia:delete({cpx_conf, Id}),
+				mnesia:write(Conf#cpx_conf{timestamp = util:now()}),
+				ok;
+			Else ->
+				start_spec(Oldrec),
+				erlang:error({start_fail, Else})
+		end
 	end,
 	mnesia:transaction(F).
 
@@ -544,14 +552,40 @@ config_test_() ->
 						supervisor = management_sup
 					},
 					update_conf(gen_server_mock, Newrec),
-					Newpid = whereis(gen_server_mock),
+					Newpid = whereis(dummy_media_manager),
 					?assertNot(Oldpid =:= Newpid),
 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
 					F = fun() ->
 						qlc:e(QH)
 					end,
 					{atomic, [Rec]} = mnesia:transaction(F),
-					?assertEqual([{local, gen_server_mock}], Rec#cpx_conf.start_args),
+					?assertEqual([{local, dummy_media_manager}], Rec#cpx_conf.start_args),
+					destroy(gen_server_mock)
+				end
+			},
+			{
+				"Updating a config fails, so the old config is started",
+				fun() ->
+					add_conf(gen_server_mock, gen_server_mock, named, [{local, dummy_media_manager}], management_sup),
+					Oldpid = whereis(dummy_media_manager),
+					Newrec = #cpx_conf{
+						id=gen_server_mock,
+						module_name = fake_module,
+						start_function = bad_start,
+						start_args = [],
+						supervisor = management_sup
+					},
+					update_conf(gen_server_mock, Newrec),
+					Newpid = whereis(dummy_media_manager),
+					?assertNot(Oldpid =:= Newpid),
+					?DEBUG("new pid:  ~p", [Newpid]),
+					?assert(is_pid(Newpid)),
+					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
+					F = fun() ->
+						qlc:e(QH)
+					end,
+					{atomic, [Rec]} = mnesia:transaction(F),
+					?assertEqual([{local, dummy_media_manager}], Rec#cpx_conf.start_args),
 					destroy(gen_server_mock)
 				end
 			},

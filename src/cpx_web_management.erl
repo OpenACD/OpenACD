@@ -1167,23 +1167,35 @@ api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 			{200, [], mochijson2:encode(Json)};
 		Rec when is_record(Rec, cpx_conf) ->
 			[Args] = Rec#cpx_conf.start_args,
-			Stringtobin = fun(Str) ->
-				list_to_binary(Str)
-			end,
-			Ip = case proplists:get_value(ip, Args) of
-				undefined ->
-					<<"0.0.0.0">>;
-				{_, _, _, _} = Iptuple ->
-					Protoip = tuple_to_list(Iptuple),
-					list_to_binary(string:join(Protoip, "."))
-			end,
 			Sendargs = [
-				{<<"host">>, list_to_binary(proplists:get_value(domain, Args, ""))},
-				{<<"port">>, proplists:get_value(port, Args, <<"">>)},
-				{<<"bindip">>, Ip},
-				{<<"relays">>, lists:map(Stringtobin, proplists:get_value(relays, Args, []))},
+				{<<"success">>, true},
 				{<<"enabled">>, true},
-				{success, true}
+				{<<"port">>, proplists:get_value(port, Args, <<"">>)},
+				{<<"host">>, list_to_binary(proplists:get_value(domain, Args, ""))},
+				{<<"bindip">>, case proplists:get_value(address, Args) of
+					undefined ->
+						<<"0.0.0.0">>;
+					{_, _, _, _} = Iptuple ->
+						list_to_binary(string:join(tuple_to_list(Iptuple), "."))
+				end},
+				{<<"inrelays">>, lists:map(fun(I) -> list_to_binary(I) end, proplists:get_value(relays, Args, []))},
+				{<<"outrelay">>, list_to_binary(proplists:get_value(outbound, Args, ""))},
+				{<<"outport">>, proplists:get_value(outport, Args, <<"">>)},
+				{<<"auth">>, case proplists:get_value(auth, Args, never) of
+					if_available ->
+						<<"ifcan">>;
+					Else ->
+						Else
+				end},
+				{<<"username">>, list_to_binary(proplists:get_value(username, Args, ""))},
+				{<<"password">>, list_to_binary(proplists:get_value(password, Args, ""))},
+				{<<"ssl">>, proplists:get_value(ssl, Args, false)},
+				{<<"tls">>, case proplists:get_value(tls, Args, never) of
+					if_available ->
+						<<"ifcan">>;
+					Else ->
+						Else
+				end}
 			],
 			{200, [], mochijson2:encode({struct, Sendargs})}
 	end;

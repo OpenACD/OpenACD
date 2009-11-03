@@ -546,6 +546,7 @@ spawn_summarizer(Transactions, #call{id = CallID} = Callrec) ->
 				transactions = Transactions,
 				nodes = Nodes
 			}),
+			mnesia:delete({cdr_raw, CallID}),
 			gen_cdr_dumper:update_notify(cdr_rec)
 		end,
 		mnesia:transaction(F)

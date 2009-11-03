@@ -304,7 +304,10 @@ handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 					end
 			end
 	end;
-handle_call({"send_mail", [To, From, Subject, Bodystruct, Files]}, _From, _Callrec, State) ->
+handle_call({"send_mail", [To, From, Subject, Body]}, _From, _Callrec, State) ->
+	
+
+
 	{reply, {error, nyi}, State};
 	
 %% and anything else

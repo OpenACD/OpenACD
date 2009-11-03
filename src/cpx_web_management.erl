@@ -1080,6 +1080,7 @@ api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 			]},
 			{200, [], mochijson2:encode(Json)}
 	end;
+	
 api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case proplists:get_value("enabled", Post) of
@@ -1087,38 +1088,74 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 			rpc:call(Atomnode, cpx_supervisor, destroy, [email_media_manager], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
-			Buildprops = fun(_F, [], Acc) ->
+			Aliases = [
+				{"port", port},
+				{"host", host},
+				{"bindip", address},
+				{"inrelays", relays},
+				{"outrelay", outbound},
+				{"outport", outport},
+				{"auth", auth},
+				{"username", username},
+				{"password", password},
+				{"ssl", ssl},
+				{"tls", tls}
+			],
+			Newpost = proplists:substitute_aliases(Aliases, Post),
+			Cleanpost = fun
+				({_Key, []} = In, Acc) ->
 					Acc;
-				(F, [{_Whatever, []} | Tail], Acc) ->
-					F(F, Tail, Acc);
-				(F, [{"relays", Val} | Tail], Acc) ->
-					Newacc = [{relays, lists:map(fun(S) -> string:strip(util:string_chomp(S)) end, util:string_split(Val, ","))} | Acc],
-					F(F, Tail, Newacc);
-				(F, [{"host", Val} | Tail], Acc) ->
-					F(F, Tail, [{domain, Val} | Acc]);
-				(F, [{"bindip", Val} | Tail], Acc) ->
+				({ssl, "usessl"}, Acc) ->
+					[{protocol, ssl}, {ssl, true} | Acc];
+				({_Key, "never"}, Acc) ->
+					Acc;
+				({Key, "always"}, Acc) ->
+					[{Key, always} | Acc];
+				({Key, "ifcan"}, Acc) ->
+					[{Key, if_available} | Acc];
+				({port, Val}, Acc) ->
+					[{port, list_to_integer(Val)} | Acc];
+				({address, Val}, Acc) ->
 					Newval = case util:string_split(Val, ".") of
 						Val ->
 							list_to_tuple(util:string_split(Val, ":"));
 						Else ->
 							list_to_tuple(Else)
 					end,
-					F(F, Tail, [{ip, Newval} | Acc]);
-				(F, [{"port", Val} | Tail], Acc) ->
-					F(F, Tail, [{port, list_to_integer(Val)} | Acc]);
-				(F, [_Whatever | Tail], Acc) ->
-					F(F, Tail, Acc)
+					[{address, Newval} | Acc];
+				({"enabled", _}, Acc) ->
+					Acc;
+				(Val, Acc) ->
+					[Val | Acc]
 			end,
-			Props = Buildprops(Buildprops, Post, []),
+			Cleanedpost = lists:foldl(Cleanpost, [], Newpost),
 			Conf = #cpx_conf{
 				id = email_media_manager,
 				module_name = email_media_manager,
 				start_function = start_link,
-				start_args = [Props]
+				start_args = [Cleanedpost]
 			},
-			rpc:call(Atomnode, cpx_supervisor, update_conf, [email_media_manager, Conf], 2000),
-			{200, [], mochijson2:encode({struct, [{success, true}]})}
+			Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [email_media_manager]) of
+				undefined ->
+					case rpc:call(Atomnode, cpx_supervisor, add_conf, [Conf], 2000) of
+						{atomic, ok} ->
+							{struct, [{success, true}]};
+						Error ->
+							?WARNING("Could not start email_media_manager on ~p due to ~p", [Atomnode, Error]),
+							{struct, [{success, false}, {<<"message">>, <<"Could not start manager">>}]}
+					end;
+				_ ->
+					case rpc:call(Atomnode, cpx_supervisor, update_conf, [email_media_manager, Conf], 2000) of
+						{atomic, ok} ->
+							{struct, [{success, true}]};
+						Error ->
+							?WARNING("Could not update the conf on ~p due to ~p", [Atomnode, Error]),
+							{struct, [{success, false}, {<<"message">>, <<"Could not start manager">>}]}
+					end
+			end,
+			{200, [], mochijson2:encode(Json)}
 	end;
+	
 api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [email_media_manager]) of

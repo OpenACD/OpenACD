@@ -121,7 +121,7 @@ log(Level, Time, Module, Line, Pid, Message, Args) ->
 	ok.
 
 log(Level, Time, Pid, Message, Args) ->
-	io:format("log/5: ~p ~p ~p ~p ~p~n", [Level, Time, Pid, Message, Args]),
+	%io:format("log/5: ~p ~p ~p ~p ~p~n", [Level, Time, Pid, Message, Args]),
 	catch gen_event:notify(cpxlog, {Level, Time, Pid, Message, Args}),
 	ok.
 

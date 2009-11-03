@@ -1138,7 +1138,7 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 			Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [email_media_manager]) of
 				undefined ->
 					case rpc:call(Atomnode, cpx_supervisor, add_conf, [Conf], 2000) of
-						{atomic, ok} ->
+						{atomic, {ok, _}} ->
 							{struct, [{success, true}]};
 						Error ->
 							?WARNING("Could not start email_media_manager on ~p due to ~p", [Atomnode, Error]),

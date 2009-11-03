@@ -1171,7 +1171,7 @@ api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 				{<<"success">>, true},
 				{<<"enabled">>, true},
 				{<<"port">>, proplists:get_value(port, Args, <<"">>)},
-				{<<"host">>, list_to_binary(proplists:get_value(domain, Args, ""))},
+				{<<"host">>, list_to_binary(proplists:get_value(host, Args, ""))},
 				{<<"bindip">>, case proplists:get_value(address, Args) of
 					undefined ->
 						<<"0.0.0.0">>;

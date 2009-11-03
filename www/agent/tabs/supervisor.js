@@ -2184,6 +2184,20 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.saveItem(item, protoitem);
 		}
 	}
+	
+	supervisorView.clean = function(){
+		/* finds 'g' elements with no children and removes them from the dom */
+		var count = 0;
+		dojo.query('g').forEach(function(elem){
+			if(! elem.hasChildNodes()){
+				var parent = elem.parentNode;
+				parent.removeChild(elem);
+				count++;
+			}
+		});
+		console.log("cleaned " + count + " nodes");
+		return count;
+	}
 }
 
 supervisorView.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);

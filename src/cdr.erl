@@ -623,13 +623,18 @@ get_raws(Nodes, Time) ->
 %% @private
 get_raws([], _Time, Acc) ->
 	Acc;
+get_raws([Node | Tail], Time, Acc) when Node == node() ->
+	get_raws(Tail, [get_raws(Time) | Acc]);
 get_raws([Node | Tail], Time, Acc) ->
+	Out = rpc:call(Node, ?MODULE, get_raws, [Time]),
+	get_raws(Tail, Time, [Out | Acc]).
+
+get_raws(Time) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(cdr_raw), X#cdr_raw.timestamp =< Time]),
 		qlc:e(QH)
 	end,
-	Out = rpc:call(Node, mnesia, transaction, [F]),
-	get_raws(Tail, Time, [Out | Acc]).
+	mnesia:transaction(F).
 
 %% @private
 get_ids(Raws) ->

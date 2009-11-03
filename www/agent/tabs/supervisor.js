@@ -1395,6 +1395,12 @@ if(typeof(supervisorView) == "undefined"){
 					supervisorView.dndManager.unregisterCollider(coll);
 				});
 				supervisorView.systemStack.push(o);
+				if(supervisorView.node == o.data.display){
+					o.grow();
+				}
+				else if( (supervisorView.node == "*") && (o.data.display == "System") ){
+					o.grow();
+				}
 			});
 		}
 

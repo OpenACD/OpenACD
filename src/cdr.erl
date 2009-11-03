@@ -57,7 +57,8 @@
 	agent_transfer/2,
 	queue_transfer/2,
 	status/1,
-	merge/3
+	merge/3,
+	get_raws/1
 ]).
 
 -export([

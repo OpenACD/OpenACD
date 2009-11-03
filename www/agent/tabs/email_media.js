@@ -260,6 +260,15 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		return out.join('<br />');
 	}();
 	
+	dijit.byId('emailSubject').attr('value', 're:  ' + emailPane.scrubString(skel.headers['Subject']));
+	dijit.byId('emailFrom').attr('value', skel.headers['To']);
+	if(skel.headers['Reply-To']){
+		dijit.byId('emailTo').attr('value', skel.headers['Reply-To']);
+	}
+	else{
+		dijit.byId('emailTo').attr('value', skel.headers['From']);
+	}
+	
 	var paths = emailPane.pathsToFetch(skel);
 	var disp = dojo.byId("emailViewDiv");
 	disp.sub = dojo.subscribe("emailPane/fetchPaths/done", function(fetched){

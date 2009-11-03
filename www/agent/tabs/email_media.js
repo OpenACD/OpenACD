@@ -175,6 +175,9 @@ if(typeof(emailPane) == 'undefined'){
 					if(fetchObjs[0].textType == 'plain'){
 						fetched += '<pre>' + res + '</pre>';
 					}
+					else if(fetchObjs[0].textType == 'html'){
+						fetched += res;
+					}
 				}
 				else{
 					fetched += res;

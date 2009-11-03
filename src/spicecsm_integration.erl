@@ -206,7 +206,7 @@ handle_call({agent_exists, Agent}, _From, State) when is_list(Agent) ->
 	case check_error(Reply) of
 		{error, Message} ->
 			?WARNING("Integration error'ed:  ~p", [Message]),
-			{reply, {error, Message}, State#state{count = Count}};
+			{stop, {error, Message}, {error, Message}, State#state{count = Count}};
 		{ok, {struct, [{<<"msg">>, <<"no results">>}]}} ->
 			{reply, false, State#state{count = Count}};
 		{ok, [{struct, _Proplist}]} ->
@@ -219,7 +219,7 @@ handle_call({agent_auth, Agent, PlainPassword}, _From, State) when is_list(Agent
 	case check_error(Reply) of
 		{error, Message} ->
 			?WARNING("Integration error'ed:  ~p", [Message]),
-			{reply, {error, Message}, State#state{count = Count}};
+			{stop, {error, Message}, {error, Message}, State};
 		{ok, {struct, [{<<"msg">>, <<"deny">>}]}} ->
 			{reply, deny, State#state{count = Count}};
 		{ok, [{struct, Proplist}]} ->
@@ -260,7 +260,7 @@ handle_call({get_client, id, Value}, _From, State) ->
 	case check_error(Reply) of
 		{error, Message} ->
 			?WARNING("Integration error'ed:  ~p", [Message]),
-			{reply, {error, Message}, State#state{count = Count}};
+			{stop, {error, Message},  {error, Message}, State#state{count = Count}};
 		{ok, {struct, [{<<"msg">>, Message}]}} ->
 			?INFO("Real message for noexists client:  ~p", [Message]),
 			{reply, none, State#state{count = Count}};
@@ -353,5 +353,5 @@ check_error(Reply) ->
 		null ->
 			{ok, proplists:get_value(<<"result">>, Reply)};
 		Else ->
-			{error, Else}
+			erlang:error({error, Else})
 	end.

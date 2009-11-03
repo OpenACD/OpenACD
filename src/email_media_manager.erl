@@ -63,7 +63,8 @@
 -record(state, {
 	mails = [] :: [pid()],
 	relays = [] :: [string()],
-	server :: pid()
+	server :: pid(),
+	conf = []
 }).
 
 -type(state() :: #state{}).
@@ -171,10 +172,10 @@ init([Options]) ->
 	end,
 	case proplists:get_value(relays, Options) of
 		undefined ->
-			{ok, #state{server = Pid}};
+			{ok, #state{server = Pid, conf = Options}};
 		Else ->
 			?INFO("Reserved for future use.", []),
-			{ok, #state{relays = Else, server=Pid}}
+			{ok, #state{relays = Else, server=Pid, conf = Options}}
 	end.
 
 %%--------------------------------------------------------------------

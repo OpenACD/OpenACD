@@ -1179,6 +1179,33 @@ from_idle_test_() ->
 		end}
 	end,
 	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to released with invalid format",
+		fun() ->
+			?assertMatch({reply, invalid, idle, _State}, idle({released, "not a valid data"}, "from", Agent))
+		end}
+	end,
+	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to released with default",
+		fun() ->
+			Self = self(),
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, Apid}, _State) ->
+				Self = Apid,
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{released, _Limits}] = Health,
+				?assertEqual(node(), Node),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"0", default, 0}}, _State) ->
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, idle, {"0", default, 0}}, _State) -> ok end),
+			?assertMatch({reply, ok, released, _State}, idle({released, default}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released",
 		fun() ->
 			Self = self(),
@@ -1191,11 +1218,11 @@ from_idle_test_() ->
 				?assertEqual(node(), Node),
 				ok
 			end),
-			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "just 'cause"}, _State) ->
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "just 'cause", 0}}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, idle, "just 'cause"}, _State) -> ok end),
-			?assertMatch({reply, ok, released, _State}, idle({released, "just 'cause"}, "from", Agent)),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, idle, {"id", "just 'cause", 0}}, _State) -> ok end),
+			?assertMatch({reply, ok, released, _State}, idle({released, {"id", "just 'cause", 0}}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
@@ -1369,15 +1396,21 @@ from_ringing_test_() ->
 			Assertmocks()
 		end}
 	end,
+	fun({Agent, _, _, _, _}) ->
+		{"to released with bad format",
+		fun() ->
+			?assertMatch({reply, invalid, ringing, _State}, ringing({released, "not valid"}, "from", Agent))
+		end}
+	end,
 	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
-		{"to released",
+		{"to released default",
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{released, _Limits}] = Health,
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "default"}, _State) ->
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"0", default, 0}}, _State) ->
 				ok
 			end),
 			Callrec = Agent#agent.statedata,
@@ -1386,8 +1419,30 @@ from_ringing_test_() ->
 				Inpid = Self,
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, ringing, "default"}, _State) -> ok end),
-			?assertMatch({reply, ok, released, _State}, ringing({released, "default"}, "from", Agent)),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, ringing, {"0", default, 0}}, _State) -> ok end),
+			?assertMatch({reply, ok, released, _State}, ringing({released, default}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to released",
+		fun() ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{released, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "res_reason", 0}}, _State) ->
+				ok
+			end),
+			Callrec = Agent#agent.statedata,
+			Self = self(),
+			gen_server_mock:expect_info(Callrec#call.source, fun({'$gen_media_stop_ring', Inpid}, _State) ->
+				Inpid = Self,
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, ringing, {"id", "res_reason", 0}}, _State) -> ok end),
+			?assertMatch({reply, ok, released, _State}, ringing({released, {"id", "res_reason", 0}}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
@@ -1492,6 +1547,29 @@ from_precall_test_() ->
 		end}
 	end,
 	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to released with bad info",
+		fun() ->
+			?assertMatch({reply, invalid, precall, _State}, precall({released, "reason"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to released with default",
+		fun() ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				Node = node(),
+				[{released, _Limits}] = Health,
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"0", default, 0}}, _State) ->
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, precall, {"0", default, 0}}, _State) -> ok end),
+			?assertMatch({reply, ok, released, _State}, precall({released, default}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released",
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
@@ -1499,11 +1577,11 @@ from_precall_test_() ->
 				[{released, _Limits}] = Health,
 				ok
 			end),
-			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "reason"}, _State) ->
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "reason", 0}}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, precall, "reason"}, _State) -> ok end),
-			?assertMatch({reply, ok, released, _State}, precall({released, "reason"}, "from", Agent)),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, precall, {"id", "reason", 0}}, _State) -> ok end),
+			?assertMatch({reply, ok, released, _State}, precall({released, {"id", "reason", 0}}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
@@ -1590,9 +1668,23 @@ from_oncall_test_() ->
 		end}
 	end,
 	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
-		{"to released when no release queued",
+		{"to released when no release queued with default reason",
 		fun() ->
-			?assertMatch({reply, queued, oncall, _State}, oncall({released, "default"}, "from", Agent)),
+			?assertMatch({reply, queued, oncall, _State}, oncall({released, default}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to released when no release queued with invalid reason",
+		fun() ->
+			?assertMatch({reply, invalid, oncall, _State}, oncall({released, "goober"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to released when no release queued with valid reason",
+		fun() ->
+			?assertMatch({reply, queued, oncall, _State}, oncall({released, {"id", "goober", 0}}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
@@ -1605,9 +1697,25 @@ from_oncall_test_() ->
 		end}
 	end,
 	fun({Oldagent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to released (default) when a release is queued",
+		fun() ->
+			Agent = Oldagent#agent{queuedrelease = {"oid", "oldreason", 0}},
+			?assertMatch({reply, queued, oncall, _State}, oncall({released, default}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Oldagent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to released (invalid) when a release is queued",
+		fun() ->
+			Agent = Oldagent#agent{queuedrelease = {"oid", "oldreason", 0}},
+			?assertMatch({reply, invalid, oncall, _State}, oncall({released, "new reason"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Oldagent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released undefined",
 		fun() ->
-			Agent = Oldagent#agent{queuedrelease = "oldreason"},
+			Agent = Oldagent#agent{queuedrelease = {"oid", "oldreason", 0}},
 			?assertMatch({reply, ok, oncall, _State}, oncall({released, undefined}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1725,17 +1833,31 @@ from_outgoing_test_() ->
 		end}
 	end,
 	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
-		{"to queue q release",
+		{"to queue a default release",
 		fun() ->
-			?assertMatch({reply, queued, outgoing, _State}, outgoing({released, "default"}, "from", Agent)),
+			?assertMatch({reply, queued, outgoing, _State}, outgoing({released, default}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to queue a valid release",
+		fun() ->
+			?assertMatch({reply, queued, outgoing, _State}, outgoing({released, {"id", "reason", 0}}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to queue an invalid release",
+		fun() ->
+			?assertMatch({reply, invalid, outgoing, _State}, outgoing({released, "bad bad juju"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
 	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to requeue a release",
 		fun() ->
-			?assertMatch({reply, queued, outgoing, _State}, outgoing({released, "default"}, "from", Agent)),
-			?assertMatch({reply, queued, outgoing, _State}, outgoing({released, "new reason"}, "from", Agent)),
+			?assertMatch({reply, queued, outgoing, _State}, outgoing({released, default}, "from", Agent)),
+			?assertMatch({reply, queued, outgoing, _State}, outgoing({released, {"id", "new reason", 0}}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
@@ -1881,13 +2003,31 @@ from_released_test_() ->
 		end}
 	end,
 	fun({Agent, _Dmock, _Monmock, Connmock, Assertmocks}) ->
-		{"to released",
+		{"to released default",
 		fun() ->
-			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "reason"}, _State) ->
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"0", default, 0}}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, released, "reason"}, _State) -> ok end),
-			?assertMatch({reply, ok, released, _State}, released({released, "reason"}, "from", Agent)),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, released, {"0", default, 0}}, _State) -> ok end),
+			?assertMatch({reply, ok, released, _State}, released({released, default}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to released valid",
+		fun() ->
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "reason", 0}}, _State) ->
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, released, {"id", "reason", 0}}, _State) -> ok end),
+			?assertMatch({reply, ok, released, _State}, released({released, {"id", "reason", 0}}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+		{"to released invalid",
+		fun() ->
+			?assertMatch({reply, invalid, released, _State}, released({released, "not gonna work"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
@@ -2086,8 +2226,8 @@ from_wrapup_test_() ->
 	fun({OldAgent, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to idle with a release queued",
 		fun() ->
-			Agent = OldAgent#agent{queuedrelease = "default"},
-			gen_server_mock:expect_cast(Connmock, fun({change_state, released, "default"}, _State) ->
+			Agent = OldAgent#agent{queuedrelease = default},
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, default}, _State) ->
 				ok
 			end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
@@ -2095,7 +2235,7 @@ from_wrapup_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, wrapup, "default"}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, wrapup, default}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, wrapup(idle, "from", Agent)),
 			Assertmocks()
 		end}
@@ -2143,9 +2283,23 @@ from_wrapup_test_() ->
 		end}
 	end,
 	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
-		{"to released with a reason",
+		{"to released with default reason",
 		fun() ->
-			?assertMatch({reply, queued, wrapup, #agent{queuedrelease = "reason"}}, wrapup({released, "reason"}, "from", Agent)),
+			?assertMatch({reply, queued, wrapup, #agent{queuedrelease = default}}, wrapup({released, default}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to released with a valid reason",
+		fun() ->
+			?assertMatch({reply, queued, wrapup, #agent{queuedrelease = {"id", "reason", 0}}}, wrapup({released, {"id", "reason", 0}}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"to released with a bad reason",
+		fun() ->
+			?assertMatch({reply, invalid, wrapup, #agent{queuedrelease = undefined}}, wrapup({released, "reason"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,

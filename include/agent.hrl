@@ -30,6 +30,10 @@
 %% @hidden
 -type(endpoints() :: 'sip_registration' | 'sip' | 'iax2' | 'h323' | 'pstn').
 
+-type(release_bias() :: -1 | 0 | 1).
+-type(release_label() :: default | string()).
+-type(release_id() :: string()).
+
 -record(agent, {
 	login = erlang:error({undefined, login}) :: string(),
 	id :: 'undefined' | string(),
@@ -39,10 +43,10 @@
 	password = "" :: string(),
 	state = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
 	oldstate = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
-	statedata = default ::	{} |		% when state is released
+	statedata = {"default", default, -1} ::	{} |		% when state is idle
 						#call{} |	% when state is ringing, oncall, outgoing, or wrapup
 						any() |	% state = precall
-						{integer(), -1} | {integer(), 0} | {integer(), 1} | default |	% released
+						{release_id(), release_label(), release_bias()} |	% released
 						{onhold, #call{}, calling, string()},	% warmtransfer
 	queuedrelease :: any(),	% is the current state is to go to released, what is the released type
 	lastchangetimestamp = now() :: any(),	% at what time did the last state change occur

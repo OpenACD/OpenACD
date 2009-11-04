@@ -206,7 +206,7 @@ init([State, Options]) when is_record(State, agent) ->
 		_Orelse ->
 			State2
 	end,
-	set_cpx_monitor(State3, ?RELEASED_LIMITS(-1), []),
+	set_cpx_monitor(State3, ?RELEASED_LIMITS(-1), [{reason, default}, {bias, -1}]),
 	{ok, State#agent.state, State3#agent{start_opts = Options}}.
 
 % actual functions we'll call
@@ -398,7 +398,7 @@ idle({released, {Id, Reason, Bias}}, _From, State) when -1 =< Bias, Bias =< 1, i
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, {Id, Reason, Bias}}), % it's up to the connection to determine if this is worth listening to
 	Newstate = State#agent{state=released, oldstate=idle, statedata={Id, Reason, Bias}, lastchangetimestamp=now()},
-	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Reason}, {bias, Bias}]),
+	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, Newstate};
 idle(Event, From, State) ->
 	?WARNING("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
@@ -488,11 +488,11 @@ precall(idle, _From, #agent{statedata = Call} = State) ->
 	{reply, ok, idle, Newstate};
 precall({released, default}, From, State) ->
 	precall({released, ?DEFAULT_REL}, From, State);
-precall({released, {_Id, Text, Bias} = Reason}, _From, #agent{statedata = Call} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
+precall({released, {Id, Text, Bias} = Reason}, _From, #agent{statedata = Call} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
 	gen_server:cast(Call#call.source, cancel),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
 	Newstate = State#agent{state=released, oldstate=State#agent.state, statedata=Reason, lastchangetimestamp=now()},
-	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Text}, {bias, Bias}]),
+	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, Newstate};
 precall(_Event, _From, State) -> 
 	{reply, invalid, precall, State}.
@@ -801,8 +801,8 @@ wrapup(idle, _From, #agent{statedata=Call} = State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, State#agent.queuedrelease}),
 	cdr:endwrapup(Call, State#agent.login),
 	Newstate = State#agent{state=released, oldstate=wrapup, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()},
-	{_, Reason, Bias} = State#agent.queuedrelease,
-	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Reason}, {bias, Bias}]),
+	{Id, Reason, Bias} = State#agent.queuedrelease,
+	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, Newstate};
 wrapup(Event, From, State) ->
 	?WARNING("Invalid event '~p' from ~p while in wrapup.", [Event, From]),

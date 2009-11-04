@@ -57,7 +57,9 @@
 	agent_transfer/2,
 	queue_transfer/2,
 	status/1,
-	merge/3
+	merge/3,
+	get_raws/1,
+	get_summaries/1
 ]).
 
 -export([
@@ -624,13 +626,18 @@ get_raws(Nodes, Time) ->
 %% @private
 get_raws([], _Time, Acc) ->
 	Acc;
+get_raws([Node | Tail], Time, Acc) when Node == node() ->
+	get_raws(Tail, [get_raws(Time) | Acc]);
 get_raws([Node | Tail], Time, Acc) ->
+	Out = rpc:call(Node, ?MODULE, get_raws, [Time]),
+	get_raws(Tail, Time, [Out | Acc]).
+
+get_raws(Time) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(cdr_raw), X#cdr_raw.timestamp =< Time]),
 		qlc:e(QH)
 	end,
-	Out = rpc:call(Node, mnesia, transaction, [F]),
-	get_raws(Tail, Time, [Out | Acc]).
+	mnesia:transaction(F).
 
 %% @private
 get_ids(Raws) ->
@@ -660,18 +667,29 @@ get_summaries(Nodes, Ids) ->
 %% @private
 get_summaries([], _Ids, Acc) ->
 	Acc;
+get_summaries([Node | Nodes], Ids, Acc) when Node == node() ->
+	case get_summaries(Ids) of
+		{atomic, _Rows} = Rez ->
+			get_summaries(Nodes, Ids, [Rez | Acc]);
+		_Else ->
+			?WARNING("Could not get cdr_rec from ~w", [Node]),
+			get_summaries(Nodes, Ids, Acc)
+	end;
 get_summaries([Node | Nodes], Ids, Acc) ->
-	F = fun() ->
-		QH = qlc:q([X || #cdr_rec{media = Media} = X <- mnesia:table(cdr_rec), lists:member(Media#call.id, Ids)]),
-		qlc:e(QH)
-	end,
-	case rpc:call(Node, mnesia, transaction, [F]) of
+	case rpc:call(Node, ?MODULE, get_summaries, [Ids]) of
 		{atomic, _Rows} = Rez ->
 			get_summaries(Nodes, Ids, [Rez | Acc]);
 		_Else ->
 			?WARNING("Could not get cdr_rec from ~w", [Node]),
 			get_summaries(Nodes, Ids, Acc)
 	end.
+
+get_summaries(IDs) ->
+	F = fun() ->
+		QH = qlc:q([X || #cdr_rec{media = Media} = X <- mnesia:table(cdr_rec), lists:member(Media#call.id, IDs)]),
+		qlc:e(QH)
+	end,
+	mnesia:transaction(F).
 
 %% @private
 merge_raw(Recs) ->

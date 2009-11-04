@@ -55,7 +55,7 @@ handle_event({error, Gleader, {Pid, Format, Data}}, State) ->
 	cpxlog:log(error, erlang:localtime(), Pid, Format, Data),
 	{ok, State};
 handle_event({error_report, Gleader, {Pid, std_error, Report}}, State) ->
-	cpxlog:log(error, erlang:localtime(), Pid, Report, []),
+	cpxlog:log(error, erlang:localtime(), Pid, "Error Report: ~p", Report),
 	{ok, State};
 handle_event({error_report, Gleader, {Pid, supervisor_report, Report}}, State) ->
 	cpxlog:log(error, erlang:localtime(), Pid, "Supervisor Report: ~p", [Report]),
@@ -67,13 +67,13 @@ handle_event({warning_msg, Gleader, {Pid, Format, Data}}, State) ->
 	cpxlog:log(warning, erlang:localtime(), Pid, Format, Data),
 	{ok, State};
 handle_event({warning_report, Gleader, {Pid, std_warning, Report}}, State) ->
-	cpxlog:log(warning, erlang:localtime(), Pid, Report, []),
+	cpxlog:log(warning, erlang:localtime(), Pid, "Warning Report: ~p", Report),
 	{ok, State};
 handle_event({info_msg, Gleader, {Pid, Format, Data}}, State) ->
 	cpxlog:log(info, erlang:localtime(), Pid, Format, Data),
 	{ok, State};
 handle_event({info_report, Gleader, {Pid, std_info, Report}}, State) ->
-	cpxlog:log(info, erlang:localtime(), Pid, Report, []),
+	cpxlog:log(info, erlang:localtime(), Pid, "Info Report: ~p", Report),
 	{ok, State};
 handle_event({info_report, Gleader, {Pid, progress, Report}}, State) ->
 	cpxlog:log(debug, erlang:localtime(), Pid, "Progress Report: ~p", [Report]),

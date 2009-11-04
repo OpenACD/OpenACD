@@ -91,7 +91,30 @@
 			
 			<p>
 				<label>&nbsp;</label>
-				<button label="SUBMIT" dojoType="dijit.form.Button" id="emailSubmit"></button>
+				<button label="SUBMIT" dojoType="dijit.form.Button" id="emailSubmit">
+					<script type="dojo/connect" event="onClick">
+						dojo.xhrPost({
+							url:'/media',
+							content:{
+								'command':'send',
+								'arguments':dojo.toJson({
+									'to':dijit.byId('emailTo').attr('value'),
+									'from':dijit.byId('emailFrom').attr('value'),
+									'subject':dijit.byId('emailSubject').attr('value'),
+									'body': dijit.byId('emailReplyEditor').attr('value')
+								}),
+								'mode':'cast'
+							},
+							load: function(res){
+								console.log('mail sent');
+							},
+							error: function(res){
+								console.log(['mail errored', res]);
+							}
+						});
+					</script>
+				</button>
+				
 				<button label="CANCEL" dojoType="dijit.form.Button" id="emailCancel">
 					<script type="dojo/connect" event="onClick">
 						dijit.byId('emailReplyEditor').destroy();

@@ -589,6 +589,7 @@ handle_call({mediapush, Post}, _From, #state{agent_fsm = Apid} = State) ->
 handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 	Commande = proplists:get_value("command", Post),
 	Arguments = proplists:get_value("arguments", Post), 
+	?DEBUG("Command:  ~p;  Args:  ~p", [Commande, Arguments]),
 	case proplists:get_value("mode", Post) of
 		"call" ->
 			{Heads, Data} = case agent:media_call(Apid, {Commande, Post}) of

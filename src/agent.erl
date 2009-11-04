@@ -156,7 +156,7 @@ media_call(Apid, Request) ->
 %% @doc To cast to the media while oncall, use this.
 -spec(media_cast/2 :: (Apid :: pid(), Request :: any()) -> 'ok').
 media_cast(Apid, Request) ->
-	gen_fsm:sync_send_event(Apid, {mediacast, Request}).
+	gen_fsm:send_event(Apid, {mediacast, Request}).
 
 %% @private
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
@@ -579,6 +579,7 @@ oncall({conn_cast, Request}, #agent{connection = Pid} = State) ->
 	end,
 	{next_state, oncall, State};
 oncall({mediacast, Request}, #agent{statedata = Call} = State) ->
+	?DEBUG("media case ~p", [Request]),
 	gen_media:cast(Call#call.source, Request),
 	{next_state, oncall, State};
 oncall(register_rejected, #agent{statedata = Media} = State) when Media#call.media_path =:= inband ->

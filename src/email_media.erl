@@ -318,7 +318,45 @@ handle_call(Msg, _From, _Callrec, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_cast(_Msg, _Callrec, State) ->
+handle_cast({"send", Post}, _Callrec, #state{mimed = Mimed} = State) ->
+	{struct, Args} = mochijson2:decode(proplists:get_value("arguments", Post)),
+	?DEBUG("Post:  ~p; ~nArgs:  ~p", [Post, Args]),
+	?DEBUG("Got past args!", []),
+	{Type, Subtype} = case length(State#state.outgoing_attachments) of
+		0 ->
+			{<<"text">>, <<"html">>};
+		_Else ->
+			{<<"multipart">>, <<"mixed">>}
+	end,
+	?DEBUG("Got past typing!", []),
+	Headers = [
+		{<<"To">>, proplists:get_value(<<"to">>, Args)},
+		{<<"From">>, proplists:get_value(<<"from">>, Args)},
+		{<<"Subject">>, proplists:get_value(<<"subject">>, Args)}
+	],
+	?DEBUG("Got past headers!", []),
+	% Other headers maybe:  in-reply-to and references (if exists)
+	FirstBody = {<<"text">>, <<"html">>, [], [], proplists:get_value(<<"body">>, Args)},
+	?DEBUG("Got past first body!", []),
+	Attachments = lists:map(
+		fun({Name, Bin}) -> 
+			{<<"application">>, 
+			<<"octet-stram">>, 
+			[
+				{<<"Content-Disposition">>, list_to_binary([<<"attachment; filename=\"">>, Name, "\""])},
+				{<<"Content-Type">>, list_to_binary([<<"application/octet-stream; name=\"">>, Name, "\""])},
+				{<<"Content-Transfer-Encoding">>, <<"base64">>}
+			],
+			[],
+			Bin}
+		end, State#state.outgoing_attachments),
+	Fullbody = [FirstBody | Attachments],
+	Fullout = {<<"multipart">>, <<"mixed">>, Headers, [], Fullbody},
+	?DEBUG("encoded:  ~p", [mimemail:encode(Fullout)]),
+	%email_media_manager:send(Fullout),
+	{noreply, State};
+handle_cast(Msg, _Callrec, State) ->
+	?WARNING("cast msg:  ~p", [Msg]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------

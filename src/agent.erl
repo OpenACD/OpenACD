@@ -49,7 +49,17 @@
 
 -define(IDLE_LIMITS, {idle, {60 * 2, 0, 0, {time, util:now()}}}).
 -define(PRECALL_LIMITS, {precall, {0, 0, 60 * 2, {time, util:now()}}}).
--define(RELEASED_LIMITS, {released, {0, 0, 60 * 5, {time, util:now()}}}).
+-define(RELEASED_LIMITS(Bias), [
+	{released, {0, 0, 60 * 5, {time, util:now()}}},
+	case Bias of
+		-1 ->
+			{bias, 60};
+		0 ->
+			{bias, 50};
+		1 ->
+			{bias, 30}
+	end
+]).
 -define(OUTGOING_LIMITS, {outgoing, {0, 60 * 5, 60 * 15, {time, util:now()}}}).
 -define(ONCALL_LIMITS, {oncall, {0, 60 * 5, 60 * 15, {time, util:now()}}}).
 -define(WRAPUP_LIMITS, {wrapup, {0, 0, 60 * 5, {time, util:now()}}}).
@@ -196,7 +206,7 @@ init([State, Options]) when is_record(State, agent) ->
 		_Orelse ->
 			State2
 	end,
-	set_cpx_monitor(State3, ?RELEASED_LIMITS, []),
+	set_cpx_monitor(State3, ?RELEASED_LIMITS(-1), []),
 	{ok, State#agent.state, State3#agent{start_opts = Options}}.
 
 % actual functions we'll call
@@ -388,7 +398,7 @@ idle({released, {Id, Reason, Bias}}, _From, State) when -1 =< Bias, Bias =< 1, i
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, {Id, Reason, Bias}}), % it's up to the connection to determine if this is worth listening to
 	Newstate = State#agent{state=released, oldstate=idle, statedata={Id, Reason, Bias}, lastchangetimestamp=now()},
-	set_cpx_monitor(Newstate, ?RELEASED_LIMITS, []),
+	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), []),
 	{reply, ok, released, Newstate};
 idle(Event, From, State) ->
 	?WARNING("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
@@ -439,7 +449,7 @@ ringing({released, {_Id, _Text, Bias} = Reason}, _From, #agent{statedata = Call}
 	gen_media:stop_ringing(Call#call.source),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	Newstate = State#agent{state=released, oldstate=ringing, statedata=Reason, lastchangetimestamp=now()},
-	set_cpx_monitor(Newstate, ?RELEASED_LIMITS, []),
+	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), []),
 	{reply, ok, released, Newstate};
 ringing(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
@@ -482,7 +492,7 @@ precall({released, {_Id, _Text, Bias} = Reason}, _From, #agent{statedata = Call}
 	gen_server:cast(Call#call.source, cancel),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
 	Newstate = State#agent{state=released, oldstate=State#agent.state, statedata=Reason, lastchangetimestamp=now()},
-	set_cpx_monitor(Newstate, ?RELEASED_LIMITS, []),
+	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), []),
 	{reply, ok, released, Newstate};
 precall(_Event, _From, State) -> 
 	{reply, invalid, precall, State}.
@@ -791,7 +801,7 @@ wrapup(idle, _From, #agent{statedata=Call} = State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, State#agent.queuedrelease}),
 	cdr:endwrapup(Call, State#agent.login),
 	Newstate = State#agent{state=released, oldstate=wrapup, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp=now()},
-	set_cpx_monitor(Newstate, ?RELEASED_LIMITS, []),
+	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(element(3, State#agent.queuedrelease)), []),
 	{reply, ok, released, Newstate};
 wrapup(Event, From, State) ->
 	?WARNING("Invalid event '~p' from ~p while in wrapup.", [Event, From]),
@@ -857,12 +867,20 @@ handle_sync_event({change_profile, Profile}, _From, StateName, State) when State
 				idle ->
 					?IDLE_LIMITS;
 				released ->
-					?RELEASED_LIMITS
+					[Rel1, _] = ?RELEASED_LIMITS(0),
+					Rel1
 			end,
 			gen_server:cast(State#agent.connection, {change_profile, Profile}),
 			{Mega, Sec, _} = Newstate#agent.lastchangetimestamp,
-			Fixedhp = {S, {T1, T2, T3, {time, Mega * 1000000 + Sec}}},
-			cpx_monitor:set({agent, State#agent.id}, [Fixedhp], Deatils),
+			Fixedhp = case StateName of
+				idle ->
+					[{S, {T1, T2, T3, {time, Mega * 1000000 + Sec}}}];
+				released ->
+					{_, _, Bias} = State#agent.statedata,
+					[_, Biashp] = ?RELEASED_LIMITS(Bias),
+					[{S, {T1, T2, T3, {time, Mega * 1000000 + Sec}}}, Biashp]
+			end,
+			cpx_monitor:set({agent, State#agent.id}, Fixedhp, Deatils),
 			{reply, ok, StateName, Newstate};
 		_ ->
 			{reply, {error, unknown_profile}, StateName, State}
@@ -1099,7 +1117,7 @@ log_loop(Id, Agentname, Nodes, Profile) ->
 			?DEBUG("res of agent state change log:  ~p", [Res]),
 			agent:log_loop(Id, Agentname, Nodes, Profile)
 	end.
-
+	
 -ifdef(EUNIT).
 
 start_arbitrary_state_test() ->
@@ -1210,7 +1228,7 @@ from_idle_test_() ->
 				ok
 			end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}] = Health,
+				[{released, _Limits}, {bias, _}] = Health,
 				?assertEqual(node(), Node),
 				ok
 			end),
@@ -1231,7 +1249,7 @@ from_idle_test_() ->
 				ok
 			end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}] = Health,
+				[{released, _Limits}, {bias, _}] = Health,
 				?assertEqual(node(), Node),
 				ok
 			end),
@@ -1423,7 +1441,7 @@ from_ringing_test_() ->
 		{"to released default",
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}] = Health,
+				[{released, _Limits}, {bias, _}] = Health,
 				Node = node(),
 				ok
 			end),
@@ -1445,7 +1463,7 @@ from_ringing_test_() ->
 		{"to released",
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}] = Health,
+				[{released, _Limits}, {bias, _}] = Health,
 				Node = node(),
 				ok
 			end),
@@ -1575,7 +1593,7 @@ from_precall_test_() ->
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				Node = node(),
-				[{released, _Limits}] = Health,
+				[{released, _Limits}, {bias, _}] = Health,
 				ok
 			end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
@@ -1591,7 +1609,7 @@ from_precall_test_() ->
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				Node = node(),
-				[{released, _Limits}] = Health,
+				[{released, _Limits}, {bias, _}] = Health,
 				ok
 			end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "reason", 0}}, _State) ->
@@ -2243,16 +2261,16 @@ from_wrapup_test_() ->
 	fun({OldAgent, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to idle with a release queued",
 		fun() ->
-			Agent = OldAgent#agent{queuedrelease = default},
-			gen_server_mock:expect_cast(Connmock, fun({change_state, released, default}, _State) ->
+			Agent = OldAgent#agent{queuedrelease = ?DEFAULT_REL},
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}] = Health,
+				[{released, _Limits}, {bias, _}] = Health,
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, wrapup, default}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, wrapup, ?DEFAULT_REL}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, wrapup(idle, "from", Agent)),
 			Assertmocks()
 		end}

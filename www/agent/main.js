@@ -449,27 +449,6 @@ dojo.addOnLoad(function(){
 		dijit.byId("eventLogText").setValue(oldval + "\n" + text)
 	});
 	
-	dojo.connect(dijit.byId("emailform"), "onSubmit", function(e){
-		e.preventDefault();
-		dojo.xhrPost({
-			url:"/mediapush",
-			handleAs:"json",
-			error:function(response, ioargs){
-				warning(["email send error ", response]);
-			},
-			load:function(response, ioargs){
-				if(response.success){
-					EventLog.log("sent mail");
-					debug("success pushing mail");
-				}
-				else{
-					warning(["pusing mail failed: ", response.message]);
-				}
-			},
-			form:dijit.byId("emailform").domNode
-		});
-	});
-	
 	var loginform = dijit.byId("loginform")
 	dojo.connect(loginform, "onSubmit", function(e){
 		e.preventDefault();

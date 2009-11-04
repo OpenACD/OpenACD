@@ -687,7 +687,7 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 			{reply, invalid, State#state{substate = NewState}}
 	end;
 
-handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = Callback} = State) ->
+handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = Callback} = State) when is_pid(Apid) ->
 	?INFO("oncall request from ~p; agent to set on call is ~p", [From, Apid]),
 	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
@@ -702,6 +702,9 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = 
 			?ERROR("Could not set ~p on call due to ~p", [Apid, Reason]),
 			{reply, invalid, State#state{substate = NewState}}
 	end;
+handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined} = State) ->
+	?INFO("oncall request from ~p when no ring_pid (probobly a late request)", [From]),
+	{reply, invalid, State};
 handle_call(Request, From, #state{callback = Callback} = State) ->
 	case Callback:handle_call(Request, From, State#state.callrec, State#state.substate) of
 		{reply, Reply, NewState} ->
@@ -1794,6 +1797,14 @@ handle_call_test_() ->
 			?assertEqual(Agent, State#state.ring_pid),
 			?assertEqual(Qpid, State#state.queue_pid),
 			Assertmocks()
+		end}
+	end,
+	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+		{"late oncall request (ring_pid is undefined)",
+		fun() ->
+			Seedstate = Makestate(),
+			State = Seedstate#state{ring_pid = undefined},
+			?assertMatch({reply, invalid, State}, handle_call('$gen_media_agent_oncall', "from", State))
 		end}
 	end]}.
 

@@ -208,11 +208,11 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 			cpx_supervisor:destroy(agent_tcp_listener),
 			{struct, [{success, true}, {<<"message">>, <<"TCP Server disabled">>}]};
 		Tcpport ->
-			OldTcpPort = case cpx_supervisor:get_conf(agent_tcp_listener) of
+			{OldTcpPort, Action} = case cpx_supervisor:get_conf(agent_tcp_listener) of
 				TcpRecord when is_record(TcpRecord, cpx_conf) ->
-					lists:nth(1, TcpRecord#cpx_conf.start_args);
+					{lists:nth(1, TcpRecord#cpx_conf.start_args), update};
 				_Else1 ->
-					undefined
+					{undefined, add}
 			end,
 			try list_to_integer(Tcpport) of
 				OldTcpPort ->
@@ -225,7 +225,12 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 						start_args = [N],
 						supervisor = agent_connection_sup
 					},
-					cpx_supervisor:update_conf(agent_tcp_listener, Tcprec),
+					case Action of
+						update ->
+							cpx_supervisor:update_conf(agent_tcp_listener, Tcprec);
+						add ->
+							cpx_supervisor:add_conf(Tcprec)
+					end,
 					{struct, [{success, true}, {<<"message">>, <<"TCP Server enabled">>}]};
 				_N ->
 					{struct, [{success, false}, {<<"message">>, <<"Listen port out of range">>}]}
@@ -2265,60 +2270,61 @@ api_test_() ->
 				api({queues, "queue", "test queue", "delete"}, Cookie, []),
 				?assertEqual(noexists, call_queue_config:get_queue("test queue"))
 			end}
-		end,
-		fun(Cookie) ->
-			{timeout,
-			120,
-			[
-				{"/medias/Thisnode/freeswitch_media_manager/update disabling",
-				fun() ->
-					Fsconf = #cpx_conf{
-						id = freeswitch_media_manager,
-						module_name = freeswitch_media_manager,
-						start_function = start_link,
-						start_args = [freeswitch@localhost, "localhost"],
-						supervisor = management_sup},
-					cpx_supervisor:destroy(freeswitch_media_manager),
-					?CONSOLE("post destroy", []),
-					cpx_supervisor:add_conf(Fsconf),
-					?CONSOLE("post add", []),
-					Res = cpx_supervisor:get_conf(freeswitch_media_manager),
-					?assert(rec_equals(Fsconf, Res)),
-					?CONSOLE("post get", []),
-					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, []),
-					?CONSOLE("post api", []),
-					?assertEqual(undefined, cpx_supervisor:get_conf(freeswitch_media_manager)),
-					?CONSOLE("post assertEqual", []),
-					cpx_supervisor:destroy(freeswitch_media_manager)
-				end}
-			]}
-		end,
-		fun(Cookie) ->
-			{timeout,
-			120,
-			[
-				{"/medias/Thisnode/freeswitch_media_manager/update enabling",
-				fun() ->
-					?assertEqual(undefined, cpx_supervisor:get_conf(freeswitch_media_manager)),
-					Post = [
-						{"enabled", "some data whichd oesn't matter"},
-						{"cnode", "freeswitch@localhost"},
-						{"domain", "localhost"},
-						{"voicegw", "whatever"}
-					],
-					Fsconf = #cpx_conf{
-						id = freeswitch_media_manager,
-						module_name = freeswitch_media_manager,
-						start_function = start_link,
-						start_args = [freeswitch@localhost, [{voicegateway, "whatever"}]],
-						supervisor = management_sup},
-					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, Post),
-					Res = cpx_supervisor:get_conf(freeswitch_media_manager),
-					?assert(rec_equals(Fsconf, Res)),
-					cpx_supervisor:destroy(freeswitch_media_manager)
-				end}
-			]}
-		end
+		end%,
+		%% for the next 2 tests to be meaningful, freeswitch needs to be running.
+		%fun(Cookie) ->
+%			{timeout,
+%			120,
+%			[
+%				{"/medias/Thisnode/freeswitch_media_manager/update disabling",
+%				fun() ->
+%					Fsconf = #cpx_conf{
+%						id = freeswitch_media_manager,
+%						module_name = freeswitch_media_manager,
+%						start_function = start_link,
+%						start_args = [freeswitch@localhost, "localhost"],
+%						supervisor = management_sup},
+%					cpx_supervisor:destroy(freeswitch_media_manager),
+%					?CONSOLE("post destroy", []),
+%					cpx_supervisor:add_conf(Fsconf),
+%					?CONSOLE("post add", []),
+%					Res = cpx_supervisor:get_conf(freeswitch_media_manager),
+%					?assert(rec_equals(Fsconf, Res)),
+%					?CONSOLE("post get", []),
+%					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, []),
+%					?CONSOLE("post api", []),
+%					?assertEqual(undefined, cpx_supervisor:get_conf(freeswitch_media_manager)),
+%					?CONSOLE("post assertEqual", []),
+%					cpx_supervisor:destroy(freeswitch_media_manager)
+%				end}
+%			]}
+%		end,
+%		fun(Cookie) ->
+%			{timeout,
+%			120,
+%			[
+%				{"/medias/Thisnode/freeswitch_media_manager/update enabling",
+%				fun() ->
+%					?assertEqual(undefined, cpx_supervisor:get_conf(freeswitch_media_manager)),
+%					Post = [
+%						{"enabled", "some data whichd oesn't matter"},
+%						{"cnode", "freeswitch@localhost"},
+%						{"domain", "localhost"},
+%						{"voicegw", "whatever"}
+%					],
+%					Fsconf = #cpx_conf{
+%						id = freeswitch_media_manager,
+%						module_name = freeswitch_media_manager,
+%						start_function = start_link,
+%						start_args = [freeswitch@localhost, [{voicegateway, "whatever"}]],
+%						supervisor = management_sup},
+%					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, Post),
+%					Res = cpx_supervisor:get_conf(freeswitch_media_manager),
+%					?assert(rec_equals(Fsconf, Res)),
+%					cpx_supervisor:destroy(freeswitch_media_manager)
+%				end}
+%			]}
+%		end
 	]}.			
 		
 -endif.

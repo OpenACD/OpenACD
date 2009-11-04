@@ -437,8 +437,8 @@ api(queuelist, {_Reflist, _Salt, _Conn}, _Post) ->
 
 api(releaseopts, {_Reflist, _Salt, _Conn}, _Post) ->
 	Releaseopts = agent_auth:get_releases(),
-	Converter = fun(#release_opt{label = Label, id = Id}) ->
-		{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, Id}]}
+	Converter = fun(#release_opt{label = Label, id = Id, bias = Bias}) ->
+		{struct, [{<<"label">>, list_to_binary(Label)}, {<<"id">>, Id}, {<<"bias">>, Bias}]}
 	end,
 	Jsons = lists:map(Converter, Releaseopts),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"options">>, Jsons}]})};	

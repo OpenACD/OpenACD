@@ -181,10 +181,10 @@ encode_statedata({onhold, Holdcall, calling, Calling}) ->
 	{struct, [
 		{<<"onhold">>, Holdjson},
 		{<<"calling">>, Callingjson}]};
-encode_statedata({Relcode, _Bias}) ->
-	{struct, [{<<"reason">>, list_to_binary(Relcode)}]};
-encode_statedata(default) ->
+encode_statedata({_, default, _}) ->
 	{struct, [{<<"reason">>, default}]};
+encode_statedata({_, Reason, _}) ->
+	{struct, [{<<"reason">>, list_to_binary(Reason)}]};
 encode_statedata(List) when is_list(List) ->
 	list_to_binary(List);
 encode_statedata({}) ->
@@ -249,7 +249,19 @@ handle_call({set_state, Statename}, _From, #state{agent_fsm = Apid} = State) ->
 		invalid ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"status">>, invalid}]})}, State}
 	end;
-handle_call({set_state, Statename, Statedata}, _From, #state{agent_fsm = Apid} = State) ->
+handle_call({set_state, Statename, InStatedata}, _From, #state{agent_fsm = Apid} = State) ->
+	Statedata = case Statename of
+		"released" ->
+			case InStatedata of
+				"Default" ->
+					default;
+				_ ->
+					[Id, Name, Bias] = util:string_split(InStatedata, ":"),
+					{Id, Name, list_to_integer(Bias)}
+			end;
+		_ ->
+			InStatedata
+	end,
 	case agent:set_state(Apid, agent:list_to_state(Statename), Statedata) of
 		invalid ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"status">>, invalid}]})}, State};

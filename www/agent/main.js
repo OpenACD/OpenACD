@@ -545,7 +545,7 @@ dojo.addOnLoad(function(){
 					dojo.forEach(response.options, function(obj){
 						var item = new dijit.MenuItem({
 							label: obj.label,
-							onClick:function(){agent.setState("released", obj.id + ":" + obj.label); }
+							onClick:function(){agent.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
 						});
 						menu.addChild(item);
 					});

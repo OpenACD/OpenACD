@@ -55,6 +55,7 @@
 -define(WRAPUP_LIMITS, {wrapup, {0, 0, 60 * 5, {time, util:now()}}}).
 -define(RINGING_LIMITS, {ringing, {0, 0, 60, {time, util:now()}}}).
 -define(WARMTRANSFER_LIMITS, {warmtransfer, {0, 60 * 2, 60 * 5, {time, util:now()}}}).
+-define(DEFAULT_REL, {"default", default, -1}).
 
 %% gen_fsm exports
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
@@ -382,7 +383,7 @@ idle({ringing, Call = #call{}}, _From, State) ->
 	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, Newstate};
 idle({released, default}, From, State) ->
-	idle({released, {"0", default, 0}}, From, State);
+	idle({released, ?DEFAULT_REL}, From, State);
 idle({released, {Id, Reason, Bias}}, _From, State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, {Id, Reason, Bias}}), % it's up to the connection to determine if this is worth listening to
@@ -431,7 +432,7 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} 
 			{reply, invalid, ringing, State}
 	end;
 ringing({released, default}, From, State) ->
-	ringing({released, {"0", default, 0}}, From, State);
+	ringing({released, ?DEFAULT_REL}, From, State);
 ringing({released, {_Id, _Text, Bias} = Reason}, _From, #agent{statedata = Call} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
 	?DEBUG("going released from ringing", []),
 	%gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
@@ -476,7 +477,7 @@ precall(idle, _From, #agent{statedata = Call} = State) ->
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
 	{reply, ok, idle, Newstate};
 precall({released, default}, From, State) ->
-	precall({released, {"0", default, 0}}, From, State);
+	precall({released, ?DEFAULT_REL}, From, State);
 precall({released, {_Id, _Text, Bias} = Reason}, _From, #agent{statedata = Call} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
 	gen_server:cast(Call#call.source, cancel),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
@@ -507,7 +508,7 @@ precall(_Msg, State) ->
 oncall({released, undefined}, _From, State) -> 
 	{reply, ok, oncall, State#agent{queuedrelease=undefined}};
 oncall({released, default}, From, State) ->
-	oncall({released, {"0", default, 0}}, From, State);
+	oncall({released, ?DEFAULT_REL}, From, State);
 oncall({released, {_Id, _Text, Bias} = Reason}, _From, State) when is_integer(Bias), -1 =< Bias, Bias =< 1 -> 
 	{reply, queued, oncall, State#agent{queuedrelease=Reason}};
 oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_path =:= inband ->
@@ -621,7 +622,7 @@ oncall(Message, State) ->
 outgoing({released, undefined}, _From, State) -> 
 	{reply, ok, outgoing, State#agent{queuedrelease=undefined}};
 outgoing({released, default}, From, State) ->
-	outgoing({released, {"0", default, 0}}, From, State);
+	outgoing({released, ?DEFAULT_REL}, From, State);
 outgoing({released, {_Id, _Text, Bias} = Reason}, _From, State) when is_integer(Bias), -1 =< Bias, Bias =< 1 -> 
 	{reply, queued, outgoing, State#agent{queuedrelease=Reason}};
 outgoing({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
@@ -685,7 +686,7 @@ released(idle, _From, State) ->
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
 	{reply, ok, idle, Newstate};
 released({released, default}, From, State) ->
-	released({released, {"0", default, 0}}, From, State);
+	released({released, ?DEFAULT_REL}, From, State);
 released({released, {_Id, _Text, Bias} = Reason}, _From, State) when is_integer(Bias), -1 =< Bias, Bias =< 1 ->
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
 	Newstate = State#agent{statedata=Reason, oldstate=released, lastchangetimestamp=now()},
@@ -776,7 +777,7 @@ warmtransfer(_Msg, State) ->
 wrapup({released, undefined}, _From, State) ->
 	{reply, ok, wrapup, State#agent{queuedrelease=undefined}};
 wrapup({released, default}, From, State) ->
-	wrapup({released, {"0", default, 0}}, From, State);
+	wrapup({released, ?DEFAULT_REL}, From, State);
 wrapup({released, {_Id, _Text, Bias} = Reason}, _From, State) when is_integer(Bias), -1 =< Bias, Bias =< 1 ->
 	{reply, queued, wrapup, State#agent{queuedrelease=Reason}};
 wrapup(idle, _From, State= #agent{statedata = Call, queuedrelease = undefined}) ->
@@ -1028,10 +1029,12 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %% Internal functions
 %% =====
 
-set_cpx_monitor(State, Hp, Otherdeatils) ->
+set_cpx_monitor(State, Hp, Otherdeatils) when is_list(Hp)->
 	log_change(State),
 	Deatils = lists:append([{profile, State#agent.profile}, {state, State#agent.state}, {statedata, State#agent.statedata}, {login, State#agent.login}, {lastchangetimestamp, State#agent.lastchangetimestamp}], Otherdeatils),
-	cpx_monitor:set({agent, State#agent.id}, [Hp], Deatils).
+	cpx_monitor:set({agent, State#agent.id}, Hp, Deatils);
+set_cpx_monitor(State, Hp, Dets) ->
+	set_cpx_monitor(State, [Hp], Dets).
 
 log_change(#agent{log_pid = undefined}) ->
 	ok;
@@ -1211,10 +1214,10 @@ from_idle_test_() ->
 				?assertEqual(node(), Node),
 				ok
 			end),
-			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"0", default, 0}}, _State) ->
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, idle, {"0", default, 0}}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, idle, ?DEFAULT_REL}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, idle({released, default}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1424,7 +1427,7 @@ from_ringing_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"0", default, 0}}, _State) ->
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
 			Callrec = Agent#agent.statedata,
@@ -1433,7 +1436,7 @@ from_ringing_test_() ->
 				Inpid = Self,
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, ringing, {"0", default, 0}}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, ringing, ?DEFAULT_REL}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, ringing({released, default}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1575,10 +1578,10 @@ from_precall_test_() ->
 				[{released, _Limits}] = Health,
 				ok
 			end),
-			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"0", default, 0}}, _State) ->
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, precall, {"0", default, 0}}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, precall, ?DEFAULT_REL}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, precall({released, default}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -2019,10 +2022,10 @@ from_released_test_() ->
 	fun({Agent, _Dmock, _Monmock, Connmock, Assertmocks}) ->
 		{"to released default",
 		fun() ->
-			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"0", default, 0}}, _State) ->
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, released, {"0", default, 0}}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, released, ?DEFAULT_REL}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, released({released, default}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -2299,7 +2302,7 @@ from_wrapup_test_() ->
 	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released with default reason",
 		fun() ->
-			?assertMatch({reply, queued, wrapup, #agent{queuedrelease = {"0", default, 0}}}, wrapup({released, default}, "from", Agent)),
+			?assertMatch({reply, queued, wrapup, #agent{queuedrelease = ?DEFAULT_REL}}, wrapup({released, default}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,

@@ -79,6 +79,12 @@
 	update_release/2,
 	get_releases/0
 	]).
+%% helper funcs for merge.
+-export([
+	query_agent_auth/1,
+	query_profiles/1,
+	query_release/1
+]).
 
 %%====================================================================
 %% API
@@ -309,20 +315,44 @@ get_agents(Profile) ->
 %% inside a spawn.
 -spec(merge/3 :: (Nodes :: [atom()], Time :: pos_integer(), Replyto :: pid()) -> 'ok' | {'error', any()}).
 merge(Nodes, Time, Replyto) ->
-	Auths = merge_agent_auth(Nodes, Time),
-	Profs = merge_profiles(Nodes, Time),
-	Rels = merge_release(Nodes, Time),
+	Auths = merge_results(query_nodes(Nodes, Time, query_agent_auth)),
+	Profs = merge_results(query_nodes(Nodes, Time, query_profiles)),
+	Rels = merge_results(query_nodes(Nodes, Time, query_release)),
+%	Auths = merge_agent_auth(Nodes, Time),
+%	Profs = merge_profiles(Nodes, Time),
+%	Rels = merge_release(Nodes, Time),
 	Recs = lists:append([Auths, Profs, Rels]),
 	Replyto ! {merge_complete, agent_auth, Recs},
 	ok.
 
-merge_agent_auth(Nodes, Time) ->
-	?DEBUG("Staring merge.  Nodes:  ~p.  Time:  ~B", [Nodes, Time]),
+query_agent_auth(Time) ->
 	F = fun() ->
 		QH = qlc:q([Auth || Auth <- mnesia:table(agent_auth), Auth#agent_auth.timestamp >= Time]),
 		qlc:e(QH)
 	end,
-	merge_results(query_nodes(Nodes, F)).
+	mnesia:transaction(F).
+
+query_profiles(Time) ->
+	F = fun() ->
+		QH = qlc:q([Prof || Prof <- mnesia:table(agent_profile), Prof#agent_profile.timestamp >= Time]),
+		qlc:e(QH)
+	end,
+	mnesia:transaction(F).
+
+query_release(Time) ->
+	F = fun() ->
+		QH = qlc:q([Rel || Rel <- mnesia:table(release_opt), Rel#release_opt.timestamp >= Time]),
+		qlc:e(QH)
+	end,
+	mnesia:transaction(F).
+
+%merge_agent_auth(Nodes, Time) ->
+%	?DEBUG("Staring merge.  Nodes:  ~p.  Time:  ~B", [Nodes, Time]),
+%	F = fun() ->
+%		QH = qlc:q([Auth || Auth <- mnesia:table(agent_auth), Auth#agent_auth.timestamp >= Time]),
+%		qlc:e(QH)
+%	end,
+%	merge_results(query_nodes(Nodes, F)).
 
 merge_results(Res) ->
 	?DEBUG("Merging:  ~p", [Res]),
@@ -335,36 +365,55 @@ merge_results_loop(Return, [{atomic, List} | Tail]) ->
 	Newreturn = diff_recs(Return, List),
 	merge_results_loop(Newreturn, Tail).
 
-merge_profiles(Nodes, Time) ->
-	F = fun() ->
-		QH = qlc:q([Prof || Prof <- mnesia:table(agent_profile), Prof#agent_profile.timestamp >= Time]),
-		qlc:e(QH)
-	end,
-	merge_results(query_nodes(Nodes, F)).
+%merge_profiles(Nodes, Time) ->
+%	F = fun() ->
+%		QH = qlc:q([Prof || Prof <- mnesia:table(agent_profile), Prof#agent_profile.timestamp >= Time]),
+%		qlc:e(QH)
+%	end,
+%	merge_results(query_nodes(Nodes, F)).
+%
+%merge_release(Nodes, Time) ->
+%	F = fun() ->
+%		QH = qlc:q([Rel || Rel <- mnesia:table(release_opt), Rel#release_opt.timestamp >= Time]),
+%		qlc:e(QH)
+%	end,
+%	merge_results(query_nodes(Nodes, F)).
 
-merge_release(Nodes, Time) ->
-	F = fun() ->
-		QH = qlc:q([Rel || Rel <- mnesia:table(release_opt), Rel#release_opt.timestamp >= Time]),
-		qlc:e(QH)
-	end,
-	merge_results(query_nodes(Nodes, F)).
+query_nodes(Nodes, Time, Func) ->
+	query_nodes(Nodes, Time, Func, []).
 
-query_nodes(Nodes, Fun) ->
-	query_nodes(Nodes, Fun, []).
-
-query_nodes([], _Fun, Acc) ->
+query_nodes([], _, _, Acc) ->
 	?DEBUG("Full acc:  ~p", [Acc]),
 	Acc;
-query_nodes([Node | Tail], Fun, Acc) ->
-	Newacc = case rpc:call(Node, mnesia, transaction, [Fun]) of
+query_nodes([Node | Tail], Time, Func, Acc) ->
+	Newacc = case rpc:call(Node, agent_auth, Func, [Time]) of
 		{atomic, Rows} = Rez ->
-			?DEBUG("Node ~w Got the following rows:  ~p", [Node, Rows]),
+			?DEBUG("Node ~w got rows ~p", [Node, Rows]),
 			[Rez | Acc];
-		_Else ->
-			?WARNING("Unable to get rows during merge for node ~w", [Node]),
+		Else ->
+			?WARNING("unable to get rows during merge for node ~w due to ~p", [Node, Else]),
 			Acc
 	end,
-	query_nodes(Tail, Fun, Newacc).
+	query_nodes(Tail, Time, Func, Newacc).
+
+
+
+%query_nodes(Nodes, Fun) ->
+%	query_nodes(Nodes, Fun, []).
+%
+%query_nodes([], _Fun, Acc) ->
+%	?DEBUG("Full acc:  ~p", [Acc]),
+%	Acc;
+%query_nodes([Node | Tail], Fun, Acc) ->
+%	Newacc = case rpc:call(Node, mnesia, transaction, [Fun]) of
+%		{atomic, Rows} = Rez ->
+%			?DEBUG("Node ~w Got the following rows:  ~p", [Node, Rows]),
+%			[Rez | Acc];
+%		_Else ->
+%			?WARNING("Unable to get rows during merge for node ~w", [Node]),
+%			Acc
+%	end,
+%	query_nodes(Tail, Fun, Newacc).
 
 %% @doc Take the plaintext username and password and attempt to authenticate 
 %% the agent.

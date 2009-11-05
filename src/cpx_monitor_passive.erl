@@ -432,10 +432,18 @@ agents_to_json([{_, {_, _, Det}} | Tail], Acc) ->
 		Mega * 1000000 + Sec
 	end,
 	{State, Statedata} = case {proplists:get_value(state, Det), proplists:get_value(statedata, Det)} of
-		{released, default} ->
-			{released, default};
-		{released, Reason} ->
-			{released, list_to_binary(Reason)};
+		{released, {"default", default, -1}} ->
+			{released, {struct, [
+				{<<"id">>, default},
+				{<<"label">>, default},
+				{<<"bias">>, -1}
+			]}};
+		{released, {Id, Reason, Bias}} ->
+			{released, {struct, [
+				{<<"id">>, list_to_binary(Id)},
+				{<<"label">>, list_to_binary(Reason)},
+				{<<"bias">>, Bias}
+			]}};
 		{idle, {}} ->
 			{idle, false};
 		{Statename, #call{client = Client}} ->

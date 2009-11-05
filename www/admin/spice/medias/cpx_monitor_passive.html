@@ -37,6 +37,7 @@
 			handleAs:'json',
 			load:function(res){
 				if(res.success){
+					dijit.byId('passiveEnabled').attr('checked', res.enabled);
 					if(res.filters){
 						var data = res.filters;
 					}

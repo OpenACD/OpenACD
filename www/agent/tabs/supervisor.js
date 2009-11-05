@@ -1909,9 +1909,6 @@ if(typeof(supervisorView) == "undefined"){
 					});
 					supervisorView.drawSystemStack();
 					supervisorView.setAllHps();
-					if(supervisorView.suppressPoll){
-						return;
-					}
 				}
 				else{
 					debug(["1422", "stub for no data.data", data]);

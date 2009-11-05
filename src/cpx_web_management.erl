@@ -1120,6 +1120,8 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 					[{Key, if_available} | Acc];
 				({port, Val}, Acc) ->
 					[{port, list_to_integer(Val)} | Acc];
+				({outport, Val}, Acc) ->
+					[{outport, list_to_integer(Val)} | Acc];
 				({address, Val}, Acc) ->
 					Newval = case util:string_split(Val, ".") of
 						Val ->

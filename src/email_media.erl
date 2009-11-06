@@ -202,7 +202,6 @@ init(Args) ->
 		Else ->
 			binary_to_list(Else)
 	end,
-	?DEBUG("callerid:  ~s", [Callerid]),
 	Ref = erlang:ref_to_list(make_ref()),
 	Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
 	[RawDomain, _To] = binstr:split(binstr:reverse(Mailmap#mail_map.address), <<"@">>, 2),
@@ -224,6 +223,7 @@ init(Args) ->
 		media_path = inband,
 		source = self()
 	},
+	?DEBUG("started ~p for callerid:  ~s", [Defaultid, Callerid]),
 	{ok, {#state{
 			initargs = Args, 
 			skeleton = Skeleton, 
@@ -261,9 +261,6 @@ handle_call({get_blind, Key}, _From, Callrec, #state{file_map = Map, mimed = Mim
 			Reply = get_part(Path, Mime),
 			{reply, Reply, State}
 	end;
-handle_call({mediapush, _Data}, _From, _Callrec, State) ->
-	?WARNING("pushing data out is NYI", []),
-	{reply, invalid, State};
 handle_call(dump, _From, _Callrec, State) ->
 	{reply, State, State};
 	
@@ -322,7 +319,7 @@ handle_call(Msg, _From, _Callrec, State) ->
 %%--------------------------------------------------------------------
 handle_cast({"send", Post}, _Callrec, #state{mimed = Mimed, sending_pid = undefined} = State) ->
 	{struct, Args} = mochijson2:decode(proplists:get_value("arguments", Post)),
-	?DEBUG("Post:  ~p; ~nArgs:  ~p", [Post, Args]),
+	?DEBUG("Starting Send", []),
 	[{_, To}, {_, From}, _] = Headers = [
 		{<<"To">>, proplists:get_value(<<"to">>, Args)},
 		{<<"From">>, proplists:get_value(<<"from">>, Args)},
@@ -485,20 +482,20 @@ skeletonize([Head | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc).
 
 get_part([], {<<"multipart">>, Subtype, _Headers, _Properties, List}) ->
-	?DEBUG("[], \"multipart\"", []),
+	%?DEBUG("[], \"multipart\"", []),
 	{multipart, List};
 get_part([], {<<"message">>, Subtype, _Headers, _Properties, Body}) ->
-	?DEBUG("[], \"message\"", []),
+	%?DEBUG("[], \"message\"", []),
 	{message, Body};
 get_part([], Mime) ->
-	?DEBUG("[], ~p/~p", [element(1, Mime), element(2, Mime)]),
+	%?DEBUG("[], ~p/~p", [element(1, Mime), element(2, Mime)]),
 	{ok, Mime};
 get_part([Child | Tail], {<<"multipart">>, Subtype, _Headers, _Properties, List}) when Child =< length(List) ->
-	?DEBUG("[~p | ~p], multipart/~p", [Child, Tail, Subtype]),
+	%?DEBUG("[~p | ~p], multipart/~p", [Child, Tail, Subtype]),
 	Part = lists:nth(Child, List),
 	get_part(Tail, Part);
 get_part([1 | Tail], {<<"message">>, Subtype, _Headers, _Properties, Body}) ->
-	?DEBUG("[1 | ~p], message/~p", [Tail, Subtype]),
+	%?DEBUG("[1 | ~p], message/~p", [Tail, Subtype]),
 	get_part(Tail, Body);
 get_part(Path, Mime) ->
 	?INFO("Invalid path ~p.  ~p/~p", [Path, element(1, Mime), element(2, Mime)]),

@@ -446,7 +446,7 @@ api(poll, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
 	agent_web_connection:poll(Conn, self()),
 	receive
 		{poll, Return} ->
-			?DEBUG("Got poll message, spitting back ~p", [Return]),
+			%?DEBUG("Got poll message, spitting back ~p", [Return]),
 			 Return; 
 		{kill, Headers, Body} -> 
 			?DEBUG("Got a kill message with heads ~p and body ~p", [Headers, Body]),
@@ -538,7 +538,7 @@ parse_path(Path) ->
 				["media"] ->
 					{api, media};
 				["mediapull" | Pulltail] ->
-					?INFO("pulltail:  ~p", [Pulltail]),
+					?DEBUG("pulltail:  ~p", [Pulltail]),
 					{api, {mediapull, Pulltail}};
 				["mediapush"] ->
 					{api, mediapush};

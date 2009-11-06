@@ -214,7 +214,6 @@ code_change(_OldVsn, State, _Extra) ->
 %% otherwise the request is denied.
 loop(Req, Table) ->
 	Path = Req:get(path),
-	?DEBUG("headers:  ~p", [Req:get(headers)]),
 	Post = case Req:get_primary_header_value("content-type") of
 		"application/x-www-form-urlencoded" ++ _ ->
 			Req:parse_post();
@@ -229,11 +228,11 @@ loop(Req, Table) ->
 					[]
 			end
 	end,
-	?DEBUG("parsed posts:  ~p", [Post]),
+	%?DEBUG("parsed posts:  ~p", [Post]),
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
 			Cookielist = Req:parse_cookie(),
-			?DEBUG("Cookielist:  ~p", [Cookielist]),
+			%?DEBUG("Cookielist:  ~p", [Cookielist]),
 			case proplists:get_value("cpx_id", Cookielist) of
 				undefined ->
 					Reflist = erlang:ref_to_list(make_ref()),

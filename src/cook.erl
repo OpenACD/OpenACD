@@ -170,7 +170,7 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info(do_tick, State) ->
-	?DEBUG("do_tick caught, beginning processing...", []),
+	%?DEBUG("do_tick caught, beginning processing...", []),
 	case whereis(queue_manager) of % do we even need this?  We do have a terminate that should catch a no-proc.
 		undefined ->
 			{stop, queue_manager_undefined, State};
@@ -179,7 +179,6 @@ handle_info(do_tick, State) ->
 				undefined ->
 					{stop, {queue_undefined, State#state.queue}, State};
 				_Other ->
-					?DEBUG("Doing tick ~p", [State]),
 					case do_route(State#state.ringstate, State#state.queue, State#state.call) of
 						nocall -> 
 							{stop, {call_not_queued, State#state.call}, State};

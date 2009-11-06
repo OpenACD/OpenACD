@@ -939,7 +939,7 @@ parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubT
 		{<<"headers">>, email_props_to_json(Tophead)},
 		{<<"properties">>, email_props_to_json(Topprop)},
 		{<<"parts">>, lists:reverse(Jsonlist)}]},
-	?DEBUG("json:  ~p", [Json]),
+	%?DEBUG("json:  ~p", [Json]),
 	{[], mochijson2:encode(Json)};
 parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, Headers, Properties, Body} = Mime}) ->
 	Emaildispo = email_media:get_disposition(Mime),

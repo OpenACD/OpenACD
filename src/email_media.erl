@@ -286,7 +286,7 @@ handle_call({"attach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 	Newfiles = Loop(Loop, Postdata, 0, []),
 	Attachments = lists:append(Oldattachments, Newfiles),
 	Keys = get_prop_keys(Attachments),
-	?DEBUG("files list:  ~p;  Full:  ~p", [Keys, Attachments]),
+	?DEBUG("files list:  ~p", [Keys]),
 	{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments}};
 handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments = Attachments} = State) ->
 	case mochijson2:decode(proplists:get_value("arguments", Postdata, "false")) of
@@ -347,6 +347,7 @@ handle_cast({"send", Post}, _Callrec, #state{mimed = Mimed, sending_pid = undefi
 	end,
 	% Other headers maybe:  in-reply-to and references (if exists)
 	Fullout = {Type, Subtype, Headers, [], Body},
+	?DEBUG("Starting encode", []),
 	Encoded = mimemail:encode(Fullout),
 	?DEBUG("Encoding complete", []),
 	Mail = {
@@ -383,6 +384,7 @@ handle_info(check_manager, _Callrec, State) ->
 			{noreply, State#state{manager = Tref}}
 	end;
 handle_info({'EXIT', Pid, normal}, _Callrec, #state{sending_pid = Pid} = State) ->
+	?DEBUG("sending complete", []),
 	{{mediapush, send_done}, State#state{sending_pid = undefined}};
 handle_info({'EXIT', Pid, Notnormal}, _Callrec, #state{sending_pid = Pid} = State) ->
 	?INFO("Sending failed:  ~p", [Notnormal]),

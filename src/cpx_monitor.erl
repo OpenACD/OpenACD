@@ -615,7 +615,7 @@ entry(Entry, #state{ets = Tid} = State, Election) ->
 	tell_cands(Message, Election).
 
 tell_subs(Message, Subs) ->
-	?DEBUG("Telling subs ~p message ~p", [Subs, Message]),
+	?DEBUG("Telling subs ~p message", [Subs]),
 	lists:foreach(fun({Pid, Fun}) ->
 		case Fun(Message) of
 			true ->

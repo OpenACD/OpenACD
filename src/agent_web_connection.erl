@@ -584,16 +584,16 @@ handle_call({supervisor, _Request}, _From, State) ->
 handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 	Commande = proplists:get_value("command", Post),
 	Arguments = proplists:get_value("arguments", Post), 
-	?DEBUG("Command:  ~p;  Args:  ~p", [Commande, Arguments]),
+	?DEBUG("Media Command:  ~p", [Commande]),
 	case proplists:get_value("mode", Post) of
 		"call" ->
 			{Heads, Data} = case agent:media_call(Apid, {Commande, Post}) of
 				invalid ->
+					?DEBUG("agent:media_call returned invalid"),
 					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid media call">>}]})};
 				{ok, Response, Mediarec} ->
 					parse_media_call(Mediarec, {Commande, Post}, Response)
 			end,
-			?DEBUG("Heads:  ~p; Data:  ~p", [Heads, Data]),
 			{reply, {200, Heads, Data}, State};
 		"cast" ->
 			agent:media_cast(Apid, {Commande, Post}),
@@ -893,7 +893,7 @@ parse_media_call(#call{type = email}, {"attach", _Args}, {ok, Filenames}) ->
 				{<<"textarea">>, [], [mochijson2:encode(Json)]}
 			]}
 		]}),
-	?DEBUG("html:  ~p", [Html]),
+	%?DEBUG("html:  ~p", [Html]),
 	{[], Html};
 parse_media_call(#call{type = email}, {"detach", _Args}, {ok, Keys}) ->
 	Binnames = lists:map(fun(N) -> list_to_binary(N) end, Keys),

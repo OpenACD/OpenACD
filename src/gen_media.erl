@@ -1011,6 +1011,13 @@ agent_interact({mediapush, Data, Mode}, #state{oncall_pid = Ocpid, callrec = Cal
 	?INFO("Shoving ~p", [Data]),
 	agent:media_push(Ocpid, Data, Mode),
 	State;
+agent_interact({mediapush, Data}, #state{oncall_pid = Ocpid, callrec = Call} = State) when is_pid(Ocpid), Call#call.media_path =:= inband ->
+	?DEBUG("Shoving ~p", [Data]),
+	agent:media_push(Ocpid, Data),
+	State;
+agent_interact({mediapush, _Data}, State) ->
+	?INFO("Cannot do a media push in current state:  ~p", [State]),
+	State;
 agent_interact({mediapush, _Data, _Mode}, State) ->
 	?INFO("Cannot do a media push in current state:  ~p", [State]),
 	State;

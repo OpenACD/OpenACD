@@ -99,6 +99,7 @@
 	conn_call/2, 
 	media_call/2,
 	media_cast/2,
+	media_push/2,
 	url_pop/2,
 	blab/2,
 	spy/2,
@@ -257,22 +258,12 @@ set_state(Pid, State) ->
 set_state(Pid, State, Data) ->
 	gen_fsm:sync_send_event(Pid, {State, Data}).
 
-%% @doc Attempt to pull media head and body data from an associated call.  Only 
-%% works if the passed agent is oncall and the media supports it.
--spec(media_pull/2 :: (Pid :: pid(), Request :: any()) -> any()).
-media_pull(Pid, Request) ->
-	gen_fsm:sync_send_event(Pid, {mediapull, Request}).
-
-%% @doc Attempt to push data from media to agent.  Only works if the passed 
-%% agent is oncall and the media supports it.
--spec(media_push/3 :: (Pid :: pid(), Data :: any(), Mode :: 'append' | 'replace') -> 'ok').
-media_push(Pid, Data, Mode) ->
-	gen_fsm:send_event(Pid, {mediapush, self(), Data, Mode}).
-
-%% @doc attmept to push data from the agent connection to the media.
+%% @doc attmept to push data from the media connection to the agent.  It's up to
+%% the agent connection to interpret this correctly.
 -spec(media_push/2 :: (Pid :: pid(), Data :: any()) -> any()).
 media_push(Pid, Data) ->
-	gen_fsm:sync_send_event(Pid, {mediapush, Data}).
+	S = self(),
+	gen_fsm:send_event(Pid, {mediapush, S, Data}).
 
 -spec(url_pop/2 :: (Pid :: pid(), Data :: list()) -> any()).
 url_pop(Pid, Data) ->
@@ -601,6 +592,14 @@ oncall({mediacast, Request}, #agent{statedata = Call} = State) ->
 	?DEBUG("media case ~p", [Request]),
 	gen_media:cast(Call#call.source, Request),
 	{next_state, oncall, State};
+oncall({media_push, Data}, #agent{statedata = Media} = State) when Media#call.media_path =:= inband ->
+	case State#agent.connection of
+		undefined ->
+			{next_state, oncall, State};
+		Conn when is_pid(Conn) ->
+			gen_server:cast(Conn, {mediapush, Media, Data}),
+			{next_state, oncall, State}
+	end;
 oncall(register_rejected, #agent{statedata = Media} = State) when Media#call.media_path =:= inband ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};
@@ -611,6 +610,7 @@ oncall({mediapush, Mediapid, Data}, #agent{statedata = Media} = State) when Medi
 		undefined ->
 			{next_state, oncall, State};
 		Conn when is_pid(Conn) ->
+			?DEBUG("shoring ~p", [Data]),
 			gen_server:cast(Conn, {mediapush, Media, Data}),
 			{next_state, oncall, State}
 	end;

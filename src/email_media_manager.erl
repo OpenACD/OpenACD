@@ -46,7 +46,8 @@
 	new_mapping/1,
 	destroy_mapping/1,
 	requeue/1,
-	batch_requeue/1]).
+	batch_requeue/1,
+	get_send_opts/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -64,7 +65,8 @@
 	mails = [] :: [pid()],
 	relays = [] :: [string()],
 	server :: pid(),
-	conf = []
+	conf = [],
+	send_conf = []
 }).
 
 -type(state() :: #state{}).
@@ -140,6 +142,10 @@ requeue(Filename) ->
 batch_requeue(Dir) ->
 	gen_server:cast(email_media_manager, {batch_queue, Dir}).
 
+-spec(get_send_opts/0 :: () -> [{atom(), any()}]).
+get_send_opts() ->
+	gen_server:call(?MODULE, get_send_opts).
+
 -ifndef(NOWEB).
 web_api(_Message, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}.
@@ -170,13 +176,25 @@ init([Options]) ->
 			link(Reg),
 			Reg
 	end,
-	case proplists:get_value(relays, Options) of
-		undefined ->
-			{ok, #state{server = Pid, conf = Options}};
-		Else ->
-			?INFO("Reserved for future use.", []),
-			{ok, #state{relays = Else, server=Pid, conf = Options}}
-	end.
+	{ProtoSendOpts, _} = proplists:split(Options, [tls, ssl, password, username, auth, outport, outbound]),
+	Fixopts = fun
+		([{outbound, Val}], Acc) ->
+			[{relay, Val} | Acc];
+		([{outport, Val}], Acc) ->
+			[{port, Val} | Acc];
+		([{Key, Val}], Acc) ->
+			[{Key, Val} | Acc];
+		([], Acc) ->
+			Acc
+	end,
+	FixedSend = lists:foldl(Fixopts, [], ProtoSendOpts),
+	State = #state{
+		server = Pid,
+		conf = Options,
+		relays = proplists:get_value(relays, Options, []),
+		send_conf = FixedSend
+	},
+	{ok, State}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -184,9 +202,10 @@ init([Options]) ->
 handle_call(stop, From, State) ->
 	?INFO("Received request to stop from ~p", [From]),
 	{stop, normal, ok, State};
-handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+handle_call(get_send_opts, _From, #state{send_conf = Sendconfs} = State) ->
+	{reply, {ok, Sendconfs}, State};
+handle_call(Request, _From, State) ->
+    {reply, {invalid, Request}, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |

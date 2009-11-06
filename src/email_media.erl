@@ -85,7 +85,8 @@
 	skeleton :: any(),
 	file_map = [] :: [{string(), [pos_integer()]}],
 	manager :: pid() | tref(),
-	outgoing_attachments = [] :: [{string(), binary()}]
+	outgoing_attachments = [] :: [{string(), binary()}],
+	sending_pid :: pid() | 'undefined'
 }).
 
 -type(state() :: #state{}).
@@ -223,7 +224,13 @@ init(Args) ->
 		media_path = inband,
 		source = self()
 	},
-	{ok, {#state{initargs = Args, skeleton = Skeleton, file_map = Files, mimed = Mimed, manager = whereis(email_media_manager)}, {Mailmap#mail_map.queue, Proto}}}.
+	{ok, {#state{
+			initargs = Args, 
+			skeleton = Skeleton, 
+			file_map = Files, 
+			mimed = Mimed, 
+			manager = whereis(email_media_manager)}, 
+		{Mailmap#mail_map.queue, Proto}}}.
 	
 	
 %%--------------------------------------------------------------------
@@ -304,11 +311,6 @@ handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 					end
 			end
 	end;
-handle_call({"send_mail", [To, From, Subject, Body]}, _From, _Callrec, State) ->
-	
-
-
-	{reply, {error, nyi}, State};
 	
 %% and anything else
 handle_call(Msg, _From, _Callrec, State) ->
@@ -318,10 +320,10 @@ handle_call(Msg, _From, _Callrec, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_cast({"send", Post}, _Callrec, #state{mimed = Mimed} = State) ->
+handle_cast({"send", Post}, _Callrec, #state{mimed = Mimed, sending_pid = undefined} = State) ->
 	{struct, Args} = mochijson2:decode(proplists:get_value("arguments", Post)),
 	?DEBUG("Post:  ~p; ~nArgs:  ~p", [Post, Args]),
-	Headers = [
+	[{_, To}, {_, From}, _] = Headers = [
 		{<<"To">>, proplists:get_value(<<"to">>, Args)},
 		{<<"From">>, proplists:get_value(<<"from">>, Args)},
 		{<<"Subject">>, proplists:get_value(<<"subject">>, Args)}
@@ -349,10 +351,24 @@ handle_cast({"send", Post}, _Callrec, #state{mimed = Mimed} = State) ->
 	% Other headers maybe:  in-reply-to and references (if exists)
 	Fullout = {Type, Subtype, Headers, [], Body},
 	Encoded = mimemail:encode(Fullout),
-	?DEBUG("encoded: ~p", [Encoded]),
-	?DEBUG("And now pretty:  ~n~s", [Encoded]),
-	%email_media_manager:send(Fullout),
-	{noreply, State};
+	?DEBUG("Encoding complete", []),
+	Mail = {
+		binary_to_list(From),
+		[binary_to_list(To)],
+		binary_to_list(Encoded)
+	},
+	{ok, Sendopts} = email_media_manager:get_send_opts(),
+	case gen_smtp_client:send(Mail, Sendopts) of
+		{ok, Pid} = ClientRes ->
+			?DEBUG("Client res:  ~p;  Send opts:  ~p, From/To:  ~p", [ClientRes, Sendopts, {From, To}]),
+			{noreply, State#state{sending_pid = Pid}};
+		ClientRes ->
+			?DEBUG("Client res:  ~p;  Send opts:  ~p, From/To:  ~p", [ClientRes, Sendopts, {From, To}]),
+			{{mediapush, {send_fail, ClientRes}}, State}
+	end;
+%	{noreply, State};
+%handle_cast({"send", _Post}, _Callrec, State) ->
+	
 handle_cast(Msg, _Callrec, State) ->
 	?WARNING("cast msg:  ~p", [Msg]),
 	{noreply, State}.
@@ -369,6 +385,11 @@ handle_info(check_manager, _Callrec, State) ->
 			{ok, Tref} = timer:send_after(1000, check_manager),
 			{noreply, State#state{manager = Tref}}
 	end;
+handle_info({'EXIT', Pid, normal}, _Callrec, #state{sending_pid = Pid} = State) ->
+	{{mediapush, send_done}, State#state{sending_pid = undefined}};
+handle_info({'EXIT', Pid, Notnormal}, _Callrec, #state{sending_pid = Pid} = State) ->
+	?INFO("Sending failed:  ~p", [Notnormal]),
+	{{mediapush, {send_fail, Notnormal}}, State#state{sending_pid = undefined}};
 handle_info({'EXIT', Pid, Reason}, _Callrec, #state{manager = Pid} = State) ->
 	?WARNING("Handling media manager ~w death of ~p", [Pid, Reason]),
 	{ok, Tref} = timer:send_after(1000, check_manager),

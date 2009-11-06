@@ -1,4 +1,5 @@
 dojo.require("dojox.form.FileUploader");
+dojo.require("dojox.widget.Standby");
 dojo.requireLocalization("agentUI", "emailPane");
 
 if(typeof(emailPane) == 'undefined'){

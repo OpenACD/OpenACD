@@ -581,23 +581,6 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 handle_call({supervisor, _Request}, _From, State) ->
 	?NOTICE("Unauthorized access to a supervisor web call", []),
 	{reply, {403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"insufficient privledges">>}]})}, State};
-handle_call({mediapull, Data}, _From, #state{agent_fsm = Apid} = State) ->
-	?INFO("mediapull request is ~s", [Data]),
-	case agent:media_pull(Apid, Data) of
-		invalid ->
-			{reply, {200, [], "Nodata"}, State};
-		{Heads, Html} ->
-			{reply, {200, Heads, Html}, State}
-	end;
-handle_call({mediapush, Post}, _From, #state{agent_fsm = Apid} = State) ->
-%	{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"not yet implemented">>}]})}, State};
-	Data = proplists:get_value("data", Post),
-	case agent:media_push(Apid, Data) of
-		invalid ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Invalid request">>}]})}, State};
-		_Else ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
-	end;
 handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 	Commande = proplists:get_value("command", Post),
 	Arguments = proplists:get_value("arguments", Post), 
@@ -687,19 +670,31 @@ handle_cast({mediaload, #call{type = email}}, State) ->
 	]},
 	Newstate = push_event(Json, State),
 	{noreply, Newstate};
-handle_cast({mediapush, #call{type = Mediatype} = Callrec, Data, Mode}, State) when is_binary(Data); is_list(Data) ->
+handle_cast({mediapush, #call{type = Mediatype} = Callrec, Data}, State) ->
+	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),
 	case Mediatype of
 		email ->
 			case Data of
-				load ->
+				send_done ->
 					Json = {struct, [
-						{<<"command">>, <<"mediaload">>},
-						{<<"media">>, <<"email">>}
+						{<<"command">>, <<"mediaevent">>},
+						{<<"media">>, email},
+						{<<"event">>, <<"send_complete">>},
+						{<<"success">>, true}
+					]},
+					Newstate = push_event(Json, State),
+					{noreply, Newstate};
+				{send_fail, _} ->
+					Json = {struct, [
+						{<<"command">>, <<"mediaevent">>},
+						{<<"media">>, email},
+						{<<"event">>, <<"send_complete">>},
+						{<<"success">>, false}
 					]},
 					Newstate = push_event(Json, State),
 					{noreply, Newstate};
 				Else ->
-					?INFO("No other data's supported", []),
+					?INFO("No other data's supported:  ~p", [Data]),
 					{noreply, State}
 			end;
 		Else ->

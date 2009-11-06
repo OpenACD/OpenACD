@@ -255,7 +255,7 @@ file_handler(Name, ContentType) ->
 	fun(N) -> file_data_handler(N, {Name, ContentType, <<>>}) end.
 
 file_data_handler(eof, {Name, ContentType, Acc}) ->
-	?DEBUG("eof gotten, bin:  ~p", [Acc]),
+	?DEBUG("eof gotten", []),
 	{Name, Acc};
 file_data_handler(Data, {Name, ContentType, Acc}) ->
 	Newacc = <<Acc/binary, Data/binary>>,

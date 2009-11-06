@@ -589,7 +589,7 @@ handle_call({media, Post}, _From, #state{agent_fsm = Apid} = State) ->
 		"call" ->
 			{Heads, Data} = case agent:media_call(Apid, {Commande, Post}) of
 				invalid ->
-					?DEBUG("agent:media_call returned invalid"),
+					?DEBUG("agent:media_call returned invalid", []),
 					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid media call">>}]})};
 				{ok, Response, Mediarec} ->
 					parse_media_call(Mediarec, {Commande, Post}, Response)

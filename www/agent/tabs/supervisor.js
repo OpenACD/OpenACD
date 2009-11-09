@@ -1560,8 +1560,7 @@ if(typeof(supervisorView) == "undefined"){
 					},
 					onmouseenter:function(ev){
 						var queryObj = {
-							'queue':this.data.display,
-							'node':supervisorView.node
+							'queue':this.data.display
 						};
 						supervisorView.drawCallStack(queryObj, acc.length);
 						supervisorView.setDetails({
@@ -1729,8 +1728,7 @@ if(typeof(supervisorView) == "undefined"){
 					},
 					onmouseenter:function(ev){
 						var queryObj = {
-							'agent':this.data.display,
-							'node':supervisorView.node
+							'agent':this.data.display
 						};
 						supervisorView.drawCallStack(queryObj, acc.length);
 						supervisorView.setDetails({

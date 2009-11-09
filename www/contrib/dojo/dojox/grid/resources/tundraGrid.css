@@ -32,6 +32,7 @@
 .dojoxGridHeader {
 	position: absolute;
 	overflow: hidden;
+	cursor: default;
 }
 .dojoxGridHeader {
 	background-color: #E8E1CF;
@@ -232,6 +233,12 @@
 .dojoxGrid .dojoDndItemAfter {
 	border-right-color: red;
 }
+.dijit_a11y .dojoDndItemBefore {
+	border-left: double;
+}
+.dijit_a11y .dojoDndItemAfter {
+	border-right: double;
+}
 .dojoxGridDndAvatarItem	td {
 	border: 1px solid;
 	border-color: #F6F4EB #ACA899 #ACA899 #F6F4EB;
@@ -266,6 +273,75 @@
 	background-image: url(../../../dojo/resources/images/dndCopy.png);
 	background-repeat: no-repeat;
 	background-position: center center;
+}
+.dojoxGridColPlaceBottom {
+	background: transparent url(images/grid_sort_up.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop {
+	background: transparent url(images/grid_sort_down.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop, .dojoxGridColPlaceBottom {
+	font-size:1px;
+	height:6px;
+	z-index:10000;
+	top:0;
+	overflow:hidden;
+	position:absolute;
+	line-height:1px;
+	width:8px;
+}
+.dojoxGridResizeColLine {
+	width: 1px;
+	background-color: #777;
+	position: absolute;
+	cursor: col-resize;
+	z-index:10000;
+}
+.dojoxGridColNoResize, 
+.dojoxGridColNoResize .dojoDndItemOver {
+	cursor: not-allowed !important;
+}
+.dojoxGridColResize, 
+.dojoxGridColResize .dojoDndItemOver,
+.dojoxGridColumnResizing,
+.dojoxGridColumnResizing .dojoDndItemOver,
+.dojoxGridColumnResizing .dojoxGridHeader {
+	cursor: col-resize !important;
+}
+.dojoxGridColPlaceBottom {
+	background: transparent url(images/grid_sort_up.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop {
+	background: transparent url(images/grid_sort_down.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop, .dojoxGridColPlaceBottom {
+	font-size:1px;
+	height:6px;
+	z-index:10000;
+	top:0;
+	overflow:hidden;
+	position:absolute;
+	line-height:1px;
+	width:8px;
+}
+.dojoxGridResizeColLine {
+	width: 1px;
+	background-color: #777;
+	position: absolute;
+}
+.dojoxGridExpandoCell {
+	vertical-align: top;
+}
+.dojoxGridSummarySpan {
+	visibility: hidden;
+}
+.dojoxGridSummaryRow .dojoxGridSummarySpan,
+.dojoxGridRowCollapsed .dojoxGridSummarySpan {
+	visibility: visible;
+}
+.dojoxGridNoChildren .dojoxGridExpando {
+	visibility: hidden !important;
+	width: 0px !important;
 }
 .tundra .dojoxGrid {
 	background-color: #e9e9e9;
@@ -309,7 +385,7 @@
 }
 .tundra .dojoxGridHeader .dojoxGridCellFocus {
 	border-color: #ACA899 #919191;
-	border-style: dashed;	
+	border-style: dashed;
 }
 .tundra .dojoxGridArrowButtonChar {
 	float: right;
@@ -369,11 +445,14 @@
 .tundra .dojoxGridRowOver .dojoxGridCell .dijit {
 	color: #000;
 }
+.tundra .dojoxGridRowOver .dojoxGridCell .dijitDisabled {
+	color: gray;
+}
 .tundra .dojoxGridRowOdd {
 	background-color: #f2f5f9;
 }
 .tundra .dojoxGridRowSelected {
-	background-color: #aec7e3;
+	background-color: #aec7e3 !important;
 }
 .dijit_a11y .tundra .dojoxGridRowSelected { 
     background-color: #aec7e3;     
@@ -393,13 +472,13 @@
 	border-right: 1px solid #D5CDB5;
 }
 .tundra .dojoxGridCellFocus {
-	border: 1px dashed darkblue;
+	border: 1px dashed darkblue !important;
 }
 .tundra .dojoxGridCellOver {
 	border: 1px dotted #a6a6a6;
 }
-.tundra .dojoxGridCellFocus.dojoxGridCellOver {
-	border: 1px dashed darkblue;
+.tundra .dojoxGridCellFocus .dojoxGridCellOver {
+	border: 1px dashed darkblue !important;
 }
 .tundra .dojoxGridRowEditing td {
 	
@@ -420,4 +499,63 @@
 }
 .tundra .dojoxGrid .dojoDndItemAfter {
 	border-right-color: #3559ac;
+}
+.tundra .dojoxGridExpando {
+	float: left;
+	height: 18px;
+	width: 18px;
+	text-align: center;
+	margin-top: -3px;
+}
+.dijitRtl .tundra .dojoxGridExpando {
+	float: right;
+}
+.tundra .dojoxGridExpandoCell {
+	padding-top: 5px;
+}
+.tundra .dojoxGridExpandoNode {
+	height: 18px;
+	background-image: url('../../../dijit/themes/tundra/images/treeExpand_plus.gif');
+}
+.tundra .dojoxGridExpandoOpened .dojoxGridExpandoNode {
+	background-image: url('../../../dijit/themes/tundra/images/treeExpand_minus.gif');		
+}
+.tundra .dojoxGridExpandoLoading .dojoxGridExpandoNode {
+	background-image: url('../../../dijit/themes/tundra/images/treeExpand_loading.gif');		
+}
+.tundra .dojoxGridTreeModel .dojoxGridNoChildren .dojoxGridExpando {
+	visibility: visible !important;
+	width: 18px !important;
+}
+.tundra .dojoxGridTreeModel .dojoxGridNoChildren .dojoxGridExpandoNode {
+	background-image: url('../../../dijit/themes/tundra/images/treeExpand_leaf.gif');
+	background-position: -3px;
+}
+.tundra .dojoxGridExpandoNodeInner {
+	visibility: hidden;
+}
+.dijit_a11y .dojoxGridExpandoNodeInner {
+	visibility: visible;
+}
+		
+.tundra .dojoxGridSummaryRow .dojoxGridCell {
+	border-top-color: #999;
+	border-top-style: solid;
+}
+.tundra .dojoxGridSpacerCell,
+.tundra .dojoxGridExpandoCell,
+.tundra .dojoxGridSummaryRow .dojoxGridSpacerCell {
+	border-color: transparent;
+	border-right-color: #D5CDB5;
+}
+.tundra .dojoxGridSummaryRow .dojoxGridTotalCell,
+.tundra .dojoxGridRowCollapsed .dojoxGridExpandoCell,
+.tundra .dojoxGridTreeModel .dojoxGridExpandoCell {
+	border-bottom-color: #D5CDB5;
+}
+.tundra .dojoxGridSubRowAlt {
+	background-color: #F8F8F8;
+}
+.tundra .dojoxGridRowOdd .dojoxGridSubRowAlt {
+	background-color: #EDEFF3;
 }

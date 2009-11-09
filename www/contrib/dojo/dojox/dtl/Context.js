@@ -25,36 +25,36 @@ return dojo.delegate(this,_4);
 },filter:function(_5){
 var _6=new dojox.dtl.Context();
 var _7=[];
-var i,_9;
+var i,_8;
 if(_5 instanceof dojox.dtl.Context){
 _7=_5.getKeys();
 }else{
 if(typeof _5=="object"){
-for(var _a in _5){
-_7.push(_a);
-}
-}else{
-for(i=0;_9=arguments[i];i++){
-if(typeof _9=="string"){
+for(var _9 in _5){
 _7.push(_9);
 }
+}else{
+for(i=0;_8=arguments[i];i++){
+if(typeof _8=="string"){
+_7.push(_8);
 }
 }
 }
-for(i=0,_a;_a=_7[i];i++){
-_6[_a]=this[_a];
+}
+for(i=0,_9;_9=_7[i];i++){
+_6[_9]=this[_9];
 }
 return _6;
-},setThis:function(_b){
-this._this=_b;
+},setThis:function(_a){
+this._this=_a;
 },getThis:function(){
 return this._this;
-},hasKey:function(_c){
-if(typeof this[_c]!="undefined"){
+},hasKey:function(_b){
+if(typeof this[_b]!="undefined"){
 return true;
 }
-for(var i=0,_e;_e=this._dicts[i];i++){
-if(typeof _e[_c]!="undefined"){
+for(var i=0,_c;_c=this._dicts[i];i++){
+if(typeof _c[_b]!="undefined"){
 return true;
 }
 }

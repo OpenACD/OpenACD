@@ -9,14 +9,19 @@ if(!dojo._hasResource["dijit.form.CheckBox"]){
 dojo._hasResource["dijit.form.CheckBox"]=true;
 dojo.provide("dijit.form.CheckBox");
 dojo.require("dijit.form.Button");
-dojo.declare("dijit.form.CheckBox",dijit.form.ToggleButton,{templateString:"<div class=\"dijitReset dijitInline\" waiRole=\"presentation\"\n\t><input\n\t \t${nameAttrSetting} type=\"${type}\" ${checkedAttrSetting}\n\t\tclass=\"dijitReset dijitCheckBoxInput\"\n\t\tdojoAttachPoint=\"focusNode\"\n\t \tdojoAttachEvent=\"onmouseover:_onMouse,onmouseout:_onMouse,onclick:_onClick\"\n/></div>\n",baseClass:"dijitCheckBox",type:"checkbox",value:"on",_setValueAttr:function(_1){
-if(typeof _1=="string"){
-this.value=_1;
-dojo.attr(this.focusNode,"value",_1);
-_1=true;
+dojo.declare("dijit.form.CheckBox",dijit.form.ToggleButton,{templateString:dojo.cache("dijit.form","templates/CheckBox.html","<div class=\"dijitReset dijitInline\" waiRole=\"presentation\"\n\t><input\n\t \t${nameAttrSetting} type=\"${type}\" ${checkedAttrSetting}\n\t\tclass=\"dijitReset dijitCheckBoxInput\"\n\t\tdojoAttachPoint=\"focusNode\"\n\t \tdojoAttachEvent=\"onmouseover:_onMouse,onmouseout:_onMouse,onclick:_onClick\"\n/></div>\n"),baseClass:"dijitCheckBox",type:"checkbox",value:"on",readOnly:false,attributeMap:dojo.delegate(dijit.form.ToggleButton.prototype.attributeMap,{readOnly:"focusNode"}),_setReadOnlyAttr:function(_1){
+this.readOnly=_1;
+dojo.attr(this.focusNode,"readOnly",_1);
+dijit.setWaiState(this.focusNode,"readonly",_1);
+this._setStateClass();
+},_setValueAttr:function(_2){
+if(typeof _2=="string"){
+this.value=_2;
+dojo.attr(this.focusNode,"value",_2);
+_2=true;
 }
 if(this._created){
-this.attr("checked",_1);
+this.attr("checked",_2);
 }
 },_getValueAttr:function(){
 return (this.checked?this.value:false);
@@ -26,7 +31,7 @@ this.value="on";
 }
 this.checkedAttrSetting=this.checked?"checked":"";
 this.inherited(arguments);
-},_fillContent:function(_2){
+},_fillContent:function(_3){
 },reset:function(){
 this._hasBeenBlurred=false;
 this.attr("checked",this.params.checked||false);
@@ -40,19 +45,24 @@ dojo.query("label[for='"+this.id+"']").addClass("dijitFocusedLabel");
 if(this.id){
 dojo.query("label[for='"+this.id+"']").removeClass("dijitFocusedLabel");
 }
+},_onClick:function(e){
+if(this.readOnly){
+return false;
+}
+return this.inherited(arguments);
 }});
-dojo.declare("dijit.form.RadioButton",dijit.form.CheckBox,{type:"radio",baseClass:"dijitRadio",_setCheckedAttr:function(_3){
+dojo.declare("dijit.form.RadioButton",dijit.form.CheckBox,{type:"radio",baseClass:"dijitRadio",_setCheckedAttr:function(_4){
 this.inherited(arguments);
 if(!this._created){
 return;
 }
-if(_3){
-var _4=this;
-dojo.query("INPUT[type=radio]",this.focusNode.form||dojo.doc).forEach(function(_5){
-if(_5.name==_4.name&&_5!=_4.focusNode&&_5.form==_4.focusNode.form){
-var _6=dijit.getEnclosingWidget(_5);
-if(_6&&_6.checked){
-_6.attr("checked",false);
+if(_4){
+var _5=this;
+dojo.query("INPUT[type=radio]",this.focusNode.form||dojo.doc).forEach(function(_6){
+if(_6.name==_5.name&&_6!=_5.focusNode&&_6.form==_5.focusNode.form){
+var _7=dijit.getEnclosingWidget(_6);
+if(_7&&_7.checked){
+_7.attr("checked",false);
 }
 }
 });

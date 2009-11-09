@@ -21,23 +21,23 @@ for(var c in this.children){
 _3[c]=this.children[c].getValue(_2);
 }
 return _3;
-},_setValue:function(_5,_6){
-if(!_5||!this.children){
-return _5;
+},_setValue:function(_4,_5){
+if(!_4||!this.children){
+return _4;
 }
 for(var c in this.children){
-this.children[c].setValue(_6[c],_5);
+this.children[c].setValue(_5[c],_4);
 }
-return _5;
-},_initializeChildren:function(_8){
-if(!_8){
+return _4;
+},_initializeChildren:function(_6){
+if(!_6){
 return;
 }
-for(var c in _8){
-var _a=_8[c];
-_a.parent=this;
-if(!dojox.wire.isWire(_a)){
-_8[c]=dojox.wire.create(_a);
+for(var c in _6){
+var _7=_6[c];
+_7.parent=this;
+if(!dojox.wire.isWire(_7)){
+_6[c]=dojox.wire.create(_7);
 }
 }
 }});

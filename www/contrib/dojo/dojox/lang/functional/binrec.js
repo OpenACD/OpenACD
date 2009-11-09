@@ -11,39 +11,39 @@ dojo.provide("dojox.lang.functional.binrec");
 dojo.require("dojox.lang.functional.lambda");
 dojo.require("dojox.lang.functional.util");
 (function(){
-var df=dojox.lang.functional,_2=df.inlineLambda,_x="_x",_4=["_z.r","_r","_z.a"];
-df.binrec=function(_5,_6,_7,_8){
-var c,t,b,a,cs,ts,bs,as,_11={},_12={},_13=function(x){
-_11[x]=1;
+var df=dojox.lang.functional,_1=df.inlineLambda,_2="_x",_3=["_z.r","_r","_z.a"];
+df.binrec=function(_4,_5,_6,_7){
+var c,t,b,a,cs,ts,bs,as,_8={},_9={},_a=function(x){
+_8[x]=1;
 };
-if(typeof _5=="string"){
-cs=_2(_5,_x,_13);
+if(typeof _4=="string"){
+cs=_1(_4,_2,_a);
 }else{
-c=df.lambda(_5);
+c=df.lambda(_4);
 cs="_c.apply(this, _x)";
-_12["_c=_t.c"]=1;
+_9["_c=_t.c"]=1;
 }
-if(typeof _6=="string"){
-ts=_2(_6,_x,_13);
+if(typeof _5=="string"){
+ts=_1(_5,_2,_a);
 }else{
-t=df.lambda(_6);
+t=df.lambda(_5);
 ts="_t.apply(this, _x)";
 }
-if(typeof _7=="string"){
-bs=_2(_7,_x,_13);
+if(typeof _6=="string"){
+bs=_1(_6,_2,_a);
 }else{
-b=df.lambda(_7);
+b=df.lambda(_6);
 bs="_b.apply(this, _x)";
-_12["_b=_t.b"]=1;
+_9["_b=_t.b"]=1;
 }
-if(typeof _8=="string"){
-as=_2(_8,_4,_13);
+if(typeof _7=="string"){
+as=_1(_7,_3,_a);
 }else{
-a=df.lambda(_8);
+a=df.lambda(_7);
 as="_a.call(this, _z.r, _r, _z.a)";
-_12["_a=_t.a"]=1;
+_9["_a=_t.a"]=1;
 }
-var _15=df.keys(_11),_16=df.keys(_12),f=new Function([],"var _x=arguments,_y,_z,_r".concat(_15.length?","+_15.join(","):"",_16.length?",_t=_x.callee,"+_16.join(","):"",t?(_16.length?",_t=_t.t":"_t=_x.callee.t"):"",";while(!",cs,"){_r=",bs,";_y={p:_y,a:_r[1]};_z={p:_z,a:_x};_x=_r[0]}for(;;){do{_r=",ts,";if(!_z)return _r;while(\"r\" in _z){_r=",as,";if(!(_z=_z.p))return _r}_z.r=_r;_x=_y.a;_y=_y.p}while(",cs,");do{_r=",bs,";_y={p:_y,a:_r[1]};_z={p:_z,a:_x};_x=_r[0]}while(!",cs,")}"));
+var _b=df.keys(_8),_c=df.keys(_9),f=new Function([],"var _x=arguments,_y,_z,_r".concat(_b.length?","+_b.join(","):"",_c.length?",_t=_x.callee,"+_c.join(","):"",t?(_c.length?",_t=_t.t":"_t=_x.callee.t"):"",";while(!",cs,"){_r=",bs,";_y={p:_y,a:_r[1]};_z={p:_z,a:_x};_x=_r[0]}for(;;){do{_r=",ts,";if(!_z)return _r;while(\"r\" in _z){_r=",as,";if(!(_z=_z.p))return _r}_z.r=_r;_x=_y.a;_y=_y.p}while(",cs,");do{_r=",bs,";_y={p:_y,a:_r[1]};_z={p:_z,a:_x};_x=_r[0]}while(!",cs,")}"));
 if(c){
 f.c=c;
 }

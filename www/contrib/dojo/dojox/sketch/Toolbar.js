@@ -28,21 +28,25 @@ c.attr("checked",false);
 dojo.declare("dojox.sketch.Toolbar",dijit.Toolbar,{figure:null,plugins:null,postCreate:function(){
 this.inherited(arguments);
 this.shapeGroup=new dojox.sketch.ButtonGroup;
-this.connect(this.figure,"onLoad","reset");
 if(!this.plugins){
 this.plugins=["Slider","Lead","SingleArrow","DoubleArrow","Underline","Preexisting"];
 }
 this._plugins=[];
-dojo.forEach(this.plugins,function(_5){
-var _6=dojo.isString(_5)?_5:_5.name;
-var p=new dojox.sketch.tools[_6](_5.args||{});
+dojo.forEach(this.plugins,function(_2){
+var _3=dojo.isString(_2)?_2:_2.name;
+var p=new dojox.sketch.tools[_3](_2.args||{});
 this._plugins.push(p);
-p.setFigure(this.figure);
 p.setToolbar(this);
 if(!this._defaultTool&&p.button){
 this._defaultTool=p;
 }
 },this);
+},setFigure:function(f){
+this.figure=f;
+this.connect(f,"onLoad","reset");
+dojo.forEach(this._plugins,function(p){
+p.setFigure(f);
+});
 },destroy:function(){
 dojo.forEach(this._plugins,function(p){
 p.destroy();
@@ -50,12 +54,12 @@ p.destroy();
 this.inherited(arguments);
 delete this._defaultTool;
 delete this._plugins;
-},addGroupItem:function(_9,_a){
-if(_a!="toolsGroup"){
-console.error("not supported group "+_a);
+},addGroupItem:function(_4,_5){
+if(_5!="toolsGroup"){
+console.error("not supported group "+_5);
 return;
 }
-this.shapeGroup.add(_9);
+this.shapeGroup.add(_4);
 },reset:function(){
 this._defaultTool.activate();
 },_setShape:function(s){
@@ -64,15 +68,16 @@ return;
 }
 if(this.figure.hasSelections()){
 for(var i=0;i<this.figure.selected.length;i++){
-var _d=this.figure.selected[i].serialize();
+var _6=this.figure.selected[i].serialize();
 this.figure.convert(this.figure.selected[i],s);
-this.figure.history.add(dojox.sketch.CommandTypes.Convert,this.figure.selected[i],_d);
+this.figure.history.add(dojox.sketch.CommandTypes.Convert,this.figure.selected[i],_6);
 }
 }
 }});
-dojox.sketch.makeToolbar=function(_e,_f){
-var _10=new dojox.sketch.Toolbar({"figure":_f});
-_e.appendChild(_10.domNode);
-return _10;
+dojox.sketch.makeToolbar=function(_7,_8){
+var _9=new dojox.sketch.Toolbar();
+_9.setFigure(_8);
+_7.appendChild(_9.domNode);
+return _9;
 };
 }

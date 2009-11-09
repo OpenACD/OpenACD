@@ -13,27 +13,27 @@ dojox.validate.isIpAddress=function(_1,_2){
 var re=new RegExp("^"+dojox.validate.regexp.ipAddress(_2)+"$","i");
 return re.test(_1);
 };
-dojox.validate.isUrl=function(_4,_5){
-var re=new RegExp("^"+dojox.validate.regexp.url(_5)+"$","i");
-return re.test(_4);
+dojox.validate.isUrl=function(_3,_4){
+var re=new RegExp("^"+dojox.validate.regexp.url(_4)+"$","i");
+return re.test(_3);
 };
-dojox.validate.isEmailAddress=function(_7,_8){
-var re=new RegExp("^"+dojox.validate.regexp.emailAddress(_8)+"$","i");
+dojox.validate.isEmailAddress=function(_5,_6){
+var re=new RegExp("^"+dojox.validate.regexp.emailAddress(_6)+"$","i");
+return re.test(_5);
+};
+dojox.validate.isEmailAddressList=function(_7,_8){
+var re=new RegExp("^"+dojox.validate.regexp.emailAddressList(_8)+"$","i");
 return re.test(_7);
 };
-dojox.validate.isEmailAddressList=function(_a,_b){
-var re=new RegExp("^"+dojox.validate.regexp.emailAddressList(_b)+"$","i");
-return re.test(_a);
-};
-dojox.validate.getEmailAddressList=function(_d,_e){
-if(!_e){
-_e={};
+dojox.validate.getEmailAddressList=function(_9,_a){
+if(!_a){
+_a={};
 }
-if(!_e.listSeparator){
-_e.listSeparator="\\s;,";
+if(!_a.listSeparator){
+_a.listSeparator="\\s;,";
 }
-if(dojox.validate.isEmailAddressList(_d,_e)){
-return _d.split(new RegExp("\\s*["+_e.listSeparator+"]\\s*"));
+if(dojox.validate.isEmailAddressList(_9,_a)){
+return _9.split(new RegExp("\\s*["+_a.listSeparator+"]\\s*"));
 }
 return [];
 };

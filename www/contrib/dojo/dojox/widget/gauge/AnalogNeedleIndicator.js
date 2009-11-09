@@ -15,16 +15,16 @@ if(!this._gauge){
 return null;
 }
 var x=Math.floor(this.width/2);
-var _2=this.width*5;
-var _3=(this.width&1);
-var _4=[];
-var _5={color:this.color,width:1};
+var _1=this.width*5;
+var _2=(this.width&1);
+var _3=[];
+var _4={color:this.color,width:1};
 if(this.color.type){
-_5.color=this.color.colors[0].color;
+_4.color=this.color.colors[0].color;
 }
 var xy=(Math.sqrt(2)*(x));
-_4[0]=this._gauge.surface.createPath().setStroke(_5).setFill(this.color).moveTo(xy,-xy).arcTo((2*x),(2*x),0,0,0,-xy,-xy).lineTo(0,-this.length).closePath();
-_4[1]=this._gauge.surface.createCircle({cx:0,cy:0,r:this.width}).setStroke({color:this.color}).setFill(this.color);
-return _4;
+_3[0]=this._gauge.surface.createPath().setStroke(_4).setFill(this.color).moveTo(xy,-xy).arcTo((2*x),(2*x),0,0,0,-xy,-xy).lineTo(0,-this.length).closePath();
+_3[1]=this._gauge.surface.createCircle({cx:0,cy:0,r:this.width}).setStroke({color:this.color}).setFill(this.color);
+return _3;
 }});
 }

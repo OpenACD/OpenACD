@@ -35,21 +35,21 @@ console.warn("dojox.storage.getMaximumSize not implemented");
 for(var i=0;i<_d.length;i++){
 dojox.storage.put(_d[i],_e[i],_f,_10);
 }
-},getMultiple:function(_12,_13){
-var _14=[];
-for(var i=0;i<_12.length;i++){
-_14.push(dojox.storage.get(_12[i],_13));
+},getMultiple:function(_11,_12){
+var _13=[];
+for(var i=0;i<_11.length;i++){
+_13.push(dojox.storage.get(_11[i],_12));
 }
-return _14;
-},removeMultiple:function(_16,_17){
-for(var i=0;i<_16.length;i++){
-dojox.storage.remove(_16[i],_17);
+return _13;
+},removeMultiple:function(_14,_15){
+for(var i=0;i<_14.length;i++){
+dojox.storage.remove(_14[i],_15);
 }
-},isValidKeyArray:function(_19){
-if(_19===null||_19===undefined||!dojo.isArray(_19)){
+},isValidKeyArray:function(_16){
+if(_16===null||_16===undefined||!dojo.isArray(_16)){
 return false;
 }
-return !dojo.some(_19,function(key){
+return !dojo.some(_16,function(key){
 return !this.isValidKey(key);
 },this);
 },hasSettingsUI:function(){
@@ -58,11 +58,11 @@ return false;
 console.warn("dojox.storage.showSettingsUI not implemented");
 },hideSettingsUI:function(){
 console.warn("dojox.storage.hideSettingsUI not implemented");
-},isValidKey:function(_1b){
-if(_1b===null||_1b===undefined){
+},isValidKey:function(_17){
+if(_17===null||_17===undefined){
 return false;
 }
-return /^[0-9A-Za-z_]*$/.test(_1b);
+return /^[0-9A-Za-z_]*$/.test(_17);
 },getResourceList:function(){
 return [];
 }});

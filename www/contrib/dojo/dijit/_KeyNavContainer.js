@@ -9,7 +9,7 @@ if(!dojo._hasResource["dijit._KeyNavContainer"]){
 dojo._hasResource["dijit._KeyNavContainer"]=true;
 dojo.provide("dijit._KeyNavContainer");
 dojo.require("dijit._Container");
-dojo.declare("dijit._KeyNavContainer",[dijit._Container],{tabIndex:"0",_keyNavCodes:{},connectKeyNavHandlers:function(_1,_2){
+dojo.declare("dijit._KeyNavContainer",dijit._Container,{tabIndex:"0",_keyNavCodes:{},connectKeyNavHandlers:function(_1,_2){
 var _3=this._keyNavCodes={};
 var _4=dojo.hitch(this,this.focusPrev);
 var _5=dojo.hitch(this,this.focusNext);
@@ -68,13 +68,13 @@ _d.focus();
 },_startupChild:function(_f){
 if(_f.getFocalNodes){
 dojo.forEach(_f.getFocalNodes(),function(_10){
-dojo.attr(_10,"tabindex",-1);
+dojo.attr(_10,"tabIndex",-1);
 this._connectNode(_10);
 },this);
 }else{
 var _11=_f.focusNode||_f.domNode;
 if(_f.isFocusable()){
-dojo.attr(_11,"tabindex",-1);
+dojo.attr(_11,"tabIndex",-1);
 }
 this._connectNode(_11);
 }
@@ -86,44 +86,45 @@ if(evt.target!==this.domNode){
 return;
 }
 this.focusFirstChild();
-dojo.removeAttr(this.domNode,"tabIndex");
+dojo.attr(this.domNode,"tabIndex","-1");
 },_onBlur:function(evt){
 if(this.tabIndex){
-dojo.attr(this.domNode,"tabindex",this.tabIndex);
+dojo.attr(this.domNode,"tabIndex",this.tabIndex);
 }
+this.inherited(arguments);
 },_onContainerKeypress:function(evt){
 if(evt.ctrlKey||evt.altKey){
 return;
 }
-var _16=this._keyNavCodes[evt.charOrCode];
-if(_16){
-_16();
+var _13=this._keyNavCodes[evt.charOrCode];
+if(_13){
+_13();
 dojo.stopEvent(evt);
 }
 },_onNodeFocus:function(evt){
-var _18=dijit.getEnclosingWidget(evt.target);
-if(_18&&_18.isFocusable()){
-this.focusedChild=_18;
+var _14=dijit.getEnclosingWidget(evt.target);
+if(_14&&_14.isFocusable()){
+this.focusedChild=_14;
 }
 dojo.stopEvent(evt);
 },_onNodeBlur:function(evt){
 dojo.stopEvent(evt);
-},_onChildBlur:function(_1a){
+},_onChildBlur:function(_15){
 },_getFirstFocusableChild:function(){
 return this._getNextFocusableChild(null,1);
-},_getNextFocusableChild:function(_1b,dir){
-if(_1b){
-_1b=this._getSiblingOfChild(_1b,dir);
+},_getNextFocusableChild:function(_16,dir){
+if(_16){
+_16=this._getSiblingOfChild(_16,dir);
 }
-var _1d=this.getChildren();
-for(var i=0;i<_1d.length;i++){
-if(!_1b){
-_1b=_1d[(dir>0)?0:(_1d.length-1)];
+var _17=this.getChildren();
+for(var i=0;i<_17.length;i++){
+if(!_16){
+_16=_17[(dir>0)?0:(_17.length-1)];
 }
-if(_1b.isFocusable()){
-return _1b;
+if(_16.isFocusable()){
+return _16;
 }
-_1b=this._getSiblingOfChild(_1b,dir);
+_16=this._getSiblingOfChild(_16,dir);
 }
 return null;
 }});

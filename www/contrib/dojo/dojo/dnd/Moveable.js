@@ -56,22 +56,22 @@ dojo.stopEvent(e);
 }
 },onDragDetected:function(e){
 new this.mover(this.node,e,this);
-},onMoveStart:function(_b){
-dojo.publish("/dnd/move/start",[_b]);
+},onMoveStart:function(_5){
+dojo.publish("/dnd/move/start",[_5]);
 dojo.addClass(dojo.body(),"dojoMove");
 dojo.addClass(this.node,"dojoMoveItem");
-},onMoveStop:function(_c){
-dojo.publish("/dnd/move/stop",[_c]);
+},onMoveStop:function(_6){
+dojo.publish("/dnd/move/stop",[_6]);
 dojo.removeClass(dojo.body(),"dojoMove");
 dojo.removeClass(this.node,"dojoMoveItem");
-},onFirstMove:function(_d){
-},onMove:function(_e,_f){
-this.onMoving(_e,_f);
-var s=_e.node.style;
-s.left=_f.l+"px";
-s.top=_f.t+"px";
-this.onMoved(_e,_f);
-},onMoving:function(_11,_12){
-},onMoved:function(_13,_14){
+},onFirstMove:function(_7){
+},onMove:function(_8,_9){
+this.onMoving(_8,_9);
+var s=_8.node.style;
+s.left=_9.l+"px";
+s.top=_9.t+"px";
+this.onMoved(_8,_9);
+},onMoving:function(_a,_b){
+},onMoved:function(_c,_d){
 }});
 }

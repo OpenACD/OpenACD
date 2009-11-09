@@ -16,27 +16,27 @@ var _2=[[0,0,0,0],[1,0,0,0],[2,0,0,0],[4,0,0,0],[8,0,0,0],[16,0,0,0],[32,0,0,0],
 function _3(_4,w){
 var Nb=4;
 var Nr=w.length/Nb-1;
-var _8=[[],[],[],[]];
+var _5=[[],[],[],[]];
 for(var i=0;i<4*Nb;i++){
-_8[i%4][Math.floor(i/4)]=_4[i];
+_5[i%4][Math.floor(i/4)]=_4[i];
 }
-_8=_a(_8,w,0,Nb);
-for(var _b=1;_b<Nr;_b++){
-_8=_c(_8,Nb);
-_8=_d(_8,Nb);
-_8=_e(_8,Nb);
-_8=_a(_8,w,_b,Nb);
+_5=_6(_5,w,0,Nb);
+for(var _7=1;_7<Nr;_7++){
+_5=_8(_5,Nb);
+_5=_9(_5,Nb);
+_5=_a(_5,Nb);
+_5=_6(_5,w,_7,Nb);
 }
-_8=_c(_8,Nb);
-_8=_d(_8,Nb);
-_8=_a(_8,w,Nr,Nb);
-var _f=new Array(4*Nb);
+_5=_8(_5,Nb);
+_5=_9(_5,Nb);
+_5=_6(_5,w,Nr,Nb);
+var _b=new Array(4*Nb);
 for(var i=0;i<4*Nb;i++){
-_f[i]=_8[i%4][Math.floor(i/4)];
+_b[i]=_5[i%4][Math.floor(i/4)];
 }
-return _f;
+return _b;
 };
-function _c(s,Nb){
+function _8(s,Nb){
 for(var r=0;r<4;r++){
 for(var c=0;c<Nb;c++){
 s[r][c]=_1[s[r][c]];
@@ -44,7 +44,7 @@ s[r][c]=_1[s[r][c]];
 }
 return s;
 };
-function _d(s,Nb){
+function _9(s,Nb){
 var t=new Array(4);
 for(var r=1;r<4;r++){
 for(var c=0;c<4;c++){
@@ -56,7 +56,7 @@ s[r][c]=t[c];
 }
 return s;
 };
-function _e(s,Nb){
+function _a(s,Nb){
 for(var c=0;c<4;c++){
 var a=new Array(4);
 var b=new Array(4);
@@ -71,165 +71,165 @@ s[3][c]=a[0]^b[0]^a[1]^a[2]^b[3];
 }
 return s;
 };
-function _a(_1f,w,rnd,Nb){
+function _6(_c,w,_d,Nb){
 for(var r=0;r<4;r++){
 for(var c=0;c<Nb;c++){
-_1f[r][c]^=w[rnd*4+c][r];
+_c[r][c]^=w[_d*4+c][r];
 }
 }
-return _1f;
+return _c;
 };
-function _25(key){
+function _e(_f){
 var Nb=4;
-var Nk=key.length/4;
+var Nk=_f.length/4;
 var Nr=Nk+6;
 var w=new Array(Nb*(Nr+1));
-var _2b=new Array(4);
+var _10=new Array(4);
 for(var i=0;i<Nk;i++){
-var r=[key[4*i],key[4*i+1],key[4*i+2],key[4*i+3]];
+var r=[_f[4*i],_f[4*i+1],_f[4*i+2],_f[4*i+3]];
 w[i]=r;
 }
 for(var i=Nk;i<(Nb*(Nr+1));i++){
 w[i]=new Array(4);
 for(var t=0;t<4;t++){
-_2b[t]=w[i-1][t];
+_10[t]=w[i-1][t];
 }
 if(i%Nk==0){
-_2b=_2f(_30(_2b));
+_10=_11(_12(_10));
 for(var t=0;t<4;t++){
-_2b[t]^=_2[i/Nk][t];
+_10[t]^=_2[i/Nk][t];
 }
 }else{
 if(Nk>6&&i%Nk==4){
-_2b=_2f(_2b);
+_10=_11(_10);
 }
 }
 for(var t=0;t<4;t++){
-w[i][t]=w[i-Nk][t]^_2b[t];
+w[i][t]=w[i-Nk][t]^_10[t];
 }
 }
 return w;
 };
-function _2f(w){
+function _11(w){
 for(var i=0;i<4;i++){
 w[i]=_1[w[i]];
 }
 return w;
 };
-function _30(w){
+function _12(w){
 w[4]=w[0];
 for(var i=0;i<4;i++){
 w[i]=w[i+1];
 }
 return w;
 };
-function _35(_36,_37,_38){
-if(!(_38==128||_38==192||_38==256)){
+function _13(_14,_15,_16){
+if(!(_16==128||_16==192||_16==256)){
 return "";
 }
-var _39=_38/8;
-var _3a=new Array(_39);
-for(var i=0;i<_39;i++){
-_3a[i]=_37.charCodeAt(i)&255;
+var _17=_16/8;
+var _18=new Array(_17);
+for(var i=0;i<_17;i++){
+_18[i]=_15.charCodeAt(i)&255;
 }
-var key=_3(_3a,_25(_3a));
-key=key.concat(key.slice(0,_39-16));
-var _3d=16;
-var _3e=new Array(_3d);
-var _3f=(new Date()).getTime();
+var key=_3(_18,_e(_18));
+key=key.concat(key.slice(0,_17-16));
+var _19=16;
+var _1a=new Array(_19);
+var _1b=(new Date()).getTime();
 for(var i=0;i<4;i++){
-_3e[i]=(_3f>>>i*8)&255;
+_1a[i]=(_1b>>>i*8)&255;
 }
 for(var i=0;i<4;i++){
-_3e[i+4]=(_3f/4294967296>>>i*8)&255;
+_1a[i+4]=(_1b/4294967296>>>i*8)&255;
 }
-var _40=_25(key);
-var _41=Math.ceil(_36.length/_3d);
-var _42=new Array(_41);
-for(var b=0;b<_41;b++){
+var _1c=_e(key);
+var _1d=Math.ceil(_14.length/_19);
+var _1e=new Array(_1d);
+for(var b=0;b<_1d;b++){
 for(var c=0;c<4;c++){
-_3e[15-c]=(b>>>c*8)&255;
+_1a[15-c]=(b>>>c*8)&255;
 }
 for(var c=0;c<4;c++){
-_3e[15-c-4]=(b/4294967296>>>c*8);
+_1a[15-c-4]=(b/4294967296>>>c*8);
 }
-var _45=_3(_3e,_40);
-var _46=b<_41-1?_3d:(_36.length-1)%_3d+1;
+var _1f=_3(_1a,_1c);
+var _20=b<_1d-1?_19:(_14.length-1)%_19+1;
 var ct="";
-for(var i=0;i<_46;i++){
-var _48=_36.charCodeAt(b*_3d+i);
-var _49=_48^_45[i];
-ct+=((_49<16)?"0":"")+_49.toString(16);
+for(var i=0;i<_20;i++){
+var _21=_14.charCodeAt(b*_19+i);
+var _22=_21^_1f[i];
+ct+=((_22<16)?"0":"")+_22.toString(16);
 }
-_42[b]=ct;
+_1e[b]=ct;
 }
-var _4a="";
+var _23="";
 for(var i=0;i<8;i++){
-_4a+=((_3e[i]<16)?"0":"")+_3e[i].toString(16);
+_23+=((_1a[i]<16)?"0":"")+_1a[i].toString(16);
 }
-return _4a+" "+_42.join(" ");
+return _23+" "+_1e.join(" ");
 };
-function _4b(s){
+function _24(s){
 var ret=[];
 s.replace(/(..)/g,function(str){
 ret.push(parseInt(str,16));
 });
 return ret;
 };
-function _4f(_50,_51,_52){
-if(!(_52==128||_52==192||_52==256)){
+function _25(_26,_27,_28){
+if(!(_28==128||_28==192||_28==256)){
 return "";
 }
-var _53=_52/8;
-var _54=new Array(_53);
-for(var i=0;i<_53;i++){
-_54[i]=_51.charCodeAt(i)&255;
+var _29=_28/8;
+var _2a=new Array(_29);
+for(var i=0;i<_29;i++){
+_2a[i]=_27.charCodeAt(i)&255;
 }
-var _56=_25(_54);
-var key=_3(_54,_56);
-key=key.concat(key.slice(0,_53-16));
-var _58=_25(key);
-_50=_50.split(" ");
-var _59=16;
-var _5a=new Array(_59);
-var _5b=_50[0];
-_5a=_4b(_5b);
-var _5c=new Array(_50.length-1);
-for(var b=1;b<_50.length;b++){
+var _2b=_e(_2a);
+var key=_3(_2a,_2b);
+key=key.concat(key.slice(0,_29-16));
+var _2c=_e(key);
+_26=_26.split(" ");
+var _2d=16;
+var _2e=new Array(_2d);
+var _2f=_26[0];
+_2e=_24(_2f);
+var _30=new Array(_26.length-1);
+for(var b=1;b<_26.length;b++){
 for(var c=0;c<4;c++){
-_5a[15-c]=((b-1)>>>c*8)&255;
+_2e[15-c]=((b-1)>>>c*8)&255;
 }
 for(var c=0;c<4;c++){
-_5a[15-c-4]=((b/4294967296-1)>>>c*8)&255;
+_2e[15-c-4]=((b/4294967296-1)>>>c*8)&255;
 }
-var _5f=_3(_5a,_58);
+var _31=_3(_2e,_2c);
 var pt="";
-var tmp=_4b(_50[b]);
+var tmp=_24(_26[b]);
 for(var i=0;i<tmp.length;i++){
-var _62=_50[b].charCodeAt(i);
-var _63=tmp[i]^_5f[i];
-pt+=String.fromCharCode(_63);
+var _32=_26[b].charCodeAt(i);
+var _33=tmp[i]^_31[i];
+pt+=String.fromCharCode(_33);
 }
-_5c[b-1]=pt;
+_30[b-1]=pt;
 }
-return _5c.join("");
+return _30.join("");
 };
-function _64(str){
+function _34(str){
 return str.replace(/[\0\t\n\v\f\r\xa0!-]/g,function(c){
 return "!"+c.charCodeAt(0)+"!";
 });
 };
-function _67(str){
+function _35(str){
 return str.replace(/!\d\d?\d?!/g,function(c){
 return String.fromCharCode(c.slice(1,-1));
 });
 };
 dojox.encoding.crypto.SimpleAES=new (function(){
-this.encrypt=function(_6a,key){
-return _35(_6a,key,256);
+this.encrypt=function(_36,key){
+return _13(_36,key,256);
 };
-this.decrypt=function(_6c,key){
-return _4f(_6c,key,256);
+this.decrypt=function(_37,key){
+return _25(_37,key,256);
 };
 })();
 })();

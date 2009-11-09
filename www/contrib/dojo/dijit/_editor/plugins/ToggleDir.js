@@ -10,14 +10,25 @@ dojo._hasResource["dijit._editor.plugins.ToggleDir"]=true;
 dojo.provide("dijit._editor.plugins.ToggleDir");
 dojo.experimental("dijit._editor.plugins.ToggleDir");
 dojo.require("dijit._editor._Plugin");
-dojo.declare("dijit._editor.plugins.ToggleDir",dijit._editor._Plugin,{useDefaultCommand:false,command:"toggleDir",_initButton:function(){
-this.inherited("_initButton",arguments);
-this.connect(this.button,"onClick",this._toggleDir);
-},updateState:function(){
-},_toggleDir:function(){
+dojo.require("dijit.form.ToggleButton");
+dojo.declare("dijit._editor.plugins.ToggleDir",dijit._editor._Plugin,{useDefaultCommand:false,command:"toggleDir",buttonClass:dijit.form.ToggleButton,_initButton:function(){
+this.inherited(arguments);
+this.editor.onLoadDeferred.addCallback(dojo.hitch(this,function(){
 var _1=this.editor.editorObject.contentWindow.document.documentElement;
+_1=_1.getElementsByTagName("body")[0];
 var _2=dojo.getComputedStyle(_1).direction=="ltr";
-_1.dir=_2?"rtl":"ltr";
+this.button.attr("checked",!_2);
+this.connect(this.button,"onChange","_setRtl");
+}));
+},updateState:function(){
+},_setRtl:function(_3){
+var _4="ltr";
+if(_3){
+_4="rtl";
+}
+var _5=this.editor.editorObject.contentWindow.document.documentElement;
+_5=_5.getElementsByTagName("body")[0];
+_5.dir=_4;
 }});
 dojo.subscribe(dijit._scopeName+".Editor.getPlugin",null,function(o){
 if(o.plugin){

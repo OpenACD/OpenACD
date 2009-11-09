@@ -28,7 +28,6 @@ this._sql("CREATE UNIQUE INDEX IF NOT EXISTS namespace_key_index ON "+this.TABLE
 this.initialized=true;
 }
 catch(e){
-
 }
 dojox.storage.manager.loaded();
 },_sql:function(_2,_3){
@@ -61,7 +60,6 @@ this._sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = :namespace AND key 
 this._sql("INSERT INTO "+this.TABLE_NAME+" VALUES (:namespace, :key, :value)",{":namespace":_9,":key":_6,":value":_7});
 }
 catch(e){
-
 _8(this.FAILED,_6,e.toString());
 return;
 }
@@ -89,77 +87,76 @@ _d.push(rs.data[i].namespace);
 }
 }
 return _d;
-},getKeys:function(_10){
-_10=_10||this.DEFAULT_NAMESPACE;
+},getKeys:function(_e){
+_e=_e||this.DEFAULT_NAMESPACE;
+if(this.isValidKey(_e)==false){
+throw new Error("Invalid namespace given: "+_e);
+}
+var _f=[];
+var rs=this._sql("SELECT key FROM "+this.TABLE_NAME+" WHERE namespace = :namespace",{":namespace":_e});
+if(rs.data){
+for(var i=0;i<rs.data.length;i++){
+_f.push(rs.data[i].key);
+}
+}
+return _f;
+},clear:function(_10){
 if(this.isValidKey(_10)==false){
 throw new Error("Invalid namespace given: "+_10);
 }
-var _11=[];
-var rs=this._sql("SELECT key FROM "+this.TABLE_NAME+" WHERE namespace = :namespace",{":namespace":_10});
-if(rs.data){
-for(var i=0;i<rs.data.length;i++){
-_11.push(rs.data[i].key);
+this._sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = :namespace",{":namespace":_10});
+},remove:function(key,_11){
+_11=_11||this.DEFAULT_NAMESPACE;
+this._sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = :namespace AND key = :key",{":namespace":_11,":key":key});
+},putMultiple:function(_12,_13,_14,_15){
+if(this.isValidKeyArray(_12)===false||!_13 instanceof Array||_12.length!=_13.length){
+throw new Error("Invalid arguments: keys = ["+_12+"], values = ["+_13+"]");
 }
+if(_15==null||typeof _15=="undefined"){
+_15=this.DEFAULT_NAMESPACE;
 }
-return _11;
-},clear:function(_14){
-if(this.isValidKey(_14)==false){
-throw new Error("Invalid namespace given: "+_14);
+if(this.isValidKey(_15)==false){
+throw new Error("Invalid namespace given: "+_15);
 }
-this._sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = :namespace",{":namespace":_14});
-},remove:function(key,_16){
-_16=_16||this.DEFAULT_NAMESPACE;
-this._sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = :namespace AND key = :key",{":namespace":_16,":key":key});
-},putMultiple:function(_17,_18,_19,_1a){
-if(this.isValidKeyArray(_17)===false||!_18 instanceof Array||_17.length!=_18.length){
-throw new Error("Invalid arguments: keys = ["+_17+"], values = ["+_18+"]");
-}
-if(_1a==null||typeof _1a=="undefined"){
-_1a=this.DEFAULT_NAMESPACE;
-}
-if(this.isValidKey(_1a)==false){
-throw new Error("Invalid namespace given: "+_1a);
-}
-this._statusHandler=_19;
+this._statusHandler=_14;
 try{
 this._beginTransaction();
-for(var i=0;i<_17.length;i++){
-this._sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = :namespace AND key = :key",{":namespace":_1a,":key":_17[i]});
-this._sql("INSERT INTO "+this.TABLE_NAME+" VALUES (:namespace, :key, :value)",{":namespace":_1a,":key":_17[i],":value":_18[i]});
+for(var i=0;i<_12.length;i++){
+this._sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = :namespace AND key = :key",{":namespace":_15,":key":_12[i]});
+this._sql("INSERT INTO "+this.TABLE_NAME+" VALUES (:namespace, :key, :value)",{":namespace":_15,":key":_12[i],":value":_13[i]});
 }
 this._commitTransaction();
 }
 catch(e){
-
-if(_19){
-_19(this.FAILED,_17,e.toString(),_1a);
+if(_14){
+_14(this.FAILED,_12,e.toString(),_15);
 }
 return;
 }
-if(_19){
-_19(this.SUCCESS,_17,null);
+if(_14){
+_14(this.SUCCESS,_12,null);
 }
-},getMultiple:function(_1c,_1d){
-if(this.isValidKeyArray(_1c)===false){
-throw new Error("Invalid key array given: "+_1c);
+},getMultiple:function(_16,_17){
+if(this.isValidKeyArray(_16)===false){
+throw new Error("Invalid key array given: "+_16);
 }
-if(_1d==null||typeof _1d=="undefined"){
-_1d=this.DEFAULT_NAMESPACE;
+if(_17==null||typeof _17=="undefined"){
+_17=this.DEFAULT_NAMESPACE;
 }
-if(this.isValidKey(_1d)==false){
-throw new Error("Invalid namespace given: "+_1d);
+if(this.isValidKey(_17)==false){
+throw new Error("Invalid namespace given: "+_17);
 }
-var _1e=[];
-for(var i=0;i<_1c.length;i++){
-var _20=this._sql("SELECT * FROM "+this.TABLE_NAME+" WHERE namespace = :namespace AND key = :key",{":namespace":_1d,":key":_1c[i]});
-_1e[i]=_20.data&&_20.data.length?_20.data[0].value:null;
+var _18=[];
+for(var i=0;i<_16.length;i++){
+var _19=this._sql("SELECT * FROM "+this.TABLE_NAME+" WHERE namespace = :namespace AND key = :key",{":namespace":_17,":key":_16[i]});
+_18[i]=_19.data&&_19.data.length?_19.data[0].value:null;
 }
-return _1e;
-},removeMultiple:function(_21,_22){
-_22=_22||this.DEFAULT_NAMESPACE;
+return _18;
+},removeMultiple:function(_1a,_1b){
+_1b=_1b||this.DEFAULT_NAMESPACE;
 this._beginTransaction();
-for(var i=0;i<_21.length;i++){
-this._sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = namespace = :namespace AND key = :key",{":namespace":_22,":key":_21[i]});
+for(var i=0;i<_1a.length;i++){
+this._sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = namespace = :namespace AND key = :key",{":namespace":_1b,":key":_1a[i]});
 }
 this._commitTransaction();
 },isPermanent:function(){

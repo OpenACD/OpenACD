@@ -13,9 +13,9 @@ dojo.require("dojox.charting.plot2d.common");
 dojo.require("dojox.lang.functional");
 (function(){
 var du=dojox.lang.utils;
-dojo.declare("dojox.charting.plot2d.Grid",dojox.charting.Element,{defaultParams:{hAxis:"x",vAxis:"y",hMajorLines:true,hMinorLines:false,vMajorLines:true,vMinorLines:false,hStripes:"none",vStripes:"none"},optionalParams:{},constructor:function(_2,_3){
+dojo.declare("dojox.charting.plot2d.Grid",dojox.charting.Element,{defaultParams:{hAxis:"x",vAxis:"y",hMajorLines:true,hMinorLines:false,vMajorLines:true,vMinorLines:false,hStripes:"none",vStripes:"none"},optionalParams:{},constructor:function(_1,_2){
 this.opt=dojo.clone(this.defaultParams);
-du.updateWithObject(this.opt,_3);
+du.updateWithObject(this.opt,_2);
 this.hAxis=this.opt.hAxis;
 this.vAxis=this.opt.vAxis;
 this.dirty=true;
@@ -24,20 +24,20 @@ this._hAxis=null;
 this._vAxis=null;
 this.dirty=true;
 return this;
-},setAxis:function(_4){
-if(_4){
-this[_4.vertical?"_vAxis":"_hAxis"]=_4;
+},setAxis:function(_3){
+if(_3){
+this[_3.vertical?"_vAxis":"_hAxis"]=_3;
 }
 return this;
-},addSeries:function(_5){
+},addSeries:function(_4){
 return this;
-},calculateAxes:function(_6){
+},calculateAxes:function(_5){
 return this;
 },isDirty:function(){
 return this.dirty||this._hAxis&&this._hAxis.dirty||this._vAxis&&this._vAxis.dirty;
 },getRequiredColors:function(){
 return 0;
-},render:function(_7,_8){
+},render:function(_6,_7){
 this.dirty=this.isDirty();
 if(!this.dirty){
 return this;
@@ -45,34 +45,34 @@ return this;
 this.cleanGroup();
 var s=this.group,ta=this.chart.theme.axis;
 try{
-var _b=this._vAxis.getScaler(),vt=_b.scaler.getTransformerFromModel(_b),_d=this._vAxis.getTicks();
+var _8=this._vAxis.getScaler(),vt=_8.scaler.getTransformerFromModel(_8),_9=this._vAxis.getTicks();
 if(this.opt.hMinorLines){
-dojo.forEach(_d.minor,function(_e){
-var y=_7.height-_8.b-vt(_e.value);
-s.createLine({x1:_8.l,y1:y,x2:_7.width-_8.r,y2:y}).setStroke(ta.minorTick);
+dojo.forEach(_9.minor,function(_a){
+var y=_6.height-_7.b-vt(_a.value);
+s.createLine({x1:_7.l,y1:y,x2:_6.width-_7.r,y2:y}).setStroke(ta.minorTick);
 });
 }
 if(this.opt.hMajorLines){
-dojo.forEach(_d.major,function(_10){
-var y=_7.height-_8.b-vt(_10.value);
-s.createLine({x1:_8.l,y1:y,x2:_7.width-_8.r,y2:y}).setStroke(ta.majorTick);
+dojo.forEach(_9.major,function(_b){
+var y=_6.height-_7.b-vt(_b.value);
+s.createLine({x1:_7.l,y1:y,x2:_6.width-_7.r,y2:y}).setStroke(ta.majorTick);
 });
 }
 }
 catch(e){
 }
 try{
-var _12=this._hAxis.getScaler(),ht=_12.scaler.getTransformerFromModel(_12),_d=this._hAxis.getTicks();
-if(_d&&this.opt.vMinorLines){
-dojo.forEach(_d.minor,function(_14){
-var x=_8.l+ht(_14.value);
-s.createLine({x1:x,y1:_8.t,x2:x,y2:_7.height-_8.b}).setStroke(ta.minorTick);
+var _c=this._hAxis.getScaler(),ht=_c.scaler.getTransformerFromModel(_c),_9=this._hAxis.getTicks();
+if(_9&&this.opt.vMinorLines){
+dojo.forEach(_9.minor,function(_d){
+var x=_7.l+ht(_d.value);
+s.createLine({x1:x,y1:_7.t,x2:x,y2:_6.height-_7.b}).setStroke(ta.minorTick);
 });
 }
-if(_d&&this.opt.vMajorLines){
-dojo.forEach(_d.major,function(_16){
-var x=_8.l+ht(_16.value);
-s.createLine({x1:x,y1:_8.t,x2:x,y2:_7.height-_8.b}).setStroke(ta.majorTick);
+if(_9&&this.opt.vMajorLines){
+dojo.forEach(_9.major,function(_e){
+var x=_7.l+ht(_e.value);
+s.createLine({x1:x,y1:_7.t,x2:x,y2:_6.height-_7.b}).setStroke(ta.majorTick);
 });
 }
 }

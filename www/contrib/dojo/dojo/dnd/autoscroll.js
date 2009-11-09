@@ -56,7 +56,7 @@ for(var n=e.target;n;){
 if(n.nodeType==1&&(n.tagName.toLowerCase() in dojo.dnd._validNodes)){
 var s=dojo.getComputedStyle(n);
 if(s.overflow.toLowerCase() in dojo.dnd._validOverflow){
-var b=dojo._getContentBox(n,s),t=dojo._abs(n,true);
+var b=dojo._getContentBox(n,s),t=dojo.position(n,true);
 var w=Math.min(dojo.dnd.H_TRIGGER_AUTOSCROLL,b.w/2),h=Math.min(dojo.dnd.V_TRIGGER_AUTOSCROLL,b.h/2),rx=e.pageX-t.x,ry=e.pageY-t.y,dx=0,dy=0;
 if(dojo.isWebKit||dojo.isOpera){
 rx+=dojo.body().scrollLeft,ry+=dojo.body().scrollTop;
@@ -79,10 +79,10 @@ dy=h;
 }
 }
 }
-var _14=n.scrollLeft,_15=n.scrollTop;
+var _1=n.scrollLeft,_2=n.scrollTop;
 n.scrollLeft=n.scrollLeft+dx;
 n.scrollTop=n.scrollTop+dy;
-if(_14!=n.scrollLeft||_15!=n.scrollTop){
+if(_1!=n.scrollLeft||_2!=n.scrollTop){
 return;
 }
 }

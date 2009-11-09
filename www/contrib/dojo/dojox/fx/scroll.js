@@ -21,7 +21,7 @@ _1.win.scrollTo(_4[0],_4[1]);
 _1.win.scrollLeft=_5[0];
 _1.win.scrollTop=_5[1];
 });
-var _6=new dojo._Animation(dojo.mixin({beforeBegin:function(){
+var _6=new dojo.Animation(dojo.mixin({beforeBegin:function(){
 if(this.curve){
 delete this.curve;
 }

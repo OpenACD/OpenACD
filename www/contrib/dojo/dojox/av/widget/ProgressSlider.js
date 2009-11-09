@@ -10,7 +10,7 @@ dojo._hasResource["dojox.av.widget.ProgressSlider"]=true;
 dojo.provide("dojox.av.widget.ProgressSlider");
 dojo.require("dijit._Widget");
 dojo.require("dijit._Templated");
-dojo.declare("dojox.av.widget.ProgressSlider",[dijit._Widget,dijit._Templated],{templateString:"<div class=\"Progress\" dojoAttachEvent=\"mousedown:startDrag\">\n    \n    <div class=\"ProgressLoaded\" dojoAttachPoint=\"progressLoaded\"></div>\n    <div class=\"ProgressPosition\" dojoAttachPoint=\"progressPosition\"></div>\n\t<div class=\"ProgressHandle\" dojoAttachPoint=\"handle\" dojoAttachEvent=\"mouseover:handleOver, mouseout:handleOut\"></div>\n</div>\n",postCreate:function(){
+dojo.declare("dojox.av.widget.ProgressSlider",[dijit._Widget,dijit._Templated],{templateString:dojo.cache("dojox.av.widget","resources/ProgressSlider.html","<div class=\"Progress\" dojoAttachEvent=\"mousedown:startDrag\">\n    \n    <div class=\"ProgressLoaded\" dojoAttachPoint=\"progressLoaded\"></div>\n    <div class=\"ProgressPosition\" dojoAttachPoint=\"progressPosition\"></div>\n\t<div class=\"ProgressHandle\" dojoAttachPoint=\"handle\" dojoAttachEvent=\"mouseover:handleOver, mouseout:handleOut\"></div>\n</div>\n"),postCreate:function(){
 this.seeking=false;
 this.handleWidth=dojo.marginBox(this.handle).w;
 var _1=dojo.coords(this.domNode);
@@ -65,24 +65,24 @@ if(this.cup){
 dojo.disconnect(this.cup);
 }
 this.handleOut();
-},setHandle:function(_9){
+},setHandle:function(_7){
 if(!this.seeking){
 var w=this.width-this.handleWidth;
-var p=_9/this.duration;
+var p=_7/this.duration;
 var x=p*w;
 dojo.style(this.handle,"marginLeft",x+"px");
 dojo.style(this.progressPosition,"width",x+"px");
 }
-},setLoadedPosition:function(_d){
-dojo.style(this.progressLoaded,"width",(this.finalWidth*_d)+"px");
+},setLoadedPosition:function(_8){
+dojo.style(this.progressLoaded,"width",(this.finalWidth*_8)+"px");
 },handleOver:function(){
 dojo.addClass(this.handle,"over");
 },handleOut:function(){
 if(!this.seeking){
 dojo.removeClass(this.handle,"over");
 }
-},onResize:function(_e){
-var _f=dojo.coords(this.domNode);
-this.finalWidth=_f.w;
+},onResize:function(_9){
+var _a=dojo.coords(this.domNode);
+this.finalWidth=_a.w;
 }});
 }

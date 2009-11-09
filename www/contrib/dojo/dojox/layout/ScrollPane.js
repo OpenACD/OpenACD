@@ -11,7 +11,7 @@ dojo.provide("dojox.layout.ScrollPane");
 dojo.experimental("dojox.layout.ScrollPane");
 dojo.require("dijit.layout.ContentPane");
 dojo.require("dijit._Templated");
-dojo.declare("dojox.layout.ScrollPane",[dijit.layout.ContentPane,dijit._Templated],{_line:null,_lo:null,_offset:15,orientation:"vertical",autoHide:true,templateString:"<div class=\"dojoxScrollWindow\" dojoAttachEvent=\"onmouseenter: _enter, onmouseleave: _leave\">\n    <div class=\"dojoxScrollWrapper\" style=\"${style}\" dojoAttachPoint=\"wrapper\" dojoAttachEvent=\"onmousemove: _calc\">\n\t<div class=\"dojoxScrollPane\" dojoAttachPoint=\"containerNode\"></div>\n    </div>\n    <div dojoAttachPoint=\"helper\" class=\"dojoxScrollHelper\"><span class=\"helperInner\">|</span></div>\n</div>\n",resize:function(_1){
+dojo.declare("dojox.layout.ScrollPane",[dijit.layout.ContentPane,dijit._Templated],{_line:null,_lo:null,_offset:15,orientation:"vertical",autoHide:true,templateString:dojo.cache("dojox.layout","resources/ScrollPane.html","<div class=\"dojoxScrollWindow\" dojoAttachEvent=\"onmouseenter: _enter, onmouseleave: _leave\">\n    <div class=\"dojoxScrollWrapper\" style=\"${style}\" dojoAttachPoint=\"wrapper\" dojoAttachEvent=\"onmousemove: _calc\">\n\t<div class=\"dojoxScrollPane\" dojoAttachPoint=\"containerNode\"></div>\n    </div>\n    <div dojoAttachPoint=\"helper\" class=\"dojoxScrollHelper\"><span class=\"helperInner\">|</span></div>\n</div>\n"),resize:function(_1){
 if(_1){
 if(_1.h){
 dojo.style(this.domNode,"height",_1.h+"px");

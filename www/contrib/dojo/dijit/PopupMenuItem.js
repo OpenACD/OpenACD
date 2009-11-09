@@ -32,7 +32,9 @@ dojo.style(this.arrowWrapper,"visibility","");
 dijit.setWaiState(this.focusNode,"haspopup","true");
 },destroyDescendants:function(){
 if(this.popup){
+if(!this.popup._destroyed){
 this.popup.destroyRecursive();
+}
 delete this.popup;
 }
 this.inherited(arguments);

@@ -11,36 +11,43 @@ dojo.provide("dijit.form.NumberTextBox");
 dojo.require("dijit.form.ValidationTextBox");
 dojo.require("dojo.number");
 dojo.declare("dijit.form.NumberTextBoxMixin",null,{regExpGen:dojo.number.regexp,value:NaN,editOptions:{pattern:"#.######"},_formatter:dojo.number.format,postMixInProperties:function(){
+var _1=typeof this.constraints.places=="number"?this.constraints.places:0;
+if(_1){
+_1++;
+}
 if(typeof this.constraints.max!="number"){
-this.constraints.max=9000000000000000;
+this.constraints.max=9*Math.pow(10,15-_1);
+}
+if(typeof this.constraints.min!="number"){
+this.constraints.min=-9*Math.pow(10,15-_1);
 }
 this.inherited(arguments);
 },_onFocus:function(){
 if(this.disabled){
 return;
 }
-var _1=this.attr("value");
-if(typeof _1=="number"&&!isNaN(_1)){
-var _2=this.format(_1,this.constraints);
-if(_2!==undefined){
-this.textbox.value=_2;
+var _2=this.attr("value");
+if(typeof _2=="number"&&!isNaN(_2)){
+var _3=this.format(_2,this.constraints);
+if(_3!==undefined){
+this.textbox.value=_3;
 }
 }
 this.inherited(arguments);
-},format:function(_3,_4){
-if(typeof _3!="number"){
-return String(_3);
+},format:function(_4,_5){
+if(typeof _4!="number"){
+return String(_4);
 }
-if(isNaN(_3)){
+if(isNaN(_4)){
 return "";
 }
-if(("rangeCheck" in this)&&!this.rangeCheck(_3,_4)){
-return String(_3);
+if(("rangeCheck" in this)&&!this.rangeCheck(_4,_5)){
+return String(_4);
 }
 if(this.editOptions&&this._focused){
-_4=dojo.mixin(dojo.mixin({},this.editOptions),_4);
+_5=dojo.mixin({},_5,this.editOptions);
 }
-return this._formatter(_3,_4);
+return this._formatter(_4,_5);
 },parse:dojo.number.parse,_getDisplayedValueAttr:function(){
 var v=this.inherited(arguments);
 return isNaN(v)?this.textbox.value:v;
@@ -72,10 +79,29 @@ this.inherited(arguments,[_9,_a,_b]);
 },_getValueAttr:function(){
 var v=this.inherited(arguments);
 if(isNaN(v)&&this.textbox.value!==""){
+if(this.constraints.exponent!==false&&/\de[-+]?|\d/i.test(this.textbox.value)&&(new RegExp("^"+dojo.number._realNumberRegexp(this.constraints)+"$").test(this.textbox.value))){
 var n=Number(this.textbox.value);
-return (String(n)===this.textbox.value)?n:undefined;
+return isNaN(n)?undefined:n;
+}else{
+return undefined;
+}
 }else{
 return v;
+}
+},isValid:function(_c){
+if(!this._focused||this._isEmpty(this.textbox.value)){
+return this.inherited(arguments);
+}else{
+var v=this.attr("value");
+if(!isNaN(v)&&this.rangeCheck(v,this.constraints)){
+if(this.constraints.exponent!==false&&/\de[-+]?\d/i.test(this.textbox.value)){
+return true;
+}else{
+return this.inherited(arguments);
+}
+}else{
+return false;
+}
 }
 }});
 dojo.declare("dijit.form.NumberTextBox",[dijit.form.RangeBoundTextBox,dijit.form.NumberTextBoxMixin],{});

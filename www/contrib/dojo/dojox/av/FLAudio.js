@@ -87,8 +87,8 @@ dojo.forEach(this._cons,function(c){
 dojo.disconnect(c);
 });
 this._flashObject.destroy();
-},_sub:function(_13,_14){
-dojo.subscribe(this.id+"/"+_13,this,_14);
+},_sub:function(_10,_11){
+dojo.subscribe(this.id+"/"+_10,this,_11);
 },_normalizeVolume:function(vol){
 if(vol>1){
 while(vol>1){
@@ -96,13 +96,13 @@ vol*=0.1;
 }
 }
 return vol;
-},_normalizeUrl:function(_16){
-if(_16&&_16.toLowerCase().indexOf("http")<0){
+},_normalizeUrl:function(_12){
+if(_12&&_12.toLowerCase().indexOf("http")<0){
 var loc=window.location.href.split("/");
 loc.pop();
 loc=loc.join("/")+"/";
-_16=loc+_16;
+_12=loc+_12;
 }
-return _16;
+return _12;
 }});
 }

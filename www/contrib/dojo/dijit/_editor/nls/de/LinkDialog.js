@@ -1,1 +1,1 @@
-({"set":"Festlegen","text":"Beschreibung:","insertImageTitle":"Grafikeigenschaften","url":"URL:","createLinkTitle":"Linkeigenschaften"})
+({"set":"Festlegen","text":"Beschreibung:","insertImageTitle":"Grafikeigenschaften","url":"URL:","createLinkTitle":"Linkeigenschaften","cancel":"Cancel","newWindow":"New Window ( _blank )","topWindow":"Topmost Window ( _top )","target":"Target:","parentWindow":"Parent Window ( _parent )","currentWindow":"Current Window ( _self )"})

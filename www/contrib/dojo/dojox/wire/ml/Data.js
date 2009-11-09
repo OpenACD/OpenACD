@@ -20,54 +20,54 @@ this._properties={};
 }
 var _2=this.getChildren();
 for(var i in _2){
-var _4=_2[i];
-if((_4 instanceof dojox.wire.ml.DataProperty)&&_4.name){
-this.setPropertyValue(_4.name,_4.getValue());
+var _3=_2[i];
+if((_3 instanceof dojox.wire.ml.DataProperty)&&_3.name){
+this.setPropertyValue(_3.name,_3.getValue());
 }
 }
-},getPropertyValue:function(_5){
-return this._properties[_5];
-},setPropertyValue:function(_6,_7){
-this._properties[_6]=_7;
+},getPropertyValue:function(_4){
+return this._properties[_4];
+},setPropertyValue:function(_5,_6){
+this._properties[_5]=_6;
 }});
 dojo.declare("dojox.wire.ml.DataProperty",[dijit._Widget,dijit._Container],{name:"",type:"",value:"",_getValueAttr:function(){
 return this.getValue();
 },getValue:function(){
-var _8=this.value;
+var _7=this.value;
 if(this.type){
 if(this.type=="number"){
-_8=parseInt(_8);
+_7=parseInt(_7);
 }else{
 if(this.type=="boolean"){
-_8=(_8=="true");
+_7=(_7=="true");
 }else{
 if(this.type=="array"){
-_8=[];
-var _9=this.getChildren();
-for(var i in _9){
-var _b=_9[i];
-if(_b instanceof dojox.wire.ml.DataProperty){
-_8.push(_b.getValue());
+_7=[];
+var _8=this.getChildren();
+for(var i in _8){
+var _9=_8[i];
+if(_9 instanceof dojox.wire.ml.DataProperty){
+_7.push(_9.getValue());
 }
 }
 }else{
 if(this.type=="object"){
-_8={};
-var _9=this.getChildren();
-for(var i in _9){
-var _b=_9[i];
-if((_b instanceof dojox.wire.ml.DataProperty)&&_b.name){
-_8[_b.name]=_b.getValue();
+_7={};
+var _8=this.getChildren();
+for(var i in _8){
+var _9=_8[i];
+if((_9 instanceof dojox.wire.ml.DataProperty)&&_9.name){
+_7[_9.name]=_9.getValue();
 }
 }
 }else{
 if(this.type=="element"){
-_8=new dojox.wire.ml.XmlElement(_8);
-var _9=this.getChildren();
-for(var i in _9){
-var _b=_9[i];
-if((_b instanceof dojox.wire.ml.DataProperty)&&_b.name){
-_8.setPropertyValue(_b.name,_b.getValue());
+_7=new dojox.wire.ml.XmlElement(_7);
+var _8=this.getChildren();
+for(var i in _8){
+var _9=_8[i];
+if((_9 instanceof dojox.wire.ml.DataProperty)&&_9.name){
+_7.setPropertyValue(_9.name,_9.getValue());
 }
 }
 }
@@ -76,6 +76,6 @@ _8.setPropertyValue(_b.name,_b.getValue());
 }
 }
 }
-return _8;
+return _7;
 }});
 }

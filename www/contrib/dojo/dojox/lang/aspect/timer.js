@@ -16,11 +16,9 @@ this.inCall=0;
 };
 dojo.extend(_3,{before:function(){
 if(!(this.inCall++)){
-
 }
 },after:function(){
 if(!--this.inCall){
-
 }
 }});
 _1.timer=function(_5){

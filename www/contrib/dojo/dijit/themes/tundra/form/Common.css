@@ -26,18 +26,6 @@
 	border:1px solid #b3b3b3;
 	line-height: normal;
 }
-.tundra .dijitTextBoxDisabled,
-.tundra .dijitComboBoxDisabled,
-.tundra .dijitSpinnerDisabled,
-.tundra .dijitTextAreaDisabled {
-	color: gray;
-}
-.dj_webkit .tundra .dijitTextBoxDisabled,
-.dj_webkit .tundra .dijitComboBoxDisabled,
-.dj_webkit .tundra .dijitSpinnerDisabled,
-.dj_webkit .tundra .dijitTextAreaDisabled {
-	color: #eee;
-}
 .tundra .dijitComboBox .dijitInputField {
 	padding: 1px 0;
 }
@@ -98,9 +86,7 @@
 .tundra .dijitInlineEditor {
 	
 	display: inline-block;
-	display: -moz-inline-stack;
 	#display:inline;
-	
 }
 .dijitInlineEditor .saveButton,
 .dijitInlineEditor .cancelButton {

@@ -27,9 +27,9 @@ dojo.setSelectable(this.domNode,true);
 dojo.style(this.domNode,"cursor","pointer");
 this.disconnect(this._mover);
 },_move:function(e){
-var _5=this.invert?1:-1;
-this.domNode.scrollTop+=(this._y-e.pageY)*_5;
-this.domNode.scrollLeft+=(this._x-e.pageX)*_5;
+var _1=this.invert?1:-1;
+this.domNode.scrollTop+=(this._y-e.pageY)*_1;
+this.domNode.scrollLeft+=(this._x-e.pageX)*_1;
 this._x=e.pageX;
 this._y=e.pageY;
 }});

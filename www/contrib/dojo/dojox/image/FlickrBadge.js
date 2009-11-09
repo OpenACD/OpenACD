@@ -47,10 +47,10 @@ a.href=this._store.getValue(_6,"link");
 if(this.target){
 a.target=this.target;
 }
-var _8=dojo.doc.createElement("img");
-_8.src=this._store.getValue(_6,"imageUrlThumb");
-dojo.style(_8,{width:"100%",height:"100%"});
-a.appendChild(_8);
+var _7=dojo.doc.createElement("img");
+_7.src=this._store.getValue(_6,"imageUrlThumb");
+dojo.style(_7,{width:"100%",height:"100%"});
+a.appendChild(_7);
 this.domNode.appendChild(a);
 },this);
 dojox.image.Badge.prototype.startup.call(this,_4);

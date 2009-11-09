@@ -4,7 +4,7 @@
 }
 .dijitRtl .soria .dijitTreeContainer .dijitTreeContent {
     padding-left: auto;
-    padding-right: 1px;   
+    padding-right: 1px;
 }
 .dijitRtl .soria .dijitTreeContainer .dijitTreeExpandoOpened {
 	background: url('images/spriteTree_rtl.gif') no-repeat -18px top;

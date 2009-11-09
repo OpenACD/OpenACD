@@ -46,23 +46,23 @@ dojox.validate.isNumberFormat=function(_a,_b){
 var re=new RegExp("^"+dojox.validate.regexp.numberFormat(_b)+"$","i");
 return re.test(_a);
 };
-dojox.validate.isValidLuhn=function(_d){
-var _e=0,_f,_10;
-if(!dojo.isString(_d)){
-_d=String(_d);
+dojox.validate.isValidLuhn=function(_c){
+var _d=0,_e,_f;
+if(!dojo.isString(_c)){
+_c=String(_c);
 }
-_d=_d.replace(/[- ]/g,"");
-_f=_d.length%2;
-for(var i=0;i<_d.length;i++){
-_10=parseInt(_d.charAt(i));
-if(i%2==_f){
-_10*=2;
+_c=_c.replace(/[- ]/g,"");
+_e=_c.length%2;
+for(var i=0;i<_c.length;i++){
+_f=parseInt(_c.charAt(i));
+if(i%2==_e){
+_f*=2;
 }
-if(_10>9){
-_10-=9;
+if(_f>9){
+_f-=9;
 }
-_e+=_10;
+_d+=_f;
 }
-return !(_e%10);
+return !(_d%10);
 };
 }

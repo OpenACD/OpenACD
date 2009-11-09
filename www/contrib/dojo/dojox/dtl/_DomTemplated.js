@@ -12,7 +12,9 @@ dojo.require("dijit._Templated");
 dojo.require("dojox.dtl.dom");
 dojo.require("dojox.dtl.render.dom");
 dojo.require("dojox.dtl.contrib.dijit");
-dojox.dtl._DomTemplated={prototype:{_dijitTemplateCompat:false,buildRendering:function(){
+dojox.dtl._DomTemplated=function(){
+};
+dojox.dtl._DomTemplated.prototype={_dijitTemplateCompat:false,buildRendering:function(){
 this.domNode=this.srcNodeRef;
 if(!this._render){
 var _1=dojox.dtl.contrib.dijit;
@@ -57,5 +59,5 @@ if(_b[_a]){
 return _b[_a];
 }
 return (_b[_a]=new dojox.dtl.DomTemplate(dijit._Templated.getCachedTemplate(_8,_9,true)));
-}}};
+}};
 }

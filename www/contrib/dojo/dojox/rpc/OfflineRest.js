@@ -19,105 +19,109 @@ var _4=_1._index;
 dojox.storage.manager.addOnLoad(function(){
 _3=dojox.storage.manager.available;
 for(var i in _4){
-_6(_4[i],i);
+_5(_4[i],i);
 }
 });
-var _7;
-function _8(_9){
-return _9.replace(/[^0-9A-Za-z_]/g,"_");
+var _6;
+function _7(_8){
+return _8.replace(/[^0-9A-Za-z_]/g,"_");
 };
-function _6(_a,id){
-if(_3&&!_7&&(id||(_a&&_a.__id))){
-dojox.storage.put(_8(id||_a.__id),typeof _a=="object"?dojox.json.ref.toJson(_a):_a,function(){
+function _5(_9,id){
+if(_3&&!_6&&(id||(_9&&_9.__id))){
+dojox.storage.put(_7(id||_9.__id),typeof _9=="object"?dojox.json.ref.toJson(_9):_9,function(){
 },_2);
 }
 };
-function _c(_d){
-return _d instanceof Error&&(_d.status==503||_d.status>12000||!_d.status);
+function _a(_b){
+return _b instanceof Error&&(_b.status==503||_b.status>12000||!_b.status);
 };
-function _e(){
+function _c(){
 if(_3){
-var _f=dojox.storage.get("dirty",_2);
-if(_f){
-for(var _10 in _f){
-_11(_10,_f);
+var _d=dojox.storage.get("dirty",_2);
+if(_d){
+for(var _e in _d){
+_f(_e,_d);
 }
 }
 }
 };
-var _12;
-function _13(){
-_12.sendChanges();
-_12.downloadChanges();
+var _10;
+function _11(){
+_10.sendChanges();
+_10.downloadChanges();
 };
-var _14=setInterval(_13,15000);
-dojo.connect(document,"ononline",_13);
-_12=dojox.rpc.OfflineRest={turnOffAutoSync:function(){
-clearInterval(_14);
-},sync:_13,sendChanges:_e,downloadChanges:function(){
-},addStore:function(_15,_16){
-_12.stores.push(_15);
-_15.fetch({queryOptions:{cache:true},query:_16,onComplete:function(_17,_18){
-_15._localBaseResults=_17;
-_15._localBaseFetch=_18;
+var _12=setInterval(_11,15000);
+dojo.connect(document,"ononline",_11);
+_10=dojox.rpc.OfflineRest={turnOffAutoSync:function(){
+clearInterval(_12);
+},sync:_11,sendChanges:_c,downloadChanges:function(){
+},addStore:function(_13,_14){
+_10.stores.push(_13);
+_13.fetch({queryOptions:{cache:true},query:_14,onComplete:function(_15,_16){
+_13._localBaseResults=_15;
+_13._localBaseFetch=_16;
 }});
 }};
-_12.stores=[];
-var _19=_1._get;
-_1._get=function(_1a,id){
+_10.stores=[];
+var _17=_1._get;
+_1._get=function(_18,id){
 try{
-_e();
+_c();
 if(window.navigator&&navigator.onLine===false){
 throw new Error();
 }
-var dfd=_19(_1a,id);
+var dfd=_17(_18,id);
 }
 catch(e){
 dfd=new dojo.Deferred();
 dfd.errback(e);
 }
-var _1d=dojox.rpc._sync;
-dfd.addCallback(function(_1e){
-_6(_1e,_1a.servicePath+id);
-return _1e;
+var _19=dojox.rpc._sync;
+dfd.addCallback(function(_1a){
+_5(_1a,_18._getRequest(id).url);
+return _1a;
 });
-dfd.addErrback(function(_1f){
+dfd.addErrback(function(_1b){
 if(_3){
-if(_c(_1f)){
-var _20={};
-var _21=function(id,_23){
-if(_20[id]){
-return _23;
+if(_a(_1b)){
+var _1c={};
+var _1d=function(id,_1e){
+if(_1c[id]){
+return _1e;
 }
-var _24=dojo.fromJson(dojox.storage.get(_8(id),_2))||_23;
-_20[id]=_24;
-for(var i in _24){
-var val=_24[i];
-if(val&&val.$ref){
-_24[i]=_21(val.$ref,val);
+var _1f=dojo.fromJson(dojox.storage.get(_7(id),_2))||_1e;
+_1c[id]=_1f;
+for(var i in _1f){
+var val=_1f[i];
+id=val&&val.$ref;
+if(id){
+if(id.substring&&id.substring(0,4)=="cid:"){
+id=id.substring(4);
 }
-}
-if(_24 instanceof Array){
-for(i=0;i<_24.length;i++){
-if(_24[i]===undefined){
-_24.splice(i--,1);
+_1f[i]=_1d(id,val);
 }
 }
+if(_1f instanceof Array){
+for(i=0;i<_1f.length;i++){
+if(_1f[i]===undefined){
+_1f.splice(i--,1);
 }
-return _24;
+}
+}
+return _1f;
 };
-_7=true;
-var _27=_21(_1a.servicePath+id);
-if(!_27){
-return _1f;
+_6=true;
+var _20=_1d(_18._getRequest(id).url);
+if(!_20){
+return _1b;
 }
-_7=false;
-return _27;
+_6=false;
+return _20;
 }else{
-return _1f;
+return _1b;
 }
 }else{
-if(_1d){
+if(_19){
 return new Error("Storage manager not loaded, can not continue");
 }
 dfd=new dojo.Deferred();
@@ -130,59 +134,70 @@ return dfd;
 });
 return dfd;
 };
-var _28=_1._change;
-_1._change=function(_29,_2a,id,_2c){
-if(!_3){
-return _28.apply(this,arguments);
-}
-var _2d=_2a.servicePath+id;
-if(_29=="delete"){
-dojox.storage.remove(_8(_2d),_2);
+function _21(_22,_23,_24,_25,_26){
+if(_22=="delete"){
+dojox.storage.remove(_7(_23),_2);
 }else{
-dojox.storage.put(_8(dojox.rpc.JsonRest._contentId),_2c,function(){
+dojox.storage.put(_7(_24),_25,function(){
 },_2);
 }
-var _2e=_2a._store;
-if(_2e){
-_2e.updateResultSet(_2e._localBaseResults,_2e._localBaseFetch);
-dojox.storage.put(_8(_2a.servicePath+_2e._localBaseFetch.query),dojox.json.ref.toJson(_2e._localBaseResults),function(){
+var _27=_26&&_26._store;
+if(_27){
+_27.updateResultSet(_27._localBaseResults,_27._localBaseFetch);
+dojox.storage.put(_7(_26._getRequest(_27._localBaseFetch.query).url),dojox.json.ref.toJson(_27._localBaseResults),function(){
 },_2);
 }
-var _2f=dojox.storage.get("dirty",_2)||{};
-if(_29=="put"||_29=="delete"){
-var _30=_2d;
-}else{
-_30=0;
-for(var i in _2f){
-if(!isNaN(parseInt(i))){
-_30=i;
-}
-}
-_30++;
-}
-_2f[_30]={method:_29,id:_2d,content:_2c};
-return _11(_30,_2f);
 };
-function _11(_32,_33){
-var _34=_33[_32];
-var _35=dojox.rpc.JsonRest.getServiceAndId(_34.id);
-var _36=_28(_34.method,_35.service,_35.id,_34.content);
-_33[_32]=_34;
-dojox.storage.put("dirty",_33,function(){
+dojo.addOnLoad(function(){
+dojo.connect(dojox.data,"restListener",function(_28){
+var _29=_28.channel;
+var _2a=_28.event.toLowerCase();
+var _2b=dojox.rpc.JsonRest&&dojox.rpc.JsonRest.getServiceAndId(_29).service;
+_21(_2a,_29,_2a=="post"?_29+_28.result.id:_29,dojo.toJson(_28.result),_2b);
+});
+});
+var _2c=_1._change;
+_1._change=function(_2d,_2e,id,_2f){
+if(!_3){
+return _2c.apply(this,arguments);
+}
+var _30=_2e._getRequest(id).url;
+_21(_2d,_30,dojox.rpc.JsonRest._contentId,_2f,_2e);
+var _31=dojox.storage.get("dirty",_2)||{};
+if(_2d=="put"||_2d=="delete"){
+var _32=_30;
+}else{
+_32=0;
+for(var i in _31){
+if(!isNaN(parseInt(i))){
+_32=i;
+}
+}
+_32++;
+}
+_31[_32]={method:_2d,id:_30,content:_2f};
+return _f(_32,_31);
+};
+function _f(_33,_34){
+var _35=_34[_33];
+var _36=dojox.rpc.JsonRest.getServiceAndId(_35.id);
+var _37=_2c(_35.method,_36.service,_36.id,_35.content);
+_34[_33]=_35;
+dojox.storage.put("dirty",_34,function(){
 },_2);
-_36.addBoth(function(_37){
-if(_c(_37)){
+_37.addBoth(function(_38){
+if(_a(_38)){
 return null;
 }
-var _38=dojox.storage.get("dirty",_2)||{};
-delete _38[_32];
-dojox.storage.put("dirty",_38,function(){
+var _39=dojox.storage.get("dirty",_2)||{};
+delete _39[_33];
+dojox.storage.put("dirty",_39,function(){
 },_2);
-return _37;
+return _38;
 });
-return _36;
+return _37;
 };
-dojo.connect(_4,"onLoad",_6);
-dojo.connect(_4,"onUpdate",_6);
+dojo.connect(_4,"onLoad",_5);
+dojo.connect(_4,"onUpdate",_5);
 })();
 }

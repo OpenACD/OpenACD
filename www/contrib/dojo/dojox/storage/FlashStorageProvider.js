@@ -81,98 +81,98 @@ _9[i]=dojo.toJson(_9[i]);
 }
 _d[i]=_9[i].length;
 }
-var _f=_9.join("");
-var _10=_d.join(",");
-dojox.flash.comm.putMultiple(_c,_f,_10,_b);
-},get:function(key,_12){
+var _e=_9.join("");
+var _f=_d.join(",");
+dojox.flash.comm.putMultiple(_c,_e,_f,_b);
+},get:function(key,_10){
 if(!this.isValidKey(key)){
 throw new Error("Invalid key given: "+key);
 }
-if(!_12){
-_12=dojox.storage.DEFAULT_NAMESPACE;
+if(!_10){
+_10=dojox.storage.DEFAULT_NAMESPACE;
 }
-if(!this.isValidKey(_12)){
-throw new Error("Invalid namespace given: "+_12);
+if(!this.isValidKey(_10)){
+throw new Error("Invalid namespace given: "+_10);
 }
-var _13=dojox.flash.comm.get(key,_12);
-if(_13==""){
+var _11=dojox.flash.comm.get(key,_10);
+if(_11==""){
 return null;
 }
-return this._destringify(_13);
-},getMultiple:function(_14,_15){
-if(!this.isValidKeyArray(_14)){
-throw new ("Invalid key array given: "+_14);
+return this._destringify(_11);
+},getMultiple:function(_12,_13){
+if(!this.isValidKeyArray(_12)){
+throw new ("Invalid key array given: "+_12);
 }
-if(!_15){
-_15=dojox.storage.DEFAULT_NAMESPACE;
+if(!_13){
+_13=dojox.storage.DEFAULT_NAMESPACE;
 }
-if(!this.isValidKey(_15)){
-throw new Error("Invalid namespace given: "+_15);
+if(!this.isValidKey(_13)){
+throw new Error("Invalid namespace given: "+_13);
 }
-var _16=_14.join(",");
-var _17=dojox.flash.comm.getMultiple(_16,_15);
-var _18=eval("("+_17+")");
-for(var i=0;i<_18.length;i++){
-_18[i]=(_18[i]=="")?null:this._destringify(_18[i]);
+var _14=_12.join(",");
+var _15=dojox.flash.comm.getMultiple(_14,_13);
+var _16=eval("("+_15+")");
+for(var i=0;i<_16.length;i++){
+_16[i]=(_16[i]=="")?null:this._destringify(_16[i]);
 }
-return _18;
-},_destringify:function(_1a){
-if(dojo.isString(_1a)&&(/^string:/.test(_1a))){
-_1a=_1a.substring("string:".length);
+return _16;
+},_destringify:function(_17){
+if(dojo.isString(_17)&&(/^string:/.test(_17))){
+_17=_17.substring("string:".length);
 }else{
-_1a=dojo.fromJson(_1a);
+_17=dojo.fromJson(_17);
 }
+return _17;
+},getKeys:function(_18){
+if(!_18){
+_18=dojox.storage.DEFAULT_NAMESPACE;
+}
+if(!this.isValidKey(_18)){
+throw new Error("Invalid namespace given: "+_18);
+}
+var _19=dojox.flash.comm.getKeys(_18);
+if(_19==null||_19=="null"){
+_19="";
+}
+_19=_19.split(",");
+_19.sort();
+return _19;
+},getNamespaces:function(){
+var _1a=dojox.flash.comm.getNamespaces();
+if(_1a==null||_1a=="null"){
+_1a=dojox.storage.DEFAULT_NAMESPACE;
+}
+_1a=_1a.split(",");
+_1a.sort();
 return _1a;
-},getKeys:function(_1b){
+},clear:function(_1b){
 if(!_1b){
 _1b=dojox.storage.DEFAULT_NAMESPACE;
 }
 if(!this.isValidKey(_1b)){
 throw new Error("Invalid namespace given: "+_1b);
 }
-var _1c=dojox.flash.comm.getKeys(_1b);
-if(_1c==null||_1c=="null"){
-_1c="";
+dojox.flash.comm.clear(_1b);
+},remove:function(key,_1c){
+if(!_1c){
+_1c=dojox.storage.DEFAULT_NAMESPACE;
 }
-_1c=_1c.split(",");
-_1c.sort();
-return _1c;
-},getNamespaces:function(){
-var _1d=dojox.flash.comm.getNamespaces();
-if(_1d==null||_1d=="null"){
-_1d=dojox.storage.DEFAULT_NAMESPACE;
+if(!this.isValidKey(_1c)){
+throw new Error("Invalid namespace given: "+_1c);
 }
-_1d=_1d.split(",");
-_1d.sort();
-return _1d;
-},clear:function(_1e){
+dojox.flash.comm.remove(key,_1c);
+},removeMultiple:function(_1d,_1e){
+if(!this.isValidKeyArray(_1d)){
+dojo.raise("Invalid key array given: "+_1d);
+}
 if(!_1e){
 _1e=dojox.storage.DEFAULT_NAMESPACE;
 }
 if(!this.isValidKey(_1e)){
 throw new Error("Invalid namespace given: "+_1e);
 }
-dojox.flash.comm.clear(_1e);
-},remove:function(key,_20){
-if(!_20){
-_20=dojox.storage.DEFAULT_NAMESPACE;
-}
-if(!this.isValidKey(_20)){
-throw new Error("Invalid namespace given: "+_20);
-}
-dojox.flash.comm.remove(key,_20);
-},removeMultiple:function(_21,_22){
-if(!this.isValidKeyArray(_21)){
-dojo.raise("Invalid key array given: "+_21);
-}
-if(!_22){
-_22=dojox.storage.DEFAULT_NAMESPACE;
-}
-if(!this.isValidKey(_22)){
-throw new Error("Invalid namespace given: "+_22);
-}
-var _23=_21.join(",");
-dojox.flash.comm.removeMultiple(_23,_22);
+var _1f=_1d.join(",");
+dojox.flash.comm.removeMultiple(_1f,_1e);
 },isPermanent:function(){
 return true;
 },getMaximumSize:function(){
@@ -194,17 +194,17 @@ return [];
 this._allNamespaces=this.getNamespaces();
 this.initialized=true;
 dojox.storage.manager.loaded();
-},_onStatus:function(_24,key,_26){
+},_onStatus:function(_20,key,_21){
 var ds=dojox.storage;
 var dfo=dojox.flash.obj;
-if(_24==ds.PENDING){
+if(_20==ds.PENDING){
 dfo.center();
 dfo.setVisible(true);
 }else{
 dfo.setVisible(false);
 }
 if(ds._statusHandler){
-ds._statusHandler.call(null,_24,key,null,_26);
+ds._statusHandler.call(null,_20,key,null,_21);
 }
 }});
 dojox.storage.manager.register("dojox.storage.FlashStorageProvider",new dojox.storage.FlashStorageProvider());

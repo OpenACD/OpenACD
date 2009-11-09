@@ -85,6 +85,6 @@ _10.append(this.chatid);
 _10.append("</thread></message>");
 this.session.dispatchPacket(_10.toString());
 },onNewMessage:function(msg){
-},onInvite:function(_12){
+},onInvite:function(_11){
 }});
 }

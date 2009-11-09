@@ -10,7 +10,7 @@ dojo._hasResource["dojox.form.FileInputAuto"]=true;
 dojo.provide("dojox.form.FileInputAuto");
 dojo.require("dojox.form.FileInput");
 dojo.require("dojo.io.iframe");
-dojo.declare("dojox.form.FileInputAuto",dojox.form.FileInput,{url:"",blurDelay:2000,duration:500,uploadMessage:"Uploading ...",triggerEvent:"onblur",_sent:false,templateString:"<div class=\"dijitFileInput\">\n\t<input id=\"${id}\" name=\"${name}\" class=\"dijitFileInputReal\" type=\"file\" dojoAttachPoint=\"fileInput\" />\n\t<div class=\"dijitFakeInput\" dojoAttachPoint=\"fakeNodeHolder\">\n\t\t<input class=\"dijitFileInputVisible\" type=\"text\" dojoAttachPoint=\"focusNode, inputNode\" />\n\t\t<div class=\"dijitInline dijitFileInputText\" dojoAttachPoint=\"titleNode\">${label}</div>\n\t\t<div class=\"dijitInline dijitFileInputButton\" dojoAttachPoint=\"cancelNode\" dojoAttachEvent=\"onclick:reset\">${cancelText}</div>\n\t</div>\n\t<div class=\"dijitProgressOverlay\" dojoAttachPoint=\"overlay\">&nbsp;</div>\n</div>\n",startup:function(){
+dojo.declare("dojox.form.FileInputAuto",dojox.form.FileInput,{url:"",blurDelay:2000,duration:500,uploadMessage:"Uploading ...",triggerEvent:"onblur",_sent:false,templateString:dojo.cache("dojox.form","resources/FileInputAuto.html","<div class=\"dijitFileInput\">\n\t<input id=\"${id}\" name=\"${name}\" class=\"dijitFileInputReal\" type=\"file\" dojoAttachPoint=\"fileInput\" />\n\t<div class=\"dijitFakeInput\" dojoAttachPoint=\"fakeNodeHolder\">\n\t\t<input class=\"dijitFileInputVisible\" type=\"text\" dojoAttachPoint=\"focusNode, inputNode\" />\n\t\t<div class=\"dijitInline dijitFileInputText\" dojoAttachPoint=\"titleNode\">${label}</div>\n\t\t<div class=\"dijitInline dijitFileInputButton\" dojoAttachPoint=\"cancelNode\" dojoAttachEvent=\"onclick:reset\">${cancelText}</div>\n\t</div>\n\t<div class=\"dijitProgressOverlay\" dojoAttachPoint=\"overlay\">&nbsp;</div>\n</div>\n"),startup:function(){
 this._blurListener=this.connect(this.fileInput,this.triggerEvent,"_onBlur");
 this._focusListener=this.connect(this.fileInput,"onfocus","_onFocus");
 this.inherited(arguments);
@@ -37,18 +37,18 @@ dojo.style(this.fakeNodeHolder,"display","none");
 dojo.style(this.overlay,{opacity:0,display:"block"});
 this.setMessage(this.uploadMessage);
 dojo.fadeIn({node:this.overlay,duration:this.duration}).play();
-var _3;
+var _2;
 if(dojo.isIE){
-_3=document.createElement("<form enctype=\"multipart/form-data\" method=\"post\">");
-_3.encoding="multipart/form-data";
+_2=document.createElement("<form enctype=\"multipart/form-data\" method=\"post\">");
+_2.encoding="multipart/form-data";
 }else{
-_3=document.createElement("form");
-_3.setAttribute("enctype","multipart/form-data");
+_2=document.createElement("form");
+_2.setAttribute("enctype","multipart/form-data");
 }
-_3.appendChild(this.fileInput);
-dojo.body().appendChild(_3);
-dojo.io.iframe.send({url:this.url,form:_3,handleAs:"json",handle:dojo.hitch(this,"_handleSend")});
-},_handleSend:function(_4,_5){
+_2.appendChild(this.fileInput);
+dojo.body().appendChild(_2);
+dojo.io.iframe.send({url:this.url,form:_2,handleAs:"json",handle:dojo.hitch(this,"_handleSend")});
+},_handleSend:function(_3,_4){
 this.overlay.removeChild(this.overlay.firstChild);
 this._sent=true;
 this._sending=false;
@@ -59,9 +59,9 @@ this.fakeNodeHolder.style.display="none";
 dojo.fadeIn({node:this.overlay,duration:this.duration}).play(250);
 this.disconnect(this._blurListener);
 this.disconnect(this._focusListener);
-dojo.body().removeChild(_5.args.form);
+dojo.body().removeChild(_4.args.form);
 this.fileInput=null;
-this.onComplete(_4,_5,this);
+this.onComplete(_3,_4,this);
 },reset:function(e){
 if(this._blurTimer){
 clearTimeout(this._blurTimer);
@@ -75,7 +75,7 @@ this._sent=false;
 this._sending=false;
 this._blurListener=this.connect(this.fileInput,this.triggerEvent,"_onBlur");
 this._focusListener=this.connect(this.fileInput,"onfocus","_onFocus");
-},onComplete:function(_7,_8,_9){
+},onComplete:function(_5,_6,_7){
 }});
 dojo.declare("dojox.form.FileInputBlind",dojox.form.FileInputAuto,{startup:function(){
 this.inherited(arguments);

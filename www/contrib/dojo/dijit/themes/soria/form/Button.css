@@ -4,16 +4,18 @@
 	
 	border: 1px solid #8ba0bd;
 	border-bottom:1px solid #657c9c;
-	padding: 0.1em 0.2em 0.2em 0.2em; 
+	padding: 0.1em 0.2em 0.2em 0.2em;
 	background: #bcd5f0 url("../images/buttonEnabled.png") repeat-x top left;
 }
-.soria .dijitButtonNode button { 
-	border: 0px; 
-	background-color: transparent; 
-} 
- 
+.soria .dijitSelect .dijitButtonContents {
+	border-right: none;
+}
+.soria .dijitButtonNode button {
+	border: 0px;
+	background-color: transparent;
+}
 .soria .dijitButtonText {
-	text-align: center; 
+	text-align: center;
 	padding: 0 0.3em;
 }
 .soria .dijitComboBox .dijitButtonNode {
@@ -25,10 +27,9 @@
 .soria .dijitComboButton .dijitDownArrowButton {
 	padding-right:4px;
 }
-.dj_ff2 .soria .dijitComboButton .dijitButtonContentsFocused,
-.dj_ff2 .soria .dijitComboButton .dijitDownArrowButtonFocused {
-	border: 1px black dotted !important;
-}
+.soria .dijitComboBoxReadOnly,
+.soria .dijitSpinnerReadOnly,
+.soria .dijitSpinnerReadOnly .dijitButtonNode,
 .soria .dijitButtonDisabled .dijitButtonNode,
 .soria .dijitToggleButtonDisabled .dijitButtonNode,
 .soria .dijitDropDownButtonDisabled .dijitButtonNode,
@@ -39,7 +40,11 @@
 	
 	border-color: #b9bbdd #b9bbdd #b9bbdd #b9bbdd;
 	background:#c3d3e5 url("../images/buttonDisabled.png") top repeat-x;
-	opacity: 0.60; 
+	opacity: 0.60;
+}
+.dj_ie6 .soria .dijitComboButtonDisabled .dijitButtonText {
+	
+	color: #aaa;
 }
 .soria .dijitButtonHover .dijitButtonNode,
 .soria .dijitButtonNodeHover,
@@ -71,18 +76,20 @@
 	background: #91b4e5 url("../images/buttonActive.png") top left repeat-x;
 }
 .soria .dijitArrowButtonInner {
-	background:url("../images/spriteArrows.png") no-repeat left top;
+	background-image: url("../images/spriteArrows.png");
+	background-repeat: no-repeat;
+	background-position: 0px top;
 	width: 11px;
 }
-.soria .dijitUpArrowButton .dijitArrowButtonInner { 
-	background:url("../images/spriteArrows.png") no-repeat -22px top; 
-	width: 11px;
+.soria .dijitLeftArrowButton .dijitArrowButtonInner {
+	background-position: -11px top;
+}
+.soria .dijitUpArrowButton .dijitArrowButtonInner {
+	background-position: -22px top;
+}
+.soria .dijitRightArrowButton .dijitArrowButtonInner {
+	background-position: -33px top;
 }
 .dj_ie6 .soria .dijitArrowButtonInner {
-	background:url("../images/spriteArrows.gif") no-repeat left top;
-	width: 11px;
-}
-.dj_ie6 .soria .dijitUpArrowButton .dijitArrowButtonInner {
-	background:url("../images/spriteArrows.gif") no-repeat -22px top;
-	width: 11px;
+	background-image: url("../images/spriteArrows.gif");
 }

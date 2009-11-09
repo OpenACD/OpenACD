@@ -25,25 +25,25 @@ this.finishedCount=0;
 this.fireOnOneCallback=_2;
 this.fireOnOneErrback=_3;
 this.consumeErrors=_4;
-dojo.forEach(this.list,function(d,_7){
+dojo.forEach(this.list,function(d,_6){
 d.addCallback(this,function(r){
-this._cbDeferred(_7,true,r);
+this._cbDeferred(_6,true,r);
 return r;
 });
 d.addErrback(this,function(r){
-this._cbDeferred(_7,false,r);
+this._cbDeferred(_6,false,r);
 return r;
 });
 },this);
-},_cbDeferred:function(_a,_b,_c){
-this.resultList[_a]=[_b,_c];
+},_cbDeferred:function(_7,_8,_9){
+this.resultList[_7]=[_8,_9];
 this.finishedCount+=1;
 if(this.fired!==0){
-if(_b&&this.fireOnOneCallback){
-this.callback([_a,_c]);
+if(_8&&this.fireOnOneCallback){
+this.callback([_7,_9]);
 }else{
-if(!_b&&this.fireOnOneErrback){
-this.errback(_c);
+if(!_8&&this.fireOnOneErrback){
+this.errback(_9);
 }else{
 if(this.finishedCount==this.list.length){
 this.callback(this.resultList);
@@ -51,18 +51,18 @@ this.callback(this.resultList);
 }
 }
 }
-if(!_b&&this.consumeErrors){
-_c=null;
+if(!_8&&this.consumeErrors){
+_9=null;
 }
-return _c;
-},gatherResults:function(_d){
-var d=new dojo.DeferredList(_d,false,true,false);
-d.addCallback(function(_f){
-var ret=[];
-dojo.forEach(_f,function(_11){
-ret.push(_11[1]);
+return _9;
+},gatherResults:function(_a){
+var d=new dojo.DeferredList(_a,false,true,false);
+d.addCallback(function(_b){
+var _c=[];
+dojo.forEach(_b,function(_d){
+_c.push(_d[1]);
 });
-return ret;
+return _c;
 });
 return d;
 }});

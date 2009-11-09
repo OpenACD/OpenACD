@@ -9,13 +9,13 @@ if(!dojo._hasResource["dojox.image._base"]){
 dojo._hasResource["dojox.image._base"]=true;
 dojo.provide("dojox.image._base");
 (function(d){
-var _2;
-dojox.image.preload=function(_3){
-if(!_2){
-_2=d.create("div",{style:{position:"absolute",top:"-9999px",display:"none"}},d.body());
+var _1;
+dojox.image.preload=function(_2){
+if(!_1){
+_1=d.create("div",{style:{position:"absolute",top:"-9999px",height:"1px",overflow:"hidden"}},d.body());
 }
-d.forEach(_3,function(_4){
-d.create("img",{src:_4},_2);
+return d.map(_2,function(_3){
+return d.create("img",{src:_3},_1);
 });
 };
 if(d.config.preloadImages){

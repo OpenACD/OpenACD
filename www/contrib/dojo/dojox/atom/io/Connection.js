@@ -23,245 +23,233 @@ if(!_15){
 _15=dojo.global;
 }
 var ae=this.alertsEnabled;
-var _17={url:_f,handleAs:"xml",sync:this.sync,preventCache:this.preventCache,load:function(_18,_19){
-var _1a=null;
-var _1b=_18;
-var _1c;
-if(_1b){
-if(typeof (_1b.getElementsByTagNameNS)!="undefined"){
-_1c=_1b.getElementsByTagNameNS(_12,_10);
-if(_1c&&_1c.length>0){
-_1a=_1c.item(0);
+var _16={url:_f,handleAs:"xml",sync:this.sync,preventCache:this.preventCache,load:function(_17,_18){
+var _19=null;
+var _1a=_17;
+var _1b;
+if(_1a){
+if(typeof (_1a.getElementsByTagNameNS)!="undefined"){
+_1b=_1a.getElementsByTagNameNS(_12,_10);
+if(_1b&&_1b.length>0){
+_19=_1b.item(0);
 }else{
-if(_1b.lastChild){
-_1a=_1b.lastChild;
+if(_1a.lastChild){
+_19=_1a.lastChild;
 }
 }
 }else{
-if(typeof (_1b.getElementsByTagName)!="undefined"){
-_1c=_1b.getElementsByTagName(_10);
-if(_1c&&_1c.length>0){
-for(var i=0;i<_1c.length;i++){
-if(_1c[i].namespaceURI==_12){
-_1a=_1c[i];
+if(typeof (_1a.getElementsByTagName)!="undefined"){
+_1b=_1a.getElementsByTagName(_10);
+if(_1b&&_1b.length>0){
+for(var i=0;i<_1b.length;i++){
+if(_1b[i].namespaceURI==_12){
+_19=_1b[i];
 break;
 }
 }
 }else{
-if(_1b.lastChild){
-_1a=_1b.lastChild;
+if(_1a.lastChild){
+_19=_1a.lastChild;
 }
 }
 }else{
-if(_1b.lastChild){
-_1a=_1b.lastChild;
+if(_1a.lastChild){
+_19=_1a.lastChild;
 }else{
-_13.call(_15,null,null,_19);
+_13.call(_15,null,null,_18);
 return;
 }
 }
 }
-_11.buildFromDom(_1a);
+_11.buildFromDom(_19);
 if(_13){
-_13.call(_15,_11,_1b,_19);
+_13.call(_15,_11,_1a,_18);
 }else{
 if(ae){
-var _1e=dojo.i18n.getLocalization("dojox.atom.io","messages");
-throw new Error(_1e.noCallback);
+throw new Error("The callback value does not exist.");
 }
 }
 }else{
-_13.call(_15,null,null,_19);
+_13.call(_15,null,null,_18);
 }
 }};
 if(this.user&&this.user!==null){
-_17.user=this.user;
+_16.user=this.user;
 }
 if(this.password&&this.password!==null){
-_17.password=this.password;
+_16.password=this.password;
 }
 if(_14){
-_17.error=function(_1f,_20){
-_14.call(_15,_1f,_20);
+_16.error=function(_1c,_1d){
+_14.call(_15,_1c,_1d);
 };
 }else{
-_17.error=function(){
-var _21=dojo.i18n.getLocalization("dojox.atom.io","messages");
-throw new Error(_21.failedXhr);
+_16.error=function(){
+throw new Error("The URL requested cannot be accessed");
 };
 }
-dojo.xhrGet(_17);
-},updateEntry:function(_22,_23,_24,_25,_26,_27){
-if(!_27){
-_27=dojo.global;
+dojo.xhrGet(_16);
+},updateEntry:function(_1e,_1f,_20,_21,_22,_23){
+if(!_23){
+_23=dojo.global;
 }
-_22.updated=new Date();
-var url=_22.getEditHref();
+_1e.updated=new Date();
+var url=_1e.getEditHref();
 if(!url){
-var _29=dojo.i18n.getLocalization("dojox.atom.io","messages");
-throw new Error(_29.missingEditUrl);
+throw new Error("A URL has not been specified for editing this entry.");
 }
-var _2a=this;
+var _24=this;
 var ae=this.alertsEnabled;
-var _2c={url:url,handleAs:"text",contentType:"text/xml",sync:this.sync,preventCache:this.preventCache,load:function(_2d,_2e){
-var _2f=null;
-if(_25){
-_2f=_2e.xhr.getResponseHeader("Location");
-if(!_2f){
-_2f=url;
+var _25={url:url,handleAs:"text",contentType:"text/xml",sync:this.sync,preventCache:this.preventCache,load:function(_26,_27){
+var _28=null;
+if(_21){
+_28=_27.xhr.getResponseHeader("Location");
+if(!_28){
+_28=url;
 }
-var _30=function(_31,dom,_33){
-if(_23){
-_23.call(_27,_31,_2f,_33);
+var _29=function(_2a,dom,_2b){
+if(_1f){
+_1f.call(_23,_2a,_28,_2b);
 }else{
 if(ae){
-var _34=dojo.i18n.getLocalization("dojox.atom.io","messages");
-throw new Error(_34.noCallback);
+throw new Error("The callback value does not exist.");
 }
 }
 };
-_2a.getEntry(_2f,_30);
+_24.getEntry(_28,_29);
 }else{
-if(_23){
-_23.call(_27,_22,_2e.xhr.getResponseHeader("Location"),_2e);
+if(_1f){
+_1f.call(_23,_1e,_27.xhr.getResponseHeader("Location"),_27);
 }else{
 if(ae){
-var _35=dojo.i18n.getLocalization("dojox.atom.io","messages");
-throw new Error(_35.noCallback);
+throw new Error("The callback value does not exist.");
 }
 }
 }
-return _2d;
+return _26;
 }};
 if(this.user&&this.user!==null){
-_2c.user=this.user;
+_25.user=this.user;
 }
 if(this.password&&this.password!==null){
-_2c.password=this.password;
+_25.password=this.password;
 }
-if(_24){
-_2c.error=function(_36,_37){
-_24.call(_27,_36,_37);
+if(_20){
+_25.error=function(_2c,_2d){
+_20.call(_23,_2c,_2d);
 };
 }else{
-_2c.error=function(){
-var _38=dojo.i18n.getLocalization("dojox.atom.io","messages");
-throw new Error(_38.failedXhr);
+_25.error=function(){
+throw new Error("The URL requested cannot be accessed");
 };
 }
-if(_26){
-_2c.postData=_22.toString(true);
-_2c.headers={"X-Method-Override":"PUT"};
-dojo.rawXhrPost(_2c);
+if(_22){
+_25.postData=_1e.toString(true);
+_25.headers={"X-Method-Override":"PUT"};
+dojo.rawXhrPost(_25);
 }else{
-_2c.putData=_22.toString(true);
-var xhr=dojo.rawXhrPut(_2c);
+_25.putData=_1e.toString(true);
+var xhr=dojo.rawXhrPut(_25);
 }
-},addEntry:function(_3a,url,_3c,_3d,_3e,_3f){
-if(!_3f){
-_3f=dojo.global;
+},addEntry:function(_2e,url,_2f,_30,_31,_32){
+if(!_32){
+_32=dojo.global;
 }
-_3a.published=new Date();
-_3a.updated=new Date();
-var _40=_3a.feedUrl;
+_2e.published=new Date();
+_2e.updated=new Date();
+var _33=_2e.feedUrl;
 var ae=this.alertsEnabled;
-if(!url&&_40){
-url=_40;
+if(!url&&_33){
+url=_33;
 }
 if(!url){
 if(ae){
-var _42=dojo.i18n.getLocalization("dojox.atom.io","messages");
-throw new Error(_42.missingUrl);
+throw new Error("The request cannot be processed because the URL parameter is missing.");
 }
 return;
 }
-var _43=this;
-var _44={url:url,handleAs:"text",contentType:"text/xml",sync:this.sync,preventCache:this.preventCache,postData:_3a.toString(true),load:function(_45,_46){
-var _47=_46.xhr.getResponseHeader("Location");
-if(!_47){
-_47=url;
+var _34=this;
+var _35={url:url,handleAs:"text",contentType:"text/xml",sync:this.sync,preventCache:this.preventCache,postData:_2e.toString(true),load:function(_36,_37){
+var _38=_37.xhr.getResponseHeader("Location");
+if(!_38){
+_38=url;
 }
-if(!_46.retrieveEntry){
-if(_3c){
-_3c.call(_3f,_3a,_47,_46);
+if(!_37.retrieveEntry){
+if(_2f){
+_2f.call(_32,_2e,_38,_37);
 }else{
 if(ae){
-var _48=dojo.i18n.getLocalization("dojox.atom.io","messages");
-throw new Error(_48.noCallback);
+throw new Error("The callback value does not exist.");
 }
 }
 }else{
-var _49=function(_4a,dom,_4c){
-if(_3c){
-_3c.call(_3f,_4a,_47,_4c);
+var _39=function(_3a,dom,_3b){
+if(_2f){
+_2f.call(_32,_3a,_38,_3b);
 }else{
 if(ae){
-var _4d=dojo.i18n.getLocalization("dojox.atom.io","messages");
-throw new Error(_4d.noCallback);
+throw new Error("The callback value does not exist.");
 }
 }
 };
-_43.getEntry(_47,_49);
+_34.getEntry(_38,_39);
 }
-return _45;
+return _36;
 }};
 if(this.user&&this.user!==null){
-_44.user=this.user;
+_35.user=this.user;
 }
 if(this.password&&this.password!==null){
-_44.password=this.password;
+_35.password=this.password;
 }
-if(_3d){
-_44.error=function(_4e,_4f){
-_3d.call(_3f,_4e,_4f);
+if(_30){
+_35.error=function(_3c,_3d){
+_30.call(_32,_3c,_3d);
 };
 }else{
-_44.error=function(){
-var _50=dojo.i18n.getLocalization("dojox.atom.io","messages");
-throw new Error(_50.failedXhr);
+_35.error=function(){
+throw new Error("The URL requested cannot be accessed");
 };
 }
-dojo.rawXhrPost(_44);
-},deleteEntry:function(_51,_52,_53,_54,_55){
-if(!_55){
-_55=dojo.global;
+dojo.rawXhrPost(_35);
+},deleteEntry:function(_3e,_3f,_40,_41,_42){
+if(!_42){
+_42=dojo.global;
 }
 var url=null;
-if(typeof (_51)=="string"){
-url=_51;
+if(typeof (_3e)=="string"){
+url=_3e;
 }else{
-url=_51.getEditHref();
+url=_3e.getEditHref();
 }
 if(!url){
-var _57=dojo.i18n.getLocalization("dojox.atom.io","messages");
-_52.call(_55,false,null);
-throw new Error(_57.missingUrl);
+_3f.call(_42,false,null);
+throw new Error("The request cannot be processed because the URL parameter is missing.");
 }
-var _58={url:url,handleAs:"text",sync:this.sync,preventCache:this.preventCache,load:function(_59,_5a){
-_52.call(_55,_5a);
-return _59;
+var _43={url:url,handleAs:"text",sync:this.sync,preventCache:this.preventCache,load:function(_44,_45){
+_3f.call(_42,_45);
+return _44;
 }};
 if(this.user&&this.user!==null){
-_58.user=this.user;
+_43.user=this.user;
 }
 if(this.password&&this.password!==null){
-_58.password=this.password;
+_43.password=this.password;
 }
-if(_53){
-_58.error=function(_5b,_5c){
-_53.call(_55,_5b,_5c);
+if(_40){
+_43.error=function(_46,_47){
+_40.call(_42,_46,_47);
 };
 }else{
-_58.error=function(){
-var _5d=dojo.i18n.getLocalization("dojox.atom.io","messages");
-throw new Error(_5d.failedXhr);
+_43.error=function(){
+throw new Error("The URL requested cannot be accessed");
 };
 }
-if(_54){
-_58.headers={"X-Method-Override":"DELETE"};
-dojo.xhrPost(_58);
+if(_41){
+_43.headers={"X-Method-Override":"DELETE"};
+dojo.xhrPost(_43);
 }else{
-dojo.xhrDelete(_58);
+dojo.xhrDelete(_43);
 }
 }});
 }

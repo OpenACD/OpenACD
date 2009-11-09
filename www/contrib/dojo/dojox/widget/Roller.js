@@ -35,12 +35,12 @@ var n=this.domNode;
 dojo.mixin(this,{_anim:{"in":dojo.fadeIn({node:n,duration:this.durationIn}),"out":dojo.fadeOut({node:n,duration:this.durationOut})}});
 this._setupConnects();
 },_setupConnects:function(){
-var _4=this._anim;
-this.connect(_4["out"],"onEnd",function(){
+var _2=this._anim;
+this.connect(_2["out"],"onEnd",function(){
 this._set(this._idx+1);
-_4["in"].play(15);
+_2["in"].play(15);
 });
-this.connect(_4["in"],"onEnd",function(){
+this.connect(_2["in"],"onEnd",function(){
 this._timeout=setTimeout(dojo.hitch(this,"_run"),this.delay);
 });
 },start:function(){
@@ -70,10 +70,10 @@ this._roller.innerHTML=this.items[i]||"error!";
 this._idx=i;
 }});
 dojo.declare("dojox.widget.RollerSlide",dojox.widget.Roller,{durationOut:175,makeAnims:function(){
-var n=this.domNode,_a="position",_b={top:{end:0,start:25},opacity:1};
-dojo.style(n,_a,"relative");
-dojo.style(this._roller,_a,"absolute");
-dojo.mixin(this,{_anim:{"in":dojo.animateProperty({node:n,duration:this.durationIn,properties:_b}),"out":dojo.fadeOut({node:n,duration:this.durationOut})}});
+var n=this.domNode,_3="position",_4={top:{end:0,start:25},opacity:1};
+dojo.style(n,_3,"relative");
+dojo.style(this._roller,_3,"absolute");
+dojo.mixin(this,{_anim:{"in":dojo.animateProperty({node:n,duration:this.durationIn,properties:_4}),"out":dojo.fadeOut({node:n,duration:this.durationOut})}});
 this._setupConnects();
 }});
 dojo.declare("dojox.widget._RollerHover",null,{postCreate:function(){

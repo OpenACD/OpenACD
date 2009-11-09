@@ -11,10 +11,10 @@ dojo.provide("dojox.sketch.Anchor");
 dojo.require("dojox.gfx");
 (function(){
 var ta=dojox.sketch;
-ta.Anchor=function(an,id,_4){
-var _5=this;
-var _6=4;
-var _7=null;
+ta.Anchor=function(an,id,_1){
+var _2=this;
+var _3=4;
+var _4=null;
 this.type=function(){
 return "Anchor";
 };
@@ -22,18 +22,18 @@ this.annotation=an;
 this.id=id;
 this._key="anchor-"+ta.Anchor.count++;
 this.shape=null;
-this.isControl=(_4!=null)?_4:true;
+this.isControl=(_1!=null)?_1:true;
 this.beginEdit=function(){
 this.annotation.beginEdit(ta.CommandTypes.Modify);
 };
 this.endEdit=function(){
 this.annotation.endEdit();
 };
-this.zoom=function(_8){
+this.zoom=function(_5){
 if(this.shape){
-var rs=Math.floor(_6/_8);
-var _a=dojox.gfx.renderer=="vml"?1:1/_8;
-this.shape.setShape({x:an[id].x-rs,y:an[id].y-rs,width:rs*2,height:rs*2}).setStroke({color:"black",width:_a});
+var rs=Math.floor(_3/_5);
+var _6=dojox.gfx.renderer=="vml"?1:1/_5;
+this.shape.setShape({x:an[id].x-rs,y:an[id].y-rs,width:rs*2,height:rs*2}).setStroke({color:"black",width:_6});
 }
 };
 this.setBinding=function(pt){
@@ -49,9 +49,9 @@ if(!an.shape){
 return;
 }
 an.figure._add(this);
-_7={x:an[id].x-_6,y:an[id].y-_6,width:_6*2,height:_6*2};
-this.shape=an.shape.createRect(_7).setFill([255,255,255,0.35]);
-this.shape.getEventSource().setAttribute("id",_5._key);
+_4={x:an[id].x-_3,y:an[id].y-_3,width:_3*2,height:_3*2};
+this.shape=an.shape.createRect(_4).setFill([255,255,255,0.35]);
+this.shape.getEventSource().setAttribute("id",_2._key);
 this.shape.getEventSource().setAttribute("shape-rendering","crispEdges");
 this.zoom(an.figure.zoomFactor);
 };
@@ -61,7 +61,7 @@ if(an.shape){
 an.shape.remove(this.shape);
 }
 this.shape=null;
-_7=null;
+_4=null;
 };
 };
 ta.Anchor.count=0;

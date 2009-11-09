@@ -1,1 +1,1 @@
-({"set":"Set","text":"Description:","insertImageTitle":"Image Properties","url":"URL:","createLinkTitle":"Link Properties"})
+({"cancel":"Cancel","text":"Description:","insertImageTitle":"Image Properties","set":"Set","newWindow":"New Window ( _blank )","topWindow":"Topmost Window ( _top )","target":"Target:","createLinkTitle":"Link Properties","parentWindow":"Parent Window ( _parent )","currentWindow":"Current Window ( _self )","url":"URL:"})

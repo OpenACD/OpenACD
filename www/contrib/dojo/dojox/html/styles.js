@@ -15,99 +15,93 @@ var _3=[];
 var _4=[];
 dojox.html.insertCssRule=function(_5,_6,_7){
 var ss=dojox.html.getDynamicStyleSheet(_7);
-var _9=_5+" {"+_6+"}";
-
+var _8=_5+" {"+_6+"}";
 if(dojo.isIE){
-ss.cssText+=_9;
-
+ss.cssText+=_8;
 }else{
 if(ss.sheet){
-ss.sheet.insertRule(_9,ss._indicies.length);
+ss.sheet.insertRule(_8,ss._indicies.length);
 }else{
-ss.appendChild(dojo.doc.createTextNode(_9));
+ss.appendChild(dojo.doc.createTextNode(_8));
 }
 }
 ss._indicies.push(_5+" "+_6);
 return _5;
 };
-dojox.html.removeCssRule=function(_a,_b,_c){
+dojox.html.removeCssRule=function(_9,_a,_b){
 var ss;
-var _e=-1;
+var _c=-1;
 for(var nm in _1){
-if(_c&&_c!=nm){
+if(_b&&_b!=nm){
 continue;
 }
 ss=_1[nm];
 for(var i=0;i<ss._indicies.length;i++){
-if(_a+" "+_b==ss._indicies[i]){
-_e=i;
+if(_9+" "+_a==ss._indicies[i]){
+_c=i;
 break;
 }
 }
-if(_e>-1){
+if(_c>-1){
 break;
 }
 }
 if(!ss){
-
 return false;
 }
-if(_e==-1){
-
+if(_c==-1){
 return false;
 }
-ss._indicies.splice(_e,1);
+ss._indicies.splice(_c,1);
 if(dojo.isIE){
-ss.removeRule(_e);
+ss.removeRule(_c);
 }else{
 if(ss.sheet){
-ss.sheet.deleteRule(_e);
+ss.sheet.deleteRule(_c);
 }else{
 if(document.styleSheets[0]){
-
 }
 }
 }
 return true;
 };
-dojox.html.getStyleSheet=function(_11){
-if(_1[_11||"default"]){
-return _1[_11||"default"];
+dojox.html.getStyleSheet=function(_d){
+if(_1[_d||"default"]){
+return _1[_d||"default"];
 }
-if(!_11){
+if(!_d){
 return false;
 }
-var _12=dojox.html.getStyleSheets();
-if(_12[_11]){
-return dojox.html.getStyleSheets()[_11];
+var _e=dojox.html.getStyleSheets();
+if(_e[_d]){
+return dojox.html.getStyleSheets()[_d];
 }
-for(var nm in _12){
-if(_12[nm].href&&_12[nm].href.indexOf(_11)>-1){
-return _12[nm];
+for(var nm in _e){
+if(_e[nm].href&&_e[nm].href.indexOf(_d)>-1){
+return _e[nm];
 }
 }
 return false;
 };
-dojox.html.getDynamicStyleSheet=function(_14){
-if(!_14){
-_14="default";
+dojox.html.getDynamicStyleSheet=function(_f){
+if(!_f){
+_f="default";
 }
-if(!_1[_14]){
+if(!_1[_f]){
 if(dojo.doc.createStyleSheet){
-_1[_14]=dojo.doc.createStyleSheet();
-_1[_14].title=_14;
+_1[_f]=dojo.doc.createStyleSheet();
+_1[_f].title=_f;
 }else{
-_1[_14]=dojo.doc.createElement("style");
-_1[_14].setAttribute("type","text/css");
-dojo.doc.getElementsByTagName("head")[0].appendChild(_1[_14]);
-
+_1[_f]=dojo.doc.createElement("style");
+_1[_f].setAttribute("type","text/css");
+dojo.doc.getElementsByTagName("head")[0].appendChild(_1[_f]);
 }
-_1[_14]._indicies=[];
+_1[_f]._indicies=[];
 }
-return _1[_14];
+return _1[_f];
 };
-dojox.html.enableStyleSheet=function(_15){
-var ss=dojox.html.getStyleSheet(_15);
+dojox.html.enableStyleSheet=function(_10){
+var ss=dojox.html.getStyleSheet(_10);
 if(ss){
 if(ss.sheet){
 ss.sheet.disabled=false;
@@ -116,8 +110,8 @@ ss.disabled=false;
 }
 }
 };
-dojox.html.disableStyleSheet=function(_17){
-var ss=dojox.html.getStyleSheet(_17);
+dojox.html.disableStyleSheet=function(_11){
+var ss=dojox.html.getStyleSheet(_11);
 if(ss){
 if(ss.sheet){
 ss.sheet.disabled=true;
@@ -126,16 +120,16 @@ ss.disabled=true;
 }
 }
 };
-dojox.html.activeStyleSheet=function(_19){
-var _1a=dojox.html.getToggledStyleSheets();
+dojox.html.activeStyleSheet=function(_12){
+var _13=dojox.html.getToggledStyleSheets();
 if(arguments.length==1){
-dojo.forEach(_1a,function(s){
-s.disabled=(s.title==_19)?false:true;
+dojo.forEach(_13,function(s){
+s.disabled=(s.title==_12)?false:true;
 });
 }else{
-for(var i=0;i<_1a.length;i++){
-if(_1a[i].disabled==false){
-return _1a[i];
+for(var i=0;i<_13.length;i++){
+if(_13[i].disabled==false){
+return _13[i];
 }
 }
 }
@@ -145,10 +139,10 @@ dojox.html.getPreferredStyleSheet=function(){
 };
 dojox.html.getToggledStyleSheets=function(){
 if(!_3.length){
-var _1d=dojox.html.getStyleSheets();
-for(var nm in _1d){
-if(_1d[nm].title){
-_3.push(_1d[nm]);
+var _14=dojox.html.getStyleSheets();
+for(var nm in _14){
+if(_14[nm].title){
+_3.push(_14[nm]);
 }
 }
 }
@@ -158,27 +152,27 @@ dojox.html.getStyleSheets=function(){
 if(_2.collected){
 return _2;
 }
-var _1f=dojo.doc.styleSheets;
-dojo.forEach(_1f,function(n){
+var _15=dojo.doc.styleSheets;
+dojo.forEach(_15,function(n){
 var s=(n.sheet)?n.sheet:n;
-var _22=s.title||s.href;
+var _16=s.title||s.href;
 if(dojo.isIE){
 if(s.cssText.indexOf("#default#VML")==-1){
 if(s.href){
-_2[_22]=s;
+_2[_16]=s;
 }else{
 if(s.imports.length){
 dojo.forEach(s.imports,function(si){
 _2[si.title||si.href]=si;
 });
 }else{
-_2[_22]=s;
+_2[_16]=s;
 }
 }
 }
 }else{
-_2[_22]=s;
-_2[_22].id=s.ownerNode.id;
+_2[_16]=s;
+_2[_16].id=s.ownerNode.id;
 dojo.forEach(s.cssRules,function(r){
 if(r.href){
 _2[r.href]=r.styleSheet;

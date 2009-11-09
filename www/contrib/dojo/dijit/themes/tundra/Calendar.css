@@ -1,5 +1,4 @@
 
-	
 .tundra .dijitCalendarIncrementControl {
 	
 	width:15px;
@@ -49,7 +48,7 @@
 	text-align:center;
 }
 .tundra .dijitCalendarBodyContainer {
-	border-bottom: 1px solid #eeeeee;	
+	border-bottom: 1px solid #eeeeee;
 }
 .tundra .dijitCalendarMonthLabel {
 	color:#293a4b;
@@ -82,7 +81,7 @@
 	background-color:white !important;
 }
 .tundra .dijitCalendarCurrentMonthDisabled {
-		
+	
 	background-color:#bbbbbc !important;
 }
 .tundra .dijitCalendarDisabledDate {

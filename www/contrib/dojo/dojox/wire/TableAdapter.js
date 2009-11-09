@@ -21,17 +21,17 @@ _3=[_3];
 }
 var _4=[];
 for(var i in _3){
-var _6=this._getRow(_3[i]);
-_4.push(_6);
+var _5=this._getRow(_3[i]);
+_4.push(_5);
 }
 return _4;
-},_setValue:function(_7,_8){
+},_setValue:function(_6,_7){
 throw new Error("Unsupported API: "+this._wireClass+"._setValue");
-},_getRow:function(_9){
-var _a=(dojo.isArray(this.columns)?[]:{});
+},_getRow:function(_8){
+var _9=(dojo.isArray(this.columns)?[]:{});
 for(var c in this.columns){
-_a[c]=this.columns[c].getValue(_9);
+_9[c]=this.columns[c].getValue(_8);
 }
-return _a;
+return _9;
 }});
 }

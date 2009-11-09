@@ -30,7 +30,18 @@ _5.push(this.grid.getItem(i));
 }
 }
 return _5;
-},addToSelection:function(_8){
+},addToSelection:function(_6){
+if(this.mode=="none"){
+return;
+}
+var _7=null;
+if(typeof _6=="number"||typeof _6=="string"){
+_7=_6;
+}else{
+_7=this.grid.getItemIndex(_6);
+}
+dojox.grid.Selection.prototype.addToSelection.call(this,_7);
+},deselect:function(_8){
 if(this.mode=="none"){
 return;
 }
@@ -40,27 +51,16 @@ _9=_8;
 }else{
 _9=this.grid.getItemIndex(_8);
 }
-dojox.grid.Selection.prototype.addToSelection.call(this,_9);
-},deselect:function(_a){
-if(this.mode=="none"){
-return;
-}
+dojox.grid.Selection.prototype.deselect.call(this,_9);
+},deselectAll:function(_a){
 var _b=null;
+if(_a||typeof _a=="number"){
 if(typeof _a=="number"||typeof _a=="string"){
 _b=_a;
 }else{
 _b=this.grid.getItemIndex(_a);
 }
-dojox.grid.Selection.prototype.deselect.call(this,_b);
-},deselectAll:function(_c){
-var _d=null;
-if(_c||typeof _c=="number"){
-if(typeof _c=="number"||typeof _c=="string"){
-_d=_c;
-}else{
-_d=this.grid.getItemIndex(_c);
-}
-dojox.grid.Selection.prototype.deselectAll.call(this,_d);
+dojox.grid.Selection.prototype.deselectAll.call(this,_b);
 }else{
 this.inherited(arguments);
 }

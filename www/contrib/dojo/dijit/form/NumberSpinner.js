@@ -10,27 +10,27 @@ dojo._hasResource["dijit.form.NumberSpinner"]=true;
 dojo.provide("dijit.form.NumberSpinner");
 dojo.require("dijit.form._Spinner");
 dojo.require("dijit.form.NumberTextBox");
-dojo.declare("dijit.form.NumberSpinner",[dijit.form._Spinner,dijit.form.NumberTextBoxMixin],{required:true,adjust:function(_1,_2){
-var tc=this.constraints,v=isNaN(_1),_5=!isNaN(tc.max),_6=!isNaN(tc.min);
+dojo.declare("dijit.form.NumberSpinner",[dijit.form._Spinner,dijit.form.NumberTextBoxMixin],{adjust:function(_1,_2){
+var tc=this.constraints,v=isNaN(_1),_3=!isNaN(tc.max),_4=!isNaN(tc.min);
 if(v&&_2!=0){
-_1=(_2>0)?_6?tc.min:_5?tc.max:0:_5?this.constraints.max:_6?tc.min:0;
+_1=(_2>0)?_4?tc.min:_3?tc.max:0:_3?this.constraints.max:_4?tc.min:0;
 }
-var _7=_1+_2;
-if(v||isNaN(_7)){
+var _5=_1+_2;
+if(v||isNaN(_5)){
 return _1;
 }
-if(_5&&(_7>tc.max)){
-_7=tc.max;
+if(_3&&(_5>tc.max)){
+_5=tc.max;
 }
-if(_6&&(_7<tc.min)){
-_7=tc.min;
+if(_4&&(_5<tc.min)){
+_5=tc.min;
 }
-return _7;
+return _5;
 },_onKeyPress:function(e){
-if((e.charOrCode==dojo.keys.HOME||e.charOrCode==dojo.keys.END)&&!e.ctrlKey&&!e.altKey){
-var _9=this.constraints[(e.charOrCode==dojo.keys.HOME?"min":"max")];
-if(_9){
-this._setValueAttr(_9,true);
+if((e.charOrCode==dojo.keys.HOME||e.charOrCode==dojo.keys.END)&&!(e.ctrlKey||e.altKey||e.metaKey)&&typeof this.attr("value")!="undefined"){
+var _6=this.constraints[(e.charOrCode==dojo.keys.HOME?"min":"max")];
+if(_6){
+this._setValueAttr(_6,true);
 }
 dojo.stopEvent(e);
 }

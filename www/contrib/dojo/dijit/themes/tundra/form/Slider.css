@@ -27,7 +27,7 @@
 	outline:1px;
 }
 .tundra .dijitSliderFocused .dijitSliderBar {
-	border-color:#888;	
+	border-color:#888;
 }
 .dijit_a11y .dijitSliderProgressBar {
 	background-color:#888 !important;
@@ -112,15 +112,24 @@
 .tundra .dijitSliderButtonInner {
 	visibility:hidden;
 }
-.tundra .dijitSliderDisabled {
-	opacity:0.6 !important;
-}
-.dj_ie .tundra .dijitSliderDisabled,
-.dj_ie .tundra .dijitSliderDisabled .dijitRuleContainer,
-.dj_ie .tundra .dijitSliderDisabled .dijitSliderRemainingBar,
-.dj_ie .tundra .dijitSliderDisabled .dijitSliderProgressBar {
-	filter: gray() alpha(opacity=40);
-}
+.tundra .dijitSliderReadOnly *,
 .tundra .dijitSliderDisabled * {
-	cursor: not-allowed !important;
+	border-color: #d5d5d5 #bdbdbd #bdbdbd #d5d5d5;
+	color: #bdbdbd;
+}
+.tundra .dijitSliderReadOnly .dijitSliderDecrementIconH,
+.tundra .dijitSliderDisabled .dijitSliderDecrementIconH {
+	background-position: -35px 0px;
+}
+.tundra .dijitSliderReadOnly .dijitSliderIncrementIconH,
+.tundra .dijitSliderDisabled .dijitSliderIncrementIconH {
+	background-position: -42px 0px;
+}
+.tundra .dijitSliderReadOnly .dijitSliderDecrementIconV,
+.tundra .dijitSliderDisabled .dijitSliderDecrementIconV {
+	background-position: -28px 0px;
+}
+.tundra .dijitSliderReadOnly .dijitSliderIncrementIconV,
+.tundra .dijitSliderDisabled .dijitSliderIncrementIconV {
+	background-position: -49px 0px;
 }

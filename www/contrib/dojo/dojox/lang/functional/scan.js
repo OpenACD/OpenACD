@@ -10,7 +10,7 @@ dojo._hasResource["dojox.lang.functional.scan"]=true;
 dojo.provide("dojox.lang.functional.scan");
 dojo.require("dojox.lang.functional.lambda");
 (function(){
-var d=dojo,df=dojox.lang.functional,_3={};
+var d=dojo,df=dojox.lang.functional,_1={};
 d.mixin(df,{scanl:function(a,f,z,o){
 if(typeof a=="string"){
 a=a.split("");
@@ -31,7 +31,7 @@ for(i=0;a.hasNext();t.push(z=f.call(o,z,a.next(),i++,a))){
 }else{
 t=[z];
 for(i in a){
-if(!(i in _3)){
+if(!(i in _1)){
 t.push(z=f.call(o,z,a[i],i,a));
 }
 }
@@ -44,7 +44,7 @@ a=a.split("");
 }
 o=o||d.global;
 f=df.lambda(f);
-var t,n,z,_11=true;
+var t,n,z,_2=true;
 if(d.isArray(a)){
 t=new Array(n=a.length);
 t[0]=z=a[0];
@@ -59,10 +59,10 @@ for(var i=1;a.hasNext();t.push(z=f.call(o,z,a.next(),i++,a))){
 }
 }else{
 for(var i in a){
-if(!(i in _3)){
-if(_11){
+if(!(i in _1)){
+if(_2){
 t=[z=a[i]];
-_11=false;
+_2=false;
 }else{
 t.push(z=f.call(o,z,a[i],i,a));
 }

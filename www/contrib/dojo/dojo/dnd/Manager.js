@@ -47,10 +47,10 @@ dojo.publish("/dnd/start",[_3,_4,this.copy]);
 this.events=[dojo.connect(dojo.doc,"onmousemove",this,"onMouseMove"),dojo.connect(dojo.doc,"onmouseup",this,"onMouseUp"),dojo.connect(dojo.doc,"onkeydown",this,"onKeyDown"),dojo.connect(dojo.doc,"onkeyup",this,"onKeyUp"),dojo.connect(dojo.doc,"ondragstart",dojo.stopEvent),dojo.connect(dojo.body(),"onselectstart",dojo.stopEvent)];
 var c="dojoDnd"+(_5?"Copy":"Move");
 dojo.addClass(dojo.body(),c);
-},canDrop:function(_7){
-var _8=Boolean(this.target&&_7);
-if(this.canDropFlag!=_8){
-this.canDropFlag=_8;
+},canDrop:function(_6){
+var _7=Boolean(this.target&&_6);
+if(this.canDropFlag!=_7){
+this.canDropFlag=_7;
 this.avatar.update();
 }
 },stopDrag:function(){
@@ -73,17 +73,17 @@ dojo.dnd.autoScrollNodes(e);
 var s=a.node.style;
 s.left=(e.pageX+this.OFFSET_X)+"px";
 s.top=(e.pageY+this.OFFSET_Y)+"px";
-var _c=Boolean(this.source.copyState(dojo.dnd.getCopyKeyState(e)));
-if(this.copy!=_c){
-this._setCopyStatus(_c);
+var _8=Boolean(this.source.copyState(dojo.isCopyKey(e)));
+if(this.copy!=_8){
+this._setCopyStatus(_8);
 }
 }
 },onMouseUp:function(e){
 if(this.avatar){
 if(this.target&&this.canDropFlag){
-var _e=Boolean(this.source.copyState(dojo.dnd.getCopyKeyState(e))),_f=[this.source,this.nodes,_e,this.target];
-dojo.publish("/dnd/drop/before",_f);
-dojo.publish("/dnd/drop",_f);
+var _9=Boolean(this.source.copyState(dojo.isCopyKey(e))),_a=[this.source,this.nodes,_9,this.target];
+dojo.publish("/dnd/drop/before",_a);
+dojo.publish("/dnd/drop",_a);
 }else{
 dojo.publish("/dnd/cancel");
 }
@@ -93,9 +93,9 @@ this.stopDrag();
 if(this.avatar){
 switch(e.keyCode){
 case dojo.keys.CTRL:
-var _11=Boolean(this.source.copyState(true));
-if(this.copy!=_11){
-this._setCopyStatus(_11);
+var _b=Boolean(this.source.copyState(true));
+if(this.copy!=_b){
+this._setCopyStatus(_b);
 }
 break;
 case dojo.keys.ESCAPE:
@@ -106,13 +106,13 @@ break;
 }
 },onKeyUp:function(e){
 if(this.avatar&&e.keyCode==dojo.keys.CTRL){
-var _13=Boolean(this.source.copyState(false));
-if(this.copy!=_13){
-this._setCopyStatus(_13);
+var _c=Boolean(this.source.copyState(false));
+if(this.copy!=_c){
+this._setCopyStatus(_c);
 }
 }
-},_setCopyStatus:function(_14){
-this.copy=_14;
+},_setCopyStatus:function(_d){
+this.copy=_d;
 this.source._markDndStatus(this.copy);
 this.updateAvatar();
 dojo.removeClass(dojo.body(),"dojoDnd"+(this.copy?"Move":"Copy"));

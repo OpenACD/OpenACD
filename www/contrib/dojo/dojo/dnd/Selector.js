@@ -33,7 +33,7 @@ return t;
 },selectNone:function(){
 return this._removeSelection()._removeAnchor();
 },selectAll:function(){
-this.forInItems(function(_6,id){
+this.forInItems(function(_3,id){
 this._addItemClass(dojo.byId(id),"Selected");
 this.selection[id]=1;
 },this);
@@ -80,11 +80,11 @@ dojo.forEach(t,function(i){
 delete this.selection[i];
 },this);
 return this;
-},insertNodes:function(_14,_15,_16,_17){
-var _18=this._normalizedCreator;
-this._normalizedCreator=function(_19,_1a){
-var t=_18.call(this,_19,_1a);
-if(_14){
+},insertNodes:function(_4,_5,_6,_7){
+var _8=this._normalizedCreator;
+this._normalizedCreator=function(_9,_a){
+var t=_8.call(this,_9,_a);
+if(_4){
 if(!this.anchor){
 this.anchor=t.node;
 this._removeItemClass(t.node,"Selected");
@@ -102,15 +102,15 @@ this._removeItemClass(t.node,"Anchor");
 }
 return t;
 };
-dojo.dnd.Selector.superclass.insertNodes.call(this,_15,_16,_17);
-this._normalizedCreator=_18;
+dojo.dnd.Selector.superclass.insertNodes.call(this,_5,_6,_7);
+this._normalizedCreator=_8;
 return this;
 },destroy:function(){
 dojo.dnd.Selector.superclass.destroy.call(this);
 this.selection=this.anchor=null;
-},markupFactory:function(_1c,_1d){
-_1c._skipStartup=true;
-return new dojo.dnd.Selector(_1d,_1c);
+},markupFactory:function(_b,_c){
+_b._skipStartup=true;
+return new dojo.dnd.Selector(_c,_b);
 },onMouseDown:function(e){
 if(this.autoSync){
 this.sync();
@@ -118,15 +118,15 @@ this.sync();
 if(!this.current){
 return;
 }
-if(!this.singular&&!dojo.dnd.getCopyKeyState(e)&&!e.shiftKey&&(this.current.id in this.selection)){
+if(!this.singular&&!dojo.isCopyKey(e)&&!e.shiftKey&&(this.current.id in this.selection)){
 this.simpleSelection=true;
-if(e.button===dojo.dnd._lmb){
+if(e.button===dojo.mouseButtons.LEFT){
 dojo.stopEvent(e);
 }
 return;
 }
 if(!this.singular&&e.shiftKey){
-if(!dojo.dnd.getCopyKeyState(e)){
+if(!dojo.isCopyKey(e)){
 this._removeSelection();
 }
 var c=this.getAllNodes();
@@ -139,18 +139,18 @@ this.selection[this.anchor.id]=1;
 if(this.anchor!=this.current){
 var i=0;
 for(;i<c.length;++i){
-var _21=c[i];
-if(_21==this.anchor||_21==this.current){
+var _d=c[i];
+if(_d==this.anchor||_d==this.current){
 break;
 }
 }
 for(++i;i<c.length;++i){
-var _21=c[i];
-if(_21==this.anchor||_21==this.current){
+var _d=c[i];
+if(_d==this.anchor||_d==this.current){
 break;
 }
-this._addItemClass(_21,"Selected");
-this.selection[_21.id]=1;
+this._addItemClass(_d,"Selected");
+this.selection[_d.id]=1;
 }
 this._addItemClass(this.current,"Selected");
 this.selection[this.current.id]=1;
@@ -159,7 +159,7 @@ this.selection[this.current.id]=1;
 }else{
 if(this.singular){
 if(this.anchor==this.current){
-if(dojo.dnd.getCopyKeyState(e)){
+if(dojo.isCopyKey(e)){
 this.selectNone();
 }
 }else{
@@ -169,7 +169,7 @@ this._addItemClass(this.anchor,"Anchor");
 this.selection[this.current.id]=1;
 }
 }else{
-if(dojo.dnd.getCopyKeyState(e)){
+if(dojo.isCopyKey(e)){
 if(this.anchor==this.current){
 delete this.selection[this.anchor.id];
 this._removeAnchor();
@@ -222,9 +222,9 @@ for(var i in this.selection){
 if(i in e){
 continue;
 }
-var _26=dojo.byId(i);
-if(_26){
-this._removeItemClass(_26,"Selected");
+var _e=dojo.byId(i);
+if(_e){
+this._removeItemClass(_e,"Selected");
 }
 }
 this.selection={};

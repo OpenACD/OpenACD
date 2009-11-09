@@ -45,23 +45,23 @@ return false;
 this.entry=function(k){
 return _2[k];
 };
-this.forEach=function(fn,_c){
+this.forEach=function(fn,_4){
 var a=[];
 for(var p in _2){
 if(!_3[p]){
 a.push(_2[p]);
 }
 }
-dojo.forEach(a,fn,_c);
+dojo.forEach(a,fn,_4);
 };
 this.getKeyList=function(){
-return (this.getIterator()).map(function(_f){
-return _f.key;
+return (this.getIterator()).map(function(_5){
+return _5.key;
 });
 };
 this.getValueList=function(){
-return (this.getIterator()).map(function(_10){
-return _10.value;
+return (this.getIterator()).map(function(_6){
+return _6.value;
 });
 };
 this.item=function(k){

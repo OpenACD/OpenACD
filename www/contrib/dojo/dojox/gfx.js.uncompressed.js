@@ -555,8 +555,10 @@ dojo.provide("dojox.gfx._base");
 	// candidate for dojox.html.metrics
 
 	var measuringNode = null, empty = {};
-	b._getTextBox = function(/* String */ text, /* Object */ style, /* String? */ className){
-		var m, s;
+	b._getTextBox = function(	/*String*/ text,
+								/*Object*/ style,
+								/*String?*/ className){
+		var m, s, al = arguments.length;
 		if(!measuringNode){
 			m = measuringNode = dojo.doc.createElement("div");
 			s = m.style;
@@ -575,19 +577,25 @@ dojo.provide("dojox.gfx._base");
 		s.padding = "0";
 		s.outline = "0";
 		// set new style
-		if(arguments.length > 1 && style){
+		if(al > 1 && style){
 			for(var i in style){
 				if(i in empty){ continue; }
 				s[i] = style[i];
 			}
 		}
 		// set classes
-		if(arguments.length > 2 && className){
+		if(al > 2 && className){
 			m.className = className;
 		}
 		// take a measure
 		m.innerHTML = text;
-		return dojo.marginBox(m);
+
+		if(m["getBoundingClientRect"]){
+			var bcr = m.getBoundingClientRect();
+			return {l: bcr.left, t: bcr.top, w: bcr.width || (bcr.right - bcr.left), h: bcr.height || (bcr.bottom - bcr.top)};
+		}else{
+			return dojo.marginBox(m);
+		}
 	};
 
 	// candidate for dojo.dom
@@ -671,7 +679,7 @@ dojo.mixin(dojox.gfx, {
 			if(t){
 				return new t();
 			}
-			t = typeCtorCache[type] = function(){};
+			t = typeCtorCache[type] = new Function;
 			t.prototype = dojox.gfx[ "default" + type ];
 			return new t();
 		}
@@ -747,31 +755,36 @@ dojo.mixin(dojox.gfx, {
 		return font.style + " " + font.variant + " " + font.weight + " " + font.size + " " + font.family; // Object
 	},
 	splitFontString: function(str){
-		// summary: converts a CSS font string to a font object
-		// str:		String:	a CSS font string
+		// summary:
+		//		converts a CSS font string to a font object
+		// description:
+		//		Converts a CSS font string to a gfx font object. The CSS font
+		//		string components should follow the W3C specified order
+		//		(see http://www.w3.org/TR/CSS2/fonts.html#font-shorthand):
+		//		style, variant, weight, size, optional line height (will be
+		//		ignored), and family.
+		// str: String
+		//		a CSS font string
 		var font = dojox.gfx.getDefault("Font");
 		var t = str.split(/\s+/);
 		do{
 			if(t.length < 5){ break; }
-			font.style  = t[0];
-			font.varian = t[1];
-			font.weight = t[2];
+			font.style   = t[0];
+			font.variant = t[1];
+			font.weight  = t[2];
 			var i = t[3].indexOf("/");
 			font.size = i < 0 ? t[3] : t[3].substring(0, i);
 			var j = 4;
 			if(i < 0){
 				if(t[4] == "/"){
 					j = 6;
-					break;
-				}
-				if(t[4].substr(0, 1) == "/"){
+				}else if(t[4].charAt(0) == "/"){
 					j = 5;
-					break;
 				}
 			}
-			if(j + 3 > t.length){ break; }
-			font.size = t[j];
-			font.family = t[j + 1];
+			if(j < t.length){
+				font.family = t.slice(j).join(" ");
+			}
 		}while(false);
 		return font;	// Object
 	},
@@ -836,6 +849,12 @@ dojo.loadInit(function(){
 	//has not been defined yet.
 	var gfx = dojo.getObject("dojox.gfx", true), sl, flag, match;
 	if(!gfx.renderer){
+		//Have a way to force a GFX renderer, if so desired.
+		//Useful for being able to serialize GFX data in a particular format.
+		if(dojo.config.forceGfxRenderer){
+			dojox.gfx.renderer = dojo.config.forceGfxRenderer;
+			return;
+		}
 		var renderers = (typeof dojo.config.gfxRenderer == "string" ?
 			dojo.config.gfxRenderer : "svg,vml,silverlight,canvas").split(",");
 
@@ -911,7 +930,7 @@ dojo.loadInit(function(){
 			if(dojox.gfx.renderer){ break; }
 		}
 		if(dojo.config.isDebug){
-			
+			console.log("gfx renderer = " + dojox.gfx.renderer);
 		}
 	}
 });

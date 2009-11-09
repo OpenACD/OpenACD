@@ -38,15 +38,15 @@ b.push(this.accumulator&(255<<this.available));
 this.reset();
 return b;
 }});
-dojox.encoding.bits.InputStream=function(_6,_7){
-this.buffer=_6;
-this.width=_7;
+dojox.encoding.bits.InputStream=function(_3,_4){
+this.buffer=_3;
+this.width=_4;
 this.bbyte=this.bit=0;
 };
-dojo.extend(dojox.encoding.bits.InputStream,{getBits:function(_8){
+dojo.extend(dojox.encoding.bits.InputStream,{getBits:function(_5){
 var r=0;
-while(_8){
-var w=Math.min(_8,8-this.bit);
+while(_5){
+var w=Math.min(_5,8-this.bit);
 var v=this.buffer[this.bbyte]>>>(8-this.bit-w);
 r<<=w;
 r|=v&~(~0<<w);
@@ -55,7 +55,7 @@ if(this.bit==8){
 ++this.bbyte;
 this.bit=0;
 }
-_8-=w;
+_5-=w;
 }
 return r;
 },getWidth:function(){

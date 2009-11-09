@@ -1,1 +1,1 @@
-({"set":"Ustaw","text":"Opis:","insertImageTitle":"Właściwości obrazu","url":"Adres URL:","createLinkTitle":"Właściwości odsyłacza"})
+({"set":"Ustaw","text":"Opis:","insertImageTitle":"Właściwości obrazu","url":"Adres URL:","createLinkTitle":"Właściwości odsyłacza","cancel":"Cancel","newWindow":"New Window ( _blank )","topWindow":"Topmost Window ( _top )","target":"Target:","parentWindow":"Parent Window ( _parent )","currentWindow":"Current Window ( _self )"})

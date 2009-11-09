@@ -11,17 +11,17 @@ dojo.provide("dojox.dtl.ext-dojo.NodeList");
 dojo.require("dojox.dtl._base");
 dojo.extend(dojo.NodeList,{dtl:function(_1,_2){
 var d=dojox.dtl;
-var _4=this;
-var _5=function(_6,_7){
-var _8=_6.render(new d._Context(_7));
-_4.forEach(function(_9){
-_9.innerHTML=_8;
+var _3=this;
+var _4=function(_5,_6){
+var _7=_5.render(new d._Context(_6));
+_3.forEach(function(_8){
+_8.innerHTML=_7;
 });
 };
-d.text._resolveTemplateArg(_1).addCallback(function(_a){
-_1=new d.Template(_a);
-d.text._resolveContextArg(_2).addCallback(function(_b){
-_5(_1,_b);
+d.text._resolveTemplateArg(_1).addCallback(function(_9){
+_1=new d.Template(_9);
+d.text._resolveContextArg(_2).addCallback(function(_a){
+_4(_1,_a);
 });
 });
 return this;

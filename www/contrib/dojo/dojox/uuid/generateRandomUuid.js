@@ -27,8 +27,8 @@ b=b.substring(0,4)+_5+_6+b.substring(5,8);
 var c=_2();
 c=_7+c.substring(1,4)+_5+c.substring(4,8);
 var d=_2();
-var _c=a+_5+b+_5+c+d;
-_c=_c.toLowerCase();
-return _c;
+var _8=a+_5+b+_5+c+d;
+_8=_8.toLowerCase();
+return _8;
 };
 }

@@ -16,20 +16,20 @@ dojo.extend(dojo.AdapterRegistry,{register:function(_2,_3,_4,_5,_6){
 this.pairs[((_6)?"unshift":"push")]([_2,_3,_4,_5]);
 },match:function(){
 for(var i=0;i<this.pairs.length;i++){
-var _8=this.pairs[i];
-if(_8[1].apply(this,arguments)){
-if((_8[3])||(this.returnWrappers)){
-return _8[2];
+var _7=this.pairs[i];
+if(_7[1].apply(this,arguments)){
+if((_7[3])||(this.returnWrappers)){
+return _7[2];
 }else{
-return _8[2].apply(this,arguments);
+return _7[2].apply(this,arguments);
 }
 }
 }
 throw new Error("No match found");
-},unregister:function(_9){
+},unregister:function(_8){
 for(var i=0;i<this.pairs.length;i++){
-var _b=this.pairs[i];
-if(_b[0]==_9){
+var _9=this.pairs[i];
+if(_9[0]==_8){
 this.pairs.splice(i,1);
 return true;
 }

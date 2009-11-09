@@ -12,15 +12,14 @@ dojo.require("dojox.sketch.Annotation");
 dojo.require("dojox.sketch.Anchor");
 (function(){
 var ta=dojox.sketch;
-ta.LeadAnnotation=function(_2,id){
-ta.Annotation.call(this,_2,id);
+ta.LeadAnnotation=function(_1,id){
+ta.Annotation.call(this,_1,id);
 this.transform={dx:0,dy:0};
 this.start={x:0,y:0};
 this.control={x:100,y:-50};
 this.end={x:200,y:0};
 this.textPosition={x:0,y:0};
 this.textOffset=4;
-this.textAlign="middle";
 this.textYOffset=10;
 this.pathShape=null;
 this.labelShape=null;
@@ -38,46 +37,47 @@ p.getType=function(){
 return ta.LeadAnnotation;
 };
 p._pos=function(){
-var _5=this.textOffset,x=0,y=0;
-var _8=this.calculate.slope(this.control,this.end);
-if(Math.abs(_8)>=1){
-x=this.end.x+this.calculate.dx(this.control,this.end,_5);
+var _2=this.textOffset,x=0,y=0;
+var _3=this.calculate.slope(this.control,this.end);
+this.textAlign="middle";
+if(Math.abs(_3)>=1){
+x=this.end.x+this.calculate.dx(this.control,this.end,_2);
 if(this.control.y>this.end.y){
-y=this.end.y-_5;
+y=this.end.y-_2;
 }else{
-y=this.end.y+_5+this.textYOffset;
+y=this.end.y+_2+this.textYOffset;
 }
 }else{
-if(_8==0){
-x=this.end.x+_5;
+if(_3==0){
+x=this.end.x+_2;
 y=this.end.y+this.textYOffset;
 }else{
 if(this.start.x>this.end.x){
-x=this.end.x-_5;
+x=this.end.x-_2;
 this.textAlign="end";
 }else{
-x=this.end.x+_5;
+x=this.end.x+_2;
 this.textAlign="start";
 }
 if(this.start.y<this.end.y){
-y=this.end.y+this.calculate.dy(this.control,this.end,_5)+this.textYOffset;
+y=this.end.y+this.calculate.dy(this.control,this.end,_2)+this.textYOffset;
 }else{
-y=this.end.y+this.calculate.dy(this.control,this.end,-_5);
+y=this.end.y+this.calculate.dy(this.control,this.end,-_2);
 }
 }
 }
 this.textPosition={x:x,y:y};
 };
-p.apply=function(_9){
-if(!_9){
+p.apply=function(_4){
+if(!_4){
 return;
 }
-if(_9.documentElement){
-_9=_9.documentElement;
+if(_4.documentElement){
+_4=_4.documentElement;
 }
-this.readCommonAttrs(_9);
-for(var i=0;i<_9.childNodes.length;i++){
-var c=_9.childNodes[i];
+this.readCommonAttrs(_4);
+for(var i=0;i<_4.childNodes.length;i++){
+var c=_4.childNodes[i];
 if(c.localName=="text"){
 this.property("label",c.childNodes.length?c.childNodes[0].nodeValue:"");
 }else{
@@ -92,24 +92,24 @@ this.control.y=parseFloat(s[1],10);
 s=d[2].split(",");
 this.end.x=parseFloat(s[0],10);
 this.end.y=parseFloat(s[1],10);
-var _e=this.property("stroke");
-var _f=c.getAttribute("style");
-var m=_f.match(/stroke:([^;]+);/);
+var _5=this.property("stroke");
+var _6=c.getAttribute("style");
+var m=_6.match(/stroke:([^;]+);/);
 if(m){
-_e.color=m[1];
+_5.color=m[1];
 this.property("fill",m[1]);
 }
-m=_f.match(/stroke-width:([^;]+);/);
+m=_6.match(/stroke-width:([^;]+);/);
 if(m){
-_e.width=m[1];
+_5.width=m[1];
 }
-this.property("stroke",_e);
+this.property("stroke",_5);
 }
 }
 }
 };
-p.initialize=function(obj){
-this.apply(obj);
+p.initialize=function(_7){
+this.apply(_7);
 this._pos();
 this.shape=this.figure.group.createGroup();
 this.shape.getEventSource().setAttribute("id",this.id);
@@ -134,8 +134,8 @@ var w=Math.max(this.start.x,this.control.x,this.end.x)-x;
 var h=Math.max(this.start.y,this.control.y,this.end.y)-y;
 return {x:x,y:y,width:w,height:h};
 };
-p.draw=function(obj){
-this.apply(obj);
+p.draw=function(_8){
+this.apply(_8);
 this._pos();
 this.shape.setTransform(this.transform);
 this.pathShape.setShape("M"+this.start.x+","+this.start.y+" Q"+this.control.x+","+this.control.y+" "+this.end.x+","+this.end.y+" l0,0");
@@ -143,8 +143,8 @@ this.labelShape.setShape({x:this.textPosition.x,y:this.textPosition.y,text:this.
 this.zoom();
 };
 p.serialize=function(){
-var _17=this.property("stroke");
-return "<g "+this.writeCommonAttrs()+">"+"<path style=\"stroke:"+_17.color+";stroke-width:"+_17.width+";fill:none;\" d=\""+"M"+this.start.x+","+this.start.y+" "+"Q"+this.control.x+","+this.control.y+" "+this.end.x+","+this.end.y+"\" />"+"<text style=\"fill:"+_17.color+";text-anchor:"+this.textAlign+"\" font-weight=\"bold\" "+"x=\""+this.textPosition.x+"\" "+"y=\""+this.textPosition.y+"\">"+this.property("label")+"</text>"+"</g>";
+var _9=this.property("stroke");
+return "<g "+this.writeCommonAttrs()+">"+"<path style=\"stroke:"+_9.color+";stroke-width:"+_9.width+";fill:none;\" d=\""+"M"+this.start.x+","+this.start.y+" "+"Q"+this.control.x+","+this.control.y+" "+this.end.x+","+this.end.y+"\" />"+"<text style=\"fill:"+_9.color+";text-anchor:"+this.textAlign+"\" font-weight=\"bold\" "+"x=\""+this.textPosition.x+"\" "+"y=\""+this.textPosition.y+"\">"+this.property("label")+"</text>"+"</g>";
 };
 ta.Annotation.register("Lead");
 })();

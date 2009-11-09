@@ -8,11 +8,11 @@
 if(!dojo._hasResource["dojox.xmpp.TransportSession"]){
 dojo._hasResource["dojox.xmpp.TransportSession"]=true;
 dojo.provide("dojox.xmpp.TransportSession");
+dojo.require("dojox.xmpp.bosh");
 dojo.require("dojox.xmpp.util");
-dojo.require("dojo.io.script");
-dojo.require("dojo.io.iframe");
 dojo.require("dojox.data.dom");
 dojox.xmpp.TransportSession=function(_1){
+this.sendTimeout=(this.wait+20)*1000;
 if(_1&&dojo.isObject(_1)){
 dojo.mixin(this,_1);
 if(this.useScriptSrcTransport){
@@ -20,13 +20,7 @@ this.transportIframes=[];
 }
 }
 };
-dojox.xmpp.TransportSession._iframeOnload=function(_2){
-var _3=dojo.io.iframe.doc(dojo.byId("xmpp-transport-"+_2));
-_3.write("<script>var isLoaded=true; var rid=0; var transmiting=false; function _BOSH_(msg) { transmiting=false; parent.dojox.xmpp.TransportSession.handleBOSH(msg, rid); } </script>");
-};
-dojox.xmpp.TransportSession.handleBOSH=function(_4,_5){
-};
-dojo.extend(dojox.xmpp.TransportSession,{rid:0,hold:1,polling:1000,secure:false,wait:60,lang:"en",submitContentType:"text/xml; charset=utf=8",serviceUrl:"/httpbind",defaultResource:"dojoIm",domain:"imserver.com",sendTimeout:(this.wait+20)*1000,useScriptSrcTransport:false,keepAliveTimer:null,state:"NotReady",transmitState:"Idle",protocolPacketQueue:[],outboundQueue:[],outboundRequests:{},inboundQueue:[],deferredRequests:{},matchTypeIdAttribute:{},open:function(){
+dojo.extend(dojox.xmpp.TransportSession,{rid:0,hold:1,polling:1000,secure:false,wait:60,lang:"en",submitContentType:"text/xml; charset=utf=8",serviceUrl:"/httpbind",defaultResource:"dojoIm",domain:"imserver.com",sendTimeout:0,useScriptSrcTransport:false,keepAliveTimer:null,state:"NotReady",transmitState:"Idle",protocolPacketQueue:[],outboundQueue:[],outboundRequests:{},inboundQueue:[],deferredRequests:{},matchTypeIdAttribute:{},open:function(){
 this.status="notReady";
 this.rid=Math.round(Math.random()*1000000000);
 this.protocolPacketQueue=[];
@@ -37,27 +31,26 @@ this.deferredRequests={};
 this.matchTypeIdAttribute={};
 this.keepAliveTimer=setTimeout(dojo.hitch(this,"_keepAlive"),10000);
 if(this.useScriptSrcTransport){
-dojo.connect(dojox.xmpp.TransportSession,"handleBOSH",this,"processScriptSrc");
-this.transportIframes=[];
-for(var i=0;i<=this.hold;i++){
-var _7=dojo.io.iframe.create("xmpp-transport-"+i,dojox._scopeName+".xmpp.TransportSession._iframeOnload("+i+");");
-this.transportIframes.push(_7);
-if(i==0){
-dojo.connect(_7,"onload",this,"_sendLogin");
-}
-}
+dojox.xmpp.bosh.initialize({iframes:this.hold+1,load:dojo.hitch(this,function(){
+this._sendLogin();
+})});
 }else{
 this._sendLogin();
 }
 },_sendLogin:function(){
-var _8=this.rid++;
-var _9={content:this.submitContentType,hold:this.hold,rid:_8,to:this.domain,secure:this.secure,wait:this.wait,"xml:lang":this.lang,xmlns:dojox.xmpp.xmpp.BODY_NS};
-var _a=dojox.xmpp.util.createElement("body",_9,true);
-this.addToOutboundQueue(_a,_8);
-},processScriptSrc:function(_b,_c){
-var _d=dojox.data.dom.createDocument(_b,"text/xml");
-if(_d){
-this.processDocument(_d,_c);
+var _2=this.rid++;
+var _3={content:this.submitContentType,hold:this.hold,rid:_2,to:this.domain,secure:this.secure,wait:this.wait,"xml:lang":this.lang,"xmpp:version":"1.0",xmlns:dojox.xmpp.xmpp.BODY_NS,"xmlns:xmpp":"urn:xmpp:xbosh"};
+var _4=dojox.xmpp.util.createElement("body",_3,true);
+this.addToOutboundQueue(_4,_2);
+},_sendRestart:function(){
+var _5=this.rid++;
+var _6={rid:_5,sid:this.sid,to:this.domain,"xmpp:restart":"true","xml:lang":this.lang,xmlns:dojox.xmpp.xmpp.BODY_NS,"xmlns:xmpp":"urn:xmpp:xbosh"};
+var _7=dojox.xmpp.util.createElement("body",_6,true);
+this.addToOutboundQueue(_7,_5);
+},processScriptSrc:function(_8,_9){
+var _a=dojox.xml.parser.parse(_8,"text/xml");
+if(_a){
+this.processDocument(_a,_9);
 }else{
 }
 },_keepAlive:function(){
@@ -66,30 +59,30 @@ return;
 }
 this._dispatchPacket();
 this.keepAliveTimer=setTimeout(dojo.hitch(this,"_keepAlive"),10000);
-},close:function(_e){
-var _f=this.rid++;
-var req={sid:this.sid,rid:_f,type:"terminate"};
-var _11=null;
-if(_e){
-_11=new dojox.string.Builder(dojox.xmpp.util.createElement("body",req,false));
-_11.append(_e);
-_11.append("</body>");
+},close:function(_b){
+var _c=this.rid++;
+var _d={sid:this.sid,rid:_c,type:"terminate"};
+var _e=null;
+if(_b){
+_e=new dojox.string.Builder(dojox.xmpp.util.createElement("body",_d,false));
+_e.append(_b);
+_e.append("</body>");
 }else{
-_11=new dojox.string.Builder(dojox.xmpp.util.createElement("body",req,false));
+_e=new dojox.string.Builder(dojox.xmpp.util.createElement("body",_d,false));
 }
-this.addToOutboundQueue(_11.toString(),_f);
+this.addToOutboundQueue(_e.toString(),_c);
 this.state=="Terminate";
-},dispatchPacket:function(msg,_13,_14,_15){
-if(msg){
-this.protocolPacketQueue.push(msg);
+},dispatchPacket:function(_f,_10,_11,_12){
+if(_f){
+this.protocolPacketQueue.push(_f);
 }
 var def=new dojo.Deferred();
-if(_13&&_14){
-def.protocolMatchType=_13;
-def.matchId=_14;
-def.matchProperty=_15||"id";
+if(_10&&_11){
+def.protocolMatchType=_10;
+def.matchId=_11;
+def.matchProperty=_12||"id";
 if(def.matchProperty!="id"){
-this.matchTypeIdAttribute[_13]=def.matchProperty;
+this.matchTypeIdAttribute[_10]=def.matchProperty;
 }
 }
 this.deferredRequests[def.protocolMatchType+"-"+def.matchId]=def;
@@ -101,11 +94,9 @@ return def;
 clearTimeout(this.dispatchTimer);
 delete this.dispatchTimer;
 if(!this.sid){
-
 return;
 }
 if(!this.authId){
-
 return;
 }
 if(this.transmitState!="error"&&(this.protocolPacketQueue.length==0)&&(this.outboundQueue.length>0)){
@@ -114,12 +105,13 @@ return;
 if(this.state=="wait"||this.isTerminated()){
 return;
 }
-var req={sid:this.sid};
+var req={sid:this.sid,xmlns:dojox.xmpp.xmpp.BODY_NS};
+var _13;
 if(this.protocolPacketQueue.length>0){
 req.rid=this.rid++;
-var _18=new dojox.string.Builder(dojox.xmpp.util.createElement("body",req,false));
-_18.append(this.processProtocolPacketQueue());
-_18.append("</body>");
+_13=new dojox.string.Builder(dojox.xmpp.util.createElement("body",req,false));
+_13.append(this.processProtocolPacketQueue());
+_13.append("</body>");
 delete this.lastPollTime;
 }else{
 if(this.lastPollTime){
@@ -131,9 +123,9 @@ return;
 }
 req.rid=this.rid++;
 this.lastPollTime=new Date().getTime();
-var _18=new dojox.string.Builder(dojox.xmpp.util.createElement("body",req,true));
+_13=new dojox.string.Builder(dojox.xmpp.util.createElement("body",req,true));
 }
-this.addToOutboundQueue(_18.toString(),req.rid);
+this.addToOutboundQueue(_13.toString(),req.rid);
 },redispatchPacket:function(rid){
 var env=this.outboundRequests[rid];
 this.sendXml(env,rid);
@@ -150,58 +142,50 @@ break;
 }
 delete this.outboundRequests[rid];
 },processProtocolPacketQueue:function(){
-var _20=new dojox.string.Builder();
+var _14=new dojox.string.Builder();
 for(var i=0;i<this.protocolPacketQueue.length;i++){
-_20.append(this.protocolPacketQueue[i]);
+_14.append(this.protocolPacketQueue[i]);
 }
 this.protocolPacketQueue=[];
-return _20.toString();
-},findOpenIframe:function(){
-for(var i=0;i<this.transportIframes.length;i++){
-var _23=this.transportIframes[i];
-var win=_23.contentWindow;
-if(win.isLoaded&&!win.transmiting){
-return _23;
-}
-}
-},sendXml:function(_25,rid){
+return _14.toString();
+},sendXml:function(_15,rid){
 if(this.isTerminated()){
-return;
+return false;
 }
 this.transmitState="transmitting";
+var def=null;
 if(this.useScriptSrcTransport){
-var _27=this.findOpenIframe();
-var _28=dojo.io.iframe.doc(_27);
-_27.contentWindow.rid=rid;
-_27.contentWindow.transmiting=true;
-dojo.io.script.attach("rid-"+rid,this.serviceUrl+"?"+encodeURIComponent(_25),_28);
+def=dojox.xmpp.bosh.get({rid:rid,url:this.serviceUrl+"?"+encodeURIComponent(_15),error:dojo.hitch(this,function(res,io){
+this.setState("Terminate","error");
+return false;
+}),timeout:this.sendTimeout});
 }else{
-var def=dojo.rawXhrPost({contentType:"text/xml",url:this.serviceUrl,postData:_25,handleAs:"xml",error:dojo.hitch(this,function(res,io){
+def=dojo.rawXhrPost({contentType:"text/xml",url:this.serviceUrl,postData:_15,handleAs:"xml",error:dojo.hitch(this,function(res,io){
 return this.processError(io.xhr.responseXML,io.xhr.status,rid);
 }),timeout:this.sendTimeout});
+}
 def.addCallback(this,function(res){
 return this.processDocument(res,rid);
 });
 return def;
-}
 },processDocument:function(doc,rid){
-if(this.isTerminated()){
-return;
+if(this.isTerminated()||!doc.firstChild){
+return false;
 }
 this.transmitState="idle";
-var _2f=doc.firstChild;
-if(_2f.nodeName!="body"){
+var _16=doc.firstChild;
+if(_16.nodeName!="body"){
 }
 if(this.outboundQueue.length<1){
-return;
+return false;
 }
-var _30=this.outboundQueue[0]["rid"];
-if(rid==_30){
+var _17=this.outboundQueue[0]["rid"];
+if(rid==_17){
 this.removeFromOutboundQueue(rid);
-this.processResponse(_2f,rid);
+this.processResponse(_16,rid);
 this.processInboundQueue();
 }else{
-var gap=rid-_30;
+var gap=rid-_17;
 if(gap<this.hold+2){
 this.addToInboundQueue(doc,rid);
 }else{
@@ -210,8 +194,8 @@ this.addToInboundQueue(doc,rid);
 return doc;
 },processInboundQueue:function(){
 while(this.inboundQueue.length>0){
-var _32=this.inboundQueue.shift();
-this.processDocument(_32["doc"],_32["rid"]);
+var _18=this.inboundQueue.shift();
+this.processDocument(_18["doc"],_18["rid"]);
 }
 },addToInboundQueue:function(doc,rid){
 for(var i=0;i<this.inboundQueue.length;i++){
@@ -220,39 +204,39 @@ continue;
 }
 this.inboundQueue.splice(i,0,{doc:doc,rid:rid});
 }
-},processResponse:function(_36,rid){
-if(_36.getAttribute("type")=="terminate"){
-var _38=_36.firstChild.firstChild;
-var _39="";
-if(_38.nodeName=="conflict"){
-_39="conflict";
+},processResponse:function(_19,rid){
+if(_19.getAttribute("type")=="terminate"){
+var _1a=_19.firstChild.firstChild;
+var _1b="";
+if(_1a.nodeName=="conflict"){
+_1b="conflict";
 }
-this.setState("Terminate",_39);
+this.setState("Terminate",_1b);
 return;
 }
 if((this.state!="Ready")&&(this.state!="Terminate")){
-var sid=_36.getAttribute("sid");
+var sid=_19.getAttribute("sid");
 if(sid){
 this.sid=sid;
 }else{
 throw new Error("No sid returned during xmpp session startup");
 }
-this.authId=_36.getAttribute("authid");
+this.authId=_19.getAttribute("authid");
 if(this.authId==""){
 if(this.authRetries--<1){
 console.error("Unable to obtain Authorization ID");
 this.terminateSession();
 }
 }
-this.wait=_36.getAttribute("wait");
-if(_36.getAttribute("polling")){
-this.polling=parseInt(_36.getAttribute("polling"))*1000;
+this.wait=_19.getAttribute("wait");
+if(_19.getAttribute("polling")){
+this.polling=parseInt(_19.getAttribute("polling"))*1000;
 }
-this.inactivity=_36.getAttribute("inactivity");
+this.inactivity=_19.getAttribute("inactivity");
 this.setState("Ready");
 }
-dojo.forEach(_36.childNodes,function(_3b){
-this.processProtocolResponse(_3b,rid);
+dojo.forEach(_19.childNodes,function(_1c){
+this.processProtocolResponse(_1c,rid);
 },this);
 if(this.transmitState=="idle"){
 this.dispatchPacket();
@@ -265,35 +249,44 @@ if(def){
 def.callback(msg);
 delete this.deferredRequests[key];
 }
-},setState:function(_40,_41){
-if(this.state!=_40){
-if(this["on"+_40]){
-this["on"+_40](_40,this.state,_41);
+},setState:function(_1d,_1e){
+if(this.state!=_1d){
+if(this["on"+_1d]){
+this["on"+_1d](_1d,this.state,_1e);
 }
-this.state=_40;
+this.state=_1d;
 }
 },isTerminated:function(){
 return this.state=="Terminate";
-},processError:function(err,_43,rid){
+},processError:function(err,_1f,rid){
 if(this.isTerminated()){
-return;
+return false;
 }
-if(_43!=200){
-this.setState("Terminate",_45);
-return;
+if(_1f!=200){
+if(_1f>=400&&_1f<500){
+this.setState("Terminate",_20);
+return false;
+}else{
+this.removeFromOutboundQueue(rid);
+setTimeout(dojo.hitch(this,function(){
+this.dispatchPacket();
+}),200);
+return true;
+}
+return false;
 }
 if(err&&err.dojoType&&err.dojoType=="timeout"){
 }
 this.removeFromOutboundQueue(rid);
 if(err&&err.firstChild){
 if(err.firstChild.getAttribute("type")=="terminate"){
-var _46=err.firstChild.firstChild;
-var _45="";
-if(_46&&_46.nodeName=="conflict"){
-_45="conflict";
+var _21=err.firstChild.firstChild;
+var _20="";
+if(_21&&_21.nodeName=="conflict"){
+_20="conflict";
 }
-this.setState("Terminate",_45);
-return;
+this.setState("Terminate",_20);
+return false;
 }
 }
 this.transmitState="error";
@@ -301,8 +294,8 @@ setTimeout(dojo.hitch(this,function(){
 this.dispatchPacket();
 }),200);
 return true;
-},onTerminate:function(_47,_48,_49){
+},onTerminate:function(_22,_23,_24){
 },onProcessProtocolResponse:function(msg){
-},onReady:function(_4b,_4c){
+},onReady:function(_25,_26){
 }});
 }

@@ -7,6 +7,7 @@
 
 if(!dojo._hasResource["dojox.analytics.plugins.consoleMessages"]){
 dojo._hasResource["dojox.analytics.plugins.consoleMessages"]=true;
+dojo.require("dojox.analytics._base");
 dojo.provide("dojox.analytics.plugins.consoleMessages");
 dojox.analytics.plugins.consoleMessages=new (function(){
 this.addData=dojo.hitch(dojox.analytics,"addData","consoleMessages");

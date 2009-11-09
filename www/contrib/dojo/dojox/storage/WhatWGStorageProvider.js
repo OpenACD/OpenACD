@@ -14,12 +14,12 @@ dojo.declare("dojox.storage.WhatWGStorageProvider",[dojox.storage.Provider],{ini
 if(dojo.config["disableWhatWGStorage"]==true){
 return;
 }
-this._domain=this._getDomain();
+this._domain=location.hostname;
 this.initialized=true;
 dojox.storage.manager.loaded();
 },isAvailable:function(){
 try{
-var _1=globalStorage[this._getDomain()];
+var _1=globalStorage[location.hostname];
 }
 catch(e){
 this._available=false;
@@ -77,60 +77,60 @@ var _e={};
 var _f=globalStorage[this._domain];
 var _10=/^__([^_]*)_/;
 for(var i=0;i<_f.length;i++){
-var _12=_f.key(i);
-if(_10.test(_12)==true){
-var _13=_12.match(_10)[1];
-if(typeof _e[_13]=="undefined"){
-_e[_13]=true;
-_d.push(_13);
+var _11=_f.key(i);
+if(_10.test(_11)==true){
+var _12=_11.match(_10)[1];
+if(typeof _e[_12]=="undefined"){
+_e[_12]=true;
+_d.push(_12);
 }
 }
 }
 return _d;
-},getKeys:function(_14){
-_14=_14||this.DEFAULT_NAMESPACE;
-if(this.isValidKey(_14)==false){
-throw new Error("Invalid namespace given: "+_14);
+},getKeys:function(_13){
+_13=_13||this.DEFAULT_NAMESPACE;
+if(this.isValidKey(_13)==false){
+throw new Error("Invalid namespace given: "+_13);
 }
-var _15;
-if(_14==this.DEFAULT_NAMESPACE){
-_15=new RegExp("^([^_]{2}.*)$");
+var _14;
+if(_13==this.DEFAULT_NAMESPACE){
+_14=new RegExp("^([^_]{2}.*)$");
 }else{
-_15=new RegExp("^__"+_14+"_(.*)$");
+_14=new RegExp("^__"+_13+"_(.*)$");
 }
-var _16=globalStorage[this._domain];
-var _17=[];
-for(var i=0;i<_16.length;i++){
-var _19=_16.key(i);
-if(_15.test(_19)==true){
-_19=_19.match(_15)[1];
-_17.push(_19);
+var _15=globalStorage[this._domain];
+var _16=[];
+for(var i=0;i<_15.length;i++){
+var _17=_15.key(i);
+if(_14.test(_17)==true){
+_17=_17.match(_14)[1];
+_16.push(_17);
 }
 }
-return _17;
-},clear:function(_1a){
-_1a=_1a||this.DEFAULT_NAMESPACE;
-if(this.isValidKey(_1a)==false){
-throw new Error("Invalid namespace given: "+_1a);
+return _16;
+},clear:function(_18){
+_18=_18||this.DEFAULT_NAMESPACE;
+if(this.isValidKey(_18)==false){
+throw new Error("Invalid namespace given: "+_18);
 }
-var _1b;
-if(_1a==this.DEFAULT_NAMESPACE){
-_1b=new RegExp("^[^_]{2}");
+var _19;
+if(_18==this.DEFAULT_NAMESPACE){
+_19=new RegExp("^[^_]{2}");
 }else{
-_1b=new RegExp("^__"+_1a+"_");
+_19=new RegExp("^__"+_18+"_");
 }
-var _1c=globalStorage[this._domain];
-var _1d=[];
-for(var i=0;i<_1c.length;i++){
-if(_1b.test(_1c.key(i))==true){
-_1d[_1d.length]=_1c.key(i);
+var _1a=globalStorage[this._domain];
+var _1b=[];
+for(var i=0;i<_1a.length;i++){
+if(_19.test(_1a.key(i))==true){
+_1b[_1b.length]=_1a.key(i);
 }
 }
-dojo.forEach(_1d,dojo.hitch(_1c,"removeItem"));
-},remove:function(key,_20){
-key=this.getFullKey(key,_20);
-var _21=globalStorage[this._domain];
-_21.removeItem(key);
+dojo.forEach(_1b,dojo.hitch(_1a,"removeItem"));
+},remove:function(key,_1c){
+key=this.getFullKey(key,_1c);
+var _1d=globalStorage[this._domain];
+_1d.removeItem(key);
 },isPermanent:function(){
 return true;
 },getMaximumSize:function(){
@@ -141,18 +141,16 @@ return false;
 throw new Error(this.declaredClass+" does not support a storage settings user-interface");
 },hideSettingsUI:function(){
 throw new Error(this.declaredClass+" does not support a storage settings user-interface");
-},getFullKey:function(key,_23){
-_23=_23||this.DEFAULT_NAMESPACE;
-if(this.isValidKey(_23)==false){
-throw new Error("Invalid namespace given: "+_23);
+},getFullKey:function(key,_1e){
+_1e=_1e||this.DEFAULT_NAMESPACE;
+if(this.isValidKey(_1e)==false){
+throw new Error("Invalid namespace given: "+_1e);
 }
-if(_23==this.DEFAULT_NAMESPACE){
+if(_1e==this.DEFAULT_NAMESPACE){
 return key;
 }else{
-return "__"+_23+"_"+key;
+return "__"+_1e+"_"+key;
 }
-},_getDomain:function(){
-return ((location.hostname=="localhost"&&dojo.isFF&&dojo.isFF<3)?"localhost.localdomain":location.hostname);
 }});
 dojox.storage.manager.register("dojox.storage.WhatWGStorageProvider",new dojox.storage.WhatWGStorageProvider());
 }

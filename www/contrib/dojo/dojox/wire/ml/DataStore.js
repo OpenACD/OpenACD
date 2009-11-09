@@ -31,14 +31,14 @@ _2[a.nodeName]=a.nodeValue;
 return new _1(_2);
 },getFeatures:function(){
 return this.store.getFeatures();
-},fetch:function(_6){
-return this.store.fetch(_6);
-},save:function(_7){
-this.store.save(_7);
-},newItem:function(_8){
-return this.store.newItem(_8);
-},deleteItem:function(_9){
-return this.store.deleteItem(_9);
+},fetch:function(_4){
+return this.store.fetch(_4);
+},save:function(_5){
+this.store.save(_5);
+},newItem:function(_6){
+return this.store.newItem(_6);
+},deleteItem:function(_7){
+return this.store.deleteItem(_7);
 },revert:function(){
 return this.store.revert();
 }});

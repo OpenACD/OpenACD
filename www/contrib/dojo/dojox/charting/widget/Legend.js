@@ -12,7 +12,7 @@ dojo.require("dijit._Widget");
 dojo.require("dijit._Templated");
 dojo.require("dojox.lang.functional.array");
 dojo.require("dojox.lang.functional.fold");
-dojo.declare("dojox.charting.widget.Legend",[dijit._Widget,dijit._Templated],{chartRef:"",horizontal:true,templateString:"<table dojoAttachPoint='legendNode' class='dojoxLegendNode'><tbody dojoAttachPoint='legendBody'></tbody></table>",legendNode:null,legendBody:null,postCreate:function(){
+dojo.declare("dojox.charting.widget.Legend",[dijit._Widget,dijit._Templated],{chartRef:"",horizontal:true,swatchSize:18,templateString:"<table dojoAttachPoint='legendNode' class='dojoxLegendNode'><tbody dojoAttachPoint='legendBody'></tbody></table>",legendNode:null,legendBody:null,postCreate:function(){
 if(!this.chart){
 if(!this.chartRef){
 return;
@@ -23,7 +23,6 @@ var _1=dojo.byId(this.chartRef);
 if(_1){
 this.chart=dijit.byNode(_1);
 }else{
-
 return;
 }
 }
@@ -35,8 +34,8 @@ this.refresh();
 },refresh:function(){
 var df=dojox.lang.functional;
 if(this._surfaces){
-dojo.forEach(this._surfaces,function(_3){
-_3.destroy();
+dojo.forEach(this._surfaces,function(_2){
+_2.destroy();
 });
 }
 this._surfaces=[];
@@ -55,12 +54,12 @@ return;
 if(s[0].chart.stack[0].declaredClass=="dojox.charting.plot2d.Pie"){
 var t=s[0].chart.stack[0];
 if(typeof t.run.data[0]=="number"){
-var _6=df.map(t.run.data,"Math.max(x, 0)");
-if(df.every(_6,"<= 0")){
+var _3=df.map(t.run.data,"Math.max(x, 0)");
+if(df.every(_3,"<= 0")){
 return;
 }
-var _7=df.map(_6,"/this",df.foldl(_6,"+",0));
-dojo.forEach(_7,function(x,i){
+var _4=df.map(_3,"/this",df.foldl(_3,"+",0));
+dojo.forEach(_4,function(x,i){
 this._addLabel(t.dyn[i],t._getLabel(x*100)+"%");
 },this);
 }else{
@@ -73,48 +72,48 @@ dojo.forEach(s,function(x){
 this._addLabel(x.dyn,x.legend||x.name);
 },this);
 }
-},_addLabel:function(_d,_e){
-var _f=dojo.doc.createElement("td"),_10=dojo.doc.createElement("td"),div=dojo.doc.createElement("div");
-dojo.addClass(_f,"dojoxLegendIcon");
-dojo.addClass(_10,"dojoxLegendText");
-div.style.width="20px";
-div.style.height="20px";
-_f.appendChild(div);
+},_addLabel:function(_5,_6){
+var _7=dojo.doc.createElement("td"),_8=dojo.doc.createElement("td"),_9=dojo.doc.createElement("div");
+dojo.addClass(_7,"dojoxLegendIcon");
+dojo.addClass(_8,"dojoxLegendText");
+_9.style.width=this.swatchSize+"px";
+_9.style.height=this.swatchSize+"px";
+_7.appendChild(_9);
 if(this._tr){
-this._tr.appendChild(_f);
-this._tr.appendChild(_10);
+this._tr.appendChild(_7);
+this._tr.appendChild(_8);
 }else{
 var tr=dojo.doc.createElement("tr");
 this.legendBody.appendChild(tr);
-tr.appendChild(_f);
-tr.appendChild(_10);
+tr.appendChild(_7);
+tr.appendChild(_8);
 }
-this._makeIcon(div,_d);
-_10.innerHTML=String(_e);
-},_makeIcon:function(div,dyn){
-var mb={h:14,w:14};
-var _16=dojox.gfx.createSurface(div,mb.w,mb.h);
-this._surfaces.push(_16);
-if(dyn.fill){
-_16.createRect({x:2,y:2,width:mb.w-4,height:mb.h-4}).setFill(dyn.fill).setStroke(dyn.stroke);
+this._makeIcon(_9,_5);
+_8.innerHTML=String(_6);
+},_makeIcon:function(_a,_b){
+var mb={h:this.swatchSize,w:this.swatchSize};
+var _c=dojox.gfx.createSurface(_a,mb.w,mb.h);
+this._surfaces.push(_c);
+if(_b.fill){
+_c.createRect({x:2,y:2,width:mb.w-4,height:mb.h-4}).setFill(_b.fill).setStroke(_b.stroke);
 }else{
-if(dyn.stroke||dyn.marker){
-var _17={x1:0,y1:mb.h/2,x2:mb.w,y2:mb.h/2};
-if(dyn.stroke){
-_16.createLine(_17).setStroke(dyn.stroke);
+if(_b.stroke||_b.marker){
+var _d={x1:0,y1:mb.h/2,x2:mb.w,y2:mb.h/2};
+if(_b.stroke){
+_c.createLine(_d).setStroke(_b.stroke);
 }
-if(dyn.marker){
+if(_b.marker){
 var c={x:mb.w/2,y:mb.h/2};
-if(dyn.stroke){
-_16.createPath({path:"M"+c.x+" "+c.y+" "+dyn.marker}).setFill(dyn.stroke.color).setStroke(dyn.stroke);
+if(_b.stroke){
+_c.createPath({path:"M"+c.x+" "+c.y+" "+_b.marker}).setFill(_b.stroke.color).setStroke(_b.stroke);
 }else{
-_16.createPath({path:"M"+c.x+" "+c.y+" "+dyn.marker}).setFill(dyn.color).setStroke(dyn.color);
+_c.createPath({path:"M"+c.x+" "+c.y+" "+_b.marker}).setFill(_b.color).setStroke(_b.color);
 }
 }
 }else{
-_16.createRect({x:2,y:2,width:mb.w-4,height:mb.h-4}).setStroke("black");
-_16.createLine({x1:2,y1:2,x2:mb.w-2,y2:mb.h-2}).setStroke("black");
-_16.createLine({x1:2,y1:mb.h-2,x2:mb.w-2,y2:2}).setStroke("black");
+_c.createRect({x:2,y:2,width:mb.w-4,height:mb.h-4}).setStroke("black");
+_c.createLine({x1:2,y1:2,x2:mb.w-2,y2:mb.h-2}).setStroke("black");
+_c.createLine({x1:2,y1:mb.h-2,x2:mb.w-2,y2:2}).setStroke("black");
 }
 }
 }});

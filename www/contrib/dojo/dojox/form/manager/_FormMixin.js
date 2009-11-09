@@ -18,31 +18,31 @@ this.connect(this.domNode,"onreset","_onReset");
 this.connect(this.domNode,"onsubmit","_onSubmit");
 }
 this.inherited(arguments);
-},_onReset:function(_3){
-var _4={returnValue:true,preventDefault:function(){
+},_onReset:function(_1){
+var _2={returnValue:true,preventDefault:function(){
 this.returnValue=false;
 },stopPropagation:function(){
-},currentTarget:_3.currentTarget,target:_3.target};
-if(!(this.onReset(_4)===false)&&_4.returnValue){
+},currentTarget:_1.currentTarget,target:_1.target};
+if(!(this.onReset(_2)===false)&&_2.returnValue){
 this.reset();
 }
-dojo.stopEvent(_3);
+dojo.stopEvent(_1);
 return false;
 },onReset:function(){
 return true;
 },reset:function(){
-this.inspectFormWidgets(aa(function(_,_6){
-if(_6.reset){
-_6.reset();
+this.inspectFormWidgets(aa(function(_3,_4){
+if(_4.reset){
+_4.reset();
 }
 }));
 if(this.isForm){
 this.domNode.reset();
 }
 return this;
-},_onSubmit:function(_7){
-if(this.onSubmit(_7)===false){
-dojo.stopEvent(_7);
+},_onSubmit:function(_5){
+if(this.onSubmit(_5)===false){
+dojo.stopEvent(_5);
 }
 },onSubmit:function(){
 return this.isValid();
@@ -53,14 +53,14 @@ this.domNode.submit();
 }
 }
 },isValid:function(){
-for(var _8 in this.formWidgets){
-var _9=false;
-aa(function(_,_b){
-if(!_b.attr("disabled")&&_b.isValid&&!_b.isValid()){
-_9=true;
+for(var _6 in this.formWidgets){
+var _7=false;
+aa(function(_8,_9){
+if(!_9.attr("disabled")&&_9.isValid&&!_9.isValid()){
+_7=true;
 }
-}).call(this,null,this.formWidgets[_8].widget);
-if(_9){
+}).call(this,null,this.formWidgets[_6].widget);
+if(_7){
 return false;
 }
 }

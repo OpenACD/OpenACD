@@ -16,21 +16,25 @@ this.headerNode.style.visibility="hidden";
 },getWidth:function(){
 return this.viewWidth||this.defaultWidth;
 },buildRowContent:function(_1,_2){
-var w=this.contentNode.offsetWidth-this.padBorderWidth;
-_2.innerHTML="<table class=\"dojoxGridRowbarTable\" style=\"width:"+w+"px;\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" role=\""+(dojo.isFF<3?"wairole:":"")+"presentation\"><tr><td class=\"dojoxGridRowbarInner\">&nbsp;</td></tr></table>";
+var w=this.contentWidth||0;
+_2.innerHTML="<table class=\"dojoxGridRowbarTable\" style=\"width:"+w+"px;height:1px;\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" role=\"presentation\"><tr><td class=\"dojoxGridRowbarInner\">&nbsp;</td></tr></table>";
 },renderHeader:function(){
+},updateRow:function(){
 },resize:function(){
 this.adaptHeight();
 },adaptWidth:function(){
-},doStyleRowNode:function(_4,_5){
-var n=["dojoxGridRowbar"];
-if(this.grid.rows.isOver(_4)){
+if(!("contentWidth" in this)&&this.contentNode){
+this.contentWidth=this.contentNode.offsetWidth-this.padBorderWidth;
+}
+},doStyleRowNode:function(_3,_4){
+var n=["dojoxGridRowbar dojoxGridNonNormalizedCell"];
+if(this.grid.rows.isOver(_3)){
 n.push("dojoxGridRowbarOver");
 }
-if(this.grid.selection.isSelected(_4)){
+if(this.grid.selection.isSelected(_3)){
 n.push("dojoxGridRowbarSelected");
 }
-_5.className=n.join(" ");
+_4.className=n.join(" ");
 },domouseover:function(e){
 this.grid.onMouseOverRow(e);
 },domouseout:function(e){

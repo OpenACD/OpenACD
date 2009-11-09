@@ -8,6 +8,7 @@
 if(!dojo._hasResource["dojox.form.DateTextBox"]){
 dojo._hasResource["dojox.form.DateTextBox"]=true;
 dojo.provide("dojox.form.DateTextBox");
+dojo.experimental("dojox.form.DateTextBox");
 dojo.require("dojox.widget.Calendar");
 dojo.require("dojox.widget.CalendarViews");
 dojo.require("dijit.form._DateTimeTextBox");
@@ -15,44 +16,67 @@ dojo.declare("dojox.form.DateTextBox",dijit.form._DateTimeTextBox,{popupClass:"d
 this.inherited(arguments);
 dojo.style(this._picker.domNode.parentNode,"position","absolute");
 }});
-dojo.declare("dojox.form.DayTextBox",dojox.form.DateTextBox,{popupClass:"dojox.widget.DailyCalendar",format:function(_1){
-return _1.getDate();
-},validator:function(_2){
-var _3=Number(_2);
-var _4=/(^-?\d\d*$)/.test(String(_2));
-return _2==""||_2==null||(_4&&_3>=1&&_3<=31);
+dojo.declare("dojox.form.DayTextBox",dojox.form.DateTextBox,{popupClass:"dojox.widget.DailyCalendar",parse:function(_1){
+return _1;
+},format:function(_2){
+return _2.getDate?_2.getDate():_2;
+},validator:function(_3){
+var _4=Number(_3);
+var _5=/(^-?\d\d*$)/.test(String(_3));
+return _3==""||_3==null||(_5&&_4>=1&&_4<=31);
 },_open:function(){
 this.inherited(arguments);
-this._picker.onValueSelected=dojo.hitch(this,function(_5){
+this._picker.onValueSelected=dojo.hitch(this,function(_6){
 this.focus();
 setTimeout(dojo.hitch(this,"_close"),1);
-dijit.form.TextBox.prototype._setValueAttr.call(this,_5,true,String(_5.getDate()));
+dijit.form.TextBox.prototype._setValueAttr.call(this,String(_6.getDate()),true,String(_6.getDate()));
 });
 }});
-dojo.declare("dojox.form.MonthTextBox",dojox.form.DateTextBox,{popupClass:"dojox.widget.MonthlyCalendar",format:function(_6){
-return _6+1;
-},validator:function(_7){
-var _8=Number(_7);
-var _9=/(^-?\d\d*$)/.test(String(_7));
-return _7==""||_7==null||(_9&&_8>=1&&_8<=12);
-},_open:function(){
+dojo.declare("dojox.form.MonthTextBox",dojox.form.DateTextBox,{popupClass:"dojox.widget.MonthlyCalendar",selector:"date",postMixInProperties:function(){
 this.inherited(arguments);
-this._picker.onValueSelected=dojo.hitch(this,function(_a){
-this.focus();
-setTimeout(dojo.hitch(this,"_close"),1);
-dijit.form.TextBox.prototype._setValueAttr.call(this,_a+1,true,_a+1);
-});
-}});
-dojo.declare("dojox.form.YearTextBox",dojox.form.DateTextBox,{popupClass:"dojox.widget.YearlyCalendar",format:function(_b){
-return _b;
+this.constraints.datePattern="MM";
+},format:function(_7){
+return Number(_7)+1;
+},parse:function(_8,_9){
+return Number(_8)-1;
+},serialize:function(_a,_b){
+return String(_a);
 },validator:function(_c){
-return _c==""||_c==null||/(^-?\d\d*$)/.test(String(_c));
+var _d=Number(_c);
+var _e=/(^-?\d\d*$)/.test(String(_c));
+return _c==""||_c==null||(_e&&_d>=1&&_d<=12);
 },_open:function(){
 this.inherited(arguments);
-this._picker.onValueSelected=dojo.hitch(this,function(_d){
+this._picker.onValueSelected=dojo.hitch(this,function(_f){
 this.focus();
 setTimeout(dojo.hitch(this,"_close"),1);
-dijit.form.TextBox.prototype._setValueAttr.call(this,_d,true,_d);
+dijit.form.TextBox.prototype._setValueAttr.call(this,_f,true,_f);
 });
+}});
+dojo.declare("dojox.form.YearTextBox",dojox.form.DateTextBox,{popupClass:"dojox.widget.YearlyCalendar",format:function(_10){
+if(typeof _10=="string"){
+return _10;
+}else{
+if(_10.getFullYear){
+return _10.getFullYear();
+}
+}
+return _10;
+},validator:function(_11){
+return _11==""||_11==null||/(^-?\d\d*$)/.test(String(_11));
+},_open:function(){
+this.inherited(arguments);
+this._picker.onValueSelected=dojo.hitch(this,function(_12){
+this.focus();
+setTimeout(dojo.hitch(this,"_close"),1);
+dijit.form.TextBox.prototype._setValueAttr.call(this,_12,true,_12);
+});
+},parse:function(_13,_14){
+return _13||(this._isEmpty(_13)?null:undefined);
+},filter:function(val){
+if(val&&val.getFullYear){
+return val.getFullYear().toString();
+}
+return this.inherited(arguments);
 }});
 }

@@ -14,7 +14,7 @@ dojo.require("dijit.form.Button");
 dojo.require("dojo.i18n");
 dojo.requireLocalization("dijit","common",null,"ROOT,ar,ca,cs,da,de,el,es,fi,fr,he,hu,it,ja,ko,nb,nl,pl,pt,pt-pt,ru,sk,sl,sv,th,tr,zh,zh-tw");
 dojo.requireLocalization("dojox.widget","Wizard",null,"ROOT,ar,ca,cs,da,de,el,es,fi,fr,he,hu,it,ja,ko,nb,nl,pl,pt,pt-pt,ru,sk,sl,sv,th,tr,zh,zh-tw");
-dojo.declare("dojox.widget.Wizard",[dijit.layout.StackContainer,dijit._Templated],{widgetsInTemplate:true,templateString:"<div class=\"dojoxWizard\" dojoAttachPoint=\"wizardNode\">\n    <div class=\"dojoxWizardContainer\" dojoAttachPoint=\"containerNode\"></div>\n    <div class=\"dojoxWizardButtons\" dojoAttachPoint=\"wizardNav\">\n        <button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"previousButton\">${previousButtonLabel}</button>\n        <button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"nextButton\">${nextButtonLabel}</button>\n        <button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"doneButton\" style=\"display:none\">${doneButtonLabel}</button>\n        <button dojoType=\"dijit.form.Button\" dojoAttachPoint=\"cancelButton\">${cancelButtonLabel}</button>\n    </div>\n</div>\n",nextButtonLabel:"",previousButtonLabel:"",cancelButtonLabel:"",doneButtonLabel:"",cancelFunction:null,hideDisabled:false,postMixInProperties:function(){
+dojo.declare("dojox.widget.Wizard",[dijit.layout.StackContainer,dijit._Templated],{widgetsInTemplate:true,templateString:dojo.cache("dojox.widget","Wizard/Wizard.html","<div class=\"dojoxWizard\" dojoAttachPoint=\"wizardNode\">\n    <div class=\"dojoxWizardContainer\" dojoAttachPoint=\"containerNode\"></div>\n    <div class=\"dojoxWizardButtons\" dojoAttachPoint=\"wizardNav\">\n        <button dojoType=\"dijit.form.Button\" type=\"button\" dojoAttachPoint=\"previousButton\">${previousButtonLabel}</button>\n        <button dojoType=\"dijit.form.Button\" type=\"button\" dojoAttachPoint=\"nextButton\">${nextButtonLabel}</button>\n        <button dojoType=\"dijit.form.Button\" type=\"button\" dojoAttachPoint=\"doneButton\" style=\"display:none\">${doneButtonLabel}</button>\n        <button dojoType=\"dijit.form.Button\" type=\"button\" dojoAttachPoint=\"cancelButton\">${cancelButtonLabel}</button>\n    </div>\n</div>\n"),nextButtonLabel:"",previousButtonLabel:"",cancelButtonLabel:"",doneButtonLabel:"",cancelFunction:null,hideDisabled:false,postMixInProperties:function(){
 this.inherited(arguments);
 var _1=dojo.mixin({cancel:dojo.i18n.getLocalization("dijit","common",this.lang).buttonCancel},dojo.i18n.getLocalization("dojox.widget","Wizard",this.lang));
 var _2;
@@ -44,12 +44,12 @@ this._checkButtons();
 this._started=true;
 },_checkButtons:function(){
 var sw=this.selectedChildWidget;
-var _4=sw.isLastChild;
-this.nextButton.attr("disabled",_4);
+var _3=sw.isLastChild;
+this.nextButton.attr("disabled",_3);
 this._setButtonClass(this.nextButton);
 if(sw.doneFunction){
 this.doneButton.domNode.style.display="";
-if(_4){
+if(_3){
 this.nextButton.domNode.style.display="none";
 }
 }else{
@@ -57,8 +57,8 @@ this.doneButton.domNode.style.display="none";
 }
 this.previousButton.attr("disabled",!this.selectedChildWidget.canGoBack);
 this._setButtonClass(this.previousButton);
-},_setButtonClass:function(_5){
-_5.domNode.style.display=(this.hideDisabled&&_5.disabled)?"none":"";
+},_setButtonClass:function(_4){
+_4.domNode.style.display=(this.hideDisabled&&_4.disabled)?"none":"";
 },_forward:function(){
 if(this.selectedChildWidget._checkPass()){
 this.forward();
@@ -88,13 +88,13 @@ this.inherited(arguments);
 },_checkPass:function(){
 var r=true;
 if(this.passFunction&&dojo.isFunction(this.passFunction)){
-var _7=this.passFunction();
-switch(typeof _7){
+var _5=this.passFunction();
+switch(typeof _5){
 case "boolean":
-r=_7;
+r=_5;
 break;
 case "string":
-alert(_7);
+alert(_5);
 r=false;
 break;
 }

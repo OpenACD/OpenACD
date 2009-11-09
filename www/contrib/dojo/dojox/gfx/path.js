@@ -41,9 +41,9 @@ this.bbox.b=y;
 }else{
 this.bbox={l:x,b:y,r:x,t:y};
 }
-},_updateWithSegment:function(_5){
-var n=_5.args,l=n.length;
-switch(_5.action){
+},_updateWithSegment:function(_3){
+var n=_3.args,l=n.length;
+switch(_3.action){
 case "M":
 case "L":
 case "C":
@@ -72,12 +72,12 @@ this.last.y=n[l-1];
 this.absolute=true;
 break;
 case "m":
-var _9=0;
+var _4=0;
 if(!("x" in this.last)){
 this._updateBBox(this.last.x=n[0],this.last.y=n[1]);
-_9=2;
+_4=2;
 }
-for(var i=_9;i<l;i+=2){
+for(var i=_4;i<l;i+=2){
 this._updateBBox(this.last.x+=n[i],this.last.y+=n[i+1]);
 }
 this.absolute=false;
@@ -132,99 +132,99 @@ this._updateBBox(this.last.x+=n[i+5],this.last.y+=n[i+6]);
 this.absolute=false;
 break;
 }
-var _a=[_5.action];
+var _5=[_3.action];
 for(var i=0;i<l;++i){
-_a.push(dojox.gfx.formatNumber(n[i],true));
+_5.push(dojox.gfx.formatNumber(n[i],true));
 }
 if(typeof this.shape.path=="string"){
-this.shape.path+=_a.join("");
+this.shape.path+=_5.join("");
 }else{
-Array.prototype.push.apply(this.shape.path,_a);
+Array.prototype.push.apply(this.shape.path,_5);
 }
-},_validSegments:{m:2,l:2,h:1,v:1,c:6,s:4,q:4,t:2,a:7,z:0},_pushSegment:function(_b,_c){
-var _d=this._validSegments[_b.toLowerCase()];
-if(typeof _d=="number"){
-if(_d){
-if(_c.length>=_d){
-var _e={action:_b,args:_c.slice(0,_c.length-_c.length%_d)};
-this.segments.push(_e);
-this._updateWithSegment(_e);
+},_validSegments:{m:2,l:2,h:1,v:1,c:6,s:4,q:4,t:2,a:7,z:0},_pushSegment:function(_6,_7){
+var _8=this._validSegments[_6.toLowerCase()];
+if(typeof _8=="number"){
+if(_8){
+if(_7.length>=_8){
+var _9={action:_6,args:_7.slice(0,_7.length-_7.length%_8)};
+this.segments.push(_9);
+this._updateWithSegment(_9);
 }
 }else{
-var _e={action:_b,args:[]};
-this.segments.push(_e);
-this._updateWithSegment(_e);
+var _9={action:_6,args:[]};
+this.segments.push(_9);
+this._updateWithSegment(_9);
 }
 }
-},_collectArgs:function(_f,_10){
-for(var i=0;i<_10.length;++i){
-var t=_10[i];
+},_collectArgs:function(_a,_b){
+for(var i=0;i<_b.length;++i){
+var t=_b[i];
 if(typeof t=="boolean"){
-_f.push(t?1:0);
+_a.push(t?1:0);
 }else{
 if(typeof t=="number"){
-_f.push(t);
+_a.push(t);
 }else{
 if(t instanceof Array){
-this._collectArgs(_f,t);
+this._collectArgs(_a,t);
 }else{
 if("x" in t&&"y" in t){
-_f.push(t.x,t.y);
+_a.push(t.x,t.y);
 }
 }
 }
 }
 }
 },moveTo:function(){
-var _13=[];
-this._collectArgs(_13,arguments);
-this._pushSegment(this.absolute?"M":"m",_13);
+var _c=[];
+this._collectArgs(_c,arguments);
+this._pushSegment(this.absolute?"M":"m",_c);
 return this;
 },lineTo:function(){
-var _14=[];
-this._collectArgs(_14,arguments);
-this._pushSegment(this.absolute?"L":"l",_14);
+var _d=[];
+this._collectArgs(_d,arguments);
+this._pushSegment(this.absolute?"L":"l",_d);
 return this;
 },hLineTo:function(){
-var _15=[];
-this._collectArgs(_15,arguments);
-this._pushSegment(this.absolute?"H":"h",_15);
+var _e=[];
+this._collectArgs(_e,arguments);
+this._pushSegment(this.absolute?"H":"h",_e);
 return this;
 },vLineTo:function(){
-var _16=[];
-this._collectArgs(_16,arguments);
-this._pushSegment(this.absolute?"V":"v",_16);
+var _f=[];
+this._collectArgs(_f,arguments);
+this._pushSegment(this.absolute?"V":"v",_f);
 return this;
 },curveTo:function(){
-var _17=[];
-this._collectArgs(_17,arguments);
-this._pushSegment(this.absolute?"C":"c",_17);
+var _10=[];
+this._collectArgs(_10,arguments);
+this._pushSegment(this.absolute?"C":"c",_10);
 return this;
 },smoothCurveTo:function(){
-var _18=[];
-this._collectArgs(_18,arguments);
-this._pushSegment(this.absolute?"S":"s",_18);
+var _11=[];
+this._collectArgs(_11,arguments);
+this._pushSegment(this.absolute?"S":"s",_11);
 return this;
 },qCurveTo:function(){
-var _19=[];
-this._collectArgs(_19,arguments);
-this._pushSegment(this.absolute?"Q":"q",_19);
+var _12=[];
+this._collectArgs(_12,arguments);
+this._pushSegment(this.absolute?"Q":"q",_12);
 return this;
 },qSmoothCurveTo:function(){
-var _1a=[];
-this._collectArgs(_1a,arguments);
-this._pushSegment(this.absolute?"T":"t",_1a);
+var _13=[];
+this._collectArgs(_13,arguments);
+this._pushSegment(this.absolute?"T":"t",_13);
 return this;
 },arcTo:function(){
-var _1b=[];
-this._collectArgs(_1b,arguments);
-this._pushSegment(this.absolute?"A":"a",_1b);
+var _14=[];
+this._collectArgs(_14,arguments);
+this._pushSegment(this.absolute?"A":"a",_14);
 return this;
 },closePath:function(){
 this._pushSegment("Z",[]);
 return this;
-},_setPath:function(_1c){
-var p=dojo.isArray(_1c)?_1c:_1c.match(dojox.gfx.pathSvgRegExp);
+},_setPath:function(_15){
+var p=dojo.isArray(_15)?_15:_15.match(dojox.gfx.pathSvgRegExp);
 this.segments=[];
 this.absolute=true;
 this.bbox={};
@@ -232,29 +232,29 @@ this.last={};
 if(!p){
 return;
 }
-var _1e="",_1f=[],l=p.length;
+var _16="",_17=[],l=p.length;
 for(var i=0;i<l;++i){
 var t=p[i],x=parseFloat(t);
 if(isNaN(x)){
-if(_1e){
-this._pushSegment(_1e,_1f);
+if(_16){
+this._pushSegment(_16,_17);
 }
-_1f=[];
-_1e=t;
+_17=[];
+_16=t;
 }else{
-_1f.push(x);
+_17.push(x);
 }
 }
-this._pushSegment(_1e,_1f);
-},setShape:function(_24){
-dojox.gfx.Shape.prototype.setShape.call(this,typeof _24=="string"?{path:_24}:_24);
-var _25=this.shape.path;
+this._pushSegment(_16,_17);
+},setShape:function(_18){
+dojox.gfx.Shape.prototype.setShape.call(this,typeof _18=="string"?{path:_18}:_18);
+var _19=this.shape.path;
 this.shape.path=[];
-this._setPath(_25);
+this._setPath(_19);
 this.shape.path=this.shape.path.join("");
 return this;
 },_2PI:Math.PI*2});
-dojo.declare("dojox.gfx.path.TextPath",dojox.gfx.path.Path,{constructor:function(_26){
+dojo.declare("dojox.gfx.path.TextPath",dojox.gfx.path.Path,{constructor:function(_1a){
 if(!("text" in this)){
 this.text=dojo.clone(dojox.gfx.defaultTextPath);
 }
@@ -263,14 +263,14 @@ this.fontStyle=dojo.clone(dojox.gfx.defaultFont);
 }
 },getText:function(){
 return this.text;
-},setText:function(_27){
-this.text=dojox.gfx.makeParameters(this.text,typeof _27=="string"?{text:_27}:_27);
+},setText:function(_1b){
+this.text=dojox.gfx.makeParameters(this.text,typeof _1b=="string"?{text:_1b}:_1b);
 this._setText();
 return this;
 },getFont:function(){
 return this.fontStyle;
-},setFont:function(_28){
-this.fontStyle=typeof _28=="string"?dojox.gfx.splitFontString(_28):dojox.gfx.makeParameters(dojox.gfx.defaultFont,_28);
+},setFont:function(_1c){
+this.fontStyle=typeof _1c=="string"?dojox.gfx.splitFontString(_1c):dojox.gfx.makeParameters(dojox.gfx.defaultFont,_1c);
 this._setFont();
 return this;
 }});

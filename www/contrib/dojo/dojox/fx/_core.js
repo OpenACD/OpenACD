@@ -17,11 +17,11 @@ dojo.forEach(this.start,function(s,i){
 d[i]=this.end[i]-s;
 },this);
 this.getValue=function(n){
-var _8=[];
+var _4=[];
 dojo.forEach(this.start,function(s,i){
-_8[i]=(d[i]*n)+s;
+_4[i]=(d[i]*n)+s;
 },this);
-return _8;
+return _4;
 };
 }else{
 this.getValue=function(n){

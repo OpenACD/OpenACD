@@ -87,7 +87,6 @@
 	border:1px solid #333;	
 	padding-bottom:20px;
 	overflow:hidden;
-	text-align: center;
 	-moz-border-radius:3pt;
 	-webkit-border-radius:4pt;
 	-webkit-drop-shadow:#ccc 4pt; 
@@ -257,7 +256,6 @@
 .thumbScroller {
 	overflow-x: hidden;
 	overflow-y: hidden;
-	white-space: nowrap;
 	text-align: center;
 }
 .thumbHoriz .thumbScroller {

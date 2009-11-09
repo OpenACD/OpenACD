@@ -12,8 +12,7 @@ dojo.date.stamp.fromISOString=function(_1,_2){
 if(!dojo.date.stamp._isoRegExp){
 dojo.date.stamp._isoRegExp=/^(?:(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?)?(?:T(\d{2}):(\d{2})(?::(\d{2})(.\d+)?)?((?:[+-](\d{2}):(\d{2}))|Z)?)?$/;
 }
-var _3=dojo.date.stamp._isoRegExp.exec(_1);
-var _4=null;
+var _3=dojo.date.stamp._isoRegExp.exec(_1),_4=null;
 if(_3){
 _3.shift();
 if(_3[1]){
@@ -33,8 +32,10 @@ _3[_7]=_6;
 });
 }
 _4=new Date(_3[0]||1970,_3[1]||0,_3[2]||1,_3[3]||0,_3[4]||0,_3[5]||0,_3[6]||0);
-var _8=0;
-var _9=_3[7]&&_3[7].charAt(0);
+if(_3[0]<100){
+_4.setFullYear(_3[0]||1970);
+}
+var _8=0,_9=_3[7]&&_3[7].charAt(0);
 if(_9!="Z"){
 _8=((_3[8]||0)*60)+(Number(_3[9])||0);
 if(_9!="-"){
@@ -51,35 +52,33 @@ _4.setTime(_4.getTime()+_8*60000);
 return _4;
 };
 dojo.date.stamp.toISOString=function(_a,_b){
-var _=function(n){
+var _c=function(n){
 return (n<10)?"0"+n:n;
 };
 _b=_b||{};
-var _e=[];
-var _f=_b.zulu?"getUTC":"get";
-var _10="";
+var _d=[],_e=_b.zulu?"getUTC":"get",_f="";
 if(_b.selector!="time"){
-var _11=_a[_f+"FullYear"]();
-_10=["0000".substr((_11+"").length)+_11,_(_a[_f+"Month"]()+1),_(_a[_f+"Date"]())].join("-");
+var _10=_a[_e+"FullYear"]();
+_f=["0000".substr((_10+"").length)+_10,_c(_a[_e+"Month"]()+1),_c(_a[_e+"Date"]())].join("-");
 }
-_e.push(_10);
+_d.push(_f);
 if(_b.selector!="date"){
-var _12=[_(_a[_f+"Hours"]()),_(_a[_f+"Minutes"]()),_(_a[_f+"Seconds"]())].join(":");
-var _13=_a[_f+"Milliseconds"]();
+var _11=[_c(_a[_e+"Hours"]()),_c(_a[_e+"Minutes"]()),_c(_a[_e+"Seconds"]())].join(":");
+var _12=_a[_e+"Milliseconds"]();
 if(_b.milliseconds){
-_12+="."+(_13<100?"0":"")+_(_13);
+_11+="."+(_12<100?"0":"")+_c(_12);
 }
 if(_b.zulu){
-_12+="Z";
+_11+="Z";
 }else{
 if(_b.selector!="time"){
-var _14=_a.getTimezoneOffset();
-var _15=Math.abs(_14);
-_12+=(_14>0?"-":"+")+_(Math.floor(_15/60))+":"+_(_15%60);
+var _13=_a.getTimezoneOffset();
+var _14=Math.abs(_13);
+_11+=(_13>0?"-":"+")+_c(Math.floor(_14/60))+":"+_c(_14%60);
 }
 }
-_e.push(_12);
+_d.push(_11);
 }
-return _e.join("T");
+return _d.join("T");
 };
 }

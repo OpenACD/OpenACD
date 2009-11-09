@@ -13,130 +13,130 @@ var re=dojox.jsonPath._regularExpressions;
 if(!_3){
 _3={};
 }
-var _5=[];
-function _6(i){
-return _5[i];
+var _4=[];
+function _5(i){
+return _4[i];
 };
-var _8;
+var _6;
 if(_3.resultType=="PATH"&&_3.evalType=="RESULT"){
 throw Error("RESULT based evaluation not supported with PATH based results");
 }
-var P={resultType:_3.resultType||"VALUE",normalize:function(_a){
-var _b=[];
-_a=_a.replace(/'([^']|'')*'/g,function(t){
-return "_str("+(_5.push(eval(t))-1)+")";
+var P={resultType:_3.resultType||"VALUE",normalize:function(_7){
+var _8=[];
+_7=_7.replace(/'([^']|'')*'/g,function(t){
+return "_str("+(_4.push(eval(t))-1)+")";
 });
 var ll=-1;
-while(ll!=_b.length){
-ll=_b.length;
-_a=_a.replace(/(\??\([^\(\)]*\))/g,function($0){
-return "#"+(_b.push($0)-1);
+while(ll!=_8.length){
+ll=_8.length;
+_7=_7.replace(/(\??\([^\(\)]*\))/g,function($0){
+return "#"+(_8.push($0)-1);
 });
 }
-_a=_a.replace(/[\['](#[0-9]+)[\]']/g,"[$1]").replace(/'?\.'?|\['?/g,";").replace(/;;;|;;/g,";..;").replace(/;$|'?\]|'$/g,"");
+_7=_7.replace(/[\['](#[0-9]+)[\]']/g,"[$1]").replace(/'?\.'?|\['?/g,";").replace(/;;;|;;/g,";..;").replace(/;$|'?\]|'$/g,"");
 ll=-1;
-while(ll!=_a){
-ll=_a;
-_a=_a.replace(/#([0-9]+)/g,function($0,$1){
-return _b[$1];
+while(ll!=_7){
+ll=_7;
+_7=_7.replace(/#([0-9]+)/g,function($0,$1){
+return _8[$1];
 });
 }
-return _a.split(";");
-},asPaths:function(_11){
-for(var j=0;j<_11.length;j++){
+return _7.split(";");
+},asPaths:function(_9){
+for(var j=0;j<_9.length;j++){
 var p="$";
-var x=_11[j];
+var x=_9[j];
 for(var i=1,n=x.length;i<n;i++){
 p+=/^[0-9*]+$/.test(x[i])?("["+x[i]+"]"):("['"+x[i]+"']");
 }
-_11[j]=p;
+_9[j]=p;
 }
-return _11;
-},exec:function(_17,val,rb){
-var _1a=["$"];
-var _1b=rb?val:[val];
-var _1c=[_1a];
-function add(v,p,def){
+return _9;
+},exec:function(_a,_b,rb){
+var _c=["$"];
+var _d=rb?_b:[_b];
+var _e=[_c];
+function _f(v,p,def){
 if(v&&v.hasOwnProperty(p)&&P.resultType!="VALUE"){
-_1c.push(_1a.concat([p]));
+_e.push(_c.concat([p]));
 }
 if(def){
-_1b=v[p];
+_d=v[p];
 }else{
 if(v&&v.hasOwnProperty(p)){
-_1b.push(v[p]);
+_d.push(v[p]);
 }
 }
 };
-function _21(v){
-_1b.push(v);
-_1c.push(_1a);
+function _10(v){
+_d.push(v);
+_e.push(_c);
 P.walk(v,function(i){
 if(typeof v[i]==="object"){
-var _24=_1a;
-_1a=_1a.concat(i);
-_21(v[i]);
-_1a=_24;
+var _11=_c;
+_c=_c.concat(i);
+_10(v[i]);
+_c=_11;
 }
 });
 };
-function _25(loc,val){
+function _12(loc,val){
 if(val instanceof Array){
-var len=val.length,_29=0,end=len,_2b=1;
+var len=val.length,_13=0,end=len,_14=1;
 loc.replace(/^(-?[0-9]*):(-?[0-9]*):?(-?[0-9]*)$/g,function($0,$1,$2,$3){
-_29=parseInt($1||_29);
+_13=parseInt($1||_13);
 end=parseInt($2||end);
-_2b=parseInt($3||_2b);
+_14=parseInt($3||_14);
 });
-_29=(_29<0)?Math.max(0,_29+len):Math.min(len,_29);
+_13=(_13<0)?Math.max(0,_13+len):Math.min(len,_13);
 end=(end<0)?Math.max(0,end+len):Math.min(len,end);
-for(var i=_29;i<end;i+=_2b){
-add(val,i);
+for(var i=_13;i<end;i+=_14){
+_f(val,i);
 }
 }
 };
-function _31(str){
+function _15(str){
 var i=loc.match(/^_str\(([0-9]+)\)$/);
-return i?_5[i[1]]:str;
+return i?_4[i[1]]:str;
 };
-function _35(val){
+function _16(val){
 if(/^\(.*?\)$/.test(loc)){
-add(val,P.eval(loc,val),rb);
+_f(val,P.eval(loc,val),rb);
 }else{
 if(loc==="*"){
 P.walk(val,rb&&val instanceof Array?function(i){
 P.walk(val[i],function(j){
-add(val[i],j);
+_f(val[i],j);
 });
 }:function(i){
-add(val,i);
+_f(val,i);
 });
 }else{
 if(loc===".."){
-_21(val);
+_10(val);
 }else{
 if(/,/.test(loc)){
 for(var s=loc.split(/'?,'?/),i=0,n=s.length;i<n;i++){
-add(val,_31(s[i]));
+_f(val,_15(s[i]));
 }
 }else{
 if(/^\?\(.*?\)$/.test(loc)){
 P.walk(val,function(i){
 if(P.eval(loc.replace(/^\?\((.*?)\)$/,"$1"),val[i])){
-add(val,i);
+_f(val,i);
 }
 });
 }else{
 if(/^(-?[0-9]*):(-?[0-9]*):?([0-9]*)$/.test(loc)){
-_25(loc,val);
+_12(loc,val);
 }else{
-loc=_31(loc);
+loc=_15(loc);
 if(rb&&val instanceof Array&&!/^[0-9*]+$/.test(loc)){
 P.walk(val,function(i){
-add(val[i],loc);
+_f(val[i],loc);
 });
 }else{
-add(val,loc,rb);
+_f(val,loc,rb);
 }
 }
 }
@@ -145,32 +145,32 @@ add(val,loc,rb);
 }
 }
 };
-while(_17.length){
-var loc=_17.shift();
-if((val=_1b)===null||val===undefined){
-return val;
+while(_a.length){
+var loc=_a.shift();
+if((_b=_d)===null||_b===undefined){
+return _b;
 }
-_1b=[];
-var _3f=_1c;
-_1c=[];
+_d=[];
+var _17=_e;
+_e=[];
 if(rb){
-_35(val);
+_16(_b);
 }else{
-P.walk(val,function(i){
-_1a=_3f[i]||_1a;
-_35(val[i]);
+P.walk(_b,function(i){
+_c=_17[i]||_c;
+_16(_b[i]);
 });
 }
 }
 if(P.resultType=="BOTH"){
-_1c=P.asPaths(_1c);
-var _41=[];
-for(var i=0;i<_1c.length;i++){
-_41.push({path:_1c[i],value:_1b[i]});
+_e=P.asPaths(_e);
+var _18=[];
+for(var i=0;i<_e.length;i++){
+_18.push({path:_e[i],value:_d[i]});
 }
-return _41;
+return _18;
 }
-return P.resultType=="PATH"?P.asPaths(_1c):_1b;
+return P.resultType=="PATH"?P.asPaths(_e):_d;
 },walk:function(val,f){
 if(val instanceof Array){
 for(var i=0,n=val.length;i<n;i++){
@@ -187,9 +187,9 @@ f(m);
 }
 }
 }
-},eval:function(x,_v){
+},eval:function(x,_19){
 try{
-return $&&_v&&eval(x.replace(/@/g,"_v"));
+return $&&_19&&eval(x.replace(/@/g,"_v"));
 }
 catch(e){
 throw new SyntaxError("jsonPath: "+e.message+": "+x.replace(/@/g,"_v").replace(/\^/g,"_a"));

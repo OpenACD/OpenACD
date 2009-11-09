@@ -7,6 +7,7 @@
 
 if(!dojo._hasResource["dojox.analytics.plugins.mouseClick"]){
 dojo._hasResource["dojox.analytics.plugins.mouseClick"]=true;
+dojo.require("dojox.analytics._base");
 dojo.provide("dojox.analytics.plugins.mouseClick");
 dojox.analytics.plugins.mouseClick=new (function(){
 this.addData=dojo.hitch(dojox.analytics,"addData","mouseClick");
@@ -21,16 +22,16 @@ switch(i){
 case "target":
 case "originalTarget":
 case "explicitOriginalTarget":
-var _5=["id","className","nodeName","localName","href","spellcheck","lang"];
+var _1=["id","className","nodeName","localName","href","spellcheck","lang"];
 t[i]={};
-for(var j=0;j<_5.length;j++){
-if(e[i][_5[j]]){
-if(_5[j]=="text"||_5[j]=="textContent"){
+for(var j=0;j<_1.length;j++){
+if(e[i][_1[j]]){
+if(_1[j]=="text"||_1[j]=="textContent"){
 if((e[i]["localName"]!="HTML")&&(e[i]["localName"]!="BODY")){
-t[i][_5[j]]=e[i][_5[j]].substr(0,50);
+t[i][_1[j]]=e[i][_1[j]].substr(0,50);
 }
 }else{
-t[i][_5[j]]=e[i][_5[j]];
+t[i][_1[j]]=e[i][_1[j]];
 }
 }
 }

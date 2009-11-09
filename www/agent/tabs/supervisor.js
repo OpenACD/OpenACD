@@ -1278,8 +1278,8 @@ if(typeof(supervisorView) == "undefined"){
 				var sigdigited = Math.floor(supervisorView.averageHp([hps[i]]) * 100) / 100;
 				out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + sigdigited.toString() + "</p>";
 			}
-			dijit.byId("supervisorDetails").setContent(out);
-			dijit.byId("supervisorDetails").setTitle(supervisorView.dataStore.getValue(item, "type") + ": " + supervisorView.dataStore.getValue(item, "display"));
+			dijit.byId("supervisorDetails").attr("content", out);
+			dijit.byId("supervisorDetails").attr("title", supervisorView.dataStore.getValue(item, "type") + ": " + supervisorView.dataStore.getValue(item, "display"));
 		}
 		
 		supervisorView.dataStore.fetch({

@@ -24,24 +24,24 @@ _1+=_1;
 }
 return _3.join("");
 };
-dojo.string.pad=function(_4,_5,ch,_7){
+dojo.string.pad=function(_4,_5,ch,_6){
 if(!ch){
 ch="0";
 }
-var _8=String(_4),_9=dojo.string.rep(ch,Math.ceil((_5-_8.length)/ch.length));
-return _7?_8+_9:_9+_8;
+var _7=String(_4),_8=dojo.string.rep(ch,Math.ceil((_5-_7.length)/ch.length));
+return _6?_7+_8:_8+_7;
 };
-dojo.string.substitute=function(_a,_b,_c,_d){
-_d=_d||dojo.global;
-_c=(!_c)?function(v){
+dojo.string.substitute=function(_9,_a,_b,_c){
+_c=_c||dojo.global;
+_b=_b?dojo.hitch(_c,_b):function(v){
 return v;
-}:dojo.hitch(_d,_c);
-return _a.replace(/\$\{([^\s\:\}]+)(?:\:([^\s\:\}]+))?\}/g,function(_f,key,_11){
-var _12=dojo.getObject(key,false,_b);
-if(_11){
-_12=dojo.getObject(_11,false,_d).call(_d,_12,key);
+};
+return _9.replace(/\$\{([^\s\:\}]+)(?:\:([^\s\:\}]+))?\}/g,function(_d,_e,_f){
+var _10=dojo.getObject(_e,false,_a);
+if(_f){
+_10=dojo.getObject(_f,false,_c).call(_c,_10,_e);
 }
-return _c(_12,key).toString();
+return _b(_10,_e).toString();
 });
 };
 dojo.string.trim=String.prototype.trim?dojo.trim:function(str){

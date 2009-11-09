@@ -118,7 +118,7 @@ if(!this.doNetChecking){
 return;
 }
 window.setInterval(dojo.hitch(this,function(){
-var d=dojo.xhrGet({url:this._getAvailabilityURL(),handleAs:"text",timeout:this.NET_CHECK*1000,error:dojo.hitch(this,function(_a){
+var d=dojo.xhrGet({url:this._getAvailabilityURL(),handleAs:"text",timeout:this.NET_CHECK*1000,error:dojo.hitch(this,function(_9){
 if(this.isOnline){
 this.isOnline=false;
 try{
@@ -131,7 +131,7 @@ catch(e){
 dojox.off.sync.isSyncing=false;
 this.onNetwork("offline");
 }
-}),load:dojo.hitch(this,function(_b){
+}),load:dojo.hitch(this,function(_a){
 if(!this.isOnline){
 this.isOnline=true;
 this.onNetwork("online");
@@ -139,28 +139,28 @@ this.onNetwork("online");
 })});
 }),this.NET_CHECK*1000);
 },_getAvailabilityURL:function(){
-var _c=this.availabilityURL.toString();
-if(_c.indexOf("?")==-1){
-_c+="?";
+var _b=this.availabilityURL.toString();
+if(_b.indexOf("?")==-1){
+_b+="?";
 }else{
-_c+="&";
+_b+="&";
 }
-_c+="browserbust="+new Date().getTime();
-return _c;
+_b+="browserbust="+new Date().getTime();
+return _b;
 },_onOfflineCacheInstalled:function(){
 this.onFrameworkEvent("offlineCacheInstalled");
 },_cacheDojoResources:function(){
-var _d=true;
+var _c=true;
 dojo.forEach(dojo.query("script"),function(i){
-var _f=i.getAttribute("src");
-if(!_f){
+var _d=i.getAttribute("src");
+if(!_d){
 return;
 }
-if(_f.indexOf("_base/_loader/bootstrap.js")!=-1){
-_d=false;
+if(_d.indexOf("_base/_loader/bootstrap.js")!=-1){
+_c=false;
 }
 });
-if(!_d){
+if(!_c){
 dojox.off.files.cache(dojo.moduleUrl("dojo","_base.js").uri);
 dojox.off.files.cache(dojo.moduleUrl("dojo","_base/_loader/loader.js").uri);
 dojox.off.files.cache(dojo.moduleUrl("dojo","_base/_loader/bootstrap.js").uri);
@@ -170,8 +170,8 @@ for(var i=0;i<dojo._loadedUrls.length;i++){
 dojox.off.files.cache(dojo._loadedUrls[i]);
 }
 },_save:function(){
-},_load:function(_11){
-dojox.off.sync._load(_11);
+},_load:function(_e){
+dojox.off.sync._load(_e);
 }});
 dojox.storage.manager.addOnLoad(dojo.hitch(dojox.off,"_onStorageLoad"));
 dojo.addOnLoad(dojox.off,"_onPageLoad");

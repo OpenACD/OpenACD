@@ -433,7 +433,7 @@ dojox.storage.manager = new function(){
 		//		Autodetects the best possible persistent storage provider
 		//		available on this platform. 
 		
-		//
+		//console.debug("dojox.storage.manager.autodetect");
 		
 		if(this._initialized){ // already finished
 			return;
@@ -584,12 +584,12 @@ dojox.storage.manager = new function(){
 	};
 	
 	this._fireLoaded = function(){
-		//
+		//console.debug("dojox.storage.manager._fireLoaded");
 		
 		dojo.forEach(this._onLoadListeners, function(i){ 
 			try{ 
 				i(); 
-			}catch(e){  } 
+			}catch(e){ console.debug(e); } 
 		});
 	};
 	
@@ -1288,13 +1288,14 @@ dojo.mixin(dojox.sql, {
 		}catch(exp){
 			exp = exp.message||exp;
 			
-			
+			console.debug("SQL Exception: " + exp);
 			
 			if(this._autoClose){
 				try{ 
 					this.close(); 
 				}catch(e){
-					
+					console.debug("Error closing database: " 
+									+ e.message||e);
 				}
 			}
 		
@@ -1329,7 +1330,7 @@ dojo.mixin(dojox.sql, {
 		}
 		msg += ")";
 	
-		
+		console.debug(msg);
 	},
 
 	_normalizeResults: function(rs){
@@ -1483,7 +1484,7 @@ dojo.declare("dojox.sql._SQLCrypto", null, {
 	},
 
 	_encrypt: function(sql, password, args, encryptColumns, callback){
-		//
+		//console.debug("_encrypt, sql="+sql+", password="+password+", encryptColumns="+encryptColumns+", args="+args);
 	
 		this._totalCrypto = 0;
 		this._finishedCrypto = 0;
@@ -1525,7 +1526,7 @@ dojo.declare("dojox.sql._SQLCrypto", null, {
 	},
 
 	_decrypt: function(resultSet, needsDecrypt, password, callback){
-		//
+		//console.debug("decrypt, resultSet="+resultSet+", needsDecrypt="+needsDecrypt+", password="+password);
 		
 		this._totalCrypto = 0;
 		this._finishedCrypto = 0;
@@ -1647,7 +1648,7 @@ dojo.declare("dojox.sql._SQLCrypto", null, {
 
 	_decryptSingleColumn: function(columnName, columnValue, password, currentRowIndex,
 											callback){
-		//
+		//console.debug("decryptSingleColumn, columnName="+columnName+", columnValue="+columnValue+", currentRowIndex="+currentRowIndex)
 		dojox.sql._crypto.decrypt(columnValue, password, dojo.hitch(this, function(results){
 			// set the new decrypted value
 			this._finalResultSet[currentRowIndex][columnName] = results;
@@ -1656,7 +1657,7 @@ dojo.declare("dojox.sql._SQLCrypto", null, {
 			// are we done with all encryption?
 			if(this._finishedCrypto >= this._totalCrypto
 				&& this._finishedSpawningCrypto){
-				//
+				//console.debug("done with all decrypts");
 				callback(this._finalResultSet);
 			}
 		}));
@@ -1716,7 +1717,7 @@ if(dojo.gears.available){
 			_storageReady: false,
 			
 			initialize: function(){
-				//
+				//console.debug("dojox.storage.GearsStorageProvider.initialize");
 				if(dojo.config["disableGearsStorage"] == true){
 					return;
 				}
@@ -1769,7 +1770,7 @@ if(dojo.gears.available){
 								namespace, key, value);
 				}catch(e){
 					// indicate we failed
-					
+					console.debug("dojox.storage.GearsStorageProvider.put:", e);
 					resultsHandler(this.FAILED, key, e.toString(), namespace);
 					return;
 				}
@@ -1923,7 +1924,7 @@ if(dojo.gears.available){
 					dojox.sql.close();
 				}catch(e){
 					// indicate we failed
-					
+					console.debug("dojox.storage.GearsStorageProvider.putMultiple:", e);
 					if(resultsHandler){
 						resultsHandler(this.FAILED, keys, e.toString(), namespace);
 					}
@@ -2051,7 +2052,7 @@ if(dojo.gears.available){
 								+ " ON " + this.TABLE_NAME
 								+ " (namespace, key)");
 				}catch(e){
-					
+					console.debug("dojox.storage.GearsStorageProvider._createTables:", e);
 					throw new Error('Unable to create storage tables for Gears in '
 					                + 'Dojo Storage');
 				}
@@ -2104,8 +2105,8 @@ dojo.declare("dojox.storage.WhatWGStorageProvider", [ dojox.storage.Provider ], 
 		}
 		
 		// get current domain
-		this._domain = this._getDomain();
-		// 
+		this._domain = location.hostname;
+		// console.debug(this._domain);
 		
 		// indicate that this storage provider is now loaded
 		this.initialized = true;
@@ -2114,7 +2115,7 @@ dojo.declare("dojox.storage.WhatWGStorageProvider", [ dojox.storage.Provider ], 
 	
 	isAvailable: function(){
 		try{
-			var myStorage = globalStorage[this._getDomain()]; 
+			var myStorage = globalStorage[location.hostname]; 
 		}catch(e){
 			this._available = false;
 			return this._available;
@@ -2337,11 +2338,6 @@ dojo.declare("dojox.storage.WhatWGStorageProvider", [ dojox.storage.Provider ], 
 		}else{
 			return "__" + namespace + "_" + key;
 		}
-	},
-
-	_getDomain: function(){
-		// see: https://bugzilla.mozilla.org/show_bug.cgi?id=357323
-		return ((location.hostname == "localhost" && dojo.isFF && dojo.isFF < 3) ? "localhost.localdomain" : location.hostname);
 	}
 });
 
@@ -2487,10 +2483,10 @@ dijit.placeOnScreen = function(
 	/* dijit.__Position */	pos,
 	/* String[] */			corners,
 	/* dijit.__Position? */	padding){
-	//	summary:
+	// summary:
 	//		Positions one of the node's corners at specified position
 	//		such that node is fully visible in viewport.
-	//	description:
+	// description:
 	//		NOTE: node is assumed to be absolutely or relatively positioned.
 	//	pos:
 	//		Object like {x: 10, y: 20}
@@ -2503,7 +2499,7 @@ dijit.placeOnScreen = function(
 	//			* "TR" - top right
 	//	padding:
 	//		set padding to put some buffer around the element you want to position.
-	//	example:	
+	// example:
 	//		Try to place node's top right corner at (10,20).
 	//		If that makes node go (partially) off screen, then try placing
 	//		bottom left corner at (10,20).
@@ -2515,7 +2511,7 @@ dijit.placeOnScreen = function(
 			c.pos.x += corner.charAt(1) == 'L' ? padding.x : -padding.x;
 			c.pos.y += corner.charAt(0) == 'T' ? padding.y : -padding.y;
 		}
-		return c; 
+		return c;
 	});
 
 	return dijit._place(node, choices);
@@ -2568,7 +2564,7 @@ dijit._place = function(/*DomNode*/ node, /* Array */ choices, /* Function */ la
 		// coordinates and size of node with specified corner placed at pos,
 		// and clipped by viewport
 		var startX = (corner.charAt(1) == 'L' ? pos.x : Math.max(view.l, pos.x - mb.w)),
-			startY = (corner.charAt(0) == 'T' ? pos.y : Math.max(view.t, pos.y -  mb.h)),
+			startY = (corner.charAt(0) == 'T' ? pos.y : Math.max(view.t, pos.y - mb.h)),
 			endX = (corner.charAt(1) == 'L' ? Math.min(view.l + view.w, startX + mb.w) : pos.x),
 			endY = (corner.charAt(0) == 'T' ? Math.min(view.t + view.h, startY + mb.h) : pos.y),
 			width = endX - startX,
@@ -2617,7 +2613,7 @@ dijit.placeOnScreenAroundNode = function(
 	//		where the key corresponds to the aroundNode's corner, and
 	//		the value corresponds to the node's corner:
 	//
-	//	|	{ aroundNodeCorner1: nodeCorner1, aroundNodeCorner2: nodeCorner2,  ...}
+	//	|	{ aroundNodeCorner1: nodeCorner1, aroundNodeCorner2: nodeCorner2, ...}
 	//
 	//		The following strings are used to represent the four corners:
 	//			* "BL" - bottom left
@@ -2630,7 +2626,7 @@ dijit.placeOnScreenAroundNode = function(
 	//		based on their orientation relative to the parent.   This adjusts the popup based on orientation.
 	//
 	// example:
-	//	|	dijit.placeOnScreenAroundNode(node, aroundNode, {'BL':'TL', 'TR':'BR'}); 
+	//	|	dijit.placeOnScreenAroundNode(node, aroundNode, {'BL':'TL', 'TR':'BR'});
 	//		This will try to position node such that node's top-left corner is at the same position
 	//		as the bottom left corner of the aroundNode (ie, put node below
 	//		aroundNode, with left edges aligned).  If that fails it will try to put
@@ -2643,14 +2639,12 @@ dijit.placeOnScreenAroundNode = function(
 	var oldDisplay = aroundNode.style.display;
 	aroundNode.style.display="";
 	// #3172: use the slightly tighter border box instead of marginBox
-	var aroundNodeW = aroundNode.offsetWidth; //mb.w; 
-	var aroundNodeH = aroundNode.offsetHeight; //mb.h;
-	var aroundNodePos = dojo.coords(aroundNode, true);
+	var aroundNodePos = dojo.position(aroundNode, true);
 	aroundNode.style.display=oldDisplay;
 
 	// place the node around the calculated rectangle
-	return dijit._placeOnScreenAroundRect(node, 
-		aroundNodePos.x, aroundNodePos.y, aroundNodeW, aroundNodeH,	// rectangle
+	return dijit._placeOnScreenAroundRect(node,
+		aroundNodePos.x, aroundNodePos.y, aroundNodePos.w, aroundNodePos.h,	// rectangle
 		aroundCorners, layoutNode);
 };
 
@@ -2665,9 +2659,9 @@ dijit.__Rectangle = function(){
 	// height: Integer
 	//		height in pixels
 
-	thix.x = x;
+	this.x = x;
 	this.y = y;
-	thix.width = width;
+	this.width = width;
 	this.height = height;
 }
 =====*/
@@ -2684,7 +2678,7 @@ dijit.placeOnScreenAroundRectangle = function(
 	//		parameter is an arbitrary rectangle on the screen (x, y, width, height)
 	//		instead of a dom node.
 
-	return dijit._placeOnScreenAroundRect(node, 
+	return dijit._placeOnScreenAroundRect(node,
 		aroundRect.x, aroundRect.y, aroundRect.width, aroundRect.height,	// rectangle
 		aroundCorners, layoutNode);
 };
@@ -2720,7 +2714,7 @@ dijit._placeOnScreenAroundRect = function(
 	return dijit._place(node, choices, layoutNode);
 };
 
-dijit.placementRegistry = new dojo.AdapterRegistry();
+dijit.placementRegistry= new dojo.AdapterRegistry();
 dijit.placementRegistry.register("node",
 	function(n, x){
 		return typeof x == "object" &&
@@ -2745,6 +2739,97 @@ dijit.placeOnScreenAroundElement = function(
 	//		for the "around" argument and finds a proper processor to place a node.
 
 	return dijit.placementRegistry.match.apply(dijit.placementRegistry, arguments);
+};
+
+dijit.getPopupAlignment = function(/*Array*/ position, /*Boolean*/ leftToRight){
+	// summary:
+	//		Transforms the passed array of preferred positions into a format suitable for passing as the aroundCorners argument to dijit.placeOnScreenAroundElement.
+	//
+	// position: String[]
+	//		This variable controls the position of the drop down.
+	//		It's an array of strings with the following values:
+	//
+	//			* before: places drop down to the left of the target node/widget, or to the right in
+	//			  the case of RTL scripts like Hebrew and Arabic
+	//			* after: places drop down to the right of the target node/widget, or to the left in
+	//			  the case of RTL scripts like Hebrew and Arabic
+	//			* above: drop down goes above target node
+	//			* below: drop down goes below target node
+	//
+	//		The list is positions is tried, in order, until a position is found where the drop down fits
+	//		within the viewport.
+	//
+	// leftToRight: Boolean
+	//		Whether the popup will be displaying in leftToRight mode.
+	//
+	var align = {};
+	dojo.forEach(position, function(pos){
+		switch(pos){
+			case "after":
+				align[leftToRight ? "BR" : "BL"] = leftToRight ? "BL" : "BR";
+				break;
+			case "before":
+				align[leftToRight ? "BL" : "BR"] = leftToRight ? "BR" : "BL";
+				break;
+			case "below":
+				// first try to align left borders, next try to align right borders (or reverse for RTL mode)
+				align[leftToRight ? "BL" : "BR"] = leftToRight ? "TL" : "TR";
+				align[leftToRight ? "BR" : "BL"] = leftToRight ? "TR" : "TL";
+				break;
+			case "above":
+			default:
+				// first try to align left borders, next try to align right borders (or reverse for RTL mode)
+				align[leftToRight ? "TL" : "TR"] = leftToRight ? "BL" : "BR";
+				align[leftToRight ? "TR" : "TL"] = leftToRight ? "BR" : "BL";
+				break;
+		}
+	});
+	return align;
+};
+dijit.getPopupAroundAlignment = function(/*Array*/ position, /*Boolean*/ leftToRight){
+	// summary:
+	//		Transforms the passed array of preferred positions into a format suitable for passing as the aroundCorners argument to dijit.placeOnScreenAroundElement.
+	//
+	// position: String[]
+	//		This variable controls the position of the drop down.
+	//		It's an array of strings with the following values:
+	//
+	//			* before: places drop down to the left of the target node/widget, or to the right in
+	//			  the case of RTL scripts like Hebrew and Arabic
+	//			* after: places drop down to the right of the target node/widget, or to the left in
+	//			  the case of RTL scripts like Hebrew and Arabic
+	//			* above: drop down goes above target node
+	//			* below: drop down goes below target node
+	//
+	//		The list is positions is tried, in order, until a position is found where the drop down fits
+	//		within the viewport.
+	//
+	// leftToRight: Boolean
+	//		Whether the popup will be displaying in leftToRight mode.
+	//
+	var align = {};
+	dojo.forEach(position, function(pos){
+		switch(pos){
+			case "after":
+				align[leftToRight ? "BR" : "BL"] = leftToRight ? "BL" : "BR";
+				break;
+			case "before":
+				align[leftToRight ? "BL" : "BR"] = leftToRight ? "BR" : "BL";
+				break;
+			case "below":
+				// first try to align left borders, next try to align right borders (or reverse for RTL mode)
+				align[leftToRight ? "BL" : "BR"] = leftToRight ? "TL" : "TR";
+				align[leftToRight ? "BR" : "BL"] = leftToRight ? "TR" : "TL";
+				break;
+			case "above":
+			default:
+				// first try to align left borders, next try to align right borders (or reverse for RTL mode)
+				align[leftToRight ? "TL" : "TR"] = leftToRight ? "BL" : "BR";
+				align[leftToRight ? "TR" : "TL"] = leftToRight ? "BR" : "BL";
+				break;
+		}
+	});
+	return align;
 };
 
 }
@@ -2929,7 +3014,7 @@ dojox.flash = {
 	
 	// Initializes dojox.flash.
 	_initialize: function(){
-		//
+		//console.debug("dojox.flash._initialize");
 		// see if we need to rev or install Flash on this platform
 		var installer = new dojox.flash.Install();
 		dojox.flash.installer = installer;
@@ -3271,7 +3356,7 @@ dojox.flash.Embed.prototype = {
 	},
 	
 	setVisible: function(/* Boolean */ visible){
-		//
+		//console.debug("setVisible, visible="+visible);
 		
 		// summary: Sets the visibility of this Flash object.		
 		var container = dojo.byId(this.id + "Container");
@@ -3318,7 +3403,7 @@ dojox.flash.Communicator.prototype = {
 	// Registers the existence of a Flash method that we can call with
 	// JavaScript, using Flash 8's ExternalInterface. 
 	_addExternalInterfaceCallback: function(methodName){
-		//
+		//console.debug("addExternalInterfaceCallback, methodName="+methodName);
 		var wrapperCall = dojo.hitch(this, function(){
 			// some browsers don't like us changing values in the 'arguments' array, so
 			// make a fresh copy of it
@@ -3339,7 +3424,7 @@ dojox.flash.Communicator.prototype = {
 	// Encodes our data to get around ExternalInterface bugs that are still
 	// present even in Flash 9.
 	_encodeData: function(data){
-		//
+		//console.debug("encodeData, data=", data);
 		if(!data || typeof data != "string"){
 			return data;
 		}
@@ -3356,7 +3441,7 @@ dojox.flash.Communicator.prototype = {
 	// Decodes our data to get around ExternalInterface bugs that are still
 	// present even in Flash 9.
 	_decodeData: function(data){
-		//
+		//console.debug("decodeData, data=", data);
 		// wierdly enough, Flash sometimes returns the result as an
 		// 'object' that is actually an array, rather than as a String;
 		// detect this by looking for a length property; for IE
@@ -3389,7 +3474,7 @@ dojox.flash.Communicator.prototype = {
 	// Executes a Flash method; called from the JavaScript wrapper proxy we
 	// create on dojox.flash.comm.
 	_execFlash: function(methodName, methodArgs){
-		//
+		//console.debug("execFlash, methodName="+methodName+", methodArgs=", methodArgs);
 		var plugin = dojox.flash.obj.get();
 		methodArgs = (methodArgs) ? methodArgs : [];
 		
@@ -3545,14 +3630,14 @@ dojo.declare("dojox.storage.FlashStorageProvider", dojox.storage.Provider, {
 		_pageReady: false,
 		
 		initialize: function(){
-		  //
+		  //console.debug("FlashStorageProvider.initialize");
 			if(dojo.config["disableFlashStorage"] == true){
 				return;
 			}
 			
 			// initialize our Flash
 			dojox.flash.addLoadedListener(dojo.hitch(this, function(){
-			  //
+			  //console.debug("flashReady");
 			  // indicate our Flash subsystem is now loaded
 			  this._flashReady = true;
 			  if(this._flashReady && this._pageReady){
@@ -3564,7 +3649,7 @@ dojo.declare("dojox.storage.FlashStorageProvider", dojox.storage.Provider, {
 			
 			// wait till page is finished loading
 			dojo.connect(dojo, "loaded", this, function(){
-			  //
+			  //console.debug("pageReady");
 			  this._pageReady = true;
 			  if(this._flashReady && this._pageReady){
 			    this._loaded();
@@ -3846,7 +3931,7 @@ dojo.declare("dojox.storage.FlashStorageProvider", dojox.storage.Provider, {
 		//	Called if the storage system needs to tell us about the status
 		//	of a put() request. 
 		_onStatus: function(statusResult, key, namespace){
-		  //
+		  //console.debug("onStatus, statusResult="+statusResult+", key="+key);
 			var ds = dojox.storage;
 			var dfo = dojox.flash.obj;
 			
@@ -3993,7 +4078,7 @@ dojox.off.files = {
 		//		A URL of a file to cache or an Array of Strings of files to
 		//		cache
 		
-		//
+		//console.debug("dojox.off.files.cache, urlOrList="+urlOrList);
 		
 		if(dojo.isString(urlOrList)){
 			var url = this._trimAnchor(urlOrList+"");
@@ -4022,9 +4107,9 @@ dojox.off.files = {
 		//	availability. This can help with debugging if you
 		//	are trying to make sure that all of your URLs are
 		//	available offline
-		
+		console.debug("The following URLs are cached for offline use:");
 		dojo.forEach(this.listOfURLs, function(i){
-			
+			console.debug(i);
 		});	
 	},
 	
@@ -4062,7 +4147,7 @@ dojox.off.files = {
 	},
 	
 	refresh: function(callback){ /* void */
-		//
+		//console.debug("dojox.off.files.refresh");
 		// summary:
 		//	For advanced usage; most developers can ignore this.
 		//	Refreshes our list of offline resources,
@@ -4136,7 +4221,8 @@ dojox.off.files = {
 			try{
 				handleUrl(i.getAttribute("src"));
 			}catch(exp){
-				//
+				//console.debug("dojox.off.files.slurp 'script' error: " 
+				//				+ exp.message||exp);
 			}
 		});
 		
@@ -4149,7 +4235,8 @@ dojox.off.files = {
 			
 				handleUrl(i.getAttribute("href"));
 			}catch(exp){
-				//
+				//console.debug("dojox.off.files.slurp 'link' error: " 
+				//				+ exp.message||exp);
 			}
 		});
 		
@@ -4157,7 +4244,8 @@ dojox.off.files = {
 			try{
 				handleUrl(i.getAttribute("src"));
 			}catch(exp){
-				//
+				//console.debug("dojox.off.files.slurp 'img' error: " 
+				//				+ exp.message||exp);
 			}
 		});
 		
@@ -4165,7 +4253,8 @@ dojox.off.files = {
 			try{
 				handleUrl(i.getAttribute("href"));
 			}catch(exp){
-				//
+				//console.debug("dojox.off.files.slurp 'a' error: " 
+				//				+ exp.message||exp);
 			}
 		});
 		
@@ -4203,7 +4292,8 @@ dojox.off.files = {
 					}
 				}
 			}catch(exp){
-				//
+				//console.debug("dojox.off.files.slurp stylesheet parse error: " 
+				//				+ exp.message||exp);
 			}
 		});
 		
@@ -4285,7 +4375,7 @@ dojox.off.files = {
 		var self = this;
 		this._currentFileIndex = 0;
 		this._cancelID = store.capture(this.listOfURLs, function(url, success, captureId){
-			//
+			//console.debug("store.capture, url="+url+", success="+success);
 			if(!success && self.refreshing){
 				self._cancelID = null;
 				self.refreshing = false;
@@ -4992,7 +5082,7 @@ dojo.declare("dojox.off.sync.ActionLog", null, {
 			try{
 				var self = this;
 				var resultsHandler = function(status, key, message){
-					//
+					//console.debug("resultsHandler, status="+status+", key="+key+", message="+message);
 					if(status == dojox.storage.FAILED){
 						dojox.off.onFrameworkEvent("save", 
 											{status: dojox.storage.FAILED,
@@ -5009,7 +5099,7 @@ dojo.declare("dojox.off.sync.ActionLog", null, {
 				dojox.storage.put("actionlog", this.entries, resultsHandler,
 									dojox.off.STORAGE_NAMESPACE);
 			}catch(exp){
-				
+				console.debug("dojox.off.sync._save: " + exp.message||exp);
 				dojox.off.onFrameworkEvent("save",
 							{status: dojox.storage.FAILED,
 							isCoreSave: true,
@@ -5180,7 +5270,7 @@ dojo.mixin(dojox.off, {
 		//		Offline so it can be configured before running off and doing
 		//		its thing.	
 
-		//
+		//console.debug("dojox.off.initialize");
 		this._initializeCalled = true;
 		
 		if(this._storageLoaded && this._pageLoaded){
@@ -5212,7 +5302,7 @@ dojo.mixin(dojox.off, {
 		//		function is not present we call dojo.xoff.onOnline instead if
 		//		we are able to go online.
 		
-		//
+		//console.debug("goOnline");
 		
 		if(dojox.off.sync.isSyncing || dojox.off.goingOnline){
 			return;
@@ -5308,7 +5398,7 @@ dojo.mixin(dojox.off, {
 	},
 	
 	_onLoad: function(){
-		//
+		//console.debug("dojox.off._onLoad");
 		
 		// both local storage and the page are finished loading
 		
@@ -5372,7 +5462,7 @@ dojo.mixin(dojox.off, {
 	},
 	
 	_finishStartingUp: function(){
-		//
+		//console.debug("dojox.off._finishStartingUp");
 		
 		// this method is part of our _onLoad series of startup tasks
 		
@@ -5385,7 +5475,7 @@ dojo.mixin(dojox.off, {
 
 			// try to go online
 			this.goOnline(dojo.hitch(this, function(){
-				//
+				//console.debug("Finished trying to go online");
 				// indicate we are ready to be used
 				dojox.off.onLoad();
 			}));
@@ -5399,7 +5489,7 @@ dojo.mixin(dojox.off, {
 	},
 	
 	_onPageLoad: function(){
-		//
+		//console.debug("dojox.off._onPageLoad");
 		this._pageLoaded = true;
 		
 		if(this._storageLoaded && this._initializeCalled){
@@ -5408,7 +5498,7 @@ dojo.mixin(dojox.off, {
 	},
 	
 	_onStorageLoad: function(){
-		//
+		//console.debug("dojox.off._onStorageLoad");
 		this._storageLoaded = true;
 		
 		// were we able to initialize storage? if
@@ -5445,13 +5535,13 @@ dojo.mixin(dojox.off, {
 			handleAs:	"text",
 			timeout:	this.NET_CHECK * 1000, 
 			error:		dojo.hitch(this, function(err){
-				//
+				//console.debug("dojox.off._isSiteAvailable.error: " + err);
 				this.goingOnline = false;
 				this.isOnline = false;
 				if(callback){ callback(false); }
 			}),
 			load:		dojo.hitch(this, function(data){
-				//
+				//console.debug("dojox.off._isSiteAvailable.load, data="+data);
 				this.goingOnline = false;
 				this.isOnline = true;
 				
@@ -5462,7 +5552,7 @@ dojo.mixin(dojox.off, {
 	},
 	
 	_startNetworkThread: function(){
-		//
+		//console.debug("startNetworkThread");
 		
 		// kick off a thread that does periodic
 		// checks on the status of the network
@@ -5705,7 +5795,7 @@ dojo.mixin(dojox.off.ui, {
 	},
 
 	_initialize: function(){
-		//
+		//console.debug("dojox.off.ui._initialize");
 		
 		// make sure our app name is correct
 		if(this._validateAppName(this.appName) == false){
@@ -5758,7 +5848,7 @@ dojo.mixin(dojox.off.ui, {
 	},
 	
 	_templateLoaded: function(data){
-		//
+		//console.debug("dojox.off.ui._templateLoaded");
 		// inline our HTML
 		var container = dojo.byId(this.autoEmbedID);
 		if(container){ container.innerHTML = data; }
@@ -5808,7 +5898,7 @@ dojo.mixin(dojox.off.ui, {
 	
 	_testNet: function(){
 		dojox.off.goOnline(dojo.hitch(this, function(isOnline){
-			//
+			//console.debug("testNet callback, isOnline="+isOnline);
 			
 			// display our online/offline results
 			this._onNetwork(isOnline ? "online" : "offline");
@@ -6110,7 +6200,7 @@ dojo.mixin(dojox.off.ui, {
 				// due to user configuration
 			}
 		}else if(type == "coreOperationFailed"){
-			
+			console.log("Application does not have permission to use Dojo Offline");
 		
 			if(!this._userInformed){
 				alert("This application will not work if Google Gears is not allowed to run");
@@ -6148,7 +6238,7 @@ dojo.mixin(dojox.off.ui, {
 	},
 	
 	_onSync: function(type){
-		//
+		//console.debug("ui, onSync="+type);
 		switch(type){
 			case "start": 
 				this._updateSyncUI();

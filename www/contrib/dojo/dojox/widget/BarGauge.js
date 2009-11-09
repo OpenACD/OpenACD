@@ -22,21 +22,21 @@ v=this._gauge.min;
 if(v>this._gauge.max){
 v=this._gauge.max;
 }
-var _2=this._gauge._getPosition(v);
-var _3=[];
+var _1=this._gauge._getPosition(v);
+var _2=[];
 if(this.width>1){
-_3[0]=this._gauge.surface.createRect({x:_2,y:this._gauge.dataY+this.offset,width:this.width,height:this.length});
-_3[0].setStroke({color:this.color});
-_3[0].setFill(this.color);
+_2[0]=this._gauge.surface.createRect({x:_1,y:this._gauge.dataY+this.offset,width:this.width,height:this.length});
+_2[0].setStroke({color:this.color});
+_2[0].setFill(this.color);
 }else{
-_3[0]=this._gauge.surface.createLine({x1:_2,y1:this._gauge.dataY+this.offset,x2:_2,y2:this._gauge.dataY+this.offset+this.length});
-_3[0].setStroke({color:this.color});
+_2[0]=this._gauge.surface.createLine({x1:_1,y1:this._gauge.dataY+this.offset,x2:_1,y2:this._gauge.dataY+this.offset+this.length});
+_2[0].setStroke({color:this.color});
 }
-return _3;
-},draw:function(_4){
+return _2;
+},draw:function(_3){
 var i;
 if(this.shapes){
-this._move(_4);
+this._move(_3);
 }else{
 if(this.shapes){
 for(i=0;i<this.shapes.length;i++){
@@ -63,8 +63,8 @@ v=this._gauge.min;
 if(v>this._gauge.max){
 v=this._gauge.max;
 }
-var _7=this._gauge._getPosition(v);
-this.text=this._gauge.drawText(""+this.label,_7,this._gauge.dataY+this.offset-5,"middle","top",this.color,this.font);
+var _4=this._gauge._getPosition(v);
+this.text=this._gauge.drawText(""+this.label,_4,this._gauge.dataY+this.offset-5,"middle","top",this.color,this.font);
 }
 for(i=0;i<this.shapes.length;i++){
 if(this.hover){
@@ -77,7 +77,7 @@ this.shapes[i].getEventSource().style.cursor="pointer";
 }
 this.currentValue=this.value;
 }
-},_move:function(_8){
+},_move:function(_5){
 var v=this.value;
 if(v<this.min){
 v=this.min;
@@ -88,20 +88,20 @@ v=this.max;
 var c=this._gauge._getPosition(this.currentValue);
 this.currentValue=v;
 v=this._gauge._getPosition(v)-this._gauge.dataX;
-if(_8){
+if(_5){
 this.shapes[0].applyTransform(dojox.gfx.matrix.translate(v-(this.shapes[0].matrix?this.shapes[0].matrix.dx:0),0));
 }else{
-var _b=new dojo._Animation({curve:[c,v],duration:this.duration,easing:this.easing});
-dojo.connect(_b,"onAnimate",dojo.hitch(this,function(_c){
-this.shapes[0].applyTransform(dojox.gfx.matrix.translate(_c-(this.shapes[0].matrix?this.shapes[0].matrix.dx:0),0));
+var _6=new dojo.Animation({curve:[c,v],duration:this.duration,easing:this.easing});
+dojo.connect(_6,"onAnimate",dojo.hitch(this,function(_7){
+this.shapes[0].applyTransform(dojox.gfx.matrix.translate(_7-(this.shapes[0].matrix?this.shapes[0].matrix.dx:0),0));
 }));
-_b.play();
+_6.play();
 }
 }});
 dojo.declare("dojox.widget.BarGauge",dojox.widget.gauge._Gauge,{dataX:5,dataY:5,dataWidth:0,dataHeight:0,_defaultIndicator:dojox.widget.gauge.BarLineIndicator,startup:function(){
 if(this.getChildren){
-dojo.forEach(this.getChildren(),function(_d){
-_d.startup();
+dojo.forEach(this.getChildren(),function(_8){
+_8.startup();
 });
 }
 if(!this.dataWidth){
@@ -111,10 +111,10 @@ if(!this.dataHeight){
 this.dataHeight=this.gaugeHeight-10;
 }
 this.inherited(arguments);
-},_getPosition:function(_e){
-return this.dataX+Math.floor((_e-this.min)/(this.max-this.min)*this.dataWidth);
-},_getValueForPosition:function(_f){
-return (_f-this.dataX)*(this.max-this.min)/this.dataWidth+this.min;
+},_getPosition:function(_9){
+return this.dataX+Math.floor((_9-this.min)/(this.max-this.min)*this.dataWidth);
+},_getValueForPosition:function(_a){
+return (_a-this.dataX)*(this.max-this.min)/this.dataWidth+this.min;
 },draw:function(){
 if(!this.surface){
 this.createSurface();
@@ -133,62 +133,62 @@ for(i=0;i<this._indicatorData.length;i++){
 this._indicatorData[i].draw();
 }
 }
-},drawRange:function(_11){
-if(_11.shape){
-this.surface.remove(_11.shape);
-_11.shape=null;
+},drawRange:function(_b){
+if(_b.shape){
+this.surface.remove(_b.shape);
+_b.shape=null;
 }
-var x1=this._getPosition(_11.low);
-var x2=this._getPosition(_11.high);
-var _14=this.surface.createRect({x:x1,y:this.dataY,width:x2-x1,height:this.dataHeight});
-if(dojo.isArray(_11.color)||dojo.isString(_11.color)){
-_14.setStroke({color:_11.color});
-_14.setFill(_11.color);
+var x1=this._getPosition(_b.low);
+var x2=this._getPosition(_b.high);
+var _c=this.surface.createRect({x:x1,y:this.dataY,width:x2-x1,height:this.dataHeight});
+if(dojo.isArray(_b.color)||dojo.isString(_b.color)){
+_c.setStroke({color:_b.color});
+_c.setFill(_b.color);
 }else{
-if(_11.color.type){
+if(_b.color.type){
 var y=this.dataY+this.dataHeight/2;
-_11.color.x1=x1;
-_11.color.x2=x2;
-_11.color.y1=y;
-_11.color.y2=y;
-_14.setFill(_11.color);
-_14.setStroke({color:_11.color.colors[0].color});
+_b.color.x1=x1;
+_b.color.x2=x2;
+_b.color.y1=y;
+_b.color.y2=y;
+_c.setFill(_b.color);
+_c.setStroke({color:_b.color.colors[0].color});
 }else{
-_14.setStroke({color:"green"});
-_14.setFill("green");
-_14.getEventSource().setAttribute("class",_11.color.style);
+_c.setStroke({color:"green"});
+_c.setFill("green");
+_c.getEventSource().setAttribute("class",_b.color.style);
 }
 }
-if(_11.hover){
-_14.getEventSource().setAttribute("hover",_11.hover);
+if(_b.hover){
+_c.getEventSource().setAttribute("hover",_b.hover);
 }
-_11.shape=_14;
-},getRangeUnderMouse:function(_16){
-var _17=null;
-var pos=dojo.coords(this.gaugeContent);
-var x=_16.clientX-pos.x;
-var _1a=this._getValueForPosition(x);
+_b.shape=_c;
+},getRangeUnderMouse:function(_d){
+var _e=null;
+var _f=dojo.coords(this.gaugeContent);
+var x=_d.clientX-_f.x;
+var _10=this._getValueForPosition(x);
 if(this._rangeData){
-for(var i=0;(i<this._rangeData.length)&&!_17;i++){
-if((Number(this._rangeData[i].low)<=_1a)&&(Number(this._rangeData[i].high)>=_1a)){
-_17=this._rangeData[i];
+for(var i=0;(i<this._rangeData.length)&&!_e;i++){
+if((Number(this._rangeData[i].low)<=_10)&&(Number(this._rangeData[i].high)>=_10)){
+_e=this._rangeData[i];
 }
 }
 }
-return _17;
-},_dragIndicator:function(_1c,_1d){
-var pos=dojo.coords(_1c.gaugeContent);
-var x=_1d.clientX-pos.x;
-var _20=_1c._getValueForPosition(x);
-if(_20<_1c.min){
-_20=_1c.min;
+return _e;
+},_dragIndicator:function(_11,_12){
+var pos=dojo.coords(_11.gaugeContent);
+var x=_12.clientX-pos.x;
+var _13=_11._getValueForPosition(x);
+if(_13<_11.min){
+_13=_11.min;
 }
-if(_20>_1c.max){
-_20=_1c.max;
+if(_13>_11.max){
+_13=_11.max;
 }
-_1c._drag.value=_20;
-_1c._drag.onDragMove(_1c._drag);
-_1c._drag.draw(true);
-dojo.stopEvent(_1d);
+_11._drag.value=_13;
+_11._drag.onDragMove(_11._drag);
+_11._drag.draw(true);
+dojo.stopEvent(_12);
 }});
 }

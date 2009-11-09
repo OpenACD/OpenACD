@@ -9,9 +9,9 @@ if(!dojo._hasResource["dojox.form.CheckedMultiSelect"]){
 dojo._hasResource["dojox.form.CheckedMultiSelect"]=true;
 dojo.provide("dojox.form.CheckedMultiSelect");
 dojo.require("dijit.form.CheckBox");
-dojo.require("dojox.form._FormSelectWidget");
-dojo.declare("dojox.form._CheckedMultiSelectItem",[dijit._Widget,dijit._Templated],{widgetsInTemplate:true,templateString:"<div class=\"dijitReset ${baseClass}\"\n\t><input class=\"${baseClass}Box\" dojoType=\"dijit.form.CheckBox\" dojoAttachPoint=\"checkBox\" \n\t\tdojoAttachEvent=\"_onClick:_changeBox\" type=\"${_type.type}\" baseClass=\"${_type.baseClass}\"\n\t><div class=\"dijitInline ${baseClass}Label\" dojoAttachPoint=\"labelNode\" dojoAttachEvent=\"onmousedown:_onMouse,onmouseover:_onMouse,onmouseout:_onMouse,onclick:_onClick\"></div\n></div>\n",baseClass:"dojoxMultiSelectItem",option:null,parent:null,disabled:false,readOnly:false,postMixInProperties:function(){
-if(this.parent._multiValue){
+dojo.require("dijit.form._FormSelectWidget");
+dojo.declare("dojox.form._CheckedMultiSelectItem",[dijit._Widget,dijit._Templated],{widgetsInTemplate:true,templateString:dojo.cache("dojox.form","resources/_CheckedMultiSelectItem.html","<div class=\"dijitReset ${baseClass}\"\n\t><input class=\"${baseClass}Box\" dojoType=\"dijit.form.CheckBox\" dojoAttachPoint=\"checkBox\" \n\t\tdojoAttachEvent=\"_onClick:_changeBox\" type=\"${_type.type}\" baseClass=\"${_type.baseClass}\"\n\t><div class=\"dijitInline ${baseClass}Label\" dojoAttachPoint=\"labelNode\" dojoAttachEvent=\"onmousedown:_onMouse,onmouseover:_onMouse,onmouseout:_onMouse,onclick:_onClick\"></div\n></div>\n"),baseClass:"dojoxMultiSelectItem",option:null,parent:null,disabled:false,readOnly:false,postMixInProperties:function(){
+if(this.parent.multiple){
 this._type={type:"checkbox",baseClass:"dijitCheckBox"};
 }else{
 this._type={type:"radio",baseClass:"dijitRadio"};
@@ -25,7 +25,7 @@ this.labelNode.innerHTML=this.option.label;
 if(this.attr("disabled")||this.attr("readOnly")){
 return;
 }
-if(this.parent._multiValue){
+if(this.parent.multiple){
 this.option.selected=this.checkBox.attr("value")&&true;
 }else{
 this.parent.attr("value",this.option.value);
@@ -46,19 +46,19 @@ this.checkBox._onClick(e);
 }
 },_updateBox:function(){
 this.checkBox.attr("value",this.option.selected);
-},_setDisabledAttr:function(_3){
-this.disabled=_3||this.option.disabled;
+},_setDisabledAttr:function(_1){
+this.disabled=_1||this.option.disabled;
 this.checkBox.attr("disabled",this.disabled);
 dojo.toggleClass(this.domNode,"dojoxMultiSelectDisabled",this.disabled);
-},_setReadOnlyAttr:function(_4){
-this.checkBox.attr("readOnly",_4);
+},_setReadOnlyAttr:function(_2){
+this.checkBox.attr("readOnly",_2);
 this.checkBox._setStateClass();
-this.readOnly=_4;
+this.readOnly=_2;
 }});
-dojo.declare("dojox.form.CheckedMultiSelect",dojox.form._FormSelectWidget,{templateString:"",templateString:"<div class=\"dijit dijitReset dijitInline\" dojoAttachEvent=\"onmousedown:_mouseDown,onclick:focus\"\n\t><select class=\"${baseClass}Select\" multiple=\"true\" dojoAttachPoint=\"containerNode,focusNode\"></select\n\t><div dojoAttachPoint=\"wrapperDiv\"></div\n></div>\n",baseClass:"dojoxMultiSelect",_mouseDown:function(e){
+dojo.declare("dojox.form.CheckedMultiSelect",dijit.form._FormSelectWidget,{templateString:"",templateString:dojo.cache("dojox.form","resources/CheckedMultiSelect.html","<div class=\"dijit dijitReset dijitInline\" dojoAttachEvent=\"onmousedown:_mouseDown,onclick:focus\"\n\t><select class=\"${baseClass}Select\" multiple=\"true\" dojoAttachPoint=\"containerNode,focusNode\"></select\n\t><div dojoAttachPoint=\"wrapperDiv\"></div\n></div>\n"),baseClass:"dojoxMultiSelect",_mouseDown:function(e){
 dojo.stopEvent(e);
-},_addOptionItem:function(_6){
-this.wrapperDiv.appendChild(new dojox.form._CheckedMultiSelectItem({option:_6,parent:this}).domNode);
+},_addOptionItem:function(_3){
+this.wrapperDiv.appendChild(new dojox.form._CheckedMultiSelectItem({option:_3,parent:this}).domNode);
 },_updateSelection:function(){
 this.inherited(arguments);
 dojo.forEach(this._getChildren(),function(c){
@@ -68,32 +68,33 @@ c._updateBox();
 return dojo.map(this.wrapperDiv.childNodes,function(n){
 return dijit.byNode(n);
 });
-},invertSelection:function(_9){
+},invertSelection:function(_4){
 dojo.forEach(this.options,function(i){
 i.selected=!i.selected;
 });
 this._updateSelection();
-},_setDisabledAttr:function(_b){
+},_setDisabledAttr:function(_5){
 this.inherited(arguments);
-dojo.forEach(this._getChildren(),function(_c){
-if(_c&&_c.attr){
-_c.attr("disabled",_b);
+dojo.forEach(this._getChildren(),function(_6){
+if(_6&&_6.attr){
+_6.attr("disabled",_5);
 }
 });
-},_setReadOnlyAttr:function(_d){
+},_setReadOnlyAttr:function(_7){
 if("readOnly" in this.attributeMap){
-this._attrToDom("readOnly",_d);
+this._attrToDom("readOnly",_7);
 }
-this.readOnly=_d;
-dojo.forEach(this._getChildren(),function(_e){
-if(_e&&_e.attr){
-_e.attr("readOnly",_d);
+this.readOnly=_7;
+dojo.forEach(this._getChildren(),function(_8){
+if(_8&&_8.attr){
+_8.attr("readOnly",_7);
 }
 });
 this._setStateClass();
 },uninitialize:function(){
-dojo.forEach(this._getChildren(),function(_f){
-_f.destroyRecursive();
+dojo.forEach(this._getChildren(),function(_9){
+_9.destroyRecursive();
 });
+this.inherited(arguments);
 }});
 }

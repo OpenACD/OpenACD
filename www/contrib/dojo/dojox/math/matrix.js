@@ -41,25 +41,25 @@ console.warn("can't sum 0 matrices!");
 return 0;
 }
 var m=this.copy(arguments[0]);
-var _e=m.length;
-if(_e==0){
+var _1=m.length;
+if(_1==0){
 console.warn("can't deal with matrices of 0 rows!");
 return 0;
 }
-var _f=m[0].length;
-if(_f==0){
+var _2=m[0].length;
+if(_2==0){
 console.warn("can't deal with matrices of 0 cols!");
 return 0;
 }
 for(var i=1;i<arguments.length;++i){
-var arg=arguments[i];
-if(arg.length!=_e||arg[0].length!=_f){
-console.warn("can't add matrices of different dimensions: first dimensions were "+_e+"x"+_f+", current dimensions are "+arg.length+"x"+arg[0].length);
+var _3=arguments[i];
+if(_3.length!=_1||_3[0].length!=_2){
+console.warn("can't add matrices of different dimensions: first dimensions were "+_1+"x"+_2+", current dimensions are "+_3.length+"x"+_3[0].length);
 return 0;
 }
-for(var r=0;r<_e;r++){
-for(var c=0;c<_f;c++){
-m[r][c]+=arg[r][c];
+for(var r=0;r<_1;r++){
+for(var c=0;c<_2;c++){
+m[r][c]+=_3[r][c];
 }
 }
 }
@@ -68,15 +68,15 @@ return m;
 if(a.length==1&&a[0].length==1){
 return [[1/a[0][0]]];
 }
-var tms=a.length,m=this.create(tms,tms),mm=this.adjoint(a),det=this.determinant(a),dd=0;
-if(det==0){
+var _4=a.length,m=this.create(_4,_4),mm=this.adjoint(a),_5=this.determinant(a),dd=0;
+if(_5==0){
 console.warn("Determinant Equals 0, Not Invertible.");
 return [[0]];
 }else{
-dd=1/det;
+dd=1/_5;
 }
-for(var i=0;i<tms;i++){
-for(var j=0;j<tms;j++){
+for(var i=0;i<_4;i++){
+for(var j=0;j<_4;j++){
 m[i][j]=dd*mm[i][j];
 }
 }
@@ -86,63 +86,63 @@ if(a.length!=a[0].length){
 console.warn("Can't calculate the determinant of a non-squre matrix!");
 return 0;
 }
-var tms=a.length,det=1,b=this.upperTriangle(a);
-for(var i=0;i<tms;i++){
-var bii=b[i][i];
-if(Math.abs(bii)<this.ALMOST_ZERO){
+var _6=a.length,_7=1,b=this.upperTriangle(a);
+for(var i=0;i<_6;i++){
+var _8=b[i][i];
+if(Math.abs(_8)<this.ALMOST_ZERO){
 return 0;
 }
-det*=bii;
+_7*=_8;
 }
-det*=this.iDF;
-return det;
+_7*=this.iDF;
+return _7;
 },upperTriangle:function(m){
 m=this.copy(m);
-var f1=0,_24=0,tms=m.length,v=1;
+var f1=0,_9=0,_a=m.length,v=1;
 this.iDF=1;
-for(var col=0;col<tms-1;col++){
-if(typeof m[col][col]!="number"){
-console.warn("non-numeric entry found in a numeric matrix: m["+col+"]["+col+"]="+m[col][col]);
+for(var _b=0;_b<_a-1;_b++){
+if(typeof m[_b][_b]!="number"){
+console.warn("non-numeric entry found in a numeric matrix: m["+_b+"]["+_b+"]="+m[_b][_b]);
 }
 v=1;
-var _28=0;
-while((m[col][col]==0)&&!_28){
-if(col+v>=tms){
+var _c=0;
+while((m[_b][_b]==0)&&!_c){
+if(_b+v>=_a){
 this.iDF=0;
-_28=1;
+_c=1;
 }else{
-for(var r=0;r<tms;r++){
-_24=m[col][r];
-m[col][r]=m[col+v][r];
-m[col+v][r]=_24;
+for(var r=0;r<_a;r++){
+_9=m[_b][r];
+m[_b][r]=m[_b+v][r];
+m[_b+v][r]=_9;
 }
 v++;
 this.iDF*=-1;
 }
 }
-for(var row=col+1;row<tms;row++){
-if(typeof m[row][col]!="number"){
-console.warn("non-numeric entry found in a numeric matrix: m["+row+"]["+col+"]="+m[row][col]);
+for(var _d=_b+1;_d<_a;_d++){
+if(typeof m[_d][_b]!="number"){
+console.warn("non-numeric entry found in a numeric matrix: m["+_d+"]["+_b+"]="+m[_d][_b]);
 }
-if(typeof m[col][row]!="number"){
-console.warn("non-numeric entry found in a numeric matrix: m["+col+"]["+row+"]="+m[col][row]);
+if(typeof m[_b][_d]!="number"){
+console.warn("non-numeric entry found in a numeric matrix: m["+_b+"]["+_d+"]="+m[_b][_d]);
 }
-if(m[col][col]!=0){
-var f1=(-1)*m[row][col]/m[col][col];
-for(var i=col;i<tms;i++){
-m[row][i]=f1*m[col][i]+m[row][i];
+if(m[_b][_b]!=0){
+var f1=(-1)*m[_d][_b]/m[_b][_b];
+for(var i=_b;i<_a;i++){
+m[_d][i]=f1*m[_b][i]+m[_d][i];
 }
 }
 }
 }
 return m;
-},create:function(a,b,_2e){
-_2e=_2e||0;
+},create:function(a,b,_e){
+_e=_e||0;
 var m=[];
 for(var i=0;i<b;i++){
 m[i]=[];
 for(var j=0;j<a;j++){
-m[i][j]=_2e;
+m[i][j]=_e;
 }
 }
 return m;
@@ -150,13 +150,13 @@ return m;
 return this.create(a,b,1);
 },zeros:function(a,b){
 return this.create(a,b);
-},identity:function(_36,_37){
-_37=_37||1;
+},identity:function(_f,_10){
+_10=_10||1;
 var m=[];
-for(var i=0;i<_36;i++){
+for(var i=0;i<_f;i++){
 m[i]=[];
-for(var j=0;j<_36;j++){
-m[i][j]=(i==j?_37:0);
+for(var j=0;j<_f;j++){
+m[i][j]=(i==j?_10:0);
 }
 }
 return m;
@@ -202,9 +202,9 @@ m[j][i]=a[i][j];
 }
 }
 return m;
-},format:function(a,_4b){
-_4b=_4b||5;
-function _4c(x,dp){
+},format:function(a,_11){
+_11=_11||5;
+function _12(x,dp){
 var fac=Math.pow(10,dp);
 var a=Math.round(x*fac)/fac;
 var b=a.toString();
@@ -221,15 +221,15 @@ return b;
 };
 var ya=a.length;
 var xa=ya>0?a[0].length:0;
-var _54="";
+var _13="";
 for(var y=0;y<ya;y++){
-_54+="| ";
+_13+="| ";
 for(var x=0;x<xa;x++){
-_54+=_4c(a[y][x],_4b)+" ";
+_13+=_12(a[y][x],_11)+" ";
 }
-_54+="|\n";
+_13+="|\n";
 }
-return _54;
+return _13;
 },copy:function(a){
 var ya=a.length,xa=a[0].length,m=this.create(xa,ya);
 for(var y=0;y<ya;y++){
@@ -238,12 +238,12 @@ m[y][x]=a[y][x];
 }
 }
 return m;
-},scale:function(a,_5e){
+},scale:function(a,_14){
 a=this.copy(a);
 var ya=a.length,xa=a[0].length;
 for(var y=0;y<ya;y++){
 for(var x=0;x<xa;x++){
-a[y][x]*=_5e;
+a[y][x]*=_14;
 }
 }
 return a;

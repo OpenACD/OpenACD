@@ -7,6 +7,7 @@
 
 if(!dojo._hasResource["dojox.analytics.plugins.window"]){
 dojo._hasResource["dojox.analytics.plugins.window"]=true;
+dojo.require("dojox.analytics._base");
 dojo.provide("dojox.analytics.plugins.window");
 dojox.analytics.plugins.window=new (function(){
 this.addData=dojo.hitch(dojox.analytics,"addData","window");
@@ -15,22 +16,22 @@ for(var i=0;i<this.windowConnects.length;i++){
 dojo.connect(window,this.windowConnects[i],dojo.hitch(this,"addData",this.windowConnects[i]));
 }
 dojo.addOnLoad(dojo.hitch(this,function(){
-var _2={};
+var _1={};
 for(var i in window){
 if(dojo.isObject(window[i])){
 switch(i){
 case "location":
 case "console":
-_2[i]=window[i];
+_1[i]=window[i];
 break;
 default:
 break;
 }
 }else{
-_2[i]=window[i];
+_1[i]=window[i];
 }
 }
-this.addData(_2);
+this.addData(_1);
 }));
 })();
 }

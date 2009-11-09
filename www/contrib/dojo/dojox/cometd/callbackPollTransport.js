@@ -50,12 +50,12 @@ _b[i].clientId=this._cometd.clientId;
 _b[i].id=""+this._cometd.messageId++;
 _b[i]=this._cometd._extendOut(_b[i]);
 }
-var _d={url:this._cometd.url||dojo.config["cometdRoot"],load:dojo.hitch(this._cometd,"deliver"),callbackParamName:"jsonp",content:{message:dojo.toJson(_b)},error:dojo.hitch(this,function(_e){
+var _c={url:this._cometd.url||dojo.config["cometdRoot"],load:dojo.hitch(this._cometd,"deliver"),callbackParamName:"jsonp",content:{message:dojo.toJson(_b)},error:dojo.hitch(this,function(_d){
 this._cometd._publishMeta("publish",false,{messages:_b});
 }),timeout:this._cometd.expectedNetworkDelay};
-return dojo.io.script.get(_d);
+return dojo.io.script.get(_c);
 };
-this.startup=function(_f){
+this.startup=function(_e){
 if(this._cometd._connected){
 return;
 }
@@ -63,9 +63,9 @@ this.tunnelInit();
 };
 this.disconnect=dojox.cometd.longPollTransport.disconnect;
 this.disconnect=function(){
-var _10={channel:"/meta/disconnect",clientId:this._cometd.clientId,id:""+this._cometd.messageId++};
-_10=this._cometd._extendOut(_10);
-dojo.io.script.get({url:this._cometd.url||dojo.config["cometdRoot"],callbackParamName:"jsonp",content:{message:dojo.toJson([_10])}});
+var _f={channel:"/meta/disconnect",clientId:this._cometd.clientId,id:""+this._cometd.messageId++};
+_f=this._cometd._extendOut(_f);
+dojo.io.script.get({url:this._cometd.url||dojo.config["cometdRoot"],callbackParamName:"jsonp",content:{message:dojo.toJson([_f])}});
 };
 this.cancelConnect=function(){
 };

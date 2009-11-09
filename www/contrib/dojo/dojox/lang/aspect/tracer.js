@@ -22,14 +22,10 @@ console[this.method](_4.instance,"=>",_5.targetName+"("+_6+")");
 },afterReturning:function(_7){
 var _8=_1.getContext().joinPoint;
 if(typeof _7!="undefined"){
-
 }else{
-
 }
 },afterThrowing:function(_9){
-
 },_after:function(_a){
-
 }});
 _1.tracer=function(_b){
 return new _2(_b);

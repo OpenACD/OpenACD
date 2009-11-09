@@ -264,14 +264,14 @@ dojo.addOnLoad(function(){
 			case 'idle':
 			case 'ringing':
 			case 'precall':
-				widget.setLabel(nlsStrings.GORELEASED);
+				widget.attr('label', nlsStrings.GORELEASED);
 				widget.attr('style', 'display:inline');
 				break;
 			case 'released':
 				widget.attr('style', 'display:none');
 				break;
 			default:
-				widget.setLabel(nlsStrings.QUEUERELEASE);
+				widget.attr('label', nlsStrings.QUEUERELEASE);
 				widget.attr('style', 'display:inline');
 		}
 	});
@@ -287,11 +287,11 @@ dojo.addOnLoad(function(){
 		switch(data.state){
 			case "released":
 				widget.attr('style', 'display:inline');
-				widget.setLabel(nlsStrings.GOAVAILABLE);
+				widget.attr('label', nlsStrings.GOAVAILABLE);
 				break;
 			case "wrapup":
 				widget.attr('style', 'display:inline');
-				widget.setLabel(nlsStrings.ENDWRAPUP);
+				widget.attr('label', nlsStrings.ENDWRAPUP);
 				break;
 			default:
 				widget.attr('style', 'display:none');
@@ -446,7 +446,7 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("eventLogText").eventLogPushed = dojo.subscribe("eventlog/push", function(text){
 		var oldval = dijit.byId("eventLogText").value;
-		dijit.byId("eventLogText").setValue(oldval + "\n" + text)
+		dijit.byId("eventLogText").attr('value', oldval + "\n" + text)
 	});
 	
 	var loginform = dijit.byId("loginform")

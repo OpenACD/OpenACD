@@ -15,17 +15,17 @@ var d=dojo;
 dojo.declare("dojox.charting.widget.Sparkline",dojox.charting.widget.Chart2D,{theme:dojox.charting.themes.ET.greys,margins:{l:0,r:0,t:0,b:0},type:"Lines",valueFn:"Number(x)",store:"",field:"",query:"",queryOptions:"",start:"0",count:"Infinity",sort:"",data:"",name:"default",buildRendering:function(){
 var n=this.srcNodeRef;
 if(!n.childNodes.length||!d.query("> .axis, > .plot, > .action, > .series",n).length){
-var _3=document.createElement("div");
-d.attr(_3,{"class":"plot","name":"default","type":this.type});
-n.appendChild(_3);
-var _4=document.createElement("div");
-d.attr(_4,{"class":"series",plot:"default",name:this.name,start:this.start,count:this.count,valueFn:this.valueFn});
+var _1=document.createElement("div");
+d.attr(_1,{"class":"plot","name":"default","type":this.type});
+n.appendChild(_1);
+var _2=document.createElement("div");
+d.attr(_2,{"class":"series",plot:"default",name:this.name,start:this.start,count:this.count,valueFn:this.valueFn});
 d.forEach(["store","field","query","queryOptions","sort","data"],function(i){
 if(this[i].length){
-d.attr(_4,i,this[i]);
+d.attr(_2,i,this[i]);
 }
 },this);
-n.appendChild(_4);
+n.appendChild(_2);
 }
 this.inherited(arguments);
 }});

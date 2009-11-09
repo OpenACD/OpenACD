@@ -16,33 +16,33 @@ this.interval=_3||1000;
 this.minimumSize=_4||10;
 this.inputFunction=_1||function(q){
 };
-this.outputFunction=_2||function(_9){
+this.outputFunction=_2||function(_8){
 };
-var _a=new dojox.timing.Timer(this.interval);
-var _b=function(){
+var _9=new dojox.timing.Timer(this.interval);
+var _a=function(){
 _6.onTick(_6);
 if(_7.length<_6.minimumSize){
 _6.inputFunction(_7);
 }
-var _c=_7.shift();
-while(typeof (_c)=="undefined"&&_7.length>0){
-_c=_7.shift();
+var _b=_7.shift();
+while(typeof (_b)=="undefined"&&_7.length>0){
+_b=_7.shift();
 }
-if(typeof (_c)=="undefined"){
+if(typeof (_b)=="undefined"){
 _6.stop();
 return;
 }
-_6.outputFunction(_c);
+_6.outputFunction(_b);
 };
 this.setInterval=function(ms){
 this.interval=ms;
-_a.setInterval(ms);
+_9.setInterval(ms);
 };
-this.onTick=function(_e){
+this.onTick=function(_c){
 };
 this.start=function(){
 if(typeof (this.inputFunction)=="function"&&typeof (this.outputFunction)=="function"){
-_a.start();
+_9.start();
 return;
 }
 throw new Error("You cannot start a Streamer without an input and an output function.");
@@ -50,13 +50,13 @@ throw new Error("You cannot start a Streamer without an input and an output func
 this.onStart=function(){
 };
 this.stop=function(){
-_a.stop();
+_9.stop();
 };
 this.onStop=function(){
 };
-_a.onTick=this.tick;
-_a.onStart=this.onStart;
-_a.onStop=this.onStop;
+_9.onTick=this.tick;
+_9.onStart=this.onStart;
+_9.onStop=this.onStop;
 if(_5){
 _7.concat(_5);
 }

@@ -16,176 +16,176 @@ var s=null;
 switch(_1.tagName.toLowerCase()){
 case dojox.gfx.Rect.nodeType:
 s=new dojox.gfx.Rect(_1);
-_3(s);
+_2(s);
 break;
 case dojox.gfx.Ellipse.nodeType:
 s=new dojox.gfx.Ellipse(_1);
-_4(s,dojox.gfx.defaultEllipse);
+_3(s,dojox.gfx.defaultEllipse);
 break;
 case dojox.gfx.Polyline.nodeType:
 s=new dojox.gfx.Polyline(_1);
-_4(s,dojox.gfx.defaultPolyline);
+_3(s,dojox.gfx.defaultPolyline);
 break;
 case dojox.gfx.Path.nodeType:
 s=new dojox.gfx.Path(_1);
-_4(s,dojox.gfx.defaultPath);
+_3(s,dojox.gfx.defaultPath);
 break;
 case dojox.gfx.Circle.nodeType:
 s=new dojox.gfx.Circle(_1);
-_4(s,dojox.gfx.defaultCircle);
+_3(s,dojox.gfx.defaultCircle);
 break;
 case dojox.gfx.Line.nodeType:
 s=new dojox.gfx.Line(_1);
-_4(s,dojox.gfx.defaultLine);
+_3(s,dojox.gfx.defaultLine);
 break;
 case dojox.gfx.Image.nodeType:
 s=new dojox.gfx.Image(_1);
-_4(s,dojox.gfx.defaultImage);
+_3(s,dojox.gfx.defaultImage);
 break;
 case dojox.gfx.Text.nodeType:
 var t=_1.getElementsByTagName("textPath");
 if(t&&t.length){
 s=new dojox.gfx.TextPath(_1);
-_4(s,dojox.gfx.defaultPath);
-_6(s);
+_3(s,dojox.gfx.defaultPath);
+_4(s);
 }else{
 s=new dojox.gfx.Text(_1);
-_7(s);
+_5(s);
 }
-_8(s);
+_6(s);
 break;
 default:
 return null;
 }
 if(!(s instanceof dojox.gfx.Image)){
-_9(s);
-_a(s);
+_7(s);
+_8(s);
 }
-_b(s);
+_9(s);
 return s;
 };
-dojox.gfx.attachSurface=function(_c){
+dojox.gfx.attachSurface=function(_a){
 var s=new dojox.gfx.Surface();
-s.rawNode=_c;
-var _e=_c.getElementsByTagName("defs");
-if(_e.length==0){
+s.rawNode=_a;
+var _b=_a.getElementsByTagName("defs");
+if(_b.length==0){
 return null;
 }
-s.defNode=_e[0];
+s.defNode=_b[0];
 return s;
 };
-var _9=function(_f){
-var _10=_f.rawNode.getAttribute("fill");
-if(_10=="none"){
-_f.fillStyle=null;
+var _7=function(_c){
+var _d=_c.rawNode.getAttribute("fill");
+if(_d=="none"){
+_c.fillStyle=null;
 return;
 }
-var _11=null,_12=dojox.gfx.svg.getRef(_10);
-if(_12){
-switch(_12.tagName.toLowerCase()){
+var _e=null,_f=dojox.gfx.svg.getRef(_d);
+if(_f){
+switch(_f.tagName.toLowerCase()){
 case "lineargradient":
-_11=_13(dojox.gfx.defaultLinearGradient,_12);
+_e=_10(dojox.gfx.defaultLinearGradient,_f);
 dojo.forEach(["x1","y1","x2","y2"],function(x){
-_11[x]=_12.getAttribute(x);
+_e[x]=_f.getAttribute(x);
 });
 break;
 case "radialgradient":
-_11=_13(dojox.gfx.defaultRadialGradient,_12);
+_e=_10(dojox.gfx.defaultRadialGradient,_f);
 dojo.forEach(["cx","cy","r"],function(x){
-_11[x]=_12.getAttribute(x);
+_e[x]=_f.getAttribute(x);
 });
-_11.cx=_12.getAttribute("cx");
-_11.cy=_12.getAttribute("cy");
-_11.r=_12.getAttribute("r");
+_e.cx=_f.getAttribute("cx");
+_e.cy=_f.getAttribute("cy");
+_e.r=_f.getAttribute("r");
 break;
 case "pattern":
-_11=dojo.lang.shallowCopy(dojox.gfx.defaultPattern,true);
+_e=dojo.lang.shallowCopy(dojox.gfx.defaultPattern,true);
 dojo.forEach(["x","y","width","height"],function(x){
-_11[x]=_12.getAttribute(x);
+_e[x]=_f.getAttribute(x);
 });
-_11.src=_12.firstChild.getAttributeNS(dojox.gfx.svg.xmlns.xlink,"href");
+_e.src=_f.firstChild.getAttributeNS(dojox.gfx.svg.xmlns.xlink,"href");
 break;
 }
 }else{
-_11=new dojo.Color(_10);
-var _17=_f.rawNode.getAttribute("fill-opacity");
-if(_17!=null){
-_11.a=_17;
+_e=new dojo.Color(_d);
+var _11=_c.rawNode.getAttribute("fill-opacity");
+if(_11!=null){
+_e.a=_11;
 }
 }
-_f.fillStyle=_11;
+_c.fillStyle=_e;
 };
-var _13=function(_18,_19){
-var _1a=dojo.clone(_18);
-_1a.colors=[];
-for(var i=0;i<_19.childNodes.length;++i){
-_1a.colors.push({offset:_19.childNodes[i].getAttribute("offset"),color:new dojo.Color(_19.childNodes[i].getAttribute("stop-color"))});
+var _10=function(_12,_13){
+var _14=dojo.clone(_12);
+_14.colors=[];
+for(var i=0;i<_13.childNodes.length;++i){
+_14.colors.push({offset:_13.childNodes[i].getAttribute("offset"),color:new dojo.Color(_13.childNodes[i].getAttribute("stop-color"))});
 }
-return _1a;
+return _14;
 };
-var _a=function(_1c){
-var _1d=_1c.rawNode,_1e=_1d.getAttribute("stroke");
-if(_1e==null||_1e=="none"){
-_1c.strokeStyle=null;
+var _8=function(_15){
+var _16=_15.rawNode,_17=_16.getAttribute("stroke");
+if(_17==null||_17=="none"){
+_15.strokeStyle=null;
 return;
 }
-var _1f=_1c.strokeStyle=dojo.clone(dojox.gfx.defaultStroke);
-var _20=new dojo.Color(_1e);
-if(_20){
-_1f.color=_20;
-_1f.color.a=_1d.getAttribute("stroke-opacity");
-_1f.width=_1d.getAttribute("stroke-width");
-_1f.cap=_1d.getAttribute("stroke-linecap");
-_1f.join=_1d.getAttribute("stroke-linejoin");
-if(_1f.join=="miter"){
-_1f.join=_1d.getAttribute("stroke-miterlimit");
+var _18=_15.strokeStyle=dojo.clone(dojox.gfx.defaultStroke);
+var _19=new dojo.Color(_17);
+if(_19){
+_18.color=_19;
+_18.color.a=_16.getAttribute("stroke-opacity");
+_18.width=_16.getAttribute("stroke-width");
+_18.cap=_16.getAttribute("stroke-linecap");
+_18.join=_16.getAttribute("stroke-linejoin");
+if(_18.join=="miter"){
+_18.join=_16.getAttribute("stroke-miterlimit");
 }
-_1f.style=_1d.getAttribute("dojoGfxStrokeStyle");
+_18.style=_16.getAttribute("dojoGfxStrokeStyle");
 }
 };
-var _b=function(_21){
-var _22=_21.rawNode.getAttribute("transform");
-if(_22.match(/^matrix\(.+\)$/)){
-var t=_22.slice(7,-1).split(",");
-_21.matrix=dojox.gfx.matrix.normalize({xx:parseFloat(t[0]),xy:parseFloat(t[2]),yx:parseFloat(t[1]),yy:parseFloat(t[3]),dx:parseFloat(t[4]),dy:parseFloat(t[5])});
+var _9=function(_1a){
+var _1b=_1a.rawNode.getAttribute("transform");
+if(_1b.match(/^matrix\(.+\)$/)){
+var t=_1b.slice(7,-1).split(",");
+_1a.matrix=dojox.gfx.matrix.normalize({xx:parseFloat(t[0]),xy:parseFloat(t[2]),yx:parseFloat(t[1]),yy:parseFloat(t[3]),dx:parseFloat(t[4]),dy:parseFloat(t[5])});
 }else{
-_21.matrix=null;
+_1a.matrix=null;
 }
 };
-var _8=function(_24){
-var _25=_24.fontStyle=dojo.clone(dojox.gfx.defaultFont),r=_24.rawNode;
-_25.style=r.getAttribute("font-style");
-_25.variant=r.getAttribute("font-variant");
-_25.weight=r.getAttribute("font-weight");
-_25.size=r.getAttribute("font-size");
-_25.family=r.getAttribute("font-family");
+var _6=function(_1c){
+var _1d=_1c.fontStyle=dojo.clone(dojox.gfx.defaultFont),r=_1c.rawNode;
+_1d.style=r.getAttribute("font-style");
+_1d.variant=r.getAttribute("font-variant");
+_1d.weight=r.getAttribute("font-weight");
+_1d.size=r.getAttribute("font-size");
+_1d.family=r.getAttribute("font-family");
 };
-var _4=function(_27,def){
-var _29=_27.shape=dojo.clone(def),r=_27.rawNode;
-for(var i in _29){
-_29[i]=r.getAttribute(i);
+var _3=function(_1e,def){
+var _1f=_1e.shape=dojo.clone(def),r=_1e.rawNode;
+for(var i in _1f){
+_1f[i]=r.getAttribute(i);
 }
 };
-var _3=function(_2c){
-_4(_2c,dojox.gfx.defaultRect);
-_2c.shape.r=Math.min(_2c.rawNode.getAttribute("rx"),_2c.rawNode.getAttribute("ry"));
+var _2=function(_20){
+_3(_20,dojox.gfx.defaultRect);
+_20.shape.r=Math.min(_20.rawNode.getAttribute("rx"),_20.rawNode.getAttribute("ry"));
 };
-var _7=function(_2d){
-var _2e=_2d.shape=dojo.clone(dojox.gfx.defaultText),r=_2d.rawNode;
-_2e.x=r.getAttribute("x");
-_2e.y=r.getAttribute("y");
-_2e.align=r.getAttribute("text-anchor");
-_2e.decoration=r.getAttribute("text-decoration");
-_2e.rotated=parseFloat(r.getAttribute("rotate"))!=0;
-_2e.kerning=r.getAttribute("kerning")=="auto";
-_2e.text=r.firstChild.nodeValue;
+var _5=function(_21){
+var _22=_21.shape=dojo.clone(dojox.gfx.defaultText),r=_21.rawNode;
+_22.x=r.getAttribute("x");
+_22.y=r.getAttribute("y");
+_22.align=r.getAttribute("text-anchor");
+_22.decoration=r.getAttribute("text-decoration");
+_22.rotated=parseFloat(r.getAttribute("rotate"))!=0;
+_22.kerning=r.getAttribute("kerning")=="auto";
+_22.text=r.firstChild.nodeValue;
 };
-var _6=function(_30){
-var _31=_30.shape=dojo.clone(dojox.gfx.defaultTextPath),r=_30.rawNode;
-_31.align=r.getAttribute("text-anchor");
-_31.decoration=r.getAttribute("text-decoration");
-_31.rotated=parseFloat(r.getAttribute("rotate"))!=0;
-_31.kerning=r.getAttribute("kerning")=="auto";
-_31.text=r.firstChild.nodeValue;
+var _4=function(_23){
+var _24=_23.shape=dojo.clone(dojox.gfx.defaultTextPath),r=_23.rawNode;
+_24.align=r.getAttribute("text-anchor");
+_24.decoration=r.getAttribute("text-decoration");
+_24.rotated=parseFloat(r.getAttribute("rotate"))!=0;
+_24.kerning=r.getAttribute("kerning")=="auto";
+_24.text=r.firstChild.nodeValue;
 };
 })();

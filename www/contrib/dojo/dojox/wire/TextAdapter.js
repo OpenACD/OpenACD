@@ -20,20 +20,20 @@ return _2;
 }
 var _3="";
 for(var i in this.segments){
-var _5=this.segments[i].getValue(_2);
-_3=this._addSegment(_3,_5);
+var _4=this.segments[i].getValue(_2);
+_3=this._addSegment(_3,_4);
 }
 return _3;
-},_setValue:function(_6,_7){
+},_setValue:function(_5,_6){
 throw new Error("Unsupported API: "+this._wireClass+"._setValue");
-},_addSegment:function(_8,_9){
-if(!_9){
+},_addSegment:function(_7,_8){
+if(!_8){
+return _7;
+}else{
+if(!_7){
 return _8;
 }else{
-if(!_8){
-return _9;
-}else{
-return _8+this.delimiter+_9;
+return _7+this.delimiter+_8;
 }
 }
 }});

@@ -39,20 +39,23 @@ s=new dojox.gfx.Image(_1);
 break;
 case dojox.gfx.Text.nodeType:
 s=new dojox.gfx.Text(_1);
-_3(s);
+_2(s);
 break;
 default:
 return null;
 }
-_4(s);
+_3(s);
 if(!(s instanceof dojox.gfx.Image)){
+_4(s);
 _5(s);
-_6(s);
 }
-_7(s);
+_6(s);
 return s;
 };
-dojox.gfx.attachSurface=function(_8){
+dojox.gfx.attachSurface=function(_7){
+return null;
+};
+var _4=function(_8){
 return null;
 };
 var _5=function(_9){
@@ -61,13 +64,10 @@ return null;
 var _6=function(_a){
 return null;
 };
-var _7=function(_b){
+var _2=function(_b){
 return null;
 };
 var _3=function(_c){
-return null;
-};
-var _4=function(_d){
 return null;
 };
 })();

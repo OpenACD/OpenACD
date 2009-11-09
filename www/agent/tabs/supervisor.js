@@ -1828,18 +1828,35 @@ if(typeof(supervisorView) == "undefined"){
 							type:"media",
 							display:supervisorView.dataStore.getValue(obj, "display")
 						});
+						if(queryObj.queue){
+							dijit.byId('mediaAction').mediaBubbleHit = supervisorView.dataStore.getValue(obj, "display");
+						}
 					}
 				});
 			});
 			
 			supervisorView.callsStack.clear();
-			supervisorView.callsStack = new supervisorView.BubbleStack({
-				mousept:{
-					x:580 + 240,
-					y:20
-				},
-				bubbleConfs:acc
-			});
+			if(queryObj.queue){
+				var confObj = {
+					mousept:{
+						x:580 + 240,
+						y:20
+					},
+					bubbleConfs:acc,
+					menu:'mediaAction'
+				}
+			}
+			else{
+				var confObj = {
+					mousept:{
+						x:580 + 240,
+						y:20
+					},
+					bubbleConfs:acc
+				}
+			}
+			
+			supervisorView.callsStack = new supervisorView.BubbleStack(confObj);
 		
 			supervisorView.callsStack.forEachBubble(function(obj){
 				obj.group.connect("onmousedown", obj, function(ev){
@@ -2191,6 +2208,42 @@ if(typeof(supervisorView) == "undefined"){
 			
 			supervisorView.saveItem(item, protoitem);
 		}
+	}
+	
+	supervisorView.sendToVoicemail = function(mediaId){
+		var fetched = function(items){
+			if(items.length == 0){
+				return false;
+			}
+			
+			var item = items[0];
+			if(supervisorView.dataStore.getValue(item, 'queue', false)){
+				var queue = supervisorView.dataStore.getValue(item, 'queue');
+				dojo.xhrPost({
+					url:'/supervisor/voicemail/' + escape(queue) + '/' + escape(mediaId),
+					handleAs:'json',
+					load:function(res){
+						if(res.success){
+							return true;
+						}
+						else{
+							console.log(["sending to voicemail failed", res.message]);
+						}
+					},
+					error:function(res){
+						console.log(["sending to voicemail errored", res]);
+					}
+				});
+			}
+		}
+		
+		supervisorView.dataStore.fetch({
+			query:{
+				'display':mediaId,
+				'type':'media'
+			},
+			onComplete:fetched
+		});
 	}
 	
 	supervisorView.clean = function(){

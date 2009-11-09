@@ -390,6 +390,24 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
+		["voicemail", Queue, Callid] ->
+			Json = case queue_manager:get_queue(Queue) of
+				Qpid when is_pid(Qpid) ->
+					case call_queue:get_call(Qpid, Callid) of
+						{_Key, #queued_call{media = Mpid}} ->
+							case gen_media:voicemail(Mpid) of
+								invalid ->
+									{struct, [{success, false}, {<<"message">>, <<"media doesn't support voicemail">>}]};
+								ok ->
+									{struct, [{success, true}]}
+							end;
+						_ ->
+							{struct, [{success, false}, {<<"message">>, <<"call not found">>}]}
+					end;
+				_ ->
+					{struct, [{success, false}, {<<"message">>, <<"queue not found">>}]}
+			end,
+			{reply, {200, [], mochijson2:encode(Json)}, State};
 		["set_profile", Agent, Profile] ->
 			case agent_manager:query_agent(Agent) of
 				{true, Apid} ->

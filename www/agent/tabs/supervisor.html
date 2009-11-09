@@ -168,6 +168,15 @@
 	</div>
 </div>
 
+<div dojoType="dijit.Menu" id="mediaAction" style="display:none">
+	<div dojoType="dijit.MenuItem">Voicemail
+		<script type="dojo/method" event="onClick">
+			console.log(["mediaAction vm!", dijit.byId('mediaAction').mediaBubbleHit]);
+			supervisorView.sendToVoicemail(dijit.byId('mediaAction').mediaBubbleHit);
+		</script>
+	</div>
+</div>
+
 <div dojoType="dijit.Menu" id="nodeAction" style="display:none">
 	<div dojoType="dijit.MenuItem">Blab
 		<script type="dojo/method" event="onClick">

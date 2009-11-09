@@ -274,7 +274,7 @@
 									});
 									dijit.byId("tabPanel").addChild(t);
 								}
-								dijit.byId("supervisorTab").setHref("tabs/supervisor.html");
+								dijit.byId("supervisorTab").attr('href', "tabs/supervisor.html");
 								dijit.byId("tabPanel").selectChild("supervisorTab");
 								dijit.byId("tabPanel").logoutListener = dojo.subscribe("agent/logout", function(data){
 									dijit.byId("tabPanel").closeChild(dijit.byId("supervisorTab"));

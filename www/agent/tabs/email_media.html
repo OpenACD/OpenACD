@@ -22,11 +22,11 @@
 				var target = dojo.byId('emailRawHeadersSpan')
 				if(target.style.display == 'none'){
 					target.style.display = 'inline-block';
-					this.setLabel('&darr;');
+					this.attr('label', '&darr;');
 				}
 				else{
 					target.style.display = 'none';
-					this.setLabel('&rarr;');
+					this.attr('label', '&rarr;');
 				}
 			</script>
 		</button>

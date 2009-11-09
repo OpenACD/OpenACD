@@ -564,7 +564,7 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 					Newcall = Call#call{cook = QCall#queued_call.cook},
 					{reply, ok, State#state{substate = Substate, ring_pid = Agent, ringout=Tref, callrec = Newcall}};
 				{invalid, Substate} ->
-					agent:set_state(Agent, released, "Ring Fail"),
+					agent:set_state(Agent, released, {"Ring Fail", "Ring Fail", -1}),
 					{reply, invalid, State#state{substate = Substate}}
 			end;
 		Else ->

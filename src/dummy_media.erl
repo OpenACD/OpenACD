@@ -427,6 +427,9 @@ handle_voicemail(_Whatever, _Callrec, #state{fail = Fail} = State) ->
 		fail ->
 			{invalid, State};
 		_Other ->
+			%% So cpx_mon doesn't end up with orphans, kill self asap.
+			Self = self(),
+			Self ! <<"hagurk">>,
 			{ok, State}
 	end.
 

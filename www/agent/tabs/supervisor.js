@@ -1899,6 +1899,7 @@ if(typeof(supervisorView) == "undefined"){
 					supervisorView.healthData = data.data;
 					supervisorView.dataStore = new dojo.data.ItemFileWriteStore({
 						data: supervisorView.healthData,
+						hierarchical: false,
 						typeMap:{
 							"details":{
 								"type":Object,
@@ -2270,16 +2271,27 @@ supervisorView.hpcalc = function(){
 		supervisorView.hpcalc()}, 5000);
 }
 
+supervisorView.reloadTimer = false;
+supervisorView.reload = function(){
+	supervisorView.reloadTimer = setTimeout(function(){
+		supervisorView.reloadDataStore();
+		supervisorView.reload();
+	}, 300000)
+}
+
+supervisorView.reload();
 /*supervisorView.logoutListener = dojo.subscribe("agent/logout", function(data){
 	clearTimeout(supervisorView.hpCalcTimer)
-});
+});*/
 
 window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", function(child){
 	if(child.title == "Supervisor"){
 		clearTimeout(supervisorView.hpCalcTimer);
+		clearTimeout(supervisorView.reloadTimer);
 		dojo.unsubscribe(window.supervisorViewKillListen);
-		dojo.unsubscribe(supervisorView.logoutListener);
+		//dojo.unsubscribe(supervisorView.logoutListener);
 		dojo.unsubscribe(supervisorView.masterSub);
+		delete window.supervisorViewKillListen;
 		dojo.xhrGet({
 			url:"/supervisor/endmonitor",
 			handleAs:'json',
@@ -2295,6 +2307,6 @@ window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", functio
 			}
 		});
 	}
-});*/
+});
 
 supervisorView.hpcalc();

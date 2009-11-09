@@ -13,31 +13,31 @@ var b="";
 this.length=0;
 this.append=function(s){
 if(arguments.length>1){
-var _4="",l=arguments.length;
+var _2="",l=arguments.length;
 switch(l){
 case 9:
-_4=""+arguments[8]+_4;
+_2=""+arguments[8]+_2;
 case 8:
-_4=""+arguments[7]+_4;
+_2=""+arguments[7]+_2;
 case 7:
-_4=""+arguments[6]+_4;
+_2=""+arguments[6]+_2;
 case 6:
-_4=""+arguments[5]+_4;
+_2=""+arguments[5]+_2;
 case 5:
-_4=""+arguments[4]+_4;
+_2=""+arguments[4]+_2;
 case 4:
-_4=""+arguments[3]+_4;
+_2=""+arguments[3]+_2;
 case 3:
-_4=""+arguments[2]+_4;
+_2=""+arguments[2]+_2;
 case 2:
-b+=""+arguments[0]+arguments[1]+_4;
+b+=""+arguments[0]+arguments[1]+_2;
 break;
 default:
 var i=0;
 while(i<arguments.length){
-_4+=arguments[i++];
+_2+=arguments[i++];
 }
-b+=_4;
+b+=_2;
 }
 }else{
 b+=s;
@@ -48,35 +48,35 @@ return this;
 this.concat=function(s){
 return this.append.apply(this,arguments);
 };
-this.appendArray=function(_8){
-return this.append.apply(this,_8);
+this.appendArray=function(_3){
+return this.append.apply(this,_3);
 };
 this.clear=function(){
 b="";
 this.length=0;
 return this;
 };
-this.replace=function(_9,_a){
-b=b.replace(_9,_a);
+this.replace=function(_4,_5){
+b=b.replace(_4,_5);
 this.length=b.length;
 return this;
 };
-this.remove=function(_b,_c){
-if(_c===undefined){
-_c=b.length;
+this.remove=function(_6,_7){
+if(_7===undefined){
+_7=b.length;
 }
-if(_c==0){
+if(_7==0){
 return this;
 }
-b=b.substr(0,_b)+b.substr(_b+_c);
+b=b.substr(0,_6)+b.substr(_6+_7);
 this.length=b.length;
 return this;
 };
-this.insert=function(_d,_e){
-if(_d==0){
-b=_e+b;
+this.insert=function(_8,_9){
+if(_8==0){
+b=_9+b;
 }else{
-b=b.slice(0,_d)+_e+b.slice(_d);
+b=b.slice(0,_8)+_9+b.slice(_8);
 }
 this.length=b.length;
 return this;

@@ -61,104 +61,104 @@ a.push(_7);
 if(_1.allowHybrid){
 a.push(_8);
 }
-var _a="";
+var _9="";
 if(a.length>0){
-_a="("+a.join("|")+")";
+_9="("+a.join("|")+")";
 }
-return _a;
-},host:function(_b){
-_b=(typeof _b=="object")?_b:{};
-if(typeof _b.allowIP!="boolean"){
-_b.allowIP=true;
+return _9;
+},host:function(_a){
+_a=(typeof _a=="object")?_a:{};
+if(typeof _a.allowIP!="boolean"){
+_a.allowIP=true;
 }
-if(typeof _b.allowLocal!="boolean"){
-_b.allowLocal=false;
+if(typeof _a.allowLocal!="boolean"){
+_a.allowLocal=false;
 }
-if(typeof _b.allowPort!="boolean"){
-_b.allowPort=true;
+if(typeof _a.allowPort!="boolean"){
+_a.allowPort=true;
 }
-if(typeof _b.allowNamed!="boolean"){
-_b.allowNamed=false;
+if(typeof _a.allowNamed!="boolean"){
+_a.allowNamed=false;
 }
-var _c="(?:[\\da-zA-Z](?:[-\\da-zA-Z]{0,61}[\\da-zA-Z])?)";
-var _d="(?:[a-zA-Z](?:[-\\da-zA-Z]{0,6}[\\da-zA-Z])?)";
-var _e=_b.allowPort?"(\\:\\d+)?":"";
-var _f="((?:"+_c+"\\.)*"+_d+"\\.?)";
-if(_b.allowIP){
-_f+="|"+dojox.validate.regexp.ipAddress(_b);
+var _b="(?:[\\da-zA-Z](?:[-\\da-zA-Z]{0,61}[\\da-zA-Z])?)";
+var _c="(?:[a-zA-Z](?:[-\\da-zA-Z]{0,6}[\\da-zA-Z])?)";
+var _d=_a.allowPort?"(\\:\\d+)?":"";
+var _e="((?:"+_b+"\\.)*"+_c+"\\.?)";
+if(_a.allowIP){
+_e+="|"+dojox.validate.regexp.ipAddress(_a);
 }
-if(_b.allowLocal){
-_f+="|localhost";
+if(_a.allowLocal){
+_e+="|localhost";
 }
-if(_b.allowNamed){
-_f+="|^[^-][a-zA-Z0-9_-]*";
+if(_a.allowNamed){
+_e+="|^[^-][a-zA-Z0-9_-]*";
 }
-return "("+_f+")"+_e;
-},url:function(_10){
-_10=(typeof _10=="object")?_10:{};
-if(!("scheme" in _10)){
-_10.scheme=[true,false];
+return "("+_e+")"+_d;
+},url:function(_f){
+_f=(typeof _f=="object")?_f:{};
+if(!("scheme" in _f)){
+_f.scheme=[true,false];
 }
-var _11=dojo.regexp.buildGroupRE(_10.scheme,function(q){
+var _10=dojo.regexp.buildGroupRE(_f.scheme,function(q){
 if(q){
 return "(https?|ftps?)\\://";
 }
 return "";
 });
-var _13="(/(?:[^?#\\s/]+/)*(?:[^?#\\s/]+(?:\\?[^?#\\s/]*)?(?:#[A-Za-z][\\w.:-]*)?)?)?";
-return _11+dojox.validate.regexp.host(_10)+_13;
-},emailAddress:function(_14){
-_14=(typeof _14=="object")?_14:{};
-if(typeof _14.allowCruft!="boolean"){
-_14.allowCruft=false;
+var _11="(/(?:[^?#\\s/]+/)*(?:[^?#\\s/]+(?:\\?[^?#\\s/]*)?(?:#[A-Za-z][\\w.:-]*)?)?)?";
+return _10+dojox.validate.regexp.host(_f)+_11;
+},emailAddress:function(_12){
+_12=(typeof _12=="object")?_12:{};
+if(typeof _12.allowCruft!="boolean"){
+_12.allowCruft=false;
 }
-_14.allowPort=false;
-var _15="([\\da-zA-Z]+[-._+&'])*[\\da-zA-Z]+";
-var _16=_15+"@"+dojox.validate.regexp.host(_14);
-if(_14.allowCruft){
-_16="<?(mailto\\:)?"+_16+">?";
+_12.allowPort=false;
+var _13="([\\da-zA-Z]+[-._+&'])*[\\da-zA-Z]+";
+var _14=_13+"@"+dojox.validate.regexp.host(_12);
+if(_12.allowCruft){
+_14="<?(mailto\\:)?"+_14+">?";
 }
-return _16;
-},emailAddressList:function(_17){
-_17=(typeof _17=="object")?_17:{};
-if(typeof _17.listSeparator!="string"){
-_17.listSeparator="\\s;,";
+return _14;
+},emailAddressList:function(_15){
+_15=(typeof _15=="object")?_15:{};
+if(typeof _15.listSeparator!="string"){
+_15.listSeparator="\\s;,";
 }
-var _18=dojox.validate.regexp.emailAddress(_17);
-var _19="("+_18+"\\s*["+_17.listSeparator+"]\\s*)*"+_18+"\\s*["+_17.listSeparator+"]?\\s*";
-return _19;
-},numberFormat:function(_1a){
-_1a=(typeof _1a=="object")?_1a:{};
-if(typeof _1a.format=="undefined"){
-_1a.format="###-###-####";
+var _16=dojox.validate.regexp.emailAddress(_15);
+var _17="("+_16+"\\s*["+_15.listSeparator+"]\\s*)*"+_16+"\\s*["+_15.listSeparator+"]?\\s*";
+return _17;
+},numberFormat:function(_18){
+_18=(typeof _18=="object")?_18:{};
+if(typeof _18.format=="undefined"){
+_18.format="###-###-####";
 }
-var _1b=function(_1c){
-return dojo.regexp.escapeString(_1c,"?").replace(/\?/g,"\\d?").replace(/#/g,"\\d");
+var _19=function(_1a){
+return dojo.regexp.escapeString(_1a,"?").replace(/\?/g,"\\d?").replace(/#/g,"\\d");
 };
-return dojo.regexp.buildGroupRE(_1a.format,_1b);
+return dojo.regexp.buildGroupRE(_18.format,_19);
 }});
 dojox.validate.regexp.ca={postalCode:function(){
 return "([A-Z][0-9][A-Z] [0-9][A-Z][0-9])";
 },province:function(){
 return "(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)";
 }};
-dojox.validate.regexp.us={state:function(_1d){
-_1d=(typeof _1d=="object")?_1d:{};
-if(typeof _1d.allowTerritories!="boolean"){
-_1d.allowTerritories=true;
+dojox.validate.regexp.us={state:function(_1b){
+_1b=(typeof _1b=="object")?_1b:{};
+if(typeof _1b.allowTerritories!="boolean"){
+_1b.allowTerritories=true;
 }
-if(typeof _1d.allowMilitary!="boolean"){
-_1d.allowMilitary=true;
+if(typeof _1b.allowMilitary!="boolean"){
+_1b.allowMilitary=true;
 }
-var _1e="AL|AK|AZ|AR|CA|CO|CT|DE|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|"+"NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY";
-var _1f="AS|FM|GU|MH|MP|PW|PR|VI";
-var _20="AA|AE|AP";
-if(_1d.allowTerritories){
-_1e+="|"+_1f;
+var _1c="AL|AK|AZ|AR|CA|CO|CT|DE|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|"+"NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY";
+var _1d="AS|FM|GU|MH|MP|PW|PR|VI";
+var _1e="AA|AE|AP";
+if(_1b.allowTerritories){
+_1c+="|"+_1d;
 }
-if(_1d.allowMilitary){
-_1e+="|"+_20;
+if(_1b.allowMilitary){
+_1c+="|"+_1e;
 }
-return "("+_1e+")";
+return "("+_1c+")";
 }};
 }

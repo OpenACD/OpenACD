@@ -13,53 +13,53 @@ dojo.require("dojox.gfx.matrix");
 dojo.require("dojo.fx");
 (function(){
 var _1=3,m=dojox.gfx.matrix,gf=dojox.gfx.fx;
-dojo.declare("dojox.charting.action2d.Shake",dojox.charting.action2d.Base,{defaultParams:{duration:400,easing:dojo.fx.easing.backOut,shiftX:_1,shiftY:_1},optionalParams:{},constructor:function(_4,_5,_6){
-if(!_6){
-_6={};
+dojo.declare("dojox.charting.action2d.Shake",dojox.charting.action2d.Base,{defaultParams:{duration:400,easing:dojo.fx.easing.backOut,shiftX:_1,shiftY:_1},optionalParams:{},constructor:function(_2,_3,_4){
+if(!_4){
+_4={};
 }
-this.shiftX=typeof _6.shiftX=="number"?_6.shiftX:_1;
-this.shiftY=typeof _6.shiftY=="number"?_6.shiftY:_1;
+this.shiftX=typeof _4.shiftX=="number"?_4.shiftX:_1;
+this.shiftY=typeof _4.shiftY=="number"?_4.shiftY:_1;
 this.connect();
 },process:function(o){
 if(!o.shape||!(o.type in this.overOutEvents)){
 return;
 }
-var _8=o.run.name,_9=o.index,_a=[],_b,_c=o.type=="onmouseover"?this.shiftX:-this.shiftX,_d=o.type=="onmouseover"?this.shiftY:-this.shiftY;
-if(_8 in this.anim){
-_b=this.anim[_8][_9];
+var _5=o.run.name,_6=o.index,_7=[],_8,_9=o.type=="onmouseover"?this.shiftX:-this.shiftX,_a=o.type=="onmouseover"?this.shiftY:-this.shiftY;
+if(_5 in this.anim){
+_8=this.anim[_5][_6];
 }else{
-this.anim[_8]={};
+this.anim[_5]={};
 }
-if(_b){
-_b.action.stop(true);
+if(_8){
+_8.action.stop(true);
 }else{
-this.anim[_8][_9]=_b={};
+this.anim[_5][_6]=_8={};
 }
-var _e={shape:o.shape,duration:this.duration,easing:this.easing,transform:[{name:"translate",start:[this.shiftX,this.shiftY],end:[0,0]},m.identity]};
+var _b={shape:o.shape,duration:this.duration,easing:this.easing,transform:[{name:"translate",start:[this.shiftX,this.shiftY],end:[0,0]},m.identity]};
 if(o.shape){
-_a.push(gf.animateTransform(_e));
+_7.push(gf.animateTransform(_b));
 }
 if(o.oultine){
-_e.shape=o.outline;
-_a.push(gf.animateTransform(_e));
+_b.shape=o.outline;
+_7.push(gf.animateTransform(_b));
 }
 if(o.shadow){
-_e.shape=o.shadow;
-_a.push(gf.animateTransform(_e));
+_b.shape=o.shadow;
+_7.push(gf.animateTransform(_b));
 }
-if(!_a.length){
-delete this.anim[_8][_9];
+if(!_7.length){
+delete this.anim[_5][_6];
 return;
 }
-_b.action=dojo.fx.combine(_a);
+_8.action=dojo.fx.combine(_7);
 if(o.type=="onmouseout"){
-dojo.connect(_b.action,"onEnd",this,function(){
-if(this.anim[_8]){
-delete this.anim[_8][_9];
+dojo.connect(_8.action,"onEnd",this,function(){
+if(this.anim[_5]){
+delete this.anim[_5][_6];
 }
 });
 }
-_b.action.play();
+_8.action.play();
 }});
 })();
 }

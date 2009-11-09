@@ -30,25 +30,25 @@ this._focusEditor(_2,_3);
 if(this.isEditing()&&!this.isEditRow(e.rowIndex)){
 this.apply();
 }
-},styleRow:function(_5){
-if(_5.index==this.info.rowIndex){
-_5.customClasses+=" dojoxGridRowEditing";
+},styleRow:function(_4){
+if(_4.index==this.info.rowIndex){
+_4.customClasses+=" dojoxGridRowEditing";
 }
 },dispatchEvent:function(e){
 var c=e.cell,ed=(c&&c["editable"])?c:0;
 return ed&&ed.dispatchEvent(e.dispatch,e);
 },isEditing:function(){
 return this.info.rowIndex!==undefined;
-},isEditCell:function(_9,_a){
-return (this.info.rowIndex===_9)&&(this.info.cell.index==_a);
-},isEditRow:function(_b){
-return this.info.rowIndex===_b;
-},setEditCell:function(_c,_d){
-if(!this.isEditCell(_d,_c.index)&&this.grid.canEdit&&this.grid.canEdit(_c,_d)){
-this.start(_c,_d,this.isEditRow(_d)||_c.editable);
+},isEditCell:function(_5,_6){
+return (this.info.rowIndex===_5)&&(this.info.cell.index==_6);
+},isEditRow:function(_7){
+return this.info.rowIndex===_7;
+},setEditCell:function(_8,_9){
+if(!this.isEditCell(_9,_8.index)&&this.grid.canEdit&&this.grid.canEdit(_8,_9)){
+this.start(_8,_9,this.isEditRow(_9)||_8.editable);
 }
-},_focusEditor:function(_e,_f){
-dojox.grid.util.fire(_e,"focus",[_f]);
+},_focusEditor:function(_a,_b){
+dojox.grid.util.fire(_a,"focus",[_b]);
 },focusEditor:function(){
 if(this.isEditing()){
 this._focusEditor(this.info.cell,this.info.rowIndex);
@@ -65,34 +65,36 @@ this._catchBoomerang=0;
 if(dojo.isIE){
 this._catchBoomerang=new Date().getTime()+this._boomerangWindow;
 }
-},start:function(_10,_11,_12){
+},start:function(_c,_d,_e){
 this.grid.beginUpdate();
 this.editorApply();
-if(this.isEditing()&&!this.isEditRow(_11)){
+if(this.isEditing()&&!this.isEditRow(_d)){
 this.applyRowEdit();
-this.grid.updateRow(_11);
+this.grid.updateRow(_d);
 }
-if(_12){
-this.info={cell:_10,rowIndex:_11};
-this.grid.doStartEdit(_10,_11);
-this.grid.updateRow(_11);
+if(_e){
+this.info={cell:_c,rowIndex:_d};
+this.grid.doStartEdit(_c,_d);
+this.grid.updateRow(_d);
 }else{
 this.info={};
 }
 this.grid.endUpdate();
 this.grid.focus.focusGrid();
-this._focusEditor(_10,_11);
+this._focusEditor(_c,_d);
 this._doCatchBoomerang();
-},_editorDo:function(_13){
+},_editorDo:function(_f){
 var c=this.info.cell;
-c&&c.editable&&c[_13](this.info.rowIndex);
+if(c&&c.editable){
+c[_f](this.info.rowIndex);
+}
 },editorApply:function(){
 this._editorDo("apply");
 },editorCancel:function(){
 this._editorDo("cancel");
-},applyCellEdit:function(_15,_16,_17){
-if(this.grid.canEdit(_16,_17)){
-this.grid.doApplyCellEdit(_15,_17,_16.field);
+},applyCellEdit:function(_10,_11,_12){
+if(this.grid.canEdit(_11,_12)){
+this.grid.doApplyCellEdit(_10,_12,_11.field);
 }
 },applyRowEdit:function(){
 this.grid.doApplyEdit(this.info.rowIndex,this.info.cell.field);
@@ -115,14 +117,14 @@ this.grid.endUpdate();
 this.grid.focus.focusGrid();
 this._doCatchBoomerang();
 }
-},save:function(_18,_19){
+},save:function(_13,_14){
 var c=this.info.cell;
-if(this.isEditRow(_18)&&(!_19||c.view==_19)&&c.editable){
+if(this.isEditRow(_13)&&(!_14||c.view==_14)&&c.editable){
 c.save(c,this.info.rowIndex);
 }
-},restore:function(_1b,_1c){
+},restore:function(_15,_16){
 var c=this.info.cell;
-if(this.isEditRow(_1c)&&c.view==_1b&&c.editable){
+if(this.isEditRow(_16)&&c.view==_15&&c.editable){
 c.restore(c,this.info.rowIndex);
 }
 }});

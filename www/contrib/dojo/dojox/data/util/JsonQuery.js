@@ -12,10 +12,11 @@ dojo.declare("dojox.data.util.JsonQuery",null,{useFullIdInQueries:false,_toJsonQ
 var _3=true;
 var _4=this;
 function _5(_6,_7){
-if(_7.__id){
-var _8={};
-_8[_4.idAttribute]=_4.useFullIdInQueries?_7.__id:_7[_4.idAttribute];
-_7=_8;
+var _8=_7.__id;
+if(_8){
+var _9={};
+_9[_4.idAttribute]=_4.useFullIdInQueries?_7.__id:_7[_4.idAttribute];
+_7=_9;
 }
 for(var i in _7){
 var _a=_7[i];
@@ -24,7 +25,7 @@ if(_a&&typeof _a=="object"){
 _5(_b,_a);
 }else{
 if(_a!="*"){
-_c+=(_3?"":"&")+_b+((_1.queryOptions&&_1.queryOptions.ignoreCase)?"~":"=")+dojo.toJson(_a);
+_c+=(_3?"":"&")+_b+((!_8&&typeof _a=="string"&&_1.queryOptions&&_1.queryOptions.ignoreCase)?"~":"=")+dojo.toJson(_a);
 _3=false;
 }
 }
@@ -46,12 +47,12 @@ if(!_1.query||_1.query=="*"){
 _1.query="";
 }
 }
-var _e=_1.sort;
-if(_e){
+var _d=_1.sort;
+if(_d){
 _1.queryStr=_1.queryStr||(typeof _1.query=="string"?_1.query:"");
 _3=true;
-for(i=0;i<_e.length;i++){
-_1.queryStr+=(_3?"[":",")+(_e[i].descending?"\\":"/")+"@["+dojo._escapeString(_e[i].attribute)+"]";
+for(i=0;i<_d.length;i++){
+_1.queryStr+=(_3?"[":",")+(_d[i].descending?"\\":"/")+"@["+dojo._escapeString(_d[i].attribute)+"]";
 _3=false;
 }
 if(!_3){
@@ -68,20 +69,20 @@ return t=="\""?"'":t;
 return _1.queryStr;
 }
 return _1.query;
-},jsonQueryPagination:true,fetch:function(_10){
-this._toJsonQuery(_10,this.jsonQueryPagination);
+},jsonQueryPagination:true,fetch:function(_e){
+this._toJsonQuery(_e,this.jsonQueryPagination);
 return this.inherited(arguments);
 },isUpdateable:function(){
 return true;
-},matchesQuery:function(_11,_12){
-_12._jsonQuery=_12._jsonQuery||dojox.json.query(this._toJsonQuery(_12));
-return _12._jsonQuery([_11]).length;
-},clientSideFetch:function(_13,_14){
-_13._jsonQuery=_13._jsonQuery||dojox.json.query(this._toJsonQuery(_13));
-return this.clientSidePaging(_13,_13._jsonQuery(_14));
-},querySuperSet:function(_15,_16){
-if(!_15.query){
-return _16.query;
+},matchesQuery:function(_f,_10){
+_10._jsonQuery=_10._jsonQuery||dojox.json.query(this._toJsonQuery(_10));
+return _10._jsonQuery([_f]).length;
+},clientSideFetch:function(_11,_12){
+_11._jsonQuery=_11._jsonQuery||dojox.json.query(this._toJsonQuery(_11));
+return this.clientSidePaging(_11,_11._jsonQuery(_12));
+},querySuperSet:function(_13,_14){
+if(!_13.query){
+return _14.query;
 }
 return this.inherited(arguments);
 }});

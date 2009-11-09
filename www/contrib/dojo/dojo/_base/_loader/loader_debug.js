@@ -23,15 +23,15 @@ window.setTimeout(dojo._scopeName+"._xdDebugFileLoaded('"+_1+"')",1);
 return dojo.nonDebugProvide.apply(dojo,arguments);
 };
 dojo._xdDebugFileLoaded=function(_3){
-if(!this._xdDebugScopeChecked){
+if(!dojo._xdDebugScopeChecked){
 if(dojo._scopeName!="dojo"){
 window.dojo=window[dojo.config.scopeMap[0][1]];
 window.dijit=window[dojo.config.scopeMap[1][1]];
 window.dojox=window[dojo.config.scopeMap[2][1]];
 }
-this._xdDebugScopeChecked=true;
+dojo._xdDebugScopeChecked=true;
 }
-var _4=this._xdDebugQueue;
+var _4=dojo._xdDebugQueue;
 if(_3&&_3==_4.currentResourceName){
 _4.shift();
 }
@@ -40,12 +40,12 @@ dojo._xdWatchInFlight();
 }
 if(_4.length==0){
 _4.currentResourceName=null;
-for(var _5 in this._xdInFlight){
-if(this._xdInFlight[_5]===true){
+for(var _5 in dojo._xdInFlight){
+if(dojo._xdInFlight[_5]===true){
 return;
 }
 }
-this._xdNotifyLoaded();
+dojo._xdNotifyLoaded();
 }else{
 if(_3==_4.currentResourceName){
 _4.currentResourceName=_4[0].resourceName;

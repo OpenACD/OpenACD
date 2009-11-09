@@ -11,7 +11,7 @@ dojo.provide("dojox.av.widget.PlayButton");
 dojo.require("dijit._Widget");
 dojo.require("dijit._Templated");
 dojo.require("dijit.form.Button");
-dojo.declare("dojox.av.widget.PlayButton",[dijit._Widget,dijit._Templated],{templateString:"<div class=\"PlayPauseToggle Pause\" dojoAttachEvent=\"click:onClick\">\n    <div class=\"icon\"></div>\n</div>\n",postCreate:function(){
+dojo.declare("dojox.av.widget.PlayButton",[dijit._Widget,dijit._Templated],{templateString:dojo.cache("dojox.av.widget","resources/PlayButton.html","<div class=\"PlayPauseToggle Pause\" dojoAttachEvent=\"click:onClick\">\n    <div class=\"icon\"></div>\n</div>\n"),postCreate:function(){
 this.showPlay();
 },setMedia:function(_1){
 this.media=_1;

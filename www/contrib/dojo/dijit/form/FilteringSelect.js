@@ -22,7 +22,7 @@ this._isvalid=false;
 this.validate(this._focused);
 this.item=null;
 }else{
-this._setValueFromItem(_1[0],_3);
+this.attr("item",_1[0],_3);
 }
 },_openResultList:function(_4,_5){
 if(_5.query[this.searchAttr]!=this._lastQuery){
@@ -35,63 +35,47 @@ dijit.form.ComboBoxMixin.prototype._openResultList.apply(this,arguments);
 return this.valueNode.value;
 },_getValueField:function(){
 return "value";
-},_setValue:function(_6,_7,_8){
-this.valueNode.value=_6;
-dijit.form.FilteringSelect.superclass._setValueAttr.call(this,_6,_8,_7);
-this._lastDisplayedValue=_7;
-},_setValueAttr:function(_9,_a){
+},_setValueAttr:function(_6,_7){
 if(!this._onChangeActive){
-_a=null;
+_7=null;
 }
-this._lastQuery=_9;
-if(_9===null||_9===""){
-this._setDisplayedValueAttr("",_a);
+this._lastQuery=_6;
+if(_6===null||_6===""){
+this._setDisplayedValueAttr("",_7);
 return;
 }
-var _b=this;
-var _c=function(_d,_e){
-if(_d){
-if(_b.store.isItemLoaded(_d)){
-_b._callbackSetLabel([_d],undefined,_e);
-}else{
-_b.store.loadItem({item:_d,onItem:function(_f,_10){
-_b._callbackSetLabel(_f,_10,_e);
+var _8=this;
+this.store.fetchItemByIdentity({identity:_6,onItem:function(_9){
+_8._callbackSetLabel([_9],undefined,_7);
 }});
-}
-}else{
-_b._isvalid=false;
-_b.validate(false);
-}
-};
-this.store.fetchItemByIdentity({identity:_9,onItem:function(_11){
-_c(_11,_a);
-}});
-},_setValueFromItem:function(_12,_13){
+},_setItemAttr:function(_a,_b,_c){
 this._isvalid=true;
-this.item=_12;
-this._setValue(this.store.getIdentity(_12),this.labelFunc(_12,this.store),_13);
-},labelFunc:function(_14,_15){
-return _15.getValue(_14,this.searchAttr);
-},_doSelect:function(tgt){
-this._setValueFromItem(tgt.item,true);
-},_setDisplayedValueAttr:function(_17,_18){
+this.inherited(arguments);
+this.valueNode.value=this.value;
+this._lastDisplayedValue=this.textbox.value;
+},_getDisplayQueryString:function(_d){
+return _d.replace(/([\\\*\?])/g,"\\$1");
+},_setDisplayedValueAttr:function(_e,_f){
 if(!this._created){
-_18=false;
+_f=false;
 }
 if(this.store){
-var _19=dojo.clone(this.query);
-this._lastQuery=_19[this.searchAttr]=_17.replace(/([\\\*\?])/g,"\\$1");
-this.textbox.value=_17;
-this._lastDisplayedValue=_17;
-var _1a=this;
-var _1b={query:_19,queryOptions:{ignoreCase:this.ignoreCase,deep:true},onComplete:function(_1c,_1d){
-dojo.hitch(_1a,"_callbackSetLabel")(_1c,_1d,_18);
-},onError:function(_1e){
-console.error("dijit.form.FilteringSelect: "+_1e);
-dojo.hitch(_1a,"_setValue")("",_17,false);
+this._hideResultList();
+var _10=dojo.clone(this.query);
+this._lastQuery=_10[this.searchAttr]=this._getDisplayQueryString(_e);
+this.textbox.value=_e;
+this._lastDisplayedValue=_e;
+var _11=this;
+var _12={query:_10,queryOptions:{ignoreCase:this.ignoreCase,deep:true},onComplete:function(_13,_14){
+_11._fetchHandle=null;
+dojo.hitch(_11,"_callbackSetLabel")(_13,_14,_f);
+},onError:function(_15){
+_11._fetchHandle=null;
+console.error("dijit.form.FilteringSelect: "+_15);
+dojo.hitch(_11,"_callbackSetLabel")([],undefined,false);
 }};
-dojo.mixin(_1b,this.fetchProperties);
-this.store.fetch(_1b);
+dojo.mixin(_12,this.fetchProperties);
+this._fetchHandle=this.store.fetch(_12);
 }
 },postMixInProperties:function(){
 this.inherited(arguments);

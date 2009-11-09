@@ -30,11 +30,11 @@ return true;
 }
 return false;
 };
-this.copyTo=function(_5,i){
-_5.splice(i,0,q);
+this.copyTo=function(_2,i){
+_2.splice(i,0,q);
 };
-this.forEach=function(fn,_8){
-dojo.forEach(q,fn,_8);
+this.forEach=function(fn,_3){
+dojo.forEach(q,fn,_3);
 };
 this.getIterator=function(){
 return new dojox.collections.Iterator(q);

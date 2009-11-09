@@ -20,7 +20,6 @@ console.profile.apply(console,this.args);
 }
 },after:function(){
 if(!--this.inCall){
-
 }
 }});
 _1.profiler=function(_5){

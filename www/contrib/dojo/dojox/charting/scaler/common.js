@@ -12,45 +12,45 @@ dojo.provide("dojox.charting.scaler.common");
 var eq=function(a,b){
 return Math.abs(a-b)<=0.000001*(Math.abs(a)+Math.abs(b));
 };
-dojo.mixin(dojox.charting.scaler.common,{findString:function(_4,_5){
-_4=_4.toLowerCase();
-for(var i=0;i<_5.length;++i){
-if(_4==_5[i]){
+dojo.mixin(dojox.charting.scaler.common,{findString:function(_1,_2){
+_1=_1.toLowerCase();
+for(var i=0;i<_2.length;++i){
+if(_1==_2[i]){
 return true;
 }
 }
 return false;
-},getNumericLabel:function(_7,_8,_9){
-var _a=_9.fixed?_7.toFixed(_8<0?-_8:0):_7.toString();
-if(_9.labelFunc){
-var r=_9.labelFunc(_a,_7,_8);
+},getNumericLabel:function(_3,_4,_5){
+var _6=_5.fixed?_3.toFixed(_4<0?-_4:0):_3.toString();
+if(_5.labelFunc){
+var r=_5.labelFunc(_6,_3,_4);
 if(r){
 return r;
 }
 }
-if(_9.labels){
-var l=_9.labels,lo=0,hi=l.length;
+if(_5.labels){
+var l=_5.labels,lo=0,hi=l.length;
 while(lo<hi){
-var _f=Math.floor((lo+hi)/2),val=l[_f].value;
-if(val<_7){
-lo=_f+1;
+var _7=Math.floor((lo+hi)/2),_8=l[_7].value;
+if(_8<_3){
+lo=_7+1;
 }else{
-hi=_f;
+hi=_7;
 }
 }
-if(lo<l.length&&eq(l[lo].value,_7)){
+if(lo<l.length&&eq(l[lo].value,_3)){
 return l[lo].text;
 }
 --lo;
-if(lo>=0&&lo<l.length&&eq(l[lo].value,_7)){
+if(lo>=0&&lo<l.length&&eq(l[lo].value,_3)){
 return l[lo].text;
 }
 lo+=2;
-if(lo<l.length&&eq(l[lo].value,_7)){
+if(lo<l.length&&eq(l[lo].value,_3)){
 return l[lo].text;
 }
 }
-return _a;
+return _6;
 }});
 })();
 }

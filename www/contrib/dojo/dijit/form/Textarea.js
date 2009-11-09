@@ -36,7 +36,7 @@ return;
 }
 this._busyResizing=true;
 var _4=this.textbox;
-if(_4.scrollHeight){
+if(_4.scrollHeight&&_4.offsetHeight&&_4.clientHeight){
 var _5=this._getHeight(_4)+"px";
 if(_4.style.height!=_5){
 _4.style.maxHeight=_4.style.height=_5;

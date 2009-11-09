@@ -28,21 +28,21 @@ return this.f()+" "+this.a();
 dojo.mixin(dojox.dtl.utils.date,{format:function(_2,_3){
 var df=new dojox.dtl.utils.date.DateFormat(_3);
 return df.format(_2);
-},timesince:function(d,_6){
+},timesince:function(d,_4){
 if(!(d instanceof Date)){
 d=new Date(d.year,d.month,d.day);
 }
-if(!_6){
-_6=new Date();
+if(!_4){
+_4=new Date();
 }
-var _7=Math.abs(_6.getTime()-d.getTime());
-for(var i=0,_9;_9=dojox.dtl.utils.date._chunks[i];i++){
-var _a=Math.floor(_7/_9[0]);
-if(_a){
+var _5=Math.abs(_4.getTime()-d.getTime());
+for(var i=0,_6;_6=dojox.dtl.utils.date._chunks[i];i++){
+var _7=Math.floor(_5/_6[0]);
+if(_7){
 break;
 }
 }
-return _a+" "+_9[1](_a);
+return _7+" "+_6[1](_7);
 },_chunks:[[60*60*24*365*1000,function(n){
 return (n==1)?"year":"years";
 }],[60*60*24*30*1000,function(n){

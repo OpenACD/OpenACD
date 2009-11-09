@@ -130,15 +130,16 @@ dojo.addOnLoad(function(){
 	var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(data){
 		dijit.byId('queueGroup').store = queues.store;
 		dojo.connect(queues.tree, "onClick", function(item){
+			console.log(item);
 			if(item.type[0] == "queue"){
 				var callback = function(queue){
-					dijit.byId("editQueueForm").setValues(queue);
+					/*dijit.byId("editQueueForm").setValues(queue);*/ /* TODO disabled because it breaks in 1.4 */
 					dijit.byId("queueRecipe").setValue(queue.recipe);
 					dijit.byId("queueGroup").setDisplayedValue(queue.group);
 					dijit.byId("queuesMain").selectChild('queueEditor');
 					
-					var setGroupRecipe = function(item, req){
-						dijit.byId("queueGroupRecipeDisplay").setValue(queues.fromStoreToObj(item[0].recipe));
+					var setGroupRecipe = function(item2, req){
+						dijit.byId("queueGroupRecipeDisplay").setValue(queues.fromStoreToObj(item2[0].recipe));
 					}
 					
 					queues.store.fetch({

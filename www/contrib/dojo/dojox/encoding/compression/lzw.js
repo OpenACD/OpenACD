@@ -27,24 +27,24 @@ this.dict[String.fromCharCode(i)]=i;
 }
 this.width=_1(this.code=this.size);
 this.p="";
-},encode:function(_7,_8){
-var c=String.fromCharCode(_7),p=this.p+c,r=0;
+},encode:function(_2,_3){
+var c=String.fromCharCode(_2),p=this.p+c,r=0;
 if(p in this.dict){
 this.p=p;
 return r;
 }
-_8.putBits(this.dict[this.p],this.width);
+_3.putBits(this.dict[this.p],this.width);
 if((this.code&(this.code+1))==0){
-_8.putBits(this.code++,r=this.width++);
+_3.putBits(this.code++,r=this.width++);
 }
 this.dict[p]=this.code++;
 this.p=c;
 return r+this.width;
-},flush:function(_c){
+},flush:function(_4){
 if(this.p.length==0){
 return 0;
 }
-_c.putBits(this.dict[this.p],this.width);
+_4.putBits(this.dict[this.p],this.width);
 this.p="";
 return this.width;
 }});
@@ -59,8 +59,8 @@ this.codes[i]=String.fromCharCode(i);
 }
 this.width=_1(this.size);
 this.p=-1;
-},decode:function(_f){
-var c=_f.getBits(this.width),v;
+},decode:function(_5){
+var c=_5.getBits(this.width),v;
 if(c<this.codes.length){
 v=this.codes[c];
 if(this.p>=0){

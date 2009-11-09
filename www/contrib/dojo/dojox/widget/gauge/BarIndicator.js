@@ -21,41 +21,41 @@ v=this._gauge.min;
 if(v>this._gauge.max){
 v=this._gauge.max;
 }
-var _2=this._gauge._getPosition(v);
-if(_2==this.dataX){
-_2=this.dataX+1;
+var _1=this._gauge._getPosition(v);
+if(_1==this.dataX){
+_1=this.dataX+1;
 }
 var y=this._gauge.dataY+Math.floor((this._gauge.dataHeight-this.width)/2)+this.offset;
-var _4=[];
-_4[0]=this._gauge.surface.createRect({x:this._gauge.dataX,y:y,width:_2-this._gauge.dataX,height:this.width});
-_4[0].setStroke({color:this.color});
-_4[0].setFill(this.color);
-_4[1]=this._gauge.surface.createLine({x1:this._gauge.dataX,y1:y,x2:_2,y2:y});
-_4[1].setStroke({color:this.highlight});
+var _2=[];
+_2[0]=this._gauge.surface.createRect({x:this._gauge.dataX,y:y,width:_1-this._gauge.dataX,height:this.width});
+_2[0].setStroke({color:this.color});
+_2[0].setFill(this.color);
+_2[1]=this._gauge.surface.createLine({x1:this._gauge.dataX,y1:y,x2:_1,y2:y});
+_2[1].setStroke({color:this.highlight});
 if(this.highlight2){
 y--;
-_4[2]=this._gauge.surface.createLine({x1:this._gauge.dataX,y1:y,x2:_2,y2:y});
-_4[2].setStroke({color:this.highlight2});
+_2[2]=this._gauge.surface.createLine({x1:this._gauge.dataX,y1:y,x2:_1,y2:y});
+_2[2].setStroke({color:this.highlight2});
 }
-return _4;
-},_createShapes:function(_5){
+return _2;
+},_createShapes:function(_3){
 for(var i in this.shapes){
 i=this.shapes[i];
-var _7={};
+var _4={};
 for(var j in i){
-_7[j]=i[j];
+_4[j]=i[j];
 }
 if(i.shape.type=="line"){
-_7.shape.x2=_5+_7.shape.x1;
+_4.shape.x2=_3+_4.shape.x1;
 }else{
 if(i.shape.type=="rect"){
-_7.width=_5;
+_4.width=_3;
 }
 }
-i.setShape(_7);
+i.setShape(_4);
 }
-},_move:function(_9){
-var _a=false;
+},_move:function(_5){
+var _6=false;
 var c;
 var v=this.value;
 if(v<this.min){
@@ -67,13 +67,13 @@ v=this.max;
 c=this._gauge._getPosition(this.currentValue);
 this.currentValue=v;
 v=this._gauge._getPosition(v)-this._gauge.dataX;
-if(_9){
+if(_5){
 this._createShapes(v);
 }else{
 if(c!=v){
-var _d=new dojo._Animation({curve:[c,v],duration:this.duration,easing:this.easing});
-dojo.connect(_d,"onAnimate",dojo.hitch(this,this._createShapes));
-_d.play();
+var _7=new dojo.Animation({curve:[c,v],duration:this.duration,easing:this.easing});
+dojo.connect(_7,"onAnimate",dojo.hitch(this,this._createShapes));
+_7.play();
 }
 }
 }});

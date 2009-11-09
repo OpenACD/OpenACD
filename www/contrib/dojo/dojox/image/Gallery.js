@@ -14,7 +14,7 @@ dojo.require("dijit._Widget");
 dojo.require("dijit._Templated");
 dojo.require("dojox.image.ThumbnailPicker");
 dojo.require("dojox.image.SlideShow");
-dojo.declare("dojox.image.Gallery",[dijit._Widget,dijit._Templated],{imageHeight:375,imageWidth:500,pageSize:dojox.image.SlideShow.prototype.pageSize,autoLoad:true,linkAttr:"link",imageThumbAttr:"imageUrlThumb",imageLargeAttr:"imageUrl",titleAttr:"title",slideshowInterval:3,templateString:"<div dojoAttachPoint=\"outerNode\" class=\"imageGalleryWrapper\">\n\t<div dojoAttachPoint=\"thumbPickerNode\"></div>\n\t<div dojoAttachPoint=\"slideShowNode\"></div>\n</div>\n",postCreate:function(){
+dojo.declare("dojox.image.Gallery",[dijit._Widget,dijit._Templated],{imageHeight:375,imageWidth:500,pageSize:dojox.image.SlideShow.prototype.pageSize,autoLoad:true,linkAttr:"link",imageThumbAttr:"imageUrlThumb",imageLargeAttr:"imageUrl",titleAttr:"title",slideshowInterval:3,templateString:dojo.cache("dojox.image","resources/Gallery.html","<div dojoAttachPoint=\"outerNode\" class=\"imageGalleryWrapper\">\n\t<div dojoAttachPoint=\"thumbPickerNode\"></div>\n\t<div dojoAttachPoint=\"slideShowNode\"></div>\n</div>\n"),postCreate:function(){
 this.widgetid=this.id;
 this.inherited(arguments);
 this.thumbPicker=new dojox.image.ThumbnailPicker({linkAttr:this.linkAttr,imageLargeAttr:this.imageLargeAttr,imageThumbAttr:this.imageThumbAttr,titleAttr:this.titleAttr,useLoadNotifier:true,size:this.imageWidth},this.thumbPickerNode);
@@ -42,18 +42,23 @@ this.thumbPicker.reset();
 },showNextImage:function(_9){
 this.slideShow.showNextImage();
 },toggleSlideshow:function(){
-this.slideShow.toggleSlideshow();
+dojo.deprecated("dojox.widget.Gallery.toggleSlideshow is deprecated.  Use toggleSlideShow instead.","","2.0");
+this.toggleSlideShow();
+},toggleSlideShow:function(){
+this.slideShow.toggleSlideShow();
 },showImage:function(_a,_b){
 this.slideShow.showImage(_a,_b);
+},resize:function(_c){
+this.thumbPicker.resize(_c);
 },_centerChildren:function(){
-var _c=dojo.marginBox(this.thumbPicker.outerNode);
-var _d=dojo.marginBox(this.slideShow.outerNode);
-var _e=(_c.w-_d.w)/2;
-if(_e>0){
-dojo.style(this.slideShow.outerNode,"marginLeft",_e+"px");
+var _d=dojo.marginBox(this.thumbPicker.outerNode);
+var _e=dojo.marginBox(this.slideShow.outerNode);
+var _f=(_d.w-_e.w)/2;
+if(_f>0){
+dojo.style(this.slideShow.outerNode,"marginLeft",_f+"px");
 }else{
-if(_e<0){
-dojo.style(this.thumbPicker.outerNode,"marginLeft",(_e*-1)+"px");
+if(_f<0){
+dojo.style(this.thumbPicker.outerNode,"marginLeft",(_f*-1)+"px");
 }
 }
 }});

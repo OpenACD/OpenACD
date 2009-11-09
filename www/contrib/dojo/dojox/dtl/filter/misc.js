@@ -40,13 +40,13 @@ return _5;
 },_phone2numeric:{a:2,b:2,c:2,d:3,e:3,f:3,g:4,h:4,i:4,j:5,k:5,l:5,m:6,n:6,o:6,p:7,r:7,s:7,t:8,u:8,v:8,w:9,x:9,y:9},phone2numeric:function(_7){
 var dm=dojox.dtl.filter.misc;
 _7=_7+"";
-var _9="";
+var _8="";
 for(var i=0;i<_7.length;i++){
-var _b=_7.charAt(i).toLowerCase();
-(dm._phone2numeric[_b])?_9+=dm._phone2numeric[_b]:_9+=_7.charAt(i);
+var _9=_7.charAt(i).toLowerCase();
+(dm._phone2numeric[_9])?_8+=dm._phone2numeric[_9]:_8+=_7.charAt(i);
 }
-return _9;
-},pprint:function(_c){
-return dojo.toJson(_c);
+return _8;
+},pprint:function(_a){
+return dojo.toJson(_a);
 }});
 }

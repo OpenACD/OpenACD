@@ -1,1 +1,1 @@
-({"set":"설정","text":"설명:","insertImageTitle":"이미지 등록 정보","url":"URL:","createLinkTitle":"링크 등록 정보"})
+({"set":"설정","text":"설명:","insertImageTitle":"이미지 등록 정보","url":"URL:","createLinkTitle":"링크 등록 정보","cancel":"Cancel","newWindow":"New Window ( _blank )","topWindow":"Topmost Window ( _top )","target":"Target:","parentWindow":"Parent Window ( _parent )","currentWindow":"Current Window ( _self )"})

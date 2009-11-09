@@ -42,17 +42,17 @@ delete rq.text;
 }
 _3.query=rq;
 return this.inherited(arguments);
-},_processResults:function(_5,_6){
-if(_5.parse){
-_5.parse.title=dojo.queryToObject(_6.ioArgs.url.split("?")[1]).page;
-_5=[_5.parse];
+},_processResults:function(_4,_5){
+if(_4.parse){
+_4.parse.title=dojo.queryToObject(_5.ioArgs.url.split("?")[1]).page;
+_4=[_4.parse];
 }else{
-if(_5.query&&_5.query.search){
-_5=_5.query.search;
-var _7=this;
-for(var i in _5){
-_5[i]._loadObject=function(_9){
-_7.fetch({query:{action:"parse",title:this.title},onItem:_9});
+if(_4.query&&_4.query.search){
+_4=_4.query.search;
+var _6=this;
+for(var i in _4){
+_4[i]._loadObject=function(_7){
+_6.fetch({query:{action:"parse",title:this.title},onItem:_7});
 delete this._loadObject;
 };
 }

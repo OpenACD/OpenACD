@@ -44,18 +44,18 @@ _8.sort(dojo.data.util.sorter.createSortFunction(_9.sort,_2));
 }
 if(_9.onItem){
 for(var i=_c;(i<_8.length)&&(i<_d);++i){
-var _10=_8[i];
+var _f=_8[i];
 if(!_b){
-_9.onItem.call(_e,_10,_9);
+_9.onItem.call(_e,_f,_9);
 }
 }
 }
 if(_9.onComplete&&!_b){
-var _11=null;
+var _10=null;
 if(!_9.onItem){
-_11=_8.slice(_c,_d);
+_10=_8.slice(_c,_d);
 }
-_9.onComplete.call(_e,_11,_9);
+_9.onComplete.call(_e,_10,_9);
 }
 };
 this._fetchItems(_1,_7,_3);

@@ -11,37 +11,37 @@ dojo.provide("dojox.lang.aspect.memoizer");
 (function(){
 var _1=dojox.lang.aspect;
 var _2={around:function(_3){
-var _4=_1.getContext(),_5=_4.joinPoint,_6=_4.instance,t,u,_9;
+var _4=_1.getContext(),_5=_4.joinPoint,_6=_4.instance,t,u,_7;
 if((t=_6.__memoizerCache)&&(t=t[_5.targetName])&&(_3 in t)){
 return t[_3];
 }
-var _9=_1.proceed.apply(null,arguments);
+var _7=_1.proceed.apply(null,arguments);
 if(!(t=_6.__memoizerCache)){
 t=_6.__memoizerCache={};
 }
 if(!(u=t[_5.targetName])){
 u=t[_5.targetName]={};
 }
-return u[_3]=_9;
+return u[_3]=_7;
 }};
-var _a=function(_b){
+var _8=function(_9){
 return {around:function(){
-var _c=_1.getContext(),_d=_c.joinPoint,_e=_c.instance,t,u,ret,key=_b.apply(_e,arguments);
-if((t=_e.__memoizerCache)&&(t=t[_d.targetName])&&(key in t)){
-return t[key];
+var _a=_1.getContext(),_b=_a.joinPoint,_c=_a.instance,t,u,_d,_e=_9.apply(_c,arguments);
+if((t=_c.__memoizerCache)&&(t=t[_b.targetName])&&(_e in t)){
+return t[_e];
 }
-var ret=_1.proceed.apply(null,arguments);
-if(!(t=_e.__memoizerCache)){
-t=_e.__memoizerCache={};
+var _d=_1.proceed.apply(null,arguments);
+if(!(t=_c.__memoizerCache)){
+t=_c.__memoizerCache={};
 }
-if(!(u=t[_d.targetName])){
-u=t[_d.targetName]={};
+if(!(u=t[_b.targetName])){
+u=t[_b.targetName]={};
 }
-return u[key]=ret;
+return u[_e]=_d;
 }};
 };
-_1.memoizer=function(_13){
-return arguments.length==0?_2:_a(_13);
+_1.memoizer=function(_f){
+return arguments.length==0?_2:_8(_f);
 };
 })();
 }

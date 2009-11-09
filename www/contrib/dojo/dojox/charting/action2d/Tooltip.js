@@ -19,11 +19,14 @@ var t=o.run&&o.run.data&&o.run.data[o.index];
 if(t&&typeof t=="object"&&t.tooltip){
 return t.tooltip;
 }
+if(o.element=="candlestick"){
+return "<table cellpadding=\"1\" cellspacing=\"0\" border=\"0\" style=\"font-size:0.9em;\">"+"<tr><td>Open:</td><td align=\"right\"><strong>"+o.data.open+"</strong></td></tr>"+"<tr><td>High:</td><td align=\"right\"><strong>"+o.data.high+"</strong></td></tr>"+"<tr><td>Low:</td><td align=\"right\"><strong>"+o.data.low+"</strong></td></tr>"+"<tr><td>Close:</td><td align=\"right\"><strong>"+o.data.close+"</strong></td></tr>"+(o.data.mid!==undefined?"<tr><td>Mid:</td><td align=\"right\"><strong>"+o.data.mid+"</strong></td></tr>":"")+"</table>";
+}
 return o.element=="bar"?o.x:o.y;
 };
-var df=dojox.lang.functional,_5=Math.PI/4,_6=Math.PI/2;
-dojo.declare("dojox.charting.action2d.Tooltip",dojox.charting.action2d.Base,{defaultParams:{text:_1},optionalParams:{},constructor:function(_7,_8,_9){
-this.text=_9&&_9.text?_9.text:_1;
+var df=dojox.lang.functional,_2=Math.PI/4,_3=Math.PI/2;
+dojo.declare("dojox.charting.action2d.Tooltip",dojox.charting.action2d.Base,{defaultParams:{text:_1},optionalParams:{},constructor:function(_4,_5,_6){
+this.text=_6&&_6.text?_6.text:_1;
 this.connect();
 },process:function(o){
 if(o.type==="onplotreset"||o.type==="onmouseout"){
@@ -34,22 +37,28 @@ return;
 if(!o.shape||o.type!=="onmouseover"){
 return;
 }
-var _b={type:"rect"},_c=["after","before"];
+var _7={type:"rect"},_8=["after","before"];
 switch(o.element){
 case "marker":
-_b.x=o.cx;
-_b.y=o.cy;
-_b.width=_b.height=1;
+_7.x=o.cx;
+_7.y=o.cy;
+_7.width=_7.height=1;
 break;
 case "circle":
-_b.x=o.cx-o.cr;
-_b.y=o.cy-o.cr;
-_b.width=_b.height=2*o.cr;
+_7.x=o.cx-o.cr;
+_7.y=o.cy-o.cr;
+_7.width=_7.height=2*o.cr;
 break;
 case "column":
-_c=["above","below"];
+_8=["above","below"];
 case "bar":
-_b=dojo.clone(o.shape.getShape());
+_7=dojo.clone(o.shape.getShape());
+break;
+case "candlestick":
+_7.x=o.x;
+_7.y=o.y;
+_7.width=o.width;
+_7.height=o.height;
 break;
 default:
 if(!this.angles){
@@ -59,20 +68,20 @@ this.angles=df.map(df.scanl(o.run.data,"+",0),"* 2 * Math.PI / this",df.foldl(o.
 this.angles=df.map(df.scanl(o.run.data,"a + b.y",0),"* 2 * Math.PI / this",df.foldl(o.run.data,"a + b.y",0));
 }
 }
-var _d=(this.angles[o.index]+this.angles[o.index+1])/2;
-_b.x=o.cx+o.cr*Math.cos(_d);
-_b.y=o.cy+o.cr*Math.sin(_d);
-_b.width=_b.height=1;
-if(_d<_5){
+var _9=(this.angles[o.index]+this.angles[o.index+1])/2;
+_7.x=o.cx+o.cr*Math.cos(_9);
+_7.y=o.cy+o.cr*Math.sin(_9);
+_7.width=_7.height=1;
+if(_9<_2){
 }else{
-if(_d<_6+_5){
-_c=["below","above"];
+if(_9<_3+_2){
+_8=["below","above"];
 }else{
-if(_d<Math.PI+_5){
-_c=["before","after"];
+if(_9<Math.PI+_2){
+_8=["before","after"];
 }else{
-if(_d<2*Math.PI-_5){
-_c=["above","below"];
+if(_9<2*Math.PI-_2){
+_8=["above","below"];
 }
 }
 }
@@ -80,14 +89,14 @@ _c=["above","below"];
 break;
 }
 var lt=dojo.coords(this.chart.node,true);
-_b.x+=lt.x;
-_b.y+=lt.y;
-_b.x=Math.round(_b.x);
-_b.y=Math.round(_b.y);
-_b.width=Math.ceil(_b.width);
-_b.height=Math.ceil(_b.height);
-this.aroundRect=_b;
-dijit.showTooltip(this.text(o),this.aroundRect,_c);
+_7.x+=lt.x;
+_7.y+=lt.y;
+_7.x=Math.round(_7.x);
+_7.y=Math.round(_7.y);
+_7.width=Math.ceil(_7.width);
+_7.height=Math.ceil(_7.height);
+this.aroundRect=_7;
+dijit.showTooltip(this.text(o),this.aroundRect,_8);
 }});
 })();
 }

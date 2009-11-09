@@ -7,6 +7,7 @@
 
 if(!dojo._hasResource["dojox.analytics.plugins.idle"]){
 dojo._hasResource["dojox.analytics.plugins.idle"]=true;
+dojo.require("dojox.analytics._base");
 dojo.provide("dojox.analytics.plugins.idle");
 dojox.analytics.plugins.idle=new (function(){
 this.addData=dojo.hitch(dojox.analytics,"addData","idle");

@@ -14,133 +14,133 @@ dojo.require("dojox.lang.functional");
 dojo.require("dojox.lang.functional.sequence");
 dojo.require("dojox.lang.functional.reversed");
 (function(){
-var df=dojox.lang.functional,dc=dojox.charting.plot2d.common,_3=df.lambda("item.purgeGroup()");
-dojo.declare("dojox.charting.plot2d.Stacked",dojox.charting.plot2d.Default,{calculateAxes:function(_4){
-var _5=dc.collectStackedStats(this.series);
-this._maxRunLength=_5.hmax;
-this._calc(_4,_5);
+var df=dojox.lang.functional,dc=dojox.charting.plot2d.common,_1=df.lambda("item.purgeGroup()");
+dojo.declare("dojox.charting.plot2d.Stacked",dojox.charting.plot2d.Default,{calculateAxes:function(_2){
+var _3=dc.collectStackedStats(this.series);
+this._maxRunLength=_3.hmax;
+this._calc(_2,_3);
 return this;
-},render:function(_6,_7){
+},render:function(_4,_5){
 if(this._maxRunLength<=0){
 return this;
 }
-var _8=df.repeat(this._maxRunLength,"-> 0",0);
+var _6=df.repeat(this._maxRunLength,"-> 0",0);
 for(var i=0;i<this.series.length;++i){
-var _a=this.series[i];
-for(var j=0;j<_a.data.length;++j){
-var v=_a.data[j];
+var _7=this.series[i];
+for(var j=0;j<_7.data.length;++j){
+var v=_7.data[j];
 if(isNaN(v)){
 v=0;
 }
-_8[j]+=v;
+_6[j]+=v;
 }
 }
 this.dirty=this.isDirty();
 if(this.dirty){
-dojo.forEach(this.series,_3);
+dojo.forEach(this.series,_1);
 this.cleanGroup();
 var s=this.group;
-df.forEachRev(this.series,function(_e){
-_e.cleanGroup(s);
+df.forEachRev(this.series,function(_8){
+_8.cleanGroup(s);
 });
 }
-var t=this.chart.theme,_10,_11,_12,_13,_14=this.events(),ht=this._hScaler.scaler.getTransformerFromModel(this._hScaler),vt=this._vScaler.scaler.getTransformerFromModel(this._vScaler);
+var t=this.chart.theme,_9,_a,_b,_c,_d=this.events(),ht=this._hScaler.scaler.getTransformerFromModel(this._hScaler),vt=this._vScaler.scaler.getTransformerFromModel(this._vScaler);
 this.resetEvents();
 for(var i=this.series.length-1;i>=0;--i){
-var _a=this.series[i];
-if(!this.dirty&&!_a.dirty){
+var _7=this.series[i];
+if(!this.dirty&&!_7.dirty){
 continue;
 }
-_a.cleanGroup();
-var s=_a.group,_17=dojo.map(_8,function(v,i){
-return {x:ht(i+1)+_7.l,y:_6.height-_7.b-vt(v)};
+_7.cleanGroup();
+var s=_7.group,_e=dojo.map(_6,function(v,i){
+return {x:ht(i+1)+_5.l,y:_4.height-_5.b-vt(v)};
 },this);
-if(!_a.fill||!_a.stroke){
-_12=new dojo.Color(t.next("color"));
+if(!_7.fill||!_7.stroke){
+_b=new dojo.Color(t.next("color"));
 }
-var _1a=this.opt.tension?dc.curve(_17,this.opt.tension):"";
+var _f=this.opt.tension?dc.curve(_e,this.opt.tension):"";
 if(this.opt.areas){
-var _1b=dojo.clone(_17);
-var _1c=_a.fill?_a.fill:dc.augmentFill(t.series.fill,_12);
+var _10=dojo.clone(_e);
+var _11=_7.fill?_7.fill:dc.augmentFill(t.series.fill,_b);
 if(this.opt.tension){
-var p=dc.curve(_1b,this.opt.tension);
-p+=" L"+_17[_17.length-1].x+","+(_6.height-_7.b)+" L"+_17[0].x+","+(_6.height-_7.b)+" L"+_17[0].x+","+_17[0].y;
-_a.dyn.fill=s.createPath(p).setFill(_1c).getFill();
+var p=dc.curve(_10,this.opt.tension);
+p+=" L"+_e[_e.length-1].x+","+(_4.height-_5.b)+" L"+_e[0].x+","+(_4.height-_5.b)+" L"+_e[0].x+","+_e[0].y;
+_7.dyn.fill=s.createPath(p).setFill(_11).getFill();
 }else{
-_1b.push({x:_17[_17.length-1].x,y:_6.height-_7.b});
-_1b.push({x:_17[0].x,y:_6.height-_7.b});
-_1b.push(_17[0]);
-_a.dyn.fill=s.createPolyline(_1b).setFill(_1c).getFill();
+_10.push({x:_e[_e.length-1].x,y:_4.height-_5.b});
+_10.push({x:_e[0].x,y:_4.height-_5.b});
+_10.push(_e[0]);
+_7.dyn.fill=s.createPolyline(_10).setFill(_11).getFill();
 }
 }
 if(this.opt.lines||this.opt.markers){
-_10=_a.stroke?dc.makeStroke(_a.stroke):dc.augmentStroke(t.series.stroke,_12);
-if(_a.outline||t.series.outline){
-_11=dc.makeStroke(_a.outline?_a.outline:t.series.outline);
-_11.width=2*_11.width+_10.width;
+_9=_7.stroke?dc.makeStroke(_7.stroke):dc.augmentStroke(t.series.stroke,_b);
+if(_7.outline||t.series.outline){
+_a=dc.makeStroke(_7.outline?_7.outline:t.series.outline);
+_a.width=2*_a.width+_9.width;
 }
 }
 if(this.opt.markers){
-_13=_a.dyn.marker=_a.marker?_a.marker:t.next("marker");
+_c=_7.dyn.marker=_7.marker?_7.marker:t.next("marker");
 }
-var _1e,_1f,_20;
-if(this.opt.shadows&&_10){
-var sh=this.opt.shadows,_22=new dojo.Color([0,0,0,0.3]),_23=dojo.map(_17,function(c){
+var _12,_13,_14;
+if(this.opt.shadows&&_9){
+var sh=this.opt.shadows,_15=new dojo.Color([0,0,0,0.3]),_16=dojo.map(_e,function(c){
 return {x:c.x+sh.dx,y:c.y+sh.dy};
-}),_25=dojo.clone(_11?_11:_10);
-_25.color=_22;
-_25.width+=sh.dw?sh.dw:0;
+}),_17=dojo.clone(_a?_a:_9);
+_17.color=_15;
+_17.width+=sh.dw?sh.dw:0;
 if(this.opt.lines){
 if(this.opt.tension){
-_a.dyn.shadow=s.createPath(dc.curve(_23,this.opt.tension)).setStroke(_25).getStroke();
+_7.dyn.shadow=s.createPath(dc.curve(_16,this.opt.tension)).setStroke(_17).getStroke();
 }else{
-_a.dyn.shadow=s.createPolyline(_23).setStroke(_25).getStroke();
+_7.dyn.shadow=s.createPolyline(_16).setStroke(_17).getStroke();
 }
 }
 if(this.opt.markers){
-_20=dojo.map(_23,function(c){
-return s.createPath("M"+c.x+" "+c.y+" "+_13).setStroke(_25).setFill(_22);
+_14=dojo.map(_16,function(c){
+return s.createPath("M"+c.x+" "+c.y+" "+_c).setStroke(_17).setFill(_15);
 },this);
 }
 }
 if(this.opt.lines){
-if(_11){
+if(_a){
 if(this.opt.tension){
-_a.dyn.outline=s.createPath(_1a).setStroke(_11).getStroke();
+_7.dyn.outline=s.createPath(_f).setStroke(_a).getStroke();
 }else{
-_a.dyn.outline=s.createPolyline(_17).setStroke(_11).getStroke();
+_7.dyn.outline=s.createPolyline(_e).setStroke(_a).getStroke();
 }
 }
 if(this.opt.tension){
-_a.dyn.stroke=s.createPath(_1a).setStroke(_10).getStroke();
+_7.dyn.stroke=s.createPath(_f).setStroke(_9).getStroke();
 }else{
-_a.dyn.stroke=s.createPolyline(_17).setStroke(_10).getStroke();
+_7.dyn.stroke=s.createPolyline(_e).setStroke(_9).getStroke();
 }
 }
 if(this.opt.markers){
-_1e=new Array(_17.length);
-_1f=new Array(_17.length);
-dojo.forEach(_17,function(c,i){
-var _29="M"+c.x+" "+c.y+" "+_13;
-if(_11){
-_1f[i]=s.createPath(_29).setStroke(_11);
+_12=new Array(_e.length);
+_13=new Array(_e.length);
+dojo.forEach(_e,function(c,i){
+var _18="M"+c.x+" "+c.y+" "+_c;
+if(_a){
+_13[i]=s.createPath(_18).setStroke(_a);
 }
-_1e[i]=s.createPath(_29).setStroke(_10).setFill(_10.color);
+_12[i]=s.createPath(_18).setStroke(_9).setFill(_9.color);
 },this);
-if(_14){
-dojo.forEach(_1e,function(s,i){
-var o={element:"marker",index:i,run:_a,plot:this,hAxis:this.hAxis||null,vAxis:this.vAxis||null,shape:s,outline:_1f[i]||null,shadow:_20&&_20[i]||null,cx:_17[i].x,cy:_17[i].y,x:i+1,y:_a.data[i]};
+if(_d){
+dojo.forEach(_12,function(s,i){
+var o={element:"marker",index:i,run:_7,plot:this,hAxis:this.hAxis||null,vAxis:this.vAxis||null,shape:s,outline:_13[i]||null,shadow:_14&&_14[i]||null,cx:_e[i].x,cy:_e[i].y,x:i+1,y:_7.data[i]};
 this._connectEvents(s,o);
 },this);
 }
 }
-_a.dirty=false;
-for(var j=0;j<_a.data.length;++j){
-var v=_a.data[j];
+_7.dirty=false;
+for(var j=0;j<_7.data.length;++j){
+var v=_7.data[j];
 if(isNaN(v)){
 v=0;
 }
-_8[j]-=v;
+_6[j]-=v;
 }
 }
 this.dirty=false;

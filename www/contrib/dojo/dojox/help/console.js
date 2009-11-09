@@ -14,72 +14,62 @@ return _1.replace(/(<[^>]*>|&[^;]{2,6};)/g,"");
 },_displayLocated:function(_2){
 var _3={};
 dojo.forEach(_2,function(_4){
-_3[_4[0]]=(+dojo.isFF)?{toString:function(){
+_3[_4[0]]=dojo.isMoz?{toString:function(){
 return "Click to view";
 },item:_4[1]}:_4[1];
 });
-
 },_displayHelp:function(_5,_6){
 if(_5){
 var _7="Help for: "+_6.name;
-
 var _8="";
 for(var i=0;i<_7.length;i++){
 _8+="=";
 }
-
 }else{
 if(!_6){
-
 }else{
-var _a=false;
-for(var _b in _6){
-var _c=_6[_b];
-if(_b=="returns"&&_6.type!="Function"&&_6.type!="Constructor"){
+var _9=false;
+for(var _a in _6){
+var _b=_6[_a];
+if(_a=="returns"&&_6.type!="Function"&&_6.type!="Constructor"){
 continue;
 }
-if(_c&&(!dojo.isArray(_c)||_c.length)){
-_a=true;
-
-_c=dojo.isString(_c)?dojox.help._plainText(_c):_c;
-if(_b=="returns"){
-var _d=dojo.map(_c.types||[],"return item.title;").join("|");
-if(_c.summary){
-if(_d){
-_d+=": ";
+if(_b&&(!dojo.isArray(_b)||_b.length)){
+_9=true;
+_b=dojo.isString(_b)?dojox.help._plainText(_b):_b;
+if(_a=="returns"){
+var _c=dojo.map(_b.types||[],"return item.title;").join("|");
+if(_b.summary){
+if(_c){
+_c+=": ";
 }
-_d+=dojox.help._plainText(_c.summary);
+_c+=dojox.help._plainText(_b.summary);
 }
-
 }else{
-if(_b=="parameters"){
-for(var j=0,_f;_f=_c[j];j++){
-var _10=dojo.map(_f.types,"return item.title").join("|");
-
-var _11="";
-if(_f.optional){
-_11+="Optional. ";
+if(_a=="parameters"){
+for(var j=0,_d;_d=_b[j];j++){
+var _e=dojo.map(_d.types,"return item.title").join("|");
+var _f="";
+if(_d.optional){
+_f+="Optional. ";
 }
-if(_f.repating){
-_11+="Repeating. ";
+if(_d.repating){
+_f+="Repeating. ";
 }
-_11+=dojox.help._plainText(_f.summary);
-if(_11){
-_11="  - "+_11;
-for(var k=0;k<_f.name.length;k++){
-_11=" "+_11;
+_f+=dojox.help._plainText(_d.summary);
+if(_f){
+_f="  - "+_f;
+for(var k=0;k<_d.name.length;k++){
+_f=" "+_f;
 }
-
 }
 }
 }else{
-
 }
 }
 }
 }
-if(!_a){
-
+if(!_9){
 }
 }
 }

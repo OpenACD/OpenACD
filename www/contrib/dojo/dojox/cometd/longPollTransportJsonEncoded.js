@@ -87,20 +87,20 @@ _e[i].clientId=this._cometd.clientId;
 _e[i].id=""+this._cometd.messageId++;
 _e[i]=this._cometd._extendOut(_e[i]);
 }
-return dojo.rawXhrPost({url:this._cometd.url||dojo.config["cometdRoot"],handleAs:this._cometd.handleAs,load:dojo.hitch(this._cometd,"deliver"),postData:dojo.toJson(_e),contentType:"text/json;charset=UTF-8",error:dojo.hitch(this,function(err){
+return dojo.rawXhrPost({url:this._cometd.url||dojo.config["cometdRoot"],handleAs:this._cometd.handleAs,load:dojo.hitch(this._cometd,"deliver"),postData:dojo.toJson(_e),contentType:"text/json;charset=UTF-8",error:dojo.hitch(this,function(_f){
 this._cometd._publishMeta("publish",false,{messages:_e});
 }),timeout:this._cometd.expectedNetworkDelay});
 };
-this.startup=function(_11){
+this.startup=function(_10){
 if(this._cometd._status=="connected"){
 return;
 }
 this.tunnelInit();
 };
 this.disconnect=function(){
-var _12={channel:"/meta/disconnect",clientId:this._cometd.clientId,id:""+this._cometd.messageId++};
-_12=this._cometd._extendOut(_12);
-dojo.rawXhrPost({url:this._cometd.url||dojo.config["cometdRoot"],handleAs:this._cometd.handleAs,postData:dojo.toJson([_12]),contentType:"text/json;charset=UTF-8"});
+var _11={channel:"/meta/disconnect",clientId:this._cometd.clientId,id:""+this._cometd.messageId++};
+_11=this._cometd._extendOut(_11);
+dojo.rawXhrPost({url:this._cometd.url||dojo.config["cometdRoot"],handleAs:this._cometd.handleAs,postData:dojo.toJson([_11]),contentType:"text/json;charset=UTF-8"});
 };
 this.cancelConnect=function(){
 if(this._poll){

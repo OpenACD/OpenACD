@@ -28,7 +28,6 @@ _2.createDirectory();
 this.initialized=true;
 }
 catch(e){
-
 }
 dojox.storage.manager.loaded();
 },isAvailable:function(){
@@ -54,7 +53,6 @@ _9.writeObject(_4);
 _9.close();
 }
 catch(e){
-
 _5(this.FAILED,_3,e.toString(),_6);
 return;
 }
@@ -78,86 +76,85 @@ return _c;
 },getNamespaces:function(){
 var _f=[this.DEFAULT_NAMESPACE];
 var dir=_1.File.applicationStorageDirectory.resolvePath(this._storagePath);
-var _11=dir.getDirectoryListing(),i;
-for(i=0;i<_11.length;i++){
-if(_11[i].isDirectory&&_11[i].name!=this.DEFAULT_NAMESPACE){
-_f.push(_11[i].name);
+var _10=dir.getDirectoryListing(),i;
+for(i=0;i<_10.length;i++){
+if(_10[i].isDirectory&&_10[i].name!=this.DEFAULT_NAMESPACE){
+_f.push(_10[i].name);
 }
 }
 return _f;
-},getKeys:function(_13){
-_13=_13||this.DEFAULT_NAMESPACE;
-if(this.isValidKey(_13)==false){
-throw new Error("Invalid namespace given: "+_13);
+},getKeys:function(_11){
+_11=_11||this.DEFAULT_NAMESPACE;
+if(this.isValidKey(_11)==false){
+throw new Error("Invalid namespace given: "+_11);
 }
-var _14=[];
-var dir=_1.File.applicationStorageDirectory.resolvePath(this._storagePath+_13);
+var _12=[];
+var dir=_1.File.applicationStorageDirectory.resolvePath(this._storagePath+_11);
 if(dir.exists&&dir.isDirectory){
-var _16=dir.getDirectoryListing(),i;
-for(i=0;i<_16.length;i++){
-_14.push(_16[i].name);
+var _13=dir.getDirectoryListing(),i;
+for(i=0;i<_13.length;i++){
+_12.push(_13[i].name);
 }
 }
-return _14;
-},clear:function(_18){
-if(this.isValidKey(_18)==false){
-throw new Error("Invalid namespace given: "+_18);
+return _12;
+},clear:function(_14){
+if(this.isValidKey(_14)==false){
+throw new Error("Invalid namespace given: "+_14);
 }
-var dir=_1.File.applicationStorageDirectory.resolvePath(this._storagePath+_18);
+var dir=_1.File.applicationStorageDirectory.resolvePath(this._storagePath+_14);
 if(dir.exists&&dir.isDirectory){
 dir.deleteDirectory(true);
 }
-},remove:function(key,_1b){
-_1b=_1b||this.DEFAULT_NAMESPACE;
-var _1c=_1.File.applicationStorageDirectory.resolvePath(this._storagePath+_1b+"/"+key);
-if(_1c.exists&&!_1c.isDirectory){
-_1c.deleteFile();
+},remove:function(key,_15){
+_15=_15||this.DEFAULT_NAMESPACE;
+var _16=_1.File.applicationStorageDirectory.resolvePath(this._storagePath+_15+"/"+key);
+if(_16.exists&&!_16.isDirectory){
+_16.deleteFile();
 }
-},putMultiple:function(_1d,_1e,_1f,_20){
-if(this.isValidKeyArray(_1d)===false||!_1e instanceof Array||_1d.length!=_1e.length){
-throw new Error("Invalid arguments: keys = ["+_1d+"], values = ["+_1e+"]");
+},putMultiple:function(_17,_18,_19,_1a){
+if(this.isValidKeyArray(_17)===false||!_18 instanceof Array||_17.length!=_18.length){
+throw new Error("Invalid arguments: keys = ["+_17+"], values = ["+_18+"]");
 }
-if(_20==null||typeof _20=="undefined"){
-_20=this.DEFAULT_NAMESPACE;
+if(_1a==null||typeof _1a=="undefined"){
+_1a=this.DEFAULT_NAMESPACE;
 }
-if(this.isValidKey(_20)==false){
-throw new Error("Invalid namespace given: "+_20);
+if(this.isValidKey(_1a)==false){
+throw new Error("Invalid namespace given: "+_1a);
 }
-this._statusHandler=_1f;
+this._statusHandler=_19;
 try{
-for(var i=0;i<_1d.length;i++){
-this.put(_1d[i],_1e[i],null,_20);
+for(var i=0;i<_17.length;i++){
+this.put(_17[i],_18[i],null,_1a);
 }
 }
 catch(e){
-
-if(_1f){
-_1f(this.FAILED,_1d,e.toString(),_20);
+if(_19){
+_19(this.FAILED,_17,e.toString(),_1a);
 }
 return;
 }
-if(_1f){
-_1f(this.SUCCESS,_1d,null,_20);
+if(_19){
+_19(this.SUCCESS,_17,null,_1a);
 }
-},getMultiple:function(_22,_23){
-if(this.isValidKeyArray(_22)===false){
-throw new Error("Invalid key array given: "+_22);
+},getMultiple:function(_1b,_1c){
+if(this.isValidKeyArray(_1b)===false){
+throw new Error("Invalid key array given: "+_1b);
 }
-if(_23==null||typeof _23=="undefined"){
-_23=this.DEFAULT_NAMESPACE;
+if(_1c==null||typeof _1c=="undefined"){
+_1c=this.DEFAULT_NAMESPACE;
 }
-if(this.isValidKey(_23)==false){
-throw new Error("Invalid namespace given: "+_23);
+if(this.isValidKey(_1c)==false){
+throw new Error("Invalid namespace given: "+_1c);
 }
-var _24=[];
-for(var i=0;i<_22.length;i++){
-_24[i]=this.get(_22[i],_23);
+var _1d=[];
+for(var i=0;i<_1b.length;i++){
+_1d[i]=this.get(_1b[i],_1c);
 }
-return _24;
-},removeMultiple:function(_26,_27){
-_27=_27||this.DEFAULT_NAMESPACE;
-for(var i=0;i<_26.length;i++){
-this.remove(_26[i],_27);
+return _1d;
+},removeMultiple:function(_1e,_1f){
+_1f=_1f||this.DEFAULT_NAMESPACE;
+for(var i=0;i<_1e.length;i++){
+this.remove(_1e[i],_1f);
 }
 },isPermanent:function(){
 return true;

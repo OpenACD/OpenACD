@@ -1,1 +1,1 @@
-({"set":"הגדרה","text":"תיאור:","insertImageTitle":"תכונות תמונה","url":"URL:‏","createLinkTitle":"תכונות קישור"})
+({"set":"הגדרה","text":"תיאור:","insertImageTitle":"תכונות תמונה","url":"URL:‏","createLinkTitle":"תכונות קישור","cancel":"Cancel","newWindow":"New Window ( _blank )","topWindow":"Topmost Window ( _top )","target":"Target:","parentWindow":"Parent Window ( _parent )","currentWindow":"Current Window ( _self )"})

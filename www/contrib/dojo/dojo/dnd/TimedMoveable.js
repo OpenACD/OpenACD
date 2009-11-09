@@ -29,10 +29,10 @@ dojo.dnd.Moveable.prototype.onMoveStop.apply(this,arguments);
 },onMove:function(_7,_8){
 _7._leftTop=_8;
 if(!_7._timer){
-var _t=this;
+var _9=this;
 _7._timer=setTimeout(function(){
 _7._timer=null;
-_1.call(_t,_7,_7._leftTop);
+_1.call(_9,_7,_7._leftTop);
 },this.timeout);
 }
 }});

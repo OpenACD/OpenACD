@@ -173,129 +173,128 @@ evt.stopPropagation();
 if(!dojox.off.sync.details.length){
 return;
 }
-var _19="";
-_19+="<html><head><title>Sync Details</title><head><body>";
-_19+="<h1>Sync Details</h1>\n";
-_19+="<ul>\n";
+var _18="";
+_18+="<html><head><title>Sync Details</title><head><body>";
+_18+="<h1>Sync Details</h1>\n";
+_18+="<ul>\n";
 for(var i=0;i<dojox.off.sync.details.length;i++){
-_19+="<li>";
-_19+=dojox.off.sync.details[i];
-_19+="</li>";
+_18+="<li>";
+_18+=dojox.off.sync.details[i];
+_18+="</li>";
 }
-_19+="</ul>\n";
-_19+="<a href='javascript:window.close()' "+"style='text-align: right; padding-right: 2em;'>"+"Close Window"+"</a>\n";
-_19+="</body></html>";
-var _1b="height=400,width=600,resizable=true,"+"scrollbars=true,toolbar=no,menubar=no,"+"location=no,directories=no,dependent=yes";
-var _1c=window.open("","SyncDetails",_1b);
-if(!_1c){
+_18+="</ul>\n";
+_18+="<a href='javascript:window.close()' "+"style='text-align: right; padding-right: 2em;'>"+"Close Window"+"</a>\n";
+_18+="</body></html>";
+var _19="height=400,width=600,resizable=true,"+"scrollbars=true,toolbar=no,menubar=no,"+"location=no,directories=no,dependent=yes";
+var _1a=window.open("","SyncDetails",_19);
+if(!_1a){
 alert("Please allow popup windows for this domain; can't display sync details window");
 return;
 }
-_1c.document.open();
-_1c.document.write(_19);
-_1c.document.close();
-if(_1c.focus){
-_1c.focus();
+_1a.document.open();
+_1a.document.write(_18);
+_1a.document.close();
+if(_1a.focus){
+_1a.focus();
 }
 },_cancel:function(evt){
 evt.preventDefault();
 evt.stopPropagation();
 dojox.off.sync.cancel();
 },_needsBrowserRestart:function(){
-var _1e=dojo.byId("dot-widget-browser-restart");
-if(_1e){
-dojo.addClass(_1e,"dot-needs-browser-restart");
+var _1b=dojo.byId("dot-widget-browser-restart");
+if(_1b){
+dojo.addClass(_1b,"dot-needs-browser-restart");
 }
-var _1f=dojo.byId("dot-widget-browser-restart-app-name");
-if(_1f){
-_1f.innerHTML="";
-_1f.appendChild(document.createTextNode(this.appName));
+var _1c=dojo.byId("dot-widget-browser-restart-app-name");
+if(_1c){
+_1c.innerHTML="";
+_1c.appendChild(document.createTextNode(this.appName));
 }
-var _20=dojo.byId("dot-sync-status");
-if(_20){
-_20.style.display="none";
+var _1d=dojo.byId("dot-sync-status");
+if(_1d){
+_1d.style.display="none";
 }
 },_showNeedsOfflineCache:function(){
-var _21=dojo.byId("dot-widget-container");
-if(_21){
-dojo.addClass(_21,"dot-needs-offline-cache");
+var _1e=dojo.byId("dot-widget-container");
+if(_1e){
+dojo.addClass(_1e,"dot-needs-offline-cache");
 }
 },_hideNeedsOfflineCache:function(){
-var _22=dojo.byId("dot-widget-container");
-if(_22){
-dojo.removeClass(_22,"dot-needs-offline-cache");
+var _1f=dojo.byId("dot-widget-container");
+if(_1f){
+dojo.removeClass(_1f,"dot-needs-offline-cache");
 }
 },_initMainEvtHandlers:function(){
-var _23=dojo.byId("dot-sync-details-button");
-if(_23){
-dojo.connect(_23,"onclick",this,this._showDetails);
+var _20=dojo.byId("dot-sync-details-button");
+if(_20){
+dojo.connect(_20,"onclick",this,this._showDetails);
 }
-var _24=dojo.byId("dot-sync-cancel-button");
-if(_24){
-dojo.connect(_24,"onclick",this,this._cancel);
+var _21=dojo.byId("dot-sync-cancel-button");
+if(_21){
+dojo.connect(_21,"onclick",this,this._cancel);
 }
-},_setOfflineEnabled:function(_25){
-var _26=[];
-_26.push(dojo.byId("dot-sync-status"));
-for(var i=0;i<_26.length;i++){
-if(_26[i]){
-_26[i].style.visibility=(_25?"visible":"hidden");
+},_setOfflineEnabled:function(_22){
+var _23=[];
+_23.push(dojo.byId("dot-sync-status"));
+for(var i=0;i<_23.length;i++){
+if(_23[i]){
+_23[i].style.visibility=(_22?"visible":"hidden");
 }
 }
 },_syncFinished:function(){
 this._updateSyncUI();
-var _28=dojo.byId("dot-success-checkmark");
-var _29=dojo.byId("dot-sync-details");
+var _24=dojo.byId("dot-success-checkmark");
+var _25=dojo.byId("dot-sync-details");
 if(dojox.off.sync.successful==true){
 this._setSyncMessage("Sync Successful");
-if(_28){
-_28.style.display="inline";
+if(_24){
+_24.style.display="inline";
 }
 }else{
 if(dojox.off.sync.cancelled==true){
 this._setSyncMessage("Sync Cancelled");
-if(_28){
-_28.style.display="none";
+if(_24){
+_24.style.display="none";
 }
 }else{
 this._setSyncMessage("Sync Error");
-var _2a=dojo.byId("dot-sync-messages");
-if(_2a){
-dojo.addClass(_2a,"dot-sync-error");
+var _26=dojo.byId("dot-sync-messages");
+if(_26){
+dojo.addClass(_26,"dot-sync-error");
 }
-if(_28){
-_28.style.display="none";
+if(_24){
+_24.style.display="none";
 }
 }
 }
-if(dojox.off.sync.details.length&&_29){
-_29.style.display="inline";
+if(dojox.off.sync.details.length&&_25){
+_25.style.display="inline";
 }
-},_onFrameworkEvent:function(_2b,_2c){
-if(_2b=="save"){
-if(_2c.status==dojox.storage.FAILED&&!_2c.isCoreSave){
+},_onFrameworkEvent:function(_27,_28){
+if(_27=="save"){
+if(_28.status==dojox.storage.FAILED&&!_28.isCoreSave){
 alert("Please increase the amount of local storage available "+"to this application");
 if(dojox.storage.hasSettingsUI()){
 dojox.storage.showSettingsUI();
 }
 }
 }else{
-if(_2b=="coreOperationFailed"){
-
+if(_27=="coreOperationFailed"){
 if(!this._userInformed){
 alert("This application will not work if Google Gears is not allowed to run");
 this._userInformed=true;
 }
 }else{
-if(_2b=="offlineCacheInstalled"){
+if(_27=="offlineCacheInstalled"){
 this._hideNeedsOfflineCache();
 if(dojox.off.hasOfflineCache==true&&dojox.off.browserRestart==true){
 this._needsBrowserRestart();
 return;
 }else{
-var _2d=dojo.byId("dot-widget-browser-restart");
-if(_2d){
-_2d.style.display="none";
+var _29=dojo.byId("dot-widget-browser-restart");
+if(_29){
+_29.style.display="none";
 }
 }
 this._updateSyncUI();
@@ -305,8 +304,8 @@ this._testNet();
 }
 }
 }
-},_onSync:function(_2e){
-switch(_2e){
+},_onSync:function(_2a){
+switch(_2a){
 case "start":
 this._updateSyncUI();
 break;
@@ -326,19 +325,19 @@ case "cancel":
 this._setSyncMessage("Canceling Sync...");
 break;
 default:
-dojo.warn("Programming error: "+"Unknown sync type in dojox.off.ui: "+_2e);
+dojo.warn("Programming error: "+"Unknown sync type in dojox.off.ui: "+_2a);
 break;
 }
-},_onNetwork:function(_2f){
+},_onNetwork:function(_2b){
 if(!this._initialized){
 return;
 }
 this._updateNetIndicator();
-if(_2f=="offline"){
+if(_2b=="offline"){
 this._setSyncMessage("You are working offline");
-var _30=dojo.byId("dot-sync-details");
-if(_30){
-_30.style.display="none";
+var _2c=dojo.byId("dot-sync-details");
+if(_2c){
+_2c.style.display="none";
 }
 this._updateSyncUI();
 }else{

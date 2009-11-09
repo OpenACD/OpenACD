@@ -43,7 +43,6 @@ dojox.sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = ? AND key = ?",_4,_
 dojox.sql("INSERT INTO "+this.TABLE_NAME+" VALUES (?, ?, ?)",_4,_1,_2);
 }
 catch(e){
-
 _3(this.FAILED,_1,e.toString(),_4);
 return;
 }
@@ -81,39 +80,76 @@ _8.push(rs[i].namespace);
 }
 }
 return _8;
-},getKeys:function(_b){
+},getKeys:function(_9){
+this._initStorage();
+_9=_9||this.DEFAULT_NAMESPACE;
+if(!this.isValidKey(_9)){
+throw new Error("Invalid namespace given: "+_9);
+}
+var rs=dojox.sql("SELECT key FROM "+this.TABLE_NAME+" WHERE namespace = ?",_9);
+var _a=[];
+for(var i=0;i<rs.length;i++){
+_a.push(rs[i].key);
+}
+return _a;
+},clear:function(_b){
 this._initStorage();
 _b=_b||this.DEFAULT_NAMESPACE;
 if(!this.isValidKey(_b)){
 throw new Error("Invalid namespace given: "+_b);
 }
-var rs=dojox.sql("SELECT key FROM "+this.TABLE_NAME+" WHERE namespace = ?",_b);
-var _d=[];
-for(var i=0;i<rs.length;i++){
-_d.push(rs[i].key);
-}
-return _d;
-},clear:function(_f){
+dojox.sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = ?",_b);
+},remove:function(_c,_d){
 this._initStorage();
-_f=_f||this.DEFAULT_NAMESPACE;
-if(!this.isValidKey(_f)){
-throw new Error("Invalid namespace given: "+_f);
+if(!this.isValidKey(_c)){
+throw new Error("Invalid key given: "+_c);
 }
-dojox.sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = ?",_f);
-},remove:function(key,_11){
+_d=_d||this.DEFAULT_NAMESPACE;
+if(!this.isValidKey(_d)){
+throw new Error("Invalid namespace given: "+_c);
+}
+dojox.sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = ? AND"+" key = ?",_d,_c);
+},putMultiple:function(_e,_f,_10,_11){
 this._initStorage();
-if(!this.isValidKey(key)){
-throw new Error("Invalid key given: "+key);
+if(!this.isValidKeyArray(_e)||!_f instanceof Array||_e.length!=_f.length){
+throw new Error("Invalid arguments: keys = ["+_e+"], values = ["+_f+"]");
 }
-_11=_11||this.DEFAULT_NAMESPACE;
+if(_11==null||typeof _11=="undefined"){
+_11=dojox.storage.DEFAULT_NAMESPACE;
+}
 if(!this.isValidKey(_11)){
-throw new Error("Invalid namespace given: "+key);
+throw new Error("Invalid namespace given: "+_11);
 }
-dojox.sql("DELETE FROM "+this.TABLE_NAME+" WHERE namespace = ? AND"+" key = ?",_11,key);
-},putMultiple:function(_12,_13,_14,_15){
+this._statusHandler=_10;
+try{
+dojox.sql.open();
+dojox.sql.db.execute("BEGIN TRANSACTION");
+var _12="REPLACE INTO "+this.TABLE_NAME+" VALUES (?, ?, ?)";
+for(var i=0;i<_e.length;i++){
+var _13=_f[i];
+if(dojo.isString(_13)){
+_13="string:"+_13;
+}else{
+_13=dojo.toJson(_13);
+}
+dojox.sql.db.execute(_12,[_11,_e[i],_13]);
+}
+dojox.sql.db.execute("COMMIT TRANSACTION");
+dojox.sql.close();
+}
+catch(e){
+if(_10){
+_10(this.FAILED,_e,e.toString(),_11);
+}
+return;
+}
+if(_10){
+_10(dojox.storage.SUCCESS,_e,null,_11);
+}
+},getMultiple:function(_14,_15){
 this._initStorage();
-if(!this.isValidKeyArray(_12)||!_13 instanceof Array||_12.length!=_13.length){
-throw new Error("Invalid arguments: keys = ["+_12+"], values = ["+_13+"]");
+if(!this.isValidKeyArray(_14)){
+throw new ("Invalid key array given: "+_14);
 }
 if(_15==null||typeof _15=="undefined"){
 _15=dojox.storage.DEFAULT_NAMESPACE;
@@ -121,37 +157,26 @@ _15=dojox.storage.DEFAULT_NAMESPACE;
 if(!this.isValidKey(_15)){
 throw new Error("Invalid namespace given: "+_15);
 }
-this._statusHandler=_14;
-try{
-dojox.sql.open();
-dojox.sql.db.execute("BEGIN TRANSACTION");
-var _16="REPLACE INTO "+this.TABLE_NAME+" VALUES (?, ?, ?)";
-for(var i=0;i<_12.length;i++){
-var _18=_13[i];
-if(dojo.isString(_18)){
-_18="string:"+_18;
+var _16="SELECT * FROM "+this.TABLE_NAME+" WHERE namespace = ? AND "+" key = ?";
+var _17=[];
+for(var i=0;i<_14.length;i++){
+var _18=dojox.sql(_16,_15,_14[i]);
+if(!_18.length){
+_17[i]=null;
 }else{
-_18=dojo.toJson(_18);
+_18=_18[0].value;
+if(dojo.isString(_18)&&(/^string:/.test(_18))){
+_17[i]=_18.substring("string:".length);
+}else{
+_17[i]=dojo.fromJson(_18);
 }
-dojox.sql.db.execute(_16,[_15,_12[i],_18]);
 }
-dojox.sql.db.execute("COMMIT TRANSACTION");
-dojox.sql.close();
 }
-catch(e){
-
-if(_14){
-_14(this.FAILED,_12,e.toString(),_15);
-}
-return;
-}
-if(_14){
-_14(dojox.storage.SUCCESS,_12,null,_15);
-}
-},getMultiple:function(_19,_1a){
+return _17;
+},removeMultiple:function(_19,_1a){
 this._initStorage();
 if(!this.isValidKeyArray(_19)){
-throw new ("Invalid key array given: "+_19);
+throw new Error("Invalid arguments: keys = ["+_19+"]");
 }
 if(_1a==null||typeof _1a=="undefined"){
 _1a=dojox.storage.DEFAULT_NAMESPACE;
@@ -159,38 +184,11 @@ _1a=dojox.storage.DEFAULT_NAMESPACE;
 if(!this.isValidKey(_1a)){
 throw new Error("Invalid namespace given: "+_1a);
 }
-var _1b="SELECT * FROM "+this.TABLE_NAME+" WHERE namespace = ? AND "+" key = ?";
-var _1c=[];
-for(var i=0;i<_19.length;i++){
-var _1e=dojox.sql(_1b,_1a,_19[i]);
-if(!_1e.length){
-_1c[i]=null;
-}else{
-_1e=_1e[0].value;
-if(dojo.isString(_1e)&&(/^string:/.test(_1e))){
-_1c[i]=_1e.substring("string:".length);
-}else{
-_1c[i]=dojo.fromJson(_1e);
-}
-}
-}
-return _1c;
-},removeMultiple:function(_1f,_20){
-this._initStorage();
-if(!this.isValidKeyArray(_1f)){
-throw new Error("Invalid arguments: keys = ["+_1f+"]");
-}
-if(_20==null||typeof _20=="undefined"){
-_20=dojox.storage.DEFAULT_NAMESPACE;
-}
-if(!this.isValidKey(_20)){
-throw new Error("Invalid namespace given: "+_20);
-}
 dojox.sql.open();
 dojox.sql.db.execute("BEGIN TRANSACTION");
-var _21="DELETE FROM "+this.TABLE_NAME+" WHERE namespace = ? AND key = ?";
-for(var i=0;i<_1f.length;i++){
-dojox.sql.db.execute(_21,[_20,_1f[i]]);
+var _1b="DELETE FROM "+this.TABLE_NAME+" WHERE namespace = ? AND key = ?";
+for(var i=0;i<_19.length;i++){
+dojox.sql.db.execute(_1b,[_1a,_19[i]]);
 }
 dojox.sql.db.execute("COMMIT TRANSACTION");
 dojox.sql.close();
@@ -209,11 +207,11 @@ if(this._storageReady){
 return;
 }
 if(!google.gears.factory.hasPermission){
-var _23=null;
-var _24=null;
+var _1c=null;
+var _1d=null;
 var msg="This site would like to use Google Gears to enable "+"enhanced functionality.";
-var _26=google.gears.factory.getPermission(_23,_24,msg);
-if(!_26){
+var _1e=google.gears.factory.getPermission(_1c,_1d,msg);
+if(!_1e){
 throw new Error("You must give permission to use Gears in order to "+"store data");
 }
 }
@@ -222,7 +220,6 @@ dojox.sql("CREATE TABLE IF NOT EXISTS "+this.TABLE_NAME+"( "+" namespace TEXT, "
 dojox.sql("CREATE UNIQUE INDEX IF NOT EXISTS namespace_key_index"+" ON "+this.TABLE_NAME+" (namespace, key)");
 }
 catch(e){
-
 throw new Error("Unable to create storage tables for Gears in "+"Dojo Storage");
 }
 this._storageReady=true;

@@ -9,7 +9,7 @@ if(!dojo._hasResource["dijit.form.TextBox"]){
 dojo._hasResource["dijit.form.TextBox"]=true;
 dojo.provide("dijit.form.TextBox");
 dojo.require("dijit.form._FormWidget");
-dojo.declare("dijit.form.TextBox",dijit.form._FormValueWidget,{trim:false,uppercase:false,lowercase:false,propercase:false,maxLength:"",templateString:"<input class=\"dijit dijitReset dijitLeft\" dojoAttachPoint='textbox,focusNode'\n\tdojoAttachEvent='onmouseenter:_onMouse,onmouseleave:_onMouse'\n\tautocomplete=\"off\" type=\"${type}\" ${nameAttrSetting}\n\t/>\n",baseClass:"dijitTextBox",attributeMap:dojo.delegate(dijit.form._FormValueWidget.prototype.attributeMap,{maxLength:"focusNode"}),_getValueAttr:function(){
+dojo.declare("dijit.form.TextBox",dijit.form._FormValueWidget,{trim:false,uppercase:false,lowercase:false,propercase:false,maxLength:"",selectOnClick:false,templateString:dojo.cache("dijit.form","templates/TextBox.html","<input class=\"dijit dijitReset dijitLeft\" dojoAttachPoint='textbox,focusNode'\n\tdojoAttachEvent='onmouseenter:_onMouse,onmouseleave:_onMouse'\n\tautocomplete=\"off\" type=\"${type}\" ${nameAttrSetting}\n\t/>\n"),baseClass:"dijitTextBox",attributeMap:dojo.delegate(dijit.form._FormValueWidget.prototype.attributeMap,{maxLength:"focusNode"}),_getValueAttr:function(){
 return this.parse(this.attr("displayedValue"),this.constraints);
 },_setValueAttr:function(_1,_2,_3){
 var _4;
@@ -61,12 +61,29 @@ return;
 }
 }
 if(this.intermediateChanges){
-var _c=this;
+var _b=this;
 setTimeout(function(){
-_c._handleOnChange(_c.attr("value"),false);
+_b._handleOnChange(_b.attr("value"),false);
 },0);
 }
 this._refreshState();
+},_onMouseDown:function(){
+this._selectOnUp=!this._focused&&!this.disabled&&!this.readOnly;
+},_onClick:function(){
+if(this._focused&&this._selectOnUp){
+var _c;
+if(dojo.isIE){
+var _d=dojo.doc.selection.createRange();
+var _e=_d.parentElement();
+_c=_e==this.textbox&&_d.text.length==0;
+}else{
+_c=this.textbox.selectionStart==this.textbox.selectionEnd;
+}
+if(_c){
+dijit.selectInputText(this.textbox);
+}
+}
+this._selectOnUp=false;
 },postCreate:function(){
 this.textbox.setAttribute("value",this.textbox.value);
 this.inherited(arguments);
@@ -78,29 +95,32 @@ this.connect(this.textbox,"onkeyup",this._onInput);
 this.connect(this.textbox,"onpaste",this._onInput);
 this.connect(this.textbox,"oncut",this._onInput);
 }
-this._layoutHack();
-},_blankValue:"",filter:function(_d){
-if(_d===null){
+if(this.selectOnClick){
+this.connect(this.textbox,"onmousedown",this._onMouseDown);
+this.connect(this.textbox,"onclick",this._onClick);
+}
+},_blankValue:"",filter:function(_f){
+if(_f===null){
 return this._blankValue;
 }
-if(typeof _d!="string"){
-return _d;
+if(typeof _f!="string"){
+return _f;
 }
 if(this.trim){
-_d=dojo.trim(_d);
+_f=dojo.trim(_f);
 }
 if(this.uppercase){
-_d=_d.toUpperCase();
+_f=_f.toUpperCase();
 }
 if(this.lowercase){
-_d=_d.toLowerCase();
+_f=_f.toLowerCase();
 }
 if(this.propercase){
-_d=_d.replace(/[^\s]+/g,function(_e){
-return _e.substring(0,1).toUpperCase()+_e.substring(1);
+_f=_f.replace(/[^\s]+/g,function(_10){
+return _10.substring(0,1).toUpperCase()+_10.substring(1);
 });
 }
-return _d;
+return _f;
 },_setBlurValue:function(){
 this._setValueAttr(this.attr("value"),true);
 },_onBlur:function(e){
@@ -109,8 +129,11 @@ return;
 }
 this._setBlurValue();
 this.inherited(arguments);
+if(this.selectOnClick&&dojo.isMoz){
+this.textbox.selectionStart=this.textbox.selectionEnd=undefined;
+}
 },_onFocus:function(e){
-if(this.disabled){
+if(this.disabled||this.readOnly){
 return;
 }
 this._refreshState();
@@ -129,20 +152,20 @@ _12=0;
 if(isNaN(_13)){
 _13=_11.value?_11.value.length:0;
 }
-_11.focus();
+dijit.focus(_11);
 if(_15["selection"]&&dojo.body()["createTextRange"]){
 if(_11.createTextRange){
 var _16=_11.createTextRange();
 with(_16){
 collapse(true);
+moveStart("character",-99999);
 moveStart("character",_12);
-moveEnd("character",_13);
+moveEnd("character",_13-_12);
 select();
 }
 }
 }else{
 if(_14["getSelection"]){
-var _17=_14.getSelection();
 if(_11.setSelectionRange){
 _11.setSelectionRange(_12,_13);
 }

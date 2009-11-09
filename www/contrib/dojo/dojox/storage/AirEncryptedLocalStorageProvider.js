@@ -49,7 +49,6 @@ this._setItem(_b+"_keys",_d+_8+"|");
 this._setItem("_"+_b+"_"+_8,_9);
 }
 catch(e){
-
 _a(this.FAILED,_8,e.toString(),_b);
 return;
 }
@@ -71,86 +70,85 @@ _10.push(_11[i]);
 }
 }
 return _10;
-},getKeys:function(_13){
-_13=_13||this.DEFAULT_NAMESPACE;
-if(this.isValidKey(_13)==false){
-throw new Error("Invalid namespace given: "+_13);
+},getKeys:function(_12){
+_12=_12||this.DEFAULT_NAMESPACE;
+if(this.isValidKey(_12)==false){
+throw new Error("Invalid namespace given: "+_12);
 }
-var _14=[];
-var _15=(this._getItem(_13+"_keys")||"|").split("|");
-for(var i=0;i<_15.length;i++){
-if(_15[i].length){
-_14.push(_15[i]);
-}
-}
-return _14;
-},clear:function(_17){
-if(this.isValidKey(_17)==false){
-throw new Error("Invalid namespace given: "+_17);
-}
-var _18=this._getItem("namespaces")||"|";
-if(_18.indexOf("|"+_17+"|")!=-1){
-this._setItem("namespaces",_18.replace("|"+_17+"|","|"));
-}
-var _19=(this._getItem(_17+"_keys")||"|").split("|");
-for(var i=0;i<_19.length;i++){
-if(_19[i].length){
-this._removeItem(_17+"_"+_19[i]);
+var _13=[];
+var _14=(this._getItem(_12+"_keys")||"|").split("|");
+for(var i=0;i<_14.length;i++){
+if(_14[i].length){
+_13.push(_14[i]);
 }
 }
-this._removeItem(_17+"_keys");
-},remove:function(key,_1c){
-_1c=_1c||this.DEFAULT_NAMESPACE;
-var _1d=this._getItem(_1c+"_keys")||"|";
-if(_1d.indexOf("|"+key+"|")!=-1){
-this._setItem(_1c+"_keys",_1d.replace("|"+key+"|","|"));
+return _13;
+},clear:function(_15){
+if(this.isValidKey(_15)==false){
+throw new Error("Invalid namespace given: "+_15);
 }
-this._removeItem("_"+_1c+"_"+key);
-},putMultiple:function(_1e,_1f,_20,_21){
-if(this.isValidKeyArray(_1e)===false||!_1f instanceof Array||_1e.length!=_1f.length){
-throw new Error("Invalid arguments: keys = ["+_1e+"], values = ["+_1f+"]");
+var _16=this._getItem("namespaces")||"|";
+if(_16.indexOf("|"+_15+"|")!=-1){
+this._setItem("namespaces",_16.replace("|"+_15+"|","|"));
 }
-if(_21==null||typeof _21=="undefined"){
-_21=this.DEFAULT_NAMESPACE;
+var _17=(this._getItem(_15+"_keys")||"|").split("|");
+for(var i=0;i<_17.length;i++){
+if(_17[i].length){
+this._removeItem(_15+"_"+_17[i]);
 }
-if(this.isValidKey(_21)==false){
-throw new Error("Invalid namespace given: "+_21);
 }
-this._statusHandler=_20;
+this._removeItem(_15+"_keys");
+},remove:function(key,_18){
+_18=_18||this.DEFAULT_NAMESPACE;
+var _19=this._getItem(_18+"_keys")||"|";
+if(_19.indexOf("|"+key+"|")!=-1){
+this._setItem(_18+"_keys",_19.replace("|"+key+"|","|"));
+}
+this._removeItem("_"+_18+"_"+key);
+},putMultiple:function(_1a,_1b,_1c,_1d){
+if(this.isValidKeyArray(_1a)===false||!_1b instanceof Array||_1a.length!=_1b.length){
+throw new Error("Invalid arguments: keys = ["+_1a+"], values = ["+_1b+"]");
+}
+if(_1d==null||typeof _1d=="undefined"){
+_1d=this.DEFAULT_NAMESPACE;
+}
+if(this.isValidKey(_1d)==false){
+throw new Error("Invalid namespace given: "+_1d);
+}
+this._statusHandler=_1c;
 try{
-for(var i=0;i<_1e.length;i++){
-this.put(_1e[i],_1f[i],null,_21);
+for(var i=0;i<_1a.length;i++){
+this.put(_1a[i],_1b[i],null,_1d);
 }
 }
 catch(e){
-
-if(_20){
-_20(this.FAILED,_1e,e.toString(),_21);
+if(_1c){
+_1c(this.FAILED,_1a,e.toString(),_1d);
 }
 return;
 }
-if(_20){
-_20(this.SUCCESS,_1e,null);
+if(_1c){
+_1c(this.SUCCESS,_1a,null);
 }
-},getMultiple:function(_23,_24){
-if(this.isValidKeyArray(_23)===false){
-throw new Error("Invalid key array given: "+_23);
+},getMultiple:function(_1e,_1f){
+if(this.isValidKeyArray(_1e)===false){
+throw new Error("Invalid key array given: "+_1e);
 }
-if(_24==null||typeof _24=="undefined"){
-_24=this.DEFAULT_NAMESPACE;
+if(_1f==null||typeof _1f=="undefined"){
+_1f=this.DEFAULT_NAMESPACE;
 }
-if(this.isValidKey(_24)==false){
-throw new Error("Invalid namespace given: "+_24);
+if(this.isValidKey(_1f)==false){
+throw new Error("Invalid namespace given: "+_1f);
 }
-var _25=[];
-for(var i=0;i<_23.length;i++){
-_25[i]=this.get(_23[i],_24);
+var _20=[];
+for(var i=0;i<_1e.length;i++){
+_20[i]=this.get(_1e[i],_1f);
 }
-return _25;
-},removeMultiple:function(_27,_28){
-_28=_28||this.DEFAULT_NAMESPACE;
-for(var i=0;i<_27.length;i++){
-this.remove(_27[i],_28);
+return _20;
+},removeMultiple:function(_21,_22){
+_22=_22||this.DEFAULT_NAMESPACE;
+for(var i=0;i<_21.length;i++){
+this.remove(_21[i],_22);
 }
 },isPermanent:function(){
 return true;

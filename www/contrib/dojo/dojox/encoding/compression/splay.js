@@ -41,22 +41,22 @@ a=d;
 a=c;
 }
 }while(a);
-},encode:function(_8,_9){
-var s=[],a=_8+this.left.length;
+},encode:function(_1,_2){
+var s=[],a=_1+this.left.length;
 do{
 s.push(this.right[this.up[a]]==a);
 a=this.up[a];
 }while(a);
-this.splay(_8);
+this.splay(_1);
 var l=s.length;
 while(s.length){
-_9.putBits(s.pop()?1:0,1);
+_2.putBits(s.pop()?1:0,1);
 }
 return l;
-},decode:function(_d){
+},decode:function(_3){
 var a=0;
 do{
-a=this[_d.getBits(1)?"right":"left"][a];
+a=this[_3.getBits(1)?"right":"left"][a];
 }while(a<this.left.length);
 a-=this.left.length;
 this.splay(a);

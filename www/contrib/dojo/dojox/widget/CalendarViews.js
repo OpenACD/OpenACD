@@ -13,13 +13,12 @@ dojo.require("dojox.widget.Calendar");
 dojo.declare("dojox.widget._CalendarMonth",null,{constructor:function(){
 this._addView(dojox.widget._CalendarMonthView);
 }});
-dojo.declare("dojox.widget._CalendarMonthView",[dojox.widget._CalendarView,dijit._Templated],{templateString:"<div class=\"dojoxCalendarMonthLabels\" style=\"left: 0px;\"  \n\tdojoAttachPoint=\"monthContainer\" dojoAttachEvent=\"onclick: onClick\">\n    <table cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin: auto;\">\n        <tbody>\n            <tr class=\"dojoxCalendarMonthGroupTemplate\">\n                <td class=\"dojoxCalendarMonthTemplate\">\n                    <div class=\"dojoxCalendarMonthLabel\"></div>\n                </td>\n             </tr>\n        </tbody>\n    </table>\n</div>\n",datePart:"year",headerClass:"dojoxCalendarMonthHeader",postCreate:function(){
+dojo.declare("dojox.widget._CalendarMonthView",[dojox.widget._CalendarView,dijit._Templated],{templateString:dojo.cache("dojox.widget","Calendar/CalendarMonth.html","<div class=\"dojoxCalendarMonthLabels\" style=\"left: 0px;\"  \n\tdojoAttachPoint=\"monthContainer\" dojoAttachEvent=\"onclick: onClick\">\n    <table cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin: auto;\">\n        <tbody>\n            <tr class=\"dojoxCalendarMonthGroupTemplate\">\n                <td class=\"dojoxCalendarMonthTemplate\">\n                    <div class=\"dojoxCalendarMonthLabel\"></div>\n                </td>\n             </tr>\n        </tbody>\n    </table>\n</div>\n"),datePart:"year",headerClass:"dojoxCalendarMonthHeader",postCreate:function(){
 this.cloneClass(".dojoxCalendarMonthTemplate",3);
 this.cloneClass(".dojoxCalendarMonthGroupTemplate",2);
 this._populateMonths();
 this.addFx(".dojoxCalendarMonthLabel",this.domNode);
 },_setValueAttr:function(_1){
-
 this.header.innerHTML=_1.getFullYear();
 },_getMonthNames:dojox.widget._CalendarMonthYearView.prototype._getMonthNames,_populateMonths:dojox.widget._CalendarMonthYearView.prototype._populateMonths,onClick:function(_2){
 if(!dojo.hasClass(_2.target,"dojoxCalendarMonthLabel")){
@@ -34,7 +33,7 @@ this.onValueSelected(_4,_3);
 dojo.declare("dojox.widget._CalendarYear",null,{parent:null,constructor:function(){
 this._addView(dojox.widget._CalendarYearView);
 }});
-dojo.declare("dojox.widget._CalendarYearView",[dojox.widget._CalendarView,dijit._Templated],{templateString:"<div class=\"dojoxCalendarYearLabels\" style=\"left: 0px;\" dojoAttachPoint=\"yearContainer\">\n    <table cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin: auto;\" dojoAttachEvent=\"onclick: onClick\">\n        <tbody>\n            <tr class=\"dojoxCalendarYearGroupTemplate\">\n                <td class=\"dojoxCalendarNextMonth dojoxCalendarYearTemplate\">\n                    <div class=\"dojoxCalendarYearLabel\">\n                    </div>\n                </td>\n            </tr>\n        </tbody>\n    </table>\n</div>\n",displayedYears:6,postCreate:function(){
+dojo.declare("dojox.widget._CalendarYearView",[dojox.widget._CalendarView,dijit._Templated],{templateString:dojo.cache("dojox.widget","Calendar/CalendarYear.html","<div class=\"dojoxCalendarYearLabels\" style=\"left: 0px;\" dojoAttachPoint=\"yearContainer\">\n    <table cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin: auto;\" dojoAttachEvent=\"onclick: onClick\">\n        <tbody>\n            <tr class=\"dojoxCalendarYearGroupTemplate\">\n                <td class=\"dojoxCalendarNextMonth dojoxCalendarYearTemplate\">\n                    <div class=\"dojoxCalendarYearLabel\">\n                    </div>\n                </td>\n            </tr>\n        </tbody>\n    </table>\n</div>\n"),displayedYears:6,postCreate:function(){
 this.cloneClass(".dojoxCalendarYearTemplate",3);
 this.cloneClass(".dojoxCalendarYearGroupTemplate",2);
 this._populateYears();

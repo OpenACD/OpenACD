@@ -28,36 +28,36 @@ var mb=dojo.marginBox(_5.node);
 c.r-=mb.w;
 c.b-=mb.h;
 }
-},onMove:function(_8,_9){
-var c=this.constraintBox,s=_8.node.style;
-s.left=(_9.l<c.l?c.l:c.r<_9.l?c.r:_9.l)+"px";
-s.top=(_9.t<c.t?c.t:c.b<_9.t?c.b:_9.t)+"px";
+},onMove:function(_6,_7){
+var c=this.constraintBox,s=_6.node.style;
+s.left=(_7.l<c.l?c.l:c.r<_7.l?c.r:_7.l)+"px";
+s.top=(_7.t<c.t?c.t:c.b<_7.t?c.b:_7.t)+"px";
 }});
-dojo.declare("dojo.dnd.move.boxConstrainedMoveable",dojo.dnd.move.constrainedMoveable,{box:{},markupFactory:function(_c,_d){
-return new dojo.dnd.move.boxConstrainedMoveable(_d,_c);
-},constructor:function(_e,_f){
-var box=_f&&_f.box;
+dojo.declare("dojo.dnd.move.boxConstrainedMoveable",dojo.dnd.move.constrainedMoveable,{box:{},markupFactory:function(_8,_9){
+return new dojo.dnd.move.boxConstrainedMoveable(_9,_8);
+},constructor:function(_a,_b){
+var _c=_b&&_b.box;
 this.constraints=function(){
-return box;
+return _c;
 };
 }});
-dojo.declare("dojo.dnd.move.parentConstrainedMoveable",dojo.dnd.move.constrainedMoveable,{area:"content",markupFactory:function(_11,_12){
-return new dojo.dnd.move.parentConstrainedMoveable(_12,_11);
-},constructor:function(_13,_14){
-var _15=_14&&_14.area;
+dojo.declare("dojo.dnd.move.parentConstrainedMoveable",dojo.dnd.move.constrainedMoveable,{area:"content",markupFactory:function(_d,_e){
+return new dojo.dnd.move.parentConstrainedMoveable(_e,_d);
+},constructor:function(_f,_10){
+var _11=_10&&_10.area;
 this.constraints=function(){
 var n=this.node.parentNode,s=dojo.getComputedStyle(n),mb=dojo._getMarginBox(n,s);
-if(_15=="margin"){
+if(_11=="margin"){
 return mb;
 }
 var t=dojo._getMarginExtents(n,s);
 mb.l+=t.l,mb.t+=t.t,mb.w-=t.w,mb.h-=t.h;
-if(_15=="border"){
+if(_11=="border"){
 return mb;
 }
 t=dojo._getBorderExtents(n,s);
 mb.l+=t.l,mb.t+=t.t,mb.w-=t.w,mb.h-=t.h;
-if(_15=="padding"){
+if(_11=="padding"){
 return mb;
 }
 t=dojo._getPadExtents(n,s);
@@ -65,13 +65,13 @@ mb.l+=t.l,mb.t+=t.t,mb.w-=t.w,mb.h-=t.h;
 return mb;
 };
 }});
-dojo.dnd.move.constrainedMover=function(fun,_1b){
+dojo.dnd.move.constrainedMover=function(fun,_12){
 dojo.deprecated("dojo.dnd.move.constrainedMover, use dojo.dnd.move.constrainedMoveable instead");
-var _1c=function(_1d,e,_1f){
-dojo.dnd.Mover.call(this,_1d,e,_1f);
+var _13=function(_14,e,_15){
+dojo.dnd.Mover.call(this,_14,e,_15);
 };
-dojo.extend(_1c,dojo.dnd.Mover.prototype);
-dojo.extend(_1c,{onMouseMove:function(e){
+dojo.extend(_13,dojo.dnd.Mover.prototype);
+dojo.extend(_13,{onMouseMove:function(e){
 dojo.dnd.autoScroll(e);
 var m=this.marginBox,c=this.constraintBox,l=m.l+e.pageX,t=m.t+e.pageY;
 l=l<c.l?c.l:c.r<l?c.r:l;
@@ -82,42 +82,42 @@ dojo.dnd.Mover.prototype.onFirstMove.call(this);
 var c=this.constraintBox=fun.call(this);
 c.r=c.l+c.w;
 c.b=c.t+c.h;
-if(_1b){
+if(_12){
 var mb=dojo.marginBox(this.node);
 c.r-=mb.w;
 c.b-=mb.h;
 }
 }});
-return _1c;
+return _13;
 };
-dojo.dnd.move.boxConstrainedMover=function(box,_28){
+dojo.dnd.move.boxConstrainedMover=function(box,_16){
 dojo.deprecated("dojo.dnd.move.boxConstrainedMover, use dojo.dnd.move.boxConstrainedMoveable instead");
 return dojo.dnd.move.constrainedMover(function(){
 return box;
-},_28);
+},_16);
 };
-dojo.dnd.move.parentConstrainedMover=function(_29,_2a){
+dojo.dnd.move.parentConstrainedMover=function(_17,_18){
 dojo.deprecated("dojo.dnd.move.parentConstrainedMover, use dojo.dnd.move.parentConstrainedMoveable instead");
 var fun=function(){
 var n=this.node.parentNode,s=dojo.getComputedStyle(n),mb=dojo._getMarginBox(n,s);
-if(_29=="margin"){
+if(_17=="margin"){
 return mb;
 }
 var t=dojo._getMarginExtents(n,s);
 mb.l+=t.l,mb.t+=t.t,mb.w-=t.w,mb.h-=t.h;
-if(_29=="border"){
+if(_17=="border"){
 return mb;
 }
 t=dojo._getBorderExtents(n,s);
 mb.l+=t.l,mb.t+=t.t,mb.w-=t.w,mb.h-=t.h;
-if(_29=="padding"){
+if(_17=="padding"){
 return mb;
 }
 t=dojo._getPadExtents(n,s);
 mb.l+=t.l,mb.t+=t.t,mb.w-=t.w,mb.h-=t.h;
 return mb;
 };
-return dojo.dnd.move.constrainedMover(fun,_2a);
+return dojo.dnd.move.constrainedMover(fun,_18);
 };
 dojo.dnd.constrainedMover=dojo.dnd.move.constrainedMover;
 dojo.dnd.boxConstrainedMover=dojo.dnd.move.boxConstrainedMover;

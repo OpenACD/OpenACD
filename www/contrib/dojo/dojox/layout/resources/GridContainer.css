@@ -1,7 +1,3 @@
-
-.gridContainer * {
-	zoom:1;
-}
 .oafDndHandle {
 	cursor: move;
 }
@@ -9,16 +5,14 @@
 	display:block;	
 	position: relative;
 	background:#FFF;	
-	margin:0px;	
-	padding:10px;
+	margin:0px;
 }
 	
 .gridContainer .dojoDndAvatarHeader	{
 	display:none;
 }
 .gridContainerTable {
-	width:100%;	
-	border:1px solid #F60;
+	width:100%;
 	height: 100%;
 }
 .gridContainerPopup {
@@ -70,4 +64,13 @@
 .tundra .gridContainerGripShow, .tundra .gridContainerGrid:focus {
 	border-left:1px solid #aeaeae;
 	border-right:1px solid #aeaeae;
+}
+.tundra .gridContainer .dndDropIndicator,
+.nihilo .gridContainer .dndDropIndicator{
+	border: 2px dashed #CCCCCC;
+	cursor:default;
+}
+.soria .gridContainer .dndDropIndicator {
+	border: 2px dashed #99BBE8;
+	cursor:default;
 }

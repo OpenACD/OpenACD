@@ -42,35 +42,35 @@ this.onSetPersonalProfileFailure(_b);
 }
 }
 },onSetPersonalProfile:function(id){
-},onSetPersonalProfileFailure:function(_d){
-},_onGetPersonalProfile:function(_e){
-if(_e.getAttribute("type")=="result"){
-var _f={};
-if(_e.hasChildNodes()){
-var _10=_e.firstChild;
-if((_10.nodeName=="query")&&(_10.getAttribute("xmlns")=="jabber:iq:private")){
-var _11=_10.firstChild;
-if((_11.nodeName=="query")&&(_11.getAttributes("xmlns")=="sun:xmpp:properties")){
-for(var i=0;i<_11.childNodes.length;i++){
-var n=_11.childNodes[i];
+},onSetPersonalProfileFailure:function(_c){
+},_onGetPersonalProfile:function(_d){
+if(_d.getAttribute("type")=="result"){
+var _e={};
+if(_d.hasChildNodes()){
+var _f=_d.firstChild;
+if((_f.nodeName=="query")&&(_f.getAttribute("xmlns")=="jabber:iq:private")){
+var _10=_f.firstChild;
+if((_10.nodeName=="query")&&(_10.getAttributes("xmlns")=="sun:xmpp:properties")){
+for(var i=0;i<_10.childNodes.length;i++){
+var n=_10.childNodes[i];
 if(n.nodeName=="property"){
-var _14=n.getAttribute("name");
+var _11=n.getAttribute("name");
 var val=n.firstChild||"";
-_f[_14]=val;
+_e[_11]=val;
 }
 }
 }
 }
-this.onGetPersonalProfile(_f);
+this.onGetPersonalProfile(_e);
 }
 }else{
-if(_e.getAttribute("type")=="error"){
-var err=this.session.processXmppError(_e);
+if(_d.getAttribute("type")=="error"){
+var err=this.session.processXmppError(_d);
 this.onGetPersonalProfileFailure(err);
 }
 }
-return _e;
-},onGetPersonalProfile:function(_17){
+return _d;
+},onGetPersonalProfile:function(_12){
 },onGetPersonalProfileFailure:function(err){
 }});
 }

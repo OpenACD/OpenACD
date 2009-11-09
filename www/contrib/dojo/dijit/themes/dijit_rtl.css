@@ -74,3 +74,6 @@
 	background-position:right;
 	padding-right:25px;
 }
+.dijitRtl .dijitTabContainer .tabStripMenuButton {
+	float: left;
+}

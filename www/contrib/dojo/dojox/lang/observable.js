@@ -23,96 +23,93 @@ return _7(_e,_f,i,arguments);
 };
 };
 if(dojox.lang.lettableWin){
-var _11=dojox.lang.makeObservable;
-_11.inc=(_11.inc||0)+1;
-var _12="gettable_"+_11.inc;
-dojox.lang.lettableWin[_12]=_5;
-var _13="settable_"+_11.inc;
-dojox.lang.lettableWin[_13]=_6;
-var _14={};
-return function(_15){
-if(_15.__observable){
-return _15.__observable;
+var _10=dojox.lang.makeObservable;
+_10.inc=(_10.inc||0)+1;
+var _11="gettable_"+_10.inc;
+dojox.lang.lettableWin[_11]=_5;
+var _12="settable_"+_10.inc;
+dojox.lang.lettableWin[_12]=_6;
+var _13={};
+return function(_14){
+if(_14.__observable){
+return _14.__observable;
 }
-if(_15.data__){
+if(_14.data__){
 throw new Error("Can wrap an object that is already wrapped");
 }
-var _16=[],i,l;
+var _15=[],i,l;
 for(i in _8){
-_16.push(i);
+_15.push(i);
 }
-var _19={type:1,event:1};
-for(i in _15){
-if(i.match(/^[a-zA-Z][\w\$_]*$/)&&!(i in _8)&&!(i in _19)){
-_16.push(i);
+var _16={type:1,event:1};
+for(i in _14){
+if(i.match(/^[a-zA-Z][\w\$_]*$/)&&!(i in _8)&&!(i in _16)){
+_15.push(i);
 }
 }
-var _1a=_16.join(",");
-var _1b,_1c=_14[_1a];
-if(!_1c){
-var _1d="dj_lettable_"+(_11.inc++);
-var _1e=_1d+"_dj_getter";
-var _1f=["Class "+_1d,"\tPublic data__"];
-for(i=0,l=_16.length;i<l;i++){
-_1b=_16[i];
-var _20=typeof _15[_1b];
-if(_20=="function"||_8[_1b]){
-_1f.push("  Public "+_1b);
+var _17=_15.join(",");
+var _18,_19=_13[_17];
+if(!_19){
+var _1a="dj_lettable_"+(_10.inc++);
+var _1b=_1a+"_dj_getter";
+var _1c=["Class "+_1a,"\tPublic data__"];
+for(i=0,l=_15.length;i<l;i++){
+_18=_15[i];
+var _1d=typeof _14[_18];
+if(_1d=="function"||_8[_18]){
+_1c.push("  Public "+_18);
 }else{
-if(_20!="object"){
-_1f.push("\tPublic Property Let "+_1b+"(val)","\t\tCall "+_13+"(me.data__,\""+_1b+"\",val)","\tEnd Property","\tPublic Property Get "+_1b,"\t\t"+_1b+" = "+_12+"(me.data__,\""+_1b+"\")","\tEnd Property");
+if(_1d!="object"){
+_1c.push("\tPublic Property Let "+_18+"(val)","\t\tCall "+_12+"(me.data__,\""+_18+"\",val)","\tEnd Property","\tPublic Property Get "+_18,"\t\t"+_18+" = "+_11+"(me.data__,\""+_18+"\")","\tEnd Property");
 }
 }
 }
-_1f.push("End Class");
-_1f.push("Function "+_1e+"()","\tDim tmp","\tSet tmp = New "+_1d,"\tSet "+_1e+" = tmp","End Function");
-dojox.lang.lettableWin.vbEval(_1f.join("\n"));
-_14[_1a]=_1c=function(){
-return dojox.lang.lettableWin.construct(_1e);
+_1c.push("End Class");
+_1c.push("Function "+_1b+"()","\tDim tmp","\tSet tmp = New "+_1a,"\tSet "+_1b+" = tmp","End Function");
+dojox.lang.lettableWin.vbEval(_1c.join("\n"));
+_13[_17]=_19=function(){
+return dojox.lang.lettableWin.construct(_1b);
 };
 }
-
-var _21=_1c();
-_21.data__=_15;
-
+var _1e=_19();
+_1e.data__=_14;
 try{
-_15.__observable=_21;
+_14.__observable=_1e;
 }
 catch(e){
 }
-for(i=0,l=_16.length;i<l;i++){
-_1b=_16[i];
+for(i=0,l=_15.length;i<l;i++){
+_18=_15[i];
 try{
-var val=_15[_1b];
+var val=_14[_18];
 }
 catch(e){
-
 }
-if(typeof val=="function"||_8[_1b]){
-_21[_1b]=_d(_21,_15,_1b);
+if(typeof val=="function"||_8[_18]){
+_1e[_18]=_d(_1e,_14,_18);
 }
 }
-return _21;
+return _1e;
 };
 }else{
-return function(_23){
-if(_23.__observable){
-return _23.__observable;
+return function(_1f){
+if(_1f.__observable){
+return _1f.__observable;
 }
-var _24=_23 instanceof Array?[]:{};
-_24.data__=_23;
-for(var i in _23){
+var _20=_1f instanceof Array?[]:{};
+_20.data__=_1f;
+for(var i in _1f){
 if(i.charAt(0)!="_"){
-if(typeof _23[i]=="function"){
-_24[i]=_d(_24,_23,i);
+if(typeof _1f[i]=="function"){
+_20[i]=_d(_20,_1f,i);
 }else{
-if(typeof _23[i]!="object"){
+if(typeof _1f[i]!="object"){
 (function(i){
-_24.__defineGetter__(i,function(){
-return _5(_23,i);
+_20.__defineGetter__(i,function(){
+return _5(_1f,i);
 });
-_24.__defineSetter__(i,function(_27){
-return _6(_23,i,_27);
+_20.__defineSetter__(i,function(_21){
+return _6(_1f,i,_21);
 });
 })(i);
 }
@@ -120,10 +117,10 @@ return _6(_23,i,_27);
 }
 }
 for(i in _8){
-_24[i]=_d(_24,_23,i);
+_20[i]=_d(_20,_1f,i);
 }
-_23.__observable=_24;
-return _24;
+_1f.__observable=_20;
+return _20;
 };
 }
 };
@@ -148,6 +145,6 @@ throw new Error("This browser does not support getters and setters");
 }
 dojox.lang.ReadOnlyProxy=dojox.lang.makeObservable(function(obj,i){
 return obj[i];
-},function(obj,i,_2c){
+},function(obj,i,_22){
 });
 }

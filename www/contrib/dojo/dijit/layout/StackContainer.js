@@ -12,7 +12,7 @@ dojo.require("dijit._Templated");
 dojo.require("dijit.layout._LayoutWidget");
 dojo.requireLocalization("dijit","common",null,"ROOT,ar,ca,cs,da,de,el,es,fi,fr,he,hu,it,ja,ko,nb,nl,pl,pt,pt-pt,ru,sk,sl,sv,th,tr,zh,zh-tw");
 dojo.require("dojo.cookie");
-dojo.declare("dijit.layout.StackContainer",dijit.layout._LayoutWidget,{doLayout:true,persist:false,baseClass:"dijitStackContainer",_started:false,postCreate:function(){
+dojo.declare("dijit.layout.StackContainer",dijit.layout._LayoutWidget,{doLayout:true,persist:false,baseClass:"dijitStackContainer",postCreate:function(){
 this.inherited(arguments);
 dojo.addClass(this.domNode,"dijitLayoutContainer");
 dijit.setWaiRole(this.containerNode,"tabpanel");
@@ -39,66 +39,75 @@ _3=this.selectedChildWidget=_1[0];
 _3.selected=true;
 }
 dojo.publish(this.id+"-startup",[{children:_1,selected:_3}]);
-if(_3){
-this._showChild(_3);
+this.inherited(arguments);
+},resize:function(){
+var _4=this.selectedChildWidget;
+if(_4&&!this._hasBeenShown){
+this._hasBeenShown=true;
+this._showChild(_4);
 }
 this.inherited(arguments);
-},_setupChild:function(_4){
+},_setupChild:function(_5){
 this.inherited(arguments);
-dojo.removeClass(_4.domNode,"dijitVisible");
-dojo.addClass(_4.domNode,"dijitHidden");
-_4.domNode.title="";
-return _4;
-},addChild:function(_5,_6){
+dojo.removeClass(_5.domNode,"dijitVisible");
+dojo.addClass(_5.domNode,"dijitHidden");
+_5.domNode.title="";
+},addChild:function(_6,_7){
 this.inherited(arguments);
 if(this._started){
-dojo.publish(this.id+"-addChild",[_5,_6]);
+dojo.publish(this.id+"-addChild",[_6,_7]);
 this.layout();
 if(!this.selectedChildWidget){
-this.selectChild(_5);
+this.selectChild(_6);
 }
 }
-},removeChild:function(_7){
+},removeChild:function(_8){
 this.inherited(arguments);
+if(this._started){
+dojo.publish(this.id+"-removeChild",[_8]);
+}
 if(this._beingDestroyed){
 return;
 }
 if(this._started){
-dojo.publish(this.id+"-removeChild",[_7]);
 this.layout();
 }
-if(this.selectedChildWidget===_7){
+if(this.selectedChildWidget===_8){
 this.selectedChildWidget=undefined;
 if(this._started){
-var _8=this.getChildren();
-if(_8.length){
-this.selectChild(_8[0]);
+var _9=this.getChildren();
+if(_9.length){
+this.selectChild(_9[0]);
 }
 }
 }
-},selectChild:function(_9){
-_9=dijit.byId(_9);
-if(this.selectedChildWidget!=_9){
-this._transition(_9,this.selectedChildWidget);
-this.selectedChildWidget=_9;
-dojo.publish(this.id+"-selectChild",[_9]);
+},selectChild:function(_a){
+_a=dijit.byId(_a);
+if(this.selectedChildWidget!=_a){
+this._transition(_a,this.selectedChildWidget);
+this.selectedChildWidget=_a;
+dojo.publish(this.id+"-selectChild",[_a]);
 if(this.persist){
 dojo.cookie(this.id+"_selectedChild",this.selectedChildWidget.id);
 }
 }
-},_transition:function(_a,_b){
-if(_b){
-this._hideChild(_b);
+},_transition:function(_b,_c){
+if(_c){
+this._hideChild(_c);
 }
-this._showChild(_a);
-if(this.doLayout&&_a.resize){
-_a.resize(this._containerContentBox||this._contentBox);
+this._showChild(_b);
+if(_b.resize){
+if(this.doLayout){
+_b.resize(this._containerContentBox||this._contentBox);
+}else{
+_b.resize();
 }
-},_adjacent:function(_c){
-var _d=this.getChildren();
-var _e=dojo.indexOf(_d,this.selectedChildWidget);
-_e+=_c?1:_d.length-1;
-return _d[_e%_d.length];
+}
+},_adjacent:function(_d){
+var _e=this.getChildren();
+var _f=dojo.indexOf(_e,this.selectedChildWidget);
+_f+=_d?1:_e.length-1;
+return _e[_f%_e.length];
 },forward:function(){
 this.selectChild(this._adjacent(true));
 },back:function(){
@@ -116,32 +125,26 @@ _10.isLastChild=(_10==_11[_11.length-1]);
 _10.selected=true;
 dojo.removeClass(_10.domNode,"dijitHidden");
 dojo.addClass(_10.domNode,"dijitVisible");
-if(_10._onShow){
 _10._onShow();
-}else{
-if(_10.onShow){
-_10.onShow();
-}
-}
 },_hideChild:function(_12){
 _12.selected=false;
 dojo.removeClass(_12.domNode,"dijitVisible");
 dojo.addClass(_12.domNode,"dijitHidden");
-if(_12.onHide){
 _12.onHide();
-}
 },closeChild:function(_13){
 var _14=_13.onClose(this,_13);
 if(_14){
 this.removeChild(_13);
 _13.destroyRecursive();
 }
-},destroy:function(){
-this._beingDestroyed=true;
-this.inherited(arguments);
+},destroyDescendants:function(_15){
+dojo.forEach(this.getChildren(),function(_16){
+this.removeChild(_16);
+_16.destroyRecursive(_15);
+},this);
 }});
 dojo.require("dijit.layout.StackController");
-dojo.extend(dijit._Widget,{title:"",selected:false,closable:false,onClose:function(){
+dojo.extend(dijit._Widget,{selected:false,closable:false,iconClass:"",showTitle:true,onClose:function(){
 return true;
 }});
 }

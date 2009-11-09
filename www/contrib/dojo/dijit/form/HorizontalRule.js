@@ -18,17 +18,17 @@ if(this.count==1){
 _3=this._genHTML(50,0);
 }else{
 var i;
-var _5=100/(this.count-1);
+var _4=100/(this.count-1);
 if(!this._isHorizontal||this.isLeftToRight()){
 _3=this._genHTML(0,0);
 for(i=1;i<this.count-1;i++){
-_3+=this._genHTML(_5*i,i);
+_3+=this._genHTML(_4*i,i);
 }
 _3+=this._genHTML(100,this.count-1);
 }else{
 _3=this._genHTML(100,0);
 for(i=1;i<this.count-1;i++){
-_3+=this._genHTML(100-_5*i,i);
+_3+=this._genHTML(100-_4*i,i);
 }
 _3+=this._genHTML(0,this.count-1);
 }

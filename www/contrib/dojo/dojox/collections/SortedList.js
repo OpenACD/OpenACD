@@ -13,7 +13,7 @@ dojox.collections.SortedList=function(_1){
 var _2=this;
 var _3={};
 var q=[];
-var _5=function(a,b){
+var _4=function(a,b){
 if(a.key>b.key){
 return 1;
 }
@@ -22,21 +22,21 @@ return -1;
 }
 return 0;
 };
-var _8=function(){
+var _5=function(){
 q=[];
 var e=_2.getIterator();
 while(!e.atEnd()){
 q.push(e.get());
 }
-q.sort(_5);
+q.sort(_4);
 };
-var _a={};
+var _6={};
 this.count=q.length;
 this.add=function(k,v){
 if(!_3[k]){
 _3[k]=new dojox.collections.DictionaryEntry(k,v);
 this.count=q.push(_3[k]);
-q.sort(_5);
+q.sort(_4);
 }
 };
 this.clear=function(){
@@ -48,7 +48,7 @@ this.clone=function(){
 return new dojox.collections.SortedList(this);
 };
 this.contains=this.containsKey=function(k){
-if(_a[k]){
+if(_6[k]){
 return false;
 }
 return (_3[k]!=null);
@@ -56,26 +56,26 @@ return (_3[k]!=null);
 this.containsValue=function(o){
 var e=this.getIterator();
 while(!e.atEnd()){
-var _10=e.get();
-if(_10.value==o){
+var _7=e.get();
+if(_7.value==o){
 return true;
 }
 }
 return false;
 };
-this.copyTo=function(arr,i){
+this.copyTo=function(_8,i){
 var e=this.getIterator();
-var idx=i;
+var _9=i;
 while(!e.atEnd()){
-arr.splice(idx,0,e.get());
-idx++;
+_8.splice(_9,0,e.get());
+_9++;
 }
 };
 this.entry=function(k){
 return _3[k];
 };
-this.forEach=function(fn,_17){
-dojo.forEach(q,fn,_17);
+this.forEach=function(fn,_a){
+dojo.forEach(q,fn,_a);
 };
 this.getByIndex=function(i){
 return q[i].valueOf();
@@ -87,20 +87,20 @@ this.getKey=function(i){
 return q[i].key;
 };
 this.getKeyList=function(){
-var arr=[];
+var _b=[];
 var e=this.getIterator();
 while(!e.atEnd()){
-arr.push(e.get().key);
+_b.push(e.get().key);
 }
-return arr;
+return _b;
 };
 this.getValueList=function(){
-var arr=[];
+var _c=[];
 var e=this.getIterator();
 while(!e.atEnd()){
-arr.push(e.get().value);
+_c.push(e.get().value);
 }
-return arr;
+return _c;
 };
 this.indexOfKey=function(k){
 for(var i=0;i<q.length;i++){
@@ -119,19 +119,19 @@ return i;
 return -1;
 };
 this.item=function(k){
-if(k in _3&&!_a[k]){
+if(k in _3&&!_6[k]){
 return _3[k].valueOf();
 }
 return undefined;
 };
 this.remove=function(k){
 delete _3[k];
-_8();
+_5();
 this.count=q.length;
 };
 this.removeAt=function(i){
 delete _3[q[i].key];
-_8();
+_5();
 this.count=q.length;
 };
 this.replace=function(k,v){
@@ -140,22 +140,22 @@ this.add(k,v);
 return false;
 }else{
 _3[k]=new dojox.collections.DictionaryEntry(k,v);
-_8();
+_5();
 return true;
 }
 };
 this.setByIndex=function(i,o){
 _3[q[i].key].value=o;
-_8();
+_5();
 this.count=q.length;
 };
 if(_1){
 var e=_1.getIterator();
 while(!e.atEnd()){
-var _2a=e.get();
-q[q.length]=_3[_2a.key]=new dojox.collections.DictionaryEntry(_2a.key,_2a.value);
+var _d=e.get();
+q[q.length]=_3[_d.key]=new dojox.collections.DictionaryEntry(_d.key,_d.value);
 }
-q.sort(_5);
+q.sort(_4);
 }
 };
 }

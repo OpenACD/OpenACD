@@ -11,7 +11,7 @@ dojo.provide("dojox.av.widget.VolumeButton");
 dojo.require("dijit._Widget");
 dojo.require("dijit._Templated");
 dojo.require("dijit.form.Button");
-dojo.declare("dojox.av.widget.VolumeButton",[dijit._Widget,dijit._Templated],{templateString:"<div class=\"Volume\" dojoAttachEvent=\"mousedown:onShowVolume\">\n\t<div class=\"VolumeSlider\" dojoAttachPoint=\"volumeSlider\">\n    \t<div class=\"VolumeSliderBack\" dojoAttachPoint=\"volumeSliderBack\"></div>\n    \t<div class=\"VolumeSliderHandle\" dojoAttachPoint=\"handle\" dojoAttachEvent=\"mousedown:startDrag, mouseup:endDrag, mouseover:handleOver, mouseout:handleOut\"></div>\t\n    </div>\n    <div class=\"icon\"></div>\n</div>\n",postCreate:function(){
+dojo.declare("dojox.av.widget.VolumeButton",[dijit._Widget,dijit._Templated],{templateString:dojo.cache("dojox.av.widget","resources/VolumeButton.html","<div class=\"Volume\" dojoAttachEvent=\"mousedown:onShowVolume\">\n\t<div class=\"VolumeSlider\" dojoAttachPoint=\"volumeSlider\">\n    \t<div class=\"VolumeSliderBack\" dojoAttachPoint=\"volumeSliderBack\"></div>\n    \t<div class=\"VolumeSliderHandle\" dojoAttachPoint=\"handle\" dojoAttachEvent=\"mousedown:startDrag, mouseup:endDrag, mouseover:handleOver, mouseout:handleOut\"></div>\t\n    </div>\n    <div class=\"icon\"></div>\n</div>\n"),postCreate:function(){
 this.handleWidth=dojo.marginBox(this.handle).w;
 this.width=dojo.marginBox(this.volumeSlider).w;
 this.slotWidth=100;
@@ -58,26 +58,26 @@ this.clickOff=dojo.connect(dojo.doc,"onmousedown",this,"onDocClick");
 }else{
 this.onHideVolume();
 }
-},onDocClick:function(_a){
-if(!dojo.isDescendant(_a.target,this.domNode)&&!dojo.isDescendant(_a.target,this.volumeSlider)){
+},onDocClick:function(_9){
+if(!dojo.isDescendant(_9.target,this.domNode)&&!dojo.isDescendant(_9.target,this.volumeSlider)){
 this.onHideVolume();
 }
 },onHideVolume:function(){
 this.endDrag();
 dojo.style(this.volumeSlider,"display","none");
 this.showing=false;
-},onDrag:function(_b){
-var _c=this.handleWidth/2;
-var _d=_c+this.slotWidth;
-var x=_b.clientX-this.x;
-if(x<_c){
+},onDrag:function(_a){
+var _b=this.handleWidth/2;
+var _c=_b+this.slotWidth;
+var x=_a.clientX-this.x;
+if(x<_b){
+x=_b;
+}
+if(x>_c){
 x=_c;
 }
-if(x>_d){
-x=_d;
-}
 dojo.style(this.handle,"left",(x)+"px");
-var p=(x-_c)/(_d-_c);
+var p=(x-_b)/(_c-_b);
 this.media.volume(p);
 this.updateIcon(p);
 },startDrag:function(){
@@ -111,7 +111,7 @@ return this._handleCoords;
 }
 this._handleCoords=dojo.marginBox(this.handle);
 return this._handleCoords;
-},onResize:function(_10){
+},onResize:function(_d){
 this.onHideVolume();
 this._domCoords=null;
 }});

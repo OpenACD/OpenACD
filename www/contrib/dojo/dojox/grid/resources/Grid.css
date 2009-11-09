@@ -32,6 +32,7 @@
 .dojoxGridHeader {
 	position: absolute;
 	overflow: hidden;
+	cursor: default;
 }
 .dojoxGridHeader {
 	background-color: #E8E1CF;
@@ -232,6 +233,12 @@
 .dojoxGrid .dojoDndItemAfter {
 	border-right-color: red;
 }
+.dijit_a11y .dojoDndItemBefore {
+	border-left: double;
+}
+.dijit_a11y .dojoDndItemAfter {
+	border-right: double;
+}
 .dojoxGridDndAvatarItem	td {
 	border: 1px solid;
 	border-color: #F6F4EB #ACA899 #ACA899 #F6F4EB;
@@ -266,4 +273,73 @@
 	background-image: url(../../../dojo/resources/images/dndCopy.png);
 	background-repeat: no-repeat;
 	background-position: center center;
+}
+.dojoxGridColPlaceBottom {
+	background: transparent url(images/grid_sort_up.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop {
+	background: transparent url(images/grid_sort_down.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop, .dojoxGridColPlaceBottom {
+	font-size:1px;
+	height:6px;
+	z-index:10000;
+	top:0;
+	overflow:hidden;
+	position:absolute;
+	line-height:1px;
+	width:8px;
+}
+.dojoxGridResizeColLine {
+	width: 1px;
+	background-color: #777;
+	position: absolute;
+	cursor: col-resize;
+	z-index:10000;
+}
+.dojoxGridColNoResize, 
+.dojoxGridColNoResize .dojoDndItemOver {
+	cursor: not-allowed !important;
+}
+.dojoxGridColResize, 
+.dojoxGridColResize .dojoDndItemOver,
+.dojoxGridColumnResizing,
+.dojoxGridColumnResizing .dojoDndItemOver,
+.dojoxGridColumnResizing .dojoxGridHeader {
+	cursor: col-resize !important;
+}
+.dojoxGridColPlaceBottom {
+	background: transparent url(images/grid_sort_up.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop {
+	background: transparent url(images/grid_sort_down.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop, .dojoxGridColPlaceBottom {
+	font-size:1px;
+	height:6px;
+	z-index:10000;
+	top:0;
+	overflow:hidden;
+	position:absolute;
+	line-height:1px;
+	width:8px;
+}
+.dojoxGridResizeColLine {
+	width: 1px;
+	background-color: #777;
+	position: absolute;
+}
+.dojoxGridExpandoCell {
+	vertical-align: top;
+}
+.dojoxGridSummarySpan {
+	visibility: hidden;
+}
+.dojoxGridSummaryRow .dojoxGridSummarySpan,
+.dojoxGridRowCollapsed .dojoxGridSummarySpan {
+	visibility: visible;
+}
+.dojoxGridNoChildren .dojoxGridExpando {
+	visibility: hidden !important;
+	width: 0px !important;
 }

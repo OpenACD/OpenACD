@@ -1,1 +1,1 @@
-({"set":"Nastaviť","text":"Popis:","insertImageTitle":"Vlastnosti obrázku","url":"URL:","createLinkTitle":"Vlastnosti odkazu"})
+({"set":"Nastaviť","text":"Popis:","insertImageTitle":"Vlastnosti obrázku","url":"URL:","createLinkTitle":"Vlastnosti odkazu","cancel":"Cancel","newWindow":"New Window ( _blank )","topWindow":"Topmost Window ( _top )","target":"Target:","parentWindow":"Parent Window ( _parent )","currentWindow":"Current Window ( _self )"})

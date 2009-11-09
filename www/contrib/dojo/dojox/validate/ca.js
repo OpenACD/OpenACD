@@ -14,11 +14,11 @@ return dojox.validate.us.isPhoneNumber(_1);
 },isProvince:function(_2){
 var re=new RegExp("^"+dojox.validate.regexp.ca.province()+"$","i");
 return re.test(_2);
-},isSocialInsuranceNumber:function(_4){
-var _5={format:["###-###-###","### ### ###","#########"]};
-return dojox.validate.isNumberFormat(_4,_5);
-},isPostalCode:function(_6){
+},isSocialInsuranceNumber:function(_3){
+var _4={format:["###-###-###","### ### ###","#########"]};
+return dojox.validate.isNumberFormat(_3,_4);
+},isPostalCode:function(_5){
 var re=new RegExp("^"+dojox.validate.regexp.ca.postalCode()+"$","i");
-return re.test(_6);
+return re.test(_5);
 }});
 }

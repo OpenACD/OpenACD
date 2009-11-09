@@ -90,16 +90,16 @@ return dojo.xhrPost({url:this._cometd.url||dojo.config["cometdRoot"],handleAs:th
 this._cometd._publishMeta("publish",false,{messages:_f});
 }),timeout:this._cometd.expectedNetworkDelay});
 };
-this.startup=function(_12){
+this.startup=function(_10){
 if(this._cometd._status=="connected"){
 return;
 }
 this.tunnelInit();
 };
 this.disconnect=function(){
-var _13={channel:"/meta/disconnect",clientId:this._cometd.clientId,id:""+this._cometd.messageId++};
-_13=this._cometd._extendOut(_13);
-dojo.xhrPost({url:this._cometd.url||dojo.config["cometdRoot"],handleAs:this._cometd.handleAs,content:{message:dojo.toJson([_13])}});
+var _11={channel:"/meta/disconnect",clientId:this._cometd.clientId,id:""+this._cometd.messageId++};
+_11=this._cometd._extendOut(_11);
+dojo.xhrPost({url:this._cometd.url||dojo.config["cometdRoot"],handleAs:this._cometd.handleAs,content:{message:dojo.toJson([_11])}});
 };
 this.cancelConnect=function(){
 if(this._poll){

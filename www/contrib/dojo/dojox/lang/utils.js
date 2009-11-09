@@ -10,7 +10,7 @@ dojo._hasResource["dojox.lang.utils"]=true;
 dojo.provide("dojox.lang.utils");
 (function(){
 var _1={},du=dojox.lang.utils;
-var _3=function(o){
+var _2=function(o){
 if(dojo.isArray(o)){
 return dojo._toArray(o);
 }
@@ -19,41 +19,41 @@ return o;
 }
 return dojo.delegate(o);
 };
-dojo.mixin(du,{coerceType:function(_5,_6){
-switch(typeof _5){
+dojo.mixin(du,{coerceType:function(_3,_4){
+switch(typeof _3){
 case "number":
-return Number(eval("("+_6+")"));
+return Number(eval("("+_4+")"));
 case "string":
-return String(_6);
+return String(_4);
 case "boolean":
-return Boolean(eval("("+_6+")"));
+return Boolean(eval("("+_4+")"));
 }
-return eval("("+_6+")");
-},updateWithObject:function(_7,_8,_9){
-if(!_8){
-return _7;
+return eval("("+_4+")");
+},updateWithObject:function(_5,_6,_7){
+if(!_6){
+return _5;
 }
-for(var x in _7){
-if(x in _8&&!(x in _1)){
-var t=_7[x];
+for(var x in _5){
+if(x in _6&&!(x in _1)){
+var t=_5[x];
 if(t&&typeof t=="object"){
-du.updateWithObject(t,_8[x],_9);
+du.updateWithObject(t,_6[x],_7);
 }else{
-_7[x]=_9?du.coerceType(t,_8[x]):_3(_8[x]);
+_5[x]=_7?du.coerceType(t,_6[x]):_2(_6[x]);
 }
 }
 }
-return _7;
-},updateWithPattern:function(_c,_d,_e,_f){
-if(!_d||!_e){
-return _c;
+return _5;
+},updateWithPattern:function(_8,_9,_a,_b){
+if(!_9||!_a){
+return _8;
 }
-for(var x in _e){
-if(x in _d&&!(x in _1)){
-_c[x]=_f?du.coerceType(_e[x],_d[x]):_3(_d[x]);
+for(var x in _a){
+if(x in _9&&!(x in _1)){
+_8[x]=_b?du.coerceType(_a[x],_9[x]):_2(_9[x]);
 }
 }
-return _c;
+return _8;
 }});
 })();
 }

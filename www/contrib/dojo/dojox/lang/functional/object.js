@@ -10,52 +10,52 @@ dojo._hasResource["dojox.lang.functional.object"]=true;
 dojo.provide("dojox.lang.functional.object");
 dojo.require("dojox.lang.functional.lambda");
 (function(){
-var d=dojo,df=dojox.lang.functional,_3={};
-d.mixin(df,{keys:function(_4){
+var d=dojo,df=dojox.lang.functional,_1={};
+d.mixin(df,{keys:function(_2){
 var t=[];
-for(var i in _4){
-if(!(i in _3)){
+for(var i in _2){
+if(!(i in _1)){
 t.push(i);
 }
 }
 return t;
-},values:function(_7){
+},values:function(_3){
 var t=[];
-for(var i in _7){
-if(!(i in _3)){
-t.push(_7[i]);
+for(var i in _3){
+if(!(i in _1)){
+t.push(_3[i]);
 }
 }
 return t;
-},filterIn:function(_a,f,o){
+},filterIn:function(_4,f,o){
 o=o||d.global;
 f=df.lambda(f);
 var t={},v,i;
-for(i in _a){
-if(!(i in _3)){
-v=_a[i];
-if(f.call(o,v,i,_a)){
+for(i in _4){
+if(!(i in _1)){
+v=_4[i];
+if(f.call(o,v,i,_4)){
 t[i]=v;
 }
 }
 }
 return t;
-},forIn:function(obj,f,o){
+},forIn:function(_5,f,o){
 o=o||d.global;
 f=df.lambda(f);
-for(var i in obj){
-if(!(i in _3)){
-f.call(o,obj[i],i,obj);
+for(var i in _5){
+if(!(i in _1)){
+f.call(o,_5[i],i,_5);
 }
 }
 return o;
-},mapIn:function(obj,f,o){
+},mapIn:function(_6,f,o){
 o=o||d.global;
 f=df.lambda(f);
 var t={},i;
-for(i in obj){
-if(!(i in _3)){
-t[i]=f.call(o,obj[i],i,obj);
+for(i in _6){
+if(!(i in _1)){
+t[i]=f.call(o,_6[i],i,_6);
 }
 }
 return t;

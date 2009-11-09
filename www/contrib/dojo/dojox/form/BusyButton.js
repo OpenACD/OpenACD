@@ -16,6 +16,7 @@ if(!this.busyLabel){
 this.busyLabel=dojo.i18n.getLocalization("dijit","loading",this.lang).loadingState;
 }
 },postCreate:function(){
+this.inherited(arguments);
 this._label=this.containerNode.innerHTML;
 this._initTimeout=this.timeout;
 if(this.isBusy){
@@ -52,7 +53,6 @@ while(this.containerNode.firstChild){
 this.containerNode.removeChild(this.containerNode.firstChild);
 }
 this.containerNode.innerHTML=this.label;
-this._layoutHack();
 if(this.showLabel==false&&!(dojo.attr(this.domNode,"title"))){
 this.titleNode.title=dojo.trim(this.containerNode.innerText||this.containerNode.textContent||"");
 }

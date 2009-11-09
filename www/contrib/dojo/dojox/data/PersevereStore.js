@@ -42,15 +42,15 @@ dojox.rpc.Rest._index[_d.prototype.__id]=_d.prototype=dojo.mixin(dojo.delegate(_
 function _e(_f,_10){
 if(_f&&_10){
 for(var j in _f){
-var _12=_f[j];
-if(_12.runAt=="server"&&!_10[j]){
-_10[j]=(function(_13){
+var _11=_f[j];
+if(_11.runAt!="client"&&!_10[j]){
+_10[j]=(function(_12){
 return function(){
-var _14=dojo.rawXhrPost({url:this.__id,postData:dojo.toJson({method:_13,id:_a++,params:dojo._toArray(arguments)}),handleAs:"json"});
-_14.addCallback(function(_15){
-return _15.error?new Error(_15.error):_15.result;
+var _13=dojo.rawXhrPost({url:this.__id,postData:dojo.toJson({method:_12,id:_a++,params:dojo._toArray(arguments)}),handleAs:"json"});
+_13.addCallback(function(_14){
+return _14.error?new Error(_14.error):_14.result;
 });
-return _14;
+return _13;
 };
 })(j);
 }
@@ -59,11 +59,11 @@ return _14;
 };
 for(var i in _b){
 if(typeof _b[i]=="object"){
-var _17=_b[i];
-_c(_17);
-_e(_17.methods,_17.prototype=_17.prototype||{});
-_e(_17.staticMethods,_17);
-_9[_b[i].id]=new dojox.data.PersevereStore({target:new dojo._Url(_1,_b[i].id)+"",schema:_17});
+var _15=_b[i];
+_c(_15);
+_e(_15.methods,_15.prototype=_15.prototype||{});
+_e(_15.staticMethods,_15);
+_9[_b[i].id]=new dojox.data.PersevereStore({target:new dojo._Url(_1,_b[i].id)+"/",schema:_15});
 }
 }
 return (_8=_9);

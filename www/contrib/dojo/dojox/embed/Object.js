@@ -24,16 +24,16 @@ em=dojox.embed.Quicktime;
 if(!this.params){
 this.params={};
 if(this.domNode.hasAttributes()){
-var _3={dojoType:"",width:"",height:"","class":"",style:"",id:"",src:""};
-var _4=this.domNode.attributes;
-for(var i=0,l=_4.length;i<l;i++){
-if(!_3[_4[i].name]){
-this.params[_4[i].name]=_4[i].value;
+var _2={dojoType:"",width:"",height:"","class":"",style:"",id:"",src:""};
+var _3=this.domNode.attributes;
+for(var i=0,l=_3.length;i<l;i++){
+if(!_2[_3[i].name]){
+this.params[_3[i].name]=_3[i].value;
 }
 }
 }
 }
-var _7={path:this.src,width:this.width,height:this.height,params:this.params};
-this.movie=new (em)(_7,this.domNode);
+var _4={path:this.src,width:this.width,height:this.height,params:this.params};
+this.movie=new (em)(_4,this.domNode);
 }});
 }

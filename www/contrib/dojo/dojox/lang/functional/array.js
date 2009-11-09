@@ -10,7 +10,7 @@ dojo._hasResource["dojox.lang.functional.array"]=true;
 dojo.provide("dojox.lang.functional.array");
 dojo.require("dojox.lang.functional.lambda");
 (function(){
-var d=dojo,df=dojox.lang.functional,_3={};
+var d=dojo,df=dojox.lang.functional,_1={};
 d.mixin(df,{filter:function(a,f,o){
 if(typeof a=="string"){
 a=a.split("");
@@ -35,7 +35,7 @@ t.push(v);
 }
 }else{
 for(i in a){
-if(!(i in _3)){
+if(!(i in _1)){
 v=a[i];
 if(f.call(o,v,i,a)){
 t.push(v);
@@ -61,7 +61,7 @@ for(i=0;a.hasNext();f.call(o,a.next(),i++,a)){
 }
 }else{
 for(i in a){
-if(!(i in _3)){
+if(!(i in _1)){
 f.call(o,a[i],i,a);
 }
 }
@@ -87,7 +87,7 @@ for(i=0;a.hasNext();t.push(f.call(o,a.next(),i++,a))){
 }else{
 t=[];
 for(i in a){
-if(!(i in _3)){
+if(!(i in _1)){
 t.push(f.call(o,a[i],i,a));
 }
 }
@@ -116,7 +116,7 @@ return false;
 }
 }else{
 for(i in a){
-if(!(i in _3)){
+if(!(i in _1)){
 if(!f.call(o,a[i],i,a)){
 return false;
 }
@@ -147,7 +147,7 @@ return true;
 }
 }else{
 for(i in a){
-if(!(i in _3)){
+if(!(i in _1)){
 if(f.call(o,a[i],i,a)){
 return true;
 }

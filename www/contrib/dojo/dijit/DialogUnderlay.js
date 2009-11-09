@@ -12,34 +12,30 @@ dojo.require("dijit._Widget");
 dojo.require("dijit._Templated");
 dojo.declare("dijit.DialogUnderlay",[dijit._Widget,dijit._Templated],{templateString:"<div class='dijitDialogUnderlayWrapper'><div class='dijitDialogUnderlay' dojoAttachPoint='node'></div></div>",dialogId:"","class":"",attributeMap:{id:"domNode"},_setDialogIdAttr:function(id){
 dojo.attr(this.node,"id",id+"_underlay");
-},_setClassAttr:function(_2){
-this.node.className="dijitDialogUnderlay "+_2;
+},_setClassAttr:function(_1){
+this.node.className="dijitDialogUnderlay "+_1;
 },postCreate:function(){
 dojo.body().appendChild(this.domNode);
-this.bgIframe=new dijit.BackgroundIframe(this.domNode);
 },layout:function(){
 var is=this.node.style,os=this.domNode.style;
 os.display="none";
-var _5=dijit.getViewport();
-os.top=_5.t+"px";
-os.left=_5.l+"px";
-is.width=_5.w+"px";
-is.height=_5.h+"px";
+var _2=dijit.getViewport();
+os.top=_2.t+"px";
+os.left=_2.l+"px";
+is.width=_2.w+"px";
+is.height=_2.h+"px";
 os.display="block";
 },show:function(){
 this.domNode.style.display="block";
 this.layout();
-if(this.bgIframe.iframe){
-this.bgIframe.iframe.style.display="block";
-}
+this.bgIframe=new dijit.BackgroundIframe(this.domNode);
 },hide:function(){
+this.bgIframe.destroy();
 this.domNode.style.display="none";
-if(this.bgIframe.iframe){
-this.bgIframe.iframe.style.display="none";
-}
 },uninitialize:function(){
 if(this.bgIframe){
 this.bgIframe.destroy();
 }
+this.inherited(arguments);
 }});
 }

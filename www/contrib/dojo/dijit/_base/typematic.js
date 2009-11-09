@@ -46,7 +46,7 @@ dojo.deprecated("charCode attribute parameter for dijit.typematic.addKeyListener
 }
 }
 return [dojo.connect(_8,"onkeypress",this,function(_e){
-if(_e.charOrCode==_9.charOrCode&&(_9.ctrlKey===undefined||_9.ctrlKey==_e.ctrlKey)&&(_9.altKey===undefined||_9.altKey==_e.ctrlKey)&&(_9.shiftKey===undefined||_9.shiftKey==_e.ctrlKey)){
+if(_e.charOrCode==_9.charOrCode&&(_9.ctrlKey===undefined||_9.ctrlKey==_e.ctrlKey)&&(_9.altKey===undefined||_9.altKey==_e.altKey)&&(_9.metaKey===undefined||_9.metaKey==(_e.metaKey||false))&&(_9.shiftKey===undefined||_9.shiftKey==_e.shiftKey)){
 dojo.stopEvent(_e);
 dijit.typematic.trigger(_9,_a,_8,_b,_9,_c,_d);
 }else{
@@ -79,7 +79,7 @@ dijit.typematic.trigger(evt,_11,_10,_12,_10,_13,_14);
 setTimeout(dojo.hitch(this,dijit.typematic.stop),50);
 }
 })];
-},addListener:function(_1b,_1c,_1d,_1e,_1f,_20,_21){
-return this.addKeyListener(_1c,_1d,_1e,_1f,_20,_21).concat(this.addMouseListener(_1b,_1e,_1f,_20,_21));
+},addListener:function(_15,_16,_17,_18,_19,_1a,_1b){
+return this.addKeyListener(_16,_17,_18,_19,_1a,_1b).concat(this.addMouseListener(_15,_18,_19,_1a,_1b));
 }};
 }

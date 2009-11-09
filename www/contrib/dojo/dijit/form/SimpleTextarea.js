@@ -9,7 +9,7 @@ if(!dojo._hasResource["dijit.form.SimpleTextarea"]){
 dojo._hasResource["dijit.form.SimpleTextarea"]=true;
 dojo.provide("dijit.form.SimpleTextarea");
 dojo.require("dijit.form.TextBox");
-dojo.declare("dijit.form.SimpleTextarea",dijit.form.TextBox,{baseClass:"dijitTextArea",attributeMap:dojo.delegate(dijit.form._FormValueWidget.prototype.attributeMap,{rows:"textbox",cols:"textbox"}),rows:"3",cols:"20",templatePath:null,templateString:"<textarea ${nameAttrSetting} dojoAttachPoint='focusNode,containerNode,textbox' autocomplete='off'></textarea>",postMixInProperties:function(){
+dojo.declare("dijit.form.SimpleTextarea",dijit.form.TextBox,{baseClass:"dijitTextArea",attributeMap:dojo.delegate(dijit.form._FormValueWidget.prototype.attributeMap,{rows:"textbox",cols:"textbox"}),rows:"3",cols:"20",templateString:"<textarea ${nameAttrSetting} dojoAttachPoint='focusNode,containerNode,textbox' autocomplete='off'></textarea>",postMixInProperties:function(){
 if(!this.value&&this.srcNodeRef){
 this.value=this.srcNodeRef.value;
 }
@@ -22,31 +22,33 @@ return this.inherited(arguments);
 },postCreate:function(){
 this.inherited(arguments);
 if(dojo.isIE&&this.cols){
-dojo.addClass(this.domNode,"dijitTextAreaCols");
+dojo.addClass(this.textbox,"dijitTextAreaCols");
 }
 },_previousValue:"",_onInput:function(e){
 if(this.maxLength){
-var _3=parseInt(this.maxLength);
-var _4=this.textbox.value.replace(/\r/g,"");
-var _5=_4.length-_3;
-if(_5>0){
+var _2=parseInt(this.maxLength);
+var _3=this.textbox.value.replace(/\r/g,"");
+var _4=_3.length-_2;
+if(_4>0){
+if(e){
 dojo.stopEvent(e);
-var _6=this.textbox;
-if(_6.selectionStart){
-var _7=_6.selectionStart;
+}
+var _5=this.textbox;
+if(_5.selectionStart){
+var _6=_5.selectionStart;
 var cr=0;
 if(dojo.isOpera){
-cr=(this.textbox.value.substring(0,_7).match(/\r/g)||[]).length;
+cr=(this.textbox.value.substring(0,_6).match(/\r/g)||[]).length;
 }
-this.textbox.value=_4.substring(0,_7-_5-cr)+_4.substring(_7-cr);
-_6.setSelectionRange(_7-_5,_7-_5);
+this.textbox.value=_3.substring(0,_6-_4-cr)+_3.substring(_6-cr);
+_5.setSelectionRange(_6-_4,_6-_4);
 }else{
 if(dojo.doc.selection){
-_6.focus();
-var _9=dojo.doc.selection.createRange();
-_9.moveStart("character",-_5);
-_9.text="";
-_9.select();
+_5.focus();
+var _7=dojo.doc.selection.createRange();
+_7.moveStart("character",-_4);
+_7.text="";
+_7.select();
 }
 }
 }

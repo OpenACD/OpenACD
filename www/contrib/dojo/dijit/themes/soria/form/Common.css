@@ -22,18 +22,6 @@
 .dj_ie6 .soria .dijitTextArea {
 	background:#fff url('../images/validationInputBg.gif') repeat-x top left;
 }
-.soria .dijitTextBoxDisabled,
-.soria .dijitComboBoxDisabled,
-.soria .dijitSpinnerDisabled,
-.soria .dijitTextAreaDisabled {
-	color: gray;
-}
-.dj_webkit .soria .dijitTextBoxDisabled,
-.dj_webkit .soria .dijitComboBoxDisabled,
-.dj_webkit .soria .dijitSpinnerDisabled,
-.dj_webkit .soria .dijitTextareaDisabled {
-	color: #eee;
-}
 .soria .dijitComboBox .dijitButtonNode {
 	padding: 0 0.2em;
 }

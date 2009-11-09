@@ -18,13 +18,13 @@ switch(e.type){
 case "touchmove":
 e.preventDefault();
 if(this.touchPosition){
-var _3=e.touches[0]["page"+this.axis]-this.touchPosition;
-if(Math.abs(_3)>100){
+var _1=e.touches[0]["page"+this.axis]-this.touchPosition;
+if(Math.abs(_1)>100){
 if(this.axis=="Y"){
-_3*=-1;
+_1*=-1;
 }
 delete this.touchPosition;
-if(_3>0){
+if(_1>0){
 !this.selectedChildWidget.isLastChild&&this.forward();
 }else{
 !this.selectedChildWidget.isFirstChild&&this.back();

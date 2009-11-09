@@ -11,42 +11,42 @@ dojo.provide("dojox.lang.functional.curry");
 dojo.require("dojox.lang.functional.lambda");
 (function(){
 var df=dojox.lang.functional,ap=Array.prototype;
-var _3=function(_4){
+var _1=function(_2){
 return function(){
-var _5=_4.args.concat(ap.slice.call(arguments,0));
-if(arguments.length+_4.args.length<_4.arity){
-return _3({func:_4.func,arity:_4.arity,args:_5});
+var _3=_2.args.concat(ap.slice.call(arguments,0));
+if(arguments.length+_2.args.length<_2.arity){
+return _1({func:_2.func,arity:_2.arity,args:_3});
 }
-return _4.func.apply(this,_5);
+return _2.func.apply(this,_3);
 };
 };
-dojo.mixin(df,{curry:function(f,_7){
+dojo.mixin(df,{curry:function(f,_4){
 f=df.lambda(f);
-_7=typeof _7=="number"?_7:f.length;
-return _3({func:f,arity:_7,args:[]});
+_4=typeof _4=="number"?_4:f.length;
+return _1({func:f,arity:_4,args:[]});
 },arg:{},partial:function(f){
-var a=arguments,l=a.length,_b=new Array(l-1),p=[],i=1,t;
+var a=arguments,l=a.length,_5=new Array(l-1),p=[],i=1,t;
 f=df.lambda(f);
 for(;i<l;++i){
 t=a[i];
-_b[i-1]=t;
+_5[i-1]=t;
 if(t===df.arg){
 p.push(i-1);
 }
 }
 return function(){
-var t=ap.slice.call(_b,0),i=0,l=p.length;
+var t=ap.slice.call(_5,0),i=0,l=p.length;
 for(;i<l;++i){
 t[p[i]]=arguments[i];
 }
 return f.apply(this,t);
 };
-},mixer:function(f,mix){
+},mixer:function(f,_6){
 f=df.lambda(f);
 return function(){
-var t=new Array(mix.length),i=0,l=mix.length;
+var t=new Array(_6.length),i=0,l=_6.length;
 for(;i<l;++i){
-t[i]=arguments[mix[i]];
+t[i]=arguments[_6[i]];
 }
 return f.apply(this,t);
 };

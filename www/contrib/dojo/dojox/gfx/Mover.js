@@ -8,12 +8,12 @@
 if(!dojo._hasResource["dojox.gfx.Mover"]){
 dojo._hasResource["dojox.gfx.Mover"]=true;
 dojo.provide("dojox.gfx.Mover");
-dojo.declare("dojox.gfx.Mover",null,{constructor:function(_1,e,_3){
+dojo.declare("dojox.gfx.Mover",null,{constructor:function(_1,e,_2){
 this.shape=_1;
 this.lastX=e.clientX;
 this.lastY=e.clientY;
-var h=this.host=_3,d=document,_6=dojo.connect(d,"onmousemove",this,"onFirstMove");
-this.events=[dojo.connect(d,"onmousemove",this,"onMouseMove"),dojo.connect(d,"onmouseup",this,"destroy"),dojo.connect(d,"ondragstart",dojo,"stopEvent"),dojo.connect(d,"onselectstart",dojo,"stopEvent"),_6];
+var h=this.host=_2,d=document,_3=dojo.connect(d,"onmousemove",this,"onFirstMove");
+this.events=[dojo.connect(d,"onmousemove",this,"onMouseMove"),dojo.connect(d,"onmouseup",this,"destroy"),dojo.connect(d,"ondragstart",dojo,"stopEvent"),dojo.connect(d,"onselectstart",dojo,"stopEvent"),_3];
 if(h&&h.onMoveStart){
 h.onMoveStart(this);
 }

@@ -18,20 +18,20 @@ for(var i=1;i<a.length;z=f.call(o,z,a[i++])){
 }
 return z;
 };
-dojo.declare("dojox.charting.plot3d.Bars",dojox.charting.plot3d.Base,{constructor:function(_7,_8,_9){
+dojo.declare("dojox.charting.plot3d.Bars",dojox.charting.plot3d.Base,{constructor:function(_2,_3,_4){
 this.depth="auto";
 this.gap=0;
 this.data=[];
 this.material={type:"plastic",finish:"dull",color:"lime"};
-if(_9){
-if("depth" in _9){
-this.depth=_9.depth;
+if(_4){
+if("depth" in _4){
+this.depth=_4.depth;
 }
-if("gap" in _9){
-this.gap=_9.gap;
+if("gap" in _4){
+this.gap=_4.gap;
 }
-if("material" in _9){
-var m=_9.material;
+if("material" in _4){
+var m=_4.material;
 if(typeof m=="string"||m instanceof dojo.Color){
 this.material.color=m;
 }else{
@@ -48,16 +48,16 @@ w=w/this.data.length;
 return w-2*this.gap;
 }
 return this.depth;
-},generate:function(_c,_d){
+},generate:function(_5,_6){
 if(!this.data){
 return this;
 }
-var _e=this.width/this.data.length,_f=0,_10=this.depth=="auto"?_e-2*this.gap:this.depth,_11=this.height/_1(this.data,Math.max);
-if(!_d){
-_d=_c.view;
+var _7=this.width/this.data.length,_8=0,_9=this.depth=="auto"?_7-2*this.gap:this.depth,_a=this.height/_1(this.data,Math.max);
+if(!_6){
+_6=_5.view;
 }
-for(var i=0;i<this.data.length;++i,_f+=_e){
-_d.createCube({bottom:{x:_f+this.gap,y:0,z:0},top:{x:_f+_e-this.gap,y:this.data[i]*_11,z:_10}}).setFill(this.material);
+for(var i=0;i<this.data.length;++i,_8+=_7){
+_6.createCube({bottom:{x:_8+this.gap,y:0,z:0},top:{x:_8+_7-this.gap,y:this.data[i]*_a,z:_9}}).setFill(this.material);
 }
 }});
 })();

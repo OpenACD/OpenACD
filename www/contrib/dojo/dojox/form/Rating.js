@@ -21,34 +21,34 @@ this.templateString=dojo.string.substitute(_2,{stars:_4});
 },postCreate:function(){
 this.inherited(arguments);
 this._renderStars(this.value);
-},_onMouse:function(_6){
+},_onMouse:function(_5){
 this.inherited(arguments);
 if(this._hovering){
-var _7=+dojo.attr(_6.target,"value");
-this.onMouseOver(_6,_7);
-this._renderStars(_7,true);
+var _6=+dojo.attr(_5.target,"value");
+this.onMouseOver(_5,_6);
+this._renderStars(_6,true);
 }else{
 this._renderStars(this.value);
 }
-},_renderStars:function(_8,_9){
-dojo.query(".dojoxRatingStar",this.domNode).forEach(function(_a,i){
-if(i+1>_8){
-dojo.removeClass(_a,"dojoxRatingStarHover");
-dojo.removeClass(_a,"dojoxRatingStarChecked");
+},_renderStars:function(_7,_8){
+dojo.query(".dojoxRatingStar",this.domNode).forEach(function(_9,i){
+if(i+1>_7){
+dojo.removeClass(_9,"dojoxRatingStarHover");
+dojo.removeClass(_9,"dojoxRatingStarChecked");
 }else{
-dojo.removeClass(_a,"dojoxRatingStar"+(_9?"Checked":"Hover"));
-dojo.addClass(_a,"dojoxRatingStar"+(_9?"Hover":"Checked"));
+dojo.removeClass(_9,"dojoxRatingStar"+(_8?"Checked":"Hover"));
+dojo.addClass(_9,"dojoxRatingStar"+(_8?"Hover":"Checked"));
 }
 });
-},onStarClick:function(_c){
-var _d=+dojo.attr(_c.target,"value");
-this.setAttribute("value",_d==this.value?0:_d);
+},onStarClick:function(_a){
+var _b=+dojo.attr(_a.target,"value");
+this.setAttribute("value",_b==this.value?0:_b);
 this._renderStars(this.value);
 this.onChange(this.value);
 },onMouseOver:function(){
-},setAttribute:function(_e,_f){
+},setAttribute:function(_c,_d){
 this.inherited("setAttribute",arguments);
-if(_e=="value"){
+if(_c=="value"){
 this._renderStars(this.value);
 this.onChange(this.value);
 }

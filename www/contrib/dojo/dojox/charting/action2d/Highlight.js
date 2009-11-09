@@ -11,12 +11,12 @@ dojo.provide("dojox.charting.action2d.Highlight");
 dojo.require("dojox.charting.action2d.Base");
 dojo.require("dojox.color");
 (function(){
-var _1=100,_2=75,_3=50,c=dojox.color,cc=function(_6){
+var _1=100,_2=75,_3=50,c=dojox.color,cc=function(_4){
 return function(){
-return _6;
+return _4;
 };
-},hl=function(_8){
-var a=new c.Color(_8),x=a.toHsl();
+},hl=function(_5){
+var a=new c.Color(_5),x=a.toHsl();
 if(x.s==0){
 x.l=x.l<50?100:0;
 }else{
@@ -33,44 +33,44 @@ x.l=x.l-_3>_2-x.l?_3:_2;
 }
 return c.fromHsl(x);
 };
-dojo.declare("dojox.charting.action2d.Highlight",dojox.charting.action2d.Base,{defaultParams:{duration:400,easing:dojo.fx.easing.backOut},optionalParams:{highlight:"red"},constructor:function(_b,_c,_d){
-var a=_d&&_d.highlight;
+dojo.declare("dojox.charting.action2d.Highlight",dojox.charting.action2d.Base,{defaultParams:{duration:400,easing:dojo.fx.easing.backOut},optionalParams:{highlight:"red"},constructor:function(_6,_7,_8){
+var a=_8&&_8.highlight;
 this.colorFun=a?(dojo.isFunction(a)?a:cc(a)):hl;
 this.connect();
 },process:function(o){
 if(!o.shape||!(o.type in this.overOutEvents)){
 return;
 }
-var _10=o.run.name,_11=o.index,_12,_13,_14;
-if(_10 in this.anim){
-_12=this.anim[_10][_11];
+var _9=o.run.name,_a=o.index,_b,_c,_d;
+if(_9 in this.anim){
+_b=this.anim[_9][_a];
 }else{
-this.anim[_10]={};
+this.anim[_9]={};
 }
-if(_12){
-_12.action.stop(true);
+if(_b){
+_b.action.stop(true);
 }else{
-var _15=o.shape.getFill();
-if(!_15||!(_15 instanceof dojo.Color)){
+var _e=o.shape.getFill();
+if(!_e||!(_e instanceof dojo.Color)){
 return;
 }
-this.anim[_10][_11]=_12={start:_15,end:this.colorFun(_15)};
+this.anim[_9][_a]=_b={start:_e,end:this.colorFun(_e)};
 }
-var _16=_12.start,end=_12.end;
+var _f=_b.start,end=_b.end;
 if(o.type=="onmouseout"){
-var t=_16;
-_16=end;
+var t=_f;
+_f=end;
 end=t;
 }
-_12.action=dojox.gfx.fx.animateFill({shape:o.shape,duration:this.duration,easing:this.easing,color:{start:_16,end:end}});
+_b.action=dojox.gfx.fx.animateFill({shape:o.shape,duration:this.duration,easing:this.easing,color:{start:_f,end:end}});
 if(o.type=="onmouseout"){
-dojo.connect(_12.action,"onEnd",this,function(){
-if(this.anim[_10]){
-delete this.anim[_10][_11];
+dojo.connect(_b.action,"onEnd",this,function(){
+if(this.anim[_9]){
+delete this.anim[_9][_a];
 }
 });
 }
-_12.action.play();
+_b.action.play();
 }});
 })();
 }

@@ -13,15 +13,15 @@ dojo.require("dojox.lang.functional.object");
 dojo.require("dojox.gfx.fx");
 (function(){
 var _1=400,_2=dojo.fx.easing.backOut,df=dojox.lang.functional;
-dojo.declare("dojox.charting.action2d.Base",null,{overOutEvents:{onmouseover:1,onmouseout:1},constructor:function(_4,_5,_6){
-this.chart=_4;
-this.plot=_5?_5:"default";
+dojo.declare("dojox.charting.action2d.Base",null,{overOutEvents:{onmouseover:1,onmouseout:1},constructor:function(_3,_4,_5){
+this.chart=_3;
+this.plot=_4?_4:"default";
 this.anim={};
-if(!_6){
-_6={};
+if(!_5){
+_5={};
 }
-this.duration=_6.duration?_6.duration:_1;
-this.easing=_6.easing?_6.easing:_2;
+this.duration=_5.duration?_5.duration:_1;
+this.easing=_5.easing?_5.easing:_2;
 },connect:function(){
 this.handle=this.chart.connectToPlot(this.plot,this,"process");
 },disconnect:function(){
@@ -35,8 +35,8 @@ if(this.handle){
 this.disconnect();
 }
 df.forIn(this.anim,function(o){
-df.forIn(o,function(_8){
-_8.action.stop(true);
+df.forIn(o,function(_6){
+_6.action.stop(true);
 });
 });
 this.anim={};

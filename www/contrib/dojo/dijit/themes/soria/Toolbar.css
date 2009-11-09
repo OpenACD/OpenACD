@@ -45,13 +45,11 @@
 	padding: 0px;
 	background-color:#9abbea;
 }
-.soria .dijitToolbar label {	
+.soria .dijitToolbar label {
 	padding: 3px 3px 0 6px;
 }
 .dj_ie .soria .dijitToolbar .dijitComboButton .dijitButtonContentsFocused,
-.dj_ie .soria .dijitToolbar .dijitComboButton .dijitDownArrowButtonFocused,
-.dj_ff2 .soria.dijitToolbar .dijitComboButton .dijitButtonContentsFocused,
-.dj_ff2 .soria .dijitToolbar .dijitComboButton .dijitDownArrowButtonFocused {
+.dj_ie .soria .dijitToolbar .dijitComboButton .dijitDownArrowButtonFocused {
 	
 	border: 1px #777 dotted !important;
 	padding: 0px;

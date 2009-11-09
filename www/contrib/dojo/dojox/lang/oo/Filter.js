@@ -9,20 +9,20 @@ if(!dojo._hasResource["dojox.lang.oo.Filter"]){
 dojo._hasResource["dojox.lang.oo.Filter"]=true;
 dojo.provide("dojox.lang.oo.Filter");
 (function(){
-var oo=dojox.lang.oo,F=oo.Filter=function(_3,_4){
-this.bag=_3;
-this.filter=typeof _4=="object"?function(){
-return _4.exec.apply(_4,arguments);
-}:_4;
+var oo=dojox.lang.oo,F=oo.Filter=function(_1,_2){
+this.bag=_1;
+this.filter=typeof _2=="object"?function(){
+return _2.exec.apply(_2,arguments);
+}:_2;
 };
-var _5=function(_6){
-this.map=_6;
+var _3=function(_4){
+this.map=_4;
 };
-_5.prototype.exec=function(_7){
-return this.map.hasOwnProperty(_7)?this.map[_7]:_7;
+_3.prototype.exec=function(_5){
+return this.map.hasOwnProperty(_5)?this.map[_5]:_5;
 };
-oo.filter=function(_8,_9){
-return new F(_8,new _5(_9));
+oo.filter=function(_6,_7){
+return new F(_6,new _3(_7));
 };
 })();
 }

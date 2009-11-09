@@ -11,36 +11,39 @@ dojo.provide("dojox.editor.plugins.UploadImage");
 dojo.require("dijit._editor._Plugin");
 dojo.require("dojox.form.FileUploader");
 dojo.experimental("dojox.editor.plugins.UploadImage");
-dojo.declare("dojox.editor.plugins.UploadImage",dijit._editor._Plugin,{tempImageUrl:"",iconClassPrefix:"editorIcon",useDefaultCommand:false,uploadUrl:"",fileInput:null,label:"Mike",_initButton:function(){
+dojo.declare("dojox.editor.plugins.UploadImage",dijit._editor._Plugin,{tempImageUrl:"",iconClassPrefix:"editorIcon",useDefaultCommand:false,uploadUrl:"",button:null,label:"Upload",setToolbar:function(_1){
+this.button.destroy();
+this.createFileInput();
+_1.addChild(this.button);
+},_initButton:function(){
 this.command="uploadImage";
 this.editor.commands[this.command]="Upload Image";
 this.inherited("_initButton",arguments);
 delete this.command;
-setTimeout(dojo.hitch(this,"createFileInput"),200);
 },createFileInput:function(){
-var _1=[["Jpeg File","*.jpg;*.jpeg"],["GIF File","*.gif"],["PNG File","*.png"],["All Images","*.jpg;*.jpeg;*.gif;*.png"]];
-console.warn("downloadPath:",this.downloadPath);
-this.fileInput=new dojox.form.FileUploader({isDebug:true,button:this.button,uploadUrl:this.uploadUrl,uploadOnChange:true,selectMultipleFiles:false,fileMask:_1});
-dojo.connect(this.fileInput,"onChange",this,"insertTempImage");
-dojo.connect(this.fileInput,"onComplete",this,"onComplete");
-},onComplete:function(_2,_3,_4){
-_2=_2[0];
-var _5=dojo.withGlobal(this.editor.window,"byId",dojo,[this.currentImageId]);
-var _6;
+var _2=dojo.create("span",{innerHTML:"."},document.body);
+dojo.style(_2,{width:"40px",height:"20px",paddingLeft:"8px",paddingRight:"8px"});
+this.button=new dojox.form.FileUploader({isDebug:true,uploadUrl:this.uploadUrl,uploadOnChange:true,selectMultipleFiles:false,baseClass:"dojoxEditorUploadNorm",hoverClass:"dojoxEditorUploadHover",activeClass:"dojoxEditorUploadActive",disabledClass:"dojoxEditorUploadDisabled"},_2);
+this.connect(this.button,"onChange","insertTempImage");
+this.connect(this.button,"onComplete","onComplete");
+},onComplete:function(_3,_4,_5){
+_3=_3[0];
+var _6=dojo.withGlobal(this.editor.window,"byId",dojo,[this.currentImageId]);
+var _7;
 if(this.downloadPath){
-_6=this.downloadPath+_2.name;
+_7=this.downloadPath+_3.name;
 }else{
-_6=_2.file;
+_7=_3.file;
 }
-_5.src=_6;
-if(_2.width){
-_5.width=_2.width;
-_5.height=_2.height;
+_6.src=_7;
+if(_3.width){
+_6.width=_3.width;
+_6.height=_3.height;
 }
 },insertTempImage:function(){
 this.currentImageId="img_"+(new Date().getTime());
-var _7="<img id=\""+this.currentImageId+"\" src=\""+this.tempImageUrl+"\" width=\"32\" height=\"32\"/>";
-this.editor.execCommand("inserthtml",_7);
+var _8="<img id=\""+this.currentImageId+"\" src=\""+this.tempImageUrl+"\" width=\"32\" height=\"32\"/>";
+this.editor.execCommand("inserthtml",_8);
 }});
 dojo.subscribe(dijit._scopeName+".Editor.getPlugin",null,function(o){
 if(o.plugin){

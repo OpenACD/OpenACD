@@ -50,7 +50,7 @@
 	var djConfig = {
 		modulePaths: {agentUI: "/application"},
 		parseOnLoad: true,
-		isDebug: false,
+		isDebug: true,
 		locale: locale
 	};
 
@@ -150,6 +150,7 @@
 			<input type="text" name="voipendpointdata" value="" dojoType="dijit.form.TextBox" trim="true" id="voipendpointdata" />
 			<div dojoType="dijit.Tooltip" connectId="voipendpointdata" label="UNTRANSLATED" id="voipendpointdatahint">
 				<script type="dojo/method" event="postCreate">
+					this.inherited("postCreate", arguments);
 					endpointselect();
 				</script>
 			</div>
@@ -158,6 +159,7 @@
 			<label for="loginsubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">
 				<script type="dojo/method" event="postCreate">
+					this.inherited("postCreate", arguments);
 					this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").LOGIN);
 				</script>
 			</button>
@@ -175,17 +177,21 @@
 
 		<div dojoType="dijit.form.DropDownButton" id="filemenubutton">
 			<script type="dojo/method" event="postCreate">
+				console.log("in postCreate ", this, arguments);
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").FILE);
 			</script>
-			<span>000</span>
+			<span>FILE</span>
 			<div dojoType="dijit.Menu" id="Filemenu">
-				<div dojoType="dijit.MenuItem" label="000" id="miHangup" onclick=agent.setState("wrapup");>
+				<div dojoType="dijit.MenuItem" label="HANGUP" id="miHangup" onclick=agent.setState("wrapup");>
 					<script type="dojo/method" event="postCreate">
+						this.inherited("postCreate", arguments);
 						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").HANGUP);
 					</script>
 				</div>
-				<div dojoType="dijit.MenuItem" label="000" id="miLogout" onclick=logout(agent);>
+				<div dojoType="dijit.MenuItem" label="LOGOUT" id="miLogout" onclick=logout(agent);>
 					<script type="dojo/method" event="postCreate">
+						this.inherited("postCreate", arguments);
 						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").LOGOUT);
 					</script>
 				</div>
@@ -193,11 +199,12 @@
 		</div>
 		<div dojoType="dijit.form.DropDownButton" id="editmenubutton">
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").EDIT);
 			</script>
-			<span>000</span>
+			<span>EDIT</span>
 			<div dojoType="dijit.Menu" id="Editmenu">
-				<div dojoType="dijit.MenuItem" label="000" onclick="alert('NYI');">
+				<div dojoType="dijit.MenuItem" label="CONFIG" onclick="alert('NYI');">
 					<script type="dojo/method" event="postCreate">
 						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").CONFIG);
 					</script>
@@ -206,12 +213,14 @@
 		</div>
 		<div dojoType="dijit.form.DropDownButton" id="viewmenubutton">
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").VIEW);
 			</script>
-			<span>000</span>
+			<span>VIEW</span>
 			<div dojoType="dijit.Menu" id="Viewmenu">
 				<div dojoType="dijit.MenuItem" label="000" onclick="dojo.cookie('agentui-theme', 'tundra');window.location.reload();">
 					<script type="dojo/method" event="postCreate">
+						this.inherited("postCreate", arguments);
 						if (dojo.cookie("agentui-theme") == "tundra") {
 							this.setLabel("* tundra");
 						} else {
@@ -221,6 +230,7 @@
 				</div>
 				<div dojoType="dijit.MenuItem" label="000" onclick="dojo.cookie('agentui-theme', 'nihilo');window.location.reload();">
 					<script type="dojo/method" event="postCreate">
+						this.inherited("postCreate", arguments);
 						if (dojo.cookie("agentui-theme") == "nihilo") {
 							this.setLabel("* nihilo");
 						} else {
@@ -230,6 +240,7 @@
 				</div>
 				<div dojoType="dijit.MenuItem" label="000" onclick="dojo.cookie('agentui-theme', 'soria');window.location.reload();">
 					<script type="dojo/method" event="postCreate">
+						this.inherited("postCreate", arguments);
 						if (dojo.cookie("agentui-theme") == "soria") {
 							this.setLabel("* soria");
 						} else {
@@ -241,15 +252,17 @@
 		</div>
 		<div dojoType="dijit.form.DropDownButton" id="tabsmenubutton">
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").TABS);
 			</script>
-			<span>000</span>
+			<span>TABS</span>
 			<div dojoType="dijit.Menu" id="Tabsmenu">
 				<div dojoType="dijit.PopupMenuItem">
 					<script type="dojo/method" event="postCreate">
+						this.inherited("postCreate", arguments);
 						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").LOADTAB);
 					</script>
-					<span>000</span>
+					<span>LOADTAB</span>
 					<div dojoType="dijit.Menu">
 						<div dojoType="dijit.MenuItem">Supervisor
 							<script type="dojo/connect" event="onClick">
@@ -278,8 +291,9 @@
 		
 	</div>
 	<div dojoType="dijit.layout.TabContainer" region="center" id="tabPanel">
-		<div dojoType="dijit.layout.ContentPane" title="000" id="maintab">
+		<div dojoType="dijit.layout.ContentPane" title="MAIN" id="maintab">
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.title = dojo.i18n.getLocalization("agentUI", "labels").MAIN;
 			</script>
 			<p id="agentnamep"><label for="agentname" id="agentlabel">
@@ -305,8 +319,9 @@
 		</div>
 		<!--<div dojoType="dijit.layout.ContentPane" title="Agents" id="agentstab">Tab 2</div>
 		<div dojoType="dijit.layout.ContentPane" title="Queues" id="queuestab">Tab 2</div>-->
-		<div dojoType="dijit.layout.ContentPane" title="000" id="eventLog">
+		<div dojoType="dijit.layout.ContentPane" title="EVENTLOG" id="eventLog">
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.title = dojo.i18n.getLocalization("agentUI", "labels").EVENTLOG;
 			</script>
 			<textarea dojoType="dijit.form.SimpleTextarea" id="eventLogText" name="eventLogText" width="80%" rows="1000" style="width:100%" readonly>
@@ -318,49 +333,55 @@
 	<div dojoType = "dijit.layout.ContentPane" region="bottom" style="text-align:center">
 		<button dojoType="dijit.form.Button" id="bgoavail" onclick=agent.setState("idle")>
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").GOAVAILABLE);
 			</script>
 		</button>
 		<div dojoType="dijit.form.DropDownButton" id="bgoreleased" style="display:none">
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").GORELEASED);
 			</script>
-			<span>000</span>
+			<span>GORELEASED</span>
 			<div dojoType="dijit.Menu" id="releasedmenu">
 			</div>
 		</div>
 
 		<div dojoType="dijit.form.DropDownButton" id="boutboundcall" style="display:none">
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").MKOUTBOUND);
 			</script>
-			<span>000</span>
+			<span>MKOUTBOUND</span>
 			<div dojoType="dijit.Menu" id="outboundmenu">
 			</div>
 		</div>
 
 		<div dojoType="dijit.form.DropDownButton" id="btransfer" style="display:none">
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").TRANSFERTOMENU);
 			</script>
-			<span>000</span>
+			<span>TRANSFERTOMENU</span>
 			<div dojoType="dijit.Menu" id="transfertomenu">
 				<div dojoType="dijit.PopupMenuItem" id="transferToAgentMenu">
 					<script type="dojo/method" event="postCreate">
+						this.inherited("postCreate", arguments);
 						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").AGENT);
 					</script>
 					<script type="dojo/connect" event="onMouseEnter">
 						Agent.getAvailAgents();
 					</script>
-					<span>000</span>
+					<span>AGENT</span>
 					<div dojoType="dijit.Menu" id="transferToAgentMenuDyn">
 					</div>
 				</div>
 				<div dojoType="dijit.PopupMenuItem">
 					<script type="dojo/method" event="postCreate">
+						this.inherited("postCreate", arguments);
 						this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").QUEUE);
 					</script>
-					<span>000</span>
+					<span>QUEUE</span>
 					<div dojoType="dijit.Menu" id="transferToQueueMenu">
 					</div>
 				</div>
@@ -373,21 +394,25 @@
 		<div id="foo" style="clear:both;"><input type="text" value="" dojoType="dijit.form.ValidationTextBox" regExp="[\d]+" invalidMessage="Invalid number" id="dialbox" /></div>
 		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=agent.dial()>
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").DIAL);
 			</script>
 		</button>
 		<button dojoType="dijit.form.Button" id="bcancel" style="display:none" onclick=agent.setState("idle")>
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").CANCEL);
 			</script>
 		</button>
 		<button dojoType="dijit.form.Button" id="banswer" style="display:none" onclick=agent.setState("oncall")>
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").ANSWER);
 			</script>
 		</button>
 		<button dojoType="dijit.form.Button" id="bhangup" style="display:none" onclick=agent.setState("wrapup")>
 			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
 				this.setLabel(dojo.i18n.getLocalization("agentUI", "labels").HANGUP);
 			</script>
 		</button>

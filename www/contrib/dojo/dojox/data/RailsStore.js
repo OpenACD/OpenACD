@@ -13,109 +13,107 @@ dojo.declare("dojox.data.RailsStore",dojox.data.JsonRestStore,{constructor:funct
 },preamble:function(_1){
 if(typeof _1.target=="string"&&!_1.service){
 var _2=_1.target.replace(/\/$/g,"");
-var _3=function(id,_5){
-_5=_5||{};
-var _6=_2;
+var _3=function(id,_4){
+_4=_4||{};
+var _5=_2;
+var _6;
 var _7;
-var _8;
 if(dojo.isObject(id)){
-_8="";
-_7="?"+dojo.objectToQuery(id);
+_7="";
+_6="?"+dojo.objectToQuery(id);
 }else{
-if(_5.queryStr&&_5.queryStr.indexOf("?")!=-1){
-_8=_5.queryStr.replace(/\?.*/,"");
-_7=_5.queryStr.replace(/[^?]*\?/g,"?");
+if(_4.queryStr&&_4.queryStr.indexOf("?")!=-1){
+_7=_4.queryStr.replace(/\?.*/,"");
+_6=_4.queryStr.replace(/[^?]*\?/g,"?");
 }else{
-if(dojo.isString(_5.query)&&_5.query.indexOf("?")!=-1){
-_8=_5.query.replace(/\?.*/,"");
-_7=_5.query.replace(/[^?]*\?/g,"?");
+if(dojo.isString(_4.query)&&_4.query.indexOf("?")!=-1){
+_7=_4.query.replace(/\?.*/,"");
+_6=_4.query.replace(/[^?]*\?/g,"?");
 }else{
-_8=id?id.toString():"";
+_7=id?id.toString():"";
+_6="";
+}
+}
+}
+if(_7.indexOf("=")!=-1){
+_6=_7;
 _7="";
 }
-}
-}
-if(_8.indexOf("=")!=-1){
-_7=_8;
-_8="";
-}
-if(_8){
-_6=_6+"/"+_8+".json"+_7;
+if(_7){
+_5=_5+"/"+_7+".json"+_6;
 }else{
-_6=_6+".json"+_7;
+_5=_5+".json"+_6;
 }
-var _9=dojox.rpc._sync;
+var _8=dojox.rpc._sync;
 dojox.rpc._sync=false;
-return {url:_6,handleAs:"json",contentType:"application/json",sync:_9,headers:{Accept:"application/json,application/javascript",Range:_5&&(_5.start>=0||_5.count>=0)?"items="+(_5.start||"0")+"-"+((_5.count&&(_5.count+(_5.start||0)-1))||""):undefined}};
+return {url:_5,handleAs:"json",contentType:"application/json",sync:_8,headers:{Accept:"application/json,application/javascript",Range:_4&&(_4.start>=0||_4.count>=0)?"items="+(_4.start||"0")+"-"+((_4.count&&(_4.count+(_4.start||0)-1))||""):undefined}};
 };
 _1.service=dojox.rpc.Rest(this.target,true,null,_3);
 }
-},fetch:function(_a){
-_a=_a||{};
-function _b(_c){
-function _d(){
-if(_a.queryStr==null){
-_a.queryStr="";
+},fetch:function(_9){
+_9=_9||{};
+function _a(_b){
+function _c(){
+if(_9.queryStr==null){
+_9.queryStr="";
 }
-if(dojo.isObject(_a.query)){
-_a.queryStr="?"+dojo.objectToQuery(_a.query);
+if(dojo.isObject(_9.query)){
+_9.queryStr="?"+dojo.objectToQuery(_9.query);
 }else{
-if(dojo.isString(_a.query)){
-_a.queryStr=_a.query;
+if(dojo.isString(_9.query)){
+_9.queryStr=_9.query;
 }
 }
 };
-function _e(){
-if(_a.queryStr.indexOf("?")==-1){
+function _d(){
+if(_9.queryStr.indexOf("?")==-1){
 return "?";
 }else{
 return "&";
 }
 };
-if(_a.queryStr==null){
-_d();
+if(_9.queryStr==null){
+_c();
 }
-_a.queryStr=_a.queryStr+_e()+dojo.objectToQuery(_c);
+_9.queryStr=_9.queryStr+_d()+dojo.objectToQuery(_b);
 };
-if(_a.start||_a.count){
-if((_a.start||0)%_a.count){
+if(_9.start||_9.count){
+if((_9.start||0)%_9.count){
 throw new Error("The start parameter must be a multiple of the count parameter");
 }
-_b({page:((_a.start||0)/_a.count)+1,per_page:_a.count});
+_a({page:((_9.start||0)/_9.count)+1,per_page:_9.count});
 }
-if(_a.sort){
-var _f={sortBy:[],sortDir:[]};
-dojo.forEach(_a.sort,function(_10){
-_f.sortBy.push(_10.attribute);
-_f.sortDir.push(!!_10.descending?"DESC":"ASC");
+if(_9.sort){
+var _e={sortBy:[],sortDir:[]};
+dojo.forEach(_9.sort,function(_f){
+_e.sortBy.push(_f.attribute);
+_e.sortDir.push(!!_f.descending?"DESC":"ASC");
 });
-_b(_f);
-delete _a.sort;
+_a(_e);
+delete _9.sort;
 }
 return this.inherited(arguments);
-},_processResults:function(_11,_12){
-var _13;
-if((typeof this.rootAttribute=="undefined")&&_11[0]){
-if(_11[0][this.idAttribute]){
+},_processResults:function(_10,_11){
+var _12;
+if((typeof this.rootAttribute=="undefined")&&_10[0]){
+if(_10[0][this.idAttribute]){
 this.rootAttribute=false;
-
 }else{
-for(var _14 in _11[0]){
-if(_11[0][_14][this.idAttribute]){
-this.rootAttribute=_14;
-
+for(var _13 in _10[0]){
+if(_10[0][_13][this.idAttribute]){
+this.rootAttribute=_13;
 }
 }
 }
 }
 if(this.rootAttribute){
-_13=dojo.map(_11,function(_15){
-return _15[this.rootAttribute];
+_12=dojo.map(_10,function(_14){
+return _14[this.rootAttribute];
 },this);
 }else{
-_13=_11;
+_12=_10;
 }
-var _16=_11.length;
-return {totalCount:_12.fullLength||(_12.request.count==_16?(_12.request.start||0)+_16*2:_16),items:_13};
+var _15=_10.length;
+return {totalCount:_11.fullLength||(_11.request.count==_15?(_11.request.start||0)+_15*2:_15),items:_12};
 }});
 }

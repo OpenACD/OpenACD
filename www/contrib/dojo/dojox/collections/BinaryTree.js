@@ -48,85 +48,85 @@ return -1;
 return 0;
 };
 };
-function _9(_a,a){
-if(_a){
-_9(_a.left,a);
-a.push(_a.value);
-_9(_a.right,a);
+function _6(_7,a){
+if(_7){
+_6(_7.left,a);
+a.push(_7.value);
+_6(_7.right,a);
 }
 };
-function _c(_d,_e){
+function _8(_9,_a){
 var s="";
-if(_d){
-s=_d.value.toString()+_e;
-s+=_c(_d.left,_e);
-s+=_c(_d.right,_e);
+if(_9){
+s=_9.value.toString()+_a;
+s+=_8(_9.left,_a);
+s+=_8(_9.right,_a);
 }
 return s;
 };
-function _10(_11,sep){
+function _b(_c,_d){
 var s="";
-if(_11){
-s=_10(_11.left,sep);
-s+=_11.value.toString()+sep;
-s+=_10(_11.right,sep);
+if(_c){
+s=_b(_c.left,_d);
+s+=_c.value.toString()+_d;
+s+=_b(_c.right,_d);
 }
 return s;
 };
-function _14(_15,sep){
+function _e(_f,sep){
 var s="";
-if(_15){
-s=_14(_15.left,sep);
-s+=_14(_15.right,sep);
-s+=_15.value.toString()+sep;
+if(_f){
+s=_e(_f.left,sep);
+s+=_e(_f.right,sep);
+s+=_f.value.toString()+sep;
 }
 return s;
 };
-function _18(_19,_1a){
-if(!_19){
+function _10(_11,_12){
+if(!_11){
 return null;
 }
-var i=_19.compareData(_1a);
+var i=_11.compareData(_12);
 if(i==0){
-return _19;
+return _11;
 }
 if(i>0){
-return _18(_19.left,_1a);
+return _10(_11.left,_12);
 }else{
-return _18(_19.right,_1a);
+return _10(_11.right,_12);
 }
 };
-this.add=function(_1c){
-var n=new _2(_1c);
+this.add=function(_13){
+var n=new _2(_13);
 var i;
-var _1f=_20;
-var _21=null;
-while(_1f){
-i=_1f.compare(n);
+var _14=_15;
+var _16=null;
+while(_14){
+i=_14.compare(n);
 if(i==0){
 return;
 }
-_21=_1f;
+_16=_14;
 if(i>0){
-_1f=_1f.left;
+_14=_14.left;
 }else{
-_1f=_1f.right;
+_14=_14.right;
 }
 }
 this.count++;
-if(!_21){
-_20=n;
+if(!_16){
+_15=n;
 }else{
-i=_21.compare(n);
+i=_16.compare(n);
 if(i>0){
-_21.left=n;
+_16.left=n;
 }else{
-_21.right=n;
+_16.right=n;
 }
 }
 };
 this.clear=function(){
-_20=null;
+_15=null;
 this.count=0;
 };
 this.clone=function(){
@@ -137,75 +137,75 @@ c.add(itr.get());
 }
 return c;
 };
-this.contains=function(_24){
-return this.search(_24)!=null;
+this.contains=function(_17){
+return this.search(_17)!=null;
 };
-this.deleteData=function(_25){
-var _26=_20;
-var _27=null;
-var i=_26.compareData(_25);
-while(i!=0&&_26!=null){
+this.deleteData=function(_18){
+var _19=_15;
+var _1a=null;
+var i=_19.compareData(_18);
+while(i!=0&&_19!=null){
 if(i>0){
-_27=_26;
-_26=_26.left;
+_1a=_19;
+_19=_19.left;
 }else{
 if(i<0){
-_27=_26;
-_26=_26.right;
+_1a=_19;
+_19=_19.right;
 }
 }
-i=_26.compareData(_25);
+i=_19.compareData(_18);
 }
-if(!_26){
+if(!_19){
 return;
 }
 this.count--;
-if(!_26.right){
-if(!_27){
-_20=_26.left;
+if(!_19.right){
+if(!_1a){
+_15=_19.left;
 }else{
-i=_27.compare(_26);
+i=_1a.compare(_19);
 if(i>0){
-_27.left=_26.left;
+_1a.left=_19.left;
 }else{
 if(i<0){
-_27.right=_26.left;
+_1a.right=_19.left;
 }
 }
 }
 }else{
-if(!_26.right.left){
-if(!_27){
-_20=_26.right;
+if(!_19.right.left){
+if(!_1a){
+_15=_19.right;
 }else{
-i=_27.compare(_26);
+i=_1a.compare(_19);
 if(i>0){
-_27.left=_26.right;
+_1a.left=_19.right;
 }else{
 if(i<0){
-_27.right=_26.right;
+_1a.right=_19.right;
 }
 }
 }
 }else{
-var _29=_26.right.left;
-var _2a=_26.right;
-while(_29.left!=null){
-_2a=_29;
-_29=_29.left;
+var _1b=_19.right.left;
+var _1c=_19.right;
+while(_1b.left!=null){
+_1c=_1b;
+_1b=_1b.left;
 }
-_2a.left=_29.right;
-_29.left=_26.left;
-_29.right=_26.right;
-if(!_27){
-_20=_29;
+_1c.left=_1b.right;
+_1b.left=_19.left;
+_1b.right=_19.right;
+if(!_1a){
+_15=_1b;
 }else{
-i=_27.compare(_26);
+i=_1a.compare(_19);
 if(i>0){
-_27.left=_29;
+_1a.left=_1b;
 }else{
 if(i<0){
-_27.right=_29;
+_1a.right=_1b;
 }
 }
 }
@@ -214,29 +214,29 @@ _27.right=_29;
 };
 this.getIterator=function(){
 var a=[];
-_9(_20,a);
+_6(_15,a);
 return new dojox.collections.Iterator(a);
 };
-this.search=function(_2c){
-return _18(_20,_2c);
+this.search=function(_1d){
+return _10(_15,_1d);
 };
-this.toString=function(_2d,sep){
-if(!_2d){
-_2d=dojox.collections.BinaryTree.TraversalMethods.Inorder;
+this.toString=function(_1e,sep){
+if(!_1e){
+_1e=dojox.collections.BinaryTree.TraversalMethods.Inorder;
 }
 if(!sep){
 sep=",";
 }
 var s="";
-switch(_2d){
+switch(_1e){
 case dojox.collections.BinaryTree.TraversalMethods.Preorder:
-s=_c(_20,sep);
+s=_8(_15,sep);
 break;
 case dojox.collections.BinaryTree.TraversalMethods.Inorder:
-s=_10(_20,sep);
+s=_b(_15,sep);
 break;
 case dojox.collections.BinaryTree.TraversalMethods.Postorder:
-s=_14(_20,sep);
+s=_e(_15,sep);
 break;
 }
 if(s.length==0){
@@ -246,7 +246,7 @@ return s.substring(0,s.length-sep.length);
 }
 };
 this.count=0;
-var _20=this.root=null;
+var _15=this.root=null;
 if(_1){
 this.add(_1);
 }

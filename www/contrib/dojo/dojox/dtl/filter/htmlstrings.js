@@ -13,25 +13,25 @@ dojo.mixin(dojox.dtl.filter.htmlstrings,{_linebreaksrn:/(\r\n|\n\r)/g,_linebreak
 var _2=[];
 var dh=dojox.dtl.filter.htmlstrings;
 _1=_1.replace(dh._linebreaksrn,"\n");
-var _4=_1.split(dh._linebreaksn);
-for(var i=0;i<_4.length;i++){
-var _6=_4[i].replace(dh._linebreakss,"").replace(dh._linebreaksbr,"<br />");
-_2.push("<p>"+_6+"</p>");
+var _3=_1.split(dh._linebreaksn);
+for(var i=0;i<_3.length;i++){
+var _4=_3[i].replace(dh._linebreakss,"").replace(dh._linebreaksbr,"<br />");
+_2.push("<p>"+_4+"</p>");
 }
 return _2.join("\n\n");
-},linebreaksbr:function(_7){
+},linebreaksbr:function(_5){
 var dh=dojox.dtl.filter.htmlstrings;
-return _7.replace(dh._linebreaksrn,"\n").replace(dh._linebreaksbr,"<br />");
-},removetags:function(_9,_a){
+return _5.replace(dh._linebreaksrn,"\n").replace(dh._linebreaksbr,"<br />");
+},removetags:function(_6,_7){
 var dh=dojox.dtl.filter.htmlstrings;
-var _c=[];
-var _d;
-while(_d=dh._removetagsfind.exec(_a)){
-_c.push(_d[0]);
+var _8=[];
+var _9;
+while(_9=dh._removetagsfind.exec(_7)){
+_8.push(_9[0]);
 }
-_c="("+_c.join("|")+")";
-return _9.replace(new RegExp("</?s*"+_c+"s*[^>]*>","gi"),"");
-},striptags:function(_e){
-return _e.replace(dojox.dtl.filter.htmlstrings._striptags,"");
+_8="("+_8.join("|")+")";
+return _6.replace(new RegExp("</?s*"+_8+"s*[^>]*>","gi"),"");
+},striptags:function(_a){
+return _a.replace(dojox.dtl.filter.htmlstrings._striptags,"");
 }});
 }

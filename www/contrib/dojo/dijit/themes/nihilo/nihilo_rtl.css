@@ -75,21 +75,21 @@
 	background-position:right;
 	padding-right:25px;
 }
+.dijitRtl .dijitTabContainer .tabStripMenuButton {
+	float: left;
+}
 .dijitRtl .nihilo .dijitTab {
 	margin-right:0;
 	margin-left:2px;		
 }
+.dijitRtl .nihilo .dijitTabContainer .tabStripButton {
+	margin-left: 0;
+}
 .dijitRtl .nihilo .dijitTabContainerTopStrip,
-.dijitRtl .nihilo .dijitTabContainerBottomStrip {
-	padding-right: 3px;
-	padding-left: 0px;
-}
-.dijitRtl .nihilo .dijitTabContainerTop-tabs {
-	padding-left: auto;
-	padding-right: 3px;
-}
+.dijitRtl .nihilo .dijitTabContainerBottomStrip,
+.dijitRtl .nihilo .dijitTabContainerTop-tabs,
 .dijitRtl .nihilo .dijitTabContainerBottom-tabs {
-	padding-left: auto;
+	padding-left: 0;
 	padding-right: 3px;
 }
 .dijitRtl .nihilo .dijitTabInnerDiv {
@@ -150,6 +150,10 @@
 .dijitRtl .nihilo .dijitComboBox .dijitButtonNode {
 	border-width: 0px 0px 0px 1px;
 }
+.dijitRtl .nihilo .dijitSelect .dijitButtonContents {
+	border-left: none;
+	border-right-width: 1px;
+}
 .dijitRtl .nihilo .dijitComboBox .dijitButtonNode,
 .dijitRtl .nihilo .dijitSpinner .dijitButtonNode {
 	
@@ -167,7 +171,7 @@
 }
 .dijitRtl .nihilo .dijitTreeContainer .dijitTreeContent {
     padding-left: auto;
-    padding-right: 1px;   
+    padding-right: 1px;
 }
 .dijitRtl .nihilo .dijitTreeContainer .dijitTreeExpandoOpened {
 	background: url(images/spriteTree_rtl.gif) no-repeat -18px top;

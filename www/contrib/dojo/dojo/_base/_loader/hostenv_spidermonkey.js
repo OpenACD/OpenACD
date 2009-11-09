@@ -29,18 +29,18 @@ throw Error("whatever");
 catch(e){
 s=e.stack;
 }
-var _4=s.match(/[^@]*\.js/gi);
-if(!_4){
+var _3=s.match(/[^@]*\.js/gi);
+if(!_3){
 throw Error("could not parse stack string: '"+s+"'");
 }
-var _5=(typeof _2!="undefined"&&_2)?_4[_2+1]:_4[_4.length-1];
-if(!_5){
+var _4=(typeof _2!="undefined"&&_2)?_3[_2+1]:_3[_3.length-1];
+if(!_4){
 throw Error("could not find file name in stack string '"+s+"'");
 }
-return _5;
+return _4;
 };
-dojo._loadUri=function(_6){
-var ok=load(_6);
+dojo._loadUri=function(_5){
+var ok=load(_5);
 return 1;
 };
 if(dojo.config["modulePaths"]){

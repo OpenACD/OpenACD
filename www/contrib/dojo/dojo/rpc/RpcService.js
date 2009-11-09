@@ -43,37 +43,37 @@ return function(_6){
 _5.errback(_6.message);
 };
 },resultCallback:function(_7){
-var tf=dojo.hitch(this,function(_9){
-if(_9.error!=null){
-var _a;
-if(typeof _9.error=="object"){
-_a=new Error(_9.error.message);
-_a.code=_9.error.code;
-_a.error=_9.error.error;
+var tf=dojo.hitch(this,function(_8){
+if(_8.error!=null){
+var _9;
+if(typeof _8.error=="object"){
+_9=new Error(_8.error.message);
+_9.code=_8.error.code;
+_9.error=_8.error.error;
 }else{
-_a=new Error(_9.error);
+_9=new Error(_8.error);
 }
-_a.id=_9.id;
-_a.errorObject=_9;
-_7.errback(_a);
+_9.id=_8.id;
+_9.errorObject=_8;
+_7.errback(_9);
 }else{
-_7.callback(this.parseResults(_9));
+_7.callback(this.parseResults(_8));
 }
 });
 return tf;
-},generateMethod:function(_b,_c,_d){
+},generateMethod:function(_a,_b,_c){
 return dojo.hitch(this,function(){
-var _e=new dojo.Deferred();
-if((this.strictArgChecks)&&(_c!=null)&&(arguments.length!=_c.length)){
+var _d=new dojo.Deferred();
+if((this.strictArgChecks)&&(_b!=null)&&(arguments.length!=_b.length)){
 throw new Error("Invalid number of parameters for remote method.");
 }else{
-this.bind(_b,dojo._toArray(arguments),_e,_d);
+this.bind(_a,dojo._toArray(arguments),_d,_c);
 }
-return _e;
+return _d;
 });
-},processSmd:function(_f){
-if(_f.methods){
-dojo.forEach(_f.methods,function(m){
+},processSmd:function(_e){
+if(_e.methods){
+dojo.forEach(_e.methods,function(m){
 if(m&&m.name){
 this[m.name]=this.generateMethod(m.name,m.parameters,m.url||m.serviceUrl||m.serviceURL);
 if(!dojo.isFunction(this[m.name])){
@@ -82,8 +82,8 @@ throw new Error("RpcService: Failed to create"+m.name+"()");
 }
 },this);
 }
-this.serviceUrl=_f.serviceUrl||_f.serviceURL;
-this.required=_f.required;
-this.smd=_f;
+this.serviceUrl=_e.serviceUrl||_e.serviceURL;
+this.required=_e.required;
+this.smd=_e;
 }});
 }

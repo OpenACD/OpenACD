@@ -30,8 +30,8 @@ return true;
 }
 return false;
 };
-this.copyTo=function(_5,i){
-_5.splice(i,0,q);
+this.copyTo=function(_2,i){
+_2.splice(i,0,q);
 };
 this.dequeue=function(){
 var r=q.shift();
@@ -41,8 +41,8 @@ return r;
 this.enqueue=function(o){
 this.count=q.push(o);
 };
-this.forEach=function(fn,_a){
-dojo.forEach(q,fn,_a);
+this.forEach=function(fn,_3){
+dojo.forEach(q,fn,_3);
 };
 this.getIterator=function(){
 return new dojox.collections.Iterator(q);

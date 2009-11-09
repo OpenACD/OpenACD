@@ -70,7 +70,7 @@
 	}
 	var djConfig = {
 		parseOnLoad:false,
-		isDebug:false,
+		isDebug:true,
 		locale:locale,
 		modulePaths:{
 			"admin":"/lang"
@@ -453,7 +453,14 @@ dojo.requireLocalization("admin", "labels");
 				</p>
 				<p>
 					<label for="agentProfile" class="translatecol wide">PROFILENAME</label>
-					<input dojoType="dijit.form.FilteringSelect" id="agentProfile" name="profile" store="agents.store" value="Default" searchAttr="name" query="{type:'profile'}"/>
+					<div dojoType="dojo.data.ItemFileReadStore" id="agentStore"
+						jsId="agentStore">
+					</div>
+					<input dojoType="dijit.form.FilteringSelect" id="agentProfile" name="profile" store="agentStore" value="Default" searchAttr="name" query="{'type':'profile'}">
+					<script type="dojo/method" event="postCreate">
+						this.store = agents.store;
+					</script>
+					</input>
 				</p>
 				<p>
 					<label for="agentSecurity" class="translatecol wide">SECURITY</label>
@@ -633,7 +640,16 @@ dojo.requireLocalization("admin", "labels");
 				
 				<p>
 					<label for="queueGroup" class="translatecol">GROUP</label>
-					<input dojoType="dijit.form.FilteringSelect" id="queueGroup" name="group" store="queues.store" value="Default" searchAttr="name" query="{type:'group'}" />
+					<div dojoType="dojo.data.ItemFileReadStore"
+						jsId="queueStore">
+					</div>
+					<input dojoType="dijit.form.FilteringSelect" id="queueGroup" name="group" store="queueStore" value="Default" searchAttr="name" query="{'type':'group'}">
+					<script type="dojo/method" event="postCreate">
+						console.log("goo");
+						console.log(queues.store);
+							this.store = queues.store;
+						</script>
+					</input>
 				</p>
 				
 				<p>

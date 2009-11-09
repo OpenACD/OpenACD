@@ -37,9 +37,9 @@ return this;
 },getRequiredColors:function(){
 return this.series.length;
 },plotEvent:function(o){
-},connect:function(_7,_8){
+},connect:function(_6,_7){
 this.dirty=true;
-return dojo.connect(this,"plotEvent",_7,_8);
+return dojo.connect(this,"plotEvent",_6,_7);
 },events:function(){
 var ls=this.plotEvent._listeners;
 if(!ls||!ls.length){
@@ -53,35 +53,35 @@ return true;
 return false;
 },resetEvents:function(){
 this.plotEvent({type:"onplotreset",plot:this});
-},_calc:function(_b,_c){
+},_calc:function(_8,_9){
 if(this._hAxis){
 if(!this._hAxis.initialized()){
-this._hAxis.calculate(_c.hmin,_c.hmax,_b.width);
+this._hAxis.calculate(_9.hmin,_9.hmax,_8.width);
 }
 this._hScaler=this._hAxis.getScaler();
 }else{
-this._hScaler=dojox.charting.scaler.primitive.buildScaler(_c.hmin,_c.hmax,_b.width);
+this._hScaler=dojox.charting.scaler.primitive.buildScaler(_9.hmin,_9.hmax,_8.width);
 }
 if(this._vAxis){
 if(!this._vAxis.initialized()){
-this._vAxis.calculate(_c.vmin,_c.vmax,_b.height);
+this._vAxis.calculate(_9.vmin,_9.vmax,_8.height);
 }
 this._vScaler=this._vAxis.getScaler();
 }else{
-this._vScaler=dojox.charting.scaler.primitive.buildScaler(_c.vmin,_c.vmax,_b.height);
+this._vScaler=dojox.charting.scaler.primitive.buildScaler(_9.vmin,_9.vmax,_8.height);
 }
-},_connectEvents:function(_d,o){
-_d.connect("onmouseover",this,function(e){
+},_connectEvents:function(_a,o){
+_a.connect("onmouseover",this,function(e){
 o.type="onmouseover";
 o.event=e;
 this.plotEvent(o);
 });
-_d.connect("onmouseout",this,function(e){
+_a.connect("onmouseout",this,function(e){
 o.type="onmouseout";
 o.event=e;
 this.plotEvent(o);
 });
-_d.connect("onclick",this,function(e){
+_a.connect("onclick",this,function(e){
 o.type="onclick";
 o.event=e;
 this.plotEvent(o);

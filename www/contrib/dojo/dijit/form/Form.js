@@ -33,11 +33,11 @@ this.inherited(arguments);
 },onReset:function(e){
 return true;
 },_onReset:function(e){
-var _6={returnValue:true,preventDefault:function(){
+var _4={returnValue:true,preventDefault:function(){
 this.returnValue=false;
 },stopPropagation:function(){
 },currentTarget:e.currentTarget,target:e.target};
-if(!(this.onReset(_6)===false)&&_6.returnValue){
+if(!(this.onReset(_4)===false)&&_4.returnValue){
 this.reset();
 }
 dojo.stopEvent(e);

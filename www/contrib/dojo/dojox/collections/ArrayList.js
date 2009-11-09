@@ -40,37 +40,37 @@ this.count=0;
 this.clone=function(){
 return new dojox.collections.ArrayList(_2);
 };
-this.contains=function(_7){
+this.contains=function(_4){
 for(var i=0;i<_2.length;i++){
-if(_2[i]==_7){
+if(_2[i]==_4){
 return true;
 }
 }
 return false;
 };
-this.forEach=function(fn,_a){
-dojo.forEach(_2,fn,_a);
+this.forEach=function(fn,_5){
+dojo.forEach(_2,fn,_5);
 };
 this.getIterator=function(){
 return new dojox.collections.Iterator(_2);
 };
-this.indexOf=function(_b){
+this.indexOf=function(_6){
 for(var i=0;i<_2.length;i++){
-if(_2[i]==_b){
+if(_2[i]==_6){
 return i;
 }
 }
 return -1;
 };
-this.insert=function(i,_e){
-_2.splice(i,0,_e);
+this.insert=function(i,_7){
+_2.splice(i,0,_7);
 this.count=_2.length;
 };
 this.item=function(i){
 return _2[i];
 };
-this.remove=function(obj){
-var i=this.indexOf(obj);
+this.remove=function(_8){
+var i=this.indexOf(_8);
 if(i>=0){
 _2.splice(i,1);
 }
@@ -90,15 +90,15 @@ _2.sort(fn);
 _2.sort();
 }
 };
-this.setByIndex=function(i,obj){
-_2[i]=obj;
+this.setByIndex=function(i,_9){
+_2[i]=_9;
 this.count=_2.length;
 };
 this.toArray=function(){
 return [].concat(_2);
 };
-this.toString=function(_16){
-return _2.join((_16||","));
+this.toString=function(_a){
+return _2.join((_a||","));
 };
 };
 }

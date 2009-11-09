@@ -10,7 +10,7 @@ dojo._hasResource["dojox.lang.functional.fold"]=true;
 dojo.provide("dojox.lang.functional.fold");
 dojo.require("dojox.lang.functional.lambda");
 (function(){
-var d=dojo,df=dojox.lang.functional,_3={};
+var d=dojo,df=dojox.lang.functional,_1={};
 d.mixin(df,{foldl:function(a,f,z,o){
 if(typeof a=="string"){
 a=a.split("");
@@ -27,7 +27,7 @@ for(i=0;a.hasNext();z=f.call(o,z,a.next(),i++,a)){
 }
 }else{
 for(i in a){
-if(!(i in _3)){
+if(!(i in _1)){
 z=f.call(o,z,a[i],i,a);
 }
 }
@@ -53,12 +53,12 @@ for(i=1;a.hasNext();z=f.call(o,z,a.next(),i++,a)){
 }
 }
 }else{
-var _10=true;
+var _2=true;
 for(i in a){
-if(!(i in _3)){
-if(_10){
+if(!(i in _1)){
+if(_2){
 z=a[i];
-_10=false;
+_2=false;
 }else{
 z=f.call(o,z,a[i],i,a);
 }

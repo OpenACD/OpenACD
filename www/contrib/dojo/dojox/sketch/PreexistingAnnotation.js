@@ -12,8 +12,8 @@ dojo.require("dojox.sketch.Annotation");
 dojo.require("dojox.sketch.Anchor");
 (function(){
 var ta=dojox.sketch;
-ta.PreexistingAnnotation=function(_2,id){
-ta.Annotation.call(this,_2,id);
+ta.PreexistingAnnotation=function(_1,id){
+ta.Annotation.call(this,_1,id);
 this.transform={dx:0,dy:0};
 this.start={x:0,y:0};
 this.end={x:200,y:200};
@@ -44,16 +44,16 @@ this.start={x:x,y:y};
 this.end={x:w,y:h};
 this.textPosition={x:this.end.x-this.textOffset,y:this.end.y-this.textOffset};
 };
-p.apply=function(_9){
-if(!_9){
+p.apply=function(_2){
+if(!_2){
 return;
 }
-if(_9.documentElement){
-_9=_9.documentElement;
+if(_2.documentElement){
+_2=_2.documentElement;
 }
-this.readCommonAttrs(_9);
-for(var i=0;i<_9.childNodes.length;i++){
-var c=_9.childNodes[i];
+this.readCommonAttrs(_2);
+for(var i=0;i<_2.childNodes.length;i++){
+var c=_2.childNodes[i];
 if(c.localName=="text"){
 this.property("label",c.childNodes.length?c.childNodes[0].nodeValue:"");
 }else{
@@ -73,24 +73,24 @@ this.end.y=parseFloat(c.getAttribute("height"),10)+parseFloat(c.getAttribute("y"
 if(c.getAttribute("r")!==null){
 this.radius=parseFloat(c.getAttribute("r"),10);
 }
-var _c=this.property("stroke");
-var _d=c.getAttribute("style");
-var m=_d.match(/stroke:([^;]+);/);
+var _3=this.property("stroke");
+var _4=c.getAttribute("style");
+var m=_4.match(/stroke:([^;]+);/);
 if(m){
-_c.color=m[1];
+_3.color=m[1];
 this.property("fill",m[1]);
 }
-m=_d.match(/stroke-width:([^;]+);/);
+m=_4.match(/stroke-width:([^;]+);/);
 if(m){
-_c.width=m[1];
+_3.width=m[1];
 }
-this.property("stroke",_c);
+this.property("stroke",_3);
 }
 }
 }
 };
-p.initialize=function(_f){
-this.apply(_f);
+p.initialize=function(_5){
+this.apply(_5);
 this._pos();
 this.shape=this.figure.group.createGroup();
 this.shape.getEventSource().setAttribute("id",this.id);
@@ -116,20 +116,20 @@ var w=Math.max(this.start.x,this.end.x)-x;
 var h=Math.max(this.start.y,this.end.y)-y;
 return {x:x-2,y:y-2,width:w+4,height:h+4};
 };
-p.draw=function(obj){
-this.apply(obj);
+p.draw=function(_6){
+this.apply(_6);
 this._pos();
 this.shape.setTransform(this.transform);
 this.rectShape.setShape({x:this.start.x,y:this.start.y,width:this.end.x-this.start.x,height:this.end.y-this.start.y,r:this.radius}).setFill([255,255,255,0.1]);
 this.labelShape.setShape({x:this.textPosition.x,y:this.textPosition.y,text:this.property("label")}).setFill(this.property("fill"));
 this.zoom();
 };
-p.zoom=function(pct){
+p.zoom=function(_7){
 if(this.rectShape){
-pct=pct||this.figure.zoomFactor;
-ta.Annotation.prototype.zoom.call(this,pct);
-pct=dojox.gfx.renderer=="vml"?1:pct;
-this.rectShape.setStroke({color:this.property("fill"),width:1/pct});
+_7=_7||this.figure.zoomFactor;
+ta.Annotation.prototype.zoom.call(this,_7);
+_7=dojox.gfx.renderer=="vml"?1:_7;
+this.rectShape.setStroke({color:this.property("fill"),width:1/_7});
 }
 };
 p.serialize=function(){

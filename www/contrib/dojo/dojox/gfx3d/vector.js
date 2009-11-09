@@ -10,10 +10,10 @@ dojo._hasResource["dojox.gfx3d.vector"]=true;
 dojo.provide("dojox.gfx3d.vector");
 dojo.mixin(dojox.gfx3d.vector,{sum:function(){
 var v={x:0,y:0,z:0};
-dojo.forEach(arguments,function(_2){
-v.x+=_2.x;
-v.y+=_2.y;
-v.z+=_2.z;
+dojo.forEach(arguments,function(_1){
+v.x+=_1.x;
+v.y+=_1.y;
+v.z+=_1.z;
 });
 return v;
 },center:function(){
@@ -28,8 +28,8 @@ return {x:a.x-b.x,y:a.y-b.y,z:a.z-b.z};
 },_crossProduct:function(x,y,z,u,v,w){
 return {x:y*w-z*v,y:z*u-x*w,z:x*v-y*u};
 },crossProduct:function(a,b,c,d,e,f){
-if(arguments.length==6&&dojo.every(arguments,function(_13){
-return typeof _13=="number";
+if(arguments.length==6&&dojo.every(arguments,function(_2){
+return typeof _2=="number";
 })){
 return dojox.gfx3d.vector._crossProduct(a,b,c,d,e,f);
 }
@@ -37,8 +37,8 @@ return dojox.gfx3d.vector._crossProduct(a.x,a.y,a.z,b.x,b.y,b.z);
 },_dotProduct:function(x,y,z,u,v,w){
 return x*u+y*v+z*w;
 },dotProduct:function(a,b,c,d,e,f){
-if(arguments.length==6&&dojo.every(arguments,function(_20){
-return typeof _20=="number";
+if(arguments.length==6&&dojo.every(arguments,function(_3){
+return typeof _3=="number";
 })){
 return dojox.gfx3d.vector._dotProduct(a,b,c,d,e,f);
 }

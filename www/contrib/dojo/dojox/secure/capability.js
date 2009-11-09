@@ -14,8 +14,8 @@ var _4=this.keywords;
 for(var i=0;i<_4.length;i++){
 _3[_4[i]]=true;
 }
-var _6="|this| keyword in object literal without a Class call";
-var _7=[];
+var _5="|this| keyword in object literal without a Class call";
+var _6=[];
 if(_1.match(/[\u200c-\u200f\u202a-\u202e\u206a-\u206f\uff00-\uffff]/)){
 throw new Error("Illegal unicode characters detected");
 }
@@ -24,76 +24,76 @@ throw new Error("Conditional compilation token is not allowed");
 }
 _1=_1.replace(/\\["'\\\/bfnrtu]/g,"@").replace(/\/\/.*|\/\*[\w\W]*?\*\/|\/(\\[\/\\]|[^*\/])(\\.|[^\/\n\\])*\/[gim]*|("[^"]*")|('[^']*')/g,function(t){
 return t.match(/^\/\/|^\/\*/)?" ":"0";
-}).replace(/\.\s*([a-z\$_A-Z][\w\$_]*)|([;,{])\s*([a-z\$_A-Z][\w\$_]*\s*):/g,function(t,_a,_b,_c){
-_a=_a||_c;
-if(/^__|^(apply|call|callee|caller|constructor|eval|prototype|this|unwatch|valueOf|watch)$|__$/.test(_a)){
-throw new Error("Illegal property name "+_a);
+}).replace(/\.\s*([a-z\$_A-Z][\w\$_]*)|([;,{])\s*([a-z\$_A-Z][\w\$_]*\s*):/g,function(t,_7,_8,_9){
+_7=_7||_9;
+if(/^__|^(apply|call|callee|caller|constructor|eval|prototype|this|unwatch|valueOf|watch)$|__$/.test(_7)){
+throw new Error("Illegal property name "+_7);
 }
-return (_b&&(_b+"0:"))||"~";
+return (_8&&(_8+"0:"))||"~";
 });
-_1.replace(/([^\[][\]\}]\s*=)|((\Wreturn|\S)\s*\[\s*\+?)|([^=!][=!]=[^=])/g,function(_d){
-if(!_d.match(/((\Wreturn|[=\&\|\:\?\,])\s*\[)|\[\s*\+$/)){
-throw new Error("Illegal operator "+_d.substring(1));
+_1.replace(/([^\[][\]\}]\s*=)|((\Wreturn|\S)\s*\[\s*\+?)|([^=!][=!]=[^=])/g,function(_a){
+if(!_a.match(/((\Wreturn|[=\&\|\:\?\,])\s*\[)|\[\s*\+$/)){
+throw new Error("Illegal operator "+_a.substring(1));
 }
 });
-_1=_1.replace(new RegExp("("+_2.join("|")+")[\\s~]*\\(","g"),function(_e){
+_1=_1.replace(new RegExp("("+_2.join("|")+")[\\s~]*\\(","g"),function(_b){
 return "new(";
 });
-function _f(_10,_11){
-var _12={};
-_10.replace(/#\d/g,function(b){
-var _14=_7[b.substring(1)];
-for(var i in _14){
-if(i==_6){
+function _c(_d,_e){
+var _f={};
+_d.replace(/#\d+/g,function(b){
+var _10=_6[b.substring(1)];
+for(var i in _10){
+if(i==_5){
 throw i;
 }
-if(i=="this"&&_14[":method"]&&_14["this"]==1){
-i=_6;
+if(i=="this"&&_10[":method"]&&_10["this"]==1){
+i=_5;
 }
 if(i!=":method"){
-_12[i]=2;
+_f[i]=2;
 }
 }
 });
-_10.replace(/(\W|^)([a-z_\$A-Z][\w_\$]*)/g,function(t,a,_18){
-if(_18.charAt(0)=="_"){
+_d.replace(/(\W|^)([a-z_\$A-Z][\w_\$]*)/g,function(t,a,_11){
+if(_11.charAt(0)=="_"){
 throw new Error("Names may not start with _");
 }
-_12[_18]=1;
+_f[_11]=1;
 });
-return _12;
+return _f;
 };
-var _19,_1a;
-function _1b(t,_1d,a,b,_20,_21){
-_21.replace(/(^|,)0:\s*function#(\d)/g,function(t,a,b){
-var _25=_7[b];
-_25[":method"]=1;
+var _12,_13;
+function _14(t,_15,a,b,_16,_17){
+_17.replace(/(^|,)0:\s*function#(\d+)/g,function(t,a,b){
+var _18=_6[b];
+_18[":method"]=1;
 });
-_21=_21.replace(/(^|[^_\w\$])Class\s*\(\s*([_\w\$]+\s*,\s*)*#(\d)/g,function(t,p,a,b){
-var _2a=_7[b];
-delete _2a[_6];
+_17=_17.replace(/(^|[^_\w\$])Class\s*\(\s*([_\w\$]+\s*,\s*)*#(\d+)/g,function(t,p,a,b){
+var _19=_6[b];
+delete _19[_5];
 return (p||"")+(a||"")+"#"+b;
 });
-_1a=_f(_21,_1d);
-function _2b(t,a,b,_2f){
-_2f.replace(/,?([a-z\$A-Z][_\w\$]*)/g,function(t,_31){
-if(_31=="Class"){
+_13=_c(_17,_15);
+function _1a(t,a,b,_1b){
+_1b.replace(/,?([a-z\$A-Z][_\w\$]*)/g,function(t,_1c){
+if(_1c=="Class"){
 throw new Error("Class is reserved");
 }
-delete _1a[_31];
+delete _13[_1c];
 });
 };
-if(_1d){
-_2b(t,a,a,_20);
+if(_15){
+_1a(t,a,a,_16);
 }
-_21.replace(/(\W|^)(var) ([ \t,_\w\$]+)/g,_2b);
-return (a||"")+(b||"")+"#"+(_7.push(_1a)-1);
+_17.replace(/(\W|^)(var) ([ \t,_\w\$]+)/g,_1a);
+return (a||"")+(b||"")+"#"+(_6.push(_13)-1);
 };
 do{
-_19=_1.replace(/((function|catch)(\s+[_\w\$]+)?\s*\(([^\)]*)\)\s*)?{([^{}]*)}/g,_1b);
-}while(_19!=_1&&(_1=_19));
-_1b(0,0,0,0,0,_1);
-for(i in _1a){
+_12=_1.replace(/((function|catch)(\s+[_\w\$]+)?\s*\(([^\)]*)\)\s*)?{([^{}]*)}/g,_14);
+}while(_12!=_1&&(_1=_12));
+_14(0,0,0,0,0,_1);
+for(i in _13){
 if(!(i in _3)){
 throw new Error("Illegal reference to "+i);
 }

@@ -17,10 +17,10 @@ var _8=_7.bounds.from,_9=_7.bounds.scale;
 return function(x){
 return (x-_8)*_9;
 };
-},getTransformerFromPlot:function(_b){
-var _c=_b.bounds.from,_d=_b.bounds.scale;
+},getTransformerFromPlot:function(_a){
+var _b=_a.bounds.from,_c=_a.bounds.scale;
 return function(x){
-return x/_d+_c;
+return x/_c+_b;
 };
 }};
 }

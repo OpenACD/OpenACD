@@ -57,15 +57,15 @@ this.available=true;
 this.isAvailable=function(){
 return this.available;
 };
-this.addOnLoad=function(_7){
-this._onLoadListeners.push(_7);
+this.addOnLoad=function(_6){
+this._onLoadListeners.push(_6);
 if(this.isInitialized()){
 this._fireLoaded();
 }
 };
-this.removeOnLoad=function(_8){
+this.removeOnLoad=function(_7){
 for(var i=0;i<this._onLoadListeners.length;i++){
-if(_8==this._onLoadListeners[i]){
+if(_7==this._onLoadListeners[i]){
 this._onLoadListeners=this._onLoadListeners.splice(i,1);
 break;
 }
@@ -78,14 +78,14 @@ return false;
 return this._initialized;
 }
 };
-this.supportsProvider=function(_a){
+this.supportsProvider=function(_8){
 try{
-var _b=eval("new "+_a+"()");
-var _c=_b.isAvailable();
-if(!_c){
+var _9=eval("new "+_8+"()");
+var _a=_9.isAvailable();
+if(!_a){
 return false;
 }
-return _c;
+return _a;
 }
 catch(e){
 return false;
@@ -103,16 +103,15 @@ try{
 i();
 }
 catch(e){
-
 }
 });
 };
 this.getResourceList=function(){
-var _e=[];
-dojo.forEach(dojox.storage.manager.providers,function(_f){
-_e=_e.concat(_f.getResourceList());
+var _b=[];
+dojo.forEach(dojox.storage.manager.providers,function(_c){
+_b=_b.concat(_c.getResourceList());
 });
-return _e;
+return _b;
 };
 };
 }

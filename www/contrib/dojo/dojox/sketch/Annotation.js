@@ -14,14 +14,14 @@ dojo.require("dojox.sketch._Plugin");
 var ta=dojox.sketch;
 dojo.declare("dojox.sketch.AnnotationTool",ta._Plugin,{onMouseDown:function(e){
 this._omd=true;
-},onMouseMove:function(e,_4){
+},onMouseMove:function(e,_1){
 if(!this._omd){
 return;
 }
 if(this._cshape){
-this._cshape.setShape(_4);
+this._cshape.setShape(_1);
 }else{
-this._cshape=this.figure.surface.createRect(_4).setStroke({color:"#999",width:1,style:"ShortDot"}).setFill([255,255,255,0.7]);
+this._cshape=this.figure.surface.createRect(_1).setStroke({color:"#999",width:1,style:"ShortDot"}).setFill([255,255,255,0.7]);
 this._cshape.getEventSource().setAttribute("shape-rendering","crispEdges");
 }
 },onMouseUp:function(e){
@@ -35,19 +35,19 @@ f.surface.remove(this._cshape);
 delete this._cshape;
 }
 if(!(f._startPoint.x==e.pageX&&f._startPoint.y==e.pageY)){
-var _7=10;
-if(Math.max(_7,Math.abs(f._absEnd.x-f._start.x),Math.abs(f._absEnd.y-f._start.y))>_7){
+var _2=10;
+if(Math.max(_2,Math.abs(f._absEnd.x-f._start.x),Math.abs(f._absEnd.y-f._start.y))>_2){
 this._create(f._start,f._end);
 }
 }
-},_create:function(_8,_9){
+},_create:function(_3,_4){
 var f=this.figure;
-var _=f.nextKey();
-var a=new (this.annotation)(f,_);
-a.transform={dx:_8.x/f.zoomFactor,dy:_8.y/f.zoomFactor};
-a.end={x:_9.x/f.zoomFactor,y:_9.y/f.zoomFactor};
+var _5=f.nextKey();
+var a=new (this.annotation)(f,_5);
+a.transform={dx:f._calCol(_3.x/f.zoomFactor),dy:f._calCol(_3.y/f.zoomFactor)};
+a.end={x:f._calCol(_4.x/f.zoomFactor),y:f._calCol(_4.y/f.zoomFactor)};
 if(a.control){
-a.control={x:Math.round((_9.x/2)/f.zoomFactor),y:Math.round((_9.y/2)/f.zoomFactor)};
+a.control={x:f._calCol((_4.x/2)/f.zoomFactor),y:f._calCol((_4.y/2)/f.zoomFactor)};
 }
 f.onBeforeCreateShape(a);
 a.initialize();
@@ -55,9 +55,9 @@ f.select(a);
 f.onCreateShape(a);
 f.history.add(ta.CommandTypes.Create,a);
 }});
-ta.Annotation=function(_d,id){
+ta.Annotation=function(_6,id){
 this.id=this._key=id;
-this.figure=_d;
+this.figure=_6;
 this.mode=ta.Annotation.Modes.View;
 this.shape=null;
 this.boundingBox=null;
@@ -76,24 +76,24 @@ return "";
 p.getType=function(){
 return ta.Annotation;
 };
-p.onRemove=function(_10){
+p.onRemove=function(_7){
 this.figure.history.add(ta.CommandTypes.Delete,this,this.serialize());
 };
-p.property=function(_11,_12){
+p.property=function(_8,_9){
 var r;
-_11=_11.toLowerCase();
-if(this._properties[_11]!==undefined){
-r=this._properties[_11];
+_8=_8.toLowerCase();
+if(this._properties[_8]!==undefined){
+r=this._properties[_8];
 }
 if(arguments.length>1){
-this._properties[_11]=_12;
-if(r!=_12){
-this.onPropertyChange(_11,r);
+this._properties[_8]=_9;
+if(r!=_9){
+this.onPropertyChange(_8,r);
 }
 }
 return r;
 };
-p.onPropertyChange=function(_14,_15){
+p.onPropertyChange=function(_a,_b){
 };
 p.onCreate=function(){
 this.figure.history.add(ta.CommandTypes.Create,this);
@@ -113,15 +113,15 @@ p.destroy=function(){
 };
 p.draw=function(){
 };
-p.apply=function(obj){
+p.apply=function(_c){
 };
 p.serialize=function(){
 };
 p.getBBox=function(){
 };
-p.beginEdit=function(_19){
+p.beginEdit=function(_d){
 if(!this._type){
-this._type=_19||ta.CommandTypes.Move;
+this._type=_d||ta.CommandTypes.Move;
 this._prevState=this.serialize();
 }
 };
@@ -161,11 +161,11 @@ this.transform.dx+=pt.dx;
 this.transform.dy+=pt.dy;
 this.draw();
 };
-p.getTextBox=function(_25){
+p.getTextBox=function(_e){
 var fp=this.property("font");
 var f={fontFamily:fp.family,fontSize:fp.size,fontWeight:fp.weight};
-if(_25){
-f.fontSize=Math.floor(f.fontSize/_25);
+if(_e){
+f.fontSize=Math.floor(f.fontSize/_e);
 }
 return dojox.gfx._base._getTextBox(this.property("label"),f);
 };
@@ -174,11 +174,11 @@ if(this.mode==m){
 return;
 }
 this.mode=m;
-var _29="disable";
+var _f="disable";
 if(m==ta.Annotation.Modes.Edit){
-_29="enable";
+_f="enable";
 }
-if(_29=="enable"){
+if(_f=="enable"){
 this.drawBBox();
 this.figure._add(this);
 }else{
@@ -190,7 +190,7 @@ this.boundingBox=null;
 }
 }
 for(var p in this.anchors){
-this.anchors[p][_29]();
+this.anchors[p][_f]();
 }
 };
 p.zoom=function(pct){
@@ -238,11 +238,11 @@ this.transform.dy=parseFloat(pt[1],10);
 }
 };
 ta.Annotation.Modes={View:0,Edit:1};
-ta.Annotation.register=function(_35,_36){
-var cls=ta[_35+"Annotation"];
-ta.registerTool(_35,function(p){
-dojo.mixin(p,{shape:_35,annotation:cls});
-return new (_36||ta.AnnotationTool)(p);
+ta.Annotation.register=function(_10,_11){
+var cls=ta[_10+"Annotation"];
+ta.registerTool(_10,function(p){
+dojo.mixin(p,{shape:_10,annotation:cls});
+return new (_11||ta.AnnotationTool)(p);
 });
 };
 })();

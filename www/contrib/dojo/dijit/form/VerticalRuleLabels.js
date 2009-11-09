@@ -11,5 +11,5 @@ dojo.provide("dijit.form.VerticalRuleLabels");
 dojo.require("dijit.form.HorizontalRuleLabels");
 dojo.declare("dijit.form.VerticalRuleLabels",dijit.form.HorizontalRuleLabels,{templateString:"<div class=\"dijitRuleContainer dijitRuleContainerV dijitRuleLabelsContainer dijitRuleLabelsContainerV\"></div>",_positionPrefix:"<div class=\"dijitRuleLabelContainer dijitRuleLabelContainerV\" style=\"top:",_labelPrefix:"\"><span class=\"dijitRuleLabel dijitRuleLabelV\">",_calcPosition:function(_1){
 return 100-_1;
-},_isHorizontal:false});
+}});
 }

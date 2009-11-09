@@ -1,1 +1,1 @@
-({"set":"Aseta","text":"Kuvaus:","insertImageTitle":"Kuvan ominaisuudet","url":"URL-osoite:","createLinkTitle":"Linkin ominaisuudet"})
+({"set":"Aseta","text":"Kuvaus:","insertImageTitle":"Kuvan ominaisuudet","url":"URL-osoite:","createLinkTitle":"Linkin ominaisuudet","cancel":"Cancel","newWindow":"New Window ( _blank )","topWindow":"Topmost Window ( _top )","target":"Target:","parentWindow":"Parent Window ( _parent )","currentWindow":"Current Window ( _self )"})

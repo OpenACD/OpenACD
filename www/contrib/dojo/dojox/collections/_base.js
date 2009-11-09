@@ -18,54 +18,54 @@ this.toString=function(){
 return String(this.value);
 };
 };
-dojox.collections.Iterator=function(_3){
-var a=_3;
-var _5=0;
-this.element=a[_5]||null;
+dojox.collections.Iterator=function(_1){
+var a=_1;
+var _2=0;
+this.element=a[_2]||null;
 this.atEnd=function(){
-return (_5>=a.length);
+return (_2>=a.length);
 };
 this.get=function(){
 if(this.atEnd()){
 return null;
 }
-this.element=a[_5++];
+this.element=a[_2++];
+return this.element;
+};
+this.map=function(fn,_3){
+return dojo.map(a,fn,_3);
+};
+this.reset=function(){
+_2=0;
+this.element=a[_2];
+};
+};
+dojox.collections.DictionaryIterator=function(_4){
+var a=[];
+var _5={};
+for(var p in _4){
+if(!_5[p]){
+a.push(_4[p]);
+}
+}
+var _6=0;
+this.element=a[_6]||null;
+this.atEnd=function(){
+return (_6>=a.length);
+};
+this.get=function(){
+if(this.atEnd()){
+return null;
+}
+this.element=a[_6++];
 return this.element;
 };
 this.map=function(fn,_7){
 return dojo.map(a,fn,_7);
 };
 this.reset=function(){
-_5=0;
-this.element=a[_5];
-};
-};
-dojox.collections.DictionaryIterator=function(_8){
-var a=[];
-var _a={};
-for(var p in _8){
-if(!_a[p]){
-a.push(_8[p]);
-}
-}
-var _c=0;
-this.element=a[_c]||null;
-this.atEnd=function(){
-return (_c>=a.length);
-};
-this.get=function(){
-if(this.atEnd()){
-return null;
-}
-this.element=a[_c++];
-return this.element;
-};
-this.map=function(fn,_e){
-return dojo.map(a,fn,_e);
-};
-this.reset=function(){
-_c=0;
-this.element=a[_c];
+_6=0;
+this.element=a[_6];
 };
 };
 }

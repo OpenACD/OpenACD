@@ -10,12 +10,12 @@ dojo._hasResource["dojo.dnd.Mover"]=true;
 dojo.provide("dojo.dnd.Mover");
 dojo.require("dojo.dnd.common");
 dojo.require("dojo.dnd.autoscroll");
-dojo.declare("dojo.dnd.Mover",null,{constructor:function(_1,e,_3){
+dojo.declare("dojo.dnd.Mover",null,{constructor:function(_1,e,_2){
 this.node=dojo.byId(_1);
 this.marginBox={l:e.pageX,t:e.pageY};
 this.mouseButton=e.button;
-var h=this.host=_3,d=_1.ownerDocument,_6=dojo.connect(d,"onmousemove",this,"onFirstMove");
-this.events=[dojo.connect(d,"onmousemove",this,"onMouseMove"),dojo.connect(d,"onmouseup",this,"onMouseUp"),dojo.connect(d,"ondragstart",dojo.stopEvent),dojo.connect(d.body,"onselectstart",dojo.stopEvent),_6];
+var h=this.host=_2,d=_1.ownerDocument,_3=dojo.connect(d,"onmousemove",this,"onFirstMove");
+this.events=[dojo.connect(d,"onmousemove",this,"onMouseMove"),dojo.connect(d,"onmouseup",this,"onMouseUp"),dojo.connect(d,"ondragstart",dojo.stopEvent),dojo.connect(d.body,"onselectstart",dojo.stopEvent),_3];
 if(h&&h.onMoveStart){
 h.onMoveStart(this);
 }
@@ -25,7 +25,7 @@ var m=this.marginBox;
 this.host.onMove(this,{l:m.l+e.pageX,t:m.t+e.pageY});
 dojo.stopEvent(e);
 },onMouseUp:function(e){
-if(dojo.isWebKit&&dojo.dnd._isMac&&this.mouseButton==2?e.button==0:this.mouseButton==e.button){
+if(dojo.isWebKit&&dojo.isMac&&this.mouseButton==2?e.button==0:this.mouseButton==e.button){
 this.destroy();
 }
 dojo.stopEvent(e);

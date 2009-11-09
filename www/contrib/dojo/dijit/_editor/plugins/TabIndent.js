@@ -10,34 +10,16 @@ dojo._hasResource["dijit._editor.plugins.TabIndent"]=true;
 dojo.provide("dijit._editor.plugins.TabIndent");
 dojo.experimental("dijit._editor.plugins.TabIndent");
 dojo.require("dijit._editor._Plugin");
+dojo.require("dijit.form.ToggleButton");
 dojo.declare("dijit._editor.plugins.TabIndent",dijit._editor._Plugin,{useDefaultCommand:false,buttonClass:dijit.form.ToggleButton,command:"tabIndent",_initButton:function(){
-this.inherited("_initButton",arguments);
-this.connect(this.button,"onClick",this._tabIndent);
+this.inherited(arguments);
+var e=this.editor;
+this.connect(this.button,"onChange",function(_1){
+e.attr("isTabIndent",_1);
+});
+this.updateState();
 },updateState:function(){
-var _e=this.editor;
-var _c=this.command;
-if(!_e){
-return;
-}
-if(!_e.isLoaded){
-return;
-}
-if(!_c.length){
-return;
-}
-if(this.button){
-try{
-var _3=_e.isTabIndent;
-if(typeof this.button.checked=="boolean"){
-this.button.attr("checked",_3);
-}
-}
-catch(e){
-
-}
-}
-},_tabIndent:function(){
-this.editor.isTabIndent=!this.editor.isTabIndent;
+this.button.attr("checked",this.editor.isTabIndent,false);
 }});
 dojo.subscribe(dijit._scopeName+".Editor.getPlugin",null,function(o){
 if(o.plugin){

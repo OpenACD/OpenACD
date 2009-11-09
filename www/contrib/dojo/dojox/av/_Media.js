@@ -90,8 +90,8 @@ this.onStatus(this.status);
 },_eventFactory:function(){
 var evt={status:this.status};
 return evt;
-},_sub:function(_13,_14){
-dojo.subscribe(this.id+"/"+_13,this,_14);
+},_sub:function(_11,_12){
+dojo.subscribe(this.id+"/"+_11,this,_12);
 },_normalizeVolume:function(vol){
 if(vol>1){
 while(vol>1){
@@ -99,14 +99,14 @@ vol*=0.1;
 }
 }
 return vol;
-},_normalizeUrl:function(_16){
-if(_16&&_16.toLowerCase().indexOf("http")<0){
+},_normalizeUrl:function(_13){
+if(_13&&_13.toLowerCase().indexOf("http")<0){
 var loc=window.location.href.split("/");
 loc.pop();
 loc=loc.join("/")+"/";
-_16=loc+_16;
+_13=loc+_13;
 }
-return _16;
+return _13;
 },destroy:function(){
 if(!this.flashMedia){
 this._cons.push(dojo.connect(this,"onLoad",this,"destroy"));

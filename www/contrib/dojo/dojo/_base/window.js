@@ -27,20 +27,23 @@ dojo.global=_7;
 }
 };
 dojo.withDoc=function(_8,_9,_a,_b){
-var _c=dojo.doc,_d=dojo._bodyLtr;
+var _c=dojo.doc,_d=dojo._bodyLtr,_e=dojo.isQuirks;
 try{
 dojo.doc=_8;
 delete dojo._bodyLtr;
-if(_a&&dojo.isString(_9)){
+dojo.isQuirks=dojo.doc.compatMode=="BackCompat";
+if(_a&&typeof _9=="string"){
 _9=_a[_9];
 }
 return _9.apply(_a,_b||[]);
 }
 finally{
 dojo.doc=_c;
+delete dojo._bodyLtr;
 if(_d!==undefined){
 dojo._bodyLtr=_d;
 }
+dojo.isQuirks=_e;
 }
 };
 }

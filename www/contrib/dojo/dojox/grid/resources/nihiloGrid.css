@@ -32,6 +32,7 @@
 .dojoxGridHeader {
 	position: absolute;
 	overflow: hidden;
+	cursor: default;
 }
 .dojoxGridHeader {
 	background-color: #E8E1CF;
@@ -232,6 +233,12 @@
 .dojoxGrid .dojoDndItemAfter {
 	border-right-color: red;
 }
+.dijit_a11y .dojoDndItemBefore {
+	border-left: double;
+}
+.dijit_a11y .dojoDndItemAfter {
+	border-right: double;
+}
 .dojoxGridDndAvatarItem	td {
 	border: 1px solid;
 	border-color: #F6F4EB #ACA899 #ACA899 #F6F4EB;
@@ -266,6 +273,75 @@
 	background-image: url(../../../dojo/resources/images/dndCopy.png);
 	background-repeat: no-repeat;
 	background-position: center center;
+}
+.dojoxGridColPlaceBottom {
+	background: transparent url(images/grid_sort_up.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop {
+	background: transparent url(images/grid_sort_down.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop, .dojoxGridColPlaceBottom {
+	font-size:1px;
+	height:6px;
+	z-index:10000;
+	top:0;
+	overflow:hidden;
+	position:absolute;
+	line-height:1px;
+	width:8px;
+}
+.dojoxGridResizeColLine {
+	width: 1px;
+	background-color: #777;
+	position: absolute;
+	cursor: col-resize;
+	z-index:10000;
+}
+.dojoxGridColNoResize, 
+.dojoxGridColNoResize .dojoDndItemOver {
+	cursor: not-allowed !important;
+}
+.dojoxGridColResize, 
+.dojoxGridColResize .dojoDndItemOver,
+.dojoxGridColumnResizing,
+.dojoxGridColumnResizing .dojoDndItemOver,
+.dojoxGridColumnResizing .dojoxGridHeader {
+	cursor: col-resize !important;
+}
+.dojoxGridColPlaceBottom {
+	background: transparent url(images/grid_sort_up.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop {
+	background: transparent url(images/grid_sort_down.gif) no-repeat scroll left top;
+}
+.dojoxGridColPlaceTop, .dojoxGridColPlaceBottom {
+	font-size:1px;
+	height:6px;
+	z-index:10000;
+	top:0;
+	overflow:hidden;
+	position:absolute;
+	line-height:1px;
+	width:8px;
+}
+.dojoxGridResizeColLine {
+	width: 1px;
+	background-color: #777;
+	position: absolute;
+}
+.dojoxGridExpandoCell {
+	vertical-align: top;
+}
+.dojoxGridSummarySpan {
+	visibility: hidden;
+}
+.dojoxGridSummaryRow .dojoxGridSummarySpan,
+.dojoxGridRowCollapsed .dojoxGridSummarySpan {
+	visibility: visible;
+}
+.dojoxGridNoChildren .dojoxGridExpando {
+	visibility: hidden !important;
+	width: 0px !important;
 }
 .nihilo .dojoxGrid {
 	background-color: #e9e9e9;
@@ -396,4 +472,62 @@
 }
 .nihilo .dojoxGrid .dojoDndItemAfter {
 	border-right-color: #ffe284;
+}
+.nihilo .dojoxGridExpando {
+	float: left;
+	height: 18px;
+	width: 18px;
+	text-align: center;
+	margin-top: -3px;
+}
+.dijitRtl .nihilo .dojoxGridExpando {
+	float: right;
+}
+.nihilo .dojoxGridExpandoCell {
+	padding-top: 5px;
+}
+.nihilo .dojoxGridExpandoNode {
+	height: 18px;
+	background-image: url('../../../dijit/themes/nihilo/images/spriteTree.gif');
+}
+.nihilo .dojoxGridExpandoOpened .dojoxGridExpandoNode {
+	background: url('../../../dijit/themes/nihilo/images/spriteTree.gif') no-repeat -18px top;
+}
+.nihilo .dojoxGridExpandoLoading .dojoxGridExpandoNode {
+	background: url('../../../dijit/themes/nihilo/images/treeExpand_loading.gif');
+}
+.nihilo .dojoxGridTreeModel .dojoxGridNoChildren .dojoxGridExpando {
+	visibility: visible !important;
+	width: 18px !important;
+}
+.nihilo .dojoxGridTreeModel .dojoxGridNoChildren .dojoxGridExpandoNode {
+	background: url('../../../dijit/themes/nihilo/images/spriteTree.gif') no-repeat -36px top;
+}
+.nihilo .dojoxGridExpandoNodeInner {
+	visibility: hidden;
+}
+.dijit_a11y .dojoxGridExpandoNodeInner {
+	visibility: visible;
+}
+		
+.nihilo .dojoxGridSummaryRow .dojoxGridCell {
+	border-top-color: #999;
+	border-top-style: solid;
+}
+.nihilo .dojoxGridSpacerCell,
+.nihilo .dojoxGridExpandoCell,
+.nihilo .dojoxGridSummaryRow .dojoxGridSpacerCell {
+	border-color: transparent;
+	border-right-color: #D5CDB5;
+}
+.nihilo .dojoxGridSummaryRow .dojoxGridTotalCell,
+.nihilo .dojoxGridRowCollapsed .dojoxGridExpandoCell,
+.nihilo .dojoxGridTreeModel .dojoxGridExpandoCell {
+	border-bottom-color: #D5CDB5;
+}
+.nihilo .dojoxGridSubRowAlt {
+	background-color: #F8F8F8;
+}
+.nihilo .dojoxGridRowOdd .dojoxGridSubRowAlt {
+	background-color: #EDEFF3;
 }

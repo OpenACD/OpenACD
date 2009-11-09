@@ -75,21 +75,21 @@
 	background-position:right;
 	padding-right:25px;
 }
+.dijitRtl .dijitTabContainer .tabStripMenuButton {
+	float: left;
+}
 .dijitRtl .soria .dijitTab {
 	margin-right:0;
 	margin-left:2px;		
 }
+.dijitRtl .soria .dijitTabContainer .tabStripButton {
+	margin-left: 0;
+}
 .dijitRtl .soria .dijitTabContainerTopStrip,
-.dijitRtl .soria .dijitTabContainerBottomStrip {
-	padding-right: 3px;
-	padding-left: 0px;
-}
-.dijitRtl .soria .dijitTabContainerTop-tabs {
-	padding-left: auto;
-	padding-right: 3px;
-}
+.dijitRtl .soria .dijitTabContainerBottomStrip,
+.dijitRtl .soria .dijitTabContainerTop-tabs,
 .dijitRtl .soria .dijitTabContainerBottom-tabs {
-	padding-left: auto;
+	padding-left: 0;
 	padding-right: 3px;
 }
 .dijitRtl .soria .dijitTabInnerDiv {
@@ -150,6 +150,10 @@
 .dijitRtl .soria .dijitComboBox .dijitButtonNode {
 	border-width: 0px 0px 0px 1px;
 }
+.dijitRtl .soria .dijitSelect .dijitButtonContents {
+	border-left: none;
+	border-right-width: 1px;
+}
 .dijitRtl .soria .dijitComboBox .dijitButtonNode,
 .dijitRtl .soria .dijitSpinner .dijitButtonNode {
 	
@@ -162,7 +166,7 @@
 }
 .dijitRtl .soria .dijitTreeContainer .dijitTreeContent {
     padding-left: auto;
-    padding-right: 1px;   
+    padding-right: 1px;
 }
 .dijitRtl .soria .dijitTreeContainer .dijitTreeExpandoOpened {
 	background: url(images/spriteTree_rtl.gif) no-repeat -18px top;

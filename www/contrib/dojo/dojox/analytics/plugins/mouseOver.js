@@ -7,6 +7,7 @@
 
 if(!dojo._hasResource["dojox.analytics.plugins.mouseOver"]){
 dojo._hasResource["dojox.analytics.plugins.mouseOver"]=true;
+dojo.require("dojox.analytics._base");
 dojo.provide("dojox.analytics.plugins.mouseOver");
 dojox.analytics.plugins.mouseOver=new (function(){
 this.watchMouse=dojo.config["watchMouseOver"]||true;
@@ -45,16 +46,16 @@ var t={};
 for(var i in e){
 switch(i){
 case "target":
-var _5=this.targetProps;
+var _1=this.targetProps;
 t[i]={};
-for(var j=0;j<_5.length;j++){
-if(dojo.isObject(e[i])&&_5[j] in e[i]){
-if(_5[j]=="text"||_5[j]=="textContent"){
+for(var j=0;j<_1.length;j++){
+if(dojo.isObject(e[i])&&_1[j] in e[i]){
+if(_1[j]=="text"||_1[j]=="textContent"){
 if(e[i]["localName"]&&(e[i]["localName"]!="HTML")&&(e[i]["localName"]!="BODY")){
-t[i][_5[j]]=e[i][_5[j]].substr(0,50);
+t[i][_1[j]]=e[i][_1[j]].substr(0,50);
 }
 }else{
-t[i][_5[j]]=e[i][_5[j]];
+t[i][_1[j]]=e[i][_1[j]];
 }
 }
 }
@@ -62,8 +63,8 @@ break;
 case "x":
 case "y":
 if(e[i]){
-var _7=e[i];
-t[i]=_7+"";
+var _2=e[i];
+t[i]=_2+"";
 }
 break;
 default:

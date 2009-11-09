@@ -17,30 +17,43 @@ if(typeof print=="function"){
 console.debug=print;
 }
 if(!("byId" in dojo)){
-dojo.byId=function(id,_2){
+dojo.byId=function(id,_1){
 if(id&&(typeof id=="string"||id instanceof String)){
-if(!_2){
-_2=document;
+if(!_1){
+_1=document;
 }
-return _2.getElementById(id);
+return _1.getElementById(id);
 }
 return id;
 };
 }
-dojo._loadUri=function(_3,cb){
+dojo._isLocalUrl=function(_2){
+var _3=(new java.io.File(_2)).exists();
+if(!_3){
+var _4;
 try{
-var _5=(new java.io.File(_3)).exists();
-if(!_5){
+_4=(new java.net.URL(_2)).openStream();
+_4.close();
+}
+finally{
+if(_4&&_4.close){
+_4.close();
+}
+}
+}
+return _3;
+};
+dojo._loadUri=function(_5,cb){
 try{
-var _6=(new java.net.URL(_3)).openStream();
-_6.close();
+var _6;
+try{
+_6=dojo._isLocalUrl(_5);
 }
 catch(e){
 return false;
 }
-}
 if(cb){
-var _7=(_5?readText:readUri)(_3,"UTF-8");
+var _7=(_6?readText:readUri)(_5,"UTF-8");
 if(!eval("'‏'").length){
 _7=String(_7).replace(/[\u200E\u200F\u202A-\u202E]/g,function(_8){
 return "\\u"+_8.charCodeAt(0).toString(16);
@@ -48,112 +61,89 @@ return "\\u"+_8.charCodeAt(0).toString(16);
 }
 cb(eval("("+_7+")"));
 }else{
-load(_3);
+load(_5);
 }
 return true;
 }
 catch(e){
-
 return false;
 }
 };
 dojo.exit=function(_9){
 quit(_9);
 };
-dojo._rhinoCurrentScriptViaJava=function(_a){
-var _b=Packages.org.mozilla.javascript.Context.getCurrentContext().getOptimizationLevel();
-var _c=new java.io.CharArrayWriter();
-var pw=new java.io.PrintWriter(_c);
-var _e=new java.lang.Exception();
-var s=_c.toString();
-var _10=s.match(/[^\(]*\.js\)/gi);
-if(!_10){
-throw Error("cannot parse printStackTrace output: "+s);
-}
-var _11=((typeof _a!="undefined")&&(_a))?_10[_a+1]:_10[_10.length-1];
-_11=_10[3];
-if(!_11){
-_11=_10[1];
-}
-if(!_11){
-throw Error("could not find js file in printStackTrace output: "+s);
-}
-return _11;
-};
-function readText(_12,_13){
-_13=_13||"utf-8";
-var jf=new java.io.File(_12);
+function readText(_a,_b){
+_b=_b||"utf-8";
+var jf=new java.io.File(_a);
 var is=new java.io.FileInputStream(jf);
-return dj_readInputStream(is,_13);
+return dj_readInputStream(is,_b);
 };
-function readUri(uri,_17){
-var _18=(new java.net.URL(uri)).openConnection();
-_17=_17||_18.getContentEncoding()||"utf-8";
-var is=_18.getInputStream();
-return dj_readInputStream(is,_17);
+function readUri(_c,_d){
+var _e=(new java.net.URL(_c)).openConnection();
+_d=_d||_e.getContentEncoding()||"utf-8";
+var is=_e.getInputStream();
+return dj_readInputStream(is,_d);
 };
-function dj_readInputStream(is,_1b){
-var _1c=new java.io.BufferedReader(new java.io.InputStreamReader(is,_1b));
+function dj_readInputStream(is,_f){
+var _10=new java.io.BufferedReader(new java.io.InputStreamReader(is,_f));
 try{
 var sb=new java.lang.StringBuffer();
-var _1e="";
-while((_1e=_1c.readLine())!==null){
-sb.append(_1e);
+var _11="";
+while((_11=_10.readLine())!==null){
+sb.append(_11);
 sb.append(java.lang.System.getProperty("line.separator"));
 }
 return sb.toString();
 }
 finally{
-_1c.close();
+_10.close();
 }
 };
-if((!dojo.config.libraryScriptUri)||(!dojo.config.libraryScriptUri.length)){
+dojo._getText=function(uri,_12){
 try{
-dojo.config.libraryScriptUri=dojo._rhinoCurrentScriptViaJava(1);
+var _13=dojo._isLocalUrl(uri);
+var _14=(_13?readText:readUri)(uri,"UTF-8");
+if(_14!==null){
+_14+="";
+}
+return _14;
 }
 catch(e){
-if(dojo.config["isDebug"]){
-print("\n");
-print("we have no idea where Dojo is located.");
-print("Please try loading rhino in a non-interpreted mode or set a");
-print("\n\tdjConfig.libraryScriptUri\n");
-print("Setting the dojo path to './'");
-print("This is probably wrong!");
-print("\n");
-print("Dojo will try to load anyway");
-}
-dojo.config.libraryScriptUri="./";
+if(_12){
+return null;
+}else{
+throw e;
 }
 }
+};
 dojo.doc=typeof document!="undefined"?document:null;
 dojo.body=function(){
 return document.body;
 };
 if(typeof setTimeout=="undefined"||typeof clearTimeout=="undefined"){
 dojo._timeouts=[];
-function clearTimeout(idx){
+clearTimeout=function(idx){
 if(!dojo._timeouts[idx]){
 return;
 }
 dojo._timeouts[idx].stop();
 };
-function setTimeout(_20,_21){
-var def={sleepTime:_21,hasSlept:false,run:function(){
+setTimeout=function(_15,_16){
+var def={sleepTime:_16,hasSlept:false,run:function(){
 if(!this.hasSlept){
 this.hasSlept=true;
 java.lang.Thread.currentThread().sleep(this.sleepTime);
 }
 try{
-_20();
+_15();
 }
 catch(e){
-
 }
 }};
-var _23=new java.lang.Runnable(def);
-var _24=new java.lang.Thread(_23);
-_24.start();
-return dojo._timeouts.push(_24)-1;
+var _17=new java.lang.Runnable(def);
+var _18=new java.lang.Thread(_17);
+_18.start();
+return dojo._timeouts.push(_18)-1;
 };
 }
 if(dojo.config["modulePaths"]){

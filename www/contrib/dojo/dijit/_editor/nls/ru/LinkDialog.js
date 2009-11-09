@@ -1,1 +1,1 @@
-({"set":"Задать","text":"Описание:","insertImageTitle":"Свойства изображения","url":"URL:","createLinkTitle":"Свойства ссылки"})
+({"set":"Задать","text":"Описание:","insertImageTitle":"Свойства изображения","url":"URL:","createLinkTitle":"Свойства ссылки","cancel":"Cancel","newWindow":"New Window ( _blank )","topWindow":"Topmost Window ( _top )","target":"Target:","parentWindow":"Parent Window ( _parent )","currentWindow":"Current Window ( _self )"})

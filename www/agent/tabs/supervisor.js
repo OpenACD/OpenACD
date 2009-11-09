@@ -1501,7 +1501,7 @@ if(typeof(supervisorView) == "undefined"){
 						id:supervisorView.dataStore.getValue(obj, "id")
 					},
 					onmouseenter:function(ev){
-						supervisorView.drawQueuesStack(this.data.display, supervisorView.node, acc.length);
+						supervisorView.drawQueuesStack(this.data.display, '*', acc.length);
 						supervisorView.setDetails({
 							type:supervisorView.dataStore.getValue(obj, "type"),
 							display:supervisorView.dataStore.getValue(obj, "display")
@@ -1565,6 +1565,7 @@ if(typeof(supervisorView) == "undefined"){
 					},
 					onmouseenter:function(ev){
 						var queryObj = {
+							'node':supervisorView.node,
 							'queue':this.data.display
 						};
 						supervisorView.drawCallStack(queryObj, acc.length);

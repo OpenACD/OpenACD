@@ -708,14 +708,20 @@ released({ringing, Call}, _From, State) ->
 	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, Newstate};
 released({spy, Target}, {Conn, _Tag}, #agent{connection = Conn} = State) ->
-	Out = case agent:dump_state(Target) of
-		#agent{state = Statename, statedata = Callrec} when Statename =:= oncall; Statename =:= outgoing ->
-			Self = self(),
-			gen_media:spy(Callrec#call.source, Self);
-		_Else ->
-			invalid
-	end,
-	{reply, Out, released, State};
+	case self() of
+		Target ->
+			?INFO("Cannot spy on yourself", []),
+			{reply, invalid, released, State};
+		_Othertarget ->
+			Out = case agent:dump_state(Target) of
+				#agent{state = Statename, statedata = Callrec} when Statename =:= oncall; Statename =:= outgoing ->
+					Self = self(),
+					gen_media:spy(Callrec#call.source, Self);
+				_Else ->
+					invalid
+			end,
+			{reply, Out, released, State}
+	end;
 released(_Event, _From, State) ->
 	{reply, invalid, released, State}.
 

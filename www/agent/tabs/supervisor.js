@@ -382,7 +382,12 @@ if(typeof(supervisorView) == "undefined"){
 		
 		var parent = this.group.rawNode.parentNode
 		this.group.clear();
-		parent.removeChild(this.group.rawNode);
+		if(parent){
+			parent.removeChild(this.group.rawNode);
+		}
+		else{
+			info(["parent not defined", parent, this.group.rawNode]);
+		}
 	}
 	
 	supervisorView.Bubble.prototype.connect = function(ev, scope, fun){

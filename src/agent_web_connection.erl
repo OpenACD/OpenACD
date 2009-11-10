@@ -1476,7 +1476,7 @@ set_state_test_() ->
 				fun() ->
 					Reply = gen_server:call(Connpid, {set_state, "idle"}),
 					?assertEqual({200, [], [123, [34,"success", 34], 58,<<"true">>, 44, [34,<<"status">>, 34], 58, [34,"ok", 34], 125]}, Reply),
-					Reply2 = gen_server:call(Connpid, {set_state, "released", "default"}),
+					Reply2 = gen_server:call(Connpid, {set_state, "released", "Default"}),
 					?assertEqual({200, [], [123, [34,"success", 34], 58,<<"true">>, 44, [34,<<"status">>, 34], 58, [34,"ok", 34], 125]}, Reply2)
 				end}
 			end,

@@ -10,6 +10,17 @@ function decodeHTML(str) {
 	return str.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
 }
 
+function errMessage(message){
+	var dialog = new dijit.Dialog({
+		title: "<span style='color:#ff3333'>Error</span>",
+		content: message.toString()
+	});
+	dojo.connect(dialog, 'onCancel', dialog, function(){
+		dialog.destroy();
+	});
+	dialog.show();
+}
+
 dojo.addOnLoad(function(){
 	if(window.console.log == undefined){
 		//stupid ie.

@@ -7,6 +7,7 @@
   @import "/dojo/dijit/themes/tundra/tundra.css";
   @import "/dojo/dijit/themes/nihilo/nihilo.css";
   @import "/dojo/dojox/widget/Standby/Standby.css";
+  @import "/dojo/dojox/form/resources/FileUploader.css";
   .statusdisplay {
 		padding:1.5em
   }
@@ -105,7 +106,7 @@
 
 <div dojoType="dijit.Dialog" title="Login" id="loginpane" style="display:none">
 	<script type="dojo/connect" event="onShow">
-		this.setAttribute("title", dojo.i18n.getLocalization("agentUI", "labels").LOGIN);
+		this.attr("title", dojo.i18n.getLocalization("agentUI", "labels").LOGIN);
 	</script>
 
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">

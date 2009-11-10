@@ -82,6 +82,7 @@
 -record(state, {
 	initargs :: any(),
 	mimed :: {string(), string(), [{string(), string()}], [{string(), string()}], any()},
+	mail_map_address = "unknown@example.com" :: string(),
 	skeleton :: any(),
 	file_map = [] :: [{string(), [pos_integer()]}],
 	manager :: pid() | tref(),
@@ -174,17 +175,17 @@ init(Args) ->
 		[Rawmessage] ->
 			Out = mimemail:decode(Rawmessage),
 			Headers = element(3, Out),
-			Mailmap = case proplists:get_value(<<"From">>, Headers) of
+			Mailmap = case proplists:get_value(<<"To">>, Headers) of
 				undefined ->
 					#mail_map{address = "unknown@example.com"};
 				Address ->
 					F = fun() ->
-						QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= Address]),
+						QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= binary_to_list(Address)]),
 						qlc:e(QH)
 					end,
 					case mnesia:transaction(F) of
 						{atomic, []} ->
-							#mail_map{address = Address};
+							#mail_map{address = binary_to_list(Address)};
 						{atomic, [Map]} ->
 							Map
 					end
@@ -204,7 +205,7 @@ init(Args) ->
 	end,
 	Ref = erlang:ref_to_list(make_ref()),
 	Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
-	[RawDomain, _To] = binstr:split(binstr:reverse(Mailmap#mail_map.address), <<"@">>, 2),
+	[RawDomain, _To] = binstr:split(binstr:reverse(list_to_binary(Mailmap#mail_map.address)), <<"@">>, 2),
 	Domain = case RawDomain of
 		<<$>, Text/binary>> ->
 			Text;
@@ -229,7 +230,8 @@ init(Args) ->
 			skeleton = Skeleton, 
 			file_map = Files, 
 			mimed = Mimed, 
-			manager = whereis(email_media_manager)}, 
+			manager = whereis(email_media_manager),
+			mail_map_address = Mailmap#mail_map.address},
 		{Mailmap#mail_map.queue, Proto}}}.
 	
 	
@@ -254,9 +256,23 @@ handle_call({get_blind, Key}, _From, Callrec, #state{file_map = Map, mimed = Mim
 	case proplists:get_value(Key, Map) of
 		undefined ->
 			Splitpath = util:string_split(Key, "/"),
-			Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
-			Out = get_part(Intpath, Mime),
-			{reply, Out, State};
+			Test = fun(I) ->
+				try list_to_integer(I) of
+					Integer ->
+						true
+				catch
+					error:badarg ->
+						false
+				end
+			end,
+			case lists:all(Test, Splitpath) of
+				true ->
+					Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
+					Out = get_part(Intpath, Mime),
+					{reply, Out, State};
+				false ->
+					{reply, none, State}
+			end;
 		Path ->
 			Reply = get_part(Path, Mime),
 			{reply, Reply, State}
@@ -274,17 +290,24 @@ handle_call({"get_path", Post}, _From, _Callrec, #state{mimed = Mime} = State) -
 	Out = get_part(Intpath, Mime),
 	{reply, Out, State};
 handle_call({"attach", Postdata}, _From, _Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
-	Loop = fun(F, Proplist, Count, Acc) ->
-		case proplists:get_value("attachFiles" ++ integer_to_list(Count), Proplist) of
-			undefined ->
-				Acc;
-			{Name, Bin} = T ->
-				Newacc = [T | Acc],
-				F(F, Proplist, Count + 1, Newacc)
-		end
+	%?DEBUG("Post data for attach:  ~p", [Postdata]),
+%	Loop = fun(F, Proplist, Count, Acc) ->
+%		case proplists:get_value("attachFiles" ++ integer_to_list(Count), Proplist) of
+%			undefined ->
+%				Acc;
+%			{Name, Bin} = T ->
+%				Newacc = [T | Acc],
+%				F(F, Proplist, Count + 1, Newacc)
+%		end
+%	end,
+%	Newfiles = Loop(Loop, Postdata, 0, []),
+%	Attachments = lists:append(Oldattachments, Newfiles),
+	Attachments = case proplists:get_value("attachFiles", Postdata) of
+		{Name, Bin} = T ->
+			[T | Oldattachments];
+		Else ->
+			?INFO("Uploading attempted with no file uploaded", [])
 	end,
-	Newfiles = Loop(Loop, Postdata, 0, []),
-	Attachments = lists:append(Oldattachments, Newfiles),
 	Keys = get_prop_keys(Attachments),
 	?DEBUG("files list:  ~p", [Keys]),
 	{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments}};
@@ -351,7 +374,7 @@ handle_cast({"send", Post}, _Callrec, #state{mimed = Mimed, sending_pid = undefi
 	Encoded = mimemail:encode(Fullout),
 	?DEBUG("Encoding complete", []),
 	Mail = {
-		binary_to_list(From),
+		State#state.mail_map_address,
 		[binary_to_list(To)],
 		binary_to_list(Encoded)
 	},

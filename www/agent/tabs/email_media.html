@@ -74,12 +74,21 @@
 
 			<p>
 				<label class="translatecol">ATTACHMENTS</label>
-				<button label="SELECT_FILE" dojoType="dijit.form.Button" id="emailAttachFiles"></button>
+				<button dojoType="dojox.form.FileUploader" uploadUrl="/media" class="btnNormal" hoverClass="btnHover" activeClass="btnActive" disabledClass="btnDisabled", force="html", htmlFieldName="attachFiles", selectMultipleFiles="false" id='fileUploader'>Select Files
+					<script type="dojo/connect" event="onComplete">
+						dojo.publish("emailPane/attachment/add", arguments[0]);
+					</script>
+				</button>
 				<span id="attachmentList"></span>
 				<button label="UPLOAD" dojoType="dijit.form.Button">
 					<script type="dojo/connect" event="onClick">
 						var uploader = dijit.byId('fileUploader');
-						uploader.upload();
+						uploader.upload({
+							'command':'attach',
+							'mode':'call',
+							'filename':'fileUpload',
+							'htmlFieldName':'attachFiles'
+						});
 					</script>
 				</button>
 			</p>
@@ -95,7 +104,8 @@
 					<script type="dojo/connect" event="onClick">
 						var coveredNode = dijit.byId('emailPanel').domNode;
 						var standby = new dojox.widget.Standby({
-							target: coveredNode
+							target: coveredNode,
+							zIndex:1000
 						});
 						dojo.doc.body.appendChild(standby.domNode);
 						standby.startup();
@@ -144,7 +154,7 @@
 
 		</div>
 
-		<div id="emailDisp" style="width:60%; float:right; padding:2%">
+		<div id="emailDisp" style="width:60%; float:right; padding:2%" />
 
 	</form>
 <script type="text/javascript" src="tabs/email_media.js"></script>

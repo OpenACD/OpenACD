@@ -1,5 +1,7 @@
 dojo.require("dojox.form.FileUploader");
 dojo.require("dojox.widget.Standby");
+dojo.require("dojox.html.styles");
+dojo.require("dojo.io.iframe");
 dojo.requireLocalization("agentUI", "emailPane");
 
 if(typeof(emailPane) == 'undefined'){
@@ -218,7 +220,7 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	dojo.unsubscribe(emailPane.sub);
 	emailPane.skel = skel;
 	
-	var fileUpload = dijit.byId('emailAttachFiles');
+	/*var fileUpload = dijit.byId('emailAttachFiles');
 	if(! fileUpload.transformed){
 		var temp = new dojox.form.FileUploader({
 			id:'fileUploader',
@@ -245,7 +247,7 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 			debug(['fileUpload complete', data]);
 			dojo.publish("emailPane/attachment/add", [data[0]]);
 		});
-	}
+	}*/
 	dojo.byId('attachmentList').clearSub = dojo.subscribe('emailPane/attachment/add', dojo.byId('attachmentList'), function(){
 		this.innerHTML = '';
 	});

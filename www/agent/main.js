@@ -423,10 +423,10 @@ dojo.addOnLoad(function(){
 				case "oncall":
 				case "warmtransfer":
 				case "outband":
-					widget.setDisabled(false);
+					widget.attr('disabled', false);
 					break;
 				default:
-					widget.setDisabled(true);
+					widget.attr('disabled', true);
 			}
 		}
 	});

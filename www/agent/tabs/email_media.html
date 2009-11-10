@@ -104,7 +104,8 @@
 					<script type="dojo/connect" event="onClick">
 						var coveredNode = dijit.byId('emailPanel').domNode;
 						var standby = new dojox.widget.Standby({
-							target: coveredNode
+							target: coveredNode,
+							zIndex:1000
 						});
 						dojo.doc.body.appendChild(standby.domNode);
 						standby.startup();

@@ -220,34 +220,6 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	dojo.unsubscribe(emailPane.sub);
 	emailPane.skel = skel;
 	
-	/*var fileUpload = dijit.byId('emailAttachFiles');
-	if(! fileUpload.transformed){
-		var temp = new dojox.form.FileUploader({
-			id:'fileUploader',
-			button:dijit.byId("emailAttachFiles"),
-			uploadUrl:"/media",
-			postData:{
-				command:'attach',
-				mode:'call',
-				filename:'fileUpload',
-				htmlFieldName:'attachFiles'
-			},
-			force:"html",
-			htmlFieldName:'attachFiles',
-			selectMultipleFiles:true
-		});
-		temp.transformed = true;
-		dojo.connect(temp, 'onChange', function(data){
-			var listNode = dojo.byId('attachmentList');
-			var newhtml = data[0].name;
-			fileUpload.filename = data[0].name;
-			listNode.innerHTML = newhtml;
-		});
-		dojo.connect(temp, 'onComplete', function(data){
-			debug(['fileUpload complete', data]);
-			dojo.publish("emailPane/attachment/add", [data[0]]);
-		});
-	}*/
 	dojo.byId('attachmentList').clearSub = dojo.subscribe('emailPane/attachment/add', dojo.byId('attachmentList'), function(){
 		this.innerHTML = '';
 	});

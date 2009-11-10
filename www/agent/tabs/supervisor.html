@@ -85,11 +85,11 @@
 						// cool
 					}
 					else{
-						warning(["couldn't spy", res.message]);
+						errMessage(["couldn't spy", res.message]);
 					}
 				},
 				error:function(res){
-					warning(["error spying", res]);
+					errMessage(["error spying", res]);
 				}
 			});
 		</script>

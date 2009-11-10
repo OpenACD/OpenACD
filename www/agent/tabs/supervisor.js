@@ -1911,7 +1911,7 @@ if(typeof(supervisorView) == "undefined"){
 			url:"/supervisor/status",
 			handleAs:"json",
 			error:function(res){
-				warning(["reloadDataStore errored", res]);
+				errMessage(["reloadDataStore errored", res]);
 				supervisorView.poller.stop();
 			},
 			load:function(data){
@@ -1952,7 +1952,7 @@ if(typeof(supervisorView) == "undefined"){
 				debug(["blab worked", res])
 			},
 			error:function(res){
-				warning(["blab failed", res])
+				errMessage(["blab failed", res])
 			}
 		})
 	}
@@ -1967,11 +1967,11 @@ if(typeof(supervisorView) == "undefined"){
 					return true
 				}
 				else{
-					warning(["set profile failed", res.message]);
+					errMessage(["set profile failed", res.message]);
 				}
 			},
 			error:function(res){
-				warning(["set profile errored", res]);
+				errMessage(["set profile errored", res]);
 			}
 		});
 	}
@@ -2003,11 +2003,11 @@ if(typeof(supervisorView) == "undefined"){
 				handleAs:'json',
 				laod:function(res){
 					if(! res.success){
-						warning(["queueTransfer failed", res.message]);
+						errMessage(["queueTransfer failed", res.message]);
 					}
 				},
 				error:function(res){
-					warning(["queueTransfer errored", res]);
+					errMessage(["queueTransfer errored", res]);
 				}
 			});
 		}
@@ -2033,11 +2033,11 @@ if(typeof(supervisorView) == "undefined"){
 					return true
 				}
 				else{
-					warning(["agent ring failed", res.message]);
+					errMessage(["agent ring failed", res.message]);
 				}
 			},
 			error:function(res){
-				warning(["agent ring errored", res]);
+				errMessage(["agent ring errored", res]);
 			}
 		});
 	}
@@ -2227,11 +2227,11 @@ if(typeof(supervisorView) == "undefined"){
 							return true;
 						}
 						else{
-							console.log(["sending to voicemail failed", res.message]);
+							errMessage(["sending to voicemail failed", res.message]);
 						}
 					},
 					error:function(res){
-						console.log(["sending to voicemail errored", res]);
+						errMessage(["sending to voicemail errored", res]);
 					}
 				});
 			}
@@ -2360,7 +2360,7 @@ window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", functio
 				}
 			},
 			error:function(res){
-				warning(["endmonitor errored", res]);
+				errMessage(["endmonitor errored", res]);
 			}
 		});
 	}

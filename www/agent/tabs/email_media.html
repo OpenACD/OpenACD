@@ -118,7 +118,7 @@
 							if(data.event == 'send_complete'){
 								standby.hide();
 								if(! data.success){
-									console.log('send mail failed');
+									errMessage('send mail failed');
 								}
 								dojo.unsubscribe(sub);
 							}
@@ -139,7 +139,7 @@
 								return true;
 							},
 							error: function(res){
-								console.log(['mail errored', res]);
+								errMessage(['mail errored', res]);
 							}
 						});
 					</script>

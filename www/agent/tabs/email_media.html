@@ -74,9 +74,13 @@
 
 			<p>
 				<label class="translatecol">ATTACHMENTS</label>
-				<button dojoType="dojox.form.FileUploader" uploadUrl="/media" class="btnNormal" hoverClass="btnHover" activeClass="btnActive" disabledClass="btnDisabled", force="html", htmlFieldName="attachFiles", selectMultipleFiles="false" id='fileUploader'>Select Files
+				<button dojoType="dojox.form.FileUploader" uploadUrl="/media" class="btnNormal" hoverClass="btnHover" activeClass="btnActive" disabledClass="btnDisabled", force="html", htmlFieldName="attachFiles", selectMultipleFiles="false" id='fileUploader' selectedList="attachmentList" showProgress="true">Select Files
 					<script type="dojo/connect" event="onComplete">
 						dojo.publish("emailPane/attachment/add", arguments[0]);
+					</script>
+					<script type="dojo/connect" event="onChange" args="datalist">
+						var data = datalist[0];
+						dojo.byId('attachmentList').innerHTML = data.name + ' ' + Math.ceil(data.size * .001) + 'kb';
 					</script>
 				</button>
 				<span id="attachmentList"></span>
@@ -95,7 +99,7 @@
 			
 			<p id="attachmentListP">
 				<label>&nbsp;</label>
-				<ul style="list-style-type:none" id="attachedList"></ul>
+				<ul style="list-style-type:none; display:inline-block" id="attachedList"></ul>
 			</p>
 			
 			<p>

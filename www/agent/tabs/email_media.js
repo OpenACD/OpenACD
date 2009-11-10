@@ -324,7 +324,12 @@ dojo.byId('attachedList').rebuildList = function(filenames){
 };
 
 dojo.byId('attachedList').attachListAddSub = dojo.subscribe("emailPane/attachment/add", dojo.byId('attachedList'), function(data){
-	this.rebuildList(data.filenames);
+	if(data.success){
+		this.rebuildList(data.filenames);
+	}
+	else{
+		console.log(data.message);
+	}
 });
 
 dojo.byId('attachedList').attachListDropSub = dojo.subscribe("emailPane/attachment/drop", dojo.byId('attachedList'), function(data){

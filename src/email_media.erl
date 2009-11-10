@@ -87,6 +87,7 @@
 	file_map = [] :: [{string(), [pos_integer()]}],
 	manager :: pid() | tref(),
 	outgoing_attachments = [] :: [{string(), binary()}],
+	attachment_size = 0 :: integer(),
 	sending_pid :: pid() | 'undefined'
 }).
 
@@ -302,15 +303,22 @@ handle_call({"attach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 %	end,
 %	Newfiles = Loop(Loop, Postdata, 0, []),
 %	Attachments = lists:append(Oldattachments, Newfiles),
-	Attachments = case proplists:get_value("attachFiles", Postdata) of
+	case proplists:get_value("attachFiles", Postdata) of
 		{Name, Bin} = T ->
-			[T | Oldattachments];
+			case byte_size(Bin) + State#state.attachment_size of
+				Toobig when Toobig > 5242880 ->
+					Size = State#state.attachment_size,
+					{reply, {error, toobig}, State};
+				Size ->
+					Attachments = [T | Oldattachments],
+					Keys = get_prop_keys(Attachments),
+					?DEBUG("files list:  ~p", [Keys]),
+					{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments, attachment_size = Size}}
+			end;
 		Else ->
-			?INFO("Uploading attempted with no file uploaded", [])
-	end,
-	Keys = get_prop_keys(Attachments),
-	?DEBUG("files list:  ~p", [Keys]),
-	{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments}};
+			?INFO("Uploading attempted with no file uploaded", []),
+			{reply, {error, nofile}, State}
+	end;
 handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments = Attachments} = State) ->
 	case mochijson2:decode(proplists:get_value("arguments", Postdata, "false")) of
 		false ->
@@ -322,8 +330,9 @@ handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 					{reply, {error, out_of_range, Nth}, State};
 				false ->
 					case lists:split(Nth - 1, Attachments) of
-						{Toplist, [{Name, _Bin} | Tail]} ->
+						{Toplist, [{Name, Bin} | Tail]} ->
 							Newattaches = lists:append(Toplist, Tail),
+							Newsize = State#state.attachment_size - byte_size(Bin),
 							Keys = get_prop_keys(Newattaches),
 							{reply, {ok, Keys}, State#state{outgoing_attachments = Newattaches}};
 						{_, [{Gotname, _} | _]} ->

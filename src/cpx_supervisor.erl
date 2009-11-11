@@ -42,7 +42,7 @@
 %% If the system starts without a cpx_conf table, it will build one, placing some default information there.
 %% #cpx_conf{agent_tcp_listener} is the only one.
 %% 
-%% The 3 most important function are {@link add_conf/5}, {@link destroy/1}, {@link update_conf/4}.
+%% The 2 most important function are {@link destroy/1}, {@link update_conf/4}.
 
 -module(cpx_supervisor).
 -author("Micah").
@@ -69,8 +69,6 @@
 -export([start_link/1, start/1]).
 %% Conf handling
 -export([
-	add_conf/5,
-	add_conf/1,
 	build_spec/1,
 	build_tables/0,
 	default_conf/0,
@@ -341,7 +339,6 @@ destroy(Spec) ->
 	mnesia:transaction(F).
 
 %% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
-%% @see add_conf/5
 -spec(update_conf/2 :: (Id :: atom(), Conf :: #cpx_conf{}) -> {'atomic', 'ok'}).
 update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	F = fun() ->

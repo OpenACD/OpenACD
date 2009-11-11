@@ -66,7 +66,8 @@
 	reload/2,
 	reload_all/0,
 	reload_all/1,
-	distribution/1
+	distribution/1,
+	get_number/1
 ]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
@@ -395,6 +396,17 @@ reload_all(Mode) ->
 distribution(Mean) ->
 	(Mean)*math:log(1 - crypto:rand_uniform(1, 65535) / 65535) * -1.
 
+%% @doc Generally only used in the 'dummy' collection, these allow multiple ways
+%% to get a random (or not) number.
+get_number({distribution, N}) ->
+	trunc(distribution(N));
+get_number(random) ->
+	get_number({0, 2000});
+get_number({Min, Max}) ->
+	crypto:rand_uniform(Min, Max);
+get_number(N) ->
+	N.
+	
 -ifdef(EUNIT).
 
 code_reload_test_() ->

@@ -148,8 +148,8 @@
 				<button label="CANCEL" dojoType="dijit.form.Button" id="emailCancel">
 					<script type="dojo/connect" event="onClick">
 						dijit.byId('emailReplyEditor').destroy();
-						var node = dojo.byId('emailReplyEditor');
-						node.parentNode.removeChild(node);
+						//var node = dojo.byId('emailReplyEditor');
+						//node.parentNode.removeChild(node);
 						dojo.byId('emailView').style.display = 'block';
 						dojo.byId('emailReplyDiv').style.visibility = 'hidden';
 					</script>

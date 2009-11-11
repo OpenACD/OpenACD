@@ -52,7 +52,7 @@ init([]) ->
 
 %% error_handler messages
 handle_event({error, Gleader, {Pid, Format, Data}}, State) ->
-	cpxlog:log(error, erlang:localtime(), "~s", [lists:flatten(trunc_io:format(Format, Data, 1024))]),
+	cpxlog:log(error, erlang:localtime(), Pid, "~s", [lists:flatten(trunc_io:format(Format, Data, 1024))]),
 	{ok, State};
 handle_event({error_report, Gleader, {Pid, std_error, Report}}, State) ->
 	cpxlog:log(error, erlang:localtime(), Pid, "Error Report: ~s", [trunc_io:fprint(Report, 1024)]),

@@ -801,13 +801,19 @@ handle_info({cpx_monitor_event, Message}, State) ->
 		{set, {{Type, Name}, Healthprop, Detailprop, Timestamp}} ->
 			Encodedhealth = encode_health(Healthprop),
 			Encodeddetail = encode_proplist(Detailprop),
+			Fixedname = case is_atom(Name) of
+				true ->
+					atom_to_list(Name);
+				false ->
+					Name
+			end,
 			{struct, [
 				{<<"command">>, <<"supervisortab">>},
 				{<<"data">>, {struct, [
 					{<<"action">>, set},
-					{<<"id">>, list_to_binary(lists:append([atom_to_list(Type), "-", Name]))},
+					{<<"id">>, list_to_binary([atom_to_list(Type), "-", Fixedname])},
 					{<<"type">>, Type},
-					{<<"display">>, list_to_binary(Name)},
+					{<<"display">>, list_to_binary(Fixedname)},
 					{<<"health">>, Encodedhealth},
 					{<<"details">>, Encodeddetail}
 				]}}

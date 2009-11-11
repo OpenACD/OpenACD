@@ -251,7 +251,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({'EXIT', Pid, Reason}, #state{server = Pid} = State) ->
 	?WARNING("The server at ~w exited due to ~p", [Pid, Reason]),
-	{stop, Reason, State#state{server = undefined}};
+	{stop, {server_exit, Reason}, State#state{server = undefined}};
 handle_info({'EXIT', From, Reason}, #state{mails = Mails} = State) ->
 	?DEBUG("Handling exit from ~w due to ~p", [From, Reason]),
 	Newmail = lists:delete(From, Mails),

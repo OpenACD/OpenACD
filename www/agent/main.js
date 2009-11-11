@@ -21,6 +21,24 @@ function errMessage(message){
 	dialog.show();
 }
 
+function getTheme() {
+	if (dojo.cookie('agentui-settings')) {
+		var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+		return settings.theme;
+	}
+	return undefined;
+}
+
+function setTheme(theme) {
+	if (dojo.cookie('agentui-settings')) {
+		var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+	} else {
+		var settings = {};
+	}
+	settings.theme = theme;
+	dojo.cookie('agentui-settings', dojo.toJson(settings));
+}
+
 dojo.addOnLoad(function(){
 	if(window.console.log == undefined){
 		//stupid ie.
@@ -502,6 +520,14 @@ dojo.addOnLoad(function(){
 								dojo.byId("main").style.visibility = "visible";
 								dojo.byId("agentname").innerHTML = attrs.username;
 								dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response2.profile;
+								var settings = {};
+								if (dojo.cookie('agentui-settings')) {
+									settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+								}
+								settings.username = attrs.username;
+								settings.voipendpoint = attrs.voipendpoint;
+								settings.voipendpointdata = attrs.voipendpointdata;
+								dojo.cookie('agentui-settings', dojo.toJson(settings)); 
 								debug(response2);
 								agent = new Agent(attrs.username, parseInt(response2.statetime));
 								agent.setSkew(response2.timestamp);

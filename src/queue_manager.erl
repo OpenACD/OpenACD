@@ -784,7 +784,7 @@ multi_node_test_() ->
 		]
 	}.
 
-node_death_test_() ->
+node_death_test__disabled() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{Master, Slave} = get_nodes(),
 	{

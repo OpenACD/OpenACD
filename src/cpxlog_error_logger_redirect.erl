@@ -52,31 +52,31 @@ init([]) ->
 
 %% error_handler messages
 handle_event({error, Gleader, {Pid, Format, Data}}, State) ->
-	cpxlog:log(error, erlang:localtime(), Pid, Format, Data),
+	cpxlog:log(error, erlang:localtime(), Pid, "~s", [lists:flatten(trunc_io:format(Format, Data, 1024))]),
 	{ok, State};
 handle_event({error_report, Gleader, {Pid, std_error, Report}}, State) ->
-	cpxlog:log(error, erlang:localtime(), Pid, "Error Report: ~p", [Report]),
+	cpxlog:log(error, erlang:localtime(), Pid, "Error Report: ~s", [trunc_io:fprint(Report, 1024)]),
 	{ok, State};
 handle_event({error_report, Gleader, {Pid, supervisor_report, Report}}, State) ->
-	cpxlog:log(error, erlang:localtime(), Pid, "Supervisor Report: ~p", [Report]),
+	cpxlog:log(error, erlang:localtime(), Pid, "Supervisor Report: ~s", [trunc_io:fprint(Report, 1024)]),
 	{ok, State};
 handle_event({error_report, Gleader, {Pid, crash_report, Report}}, State) ->
-	cpxlog:log(error, erlang:localtime(), Pid, "Crash Report: ~p", [Report]),
+	cpxlog:log(error, erlang:localtime(), Pid, "Crash Report: ~s", [trunc_io:fprint(Report, 1024)]),
 	{ok, State};
 handle_event({warning_msg, Gleader, {Pid, Format, Data}}, State) ->
-	cpxlog:log(warning, erlang:localtime(), Pid, Format, Data),
+	cpxlog:log(warning, erlang:localtime(), Pid, "~s", [lists:flatten(trunc_io:format(Format, Data, 1024))]),
 	{ok, State};
 handle_event({warning_report, Gleader, {Pid, std_warning, Report}}, State) ->
-	cpxlog:log(warning, erlang:localtime(), Pid, "Warning Report: ~p", [Report]),
+	cpxlog:log(warning, erlang:localtime(), Pid, "Warning Report: ~s", [trunc_io:fprint(Report, 1024)]),
 	{ok, State};
 handle_event({info_msg, Gleader, {Pid, Format, Data}}, State) ->
-	cpxlog:log(info, erlang:localtime(), Pid, Format, Data),
+	cpxlog:log(info, erlang:localtime(), Pid, "~s", [lists:flatten(trunc_io:format(Format, Data, 1024))]),
 	{ok, State};
 handle_event({info_report, Gleader, {Pid, std_info, Report}}, State) ->
-	cpxlog:log(info, erlang:localtime(), Pid, "Info Report: ~p", [Report]),
+	cpxlog:log(info, erlang:localtime(), Pid, "Info Report: ~s", [trunc_io:fprint(Report, 1024)]),
 	{ok, State};
 handle_event({info_report, Gleader, {Pid, progress, Report}}, State) ->
-	cpxlog:log(debug, erlang:localtime(), Pid, "Progress Report: ~p", [Report]),
+	cpxlog:log(debug, erlang:localtime(), Pid, "Progress Report: ~s", [trunc_io:fprint(Report, 1024)]),
 	{ok, State};
 handle_event(Event, State) ->
 	io:format("Event: ~p~n", [Event]),

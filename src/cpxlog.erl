@@ -59,8 +59,9 @@ start() ->
 	case lists:member(cpxlog_terminal, gen_event:which_handlers(error_logger)) of
 		false ->
 			ok = error_logger:add_report_handler(cpxlog_error_logger_redirect, []),
-			error_logger:delete_report_handler(sasl_report_tty_h),
-			error_logger:delete_report_handler(error_logger_tty_h);
+			%error_logger:delete_report_handler(sasl_report_tty_h),
+			%error_logger:delete_report_handler(error_logger_tty_h),
+			ok;
 		true -> ok
 	end,
 
@@ -87,8 +88,9 @@ start_link() ->
 		false ->
 			%ok = error_logger:add_report_handler(cpxlog_error_logger_redirect, []),
 			ok = gen_event:add_sup_handler(error_logger, cpxlog_error_logger_redirect, []),
-			error_logger:delete_report_handler(sasl_report_tty_h),
-			error_logger:delete_report_handler(error_logger_tty_h);
+			%error_logger:delete_report_handler(sasl_report_tty_h),
+			%error_logger:delete_report_handler(error_logger_tty_h),
+			ok;
 		true -> ok
 	end,
 
@@ -111,8 +113,8 @@ stop() ->
 	% try to clean everything up
 	gen_event:stop(cpxlog),
 	error_logger:delete_report_handler(cpxlog_error_logger_redirect),
-	error_logger:add_report_handler(error_logger_tty_h, []),
-	error_logger:add_report_handler(sasl_report_tty_h, all),
+	%error_logger:add_report_handler(error_logger_tty_h, []),
+	%error_logger:add_report_handler(sasl_report_tty_h, all),
 	ok.
 
 -spec(log/7 :: (Level :: level(), Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').

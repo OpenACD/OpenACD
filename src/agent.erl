@@ -434,13 +434,13 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} 
 	end;
 ringing({released, default}, From, State) ->
 	ringing({released, ?DEFAULT_REL}, From, State);
-ringing({released, {_Id, _Text, Bias} = Reason}, _From, #agent{statedata = Call} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
+ringing({released, {Id, Text, Bias} = Reason}, _From, #agent{statedata = Call} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
 	?DEBUG("going released from ringing", []),
 	%gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
 	gen_media:stop_ringing(Call#call.source),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	Newstate = State#agent{state=released, oldstate=ringing, statedata=Reason, lastchangetimestamp=now()},
-	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), []),
+	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, Newstate};
 ringing(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
@@ -448,7 +448,8 @@ ringing(idle, _From, State) ->
 	Newstate = State#agent{state=idle, oldstate=ringing, statedata={}, lastchangetimestamp=now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
 	{reply, ok, idle, Newstate};
-ringing(_Event, _From, State) ->
+ringing(Event, _From, State) ->
+	?DEBUG("ringing evnet ~p", [Event]),
 	{reply, invalid, ringing, State}.
 
 ringing(register_rejected, State) ->
@@ -1448,7 +1449,7 @@ from_ringing_test_() ->
 		{"to released default",
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}, {bias, _}] = Health,
+				[{released, _Limits}, {bias, 60}] = Health,
 				Node = node(),
 				ok
 			end),
@@ -1470,7 +1471,7 @@ from_ringing_test_() ->
 		{"to released",
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}, {bias, _}] = Health,
+				[{released, _Limits}, {bias, 50}] = Health,
 				Node = node(),
 				ok
 			end),

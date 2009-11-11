@@ -353,6 +353,6 @@ namespace :test do
 	task :build_plt do
 		out = `which erlc`
 		foo = out.split('/')[0..-3].join('/')+'/lib/erlang/lib'
-		sh "dialyzer --build_plt -r #{foo}/kernel*/ebin #{foo}/stdlib*/ebin #{foo}/mnesia*/ebin #{foo}/crypto*/ebin #{foo}/eunit*/ebin"
+		sh "dialyzer --build_plt -r #{foo}/erts*/ebin #{foo}/kernel*/ebin #{foo}/stdlib*/ebin #{foo}/mnesia*/ebin #{foo}/crypto*/ebin #{foo}/eunit*/ebin #{foo}/compiler*/ebin"
 	end
 end

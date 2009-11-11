@@ -158,7 +158,7 @@ conn_cast(Apid, Request) ->
 %% @doc When the media wants to call to the connection.
 -spec(conn_call/2 :: (Apid :: pid(), Request :: any()) -> any()).
 conn_call(Apid, Request) ->
-	gen_fsm:synce_send_event(Apid, {conn_call, Request}).
+	gen_fsm:sync_send_event(Apid, {conn_call, Request}).
 	
 %% @doc The connection can request to call to the agent's media when oncall.
 -spec(media_call/2 :: (Apid :: pid(), Request :: any()) -> any()).

@@ -63,6 +63,9 @@ stop() ->
 
 stop_supped() ->
 	cpx_middle_supervisor:drop_child(management_sup, dummy_media_manager).
+
+set_option(Key, Valu) ->
+	gen_server:cast(?MODULE, {set_option, Key, Valu}).
 	
 %%====================================================================
 %% gen_server callbacks

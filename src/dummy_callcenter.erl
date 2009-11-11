@@ -67,10 +67,8 @@
 -record(state, {
 	conf :: #conf{},
 	life_timer,
-	call_timer,
 	agent_pids,
-	agent_names,
-	media_pids
+	agent_names
 }).
 
 %%====================================================================
@@ -170,6 +168,14 @@ init(Options) ->
 			{release_percent, 1}
 		])
 	},
+	%dmm is dummy_media_manager
+	DmmOpts = [
+		{call_frequency, Protoconf#conf.call_frequency},
+		{call_max_life, Protoconf#conf.call_frequency},
+		{start_count, round(Protoconf#conf.agents * 0.8)},
+		{queues, Protoconf#conf.queues}
+	],
+	dummy_media_manager:start_supervised(DmmOpts),
 	Newagentopts = proplists_replace(scale, 1000, Protoconf#conf.agent_opts),
 	Conf = Protoconf#conf{agent_opts = Newagentopts},
 	Lifetime = case Conf#conf.simulation_life of
@@ -180,12 +186,12 @@ init(Options) ->
 			{ok, Timer} = timer:send_after(Life, endoflife),
 			Timer
 	end,
-	case Conf#conf.queues of
-		any ->
-			dummy_media:q_x(Conf#conf.agents);
-		Queues ->
-			dummy_media:q_x(Conf#conf.agents, Queues)
-	end,
+%	case Conf#conf.queues of
+%		any ->
+%			dummy_media:q_x(Conf#conf.agents);
+%		Queues ->
+%			dummy_media:q_x(Conf#conf.agents, Queues)
+%	end,
 	Makename = fun(Num) ->
 		Listnum = integer_to_list(Num),
 		lists:append(Listnum, "_dummy_agent@" ++ atom_to_list(node()))
@@ -198,14 +204,12 @@ init(Options) ->
 		{[{Pid, Nom} | Pidlist], Tail}
 	end,
 	{Pidlist, Namelist} = lists:foldl(Spawnagent, {[], Names}, lists:seq(1, Conf#conf.agents)),
-	Medias = lists:map(fun(_) -> [Pid] = queue_media(Conf), Pid end, lists:seq(1, round(Conf#conf.agents * 0.8))),
-	{ok, Spawncall} = timer:send_after(get_number(Conf#conf.call_frequency) * 1000, spawn_call),
+	%Medias = lists:map(fun(_) -> [Pid] = queue_media(Conf), Pid end, lists:seq(1, round(Conf#conf.agents * 0.8))),
+	%{ok, Spawncall} = timer:send_after(get_number(Conf#conf.call_frequency) * 1000, spawn_call),
 	State = #state{
 		life_timer = Lifetime,
 		agent_pids = Pidlist,
 		agent_names = Namelist,
-		media_pids = Medias,
-		call_timer = Spawncall,
 		conf = Conf
 	},
     {ok, State}.
@@ -245,14 +249,13 @@ handle_cast({set_option, simulation_life, Value}, #state{life_timer = Timer} = S
 	{noreply, State#state{life_timer = Newtimer}};
 handle_cast({set_option, Key, Value}, #state{conf = Conf} = State) ->
 	Newconf = case Key of
-		call_frequency ->
-			Conf#conf{call_frequency = Value};
 		agents ->
 			Conf#conf{agents = Value};
 		agent_max_calls ->
 			Conf#conf{agent_max_calls = Value};
-		queues ->
-			Conf#conf{queues = Value}
+		_Else ->
+			dummy_media_manager:set_option(Key, Value),
+			Conf
 	end,
 	{noreply, State#state{conf = Newconf}};
 handle_cast(stop, State) ->
@@ -264,12 +267,12 @@ handle_cast(_Msg, State) ->
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 handle_info({'EXIT', Pid, Why}, #state{conf = Conf} = State) ->
-	case lists:member(Pid, State#state.media_pids) of
-		true ->
-			?INFO("Media ~p died because ~p", [Pid, Why]),
-			Newmedias = lists:delete(Pid, State#state.media_pids),
-			{noreply, State#state{media_pids = Newmedias}};
-		false ->
+%	case lists:member(Pid, State#state.media_pids) of
+%		true ->
+%			?INFO("Media ~p died because ~p", [Pid, Why]),
+%			Newmedias = lists:delete(Pid, State#state.media_pids),
+%			{noreply, State#state{media_pids = Newmedias}};
+%		false ->
 			case proplists:get_value(Pid, State#state.agent_pids) of
 				undefined ->
 					?INFO("no idea where pid ~p came from", [Pid]),
@@ -280,15 +283,15 @@ handle_info({'EXIT', Pid, Why}, #state{conf = Conf} = State) ->
 					{ok, Newagentpid} = spawn_agent(Conf, Headname),
 					Newagentlist = [{Newagentpid, Headname} | State#state.agent_pids],
 					{noreply, State#state{agent_pids = Newagentlist, agent_names = Newnames}}
-			end
-	end;
-handle_info(spawn_call, #state{conf = Conf} = State) ->
-	[Pid] = queue_media(Conf),
-	Medialist = [Pid | State#state.media_pids],
-	Time = get_number(Conf#conf.call_frequency),
-	?NOTICE("Next call will be spawned at ~p", [Time * 1000]),
-	{ok, Timer} = timer:send_after(Time * 1000, spawn_call),
-	{noreply, State#state{media_pids = Medialist, call_timer = Timer}};
+			end;
+%	end;
+%handle_info(spawn_call, #state{conf = Conf} = State) ->
+%	[Pid] = queue_media(Conf),
+%	Medialist = [Pid | State#state.media_pids],
+%	Time = get_number(Conf#conf.call_frequency),
+%	?NOTICE("Next call will be spawned at ~p", [Time * 1000]),
+%	{ok, Timer} = timer:send_after(Time * 1000, spawn_call),
+%	{noreply, State#state{media_pids = Medialist, call_timer = Timer}};
 handle_info(endoflife, State) ->
 	?NOTICE("My life is over.", []),
 	{stop, normal, State};
@@ -315,8 +318,6 @@ proplists_replace(Key, Newvalue, Proplist) ->
 	Midlist = proplists:delete(Key, Proplist),
 	[{Key, Newvalue} | Midlist].
 
-queue_media(Conf) ->
-	dummy_media:q_x(1, [{queues, Conf#conf.queues}, {max_life, get_number(Conf#conf.call_max_life)}]).
 
 spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 	Midopts = proplists:delete(maxcalls, Baseopts),
@@ -324,7 +325,7 @@ spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 		infinity ->
 			Midopts;
 		Number ->
-			Rand = get_number(Number),
+			Rand = util:get_number(Number),
 			[{maxcalls, Rand} | Midopts]
 	end,
 	Profiles = agent_auth:get_profiles(),
@@ -334,11 +335,11 @@ spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 	Midopts5 = proplists_replace(id, Login, Midopts4),
 	agent_dummy_connection:start_link(Midopts5).
 
-get_number({distribution, Number}) ->
-	trunc(util:distribution(Number));
-get_number({Min, Max}) ->
-	crypto:rand_uniform(Min, Max);
-get_number(random) ->
-	get_number({0, 2000});
-get_number(Num) ->
-	Num.
+%get_number({distribution, Number}) ->
+%	trunc(util:distribution(Number));
+%get_number({Min, Max}) ->
+%	crypto:rand_uniform(Min, Max);
+%get_number(random) ->
+%	get_number({0, 2000});
+%get_number(Num) ->
+%	Num.

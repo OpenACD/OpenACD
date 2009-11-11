@@ -626,25 +626,16 @@ calc_healths([{Key, {Min, Mid, Max, {time, X}}} | Tail], Acc) ->
 	calc_healths(Tail, [{Key, Hp} | Acc]).
 
 entry(Entry, #state{ets = Tid} = State, Election) ->
-	?DEBUG("The entry:  ~p; tid:  ~p", [Entry, Tid]),
-	?DEBUG("get key:  ~p;  get_details_list:  ~p;  get_health_list:  ~p", [
-		get_key(Entry),
-		get_details_list(Entry),
-		get_health_list(Entry)
-	]),
 	Message = case Entry of
 		{drop, Key} ->
 			ets:delete(Tid, Key),
 			Entry;
 		_ ->
-			?DEBUG("The testy thing:  ~p", [{get_key(Entry), proplists:get_value(agent, get_details_list(Entry))}]),
 			case {get_key(Entry), proplists:get_value(agent, get_details_list(Entry))} of
 				{_, undefined} ->
 					ok;
 				{{media, _}, Agent} ->
-					?DEBUG("qlc:q", []),
 					QH = qlc:q([Key || {Key, Hp, Det, _} = Tuple <- ets:table(Tid), element(1, Key) =:= media, proplists:get_value(agent, Det) =:= Agent]),
-					?DEBUG("qlc:e", []),
 					Keys = qlc:e(QH),
 					% an agent can only ever be linked to one media, so we're
 					% doing some housecleaning.

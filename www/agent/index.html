@@ -82,14 +82,20 @@
 	//dojo.require("dijit.Menu");
 	dojo.requireLocalization("agentUI", "labels");
 	function init() {
-	if (dojo.cookie("agentui-theme")) {
-		document.getElementsByTagName("body")[0].className=dojo.cookie("agentui-theme");
-	}
 		if (dojo.config.locale == "") {
 			dojo.byId("loginerrp").style.display = "block";
 			dojo.byId("loginerrspan").innerHTML="No translation for any locales<br/>matching your request, sorry.";
 		}
-	}
+		if(dojo.cookie('agentui-settings')) {
+			var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+			dijit.byId('username').attr('value', settings.username);
+			dijit.byId('voipendpoint').attr('value', settings.voipendpoint);
+			dijit.byId('voipendpointdata').attr('value', settings.voipendpointdata);
+			if (settings.theme)
+				document.getElementsByTagName("body")[0].className = settings.theme;
+		}
+	} /* end of init() */
+
 	if(dojo.cookie("agentui-log")){
 		window.setLogLevel(dojo.cookie("agentui-log"));
 	}
@@ -217,30 +223,30 @@
 			</script>
 			<span>VIEW</span>
 			<div dojoType="dijit.Menu" id="Viewmenu">
-				<div dojoType="dijit.MenuItem" label="000" onclick="dojo.cookie('agentui-theme', 'tundra');window.location.reload();">
+				<div dojoType="dijit.MenuItem" label="000" onclick="setTheme('tundra');window.location.reload();">
 					<script type="dojo/method" event="postCreate">
 						this.inherited("postCreate", arguments);
-						if (dojo.cookie("agentui-theme") == "tundra") {
+						if (getTheme() == "tundra" || getTheme() == undefined) {
 							this.attr('label', "* tundra");
 						} else {
 							this.attr('label', "  tundra");
 						}
 					</script>
 				</div>
-				<div dojoType="dijit.MenuItem" label="000" onclick="dojo.cookie('agentui-theme', 'nihilo');window.location.reload();">
+				<div dojoType="dijit.MenuItem" label="000" onclick="setTheme('nihilo');window.location.reload();">
 					<script type="dojo/method" event="postCreate">
 						this.inherited("postCreate", arguments);
-						if (dojo.cookie("agentui-theme") == "nihilo") {
+						if (getTheme() == "nihilo") {
 							this.atter('label', "* nihilo");
 						} else {
 						this.attr('label', "  nihilo");
 						}
 					</script>
 				</div>
-				<div dojoType="dijit.MenuItem" label="000" onclick="dojo.cookie('agentui-theme', 'soria');window.location.reload();">
+				<div dojoType="dijit.MenuItem" label="000" onclick="setTheme('soria');window.location.reload();">
 					<script type="dojo/method" event="postCreate">
 						this.inherited("postCreate", arguments);
-						if (dojo.cookie("agentui-theme") == "soria") {
+						if (getTheme() == "soria") {
 							this.attr('label', "* soria");
 						} else {
 							this.attr('label', "  soria");

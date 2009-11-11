@@ -13,11 +13,11 @@
 				}
 				dijit.byId('cdr_dumper_form').attr('value', res);
 				switch(res.dumper){
-					case 'cdr':
+					case 'csv':
 						dojo.byId('csvDumperP').style.display = 'block';
 						break;
 					case 'odbc':
-						dojo.byId('odbcDumperP').style.disply = 'block';
+						dojo.byId('odbcDumperP').style.display = 'block';
 						break;
 					default:
 						//

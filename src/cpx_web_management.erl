@@ -905,8 +905,8 @@ api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, Post) ->
 						{<<"cdrFile">>, list_to_binary(proplists:get_value(cdr_file, Options, ""))},
 						{<<"traceEnabled">>, []}
 					]};
-				[cdr_odbc, Options] ->
-					Trace = case proplists:get_value(trace_enabled, Options) of
+				[cdr_odbc, [DSN, Options]] ->
+					Trace = case proplists:get_value(trace_driver, Options) of
 						true ->
 							[<<"on">>];
 						undefined ->
@@ -917,7 +917,8 @@ api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, Post) ->
 						{<<"dumper">>, <<"odbc">>},
 						{<<"agentFile">>, <<"">>},
 						{<<"cdrFile">>, <<"">>},
-						{<<"traceEnabled">>, Trace}
+						{<<"traceEnabled">>, Trace},
+						{<<"dsn">>, list_to_binary(DSN)}
 					]}
 			end
 	end,

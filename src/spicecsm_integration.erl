@@ -36,6 +36,7 @@
 
 -include("log.hrl").
 -include("call.hrl").
+-include("cpx.hrl").
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
@@ -135,7 +136,13 @@ import(Options) ->
 	case proplists:get_value(add_conf, Options) of
 		true ->
 			Cleanlist = proplists:delete(add_conf, Options),
-			cpx_supervisor:add_conf(?MODULE, ?MODULE, start_link, [Cleanlist], management_sup);
+			cpx_supervisor:update_conf(?MODULE, #cpx_conf{
+				id = ?MODULE, 
+				module_name = ?MODULE, 
+				start_function = start_link, 
+				start_args = [Cleanlist], 
+				supervisor = management_sup
+			});
 		_Else ->
 			ok
 	end.

@@ -225,12 +225,7 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 						start_args = [N],
 						supervisor = agent_connection_sup
 					},
-					case Action of
-						update ->
-							cpx_supervisor:update_conf(agent_tcp_listener, Tcprec);
-						add ->
-							cpx_supervisor:add_conf(Tcprec)
-					end,
+					cpx_supervisor:update_conf(agent_tcp_listener, Tcprec),
 					{struct, [{success, true}, {<<"message">>, <<"TCP Server enabled">>}]};
 				_N ->
 					{struct, [{success, false}, {<<"message">>, <<"Listen port out of range">>}]}
@@ -329,12 +324,7 @@ api({agents, "spiceintegration", "set"}, ?COOKIE, Post) ->
 									{username, Username},
 									{password, Password}
 								]]},
-							Addres = case cpx_supervisor:get_conf(spicecsm_integration) of
-								undefined ->
-									cpx_supervisor:add_conf(Conf);
-								_Else2 ->
-									cpx_supervisor:update_conf(spicecsm_integration, Conf)
-							end,
+							Addres = cpx_supervisor:update_conf(spicecsm_integration, Conf),
 							case Addres of
 								{atomic, _} ->
 									{200, [], mochijson2:encode({struct, [{success, true}]})};
@@ -828,7 +818,13 @@ api({medias, Node, "cpx_monitor_grapher", "update"}, ?COOKIE, Post) ->
 				{rrd_dir, Rrdpath},
 				{image_dir, Imagepath}
 			],
-			case rpc:call(Atomnode, cpx_supervisor, add_conf, [cpx_monitor_grapher, cpx_monitor_grapher, start_link, [Startargs], management_sup]) of
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [cpx_monitor_grapher, #cpx_conf{
+					id = cpx_monitor_grapher, 
+					module_name = cpx_monitor_grapher, 
+					start_function = start_link, 
+					start_args = [Startargs], 
+					supervisor = management_sup
+				}]) of
 				{atomic, {ok, Pid}} when is_pid(Pid) ->
 					{struct, [{success, true}]};
 				Else ->
@@ -873,7 +869,13 @@ api({medias, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
 				{write_interval, Interval},
 				{outputs, Filters}
 			],
-			{atomic, {ok, _Pid}} = rpc:call(Atomnode, cpx_supervisor, add_conf, [cpx_monitor_passive, cpx_monitor_passive, start_link, [Args], management_sup]),
+			{atomic, {ok, _Pid}} = rpc:call(Atomnode, cpx_supervisor, update_conf, [cpx_monitor_passive, #cpx_conf{
+				id = cpx_monitor_passive, 
+				module_name = cpx_monitor_passive,
+				start_function = start_link, 
+				start_args = [Args], 
+				supervisor = management_sup
+			}]),
 			{struct, [{success, true}]}
 	end,
 	{200, [], mochijson2:encode(Json)};
@@ -1143,23 +1145,12 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 				start_function = start_link,
 				start_args = [Cleanedpost]
 			},
-			Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [email_media_manager]) of
-				undefined ->
-					case rpc:call(Atomnode, cpx_supervisor, add_conf, [Conf], 2000) of
-						{atomic, {ok, _}} ->
-							{struct, [{success, true}]};
-						Error ->
-							?WARNING("Could not start email_media_manager on ~p due to ~p", [Atomnode, Error]),
-							{struct, [{success, false}, {<<"message">>, <<"Could not start manager">>}]}
-					end;
-				_ ->
-					case rpc:call(Atomnode, cpx_supervisor, update_conf, [email_media_manager, Conf], 2000) of
-						{atomic, ok} ->
-							{struct, [{success, true}]};
-						Error ->
-							?WARNING("Could not update the conf on ~p due to ~p", [Atomnode, Error]),
-							{struct, [{success, false}, {<<"message">>, <<"Could not start manager">>}]}
-					end
+			Json = case rpc:call(Atomnode, cpx_supervisor, update_conf, [email_media_manager, Conf], 2000) of
+				{atomic, ok} ->
+					{struct, [{success, true}]};
+				Error ->
+					?WARNING("Could not update the conf on ~p due to ~p", [Atomnode, Error]),
+					{struct, [{success, false}, {<<"message">>, <<"Could not start manager">>}]}
 			end,
 			{200, [], mochijson2:encode(Json)}
 	end;
@@ -1884,7 +1875,13 @@ api_test_() ->
 		fun(Cookie) ->
 			{"/agents/modules/set disabling all",
 			fun() ->
-				{atomic, {ok, Atcppid}} = cpx_supervisor:add_conf(agent_tcp_listener, agent_tcp_listener, start_link, [1337], agent_connection_sup),
+				{atomic, {ok, Atcppid}} = cpx_supervisor:update_conf(agent_tcp_listener, #cpx_conf{
+					id = agent_tcp_listener,
+					module_name = agent_tcp_listener, 
+					start_function = start_link, 
+					start_args = [1337], 
+					supervisor = agent_connection_sup
+				}),
 				?assert(is_pid(Atcppid)),
 				?assert(is_pid(whereis(agent_web_listener))),
 				{200, [], Json} = api({agents, "modules", "update"}, Cookie, []),

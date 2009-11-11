@@ -345,16 +345,23 @@ destroy(Spec) ->
 -spec(update_conf/2 :: (Id :: atom(), Conf :: #cpx_conf{}) -> {'atomic', 'ok'}).
 update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	F = fun() ->
-		[Oldrec] = mnesia:read({cpx_conf, Id}),
-		stop_spec(Oldrec),
+		Oldrec = case mnesia:read({cpx_conf, Id}) of
+			[Rec] ->
+				stop_spec(Rec),
+				Rec;
+			_ -> false
+		end,
 		case start_spec(Conf) of
 			{ok, Pid} when is_pid(Pid) ->
 				mnesia:delete({cpx_conf, Id}),
 				mnesia:write(Conf#cpx_conf{timestamp = util:now()}),
 				ok;
-			Else ->
-				?WARNING("Starting new spec got ~p", [Else]),
+			Else when Oldrec ->
+				?WARNING("Starting new spec got ~p, restarting previous configuration", [Else]),
 				start_spec(Oldrec),
+				erlang:error({start_fail, Else});
+			Else ->
+				?WARNING("Starting new spec got ~p, no previous configuration", [Else]),
 				erlang:error({start_fail, Else})
 		end
 	end,

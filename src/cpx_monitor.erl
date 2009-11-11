@@ -65,7 +65,10 @@
 	to_proplist/1,
 	subscribe/0,
 	subscribe/1,
-	unsubscribe/0
+	unsubscribe/0,
+	get_key/1,
+	get_health_list/1,
+	get_details_list/1
 	]).
 
 %% gen_server callbacks
@@ -211,6 +214,27 @@ to_proplist({{Type, Name}, Health, Details}) ->
 	{health, Health},
 	{details, Details}].
 
+%% @doc Convience function to get the key from a health tuple.
+-spec(get_key/1 :: (Tuple :: {health_key(), health_details(), other_details()}) -> health_key()).
+get_key({Key, _, _, _}) ->
+	Key;
+get_key({Key, _, _}) ->
+	Key.
+
+%% @doc Conviennce function to get the abstract health numbers from a health tuple.
+-spec(get_health_list/1 :: (Tuple :: {health_key(), health_details(), other_details()}) -> health_details()).
+get_health_list({_, Health, _, _}) ->
+	Health;
+get_health_list({_, Health, _}) ->
+	Health.
+
+%% @doc Convience function to get the details list from a health tuple.
+-spec(get_details_list/1 :: (Tuple :: {health_key(), health_details(), other_details()}) -> health_details()).
+get_details_list({_, _, Details, _}) ->
+	Details;
+get_details_list({_, _, Details}) ->
+	Details.
+	
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -226,7 +250,6 @@ init(Args) when is_list(Args) ->
 		auto_restart_mnesia = proplists:get_value(auto_restart_mnesia, Args, true),
 		ets = Tid
 	}}.
-
 
 %% @hidden
 elected(#state{ets = Tid} = State, Election, Node) -> 
@@ -603,11 +626,38 @@ calc_healths([{Key, {Min, Mid, Max, {time, X}}} | Tail], Acc) ->
 	calc_healths(Tail, [{Key, Hp} | Acc]).
 
 entry(Entry, #state{ets = Tid} = State, Election) ->
+	?DEBUG("The entry:  ~p; tid:  ~p", [Entry, Tid]),
+	?DEBUG("get key:  ~p;  get_details_list:  ~p;  get_health_list:  ~p", [
+		get_key(Entry),
+		get_details_list(Entry),
+		get_health_list(Entry)
+	]),
 	Message = case Entry of
 		{drop, Key} ->
 			ets:delete(Tid, Key),
 			Entry;
 		_ ->
+			?DEBUG("The testy thing:  ~p", [{get_key(Entry), proplists:get_value(agent, get_details_list(Entry))}]),
+			case {get_key(Entry), proplists:get_value(agent, get_details_list(Entry))} of
+				{_, undefined} ->
+					ok;
+				{{media, _}, Agent} ->
+					?DEBUG("qlc:q", []),
+					QH = qlc:q([Key || {Key, Hp, Det, _} = Tuple <- ets:table(Tid), element(1, Key) =:= media, proplists:get_value(agent, Det) =:= Agent]),
+					?DEBUG("qlc:e", []),
+					Keys = qlc:e(QH),
+					% an agent can only ever be linked to one media, so we're
+					% doing some housecleaning.
+					?DEBUG("Keys to drop:  ~p", [Keys]),
+					Foreach = fun(K) -> 
+						tell_subs({drop, K}, State#state.subscribers),
+						tell_cands({drop, K}, Election),
+						ets:delete(Tid, K)
+					end,
+					lists:foreach(Foreach, Keys);
+				_ ->
+					ok
+			end,
 			ets:insert(Tid, Entry),
 			{set, Entry}
 	end,
@@ -713,6 +763,39 @@ health_test_() ->
 		?assertEqual(0.0, health(10, 5, 0, 15))
 	end}].
 
+data_grooming_test_() ->
+	{foreach,
+	fun() ->
+		mnesia:start(),
+		{ok, Cpx} = cpx_monitor:start([{nodes, [node()]}]),
+		Cpx
+	end,
+	fun(_Cpx) ->
+		cpx_monitor:stop(),
+		mnesia:stop()
+	end,
+	[fun(Cpx) ->
+		{"media previously linked to an agent is cleared on new media",
+		fun() ->
+			cpx_monitor:set({media, "old"}, [], [{agent, "agent"}]),
+			cpx_monitor:set({agent, "decoy"}, [], [{agent, "agent"}]),
+			cpx_monitor:subscribe(),
+			cpx_monitor:set({media, "new"}, [], [{agent, "agent"}]),
+			receive
+				{cpx_monitor_event, {drop, {media, "old"}}} ->
+					?assert(true);
+				{cpx_monitor_event, {drop, Key}} ->
+					?DEBUG("Bad drop:  ~p", [Key]),
+					?assert("bad drop recieved")
+			after 1000 ->
+				?assert("no clear received")
+			end,
+			{ok, [M1 | _] = Medias} = cpx_monitor:get_health(media),
+			?assertEqual(1, length(Medias)),
+			?assertEqual({media, "new"}, get_key(M1))
+		end}
+	end]}.
+	
 time_dependant_test_() ->
 	[{"Low health by time",
 	fun() ->
@@ -745,7 +828,7 @@ time_dependant_test_() ->
 		?assertEqual([{"key", 100.0}], Out)
 	end}].
 	
-multinode_test_() ->
+multinode_test_d() ->
 	{foreach,
 	fun() ->
 		[_Name, Host] = string:tokens(atom_to_list(node()), "@"),

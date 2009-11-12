@@ -44,7 +44,9 @@
 
 %% API
 -export([
+	start/0,
 	start/1,
+	start_link/0,
 	start_link/1,
 	stop/0,
 	set_option/2
@@ -127,11 +129,19 @@
 start(Options) ->
 	gen_server:start({local, ?SERVER}, ?MODULE, Options, []).
 
+-spec(start/0 :: () -> {'ok', pid()}).
+start() ->
+	start([]).
+
 %% @doc.  @see start/1
 -spec(start_link/1 :: (Options :: start_options()) -> {'ok', pid()}).
 start_link(Options) ->
 	gen_server:start_link({local, ?SERVER}, ?MODULE, Options, []).
 
+-spec(start_link/0 :: () -> {'ok', pid()}).
+start_link() ->
+	start_link([]).
+	
 %% stops the simulation.
 -spec(stop/0 :: () -> 'ok').
 stop() ->

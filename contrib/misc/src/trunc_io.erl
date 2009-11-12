@@ -73,7 +73,6 @@ format([[$~|H]| T], [AH | AT], Max, Acc, ArgAcc) when length(H) == 1 ->
 				_ ->
 					{String, Length}
 			end,
-			io:format("max: ~p~n", [Max]),
 			format(T, AT, Max + 2 - RealLen, ["~s" | Acc], [Value | ArgAcc]);
 		_ ->
 			% whatever, just pass them on through

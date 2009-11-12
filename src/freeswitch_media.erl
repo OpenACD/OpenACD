@@ -54,6 +54,8 @@
 
 -define(TIMEOUT, 10000).
 
+-define(DEFAULT_PRIORITY, 10).
+
 % TODO hangup occurs in reverse order.  eg:  if the agent hangs up, it looks
 % like the the caller did, and vice versa.
 
@@ -152,11 +154,12 @@ dump_state(Mpid) when is_pid(Mpid) ->
 init([Cnode, UUID]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	{ok, DNIS} = freeswitch:api(Cnode, uuid_getvar, UUID++" destination_number"),
+	%{ok, DNIS} = freeswitch:api(Cnode, uuid_getvar, UUID++" destination_number"),
 	%freeswitch:handlecall(Cnode, UUID),
-	{ok, Client} = freeswitch:api(Cnode, uuid_getvar, UUID++" brand"),
-	?NOTICE("Client: ~p", [Client]),
-	Call = #call{id = UUID, source = self(), client = Client},
+	%{ok, Client} = freeswitch:api(Cnode, uuid_getvar, UUID++" brand"),
+	%{ok, Result} = freeswitch:api(Cnode, uuid_getvar_multi, UUID++" destination_number;brand;queue_priority"),
+	{DNIS, Client, Priority} = get_info(Cnode, UUID),
+	Call = #call{id = UUID, source = self(), client = Client, priority = Priority},
 	{ok, {#state{cnode=Cnode, manager_pid = Manager}, Call, {inivr, [DNIS]}}}.
 
 handle_announce(Announcement, Callrec, State) ->
@@ -468,11 +471,17 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 		"CHANNEL_PARK" ->
 			case State#state.queue_pid of
 				undefined ->
-					Queue = freeswitch:get_event_header(Rawcall, "variable_queue"),
-					Client = freeswitch:get_event_header(Rawcall, "variable_brand"),
+					Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
+					Client = proplists:get_value("variable_brand", Rawcall),
+					P = proplists:get_value("variable_queue_priority", Rawcall, integer_to_list(?DEFAULT_PRIORITY)),
+					Priority = try list_to_integer(P) of
+						Pri -> Pri
+					catch
+						error:badarg -> ?DEFAULT_PRIORITY
+					end,
 					Calleridname = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
 					Calleridnum = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Number"),
-					NewCall = Callrec#call{client=Client, callerid=Calleridname++ " "++Calleridnum},
+					NewCall = Callrec#call{client=Client, callerid=Calleridname++ " "++Calleridnum, priority = Priority},
 					freeswitch:sendmsg(State#state.cnode, UUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "answer"}]),
@@ -524,7 +533,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					case filelib:is_regular(FileName) of
 						true ->
 							?NOTICE("~s left a voicemail", [UUID]),
-							freeswitch_media_manager:new_voicemail(UUID, FileName, State#state.queue);
+							freeswitch_media_manager:new_voicemail(UUID, FileName, State#state.queue, Callrec#call.priority + 10);
 						false ->
 							?NOTICE("~s hungup without leaving a voicemail", [UUID])
 					end
@@ -540,3 +549,15 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 			?DEBUG("Event unhandled ~p", [Else]),
 			{noreply, State}
 	end.
+
+get_info(Cnode, UUID) ->
+	{ok, Result} = freeswitch:api(Cnode, uuid_getvar_multi, UUID++" destination_number;brand;queue_priority"),
+	[DNIS, Brand, P] = re:split(Result, ";", [{return, list}]),
+	Priority = try list_to_integer(P) of
+		Pri ->
+			Pri
+	catch
+		error:badarg ->
+			?DEFAULT_PRIORITY
+	end,
+	{DNIS, Brand, Priority}.

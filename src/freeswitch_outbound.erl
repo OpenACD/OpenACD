@@ -106,7 +106,7 @@ hangup(Pid) ->
 init([Fnode, AgentRec, Apid, Client, Gateway, Ringout]) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
-			Call = #call{id=UUID, source=self(), type=voice, direction=outbound, client = Client},
+			Call = #call{id=UUID, source=self(), type=voice, direction=outbound, client = Client, priority = 10},
 			{ok, {#state{cnode = Fnode, agent_pid = Apid, gateway = Gateway, agent = AgentRec#agent.login}, Call, {precall, [Client]}}};
 		Else ->
 			?ERROR("create_uuid failed: ~p", [Else]),

@@ -976,7 +976,7 @@ set_cpx_mon(#state{callrec = Call} = _State, Details) ->
 		undefined ->
 			{[{agent_link, {0, 60 * 5, 60 * 15, {time, util:now()}}}], MidBasedet};
 		_Q ->
-			{[{inqueue, {0, 60 * 5, 60 * 10, {time, util:now()}}}], [{queued_at, util:now()}, {priority, Call#call.priority} | MidBasedet]}
+			{[{inqueue, {0, 60 * 5, 60 * 10, {time, util:now()}}}], [{queued_at, {timestamp, util:now()}}, {priority, Call#call.priority} | MidBasedet]}
 	end,
 	Fulldet = lists:append([Basedet, Details]),
 	cpx_monitor:set({media, Call#call.id}, Hp, Fulldet).

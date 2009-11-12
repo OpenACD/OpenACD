@@ -1275,7 +1275,16 @@ if(typeof(supervisorView) == "undefined"){
 				out += "<p class=\"smaller\"><label class=\"narrow\">Node:</label>" + supervisorView.dataStore.getValue(item, "node");
 			}
 			for(var i in obj){
-				out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + obj[i].toString() + "</p>";
+				out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>";
+				if(obj[i].timestamp){
+					var date = new Date(obj[i].timestamp * 1000);
+					out += date.toLocaleTimeString();
+				}
+				else{
+					out += obj[i].toString();
+				}
+				
+				out += "</p>";
 			}
 			/*out += "<p>Health Report</p>";
 			var hps = supervisorView.dataStore.getValue(item, "health");

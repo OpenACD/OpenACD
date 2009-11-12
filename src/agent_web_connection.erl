@@ -1410,6 +1410,9 @@ encode_proplist([], Acc) ->
 encode_proplist([Entry | Tail], Acc) when is_atom(Entry) ->
 	Newacc = [{Entry, true} | Acc],
 	encode_proplist(Tail, Newacc);
+encode_proplist([{Key, {timestamp, Num}} | Tail], Acc) when is_integer(Num) ->
+	Newacc = [{Key, {struct, [{timestamp, Num}]}} | Acc],
+	encode_proplist(Tail, Newacc);
 encode_proplist([{Key, Value} | Tail], Acc) when is_list(Value) ->
 	Newval = list_to_binary(Value),
 	Newacc = [{Key, Newval} | Acc],

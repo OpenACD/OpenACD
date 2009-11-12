@@ -970,7 +970,8 @@ set_cpx_mon(#state{callrec = Call} = _State, Details) ->
 		{callerid, Call#call.callerid},
 		{client, Client},
 		{ring_path, Call#call.ring_path},
-		{media_path, Call#call.media_path}
+		{media_path, Call#call.media_path},
+		{direction, Call#call.direction}
 	],
 	{Hp, Basedet} = case proplists:get_value(queue, Details) of
 		undefined ->

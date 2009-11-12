@@ -34,6 +34,8 @@
 
 -behaviour(gen_media).
 
+-define(DEFAULT_PRIORITY, 30).
+
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -223,6 +225,7 @@ init(Args) ->
 		skills = Mailmap#mail_map.skills,
 		ring_path = inband,
 		media_path = inband,
+		priority = ?DEFAULT_PRIORITY, % TODO - allow this to be set via the address map?
 		source = self()
 	},
 	?DEBUG("started ~p for callerid:  ~s", [Defaultid, Callerid]),

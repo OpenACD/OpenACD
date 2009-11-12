@@ -1277,12 +1277,12 @@ if(typeof(supervisorView) == "undefined"){
 			for(var i in obj){
 				out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + obj[i].toString() + "</p>";
 			}
-			out += "<p>Health Report</p>";
+			/*out += "<p>Health Report</p>";
 			var hps = supervisorView.dataStore.getValue(item, "health");
 			for(var i in hps){
 				var sigdigited = Math.floor(supervisorView.averageHp([hps[i]]) * 100) / 100;
 				out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + sigdigited.toString() + "</p>";
-			}
+			}*/
 			dijit.byId("supervisorDetails").attr("content", out);
 			dijit.byId("supervisorDetails").attr("title", supervisorView.dataStore.getValue(item, "type") + ": " + supervisorView.dataStore.getValue(item, "display"));
 		}

@@ -211,6 +211,7 @@ handle_cast(_Msg, State) ->
 handle_info({update, TableName}, State) ->
 	?NOTICE("got update for ~p", [TableName]),
 	NewState = dump_table(TableName, State),
+	flush(TableName),
 	{noreply, NewState, hibernate};
 handle_info(_Info, State) ->
 	{noreply, State, hibernate}.
@@ -332,3 +333,13 @@ rollback(State) ->
 
 dump(_, _) ->
 	{ok, null}.
+
+flush(TableName) ->
+	receive
+		{update, TableName} ->
+			flush(TableName)
+	after
+		0 ->
+			ok
+	end.
+

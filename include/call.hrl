@@ -51,7 +51,8 @@
 		cook :: pid() | 'undefined', % gen_media uses this
 		ring_path = outband :: 'inband' | 'outband' | 'any',
 		media_path = outband :: 'inband' | 'outband',
-		direction = inbound :: 'inbound' | 'outbound'
+		direction = inbound :: 'inbound' | 'outbound',
+		priority = 40 :: non_neg_integer()
 }).
 
 -record(queued_call, {

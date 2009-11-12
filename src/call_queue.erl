@@ -146,7 +146,7 @@ add(Pid, Priority, Mediapid, Callrec) when is_pid(Pid), is_pid(Mediapid), Priori
 -spec(add/3 :: (Pid :: pid(), Priority :: non_neg_integer(), Mediapid :: pid()) -> ok;
 	(Pid :: pid(), Mediapid :: pid(), Calldata :: #call{}) -> ok).
 add(Pid, Mediapid, Callrec) when is_pid(Pid), is_pid(Mediapid), is_record(Callrec, call) ->
-	add(Pid, 1, Mediapid, Callrec);
+	add(Pid, Callrec#call.priority, Mediapid, Callrec);
 add(Pid, Priority, Mediapid) when is_pid(Pid), is_pid(Mediapid), Priority >= 0 ->
 	Callrec = gen_media:get_call(Mediapid),
 	gen_server:call(Pid, {add, Priority, Mediapid, Callrec}).

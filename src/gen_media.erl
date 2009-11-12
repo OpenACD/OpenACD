@@ -43,7 +43,7 @@
 %%					Queue = string()
 %%
 %%		When gen_media starts, this function is called.  It should initialize
-%%		All required data.
+%%		all required data.
 %%
 %%		Some media may not be able to provide a call record on start-up, thus
 %%		allowing the media to finish prepping and then queue later.
@@ -154,7 +154,8 @@
 %%				State = NewState = any()
 %%
 %%		When a media is placed back into queue from an agent, this is called
-%%		To allow the media to do any required clean up or unbridging.
+%%		To allow the media to do any required clean up or unbridging.  The 
+%%		Call is requeued at the priority it was initially queued at.
 %%		Execution then continues with NewState.
 %%
 %%	<b>handle_wrapup(Call, State) -> {Finality, NewState}</b>
@@ -1148,7 +1149,7 @@ init_test_() ->
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 1, Inpid, Callrec}, _From, _State) -> ok end),
+			gen_server_mock:expect_call(Qpid, fun({add, 40, Inpid, Callrec}, _From, _State) -> ok end),
 			Res = init([dummy_media, Args]),
 			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = Qpid}}, Res),
 			Assertmocks()
@@ -1164,7 +1165,7 @@ init_test_() ->
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 1, Inpid, Callrec}, _From, _State) -> ok end),
+			gen_server_mock:expect_call(Qpid, fun({add, 40, Inpid, Callrec}, _From, _State) -> ok end),
 			Res = init([dummy_media, Args]),
 			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = Qpid}}, Res),
 			Assertmocks()
@@ -1285,7 +1286,7 @@ handle_call_test_() ->
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 1, Mpid, Rec}, _From, _State) ->
+			gen_server_mock:expect_call(Qpid, fun({add, 40, Mpid, Rec}, _From, _State) ->
 				Mpid = Callrec#call.source,
 				Rec = Callrec,
 				ok
@@ -1315,7 +1316,7 @@ handle_call_test_() ->
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 1, Mpid, Rec}, _From, _State) ->
+			gen_server_mock:expect_call(Qpid, fun({add, 40, Mpid, Rec}, _From, _State) ->
 				Mpid = Callrec#call.source,
 				Rec = Callrec,
 				ok
@@ -1350,7 +1351,7 @@ handle_call_test_() ->
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
-			gen_server_mock:expect_call(Qpid, fun({add, 1, Mpid, Rec}, _From, _State) ->
+			gen_server_mock:expect_call(Qpid, fun({add, 40, Mpid, Rec}, _From, _State) ->
 				Mpid = Callrec#call.source, 
 				Rec = Callrec,
 				ok
@@ -1376,7 +1377,7 @@ handle_call_test_() ->
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
-			gen_server_mock:expect_call(Qpid, fun({add, 1, Mpid, Rec}, _From, _state) ->
+			gen_server_mock:expect_call(Qpid, fun({add, 40, Mpid, Rec}, _From, _state) ->
 				Mpid = Callrec#call.source,
 				Rec = Callrec,
 				ok
@@ -2172,7 +2173,7 @@ priv_queue_test_() ->
 			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 1, Inpid, Callrec}, _From, _State) -> ok end),
+			gen_server_mock:expect_call(Qpid, fun({add, 40, Inpid, Callrec}, _From, _State) -> ok end),
 			?assertEqual(Qpid, priv_queue("testqueue", Callrec, "doesn't matter")),
 			Mocks()
 		end}
@@ -2196,7 +2197,7 @@ priv_queue_test_() ->
 			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 1, Inpid, Callrec}, _From, _State) -> ok end),
+			gen_server_mock:expect_call(Qpid, fun({add, 40, Inpid, Callrec}, _From, _State) -> ok end),
 			?assertEqual({default, Qpid}, priv_queue("testqueue", Callrec, true)),
 			Mocks()
 		end}

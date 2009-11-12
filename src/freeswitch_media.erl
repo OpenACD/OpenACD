@@ -550,14 +550,36 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 			{noreply, State}
 	end.
 
+%get_info(Cnode, UUID) ->
+	%{ok, Result} = freeswitch:api(Cnode, uuid_getvar_multi, UUID++" destination_number;brand;queue_priority"),
+	%[DNIS, Brand, P] = re:split(Result, ";", [{return, list}]),
+	%Priority = try list_to_integer(P) of
+		%Pri ->
+			%Pri
+	%catch
+		%error:badarg ->
+			%?DEFAULT_PRIORITY
+	%end,
+	%{DNIS, Brand, Priority}.
+	
 get_info(Cnode, UUID) ->
-	{ok, Result} = freeswitch:api(Cnode, uuid_getvar_multi, UUID++" destination_number;brand;queue_priority"),
-	[DNIS, Brand, P] = re:split(Result, ";", [{return, list}]),
-	Priority = try list_to_integer(P) of
-		Pri ->
-			Pri
+	{ok, Result} = freeswitch:api(Cnode, uuid_dump, UUID),
+	Proplist = lists:foldl(
+		fun([], Acc) ->
+				Acc;
+			(String, Acc) ->
+				[Key, Value] = util:string_split(String, ": ", 2),
+				[{Key, Value} | Acc]
+		end, [], util:string_split(Result, "\n")),
+
+	?NOTICE("~p", [Proplist]),
+
+	Priority = try list_to_integer(proplists:get_value("variable_queue_priority", Proplist, "")) of
+		Pri -> Pri
 	catch
 		error:badarg ->
 			?DEFAULT_PRIORITY
 	end,
-	{DNIS, Brand, Priority}.
+
+	{proplists:get_value("Caller-Destination-Number", Proplist, ""),
+		proplists:get_value("variable_brand", Proplist, ""), Priority}.

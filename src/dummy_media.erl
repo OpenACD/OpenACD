@@ -195,7 +195,8 @@ init([Props, Fails]) ->
 		client = proplists:get_value(client, Props, #client{}),
 		skills = proplists:get_value(skills, Props, []),
 		ring_path = inband,
-		media_path = inband
+		media_path = inband,
+		priority = util:get_number(proplists:get_value(priority, Props, 40))
 	},
 	Newfail = case Fails of
 		success ->

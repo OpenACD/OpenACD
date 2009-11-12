@@ -63,7 +63,8 @@
 	agent_max_calls :: pos_integer() | 'infinity',
 	simulation_life :: pos_integer | 'infinity',
 	queues :: [string()] | 'any',
-	agent_opts :: [any()]
+	agent_opts :: [any()],
+	call_priority :: any()
 }).
 
 -record(state, {
@@ -165,7 +166,8 @@ init(Options) ->
 	crypto:start(),
 	Protoconf = #conf{
 		call_frequency = proplists:get_value(call_frequency, Options, {distribution, 110}), % 32 calls per hour
-		call_max_life = proplists:get_value(call_max_life, Options, {distribution, 900}), % 15 minute calls
+		call_max_life = proplists:get_value(call_max_life, Options, {distribution, 900}), % 15 minute calls,
+		call_priority = proplists:get_value(call_priority, Options, {distribution, 20}),
 		agents = proplists:get_value(agents, Options, 6),
 		agent_max_calls = proplists:get_value(agent_max_calls, Options, {20, 40}),
 		simulation_life = proplists:get_value(simulation_life, Options, infinity),
@@ -183,7 +185,8 @@ init(Options) ->
 		{call_frequency, Protoconf#conf.call_frequency},
 		{call_max_life, Protoconf#conf.call_max_life},
 		{start_count, round(Protoconf#conf.agents * 0.8)},
-		{queues, Protoconf#conf.queues}
+		{queues, Protoconf#conf.queues},
+		{call_priority, Protoconf#conf.call_priority}
 	],
 	dummy_media_manager:start_supervised(DmmOpts),
 	Newagentopts = proplists_replace(scale, 1000, Protoconf#conf.agent_opts),

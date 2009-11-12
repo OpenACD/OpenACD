@@ -14,7 +14,7 @@
 					node.innerHTML += ':';
 				}
 			});
-			this.setLabel(dojo.i18n.getLocalization("admin", 'labels').SUBMIT);
+			this.attr('label', dojo.i18n.getLocalization("admin", 'labels').SUBMIT);
 			console.log("end postCreate");
 			dojo.xhrGet({
 				url:"medias/" + medias.activeNode + "/cpx_supervisor/get",

@@ -88,10 +88,13 @@ init(Options) ->
 		[{Pid, Id} | Acc]
 	end,
 	Pidlist = lists:foldl(Fun, [], lists:seq(1, Seeds)),
+	Time = util:get_number(Conf#conf.call_frequency) * 1000,
+	?INFO("Spawning new call after ~p", [Time]),
+	Self = self(),
     {ok, #state{
 		calls = Pidlist,
 		conf = Conf,
-		timer = timer:send_after(spawn_call, util:get_number(Conf#conf.call_frequency) * 1000)
+		timer = erlang:send_after(Time, ?MODULE, spawn_call)
 	}}.
 
 %%--------------------------------------------------------------------
@@ -147,7 +150,9 @@ handle_cast(_Msg, State) ->
 handle_info(spawn_call, #state{calls = Pidlist, conf = Conf} = State) ->
 	Newpid = queue_media(State#state.conf),
 	#call{id = Newid} = gen_media:get_call(Newpid),
-	Timer = timer:send_after(spawn_call, util:get_number(Conf#conf.call_frequency) * 1000),
+	Time = util:get_number(Conf#conf.call_frequency) * 1000,
+	?INFO("Spawning new call after ~p", [Time]),
+	Timer = erlang:send_after(Time, ?MODULE, spawn_call),
 	{noreply, State#state{calls = [{Newpid, Newid} | Pidlist], timer = Timer}};
 handle_info({'EXIT', Reason, Pid}, #state{calls = Pidlist} = State) ->
 	case proplists:get_value(Pid, Pidlist) of

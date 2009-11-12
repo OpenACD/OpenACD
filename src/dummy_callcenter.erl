@@ -171,7 +171,7 @@ init(Options) ->
 	%dmm is dummy_media_manager
 	DmmOpts = [
 		{call_frequency, Protoconf#conf.call_frequency},
-		{call_max_life, Protoconf#conf.call_frequency},
+		{call_max_life, Protoconf#conf.call_max_life},
 		{start_count, round(Protoconf#conf.agents * 0.8)},
 		{queues, Protoconf#conf.queues}
 	],

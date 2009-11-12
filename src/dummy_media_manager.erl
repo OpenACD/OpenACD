@@ -56,7 +56,8 @@
 -record(conf, {
 	call_frequency = {distribution, 110} :: any(),
 	call_max_life = {distribution, 900} :: any(),
-	queues = any :: any()
+	queues = any :: any(),
+	call_priority = {distribution, 20} :: any()
 }).
 -record(state, {
 	conf = #conf{} :: #conf{},
@@ -104,7 +105,8 @@ init(Options) ->
 	Conf = #conf{
 		call_frequency = proplists:get_value(call_frequency, Options, {distribution, 110}),
 		call_max_life = proplists:get_value(call_max_life, Options, {distribution, 900}),
-		queues = proplists:get_value(queues, Options, any)
+		queues = proplists:get_value(queues, Options, any),
+		call_priority = proplists:get_value(call_priority, Options, {distribution, 20})
 	},
 	Seeds = proplists:get_value(start_count, Options, 10),
 	Fun = fun(_, Acc) ->
@@ -159,6 +161,8 @@ handle_cast({set_option, Option, Arg}, #state{conf = Conf} = State) ->
 			Conf#conf{call_max_life = Arg};
 		queues ->
 			Conf#conf{queues = Arg};
+		call_priority ->
+			Conf#conf{call_priority = Arg};
 		_Else ->
 			?WARNING("unknown option ~p", [Option]),
 			Conf
@@ -212,7 +216,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 queue_media(Conf) ->
-	[Pid] = dummy_media:q_x(1, [{queues, Conf#conf.queues}, {max_life, util:get_number(Conf#conf.call_max_life)}]),
+	[Pid] = dummy_media:q_x(1, [
+		{queues, Conf#conf.queues}, 
+		{max_life, util:get_number(Conf#conf.call_max_life)},
+		{priority, Conf#conf.call_priority}
+	]),
 	Pid.
 
 find_key(Needle, []) ->

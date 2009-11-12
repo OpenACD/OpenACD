@@ -42,7 +42,8 @@
 -include("call.hrl").
 -include("queue.hrl").
 
--define(WRITE_INTERVAL, 60).
+-define(WRITE_INTERVAL, 60). % in seconds.
+-define(DETS, passive_cache).
 
 -type(xml_output() :: {xmlfile, string()}).
 -type(queues() :: {queues, [string()]}).
@@ -60,12 +61,60 @@
 -type(outputs() :: [{output_name(), output_filters()}]).
 -type(outputs_option() :: {outputs, outputs()}).
 
--type(write_interval() :: {write_interval, pos_integer()}).
+-type(write_interval() :: {write_interval, pos_integer()}). % in seconds
 -type(start_option() :: 
 	outputs_option() |
 	write_interval()).
 	
 -type(start_options() :: [start_option()]).
+
+%% Dets data types
+-type(dets_key() :: {'media' | 'agent', string()}).
+-type(timestamp() :: integer()).
+-type(health_data() :: [{atom(), any()}]).
+-type(details() :: [{any(), any()}]).
+-type(historical_key() :: {'inbound', 'queued'} | {'inbound', 'abandoned'} | {'inbound', 'handled'} | 'outbound' | 'undefined').
+-type(historical_tuple() :: {dets_key(), time(), health_data(), details(), historical_key()}).
+
+
+
+%
+%
+%
+%{Key, Time, Hp, Det, Historicalkey}
+%
+%
+%
+%
+%
+%{set, {{media, Id}, Hp, Det, Time}} ->
+%	know about it
+%		yes ->
+%			{old queue mark, new queue mark}
+%				{inqueue, inqueue} ->
+%					no action;
+%				{inqueue, agent handling} ->
+%					mark as handled
+%		no ->
+%			in queue
+%				yes ->
+%					mark as queued;
+%				no ->
+%					
+%		
+%			no longer in queue
+%				yes ->
+%					mark it;
+%			still in queue ->
+%				update it
+%		no ->
+%			outbound ->
+%				add to outbound count;
+%			inbound ->
+%				queue stated ->
+%					mark as queued
+%	
+
 
 %% API
 -export([
@@ -121,7 +170,7 @@ stop() ->
 %%--------------------------------------------------------------------
 init(Options) ->
 	Subtest = fun(Message) ->
-		?DEBUG("passive sub testing message: ~p", [Message]),
+		%?DEBUG("passive sub testing message: ~p", [Message]),
 		Type = case Message of
 			{set, {{T, _}, _, _, _}} ->
 				T;
@@ -137,11 +186,10 @@ init(Options) ->
 				false
 		end
 	end,
-	cpx_monitor:subscribe(Subtest),
 	Interval = proplists:get_value(write_interval, Options, ?WRITE_INTERVAL) * 1000,
 	Outputs = proplists:get_value(outputs, Options),
 	Torec = fun({Name, Props}) ->
-		Fileout = proplists:get_value(xml_output, Props, lists:append(["./", Name])),
+		Fileout = lists:append([proplists:get_value(file_output, Props, "."),"/", Name]),
 		Filter = #filter{
 			file_output = lists:append([Fileout, ".", atom_to_list(json)]),
 			queues = proplists:get_value(queues, Props, all),
@@ -154,12 +202,14 @@ init(Options) ->
 		{Name, Filter}
 	end,
 	Filters = lists:map(Torec, proplists:get_value(outputs, Options, [{"default", []}])),
-	{ok, Timer} = timer:send_after(Interval, write_output),
+	dets:open_file(?DETS, []),
 	{ok, Agents} = cpx_monitor:get_health(agent),
 	{ok, Medias} = cpx_monitor:get_health(media),
+	cpx_monitor:subscribe(Subtest),
 
 	Agentcache = sort_agents(Agents),
 	Mediacache = create_queued_clients(Medias),
+	{ok, Timer} = timer:send_after(Interval, write_output),
 	?DEBUG("started", []),
 	{ok, #state{
 		filters = Filters,
@@ -260,6 +310,55 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+cache_event({drop, {media, _Id} = Key}) ->
+	case dets:lookup(?DETS, Key) of
+		[{Key, Time, Hp, Details, {inbound, queued}}] ->
+			dets:insert(?DETS, {Key, Time, Hp, Details, {inbound, abandoned}});
+		_Else ->
+			ok
+	end;
+cache_event({drop, {agent, _Id} = Key}) ->
+	dets:delete(?DETS, Key);
+cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
+	case dets:lookup(?DETS, Key) of
+		[{Key, Time, Hp, Details, {inbound, queued}}] ->
+			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails)} of
+				{undefined, undefined} ->
+					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, abandoned}});
+				{undefined, _Agent} ->
+					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, handled}});
+				{_Queue, undefined} ->
+					% updating n case HP or Details changed.
+					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, queued}});
+				BothQnAgent ->
+					?WARNING("both and agent and queue defined, ignoring", []),
+					ok
+			end;
+		[{Key, Time, Hp, Details, History}] ->
+			% blind update
+			dets:insert(?DETS, {Key, Time, EventHp, EventDetails, History});
+		[] ->
+			case {proplists:get_value(queue, EventDetails), proplists:get_value(direction, EventDetails)} of
+				{undefined, outbound} ->
+					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, outbound});
+				{undefined, inbound} ->
+					?INFO("Didn't find queue, but still inbound.  Assuming it's a limbo call:  ~p", [Key]),
+					ok;
+				{_Queue, inbound} ->
+					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, {inbound, queued}})
+			end
+	end;
+cache_event({set, {{agent, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
+	case dets:lookup(?DETS, Key) of
+		[] ->
+			dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, undefined});
+		[{Key, Time, Hp, Details, undefined}] ->
+			dets:insert(?DETS, {Key, Time, Hp, Details, undefined})
+	end.
+
+
+
 
 deep_seek(Id, []) ->
 	undefined;
@@ -467,3 +566,6 @@ list_member(_Member, all) ->
 	true;
 list_member(Member, List) ->
 	lists:member(Member, List).
+
+
+

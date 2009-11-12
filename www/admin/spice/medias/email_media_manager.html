@@ -45,22 +45,22 @@
 			<label for="outrelayauth" id="loutrelayauth">REQUIRE_AUTH:</label>
 				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_always" value="always">
 					<script type="dojo/connect" event="postCreate">
-						dijit.byId("auth_username").setDisabled(false);
-						dijit.byId("auth_password").setDisabled(false);
+						dijit.byId("auth_username").attr('disabled', false);
+						dijit.byId("auth_password").attr('disabled', false);
 					</script>
 				</input>
 				<label class="radio" id="lauth_always" for="auth_always">ALWAYS</label>&nbsp;
 				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_ifcan" value="ifcan">
 					<script type="dojo/method" event="onClick">
-						dijit.byId("auth_username").setDisabled(false);
-						dijit.byId("auth_password").setDisabled(false);
+						dijit.byId("auth_username").attr('disabled', false);
+						dijit.byId("auth_password").attr('disabled', false);
 					</script>
 				</input>
 				<label class="radio" id="lauth_ifcan" for="auth_ifcan">IF_AVAILABLE</label>&nbsp;
 				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_never" value="never">
 					<script type="dojo/method" event="onclick">
-						dijit.byId("auth_username").setDisabled(true);
-						dijit.byId("auth_password").setDisabled(true);
+						dijit.byId("auth_username").attr('disabled', true);
+						dijit.byId("auth_password").attr('disabled', true);
 					</script>
 				</input>
 				<label class="radio" id="lauth_never" for="auth_never">NEVER</label>
@@ -128,7 +128,7 @@
 						}
 					}
 					
-					this.setLabel(dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+					this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 				</script>
 			</button>
 		</form>

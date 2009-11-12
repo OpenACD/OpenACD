@@ -44,9 +44,9 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 		return out;
 	},
 	setValue: function(obj){
-		this.propertyField.setValue(obj.property);
-		this.comparisonField.setValue(obj.comparison);
-		this.valueField.setValue(obj.value);
+		this.propertyField.attr('value', obj.property);
+		this.comparisonField.attr('value', obj.comparison);
+		this.valueField.attr('value', obj.value);
 	}
 });
 

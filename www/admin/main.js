@@ -42,7 +42,7 @@ function timeSince(timestamp){
 }
 
 function errMessage(message){
-	dijit.byId('errorDialog').setContent(message.toString());
+	dijit.byId('errorDialog').attr('content', message.toString());
 	dijit.byId('errorDialog').show();
 }
 
@@ -105,24 +105,24 @@ dojo.addOnLoad(function(){
 		dojo.connect(skills.tree, "onClick", function(item){
 			if(item.type[0] == "skill"){
 				dijit.byId('skillsMain').selectChild('skillEditor');
-				dijit.byId('editSkill').setValues(item);
+				dijit.byId('editSkill').attr('value', item);
 				var d = dijit.byId('editSkill').getDescendants();
 				for(i in d){
 					try{
-						 d[i].setDisabled(item.protected[0]);
+						 d[i].attr('disabled', item.protected[0]);
 					}
 					catch(err){
 						//ditching it sense this will ususally be "this is a funciton" error
 						//Prolly should test that first instead of shoving it to a try/catch.
 					}
 				}	
-				dijit.byId('skillAtom').setDisabled(true);	
+				dijit.byId('skillAtom').attr('disabled', true);	
 			}
 			else{
 				dijit.byId('skillsMain').selectChild('skillGroupEditor');
-				dijit.byId('editSkillGroupForm').setValues(item);
-				dijit.byId('skillGroupOldName').setValue(item.name[0]);
-				dijit.byId('skillGroupName').setDisabled(item.name[0] == "Magic");
+				dijit.byId('editSkillGroupForm').attr('value', item);
+				dijit.byId('skillGroupOldName').attr('value', item.name[0]);
+				dijit.byId('skillGroupName').attr('disabled', item.name[0] == "Magic");
 			}
 		});
 	});
@@ -160,12 +160,12 @@ dojo.addOnLoad(function(){
 			}
 			else{
 				dijit.byId("queuesMain").selectChild('queueGroupEditor');
-				dijit.byId("queueGroupOldName").setValue(item.name[0]);
-				dijit.byId("queueGroupName").setValue(item.name[0]);
-				dijit.byId("queueGroupSort").setValue(item.sort[0]);
+				dijit.byId("queueGroupOldName").attr('value', item.name[0]);
+				dijit.byId("queueGroupName").attr('value', item.name[0]);
+				dijit.byId("queueGroupSort").attr('value', item.sort[0]);
 				var rec = queues.fromStoreToObj(item.recipe);
 				dijit.byId("queueGroupRecipe").setValue(rec);
-				dijit.byId("queueGroupName").setDisabled(item.protected[0]);
+				dijit.byId("queueGroupName").attr('disabled', item.protected[0]);
 				dijit.byId("queueGroupSubmit").onClick = function(){
 					queues.setGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
 				}
@@ -190,8 +190,8 @@ dojo.addOnLoad(function(){
 					load:function(resp, ioargs){
 						if(resp.success){
 							try{
-								dijit.byId("mediaForm").setValues(resp);
-								dijit.byId("mediaEnabled").setValue(resp.enabled);
+								dijit.byId("mediaForm").attr('content', resp);
+								dijit.byId("mediaEnabled").attr('value', resp.enabled);
 							}
 							catch(err){
 								console.log(["setting media data err", err]);
@@ -209,7 +209,7 @@ dojo.addOnLoad(function(){
 		
 			if(item.type[0] == "conf"){
 				dojo.requireLocalization("admin", item.mediatype[0]);
-				dijit.byId("mediaConf").setHref("spice/medias/" + item.mediatype[0] + ".html");
+				dijit.byId("mediaConf").attr('href', "spice/medias/" + item.mediatype[0] + ".html");
 			}
 			dijit.byId("mediaMain").selectChild("mediaConf");
 		});
@@ -225,10 +225,10 @@ dojo.addOnLoad(function(){
 				dojo.byId("agentProfileOldName").value = item.name[0];
 				dijit.byId("agentProfileName").attr("value", item.name[0]);
 				if(item.name[0] == "Default"){
-					dijit.byId("agentProfileName").setDisabled(true);
+					dijit.byId("agentProfileName").attr('disabled', true);
 				}
 				else{
-					dijit.byId("agentProfileName").setDisabled(false);
+					dijit.byId("agentProfileName").attr('disabled', false);
 				}
 				dijit.byId('agentsMain').selectChild('agentProfileEditor');
 				var node = dijit.byId("agentProfileSkills").domNode;
@@ -350,12 +350,12 @@ dojo.addOnLoad(function(){
 						dojo.byId("agentOldLogin").value = agent.id;
 						//dijit.byId("agentProfile").attr("value", agent.profile);
 						dojo.byId("agentIntegrated").innerHTML = agent.integrated;
-						dijit.byId("agentSecurity").setValue(agent.securitylevel);
+						dijit.byId("agentSecurity").attr('value', agent.securitylevel);
 						dijit.byId("agentProfile").setDisplayedValue(agent.profile);
-						dijit.byId("agentPassword").setValue("");
-						dijit.byId("agentConfirm").setValue("");
-						dijit.byId("agentLastName").setValue(agent.lastname);
-						dijit.byId("agentFirstName").setValue(agent.firstname);
+						dijit.byId("agentPassword").attr('value', "");
+						dijit.byId("agentConfirm").attr('value', "");
+						dijit.byId("agentLastName").attr('value', agent.lastname);
+						dijit.byId("agentFirstName").attr('value', agent.firstname);
 						var selectSkill = function(skill){
 							if(/{_\w+,[-a-zA-Z0-9_ ]+}/.test(skill)){
 								var split = skill.split(',');

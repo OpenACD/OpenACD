@@ -1,4 +1,4 @@
-dojo.require("dojox.form.DropDownSelect");
+dojo.require("dijit.form.Select");
 
 dojo.provide("spice.RecipeEditorRow");
 dojo.provide("spice.RecipeEditor");
@@ -86,7 +86,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 				var argdiv = this.argumentsDiv;
 				var callback = function(select){
 					select.size = 3;
-					argdiv.setContent(select);
+					argdiv.attr('content', select);
 					ithis.argsWidget = ithis._buildSelect(select);
 				};
 				skills.newSelection(callback, [], [], []);
@@ -97,7 +97,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 				var ithis = this;
 				var callback = function(select){
 					select.size = 3;
-					argdiv.setContent(select);
+					argdiv.attr('content', select);
 					ithis.argsWidget = ithis._buildSelect(select);
 				}
 				skills.newSelection(callback, [], [], []);
@@ -109,22 +109,22 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 					style:"width:5em"
 				});
 				this.argumentsId = argsWidget.id;
-				this.argumentsDiv.setContent(argsWidget.domNode);
+				this.argumentsDiv.attr('content', argsWidget.domNode);
 				this.argsWidget = argsWidget
 			break;
 			
 			case "prioritize":
-				this.argumentsDiv.setContent("");
+				this.argumentsDiv.attr('content', "");
 				this._nullArgsWidget();
 			break;
 			
 			case "deprioritize":
-				this.argumentsDiv.setContent("");
+				this.argumentsDiv.attr('content', "");
 				this._nullArgsWidget();
 			break;
 			
 			case "voicemail":
-				this.argumentsDiv.setContent("");
+				this.argumentsDiv.attr('content', "");
 				this._nullArgsWidget();
 			break;
 			
@@ -132,7 +132,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 				var argsWidget = new dijit.form.TextBox({
 					style:"width:10em"
 				});
-				this.argumentsDiv.setContent(argsWidget.domNode);
+				this.argumentsDiv.attr('content', argsWidget.domNode);
 				this.argsWidget = argsWidget
 			 break;
 			

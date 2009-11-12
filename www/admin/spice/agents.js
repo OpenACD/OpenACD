@@ -26,14 +26,14 @@ agents.getModules = function(targetform){
 		url:"agents/modules/get",
 		handleAs:"json",
 		load:function(response, ioargs){
-			targetform.setValues(response.result);
+			targetform.attr('value', response.result);
 			var kids = targetform.getDescendants();
 			for(var i in kids){
 				if(kids[i].id == 'agentModuleTCPListenEnabled'){
-					kids[i].setChecked(response.result.agentModuleTCPListenEnabled);
+					kids[i].attr('checked', response.result.agentModuleTCPListenEnabled);
 				}
 				if(kids[i].id == 'agentModuleWebListenEnabled'){
-					kids[i].setChecked(response.result.agentModuleWebListenEnabled);
+					kids[i].attr('checked', response.result.agentModuleWebListenEnabled);
 				}
 			}
 		}
@@ -45,11 +45,11 @@ agents.getSpiceIntegration = function(targetform){
 		url:"agents/spiceintegration/get",
 		handleAs:"json",
 		load:function(response){
-			targetform.setValues(response.result);
+			targetform.attr('value', response.result);
 			var kids = targetform.getDescendants();
 			for(var i in kids){
 				if(kids[i].id == 'spiceIntegrationEnabled'){
-					kids[i].setChecked(response.result.spiceIntegrationEnabled);
+					kids[i].attr('checked', response.result.spiceIntegrationEnabled);
 				}
 			}
 		}

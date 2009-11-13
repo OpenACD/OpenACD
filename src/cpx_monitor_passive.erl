@@ -41,6 +41,7 @@
 -include("log.hrl").
 -include("call.hrl").
 -include("queue.hrl").
+-include("agent.hrl").
 
 -define(WRITE_INTERVAL, 60). % in seconds.
 -define(DETS, passive_cache).
@@ -73,7 +74,7 @@
 -type(timestamp() :: integer()).
 -type(health_data() :: [{atom(), any()}]).
 -type(details() :: [{any(), any()}]).
--type(historical_key() :: {'inbound', 'queued'} | {'inbound', 'abandoned'} | {'inbound', 'handled'} | 'outbound' | 'undefined').
+-type(historical_key() :: {'inbound', 'queued'} | {'inbound', 'ivr'} | {'inbound', 'qabandoned'} | {'inbound', 'ivrabandoned'} | {'inbound', 'handled'} | 'outbound' | 'undefined').
 -type(historical_tuple() :: {dets_key(), time(), health_data(), details(), historical_key()}).
 
 
@@ -140,9 +141,10 @@
 -record(state, {
 	filters = [] :: [{string(), #filter{}}],
 	interval = ?WRITE_INTERVAL :: pos_integer(),
-	agent_cache = [],
-	media_cache = [],
-	timer :: any()
+	%agent_cache = [],
+	%media_cache = [],
+	timer :: any(),
+	write_pid :: 'undefined' | pid()
 }).
 
 %%====================================================================
@@ -189,7 +191,7 @@ init(Options) ->
 	Interval = proplists:get_value(write_interval, Options, ?WRITE_INTERVAL) * 1000,
 	Outputs = proplists:get_value(outputs, Options),
 	Torec = fun({Name, Props}) ->
-		Fileout = lists:append([proplists:get_value(file_output, Props, "."),"/", Name]),
+		Fileout = lists:append([proplists:get_value(file_output, Props, "."), "/", Name]),
 		Filter = #filter{
 			file_output = lists:append([Fileout, ".", atom_to_list(json)]),
 			queues = proplists:get_value(queues, Props, all),
@@ -206,17 +208,17 @@ init(Options) ->
 	{ok, Agents} = cpx_monitor:get_health(agent),
 	{ok, Medias} = cpx_monitor:get_health(media),
 	cpx_monitor:subscribe(Subtest),
-
-	Agentcache = sort_agents(Agents),
-	Mediacache = create_queued_clients(Medias),
+	lists:foreach(fun(E) -> cache_event(E) end, lists:append(Agents, Medias)),
+	%Agentcache = sort_agents(Agents),
+	%Mediacache = create_queued_clients(Medias),
 	{ok, Timer} = timer:send_after(Interval, write_output),
 	?DEBUG("started", []),
 	{ok, #state{
 		filters = Filters,
 		interval = Interval,
-		timer = Timer,
-		agent_cache = Agentcache,
-		media_cache = Mediacache
+		timer = Timer
+		%agent_cache = Agentcache,
+		%media_cache = Mediacache
 	}}.
 
 %%--------------------------------------------------------------------
@@ -237,58 +239,61 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(write_output, #state{filters = Filters, agent_cache = Agents, media_cache = Medias} = State) ->
+handle_info(write_output, #state{filters = Filters} = State) ->
 	?DEBUG("Writing output with state:  ~p", [State]),
-	Fun = fun({Name, FilterRec} = Filter) ->
-		Fmedias = filter_medias(Medias, FilterRec),
-		Fagents = filter_agents(Agents, FilterRec),
-		JsonQued = clients_queued_to_json(Fmedias),
-		JsonAgents = agent_profs_to_json(Fagents),
-		Json = {struct, [
-			{<<"clients_in_queues">>, JsonQued},
-			{<<"agent_profiles">>, JsonAgents}
-		]},
-		Encoded = mochijson2:encode(Json),
-		{ok, File} = file:open(FilterRec#filter.file_output, [write, binary]),
-		ok = file:write(File, Encoded),
-		?DEBUG("wrote ~p to ~p", [Name, FilterRec#filter.file_output]),
-		ok
-	end,
-	
-	lists:foreach(fun(Elem) -> spawn(fun() -> Fun(Elem) end) end, Filters),
+%	Fun = fun({Name, FilterRec} = Filter) ->
+%		Fmedias = filter_medias(Medias, FilterRec),
+%		Fagents = filter_agents(Agents, FilterRec),
+%		JsonQued = clients_queued_to_json(Fmedias),
+%		JsonAgents = agent_profs_to_json(Fagents),
+%		Json = {struct, [
+%			{<<"clients_in_queues">>, JsonQued},
+%			{<<"agent_profiles">>, JsonAgents}
+%		]},
+%		Encoded = mochijson2:encode(Json),
+%		{ok, File} = file:open(FilterRec#filter.file_output, [write, binary]),
+%		ok = file:write(File, Encoded),
+%		?DEBUG("wrote ~p to ~p", [Name, FilterRec#filter.file_output]),
+%		ok
+%	end,
+%	
+%	lists:foreach(fun(Elem) -> spawn(fun() -> Fun(Elem) end) end, Filters),
 	
 	{ok, Timer} = timer:send_after(State#state.interval, write_output),
 	{noreply, State#state{timer = Timer}};
-handle_info({cpx_monitor_event, {set, {{media, Id}, Hp, Det, _Time}}}, #state{media_cache = Medias} = State) ->
-	?DEBUG("setting a media", []),
-	Entry = {{media, Id}, Hp, Det},
-	case proplists:get_value(queue, Det) of
-		undefined ->
-			Newmedias = deep_delete(Id, Medias),
-			{noreply, State#state{media_cache = Newmedias}};
-		Queue ->
-			#client{label = Client} = proplists:get_value(client, Det),
-			Midsub = proplists:get_value(Client, Medias, []),
-			Newsub = [{Id, Entry} | Midsub],
-			Newmedias = proplists_replace(Client, Newsub, Medias),
-			{noreply, State#state{media_cache = Newmedias}}
-	end;
-handle_info({cpx_monitor_event, {drop, {media, Id}}}, #state{media_cache = Medias} = State) ->
-	?DEBUG("Dropping media", []),
-	Newmedias = deep_delete(Id, Medias),
-	{noreply, State#state{media_cache = Newmedias}};
-handle_info({cpx_monitor_event, {set, {{agent, Id}, Hp, Det, _Time}}}, #state{agent_cache = Agent} = State) ->
-	?DEBUG("Setting agent", []),
-	Entry = {{media, Id}, Hp, Det},
-	Profile = proplists:get_value(profile, Det),
-	Midsub = proplists:get_value(Profile, Agent, []),
-	Newsub = [{Id, Entry} | Midsub],
-	Newagents = proplists_replace(Profile, Newsub, Agent),
-	{noreply, State#state{agent_cache = Agent}};
-handle_info({cpx_monitor_event, {drop, {agent, Id}}}, #state{agent_cache = Agent} = State) ->
-	?DEBUG("dropping agent", []),
-	Newagents = deep_delete(Id, Agent),
-	{noreply, State#state{agent_cache = Newagents}};
+handle_info({cpx_monitor_event, Event}, State) ->
+	cache_event(Event),
+	{noreply, Event};
+%handle_info({cpx_monitor_event, {set, {{media, Id}, Hp, Det, _Time}}}, #state{media_cache = Medias} = State) ->
+%	?DEBUG("setting a media", []),
+%	Entry = {{media, Id}, Hp, Det},
+%	case proplists:get_value(queue, Det) of
+%		undefined ->
+%			Newmedias = deep_delete(Id, Medias),
+%			{noreply, State#state{media_cache = Newmedias}};
+%		Queue ->
+%			#client{label = Client} = proplists:get_value(client, Det),
+%			Midsub = proplists:get_value(Client, Medias, []),
+%			Newsub = [{Id, Entry} | Midsub],
+%			Newmedias = proplists_replace(Client, Newsub, Medias),
+%			{noreply, State#state{media_cache = Newmedias}}
+%	end;
+%handle_info({cpx_monitor_event, {drop, {media, Id}}}, #state{media_cache = Medias} = State) ->
+%	?DEBUG("Dropping media", []),
+%	Newmedias = deep_delete(Id, Medias),
+%	{noreply, State#state{media_cache = Newmedias}};
+%handle_info({cpx_monitor_event, {set, {{agent, Id}, Hp, Det, _Time}}}, #state{agent_cache = Agent} = State) ->
+%	?DEBUG("Setting agent", []),
+%	Entry = {{media, Id}, Hp, Det},
+%	Profile = proplists:get_value(profile, Det),
+%	Midsub = proplists:get_value(Profile, Agent, []),
+%	Newsub = [{Id, Entry} | Midsub],
+%	Newagents = proplists_replace(Profile, Newsub, Agent),
+%	{noreply, State#state{agent_cache = Agent}};
+%handle_info({cpx_monitor_event, {drop, {agent, Id}}}, #state{agent_cache = Agent} = State) ->
+%	?DEBUG("dropping agent", []),
+%	Newagents = deep_delete(Id, Agent),
+%	{noreply, State#state{agent_cache = Newagents}};
 handle_info(Info, State) ->
 	?DEBUG("Someother info:  ~p", [Info]),
     {noreply, State}.
@@ -314,7 +319,9 @@ code_change(_OldVsn, State, _Extra) ->
 cache_event({drop, {media, _Id} = Key}) ->
 	case dets:lookup(?DETS, Key) of
 		[{Key, Time, Hp, Details, {inbound, queued}}] ->
-			dets:insert(?DETS, {Key, Time, Hp, Details, {inbound, abandoned}});
+			dets:insert(?DETS, {Key, Time, Hp, Details, {inbound, qabandoned}});
+		[{Key, Time, Hp, Details, {inbound, ivr}}] ->
+			dets:insert(?DETS, {Key, Time, Hp, Details, {inbound, ivrabandoned}});
 		_Else ->
 			ok
 	end;
@@ -325,7 +332,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 		[{Key, Time, Hp, Details, {inbound, queued}}] ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails)} of
 				{undefined, undefined} ->
-					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, abandoned}});
+					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, qabandoned}});
 				{undefined, _Agent} ->
 					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, handled}});
 				{_Queue, undefined} ->
@@ -343,8 +350,8 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 				{undefined, outbound} ->
 					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, outbound});
 				{undefined, inbound} ->
-					?INFO("Didn't find queue, but still inbound.  Assuming it's a limbo call:  ~p", [Key]),
-					ok;
+					?INFO("Didn't find queue, but still inbound.  Assuming it's in ivr call:  ~p", [Key]),
+					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, {inbound, ivr}});
 				{_Queue, inbound} ->
 					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, {inbound, queued}})
 			end
@@ -356,6 +363,117 @@ cache_event({set, {{agent, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 		[{Key, Time, Hp, Details, undefined}] ->
 			dets:insert(?DETS, {Key, Time, Hp, Details, undefined})
 	end.
+	
+%% @doc If the row passes through the filter, return true.
+filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all}, Row) ->
+	true;
+filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, handled}}) ->
+	#client{label = Client} = proplists:get_value(client, Details),
+	case list_member(Client, Filter#filter.clients) of
+		false ->
+			false;
+		true ->
+			Agent = proplists:get_value(agent, Details),
+			case list_member(Agent, Filter#filter.agents) of
+				false ->
+					false;
+				true ->
+					case agent_auth:get_agent(Agent) of
+						{atomic, [#agent_auth{profile = Prof}]} ->
+							list_member(Prof, Filter#filter.agent_profiles);
+						_ ->
+							false
+					end
+			end
+	end;
+filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, Queued}}) when Queued =:= inqueue; Queued =:= qabandoned ->
+	#client{label = Client} = proplists:get_value(client, Details),
+	case list_member(Client, Filter#filter.clients) of
+		false ->
+			false;
+		true ->
+			Queue = proplists:get_value(queue, Details),
+			case {list_member(Queue, Filter#filter.queues), Filter#filter.queue_groups} of
+				{false, _} ->
+					false;
+				{true, all} ->
+					true;
+				{true, List} ->
+					case call_queue_config:get_queue(Queue) of
+						noexists ->
+							false;
+						#call_queue{group = Group} ->
+							list_member(Group, List)
+					end
+			end
+	end;
+filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, _History}) ->
+	false;
+filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
+	case list_member(Agent, Filter#filter.agents) of
+		false ->
+			false;
+		true ->
+			case agent_auth:get_agent(Agent) of
+				{atomic, [#agent_auth{profile = Prof}]} ->
+					list_member(Prof, Filter#filter.agent_profiles);
+				_ ->
+					false
+			end
+	end.
+
+
+
+
+%
+%
+%
+%filter_row(#filter{agents = Agents, agent_profiles = Profs, clients = filtered}, {{media, _}, _, _, Details, {inbound, handled}}) ->
+%	Agent = proplists:get_value(agent, Details),
+%	case list_member(Agent, Agents) of
+%		false ->
+%			false;
+%		true ->
+%			case agent_auth:get_agent(Agent) of
+%				{atomic, [#agent_auth{profile = Prof}]} ->
+%					list_member(Prof, Profs);
+%				_ ->
+%					false
+%			end
+%	end;
+%filter_row(#filter{queues = Queues, queue_groups = Qgroups, clients = filtered}, {{media, _Id}, _Time, _Hp, Details, {inbound, Status}} = Row) ->
+%	InQueue = proplists:get_value(queue, Details),
+%	case list_member(InQueue, Queues) of
+%		false ->
+%			false;
+%		true ->
+%			case call_queue_config:get_queue(InQueue) of
+%				noexists ->
+%					false;
+%				#call_queue{group = Group} ->
+%					list_member(Group, Qgroups)
+%			end
+%	end;
+%filter_row(#filter{clients = Clients} = Filter, {{media, _Id}, _, _, Details, {inbound, Status}} = Row) ->
+%	#client{label = Client} = proplists:get_value(client, Details),
+%	case list_member(Client, Clients) of
+%		false ->
+%			false;
+%		true ->
+%			filter_row(Filter#filter{clients = filtered}, Row)
+%	end;
+%filter_row(#filter{agents = Agents, agent_profiles = AgentProfs}, {{agent, Id}, _Time, _Hp, Details, _History}) ->
+%	case list_member(Id, Agents) of
+%		false ->
+%			false;
+%		true ->
+%			Prof = proplists:get_value(profile, Details),
+%			list_member(Prof, AgentProfs)
+%	end.
+%	
+%	
+
+
 
 
 
@@ -567,5 +685,221 @@ list_member(_Member, all) ->
 list_member(Member, List) ->
 	lists:member(Member, List).
 
+-ifdef(EUNIT).
 
+filter_row_test_() ->
+	{setup,
+	fun() ->
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		call_queue_config:build_tables(),
+		agent_auth:build_tables(),
+		agent_auth:add_agent("agent1", "test", [], agent, "profile1"),
+		agent_auth:add_agent("agent2", "test", [], agent, "profile2"),
+		call_queue_config:new_queue("queue1", 1, [], [], "queue_group1"),
+		call_queue_config:new_queue("queue2", 1, [], [], "queue_group1"),
+		call_queue_config:new_queue("queue3", 1, [], [], "queue_group2"),
+		call_queue_config:new_queue("queue4", 1, [], [], "queue_group2"),
+		Client1 = #client{
+			id = "1",
+			label = "client1"
+		},
+		Client2 = #client{
+			id = "2",
+			label = "client2"
+		},
+		Rows = [
+			{{media, "media-c1-q1"}, 5, [], [{queue, "queue1"}, {client, Client1}], {inbound, inqueue}},
+			{{media, "media-c1-q2"}, 5, [], [{queue, "queue2"}, {client, Client1}], {inbound, inqueue}},
+			{{media, "media-c1-q3"}, 5, [], [{queue, "queue3"}, {client, Client1}], {inbound, inqueue}},
+			{{media, "media-c1-q4"}, 5, [], [{queue, "queue4"}, {client, Client1}], {inbound, inqueue}},
+			{{media, "media-c2-q1"}, 5, [], [{queue, "queue1"}, {client, Client2}], {inbound, inqueue}},
+			{{media, "media-c2-q2"}, 5, [], [{queue, "queue2"}, {client, Client2}], {inbound, inqueue}},
+			{{media, "media-c2-q3"}, 5, [], [{queue, "queue3"}, {client, Client2}], {inbound, inqueue}},
+			{{media, "media-c2-q4"}, 5, [], [{queue, "queue4"}, {client, Client2}], {inbound, inqueue}},
+			{{media, "media-c1-a1"}, 5, [], [{agent, "agent1"}, {client, Client1}], {inbound, handled}},
+			{{media, "media-c2-a2"}, 5, [], [{agent, "agent2"}, {client, Client2}], {inbound, handled}},
+			{{agent, "agent1"}, 5, [], [{profile, "profile1"}], undefined},
+			{{agent, "agent2"}, 5, [], [{profile, "profile2"}], undefined}
+		],
+		DoFilter = fun(Filter) ->
+			Test = fun(R, Acc) ->
+				case filter_row(Filter, R) of
+					true ->
+						[element(1, R) | Acc];
+					false ->
+						Acc
+				end
+			end,
+			lists:sort(lists:foldl(Test, [], Rows))
+		end,
+		{Rows, DoFilter}
+	end,
+	fun(_) ->
+		Queues = ["queue1", "queue2", "queue3", "queue4"],
+		lists:foreach(fun(Q) -> call_queue_config:destroy_queue(Q) end, Queues),
+		mnesia:stop(),
+		mnesia:delete_schema([node()])
+	end,
+	fun({Rows, DoFilter}) ->
+		[{"filter with all set to, well, all",
+		fun() ->
+			Filter = #filter{
+				clients = all,
+				queues = all,
+				queue_groups = all,
+				agents = all,
+				agent_profiles = all
+			},
+			Out = lists:map(fun(R) -> filter_row(Filter, R) end, Rows),
+			?assert(lists:all(fun(In) -> In end, Out))
+		end},
+		{"filter by client only",
+		fun() ->
+			Filter = #filter{
+				clients = ["client1"],
+				queues = all,
+				queue_groups = all,
+				agents = all,
+				agent_profiles = all
+			},
+			Expected = lists:sort([
+				{media, "media-c1-a1"},
+				{media, "media-c1-q1"},
+				{media, "media-c1-q2"},
+				{media, "media-c1-q3"},
+				{media, "media-c1-q4"},
+				{agent, "agent1"},
+				{agent, "agent2"}
+			]),
+			Filtered = DoFilter(Filter),
+			?assertEqual(Expected, Filtered)
+		end},
+		{"filter by queue only",
+		fun() ->
+			Filter = #filter{
+				clients = all,
+				queues = ["queue1"],
+				queue_groups = all,
+				agents = all,
+				agent_profiles = all
+			},
+			Expected = lists:sort([
+				{media, "media-c1-q1"},
+				{media, "media-c2-q1"},
+				{agent, "agent1"},
+				{agent, "agent2"},
+				{media, "media-c1-a1"},
+				{media, "media-c2-a2"}
+			]),
+			Filtered = DoFilter(Filter),
+			?assertEqual(Expected, Filtered)
+		end},
+		{"filter by queue group only",
+		fun() ->
+			Filter = #filter{
+				clients = all,
+				queues = all,
+				queue_groups = ["queue_group1"],
+				agents = all,
+				agent_profiles = all
+			},
+			Expected = lists:sort([
+				{media, "media-c1-q1"},
+				{media, "media-c1-q2"},
+				{media, "media-c2-q1"},
+				{media, "media-c2-q2"},
+				{media, "media-c1-a1"},
+				{media, "media-c2-a2"},
+				{agent, "agent1"},
+				{agent, "agent2"}
+			]),
+			Filtered = DoFilter(Filter),
+			?assertEqual(Expected, Filtered)
+		end},
+		{"filter by agent only",
+		fun() ->
+			Filter = #filter{
+				clients = all,
+				queue_groups = all,
+				queues = all,
+				agents = ["agent1"],
+				agent_profiles = all
+			},
+			Expected = lists:sort([
+				{media, "media-c1-q1"}, 
+				{media, "media-c1-q2"}, 
+				{media, "media-c1-q3"}, 
+				{media, "media-c1-q4"}, 
+				{media, "media-c2-q1"}, 
+				{media, "media-c2-q2"}, 
+				{media, "media-c2-q3"}, 
+				{media, "media-c2-q4"}, 
+				{media, "media-c1-a1"}, 
+				{agent, "agent1"}
+			]),
+			Filtered = DoFilter(Filter),
+			?assertEqual(Expected, Filtered)
+		end},
+		{"filter by agent_profile only",
+		fun() ->
+			Filter = #filter{
+				clients = all,
+				queue_groups = all,
+				queues = all,
+				agents = all,
+				agent_profiles = ["profile2"]
+			},
+			Expected = lists:sort([
+				{media, "media-c1-q1"}, 
+				{media, "media-c1-q2"}, 
+				{media, "media-c1-q3"}, 
+				{media, "media-c1-q4"}, 
+				{media, "media-c2-q1"}, 
+				{media, "media-c2-q2"}, 
+				{media, "media-c2-q3"}, 
+				{media, "media-c2-q4"}, 
+				{media, "media-c2-a2"}, 
+				{agent, "agent2"}
+			]),
+			Filtered = DoFilter(Filter),
+			?assertEqual(Expected, Filtered)
+		end},
+		{"filter by queues and client",
+		fun() ->
+			Filter = #filter{
+				clients = ["client1"],
+				queue_groups = all,
+				queues = ["queue1"],
+				agents = all,
+				agent_profiles = all
+			},
+			Expected = lists:sort([
+				{media, "media-c1-q1"}, 
+				{media, "media-c1-a1"}, 
+				{agent, "agent1"},
+				{agent, "agent2"}
+			]),
+			Filtered = DoFilter(Filter),
+			?assertEqual(Expected, Filtered)
+		end},
+		{"filter by queues, client, and agent",
+		fun() ->
+			Filter = #filter{
+				clients = ["client1"],
+				queue_groups = all,
+				queues = ["queue1"],
+				agents = ["agent1"],
+				agent_profiles = all
+			},
+			Expected = lists:sort([
+				{media, "media-c1-q1"}, 
+				{media, "media-c1-a1"}, 
+				{agent, "agent1"}
+			]),
+			Filtered = DoFilter(Filter),
+			?assertEqual(Expected, Filtered)
+		end}]
+	end}.
 
+-endif.

@@ -77,46 +77,6 @@
 -type(historical_key() :: {'inbound', 'queued'} | {'inbound', 'ivr'} | {'inbound', 'qabandoned'} | {'inbound', 'ivrabandoned'} | {'inbound', 'handled'} | 'outbound' | 'undefined').
 -type(historical_tuple() :: {dets_key(), time(), health_data(), details(), historical_key()}).
 
-
-
-%
-%
-%
-%{Key, Time, Hp, Det, Historicalkey}
-%
-%
-%
-%
-%
-%{set, {{media, Id}, Hp, Det, Time}} ->
-%	know about it
-%		yes ->
-%			{old queue mark, new queue mark}
-%				{inqueue, inqueue} ->
-%					no action;
-%				{inqueue, agent handling} ->
-%					mark as handled
-%		no ->
-%			in queue
-%				yes ->
-%					mark as queued;
-%				no ->
-%					
-%		
-%			no longer in queue
-%				yes ->
-%					mark it;
-%			still in queue ->
-%				update it
-%		no ->
-%			outbound ->
-%				add to outbound count;
-%			inbound ->
-%				queue stated ->
-%					mark as queued
-%	
-
-
 %% API
 -export([
 	start_link/1,
@@ -386,7 +346,7 @@ filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, handled}}) -
 					end
 			end
 	end;
-filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, Queued}}) when Queued =:= inqueue; Queued =:= qabandoned ->
+filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, Queued}}) when Queued =:= queued; Queued =:= qabandoned ->
 	#client{label = Client} = proplists:get_value(client, Details),
 	case list_member(Client, Filter#filter.clients) of
 		false ->
@@ -425,53 +385,6 @@ filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
 
 
 
-%
-%
-%
-%filter_row(#filter{agents = Agents, agent_profiles = Profs, clients = filtered}, {{media, _}, _, _, Details, {inbound, handled}}) ->
-%	Agent = proplists:get_value(agent, Details),
-%	case list_member(Agent, Agents) of
-%		false ->
-%			false;
-%		true ->
-%			case agent_auth:get_agent(Agent) of
-%				{atomic, [#agent_auth{profile = Prof}]} ->
-%					list_member(Prof, Profs);
-%				_ ->
-%					false
-%			end
-%	end;
-%filter_row(#filter{queues = Queues, queue_groups = Qgroups, clients = filtered}, {{media, _Id}, _Time, _Hp, Details, {inbound, Status}} = Row) ->
-%	InQueue = proplists:get_value(queue, Details),
-%	case list_member(InQueue, Queues) of
-%		false ->
-%			false;
-%		true ->
-%			case call_queue_config:get_queue(InQueue) of
-%				noexists ->
-%					false;
-%				#call_queue{group = Group} ->
-%					list_member(Group, Qgroups)
-%			end
-%	end;
-%filter_row(#filter{clients = Clients} = Filter, {{media, _Id}, _, _, Details, {inbound, Status}} = Row) ->
-%	#client{label = Client} = proplists:get_value(client, Details),
-%	case list_member(Client, Clients) of
-%		false ->
-%			false;
-%		true ->
-%			filter_row(Filter#filter{clients = filtered}, Row)
-%	end;
-%filter_row(#filter{agents = Agents, agent_profiles = AgentProfs}, {{agent, Id}, _Time, _Hp, Details, _History}) ->
-%	case list_member(Id, Agents) of
-%		false ->
-%			false;
-%		true ->
-%			Prof = proplists:get_value(profile, Details),
-%			list_member(Prof, AgentProfs)
-%	end.
-%	
-%	
 
 
 
@@ -709,14 +622,14 @@ filter_row_test_() ->
 			label = "client2"
 		},
 		Rows = [
-			{{media, "media-c1-q1"}, 5, [], [{queue, "queue1"}, {client, Client1}], {inbound, inqueue}},
-			{{media, "media-c1-q2"}, 5, [], [{queue, "queue2"}, {client, Client1}], {inbound, inqueue}},
-			{{media, "media-c1-q3"}, 5, [], [{queue, "queue3"}, {client, Client1}], {inbound, inqueue}},
-			{{media, "media-c1-q4"}, 5, [], [{queue, "queue4"}, {client, Client1}], {inbound, inqueue}},
-			{{media, "media-c2-q1"}, 5, [], [{queue, "queue1"}, {client, Client2}], {inbound, inqueue}},
-			{{media, "media-c2-q2"}, 5, [], [{queue, "queue2"}, {client, Client2}], {inbound, inqueue}},
-			{{media, "media-c2-q3"}, 5, [], [{queue, "queue3"}, {client, Client2}], {inbound, inqueue}},
-			{{media, "media-c2-q4"}, 5, [], [{queue, "queue4"}, {client, Client2}], {inbound, inqueue}},
+			{{media, "media-c1-q1"}, 5, [], [{queue, "queue1"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c1-q2"}, 5, [], [{queue, "queue2"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c1-q3"}, 5, [], [{queue, "queue3"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c1-q4"}, 5, [], [{queue, "queue4"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c2-q1"}, 5, [], [{queue, "queue1"}, {client, Client2}], {inbound, queued}},
+			{{media, "media-c2-q2"}, 5, [], [{queue, "queue2"}, {client, Client2}], {inbound, queued}},
+			{{media, "media-c2-q3"}, 5, [], [{queue, "queue3"}, {client, Client2}], {inbound, queued}},
+			{{media, "media-c2-q4"}, 5, [], [{queue, "queue4"}, {client, Client2}], {inbound, queued}},
 			{{media, "media-c1-a1"}, 5, [], [{agent, "agent1"}, {client, Client1}], {inbound, handled}},
 			{{media, "media-c2-a2"}, 5, [], [{agent, "agent2"}, {client, Client2}], {inbound, handled}},
 			{{agent, "agent1"}, 5, [], [{profile, "profile1"}], undefined},

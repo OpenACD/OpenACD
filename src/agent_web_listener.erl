@@ -557,6 +557,8 @@ parse_path(Path) ->
 							{file, {string:strip(Path, left, $/), "www/agent/"}};
 						{false, true} ->
 							{file, {string:strip(Path, left, $/), "www/contrib/"}};
+						{true, true} ->
+							{file, {string:strip(Path, left, $/), "www/contrib/"}};
 						{false, false} ->
 							{api, {undefined, Path}}
 					end

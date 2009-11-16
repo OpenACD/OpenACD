@@ -94,7 +94,6 @@
 	%callrec = undefined :: #call{} | 'undefined',
 	cook :: pid() | 'undefined',
 	queue :: string() | 'undefined',
-	queue_pid :: pid() | 'undefined',
 	cnode :: atom(),
 	agent :: string() | 'undefined',
 	agent_pid :: pid() | 'undefined',
@@ -103,7 +102,8 @@
 	voicemail = false :: 'false' | string(),
 	xferchannel :: pid() | 'undefined',
 	xferuuid :: string() | 'undefined',
-	in_control = false :: bool()
+	in_control = false :: bool(),
+	queued = false :: bool()
 	}).
 
 -type(state() :: #state{}).
@@ -319,11 +319,11 @@ handle_wrapup(_Call, State) ->
 	
 handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
 	freeswitch:api(Fnode, uuid_park, Call#call.id),
-	% play musique d'attente
-	freeswitch:sendmsg(Fnode, Call#call.id,
-		[{"call-command", "execute"},
-			{"execute-app-name", "playback"},
-			{"execute-app-arg", "local_stream://moh"}]),
+	% play musique d'attente (actually, don't because it's already running from before)
+	%freeswitch:sendmsg(Fnode, Call#call.id,
+		%[{"call-command", "execute"},
+			%{"execute-app-name", "playback"},
+			%{"execute-app-arg", "local_stream://moh"}]),
 	{ok, State}.
 
 %%--------------------------------------------------------------------
@@ -365,8 +365,6 @@ handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
 %	end;
 handle_call(get_call, _From, Call, State) ->
 	{reply, Call, State};
-handle_call(get_queue, _From, _Call, State) ->
-	{reply, State#state.queue_pid, State};
 handle_call(get_agent, _From, _Call, State) ->
 	{reply, State#state.agent_pid, State};
 handle_call({set_agent, Agent, Apid}, _From, _Call, State) ->
@@ -469,8 +467,8 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 	?DEBUG("Event:  ~p;  UUID:  ~p", [Ename, UUID]),
 	case Ename of
 		"CHANNEL_PARK" ->
-			case State#state.queue_pid of
-				undefined ->
+			case State#state.queued of
+				false ->
 					Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 					Client = proplists:get_value("variable_brand", Rawcall),
 					P = proplists:get_value("variable_queue_priority", Rawcall, integer_to_list(?DEFAULT_PRIORITY)),
@@ -491,13 +489,12 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 							{"execute-app-name", "playback"},
 							{"execute-app-arg", "local_stream://moh"}]),
 						%% tell gen_media to (finally) queue the media
-					{queue, Queue, NewCall, State#state{queue = Queue}};
+					{queue, Queue, NewCall, State#state{queue = Queue, queued=true}};
 				_Otherwise ->
 					{noreply, State}
 			end;
 		"CHANNEL_HANGUP" ->
 			?DEBUG("Channel hangup", []),
-			Qpid = State#state.queue_pid,
 			Apid = State#state.agent_pid,
 			case Apid of
 				undefined ->
@@ -518,14 +515,6 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					end,
 					State2 = State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}
 			end,
-			case Qpid of
-				undefined ->
-					?WARNING("Queue undefined", []),
-					State3 = State2#state{agent = undefined, agent_pid = undefined};
-				_Else ->
-					%call_queue:remove(Qpid, self()),
-					State3 = State2#state{queue = undefined, queue_pid = undefined}
-			end,
 			case State#state.voicemail of
 				false -> % no voicemail
 					ok;
@@ -538,7 +527,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 							?NOTICE("~s hungup without leaving a voicemail", [UUID])
 					end
 			end,
-			{hangup, State3};
+			{hangup, State2};
 		"CHANNEL_DESTROY" ->
 			?DEBUG("Last message this will recieve, channel destroy", []),
 			{stop, normal, State};
@@ -571,8 +560,6 @@ get_info(Cnode, UUID) ->
 				[Key, Value] = util:string_split(String, ": ", 2),
 				[{Key, Value} | Acc]
 		end, [], util:string_split(Result, "\n")),
-
-	?NOTICE("~p", [Proplist]),
 
 	Priority = try list_to_integer(proplists:get_value("variable_queue_priority", Proplist, "")) of
 		Pri -> Pri

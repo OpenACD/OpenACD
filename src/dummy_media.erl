@@ -103,6 +103,8 @@
 %% API
 %%====================================================================
 -spec(start_link/1 :: (Props :: [any()]) -> {'ok', pid()}).
+start_link([]) ->
+	start_link([], success);
 start_link([H | _Tail] = Props) when is_tuple(H) ->
 	start_link(Props, success);
 start_link(Callid) ->

@@ -139,7 +139,10 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		{IType, _ } -> atom_to_list(IType)
 	end,
 
-	%[LastState | _] = lists:filter(fun(#cdr_raw{transaction = T2}) -> T2 =:= abandonqueue orelese T2 =:= abandonivr end, T),
+	LastState = lists:foldl(
+		fun(#cdr_raw{transaction = T2}, Acc) when T2 == abandonqueue; T2 == abandonivr -> T2;
+		(_, Acc) -> Acc
+	end, hangup, T),
 
 	[First | _] = T,
 	[Last | _] = lists:reverse(T),
@@ -167,8 +170,6 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 			Brandid = 0
 	end,
 
-	%?WARNING("agent is ~p", [Agent]),
-
 	AgentID = case agent_auth:get_agent(Agent) of
 		{atomic, [Rec]} when is_tuple(Rec) ->
 			list_to_integer(element(2, Rec));
@@ -176,11 +177,8 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 			0
 	end,
 
-
-	?WARNING("callid is ~p", [Media#call.id]),
-
 	Query = io_lib:format("INSERT INTO billing_summaries set UniqueID='~s',
-		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~B', LastQueue='~s';", [
+		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~B', LastQueue='~s', LastState=~B;", [
 		Media#call.id,
 		Tenantid,
 		Brandid,
@@ -191,12 +189,13 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		Wrapup,
 		Type,
 		AgentID,
-		Queue]),
+		Queue,
+		cdr_transaction_to_integer(LastState)
+	]),
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
 		{error, Reason} ->
 			{error, Reason};
 		Else ->
-			%?NOTICE ("SQL query result: ~p", [Else]),
 			{ok, State}
 	end.
 

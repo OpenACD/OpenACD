@@ -42,7 +42,7 @@
 						return true;
 					}
 					
-					console.log(resp.message);
+					errMessage(resp.message);
 				}
 			})
 		</script>
@@ -57,7 +57,7 @@
 					if(resp.success){
 						return true;
 					}
-					console.log(resp.message);
+					errMessage(resp.message);
 				}
 			});
 		</script>
@@ -145,9 +145,7 @@
 					if(resp.success){
 						return true;
 					}
-					else{
-						console.log(resp.message);
-					}
+					errMessage(resp.message);
 				}
 			});
 		</script>

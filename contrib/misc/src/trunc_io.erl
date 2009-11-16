@@ -30,6 +30,8 @@
 -export([perf/0, perf/3, perf1/0, test/0, test/2]). % testing functions
 -version("$Id: trunc_io.erl,v 1.11 2009-02-23 12:01:06 matthias Exp $").
 
+-define(DQ, $\"). %"
+
 format(String, Args, Max) ->
 	Parts = re:split(String,
 		"(~(?:-??\\d+\\.|\\*\\.|)(?:-??\d+\\.|\\*\\.|)(?:-??\\d+|\\*|)(?:t|)(?:[cfegswpWPBX#bx+ni]))",
@@ -196,7 +198,7 @@ alist_start([], _) -> {"[]", 2};
 alist_start(_, Max) when Max < 4 -> {"...", 3};
 alist_start([H|T], Max) when H >= 16#20, H =< 16#7e ->  % definitely printable
     {L, Len} = alist([H|T], Max-1),
-    {[$\"|L], Len + 1};
+    {[?DQ|L], Len + 1};
 alist_start([H|T], Max) when H == 9; H == 10; H == 13 ->   % show as space
     {L, Len} = alist(T, Max-1),
     {[$ |L], Len + 1};
@@ -214,7 +216,7 @@ alist([H|T], Max) when H == 9; H == 10; H == 13 ->   % show as space
     {[$ |L], Len + 1};
 alist(L, Max) ->
     {R, Len} = list_body(L, Max-3),
-    {[$\", $[, R, $]], Len + 3}.
+    {[?DQ, $[, R, $]], Len + 3}.
 
 
 %%--------------------

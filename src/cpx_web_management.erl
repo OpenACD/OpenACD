@@ -927,7 +927,7 @@ api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, Post) ->
 	{200, [], mochijson2:encode(Json)};
 api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
-	?WARNING("post:  ~p", [Post]),
+	%?DEBUG("post:  ~p", [Post]),
 	Conf = #cpx_conf{
 		id = gen_cdr_dumper,
 		module_name = gen_cdr_dumper,
@@ -938,7 +938,7 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 	Json = case proplists:get_value("dumper", Post) of
 		"null" ->
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [gen_cdr_dumper, Conf]) of
-				{atomic, ok} ->
+				{atomic, {ok, _Pid}} ->
 					{struct, [{success, true}]};
 				Else ->
 					?WARNING("gen_cdr_dumper update:  ~p", [Else]),
@@ -963,7 +963,7 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 			end,
 			Args = lists:append([Cdrfile, AgentFile]),
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [gen_cdr_dumper, Conf#cpx_conf{start_args = [cdr_csv, Args]}]) of
-				{atomic, ok} ->
+				{atomic, {ok, Pid}} ->
 					{struct, [{success, true}]};
 				CsvRpcElse ->
 					?WARNING("gen_cdr_dumper update:  ~p", [CsvRpcElse]),
@@ -978,7 +978,7 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 			end,
 			Args = [proplists:get_value("dsn", Post), Options],
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [gen_cdr_dumper, Conf#cpx_conf{start_args = [cdr_odbc, Args]}]) of
-				{atomic, ok} ->
+				{atomic, {ok, Pid}} ->
 					{struct, [{success, true}]};
 				Else ->
 					?WARNING("gen_cdr_dumper update:  ~p", [Else]),
@@ -1146,7 +1146,7 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 				start_args = [Cleanedpost]
 			},
 			Json = case rpc:call(Atomnode, cpx_supervisor, update_conf, [email_media_manager, Conf], 2000) of
-				{atomic, ok} ->
+				{atomic, {ok, _Pid}} ->
 					{struct, [{success, true}]};
 				Error ->
 					?WARNING("Could not update the conf on ~p due to ~p", [Atomnode, Error]),

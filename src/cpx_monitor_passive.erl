@@ -533,16 +533,146 @@ filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
 			end
 	end.
 
+write_output(#filter{state = FilterState, file_output = Fileout}) ->
+	Inbound = [X || {_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == inbound],
+	Outbound = [X || {_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == outbound],
+	Abandoned = [X || {_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == inbound, element(2, Hkey) == qabandoned orelse element(2, Hkey) == ivrabandoned],
+	ClientsJson = client_to_json(FilterState#filter_state.clients),
+	QueuegroupJson = queuegroups_to_json(FilterState#filter_state.queue_groups),
+	AgentProfsJson = agentprofs_to_json(FilterState#filter_state.agent_profiles),
+	Json = {struct, [
+		{<<"totalInbound">>, length(Inbound)},
+		{<<"totalOutbound">>, length(Outbound)},
+		{<<"totalAbandoned">>, length(Abandoned)},
+		{<<"clients_in_queues">>, ClientsJson},
+		{<<"queueGroups">>, QueuegroupJson},
+		{<<"agentProfiles">>, AgentProfsJson}
+	]},
+	Out = mochijson2:encode(Json),
+	{ok, File} = file:open(Fileout, [write, binary]),
+	file:write(File, Out).	
+	
+client_to_json(Clients) ->
+	client_to_json(Clients, []).
 
+client_to_json([], Acc) ->
+	lists:reverse(Acc);
+client_to_json([{Client, Rows} | Tail], Acc) ->
+	{OldestTime, Mediaslist} = medias_to_json(Rows),
+	Newhead = {struct, [
+		{<<"client">>, list_to_binary(Client)},
+		{<<"oldest">>, OldestTime},
+		{<<"medias">>, Mediaslist}
+	]},
+	client_to_json(Tail, [Newhead | Acc]).
 
+medias_to_json([Head | _] = Rows) ->
+	Time = element(2, Head),
+	medias_to_json(Rows, {Time, []}).
 
+medias_to_json([], {Time, Acc}) ->
+	{Time, lists:reverse(Acc)};
+medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTime, Acc}) ->
+	Newtime = case Time < CurTime of
+		true ->
+			Time;
+		false ->
+			CurTime
+	end,
+	NewHead = {struct, [
+		{<<"id">>, list_to_binary(Id)},
+		{<<"time">>, Time},
+		{<<"node">>, proplists:get_value(node, Details)},
+		{<<"type">>, proplists:get_value(type, Details)}
+	]},
+	medias_to_json(Tail, {Newtime, [NewHead | Acc]}).
 
+queuegroups_to_json(Rows) ->
+	queuegroups_to_json(Rows, []).
 
+queuegroups_to_json([], Acc) ->
+	lists:reverse(Acc);
+queuegroups_to_json([{Group, Queues} | Tail], Acc) ->
+	NewHead = {struct, [
+		{<<"name">>, list_to_binary(Group)},
+		{<<"queues">>, queues_to_json(Queues)}
+	]},
+	queuegroups_to_json(Tail, [NewHead | Acc]).
 
+queues_to_json(Rows) ->
+	queues_to_json(Rows, []).
+	
+queues_to_json([], Acc) ->
+	lists:reverse(Acc);
+queues_to_json([{Queue, Medias} | Tail], Acc) ->
+	{Oldest, Media} = medias_to_json(Medias),
+	NewHead = {struct, [
+		{<<"name">>, list_to_binary(Queue)},
+		{<<"oldest">>, Oldest},
+		{<<"medias">>, Media}
+	]},
+	queues_to_json(Tail, [NewHead | Acc]).
 
-write_output(Filter) ->
-	ok.
-%
+agentprofs_to_json(Rows) ->
+	agentprofs_to_json(Rows, []).
+
+agentprofs_to_json([], Acc) ->
+	lists:reverse(Acc);
+agentprofs_to_json([{Prof, Agents} | Tail], Acc) ->
+	{Avail, Rel, Busy, Agents} = agents_to_json(Agents),
+	NewHead = {struct, [
+		{<<"available">>, Avail},
+		{<<"released">>, Rel},
+		{<<"incall">>, Busy},
+		{<<"agents">>, Agents}
+	]},
+	agentprofs_to_json(Tail, [NewHead | Acc]).
+
+agents_to_json(Rows) ->
+	agents_to_json(Rows, {0, 0, 0}, []).
+
+agents_to_json([], {Avail, Rel, Busy}, Acc) ->
+	{Avail, Rel, Busy, lists:reverse(Acc)};
+agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, Rel, Busy}, Acc) ->
+	{Newcounts, State, Statedata} = case {proplists:get_value(state, Details), proplists:get_value(statedata, Details)} of
+		{idle, {}} ->
+			{{Avail + 1, Rel, Busy}, idle, false};
+		{released, {Id, default, Bias}} ->
+			Data = {struct, [
+				{<<"id">>, list_to_binary(Id)},
+				{<<"label">>, default},
+				{<<"bias">>, Bias}
+			]},
+			{{Avail, Rel + 1, Busy}, released, Data};
+		{released, {Id, Label, Bias}} ->
+			Data = {struct, [
+				{<<"id">>, list_to_binary(Id)},
+				{<<"label">>, list_to_binary(Label)},
+				{<<"bias">>, Bias}
+			]},
+			{{Avail, Rel + 1, Busy}, released, Data};
+		{Statename, #call{client = Client} = Media} ->
+			Data = {struct, [
+				{<<"client">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
+				{<<"mediaType">>, Media#call.type}	
+			]},
+			{{Avail, Rel, Busy + 1}, Statename, Data};
+		{Statename, _Otherdata} ->
+			{{Avail, Rel, Busy + 1}, Statename, false}
+	end,
+	NewHead = {struct, [
+		{<<"id">>, list_to_binary(Id)},
+		{<<"login">>, list_to_binary(proplists:get_value(login, Details))},
+		{<<"lastchangetimestampe">>, begin {Mega, Sec, _} = proplists:get_value(lastchangetimestamp, Details), Mega * 1000000 + Sec end},
+		{<<"state">>, State},
+		{<<"stateData">>, Statedata}
+	]},
+	agents_to_json(Tail, Newcounts, [NewHead | Acc]).
+	
+	
+
+	
+	
 %	QH = qlc:q([Row || Row <- dets:table(?DETS), filter_row(Filter, Row)]),
 %	Rows = qlc:e(QH),
 %	Loopstate = {[], [], []}, % clients_in_queues, agent_profiles, queue_groups
@@ -653,183 +783,183 @@ proplists_replace(Key, Value, List) ->
 %			proplists_replace(Key, drop_path(Path, Else), Proplist)
 %	end.
 	
-	
-create_queued_clients(Medias) ->
-	?DEBUG("Medias:  ~p", [Medias]),
-	create_queued_clients(Medias, []).
-
-create_queued_clients([], Acc) ->
-	?DEBUG("clients faking queues:  ~p", [Acc]),
-	Acc;
-create_queued_clients([{{media, Id}, _Hp, Det} = Head | Tail], Acc) ->
-	case proplists:get_value(queue, Det) of
-		undefined ->
-			create_queued_clients(Tail, Acc);
-		_Else ->
-			#client{label = Client} = proplists:get_value(client, Det),
-			{Othermeds, Midacc} = case proplists:get_value(Client, Acc) of
-				undefined ->
-					{[], Acc};
-				List ->
-					{List, proplists:delete(Client, Acc)}
-			end,
-			NewAcc = [{Client, [{Id, Head} | Othermeds]} | Midacc],
-			create_queued_clients(Tail, NewAcc)
-	end.
-
-filter_medias(Medias, Filter) ->
-	filter_medias(Medias, Filter, []).
-
-filter_medias([], _, Acc) ->
-	Acc;
-filter_medias([{Id, {{media, Id}, _Hp, Det} = Entry} | Tail], Filter, Acc) ->
-	Queue = proplists:get_value(queue, Det),
-	#call_queue{group = Group} = call_queue_config:get_queue(Queue),
-	#client{label = Client} = proplists:get_value(client, Det),
-	case {list_member(Queue, Filter#filter.queues), list_member(Group, Filter#filter.queue_groups), list_member(Client, Filter#filter.clients)} of
-		{true, true, true} ->
-			Midsub = proplists:get_value(Client, Acc, []),
-			Newsubs = [{Id, Entry} | Midsub],
-			Newacc = proplists_replace(Client, Newsubs, Acc),
-			filter_medias(Tail, Filter, Newacc);
-		Else ->
-			?DEBUG("media filtered out:  ~p", [Else]),
-			filter_medias(Tail, Filter, Acc)
-	end;
-filter_medias([{Client, Medias} | Tail], Filter, Acc) ->
-	case list_member(Client, Filter#filter.clients) of
-		true ->
-			Newsub = filter_medias(Medias, Filter, Acc),
-			Newacc = [{Client, Newsub} | Acc],
-			filter_medias(Tail, Filter, Newacc);
-		false ->
-			?DEBUG("media filtered out at client level", []),
-			filter_medias(Tail, Filter, Acc)
-	end.
-
-filter_agents(List, Filter) ->
-	filter_agents(List, Filter, []).
-
-filter_agents([], _, Acc) ->
-	Acc;
-filter_agents([{Id, {{agent, Id}, _Hp, Det} = Entry} | Tail], Filter, Acc) ->
-	Login = proplists:get_value(login, Det),
-	case list_member(Login, Filter#filter.agents) of
-		true ->
-			filter_agents(Tail, Filter, [{Id, Entry} | Acc]);
-		false ->
-			filter_agents(Tail, Filter, Acc)
-	end;
-filter_agents([{Profile, Agents} | Tail], Filter, Acc) ->
-	case list_member(Profile, Filter#filter.agent_profiles) of
-		true ->
-			Newsub = filter_agents(Agents, Filter, []),
-			Newacc = [{Profile, Newsub} | Acc],
-			filter_agents(Tail, Filter, Newacc);
-		false ->
-			filter_agents(Tail, Filter, Acc)
-	end.
-
-clients_queued_to_json(List) ->
-	clients_queued_to_json(List, []).
-
-clients_queued_to_json([], Acc) ->
-	Acc;
-clients_queued_to_json([{Id, {{media, Id}, _, Det}} | Tail], Acc) ->
-	Age = proplists:get_value(queued_at, Det),
-	Json = {struct, [
-		{<<"id">>, list_to_binary(Id)},
-		{<<"queued_at">>, Age}
-	]},
-	clients_queued_to_json(Tail, [Json | Acc]);
-clients_queued_to_json([{Client, Medias} | Tail], Acc) ->
-	Cbin = case Client of
-		undefined ->
-			undefined;
-		_Else ->
-			list_to_binary(Client)
-	end,
-	Jmedia = clients_queued_to_json(Medias, []),
-	Json = {struct, [
-		{<<"client">>, Cbin},
-		{<<"medias">>, Jmedia}
-	]},
-	clients_queued_to_json(Tail, [Json | Acc]).
-
-sort_agents(Agents) ->
-	sort_agents(Agents, []).
-
-sort_agents([], Acc) ->
-	?DEBUG("Sorted agents:  ~p", [Acc]),
-	Acc;
-sort_agents([{{agent, Id}, _Hp, Det} = Head | Tail], Acc) ->
-	Login = proplists:get_value(login, Det),
-	Prof = proplists:get_value(profile, Det),
-	{Proflist, Midacc} = case proplists:get_value(Prof, Acc) of
-		undefined ->
-			{[], Acc};
-		List ->
-			{List, proplists:delete(Prof, Acc)}
-	end,
-	NewAcc = [{Prof, [{Id, Head} | Proflist]} | Midacc],
-	sort_agents(Tail, NewAcc).
-
-agent_profs_to_json(List) ->
-	agent_profs_to_json(List, []).
-	
-agent_profs_to_json([], Acc) ->
-	Acc;
-agent_profs_to_json([{Profname, Agents} | Tail], Acc) ->
-	JsonAgents = agents_to_json(Agents),
-	Json = {struct, [
-		{<<"name">>, list_to_binary(Profname)},
-		{<<"agents">>, JsonAgents}
-	]},
-	NewAcc = [Json | Acc],
-	agent_profs_to_json(Tail, NewAcc).
-	
-agents_to_json(Agents) ->
-	agents_to_json(Agents, []).
-
-agents_to_json([], Acc) ->
-	Acc;
-agents_to_json([{_, {_, _, Det}} | Tail], Acc) ->
-	Login = proplists:get_value(login, Det),
-	Lastchange = begin
-		{Mega, Sec, _} = proplists:get_value(lastchangetimestamp, Det),
-		Mega * 1000000 + Sec
-	end,
-	{State, Statedata} = case {proplists:get_value(state, Det), proplists:get_value(statedata, Det)} of
-		{released, {"default", default, -1}} ->
-			{released, {struct, [
-				{<<"id">>, default},
-				{<<"label">>, default},
-				{<<"bias">>, -1}
-			]}};
-		{released, {Id, Reason, Bias}} ->
-			{released, {struct, [
-				{<<"id">>, list_to_binary(Id)},
-				{<<"label">>, list_to_binary(Reason)},
-				{<<"bias">>, Bias}
-			]}};
-		{idle, {}} ->
-			{idle, false};
-		{Statename, #call{client = Client}} ->
-			Cbin = case Client#client.label of
-				undefined ->
-					undefined;
-				_Else ->
-					list_to_binary(Client#client.label)
-			end,
-			{Statename, Cbin}
-	end,
-	Json = {struct, [
-		{<<"login">>, list_to_binary(Login)},
-		{<<"lastchangetimestamp">>, Lastchange},
-		{<<"state">>, State},
-		{<<"statedata">>, Statedata}
-	]},
-	agents_to_json(Tail, [Json | Acc]).
+	%
+%create_queued_clients(Medias) ->
+%	?DEBUG("Medias:  ~p", [Medias]),
+%	create_queued_clients(Medias, []).
+%
+%create_queued_clients([], Acc) ->
+%	?DEBUG("clients faking queues:  ~p", [Acc]),
+%	Acc;
+%create_queued_clients([{{media, Id}, _Hp, Det} = Head | Tail], Acc) ->
+%	case proplists:get_value(queue, Det) of
+%		undefined ->
+%			create_queued_clients(Tail, Acc);
+%		_Else ->
+%			#client{label = Client} = proplists:get_value(client, Det),
+%			{Othermeds, Midacc} = case proplists:get_value(Client, Acc) of
+%				undefined ->
+%					{[], Acc};
+%				List ->
+%					{List, proplists:delete(Client, Acc)}
+%			end,
+%			NewAcc = [{Client, [{Id, Head} | Othermeds]} | Midacc],
+%			create_queued_clients(Tail, NewAcc)
+%	end.
+%
+%filter_medias(Medias, Filter) ->
+%	filter_medias(Medias, Filter, []).
+%
+%filter_medias([], _, Acc) ->
+%	Acc;
+%filter_medias([{Id, {{media, Id}, _Hp, Det} = Entry} | Tail], Filter, Acc) ->
+%	Queue = proplists:get_value(queue, Det),
+%	#call_queue{group = Group} = call_queue_config:get_queue(Queue),
+%	#client{label = Client} = proplists:get_value(client, Det),
+%	case {list_member(Queue, Filter#filter.queues), list_member(Group, Filter#filter.queue_groups), list_member(Client, Filter#filter.clients)} of
+%		{true, true, true} ->
+%			Midsub = proplists:get_value(Client, Acc, []),
+%			Newsubs = [{Id, Entry} | Midsub],
+%			Newacc = proplists_replace(Client, Newsubs, Acc),
+%			filter_medias(Tail, Filter, Newacc);
+%		Else ->
+%			?DEBUG("media filtered out:  ~p", [Else]),
+%			filter_medias(Tail, Filter, Acc)
+%	end;
+%filter_medias([{Client, Medias} | Tail], Filter, Acc) ->
+%	case list_member(Client, Filter#filter.clients) of
+%		true ->
+%			Newsub = filter_medias(Medias, Filter, Acc),
+%			Newacc = [{Client, Newsub} | Acc],
+%			filter_medias(Tail, Filter, Newacc);
+%		false ->
+%			?DEBUG("media filtered out at client level", []),
+%			filter_medias(Tail, Filter, Acc)
+%	end.
+%
+%filter_agents(List, Filter) ->
+%	filter_agents(List, Filter, []).
+%
+%filter_agents([], _, Acc) ->
+%	Acc;
+%filter_agents([{Id, {{agent, Id}, _Hp, Det} = Entry} | Tail], Filter, Acc) ->
+%	Login = proplists:get_value(login, Det),
+%	case list_member(Login, Filter#filter.agents) of
+%		true ->
+%			filter_agents(Tail, Filter, [{Id, Entry} | Acc]);
+%		false ->
+%			filter_agents(Tail, Filter, Acc)
+%	end;
+%filter_agents([{Profile, Agents} | Tail], Filter, Acc) ->
+%	case list_member(Profile, Filter#filter.agent_profiles) of
+%		true ->
+%			Newsub = filter_agents(Agents, Filter, []),
+%			Newacc = [{Profile, Newsub} | Acc],
+%			filter_agents(Tail, Filter, Newacc);
+%		false ->
+%			filter_agents(Tail, Filter, Acc)
+%	end.
+%
+%clients_queued_to_json(List) ->
+%	clients_queued_to_json(List, []).
+%
+%clients_queued_to_json([], Acc) ->
+%	Acc;
+%clients_queued_to_json([{Id, {{media, Id}, _, Det}} | Tail], Acc) ->
+%	Age = proplists:get_value(queued_at, Det),
+%	Json = {struct, [
+%		{<<"id">>, list_to_binary(Id)},
+%		{<<"queued_at">>, Age}
+%	]},
+%	clients_queued_to_json(Tail, [Json | Acc]);
+%clients_queued_to_json([{Client, Medias} | Tail], Acc) ->
+%	Cbin = case Client of
+%		undefined ->
+%			undefined;
+%		_Else ->
+%			list_to_binary(Client)
+%	end,
+%	Jmedia = clients_queued_to_json(Medias, []),
+%	Json = {struct, [
+%		{<<"client">>, Cbin},
+%		{<<"medias">>, Jmedia}
+%	]},
+%	clients_queued_to_json(Tail, [Json | Acc]).
+%
+%sort_agents(Agents) ->
+%	sort_agents(Agents, []).
+%
+%sort_agents([], Acc) ->
+%	?DEBUG("Sorted agents:  ~p", [Acc]),
+%	Acc;
+%sort_agents([{{agent, Id}, _Hp, Det} = Head | Tail], Acc) ->
+%	Login = proplists:get_value(login, Det),
+%	Prof = proplists:get_value(profile, Det),
+%	{Proflist, Midacc} = case proplists:get_value(Prof, Acc) of
+%		undefined ->
+%			{[], Acc};
+%		List ->
+%			{List, proplists:delete(Prof, Acc)}
+%	end,
+%	NewAcc = [{Prof, [{Id, Head} | Proflist]} | Midacc],
+%	sort_agents(Tail, NewAcc).
+%
+%agent_profs_to_json(List) ->
+%	agent_profs_to_json(List, []).
+%	
+%agent_profs_to_json([], Acc) ->
+%	Acc;
+%agent_profs_to_json([{Profname, Agents} | Tail], Acc) ->
+%	JsonAgents = agents_to_json(Agents),
+%	Json = {struct, [
+%		{<<"name">>, list_to_binary(Profname)},
+%		{<<"agents">>, JsonAgents}
+%	]},
+%	NewAcc = [Json | Acc],
+%	agent_profs_to_json(Tail, NewAcc).
+%	
+%agents_to_json(Agents) ->
+%	agents_to_json(Agents, []).
+%
+%agents_to_json([], Acc) ->
+%	Acc;
+%agents_to_json([{_, {_, _, Det}} | Tail], Acc) ->
+%	Login = proplists:get_value(login, Det),
+%	Lastchange = begin
+%		{Mega, Sec, _} = proplists:get_value(lastchangetimestamp, Det),
+%		Mega * 1000000 + Sec
+%	end,
+%	{State, Statedata} = case {proplists:get_value(state, Det), proplists:get_value(statedata, Det)} of
+%		{released, {"default", default, -1}} ->
+%			{released, {struct, [
+%				{<<"id">>, default},
+%				{<<"label">>, default},
+%				{<<"bias">>, -1}
+%			]}};
+%		{released, {Id, Reason, Bias}} ->
+%			{released, {struct, [
+%				{<<"id">>, list_to_binary(Id)},
+%				{<<"label">>, list_to_binary(Reason)},
+%				{<<"bias">>, Bias}
+%			]}};
+%		{idle, {}} ->
+%			{idle, false};
+%		{Statename, #call{client = Client}} ->
+%			Cbin = case Client#client.label of
+%				undefined ->
+%					undefined;
+%				_Else ->
+%					list_to_binary(Client#client.label)
+%			end,
+%			{Statename, Cbin}
+%	end,
+%	Json = {struct, [
+%		{<<"login">>, list_to_binary(Login)},
+%		{<<"lastchangetimestamp">>, Lastchange},
+%		{<<"state">>, State},
+%		{<<"statedata">>, Statedata}
+%	]},
+%	agents_to_json(Tail, [Json | Acc]).
 
 list_member(_Member, all) ->
 	true;
@@ -900,7 +1030,8 @@ filter_row_test_() ->
 				queues = all,
 				queue_groups = all,
 				agents = all,
-				agent_profiles = all
+				agent_profiles = all,
+				nodes = all
 			},
 			Out = lists:map(fun(R) -> filter_row(Filter, R) end, Rows),
 			?assert(lists:all(fun(In) -> In end, Out))
@@ -908,6 +1039,7 @@ filter_row_test_() ->
 		{"filter by client only",
 		fun() ->
 			Filter = #filter{
+				nodes = all,
 				clients = ["client1"],
 				queues = all,
 				queue_groups = all,
@@ -929,6 +1061,7 @@ filter_row_test_() ->
 		{"filter by queue only",
 		fun() ->
 			Filter = #filter{
+				nodes = all,
 				clients = all,
 				queues = ["queue1"],
 				queue_groups = all,
@@ -949,6 +1082,7 @@ filter_row_test_() ->
 		{"filter by queue group only",
 		fun() ->
 			Filter = #filter{
+				nodes = all,
 				clients = all,
 				queues = all,
 				queue_groups = ["queue_group1"],
@@ -971,6 +1105,7 @@ filter_row_test_() ->
 		{"filter by agent only",
 		fun() ->
 			Filter = #filter{
+				nodes = all,
 				clients = all,
 				queue_groups = all,
 				queues = all,
@@ -995,6 +1130,7 @@ filter_row_test_() ->
 		{"filter by agent_profile only",
 		fun() ->
 			Filter = #filter{
+				nodes = all,
 				clients = all,
 				queue_groups = all,
 				queues = all,
@@ -1019,6 +1155,7 @@ filter_row_test_() ->
 		{"filter by queues and client",
 		fun() ->
 			Filter = #filter{
+				nodes = all,
 				clients = ["client1"],
 				queue_groups = all,
 				queues = ["queue1"],
@@ -1037,6 +1174,7 @@ filter_row_test_() ->
 		{"filter by queues, client, and agent",
 		fun() ->
 			Filter = #filter{
+				nodes = all,
 				clients = ["client1"],
 				queue_groups = all,
 				queues = ["queue1"],

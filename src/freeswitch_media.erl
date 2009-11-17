@@ -477,9 +477,9 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					catch
 						error:badarg -> ?DEFAULT_PRIORITY
 					end,
-					Calleridname = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Name"),
-					Calleridnum = freeswitch:get_event_header(Rawcall, "Caller-Caller-ID-Number"),
-					NewCall = Callrec#call{client=Client, callerid=Calleridname++ " "++Calleridnum, priority = Priority},
+					Calleridname = proplists:get_value(Rawcall, "Caller-Caller-ID-Name", "Unknown"),
+					Calleridnum = proplists:get_value(Rawcall, "Caller-Caller-ID-Number", "Unknown"),
+					NewCall = Callrec#call{client=Client, callerid={Calleridname, Calleridnum}, priority = Priority},
 					freeswitch:sendmsg(State#state.cnode, UUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "answer"}]),

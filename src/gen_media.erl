@@ -519,6 +519,7 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = Ocpid} = Sta
 %	end;
 handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = Ocpid} = State) ->
 	?INFO("request to queue call from agent", []),
+	% TODO calls that were previously handled by an agent should get their priority bumped?
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
@@ -538,6 +539,7 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}}
 	end;
 handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = State) when is_pid(State#state.oncall_pid) ->
+	% TODO calls that were previously handled by an agent should get their priority bumped?
 	?INFO("Request to queue from ~p", [From]),
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->

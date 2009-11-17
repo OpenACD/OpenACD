@@ -531,12 +531,12 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 		"DTMF" ->
 			case proplists:get_value("DTMF-Digit", Rawcall) of
 				"*" ->
-					% TODO - allow the media to go to voicemail
-					?NOTICE("caller requested to go to voicemail", []);
+					% allow the media to go to voicemail
+					?NOTICE("caller requested to go to voicemail", []),
+					{voicemail, State};
 				_ ->
-					ok
-			end,
-			{noreply, State};
+					{noreply, State}
+			end;
 		{error, notfound} ->
 			?WARNING("event name not found: ~p", [freeswitch:get_event_header(Rawcall, "Content-Type")]),
 			{noreply, State};

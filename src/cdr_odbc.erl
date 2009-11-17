@@ -140,7 +140,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 	end,
 
 	LastState = lists:foldl(
-		fun(#cdr_raw{transaction = T2}, Acc) when T2 == abandonqueue; T2 == abandonivr -> T2;
+		fun(#cdr_raw{transaction = T2}, Acc) when T2 == abandonqueue; T2 == abandonivr; T2 == voicemail -> T2;
 		(_, Acc) -> Acc
 	end, hangup, T),
 
@@ -165,6 +165,16 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 					Transaction#cdr_raw.start,
 					Transaction#cdr_raw.start,
 					get_transaction_data(Transaction, CDR)]),
+			odbc:sql_query(State#state.ref, lists:flatten(Q));
+			(#cdr_raw{transaction = T} = Transaction) when T == abandonqueue ->
+				% store the last queue as the queue abandoned from
+				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
+					[Media#call.id,
+					cdr_transaction_to_integer(Transaction#cdr_raw.transaction),
+					Transaction#cdr_raw.start,
+					Transaction#cdr_raw.ended,
+					Queue
+					]),
 			odbc:sql_query(State#state.ref, lists:flatten(Q));
 			(Transaction) ->
 				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
@@ -281,7 +291,7 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= on
 		_ ->
 			"0"
 	end;
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= inqueue; T == precall; T == dialoutgoing  ->
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= inqueue; T == precall; T == dialoutgoing; T == voicemail ->
 	Transaction#cdr_raw.eventdata;
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= queue_transfer  ->
 	"queue " ++ Transaction#cdr_raw.eventdata;
@@ -296,6 +306,7 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= ag
 	"agent " ++ Agent;
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= abandonqueue  ->
 	% TODO - this should be the queue abandoned from, see related TODO in the cdr module
+	% this has been sorta resolved by a hack above
 	"";
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, #cdr_rec{media = Media} = CDR) when T =:= cdrinit  ->
 	case {Media#call.type, Media#call.direction} of

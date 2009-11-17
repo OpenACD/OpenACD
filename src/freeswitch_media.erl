@@ -528,6 +528,15 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 		"CHANNEL_DESTROY" ->
 			?DEBUG("Last message this will recieve, channel destroy", []),
 			{stop, normal, State};
+		"DTMF" ->
+			case proplists:get_value("DTMF-Digit", Rawcall) of
+				"*" ->
+					% TODO - allow the media to go to voicemail
+					?NOTICE("caller requested to go to voicemail", []);
+				_ ->
+					ok
+			end,
+			{noreply, State};
 		{error, notfound} ->
 			?WARNING("event name not found: ~p", [freeswitch:get_event_header(Rawcall, "Content-Type")]),
 			{noreply, State};

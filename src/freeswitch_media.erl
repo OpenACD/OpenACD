@@ -154,12 +154,8 @@ dump_state(Mpid) when is_pid(Mpid) ->
 init([Cnode, UUID]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	%{ok, DNIS} = freeswitch:api(Cnode, uuid_getvar, UUID++" destination_number"),
-	%freeswitch:handlecall(Cnode, UUID),
-	%{ok, Client} = freeswitch:api(Cnode, uuid_getvar, UUID++" brand"),
-	%{ok, Result} = freeswitch:api(Cnode, uuid_getvar_multi, UUID++" destination_number;brand;queue_priority"),
-	{DNIS, Client, Priority} = get_info(Cnode, UUID),
-	Call = #call{id = UUID, source = self(), client = Client, priority = Priority},
+	{DNIS, Client, Priority, CidName, CidNum} = get_info(Cnode, UUID),
+	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}},
 	{ok, {#state{cnode=Cnode, manager_pid = Manager}, Call, {inivr, [DNIS]}}}.
 
 handle_announce(Announcement, Callrec, State) ->
@@ -477,8 +473,9 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					catch
 						error:badarg -> ?DEFAULT_PRIORITY
 					end,
-					Calleridname = proplists:get_value(Rawcall, "Caller-Caller-ID-Name", "Unknown"),
-					Calleridnum = proplists:get_value(Rawcall, "Caller-Caller-ID-Number", "Unknown"),
+					?WARNING("proplist: ~p", [Rawcall]),
+					Calleridname = proplists:get_value("Caller-Caller-ID-Name", Rawcall, "Unknown"),
+					Calleridnum = proplists:get_value("Caller-Caller-ID-Number", Rawcall, "Unknown"),
 					NewCall = Callrec#call{client=Client, callerid={Calleridname, Calleridnum}, priority = Priority},
 					freeswitch:sendmsg(State#state.cnode, UUID,
 						[{"call-command", "execute"},
@@ -569,4 +566,7 @@ get_info(Cnode, UUID) ->
 	end,
 
 	{proplists:get_value("Caller-Destination-Number", Proplist, ""),
-		proplists:get_value("variable_brand", Proplist, ""), Priority}.
+		proplists:get_value("variable_brand", Proplist, ""), Priority,
+		proplists:get_value("Caller-Caller-ID-Name", Proplist, "Unknown"),
+		proplists:get_value("Caller-Caller-ID-Number", Proplist, "Unknown")
+	}.

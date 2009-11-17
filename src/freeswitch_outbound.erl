@@ -290,7 +290,8 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, gateway = Gateway
 			?ERROR("error:  ~p", [Error]),
 			{stop, bad_call, {error, Error}, State}
 	end,
-{reply, ok, State};
+	cdr:dialoutgoing(Call, Number),
+	{reply, ok, State};
 handle_call(Request, _From, _Call, State) ->
 	Reply = {unknown, Request},
 	{reply, Reply, State}.
@@ -365,7 +366,9 @@ handle_info({connect_uuid, Number}, #call{id = UUID} = Call, #state{cnode = Fnod
 			{stop, {error, Other}};
 		_Else ->
 			?NOTICE("starting for ~p", [UUID]),
-			{outbound, Agent, Call#call{callerid = Number}, State}
+			Client = Call#call.client,
+			% TODO we should set the client's callerid here (name /toll free number, etc)
+			{outbound, Agent, Call#call{callerid = {Client#client.label, Number}}, State}
 	end;
 handle_info(Info, _Call, State) ->
 	?DEBUG("unhandled info ~p", [Info]),

@@ -204,6 +204,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		{error, Reason} ->
 			{error, Reason};
 		_ ->
+			% TODO we're missing the dialed number here...
 			InfoQuery = io_lib:format("INSERT INTO call_info SET UniqueID='~s', TenantID=~B, BrandID=~B, DNIS=~s, CallType='~s', CallerIDNum='~s', CallerIDName='~s';", [
 				Media#call.id,
 				Tenantid,
@@ -267,7 +268,7 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= on
 		_ ->
 			"0"
 	end;
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= inqueue  ->
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= inqueue; T == precall; T == dialoutgoing  ->
 	Transaction#cdr_raw.eventdata;
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= queue_transfer  ->
 	"queue " ++ Transaction#cdr_raw.eventdata;

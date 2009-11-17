@@ -47,6 +47,7 @@
 	inivr/2,
 	precall/2,
 	inqueue/2,
+	dialoutgoing/2,
 	ringing/2,
 	oncall/2,
 	hangup/2,
@@ -124,12 +125,12 @@ cdrinit(Call) ->
 			error
 	end.
 	
-%% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
+%% @doc Notify cdr handler that `#call{} Call' is now in IVR for `string() DNIS'.
 -spec(inivr/2 :: (Call :: #call{}, DNIS :: string()) -> 'ok').
 inivr(Call, DNIS) ->
 	event({inivr, Call, util:now(), DNIS}).
 
-%% @doc Notify cdr handler that `#call{} Call' is now in queue `string() Queue'.
+%% @doc Notify cdr handler that `#call{} Call' is now in precall for `string() Client'.
 -spec(precall/2 :: (Call :: #call{}, Client :: string()) -> 'ok').
 precall(Call, Client) ->
 	event({precall, Call, util:now(), Client}).
@@ -138,6 +139,11 @@ precall(Call, Client) ->
 -spec(inqueue/2 :: (Call :: #call{}, Queue :: string()) -> 'ok').
 inqueue(Call, Queue) ->
 	event({inqueue, Call, util:now(), Queue}).
+
+%% @doc Notify cdr handler that `#call{} Call' is now is dialing outbound to `string() Number'.
+-spec(dialoutgoing/2 :: (Call :: #call{}, Number :: string()) -> 'ok').
+dialoutgoing(Call, Number) ->
+	event({dialoutgoing, Call, util:now(), Number}).
 
 %% @doc Notify cdr handler that `#call{} Call' is now ringing to `string() Agent'.
 -spec(ringing/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').

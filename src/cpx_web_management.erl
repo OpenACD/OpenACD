@@ -861,7 +861,8 @@ api({medias, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
 					{queue_groups, SetFilter(proplists:get_value(<<"queue_groups">>, Props))},
 					{agents, SetFilter(proplists:get_value(<<"agents">>, Props))},
 					{agent_profiles, SetFilter(proplists:get_value(<<"agent_profiles">>, Props))},
-					{clients, SetFilter(proplists:get_value(<<"clients">>, Props))}
+					{clients, SetFilter(proplists:get_value(<<"clients">>, Props))},
+					{nodes, case SetFilter(proplists:get_value(<<"nodes">>, Props)) of all -> all; List -> lists:map(fun(I) -> list_to_existing_atom(I) end, List) end}
 				]}
 			end,
 			Filters = lists:map(Convert, Decoded),
@@ -994,7 +995,17 @@ api({medias, Node, "cpx_monitor_passive", "get"}, ?COOKIE, Post) ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}]})};
 		#cpx_conf{start_args = Args} = Conf ->
 			Protofilters = proplists:get_value(outputs, Args, []),
-			Fixfilterlist = fun(all) -> all; (List) -> lists:map(fun(I) -> list_to_binary(I) end, List) end,
+			Fixfilterlist = fun
+				(all) -> 
+					all; 
+				(List) -> 
+					lists:map(fun
+						(I) when is_atom(I) ->
+							I;
+						(I) -> 
+							list_to_binary(I) 
+					end, List) 
+			end,
 			Fixfilter = fun({Name, Options}) ->
 				{struct, [
 					{<<"name">>, list_to_binary(Name)},
@@ -1003,6 +1014,7 @@ api({medias, Node, "cpx_monitor_passive", "get"}, ?COOKIE, Post) ->
 					{<<"agents">>, Fixfilterlist(proplists:get_value(agents, Options, all))},
 					{<<"agent_profiles">>, Fixfilterlist(proplists:get_value(agent_profiles, Options, all))},
 					{<<"clients">>, Fixfilterlist(proplists:get_value(clients, Options, all))},
+					{<<"nodes">>< Fixfilterlist(proplists:get_value(nodes, Options, all))},
 					{<<"outputdir">>, list_to_binary(proplists:get_value(file_output, Options, "./"))}
 				]}
 			end,

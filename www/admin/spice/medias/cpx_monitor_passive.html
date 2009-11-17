@@ -19,6 +19,7 @@
 					'agents':'all',
 					'agent_profiles':'all',
 					'clients':'all',
+					'nodes':'all',
 					'outputdir':'dynamic'
 				});
 				dijit.byId('cpx_monitor_passive_grid').store.save();
@@ -59,7 +60,8 @@
 							{field: 'queue_groups', name: 'Queue Groups', width: '150px', editable: true},
 							{field: 'agents', name: 'Agents', width: '150px', editable: true},
 							{field: 'agent_profiles', name: 'Agent Profiles', width: '150px', editable: true},
-							{field: 'clients', name: 'Clients', width: '150px', editable: true}
+							{field: 'clients', name: 'Clients', width: '150px', editable: true},
+							{field: 'nodes', name: 'Nodes', width: '140px', editable: true}
 						]
 					}, dojo.byId('cpx_monitor_passive_grid'));
 					mapGrid.startup();
@@ -131,6 +133,7 @@
 						'agents': makeList(store.getValue(item, 'agents')),
 						'agent_profiles': makeList(store.getValue(item, 'agent_profiles')),
 						'clients': makeList(store.getValue(item, 'clients')),
+						'nodes': makeList(store.getValue(item, 'nodes')),
 						'outputdir': store.getValue(item, 'outputdir')
 					}
 					items[i] = obj;

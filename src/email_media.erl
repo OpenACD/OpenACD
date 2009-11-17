@@ -202,9 +202,14 @@ init(Args) ->
 	{Skeleton, Files} = skeletonize(Mimed),
 	Callerid = case proplists:get_value(<<"From">>, Mheads) of
 		undefined -> 
-			"unknown";
+			{"Unknown", "Unknown"};
 		Else ->
-			binary_to_list(Else)
+			case re:run(Else, "(?:(.+) |)<([-a-zA-Z0-9._@]+)>", [{capture, all_but_first, list}]) of
+				{match, [Name, Number]} ->
+					{Name, Number};
+				nomatch ->
+					{"Unknown", binary_to_list(Else)}
+			end
 	end,
 	Ref = erlang:ref_to_list(make_ref()),
 	Refstr = util:bin_to_hexstr(erlang:md5(Ref)),

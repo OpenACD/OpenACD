@@ -214,6 +214,14 @@
 %%		the agent at pid() is already in precall state.  If The agent can be set
 %%		to outgoing, it will be.  Execution continues on with NewState.
 %%
+%%	{voicemail, NewState}
+%%		types:	NewState = any()
+%%
+%%		This result is valid only if the call is queued.  Removes the media from
+%%		queue and stops ringing to an agent it is.  Assumes the media has already
+%%		done what it needs to for a voicemail.  If done in a handle_call, the
+%%		reply is 'ok'.
+%%
 %%	{Agentaction, NewState}
 %%	{Agentaction, Reply, NewState}
 %%		types:	Agentaction = stop_ring | wrapup | hangup | 
@@ -622,14 +630,15 @@ handle_call('$gen_media_voicemail', _From, #state{callback = Callback} = State) 
 		true ->
 			case  Callback:handle_voicemail(State#state.ring_pid, State#state.callrec, State#state.substate) of
 				{ok, Substate} ->
-					call_queue:remove(State#state.queue_pid, self()),
-					cdr:voicemail(State#state.callrec, State#state.queue_pid),
-					case State#state.ring_pid of
-						undefined ->
-							ok;
-						Apid when is_pid(Apid) ->
-							agent:set_state(Apid, idle)
-					end,
+					priv_voicemail(State),
+%					call_queue:remove(State#state.queue_pid, self()),
+%					cdr:voicemail(State#state.callrec, State#state.queue_pid),
+%					case State#state.ring_pid of
+%						undefined ->
+%							ok;
+%						Apid when is_pid(Apid) ->
+%							agent:set_state(Apid, idle)
+%					end,
 					{reply, ok, State#state{substate = Substate, queue_pid = undefined, ring_pid = undefined}};
 				{invalid, Substate} ->
 					{reply, invalid, State#state{substate = Substate}}
@@ -736,6 +745,9 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
 					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
+		{voicemail, NewState} when is_pid(State#state.queue_pid) ->
+			priv_voicemail(State),
+			{reply, ok, State#state{substate = NewState, queue_pid = undefined, ring_pid = undefined}};
 		Tuple when element(1, Tuple) =:= outbound ->
 			{Reply, NewState} = outgoing(Tuple, State),
 			{reply, Reply, NewState};
@@ -773,6 +785,9 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
 					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
+		{voicemail, NewState} when is_pid(State#state.queue_pid) ->
+			priv_voicemail(State),
+			{noreply, State#state{substate = NewState, queue_pid = undefined, ring_pid = undefined}};
 		Tuple when element(1, Tuple) =:= outbound ->
 			{_Reply, NewState} = outgoing(Tuple, State),
 			{noreply, NewState};
@@ -837,6 +852,9 @@ handle_info(Info, #state{callback = Callback} = State) ->
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
 					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
+		{voicemail, NewState} when is_pid(State#state.queue_pid) ->
+			priv_voicemail(State),
+			{noreply, State#state{substate = NewState, queue_pid = undefined, ring_pid = undefined}};
 		Tuple when element(1, Tuple) =:= outbound ->
 			{_Reply, NewState} = outgoing(Tuple, State),
 			{noreply, NewState};
@@ -1004,6 +1022,17 @@ priv_queue(Queue, Callrec, Failover) ->
 			?INFO("Queueing call ~s into ~s", [Callrec#call.id, Queue]),
 			Qpid
 	end.
+
+priv_voicemail(State) ->
+	call_queue:remove(State#state.queue_pid, self()),
+	cdr:voicemail(State#state.callrec, State#state.queue_pid),
+	case State#state.ring_pid of
+		undefined ->
+			ok;
+		Apid when is_pid(Apid) ->
+			agent:set_state(Apid, idle)
+	end,
+	ok.
 
 unqueue(undefined, _Callpid) ->
 	ok;

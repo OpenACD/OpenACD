@@ -160,7 +160,7 @@ encode_statedata(Callrec) when is_record(Callrec, call) ->
 			list_to_binary(Else)
 	end,
 	{struct, [
-		{<<"callerid">>, list_to_binary(element(1, Callrec#call.callerid) ++ " " element(2, Callrec#call.callerid))},
+		{<<"callerid">>, list_to_binary(element(1, Callrec#call.callerid) ++ " " ++ element(2, Callrec#call.callerid))},
 		{<<"brandname">>, Client},
 		{<<"ringpath">>, Callrec#call.ring_path},
 		{<<"mediapath">>, Callrec#call.media_path},
@@ -1186,7 +1186,7 @@ encode_call(Call) when is_record(Call, call) ->
 	{struct, [
 		{<<"id">>, list_to_binary(Call#call.id)},
 		{<<"type">>, Call#call.type},
-		{<<"callerid">>, list_to_binary(element(1, Call#call.callerid) ++ " " element(2, Call#call.callerid))},
+		{<<"callerid">>, list_to_binary(element(1, Call#call.callerid) ++ " " ++ element(2, Call#call.callerid))},
 		{<<"client">>, encode_client(Call#call.client)},
 		{<<"skills">>, cpx_web_management:encode_skills(Call#call.skills)},
 		{<<"ringpath">>, Call#call.ring_path},

@@ -45,8 +45,8 @@
 
 %% API
 -export([
-	start/4,
-	start_link/4,
+	start/5,
+	start_link/5,
 	get_call/1,
 	dump_state/1
 	]).
@@ -91,12 +91,12 @@
 %%====================================================================
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
 %-spec(start/1 :: (Cnode :: atom()) -> {'ok', pid()}).
-start(Cnode, UUID, File, Queue) ->
-	gen_media:start(?MODULE, [Cnode, UUID, File, Queue]).
+start(Cnode, UUID, File, Queue, Priority) ->
+	gen_media:start(?MODULE, [Cnode, UUID, File, Queue, Priority]).
 
 %-spec(start_link/1 :: (Cnode :: atom()) -> {'ok', pid()}).
-start_link(Cnode, UUID, File, Queue) ->
-	gen_media:start_link(?MODULE, [Cnode, UUID, File, Queue]).
+start_link(Cnode, UUID, File, Queue, Priority) ->
+	gen_media:start_link(?MODULE, [Cnode, UUID, File, Queue, Priority]).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
 -spec(get_call/1 :: (MPid :: pid()) -> #call{}).
@@ -111,10 +111,10 @@ dump_state(Mpid) when is_pid(Mpid) ->
 %% gen_media callbacks
 %%====================================================================
 %% @private
-init([Cnode, UUID, File, Queue]) ->
+init([Cnode, UUID, File, Queue, Priority]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	Callrec = #call{id=UUID++"-vm", type=voice, source=self()},
+	Callrec = #call{id=UUID++"-vm", type=voice, source=self(), priority = Priority},
 	case cpx_supervisor:get_archive_path(Callrec) of
 		none ->
 			?DEBUG("archiving is not configured", []);

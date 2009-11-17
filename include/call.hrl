@@ -41,7 +41,7 @@
 -record(call, {
 		id = erlang:error({undefined, id}) :: string(),
 		type = voice :: 'voice' | 'email' | 'chat',
-		callerid = "Unknown Unknown" :: string(),
+		callerid = {"Unknown", "Unknown"} :: {string(), string()},
 		% source is the Pid of the media manager this is from
 		source = erlang:error({undefined, source}) :: pid(),
 		bound = [] :: [pid()],

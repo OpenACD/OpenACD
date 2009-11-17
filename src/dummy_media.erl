@@ -103,6 +103,8 @@
 %% API
 %%====================================================================
 -spec(start_link/1 :: (Props :: [any()]) -> {'ok', pid()}).
+start_link([]) ->
+	start_link([], success);
 start_link([H | _Tail] = Props) when is_tuple(H) ->
 	start_link(Props, success);
 start_link(Callid) ->
@@ -191,7 +193,7 @@ init([Props, Fails]) ->
 		id = proplists:get_value(id, Props, make_id()),
 		source = proplists:get_value(source, Props, self()),
 		type = proplists:get_value(type, Props, voice),
-		callerid = proplists:get_value(callerid, Props, "Unknown Unknown"),
+		callerid = proplists:get_value(callerid, Props, {"Unknown", "Unknown"}),
 		client = proplists:get_value(client, Props, #client{}),
 		skills = proplists:get_value(skills, Props, []),
 		ring_path = inband,

@@ -624,7 +624,8 @@ dojo.addOnLoad(function(){
 					for(var i in response.brands) {
 						var item = new dijit.MenuItem({
 							label:response.brands[i].label,
-							onClick:function(){agent.initOutbound(response.brands[i].id, "freeswitch"); }
+							brandid: response.brands[i].id,
+							onClick:function(){agent.initOutbound(this.brandid, "freeswitch"); }
 						});
 						menu.addChild(item);
 					}
@@ -659,7 +660,7 @@ dojo.addOnLoad(function(){
 					for(var i in response.queues) {
 						var item = new dijit.MenuItem({
 							label: response.queues[i].name,
-							onClick:function(){ Agent.queuetransfer(response.queues[i].name); }
+							onClick: function(){ Agent.queuetransfer(this.label); }
 						});
 						menu.addChild(item);
 					}

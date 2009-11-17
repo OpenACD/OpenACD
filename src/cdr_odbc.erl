@@ -139,7 +139,16 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		{IType, _ } -> atom_to_list(IType)
 	end,
 
-	%[LastState | _] = lists:filter(fun(#cdr_raw{transaction = T2}) -> T2 =:= abandonqueue orelese T2 =:= abandonivr end, T),
+	LastState = lists:foldl(
+		fun(#cdr_raw{transaction = T2}, Acc) when T2 == abandonqueue; T2 == abandonivr; T2 == voicemail -> T2;
+		(_, Acc) -> Acc
+	end, hangup, T),
+
+	DNIS = lists:foldl(
+		fun(#cdr_raw{transaction = T2, eventdata = E}, Acc) when T2 == inivr -> E;
+		(_, Acc) -> Acc
+	end, "", T),
+
 
 	[First | _] = T,
 	[Last | _] = lists:reverse(T),
@@ -148,7 +157,26 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 	End = Last#cdr_raw.ended,
 
 	lists:foreach(
-		fun(Transaction) ->
+		fun(#cdr_raw{transaction = T} = Transaction) when T == cdrinit ->
+				% work around micah's "fanciness" and make cdrinit the 0 length transaction it should be
+				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
+					[Media#call.id,
+					cdr_transaction_to_integer(Transaction#cdr_raw.transaction),
+					Transaction#cdr_raw.start,
+					Transaction#cdr_raw.start,
+					get_transaction_data(Transaction, CDR)]),
+			odbc:sql_query(State#state.ref, lists:flatten(Q));
+			(#cdr_raw{transaction = T} = Transaction) when T == abandonqueue ->
+				% store the last queue as the queue abandoned from
+				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
+					[Media#call.id,
+					cdr_transaction_to_integer(Transaction#cdr_raw.transaction),
+					Transaction#cdr_raw.start,
+					Transaction#cdr_raw.ended,
+					Queue
+					]),
+			odbc:sql_query(State#state.ref, lists:flatten(Q));
+			(Transaction) ->
 				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
 					[Media#call.id,
 					cdr_transaction_to_integer(Transaction#cdr_raw.transaction),
@@ -167,8 +195,6 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 			Brandid = 0
 	end,
 
-	%?WARNING("agent is ~p", [Agent]),
-
 	AgentID = case agent_auth:get_agent(Agent) of
 		{atomic, [Rec]} when is_tuple(Rec) ->
 			list_to_integer(element(2, Rec));
@@ -176,11 +202,8 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 			0
 	end,
 
-
-	?WARNING("callid is ~p", [Media#call.id]),
-
 	Query = io_lib:format("INSERT INTO billing_summaries set UniqueID='~s',
-		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~B', LastQueue='~s';", [
+		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~B', LastQueue='~s', LastState=~B, DNIS='~s';", [
 		Media#call.id,
 		Tenantid,
 		Brandid,
@@ -191,13 +214,36 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		Wrapup,
 		Type,
 		AgentID,
-		Queue]),
+		Queue,
+		cdr_transaction_to_integer(LastState),
+		DNIS
+	]),
+	?NOTICE("query is ~s", [Query]),
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
 		{error, Reason} ->
 			{error, Reason};
-		Else ->
-			%?NOTICE ("SQL query result: ~p", [Else]),
-			{ok, State}
+		_ ->
+			Dialednum = lists:foldl(
+				fun(#cdr_raw{transaction = T2, eventdata = E}, Acc) when T2 == dialoutgoing -> E;
+					(_, Acc) -> Acc
+				end, "", T),
+			InfoQuery = io_lib:format("INSERT INTO call_info SET UniqueID='~s', TenantID=~B, BrandID=~B, DNIS=~s, CallType='~s', CallerIDNum='~s', CallerIDName='~s', DialedNumber=~s;", [
+				Media#call.id,
+				Tenantid,
+				Brandid,
+				string_or_null(DNIS),
+				Type,
+				element(2, Media#call.callerid),
+				element(1, Media#call.callerid),
+				string_or_null(Dialednum)
+			]),
+			?NOTICE("query is ~s", [InfoQuery]),
+			case odbc:sql_query(State#state.ref, lists:flatten(InfoQuery)) of
+				{error, Reason} ->
+					{error, Reason};
+				_ ->
+				{ok, State}
+			end
 	end.
 
 commit(State) ->
@@ -245,7 +291,7 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= on
 		_ ->
 			"0"
 	end;
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= inqueue  ->
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= inqueue; T == precall; T == dialoutgoing; T == voicemail ->
 	Transaction#cdr_raw.eventdata;
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= queue_transfer  ->
 	"queue " ++ Transaction#cdr_raw.eventdata;
@@ -260,6 +306,7 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= ag
 	"agent " ++ Agent;
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= abandonqueue  ->
 	% TODO - this should be the queue abandoned from, see related TODO in the cdr module
+	% this has been sorta resolved by a hack above
 	"";
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, #cdr_rec{media = Media} = CDR) when T =:= cdrinit  ->
 	case {Media#call.type, Media#call.direction} of
@@ -271,3 +318,9 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) ->
 	?NOTICE("eventdata for ~p is ~p", [T, Transaction#cdr_raw.eventdata]),
 	"".
 
+string_or_null([]) ->
+	"NULL";
+string_or_null(undefined) ->
+	"NULL";
+string_or_null(String) ->
+	lists:flatten([$', String, $']).

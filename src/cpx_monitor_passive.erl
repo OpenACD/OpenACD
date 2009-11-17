@@ -42,6 +42,7 @@
 -include("call.hrl").
 -include("queue.hrl").
 -include("agent.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 -define(WRITE_INTERVAL, 60). % in seconds.
 -define(DETS, passive_cache).
@@ -88,14 +89,24 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
+-record(filter_state, {
+	state = [] :: [{dets_key(), {timestamp(), historical_key()}}],
+	agent_profiles = [],
+	queue_groups = [],
+	clients = []
+}).
+
 -record(filter, {
 	file_output :: string(),
+	max_age = max :: 'max' | pos_integer(),
 	queues :: [string()] | 'all',
 	queue_groups :: [string()] | 'all',
 	agents :: [string()] | 'all',
 	agent_profiles :: [string()] | 'all',
 	clients :: [string()] | 'all',
-	output_as = json :: 'json' | 'xml'
+	nodes :: [atom()] | 'all',
+	output_as = json :: 'json' | 'xml',
+	state = #filter_state{}
 }).
 
 -record(state, {
@@ -104,7 +115,7 @@
 	%agent_cache = [],
 	%media_cache = [],
 	timer :: any(),
-	write_pid :: 'undefined' | pid()
+	write_pids = [] :: [{pid(), string()}]
 }).
 
 %%====================================================================
@@ -131,6 +142,7 @@ stop() ->
 %% Function: init(Args) -> {ok, State} |
 %%--------------------------------------------------------------------
 init(Options) ->
+	process_flag(trap_exit, true),
 	Subtest = fun(Message) ->
 		%?DEBUG("passive sub testing message: ~p", [Message]),
 		Type = case Message of
@@ -154,11 +166,13 @@ init(Options) ->
 		Fileout = lists:append([proplists:get_value(file_output, Props, "."), "/", Name]),
 		Filter = #filter{
 			file_output = lists:append([Fileout, ".", atom_to_list(json)]),
+			max_age = proplists:get_value(max_age, Props, max),
 			queues = proplists:get_value(queues, Props, all),
 			queue_groups = proplists:get_value(queue_groups, Props, all),
 			agents = proplists:get_value(agents, Props, all),
 			agent_profiles = proplists:get_value(agent_profiles, Props, all),
 			clients = proplists:get_value(clients, Props, all),
+			nodes = proplists:get_value(nodes, Props, all),
 			output_as = json
 		},
 		{Name, Filter}
@@ -201,6 +215,14 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info(write_output, #state{filters = Filters} = State) ->
 	?DEBUG("Writing output with state:  ~p", [State]),
+	Qh = qlc:q([Key || {Key, Time, _Hp, _Details, _History} <- dets:table(?DETS), util:now() - Time > 86400]),
+	Keys = qlc:e(Qh),
+	lists:foreach(fun(K) -> dets:delete(?DETS, K) end, Keys),
+	WritePids = lists:map(fun(Filter) ->
+		{ok, Pid} = spawn_link(?MODULE, write_output, [Filter])
+	end, Filters),
+	
+	
 %	Fun = fun({Name, FilterRec} = Filter) ->
 %		Fmedias = filter_medias(Medias, FilterRec),
 %		Fagents = filter_agents(Agents, FilterRec),
@@ -220,10 +242,11 @@ handle_info(write_output, #state{filters = Filters} = State) ->
 %	lists:foreach(fun(Elem) -> spawn(fun() -> Fun(Elem) end) end, Filters),
 	
 	{ok, Timer} = timer:send_after(State#state.interval, write_output),
-	{noreply, State#state{timer = Timer}};
-handle_info({cpx_monitor_event, Event}, State) ->
-	cache_event(Event),
-	{noreply, Event};
+	{noreply, State#state{timer = Timer, write_pids = WritePids}};
+handle_info({cpx_monitor_event, Event}, #state{filters = Filters} = State) ->
+	Row = cache_event(Event),
+	Newfilters = update_filter_states(Row, Filters),
+	{noreply, State#state{filters = Newfilters}};
 %handle_info({cpx_monitor_event, {set, {{media, Id}, Hp, Det, _Time}}}, #state{media_cache = Medias} = State) ->
 %	?DEBUG("setting a media", []),
 %	Entry = {{media, Id}, Hp, Det},
@@ -254,6 +277,22 @@ handle_info({cpx_monitor_event, Event}, State) ->
 %	?DEBUG("dropping agent", []),
 %	Newagents = deep_delete(Id, Agent),
 %	{noreply, State#state{agent_cache = Newagents}};
+handle_info({'EXIT', Pid, Reason}, #state{write_pids = Pids} = State) ->
+	case proplists:get_value(Pid, Pids) of
+		undefined ->
+			{noreply, State};
+		Name ->
+			case Reason of
+				normal ->
+					?INFO("output written for filter ~p", [Name]),
+					ok;
+				Else ->
+					?WARNING("output write for ~p exited abnormally:  ~p", [Name, Reason]),
+					ok
+			end,
+			Newlist = proplists:delete(Pid, Pids),
+			{noreply, State#state{write_pids = Newlist}}
+	end;
 handle_info(Info, State) ->
 	?DEBUG("Someother info:  ~p", [Info]),
     {noreply, State}.
@@ -277,55 +316,155 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 cache_event({drop, {media, _Id} = Key}) ->
-	case dets:lookup(?DETS, Key) of
+	Row = case dets:lookup(?DETS, Key) of
 		[{Key, Time, Hp, Details, {inbound, queued}}] ->
-			dets:insert(?DETS, {Key, Time, Hp, Details, {inbound, qabandoned}});
+			dets:insert(?DETS, {Key, Time, Hp, Details, {inbound, qabandoned}}),
+			{Key, Time, Hp, Details, {inbound, qabandoned}};
 		[{Key, Time, Hp, Details, {inbound, ivr}}] ->
-			dets:insert(?DETS, {Key, Time, Hp, Details, {inbound, ivrabandoned}});
+			dets:insert(?DETS, {Key, Time, Hp, Details, {inbound, ivrabandoned}}),
+			{Key, Time, Hp, Details, {inbound, ivrabandoned}};
 		_Else ->
-			ok
-	end;
+			{Key, none}
+	end,
+	Row;
 cache_event({drop, {agent, _Id} = Key}) ->
-	dets:delete(?DETS, Key);
+	dets:delete(?DETS, Key),
+	{Key, none};
 cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 	case dets:lookup(?DETS, Key) of
 		[{Key, Time, Hp, Details, {inbound, queued}}] ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails)} of
 				{undefined, undefined} ->
-					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, qabandoned}});
+					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, qabandoned}}),
+					{Key, Time, EventHp, EventDetails, {inbound, qabandoned}};
 				{undefined, _Agent} ->
-					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, handled}});
+					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, handled}}),
+					{Key, Time, EventHp, EventDetails, {inbound, handled}};
 				{_Queue, undefined} ->
 					% updating n case HP or Details changed.
-					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, queued}});
+					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, queued}}),
+					{Key, Time, EventHp, EventDetails, {inbound, queued}};
 				BothQnAgent ->
 					?WARNING("both and agent and queue defined, ignoring", []),
-					ok
+					none
 			end;
 		[{Key, Time, Hp, Details, History}] ->
 			% blind update
-			dets:insert(?DETS, {Key, Time, EventHp, EventDetails, History});
+			dets:insert(?DETS, {Key, Time, EventHp, EventDetails, History}),
+			{Key, Time, EventHp, EventDetails, History};
 		[] ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(direction, EventDetails)} of
 				{undefined, outbound} ->
-					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, outbound});
+					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, outbound}),
+					{Key, EventTime, EventHp, EventDetails, outbound};
 				{undefined, inbound} ->
 					?INFO("Didn't find queue, but still inbound.  Assuming it's in ivr call:  ~p", [Key]),
-					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, {inbound, ivr}});
+					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, {inbound, ivr}}),
+					{Key, EventTime, EventHp, EventDetails, {inbound, ivr}};
 				{_Queue, inbound} ->
-					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, {inbound, queued}})
+					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, {inbound, queued}}),
+					{Key, EventTime, EventHp, EventDetails, {inbound, queued}}
 			end
 	end;
 cache_event({set, {{agent, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 	case dets:lookup(?DETS, Key) of
 		[] ->
-			dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, undefined});
+			dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, undefined}),
+			{Key, EventTime, EventHp, EventDetails, undefined};
 		[{Key, Time, Hp, Details, undefined}] ->
-			dets:insert(?DETS, {Key, Time, Hp, Details, undefined})
+			dets:insert(?DETS, {Key, Time, Hp, Details, undefined}),
+			{Key, Time, Hp, Details, undefined}
 	end.
-	
+
+update_filter_states(none, Filters) ->
+	Filters;
+update_filter_states({{media, _}, none}, Filters) ->
+	Filters;
+update_filter_states(Row, Filters) ->
+	update_filter_states(Row, Filters, []).
+
+update_filter_states(_Row, [], Acc) ->
+	lists:reverse(Acc);
+update_filter_states({{agent, Id}, none} = Row, [#filter{state = State} = Filter | Tail], Acc) ->
+	case deep_seek(Id, State#filter_state.agent_profiles) of
+		undefined ->
+			update_filter_states(Row, Tail, [Filter | Acc]);
+		{Topkey, List} when length(List) =:= 1 ->
+			Newprofiles = proplists:delete(Topkey, State#filter_state.agent_profiles),
+			Newstate = State#filter_state{agent_profiles = Newprofiles},
+			update_filter_states(Row, Tail, [Filter#filter{state = Newstate} | Acc]);
+		{Topkey, List} ->
+			Newlist = proplists:delete(Id, List),
+			Newprofiles = proplists_replace(Topkey, Newlist, State#filter_state.agent_profiles),
+			Newstate = State#filter_state{agent_profiles = Newprofiles},
+			update_filter_states(Row, Tail, [Filter#filter{state = Newstate} | Acc])
+	end;
+update_filter_states({{agent, Id}, Time, Hp, Details, undefined} = Row, [#filter{state = State} = Filter | Tail], Acc) ->
+	case filter_row(Filter, Row) of
+		false ->
+			update_filter_states(Row, Tail, [Filter | Acc]);
+		true ->
+			Prof = proplists:get_value(profile, Details, "Default"),
+			case deep_seek(Id, State#filter_state.agent_profiles) of
+				undefined ->
+					Newprofs = [{Prof, [{Id, Details}]} | State#filter_state.agent_profiles],
+					Newstate = State#filter_state{agent_profiles = Newprofs},
+					update_filter_states(Row, Tail, [Filter#filter{state = Newstate} | Acc]);
+				{Prof, List} ->
+					Newlist = proplists_replace(Id, Details, List),
+					Newprofs = proplists_replace(Prof, Newlist, State#filter_state.agent_profiles),
+					Newstate = State#filter_state{agent_profiles = Newprofs},
+					update_filter_states(Row, Tail, [Filter#filter{state = Newstate} | Acc])
+			end
+	end;
+update_filter_states({{media, Id}, Time, Hp, Details, Histroy} = Row, [#filter{state = State} = Filter | Tail], Acc) ->
+	case filter_row(Filter, Row) of
+		false ->
+			update_filter_states(Row, Tail, [Filter | Acc]);
+		true ->
+			#client{label = Client} = proplists:get_value(client, Details),
+			{Newclients, Newqueuegroups} = case proplists:get_value(queue, Details) of
+				undefined ->
+					OldMedias = proplists:get_value(Client, State#filter_state.clients, []),
+					Newclients = case proplists:delete(Id, OldMedias) of
+						[] ->
+							proplists:delete(Client, State#filter_state.clients);
+						Else ->
+							proplists_replace(Client, Else, State#filter_state.clients)
+					end,
+					{Newclients, State#filter_state.queue_groups};
+				Queue ->
+					Newclients = case deep_seek(Id, State#filter_state.clients) of
+						undefined ->
+							[{Client, [{Id, Row}]} | State#filter_state.clients];
+						{Client, _} ->
+							Oldmedias = proplists:get_value(Client, State#filter_state.clients),
+							Newmedias = proplists_replace(Id, Row, Oldmedias),
+							proplists_replace(Client, Newmedias, State#filter_state.clients)
+					end,
+					Group = call_queue_config:get_queue(Queue),
+					SubNewqueuegroups = case deep_seek(Queue, State#filter_state.queue_groups) of
+						undefined ->
+							Oldqueues = proplists:get_value(Group, State#filter_state.queue_groups, []),
+							Oldmedias2 = proplists:get_value(Queue, Oldqueues, []),
+							Newmedias2 = proplists_replace(Id, Row, Oldmedias2),
+							Newqueues = proplists_replace(Queue, Newmedias2, Oldqueues),
+							proplists_replace(Group, Newqueues, State#filter_state.queue_groups);
+						{Topkey, Oldmedias2} ->
+							Newmedias2 = proplists_replace(Id, Row, Oldmedias2),
+							Newqueues = proplists_replace(Queue, Newmedias2, proplists:get_value(Topkey, State#filter_state.queue_groups)),
+							proplists_replace(Group, Newqueues, State#filter_state.queue_groups)
+					end,
+					{Newclients, SubNewqueuegroups}
+			end,
+			Midstatistics = proplists_replace(Id, {Time, Histroy}, State#filter_state.state),
+			Newstatistics = lists:filter(fun({_, {T, _}}) -> T > util:now() - 86400 end, Midstatistics),
+			Newstate = State#filter_state{clients = Newclients, queue_groups = Newqueuegroups, state = Newstatistics},
+			update_filter_states(Row, Tail, [Filter#filter{state = Newstate} | Acc])
+	end.				
+
 %% @doc If the row passes through the filter, return true.
-filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all}, Row) ->
+filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, Row) ->
 	true;
 filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, handled}}) ->
 	#client{label = Client} = proplists:get_value(client, Details),
@@ -347,43 +486,116 @@ filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, handled}}) -
 			end
 	end;
 filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, Queued}}) when Queued =:= queued; Queued =:= qabandoned ->
-	#client{label = Client} = proplists:get_value(client, Details),
-	case list_member(Client, Filter#filter.clients) of
+	Node = proplists:get_value(node, Details),
+	case list_member(Node, Filter#filter.nodes) of
 		false ->
 			false;
 		true ->
-			Queue = proplists:get_value(queue, Details),
-			case {list_member(Queue, Filter#filter.queues), Filter#filter.queue_groups} of
-				{false, _} ->
+			#client{label = Client} = proplists:get_value(client, Details),
+			case list_member(Client, Filter#filter.clients) of
+				false ->
 					false;
-				{true, all} ->
-					true;
-				{true, List} ->
-					case call_queue_config:get_queue(Queue) of
-						noexists ->
+				true ->
+					Queue = proplists:get_value(queue, Details),
+					case {list_member(Queue, Filter#filter.queues), Filter#filter.queue_groups} of
+						{false, _} ->
 							false;
-						#call_queue{group = Group} ->
-							list_member(Group, List)
+						{true, all} ->
+							true;
+						{true, List} ->
+							case call_queue_config:get_queue(Queue) of
+								noexists ->
+									false;
+								#call_queue{group = Group} ->
+									list_member(Group, List)
+							end
 					end
 			end
 	end;
 filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, _History}) ->
 	false;
 filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
-	case list_member(Agent, Filter#filter.agents) of
+	Node = proplists:get_value(node, Details),
+	case list_member(Node, Filter#filter.nodes) of
 		false ->
 			false;
 		true ->
-			case agent_auth:get_agent(Agent) of
-				{atomic, [#agent_auth{profile = Prof}]} ->
-					list_member(Prof, Filter#filter.agent_profiles);
-				_ ->
-					false
+			case list_member(Agent, Filter#filter.agents) of
+				false ->
+					false;
+				true ->
+					case agent_auth:get_agent(Agent) of
+						{atomic, [#agent_auth{profile = Prof}]} ->
+							list_member(Prof, Filter#filter.agent_profiles);
+						_ ->
+							false
+					end
 			end
 	end.
 
 
 
+
+
+
+
+
+write_output(Filter) ->
+	ok.
+%
+%	QH = qlc:q([Row || Row <- dets:table(?DETS), filter_row(Filter, Row)]),
+%	Rows = qlc:e(QH),
+%	Loopstate = {[], [], []}, % clients_in_queues, agent_profiles, queue_groups
+%	{Outclients, Outprofiles, Outgroups} = filter_loop(Rows, Loopstate).
+
+%filter_loop([], State) ->
+%	State;
+%filter_loop({{media, Id}, _Time, _Hp, Details, HistoricalKey}, {Clients, _
+%	#client{label = Client} = proplists:get_value(client, Details),
+%	Newclients = case proplists:get_value(Client, Clients) of
+%		undefined ->
+%			[{Client, [{proplists:get_value(type, Details), Id}]} | Clients];
+%		List ->
+%			proplists_replace(Client, [{proplists:get_value(type, Details), Id} | List], Clients)
+%	end,
+%	case proplists:get_value(queue, Details) of
+%		undefined ->
+%			
+%	
+%	
+%	
+%	{clients_in_queues:[
+%		{client:name,
+%		medias:[
+%			{type:type,
+%			id:id}
+%		]}
+%	],
+%	agent_profiles:[
+%		{name:name,
+%		agents:[
+%			{display:display,
+%			id:id}
+%		]}
+%	],
+%	queue_groups:[
+%		{name:name,
+%		queues:[
+%			{name:name,
+%			medias:[
+%				{type:type,
+%				id:id}
+%			]}
+%		]}
+%	]}
+%	
+%	
+%	Clients in queue,
+%	agent profiles
+%		agents
+%	queue groups
+%
+%
 
 
 
@@ -416,6 +628,32 @@ proplists_replace(Key, Value, List) ->
 	Mid = proplists:delete(Key, List),
 	[{Key, Value} | Mid].
 
+%get_path([], Value) ->
+%	Value;
+%get_path([Key | Path], Proplist) ->
+%	case proplists:get_value(Key, Proplist) of
+%		undefined ->
+%			undefined;
+%		Else ->
+%			get_path(Path, Else)
+%	end.
+%
+%set_path([Key], Value, Proplist) ->
+%	proplists_replace(Key, Value, Proplist);
+%set_path([Key | Path], Value, Proplist) ->
+%	proplists_replace(Key, set_path(Path, Value, proplists:get_value(Key, Proplist, [])), Proplist).
+%
+%drop_path([Key], Proplist) ->
+%	proplists:delete(Key, Proplist);
+%drop_path([Key | Path], Proplist) ->
+%	case proplists:get_value(Key, Proplist) of
+%		undefined ->
+%			Proplist;
+%		Else ->
+%			proplists_replace(Key, drop_path(Path, Else), Proplist)
+%	end.
+	
+	
 create_queued_clients(Medias) ->
 	?DEBUG("Medias:  ~p", [Medias]),
 	create_queued_clients(Medias, []).

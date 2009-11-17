@@ -157,7 +157,16 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 	End = Last#cdr_raw.ended,
 
 	lists:foreach(
-		fun(Transaction) ->
+		fun(#cdr_raw{transaction = T} = Transaction) when T == cdrinit ->
+				% work around micah's "fanciness" and make cdrinit the 0 length transaction it should be
+				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
+					[Media#call.id,
+					cdr_transaction_to_integer(Transaction#cdr_raw.transaction),
+					Transaction#cdr_raw.start,
+					Transaction#cdr_raw.start,
+					get_transaction_data(Transaction, CDR)]),
+			odbc:sql_query(State#state.ref, lists:flatten(Q));
+			(Transaction) ->
 				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
 					[Media#call.id,
 					cdr_transaction_to_integer(Transaction#cdr_raw.transaction),

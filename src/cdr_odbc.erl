@@ -144,6 +144,12 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		(_, Acc) -> Acc
 	end, hangup, T),
 
+	DNIS = lists:foldl(
+		fun(#cdr_raw{transaction = T2, eventdata = E}, Acc) when T2 == inivr -> E;
+		(_, Acc) -> Acc
+	end, "", T),
+
+
 	[First | _] = T,
 	[Last | _] = lists:reverse(T),
 
@@ -178,7 +184,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 	end,
 
 	Query = io_lib:format("INSERT INTO billing_summaries set UniqueID='~s',
-		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~B', LastQueue='~s', LastState=~B;", [
+		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~B', LastQueue='~s', LastState=~B, DNIS='~s';", [
 		Media#call.id,
 		Tenantid,
 		Brandid,
@@ -190,13 +196,30 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		Type,
 		AgentID,
 		Queue,
-		cdr_transaction_to_integer(LastState)
+		cdr_transaction_to_integer(LastState),
+		DNIS
 	]),
+	?NOTICE("query is ~s", [Query]),
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
 		{error, Reason} ->
 			{error, Reason};
-		Else ->
-			{ok, State}
+		_ ->
+			InfoQuery = io_lib:format("INSERT INTO call_info SET UniqueID='~s', TenantID=~B, BrandID=~B, DNIS=~s, CallType='~s', CallerIDNum='~s', CallerIDName='~s';", [
+				Media#call.id,
+				Tenantid,
+				Brandid,
+				string_or_null(DNIS),
+				Type,
+				element(2, Media#call.callerid),
+				element(1, Media#call.callerid)
+			]),
+			?NOTICE("query is ~s", [InfoQuery]),
+			case odbc:sql_query(State#state.ref, lists:flatten(InfoQuery)) of
+				{error, Reason} ->
+					{error, Reason};
+				_ ->
+				{ok, State}
+			end
 	end.
 
 commit(State) ->
@@ -270,3 +293,9 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) ->
 	?NOTICE("eventdata for ~p is ~p", [T, Transaction#cdr_raw.eventdata]),
 	"".
 
+string_or_null([]) ->
+	"NULL";
+string_or_null(undefined) ->
+	"NULL";
+string_or_null(String) ->
+	lists:flatten([$', String, $']).

@@ -213,15 +213,19 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		{error, Reason} ->
 			{error, Reason};
 		_ ->
-			% TODO we're missing the dialed number here...
-			InfoQuery = io_lib:format("INSERT INTO call_info SET UniqueID='~s', TenantID=~B, BrandID=~B, DNIS=~s, CallType='~s', CallerIDNum='~s', CallerIDName='~s';", [
+			Dialednum = lists:foldl(
+				fun(#cdr_raw{transaction = T2, eventdata = E}, Acc) when T2 == dialoutgoing -> E;
+					(_, Acc) -> Acc
+				end, "", T),
+			InfoQuery = io_lib:format("INSERT INTO call_info SET UniqueID='~s', TenantID=~B, BrandID=~B, DNIS=~s, CallType='~s', CallerIDNum='~s', CallerIDName='~s', DialedNumber=~s;", [
 				Media#call.id,
 				Tenantid,
 				Brandid,
 				string_or_null(DNIS),
 				Type,
 				element(2, Media#call.callerid),
-				element(1, Media#call.callerid)
+				element(1, Media#call.callerid),
+				string_or_null(Dialednum)
 			]),
 			?NOTICE("query is ~s", [InfoQuery]),
 			case odbc:sql_query(State#state.ref, lists:flatten(InfoQuery)) of

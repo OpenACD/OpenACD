@@ -459,6 +459,8 @@ update_filter_states(none, Filters) ->
 	Filters;
 update_filter_states({{media, _}, none}, Filters) ->
 	Filters;
+update_filter_states({{agent, _}, none}, Filters) ->
+	Filters;
 update_filter_states({{agent, _}, _, _, _, _}, Filters) ->
 	Filters;
 update_filter_states(Row, Filters) ->

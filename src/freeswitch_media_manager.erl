@@ -418,13 +418,29 @@ fetch_domain_user(Node, State) ->
 									try agent:dump_state(Pid) of
 										Agent ->
 											Password=Agent#agent.password,
-											freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password))]))})
+											Hash = util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password)),
+											agent_auth:set_extended_prop({login, Agent#agent.login}, a1_hash, Hash),
+											freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))})
 									catch
 										_:_ -> % agent pid is toast?
 											freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
 									end;
 								false ->
-									freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
+									case agent_auth:get_extended_prop({login, User}, a1_hash) of
+										{ok, Hash} ->
+											freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))});
+										undefined ->
+											freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE});
+										{error, noagent} ->
+											case agent_auth:get_extended_prop({login, re:replace(User, "_", "@", [{return, list}])}, a1_hash) of
+												{ok, Hash} ->
+													freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))});
+												undefined ->
+													freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE});
+												{error, noagent} ->
+													freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
+											end
+									end
 							end;
 						undefined -> % I guess we're just looking up a user?
 							User = proplists:get_value("user", Data),

@@ -90,7 +90,8 @@
 	manager :: pid() | tref(),
 	outgoing_attachments = [] :: [{string(), binary()}],
 	attachment_size = 0 :: integer(),
-	sending_pid :: pid() | 'undefined'
+	sending_pid :: pid() | 'undefined',
+	caseid :: string()
 }).
 
 -type(state() :: #state{}).
@@ -200,6 +201,7 @@ init(Args) ->
 			mimemail:decode(Headers, Data)
 	end,
 	{Skeleton, Files} = skeletonize(Mimed),
+
 	Callerid = case proplists:get_value(<<"From">>, Mheads) of
 		undefined -> 
 			{"Unknown", "Unknown"};
@@ -221,6 +223,15 @@ init(Args) ->
 			RawDomain
 	end,
 	Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, binstr:reverse(Domain)])),
+
+	CaseID = case re:run(proplists:get_value(<<"Subject">>, Mheads, <<>>), "\\[Case:(\\d+)\\]", [{capture, all_but_first, list}]) of
+		{match, [CID]} ->
+			?DEBUG("CaseID for ~p is ~s", [Defaultid, CID]),
+			CID;
+		_ ->
+			undefined
+	end,
+
 	Proto = #call{
 		%id = binary_to_list(proplists:get_value(<<"Message-ID">>, Mheads, Defaultid)),
 		id = Defaultid,
@@ -233,13 +244,14 @@ init(Args) ->
 		priority = ?DEFAULT_PRIORITY, % TODO - allow this to be set via the address map?
 		source = self()
 	},
-	?DEBUG("started ~p for callerid:  ~s", [Defaultid, Callerid]),
+	?DEBUG("started ~p for callerid:  ~p", [Defaultid, Callerid]),
 	{ok, {#state{
-			initargs = Args, 
-			skeleton = Skeleton, 
-			file_map = Files, 
-			mimed = Mimed, 
+			initargs = Args,
+			skeleton = Skeleton,
+			file_map = Files,
+			mimed = Mimed,
 			manager = whereis(email_media_manager),
+			caseid = CaseID, % TODO use this in the URL pop
 			mail_map_address = Mailmap#mail_map.address},
 		{Mailmap#mail_map.queue, Proto}}}.
 	

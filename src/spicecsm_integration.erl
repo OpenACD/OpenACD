@@ -230,6 +230,8 @@ handle_call({agent_auth, Agent, PlainPassword, Extended}, _From, State) when is_
 			{stop, {error, Message}, {error, Message}, State};
 		{ok, {struct, [{<<"msg">>, <<"deny">>}]}} ->
 			{reply, deny, State#state{count = Count}};
+		{ok, {struct, [{<<"msg">>, <<"destroy">>}]}} ->
+			{reply, destroy, State#state{count = Count}};
 		{ok, [{struct, Proplist}]} ->
 			Intsec = list_to_integer(binary_to_list(proplists:get_value(<<"securitylevelid">>, Proplist))),
 			Intprof = list_to_integer(binary_to_list(proplists:get_value(<<"tierid">>, Proplist))),

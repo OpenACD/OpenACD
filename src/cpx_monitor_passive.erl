@@ -760,7 +760,7 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 	NewHead = {struct, [
 		{<<"id">>, list_to_binary(Id)},
 		{<<"login">>, list_to_binary(proplists:get_value(login, Details))},
-		{<<"lastchangetimestampe">>, begin {Mega, Sec, _} = proplists:get_value(lastchangetimestamp, Details), Mega * 1000000 + Sec end},
+		{<<"lastchangetimestamp">>, begin {Mega, Sec, _} = proplists:get_value(lastchangetimestamp, Details), Mega * 1000000 + Sec end},
 		{<<"state">>, State},
 		{<<"stateData">>, Statedata}
 	]},

@@ -290,7 +290,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, qabandoned}}),
 					{Key, Time, EventHp, EventDetails, {inbound, qabandoned}};
 				{undefined, _Agent} ->
-					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, handled}}),
+					dets:insert(?DETS, {Key, Time, EventHp, [{timequeued, util:now() - Time} | EventDetails], {inbound, handled}}),
 					{Key, Time, EventHp, EventDetails, {inbound, handled}};
 				{_Queue, undefined} ->
 					% updating n case HP or Details changed.
@@ -324,7 +324,7 @@ cache_event({set, {{agent, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 			dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, undefined}),
 			{Key, EventTime, EventHp, EventDetails, undefined};
 		[{Key, Time, Hp, Details, undefined}] ->
-			dets:insert(?DETS, {Key, Time, Hp, Details, undefined}),
+			dets:insert(?DETS, {Key, Time, EventHp, EventDetails, undefined}),
 			{Key, Time, Hp, Details, undefined}
 	end.
 
@@ -686,10 +686,23 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 			]},
 			{{Avail, Rel + 1, Busy}, released, Data};
 		{Statename, #call{client = Client} = Media} ->
+			Qh = qlc:q([proplists:get_value(timequeued, Details) ||
+				{{Type, Id}, _Time, _Hp, Details, History} = Row <- dets:table(?DETS),
+				Type == media,
+				Id == Media#call.id,
+				History == {inbound, handled}
+			]),
+			Timequeue = case qlc:e(Qh) of
+				[] ->
+					undefined;
+				[T] ->
+					T
+			end,
 			Data = {struct, [
 				{<<"client">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
 				{<<"mediaType">>, Media#call.type},
-				{<<"mediaId">>, Media#call.id}
+				{<<"mediaId">>, list_to_binary(Media#call.id)},
+				{<<"timeQueued">>, Timequeue}
 			]},
 			{{Avail, Rel, Busy + 1}, Statename, Data};
 		{Statename, _Otherdata} ->

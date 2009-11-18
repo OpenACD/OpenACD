@@ -62,7 +62,10 @@
 	get_agent/1,
 	get_agent/2,
 	get_agents/0,
-	get_agents/1
+	get_agents/1,
+	set_extended_prop/3,
+	drop_extended_prop/2,
+	get_extended_prop/2
 ]).
 -export([
 	new_profile/2,
@@ -308,6 +311,47 @@ get_agents(Profile) ->
 		 L1 < L2
 	end,
 	lists:sort(Sort, Agents).
+
+-spec(set_extended_prop/3 :: (Key :: {'login' | 'id', string()}, Prop :: atom(), Val :: any()) -> {'atomic', 'ok'}).
+set_extended_prop({Type, Aval}, Prop, Val) ->
+	case get_agent(Type, Aval) of
+		{atomic, [Rec]} ->
+			Midprops = proplists:delete(Prop, Rec#agent_auth.extended_props),
+			Newprops = [{Prop, Val} | Midprops],
+			F = fun() ->
+				mnesia:write(Rec#agent_auth{extended_props = Newprops})
+			end,
+			mnesia:transaction(F);
+		_ ->
+			{error, noagent}
+	end.
+
+-spec(drop_extended_prop/2 :: (Key :: {'login' | 'id', string()}, Prop :: atom()) -> {'atomic', 'ok'}).
+drop_extended_prop({Type, Aval}, Prop) ->
+	case get_agent(Type, Aval) of
+		{atomic, [Rec]} ->
+			Newprops = proplists:delete(Prop, Rec#agent_auth.extended_props),
+			F = fun() ->
+				mnesia:write(Rec#agent_auth{extended_props = Newprops})
+			end,
+			mnesia:transaction(F);
+		_ ->
+			{error, noagent}
+	end.
+
+-spec(get_extended_prop/2 :: (Key :: {'login' | 'id', string()}, Prop :: atom()) -> {'ok', any()} | {'error', 'noagent'} | 'undefined').
+get_extended_prop({Type, Aval}, Prop) ->
+	case get_agent(Type, Aval) of
+		{atomic, [Rec]} ->
+			case proplists:get_value(Prop, Rec#agent_auth.extended_props) of
+				undefined ->
+					undefined;
+				Val ->
+					{ok, Val}
+			end;
+		_ ->
+			{error, noagent}
+	end.
 
 %% @doc Utility function to handle merging data after a net split.  Takes the 
 %% given nodes, selects all records with a timestamp greater than the given 
@@ -756,6 +800,14 @@ auth_no_integration_test_() ->
 	{"don't auth with wrong pass",
 	fun() ->
 		?assertEqual(deny, auth("agent", "badpass"))
+	end},
+	{"extended prop test",
+	fun() ->
+		?assertEqual(undefined, get_extended_prop({id, "1"}, agent)),
+		set_extended_prop({id, "1"}, agent, true),
+		?assertEqual({ok, true}, get_extended_prop({id, "1"}, agent)),
+		drop_extended_prop({id, "1"}, agent),
+		?assertEqual(undefined, get_extended_prop({id, "1"}, agent))
 	end}]}.
 
 auth_integration_test_() ->

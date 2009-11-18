@@ -228,8 +228,8 @@ handle_info(write_output, #state{filters = Filters} = State) ->
 	{noreply, State#state{timer = Timer, write_pids = WritePids}};
 handle_info({cpx_monitor_event, Event}, #state{filters = Filters} = State) ->
 	Row = cache_event(Event),
-	%Newfilters = update_filter_states(Row, Filters),
-	{noreply, State#state{filters = Filters}};
+	Newfilters = update_filter_states(Row, Filters),
+	{noreply, State#state{filters = Newfilters}};
 handle_info({'EXIT', Pid, Reason}, #state{write_pids = Pids} = State) ->
 	case proplists:get_value(Pid, Pids) of
 		undefined ->
@@ -462,88 +462,96 @@ update_filter_states(none, Filters) ->
 	Filters;
 update_filter_states({{media, _}, none}, Filters) ->
 	Filters;
+update_filter_states({{agent, _}, _, _, _, _}, Filters) ->
+	Filters;
 update_filter_states(Row, Filters) ->
 	update_filter_states(Row, Filters, []).
 
 update_filter_states(_Row, [], Acc) ->
 	lists:reverse(Acc);
-update_filter_states({{agent, Id}, none} = Row, [{Nom, #filter{state = State} = Filter} | Tail], Acc) ->
-	case deep_seek(Id, State#filter_state.agent_profiles) of
-		undefined ->
-			update_filter_states(Row, Tail, [Filter | Acc]);
-		{Topkey, List} when length(List) =:= 1 ->
-			Newprofiles = proplists:delete(Topkey, State#filter_state.agent_profiles),
-			Newstate = State#filter_state{agent_profiles = Newprofiles},
-			update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc]);
-		{Topkey, List} ->
-			Newlist = proplists:delete(Id, List),
-			Newprofiles = proplists_replace(Topkey, Newlist, State#filter_state.agent_profiles),
-			Newstate = State#filter_state{agent_profiles = Newprofiles},
-			update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc])
-	end;
-update_filter_states({{agent, Id}, Time, Hp, Details, undefined} = Row, [{Nom, #filter{state = State} = Filter} | Tail], Acc) ->
-	case filter_row(Filter, Row) of
-		false ->
-			update_filter_states(Row, Tail, [Filter | Acc]);
-		true ->
-			Prof = proplists:get_value(profile, Details, "Default"),
-			case deep_seek(Id, State#filter_state.agent_profiles) of
-				undefined ->
-					Newprofs = [{Prof, [{Id, Details}]} | State#filter_state.agent_profiles],
-					Newstate = State#filter_state{agent_profiles = Newprofs},
-					update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc]);
-				{Prof, List} ->
-					Newlist = proplists_replace(Id, Details, List),
-					Newprofs = proplists_replace(Prof, Newlist, State#filter_state.agent_profiles),
-					Newstate = State#filter_state{agent_profiles = Newprofs},
-					update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc])
-			end
-	end;
-update_filter_states({{media, Id}, Time, Hp, Details, Histroy} = Row, [{Nom, #filter{state = State} = Filter} | Tail], Acc) ->
-	case filter_row(Filter, Row) of
-		false ->
-			update_filter_states(Row, Tail, [{Nom, Filter} | Acc]);
-		true ->
-			#client{label = Client} = proplists:get_value(client, Details),
-			{Newclients, Newqueuegroups} = case proplists:get_value(queue, Details) of
-				undefined ->
-					OldMedias = proplists:get_value(Client, State#filter_state.clients, []),
-					Newclients = case proplists:delete(Id, OldMedias) of
-						[] ->
-							proplists:delete(Client, State#filter_state.clients);
-						Else ->
-							proplists_replace(Client, Else, State#filter_state.clients)
-					end,
-					{Newclients, State#filter_state.queue_groups};
-				Queue ->
-					Newclients = case deep_seek(Id, State#filter_state.clients) of
-						undefined ->
-							[{Client, [{Id, Row}]} | State#filter_state.clients];
-						{Client, _} ->
-							Oldmedias = proplists:get_value(Client, State#filter_state.clients),
-							Newmedias = proplists_replace(Id, Row, Oldmedias),
-							proplists_replace(Client, Newmedias, State#filter_state.clients)
-					end,
-					Group = call_queue_config:get_queue(Queue),
-					SubNewqueuegroups = case deep_seek(Id, State#filter_state.queue_groups) of
-						undefined ->
-							Oldqueues = proplists:get_value(Group, State#filter_state.queue_groups, []),
-							Oldmedias2 = proplists:get_value(Queue, Oldqueues, []),
-							Newmedias2 = proplists_replace(Id, Row, Oldmedias2),
-							Newqueues = proplists_replace(Queue, Newmedias2, Oldqueues),
-							proplists_replace(Group, Newqueues, State#filter_state.queue_groups);
-						{Topkey, Oldmedias2} ->
-							Newmedias2 = proplists_replace(Id, Row, Oldmedias2),
-							Newqueues = proplists_replace(Queue, Newmedias2, proplists:get_value(Topkey, State#filter_state.queue_groups)),
-							proplists_replace(Group, Newqueues, State#filter_state.queue_groups)
-					end,
-					{Newclients, SubNewqueuegroups}
-			end,
-			Midstatistics = proplists_replace(Id, {Time, Histroy}, State#filter_state.state),
-			Newstatistics = lists:filter(fun({_, {T, _}}) -> T > util:now() - 86400 end, Midstatistics),
-			Newstate = State#filter_state{clients = Newclients, queue_groups = Newqueuegroups, state = Newstatistics},
-			update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc])
-	end.				
+update_filter_states({{media, Id}, Time, _Hp, _Details, Histroy} = Row, [{Nom, #filter{state = State} = Filter} | Tail], Acc) ->
+	Midstatistics = proplists_replace(Id, {Time, Histroy}, State#filter_state.state),
+	Newstatistics = lists:filter(fun({_, {T, _}}) -> T > util:now() - 86400 end, Midstatistics),
+	Newstate = State#filter_state{state = Newstatistics},
+	update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc]).
+
+%update_filter_states({{agent, Id}, none} = Row, [{Nom, #filter{state = State} = Filter} | Tail], Acc) ->
+%	case deep_seek(Id, State#filter_state.agent_profiles) of
+%		undefined ->
+%			update_filter_states(Row, Tail, [Filter | Acc]);
+%		{Topkey, List} when length(List) =:= 1 ->
+%			Newprofiles = proplists:delete(Topkey, State#filter_state.agent_profiles),
+%			Newstate = State#filter_state{agent_profiles = Newprofiles},
+%			update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc]);
+%		{Topkey, List} ->
+%			Newlist = proplists:delete(Id, List),
+%			Newprofiles = proplists_replace(Topkey, Newlist, State#filter_state.agent_profiles),
+%			Newstate = State#filter_state{agent_profiles = Newprofiles},
+%			update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc])
+%	end;
+%update_filter_states({{agent, Id}, Time, Hp, Details, undefined} = Row, [{Nom, #filter{state = State} = Filter} | Tail], Acc) ->
+%	case filter_row(Filter, Row) of
+%		false ->
+%			update_filter_states(Row, Tail, [Filter | Acc]);
+%		true ->
+%			Prof = proplists:get_value(profile, Details, "Default"),
+%			case deep_seek(Id, State#filter_state.agent_profiles) of
+%				undefined ->
+%					Newprofs = [{Prof, [{Id, Details}]} | State#filter_state.agent_profiles],
+%					Newstate = State#filter_state{agent_profiles = Newprofs},
+%					update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc]);
+%				{Prof, List} ->
+%					Newlist = proplists_replace(Id, Details, List),
+%					Newprofs = proplists_replace(Prof, Newlist, State#filter_state.agent_profiles),
+%					Newstate = State#filter_state{agent_profiles = Newprofs},
+%					update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc])
+%			end
+%	end;
+%update_filter_states({{media, Id}, Time, Hp, Details, Histroy} = Row, [{Nom, #filter{state = State} = Filter} | Tail], Acc) ->
+%	case filter_row(Filter, Row) of
+%		false ->
+%			update_filter_states(Row, Tail, [{Nom, Filter} | Acc]);
+%		true ->
+%			#client{label = Client} = proplists:get_value(client, Details),
+%			{Newclients, Newqueuegroups} = case proplists:get_value(queue, Details) of
+%				undefined ->
+%					OldMedias = proplists:get_value(Client, State#filter_state.clients, []),
+%					Newclients = case proplists:delete(Id, OldMedias) of
+%						[] ->
+%							proplists:delete(Client, State#filter_state.clients);
+%						Else ->
+%							proplists_replace(Client, Else, State#filter_state.clients)
+%					end,
+%					{Newclients, State#filter_state.queue_groups};
+%				Queue ->
+%					Newclients = case deep_seek(Id, State#filter_state.clients) of
+%						undefined ->
+%							[{Client, [{Id, Row}]} | State#filter_state.clients];
+%						{Client, _} ->
+%							Oldmedias = proplists:get_value(Client, State#filter_state.clients),
+%							Newmedias = proplists_replace(Id, Row, Oldmedias),
+%							proplists_replace(Client, Newmedias, State#filter_state.clients)
+%					end,
+%					Group = call_queue_config:get_queue(Queue),
+%					SubNewqueuegroups = case deep_seek(Id, State#filter_state.queue_groups) of
+%						undefined ->
+%							Oldqueues = proplists:get_value(Group, State#filter_state.queue_groups, []),
+%							Oldmedias2 = proplists:get_value(Queue, Oldqueues, []),
+%							Newmedias2 = proplists_replace(Id, Row, Oldmedias2),
+%							Newqueues = proplists_replace(Queue, Newmedias2, Oldqueues),
+%							proplists_replace(Group, Newqueues, State#filter_state.queue_groups);
+%						{Topkey, Oldmedias2} ->
+%							Newmedias2 = proplists_replace(Id, Row, Oldmedias2),
+%							Newqueues = proplists_replace(Queue, Newmedias2, proplists:get_value(Topkey, State#filter_state.queue_groups)),
+%							proplists_replace(Group, Newqueues, State#filter_state.queue_groups)
+%					end,
+%					{Newclients, SubNewqueuegroups}
+%			end,
+%			Midstatistics = proplists_replace(Id, {Time, Histroy}, State#filter_state.state),
+%			Newstatistics = lists:filter(fun({_, {T, _}}) -> T > util:now() - 86400 end, Midstatistics),
+%			Newstate = State#filter_state{clients = Newclients, queue_groups = Newqueuegroups, state = Newstatistics},
+%			update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc])
+%	end.				
 
 %% @doc If the row passes through the filter, return true.
 filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, Row) ->
@@ -616,9 +624,13 @@ filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
 	end.
 
 write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter}) ->
+	Hourago = util:now() - 3600,
 	Inbound = [X || {_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == inbound],
 	Outbound = [X || {_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == outbound],
 	Abandoned = [X || {_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == inbound, element(2, Hkey) == qabandoned orelse element(2, Hkey) == ivrabandoned],
+	HourInbound = [X || {_Key, {Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == inbound, Time > Hourago],
+	HourOutbound = [X || {_Key, {Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == outbound, Time > Hourago],
+	HourAbn = [X || {_Key, {Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == inbound, element(2, Hkey) == qabandoned orelse element(2, Hkey) == ivrabandoned, Time > Hourago],
 	Clients = get_clients(Filter),
 	ClientsJson = clients_to_json(Clients, Filter),
 	Queugroups = get_queue_groups(Filter),
@@ -629,6 +641,9 @@ write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter
 		{<<"totalInbound">>, length(Inbound)},
 		{<<"totalOutbound">>, length(Outbound)},
 		{<<"totalAbandoned">>, length(Abandoned)},
+		{<<"hourInbound">>, length(HourInbound)},
+		{<<"hourOutbound">>, length(HourOutbound)},
+		{<<"hourAbandoned">>, length(HourAbn)},
 		{<<"clients_in_queues">>, ClientsJson},
 		{<<"queueGroups">>, QueuegroupJson},
 		{<<"agentProfiles">>, AgentProfsJson}

@@ -47,7 +47,7 @@
 
 -export([
 	agent_exists/1,
-	agent_auth/2,
+	agent_auth/3,
 	client_exists/1,
 	client_exists/2,
 	get_client/2
@@ -69,11 +69,11 @@ agent_exists(Agent) ->
 -type(skill_list() :: [skill()]).
 -type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
 -type(security() :: 'admin' | 'agent' | 'supervisor').
--spec(agent_auth/2 :: (Agent :: string(), Password :: string()) -> {ok, profile_data(), security()} | 'deny').
-agent_auth(Agent, Password) ->
-	Out = do_call({agent_auth, Agent, Password}),
+-spec(agent_auth/3 :: (Agent :: string(), Password :: string(), Extended :: [{atom(), any()}]) -> {ok, profile_data(), security()} | 'deny').
+agent_auth(Agent, Password, Extended) ->
+	Out = do_call({agent_auth, Agent, Password, Extended}),
 	Test = fun
-		({ok, _Id, _Profile, Security}) ->
+		({ok, _Id, _Profile, Security, Extended}) ->
 			case Security of
 				Lvl when Lvl =:= admin; Lvl =:= agent; Lvl =:= supervisor ->
 					true;
@@ -81,6 +81,8 @@ agent_auth(Agent, Password) ->
 					false
 			end;
 		(deny) ->
+			true;
+		(destroy) ->
 			true;
 		(_Else) ->
 			false
@@ -146,7 +148,7 @@ no_integration_test_() ->
 	[?_assertEqual({error, nointegration}, do_call("a message")),
 	?_assertEqual({error, nointegration}, get_client(label, "a_client")),
 	?_assertEqual({error, nointegration}, client_exists(comboid, "00010001")),
-	?_assertEqual({error, nointegration}, agent_auth("agent", "password")),
+	?_assertEqual({error, nointegration}, agent_auth("agent", "password", [])),
 	?_assertEqual({error, nointegration}, agent_exists("agent"))].
 
 bad_integration_test_() ->
@@ -162,7 +164,7 @@ bad_integration_test_() ->
 	end,
 	[?_assertThrow({badreturn, gooberpants}, get_client(label, "a_client")),
 	?_assertThrow({badreturn, gooberpants}, client_exists(label, "a_client")),
-	?_assertThrow({badreturn, gooberpants}, agent_auth("agent", "password")),
+	?_assertThrow({badreturn, gooberpants}, agent_auth("agent", "password", [])),
 	?_assertThrow({badreturn, gooberpants}, agent_exists("agent"))]}.
 
 good_integration_test_() ->
@@ -192,15 +194,15 @@ good_integration_test_() ->
 	fun(Mock) ->
 		{"agent auth success",
 		fun() ->
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "password"}, _, State) -> {ok, {ok, "testid", "Default", agent}, State} end),
-			?assertEqual({ok, "testid", "Default", agent}, agent_auth("agent", "password"))
+			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "password", []}, _, State) -> {ok, {ok, "testid", "Default", agent, []}, State} end),
+			?assertEqual({ok, "testid", "Default", agent, []}, agent_auth("agent", "password", []))
 		end}
 	end,
 	fun(Mock) ->
 		{"agent auth fail",
 		fun() ->
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "password"}, _, State) -> {ok, deny, State} end),
-			?assertEqual(deny, agent_auth("agent", "password"))
+			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "password", []}, _, State) -> {ok, deny, State} end),
+			?assertEqual(deny, agent_auth("agent", "password", []))
 		end}
 	end,
 	fun(Mock) ->

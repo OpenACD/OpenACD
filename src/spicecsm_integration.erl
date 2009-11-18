@@ -37,6 +37,7 @@
 -include("log.hrl").
 -include("call.hrl").
 -include("cpx.hrl").
+-include("agent.hrl").
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
@@ -219,7 +220,7 @@ handle_call({agent_exists, Agent}, _From, State) when is_list(Agent) ->
 		{ok, [{struct, _Proplist}]} ->
 			{reply, true, State#state{count = Count}}
 	end;
-handle_call({agent_auth, Agent, PlainPassword}, _From, State) when is_list(Agent), is_list(PlainPassword) ->
+handle_call({agent_auth, Agent, PlainPassword, Extended}, _From, State) when is_list(Agent), is_list(PlainPassword) ->
 	Login = list_to_binary(Agent),
 	Password = list_to_binary(util:bin_to_hexstr(erlang:md5(PlainPassword))),
 	{ok, Count, Reply} = request(State, <<"agentAuth">>, [{struct, [{<<"login">>, Login}, {<<"password">>, Password}]}]),
@@ -233,7 +234,7 @@ handle_call({agent_auth, Agent, PlainPassword}, _From, State) when is_list(Agent
 			Intsec = list_to_integer(binary_to_list(proplists:get_value(<<"securitylevelid">>, Proplist))),
 			Intprof = list_to_integer(binary_to_list(proplists:get_value(<<"tierid">>, Proplist))),
 			Id = binary_to_list(proplists:get_value(<<"agentid">>, Proplist)),
-			{Profile, Security} = case {Intsec, Intprof} of
+			{MidProfile, Security} = case {Intsec, Intprof} of
 				{Secid, 4} when Secid < 4 ->
 					{"Default", supervisor};
 				{Secid, TierID} ->
@@ -249,7 +250,22 @@ handle_call({agent_auth, Agent, PlainPassword}, _From, State) when is_list(Agent
 					end,
 					{P, S}
 			end,
-			{reply, {ok, Id, Profile, Security}, State#state{count = Count}}
+			{Profile, NewExtended} = case proplists:get_value(last_spice_profile, Extended) of
+				undefined ->
+					{MidProfile, [{last_spice_profile, MidProfile} | Extended]};
+				MidProfile ->
+					CurrentProf = case agent_auth:get_agent(Agent) of
+						{atomic, [Rec]} ->
+							Rec#agent_auth.profile;
+						_Else2 ->
+							MidProfile
+					end,
+					{CurrentProf, Extended};
+				_Other ->
+					Midextended = proplists:delete(last_spice_profile, Extended),
+					{MidProfile, [{last_spice_profile, MidProfile} | Extended]}
+			end,
+			{reply, {ok, Id, Profile, Security, NewExtended}, State#state{count = Count}}
 	end;
 handle_call({client_exists, id, Value}, From, State) ->
 	case handle_call({get_client, id, Value}, From, State) of

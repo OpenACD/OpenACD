@@ -228,8 +228,8 @@ handle_info(write_output, #state{filters = Filters} = State) ->
 	{noreply, State#state{timer = Timer, write_pids = WritePids}};
 handle_info({cpx_monitor_event, Event}, #state{filters = Filters} = State) ->
 	Row = cache_event(Event),
-	Newfilters = update_filter_states(Row, Filters),
-	{noreply, State#state{filters = Newfilters}};
+	%Newfilters = update_filter_states(Row, Filters),
+	{noreply, State#state{filters = Filters}};
 handle_info({'EXIT', Pid, Reason}, #state{write_pids = Pids} = State) ->
 	case proplists:get_value(Pid, Pids) of
 		undefined ->

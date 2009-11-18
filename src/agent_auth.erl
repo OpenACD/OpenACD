@@ -50,7 +50,7 @@
 	build_tables/0
 ]).
 -export([
-	cache/5,
+	cache/6,
 	destroy/1,
 	destroy/2,
 	merge/3,
@@ -422,14 +422,23 @@ query_nodes([Node | Tail], Time, Func, Acc) ->
 -type(profile_name() :: string()).
 -spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', string(), skill_list(), security_level(), profile_name()}).
 auth(Username, Password) ->
-	try integration:agent_auth(Username, Password) of
+	Extended = case get_agent(Username) of
+		{atomic, [Rec]} ->
+			Rec#agent_auth.extended_props;
+		_Else ->
+			[]
+	end,
+	try integration:agent_auth(Username, Password, Extended) of
 		deny ->
 			?INFO("integration denial for ~p", [Username]),
+			%destroy(Username),
+			deny;
+		destroy ->
 			destroy(Username),
 			deny;
-		{ok, Id, Profile, Security} ->
+		{ok, Id, Profile, Security, Newextended} ->
 			?INFO("integration allow for ~p", [Username]),
-			cache(Id, Username, Password, Profile, Security),
+			cache(Id, Username, Password, Profile, Security, Newextended),
 			local_auth(Username, Password);
 		{error, nointegration} ->
 			?INFO("No integration, local authing ~p", [Username]),
@@ -510,9 +519,9 @@ build_tables() ->
 %% either `agent', `supervisor', or `admin'.
 -type(profile() :: string()).
 -type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
--spec(cache/5 ::	(Id :: string(), Username :: string(), Password :: string(), Profile :: profile_data(), Security :: 'agent' | 'supervisor' | 'admin') -> 
+-spec(cache/6 ::	(Id :: string(), Username :: string(), Password :: string(), Profile :: profile_data(), Security :: 'agent' | 'supervisor' | 'admin', Extended :: [{atom(), any()}]) -> 
 						{'atomic', 'ok'} | {'aborted', any()}).
-cache(Id, Username, Password, {Profile, Skills}, Security) ->
+cache(Id, Username, Password, {Profile, Skills}, Security, Extended) ->
 	F = fun() ->
 		QH = qlc:q([A || A <- mnesia:table(agent_auth), A#agent_auth.id =:= Id]),
 		Writerec = case qlc:e(QH) of
@@ -524,7 +533,8 @@ cache(Id, Username, Password, {Profile, Skills}, Security) ->
 					skills = [],
 					securitylevel = Security,
 					integrated = util:now(),
-					profile = Profile
+					profile = Profile,
+					extended_props = Extended
 				};
 			[Baserec] ->
 				Baserec#agent_auth{
@@ -533,7 +543,8 @@ cache(Id, Username, Password, {Profile, Skills}, Security) ->
 					securitylevel = Security,
 					integrated = util:now(),
 					profile = Profile,
-					skills = util:merge_skill_lists(Baserec#agent_auth.skills, Skills)
+					skills = util:merge_skill_lists(Baserec#agent_auth.skills, Skills),
+					extended_props = Extended
 				}
 		end,
 %		case get_profile(Writerec#agent_auth.profile) of
@@ -548,15 +559,15 @@ cache(Id, Username, Password, {Profile, Skills}, Security) ->
 	Out = mnesia:transaction(F),
 	?DEBUG("Cache username result:  ~p", [Out]),
 	Out;
-cache(Id, Username, Password, [Isskill | _Tail] = Skills, Security) when is_atom(Isskill); is_tuple(Isskill) ->
+cache(Id, Username, Password, [Isskill | _Tail] = Skills, Security, Extended) when is_atom(Isskill); is_tuple(Isskill) ->
 	case get_agent(id, Id) of
 		{atomic, [Agent]} ->
-			cache(Id, Username, Password, {Agent#agent_auth.profile, Skills}, Security);
+			cache(Id, Username, Password, {Agent#agent_auth.profile, Skills}, Security, Extended);
 		{atomic, []} ->
-			cache(Id, Username, Password, {"Default", Skills}, Security)
+			cache(Id, Username, Password, {"Default", Skills}, Security, Extended)
 	end;
-cache(Id, Username, Password, Profile, Security) ->
-	cache(Id, Username, Password, {Profile, []}, Security).
+cache(Id, Username, Password, Profile, Security, Extended) ->
+	cache(Id, Username, Password, {Profile, []}, Security, Extended).
 	
 %% @doc adds a user to the local cache bypassing the integrated at check.  Note that unlike {@link cache/4} this expects the password 
 %% in plain text!
@@ -767,8 +778,8 @@ auth_integration_test_() ->
 	[fun(Mock) ->
 		{"auth an agent that's not cached",
 		fun() ->
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "password"}, _, State) ->
-				{ok, {ok, "testid", "Default", agent}, State}
+			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "password", []}, _, State) ->
+				{ok, {ok, "testid", "Default", agent, []}, State}
 			end),
 			?assertMatch({allow, "testid", _Skills, agent, "Default"}, auth("testagent", "password")),
 			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "password"))
@@ -777,10 +788,10 @@ auth_integration_test_() ->
 	fun(Mock) ->
 		{"auth an agent overwrites the cache",
 		fun() ->
-			cache("testid", "testagent", "password", "Default", agent),
+			cache("testid", "testagent", "password", "Default", agent, []),
 			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "password")),
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "newpass"}, _, State) ->
-				{ok, {ok, "testid", "Default", agent}, State}
+			gen_server_mock:expect_call(Mock, fun({agent_auth, "testagent", "newpass", []}, _, State) ->
+				{ok, {ok, "testid", "Default", agent, []}, State}
 			end),
 			?assertMatch({allow, "testid", _Skills, agent, "Default"}, auth("testagent", "newpass")),
 			?assertMatch({allow, "testid", _Skills, agent, "Default"}, local_auth("testagent", "newpass")),
@@ -788,11 +799,22 @@ auth_integration_test_() ->
 		end}
 	end,
 	fun(Mock) ->
-		{"integration denies, thus removing from cache",
+		{"integration denies, but doesn't remove from cache",
 		fun() ->
 			?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123")),
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123"}, _, State) ->
+			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
 				{ok, deny, State}
+			end),
+			?assertEqual(deny, auth("agent", "Password123")),
+			?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123"))
+		end}
+	end,
+	fun(Mock) ->
+		{"integration returns a destory, thus removing from cache",
+		fun() ->
+			?assertMatch({allow, "1", _, agent, "Default"}, local_auth("agent", "Password123")),
+			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
+				{ok, destroy, State}
 			end),
 			?assertEqual(deny, auth("agent", "Password123")),
 			?assertEqual(deny, local_auth("agent", "Password123"))
@@ -801,7 +823,7 @@ auth_integration_test_() ->
 	fun(Mock) ->
 		{"integration fails",
 		fun() ->
-			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123"}, _, State) ->
+			gen_server_mock:expect_call(Mock, fun({agent_auth, "agent", "Password123", []}, _, State) ->
 				{ok, gooberpants, State}
 			end),
 			?assertMatch({allow, "1", _Skills, agent, "Default"}, auth("agent", "Password123")),

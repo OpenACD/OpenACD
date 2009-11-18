@@ -82,6 +82,7 @@
 	profile = "Default" :: string(),
 	firstname = "" :: string(),
 	lastname = "" :: string(),
+	extended_props = [] :: [{atom(), any()}],
 	timestamp = util:now() :: pos_integer()
 }).
 

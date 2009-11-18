@@ -134,8 +134,8 @@ dojo.addOnLoad(function(){
 			if(item.type[0] == "queue"){
 				var callback = function(queue){
 					/*dijit.byId("editQueueForm").setValues(queue);*/ /* TODO disabled because it breaks in 1.4 */
-					dijit.byId("queueRecipe").setValue(queue.recipe);
-					dijit.byId("queueGroup").setDisplayedValue(queue.group);
+					dijit.byId("queueRecipe").attr('value', queue.recipe);
+					dijit.byId("queueGroup").attr('displayedValue', queue.group);
 					dijit.byId("queuesMain").selectChild('queueEditor');
 					
 					var setGroupRecipe = function(item2, req){
@@ -351,7 +351,7 @@ dojo.addOnLoad(function(){
 						//dijit.byId("agentProfile").attr("value", agent.profile);
 						dojo.byId("agentIntegrated").innerHTML = agent.integrated;
 						dijit.byId("agentSecurity").attr('value', agent.securitylevel);
-						dijit.byId("agentProfile").setDisplayedValue(agent.profile);
+						dijit.byId("agentProfile").attr('displayedValue', agent.profile);
 						dijit.byId("agentPassword").attr('value', "");
 						dijit.byId("agentConfirm").attr('value', "");
 						dijit.byId("agentLastName").attr('value', agent.lastname);
@@ -476,8 +476,9 @@ dojo.addOnLoad(function(){
 									medias.refreshTree('mediaList');
 									clients.init();
 									releaseOpts.init();
-								}
-								else{
+								} else {
+									dojo.byId("loginerrp").style.display = "block";
+									dojo.byId("loginerrspan").innerHTML = response2.message;
 									dijit.byId("loginpane").show();
 								}
 							}

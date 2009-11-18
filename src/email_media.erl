@@ -471,6 +471,8 @@ handle_answer(Agent, Call, State) ->
 	agent:conn_cast(Agent, {mediaload, Call}),
 	{ok, State}.
 
+handle_ring(_Agent, _Call, #state{caseid = CaseID} = State) when CaseID =/= undefined ->
+	{ok, [{"Caseid", CaseID}], State};
 handle_ring(_Agent, _Call, State) ->
 	{ok, State}.
 

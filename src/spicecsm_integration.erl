@@ -155,7 +155,7 @@ import_brands([{struct, Proplist} | Tail], Pid) ->
 	Query = list_to_binary(lists:append(["select BrandID, BrandLabel, BrandListLabel from ", Companyid, "_tblBrand where Active=1"])),
 	Res = gen_server:call(Pid, {raw_request, <<"query">>, [Query]}),
 	Reslist = proplists:get_value(<<"result">>, Res),
-	write_brands(Reslist, list_to_integer(Companyid), binary_to_list(proplists:get_value(<<"companylabel">>, Proplist))),
+	write_brands(Reslist, list_to_integer(Companyid), binary_to_list(proplists:get_value(<<"companylabel">>, Proplist)), Pid),
 	import_brands(Tail, Pid).
 
 import_skills_and_profiles([]) ->
@@ -166,18 +166,33 @@ import_skills_and_profiles([{Atom, Name, Enddesc, Group} | Tail]) ->
 	agent_auth:new_profile(Name, [Atom, '_profile']),
 	import_skills_and_profiles(Tail).
 		
-write_brands([], _, _) ->
+write_brands([], _, _, _) ->
 	ok;
-write_brands([{struct, Proplist} | Tail], Companyid, Companylabel) ->
+write_brands([{struct, Proplist} | Tail], Companyid, Companylabel, Pid) ->
 	Brandid = list_to_integer(binary_to_list(proplists:get_value(<<"brandid">>, Proplist))),
 	Brandlabel = binary_to_list(proplists:get_value(<<"brandlistlabel">>, Proplist)),
 	Comboid = combine_id(Companyid, Brandid),
+	Query = list_to_binary([
+		"select DataLabel, DataText from ", 
+		integer_to_list(Companyid), 
+		"_tblBrandData where BrandID=",
+		integer_to_list(Brandid)
+	]),
+	Res = gen_server:call(Pid, {raw_request, <<"query">>, [Query]}),
+	Reslist = proplists:get_value(<<"result">>, Res),
+	Toproplist = fun({struct, Props}, Acc) ->
+		Key = proplists:get_value(<<"datalabel">>, Props),
+		PValue = proplists:get_value(<<"datatext">>, Props),
+		[{Key, PValue} | Acc]
+	end,
+	ClientProps = lists:foldl(Toproplist, [], Reslist),
 	call_queue_config:new_client(#client{
 		label = Brandlabel, 
 		id = Comboid,
+		options = ClientProps,
 		last_integrated = util:now()
 	}),
-	write_brands(Tail, Companyid, Companylabel).
+	write_brands(Tail, Companyid, Companylabel, Pid).
 	
 %%====================================================================
 %% gen_server callbacks
@@ -265,7 +280,7 @@ handle_call({agent_auth, Agent, PlainPassword, Extended}, _From, State) when is_
 					{CurrentProf, Extended};
 				_Other ->
 					Midextended = proplists:delete(last_spice_profile, Extended),
-					{MidProfile, [{last_spice_profile, MidProfile} | Extended]}
+					{MidProfile, [{last_spice_profile, MidProfile} | Midextended]}
 			end,
 			{reply, {ok, Id, Profile, Security, NewExtended}, State#state{count = Count}}
 	end;
@@ -281,18 +296,40 @@ handle_call({client_exists, id, Value}, From, State) ->
 handle_call({get_client, id, Value}, _From, State) ->
 	{Tenant, Brand} = split_id(Value),
 	Query = list_to_binary(lists:append(["select BrandListLabel from ", integer_to_list(Tenant), "_tblBrand where BrandID=", integer_to_list(Brand)])),
-	{ok, Count, Reply} = request(State, <<"query">>, [Query]),
+	{ok, MidCount, Reply} = request(State, <<"query">>, [Query]),
 	case check_error(Reply) of
 		{error, Message} ->
 			?WARNING("Integration error'ed:  ~p", [Message]),
-			{stop, {error, Message},  {error, Message}, State#state{count = Count}};
+			{stop, {error, Message},  {error, Message}, State#state{count = MidCount}};
 		{ok, {struct, [{<<"msg">>, Message}]}} ->
 			?INFO("Real message for noexists client:  ~p", [Message]),
-			{reply, none, State#state{count = Count}};
+			{reply, none, State#state{count = MidCount}};
 		{ok, [{struct, Proplist}]} ->
 			Label = binary_to_list(proplists:get_value(<<"brandlistlabel">>, Proplist)),
-			Res = {ok, Value, Label, []},		
-			{reply, Res, State#state{count = Count}}
+			Varlistquery = list_to_binary([
+				"select DataLabel, DataText from ", 
+				integer_to_list(Tenant), 
+				"_tblBrandData where BrandID=",
+				integer_to_list(Brand)
+			]),
+			{ok, Count, Subreply} = request(State#state{count = MidCount}, <<"query">>, [Varlistquery]),
+			case check_error(Subreply) of
+				{error, Message} ->
+					?WARNING("integration error'ed:  ~p", [Message]),
+					{stop, {error, Message}, {error, Message}, State#state{count = Count}};
+				{ok, {struct, [{<<"msg">>, Message}]}} ->
+					?INFO("Real message for getting client vars:  ~p", [Message]),
+					{reply, {ok, Value, Label, []}, State#state{count = Count}};
+				{ok, List} ->
+					Toproplist = fun({struct, Props}, Acc) ->
+						Key = proplists:get_value(<<"datalabel">>, Props),
+						PValue = proplists:get_value(<<"datatext">>, Props),
+						[{Key, PValue} | Acc]
+					end,
+					ClientProps = lists:foldl(Toproplist, [], List),
+					Res = {ok, Value, Label, ClientProps},
+					{reply, Res, State#state{count = Count}}
+			end
 	end;
 handle_call({raw_request, Apicall, Params}, _From, State) ->
 	{ok, Count, Reply} = request(State, Apicall, Params),

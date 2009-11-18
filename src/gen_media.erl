@@ -52,7 +52,9 @@
 %%		types:	Agent = pid()
 %%				Call = #call{}
 %%				State = any()
-%%				Result = {ok, NewState} | {invalid, NewState}
+%%				Result = {ok, NewState} | {ok, UrlOptions, NewState} | 
+%%					{invalid, NewState}
+%%					UrlOptions = [{string(), string()}]
 %%					NewState = any()
 %%
 %%		When a call must ring to an agent (either due to out of queue or the 
@@ -66,8 +68,11 @@
 %%		
 %%		State is the internal state of the gen_media callbacks.
 %%
-%%		If Result is {ok, NewState}, Agent is set to ringing, and execution 
-%%		continues with NewState.
+%%		If Result is {ok, NewState} or {ok, UrlOptions, NewState}, Agent is set 
+%%		to ringing, and execution continues with NewState.  A url_pop is sent to
+%%		the agent is the client for the media is set to have one.  In the case
+%%		of {ok, UrlOptions, NewState}, the UrlOptions are appened to the url as
+%%		a query (get) string.
 %%
 %%		If Result is {invalid, NewState}, Agent is set to idle, and execution
 %%		continues with NewState.
@@ -574,6 +579,12 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 					url_pop(Call, Agent),
 					Newcall = Call#call{cook = QCall#queued_call.cook},
 					{reply, ok, State#state{substate = Substate, ring_pid = Agent, ringout=Tref, callrec = Newcall}};
+				{ok, Popopts, Substate} ->
+					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
+					cdr:ringing(Call, Agent),
+					url_pop(Call, Agent, Popopts),
+					Newcall = Call#call{cook = QCall#queued_call.cook},
+					{reply, ok, State#state{substate = Substate, ring_pid = Agent, ringout=Tref, callrec = Newcall}};
 				{invalid, Substate} ->
 					agent:set_state(Agent, released, {"Ring Fail", "Ring Fail", -1}),
 					{reply, invalid, State#state{substate = Substate}}
@@ -893,7 +904,10 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-url_pop(#call{client = Client} = Call, Agent) ->
+url_pop(Call, Agent) ->
+	url_pop(Call, Agent, []).
+
+url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 	case proplists:get_value(url_pop, Client#client.options) of
 		undefined ->
 			ok;
@@ -912,7 +926,11 @@ url_pop(#call{client = Client} = Call, Agent) ->
 				{"media_type", atom_to_list(Call#call.type)},
 				{"direction", atom_to_list(Call#call.direction)}
 			],
-			Url = util:string_interpolate(String, Words),
+			BaseUrl = util:string_interpolate(String, Words),
+			Appender = fun({Key, Value}, Midurl) ->
+				lists:append([Midurl, [$& | Key], [$= | Value]])
+			end,
+			Url = lists:foldl(Appender, BaseUrl, Addedopts),
 			agent:url_pop(Agent, Url)
 	end.
 %
@@ -1151,6 +1169,50 @@ outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call) ->
 dead_spawn() ->
 	spawn(fun() -> ok end).
 
+url_pop_test_() ->
+	{setup,
+	fun() ->
+		{ok, Agent} = agent:start(#agent{login = "testagent"}),
+		{ok, Conn} = gen_server_mock:new(),
+		gen_server_mock:expect_cast(Conn, fun(_, _) -> ok end),
+		agent:set_connection(Agent, Conn),
+		Call = #call{id = "testcall", source = dead_spawn()},
+		{Call, Agent, Conn}
+	end,
+	fun({_, Agent, Conn}) ->
+		gen_server_mock:stop(Conn),
+		agent:stop(Agent)
+	end,
+	fun({BaseCall, Agent, Conn}) ->
+		[{"no url pop defined in client",
+		fun() ->
+			Call = BaseCall#call{client = #client{label = "client", id = "client", options = []}},
+			% if the mock (Conn) gets a cast, it'll error; that's the test.
+			% if it error's, it's a fail.
+			url_pop(Call, Agent)
+		end},
+		{"url is an empty list",
+		fun() ->
+			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, []}]}},
+			% same as above.
+			url_pop(Call, Agent)
+		end},
+		{"url is set",
+		fun() ->
+			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com"}]}},
+			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com"}, _) -> ok end),
+			url_pop(Call, Agent),
+			gen_server_mock:assert_expectations(Conn)
+		end},
+		{"url is set with some additional options",
+		fun() ->
+			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com?a=b"}]}},
+			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com?a=b&addkey=addval"}, _) -> ok end),
+			url_pop(Call, Agent, [{"addkey", "addval"}]),
+			gen_server_mock:assert_expectations(Conn)
+		end}]
+	end}.
+	
 init_test_() ->
 	{foreach,
 	fun() ->

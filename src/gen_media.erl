@@ -470,7 +470,13 @@ init([Callback, Args]) ->
 		{ok, {Substate, PCallrec}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}}
+			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
+		{stop, Reason} = O ->
+			?WARNING("init aborted due to ~p", [Reason]),
+			O;
+		ignore ->
+			?WARNING("init told to ignore", []),
+			ignore
 	end.
 
 %%--------------------------------------------------------------------

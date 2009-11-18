@@ -202,59 +202,63 @@ init(Args) ->
 	end,
 	{Skeleton, Files} = skeletonize(Mimed),
 
-	Callerid = case proplists:get_value(<<"From">>, Mheads) of
-		undefined -> 
-			{"Unknown", "Unknown"};
-		Else ->
-			case re:run(Else, "(?:(.+) |)<([-a-zA-Z0-9._@]+)>", [{capture, all_but_first, list}]) of
-				{match, [Name, Number]} ->
-					{Name, Number};
-				nomatch ->
-					{"Unknown", binary_to_list(Else)}
-			end
-	end,
-	Ref = erlang:ref_to_list(make_ref()),
-	Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
-	[RawDomain, _To] = binstr:split(binstr:reverse(list_to_binary(Mailmap#mail_map.address)), <<"@">>, 2),
-	Domain = case RawDomain of
-		<<$>, Text/binary>> ->
-			Text;
-		_Else ->
-			RawDomain
-	end,
-	Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, binstr:reverse(Domain)])),
+	case right_time(Mailmap#mail_map.client) of
+		true ->
+			Callerid = case proplists:get_value(<<"From">>, Mheads) of
+				undefined -> 
+					{"Unknown", "Unknown"};
+				Else ->
+					case re:run(Else, "(?:(.+) |)<([-a-zA-Z0-9._@]+)>", [{capture, all_but_first, list}]) of
+						{match, [Name, Number]} ->
+							{Name, Number};
+						nomatch ->
+							{"Unknown", binary_to_list(Else)}
+					end
+			end,
+			Ref = erlang:ref_to_list(make_ref()),
+			Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
+			[RawDomain, _To] = binstr:split(binstr:reverse(list_to_binary(Mailmap#mail_map.address)), <<"@">>, 2),
+			Domain = case RawDomain of
+				<<$>, Text/binary>> ->
+					Text;
+				_Else ->
+					RawDomain
+			end,
+			Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, binstr:reverse(Domain)])),
 
-	CaseID = case re:run(proplists:get_value(<<"Subject">>, Mheads, <<>>), "\\[Case:(\\d+)\\]", [{capture, all_but_first, list}]) of
-		{match, [CID]} ->
-			?DEBUG("CaseID for ~p is ~s", [Defaultid, CID]),
-			CID;
-		_ ->
-			undefined
-	end,
+			CaseID = case re:run(proplists:get_value(<<"Subject">>, Mheads, <<>>), "\\[Case:(\\d+)\\]", [{capture, all_but_first, list}]) of
+				{match, [CID]} ->
+					?DEBUG("CaseID for ~p is ~s", [Defaultid, CID]),
+					CID;
+				_ ->
+					undefined
+			end,
 
-	Proto = #call{
-		%id = binary_to_list(proplists:get_value(<<"Message-ID">>, Mheads, Defaultid)),
-		id = Defaultid,
-		type = email,
-		callerid = Callerid,
-		client = Mailmap#mail_map.client,
-		skills = Mailmap#mail_map.skills,
-		ring_path = inband,
-		media_path = inband,
-		priority = ?DEFAULT_PRIORITY, % TODO - allow this to be set via the address map?
-		source = self()
-	},
-	?DEBUG("started ~p for callerid:  ~p", [Defaultid, Callerid]),
-	{ok, {#state{
-			initargs = Args,
-			skeleton = Skeleton,
-			file_map = Files,
-			mimed = Mimed,
-			manager = whereis(email_media_manager),
-			caseid = CaseID, % TODO use this in the URL pop
-			mail_map_address = Mailmap#mail_map.address},
-		{Mailmap#mail_map.queue, Proto}}}.
-	
+			Proto = #call{
+				id = Defaultid,
+				type = email,
+				callerid = Callerid,
+				client = Mailmap#mail_map.client,
+				skills = Mailmap#mail_map.skills,
+				ring_path = inband,
+				media_path = inband,
+				priority = ?DEFAULT_PRIORITY, % TODO - allow this to be set via the address map?
+				source = self()
+			},
+			?DEBUG("started ~p for callerid:  ~p", [Defaultid, Callerid]),
+			{ok, {#state{
+						initargs = Args,
+						skeleton = Skeleton,
+						file_map = Files,
+						mimed = Mimed,
+						manager = whereis(email_media_manager),
+						caseid = CaseID, % TODO use this in the URL pop
+						mail_map_address = Mailmap#mail_map.address},
+					{Mailmap#mail_map.queue, Proto}}};
+		false ->
+			?NOTICE("Email not queued because of time of day restrictions", []),
+			ignore
+	end.
 	
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -587,6 +591,30 @@ append_files(Headers, Properties, Path, Files) ->
 					end,
 					[{Fixedname, lists:reverse(Path)} | Midfiles]
 			end
+	end.
+
+right_time(undefined) ->
+	true;
+right_time(Client) ->
+	EmailOverride = proplists:get_value(<<"emailoverride">>, Client#client.options, false),
+	EmailStart = proplists:get_value(<<"emailstart">>, Client#client.options),
+	EmailEnd = proplists:get_value(<<"emailend">>, Client#client.options),
+
+	case {EmailOverride, EmailStart, EmailEnd} of
+		{false, X, Y} when is_list(X), is_list(Y), X =/= Y ->
+			IntStart = list_to_integer(X),
+			IntEnd = list_to_integer(Y),
+			{_, {Hour, Minute, _}} = calendar:local_time(),
+			Current = Hour*100 + Minute,
+
+			if (Current > IntStart andalso ((IntStart < IntEnd andalso Current < IntEnd) orelse (IntEnd < IntStart)));
+				(IntStart > IntEnd andalso Current < IntEnd andalso Current < IntStart) ->
+					true;
+				true ->
+					false
+			end;
+		_ ->
+			true
 	end.
 
 -ifdef(EUNIT).

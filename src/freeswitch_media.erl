@@ -103,7 +103,8 @@
 	xferchannel :: pid() | 'undefined',
 	xferuuid :: string() | 'undefined',
 	in_control = false :: bool(),
-	queued = false :: bool()
+	queued = false :: bool(),
+	allow_voicemail = false :: bool()
 	}).
 
 -type(state() :: #state{}).
@@ -222,7 +223,6 @@ handle_voicemail(Agent, Callrec, State) when is_pid(Agent) ->
 handle_voicemail(undefined, Call, State) ->
 	UUID = Call#call.id,
 	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:voicemail/vm-record_message.wav,record:/tmp/${uuid}.wav' inline"),
-	% TODO CDR transaction for leaving voicemail?
 	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
 
 handle_spy(Agent, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
@@ -467,13 +467,13 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 				false ->
 					Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 					Client = proplists:get_value("variable_brand", Rawcall),
+					AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),
 					P = proplists:get_value("variable_queue_priority", Rawcall, integer_to_list(?DEFAULT_PRIORITY)),
 					Priority = try list_to_integer(P) of
 						Pri -> Pri
 					catch
 						error:badarg -> ?DEFAULT_PRIORITY
 					end,
-					?WARNING("proplist: ~p", [Rawcall]),
 					Calleridname = proplists:get_value("Caller-Caller-ID-Name", Rawcall, "Unknown"),
 					Calleridnum = proplists:get_value("Caller-Caller-ID-Number", Rawcall, "Unknown"),
 					NewCall = Callrec#call{client=Client, callerid={Calleridname, Calleridnum}, priority = Priority},
@@ -486,7 +486,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 							{"execute-app-name", "playback"},
 							{"execute-app-arg", "local_stream://moh"}]),
 						%% tell gen_media to (finally) queue the media
-					{queue, Queue, NewCall, State#state{queue = Queue, queued=true}};
+					{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM}};
 				_Otherwise ->
 					{noreply, State}
 			end;
@@ -530,10 +530,14 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 			{stop, normal, State};
 		"DTMF" ->
 			case proplists:get_value("DTMF-Digit", Rawcall) of
-				"*" ->
+				"*" when State#state.allow_voicemail =/= false ->
 					% allow the media to go to voicemail
 					?NOTICE("caller requested to go to voicemail", []),
-					{voicemail, State};
+					freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:voicemail/vm-record_message.wav,record:/tmp/${uuid}.wav' inline"),
+					{voicemail, State#state{voicemail = "/tmp/"++UUID++".wav"}};
+				"*" ->
+					?NOTICE("caller attempted to go to voicemail but is not allowed to do so", []),
+					{noreply, State};
 				_ ->
 					{noreply, State}
 			end;

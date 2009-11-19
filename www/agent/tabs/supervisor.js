@@ -175,7 +175,6 @@ if(typeof(supervisorView) == "undefined"){
 		this.group.connect("onmouseenter", this, conf.onmouseenter);
 		this.group.connect("onmouseleave", this, conf.onmouseleave);
 		this.group.connect("onclick", this, function(ev){
-			console.log(ev);
 			conf.onclick(ev)
 		});
 		
@@ -1385,17 +1384,20 @@ if(typeof(supervisorView) == "undefined"){
 					point: {x: 20, y:yi},
 					data: conf.data,
 					onmouseenter: conf.onmouseenter,
-					onclick:function(){
+					onclick:function(ev){
 						if(this.data.display == 'System'){
 							supervisorView.node = '*';
 						}
 						else{
 							supervisorView.node = this.data.display;
 						}
+						var dispRef = this.data.display;
 						dojo.forEach(supervisorView.systemStack, function(obj){
 							obj.size(1);
+							if(obj.data.display == dispRef){
+								obj.size(1.4);
+							}
 						});
-						this.size(1.4);
 					},
 					subscriptions:[
 						{channel: 'supervisorView/set/' + id,

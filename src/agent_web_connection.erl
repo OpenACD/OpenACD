@@ -448,6 +448,8 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 				{true, Apid} ->
 					?DEBUG("Tail:  ~p", [Tail]),
 					Statechange = case Tail of
+						["released", "default"] ->
+							agent:set_state(Apid, released, default);
 						[Statename, Statedata] ->
 							Astate = agent:list_to_state(Statename),
 							agent:set_state(Apid, Astate, Statedata);

@@ -252,10 +252,18 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, gateway = Gateway
 	Self = self(),
 	F = fun(RingUUID) ->
 			fun(ok, _Reply) ->
+					Client = Call#call.client,
+					CalleridArgs = case proplists:get_value(<<"callerid">>, Client#client.options) of
+						undefined ->
+							"origination_privacy=hide_namehide_number";
+						CalleridNum ->
+							"effective_caller_id_name="++Client#client.label++",effective_caller_id_name="++CalleridNum
+					end,
 					freeswitch:sendmsg(Fnode, RingUUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "bridge"},
-							{"execute-app-arg", "[ignore_early_media=true,origination_uuid="++Call#call.id++"]sofia/gateway/"++Gateway++"/"++Number}]),
+							{"execute-app-arg", lists:flatten(io_lib:format("[ignore_early_media=true,origination_uuid=~s,~s]sofia/gateway/~s/~s",
+										[Call#call.id, CalleridArgs, Gateway, Number]))}]),
 					Self ! {connect_uuid, Number};
 				(error, Reply) ->
 					?WARNING("originate failed: ~p", [Reply]),
@@ -367,7 +375,7 @@ handle_info({connect_uuid, Number}, #call{id = UUID} = Call, #state{cnode = Fnod
 		_Else ->
 			?NOTICE("starting for ~p", [UUID]),
 			Client = Call#call.client,
-			% TODO we should set the client's callerid here (name /toll free number, etc)
+			%% callerid internally is set to the brandname/dialed number
 			{outbound, Agent, Call#call{callerid = {Client#client.label, Number}}, State}
 	end;
 handle_info(Info, _Call, State) ->

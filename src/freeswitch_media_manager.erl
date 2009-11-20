@@ -120,7 +120,7 @@
 
 -record(state, {
 	nodename :: atom(),
-	freeswitch_c_pid :: pid(),
+	freeswitch_up = false :: bool(),
 	call_dict = dict:new() :: dict(),
 	voicegateway = "" :: string(),
 	xmlserver :: pid() | 'undefined'
@@ -205,17 +205,20 @@ init([Nodename, Options]) ->
 	%{api, Nodename} ! register_event_handler,
 	freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 	freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{voicegateway, Voicegateway}]),
-	{ok, #state{nodename=Nodename, voicegateway = Voicegateway, xmlserver = Lpid}}.
+	{ok, #state{nodename=Nodename, voicegateway = Voicegateway, xmlserver = Lpid, freeswitch_up = true}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
 
-handle_call({make_outbound_call, Client, AgentPid, AgentRec}, _From, #state{nodename = Node, voicegateway = Vgw} = State) ->
-	Result = freeswitch_outbound:start(Node, AgentRec, AgentPid, Client, Vgw, 30),
-	{reply, Result, State};
-handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) -> 
+handle_call({make_outbound_call, Client, AgentPid, AgentRec}, _From, #state{nodename = Node, voicegateway = Vgw, freeswitch_up = FS} = State) when FS == true ->
+	{ok, Pid} = freeswitch_outbound:start(Node, AgentRec, AgentPid, Client, Vgw, 30),
+	link(Pid),
+	{reply, {ok, Pid}, State};
+handle_call({make_outbound_call, Client, AgentPid, AgentRec}, _From, State) -> % freeswitch is down
+	{reply, {error, noconnection}, State};
+handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) ->
 	case dict:find(UUID, Dict) of
 		error -> 
 			{reply, noexists, State};
@@ -294,7 +297,7 @@ handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Lpid} 
 	?WARNING("Freeswitch node ~p has gone down", [Nodename]),
 	exit(Lpid, kill),
 	timer:send_after(1000, freeswitch_ping),
-	{noreply, State};
+	{noreply, State#state{freeswitch_up = false}};
 handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
 	case net_adm:ping(Nodename) of
 		pong ->
@@ -303,7 +306,7 @@ handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
 			Lpid = start_listener(Nodename),
 			freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{voicegateway, State#state.voicegateway}]),
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
-			{noreply, State#state{xmlserver = Lpid}};
+			{noreply, State#state{xmlserver = Lpid, freeswitch_up = true}};
 		pang ->
 			timer:send_after(1000, freeswitch_ping),
 			{noreply, State}

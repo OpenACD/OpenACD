@@ -154,11 +154,14 @@ Agent.prototype.initOutbound = function(Client, Type) {
 	dojo.xhrGet({
 		url: "init_outbound/" + Client + '/' + Type,
 		handleAs: 'json',
-		error:function(response, ioargs){
+		error: function(response, ioargs){
 			errMessage(["error for init outbound", response]);
 		},
-		load:function(response, ioargs){
-			EventLog.log("init outbound success");
+		load: function(response, ioargs){
+			if (response.success)
+				EventLog.log("init outbound success");
+			else
+				errMessage(response.message);
 		}
 	})
 }
@@ -214,8 +217,7 @@ Agent.prototype.mediaPush = function(data){
 			load:function(response, ioargs){
 				if(response.success){
 					info(["media push success", response]);
-				}
-				else{
+				} else{
 					errMessage(["media push failed", response])
 				}
 			},

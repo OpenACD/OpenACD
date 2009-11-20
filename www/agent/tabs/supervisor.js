@@ -2385,6 +2385,24 @@ supervisorView.reload();
 
 window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", function(child){
 	if(child.title == "Supervisor"){
+		if (dojo.cookie('agentui-settings')) {
+			var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+			if(! settings.tabs){
+				settings.tabs = [];
+			}
+		}else{
+			var settings = {
+				tabs: []
+			};
+		}
+		var newTabs = [];
+		for(var i = 0; i < settings.tabs.length; i++){
+			if(settings.tabs[i] != 'supervisorTab'){
+				newTabs.push(settings.tabs[i]);
+			}
+		}
+		settings.tabs = newTabs;
+		dojo.cookie('agentui-settings', dojo.toJson(settings));	
 		clearTimeout(supervisorView.hpCalcTimer);
 		clearTimeout(supervisorView.reloadTimer);
 		dojo.unsubscribe(window.supervisorViewKillListen);
@@ -2409,3 +2427,19 @@ window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", functio
 });
 
 supervisorView.hpcalc();
+
+if (dojo.cookie('agentui-settings')) {
+	var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+	if(! settings.tabs){
+		settings.tabs = ['supervisorTab'];
+	}else{
+		settings.tabs.push('supervisorTab');
+	}
+}
+else{
+	var settings = {
+	tabs: ['supervisorTab']
+	};
+}
+dojo.cookie('agentui-settings', dojo.toJson(settings));	
+

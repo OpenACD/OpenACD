@@ -79,7 +79,7 @@ function Agent(username, statetime, timestamp){
 					//agentref.stopwatch.stop();
 					//agentref.stopwatch.reset();
 					//agentref.poller.stop();
-					dojo.publish("agent/logout", []);
+					dojo.publish("agent/logout", [response.responseText]);
 				}
 				else if (ioargs.xhr.status != 200) {
 					agentref.poll();
@@ -93,7 +93,7 @@ function Agent(username, statetime, timestamp){
 				if(response.success == false){
 					errMessage(["poll failed", response.message]);
 					//agentref.poller.stop();
-					dojo.publish("agent/logout", []);
+					dojo.publish("agent/logout", [response.message]);
 					//agentref.poll();
 				}
 				else{
@@ -180,7 +180,7 @@ Agent.prototype.logout = function(/*callback*/){
 				//agentref.stopwatch.stop();
 				//agentref.stopwatch.reset();
 				//agentref.poller.stop();
-				dojo.publish("agent/logout", []);
+				dojo.publish("agent/logout", [true]);
 				//callback();
 			}			
 		}

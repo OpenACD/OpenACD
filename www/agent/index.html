@@ -35,9 +35,9 @@
 	}
 	
 </style>
-	<link rel="stylesheet" href="/dojo/dojox/layout/resources/FloatingPane.css">	
-	<link rel="stylesheet" href="/dojo/dojox/layout/resources/ResizeHandle.css">
-	<link rel="stylesheet" href="/application/css/email.css">
+<link rel="stylesheet" href="/dojo/dojox/layout/resources/FloatingPane.css" />	
+<link rel="stylesheet" href="/dojo/dojox/layout/resources/ResizeHandle.css" />
+<link rel="stylesheet" href="/application/css/email.css" />
 <script type="text/javascript">
 	/* this is lame, why do cookies suck in JS? */
 	var cookies = document.cookie.split('; ');
@@ -116,7 +116,9 @@
 	</script>
 
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
-		<p  id="loginerrp" style="font-size:smaller;display:none"><center><span id="loginerrspan" style="color:#ff0000"></span></center></p>
+		<p id="loginerrp" style="font-size:smaller;display:none;text-align:center">
+			<span id="loginerrspan" style="color:#ff0000">&nbsp;</span>
+		</p>
 		<p>
 			<label for="username" id="usernamelabel">
 				<script type="text/javascript">

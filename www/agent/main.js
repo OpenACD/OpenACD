@@ -730,7 +730,12 @@ dojo.addOnLoad(function(){
 	}
 
 	dojo.byId("loginerrp").logout = dojo.subscribe("agent/logout", function(data){
-		dojo.byId("loginerrp").style.display = "none";
+		if(data === true){
+			dojo.byId("loginerrp").style.display = "none";
+		}else{
+			dojo.byId("loginerrp").style.display = "block";
+			dojo.byId("loginerrspan").innerHTML = data;
+		}
 	});
 	
 	dojo.byId("loginpane").logout = dojo.subscribe("agent/logout", function(data){

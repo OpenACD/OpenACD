@@ -217,6 +217,16 @@ init([Agent, Security]) ->
 		_Else ->
 			Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
 			agent_web_listener:linkto(self()),
+			State = agent:dump_state(Apid),
+			CurrentCall = case State#agent.statedata of
+				Call when is_record(Call, call) ->
+					Call;
+				{on_hold, Call, calling, _Number} ->
+					Call;
+				_ ->
+					undefined
+			end,
+
 %			case Security of
 %				agent ->
 %					ok;
@@ -225,7 +235,7 @@ init([Agent, Security]) ->
 %				admin ->
 %					cpx_monitor:subscribe()
 %			end,
-			{ok, #state{agent_fsm = Apid, ack_timer = Tref, securitylevel = Security, listener = whereis(agent_web_listener)}}
+			{ok, #state{agent_fsm = Apid, current_call = CurrentCall, ack_timer = Tref, securitylevel = Security, listener = whereis(agent_web_listener)}}
 	end.
 
 %%--------------------------------------------------------------------

@@ -252,7 +252,7 @@ init(Args) ->
 						file_map = Files,
 						mimed = Mimed,
 						manager = whereis(email_media_manager),
-						caseid = CaseID, % TODO use this in the URL pop
+						caseid = CaseID,
 						mail_map_address = Mailmap#mail_map.address},
 					{Mailmap#mail_map.queue, Proto}}};
 		false ->

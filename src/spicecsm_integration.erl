@@ -168,7 +168,12 @@ import_skills_and_profiles([{Atom, Name, Enddesc, Group} | Tail]) ->
 		
 write_brands([], _, _, _) ->
 	ok;
+write_brands({struct, Proplist}, Companyid, CompanyList, Pid) ->
+	write_brands([{struct, Proplist}], Companyid, CompanyList, Pid);
+write_brands([{struct, [{<<"msg">>, <<"no results">>}]} | Tail], Cid, Clist, Pid) ->
+	write_brands(Tail, Cid, Clist, Pid);
 write_brands([{struct, Proplist} | Tail], Companyid, Companylabel, Pid) ->
+	?DEBUG("the proplist:  ~p", [Proplist]),
 	Brandid = list_to_integer(binary_to_list(proplists:get_value(<<"brandid">>, Proplist))),
 	Brandlabel = binary_to_list(proplists:get_value(<<"brandlistlabel">>, Proplist)),
 	Comboid = combine_id(Companyid, Brandid),
@@ -179,7 +184,12 @@ write_brands([{struct, Proplist} | Tail], Companyid, Companylabel, Pid) ->
 		integer_to_list(Brandid)
 	]),
 	Res = gen_server:call(Pid, {raw_request, <<"query">>, [Query]}),
-	Reslist = proplists:get_value(<<"result">>, Res),
+	Reslist = case proplists:get_value(<<"result">>, Res) of
+		R when is_tuple(R) ->
+			[R];
+		R ->
+			R
+	end,
 	Toproplist = fun({struct, Props}, Acc) ->
 		Key = proplists:get_value(<<"datalabel">>, Props),
 		PValue = proplists:get_value(<<"datatext">>, Props),

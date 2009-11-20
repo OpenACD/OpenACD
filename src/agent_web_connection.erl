@@ -612,7 +612,7 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 handle_call({supervisor, _Request}, _From, State) ->
 	?NOTICE("Unauthorized access to a supervisor web call", []),
 	{reply, {403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"insufficient privledges">>}]})}, State};
-handle_call({media, Post}, _From, #state{current_call = Call} = State) ->
+handle_call({media, Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
 	Commande = proplists:get_value("command", Post),
 	Arguments = proplists:get_value("arguments", Post), 
 	?DEBUG("Media Command:  ~p", [Commande]),
@@ -622,7 +622,7 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) ->
 				invalid ->
 					?DEBUG("agent:media_call returned invalid", []),
 					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid media call">>}]})};
-				{ok, Response} ->
+				Response ->
 					parse_media_call(Call, {Commande, Post}, Response)
 			end,
 			{reply, {200, Heads, Data}, State};
@@ -632,20 +632,20 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) ->
 		undefined ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
 	end;
-handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} = State) ->
+handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
 	%% considering how things have gone, the best guess is this is a media call.
 	%% Note that the results below are only for email, so this will need
 	%% to be refactored when we support more medias.
 	?DEBUG("forwarding request to media.  Path: ~p; Post: ~p", [Path, Post]),
 	case gen_media:call(Call#call.source, {get_blind, Path}) of
-		{ok, {ok, Mime}} ->
+		{ok, Mime} ->
 			{Heads, Data} = parse_media_call(Call, {"get_path", Path}, {ok, Mime}),
 %			Body = element(5, Mime),
 %			{reply, {200, [], list_to_binary(Body)}, State};
 			{reply, {200, Heads, Data}, State};
-		{ok, none} ->
+		none ->
 			{reply, {404, [], <<"path not found">>}, State};
-		{ok, {message, Mime}} ->
+		{message, Mime} ->
 			% the commented out code below is for the day mimemail:encode/1 will
 			% use binaries instead of lists, and (hopefully) output binaries too.
 			% for now, tell the client we suck.

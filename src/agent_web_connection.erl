@@ -76,6 +76,7 @@
 	salt :: any(),
 	ref :: ref() | 'undefined',
 	agent_fsm :: pid() | 'undefined',
+	current_call :: pid() | 'undefined',
 	poll_queue = [] :: [{struct, [{binary(), any()}]}],
 		% list of json structs to be sent to the client on poll.
 	poll_pid :: 'undefined' | pid(),
@@ -729,14 +730,21 @@ handle_cast({change_state, AgState, Data}, State) ->
 		{<<"statedata">>, encode_statedata(Data)}
 	]},
 	Newstate = push_event(Headjson, State),
-	{noreply, Newstate};
+	case Data of
+		Call when is_record(Call, call) ->
+			{noreply, Newstate#state{current_call = Call}};
+		{onhold, Call, calling, _Number} ->
+			{noreply, Newstate#state{current_call = Call}};
+		_ ->
+			{noreply, Newstate#state{current_call = undefined}}
+	end;
 handle_cast({change_state, AgState}, State) ->
 	Headjson = {struct, [
 			{<<"command">>, <<"astate">>},
 			{<<"state">>, AgState}
 		]},
 	Newstate = push_event(Headjson, State),
-	{noreply, Newstate};
+	{noreply, Newstate#state{current_call = undefined}};
 handle_cast({change_profile, Profile}, State) ->
 	Headjson = {struct, [
 			{<<"command">>, <<"aprofile">>},

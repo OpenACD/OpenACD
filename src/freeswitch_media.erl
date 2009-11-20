@@ -104,7 +104,8 @@
 	xferuuid :: string() | 'undefined',
 	in_control = false :: bool(),
 	queued = false :: bool(),
-	allow_voicemail = false :: bool()
+	allow_voicemail = false :: bool(),
+	ivroption :: string()
 	}).
 
 -type(state() :: #state{}).
@@ -201,7 +202,12 @@ handle_ring(Apid, Callrec, State) ->
 	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F) of
 		{ok, Pid} ->
 			link(Pid),
-			{ok, State#state{ringchannel = Pid, agent_pid = Apid}};
+			case State#state.ivroption of
+				undefined ->
+					{ok, State#state{ringchannel = Pid, agent_pid = Apid}};
+				Option ->
+					{ok, [{"ivropt", Option}], State#state{ringchannel = Pid, agent_pid = Apid}}
+			end;
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{invalid, State}

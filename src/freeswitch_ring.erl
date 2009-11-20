@@ -204,14 +204,14 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid
 					%cdr:hangup(State#state.callrec, agent),
 					{noreply, State};
 				"CHANNEL_HANGUP" ->
-					AState = agent:dump_state(State#state.agent_pid),
-					case AState#agent.state of
-						oncall ->
-							?NOTICE("Agent ~s still oncall when ring channel hungup", [AState#agent.login]),
-							ok;
-						_ ->
-							ok
-					end,
+					%AState = agent:dump_state(State#state.agent_pid),
+%					case AState#agent.state of
+%						oncall ->
+%							?NOTICE("Agent ~s still oncall when ring channel hungup", [AState#agent.login]),
+%							ok;
+%						_ ->
+%							ok
+%					end,
 					{noreply, State};
 				_Else ->
 					?DEBUG("call_event ~p", [Event]),

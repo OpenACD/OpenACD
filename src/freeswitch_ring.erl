@@ -110,7 +110,7 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun, Options]) when is_record(Qcall
 					Gethandle = fun(Recusef, Count) ->
 						?DEBUG("Counted ~p", [Count]),
 						case freeswitch:handlecall(Fnode, UUID) of
-							{error, badsession} when Count > 4 ->
+							{error, badsession} when Count > 10 ->
 								{error, badsession};
 							{error, badsession} ->
 								timer:sleep(100),

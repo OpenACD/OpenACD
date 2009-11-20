@@ -315,7 +315,8 @@
 	oncall_pid :: 'undefined' | pid(),
 	queue_failover = true :: 'true' | 'false',
 	queue_pid :: 'undefined' | pid(),
-	ringout = false:: tref() | 'false'
+	ringout = false:: tref() | 'false',
+	outband_ring_pid :: 'undefined' | pid()
 }).
 
 -type(state() :: #state{}).
@@ -579,18 +580,31 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 	case agent:set_state(Agent, ringing, Call#call{cook=QCall#queued_call.cook}) of
 		ok ->
 			case Callback:handle_ring(Agent, State#state.callrec, State#state.substate) of
-				{ok, Substate} ->
+				Success when element(1, Success) == ok ->
+					Popopts = case Success of
+						{ok, Substate} ->
+							[];
+						{ok, Opts, Substate} ->
+							Opts
+					end,
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
 					cdr:ringing(Call, Agent),
-					url_pop(Call, Agent),
+					url_pop(Call, Popopts, Agent),
 					Newcall = Call#call{cook = QCall#queued_call.cook},
-					{reply, ok, State#state{substate = Substate, ring_pid = Agent, ringout=Tref, callrec = Newcall}};
-				{ok, Popopts, Substate} ->
-					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
-					cdr:ringing(Call, Agent),
-					url_pop(Call, Agent, Popopts),
-					Newcall = Call#call{cook = QCall#queued_call.cook},
-					{reply, ok, State#state{substate = Substate, ring_pid = Agent, ringout=Tref, callrec = Newcall}};
+					Arec = agent:dump_state(Agent),
+					Outbandringpid = case {Arec#agent.defaultringpath, Call#call.ring_path, whereis(freeswitch_media_manager)} of
+						{outband, inband, Pid} when is_pid(Pid) ->
+							case freeswitch_media_manager:ring_agent(Agent, Arec, Call, Timeout) of
+								{ok, RingChanPid} ->
+									RingChanPid;
+								Else ->
+									?WARNING("Failed to do out of band ring:  ~p", [Else]),
+									undefined
+							end;
+						_ ->
+							undefined
+					end,
+					{reply, ok, State#state{substate = Substate, ring_pid = Agent, ringout=Tref, callrec = Newcall, outband_ring_pid = Outbandringpid}};
 				{invalid, Substate} ->
 					agent:set_state(Agent, released, {"Ring Fail", "Ring Fail", -1}),
 					{reply, invalid, State#state{substate = Substate}}

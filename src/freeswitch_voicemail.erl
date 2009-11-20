@@ -316,7 +316,7 @@ handle_info(Info, _Call, State) ->
 %%--------------------------------------------------------------------
 %% @private
 terminate(Reason, _Call, State) ->
-	% TODO - delete the recording?
+	% TODO - delete the recording or archive it somehow
 	?NOTICE("terminating: ~p", [Reason]),
 	ok.
 

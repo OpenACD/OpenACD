@@ -182,7 +182,8 @@ handle_answer(Apid, Callrec, State) ->
 		{error, Reason, Path} ->
 			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
 		Path ->
-			% TODO - if Freeswitch can't create this file, the call gets aborted!
+			%% get_archive_path ensures the directory is writeable by us and exists, so this
+			%% should be safe to do (the call will be hungup if creating the recording file fails)
 			?DEBUG("archiving to ~s.wav", [Path]),
 			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start "++Path++".wav")
 	end,
@@ -417,7 +418,6 @@ handle_info({call, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
 	case_event_name([UUID | Rest], Call, State#state{in_control = true});
 handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
 	?DEBUG("reporting existing call progess ~p.", [UUID]),
-	% TODO flesh out for all call events.
 	case_event_name([ UUID | Rest], Call, State);
 handle_info({set_agent, Login, Apid}, _Call, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};

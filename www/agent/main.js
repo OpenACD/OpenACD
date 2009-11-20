@@ -220,7 +220,38 @@ dojo.addOnLoad(function(){
 					}
 					dojo.byId("timerdisp").innerHTML = s;
 				}
-				agent.stopwatch.start();				
+				agent.stopwatch.start();
+				if (dojo.cookie('agentui-settings')) {
+					var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+					if(! settings.tabs){
+						settings.tabs = [];
+					}
+				}else{
+					var settings = {
+						tabs:[]
+					}
+				}
+				for(var i = 0; i < settings.tabs.length; i++){
+					if(settings.tabs[0] == "supervisorTab"){
+						if(! dijit.byId("supervisorTab")){							
+							var t = new dojox.layout.ContentPane({
+								//href:"tabs/supervisor.html",
+								title:"Supervisor",
+								executeScripts: "true",
+								id:"supervisorTab",
+								closable:true
+							});
+							dijit.byId("tabPanel").addChild(t);
+						}
+						dijit.byId("supervisorTab").attr('href', "tabs/supervisor.html");
+						dijit.byId("tabPanel").selectChild("supervisorTab");
+						dijit.byId("tabPanel").logoutListener = dojo.subscribe("agent/logout", function(data){
+							dijit.byId("tabPanel").closeChild(dijit.byId("supervisorTab"));
+							dojo.unsubscribe(dijit.byId("tabPanel").logoutListener);
+						});
+					}
+				}
+				dojo.cookie('agentui-settings', dojo.toJson(settings)); 
 			}
 			else{
 				dijit.byId("loginpane").show();
@@ -527,6 +558,28 @@ dojo.addOnLoad(function(){
 								settings.username = attrs.username;
 								settings.voipendpoint = attrs.voipendpoint;
 								settings.voipendpointdata = attrs.voipendpointdata;
+								if(settings.tabs){
+									for(var i = 0; i < settings.tabs.length; i++){
+										if(settings.tabs[0] == "supervisorTab"){
+											if(! dijit.byId("supervisorTab")){							
+												var t = new dojox.layout.ContentPane({
+													//href:"tabs/supervisor.html",
+													title:"Supervisor",
+													executeScripts: "true",
+													id:"supervisorTab",
+													closable:true
+												});
+												dijit.byId("tabPanel").addChild(t);
+											}
+											dijit.byId("supervisorTab").attr('href', "tabs/supervisor.html");
+											dijit.byId("tabPanel").selectChild("supervisorTab");
+											dijit.byId("tabPanel").logoutListener = dojo.subscribe("agent/logout", function(data){
+												dijit.byId("tabPanel").closeChild(dijit.byId("supervisorTab"));
+												dojo.unsubscribe(dijit.byId("tabPanel").logoutListener);
+											});
+										}
+									}
+								}
 								dojo.cookie('agentui-settings', dojo.toJson(settings)); 
 								debug(response2);
 								agent = new Agent(attrs.username, parseInt(response2.statetime));

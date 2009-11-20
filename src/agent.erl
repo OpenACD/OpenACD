@@ -409,7 +409,7 @@ idle(_Message, State) ->
 	(Event :: {'released', string()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}};
 	(Event :: 'idle', From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'idle', #agent{}}).
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'ringing', #agent{}}).
-ringing(oncall, _From, #agent{statedata = Statecall} = State) when State#agent.defaultringpath =:= inband, Statecall#call.ring_path =/= outband ->
+ringing(oncall, _From, #agent{statedata = Statecall} = State) when Statecall#call.ring_path == inband ->
 	?DEBUG("default ringpath inband, ring_path not outband", []),
 	case gen_media:oncall(Statecall#call.source) of
 		ok ->

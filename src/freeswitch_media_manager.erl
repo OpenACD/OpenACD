@@ -107,7 +107,8 @@
 	notify/2,
 	make_outbound_call/3,
 	fetch_domain_user/2,
-	new_voicemail/4
+	new_voicemail/4,
+	ring_agent/4
 ]).
 
 %% gen_server callbacks
@@ -192,6 +193,12 @@ new_voicemail(UUID, File, Queue, Priority) ->
 stop() ->
 	gen_server:call(?MODULE, stop).
 
+%% @doc Just blindly start an agent's phone ringing, set to hangup on pickup.
+%% Yes, this is a prank call function.
+-spec(ring_agent/4 :: (AgentPid :: pid(), Arec :: #agent{}, Call :: #call{}, Timeout :: pos_integer()) -> 'ok').
+ring_agent(AgentPid, Arec, Call, Timeout) ->
+	gen_server:call(?MODULE, {ring_agent, AgentPid, Arec, Call, Timeout}).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -228,6 +235,12 @@ handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) ->
 handle_call(stop, _From, State) ->
 	?NOTICE("Normal termination", []),
 	{stop, normal, ok, State};
+handle_call({ring_agent, AgentPid, Arec, Call, Timeout}, _From, #state{nodename = Node} = State) ->
+	Fun = fun(_) ->
+		fun(_, _) -> ok end
+	end,
+	Out = freeswitch_ring:start(Node, Arec, AgentPid, Call, Timeout, Fun, [single_leg]),
+	{reply, Out, State};
 handle_call(Request, _From, State) ->
 	?INFO("Unexpected call:  ~p", [Request]),
 	Reply = ok,

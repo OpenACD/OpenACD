@@ -174,7 +174,9 @@ if(typeof(supervisorView) == "undefined"){
 		
 		this.group.connect("onmouseenter", this, conf.onmouseenter);
 		this.group.connect("onmouseleave", this, conf.onmouseleave);
-		this.group.connect("onclick", this, conf.onclick);
+		this.group.connect("onclick", this, function(ev){
+			conf.onclick(ev)
+		});
 		
 		var textdisp = conf.data.display;
 		if(textdisp.length > 18){
@@ -211,23 +213,6 @@ if(typeof(supervisorView) == "undefined"){
 
 		this.setHp(conf.data.health);
 		
-		if(conf.moveable){
-			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
-			if (navigator.appVersion.indexOf("Mac")!=-1 && dojo.isFF) {
-				dojo.connect(this.moveable, 'onMouseDown', this.moveable, function(ev){
-					if(ev.button == 2 && conf.menu){
-						// Firefox is weird.  If a moveable is defined, it overrides
-						// the menu.  Safari does not have this issue.  Other browsers
-						// are untested.
-						var menu = dijit.byId(conf.menu);
-						menu._openMyself(ev);
-						ev.preventDefault();
-						ev.stopPropagation();
-					}
-				});
-			}
-		}
-		
 		if(conf.menu){
 			var menu = dijit.byId(conf.menu);
 			this.group.rawNode.oncontextmenu = function(ev){
@@ -260,6 +245,37 @@ if(typeof(supervisorView) == "undefined"){
 				warning(["menu id not found", conf.menu]);
 			}
 		}
+		
+		if(conf.moveable){
+			this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
+			if (navigator.appVersion.indexOf("Mac")!=-1 && dojo.isFF) {
+				dojo.connect(this.moveable, 'onMouseDown', this.moveable, function(ev){
+					if(ev.button == 2 && conf.menu){
+						// Firefox is weird.  If a moveable is defined, it overrides
+						// the menu.  Safari does not have this issue.  Other browsers
+						// are untested.
+						var menu = dijit.byId(conf.menu);
+						menu._openMyself(ev);
+						ev.preventDefault();
+						ev.stopPropagation();
+					}
+				});
+			}
+			if(conf.menu){
+				dojo.connect(this.moveable, 'onMouseDown', this, function(ev){
+					if(ev.button == 2){
+						this.moveable.destroy();
+					}
+				});
+				dojo.connect(this.group, 'onMouseUp', this, function(ev){
+					if(! this.moveable){
+						makeMoveable()
+					}
+				});
+			}
+		}
+		
+		
 		
 		this.group.setTransform([dojox.gfx.matrix.scaleAt(conf.scale, p)]);
 	};
@@ -518,6 +534,12 @@ if(typeof(supervisorView) == "undefined"){
 			this.dragOver = function(){ return false};
 			this.coll = supervisorView.dndManager.registerCollider(this);
 		}
+		
+		if(this.conf.menu){
+			dojo.connect(dijit.byId(this.conf.menu), 'onBlur', this, function(){
+				this.unlockScroll();
+			});
+		}
 	};
 	
 	supervisorView.BubbleStack.prototype.indexToY = function(index){
@@ -690,6 +712,14 @@ if(typeof(supervisorView) == "undefined"){
 						obj.setDroppable(null);
 						//obj.setImage(false);
 						supervisorView.dndManager.endDrag();
+					});
+				}
+				if(thisref.bubbleConfs[ind].menu){
+					obj = thisref.bubbleConfs[ind].bubble;
+					obj.connect('onmousedown', function(ev){
+						if(ev.button == 2){
+							thisref.lockScroll();
+						}
 					});
 				}
 			}
@@ -1354,17 +1384,20 @@ if(typeof(supervisorView) == "undefined"){
 					point: {x: 20, y:yi},
 					data: conf.data,
 					onmouseenter: conf.onmouseenter,
-					onclick:function(){
+					onclick:function(ev){
 						if(this.data.display == 'System'){
 							supervisorView.node = '*';
 						}
 						else{
 							supervisorView.node = this.data.display;
 						}
+						var dispRef = this.data.display;
 						dojo.forEach(supervisorView.systemStack, function(obj){
 							obj.size(1);
+							if(obj.data.display == dispRef){
+								obj.size(1.4);
+							}
 						});
-						this.size(1.4);
 					},
 					subscriptions:[
 						{channel: 'supervisorView/set/' + id,

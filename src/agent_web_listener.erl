@@ -310,13 +310,22 @@ api(checkcookie, Cookie, _Post) ->
 			Json = {struct, [{<<"success">>, false}, {<<"message">>, <<"have cookie, but no agent">>}]},
 			{200, [], mochijson2:encode(Json)}
 	end;
+api(getsalt, badcookie, _Post) -> %% badcookie when getting a salt
+	Conn = undefined,
+	Reflist = erlang:ref_to_list(make_ref()),
+	Cookie = make_cookie(Reflist),
+	Newsalt = integer_to_list(crypto:rand_uniform(0, 4294967295)),
+	ets:insert(web_connections, {Reflist, Newsalt, Conn}),
+	?DEBUG("created and sent salt for ~p", [Reflist]),
+	[E, N] = get_pubkey(),
+	PubKey = {struct, [{<<"E">>, list_to_binary(erlang:integer_to_list(E, 16))}, {<<"N">>, list_to_binary(erlang:integer_to_list(N, 16))}]},
+	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}, {message, <<"Salt created, check salt property">>}, {salt, list_to_binary(Newsalt)}, {pubkey, PubKey}]})};
 api(Apirequest, badcookie, _Post) ->
 	?INFO("bad cookie for request ~p", [Apirequest]),
 	Reflist = erlang:ref_to_list(make_ref()),
 	Cookie = make_cookie(Reflist),
 	ets:insert(web_connections, {Reflist, undefined, undefined}),
 	{403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>};
-	
 api(logout, {Reflist, _Salt, Conn}, _Post) ->
 	Newref = erlang:ref_to_list(make_ref()),
 	ets:insert(web_connections, {Reflist, undefined, undefined}),

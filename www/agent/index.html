@@ -72,6 +72,7 @@
 	dojo.require("dijit.form.SimpleTextarea");
 	dojo.require("dijit.form.Button");
 	dojo.require("dijit.form.Form");
+	dojo.require("dijit.form.CheckBox");
 	dojo.require("dijit.Dialog");
 	dojo.require("dojox.encoding.digests.MD5");
 	dojo.require("dijit.form.ComboBox");
@@ -91,6 +92,7 @@
 			dijit.byId('username').attr('value', settings.username);
 			dijit.byId('voipendpoint').attr('value', settings.voipendpoint);
 			dijit.byId('voipendpointdata').attr('value', settings.voipendpointdata);
+			dijit.byId('useoutbandring').attr('checked', settings.useoutbandring);
 			if (settings.theme)
 				document.getElementsByTagName("body")[0].className = settings.theme;
 		}
@@ -160,6 +162,21 @@
 				<script type="dojo/method" event="postCreate">
 					this.inherited("postCreate", arguments);
 					endpointselect();
+				</script>
+			</div>
+		</p>
+		<p>
+			<label>&nbsp;</label>
+			<input type="checkbox" name="useoutbandring" id="useoutbandring" value="useoutbandring" dojoType="dijit.form.CheckBox" />
+			<span class="translate" id="useoutbandringlabel">USE_OUTBAND_RING</span>
+			<script type="text/javascript">
+				dojo.byId("useoutbandringlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").USE_OUTBAND_RING;
+			</script>
+			<div dojoType="dijit.Tooltip" connectId="useoutbandring" label="OUTBAND_RING_TIP" id="outbandringtip">
+				<script type="dojo/method" event="postCreate">
+					this.inherited("postCreate", arguments);
+					this.attr('label', dojo.i18n.getLocalization('agentUI', 'labels').OUTBAND_RING_TIP);
+					
 				</script>
 			</div>
 		</p>

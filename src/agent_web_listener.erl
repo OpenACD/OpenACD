@@ -362,6 +362,12 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 		"PSTN Number" ->
 			{pstn, Endpointdata}
 	end,
+	Bandedness = case proplists:get_value("useoutbandring", Post) of
+		"useoutbandring" ->
+			outband;
+		_ ->
+			inband
+	end,
 	case Endpoint of
 		{_, error} ->
 			?WARNING("~s specified an invalid endpoint ~p when trying to log in", [Username, Endpoint]),
@@ -376,7 +382,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 						deny ->
 							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
 						{allow, Id, Skills, Security, Profile} ->
-							Agent = #agent{id = Id, defaultringpath = outband, login = Username, skills = Skills, profile=Profile, password=DecryptedPassword},
+							Agent = #agent{id = Id, defaultringpath = Bandedness, login = Username, skills = Skills, profile=Profile, password=DecryptedPassword},
 							case agent_web_connection:start(Agent, Security) of
 								{ok, Pid} ->
 									?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),

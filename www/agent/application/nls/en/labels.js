@@ -50,5 +50,7 @@
 	PSTNHINT: "Public telephone number",
 	TRANSFERTOMENU: "Transfer to...",
 	QUEUE: "Queue",
-	SUBMIT: "Submit"
+	SUBMIT: "Submit",
+	USE_OUTBAND_RING: "Use outband ring",
+	OUTBAND_RING_TIP: "Your phone will ring for any media"
 }

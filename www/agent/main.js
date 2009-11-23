@@ -558,6 +558,7 @@ dojo.addOnLoad(function(){
 								settings.username = attrs.username;
 								settings.voipendpoint = attrs.voipendpoint;
 								settings.voipendpointdata = attrs.voipendpointdata;
+								settings.useoutbandring = dijit.byId('useoutbandring').attr('checked');
 								if(settings.tabs){
 									for(var i = 0; i < settings.tabs.length; i++){
 										if(settings.tabs[0] == "supervisorTab"){

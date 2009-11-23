@@ -697,12 +697,12 @@ cookie_api_test_() ->
 				end}
 			end,
 			fun({_Httpc, _Cookie}) ->
-				{"Get a salt with an invalid cookie",
+				{"Get a salt with an invalid cookie should issue a new cookie",
 				fun() ->
-					{ok, {{_Ver, Code, _Msg}, Head, Body}} = http:request(get, {"http://127.0.0.1:5050/getsalt", [{"Cookie", "goober=snot"}]}, [], []),
-					?assertEqual(403, Code),
+					{ok, {{_Ver, Code, _Msg}, Head, Body}} = http:request(get, {"http://127.0.0.1:5050/getsalt", [{"Cookie", "cpx_id=snot"}]}, [], []),
+					?assertEqual(200, Code),
 					?assertNot(noexist =:= proplists:get_value("set-cookie", Head, noexist)),
-					?assertEqual("Cookie reset, retry.", Body)
+					?assertMatch("{\"success\":true"++_, Body)
 				end}
 			end
 		]

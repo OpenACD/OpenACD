@@ -107,7 +107,8 @@
 %%
 %%		If Result is {ok, NewState} and the callpath is inband, it is assumed 
 %%		the agent has already set themselves oncall.  If it is out of band,
-%%		the agent is set to oncall.  Execution then continues with NewState.
+%%		the agent is set to oncall.  The callback module can always safely
+%%		assume the agent is oncall.  Execution then continues with NewState.
 %%
 %%		If Result is {error, Error, NewState}, the agent's state is not changed
 %%		And execution continues with NewState.
@@ -702,20 +703,24 @@ handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = Rpid, cal
 	end;
 handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
 	?INFO("oncall request during what looks like an agent transfer (outofband) to ~p", [Rpid]),
-	case Callback:handle_answer(Rpid, State#state.callrec, State#state.substate) of
-		{ok, NewState} ->
-			kill_outband_ring(State),
-			agent:set_state(Rpid, oncall, State#state.callrec),
-			cdr:oncall(State#state.callrec, Rpid),
-			timer:cancel(State#state.ringout),
-			agent:set_state(Ocpid, wrapup, State#state.callrec),
-			cdr:wrapup(State#state.callrec, Ocpid),
-			Agent = agent_manager:find_by_pid(Rpid),
-			set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}, [{agent, Agent}]),
-			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined, outband_ring_pid = undefined}};
-		{error, Reason, NewState} ->
-			?ERROR("Cannot set ~p to oncall due to ~p", [Rpid, Reason]),
-			{reply, invalid, State#state{substate = NewState}}
+	case agent:set_state(Rpid, oncall, State#state.callrec) of
+		invalid ->
+			{reply, invalid, State};
+		ok ->
+			case Callback:handle_answer(Rpid, State#state.callrec, State#state.substate) of
+				{ok, NewState} ->
+					kill_outband_ring(State),
+					cdr:oncall(State#state.callrec, Rpid),
+					timer:cancel(State#state.ringout),
+					agent:set_state(Ocpid, wrapup, State#state.callrec),
+					cdr:wrapup(State#state.callrec, Ocpid),
+					Agent = agent_manager:find_by_pid(Rpid),
+					set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}, [{agent, Agent}]),
+					{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined, outband_ring_pid = undefined}};
+				{error, Reason, NewState} ->
+					?ERROR("Cannot set ~p to oncall due to ~p", [Rpid, Reason]),
+					{reply, invalid, State#state{substate = NewState}}
+			end
 	end;
 handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback, ring_pid = Apid, callrec = #call{ring_path = inband}} = State) ->
 	?INFO("oncall request from agent ~p", [Apid]),
@@ -735,19 +740,23 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 
 handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = Callback} = State) when is_pid(Apid) ->
 	?INFO("oncall request from ~p; agent to set on call is ~p", [From, Apid]),
-	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
-		{ok, NewState} ->
-			kill_outband_ring(State),
-			agent:set_state(Apid, oncall, State#state.callrec),
-			cdr:oncall(State#state.callrec, Apid),
-			timer:cancel(State#state.ringout),
-			call_queue:remove(State#state.queue_pid, self()),
-			Agent = agent_manager:find_by_pid(Apid),
-			set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = Apid, ring_pid = undefined}, [{agent, Agent}]),
-			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = Apid, ring_pid = undefined, outband_ring_pid = undefined}};
-		{error, Reason, NewState} ->
-			?ERROR("Could not set ~p on call due to ~p", [Apid, Reason]),
-			{reply, invalid, State#state{substate = NewState}}
+	case agent:set_state(Apid, oncall, State#state.callrec) of
+		invalid ->
+			{reply, invalid, State};
+		ok ->
+			case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
+				{ok, NewState} ->
+					kill_outband_ring(State),
+					cdr:oncall(State#state.callrec, Apid),
+					timer:cancel(State#state.ringout),
+					call_queue:remove(State#state.queue_pid, self()),
+					Agent = agent_manager:find_by_pid(Apid),
+					set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = Apid, ring_pid = undefined}, [{agent, Agent}]),
+					{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = Apid, ring_pid = undefined, outband_ring_pid = undefined}};
+				{error, Reason, NewState} ->
+					?ERROR("Could not set ~p on call due to ~p", [Apid, Reason]),
+					{reply, invalid, State#state{substate = NewState}}
+			end
 	end;
 handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined} = State) ->
 	?INFO("oncall request from ~p when no ring_pid (probobly a late request)", [From]),
@@ -1831,7 +1840,10 @@ handle_call_test_() ->
 			after 150 ->
 				erlang:error(timer_nolives)
 			end,
-			?assertEqual({ok, ringing}, agent:query_state(Ring)),
+			% TODO Two agents oncall due to why going on call is handled :/
+			% since there's no way to roll back an oncall, if the handle_answer
+			% callback fails, we have a f*cked state.
+			?assertEqual({ok, oncall}, agent:query_state(Ring)),
 			?assertEqual({ok, oncall}, agent:query_state(Oncall)),
 			?assertEqual(Ring, Newstate#state.ring_pid),
 			?assertEqual(Tref, Newstate#state.ringout),
@@ -1925,7 +1937,7 @@ handle_call_test_() ->
 			Seedcall = Seedstate#state.callrec,
 			gen_event_mock:supplant(cdr, {{cdr, Seedcall#call.id}, []}),
 			Callrec = Seedcall#call{ring_path = outband, media_path = outband},
-			Agent = spawn(fun() -> ok end),
+			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
 			{ok, Tref} = timer:send_after(100, timer_lives),
 			State = Seedstate#state{callrec = Callrec, ring_pid = Agent, ringout = Tref, queue_pid = Qpid},
 			{reply, invalid, Newstate} = handle_call('$gen_media_agent_oncall', "from", State),

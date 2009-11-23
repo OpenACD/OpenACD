@@ -73,12 +73,14 @@
 	dojo.require("dijit.form.Button");
 	dojo.require("dijit.form.Form");
 	dojo.require("dijit.form.CheckBox");
+	dojo.require("dijit.form.FilteringSelect");
 	dojo.require("dijit.Dialog");
 	dojo.require("dojox.encoding.digests.MD5");
 	dojo.require("dijit.form.ComboBox");
 	dojo.require("dojox.layout.ContentPane");
 	dojo.require("dojox.layout.FloatingPane");
 	dojo.require("dojo.cookie");
+	dojo.require("dojo.data.ItemFileReadStore");
 	dojo.require("dijit.Editor");
 	//dojo.require("dijit.Menu");
 	dojo.requireLocalization("agentUI", "labels");
@@ -371,7 +373,9 @@
 			</div>
 		</div>
 
-		<div dojoType="dijit.form.DropDownButton" id="boutboundcall" style="display:none">
+		<select id="boutboundcall"></select>
+
+		<!--<div dojoType="dijit.form.DropDownButton" id="boutboundcall" style="display:none">
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").MKOUTBOUND);
@@ -379,7 +383,7 @@
 			<span>MKOUTBOUND</span>
 			<div dojoType="dijit.Menu" id="outboundmenu">
 			</div>
-		</div>
+		</div>-->
 
 		<div dojoType="dijit.form.DropDownButton" id="btransfer" style="display:none">
 			<script type="dojo/method" event="postCreate">

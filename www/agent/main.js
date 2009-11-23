@@ -358,15 +358,6 @@ dojo.addOnLoad(function(){
 		}
 	});
 
-	dijit.byId("boutboundcall").stateChanger = dojo.subscribe("agent/state", function(data){
-		var widget = dijit.byId("boutboundcall");
-	});
-	
-	dijit.byId("outboundmenu").logout = dojo.subscribe("agent/logout", function(data){
-		var menu = dijit.byId("outboundmenu");
-		menu.destroyDescendants();
-	});
-
 	dijit.byId("transferToQueueMenu").logout = dojo.subscribe("agent/logout", function(data){
 		var menu = dijit.byId("transferToQueueMenu");
 		menu.destroyDescendants();
@@ -488,19 +479,6 @@ dojo.addOnLoad(function(){
 				default:
 					widget.attr('disabled', true);
 			}
-		}
-	});
-
-	dijit.byId("boutboundcall").stateChanger = dojo.subscribe("agent/state", function(data) {
-		var widget = dijit.byId("boutboundcall");
-		debug(["boutboundcall", data, data.state]);
-		switch(data.state){
-			case "idle":
-			case "released":
-				widget.attr('style', 'display:inline');
-				break;
-			default:
-				widget.attr('style', 'display:none');
 		}
 	});
 	
@@ -660,37 +638,86 @@ dojo.addOnLoad(function(){
 	}
 
 	buildOutboundMenu = function(agent){
-		var menu = dijit.byId("outboundmenu");
+		//var menu = dijit.byId("outboundmenu");
 		dojo.xhrGet({
 			url:"/brandlist",
 			handleAs:"json",
 			error:function(response, ioargs){
-				debug(response);
-				var item = new dijit.MenuItem({
-					label:"Failed to get brandlist1",
-					disabled: true
-				});
-				menu.addChild(item);
+				warning(response);
+				var store = new dojo.data.ItemFileReadStore({
+					data: {
+						'label': 'label',
+						'identifier': 'id',
+						'items': [
+							{'label':'Failed to load brands', 'id':'0'}
+							]
+						}
+					});
+					if(dijit.byId('boutboundcall')){
+						dijit.byId('boutboundcall').store = store;
+					}else{
+						new dijit.form.FilteringSelect({
+						'searchAttr': 'label',
+						'name':'boutboundcall',
+						'store':store
+					}, 'boutboundcall');
+				}
 			},
 			load:function(response, ioargs){
 				debug(["buildOutboundMenu", response]);
 				if(response.success){
-					for(var i in response.brands) {
-						var item = new dijit.MenuItem({
-							label:response.brands[i].label,
-							brandid: response.brands[i].id,
-							onClick:function(){agent.initOutbound(this.brandid, "freeswitch"); }
-						});
-						menu.addChild(item);
+					var store = new dojo.data.ItemFileReadStore({
+						data: {
+							'label': 'label',
+							'identifier':'id',
+							'items': response.brands
+						}
+					});
+					if(dijit.byId('boutboundcall')){
+						dijit.byId('boutboundcall').store = store;
+					}else{
+						new dijit.form.FilteringSelect({
+							'searchAttr': 'label',
+							'name':'boutboundcall',
+							'store':store,
+							'onChange': function(val){
+								agent.initOutbound(val, "freeswitch");
+							}
+						}, 'boutboundcall');
 					}
 				}
 				else{
-					var item = new dijit.MenuItem({
-						label:"Failed to get brandlist",
-						disabled: true
+					var store = new dojo.data.ItemFileReadStore({
+						data: {
+							'label': 'label',
+							'identifier': 'id',
+							'items': [
+								{'label':'Failed to load brands', 'id':'0'}
+							]
+						}
 					});
-					menu.addChild(item);
+					if(dijit.byId('boutboundcall')){
+						dijit.byId('boutboundcall').store = store;
+					}else{
+						new dijit.form.FilteringSelect({
+							'searchAttr': 'label',
+							'name':'boutboundcall',
+							'store':store
+						}, 'boutboundcall');
+					}
 				}
+				boutboundcall.stateChanger = dojo.subscribe("agent/state", function(data){
+					var widget = dijit.byId("boutboundcall");
+					debug(["boutboundcall", data, data.state]);
+					switch(data.state){
+						case "idle":
+						case "released":
+							widget.domNode.style.display = 'inline-block';
+							break;
+						default:
+							widget.domNode.style.display = 'none';
+					}
+				});
 			}
 		})
 	}

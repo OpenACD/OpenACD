@@ -17,19 +17,14 @@ dojo.require("dojox.form.manager._ValueMixin");
 dojo.require("dojox.form.manager._EnableMixin");
 dojo.require("dojox.form.manager._DisplayMixin");
 dojo.require("dojox.form.manager._ClassMixin");
-dojo.declare("dojox.form.Manager",[dijit._Widget,dijit._Templated,dojox.form.manager._Mixin,dojox.form.manager._NodeMixin,dojox.form.manager._FormMixin,dojox.form.manager._ValueMixin,dojox.form.manager._EnableMixin,dojox.form.manager._DisplayMixin,dojox.form.manager._ClassMixin],{widgetsInTemplate:true,buildRendering:function(){
+dojo.declare("dojox.form.Manager",[dijit._Widget,dojox.form.manager._Mixin,dojox.form.manager._NodeMixin,dojox.form.manager._FormMixin,dojox.form.manager._ValueMixin,dojox.form.manager._EnableMixin,dojox.form.manager._DisplayMixin,dojox.form.manager._ClassMixin],{buildRendering:function(){
 var _1=this.domNode=this.srcNodeRef;
 if(!this.containerNode){
 this.containerNode=_1;
 }
-this._attachTemplateNodes(_1);
-},startup:function(){
-if(this._started){
-return;
-}
-this._attachTemplateNodes(this.getDescendants(),function(n,p){
-return n[p];
-});
-this.inherited(arguments);
+this._attachPoints=[];
+dijit._Templated.prototype._attachTemplateNodes.call(this,_1);
+},destroyRendering:function(){
+dijit._Templated.prototype.destroyRendering.call(this);
 }});
 }

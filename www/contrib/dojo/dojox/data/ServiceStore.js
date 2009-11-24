@@ -116,7 +116,7 @@ return _1f;
 });
 _1e.addErrback(_1b.onError&&dojo.hitch(_1d,_1b.onError));
 _1b.abort=function(){
-_1e.ioArgs.xhr.abort();
+_1e.cancel();
 };
 _1b.store=this;
 return _1b;

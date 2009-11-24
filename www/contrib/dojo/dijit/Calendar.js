@@ -210,6 +210,9 @@ case dk.RIGHT_ARROW:
 _2b=1;
 case dk.LEFT_ARROW:
 _2c="day";
+if(!this.isLeftToRight()){
+_2b*=-1;
+}
 break;
 case dk.DOWN_ARROW:
 _2b=1;

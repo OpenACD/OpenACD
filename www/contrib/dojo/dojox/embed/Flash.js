@@ -124,9 +124,11 @@ if(_13){
 _13=dojo.byId(_13);
 }
 setTimeout(dojo.hitch(this,function(){
-if(this.available&&this.available>=this.minimumVersion){
+if(_12.expressInstall||this.available&&this.available>=this.minimumVersion){
 if(_12&&_13){
 this.init(_12,_13);
+}else{
+this.onError("embed.Flash was not provided with teh proper arguments.");
 }
 }else{
 if(!this.available){
@@ -138,7 +140,9 @@ this.onError("Flash version detected: "+this.available+" is out of date. Minimum
 }),100);
 };
 dojo.extend(dojox.embed.Flash,{onReady:function(_14){
+console.warn("embed.Flash.movie.onReady:",_14);
 },onLoad:function(_15){
+console.warn("embed.Flash.movie.onLoad:",_15);
 },onError:function(msg){
 },_onload:function(){
 clearInterval(this._poller);

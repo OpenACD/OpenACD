@@ -219,12 +219,12 @@ this.modTable(null,_14);
 });
 break;
 case "modifyTable":
-this.buttonClass=dijit.form.DropDownButton;
+this.buttonClass=dijit.form.Button;
 this.modTable=this.launchModifyDialog;
 break;
 case "insertTable":
 this.alwaysAvailable=true;
-this.buttonClass=dijit.form.DropDownButton;
+this.buttonClass=dijit.form.Button;
 this.modTable=this.launchInsertDialog;
 break;
 case "tableContextMenu":

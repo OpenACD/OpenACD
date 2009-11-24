@@ -747,7 +747,9 @@ dojo.mixin(dijit, {
 		// IIRC, I'm using attachEvent() rather than dojo.connect() because focus/blur events don't bubble
 		// through dojo.connect(), and also maybe to catch the focus events early, before onfocus handlers
 		// fire.
-		var doc = targetWindow.document;
+		// Connect to <html> (rather than document) on IE to avoid memory leaks, but document on other browsers because
+		// (at least for FF) the focus event doesn't fire on <html> or <body>.
+		var doc = dojo.isIE ? targetWindow.document.documentElement : targetWindow.document;
 		if(doc){
 			if(dojo.isIE){
 				doc.attachEvent('onmousedown', mousedownListener);
@@ -1172,10 +1174,10 @@ dijit._place = function(/*DomNode*/ node, /* Array */ choices, /* Function */ la
 
 		// coordinates and size of node with specified corner placed at pos,
 		// and clipped by viewport
-		var startX = (corner.charAt(1) == 'L' ? pos.x : Math.max(view.l, pos.x - mb.w)),
-			startY = (corner.charAt(0) == 'T' ? pos.y : Math.max(view.t, pos.y - mb.h)),
-			endX = (corner.charAt(1) == 'L' ? Math.min(view.l + view.w, startX + mb.w) : pos.x),
-			endY = (corner.charAt(0) == 'T' ? Math.min(view.t + view.h, startY + mb.h) : pos.y),
+		var startX = Math.max(view.l, corner.charAt(1) == 'L' ? pos.x : (pos.x - mb.w)),
+			startY = Math.max(view.t, corner.charAt(0) == 'T' ? pos.y : (pos.y - mb.h)),
+			endX = Math.min(view.l + view.w, corner.charAt(1) == 'L' ? (startX + mb.w) : pos.x),
+			endY = Math.min(view.t + view.h, corner.charAt(0) == 'T' ? (startY + mb.h) : pos.y),
 			width = endX - startX,
 			height = endY - startY,
 			overflow = (mb.w - width) + (mb.h - height);
@@ -1613,8 +1615,8 @@ dijit.popup.__OpenArgs = function(){
 			}, dojo.body());
 			dijit.setWaiRole(wrapper, "presentation");
 		}else{
-			//recycled a new wrapper, so that we don't need to reattach the iframe
-			//which is slow even if the iframe is empty, see #10167
+			// recycled a old wrapper, so that we don't need to reattach the iframe
+			// which is slow even if the iframe is empty, see #10167
 			wrapper = wrapperobj[0];
 			iframe = wrapperobj[1];
 		}
@@ -1624,7 +1626,8 @@ dijit.popup.__OpenArgs = function(){
 			style:{
 				zIndex: beginZIndex + stack.length,
 				visibility:"hidden",
-				left: "0px", top: "0px"         // prevent transient scrollbar causing misalign (#5776)
+				// prevent transient scrollbar causing misalign (#5776), and initial flash in upper left (#10111)
+				top: "-9999px"
 			},
 			dijitPopupParent: args.parent ? args.parent.id : ""
 		});
@@ -1634,7 +1637,6 @@ dijit.popup.__OpenArgs = function(){
 		s.visibility = "";
 		s.position = "";
 		s.top = "0px";
-		//dojo.place(widget.domNode,wrapper,'first');
 		wrapper.appendChild(widget.domNode);
 
 		if(!iframe){
@@ -1717,26 +1719,21 @@ dijit.popup.__OpenArgs = function(){
 				onClose = top.onClose;
 
 			if(widget.onClose){
-				// TODO: in 2.0 standardize onHide() (used by StackContainer) and onHide() (used here)
+				// TODO: in 2.0 standardize onHide() (used by StackContainer) and onClose() (used here)
 				widget.onClose();
 			}
 			dojo.forEach(top.handlers, dojo.disconnect);
 
-			// #2685: check if the widget still has a domNode so ContentPane can change its URL without getting an error
-			if(!widget || !widget.domNode){ return; }
-
-			this.moveOffScreen(widget.domNode);
-
+			// Move the widget offscreen, unless it has already been destroyed in above onClose() etc.
+			if(widget && widget.domNode){
+				this.moveOffScreen(widget.domNode);
+			}
                         
-			//move the iframe out of the view
-			//dont' use moveOffScreen which would also reattach the wrapper to body, which causes reloading of iframe
+			// recycle the wrapper plus iframe, so we prevent reattaching iframe everytime an popup opens
+			// don't use moveOffScreen which would also reattach the wrapper to body, which causes reloading of iframe
 			wrapper.style.top = "-9999px";
 			wrapper.style.visibility = "hidden";
-
-			//recycle the wrapper plus iframe, so we prevent reattaching iframe everytime an popup opens
 			wrappers.push([wrapper,iframe]);
-			//iframe.destroy();
-			//dojo.destroy(wrapper);
 
 			if(onClose){
 				onClose();
@@ -2034,7 +2031,13 @@ dijit.typematic = {
 	_fireEventAndReload: function(){
 		this._timer = null;
 		this._callback(++this._count, this._node, this._evt);
-		this._currentTimeout = (this._currentTimeout < 0) ? this._initialDelay : ((this._subsequentDelay > 1) ? this._subsequentDelay : Math.round(this._currentTimeout * this._subsequentDelay));
+		
+		// Schedule next event, reducing the timer a little bit each iteration, bottoming-out at 10 to avoid
+		// browser overload (particularly avoiding starving DOH robot so it never gets to send a mouseup)
+		this._currentTimeout = Math.max(
+			this._currentTimeout < 0 ? this._initialDelay :
+				(this._subsequentDelay > 1 ? this._subsequentDelay : Math.round(this._currentTimeout * this._subsequentDelay)),
+			10);
 		this._timer = setTimeout(dojo.hitch(this, "_fireEventAndReload"), this._currentTimeout);
 	},
 
@@ -5087,7 +5090,6 @@ dojo.provide("dijit.form._FormWidget");
 
 dojo.declare("dijit.form._FormWidget", [dijit._Widget, dijit._Templated],
 	{
-	//
 	// summary:
 	//		Base class for widgets corresponding to native HTML elements such as <checkbox> or <button>,
 	//		which can be children of a <form> node or a `dijit.form.Form` widget.
@@ -5097,7 +5099,7 @@ dojo.declare("dijit.form._FormWidget", [dijit._Widget, dijit._Templated],
 	//		All these widgets should have these attributes just like native HTML input elements.
 	//		You can set them during widget construction or afterwards, via `dijit._Widget.attr`.
 	//
-	//	They also share some common methods.
+	//		They also share some common methods.
 
 	// baseClass: [protected] String
 	//		Root CSS class of the widget (ex: dijitTextBox), used to add CSS classes of widget
@@ -5141,7 +5143,6 @@ dojo.declare("dijit.form._FormWidget", [dijit._Widget, dijit._Templated],
 	// These mixins assume that the focus node is an INPUT, as many but not all _FormWidgets are.
 	attributeMap: dojo.delegate(dijit._Widget.prototype.attributeMap, {
 		value: "focusNode",
-		disabled: "focusNode",
 		id: "focusNode",
 		tabIndex: "focusNode",
 		alt: "focusNode",
@@ -5158,6 +5159,9 @@ dojo.declare("dijit.form._FormWidget", [dijit._Widget, dijit._Templated],
 	_setDisabledAttr: function(/*Boolean*/ value){
 		this.disabled = value;
 		dojo.attr(this.focusNode, 'disabled', value);
+		if(this.valueNode){
+			dojo.attr(this.valueNode, 'disabled', value);
+		}
 		dijit.setWaiState(this.focusNode, "disabled", value);
 
 		if(value){
@@ -5166,7 +5170,7 @@ dojo.declare("dijit.form._FormWidget", [dijit._Widget, dijit._Templated],
 			this._hovering = false;
 			this._active = false;
 			// remove the tabIndex, especially for FF
-			this.focusNode.removeAttribute('tabIndex');
+			this.focusNode.setAttribute('tabIndex', "-1");
 		}else{
 			this.focusNode.setAttribute('tabIndex', this.tabIndex);
 		}

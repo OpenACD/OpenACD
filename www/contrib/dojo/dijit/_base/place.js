@@ -45,7 +45,7 @@ _10.display="";
 var mb=dojo.marginBox(_9);
 _10.display=_11;
 _10.visibility=_12;
-var _13=(_f.charAt(1)=="L"?pos.x:Math.max(_c.l,pos.x-mb.w)),_14=(_f.charAt(0)=="T"?pos.y:Math.max(_c.t,pos.y-mb.h)),_15=(_f.charAt(1)=="L"?Math.min(_c.l+_c.w,_13+mb.w):pos.x),_16=(_f.charAt(0)=="T"?Math.min(_c.t+_c.h,_14+mb.h):pos.y),_17=_15-_13,_18=_16-_14,_19=(mb.w-_17)+(mb.h-_18);
+var _13=Math.max(_c.l,_f.charAt(1)=="L"?pos.x:(pos.x-mb.w)),_14=Math.max(_c.t,_f.charAt(0)=="T"?pos.y:(pos.y-mb.h)),_15=Math.min(_c.l+_c.w,_f.charAt(1)=="L"?(_13+mb.w):pos.x),_16=Math.min(_c.t+_c.h,_f.charAt(0)=="T"?(_14+mb.h):pos.y),_17=_15-_13,_18=_16-_14,_19=(mb.w-_17)+(mb.h-_18);
 if(_d==null||_19<_d.overflow){
 _d={corner:_f,aroundCorner:_e.aroundCorner,x:_13,y:_14,w:_17,h:_18,overflow:_19};
 }

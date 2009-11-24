@@ -39,7 +39,7 @@ dijit.setWaiRole(_c,"presentation");
 _c=_b[0];
 _d=_b[1];
 }
-dojo.attr(_c,{id:id,style:{zIndex:_2+_1.length,visibility:"hidden",left:"0px",top:"0px"},dijitPopupParent:_7.parent?_7.parent.id:""});
+dojo.attr(_c,{id:id,style:{zIndex:_2+_1.length,visibility:"hidden",top:"-9999px"},dijitPopupParent:_7.parent?_7.parent.id:""});
 var s=_8.domNode.style;
 s.display="";
 s.visibility="";
@@ -92,10 +92,9 @@ if(_16.onClose){
 _16.onClose();
 }
 dojo.forEach(top.handlers,dojo.disconnect);
-if(!_16||!_16.domNode){
-return;
-}
+if(_16&&_16.domNode){
 this.moveOffScreen(_16.domNode);
+}
 _14.style.top="-9999px";
 _14.style.visibility="hidden";
 _6.push([_14,_15]);

@@ -18,50 +18,66 @@ return _5;
 return _8;
 },_a=function(_b,_c,_d,_e){
 _b[_c]=_d;
-},_f={},_10=oo.applyDecorator=function(_11,_12,_13,_14){
-if(_13 instanceof _2){
-var d=_13.decorator;
-_13=_10(_11,_12,_13.value,_14);
-return d(_12,_13,_14);
+},_f={},_10=dojo._extraNames,_11=_10.length,_12=oo.applyDecorator=function(_13,_14,_15,_16){
+if(_15 instanceof _2){
+var d=_15.decorator;
+_15=_12(_13,_14,_15.value,_16);
+return d(_14,_15,_16);
 }
-return _11(_12,_13,_14);
+return _13(_14,_15,_16);
 };
-oo.__mixin=function(_15,_16,_17,_18,_19){
-var _1a,_1b,_1c,_1d,_1e;
-for(_1a in _16){
-if(!(_1a in _3)){
-_1c=_16[_1a];
-_1b=_18(_1a,_15,_16,_1c);
-if(_1b){
-_1e=_15[_1b];
-_1d=_10(_17,_1b,_1c,_1e);
-if(_1e!==_1d){
-_19(_15,_1b,_1d,_1e);
+oo.__mixin=function(_17,_18,_19,_1a,_1b){
+var _1c,_1d,_1e,_1f,_20,i;
+for(_1c in _18){
+_1e=_18[_1c];
+if(!(_1c in _3)||_3[_1c]!==_1e){
+_1d=_1a(_1c,_17,_18,_1e);
+if(_1d&&(!(_1d in _17)||!(_1d in _3)||_3[_1d]!==_1e)){
+_20=_17[_1d];
+_1f=_12(_19,_1d,_1e,_20);
+if(_20!==_1f){
+_1b(_17,_1d,_1f,_20);
 }
 }
 }
 }
-return _15;
+if(_11){
+for(i=0;i<_11;++i){
+_1c=_10[i];
+_1e=_18[_1c];
+if(!(_1c in _3)||_3[_1c]!==_1e){
+_1d=_1a(_1c,_17,_18,_1e);
+if(_1d&&(!(_1d in _17)||!(_1d in _3)||_3[_1d]!==_1e)){
+_20=_17[_1d];
+_1f=_12(_19,_1d,_1e,_20);
+if(_20!==_1f){
+_1b(_17,_1d,_1f,_20);
+}
+}
+}
+}
+}
+return _17;
 };
-oo.mixin=function(_1f,_20){
-var _21,_22,i=1,l=arguments.length;
+oo.mixin=function(_21,_22){
+var _23,_24,i=1,l=arguments.length;
 for(;i<l;++i){
-_20=arguments[i];
-if(_20 instanceof _1){
-_22=_20.filter;
-_20=_20.bag;
+_22=arguments[i];
+if(_22 instanceof _1){
+_24=_22.filter;
+_22=_22.bag;
 }else{
-_22=_4;
+_24=_4;
 }
-if(_20 instanceof _2){
-_21=_20.decorator;
-_20=_20.value;
+if(_22 instanceof _2){
+_23=_22.decorator;
+_22=_22.value;
 }else{
-_21=_6;
+_23=_6;
 }
-oo.__mixin(_1f,_20,_21,_22,_a);
+oo.__mixin(_21,_22,_23,_24,_a);
 }
-return _1f;
+return _21;
 };
 })();
 }

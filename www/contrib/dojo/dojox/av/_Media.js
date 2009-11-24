@@ -100,7 +100,7 @@ vol*=0.1;
 }
 return vol;
 },_normalizeUrl:function(_13){
-if(_13&&_13.toLowerCase().indexOf("http")<0){
+if(_13&&(_13.toLowerCase().indexOf("http")<0||_13.indexOf("/")==0)){
 var loc=window.location.href.split("/");
 loc.pop();
 loc=loc.join("/")+"/";

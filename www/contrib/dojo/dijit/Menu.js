@@ -222,7 +222,7 @@ if(_15.tagName.toLowerCase()=="iframe"){
 var _16=_15,win=this._iframeContentWindow(_16);
 cn=dojo.withGlobal(win,dojo.body);
 }else{
-cn=(_15==dojo.body()?dojo.doc:_15);
+cn=(_15==dojo.body()?dojo.doc.documentElement:_15);
 }
 var _17={node:_15,iframe:_16};
 dojo.attr(_15,"_dijitMenu"+this.id,this._bindings.push(_17));

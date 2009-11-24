@@ -318,7 +318,7 @@ dojo.stopEvent(e);
 this.previous();
 }else{
 if(!this.isNavHeader()&&!this._isHeaderHidden()){
-this.focusHeader();
+this.grid.domNode.focus();
 dojo.stopEvent(e);
 }else{
 this.tabOut(this.grid.domNode);

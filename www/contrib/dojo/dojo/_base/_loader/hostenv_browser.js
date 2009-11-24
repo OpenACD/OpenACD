@@ -191,12 +191,19 @@ window.attachEvent("onload",dojo._loadInit);
 }
 }
 if(dojo.isIE){
-if(!dojo.config.afterOnLoad){
+if(!dojo.config.afterOnLoad&&!dojo.config.skipIeDomLoaded){
 document.write("<scr"+"ipt defer src=\"//:\" "+"onreadystatechange=\"if(this.readyState=='complete'){"+dojo._scopeName+"._loadInit();}\">"+"</scr"+"ipt>");
 }
 try{
 document.namespaces.add("v","urn:schemas-microsoft-com:vml");
-document.createStyleSheet().addRule("v\\:*","behavior:url(#default#VML);  display:inline-block");
+var vmlElems=["*","group","roundrect","oval","shape","rect","imagedata"],i=0,l=1,s=document.createStyleSheet();
+if(dojo.isIE>=8){
+i=1;
+l=vmlElems.length;
+}
+for(;i<l;++i){
+s.addRule("v\\:"+vmlElems[i],"behavior:url(#default#VML);  display:inline-block");
+}
 }
 catch(e){
 }

@@ -71,6 +71,7 @@ dojox.grid.util.funnelEvents(_9.headerNode,_9,"doHeaderEvent",["mouseup"]);
 this.funcMap[_9.id+"-"+"setColumnsWidth"]=_9.setColumnsWidth;
 _9.setColumnsWidth=this.setColumnsWidth;
 this.grid.nestedSorting&&(_9._getHeaderContent=this.grid._getNestedSortHeaderContent);
+this.grid.dnd&&(_9.setScrollTop=this.setScrollTop);
 }));
 this.funcMap["nextKey"]=this.grid.focus.nextKey;
 this.grid.focus.nextKey=this.nextKey;
@@ -159,26 +160,30 @@ return ((this.getNode(_12)||0).firstChild||0).firstChild||0;
 },sizeWidget:function(_13,_14,_15){
 var p=this.getNode(_15).firstChild,box=dojo.contentBox(p);
 dojo.marginBox(this.widget.domNode,{w:box.w});
-},getViewByCellIdx:function(_16){
-var _17=function(_18){
-var j=0,_19=false;
-for(;j<_18.length;j++){
-if(dojo.isArray(_18[j])){
-if(_17(_18[j])){
+},setScrollTop:function(_16){
+this.lastTop=_16;
+this.scrollboxNode.scrollTop=_16;
+return this.scrollboxNode.scrollTop;
+},getViewByCellIdx:function(_17){
+var _18=function(_19){
+var j=0,_1a=false;
+for(;j<_19.length;j++){
+if(dojo.isArray(_19[j])){
+if(_18(_19[j])){
 return true;
 }
 }else{
-if(_18[j].index==_16){
+if(_19[j].index==_17){
 return true;
 }
 }
 }
 };
-var i=0,_1a=this.grid.views.views;
-for(;i<_1a.length;i++){
-cells=_1a[i].structure.cells;
-if(_17(cells)){
-return _1a[i];
+var i=0,_1b=this.grid.views.views;
+for(;i<_1b.length;i++){
+cells=_1b[i].structure.cells;
+if(_18(cells)){
+return _1b[i];
 }
 }
 return null;

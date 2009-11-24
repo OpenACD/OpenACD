@@ -55,7 +55,7 @@ this.checkBox.attr("readOnly",_2);
 this.checkBox._setStateClass();
 this.readOnly=_2;
 }});
-dojo.declare("dojox.form.CheckedMultiSelect",dijit.form._FormSelectWidget,{templateString:"",templateString:dojo.cache("dojox.form","resources/CheckedMultiSelect.html","<div class=\"dijit dijitReset dijitInline\" dojoAttachEvent=\"onmousedown:_mouseDown,onclick:focus\"\n\t><select class=\"${baseClass}Select\" multiple=\"true\" dojoAttachPoint=\"containerNode,focusNode\"></select\n\t><div dojoAttachPoint=\"wrapperDiv\"></div\n></div>\n"),baseClass:"dojoxMultiSelect",_mouseDown:function(e){
+dojo.declare("dojox.form.CheckedMultiSelect",dijit.form._FormSelectWidget,{templateString:dojo.cache("dojox.form","resources/CheckedMultiSelect.html","<div class=\"dijit dijitReset dijitInline\" dojoAttachEvent=\"onmousedown:_mouseDown,onclick:focus\"\n\t><select class=\"${baseClass}Select\" multiple=\"true\" dojoAttachPoint=\"containerNode,focusNode\"></select\n\t><div dojoAttachPoint=\"wrapperDiv\"></div\n></div>\n"),baseClass:"dojoxMultiSelect",_mouseDown:function(e){
 dojo.stopEvent(e);
 },_addOptionItem:function(_3){
 this.wrapperDiv.appendChild(new dojox.form._CheckedMultiSelectItem({option:_3,parent:this}).domNode);

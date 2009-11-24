@@ -27,7 +27,7 @@ var _3=this.strings[_2]||_2;
 return {label:this.getLabel(_2,_3),name:_3,value:_2};
 },this);
 this.select.store=new dojo.data.ItemFileReadStore({data:{identifier:"value",items:_1}});
-this.select.attr("value","");
+this.select.attr("value","",false);
 this.disabled=this.select.attr("disabled");
 },_setValueAttr:function(_4,_5){
 _5=_5!==false?true:false;

@@ -24,5 +24,13 @@ if(dojo.isString(_5)){
 return _5;
 }
 return dojo.date.locale.format(_5,{selector:"time",formatLength:"short"});
-},serialize:dojo.date.stamp.toISOString,value:"12:00 AM"});
+},serialize:dojo.date.stamp.toISOString,value:"12:00 AM",_onKeyPress:function(e){
+if((e.charOrCode==dojo.keys.HOME||e.charOrCode==dojo.keys.END)&&!(e.ctrlKey||e.altKey||e.metaKey)&&typeof this.attr("value")!="undefined"){
+var _7=this.constraints[(e.charOrCode==dojo.keys.HOME?"min":"max")];
+if(_7){
+this._setValueAttr(_7,true);
+}
+dojo.stopEvent(e);
+}
+}});
 }

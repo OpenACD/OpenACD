@@ -60,6 +60,7 @@ var _13;
 _e.push(_12);
 _12.__checked=1;
 for(var i in _12){
+if(i.substring(0,2)!="__"){
 var _14=_12[i];
 if(_14==_d){
 if(_12!=_10){
@@ -76,6 +77,7 @@ _11(_14);
 }
 if(typeof _14.__checked=="object"&&_12!=_10){
 (dojox.data._getStoreForItem(_12)||_f).setValue(_12,i,_14.__checked);
+}
 }
 }
 }

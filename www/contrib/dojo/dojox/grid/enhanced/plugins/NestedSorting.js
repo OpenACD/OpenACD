@@ -298,13 +298,17 @@ dojo.forEach(_4a.childNodes,function(_4e){
 w+=dojo.marginBox(_4e).w;
 });
 _4d.w=w;
-_4d.l=_4d.t="null";
+_4d.l=(_4d.t=0);
 dojo.marginBox(_4a,_4d);
 }
 if(_4c.w!=(_4b.w-_4d.w)){
 _4c.w=_4b.w-_4d.w;
-dojo.isWebKit&&(_4c.h=dojo.contentBox(_4b).h);
+if(!dojo.isWebKit){
 dojo.marginBox(_49,_4c);
+}else{
+_4c.h=dojo.contentBox(_4b).h;
+dojo.style(_49,"width",(_4c.w-4)+"px");
+}
 }
 },updateMinColWidth:function(_4f){
 if(this._minColWidthUpdated){
@@ -423,10 +427,10 @@ return;
 if(!this._inResize(e.sourceView)){
 this.addHoverSortTip(e);
 }else{
-if(e.target.offsetParent!=e.cellNode&&dojo.hasClass(e.target.offsetParent,"dojoxGridCell")){
-e.cellNode=e.target.offsetParent;
-var nd=dojo.query("[id^=selectCol]",e.cellNode)[0];
-e.cellIndex=nd?nd.id.substring("selectCol".length):e.cellIndex;
+var idx=e.cellIndex;
+if(!this._sortTipMap[e.cellIndex]){
+e.cellIndex=this._sortTipMap[idx+1]?(idx+1):(this._sortTipMap[idx-1]?(idx-1):idx);
+e.cellNode=e.cellNode.parentNode.childNodes[e.cellIndex];
 }
 this.removeHoverSortTip(e);
 }
@@ -567,7 +571,11 @@ this.lastHeaderFocus.cellNode=this._colHeadNode;
 if(e.target==this._colHeadNode){
 this._scrollHeader(this.getHeaderIndex());
 }else{
-this.getFocusView(e).header.baseDecorateEvent(e);
+var _97=this.getFocusView(e);
+if(!_97){
+return;
+}
+_97.header.baseDecorateEvent(e);
 this._addFocusBorder(e.target);
 this._colHeadFocusIdx=e.cellIndex;
 this._colHeadNode=this._findHeaderCells()[this._colHeadFocusIdx];
@@ -583,125 +591,130 @@ this.grid._fixAllSelectRegion();
 this.inherited(arguments);
 this._removeFocusBorder();
 if(!this.isNavCellRegion){
-this.getFocusView(e).header.baseDecorateEvent(e);
+var _98=this.getFocusView(e);
+if(!_98){
+return;
+}
+_98.header.baseDecorateEvent(e);
 this.grid.removeHoverSortTip(e);
 this.lastHeaderFocus.cellNode=this._colHeadNode;
 }
 },getFocusView:function(e){
-var _97;
-dojo.forEach(this.grid.views.views,function(_98){
-if(!_97){
-var _99=dojo.coords(_98.domNode),_9a=dojo.coords(e.target);
-var _9b=_9a.x>=_99.x&&_9a.x<=(_99.x+_99.w);
-_9b&&(_97=_98);
+var _99;
+dojo.forEach(this.grid.views.views,function(_9a){
+if(!_99){
+var _9b=dojo.coords(_9a.domNode),_9c=dojo.coords(e.target);
+var _9d=_9c.x>=_9b.x&&_9c.x<=(_9b.x+_9b.w);
+_9d&&(_99=_9a);
 }
 });
-return (this.focusView=_97);
-},_mockEvt:function(_9c){
-var _9d=this.grid.getCell(this._colHeadFocusIdx);
-return {target:_9c,cellIndex:this._colHeadFocusIdx,cell:_9d,cellNode:this._colHeadNode,clientX:-1,sourceView:_9d.view};
+return (this.focusView=_99);
+},_mockEvt:function(_9e){
+var _9f=this.grid.getCell(this._colHeadFocusIdx);
+return {target:_9e,cellIndex:this._colHeadFocusIdx,cell:_9f,cellNode:this._colHeadNode,clientX:-1,sourceView:_9f.view};
 },navHeader:function(e){
-var _9e=e.ctrlKey?0:(e.keyCode==dojo.keys.LEFT_ARROW)?-1:1;
-!dojo._isBodyLtr()&&(_9e*=-1);
+var _a0=e.ctrlKey?0:(e.keyCode==dojo.keys.LEFT_ARROW)?-1:1;
+!dojo._isBodyLtr()&&(_a0*=-1);
 this.focusView.header.baseDecorateEvent(e);
-dojo.forEach(this.cssMarkers,dojo.hitch(this,function(css,_9f){
+dojo.forEach(this.cssMarkers,dojo.hitch(this,function(css,_a1){
 if(dojo.hasClass(e.target,css)){
-var _a0=_9f+_9e,_a1,_a2;
+var _a2=_a1+_a0,_a3,_a4;
 do{
-_a1=dojo.query("."+this.cssMarkers[_a0],e.cellNode)[0];
-if(_a1&&dojo.style(_a1.lastChild||_a1.firstChild,"display")!="none"){
-_a2=_a1;
+_a3=dojo.query("."+this.cssMarkers[_a2],e.cellNode)[0];
+if(_a3&&dojo.style(_a3.lastChild||_a3.firstChild,"display")!="none"){
+_a4=_a3;
 break;
 }
-_a0+=_9e;
-}while(_a0>=0&&_a0<this.cssMarkers.length);
-if(_a2&&_a0>=0&&_a0<this.cssMarkers.length){
+_a2+=_a0;
+}while(_a2>=0&&_a2<this.cssMarkers.length);
+if(_a4&&_a2>=0&&_a2<this.cssMarkers.length){
 if(e.ctrlKey){
 return;
 }
 dojo.isIE&&(this.grid._sortTipMap[e.cellIndex]=false);
-this.navCellRegion(_a2,_a0);
+this.navCellRegion(_a4,_a2);
 return;
 }
-var _a3=_a0<0?-1:(_a0>=this.cssMarkers.length?1:0);
-this.navHeaderNode(_a3);
+var _a5=_a2<0?-1:(_a2>=this.cssMarkers.length?1:0);
+this.navHeaderNode(_a5);
 }
 }));
-},navHeaderNode:function(_a4,_a5){
-var _a6=this._colHeadFocusIdx+_a4;
-var _a7=this._findHeaderCells();
-while(_a6>=0&&_a6<_a7.length&&_a7[_a6].style.display=="none"){
-_a6+=_a4;
+},navHeaderNode:function(_a6,_a7){
+var _a8=this._colHeadFocusIdx+_a6;
+var _a9=this._findHeaderCells();
+while(_a8>=0&&_a8<_a9.length&&_a9[_a8].style.display=="none"){
+_a8+=_a6;
 }
-if(this.grid.indirectSelection&&_a6==0){
+if(this.grid.indirectSelection&&_a8==0){
 return;
 }
-if(_a4!=0&&_a6>=0&&_a6<this.grid.layout.cells.length){
+if(_a6!=0&&_a8>=0&&_a8<this.grid.layout.cells.length){
 this.lastHeaderFocus.cellNode=this._colHeadNode;
 this.lastHeaderFocus.regionIdx=-1;
-this._colHeadFocusIdx=_a6;
-this.focusHeader(_a4<0?true:false,false,_a5);
+this._colHeadFocusIdx=_a8;
+this.focusHeader(_a6<0?true:false,false,_a7);
 }
-},navCellRegion:function(_a8,_a9){
+},navCellRegion:function(_aa,_ab){
 this.isNavCellRegion=true;
-dojox.grid.util.fire(_a8,"focus");
-this.currentHeaderFocusEvt.target=_a8;
-this.lastHeaderFocus.regionIdx=_a9;
-var _aa=_a9==0?_a8:_a8.parentNode.nextSibling;
-_aa&&this.grid._fixSelectRegion(_aa);
+dojox.grid.util.fire(_aa,"focus");
+this.currentHeaderFocusEvt.target=_aa;
+this.lastHeaderFocus.regionIdx=_ab;
+var _ac=_ab==0?_aa:_aa.parentNode.nextSibling;
+_ac&&this.grid._fixSelectRegion(_ac);
 this.isNavCellRegion=false;
-},headerCellInFocus:function(_ab){
-return (this._colHeadFocusIdx==_ab)&&this._focusBorderBox;
+},headerCellInFocus:function(_ad){
+return (this._colHeadFocusIdx==_ad)&&this._focusBorderBox;
 },clearHeaderFocus:function(){
 this._colHeadNode=this._colHeadFocusIdx=null;
 this.lastHeaderFocus={cellNode:null,regionIdx:-1};
 },addSortFocus:function(e){
-var _ac=this.grid.getCellSortInfo(e.cell);
-if(!_ac){
+var _ae=this.grid.getCellSortInfo(e.cell);
+if(!_ae){
 return;
 }
-var _ad=this.grid.sortAttrs;
-var _ae=!_ad||_ad.length<1;
-var _af=(_ad&&_ad.length==1&&_ac["sortPos"]==1);
+var _af=this.grid.sortAttrs;
+var _b0=!_af||_af.length<1;
+var _b1=(_af&&_af.length==1&&_ae["sortPos"]==1);
 this._colHeadFocusIdx=e.cellIndex;
 this._colHeadNode=e.cellNode;
 this.currentHeaderFocusEvt={};
-this.lastHeaderFocus.regionIdx=(_ae||_af)?2:(e.nestedSortChoice?1:0);
-},_addFocusBorder:function(_b0){
-if(!_b0){
+this.lastHeaderFocus.regionIdx=(_b0||_b1)?2:(e.nestedSortChoice?1:0);
+},_addFocusBorder:function(_b2){
+if(!_b2){
 return;
 }
 this._removeFocusBorder();
 this._focusBorderBox=dojo.create("div");
 this._focusBorderBox.className="dojoxGridFocusBorderBox";
-dojo.toggleClass(_b0,"dojoxGridSelectRegionFocus",true);
-dojo.toggleClass(_b0,"dojoxGridSelectRegionHover",false);
-if(_b0.hasChildNodes()){
-_b0.insertBefore(this._focusBorderBox,_b0.firstChild);
+dojo.toggleClass(_b2,"dojoxGridSelectRegionFocus",true);
+dojo.toggleClass(_b2,"dojoxGridSelectRegionHover",false);
+var _b3=_b2.offsetHeight;
+if(_b2.hasChildNodes()){
+_b2.insertBefore(this._focusBorderBox,_b2.firstChild);
 }else{
-_b0.appendChild(this._focusBorderBox);
+_b2.appendChild(this._focusBorderBox);
 }
-var _b1={"l":0,"t":0,"r":0,"b":0};
-for(var i in _b1){
-_b1[i]=dojo.create("div");
+var _b4={"l":0,"t":0,"r":0,"b":0};
+for(var i in _b4){
+_b4[i]=dojo.create("div");
 }
-var pos={x:dojo.coords(_b0).x-dojo.coords(this._focusBorderBox).x,y:dojo.coords(_b0).y-dojo.coords(this._focusBorderBox).y,w:_b0.offsetWidth,h:_b0.offsetHeight};
-for(var i in _b1){
-var n=_b1[i];
+var pos={x:dojo.coords(_b2).x-dojo.coords(this._focusBorderBox).x,y:dojo.coords(_b2).y-dojo.coords(this._focusBorderBox).y,w:_b2.offsetWidth,h:_b3};
+for(var i in _b4){
+var n=_b4[i];
 dojo.addClass(n,"dojoxGridFocusBorder");
 dojo.style(n,"top",pos.y+"px");
 dojo.style(n,"left",pos.x+"px");
 this._focusBorderBox.appendChild(n);
 }
-var _b2=function(val){
+var _b5=function(val){
 return val>0?val:0;
 };
-dojo.style(_b1.r,"left",_b2(pos.x+pos.w-1)+"px");
-dojo.style(_b1.b,"top",_b2(pos.y+pos.h-1)+"px");
-dojo.style(_b1.l,"height",_b2(pos.h-1)+"px");
-dojo.style(_b1.r,"height",_b2(pos.h-1)+"px");
-dojo.style(_b1.t,"width",_b2(pos.w-1)+"px");
-dojo.style(_b1.b,"width",_b2(pos.w-1)+"px");
+dojo.style(_b4.r,"left",_b5(pos.x+pos.w-1)+"px");
+dojo.style(_b4.b,"top",_b5(pos.y+pos.h-1)+"px");
+dojo.style(_b4.l,"height",_b5(pos.h-1)+"px");
+dojo.style(_b4.r,"height",_b5(pos.h-1)+"px");
+dojo.style(_b4.t,"width",_b5(pos.w-1)+"px");
+dojo.style(_b4.b,"width",_b5(pos.w-1)+"px");
 },_updateFocusBorder:function(){
 if(this._focusBorderBox==null){
 return;

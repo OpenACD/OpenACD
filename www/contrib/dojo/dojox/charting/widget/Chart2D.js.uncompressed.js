@@ -747,7 +747,9 @@ dojo.mixin(dijit, {
 		// IIRC, I'm using attachEvent() rather than dojo.connect() because focus/blur events don't bubble
 		// through dojo.connect(), and also maybe to catch the focus events early, before onfocus handlers
 		// fire.
-		var doc = targetWindow.document;
+		// Connect to <html> (rather than document) on IE to avoid memory leaks, but document on other browsers because
+		// (at least for FF) the focus event doesn't fire on <html> or <body>.
+		var doc = dojo.isIE ? targetWindow.document.documentElement : targetWindow.document;
 		if(doc){
 			if(dojo.isIE){
 				doc.attachEvent('onmousedown', mousedownListener);
@@ -1172,10 +1174,10 @@ dijit._place = function(/*DomNode*/ node, /* Array */ choices, /* Function */ la
 
 		// coordinates and size of node with specified corner placed at pos,
 		// and clipped by viewport
-		var startX = (corner.charAt(1) == 'L' ? pos.x : Math.max(view.l, pos.x - mb.w)),
-			startY = (corner.charAt(0) == 'T' ? pos.y : Math.max(view.t, pos.y - mb.h)),
-			endX = (corner.charAt(1) == 'L' ? Math.min(view.l + view.w, startX + mb.w) : pos.x),
-			endY = (corner.charAt(0) == 'T' ? Math.min(view.t + view.h, startY + mb.h) : pos.y),
+		var startX = Math.max(view.l, corner.charAt(1) == 'L' ? pos.x : (pos.x - mb.w)),
+			startY = Math.max(view.t, corner.charAt(0) == 'T' ? pos.y : (pos.y - mb.h)),
+			endX = Math.min(view.l + view.w, corner.charAt(1) == 'L' ? (startX + mb.w) : pos.x),
+			endY = Math.min(view.t + view.h, corner.charAt(0) == 'T' ? (startY + mb.h) : pos.y),
 			width = endX - startX,
 			height = endY - startY,
 			overflow = (mb.w - width) + (mb.h - height);
@@ -1613,8 +1615,8 @@ dijit.popup.__OpenArgs = function(){
 			}, dojo.body());
 			dijit.setWaiRole(wrapper, "presentation");
 		}else{
-			//recycled a new wrapper, so that we don't need to reattach the iframe
-			//which is slow even if the iframe is empty, see #10167
+			// recycled a old wrapper, so that we don't need to reattach the iframe
+			// which is slow even if the iframe is empty, see #10167
 			wrapper = wrapperobj[0];
 			iframe = wrapperobj[1];
 		}
@@ -1624,7 +1626,8 @@ dijit.popup.__OpenArgs = function(){
 			style:{
 				zIndex: beginZIndex + stack.length,
 				visibility:"hidden",
-				left: "0px", top: "0px"         // prevent transient scrollbar causing misalign (#5776)
+				// prevent transient scrollbar causing misalign (#5776), and initial flash in upper left (#10111)
+				top: "-9999px"
 			},
 			dijitPopupParent: args.parent ? args.parent.id : ""
 		});
@@ -1634,7 +1637,6 @@ dijit.popup.__OpenArgs = function(){
 		s.visibility = "";
 		s.position = "";
 		s.top = "0px";
-		//dojo.place(widget.domNode,wrapper,'first');
 		wrapper.appendChild(widget.domNode);
 
 		if(!iframe){
@@ -1717,26 +1719,21 @@ dijit.popup.__OpenArgs = function(){
 				onClose = top.onClose;
 
 			if(widget.onClose){
-				// TODO: in 2.0 standardize onHide() (used by StackContainer) and onHide() (used here)
+				// TODO: in 2.0 standardize onHide() (used by StackContainer) and onClose() (used here)
 				widget.onClose();
 			}
 			dojo.forEach(top.handlers, dojo.disconnect);
 
-			// #2685: check if the widget still has a domNode so ContentPane can change its URL without getting an error
-			if(!widget || !widget.domNode){ return; }
-
-			this.moveOffScreen(widget.domNode);
-
+			// Move the widget offscreen, unless it has already been destroyed in above onClose() etc.
+			if(widget && widget.domNode){
+				this.moveOffScreen(widget.domNode);
+			}
                         
-			//move the iframe out of the view
-			//dont' use moveOffScreen which would also reattach the wrapper to body, which causes reloading of iframe
+			// recycle the wrapper plus iframe, so we prevent reattaching iframe everytime an popup opens
+			// don't use moveOffScreen which would also reattach the wrapper to body, which causes reloading of iframe
 			wrapper.style.top = "-9999px";
 			wrapper.style.visibility = "hidden";
-
-			//recycle the wrapper plus iframe, so we prevent reattaching iframe everytime an popup opens
 			wrappers.push([wrapper,iframe]);
-			//iframe.destroy();
-			//dojo.destroy(wrapper);
 
 			if(onClose){
 				onClose();
@@ -2034,7 +2031,13 @@ dijit.typematic = {
 	_fireEventAndReload: function(){
 		this._timer = null;
 		this._callback(++this._count, this._node, this._evt);
-		this._currentTimeout = (this._currentTimeout < 0) ? this._initialDelay : ((this._subsequentDelay > 1) ? this._subsequentDelay : Math.round(this._currentTimeout * this._subsequentDelay));
+		
+		// Schedule next event, reducing the timer a little bit each iteration, bottoming-out at 10 to avoid
+		// browser overload (particularly avoiding starving DOH robot so it never gets to send a mouseup)
+		this._currentTimeout = Math.max(
+			this._currentTimeout < 0 ? this._initialDelay :
+				(this._subsequentDelay > 1 ? this._subsequentDelay : Math.round(this._currentTimeout * this._subsequentDelay)),
+			10);
 		this._timer = setTimeout(dojo.hitch(this, "_fireEventAndReload"), this._currentTimeout);
 	},
 
@@ -7318,7 +7321,7 @@ dojo.provide("dojox.charting.plot2d.common");
 						old_vmin = stats.vmin, old_vmax = stats.vmax;
 					if(!("xmin" in run) || !("xmax" in run) || !("ymin" in run) || !("ymax" in run)){
 						dojo.forEach(run.data, function(val, i){
-							var x = val.x, y = val.y;
+							var x = "x" in val ? val.x : i + 1, y = val.y;
 							if(isNaN(x)){ x = 0; }
 							if(isNaN(y)){ y = 0; }
 							stats.hmin = Math.min(stats.hmin, x);
@@ -8109,9 +8112,292 @@ dojo.declare("dojox.charting.plot2d.StackedAreas", dojox.charting.plot2d.Stacked
 
 }
 
+if(!dojo._hasResource["dojox.gfx.fx"]){ //_hasResource checks added by build. Do not use _hasResource directly in your code.
+dojo._hasResource["dojox.gfx.fx"] = true;
+dojo.provide("dojox.gfx.fx");
+
+
+
+(function(){
+	var d = dojo, g = dojox.gfx, m = g.matrix;
+
+	// Generic interpolators. Should they be moved to dojox.fx?
+
+	var InterpolNumber = function(start, end){
+		this.start = start, this.end = end;
+	};
+	d.extend(InterpolNumber, {
+		getValue: function(r){
+			return (this.end - this.start) * r + this.start;
+		}
+	});
+
+	var InterpolUnit = function(start, end, units){
+		this.start = start, this.end = end;
+		this.units = units;
+	};
+	d.extend(InterpolUnit, {
+		getValue: function(r){
+			return (this.end - this.start) * r + this.start + this.units;
+		}
+	});
+
+	var InterpolColor = function(start, end){
+		this.start = start, this.end = end;
+		this.temp = new dojo.Color();
+	};
+	d.extend(InterpolColor, {
+		getValue: function(r){
+			return d.blendColors(this.start, this.end, r, this.temp);
+		}
+	});
+
+	var InterpolValues = function(values){
+		this.values = values;
+		this.length = values.length;
+	};
+	d.extend(InterpolValues, {
+		getValue: function(r){
+			return this.values[Math.min(Math.floor(r * this.length), this.length - 1)];
+		}
+	});
+
+	var InterpolObject = function(values, def){
+		this.values = values;
+		this.def = def ? def : {};
+	};
+	d.extend(InterpolObject, {
+		getValue: function(r){
+			var ret = dojo.clone(this.def);
+			for(var i in this.values){
+				ret[i] = this.values[i].getValue(r);
+			}
+			return ret;
+		}
+	});
+
+	var InterpolTransform = function(stack, original){
+		this.stack = stack;
+		this.original = original;
+	};
+	d.extend(InterpolTransform, {
+		getValue: function(r){
+			var ret = [];
+			dojo.forEach(this.stack, function(t){
+				if(t instanceof m.Matrix2D){
+					ret.push(t);
+					return;
+				}
+				if(t.name == "original" && this.original){
+					ret.push(this.original);
+					return;
+				}
+				if(!(t.name in m)){ return; }
+				var f = m[t.name];
+				if(typeof f != "function"){
+					// constant
+					ret.push(f);
+					return;
+				}
+				var val = dojo.map(t.start, function(v, i){
+								return (t.end[i] - v) * r + v;
+							}),
+					matrix = f.apply(m, val);
+				if(matrix instanceof m.Matrix2D){
+					ret.push(matrix);
+				}
+			}, this);
+			return ret;
+		}
+	});
+
+	var transparent = new d.Color(0, 0, 0, 0);
+
+	var getColorInterpol = function(prop, obj, name, def){
+		if(prop.values){
+			return new InterpolValues(prop.values);
+		}
+		var value, start, end;
+		if(prop.start){
+			start = g.normalizeColor(prop.start);
+		}else{
+			start = value = obj ? (name ? obj[name] : obj) : def;
+		}
+		if(prop.end){
+			end = g.normalizeColor(prop.end);
+		}else{
+			if(!value){
+				value = obj ? (name ? obj[name] : obj) : def;
+			}
+			end = value;
+		}
+		return new InterpolColor(start, end);
+	};
+
+	var getNumberInterpol = function(prop, obj, name, def){
+		if(prop.values){
+			return new InterpolValues(prop.values);
+		}
+		var value, start, end;
+		if(prop.start){
+			start = prop.start;
+		}else{
+			start = value = obj ? obj[name] : def;
+		}
+		if(prop.end){
+			end = prop.end;
+		}else{
+			if(typeof value != "number"){
+				value = obj ? obj[name] : def;
+			}
+			end = value;
+		}
+		return new InterpolNumber(start, end);
+	};
+
+	g.fx.animateStroke = function(/*Object*/ args){
+		// summary:
+		//	Returns an animation which will change stroke properties over time
+		// example:
+		//	|	dojox.gfx.fx.animateStroke{{
+		//	|		shape: shape,
+		//	|		duration: 500,
+		//	|		color: {start: "red", end: "green"},
+		//	|		width: {end: 15},
+		//	|		join:  {values: ["miter", "bevel", "round"]}
+		//	|	}).play();
+		if(!args.easing){ args.easing = d._defaultEasing; }
+		var anim = new d.Animation(args), shape = args.shape, stroke;
+		d.connect(anim, "beforeBegin", anim, function(){
+			stroke = shape.getStroke();
+			var prop = args.color, values = {}, value, start, end;
+			if(prop){
+				values.color = getColorInterpol(prop, stroke, "color", transparent);
+			}
+			prop = args.style;
+			if(prop && prop.values){
+				values.style = new InterpolValues(prop.values);
+			}
+			prop = args.width;
+			if(prop){
+				values.width = getNumberInterpol(prop, stroke, "width", 1);
+			}
+			prop = args.cap;
+			if(prop && prop.values){
+				values.cap = new InterpolValues(prop.values);
+			}
+			prop = args.join;
+			if(prop){
+				if(prop.values){
+					values.join = new InterpolValues(prop.values);
+				}else{
+					start = prop.start ? prop.start : (stroke && stroke.join || 0);
+					end = prop.end ? prop.end : (stroke && stroke.join || 0);
+					if(typeof start == "number" && typeof end == "number"){
+						values.join = new InterpolNumber(start, end);
+					}
+				}
+			}
+			this.curve = new InterpolObject(values, stroke);
+		});
+		d.connect(anim, "onAnimate", shape, "setStroke");
+		return anim; // dojo.Animation
+	};
+
+	g.fx.animateFill = function(/*Object*/ args){
+		// summary:
+		//	Returns an animation which will change fill color over time.
+		//	Only solid fill color is supported at the moment
+		// example:
+		//	|	dojox.gfx.fx.animateFill{{
+		//	|		shape: shape,
+		//	|		duration: 500,
+		//	|		color: {start: "red", end: "green"}
+		//	|	}).play();
+		if(!args.easing){ args.easing = d._defaultEasing; }
+		var anim = new d.Animation(args), shape = args.shape, fill;
+		d.connect(anim, "beforeBegin", anim, function(){
+			fill = shape.getFill();
+			var prop = args.color, values = {};
+			if(prop){
+				this.curve = getColorInterpol(prop, fill, "", transparent);
+			}
+		});
+		d.connect(anim, "onAnimate", shape, "setFill");
+		return anim; // dojo.Animation
+	};
+
+	g.fx.animateFont = function(/*Object*/ args){
+		// summary:
+		//	Returns an animation which will change font properties over time
+		// example:
+		//	|	dojox.gfx.fx.animateFont{{
+		//	|		shape: shape,
+		//	|		duration: 500,
+		//	|		variant: {values: ["normal", "small-caps"]},
+		//	|		size:  {end: 10, units: "pt"}
+		//	|	}).play();
+		if(!args.easing){ args.easing = d._defaultEasing; }
+		var anim = new d.Animation(args), shape = args.shape, font;
+		d.connect(anim, "beforeBegin", anim, function(){
+			font = shape.getFont();
+			var prop = args.style, values = {}, value, start, end;
+			if(prop && prop.values){
+				values.style = new InterpolValues(prop.values);
+			}
+			prop = args.variant;
+			if(prop && prop.values){
+				values.variant = new InterpolValues(prop.values);
+			}
+			prop = args.weight;
+			if(prop && prop.values){
+				values.weight = new InterpolValues(prop.values);
+			}
+			prop = args.family;
+			if(prop && prop.values){
+				values.family = new InterpolValues(prop.values);
+			}
+			prop = args.size;
+			if(prop && prop.units){
+				start = parseFloat(prop.start ? prop.start : (shape.font && shape.font.size || "0"));
+				end = parseFloat(prop.end ? prop.end : (shape.font && shape.font.size || "0"));
+				values.size = new InterpolUnit(start, end, prop.units);
+			}
+			this.curve = new InterpolObject(values, font);
+		});
+		d.connect(anim, "onAnimate", shape, "setFont");
+		return anim; // dojo.Animation
+	};
+
+	g.fx.animateTransform = function(/*Object*/ args){
+		// summary:
+		//	Returns an animation which will change transformation over time
+		// example:
+		//	|	dojox.gfx.fx.animateTransform{{
+		//	|		shape: shape,
+		//	|		duration: 500,
+		//	|		transform: [
+		//	|			{name: "translate", start: [0, 0], end: [200, 200]},
+		//	|			{name: "original"}
+		//	|		]
+		//	|	}).play();
+		if(!args.easing){ args.easing = d._defaultEasing; }
+		var anim = new d.Animation(args), shape = args.shape, original;
+		d.connect(anim, "beforeBegin", anim, function(){
+			original = shape.getTransform();
+			this.curve = new InterpolTransform(args.transform, original);
+		});
+		d.connect(anim, "onAnimate", shape, "setTransform");
+		return anim; // dojo.Animation
+	};
+})();
+
+}
+
 if(!dojo._hasResource["dojox.charting.plot2d.Columns"]){ //_hasResource checks added by build. Do not use _hasResource directly in your code.
 dojo._hasResource["dojox.charting.plot2d.Columns"] = true;
 dojo.provide("dojox.charting.plot2d.Columns");
+
 
 
 
@@ -8130,7 +8416,8 @@ dojo.provide("dojox.charting.plot2d.Columns");
 			hAxis: "x",		// use a horizontal axis named "x"
 			vAxis: "y",		// use a vertical axis named "y"
 			gap:	0,		// gap between columns in pixels
-			shadows: null	// draw shadows
+			shadows: null,	// draw shadows
+			animate: null   // animate bars into place
 		},
 		optionalParams: {
 			minBarSize: 1,	// minimal bar size in pixels
@@ -8144,6 +8431,7 @@ dojo.provide("dojox.charting.plot2d.Columns");
 			this.series = [];
 			this.hAxis = this.opt.hAxis;
 			this.vAxis = this.opt.vAxis;
+			this.animate = this.opt.animate;
 		},
 
 		calculateAxes: function(dim){
@@ -8183,17 +8471,35 @@ dojo.provide("dojox.charting.plot2d.Columns");
 				stroke = run.stroke ? run.stroke : dc.augmentStroke(t.series.stroke, color);
 				fill = run.fill ? run.fill : dc.augmentFill(t.series.fill, color);
 				for(var j = 0; j < run.data.length; ++j){
-					var v = run.data[j],
+					var value = run.data[j],
+						v = typeof value == "number" ? value : value.y,
 						vv = vt(v),
 						height = vv - baselineHeight,
-						h = Math.abs(height);
+						h = Math.abs(height),
+						specialColor  = color,
+						specialFill   = fill,
+						specialStroke = stroke;
+					if(typeof value != "number"){
+						if(value.color){
+							specialColor = new dojo.Color(value.color);
+						}
+						if("fill" in value){
+							specialFill = value.fill;
+						}else if(value.color){
+							specialFill = dc.augmentFill(t.series.fill, specialColor);
+						}
+						if("stroke" in value){
+							specialStroke = value.stroke;
+						}else if(value.color){
+							specialStroke = dc.augmentStroke(t.series.stroke, specialColor);
+						}
+					}
 					if(width >= 1 && h >= 1){
-						var rect = {
+						var shape = s.createRect({
 								x: offsets.l + ht(j + 0.5) + gap,
 								y: dim.height - offsets.b - (v > baseline ? vv : baselineHeight),
 								width: width, height: h
-							},
-							shape = s.createRect(rect).setFill(fill).setStroke(stroke);
+							}).setFill(specialFill).setStroke(specialStroke);
 						run.dyn.fill   = shape.getFill();
 						run.dyn.stroke = shape.getStroke();
 						if(events){
@@ -8210,12 +8516,26 @@ dojo.provide("dojox.charting.plot2d.Columns");
 							};
 							this._connectEvents(shape, o);
 						}
+						if(this.animate){
+							this._animateColumn(shape, dim.height - offsets.b - baselineHeight, h);
+						}
 					}
 				}
 				run.dirty = false;
 			}
 			this.dirty = false;
 			return this;
+		},
+		_animateColumn: function(shape, voffset, vsize){
+			dojox.gfx.fx.animateTransform(dojo.delegate({
+				shape: shape,
+				duration: 1200,
+				transform: [
+					{name: "translate", start: [0, voffset - (voffset/vsize)], end: [0, 0]},
+					{name: "scale", start: [1, 1/vsize], end: [1, 1]},
+					{name: "original"}
+				]
+			}, this.animate)).play();
 		}
 	});
 })();
@@ -8255,7 +8575,7 @@ dojo.provide("dojox.charting.plot2d.StackedColumns");
 			for(var i = 0; i < this.series.length; ++i){
 				var run = this.series[i];
 				for(var j = 0; j < run.data.length; ++j){
-					var v = run.data[j];
+					var value = run.data[j], v = typeof value == "number" ? value : value.y;
 					if(isNaN(v)){ v = 0; }
 					acc[j] += v;
 				}
@@ -8289,13 +8609,32 @@ dojo.provide("dojox.charting.plot2d.StackedColumns");
 				fill = run.fill ? run.fill : dc.augmentFill(t.series.fill, color);
 				for(var j = 0; j < acc.length; ++j){
 					var v = acc[j],
-						height = vt(v);
+						height = vt(v),
+						value = run.data[j],
+						specialColor  = color,
+						specialFill   = fill,
+						specialStroke = stroke;
+					if(typeof value != "number"){
+						if(value.color){
+							specialColor = new dojo.Color(value.color);
+						}
+						if("fill" in value){
+							specialFill = value.fill;
+						}else if(value.color){
+							specialFill = dc.augmentFill(t.series.fill, specialColor);
+						}
+						if("stroke" in value){
+							specialStroke = value.stroke;
+						}else if(value.color){
+							specialStroke = dc.augmentStroke(t.series.stroke, specialColor);
+						}
+					}
 					if(width >= 1 && height >= 1){
 						var shape = s.createRect({
 							x: offsets.l + ht(j + 0.5) + gap,
 							y: dim.height - offsets.b - vt(v),
 							width: width, height: height
-						}).setFill(fill).setStroke(stroke);
+						}).setFill(specialFill).setStroke(specialStroke);
 						run.dyn.fill   = shape.getFill();
 						run.dyn.stroke = shape.getStroke();
 						if(events){
@@ -8312,12 +8651,15 @@ dojo.provide("dojox.charting.plot2d.StackedColumns");
 							};
 							this._connectEvents(shape, o);
 						}
+						if(this.animate){
+							this._animateColumn(shape, dim.height - offsets.b, height);
+						}
 					}
 				}
 				run.dirty = false;
 				// update the accumulator
 				for(var j = 0; j < run.data.length; ++j){
-					var v = run.data[j];
+					var value = run.data[j], v = typeof value == "number" ? value : value.y;
 					if(isNaN(v)){ v = 0; }
 					acc[j] -= v;
 				}
@@ -8375,16 +8717,35 @@ dojo.provide("dojox.charting.plot2d.ClusteredColumns");
 				stroke = run.stroke ? run.stroke : dc.augmentStroke(t.series.stroke, color);
 				fill = run.fill ? run.fill : dc.augmentFill(t.series.fill, color);
 				for(var j = 0; j < run.data.length; ++j){
-					var v = run.data[j],
+					var value = run.data[j],
+						v = typeof value == "number" ? value : value.y,
 						vv = vt(v),
 						height = vv - baselineHeight,
-						h = Math.abs(height);
+						h = Math.abs(height),
+						specialColor  = color,
+						specialFill   = fill,
+						specialStroke = stroke;
+					if(typeof value != "number"){
+						if(value.color){
+							specialColor = new dojo.Color(value.color);
+						}
+						if("fill" in value){
+							specialFill = value.fill;
+						}else if(value.color){
+							specialFill = dc.augmentFill(t.series.fill, specialColor);
+						}
+						if("stroke" in value){
+							specialStroke = value.stroke;
+						}else if(value.color){
+							specialStroke = dc.augmentStroke(t.series.stroke, specialColor);
+						}
+					}
 					if(width >= 1 && h >= 1){
 						var shape = s.createRect({
 							x: offsets.l + ht(j + 0.5) + gap + shift,
 							y: dim.height - offsets.b - (v > baseline ? vv : baselineHeight),
 							width: width, height: h
-						}).setFill(fill).setStroke(stroke);
+						}).setFill(specialFill).setStroke(specialStroke);
 						run.dyn.fill   = shape.getFill();
 						run.dyn.stroke = shape.getStroke();
 						if(events){
@@ -8400,6 +8761,9 @@ dojo.provide("dojox.charting.plot2d.ClusteredColumns");
 								y:       v
 							};
 							this._connectEvents(shape, o);
+						}
+						if(this.animate){
+							this._animateColumn(shape, dim.height - offsets.b - baselineHeight, h);
 						}
 					}
 				}
@@ -8424,6 +8788,7 @@ dojo.provide("dojox.charting.plot2d.Bars");
 
 
 
+
 (function(){
 	var df = dojox.lang.functional, du = dojox.lang.utils,
 		dc = dojox.charting.plot2d.common,
@@ -8434,7 +8799,8 @@ dojo.provide("dojox.charting.plot2d.Bars");
 			hAxis: "x",		// use a horizontal axis named "x"
 			vAxis: "y",		// use a vertical axis named "y"
 			gap:	0,		// gap between columns in pixels
-			shadows: null	// draw shadows
+			shadows: null,	// draw shadows
+			animate: null   // animate bars into place
 		},
 		optionalParams: {
 			minBarSize: 1,	// minimal bar size in pixels
@@ -8448,6 +8814,7 @@ dojo.provide("dojox.charting.plot2d.Bars");
 			this.series = [];
 			this.hAxis = this.opt.hAxis;
 			this.vAxis = this.opt.vAxis;
+			this.animate = this.opt.animate;
 		},
 
 		calculateAxes: function(dim){
@@ -8489,16 +8856,35 @@ dojo.provide("dojox.charting.plot2d.Bars");
 				stroke = run.stroke ? run.stroke : dc.augmentStroke(t.series.stroke, color);
 				fill = run.fill ? run.fill : dc.augmentFill(t.series.fill, color);
 				for(var j = 0; j < run.data.length; ++j){
-					var v = run.data[j],
+					var value = run.data[j],
+						v = typeof value == "number" ? value : value.y,
 						hv = ht(v),
 						width = hv - baselineWidth,
-						w = Math.abs(width);
+						w = Math.abs(width),
+						specialColor  = color,
+						specialFill   = fill,
+						specialStroke = stroke;
+					if(typeof value != "number"){
+						if(value.color){
+							specialColor = new dojo.Color(value.color);
+						}
+						if("fill" in value){
+							specialFill = value.fill;
+						}else if(value.color){
+							specialFill = dc.augmentFill(t.series.fill, specialColor);
+						}
+						if("stroke" in value){
+							specialStroke = value.stroke;
+						}else if(value.color){
+							specialStroke = dc.augmentStroke(t.series.stroke, specialColor);
+						}
+					}
 					if(w >= 1 && height >= 1){
 						var shape = s.createRect({
 							x: offsets.l + (v < baseline ? hv : baselineWidth),
 							y: dim.height - offsets.b - vt(j + 1.5) + gap,
 							width: w, height: height
-						}).setFill(fill).setStroke(stroke);
+						}).setFill(specialFill).setStroke(specialStroke);
 						run.dyn.fill   = shape.getFill();
 						run.dyn.stroke = shape.getStroke();
 						if(events){
@@ -8515,12 +8901,26 @@ dojo.provide("dojox.charting.plot2d.Bars");
 							};
 							this._connectEvents(shape, o);
 						}
+						if(this.animate){
+							this._animateBar(shape, offsets.l + baselineWidth, -w);
+						}
 					}
 				}
 				run.dirty = false;
 			}
 			this.dirty = false;
 			return this;
+		},
+		_animateBar: function(shape, hoffset, hsize){
+			dojox.gfx.fx.animateTransform(dojo.delegate({
+				shape: shape,
+				duration: 1200,
+				transform: [
+					{name: "translate", start: [hoffset - (hoffset/hsize), 0], end: [0, 0]},
+					{name: "scale", start: [1/hsize, 1], end: [1, 1]},
+					{name: "original"}
+				]
+			}, this.animate)).play();
 		}
 	});
 })();
@@ -8562,7 +8962,7 @@ dojo.provide("dojox.charting.plot2d.StackedBars");
 			for(var i = 0; i < this.series.length; ++i){
 				var run = this.series[i];
 				for(var j = 0; j < run.data.length; ++j){
-					var v = run.data[j];
+					var value = run.data[j], v = typeof value == "number" ? value : value.y;
 					if(isNaN(v)){ v = 0; }
 					acc[j] += v;
 				}
@@ -8596,13 +8996,32 @@ dojo.provide("dojox.charting.plot2d.StackedBars");
 				fill = run.fill ? run.fill : dc.augmentFill(t.series.fill, color);
 				for(var j = 0; j < acc.length; ++j){
 					var v = acc[j],
-						width  = ht(v);
+						width = ht(v),
+						value = run.data[j],
+						specialColor  = color,
+						specialFill   = fill,
+						specialStroke = stroke;
+					if(typeof value != "number"){
+						if(value.color){
+							specialColor = new dojo.Color(value.color);
+						}
+						if("fill" in value){
+							specialFill = value.fill;
+						}else if(value.color){
+							specialFill = dc.augmentFill(t.series.fill, specialColor);
+						}
+						if("stroke" in value){
+							specialStroke = value.stroke;
+						}else if(value.color){
+							specialStroke = dc.augmentStroke(t.series.stroke, specialColor);
+						}
+					}
 					if(width >= 1 && height >= 1){
 						var shape = s.createRect({
 							x: offsets.l,
 							y: dim.height - offsets.b - vt(j + 1.5) + gap,
 							width: width, height: height
-						}).setFill(fill).setStroke(stroke);
+						}).setFill(specialFill).setStroke(specialStroke);
 						run.dyn.fill   = shape.getFill();
 						run.dyn.stroke = shape.getStroke();
 						if(events){
@@ -8619,12 +9038,15 @@ dojo.provide("dojox.charting.plot2d.StackedBars");
 							};
 							this._connectEvents(shape, o);
 						}
+						if(this.animate){
+							this._animateBar(shape, offsets.l, -width);
+						}
 					}
 				}
 				run.dirty = false;
 				// update the accumulator
 				for(var j = 0; j < run.data.length; ++j){
-					var v = run.data[j];
+					var value = run.data[j], v = typeof value == "number" ? value : value.y;
 					if(isNaN(v)){ v = 0; }
 					acc[j] -= v;
 				}
@@ -8682,16 +9104,35 @@ dojo.provide("dojox.charting.plot2d.ClusteredBars");
 				stroke = run.stroke ? run.stroke : dc.augmentStroke(t.series.stroke, color);
 				fill = run.fill ? run.fill : dc.augmentFill(t.series.fill, color);
 				for(var j = 0; j < run.data.length; ++j){
-					var v = run.data[j],
+					var value = run.data[j],
+						v = typeof value == "number" ? value : value.y,
 						hv = ht(v),
 						width = hv - baselineWidth,
-						w = Math.abs(width);
+						w = Math.abs(width),
+						specialColor  = color,
+						specialFill   = fill,
+						specialStroke = stroke;
+					if(typeof value != "number"){
+						if(value.color){
+							specialColor = new dojo.Color(value.color);
+						}
+						if("fill" in value){
+							specialFill = value.fill;
+						}else if(value.color){
+							specialFill = dc.augmentFill(t.series.fill, specialColor);
+						}
+						if("stroke" in value){
+							specialStroke = value.stroke;
+						}else if(value.color){
+							specialStroke = dc.augmentStroke(t.series.stroke, specialColor);
+						}
+					}
 					if(w >= 1 && height >= 1){
 						var shape = s.createRect({
 							x: offsets.l + (v < baseline ? hv : baselineWidth),
 							y: dim.height - offsets.b - vt(j + 1.5) + gap + shift,
 							width: w, height: height
-						}).setFill(fill).setStroke(stroke);
+						}).setFill(specialFill).setStroke(specialStroke);
 						run.dyn.fill   = shape.getFill();
 						run.dyn.stroke = shape.getStroke();
 						if(events){
@@ -8707,6 +9148,9 @@ dojo.provide("dojox.charting.plot2d.ClusteredBars");
 								y:       j + 1.5
 							};
 							this._connectEvents(shape, o);
+						}
+						if(this.animate){
+							this._animateBar(shape, offsets.l + baselineWidth, -width);
 						}
 					}
 				}
@@ -10428,288 +10872,6 @@ dojo.fx.easing = {
 		return (dojo.fx.easing.bounceOut(n * 2 - 1) / 2) + 0.5; // Decimal
 	}
 };
-
-}
-
-if(!dojo._hasResource["dojox.gfx.fx"]){ //_hasResource checks added by build. Do not use _hasResource directly in your code.
-dojo._hasResource["dojox.gfx.fx"] = true;
-dojo.provide("dojox.gfx.fx");
-
-
-
-(function(){
-	var d = dojo, g = dojox.gfx, m = g.matrix;
-
-	// Generic interpolators. Should they be moved to dojox.fx?
-
-	var InterpolNumber = function(start, end){
-		this.start = start, this.end = end;
-	};
-	d.extend(InterpolNumber, {
-		getValue: function(r){
-			return (this.end - this.start) * r + this.start;
-		}
-	});
-
-	var InterpolUnit = function(start, end, units){
-		this.start = start, this.end = end;
-		this.units = units;
-	};
-	d.extend(InterpolUnit, {
-		getValue: function(r){
-			return (this.end - this.start) * r + this.start + this.units;
-		}
-	});
-
-	var InterpolColor = function(start, end){
-		this.start = start, this.end = end;
-		this.temp = new dojo.Color();
-	};
-	d.extend(InterpolColor, {
-		getValue: function(r){
-			return d.blendColors(this.start, this.end, r, this.temp);
-		}
-	});
-
-	var InterpolValues = function(values){
-		this.values = values;
-		this.length = values.length;
-	};
-	d.extend(InterpolValues, {
-		getValue: function(r){
-			return this.values[Math.min(Math.floor(r * this.length), this.length - 1)];
-		}
-	});
-
-	var InterpolObject = function(values, def){
-		this.values = values;
-		this.def = def ? def : {};
-	};
-	d.extend(InterpolObject, {
-		getValue: function(r){
-			var ret = dojo.clone(this.def);
-			for(var i in this.values){
-				ret[i] = this.values[i].getValue(r);
-			}
-			return ret;
-		}
-	});
-
-	var InterpolTransform = function(stack, original){
-		this.stack = stack;
-		this.original = original;
-	};
-	d.extend(InterpolTransform, {
-		getValue: function(r){
-			var ret = [];
-			dojo.forEach(this.stack, function(t){
-				if(t instanceof m.Matrix2D){
-					ret.push(t);
-					return;
-				}
-				if(t.name == "original" && this.original){
-					ret.push(this.original);
-					return;
-				}
-				if(!(t.name in m)){ return; }
-				var f = m[t.name];
-				if(typeof f != "function"){
-					// constant
-					ret.push(f);
-					return;
-				}
-				var val = dojo.map(t.start, function(v, i){
-								return (t.end[i] - v) * r + v;
-							}),
-					matrix = f.apply(m, val);
-				if(matrix instanceof m.Matrix2D){
-					ret.push(matrix);
-				}
-			}, this);
-			return ret;
-		}
-	});
-
-	var transparent = new d.Color(0, 0, 0, 0);
-
-	var getColorInterpol = function(prop, obj, name, def){
-		if(prop.values){
-			return new InterpolValues(prop.values);
-		}
-		var value, start, end;
-		if(prop.start){
-			start = g.normalizeColor(prop.start);
-		}else{
-			start = value = obj ? (name ? obj[name] : obj) : def;
-		}
-		if(prop.end){
-			end = g.normalizeColor(prop.end);
-		}else{
-			if(!value){
-				value = obj ? (name ? obj[name] : obj) : def;
-			}
-			end = value;
-		}
-		return new InterpolColor(start, end);
-	};
-
-	var getNumberInterpol = function(prop, obj, name, def){
-		if(prop.values){
-			return new InterpolValues(prop.values);
-		}
-		var value, start, end;
-		if(prop.start){
-			start = prop.start;
-		}else{
-			start = value = obj ? obj[name] : def;
-		}
-		if(prop.end){
-			end = prop.end;
-		}else{
-			if(typeof value != "number"){
-				value = obj ? obj[name] : def;
-			}
-			end = value;
-		}
-		return new InterpolNumber(start, end);
-	};
-
-	g.fx.animateStroke = function(/*Object*/ args){
-		// summary:
-		//	Returns an animation which will change stroke properties over time
-		// example:
-		//	|	dojox.gfx.fx.animateStroke{{
-		//	|		shape: shape,
-		//	|		duration: 500,
-		//	|		color: {start: "red", end: "green"},
-		//	|		width: {end: 15},
-		//	|		join:  {values: ["miter", "bevel", "round"]}
-		//	|	}).play();
-		if(!args.easing){ args.easing = d._defaultEasing; }
-		var anim = new d.Animation(args), shape = args.shape, stroke;
-		d.connect(anim, "beforeBegin", anim, function(){
-			stroke = shape.getStroke();
-			var prop = args.color, values = {}, value, start, end;
-			if(prop){
-				values.color = getColorInterpol(prop, stroke, "color", transparent);
-			}
-			prop = args.style;
-			if(prop && prop.values){
-				values.style = new InterpolValues(prop.values);
-			}
-			prop = args.width;
-			if(prop){
-				values.width = getNumberInterpol(prop, stroke, "width", 1);
-			}
-			prop = args.cap;
-			if(prop && prop.values){
-				values.cap = new InterpolValues(prop.values);
-			}
-			prop = args.join;
-			if(prop){
-				if(prop.values){
-					values.join = new InterpolValues(prop.values);
-				}else{
-					start = prop.start ? prop.start : (stroke && stroke.join || 0);
-					end = prop.end ? prop.end : (stroke && stroke.join || 0);
-					if(typeof start == "number" && typeof end == "number"){
-						values.join = new InterpolNumber(start, end);
-					}
-				}
-			}
-			this.curve = new InterpolObject(values, stroke);
-		});
-		d.connect(anim, "onAnimate", shape, "setStroke");
-		return anim; // dojo.Animation
-	};
-
-	g.fx.animateFill = function(/*Object*/ args){
-		// summary:
-		//	Returns an animation which will change fill color over time.
-		//	Only solid fill color is supported at the moment
-		// example:
-		//	|	dojox.gfx.fx.animateFill{{
-		//	|		shape: shape,
-		//	|		duration: 500,
-		//	|		color: {start: "red", end: "green"}
-		//	|	}).play();
-		if(!args.easing){ args.easing = d._defaultEasing; }
-		var anim = new d.Animation(args), shape = args.shape, fill;
-		d.connect(anim, "beforeBegin", anim, function(){
-			fill = shape.getFill();
-			var prop = args.color, values = {};
-			if(prop){
-				this.curve = getColorInterpol(prop, fill, "", transparent);
-			}
-		});
-		d.connect(anim, "onAnimate", shape, "setFill");
-		return anim; // dojo.Animation
-	};
-
-	g.fx.animateFont = function(/*Object*/ args){
-		// summary:
-		//	Returns an animation which will change font properties over time
-		// example:
-		//	|	dojox.gfx.fx.animateFont{{
-		//	|		shape: shape,
-		//	|		duration: 500,
-		//	|		variant: {values: ["normal", "small-caps"]},
-		//	|		size:  {end: 10, units: "pt"}
-		//	|	}).play();
-		if(!args.easing){ args.easing = d._defaultEasing; }
-		var anim = new d.Animation(args), shape = args.shape, font;
-		d.connect(anim, "beforeBegin", anim, function(){
-			font = shape.getFont();
-			var prop = args.style, values = {}, value, start, end;
-			if(prop && prop.values){
-				values.style = new InterpolValues(prop.values);
-			}
-			prop = args.variant;
-			if(prop && prop.values){
-				values.variant = new InterpolValues(prop.values);
-			}
-			prop = args.weight;
-			if(prop && prop.values){
-				values.weight = new InterpolValues(prop.values);
-			}
-			prop = args.family;
-			if(prop && prop.values){
-				values.family = new InterpolValues(prop.values);
-			}
-			prop = args.size;
-			if(prop && prop.units){
-				start = parseFloat(prop.start ? prop.start : (shape.font && shape.font.size || "0"));
-				end = parseFloat(prop.end ? prop.end : (shape.font && shape.font.size || "0"));
-				values.size = new InterpolUnit(start, end, prop.units);
-			}
-			this.curve = new InterpolObject(values, font);
-		});
-		d.connect(anim, "onAnimate", shape, "setFont");
-		return anim; // dojo.Animation
-	};
-
-	g.fx.animateTransform = function(/*Object*/ args){
-		// summary:
-		//	Returns an animation which will change transformation over time
-		// example:
-		//	|	dojox.gfx.fx.animateTransform{{
-		//	|		shape: shape,
-		//	|		duration: 500,
-		//	|		transform: [
-		//	|			{name: "translate", start: [0, 0], end: [200, 200]},
-		//	|			{name: "original"}
-		//	|		]
-		//	|	}).play();
-		if(!args.easing){ args.easing = d._defaultEasing; }
-		var anim = new d.Animation(args), shape = args.shape, original;
-		d.connect(anim, "beforeBegin", anim, function(){
-			original = shape.getTransform();
-			this.curve = new InterpolTransform(args.transform, original);
-		});
-		d.connect(anim, "onAnimate", shape, "setTransform");
-		return anim; // dojo.Animation
-	};
-})();
 
 }
 
@@ -12854,7 +13016,7 @@ dojo.declare(
 	"dijit.Tooltip",
 	dijit._Widget,
 	{
-		// summary
+		// summary:
 		//		Pops up a tooltip (a help message) when you hover over a node.
 
 		// label: String
@@ -13105,8 +13267,8 @@ dojo.provide("dojox.charting.action2d.Tooltip");
 (function(){
 	var DEFAULT_TEXT = function(o){
 		var t = o.run && o.run.data && o.run.data[o.index];
-		if(t && typeof t == "object" && t.tooltip){
-			return t.tooltip;
+		if(t && typeof t != "number" && (t.tooltip || t.text)){
+			return t.tooltip || t.text;
 		}
 		if(o.element == "candlestick"){
 			return '<table cellpadding="1" cellspacing="0" border="0" style="font-size:0.9em;">'
@@ -13160,6 +13322,7 @@ dojo.provide("dojox.charting.action2d.Tooltip");
 					break;
 				case "column":
 					position = ["above", "below"];
+					// intentional fall down
 				case "bar":
 					aroundRect = dojo.clone(o.shape.getShape());
 					break;

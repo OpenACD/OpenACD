@@ -15,12 +15,12 @@ dojo.require("dijit._Container");
 dojo.require("dijit._Contained");
 dojo.require("dojo.dnd.move");
 dojo.require("dojox.layout.dnd.PlottedDnd");
-dojo.declare("dojox.layout.GridContainer",[dijit._Widget,dijit._Templated,dijit._Container,dijit._Contained],{templateString:dojo.cache("dojox.layout","resources/GridContainer.html","<div id=\"${id}\" class=\"gridContainer\" dojoAttachPoint=\"containerNode\" tabIndex=\"0\" dojoAttachEvent=\"onkeypress:_selectFocus\">\n\t<table class=\"gridContainerTable\" dojoAttachPoint=\"gridContainerTable\" cellspacing=\"0\" cellpadding=\"0\">\n\t\t<tbody class=\"gridContainerBody\">\n\t\t\t<tr class=\"gridContainerRow\" dojoAttachPoint=\"gridNode\"></tr>\n\t\t</tbody>\n\t</table>\n</div>\n"),isContainer:true,isAutoOrganized:true,isRightFixed:false,isLeftFixed:false,hasResizableColumns:true,nbZones:1,opacity:1,colWidths:[],minColWidth:20,minChildWidth:150,acceptTypes:[],mode:"right",allowAutoScroll:false,timeDisplayPopup:1500,isOffset:false,offsetDrag:{},withHandles:false,handleClasses:[],_draggedWidget:null,_isResized:false,_activeGrip:null,_oldwidth:0,_oldheight:0,_a11yOn:false,_canDisplayPopup:true,constructor:function(_1,_2){
+dojo.declare("dojox.layout.GridContainer",[dijit._Widget,dijit._Templated,dijit._Container,dijit._Contained],{templateString:dojo.cache("dojox.layout","resources/GridContainer.html","<div id=\"${id}\" class=\"gridContainer\" dojoAttachPoint=\"containerNode\" tabIndex=\"0\" dojoAttachEvent=\"onkeypress:_selectFocus\">\n\t<table class=\"gridContainerTable\" dojoAttachPoint=\"gridContainerTable\" cellspacing=\"0\" cellpadding=\"0\">\n\t\t<tbody class=\"gridContainerBody\">\n\t\t\t<tr class=\"gridContainerRow\" dojoAttachPoint=\"gridNode\"></tr>\n\t\t</tbody>\n\t</table>\n</div>\n"),isContainer:true,isAutoOrganized:true,isRightFixed:false,isLeftFixed:false,hasResizableColumns:true,nbZones:1,opacity:1,colWidths:[],minColWidth:20,minChildWidth:150,acceptTypes:[],mode:"right",allowAutoScroll:false,timeDisplayPopup:1500,isOffset:false,offsetDrag:{},withHandles:false,handleClasses:[],_draggedWidget:null,_isResized:false,_activeGrip:null,_a11yOn:false,_canDisplayPopup:true,constructor:function(_1,_2){
 _1=_1||{};
 this.acceptTypes=_1.acceptTypes||["dijit.layout.ContentPane"];
-this.dragOffset=_1.dragOffset||{x:0,y:0};
-this._children=[];
-},_createCells:function(){
+this.offsetDrag=_1.offsetDrag||_1.dragOffset||{x:0,y:0};
+},postCreate:function(){
+this.inherited(arguments);
 if(this.nbZones===0){
 this.nbZones=1;
 }
@@ -28,29 +28,10 @@ if(dojo.isIE&&dojo.marginBox(this.gridNode).height){
 var _3=document.createTextNode(" ");
 this.gridNode.appendChild(_3);
 }
-var _4=[];
-this.cell=[];
-var i=0;
-while(i<this.nbZones){
-var _5=dojo.create("td",{id:this.id+"_dz"+i,className:"gridContainerZone",style:{width:this._getColWidth(i)+"%"}},this.gridNode);
-this.cell[i]=_5;
-i++;
+for(var i=0;i<this.nbZones;i++){
+var _4=dojo.create("td",{id:this.id+"_dz"+i,className:"gridContainerZone",style:{width:this._getColWidth(i)+"%"}},this.gridNode);
 }
 },startup:function(){
-this.inherited(arguments);
-this._createCells();
-dojo.forEach(this.getChildren(),function(_6){
-if(!_6.started&&!_6._started){
-_6.startup();
-}
-});
-if(this.usepref!==true){
-this[(this.isAutoOrganized?"_organizeServices":"_organizeServicesManually")]();
-}else{
-return;
-}
-this.init();
-},init:function(){
 this.grid=this._createGrid();
 this.connect(dojo.global,"onresize","onResized");
 this.connect(this,"onDndDrop","_placeGrips");
@@ -60,6 +41,16 @@ if(this.hasResizableColumns){
 this._initPlaceGrips();
 this._placeGrips();
 }
+if(this.usepref!==true){
+this[(this.isAutoOrganized?"_organizeServices":"_organizeServicesManually")]();
+}
+for(var j=0;j<this.grid.length;j++){
+var dz=this.grid[j];
+dojo.forEach(dz.node.childNodes,function(_5){
+dz.setItem(_5.id,{data:_5,type:[_5.getAttribute("dndType")]});
+});
+}
+this.inherited(arguments);
 },destroy:function(){
 for(var i=0;i<this.handleDndStart;i++){
 dojo.disconnect(this.handleDndStart[i]);
@@ -67,203 +58,213 @@ dojo.disconnect(this.handleDndStart[i]);
 dojo.unsubscribe(this.dropHandler);
 this.inherited(arguments);
 },resize:function(){
-dojo.forEach(this._children,function(_7){
-if(_7.resize){
-_7.resize();
-}
-},this);
+dojo.forEach(this.getChildren(),function(_6){
+_6.resize&&_6.resize();
+});
+},getZones:function(){
+return dojo.query(".gridContainerZone",this.containerNode);
+},getNewChildren:function(){
+return dojo.query("> [widgetId]",this.containerNode).map(dijit.byNode);
+},getChildren:function(){
+var _7=dojo.query(".gridContainerZone > [widgetId]",this.containerNode).map(dijit.byNode);
+return _7;
 },onResized:function(){
 if(this.hasResizableColumns){
 this._placeGrips();
-this._oldwidth=this.domNode.offsetWidth;
-this._oldheight=this.domNode.offsetHeight;
 }
 },_organizeServices:function(){
-var _8=this.nbZones;
-var _9=this.getChildren().length;
-var _a=Math.floor(_9/_8);
-var _b=_9%_8;
-var i=0;
+var _8=this.nbZones,_9=this.getNewChildren(),_a=_9.length,_b=Math.floor(_a/_8),_c=_a%_8,i=0;
 for(var z=0;z<_8;z++){
-for(var r=0;r<_a;r++){
-this._insertService(z,i++,0,true);
+for(var r=0;r<_b;r++){
+this._insertService(z,i,_9[i],true);
+i++;
 }
-if(_b>0){
+if(_c>0){
 try{
-this._insertService(z,i++,0,true);
+this._insertService(z,i,_9[i],true);
+i++;
 }
 catch(e){
-console.error("Unable to insert service in grid container",e,this.getChildren());
+console.error("Unable to insert service in grid container",e,_9);
 }
-_b--;
+_c--;
 }else{
-if(_a===0){
+if(_b===0){
 break;
 }
 }
 }
 },_organizeServicesManually:function(){
-var _c=this.getChildren();
-for(var i=0;i<_c.length;i++){
+var _d=this.getNewChildren();
+for(var i=0;i<_d.length;i++){
 try{
-this._insertService(_c[i].column-1,i,0,true);
+this._insertService(_d[i].column-1,i,_d[i],true);
 }
 catch(e){
-console.error("Unable to insert service in grid container",e,_c[i]);
+console.error("Unable to insert service in grid container",e,_d[i]);
 }
 }
-},_insertService:function(z,p,i,_d){
-var _e=this.cell[z];
-var _f=_e.childNodes.length;
-var _10=this.getChildren()[(i?i:0)];
-this._children.push(_10);
-if(typeof (p)=="undefined"||p>_f){
-p=_f;
+},_insertService:function(z,p,_e,_f){
+if(_e===undefined){
+return;
 }
-var _11=dojo.place(_10.domNode,_e,p);
-_10.domNode.setAttribute("tabIndex",0);
-if(!_10.dragRestriction){
-dojo.addClass(_10.domNode,"dojoDndItem");
+var _10=this.getZones()[z];
+var _11=_10.childNodes.length;
+if(p===undefined||p>_11){
+p=_11;
 }
-if(!_10.domNode.getAttribute("dndType")){
-_10.domNode.setAttribute("dndType",_10.declaredClass);
+var _12=dojo.place(_e.domNode,_10,p);
+_e.domNode.setAttribute("tabIndex",0);
+if(!_e.dragRestriction){
+dojo.addClass(_e.domNode,"dojoDndItem");
 }
-dojox.layout.dnd._setGcDndHandle(_10,this.withHandles,this.handleClasses,_d);
+if(!_e.domNode.getAttribute("dndType")){
+_e.domNode.setAttribute("dndType",_e.declaredClass);
+}
+dojox.layout.dnd._setGcDndHandle(_e,this.withHandles,this.handleClasses,_f);
 if(this.hasResizableColumns){
-if(_10.onLoad){
-this.connect(_10,"onLoad","_placeGrips");
+if(_e.onLoad){
+this.connect(_e,"onLoad","_placeGrips");
 }
-if(_10.onExecError){
-this.connect(_10,"onExecError","_placeGrips");
+if(_e.onExecError){
+this.connect(_e,"onExecError","_placeGrips");
 }
-if(_10.onUnLoad){
-this.connect(_10,"onUnLoad","_placeGrips");
+if(_e.onUnLoad){
+this.connect(_e,"onUnLoad","_placeGrips");
 }
 }
 this._placeGrips();
-return _10.id;
-},addService:function(_12,z,p){
-_12.domNode.id=_12.id;
-this.addChild(_12);
+return _e.id;
+},addService:function(_13,z,p){
+return this.addChild(_13,z,p);
+},addChild:function(_14,z,p){
+_14.domNode.id=_14.id;
+if(z<=0){
+z=0;
+}
+var _15=z||0;
 if(p<=0){
 p=0;
 }
-var _13=this._insertService(z,p);
-this.grid[z].setItem(_12.id,{data:_12.domNode,type:[_12.domNode.getAttribute("dndType")]});
-return _13;
-},_createGrid:function(){
-var _14=[];
-var i=0;
-this.tabDZ=[];
-while(i<this.nbZones){
-var _15=this.cell[i];
-this.tabDZ[i]=this._createZone(_15);
-if(this.hasResizableColumns&&i!=(this.nbZones-1)){
-this._createGrip(this.tabDZ[i]);
+var row=p||0;
+var _16=this._insertService(_15,row,_14);
+if(this._started&&!_14._started){
+this.grid[z].setItem(_14.id,{data:_14.domNode,type:[_14.domNode.getAttribute("dndType")]});
+_14.startup();
 }
-_14.push(this.tabDZ[i]);
+return _16;
+},_createGrid:function(){
+var _17=[];
+var i=0;
+while(i<this.nbZones){
+var _18=this._createZone(this.getZones()[i]);
+if(this.hasResizableColumns&&i!=(this.nbZones-1)){
+this._createGrip(_18);
+}
+_17.push(_18);
 i++;
 }
 if(this.hasResizableColumns){
 this.handleDndStart=[];
-for(var j=0;j<this.tabDZ.length;j++){
-var dz=this.tabDZ[j];
-var _16=this;
-this.handleDndStart.push(dojo.connect(dz,"onDndStart",dz,function(_17){
-if(_17==this){
-_16.handleDndInsertNodes=[];
-for(i=0;i<_16.tabDZ.length;i++){
-_16.handleDndInsertNodes.push(dojo.connect(_16.tabDZ[i],"insertNodes",_16,function(){
-_16._disconnectDnd();
+for(var j=0;j<_17.length;j++){
+var dz=_17[j];
+var _19=this;
+this.handleDndStart.push(dojo.connect(dz,"onDndStart",dz,function(_1a){
+if(_1a==this){
+_19.handleDndInsertNodes=[];
+for(i=0;i<_19.grid.length;i++){
+_19.handleDndInsertNodes.push(dojo.connect(_19.grid[i],"insertNodes",_19,function(){
+_19._disconnectDnd();
 }));
 }
-_16.handleDndInsertNodes.push(dojo.connect(dz,"onDndCancel",_16,_16._disconnectDnd));
-_16.onResized();
+_19.handleDndInsertNodes.push(dojo.connect(dz,"onDndCancel",_19,_19._disconnectDnd));
+_19.onResized();
 }
 }));
 }
 }
-return _14;
+return _17;
 },_disconnectDnd:function(){
 dojo.forEach(this.handleDndInsertNodes,dojo.disconnect);
 setTimeout(dojo.hitch(this,"onResized"),0);
-},_createZone:function(_18){
-var dz=null;
-dz=new dojox.layout.dnd.PlottedDnd(_18.id,{accept:this.acceptTypes,withHandles:this.withHandles,handleClasses:this.handleClasses,singular:true,hideSource:true,opacity:this.opacity,dom:this.domNode,allowAutoScroll:this.allowAutoScroll,isOffset:this.isOffset,offsetDrag:this.offsetDrag});
+},_createZone:function(_1b){
+var dz=new dojox.layout.dnd.PlottedDnd(_1b.id,{accept:this.acceptTypes,withHandles:this.withHandles,handleClasses:this.handleClasses,singular:true,hideSource:true,opacity:this.opacity,dom:this.domNode,allowAutoScroll:this.allowAutoScroll,isOffset:this.isOffset,offsetDrag:this.offsetDrag});
 this.connect(dz,"insertDashedZone","_placeGrips");
 this.connect(dz,"deleteDashedZone","_placeGrips");
 return dz;
 },_createGrip:function(dz){
-var _19=document.createElement("div");
-_19.className="gridContainerGrip";
-_19.setAttribute("tabIndex","0");
-var _1a=this;
-this.onMouseOver=this.connect(_19,"onmouseover",function(e){
-var _1b=false;
-for(var i=0;i<_1a.grid.length-1;i++){
-if(dojo.hasClass(_1a.grid[i].grip,"gridContainerGripShow")){
-_1b=true;
+var _1c=document.createElement("div");
+_1c.className="gridContainerGrip";
+_1c.setAttribute("tabIndex","0");
+var _1d=this;
+this.onMouseOver=this.connect(_1c,"onmouseover",function(e){
+var _1e=false;
+for(var i=0;i<_1d.grid.length-1;i++){
+if(dojo.hasClass(_1d.grid[i].grip,"gridContainerGripShow")){
+_1e=true;
 break;
 }
 }
-if(!_1b){
+if(!_1e){
 dojo.removeClass(e.target,"gridContainerGrip");
 dojo.addClass(e.target,"gridContainerGripShow");
 }
 });
-this.connect(_19,"onmouseout",function(e){
-if(!_1a._isResized){
+this.connect(_1c,"onmouseout",function(e){
+if(!_1d._isResized){
 dojo.removeClass(e.target,"gridContainerGripShow");
 dojo.addClass(e.target,"gridContainerGrip");
 }
 });
-this.connect(_19,"onmousedown",function(e){
-_1a._a11yOn=false;
-_1a._activeGrip=e.target;
-_1a.resizeColumnOn(e);
+this.connect(_1c,"onmousedown",function(e){
+_1d._a11yOn=false;
+_1d._activeGrip=e.target;
+_1d.resizeColumnOn(e);
 });
-this.domNode.appendChild(_19);
-dz.grip=_19;
+this.domNode.appendChild(_1c);
+dz.grip=_1c;
 },_initPlaceGrips:function(){
 var dcs=dojo.getComputedStyle(this.domNode);
-var gcs=dojo.getComputedStyle(this.gridContainerTable);
 this._x=parseInt(dcs.paddingLeft);
-this._topGrip=parseInt(dcs.paddingTop);
-if(dojo.isIE||gcs.borderCollapse!="collapse"){
+var _1f=parseInt(dcs.paddingTop);
+if(dojo.isIE||dojo.getComputedStyle(this.gridContainerTable).borderCollapse!="collapse"){
 var ex=dojo._getBorderExtents(this.gridContainerTable);
 this._x+=ex.l;
-this._topGrip+=ex.t;
+_1f+=ex.t;
 }
-this._topGrip+="px";
-dojo.forEach(this.grid,function(_1c){
-if(_1c.grip){
-var _1d=_1c.grip;
-if(!dojo.isIE){
-_1c.pad=dojo._getPadBorderExtents(_1c.node).w;
-}
-_1d.style.top=this._topGrip;
-}
-},this);
-},_placeGrips:function(){
-var _1e;
-if(this.allowAutoScroll){
-_1e=this.gridNode.scrollHeight;
-}else{
-_1e=dojo.contentBox(this.gridNode).h;
-}
-var _1f=this._x;
-dojo.forEach(this.grid,function(_20){
+_1f+="px";
+for(var z=0;z<this.grid.length;z++){
+var _20=this.grid[z];
 if(_20.grip){
 var _21=_20.grip;
-_1f+=dojo[(dojo.isIE?"marginBox":"contentBox")](_20.node).w+(dojo.isIE?0:_20.pad);
-dojo.style(_21,{left:_1f+"px",height:_1e+"px"});
+if(!dojo.isIE){
+_20.pad=dojo._getPadBorderExtents(_20.node).w;
+}
+_21.style.top=_1f;
+}
+}
+},_placeGrips:function(){
+var _22;
+var _23=this._x;
+dojo.forEach(this.grid,function(_24){
+if(_24.grip){
+if(_22===undefined){
+if(this.allowAutoScroll){
+_22=this.gridNode.scrollHeight;
+}else{
+_22=dojo.contentBox(this.gridNode).h;
+}
+}
+var _25=_24.grip;
+_23+=dojo[(dojo.isIE?"marginBox":"contentBox")](_24.node).w+(dojo.isIE?0:_24.pad);
+dojo.style(_25,{left:_23+"px",height:_22+"px"});
 }
 },this);
 },_getZoneByIndex:function(n){
 return this.grid[(n>=0&&n<this.grid.length?n:0)];
-},getIndexZone:function(_22){
+},getIndexZone:function(_26){
 for(var z=0;z<this.grid.length;z++){
-if(this.grid[z].domNode==_22){
+if(this.grid[z].node.id==_26.id){
 return z;
 }
 }
@@ -276,45 +277,45 @@ e.preventDefault();
 dojo.body().style.cursor="ew-resize";
 this._isResized=true;
 this.initX=e.pageX;
-var _23=[];
+var _27=[];
 for(i=0;i<this.grid.length;i++){
-_23[i]=dojo.contentBox(this.grid[i].node).w;
+_27[i]=dojo.contentBox(this.grid[i].node).w;
 }
-this.oldTabSize=_23;
+this.oldTabSize=_27;
 for(i=0;i<this.grid.length;i++){
 if(this._activeGrip==this.grid[i].grip){
 this.currentColumn=this.grid[i].node;
-this.currentColumnWidth=_23[i];
+this.currentColumnWidth=_27[i];
 this.nextColumn=this.currentColumn.nextSibling;
-this.nextColumnWidth=_23[i+1];
+this.nextColumnWidth=_27[i+1];
 }
-this.grid[i].node.style.width=_23[i]+"px";
+this.grid[i].node.style.width=_27[i]+"px";
 }
-var _24=function(_25,_26){
-var _27=0;
-var _28=0;
-dojo.forEach(_25,function(_29){
-if(_29.nodeType==1){
-var _2a=dojo.getComputedStyle(_29);
-var _2b=(dojo.isIE?_26:parseInt(_2a.minWidth));
-_28=_2b+parseInt(_2a.marginLeft)+parseInt(_2a.marginRight);
-if(_27<_28){
-_27=_28;
+var _28=function(_29,_2a){
+var _2b=0;
+var _2c=0;
+dojo.forEach(_29,function(_2d){
+if(_2d.nodeType==1){
+var _2e=dojo.getComputedStyle(_2d);
+var _2f=(dojo.isIE?_2a:parseInt(_2e.minWidth));
+_2c=_2f+parseInt(_2e.marginLeft)+parseInt(_2e.marginRight);
+if(_2b<_2c){
+_2b=_2c;
 }
 }
 });
-return _27;
+return _2b;
 };
-var _2c=_24(this.currentColumn.childNodes,this.minChildWidth);
-var _2d=_24(this.nextColumn.childNodes,this.minChildWidth);
-var _2e=Math.round((dojo.marginBox(this.gridContainerTable).w*this.minColWidth)/100);
-this.currentMinCol=_2c;
-this.nextMinCol=_2d;
-if(_2e>this.currentMinCol){
-this.currentMinCol=_2e;
+var _30=_28(this.currentColumn.childNodes,this.minChildWidth);
+var _31=_28(this.nextColumn.childNodes,this.minChildWidth);
+var _32=Math.round((dojo.marginBox(this.gridContainerTable).w*this.minColWidth)/100);
+this.currentMinCol=_30;
+this.nextMinCol=_31;
+if(_32>this.currentMinCol){
+this.currentMinCol=_32;
 }
-if(_2e>this.nextMinCol){
-this.nextMinCol=_2e;
+if(_32>this.nextMinCol){
+this.nextMinCol=_32;
 }
 if(this._a11yOn){
 this.connectResizeColumnMove=this.connect(dojo.doc,"onkeypress","resizeColumnMove");
@@ -363,31 +364,31 @@ this._a11yOn=false;
 this.disconnect(this.connectResizeColumnMove);
 this.disconnect(this.connectResizeColumnOff);
 }
-var _2f=[];
-var _30=[];
-var _31=this.gridContainerTable.clientWidth;
+var _33=[];
+var _34=[];
+var _35=this.gridContainerTable.clientWidth;
 var i;
 for(i=0;i<this.grid.length;i++){
-var _32=dojo.contentBox(this.grid[i].node);
+var _36=dojo.contentBox(this.grid[i].node);
 if(dojo.isIE){
-_2f[i]=dojo.marginBox(this.grid[i].node).w;
-_30[i]=_32.w;
+_33[i]=dojo.marginBox(this.grid[i].node).w;
+_34[i]=_36.w;
 }else{
-_2f[i]=_32.w;
-_30=_2f;
+_33[i]=_36.w;
+_34=_33;
 }
 }
-var _33=false;
-for(i=0;i<_30.length;i++){
-if(_30[i]!=this.oldTabSize[i]){
-_33=true;
+var _37=false;
+for(i=0;i<_34.length;i++){
+if(_34[i]!=this.oldTabSize[i]){
+_37=true;
 break;
 }
 }
-if(_33){
+if(_37){
 var mul=dojo.isIE?100:10000;
 for(i=0;i<this.grid.length;i++){
-this.grid[i].node.style.width=Math.round((100*mul*_2f[i])/_31)/mul+"%";
+this.grid[i].node.style.width=Math.round((100*mul*_33[i])/_35)/mul+"%";
 }
 this._placeGrips();
 }
@@ -396,136 +397,128 @@ dojo.removeClass(this._activeGrip,"gridContainerGripShow");
 dojo.addClass(this._activeGrip,"gridContainerGrip");
 }
 this._isResized=false;
-},setColumns:function(_34){
-var _35;
-if(_34>0){
-var _36=this.grid.length-_34;
-if(_36>0){
-var _37=[];
-var _38,end,z,_39,j;
+},setColumns:function(_38){
+var _39;
+if(_38>0){
+var _3a=this.grid.length-_38;
+if(_3a>0){
+var _3b=[];
+var _3c,end,z,_3d,j;
 if(this.mode=="right"){
 end=(this.isLeftFixed&&this.grid.length>0)?1:0;
-_38=this.grid.length-(this.isRightFixed?2:1);
-for(z=_38;z>=end;z--){
-_39=0;
-_35=this.grid[z].node;
-for(j=0;j<_35.childNodes.length;j++){
-if(_35.childNodes[j].nodeType==1&&!(_35.childNodes[j].id=="")){
-_39++;
+_3c=this.grid.length-(this.isRightFixed?2:1);
+for(z=_3c;z>=end;z--){
+_3d=0;
+_39=this.grid[z].node;
+for(j=0;j<_39.childNodes.length;j++){
+if(_39.childNodes[j].nodeType==1&&!(_39.childNodes[j].id=="")){
+_3d++;
 break;
 }
 }
-if(_39==0){
-_37[_37.length]=z;
+if(_3d==0){
+_3b[_3b.length]=z;
 }
-if(_37.length>=_36){
-this._deleteColumn(_37);
+if(_3b.length>=_3a){
+this._deleteColumn(_3b);
 break;
 }
 }
-if(_37.length<_36){
+if(_3b.length<_3a){
 console.error("Move boxes in first columns, in all tabs before changing the organization of the page");
 }
 }else{
-_38=(this.isLeftFixed&&this.grid.length>0)?1:0;
+_3c=(this.isLeftFixed&&this.grid.length>0)?1:0;
 end=this.grid.length;
 if(this.isRightFixed){
 end--;
 }
-for(z=_38;z<end;z++){
-_39=0;
-_35=this.grid[z].node;
-for(j=0;j<_35.childNodes.length;j++){
-if(_35.childNodes[j].nodeType==1&&!(_35.childNodes[j].id=="")){
-_39++;
+for(z=_3c;z<end;z++){
+_3d=0;
+_39=this.grid[z].node;
+for(j=0;j<_39.childNodes.length;j++){
+if(_39.childNodes[j].nodeType==1&&!(_39.childNodes[j].id=="")){
+_3d++;
 break;
 }
 }
-if(_39==0){
-_37[_37.length]=z;
+if(_3d==0){
+_3b[_3b.length]=z;
 }
-if(_37.length>=_36){
-this._deleteColumn(_37);
+if(_3b.length>=_3a){
+this._deleteColumn(_3b);
 break;
 }
 }
-if(_37.length<_36){
-alert("Move boxes in last columns, in all tabs before changing the organization of the page");
+if(_3b.length<_3a){
+console.warn("Move boxes in last columns, in all tabs before changing the organization of the page");
 }
 }
 }else{
-if(_36<0){
-this._addColumn(Math.abs(_36));
+if(_3a<0){
+this._addColumn(Math.abs(_3a));
 }
 }
 this._initPlaceGrips();
 this._placeGrips();
 }
-},_addColumn:function(_3a){
-var _3b;
+},_addColumn:function(_3e){
+var _3f;
 if(this.hasResizableColumns&&!this.isRightFixed&&this.mode=="right"){
-_3b=this.grid[this.grid.length-1];
-this._createGrip(_3b);
+_3f=this.grid[this.grid.length-1];
+this._createGrip(_3f);
 }
-for(var i=0;i<_3a;i++){
-_3b=dojo.doc.createElement("td");
-dojo.addClass(_3b,"gridContainerZone");
-_3b.id=this.id+"_dz"+this.nbZones;
+for(var i=0;i<_3e;i++){
+_3f=dojo.doc.createElement("td");
+dojo.addClass(_3f,"gridContainerZone");
+_3f.id=this.id+"_dz"+this.nbZones;
 var dz;
 if(this.mode=="right"){
 if(this.isRightFixed){
-this.grid[this.grid.length-1].node.parentNode.insertBefore(_3b,this.grid[this.grid.length-1].node);
-dz=this._createZone(_3b);
-this.tabDZ.splice(this.tabDZ.length-1,0,dz);
+this.grid[this.grid.length-1].node.parentNode.insertBefore(_3f,this.grid[this.grid.length-1].node);
+dz=this._createZone(_3f);
 this.grid.splice(this.grid.length-1,0,dz);
-this.cell.splice(this.cell.length-1,0,_3b);
 }else{
-var _3c=this.gridNode.appendChild(_3b);
-dz=this._createZone(_3b);
-this.tabDZ.push(dz);
+var _40=this.gridNode.appendChild(_3f);
+dz=this._createZone(_3f);
 this.grid.push(dz);
-this.cell.push(_3b);
 }
 }else{
 if(this.isLeftFixed){
-(this.grid.length==1)?this.grid[0].node.parentNode.appendChild(_3b,this.grid[0].node):this.grid[1].node.parentNode.insertBefore(_3b,this.grid[1].node);
-dz=this._createZone(_3b);
-this.tabDZ.splice(1,0,dz);
+(this.grid.length==1)?this.grid[0].node.parentNode.appendChild(_3f,this.grid[0].node):this.grid[1].node.parentNode.insertBefore(_3f,this.grid[1].node);
+dz=this._createZone(_3f);
 this.grid.splice(1,0,dz);
-this.cell.splice(1,0,_3b);
 }else{
-this.grid[this.grid.length-this.nbZones].node.parentNode.insertBefore(_3b,this.grid[this.grid.length-this.nbZones].node);
-dz=this._createZone(_3b);
-this.tabDZ.splice(this.tabDZ.length-this.nbZones,0,dz);
+this.grid[this.grid.length-this.nbZones].node.parentNode.insertBefore(_3f,this.grid[this.grid.length-this.nbZones].node);
+dz=this._createZone(_3f);
 this.grid.splice(this.grid.length-this.nbZones,0,dz);
-this.cell.splice(this.cell.length-this.nbZones,0,_3b);
 }
 }
 if(this.hasResizableColumns){
-var _3d=this;
-var _3e=dojo.connect(dz,"onDndStart",dz,function(_3f){
-if(_3f==this){
-_3d.handleDndInsertNodes=[];
-for(var o=0;o<_3d.tabDZ.length;o++){
-_3d.handleDndInsertNodes.push(dojo.connect(_3d.tabDZ[o],"insertNodes",_3d,function(){
-_3d._disconnectDnd();
+var _41=this;
+var _42=dojo.connect(dz,"onDndStart",dz,function(_43){
+if(_43==this){
+_41.handleDndInsertNodes=[];
+for(var o=0;o<_41.grid.length;o++){
+_41.handleDndInsertNodes.push(dojo.connect(_41.grid[o],"insertNodes",_41,function(){
+_41._disconnectDnd();
 }));
 }
-_3d.handleDndInsertNodes.push(dojo.connect(dz,"onDndCancel",_3d,_3d._disconnectDnd));
-_3d.onResized();
+_41.handleDndInsertNodes.push(dojo.connect(dz,"onDndCancel",_41,_41._disconnectDnd));
+_41.onResized();
 }
 });
 if(this.mode=="right"){
 if(this.isRightFixed){
-this.handleDndStart.splice(this.handleDndStart.length-1,0,_3e);
+this.handleDndStart.splice(this.handleDndStart.length-1,0,_42);
 }else{
-this.handleDndStart.push(_3e);
+this.handleDndStart.push(_42);
 }
 }else{
 if(this.isLeftFixed){
-this.handleDndStart.splice(1,0,_3e);
+this.handleDndStart.splice(1,0,_42);
 }else{
-this.handleDndStart.splice(this.handleDndStart.length-this.nbZones,0,_3e);
+this.handleDndStart.splice(this.handleDndStart.length-this.nbZones,0,_42);
 }
 }
 this._createGrip(dz);
@@ -533,48 +526,44 @@ this._createGrip(dz);
 this.nbZones++;
 }
 this._updateColumnsWidth();
-},_deleteColumn:function(_40){
-var _41,_42,_43;
-_43=0;
-for(var i=0;i<_40.length;i++){
-var idx=_40[i];
+},_deleteColumn:function(_44){
+var _45,_46,_47;
+_47=0;
+for(var i=0;i<_44.length;i++){
+var idx=_44[i];
 if(this.mode=="right"){
-_41=this.grid[idx];
+_45=this.grid[idx];
 }else{
-_41=this.grid[idx-_43];
+_45=this.grid[idx-_47];
 }
-for(var j=0;j<_41.node.childNodes.length;j++){
-if(_41.node.childNodes[j].nodeType!=1){
+for(var j=0;j<_45.node.childNodes.length;j++){
+if(_45.node.childNodes[j].nodeType!=1){
 continue;
 }
-_42=dijit.byId(_41.node.childNodes[j].id);
+_46=dijit.byId(_45.node.childNodes[j].id);
 for(var x=0;x<this.getChildren().length;x++){
-if(this.getChildren()[x]===_42){
+if(this.getChildren()[x]===_46){
 this.getChildren().splice(x,1);
 break;
 }
 }
 }
-_41.node.parentNode.removeChild(_41.node);
+_45.node.parentNode.removeChild(_45.node);
 if(this.mode=="right"){
 if(this.hasResizableColumns){
 dojo.disconnect(this.handleDndStart[idx]);
 }
 this.grid.splice(idx,1);
-this.tabDZ.splice(idx,1);
-this.cell.splice(idx,1);
 }else{
 if(this.hasResizableColumns){
-dojo.disconnect(this.handleDndStart[idx-_43]);
+dojo.disconnect(this.handleDndStart[idx-_47]);
 }
-this.grid.splice(idx-_43,1);
-this.tabDZ.splice(idx-_43,1);
-this.cell.splice(idx-_43,1);
+this.grid.splice(idx-_47,1);
 }
 this.nbZones--;
-_43++;
-if(_41.grip){
-this.domNode.removeChild(_41.grip);
+_47++;
+if(_45.grip){
+this.domNode.removeChild(_45.grip);
 }
 }
 this._updateColumnsWidth();
@@ -582,46 +571,46 @@ this._updateColumnsWidth();
 if(idx<this.colWidths.length){
 return this.colWidths[idx];
 }
-var _44=100;
-dojo.forEach(this.colWidths,function(_45){
-_44-=_45;
+var _48=100;
+dojo.forEach(this.colWidths,function(_49){
+_48-=_49;
 });
-return _44/(this.nbZones-this.colWidths.length);
+return _48/(this.nbZones-this.colWidths.length);
 },_updateColumnsWidth:function(){
-var _46;
+var _4a;
 for(var z=0;z<this.grid.length;z++){
 this.grid[z].node.style.width=this._getColWidth(z)+"%";
 }
-},_selectFocus:function(_47){
-var e=_47.keyCode;
-var _48=null;
-var _49=dijit.getFocus();
-var _4a=_49.node;
+},_selectFocus:function(_4b){
+var e=_4b.keyCode;
+var _4c=null;
+var _4d=dijit.getFocus();
+var _4e=_4d.node;
 var k=dojo.keys;
-var i,_4b,_4c,r,z,_4d;
-var _4e=(e==k.UP_ARROW||e==k.LEFT_ARROW)?"lastChild":"firstChild";
+var i,_4f,_50,r,z,_51;
+var _52=(e==k.UP_ARROW||e==k.LEFT_ARROW)?"lastChild":"firstChild";
 var pos=(e==k.UP_ARROW||e==k.LEFT_ARROW)?"previousSibling":"nextSibling";
-if(_4a==this.containerNode){
+if(_4e==this.containerNode){
 switch(e){
 case k.DOWN_ARROW:
 case k.RIGHT_ARROW:
 for(i=0;i<this.gridNode.childNodes.length;i++){
-_48=this.gridNode.childNodes[i].firstChild;
-_4b=false;
-while(!_4b){
-if(_48!=null){
-if(_48.style.display!=="none"){
-dijit.focus(_48);
-dojo.stopEvent(_47);
-_4b=true;
+_4c=this.gridNode.childNodes[i].firstChild;
+_4f=false;
+while(!_4f){
+if(_4c!=null){
+if(_4c.style.display!=="none"){
+dijit.focus(_4c);
+dojo.stopEvent(_4b);
+_4f=true;
 }else{
-_48=_48[pos];
+_4c=_4c[pos];
 }
 }else{
 break;
 }
 }
-if(_4b){
+if(_4f){
 break;
 }
 }
@@ -629,151 +618,151 @@ break;
 case k.UP_ARROW:
 case k.LEFT_ARROW:
 for(i=this.gridNode.childNodes.length-1;i>=0;i--){
-_48=this.gridNode.childNodes[i].lastChild;
-_4b=false;
-while(!_4b){
-if(_48!=null){
-if(_48.style.display!=="none"){
-dijit.focus(_48);
-dojo.stopEvent(_47);
-_4b=true;
+_4c=this.gridNode.childNodes[i].lastChild;
+_4f=false;
+while(!_4f){
+if(_4c!=null){
+if(_4c.style.display!=="none"){
+dijit.focus(_4c);
+dojo.stopEvent(_4b);
+_4f=true;
 }else{
-_48=_48[pos];
+_4c=_4c[pos];
 }
 }else{
 break;
 }
 }
-if(_4b){
+if(_4f){
 break;
 }
 }
 break;
 }
 }else{
-if(_4a.parentNode.parentNode==this.gridNode){
+if(_4e.parentNode.parentNode==this.gridNode){
 switch(e){
 case k.UP_ARROW:
 case k.DOWN_ARROW:
-dojo.stopEvent(_47);
-var _4f=0;
-dojo.forEach(_4a.parentNode.childNodes,function(_50){
-if(_50.style.display!=="none"){
-_4f++;
+dojo.stopEvent(_4b);
+var _53=0;
+dojo.forEach(_4e.parentNode.childNodes,function(_54){
+if(_54.style.display!=="none"){
+_53++;
 }
 });
-if(_4f==1){
+if(_53==1){
 return;
 }
-_4b=false;
-_48=_4a[pos];
-while(!_4b){
-if(_48==null){
-_48=_4a.parentNode[_4e];
-if(_48.style.display!=="none"){
-_4b=true;
+_4f=false;
+_4c=_4e[pos];
+while(!_4f){
+if(_4c==null){
+_4c=_4e.parentNode[_52];
+if(_4c.style.display!=="none"){
+_4f=true;
 }else{
-_48=_48[pos];
+_4c=_4c[pos];
 }
 }else{
-if(_48.style.display!=="none"){
-_4b=true;
+if(_4c.style.display!=="none"){
+_4f=true;
 }else{
-_48=_48[pos];
+_4c=_4c[pos];
 }
 }
 }
-if(_47.shiftKey){
-if(dijit.byNode(_4a).dragRestriction){
+if(_4b.shiftKey){
+if(dijit.byNode(_4e).dragRestriction){
 return;
 }
-_4d=_4a.getAttribute("dndtype");
-_4c=false;
+_51=_4e.getAttribute("dndtype");
+_50=false;
 for(i=0;i<this.acceptTypes.length;i++){
-if(_4d==this.acceptTypes[i]){
-_4c=true;
+if(_51==this.acceptTypes[i]){
+_50=true;
 break;
 }
 }
-if(_4c){
-var _51=_4a.parentNode;
-var _52=_51.firstChild;
-var _53=_51.lastChild;
-while(_52.style.display=="none"||_53.style.display=="none"){
-if(_52.style.display=="none"){
-_52=_52.nextSibling;
+if(_50){
+var _55=_4e.parentNode;
+var _56=_55.firstChild;
+var _57=_55.lastChild;
+while(_56.style.display=="none"||_57.style.display=="none"){
+if(_56.style.display=="none"){
+_56=_56.nextSibling;
 }
-if(_53.style.display=="none"){
-_53=_53.previousSibling;
+if(_57.style.display=="none"){
+_57=_57.previousSibling;
 }
 }
 if(e==k.UP_ARROW){
-r=_51.removeChild(_4a);
-if(r==_52){
-_51.appendChild(r);
+r=_55.removeChild(_4e);
+if(r==_56){
+_55.appendChild(r);
 }else{
-_51.insertBefore(r,_48);
+_55.insertBefore(r,_4c);
 }
 r.setAttribute("tabIndex","0");
 dijit.focus(r);
 }else{
-if(_4a==_53){
-r=_51.removeChild(_4a);
-_51.insertBefore(r,_48);
+if(_4e==_57){
+r=_55.removeChild(_4e);
+_55.insertBefore(r,_4c);
 r.setAttribute("tabIndex","0");
 dijit.focus(r);
 }else{
-r=_51.removeChild(_48);
-_51.insertBefore(r,_4a);
-_4a.setAttribute("tabIndex","0");
-dijit.focus(_4a);
+r=_55.removeChild(_4c);
+_55.insertBefore(r,_4e);
+_4e.setAttribute("tabIndex","0");
+dijit.focus(_4e);
 }
 }
 }else{
 this._displayPopup();
 }
 }else{
-dijit.focus(_48);
+dijit.focus(_4c);
 }
 break;
 case k.RIGHT_ARROW:
 case k.LEFT_ARROW:
-dojo.stopEvent(_47);
-if(_47.shiftKey){
-if(dijit.byNode(_4a).dragRestriction){
+dojo.stopEvent(_4b);
+if(_4b.shiftKey){
+if(dijit.byNode(_4e).dragRestriction){
 return;
 }
 z=0;
-if(_4a.parentNode[pos]==null){
+if(_4e.parentNode[pos]==null){
 if(e==k.LEFT_ARROW){
 z=this.gridNode.childNodes.length-1;
 }
 }else{
-if(_4a.parentNode[pos].nodeType==3){
+if(_4e.parentNode[pos].nodeType==3){
 z=this.gridNode.childNodes.length-2;
 }else{
 for(i=0;i<this.gridNode.childNodes.length;i++){
-if(_4a.parentNode[pos]==this.gridNode.childNodes[i]){
+if(_4e.parentNode[pos]==this.gridNode.childNodes[i]){
 break;
 }
 z++;
 }
 }
 }
-_4d=_4a.getAttribute("dndtype");
-_4c=false;
+_51=_4e.getAttribute("dndtype");
+_50=false;
 for(i=0;i<this.acceptTypes.length;i++){
-if(_4d==this.acceptTypes[i]){
-_4c=true;
+if(_51==this.acceptTypes[i]){
+_50=true;
 break;
 }
 }
-if(_4c){
-var _54=_4a.parentNode;
-var _55=dijit.byNode(_4a);
-r=_54.removeChild(_4a);
-var _56=(e==k.RIGHT_ARROW?0:this.gridNode.childNodes[z].length);
-this.addService(_55,z,_56);
+if(_50){
+var _58=_4e.parentNode;
+var _59=dijit.byNode(_4e);
+r=_58.removeChild(_4e);
+var _5a=(e==k.RIGHT_ARROW?0:this.gridNode.childNodes[z].length);
+this.addService(_59,z,_5a);
 r.setAttribute("tabIndex","0");
 dijit.focus(r);
 this._placeGrips();
@@ -781,54 +770,54 @@ this._placeGrips();
 this._displayPopup();
 }
 }else{
-var _57=_4a.parentNode;
-while(_48===null){
-if(_57[pos]!==null&&_57[pos].nodeType!==3){
-_57=_57[pos];
+var _5b=_4e.parentNode;
+while(_4c===null){
+if(_5b[pos]!==null&&_5b[pos].nodeType!==3){
+_5b=_5b[pos];
 }else{
 if(pos==="previousSibling"){
-_57=_57.parentNode.childNodes[_57.parentNode.childNodes.length-1];
+_5b=_5b.parentNode.childNodes[_5b.parentNode.childNodes.length-1];
 }else{
-_57=_57.parentNode.childNodes[0];
+_5b=_5b.parentNode.childNodes[0];
 }
 }
-_4b=false;
-var _58=_57[_4e];
-while(!_4b){
-if(_58!=null){
-if(_58.style.display!=="none"){
-_48=_58;
-_4b=true;
+_4f=false;
+var _5c=_5b[_52];
+while(!_4f){
+if(_5c!=null){
+if(_5c.style.display!=="none"){
+_4c=_5c;
+_4f=true;
 }else{
-_58=_58[pos];
+_5c=_5c[pos];
 }
 }else{
 break;
 }
 }
 }
-dijit.focus(_48);
+dijit.focus(_4c);
 }
 break;
 }
 }else{
-if(dojo.hasClass(_4a,"gridContainerGrip")||dojo.hasClass(_4a,"gridContainerGripShow")){
-this._activeGrip=_47.target;
+if(dojo.hasClass(_4e,"gridContainerGrip")||dojo.hasClass(_4e,"gridContainerGripShow")){
+this._activeGrip=_4b.target;
 this._a11yOn=true;
-this.resizeColumnOn(_47);
+this.resizeColumnOn(_4b);
 }
 }
 }
 },_displayPopup:function(){
 if(this._canDisplayPopup){
-var _59=dojo.doc.createElement("div");
-dojo.addClass(_59,"gridContainerPopup");
-_59.innerHTML="this widget type is not accepted to be moved!";
-var _5a=this.containerNode.appendChild(_59);
+var _5d=dojo.doc.createElement("div");
+dojo.addClass(_5d,"gridContainerPopup");
+_5d.innerHTML="this widget type is not accepted to be moved!";
+var _5e=this.containerNode.appendChild(_5d);
 this._canDisplayPopup=false;
 setTimeout(dojo.hitch(this,function(){
-this.containerNode.removeChild(_5a);
-dojo.destroy(_5a);
+this.containerNode.removeChild(_5e);
+dojo.destroy(_5e);
 this._canDisplayPopup=true;
 }),this.timeDisplayPopup);
 }

@@ -52,7 +52,9 @@ if(_3){
 var _4=dojo.i18n.getLocalization("dijit","common");
 if(this.closeNode){
 dojo.attr(this.closeNode,"title",_4.itemClose);
+if(dojo.isIE<8){
 dojo.attr(this.closeIcon,"title",_4.itemClose);
+}
 }
 var _4=dojo.i18n.getLocalization("dijit","common");
 this._closeMenu=new dijit.Menu({id:this.id+"_Menu",targetNodeIds:[this.domNode]});

@@ -836,6 +836,9 @@ img.dijitColorPaletteUnder {
 .dijitStackController .dijitToggleButtonChecked * {
 	cursor: default;	
 }
+.dijitTabContainer {
+	width: 100%;	
+}
 .dijitTabContainerBottom-tabs,
 .dijitTabContainerTop-tabs,
 .dijitTabContainerLeft-tabs,
@@ -1412,7 +1415,6 @@ div.dijitTabBtnDisabled, .dj_ie div.dijitTabBtnDisabled {
 	margin: 0px;
 	background-color: transparent;
 }
-.dj_webkit INPUT.dijitTextBoxReadOnly, 
 .dijitTextBoxReadOnly,
 .dijitComboBoxReadOnly,
 .dijitSpinnerReadOnly,
@@ -1423,17 +1425,30 @@ div.dijitTabBtnDisabled, .dj_ie div.dijitTabBtnDisabled {
 .dijitTextAreaDisabled {
 	color: gray;
 }
-.dj_webkit .dijitTextBoxReadOnly,
-.dj_webkit .dijitTextBoxDisabled,
-.dj_webkit .dijitComboBoxReadOnly,
-.dj_webkit .dijitSpinnerReadOnly,
-.dj_webkit .dijitComboBoxDisabled,
-.dj_webkit .dijitSpinnerDisabled {
+.dj_webkit .dijitTextBoxDisabled INPUT,
+.dj_webkit .dijitComboBoxDisabled INPUT,
+.dj_webkit .dijitSpinnerDisabled INPUT {
 	color: #eee;
 }
 .dj_webkit INPUT.dijitTextBoxDisabled,
 .dj_webkit TEXTAREA.dijitTextAreaDisabled {
 	color: #333; 
+}
+.dijit_a11y .dijitSliderReadOnly,
+.dijit_a11y .dijitSliderDisabled {
+	opacity:0.6;
+}
+.dj_ie .dijit_a11y .dijitSliderReadOnly .dijitSliderBar,
+.dj_ie .dijit_a11y .dijitSliderDisabled .dijitSliderBar {
+	filter: alpha(opacity=40);
+}
+.dijit_a11y .dijitSlider .dijitSliderButtonContainer DIV {
+	font-family: monospace; 
+	font-size: 1em;
+	line-height: 1em;
+	height: auto;
+	width: auto;
+	margin: 0px 4px;
 }
 .tundra .dojoDndItemBefore {
 	border-top: 2px solid #369;
@@ -1511,10 +1526,6 @@ div.dijitTabBtnDisabled, .dj_ie div.dijitTabBtnDisabled {
 }
 .tundra .dijitTabContainer .tabStripMenuButton-Hover {
 	cursor: pointer;
-}
-.tundra .nowrapTabStrip {
-	background-image: url(images/dot.gif);
-	background-repeat: repeat-x;
 }
 .tundra .dijitTabChecked {
 	

@@ -11,7 +11,7 @@ dojo.provide("dijit._base.typematic");
 dijit.typematic={_fireEventAndReload:function(){
 this._timer=null;
 this._callback(++this._count,this._node,this._evt);
-this._currentTimeout=(this._currentTimeout<0)?this._initialDelay:((this._subsequentDelay>1)?this._subsequentDelay:Math.round(this._currentTimeout*this._subsequentDelay));
+this._currentTimeout=Math.max(this._currentTimeout<0?this._initialDelay:(this._subsequentDelay>1?this._subsequentDelay:Math.round(this._currentTimeout*this._subsequentDelay)),10);
 this._timer=setTimeout(dojo.hitch(this,"_fireEventAndReload"),this._currentTimeout);
 },trigger:function(_1,_2,_3,_4,_5,_6,_7){
 if(_5!=this._obj){

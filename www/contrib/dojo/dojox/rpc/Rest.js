@@ -23,8 +23,8 @@ return _6;
 var _7;
 function _8(_9,_a,_b,id){
 _9.addCallback(function(_c){
-if(_b){
-_b=_9.ioArgs.xhr&&_9.ioArgs.xhr.getResponseHeader("Content-Range");
+if(_9.ioArgs.xhr&&_b){
+_b=_9.ioArgs.xhr.getResponseHeader("Content-Range");
 _9.fullLength=_b&&(_b=_b.match(/\/(.*)/))&&parseInt(_b[1]);
 }
 return _c;
@@ -43,12 +43,16 @@ return _13;
 }};
 _11._getRequest=_10||function(id,_14){
 if(dojo.isObject(id)){
-var _15=_14.sort&&_14.sort[0];
-if(_15&&_15.attribute){
-id.sort=(_15.descending?"-":"")+_15.attribute;
-}
 id=dojo.objectToQuery(id);
 id=id?"?"+id:"";
+}
+if(_14&&_14.sort){
+id+=(id?"&":"?")+"sort(";
+for(var i=0;i<_14.sort.length;i++){
+var _15=_14.sort[i];
+id+=(i>0?",":"")+(_15.descending?"-":"+")+encodeURIComponent(_15.attribute);
+}
+id+=")";
 }
 var _16={url:_d+(id==null?"":id),handleAs:_e?"json":"text",contentType:_e?"application/json":"text/plain",sync:dojox.rpc._sync,headers:{Accept:_e?"application/json,application/javascript":"*/*"}};
 if(_14&&(_14.start>=0||_14.count>=0)){

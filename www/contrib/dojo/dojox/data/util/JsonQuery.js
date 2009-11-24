@@ -8,7 +8,7 @@
 if(!dojo._hasResource["dojox.data.util.JsonQuery"]){
 dojo._hasResource["dojox.data.util.JsonQuery"]=true;
 dojo.provide("dojox.data.util.JsonQuery");
-dojo.declare("dojox.data.util.JsonQuery",null,{useFullIdInQueries:false,_toJsonQuery:function(_1,_2){
+dojo.declare("dojox.data.util.JsonQuery",null,{useFullIdInQueries:false,simplifiedQuery:false,_toJsonQuery:function(_1,_2){
 var _3=true;
 var _4=this;
 function _5(_6,_7){
@@ -20,7 +20,7 @@ _7=_9;
 }
 for(var i in _7){
 var _a=_7[i];
-var _b=_6+(/^[a-zA-Z_][\w_]*$/.test(i)?"."+i:"["+dojo._escapeString(i)+"]");
+var _b=_4.simplifiedQuery?((_6?".":"")+encodeURIComponent(i)):(_6+(/^[a-zA-Z_][\w_]*$/.test(i)?"."+i:"["+dojo._escapeString(i)+"]"));
 if(_a&&typeof _a=="object"){
 _5(_b,_a);
 }else{
@@ -32,14 +32,14 @@ _3=false;
 }
 };
 if(_1.query&&typeof _1.query=="object"){
-var _c="[?(";
-_5("@",_1.query);
+var _c=_4.simplifiedQuery?"":"[?(";
+_5((_4.simplifiedQuery?"":"@"),_1.query);
 if(!_3){
-_c+=")]";
+_c+=_4.simplifiedQuery?"":")]";
 }else{
 _c="";
 }
-_1.queryStr=_c.replace(/\\"|"/g,function(t){
+_1.queryStr=(_4.simplifiedQuery?"?":"")+_c.replace(/\\"|"/g,function(t){
 return t=="\""?"'":t;
 });
 }else{
@@ -49,10 +49,10 @@ _1.query="";
 }
 var _d=_1.sort;
 if(_d){
-_1.queryStr=_1.queryStr||(typeof _1.query=="string"?_1.query:"");
+_1.queryStr=_1.queryStr||(typeof _1.query=="string"?_1.query:(_4.simplifiedQuery?"?":""));
 _3=true;
 for(i=0;i<_d.length;i++){
-_1.queryStr+=(_3?"[":",")+(_d[i].descending?"\\":"/")+"@["+dojo._escapeString(_d[i].attribute)+"]";
+_1.queryStr+=(_3?"[":",")+(_d[i].descending?"\\":"/")+_4.simplifiedQuery?encodeURIComponent(_d[i].attribute):("@["+dojo._escapeString(_d[i].attribute)+"]");
 _3=false;
 }
 if(!_3){
@@ -60,7 +60,7 @@ _1.queryStr+="]";
 }
 }
 if(_2&&(_1.start||_1.count)){
-_1.queryStr=(_1.queryStr||(typeof _1.query=="string"?_1.query:""))+"["+(_1.start||"")+":"+(_1.count?(_1.start||0)+_1.count:"")+"]";
+_1.queryStr=(_1.queryStr||(typeof _1.query=="string"?_1.query:(_4.simplifiedQuery?"?":"")))+"["+(_1.start||"")+":"+(_1.count?(_1.start||0)+_1.count:"")+"]";
 }
 if(typeof _1.queryStr=="string"){
 _1.queryStr=_1.queryStr.replace(/\\"|"/g,function(t){

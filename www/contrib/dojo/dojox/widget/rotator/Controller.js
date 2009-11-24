@@ -43,7 +43,7 @@ break;
 case "#":
 case "titles":
 for(var j=0;j<r.panes.length;j++){
-cb(b=="#"?j+1:r.panes[j].title||"Tab "+(j+1),(b=="#"?_4:_5)+" "+(j==r.idx?_6:""),["go",j]);
+cb(b=="#"?j+1:r.panes[j].title||"Tab "+(j+1),(b=="#"?_4:_5)+" "+(j==r.idx?_6:"")+" "+_1+"Pane"+j,["go",j]);
 }
 break;
 }

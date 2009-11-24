@@ -464,9 +464,11 @@ _9e=dojo.coords(this.grid.views.views[0].rowNodes[this.avaOnRowIndex]).y+_9b.y;
 _9f.style.top=(_9e<_9d?_9d:_9e)+"px";
 },autoMoveToNextRow:function(){
 if(this.grid.select.outRangeY){
+if(this.avaOnRowIndex+1<=this.grid.scroller.rowCount){
 this.grid.scrollToRow(this.grid.scroller.firstVisibleRow+1);
 this.autoMoveBorderDiv();
 setTimeout(dojo.hitch(this,"autoMoveToNextRow"),this.autoScrollRate);
+}
 }
 },autoMoveBorderDiv:function(){
 var _a0=dojo._docScroll(),_a1=this.getGridCoords();
@@ -481,174 +483,189 @@ _a3=dojo.coords(this.grid.views.views[0].rowNodes[this.avaOnRowIndex]).y+_a0.y;
 }
 _a4.style.top=(_a3>_a2?_a2:_a3)+"px";
 },startMoveRows:function(){
-var _a5=-1;
-var _a6=0;
-dojo.forEach(this.grid.selection.selected,function(row,_a7){
-if(row){
-if(_a5==-1){
-_a5=_a7;
+var _a5=Math.min(this.avaOnRowIndex,this.getFirstSelected());
+var end=Math.max(this.avaOnRowIndex-1,this.getLastSelected());
+this.moveRows(_a5,end,this.getPageInfo());
+},moveRows:function(_a6,end,_a7){
+var i,_a8=false,_a9=(selectedRowsAboveBorderDIV=0),_aa=[];
+var _ab=this.grid.scroller,_ac=_ab.rowsPerPage;
+var _ad=_a7.topPage*_ac,_ae=(_a7.bottomPage+1)*_ac-1;
+var _af=dojo.hitch(this,function(_b0,to){
+for(i=_b0;i<to;i++){
+if(!this.grid.selection.selected[i]||!this.grid._by_idx[i]){
+_aa.push(this.grid._by_idx[i]);
 }
-if(this.grid.selection.selected[_a7+1]==null){
-_a6=this.moveRows(_a5,_a7,_a6);
-_a5=-1;
+}
+});
+_af(_a6,this.avaOnRowIndex);
+for(i=_a6;i<=end;i++){
+if(this.grid.selection.selected[i]&&this.grid._by_idx[i]){
+_aa.push(this.grid._by_idx[i]);
+_a9++;
+if(this.avaOnRowIndex>i){
+selectedRowsAboveBorderDIV++;
 }
 }
-},this);
+}
+_af(this.avaOnRowIndex,end+1);
+for(i=_a6,j=0;i<=end;i++){
+this.grid._by_idx[i]=_aa[j++];
+if(i>=_ad&&i<=_ae){
+this.grid.updateRow(i);
+_a8=true;
+}
+}
+this.avaOnRowIndex+=_a9-selectedRowsAboveBorderDIV;
 try{
 this.clearDrugDivs();
 this.cleanAll();
-this.drugSelectionStart.rowIndex=this.avaOnRowIndex-_a6;
-this.drugSelectRow(this.drugSelectionStart.rowIndex+_a6-1);
+this.drugSelectionStart.rowIndex=this.avaOnRowIndex-_a9;
+this.drugSelectRow(this.drugSelectionStart.rowIndex+_a9-1);
+if(_a8){
+var _b1=_ab.stack;
+dojo.forEach(_a7.invalidPages,function(_b2){
+_ab.destroyPage(_b2);
+i=dojo.indexOf(_b1,_b2);
+if(i>=0){
+_b1.splice(i,1);
+}
+});
+}
 this.publishRowMove();
 }
 catch(e){
 }
-},moveRows:function(_a8,end,_a9){
-if(this.avaOnRowIndex>end){
-_a8-=_a9;
-end-=_a9;
-}
-var _aa=end-_a8+1;
-_a9+=_aa;
-var _ab=[];
-for(var i=0;i<_aa;i++){
-_ab[i]=this.grid._by_idx[_a8+i];
-this.grid._by_idx[_a8+i]=this.grid._by_idx[_a8+i+_aa];
-}
-if(this.avaOnRowIndex>end){
-for(i=end+1;i<this.avaOnRowIndex-_aa;i++){
-this.grid._by_idx[i]=this.grid._by_idx[i+_aa];
-}
-var _ac=this.avaOnRowIndex-_aa;
-for(i=_ac;i<this.avaOnRowIndex;i++){
-this.grid._by_idx[i]=_ab[i-_ac];
-}
-for(i=_a8;i<this.avaOnRowIndex;i++){
-this.grid.updateRow(i);
-}
-}else{
-if(this.avaOnRowIndex<end){
-for(i=end;i>this.avaOnRowIndex+_aa-1;i--){
-this.grid._by_idx[i]=this.grid._by_idx[i-_aa];
-}
-for(i=this.avaOnRowIndex;i<this.avaOnRowIndex+_aa;i++){
-this.grid._by_idx[i]=_ab[i-this.avaOnRowIndex];
-}
-for(i=this.avaOnRowIndex;i<=end;i++){
-this.grid.updateRow(i);
-}
-}
-}
-if(this.avaOnRowIndex<=_a8){
-this.avaOnRowIndex+=_aa;
-}
-return _a9;
 },clearDrugDivs:function(){
 if(!this.isMoving){
-var _ad=this.getBorderDiv();
-_ad.style.top=-100+"px";
-_ad.style.height="0px";
-_ad.style.left=-100+"px";
+var _b3=this.getBorderDiv();
+_b3.style.top=-100+"px";
+_b3.style.height="0px";
+_b3.style.left=-100+"px";
 dojo.forEach(this.coverDIVs,function(div){
-dojo.forEach(div.connections,function(_ae){
-dojo.disconnect(_ae);
+dojo.forEach(div.connections,function(_b4){
+dojo.disconnect(_b4);
 });
 dojo.doc.body.removeChild(div);
 delete div;
 },this);
 this.coverDIVs=[];
 }
-},setDrugCoverDivs:function(_af,_b0){
+},setDrugCoverDivs:function(_b5,_b6){
 if(!this.isMoving){
-if(this.isColSelected(_af)){
+if(this.isColSelected(_b5)){
 this.addColMovers();
 }else{
-if(this.grid.selection.selected[_b0]){
+if(this.grid.selection.selected[_b6]){
 this.addRowMovers();
 }else{
 this.clearDrugDivs();
 }
 }
 }
-},resetCellIdx:function(){
-var _b1=0;
-var _b2=-1;
-dojo.forEach(this.grid.views.views,function(_b3,_b4){
-if(_b4==0){
+},getPageInfo:function(){
+var _b7=this.grid.scroller,_b8=(bottomPage=_b7.page);
+var _b9=_b7.firstVisibleRow,_ba=_b7.lastVisibleRow;
+var _bb=_b7.rowsPerPage,_bc=_b7.pageNodes[0];
+var _bd,_be,_bf=[],_c0;
+dojo.forEach(_bc,function(_c1,_c2){
+if(!_c1){
 return;
 }
-if(_b3.structure.cells&&_b3.structure.cells[0]){
-dojo.forEach(_b3.structure.cells[0],function(_b5,_b6){
-var _b7=_b5.markup[2].split(" ");
-var idx=_b1+_b6;
-_b7[1]="idx=\""+idx+"\"";
-_b5.markup[2]=_b7.join(" ");
+_c0=false;
+_bd=_c2*_bb;
+_be=(_c2+1)*_bb-1;
+if(_b9>=_bd&&_b9<=_be){
+_b8=_c2;
+_c0=true;
+}
+if(_ba>=_bd&&_ba<=_be){
+bottomPage=_c2;
+_c0=true;
+}
+if(!_c0&&(_bd>_ba||_be<_b9)){
+_bf.push(_c2);
+}
+});
+return {topPage:_b8,bottomPage:bottomPage,invalidPages:_bf};
+},resetCellIdx:function(){
+var _c3=0;
+var _c4=-1;
+dojo.forEach(this.grid.views.views,function(_c5,_c6){
+if(_c6==0){
+return;
+}
+if(_c5.structure.cells&&_c5.structure.cells[0]){
+dojo.forEach(_c5.structure.cells[0],function(_c7,_c8){
+var _c9=_c7.markup[2].split(" ");
+var idx=_c3+_c8;
+_c9[1]="idx=\""+idx+"\"";
+_c7.markup[2]=_c9.join(" ");
 });
 }
-for(i in _b3.rowNodes){
-if(!_b3.rowNodes[i]){
+for(i in _c5.rowNodes){
+if(!_c5.rowNodes[i]){
 return;
 }
-dojo.forEach(_b3.rowNodes[i].firstChild.rows[0].cells,function(_b8,_b9){
-if(_b8&&_b8.attributes){
-if(_b9+_b1>_b2){
-_b2=_b9+_b1;
+dojo.forEach(_c5.rowNodes[i].firstChild.rows[0].cells,function(_ca,_cb){
+if(_ca&&_ca.attributes){
+if(_cb+_c3>_c4){
+_c4=_cb+_c3;
 }
 var idx=document.createAttribute("idx");
-idx.value=_b9+_b1;
-_b8.attributes.setNamedItem(idx);
+idx.value=_cb+_c3;
+_ca.attributes.setNamedItem(idx);
 }
 });
 }
-_b1=_b2+1;
+_c3=_c4+1;
 });
 },publishRowMove:function(){
 dojo.publish(this.grid.rowMovedTopic,[this]);
-},keyboardMove:function(_ba){
-var _bb=this.selectedColumns.length>0;
-var _bc=dojo.hitch(this.grid.selection,dojox.grid.Selection.prototype["getFirstSelected"])()>=0;
-var i,_bd,dk=dojo.keys,_be=_ba.keyCode;
+},keyboardMove:function(_cc){
+var _cd=this.selectedColumns.length>0;
+var _ce=dojo.hitch(this.grid.selection,dojox.grid.Selection.prototype["getFirstSelected"])()>=0;
+var i,_cf,dk=dojo.keys,_d0=_cc.keyCode;
 if(!dojo._isBodyLtr()){
-_be=(_ba.keyCode==dk.LEFT_ARROW)?dk.RIGHT_ARROW:(_ba.keyCode==dk.RIGHT_ARROW?dk.LEFT_ARROW:_be);
+_d0=(_cc.keyCode==dk.LEFT_ARROW)?dk.RIGHT_ARROW:(_cc.keyCode==dk.RIGHT_ARROW?dk.LEFT_ARROW:_d0);
 }
-switch(_be){
+switch(_d0){
 case dk.LEFT_ARROW:
-if(!_bb){
+if(!_cd){
 return;
 }
-_bd=this.getHeaderNodes().length;
-for(i=0;i<_bd;i++){
+_cf=this.getHeaderNodes().length;
+for(i=0;i<_cf;i++){
 if(this.isColSelected(i)){
 this.drugDestIndex=i-1;
 this.drugBefore=true;
 break;
 }
 }
-var _bf=this.grid.indirectSelection?1:0;
-(this.drugDestIndex>=_bf)?this.startMoveCols():(this.drugDestIndex=_bf);
+var _d1=this.grid.indirectSelection?1:0;
+(this.drugDestIndex>=_d1)?this.startMoveCols():(this.drugDestIndex=_d1);
 break;
 case dk.RIGHT_ARROW:
-if(!_bb){
+if(!_cd){
 return;
 }
-_bd=this.getHeaderNodes().length;
+_cf=this.getHeaderNodes().length;
 this.drugBefore=true;
-for(i=0;i<_bd;i++){
+for(i=0;i<_cf;i++){
 if(this.isColSelected(i)&&!this.isColSelected(i+1)){
 this.drugDestIndex=i+2;
-if(this.drugDestIndex==_bd){
+if(this.drugDestIndex==_cf){
 this.drugDestIndex--;
 this.drugBefore=false;
 }
 break;
 }
 }
-if(this.drugDestIndex<_bd){
+if(this.drugDestIndex<_cf){
 this.startMoveCols();
 }
 break;
 case dk.UP_ARROW:
-if(!_bc){
+if(!_ce){
 return;
 }
 this.avaOnRowIndex=dojo.hitch(this.grid.selection,dojox.grid.Selection.prototype["getFirstSelected"])()-1;
@@ -657,7 +674,7 @@ this.startMoveRows();
 }
 break;
 case dk.DOWN_ARROW:
-if(!_bc){
+if(!_ce){
 return;
 }
 for(i=0;i<this.grid.rowCount;i++){

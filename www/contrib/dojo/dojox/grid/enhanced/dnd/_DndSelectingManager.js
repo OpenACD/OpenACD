@@ -357,5 +357,15 @@ for(i in _51){
 _52.push(_51[i]);
 }
 return _52;
+},getFirstSelected:function(){
+return dojo.hitch(this.grid.selection,dojox.grid.Selection.prototype.getFirstSelected)();
+},getLastSelected:function(){
+var _53=this.grid.selection.selected;
+for(var i=_53.length-1;i>=0;i--){
+if(_53[i]){
+return i;
+}
+}
+return -1;
 }});
 }

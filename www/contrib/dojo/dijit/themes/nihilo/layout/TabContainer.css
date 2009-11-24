@@ -66,10 +66,6 @@
 .nihilo .dijitTabContainer .tabStripLBtn {
 	margin-left: 21px;
 }
-.nihilo .dijitTabContainer .nowrapTabStrip {
-	background-image: url(../images/dot.gif);
-	background-repeat: repeat-x;
-}
 .nihilo .dijitTabContainerBottom .nowrapTabStrip .dijitTab {
 	top: 0px;
 }

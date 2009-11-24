@@ -84,7 +84,7 @@ _29.code+=_2d+";";
 },error:_29.errBack});
 }
 };
-return _28.replace(/<script\s*(?![^>]*type=['"]?dojo)(?:[^>]*?(?:src=(['"]?)([^>]*?)\1[^>]*)?)*>([\s\S]*?)<\/script>/gi,function(_2e,_2f,src,_30){
+return _28.replace(/<script\s*(?![^>]*type=['"]?(?:dojo\/|text\/html\b))(?:[^>]*?(?:src=(['"]?)([^>]*?)\1[^>]*)?)*>([\s\S]*?)<\/script>/gi,function(_2e,_2f,src,_30){
 if(src){
 _2b(src);
 }else{

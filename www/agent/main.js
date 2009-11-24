@@ -178,6 +178,10 @@ dojo.addOnLoad(function(){
 			if(response.success){
 				dojo.byId("main").style.display="block";
 				dojo.byId("main").style.visibility = "visible";
+				dijit.byId("tabPanel_tablist").domNode.style.visibility = 'visible';
+				dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("agent/logout", function(data){
+					dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
+				});
 				agent = new Agent(response.login, parseInt(response.statetime), response.timestamp);
 				agent.setSkew(response.timestamp);
 				buildReleaseMenu(agent);
@@ -255,6 +259,7 @@ dojo.addOnLoad(function(){
 			}
 			else{
 				dijit.byId("loginpane").show();
+				dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
 			}
 		}
 	});
@@ -527,6 +532,10 @@ dojo.addOnLoad(function(){
 								dijit.byId("loginpane").hide();
 								dojo.byId("main").style.display="block";
 								dojo.byId("main").style.visibility = "visible";
+								dijit.byId("tabPanel_tablist").domNode.style.visibility = 'visible';
+								dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("agent/logout", function(data){
+									dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
+								});
 								dojo.byId("agentname").innerHTML = attrs.username;
 								dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response2.profile;
 								var settings = {};

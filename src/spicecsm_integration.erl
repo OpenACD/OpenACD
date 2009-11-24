@@ -309,8 +309,19 @@ handle_call({get_client, id, Value}, _From, State) ->
 	{ok, MidCount, Reply} = request(State, <<"query">>, [Query]),
 	case check_error(Reply) of
 		{error, Message} ->
-			?WARNING("Integration error'ed:  ~p", [Message]),
-			{stop, {error, Message},  {error, Message}, State#state{count = MidCount}};
+			% rather than parse the error, let's see if we can infer the cause.
+			Findtenant = list_to_binary(["select TenantID from tblTenant where TenantID=", integer_to_list(Tenant)]),
+			{ok, Tricount, TenantReply} = request(State, <<"query">>, [Findtenant]),
+			case check_error(TenantReply) of
+				{error, TMessage} ->
+					% two errors in a row!
+					?WARNING("Integration error'ed:  ~p (double check:  ~p)", [Message, TMessage]),
+					{stop, {error, {Message, TMessage}}, {error, {Message, TMessage}}, State#state{count = Tricount}};
+				{ok, _} ->
+					% as long as it wasn't an error; just need to determing it
+					% wasn't a db error
+					{reply, none, State#state{count = Tricount}}
+			end;
 		{ok, {struct, [{<<"msg">>, Message}]}} ->
 			?INFO("Real message for noexists client:  ~p", [Message]),
 			{reply, none, State#state{count = MidCount}};
@@ -425,5 +436,5 @@ check_error(Reply) ->
 		null ->
 			{ok, proplists:get_value(<<"result">>, Reply)};
 		Else ->
-			erlang:error({error, Else})
+			{error, Else}
 	end.

@@ -167,8 +167,20 @@
 		<script type="dojo/method" event="postCreate">
 			this.title = dojo.i18n.getLocalization("admin", "email_media_manager").MAIL_MAPPINGS;
 			var queueOpt = [];
-			var clientOpt = ["undefined"];
+			var clientOpt = [];
+			var clientVal = [];
 			console.log(["post create", mailMappings]);
+			
+			var formatter = function(arg){
+				var callback = function(select){
+					var out = new dijit.form.MultiSelect({}, select);
+					console.log(["formatter", out]);
+					return out;
+				}
+				
+				return skills.newSelection(callback, [arg], [], []);
+			}
+			
 			var mapGrid = new dojox.grid.DataGrid({
 				store: mailMappings,
 				query: {address: "*"},
@@ -177,8 +189,8 @@
 					cells: [[
 						{field: "address", name: "Address", width:"200px", editable: "true"},
 						{field: "queue", name: "Queue", width:"150px", editable: true, type:dojox.grid.cells.Select, options: queueOpt},
-						{field: "client", name: "Client", width:"159px", editable: true, type:dojox.grid.cells.Select, options: clientOpt},
-						{field: "skills", name: "Skills", width:"300px", editable:true}
+						{field: "client", name: "Client", width:"159px", editable: true, type:dojox.grid.cells.Select, options: clientOpt, values: clientVal},
+						{field: "skills", name: "Skills", width:"300px", editable:false, formatter: formatter}
 					]]
 				}]
 			}, dojo.byId("mapGrid"));
@@ -228,6 +240,17 @@
 				queryOptions:{deep:true},
 				onItem:onQueue
 			});
+			
+			var onClient = function(item){
+				clientOpt.push(clients.store.getValue(item, "label"));
+				clientVal.push(clients.store.getValue(item, "id"));
+			}
+			
+			clients.store.fetch({
+				query:{'id':'*'},
+				onItem:onClient
+			});
+			
 		</script>
 		<style type="text/css">
 			@import "/dojo/dojox/grid/resources/Grid.css";

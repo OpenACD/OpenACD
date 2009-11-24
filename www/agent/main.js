@@ -681,7 +681,9 @@ dojo.addOnLoad(function(){
 							'name':'boutboundcall',
 							'store':store,
 							'onChange': function(val){
-								agent.initOutbound(val, "freeswitch");
+								if(val != ""){
+									agent.initOutbound(val, "freeswitch");
+								}
 							}
 						}, 'boutboundcall');
 					}
@@ -706,13 +708,14 @@ dojo.addOnLoad(function(){
 						}, 'boutboundcall');
 					}
 				}
-				boutboundcall.stateChanger = dojo.subscribe("agent/state", function(data){
+				dijit.byId("boutboundcall").stateChanger = dojo.subscribe("agent/state", function(data){
 					var widget = dijit.byId("boutboundcall");
 					debug(["boutboundcall", data, data.state]);
 					switch(data.state){
 						case "idle":
 						case "released":
 							widget.domNode.style.display = 'inline-block';
+							widget.attr('value', '');
 							break;
 						default:
 							widget.domNode.style.display = 'none';

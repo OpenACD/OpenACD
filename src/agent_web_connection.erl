@@ -1442,6 +1442,8 @@ encode_proplist([{Key, Value} = Head | Tail], Acc) when is_atom(Value), is_atom(
 encode_proplist([{Key, Value} | Tail], Acc) when is_binary(Value); is_float(Value); is_integer(Value) ->
 	Newacc = [{Key, Value} | Acc],
 	encode_proplist(Tail, Newacc);
+encode_proplist([{Key, Value} | Tail], Acc) when is_record(Value, client) ->
+	encode_proplist(Tail, [{Key, list_to_binary(Value#client.label)} | Acc]);
 encode_proplist([_Head | Tail], Acc) ->
 	encode_proplist(Tail, Acc).
 

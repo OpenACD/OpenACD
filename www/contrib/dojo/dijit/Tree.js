@@ -565,7 +565,7 @@ return def;
 dijit.focus(_71.labelNode);
 },_onNodeFocus:function(_72){
 if(_72){
-if(_72!=this.lastFocused&&this.lastFocused){
+if(_72!=this.lastFocused&&this.lastFocused&&!this.lastFocused._destroyed){
 this.lastFocused.setSelected(false);
 }
 _72.setSelected(true);

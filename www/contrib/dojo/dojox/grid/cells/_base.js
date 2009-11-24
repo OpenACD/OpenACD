@@ -51,7 +51,7 @@ return this.defaultValue;
 if(v&&v.addBoth){
 v=new dojox.grid._DeferredTextWidget({deferred:v},dojo.create("span",{innerHTML:this.defaultValue}));
 }
-if(v&&v.declaredClass){
+if(v&&v.declaredClass&&v.startup){
 return "<div class='dojoxGridStubNode' linkWidget='"+v.id+"' cellIdx='"+this.index+"'>"+this.defaultValue+"</div>";
 }
 return v;

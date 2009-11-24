@@ -407,7 +407,7 @@
 	background: url(../../../dijit/themes/nihilo/images/titleBarActive.png) #e9e9e9 repeat-y right;
 }
 .nihilo .dojoxGridRowbarSelected {
-	background: #D9E8F9 url(../../../dijit/themes/nihilo/images/titleBar.png) #ddd no-repeat center;
+	background: url(../../../dijit/themes/nihilo/images/titleBar.png) #D9E8F9 no-repeat center;
 	border-right: 1px solid #ccc;
 }
 .nihilo .dojoxGridRow {

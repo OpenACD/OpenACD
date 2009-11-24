@@ -621,7 +621,7 @@ return _60(_6a,_71)?_6a.getAttribute(_71):null;
 dojo.removeAttr=function(_73,_74){
 _5(_73).removeAttribute(_5e(_74));
 };
-dojo.getEffectiveAttrValue=function(_75,_76){
+dojo.getNodeProp=function(_75,_76){
 _75=_5(_75);
 var lc=_76.toLowerCase(),_77=_5b[lc]||_76;
 if((_77 in _75)&&_77!="href"){

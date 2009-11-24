@@ -53,7 +53,7 @@ location.replace("#"+_a);
 _9();
 };
 function _d(){
-var _e=document.createElement("iframe"),_f="dojo-hash-iframe",_10=dojo.moduleUrl("dojo","resources/blank.html");
+var _e=document.createElement("iframe"),_f="dojo-hash-iframe",_10=dojo.config.dojoBlankHtmlUrl||dojo.moduleUrl("dojo","resources/blank.html");
 _e.id=_f;
 _e.src=_10+"?"+_3();
 _e.style.display="none";

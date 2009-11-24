@@ -511,7 +511,7 @@ dojo.declare("dijit.ColorPalette",
 	// summary:
 	//		A keyboard accessible color-picking widget
 	// description:
-	//		Grid showing various colors, so the user can pick a certain color
+	//		Grid showing various colors, so the user can pick a certain color.
 	//		Can be used standalone, or as a popup.
 	//
 	// example:
@@ -539,8 +539,9 @@ dojo.declare("dijit.ColorPalette",
 	//		The value of the selected color.
 	value: null,
 
-	// _currentFocus: [private] Integer
-	//		Index of the currently focused color.
+	// _currentFocus: [private] DomNode
+	//		The currently focused or hovered color.
+	//		Different from value, which represents the selected (i.e. clicked) color.
 	_currentFocus: 0,
 
 	// _xDim: [protected] Integer
@@ -556,7 +557,6 @@ dojo.declare("dijit.ColorPalette",
 	//		The first level is a hashmap of the different arrays available
 	//		The next two dimensions represent the columns and rows of colors.
 	_palettes: {
-
 		"7x10":	[["white", "seashell", "cornsilk", "lemonchiffon","lightyellow", "palegreen", "paleturquoise", "lightcyan",	"lavender", "plum"],
 				["lightgray", "pink", "bisque", "moccasin", "khaki", "lightgreen", "lightseagreen", "lightskyblue", "cornflowerblue", "violet"],
 				["silver", "lightcoral", "sandybrown", "orange", "palegoldenrod", "chartreuse", "mediumturquoise", 	"skyblue", "mediumslateblue","orchid"],
@@ -568,7 +568,6 @@ dojo.declare("dijit.ColorPalette",
 		"3x4": [["white", "lime", "green", "blue"],
 			["silver", "yellow", "fuchsia", "navy"],
 			["gray", "red", "purple", "black"]]
-
 	},
 
 	// _imagePaths: [protected] Map
@@ -584,12 +583,11 @@ dojo.declare("dijit.ColorPalette",
 	_paletteCoords: {
 		"leftOffset": 3, "topOffset": 3,
 		"cWidth": 20, "cHeight": 20
-
 	},
 
 	// templateString: String
 	//		The template of this widget.
-	templateString: dojo.cache("dijit", "templates/ColorPalette.html", "<div class=\"dijitInline dijitColorPalette\">\n\t<div class=\"dijitColorPaletteInner\" dojoAttachPoint=\"divNode\" waiRole=\"grid\" tabIndex=\"${tabIndex}\">\n\t\t<img class=\"dijitColorPaletteUnder\" dojoAttachPoint=\"imageNode\" waiRole=\"presentation\" alt=\"\">\n\t</div>\n</div>\n"),
+	templateString: dojo.cache("dijit", "templates/ColorPalette.html", "<div class=\"dijitInline dijitColorPalette\">\n\t<div class=\"dijitColorPaletteInner\" dojoAttachPoint=\"divNode\" waiRole=\"grid\"\">\n\t\t<img class=\"dijitColorPaletteUnder\" dojoAttachPoint=\"imageNode\" waiRole=\"presentation\" alt=\"\">\n\t</div>\n</div>\n"),
 
 	// _paletteDims: [protected] Object
 	//		Size of the supported palettes for alignment purposes.
@@ -602,7 +600,11 @@ dojo.declare("dijit.ColorPalette",
 	//		Widget tab index.
 	tabIndex: "0",
 
-	postCreate: function(){
+	buildRendering: function(){
+		// Instantiate the template, which makes a skeleton into which we'll insert a bunch of
+		// <img> nodes
+		this.inherited(arguments);
+	
 		// A name has to be given to the colorMap, this needs to be unique per Palette.
 		dojo.mixin(this.divNode.style, this._paletteDims[this.palette]);
 		this.imageNode.setAttribute("src", this._imagePaths[this.palette].toString());
@@ -616,19 +618,17 @@ dojo.declare("dijit.ColorPalette",
 		for(var row=0; row < choices.length; row++){
 			var rowNode = dojo.create("div", {
 				role: "row"
-			});
-			dojo.place(rowNode, this.divNode);
+			}, this.divNode);
 			for(var col=0; col < choices[row].length; col++){
 
 				var color = choices[row][col],
-						colorValue = colorObject.setColor(dojo.Color.named[color])
-				;
+						colorValue = colorObject.setColor(dojo.Color.named[color]);
 
 				var cellNode = dojo.create("span", {
-					"class":"dijitPaletteCell",
-					tabIndex:"-1",
+					"class": "dijitPaletteCell",
+					tabIndex: "-1",
 					title: this.colorNames[color],
-					style:{
+					style: {
 						top: coords.topOffset + (row * coords.cHeight) + "px",
 						left: coords.leftOffset + (col * coords.cWidth) + "px"
 					}
@@ -645,7 +645,7 @@ dojo.declare("dijit.ColorPalette",
 				var imgStyle = imgNode.style;
 				imgStyle.color = imgStyle.backgroundColor = imgNode.color;
 
-				dojo.forEach(["Dijitclick", "MouseEnter", "Focus"], function(handler){
+				dojo.forEach(["Dijitclick", "MouseEnter", "MouseLeave", "Focus"], function(handler){
 					this.connect(cellNode, "on" + handler.toLowerCase(), "_onCell" + handler);
 				}, this);
 
@@ -658,7 +658,6 @@ dojo.declare("dijit.ColorPalette",
 		}
 		this._xDim = choices[0].length;
 		this._yDim = choices.length;
-		this.connect(this.divNode, "onfocus", "_onDivNodeFocus");
 
 		// Now set all events
 		// The palette itself is navigated to with the tab key on the keyboard
@@ -685,11 +684,26 @@ dojo.declare("dijit.ColorPalette",
 				this.timeoutChangeRate, this.defaultTimeout));
 		}
 	},
+	
+	postCreate: function(){
+		this.inherited(arguments);
+
+		// Set initial navigable node.   At any point in time there's exactly one
+		// cell with tabIndex != -1.   If focus is inside the ColorPalette then
+		// focus is on that cell.
+		// TODO: if we set aria info (for the current value) on the ColorPalette itself then can we avoid
+		// having to focus each individual cell?
+		this._currentFocus = this._cellNodes[0];
+		dojo.attr(this._currentFocus, "tabIndex", this.tabIndex);
+	},
 
 	focus: function(){
 		// summary:
-		//		Focus this ColorPalette.  Puts focus on the first swatch.
-		this._focusFirst();
+		//		Focus this ColorPalette.  Puts focus on the most recently focused cell.
+
+		// The cell already has tabIndex set, just need to set CSS and focus it
+		dojo.addClass(this._currentFocus, "dijitPaletteCellHighlight");
+		dijit.focus(this._currentFocus);
 	},
 
 	onChange: function(color){
@@ -700,50 +714,31 @@ dojo.declare("dijit.ColorPalette",
 //		console.debug("Color selected is: "+color);
 	},
 
-	_focusFirst: function(){
-		// summary:
-		//		Focus the first cell in the color picker,
-		//		or the previously selected cell, if there is one
-		// tags:
-		//		private
-		this._currentFocus = 0;
-		var cellNode = this._cellNodes[this._currentFocus];
-		window.setTimeout(function(){dijit.focus(cellNode)}, 0);
-	},
-
-	_onDivNodeFocus: function(evt){
-		// summary:
-		//		Handler for when focus goes to the ColorPalette itself.
-		//		Shifts focus to the first color or the previously selected
-		//		color.
-		// tags:
-		//		private
-
-		this._focusFirst();
-	},
-
 	_onFocus: function(){
 		// summary:
-		//		Handler for when the ColorPalette or a color cell inside of it get focus
+		//		Handler for when the ColorPalette gets focus (because a cell inside
+		//		the ColorPalette got focus)
 		// tags:
 		//		protected
 
-		// While focus is on the palette, set its tabIndex to -1 so that on a
-		// shift-tab from a cell, the container is not in the tab order
-		dojo.attr(this.divNode, "tabIndex", "-1");
+		dojo.addClass(this._currentFocus, "dijitPaletteCellHighlight");
+		this.inherited(arguments);
 	},
 
 	_onBlur: function(){
 		// summary:
-		//		Handler for when the ColorPalette and the color cell inside of it lose focus
+		//		Handler for when the ColorPalette loses focus
 		// tags:
 		//		protected
 
-		this._removeCellHighlight(this._currentFocus);
+		// Just to be the same as 1.3, when I am focused again go to first (0,0) cell rather than
+		// currently focused node.
+		dojo.attr(this._currentFocus, "tabIndex", "-1");
+		dojo.removeClass(this._currentFocus, "dijitPaletteCellHighlight");
+		this._currentFocus = this._cellNodes[0];
+		dojo.attr(this._currentFocus, "tabIndex", this.tabIndex);
 
-		// when focus leaves the palette, restore its tabIndex, since it was
-		// modified by _onFocus().
-		dojo.attr(this.divNode, "tabIndex", this.tabIndex);
+		this.inherited(arguments);
 	},
 
 	_onCellDijitclick: function(/*Event*/ evt){
@@ -755,32 +750,40 @@ dojo.declare("dijit.ColorPalette",
 		//		private
 
 		var target = evt.currentTarget;
-		if(this._currentFocus != target.index){
-			this._currentFocus = target.index;
-			window.setTimeout(function(){dijit.focus(target)}, 0);
-		}
 		this._selectColor(target);
 		dojo.stopEvent(evt);
 	},
 
 	_onCellMouseEnter: function(/*Event*/ evt){
 		// summary:
-		//		Handler for onMouseOver. Put focus on the color under the mouse.
+		//		Handler for onMouseEnter event on a cell. Put highlight on the color under the mouse.
 		// evt:
 		//		The mouse event.
 		// tags:
 		//		private
 
 		var target = evt.currentTarget;
-		this._setCurrent(target);	// redundant, but needed per safari bug where onCellFocus never called
-		window.setTimeout(function(){dijit.focus(target)}, 0);
+		this._setCurrent(target);
+	},
+
+	_onCellMouseLeave: function(/*Event*/ evt){
+		// summary:
+		//		Handler for onMouseLeave event on a cell. Remove highlight on the color under the mouse.
+		// evt:
+		//		The mouse event.
+		// tags:
+		//		private
+
+		dojo.removeClass(this._currentFocus, "dijitPaletteCellHighlight");
 	},
 
 	_onCellFocus: function(/*Event*/ evt){
 		// summary:
-		//		Handler for onFocus of a cell. Removes highlight of
-		//		the color that just lost focus, and highlights
-		//		the new color.
+		//		Handler for onFocus of a cell.
+		// description:
+		//		Removes highlight of the color that just lost focus, and highlights
+		//		the new color.  Also moves the tabIndex setting to the new cell.
+		//		
 		// evt:
 		//		The focus event.
 		// tags:
@@ -794,20 +797,21 @@ dojo.declare("dijit.ColorPalette",
 		//		Called when a color is hovered or focused.
 		// description:
 		//		Removes highlight of the old color, and highlights
-		//		the new color.
+		//		the new color.  Also moves the tabIndex setting to the new cell.
 		// tags:
 		//		protected
-		this._removeCellHighlight(this._currentFocus);
-		this._currentFocus = node.index;
-		dojo.addClass(node, "dijitPaletteCellHighlight");
-	},
+		if("_currentFocus" in this){
+			// Remove highlight and tabIndex on old cell
+			dojo.attr(this._currentFocus, "tabIndex", "-1");
+			dojo.removeClass(this._currentFocus, "dijitPaletteCellHighlight");
+		}
 
-	_removeCellHighlight: function(index){
-		// summary:
-		//		Removes the hover CSS class for the specified cell
-		// tags:
-		//		private
-		dojo.removeClass(this._cellNodes[index], "dijitPaletteCellHighlight");
+		// Set highlight and tabIndex of new cell
+		this._currentFocus = node;
+		if(node){
+			dojo.attr(node, "tabIndex", this.tabIndex);
+			dojo.addClass(node, "dijitPaletteCellHighlight");
+		}
 	},
 
 	_selectColor: function(selectNode){
@@ -835,11 +839,15 @@ dojo.declare("dijit.ColorPalette",
 		// typecount == -1 means the key is released.
 		if(typeCount == -1){ return; }
 
-		var newFocusIndex = this._currentFocus + increment;
+		var newFocusIndex = this._currentFocus.index + increment;
 		if(newFocusIndex < this._cellNodes.length && newFocusIndex > -1)
 		{
 			var focusNode = this._cellNodes[newFocusIndex];
-			focusNode.focus();
+			this._setCurrent(focusNode);
+
+			// Actually focus the node, for the benefit of screen readers.
+			// Use setTimeout because IE doesn't like changing focus inside of an event handler
+			setTimeout(dojo.hitch(dijit, "focus", focusNode), 0);
 		}
 	}
 });
@@ -2334,7 +2342,7 @@ dojo.declare("dijit.form._FormMixin", null,
 
 				// TODO: widget values (just call attr('value', ...) on the widget)
 
-				// TODO: maybe should call dojo.getEffectiveAttrValue() instead
+				// TODO: maybe should call dojo.getNodeProp() instead
 				switch(element.type){
 					case "checkbox":
 						element.checked = (name in myObj) &&
@@ -2656,7 +2664,7 @@ dojo.declare("dijit._DialogMixin", null,
 			this._firstFocusItem = elems.lowest || elems.first || dialogNode;
 			this._lastFocusItem = elems.last || elems.highest || this._firstFocusItem;
 			if(dojo.isMoz && this._firstFocusItem.tagName.toLowerCase() == "input" &&
-					dojo.getEffectiveAttrValue(this._firstFocusItem, "type").toLowerCase() == "file"){
+					dojo.getNodeProp(this._firstFocusItem, "type").toLowerCase() == "file"){
 				// FF doesn't behave well when first element is input type=file, set first focusable to dialog container
 				dojo.attr(dialogNode, "tabIndex", "0");
 				this._firstFocusItem = dialogNode;
@@ -5500,8 +5508,6 @@ dojo.provide("dijit._editor.RichText");
 
 
 
-
-
 // used to restore content when user leaves this page then comes back
 // but do not try doing dojo.doc.write if we are using xd loading.
 // dojo.doc.write will only work if RichText.js is included in the dojo.js
@@ -5574,7 +5580,11 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 
 		// editingAreaStyleSheets: dojo._URL[]
 		//		array to store all the stylesheets applied to the editing area
-		this.editingAreaStyleSheets=[];
+		this.editingAreaStyleSheets = [];
+
+		// Make a copy of this.events before we start writing into it, otherwise we
+		// will modify the prototype which leads to bad things on pages w/multiple editors
+		this.events = [].concat(this.events);
 
 		this._keyHandlers = {};
 		this.contentPreFilters.push(dojo.hitch(this, "_preFixUrlAttributes"));
@@ -5944,7 +5954,6 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 	//static cache variables shared among all instance of this class
 	_local2NativeFormatNames: {},
 	_native2LocalFormatNames: {},
-	_localizedIframeTitles: null,
 
 	_getIframeDocTxt: function(){
 		// summary:
@@ -5957,14 +5966,15 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 		// The contents inside of <body>.  The real contents are set later via a call to setValue().
 		var html = "";
 		if(dojo.isIE || (!this.height && !dojo.isMoz)){
-			// For some reason we need an extra <div> on IE (TODOC)
+			// In auto-expand mode, need a wrapper div for AlwaysShowToolbar plugin to correctly
+			// expand/contract the editor as the content changes.
 			html = "<div></div>";
 		}else if(dojo.isMoz){
 			// workaround bug where can't select then delete text (until user types something
 			// into the editor)... and/or issue where typing doesn't erase selected text
+			this._cursorToStart = true;
 			html = "&nbsp;";
 		}
-
 
 		var font = [ _cs.fontWeight, _cs.fontSize, _cs.fontFamily ].join(" ");
 
@@ -5985,23 +5995,18 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 		var userStyle = "";
 		this.style.replace(/(^|;)(line-|font-?)[^;]+/g, function(match){ userStyle += match.replace(/^;/g,"") + ';'; });
 
-		// get screen reader text for mozilla here, too
-		this._localizedIframeTitles = dojo.i18n.getLocalization("dijit.form", "Textarea");
 		// need to find any associated label element and update iframe document title
 		var label=dojo.query('label[for="'+this.id+'"]');
-		if(label.length){
-			this._localizedIframeTitles.iframeEditTitle = label[0].innerHTML + " " + this._localizedIframeTitles.iframeEditTitle;
-		}
 
 		return [
 			this.isLeftToRight() ? "<html><head>" : "<html dir='rtl'><head>",
-			(dojo.isMoz ? "<title>" + this._localizedIframeTitles.iframeEditTitle + "</title>" : ""),
+			(dojo.isMoz && label.length ? "<title>" + label[0].innerHTML + "</title>" : ""),
 			"<meta http-equiv='Content-Type' content='text/html'>",
 			"<style>",
 			"body,html {",
 			"\tbackground:transparent;",
-			"\tpadding: 1em 0 0 0;",
-			"\tmargin: -1em 0 0 0;", // remove extraneous vertical scrollbar on safari and firefox
+			"\tpadding: 1px 0 0 0;",
+			"\tmargin: -1px 0 0 0;", // remove extraneous vertical scrollbar on safari and firefox
 			(dojo.isWebKit?"\twidth: 100%;":""),
 			(dojo.isWebKit?"\theight: 100%;":""),
 			"}",
@@ -6159,6 +6164,7 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 		if(!dojo.isIE && (this.height || dojo.isMoz)){
 			this.editNode=this.document.body;
 		}else{
+			// there's a wrapper div around the content, see _getIframeDocTxt().
 			this.editNode=this.document.body.firstChild;
 			var _this = this;
 			if(dojo.isIE){ // #4996 IE wants to focus the BODY tag
@@ -6262,22 +6268,6 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 			){ //arrow keys
 				e.charCode = e.keyCode;
 				this.onKeyPress(e);
-			}
-		}else if(dojo.isMoz && !this.isTabIndent){
-			if(e.keyCode == dojo.keys.TAB && !e.shiftKey && !e.ctrlKey && !e.altKey && this.iframe){
-				// update iframe document title for screen reader
-				var titleObj = this.iframe;
-				titleObj.title = this._localizedIframeTitles.iframeFocusTitle;
-				// Place focus on the iframe. A subsequent tab or shift tab will put focus
-				// on the correct control.
-				this.iframe.focus();	// this.focus(); won't work
-				dojo.stopEvent(e);
-			}else if(e.keyCode == dojo.keys.TAB && e.shiftKey){
-				// if there is a toolbar, set focus to it, otherwise ignore
-				if(this.toolbar){
-					this.toolbar.focus();
-				}
-				dojo.stopEvent(e);
 			}
 		}
 		return true;
@@ -6408,10 +6398,6 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 			this.onChange(_c);
 			this.savedContent=_c;
 		}
-		if(dojo.isMoz && this.iframe){
-			this.iframe.title = this._localizedIframeTitles.iframeEditTitle;
-		}
-
 	},
 	_onFocus: function(/*Event*/ e){
 		// summary:
@@ -6446,6 +6432,14 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 		//		Move focus to this editor
 		if(!dojo.isIE){
 			dijit.focus(this.iframe);
+			if(this._cursorToStart){ 
+				delete this._cursorToStart;
+				if(this.editNode.childNodes && 
+					this.editNode.childNodes.length === 1 && 
+					this.editNode.innerHTML === "&nbsp;"){
+						this.placeCursorAtStart();
+				}
+			}
 		}else if(this.editNode && this.editNode.focus){
 			// editNode may be hidden in display:none div, lets just punt in this case
 			//this.editNode.focus(); -> causes IE to scroll always (strict and quirks mode) to the top the Iframe
@@ -6861,7 +6855,8 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 			var node = this.isClosed ? this.domNode : this.editNode;
 
 			// Use &nbsp; to avoid webkit problems where editor is disabled until the user clicks it
-			if(!html && dojo.isWebkit){
+			if(!html && dojo.isWebKit){
+				this._cursorToStart = true;
 				html = "&nbsp;";
 			}
 			node.innerHTML = html;
@@ -6886,7 +6881,10 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 		}else if(this.window && this.window.getSelection){ // Moz
 			html = this._preFilterContent(html);
 			this.execCommand("selectall");
-			if(!html){ html = "&nbsp;"; }
+			if(!html){ 
+				this._cursorToStart = true;
+				html = "&nbsp;"; 
+			}
 			this.execCommand("inserthtml", html);
 			this._preDomFilterContent(this.editNode);
 		}else if(this.document && this.document.selection){//IE
@@ -7112,8 +7110,9 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 		dojo.removeClass(this.domNode, "RichTextEditable");
 		this.isClosed = true;
 		this.isLoaded = false;
-		// FIXME: is this always the right thing to do?
+
 		delete this.editNode;
+		delete this.focusNode;
 
 		if(this.window && this.window._frameElement){
 			this.window._frameElement = null;
@@ -7325,7 +7324,6 @@ dojo.declare("dijit._KeyNavContainer",
 		//		moved to the first item in the container.
 		tabIndex: "0",
 
-
 		_keyNavCodes: {},
 
 		connectKeyNavHandlers: function(/*dojo.keys[]*/ prevKeyCodes, /*dojo.keys[]*/ nextKeyCodes){
@@ -7339,7 +7337,7 @@ dojo.declare("dijit._KeyNavContainer",
 			// tags:
 			//		protected
 
-			var keyCodes = this._keyNavCodes = {};
+			var keyCodes = (this._keyNavCodes = {});
 			var prev = dojo.hitch(this, this.focusPrev);
 			var next = dojo.hitch(this, this.focusNext);
 			dojo.forEach(prevKeyCodes, function(code){ keyCodes[code] = prev; });
@@ -7374,94 +7372,65 @@ dojo.declare("dijit._KeyNavContainer",
 			//		Focus the first focusable child in the container.
 			// tags:
 			//		protected
-			this.focusChild(this._getFirstFocusableChild());
+			var child = this._getFirstFocusableChild();
+			this.focusChild(child);
 		},
 
 		focusNext: function(){
 			// summary:
-			//		Focus the next widget or focal node (for widgets
-			//		with multiple focal nodes) within this container.
+			//		Focus the next widget
 			// tags:
 			//		protected
-			if(this.focusedChild && this.focusedChild.hasNextFocalNode
-					&& this.focusedChild.hasNextFocalNode()){
-				this.focusedChild.focusNext();
-				return;
-			}
 			var child = this._getNextFocusableChild(this.focusedChild, 1);
-			if(child.getFocalNodes){
-				this.focusChild(child, child.getFocalNodes()[0]);
-			}else{
-				this.focusChild(child);
-			}
+			this.focusChild(child);
 		},
 
 		focusPrev: function(){
 			// summary:
-			//		Focus the previous widget or focal node (for widgets
-			//		with multiple focal nodes) within this container.
+			//		Focus the last focusable node in the previous widget
+			//		(ex: go to the ComboButton icon section rather than button section)
 			// tags:
 			//		protected
-			if(this.focusedChild && this.focusedChild.hasPrevFocalNode
-					&& this.focusedChild.hasPrevFocalNode()){
-				this.focusedChild.focusPrev();
-				return;
-			}
 			var child = this._getNextFocusableChild(this.focusedChild, -1);
-			if(child.getFocalNodes){
-				var nodes = child.getFocalNodes();
-				this.focusChild(child, nodes[nodes.length-1]);
-			}else{
-				this.focusChild(child);
-			}
+			this.focusChild(child, true);
 		},
 
-		focusChild: function(/*dijit._Widget*/ widget, /*Node?*/ node){
+		focusChild: function(/*dijit._Widget*/ widget, /*Boolean*/ last){
 			// summary:
-			//		Focus widget. Optionally focus 'node' within widget.
+			//		Focus widget.
+			// widget:
+			//		Reference to container's child widget
+			// last:
+			//		If true and if widget has multiple focusable nodes, focus the
+			//		last one instead of the first one
 			// tags:
 			//		protected
-			if(widget){
-				if(this.focusedChild && widget !== this.focusedChild){
-					this._onChildBlur(this.focusedChild);
-				}
-				this.focusedChild = widget;
-				if(node && widget.focusFocalNode){
-					widget.focusFocalNode(node);
-				}else{
-					widget.focus();
-				}
+			
+			if(this.focusedChild && widget !== this.focusedChild){
+				this._onChildBlur(this.focusedChild);
 			}
+			widget.focus(last ? "end" : "start");
+			this.focusedChild = widget;
 		},
 
 		_startupChild: function(/*dijit._Widget*/ widget){
 			// summary:
-			//		Set tabIndex="-1" on focusable widgets so that we
-			// 		can focus them programmatically and by clicking.
-			//		Connect focus and blur handlers.
+			//		Setup for each child widget
+			// description:
+			//		Sets tabIndex=-1 on each child, so that the tab key will 
+			//		leave the container rather than visiting each child.
 			// tags:
 			//		private
-			if(widget.getFocalNodes){
-				dojo.forEach(widget.getFocalNodes(), function(node){
-					dojo.attr(node, "tabIndex", -1);
-					this._connectNode(node);
-				}, this);
-			}else{
-				var node = widget.focusNode || widget.domNode;
-				if(widget.isFocusable()){
-					dojo.attr(node, "tabIndex", -1);
-				}
-				this._connectNode(node);
-			}
-		},
-
-		_connectNode: function(/*Element*/ node){
-			// summary:
-			//		Monitor focus and blur events on the node
-			// tags:
-			//		private
-			this.connect(node, "onfocus", "_onNodeFocus");
-			this.connect(node, "onblur", "_onNodeBlur");
+			
+			widget.attr("tabIndex", "-1");
+			
+			this.connect(widget, "_onFocus", function(){
+				// Set valid tabIndex so tabbing away from widget goes to right place, see #10272
+				widget.attr("tabIndex", this.tabIndex);
+			});
+			this.connect(widget, "_onBlur", function(){
+				widget.attr("tabIndex", "-1");
+			});
 		},
 
 		_onContainerFocus: function(evt){
@@ -7513,28 +7482,6 @@ dojo.declare("dijit._KeyNavContainer",
 				func();
 				dojo.stopEvent(evt);
 			}
-		},
-
-		_onNodeFocus: function(evt){
-			// summary:
-			//		Handler for onfocus event on a child node
-			// tags:
-			//		private
-
-			// record the child that has been focused
-			var widget = dijit.getEnclosingWidget(evt.target);
-			if(widget && widget.isFocusable()){
-				this.focusedChild = widget;
-			}
-			dojo.stopEvent(evt);
-		},
-
-		_onNodeBlur: function(evt){
-			// summary:
-			//		Handler for onblur event on a child node
-			// tags:
-			//		private
-			dojo.stopEvent(evt);
 		},
 
 		_onChildBlur: function(/*dijit._Widget*/ widget){
@@ -7737,8 +7684,8 @@ dojo.declare("dijit._HasDropDown",
 			//		Callback when the user mouse clicks on the arrow icon, or presses the down
 			//		arrow key, to open the drop down.
 
-			// We handle mouse events using onmousedown in order to allow for
-			// selecting via a drag.  So, our click is already handled, unless   (BK: what does this mean, selecting via drag?)
+			// We handle mouse events using onmousedown in order to allow for selecting via
+			// a mouseDown --> mouseMove --> mouseUp.  So, our click is already handled, unless
 			// we are executed via keypress - in which case, this._seenKeydown
 			// will be set to true.
 			if(e.type == "click" && !this._seenKeydown){ return; }
@@ -8309,7 +8256,7 @@ dojo.declare("dijit.form.ComboButton", dijit.form.DropDownButton, {
 	// |	dojo.body().appendChild(button1.domNode);
 	//
 
-	templateString: dojo.cache("dijit.form", "templates/ComboButton.html", "<table class='dijit dijitReset dijitInline dijitLeft'\n\tcellspacing='0' cellpadding='0' waiRole=\"presentation\"\n\t><tbody waiRole=\"presentation\"><tr waiRole=\"presentation\"\n\t\t><td class=\"dijitReset dijitStretch dijitButtonNode\"><button class=\"dijitReset dijitButtonContents\"\n\t\t\tdojoAttachEvent=\"onclick:_onButtonClick,onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse\"  dojoAttachPoint=\"titleNode\"\n\t\t\twaiRole=\"button\" waiState=\"labelledby-${id}_label\"\n\t\t\t><div class=\"dijitReset dijitInline\" dojoAttachPoint=\"iconNode\" waiRole=\"presentation\"></div\n\t\t\t><div class=\"dijitReset dijitInline dijitButtonText\" id=\"${id}_label\" dojoAttachPoint=\"containerNode\" waiRole=\"presentation\"></div\n\t\t></button></td\n\t\t><td class='dijitReset dijitRight dijitButtonNode dijitArrowButton'\n\t\t\tdojoAttachPoint=\"_popupStateNode,focusNode,_buttonNode\"\n\t\t\tdojoAttachEvent=\"onmouseenter:_onMouse,onmouseleave:_onMouse\"\n\t\t\tstateModifier=\"DownArrow\"\n\t\t\ttitle=\"${optionsTitle}\" ${nameAttrSetting}\n\t\t\twaiRole=\"button\" waiState=\"haspopup-true\"\n\t\t\t><div class=\"dijitReset dijitArrowButtonInner\" waiRole=\"presentation\">&thinsp;</div\n\t\t\t><div class=\"dijitReset dijitArrowButtonChar\" waiRole=\"presentation\">&#9660;</div\n\t\t></td\n\t></tr></tbody\n></table>\n"),
+	templateString: dojo.cache("dijit.form", "templates/ComboButton.html", "<table class='dijit dijitReset dijitInline dijitLeft'\n\tcellspacing='0' cellpadding='0' waiRole=\"presentation\"\n\t><tbody waiRole=\"presentation\"><tr waiRole=\"presentation\"\n\t\t><td class=\"dijitReset dijitStretch dijitButtonNode\"><button id=\"${id}_button\" class=\"dijitReset dijitButtonContents\"\n\t\t\tdojoAttachEvent=\"onclick:_onButtonClick,onmouseenter:_onMouse,onmouseleave:_onMouse,onmousedown:_onMouse,onkeypress:_onButtonKeyPress\"  dojoAttachPoint=\"titleNode\"\n\t\t\twaiRole=\"button\" waiState=\"labelledby-${id}_label\"\n\t\t\t><div class=\"dijitReset dijitInline\" dojoAttachPoint=\"iconNode\" waiRole=\"presentation\"></div\n\t\t\t><div class=\"dijitReset dijitInline dijitButtonText\" id=\"${id}_label\" dojoAttachPoint=\"containerNode\" waiRole=\"presentation\"></div\n\t\t></button></td\n\t\t><td id=\"${id}_arrow\" class='dijitReset dijitRight dijitButtonNode dijitArrowButton'\n\t\t\tdojoAttachPoint=\"_popupStateNode,focusNode,_buttonNode\"\n\t\t\tdojoAttachEvent=\"onmouseenter:_onMouse,onmouseleave:_onMouse,onkeypress:_onArrowKeyPress\"\n\t\t\tstateModifier=\"DownArrow\"\n\t\t\ttitle=\"${optionsTitle}\" ${nameAttrSetting}\n\t\t\twaiRole=\"button\" waiState=\"haspopup-true\"\n\t\t\t><div class=\"dijitReset dijitArrowButtonInner\" waiRole=\"presentation\">&thinsp;</div\n\t\t\t><div class=\"dijitReset dijitArrowButtonChar\" waiRole=\"presentation\">&#9660;</div\n\t\t></td\n\t></tr></tbody\n></table>\n"),
 
 	attributeMap: dojo.mixin(dojo.clone(dijit.form.Button.prototype.attributeMap), {
 		id: "",
@@ -8343,75 +8290,6 @@ dojo.declare("dijit.form.ComboButton", dijit.form.DropDownButton, {
 		}
 	},
 
-	focusFocalNode: function(node){
-		// summary:
-		//		Focus the focal node node.
-		// description:
-		//		Called by _KeyNavContainer for (when example) this button is in a toolbar.
-		// tags:
-		//		protected
-		this._focusedNode = node;
-		dijit.focus(node);
-	},
-
-	hasNextFocalNode: function(){
-		// summary:
-		//		Returns true if this widget has no node currently
-		//		focused or if there is a node following the focused one.
-		//		False is returned if the last node has focus.
-		// description:
-		//		Called by _KeyNavContainer for (when example) this button is in a toolbar.
-		// tags:
-		//		protected
-		return this._focusedNode !== this.getFocalNodes()[1];
-	},
-
-	focusNext: function(){
-		// summary:
-		//		Focus the focal node following the current node with focus,
-		//		or the first one if no node currently has focus.
-		// description:
-		//		Called by _KeyNavContainer for (when example) this button is in a toolbar.
-		// tags:
-		//		protected
-		this._focusedNode = this.getFocalNodes()[this._focusedNode ? 1 : 0];
-		dijit.focus(this._focusedNode);
-	},
-
-	hasPrevFocalNode: function(){
-		// summary:
-		//		Returns true if this widget has no node currently
-		//		focused or if there is a node before the focused one.
-		//		False is returned if the first node has focus.
-		// description:
-		//		Called by _KeyNavContainer for (when example) this button is in a toolbar.
-		// tags:
-		//		protected
-		return this._focusedNode !== this.getFocalNodes()[0];
-	},
-
-	focusPrev: function(){
-		// summary:
-		//		Focus the focal node before the current node with focus
-		//		or the last one if no node currently has focus.
-		// description:
-		//		Called by _KeyNavContainer for (when example) this button is in a toolbar.
-		// tags:
-		//		protected
-		this._focusedNode = this.getFocalNodes()[this._focusedNode ? 0 : 1];
-		dijit.focus(this._focusedNode);
-	},
-
-	getFocalNodes: function(){
-		// summary:
-		//		Returns an array of focal nodes for this widget.
-		// description:
-		//		Called by _KeyNavContainer for (when example) this button is in a toolbar.
-		// tags:
-		//		protected
-		return this._focalNodes;
-	},
-
 	_onNodeFocus: function(evt){
 		this._focusedNode = evt.currentTarget;
 		var fnc = this._focusedNode == this.focusNode ? "dijitDownArrowButtonFocused" : "dijitButtonContentsFocused";
@@ -8426,6 +8304,34 @@ dojo.declare("dijit.form.ComboButton", dijit.form.DropDownButton, {
 	_onBlur: function(){
 		this.inherited(arguments);
 		this._focusedNode = null;
+	},
+	
+	_onButtonKeyPress: function(/*Event*/ evt){
+		// summary:
+		//		Handler for right arrow key when focus is on left part of button
+		if(evt.charOrCode == dojo.keys[this.isLeftToRight() ? "RIGHT_ARROW" : "LEFT_ARROW"]){
+			dijit.focus(this._popupStateNode);
+			dojo.stopEvent(evt);
+		}
+	},
+
+	_onArrowKeyPress: function(/*Event*/ evt){
+		// summary:
+		//		Handler for left arrow key when focus is on right part of button
+		if(evt.charOrCode == dojo.keys[this.isLeftToRight() ? "LEFT_ARROW" : "RIGHT_ARROW"]){
+			dijit.focus(this.titleNode);
+			dojo.stopEvent(evt);
+		}
+	},
+	
+	focus: function(/*String*/ position){
+		// summary:
+		//		Focuses this widget to according to position, if specified,
+		//		otherwise on arrow node
+		// position:
+		//		"start" or "end"
+		
+		dijit.focus(position == "start" ? this.titleNode : this._popupStateNode);
 	}
 });
 
@@ -9953,6 +9859,10 @@ dojo.declare("dijit.MenuItem",
 			// summary:
 			//		Focus on this MenuItem
 			try{
+				if(dojo.isIE == 8){
+					// needed for IE8 which won't scroll TR tags into view on focus yet calling scrollIntoView creates flicker (#10275)
+					this.containerNode.focus();
+				}
 				dijit.focus(this.focusNode);
 			}catch(e){
 				// this throws on IE (at least) in some scenarios
@@ -10671,9 +10581,10 @@ dojo.declare("dijit.Menu",
 				win = this._iframeContentWindow(iframe);
 			cn = dojo.withGlobal(win, dojo.body);
 		}else{
-			// To capture these events at the top level, attach to document, not body.
-			// Ensures Shift-F10 triggers context menu "open" on IE/FF (and Opera) under various circumstances. 
-			cn = (node == dojo.body() ? dojo.doc : node);
+			
+			// To capture these events at the top level, attach to <html>, not <body>.
+			// Otherwise right-click context menu just doesn't work.
+			cn = (node == dojo.body() ? dojo.doc.documentElement : node);
 		}
 
 
@@ -12183,7 +12094,7 @@ dojo.declare(
 	"dijit.Tooltip",
 	dijit._Widget,
 	{
-		// summary
+		// summary:
 		//		Pops up a tooltip (a help message) when you hover over a node.
 
 		// label: String
@@ -14593,7 +14504,7 @@ dojo.declare(
 		//		selected node no longer is.
 
 		if(node){
-			if(node != this.lastFocused && this.lastFocused){
+			if(node != this.lastFocused && this.lastFocused && !this.lastFocused._destroyed){
 				// mark that the previously selected node is no longer the selected one
 				this.lastFocused.setSelected(false);
 			}
@@ -16268,9 +16179,6 @@ dojo.declare(
 
 		_setDisabledAttr: function(/*Boolean*/ value){
 			this.inherited(arguments);	// call FormValueWidget._setDisabledAttr()
-			if(this.valueNode){
-				this.valueNode.disabled = value;
-			}
 			this._refreshState();
 		},
 
@@ -16297,6 +16205,11 @@ dojo.declare(
 			// Overrides dijit.form.TextBox.reset() by also
 			// hiding errors about partial matches
 			this._maskValidSubsetError = true;
+			this.inherited(arguments);
+		},
+
+		_onBlur: function(){
+			this.displayMessage('');
 			this.inherited(arguments);
 		}
 	}
@@ -16362,11 +16275,6 @@ dojo.declare(
 			// Passing in name as markup rather than calling dojo.create() with an attrs argument
 			// to make dojo.query(input[name=...]) work on IE. (see #8660)
 			this.valueNode = dojo.place("<input type='hidden'" + (this.name ? " name='" + this.name + "'" : "") + ">", this.textbox, "after");
-		},
-
-		_setDisabledAttr: function(/*Boolean*/ value){
-			this.inherited(arguments);
-			dojo.attr(this.valueNode, 'disabled', value);
 		},
 
 		reset:function(){
@@ -16795,7 +16703,7 @@ dojo.declare("dijit.form.NumberTextBoxMixin",
 			// Returning undefined prevents user text from being overwritten when doing _setValueAttr(_getValueAttr()).
 			// A blank displayed value is still returned as NaN.
 			if(isNaN(v) && this.textbox.value !== ''){
-				if(this.constraints.exponent !== false && /\de[-+]?|\d/i.test(this.textbox.value) && (new RegExp("^"+dojo.number._realNumberRegexp(this.constraints)+"$").test(this.textbox.value))){	// check for exponential notation that parse() rejected (erroneously?)
+				if(this.constraints.exponent !== false && /\de[-+]?|\d/i.test(this.textbox.value) && (new RegExp("^"+dojo.number._realNumberRegexp(dojo.mixin({}, this.constraints))+"$").test(this.textbox.value))){	// check for exponential notation that parse() rejected (erroneously?)
 					var n = Number(this.textbox.value);
 					return isNaN(n) ? undefined : n; // return exponential Number or undefined for random text (may not be possible to do with the above RegExp check)
 				}else{
@@ -18370,6 +18278,7 @@ dojo.declare(
 					//fallthrough...
 				case dk.LEFT_ARROW:
 					interval = "day";
+					if(!this.isLeftToRight()){ increment *= -1; }
 					break;
 				case dk.DOWN_ARROW:
 					increment = 1;
@@ -18729,6 +18638,12 @@ dojo.declare(
 	{
 		// summary:
 		//		A validating, serializable, range-bound date text box with a drop down calendar
+		//
+		//		Example:
+		// |	new dijit.form.DateTextBox({value: new Date(2009, 0, 20)})
+		//
+		//		Example:
+		// |	<input dojotype='dijit.form.DateTextBox' value='2009-01-20'>
 
 		baseClass: "dijitTextBox dijitDateTextBox",
 		popupClass: "dijit.Calendar",
@@ -18736,17 +18651,8 @@ dojo.declare(
 
 		// value: Date
 		//		The value of this widget as a JavaScript Date object, with only year/month/day specified.
-		//
-		//		Example:
-		// |	new dijit.form.DateTextBox({value: new Date(2009,1,20)})
-		//
-		//		When passed to the parser in markup, must be specified according to locale-independent
-		//		`dojo.date.stamp.fromISOString` format.
-		//
-		//		Example:
-		// |	<input dojotype='dijit.form.DateTextBox' value='2009-01-20'>
+		//		If specified in markup, use the format specified in `dojo.date.stamp.fromISOString`
 		value: new Date("")	// value.toString()="NaN"
-
 	}
 );
 
@@ -19652,8 +19558,11 @@ dojo.declare(
 				// Update 'value' (ex: KY) according to currently displayed text
 				this.item = null;
 				this.attr('displayedValue', newvalue);
-			}else if(this.value != this._lastValueReported){
-				dijit.form._FormValueWidget.prototype._setValueAttr.call(this, this.value, true);
+			}else{
+				if(this.value != this._lastValueReported){
+					dijit.form._FormValueWidget.prototype._setValueAttr.call(this, this.value, true);
+				}
+				this._refreshState();
 			}
 		},
 
@@ -19689,7 +19598,6 @@ dojo.declare(
 			if(!node){
 				return;
 			}
-			var caretPos = this._getCaretPos(this.focusNode);
 			// pull the text value from the item attached to the DOM node
 			var newValue;
 			if( node == this._popupWidget.nextButton ||
@@ -19702,7 +19610,7 @@ dojo.declare(
 				this.attr('item', node.item, false, newValue);
 			}
 			// get the text that the user manually entered (cut off autocompleted text)
-			this.focusNode.value = this.focusNode.value.substring(0, caretPos);
+			this.focusNode.value = this.focusNode.value.substring(0, this._lastInput.length);
 			// set up ARIA activedescendant
 			dijit.setWaiState(this.focusNode, "activedescendant", dojo.attr(node, "id"));
 			// autocomplete the rest of the option to announce change
@@ -19733,7 +19641,7 @@ dojo.declare(
 			}else{
 				// forces full population of results, if they click
 				// on the arrow it means they want to see more options
-				this._startSearch("");
+				this._startSearchAll();
 			}
 		},
 
@@ -20777,7 +20685,7 @@ dojo.declare(
 	// summary:
 	//		A form widget that allows one to select a value with a horizontally draggable handle
 
-	templateString: dojo.cache("dijit.form", "templates/HorizontalSlider.html", "<table class=\"dijit dijitReset dijitSlider\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" rules=\"none\" dojoAttachEvent=\"onkeypress:_onKeyPress,onkeyup:_onKeyUp\"\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t\t><td dojoAttachPoint=\"containerNode,topDecoration\" class=\"dijitReset\" style=\"text-align:center;width:100%;\"></td\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t></tr\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset dijitSliderButtonContainer dijitSliderButtonContainerH\"\n\t\t\t><div class=\"dijitSliderDecrementIconH\" tabIndex=\"-1\" style=\"display:none\" dojoAttachPoint=\"decrementButton\"><span class=\"dijitSliderButtonInner\">-</span></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><div class=\"dijitSliderBar dijitSliderBumper dijitSliderBumperH dijitSliderLeftBumper dijitSliderLeftBumper\" dojoAttachEvent=\"onmousedown:_onClkDecBumper\"></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><input dojoAttachPoint=\"valueNode\" type=\"hidden\" ${nameAttrSetting}\n\t\t\t/><div class=\"dijitReset dijitSliderBarContainerH\" waiRole=\"presentation\" dojoAttachPoint=\"sliderBarContainer\"\n\t\t\t\t><div waiRole=\"presentation\" dojoAttachPoint=\"progressBar\" class=\"dijitSliderBar dijitSliderBarH dijitSliderProgressBar dijitSliderProgressBarH\" dojoAttachEvent=\"onmousedown:_onBarClick\"\n\t\t\t\t\t><div class=\"dijitSliderMoveable dijitSliderMoveableH\"\n\t\t\t\t\t\t><div dojoAttachPoint=\"sliderHandle,focusNode\" class=\"dijitSliderImageHandle dijitSliderImageHandleH\" dojoAttachEvent=\"onmousedown:_onHandleClick\" waiRole=\"slider\" valuemin=\"${minimum}\" valuemax=\"${maximum}\"></div\n\t\t\t\t\t></div\n\t\t\t\t></div\n\t\t\t\t><div waiRole=\"presentation\" dojoAttachPoint=\"remainingBar\" class=\"dijitSliderBar dijitSliderBarH dijitSliderRemainingBar dijitSliderRemainingBarH\" dojoAttachEvent=\"onmousedown:_onBarClick\"></div\n\t\t\t></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><div class=\"dijitSliderBar dijitSliderBumper dijitSliderBumperH dijitSliderRightBumper dijitSliderRightBumper\" dojoAttachEvent=\"onmousedown:_onClkIncBumper\"></div\n\t\t></td\n\t\t><td class=\"dijitReset dijitSliderButtonContainer dijitSliderButtonContainerH\" style=\"right:0px;\"\n\t\t\t><div class=\"dijitSliderIncrementIconH\" tabIndex=\"-1\" style=\"display:none\" dojoAttachPoint=\"incrementButton\"><span class=\"dijitSliderButtonInner\">+</span></div\n\t\t></td\n\t></tr\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t\t><td dojoAttachPoint=\"containerNode,bottomDecoration\" class=\"dijitReset\" style=\"text-align:center;\"></td\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t></tr\n></table>\n"),
+	templateString: dojo.cache("dijit.form", "templates/HorizontalSlider.html", "<table class=\"dijit dijitReset dijitSlider\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" rules=\"none\" dojoAttachEvent=\"onkeypress:_onKeyPress,onkeyup:_onKeyUp\"\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t\t><td dojoAttachPoint=\"topDecoration\" class=\"dijitReset\" style=\"text-align:center;width:100%;\"></td\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t></tr\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset dijitSliderButtonContainer dijitSliderButtonContainerH\"\n\t\t\t><div class=\"dijitSliderDecrementIconH\" tabIndex=\"-1\" style=\"display:none\" dojoAttachPoint=\"decrementButton\"><span class=\"dijitSliderButtonInner\">-</span></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><div class=\"dijitSliderBar dijitSliderBumper dijitSliderBumperH dijitSliderLeftBumper dijitSliderLeftBumper\" dojoAttachEvent=\"onmousedown:_onClkDecBumper\"></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><input dojoAttachPoint=\"valueNode\" type=\"hidden\" ${nameAttrSetting}\n\t\t\t/><div class=\"dijitReset dijitSliderBarContainerH\" waiRole=\"presentation\" dojoAttachPoint=\"sliderBarContainer\"\n\t\t\t\t><div waiRole=\"presentation\" dojoAttachPoint=\"progressBar\" class=\"dijitSliderBar dijitSliderBarH dijitSliderProgressBar dijitSliderProgressBarH\" dojoAttachEvent=\"onmousedown:_onBarClick\"\n\t\t\t\t\t><div class=\"dijitSliderMoveable dijitSliderMoveableH\"\n\t\t\t\t\t\t><div dojoAttachPoint=\"sliderHandle,focusNode\" class=\"dijitSliderImageHandle dijitSliderImageHandleH\" dojoAttachEvent=\"onmousedown:_onHandleClick\" waiRole=\"slider\" valuemin=\"${minimum}\" valuemax=\"${maximum}\"></div\n\t\t\t\t\t></div\n\t\t\t\t></div\n\t\t\t\t><div waiRole=\"presentation\" dojoAttachPoint=\"remainingBar\" class=\"dijitSliderBar dijitSliderBarH dijitSliderRemainingBar dijitSliderRemainingBarH\" dojoAttachEvent=\"onmousedown:_onBarClick\"></div\n\t\t\t></div\n\t\t></td\n\t\t><td class=\"dijitReset\"\n\t\t\t><div class=\"dijitSliderBar dijitSliderBumper dijitSliderBumperH dijitSliderRightBumper dijitSliderRightBumper\" dojoAttachEvent=\"onmousedown:_onClkIncBumper\"></div\n\t\t></td\n\t\t><td class=\"dijitReset dijitSliderButtonContainer dijitSliderButtonContainerH\" style=\"right:0px;\"\n\t\t\t><div class=\"dijitSliderIncrementIconH\" tabIndex=\"-1\" style=\"display:none\" dojoAttachPoint=\"incrementButton\"><span class=\"dijitSliderButtonInner\">+</span></div\n\t\t></td\n\t></tr\n\t><tr class=\"dijitReset\"\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t\t><td dojoAttachPoint=\"containerNode,bottomDecoration\" class=\"dijitReset\" style=\"text-align:center;\"></td\n\t\t><td class=\"dijitReset\" colspan=\"2\"></td\n\t></tr\n></table>\n"),
 
 	// Overrides FormValueWidget.value to indicate numeric value
 	value: 0,
@@ -22201,26 +22109,31 @@ dojo.declare(
 // into the base widget class.  (This is a hack, but it's effective.)
 dojo.extend(dijit._Widget, {
 	// selected: Boolean
-	//		Is this child currently selected?
-	//		Can be specified at initialization time, but then to change selected child use `dijit.layout.StackContainer.selectChild`
+	//		Parameter for children of `dijit.layout.StackContainer` or subclasses.
+	//		Specifies that this widget should be the initially displayed pane.
+	//		Note: to change the selected child use `dijit.layout.StackContainer.selectChild`
 	selected: false,
 
 	// closable: Boolean
+	//		Parameter for children of `dijit.layout.StackContainer` or subclasses.
 	//		True if user can close (destroy) this child, such as (for example) clicking the X on the tab.
 	closable: false,
 
 	// iconClass: String
-	//		CSS Class specifying icon to use in tab label etc. associated with this pane.
+	//		Parameter for children of `dijit.layout.StackContainer` or subclasses.
+	//		CSS Class specifying icon to use in label associated with this pane.
 	iconClass: "",
 
 	// showTitle: Boolean
-	//		Display title of pane as label in TabContainer/AccordionContainer, rather than just using
+	//		Parameter for children of `dijit.layout.StackContainer` or subclasses.
+	//		When true, display title of this widget as tab label etc., rather than just using
 	//		icon specified in iconClass
 	showTitle: true,
 
 	onClose: function(){
 		// summary:
-		//		Callback if someone tries to close the child, child will be closed if func returns true
+		//		Parameter for children of `dijit.layout.StackContainer` or subclasses.
+		//		Callback if a user tries to close the child.   Child will be closed if this function returns true.
 		// tags:
 		//		extension
 
@@ -22702,13 +22615,10 @@ dojo.declare(
 			// insert dummy div just for spacing
 			if((child.splitter || this.gutters) && !this._splitters[region]){
 				var _Splitter = dojo.getObject(child.splitter ? this._splitterClass : "dijit.layout._Gutter");
-				var flip = {left:'right', right:'left', top:'bottom', bottom:'top', leading:'trailing', trailing:'leading'};
 				var splitter = new _Splitter({
 					container: this,
 					child: child,
 					region: region,
-//					oppNode: dojo.query('[region=' + flip[child.region] + ']', this.domNode)[0],
-					oppNode: this["_" + flip[child.region]],
 					live: this.liveSplitters
 				});
 				splitter.isSplitter = true;
@@ -22737,7 +22647,7 @@ dojo.declare(
 		// Override _LayoutWidget.addChild().
 		this.inherited(arguments);
 		if(this._started){
-			this._layoutChildren(); //OPT
+			this.layout(); //OPT
 		}
 	},
 
@@ -22994,21 +22904,25 @@ dojo.declare(
 // into the base widget class.  (This is a hack, but it's effective.)
 dojo.extend(dijit._Widget, {
 	// region: [const] String
-	//		"top", "bottom", "leading", "trailing", "left", "right", "center".
-	//		See the BorderContainer description for details on this parameter.
+	//		Parameter for children of `dijit.layout.BorderContainer`.
+	//		Values: "top", "bottom", "leading", "trailing", "left", "right", "center".
+	//		See the `dijit.layout.BorderContainer` description for details.
 	region: '',
 
 	// splitter: [const] Boolean
-	//		If true, puts a draggable splitter on this widget to resize when used
-	//		inside a border container edge region.
+	//		Parameter for child of `dijit.layout.BorderContainer` where region != "center".
+	//		If true, enables user to resize the widget by putting a draggable splitter between
+	//		this widget and the region=center widget.
 	splitter: false,
 
 	// minSize: [const] Number
-	//		Specifies a minimum size (in pixels) for this widget when resized by a splitter
+	//		Parameter for children of `dijit.layout.BorderContainer`.
+	//		Specifies a minimum size (in pixels) for this widget when resized by a splitter.
 	minSize: 0,
 
 	// maxSize: [const] Number
-	//		Specifies a maximum size (in pixels) for this widget when resized by a splitter
+	//		Parameter for children of `dijit.layout.BorderContainer`.
+	//		Specifies a maximum size (in pixels) for this widget when resized by a splitter.
 	maxSize: Infinity
 });
 
@@ -23054,11 +22968,6 @@ dojo.declare("dijit.layout._Splitter", [ dijit._Widget, dijit._Templated ],
 //		dojo.setSelectable(this.domNode, false); //TODO is this necessary?
 
 		this._factor = /top|left/.test(this.region) ? 1 : -1;
-		this._minSize = this.child.minSize;
-
-		// trigger constraints calculations
-		this.child.domNode._recalc = true;
-		this.connect(this.container, "resize", function(){ this.child.domNode._recalc = true; });
 
 		this._cookieName = this.container.id + "_" + this.region;
 		if(this.container.persist){
@@ -23071,20 +22980,27 @@ dojo.declare("dijit.layout._Splitter", [ dijit._Widget, dijit._Templated ],
 	},
 
 	_computeMaxSize: function(){
+		// summary:
+		//		Compute the maximum size that my corresponding pane can be set to
+
 		var dim = this.horizontal ? 'h' : 'w',
 			thickness = this.container._splitterThickness[this.region];
+			
+		// Get DOMNode of opposite pane, if an opposite pane exists.
+		// Ex: if I am the _Splitter for the left pane, then get the right pane.
+		var flip = {left:'right', right:'left', top:'bottom', bottom:'top', leading:'trailing', trailing:'leading'},
+			oppNode = this.container["_" + flip[this.region]];
+		
+		// I can expand up to the edge of the opposite pane, or if there's no opposite pane, then to
+		// edge of BorderContainer
 		var available = dojo.contentBox(this.container.domNode)[dim] -
-			(this.oppNode ? dojo.marginBox(this.oppNode)[dim] : 0) -
-			20 - thickness * 2;
-		this._maxSize = Math.min(this.child.maxSize, available);
+				(oppNode ? dojo.marginBox(oppNode)[dim] : 0) -
+				20 - thickness * 2;
+
+		return Math.min(this.child.maxSize, available);
 	},
 
 	_startDrag: function(e){
-		if(this.child.domNode._recalc){
-			this._computeMaxSize();
-			this.child.domNode._recalc = false;
-		}
-
 		if(!this.cover){
 			this.cover = dojo.doc.createElement('div');
 			dojo.addClass(this.cover, "dijitSplitterCover");
@@ -23109,8 +23025,8 @@ dojo.declare("dijit.layout._Splitter", [ dijit._Widget, dijit._Templated ],
 
 		//Performance: load data info local vars for onmousevent function closure
 		var factor = this._factor,
-			max = this._maxSize,
-			min = this._minSize || 20,
+			max = this._computeMaxSize(),
+			min = this.child.minSize || 20,
 			isHorizontal = this.horizontal,
 			axis = isHorizontal ? "pageY" : "pageX",
 			pageStart = e[axis],
@@ -23165,7 +23081,6 @@ dojo.declare("dijit.layout._Splitter", [ dijit._Widget, dijit._Templated ],
 			this._drag(e, true);
 		}finally{
 			this._cleanupHandlers();
-			if(this.oppNode){ this.oppNode._recalc = true; }
 			delete this._drag;
 		}
 
@@ -23180,11 +23095,6 @@ dojo.declare("dijit.layout._Splitter", [ dijit._Widget, dijit._Templated ],
 	},
 
 	_onKeyPress: function(/*Event*/ e){
-		if(this.child.domNode._recalc){
-			this._computeMaxSize();
-			this.child.domNode._recalc = false;
-		}
-
 		// should we apply typematic to this?
 		this._resize = true;
 		var horizontal = this.horizontal;
@@ -23202,9 +23112,8 @@ dojo.declare("dijit.layout._Splitter", [ dijit._Widget, dijit._Templated ],
 		}
 		var childSize = dojo.marginBox(this.child.domNode)[ horizontal ? 'h' : 'w' ] + this._factor * tick;
 		var mb = {};
-		mb[ this.horizontal ? "h" : "w"] = Math.max(Math.min(childSize, this._maxSize), this._minSize);
+		mb[ this.horizontal ? "h" : "w"] = Math.max(Math.min(childSize, this._computeMaxSize()), this.child.minSize);
 		dojo.marginBox(this.child.domNode, mb);
-		if(this.oppNode){ this.oppNode._recalc = true; }
 		this.container._layoutChildren(this.region);
 		dojo.stopEvent(e);
 	},
@@ -23931,12 +23840,14 @@ dojo.declare("dijit.layout.SplitContainer",
 // Since any widget can be specified as a SplitContainer child, mix them
 // into the base widget class.  (This is a hack, but it's effective.)
 dojo.extend(dijit._Widget, {
-	// sizeMin: Integer
+	// sizeMin: [deprecated] Integer
+	//		Deprecated.  Parameter for children of `dijit.layout.SplitContainer`.
 	//		Minimum size (width or height) of a child of a SplitContainer.
 	//		The value is relative to other children's sizeShare properties.
 	sizeMin: 10,
 
-	// sizeShare: Integer
+	// sizeShare: [deprecated] Integer
+	//		Deprecated.  Parameter for children of `dijit.layout.SplitContainer`.
 	//		Size (width or height) of a child of a SplitContainer.
 	//		The value is relative to other children's sizeShare properties.
 	//		For example, if there are two children and each has sizeShare=10, then
@@ -24195,8 +24106,11 @@ dojo.declare("dijit.layout._TabButton",
 			var _nlsResources = dojo.i18n.getLocalization("dijit", "common");
 			if(this.closeNode){
 				dojo.attr(this.closeNode,"title", _nlsResources.itemClose);
-				// IE needs title set directly on image
-				dojo.attr(this.closeIcon,"title", _nlsResources.itemClose);
+				if (dojo.isIE<8){
+					// IE<8 needs title set directly on image.  Only set for IE since alt=""
+					// for this node and WCAG 2.0 does not allow title when alt=""
+					dojo.attr(this.closeIcon, "title", _nlsResources.itemClose);
+				}
 			}
 			// add context menu onto title button
 			var _nlsResources = dojo.i18n.getLocalization("dijit", "common");
@@ -24356,14 +24270,20 @@ dojo.declare("dijit.layout.ScrollingTabController",
 	},
 
 	onRemoveChild: function(page, insertIndex){
-		this.inherited(arguments);
-		
+		// null out _selectedTab because we are about to delete that dom node
+		var button = this.pane2button[page.id];
+		if(this._selectedTab === button.domNode){
+			this._selectedTab = null;
+		}
+
 		// delete menu entry corresponding to pane that was removed from TabContainer
 		if(this.useMenu && page && page.id && this._menuChildren[page.id]){
 			this._menu.removeChild(this._menuChildren[page.id]);
 			this._menuChildren[page.id].destroy();
 			delete this._menuChildren[page.id];
 		}
+
+		this.inherited(arguments);
 	},
 
 	_initButtons: function(){

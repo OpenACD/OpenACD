@@ -42,14 +42,36 @@ _5=_e.dyn.color=new dojo.Color(t.next("color"));
 _6=_e.stroke?_e.stroke:dc.augmentStroke(t.series.stroke,_5);
 _7=_e.fill?_e.fill:dc.augmentFill(t.series.fill,_5);
 for(var j=0;j<_e.data.length;++j){
-var v=_e.data[j],vv=vt(v),_10=vv-_c,h=Math.abs(_10);
+var _10=_e.data[j],v=typeof _10=="number"?_10:_10.y,vv=vt(v),_11=vv-_c,h=Math.abs(_11),_12=_5,_13=_7,_14=_6;
+if(typeof _10!="number"){
+if(_10.color){
+_12=new dojo.Color(_10.color);
+}
+if("fill" in _10){
+_13=_10.fill;
+}else{
+if(_10.color){
+_13=dc.augmentFill(t.series.fill,_12);
+}
+}
+if("stroke" in _10){
+_14=_10.stroke;
+}else{
+if(_10.color){
+_14=dc.augmentStroke(t.series.stroke,_12);
+}
+}
+}
 if(_9>=1&&h>=1){
-var _11=s.createRect({x:_3.l+ht(j+0.5)+_8+_f,y:_2.height-_3.b-(v>_b?vv:_c),width:_9,height:h}).setFill(_7).setStroke(_6);
-_e.dyn.fill=_11.getFill();
-_e.dyn.stroke=_11.getStroke();
+var _15=s.createRect({x:_3.l+ht(j+0.5)+_8+_f,y:_2.height-_3.b-(v>_b?vv:_c),width:_9,height:h}).setFill(_13).setStroke(_14);
+_e.dyn.fill=_15.getFill();
+_e.dyn.stroke=_15.getStroke();
 if(_d){
-var o={element:"column",index:j,run:_e,plot:this,hAxis:this.hAxis||null,vAxis:this.vAxis||null,shape:_11,x:j+0.5,y:v};
-this._connectEvents(_11,o);
+var o={element:"column",index:j,run:_e,plot:this,hAxis:this.hAxis||null,vAxis:this.vAxis||null,shape:_15,x:j+0.5,y:v};
+this._connectEvents(_15,o);
+}
+if(this.animate){
+this._animateColumn(_15,_2.height-_3.b-_c,h);
 }
 }
 }

@@ -1,1 +1,1 @@
-({"set":"设置","text":"说明：","insertImageTitle":"图像属性","url":"URL：","createLinkTitle":"链接属性","cancel":"Cancel","newWindow":"New Window ( _blank )","topWindow":"Topmost Window ( _top )","target":"Target:","parentWindow":"Parent Window ( _parent )","currentWindow":"Current Window ( _self )"})
+({"set":"设置","text":"说明：","insertImageTitle":"图像属性","url":"URL：","createLinkTitle":"链接属性","newWindow":"New Window","topWindow":"Topmost Window","target":"Target:","parentWindow":"Parent Window","currentWindow":"Current Window"})

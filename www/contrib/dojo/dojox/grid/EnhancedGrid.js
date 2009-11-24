@@ -31,6 +31,17 @@ this.inherited(arguments);
 if(this.doubleAffordance){
 dojo.addClass(this.domNode,"dojoxGridDoubleAffordance");
 }
+},textSizeChanged:function(){
+if(!dojo.isWebKit){
+this.inherited(arguments);
+}else{
+if(this.textSizeChanging){
+return;
+}
+this.textSizeChanging=true;
+this.inherited(arguments);
+this.textSizeChanging=false;
+}
 },removeSelectedRows:function(){
 if(this.indirectSelection&&this._canEdit){
 var _1=dojo.clone(this.selection.selected);

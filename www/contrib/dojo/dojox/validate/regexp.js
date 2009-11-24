@@ -83,7 +83,7 @@ _a.allowNamed=false;
 var _b="(?:[\\da-zA-Z](?:[-\\da-zA-Z]{0,61}[\\da-zA-Z])?)";
 var _c="(?:[a-zA-Z](?:[-\\da-zA-Z]{0,6}[\\da-zA-Z])?)";
 var _d=_a.allowPort?"(\\:\\d+)?":"";
-var _e="((?:"+_b+"\\.)*"+_c+"\\.?)";
+var _e="((?:"+_b+"\\.)+"+_c+"\\.?)";
 if(_a.allowIP){
 _e+="|"+dojox.validate.regexp.ipAddress(_a);
 }
@@ -113,7 +113,7 @@ if(typeof _12.allowCruft!="boolean"){
 _12.allowCruft=false;
 }
 _12.allowPort=false;
-var _13="([\\da-zA-Z]+[-._+&'])*[\\da-zA-Z]+";
+var _13="([!#-'*+\\-\\/-9=?A-Z^-~]+[.])*[!#-'*+\\-\\/-9=?A-Z^-~]+";
 var _14=_13+"@"+dojox.validate.regexp.host(_12);
 if(_12.allowCruft){
 _14="<?(mailto\\:)?"+_14+">?";

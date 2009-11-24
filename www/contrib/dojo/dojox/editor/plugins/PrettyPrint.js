@@ -36,9 +36,6 @@ if(_6!=_3.editor.savedContent){
 _3.editor.onChange(_6);
 _3.editor.savedContent=_6;
 }
-if(dojo.isMoz&&_3.editor.iframe){
-_3.editor.iframe.title=_3.editor._localizedIframeTitles.iframeEditTitle;
-}
 };
 });
 }});

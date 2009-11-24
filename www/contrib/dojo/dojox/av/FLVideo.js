@@ -27,8 +27,7 @@ this._sub("mediaStart","onStart");
 this._sub("mediaEnd","onEnd");
 this._flashObject=new dojox.embed.Flash(_1,this.domNode);
 this._flashObject.onError=function(_2){
-console.warn("Flash Error:",_2);
-alert(_2);
+console.error("Flash Error:",_2);
 };
 this._flashObject.onLoad=dojo.hitch(this,function(_3){
 this.flashMedia=_3;
@@ -38,6 +37,7 @@ this.onLoad(this.flashMedia);
 this._initStatus();
 this._update();
 });
+this.inherited(arguments);
 },play:function(_4){
 this.isPlaying=true;
 this.isStopped=false;

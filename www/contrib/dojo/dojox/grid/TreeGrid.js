@@ -138,7 +138,7 @@ if(s.length==1&&s[0].cells.length==1){
 if(g&&g.treeModel){
 s[0].type="dojox.grid._TreeView";
 this._isCollapsable=true;
-s[0].cells[0][0].isCollapsable=true;
+s[0].cells[0][(this.grid.treeModel?this.grid.expandoCell:0)].isCollapsable=true;
 }else{
 var _2d=dojo.filter(s[0].cells[0],function(c){
 return ("children" in c);
@@ -180,7 +180,7 @@ this.level=this._arr.length-1;
 this.grid=_32;
 this.store=this.grid.store;
 if(_32.treeModel){
-this.cell=_32.layout.cells[0];
+this.cell=_32.layout.cells[_32.expandoCell];
 }else{
 this.cell=_32.layout.cells[this.level];
 }
@@ -417,7 +417,7 @@ this.grid.updateRow(r);
 }
 this.setFocusIndex(_55._str,col);
 }});
-dojo.declare("dojox.grid.TreeGrid",dojox.grid.DataGrid,{defaultOpen:true,sortChildItems:false,openAtLevels:[],treeModel:null,aggregator:null,_layoutClass:dojox.grid._TreeLayout,createSelection:function(){
+dojo.declare("dojox.grid.TreeGrid",dojox.grid.DataGrid,{defaultOpen:true,sortChildItems:false,openAtLevels:[],treeModel:null,expandoCell:0,aggregator:null,_layoutClass:dojox.grid._TreeLayout,createSelection:function(){
 this.selection=new dojox.grid.TreeSelection(this);
 },_childItemSorter:function(a,b,_58,_59){
 var av=this.store.getValue(a,_58);

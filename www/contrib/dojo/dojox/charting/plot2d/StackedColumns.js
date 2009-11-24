@@ -29,7 +29,7 @@ var _6=df.repeat(this._maxRunLength,"-> 0",0);
 for(var i=0;i<this.series.length;++i){
 var _7=this.series[i];
 for(var j=0;j<_7.data.length;++j){
-var v=_7.data[j];
+var _8=_7.data[j],v=typeof _8=="number"?_8:_8.y;
 if(isNaN(v)){
 v=0;
 }
@@ -41,14 +41,14 @@ if(this.dirty){
 dojo.forEach(this.series,_1);
 this.cleanGroup();
 var s=this.group;
-df.forEachRev(this.series,function(_8){
-_8.cleanGroup(s);
+df.forEachRev(this.series,function(_9){
+_9.cleanGroup(s);
 });
 }
-var t=this.chart.theme,_9,_a,_b,f,_c,_d,ht=this._hScaler.scaler.getTransformerFromModel(this._hScaler),vt=this._vScaler.scaler.getTransformerFromModel(this._vScaler),_e=this.events();
+var t=this.chart.theme,_a,_b,_c,f,_d,_e,ht=this._hScaler.scaler.getTransformerFromModel(this._hScaler),vt=this._vScaler.scaler.getTransformerFromModel(this._vScaler),_f=this.events();
 f=dc.calculateBarSize(this._hScaler.bounds.scale,this.opt);
-_c=f.gap;
-_d=f.size;
+_d=f.gap;
+_e=f.size;
 this.resetEvents();
 for(var i=this.series.length-1;i>=0;--i){
 var _7=this.series[i];
@@ -58,25 +58,47 @@ continue;
 _7.cleanGroup();
 var s=_7.group;
 if(!_7.fill||!_7.stroke){
-_9=_7.dyn.color=new dojo.Color(t.next("color"));
+_a=_7.dyn.color=new dojo.Color(t.next("color"));
 }
-_a=_7.stroke?_7.stroke:dc.augmentStroke(t.series.stroke,_9);
-_b=_7.fill?_7.fill:dc.augmentFill(t.series.fill,_9);
+_b=_7.stroke?_7.stroke:dc.augmentStroke(t.series.stroke,_a);
+_c=_7.fill?_7.fill:dc.augmentFill(t.series.fill,_a);
 for(var j=0;j<_6.length;++j){
-var v=_6[j],_f=vt(v);
-if(_d>=1&&_f>=1){
-var _10=s.createRect({x:_5.l+ht(j+0.5)+_c,y:_4.height-_5.b-vt(v),width:_d,height:_f}).setFill(_b).setStroke(_a);
-_7.dyn.fill=_10.getFill();
-_7.dyn.stroke=_10.getStroke();
-if(_e){
-var o={element:"column",index:j,run:_7,plot:this,hAxis:this.hAxis||null,vAxis:this.vAxis||null,shape:_10,x:j+0.5,y:v};
-this._connectEvents(_10,o);
+var v=_6[j],_10=vt(v),_8=_7.data[j],_11=_a,_12=_c,_13=_b;
+if(typeof _8!="number"){
+if(_8.color){
+_11=new dojo.Color(_8.color);
+}
+if("fill" in _8){
+_12=_8.fill;
+}else{
+if(_8.color){
+_12=dc.augmentFill(t.series.fill,_11);
+}
+}
+if("stroke" in _8){
+_13=_8.stroke;
+}else{
+if(_8.color){
+_13=dc.augmentStroke(t.series.stroke,_11);
+}
+}
+}
+if(_e>=1&&_10>=1){
+var _14=s.createRect({x:_5.l+ht(j+0.5)+_d,y:_4.height-_5.b-vt(v),width:_e,height:_10}).setFill(_12).setStroke(_13);
+_7.dyn.fill=_14.getFill();
+_7.dyn.stroke=_14.getStroke();
+if(_f){
+var o={element:"column",index:j,run:_7,plot:this,hAxis:this.hAxis||null,vAxis:this.vAxis||null,shape:_14,x:j+0.5,y:v};
+this._connectEvents(_14,o);
+}
+if(this.animate){
+this._animateColumn(_14,_4.height-_5.b,_10);
 }
 }
 }
 _7.dirty=false;
 for(var j=0;j<_7.data.length;++j){
-var v=_7.data[j];
+var _8=_7.data[j],v=typeof _8=="number"?_8:_8.y;
 if(isNaN(v)){
 v=0;
 }

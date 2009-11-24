@@ -16,8 +16,8 @@ dojo.require("dojox.lang.functional.fold");
 (function(){
 var _1=function(o){
 var t=o.run&&o.run.data&&o.run.data[o.index];
-if(t&&typeof t=="object"&&t.tooltip){
-return t.tooltip;
+if(t&&typeof t!="number"&&(t.tooltip||t.text)){
+return t.tooltip||t.text;
 }
 if(o.element=="candlestick"){
 return "<table cellpadding=\"1\" cellspacing=\"0\" border=\"0\" style=\"font-size:0.9em;\">"+"<tr><td>Open:</td><td align=\"right\"><strong>"+o.data.open+"</strong></td></tr>"+"<tr><td>High:</td><td align=\"right\"><strong>"+o.data.high+"</strong></td></tr>"+"<tr><td>Low:</td><td align=\"right\"><strong>"+o.data.low+"</strong></td></tr>"+"<tr><td>Close:</td><td align=\"right\"><strong>"+o.data.close+"</strong></td></tr>"+(o.data.mid!==undefined?"<tr><td>Mid:</td><td align=\"right\"><strong>"+o.data.mid+"</strong></td></tr>":"")+"</table>";

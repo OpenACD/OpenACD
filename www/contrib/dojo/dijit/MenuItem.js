@@ -36,6 +36,9 @@ dojo.stopEvent(_3);
 },onClick:function(_4){
 },focus:function(){
 try{
+if(dojo.isIE==8){
+this.containerNode.focus();
+}
 dijit.focus(this.focusNode);
 }
 catch(e){

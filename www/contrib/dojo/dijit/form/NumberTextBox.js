@@ -79,7 +79,7 @@ this.inherited(arguments,[_9,_a,_b]);
 },_getValueAttr:function(){
 var v=this.inherited(arguments);
 if(isNaN(v)&&this.textbox.value!==""){
-if(this.constraints.exponent!==false&&/\de[-+]?|\d/i.test(this.textbox.value)&&(new RegExp("^"+dojo.number._realNumberRegexp(this.constraints)+"$").test(this.textbox.value))){
+if(this.constraints.exponent!==false&&/\de[-+]?|\d/i.test(this.textbox.value)&&(new RegExp("^"+dojo.number._realNumberRegexp(dojo.mixin({},this.constraints))+"$").test(this.textbox.value))){
 var n=Number(this.textbox.value);
 return isNaN(n)?undefined:n;
 }else{

@@ -518,7 +518,7 @@ this.firstScroll++;
 }
 this.headerNode.scrollLeft=this.scrollboxNode.scrollLeft;
 var top=this.scrollboxNode.scrollTop;
-if(top!=this.lastTop){
+if(top!==this.lastTop){
 this.grid.scrollTo(top);
 }
 },setScrollTop:function(_56){

@@ -46,7 +46,7 @@ console.clear();
 catch(e){
 }
 }
-if(!dojo.isFF&&(!dojo.isChrome||dojo.isChrome<3)&&(!dojo.isSafari||dojo.isSafari<4)&&!_8&&!window.firebug&&!dojo.config.useCustomLogger&&!dojo.isAIR){
+if(!dojo.isFF&&(!dojo.isChrome||dojo.isChrome<3)&&(!dojo.isSafari||dojo.isSafari<4)&&!_8&&!window.firebug&&(typeof console!="undefined"&&!console.firebug)&&!dojo.config.useCustomLogger&&!dojo.isAIR){
 try{
 if(window!=window.parent){
 if(window.parent["console"]){

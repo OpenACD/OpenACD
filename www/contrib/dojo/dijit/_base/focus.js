@@ -150,7 +150,7 @@ dijit._justMouseDowned=false;
 },0);
 dijit._onTouchNode(_13||evt.target||evt.srcElement);
 };
-var doc=_12.document;
+var doc=dojo.isIE?_12.document.documentElement:_12.document;
 if(doc){
 if(dojo.isIE){
 doc.attachEvent("onmousedown",_14);

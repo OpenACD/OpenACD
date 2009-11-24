@@ -47,7 +47,7 @@ if(_7.sort&&_a){
 _6.sort(this.makeComparator(_7.sort.concat()));
 }
 _6._fullLength=_6.length;
-if(_7.count&&_a){
+if(_7.count&&_a&&_7.count!==Infinity){
 _6.splice(_7.count,_6.length);
 }
 _7._version=this._updates.length;
@@ -118,7 +118,7 @@ _e._version=typeof _e._version=="number"?_e._version:_17;
 _f.updateResultSet(_18,_e);
 _e.cacheResults=_18;
 if(!_e.count||_18.length<_e.count){
-_12.fullLength=_18.length;
+_12.fullLength=((_e.start)?_e.start:0)+_18.length;
 }
 }
 return _18;

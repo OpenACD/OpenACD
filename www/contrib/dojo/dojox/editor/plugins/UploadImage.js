@@ -36,6 +36,7 @@ _7=this.downloadPath+_3.name;
 _7=_3.file;
 }
 _6.src=_7;
+dojo.attr(_6,"_djrealurl",_7);
 if(_3.width){
 _6.width=_3.width;
 _6.height=_3.height;

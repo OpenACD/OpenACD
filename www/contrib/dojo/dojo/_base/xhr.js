@@ -369,7 +369,7 @@ _45.query=null;
 dojo.xhr=function(_46,_47,_48){
 var dfd=_1._ioSetArgs(_47,_32,_34,_35);
 var _49=dfd.ioArgs;
-var xhr=dfd.ioArgs.xhr=_1._xhrObj(dfd.ioArgs.args);
+var xhr=_49.xhr=_1._xhrObj(_49.args);
 if(!xhr){
 dfd.cancel();
 return dfd;
@@ -384,7 +384,7 @@ if("rawBody" in _47){
 _49.query=_47.rawBody;
 }else{
 if((arguments.length>2&&!_48)||"POST|PUT".indexOf(_46.toUpperCase())==-1){
-_1._ioAddQueryToUrl(dfd.ioArgs);
+_1._ioAddQueryToUrl(_49);
 }
 }
 }
@@ -413,7 +413,7 @@ try{
 xhr.send(_49.query);
 }
 catch(e){
-dfd.ioArgs.error=e;
+_49.error=e;
 dfd.cancel();
 }
 }

@@ -169,7 +169,16 @@ djConfig = {
 	// transparentColor: Array
 	//		Array containing the r, g, b components used as transparent color in dojo.Color;
 	//		if undefined, [255,255,255] (white) will be used.
-	transparentColor: undefined
+	transparentColor: undefined,
+	// skipIeDomLoaded: Boolean
+	//		For IE only, skip the DOMContentLoaded hack used. Sometimes it can cause an Operation
+	//		Aborted error if the rest of the page triggers script defers before the DOM is ready.
+	//		If this is config value is set to true, then dojo.addOnLoad callbacks will not be
+	//		triggered until the page load event, which is after images and iframes load. If you
+	//		want to trigger the callbacks sooner, you can put a script block in the bottom of
+	//		your HTML that calls dojo._loadInit();. If you are using multiversion support, change
+	//		"dojo." to the appropriate scope name for dojo.
+	skipIeDomLoaded: false
 }
 =====*/
 
@@ -262,7 +271,7 @@ dojo.global = {
 =====*/
 	dojo.locale = d.config.locale;
 
-	var rev = "$Rev: 20680 $".match(/\d+/);
+	var rev = "$Rev: 20904 $".match(/\d+/);
 
 /*=====
 	dojo.version = function(){
@@ -286,7 +295,7 @@ dojo.global = {
 	}
 =====*/
 	dojo.version = {
-		major: 1, minor: 4, patch: 0, flag: "b2",
+		major: 1, minor: 4, patch: 0, flag: "rc1",
 		revision: rev ? +rev[0] : NaN,
 		toString: function(){
 			with(d.version){
@@ -1737,7 +1746,7 @@ if(typeof window != 'undefined'){
 		// 	because we don't know if there are other functions added that
 		// 	might.  Note that this has changed because the build process
 		// 	strips all comments -- including conditional ones.
-		if(!dojo.config.afterOnLoad){
+		if(!dojo.config.afterOnLoad && !dojo.config.skipIeDomLoaded){
 			document.write('<scr'+'ipt defer src="//:" '
 				+ 'onreadystatechange="if(this.readyState==\'complete\'){' + dojo._scopeName + '._loadInit();}">'
 				+ '</scr'+'ipt>'
@@ -1746,7 +1755,15 @@ if(typeof window != 'undefined'){
 
 		try{
 			document.namespaces.add("v","urn:schemas-microsoft-com:vml");
-			document.createStyleSheet().addRule("v\\:*", "behavior:url(#default#VML);  display:inline-block");
+			var vmlElems = ["*", "group", "roundrect", "oval", "shape", "rect", "imagedata"],
+				i = 0, l = 1, s = document.createStyleSheet();
+			if(dojo.isIE >= 8){
+				i = 1;
+				l = vmlElems.length;
+			}
+			for(; i < l; ++i){
+				s.addRule("v\\:" + vmlElems[i], "behavior:url(#default#VML);  display:inline-block");
+			}
 		}catch(e){}
 	}
 		//END DOMContentLoaded
@@ -2154,7 +2171,7 @@ dojo.provide("dojo._base.lang");
 		//	|	        case "avg":   return sum(this.payments) / this.payments.length;
 		//	|	      }
 		//	|	    }
-		//	|	  ),
+		//	|	  )
 		//	|	);
 		//	|	// prints: 3 payments averaging 13 USD per payment.
 		//	example:
@@ -2439,8 +2456,8 @@ dojo.provide("dojo._base.declare");
 
 
 (function(){
-	var d = dojo, op = Object.prototype, isF = d.isFunction, mix = d._mixin,
-		xtor = new Function, counter = 0;
+	var d = dojo, mix = d._mixin, op = Object.prototype, opts = op.toString,
+		xtor = new Function, counter = 0, cname = "constructor";
 
 	function err(msg){ throw new Error("declare: " + msg); }
 
@@ -2518,96 +2535,119 @@ dojo.provide("dojo._base.declare");
 		return result;
 	}
 
-	// find the next "inherited" method using available meta-information
-	function findInherited(self, caller, name){
-		var meta = self.constructor._meta, bases = meta.bases,
-			l = bases.length, i, f, opf, cache, currentBase, proto;
-
-		name = name || caller.nom;
-		if(!name){
-			err("can't deduce a name to call inherited()");
-		}
-
-		// error detection
-		if(name == "constructor" ? meta.chains.constructor !== "manual" :
-				meta.chains.hasOwnProperty(name)){
-			err("calling chained method as inherited: " + name);
-		}
-
-		// find our caller using simple cache and the list of base classes
-		cache = self._inherited;
-		currentBase = bases[cache.pos];
-		meta = currentBase && currentBase._meta;
-		proto = currentBase && currentBase.prototype;
-		if(!currentBase || cache.name != name ||
-				!(meta ?
-					(meta.hidden[name] === caller ||
-						proto.hasOwnProperty(name) && proto[name] === caller) :
-					(proto[name] === caller))){
-			// cache bust
-			for(i = 0; i < l; ++i){
-				currentBase = bases[i];
-				meta = currentBase._meta;
-				proto = currentBase.prototype;
-				if(meta ?
-						(meta.hidden[name] === caller ||
-							proto.hasOwnProperty(name) &&
-							proto[name] === caller) :
-						(proto[name] === caller)){
-					break;
-				}
-			}
-			cache.name = name;
-			cache.pos = i < l ? i : -1;
-		}
-		i = cache.pos;
-
-		// find next
-		opf = op[name];
-		while(++i < l){
-			currentBase = bases[i];
-			proto = currentBase.prototype;
-			if(currentBase._meta){
-				if(proto.hasOwnProperty(name)){
-					f = proto[name];
-					break;
-				}
-			}else{
-				f = proto[name];
-				if(f && f !== opf){
-					break;
-				}
-			}
-		}
-		cache.pos = i;
-
-		// return found method, or the underlying Object method
-		return i < l && f || name != "constructor" && opf;
-	}
-
-	// implementation of getInherited()
-	function getInherited(args, a){
-		var name;
-		// crack arguments
-		if(typeof args == "string"){
-			name = args;
-			args = a;
-		}
-		return findInherited(this, args.callee, name);
-	}
-
-	// implementation of inherited()
 	function inherited(args, a, f){
-		var name;
+		var name, chains, bases, caller, meta, base, proto, opf, pos,
+			cache = this._inherited = this._inherited || {};
+
 		// crack arguments
 		if(typeof args == "string"){
 			name = args;
 			args = a;
 			a = f;
 		}
-		f = findInherited(this, args.callee, name);
-		// do not call the inherited at the end of the chain
-		return f ? f.apply(this, a || args) : undefined;
+		f = 0;
+
+		caller = args.callee;
+		name = name || caller.nom;
+		if(!name){
+			err("can't deduce a name to call inherited()");
+		}
+
+		meta = this.constructor._meta;
+		bases = meta.bases;
+
+		pos = cache.p;
+		if(name != cname){
+			// method
+			if(cache.c !== caller){
+				// cache bust
+				pos = 0;
+				base = bases[0];
+				meta = base._meta;
+				if(meta.hidden[name] !== caller){
+					// error detection
+					chains = meta.chains;
+					if(chains && typeof chains[name] == "string"){
+						err("calling chained method with inherited: " + name);
+					}
+					// find caller
+					do{
+						meta = base._meta;
+						proto = base.prototype;
+						if(meta && (proto[name] === caller && proto.hasOwnProperty(name) || meta.hidden[name] === caller)){
+							break;
+						}
+					}while(base = bases[++pos]); // intentional assignment
+					pos = base ? pos : -1;
+				}
+			}
+			// find next
+			base = bases[++pos];
+			if(base){
+				proto = base.prototype;
+				if(base._meta && proto.hasOwnProperty(name)){
+					f = proto[name];
+				}else{
+					opf = op[name];
+					do{
+						proto = base.prototype;
+						f = proto[name];
+						if(f && (base._meta ? proto.hasOwnProperty(name) : f !== opf)){
+							break;
+						}
+					}while(base = bases[++pos]); // intentional assignment
+				}
+			}
+			f = base && f || op[name];
+		}else{
+			// constructor
+			if(cache.c !== caller){
+				// cache bust
+				pos = 0;
+				meta = bases[0]._meta;
+				if(meta && meta.ctor !== caller){
+					// error detection
+					chains = meta.chains;
+					if(!chains || chains.constructor !== "manual"){
+						err("calling chained constructor with inherited");
+					}
+					// find caller
+					while(base = bases[++pos]){ // intentional assignment
+						meta = base._meta;
+						if(meta && meta.ctor === caller){
+							break;
+						}
+					};
+					pos = base ? pos : -1;
+				}
+			}
+			// find next
+			while(base = bases[++pos]){	// intentional assignment
+				meta = base._meta;
+				f = meta ? meta.ctor : base;
+				if(f){
+					break;
+				}
+			}
+			f = base && f;
+		}
+
+		// cache the found super method
+		cache.c = f;
+		cache.p = pos;
+
+		// now we have the result
+		if(f){
+			return a === true ? f : f.apply(this, a || args);
+		}
+		// intentionally if a super method was not found
+	}
+
+	function getInherited(name, args){
+		if(typeof name == "string"){
+			return this.inherited(name, args, true);
+		}
+		return this.inherited(name, true);
 	}
 
 	// emulation of "instanceof"
@@ -2627,8 +2667,8 @@ dojo.provide("dojo._base.declare");
 		// add props adding metadata for incoming functions skipping a constructor
 		for(name in source){
 			t = source[name];
-			if((t !== op[name] || !(name in op)) && name != "constructor"){
-				if(isF(t)){
+			if((t !== op[name] || !(name in op)) && name != cname){
+				if(opts.call(t) == "[object Function]"){
 					// non-trivial function method => attach its name
 					t.nom = name;
 				}
@@ -2639,26 +2679,28 @@ dojo.provide("dojo._base.declare");
 		for(; i < l; ++i){
 			name = d._extraNames[i];
 			t = source[name];
-			if((t !== op[name] || !(name in op)) && name != "constructor"){
-				if(isF(t)){
+			if((t !== op[name] || !(name in op)) && name != cname){
+				if(opts.call(t) == "[object Function]"){
 					// non-trivial function method => attach its name
 					t.nom = name;
 				}
 				target[name] = t;
 			}
 		}
+		return target;
 	}
 
 	function extend(source){
 		safeMixin(this.prototype, source);
+		return this;
 	}
 
 	// chained constructor compatible with the legacy dojo.declare()
 	function chainedConstructor(bases, ctorSpecial){
 		return function(){
-			var a = arguments, args = a, a0 = a[0], f, i, m, h,
+			var a = arguments, args = a, a0 = a[0], f, i, m,
 				l = bases.length, preArgs;
-			this._inherited = {};
+			//this._inherited = {};
 			// perform the shaman's rituals of the original dojo.declare()
 			// 1) call two types of the preamble
 			if(ctorSpecial && (a0 && a0.preamble || this.preamble)){
@@ -2696,10 +2738,7 @@ dojo.provide("dojo._base.declare");
 			for(i = l - 1; i >= 0; --i){
 				f = bases[i];
 				m = f._meta;
-				if(m){
-					h = m.hidden;
-					f = h.hasOwnProperty("constructor") && h.constructor;
-				}
+				f = m ? m.ctor : f;
 				if(f){
 					f.apply(this, preArgs ? preArgs[i] : a);
 				}
@@ -2712,21 +2751,57 @@ dojo.provide("dojo._base.declare");
 		};
 	}
 
+
+	// chained constructor compatible with the legacy dojo.declare()
+	function singleConstructor(ctor, ctorSpecial){
+		return function(){
+			var a = arguments, t = a, a0 = a[0], f;
+			//this._inherited = {};
+			// perform the shaman's rituals of the original dojo.declare()
+			// 1) call two types of the preamble
+			if(ctorSpecial){
+				// full blown ritual
+				if(a0){
+					// process the preamble of the 1st argument
+					f = a0.preamble;
+					if(f){
+						t = f.apply(this, t) || t;
+					}
+				}
+				f = this.preamble;
+				if(f){
+					// process the preamble of this class
+					f.apply(this, t);
+					// one pecularity of the preamble:
+					// it is called even if it is not needed,
+					// e.g., there is no constructor to call
+					// let's watch for the last constructor
+					// (see ticket #9795)
+				}
+			}
+			// 2) call a constructor
+			if(ctor){
+				ctor.apply(this, a);
+			}
+			// 3) continue the original ritual: call the postscript
+			f = this.postscript;
+			if(f){
+				f.apply(this, a);
+			}
+		};
+	}
+
 	// plain vanilla constructor (can use inherited() to call its base constructor)
 	function simpleConstructor(bases){
 		return function(){
-			var a = arguments, f, i = 0, l = bases.length;
-			this._inherited = {};
+			var a = arguments, i = 0, f;
+			//this._inherited = {};
 			// perform the shaman's rituals of the original dojo.declare()
 			// 1) do not call the preamble
 			// 2) call the top constructor (it can use this.inherited())
-			for(; i < l; ++i){
-				f = bases[i];
+			for(; f = bases[i]; ++i){ // intentional assignment
 				m = f._meta;
-				if(m){
-					h = m.hidden;
-					f = h.hasOwnProperty("constructor") && h.constructor;
-				}
+				f = m ? m.ctor : f;
 				if(f){
 					f.apply(this, a);
 					break;
@@ -2742,21 +2817,14 @@ dojo.provide("dojo._base.declare");
 
 	function chain(name, bases, reversed){
 		return function(){
-			var b, m, h, f, i = 0, l = bases.length, step = 1;
+			var b, m, f, i = 0, step = 1;
 			if(reversed){
-				i = l - 1;
-				step = l = -1;
+				i = bases.length - 1;
+				step = -1;
 			}
-			for(; i != l; i += step){
-				f = 0;
-				b = bases[i];
+			for(; b = bases[i]; i += step){ // intentional assignment
 				m = b._meta;
-				if(m){
-					h = m.hidden;
-					f = h.hasOwnProperty(name) && h[name];
-				}else{
-					f = b.prototype[name];
-				}
+				f = (m ? m.hidden : b.prototype)[name];
 				if(f){
 					f.apply(this, arguments);
 				}
@@ -2765,7 +2833,7 @@ dojo.provide("dojo._base.declare");
 	}
 
 	d.declare = function(className, superclass, props){
-		var proto, i, t, ctor, name, bases, mixins = 1, chains = {};
+		var proto, i, t, ctor, name, bases, chains, mixins = 1, parents = superclass;
 
 		// crack parameters
 		if(typeof className != "string"){
@@ -2776,7 +2844,7 @@ dojo.provide("dojo._base.declare");
 		props = props || {};
 
 		// build a prototype
-		if(d.isArray(superclass)){
+		if(opts.call(superclass) == "[object Array]"){
 			// C3 MRO
 			bases = c3mro(superclass);
 			t = bases[0];
@@ -2790,10 +2858,6 @@ dojo.provide("dojo._base.declare");
 			}
 		}
 		if(superclass){
-			if(superclass._meta){
-				xtor.prototype = superclass._meta.chains;
-				chains = new xtor;
-			}
 			for(i = mixins - 1;; --i){
 				// delegation
 				xtor.prototype = superclass.prototype;
@@ -2804,12 +2868,7 @@ dojo.provide("dojo._base.declare");
 				}
 				// mix in properties
 				t = bases[i];
-				if(t._meta){
-					mix(chains, t._meta.chains);
-					mix(proto, t._meta.hidden);
-				}else{
-					mix(proto, t.prototype);
-				}
+				mix(proto, t._meta ? t._meta.hidden : t.prototype);
 				// chain in new constructor
 				ctor = new Function;
 				ctor.superclass = superclass;
@@ -2824,22 +2883,30 @@ dojo.provide("dojo._base.declare");
 		// add constructor
 		t = props.constructor;
 		if(t !== op.constructor){
-			t.nom = "constructor";
+			t.nom = cname;
 			proto.constructor = t;
 		}
 		xtor.prototype = 0;	// cleanup
 
 		// collect chains and flags
-		if(proto.hasOwnProperty("-chains-")){
-			mix(chains, proto["-chains-"]);
+		for(i = mixins - 1; i; --i){ // intentional assignment
+			t = bases[i]._meta;
+			if(t && t.chains){
+				chains = mix(chains || {}, t.chains);
+			}
+		}
+		if(proto["-chains-"]){
+			chains = mix(chains || {}, proto["-chains-"]);
 		}
 
 		// build ctor
-		bases[0] = ctor = chains.constructor === "manual" ? simpleConstructor(bases) :
-			chainedConstructor(bases, !chains.hasOwnProperty("constructor"));
+		t = !chains || !chains.hasOwnProperty(cname);
+		bases[0] = ctor = (chains && chains.constructor === "manual") ? simpleConstructor(bases) :
+			(bases.length == 1 ? singleConstructor(props.constructor, t) : chainedConstructor(bases, t));
 
 		// add meta information to the constructor
-		ctor._meta  = {bases: bases, hidden: props, chains: chains};
+		ctor._meta  = {bases: bases, hidden: props, chains: chains,
+			parents: parents, ctor: props.constructor};
 		ctor.superclass = superclass && superclass.prototype;
 		ctor.extend = extend;
 		ctor.prototype = proto;
@@ -2857,10 +2924,12 @@ dojo.provide("dojo._base.declare");
 		}
 
 		// build chains and add them to the prototype
-		for(name in chains){
-			if(proto[name] && typeof chains[name] == "string" && name != "constructor"){
-				t = proto[name] = chain(name, bases, chains[name] === "after");
-				t.nom = name;
+		if(chains){
+			for(name in chains){
+				if(proto[name] && typeof chains[name] == "string" && name != cname){
+					t = proto[name] = chain(name, bases, chains[name] === "after");
+					t.nom = name;
+				}
 			}
 		}
 		// chained methods do not return values
@@ -3164,11 +3233,14 @@ dojo.provide("dojo._base.declare");
 		//	args: Arguments
 		//		The caller supply this argument, which should be the original
 		//		"arguments".
-		//	newArgs: Array?
-		//		If supplied, it will be used to call a super method. Otherwise
+		//	newArgs: Object?
+		//		If "true", the found function will be returned without
+		//		executing it.
+		//		If Array, it will be used to call a super method. Otherwise
 		//		"args" will be used.
 		//	returns:
-		//		Whatever is returned by a super method.
+		//		Whatever is returned by a super method, or a super method itself,
+		//		if "true" was specified as newArgs.
 		//	description:
 		//		This method is used inside method of classes produced with
 		//		dojo.declare to call a super method (next in the chain). It is
@@ -3209,6 +3281,18 @@ dojo.provide("dojo._base.declare");
 		//	|		console.log("This is a dynamically-added method.");
 		//	|		this.inherited("method3", arguments);
 		//	|	};
+		//	example:
+		//	|	var B = dojo.declare(A, {
+		//	|		method: function(a, b){
+		//	|			var super = this.inherited(arguments, true);
+		//	|			// ...
+		//	|			if(!super){
+		//	|				console.log("there is no super method");
+		//	|				return 0;
+		//	|			}
+		//	|			return super.apply(this, arguments);
+		//	|		}
+		//	|	});
 		return	{};	// Object
 	}
 	=====*/
@@ -3228,9 +3312,9 @@ dojo.provide("dojo._base.declare");
 		//	returns:
 		//		Returns a super method (Function) or "undefined".
 		//	description:
-		//		This method is complimentary to "this.inherited()". It uses the
-		//		same algorithm but instead of executing a super method, it
-		//		returns it, or "undefined" if not found.
+		//		This method is a convenience method for "this.inherited()".
+		//		It uses the same algorithm but instead of executing a super
+		//		method, it returns it, or "undefined" if not found.
 		//
 		//	example:
 		//	|	var B = dojo.declare(A, {
@@ -6643,7 +6727,7 @@ if(dojo.isIE || dojo.isOpera){
 		byId(node).removeAttribute(_fixAttrName(name));
 	}
 
-	dojo.getEffectiveAttrValue = function(/*DomNode|String*/ node, /*String*/ name){
+	dojo.getNodeProp = function(/*DomNode|String*/ node, /*String*/ name){
 		//	summary:
 		//		Returns an effective value of a property or an attribute.
 		//	node:
@@ -6985,7 +7069,7 @@ if(dojo.isIE || dojo.isOpera){
 		if(node[_className] != cls){ node[_className] = cls; }
 	};
 
-	dojo.toggleClass = function(/*DomNode|String*/node, /*String*/classStr, /*Boolean?*/condition){
+	dojo.toggleClass = function(/*DomNode|String*/node, /*String|Array*/classStr, /*Boolean?*/condition){
 		//	summary:
 		//		Adds a class to node if not present, or removes if present.
 		//		Pass a boolean condition if you want to explicitly add or remove.
@@ -8568,8 +8652,7 @@ if(typeof dojo != "undefined"){
 	var pseudos = {
 		"checked": function(name, condition){
 			return function(elem){
-				// FIXME: make this more portable!!
-				return !!d.attr(elem, "checked");
+				return !!("checked" in elem ? elem.checked : elem.selected);
 			}
 		},
 		"first-child": function(){ return _lookLeft; },
@@ -9021,7 +9104,7 @@ if(typeof dojo != "undefined"){
 				ret.nozip = true;
 			}
 			var gef = getElementsFunc(qp);
-			while(te = candidates[x--]){
+			for(var j = 0; (te = candidates[j]); j++){
 				// for every root, get the elements that match the descendant
 				// selector, adding them to the "ret" array and filtering them
 				// via membership in this level's bag. If there are more query
@@ -9112,8 +9195,20 @@ if(typeof dojo != "undefined"){
 		!!getDoc()[qsa] && 
 		// see #5832
 		(!d.isSafari || (d.isSafari > 3.1) || is525 )
-	); 
+	);
+
+	//Don't bother with n+3 type of matches, IE complains if we modify those.
+	var infixSpaceRe = /n\+\d|([^ ])?([>~+])([^ =])?/g;
+	var infixSpaceFunc = function(match, pre, ch, post) {
+		return ch ? (pre ? pre + " " : "") + ch + (post ? " " + post : "") : /*n+3*/ match;
+	};
+
 	var getQueryFunc = function(query, forceDOM){
+		//Normalize query. The CSS3 selectors spec allows for omitting spaces around
+		//infix operators, >, ~ and +
+		//Do the work here since detection for spaces is used as a simple "not use QSA"
+		//test below.
+		query = query.replace(infixSpaceRe, infixSpaceFunc);
 
 		if(qsaAvail){
 			// if we've got a cached variant and we think we can do it, run it!
@@ -9153,7 +9248,11 @@ if(typeof dojo != "undefined"){
 			// FIXME:
 			//		need to tighten up browser rules on ":contains" and "|=" to
 			//		figure out which aren't good
-			(query.indexOf(":contains") == -1) &&
+			//		Latest webkit (around 531.21.8) does not seem to do well with :checked on option
+			//		elements, even though according to spec, selected options should
+			//		match :checked. So go nonQSA for it:
+			//		http://bugs.dojotoolkit.org/ticket/5179
+			(query.indexOf(":contains") == -1) && (query.indexOf(":checked") == -1) && 
 			(query.indexOf("|=") == -1) // some browsers don't grok it
 		);
 
@@ -10335,8 +10434,9 @@ dojo.provide("dojo._base.xhr");
 		var dfd = _d._ioSetArgs(args, _deferredCancel, _deferredOk, _deferError);
 		var ioArgs = dfd.ioArgs;
 
-		//Pass the args to _xhrObj, to allow xhr iframe proxy interceptions.
-		var xhr = dfd.ioArgs.xhr = _d._xhrObj(dfd.ioArgs.args);
+		//Pass the args to _xhrObj, to allow alternate XHR calls based specific calls, like
+		//the one used for iframe proxies.
+		var xhr = ioArgs.xhr = _d._xhrObj(ioArgs.args);
 		//If XHR factory fails, cancel the deferred.
 		if(!xhr){
 			dfd.cancel();
@@ -10353,7 +10453,7 @@ dojo.provide("dojo._base.xhr");
 		}else if((arguments.length > 2 && !hasBody) || "POST|PUT".indexOf(method.toUpperCase()) == -1){
 			//Check for hasBody being passed. If no hasBody,
 			//then only append query string if not a POST or PUT request.
-			_d._ioAddQueryToUrl(dfd.ioArgs);
+			_d._ioAddQueryToUrl(ioArgs);
 		}
 
 		// IE 6 is a steaming pile. It won't let you call apply() on the native function (xhr.open).
@@ -10383,7 +10483,7 @@ dojo.provide("dojo._base.xhr");
 			try{
 				xhr.send(ioArgs.query);
 			}catch(e){
-				dfd.ioArgs.error = e;
+				ioArgs.error = e;
 				dfd.cancel();
 			}
 		}

@@ -18,7 +18,7 @@ this.execute(this.attr("value"));
 var _3=dijit._getTabNavigable(dojo.byId(_2));
 this._firstFocusItem=_3.lowest||_3.first||_2;
 this._lastFocusItem=_3.last||_3.highest||this._firstFocusItem;
-if(dojo.isMoz&&this._firstFocusItem.tagName.toLowerCase()=="input"&&dojo.getEffectiveAttrValue(this._firstFocusItem,"type").toLowerCase()=="file"){
+if(dojo.isMoz&&this._firstFocusItem.tagName.toLowerCase()=="input"&&dojo.getNodeProp(this._firstFocusItem,"type").toLowerCase()=="file"){
 dojo.attr(_2,"tabIndex","0");
 this._firstFocusItem=_2;
 }

@@ -80,7 +80,7 @@ this._sizing.play();
 var _a=this.containerNode;
 dojo.style(this.domNode,{overflow:"visible",opacity:1});
 dojo.style(this.closeButtonNode,"opacity",1);
-dojo.style(_a,{height:this._displaysize.h+"px",width:this._displaysize.w+"px",overflow:"auto"});
+dojo.style(_a,{height:this._displaysize.h-this.titleNode.offsetHeight+"px",width:this._displaysize.w+"px",overflow:"auto"});
 dojo.anim(_a,{opacity:1});
 }});
 }

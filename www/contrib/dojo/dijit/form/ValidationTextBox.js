@@ -112,9 +112,6 @@ console.warn("RegExp error in "+this.declaredClass+": "+this.regExp);
 this._partialre="^(?:"+_e+")$";
 },_setDisabledAttr:function(_f){
 this.inherited(arguments);
-if(this.valueNode){
-this.valueNode.disabled=_f;
-}
 this._refreshState();
 },_setRequiredAttr:function(_10){
 this.required=_10;
@@ -134,6 +131,9 @@ this.inherited(arguments);
 },reset:function(){
 this._maskValidSubsetError=true;
 this.inherited(arguments);
+},_onBlur:function(){
+this.displayMessage("");
+this.inherited(arguments);
 }});
 dojo.declare("dijit.form.MappedTextBox",dijit.form.ValidationTextBox,{postMixInProperties:function(){
 this.inherited(arguments);
@@ -149,39 +149,36 @@ return this.inherited(arguments);
 },buildRendering:function(){
 this.inherited(arguments);
 this.valueNode=dojo.place("<input type='hidden'"+(this.name?" name='"+this.name+"'":"")+">",this.textbox,"after");
-},_setDisabledAttr:function(_12){
-this.inherited(arguments);
-dojo.attr(this.valueNode,"disabled",_12);
 },reset:function(){
 this.valueNode.value="";
 this.inherited(arguments);
 }});
-dojo.declare("dijit.form.RangeBoundTextBox",dijit.form.MappedTextBox,{rangeMessage:"",rangeCheck:function(_13,_14){
-return ("min" in _14?(this.compare(_13,_14.min)>=0):true)&&("max" in _14?(this.compare(_13,_14.max)<=0):true);
-},isInRange:function(_15){
+dojo.declare("dijit.form.RangeBoundTextBox",dijit.form.MappedTextBox,{rangeMessage:"",rangeCheck:function(_12,_13){
+return ("min" in _13?(this.compare(_12,_13.min)>=0):true)&&("max" in _13?(this.compare(_12,_13.max)<=0):true);
+},isInRange:function(_14){
 return this.rangeCheck(this.attr("value"),this.constraints);
 },_isDefinitelyOutOfRange:function(){
 var val=this.attr("value");
+var _15=false;
 var _16=false;
-var _17=false;
 if("min" in this.constraints){
 var min=this.constraints.min;
 min=this.compare(val,((typeof min=="number")&&min>=0&&val!=0)?0:min);
-_16=(typeof min=="number")&&min<0;
+_15=(typeof min=="number")&&min<0;
 }
 if("max" in this.constraints){
 var max=this.constraints.max;
 max=this.compare(val,((typeof max!="number")||max>0)?max:0);
-_17=(typeof max=="number")&&max>0;
+_16=(typeof max=="number")&&max>0;
 }
-return _16||_17;
+return _15||_16;
 },_isValidSubset:function(){
 return this.inherited(arguments)&&!this._isDefinitelyOutOfRange();
-},isValid:function(_18){
-return this.inherited(arguments)&&((this._isEmpty(this.textbox.value)&&!this.required)||this.isInRange(_18));
-},getErrorMessage:function(_19){
+},isValid:function(_17){
+return this.inherited(arguments)&&((this._isEmpty(this.textbox.value)&&!this.required)||this.isInRange(_17));
+},getErrorMessage:function(_18){
 var v=this.attr("value");
-if(v!==null&&v!==""&&v!==undefined&&!this.isInRange(_19)){
+if(v!==null&&v!==""&&v!==undefined&&!this.isInRange(_18)){
 return this.rangeMessage;
 }
 return this.inherited(arguments);
@@ -199,8 +196,8 @@ dijit.setWaiState(this.focusNode,"valuemin",this.constraints.min);
 if(this.constraints.max!==undefined){
 dijit.setWaiState(this.focusNode,"valuemax",this.constraints.max);
 }
-},_setValueAttr:function(_1a,_1b){
-dijit.setWaiState(this.focusNode,"valuenow",_1a);
+},_setValueAttr:function(_19,_1a){
+dijit.setWaiState(this.focusNode,"valuenow",_19);
 this.inherited(arguments);
 }});
 }

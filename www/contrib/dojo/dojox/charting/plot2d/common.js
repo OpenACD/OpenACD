@@ -68,7 +68,7 @@ _9.vmax=Math.max(_c,_a.ymax);
 var _e=_9.hmin,_f=_9.hmax,_b=_9.vmin,_c=_9.vmax;
 if(!("xmin" in _a)||!("xmax" in _a)||!("ymin" in _a)||!("ymax" in _a)){
 dojo.forEach(_a.data,function(val,i){
-var x=val.x,y=val.y;
+var x="x" in val?val.x:i+1,y=val.y;
 if(isNaN(x)){
 x=0;
 }

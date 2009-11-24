@@ -88,15 +88,17 @@ _d.push(_e);
 _1.splice(i--,1);
 }
 }
-if(_a.revertOnError!==false){
 dojo.connect(_a,"onError",function(){
+if(_a.revertOnError!==false){
 var _15=_1;
 _1=_d;
 var _16=0;
 jr.revert();
 _1=_15;
-});
+}else{
+_1=dirtyObject.concat(_d);
 }
+});
 jr.sendToServer(_b,_a);
 return _b;
 },sendToServer:function(_17,_18){

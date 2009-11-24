@@ -48,8 +48,8 @@ d.config[_2]=djConfig[_2];
 }
 }
 dojo.locale=d.config.locale;
-var _3="$Rev: 20680 $".match(/\d+/);
-dojo.version={major:1,minor:4,patch:0,flag:"b2",revision:_3?+_3[0]:NaN,toString:function(){
+var _3="$Rev: 20904 $".match(/\d+/);
+dojo.version={major:1,minor:4,patch:0,flag:"rc1",revision:_3?+_3[0]:NaN,toString:function(){
 with(d.version){
 return major+"."+minor+"."+patch+flag+" ("+revision+")";
 }

@@ -34,10 +34,6 @@
 .tundra .dijitTabContainer .tabStripMenuButton-Hover {
 	cursor: pointer;
 }
-.tundra .nowrapTabStrip {
-	background-image: url(../images/dot.gif);
-	background-repeat: repeat-x;
-}
 .tundra .dijitTabChecked {
 	
 	background-color:#fff;

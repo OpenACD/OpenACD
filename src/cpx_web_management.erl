@@ -1420,7 +1420,7 @@ check_cookie([]) ->
 check_cookie(Allothers) ->
 	case proplists:get_value("cpx_management", Allothers) of
 		undefined ->
-			?NOTICE("Cookie bad due to no cpx_managmenet.  ~p", [Allothers]),
+			?NOTICE("Cookie bad due to no cpx_management.", []),
 			badcookie;
 		Reflist ->
 			case ets:lookup(cpx_management_logins, Reflist) of

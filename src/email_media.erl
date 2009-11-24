@@ -597,28 +597,48 @@ append_files(Headers, Properties, Path, Files) ->
 
 right_time(undefined) ->
 	true;
-right_time(Client) ->
+right_time(Client) when is_record(Client, client) ->
 	EmailOverride = proplists:get_value(<<"emailoverride">>, Client#client.options, false),
 	EmailStart = proplists:get_value(<<"emailstart">>, Client#client.options),
 	EmailEnd = proplists:get_value(<<"emailend">>, Client#client.options),
-
 	case {EmailOverride, EmailStart, EmailEnd} of
-		{false, X, Y} when is_list(X), is_list(Y), X =/= Y ->
-			IntStart = list_to_integer(X),
-			IntEnd = list_to_integer(Y),
+		{false, X, Y} when is_binary(X), is_binary(Y), X =/= Y ->
+			IntStart = try_binary_to_integer(EmailStart),
+			IntEnd = try_binary_to_integer(EmailEnd),
 			{_, {Hour, Minute, _}} = calendar:local_time(),
 			Current = Hour*100 + Minute,
-
-			if (Current > IntStart andalso ((IntStart < IntEnd andalso Current < IntEnd) orelse (IntEnd < IntStart)));
-				(IntStart > IntEnd andalso Current < IntEnd andalso Current < IntStart) ->
-					true;
-				true ->
-					false
+			case {IntStart, IntEnd} of
+				{A, B} when is_integer(A), is_integer(B) ->
+					if (Current > IntStart andalso ((IntStart < IntEnd andalso Current < IntEnd) orelse (IntEnd < IntStart)));
+						(IntStart > IntEnd andalso Current < IntEnd andalso Current < IntStart) ->
+							true;
+						true ->
+							false
+					end;
+				_ ->
+					true
 			end;
 		_ ->
 			true
+	end;
+right_time(Client) when is_list(Client) ->
+	case integration:get_client(id, Client) of
+		none ->
+			right_time(undefined);
+		{ok, Id, Label, Opts} ->
+			right_time(#client{id = Id, label = Label, options = Opts})
 	end.
 
+try_binary_to_integer(Bin) when is_binary(Bin) ->
+	List = binary_to_list(Bin),
+	try list_to_integer(List) of
+		X ->
+			X
+	catch
+		error:badarg ->
+			badarg
+	end.
+	
 -ifdef(EUNIT).
 
 %parse_disposition_test_() ->

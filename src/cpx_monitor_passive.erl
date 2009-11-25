@@ -45,7 +45,11 @@
 -include_lib("stdlib/include/qlc.hrl").
 
 -define(WRITE_INTERVAL, 60). % in seconds.
+-ifdef(EUNIT).
+-define(DETS, passive_cache_test).
+-else.
 -define(DETS, passive_cache).
+-endif.
 
 -type(xml_output() :: {xmlfile, string()}).
 -type(queues() :: {queues, [string()]}).
@@ -430,16 +434,16 @@ get_queues(Filter, Group) ->
 
 get_queued_medias(Filter, Queue) ->
 	QH = qlc:q([Row || 
-		{{Type, _Id}, _Hp, Details, _History} = Row <- dets:table(?DETS),
-		Type == media,
-		filter_row(Filter, Row),
-		proplists:get_value(queue, Details) == Queue
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
+		Type == media%,
+		%filter_row(Filter, Row),
+		%proplists:get_value(queue, Details) == Queue
 	]),
 	qlc:e(QH).
 
 get_agent_medias(Filter, Agent) ->
 	QH = qlc:q([Row || 
-		{{Type, _Id}, _Hp, Details, _History} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
 		Type == media,
 		filter_row(Filter, Row),
 		proplists:get_value(agent, Details) == Agent
@@ -448,10 +452,11 @@ get_agent_medias(Filter, Agent) ->
 
 get_client_medias(Filter, Client) ->
 	QH = qlc:q([Row ||
-		{{Type, _Id}, _Hp, Details, _History} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
 		Type == media,
 		filter_row(Filter, Row),
-		proplists:get_value(client, Details) == Client
+		begin Testc = proplists:get_value(client, Details), Testc#client.label == Client end,
+		proplists:get_value(agent, Details) == undefined
 	]),
 	qlc:e(QH).
 
@@ -712,7 +717,7 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 		{<<"id">>, list_to_binary(Id)},
 		{<<"login">>, list_to_binary(proplists:get_value(login, Details))},
 		{<<"node">>, proplists:get_value(node, Details)},
-		{<<"lastchangetimestamp">>, begin {Mega, Sec, _} = proplists:get_value(lastchangetimestamp, Details), Mega * 1000000 + Sec end},
+		{<<"lastchangetimestamp">>, element(2, proplists:get_value(lastchangetimestamp, Details))},
 		{<<"state">>, State},
 		{<<"stateData">>, Statedata}
 	]},
@@ -973,4 +978,58 @@ filter_row_test_() ->
 		end}]
 	end}.
 
+qlc_test_() ->
+	{setup,
+	fun() ->
+		dets:open_file(?DETS, []),
+		dets:delete_all_objects(?DETS),
+		Client1 = #client{
+			id = "1",
+			label = "client1"
+		},
+		Client2 = #client{
+			id = "2",
+			label = "client2"
+		},
+		Rows = [
+			{{media, "media-c1-q1"}, 5, [], [{queue, "queue1"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c1-q2"}, 5, [], [{queue, "queue2"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c1-q3"}, 5, [], [{queue, "queue3"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c1-q4"}, 5, [], [{queue, "queue4"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c2-q1"}, 5, [], [{queue, "queue1"}, {client, Client2}], {inbound, queued}},
+			{{media, "media-c2-q2"}, 5, [], [{queue, "queue2"}, {client, Client2}], {inbound, queued}},
+			{{media, "media-c2-q3"}, 5, [], [{queue, "queue3"}, {client, Client2}], {inbound, queued}},
+			{{media, "media-c2-q4"}, 5, [], [{queue, "queue4"}, {client, Client2}], {inbound, queued}},
+			{{media, "media-c1-a1"}, 5, [], [{agent, "agent1"}, {client, Client1}], {inbound, handled}},
+			{{media, "media-c2-a2"}, 5, [], [{agent, "agent2"}, {client, Client2}], {inbound, handled}},
+			{{agent, "agent1"}, 5, [], [{profile, "profile1"}], undefined},
+			{{agent, "agent2"}, 5, [], [{profile, "profile2"}], undefined}
+		],
+		lists:foreach(fun(R) -> dets:insert(?DETS, R) end, Rows),
+		AllFilter = #filter{
+			clients = all,
+			queues = all,
+			queue_groups = all,
+			agents = all,
+			agent_profiles = all,
+			nodes = all
+		},
+		Getids = fun({{_Type, Id}, _, _, _, _}) ->
+			Id
+		end,
+		{AllFilter, Client1, Client2, Getids}
+	end,
+	fun(_) ->
+		ok
+	end,
+	fun({AllFilter, Client1, Client2, Getids}) ->
+		[{"get medias with a given client",
+		fun() ->
+			Out = get_client_medias(AllFilter, Client1#client.label),
+			?assertEqual(4, length(Out)),
+			Expected = ["media-c1-q1", "media-c1-q2", "media-c1-q3", "media-c1-q4"],
+			?assert(lists:all(fun(I) -> lists:member(I, Expected) end, lists:map(Getids, Out)))
+		end}]
+	end}.
+	
 -endif.

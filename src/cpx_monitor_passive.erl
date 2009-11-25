@@ -677,40 +677,39 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 	{Newcounts, State, Statedata} = case {proplists:get_value(state, Details), proplists:get_value(statedata, Details)} of
 		{idle, {}} ->
 			{{Avail + 1, Rel, Busy}, idle, false};
-		{released, {Id, default, Bias}} ->
+		{released, {RelId, default, Bias}} ->
 			Data = {struct, [
-				{<<"id">>, list_to_binary(Id)},
+				{<<"id">>, list_to_binary(RelId)},
 				{<<"label">>, default},
 				{<<"bias">>, Bias}
 			]},
 			{{Avail, Rel + 1, Busy}, released, Data};
-		{released, {Id, Label, Bias}} ->
+		{released, {RelId, Label, Bias}} ->
 			Data = {struct, [
-				{<<"id">>, list_to_binary(Id)},
+				{<<"id">>, list_to_binary(RelId)},
 				{<<"label">>, list_to_binary(Label)},
 				{<<"bias">>, Bias}
 			]},
 			{{Avail, Rel + 1, Busy}, released, Data};
 		{Statename, #call{client = Client} = Media} ->
-			Qh = qlc:q([proplists:get_value(timequeued, Details) ||
+			Qh = qlc:q([Row ||
 				{{Type, Id}, _Time, _Hp, Details, History} = Row <- dets:table(?DETS),
 				Type == media,
-				Id == Media#call.id,
-				History == {inbound, handled}
+				Id == Media#call.id
 			]),
-			Timequeue = case qlc:e(Qh) of
+			{_, [Datajson]} = case qlc:e(Qh) of
 				[] ->
-					undefined;
+					{undefined, [undefined]};
 				[T] ->
-					T
+					medias_to_json([T])
 			end,
-			Data = {struct, [
-				{<<"client">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
-				{<<"mediaType">>, Media#call.type},
-				{<<"mediaId">>, list_to_binary(Media#call.id)},
-				{<<"timeQueued">>, Timequeue}
-			]},
-			{{Avail, Rel, Busy + 1}, Statename, Data};
+%			Data = {struct, [
+%				{<<"client">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
+%				{<<"mediaType">>, Media#call.type},
+%				{<<"mediaId">>, list_to_binary(Media#call.id)},
+%				{<<"timeQueued">>, Timequeue}
+%			]},
+			{{Avail, Rel, Busy + 1}, Statename, Datajson};
 		{Statename, _Otherdata} ->
 			{{Avail, Rel, Busy + 1}, Statename, false}
 	end,

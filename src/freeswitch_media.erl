@@ -105,7 +105,8 @@
 	in_control = false :: bool(),
 	queued = false :: bool(),
 	allow_voicemail = false :: bool(),
-	ivroption :: string()
+	ivroption :: string(),
+	moh = "moh" :: string()
 	}).
 
 -type(state() :: #state{}).
@@ -474,6 +475,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 					Client = proplists:get_value("variable_brand", Rawcall),
 					AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),
+					Moh = proplists:get_value("variable_queue_moh", Rawcall, "moh"),
 					P = proplists:get_value("variable_queue_priority", Rawcall, integer_to_list(?DEFAULT_PRIORITY)),
 					Priority = try list_to_integer(P) of
 						Pri -> Pri
@@ -490,9 +492,9 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					freeswitch:sendmsg(State#state.cnode, UUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "playback"},
-							{"execute-app-arg", "local_stream://moh"}]),
+							{"execute-app-arg", "local_stream://"++Moh}]),
 						%% tell gen_media to (finally) queue the media
-					{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM}};
+					{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, moh=Moh}};
 				_Otherwise ->
 					{noreply, State}
 			end;

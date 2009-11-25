@@ -1302,10 +1302,12 @@ if(typeof(supervisorView) == "undefined"){
 			var obj = supervisorView.dataStore.getValue(item, "details");
 			var out = "";
 			if(supervisorView.dataStore.getValue(item, "node")){
-				out += "<p class=\"smaller\"><label class=\"narrow\">Node:</label>" + supervisorView.dataStore.getValue(item, "node");
+				out += "<tr><th class=\"label\">Node</th><td>" + supervisorView.dataStore.getValue(item, "node") + "</td></td>";
+				//out += "<p class=\"smaller\"><label class=\"narrow\">Node:</label>" + supervisorView.dataStore.getValue(item, "node");
 			}
 			for(var i in obj){
-				out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>";
+				//out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>";
+				out += "<tr><th class=\"label\">" + i + "</th><td>";
 				if(obj[i].timestamp){
 					var date = new Date(obj[i].timestamp * 1000);
 					out += date.toLocaleTimeString();
@@ -1314,7 +1316,8 @@ if(typeof(supervisorView) == "undefined"){
 					out += obj[i].toString();
 				}
 				
-				out += "</p>";
+				//out += "</p>";
+				out += "</td></tr>";
 			}
 			/*out += "<p>Health Report</p>";
 			var hps = supervisorView.dataStore.getValue(item, "health");
@@ -1322,7 +1325,7 @@ if(typeof(supervisorView) == "undefined"){
 				var sigdigited = Math.floor(supervisorView.averageHp([hps[i]]) * 100) / 100;
 				out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>" + sigdigited.toString() + "</p>";
 			}*/
-			dijit.byId("supervisorDetails").attr("content", out);
+			dijit.byId("supervisorDetails").attr("content", "<table class=\"smaller\">" + out + "</table>");
 			dijit.byId("supervisorDetails").attr("title", supervisorView.dataStore.getValue(item, "type") + ": " + supervisorView.dataStore.getValue(item, "display"));
 		}
 		

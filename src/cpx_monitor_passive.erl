@@ -618,7 +618,8 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTi
 		{<<"time">>, Time},
 		{<<"brand">>, begin C = proplists:get_value(client, Details), case C#client.label of undefined -> undefined; _ -> list_to_binary(C#client.label) end end},
 		{<<"node">>, proplists:get_value(node, Details)},
-		{<<"type">>, proplists:get_value(type, Details)}
+		{<<"type">>, proplists:get_value(type, Details)},
+		{<<"priority">>, proplists:get_value(priority, Details)}
 	]},
 	medias_to_json(Tail, {Newtime, [NewHead | Acc]}).
 

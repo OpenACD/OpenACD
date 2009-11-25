@@ -39,6 +39,47 @@ function setTheme(theme) {
 	dojo.cookie('agentui-settings', dojo.toJson(settings));
 }
 
+function storeTab(tab){
+	var settings = {
+		'tabs': []
+	};
+	if(dojo.cookie('agentui-settings')){
+		settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+		if(! settings.tabs){
+			settings.tabs = [];
+		}
+	}
+	for(var i = 0; i < settings.tabs.length; i++){
+		if(settings.tabs[i] == tab){
+			return true;
+		}
+	}
+	settings.tabs.push(tab);
+	dojo.cookie('agentui-settings', dojo.toJson(settings));
+	return true;
+}
+
+function dropTab(tab){
+	var settings = {
+		'tabs':[]
+	}
+	if(dojo.cookie('agentui-settings')){
+		settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+		if(! settings.tabs){
+			settings.tabs = [];
+		}
+	}
+	var out = [];
+	for(var i = 0; i < settings.tabs.length; i++){
+		if(settings.tabs[i] != tab){
+			out.push(settings.tabs[i]);
+		}
+	}
+	settings.tabs = out;
+	dojo.cookie('agentui-settings', dojo.toJson(settings));
+	return true;
+}
+
 dojo.addOnLoad(function(){
 	if(window.console.log == undefined){
 		//stupid ie.
@@ -252,6 +293,7 @@ dojo.addOnLoad(function(){
 						dijit.byId("tabPanel").logoutListener = dojo.subscribe("agent/logout", function(data){
 							dijit.byId("tabPanel").closeChild(dijit.byId("supervisorTab"));
 							dojo.unsubscribe(dijit.byId("tabPanel").logoutListener);
+							storeTab('supervisorTab');
 						});
 					}
 				}
@@ -564,6 +606,7 @@ dojo.addOnLoad(function(){
 											dijit.byId("tabPanel").logoutListener = dojo.subscribe("agent/logout", function(data){
 												dijit.byId("tabPanel").closeChild(dijit.byId("supervisorTab"));
 												dojo.unsubscribe(dijit.byId("tabPanel").logoutListener);
+												storeTab('supervisorTab');
 											});
 										}
 									}

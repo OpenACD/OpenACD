@@ -395,7 +395,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 										{success, true}, 
 										{message, <<"logged in">>}, 
 										{<<"profile">>, list_to_binary(Profile)}, 
-										{<<"statetime">>, agent_web_connection:encode_statetime(StateTime)},
+										{<<"statetime">>, StateTime},
 										{<<"timestamp">>, util:now()}]})};
 								ignore ->
 									?WARNING("Ignore message trying to start connection for ~p", [Reflist]),

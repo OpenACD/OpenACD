@@ -295,7 +295,7 @@ api(checkcookie, Cookie, _Post) ->
 				{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
 				{<<"state">>, Agentrec#agent.state},
 				{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
-				{<<"statetime">>, agent_web_connection:encode_statetime(Agentrec#agent.lastchangetimestamp)},
+				{<<"statetime">>, Agentrec#agent.lastchangetimestamp},
 				{<<"timestamp">>, util:now()}]},
 			{200, [], mochijson2:encode(Json)};
 		badcookie ->

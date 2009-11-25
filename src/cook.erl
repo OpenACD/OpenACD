@@ -320,7 +320,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 				[?DEFAULT_PATHCOST]
 		end,
 		Askills <- [length(AState#agent.skills)],
-		Aidle <- [element(2, AState#agent.lastchangetimestamp)]]),
+		Aidle <- [AState#agent.lastchangetimestamp]]),
 	Agents3.
 
 

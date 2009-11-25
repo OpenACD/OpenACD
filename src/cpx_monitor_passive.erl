@@ -435,9 +435,9 @@ get_queues(Filter, Group) ->
 get_queued_medias(Filter, Queue) ->
 	QH = qlc:q([Row || 
 		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
-		Type == media%,
-		%filter_row(Filter, Row),
-		%proplists:get_value(queue, Details) == Queue
+		Type == media,
+		filter_row(Filter, Row),
+		proplists:get_value(queue, Details) == Queue
 	]),
 	qlc:e(QH).
 
@@ -1028,6 +1028,13 @@ qlc_test_() ->
 			Out = get_client_medias(AllFilter, Client1#client.label),
 			?assertEqual(4, length(Out)),
 			Expected = ["media-c1-q1", "media-c1-q2", "media-c1-q3", "media-c1-q4"],
+			?assert(lists:all(fun(I) -> lists:member(I, Expected) end, lists:map(Getids, Out)))
+		end},
+		{"get medias with a given queue",
+		fun() ->
+			Out = get_queued_medias(AllFilter, "queue1"),
+			?assertEqual(2, length(Out)),
+			Expected = ["media-c1-q1", "media-c2-q1"],
 			?assert(lists:all(fun(I) -> lists:member(I, Expected) end, lists:map(Getids, Out)))
 		end}]
 	end}.

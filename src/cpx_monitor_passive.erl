@@ -244,7 +244,7 @@ handle_info({'EXIT', Pid, Reason}, #state{write_pids = Pids} = State) ->
 					?DEBUG("output written for filter ~p", [Name]),
 					ok;
 				Else ->
-					?WARNING("output write for ~p exited abnormally:  ~p", [Name, Reason]),
+					?ERROR("output write for ~p exited abnormally:  ~p", [Name, Reason]),
 					ok
 			end,
 			Newlist = proplists:delete(Pid, Pids),
@@ -585,7 +585,7 @@ clients_to_json(Clients, Filter) ->
 clients_to_json([], _Filter, Acc) ->
 	lists:reverse(Acc);
 clients_to_json([Client | Tail], Filter, Acc) ->
-	Medias = get_client_medias(Filter, Client),
+	Medias = get_client_medias(Filter, Client#client.label),
 	{Oldest, MediaJson} = medias_to_json(Medias),
 	Label = case Client#client.label of
 		undefined ->
@@ -616,6 +616,7 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTi
 	NewHead = {struct, [
 		{<<"id">>, list_to_binary(Id)},
 		{<<"time">>, Time},
+		{<<"brand">>, begin C = proplists:get_value(client, Details), case C#client.label of undefined -> undefined; _ -> list_to_binary(C#client.label) end end},
 		{<<"node">>, proplists:get_value(node, Details)},
 		{<<"type">>, proplists:get_value(type, Details)}
 	]},
@@ -1002,6 +1003,7 @@ qlc_test_() ->
 			{{media, "media-c2-q4"}, 5, [], [{queue, "queue4"}, {client, Client2}], {inbound, queued}},
 			{{media, "media-c1-a1"}, 5, [], [{agent, "agent1"}, {client, Client1}], {inbound, handled}},
 			{{media, "media-c2-a2"}, 5, [], [{agent, "agent2"}, {client, Client2}], {inbound, handled}},
+			{{media, "media-undef-qq"}, 5, [], [{queue, "qq"}, {client, #client{id = undefined, label = undefined}}], {inbound, queued}},
 			{{agent, "agent1"}, 5, [], [{profile, "profile1"}], undefined},
 			{{agent, "agent2"}, 5, [], [{profile, "profile2"}], undefined}
 		],
@@ -1036,6 +1038,12 @@ qlc_test_() ->
 			?assertEqual(2, length(Out)),
 			Expected = ["media-c1-q1", "media-c2-q1"],
 			?assert(lists:all(fun(I) -> lists:member(I, Expected) end, lists:map(Getids, Out)))
+		end},
+		{"get media with an 'undefined' client",
+		fun() ->
+			[H | _] = Out = get_client_medias(AllFilter, undefined),
+			?assertEqual(1, length(Out)),
+			?assertEqual({media, "media-undef-qq"}, element(1, H))
 		end}]
 	end}.
 	

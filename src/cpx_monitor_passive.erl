@@ -480,6 +480,14 @@ update_filter_states({{media, Id}, Time, _Hp, _Details, Histroy} = Row, [{Nom, #
 	update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc]).				
 
 %% @doc If the row passes through the filter, return true.
+filter_row(#filter{max_age = Seconds} = Filter, Row) when is_integer(Seconds) ->
+	Now = util:now(),
+	case (Now - Seconds) > element(2, Row) of
+		true ->
+			false;
+		false ->
+			filter_row(Filter#filter{max_age = max}, Row)
+	end;
 filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, Row) ->
 	true;
 filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, handled}}) ->
@@ -974,6 +982,21 @@ filter_row_test_() ->
 				{media, "media-c1-a1"}, 
 				{agent, "agent1"}
 			]),
+			Filtered = DoFilter(Filter),
+			?assertEqual(Expected, Filtered)
+		end},
+		{"filter by age",
+		fun() ->
+			Filter = #filter{
+				max_age = 1,
+				clients = all,
+				queues = all,
+				queue_groups = all,
+				agents = all,
+				agent_profiles = all,
+				nodes = all
+			},
+			Expected = [],
 			Filtered = DoFilter(Filter),
 			?assertEqual(Expected, Filtered)
 		end}]

@@ -488,6 +488,11 @@ filter_row(#filter{max_age = Seconds} = Filter, Row) when is_integer(Seconds) ->
 		false ->
 			filter_row(Filter#filter{max_age = max}, Row)
 	end;
+filter_row(#filter{max_age = {since, Seconds}} = Filter, Row) ->
+	Now = util:now(),
+	{_Date, {Hour, Min, Sec}} = erlang:localtime(),
+	Diff = Sec + (Min * 60) + (Hour * 60 * 60) - Seconds,
+	filter_row(Filter#filter{max_age = Diff}, Row);
 filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, Row) ->
 	true;
 filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, handled}}) ->
@@ -1015,6 +1020,70 @@ filter_row_test_() ->
 			Expected = [],
 			Filtered = DoFilter(Filter),
 			?assertEqual(Expected, Filtered)
+		end},
+		{"filter since time (like midnight)",
+		fun() ->
+			TheFilter = #filter{
+				max_age = {since, 0},
+				clients = all,
+				queues = all,
+				queue_groups = all,
+				agents = all,
+				agent_profiles = all,
+				nodes = all
+			},
+			Now = util:now(),
+			{_Date, {Hour, Min, Sec}} = erlang:localtime(),
+			Diff = Sec + (Min * 60) + (Hour * 60 * 60),
+			Midnight = Now - Diff,
+			TheRows = [
+				{{media, "pre-midnight"}, Midnight - 100, [], [], {inbound, queued}},
+				{{media, "post-midnight"}, Midnight + 100, [], [], {inbound, queued}}
+			],
+			Expected = [{{media, "post-midnight"}, Midnight + 100, [], [], {inbound, queued}}],
+			Fun = fun(R, Acc) -> 
+				case filter_row(TheFilter, R) of
+					true ->
+						[R | Acc];
+					false ->
+						Acc
+				end
+			end,
+			Got = lists:foldl(Fun, [], TheRows),
+			?assertEqual(Expected, Got)
+		end},
+		{"filter since time (like 2 minutes after midnight)",
+		fun() ->
+			TheFilter = #filter{
+				max_age = {since, 120},
+				clients = all,
+				queues = all,
+				queue_groups = all,
+				agents = all,
+				agent_profiles = all,
+				nodes = all
+			},
+			Now = util:now(),
+			{_Date, {Hour, Min, Sec}} = erlang:localtime(),
+			Diff = Sec + (Min * 60) + (Hour * 60 * 60),
+			Midnight = Now - Diff,
+			TheRows = [
+				{{media, "pre-midnight"}, Midnight - 60, [], [], {inbound, queued}},
+				{{media, "midnight"}, Midnight, [], [], {inbound, queued}},
+				{{media, "post-midnight-1"}, Midnight + 60, [], [], {inbound, queued}},
+				{{media, "post-midnight-3"}, Midnight + 180, [], [], {inbound, queued}}
+			],
+			Expected = [{{media, "post-midnight-3"}, Midnight + 180, [], [], {inbound, queued}}],
+			Fun = fun(R, Acc) -> 
+				case filter_row(TheFilter, R) of
+					true ->
+						[R | Acc];
+					false ->
+						Acc
+				end
+			end,
+			Got = lists:foldl(Fun, [], TheRows),
+			?assertEqual(Expected, Got)
 		end}]
 	end}.
 

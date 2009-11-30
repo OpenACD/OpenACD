@@ -49,7 +49,7 @@
 						{release_id(), release_label(), release_bias()} |	% released
 						{onhold, #call{}, calling, string()},	% warmtransfer
 	queuedrelease :: any(),	% is the current state is to go to released, what is the released type
-	lastchangetimestamp = now() :: any(),	% at what time did the last state change occur
+	lastchangetimestamp = util:now() :: pos_integer(),	% at what time did the last state change occur
 	defaultringpath = inband :: 'inband' | 'outband',
 	endpointtype = sip_registration :: endpoints(),
 	endpointdata = undefined :: 'undefined' | string(),

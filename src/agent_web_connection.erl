@@ -57,7 +57,6 @@
 	api/2,
 	dump_agent/1,
 	encode_statedata/1,
-	encode_statetime/1,
 	set_salt/2,
 	poll/2
 ]).
@@ -190,10 +189,6 @@ encode_statedata(List) when is_list(List) ->
 	list_to_binary(List);
 encode_statedata({}) ->
 	false.
-
-encode_statetime({Megaseconds, Seconds, _Microseconds}) ->
-	list_to_binary([integer_to_list(Megaseconds),integer_to_list(Seconds)]).
-
 
 %%====================================================================
 %% gen_server callbacks

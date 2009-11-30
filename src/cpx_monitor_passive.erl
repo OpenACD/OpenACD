@@ -45,7 +45,11 @@
 -include_lib("stdlib/include/qlc.hrl").
 
 -define(WRITE_INTERVAL, 60). % in seconds.
+-ifdef(EUNIT).
+-define(DETS, passive_cache_test).
+-else.
 -define(DETS, passive_cache).
+-endif.
 
 -type(xml_output() :: {xmlfile, string()}).
 -type(queues() :: {queues, [string()]}).
@@ -240,7 +244,7 @@ handle_info({'EXIT', Pid, Reason}, #state{write_pids = Pids} = State) ->
 					?DEBUG("output written for filter ~p", [Name]),
 					ok;
 				Else ->
-					?WARNING("output write for ~p exited abnormally:  ~p", [Name, Reason]),
+					?ERROR("output write for ~p exited abnormally:  ~p", [Name, Reason]),
 					ok
 			end,
 			Newlist = proplists:delete(Pid, Pids),
@@ -430,7 +434,7 @@ get_queues(Filter, Group) ->
 
 get_queued_medias(Filter, Queue) ->
 	QH = qlc:q([Row || 
-		{{Type, _Id}, _Hp, Details, _History} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
 		Type == media,
 		filter_row(Filter, Row),
 		proplists:get_value(queue, Details) == Queue
@@ -439,7 +443,7 @@ get_queued_medias(Filter, Queue) ->
 
 get_agent_medias(Filter, Agent) ->
 	QH = qlc:q([Row || 
-		{{Type, _Id}, _Hp, Details, _History} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
 		Type == media,
 		filter_row(Filter, Row),
 		proplists:get_value(agent, Details) == Agent
@@ -448,10 +452,11 @@ get_agent_medias(Filter, Agent) ->
 
 get_client_medias(Filter, Client) ->
 	QH = qlc:q([Row ||
-		{{Type, _Id}, _Hp, Details, _History} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
 		Type == media,
 		filter_row(Filter, Row),
-		proplists:get_value(client, Details) == Client
+		begin Testc = proplists:get_value(client, Details), Testc#client.label == Client end,
+		proplists:get_value(agent, Details) == undefined
 	]),
 	qlc:e(QH).
 
@@ -475,6 +480,14 @@ update_filter_states({{media, Id}, Time, _Hp, _Details, Histroy} = Row, [{Nom, #
 	update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc]).				
 
 %% @doc If the row passes through the filter, return true.
+filter_row(#filter{max_age = Seconds} = Filter, Row) when is_integer(Seconds) ->
+	Now = util:now(),
+	case (Now - Seconds) > element(2, Row) of
+		true ->
+			false;
+		false ->
+			filter_row(Filter#filter{max_age = max}, Row)
+	end;
 filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, Row) ->
 	true;
 filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, handled}}) ->
@@ -580,8 +593,8 @@ clients_to_json(Clients, Filter) ->
 clients_to_json([], _Filter, Acc) ->
 	lists:reverse(Acc);
 clients_to_json([Client | Tail], Filter, Acc) ->
-	Medias = get_client_medias(Filter, Client),
-	{Oldest, MediaJson} = medias_to_json(Medias),
+	Medias = get_client_medias(Filter, Client#client.label),
+	{Oldest, TotalIn, TotalOut, TotalAbn, MediaJson} = medias_to_json(Medias),
 	Label = case Client#client.label of
 		undefined ->
 			undefined;
@@ -591,17 +604,20 @@ clients_to_json([Client | Tail], Filter, Acc) ->
 	Json = {struct, [
 		{<<"label">>, Label},
 		{<<"oldestAge">>, Oldest},
+		{<<"totalInbound">>, TotalIn},
+		{<<"totalOutbound">>, TotalOut},
+		{<<"totalAbandoned">>, TotalAbn},
 		{<<"medias">>, MediaJson}
 	]},
 	clients_to_json(Tail, Filter, [Json | Acc]).
 
 medias_to_json(Rows) ->
 	Time = util:now(),
-	medias_to_json(Rows, {Time, []}).
+	medias_to_json(Rows, {Time, 0, 0, 0, []}).
 
-medias_to_json([], {Time, Acc}) ->
-	{Time, lists:reverse(Acc)};
-medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTime, Acc}) ->
+medias_to_json([], {Time, In, Out, Abn, Acc}) ->
+	{Time, In, Out, Abn, lists:reverse(Acc)};
+medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTime, In, Out, Abn, Acc}) ->
 	Newtime = case Time < CurTime of
 		true ->
 			Time;
@@ -611,10 +627,22 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTi
 	NewHead = {struct, [
 		{<<"id">>, list_to_binary(Id)},
 		{<<"time">>, Time},
+		{<<"brand">>, begin C = proplists:get_value(client, Details), case C#client.label of undefined -> undefined; _ -> list_to_binary(C#client.label) end end},
 		{<<"node">>, proplists:get_value(node, Details)},
-		{<<"type">>, proplists:get_value(type, Details)}
+		{<<"type">>, proplists:get_value(type, Details)},
+		{<<"priority">>, proplists:get_value(priority, Details)}
 	]},
-	medias_to_json(Tail, {Newtime, [NewHead | Acc]}).
+	{Newin, Newout, Newabn} = case HistoricalKey of
+		{'inbound', Abandoned} when Abandoned == quabandoned; Abandoned == ivrabandoned ->
+			{In + 1, Out, Abn + 1};
+		{'inbound', _HandledOrQueued} ->
+			{In + 1, Out, Abn};
+		outbound ->
+			{In, Out + 1, Abn};
+		_ ->
+			{In, Out, Abn}
+	end,
+	medias_to_json(Tail, {Newtime, Newin, Newout, Newabn, [NewHead | Acc]}).
 
 queuegroups_to_json(Groups, Filter) ->
 	queuegroups_to_json(Groups, Filter, []).
@@ -637,10 +665,13 @@ queues_to_json([], _Filter, Acc) ->
 	lists:reverse(Acc);
 queues_to_json([Queue | Tail], Filter, Acc) ->
 	Medias = get_queued_medias(Filter, Queue),
-	{Oldest, MediaJson} = medias_to_json(Medias),
+	{Oldest, TotalIn, TotalOut, TotalAbn, MediaJson} = medias_to_json(Medias),
 	Json = {struct, [
 		{<<"name">>, list_to_binary(Queue)},
 		{<<"oldestAge">>, Oldest},
+		{<<"totalInbound">>, TotalIn},
+		{<<"totalOutbound">>, TotalOut},
+		{<<"totalAbandoned">>, TotalAbn},
 		{<<"medias">>, MediaJson}
 	]},
 	queues_to_json(Tail, Filter, [Json | Acc]).
@@ -671,40 +702,39 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 	{Newcounts, State, Statedata} = case {proplists:get_value(state, Details), proplists:get_value(statedata, Details)} of
 		{idle, {}} ->
 			{{Avail + 1, Rel, Busy}, idle, false};
-		{released, {Id, default, Bias}} ->
+		{released, {RelId, default, Bias}} ->
 			Data = {struct, [
-				{<<"id">>, list_to_binary(Id)},
+				{<<"id">>, list_to_binary(RelId)},
 				{<<"label">>, default},
 				{<<"bias">>, Bias}
 			]},
 			{{Avail, Rel + 1, Busy}, released, Data};
-		{released, {Id, Label, Bias}} ->
+		{released, {RelId, Label, Bias}} ->
 			Data = {struct, [
-				{<<"id">>, list_to_binary(Id)},
+				{<<"id">>, list_to_binary(RelId)},
 				{<<"label">>, list_to_binary(Label)},
 				{<<"bias">>, Bias}
 			]},
 			{{Avail, Rel + 1, Busy}, released, Data};
 		{Statename, #call{client = Client} = Media} ->
-			Qh = qlc:q([proplists:get_value(timequeued, Details) ||
+			Qh = qlc:q([Row ||
 				{{Type, Id}, _Time, _Hp, Details, History} = Row <- dets:table(?DETS),
 				Type == media,
-				Id == Media#call.id,
-				History == {inbound, handled}
+				Id == Media#call.id
 			]),
-			Timequeue = case qlc:e(Qh) of
+			{_, _, _, _, [Datajson]} = case qlc:e(Qh) of
 				[] ->
-					undefined;
+					{undefined, [undefined]};
 				[T] ->
-					T
+					medias_to_json([T])
 			end,
-			Data = {struct, [
-				{<<"client">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
-				{<<"mediaType">>, Media#call.type},
-				{<<"mediaId">>, list_to_binary(Media#call.id)},
-				{<<"timeQueued">>, Timequeue}
-			]},
-			{{Avail, Rel, Busy + 1}, Statename, Data};
+%			Data = {struct, [
+%				{<<"client">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
+%				{<<"mediaType">>, Media#call.type},
+%				{<<"mediaId">>, list_to_binary(Media#call.id)},
+%				{<<"timeQueued">>, Timequeue}
+%			]},
+			{{Avail, Rel, Busy + 1}, Statename, Datajson};
 		{Statename, _Otherdata} ->
 			{{Avail, Rel, Busy + 1}, Statename, false}
 	end,
@@ -712,7 +742,7 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 		{<<"id">>, list_to_binary(Id)},
 		{<<"login">>, list_to_binary(proplists:get_value(login, Details))},
 		{<<"node">>, proplists:get_value(node, Details)},
-		{<<"lastchangetimestamp">>, begin {Mega, Sec, _} = proplists:get_value(lastchangetimestamp, Details), Mega * 1000000 + Sec end},
+		{<<"lastchangetimestamp">>, element(2, proplists:get_value(lastchangetimestamp, Details))},
 		{<<"state">>, State},
 		{<<"stateData">>, Statedata}
 	]},
@@ -970,7 +1000,90 @@ filter_row_test_() ->
 			]),
 			Filtered = DoFilter(Filter),
 			?assertEqual(Expected, Filtered)
+		end},
+		{"filter by age",
+		fun() ->
+			Filter = #filter{
+				max_age = 1,
+				clients = all,
+				queues = all,
+				queue_groups = all,
+				agents = all,
+				agent_profiles = all,
+				nodes = all
+			},
+			Expected = [],
+			Filtered = DoFilter(Filter),
+			?assertEqual(Expected, Filtered)
 		end}]
 	end}.
 
+qlc_test_() ->
+	{setup,
+	fun() ->
+		dets:open_file(?DETS, []),
+		dets:delete_all_objects(?DETS),
+		Client1 = #client{
+			id = "1",
+			label = "client1"
+		},
+		Client2 = #client{
+			id = "2",
+			label = "client2"
+		},
+		Rows = [
+			{{media, "media-c1-q1"}, 5, [], [{queue, "queue1"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c1-q2"}, 5, [], [{queue, "queue2"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c1-q3"}, 5, [], [{queue, "queue3"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c1-q4"}, 5, [], [{queue, "queue4"}, {client, Client1}], {inbound, queued}},
+			{{media, "media-c2-q1"}, 5, [], [{queue, "queue1"}, {client, Client2}], {inbound, queued}},
+			{{media, "media-c2-q2"}, 5, [], [{queue, "queue2"}, {client, Client2}], {inbound, queued}},
+			{{media, "media-c2-q3"}, 5, [], [{queue, "queue3"}, {client, Client2}], {inbound, queued}},
+			{{media, "media-c2-q4"}, 5, [], [{queue, "queue4"}, {client, Client2}], {inbound, queued}},
+			{{media, "media-c1-a1"}, 5, [], [{agent, "agent1"}, {client, Client1}], {inbound, handled}},
+			{{media, "media-c2-a2"}, 5, [], [{agent, "agent2"}, {client, Client2}], {inbound, handled}},
+			{{media, "media-undef-qq"}, 5, [], [{queue, "qq"}, {client, #client{id = undefined, label = undefined}}], {inbound, queued}},
+			{{agent, "agent1"}, 5, [], [{profile, "profile1"}], undefined},
+			{{agent, "agent2"}, 5, [], [{profile, "profile2"}], undefined}
+		],
+		lists:foreach(fun(R) -> dets:insert(?DETS, R) end, Rows),
+		AllFilter = #filter{
+			clients = all,
+			queues = all,
+			queue_groups = all,
+			agents = all,
+			agent_profiles = all,
+			nodes = all
+		},
+		Getids = fun({{_Type, Id}, _, _, _, _}) ->
+			Id
+		end,
+		{AllFilter, Client1, Client2, Getids}
+	end,
+	fun(_) ->
+		ok
+	end,
+	fun({AllFilter, Client1, Client2, Getids}) ->
+		[{"get medias with a given client",
+		fun() ->
+			Out = get_client_medias(AllFilter, Client1#client.label),
+			?assertEqual(4, length(Out)),
+			Expected = ["media-c1-q1", "media-c1-q2", "media-c1-q3", "media-c1-q4"],
+			?assert(lists:all(fun(I) -> lists:member(I, Expected) end, lists:map(Getids, Out)))
+		end},
+		{"get medias with a given queue",
+		fun() ->
+			Out = get_queued_medias(AllFilter, "queue1"),
+			?assertEqual(2, length(Out)),
+			Expected = ["media-c1-q1", "media-c2-q1"],
+			?assert(lists:all(fun(I) -> lists:member(I, Expected) end, lists:map(Getids, Out)))
+		end},
+		{"get media with an 'undefined' client",
+		fun() ->
+			[H | _] = Out = get_client_medias(AllFilter, undefined),
+			?assertEqual(1, length(Out)),
+			?assertEqual({media, "media-undef-qq"}, element(1, H))
+		end}]
+	end}.
+	
 -endif.

@@ -1425,7 +1425,7 @@ check_cookie(Allothers) ->
 		Reflist ->
 			case ets:lookup(cpx_management_logins, Reflist) of
 				[] ->
-					?NOTICE("Cookie bad reflist not in ets.  ~p", [Allothers]),
+					?NOTICE("Cookie bad reflist not in ets.", []),
 					badcookie;
 				[{Reflist, Salt, Login}] ->
 					{Reflist, Salt, Login}

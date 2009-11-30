@@ -156,10 +156,10 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	},
 	setValue:function(recipeStep){
 		this.conditions = recipeStep.conditions;
-		this.actionField.setValue(recipeStep.action);
+		this.actionField.attr('value', recipeStep.action);
 		this.setArguments(recipeStep.action);
 		this.argsWidget.setValue(recipeStep.arguments);
-		this.runsField.setValue(recipeStep.runs);
+		this.runsField.attr('value', recipeStep.runs);
 	},
 	setConditions:function(conditions){
 		this.conditions = conditions;

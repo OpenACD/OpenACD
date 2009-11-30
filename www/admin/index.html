@@ -644,9 +644,9 @@ dojo.requireLocalization("admin", "labels");
 						jsId="queueStore">
 					</div>
 					<input dojoType="dijit.form.FilteringSelect" id="queueGroup" name="group" store="queueStore" value="Default" searchAttr="name" query="{'type':'group'}">
-					<script type="dojo/method" event="postCreate">
-						console.log("goo");
-						console.log(queues.store);
+						<script type="dojo/method" event="postCreate">
+							console.log("goo");
+							console.log(queues.store);
 							this.store = queues.store;
 						</script>
 					</input>
@@ -665,7 +665,7 @@ dojo.requireLocalization("admin", "labels");
 				</p>
 				
 				<p>
-					<label for="queueGroupRecipeDisplay" class="translatecol">GROUPRECIPE<label>
+					<label for="queueGroupRecipeDisplay" class="translatecol">GROUPRECIPE</label>
 					<div dojoType="RecipeEditor" id="queueGroupRecipeDisplay"></div>
 				</p>
 				

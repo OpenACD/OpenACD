@@ -404,6 +404,17 @@ check_conditions([{queue_position, Comparision, Number} | Conditions], Ticked, Q
 			check_conditions(Conditions, Ticked, Qpid, Call);
 		_Else ->
 			false
+	end;
+check_conditions([{client, Comparision, ClientID} | Conditions], Ticked, Qpid, Call) ->
+	Callrec = gen_media:get_call(Call),
+	Client = Callrec#call.client,
+	case Comparision of
+		'=' when Client#client.id == ClientID ->
+			check_conditions(Conditions, Ticked, Qpid, Call);
+		'!=' when Client#client.id =/= ClientID ->
+			check_conditions(Conditions, Ticked, Qpid, Call);
+		_Else ->
+			false
 	end.
 		
 %% @private
@@ -950,6 +961,63 @@ check_conditions_test_() ->
 		{"pos < cond false",
 		fun() ->
 			?assertNot(check_conditions([{queue_position, '<', 1}], "doesn't matter", QPid, Mpid)),
+			Assertmocks()
+		end}
+	end]}},
+	{"client comparison",
+	{foreach,
+	fun() ->
+		{ok, QMPid} = gen_leader_mock:start(queue_manager),
+		{ok, QPid} = gen_server_mock:new(),
+		{ok, Mpid} = gen_server_mock:new(),
+		{ok, AMpid} = gen_leader_mock:start(agent_manager),
+		Assertmocks = fun() ->
+			gen_leader_mock:assert_expectations(QMPid),
+			gen_server_mock:assert_expectations(QPid),
+			gen_server_mock:assert_expectations(Mpid),
+			gen_leader_mock:assert_expectations(AMpid)
+		end,
+		?CONSOLE("Start args:  ~p", [{QMPid, QPid, Mpid, AMpid, Assertmocks}]),
+		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+				Client = #client{id="00010001"},
+				Out = #call{id="foo", client=Client, source=Mpid},
+			{ok, Out, State}
+		end),
+		{QMPid, QPid, Mpid, AMpid, Assertmocks}
+	end,
+	fun({QMPid, QPid, Mpid, AMpid, _Assertmocks}) ->
+		gen_server_mock:stop(QPid),
+		gen_leader_mock:stop(QMPid),
+		gen_server_mock:stop(Mpid),
+		gen_leader_mock:stop(AMpid),
+		timer:sleep(10)
+	end,
+	[
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+		{"client = cond true",
+		fun() ->
+			?assert(check_conditions([{client, '=', "00010001"}], "doesn't matter", QPid, Mpid)),
+			Assertmocks()
+		end}
+	end,
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+		{"client != cond true",
+		fun() ->
+			?assert(check_conditions([{client, '!=', "00010002"}], "doesn't matter", QPid, Mpid)),
+			Assertmocks()
+		end}
+	end,
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+		{"client = cond false",
+		fun() ->
+			?assertNot(check_conditions([{client, '=', "00010002"}], "doesn't matter", QPid, Mpid)),
+			Assertmocks()
+		end}
+	end,
+	fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
+		{"client != cond false",
+		fun() ->
+			?assertNot(check_conditions([{client, '!=', "00010001"}], "doesn't matter", QPid, Mpid)),
 			Assertmocks()
 		end}
 	end]}}].

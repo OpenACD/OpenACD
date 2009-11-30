@@ -784,7 +784,7 @@ handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = unde
 	Now = util:now(),
 	case Now - Last of
 		N when N > 5 ->
-			?DEBUG("Stopping due to missed_polls; last:  ~w now: ~w difference: ~w", [Last, Now, Now - Last]),
+			?NOTICE("Stopping due to missed_polls; last:  ~w now: ~w difference: ~w", [Last, Now, Now - Last]),
 			{stop, missed_polls, State};
 		_N ->
 			{noreply, State}

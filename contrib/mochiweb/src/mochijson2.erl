@@ -354,10 +354,24 @@ tokenize_string_fast(B, O) ->
     case B of
         <<_:O/binary, ?Q, _/binary>> ->
             O;
-        <<_:O/binary, C, _/binary>> when C =/= $\\ ->
+        <<_:O/binary, $\\, _/binary>> ->
+            {escape, O};
+        <<_:O/binary, C1, _/binary>> when C1 < 128 ->
             tokenize_string_fast(B, 1 + O);
+        <<_:O/binary, C1, C2, _/binary>> when C1 >= 194, C1 =< 223,
+                C2 >= 128, C2 =< 191 ->
+            tokenize_string_fast(B, 2 + O);
+        <<_:O/binary, C1, C2, C3, _/binary>> when C1 >= 224, C1 =< 239,
+                C2 >= 128, C2 =< 191,
+                C3 >= 128, C3 =< 191 ->
+            tokenize_string_fast(B, 3 + O);
+        <<_:O/binary, C1, C2, C3, C4, _/binary>> when C1 >= 240, C1 =< 244,
+                C2 >= 128, C2 =< 191,
+                C3 >= 128, C3 =< 191,
+                C4 >= 128, C4 =< 191 ->
+            tokenize_string_fast(B, 4 + O);
         _ ->
-            {escape, O}
+            throw(invalid_utf8)
     end.
 
 tokenize_string(B, S=#decoder{offset=O}, Acc) ->
@@ -380,11 +394,20 @@ tokenize_string(B, S=#decoder{offset=O}, Acc) ->
             tokenize_string(B, ?ADV_COL(S, 2), [$\r | Acc]);
         <<_:O/binary, "\\t", _/binary>> ->
             tokenize_string(B, ?ADV_COL(S, 2), [$\t | Acc]);
-        <<_:O/binary, "\\u", C3, C2, C1, C0, _/binary>> ->
-            %% coalesce UTF-16 surrogate pair?
+        <<_:O/binary, "\\u", C3, C2, C1, C0, Rest/binary>> ->
             C = erlang:list_to_integer([C3, C2, C1, C0], 16),
-            Acc1 = lists:reverse(xmerl_ucs:to_utf8(C), Acc),
-            tokenize_string(B, ?ADV_COL(S, 6), Acc1);
+            if C > 16#D7FF, C < 16#DC00 ->
+                %% coalesce UTF-16 surrogate pair
+                <<"\\u", D3, D2, D1, D0, _/binary>> = Rest,
+                D = erlang:list_to_integer([D3,D2,D1,D0], 16),
+                [CodePoint] = xmerl_ucs:from_utf16be(<<C:16/big-unsigned-integer,
+                    D:16/big-unsigned-integer>>),
+                Acc1 = lists:reverse(xmerl_ucs:to_utf8(CodePoint), Acc),
+                tokenize_string(B, ?ADV_COL(S, 12), Acc1);
+            true ->
+                Acc1 = lists:reverse(xmerl_ucs:to_utf8(C), Acc),
+                tokenize_string(B, ?ADV_COL(S, 6), Acc1)
+            end;
         <<_:O/binary, C, _/binary>> ->
             tokenize_string(B, ?INC_CHAR(S, C), [C | Acc])
     end.
@@ -541,16 +564,13 @@ equiv_object(Props1, Props2) ->
 equiv_list([], []) ->
     true;
 equiv_list([V1 | L1], [V2 | L2]) ->
-    case equiv(V1, V2) of
-        true ->
-            equiv_list(L1, L2);
-        false ->
-            false
-    end.
+    equiv(V1, V2) andalso equiv_list(L1, L2).
 
 test_all() ->
     [1199344435545.0, 1] = decode(<<"[1199344435545.0,1]">>),
+    <<16#F0,16#9D,16#9C,16#95>> = decode([34,"\\ud835","\\udf15",34]),
     test_encoder_utf8(),
+    test_input_validation(),
     test_one(e2j_test_vec(utf8), 1).
 
 test_one([], _N) ->
@@ -616,3 +636,28 @@ test_encoder_utf8() ->
     Enc = mochijson2:encoder([{utf8, true}]),
     [34,"\\u0001",[209,130],[208,181],[209,129],[209,130],34] =
         Enc(<<1,"\321\202\320\265\321\201\321\202">>).
+
+test_input_validation() ->
+    Good = [
+        {16#00A3, <<?Q, 16#C2, 16#A3, ?Q>>}, % pound
+        {16#20AC, <<?Q, 16#E2, 16#82, 16#AC, ?Q>>}, % euro
+        {16#10196, <<?Q, 16#F0, 16#90, 16#86, 16#96, ?Q>>} % denarius
+    ],
+    lists:foreach(fun({CodePoint, UTF8}) ->
+        Expect = list_to_binary(xmerl_ucs:to_utf8(CodePoint)),
+        Expect = decode(UTF8)
+    end, Good),
+    
+    Bad = [
+        % 2nd, 3rd, or 4th byte of a multi-byte sequence w/o leading byte
+        <<?Q, 16#80, ?Q>>,
+        % missing continuations, last byte in each should be 80-BF
+        <<?Q, 16#C2, 16#7F, ?Q>>,
+        <<?Q, 16#E0, 16#80,16#7F, ?Q>>,
+        <<?Q, 16#F0, 16#80, 16#80, 16#7F, ?Q>>,
+        % we don't support code points > 10FFFF per RFC 3629
+        <<?Q, 16#F5, 16#80, 16#80, 16#80, ?Q>>
+    ],
+    lists:foreach(fun(X) ->
+        ok = try decode(X) catch invalid_utf8 -> ok end
+    end, Bad).

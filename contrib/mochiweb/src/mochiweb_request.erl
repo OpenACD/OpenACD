@@ -173,13 +173,13 @@ recv_body() ->
 recv_body(MaxBody) ->
     % we could use a sane constant for max chunk size
     Body = stream_body(?MAX_RECV_BODY, fun
-        ({0, _ChunkedFooter}, {_LengthAcc, BinAcc}) -> 
+        ({0, _ChunkedFooter}, {_LengthAcc, BinAcc}) ->
             iolist_to_binary(lists:reverse(BinAcc));
         ({Length, Bin}, {LengthAcc, BinAcc}) ->
             NewLength = Length + LengthAcc,
             if NewLength > MaxBody ->
                 exit({body_too_large, chunked});
-            true -> 
+            true ->
                 {NewLength, [Bin | BinAcc]}
             end
         end, {0, []}, MaxBody),
@@ -188,10 +188,15 @@ recv_body(MaxBody) ->
 
 stream_body(MaxChunkSize, ChunkFun, FunState) ->
     stream_body(MaxChunkSize, ChunkFun, FunState, undefined).
-    
-stream_body(MaxChunkSize, ChunkFun, FunState, MaxBodyLength) ->
 
-    case get_header_value("expect") of
+stream_body(MaxChunkSize, ChunkFun, FunState, MaxBodyLength) ->
+    Expect = case get_header_value("expect") of
+                 undefined ->
+                     undefined;
+                 Value when is_list(Value) ->
+                     string:to_lower(Value)
+             end,
+    case Expect of
         "100-continue" ->
             start_raw_response({100, gb_trees:empty()});
         _Else ->
@@ -214,8 +219,8 @@ stream_body(MaxChunkSize, ChunkFun, FunState, MaxBodyLength) ->
             MaxBodyLength when is_integer(MaxBodyLength), MaxBodyLength < Length ->
                 exit({body_too_large, content_length});
             _ ->
-                stream_unchunked_body(Length, MaxChunkSize, ChunkFun, FunState)
-            end;     
+                stream_unchunked_body(Length, ChunkFun, FunState)
+            end;
         Length ->
             exit({length_not_integer, Length})
     end.
@@ -449,16 +454,20 @@ stream_chunked_body(MaxChunkSize, Fun, FunState) ->
             stream_chunked_body(MaxChunkSize, Fun, NewState)
     end.
 
-stream_unchunked_body(0, _MaxChunkSize, Fun, FunState) ->
+stream_unchunked_body(0, Fun, FunState) ->
     Fun({0, <<>>}, FunState);
-stream_unchunked_body(Length, MaxChunkSize, Fun, FunState) when Length > MaxChunkSize ->
-    Bin = recv(MaxChunkSize),
-    NewState = Fun({MaxChunkSize, Bin}, FunState),
-    stream_unchunked_body(Length - MaxChunkSize, MaxChunkSize, Fun, NewState);
-stream_unchunked_body(Length, MaxChunkSize, Fun, FunState) ->
-    Bin = recv(Length),
-    NewState = Fun({Length, Bin}, FunState),
-    stream_unchunked_body(0, MaxChunkSize, Fun, NewState).
+stream_unchunked_body(Length, Fun, FunState) when Length > 0 ->
+    Bin = recv(0),
+    BinSize = byte_size(Bin),
+    if BinSize > Length ->
+        <<OurBody:Length/binary, Extra/binary>> = Bin,
+        gen_tcp:unrecv(Socket, Extra),
+        NewState = Fun({Length, OurBody}, FunState),
+        stream_unchunked_body(0, Fun, NewState);
+    true ->
+        NewState = Fun({BinSize, Bin}, FunState),
+        stream_unchunked_body(Length - BinSize, Fun, NewState)
+    end.
 
 
 %% @spec read_chunk_length() -> integer()
@@ -510,7 +519,7 @@ read_sub_chunks(Length, MaxChunkSize, Fun, FunState) when Length > MaxChunkSize 
 
 read_sub_chunks(Length, _MaxChunkSize, Fun, FunState) ->
     Fun({Length, read_chunk(Length)}, FunState).
-    
+
 %% @spec serve_file(Path, DocRoot) -> Response
 %% @doc Serve a file relative to DocRoot.
 serve_file(Path, DocRoot) ->
@@ -524,39 +533,68 @@ serve_file(Path, DocRoot, ExtraHeaders) ->
             not_found(ExtraHeaders);
         RelPath ->
             FullPath = filename:join([DocRoot, RelPath]),
-            File = case filelib:is_dir(FullPath) of
-                       true ->
-                           filename:join([FullPath, "index.html"]);
-                       false ->
-                           FullPath
-                   end,
-            case file:read_file_info(File) of
-                {ok, FileInfo} ->
-                    LastModified = httpd_util:rfc1123_date(FileInfo#file_info.mtime),
-                    case get_header_value("if-modified-since") of
-                        LastModified ->
-                            respond({304, ExtraHeaders, ""});
-                        _ ->
-                            case file:open(File, [raw, binary]) of
-                                {ok, IoDevice} ->
-                                    ContentType = mochiweb_util:guess_mime(File),
-                                    Res = ok({ContentType,
-                                              [{"last-modified", LastModified}
-                                               | ExtraHeaders],
-                                              {file, IoDevice}}),
-                                    file:close(IoDevice),
-                                    Res;
-                                _ ->
-                                    not_found(ExtraHeaders)
-                            end
-                    end;
-                {error, _} ->
-                    not_found(ExtraHeaders)
+            case filelib:is_dir(FullPath) of
+                true ->
+                    maybe_redirect(RelPath, FullPath, ExtraHeaders);
+                false ->
+                    maybe_serve_file(FullPath, ExtraHeaders)
             end
     end.
 
-
 %% Internal API
+
+%% This has the same effect as the DirectoryIndex directive in httpd
+directory_index(FullPath) ->
+    filename:join([FullPath, "index.html"]).
+
+maybe_redirect([], FullPath, ExtraHeaders) ->
+    maybe_serve_file(directory_index(FullPath), ExtraHeaders);
+
+maybe_redirect(RelPath, FullPath, ExtraHeaders) ->
+    case string:right(RelPath, 1) of
+        "/" ->
+            maybe_serve_file(directory_index(FullPath), ExtraHeaders);
+        _   ->
+            Host = mochiweb_headers:get_value("host", Headers),
+            Location = "http://" ++ Host  ++ "/" ++ RelPath ++ "/",
+            LocationBin = list_to_binary(Location),
+            MoreHeaders = [{"Location", Location},
+                           {"Content-Type", "text/html"} | ExtraHeaders],
+            Top = <<"<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">"
+            "<html><head>"
+            "<title>301 Moved Permanently</title>"
+            "</head><body>"
+            "<h1>Moved Permanently</h1>"
+            "<p>The document has moved <a href=\"">>,
+            Bottom = <<">here</a>.</p></body></html>\n">>,
+            Body = <<Top/binary, LocationBin/binary, Bottom/binary>>,
+            respond({301, MoreHeaders, Body})
+    end.
+
+maybe_serve_file(File, ExtraHeaders) ->
+    case file:read_file_info(File) of
+        {ok, FileInfo} ->
+            LastModified = httpd_util:rfc1123_date(FileInfo#file_info.mtime),
+            case get_header_value("if-modified-since") of
+                LastModified ->
+                    respond({304, ExtraHeaders, ""});
+                _ ->
+                    case file:open(File, [raw, binary]) of
+                        {ok, IoDevice} ->
+                            ContentType = mochiweb_util:guess_mime(File),
+                            Res = ok({ContentType,
+                                      [{"last-modified", LastModified}
+                                       | ExtraHeaders],
+                                      {file, IoDevice}}),
+                            file:close(IoDevice),
+                            Res;
+                        _ ->
+                            not_found(ExtraHeaders)
+                    end
+            end;
+        {error, _} ->
+            not_found(ExtraHeaders)
+    end.
 
 server_headers() ->
     [{"Server", "MochiWeb/1.0 (" ++ ?QUIP ++ ")"},
@@ -642,7 +680,6 @@ range_parts({file, IoDevice}, Ranges) ->
                            end,
                            LocNums, Data),
     {Bodies, Size};
-
 range_parts(Body0, Ranges) ->
     Body = iolist_to_binary(Body0),
     Size = size(Body),
@@ -709,7 +746,6 @@ test_range() ->
     [{none, 20}] = parse_range_request("bytes=-20"),
     io:format(".. ok ~n"),
 
-
     %% invalid, single ranges
     io:format("Testing parse_range_request with invalid ranges~n"),
     io:format("1"),
@@ -723,21 +759,21 @@ test_range() ->
     %% valid, multiple range
     io:format("Testing parse_range_request with valid multiple ranges~n"),
     io:format("1"),
-    [{20, 30}, {50, 100}, {110, 200}] = 
+    [{20, 30}, {50, 100}, {110, 200}] =
         parse_range_request("bytes=20-30,50-100,110-200"),
     io:format("2"),
-    [{20, none}, {50, 100}, {none, 200}] = 
+    [{20, none}, {50, 100}, {none, 200}] =
         parse_range_request("bytes=20-,50-100,-200"),
     io:format(".. ok~n"),
-    
+
     %% no ranges
     io:format("Testing out parse_range_request with no ranges~n"),
     io:format("1"),
     [] = parse_range_request("bytes="),
     io:format(".. ok~n"),
-    
+
     Body = <<"012345678901234567890123456789012345678901234567890123456789">>,
-    BodySize = size(Body), %% 60
+    BodySize = byte_size(Body), %% 60
     BodySize = 60,
 
     %% these values assume BodySize =:= 60
@@ -751,7 +787,7 @@ test_range() ->
     io:format("4"),
     {30, 30} = range_skip_length({30, none}, BodySize), %% 30-
     io:format(".. ok ~n"),
-    
+
     %% valid edge cases for range_skip_length
     io:format("Testing out range_skip_length on valid edge case ranges~n"),
     io:format("1"),
@@ -787,4 +823,4 @@ test_range() ->
     invalid_range = range_skip_length({BodySize, none}, BodySize),
     io:format(".. ok ~n"),
     ok.
-    
+

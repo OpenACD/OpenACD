@@ -329,6 +329,7 @@ surrendered(#state{ets = Tid} = State, {_Merge, _Stilldown}, Election) ->
 	
 %% @hidden
 handle_DOWN(Node, #state{ets = Tid} = State, Election) ->
+	?ERROR("Node ~p is down!", [Node]),
 	Newsplits = case proplists:get_value(Node, State#state.splits) of
 		undefined ->
 			[{Node, util:now()} | State#state.splits];
@@ -341,7 +342,13 @@ handle_DOWN(Node, #state{ets = Tid} = State, Election) ->
 		[{Key, _Hp, Details, _Time2}] ->
 			{Key, [{down, 100}], Details, util:now()}
 	end,
-	ets:match_delete(Tid, {'_', '_', '_', Node}),
+	QH = qlc:q([Id || {Id, _Hp, Details, _Time} <- ets:table(Tid),
+		Id =/= {node, Node},
+		proplists:get_value(node, Details) == Node
+	]),
+	Idlist = qlc:e(QH),
+	lists:foreach(fun(Id) -> entry({drop, Id}, State, Election) end, Idlist),
+	%%ets:match_delete(Tid, {'_', '_', '_', Node}),
 	entry(Entry, State, Election),
 	{ok, State#state{splits = Newsplits}}.
 
@@ -786,7 +793,46 @@ data_grooming_test_() ->
 			?assertEqual({media, "new"}, get_key(M1))
 		end}
 	end]}.
-	
+
+handle_down_test() ->
+	Tid = ets:new(?MODULE, []),
+	Entries = [
+		{{media, "cull1"}, [], [{node, "deadnode"}], util:now()},
+		{{media, "keep1"}, [], [{node, "goodnode"}], util:now()}
+	],
+	ets:insert(Tid, Entries),
+	State = #state{ets = Tid},
+	% This is an election record, see gen_leader to find out what it is.
+	Election = {election, node(), ?MODULE, none, [], [], [], [], [], [], undefined, undefined, [], [], 1, undefined, [], undefined, undefined, all},
+	handle_DOWN("deadnode", State, Election),
+	?assertEqual([], ets:lookup(Tid, {media, "cull1"})),
+	?assertMatch([{{media, "keep1"}, [], [{node, "goodnode"}], _Time}], ets:lookup(Tid, {media, "keep1"})).
+
+
+%-record(election, {
+%          leader = none,
+%          name,
+%          leadernode = none,
+%          candidate_nodes = [],
+%          worker_nodes = [],
+%          alive = [],
+%          down = [],
+%          monitored = [],
+%          buffered = [],
+%          status,
+%          elid,
+%          acks = [],
+%          work_down = [],
+%          cand_timer_int,
+%          cand_timer,
+%          pendack,
+%          incarn,
+%          nextel,
+%          bcast_type              %% all | one. When `all' each election event
+%          %% will be broadcast to all candidate nodes.
+%         }).
+%
+
 time_dependant_test_() ->
 	[{"Low health by time",
 	fun() ->

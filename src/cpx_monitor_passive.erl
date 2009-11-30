@@ -79,6 +79,8 @@
 -type(timestamp() :: integer()).
 -type(health_data() :: [{atom(), any()}]).
 -type(details() :: [{any(), any()}]).
+-type(historical_event() :: 'ivr' | 'queued' | 'handled' | 'ended').
+-type(time_list() :: [{historical_event(), pos_integer()}]).
 -type(historical_key() :: {'inbound', 'queued'} | {'inbound', 'ivr'} | {'inbound', 'qabandoned'} | {'inbound', 'ivrabandoned'} | {'inbound', 'handled'} | 'outbound' | 'undefined').
 -type(historical_tuple() :: {dets_key(), time(), health_data(), details(), historical_key()}).
 
@@ -273,12 +275,11 @@ code_change(_OldVsn, State, _Extra) ->
 
 cache_event({drop, {media, _Id} = Key}) ->
 	Row = case dets:lookup(?DETS, Key) of
-		[{Key, Time, Hp, Details, {inbound, queued}}] ->
-			dets:insert(?DETS, {Key, Time, Hp, Details, {inbound, qabandoned}}),
-			{Key, Time, Hp, Details, {inbound, qabandoned}};
-		[{Key, Time, Hp, Details, {inbound, ivr}}] ->
-			dets:insert(?DETS, {Key, Time, Hp, Details, {inbound, ivrabandoned}}),
-			{Key, Time, Hp, Details, {inbound, ivrabandoned}};
+		[{Key, Time, Hp, Details, {inbound, History}}] ->
+			Newhistory = History ++ [{ended, util:now()}],
+			Newrow = {Key, Time, Hp, Details, {inbound, Newhistory}},
+			dets:insert(?DETS, Newrow),
+			Newrow;
 		_Else ->
 			{Key, none}
 	end,
@@ -288,38 +289,51 @@ cache_event({drop, {agent, _Id} = Key}) ->
 	{Key, none};
 cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 	case dets:lookup(?DETS, Key) of
-		[{Key, Time, Hp, Details, {inbound, queued}}] ->
-			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails)} of
-				{undefined, undefined} ->
-					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, qabandoned}}),
-					{Key, Time, EventHp, EventDetails, {inbound, qabandoned}};
-				{undefined, _Agent} ->
-					dets:insert(?DETS, {Key, Time, EventHp, [{timequeued, util:now() - Time} | EventDetails], {inbound, handled}}),
-					{Key, Time, EventHp, EventDetails, {inbound, handled}};
-				{_Queue, undefined} ->
-					% updating n case HP or Details changed.
-					dets:insert(?DETS, {Key, Time, EventHp, EventDetails, {inbound, queued}}),
-					{Key, Time, EventHp, EventDetails, {inbound, queued}};
-				BothQnAgent ->
-					?WARNING("both and agent and queue defined, ignoring", []),
+		[{Key, Time, Hp, Details, {inbound, History}}] ->
+			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails), History} of
+				{undefined, undefined, []} ->
+					% just update the hp and details.
+					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History}},
+					dets:insert(?DETS, Newrow),
+					Newrow;
+				{undefined, undefined, List} ->
+					% either death in ivr or queue, can be figured out later
+					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History ++ [{ended, EventTime}]}},
+					dets:insert(?DETS, Newrow),
+					Newrow;
+				{undefined, _Agent, List} when length(List) > 0, length(List) < 3 ->
+					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History ++ [{handled, EventTime}]}},
+					dets:insert(?DETS, Newrow),
+					Newrow;
+				{_Queue, undefined, [{ivr, _}]} ->
+					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History ++ [{queued, EventTime}]}},
+					dets:insert(?DETS, Newrow),
+					Newrow;
+				{_Queue, _Agent, _} ->
+					?WARNING("both agent and queue defined, ignoring (~p)", [Key]),
 					none
 			end;
 		[{Key, Time, Hp, Details, History}] ->
-			% blind update
-			dets:insert(?DETS, {Key, Time, EventHp, EventDetails, History}),
-			{Key, Time, EventHp, EventDetails, History};
+			% either undefined or outbound history, blind update.
+			Newrow = {Key, Time, EventHp, EventDetails, History},
+			dets:insert(?DETS, Newrow),
+			Newrow;
 		[] ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(direction, EventDetails)} of
 				{undefined, outbound} ->
-					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, outbound}),
-					{Key, EventTime, EventHp, EventDetails, outbound};
+					Newrow = {Key, EventTime, EventHp, EventDetails, outbound},
+					dets:insert(?DETS, Newrow),
+					Newrow;
 				{undefined, inbound} ->
 					?INFO("Didn't find queue, but still inbound.  Assuming it's in ivr call:  ~p", [Key]),
+					Newrow = {Key, EventTime, EventHp, EventDetails, {inbound, [{ivr, EventTime}]}},
 					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, {inbound, ivr}}),
-					{Key, EventTime, EventHp, EventDetails, {inbound, ivr}};
+					Newrow;
 				{_Queue, inbound} ->
-					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, {inbound, queued}}),
-					{Key, EventTime, EventHp, EventDetails, {inbound, queued}}
+					% guess it went right to queue.  /shrug.
+					Newrow = {Key, EventTime, EventHp, EventDetails, {inbound, [{queued, EventTime}]}},
+					dets:insert(?DETS, Newrow),
+					Newrow
 			end
 	end;
 cache_event({set, {{agent, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
@@ -488,6 +502,11 @@ filter_row(#filter{max_age = Seconds} = Filter, Row) when is_integer(Seconds) ->
 		false ->
 			filter_row(Filter#filter{max_age = max}, Row)
 	end;
+filter_row(#filter{max_age = {since, Seconds}} = Filter, Row) ->
+	Now = util:now(),
+	{_Date, {Hour, Min, Sec}} = erlang:localtime(),
+	Diff = Sec + (Min * 60) + (Hour * 60 * 60) - Seconds,
+	filter_row(Filter#filter{max_age = Diff}, Row);
 filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, Row) ->
 	true;
 filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, handled}}) ->
@@ -559,18 +578,39 @@ filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
 
 write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter}) ->
 	Hourago = util:now() - 3600,
-	Inbound = [X || {_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == inbound],
-	Outbound = [X || {_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == outbound],
-	Abandoned = [X || {_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == inbound, element(2, Hkey) == qabandoned orelse element(2, Hkey) == ivrabandoned],
-	HourInbound = [X || {_Key, {Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == inbound, Time > Hourago],
+	Inbound = [X || 
+		{_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, 
+		element(1, Hkey) == inbound
+	],
+	Outbound = [X || 
+		{_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, 
+		element(1, Hkey) == outbound
+	],
+	Abandoned = [X || 
+		{_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, 
+		element(1, Hkey) == inbound, 
+		is_abandon(element(2, Hkey))
+	],
+	HourInbound = [X || 
+		{_Key, {Time, Hkey}} = X <- FilterState#filter_state.state, 
+		element(1, Hkey) == inbound, 
+		Time > Hourago
+	],
 	HourOutbound = [X || {_Key, {Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == outbound, Time > Hourago],
-	HourAbn = [X || {_Key, {Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == inbound, element(2, Hkey) == qabandoned orelse element(2, Hkey) == ivrabandoned, Time > Hourago],
+	HourAbn = [X || 
+		{_Key, {Time, Hkey}} = X <- FilterState#filter_state.state, 
+		element(1, Hkey) == inbound, 
+		is_abandon(element(2, Hkey)),
+		Time > Hourago
+	],
 	Clients = get_clients(Filter),
 	ClientsJson = clients_to_json(Clients, Filter),
 	Queugroups = get_queue_groups(Filter),
 	QueuegroupJson = queuegroups_to_json(Queugroups, Filter),
 	AgentProfiles = get_agent_profiles(Filter),
 	AgentProfsJson = agentprofiles_to_json(AgentProfiles, Filter),
+	Rawdata = get_all_media(Filter),
+	{_, _, _, _, Rawjson} = medias_to_json(Rawdata),
 	Json = {struct, [
 		{<<"writeTime">>, util:now()},
 		{<<"totalInbound">>, length(Inbound)},
@@ -581,11 +621,27 @@ write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter
 		{<<"hourAbandoned">>, length(HourAbn)},
 		{<<"clients_in_queues">>, ClientsJson},
 		{<<"queueGroups">>, QueuegroupJson},
-		{<<"agentProfiles">>, AgentProfsJson}
+		{<<"agentProfiles">>, AgentProfsJson},
+		{<<"rawdata">>, Rawjson}
 	]},
 	Out = mochijson2:encode(Json),
 	{ok, File} = file:open(Fileout, [write, binary]),
 	file:write(File, Out).	
+
+get_all_media(Filter) ->
+	QH = qlc:q([Row || Row <- dets:table(?DETS), element(1, element(1, Row)) == media]),
+	List = qlc:e(QH),
+	get_all_media(Filter, List, []).
+
+get_all_media(_Filter, [], Acc) ->
+	lists:reverse(Acc);
+get_all_media(Filter, [Row | Tail], Acc) ->
+	case filter_row(Filter, Row) of
+		false ->
+			get_all_media(Filter, Tail, Acc);
+		true ->
+			get_all_media(Filter, Tail, [Row | Acc])
+	end.
 
 clients_to_json(Clients, Filter) ->
 	clients_to_json(Clients, Filter, []).
@@ -624,19 +680,28 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTi
 		false ->
 			CurTime
 	end,
-	NewHead = {struct, [
+	Eventtimes = case HistoricalKey of
+		{inbound, Events} ->
+			Events;
+		_ ->
+			[]
+	end,
+	NewHead = {struct, lists:append([
 		{<<"id">>, list_to_binary(Id)},
 		{<<"time">>, Time},
 		{<<"brand">>, begin C = proplists:get_value(client, Details), case C#client.label of undefined -> undefined; _ -> list_to_binary(C#client.label) end end},
 		{<<"node">>, proplists:get_value(node, Details)},
 		{<<"type">>, proplists:get_value(type, Details)},
 		{<<"priority">>, proplists:get_value(priority, Details)}
-	]},
+	], Eventtimes)},
 	{Newin, Newout, Newabn} = case HistoricalKey of
-		{'inbound', Abandoned} when Abandoned == quabandoned; Abandoned == ivrabandoned ->
-			{In + 1, Out, Abn + 1};
-		{'inbound', _HandledOrQueued} ->
-			{In + 1, Out, Abn};
+		{'inbound', Abandoned} ->
+			case is_abandon(Abandoned) of
+				true ->
+					{In + 1, Out, Abn + 1};
+				false ->
+					{In + 1, Out, Abn}
+			end;
 		outbound ->
 			{In, Out + 1, Abn};
 		_ ->
@@ -777,6 +842,17 @@ list_member(_Member, all) ->
 	true;
 list_member(Member, List) ->
 	lists:member(Member, List).
+
+is_abandon([{ended, _}]) ->
+	true;
+is_abandon([{ivr, _}, {ended, _}]) ->
+	true;
+is_abandon([{queued, _}, {ended, _}]) ->
+	true;
+is_abandon([{ivr, _}, {queued, _}, {ended, _}]) ->
+	true;
+is_abandon(_) ->
+	false.
 
 -ifdef(EUNIT).
 
@@ -1015,6 +1091,70 @@ filter_row_test_() ->
 			Expected = [],
 			Filtered = DoFilter(Filter),
 			?assertEqual(Expected, Filtered)
+		end},
+		{"filter since time (like midnight)",
+		fun() ->
+			TheFilter = #filter{
+				max_age = {since, 0},
+				clients = all,
+				queues = all,
+				queue_groups = all,
+				agents = all,
+				agent_profiles = all,
+				nodes = all
+			},
+			Now = util:now(),
+			{_Date, {Hour, Min, Sec}} = erlang:localtime(),
+			Diff = Sec + (Min * 60) + (Hour * 60 * 60),
+			Midnight = Now - Diff,
+			TheRows = [
+				{{media, "pre-midnight"}, Midnight - 100, [], [], {inbound, queued}},
+				{{media, "post-midnight"}, Midnight + 100, [], [], {inbound, queued}}
+			],
+			Expected = [{{media, "post-midnight"}, Midnight + 100, [], [], {inbound, queued}}],
+			Fun = fun(R, Acc) -> 
+				case filter_row(TheFilter, R) of
+					true ->
+						[R | Acc];
+					false ->
+						Acc
+				end
+			end,
+			Got = lists:foldl(Fun, [], TheRows),
+			?assertEqual(Expected, Got)
+		end},
+		{"filter since time (like 2 minutes after midnight)",
+		fun() ->
+			TheFilter = #filter{
+				max_age = {since, 120},
+				clients = all,
+				queues = all,
+				queue_groups = all,
+				agents = all,
+				agent_profiles = all,
+				nodes = all
+			},
+			Now = util:now(),
+			{_Date, {Hour, Min, Sec}} = erlang:localtime(),
+			Diff = Sec + (Min * 60) + (Hour * 60 * 60),
+			Midnight = Now - Diff,
+			TheRows = [
+				{{media, "pre-midnight"}, Midnight - 60, [], [], {inbound, queued}},
+				{{media, "midnight"}, Midnight, [], [], {inbound, queued}},
+				{{media, "post-midnight-1"}, Midnight + 60, [], [], {inbound, queued}},
+				{{media, "post-midnight-3"}, Midnight + 180, [], [], {inbound, queued}}
+			],
+			Expected = [{{media, "post-midnight-3"}, Midnight + 180, [], [], {inbound, queued}}],
+			Fun = fun(R, Acc) -> 
+				case filter_row(TheFilter, R) of
+					true ->
+						[R | Acc];
+					false ->
+						Acc
+				end
+			end,
+			Got = lists:foldl(Fun, [], TheRows),
+			?assertEqual(Expected, Got)
 		end}]
 	end}.
 

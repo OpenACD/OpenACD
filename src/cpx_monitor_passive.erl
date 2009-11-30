@@ -594,7 +594,7 @@ clients_to_json([], _Filter, Acc) ->
 	lists:reverse(Acc);
 clients_to_json([Client | Tail], Filter, Acc) ->
 	Medias = get_client_medias(Filter, Client#client.label),
-	{Oldest, MediaJson} = medias_to_json(Medias),
+	{Oldest, TotalIn, TotalOut, TotalAbn, MediaJson} = medias_to_json(Medias),
 	Label = case Client#client.label of
 		undefined ->
 			undefined;
@@ -604,17 +604,20 @@ clients_to_json([Client | Tail], Filter, Acc) ->
 	Json = {struct, [
 		{<<"label">>, Label},
 		{<<"oldestAge">>, Oldest},
+		{<<"totalInbound">>, TotalIn},
+		{<<"totalOutbound">>, TotalOut},
+		{<<"totalAbandoned">>, TotalAbn},
 		{<<"medias">>, MediaJson}
 	]},
 	clients_to_json(Tail, Filter, [Json | Acc]).
 
 medias_to_json(Rows) ->
 	Time = util:now(),
-	medias_to_json(Rows, {Time, []}).
+	medias_to_json(Rows, {Time, 0, 0, 0, []}).
 
-medias_to_json([], {Time, Acc}) ->
-	{Time, lists:reverse(Acc)};
-medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTime, Acc}) ->
+medias_to_json([], {Time, In, Out, Abn, Acc}) ->
+	{Time, In, Out, Abn, lists:reverse(Acc)};
+medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTime, In, Out, Abn, Acc}) ->
 	Newtime = case Time < CurTime of
 		true ->
 			Time;
@@ -629,7 +632,17 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTi
 		{<<"type">>, proplists:get_value(type, Details)},
 		{<<"priority">>, proplists:get_value(priority, Details)}
 	]},
-	medias_to_json(Tail, {Newtime, [NewHead | Acc]}).
+	{Newin, Newout, Newabn} = case HistoricalKey of
+		{'inbound', Abandoned} when Abandoned == quabandoned; Abandoned == ivrabandoned ->
+			{In + 1, Out, Abn + 1};
+		{'inbound', _HandledOrQueued} ->
+			{In + 1, Out, Abn};
+		outbound ->
+			{In, Out + 1, Abn};
+		_ ->
+			{In, Out, Abn}
+	end,
+	medias_to_json(Tail, {Newtime, Newin, Newout, Newabn, [NewHead | Acc]}).
 
 queuegroups_to_json(Groups, Filter) ->
 	queuegroups_to_json(Groups, Filter, []).
@@ -652,10 +665,13 @@ queues_to_json([], _Filter, Acc) ->
 	lists:reverse(Acc);
 queues_to_json([Queue | Tail], Filter, Acc) ->
 	Medias = get_queued_medias(Filter, Queue),
-	{Oldest, MediaJson} = medias_to_json(Medias),
+	{Oldest, TotalIn, TotalOut, TotalAbn, MediaJson} = medias_to_json(Medias),
 	Json = {struct, [
 		{<<"name">>, list_to_binary(Queue)},
 		{<<"oldestAge">>, Oldest},
+		{<<"totalInbound">>, TotalIn},
+		{<<"totalOutbound">>, TotalOut},
+		{<<"totalAbandoned">>, TotalAbn},
 		{<<"medias">>, MediaJson}
 	]},
 	queues_to_json(Tail, Filter, [Json | Acc]).
@@ -706,7 +722,7 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 				Type == media,
 				Id == Media#call.id
 			]),
-			{_, [Datajson]} = case qlc:e(Qh) of
+			{_, _, _, _, [Datajson]} = case qlc:e(Qh) of
 				[] ->
 					{undefined, [undefined]};
 				[T] ->

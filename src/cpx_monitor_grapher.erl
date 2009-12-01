@@ -88,7 +88,7 @@ init(Props) ->
 				Else ->
 					Else ++ "/" % TODO avoid doubling trailing slashes
 			end,
-			Now = now(),
+			Now = util:now(),
 			GroupedAgents = get_agents(Now),
 			timer:send_after(30000, update),
 			timer:send_after(65000, graph),
@@ -145,7 +145,7 @@ handle_info(graph, #state{rrd = RRD, rrd_dir = Dir, image_dir = Imagedir} = Stat
 	end, Graphs),
 	{noreply, State};
 handle_info(update, State) ->
-	Now = now(),
+	Now = util:now(),
 	GroupedAgents = get_agents(Now),
 	timer:send_after(30000, update),
 	Util = calculate_utilization(State#state.agents),
@@ -166,7 +166,7 @@ code_change(_Oldvsn, State, _Extra) ->
 % internal functions
 
 get_agents(Now) ->
-	Agents = lists:map(fun({_, _, Agent}) -> [{lastchangetimestamp, Now} | proplists:delete(lastchangetimestamp, Agent)] end, element(2, cpx_monitor:get_health(agent))),
+	Agents = lists:map(fun({_, _, Agent}) -> [{lastchangetimestamp, {timestamp, Now}} | proplists:delete(lastchangetimestamp, Agent)] end, element(2, cpx_monitor:get_health(agent))),
 	util:group_by_with_key(fun(Agent) -> proplists:get_value(profile, Agent) end, Agents).
 
 update_agent(Agent, Agents) ->
@@ -197,13 +197,13 @@ calculate_utilization_by_agent([{Agent, States} | Tail], Acc) ->
 
 
 calc([State], Util, Total) ->
-	Diff = round((util:now() - proplists:get_value(lastchangetimestamp, State)) /1000000),
+	Diff = util:now() - element(2, proplists:get_value(lastchangetimestamp, State)),
 	AgentState = proplists:get_value(state, State),
 	Bias = proplists:get_value(bias, State, -1),
 	NUtil = get_util(AgentState, Diff, Util, Bias),
 	round((NUtil / (Total + Diff)) * 100);
 calc([State1, State2 | Tail], Util, Total) ->
-	Diff = round((proplists:get_value(lastchangetimestamp, State2) - proplists:get_value(lastchangetimestamp, State1)) /1000000),
+	Diff = element(2, proplists:get_value(lastchangetimestamp, State2)) - element(2, proplists:get_value(lastchangetimestamp, State1)),
 	AgentState = proplists:get_value(state, State1),
 	Bias = proplists:get_value(bias, State1, -1),
 	NUtil = get_util(AgentState, Diff, Util, Bias),

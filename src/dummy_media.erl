@@ -336,7 +336,7 @@ handle_call(stop_cook, _From, _Callrec, #state{callrec = Call, fail = Fail} = St
 			Newfail = dict:store(stop_cook, success, Fail),
 			{reply, invalid, State#state{fail = Newfail}}
 %	end;
-	end.
+	end;
 %handle_call(voicemail, _From, #state{fail = Fail} = State) ->
 %	case dict:fetch(voicemail, Fail) of
 %		success ->
@@ -357,6 +357,9 @@ handle_call(stop_cook, _From, _Callrec, #state{callrec = Call, fail = Fail} = St
 %			Newfail = dict:store(announce, success, Fail),
 %			{reply, invalid, State#state{fail = Newfail}}
 %	end.
+handle_call(Msg, _From, _Callrec, State) ->
+	?INFO("unhandled mesage ~p", [Msg]),
+	{reply, ok, State}.
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%                                      {noreply, State, Timeout} |

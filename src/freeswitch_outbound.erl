@@ -299,9 +299,9 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, gateway = Gateway
 	end,
 	cdr:dialoutgoing(Call, Number),
 	{reply, ok, State};
-handle_call(Request, _From, _Call, State) ->
-	Reply = {unknown, Request},
-	{reply, Reply, State}.
+handle_call(Msg, _From, _Call, State) ->
+	?INFO("unhandled mesage ~p", [Msg]),
+	{reply, ok, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages

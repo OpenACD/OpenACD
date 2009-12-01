@@ -19,4 +19,12 @@
 	AGENTSELIGIBLE: "Agents Eligible",
 	CALLSINQUEUE: "Calls in Queue",
 	POSITIONINQUEUE: "Position in Queue",
+	BRAND: "Brand",
+	HOUR:"Hour",
+	WEEKDAY:"Day of Week",
+	MEDIATYPE:"Media Type",
+	COMPAREEQUAL:"is",
+	COMPAREGREATERTHAN:"is greater than",
+	COMPARELESSTHAN:"is less than",
+	COMPARENOTEQUAL:"is not"
 }

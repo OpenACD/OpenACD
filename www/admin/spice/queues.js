@@ -38,6 +38,9 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPARELESSTHAN,
 			"value":"<",
 			"type":"comparison"},
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").COMPARENOTEQUAL,
+			"value":"!=",
+			"type":"comparison"},
 			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSELIGIBLE,
 			"value":"agents_eligible",
 			"type":"property",
@@ -64,6 +67,40 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 				{_reference:"="},
 				{_reference:">"},
 				{_reference:"<"}
+			]},
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").BRAND,
+			"value":"brand",
+			"type":"property",
+			"regExp":"[\\w]+",
+			"comparisons":[
+				{_reference:"="},
+				{_reference:"!="}
+			]},
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").HOUR,
+			"value":"hour",
+			"type":"property",
+			"regExp":"[\\d]+",
+			"comparisons":[
+				{_reference:"="},
+				{_reference:">"},
+				{_reference:"<"}
+			]},
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").WEEKDAY,
+			"value":"weekday",
+			"type":"property",
+			"regExp":"[\\d]+",
+			"comparisons":[
+				{_reference:"="},
+				{_reference:"<"},
+				{_reference:">"}
+			]},
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").MEDIATYPE,
+			"value":"mediatype",
+			"type":"property",
+			"regExp":"[\\d]+",
+			"comparisons":[
+				{_reference:"="},
+				{_reference:"!="}
 			]}
 		]
 	}

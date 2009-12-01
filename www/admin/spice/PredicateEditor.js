@@ -16,15 +16,20 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 	setComparisons: function(prop){
 		var ithis = this;
 		var callback = function(res, req){
+			console.log(["setComparisions req", req]);
 			var items = [];
-			if(! res[0]){
+			if(res.length < 1){
 				return;
 			}
-			for(var i in res[0].comparisons){
+			var res = res[0];
+			var comparisons = req.store.getValues(res, 'comparisons');
+			console.log(["comparisons", comparisons]);
+			for(var i = 0; i < comparisons.length; i++){
 				items.push({
-					'label':res[0].comparisons[i].label[0],
-					'value':res[0].comparisons[i].value[0]});
-			};
+					'label':req.store.getValue(comparisons[i], 'label'),
+					'value':req.store.getValue(comparisons[i], 'value')
+				});
+			}
 			ithis.comparisonField.store = new dojo.data.ItemFileReadStore({
 				data:{
 					identifier:"value",
@@ -32,10 +37,13 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 					"items":items
 				}
 			});
-			ithis.valueField.regExp = res[0].regExp[0]
+			ithis.valueField.regExp = req.store.getValue(res, 'regExp');
 		}
 		this.propertyField.store.fetch({
-			query:{'value':prop},
+			query:{
+				'value':prop,
+				'type':'property'
+			},
 			onComplete:callback
 		});
 	},

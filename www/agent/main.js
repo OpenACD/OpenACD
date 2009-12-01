@@ -486,7 +486,7 @@ dojo.addOnLoad(function(){
 		widget.destroyDescendants()
 		dojo.forEach(data, function(i){
 			var m = new dijit.MenuItem({
-				label: i,
+				label: i.name+"("+i.profile+")",
 				onClick: function(){
 					Agent.transfer(escape(i));
 				}

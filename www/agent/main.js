@@ -486,9 +486,9 @@ dojo.addOnLoad(function(){
 		widget.destroyDescendants()
 		dojo.forEach(data, function(i){
 			var m = new dijit.MenuItem({
-				label: i.name+"("+i.profile+")",
+				label: i.name+"("+i.profile+") " + (i.state == "idle" ? "I" : "R"),
 				onClick: function(){
-					Agent.transfer(escape(i));
+					Agent.transfer(escape(i.name));
 				}
 			});
 			widget.addChild(m);

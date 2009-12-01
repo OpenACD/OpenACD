@@ -16,14 +16,12 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 	setComparisons: function(prop){
 		var ithis = this;
 		var callback = function(res, req){
-			console.log(["setComparisions req", req]);
 			var items = [];
 			if(res.length < 1){
 				return;
 			}
 			var res = res[0];
 			var comparisons = req.store.getValues(res, 'comparisons');
-			console.log(["comparisons", comparisons]);
 			for(var i = 0; i < comparisons.length; i++){
 				items.push({
 					'label':req.store.getValue(comparisons[i], 'label'),
@@ -37,7 +35,23 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 					"items":items
 				}
 			});
-			ithis.valueField.regExp = req.store.getValue(res, 'regExp');
+			var regex = ".*";
+			switch(req.store.getValue(res, "filter")){
+				case "integer":
+					regex = "[\\d]+";
+					break;
+				case "number":
+					regex = "[\\d]+\\.[\\d]*|[\\d]*\\.[\\d]+";
+					break;
+				case "regex":
+					regex = req.store.getValue(res, "regex");
+					break;
+				default:
+					regex = ".*";
+			}
+				
+			ithis.valueField.regExp = regex;
+			ithis.valueField.predFilter = req.store.getValue(res, "filter");
 		}
 		this.propertyField.store.fetch({
 			query:{
@@ -48,10 +62,22 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 		});
 	},
 	getValue: function(){
+		var outval = "";
+		var filter = this.valueField.predFilter;
+		switch(filter){
+			case "number":
+				outval = parseFloat(this.valueField.value);
+				break;
+			case "integer":
+				outval = parseInt(this.valueField.value);
+				break;
+			default:
+				outval = this.valueField.value;
+		}
 		out = {
 			"property":this.propertyField.value,
 			"comparison":this.comparisonField.value,
-			"value":this.valueField.value
+			"value":outval
 		};
 		return out;
 	},
@@ -65,6 +91,8 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 		this.propertyField.attr('disabled', bool);
 		this.comparisonField.attr('disabled', bool);
 		this.valueField.attr('disabled', bool);
+		this.addButton.attr('disabled',  bool);
+		this.dropButton.attr('disabled', bool);
 	}
 });
 
@@ -121,7 +149,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 	},
 	getValue:function(){
 		var items = [];
-		for(var i in this.rows){
+		for(var i = 0; i < this.rows.length; i++){
 			items.push(dijit.byId(this.rows[i]).getValue());
 		}
 		return items;

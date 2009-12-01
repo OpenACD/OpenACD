@@ -68,6 +68,10 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		return select;
 	},
 	setArguments: function(action){
+		if(this._suppressNextSetArgs){
+			delete this._suppressNext;
+			return;
+		}
 		switch(action){
 			case "add_skills":
 				var ithis = this;
@@ -129,12 +133,23 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 				this._nullArgsWidget();
 			break;
 		}
+		if(this.argsWidget.attr){
+			this.argsWidget.attr('disabled', this._disabled);
+		} else if(this.argsWidget.setDisabled) {
+			this.argsWidget.setDisabled(this._disabled);
+		}
 	},
 	getValue:function(){
+		var args = "";
+		if(this.argsWidget.attr){
+			args = this.argsWidget.attr('value');
+		} else{
+			args = this.argsWidget.getValue();
+		}
 		obj = {
 			conditions: this.conditions,
-			action: this.actionField.getValue(),
-			"arguments": this.argsWidget.getValue(),
+			action: this.actionField.attr('value'),
+			"arguments": args,
 			runs: this.runsField.getValue()
 		};
 		return obj;
@@ -146,7 +161,12 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		this.conditions = recipeStep.conditions;
 		this.actionField.attr('value', recipeStep.action);
 		this.setArguments(recipeStep.action);
-		this.argsWidget.setValue(recipeStep.arguments);
+		this._suppressNextSetArgs = true;
+		if(this.argsWidget.attr){
+			this.argsWidget.attr('value', recipeStep.arguments);
+		} else {
+			this.argsWidget.setValue(recipeStep.arguments);
+		}
 		this.runsField.attr('value', recipeStep.runs);
 	},
 	setConditions:function(conditions){
@@ -171,8 +191,11 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		this._disabled = false;
 	},
 	postCreate:function(){
-		this.setArguments("add_skills");
-		this.inherited("postCreate", arguments);
+		//this.setArguments("add_skills");
+		//this.inherited("postCreate", arguments);
+		this.actionField.setArgumentsConn = dojo.connect(this.actionField, 'onChange', this, function(arg){
+			this.setArguments(arg)
+		});
 	},
 	setDisabled:function(bool){
 		//this.conditions.setDisabled(bool);

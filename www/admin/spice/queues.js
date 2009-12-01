@@ -16,14 +16,14 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").TICKINTERVAL,
 			"value":"ticks",
 			"type":"property",
-			"regExp":"[\\d]+",
+			"filter":"integer",
 			"comparisons":[
 				{_reference:"="}
 			]},
 			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSAVAILABLE,
 			"value":"agents_avail",
 			"type":"property",
-			"regExp":"[\\d]+",
+			"filter":"integer",
 			"comparisons":[
 				{_reference:"="},
 				{_reference:">"},
@@ -44,7 +44,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSELIGIBLE,
 			"value":"agents_eligible",
 			"type":"property",
-			"regExp":"[\\d]+",
+			"filter":"integer",
 			"comparisons":[
 				{_reference:"="},
 				{_reference:">"},
@@ -53,7 +53,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").CALLSINQUEUE,
 			"value":"calls_queued",
 			"type":"property",
-			"regExp":"[\\d]+",
+			"filter":"integer",
 			"comparisons":[
 				{_reference:"="},
 				{_reference:">"},
@@ -62,16 +62,16 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").POSITIONINQUEUE,
 			"value":"queue_position",
 			"type":"property",
-			"regExp":"[\\d]+",
+			"filter":"integer",
 			"comparisons":[
 				{_reference:"="},
 				{_reference:">"},
 				{_reference:"<"}
 			]},
-			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").BRAND,
-			"value":"brand",
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").CLIENT,
+			"value":"client",
 			"type":"property",
-			"regExp":"[\\w]+",
+			"filter":"any",
 			"comparisons":[
 				{_reference:"="},
 				{_reference:"!="}
@@ -79,7 +79,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").HOUR,
 			"value":"hour",
 			"type":"property",
-			"regExp":"[\\d]+",
+			"filter":"integer",
 			"comparisons":[
 				{_reference:"="},
 				{_reference:">"},
@@ -88,7 +88,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").WEEKDAY,
 			"value":"weekday",
 			"type":"property",
-			"regExp":"[\\d]+",
+			"filter":"integer",
 			"comparisons":[
 				{_reference:"="},
 				{_reference:"<"},
@@ -97,7 +97,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").MEDIATYPE,
 			"value":"mediatype",
 			"type":"property",
-			"regExp":"[\\d]+",
+			"filter":"any",
 			"comparisons":[
 				{_reference:"="},
 				{_reference:"!="}

@@ -19,7 +19,7 @@
 	AGENTSELIGIBLE: "Agents Eligible",
 	CALLSINQUEUE: "Calls in Queue",
 	POSITIONINQUEUE: "Position in Queue",
-	BRAND: "Brand",
+	CLIENT: "Client",
 	HOUR:"Hour",
 	WEEKDAY:"Day of Week",
 	MEDIATYPE:"Media Type",

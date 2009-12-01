@@ -140,8 +140,8 @@ dojo.addOnLoad(function(){
 					
 					var setGroupRecipe = function(item2, req){
 						dijit.byId("queueGroupRecipeDisplay").setValue(queues.fromStoreToObj(item2[0].recipe));
+						dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
 					}
-					
 					queues.store.fetch({
 						query:{type:'group', name: queue.group},
 						onComplete:setGroupRecipe

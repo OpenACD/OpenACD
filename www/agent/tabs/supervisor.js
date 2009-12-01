@@ -1850,6 +1850,17 @@ if(typeof(supervisorView) == "undefined"){
 		
 		var fetchdone = function(items, request){
 			var acc = [];
+			var sortfunc = function(a, b){
+				var aDetails = supervisorView.dataStore.getValue(a, 'details');
+				var bDetails = supervisorView.dataStore.getValue(b, 'details');
+				if(aDetails.priority == bDetails.priority){
+					return aDetails.queued_at.timestamp - bDetails.queued_at.timestamp;
+				}
+				
+				return aDetails.priority - bDetails.priority;
+			}
+			console.log(["items.sort", items.sort]);
+			items.sort(sortfunc);
 			dojo.forEach(items, function(obj){
 				var datas = {
 					display:supervisorView.dataStore.getValue(obj, "display"),
@@ -1924,12 +1935,11 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.callsStack.scroll(scrollIndex);
 		}
 
-		var sortKey = [
+		/*var sortKey = [
 			{attribute: "display"}
-		];
+		];*/
 
 		supervisorView.dataStore.fetch({
-			/*sort: sortKey,*/ /*TODO sort by queuetime*/
 			query:queryObj,
 			onComplete:fetchdone
 		});

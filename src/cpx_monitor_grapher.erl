@@ -197,13 +197,13 @@ calculate_utilization_by_agent([{Agent, States} | Tail], Acc) ->
 
 
 calc([State], Util, Total) ->
-	Diff = round(timer:now_diff(now(), proplists:get_value(lastchangetimestamp, State)) /1000000),
+	Diff = round((util:now() - proplists:get_value(lastchangetimestamp, State)) /1000000),
 	AgentState = proplists:get_value(state, State),
 	Bias = proplists:get_value(bias, State, -1),
 	NUtil = get_util(AgentState, Diff, Util, Bias),
 	round((NUtil / (Total + Diff)) * 100);
 calc([State1, State2 | Tail], Util, Total) ->
-	Diff = round(timer:now_diff(proplists:get_value(lastchangetimestamp, State2), proplists:get_value(lastchangetimestamp, State1)) /1000000),
+	Diff = round((proplists:get_value(lastchangetimestamp, State2) - proplists:get_value(lastchangetimestamp, State1)) /1000000),
 	AgentState = proplists:get_value(state, State1),
 	Bias = proplists:get_value(bias, State1, -1),
 	NUtil = get_util(AgentState, Diff, Util, Bias),

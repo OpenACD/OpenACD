@@ -9,18 +9,6 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	templatePath: dojo.moduleUrl("spice","RecipeEditorRow.html"),
 	widgetsInTemplate: true,
 	templateString: "",
-	propwidth:"20em",
-	compwidth:"10em",
-	valwidth:"20em",
-	labels:[],
-	conditions:[{
-		"property":"ticks",
-		"comparison":"=",
-		"value":"1"}],
-	argsWidget:{
-		getValue:function(){return ""},
-		setValue:function(){}
-	},
 	_nullArgsWidget:function(){
 		this.argsWidget = {
 			setValue:function(){},
@@ -167,10 +155,35 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	constructor:function(){
 		this.labels = dojo.i18n.getLocalization("admin", "recipeEditor");
 		//this.inherited("constructor", arguments);
+		this.propwidth = "20em";
+		this.compwidth = "10em";
+		this.valwidth = "20em";
+		//labels:[],
+		this.conditions = [{
+			"property":"ticks",
+			"comparison":"=",
+			"value":"1"}];
+		this.argsWidget = {
+			 getValue:function(){return ""},
+			 setValue:function(){},
+			 attr:function(){}
+		};
+		this._disabled = false;
 	},
 	postCreate:function(){
 		this.setArguments("add_skills");
 		this.inherited("postCreate", arguments);
+	},
+	setDisabled:function(bool){
+		//this.conditions.setDisabled(bool);
+		this._disabled = bool;
+		this.actionField.attr('disabled', bool);
+		if(this.argsWidget.attr){
+			this.argsWidget.attr('disabled', bool);
+		} else if(this.argsWidget.setDisabled){
+			this.argsWidget.setDisabled(bool);
+		}
+		this.runsField.attr('disabled', bool);
 	}
 });
 
@@ -178,11 +191,6 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 	templatePath: dojo.moduleUrl("spice","RecipeEditor.html"),
 	widgetsInTemplate: true,
 	templateString: "",
-	propwidth:"20em",
-	compwidth:"10em",
-	valwidth:"20em",
-	_focusedOn:null,
-	rows:[],
 	addRow: function(){
 		var ithis = this;
 		var row = new RecipeEditorRow({
@@ -203,6 +211,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 				dijit.byId(ithis._focusedOn).domNode.style.backgroundColor = "#ffffff";
 			}
 			ithis.conditionsEditor.setValue(row.getConditions());
+			ithis.conditionsEditor.setDisabled(ithis._disabled);
 			ithis._focusedOn = row.id;
 			row.domNode.style.backgroundColor = "#ccffff";
 		}
@@ -225,6 +234,14 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 			this.conditionsEditor.domNode.style.display = "none";
 		}
 	},
+	constructor: function(arg){
+		this.propwidth = "20em";
+		this.compwidth = "10em";
+		this.valwidth = "20em";
+		this._focusedOn = null;
+		this.rows = [];
+		this._disabled = false;
+	},
 	postCreate: function(){
 		this.addRow();
 	},
@@ -235,7 +252,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		}
 			 
 		var out = [];
-		for(var i in this.rows){
+		for(var i = 0; i < this.rows.length; i++){
 			out.push(dijit.byId(this.rows[i]).getValue());
 		}
 		return out;
@@ -251,13 +268,22 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 			}
 		}
 		this.rows = [];
-		for(var i in value){
+		for(var i = 0; i < value.length; i++){
 			this.addRow();
 			dijit.byId(this.rows[i]).setValue(value[i]);
 		}
 		if(this.rows.length == 0){
 			 this.nullButton.domNode.style.display = "inline";
 			 this.conditionsEditor.domNode.style.display = "none";
+		}
+	},
+	setDisabled:function(bool){
+		this._disabled = bool;
+		for(var i = 0; i < this.rows.length; i++){
+			var dahrow = dijit.byId(this.rows[i]);
+			dahrow.setDisabled(bool);
+			dahrow.addButton.attr('disabled', bool);
+			dahrow.dropButton.attr('disabled', bool);
 		}
 	}
 });

@@ -5,10 +5,14 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 	templatePath: dojo.moduleUrl("spice","PredicateEditorRow.html"),
 	widgetsInTemplate: true,
 	templateString: "",
-	store:[],
-	propwidth:"20em",
-	compwidth:"10em",
-	valwidth:"20em",
+	constructor: function(args){
+		this.store = [];
+		this.propwidth = "20em";
+		this.compwidth = "10em";
+		this.valwidth = "20em";
+		this._disabled = false;
+		dojo.safeMixin(this, args);
+	},
 	setComparisons: function(prop){
 		var ithis = this;
 		var callback = function(res, req){
@@ -47,6 +51,12 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 		this.propertyField.attr('value', obj.property);
 		this.comparisonField.attr('value', obj.comparison);
 		this.valueField.attr('value', obj.value);
+	},
+	setDisabled: function(bool){
+		this._disabled = bool;
+		this.propertyField.attr('disabled', bool);
+		this.comparisonField.attr('disabled', bool);
+		this.valueField.attr('disabled', bool);
 	}
 });
 
@@ -54,11 +64,20 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 	templatePath: dojo.moduleUrl("spice", "PredicateEditor.html"),
 	widgetsInTemplate:true,
 	templateString:"",
-	store:[],
-	rows:[],
-	propwidth:"20em",
-	compwidth:"10em",
-	valwidth:"20em",
+	propwidth : "20em",
+	compwidth : "10em",
+	valwidth : "20em",
+	store : [],
+	constructor:function(){
+		/*this.store = [];
+		this.rows = [];
+		this.propwidth = "20em";
+		this.compwidth = "10em";
+		this.valwidth = "20em";*/
+		this.store = [];
+		this.rows = [];
+		this._disabled = false;	 
+	},
 	addRow:function(){
 		var ithis = this;
 		var row = new PredicateEditorRow({
@@ -77,6 +96,9 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 		this.topNode.appendChild(row.domNode);
 	},
 	dropRow:function(rowid){
+		if(this._disabled){
+			return false
+		}
 		if(this.rows.length < 2){
 			return;
 		}
@@ -97,7 +119,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 		return items;
 	},
 	setValue:function(list){
-		for(var i in this.rows){
+		for(var i = 0; i < this.rows.length; i++){
 			try{
 				dijit.byId(this.rows[i]).destroy();
 			}
@@ -106,12 +128,18 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 			}
 		}
 		this.rows = [];
-		for(var i in list){
+		for(var i = 0; i < list.length; i++){
 			this.addRow();
 			dijit.byId(this.rows[i]).setValue(list[i]);
 		}
 	},
 	postCreate:function(){
 		this.addRow();
+	},
+	setDisabled:function(bool){
+		this._disabled = bool;
+		for(var i = 0; i < this.rows.length; i++){
+			dijit.byId(this.rows[i]).setDisabled(bool)
+		}
 	}
 });

@@ -114,7 +114,7 @@ dump_state(Mpid) when is_pid(Mpid) ->
 init([Cnode, UUID, File, Queue, Priority]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	Callrec = #call{id=UUID++"-vm", type=voice, source=self(), priority = Priority},
+	Callrec = #call{id=UUID++"-vm", type=voicemail, source=self(), priority = Priority},
 	case cpx_supervisor:get_archive_path(Callrec) of
 		none ->
 			?DEBUG("archiving is not configured", []);

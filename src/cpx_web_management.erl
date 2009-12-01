@@ -1653,27 +1653,42 @@ decode_recipe_conditions([{struct, Props} | Tail], Acc) ->
 		<<">">> ->
 			'>';
 		<<"<">> ->
-			'<'
+			'<';
+		<<"!=">> ->
+			'!='
 	end,
 	Val = case proplists:get_value(<<"value">>, Props) of
 		V when is_integer(V) ->
 			V;
+		V when is_float(V) ->
+			V;
 		V when is_binary(V) ->
-			list_to_integer(binary_to_list(V));
+			binary_to_list(V);
 		V ->
 			V
 	end,
+	Toint = fun(L) ->
+		list_to_integer(L)
+	end,
 	Tuple = case {Cond, Comp, Val} of
-		{<<"ticks">>, '=', Val} ->
+		{<<"ticks">>, '=', Val} when is_integer(Val) ->
 			{ticks, Val};
-		{<<"eligible_agents">>, Comp, Val} ->
+		{<<"eligible_agents">>, Comp, Val} when is_integer(Val) ->
 			{eligible_agents, Comp, Val};
-		{<<"agents_avail">>, Comp, Val} ->
+		{<<"agents_avail">>, Comp, Val} when is_integer(Val) ->
 			{available_agents, Comp, Val};
-		{<<"queue_position">>, Comp, Val} ->
+		{<<"queue_position">>, Comp, Val} when is_integer(Val) ->
 			{queue_position, Comp, Val};
-		{<<"calls_queued">>, Comp, Val} ->
-			{calls_queued, Comp, Val}
+		{<<"calls_queued">>, Comp, Val} when is_integer(Val) ->
+			{calls_queued, Comp, Val};
+		{<<"client">>, Comp, Val} ->
+			{client, Comp, Val};
+		{<<"hour">>, Comp, Val} when is_integer(Val) ->
+			{hour, Comp, Val};
+		{<<"weekday">>, Comp, Val} when is_integer(Val) ->
+			{weekday, Comp, Val};
+		{<<"mediatype">>, Comp, Val} ->
+			{type, Comp, Val}
 	end,
 	decode_recipe_conditions(Tail, [Tuple | Acc]).	
 	
@@ -1724,11 +1739,19 @@ encode_recipe_conditions([], Acc) ->
 	lists:reverse(Acc);
 encode_recipe_conditions([{ticks, Num} | Tail], Acc) ->
 	encode_recipe_conditions([{ticks, '=', Num} | Tail], Acc);
-encode_recipe_conditions([{Prop, Comp, Num} | Tail], Acc) ->
+encode_recipe_conditions([{type, Comp, Num} | Tail], Acc) ->
+	encode_recipe_conditions([{<<"mediatype">>, Comp, Num} | Tail], Acc);
+encode_recipe_conditions([{Prop, Comp, Val} | Tail], Acc) ->
+	Fixedval = case Val of
+		Val when is_integer(Val) ->
+			Val;
+		Val when is_list(Val) ->
+			list_to_binary(Val)
+	end,
 	Jcond = {struct, [
 		{<<"property">>, Prop},
 		{<<"comparison">>, Comp},
-		{<<"value">>, Num}
+		{<<"value">>, Fixedval}
 	]},
 	encode_recipe_conditions(Tail, [Jcond | Acc]).
 

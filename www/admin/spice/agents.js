@@ -126,11 +126,12 @@ agents.refreshTree = function(targetnode){
 
 agents.updateProfile = function(submitForm, treenode){
 	var values = dijit.byId(submitForm).getValues();
+	values.skills = dijit.byId(submitForm).domNode.skills.getValues();
 	var xhrurl = "/agents/profiles/" + values.oldname + "/update";
 	dojo.xhrPost({
 		url:xhrurl,
 		handleAs:"json",
-		form:submitForm,
+		content:values,
 		load:function(response, ioargs){
 			agents.refreshTree(treenode);
 		}
@@ -138,10 +139,12 @@ agents.updateProfile = function(submitForm, treenode){
 }
 
 agents.newProfile = function(submitForm, treenode){
+	var values = dijit.byId(submitForm).attr('value');
+	values.skills = dijit.byId(submitForm).domNode.skills.getValues();
 	dojo.xhrPost({
 		url:"/agents/profiles/new",
 		handleAs:"json",
-		form:submitForm,
+		content:values,
 		load:function(response, ioargs){
 			agents.refreshTree(treenode);
 		}
@@ -150,6 +153,7 @@ agents.newProfile = function(submitForm, treenode){
 
 agents.updateAgent = function(subform, node){
 	var values = dijit.byId(subform).getValues();
+	values.skills = dijit.byId(subform).domNode.skills.getValues();
 	agents.store.fetchItemByIdentity({
 		identity:values.profile,
 		onItem:function(item, req){
@@ -171,6 +175,7 @@ agents.updateAgent = function(subform, node){
 
 agents.newAgent = function(subform, node){
 	var values = dijit.byId(subform).getValues();
+	values.skills = dijit.byId(subform).skills.getValues();
 	agents.store.fetchItemByIdentity({
 		identity:values.profile,
 		onItem:function(item, req){

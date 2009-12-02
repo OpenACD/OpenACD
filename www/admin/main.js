@@ -291,7 +291,7 @@ dojo.addOnLoad(function(){
 						}
 						var selectedSkills = [];
 						for(var i = 0; i < agent.skills.length; i++){
-							var val = agent.skills.atom;
+							var val = agent.skills[i].atom;
 							if(agent.skills[i].expanded){
 								val = '{' + val + ',' + agent.skills[i].expanded + '}';
 							}

@@ -631,6 +631,13 @@ api({skills, "skill", "_brand", "expand"}, ?COOKIE, _Post) ->
 	end,
 	Converted = lists:foldl(F, [], Clients),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
+api({skills, "skill", "_profile", "expand"}, ?COOKIE, _Post) ->
+	ProfnSkills = agent_auth:get_profiles(),
+	F = fun({Prof, _Skillz}) ->
+		list_to_binary(Prof)
+	end,
+	Converted = lists:map(F, ProfnSkills),
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Converted}]})};
 api({skills, "skill", Skill, "update"}, ?COOKIE, Post) ->
 	case call_queue_config:get_skill(Skill) of
 		Skillrec when is_record(Skillrec, skill_rec) ->

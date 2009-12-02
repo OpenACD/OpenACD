@@ -108,10 +108,10 @@ skills.newSelection = function(callback, selected, reserved, expand){
 		onComplete:function(groups, query){
 			var select = dojo.doc.createElement('select');
 			select.multiple = true;
-			for(var i in groups){
+			for(var i = 0; i < groups.length; i++){
 				var optgroup = dojo.doc.createElement('optgroup');
 				optgroup.label = groups[i].name[0];
-				for(var j in groups[i].skills){
+				for(var j = 0; j < groups[i].skills.length; j++){
 					var option = dojo.doc.createElement('option');
 					option.value = groups[i].skills[j].atom[0];
 					option.innerHTML = groups[i].skills[j].name[0];
@@ -122,7 +122,7 @@ skills.newSelection = function(callback, selected, reserved, expand){
 				}
 				select.appendChild(optgroup);
 			}
-			for(var i in expand){
+			for(var i = 0; i < expand.length; i++){
 				var appendExpanded = function(expanded){
 					var optgroup = dojo.doc.createElement('optgroup');
 					optgroup.label = expand[i];

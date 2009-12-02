@@ -165,7 +165,14 @@ dojo.addOnLoad(function(){
 					query:{type:'group', name:queues.tree.store.getValue(item, 'group')},
 					onComplete:callback
 				});
-					 
+				
+				dijit.byId('queueSubmit').onClick = function(){
+					queues.setQueue(queues.tree.store.getValue(item, 'name'), dijit.byId('editQueueForm'), dijit.byId('queueRecipe'), 'queuesList');
+				}
+				
+				dijit.byId('queueDropButton').onClick = function(){
+					queues.deleteQueue(queues.tree.store.getValue(item, 'name'), 'queuesList');
+				}
 			}
 			else{
 				dijit.byId("queuesMain").selectChild('queueGroupEditor');
@@ -179,7 +186,7 @@ dojo.addOnLoad(function(){
 					queues.setGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
 				}
 				dijit.byId("queueDropButton").onClick = function(){
-					queues.deleteGroup(item.name[0], "queuesList");
+					queues.deleteGroup(queues.tree.store.getValue(item, 'name'), "queuesList");
 				}
 			}
 		});

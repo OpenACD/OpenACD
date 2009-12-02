@@ -365,31 +365,20 @@ api({agents, "profiles", Profile, "getskills"}, ?COOKIE, _Post) ->
 	Encoded = encode_skills(Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})};
 api({agents, "profiles", "new"}, ?COOKIE, Post) ->
-	Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
+	Skillatoms = parse_posted_skills(proplists:get_all_values("skills", Post)),
 	agent_auth:new_profile(proplists:get_value("name", Post), Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, "profiles", "Default", "update"}, {_Reflist, _Salt, _Login}, Post) ->
 	case proplists:get_value("name", Post) of
 		undefined ->
-			Skillatoms = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, proplists:get_all_values("skills", Post)),
+			Skillatoms = parse_posted_skills(proplists:get_all_values("skills", Post)),
 			agent_auth:set_profile("Default", "Default", Skillatoms),
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be renamed">>}]})}
 	end;
 api({agents, "profiles", Profile, "update"}, ?COOKIE, Post) ->
-	Parseskills = fun(Skill) ->
-		?DEBUG("~p", [Skill]),
-		case string:tokens(Skill, "{},") of
-			["_brand", Brandname] ->
-				{'_brand', Brandname};
-			["_queue", Queuename] ->
-				{'_queue', Queuename};
-			[Skill] ->
-				call_queue_config:skill_exists(Skill)
-		end
-	end,
-	Skillatoms = lists:map(Parseskills, proplists:get_all_values("skills", Post)),
+	Skillatoms = parse_posted_skills(proplists:get_all_values("skills", Post)),
 	agent_auth:set_profile(Profile, proplists:get_value("name", Post), Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, "profiles", "Default", "delete"}, ?COOKIE, _Post) ->
@@ -411,29 +400,7 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 	{atomic, [_Agentrec]} = agent_auth:get_agent(id, Agent),
 	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
 	Postedskills = proplists:get_all_values("skills", Post),
-	Convertskills = fun(Skill) ->
-			case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
-			{match, [Atomstring, Expanded]} ->
-				case call_queue_config:skill_exists(Atomstring) of
-					undefined ->
-						?WARNING("bad skill ~p : ~p", [Atomstring, Skill]),
-						%erlang:error(badarg);
-						[];
-					Atom ->
-						{Atom, Expanded}
-				end;
-			nomatch ->
-				case call_queue_config:skill_exists(Skill) of
-					undefined ->
-						?WARNING("bad skill ~p", [Skill]),
-						%erlang:error(badarg);
-						[];
-					Atom ->
-						Atom
-				end
-		end
-	end,
-	Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
+	Fixedskills = parse_posted_skills(Postedskills),
 	?DEBUG("~p", [Fixedskills]),
 	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
 	case proplists:get_value("password", Post) of
@@ -467,28 +434,7 @@ api({agents, "agents", "new"}, ?COOKIE, Post) ->
 			erlang:error({badarg, proplists:get_value("password", Post)});
 		Confirmpw ->
 			Postedskills = proplists:get_all_values("skills", Post),
-			{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
-			Convertskills = fun(Skill) ->
-				case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
-					{match, [Atomstring, Expanded]} ->
-						case call_queue_config:skill_exists(Atomstring) of
-							undefined ->
-								[];
-								%erlang:error({badarg, Skill});
-							Atom ->
-								{Atom, Expanded}
-						end;
-					nomatch ->
-						case call_queue_config:skill_exists(Skill) of
-							undefined ->
-								[];
-								%erlang:error({badarg, Skill});
-							Atom ->
-								Atom
-						end
-				end
-			end,
-			Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
+			Fixedskills = parse_posted_skills(Postedskills),
 			agent_auth:add_agent([
 				{login, proplists:get_value("login", Post)},
 				{password, util:bin_to_hexstr(erlang:md5(Confirmpw))},
@@ -722,30 +668,6 @@ api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
 	Weight = list_to_integer(proplists:get_value("weight", Post)),
 	Name = proplists:get_value("name", Post),
 	Postedskills = proplists:get_all_values("skills", Post),
-%	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
-%	Convertskills = fun(Skill) ->
-%			case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
-%			{match, [Atomstring, Expanded]} ->
-%				case call_queue_config:skill_exists(Atomstring) of
-%					undefined ->
-%						?WARNING("bad skill ~p : ~p", [Atomstring, Skill]),
-%						%erlang:error(badarg);
-%						[];
-%					Atom ->
-%						{Atom, Expanded}
-%				end;
-%			nomatch ->
-%				case call_queue_config:skill_exists(Skill) of
-%					undefined ->
-%						?WARNING("bad skill ~p", [Skill]),
-%						%erlang:error(badarg);
-%						[];
-%					Atom ->
-%						Atom
-%				end
-%		end
-%	end,
-%	Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
 	Fixedskills = parse_posted_skills(Postedskills),
 	Group = proplists:get_value("group", Post),
 	Qrec = #call_queue{

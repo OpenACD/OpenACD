@@ -276,7 +276,8 @@ handle_call({set_agent, Agent, Apid}, _From, _Call, State) ->
 	{reply, ok, State#state{agent = Agent, agent_pid = Apid}};
 handle_call(dump_state, _From, _Call, State) ->
 	{reply, State, State};
-handle_call(_Request, _From, _Call, State) ->
+handle_call(Msg, _From, _Call, State) ->
+	?INFO("unhandled mesage ~p", [Msg]),
 	{reply, ok, State}.
 
 %%--------------------------------------------------------------------

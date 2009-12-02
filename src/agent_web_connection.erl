@@ -245,8 +245,12 @@ handle_call(stop, _From, State) ->
 handle_call(logout, _From, State) ->
 	{stop, normal, {200, [{"Set-Cookie", "cpx_id=dead"}], mochijson2:encode({struct, [{success, true}]})}, State};
 handle_call(get_avail_agents, _From, State) ->
-	Agents = agent_manager:find_avail_agents_by_skill(['_all']),
-	Noms = [list_to_binary(N) || {N, _Pid, _Rec} <- Agents],
+	Agents = [AgState || {_K, {V, _}} <-
+		agent_manager:list(),
+		AgState <- [agent:dump_state(V)],
+		AgState#agent.state == idle orelse AgState#agent.state == released],
+
+	Noms = [{struct, [{<<"name">>, list_to_binary(Rec#agent.login)}, {<<"profile">>, list_to_binary(Rec#agent.profile)}, {<<"state">>, Rec#agent.state}]} || Rec <- Agents],
 	{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"agents">>, Noms}]})}, State};
 handle_call({set_state, Statename}, _From, #state{agent_fsm = Apid} = State) ->
 	case agent:set_state(Apid, agent:list_to_state(Statename)) of

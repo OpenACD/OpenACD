@@ -308,5 +308,6 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 			dahrow.addButton.attr('disabled', bool);
 			dahrow.dropButton.attr('disabled', bool);
 		}
+		this.nullButton.attr('disabled', true);
 	}
 });

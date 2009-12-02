@@ -722,30 +722,31 @@ api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
 	Weight = list_to_integer(proplists:get_value("weight", Post)),
 	Name = proplists:get_value("name", Post),
 	Postedskills = proplists:get_all_values("skills", Post),
-	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
-	Convertskills = fun(Skill) ->
-			case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
-			{match, [Atomstring, Expanded]} ->
-				case call_queue_config:skill_exists(Atomstring) of
-					undefined ->
-						?WARNING("bad skill ~p : ~p", [Atomstring, Skill]),
-						%erlang:error(badarg);
-						[];
-					Atom ->
-						{Atom, Expanded}
-				end;
-			nomatch ->
-				case call_queue_config:skill_exists(Skill) of
-					undefined ->
-						?WARNING("bad skill ~p", [Skill]),
-						%erlang:error(badarg);
-						[];
-					Atom ->
-						Atom
-				end
-		end
-	end,
-	Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
+%	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
+%	Convertskills = fun(Skill) ->
+%			case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
+%			{match, [Atomstring, Expanded]} ->
+%				case call_queue_config:skill_exists(Atomstring) of
+%					undefined ->
+%						?WARNING("bad skill ~p : ~p", [Atomstring, Skill]),
+%						%erlang:error(badarg);
+%						[];
+%					Atom ->
+%						{Atom, Expanded}
+%				end;
+%			nomatch ->
+%				case call_queue_config:skill_exists(Skill) of
+%					undefined ->
+%						?WARNING("bad skill ~p", [Skill]),
+%						%erlang:error(badarg);
+%						[];
+%					Atom ->
+%						Atom
+%				end
+%		end
+%	end,
+%	Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
+	Fixedskills = parse_posted_skills(Postedskills),
 	Group = proplists:get_value("group", Post),
 	Qrec = #call_queue{
 		name = Name,
@@ -1461,6 +1462,36 @@ get_pubkey() ->
 	{ok,[Entry]} = public_key:pem_to_der("./key"),
 	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
 	[E, N].
+
+parse_posted_skills(PostedSkills) ->
+	parse_posted_skills(PostedSkills, []).
+
+parse_posted_skills([], Acc) ->
+	Acc;
+parse_posted_skills([Skill | Tail], Acc) ->
+	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
+	Newatom = case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
+		{match, [Atomstring, Expanded]} ->
+			case call_queue_config:skill_exists(Atomstring) of
+				undefined ->
+					[];
+				Atom ->
+					{Atom, Expanded}
+			end;
+		nomatch ->
+			case call_queue_config:skill_exists(Skill) of
+				undefined ->
+					[];
+				Atom ->
+					Atom
+			end
+	end,
+	case Newatom of
+		[] ->
+			parse_posted_skills(Tail, Acc);
+		_ ->
+			parse_posted_skills(Tail, [Newatom | Acc])
+	end.
 
 decrypt_password(Password) ->
 	{ok,[Entry]} = public_key:pem_to_der("./key"),

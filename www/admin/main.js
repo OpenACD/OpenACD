@@ -73,10 +73,6 @@ dojo.addOnLoad(function(){
 	dojo.parser.parse();
 
 	var agentsSkillRefreshHandle = dojo.subscribe("skills/init", function(data){
-		/*var node = dijit.byId('agentSkills').domNode;
-		while(node.hasChildNodes()){
-			node.removeChild(node.lastChild);
-		}*/
 		var skillsCallback = function(selectNode){
 			selectNode.name = 'skills';
 			dojo.place(selectNode, dojo.byId('agentSkills'), 'only');
@@ -84,36 +80,7 @@ dojo.addOnLoad(function(){
 		}
 		
 		skills.createSelect(skillsCallback, [], [], ['_brand', '_queue'])
-		
-		//skills.skillSelection(dijit.byId("agentSkills").domNode);
-		
-		/*var brandoptgroup = dojo.doc.createElement('optgroup');
-		brandoptgroup.label = '_brand';
-		var setBrandSkills = function(items){
-			for(var i in items){
-				var opt = dojo.doc.createElement('option');
-				opt.value = "{_brand," + items[i] + "}";
-				opt.innerHTML = items[i];
-				brandoptgroup.appendChild(opt);
-			}
-			dijit.byId("agentSkills").domNode.appendChild(brandoptgroup);
-		}
-		
-		skills.expandSkill(setBrandSkills, "_brand");
-
-		var queueOptGroup = dojo.doc.createElement('optgroup');
-		queueOptGroup.label = '_queue';
-		var setQueueSkills = function(items){
-			for(var i in items){
-				var opt = dojo.doc.createElement('option');
-				opt.value = "{_queue," + items[i] + "}";
-				opt.innerHTML = items[i];
-				queueOptGroup.appendChild(opt);
-			}
-			dijit.byId("agentSkills").domNode.appendChild(queueOptGroup);
-		}
-		skills.expandSkill(setQueueSkills, "_queue");*/
-		
+				
 		skills.refreshTree(dojo.byId('skillsList'));
 	});
 

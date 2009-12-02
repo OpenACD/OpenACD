@@ -329,6 +329,7 @@ queues.deleteQueue = function(queue, refreshnode){
 queues.newQueue = function(form, reciper, node){
 	var vals = form.getValues();
 	vals.recipe = dojo.toJson(reciper.getValue());
+	vals.skills = form.domNode.skills.getValues();
 	var doxhr = function(){
 		dojo.xhrPost({
 			url:"/queues/queue/new",

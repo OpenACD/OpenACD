@@ -156,6 +156,7 @@ import_brands([{struct, Proplist} | Tail], Pid) ->
 	Res = gen_server:call(Pid, {raw_request, <<"query">>, [Query]}),
 	Reslist = proplists:get_value(<<"result">>, Res),
 	write_brands(Reslist, list_to_integer(Companyid), binary_to_list(proplists:get_value(<<"companylabel">>, Proplist)), Pid),
+	timer:sleep(250),
 	import_brands(Tail, Pid).
 
 import_skills_and_profiles([]) ->

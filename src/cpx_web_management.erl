@@ -722,12 +722,35 @@ api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
 	Weight = list_to_integer(proplists:get_value("weight", Post)),
 	Name = proplists:get_value("name", Post),
 	Postedskills = proplists:get_all_values("skills", Post),
-	Atomizedskills = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, Postedskills),
+	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
+	Convertskills = fun(Skill) ->
+			case re:run(Skill, Regex, [{capture, all_but_first, list}]) of
+			{match, [Atomstring, Expanded]} ->
+				case call_queue_config:skill_exists(Atomstring) of
+					undefined ->
+						?WARNING("bad skill ~p : ~p", [Atomstring, Skill]),
+						%erlang:error(badarg);
+						[];
+					Atom ->
+						{Atom, Expanded}
+				end;
+			nomatch ->
+				case call_queue_config:skill_exists(Skill) of
+					undefined ->
+						?WARNING("bad skill ~p", [Skill]),
+						%erlang:error(badarg);
+						[];
+					Atom ->
+						Atom
+				end
+		end
+	end,
+	Fixedskills = lists:flatten(lists:map(Convertskills, Postedskills)),
 	Group = proplists:get_value("group", Post),
 	Qrec = #call_queue{
 		name = Name,
 		weight = Weight,
-		skills = Atomizedskills,
+		skills = Fixedskills,
 		recipe = Recipe,
 		group = Group
 	},
@@ -736,22 +759,17 @@ api({queues, "queue", Queue, "update"}, ?COOKIE, Post) ->
 api({queues, "queue", Queue, "delete"}, ?COOKIE, _Post) ->
 	call_queue_config:destroy_queue(Queue),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
-api({queues, "queue", "new"}, ?COOKIE, Post) ->
-	Postedskills = proplists:get_all_values("skills", Post),
-	Atomizedskills = lists:map(fun(Skill) -> call_queue_config:skill_exists(Skill) end, Postedskills),
-	Recipe = decode_recipe(proplists:get_value("recipe", Post)),
-	Weight = list_to_integer(proplists:get_value("weight", Post)),
+api({queues, "queue", "new"}, ?COOKIE = Cookie, Post) ->
 	Name = proplists:get_value("name", Post),
-	Group = proplists:get_value("group", Post),
 	Qrec = #call_queue{
 		name = Name,
-		weight = Weight,
-		skills = Atomizedskills,
-		recipe = Recipe,
-		group = Group
+		weight = 1,
+		skills = [],
+		recipe = [],
+		group = "Default"
 	},
 	call_queue_config:new_queue(Qrec),
-	{200, [], mochijson2:encode({struct, [{success, true}]})};
+	api({queues, "queue", Name, "update"}, Cookie, Post);
 	
 %% =====
 %% media -> *
@@ -1529,9 +1547,15 @@ encode_skills_with_groups([Skill | Skills], Acc) ->
 
 -spec(encode_queue/1 :: (Queue :: #call_queue{}) -> simple_json()).
 encode_queue(Queue) ->
+	SimplifySkills = fun
+		({Atom, Value}) ->
+			list_to_binary([${, atom_to_list(Atom), $,, Value, $}]);
+		(Atom) when is_atom(Atom) ->
+			Atom
+	end,
 	{struct, [{name, list_to_binary(Queue#call_queue.name)},
 			{type, queue}, {weight, Queue#call_queue.weight},
-			{skills, Queue#call_queue.skills},
+			{skills, lists:map(SimplifySkills, Queue#call_queue.skills)},
 			{recipe, {struct, [
 				{<<"_type">>, <<"object">>},
 				{<<"_value">>, encode_recipe(Queue#call_queue.recipe)}

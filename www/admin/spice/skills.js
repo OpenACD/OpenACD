@@ -68,6 +68,16 @@ skills.refreshTree = function(targetnode){
 skills.createSelect = function(callback, selected, hidden, expand){
 	var selectNode = document.createElement('select');
 	selectNode.multiple = 'true';
+	selectNode.getValues = function(){
+		var nodelist = dojo.query('> optgroup > option', selectNode);
+		var out = [];
+		for(var i =0; i < nodelist.length; i++){
+			if(nodelist[i].selected){
+				out.push(nodelist[i].value);
+			}
+		}
+		return out;
+	}
 	var groupsFetched = function(groups){
 		for(var i = 0; i < groups.length; i++){
 			var groupname = skills.store.getValue(groups[i], 'name');

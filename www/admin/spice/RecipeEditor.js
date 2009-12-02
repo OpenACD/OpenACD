@@ -18,7 +18,8 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	_buildSelect:function(select){
 		select.size = 3;
 		select.getValue = function(){
-			var out = [];
+			return select.getValues();
+			/*var out = [];
 			var kids = this.childNodes;
 			for(var i in kids){
 				if(kids[i].tagName == 'OPTGROUP'){
@@ -35,7 +36,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 					}
 				}
 			}
-			return out;
+			return out;*/
 		}
 		var ithis = this;
 		select.setValue = function(values){
@@ -46,15 +47,23 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 			if(values.constructor == String){
 				values = [values];
 			}
-			var isSelected = function(val){
+			/*var isSelected = function(val){
 				for(var i in values){
 					if(values[i] == val){
 						return true;
 					}
 				}
 				return false;
-			}
+			}*/
 			
+			var nodes = dojo.query('> optgroup > option', select),
+			for(var i = 0; i < nodes.length; i++){
+				console.log(nodes[i]);
+				if(inArray(nodes[i].value, values)){
+					nodes[i].selected = true;
+				}
+			}
+			/*
 			var kids = this.childNodes;
 			for(var i in kids){
 				if(kids[i].tagName == 'OPTGROUP'){
@@ -63,11 +72,11 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 						opts[j].selected = isSelected(opts[j].value);
 					}
 				}
-			}
+			}*/
 		};
 		return select;
 	},
-	setArguments: function(action){
+	setArguments: function(action, args){
 		if(this._suppressNextSetArgs){
 			delete this._suppressNext;
 			return;
@@ -81,7 +90,11 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 					argdiv.attr('content', select);
 					ithis.argsWidget = ithis._buildSelect(select);
 				};
-				skills.createSelect(callback, [], ['_agent'], ['_profile', '_brand']);
+				var selected = [];
+				if(args){
+					selected = args;
+				}
+				skills.createSelect(callback, selected, ['_agent'], ['_profile', '_brand']);
 			break;
 			
 			case "remove_skills":
@@ -91,6 +104,10 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 					select.size = 3;
 					argdiv.attr('content', select);
 					ithis.argsWidget = ithis._buildSelect(select);
+				}
+				var selected = [];
+				if(args){
+					selected = args;
 				}
 				skills.createSelect(callback, [], ['_agent'], ['_profile', '_brand']);
 			break;
@@ -160,12 +177,14 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	setValue:function(recipeStep){
 		this.conditions = recipeStep.conditions;
 		this.actionField.attr('value', recipeStep.action);
-		this.setArguments(recipeStep.action);
+		this.setArguments(recipeStep.action, recipeStep.arguments);
 		this._suppressNextSetArgs = true;
-		if(this.argsWidget.attr){
-			this.argsWidget.attr('value', recipeStep.arguments);
-		} else {
-			this.argsWidget.setValue(recipeStep.arguments);
+		if(! inArray(recipeStep.action, ['add_skills', 'remove_skills'])){
+			if(this.argsWidget.attr){
+				this.argsWidget.attr('value', recipeStep.arguments);
+			} else {
+				this.argsWidget.setValue(recipeStep.arguments);
+			}
 		}
 		this.runsField.attr('value', recipeStep.runs);
 	},

@@ -218,7 +218,7 @@ dojo.addOnLoad(function(){
 	var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){
 		dijit.byId('agentProfile').store = agents.store;
 		dojo.connect(agents.tree, "onClick", function(item){
-			if(item.type[0] == "profile"){
+			if(agents.store.getValue(item, 'type') == "profile"){
 				dijit.byId("agentProfileSubmit").onClick = function(){
 					agents.updateProfile('editAgentProfileForm', 'agentsList');
 				};

@@ -1498,6 +1498,17 @@ encode_skills_with_groups([Skill | Skills], Acc) ->
 %			{type, group},
 %			{children, encode_skills(Group)}]} | encode_skills_with_groups(Groups)].
 
+encode_skills_simple(Skills) ->
+	encode_skills_simple(Skills, []).
+
+encode_skills_simple([], Acc) ->
+	Acc;
+encode_skills_simple([{Atom, Val} | Tail], Acc) ->
+	NewVal = list_to_binary([${, atom_to_list(Atom), $,, Val, $}]),
+	encode_skills_simple(Tail, [NewVal | Acc]);
+encode_skills_simple([Atom | Tail], Acc) ->
+	encode_skills_simple(Tail, [Atom | Acc]).
+	
 -spec(encode_queue/1 :: (Queue :: #call_queue{}) -> simple_json()).
 encode_queue(Queue) ->
 	SimplifySkills = fun
@@ -1607,15 +1618,16 @@ decode_recipe([{struct, Proplist} | Tail], Acc) ->
 decode_recipe_args(add_skills, Args) ->
 	decode_recipe_args(remove_skills, Args);
 decode_recipe_args(remove_skills, Args) ->
-	F = fun(Bin) ->
-		case call_queue_config:skill_exists(binary_to_list(Bin)) of
-			undefined ->
-				erlang:error(bararg, Bin);
-			Atom ->
-				Atom
-		end
-	end,
-	lists:map(F, Args);
+	parse_posted_skills(lists:map(fun(I) -> binary_to_list(I) end, Args));
+%	F = fun(Bin) ->
+%		case call_queue_config:skill_exists(binary_to_list(Bin)) of
+%			undefined ->
+%				erlang:error(bararg, Bin);
+%			Atom ->
+%				Atom
+%		end
+%	end,
+%	lists:map(F, Args);
 decode_recipe_args(set_priority, Args) ->
 	list_to_integer(binary_to_list(Args));
 decode_recipe_args(prioritize, _Args) ->
@@ -1698,9 +1710,9 @@ encode_recipe_step({Conditions, Action, Args, Runs}) ->
 	Jcond = encode_recipe_conditions(Conditions),
 	Jargs = case Action of
 		add_skills ->
-			Args;
+			encode_skills_simple(Args);
 		remove_skills ->
-			Args;
+			encode_skills_simple(Args);
 		set_priority ->
 			Args;
 		prioritize ->

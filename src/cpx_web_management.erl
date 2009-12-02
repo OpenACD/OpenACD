@@ -1525,7 +1525,10 @@ encode_queue(Queue) ->
 	{struct, [{name, list_to_binary(Queue#call_queue.name)},
 			{type, queue}, {weight, Queue#call_queue.weight},
 			{skills, Queue#call_queue.skills},
-			{recipe, encode_recipe(Queue#call_queue.recipe)},
+			{recipe, {struct, [
+				{<<"_type">>, <<"object">>},
+				{<<"_value">>, encode_recipe(Queue#call_queue.recipe)}
+			]}},
 			{group, list_to_binary(Queue#call_queue.group)}]}.
 
 -spec(encode_queues/1 :: (Queues :: [#call_queue{}]) -> [simple_json()]).
@@ -1547,7 +1550,10 @@ encode_queues_with_groups([Group | Groups], Acc) ->
 	Queues = call_queue_config:get_queues(Group#queue_group.name),
 	Head = {struct, [
 		{name, list_to_binary(Group#queue_group.name)},
-		{recipe, encode_recipe(Group#queue_group.recipe)},
+		{recipe, {struct, [
+			{<<"_type">>, <<"object">>},
+			{<<"_value">>, encode_recipe(Group#queue_group.recipe)}
+		]}},
 		{sort, Group#queue_group.sort},
 		{protected, Group#queue_group.protected},
 		{<<"type">>, <<"group">>},

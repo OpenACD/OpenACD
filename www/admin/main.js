@@ -130,42 +130,51 @@ dojo.addOnLoad(function(){
 	var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(data){
 		dijit.byId('queueGroup').store = queues.store;
 		dojo.connect(queues.tree, "onClick", function(item){
-			console.log(item);
-			if(item.type[0] == "queue"){
-				var callback = function(queue){
-					/*dijit.byId("editQueueForm").setValues(queue);*/ /* TODO disabled because it breaks in 1.4 */
-					dijit.byId("queueRecipe").attr('value', queue.recipe);
-					dijit.byId("queueGroup").attr('displayedValue', queue.group);
-					dijit.byId("queuesMain").selectChild('queueEditor');
-					
-					var setGroupRecipe = function(item2, req){
-						dijit.byId("queueGroupRecipeDisplay").setValue(queues.fromStoreToObj(item2[0].recipe));
-						dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
-					}
-					queues.store.fetch({
-						query:{type:'group', name: queue.group},
-						onComplete:setGroupRecipe
-					});
-					
-					dijit.byId("queueSubmit").onClick = function(){
-						queues.setQueue(item.name[0], dijit.byId("editQueueForm"), dijit.byId("queueRecipe"), "queuesList");
-					}
+			if(queues.tree.store.getValue(item, 'type') == "queue"){
+				console.log(item);
+				dijit.byId("queuesMain").selectChild('queueEditor');
+				dijit.byId('queueName').attr('value', queues.tree.store.getValue(item, 'name'));
+				dijit.byId('queueOldName').attr('value', queues.tree.store.getValue(item, 'name'));
+				dijit.byId('queueGroup').attr('displayedValue', queues.tree.store.getValue(item, 'group'));
+				var inArray = function(needle, haystack){
+					for(var i = 0; i < haystack.length; i++){
+						if(needle == haystack[i]){
+							return true;
+						}
+					}	
+					return false;
 				}
 				
-				queues.getQueue(item.name[0], callback);
-				dijit.byId("queueDropButton").onClick = function(){
-					queues.deleteQueue(item.name[0], "queuesList");
+				var skills = queues.tree.store.getValues(item, 'skills');
+				var options = dojo.query('> optgroup > option', dijit.byId('queueSkills').domNode);
+				for(var i = 0; i < options.length; i++){
+					options[i].selected = inArray(options[i].value, skills);
 				}
+				
+				dijit.byId('queueWeight').attr('value', queues.tree.store.getValue(item, 'weight'));
+				var recipe = queues.tree.store.getValue(item, 'recipe') ? queues.tree.store.getValue(item, 'recipe') : [];
+				dijit.byId('queueRecipe').setValue(recipe);
+				
+				var callback = function(gitems, req){
+					var gitem = gitems[0];
+					console.log(gitem);
+					dijit.byId("queueGroupRecipeDisplay").setValue(req.store.getValue(gitem, 'recipe'));
+					dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
+				}
+				queues.store.fetch({
+					query:{type:'group', name:queues.tree.store.getValue(item, 'group')},
+					onComplete:callback
+				});
 					 
 			}
 			else{
 				dijit.byId("queuesMain").selectChild('queueGroupEditor');
-				dijit.byId("queueGroupOldName").attr('value', item.name[0]);
-				dijit.byId("queueGroupName").attr('value', item.name[0]);
-				dijit.byId("queueGroupSort").attr('value', item.sort[0]);
-				var rec = queues.fromStoreToObj(item.recipe);
-				dijit.byId("queueGroupRecipe").setValue(rec);
-				dijit.byId("queueGroupName").attr('disabled', item.protected[0]);
+				dijit.byId("queueGroupOldName").attr('value', queues.tree.store.getValue(item, 'name'));
+				dijit.byId("queueGroupName").attr('value', queues.tree.store.getValue(item, 'name'));
+				dijit.byId("queueGroupSort").attr('value', queues.tree.store.getValue(item, 'sort'));
+				//var rec = queues.fromStoreToObj(item.recipe);
+				dijit.byId("queueGroupRecipe").setValue(queues.tree.store.getValue(item, 'recipe'));
+				dijit.byId("queueGroupName").attr('disabled', queues.tree.store.getValue(item, 'protected'));
 				dijit.byId("queueGroupSubmit").onClick = function(){
 					queues.setGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
 				}

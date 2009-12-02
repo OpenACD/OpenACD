@@ -127,7 +127,8 @@ queues.tree = false;
 
 queues.init = function(){
 	queues.store = new dojo.data.ItemFileWriteStore({
-		url:"/queues/groups/get"
+		url:"/queues/groups/get",
+		typeMap:{"object":function(obj){ return obj; }}
 	});
 	queues.store.fetch();
 	queues.model = new dijit.tree.ForestStoreModel({

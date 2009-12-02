@@ -81,7 +81,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 					argdiv.attr('content', select);
 					ithis.argsWidget = ithis._buildSelect(select);
 				};
-				skills.newSelection(callback, [], [], []);
+				skills.createSelect(callback, [], ['_agent'], ['_profile', '_brand']);
 			break;
 			
 			case "remove_skills":
@@ -92,7 +92,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 					argdiv.attr('content', select);
 					ithis.argsWidget = ithis._buildSelect(select);
 				}
-				skills.newSelection(callback, [], [], []);
+				skills.createSelect(callback, [], ['_agent'], ['_profile', '_brand']);
 			break;
 			
 			case "set_priority":

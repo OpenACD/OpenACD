@@ -1,12 +1,14 @@
 function encodeHTML(str) {
-	if (!str || !str.replace)
+	if (!str || !str.replace){
 		return str;
+	}
 	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/, '&gt;');
 }
 
 function decodeHTML(str) {
-	if (!str || !str.replace)
+	if (!str || !str.replace){
 		return str;
+	}
 	return str.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
 }
 
@@ -30,10 +32,9 @@ function getTheme() {
 }
 
 function setTheme(theme) {
+	var settings = {};
 	if (dojo.cookie('agentui-settings')) {
-		var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
-	} else {
-		var settings = {};
+		settings = dojo.fromJson(dojo.cookie('agentui-settings'));
 	}
 	settings.theme = theme;
 	dojo.cookie('agentui-settings', dojo.toJson(settings));
@@ -62,7 +63,7 @@ function storeTab(tab){
 function dropTab(tab){
 	var settings = {
 		'tabs':[]
-	}
+	};
 	if(dojo.cookie('agentui-settings')){
 		settings = dojo.fromJson(dojo.cookie('agentui-settings'));
 		if(! settings.tabs){
@@ -81,11 +82,12 @@ function dropTab(tab){
 }
 
 dojo.addOnLoad(function(){
-	if(window.console.log == undefined){
+	//TODO:  Move logging/logger functions to other file.
+	if(window.console.log === undefined){
 		//stupid ie.
 		window.console.log = function(){
 			// la la la
-		}
+		};
 	}
 	
 	window._logLevelToString = function(level){
@@ -109,7 +111,7 @@ dojo.addOnLoad(function(){
 			default:
 				return "unknown";
 		}
-	}
+	};
 
 	window._logLevelToNumber = function(level){
 		switch(level){
@@ -132,11 +134,11 @@ dojo.addOnLoad(function(){
 			default:
 				return -1;
 		}
-	}
+	};
 
 	window.getLogLevel = function(){
 		return window._logLevelToString(window._logLevel);
-	}
+	};
 
 	window.setLogLevel = function(levelstring){
 		var int = window._logLevelToNumber(levelstring);
@@ -147,55 +149,55 @@ dojo.addOnLoad(function(){
 			else{
 				error(["log level cannot be", levelstring]);
 			}
-		}
+		};
 
 	if(! window.console){
 		window.console = {};
 		window.console.log = function(){
-			return true
-		}
+			return true;
+		};
 	}
 
 	window.log = function(level, data){
 		if(window._logLevelToNumber(level) <= window._logLevel){
 			console.log([level, data]);
 		}
-	}
+	};
 
 	window.debug = function(data){
 		window.log("debug", data);
-	}
+	};
 
 	window.info = function(data){
 		window.log("info", data);
-	}
+	};
 
 	window.notice = function(data){
 		window.log("notice", data);
-	}
+	};
 
 	window.warning = function(data){
 		window.log("warning", data);
-	}
+	};
 
 	window.error = function(data){
 		window.log("error", data);
-	}
+	};
 
 	window.critical = function(data){
 		window.log("critical", data);
-	}
+	};
 
 	window._alert = window.alert;
 
 	window.alert = function(data){
 		window._alert(data);
 		window.log("alert", data);
-	}
+	};
 
 	window.emergency = function(data){
-		window.log("emergency", data)
-	}
+		window.log("emergency", data);
+	};
 
 	window._logLevel = 4; //default is warning
 
@@ -223,7 +225,7 @@ dojo.addOnLoad(function(){
 				dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("agent/logout", function(data){
 					dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
 				});
-				agent = new Agent(response.login, parseInt(response.statetime), response.timestamp);
+				agent = new Agent(response.login, parseInt(response.statetime, 10), response.timestamp);
 				agent.setSkew(response.timestamp);
 				buildReleaseMenu(agent);
 				buildOutboundMenu(agent);
@@ -236,19 +238,8 @@ dojo.addOnLoad(function(){
 					var fixedres = response.statedata;
 					fixedres.media = fixedres.type;
 					dojo.publish("agent/mediaload", [fixedres]);
-				};
-				
-					/*dojo.xhrGet({
-						url:"/mediapull/",
-						handleAs:"text",
-						load:function(mediadata){
-							dojo.publish("agent/mediapush", [{
-								"media":response.statedata,
-								"content":mediadata
-							}]);
-						}
-					});
-				}*/
+				}
+
 				agent.stopwatch.onTick = function(){
 					var elapsed = agent.stopwatch.time();
 					var d = new Date();
@@ -264,19 +255,19 @@ dojo.addOnLoad(function(){
 						s = d.getHours() + ":" + s;
 					}
 					dojo.byId("timerdisp").innerHTML = s;
-				}
+				};
 				agent.stopwatch.start();
+				var settings = {
+					tabs:[]
+				};
 				if (dojo.cookie('agentui-settings')) {
-					var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+					settings = dojo.fromJson(dojo.cookie('agentui-settings'));
 					if(! settings.tabs){
 						settings.tabs = [];
 					}
-				}else{
-					var settings = {
-						tabs:[]
-					}
 				}
 				for(var i = 0; i < settings.tabs.length; i++){
+					// TODO This could get ugly if/when we add more tabs.
 					if(settings.tabs[0] == "supervisorTab"){
 						if(! dijit.byId("supervisorTab")){							
 							var t = new dojox.layout.ContentPane({
@@ -455,12 +446,10 @@ dojo.addOnLoad(function(){
 		var widget = dijit.byId("banswer");
 		debug(["banswer", data]);
 		if(data.statedata && data.statedata.ringpath == "inband"){
-			switch(data.state){
-				case "ringing":
-					widget.attr('style', "display:inline");
-					break;
-				default:
-					widget.attr('style', 'display:none');
+			if(data.state ==  "ringing"){
+				widget.attr('style', "display:inline");
+			} else {
+				widget.attr('style', 'display:none');
 			}
 		}
 		else{
@@ -483,7 +472,7 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("transferToAgentMenuDyn").agentsAvail = dojo.subscribe("agent/available", function(data){
 		var widget = dijit.byId("transferToAgentMenuDyn");
-		widget.destroyDescendants()
+		widget.destroyDescendants();
 		dojo.forEach(data, function(i){
 			var m = new dijit.MenuItem({
 				label: i.name+"("+i.profile+") " + (i.state == "idle" ? "I" : "R"),
@@ -531,10 +520,10 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("eventLogText").eventLogPushed = dojo.subscribe("eventlog/push", function(text){
 		var oldval = dijit.byId("eventLogText").value;
-		dijit.byId("eventLogText").attr('value', oldval + "\n" + text)
+		dijit.byId("eventLogText").attr('value', oldval + "\n" + text);
 	});
 	
-	var loginform = dijit.byId("loginform")
+	var loginform = dijit.byId("loginform");
 	dojo.connect(loginform, "onSubmit", function(e){
 		e.preventDefault();
 		if (loginform.isValid()){
@@ -548,7 +537,7 @@ dojo.addOnLoad(function(){
 					}
 					else{
 						dojo.byId("loginerrspan").innerHTML = "Server is not responding";
-						alert(response)
+						alert(response);
 					}
 				},
 				load:function(response, ioargs){
@@ -613,7 +602,7 @@ dojo.addOnLoad(function(){
 								}
 								dojo.cookie('agentui-settings', dojo.toJson(settings)); 
 								debug(response2);
-								agent = new Agent(attrs.username, parseInt(response2.statetime));
+								agent = new Agent(attrs.username, parseInt(response2.statetime, 10));
 								agent.setSkew(response2.timestamp);
 								agent.stopwatch.onTick = function(){
 									var elapsed = agent.stopwatch.time();
@@ -630,7 +619,7 @@ dojo.addOnLoad(function(){
 										s = d.getHours() + ":" + s;
 									}
 									dojo.byId("timerdisp").innerHTML = s;
-								}
+								};
 								buildReleaseMenu(agent);
 								buildOutboundMenu(agent);
 								buildQueueMenu(agent);
@@ -661,16 +650,17 @@ dojo.addOnLoad(function(){
 				menu.addChild(item);
 			},
 			load:function(response, ioargs){
+				var menu = dijit.byId("releasedmenu");
+				var item = '';
 				if(response.success){
-					var menu = dijit.byId("releasedmenu");
 					dojo.forEach(response.options, function(obj){
-						var item = new dijit.MenuItem({
+						item = new dijit.MenuItem({
 							label: obj.label,
 							onClick:function(){agent.setState("released", obj.id + ":" + obj.label + ":" + obj.bias); }
 						});
 						menu.addChild(item);
 					});
-					var item = new dijit.MenuItem({
+					item = new dijit.MenuItem({
 						label: nlsStrings.DEFAULT,
 						onClick:function(){agent.setState("released", "Default"); }
 					});
@@ -678,16 +668,15 @@ dojo.addOnLoad(function(){
 				}
 				else{
 					warning(["getting release codes failed", response.message]);
-					var menu = dijit.byId("releasedmenu");
-					var item = new dijit.MenuItem({
+					item = new dijit.MenuItem({
 						label: nlsStrings.DEFAULT,
 						onClick:function(){agent.setState("released", "Default"); }
 					});
 					menu.addChild(item);
 				}
 			}
-		})
-	}
+		});
+	};
 
 	buildOutboundMenu = function(agent){
 		//var menu = dijit.byId("outboundmenu");
@@ -708,7 +697,7 @@ dojo.addOnLoad(function(){
 					if(dijit.byId('boutboundcall')){
 						dijit.byId('boutboundcall').store = store;
 					}else{
-						new dijit.form.FilteringSelect({
+						var out = new dijit.form.FilteringSelect({
 						'searchAttr': 'label',
 						'name':'boutboundcall',
 						'store':store
@@ -717,8 +706,9 @@ dojo.addOnLoad(function(){
 			},
 			load:function(response, ioargs){
 				debug(["buildOutboundMenu", response]);
+				var store = {};
 				if(response.success){
-					var store = new dojo.data.ItemFileReadStore({
+					store = new dojo.data.ItemFileReadStore({
 						data: {
 							'label': 'label',
 							'identifier':'id',
@@ -728,12 +718,12 @@ dojo.addOnLoad(function(){
 					if(dijit.byId('boutboundcall')){
 						dijit.byId('boutboundcall').store = store;
 					}else{
-						new dijit.form.FilteringSelect({
+						var out = new dijit.form.FilteringSelect({
 							'searchAttr': 'label',
 							'name':'boutboundcall',
 							'store':store,
 							'onChange': function(val){
-								if(val != ""){
+								if(val !== ""){
 									agent.initOutbound(val, "freeswitch");
 								}
 							}
@@ -741,7 +731,7 @@ dojo.addOnLoad(function(){
 					}
 				}
 				else{
-					var store = new dojo.data.ItemFileReadStore({
+					store = new dojo.data.ItemFileReadStore({
 						data: {
 							'label': 'label',
 							'identifier': 'id',
@@ -753,7 +743,7 @@ dojo.addOnLoad(function(){
 					if(dijit.byId('boutboundcall')){
 						dijit.byId('boutboundcall').store = store;
 					}else{
-						new dijit.form.FilteringSelect({
+						out = new dijit.form.FilteringSelect({
 							'searchAttr': 'label',
 							'name':'boutboundcall',
 							'store':store
@@ -774,8 +764,8 @@ dojo.addOnLoad(function(){
 					}
 				});
 			}
-		})
-	}
+		});
+	};
 
 	buildQueueMenu = function(agent){
 		var menu = dijit.byId("transferToQueueMenu");
@@ -792,9 +782,10 @@ dojo.addOnLoad(function(){
 			},
 			load:function(response, ioargs){
 				debug(["buildQueueMenu", response]);
+				var item = '';
 				if(response.success){
-					for(var i in response.queues) {
-						var item = new dijit.MenuItem({
+					for(var i = 0; i < response.queues.length; i++) {
+						item = new dijit.MenuItem({
 							label: response.queues[i].name,
 							onClick: function(){ Agent.queuetransfer(this.label); }
 						});
@@ -802,15 +793,15 @@ dojo.addOnLoad(function(){
 					}
 				}
 				else{
-					var item = new dijit.MenuItem({
+					item = new dijit.MenuItem({
 						label:"Failed to get queuelist",
 						disabled: true
 					});
 					menu.addChild(item);
 				}
 			}
-		})
-	}
+		});
+	};
 
 	dojo.byId("loginerrp").logout = dojo.subscribe("agent/logout", function(data){
 		if(data === true){
@@ -823,7 +814,7 @@ dojo.addOnLoad(function(){
 	
 	dojo.byId("loginpane").logout = dojo.subscribe("agent/logout", function(data){
 		dijit.byId("loginpane").show();
-	})
+	});
 
 	dijit.byId("main").logout = dojo.subscribe("agent/logout", function(data){
 		dijit.byId("main").attr('style', 'visibility:hidden');
@@ -862,12 +853,12 @@ dojo.addOnLoad(function(){
 
 	logout = function(agent){
 		agent.logout();
-	}
+	};
 	
 	dijit.byId("main").mediaload = dojo.subscribe("agent/mediaload", function(eventdata){
 		info(["listening for media load fired:  ", eventdata]);
 		if(eventdata.media != 'email'){
-			return false
+			return false;
 		}
 		
 		var mediaPanelId = eventdata.media + 'Panel';

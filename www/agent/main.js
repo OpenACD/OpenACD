@@ -861,47 +861,6 @@ dojo.addOnLoad(function(){
 		dijit.byId('tabPanel').addChild(pane);
 		dijit.byId('tabPanel').selectChild(mediaPanelId);
 	});
-	
-	/*dijit.byId("main").mediapush = dojo.subscribe("agent/mediapush", function(eventdata){
-		info(["main listing for media push paid off", eventdata]);
-		if(dijit.byId("mediapush") == undefined){
-			var mediaPane = new dojox.layout.FloatingPane({
-				id:"mediapush",
-				title:eventdata.media.id,
-				resizable: true,
-				dockable:false,
-				closable:false,
-				style: 'position:absolute; top:100px; left: 5%; z-index:50000; width:90%',
-				content: "<div id='media-content' style='display:inline-block;float:left'>" + eventdata.content + "</div><div id='media-input' style='display:inline-block'></div><br /><button id='mediapush-button' />"
-			}, dojo.create("div", null, "main"));
-			mediaPane.agentStateSub = dojo.subscribe("agent/state", function(data){
-				mediaPane.destroy();
-			});
-			
-			var mediaInput = new dijit.Editor({height:"50%"}, dojo.byId('media-input'));
-			
-			var dump = new dijit.form.Button({
-				label:"Submit",
-				onClick:function(){
-					var pushdata = dijit.byId("media-input").getValue();
-					agent.mediaPush(pushdata);
-				}
-			}, 'mediapush-button');
-												  
-			mediaPane.startup();
-			mediaPane.show();
-			return;
-		}
-		
-		if(eventdata.mode == "append"){
-			var oldcontent = dojo.byId("media-content").innerHTML;
-		}
-		else{
-			oldcontent = '';
-		}
-		
-		dojo.byId("media-content").innerHTML = oldcontent + eventdata.content;
-	});	*/	   
 });
 
 function endpointselect() {

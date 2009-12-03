@@ -2,8 +2,9 @@
 currenttab = undefined;
 
 function switchtab(tab) {
-	if (currenttab != tab)
+	if (currenttab != tab){
 		console.log("switched tab to "+tab);
+	}
 	currenttab = tab;
 }
 
@@ -14,7 +15,7 @@ function inspect(obj){
 			console.log("  " + i + ": function()");
 		}
 		else{
-			console.log("  " + i + ": " + obj[i])
+			console.log("  " + i + ": " + obj[i]);
 		}
 	}
 }
@@ -22,7 +23,7 @@ function inspect(obj){
 function timeSince(timestamp){
 	if(isNaN(timestamp)){
 		return timestamp;
-	};
+	}
 	
 	var now = Math.floor(new Date().getTime() / 1000);
 	var elapsed = now - timestamp;
@@ -36,7 +37,7 @@ function timeSince(timestamp){
 	elapsed = Math.floor(elapsed/60);
 	if(elapsed < 24){
 		return elapsed + " Hours";
-	};
+	}
 	elapsed = Math.floor(elapsed/24);
 	return elapsed + " Days";
 }
@@ -59,13 +60,13 @@ dojo.addOnLoad(function(){
 	dojo.query(".translate").forEach(function(node){
 		var key = node.innerHTML;
 		if(dojo.i18n.getLocalization('admin','labels')[key]){
-			node.innerHTML = dojo.i18n.getLocalization('admin','labels')[key]
+			node.innerHTML = dojo.i18n.getLocalization('admin','labels')[key];
 		}
 	});
 	dojo.query(".translatecol").forEach(function(node){
 		var key = node.innerHTML;
 		if(dojo.i18n.getLocalization('admin','labels')[key]){
-			node.innerHTML = dojo.i18n.getLocalization('admin','labels')[key]
+			node.innerHTML = dojo.i18n.getLocalization('admin','labels')[key];
 		}
 		node.innerHTML += ":";
 	});
@@ -76,10 +77,10 @@ dojo.addOnLoad(function(){
 		var skillsCallback = function(selectNode){
 			selectNode.name = 'skills';
 			dojo.place(selectNode, dojo.byId('agentSkills'), 'only');
-			new dijit.form.MultiSelect({}, selectNode);
-		}
+			var out = new dijit.form.MultiSelect({}, selectNode);
+		};
 		
-		skills.createSelect(skillsCallback, [], [], ['_brand', '_queue'])
+		skills.createSelect(skillsCallback, [], [], ['_brand', '_queue']);
 				
 		skills.refreshTree(dojo.byId('skillsList'));
 	});
@@ -87,16 +88,16 @@ dojo.addOnLoad(function(){
 	var skillsTreeRefreshHandle = dojo.subscribe("skills/tree/refreshed", function(data){
 		dijit.byId('skillGroup').store = skills.store;
 		dojo.connect(skills.tree, "onClick", function(item){
-			if(item.type[0] == "skill"){
+			if(skills.store.getValue(item, 'type') == "skill"){
 				dijit.byId('skillsMain').selectChild('skillEditor');
 				dijit.byId('editSkill').attr('value', item);
-				var d = dijit.byId('editSkill').getDescendants();
-				for(i in d){
+				var descendants = dijit.byId('editSkill').getDescendants();
+				for(var i =0; i < descendants.length; i++){
 					try{
-						 d[i].attr('disabled', item.protected[0]);
+						 descendants[i].attr('disabled', skills.store.getValue(item, 'protected'));
 					}
 					catch(err){
-						//ditching it sense this will ususally be "this is a funciton" error
+						//ditching it sinse this will ususally be "this is a funciton" error
 						//Prolly should test that first instead of shoving it to a try/catch.
 					}
 				}	
@@ -126,10 +127,10 @@ dojo.addOnLoad(function(){
 				var skillsCallback = function(select){
 					select.name = 'skills';
 					dojo.place(select, dojo.byId('queueSkillsDiv'), 'only');
-					new dijit.form.MultiSelect(select);
-				}
+					var out = new dijit.form.MultiSelect(select);
+				};
 				
-				skills.createSelect(skillsCallback, skillsSelected, ['_agent', '_profile'], ['_brand', '_profile'])
+				skills.createSelect(skillsCallback, skillsSelected, ['_agent', '_profile'], ['_brand', '_profile']);
 				/*var options = dojo.query('> optgroup > option', dijit.byId('queueSkills').domNode);
 				for(var i = 0; i < options.length; i++){
 					options[i].selected = inArray(options[i].value, skills);
@@ -144,7 +145,7 @@ dojo.addOnLoad(function(){
 					console.log(gitem);
 					dijit.byId("queueGroupRecipeDisplay").setValue(req.store.getValue(gitem, 'recipe'));
 					dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
-				}
+				};
 				queues.store.fetch({
 					query:{type:'group', name:queues.tree.store.getValue(item, 'group')},
 					onComplete:callback
@@ -152,11 +153,11 @@ dojo.addOnLoad(function(){
 				
 				dijit.byId('queueSubmit').onClick = function(){
 					queues.setQueue(queues.tree.store.getValue(item, 'name'), dijit.byId('editQueueForm'), dijit.byId('queueRecipe'), 'queuesList');
-				}
+				};
 				
 				dijit.byId('queueDropButton').onClick = function(){
 					queues.deleteQueue(queues.tree.store.getValue(item, 'name'), 'queuesList');
-				}
+				};
 			}
 			else{
 				dijit.byId("queuesMain").selectChild('queueGroupEditor');
@@ -168,10 +169,10 @@ dojo.addOnLoad(function(){
 				dijit.byId("queueGroupName").attr('disabled', queues.tree.store.getValue(item, 'protected'));
 				dijit.byId("queueGroupSubmit").onClick = function(){
 					queues.setGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
-				}
+				};
 				dijit.byId("queueDropButton").onClick = function(){
 					queues.deleteGroup(queues.tree.store.getValue(item, 'name'), "queuesList");
-				}
+				};
 			}
 		});
 	});
@@ -182,7 +183,7 @@ dojo.addOnLoad(function(){
 			dijit.byId("mediaConf").onDownloadEnd = function(){
 				dijit.byId("mediaSubmit").onClick = function(){
 					medias.setMedia(item.node[0], item.name[0], dijit.byId("mediaForm").getValues(), 'mediaList');
-				}
+				};
 				dojo.publish("media/node/changed", [item.node[0]]);
 				dojo.xhrGet({
 					url:"medias/" + item.node[0] + "/" + item.name[0] + "/get",
@@ -204,8 +205,8 @@ dojo.addOnLoad(function(){
 					error:function(resp){
 						console.log(["error get media", item.node[0], item.name[0], resp]);
 					}
-				})
-			}
+				});
+			};
 		
 			if(item.type[0] == "conf"){
 				dojo.requireLocalization("admin", item.mediatype[0]);
@@ -213,7 +214,7 @@ dojo.addOnLoad(function(){
 			}
 			dijit.byId("mediaMain").selectChild("mediaConf");
 		});
-	})
+	});
 
 	var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){
 		dijit.byId('agentProfile').store = agents.store;
@@ -235,8 +236,8 @@ dojo.addOnLoad(function(){
 				var skillCallback = function(selectNode){
 					selectNode.name = 'skills';
 					dojo.place(selectNode, dojo.byId('agentProfileSkills'), 'only');
-					new dijit.form.MultiSelect(selectNode);
-				}
+					var out = new dijit.form.MultiSelect(selectNode);
+				};
 				
 				var selectedSkills = [];
 				var profileSkills = agents.store.getValues(item, 'skills');
@@ -265,8 +266,8 @@ dojo.addOnLoad(function(){
 								agents.refreshTree('agentsList');
 							}
 						}
-					})
-				}
+					});
+				};
 			}
 			else{
 				var id = agents.store.getValue(item, 'id');
@@ -288,7 +289,7 @@ dojo.addOnLoad(function(){
 						var skillCallback = function(selectNode){
 							selectNode.name = 'skills';
 							dojo.place(selectNode, dojo.byId('agentSkills'), 'only');
-						}
+						};
 						var selectedSkills = [];
 						for(var i = 0; i < agent.skills.length; i++){
 							var val = agent.skills[i].atom;
@@ -319,7 +320,7 @@ dojo.addOnLoad(function(){
 							}
 						}
 					});
-				}
+				};
 			}
 		});
 	});
@@ -327,7 +328,7 @@ dojo.addOnLoad(function(){
 	dojo.addOnLoad(function(){
 		var nlsStrings = dojo.i18n.getLocalization("admin", "labels");
 		
-		var loginform = dijit.byId("loginform")
+		var loginform = dijit.byId("loginform");
 		dojo.connect(loginform, "onSubmit", function(e){
 			e.preventDefault();
 			if (loginform.isValid()){

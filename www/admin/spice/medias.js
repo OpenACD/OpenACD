@@ -2,7 +2,7 @@ dojo.provide("spice.medias");
 
 medias = function(){
 	return {};
-}
+};
 
 medias.store = new dojo.data.ItemFileReadStore({
 	data:{
@@ -36,7 +36,7 @@ medias.init = function(){
 		rootId:"nodes",
 		rootLabel:'nodes'
 	});
-}
+};
 
 medias.refreshTree = function(node){
 	var parent = dojo.byId(node).parentNode;
@@ -53,7 +53,7 @@ medias.refreshTree = function(node){
 		showRoot: false
 	}, node);
 	dojo.publish("medias/tree/refreshed", []);
-}
+};
 
 medias.setMedia = function(erlnode, mediatype, args, treenode){
 	dojo.xhrPost({
@@ -74,4 +74,4 @@ medias.setMedia = function(erlnode, mediatype, args, treenode){
 			console.log(["Setting media errored", res]);
 		}
 	});
-}
+};

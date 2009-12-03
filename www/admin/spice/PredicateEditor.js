@@ -20,7 +20,7 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 			if(res.length < 1){
 				return;
 			}
-			var res = res[0];
+			res = res[0];
 			var comparisons = req.store.getValues(res, 'comparisons');
 			for(var i = 0; i < comparisons.length; i++){
 				items.push({
@@ -52,7 +52,7 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 				
 			ithis.valueField.regExp = regex;
 			ithis.valueField.predFilter = req.store.getValue(res, "filter");
-		}
+		};
 		this.propertyField.store.fetch({
 			query:{
 				'value':prop,
@@ -69,7 +69,7 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 				outval = parseFloat(this.valueField.value);
 				break;
 			case "integer":
-				outval = parseInt(this.valueField.value);
+				outval = parseInt(this.valueField.value, 10);
 				break;
 			default:
 				outval = this.valueField.value;
@@ -133,7 +133,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 	},
 	dropRow:function(rowid){
 		if(this._disabled){
-			return false
+			return false;
 		}
 		if(this.rows.length < 2){
 			return;
@@ -164,7 +164,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 			}
 		}
 		this.rows = [];
-		for(var i = 0; i < list.length; i++){
+		for(i = 0; i < list.length; i++){
 			this.addRow();
 			dijit.byId(this.rows[i]).setValue(list[i]);
 		}
@@ -175,7 +175,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 	setDisabled:function(bool){
 		this._disabled = bool;
 		for(var i = 0; i < this.rows.length; i++){
-			dijit.byId(this.rows[i]).setDisabled(bool)
+			dijit.byId(this.rows[i]).setDisabled(bool);
 		}
 	}
 });

@@ -2386,14 +2386,12 @@ window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", functio
 			url:"/supervisor/endmonitor",
 			handleAs:'json',
 			load:function(res){
-				if(res.success){
-				}
-				else{
+				if(! res.success){
 					debug(["endmonitor failed", res.message]);
 				}
 			},
 			error:function(res){
-				errMessage(["endmonitor errored", res]);
+				//errMessage(["endmonitor errored", res]);
 			}
 		});
 	}

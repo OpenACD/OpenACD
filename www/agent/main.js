@@ -700,7 +700,8 @@ dojo.addOnLoad(function(){
 						var out = new dijit.form.FilteringSelect({
 						'searchAttr': 'label',
 						'name':'boutboundcall',
-						'store':store
+						'store':store,
+						'promptMessage': dojo.i18n.getLocalization("agentUI","labels")["MKOUTBOUND"]
 					}, 'boutboundcall');
 				}
 			},
@@ -722,8 +723,10 @@ dojo.addOnLoad(function(){
 							'searchAttr': 'label',
 							'name':'boutboundcall',
 							'store':store,
+							'promptMessage': dojo.i18n.getLocalization("agentUI","labels")["MKOUTBOUND"],
 							'onChange': function(val){
 								if(val !== ""){
+								// TODO focus the main tab
 									agent.initOutbound(val, "freeswitch");
 								}
 							}

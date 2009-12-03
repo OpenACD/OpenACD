@@ -271,7 +271,7 @@ dojo.global = {
 =====*/
 	dojo.locale = d.config.locale;
 
-	var rev = "$Rev: 20904 $".match(/\d+/);
+	var rev = "$Rev: 20935 $".match(/\d+/);
 
 /*=====
 	dojo.version = function(){
@@ -295,7 +295,7 @@ dojo.global = {
 	}
 =====*/
 	dojo.version = {
-		major: 1, minor: 4, patch: 0, flag: "rc1",
+		major: 1, minor: 4, patch: 0, flag: "rc2",
 		revision: rev ? +rev[0] : NaN,
 		toString: function(){
 			with(d.version){
@@ -1762,7 +1762,7 @@ if(typeof window != 'undefined'){
 				l = vmlElems.length;
 			}
 			for(; i < l; ++i){
-				s.addRule("v\\:" + vmlElems[i], "behavior:url(#default#VML);  display:inline-block");
+				s.addRule("v\\:" + vmlElems[i], "behavior:url(#default#VML); display:inline-block");
 			}
 		}catch(e){}
 	}

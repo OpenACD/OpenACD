@@ -15,17 +15,17 @@ function Agent(username, statetime, timestamp){
 		var now = new Date();
 		now = Math.floor(now.getTime() / 1000);
 		agentref.skew = now - timestamp;
-	}
+	};
 	
 	if(timestamp){
 		agentref.setSkew(timestamp);
 	}
 	
 	this.stopwatch = new Stopwatch(statetime + this.skew);
-	this.stopwatch.onTick = function(){}
+	this.stopwatch.onTick = function(){};
 	
 	this.handleData = function(datalist){
-		for(var i in datalist){
+		for(var i = 0; i < datalist.length; i++){
 			 switch (datalist[i].command){
 				case "pong":
 					agentref.setSkew(datalist[i].timestamp);
@@ -65,7 +65,7 @@ function Agent(username, statetime, timestamp){
 					info(["non-local command", datalist[i].command]);
 			 }
 		}
-	}
+	};
 	
 	this.poll = function(){
 		dojo.xhrGet({
@@ -90,7 +90,7 @@ function Agent(username, statetime, timestamp){
 			load:function(response, ioargs){
 				debug([response]);
 				//EventLog.log("Poll success, handling data");
-				if(response.success == false){
+				if(response.success === false){
 					errMessage(["poll failed", response.message]);
 					//agentref.poller.stop();
 					dojo.publish("agent/logout", [response.message]);
@@ -102,31 +102,23 @@ function Agent(username, statetime, timestamp){
 					agentref.handleData(response.data);
 				}
 			}
-		})
-	}
+		});
+	};
 	
-	/*this.poller = new dojox.timing.Timer(1000);
-	this.poller.onTick = function(){
-		agentref.poll();
-	}
-	
-	this.poller.start();
-	this.stopwatch.start();
-	*/
-	this.poll()
+	this.poll();
 }
 
 Agent.states = ["idle", "ringing", "precall", "oncall", "outgoing", "released", "warmtransfer", "wrapup"];
 
 Agent.prototype.setState = function(state){
 	//build the request
-	var statedata = arguments[1]
+	var statedata = arguments[1];
 	
+	var requesturl = '';
 	if(statedata){
-		var requesturl = "/state/" + state + "/" + arguments[1];
-	}
-	else{
-		var requesturl = "/state/" + state;
+		requesturl = "/state/" + state + "/" + arguments[1];
+	} else {
+		requesturl = "/state/" + state;
 	}
 	
 	var agentref = this;
@@ -147,8 +139,8 @@ Agent.prototype.setState = function(state){
 			agentref.stopwatch.start();
 			//dojo.publish("agent/state", [{"success":true, "state":state, "statedata":statedata}]);
 		}
-	})
-}
+	});
+};
 
 Agent.prototype.initOutbound = function(Client, Type) {
 	dojo.xhrGet({
@@ -158,13 +150,14 @@ Agent.prototype.initOutbound = function(Client, Type) {
 			errMessage(["error for init outbound", response]);
 		},
 		load: function(response, ioargs){
-			if (response.success)
+			if (response.success){
 				EventLog.log("init outbound success");
-			else
+			} else {
 				errMessage(response.message);
+			}
 		}
-	})
-}
+	});
+};
 
 Agent.prototype.logout = function(/*callback*/){
 	var agentref = this;
@@ -173,19 +166,14 @@ Agent.prototype.logout = function(/*callback*/){
 		handleAs:"json",
 		error:function(response, ioargs){
 			errMessage(["error logging out", response]);
-			//callback();
 		},
 		load:function(response, ioargs){
 			if(response.success){
-				//agentref.stopwatch.stop();
-				//agentref.stopwatch.reset();
-				//agentref.poller.stop();
 				dojo.publish("agent/logout", [true]);
-				//callback();
 			}			
 		}
 	});
-}
+};
 
 Agent.prototype.dial = function() {
 	if (dijit.byId("dialbox").isValid()) {
@@ -204,7 +192,7 @@ Agent.prototype.dial = function() {
 			}
 		});
 	}
-}
+};
 
 Agent.prototype.mediaPush = function(data){
 	if(this.state == "oncall"){
@@ -218,7 +206,7 @@ Agent.prototype.mediaPush = function(data){
 				if(response.success){
 					info(["media push success", response]);
 				} else{
-					errMessage(["media push failed", response])
+					errMessage(["media push failed", response]);
 				}
 			},
 			content:{
@@ -229,7 +217,7 @@ Agent.prototype.mediaPush = function(data){
 	}
 	
 	return false;
-}
+};
 
 Agent.transfer = function(aname) {
 	dojo.xhrGet({
@@ -246,8 +234,8 @@ Agent.transfer = function(aname) {
 				errMessage(["failed to ring to 2nd agent", response]);
 			}
 		}
-	})
-}
+	});
+};
 
 Agent.warmtransfer = function(num) {
 	dojo.xhrGet({
@@ -264,8 +252,8 @@ Agent.warmtransfer = function(num) {
 				errMessage(["failed to initiate warm transfer", response]);
 			}
 		}
-	})
-}
+	});
+};
 
 Agent.queuetransfer = function(queue) {
 	dojo.xhrGet({
@@ -282,8 +270,8 @@ Agent.queuetransfer = function(queue) {
 				errMessage(["failed to initiate queue transfer", response]);
 			}
 		}
-	})
-}
+	});
+};
 
 
 Agent.getAvailAgents = function() {
@@ -302,4 +290,4 @@ Agent.getAvailAgents = function() {
 			}
 		}
 	});
-}
+};

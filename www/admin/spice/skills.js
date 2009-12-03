@@ -2,7 +2,7 @@ dojo.provide("spice.skills");
 
 skills = function(){
 	return {};
-}
+};
 
 skills.store = new dojo.data.ItemFileReadStore({
 	data:{
@@ -17,7 +17,7 @@ skills.model = new dijit.tree.ForestStoreModel({
 	childrenAttrs:"skills",
 	rootId:"skills",
 	rootLabel:"Skills"
-})
+});
 
 skills.tree = false;
 
@@ -32,10 +32,10 @@ skills.init = function(){
 		query:{"type":"group"},
 		childrenAttrs:["skills"],
 		rootId:"skills",
-		rootLabel:"Skills",
+		rootLabel:"Skills"
 	});
 	dojo.publish("skills/init", []);
-}
+};
 
 skills.refreshTree = function(targetnode){
 	var parent = dojo.byId(targetnode).parentNode;
@@ -49,7 +49,7 @@ skills.refreshTree = function(targetnode){
 		query:{"type":"group"},
 		childrenAttrs:["skills"],
 		rootId:"skills",
-		rootLabel:"Skills",
+		rootLabel:"Skills"
 	});
 	if(dijit.byId(skills.tree.id)){
 		dijit.byId(skills.tree.id).destroy();
@@ -60,10 +60,10 @@ skills.refreshTree = function(targetnode){
 	skills.tree = new dijit.Tree({
 		store: skills.store,
 		model: skills.model,
-		showRoot: false,
+		showRoot: false
 	}, targetnode);
 	dojo.publish("skills/tree/refreshed", []);
-}
+};
 
 skills.createSelect = function(callback, selected, hidden, expand){
 	var selectNode = document.createElement('select');
@@ -77,7 +77,7 @@ skills.createSelect = function(callback, selected, hidden, expand){
 			}
 		}
 		return out;
-	}
+	};
 	var groupsFetched = function(groups){
 		for(var i = 0; i < groups.length; i++){
 			var groupname = skills.store.getValue(groups[i], 'name');
@@ -102,7 +102,7 @@ skills.createSelect = function(callback, selected, hidden, expand){
 				var optionNode = dojo.place('<option value="' + skillAtom + '" title="' + skillDesc + '"' + selectedStr + '>' + skillName + '</option>', optgroup);
 			}			
 		}
-	}
+	};
 	
 	skills.store.fetch({
 		query:{
@@ -111,142 +111,29 @@ skills.createSelect = function(callback, selected, hidden, expand){
 		onComplete:groupsFetched
 	});
 	
-	for(var ii = 0; ii < expand.length; ii++){
-		var thei = ii;
-		//var expandLabel = expand[ii];
-		var expandCallback = function(expantions, expandLabel){
-			//var expandLabel = expand[thei];
-			var optgroup = dojo.place('<optgroup label="' + expandLabel + '"></optgroup>', selectNode);
-			//optgroup.label = expand[ii];
-			for(var j = 0; j < expantions.length; j++){
-				var val = '{' + expandLabel + ',' + expantions[j] + '}';
-				if(inArray(val, hidden)){
-					continue;
-				}
-				var selectStr = '';
-				if(inArray(val, selected)){
-					selectStr = ' selected="true"';
-				}
-				var option = dojo.place('<option value="' + val + '"' + selectStr +  '>' + expantions[j] + '</option>', optgroup);
+	var expandCallback = function(expantions, expandLabel){
+		//var expandLabel = expand[thei];
+		var optgroup = dojo.place('<optgroup label="' + expandLabel + '"></optgroup>', selectNode);
+		//optgroup.label = expand[ii];
+		for(var j = 0; j < expantions.length; j++){
+			var val = '{' + expandLabel + ',' + expantions[j] + '}';
+			if(inArray(val, hidden)){
+				continue;
 			}
+			var selectStr = '';
+			if(inArray(val, selected)){
+				selectStr = ' selected="true"';
+			}
+			var option = dojo.place('<option value="' + val + '"' + selectStr +  '>' + expantions[j] + '</option>', optgroup);
 		}
-		
+	};
+	
+	for(var ii = 0; ii < expand.length; ii++){		
 		skills.expandSkill(expandCallback, expand[ii]);
-		
-		/*
-		var xhrCallback = function(res){
-			if(res.success && res.items.length){
-				var expantions = res.items;
-				var optgroup = dojo.place('<optgroup label="' + expandLabel + '"></optgroup>', selectNode);
-				//optgroup.label = expand[ii];
-				for(var j = 0; j < expantions.length; j++){
-					var val = '{' + expandLabel + ',' + expantions[j] + '}';
-					if(inArray(val, hidden)){
-						continue;
-					}
-					var selectStr = '';
-					if(inArray(val, selected)){
-						selectStr = ' selected="true"';
-					}
-					var option = dojo.place('<option value="' + val + '"' + selectStr +  '>' + expantions[j] + '</option>', optgroup);
-				}
-			}
-		}
-		
-		dojo.xhrGet({
-			url:'/skills/skill/' + expandLabel + '/expand/',
-			handleAs:'json',
-			load:xhrCallback,
-			error:function(res){
-				console.log(["expanding skill failed", res]);
-			}
-		});*/
 	}
 	
 	callback(selectNode);
-}
-
-/*
-skills.skillSelection = function(targetnode){
-	skills.store.fetch({
-		query:{type:"group"},
-		onComplete:function(groups, query){
-			for(var i in groups){
-				var optgroup = dojo.doc.createElement('optgroup');
-				optgroup.label = groups[i].name[0];
-				for(var j in groups[i].skills){
-					var option = dojo.doc.createElement('option');
-					option.value = groups[i].skills[j].atom[0];
-					option.innerHTML = groups[i].skills[j].name[0];
-					option.title = groups[i].skills[j].description[0];
-					optgroup.appendChild(option);
-				}
-				targetnode.appendChild(optgroup);
-			}
-		}
-	});
-}
-
-skills.newSelection = function(callback, selected, reserved, expand){
-	var select = new dijit.form.MultiSelect({});
-	var isSelected = function(skill){
-		for(var i =0; i < selected.length; i++){
-			if(selected[i] == skill){
-				return true
-			}
-		}
-		return false
-	}
-	var isReserved = function(skill){
-		for(var i =0; i < reserved.length; i++){
-			if(reserved[i] == skill){
-				return true;
-			}
-		}
-		return false;
-	}
-	skills.store.fetch({
-		query:{type:"group"},
-		onComplete:function(groups, query){
-			var select = dojo.doc.createElement('select');
-			select.multiple = true;
-			for(var i = 0; i < groups.length; i++){
-				var optgroup = dojo.doc.createElement('optgroup');
-				optgroup.label = groups[i].name[0];
-				for(var j = 0; j < groups[i].skills.length; j++){
-					var option = dojo.doc.createElement('option');
-					option.value = groups[i].skills[j].atom[0];
-					option.innerHTML = groups[i].skills[j].name[0];
-					option.title = groups[i].skills[j].description[0];
-					option.selected = isSelected(groups[i].skills[j].atom[0]);
-					option.disabled = isReserved(groups[i].skills[j].atom[0]);
-					optgroup.appendChild(option);
-				}
-				select.appendChild(optgroup);
-			}
-			for(var i = 0; i < expand.length; i++){
-				var appendExpanded = function(expanded){
-					var optgroup = dojo.doc.createElement('optgroup');
-					optgroup.label = expand[i];
-					for(var j =0; j < expanded.length; j++){
-					   var option = dojo.doc.createElement('option');
-					   var val = '{' + expand[i] + ',' + expanded[j] + '}';
-					   option.value = val;
-					   option.innerHTML = expanded[j];
-					   option.selected = isSelected(val);
-					   option.disabled = isReserved(val);
-					   optgroup.appendChild(option);
-					}
-					select.appendChild(optgroup);
-				}
-				
-				skills.expandSkill(appendExpanded, expand[i]);
-			}
-			
-			callback(select);
-		}
-	});
-}*/
+};
 
 skills.expandSkill = function(callback, magicskill){
 	dojo.xhrGet({
@@ -260,7 +147,7 @@ skills.expandSkill = function(callback, magicskill){
 			console.log(["expanding skill errored", res]);
 		}
 	});
-}
+};
 
 skills.updateGroup = function(submform, node){
 	var values = dijit.byId(submform).getValues();
@@ -276,7 +163,7 @@ skills.updateGroup = function(submform, node){
 			console.log(["skill group update errored", response]);
 		}
 	});
-}
+};
 
 skills.updateSkill = function(submform, node){
 	var values = dijit.byId(submform).getValues();
@@ -295,8 +182,8 @@ skills.updateSkill = function(submform, node){
 			errMessage(["update skill errored", response]);
 			console.log(["update skill errored", response]);
 		}
-	})
-}
+	});
+};
 
 skills.newSkill = function(submform, node){
 	var values = dijit.byId(submform).getValues();
@@ -312,4 +199,4 @@ skills.newSkill = function(submform, node){
 			console.log(["create skill errored", response]);
 		}
 	});
-}
+};

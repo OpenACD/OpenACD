@@ -3,8 +3,8 @@
 dojo.provide("spice.agents");
 
 agents = function(){
-	return {}
-}
+	return {};
+};
 
 agents.updateModule = function(subform){
 	dojo.xhrPost({
@@ -18,8 +18,8 @@ agents.updateModule = function(subform){
 		load:function(response, ioargs){
 			console.log(response);
 		}
-	})
-}
+	});
+};
 
 agents.getModules = function(targetform){
 	dojo.xhrGet({
@@ -28,7 +28,7 @@ agents.getModules = function(targetform){
 		load:function(response, ioargs){
 			targetform.attr('value', response.result);
 			var kids = targetform.getDescendants();
-			for(var i in kids){
+			for(var i = 0; i < kids.length; i++){
 				if(kids[i].id == 'agentModuleTCPListenEnabled'){
 					kids[i].attr('checked', response.result.agentModuleTCPListenEnabled);
 				}
@@ -37,8 +37,8 @@ agents.getModules = function(targetform){
 				}
 			}
 		}
-	})
-}
+	});
+};
 
 agents.getSpiceIntegration = function(targetform){
 	dojo.xhrGet({
@@ -54,7 +54,7 @@ agents.getSpiceIntegration = function(targetform){
 			}
 		}
 	});
-}
+};
 
 agents.setSpiceIntegration = function(subform){
 	dojo.xhrPost({
@@ -71,7 +71,7 @@ agents.setSpiceIntegration = function(subform){
 			}
 		}
 	});
-}
+};
 
 agents.store = new dojo.data.ItemFileReadStore({
 	data:{
@@ -99,10 +99,9 @@ agents.init = function(){
 		query:{"type":"profile"},
 		childrenAttrs:["agents"],
 		rootId:"agents",
-		rootLabel:"Agents",
-		
+		rootLabel:"Agents"
 	});
-}
+};
 
 agents.tree = false;
 
@@ -112,7 +111,7 @@ agents.refreshTree = function(targetnode){
 	agents.init();
 	if(dijit.byId(agents.tree.id)){
 		dijit.byId(agents.tree.id).destroy();
-	};
+	}
 	var n = dojo.doc.createElement('div');
 	n.id = targetnode;
 	parent.appendChild(n);
@@ -122,7 +121,7 @@ agents.refreshTree = function(targetnode){
 		showRoot:false
 	}, targetnode);
 	dojo.publish("agents/tree/refreshed", []);
-}
+};
 
 agents.updateProfile = function(submitForm, treenode){
 	var values = dijit.byId(submitForm).getValues();
@@ -136,7 +135,7 @@ agents.updateProfile = function(submitForm, treenode){
 			agents.refreshTree(treenode);
 		}
 	});
-}
+};
 
 agents.newProfile = function(submitForm, treenode){
 	var values = dijit.byId(submitForm).attr('value');
@@ -148,8 +147,8 @@ agents.newProfile = function(submitForm, treenode){
 		load:function(response, ioargs){
 			agents.refreshTree(treenode);
 		}
-	})
-}
+	});
+};
 
 agents.updateAgent = function(subform, node){
 	var values = dijit.byId(subform).getValues();
@@ -170,8 +169,8 @@ agents.updateAgent = function(subform, node){
 		load:function(response, ioargs){
 			agents.refreshTree(node);
 		}
-	})
-}
+	});
+};
 
 agents.newAgent = function(subform, node){
 	var values = dijit.byId(subform).getValues();
@@ -198,13 +197,13 @@ agents.newAgent = function(subform, node){
 				agents.refreshTree(node);
 			}
 		}
-	})
-}
+	});
+};
 
 agents.getSkills = function(profile, callback){
 	dojo.xhrGet({
 		url:"/skills/" + profile,
 		handleAs:"json",
 		load:callback
-	})
-}
+	});
+};

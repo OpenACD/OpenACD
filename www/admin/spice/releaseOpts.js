@@ -22,11 +22,11 @@ releaseOpts.init = function(){
 			updates.push(item);
 		}
 		savecomplete();
-	}
+	};
 	
 	dijit.byId('agentReleaseCodesGrid')._setStore(releaseOpts.store);
 	dijit.byId('agentReleaseCodesGrid')._refresh();
-}
+};
 
 releaseOpts.addOption = function(obj, load, error){
 	dojo.xhrPost({
@@ -40,7 +40,7 @@ releaseOpts.addOption = function(obj, load, error){
 			error(res);
 		}
 	});
-}
+};
 
 releaseOpts.updateOption = function(id, obj, loaded, err){
 	dojo.xhrPost({
@@ -60,10 +60,10 @@ releaseOpts.updateOption = function(id, obj, loaded, err){
 			err(res);
 		}
 	});
-}
+};
 
 releaseOpts.dropOption = function(item, loaded, err){
-	var id = releaseOpts.store.getValue(item, 'id')
+	var id = releaseOpts.store.getValue(item, 'id');
 	dojo.xhrPost({
 		url:'/release_opts/drop/' + id,
 		handleAs:'json',
@@ -81,4 +81,4 @@ releaseOpts.dropOption = function(item, loaded, err){
 			console.log(['drop opt erred', id, res]);
 		}
 	});
-}
+};

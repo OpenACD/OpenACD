@@ -717,6 +717,12 @@ dojo.addOnLoad(function(){
 						}
 					});
 					widget.store = store;
+					dojo.connect(widget, 'onChange', function(val){
+						if(val !== ""){
+							dijit.byId('tabPanel').selectChild('maintab');
+							agent.initOutbound(val, "freeswitch");
+						}
+					});
 				}
 			}
 		});

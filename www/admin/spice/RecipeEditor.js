@@ -19,24 +19,6 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		select.size = 3;
 		select.getValue = function(){
 			return select.getValues();
-			/*var out = [];
-			var kids = this.childNodes;
-			for(var i in kids){
-				if(kids[i].tagName == 'OPTGROUP'){
-					var opts = kids[i].childNodes;
-					for(var j in opts){
-						if(opts[j].selected){
-							out.push(opts[j].value);
-						}
-					}
-				}
-				else{
-					if(kids[i].selected){
-						out.push(kids[i].value);
-					}
-				}
-			}
-			return out;*/
 		}
 		var ithis = this;
 		select.setValue = function(values){
@@ -46,33 +28,14 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 			
 			if(values.constructor == String){
 				values = [values];
-			}
-			/*var isSelected = function(val){
-				for(var i in values){
-					if(values[i] == val){
-						return true;
-					}
-				}
-				return false;
-			}*/
-			
-			var nodes = dojo.query('> optgroup > option', select),
+			}			
+			var nodes = dojo.query('> optgroup > option', select);
 			for(var i = 0; i < nodes.length; i++){
 				console.log(nodes[i]);
 				if(inArray(nodes[i].value, values)){
 					nodes[i].selected = true;
 				}
 			}
-			/*
-			var kids = this.childNodes;
-			for(var i in kids){
-				if(kids[i].tagName == 'OPTGROUP'){
-					var opts = kids[i].childNodes;
-					for(var j in opts){
-						opts[j].selected = isSelected(opts[j].value);
-					}
-				}
-			}*/
 		};
 		return select;
 	},

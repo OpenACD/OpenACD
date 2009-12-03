@@ -23,15 +23,15 @@ function Stopwatch(elapsed){
 			stopwatch.onTickInternal();
 		}
 		stopwatch.tref = setTimeout(tick, 1000);
-	}
+	};
 	
 	this.time = function(){
-		return this.elapsed
+		return this.elapsed;
 	};
 	
 	this.reset = function(){
 		this.elapsed = 0;
-	}
+	};
 	
 	this.start = function(){
 		if (stopwatch.tref) {
@@ -42,12 +42,12 @@ function Stopwatch(elapsed){
 			stopwatch.onTickInternal();
 		}
 		stopwatch.tref = setTimeout(tick, 1000);
-	}
+	};
 	
 	this.stop = function(){
 		if (stopwatch.tref) {
 			clearTimeout(stopwatch.tref);
 			stopwatch.tref = null;
 		}
-	}
+	};
 }

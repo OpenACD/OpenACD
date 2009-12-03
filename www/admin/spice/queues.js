@@ -3,7 +3,7 @@
 dojo.provide("spice.queues");
 
 queues = function(){
-	return {}
+	return {};
 };
 
 dojo.requireLocalization("admin", "recipeEditor");
@@ -139,7 +139,7 @@ queues.init = function(){
 		rootId:"queues",
 		rootLabel:"queues"
 	});
-}
+};
 
 queues.refreshTree = function(node){
 	var parent = dojo.byId(node).parentNode;
@@ -156,7 +156,7 @@ queues.refreshTree = function(node){
 		showRoot:false
 	}, node);
 	dojo.publish("queues/tree/refreshed", []);
-}
+};
 
 queues.setGroup = function(form, reciper, refreshnode){
 	var vals = form.getValues();
@@ -181,7 +181,7 @@ queues.setGroup = function(form, reciper, refreshnode){
 			errMessage(["Setting queue group errored", res]);
 		}
 	});
-}
+};
 
 queues.newGroup = function(form, reciper, refreshnode){
 	var vals = form.getValues();
@@ -203,8 +203,12 @@ queues.newGroup = function(form, reciper, refreshnode){
 			errMessage(["Creating queue group errored", res]);
 		}
 	});
-}
+};
 
+/* TODO This function shouldn't be needed.  Anything that needs it should be
+redone either:
+a:  pulling the data using store.getValue(item, 'value'), or
+b:  using a type map to avoid changing the object to a store data struct.*/
 queues.fromStoreToObj = function(store){
 	var out = [];
 	for(var i in store){
@@ -232,7 +236,7 @@ queues.fromStoreToObj = function(store){
 		out.push(protoRecipe);
 	}
 	return out;
-}
+};
 
 queues.deleteGroup = function(group, node){
 	dojo.xhrGet({
@@ -251,7 +255,7 @@ queues.deleteGroup = function(group, node){
 			errMessage(["Deleting queue group errored", res]);
 		}
 	});
-}
+};
 
 queues.getQueue = function(queue, callback){
 	dojo.xhrGet({
@@ -271,7 +275,7 @@ queues.getQueue = function(queue, callback){
 			console.log(res);
 		}
 	});
-}
+};
 
 queues.setQueue = function(queue, form, reciper, refreshnode){
 	var vals = form.attr('value');
@@ -304,7 +308,7 @@ queues.setQueue = function(queue, form, reciper, refreshnode){
 			doxhr();
 		}
 	});
-}
+};
 
 queues.deleteQueue = function(queue, refreshnode){
 	dojo.xhrGet({
@@ -324,7 +328,7 @@ queues.deleteQueue = function(queue, refreshnode){
 			console.log(res);
 		}
 	});
-}
+};
 
 queues.newQueue = function(form, reciper, node){
 	var vals = form.getValues();
@@ -357,4 +361,4 @@ queues.newQueue = function(form, reciper, node){
 			doxhr();
 		}
 	});
-}
+};

@@ -68,10 +68,14 @@ function Agent(username, statetime, timestamp){
 	};
 	
 	this.poll = function(){
-		dojo.xhrGet({
+		this._pollHandle = dojo.xhrGet({
 			url:"/poll",
 			handleAs:"json",
 			error:function(response, ioargs){
+				if(ioargs.xhr.status === 0){
+					warning(["status 0, prolly due to logout", response]);
+					return;
+				}
 				warning(["poll errored", response, ioargs.xhr.status]);
 				EventLog.log("Poll failed:  " + response.responseText);
 				agentref.pollfailures += 1;
@@ -170,6 +174,7 @@ Agent.prototype.logout = function(/*callback*/){
 		load:function(response, ioargs){
 			if(response.success){
 				dojo.publish("agent/logout", [true]);
+				agentref._pollHandle.cancel();
 			}			
 		}
 	});

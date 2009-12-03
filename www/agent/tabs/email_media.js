@@ -24,7 +24,7 @@ if(typeof(emailPane) == 'undefined'){
 				warning(["err getting email skeleton", res]);
 			}
 		});
-	}
+	};
 
 	emailPane.getPath = function(path){
 		path = path.join("/");
@@ -36,14 +36,14 @@ if(typeof(emailPane) == 'undefined'){
 				"mode":"call"
 			},
 			load:function(res){
-				debug(["load done", res, "emailPane/get_path/" + path])
+				debug(["load done", res, "emailPane/get_path/" + path]);
 				dojo.publish("emailPane/get_path/" + path, [res]);
 			},
 			error:function(res){
-				warning(["err getting path", res])
+				warning(["err getting path", res]);
 			}
 		});
-	}
+	};
 	
 	emailPane.pathsToFetch = function(skeleton, path, fetches){
 		if(! path){
@@ -59,7 +59,7 @@ if(typeof(emailPane) == 'undefined'){
 				out.push(arr[i]);
 			}
 			return out;
-		}
+		};
 		
 		debug(["pathsToFetch", skeleton, path]);
 		if( (skeleton.type == "multipart") && (skeleton.subtype == "alternative") ){
@@ -103,8 +103,8 @@ if(typeof(emailPane) == 'undefined'){
 		}
 		
 		if( (skeleton.type == "multipart") ){
-			for(var i = 0; i < skeleton.parts.length; i++){
-				var tpath = copyPath(path);
+			for(i = 0; i < skeleton.parts.length; i++){
+				tpath = copyPath(path);
 				tpath.push(i + 1);
 				fetches = emailPane.pathsToFetch(skeleton.parts[i], tpath, fetches);
 			}
@@ -113,7 +113,7 @@ if(typeof(emailPane) == 'undefined'){
 		}
 		
 		if(skeleton.type == "message"){
-			var tpath = copyPath(path);
+			tpath = copyPath(path);
 			tpath.push(1);
 			fetches.push({
 				'mode':'a',
@@ -148,7 +148,7 @@ if(typeof(emailPane) == 'undefined'){
 		});
 		
 		return fetches;
-	}
+	};
 	
 	emailPane.fetchPaths = function(fetchObjs, fetched){
 		debug(["fetchPaths", fetchObjs[0]]);
@@ -203,7 +203,7 @@ if(typeof(emailPane) == 'undefined'){
 		else{
 			dojo.publish("emailPane/fetchPaths/done", [fetched]);
 		}
-	}
+	};
 	
 	//scrub &, <, and > so it's displayable via html
 	emailPane.scrubString = function(instr){
@@ -212,7 +212,7 @@ if(typeof(emailPane) == 'undefined'){
 		instr = instr.replace('>', '&gt;');
 		instr = instr.replace('"', '&quot;');
 		return instr;
-	}
+	};
 }
 
 emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
@@ -223,9 +223,9 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	dojo.byId('attachmentList').clearSub = dojo.subscribe('emailPane/attachment/add', dojo.byId('attachmentList'), function(){
 		this.innerHTML = '';
 	});
-	dojo.byId('emailToSpan').innerHTML = emailPane.scrubString(skel.headers['To']);
-	dojo.byId('emailFromSpan').innerHTML = emailPane.scrubString(skel.headers['From']);
-	dojo.byId('emailSubjectSpan').innerHTML = emailPane.scrubString(skel.headers['Subject']);
+	dojo.byId('emailToSpan').innerHTML = emailPane.scrubString(skel.headers.To);
+	dojo.byId('emailFromSpan').innerHTML = emailPane.scrubString(skel.headers.From);
+	dojo.byId('emailSubjectSpan').innerHTML = emailPane.scrubString(skel.headers.Subject);
 	dojo.byId('emailRawHeadersSpan').innerHTML = function(){
 		var out = ['<pre>'];
 		for(var i in skel.headers){
@@ -235,13 +235,12 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		return out.join('<br />');
 	}();
 	
-	dijit.byId('emailSubject').attr('value', 're:  ' + emailPane.scrubString(skel.headers['Subject']));
-	dijit.byId('emailFrom').attr('value', skel.headers['To']);
+	dijit.byId('emailSubject').attr('value', 're:  ' + emailPane.scrubString(skel.headers.Subject));
+	dijit.byId('emailFrom').attr('value', skel.headers.To);
 	if(skel.headers['Reply-To']){
 		dijit.byId('emailTo').attr('value', skel.headers['Reply-To']);
-	}
-	else{
-		dijit.byId('emailTo').attr('value', skel.headers['From']);
+	} else{
+		dijit.byId('emailTo').attr('value', skel.headers.From);
 	}
 	
 	var paths = emailPane.pathsToFetch(skel);
@@ -276,7 +275,7 @@ dojo.byId('attachedList').rebuildList = function(filenames){
 				content:{
 					command:'detach',
 					mode:'call',
-					arguments:dojo.toJson([index + 1, nom])
+					'arguments':dojo.toJson([index + 1, nom])
 				},
 				handleAs:'json',
 				load:function(res){
@@ -291,7 +290,7 @@ dojo.byId('attachedList').rebuildList = function(filenames){
 					warning(['detach errored', res]);
 				}
 			});
-		}
+		};
 	}
 };
 

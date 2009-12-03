@@ -2369,9 +2369,6 @@ supervisorView.reload = function(){
 };
 
 supervisorView.reload();
-/*supervisorView.logoutListener = dojo.subscribe("agent/logout", function(data){
-	clearTimeout(supervisorView.hpCalcTimer)
-});*/
 
 window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", function(child){
 	if(child.title == "Supervisor"){
@@ -2379,7 +2376,6 @@ window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", functio
 		clearTimeout(supervisorView.hpCalcTimer);
 		clearTimeout(supervisorView.reloadTimer);
 		dojo.unsubscribe(window.supervisorViewKillListen);
-		//dojo.unsubscribe(supervisorView.logoutListener);
 		dojo.unsubscribe(supervisorView.masterSub);
 		delete window.supervisorViewKillListen;
 		dojo.xhrGet({

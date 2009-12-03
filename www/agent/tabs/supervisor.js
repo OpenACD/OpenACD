@@ -2,7 +2,7 @@
 if(typeof(supervisorView) == "undefined"){
 
 	supervisorView = function(){
-		{};
+		return {};
 	};
 
 	supervisorView.healthData = {identifier:"id",
@@ -15,7 +15,7 @@ if(typeof(supervisorView) == "undefined"){
 		typeMap:{
 			"details":{
 				"type":Object,
-				"deserialize":function(obj){return obj}
+				"deserialize":function(obj){return obj;}
 			}
 		}
 	});
@@ -23,11 +23,11 @@ if(typeof(supervisorView) == "undefined"){
 	supervisorView.systemStack = [];
 
 	supervisorView.node = "*";
-	supervisorView.queueGroupsStack = {clear:function(){ return true}};
-	supervisorView.queuesStack = {clear:function(){ return true}};
-	supervisorView.agentsStack = {clear:function(){ return true}};
-	supervisorView.agentProfilesStack = {clear:function(){ return true}};
-	supervisorView.callsStack = {clear:function(){return true}};
+	supervisorView.queueGroupsStack = {clear:function(){ return true;}};
+	supervisorView.queuesStack = {clear:function(){ return true;}};
+	supervisorView.agentsStack = {clear:function(){ return true;}};
+	supervisorView.agentProfilesStack = {clear:function(){ return true;}};
+	supervisorView.callsStack = {clear:function(){return true;}};
 	supervisorView.suppressPoll = false;
 
 	/*
@@ -68,15 +68,14 @@ if(typeof(supervisorView) == "undefined"){
 					y:ev.layerY
 				};
 				debug(["checking collision", point]);
-				var collided = supervisorView.dndManager.checkCollision(point)
+				var collided = supervisorView.dndManager.checkCollision(point);
 				if(collided && collided.dragOver){
 					var setDrop = false;
 					if(collided.dragOver(obj)){
 						supervisorView.dndManager._dropCandidate = collided;
 						setDrop = true;
-					}
-					else{
-						debug(["collided.dragOver false", collided, obj]),
+					} else{
+						debug(["collided.dragOver false", collided, obj]);
 						supervisorView.dndManager._dropCandidate = false;
 						setDrop = false;
 					}
@@ -84,9 +83,8 @@ if(typeof(supervisorView) == "undefined"){
 					if(obj.setDroppable){
 						obj.setDroppable(setDrop);
 					}
-				}
-				else{
-					debug(["one of them's false", collided, collided.dragOver]),
+				} else{
+					debug(["one of them's false", collided, collided.dragOver]);
 					supervisorView.dndManager._dropCandidate = null;
 				}
 			});
@@ -135,11 +133,11 @@ if(typeof(supervisorView) == "undefined"){
 			parent:supervisorView.surface,
 			data:{"display":"bubble", "health":50, "type":"text", "id":"id"},
 			image: false,
-			onmouseenter:function(){ return true},
-			onmouseleave:function(){return true},
-			onclick:function(){ return false},
-			dropped: function(){ return false},
-			dragOver: function(){ debug(["default bubble dragOver"]); return false},
+			onmouseenter:function(){ return true;},
+			onmouseleave:function(){return true;},
+			onclick:function(){ return false;},
+			dropped: function(){ return false;},
+			dragOver: function(){ debug(["default bubble dragOver"]); return false;},
 			subscriptions:[],
 			moveable: false,
 			menu:false
@@ -175,7 +173,7 @@ if(typeof(supervisorView) == "undefined"){
 		this.group.connect("onmouseenter", this, conf.onmouseenter);
 		this.group.connect("onmouseleave", this, conf.onmouseleave);
 		this.group.connect("onclick", this, function(ev){
-			conf.onclick(ev)
+			conf.onclick(ev);
 		});
 		
 		var textdisp = conf.data.display;
@@ -269,7 +267,7 @@ if(typeof(supervisorView) == "undefined"){
 				});
 				dojo.connect(this.group, 'onMouseUp', this, function(ev){
 					if(! this.moveable){
-						makeMoveable()
+						makeMoveable();
 					}
 				});
 			}
@@ -285,18 +283,18 @@ if(typeof(supervisorView) == "undefined"){
 		var p = {
 			x: rect.getShape().x,
 			y: rect.getShape().y + rect.getShape().height/2
-		}
+		};
 		debug(["size point", p]);
 		this.group.setTransform([dojox.gfx.matrix.scaleAt(scale, p)]);
-	}
+	};
 		
 	supervisorView.Bubble.prototype.shrink = function(){
 		this.size(1);
-	}
+	};
 	
 	supervisorView.Bubble.prototype.grow = function(){
 		this.size(1.4);
-	}
+	};
 
 	supervisorView.Bubble.prototype.setHp = function(hp){
 		var rmod;
@@ -304,29 +302,29 @@ if(typeof(supervisorView) == "undefined"){
 		var bmod;
 		
 		if(hp < 1){
-			var rmod = 0;
-			var gmod = 1;
-			var bmod = 1;
+			rmod = 0;
+			gmod = 1;
+			bmod = 1;
 		}
 		else if(hp < 50){
-			var rmod = 0;
-			var gmod = 1;
-			var bmod = 1 - (hp / 50);
+			rmod = 0;
+			gmod = 1;
+			bmod = 1 - (hp / 50);
 		}
 		else if(hp < 75){
-			var rmod = (hp - 50) / 25;
-			var gmod = 1;
-			var bmod = 0;
+			rmod = (hp - 50) / 25;
+			gmod = 1;
+			bmod = 0;
 		}
 		else if(hp < 100){
-			var rmod = 1;
-			var gmod = 1 - ( (hp - 75) / 25);
-			var bmod = 0;
+			rmod = 1;
+			gmod = 1 - ( (hp - 75) / 25);
+			bmod = 0;
 		}
 		else{
-			var rmod = 1;
-			var gmod = 0;
-			var bmod = 0;
+			rmod = 1;
+			gmod = 0;
+			bmod = 0;
 		}
 	
 		var r = Math.round(255 * rmod);
@@ -343,29 +341,9 @@ if(typeof(supervisorView) == "undefined"){
 		
 		var bshape = this.bubble.getShape();
 		
-		var thex = (hp * bshape.width)/100 + bshape.x
+		var thex = (hp * bshape.width)/100 + bshape.x;
 		this.hpline.setShape({x1: thex, x2:thex});
-			
-	
-	
-	/*
-	
-		var rmod = Math.abs(-(255/50) * hp + 255);
-		var gmod = 255;
-		var textcolors = "black";
-		if(hp > 50){
-			var gmod = -255/50 * 1.3 * hp + (255 * 2);
-			textcolors = "white";
-		}
-		var bubblefill = [rmod, gmod, 0, 100];
-		this.text.setStroke(textcolors);
-		this.text.setFill(textcolors);
-		this.bubble.setFill(bubblefill);
-		var bshape = this.bubble.getShape();
-		
-		var thex = (hp * bshape.width)/100 + bshape.x
-		this.hpline.setShape({x1: thex, x2:thex});*/
-	}
+	};
 	
 	supervisorView.Bubble.prototype.pointCollision = function(point){
 		var arr = this.bubble.getTransformedBoundingBox();
@@ -374,8 +352,8 @@ if(typeof(supervisorView) == "undefined"){
 		var topright = arr[1];
 		var bottomright = arr[2];
 		var bottomleft = arr[3];
-		return (topleft.x <= point.x && bottomright.x >= point.x) && (topleft.y <= point.y && bottomright.y >= point.y)
-	}
+		return (topleft.x <= point.x && bottomright.x >= point.x) && (topleft.y <= point.y && bottomright.y >= point.y);
+	};
 	
 	supervisorView.Bubble.prototype.boxCollision = function(intopleft, inbottomright){
 		var arr = this.bubble.getTransformedBoundingBox();
@@ -384,10 +362,10 @@ if(typeof(supervisorView) == "undefined"){
 		var bottomright = arr[2];
 		var bottomleft = arr[3];
 		return (!(topleft.x > inbottomright.x || intopleft.x > bottomright.x || topleft.y > inbottomright.y || inbottomright.y > bottomright.y));
-	}
+	};
 	
 	supervisorView.Bubble.prototype.clear = function(){
-		for(var i in this.subscriptions){
+		for(var i = 0; i < this.subscriptions.length; i++){
 			dojo.unsubscribe(this.subscriptions[i]);
 		}
 		
@@ -396,7 +374,7 @@ if(typeof(supervisorView) == "undefined"){
 			menu.unBindDomNode(this.group.rawNode);
 		}
 		
-		var parent = this.group.rawNode.parentNode
+		var parent = this.group.rawNode.parentNode;
 		this.group.clear();
 		if(parent){
 			parent.removeChild(this.group.rawNode);
@@ -404,14 +382,14 @@ if(typeof(supervisorView) == "undefined"){
 		else{
 			info(["parent not defined", parent, this.group.rawNode]);
 		}
-	}
+	};
 	
 	supervisorView.Bubble.prototype.connect = function(ev, scope, fun){
 		this.group.connect(ev, scope, fun);
-	}
+	};
 	
 	supervisorView.Bubble.prototype.setImage = function(imageSrc){
-		if(imageSrc == false){
+		if(imageSrc === false){
 			if(this.image){
 				this.image.removeShape();
 				this.image = false;
@@ -432,10 +410,10 @@ if(typeof(supervisorView) == "undefined"){
 		});
 		
 		return this.image;
-	}
+	};
 	
 	supervisorView.Bubble.prototype.setDroppable = function(bool){
-		if(this.previousImage == null){
+		if(this.previousImage === null){
 			if(this.image){
 				this.previousImage = this.image.getShape().src;
 			}
@@ -444,7 +422,7 @@ if(typeof(supervisorView) == "undefined"){
 			}
 		}
 			
-		if(bool == null){
+		if(bool === null){
 			this.setImage(this.previousImage);
 			delete this.previousImage;
 		}
@@ -454,7 +432,7 @@ if(typeof(supervisorView) == "undefined"){
 		else{
 			this.setImage('/images/redx.png');
 		}
-	}
+	};
 
 	//=====
 	// BubbleStack
@@ -468,9 +446,9 @@ if(typeof(supervisorView) == "undefined"){
 			bubbleConfs: [],
 			registerCollider: false,
 			menu: false
-		}
+		};
 		
-		var conf = dojo.mixin(this.defaultConf, conf);
+		conf = dojo.mixin(this.defaultConf, conf);
 		this.conf = conf;
 		
 		var groupHeight = conf.bubbleConfs.length * 40;
@@ -506,7 +484,7 @@ if(typeof(supervisorView) == "undefined"){
 				point:{x:pt.x, y:this.indexToY(i)},
 				parent:this.group,
 				menu:this.conf.menu
-			}
+			};
 		
 			this.bubbleConfs[i] = dojo.mixin(this.bubbleConfs[i], mixing);
 		}
@@ -531,7 +509,7 @@ if(typeof(supervisorView) == "undefined"){
 		
 		if(this.conf.registerCollider){
 			//stub it so it's no rejected on register.
-			this.dragOver = function(){ return false};
+			this.dragOver = function(){ return false;};
 			this.coll = supervisorView.dndManager.registerCollider(this);
 		}
 		
@@ -544,7 +522,7 @@ if(typeof(supervisorView) == "undefined"){
 	
 	supervisorView.BubbleStack.prototype.indexToY = function(index){
 		return this.conf.mousept.y + index * 40;
-	}
+	};
 	
 	supervisorView.BubbleStack.prototype.viewYtoLocalY = function(viewY){
 		var stackHeight = 40 * this.bubbleConfs.length;
@@ -554,35 +532,35 @@ if(typeof(supervisorView) == "undefined"){
 		}
 		
 		return Math.floor((stackHeight * viewY) / this.conf.viewHeight);
-	}
+	};
 	
 	supervisorView.BubbleStack.prototype.yToIndex = function(localY){
 		return Math.round(localY / 40);
-	}
+	};
 	
 	supervisorView.BubbleStack.prototype.viewYToIndex = function(viewY){
 		var localy = this.viewYtoLocalY(viewY);
 		debug(["localy", localy]);
 		return this.yToIndex(localy);
-	}
+	};
 	
 	supervisorView.BubbleStack.prototype.lockScroll = function(){
 		this.scrollLocked = true;
-	}
+	};
 	
 	supervisorView.BubbleStack.prototype.unlockScroll = function(){
 		this.scrollLocked = false;
-	}
+	};
 	
 	supervisorView.BubbleStack.prototype._setSelected = function(index){
 		debug(["_setSelected", index, this._selected]);
 		if(this.scrollLocked){
-			return false
+			return false;
 		}
-		
-		if(this._selected != undefined){
+		var bubConf = '';
+		if(this._selected !== undefined){
 			debug("shrinking old selected");
-			var bubConf = this.bubbleConfs[this._selected];
+			bubConf = this.bubbleConfs[this._selected];
 			if(bubConf.bubble){
 				bubConf.bubble.size(1);
 			}
@@ -590,7 +568,7 @@ if(typeof(supervisorView) == "undefined"){
 		
 		if((index !== false) && this.bubbleConfs[index]){
 			debug("enlarging new selected");
-			var bubConf = this.bubbleConfs[index];
+			bubConf = this.bubbleConfs[index];
 			if(bubConf.bubble){
 				bubConf.bubble.size(1.4);
 			}
@@ -599,15 +577,15 @@ if(typeof(supervisorView) == "undefined"){
 		}
 		
 		delete this._selected;
-	}
+	};
 	
 	supervisorView.BubbleStack.prototype.getSelected = function(){
 		if(this._selected){
 			return this.bubbleConfs[this._selected];
 		}
 		
-		return false
-	}
+		return false;
+	};
 	
 	supervisorView.BubbleStack.prototype.scroll = function(index){
 		if(index >= this.bubbleConfs.length){
@@ -620,11 +598,11 @@ if(typeof(supervisorView) == "undefined"){
 		
 		var y = this.indexToY(index);
 		this._scroll(y);
-	}
+	};
 	
 	supervisorView.BubbleStack.prototype._scroll = function(viewY){
 		if(this.scrollLocked){
-			return false
+			return false;
 		}
 		
 		if(isNaN(viewY)){
@@ -662,7 +640,7 @@ if(typeof(supervisorView) == "undefined"){
 		}
 		
 		debug(["acc", acc]);
-		for(var i = 0; i < min; i++){
+		for(i = 0; i < min; i++){
 			var obj = this.bubbleConfs[i];
 			if(obj.bubble){
 				obj.bubble.clear();
@@ -723,10 +701,10 @@ if(typeof(supervisorView) == "undefined"){
 					});
 				}
 			}
-		})
+		});
 		
-		for(var i = max; i < this.bubbleConfs.length; i++){
-			var obj = this.bubbleConfs[i];
+		for(i = max; i < this.bubbleConfs.length; i++){
+			obj = this.bubbleConfs[i];
 			if(obj && obj.bubble){
 				obj.bubble.clear();
 				delete this.bubbleConfs[i].bubble;
@@ -735,7 +713,7 @@ if(typeof(supervisorView) == "undefined"){
 
 		debug(["viewY and ration", {'1':viewY, '2':this.ratio, '3':this.trueRatio}]);
 		this.group.setTransform([dojox.gfx.matrix.translate(0, -viewY * this.trueRatio * this.ratio)]);
-	}
+	};
 	
 	supervisorView.BubbleStack.prototype.clear = function(){
 		if(this.scrollLocked){
@@ -756,7 +734,7 @@ if(typeof(supervisorView) == "undefined"){
 		if(p){
 			p.removeChild(this.group.rawNode);
 		}
-	}
+	};
 	
 	supervisorView.BubbleStack.prototype.pointCollision = function(point){
 		if(this.coll){
@@ -773,15 +751,15 @@ if(typeof(supervisorView) == "undefined"){
 						var b = this.bubbleConfs[i].bubble;
 						if(b.pointCollision(point)){
 							if(b.onEnter){
-								b.onEnter()
+								b.onEnter();
 							}
 							this.dragOver = function(arg){
 								debug(["dragOver called"]);
 								return b.dragOver(arg);
-							}
+							};
 							this.dropped = function(arg){
 								return b.dropped(arg);
-							}
+							};
 							return b;
 						}
 					}
@@ -792,9 +770,9 @@ if(typeof(supervisorView) == "undefined"){
 		delete this.dragOver;
 		delete this.dropped;
 		return null;
-	}
+	};
 	
-	supervisorView.BubbleStack.prototype.boxCollision = function(intopleft, intopright, inbottomright, inbottomright){
+	supervisorView.BubbleStack.prototype.boxCollision = function(intopleft, intopright, inbottomright, inbottomleft){
 		if(! (this.backing.getShape().x > inbottomright.x || intopleft.x > (this.backing.getShape().x + this.backing.getShape().width))){
 			for(var i =0; i < this.bubbleConfs.length; i++){
 				var bc = this.bubbleConfs[i];
@@ -806,7 +784,7 @@ if(typeof(supervisorView) == "undefined"){
 			}
 		}
 		return null;
-	}
+	};
 	
 	supervisorView.BubbleStack.prototype.forEachBubble = function(callback){
 		// callback is just the bubble.
@@ -815,14 +793,14 @@ if(typeof(supervisorView) == "undefined"){
 				callback(obj.bubble);
 			}
 		});
-	}
+	};
 	
 	//=====
 	//utility functions
 	//=====
 
 	supervisorView.averageHp = function(hps){
-		if(hps.length == 0){
+		if(hps.length === 0){
 			return 50;
 		}
 		
@@ -832,33 +810,34 @@ if(typeof(supervisorView) == "undefined"){
 				// y = floor(.0039(x-50)^2 + 1)
 				// I don't use the above formula for both sides because anything
 				// below 50 will always have a weight of 1
-				return Math.floor(.0039 * Math.pow((hp - 50), 2) + 1);
+				return Math.floor(0.0039 * Math.pow((hp - 50), 2) + 1);
 			}
-			return 1
-		}
+			return 1;
+		};
 		
 		var total = 0;
 		var count = 0;
 		
 		var f = function(obj, index, arr){
 			debug(["averageing hp obj", obj]);
-			if(obj == undefined){
+			var c = '';
+			if(obj === undefined){
 				// la la la
 				//warning("obj was undefined in averageHp");
 			}
 			else if(typeof(obj) == "number"){
 				debug("number");
-				var c = findweight(obj);
+				c = findweight(obj);
 				count += c;
 				total += c * obj;
 			}
-			else if(obj.health != undefined){
+			else if(obj.health !== undefined){
 				debug("health");
-				var c = findweight(obj.health);
+				c = findweight(obj.health);
 				count += c;
 				total += c * obj.health;
 			}
-			else if(obj.goal != undefined){
+			else if(obj.goal !== undefined){
 				debug("goal");
 				var value = 0;
 				if(obj.time){
@@ -873,59 +852,59 @@ if(typeof(supervisorView) == "undefined"){
 				var hp = 50;
 				if(obj.goal == value){
 					debug("goal match");
-					var c = findweight(50);
+					c = findweight(50);
 					count += c;
 					total += c * 50;
 				}
 				else if( (obj.min < obj.max) && (obj.max <= value) ){
 					debug("min < max < value");
-					var c = findweight(100);
+					c = findweight(100);
 					count += c;
 					total += c * 100;
 				}
 				else if( ( obj.min < obj.max) && (value <= obj.min) ){
 					debug("value < min < max");
-					var c = findweight(0);
+					c = findweight(0);
 					count += c;
 					total += c * 0;
 				}
 				else if( (obj.max < obj.min) && (value <= obj.max) ){
 					debug("value < max < min");
-					var c = findweight(100);
+					c = findweight(100);
 					count += c;
 					total += c * 100;
 				}
 				else if( (obj.max < obj.min) && (obj.min <= value) ){
 					debug("max < min < value");
-					var c = findweight(0);
+					c = findweight(0);
 					count += c;
 					total += c * 0;
 				}
 				else if( (obj.min < obj.max) && ( value < obj.goal) ){
 					debug("min < value < goal"); 
-					var hp = (50 * value - 50 * obj.min) / (obj.goal - obj.min);
-					var c = findweight(hp);
+					hp = (50 * value - 50 * obj.min) / (obj.goal - obj.min);
+					c = findweight(hp);
 					count += c;
 					total += c * hp;
 				}
 				else if( (obj.min < obj.max) && ( obj.goal < value)){
 					debug("min < goal < value");
-					var hp = (100 * obj.goal - 50 * obj.max - 50 * value) / (obj.goal - obj.max);
-					var c = findweight(hp);
+					hp = (100 * obj.goal - 50 * obj.max - 50 * value) / (obj.goal - obj.max);
+					c = findweight(hp);
 					count += c;
 					total += c * hp;
 				}
 				else if( (obj.max < obj.min) && (value < obj.goal) ){
 					debug("max < value < goal");
-					var hp = (50 * (2 * obj.goal - value - obj.max) ) / (obj.goal - obj.max);
-					var c = findweight(hp);
+					hp = (50 * (2 * obj.goal - value - obj.max) ) / (obj.goal - obj.max);
+					c = findweight(hp);
 					count += c;
 					total += c * hp;
 				}
 				else if( (obj.max < obj.min) && (obj.goal < value) ){
 					debug("everything else");
-					var hp = ( ( 50 * ( obj.goal - value) ) / (obj.min - obj.goal) ) + 50;
-					var c = findweight(hp);
+					hp = ( ( 50 * ( obj.goal - value) ) / (obj.min - obj.goal) ) + 50;
+					c = findweight(hp);
 					count += c;
 					total += c * hp;
 				}
@@ -936,12 +915,12 @@ if(typeof(supervisorView) == "undefined"){
 			else{
 				warning(["Not number, .health, or .goal", obj]);
 			}
-		}
+		};
 		
 		dojo.forEach(hps, f);
 			
 		return Math.round(total / count);
-	}
+	};
 
 	supervisorView.setMediaHps = function(){
 		var setHps = function(items){
@@ -965,17 +944,17 @@ if(typeof(supervisorView) == "undefined"){
 				};
 				debug(["setMediaHps", obj]);
 				dojo.publish("supervisorView/set/" + rawobj.id, [obj, rawobj]);				
-			}
+			};
 			dojo.forEach(items, setHp);
 			supervisorView.dataStore.save();
 			dojo.publish("supervisorView/aggregate/media", []);
-		}
+		};
 		supervisorView.dataStore.fetch({
 			query:{"type":"media"},
 			onComplete:setHps
 		});
 									  
-	}
+	};
 
 	supervisorView.setQueueHps = function(){
 		var setHp = function(item){
@@ -1002,7 +981,7 @@ if(typeof(supervisorView) == "undefined"){
 					"details":{}
 				};
 				dojo.publish("supervisorView/set/" + rawobj.id, [item, rawobj]);
-			}
+			};
 			
 			supervisorView.dataStore.fetch({
 				query:{
@@ -1015,18 +994,18 @@ if(typeof(supervisorView) == "undefined"){
 					dojo.publish("supervisorView/aggregate/queues", []);
 				}
 			});
-		}
+		};
 
 		var setHps = function(items){
 			info(["setQueueHps fetch done", items]);
 			dojo.forEach(items, setHp);
-		}
+		};
 
 		supervisorView.dataStore.fetch({
 			query:{"type":"queue"},
 			onComplete:setHps
-		})
-	}
+		});
+	};
 
 	supervisorView.setAgentHps = function(){
 		var setHp = function(item){
@@ -1054,7 +1033,7 @@ if(typeof(supervisorView) == "undefined"){
 					"details":supervisorView.dataStore.getValue(item, "details")
 				};
 				dojo.publish("supervisorView/set/" + rawobj.id, [item, rawobj]);
-			}
+			};
 			
 			supervisorView.dataStore.fetch({
 				query:{
@@ -1066,18 +1045,18 @@ if(typeof(supervisorView) == "undefined"){
 					dojo.publish("supervisorView/aggregate/agents", []);
 				}
 			});
-		}
+		};
 		
 		var setHps = function(items){
 			info(["Fetch for setAgentHps done", items]);
 			dojo.forEach(items, setHp);
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{"type":"agent"},
 			onComplete:setHps
-		})
-	}
+		});
+	};
 
 	supervisorView.setQueueGroupHps = function(){
 		var setHp = function(item){
@@ -1100,7 +1079,7 @@ if(typeof(supervisorView) == "undefined"){
 				};
 				dojo.publish("supervisorView/set/queuegroup-" + rawobj.display, [item, rawobj]);
 				
-			}
+			};
 			
 			supervisorView.dataStore.fetch({
 				query:{
@@ -1113,18 +1092,18 @@ if(typeof(supervisorView) == "undefined"){
 					dojo.publish("supervisorView/aggregate/queuegroups", []);
 				}
 			});
-		}
+		};
 
 		var setHps = function(items){
 			info(["setQueueGroupHps fetch done", items]);
 			dojo.forEach(items, setHp);
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{"type":"queuegroup"},
 			onComplete:setHps
-		})
-	}
+		});
+	};
 
 	supervisorView.setAgentProfileHps = function(){
 		var setHp = function(item){
@@ -1146,7 +1125,7 @@ if(typeof(supervisorView) == "undefined"){
 					"details":{}
 				};
 				dojo.publish("supervisorView/set/agentprofile-" + rawobj.display, [item, rawobj]);
-			}
+			};
 			
 			supervisorView.dataStore.fetch({
 				query:{
@@ -1159,18 +1138,18 @@ if(typeof(supervisorView) == "undefined"){
 					dojo.publish("supervisorView/aggregate/agentprofiles", []);
 				}
 			});
-		}
+		};
 		
 		var setHps = function(items){
 			info(["setAgateProfileHps fetch done", items]);
 			dojo.forEach(items, setHp);
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{"type":"agentprofile"},
 			onComplete:setHps
-		})
-	}
+		});
+	};
 
 	supervisorView.setGlobalAgentHp = function(){
 		var setHp = function(items){
@@ -1182,12 +1161,12 @@ if(typeof(supervisorView) == "undefined"){
 			info(["setGlobalAgentHp wants averaged:", hplist]);
 			var hp = supervisorView.averageHp(hplist);
 			supervisorView.agentBubble.setHp(hp);
-		}
+		};
 		supervisorView.dataStore.fetch({
 			query:{"type":"agentprofile"},
 			onComplete:setHp
 		});
-	}
+	};
 
 	supervisorView.setGlobalQueueHp = function(){
 		var setHp = function(items){
@@ -1199,12 +1178,12 @@ if(typeof(supervisorView) == "undefined"){
 			debug(["setGlobalQueueHp wants averaged:", hplist]);
 			var hp = supervisorView.averageHp(hplist);
 			supervisorView.queueBubble.setHp(hp);
-		}
+		};
 		supervisorView.dataStore.fetch({
 			query:{"type":"queuegroup"},
 			onComplete:setHp
-		})
-	}
+		});
+	};
 
 	supervisorView.setNodeHps = function(){
 		var gotNodes = function(items){
@@ -1232,7 +1211,7 @@ if(typeof(supervisorView) == "undefined"){
 					};
 					supervisorView.dataStore.save();
 					dojo.publish("supervisorView/set/" + rawobj.id, [item, rawobj]);
-				}
+				};
 				supervisorView.dataStore.save();
 				//supervisorView.refreshSystemStack();
 				supervisorView.dataStore.fetch({
@@ -1240,13 +1219,13 @@ if(typeof(supervisorView) == "undefined"){
 					onComplete:gotNodeItems
 				});
 			});
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{type:"node"},
 			onComplete:gotNodes
 		});
-	}
+	};
 
 	supervisorView.setSystemHps = function(){
 		var gotNodes = function(items){
@@ -1271,18 +1250,18 @@ if(typeof(supervisorView) == "undefined"){
 				supervisorView.dataStore.setValue(items[0], "aggreagate", hp);
 				supervisorView.dataStore.save();
 				dojo.publish("supervisorView/set/system-System", [items[0], rawobj]);
-			}
+			};
 			supervisorView.dataStore.fetch({
 				query:{"type":"system"},
 				onComplete:gotSystem
 			});
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{"type":"node"},
 			onComplete:gotNodes
 		});
-	}
+	};
 	
 	supervisorView.setAllHps = function(){
 		info(["setAllHps..."]);
@@ -1295,7 +1274,7 @@ if(typeof(supervisorView) == "undefined"){
 		supervisorView.setGlobalQueueHp();
 		supervisorView.setNodeHps();
 		supervisorView.setSystemHps();
-	}
+	};
 
 	supervisorView.setDetails = function(fquery){
 		var fetchdone = function(item){
@@ -1327,13 +1306,13 @@ if(typeof(supervisorView) == "undefined"){
 			}*/
 			dijit.byId("supervisorDetails").attr("content", "<table class=\"smaller\">" + out + "</table>");
 			dijit.byId("supervisorDetails").attr("title", supervisorView.dataStore.getValue(item, "type") + ": " + supervisorView.dataStore.getValue(item, "display"));
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 				query:fquery,
 				onItem:fetchdone
 		});
-	}
+	};
 
 	supervisorView.drawSystemStack = function(){
 	
@@ -1439,7 +1418,7 @@ if(typeof(supervisorView) == "undefined"){
 					});
 					this.size(1.4);
 					return false;
-				}
+				};
 				var coll = supervisorView.dndManager.registerCollider(o);
 				dojo.connect(o, 'clear', function(){
 					supervisorView.dndManager.unregisterCollider(coll);
@@ -1452,7 +1431,7 @@ if(typeof(supervisorView) == "undefined"){
 					o.grow();
 				}
 			});
-		}
+		};
 
 		supervisorView.dataStore.fetch({
 			query:{
@@ -1461,7 +1440,7 @@ if(typeof(supervisorView) == "undefined"){
 			onComplete:fetchdone
 		});
 
-	}
+	};
 
 	supervisorView.drawAgentQueueBubbles = function(agenthp, queuehp){
 		var clearStacks = function(){
@@ -1471,30 +1450,30 @@ if(typeof(supervisorView) == "undefined"){
 				"agentProfilesStack",
 				"agentsStack",
 				"callsStack"
-			]
+			];
 			
 			for(var i in clearables){
 				if(supervisorView[clearables[i]].clear){
 					supervisorView[clearables[i]].clear();
 				}
 			}
-		}
+		};
 		
 		supervisorView.agentBubble = new supervisorView.Bubble({
 			point:{x:20, y:20},
-			scale: .75,
+			scale: 0.75,
 			data: {"health":agenthp, "display":"Agents", "id":"Agents"},
 			onmouseenter:function(){
 				clearStacks();
 				supervisorView.drawAgentProfilesStack();
 				this.size(1);
-				supervisorView.queueBubble.size(.75);
+				supervisorView.queueBubble.size(0.75);
 			},
 			dragOver: function(){
 				clearStacks();
 				supervisorView.drawAgentProfilesStack();
 				supervisorView.agentBubble.size(1);
-				supervisorView.queueBubble.size(.75);
+				supervisorView.queueBubble.size(0.75);
 				return false;
 			}
 		});
@@ -1502,24 +1481,24 @@ if(typeof(supervisorView) == "undefined"){
 		
 		supervisorView.queueBubble = new supervisorView.Bubble({
 			point:{x:20, y:60},
-			scale: .75,
+			scale: 0.75,
 			data:{"health":queuehp, "display":"Queues", "id":"Queues"},
 			onmouseenter: function(){
 				clearStacks();
 				supervisorView.drawQueueGroupsStack();
 				this.size(1);
-				supervisorView.agentBubble.size(.75);
+				supervisorView.agentBubble.size(0.75);
 			},
 			dragOver:  function(){
 				clearStacks();
 				supervisorView.drawQueueGroupsStack();
 				supervisorView.queueBubble.size(1);
-				supervisorView.agentBubble.size(.75);
+				supervisorView.agentBubble.size(0.75);
 				return false;
 			}
 		});
 		supervisorView.queueBubble.coll = supervisorView.dndManager.registerCollider(supervisorView.queueBubble);
-	}
+	};
 
 	supervisorView.drawQueueGroupsStack = function(){
 		if(supervisorView.queueGroupsStack && supervisorView.queuesStack.scrollLocked){
@@ -1565,11 +1544,7 @@ if(typeof(supervisorView) == "undefined"){
 			});
 			
 			supervisorView.callsStack.clear();
-			//warning(["calls stack cleared"]);
-			
-			/*supervisorView.queueGroupsStack.clear();
-			supervisorView.queuesStack.clear();
-			supervisorView.agentProfilesStack.clear();*/
+
 			supervisorView.queueGroupsStack = new supervisorView.BubbleStack({
 				mousept:{
 					x:250,
@@ -1581,15 +1556,15 @@ if(typeof(supervisorView) == "undefined"){
 			
 			supervisorView.queueGroupsStack.scroll(0);
 			supervisorView.queueGroupsStack.group.moveToBack();
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{
-				type:"queuegroup",
+				type:"queuegroup"
 			},
 			onComplete:fetchdone
 		});
-	}
+	};
 
 	supervisorView.drawQueuesStack = function(group, node, scrollIndex){
 		if(supervisorView.queuesStack.scrollLocked){
@@ -1649,7 +1624,7 @@ if(typeof(supervisorView) == "undefined"){
 			
 			supervisorView.queuesStack.scroll(scrollIndex);
 			supervisorView.queuesStack.group.moveToBack();
-		}
+		};
 		
 		var queryo = {
 			type:"queue",
@@ -1668,7 +1643,7 @@ if(typeof(supervisorView) == "undefined"){
 		});
 	
 		return true;
-	}
+	};
 	
 	supervisorView.drawAgentProfilesStack = function(){
 		if(supervisorView.agentProfilesStack && supervisorView.agentProfilesStack.scrollLocked){
@@ -1739,7 +1714,7 @@ if(typeof(supervisorView) == "undefined"){
 
 			supervisorView.agentProfilesStack.scroll(0);
 			supervisorView.agentProfilesStack.group.moveToBack();
-		}
+		};
 
 		var sortKey = [
 			{attribute: "display"}
@@ -1749,13 +1724,13 @@ if(typeof(supervisorView) == "undefined"){
 		supervisorView.dataStore.fetch({
 			sort: sortKey,
 			query:{
-				type:"agentprofile",
+				type:"agentprofile"
 			},
 			onComplete:fetchdone
 		});
 
 		return true;
-	}
+	};
 	
 	supervisorView.drawAgentsStack = function(profile, node, scrollIndex){
 		if(supervisorView.agentsStack.scrollLocked){
@@ -1798,7 +1773,7 @@ if(typeof(supervisorView) == "undefined"){
 					},
 					dropped: function(droppedObj){
 						debug(["agentBubble accepted drop", droppedObj]);
-						supervisorView.sendMediaToAgent(droppedObj.data, this.data.display)
+						supervisorView.sendMediaToAgent(droppedObj.data, this.data.display);
 					},
 					moveable: true,
 					image: imageUrl
@@ -1821,7 +1796,7 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.agentsStack.group.moveToBack();
 						
 			supervisorView.agentsStack.scroll(scrollIndex);
-		}
+		};
 
 		var sortKey = [
 			{attribute: "display"}
@@ -1841,7 +1816,7 @@ if(typeof(supervisorView) == "undefined"){
 		});
 
 		return true;
-	}
+	};
 
 	supervisorView.drawCallStack = function(queryObj, scrollIndex){
 		if(supervisorView.callsStack.scrollLocked){
@@ -1858,7 +1833,7 @@ if(typeof(supervisorView) == "undefined"){
 				}
 				
 				return aDetails.priority - bDetails.priority;
-			}
+			};
 			console.log(["items.sort", items.sort]);
 			items.sort(sortfunc);
 			dojo.forEach(items, function(obj){
@@ -1870,10 +1845,10 @@ if(typeof(supervisorView) == "undefined"){
 				};
 				
 				if(supervisorView.dataStore.getValue(obj, "agent")){
-					datas['agent'] = supervisorView.dataStore.getValue(obj, "agent");
+					datas.agent = supervisorView.dataStore.getValue(obj, "agent");
 				}
 				else{
-					datas['queue'] = supervisorView.dataStore.getValue(obj, "queue");
+					datas.queue = supervisorView.dataStore.getValue(obj, "queue");
 				}
 				
 				acc.push({
@@ -1892,24 +1867,22 @@ if(typeof(supervisorView) == "undefined"){
 			});
 			
 			supervisorView.callsStack.clear();
+			var confObj = {
+				mousept:{
+					x:580 + 240,
+					y:20
+				},
+				bubbleConfs:acc
+			};
 			if(queryObj.queue){
-				var confObj = {
+				confObj = {
 					mousept:{
 						x:580 + 240,
 						y:20
 					},
 					bubbleConfs:acc,
 					menu:'mediaAction'
-				}
-			}
-			else{
-				var confObj = {
-					mousept:{
-						x:580 + 240,
-						y:20
-					},
-					bubbleConfs:acc
-				}
+				};
 			}
 			
 			supervisorView.callsStack = new supervisorView.BubbleStack(confObj);
@@ -1919,7 +1892,7 @@ if(typeof(supervisorView) == "undefined"){
 					supervisorView.dndManager.startDrag(obj);
 				});
 				obj.group.connect("onmouseup", obj, function(ev){
-					supervisorView.dndManager.endDrag()
+					supervisorView.dndManager.endDrag();
 				});
 				
 				var nom = obj.data.display;
@@ -1933,7 +1906,7 @@ if(typeof(supervisorView) == "undefined"){
 			});
 		
 			supervisorView.callsStack.scroll(scrollIndex);
-		}
+		};
 
 		/*var sortKey = [
 			{attribute: "display"}
@@ -1945,7 +1918,7 @@ if(typeof(supervisorView) == "undefined"){
 		});
 	
 		return true;
-	}
+	};
 	
 	supervisorView.healthDump = function(){
 		var dump = function(items){
@@ -1953,13 +1926,13 @@ if(typeof(supervisorView) == "undefined"){
 				var out = supervisorView.dataStore.getValue(item, "aggregate");
 				var nom = supervisorView.dataStore.getValue(item, "display");
 				debug(["healthDump", nom, out]);
-			})
-		}
+			});
+		};
 		
 		supervisorView.dataStore.fetch({
 			onComplete:dump
 		});
-	}
+	};
 
 	supervisorView.reloadDataStore = function(){
 		dojo.xhrGet({
@@ -1979,8 +1952,8 @@ if(typeof(supervisorView) == "undefined"){
 						typeMap:{
 							"details":{
 								"type":Object,
-								"deserialize":function(obj){return obj},
-								"serialize":function(obj){return obj}
+								"deserialize":function(obj){return obj;},
+								"serialize":function(obj){return obj;}
 							}
 						}
 					});
@@ -1991,8 +1964,8 @@ if(typeof(supervisorView) == "undefined"){
 					debug(["1422", "stub for no data.data", data]);
 				}
 			}
-		})
-	}
+		});
+	};
 
 	supervisorView.blab = function(message, type, target){
 		dojo.xhrPost({
@@ -2004,13 +1977,13 @@ if(typeof(supervisorView) == "undefined"){
 				value: target
 			},
 			load:function(res){
-				debug(["blab worked", res])
+				debug(["blab worked", res]);
 			},
 			error:function(res){
-				errMessage(["blab failed", res])
+				errMessage(["blab failed", res]);
 			}
-		})
-	}
+		});
+	};
 	
 	supervisorView.setProfile = function(profile, agent){
 		dojo.xhrGet({
@@ -2019,7 +1992,7 @@ if(typeof(supervisorView) == "undefined"){
 			load:function(res){
 				if(res.success){
 					//kewl
-					return true
+					return true;
 				}
 				else{
 					errMessage(["set profile failed", res.message]);
@@ -2029,12 +2002,12 @@ if(typeof(supervisorView) == "undefined"){
 				errMessage(["set profile errored", res]);
 			}
 		});
-	}
+	};
 	
 	supervisorView.queueTransfer = function(callid, newqueue){
 		var fetchdone = function(items){
-			if(items.length == 0){
-				return false
+			if(items.length === 0){
+				return false;
 			}
 
 			var item = items[0];
@@ -2065,7 +2038,7 @@ if(typeof(supervisorView) == "undefined"){
 					errMessage(["queueTransfer errored", res]);
 				}
 			});
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{
@@ -2074,7 +2047,7 @@ if(typeof(supervisorView) == "undefined"){
 			},
 			onComplete:fetchdone
 		});
-	}
+	};
 	
 	supervisorView.sendMediaToAgent = function(media, agent){
 		var queue = media.queue;
@@ -2085,7 +2058,7 @@ if(typeof(supervisorView) == "undefined"){
 			load:function(res){
 				if(res.success){
 					//kewl
-					return true
+					return true;
 				}
 				else{
 					errMessage(["agent ring failed", res.message]);
@@ -2095,7 +2068,7 @@ if(typeof(supervisorView) == "undefined"){
 				errMessage(["agent ring errored", res]);
 			}
 		});
-	}
+	};
 	
 	supervisorView.saveItem = function(item, protoitem){
 		for(var i in protoitem){
@@ -2103,17 +2076,18 @@ if(typeof(supervisorView) == "undefined"){
 		}
 		
 		supervisorView.dataStore.save();
-	}
+	};
 	
 	supervisorView.setAgent = function(agentData){
 		var fetched = function(items){
-			if(items.length == 0){
-				var item = supervisorView.dataStore.newItem({
+			var item = [];
+			if(items.length === 0){
+				item = supervisorView.dataStore.newItem({
 					id:agentData.id
 				});
 			}
 			else{
-				var item = items[0];
+				item = items[0];
 			}
 			
 			var profile	= agentData.details.profile;
@@ -2131,17 +2105,17 @@ if(typeof(supervisorView) == "undefined"){
 			
 			supervisorView.saveItem(item, protoitem);
 			supervisorView.setAgentProfile(profile);
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{'id':agentData.id},
 			onComplete:fetched
 		});
-	}
+	};
 	
 	supervisorView.setAgentProfile = function(profile){
 		var fetched = function(items){
-			if(items.length == 0){
+			if(items.length === 0){
 				var item = supervisorView.dataStore.newItem({
 					'id':'agentprofile-' + profile,
 					'type':'agentprofile',
@@ -2149,23 +2123,24 @@ if(typeof(supervisorView) == "undefined"){
 				});
 				supervisorView.dataStore.save();
 			}
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{'id':'agentprofile-' + profile},
 			onComplete:fetched
 		});
-	}
+	};
 	
 	supervisorView.setQueue = function(queueData){
 		var fetched = function(items){
-			if(items.length == 0){
-				var item = supervisorView.dataStore.newItem({
+			var item = [];
+			if(items.length === 0){
+				item = supervisorView.dataStore.newItem({
 					'id':queueData.id
 				});
 			}
 			else{
-				var item = items[0];
+				item = items[0];
 			}
 			
 			var protoitem = {
@@ -2179,17 +2154,17 @@ if(typeof(supervisorView) == "undefined"){
 			
 			supervisorView.saveItem(item, protoitem);
 			supervisorView.setQueueGroup(queueData.details.group);
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{'id':queueData.id},
 			onComplete:fetched
 		});
-	}
+	};
 	
 	supervisorView.setQueueGroup = function(group){
 		var fetched = function(items){
-			if(items.length == 0){
+			if(items.length === 0){
 				var item = supervisorView.dataStore.newItem({
 					'id':'queuegroup-' + group,
 					'display':group,
@@ -2197,23 +2172,24 @@ if(typeof(supervisorView) == "undefined"){
 				});
 				supervisorView.dataStore.save();
 			}
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{'id':'queuegroup-' + group},
 			onComplete:fetched
 		});
-	}
+	};
 	
 	supervisorView.setMedia = function(mediaData){
+		var item = [];
 		var fetched = function(items){
-			if(items.length == 0){
-				var item = supervisorView.dataStore.newItem({
+			if(items.length === 0){
+				item = supervisorView.dataStore.newItem({
 					'id':mediaData.id
 				});
 			}
 			else{
-				var item = items[0];
+				item = items[0];
 			}
 			
 			supervisorView.dataStore.unsetAttribute(item, 'agent');
@@ -2235,23 +2211,24 @@ if(typeof(supervisorView) == "undefined"){
 			}
 			
 			supervisorView.saveItem(item, protoitem);
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{'id':mediaData.id},
 			onComplete:fetched
 		});
-	}
+	};
 	
 	supervisorView.setNode = function(nodeData){
 		var fetched = function(items){
-			if(items.length == 0){
-				var item = supervisorView.dataStore.newItem({
+			var item = [];
+			if(items.length === 0){
+				item = supervisorView.dataStore.newItem({
 					'id':nodeData.id
 				});
 			}
 			else{
-				var item = items[0];
+				item = items[0];
 			}
 			
 			var protoitem = {
@@ -2262,12 +2239,12 @@ if(typeof(supervisorView) == "undefined"){
 			};
 			
 			supervisorView.saveItem(item, protoitem);
-		}
-	}
+		};
+	};
 	
 	supervisorView.sendToVoicemail = function(mediaId){
 		var fetched = function(items){
-			if(items.length == 0){
+			if(items.length === 0){
 				return false;
 			}
 			
@@ -2290,7 +2267,7 @@ if(typeof(supervisorView) == "undefined"){
 					}
 				});
 			}
-		}
+		};
 		
 		supervisorView.dataStore.fetch({
 			query:{
@@ -2299,7 +2276,7 @@ if(typeof(supervisorView) == "undefined"){
 			},
 			onComplete:fetched
 		});
-	}
+	};
 	
 	supervisorView.clean = function(){
 		/* finds 'g' elements with no children and removes them from the dom */
@@ -2313,7 +2290,7 @@ if(typeof(supervisorView) == "undefined"){
 		});
 		console.log("cleaned " + count + " nodes");
 		return count;
-	}
+	};
 }
 
 supervisorView.surface = dojox.gfx.createSurface(dojo.byId("supervisorMonitor"), "99%", 400);
@@ -2339,8 +2316,8 @@ supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(supeve
 		supervisorView.dataStore.fetch({
 			query:{'id':supevent.data.id},
 			onComplete:function(items){
-				if(items.length == 0){
-					return false
+				if(items.length === 0){
+					return false;
 				}
 				supervisorView.dataStore.deleteItem(items[0]);
 				supervisorView.dataStore.save();
@@ -2380,16 +2357,16 @@ supervisorView.hpCalcTimer = '';
 supervisorView.hpcalc = function(){
 	supervisorView.hpCalcTimer = setTimeout(function(){
 		supervisorView.setAllHps();
-		supervisorView.hpcalc()}, 5000);
-}
+		supervisorView.hpcalc();}, 5000);
+};
 
 supervisorView.reloadTimer = false;
 supervisorView.reload = function(){
 	supervisorView.reloadTimer = setTimeout(function(){
 		supervisorView.reloadDataStore();
 		supervisorView.reload();
-	}, 300000)
-}
+	}, 300000);
+};
 
 supervisorView.reload();
 /*supervisorView.logoutListener = dojo.subscribe("agent/logout", function(data){

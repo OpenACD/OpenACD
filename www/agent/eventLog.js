@@ -12,5 +12,5 @@ EventLog.log = function(text){
 		var shifted = Eventlog.log.shift();
 		dojo.publish("eventlog/shift", [shifted]);
 	}
-	return line
-}
+	return line;
+};

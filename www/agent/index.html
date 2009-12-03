@@ -122,6 +122,11 @@
 <div dojoType="dijit.Dialog" title="Login" id="loginpane" style="display:none">
 	<script type="dojo/connect" event="onShow">
 		this.attr("title", dojo.i18n.getLocalization("agentUI", "labels").LOGIN);
+		setTimeout(function(){
+			if(dijit.byId('username').attr('value') !== ''){
+				dijit.byId('password').domNode.focus();
+			}
+		}, 250);
 	</script>
 
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">

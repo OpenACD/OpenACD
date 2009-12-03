@@ -127,13 +127,13 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	setValue:function(recipeStep){
 		this.conditions = recipeStep.conditions;
 		this.actionField.attr('value', recipeStep.action);
-		this.setArguments(recipeStep.action, recipeStep.arguments);
+		this.setArguments(recipeStep.action, recipeStep['arguments']);
 		this._suppressNextSetArgs = true;
 		if(! inArray(recipeStep.action, ['add_skills', 'remove_skills'])){
 			if(this.argsWidget.attr){
-				this.argsWidget.attr('value', recipeStep.arguments);
+				this.argsWidget.attr('value', recipeStep['arguments']);
 			} else {
-				this.argsWidget.setValue(recipeStep.arguments);
+				this.argsWidget.setValue(recipeStep['arguments']);
 			}
 		}
 		this.runsField.attr('value', recipeStep.runs);

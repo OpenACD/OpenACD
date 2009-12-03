@@ -246,7 +246,9 @@ loop(Req, Table) ->
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Language}])
 			end;
 		{api, Api} ->
-			Out = api(Api, check_cookie(Req:parse_cookie()), Post),
+			Cookie = check_cookie(Req:parse_cookie()),
+			keep_alive(Cookie),
+			Out = api(Api, Cookie, Post),
 			Req:respond(Out)
 	end.
 
@@ -283,6 +285,11 @@ determine_language(String) ->
 
 make_cookie(Value) ->
 	io_lib:format("cpx_id=~p; path=/", [Value]).
+
+keep_alive({_Reflist, _Salt, Conn}) when is_pid(Conn) ->
+	agent_web_connection:keep_alive(Conn);
+keep_alive(_) ->
+	ok.
 
 api(checkcookie, Cookie, _Post) ->
 	case Cookie of

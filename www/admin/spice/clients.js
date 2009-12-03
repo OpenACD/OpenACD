@@ -2,7 +2,7 @@ dojo.provide("spice.clients");
 
 clients = function(){
 	return {};
-}
+};
 
 clients.store = null;
 
@@ -12,7 +12,7 @@ clients.init = function(){
 		hierarchical:false,
 		typeMap:{
 			"json":function(obj){
-				return obj
+				return obj;
 			}
 		}
 	});
@@ -30,18 +30,17 @@ clients.init = function(){
 			updates.push(item);
 		}
 		savecomplete();
-	}
+	};
 	dijit.byId('clientsEditableGrid')._setStore(clients.store);
 	dijit.byId('clientsEditableGrid')._refresh();
 	dijit.byId('clientsStaticGrid')._setStore(clients.store);
 	dijit.byId('clientsStaticGrid')._refresh();
-
-}	
+};
 
 clients.gridHackFilter = function(){
 	console.log(arguments);
-	true;
-}
+	return true;
+};
 
 clients.setDefault = function(inconf){
 	var defaultConf = {
@@ -79,4 +78,4 @@ clients.setDefault = function(inconf){
 			console.log(["client default set error", res]);
 		}
 	});
-}
+};

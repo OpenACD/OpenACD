@@ -81,6 +81,15 @@ function dropTab(tab){
 	return true;
 }
 
+function inArray(needle, haystack){
+	for(var i = 0; i < haystack.length; i++){
+		if(haystack[i] == needle){
+			return true;
+		}
+	}
+	return false;
+}
+
 dojo.addOnLoad(function(){
 	//TODO:  Move logging/logger functions to other file.
 	if(window.console.log === undefined){

@@ -184,7 +184,7 @@ init([State, Options]) when is_record(State, agent) ->
 		error:{case_clause, {aborted, _}} ->
 			{error, []}
 	end,
-	State2 = State#agent{skills = util:merge_skill_lists(expand_magic_skills(State, Skills), expand_magic_skills(State, State#agent.skills)), profile = Profile},
+	State2 = State#agent{skills = util:merge_skill_lists(expand_magic_skills(State, Skills), expand_magic_skills(State, State#agent.skills), ['_queue', '_brand']), profile = Profile},
 	case State#agent.state of
 		idle ->
 			gen_server:cast(dispatch_manager, {now_avail, self()});
@@ -374,13 +374,13 @@ state_to_integer(State) ->
 idle({precall, Call}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, precall, Call}),
-	Newstate = State#agent{state=precall, oldstate=idle, statedata=Call, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=precall, oldstate=idle, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?PRECALL_LIMITS, []),
 	{reply, ok, precall, Newstate};
 idle({ringing, Call = #call{}}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
-	Newstate = State#agent{state=ringing, oldstate=idle, statedata=Call, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, Newstate};
 idle({released, default}, From, State) ->
@@ -388,7 +388,7 @@ idle({released, default}, From, State) ->
 idle({released, {Id, Reason, Bias}}, _From, State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, {Id, Reason, Bias}}), % it's up to the connection to determine if this is worth listening to
-	Newstate = State#agent{state=released, oldstate=idle, statedata={Id, Reason, Bias}, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=released, oldstate=idle, statedata={Id, Reason, Bias}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, Newstate};
 idle(Event, From, State) ->
@@ -413,7 +413,7 @@ ringing(oncall, _From, #agent{statedata = Statecall} = State) when Statecall#cal
 	?DEBUG("default ringpath inband, ring_path not outband", []),
 	case gen_media:oncall(Statecall#call.source) of
 		ok ->
-			Newstate = State#agent{state=oncall, oldstate = ringing, lastchangetimestamp = util:now()},
+			Newstate = State#agent{state=oncall, oldstate = ringing, lastchange = util:now()},
 			gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
 			gen_server:cast(Statecall#call.cook, remove_from_queue),
 			%cdr:oncall(Statecall, State#agent.login),
@@ -425,7 +425,7 @@ ringing(oncall, _From, #agent{statedata = Statecall} = State) when Statecall#cal
 ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} = State) ->
 	case Statecall#call.id of
 		Callid -> 
-			Newstate = State#agent{state = oncall, statedata = Call, oldstate = ringing, lastchangetimestamp = util:now()},
+			Newstate = State#agent{state = oncall, statedata = Call, oldstate = ringing, lastchange = util:now()},
 			gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
 			set_cpx_monitor(Newstate, ?ONCALL_LIMITS, []),
 			{reply, ok, oncall, Newstate};
@@ -439,13 +439,13 @@ ringing({released, {Id, Text, Bias} = Reason}, _From, #agent{statedata = Call} =
 	%gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
 	gen_media:stop_ringing(Call#call.source),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
-	Newstate = State#agent{state=released, oldstate=ringing, statedata=Reason, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=released, oldstate=ringing, statedata=Reason, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, Newstate};
 ringing(idle, _From, State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
-	Newstate = State#agent{state=idle, oldstate=ringing, statedata={}, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
 	{reply, ok, idle, Newstate};
 ringing(Event, _From, State) ->
@@ -468,14 +468,14 @@ ringing(_Msg, State) ->
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'precall', #agent{}}).
 precall({outgoing, Call}, _From, #agent{statedata = StateCall} = State) when Call#call.id =:= StateCall#call.id ->
 	gen_server:cast(State#agent.connection, {change_state, outgoing, Call}),
-	Newstate = State#agent{state=outgoing, oldstate=State#agent.state, statedata=Call, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=outgoing, oldstate=State#agent.state, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, outgoing, Newstate};
 precall(idle, _From, #agent{statedata = Call} = State) ->
 	gen_server:cast(Call#call.source, cancel),
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
-	Newstate = State#agent{state=idle, oldstate=State#agent.state, statedata={}, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=idle, oldstate=State#agent.state, statedata={}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
 	{reply, ok, idle, Newstate};
 precall({released, default}, From, State) ->
@@ -483,7 +483,7 @@ precall({released, default}, From, State) ->
 precall({released, {Id, Text, Bias} = Reason}, _From, #agent{statedata = Call} = State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
 	gen_server:cast(Call#call.source, cancel),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
-	Newstate = State#agent{state=released, oldstate=State#agent.state, statedata=Reason, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=released, oldstate=State#agent.state, statedata=Reason, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, Newstate};
 precall(_Event, _From, State) -> 
@@ -518,7 +518,7 @@ oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_pat
 	%cdr:hangup(Call, agent),
 	%cdr:wrapup(Call, State#agent.login),
 	gen_media:wrapup(Call#call.source),
-	Newstate = State#agent{state=wrapup, lastchangetimestamp = util:now(), oldstate = oncall},
+	Newstate = State#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
 	set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
 	{reply, ok, wrapup, Newstate};
 oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
@@ -526,7 +526,7 @@ oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcal
 		Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 			%cdr:wrapup(Call, State#agent.login),
-			Newstate = State#agent{state=wrapup, statedata=Call, lastchangetimestamp = util:now(), oldstate = oncall},
+			Newstate = State#agent{state=wrapup, statedata=Call, lastchange = util:now(), oldstate = oncall},
 			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []), 
 			{reply, ok, wrapup, Newstate};
 		_Else ->
@@ -534,7 +534,7 @@ oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcal
 	end;
 oncall({warmtransfer, Transferto}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
-	Newstate = State#agent{state=warmtransfer, oldstate=State#agent.state, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=warmtransfer, oldstate=State#agent.state, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};
 oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
@@ -543,7 +543,7 @@ oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is
 oncall({queue_transfer, Queue}, _From, #agent{statedata = Call} = State) ->
 	Reply = gen_media:queue(Call#call.source, Queue),
 	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-	Newstate = State#agent{state=wrapup, oldstate=State#agent.state, statedata=Call, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=wrapup, oldstate=State#agent.state, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, Reply, wrapup, Newstate};
 % TODO mediapull and mediapush have no unified support in gen_media, they go right
@@ -562,7 +562,7 @@ oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) -
 		{ok, UUID} ->
 			gen_server:cast(State#agent.connection, {change_state, warmtransfer, UUID}),
 			set_cpx_monitor(State#agent{state = warmtransfer}, ?WARMTRANSFER_LIMITS, []),
-			{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, UUID}, lastchangetimestamp = util:now()}};
+			{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, UUID}, lastchange = util:now()}};
 		_ ->
 			{reply, invalid, oncall, State}
 	end;
@@ -639,7 +639,7 @@ outgoing({released, {_Id, _Text, Bias} = Reason}, _From, State) when is_integer(
 outgoing({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
 	case Currentcall#call.id of
 		Callid -> 
-			Newstate = State#agent{state=wrapup, statedata=Call, lastchangetimestamp = util:now(), oldstate = outgoing},
+			Newstate = State#agent{state=wrapup, statedata=Call, lastchange = util:now(), oldstate = outgoing},
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
 			{reply, ok, wrapup, Newstate};
@@ -648,7 +648,7 @@ outgoing({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentc
 	end;
 outgoing({warmtransfer, Transferto}, _From, State) -> 
 	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
-	Newstate = State#agent{state=warmtransfer, oldstate=outgoing, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=warmtransfer, oldstate=outgoing, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};
 outgoing({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
@@ -657,7 +657,7 @@ outgoing({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when 
 outgoing({queue_transfer, Queue}, _From, #agent{statedata = Call} = State) ->
 	Reply = gen_media:queue(Call#call.source, Queue),
 	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-	Newstate = State#agent{state=wrapup, oldstate=State#agent.state, statedata=Call, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=wrapup, oldstate=State#agent.state, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, Reply, wrapup, Newstate};
 outgoing(get_media, _From, #agent{statedata = Media} = State) when is_record(Media, call) ->
@@ -687,25 +687,25 @@ outgoing(_Msg, State) ->
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'released', #agent{}}).
 released({precall, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, precall, Call}),
-	Newstate = State#agent{state=precall, oldstate=released, statedata=Call, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=precall, oldstate=released, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?PRECALL_LIMITS, []),
 	{reply, ok, precall, Newstate};
 released(idle, _From, State) ->	
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
-	Newstate = State#agent{state=idle, oldstate=released, statedata={}, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=idle, oldstate=released, statedata={}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
 	{reply, ok, idle, Newstate};
 released({released, default}, From, State) ->
 	released({released, ?DEFAULT_REL}, From, State);
 released({released, {_Id, _Text, Bias} = Reason}, _From, State) when is_integer(Bias), -1 =< Bias, Bias =< 1 ->
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}),
-	Newstate = State#agent{statedata=Reason, oldstate=released, lastchangetimestamp = util:now()},
+	Newstate = State#agent{statedata=Reason, oldstate=released, lastchange = util:now()},
 	log_change(Newstate),
 	{reply, ok, released, Newstate};
 released({ringing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
-	Newstate = State#agent{state=ringing, oldstate=released, statedata=Call, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, Newstate};
 released({spy, Target}, {Conn, _Tag}, #agent{connection = Conn} = State) ->
@@ -752,7 +752,7 @@ warmtransfer({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = {onh
 	case Onhold#call.id of
 		 Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
-			Newstate = State#agent{state=wrapup, oldstate=warmtransfer, statedata=Call, lastchangetimestamp = util:now()},
+			Newstate = State#agent{state=wrapup, oldstate=warmtransfer, statedata=Call, lastchange = util:now()},
 			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
 			{reply, ok, wrapup, Newstate};
 		_Else -> 
@@ -762,7 +762,7 @@ warmtransfer({oncall, #call{id = Callid} = Call}, _From, #agent{statedata = {onh
 	case Onhold#call.id of
 		 Callid -> 
 			gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
-			Newstate = State#agent{state=oncall, oldstate=warmtransfer, statedata=Call, lastchangetimestamp = util:now()},
+			Newstate = State#agent{state=oncall, oldstate=warmtransfer, statedata=Call, lastchange = util:now()},
 			set_cpx_monitor(Newstate, ?ONCALL_LIMITS, []),
 			{reply, ok, oncall, Newstate};
 		_Else -> 
@@ -770,7 +770,7 @@ warmtransfer({oncall, #call{id = Callid} = Call}, _From, #agent{statedata = {onh
 	end;
 warmtransfer({outgoing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, outgoing, Call}),
-	Newstate = State#agent{state=outgoing, oldstate=warmtransfer, statedata=Call, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=outgoing, oldstate=warmtransfer, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, outgoing, Newstate};
 warmtransfer(_Event, _From, State) ->
@@ -801,13 +801,13 @@ wrapup(idle, _From, State= #agent{statedata = Call, queuedrelease = undefined}) 
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
 	cdr:endwrapup(Call, State#agent.login),
-	Newstate = State#agent{state=idle, oldstate=wrapup, statedata={}, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=idle, oldstate=wrapup, statedata={}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
 	{reply, ok, idle, Newstate};
 wrapup(idle, _From, #agent{statedata=Call} = State) ->
 	gen_server:cast(State#agent.connection, {change_state, released, State#agent.queuedrelease}),
 	cdr:endwrapup(Call, State#agent.login),
-	Newstate = State#agent{state=released, oldstate=wrapup, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchangetimestamp = util:now()},
+	Newstate = State#agent{state=released, oldstate=wrapup, statedata=State#agent.queuedrelease, queuedrelease=undefined, lastchange = util:now()},
 	{Id, Reason, Bias} = State#agent.queuedrelease,
 	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, Newstate};
@@ -870,7 +870,7 @@ handle_sync_event({change_profile, Profile}, _From, StateName, State) when State
 			NewAgentSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, OldSkills)),
 			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(State, Skills2)),
 			Newstate = State#agent{skills = NewAgentSkills2, profile = Profile},
-			Deatils = [{profile, Newstate#agent.profile}, {state, Newstate#agent.state}, {statedata, Newstate#agent.statedata}, {login, Newstate#agent.login}, {lastchangetimestamp, Newstate#agent.lastchangetimestamp}],
+			Deatils = [{profile, Newstate#agent.profile}, {state, Newstate#agent.state}, {statedata, Newstate#agent.statedata}, {login, Newstate#agent.login}, {lastchange, Newstate#agent.lastchange}],
 			{S, {T1, T2, T3, {time, _Now}}} = case StateName of
 				idle ->
 					?IDLE_LIMITS;
@@ -879,7 +879,7 @@ handle_sync_event({change_profile, Profile}, _From, StateName, State) when State
 					Rel1
 			end,
 			gen_server:cast(State#agent.connection, {change_profile, Profile}),
-			{Mega, Sec, _} = Newstate#agent.lastchangetimestamp,
+			{Mega, Sec, _} = Newstate#agent.lastchange,
 			Fixedhp = case StateName of
 				idle ->
 					[{S, {T1, T2, T3, {time, Mega * 1000000 + Sec}}}];
@@ -1057,7 +1057,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 
 set_cpx_monitor(State, Hp, Otherdeatils) when is_list(Hp)->
 	log_change(State),
-	Deatils = lists:append([{profile, State#agent.profile}, {state, State#agent.state}, {statedata, State#agent.statedata}, {login, State#agent.login}, {lastchangetimestamp, {timestamp, State#agent.lastchangetimestamp}}], Otherdeatils),
+	Deatils = lists:append([{profile, State#agent.profile}, {state, State#agent.state}, {statedata, State#agent.statedata}, {login, State#agent.login}, {lastchange, {timestamp, State#agent.lastchange}}], Otherdeatils),
 	cpx_monitor:set({agent, State#agent.id}, Hp, Deatils);
 set_cpx_monitor(State, Hp, Dets) ->
 	set_cpx_monitor(State, [Hp], Dets).
@@ -1142,12 +1142,13 @@ ring_oncall_mismatch_test() ->
 	?assertMatch(invalid, set_state(Pid, oncall, Badcall)).
 
 expand_magic_skills_test_() ->
-	Agent = #agent{login = "testagent", profile = "testprofile", skills = ['_agent', '_node', '_profile', english]},
+	Agent = #agent{login = "testagent", profile = "testprofile", skills = ['_agent', '_node', '_profile', english, {'_brand', "testbrand"}]},
 	Newskills = expand_magic_skills(Agent, Agent#agent.skills),
 	[?_assert(lists:member({'_agent', "testagent"}, Newskills)),
 	?_assert(lists:member({'_node', node()}, Newskills)),
 	?_assert(lists:member(english, Newskills)),
-	?_assert(lists:member({'_profile', "testprofile"}, Newskills))].
+	?_assert(lists:member({'_profile', "testprofile"}, Newskills)),
+	?_assert(lists:member({'_brand', "testbrand"}, Newskills))].
 	
 from_idle_test_() ->
 	{foreach,
@@ -2382,7 +2383,27 @@ init_test_() ->
 		},
 		{ok, released, Newagent} = init([Agent, [logging]]),
 		?assert(is_pid(Newagent#agent.log_pid))
-	end}].
+	end},
+	{"agent has some magic skills that allow multiples.",
+	fun() ->
+		Agent = #agent{
+			login = "testagent",
+			skills = [{'_queue', "queue1"}, {'_queue', "queue2"}, {'_brand', "brandx"}, {'_brand', "brandy"}]
+		},
+		?assertMatch({ok, released, _NewAgent}, init([Agent, []])),
+		{ok, released, #agent{skills = Skills}} = init([Agent, []]),
+		lists:foreach(fun(E) ->
+			?assert(lists:member(E, Agent#agent.skills))
+		end, Skills)
+	end},
+	{"agent has some magic skills that should not be multiples of",
+	fun() ->
+		Agent = #agent{
+			login = "testagent",
+			skills = [{'_profile', "prof1"}, {'_profile', "prof2"}]
+		},
+		?assertError(badarg, init([Agent, []]))
+	end}	].
 	
 generate_state() ->
 	generate_state([{2, idle, "Idle"}, {3, ringing, "Ringing"}, {4, precall, "Precall"}, {5, oncall, "Oncall"}, {6, outgoing, "Outgoing"}, {7, released, "Released"}, {8, warmtransfer, "WarmTransfer"}, {9, wrapup, "Wrapup"}]).

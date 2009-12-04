@@ -606,19 +606,18 @@ queue_call(Cookpid, Callrec, Key, State) ->
 -spec(set_cpx_mon/1 :: (State :: #state{}) -> 'ok').
 set_cpx_mon(State) ->
 	Key = {queue, State#state.name},
-	Oldest = case gb_trees:is_empty(State#state.queue) of
-		true ->
-			undefined;
-		false ->
-			{{_, {Megsec, Sec, _}}, _} = gb_trees:smallest(State#state.queue),
-			(Megsec * 1000000) + Sec
-	end,
-	Details = [
+	MidDetails = [
 		{weight, State#state.weight},
 		{group, State#state.group},
-		{calls, gb_trees:size(State#state.queue)},
-		{oldest, Oldest}
+		{calls, gb_trees:size(State#state.queue)}
 	],
+	Details = case gb_trees:is_empty(State#state.queue) of
+		true ->
+			MidDetails;
+		false ->
+			{{_, {Megsec, Sec, _}}, _} = gb_trees:smallest(State#state.queue),
+			[{oldest, {timestamp, (Megsec * 1000000) + Sec}} | MidDetails]
+	end,
 	Hp = [
 		{calls, {0, 0, 10, gb_trees:size(State#state.queue)}}
 	],

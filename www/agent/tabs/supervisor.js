@@ -1276,16 +1276,24 @@ if(typeof(supervisorView) == "undefined"){
 		supervisorView.setSystemHps();
 	};
 
-	supervisorView.setDetails = function(fquery){
+	supervisorView.setDetails = function(fquery, filter){
 		var fetchdone = function(item){
 			var obj = supervisorView.dataStore.getValue(item, "details");
 			var out = "";
-			if(supervisorView.dataStore.getValue(item, "node")){
+			/*if(supervisorView.dataStore.getValue(item, "node")){
 				out += "<tr><th class=\"label\">Node</th><td>" + supervisorView.dataStore.getValue(item, "node") + "</td></td>";
 				//out += "<p class=\"smaller\"><label class=\"narrow\">Node:</label>" + supervisorView.dataStore.getValue(item, "node");
+			}*/
+			if(! filter){
+				filter = [];
 			}
+			
 			for(var i in obj){
 				//out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>";
+				if(inArray(i, filter)){
+					continue;
+				}
+				
 				out += "<tr><th class=\"label\">" + i + "</th><td>";
 				if(obj[i].timestamp){
 					var date = new Date(obj[i].timestamp * 1000);
@@ -1592,7 +1600,7 @@ if(typeof(supervisorView) == "undefined"){
 						supervisorView.setDetails({
 							type:"queue",
 							display:supervisorView.dataStore.getValue(obj, "display")
-						});
+						}, ['group']);
 					},
 					dragOver: function(testobj){
 						debug(["queue bubble dragOver", testobj]);
@@ -1760,7 +1768,7 @@ if(typeof(supervisorView) == "undefined"){
 						supervisorView.setDetails({
 							type:"agent",
 							display:supervisorView.dataStore.getValue(obj, "display")
-						});
+						}, ['login', 'profile']);
 						dijit.byId('agentAction').agentBubbleHit = supervisorView.dataStore.getValue(obj, 'display');
 					},
 					dragOver: function(testObj){
@@ -1834,7 +1842,6 @@ if(typeof(supervisorView) == "undefined"){
 				
 				return aDetails.priority - bDetails.priority;
 			};
-			console.log(["items.sort", items.sort]);
 			items.sort(sortfunc);
 			dojo.forEach(items, function(obj){
 				var datas = {
@@ -1858,7 +1865,7 @@ if(typeof(supervisorView) == "undefined"){
 						supervisorView.setDetails({
 							type:"media",
 							display:supervisorView.dataStore.getValue(obj, "display")
-						});
+						}, ['queue', 'agent', 'ring_path', 'media_path']);
 						if(queryObj.queue){
 							dijit.byId('mediaAction').mediaBubbleHit = supervisorView.dataStore.getValue(obj, "display");
 						}
@@ -2369,9 +2376,6 @@ supervisorView.reload = function(){
 };
 
 supervisorView.reload();
-/*supervisorView.logoutListener = dojo.subscribe("agent/logout", function(data){
-	clearTimeout(supervisorView.hpCalcTimer)
-});*/
 
 window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", function(child){
 	if(child.title == "Supervisor"){
@@ -2379,7 +2383,6 @@ window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", functio
 		clearTimeout(supervisorView.hpCalcTimer);
 		clearTimeout(supervisorView.reloadTimer);
 		dojo.unsubscribe(window.supervisorViewKillListen);
-		//dojo.unsubscribe(supervisorView.logoutListener);
 		dojo.unsubscribe(supervisorView.masterSub);
 		delete window.supervisorViewKillListen;
 		dojo.xhrGet({

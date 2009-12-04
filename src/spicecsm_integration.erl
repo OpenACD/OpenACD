@@ -127,11 +127,14 @@ import(Options) ->
 	Reslist = gen_server:call(Pid, {raw_request, <<"companyList">>, []}),
 	CompanyList = proplists:get_value(<<"result">>, Reslist),
 	ok = import_brands(CompanyList, Pid),
+	%% skills are no longer imported, so only element 2 matters (Name)
+	%% used for profile names.
 	Skills = [
 		{supervisor, "Supervisor", "Supervisor Tier", "SpiceCSM"},
-		{tier1, "Tier 1", "Tier 1", "SpiceCSM"},
-		{tier2, "Tier 2", "Tier 2", "SpiceCSM"},
-		{tier3, "Tier 3", "Tier 3", "SpiceCSM"}
+		{tier1, "Probationary", "Tier 1", "SpiceCSM"},
+		{tier1, "Level 1", "not used", "SpiceCSM"},
+		{tier2, "Level 2", "Tier 2", "SpiceCSM"},
+		{tier3, "Level 3", "Tier 3", "SpiceCSM"}
 	],
 	ok = import_skills_and_profiles(Skills),
 	case proplists:get_value(add_conf, Options) of
@@ -163,8 +166,8 @@ import_skills_and_profiles([]) ->
 	ok;
 import_skills_and_profiles([{Atom, Name, Enddesc, Group} | Tail]) ->
 	Desc = lists:append("Added by spicecsm_integration:import.  Corresponds to ", Enddesc),
-	call_queue_config:new_skill(Atom, Name, Desc, Group),
-	agent_auth:new_profile(Name, [Atom, '_profile']),
+	%%call_queue_config:new_skill(Atom, Name, Desc, Group),
+	agent_auth:new_profile(Name, ['_profile']),
 	import_skills_and_profiles(Tail).
 		
 write_brands([], _, _, _) ->
@@ -267,9 +270,9 @@ handle_call({agent_auth, Agent, PlainPassword, Extended}, _From, State) when is_
 					{"Default", supervisor};
 				{Secid, TierID} ->
 					P = case TierID of
-						1 -> "Tier 1";
-						2 -> "Tier 2";
-						3 -> "Tier 3";
+						1 -> "Probationary";
+						2 -> "Level 2";
+						3 -> "Level 3";
 						4 -> "Supervisor"
 					end,
 					S = case Secid of

@@ -561,6 +561,16 @@ dojo.requireLocalization("admin", "labels");
 						dijit.byId("queueSubmit").onClick = function(){
 							queues.newQueue(dijit.byId("editQueueForm"), dijit.byId("queueRecipe"), "queuesList");
 						}
+						
+						var skillCallback = function(selectNode){
+							selectNode.name = 'skills';
+							dojo.place(selectNode, dojo.byId('queueSkillsDiv'), 'only');
+						};
+						var selectedSkills = [];
+						var expandSkills = ['_profile', '_brand'];
+						
+						skills.createSelect(skillCallback, [], ['_agent', '_profile'], expandSkills);
+
 						dijit.byId("queuesMain").selectChild('queueEditor');
 					</script>
 					<script type="dojo/method" event="postCreate">

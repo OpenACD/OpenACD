@@ -139,7 +139,7 @@ find_avail_agents_by_skill(Skills) ->
 			lists:member('_all', Skills)
 			% if there's no _all skill, make sure the agent has all the required skills
 		) orelse util:list_contains_all(AgState#agent.skills, Skills)],
-	AvailSkilledAgentsByIdleTime = lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> State1#agent.lastchangetimestamp =< State2#agent.lastchangetimestamp end, AvailSkilledAgents), 
+	AvailSkilledAgentsByIdleTime = lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> State1#agent.lastchange =< State2#agent.lastchange end, AvailSkilledAgents), 
 	F = fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> 
 		case {lists:member('_all', State1#agent.skills), lists:member('_all', State2#agent.skills)} of
 			{true, false} -> 

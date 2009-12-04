@@ -1168,11 +1168,17 @@ api({medias, _Node, "email_media_manager", "getMappings"}, ?COOKIE, _Post) ->
 					Else ->
 						Else
 				end,
+				Skills = string:join(lists:map(fun
+					(B) when is_binary(B) ->
+						binary_to_list(B);
+					(B) when is_atom(B) ->
+						atom_to_list(B)
+				end, encode_skills_simple(Mapping#mail_map.skills)), "|"),
 				{struct, [
 					{<<"address">>, list_to_binary(Mapping#mail_map.address)},
 					{<<"queue">>, list_to_binary(Mapping#mail_map.queue)},
 					{<<"client">>, list_to_binary(Client)},
-					{<<"skills">>, encode_skills(Mapping#mail_map.skills)}
+					{<<"skills">>, list_to_binary(Skills)}
 				]}
 			end,
 			Jarray = lists:map(Encode, Mappings),
@@ -1181,12 +1187,16 @@ api({medias, _Node, "email_media_manager", "getMappings"}, ?COOKIE, _Post) ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mappings">>}]})}
 	end;
 api({medias, _Node, "email_media_manager", "setMapping"}, ?COOKIE, Post) ->
-	Newprops = proplists:substitute_aliases([
+	Translated = proplists:substitute_aliases([
 		{"address", address},
 		{"skills", skills},
 		{"queue", queue},
 		{"client", client}
 	], Post),
+	Skillslist = util:string_split(proplists:get_value(skills, Translated, []), "|"),
+	Realskills = parse_posted_skills(Skillslist),
+	Sanskills = proplists:delete(skills, Translated),
+	Newprops = [{skills, Realskills} | Translated],
 	case email_media_manager:set_mapping(proplists:get_value("oldaddress", Post), Newprops) of
 		{aborted, Reason} ->
 			Json = {struct, [{success, false}, {message, list_to_binary(lists:flatten(io_lib:format("~p", [Reason])))}]},
@@ -1203,12 +1213,14 @@ api({medias, _Node, "email_media_manager", "destroyMapping"}, ?COOKIE, Post) ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
 api({medias, _Node, "email_media_manager", "new"}, ?COOKIE, Post) ->
-	Newprops = proplists:substitute_aliases([
+	Translated = proplists:substitute_aliases([
 		{"address", address},
 		{"skills", skills},
 		{"queue", queue},
 		{"client", client}
 	], Post),
+	Sanskills = proplists:delete(skills, Translated),
+	Newprops = [{skills, []} | Sanskills],
 	case email_media_manager:new_mapping(Newprops) of
 		{atomic, ok} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};

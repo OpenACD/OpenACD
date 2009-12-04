@@ -58,7 +58,8 @@
 	dump_agent/1,
 	encode_statedata/1,
 	set_salt/2,
-	poll/2
+	poll/2,
+	keep_alive/1
 ]).
 
 %% gen_server callbacks
@@ -80,7 +81,6 @@
 		% list of json structs to be sent to the client on poll.
 	poll_pid :: 'undefined' | pid(),
 	poll_pid_established = 1 :: pos_integer(),
-	missed_polls = 0 :: non_neg_integer(),
 	ack_timer :: tref() | 'undefined',
 	poll_state :: atom(),
 	poll_statedata :: any(),
@@ -135,6 +135,11 @@ dump_agent(Pid) ->
 -spec(set_salt/2 :: (Pid :: pid(), Salt :: any()) -> 'ok').
 set_salt(Pid, Salt) ->
 	gen_server:cast(Pid, {set_salt, Salt}).
+
+%% @doc keep alive, keep alive.
+-spec(keep_alive/1 :: (Pid :: pid()) -> 'ok').
+keep_alive(Pid) ->
+	gen_server:cast(Pid, keep_alive).
 
 %% @doc Encode the given data into a structure suitable for mochijson2:encode
 -spec(encode_statedata/1 :: 
@@ -238,10 +243,6 @@ init([Agent, Security]) ->
 %%--------------------------------------------------------------------
 handle_call(stop, _From, State) ->
 	{stop, shutdown, ok, State};
-%handle_call(poll, _From, #state{poll_queue = Pollq} = State) ->
-%	State2 = State#state{poll_queue=[], missed_polls = 0},
-%	Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}]},
-%	{reply, {200, [], mochijson2:encode(Json2)}, State2};
 handle_call(logout, _From, State) ->
 	{stop, normal, {200, [{"Set-Cookie", "cpx_id=dead"}], mochijson2:encode({struct, [{success, true}]})}, State};
 handle_call(get_avail_agents, _From, State) ->
@@ -673,6 +674,8 @@ handle_call(Allothers, _From, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast(keep_alive, State) ->
+	{noreply, State#state{poll_pid_established = util:now()}};
 handle_cast({poll, Frompid}, State) ->
 	?DEBUG("Replacing poll_pid ~w with ~w", [State#state.poll_pid, Frompid]),
 	case State#state.poll_pid of
@@ -787,7 +790,7 @@ handle_cast(Msg, State) ->
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
 	Now = util:now(),
 	case Now - Last of
-		N when N > 5 ->
+		N when N > 10 ->
 			?NOTICE("Stopping due to missed_polls; last:  ~w now: ~w difference: ~w", [Last, Now, Now - Last]),
 			{stop, missed_polls, State};
 		_N ->
@@ -1023,16 +1026,21 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 			Stripper = fun
 				(F, [], Acc) ->
 					lists:reverse(Acc);
-				(F, [{Tag, Attr, Kids} | Rest], Acc) ->
-					case Lowertag(Tag) of
-						"html" ->
-							F(F, Kids, []);
-						"head" ->
-							F(F, Rest, Acc);
-						"body" ->
-							F(F, Kids, Acc);
-						_Else ->
-							F(F, Rest, [{Tag, Attr, Kids} | Acc])
+				(F, [Head | Rest], Acc) when is_tuple(Head) ->
+					case Head of
+						{comment, _} ->
+							F(F, Rest, [Head | Acc]);
+						{Tag, Attr, Kids} ->
+							case Lowertag(Tag) of
+								"html" ->
+									F(F, Kids, []);
+								"head" ->
+									F(F, Rest, Acc);
+								"body" ->
+									F(F, Kids, Acc);
+								_Else ->
+									F(F, Rest, [Head | Acc])
+							end
 					end;
 				(F, [Bin | Rest], Acc) when is_binary(Bin) ->
 					F(F, Rest, [Bin | Acc])
@@ -1171,7 +1179,7 @@ do_action(Nodes, Do, _Acc) ->
 	{false, <<"unknown request">>}.
 
 encode_agent(Agent) when is_record(Agent, agent) ->
-	{Mega, Sec, _Micro} = Agent#agent.lastchangetimestamp,
+	{Mega, Sec, _Micro} = Agent#agent.lastchange,
 	Now = (Mega * 1000000) + Sec,
 	%Remnum = case Agent#agent.remotenumber of
 		%undefined ->
@@ -1306,7 +1314,7 @@ encode_stats([Head | Tail], Count, Acc) ->
 			end
 	end,
 	Scrubbedhealth = encode_health(Protohealth),
-	Scrubbeddetails = scrub_proplist(Protodetails),
+	Scrubbeddetails = Protodetails,
 	Health = [{<<"health">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, Scrubbedhealth}]}}],
 	Details = [{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbeddetails)}]}}],
 	Encoded = lists:append([Id, Display, Type, Node, Parent, Health, Details]),
@@ -1407,7 +1415,7 @@ scrub_proplist([], Acc) ->
 scrub_proplist([Head | Tail], Acc) ->
 	Newacc = case Head of
 		{Key, _Value} ->
-			case lists:member(Key, [queue, parent, node, agent, profile, group, type]) of
+			case lists:member(Key, [queue, parent, node, agent, profile, group]) of
 				true ->
 					Acc;
 				false ->
@@ -1449,6 +1457,11 @@ encode_proplist([{Key, Value} | Tail], Acc) when is_record(Value, client) ->
 			list_to_binary(Value#client.label)
 	end,
 	encode_proplist(Tail, [{Key, Label} | Acc]);
+encode_proplist([{callerid, {CidName, CidDAta}} | Tail], Acc) ->
+	CidNameBin = list_to_binary(CidName),
+	CidDAtaBin = list_to_binary(CidDAta),
+	Newacc = [{callid_name, CidNameBin} | [{callid_data, CidDAtaBin} | Acc ]],
+	encode_proplist(Tail, Newacc);
 encode_proplist([_Head | Tail], Acc) ->
 	encode_proplist(Tail, Acc).
 
@@ -1583,7 +1596,7 @@ encode_proplist_test() ->
 	Out = encode_proplist(Input),
 	?assertEqual(Expected, Out).
 
-scrub_proplist_test() ->
+scrub_proplist_test_disabled() ->
 	Input = [
 		{queue, "scrubbed"},
 		{parent, "scrubbed"},

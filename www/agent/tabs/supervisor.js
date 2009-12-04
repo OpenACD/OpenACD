@@ -1556,7 +1556,7 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.queueGroupsStack = new supervisorView.BubbleStack({
 				mousept:{
 					x:250,
-					y:100
+					y:20
 				},
 				bubbleConfs:acc,
 				registerCollider:true
@@ -1624,7 +1624,7 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.queuesStack = new supervisorView.BubbleStack({
 				mousept:{
 					x:540,
-					y:100
+					y:20
 				},
 				bubbleConfs: acc,
 				registerCollider: true
@@ -1706,7 +1706,7 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.agentProfilesStack = new supervisorView.BubbleStack({
 				mousept:{
 					x:250,
-					y:100
+					y:20
 				},
 				bubbleConfs:acc,
 				registerCollider: true,
@@ -1795,7 +1795,7 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.agentsStack = new supervisorView.BubbleStack({
 				mousept:{
 					x:540,
-					y:100
+					y:20
 				},
 				bubbleConfs: acc,
 				registerCollider:true,

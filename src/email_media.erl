@@ -49,11 +49,11 @@
 
 %% API
 -export([
-	start_link/3,
-	start_link/2,
+%	start_link/3,
+%	start_link/2,
 	start_link/1,
-	start/3,
-	start/2,
+%	start/3,
+%	start/2,
 	start/1,
 	get_disposition/1
 ]).
@@ -83,6 +83,7 @@
 
 -record(state, {
 	initargs :: any(),
+	send_args = [] :: any(),
 	mimed :: {string(), string(), [{string(), string()}], [{string(), string()}], any()},
 	mail_map_address = "unknown@example.com" :: string(),
 	skeleton :: any(),
@@ -101,29 +102,21 @@
 %%====================================================================
 %% API
 %%====================================================================
--spec(start/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: binary()) -> {'ok', pid()}).
-start(Mailmap, Headers, Data) ->
-	gen_media:start(?MODULE, [Mailmap, Headers, Data]).
 
--spec(start/2 :: (Mailmap :: #mail_map{}, Rawmessage :: binary()) -> {'ok', pid()}).
-start(Mailmap, Rawmessage) ->
-	gen_media:start(?MODULE, [Mailmap, Rawmessage]).
-	
--spec(start_link/3 :: (Mailmap :: #mail_map{}, Headers :: [any()], Data :: binary()) -> {'ok', pid()}).
-start_link(Mailmap, Headers, Data) ->
-	gen_media:start(?MODULE, [Mailmap, Headers, Data]).
+-type(mail_map_opt() :: {mail_map, #mail_map{}}).
+-type(raw_message_opt() :: {raw, binary()}).
+-type(headers_opt() :: {headers, binary()}).
+-type(data_opt() :: {data, binary()}).
+-type(send_opts() :: [any()]).
+-type(start_opt() :: mail_map_opt() | raw_message_opt() | headers_opt() | data_opt() | send_opts()).
+-type(start_opts() :: [start_opt()]).
+-spec(start/1 :: (Options :: start_opts()) -> {'ok', pid()}).
+start(Options) ->
+	gen_media:start(?MODULE, Options).
 
--spec(start_link/2 :: (Mailmap :: #mail_map{}, Rawmessage :: binary()) -> {'ok', pid()}).
-start_link(Mailmap, Rawmessage) ->
-	gen_media:start_link(?MODULE, [Mailmap, Rawmessage]).
-
--spec(start_link/1 :: (Rawmessage :: binary()) -> {'ok', pid()}).
-start_link(Rawmessage) ->
-	gen_media:start_link(?MODULE, [Rawmessage]).
-
--spec(start/1 :: (Rawmessage :: binary()) -> {'ok', pid()}).
-start(Rawmessage) ->
-	gen_media:start(?MODULE, [Rawmessage]).
+-spec(start_link/1 :: (Options :: start_opts()) -> {'ok', pid()}).
+start_link(Options) ->
+	gen_media:start_link(?MODULE, Options).
 
 -spec(post_to_api/1 :: (Post :: [{string(), string()}]) -> {'cast', any()} | {'call', any()}).
 post_to_api(Post) ->
@@ -173,10 +166,14 @@ get_disposition({_, _, _, Properties, _}) ->
 %% gen_server callbacks
 %%====================================================================
 
-init(Args) ->
+init(Options) ->
 	process_flag(trap_exit, true),
-	{_Type, _Subtype, Mheads, _Properties, _Body} = Mimed = case Args of
-		[Rawmessage] ->
+	OptMailmap = proplists:get_value(mail_map, Options),
+	OptRaw = proplists:get_value(raw, Options),
+	OptData = proplists:get_value(data, Options),
+	OptHeaders = proplists:get_value(headers, Options),
+	{_Type, _Subtype, Mheads, _Properties, _Body} = Mimed = case {OptMailmap, OptRaw, OptData, OptHeaders} of
+		{undefined, Rawmessage, undefined, undefined} ->
 			Out = mimemail:decode(Rawmessage),
 			Headers = element(3, Out),
 			Mailmap = case proplists:get_value(<<"To">>, Headers) of
@@ -195,13 +192,12 @@ init(Args) ->
 					end
 			end,
 			Out;
-		[Mailmap, Rawmessage] ->
+		{Mailmap, Rawmessage, undefined, undefined} ->
 			mimemail:decode(Rawmessage);
-		[Mailmap, Headers, Data] ->
+		{Mailmap, undefined, Data, Headers} ->
 			mimemail:decode(Headers, Data)
 	end,
 	{Skeleton, Files} = skeletonize(Mimed),
-
 	case right_time(Mailmap#mail_map.client) of
 		true ->
 			Callerid = case proplists:get_value(<<"From">>, Mheads) of
@@ -246,8 +242,10 @@ init(Args) ->
 				source = self()
 			},
 			?DEBUG("started ~p for callerid:  ~p", [Defaultid, Callerid]),
+			ok = archive(Options, Mimed, Proto),
 			{ok, {#state{
-						initargs = Args,
+						initargs = Options,
+						send_args = proplists:get_value(send_opts, Options),
 						skeleton = Skeleton,
 						file_map = Files,
 						mimed = Mimed,
@@ -315,18 +313,6 @@ handle_call({"get_path", Post}, _From, _Callrec, #state{mimed = Mime} = State) -
 	Out = get_part(Intpath, Mime),
 	{reply, Out, State};
 handle_call({"attach", Postdata}, _From, _Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
-	%?DEBUG("Post data for attach:  ~p", [Postdata]),
-%	Loop = fun(F, Proplist, Count, Acc) ->
-%		case proplists:get_value("attachFiles" ++ integer_to_list(Count), Proplist) of
-%			undefined ->
-%				Acc;
-%			{Name, Bin} = T ->
-%				Newacc = [T | Acc],
-%				F(F, Proplist, Count + 1, Newacc)
-%		end
-%	end,
-%	Newfiles = Loop(Loop, Postdata, 0, []),
-%	Attachments = lists:append(Oldattachments, Newfiles),
 	case proplists:get_value("attachFiles", Postdata) of
 		{Name, Bin} = T ->
 			case byte_size(Bin) + State#state.attachment_size of
@@ -495,6 +481,35 @@ handle_wrapup(_Callrec, State) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+archive(Options, Mimed, Callrec) ->
+	case cpx_supervisor:get_archive_path(Callrec) of
+		none ->
+			?DEBUG("archiving is not configured", []),
+			ok;
+		{error, Reason, Path} ->
+			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]),
+			{error, Reason};
+		BasePath ->
+			%% get_archive_path ensures the directory is writeable by us and exists, so this
+			%% should be safe to do (the call will be hungup if creating the recording file fails)
+			Pid = spawn_link(fun() ->
+				Path = BasePath ++ ".eml",
+				Binhead = proplists:get_value(headers, Options),
+				Bindata = proplists:get_value(data, Options),
+				Binraw = proplists:get_value(raw, Options),
+				Writebin = case {Binhead, Bindata, Binraw} of
+					{undefined, undefined, Raw} ->
+						Raw;
+					{Heads, Data, undefined} ->
+						mimemail:encode(Mimed)
+				end,
+				?DEBUG("archiving to ~s", [Path]),
+				file:write_file(Path, Writebin)
+			end),
+			?DEBUG("Spawned ~p for archiving", [Pid]),
+			ok
+	end.
+
 %% @doc get the keys of a proplist, preserving order.
 %% proplists:get_keys/1 does not have predictable order.
 get_prop_keys(List) ->
@@ -622,11 +637,11 @@ right_time(Client) when is_record(Client, client) ->
 			true
 	end;
 right_time(Client) when is_list(Client) ->
-	case integration:get_client(id, Client) of
+	case call_queue_config:get_client(id, Client) of
 		none ->
 			right_time(undefined);
-		{ok, Id, Label, Opts} ->
-			right_time(#client{id = Id, label = Label, options = Opts})
+		Else ->
+			right_time(Else)
 	end.
 
 try_binary_to_integer(Bin) when is_binary(Bin) ->

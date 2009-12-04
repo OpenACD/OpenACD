@@ -210,17 +210,13 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_cast({queue, Mailmap, Headers, Data}, #state{mails = Mails} = State) ->
-	{ok, Mpid} = email_media:start(Mailmap, Headers, Data),
-	link(Mpid),
-	{noreply, State#state{mails = [Mpid | Mails]}};
 handle_cast({queue, Filename}, #state{mails = Mails} = State) ->
 	case file:read_file(Filename) of
 		{error, Error} ->
 			?INFO("Error reading file ~p:  ~p", [Filename, Error]),
 			{noreply, State};
 		{ok, Email} ->
-			case email_media:start(Email) of
+			case email_media:start([{raw, Email}]) of
 				{ok, Mpid} ->
 					link(Mpid),
 					{noreply, State#state{mails = [Mpid | Mails]}};
@@ -228,6 +224,15 @@ handle_cast({queue, Filename}, #state{mails = Mails} = State) ->
 					?WARNING("Couldn't start new mail media due to ~p", [Else]),
 					{noreply, State}
 			end
+	end;
+handle_cast({queue, Mailmap, Headers, Data}, #state{mails = Mails} = State) ->
+	case email_media:start([{mail_map, Mailmap}, {headers, Headers}, {data, Data}]) of
+		{ok, Mpid} ->
+			link(Mpid),
+			{noreply, State#state{mails = [Mpid | Mails]}};
+		Else ->
+			?WARNING("couldn't queue message due to ~p", [Else]),
+			{noreply, State}
 	end;
 handle_cast({batch_queue, Dir}, State) ->
 	case file:list_dir(Dir) of

@@ -121,7 +121,6 @@ handle_DATA(_From, [To | _Allelse], Headers, Data, #state{mail_map = Mailmap} = 
 	end,
 	%?DEBUG("headers:  ~p", [Headers]),
 	gen_server:cast(email_media_manager, {queue, Mailmap, Headers, Data}),
-	%mimemail:decode(Headers, Data),
 	{ok, Reference, State#state{mail_map = undefined}}.
 
 -spec(handle_RSET/1 :: (State :: #state{}) -> #state{}).

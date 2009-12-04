@@ -1026,16 +1026,21 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 			Stripper = fun
 				(F, [], Acc) ->
 					lists:reverse(Acc);
-				(F, [{Tag, Attr, Kids} | Rest], Acc) ->
-					case Lowertag(Tag) of
-						"html" ->
-							F(F, Kids, []);
-						"head" ->
-							F(F, Rest, Acc);
-						"body" ->
-							F(F, Kids, Acc);
-						_Else ->
-							F(F, Rest, [{Tag, Attr, Kids} | Acc])
+				(F, [Head | Rest], Acc) when is_tuple(Head) ->
+					case Head of
+						{comment, _} ->
+							F(F, Rest, [Head | Acc]);
+						{Tag, Attr, Kids} ->
+							case Lowertag(Tag) of
+								"html" ->
+									F(F, Kids, []);
+								"head" ->
+									F(F, Rest, Acc);
+								"body" ->
+									F(F, Kids, Acc);
+								_Else ->
+									F(F, Rest, [Head | Acc])
+							end
 					end;
 				(F, [Bin | Rest], Acc) when is_binary(Bin) ->
 					F(F, Rest, [Bin | Acc])

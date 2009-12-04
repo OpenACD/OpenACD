@@ -368,7 +368,7 @@ mutate(Oldid, Newcallrec) ->
 push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 	F = fun() ->
 		Untermed = find_untermed(Trans#cdr_raw.transaction, Callrec, Trans#cdr_raw.eventdata),
-		Termedatoms = lists:map(fun(#cdr_raw{transaction = T}) -> T end, Untermed),
+		Termedatoms = lists:map(fun(#cdr_raw{transaction = T, eventdata = E}) -> {T, E} end, Untermed),
 		?DEBUG("closing cdr records ~p", [Untermed]),
 		Terminate = fun(Rec) ->
 			mnesia:delete_object(Rec),
@@ -376,7 +376,7 @@ push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 		end,
 		lists:foreach(Terminate, Untermed),
 		?DEBUG("Writing ~p", [Trans]),
-		mnesia:write(Trans#cdr_raw{terminates = Termedatoms}),
+		mnesia:write(Trans#cdr_raw{terminates = lists:map(fun({T, _}) -> T end, Termedatoms)}),
 		Termedatoms
 	end,
 	Out = mnesia:transaction(F),
@@ -386,11 +386,10 @@ push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 %% @doc Determine any info messages that should be input based on what the last
 %% actual message ended.
 -spec(analyze/5 :: (Trans :: transaction_type(), Call :: #call{}, Time :: time(), Data :: any(), Termed :: transaction_type()) -> [#cdr_raw{}]).
-analyze(hangup, #call{id = Cid}, Time, _, [inivr]) ->
+analyze(hangup, #call{id = Cid}, Time, _, [{inivr, _}]) ->
 	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonivr}];
-analyze(hangup, #call{id = Cid}, Time, _, [inqueue]) ->
-	% TODO - queue abandoned from should be noted here, ideally
-	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonqueue}];
+analyze(hangup, #call{id = Cid}, Time, _, [{inqueue, Queuename}]) ->
+	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonqueue, eventdata = Queuename}];
 analyze(_, _, _, _, _) ->
 	[].
 	

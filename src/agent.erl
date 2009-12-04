@@ -546,17 +546,6 @@ oncall({queue_transfer, Queue}, _From, #agent{statedata = Call} = State) ->
 	Newstate = State#agent{state=wrapup, oldstate=State#agent.state, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, Reply, wrapup, Newstate};
-% TODO mediapull and mediapush have no unified support in gen_media, they go right
-% to the callback.
-oncall({mediapull, Data}, {Pid, _Tag}, #agent{statedata = Call, connection = Pid} = State) ->
-	Reply = gen_media:call(Call#call.source, {mediapull, Data}),
-	{reply, Reply, oncall, State};
-oncall({mediapush, Data}, {Pid, _Tag}, #agent{statedata = Call, connection = Pid} = State) -> 
-	Reply = gen_media:call(Call#call.source, {mediapush, Data}),
-	{reply, Reply, oncall, State};
-oncall({mediacall, Request}, {Pid, _Tag}, #agent{statedata = Call, connection = Pid} = State) ->
-	Reply = gen_media:call(Call#call.source, Request),
-	{reply, {ok, Reply, Call}, oncall, State};
 oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
 	case gen_media:warm_transfer_begin(Call#call.source, Number) of
 		{ok, UUID} ->
@@ -593,14 +582,6 @@ oncall({mediacast, Request}, #agent{statedata = Call} = State) ->
 	?DEBUG("media case ~p", [Request]),
 	gen_media:cast(Call#call.source, Request),
 	{next_state, oncall, State};
-oncall({media_push, Data}, #agent{statedata = Media} = State) when Media#call.media_path =:= inband ->
-	case State#agent.connection of
-		undefined ->
-			{next_state, oncall, State};
-		Conn when is_pid(Conn) ->
-			gen_server:cast(Conn, {mediapush, Media, Data}),
-			{next_state, oncall, State}
-	end;
 oncall(register_rejected, #agent{statedata = Media} = State) when Media#call.media_path =:= inband ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};

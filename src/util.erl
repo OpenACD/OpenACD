@@ -67,7 +67,8 @@
 	reload_all/0,
 	reload_all/1,
 	distribution/1,
-	get_number/1
+	get_number/1,
+	find_first_arc/2
 ]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
@@ -429,7 +430,25 @@ get_number({Min, Max}) ->
 	crypto:rand_uniform(Min, Max);
 get_number(N) ->
 	N.
-	
+
+find_first_arc(Base, Ext) ->
+	case file:read_file_info(Base ++ Ext) of
+		{error, enoent} ->
+			Base ++ Ext;
+		_Else ->
+			find_first_arc(Base, Ext, 2)
+	end.
+
+find_first_arc(Base, Ext, Count) ->
+	CountList = integer_to_list(Count),
+	Path = lists:append([Base, "-", CountList, Ext]),
+	case file:read_file_info(Path) of
+		{error, enoent} ->
+			Path;
+		_Else ->
+			find_first_arc(Base, Ext, Count + 1)
+	end.
+
 -ifdef(EUNIT).
 
 code_reload_test_() ->

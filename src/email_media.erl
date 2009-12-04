@@ -40,6 +40,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 -include_lib("stdlib/include/qlc.hrl").
+%-include_lib("kernel/include/file.hrl").
 
 -include("log.hrl").
 -include("queue.hrl").
@@ -108,7 +109,7 @@
 -type(headers_opt() :: {headers, binary()}).
 -type(data_opt() :: {data, binary()}).
 -type(send_opts() :: [any()]).
--type(start_opt() :: mail_map_opt() | raw_message_opt() | headers_opt() | data_opt() | send_opts()).
+-type(start_opt() :: mail_map_opt() | raw_message_opt() | send_opts()).
 -type(start_opts() :: [start_opt()]).
 -spec(start/1 :: (Options :: start_opts()) -> {'ok', pid()}).
 start(Options) ->
@@ -168,34 +169,22 @@ get_disposition({_, _, _, Properties, _}) ->
 
 init(Options) ->
 	process_flag(trap_exit, true),
-	OptMailmap = proplists:get_value(mail_map, Options),
-	OptRaw = proplists:get_value(raw, Options),
-	OptData = proplists:get_value(data, Options),
-	OptHeaders = proplists:get_value(headers, Options),
-	{_Type, _Subtype, Mheads, _Properties, _Body} = Mimed = case {OptMailmap, OptRaw, OptData, OptHeaders} of
-		{undefined, Rawmessage, undefined, undefined} ->
-			Out = mimemail:decode(Rawmessage),
-			Headers = element(3, Out),
-			Mailmap = case mimemail:get_header_value(<<"To">>, Headers) of
-				undefined ->
-					#mail_map{address = "unknown@example.com"};
-				Address ->
-					F = fun() ->
-						QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= binary_to_list(Address)]),
-						qlc:e(QH)
-					end,
-					case mnesia:transaction(F) of
-						{atomic, []} ->
-							#mail_map{address = binary_to_list(Address)};
-						{atomic, [Map]} ->
-							Map
-					end
+	Rawmessage = proplists:get_value(raw, Options),
+	{_Type, _Subtype, Mheads, _Properties, _Body} = Mimed = mimemail:decode(Rawmessage),
+	Mailmap = case mimemail:get_header_value(<<"To">>, Mheads) of
+		undefined ->
+			#mail_map{address = "unknown@example.com"};
+		Address ->
+			F = fun() ->
+				QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= binary_to_list(Address)]),
+				qlc:e(QH)
 			end,
-			Out;
-		{Mailmap, Rawmessage, undefined, undefined} ->
-			mimemail:decode(Rawmessage);
-		{Mailmap, undefined, Data, Headers} ->
-			mimemail:decode(Headers, Data)
+			case mnesia:transaction(F) of
+				{atomic, []} ->
+					#mail_map{address = binary_to_list(Address)};
+				{atomic, [Map]} ->
+					Map
+			end
 	end,
 	{Skeleton, Files} = skeletonize(Mimed),
 	case right_time(Mailmap#mail_map.client) of
@@ -242,7 +231,7 @@ init(Options) ->
 				source = self()
 			},
 			?DEBUG("started ~p for callerid:  ~p", [Defaultid, Callerid]),
-			ok = archive(Options, Mimed, Proto),
+			ok = archive(Rawmessage, Proto, inbound),
 			{ok, {#state{
 						initargs = Options,
 						send_args = proplists:get_value(send_opts, Options),
@@ -359,7 +348,7 @@ handle_call(Msg, _From, _Callrec, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_cast({"send", Post}, _Callrec, #state{mimed = Mimed, sending_pid = undefined} = State) ->
+handle_cast({"send", Post}, Callrec, #state{mimed = Mimed, sending_pid = undefined} = State) ->
 	{struct, Args} = mochijson2:decode(proplists:get_value("arguments", Post)),
 	?DEBUG("Starting Send", []),
 	[{_, To}, {_, From}, _] = Headers = [
@@ -398,6 +387,13 @@ handle_cast({"send", Post}, _Callrec, #state{mimed = Mimed, sending_pid = undefi
 		binary_to_list(Encoded)
 	},
 	{ok, Sendopts} = email_media_manager:get_send_opts(),
+	case archive(Encoded, Callrec, outbound) of
+		ok ->
+			ok;
+		{error, ArcErr} ->
+			?WARNING("Could not write archive due to ~p", [ArcErr]),
+			ok
+	end,
 	case gen_smtp_client:send(Mail, Sendopts) of
 		{ok, Pid} = ClientRes ->
 			?DEBUG("Client res:  ~p;  Send opts:  ~p, From/To:  ~p", [ClientRes, Sendopts, {From, To}]),
@@ -481,7 +477,7 @@ handle_wrapup(_Callrec, State) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-archive(Options, Mimed, Callrec) ->
+archive(Rawdata, Callrec, Direction) when is_binary(Rawdata) ->
 	case cpx_supervisor:get_archive_path(Callrec) of
 		none ->
 			?DEBUG("archiving is not configured", []),
@@ -492,24 +488,16 @@ archive(Options, Mimed, Callrec) ->
 		BasePath ->
 			%% get_archive_path ensures the directory is writeable by us and exists, so this
 			%% should be safe to do (the call will be hungup if creating the recording file fails)
-			Pid = spawn_link(fun() ->
-				Path = BasePath ++ ".eml",
-				Binhead = proplists:get_value(headers, Options),
-				Bindata = proplists:get_value(data, Options),
-				Binraw = proplists:get_value(raw, Options),
-				Writebin = case {Binhead, Bindata, Binraw} of
-					{undefined, undefined, Raw} ->
-						Raw;
-					{Heads, Data, undefined} ->
-						mimemail:encode(Mimed)
-				end,
-				?DEBUG("archiving to ~s", [Path]),
-				file:write_file(Path, Writebin)
-			end),
-			?DEBUG("Spawned ~p for archiving", [Pid]),
-			ok
+			Path = case Direction of
+				inbound ->
+					BasePath ++ ".eml";
+				outbound ->
+					util:find_first_arc(BasePath ++ "-reply", ".eml")
+			end,
+			?DEBUG("archiving to ~s", [Path]),
+			file:write_file(Path, Rawdata)
 	end.
-
+	
 %% @doc get the keys of a proplist, preserving order.
 %% proplists:get_keys/1 does not have predictable order.
 get_prop_keys(List) ->

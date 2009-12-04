@@ -78,6 +78,7 @@
 	get_conf/0,
 	stop/0,
 	load_specs/1,
+	start_spec/1,
 	restart/2,
 	get_archive_path/1
 	]).

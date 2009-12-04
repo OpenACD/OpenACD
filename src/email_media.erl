@@ -179,7 +179,7 @@ init(Args) ->
 		[Rawmessage] ->
 			Out = mimemail:decode(Rawmessage),
 			Headers = element(3, Out),
-			Mailmap = case proplists:get_value(<<"To">>, Headers) of
+			Mailmap = case mimemail:get_header_value(<<"To">>, Headers) of
 				undefined ->
 					#mail_map{address = "unknown@example.com"};
 				Address ->
@@ -204,7 +204,7 @@ init(Args) ->
 
 	case right_time(Mailmap#mail_map.client) of
 		true ->
-			Callerid = case proplists:get_value(<<"From">>, Mheads) of
+			Callerid = case mimemail:get_header_value(<<"From">>, Mheads) of
 				undefined -> 
 					{"Unknown", "Unknown"};
 				Else ->
@@ -226,7 +226,7 @@ init(Args) ->
 			end,
 			Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, binstr:reverse(Domain)])),
 
-			CaseID = case re:run(proplists:get_value(<<"Subject">>, Mheads, <<>>), "\\[Case:(\\d+)\\]", [{capture, all_but_first, list}]) of
+			CaseID = case re:run(mimemail:get_header_value(<<"Subject">>, Mheads, <<>>), "\\[Case:(\\d+)\\]", [{capture, all_but_first, list}]) of
 				{match, [CID]} ->
 					?DEBUG("CaseID for ~p is ~s", [Defaultid, CID]),
 					CID;
@@ -573,7 +573,7 @@ check_disposition(Properties) ->
 
 append_files(Headers, Properties, Path, Files) ->
 	?DEBUG("append_files:  ~p, ~p", [Headers, Properties]),
-	case {proplists:get_value(<<"Content-ID">>, Headers), get_disposition({1, 1, 1, Properties, 1})} of
+	case {mimemail:get_header_value(<<"Content-ID">>, Headers), get_disposition({1, 1, 1, Properties, 1})} of
 		{undefined, inline} ->
 			Files;
 		{undefined, {_Linedness, Name}} ->

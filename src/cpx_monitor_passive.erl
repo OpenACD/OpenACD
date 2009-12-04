@@ -807,7 +807,7 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 		{<<"id">>, list_to_binary(Id)},
 		{<<"login">>, list_to_binary(proplists:get_value(login, Details))},
 		{<<"node">>, proplists:get_value(node, Details)},
-		{<<"lastchangetimestamp">>, element(2, proplists:get_value(lastchangetimestamp, Details))},
+		{<<"lastchange">>, element(2, proplists:get_value(lastchange, Details))},
 		{<<"state">>, State},
 		{<<"stateData">>, Statedata}
 	]},

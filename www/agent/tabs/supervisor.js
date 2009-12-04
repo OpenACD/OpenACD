@@ -1276,16 +1276,24 @@ if(typeof(supervisorView) == "undefined"){
 		supervisorView.setSystemHps();
 	};
 
-	supervisorView.setDetails = function(fquery){
+	supervisorView.setDetails = function(fquery, filter){
 		var fetchdone = function(item){
 			var obj = supervisorView.dataStore.getValue(item, "details");
 			var out = "";
-			if(supervisorView.dataStore.getValue(item, "node")){
+			/*if(supervisorView.dataStore.getValue(item, "node")){
 				out += "<tr><th class=\"label\">Node</th><td>" + supervisorView.dataStore.getValue(item, "node") + "</td></td>";
 				//out += "<p class=\"smaller\"><label class=\"narrow\">Node:</label>" + supervisorView.dataStore.getValue(item, "node");
+			}*/
+			if(! filter){
+				filter = [];
 			}
+			
 			for(var i in obj){
 				//out += "<p class=\"smaller\"><label class=\"narrow\">" + i + ":</label>";
+				if(inArray(i, filter)){
+					continue;
+				}
+				
 				out += "<tr><th class=\"label\">" + i + "</th><td>";
 				if(obj[i].timestamp){
 					var date = new Date(obj[i].timestamp * 1000);
@@ -1857,7 +1865,7 @@ if(typeof(supervisorView) == "undefined"){
 						supervisorView.setDetails({
 							type:"media",
 							display:supervisorView.dataStore.getValue(obj, "display")
-						});
+						}, ['queue', 'agent', 'ring_path', 'media_path']);
 						if(queryObj.queue){
 							dijit.byId('mediaAction').mediaBubbleHit = supervisorView.dataStore.getValue(obj, "display");
 						}

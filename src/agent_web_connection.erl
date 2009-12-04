@@ -1179,7 +1179,7 @@ do_action(Nodes, Do, _Acc) ->
 	{false, <<"unknown request">>}.
 
 encode_agent(Agent) when is_record(Agent, agent) ->
-	{Mega, Sec, _Micro} = Agent#agent.lastchangetimestamp,
+	{Mega, Sec, _Micro} = Agent#agent.lastchange,
 	Now = (Mega * 1000000) + Sec,
 	%Remnum = case Agent#agent.remotenumber of
 		%undefined ->
@@ -1596,7 +1596,7 @@ encode_proplist_test() ->
 	Out = encode_proplist(Input),
 	?assertEqual(Expected, Out).
 
-scrub_proplist_test() ->
+scrub_proplist_test_disabled() ->
 	Input = [
 		{queue, "scrubbed"},
 		{parent, "scrubbed"},

@@ -302,7 +302,7 @@ api(checkcookie, Cookie, _Post) ->
 				{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
 				{<<"state">>, Agentrec#agent.state},
 				{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
-				{<<"statetime">>, Agentrec#agent.lastchangetimestamp},
+				{<<"statetime">>, Agentrec#agent.lastchange},
 				{<<"timestamp">>, util:now()}]},
 			{200, [], mochijson2:encode(Json)};
 		badcookie ->
@@ -395,7 +395,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 									?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
 									gen_server:call(Pid, {set_endpoint, Endpoint}),
 									linkto(Pid),
-									#agent{lastchangetimestamp = StateTime} = agent_web_connection:dump_agent(Pid),
+									#agent{lastchange = StateTime} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Reflist, Salt, Pid}),
 									?DEBUG("connection started for ~p", [Reflist]),
 									{200, [], mochijson2:encode({struct, [

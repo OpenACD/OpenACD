@@ -1600,7 +1600,7 @@ if(typeof(supervisorView) == "undefined"){
 						supervisorView.setDetails({
 							type:"queue",
 							display:supervisorView.dataStore.getValue(obj, "display")
-						});
+						}, ['group']);
 					},
 					dragOver: function(testobj){
 						debug(["queue bubble dragOver", testobj]);
@@ -1768,7 +1768,7 @@ if(typeof(supervisorView) == "undefined"){
 						supervisorView.setDetails({
 							type:"agent",
 							display:supervisorView.dataStore.getValue(obj, "display")
-						});
+						}, ['login', 'profile']);
 						dijit.byId('agentAction').agentBubbleHit = supervisorView.dataStore.getValue(obj, 'display');
 					},
 					dragOver: function(testObj){

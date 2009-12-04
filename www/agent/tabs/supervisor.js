@@ -1834,7 +1834,6 @@ if(typeof(supervisorView) == "undefined"){
 				
 				return aDetails.priority - bDetails.priority;
 			};
-			console.log(["items.sort", items.sort]);
 			items.sort(sortfunc);
 			dojo.forEach(items, function(obj){
 				var datas = {

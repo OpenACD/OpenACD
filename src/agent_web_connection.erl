@@ -1314,7 +1314,7 @@ encode_stats([Head | Tail], Count, Acc) ->
 			end
 	end,
 	Scrubbedhealth = encode_health(Protohealth),
-	Scrubbeddetails = scrub_proplist(Protodetails),
+	Scrubbeddetails = Protodetails,
 	Health = [{<<"health">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, Scrubbedhealth}]}}],
 	Details = [{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbeddetails)}]}}],
 	Encoded = lists:append([Id, Display, Type, Node, Parent, Health, Details]),
@@ -1415,7 +1415,7 @@ scrub_proplist([], Acc) ->
 scrub_proplist([Head | Tail], Acc) ->
 	Newacc = case Head of
 		{Key, _Value} ->
-			case lists:member(Key, [queue, parent, node, agent, profile, group, type]) of
+			case lists:member(Key, [queue, parent, node, agent, profile, group]) of
 				true ->
 					Acc;
 				false ->
@@ -1457,6 +1457,11 @@ encode_proplist([{Key, Value} | Tail], Acc) when is_record(Value, client) ->
 			list_to_binary(Value#client.label)
 	end,
 	encode_proplist(Tail, [{Key, Label} | Acc]);
+encode_proplist([{callerid, {CidName, CidDAta}} | Tail], Acc) ->
+	CidNameBin = list_to_binary(CidName),
+	CidDAtaBin = list_to_binary(CidDAta),
+	Newacc = [{callid_name, CidNameBin} | [{callid_data, CidDAtaBin} | Acc ]],
+	encode_proplist(Tail, Newacc);
 encode_proplist([_Head | Tail], Acc) ->
 	encode_proplist(Tail, Acc).
 

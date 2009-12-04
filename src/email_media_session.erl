@@ -46,7 +46,7 @@
 	handle_MAIL_extension/2,
 	handle_RCPT/2,
 	handle_RCPT_extension/2,
-	handle_DATA/5,
+	handle_DATA/4,
 	handle_RSET/1,
 	handle_VRFY/2,
 	handle_other/3,
@@ -111,8 +111,8 @@ handle_RCPT(_To, State) ->
 handle_RCPT_extension(_Extension, State) ->
 	{ok, State}.
 
--spec(handle_DATA/5 :: (From :: string(), To :: [string()], Headers :: [any()], Data :: string(), State :: #state{}) -> {'ok', string(), #state{}}).
-handle_DATA(_From, [To | _Allelse], Headers, Data, #state{mail_map = Mailmap} = State) when To =:= Mailmap#mail_map.address ->
+-spec(handle_DATA/4 :: (From :: string(), To :: [string()], Data :: binary(), State :: #state{}) -> {'ok', string(), #state{}}).
+handle_DATA(_From, [To | _Allelse], Data, #state{mail_map = Mailmap} = State) when To =:= Mailmap#mail_map.address ->
 	Reference = begin
 		Ref = erlang:ref_to_list(make_ref()),
 		Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
@@ -120,7 +120,7 @@ handle_DATA(_From, [To | _Allelse], Headers, Data, #state{mail_map = Mailmap} = 
 		lists:flatten(io_lib:format("~s@~s", [Refstr, lists:reverse(Domain)]))
 	end,
 	%?DEBUG("headers:  ~p", [Headers]),
-	gen_server:cast(email_media_manager, {queue, Mailmap, Headers, Data}),
+	gen_server:cast(email_media_manager, {queue, Mailmap, Data}),
 	{ok, Reference, State#state{mail_map = undefined}}.
 
 -spec(handle_RSET/1 :: (State :: #state{}) -> #state{}).

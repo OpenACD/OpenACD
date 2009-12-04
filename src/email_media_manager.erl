@@ -225,8 +225,8 @@ handle_cast({queue, Filename}, #state{mails = Mails} = State) ->
 					{noreply, State}
 			end
 	end;
-handle_cast({queue, Mailmap, Headers, Data}, #state{mails = Mails} = State) ->
-	case email_media:start([{mail_map, Mailmap}, {headers, Headers}, {data, Data}]) of
+handle_cast({queue, Mailmap, Data}, #state{mails = Mails} = State) ->
+	case email_media:start([{mail_map, Mailmap}, {raw, Data}]) of
 		{ok, Mpid} ->
 			link(Mpid),
 			{noreply, State#state{mails = [Mpid | Mails]}};

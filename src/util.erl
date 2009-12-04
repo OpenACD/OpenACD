@@ -229,23 +229,46 @@ merge_skill_lists(List1, List2) ->
 %% This allows us to strip any duplicates of `_agent' (for example) but not i `_brand'.
 -spec(merge_skill_lists/3 :: (List1 :: [any()], List2 :: [any()], Whitelist ::[atom()]) -> [any()]).
 merge_skill_lists(List1, List2, Whitelist) ->
-	lists:foreach(fun({_Key, Value}) ->
-		case length(Value) of
-			1 ->
+	Dupscan = fun({Key, Value}) ->
+		case {lists:member(Key, Whitelist), length(Value)} of
+			{true, _} ->
 				ok;
-			_Else ->
+			{false, 1} ->
+				ok;
+			{false, _} ->
 				erlang:error(badarg)
 		end
-	end, group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, lists:filter(fun(X) -> is_tuple(X) end, List1))),
+	end,
 	
-	lists:foreach(fun({_Key, Value}) ->
-		case length(Value) of
-			1 ->
-				ok;
-			_Else ->
-				erlang:error(badarg)
-		end
-	end, group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, lists:filter(fun(X) -> is_tuple(X) end, List2))),
+	FilterFun = fun(X) ->
+		is_tuple(X)
+	end,
+	
+	GroupBy = fun({Key, _}) ->
+		Key
+	end,
+	
+	lists:foreach(Dupscan, group_by_with_key(GroupBy, lists:filter(FilterFun, List1))),
+	lists:foreach(Dupscan, group_by_with_key(GroupBy, lists:filter(FilterFun, List2))),
+
+
+	%lists:foreach(fun({_Key, Value}) ->
+%		case length(Value) of
+%			1 ->
+%				ok;
+%			_Else ->
+%				erlang:error(badarg)
+%		end
+%	end, group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, lists:filter(fun(X) -> is_tuple(X) end, List1))),
+%	
+%	lists:foreach(fun({_Key, Value}) ->
+%		case length(Value) of
+%			1 ->
+%				ok;
+%			_Else ->
+%				erlang:error(badarg)
+%		end
+%	end, group_by_with_key(fun({SkillAtom, _SkillString}) -> SkillAtom end, lists:filter(fun(X) -> is_tuple(X) end, List2))),
 
 	NewList = lists:umerge(lists:sort(List1), lists:sort(List2)),
 	MagicSkills = lists:filter(fun(X) -> is_tuple(X) end, NewList),
@@ -591,6 +614,16 @@ merge_skill_lists_test_() ->
 			fun() ->
 					?assertEqual([foo, {'_agent', "Steve"}, {'_brand', "Test 2"}], util:merge_skill_lists([{'_agent', "Fred"}, foo, {'_brand', "Test"}], [{'_agent', "Steve"}, foo, {'_brand', "Test 2"}], [])),
 					?assertEqual([foo, {'_agent', "Steve"}, {'_brand', "Test"}, {'_brand', "Test 2"}], util:merge_skill_lists([{'_agent', "Fred"}, foo, {'_brand', "Test"}], [{'_agent', "Steve"}, foo, {'_brand', "Test 2"}], ['_brand']))
+			end
+		},
+		{
+			"Two white listed in the same lists",
+			fun() ->
+				List1 = [],
+				List2 = [{'_queue', "q1"}, {'_queue', "q2"}],
+				Expected = List2,
+				Out = util:merge_skill_lists(List1, List2, ['_queue']),
+				?assertEqual(Expected, Out)
 			end
 		}
 	].

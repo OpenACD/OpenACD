@@ -184,7 +184,7 @@ init([State, Options]) when is_record(State, agent) ->
 		error:{case_clause, {aborted, _}} ->
 			{error, []}
 	end,
-	State2 = State#agent{skills = util:merge_skill_lists(expand_magic_skills(State, Skills), expand_magic_skills(State, State#agent.skills)), profile = Profile},
+	State2 = State#agent{skills = util:merge_skill_lists(expand_magic_skills(State, Skills), expand_magic_skills(State, State#agent.skills), ['_queue', '_brand']), profile = Profile},
 	case State#agent.state of
 		idle ->
 			gen_server:cast(dispatch_manager, {now_avail, self()});
@@ -1142,12 +1142,13 @@ ring_oncall_mismatch_test() ->
 	?assertMatch(invalid, set_state(Pid, oncall, Badcall)).
 
 expand_magic_skills_test_() ->
-	Agent = #agent{login = "testagent", profile = "testprofile", skills = ['_agent', '_node', '_profile', english]},
+	Agent = #agent{login = "testagent", profile = "testprofile", skills = ['_agent', '_node', '_profile', english, {'_brand', "testbrand"}]},
 	Newskills = expand_magic_skills(Agent, Agent#agent.skills),
 	[?_assert(lists:member({'_agent', "testagent"}, Newskills)),
 	?_assert(lists:member({'_node', node()}, Newskills)),
 	?_assert(lists:member(english, Newskills)),
-	?_assert(lists:member({'_profile', "testprofile"}, Newskills))].
+	?_assert(lists:member({'_profile', "testprofile"}, Newskills)),
+	?_assert(lists:member({'_brand', "testbrand"}, Newskills))].
 	
 from_idle_test_() ->
 	{foreach,
@@ -2382,7 +2383,27 @@ init_test_() ->
 		},
 		{ok, released, Newagent} = init([Agent, [logging]]),
 		?assert(is_pid(Newagent#agent.log_pid))
-	end}].
+	end},
+	{"agent has some magic skills that allow multiples.",
+	fun() ->
+		Agent = #agent{
+			login = "testagent",
+			skills = [{'_queue', "queue1"}, {'_queue', "queue2"}, {'_brand', "brandx"}, {'_brand', "brandy"}]
+		},
+		?assertMatch({ok, released, _NewAgent}, init([Agent, []])),
+		{ok, released, #agent{skills = Skills}} = init([Agent, []]),
+		lists:foreach(fun(E) ->
+			?assert(lists:member(E, Agent#agent.skills))
+		end, Skills)
+	end},
+	{"agent has some magic skills that should not be multiples of",
+	fun() ->
+		Agent = #agent{
+			login = "testagent",
+			skills = [{'_profile', "prof1"}, {'_profile', "prof2"}]
+		},
+		?assertError(badarg, init([Agent, []]))
+	end}	].
 	
 generate_state() ->
 	generate_state([{2, idle, "Idle"}, {3, ringing, "Ringing"}, {4, precall, "Precall"}, {5, oncall, "Oncall"}, {6, outgoing, "Outgoing"}, {7, released, "Released"}, {8, warmtransfer, "WarmTransfer"}, {9, wrapup, "Wrapup"}]).

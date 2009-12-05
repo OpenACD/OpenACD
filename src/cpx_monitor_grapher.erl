@@ -166,7 +166,7 @@ code_change(_Oldvsn, State, _Extra) ->
 % internal functions
 
 get_agents(Now) ->
-	Agents = lists:map(fun({_, _, Agent}) -> [{lastchangetimestamp, {timestamp, Now}} | proplists:delete(lastchangetimestamp, Agent)] end, element(2, cpx_monitor:get_health(agent))),
+	Agents = lists:map(fun({_, _, Agent}) -> [{lastchange, {timestamp, Now}} | proplists:delete(lastchange, Agent)] end, element(2, cpx_monitor:get_health(agent))),
 	util:group_by_with_key(fun(Agent) -> proplists:get_value(profile, Agent) end, Agents).
 
 update_agent(Agent, Agents) ->
@@ -197,13 +197,13 @@ calculate_utilization_by_agent([{Agent, States} | Tail], Acc) ->
 
 
 calc([State], Util, Total) ->
-	Diff = util:now() - element(2, proplists:get_value(lastchangetimestamp, State)),
+	Diff = util:now() - element(2, proplists:get_value(lastchange, State)),
 	AgentState = proplists:get_value(state, State),
 	Bias = proplists:get_value(bias, State, -1),
 	NUtil = get_util(AgentState, Diff, Util, Bias),
 	round((NUtil / (Total + Diff)) * 100);
 calc([State1, State2 | Tail], Util, Total) ->
-	Diff = element(2, proplists:get_value(lastchangetimestamp, State2)) - element(2, proplists:get_value(lastchangetimestamp, State1)),
+	Diff = element(2, proplists:get_value(lastchange, State2)) - element(2, proplists:get_value(lastchange, State1)),
 	AgentState = proplists:get_value(state, State1),
 	Bias = proplists:get_value(bias, State1, -1),
 	NUtil = get_util(AgentState, Diff, Util, Bias),

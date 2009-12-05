@@ -747,14 +747,14 @@ analyze_test_() ->
 	[{"hangup in inv",
 	fun() ->
 		Now = util:now(),
-		Res = analyze(hangup, #call{id = "testcall", source = self()}, Now, "ivr", [inivr]),
+		Res = analyze(hangup, #call{id = "testcall", source = self()}, Now, "ivr", [{inivr, "garbage"}]),
 		?assertMatch([#cdr_raw{id = "testcall", start = Now, ended = Now, transaction = abandonivr}], Res)
 	end},
 	{"hangup in q",
 	fun() ->
 		Now = util:now(),
-		Res = analyze(hangup, #call{id = "testcall", source = self()}, Now, "queue", [inqueue]),
-		?assertMatch([#cdr_raw{id = "testcall", start = Now, ended = Now, transaction = abandonqueue}], Res)
+		Res = analyze(hangup, #call{id = "testcall", source = self()}, Now, "queue", [{inqueue, "queue"}]),
+		?assertMatch([#cdr_raw{id = "testcall", start = Now, ended = Now, transaction = abandonqueue, eventdata = "queue"}], Res)
 	end}].
 
 push_raw_test_() ->

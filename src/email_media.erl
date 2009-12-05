@@ -382,7 +382,7 @@ handle_cast({"send", Post}, Callrec, #state{mimed = Mimed, sending_pid = undefin
 	Encoded = mimemail:encode(Fullout),
 	?DEBUG("Encoding complete", []),
 	Mail = {
-		State#state.mail_map_address,
+		binary_to_list(From),
 		[binary_to_list(To)],
 		binary_to_list(Encoded)
 	},
@@ -394,6 +394,7 @@ handle_cast({"send", Post}, Callrec, #state{mimed = Mimed, sending_pid = undefin
 			?WARNING("Could not write archive due to ~p", [ArcErr]),
 			ok
 	end,
+
 	case gen_smtp_client:send(Mail, Sendopts) of
 		{ok, Pid} = ClientRes ->
 			?DEBUG("Client res:  ~p;  Send opts:  ~p, From/To:  ~p", [ClientRes, Sendopts, {From, To}]),

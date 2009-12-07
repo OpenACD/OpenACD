@@ -171,20 +171,19 @@ handle_cast(Msg, State) ->
 %% @private
 handle_info(do_tick, State) ->
 	%?DEBUG("do_tick caught, beginning processing...", []),
-	case whereis(queue_manager) of % do we even need this?  We do have a terminate that should catch a no-proc.
+	case whereis(queue_manager) of % TODO do we even need this?  We do have a terminate that should catch a no-proc.
 		undefined ->
 			{stop, queue_manager_undefined, State};
 		_Else ->
 			case queue_manager:get_queue(State#state.queue) of
 				undefined ->
 					{stop, {queue_undefined, State#state.queue}, State};
-				_Other ->
+				Qpid ->
 					case do_route(State#state.ringstate, State#state.queue, State#state.call) of
 						nocall -> 
 							{stop, {call_not_queued, State#state.call}, State};
 						Ringstate -> 
 							State2 = State#state{ringstate = Ringstate},
-							Qpid = queue_manager:get_queue(State2#state.queue),
 							NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, Qpid, State2#state.call),
 							{ok, Tref} = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe, tref = Tref},

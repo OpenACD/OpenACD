@@ -275,13 +275,13 @@ do_route(ringing, _Queue, _Callpid) ->
 	?DEBUG("still ringing", []),
 	ringing;
 do_route(none, Queue, Callpid) ->
-	?DEBUG("Searching for agent to ring to...",[]),
+	%?DEBUG("Searching for agent to ring to...",[]),
 	Qpid = queue_manager:get_queue(Queue),
 	case call_queue:get_call(Qpid, Callpid) of
 		{_Key, Call} ->
 			Dispatchers = Call#queued_call.dispatchers,
 			Agents = sort_agent_list(Dispatchers),
-			?DEBUG("Dispatchers:  ~p; Agents:  ~p", [Dispatchers, Agents]),
+			%?DEBUG("Dispatchers:  ~p; Agents:  ~p", [Dispatchers, Agents]),
 			offer_call(Agents, Call);
 		none -> 
 			?DEBUG("No call to ring",[]),
@@ -327,7 +327,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 %% @private
 -spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #queued_call{}) -> 'none' | pid()).
 offer_call([], _Call) ->
-	?DEBUG("No valid agents found", []),
+	%?DEBUG("No valid agents found", []),
 	none;
 offer_call([{_ACost, Apid} | Tail], Call) ->
 	case gen_media:ring(Call#queued_call.media, Apid, Call, ?TICK_LENGTH * ?RINGOUT) of

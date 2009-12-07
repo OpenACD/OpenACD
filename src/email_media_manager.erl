@@ -59,6 +59,7 @@
 
 -include("log.hrl").
 -include("smtp.hrl").
+-include("call.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
 -record(state, {
@@ -204,6 +205,20 @@ handle_call(stop, From, State) ->
 	{stop, normal, ok, State};
 handle_call(get_send_opts, _From, #state{send_conf = Sendconfs} = State) ->
 	{reply, {ok, Sendconfs}, State};
+handle_call({queue, Mailmap, Id, Data}, _From, #state{mails = Mails} = State) ->
+	case right_time(Mailmap#mail_map.client) of
+		true ->
+			case email_media:start([{mail_map, Mailmap}, {raw, Data}, {id, Id}]) of
+				{ok, Mpid} ->
+					link(Mpid),
+					{reply, ok, State#state{mails = [Mpid | Mails]}};
+				Else ->
+					?WARNING("couldn't queue message due to ~p", [Else]),
+					{reply, {error, Else}, State}
+			end;
+		false ->
+			{reply, {error, not_right_time}, State}
+	end;
 handle_call(Request, _From, State) ->
     {reply, {invalid, Request}, State}.
 
@@ -224,15 +239,6 @@ handle_cast({queue, Filename}, #state{mails = Mails} = State) ->
 					?WARNING("Couldn't start new mail media due to ~p", [Else]),
 					{noreply, State}
 			end
-	end;
-handle_cast({queue, Mailmap, Data}, #state{mails = Mails} = State) ->
-	case email_media:start([{mail_map, Mailmap}, {raw, Data}]) of
-		{ok, Mpid} ->
-			link(Mpid),
-			{noreply, State#state{mails = [Mpid | Mails]}};
-		Else ->
-			?WARNING("couldn't queue message due to ~p", [Else]),
-			{noreply, State}
 	end;
 handle_cast({batch_queue, Dir}, State) ->
 	case file:list_dir(Dir) of
@@ -305,3 +311,46 @@ build_table() ->
 			A
 	end.
 
+right_time(undefined) ->
+	true;
+right_time(Client) when is_record(Client, client) ->
+	EmailOverride = proplists:get_value(<<"emailoverride">>, Client#client.options, false),
+	EmailStart = proplists:get_value(<<"emailstart">>, Client#client.options),
+	EmailEnd = proplists:get_value(<<"emailend">>, Client#client.options),
+	case {EmailOverride, EmailStart, EmailEnd} of
+		{false, X, Y} when is_binary(X), is_binary(Y), X =/= Y ->
+			IntStart = try_binary_to_integer(EmailStart),
+			IntEnd = try_binary_to_integer(EmailEnd),
+			{_, {Hour, Minute, _}} = calendar:local_time(),
+			Current = Hour*100 + Minute,
+			case {IntStart, IntEnd} of
+				{A, B} when is_integer(A), is_integer(B) ->
+					if (Current > IntStart andalso ((IntStart < IntEnd andalso Current < IntEnd) orelse (IntEnd < IntStart)));
+						(IntStart > IntEnd andalso Current < IntEnd andalso Current < IntStart) ->
+							true;
+						true ->
+							false
+					end;
+				_ ->
+					true
+			end;
+		_ ->
+			true
+	end;
+right_time(Client) when is_list(Client) ->
+	case call_queue_config:get_client(id, Client) of
+		none ->
+			right_time(undefined);
+		Else ->
+			right_time(Else)
+	end.
+
+try_binary_to_integer(Bin) when is_binary(Bin) ->
+	List = binary_to_list(Bin),
+	try list_to_integer(List) of
+		X ->
+			X
+	catch
+		error:badarg ->
+			badarg
+	end.

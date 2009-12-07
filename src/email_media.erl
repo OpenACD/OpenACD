@@ -83,7 +83,6 @@
 -type(tref() :: any()).
 
 -record(state, {
-	initargs :: any(),
 	send_args = [] :: any(),
 	mimed :: {string(), string(), [{string(), string()}], [{string(), string()}], any()},
 	mail_map_address = "unknown@example.com" :: string(),
@@ -171,35 +170,40 @@ init(Options) ->
 	process_flag(trap_exit, true),
 	Rawmessage = proplists:get_value(raw, Options),
 	{_Type, _Subtype, Mheads, _Properties, _Body} = Mimed = mimemail:decode(Rawmessage),
-	Mailmap = case mimemail:get_header_value(<<"To">>, Mheads) of
+	Mailmap = case proplists:get_value(mail_map, Options) of
 		undefined ->
-			#mail_map{address = "unknown@example.com"};
-		Address ->
-			F = fun() ->
-				QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= binary_to_list(Address)]),
-				qlc:e(QH)
-			end,
-			case mnesia:transaction(F) of
-				{atomic, []} ->
-					#mail_map{address = binary_to_list(Address)};
-				{atomic, [Map]} ->
-					Map
-			end
+			case mimemail:get_header_value(<<"To">>, Mheads) of
+				undefined ->
+					#mail_map{address = "unknown@example.com"};
+				Address ->
+					F = fun() ->
+						QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= binary_to_list(Address)]),
+						qlc:e(QH)
+					end,
+					case mnesia:transaction(F) of
+						{atomic, []} ->
+							#mail_map{address = binary_to_list(Address)};
+						{atomic, [Map]} ->
+							Map
+					end
+			end;
+		Other ->
+			Other
 	end,
 	{Skeleton, Files} = skeletonize(Mimed),
-	case right_time(Mailmap#mail_map.client) of
-		true ->
-			Callerid = case mimemail:get_header_value(<<"From">>, Mheads) of
-				undefined -> 
-					{"Unknown", "Unknown"};
-				Else ->
-					case re:run(Else, "(?:(.+) |)<([-a-zA-Z0-9._@]+)>", [{capture, all_but_first, list}]) of
-						{match, [Name, Number]} ->
-							{Name, Number};
-						nomatch ->
-							{"Unknown", binary_to_list(Else)}
-					end
-			end,
+	Callerid = case mimemail:get_header_value(<<"From">>, Mheads) of
+		undefined -> 
+			{"Unknown", "Unknown"};
+		Else ->
+			case re:run(Else, "(?:(.+) |)<([-a-zA-Z0-9._@]+)>", [{capture, all_but_first, list}]) of
+				{match, [Name, Number]} ->
+					{Name, Number};
+				nomatch ->
+					{"Unknown", binary_to_list(Else)}
+			end
+	end,
+	Defaultid = case proplists:get_value(id, Options) of
+		undefined ->
 			Ref = erlang:ref_to_list(make_ref()),
 			Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
 			[RawDomain, _To] = binstr:split(binstr:reverse(list_to_binary(Mailmap#mail_map.address)), <<"@">>, 2),
@@ -209,50 +213,43 @@ init(Options) ->
 				_Else ->
 					RawDomain
 			end,
-			Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, binstr:reverse(Domain)])),
-
-			CaseID = case re:run(mimemail:get_header_value(<<"Subject">>, Mheads, <<>>), "\\[Case:(\\d+)\\]", [{capture, all_but_first, list}]) of
-				{match, [CID]} ->
-					?DEBUG("CaseID for ~p is ~s", [Defaultid, CID]),
-					CID;
-				_ ->
-					undefined
-			end,
-
-			Proto = #call{
-				id = Defaultid,
-				type = email,
-				callerid = Callerid,
-				client = Mailmap#mail_map.client,
-				skills = Mailmap#mail_map.skills,
-				ring_path = inband,
-				media_path = inband,
-				priority = ?DEFAULT_PRIORITY, % TODO - allow this to be set via the address map?
-				source = self()
-			},
-			?DEBUG("started ~p for callerid:  ~p", [Defaultid, Callerid]),
-			ok = archive(Rawmessage, Proto, inbound),
-			{ok, {#state{
-						initargs = Options,
-						send_args = proplists:get_value(send_opts, Options),
-						skeleton = Skeleton,
-						file_map = Files,
-						mimed = Mimed,
-						manager = whereis(email_media_manager),
-						caseid = CaseID,
-						mail_map_address = Mailmap#mail_map.address},
-					{Mailmap#mail_map.queue, Proto}}};
-		false ->
-			?NOTICE("Email not queued because of time of day restrictions", []),
-			ignore
-	end.
+			lists:flatten(io_lib:format("~s@~s", [Refstr, binstr:reverse(Domain)]));
+		Otherid ->
+			Otherid
+	end,
+	CaseID = case re:run(mimemail:get_header_value(<<"Subject">>, Mheads, <<>>), "\\[Case:(\\d+)\\]", [{capture, all_but_first, list}]) of
+		{match, [CID]} ->
+			?DEBUG("CaseID for ~p is ~s", [Defaultid, CID]),
+			CID;
+		_ ->
+			undefined
+	end,
+	Proto = #call{
+		id = Defaultid,
+		type = email,
+		callerid = Callerid,
+		client = Mailmap#mail_map.client,
+		skills = Mailmap#mail_map.skills,
+		ring_path = inband,
+		media_path = inband,
+		priority = ?DEFAULT_PRIORITY, % TODO - allow this to be set via the address map?
+		source = self()
+	},
+	?DEBUG("started ~p for callerid:  ~p", [Defaultid, Callerid]),
+	{ok, {#state{
+				send_args = proplists:get_value(send_opts, Options),
+				skeleton = Skeleton,
+				file_map = Files,
+				mimed = Mimed,
+				manager = whereis(email_media_manager),
+				caseid = CaseID,
+				mail_map_address = Mailmap#mail_map.address},
+			{Mailmap#mail_map.queue, Proto}}}.
 	
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------
 
-handle_call(get_init, _From, _Callrec, State) ->
-	{reply, State#state.initargs, State};
 handle_call({get_path, Path}, _From, _Callrec, #state{mimed = Mime} = State) when is_list(Path) ->
 	Reply = get_part(Path, Mime),
 	{reply, Reply, State};

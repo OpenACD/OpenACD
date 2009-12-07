@@ -60,6 +60,7 @@
 
 -include("log.hrl").
 -include("smtp.hrl").
+-include("call.hrl").
 
 -record(state, {
 	mail_map :: #mail_map{}
@@ -113,15 +114,47 @@ handle_RCPT_extension(_Extension, State) ->
 
 -spec(handle_DATA/4 :: (From :: string(), To :: [string()], Data :: binary(), State :: #state{}) -> {'ok', string(), #state{}}).
 handle_DATA(_From, [To | _Allelse], Data, #state{mail_map = Mailmap} = State) when To =:= Mailmap#mail_map.address ->
-	Reference = begin
-		Ref = erlang:ref_to_list(make_ref()),
-		Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
-		[Domain, _To] = util:string_split(lists:reverse(Mailmap#mail_map.address), "@", 2),
-		lists:flatten(io_lib:format("~s@~s", [Refstr, lists:reverse(Domain)]))
+	Ref = erlang:ref_to_list(make_ref()),
+	Refstr = util:bin_to_hexstr(erlang:md5(Ref)),
+	[RawDomain, _To] = binstr:split(binstr:reverse(list_to_binary(Mailmap#mail_map.address)), <<"@">>, 2),
+	Domain = case RawDomain of
+		<<$>, Text/binary>> ->
+			Text;
+		_Else ->
+			RawDomain
+	end,
+	Defaultid = lists:flatten(io_lib:format("~s@~s", [Refstr, binstr:reverse(Domain)])),
+	Callrec = #call{
+		id = Defaultid,
+		type = email,
+		client = Mailmap#mail_map.client,
+		source = self(),
+		direction = inbound
+	},
+	case cpx_supervisor:get_archive_path(Callrec) of
+		none ->
+			?DEBUG("archiving is not configured", []),
+			ok;
+		{error, Reason, Path} ->
+			?WARNING("Unable to create requested call archiving directory ~p", [Path]),
+			{error, Reason};
+		BasePath ->
+			%% get_archive_path ensures the directory is writeable by us and exists, so this
+			%% should be safe to do (the call will be hungup if creating the recording file fails)
+			Path = BasePath ++ ".eml",
+			?DEBUG("archiving to ~s", [Path]),
+			file:write_file(Path, Data)
 	end,
 	%?DEBUG("headers:  ~p", [Headers]),
-	gen_server:cast(email_media_manager, {queue, Mailmap, Data}),
-	{ok, Reference, State#state{mail_map = undefined}}.
+	case gen_server:call(email_media_manager, {queue, Mailmap, Defaultid, Data}) of
+		ok ->
+			{ok, Defaultid, State#state{mail_map = undefined}};
+		{error, not_right_time} ->
+			% faking it so they don't retry
+			{ok, Defaultid, State#state{mail_map = undefined}};
+		{error, Error} ->
+			{error, Error, State}
+	end.
 
 -spec(handle_RSET/1 :: (State :: #state{}) -> #state{}).
 handle_RSET(State) ->

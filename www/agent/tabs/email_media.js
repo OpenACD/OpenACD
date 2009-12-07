@@ -311,5 +311,8 @@ dojo.byId('attachedList').attachListDropSub = dojo.subscribe("emailPane/attachme
 	this.rebuildList(data);
 });
 
+setTimeout(function(){
+	dojo.byId('emailReplyDiv').style.display = 'none';
+}, 250);
 
 emailPane.getSkeleton();

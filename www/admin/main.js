@@ -116,7 +116,6 @@ dojo.addOnLoad(function(){
 		dijit.byId('queueGroup').store = queues.store;
 		dojo.connect(queues.tree, "onClick", function(item){
 			if(queues.tree.store.getValue(item, 'type') == "queue"){
-				console.log(item);
 				dijit.byId("queuesMain").selectChild('queueEditor');
 				dijit.byId('queueName').attr('value', queues.tree.store.getValue(item, 'name'));
 				dijit.byId('queueOldName').attr('value', queues.tree.store.getValue(item, 'name'));
@@ -127,22 +126,19 @@ dojo.addOnLoad(function(){
 				var skillsCallback = function(select){
 					select.name = 'skills';
 					dojo.place(select, dojo.byId('queueSkillsDiv'), 'only');
-					var out = new dijit.form.MultiSelect(select);
 				};
 				
-				skills.createSelect(skillsCallback, skillsSelected, ['_agent', '_profile'], ['_brand', '_profile']);
+				skills.createSelect(skillsCallback, skillsSelected, ['_agent', '_profile'], ['_profile']);
 				/*var options = dojo.query('> optgroup > option', dijit.byId('queueSkills').domNode);
 				for(var i = 0; i < options.length; i++){
 					options[i].selected = inArray(options[i].value, skills);
 				}*/
-				
 				dijit.byId('queueWeight').attr('value', queues.tree.store.getValue(item, 'weight'));
 				var recipe = queues.tree.store.getValue(item, 'recipe') ? queues.tree.store.getValue(item, 'recipe') : [];
 				dijit.byId('queueRecipe').setValue(recipe);
 				
 				var callback = function(gitems, req){
 					var gitem = gitems[0];
-					console.log(gitem);
 					dijit.byId("queueGroupRecipeDisplay").setValue(req.store.getValue(gitem, 'recipe'));
 					dijit.byId("queueGroupRecipeDisplay").setDisabled(true);
 				};

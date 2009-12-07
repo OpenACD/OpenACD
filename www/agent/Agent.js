@@ -74,6 +74,7 @@ function Agent(username, statetime, timestamp){
 			error:function(response, ioargs){
 				if(ioargs.xhr.status === 0){
 					warning(["status 0, prolly due to logout", response]);
+					dojo.publish("agent/logout", [response.responseText]);
 					return;
 				}
 				warning(["poll errored", response, ioargs.xhr.status]);

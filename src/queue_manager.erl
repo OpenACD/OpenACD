@@ -315,7 +315,7 @@ handle_leader_call(queues_as_list, _From, #state{qdict = Qdict} = State, _Electi
 handle_leader_call({get_queue, Name}, _From, #state{qdict = Qdict} = State, _Election) ->
 	case dict:find(Name, Qdict) of
 		{ok, Pid} ->
-			?DEBUG("Found queue ~p", [Name]),
+			%?DEBUG("Found queue ~p", [Name]),
 			{reply, Pid, State};
 		error ->
 			?WARNING("No such queue ~p", [Name]),

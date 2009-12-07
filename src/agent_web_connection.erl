@@ -717,11 +717,12 @@ handle_cast({mediapush, #call{type = Mediatype} = Callrec, Data}, State) ->
 					]},
 					Newstate = push_event(Json, State),
 					{noreply, Newstate};
-				{send_fail, _} ->
+				{send_fail, Error} ->
 					Json = {struct, [
 						{<<"command">>, <<"mediaevent">>},
 						{<<"media">>, email},
 						{<<"event">>, <<"send_complete">>},
+						{<<"message">>, list_to_binary(io_lib:format("~p", [Error]))},
 						{<<"success">>, false}
 					]},
 					Newstate = push_event(Json, State),

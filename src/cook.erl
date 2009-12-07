@@ -121,7 +121,7 @@ init([Call, Recipe, Queue, Key]) ->
 	?DEBUG("Cook starting for call ~p from queue ~p", [Call, Queue]),
 	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
 	process_flag(trap_exit, true),
-	{ok, Tref} = erlang:send_after(?TICK_LENGTH, self(), do_tick),
+	Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 	State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref, key = Key},
 	{ok, State}.
 
@@ -151,7 +151,7 @@ handle_cast(restart_tick, State) ->
 			Qpid = queue_manager:get_queue(State2#state.queue),
 			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, Qpid, State2#state.call),
 			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
-			{ok, Tref} = erlang:send_after(?TICK_LENGTH, self(), do_tick),
+			Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 			{noreply, State3#state{tref=Tref}}
 	end;
 handle_cast(stop_ringing, State) ->
@@ -185,7 +185,7 @@ handle_info(do_tick, State) ->
 						Ringstate -> 
 							State2 = State#state{ringstate = Ringstate},
 							NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, Qpid, State2#state.call),
-							{ok, Tref} = erlang:send_after(?TICK_LENGTH, self(), do_tick),
+							Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe, tref = Tref},
 							{noreply, State3}
 					end

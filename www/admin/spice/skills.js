@@ -79,7 +79,6 @@ skills.createSelect = function(callback, selected, hidden, expand){
 		return out;
 	};
 	var groupsFetched = function(groups){
-		console.log("feteched skillgroup");
 		for(var i = 0; i < groups.length; i++){
 			var groupname = skills.store.getValue(groups[i], 'name');
 			var optgroup = document.createElement('optgroup');
@@ -116,7 +115,6 @@ skills.createSelect = function(callback, selected, hidden, expand){
 	});
 	
 	var expandCallback = function(expantions, expandLabel){
-		console.log(["expanding skill", expandLabel]);
 		//var expandLabel = expand[thei];
 		var optgroup = document.createElement('optgroup');
 		optgroup.label = expandLabel;
@@ -138,12 +136,10 @@ skills.createSelect = function(callback, selected, hidden, expand){
 		}
 	};
 	
-	console.log("expenading skills");
 	for(var ii = 0; ii < expand.length; ii++){		
 		skills.expandSkill(expandCallback, expand[ii]);
 	}
 	
-	console.log("doing callback");
 	callback(selectNode);
 };
 

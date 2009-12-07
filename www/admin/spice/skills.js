@@ -79,10 +79,12 @@ skills.createSelect = function(callback, selected, hidden, expand){
 		return out;
 	};
 	var groupsFetched = function(groups){
+		console.log("feteched skillgroup");
 		for(var i = 0; i < groups.length; i++){
 			var groupname = skills.store.getValue(groups[i], 'name');
-			var optgroup = dojo.place('<optgroup>', selectNode);
+			var optgroup = document.createElement('optgroup');
 			optgroup.label = groupname;
+			dojo.place(optgroup, selectNode);
 			
 			var skillItems = skills.store.getValues(groups[i], 'skills');
 			for(var j = 0; j < skillItems.length; j++){
@@ -92,14 +94,16 @@ skills.createSelect = function(callback, selected, hidden, expand){
 				}
 				var skillName = skills.store.getValue(skillItems[j], 'name');
 				var skillDesc = skills.store.getValue(skillItems[j], 'description');
-				/*optionNode.value = skillAtom;
-				optionNode.title = skillDesc;
-				optionNode.innerHTML = skillName;*/
 				var selectedStr = '';
+				var optionNode = document.createElement('option');
+				optionNode.value = skillAtom;
+				optionNode.title = skillDesc;
+				optionNode.innerHTML = skillName;
 				if(inArray(skillAtom, selected)){
-					selectedStr = ' selected="true"';
+					optionNode.selected = true;
 				}
-				var optionNode = dojo.place('<option value="' + skillAtom + '" title="' + skillDesc + '"' + selectedStr + '>' + skillName + '</option>', optgroup);
+				dojo.place(optionNode, optgroup);
+
 			}			
 		}
 	};
@@ -112,8 +116,11 @@ skills.createSelect = function(callback, selected, hidden, expand){
 	});
 	
 	var expandCallback = function(expantions, expandLabel){
+		console.log(["expanding skill", expandLabel]);
 		//var expandLabel = expand[thei];
-		var optgroup = dojo.place('<optgroup label="' + expandLabel + '"></optgroup>', selectNode);
+		var optgroup = document.createElement('optgroup');
+		optgroup.label = expandLabel;
+		dojo.place(optgroup, selectNode);
 		//optgroup.label = expand[ii];
 		for(var j = 0; j < expantions.length; j++){
 			var val = '{' + expandLabel + ',' + expantions[j] + '}';
@@ -121,17 +128,22 @@ skills.createSelect = function(callback, selected, hidden, expand){
 				continue;
 			}
 			var selectStr = '';
+			var optionNode = document.createElement('option');
+			optionNode.value = val;
+			optionNode.innerHTML = expantions[j];
 			if(inArray(val, selected)){
-				selectStr = ' selected="true"';
+				optionNode.selected = true;
 			}
-			var option = dojo.place('<option value="' + val + '"' + selectStr +  '>' + expantions[j] + '</option>', optgroup);
+			var option = dojo.place(optionNode, optgroup);
 		}
 	};
 	
+	console.log("expenading skills");
 	for(var ii = 0; ii < expand.length; ii++){		
 		skills.expandSkill(expandCallback, expand[ii]);
 	}
 	
+	console.log("doing callback");
 	callback(selectNode);
 };
 

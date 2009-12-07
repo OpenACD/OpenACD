@@ -207,10 +207,14 @@ if(typeof(emailPane) == 'undefined'){
 	
 	//scrub &, <, and > so it's displayable via html
 	emailPane.scrubString = function(instr){
-		instr = instr.replace('&', '&amp;');
-		instr = instr.replace('<', '&lt;');
-		instr = instr.replace('>', '&gt;');
-		instr = instr.replace('"', '&quot;');
+		if (instr) {
+			instr = instr.replace('&', '&amp;');
+			instr = instr.replace('<', '&lt;');
+			instr = instr.replace('>', '&gt;');
+			instr = instr.replace('"', '&quot;');
+		} else{
+			instr = "";
+		}
 		return instr;
 	};
 }
@@ -223,9 +227,9 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	dojo.byId('attachmentList').clearSub = dojo.subscribe('emailPane/attachment/add', dojo.byId('attachmentList'), function(){
 		this.innerHTML = '';
 	});
-	dojo.byId('emailToSpan').innerHTML = emailPane.scrubString(skel.headers.To);
-	dojo.byId('emailFromSpan').innerHTML = emailPane.scrubString(skel.headers.From);
-	dojo.byId('emailSubjectSpan').innerHTML = emailPane.scrubString(skel.headers.Subject);
+	dojo.byId('emailToSpan').innerHTML = emailPane.scrubString(skel.headers.to);
+	dojo.byId('emailFromSpan').innerHTML = emailPane.scrubString(skel.headers.from);
+	dojo.byId('emailSubjectSpan').innerHTML = emailPane.scrubString(skel.headers.subject);
 	dojo.byId('emailRawHeadersSpan').innerHTML = function(){
 		var out = ['<pre>'];
 		for(var i in skel.headers){
@@ -235,12 +239,12 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		return out.join('<br />');
 	}();
 	
-	dijit.byId('emailSubject').attr('value', 're:  ' + emailPane.scrubString(skel.headers.Subject));
-	dijit.byId('emailFrom').attr('value', skel.headers.To);
-	if(skel.headers['Reply-To']){
-		dijit.byId('emailTo').attr('value', skel.headers['Reply-To']);
+	dijit.byId('emailSubject').attr('value', 're:  ' + emailPane.scrubString(skel.headers.subject));
+	dijit.byId('emailFrom').attr('value', skel.headers.to);
+	if(skel.headers['reply-to']){
+		dijit.byId('emailTo').attr('value', skel.headers['reply-to']);
 	} else{
-		dijit.byId('emailTo').attr('value', skel.headers.From);
+		dijit.byId('emailTo').attr('value', skel.headers.from);
 	}
 	
 	var paths = emailPane.pathsToFetch(skel);

@@ -121,7 +121,7 @@ init([Call, Recipe, Queue, Key]) ->
 	?DEBUG("Cook starting for call ~p from queue ~p", [Call, Queue]),
 	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
 	process_flag(trap_exit, true),
-	{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
+	{ok, Tref} = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 	State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref, key = Key},
 	{ok, State}.
 
@@ -151,13 +151,13 @@ handle_cast(restart_tick, State) ->
 			Qpid = queue_manager:get_queue(State2#state.queue),
 			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, Qpid, State2#state.call),
 			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
-			{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
+			{ok, Tref} = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 			{noreply, State3#state{tref=Tref}}
 	end;
 handle_cast(stop_ringing, State) ->
 	{noreply, State#state{ringstate = none}};
 handle_cast(stop_tick, State) ->
-	timer:cancel(State#state.tref),
+	erlang:cancel_timer(State#state.tref),
 	{noreply, State#state{tref=undefined}};
 handle_cast(stop, State) ->
 	{stop, normal, State};
@@ -186,7 +186,7 @@ handle_info(do_tick, State) ->
 							State2 = State#state{ringstate = Ringstate},
 							Qpid = queue_manager:get_queue(State2#state.queue),
 							NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, Qpid, State2#state.call),
-							{ok, Tref} = timer:send_after(?TICK_LENGTH, do_tick),
+							{ok, Tref} = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe, tref = Tref},
 							{noreply, State3}
 					end
@@ -211,7 +211,7 @@ terminate({normal, Reason}, _State) ->
 	ok;
 terminate(Reason, State) ->
 	?WARNING("Unusual death:  ~p", [Reason]),
-	timer:cancel(State#state.tref),
+	erlang:cancel_timer(State#state.tref),
 	Qpid = wait_for_queue(State#state.queue),
 	?INFO("Looks like the queue recovered (~w), dieing now",[Qpid]),
 	call_queue:add_at(Qpid, State#state.key, State#state.call),

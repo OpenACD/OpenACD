@@ -515,14 +515,14 @@ skeletonize(Mime) ->
 
 skeletonize({<<"multipart">>, Subtype, Headers, Properties, List}, Path, Files) ->
 	{Subskel, Newfiles} = skeletonize(List, [1 | Path], Files),
-	{{<<"multipart">>, Subtype, Headers, Properties, Subskel}, Newfiles};
+	{{<<"multipart">>, Subtype, downcase_headers(Headers), Properties, Subskel}, Newfiles};
 skeletonize({<<"message">>, Subtype, Headers, Properties, Body}, Path, Files) ->
 	{Subskel, Midfiles} = skeletonize([Body], [1 | Path], Files),
 	Newfiles = append_files(Headers, Properties, Path, Midfiles),
-	{{<<"message">>, Subtype, Headers, Properties, Subskel}, Newfiles};
+	{{<<"message">>, Subtype, downcase_headers(Headers), Properties, Subskel}, Newfiles};
 skeletonize({Type, Subtype, Headers, Properties, _Body}, Path, Files) ->
 	Newfiles = append_files(Headers, Properties, Path, Files),
-	{{Type, Subtype, Headers, Properties}, Newfiles};
+	{{Type, Subtype, downcase_headers(Headers), Properties}, Newfiles};
 skeletonize(List, Path, Files) when is_list(List) ->
 	skeletonize(List, Path, Files, []).
 
@@ -530,17 +530,25 @@ skeletonize([], Path, Files, Acc) ->
 	{lists:reverse(Acc), Files};
 skeletonize([{<<"multipart">>, Subtype, Headers, Properties, List} | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Sublist, Newfiles} = skeletonize(List, [1 | Path], Files),
-	Newacc = [{<<"multipart">>, Subtype, Headers, Properties, Sublist} | Acc],
+	Newacc = [{<<"multipart">>, Subtype, downcase_headers(Headers), Properties, Sublist} | Acc],
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
 skeletonize([{<<"message">>, Subtype, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Sublist, Midfiles} = skeletonize([Body], [1 | Path], Files),
-	Newacc = [{<<"message">>, Subtype, Headers, Properties, Sublist} | Acc],
+	Newacc = [{<<"message">>, Subtype, downcase_headers(Headers), Properties, Sublist} | Acc],
 	Newfiles = append_files(Headers, Properties, Path, Midfiles),
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
 skeletonize([Head | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Skel, Newfiles} = skeletonize(Head, Path, Files),
 	Newacc = [{element(1, Head), element(2, Head), element(3, Head), element(4, Head)} | Acc],
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc).
+
+downcase_headers(Headers) ->
+	downcase_headers(Headers, []).
+
+downcase_headers([], Acc) ->
+	lists:reverse(Acc);
+downcase_headers([{Key, Value} | Tail], Acc) ->
+	downcase_headers(Tail, [{binstr:to_lower(Key), Value} | Acc]).
 
 get_part([], {<<"multipart">>, Subtype, _Headers, _Properties, List}) ->
 	%?DEBUG("[], \"multipart\"", []),

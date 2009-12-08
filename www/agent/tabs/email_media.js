@@ -176,7 +176,7 @@ if(typeof(emailPane) == 'undefined'){
 				emailPane.fetchSub = false;
 				if(fetchObjs[0].textType){
 					if(fetchObjs[0].textType == 'plain'){
-						res = res.replace(/\n/g, '<br />');
+						res = emailPane.scrubString(res).replace(/\n/g, '<br />');
 						fetched += '<span style="font-family:monospace;">' + res + '</span>';
 					}
 					else if(fetchObjs[0].textType == 'html'){
@@ -247,6 +247,11 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		debug(fetched);
 		dojo.unsubscribe(disp.sub);
 		disp.innerHTML = fetched;
+		var nodes = dojo.query('* > img', disp);
+		debug(["going through the nodes for images.", nodes]);
+		for(var i = 0; i < nodes.length; i++){
+			nodes[i].src = escape(nodes[i].src);
+		}
 	});
 		
 	emailPane.fetchPaths(paths);

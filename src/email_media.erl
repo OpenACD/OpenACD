@@ -402,7 +402,9 @@ handle_cast({"send", Post}, Callrec, #state{mimed = Mimed, sending_pid = undefin
 	end;
 %	{noreply, State};
 %handle_cast({"send", _Post}, _Callrec, State) ->
-	
+handle_cast(print_file_map, _Callrec, #state{file_map = Out} = State) ->
+	io:format("Printing filemap: ~n~p", [Out]),
+	{noreply, State};
 handle_cast(Msg, _Callrec, State) ->
 	?WARNING("cast msg:  ~p", [Msg]),
 	{noreply, State}.
@@ -591,7 +593,7 @@ append_files(Headers, Properties, Path, Files) ->
 			Contentid = binary_to_list(Contentidbin),
 			Len = length(Contentid),
 			Id = list_to_binary(lists:append(["cid:", string:sub_string(Contentid, 2, Len - 1)])),
-			Midfiles = [{Id, lists:reverse(Path)} | Files],
+			Midfiles = [{binary_to_list(Id), lists:reverse(Path)} | Files],
 			case Dispo of
 				inline ->
 					Midfiles;

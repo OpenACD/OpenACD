@@ -1844,6 +1844,17 @@ if(typeof(supervisorView) == "undefined"){
 			};
 			items.sort(sortfunc);
 			dojo.forEach(items, function(obj){
+				var imageUrl = '/images/';
+				var mediaType = supervisorView.dataStore.getValue(obj, 'details').type;
+				switch(mediaType){
+					case 'email':
+					case 'dummy':
+					case 'voice':
+						imageUrl += mediaType + '.png';
+						break;
+					default:
+						imageUrl += 'undefined.png';
+				}
 				var datas = {
 					display: supervisorView.dataStore.getValue(obj, "details").client,
 					health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
@@ -1861,6 +1872,7 @@ if(typeof(supervisorView) == "undefined"){
 				acc.push({
 					data:datas,
 					moveable:true,
+					image: imageUrl,
 					onmouseenter:function(ev){
 						supervisorView.setDetails({
 							type:"media",

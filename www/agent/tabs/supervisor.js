@@ -1850,6 +1850,7 @@ if(typeof(supervisorView) == "undefined"){
 					case 'email':
 					case 'dummy':
 					case 'voice':
+					case 'voicemail':
 						imageUrl += mediaType + '.png';
 						break;
 					default:

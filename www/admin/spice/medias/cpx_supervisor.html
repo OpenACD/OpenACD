@@ -60,4 +60,18 @@
 <input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" style="display:none" />
 <button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit" style="display:none"></button>
 </form>
+
+<p>The archive path uses ruby-style interpoation for variables. Anything of form #{variable_name} is replaced.  A media appends the file extension to this path; this path should point to the actual file to create (not just a directory).</p>
+
+<p>The available variables are:</p>
+
+<ul>
+	<li>year - The full 4 digit year</li>
+	<li>month - 2 digit month</li>
+	<li>day - 2 digit day</li>
+	<li>callid - The full call id (<i>not</i> caller id)</li>
+	<li>calltype - email, voice, voicemail ...</li>
+	<li>calldirection - inbound or outbound</li>
+</ul>
+
 </div>

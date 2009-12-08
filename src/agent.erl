@@ -833,7 +833,7 @@ handle_sync_event({url_pop, URL}, _From, StateName, #agent{connection=Connection
 	gen_server:cast(Connection, {url_pop, URL}),
 	{reply, ok, StateName, State};
 handle_sync_event({add_skills, Skills}, _From, StateName, State) ->
-	NewSkills = util:merge_skill_lists(expand_magic_skills(State, Skills), State#agent.skills),
+	NewSkills = util:merge_skill_lists(expand_magic_skills(State, Skills), State#agent.skills, ['_queue', '_brand']),
 	{reply, ok, StateName, State#agent{skills = NewSkills}};
 handle_sync_event({remove_skills, Skills}, _From, StateName, State) ->
 	NewSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, Skills)),
@@ -849,9 +849,9 @@ handle_sync_event({change_profile, Profile}, _From, StateName, State) when State
 	case agent_auth:get_profile(Profile) of
 		{Profile, Skills2} ->
 			NewAgentSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, OldSkills)),
-			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(State, Skills2)),
+			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(State, Skills2), ['_queue', '_brand']),
 			Newstate = State#agent{skills = NewAgentSkills2, profile = Profile},
-			Deatils = [{profile, Newstate#agent.profile}, {state, Newstate#agent.state}, {statedata, Newstate#agent.statedata}, {login, Newstate#agent.login}, {lastchange, Newstate#agent.lastchange}],
+			Deatils = [{profile, Newstate#agent.profile}, {state, Newstate#agent.state}, {statedata, Newstate#agent.statedata}, {login, Newstate#agent.login}, {lastchange, {timestamp, Newstate#agent.lastchange}}],
 			{S, {T1, T2, T3, {time, _Now}}} = case StateName of
 				idle ->
 					?IDLE_LIMITS;
@@ -860,14 +860,14 @@ handle_sync_event({change_profile, Profile}, _From, StateName, State) when State
 					Rel1
 			end,
 			gen_server:cast(State#agent.connection, {change_profile, Profile}),
-			{Mega, Sec, _} = Newstate#agent.lastchange,
+			Time = Newstate#agent.lastchange,
 			Fixedhp = case StateName of
 				idle ->
-					[{S, {T1, T2, T3, {time, Mega * 1000000 + Sec}}}];
+					[{S, {T1, T2, T3, {time, Time}}}];
 				released ->
 					{_, _, Bias} = State#agent.statedata,
 					[_, Biashp] = ?RELEASED_LIMITS(Bias),
-					[{S, {T1, T2, T3, {time, Mega * 1000000 + Sec}}}, Biashp]
+					[{S, {T1, T2, T3, {time, Time}}}, Biashp]
 			end,
 			cpx_monitor:set({agent, State#agent.id}, Fixedhp, Deatils),
 			{reply, ok, StateName, Newstate};

@@ -45,8 +45,8 @@
 
 %% API
 -export([
-	start/5,
-	start_link/5,
+	start/6,
+	start_link/6,
 	get_call/1,
 	dump_state/1
 	]).
@@ -91,12 +91,12 @@
 %%====================================================================
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
 %-spec(start/1 :: (Cnode :: atom()) -> {'ok', pid()}).
-start(Cnode, UUID, File, Queue, Priority) ->
-	gen_media:start(?MODULE, [Cnode, UUID, File, Queue, Priority]).
+start(Cnode, UUID, File, Queue, Priority, Client) ->
+	gen_media:start(?MODULE, [Cnode, UUID, File, Queue, Priority, Client]).
 
 %-spec(start_link/1 :: (Cnode :: atom()) -> {'ok', pid()}).
-start_link(Cnode, UUID, File, Queue, Priority) ->
-	gen_media:start_link(?MODULE, [Cnode, UUID, File, Queue, Priority]).
+start_link(Cnode, UUID, File, Queue, Priority, Client) ->
+	gen_media:start_link(?MODULE, [Cnode, UUID, File, Queue, Priority, Client]).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
 -spec(get_call/1 :: (MPid :: pid()) -> #call{}).
@@ -111,10 +111,10 @@ dump_state(Mpid) when is_pid(Mpid) ->
 %% gen_media callbacks
 %%====================================================================
 %% @private
-init([Cnode, UUID, File, Queue, Priority]) ->
+init([Cnode, UUID, File, Queue, Priority, Client]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	Callrec = #call{id=UUID++"-vm", type=voicemail, source=self(), priority = Priority},
+	Callrec = #call{id=UUID++"-vm", type=voicemail, source=self(), priority = Priority, client = Client},
 	case cpx_supervisor:get_archive_path(Callrec) of
 		none ->
 			?DEBUG("archiving is not configured", []);
@@ -301,9 +301,12 @@ handle_info(check_recovery, Call, State) ->
 			{ok, Tref} = timer:send_after(1000, check_recovery),
 			{noreply, State#state{manager_pid = Tref}}
 	end;
+handle_info({'EXIT', Pid, Reason}, _Call, #state{xferchannel = Pid} = State) ->
+	?WARNING("Handling transfer channel ~w exit ~p", [Pid, Reason]),
+	{stop_ring, State#state{ringchannel = undefined}};
 handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p", [Pid, Reason]),
-	{wrapup, State};
+	{stop_ring, State#state{ringchannel = undefined}};
 handle_info({'EXIT', Pid, Reason}, _Call, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p", [Pid, Reason]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),

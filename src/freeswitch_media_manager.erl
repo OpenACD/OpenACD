@@ -107,7 +107,7 @@
 	notify/2,
 	make_outbound_call/3,
 	fetch_domain_user/2,
-	new_voicemail/4,
+	new_voicemail/5,
 	ring_agent/4
 ]).
 
@@ -186,8 +186,8 @@ notify(UUID, Pid) ->
 make_outbound_call(Client, AgentPid, AgentRec) ->
 	gen_server:call(?MODULE, {make_outbound_call, Client, AgentPid, AgentRec}).
 
-new_voicemail(UUID, File, Queue, Priority) ->
-	gen_server:cast(?MODULE, {new_voicemail, UUID, File, Queue, Priority}).
+new_voicemail(UUID, File, Queue, Priority, Client) ->
+	gen_server:cast(?MODULE, {new_voicemail, UUID, File, Queue, Priority, Client}).
 
 -spec(stop/0 :: () -> 'ok').
 stop() ->
@@ -261,8 +261,8 @@ handle_cast({channel_destroy, UUID}, #state{call_dict = Dict} = State) ->
 handle_cast({notify, Callid, Pid}, #state{call_dict = Dict} = State) ->
 	NewDict = dict:store(Callid, Pid, Dict),
 	{noreply, State#state{call_dict = NewDict}};
-handle_cast({new_voicemail, UUID, File, Queue, Priority}, #state{nodename = Node} = State) ->
-	{ok, Pid} = freeswitch_voicemail:start(Node, UUID, File, Queue, Priority),
+handle_cast({new_voicemail, UUID, File, Queue, Priority, Client}, #state{nodename = Node} = State) ->
+	{ok, Pid} = freeswitch_voicemail:start(Node, UUID, File, Queue, Priority, Client),
 	link(Pid),
 	{noreply, State};
 handle_cast(_Msg, State) ->

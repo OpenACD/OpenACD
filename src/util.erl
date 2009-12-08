@@ -286,7 +286,9 @@ merge_skill_lists(List1, List2, Whitelist) ->
 								true;
 							false ->
 								lists:member(Val, List2)
-						end
+						end;
+					N when N > 2 ->
+						lists:member(SkillAtom, Whitelist)
 				end;
 		(_Skill) -> true
 	end, NewList).

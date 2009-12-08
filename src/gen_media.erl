@@ -590,7 +590,7 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 					end,
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
 					cdr:ringing(Call, Agent),
-					url_pop(Call, Popopts, Agent),
+					url_pop(Call, Agent, Popopts),
 					Newcall = Call#call{cook = QCall#queued_call.cook},
 					Arec = agent:dump_state(Agent),
 					Outbandringpid = case {Arec#agent.defaultringpath, Call#call.ring_path, whereis(freeswitch_media_manager)} of
@@ -943,12 +943,25 @@ url_pop(Call, Agent) ->
 	url_pop(Call, Agent, []).
 
 url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
-	case proplists:get_value(url_pop, Client#client.options) of
+	#client{options = DefaultOptions} = correct_client_sub(undefined),
+	String = case {proplists:get_value(url_pop, Client#client.options), proplists:get_value(url_pop, DefaultOptions)} of
+		{undefined, undefined} ->
+			undefined;
+		{undefined, []} ->
+			undefined;
+		{undefined, L} ->
+			L;
+		{[], []} ->
+			undefined;
+		{[], L} ->
+			L;
+		{L, _} ->
+			L
+	end,
+	case String of
 		undefined ->
 			ok;
-		[] ->
-			ok;
-		String ->
+		_ ->
 			Words = [
 				{"label", (case is_atom(Client#client.label) of true -> atom_to_list(Client#client.label); false -> Client#client.label end)},
 				{"clientid", Client#client.id},

@@ -544,6 +544,12 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					% allow the media to go to voicemail
 					?NOTICE("caller requested to go to voicemail", []),
 					freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:voicemail/vm-record_message.wav,record:/tmp/${uuid}.wav' inline"),
+					case State#state.ringchannel of
+						undefined ->
+							ok;
+						RingChannel ->
+							freeswitch_ring:hangup(RingChannel)
+					end,
 					{voicemail, State#state{voicemail = "/tmp/"++UUID++".wav"}};
 				"*" ->
 					?NOTICE("caller attempted to go to voicemail but is not allowed to do so", []),

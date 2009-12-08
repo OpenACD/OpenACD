@@ -92,11 +92,11 @@
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
 %-spec(start/1 :: (Cnode :: atom()) -> {'ok', pid()}).
 start(Cnode, UUID, File, Queue, Priority, Client) ->
-	gen_media:start(?MODULE, [Cnode, UUID, File, Queue, Priority]).
+	gen_media:start(?MODULE, [Cnode, UUID, File, Queue, Priority, Client]).
 
 %-spec(start_link/1 :: (Cnode :: atom()) -> {'ok', pid()}).
 start_link(Cnode, UUID, File, Queue, Priority, Client) ->
-	gen_media:start_link(?MODULE, [Cnode, UUID, File, Queue, Priority]).
+	gen_media:start_link(?MODULE, [Cnode, UUID, File, Queue, Priority, Client]).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
 -spec(get_call/1 :: (MPid :: pid()) -> #call{}).

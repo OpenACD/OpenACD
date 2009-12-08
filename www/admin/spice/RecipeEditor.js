@@ -59,7 +59,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 				if(args){
 					selected = args;
 				}
-				skills.createSelect(callback, selected, ['_agent'], ['_profile', '_brand']);
+				skills.createSelect(callback, selected, ['_agent'], ['_profile']);
 			break;
 			
 			case "set_priority":

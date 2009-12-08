@@ -567,9 +567,9 @@ dojo.requireLocalization("admin", "labels");
 							dojo.place(selectNode, dojo.byId('queueSkillsDiv'), 'only');
 						};
 						var selectedSkills = [];
-						var expandSkills = ['_profile', '_brand'];
+						var expandSkills = ['_profile'];
 						
-						skills.createSelect(skillCallback, [], ['_agent', '_profile'], expandSkills);
+						skills.createSelect(skillCallback, [], ['_agent'], expandSkills);
 
 						dijit.byId("queuesMain").selectChild('queueEditor');
 					</script>

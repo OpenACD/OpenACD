@@ -964,7 +964,8 @@ url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 		_ ->
 			Words = [
 				{"label", (case is_atom(Client#client.label) of true -> atom_to_list(Client#client.label); false -> Client#client.label end)},
-				{"clientid", Client#client.id},
+				{"clientid", (case is_atom(Client#client.id) of true -> atom_to_list(Client#client.id); 
+					false -> Client#client.id end)},
 				{"callerid", element(1, Call#call.callerid) ++ " " ++ element(2, Call#call.callerid)},
 				{"calleridname", element(1, Call#call.callerid)},
 				{"calleridnum", element(2, Call#call.callerid)},

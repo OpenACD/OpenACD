@@ -528,7 +528,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					case filelib:is_regular(FileName) of
 						true ->
 							?NOTICE("~s left a voicemail", [UUID]),
-							freeswitch_media_manager:new_voicemail(UUID, FileName, State#state.queue, Callrec#call.priority + 10);
+							freeswitch_media_manager:new_voicemail(UUID, FileName, State#state.queue, Callrec#call.priority + 10, Callrec#call.client);
 						false ->
 							?NOTICE("~s hungup without leaving a voicemail", [UUID])
 					end

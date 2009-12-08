@@ -1612,7 +1612,7 @@ if(typeof(supervisorView) == "undefined"){
 					},
 					dropped: function(droppedObj){
 						debug(["queue bubble got a drop", droppedObj]);
-						supervisorView.queueTransfer(droppedObj.data.display, this.data.display);
+						supervisorView.queueTransfer(droppedObj.data, this.data.display);
 					}
 				});
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
@@ -1844,8 +1844,20 @@ if(typeof(supervisorView) == "undefined"){
 			};
 			items.sort(sortfunc);
 			dojo.forEach(items, function(obj){
+				var imageUrl = '/images/';
+				var mediaType = supervisorView.dataStore.getValue(obj, 'details').type;
+				switch(mediaType){
+					case 'email':
+					case 'dummy':
+					case 'voice':
+					case 'voicemail':
+						imageUrl += mediaType + '.png';
+						break;
+					default:
+						imageUrl += 'undefined.png';
+				}
 				var datas = {
-					display:supervisorView.dataStore.getValue(obj, "display"),
+					display: supervisorView.dataStore.getValue(obj, "details").client,
 					health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
 					id:supervisorView.dataStore.getValue(obj, "id"),
 					type:"media"
@@ -1861,13 +1873,14 @@ if(typeof(supervisorView) == "undefined"){
 				acc.push({
 					data:datas,
 					moveable:true,
+					image: imageUrl,
 					onmouseenter:function(ev){
 						supervisorView.setDetails({
 							type:"media",
 							display:supervisorView.dataStore.getValue(obj, "display")
 						}, ['queue', 'agent', 'ring_path', 'media_path']);
 						if(queryObj.queue){
-							dijit.byId('mediaAction').mediaBubbleHit = supervisorView.dataStore.getValue(obj, "display");
+							dijit.byId('mediaAction').mediaBubbleHit = supervisorView.dataStore.getValue(obj, "id").substring(6);
 						}
 					}
 				});
@@ -2011,15 +2024,18 @@ if(typeof(supervisorView) == "undefined"){
 		});
 	};
 	
-	supervisorView.queueTransfer = function(callid, newqueue){
-		var fetchdone = function(items){
+	supervisorView.queueTransfer = function(callobj, newqueue){
+		errMessage("Queue transfer not implemented");
+		/*var fetchdone = function(items){
 			if(items.length === 0){
 				return false;
 			}
-
+			
 			var item = items[0];
 			var healthData = supervisorView.dataStore.getValue(item, 'health');
 			var url = '/supervisor/';
+			var callid = supervisorView.dataStore.getValue(item, 'id').substring(6);
+
 			if(healthData.inqueue){
 				var oldqueue = supervisorView.dataStore.getValue(item, 'queue');
 				url += 'queue_transfer/' + escape(callid) + '/' + escape(oldqueue) + '/' + escape(newqueue);
@@ -2049,16 +2065,16 @@ if(typeof(supervisorView) == "undefined"){
 		
 		supervisorView.dataStore.fetch({
 			query:{
-				'display':callid,
+				'id':callobj.id,
 				'type':'media'
 			},
 			onComplete:fetchdone
-		});
+		});*/
 	};
 	
 	supervisorView.sendMediaToAgent = function(media, agent){
 		var queue = media.queue;
-		var id = media.display;
+		var id = media.id.substring(6);
 		dojo.xhrGet({
 			handleAs:"json",
 			url:"/supervisor/agent_ring/" + queue + "/" + id + "/" + agent,

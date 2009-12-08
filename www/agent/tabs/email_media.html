@@ -1,59 +1,61 @@
 <div id="emailView">
-
-	<p>
-		<label class="translatecol">TO</label>
-		<span id="emailToSpan"></span>
-	</p>
-
-	<p>
-		<label class="translatecol">FROM</label>
-		<span id='emailFromSpan'></span>
-	</p>
-
-	<p>
-		<label class="translatecol">SUBJECT</label>
-		<span id='emailSubjectSpan'></span>
-	</p>
-
-	<p>
-		<label class="translate">SHOW_HEADERS</label>
-		<button label='&rarr;' dojoType='dijit.form.Button' style="float:left">
-			<script type="dojo/connect" event="onClick">
-				var target = dojo.byId('emailRawHeadersSpan')
-				if(target.style.display == 'none'){
-					target.style.display = 'inline-block';
-					this.attr('label', '&darr;');
-				}
-				else{
-					target.style.display = 'none';
-					this.attr('label', '&rarr;');
-				}
-			</script>
-		</button>
-		<span id='emailRawHeadersSpan' style='display:none'></span>
-	</p>
-
-	<p style="clear:both">
-		<label>&nbsp;</label>
-		<button label="REPLY" id="emailReply" dojoType="dijit.form.Button">
-			<script type="dojo/connect" event="onClick">
-				dojo.byId('emailView').style.display = 'none';
-				dojo.byId('emailReplyDiv').style.visibility = 'visible';
-				var replyBase = dojo.doc.createElement('div');
-				replyBase.id = 'emailReplyEditor';
-				replyBase.style.height = '300px';
-				dojo.byId('emailDisp').appendChild(replyBase);
-				var widget = new dijit.Editor({height:'300px'}, replyBase);
-				widget.setValue(dojo.byId('emailViewDiv').innerHTML);
-			</script>
-		</button>
-	</p>
+	<table>
+		<tr>
+			<th class="translatecol">TO</th>
+			<td id="emailToSpan"></td>
+		</tr>
+		<tr>
+			<th class="translatecol">FROM</th>
+			<td id="emailFromSpan"></td>
+		</tr>
+		<tr>
+			<th class="translatecol">SUBJECT</th>
+			<td id="emailSubjectSpan"></td>
+		</tr>
+		<tr>
+			<th class="translate">SHOW_HEADERS</th>
+			<td>
+			<button label='&rarr;' dojoType='dijit.form.Button' style="float:left">
+				<script type="dojo/connect" event="onClick">
+					var target = dojo.byId('emailRawHeadersSpan')
+					if(target.style.display == 'none'){
+						target.style.display = 'inline-block';
+						this.attr('label', '&darr;');
+					}
+					else{
+						target.style.display = 'none';
+						this.attr('label', '&rarr;');
+					}
+				</script>
+			</button>
+			<span id='emailRawHeadersSpan' style='display:none'></span>
+			</td>
+		</tr>
+		<tr>
+			<th>&nbsp;</th>
+			<td>
+			<button label="REPLY" id="emailReply" dojoType="dijit.form.Button">
+				<script type="dojo/connect" event="onClick">
+					dojo.byId('emailView').style.display = 'none';
+					//dojo.byId('emailReplyDiv').style.visibility = 'visible';
+					dojo.byId('emailReplyDiv').style.display = 'block';
+					var replyBase = dojo.doc.createElement('div');
+					replyBase.id = 'emailReplyEditor';
+					replyBase.style.height = '300px';
+					dojo.byId('emailDisp').appendChild(replyBase);
+					var widget = new dijit.Editor({height:'300px'}, replyBase);
+					widget.setValue(dojo.byId('emailViewDiv').innerHTML);
+				</script>
+			</button>
+			</td>
+		</tr>
+	</table>
 
 	<div id="emailViewDiv" style="border: grey solid 1px"></div>
 	
 </div>
 
-<div id="emailReplyDiv" style="visibility:hidden">
+<div id="emailReplyDiv">
 
 	<form dojoType="dijit.form.Form" action="javascript:void(0)" id="emailReplyForm">
 		<div style="width:30%; float:left; padding: 2%">
@@ -151,7 +153,8 @@
 						//var node = dojo.byId('emailReplyEditor');
 						//node.parentNode.removeChild(node);
 						dojo.byId('emailView').style.display = 'block';
-						dojo.byId('emailReplyDiv').style.visibility = 'hidden';
+						//dojo.byId('emailReplyDiv').style.visibility = 'hidden';
+						dojo.byId('emailReplyDiv').style.display = 'none';
 					</script>
 				</button>
 			</p>

@@ -207,7 +207,7 @@ if(typeof(emailPane) == 'undefined'){
 	
 	//scrub &, <, and > so it's displayable via html
 	emailPane.scrubString = function(instr){
-		return instr.replace(/\&/g, '&amp;').replace(/\</g, '&lt;').replace(/\>/g, '&gt;').replace(/\"/g, '&quot'); //"
+		return instr.replace(/\&/g, '&amp;').replace(/\</g, '&lt;').replace(/\>/g, '&gt;').replace(/\"/g, '&quot;'); //"
 	};
 }
 

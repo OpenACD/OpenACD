@@ -176,7 +176,8 @@ if(typeof(emailPane) == 'undefined'){
 				emailPane.fetchSub = false;
 				if(fetchObjs[0].textType){
 					if(fetchObjs[0].textType == 'plain'){
-						fetched += '<pre>' + res + '</pre>';
+						res = res.replace(/\n/g, '<br />');
+						fetched += '<span style="font-family:monospace;">' + res + '</span>';
 					}
 					else if(fetchObjs[0].textType == 'html'){
 						fetched += res;
@@ -223,12 +224,13 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	dojo.byId('emailFromSpan').innerHTML = emailPane.scrubString(skel.headers.from);
 	dojo.byId('emailSubjectSpan').innerHTML = emailPane.scrubString(skel.headers.subject);
 	dojo.byId('emailRawHeadersSpan').innerHTML = function(){
-		var out = ['<pre>'];
+		var out = []; //['<pre>'];
 		for(var i in skel.headers){
 			out.push(emailPane.scrubString(i) + ': ' + emailPane.scrubString(skel.headers[i]));
 		}
-		out.push('</pre>');
-		return out.join('<br />');
+		//out.push('</pre>');
+		out = out.join('</p><p>');
+		return '<p>' + out + '</p>';
 	}();
 	
 	dijit.byId('emailSubject').attr('value', 're:  ' + emailPane.scrubString(skel.headers.subject));

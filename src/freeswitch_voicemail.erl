@@ -79,7 +79,8 @@
 	xferchannel :: pid() | 'undefined',
 	xferuuid :: string() | 'undefined',
 	manager_pid :: 'undefined' | any(),
-	file = erlang:error({undefined, file}):: string()
+	file = erlang:error({undefined, file}):: string(),
+	answered = false :: boolean()
 	}).
 
 -type(state() :: #state{}).
@@ -136,14 +137,14 @@ handle_answer(Apid, Callrec, #state{file=File, xferchannel = XferChannel} = Stat
 			{"execute-app-name", "playback"},
 			{"execute-app-arg", File}]),
 	{ok, State#state{agent_pid = Apid, ringchannel = State#state.xferchannel,
-			ringuuid = State#state.xferuuid, xferuuid = undefined, xferchannel = undefined}};
+			ringuuid = State#state.xferuuid, xferuuid = undefined, xferchannel = undefined, answered = true}};
 handle_answer(Apid, Callrec, #state{file=File} = State) ->
-	?NOTICE("Voicemail ~s successfully transferred! Time to play ~s", [Callrec#call.id, File]),
+	?NOTICE("Voicemail ~s successfully answered! Time to play ~s", [Callrec#call.id, File]),
 	freeswitch:sendmsg(State#state.cnode, State#state.ringuuid,
 		[{"call-command", "execute"},
 			{"execute-app-name", "playback"},
 			{"execute-app-arg", File}]),
-	{ok, State#state{agent_pid = Apid}}.
+	{ok, State#state{agent_pid = Apid, answered = true}}.
 
 handle_ring(Apid, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
@@ -258,9 +259,9 @@ handle_wrapup(_Call, State) ->
 	
 handle_queue_transfer(_Call, #state{cnode = FNode, ringchannel = Channel} = State) when is_pid(Channel) ->
 	freeswitch_ring:hangup(Channel),
-	{ok, State#state{ringchannel = undefined, xferchannel=undefined, xferuuid=undefined}};
+	{ok, State#state{ringchannel = undefined, xferchannel=undefined, xferuuid=undefined, answered = false}};
 handle_queue_transfer(_Call, State) ->
-	{ok, State}.
+	{ok, State#state{answered = false}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages

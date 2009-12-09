@@ -297,10 +297,19 @@ merge_skill_lists(List1, List2, Whitelist) ->
 % skills' atom  does not exist in `[{atom(), string()} | atom()} List2'.
 -spec(subtract_skill_lists/2 :: (List1 :: [{atom(), string()} | atom()], List2 :: [{atom(), string()} | atom()]) -> [{atom(), string()} | atom()]).
 subtract_skill_lists(List1, List2) ->
-	FilterList = lists:map(fun({SkillAtom, _SkillString}) -> SkillAtom; (Skill) -> Skill end, List2),
-	lists:filter(fun({SkillAtom, _SkillString}) -> not lists:member(SkillAtom, FilterList);
-									(Skill) -> not lists:member(Skill, FilterList) end,
-								List1).
+	io:format("List1:  ~p~nList2:  ~p~n", [List1, List2]),
+	Filter = fun
+		({Magic, Val} = Skill) ->
+			case {lists:member(Magic, List2), lists:member(Skill, List2)} of
+				{false, false} ->
+					true;
+				_ ->
+					false
+			end;
+		(Skill) ->
+			not lists:member(Skill, List2)
+	end,
+	lists:filter(Filter, List1).
 
 %% @doc build the given mnesia table `Tablename' with `Options'.
 %% This will exit the calling process if mnesia is not started or if the schema is not stored on disc.  
@@ -649,10 +658,17 @@ merge_skill_lists_test_() ->
 		}
 	].
 
-subtract_skill_lists_test() ->
-	?assertEqual([bar], util:subtract_skill_lists([{'_agent', "Foo"}, bar, baz], ['_agent', baz])),
-	?assertEqual([bar], util:subtract_skill_lists([{'_agent', "Foo"}, bar, baz], [{'_agent', "Whatever"}, baz])),
-	?assertEqual([bar], util:subtract_skill_lists([bar, baz], [{'_agent', "Whatever"}, baz])).
+subtract_skill_lists_test_() ->
+	[{"simple subtract",
+	?_assertEqual([bar], util:subtract_skill_lists([foo, bar, baz], [foo, baz]))},
+	{"subtract all given magics",
+	?_assertEqual([bar], util:subtract_skill_lists([{'_queue', "Foo"}, {'_queue', "bar"}, bar], ['_queue']))},
+	{"subtract specific expanded magic skills",
+	?_assertEqual([bar, {'_queue', "baz"}], util:subtract_skill_lists([{'_queue', "foo"}, bar, {'_queue', "baz"}], [{'_queue', "foo"}]))},
+	{"mixed expanded and unexpanded",
+	?_assertEqual([{'_queue', "foo"}], util:subtract_skill_lists([{'_queue', "foo"}, {'_queue', "bar"}, {'_profile', "foo"}, {'_profile', "bar"}], [{'_queue', "bar"}, '_profile']))},
+	{"attempt to remove a skill that doesn't exist",
+	?_assertEqual([bar], util:subtract_skill_lists([bar, baz], [{'_agent', "Whatever"}, baz]))}].
 
 list_index_test_() ->
 	[{"Default check of =:=",

@@ -849,7 +849,7 @@ handle_sync_event({change_profile, Profile}, _From, StateName, State) when State
 	case agent_auth:get_profile(Profile) of
 		{Profile, Skills2} ->
 			NewAgentSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, OldSkills)),
-			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(State, Skills2), ['_queue', '_brand']),
+			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(State#agent{profile = Profile}, Skills2), ['_queue', '_brand']),
 			Newstate = State#agent{skills = NewAgentSkills2, profile = Profile},
 			Deatils = [{profile, Newstate#agent.profile}, {state, Newstate#agent.state}, {statedata, Newstate#agent.statedata}, {login, Newstate#agent.login}, {lastchange, {timestamp, Newstate#agent.lastchange}}],
 			{S, {T1, T2, T3, {time, _Now}}} = case StateName of

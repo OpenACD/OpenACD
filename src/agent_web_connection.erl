@@ -618,12 +618,16 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when Call
 	?DEBUG("Media Command:  ~p", [Commande]),
 	case proplists:get_value("mode", Post) of
 		"call" ->
-			{Heads, Data} = case gen_media:call(Call#call.source, {Commande, Post}) of
+			{Heads, Data} = try gen_media:call(Call#call.source, {Commande, Post}) of
 				invalid ->
 					?DEBUG("agent:media_call returned invalid", []),
 					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid media call">>}]})};
 				Response ->
 					parse_media_call(Call, {Commande, Post}, Response)
+			catch
+				exit:{noproc, _} ->
+					?DEBUG("Media no longer exists.", []),
+					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"media no longer exists">>}]})}
 			end,
 			{reply, {200, Heads, Data}, State};
 		"cast" ->

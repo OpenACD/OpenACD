@@ -112,6 +112,15 @@ if(typeof(emailPane) == 'undefined'){
 			return fetches;
 		}
 		
+		if(skeleton.type == "message" && skeleton.subtype == "delivery-status"){
+			fetches.push({
+				'mode':'fetch',
+				'path':path,
+				'textType':'plain'
+			});
+			return fetches;
+		}
+		
 		if(skeleton.type == "message"){
 			tpath = copyPath(path);
 			tpath.push(1);
@@ -180,7 +189,7 @@ if(typeof(emailPane) == 'undefined'){
 						fetched += '<span style="font-family:monospace;">' + res + '</span>';
 					}
 					else if(fetchObjs[0].textType == 'html'){
-						fetched += res;
+						fetched += html_sanitize(res, emailPane.urlSanitize, emailPane.nameIdSanitize);
 					}
 				}
 				else{
@@ -210,6 +219,37 @@ if(typeof(emailPane) == 'undefined'){
 	emailPane.scrubString = function(instr){
 		return instr.replace(/\&/g, '&amp;').replace(/\</g, '&lt;').replace(/\>/g, '&gt;').replace(/\"/g, '&quot;'); //"
 	};
+	
+	emailPane.urlSanitize = function(url){
+		// following 'borrowed' from
+		// http://stackoverflow.com/questions/736513/how-do-i-parse-a-url-into-hostname-and-path-in-javascript
+		var l = document.createElement("a");
+		l.href = url;
+		switch(l.protocol){
+			case 'cid:':
+				return escape(url);
+				break;
+			case 'mailto:':
+				return url;
+				break;
+			case 'http:':
+				if( (l.hostname == window.location.hostname) &&
+					(l.port == window.location.port) ){
+					return url;
+				} else {
+					l.protocol = 'scrub';
+					return l.href;
+				}
+				break;
+			default:
+				l.protocol = 'scrub';
+				return l.href;
+		}
+	}
+	
+	emailPane.nameIdSanitize = function(name){
+		return "santizationPrefix-" + name;
+	}
 }
 
 emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
@@ -250,7 +290,19 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		var nodes = dojo.query('* > img', disp);
 		debug(["going through the nodes for images.", nodes]);
 		for(var i = 0; i < nodes.length; i++){
-			nodes[i].src = escape(nodes[i].src);
+			var l = document.createElement('a');
+			l.href = nodes[i].src;
+			if(l.protocol == 'scrub' && (l.hostname == window.location.hostname && l.port == window.location.port) ){
+				l.protocol = 'http';
+				nodes[i].src = l.href;
+			}
+		}
+		nodes = dojo.query('* > a', disp);
+		for(i = 0; i < nodes.length; i++){
+			nodes[i].target = '_blank';
+			nodes[i].protocol = 'http';
+			//so that successive calls to nodes[i].hostname gets the correct value
+			nodes[i].href = nodes[i].href;
 		}
 	});
 		

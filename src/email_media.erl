@@ -534,11 +534,14 @@ skeletonize([{<<"multipart">>, Subtype, Headers, Properties, List} | Tail], [Cou
 	{Sublist, Newfiles} = skeletonize(List, [1 | Path], Files),
 	Newacc = [{<<"multipart">>, Subtype, downcase_headers(Headers), Properties, Sublist} | Acc],
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
-skeletonize([{<<"message">>, Subtype, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+skeletonize([{<<"message">>, <<"rfc822">>, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Sublist, Midfiles} = skeletonize([Body], [1 | Path], Files),
-	Newacc = [{<<"message">>, Subtype, downcase_headers(Headers), Properties, Sublist} | Acc],
+	Newacc = [{<<"message">>, <<"rfc822">>, downcase_headers(Headers), Properties, Sublist} | Acc],
 	Newfiles = append_files(Headers, Properties, Path, Midfiles),
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
+skeletonize([{<<"message">>, Subtype, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+	Newacc = [{<<"message">>, Subtype, downcase_headers(Headers), Properties} | Acc],
+	skeletonize(Tail, [Count + 1 | Ptail], Files, Newacc);
 skeletonize([Head | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Skel, Newfiles} = skeletonize(Head, Path, Files),
 	Newacc = [{element(1, Head), element(2, Head), element(3, Head), element(4, Head)} | Acc],

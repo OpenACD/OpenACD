@@ -250,6 +250,24 @@ if(typeof(emailPane) == 'undefined'){
 	emailPane.nameIdSanitize = function(name){
 		return "santizationPrefix-" + name;
 	}
+	
+	emailPane.getFrom = function(callback){
+		dojo.xhrPost({
+			url:"/media",
+			handleAs:"json",
+			content:{
+				"command":"get_from",
+				"arguments":[],
+				"mode":"call"
+			},
+			load:function(res){
+				callback(res);
+			},
+			error:function(res){
+				warning(["err getting from address", res]);
+			}
+		});
+	}
 }
 
 emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
@@ -304,6 +322,19 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 			//so that successive calls to nodes[i].hostname gets the correct value
 			nodes[i].href = nodes[i].href;
 		}
+		var fetchFromCallback = function(data){
+			if(data.success){
+				var val = '';
+				if(data.data.label){
+					val += '"' + data.data.label + '" ';
+				}
+				val += '<' + data.data.address + '>';
+				dijit.byId('emailFrom').attr('value', val);
+			} else {
+				dijit.byId('emailFrom').attr('value', skel.headers.to);
+			}
+		}
+		emailPane.getFrom(fetchFromCallback);
 	});
 		
 	emailPane.fetchPaths(paths);

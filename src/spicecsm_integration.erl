@@ -155,7 +155,7 @@ import_brands([], _Pid) ->
 	ok;
 import_brands([{struct, Proplist} | Tail], Pid) ->
 	Companyid = binary_to_list(proplists:get_value(<<"companyid">>, Proplist)),
-	Query = list_to_binary(lists:append(["select BrandID, BrandLabel, BrandListLabel from ", Companyid, "_tblBrand where Active=1"])),
+	Query = list_to_binary(lists:append(["select a.BrandID, BrandLabel, BrandListLabel, EmailFromAddress, EmailFromLabel from ", Companyid, "_tblBrand as a inner join ", Companyid, "_tblBrandSystem as b where Active=1 and a.BrandID=b.BrandID"])),
 	Res = gen_server:call(Pid, {raw_request, <<"query">>, [Query]}),
 	Reslist = proplists:get_value(<<"result">>, Res),
 	write_brands(Reslist, list_to_integer(Companyid), binary_to_list(proplists:get_value(<<"companylabel">>, Proplist)), Pid),
@@ -199,11 +199,13 @@ write_brands([{struct, Proplist} | Tail], Companyid, Companylabel, Pid) ->
 		PValue = proplists:get_value(<<"datatext">>, Props),
 		[{Key, PValue} | Acc]
 	end,
+	EmailFrom = proplists:get_value(<<"emailfromaddress">>, Proplist),
+	EmailFromLabel = proplists:get_value(<<"emailfromlabel">>, Proplist),
 	ClientProps = lists:foldl(Toproplist, [], Reslist),
 	call_queue_config:new_client(#client{
 		label = Brandlabel, 
 		id = Comboid,
-		options = ClientProps,
+		options = [{emailfrom, {EmailFromLabel, EmailFrom}} | ClientProps],
 		last_integrated = util:now()
 	}),
 	write_brands(Tail, Companyid, Companylabel, Pid).
@@ -309,11 +311,12 @@ handle_call({client_exists, id, Value}, From, State) ->
 	end;
 handle_call({get_client, id, Value}, _From, State) ->
 	{Tenant, Brand} = split_id(Value),
-	Query = list_to_binary(lists:append(["select BrandListLabel from ", integer_to_list(Tenant), "_tblBrand where BrandID=", integer_to_list(Brand)])),
+	Query = list_to_binary(lists:append(["select BrandListLabel, EmailFromAddress, EmailFromLabel from ", integer_to_list(Tenant), "_tblBrand as a inner join ", integer_to_list(Tenant), "_tblBrandSystem as b where a.BrandID=", integer_to_list(Brand), " and a.BrandID=b.BrandID"])),
 	{ok, MidCount, Reply} = request(State, <<"query">>, [Query]),
 	case check_error(Reply) of
 		{error, Message} ->
 			% rather than parse the error, let's see if we can infer the cause.
+			?DEBUG("First error:  ~p", [Message]),
 			Findtenant = list_to_binary(["select TenantID from tblTenant where TenantID=", integer_to_list(Tenant)]),
 			{ok, Tricount, TenantReply} = request(State, <<"query">>, [Findtenant]),
 			case check_error(TenantReply) of
@@ -331,6 +334,8 @@ handle_call({get_client, id, Value}, _From, State) ->
 			{reply, none, State#state{count = MidCount}};
 		{ok, [{struct, Proplist}]} ->
 			Label = binary_to_list(proplists:get_value(<<"brandlistlabel">>, Proplist)),
+			EmailFrom = proplists:get_value(<<"emailfromaddress">>, Proplist),
+			EmailFromLabel = proplists:get_value(<<"emailfromlabel">>, Proplist),
 			Varlistquery = list_to_binary([
 				"select DataLabel, DataText from ", 
 				integer_to_list(Tenant), 
@@ -352,7 +357,7 @@ handle_call({get_client, id, Value}, _From, State) ->
 						[{Key, PValue} | Acc]
 					end,
 					ClientProps = lists:foldl(Toproplist, [], List),
-					Res = {ok, Value, Label, ClientProps},
+					Res = {ok, Value, Label, [{emailfrom, {EmailFromLabel, EmailFrom}} | ClientProps]},
 					{reply, Res, State#state{count = Count}}
 			end
 	end;

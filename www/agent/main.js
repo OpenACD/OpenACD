@@ -855,7 +855,7 @@ dojo.addOnLoad(function(){
 			closable: false
 		});
 		pane.unloadListener = dojo.subscribe('agent/state', function(data){
-			if(data.state == 'idle'){				
+			if(data.state == 'wrapup'){				
 				dojo.unsubscribe(pane.unloadListener);
 				dojo.unsubscribe(pane.logoutListener);
 				dijit.byId('tabPanel').closeChild(pane);

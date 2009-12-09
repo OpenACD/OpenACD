@@ -1065,6 +1065,9 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 %			?WARNING("unsure how to handle ~p/~p disposed to ~p", [Type, Subtype, Disposition]),
 %			{[], <<"404">>}
 	end;
+parse_media_call(#call{type = email}, {"get_path", Path}, {message, Bin}) when is_binary(Bin) ->
+	?DEBUG("Path is a message/Subtype with binary body", []),
+	{[], Bin};
 parse_media_call(Mediarec, Command, Response) ->
 	?WARNING("Unparsable result for ~p:~p.  ~p", [Mediarec#call.type, element(1, Command), Response]),
 	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}]})}.

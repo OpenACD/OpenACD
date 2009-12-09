@@ -1,11 +1,11 @@
 Message-Id: <98EE8341-05D7-4BAD-846B-1A45979B01EA@spicecsm.com>
 From: Micah Warren <mwarren@spicecsm.com>
-To: test@devmicah.fusedsolutions.com
+To: test@devmicah.example.com
 Content-Type: multipart/alternative;
 	boundary=Apple-Mail-24--712106862
-X-Smtp-Server: mail.fusedsolutions.com:micahw@fusedsolutions.com
+X-Smtp-Server: Not.important
 Mime-Version: 1.0 (Apple Message framework v935.3)
-Subject: evil mail
+Subject: testing html/url/image scrubbing
 Date: Mon, 1 Jun 2009 15:04:25 -0400
 
 
@@ -15,9 +15,8 @@ Content-Type: text/plain;
 	format=flowed
 Content-Transfer-Encoding: 7bit
 
-this
-is
-html
+This is plain text, and thus not used in favor of the html
+
 --Apple-Mail-24--712106862
 Content-Type: text/html;
 	charset=US-ASCII

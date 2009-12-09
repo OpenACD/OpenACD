@@ -1,25 +1,25 @@
-Received: from localhost (localhost.fusedsolutions.com [127.0.0.1])
-	by mx1.fusedsolutions.com (Postfix) with ESMTP id F37A6208369;
+Received: from localhost (localhost.example.com [127.0.0.1])
+	by example.com (Postfix) with ESMTP id F37A6208369;
 	Tue,  8 Dec 2009 20:08:02 -0500 (EST)
-X-Virus-Scanned: amavisd-new at fusedsolutions.com
-Received: from mx1.fusedsolutions.com ([127.0.0.1])
-	by localhost (mx1.fusedsolutions.com [127.0.0.1]) (amavisd-new, port 10024)
+X-Virus-Scanned: amavisd-new at example.com
+Received: from example.com ([127.0.0.1])
+	by localhost (example.com [127.0.0.1]) (amavisd-new, port 10024)
 	with LMTP id qgyPAkPjCe3r; Tue,  8 Dec 2009 20:07:57 -0500 (EST)
-Received: from sg-mxserver-01.nt-fsrvr.o2micro.com (sg-mxserver.o2micro.com [203.126.184.123])
-	by mx1.fusedsolutions.com (Postfix) with ESMTP id E49CD208367;
+Received: from mx.example.com (mx.example.com [127.0.0.1])
+	by example.com (Postfix) with ESMTP id E49CD208367;
 	Tue,  8 Dec 2009 20:07:56 -0500 (EST)
-Received: from mx1.fusedsolutions.com ([209.23.99.14]) by sg-mxserver-01.nt-fsrvr.o2micro.com
+Received: from example.com ([127.0.0.1]) by mx.example.com
  with Microsoft SMTPSVC(6.0.3790.3959); Wed, 9 Dec 2009 09:08:36 +0800
-Received: from localhost (localhost.fusedsolutions.com [127.0.0.1])by mx1.fusedsolutions.com
- (Postfix) with ESMTP id 7297E208369for <support@o2micro.com>; Tue,  8 Dec 2009 20:07:50 -0500 (EST)
+Received: from localhost (localhost [127.0.0.1])by example.com
+ (Postfix) with ESMTP id 7297E208369for <support@example.com>; Tue,  8 Dec 2009 20:07:50 -0500 (EST)
 Content-Type: multipart/report; report-type=delivery-status; boundary="----------=_1260320870-8111-0"
 Content-Transfer-Encoding: 7bit
 MIME-Version: 1.0
 Subject: Should be 2 readable lines for test pass.
-In-Reply-To: <SC-MXSERVERhRqfKuzk000067ab@sc-mxserver.o2micro.com>
-Message-ID: <SSmqIC1UkGW8vQ@mx1.fusedsolutions.com>
-From: "Content-filter at mx1.fusedsolutions.com" <postmaster@fusedsolutions.com>
-To: <support@o2micro.com>
+In-Reply-To: <SC-MXSERVERhRqfKuzk000067ab@mx.example.com>
+Message-ID: <SSmqIC1UkGW8vQ@example.com>
+From: "Content-filter at example.com" <postmaster@example.com>
+To: <support@example.com>
 Date: Tue,  8 Dec 2009 20:07:45 -0500 (EST)
 X-OriginalArrivalTime: 09 Dec 2009 01:08:37.0719 (UTC) FILETIME=[2347CE70:01CA786C]
 X-GFIME-MASPAM: SPAM
@@ -47,19 +47,19 @@ Content-Disposition: inline; filename="header"
 Content-Transfer-Encoding: 8bit
 Content-Description: Message header section
 
-Return-Path: <support@o2micro.com>
-Received: from sc-mxserver.o2micro.com (sc-mxserver.o2micro.com [65.209.244.5])
-	by mx1.fusedsolutions.com (Postfix) with ESMTP id 59C10208367;
+Return-Path: <support@example.com>
+Received: from mx.example.com (mx.example.com [65.209.244.5])
+	by example.com (Postfix) with ESMTP id 59C10208367;
 	Tue,  8 Dec 2009 20:07:45 -0500 (EST)
-Received: from cl086061204197.unet.cz ([86.61.204.197]) by sc-mxserver.o2micro.com with Microsoft
+Received: from cl086061204197.unet.cz ([86.61.204.197]) by mx.example.com with Microsoft
  SMTPSVC(6.0.3790.3959); Tue, 8 Dec 2009 17:08:28 -0800
-From: VIAGRA ® Reseller <support@o2micro.com>
-To: support@o2micro.com
-Subject: Dear support@o2micro.com receive 80% OFF on Pfizer - Sender blacklisted
+From: VIAGRA ® Reseller <support@example.com>
+To: support@example.com
+Subject: Dear support@example receive 80% OFF on Pfizer - Sender blacklisted
 MIME-Version: 1.0
 Content-Type: text/html; charset="ISO-8859-1"
 Content-Transfer-Encoding: 7bit
-Message-ID: <SC-MXSERVERhRqfKuzk000067ab@sc-mxserver.o2micro.com>
+Message-ID: <SC-MXSERVERhRqfKuzk000067ab@mx.example.com>
 X-OriginalArrivalTime: 09 Dec 2009 01:08:29.0153 (UTC) FILETIME=[1E2CBD10:01CA786C]
 Date: 8 Dec 2009 17:08:29 -0800
 X-GFIME-MASPAM: SPAM

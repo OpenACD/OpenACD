@@ -74,7 +74,6 @@
 
 -record(state, {
 	salt :: any(),
-	ref :: ref() | 'undefined',
 	agent_fsm :: pid() | 'undefined',
 	current_call :: pid() | 'undefined',
 	poll_queue = [] :: [{struct, [{binary(), any()}]}],
@@ -82,8 +81,6 @@
 	poll_pid :: 'undefined' | pid(),
 	poll_pid_established = 1 :: pos_integer(),
 	ack_timer :: tref() | 'undefined',
-	poll_state :: atom(),
-	poll_statedata :: any(),
 	securitylevel = agent :: 'agent' | 'supervisor' | 'admin',
 	listener :: 'undefined' | pid()
 }).

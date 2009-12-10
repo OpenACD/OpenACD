@@ -333,6 +333,7 @@ build_table(Tablename, Options) when is_atom(Tablename) ->
 	end,
 	case lists:member(Tablename, mnesia:system_info(local_tables)) of
 		true -> 
+			mnesia:wait_for_tables([Tablename], 5000),
 			exists;
 		false ->
 			case lists:member(Tablename, mnesia:system_info(tables)) of

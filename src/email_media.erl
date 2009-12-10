@@ -615,15 +615,15 @@ append_files(Headers, Properties, Path, Files) ->
 		{Contentidbin, Dispo} ->
 			Contentid = binary_to_list(Contentidbin),
 			Len = length(Contentid),
-			Id = list_to_binary(lists:append(["cid:", string:sub_string(Contentid, 2, Len - 1)])),
-			Midfiles = [{binary_to_list(Id), lists:reverse(Path)} | Files],
+			Id = lists:append(["cid:", string:sub_string(Contentid, 2, Len - 1)]),
+			Midfiles = [{Id, lists:reverse(Path)} | Files],
 			case Dispo of
 				inline ->
 					Midfiles;
 				{_Linedness, Name} ->
 					Fixedname = case is_binary(Name) of
-						true -> Name;
-						false -> list_to_binary(Name)
+						true -> binary_to_list(Name);
+						false -> Name
 					end,
 					[{Fixedname, lists:reverse(Path)} | Midfiles]
 			end
@@ -799,8 +799,9 @@ skeletonize_test_() ->
 	fun() ->
 		Decoded = getmail("testcase1"),
 		{_Skel, Files} = skeletonize(Decoded),
-		?assertEqual([2, 1, 2, 2], proplists:get_value(<<"cid:part1.03050108.02070304@gmail.com">>, Files)),
-		?assertEqual([2, 1, 2, 2], proplists:get_value(<<"moz-screenshot-1.jpg">>, Files))
+		?DEBUG("Files:  ~p", [Files]),
+		?assertEqual([2, 1, 2, 2], proplists:get_value("cid:part1.03050108.02070304@gmail.com", Files)),
+		?assertEqual([2, 1, 2, 2], proplists:get_value("moz-screenshot-1.jpg", Files))
 	end}].
 	
 

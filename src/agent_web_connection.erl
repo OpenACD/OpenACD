@@ -796,7 +796,8 @@ handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = unde
 			?NOTICE("Stopping due to missed_polls; last:  ~w now: ~w difference: ~w", [Last, Now, Now - Last]),
 			{stop, missed_polls, State};
 		_N ->
-			{noreply, State}
+			Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
+			{noreply, State#state{ack_timer = Tref}}
 	end;
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Pollpid} = State) when is_pid(Pollpid) ->
 	Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),

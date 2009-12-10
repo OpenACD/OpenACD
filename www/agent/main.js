@@ -817,7 +817,7 @@ dojo.addOnLoad(function(){
 			resizable: true,
 			dockable:false,
 			style: 'position:absolute; top: 100px; left: 60%; z-index:1000',
-			content: '<iframe width="100%", height="300px" src="' + data.url + '" />'
+			content: '<iframe width="99%", height="300px" src="' + data.url + '" />'
 		}, dojo.byId("popup"));
 		
 		popup.startup();

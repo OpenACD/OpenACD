@@ -37,10 +37,9 @@
 
 -ifdef(EUNIT).
 -include_lib("eunit/include/eunit.hrl").
--define(TICK_LENGTH, 500000000).
--else.
--define(TICK_LENGTH, 11000).
 -endif.
+
+-define(TICK_LENGTH, 11000).
 
 -include("log.hrl").
 -include("call.hrl").
@@ -1526,6 +1525,94 @@ push_event(Eventjson, State) ->
 	end.
 
 -ifdef(EUNIT).
+
+
+
+
+
+check_live_poll_test_() ->
+	{timeout, ?TICK_LENGTH * 5, fun() -> [
+	{"When poll pid is undefined, and less than 10 seconds have passed",
+	fun() ->
+		?DEBUG("timeout:  ~p", [?TICK_LENGTH * 5]),
+		State = #state{poll_pid_established = util:now(), poll_pid = undefined},
+		?assertMatch({noreply, NewState}, handle_info(check_live_poll, State)),
+		?DEBUG("Starting recieve", []),
+		Ok = receive
+			check_live_poll ->
+				true
+		after ?TICK_LENGTH + 1 ->
+			false
+		end,
+		?assert(Ok)
+	end},
+	{"When poll pid is undefined, and more than 10 seconds have passed",
+	fun() ->
+		State = #state{poll_pid_established = util:now() - 12, poll_pid = undefined},
+		?assertEqual({stop, missed_polls, State}, handle_info(check_live_poll, State)),
+		Ok = receive
+			check_live_poll	->
+				 false
+		after ?TICK_LENGTH + 1 ->
+			true
+		end,
+		?assert(Ok)
+	end},
+	{"When poll pid exists, and less than 20 seconds have passed",
+	fun() ->
+		State = #state{poll_pid_established = util:now() - 5, poll_pid = self()},
+		{noreply, Newstate} = handle_info(check_live_poll, State),
+		?assertEqual([], Newstate#state.poll_queue),
+		Ok = receive
+			check_live_poll ->
+				 true
+		after ?TICK_LENGTH + 1 ->
+			false
+		end,
+		?assert(Ok)
+	end},
+	{"When poll pid exists, and more than 20 seconds have passed",
+	fun() ->
+		State = #state{poll_pid_established = util:now() - 25, poll_pid = self()},
+		{noreply, Newstate} = handle_info(check_live_poll, State),
+		?assertEqual([], Newstate#state.poll_queue),
+		Ok = receive
+			check_live_poll	->
+				 true
+		after ?TICK_LENGTH + 1 ->
+			false
+		end,
+		?assert(Ok)
+	end}] end}.
+
+
+
+%
+%
+%
+%handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
+%	Now = util:now(),
+%	case Now - Last of
+%		N when N > 10 ->
+%			?NOTICE("Stopping due to missed_polls; last:  ~w now: ~w difference: ~w", [Last, Now, Now - Last]),
+%			{stop, missed_polls, State};
+%		_N ->
+%			Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
+%			{noreply, State#state{ack_timer = Tref}}
+%	end;
+%handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Pollpid} = State) when is_pid(Pollpid) ->
+%	Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
+%	case util:now() - Last of
+%		N when N > 20 ->
+%			Newstate = push_event({struct, [{success, true}, {<<"command">>, <<"pong">>}, {<<"timestamp">>, util:now()}]}, State),
+%			{noreply, Newstate#state{ack_timer = Tref}};
+%		_N ->
+%			{noreply, State#state{ack_timer = Tref}}
+%	end;
+%
+%
+
+
 
 set_state_test_() ->
 	{

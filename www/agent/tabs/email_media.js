@@ -184,12 +184,11 @@ if(typeof(emailPane) == 'undefined'){
 				dojo.unsubscribe(emailPane.fetchSub);
 				emailPane.fetchSub = false;
 				if(fetchObjs[0].textType){
-					if(fetchObjs[0].textType == 'plain'){
+					if(fetchObjs[0].textType == 'html'){
+						fetched += html_sanitize(res, emailPane.urlSanitize, emailPane.nameIdSanitize);
+					}else{
 						res = emailPane.scrubString(res).replace(/\n/g, '<br />');
 						fetched += '<span style="font-family:monospace;">' + res + '</span>';
-					}
-					else if(fetchObjs[0].textType == 'html'){
-						fetched += html_sanitize(res, emailPane.urlSanitize, emailPane.nameIdSanitize);
 					}
 				}
 				else{

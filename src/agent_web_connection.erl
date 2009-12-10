@@ -618,12 +618,16 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when Call
 	?DEBUG("Media Command:  ~p", [Commande]),
 	case proplists:get_value("mode", Post) of
 		"call" ->
-			{Heads, Data} = case gen_media:call(Call#call.source, {Commande, Post}) of
+			{Heads, Data} = try gen_media:call(Call#call.source, {Commande, Post}) of
 				invalid ->
 					?DEBUG("agent:media_call returned invalid", []),
 					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid media call">>}]})};
 				Response ->
 					parse_media_call(Call, {Commande, Post}, Response)
+			catch
+				exit:{noproc, _} ->
+					?DEBUG("Media no longer exists.", []),
+					{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"media no longer exists">>}]})}
 			end,
 			{reply, {200, Heads, Data}, State};
 		"cast" ->
@@ -1065,6 +1069,17 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 %			?WARNING("unsure how to handle ~p/~p disposed to ~p", [Type, Subtype, Disposition]),
 %			{[], <<"404">>}
 	end;
+parse_media_call(#call{type = email}, {"get_path", Path}, {message, Bin}) when is_binary(Bin) ->
+	?DEBUG("Path is a message/Subtype with binary body", []),
+	{[], Bin};
+parse_media_call(#call{type = email}, {"get_from", _}, undefined) ->
+	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no reply info">>}]})};
+parse_media_call(#call{type = email}, {"get_from", _}, {Label, Address}) ->
+	Json = {struct, [
+		{<<"label">>, Label},
+		{<<"address">>, Address}
+	]},
+	{[], mochijson2:encode({struct, [{success, true}, {<<"data">>, Json}]})};
 parse_media_call(Mediarec, Command, Response) ->
 	?WARNING("Unparsable result for ~p:~p.  ~p", [Mediarec#call.type, element(1, Command), Response]),
 	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable result for command">>}]})}.

@@ -112,6 +112,15 @@ if(typeof(emailPane) == 'undefined'){
 			return fetches;
 		}
 		
+		if(skeleton.type == "message" && skeleton.subtype == "delivery-status"){
+			fetches.push({
+				'mode':'fetch',
+				'path':path,
+				'textType':'plain'
+			});
+			return fetches;
+		}
+		
 		if(skeleton.type == "message"){
 			tpath = copyPath(path);
 			tpath.push(1);
@@ -175,12 +184,11 @@ if(typeof(emailPane) == 'undefined'){
 				dojo.unsubscribe(emailPane.fetchSub);
 				emailPane.fetchSub = false;
 				if(fetchObjs[0].textType){
-					if(fetchObjs[0].textType == 'plain'){
+					if(fetchObjs[0].textType == 'html'){
+						fetched += html_sanitize(res, emailPane.urlSanitize, emailPane.nameIdSanitize);
+					}else{
 						res = emailPane.scrubString(res).replace(/\n/g, '<br />');
 						fetched += '<span style="font-family:monospace;">' + res + '</span>';
-					}
-					else if(fetchObjs[0].textType == 'html'){
-						fetched += res;
 					}
 				}
 				else{
@@ -210,6 +218,55 @@ if(typeof(emailPane) == 'undefined'){
 	emailPane.scrubString = function(instr){
 		return instr.replace(/\&/g, '&amp;').replace(/\</g, '&lt;').replace(/\>/g, '&gt;').replace(/\"/g, '&quot;'); //"
 	};
+	
+	emailPane.urlSanitize = function(url){
+		// following 'borrowed' from
+		// http://stackoverflow.com/questions/736513/how-do-i-parse-a-url-into-hostname-and-path-in-javascript
+		var l = document.createElement("a");
+		l.href = url;
+		switch(l.protocol){
+			case 'cid:':
+				return escape(url);
+				break;
+			case 'mailto:':
+				return url;
+				break;
+			case 'http:':
+				if( (l.hostname == window.location.hostname) &&
+					(l.port == window.location.port) ){
+					return url;
+				} else {
+					l.protocol = 'scrub';
+					return l.href;
+				}
+				break;
+			default:
+				l.protocol = 'scrub';
+				return l.href;
+		}
+	}
+	
+	emailPane.nameIdSanitize = function(name){
+		return "santizationPrefix-" + name;
+	}
+	
+	emailPane.getFrom = function(callback){
+		dojo.xhrPost({
+			url:"/media",
+			handleAs:"json",
+			content:{
+				"command":"get_from",
+				"arguments":[],
+				"mode":"call"
+			},
+			load:function(res){
+				callback(res);
+			},
+			error:function(res){
+				warning(["err getting from address", res]);
+			}
+		});
+	}
 }
 
 emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
@@ -250,8 +307,42 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		var nodes = dojo.query('* > img', disp);
 		debug(["going through the nodes for images.", nodes]);
 		for(var i = 0; i < nodes.length; i++){
-			nodes[i].src = escape(nodes[i].src);
+			var l = document.createElement('a');
+			l.href = nodes[i].src;
+			console.log(["l.hostname", l.hostname, "l.port", l.port, "l.protocol", l.protocol]);
+			if(l.protocol == 'scrub' || (l.hostname == window.location.hostname && l.port == window.location.port) ){
+				l.protocol = 'http';
+				nodes[i].src = l.href;
+			} else{
+				l.protocol = 'http';
+				nodes[i].title = 'Remote image (' + l.href + ') scrubbed; click to load it';
+				nodes[i].loadUrl = l.href;
+				nodes[i].src = '/images/redx.png';
+				dojo.connect(nodes[i], 'onclick', nodes[i], function(){
+					this.src = this.loadUrl;
+				});
+			}
 		}
+		nodes = dojo.query('* > a', disp);
+		for(i = 0; i < nodes.length; i++){
+			nodes[i].target = '_blank';
+			nodes[i].protocol = 'http';
+			//so that successive calls to nodes[i].hostname gets the correct value
+			nodes[i].href = nodes[i].href;
+		}
+		var fetchFromCallback = function(data){
+			if(data.success){
+				var val = '';
+				if(data.data.label){
+					val += '"' + data.data.label + '" ';
+				}
+				val += '<' + data.data.address + '>';
+				dijit.byId('emailFrom').attr('value', val);
+			} else {
+				dijit.byId('emailFrom').attr('value', skel.headers.to);
+			}
+		}
+		emailPane.getFrom(fetchFromCallback);
 	});
 		
 	emailPane.fetchPaths(paths);

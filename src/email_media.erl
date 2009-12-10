@@ -336,6 +336,26 @@ handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 					end
 			end
 	end;
+handle_call({"get_from", _Post}, _From, #call{client = Client}, State) ->
+	#client{options = Options} = Client,
+	case proplists:get_value(emailfrom, Options) of
+		undefined ->
+			{reply, undefined, State};
+		{Label, Address} when is_atom(Label), is_atom(Address) ->
+			{reply, undefined, State};
+		{_Label, Address} when is_atom(Address) ->
+			{reply, undefined, State};
+		{Label, Address} ->
+			FixedLabel = case {Label, Client#client.label} of
+				{Label, undefined} when is_atom(Label) ->
+					undefined;
+				{Label, _} when is_atom(Label) ->
+					list_to_binary(Client#client.label);
+				{Label, _} ->
+					Label
+			end,
+			{reply, {FixedLabel, Address}, State}
+	end;
 	
 %% and anything else
 handle_call(Msg, _From, _Callrec, State) ->
@@ -534,11 +554,14 @@ skeletonize([{<<"multipart">>, Subtype, Headers, Properties, List} | Tail], [Cou
 	{Sublist, Newfiles} = skeletonize(List, [1 | Path], Files),
 	Newacc = [{<<"multipart">>, Subtype, downcase_headers(Headers), Properties, Sublist} | Acc],
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
-skeletonize([{<<"message">>, Subtype, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+skeletonize([{<<"message">>, <<"rfc822">>, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Sublist, Midfiles} = skeletonize([Body], [1 | Path], Files),
-	Newacc = [{<<"message">>, Subtype, downcase_headers(Headers), Properties, Sublist} | Acc],
+	Newacc = [{<<"message">>, <<"rfc822">>, downcase_headers(Headers), Properties, Sublist} | Acc],
 	Newfiles = append_files(Headers, Properties, Path, Midfiles),
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
+skeletonize([{<<"message">>, Subtype, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+	Newacc = [{<<"message">>, Subtype, downcase_headers(Headers), Properties} | Acc],
+	skeletonize(Tail, [Count + 1 | Ptail], Files, Newacc);
 skeletonize([Head | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Skel, Newfiles} = skeletonize(Head, Path, Files),
 	Newacc = [{element(1, Head), element(2, Head), element(3, Head), element(4, Head)} | Acc],

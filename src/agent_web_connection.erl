@@ -694,7 +694,7 @@ handle_cast({poll, Frompid}, State) ->
 			link(Frompid),
 			{noreply, State#state{poll_pid = Frompid, poll_pid_established = util:now()}};
 		Pollq ->
-			?DEBUG("Poll queue of ~p", [Pollq]),
+			?DEBUG("Poll queue length: ~p", [length(Pollq)]),
 			Newstate = State#state{poll_queue=[], poll_pid_established = util:now(), poll_pid = undefined},
 			Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}]},
 			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},

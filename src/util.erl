@@ -656,6 +656,24 @@ merge_skill_lists_test_() ->
 				Out = util:merge_skill_lists(List1, List2, ['_queue']),
 				?assertEqual(Expected, Out)
 			end
+		},
+		{
+			"Three expanded magic skills whitelisted",
+			fun() ->
+				List1 = [], 
+				List2 = [{'_queue', "q1"}, {'_queue', "q2"}, {'_queue', "q3"}],
+				Expected = List2,
+				Out = util:merge_skill_lists(List1, List2, ['_queue']),
+				?assertEqual(Expected, Out)
+			end
+		},
+		{
+			"Three expanded magic skills not whitelisted",
+			fun() ->
+				List1 = [],
+				List2 = [{'_queue', "q1"}, {'_queue', "q2"}, {'_queue', "q3"}],
+				?assertError(badarg, util:merge_skill_lists(List1, List2, []))
+			end
 		}
 	].
 

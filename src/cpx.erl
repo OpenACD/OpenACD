@@ -84,3 +84,23 @@ prep_stop(State) ->
 -spec(stop/1 :: (State :: any()) -> 'ok').
 stop(_State) ->
 	ok.
+	
+% to be added soon TODO
+%
+%get_queue
+%get_agent
+%get_agents/0 /1
+%get_queues/0 /1
+%get_media/1 %% string representation of pid, or a real pid.
+%kick_agent/1
+%kick_call/1
+%can_answer/2 (Media, Agent) -> true | missing skills
+%migrate_queue/1 -> for the future.
+%cdr:orphan_search
+%cdr:pending_states (agent/cdr), global/node
+%start_spec pretty print.
+%help command
+%cpx:start_spec
+%is_running (cpx_supervisor specs)
+%uptime
+

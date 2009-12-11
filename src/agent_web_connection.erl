@@ -1018,11 +1018,21 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 				{"Content-Type", lists:append([binary_to_list(Type), "/", binary_to_list(Subtype)])}
 			], Body};
 		{<<"text">>, <<"html">>, _} ->
-			Parsed = case mochiweb_html:parse(lists:append(["<html>", binary_to_list(Body), "</html>"])) of
+			Listbody = binary_to_list(Body),
+			Parsed = try mochiweb_html:parse(lists:append(["<html>", Listbody, "</html>"])) of
 				Islist when is_list(Islist) ->
 					Islist;
 				Isntlist ->
 					[Isntlist]
+			catch
+				error:function_clause ->
+					% most likely there's a doc type, so this would parse out correctly anyway.
+					case mochiweb_html:parse(Listbody) of
+						Islist when is_list(Islist) ->
+							Islist;
+						Isntlist ->
+							[Isntlist]
+					end
 			end,
 			Lowertag = fun(E) -> string:to_lower(binary_to_list(E)) end,
 			Stripper = fun

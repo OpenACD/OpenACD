@@ -98,11 +98,11 @@ dump(Agentstate, State) when is_record(Agentstate, agent_state) ->
 		_ ->
 			""
 	end,
-	Query = io_lib:format("INSERT INTO agent_states set agent='~s', newstate=~B,
+	Query = io_lib:format("INSERT INTO agent_states set agent=~B, newstate=~B,
 		oldstate=~B, start=~B, end=~B, data='~s';", [
-		Agentstate#agent_state.id, 
-		agent:state_to_integer(Agentstate#agent_state.state), 
-		agent:state_to_integer(Agentstate#agent_state.oldstate), 
+		list_to_integer(Agentstate#agent_state.id) + 1000,
+		agent:state_to_integer(Agentstate#agent_state.state),
+		agent:state_to_integer(Agentstate#agent_state.oldstate),
 		Agentstate#agent_state.start, 
 		Agentstate#agent_state.ended, CallID]),
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
@@ -187,7 +187,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 
 	AgentID = case agent_auth:get_agent(Agent) of
 		{atomic, [Rec]} when is_tuple(Rec) ->
-			list_to_integer(element(2, Rec));
+			list_to_integer(element(2, Rec)) + 1000;
 		_ ->
 			0
 	end,

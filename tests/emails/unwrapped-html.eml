@@ -1,0 +1,25 @@
+Received: from localhost (localhost.example.com [127.0.0.1])
+	by mx1.example.com (Postfix) with ESMTP id B7E1B208393;
+	Fri, 11 Dec 2009 02:21:47 -0500 (EST)
+MIME-Version: 1.0
+Date: Thu, 10 Dec 2009 23:21:07 -0800
+Message-ID: <e2b4f0810912102321q41fd373fo2759e95c5d412d92@mail.example.com>
+Subject: Html type without outer tags
+From: John Doe <test@example.com>
+To: support@example.com, 
+Content-Type: multipart/alternative; boundary=000e0cd32e2e68efbc047a6ec4a1
+
+--000e0cd32e2e68efbc047a6ec4a1
+Content-Type: text/plain; charset=ISO-8859-1
+
+If you can read this, the test fails.
+
+--000e0cd32e2e68efbc047a6ec4a1
+Content-Type: text/html; charset=ISO-8859-1
+Content-Transfer-Encoding: quoted-printable
+
+This line must be readable<br>
+<span>This must <i>not</i> be the only readable line</span><br>
+This line must also be readable.<br>
+
+--000e0cd32e2e68efbc047a6ec4a1--

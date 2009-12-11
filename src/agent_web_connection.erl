@@ -1018,7 +1018,7 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 				{"Content-Type", lists:append([binary_to_list(Type), "/", binary_to_list(Subtype)])}
 			], Body};
 		{<<"text">>, <<"html">>, _} ->
-			Parsed = case mochiweb_html:parse(binary_to_list(Body)) of
+			Parsed = case mochiweb_html:parse(lists:append(["<html>", binary_to_list(Body), "</html>"])) of
 				Islist when is_list(Islist) ->
 					Islist;
 				Isntlist ->

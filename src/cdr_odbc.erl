@@ -277,7 +277,7 @@ cdr_transaction_to_integer(T) ->
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= oncall; T =:= wrapup; T =:= endwrapup; T =:= ringing  ->
 	case agent_auth:get_agent(Transaction#cdr_raw.eventdata) of
 		{atomic, [Rec]} when is_tuple(Rec) ->
-			element(2, Rec);
+			integer_to_list(list_to_integer(element(2, Rec)) + 1000);
 		_ ->
 			"0"
 	end;
@@ -289,7 +289,7 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= ag
 	{From, To} = Transaction#cdr_raw.eventdata,
 	Agent = case agent_auth:get_agent(To) of
 		{atomic, [Rec]} when is_tuple(Rec) ->
-			element(2, Rec);
+			integer_to_list(list_to_integer(element(2, Rec)) + 1000);
 		_ ->
 			"0"
 	end,

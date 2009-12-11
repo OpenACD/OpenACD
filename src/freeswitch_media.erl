@@ -230,7 +230,7 @@ handle_voicemail(Agent, Callrec, State) when is_pid(Agent) ->
 	handle_voicemail(undefined, Callrec, Midstate);
 handle_voicemail(undefined, Call, State) ->
 	UUID = Call#call.id,
-	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:voicemail/vm-record_message.wav,record:/tmp/${uuid}.wav' inline"),
+	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:IVR/prrec.wav,record:/tmp/${uuid}.wav' inline"),
 	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
 
 handle_spy(Agent, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->

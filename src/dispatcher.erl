@@ -122,6 +122,8 @@ handle_call(stop, _From, State) ->
 			%call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			%{reply, Call, State#state{qpid=Qpid, call=Call}}
 	%end;
+handle_call(dump_state, _From, State) ->
+	{reply, {ok, State}, State};
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.
 

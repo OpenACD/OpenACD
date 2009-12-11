@@ -816,8 +816,8 @@ dojo.addOnLoad(function(){
 			title:"Url Pop",
 			resizable: true,
 			dockable:false,
-			style: 'position:absolute; top: 100px; left: 400px; z-index:1000',
-			content: '<iframe width="100%", height="100%" src="' + data.url + '" />'
+			style: 'position:absolute; top: 100px; left: 60%; z-index:1000',
+			content: '<iframe width="99%", height="300px" src="' + data.url + '" />'
 		}, dojo.byId("popup"));
 		
 		popup.startup();
@@ -855,7 +855,7 @@ dojo.addOnLoad(function(){
 			closable: false
 		});
 		pane.unloadListener = dojo.subscribe('agent/state', function(data){
-			if(data.state == 'idle'){				
+			if(data.state == 'wrapup'){				
 				dojo.unsubscribe(pane.unloadListener);
 				dojo.unsubscribe(pane.logoutListener);
 				dijit.byId('tabPanel').closeChild(pane);

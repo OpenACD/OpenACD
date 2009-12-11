@@ -184,12 +184,11 @@ if(typeof(emailPane) == 'undefined'){
 				dojo.unsubscribe(emailPane.fetchSub);
 				emailPane.fetchSub = false;
 				if(fetchObjs[0].textType){
-					if(fetchObjs[0].textType == 'plain'){
+					if(fetchObjs[0].textType == 'html'){
+						fetched += html_sanitize(res, emailPane.urlSanitize, emailPane.nameIdSanitize);
+					}else{
 						res = emailPane.scrubString(res).replace(/\n/g, '<br />');
 						fetched += '<span style="font-family:monospace;">' + res + '</span>';
-					}
-					else if(fetchObjs[0].textType == 'html'){
-						fetched += html_sanitize(res, emailPane.urlSanitize, emailPane.nameIdSanitize);
 					}
 				}
 				else{
@@ -250,6 +249,24 @@ if(typeof(emailPane) == 'undefined'){
 	emailPane.nameIdSanitize = function(name){
 		return "santizationPrefix-" + name;
 	}
+	
+	emailPane.getFrom = function(callback){
+		dojo.xhrPost({
+			url:"/media",
+			handleAs:"json",
+			content:{
+				"command":"get_from",
+				"arguments":[],
+				"mode":"call"
+			},
+			load:function(res){
+				callback(res);
+			},
+			error:function(res){
+				warning(["err getting from address", res]);
+			}
+		});
+	}
 }
 
 emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
@@ -292,9 +309,18 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		for(var i = 0; i < nodes.length; i++){
 			var l = document.createElement('a');
 			l.href = nodes[i].src;
-			if(l.protocol == 'scrub' && (l.hostname == window.location.hostname && l.port == window.location.port) ){
+			console.log(["l.hostname", l.hostname, "l.port", l.port, "l.protocol", l.protocol]);
+			if(l.protocol == 'scrub' || (l.hostname == window.location.hostname && l.port == window.location.port) ){
 				l.protocol = 'http';
 				nodes[i].src = l.href;
+			} else{
+				l.protocol = 'http';
+				nodes[i].title = 'Remote image (' + l.href + ') scrubbed; click to load it';
+				nodes[i].loadUrl = l.href;
+				nodes[i].src = '/images/redx.png';
+				dojo.connect(nodes[i], 'onclick', nodes[i], function(){
+					this.src = this.loadUrl;
+				});
 			}
 		}
 		nodes = dojo.query('* > a', disp);
@@ -304,6 +330,19 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 			//so that successive calls to nodes[i].hostname gets the correct value
 			nodes[i].href = nodes[i].href;
 		}
+		var fetchFromCallback = function(data){
+			if(data.success){
+				var val = '';
+				if(data.data.label){
+					val += '"' + data.data.label + '" ';
+				}
+				val += '<' + data.data.address + '>';
+				dijit.byId('emailFrom').attr('value', val);
+			} else {
+				dijit.byId('emailFrom').attr('value', skel.headers.to);
+			}
+		}
+		emailPane.getFrom(fetchFromCallback);
 	});
 		
 	emailPane.fetchPaths(paths);

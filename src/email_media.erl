@@ -336,6 +336,26 @@ handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 					end
 			end
 	end;
+handle_call({"get_from", _Post}, _From, #call{client = Client}, State) ->
+	#client{options = Options} = Client,
+	case proplists:get_value(emailfrom, Options) of
+		undefined ->
+			{reply, undefined, State};
+		{Label, Address} when is_atom(Label), is_atom(Address) ->
+			{reply, undefined, State};
+		{_Label, Address} when is_atom(Address) ->
+			{reply, undefined, State};
+		{Label, Address} ->
+			FixedLabel = case {Label, Client#client.label} of
+				{Label, undefined} when is_atom(Label) ->
+					undefined;
+				{Label, _} when is_atom(Label) ->
+					list_to_binary(Client#client.label);
+				{Label, _} ->
+					Label
+			end,
+			{reply, {FixedLabel, Address}, State}
+	end;
 	
 %% and anything else
 handle_call(Msg, _From, _Callrec, State) ->
@@ -595,15 +615,15 @@ append_files(Headers, Properties, Path, Files) ->
 		{Contentidbin, Dispo} ->
 			Contentid = binary_to_list(Contentidbin),
 			Len = length(Contentid),
-			Id = list_to_binary(lists:append(["cid:", string:sub_string(Contentid, 2, Len - 1)])),
-			Midfiles = [{binary_to_list(Id), lists:reverse(Path)} | Files],
+			Id = lists:append(["cid:", string:sub_string(Contentid, 2, Len - 1)]),
+			Midfiles = [{Id, lists:reverse(Path)} | Files],
 			case Dispo of
 				inline ->
 					Midfiles;
 				{_Linedness, Name} ->
 					Fixedname = case is_binary(Name) of
-						true -> Name;
-						false -> list_to_binary(Name)
+						true -> binary_to_list(Name);
+						false -> Name
 					end,
 					[{Fixedname, lists:reverse(Path)} | Midfiles]
 			end
@@ -779,8 +799,9 @@ skeletonize_test_() ->
 	fun() ->
 		Decoded = getmail("testcase1"),
 		{_Skel, Files} = skeletonize(Decoded),
-		?assertEqual([2, 1, 2, 2], proplists:get_value(<<"cid:part1.03050108.02070304@gmail.com">>, Files)),
-		?assertEqual([2, 1, 2, 2], proplists:get_value(<<"moz-screenshot-1.jpg">>, Files))
+		?DEBUG("Files:  ~p", [Files]),
+		?assertEqual([2, 1, 2, 2], proplists:get_value("cid:part1.03050108.02070304@gmail.com", Files)),
+		?assertEqual([2, 1, 2, 2], proplists:get_value("moz-screenshot-1.jpg", Files))
 	end}].
 	
 

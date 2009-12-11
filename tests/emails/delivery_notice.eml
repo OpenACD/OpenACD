@@ -15,7 +15,7 @@ Received: from localhost (localhost [127.0.0.1])by example.com
 Content-Type: multipart/report; report-type=delivery-status; boundary="----------=_1260320870-8111-0"
 Content-Transfer-Encoding: 7bit
 MIME-Version: 1.0
-Subject: Should be 2 readable lines for test pass.
+Subject: Should be 2 lines and then headers for test pass.
 In-Reply-To: <SC-MXSERVERhRqfKuzk000067ab@mx.example.com>
 Message-ID: <SSmqIC1UkGW8vQ@example.com>
 From: "Content-filter at example.com" <postmaster@example.com>

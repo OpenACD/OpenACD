@@ -45,7 +45,13 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start/0, stop/0, count_dispatchers/0]).
+-export([
+	start_link/0,
+	start/0, 
+	stop/0, 
+	count_dispatchers/0,
+	deep_inspect/0
+]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -83,6 +89,10 @@ stop() ->
 count_dispatchers() ->
 	gen_server:call(?MODULE, count_dispatchers).
 
+-spec(deep_inspect/0 :: () -> 'ok').
+deep_inspect() ->
+	gen_server:cast(?MODULE, deep_inspect).
+	
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -144,6 +154,17 @@ handle_cast({end_avail, AgentPid}, State) ->
 	?DEBUG("An agent is no longer available.", []),
 	State2 = State#state{agents = lists:delete(AgentPid, State#state.agents)},
 	{noreply, balance(State2)};
+handle_cast(deep_inspect, #state{dispatchers = Disps} = State) ->
+	Fun = fun(Pid) ->
+		{ok, Dispstate} = gen_server:call(Pid, dump_state),
+		Queued = element(2, Dispstate),
+		QueueRef = element(4, Dispstate),
+		[Pid, Queued, QueueRef]
+	end,
+	Mapped = lists:map(Fun, Disps),
+	io:format("Pid\tQueuedCall\tQueuepid~n"),
+	lists:foreach(fun(L) -> io:format("~p\t~p\t~p~n", L) end, Mapped),
+	{noreply, State};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 

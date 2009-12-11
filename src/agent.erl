@@ -378,7 +378,6 @@ idle({precall, Call}, _From, State) ->
 	set_cpx_monitor(Newstate, ?PRECALL_LIMITS, []),
 	{reply, ok, precall, Newstate};
 idle({ringing, Call = #call{}}, _From, State) ->
-	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
 	Newstate = State#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
@@ -414,6 +413,7 @@ ringing(oncall, _From, #agent{statedata = Statecall} = State) when Statecall#cal
 	case gen_media:oncall(Statecall#call.source) of
 		ok ->
 			Newstate = State#agent{state=oncall, oldstate = ringing, lastchange = util:now()},
+			gen_server:cast(dispatch_manager, {end_avail, self()}),
 			gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
 			gen_server:cast(Statecall#call.cook, remove_from_queue),
 			%cdr:oncall(Statecall, State#agent.login),
@@ -426,6 +426,7 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} 
 	case Statecall#call.id of
 		Callid -> 
 			Newstate = State#agent{state = oncall, statedata = Call, oldstate = ringing, lastchange = util:now()},
+			gen_server:cast(dispatch_manager, {end_avail, self()}),
 			gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
 			set_cpx_monitor(Newstate, ?ONCALL_LIMITS, []),
 			{reply, ok, oncall, Newstate};
@@ -438,12 +439,13 @@ ringing({released, {Id, Text, Bias} = Reason}, _From, #agent{statedata = Call} =
 	?DEBUG("going released from ringing", []),
 	%gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
 	gen_media:stop_ringing(Call#call.source),
+	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	Newstate = State#agent{state=released, oldstate=ringing, statedata=Reason, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, Newstate};
 ringing(idle, _From, State) ->
-	gen_server:cast(dispatch_manager, {now_avail, self()}),
+	%gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
 	Newstate = State#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
@@ -1188,7 +1190,6 @@ from_idle_test_() ->
 				id = "testcall",
 				source = Self
 			},
-			gen_server_mock:expect_cast(Dmock, fun({end_avail, Pid}, _State) -> Pid = Self, ok end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{ringing, _Limits}] = Health,
 				?assertEqual(node(), Node),
@@ -1322,10 +1323,6 @@ from_ringing_test_() ->
 		{"to idle",
 		fun() ->
 			Aself = self(),
-			gen_server_mock:expect_cast(Dmock, fun({now_avail, Self}, _State) ->
-				Self = Aself,
-				ok
-			end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{idle, _Limits}] = Health,
 				Node = node(),
@@ -1353,10 +1350,11 @@ from_ringing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to oncall with inband media path",
 		fun() ->
 			Callrec = Agent#agent.statedata, 
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{oncall, _Limits}] = Health,
 				Node = node(),
@@ -1385,12 +1383,13 @@ from_ringing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Oldagent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Oldagent, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to oncall with outband media path",
 		fun() ->
 			Oldcall = Oldagent#agent.statedata, 
 			Callrec = Oldcall#call{ring_path = outband, media_path = outband},
 			Agent = Oldagent#agent{statedata = Callrec},
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, oncall, Inrec}, _State) ->
 				Inrec = Agent#agent.statedata,
 				ok
@@ -1427,7 +1426,7 @@ from_ringing_test_() ->
 			?assertMatch({reply, invalid, ringing, _State}, ringing({released, "not valid"}, "from", Agent))
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released default",
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
@@ -1435,6 +1434,7 @@ from_ringing_test_() ->
 				Node = node(),
 				ok
 			end),
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
@@ -1449,9 +1449,10 @@ from_ringing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released",
 		fun() ->
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{released, _Limits}, {bias, 50}] = Health,
 				Node = node(),

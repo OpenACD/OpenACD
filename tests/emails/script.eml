@@ -24,8 +24,9 @@ Content-Transfer-Encoding: 7bit
 
 <html><body style="word-wrap: break-word; -webkit-nbsp-mode: space; -webkit-line-break: after-white-space; ">
 <p><button onclick='javascript:alert("if seen, test fail")'>Js on click</button>Nothing should happen for test pass</p>
-<p><img border=3 width=16 height=16 style="display:block" src="http://code.google.com/p/google-caja/logo?logo_id=1242079687" alt="see text means test pass" title="see image bad"/>Seeing the image is test fail</p>
-<p><img border=3 width=16 height=16 style="display:block" src="/images/dl.png" title="Seeing image good (local)" alt="seeing alt means test fail" />Seeing the image is test pass.</p>
+<p><img border=3 align="left" src="http://code.google.com/p/google-caja/logo?logo_id=1242079687" alt="see text means test pass" title="see image bad"/>Seeing the image is test fail</p>
+<p>click above image to load it.</p>
+<p><img border=3 width=16 height=16 style="display:block" src="/images/dl.png" title="Seeing image good (local)" alt="seeing alt means test fail" />Seeing the image (green arrow dl.png) is test pass.</p>
 <p><a href="http://www.google.com">Click for new window for test pass</a></p>
 <p>Raw url (should be unchanged):  http://www.google.com</p>
 <script type="text/javascript">alert('if seen, js1test fail');</script>

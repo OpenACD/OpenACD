@@ -464,7 +464,7 @@ query_nodes([Node | Tail], Time, Func, Acc) ->
 -type(skill() :: atom() | {atom(), any()}).
 -type(skill_list() :: [skill()]).
 -type(profile_name() :: string()).
--spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', string(), skill_list(), security_level(), profile_name()}).
+-spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | 'destroy' | {'allow', string(), skill_list(), security_level(), profile_name()}).
 auth(Username, Password) ->
 	Extended = case get_agent(Username) of
 		{atomic, [Rec]} ->

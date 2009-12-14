@@ -167,6 +167,9 @@ init([Options]) ->
 	%% something's not already registered, it will attempt to start the server
 	%% and register.  If the server fails to start for any reason, this will
 	%% die a horrible death (which is good!).
+
+	% TODO - I think there's a race condition here, why can't the smtp server die
+	% along with this process and make things simpler?
 	Pid = case whereis(cpx_smtp_server) of
 		undefined ->
 			{ok, Server} = gen_smtp_server:start(email_media_session, [Options]),

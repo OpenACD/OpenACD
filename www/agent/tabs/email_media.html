@@ -125,6 +125,10 @@
 								standby.hide();
 								if(! data.success){
 									errMessage('send mail failed' + data.message);
+								} else {
+									dijit.byId('emailReplyEditor').destroy();
+									dojo.byId('emailView').style.display = 'block';
+									dojo.byId('emailReplyDiv').style.display = 'none';
 								}
 								dojo.unsubscribe(sub);
 							}

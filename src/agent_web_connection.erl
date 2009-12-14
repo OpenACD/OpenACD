@@ -74,7 +74,7 @@
 -record(state, {
 	salt :: any(),
 	agent_fsm :: pid() | 'undefined',
-	current_call :: pid() | 'undefined',
+	current_call :: #call{} | 'undefined',
 	poll_queue = [] :: [{struct, [{binary(), any()}]}],
 		% list of json structs to be sent to the client on poll.
 	poll_pid :: 'undefined' | pid(),
@@ -927,7 +927,7 @@ email_props_to_json([{Key, Value} | Tail], Acc) ->
 
 -type(headers() :: [{string(), string()}]).
 -type(mochi_out() :: binary()).
--spec(parse_media_call/3 :: (Mediarec :: #call{}, Command :: string, Response :: any()) -> {headers(), mochi_out()}).
+-spec(parse_media_call/3 :: (Mediarec :: #call{}, Command :: {string(), any()}, Response :: any()) -> {headers(), mochi_out()}).
 parse_media_call(#call{type = email}, {"attach", _Args}, {ok, Filenames}) ->
 	Binnames = lists:map(fun(N) -> list_to_binary(N) end, Filenames),
 	Json = {struct, [
@@ -1202,8 +1202,8 @@ do_action(Nodes, Do, _Acc) ->
 	{false, <<"unknown request">>}.
 
 encode_agent(Agent) when is_record(Agent, agent) ->
-	{Mega, Sec, _Micro} = Agent#agent.lastchange,
-	Now = (Mega * 1000000) + Sec,
+	%{Mega, Sec, _Micro} = Agent#agent.lastchange,
+	%Now = (Mega * 1000000) + Sec,
 	%Remnum = case Agent#agent.remotenumber of
 		%undefined ->
 			%<<"undefined">>;
@@ -1215,7 +1215,7 @@ encode_agent(Agent) when is_record(Agent, agent) ->
 		{<<"skills">>, cpx_web_management:encode_skills(Agent#agent.skills)},
 		{<<"profile">>, list_to_binary(Agent#agent.profile)},
 		{<<"state">>, Agent#agent.state},
-		{<<"lastchanged">>, Now}
+		{<<"lastchanged">>, Agent#agent.lastchange}
 		%{<<"remotenumber">>, Remnum}
 	],
 	Statedata = case Agent#agent.statedata of

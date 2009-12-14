@@ -61,7 +61,7 @@
 	agents :: pos_integer(),
 	call_max_life :: pos_integer() | {pos_integer(), pos_integer()},
 	agent_max_calls :: pos_integer() | 'infinity',
-	simulation_life :: pos_integer | 'infinity',
+	simulation_life :: pos_integer() | 'infinity',
 	queues :: [string()] | 'any',
 	agent_opts :: [any()],
 	call_priority :: any()
@@ -194,7 +194,7 @@ init(Options) ->
 	Lifetime = case Conf#conf.simulation_life of
 		infinity ->
 			infinity;
-		Number ->
+		Number when is_integer(Number) ->
 			Life = Number * 1000 * 60,
 			{ok, Timer} = timer:send_after(Life, endoflife),
 			Timer

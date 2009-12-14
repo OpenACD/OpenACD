@@ -634,12 +634,12 @@ destroy_client(label, Label) ->
 
 %% @doc Get the `#client{}' associated with the id `Id' using integration
 %% if possible.
--spec(get_client/1 :: (Label :: string()) -> #client{} | 'none').
+-spec(get_client/1 :: (Label :: string() | 'undefined') -> #client{} | 'none').
 get_client(Label) ->
 	get_client(label, Label).
 
 %% @doc Get the `#client{}' associated with the give `Key Value'.
--spec(get_client/2 :: (Key :: 'label' | 'id', Value :: string()) -> #client{} | 'none').
+-spec(get_client/2 :: (Key :: 'label' | 'id', Value :: string() | 'undefined') -> #client{} | 'none').
 get_client(_Key, undefined) ->
 	get_default_client();
 get_client(Key, Value) ->

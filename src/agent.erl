@@ -276,7 +276,7 @@ blab(Pid, Text) ->
 	gen_fsm:send_all_state_event(Pid, {blab, Text}).
 
 %% @doc Make the give `pid() Spy' spy on `pid() Target'.
--spec(spy/2 :: (Spy :: pid(), Target :: pid()) -> 'ok').
+-spec(spy/2 :: (Spy :: pid(), Target :: pid()) -> 'ok' | 'invalid').
 spy(Spy, Target) ->
 	gen_fsm:sync_send_event(Spy, {spy, Target}).
 

@@ -388,6 +388,8 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 					case agent_auth:auth(Username, DecryptedPassword) of
 						deny ->
 							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
+						destroy ->
+							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
 						{allow, Id, Skills, Security, Profile} ->
 							Agent = #agent{id = Id, defaultringpath = Bandedness, login = Username, skills = Skills, profile=Profile, password=DecryptedPassword},
 							case agent_web_connection:start(Agent, Security) of

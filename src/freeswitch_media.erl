@@ -235,6 +235,8 @@ handle_voicemail(undefined, Call, State) ->
 
 handle_spy(Agent, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
 	case agent_manager:find_by_pid(Agent) of
+		notfound ->
+			{error, bad_agent, State};
 		AgentName ->
 			agent:blab(Agent, "While spying, you have the following options:\n"++
 				"* To whisper to the agent; press 1\n"++
@@ -242,9 +244,7 @@ handle_spy(Agent, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when 
 				"* To talk to both parties; press 3\n"++
 				"* To resume spying; press 0"),
 			freeswitch:bgapi(Fnode, originate, "user/" ++ re:replace(AgentName, "@", "_", [{return, list}]) ++ " &eavesdrop(" ++ Call#call.id ++ ")"),
-			{ok, State};
-		notfound ->
-			{error, bad_agent, State}
+			{ok, State}
 	end;
 handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.

@@ -84,7 +84,7 @@
 
 -record(state, {
 	send_args = [] :: any(),
-	mimed :: {string(), string(), [{string(), string()}], [{string(), string()}], any()},
+	mimed :: {binary(), binary(), [{binary(), binary()}], [{binary(), binary()}], binary() | [{binary(), binary(), [{binary(), binary()}], [{binary(), binary()}], binary() | [tuple()]}]},
 	mail_map_address = "unknown@example.com" :: string(),
 	skeleton :: any(),
 	file_map = [] :: [{string(), [pos_integer()]}],
@@ -110,11 +110,11 @@
 -type(send_opts() :: [any()]).
 -type(start_opt() :: mail_map_opt() | raw_message_opt() | send_opts()).
 -type(start_opts() :: [start_opt()]).
--spec(start/1 :: (Options :: start_opts()) -> {'ok', pid()}).
+-spec(start/1 :: (Options :: start_opts()) -> {'ok', pid()} | {'error', any()}).
 start(Options) ->
 	gen_media:start(?MODULE, Options).
 
--spec(start_link/1 :: (Options :: start_opts()) -> {'ok', pid()}).
+-spec(start_link/1 :: (Options :: start_opts()) -> {'ok', pid()} | {'error', any()}).
 start_link(Options) ->
 	gen_media:start_link(?MODULE, Options).
 

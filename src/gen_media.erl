@@ -1023,7 +1023,7 @@ correct_client(#call{client = Client} = Callrec) ->
 			correct_client_sub(Id);
 		undefined ->
 			correct_client_sub(undefined);
-		String ->
+		String -> % TODO WTF?
 			correct_client_sub(String)
 	end,
 	Callrec#call{client = Newclient}.
@@ -1117,18 +1117,11 @@ kill_outband_ring(State) ->
 			freeswitch_ring:hangup(Pid)
 	end.
 
-agent_interact({mediapush, Data, Mode}, #state{oncall_pid = Ocpid, callrec = Call} = State) when is_pid(Ocpid), Call#call.media_path =:= inband ->
-	?INFO("Shoving ~p", [Data]),
-	agent:media_push(Ocpid, Data, Mode),
-	State;
 agent_interact({mediapush, Data}, #state{oncall_pid = Ocpid, callrec = Call} = State) when is_pid(Ocpid), Call#call.media_path =:= inband ->
 	?DEBUG("Shoving ~p", [Data]),
 	agent:media_push(Ocpid, Data),
 	State;
 agent_interact({mediapush, _Data}, State) ->
-	?INFO("Cannot do a media push in current state:  ~p", [State]),
-	State;
-agent_interact({mediapush, _Data, _Mode}, State) ->
 	?INFO("Cannot do a media push in current state:  ~p", [State]),
 	State;
 %agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ringout =/= false ->
@@ -1173,7 +1166,7 @@ agent_interact(hangup, #state{oncall_pid = Oncallpid, ring_pid = Ringpid} = Stat
 	agent:set_state(Oncallpid, wrapup, State#state.callrec),
 	cdr:wrapup(State#state.callrec, Oncallpid),
 	Callrec = State#state.callrec,
-	cdr:hangup(Callrec, Callrec#call.callerid),
+	cdr:hangup(Callrec, string:join(tuple_to_list(Callrec#call.callerid), " ")),
 	kill_outband_ring(State),
 	State#state{oncall_pid = undefined, ring_pid = undefined, outband_ring_pid = undefined};
 agent_interact(hangup, #state{oncall_pid = Apid} = State) when is_pid(Apid) ->
@@ -1181,22 +1174,23 @@ agent_interact(hangup, #state{oncall_pid = Apid} = State) when is_pid(Apid) ->
 	agent:set_state(Apid, wrapup, State#state.callrec),
 	cdr:wrapup(State#state.callrec, Apid),
 	Callrec = State#state.callrec,
-	cdr:hangup(Callrec, Callrec#call.callerid),
+	cdr:hangup(Callrec, string:join(tuple_to_list(Callrec#call.callerid), " ")),
 	State#state{oncall_pid = undefined};
 agent_interact(hangup, #state{ring_pid = Apid, callrec = Call} = State) when is_pid(Apid) ->
 	?INFO("hangup when only ringing is a pid", []),
 	agent:set_state(Apid, idle),
-	cdr:hangup(State#state.callrec, Call#call.callerid),
+	Callrec = State#state.callrec,
+	cdr:hangup(Callrec, string:join(tuple_to_list(Callrec#call.callerid), " ")),
 	kill_outband_ring(State),
 	State#state{ring_pid = undefined, outband_ring_pid = undefined};
 agent_interact(hangup, #state{queue_pid = Qpid, callrec = Call} = State) when is_pid(Qpid) ->
 	?INFO("hang up when only queue is a pid", []),
 	unqueue(Qpid, self()),
-	cdr:hangup(State#state.callrec, Call#call.callerid),
+	cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
 	State#state{queue_pid = undefined};
 agent_interact(hangup, #state{callrec = Call, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) when is_record(Call, call) ->
 	?INFO("orphaned call, no queue or agents at all", []),
-	cdr:hangup(State#state.callrec, Call#call.callerid),
+	cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
 	State;
 agent_interact(hangup, #state{queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
 	?INFO("Truely orphaned call, no queue, agents, or even a call record", []),
@@ -2087,17 +2081,18 @@ agent_interact_test_() ->
 %			gen_event_mock:assert_expectations(cdr)
 %		end}
 %	end,
-	fun({Arec, Callrec}) ->
-		{"media push when media_path doesn't match",
-		fun() ->
-			{ok, Apid} = agent:start(Arec#agent{statedata = Callrec, state = oncall}),
-			State = #state{oncall_pid = Apid, callrec = Callrec},
-			Expected = State,
-			agent:stop(Apid),
-			?assertEqual(Expected, agent_interact({mediapush, "data", append}, State)),
-			gen_event_mock:assert_expectations(cdr)
-		end}
-	end,
+	%fun({Arec, Callrec}) ->
+		%{"media push when media_path doesn't match",
+		%fun() ->
+			%{ok, Apid} = agent:start(Arec#agent{statedata = Callrec, state = oncall}),
+			%State = #state{oncall_pid = Apid, callrec = Callrec},
+			%Expected = State,
+			%agent:stop(Apid),
+			%?assertEqual(Expected, agent_interact({mediapush, "data", append}, State)),
+			%gen_event_mock:assert_expectations(cdr)
+			%ok
+		%end}
+	%end,
 	fun({Arec, Callrec}) ->
 		{"stop_ring with a ringout timer going",
 		fun() ->
@@ -2172,7 +2167,7 @@ agent_interact_test_() ->
 			{ok, Ringing} = agent:start(Arec#agent{state = ringing, statedata = Callrec, login = "ringing"}),
 			State = #state{oncall_pid = Oncall, ring_pid = Ringing, callrec = Callrec},
 			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, "testagent"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, {"Unknown", "Unknown"}}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
 			Res = agent_interact(hangup, State),
 			agent:stop(Oncall),
 			agent:stop(Ringing),
@@ -2187,7 +2182,7 @@ agent_interact_test_() ->
 			{ok, Apid} = agent:start(Arec#agent{state = oncall, statedata = Callrec}),
 			State = #state{oncall_pid = Apid, callrec = Callrec},
 			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, "testagent"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, {"Unknown", "Unknown"}}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
 			Res = agent_interact(hangup, State),
 			agent:stop(Apid),
 			?assertEqual(undefined, Res#state.oncall_pid),
@@ -2198,7 +2193,7 @@ agent_interact_test_() ->
 		{"hang up when only ringing is a pid",
 		fun() ->
 			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
-			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, {"Unknown", "Unknown"}}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
 			State = #state{ring_pid = Apid, callrec = Callrec},
 			Res = agent_interact(hangup, State),
 			agent:stop(Apid),
@@ -2211,7 +2206,7 @@ agent_interact_test_() ->
 		fun() ->
 			{ok, Qpid} = gen_server_mock:new(),
 			gen_server_mock:expect_call(Qpid, fun({remove, Incpid}, _From, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, {"Unknown", "Unknown"}}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
 			State = #state{queue_pid = Qpid, callrec = Callrec},
 			Res = agent_interact(hangup, State),
 			?assertEqual(undefined, Res#state.queue_pid),

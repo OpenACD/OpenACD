@@ -3212,12 +3212,13 @@ dojo.declare(
 
 	// isContainer: [protected] Boolean
 	//		Indicates that this widget acts as a "parent" to the descendant widgets.
-	//		This is here so child.getParent() finds me.   See also `isLayoutContainer`.
+	//		When the parent is started it will call startup() on the child widgets.
+	//		See also `isLayoutContainer`.
 	isContainer: true,
 
 	// isLayoutContainer: [protected] Boolean
-	//		Indicates that this widget is going to call resize() on it's
-	//		children widgets.
+	//		Indicates that this widget will call resize() on it's child widgets
+	//		when they become visible.
 	isLayoutContainer: true,
 
 	// onLoadDeferred: [readonly] dojo.Deferred
@@ -3228,6 +3229,13 @@ dojo.declare(
 	//
 	//		This is different than an onLoad() handler which gets called any time any href is loaded.
 	onLoadDeferred: null,
+
+	// Override _Widget's attributeMap because we don't want the title attribute (used to specify
+	// tab labels) to be copied to ContentPane.domNode... otherwise a tooltip shows up over the
+	// entire pane.
+	attributeMap: dojo.delegate(dijit._Widget.prototype.attributeMap, {
+		title: []
+	}),
 
 	postMixInProperties: function(){
 		this.inherited(arguments);
@@ -3937,7 +3945,8 @@ dojo.declare(
 				}
 				var singleFocusItem = (this._firstFocusItem == this._lastFocusItem);
 				if(evt.charOrCode == dk.ESCAPE){
-					this.onCancel();
+					// Use setTimeout to avoid crash on IE, see #10396.
+					setTimeout(dojo.hitch(this, "onCancel"), 0);
 					dojo.stopEvent(evt);
 				}else if(node == this._firstFocusItem && evt.shiftKey && evt.charOrCode === dk.TAB){
 					if(!singleFocusItem){
@@ -10335,9 +10344,10 @@ dojo.declare("dijit._MenuBase",
 			onCancel: function(){ // called when the child menu is canceled
 				// set isActive=false (_closeChild vs _cleanUp) so that subsequent hovering will NOT open child menus
 				// which seems aligned with the UX of most applications (e.g. notepad, wordpad, paint shop pro)
-				self._cleanUp();
-				self.focusChild(from_item);	// put focus back on my node AND set focusedChild
-				from_item._setSelected(true); // _cleanUp deselected the item
+				self.focusChild(from_item);	// put focus back on my node
+				self._cleanUp();			// close the submenu (be sure this is done _after_ focus is moved)
+				from_item._setSelected(true); // oops, _cleanUp() deselected the item
+				self.focusedChild = from_item;	// and unset focusedChild
 			},
 			onExecute: dojo.hitch(this, "_cleanUp")
 		});
@@ -10389,7 +10399,7 @@ dojo.declare("dijit._MenuBase",
 
 	_markInactive: function(){
 		// summary:
-		//              Mark this menu's state as inactive.
+		//		Mark this menu's state as inactive.
 		this.isActive = false; // don't do this in _onBlur since the state is pending-close until we get here
 		dojo.removeClass(this.domNode, "dijitMenuActive");
 		dojo.addClass(this.domNode, "dijitMenuPassive");
@@ -10995,7 +11005,8 @@ dojo.number = {
 dojo.number.__FormatOptions = function(){
 	//	pattern: String?
 	//		override [formatting pattern](http://www.unicode.org/reports/tr35/#Number_Format_Patterns)
-	//		with this string
+	//		with this string.  Default value is based on locale.  Overriding this property will defeat
+	//		localization.
 	//	type: String?
 	//		choose a format type based on the locale from the following:
 	//		decimal, scientific (not yet supported), percent, currency. decimal by default.
@@ -11005,18 +11016,12 @@ dojo.number.__FormatOptions = function(){
 	//	round: Number?
 	//		5 rounds to nearest .5; 0 rounds to nearest whole (default). -1
 	//		means do not round.
-	//	currency: String?
-	//		an [ISO4217](http://en.wikipedia.org/wiki/ISO_4217) currency code, a three letter sequence like "USD"
-	//	symbol: String?
-	//		localized currency symbol
 	//	locale: String?
 	//		override the locale used to determine formatting rules
 	this.pattern = pattern;
 	this.type = type;
 	this.places = places;
 	this.round = round;
-	this.currency = currency;
-	this.symbol = symbol;
 	this.locale = locale;
 }
 =====*/
@@ -11142,7 +11147,7 @@ dojo.number.__FormatAbsoluteOptions = function(){
 	//		the decimal separator
 	//	group: String?
 	//		the group separator
-	//	places: Integer?|String?
+	//	places: Number?|String?
 	//		number of decimal places.  the range "n,m" will format to m places.
 	//	round: Number?
 	//		5 rounds to nearest .5; 0 rounds to nearest whole (default). -1
@@ -11240,15 +11245,17 @@ dojo.number._formatAbsolute = function(/*Number*/value, /*String*/pattern, /*doj
 /*=====
 dojo.number.__RegexpOptions = function(){
 	//	pattern: String?
-	//		override pattern with this string.  Default is provided based on
-	//		locale.
+	//		override [formatting pattern](http://www.unicode.org/reports/tr35/#Number_Format_Patterns)
+	//		with this string.  Default value is based on locale.  Overriding this property will defeat
+	//		localization.
 	//	type: String?
 	//		choose a format type based on the locale from the following:
 	//		decimal, scientific (not yet supported), percent, currency. decimal by default.
 	//	locale: String?
 	//		override the locale used to determine formatting rules
 	//	strict: Boolean?
-	//		strict parsing, false by default
+	//		strict parsing, false by default.  Strict parsing requires input as produced by the format() method.
+	//		Non-strict is more permissive, e.g. flexible on white space, omitting thousands separators
 	//	places: Number|String?
 	//		number of decimal places to accept: Infinity, a positive number, or
 	//		a range "n,m".  Defined by pattern or Infinity if pattern not provided.
@@ -11349,23 +11356,22 @@ dojo.number._parseInfo = function(/*Object?*/options){
 
 /*=====
 dojo.number.__ParseOptions = function(){
-	//	pattern: String
-	//		override pattern with this string.  Default is provided based on
-	//		locale.
+	//	pattern: String?
+	//		override [formatting pattern](http://www.unicode.org/reports/tr35/#Number_Format_Patterns)
+	//		with this string.  Default value is based on locale.  Overriding this property will defeat
+	//		localization.
 	//	type: String?
 	//		choose a format type based on the locale from the following:
 	//		decimal, scientific (not yet supported), percent, currency. decimal by default.
-	//	locale: String
+	//	locale: String?
 	//		override the locale used to determine formatting rules
 	//	strict: Boolean?
-	//		strict parsing, false by default
-	//	currency: Object
-	//		object with currency information
+	//		strict parsing, false by default.  Strict parsing requires input as produced by the format() method.
+	//		Non-strict is more permissive, e.g. flexible on white space, omitting thousands separators
 	this.pattern = pattern;
 	this.type = type;
 	this.locale = locale;
 	this.strict = strict;
-	this.currency = currency;
 }
 =====*/
 dojo.number.parse = function(/*String*/expression, /*dojo.number.__ParseOptions?*/options){
@@ -11412,14 +11418,14 @@ dojo.number.__RealNumberRegexpFlags = function(){
 	//	decimal: String?
 	//		A string for the character used as the decimal point.  Default
 	//		is ".".
-	//	fractional: Boolean|Array?
-	//		Whether decimal places are allowed.  Can be true, false, or [true,
-	//		false].  Default is [true, false]
-	//	exponent: Boolean|Array?
+	//	fractional: Boolean?|Array?
+	//		Whether decimal places are used.  Can be true, false, or [true,
+	//		false].  Default is [true, false] which means optional.
+	//	exponent: Boolean?|Array?
 	//		Express in exponential notation.  Can be true, false, or [true,
 	//		false]. Default is [true, false], (i.e. will match if the
 	//		exponential part is present are not).
-	//	eSigned: Boolean|Array?
+	//	eSigned: Boolean?|Array?
 	//		The leading plus-or-minus sign on the exponent.  Can be true,
 	//		false, or [true, false].  Default is [true, false], (i.e. will
 	//		match if it is signed or unsigned).  flags in regexp.integer can be
@@ -11736,6 +11742,11 @@ dojo.declare(
 	//		Whether pane can be opened or closed by clicking the title bar.
 	toggleable: true,
 
+	// tabIndex: String
+	//		Tabindex setting for the title (so users can tab to the title then
+	//		use space/enter to open/close the title pane)
+	tabIndex: "0",
+
 	// duration: Integer
 	//		Time in milliseconds to fade in/fade out
 	duration: dijit.defaultDuration,
@@ -11744,7 +11755,7 @@ dojo.declare(
 	//		The root className to be placed on this widget's domNode.
 	baseClass: "dijitTitlePane",
 
-	templateString: dojo.cache("dijit", "templates/TitlePane.html", "<div class=\"${baseClass}\">\n\t<div dojoAttachEvent=\"onclick:_onTitleClick, onkeypress:_onTitleKey, onfocus:_handleFocus, onblur:_handleFocus, onmouseenter:_onTitleEnter, onmouseleave:_onTitleLeave\" tabindex=\"0\"\n\t\t\tclass=\"dijitTitlePaneTitle\" dojoAttachPoint=\"titleBarNode,focusNode\">\n\t\t<img src=\"${_blankGif}\" alt=\"\" dojoAttachPoint=\"arrowNode\" class=\"dijitArrowNode\" waiRole=\"presentation\"\n\t\t><span dojoAttachPoint=\"arrowNodeInner\" class=\"dijitArrowNodeInner\"></span\n\t\t><span dojoAttachPoint=\"titleNode\" class=\"dijitTitlePaneTextNode\"></span>\n\t</div>\n\t<div class=\"dijitTitlePaneContentOuter\" dojoAttachPoint=\"hideNode\" waiRole=\"presentation\">\n\t\t<div class=\"dijitReset\" dojoAttachPoint=\"wipeNode\" waiRole=\"presentation\">\n\t\t\t<div class=\"dijitTitlePaneContentInner\" dojoAttachPoint=\"containerNode\" waiRole=\"region\" tabindex=\"-1\" id=\"${id}_pane\">\n\t\t\t\t<!-- nested divs because wipeIn()/wipeOut() doesn't work right on node w/padding etc.  Put padding on inner div. -->\n\t\t\t</div>\n\t\t</div>\n\t</div>\n</div>\n"),
+	templateString: dojo.cache("dijit", "templates/TitlePane.html", "<div class=\"${baseClass}\">\n\t<div dojoAttachEvent=\"onclick:_onTitleClick, onkeypress:_onTitleKey, onfocus:_handleFocus, onblur:_handleFocus, onmouseenter:_onTitleEnter, onmouseleave:_onTitleLeave\"\n\t\t\tclass=\"dijitTitlePaneTitle\" dojoAttachPoint=\"titleBarNode,focusNode\">\n\t\t<img src=\"${_blankGif}\" alt=\"\" dojoAttachPoint=\"arrowNode\" class=\"dijitArrowNode\" waiRole=\"presentation\"\n\t\t><span dojoAttachPoint=\"arrowNodeInner\" class=\"dijitArrowNodeInner\"></span\n\t\t><span dojoAttachPoint=\"titleNode\" class=\"dijitTitlePaneTextNode\"></span>\n\t</div>\n\t<div class=\"dijitTitlePaneContentOuter\" dojoAttachPoint=\"hideNode\" waiRole=\"presentation\">\n\t\t<div class=\"dijitReset\" dojoAttachPoint=\"wipeNode\" waiRole=\"presentation\">\n\t\t\t<div class=\"dijitTitlePaneContentInner\" dojoAttachPoint=\"containerNode\" waiRole=\"region\" tabindex=\"-1\" id=\"${id}_pane\">\n\t\t\t\t<!-- nested divs because wipeIn()/wipeOut() doesn't work right on node w/padding etc.  Put padding on inner div. -->\n\t\t\t</div>\n\t\t</div>\n\t</div>\n</div>\n"),
 
 	attributeMap: dojo.delegate(dijit.layout.ContentPane.prototype.attributeMap, {
 		title: { node: "titleNode", type: "innerHTML" },
@@ -11794,8 +11805,10 @@ dojo.declare(
 		// canToggle: Boolean
 		//		True to allow user to open/close pane by clicking title bar.
 		this.toggleable = canToggle;
-		dijit.setWaiRole(this.focusNode, canToggle ? "button" : "presentation");
+		dijit.setWaiRole(this.focusNode, canToggle ? "button" : "heading");
+		dojo.attr(this.focusNode, "tabIndex", canToggle ? this.tabIndex : "-1");
 		if(canToggle){
+			// TODO: if canToggle is switched from true false shouldn't we remove this setting?
 			dijit.setWaiState(this.focusNode, "controls", this.id+"_pane");
 		}
 		this._setCss();
@@ -11888,6 +11901,7 @@ dojo.declare(
 			if(this.toggleable){
 				this.toggle();
 			}
+			dojo.stopEvent(e);
 		}else if(e.charOrCode == dojo.keys.DOWN_ARROW && this.open){
 			this.containerNode.focus();
 			e.preventDefault();
@@ -14878,30 +14892,6 @@ dojo.declare(
 			this._refreshState();
 		},
 
-		_onMouseDown: function(){
-			// flag if everything should be selected on mouse click
-			// don't actually select here in case they're selecting specific text with the mouse
-			this._selectOnUp = !this._focused && !this.disabled && !this.readOnly;
-		},
-
-		_onClick: function(){
-			// select all text if nothing already selected
-			if(this._focused && this._selectOnUp){
-				var textIsNotSelected;
-				if(dojo.isIE){
-					var range = dojo.doc.selection.createRange();
-					var parent = range.parentElement();
-					textIsNotSelected = parent == this.textbox && range.text.length == 0;
-				}else{
-					textIsNotSelected = this.textbox.selectionStart == this.textbox.selectionEnd;
-				}
-				if(textIsNotSelected){
-					dijit.selectInputText(this.textbox);
-				}
-			}
-			this._selectOnUp = false;
-		},
-
 		postCreate: function(){
 			// setting the value here is needed since value="" in the template causes "undefined"
 			// and setting in the DOM (instead of the JS object) helps with form reset actions
@@ -14915,15 +14905,6 @@ dojo.declare(
 				this.connect(this.textbox, "onpaste", this._onInput);
 				this.connect(this.textbox, "oncut", this._onInput);
 			}
-			if(this.selectOnClick){
-				this.connect(this.textbox, "onmousedown", this._onMouseDown);
-				this.connect(this.textbox, "onclick", this._onClick);
-			}
-
-			/*#5297:if(this.srcNodeRef){
-				dojo.style(this.textbox, "cssText", this.style);
-				this.textbox.className += " " + this["class"];
-			}*/
 		},
 
 		_blankValue: '', // if the textbox is blank, what value should be reported
@@ -14972,13 +14953,43 @@ dojo.declare(
 			if(this.disabled){ return; }
 			this._setBlurValue();
 			this.inherited(arguments);
+
+			if(this._selectOnClickHandle){
+				this.disconnect(this._selectOnClickHandle);
+			}
 			if(this.selectOnClick && dojo.isMoz){
 				this.textbox.selectionStart = this.textbox.selectionEnd = undefined; // clear selection so that the next mouse click doesn't reselect
 			}
 		},
 
-		_onFocus: function(e){
+		_onFocus: function(/*String*/ by){
 			if(this.disabled || this.readOnly){ return; }
+
+			// Select all text on focus via click if nothing already selected.
+			// Since mouse-up will clear the selection need to defer selection until after mouse-up.
+			// Don't do anything on focus by tabbing into the widgetm since there's no associated mouse-up event.
+			if(this.selectOnClick && by == "mouse"){
+				this._selectOnClickHandle = this.connect(this.domNode, "onmouseup", function(){
+					// Only select all text on first click; otherwise users would have no way to clear
+					// the selection.
+					this.disconnect(this._selectOnClickHandle);
+
+					// Check if the user selected some text manually (mouse-down, mouse-move, mouse-up)
+					// and if not, then select all the text
+					var textIsNotSelected;
+					if(dojo.isIE){
+						var range = dojo.doc.selection.createRange();
+						var parent = range.parentElement();
+						textIsNotSelected = parent == this.textbox && range.text.length == 0;
+					}else{
+						textIsNotSelected = this.textbox.selectionStart == this.textbox.selectionEnd;
+					}
+					if(textIsNotSelected){
+						dijit.selectInputText(this.textbox);
+					}
+				});
+			}
+
 			this._refreshState();
 			this.inherited(arguments);
 		},
@@ -16467,7 +16478,26 @@ dojo.currency._mixInDefaults = function(options){
 	return dojo.mixin(data, options);
 }
 
-dojo.currency.format = function(/*Number*/value, /*dojo.number.__FormatOptions?*/options){
+/*=====
+dojo.declare("dojo.currency.__FormatOptions", [dojo.number.__FormatOptions], {
+	//	type: String?
+	//		Should not be set.  Value is assumed to be currency.
+	//	currency: String?
+	//		an [ISO4217](http://en.wikipedia.org/wiki/ISO_4217) currency code, a three letter sequence like "USD".
+	//		For use with dojo.currency only.
+	//	symbol: String?
+	//		localized currency symbol. The default will be looked up in table of supported currencies in `dojo.cldr`
+	//		A [ISO4217](http://en.wikipedia.org/wiki/ISO_4217) currency code will be used if not found.
+	//	places: Number?
+	//		number of decimal places to show.  Default is defined based on which currency is used.
+	type: "",
+	symbol: "",
+	places: "",
+	fractional: ""
+});
+=====*/
+
+dojo.currency.format = function(/*Number*/value, /*dojo.currency.__FormatOptions?*/options){
 // summary:
 //		Format a Number as a currency, using locale-specific settings
 //
@@ -16496,15 +16526,18 @@ dojo.currency.regexp = function(/*dojo.number.__RegexpOptions?*/options){
 /*=====
 dojo.declare("dojo.currency.__ParseOptions", [dojo.number.__ParseOptions], {
 	//	type: String?
-	//		currency, set by default.
+	//		Should not be set.  Value is assumed to be currency.
+	//	currency: String?
+	//		an [ISO4217](http://en.wikipedia.org/wiki/ISO_4217) currency code, a three letter sequence like "USD".
+	//		For use with dojo.currency only.
 	//	symbol: String?
-	//		override currency symbol. Normally, will be looked up in table of supported currencies,
-	//		and ISO currency code will be used if not found.  See dojo.i18n.cldr.nls->currency.js
+	//		localized currency symbol. The default will be looked up in table of supported currencies in `dojo.cldr`
+	//		A [ISO4217](http://en.wikipedia.org/wiki/ISO_4217) currency code will be used if not found.
 	//	places: Number?
-	//		number of decimal places to accept.  Default is defined by currency.
+	//		number of decimal places to accept.  Default is defined based on which currency is used.
 	//	fractional: Boolean?|Array?
-	//		where places are implied by pattern or explicit 'places' parameter, whether to include the fractional portion.
-	//		By default for currencies, it the fractional portion is optional.
+	//		Whether to include the fractional portion, where the number of decimal places are implied by pattern
+	//		or explicit 'places' parameter.  By default for currencies, it the fractional portion is optional.
 	type: "",
 	symbol: "",
 	places: "",
@@ -16539,8 +16572,21 @@ dojo.provide("dijit.form.NumberTextBox");
 /*=====
 dojo.declare(
 	"dijit.form.NumberTextBox.__Constraints",
-	[dijit.form.RangeBoundTextBox.__Constraints, dojo.number.__FormatOptions, dojo.number.__ParseOptions]
-);
+	[dijit.form.RangeBoundTextBox.__Constraints, dojo.number.__FormatOptions, dojo.number.__ParseOptions], {
+	// summary:
+	//		Specifies both the rules on valid/invalid values (minimum, maximum,
+	//		number of required decimal places), and also formatting options for
+	//		displaying the value when the field is not focused.
+	// example:
+	//		Minimum/maximum:
+	//		To specify a field between 0 and 120:
+	//	|		{min:0,max:120}
+	//		To specify a field that must be an integer:
+	//	|		{fractional:false}
+	//		To specify a field where 0 to 3 decimal places are allowed on input,
+	//		but after the field is blurred the value is displayed with 3 decimal places:
+	//	|		{places:'0,3'}
+});
 =====*/
 
 dojo.declare("dijit.form.NumberTextBoxMixin",
@@ -16557,7 +16603,10 @@ dojo.declare("dijit.form.NumberTextBoxMixin",
 
 		/*=====
 		// constraints: dijit.form.NumberTextBox.__Constraints
-		//		Minimum/maximum allowed values.
+		//		Despite the name, this parameter specifies both constraints on the input
+		//		(including minimum/maximum allowed values) as well as
+		//		formatting options like places (the number of digits to display after
+		//		the decimal point).   See `dijit.form.NumberTextBox.__Constraints` for details.
 		constraints: {},
 		======*/
 
@@ -16739,7 +16788,20 @@ dojo.declare("dijit.form.NumberTextBox",
 	[dijit.form.RangeBoundTextBox,dijit.form.NumberTextBoxMixin],
 	{
 		// summary:
-		//		A validating, serializable, range-bound text box.
+		//		A TextBox for entering numbers, with formatting and range checking
+		// description:
+		//		NumberTextBox is a textbox for entering and displaying numbers, supporting
+		//		the following main features:
+		//
+		//			1. Enforce minimum/maximum allowed values (as well as enforcing that the user types
+		//				a number rather than a random string)
+		//			2. NLS support (altering roles of comma and dot as "thousands-separator" and "decimal-point"
+		//				depending on locale).
+		//			3. Separate modes for editing the value and displaying it, specifically that
+		//				the thousands separator character (typically comma) disappears when editing
+		//				but reappears after the field is blurred.
+		//			4. Formatting and constraints regarding the number of places (digits after the decimal point)
+		//				allowed on input, and number of places displayed when blurred (see `constraints` parameter).
 	}
 );
 
@@ -16755,8 +16817,19 @@ dojo.provide("dijit.form.CurrencyTextBox");
 /*=====
 dojo.declare(
 	"dijit.form.CurrencyTextBox.__Constraints",
-	[dijit.form.NumberTextBox.__Constraints, dojo.currency.__FormatOptions, dojo.currency.__ParseOptions]
-);
+	[dijit.form.NumberTextBox.__Constraints, dojo.currency.__FormatOptions, dojo.currency.__ParseOptions], {
+	// summary:
+	//		Specifies both the rules on valid/invalid values (minimum, maximum,
+	//		number of required decimal places), and also formatting options for
+	//		displaying the value when the field is not focused (currency symbol,
+	//		etc.)
+	// description:
+	//		Follows the pattern of `dijit.form.NumberTextBox.constraints`.
+	//		In general developers won't need to set this parameter
+	// example:
+	//		To ensure that the user types in the cents (for example, 1.00 instead of just 1):
+	//	|		{fractional:true}
+});
 =====*/
 
 dojo.declare(
@@ -16765,13 +16838,23 @@ dojo.declare(
 	{
 		// summary:
 		//		A validating currency textbox
+		// description:
+		//		CurrencyTextBox is similar to `dijit.form.NumberTextBox` but has a few
+		//		extra features related to currency:
 		//
+		//		1. After specifying the currency type (american dollars, euros, etc.) it automatically
+		//			sets parse/format options such as how many decimal places to show.
+		//		2. The currency mark (dollar sign, euro mark, etc.) is displayed when the field is blurred
+		//			but erased during editing, so that the user can just enter a plain number.
+
 		// currency: String
 		//		the [ISO4217](http://en.wikipedia.org/wiki/ISO_4217) currency code, a three letter sequence like "USD"
 		currency: "",
-		//
+
 		// constraints: dijit.form.CurrencyTextBox.__Constraints
-		//		Minimum/maximum amount allowed.
+		//		Despite the name, this parameter specifies both constraints on the input
+		//		(including minimum/maximum allowed values) as well as
+		//		formatting options.   See `dijit.form.CurrencyTextBox.__Constraints` for details.
 		/*=====
 		constraints: {},
 		======*/
@@ -18380,8 +18463,14 @@ dojo.provide("dijit.form._DateTimeTextBox");
 /*=====
 dojo.declare(
 	"dijit.form._DateTimeTextBox.__Constraints",
-	[dijit.form.RangeBoundTextBox.__Constraints, dojo.date.locale.__FormatOptions]
-);
+	[dijit.form.RangeBoundTextBox.__Constraints, dojo.date.locale.__FormatOptions], {
+	// summary:
+	//		Specifies both the rules on valid/invalid values (first/last date/time allowed),
+	//		and also formatting options for how the date/time is displayed.
+	// example:
+	//		To restrict to dates within 2004, displayed in a long format like "December 25, 2005":
+	//	|		{min:'2004-01-01',max:'2004-12-31', formatLength:'long'}
+});
 =====*/
 
 dojo.declare(
@@ -18390,9 +18479,12 @@ dojo.declare(
 	{
 		// summary:
 		//		Base class for validating, serializable, range-bound date or time text box.
-		//
+
 		// constraints: dijit.form._DateTimeTextBox.__Constraints
-		//		Starting / ending dates or times allowed
+		//		Despite the name, this parameter specifies both constraints on the input
+		//		(including starting/ending dates/times allowed) as well as
+		//		formatting options like whether the date is displayed in long (ex: December 25, 2005)
+		//		or short (ex: 12/25/2005) format.   See `dijit.form._DateTimeTextBox.__Constraints` for details.
 		/*=====
 		constraints: {},
 		======*/
@@ -21685,9 +21777,11 @@ dojo.declare(
 
 				var container = dijit.byId(this.containerId);
 				container.closeChild(page);
-				var b = this.pane2button[this._currentChild.id];
-				if(b){
-					dijit.focus(b.focusNode || b.domNode);
+				if(this._currentChild){
+					var b = this.pane2button[this._currentChild.id];
+					if(b){
+						dijit.focus(b.focusNode || b.domNode);
+					}
 				}
 			},
 

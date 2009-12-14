@@ -114,7 +114,9 @@ _1b.onComplete.call(_1d,_1b.onItem?null:_1f,_1b);
 }
 return _1f;
 });
-_1e.addErrback(_1b.onError&&dojo.hitch(_1d,_1b.onError));
+_1e.addErrback(_1b.onError&&function(err){
+return _1b.onError.call(_1d,err,_1b);
+});
 _1b.abort=function(){
 _1e.cancel();
 };

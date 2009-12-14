@@ -72,15 +72,28 @@ var ed=this.editor;
 var _8=dojo.body();
 this.isFullscreen=_7;
 if(_7){
+var _9=ed.domNode.parentNode;
+this._classedParents=[];
+while(_9&&_9!==dojo.body()){
+var _a=dojo.attr(_9,"class");
+if(_a){
+this._classedParents.push({node:_9,classes:_a});
+dojo.attr(_9,"class","");
+}
+_9=_9.parentNode;
+}
+this._editorResizeHolder=this.editor.resize;
+ed.resize=function(){
+};
 ed._fullscreen_oldOnKeyDown=ed.onKeyDown;
 ed.onKeyDown=dojo.hitch(this,this._containFocus);
 this._origState={};
 this._origiFrameState={};
-var _9=ed.domNode,_a=_9&&_9.style||{};
-this._origState={width:_a.width||"",height:_a.height||"",top:dojo.style(_9,"top")||"",left:dojo.style(_9,"left")||"",position:dojo.style(_9,"position")||"static"};
-var _b=ed.iframe,_c=_b&&_b.style||{};
+var _b=ed.domNode,_c=_b&&_b.style||{};
+this._origState={width:_c.width||"",height:_c.height||"",top:dojo.style(_b,"top")||"",left:dojo.style(_b,"left")||"",position:dojo.style(_b,"position")||"static"};
+var _d=ed.iframe,_e=_d&&_d.style||{};
 var bc=dojo.style(ed.iframe,"backgroundColor");
-this._origiFrameState={backgroundColor:bc||"transparent",width:_c.width||"auto",height:_c.height||"auto",zIndex:_c.zIndex||""};
+this._origiFrameState={backgroundColor:bc||"transparent",width:_e.width||"auto",height:_e.height||"auto",zIndex:_e.zIndex||""};
 dojo.style(ed.domNode,{position:"absolute",top:"0px",left:"0px",zIndex:this.zIndex,width:vp.w+"px",height:vp.h+"px"});
 dojo.style(ed.iframe,{height:"100%",width:"100%",zIndex:this.zIndex,backgroundColor:bc!=="transparent"&&bc!=="rgba(0, 0, 0, 0)"?bc:"white"});
 dojo.style(ed.iframe.parentNode,{height:"95%",width:"100%"});
@@ -98,7 +111,12 @@ this._oldBodyParentOverflow="scroll";
 dojo.style(_8.parentNode,"overflow","hidden");
 }
 dojo.style(_8,"overflow","hidden");
-var _d=function(){
+var _f=function(){
+var _10=this.editor.domNode.parentNode;
+while(_10&&_10!==dojo.body()){
+dojo.attr(_10,"class","");
+_10=_10.parentNode;
+}
 var vp=dijit.getViewport();
 if("_prevW" in this&&"_prevH" in this){
 if(vp.w===this._prevW&&vp.h===this._prevH){
@@ -117,13 +135,23 @@ delete this._resizer;
 this._resizeEditor();
 }),10);
 };
-this._resizeHandle=dojo.connect(window,"onresize",this,_d);
+this._resizeHandle=dojo.connect(window,"onresize",this,_f);
 this._resizeEditor();
 var dn=this.editor.toolbar.domNode;
 setTimeout(function(){
 dijit.scrollIntoView(dn);
 },250);
 }else{
+if(this._classedParents){
+while(this._classedParents.length>0){
+var _11=this._classedParents.pop();
+dojo.attr(_11.node,"class",_11.classes);
+}
+delete this._classedParents;
+}
+if(this._editorResizeHolder){
+this.editor.resize=this._editorResizeHolder;
+}
 if(!this._origState&&!this._origiFrameState){
 return;
 }
@@ -139,20 +167,25 @@ if(this._rst){
 clearTimeout(this._rst);
 this._rst=null;
 }
-var _e=this;
+var _12=this;
 setTimeout(function(){
 if(dojo.isIE&&!dojo.isQuirks){
-_8.parentNode.style.overflow=_e._oldBodyParentOverflow;
-delete _e._oldBodyParentOverflow;
+_8.parentNode.style.overflow=_12._oldBodyParentOverflow;
+delete _12._oldBodyParentOverflow;
 }
-dojo.style(_8,"overflow",_e._oldOverflow);
-delete _e._oldOverflow;
-dojo.style(ed.domNode,_e._origState);
+dojo.style(_8,"overflow",_12._oldOverflow);
+delete _12._oldOverflow;
+dojo.style(ed.domNode,_12._origState);
 dojo.style(ed.iframe.parentNode,{height:"",width:""});
-dojo.style(ed.iframe,_e._origiFrameState);
-delete _e._origState;
-delete _e._origiFrameState;
-dijit.scrollIntoView(_e.editor.toolbar.domNode);
+dojo.style(ed.iframe,_12._origiFrameState);
+delete _12._origState;
+delete _12._origiFrameState;
+ed.resize();
+var _13=dijit.getEnclosingWidget(ed.domNode.parentNode);
+if(_13&&_13.resize){
+_13.resize();
+}
+dijit.scrollIntoView(_12.editor.toolbar.domNode);
 },100);
 }
 },destroy:function(){
@@ -170,8 +203,8 @@ dojo.subscribe(dijit._scopeName+".Editor.getPlugin",null,function(o){
 if(o.plugin){
 return;
 }
-var _f=o.args.name.toLowerCase();
-if(_f==="fullscreen"){
+var _14=o.args.name.toLowerCase();
+if(_14==="fullscreen"){
 o.plugin=new dijit._editor.plugins.FullScreen({zIndex:("zIndex" in o.args)?o.args.zIndex:500});
 }
 });

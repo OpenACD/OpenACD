@@ -93,9 +93,11 @@ _12.selectChild(_11);
 },onCloseButtonClick:function(_13){
 var _14=dijit.byId(this.containerId);
 _14.closeChild(_13);
+if(this._currentChild){
 var b=this.pane2button[this._currentChild.id];
 if(b){
 dijit.focus(b.focusNode||b.domNode);
+}
 }
 },adjacent:function(_15){
 if(!this.isLeftToRight()&&(!this.tabPosition||/top|bottom/.test(this.tabPosition))){

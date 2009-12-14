@@ -791,7 +791,7 @@ img.dijitColorPaletteUnder {
 	padding: none !important;
 	background:none ! important;
 }
-.dj_ie .dijit_a11y .dijitMenuItemSelected .dijitMenuItemLabel {
+.dijit_a11y .dijitMenuItemSelected .dijitMenuItemLabel {
 	border-width: 1px;
 	border-style: solid;
 }
@@ -836,7 +836,7 @@ img.dijitColorPaletteUnder {
 .dijitStackController .dijitToggleButtonChecked * {
 	cursor: default;	
 }
-.dijitTabContainer {
+.dijitTabContainerNoLayout {
 	width: 100%;	
 }
 .dijitTabContainerBottom-tabs,
@@ -2326,8 +2326,8 @@ div.dijitTabBtnDisabled, .dj_ie div.dijitTabBtnDisabled {
 }
 .tundra .dijitSelect .dijitButtonContents {
 	padding-top: 1px;
-    background:#fff url(../../dijit/themes/tundra/images/validationInputBg.png) repeat-x top left;
-    #background:#fff url(../../dijit/themes/tundra/images/validationInputBg.gif) repeat-x top left;
+    background:#fff url(images/validationInputBg.png) repeat-x top left;
+    #background:#fff url(images/validationInputBg.gif) repeat-x top left;
 }
 .tundra .dijitSelectHover .dijitButtonContents,
 .tundra .dijitSelectActive .dijitButtonContents,
@@ -2341,7 +2341,7 @@ div.dijitTabBtnDisabled, .dj_ie div.dijitTabBtnDisabled {
 }
 .tundra .dijitSelectDisabled .dijitButtonNode {
     border-color: #d5d5d5 #bdbdbd #bdbdbd #d5d5d5;
-    background:#e4e4e4 url(../../dijit/themes/tundra/images/buttonDisabled.png) top repeat-x;
+    background:#e4e4e4 url(images/buttonDisabled.png) top repeat-x;
 }
 .dj_ie .tundra .dijitSelectDisabled  .dijitButtonNode * {
 	filter: gray() alpha(opacity=50);
@@ -2351,12 +2351,12 @@ div.dijitTabBtnDisabled, .dj_ie div.dijitTabBtnDisabled {
     border-bottom-color:#5c7590;
     border-right-color:#5c7590;
     color:#243C5F;
-    background:#fcfdff url(../../dijit/themes/tundra/images/buttonHover.png) repeat-x bottom;
+    background:#fcfdff url(images/buttonHover.png) repeat-x bottom;
 }
 .tundra .dijitSelectActive .dijitButtonNode,
 .tundra .dijitSelectOpened .dijitButtonNode {
     border-color:#366dba;
-    background: #ededed url(../../dijit/themes/tundra/images/buttonActive.png) bottom repeat-x;
+    background: #ededed url(images/buttonActive.png) bottom repeat-x;
 }
 .tundra .dijitSelectMenu td {
 	padding: 0em;

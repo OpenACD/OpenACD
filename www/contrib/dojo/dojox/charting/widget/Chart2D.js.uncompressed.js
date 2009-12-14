@@ -739,7 +739,7 @@ dojo.mixin(dijit, {
 		var mousedownListener = function(evt){
 			dijit._justMouseDowned = true;
 			setTimeout(function(){ dijit._justMouseDowned = false; }, 0);
-			dijit._onTouchNode(effectiveNode || evt.target || evt.srcElement);
+			dijit._onTouchNode(effectiveNode || evt.target || evt.srcElement, "mouse");
 		};
 		//dojo.connect(targetWindow, "onscroll", ???);
 
@@ -832,9 +832,13 @@ dojo.mixin(dijit, {
 		}, 100);
 	},
 
-	_onTouchNode: function(/*DomNode*/ node){
+	_onTouchNode: function(/*DomNode*/ node, /*String*/ by){
 		// summary:
 		//		Callback when node is focused or mouse-downed
+		// node:
+		//		The node that was touched.
+		// by:
+		//		"mouse" if the focus/touch was caused by a mouse down event
 
 		// ignore the recent blurNode event
 		if(dijit._clearActiveWidgetsTimer){
@@ -868,7 +872,7 @@ dojo.mixin(dijit, {
 			}
 		}catch(e){ /* squelch */ }
 
-		dijit._setStack(newStack);
+		dijit._setStack(newStack, by);
 	},
 
 	_onFocusNode: function(/*DomNode*/ node){
@@ -896,9 +900,13 @@ dojo.mixin(dijit, {
 		dojo.publish("focusNode", [node]);
 	},
 
-	_setStack: function(newStack){
+	_setStack: function(/*String[]*/ newStack, /*String*/ by){
 		// summary:
 		//		The stack of active widgets has changed.  Send out appropriate events and records new stack.
+		// newStack:
+		//		array of widget id's, starting from the top (outermost) widget
+		// by:
+		//		"mouse" if the focus/touch was caused by a mouse down event
 
 		var oldStack = dijit._activeStack;
 		dijit._activeStack = newStack;
@@ -918,12 +926,12 @@ dojo.mixin(dijit, {
 				widget._focused = false;
 				widget._hasBeenBlurred = true;
 				if(widget._onBlur){
-					widget._onBlur();
+					widget._onBlur(by);
 				}
 				if(widget._setStateClass){
 					widget._setStateClass();
 				}
-				dojo.publish("widgetBlur", [widget]);
+				dojo.publish("widgetBlur", [widget, by]);
 			}
 		}
 
@@ -933,12 +941,12 @@ dojo.mixin(dijit, {
 			if(widget){
 				widget._focused = true;
 				if(widget._onFocus){
-					widget._onFocus();
+					widget._onFocus(by);
 				}
 				if(widget._setStateClass){
 					widget._setStateClass();
 				}
-				dojo.publish("widgetFocus", [widget]);
+				dojo.publish("widgetFocus", [widget, by]);
 			}
 		}
 	}
@@ -2428,7 +2436,7 @@ var _attrReg = {},	// cached results from getSetterAttributes
 
 dojo.declare("dijit._Widget", null, {
 	// summary:
-	//		Base class for all dijit widgets.
+	//		Base class for all Dijit widgets.
 
 	// id: [const] String
 	//		A unique, opaque ID string that can be assigned by users or by the
@@ -2465,7 +2473,7 @@ dojo.declare("dijit._Widget", null, {
 	//		For form widgets this specifies a tooltip to display when hovering over
 	//		the widget (just like the native HTML title attribute).
 	//
-	//		For TitlePane or for when this widget is a child of a TabContainer, AccorionContainer,
+	//		For TitlePane or for when this widget is a child of a TabContainer, AccordionContainer,
 	//		etc., it's used to specify the tab label, accordion pane title, etc.
 	title: "",
 
@@ -2475,7 +2483,7 @@ dojo.declare("dijit._Widget", null, {
 	tooltip: "",
 
 	// srcNodeRef: [readonly] DomNode
-	//		pointer to original dom node
+	//		pointer to original DOM node
 	srcNodeRef: null,
 
 	// domNode: [readonly] DomNode
@@ -2486,21 +2494,21 @@ dojo.declare("dijit._Widget", null, {
 	domNode: null,
 
 	// containerNode: [readonly] DomNode
-	//		Designates where children of the source dom node will be placed.
-	//		"Children" in this case refers to both dom nodes and widgets.
+	//		Designates where children of the source DOM node will be placed.
+	//		"Children" in this case refers to both DOM nodes and widgets.
 	//		For example, for myWidget:
 	//
 	//		|	<div dojoType=myWidget>
-	//		|		<b> here's a plain dom node
+	//		|		<b> here's a plain DOM node
 	//		|		<span dojoType=subWidget>and a widget</span>
-	//		|		<i> and another plain dom node </i>
+	//		|		<i> and another plain DOM node </i>
 	//		|	</div>
 	//
 	//		containerNode would point to:
 	//
-	//		|		<b> here's a plain dom node
+	//		|		<b> here's a plain DOM node
 	//		|		<span dojoType=subWidget>and a widget</span>
-	//		|		<i> and another plain dom node </i>
+	//		|		<i> and another plain DOM node </i>
 	//
 	//		In templated widgets, "containerNode" is set via a
 	//		dojoAttachPoint assignment.
@@ -2729,39 +2737,23 @@ dojo.declare("dijit._Widget", null, {
 		//		scalar values (like title, duration etc.) and functions,
 		//		typically callbacks like onClick.
 		// srcNodeRef:
-		//		If a srcNodeRef (dom node) is specified:
+		//		If a srcNodeRef (DOM node) is specified:
 		//			- use srcNodeRef.innerHTML as my contents
 		//			- if this is a behavioral widget then apply behavior
 		//			  to that srcNodeRef
 		//			- otherwise, replace srcNodeRef with my generated DOM
 		//			  tree
 		// description:
-		//		To understand the process by which widgets are instantiated, it
-		//		is critical to understand what other methods create calls and
-		//		which of them you'll want to override. Of course, adventurous
-		//		developers could override create entirely, but this should
+		//		Create calls a number of widget methods (postMixInProperties, buildRendering, postCreate,
+		//		etc.), some of which of you'll want to override. See http://docs.dojocampus.org/dijit/_Widget
+		//		for a discussion of the widget creation lifecycle.
+		//
+		//		Of course, adventurous developers could override create entirely, but this should
 		//		only be done as a last resort.
-		//
-		//		Below is a list of the methods that are called, in the order
-		//		they are fired, along with notes about what they do and if/when
-		//		you should over-ride them in your widget:
-		//
-		// * postMixInProperties:
-		//	|	* a stub function that you can over-ride to modify
-		//		variables that may have been naively assigned by
-		//		mixInProperties
-		// * widget is added to manager object here
-		// * buildRendering:
-		//	|	* Subclasses use this method to handle all UI initialization
-		//		Sets this.domNode.  Templated widgets do this automatically
-		//		and otherwise it just uses the source dom node.
-		// * postCreate:
-		//	|	* a stub function that you can over-ride to modify take
-		//		actions once the widget has been placed in the UI
 		// tags:
 		//		private
 
-		// store pointer to original dom tree
+		// store pointer to original DOM tree
 		this.srcNodeRef = dojo.byId(srcNodeRef);
 
 		// For garbage collection.  An array of handles returned by Widget.connect()
@@ -2815,7 +2807,7 @@ dojo.declare("dijit._Widget", null, {
 
 			// If the developer has specified a handler as a widget parameter
 			// (ex: new Button({onClick: ...})
-			// then naturally need to connect from dom node to that handler immediately,
+			// then naturally need to connect from DOM node to that handler immediately,
 			for(attr in this.params){
 				this._onConnect(attr);
 			}
@@ -2879,8 +2871,9 @@ dojo.declare("dijit._Widget", null, {
 
 	buildRendering: function(){
 		// summary:
-		//		Construct the UI for this widget, setting this.domNode.  Most
-		//		widgets will mixin `dijit._Templated`, which implements this
+		//		Construct the UI for this widget, setting this.domNode
+		// description:
+		//		Most widgets will mixin `dijit._Templated`, which implements this
 		//		method.
 		// tags:
 		//		protected
@@ -2889,15 +2882,21 @@ dojo.declare("dijit._Widget", null, {
 
 	postCreate: function(){
 		// summary:
-		//		Called after a widget's dom has been setup
+		//		Processing after the DOM fragment is created
+		// description:
+		//		Called after the DOM fragment has been created, but not necessarily
+		//		added to the document.  Do not include any operations which rely on
+		//		node dimensions or placement.
 		// tags:
 		//		protected
 	},
 
 	startup: function(){
 		// summary:
-		//		Called after a widget's children, and other widgets on the page, have been created.
-		//		Provides an opportunity to manipulate any children before they are displayed.
+		//		Processing after the DOM fragment is added to the document
+		// description:
+		//		Called after a widget and its children have been created and added to the page,
+		//		and all related widgets have finished their create() cycle, up through postCreate().
 		//		This is useful for composite widgets that need to control or layout sub-widgets.
 		//		Many layout widgets can use this as a wiring phase.
 		this._started = true;
@@ -2907,10 +2906,11 @@ dojo.declare("dijit._Widget", null, {
 
 	destroyRecursive: function(/*Boolean?*/ preserveDom){
 		// summary:
-		// 		Destroy this widget and its descendants. This is the generic
-		// 		"destructor" function that all widget users should call to
-		// 		cleanly discard with a widget. Once a widget is destroyed, it is
-		// 		removed from the manager object.
+		// 		Destroy this widget and its descendants
+		// description:
+		//		This is the generic "destructor" function that all widget users
+		// 		should call to cleanly discard with a widget. Once a widget is
+		// 		destroyed, it is removed from the manager object.
 		// preserveDom:
 		//		If true, this method will leave the original DOM structure
 		//		alone of descendant Widgets. Note: This will NOT work with
@@ -3201,7 +3201,7 @@ dojo.declare("dijit._Widget", null, {
 		//		will do
 		//	|	myTitlePane.title = "Howdy!";
 		//	|	myTitlePane.title.innerHTML = "Howdy!";
-		//		It works for dom node attributes too.  Calling
+		//		It works for DOM node attributes too.  Calling
 		//	|	widget.attr("disabled", true)
 		//		will set the disabled attribute on the widget's focusNode,
 		//		among other housekeeping for a change in disabled state.
@@ -3257,9 +3257,10 @@ dojo.declare("dijit._Widget", null, {
 
 	toString: function(){
 		// summary:
-		//		Returns a string that represents the widget. When a widget is
-		//		cast to a string, this method will be used to generate the
-		//		output. Currently, it does not implement any sort of reversable
+		//		Returns a string that represents the widget
+		// description:
+		//		When a widget is cast to a string, this method will be used to generate the
+		//		output. Currently, it does not implement any sort of reversible
 		//		serialization.
 		return '[Widget ' + this.declaredClass + ', ' + (this.id || 'NO ID') + ']'; // String
 	},

@@ -1,0 +1,35 @@
+Return-Path: <from@example.com>
+Received: from mx.example.com (mx.example.com [127.0.0.1])
+    by mail.example.com (Fakex SMTP Relay 11.4.2.12068)
+    via ESMTP; Tue, 08 Dec 2009 21:25:28 -0500 (EST)
+Received: from localhost (localhost.example.com [127.0.0.1])
+	by mx.example.com (Postfix) with ESMTP id 08D54788E4
+	for <info@example.com>; Tue,  8 Dec 2009 21:25:28 -0500 (EST)
+Received: from mx.example.com ([127.0.0.1])
+	by localhost (mx.example.com [127.0.0.1]) (amavisd-new, port 10024)
+	with LMTP id VcWTZ9t5Erax for <info@example.com>;
+	Tue,  8 Dec 2009 21:25:25 -0500 (EST)
+Received: from external.example.com (unknown [127.0.0.1])
+	by mx.example.com (Postfix) with ESMTP id 7BE90788DB
+	for <info@example.com>; Tue,  8 Dec 2009 21:25:23 -0500 (EST)
+Received: from DM ([127.0.0.1])
+	by external.example.com (external.example.com)
+	(MDaemon.PRO.v7.2.3.R)
+	with ESMTP id md50000570744.msg
+	for <info@example.com>; Wed, 09 Dec 2009 10:24:26 +0800
+Date: Tue, 8 Dec 2009 21:25:23 -0500
+From: "From" <from@example.com>
+To: First first@example.com,
+	Second second@example.com,
+	Third third@example.com,
+	Fourth fourth@example.com
+Message-ID: <20091209022524.7BE90788DB@mx.example.com>
+Subject: Test for correct 'from' field on reply.
+Priority: normal
+MIME-Version: 1.0
+Content-type: text/plain;
+	charset="US-ASCII"
+Content-Disposition: inline
+
+When clicking Reply, the from field should only show a single address.
+

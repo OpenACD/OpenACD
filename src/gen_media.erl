@@ -1181,8 +1181,7 @@ agent_interact(hangup, #state{oncall_pid = Apid} = State) when is_pid(Apid) ->
 agent_interact(hangup, #state{ring_pid = Apid, callrec = Call} = State) when is_pid(Apid) ->
 	?INFO("hangup when only ringing is a pid", []),
 	agent:set_state(Apid, idle),
-	Callrec = State#state.callrec,
-	cdr:hangup(Callrec, string:join(tuple_to_list(Callrec#call.callerid), " ")),
+	cdr:hangup(Call, string:join(tuple_to_list(Call#call.callerid), " ")),
 	kill_outband_ring(State),
 	State#state{ring_pid = undefined, outband_ring_pid = undefined};
 agent_interact(hangup, #state{queue_pid = Qpid, callrec = Call} = State) when is_pid(Qpid) ->

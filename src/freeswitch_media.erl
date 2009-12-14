@@ -161,6 +161,7 @@ init([Cnode, UUID]) ->
 	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}},
 	{ok, {#state{cnode=Cnode, manager_pid = Manager}, Call, {inivr, [DNIS]}}}.
 
+-spec(handle_announce/3 :: (Announcement :: string(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_announce(Announcement, Callrec, State) ->
 	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
 		[{"call-command", "execute"},
@@ -180,7 +181,7 @@ handle_answer(Apid, Callrec, State) ->
 	case cpx_supervisor:get_archive_path(Callrec) of
 		none ->
 			?DEBUG("archiving is not configured", []);
-		{error, Reason, Path} ->
+		{error, _Reason, Path} ->
 			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
 		Path ->
 			%% get_archive_path ensures the directory is writeable by us and exists, so this
@@ -225,6 +226,7 @@ handle_ring_stop(_Callrec, State) ->
 	end,
 	{ok, State#state{ringchannel=undefined}}.
 
+-spec(handle_voicemail/3 :: (Agent :: pid(), Call :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_voicemail(Agent, Callrec, State) when is_pid(Agent) ->
 	{ok, Midstate} = handle_ring_stop(Callrec, State),
 	handle_voicemail(undefined, Callrec, Midstate);
@@ -233,8 +235,11 @@ handle_voicemail(undefined, Call, State) ->
 	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:IVR/prrec.wav,record:/tmp/${uuid}.wav' inline"),
 	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
 
+-spec(handle_spy/3 :: (Agent :: pid(), Call :: #call{}, State :: #state{}) -> {'error', 'bad_agent', #state{}} | {'ok', #state{}}).
 handle_spy(Agent, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
 	case agent_manager:find_by_pid(Agent) of
+		notfound ->
+			{error, bad_agent, State};
 		AgentName ->
 			agent:blab(Agent, "While spying, you have the following options:\n"++
 				"* To whisper to the agent; press 1\n"++
@@ -242,9 +247,7 @@ handle_spy(Agent, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when 
 				"* To talk to both parties; press 3\n"++
 				"* To resume spying; press 0"),
 			freeswitch:bgapi(Fnode, originate, "user/" ++ re:replace(AgentName, "@", "_", [{return, list}]) ++ " &eavesdrop(" ++ Call#call.id ++ ")"),
-			{ok, State};
-		notfound ->
-			{error, bad_agent, State}
+			{ok, State}
 	end;
 handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.
@@ -258,7 +261,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 	%cdr:agent_transfer(Call, {Offerer, Recipient}),
 	% fun that returns another fun when passed the UUID of the new channel
 	% (what fun!)
-	F = fun(UUID) ->
+	F = fun(_UUID) ->
 		fun(ok, _Reply) ->
 			% agent picked up?
 			%unlink(State#state.ringchannel),
@@ -280,6 +283,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 			{error, Error, State}
 	end.
 
+-spec(handle_warm_transfer_begin/3 :: (Number :: pos_integer(), Call :: #call{}, State :: #state{}) -> {'ok', string(), #state{}} | {'error', string(), #state{}}).
 handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = Node} = State) when is_pid(AgentPid) ->
 	case freeswitch:api(Node, uuid_transfer, lists:flatten(io_lib:format("~s -both 'conference:~s+flags{mintwo}' inline", [Call#call.id, Call#call.id]))) of
 		{error, Error} ->
@@ -450,7 +454,7 @@ handle_info(Info, _Call, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(Reason, _Call, State) ->
+terminate(Reason, _Call, _State) ->
 	?NOTICE("terminating: ~p", [Reason]),
 	ok.
 

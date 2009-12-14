@@ -186,6 +186,7 @@ notify(UUID, Pid) ->
 make_outbound_call(Client, AgentPid, AgentRec) ->
 	gen_server:call(?MODULE, {make_outbound_call, Client, AgentPid, AgentRec}).
 
+-spec(new_voicemail/5 :: (UUID :: string(), File :: string(), Queue :: string(), Priority :: pos_integer(), Client :: #client{} | string()) -> 'ok').
 new_voicemail(UUID, File, Queue, Priority, Client) ->
 	gen_server:cast(?MODULE, {new_voicemail, UUID, File, Queue, Priority, Client}).
 
@@ -223,7 +224,7 @@ handle_call({make_outbound_call, Client, AgentPid, AgentRec}, _From, #state{node
 	{ok, Pid} = freeswitch_outbound:start(Node, AgentRec, AgentPid, Client, Vgw, 30),
 	link(Pid),
 	{reply, {ok, Pid}, State};
-handle_call({make_outbound_call, Client, AgentPid, AgentRec}, _From, State) -> % freeswitch is down
+handle_call({make_outbound_call, _Client, _AgentPid, _AgentRec}, _From, State) -> % freeswitch is down
 	{reply, {error, noconnection}, State};
 handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) ->
 	case dict:find(UUID, Dict) of
@@ -462,7 +463,7 @@ fetch_domain_user(Node, State) ->
 							User = proplists:get_value("user", Data),
 							Domain = proplists:get_value("domain", Data),
 							case agent_manager:query_agent(User) of
-								{true, Pid} ->
+								{true, _Pid} ->
 									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?USERRESPONSE, [Domain, User]))});
 								false ->
 									freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})

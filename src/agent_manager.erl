@@ -51,8 +51,6 @@
 	agents = dict:new() :: dict()
 	}).
 
--type(agent_state() :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup').
-
 -type(state() :: #state{}).
 -define(GEN_LEADER, true).
 -include("gen_spec.hrl").
@@ -387,7 +385,7 @@ handle_call({exists, Login}, _From, #state{agents = Agents} = State, Election) -
 			end;
 		error -> % we're the leader
 			{reply, false, State};
-		{ok, {Pid, Id}} ->
+		{ok, {Pid, _Id}} ->
 			{reply, {true, Pid}, State}
 	end;
 handle_call({notify, Login, Id, Pid}, _From, #state{agents = Agents} = State, Election) when is_pid(Pid) andalso node(Pid) =:= node() ->

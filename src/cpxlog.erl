@@ -109,6 +109,7 @@ start_link() ->
 	end,
 	Out.
 
+-spec(stop/0 :: () -> 'ok').
 stop() ->
 	% try to clean everything up
 	gen_event:stop(cpxlog),
@@ -122,6 +123,7 @@ log(Level, Time, Module, Line, Pid, Message, Args) ->
 	catch gen_event:notify(cpxlog, {Level, Time, Module, Line, Pid, Message, Args}),
 	ok.
 
+-spec(log/5 :: (Level :: level(), Time :: any(), Pid :: pid(), Message :: any(), Ars :: [any()]) -> 'ok').
 log(Level, Time, Pid, Message, Args) ->
 	%io:format("log/5: ~p ~p ~p ~p ~p~n", [Level, Time, Pid, Message, Args]),
 	catch gen_event:notify(cpxlog, {Level, Time, Pid, Message, Args}),

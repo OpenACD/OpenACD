@@ -54,25 +54,38 @@
 
 -record(state, {
 		rrd :: pid(),
-		lastrun,
-		agents,
-		rrd_dir = "rrd",
-		image_dir = "rrd"
+		lastrun :: pos_integer(),
+		agents :: [{string(), [string()]}],
+		rrd_dir = "rrd" :: string(),
+		image_dir = "rrd" :: string()
 }).
+
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
+-type(rrd_dir_opt() :: {'rrd_dir', string()}).
+-type(image_dir_opt() :: {'image_dir', string()}).
+-type(start_opt() :: rrd_dir_opt() | image_dir_opt()).
+-type(start_opts() :: [start_opt()]).
 
 % API
 
+-spec(start/0 :: () -> {'ok', pid()}).
 start() ->
 	start([]).
 
 %% @doc Props:
 %%	*	outdir Directory
+-spec(start/1 :: (Props :: start_opts()) -> {'ok', pid()}).
 start(Props) ->
 	gen_server:start(?MODULE, Props, []).
 
+-spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
 	start_link([]).
 
+-spec(start_link/1 :: (Props :: start_opts()) -> {'ok', pid()}).
 start_link(Props) ->
 	gen_server:start_link(?MODULE, Props, []).
 
@@ -154,7 +167,7 @@ handle_info(update, State) ->
 handle_info({cpx_monitor_event, {set, {{agent, _}, _, Agent, _}}}, #state{agents = Agents} = State) ->
 	NewAgents = update_agent(Agent, Agents),
 	{noreply, State#state{agents = NewAgents}, hibernate};
-handle_info(Info, State) ->
+handle_info(_Info, State) ->
 	{noreply, State, hibernate}.
 
 terminate(_Reason, _State) ->
@@ -191,7 +204,7 @@ calculate_utilization_by_profile([{Profile, Agents} | Tail], Acc) ->
 
 calculate_utilization_by_agent([], Acc) ->
 	Acc;
-calculate_utilization_by_agent([{Agent, States} | Tail], Acc) ->
+calculate_utilization_by_agent([{_Agent, States} | Tail], Acc) ->
 	Util = calc(lists:reverse(States), 0, 0),
 	calculate_utilization_by_agent(Tail, Acc + Util).
 
@@ -272,18 +285,6 @@ hsv2rgb({H, S, V}) ->
 
 rgb2hex({R, G, B}) ->
 	lists:flatten(io_lib:format("#~2.16.0b~2.16.0b~2.16.0b", [R, G, B])).
-
-get_colors(Profiles) ->
-	SeedIn = lists:sum(lists:append(Profiles)),
-	%lazily seed the RNG
-	Seed = {SeedIn bsl 4, SeedIn bsl 6, SeedIn bsl 9},
-	random:seed(Seed),
-
-	Fun = fun() ->
-			rgb2hex(hsv2rgb({random:uniform(360) -1, random:uniform(), random:uniform()}))
-	end,
-
-	Colors = lists:map(fun(Profile) -> {Profile, Fun()} end, Profiles).
 
 floor(X) ->
 		T = trunc(X),

@@ -105,8 +105,6 @@
 
 -type(mail_map_opt() :: {mail_map, #mail_map{}}).
 -type(raw_message_opt() :: {raw, binary()}).
--type(headers_opt() :: {headers, binary()}).
--type(data_opt() :: {data, binary()}).
 -type(send_opts() :: [any()]).
 -type(start_opt() :: mail_map_opt() | raw_message_opt() | send_opts()).
 -type(start_opts() :: [start_opt()]).
@@ -261,13 +259,13 @@ handle_call({get_id, Id}, From, Callrec, #state{file_map = Map} = State) when is
 			?DEBUG("path:  ~p", [Path]),
 			handle_call({get_path, Path}, From, Callrec, State)
 	end;
-handle_call({get_blind, Key}, _From, Callrec, #state{file_map = Map, mimed = Mime} = State) when is_list(Key) ->
+handle_call({get_blind, Key}, _From, _Callrec, #state{file_map = Map, mimed = Mime} = State) when is_list(Key) ->
 	case proplists:get_value(Key, Map) of
 		undefined ->
 			Splitpath = util:string_split(Key, "/"),
 			Test = fun(I) ->
 				try list_to_integer(I) of
-					Integer ->
+					_Integer ->
 						true
 				catch
 					error:badarg ->
@@ -300,10 +298,10 @@ handle_call({"get_path", Post}, _From, _Callrec, #state{mimed = Mime} = State) -
 	{reply, Out, State};
 handle_call({"attach", Postdata}, _From, _Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
 	case proplists:get_value("attachFiles", Postdata) of
-		{Name, Bin} = T ->
+		{_Name, Bin} = T ->
 			case byte_size(Bin) + State#state.attachment_size of
 				Toobig when Toobig > 5242880 ->
-					Size = State#state.attachment_size,
+					%Size = State#state.attachment_size,
 					{reply, {error, toobig}, State};
 				Size ->
 					Attachments = [T | Oldattachments],
@@ -311,7 +309,7 @@ handle_call({"attach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 					?DEBUG("files list:  ~p", [Keys]),
 					{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments, attachment_size = Size}}
 			end;
-		Else ->
+		_Else ->
 			?INFO("Uploading attempted with no file uploaded", []),
 			{reply, {error, nofile}, State}
 	end;
@@ -326,9 +324,9 @@ handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 					{reply, {error, out_of_range, Nth}, State};
 				false ->
 					case lists:split(Nth - 1, Attachments) of
-						{Toplist, [{Name, Bin} | Tail]} ->
+						{Toplist, [{Name, _Bin} | Tail]} ->
 							Newattaches = lists:append(Toplist, Tail),
-							Newsize = State#state.attachment_size - byte_size(Bin),
+							%Newsize = State#state.attachment_size - byte_size(Bin),
 							Keys = get_prop_keys(Newattaches),
 							{reply, {ok, Keys}, State#state{outgoing_attachments = Newattaches}};
 						{_, [{Gotname, _} | _]} ->
@@ -365,7 +363,7 @@ handle_call(Msg, _From, _Callrec, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_cast({"send", Post}, Callrec, #state{mimed = Mimed, sending_pid = undefined} = State) ->
+handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 	{struct, Args} = mochijson2:decode(proplists:get_value("arguments", Post)),
 	?DEBUG("Starting Send", []),
 	[{_, To}, {_, From}, _] = Headers = [
@@ -478,9 +476,6 @@ handle_ring(_Agent, _Call, #state{caseid = CaseID} = State) when CaseID =/= unde
 handle_ring(_Agent, _Call, State) ->
 	{ok, State}.
 
-handle_voicemail(_Whatever, _Callrec, State) ->
-	{invalid, State}.
-
 handle_agent_transfer(_Agent, _Timeout, _Callrec, State) ->
 	{ok, State}.
 
@@ -548,7 +543,7 @@ skeletonize({Type, Subtype, Headers, Properties, _Body}, Path, Files) ->
 skeletonize(List, Path, Files) when is_list(List) ->
 	skeletonize(List, Path, Files, []).
 
-skeletonize([], Path, Files, Acc) ->
+skeletonize([], _Path, Files, Acc) ->
 	{lists:reverse(Acc), Files};
 skeletonize([{<<"multipart">>, Subtype, Headers, Properties, List} | Tail], [Count | Ptail] = Path, Files, Acc) ->
 	{Sublist, Newfiles} = skeletonize(List, [1 | Path], Files),
@@ -559,11 +554,11 @@ skeletonize([{<<"message">>, <<"rfc822">>, Headers, Properties, Body} | Tail], [
 	Newacc = [{<<"message">>, <<"rfc822">>, downcase_headers(Headers), Properties, Sublist} | Acc],
 	Newfiles = append_files(Headers, Properties, Path, Midfiles),
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc);
-skeletonize([{<<"message">>, Subtype, Headers, Properties, Body} | Tail], [Count | Ptail] = Path, Files, Acc) ->
+skeletonize([{<<"message">>, Subtype, Headers, Properties, _Body} | Tail], [Count | Ptail], Files, Acc) ->
 	Newacc = [{<<"message">>, Subtype, downcase_headers(Headers), Properties} | Acc],
 	skeletonize(Tail, [Count + 1 | Ptail], Files, Newacc);
 skeletonize([Head | Tail], [Count | Ptail] = Path, Files, Acc) ->
-	{Skel, Newfiles} = skeletonize(Head, Path, Files),
+	{_Skel, Newfiles} = skeletonize(Head, Path, Files),
 	Newacc = [{element(1, Head), element(2, Head), element(3, Head), element(4, Head)} | Acc],
 	skeletonize(Tail, [Count + 1 | Ptail], Newfiles, Newacc).
 
@@ -575,35 +570,25 @@ downcase_headers([], Acc) ->
 downcase_headers([{Key, Value} | Tail], Acc) ->
 	downcase_headers(Tail, [{binstr:to_lower(Key), Value} | Acc]).
 
-get_part([], {<<"multipart">>, Subtype, _Headers, _Properties, List}) ->
+get_part([], {<<"multipart">>, _Subtype, _Headers, _Properties, List}) ->
 	%?DEBUG("[], \"multipart\"", []),
 	{multipart, List};
-get_part([], {<<"message">>, Subtype, _Headers, _Properties, Body}) ->
+get_part([], {<<"message">>, _Subtype, _Headers, _Properties, Body}) ->
 	%?DEBUG("[], \"message\"", []),
 	{message, Body};
 get_part([], Mime) ->
 	%?DEBUG("[], ~p/~p", [element(1, Mime), element(2, Mime)]),
 	{ok, Mime};
-get_part([Child | Tail], {<<"multipart">>, Subtype, _Headers, _Properties, List}) when Child =< length(List) ->
+get_part([Child | Tail], {<<"multipart">>, _Subtype, _Headers, _Properties, List}) when Child =< length(List) ->
 	%?DEBUG("[~p | ~p], multipart/~p", [Child, Tail, Subtype]),
 	Part = lists:nth(Child, List),
 	get_part(Tail, Part);
-get_part([1 | Tail], {<<"message">>, Subtype, _Headers, _Properties, Body}) ->
+get_part([1 | Tail], {<<"message">>, _Subtype, _Headers, _Properties, Body}) ->
 	%?DEBUG("[1 | ~p], message/~p", [Tail, Subtype]),
 	get_part(Tail, Body);
 get_part(Path, Mime) ->
 	?INFO("Invalid path ~p.  ~p/~p", [Path, element(1, Mime), element(2, Mime)]),
 	none.
-
-check_disposition(Properties) ->
-	case get_disposition({1, 1, 1, Properties, 1}) of
-		inline ->
-			inline;
-		{inline, Name} ->
-			{inline, Name, [{<<"Content-Disposition">>, list_to_binary(lists:flatten(io_lib:format("inline; filename=\"~s\"", [Name])))}]};
-		{attachment, Name} ->
-			{attachment, Name, [{<<"Content-Disposition">>, list_to_binary(lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Name])))}]}
-	end.
 
 append_files(Headers, Properties, Path, Files) ->
 	?DEBUG("append_files:  ~p, ~p", [Headers, Properties]),
@@ -627,50 +612,6 @@ append_files(Headers, Properties, Path, Files) ->
 					end,
 					[{Fixedname, lists:reverse(Path)} | Midfiles]
 			end
-	end.
-
-right_time(undefined) ->
-	true;
-right_time(Client) when is_record(Client, client) ->
-	EmailOverride = proplists:get_value(<<"emailoverride">>, Client#client.options, false),
-	EmailStart = proplists:get_value(<<"emailstart">>, Client#client.options),
-	EmailEnd = proplists:get_value(<<"emailend">>, Client#client.options),
-	case {EmailOverride, EmailStart, EmailEnd} of
-		{false, X, Y} when is_binary(X), is_binary(Y), X =/= Y ->
-			IntStart = try_binary_to_integer(EmailStart),
-			IntEnd = try_binary_to_integer(EmailEnd),
-			{_, {Hour, Minute, _}} = calendar:local_time(),
-			Current = Hour*100 + Minute,
-			case {IntStart, IntEnd} of
-				{A, B} when is_integer(A), is_integer(B) ->
-					if (Current > IntStart andalso ((IntStart < IntEnd andalso Current < IntEnd) orelse (IntEnd < IntStart)));
-						(IntStart > IntEnd andalso Current < IntEnd andalso Current < IntStart) ->
-							true;
-						true ->
-							false
-					end;
-				_ ->
-					true
-			end;
-		_ ->
-			true
-	end;
-right_time(Client) when is_list(Client) ->
-	case call_queue_config:get_client(id, Client) of
-		none ->
-			right_time(undefined);
-		Else ->
-			right_time(Else)
-	end.
-
-try_binary_to_integer(Bin) when is_binary(Bin) ->
-	List = binary_to_list(Bin),
-	try list_to_integer(List) of
-		X ->
-			X
-	catch
-		error:badarg ->
-			badarg
 	end.
 	
 -ifdef(EUNIT).

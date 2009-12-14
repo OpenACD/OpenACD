@@ -73,7 +73,7 @@ agent_exists(Agent) ->
 agent_auth(Agent, Password, Extended) ->
 	Out = do_call({agent_auth, Agent, Password, Extended}),
 	Test = fun
-		({ok, _Id, _Profile, Security, Extended}) ->
+		({ok, _Id, _Profile, Security, _Extended}) ->
 			case Security of
 				Lvl when Lvl =:= admin; Lvl =:= agent; Lvl =:= supervisor ->
 					true;

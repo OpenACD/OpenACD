@@ -394,10 +394,10 @@ handle_leader_cast({unsubscribe, Pid}, #state{subscribers = Subs} = State, _Elec
 	unlink(Pid),
 	Newsubs = proplists:delete(Pid, Subs),
 	{noreply, State#state{subscribers = Newsubs}};
-handle_leader_cast({drop, Key}, #state{ets = Tid} = State, Election) ->
+handle_leader_cast({drop, Key}, State, Election) ->
 	entry({drop, Key}, State, Election),
 	{noreply, State};
-handle_leader_cast({set, {Key, Hp, Details, Node}}, #state{ets = Tid} = State, Election)  ->
+handle_leader_cast({set, {Key, Hp, Details, Node}}, State, Election)  ->
 	Trueentry = case proplists:get_value(node, Details) of
 		undefined ->
 			Newdetails = [{node, Node} | Details],
@@ -407,7 +407,7 @@ handle_leader_cast({set, {Key, Hp, Details, Node}}, #state{ets = Tid} = State, E
 	end,
 	entry(Trueentry, State, Election),
 	{noreply, State};
-handle_leader_cast({ensure_live, Node, Time}, #state{ets = Tid} = State, Election) ->
+handle_leader_cast({ensure_live, Node, Time}, State, Election) ->
 	Alive = gen_leader:alive(Election),
 	case lists:member(Node, Alive) of
 		true ->
@@ -642,7 +642,7 @@ entry(Entry, #state{ets = Tid} = State, Election) ->
 				{_, undefined} ->
 					ok;
 				{{media, _}, Agent} ->
-					QH = qlc:q([Key || {Key, Hp, Det, _} = Tuple <- ets:table(Tid), element(1, Key) =:= media, proplists:get_value(agent, Det) =:= Agent]),
+					QH = qlc:q([Key || {Key, _Hp, Det, _} <- ets:table(Tid), element(1, Key) =:= media, proplists:get_value(agent, Det) =:= Agent]),
 					Keys = qlc:e(QH),
 					% an agent can only ever be linked to one media, so we're
 					% doing some housecleaning.

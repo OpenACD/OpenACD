@@ -577,7 +577,7 @@ new_client(Rec) when is_record(Rec, client) ->
 					Else ->
 						[{url_pop, Else} | Rec#client.options]
 				end;
-			Else ->
+			_Else ->
 				Rec#client.options
 		end,
 		mnesia:write(Rec#client{options = NewOptions})
@@ -605,7 +605,7 @@ set_client(Id, Client) when is_record(Client, client) ->
 					Else ->
 						[{url_pop, Else} | Client#client.options]
 				end;
-			Else ->
+			_Else ->
 				Client#client.options
 		end,
 		mnesia:write(Client#client{id = Id, options = Newoptions, timestamp = util:now()})
@@ -617,6 +617,7 @@ set_client(Id, Client) when is_record(Client, client) ->
 destroy_client(Id) ->
 	destroy_client(id, Id).
 
+-spec(destroy_client/2 :: (Key :: 'id' | 'label', Value :: string()) -> {'atomic', 'ok'}).
 destroy_client(_Key, undefined) ->
 	{aborted, protected};
 destroy_client(id, Id) ->

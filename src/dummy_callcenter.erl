@@ -69,10 +69,14 @@
 
 -record(state, {
 	conf :: #conf{},
-	life_timer,
-	agent_pids,
-	agent_names
+	life_timer :: any(),
+	agent_pids :: [pid()],
+	agent_names :: [string()]
 }).
+
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
 
 %%====================================================================
 %% API
@@ -90,9 +94,11 @@
 -type(agent_opts() :: {agent_opts, [any()]}).
 
 -type(start_option() :: 
-	call_frequency() | 
+	call_frequency() |
+	call_max_life() | 
 	agents() | 
 	agent_max_calls() | 
+	agent_opts() |
 	simulation_life() | 
 	queues()
 ).

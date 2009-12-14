@@ -333,13 +333,13 @@ behaviour_info(callbacks) ->
 		{handle_ring, 3},
 		{handle_ring_stop, 2},
 		{handle_answer, 3}, 
-		{handle_voicemail, 3}, 
-		{handle_announce, 3}, 
+		%{handle_voicemail, 3}, 
+		%{handle_announce, 3}, 
 		{handle_agent_transfer, 4},
 		{handle_queue_transfer, 2},
-		{handle_warm_transfer_begin, 3},
-		{handle_warm_transfer_cancel, 2},
-		{handle_warm_transfer_complete, 2},
+%		{handle_warm_transfer_begin, 3},
+%		{handle_warm_transfer_cancel, 2},
+%		{handle_warm_transfer_complete, 2},
 		{handle_wrapup, 2},
 		{handle_call, 4},
 		{handle_cast, 3},
@@ -639,12 +639,17 @@ handle_call({'$gen_media_agent_transfer', _Apid, _Timeout}, _From, State) ->
 	?ERROR("Invalid agent transfer sent when state is ~p.", [State]),
 	{reply, invalid, State};
 handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback, oncall_pid = Apid} = State) when is_pid(Apid) ->
-	case Callback:handle_warm_transfer_begin(Number, State#state.callrec, State#state.substate) of
-		{ok, UUID, NewState} ->
-			{reply, {ok, UUID}, State#state{substate = NewState}};
-		{error, Error, NewState} ->
-			?DEBUG("Callback module ~w errored for warm transfer begin:  ~p", [Callback, Error]),
-			{reply, invalid, State#state{substate = NewState}}
+	case erlang:function_exported(Callback, handle_warm_transfer_begin, 3) of
+		true ->
+			case Callback:handle_warm_transfer_begin(Number, State#state.callrec, State#state.substate) of
+				{ok, UUID, NewState} ->
+					{reply, {ok, UUID}, State#state{substate = NewState}};
+				{error, Error, NewState} ->
+					?DEBUG("Callback module ~w errored for warm transfer begin:  ~p", [Callback, Error]),
+					{reply, invalid, State#state{substate = NewState}}
+			end;
+		false ->
+			{reply, invalid, State}
 	end;
 handle_call({'$gen_media_announce', Annouce}, _From, #state{callback = Callback, substate = InSubstate} = State) ->
 	?INFO("Doing announce", []),
@@ -938,9 +943,6 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-
-url_pop(Call, Agent) ->
-	url_pop(Call, Agent, []).
 
 url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 	#client{options = DefaultOptions} = correct_client_sub(undefined),

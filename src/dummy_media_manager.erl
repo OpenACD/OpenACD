@@ -65,6 +65,10 @@
 	timer :: any()
 }).
 
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -72,9 +76,11 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
+-spec(start_link/1 :: (Options :: [{atom(), any()}]) -> {'ok', pid()}).
 start_link(Options) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Options, []).
 
+-spec(start_supervised/1 :: (Options :: [{atom(), any()}]) -> {'ok', pid()}).
 start_supervised(Options) ->
 	Conf = #cpx_conf{
 		id = ?MODULE,
@@ -84,12 +90,15 @@ start_supervised(Options) ->
 	},
 	cpx_middle_supervisor:add_with_middleman(management_sup, 3, 5, Conf).
 
+-spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:cast(?MODULE, {stop, normal}).
 
+-spec(stop_supped/0 :: () -> 'ok').
 stop_supped() ->
 	cpx_middle_supervisor:drop_child(management_sup, dummy_media_manager).
 
+-spec(set_option/2 :: (Key :: atom(), Valu :: any()) -> 'ok').
 set_option(Key, Valu) ->
 	gen_server:cast(?MODULE, {set_option, Key, Valu}).
 	
@@ -117,7 +126,6 @@ init(Options) ->
 	Pidlist = lists:foldl(Fun, [], lists:seq(1, Seeds)),
 	Time = util:get_number(Conf#conf.call_frequency) * 1000,
 	?INFO("Spawning new call after ~p", [Time]),
-	Self = self(),
     {ok, #state{
 		calls = Pidlist,
 		conf = Conf,
@@ -183,7 +191,7 @@ handle_info(spawn_call, #state{calls = Pidlist, conf = Conf} = State) ->
 	?INFO("Spawning new call after ~p", [Time]),
 	Timer = erlang:send_after(Time, ?MODULE, spawn_call),
 	{noreply, State#state{calls = [{Newpid, Newid} | Pidlist], timer = Timer}};
-handle_info({'EXIT', Reason, Pid}, #state{calls = Pidlist} = State) ->
+handle_info({'EXIT', _Reason, Pid}, #state{calls = Pidlist} = State) ->
 	case proplists:get_value(Pid, Pidlist) of
 		undefined ->
 			{noreply, State};
@@ -223,7 +231,7 @@ queue_media(Conf) ->
 	]),
 	Pid.
 
-find_key(Needle, []) ->
+find_key(_Needle, []) ->
 	undefined;
 find_key(Needle, [{Key, Needle} | _]) ->
 	{ok, Key};

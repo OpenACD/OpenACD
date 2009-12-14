@@ -153,11 +153,12 @@ ringing(Call, Agent) ->
 	event({ringing, Call, util:now(), Agent}).
 
 %% @doc Notify cdr handler that `#call{} Call' has rungout from `string() Agent'.
--spec(ringout/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
-ringout(Call, Agent) when is_pid(Agent) ->
-	ringout(Call, agent_manager:find_by_pid(Agent));
-ringout(Call, Agent) ->
-	event({ringout, Call, util:now(), Agent}).
+% TODO commented to silence a warning, but is this/should this be used?
+%-spec(ringout/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
+%ringout(Call, Agent) when is_pid(Agent) ->
+%	ringout(Call, agent_manager:find_by_pid(Agent));
+%ringout(Call, Agent) ->
+%	event({ringout, Call, util:now(), Agent}).
 
 %% @doc Notify cdr handler that `#call{} Call' is currently oncall with `string() Agent'.
 -spec(oncall/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
@@ -219,7 +220,7 @@ event(Tuple) ->
 %% @doc Return the completed and partial transactions for `#call{} Call'.
 
 -spec(status/1 :: (Call :: #call{} | string()) -> {[tuple()], [tuple()]}).
-status(#call{id = Cid} = Call) ->
+status(#call{id = Cid}) ->
 	status(Cid);
 status(Cid) ->
 	gen_event:call(cdr, {?MODULE, Cid}, status).
@@ -290,7 +291,7 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 			State#state{limbo_wrapup_count = Limbocount + 1};
 		hangup ->
 			State#state{hangup = true};
-		Else ->
+		_Else ->
 			State
 	end,
 	case {Newstate#state.hangup, Newstate#state.limbo_wrapup_count} of
@@ -299,7 +300,7 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 		_Anything_else ->
 			{ok, Newstate}
 	end;
-handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = Callid2, limbo_wrapup_count = Limbocount} = State) ->
+handle_event({_Transaction, _Call, _Time, _Data}, State) ->
 	% this is an event for a different CDR handler, ignore it
 	{ok, State}.
 
@@ -400,7 +401,7 @@ find_untermed(inivr, _, _) ->
 find_untermed(dialoutgoing, _, _) ->
 	% info event, precall terminated by outgoing/oncall
 	[];
-find_untermed(inqueue, #call{id = Cid} = Call, Queuename) ->
+find_untermed(inqueue, #call{id = Cid}, Queuename) ->
 	% queue to queue transfers, IVR time
 	QH = qlc:q([X || 
 		X <- mnesia:table(cdr_raw), 
@@ -416,7 +417,7 @@ find_untermed(ringing, _, _) ->
 find_untermed(precall, _, _) ->
 	% same as above,
 	[];
-find_untermed(oncall, #call{id = Cid} = Call, Agent) ->
+find_untermed(oncall, #call{id = Cid}, Agent) ->
 	% terminates precall so I don't have to change it should outgoing state go away.
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
@@ -425,7 +426,7 @@ find_untermed(oncall, #call{id = Cid} = Call, Agent) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(outgoing, #call{id = Cid} = Call, Agent) ->
+find_untermed(outgoing, #call{id = Cid}, _Agent) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
@@ -445,7 +446,7 @@ find_untermed(queue_transfer, _, _) ->
 find_untermed(warmxfer, _, _) ->
 	% start of new events, terminates noting (like ringing)
 	[];
-find_untermed(warmxferfailed, #call{id = Cid} = Call, _) ->
+find_untermed(warmxferfailed, #call{id = Cid}, _) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
@@ -453,7 +454,7 @@ find_untermed(warmxferfailed, #call{id = Cid} = Call, _) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(warmxferleg, #call{id = Cid} = Call, _) ->
+find_untermed(warmxferleg, #call{id = Cid}, _) ->
 	QH = qlc:q([ X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
@@ -461,7 +462,7 @@ find_untermed(warmxferleg, #call{id = Cid} = Call, _) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(warmxfercomplete, #call{id = Cid} = Call, _) ->
+find_untermed(warmxfercomplete, #call{id = Cid}, _) ->
 	% a wrapup terminates the oncall that the agent will be in
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
@@ -470,7 +471,7 @@ find_untermed(warmxfercomplete, #call{id = Cid} = Call, _) ->
 		X#cdr_raw.transaction =:= warmxferleg
 	]),
 	qlc:e(QH);
-find_untermed(wrapup, #call{id = Cid} = Call, Agent) ->
+find_untermed(wrapup, #call{id = Cid}, Agent) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
@@ -479,7 +480,7 @@ find_untermed(wrapup, #call{id = Cid} = Call, Agent) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(endwrapup, #call{id = Cid} = Call, Agent) ->
+find_untermed(endwrapup, #call{id = Cid}, Agent) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
@@ -488,7 +489,7 @@ find_untermed(endwrapup, #call{id = Cid} = Call, Agent) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(ringout, #call{id = Cid} = Call, Agent) ->
+find_untermed(ringout, #call{id = Cid}, Agent) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
@@ -497,7 +498,7 @@ find_untermed(ringout, #call{id = Cid} = Call, Agent) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(voicemail, #call{id = Cid} = Call, _Whatever) ->
+find_untermed(voicemail, #call{id = Cid}, _Whatever) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
@@ -505,7 +506,7 @@ find_untermed(voicemail, #call{id = Cid} = Call, _Whatever) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(hangup, #call{id = Cid} = Call, _Whatever) ->
+find_untermed(hangup, #call{id = Cid}, _Whatever) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
@@ -513,7 +514,7 @@ find_untermed(hangup, #call{id = Cid} = Call, _Whatever) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(cdrend, #call{id = Cid} = Call, _Whatever) ->
+find_untermed(cdrend, #call{id = Cid}, _Whatever) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
@@ -637,6 +638,7 @@ get_raws([Node | Tail], Time, Acc) ->
 	Out = rpc:call(Node, ?MODULE, get_raws, [Time]),
 	get_raws(Tail, Time, [Out | Acc]).
 
+-spec(get_raws/1 :: (Time :: pos_integer()) -> {'atomic', [#cdr_raw{}]}).
 get_raws(Time) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(cdr_raw), X#cdr_raw.timestamp =< Time]),
@@ -689,6 +691,7 @@ get_summaries([Node | Nodes], Ids, Acc) ->
 			get_summaries(Nodes, Ids, Acc)
 	end.
 
+-spec(get_summaries/1 :: (IDs :: [string()]) -> {'atomic', [#cdr_rec{}]}).
 get_summaries(IDs) ->
 	F = fun() ->
 		QH = qlc:q([X || #cdr_rec{media = Media} = X <- mnesia:table(cdr_rec), lists:member(Media#call.id, IDs)]),
@@ -716,7 +719,7 @@ merge_sum([{atomic, Sums} | Tail], Acc) ->
 	merge_sum(Tail, Newacc).
 
 diff_sum(Left, Right) ->
-	Sort = fun(#cdr_rec{media = MediaA} = A, #cdr_rec{media = MediaB} = B) ->
+	Sort = fun(#cdr_rec{media = MediaA}, #cdr_rec{media = MediaB}) ->
 		MediaA#call.id < MediaB#call.id
 	end,
 	Sleft = lists:sort(Sort, Left),

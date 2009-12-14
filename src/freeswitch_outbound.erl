@@ -103,7 +103,7 @@ hangup(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Client, Gateway, Ringout]) ->
+init([Fnode, AgentRec, Apid, Client, Gateway, _Ringout]) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Call = #call{id=UUID, source=self(), type=voice, direction=outbound, client = Client, priority = 10},
@@ -166,6 +166,7 @@ init([Fnode, AgentRec, Apid, Client, Gateway, Ringout]) ->
 %% Description: gen_media
 %%--------------------------------------------------------------------
 
+-spec(handle_announce/3 :: (Announcement :: string(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_announce(Announcement, Callrec, State) ->
 	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
 		[{"call-command", "execute"},
@@ -189,13 +190,17 @@ handle_ring(_Apid, _Call, State) ->
 handle_ring_stop(_Call, State) ->
 	{ok, State}.
 
+-spec(handle_voicemail/3 :: ('undefined', Call :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_voicemail(undefined, Call, State) ->
 	UUID = Call#call.id,
 	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:voicemail/vm-record_message.wav,record:/tmp/${uuid}.wav' inline"),
 	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
 
+-spec(handle_spy/3 :: (Agent :: pid(), Call :: #call{}, State :: #state{}) -> {'error', 'bad_agent', #state{}} | {'ok', #state{}}).
 handle_spy(Agent, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when is_pid(Chan) ->
 	case agent_manager:find_by_pid(Agent) of
+		notfound ->
+			{error, bad_agent, State};
 		AgentName ->
 			agent:blab(Agent, "While spying, you have the following options:\n"++
 				"* To whisper to the agent; press 1\n"++
@@ -203,9 +208,7 @@ handle_spy(Agent, Call, #state{cnode = Fnode, ringchannel = Chan} = State) when 
 				"* To talk to both parties; press 3\n"++
 				"* To resume spying; press 0"),
 			freeswitch:bgapi(Fnode, originate, "user/" ++ re:replace(AgentName, "@", "_", [{return, list}]) ++ " &eavesdrop(" ++ Call#call.id ++ ")"),
-			{ok, State};
-		notfound ->
-			{error, bad_agent, State}
+			{ok, State}
 	end;
 handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.
@@ -215,7 +218,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 	AgentRec = agent:dump_state(AgentPid),
 	% fun that returns another fun when passed the UUID of the new channel
 	% (what fun!)
-	F = fun(UUID) ->
+	F = fun(_UUID) ->
 		fun(ok, _Reply) ->
 			% agent picked up?
 				?INFO("Agent transfer picked up?~n", []);
@@ -269,13 +272,13 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, gateway = Gateway
 					ok
 			end
 	end,
-	F2 = fun(RingUUID, EventName, Event) ->
+	F2 = fun(_RingUUID, EventName, _Event) ->
 			case EventName of
 				"CHANNEL_BRIDGE" ->
 					case cpx_supervisor:get_archive_path(Call) of
 						none ->
 							?DEBUG("archiving is not configured", []);
-						{error, Reason, Path} ->
+						{error, _Reason, Path} ->
 							?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
 						Path ->
 							?DEBUG("archiving to ~s.wav", [Path]),
@@ -292,13 +295,12 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, gateway = Gateway
 	case freeswitch_ring:start(Fnode, AgentRec, Apid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}]) of
 		{ok, Pid} ->
 			link(Pid),
+			cdr:dialoutgoing(Call, Number),
 			{reply, ok, State#state{ringchannel = Pid}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{stop, bad_call, {error, Error}, State}
-	end,
-	cdr:dialoutgoing(Call, Number),
-	{reply, ok, State};
+	end;
 handle_call(Msg, _From, _Call, State) ->
 	?INFO("unhandled mesage ~p", [Msg]),
 	{reply, ok, State}.
@@ -317,10 +319,10 @@ handle_cast(_Msg, _Call, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({call, {event, [UUID | _Rest]}}, #call{id = UUID} = Call, State) ->
+handle_info({call, {event, [UUID | _Rest]}}, #call{id = UUID}, State) ->
 	?DEBUG("call", []),
 	{noreply, State};
-handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID} = Call, State) ->
+handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 	Event = freeswitch:get_event_name(Rest),
 	case Event of
 		"CHANNEL_HANGUP" ->
@@ -346,7 +348,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID} = Call, State
 			?DEBUG("call_event ~p", [Event]),
 			{noreply, State}
 	end;
-handle_info(call_hangup, Call, State) ->
+handle_info(call_hangup, _Call, State) ->
 	?DEBUG("Call hangup info", []),
 	{stop, normal, State};
 handle_info({connect_uuid, Number}, #call{id = UUID} = Call, #state{cnode = Fnode, agent = Agent} = State) ->

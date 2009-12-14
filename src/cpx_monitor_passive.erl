@@ -77,12 +77,12 @@
 %% Dets data types
 -type(dets_key() :: {'media' | 'agent', string()}).
 -type(timestamp() :: integer()).
--type(health_data() :: [{atom(), any()}]).
--type(details() :: [{any(), any()}]).
--type(historical_event() :: 'ivr' | 'queued' | 'handled' | 'ended').
--type(time_list() :: [{historical_event(), pos_integer()}]).
+%-type(health_data() :: [{atom(), any()}]).
+%-type(details() :: [{any(), any()}]).
+%-type(historical_event() :: 'ivr' | 'queued' | 'handled' | 'ended').
+%-type(time_list() :: [{historical_event(), pos_integer()}]).
 -type(historical_key() :: {'inbound', 'queued'} | {'inbound', 'ivr'} | {'inbound', 'qabandoned'} | {'inbound', 'ivrabandoned'} | {'inbound', 'handled'} | 'outbound' | 'undefined').
--type(historical_tuple() :: {dets_key(), time(), health_data(), details(), historical_key()}).
+%-type(historical_tuple() :: {dets_key(), time(), health_data(), details(), historical_key()}).
 
 %% API
 -export([
@@ -98,9 +98,9 @@
 
 -record(filter_state, {
 	state = [] :: [{dets_key(), {timestamp(), historical_key()}}],
-	agent_profiles = [],
-	queue_groups = [],
-	clients = []
+	agent_profiles = [] :: [{string(), [string()]}],
+	queue_groups = [] :: [{string(), [string()]}],
+	clients = [] :: [{string(), [any()]}]
 }).
 
 -record(filter, {
@@ -113,7 +113,7 @@
 	clients :: [string()] | 'all',
 	nodes :: [atom()] | 'all',
 	output_as = json :: 'json' | 'xml',
-	state = #filter_state{}
+	state = #filter_state{} :: #filter_state{}
 }).
 
 -record(state, {
@@ -124,6 +124,10 @@
 	timer :: any(),
 	write_pids = [] :: [{pid(), string()}]
 }).
+
+-type(state() :: #state{}).
+-define(GEN_SERVER, true).
+-include("gen_spec.hrl").
 
 %%====================================================================
 %% API
@@ -168,7 +172,6 @@ init(Options) ->
 		end
 	end,
 	Interval = proplists:get_value(write_interval, Options, ?WRITE_INTERVAL) * 1000,
-	Outputs = proplists:get_value(outputs, Options),
 	Torec = fun({Name, Props}) ->
 		Fileout = lists:append([proplists:get_value(file_output, Props, "."), "/", Name]),
 		Filter = #filter{
@@ -245,7 +248,7 @@ handle_info({'EXIT', Pid, Reason}, #state{write_pids = Pids} = State) ->
 				normal ->
 					?DEBUG("output written for filter ~p", [Name]),
 					ok;
-				Else ->
+				_Else ->
 					?ERROR("output write for ~p exited abnormally:  ~p", [Name, Reason]),
 					ok
 			end,
@@ -259,7 +262,7 @@ handle_info(Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(Reason, #state{timer = Timer} = State) ->
+terminate(Reason, _State) ->
 	?INFO("terminating due to ~p", [Reason]),
     ok.
 
@@ -289,14 +292,14 @@ cache_event({drop, {agent, _Id} = Key}) ->
 	{Key, none};
 cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 	case dets:lookup(?DETS, Key) of
-		[{Key, Time, Hp, Details, {inbound, History}}] ->
+		[{Key, Time, _Hp, _Details, {inbound, History}}] ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails), History} of
 				{undefined, undefined, []} ->
 					% just update the hp and details.
 					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History}},
 					dets:insert(?DETS, Newrow),
 					Newrow;
-				{undefined, undefined, List} ->
+				{undefined, undefined, _List} ->
 					% either death in ivr or queue, can be figured out later
 					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History ++ [{ended, EventTime}]}},
 					dets:insert(?DETS, Newrow),
@@ -313,7 +316,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 					?WARNING("both agent and queue defined, ignoring (~p)", [Key]),
 					none
 			end;
-		[{Key, Time, Hp, Details, History}] ->
+		[{Key, Time, _Hp, _Details, History}] ->
 			% either undefined or outbound history, blind update.
 			Newrow = {Key, Time, EventHp, EventDetails, History},
 			dets:insert(?DETS, Newrow),
@@ -348,11 +351,10 @@ cache_event({set, {{agent, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 
 get_clients(Filter) ->
 	QH = qlc:q([proplists:get_value(client, Details) || 
-		{{Type, _Id}, Time, _Hp, Details, _History} = Row <- dets:table(?DETS), 
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS), 
 		Type == media, 
 		filter_row(Filter, Row)
 	]),
-	Out = qlc:e(QH),
 	lists:foldl(fun(I, Acc) -> 
 		case lists:member(I, Acc) of
 			false ->
@@ -455,15 +457,6 @@ get_queued_medias(Filter, Queue) ->
 	]),
 	qlc:e(QH).
 
-get_agent_medias(Filter, Agent) ->
-	QH = qlc:q([Row || 
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
-		Type == media,
-		filter_row(Filter, Row),
-		proplists:get_value(agent, Details) == Agent
-	]),
-	qlc:e(QH).
-
 get_client_medias(Filter, Client) ->
 	QH = qlc:q([Row ||
 		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
@@ -503,11 +496,10 @@ filter_row(#filter{max_age = Seconds} = Filter, Row) when is_integer(Seconds) ->
 			filter_row(Filter#filter{max_age = max}, Row)
 	end;
 filter_row(#filter{max_age = {since, Seconds}} = Filter, Row) ->
-	Now = util:now(),
 	{_Date, {Hour, Min, Sec}} = erlang:localtime(),
 	Diff = Sec + (Min * 60) + (Hour * 60 * 60) - Seconds,
 	filter_row(Filter#filter{max_age = Diff}, Row);
-filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, Row) ->
+filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, _Row) ->
 	true;
 filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, handled}}) ->
 	#client{label = Client} = proplists:get_value(client, Details),
@@ -555,7 +547,7 @@ filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, Queued}}) wh
 					end
 			end
 	end;
-filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, _History}) ->
+filter_row(_Filter, {{media, _Id}, _Time, _Hp, _Details, _History}) ->
 	false;
 filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
 	Node = proplists:get_value(node, Details),
@@ -576,6 +568,7 @@ filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
 			end
 	end.
 
+-spec(write_output/1 :: ({Nom :: string(), Filter :: #filter{}}) -> 'ok').
 write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter}) ->
 	Hourago = util:now() - 3600,
 	Inbound = [X || 
@@ -763,7 +756,7 @@ agents_to_json(Rows) ->
 
 agents_to_json([], {Avail, Rel, Busy}, Acc) ->
 	{Avail, Rel, Busy, lists:reverse(Acc)};
-agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, Rel, Busy}, Acc) ->
+agents_to_json([{{agent, Id}, _Time, _Hp, Details, _HistoryKey} | Tail], {Avail, Rel, Busy}, Acc) ->
 	{Newcounts, State, Statedata} = case {proplists:get_value(state, Details), proplists:get_value(statedata, Details)} of
 		{idle, {}} ->
 			{{Avail + 1, Rel, Busy}, idle, false};
@@ -781,11 +774,11 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 				{<<"bias">>, Bias}
 			]},
 			{{Avail, Rel + 1, Busy}, released, Data};
-		{Statename, #call{client = Client} = Media} ->
+		{Statename, Media} when is_record(Media, call) ->
 			Qh = qlc:q([Row ||
-				{{Type, Id}, _Time, _Hp, Details, History} = Row <- dets:table(?DETS),
+				{{Type, Idgen}, _Timegen, _Hpgen, _Detailsgen, _History} = Row <- dets:table(?DETS),
 				Type == media,
-				Id == Media#call.id
+				Idgen == Media#call.id
 			]),
 			{_, _, _, _, [Datajson]} = case qlc:e(Qh) of
 				[] ->
@@ -812,27 +805,6 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 		{<<"stateData">>, Statedata}
 	]},
 	agents_to_json(Tail, Newcounts, [NewHead | Acc]).
-
-deep_seek(Id, []) ->
-	undefined;
-deep_seek(Id, [{Topkey, Toprops} | Tail]) ->
-	case proplists:get_value(Id, Toprops) of
-		undefined ->
-			deep_seek(Id, Tail);
-		Value ->
-			{Topkey, Value}
-	end.
-
-deep_delete(Id, Toprops) ->
-	case deep_seek(Id, Toprops) of
-		undefined ->
-			Toprops;
-		{Key, Value} ->
-			Subprop = proplists:get_value(Key, Toprops),
-			Newsubprop = proplists:delete(Id, Subprop),
-			Midtop = proplists:delete(Key, Toprops),
-			[{Key, Newsubprop} | Midtop]
-	end.
 
 proplists_replace(Key, Value, List) ->
 	Mid = proplists:delete(Key, List),

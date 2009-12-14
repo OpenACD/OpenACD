@@ -65,10 +65,6 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--ifdef(R13B).
--type(ref() :: reference()).
--endif.
-
 -type(tref() :: any()).
 
 -record(state, {
@@ -340,7 +336,8 @@ handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = Sta
 									Call = gen_media:get_call(Pid),
 									agent:set_state(Apid, precall, Call),
 									{200, [], mochijson2:encode({struct, [{success, true}]})};
-								{error, Reason} ->
+								{error, _Reason} ->
+									% TODO don't throw the reason away.
 									{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Initializing outbound call failed">>}]})}
 							end;
 						_ ->
@@ -368,7 +365,7 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 					case proplists:get_value("value", Post) of
 						"System" ->
 							all;
-						AtomIsIt -> 
+						_AtomIsIt -> 
 							try list_to_existing_atom(proplists:get_value("value", Post)) of
 								Atom ->
 									case lists:member(Atom, [node() | nodes()]) of
@@ -610,7 +607,6 @@ handle_call({supervisor, _Request}, _From, State) ->
 	{reply, {403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"insufficient privledges">>}]})}, State};
 handle_call({media, Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
 	Commande = proplists:get_value("command", Post),
-	Arguments = proplists:get_value("arguments", Post), 
 	?DEBUG("Media Command:  ~p", [Commande]),
 	case proplists:get_value("mode", Post) of
 		"call" ->
@@ -646,23 +642,18 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} =
 		none ->
 			{reply, {404, [], <<"path not found">>}, State};
 		{message, Mime} ->
-			% the commented out code below is for the day mimemail:encode/1 will
-			% use binaries instead of lists, and (hopefully) output binaries too.
-			% for now, tell the client we suck.
-			% 501 means not implemented, so good 'nough.
-			{reply, {501, [], <<"Can't parse back an email yet, sorry">>}, State};
-%			Filename = case email_media:get_disposition(Mime) of
-%				inline ->
-%					Nom = util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref())));
-%				{_, Nom} ->
-%					binary_to_list(Nom)
-%			end,
-%			Heads = [
-%				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Filename]))},
-%				{"Content-Type", lists:append([binary_to_list(element(1, Mime)), "/", binary_to_list(element(2, Mime))])}
-%			],
-%			Encoded = mimemail:encode(Mime),
-%			{reply, {200, Heads, Encoded}, State};
+			Filename = case email_media:get_disposition(Mime) of
+				inline ->
+					util:bin_to_hexstr(erlang:md5(erlang:ref_to_list(make_ref())));
+				{_, Nom} ->
+					binary_to_list(Nom)
+			end,
+			Heads = [
+				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [Filename]))},
+				{"Content-Type", lists:append([binary_to_list(element(1, Mime)), "/", binary_to_list(element(2, Mime))])}
+			],
+			Encoded = mimemail:encode(Mime),
+			{reply, {200, Heads, Encoded}, State};
 		Else ->
 			?DEBUG("Not a mime tuple ~p", [Else]),
 			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}
@@ -703,7 +694,7 @@ handle_cast({mediaload, #call{type = email}}, State) ->
 	]},
 	Newstate = push_event(Json, State),
 	{noreply, Newstate};
-handle_cast({mediapush, #call{type = Mediatype} = Callrec, Data}, State) ->
+handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),
 	case Mediatype of
 		email ->
@@ -727,7 +718,7 @@ handle_cast({mediapush, #call{type = Mediatype} = Callrec, Data}, State) ->
 					]},
 					Newstate = push_event(Json, State),
 					{noreply, Newstate};
-				Else ->
+				_Else ->
 					?INFO("No other data's supported:  ~p", [Data]),
 					{noreply, State}
 			end;
@@ -822,7 +813,7 @@ handle_info({cpx_monitor_event, Message}, State) ->
 					{<<"id">>, list_to_binary(lists:append([atom_to_list(Type), "-", Name]))}
 				]}}
 			]};
-		{set, {{Type, Name}, Healthprop, Detailprop, Timestamp}} ->
+		{set, {{Type, Name}, Healthprop, Detailprop, _Timestamp}} ->
 			Encodedhealth = encode_health(Healthprop),
 			Encodeddetail = encode_proplist(Detailprop),
 			Fixedname = case is_atom(Name) of
@@ -921,7 +912,7 @@ email_props_to_json([{Key, Value} | Tail], Acc) ->
 	case {Dokey, Doval} of
 		{ok, ok} ->
 			email_props_to_json(Tail, [{Newkey, Newval} | Acc]);
-		Else ->
+		_Else ->
 			email_props_to_json(Tail, Acc)
 	end.
 
@@ -1002,7 +993,7 @@ parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubT
 		{<<"parts">>, lists:reverse(Jsonlist)}]},
 	%?DEBUG("json:  ~p", [Json]),
 	{[], mochijson2:encode(Json)};
-parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, Headers, Properties, Body} = Mime}) ->
+parse_media_call(#call{type = email}, {"get_path", _Path}, {ok, {Type, Subtype, _Headers, _Properties, Body} = Mime}) ->
 	Emaildispo = email_media:get_disposition(Mime),
 	?DEBUG("Type:  ~p; Subtype:  ~p;  Dispo:  ~p", [Type, Subtype, Emaildispo]),
 	case {Type, Subtype, Emaildispo} of
@@ -1036,13 +1027,13 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 			end,
 			Lowertag = fun(E) -> string:to_lower(binary_to_list(E)) end,
 			Stripper = fun
-				(F, [], Acc) ->
+				(_F, [], Acc) ->
 					lists:reverse(Acc);
 				(F, [Head | Rest], Acc) when is_tuple(Head) ->
 					case Head of
 						{comment, _} ->
 							F(F, Rest, [Head | Acc]);
-						{Tag, Attr, Kids} ->
+						{Tag, _Attr, Kids} ->
 							case Lowertag(Tag) of
 								"html" ->
 									F(F, Kids, []);
@@ -1076,7 +1067,7 @@ parse_media_call(#call{type = email}, {"get_path", Path}, {ok, {Type, Subtype, H
 %			?WARNING("unsure how to handle ~p/~p disposed to ~p", [Type, Subtype, Disposition]),
 %			{[], <<"404">>}
 	end;
-parse_media_call(#call{type = email}, {"get_path", Path}, {message, Bin}) when is_binary(Bin) ->
+parse_media_call(#call{type = email}, {"get_path", _Path}, {message, Bin}) when is_binary(Bin) ->
 	?DEBUG("Path is a message/Subtype with binary body", []),
 	{[], Bin};
 parse_media_call(#call{type = email}, {"get_from", _}, undefined) ->
@@ -1288,7 +1279,7 @@ encode_stats([Head | Tail], Count, Acc) ->
 	Protohealth = proplists:get_value(health, Proplisted),
 	Protodetails = proplists:get_value(details, Proplisted),
 	Display = case {proplists:get_value(name, Proplisted), proplists:get_value(type, Proplisted)} of
-		{Name, agent} ->
+		{_Name, agent} ->
 			Login = proplists:get_value(login, Protodetails),
 			[{<<"display">>, list_to_binary(Login)}];
 		{Name, _} when is_binary(Name) ->
@@ -1429,27 +1420,6 @@ encode_groups([{Type, Name} | Tail], Count, Acc, Gotqgroup, Gotaprof) ->
 			{Gotqgroup, [Name | Gotaprof]}
 	end,
 	encode_groups(Tail, Count + 1, [Out | Acc], Ngotqgroup, Ngotaprof).
-
-scrub_proplist(Proplist) ->
-	scrub_proplist(Proplist, []).
-
-scrub_proplist([], Acc) ->
-	Acc;
-scrub_proplist([Head | Tail], Acc) ->
-	Newacc = case Head of
-		{Key, _Value} ->
-			case lists:member(Key, [queue, parent, node, agent, profile, group]) of
-				true ->
-					Acc;
-				false ->
-					[Head | Acc]
-			end;
-		Val when is_atom(Val) ->
-			[{Val, true} | Acc];
-		_Val ->
-			Acc
-	end,
-	scrub_proplist(Tail, Newacc).
 		
 encode_proplist(Proplist) ->
 	Struct = encode_proplist(Proplist, []),

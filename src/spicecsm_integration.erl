@@ -164,8 +164,8 @@ import_brands([{struct, Proplist} | Tail], Pid) ->
 
 import_skills_and_profiles([]) ->
 	ok;
-import_skills_and_profiles([{Atom, Name, Enddesc, Group} | Tail]) ->
-	Desc = lists:append("Added by spicecsm_integration:import.  Corresponds to ", Enddesc),
+import_skills_and_profiles([{_Atom, Name, Enddesc, _Group} | Tail]) ->
+	_Desc = lists:append("Added by spicecsm_integration:import.  Corresponds to ", Enddesc),
 	%%call_queue_config:new_skill(Atom, Name, Desc, Group),
 	agent_auth:new_profile(Name, ['_profile']),
 	import_skills_and_profiles(Tail).
@@ -399,7 +399,7 @@ code_change(_OldVsn, State, _Extra) ->
 connect(BaseServer, Username, Password) ->
 	Server = lists:append([BaseServer, ?API_PATH]),
 	application:start(inets),
-	{ok, Count, Submitbody} = build_request(<<"connect">>, [Username, Password], 1),
+	{ok, _Count, Submitbody} = build_request(<<"connect">>, [Username, Password], 1),
 	{ok, {{_Version, 200, _Ok}, _Headers, Body}} = http:request(post, {Server, [], "application/x-www-form-urlencoded", Submitbody}, [], []),
 	{struct, Results} = mochijson2:decode(Body),
 	case proplists:get_value(<<"result">>, Results) of

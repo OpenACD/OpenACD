@@ -43,7 +43,7 @@
 -record(cpx_value, {
 	key :: any(),
 	value :: any(),
-	timestamp = util:now()
+	timestamp = util:now() :: pos_integer()
 }).
 
 %cpx ->

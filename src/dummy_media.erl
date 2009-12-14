@@ -188,7 +188,7 @@ make_id() ->
 
 init([Props, Fails]) ->
 	process_flag(trap_exit, true),
-	Proto = #call{id = "dummy", source = self(), ring_path = inband, media_path = inband},
+	%Proto = #call{id = "dummy", source = self(), ring_path = inband, media_path = inband},
 	Callrec = #call{
 		id = proplists:get_value(id, Props, make_id()),
 		source = proplists:get_value(source, Props, self()),
@@ -399,6 +399,7 @@ code_change(_OldVsn, _Callrec, State, _Extra) ->
 	{ok, State}.
 
 %% gen_media specific callbacks
+-spec(handle_announce/3 :: (Announce :: any(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_announce(_Annouce, _Callrec, State) ->
 	{ok, State}.
 
@@ -425,6 +426,7 @@ handle_ring(_Agent, _Call, #state{fail = Fail} = State) ->
 			{invalid, State#state{fail = Newfail}}
 	end.
 
+-spec(handle_voicemail/3 :: (Whatever :: any(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}} | {'invalid', #state{}}).
 handle_voicemail(_Whatever, _Callrec, #state{fail = Fail} = State) ->
 	case dict:fetch(voicemail, Fail) of
 		fail_once ->
@@ -459,6 +461,7 @@ handle_ring_stop(_Callrec, State) ->
 handle_wrapup(_Callrec, State) ->
 	{hangup, State}.
 
+-spec(handle_spy/3 :: (Spy :: pid(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}} | {'invalid', #state{}} | {'error', 'fail_once', #state{}}).
 handle_spy(Spy, _Callrec, #state{fail = Fail} = State) ->
 	case check_fail(spy, Fail) of
 		{success, Dict} ->
@@ -484,24 +487,6 @@ check_fail(Key, Dict) ->
 		success ->
 			{success, Dict}
 	end.
-
-build_call_rec([], Rec) ->
-	Rec;
-build_call_rec([{queue, _Q} | Tail], Rec) ->
-	% used by other parts of the init, ignore here.
-	build_call_rec(Tail, Rec);
-build_call_rec([{id, Id} | Tail], Rec) ->
-	build_call_rec(Tail, Rec#call{id = Id});
-build_call_rec([{type, Type} | Tail], Rec) ->
-	build_call_rec(Tail, Rec#call{type = Type});
-build_call_rec([{callerid, Id} | Tail], Rec) ->
-	build_call_rec(Tail, Rec#call{callerid = Id});
-build_call_rec([{source, Pid} | Tail], Rec) ->
-	build_call_rec(Tail, Rec#call{source = Pid});
-build_call_rec([{client, Client} | Tail], Rec) ->
-	build_call_rec(Tail, Rec#call{client = Client});
-build_call_rec([{skills, Skills} | Tail], Rec) ->
-	build_call_rec(Tail, Rec#call{skills = Skills}).
 
 -ifdef(EUNIT).
 

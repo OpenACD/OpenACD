@@ -438,7 +438,7 @@ handle_info({'EXIT', Pid, Reason}, #state{qdict = Qdict} = State) ->
 									pang ->
 										load_queue(Qname)
 								end;
-							Else ->
+							_Else ->
 								load_queue(Qname)
 						end
 					end,

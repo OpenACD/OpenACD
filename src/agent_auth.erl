@@ -122,7 +122,7 @@ destroy_release(label, Label) ->
 				ok;
 			[#release_opt{id = Id}] ->
 				mnesia:delete({release_opt, Id});
-			Else ->
+			_Else ->
 				{error, ambiguous_label}
 		end
 	end,
@@ -369,6 +369,7 @@ merge(Nodes, Time, Replyto) ->
 	Replyto ! {merge_complete, agent_auth, Recs},
 	ok.
 
+-spec(query_agent_auth/1 :: (Time :: pos_integer()) -> {'atomic', [#agent_auth{}]}).
 query_agent_auth(Time) ->
 	F = fun() ->
 		QH = qlc:q([Auth || Auth <- mnesia:table(agent_auth), Auth#agent_auth.timestamp >= Time]),
@@ -376,6 +377,7 @@ query_agent_auth(Time) ->
 	end,
 	mnesia:transaction(F).
 
+-spec(query_profiles/1 :: (Time :: pos_integer()) -> {'atomic', [#agent_profile{}]}).
 query_profiles(Time) ->
 	F = fun() ->
 		QH = qlc:q([Prof || Prof <- mnesia:table(agent_profile), Prof#agent_profile.timestamp >= Time]),
@@ -383,6 +385,7 @@ query_profiles(Time) ->
 	end,
 	mnesia:transaction(F).
 
+-spec(query_release/1 :: (Time :: pos_integer()) -> {'atomic', [#release_opt{}]}).
 query_release(Time) ->
 	F = fun() ->
 		QH = qlc:q([Rel || Rel <- mnesia:table(release_opt), Rel#release_opt.timestamp >= Time]),

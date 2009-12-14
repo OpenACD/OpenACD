@@ -116,7 +116,6 @@ behaviour_info(_Other) ->
 %start_link() ->
 	%start_link([]).
 
--type(callback_init() :: {atom(), any()}).
 %% @doc given `[{Module :: atom(), Startargs :: any()}]' start the dumper with
 %% a handler for each `Module' started with `Startargs'
 -spec(start_link/2 :: (Module :: atom(), Args :: list()) -> {'ok', pid()}).
@@ -136,6 +135,7 @@ start(Module, Args) ->
 start() ->
 	gen_server:start({local, ?MODULE}, ?MODULE, null, []).
 
+-spec(update_notify/1 :: (TableName :: string()) -> 'ok').
 update_notify(TableName) ->
 	Nodes = [node() | nodes()],
 	lists:foreach(fun(Node) -> {?MODULE, Node} ! {update, TableName} end, Nodes).
@@ -219,7 +219,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(Reason, #state{module = ?MODULE}) ->
+terminate(_Reason, #state{module = ?MODULE}) ->
 	ok;
 terminate(Reason, #state{module = Module, substate = SubState}) ->
 	Module:rollback(SubState),
@@ -325,12 +325,15 @@ dump_table(TableName, State) ->
 	?WARNING("Unknown table ~p", [TableName]),
 	State.
 
+-spec(commit/1 :: (State :: any()) -> {'ok', any()}).
 commit(State) ->
 	{ok, State}.
 
-rollback(State) ->
-	{ok, State}.
+%-spec(rollback/1 :: (State :: any()) -> {'ok', any()}).
+%rollback(State) ->
+%	{ok, State}.
 
+-spec(dump/2 :: (_ :: any(), _ :: any()) -> {'ok', 'null'}).
 dump(_, _) ->
 	{ok, null}.
 

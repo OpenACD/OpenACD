@@ -255,7 +255,7 @@ loop(Req, Table) ->
 file_handler(Name, ContentType) ->
 	fun(N) -> file_data_handler(N, {Name, ContentType, <<>>}) end.
 
-file_data_handler(eof, {Name, ContentType, Acc}) ->
+file_data_handler(eof, {Name, _ContentType, Acc}) ->
 	?DEBUG("eof gotten", []),
 	{Name, Acc};
 file_data_handler(Data, {Name, ContentType, Acc}) ->
@@ -334,7 +334,6 @@ api(Apirequest, badcookie, _Post) ->
 	ets:insert(web_connections, {Reflist, undefined, undefined}),
 	{403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>};
 api(logout, {Reflist, _Salt, Conn}, _Post) ->
-	Newref = erlang:ref_to_list(make_ref()),
 	ets:insert(web_connections, {Reflist, undefined, undefined}),
 	Cookie = io_lib:format("cpx_id=~p; path=/; Expires=Tue, 29-Mar-2005 19:30: 42 GMT; Max-Age=86400", [Reflist]),
 	agent_web_connection:api(Conn, logout),
@@ -384,7 +383,6 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 				Decrypted ->
 					Salt = string:substr(Decrypted, 1, length(Salt)),
 					DecryptedPassword = string:substr(Decrypted, length(Salt) + 1),
-					Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt, util:bin_to_hexstr(erlang:md5(DecryptedPassword))))),
 					case agent_auth:auth(Username, DecryptedPassword) of
 						deny ->
 							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};

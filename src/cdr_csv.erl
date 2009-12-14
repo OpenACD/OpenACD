@@ -51,11 +51,15 @@
 ]).
 
 -record(state, {
-	agent_states_file,
-	agent_states_buffer = [],
-	cdr_file,
-	cdr_buffer = []
+	agent_states_file :: string(),
+	agent_states_buffer = [] :: [#agent_state{}],
+	cdr_file :: string(),
+	cdr_buffer = [] :: [#cdr_rec{}]
 }).
+
+-type(state() :: #state{}).
+-define(GEN_CDR_DUMPER, true).
+-include("gen_spec.hrl").
 
 %% =====
 %% callbacks

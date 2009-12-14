@@ -91,11 +91,11 @@
 %% API
 %%====================================================================
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
-%-spec(start/1 :: (Cnode :: atom()) -> {'ok', pid()}).
+-spec(start/6 :: (Cnode :: atom(), UUID :: string(), File :: string(), Queue :: string(), Priority :: pos_integer(), Client :: #client{} | string()) -> {'ok', pid()}).
 start(Cnode, UUID, File, Queue, Priority, Client) ->
 	gen_media:start(?MODULE, [Cnode, UUID, File, Queue, Priority, Client]).
 
-%-spec(start_link/1 :: (Cnode :: atom()) -> {'ok', pid()}).
+-spec(start_link/6 :: (Cnode :: atom(), UUID :: string(), File :: string(), Queue :: string(), Priority :: pos_integer(), Client :: #client{} | string()) -> {'ok', pid()}).
 start_link(Cnode, UUID, File, Queue, Priority, Client) ->
 	gen_media:start_link(?MODULE, [Cnode, UUID, File, Queue, Priority, Client]).
 
@@ -119,7 +119,7 @@ init([Cnode, UUID, File, Queue, Priority, Client]) ->
 	case cpx_supervisor:get_archive_path(Callrec) of
 		none ->
 			?DEBUG("archiving is not configured", []);
-		{error, Reason, Path} ->
+		{error, _Reason, Path} ->
 			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
 		Path ->
 			Ext = filename:extension(File),
@@ -249,7 +249,8 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 			{error, Error, State}
 	end.
 
-handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = Node} = State) ->
+-spec(handle_warm_transfer_begin/3 :: (Number :: string(), Call :: #call{}, State :: any()) -> {'invlaid', any()}).
+handle_warm_transfer_begin(_Number, _Call, State) ->
 	{invalid, State}.
 
 handle_wrapup(_Call, State) ->
@@ -257,7 +258,7 @@ handle_wrapup(_Call, State) ->
 	% no direct hangup by the agent
 	{ok, State}.
 	
-handle_queue_transfer(_Call, #state{cnode = FNode, ringchannel = Channel} = State) when is_pid(Channel) ->
+handle_queue_transfer(_Call, #state{ringchannel = Channel} = State) when is_pid(Channel) ->
 	freeswitch_ring:hangup(Channel),
 	{ok, State#state{ringchannel = undefined, xferchannel=undefined, xferuuid=undefined, answered = false}};
 handle_queue_transfer(_Call, State) ->
@@ -320,7 +321,7 @@ handle_info(Info, _Call, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(Reason, _Call, State) ->
+terminate(Reason, _Call, _State) ->
 	% TODO - delete the recording or archive it somehow
 	?NOTICE("terminating: ~p", [Reason]),
 	ok.

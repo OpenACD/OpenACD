@@ -44,7 +44,7 @@
 ]).
 
 -record(state, {
-		placeholder
+		placeholder :: any()
 }).
 
 -type(state() :: #state{}).
@@ -52,7 +52,7 @@
 -include("gen_spec.hrl").
 
 init([Name, Facility]) when is_list(Name), Facility >=0, Facility =< 23 ->
-	{ok, Pid} = syslog:start(),
+	{ok, _Pid} = syslog:start(),
 	ok = syslog:open(Name, 4, Facility bsl 3),
 	{ok, #state{}}.
 
@@ -79,7 +79,7 @@ handle_call(_Request, State) ->
 handle_info(_Info, State) ->
 	{ok, State}.
 
-terminate(_Args, State) ->
+terminate(_Args, _State) ->
 	syslog:stop(),
 	ok.
 

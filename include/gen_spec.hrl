@@ -177,3 +177,14 @@
 -spec(code_change/4 :: (Vsn :: {'down', any()} | any(), Call :: #call{}, State :: state(), Extra :: any()) -> {'ok', state()}).
 
 -endif.
+
+-ifdef(GEN_CDR_DUMPER).
+
+-spec(init/1 :: (Args :: any()) -> {'ok', state()}).
+-spec(dump/2 :: (MnesiaRow :: #agent_state{} | #cdr_rec{}, State :: state()) -> {'ok', state()}).
+-spec(commit/1 :: (State :: state()) -> {'ok', state()}).
+-spec(rollback/1 :: (State :: state()) -> any()).
+-spec(terminate/2 :: (Reason :: any(), State :: state()) -> any()).
+-spec(code_change/3 :: (Oldvsn :: any(), State :: state(), Extra :: any()) -> {'ok', state()}).
+
+-endif.

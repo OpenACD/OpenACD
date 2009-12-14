@@ -135,9 +135,10 @@ handle_DATA(_From, [To | _Allelse], Data, #state{mail_map = Mailmap} = State) wh
 		none ->
 			?DEBUG("archiving is not configured", []),
 			ok;
-		{error, Reason, Path} ->
+		{error, _Reason, Path} ->
 			?WARNING("Unable to create requested call archiving directory ~p", [Path]),
-			{error, Reason};
+			%{error, Reason};
+			ok;
 		BasePath ->
 			%% get_archive_path ensures the directory is writeable by us and exists, so this
 			%% should be safe to do (the call will be hungup if creating the recording file fails)

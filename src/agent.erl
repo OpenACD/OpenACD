@@ -232,12 +232,15 @@ dump_state(Pid) ->
 get_media(Apid) ->
 	gen_fsm:sync_send_event(Apid, get_media).
 
+-spec(add_skills/2 :: (Apid :: pid(), Skills :: [atom() | {atom(), any()}]) -> 'ok').
 add_skills(Apid, Skills) when is_list(Skills), is_pid(Apid) ->
 	gen_fsm:sync_send_all_state_event(Apid, {add_skills, Skills}).
 
+-spec(remove_skills/2 :: (Apid :: pid(), Skills :: [atom() | {atom(), any()}]) -> 'ok').
 remove_skills(Apid, Skills) when is_list(Skills), is_pid(Apid) ->
 	gen_fsm:sync_send_all_state_event(Apid, {remove_skills, Skills}).
 
+-spec(change_profile/2 :: (Apid :: pid(), Profile :: string()) -> 'ok' | {'error', 'unknown_profile'}).
 change_profile(Apid, Profile) ->
 	gen_fsm:sync_send_all_state_event(Apid, {change_profile, Profile}).
 
@@ -394,6 +397,7 @@ idle(Event, From, State) ->
 	?WARNING("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
 	{reply, invalid, idle, State}.
 
+-spec(idle/2 :: (Msg :: any(), State :: #agent{}) -> {'next_state', 'idle', #agent{}}).
 idle(_Message, State) ->
 	{next_state, idle, State}.
 
@@ -454,6 +458,7 @@ ringing(Event, _From, State) ->
 	?DEBUG("ringing evnet ~p", [Event]),
 	{reply, invalid, ringing, State}.
 
+-spec(ringing/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
 ringing(register_rejected, State) ->
 	{stop, register_rejected, State};
 ringing(_Msg, State) ->
@@ -491,6 +496,7 @@ precall({released, {Id, Text, Bias} = Reason}, _From, #agent{statedata = Call} =
 precall(_Event, _From, State) -> 
 	{reply, invalid, precall, State}.
 
+-spec(precall/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
 precall(register_rejected, State) ->
 	{stop, register_rejected, State};
 precall(_Msg, State) ->
@@ -572,6 +578,7 @@ oncall({conn_call, Request}, {Pid, _Tag}, #agent{statedata = Media} = State) ->
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
 
+-spec(oncall/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
 oncall({conn_cast, Request}, #agent{connection = Pid} = State) ->
 	case is_pid(Pid) of
 		true ->
@@ -587,7 +594,7 @@ oncall({mediacast, Request}, #agent{statedata = Call} = State) ->
 oncall(register_rejected, #agent{statedata = Media} = State) when Media#call.media_path =:= inband ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};
-oncall(register_rejected, #agent{statedata = Media} = State) ->
+oncall(register_rejected, State) ->
 	{stop, register_rejected, State};
 oncall({mediapush, Mediapid, Data}, #agent{statedata = Media} = State) when Media#call.source =:= Mediapid ->
 	case State#agent.connection of
@@ -648,10 +655,11 @@ outgoing(get_media, _From, #agent{statedata = Media} = State) when is_record(Med
 outgoing(_Event, _From, State) -> 
 	{reply, invalid, outgoing, State}.
 
+-spec(outgoing/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
 outgoing(register_rejected, #agent{statedata = Media} = State) when Media#call.media_path =:= inband ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};
-outgoing(register_rejected, #agent{statedata = Media} = State) ->
+outgoing(register_rejected, State) ->
 	{stop, register_rejected, State};
 outgoing(_Msg, State) ->
 	{next_state, outgoing, State}.
@@ -709,6 +717,7 @@ released({spy, Target}, {Conn, _Tag}, #agent{connection = Conn} = State) ->
 released(_Event, _From, State) ->
 	{reply, invalid, released, State}.
 
+-spec(released/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
 released(register_rejected, State) ->
 	{stop, register_rejected, State};
 released(_Msg, State) ->
@@ -759,7 +768,8 @@ warmtransfer({outgoing, Call}, _From, State) ->
 warmtransfer(_Event, _From, State) ->
 	{reply, invalid, warmtransfer, State}.
 
-warmtransfer(register_rejected, #agent{statedata = {onhold, Media, calling, Target}} = State) ->
+-spec(warmtransfer/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
+warmtransfer(register_rejected, #agent{statedata = {onhold, Media, calling, _Target}} = State) ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};
 warmtransfer(_Msg, State) ->
@@ -798,6 +808,7 @@ wrapup(Event, From, State) ->
 	?WARNING("Invalid event '~p' from ~p while in wrapup.", [Event, From]),
 	{reply, invalid, wrapup, State}.
 
+-spec(wrapup/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
 wrapup(register_rejected, State) ->
 	{stop, register_rejected, State};
 wrapup(_Msg, State) ->
@@ -1051,6 +1062,7 @@ log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
 	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, State#agent.statedata},
 	ok.
 
+-spec(log_loop/4 :: (Id :: string(), Agentname :: string(), Nodes :: [atom()], Profile :: string()) -> 'ok').
 log_loop(Id, Agentname, Nodes, Profile) ->
 	process_flag(trap_exit, true),
 	receive
@@ -1065,7 +1077,7 @@ log_loop(Id, Agentname, Nodes, Profile) ->
 			Res = mnesia:async_dirty(F),
 			?DEBUG("res of agent state login:  ~p", [Res]),
 			agent:log_loop(Id, Agentname, Nodes, Profile);
-		{'EXIT', Apid, Reason} ->
+		{'EXIT', _Apid, _Reason} ->
 			F = fun() ->
 				Now = util:now(),
 				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.agent =:= Agentname, Rec#agent_state.ended =:= undefined]),

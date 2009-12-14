@@ -299,7 +299,7 @@ merge_skill_lists(List1, List2, Whitelist) ->
 subtract_skill_lists(List1, List2) ->
 	io:format("List1:  ~p~nList2:  ~p~n", [List1, List2]),
 	Filter = fun
-		({Magic, Val} = Skill) ->
+		({Magic, _Val} = Skill) ->
 			case {lists:member(Magic, List2), lists:member(Skill, List2)} of
 				{false, false} ->
 					true;
@@ -429,11 +429,13 @@ reload_all(Mode) ->
 			{error, Errors}
 	end.
 
+-spec(distribution/1 :: (Mean :: pos_integer()) -> pos_integer()).
 distribution(Mean) ->
 	(Mean)*math:log(1 - crypto:rand_uniform(1, 65535) / 65535) * -1.
 
 %% @doc Generally only used in the 'dummy' collection, these allow multiple ways
 %% to get a random (or not) number.
+-spec(get_number/1 :: (N :: {'distribution', pos_integer()} | 'random' | {pos_integer(), pos_integer()} | pos_integer()) -> pos_integer()).
 get_number({distribution, N}) ->
 	trunc(distribution(N));
 get_number(random) ->
@@ -443,6 +445,7 @@ get_number({Min, Max}) ->
 get_number(N) ->
 	N.
 
+-spec(find_first_arc/2 :: (Base :: string(), Ext :: string()) -> string()).
 find_first_arc(Base, Ext) ->
 	case file:read_file_info(Base ++ Ext) of
 		{error, enoent} ->

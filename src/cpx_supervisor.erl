@@ -79,6 +79,7 @@
 	stop/0,
 	load_specs/1,
 	start_spec/1,
+	stop_spec/1,
 	restart/2,
 	get_archive_path/1
 	]).
@@ -240,18 +241,6 @@ init([]) ->
 %% Internal functions
 %%====================================================================
 
-%% @doc Adds a configuration to get started and stores it in the database.  
-%% Mod is the module name, Start is the function to start it, and 
-%% Args is a list of terms passed to the start function.
-%% Erlang/OTP documentation recommends keeping the module name and 
-%% id the same; the ability to keep them separate is here for completeness
-%% and flexibility.  It is recommended to treat this function as an API to be used
-%% by other modules rather than call it directly from a shell.
--spec(add_conf/5 :: (Id :: atom(), Mod :: atom(), Start :: atom(), Args :: [any()], Super :: supervisor_name()) -> {'atomic', 'ok'}).
-add_conf(Id, Mod, Start, Args, Super) -> 
-	Rec = #cpx_conf{id = Id, module_name = Mod, start_function = Start, start_args = Args, supervisor = Super},
-	add_conf(Rec).
-
 -spec(add_conf/1 :: (Rec :: #cpx_conf{}) -> {'atomic', 'ok'}).
 add_conf(Rec) ->
 	F = fun() -> 
@@ -397,10 +386,12 @@ get_conf() ->
 	end.
 
 %% @private
+-spec(start_spec/1 :: (Spec :: #cpx_conf{}) -> {'ok', pid()}).
 start_spec(Spec) when is_record(Spec, cpx_conf) ->
 	?DEBUG("Starting ~p with supervisor ~p", [Spec#cpx_conf.id, Spec#cpx_conf.supervisor]),
 	cpx_middle_supervisor:add_with_middleman(Spec#cpx_conf.supervisor, 3, 5, Spec).
 
+-spec(stop_spec/1 :: (Spec :: #cpx_conf{}) -> 'ok').
 stop_spec(Spec) when is_record(Spec, cpx_conf) ->
 	Out = cpx_middle_supervisor:drop_child(Spec#cpx_conf.supervisor, Spec),
 %	Out = supervisor:terminate_child(Spec#cpx_conf.supervisor, Spec#cpx_conf.id),
@@ -465,6 +456,7 @@ load_specs(Super) ->
 	end.
 
 %% @doc interpolate the system's archivepath with date and call info
+-spec(get_archive_path/1 :: (Call :: #call{}) -> 'none' | {'error', any(), string()} | string()).
 get_archive_path(Call) ->
 	case get_value(archivepath) of
 		{ok, Path} ->

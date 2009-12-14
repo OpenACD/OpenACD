@@ -175,7 +175,7 @@ api(login, {Reflist, Salt, _Login}, Post) ->
 		Decrypted ->
 			Salt = string:substr(Decrypted, 1, length(Salt)),
 			DecryptedPassword = string:substr(Decrypted, length(Salt) + 1),
-			Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt, util:bin_to_hexstr(erlang:md5(DecryptedPassword))))),
+			%Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt, util:bin_to_hexstr(erlang:md5(DecryptedPassword))))),
 			case agent_auth:auth(Username, DecryptedPassword) of
 				deny ->
 					{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
@@ -196,7 +196,7 @@ api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	%Cookie = io_lib:format("cpx_management=~p; path=/", [Newref]),
 	ets:insert(cpx_management_logins, {Reflist, undefined, undefined}),
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
-api(_Api, {Reflist, _Salt, undefined}, _Post) ->
+api(_Api, {_Reflist, _Salt, undefined}, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"login required">>}]})};
 	
 %% =====
@@ -208,7 +208,7 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 			cpx_supervisor:destroy(agent_tcp_listener),
 			{struct, [{success, true}, {<<"message">>, <<"TCP Server disabled">>}]};
 		Tcpport ->
-			{OldTcpPort, Action} = case cpx_supervisor:get_conf(agent_tcp_listener) of
+			{OldTcpPort, _Action} = case cpx_supervisor:get_conf(agent_tcp_listener) of
 				TcpRecord when is_record(TcpRecord, cpx_conf) ->
 					{lists:nth(1, TcpRecord#cpx_conf.start_args), update};
 				_Else1 ->
@@ -398,7 +398,7 @@ api({agents, "agents", Agent, "delete"}, ?COOKIE, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 	{atomic, [_Agentrec]} = agent_auth:get_agent(id, Agent),
-	{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
+	%{ok, Regex} = re:compile("^{(_\\w+),([-a-zA-Z0-9_ ]+)}$"),
 	Postedskills = proplists:get_all_values("skills", Post),
 	Fixedskills = parse_posted_skills(Postedskills),
 	?DEBUG("~p", [Fixedskills]),
@@ -509,7 +509,7 @@ api(["", "release_opts", "update", Idstr], ?COOKIE, Post) ->
 			?WARNING("update release failed:  ~p", [Else]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"write failed">>}]})}
 	end;
-api(["", "release_opts", "drop", Idstr], ?COOKIE, Post) ->
+api(["", "release_opts", "drop", Idstr], ?COOKIE, _Post) ->
 	Id = list_to_integer(Idstr),
 	case agent_auth:destroy_release(id, Id) of
 		{atomic, ok} ->
@@ -727,7 +727,7 @@ api({medias, Node, "cpx_monitor_grapher", "get"}, ?COOKIE, _Post) ->
 				{<<"rrdPath">>, <<"rrd">>},
 				{<<"imagePath">>, <<"rrd path">>}
 			]};
-		#cpx_conf{start_args = [Args]} = Rec ->
+		#cpx_conf{start_args = [Args]} ->
 			Rrdpath = list_to_binary(proplists:get_value(rrd_dir, Args, "rrd")),
 			Protoimagepath = list_to_binary(proplists:get_value(image_dir, Args, "rrd path")),
 			Imagepath = case Protoimagepath of
@@ -829,7 +829,7 @@ api({medias, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
 	end,
 	{200, [], mochijson2:encode(Json)};
 	
-api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, Post) ->
+api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [gen_cdr_dumper]) of
 		undefined ->
@@ -837,7 +837,7 @@ api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, Post) ->
 				{success, false},
 				{<<"message">>, <<"no dumper enabled">>}
 			]};
-		#cpx_conf{start_args = Args} = Rec ->
+		#cpx_conf{start_args = Args} ->
 			case Args of
 				[] ->
 					{struct, [
@@ -912,7 +912,7 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 			end,
 			Args = lists:append([Cdrfile, AgentFile]),
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [gen_cdr_dumper, Conf#cpx_conf{start_args = [cdr_csv, Args]}]) of
-				{atomic, {ok, Pid}} ->
+				{atomic, {ok, _Pid}} ->
 					{struct, [{success, true}]};
 				CsvRpcElse ->
 					?WARNING("gen_cdr_dumper update:  ~p", [CsvRpcElse]),
@@ -927,7 +927,7 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 			end,
 			Args = [proplists:get_value("dsn", Post), Options],
 			case rpc:call(Atomnode, cpx_supervisor, update_conf, [gen_cdr_dumper, Conf#cpx_conf{start_args = [cdr_odbc, Args]}]) of
-				{atomic, {ok, Pid}} ->
+				{atomic, {ok, _Pid}} ->
 					{struct, [{success, true}]};
 				Else ->
 					?WARNING("gen_cdr_dumper update:  ~p", [Else]),
@@ -936,12 +936,12 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 	end,
 	{200, [], mochijson2:encode(Json)};
 	
-api({medias, Node, "cpx_monitor_passive", "get"}, ?COOKIE, Post) ->
+api({medias, Node, "cpx_monitor_passive", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_passive]) of
 		undefined ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}]})};
-		#cpx_conf{start_args = Args} = Conf ->
+		#cpx_conf{start_args = Args} ->
 			Protofilters = proplists:get_value(outputs, Args, []),
 			Fixfilterlist = fun
 				(all) -> 
@@ -982,7 +982,7 @@ api({medias, Node, "cpx_monitor_passive", "get"}, ?COOKIE, Post) ->
 %%	Atomnode = list_to_existing_atom(Node),
 	
 
-api({medias, Node, "cpx_supervisor", "get"}, ?COOKIE, Post) ->
+api({medias, Node, "cpx_supervisor", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_value, [archivepath]) of
 		none ->
@@ -1071,7 +1071,7 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 			],
 			Newpost = proplists:substitute_aliases(Aliases, Post),
 			Cleanpost = fun
-				({_Key, []} = In, Acc) ->
+				({_Key, []}, Acc) ->
 					Acc;
 				({ssl, "usessl"}, Acc) ->
 					[{protocol, ssl}, {ssl, true} | Acc];
@@ -1196,7 +1196,7 @@ api({medias, _Node, "email_media_manager", "setMapping"}, ?COOKIE, Post) ->
 	Skillslist = util:string_split(proplists:get_value(skills, Translated, []), "|"),
 	Realskills = parse_posted_skills(Skillslist),
 	Sanskills = proplists:delete(skills, Translated),
-	Newprops = [{skills, Realskills} | Translated],
+	Newprops = [{skills, Realskills} | Sanskills],
 	case email_media_manager:set_mapping(proplists:get_value("oldaddress", Post), Newprops) of
 		{aborted, Reason} ->
 			Json = {struct, [{success, false}, {message, list_to_binary(lists:flatten(io_lib:format("~p", [Reason])))}]},
@@ -1681,9 +1681,9 @@ decode_recipe_conditions([{struct, Props} | Tail], Acc) ->
 		V ->
 			V
 	end,
-	Toint = fun(L) ->
-		list_to_integer(L)
-	end,
+%	Toint = fun(L) ->
+%		list_to_integer(L)
+%	end,
 	Tuple = case {Cond, Comp, Val} of
 		{<<"ticks">>, '=', Val} when is_integer(Val) ->
 			{ticks, Val};

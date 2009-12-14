@@ -66,8 +66,8 @@
 	mails = [] :: [pid()],
 	relays = [] :: [string()],
 	server :: pid(),
-	conf = [],
-	send_conf = []
+	conf = [] :: [{atom(), any()}],
+	send_conf = [] :: [{atom(), any()}]
 }).
 
 -type(state() :: #state{}).
@@ -147,10 +147,10 @@ batch_requeue(Dir) ->
 get_send_opts() ->
 	gen_server:call(?MODULE, get_send_opts).
 
--ifndef(NOWEB).
-web_api(_Message, _Post) ->
-	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}.
--endif.
+%-ifndef(NOWEB).
+%web_api(_Message, _Post) ->
+%	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}.
+%-endif.
 
 %%====================================================================
 %% gen_server callbacks

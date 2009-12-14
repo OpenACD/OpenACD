@@ -51,21 +51,21 @@
 ]).
 
 -record(state, {
-		dsn,
-		ref,
-		summary_table,
-		transaction_table
+		dsn :: string(),
+		ref :: any(),
+		summary_table :: any(), % TODO Are these actually used?
+		transaction_table :: any()
 }).
+
+-type(state() :: #state{}).
+-define(GEN_CDR_DUMPER, true).
+-include("gen_spec.hrl").
 
 %% =====
 %% callbacks
 %% =====
 
 init([DSN, Options]) ->
-	Trace = case proplists:get_value(trace, Options) of
-		X when X =:= on; X =:= true -> on;
-		_ -> off
-	end,
 	try odbc:start() of
 		_ -> % ok or {error, {already_started, odbc}}
 			Realopts = case proplists:get_value(trace_driver, Options) of
@@ -108,7 +108,7 @@ dump(Agentstate, State) when is_record(Agentstate, agent_state) ->
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
 		{error, Reason} ->
 			{error, Reason};
-		Else ->
+		_Else ->
 			%?NOTICE ("SQL query result: ~p", [Else]),
 			{ok, State}
 	end;
@@ -118,9 +118,9 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 	Media = CDR#cdr_rec.media,
 	Client = Media#call.client,
 	{InQueue, Oncall, Wrapup, Agent, Queue} = lists:foldl(
-		fun({oncall, {Time, [{Agent,_}]}}, {Q, C, W, A, Qu}) ->
+		fun({oncall, {Time, [{Agent,_}]}}, {Q, C, W, _A, Qu}) ->
 				{Q, C + Time, W, Agent, Qu};
-			({inqueue, {Time, [{Queue, _}]}}, {Q, C, W, A, Qu}) ->
+			({inqueue, {Time, [{Queue, _}]}}, {Q, C, W, A, _Qu}) ->
 				{Q + Time, C, W, A, Queue};
 			({wrapup, {Time, _}}, {Q, C, W, A, Qu}) ->
 				{Q, C, W + Time, A, Qu};
@@ -140,12 +140,12 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 	end,
 
 	LastState = lists:foldl(
-		fun(#cdr_raw{transaction = T2}, Acc) when T2 == abandonqueue; T2 == abandonivr; T2 == voicemail -> T2;
+		fun(#cdr_raw{transaction = T2}, _Acc) when T2 == abandonqueue; T2 == abandonivr; T2 == voicemail -> T2;
 		(_, Acc) -> Acc
 	end, hangup, T),
 
 	DNIS = lists:foldl(
-		fun(#cdr_raw{transaction = T2, eventdata = E}, Acc) when T2 == inivr -> E;
+		fun(#cdr_raw{transaction = T2, eventdata = E}, _Acc) when T2 == inivr -> E;
 		(_, Acc) -> Acc
 	end, "", T),
 
@@ -157,7 +157,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 	End = Last#cdr_raw.ended,
 
 	lists:foreach(
-		fun(#cdr_raw{transaction = T} = Transaction) when T == cdrinit ->
+		fun(#cdr_raw{transaction = Tfun} = Transaction) when Tfun == cdrinit ->
 				% work around micah's "fanciness" and make cdrinit the 0 length transaction it should be
 				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
 					[Media#call.id,
@@ -214,7 +214,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 			{error, Reason};
 		_ ->
 			Dialednum = lists:foldl(
-				fun(#cdr_raw{transaction = T2, eventdata = E}, Acc) when T2 == dialoutgoing -> E;
+				fun(#cdr_raw{transaction = T2, eventdata = E}, _Acc) when T2 == dialoutgoing -> E;
 					(_, Acc) -> Acc
 				end, "", T),
 			InfoQuery = io_lib:format("INSERT INTO call_info SET UniqueID='~s', TenantID=~B, BrandID=~B, DNIS=~s, CallType='~s', CallerIDNum='~s', CallerIDName='~s', DialedNumber=~s;", [
@@ -274,19 +274,19 @@ cdr_transaction_to_integer(T) ->
 		cdrend -> 21
 	end.
 
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= oncall; T =:= wrapup; T =:= endwrapup; T =:= ringing  ->
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) when T =:= oncall; T =:= wrapup; T =:= endwrapup; T =:= ringing  ->
 	case agent_auth:get_agent(Transaction#cdr_raw.eventdata) of
 		{atomic, [Rec]} when is_tuple(Rec) ->
 			integer_to_list(list_to_integer(element(2, Rec)) + 1000);
 		_ ->
 			"0"
 	end;
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= inqueue; T == precall; T == dialoutgoing; T == voicemail, T == abandonqueue ->
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) when T =:= inqueue; T == precall; T == dialoutgoing; T == voicemail, T == abandonqueue ->
 	Transaction#cdr_raw.eventdata;
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= queue_transfer  ->
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) when T =:= queue_transfer  ->
 	"queue " ++ Transaction#cdr_raw.eventdata;
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= agent_transfer  ->
-	{From, To} = Transaction#cdr_raw.eventdata,
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) when T =:= agent_transfer  ->
+	{_From, To} = Transaction#cdr_raw.eventdata,
 	Agent = case agent_auth:get_agent(To) of
 		{atomic, [Rec]} when is_tuple(Rec) ->
 			integer_to_list(list_to_integer(element(2, Rec)) + 1000);
@@ -294,13 +294,13 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) when T =:= ag
 			"0"
 	end,
 	"agent " ++ Agent;
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, #cdr_rec{media = Media} = CDR) when T =:= cdrinit  ->
+get_transaction_data(#cdr_raw{transaction = T}, #cdr_rec{media = Media}) when T =:= cdrinit  ->
 	case {Media#call.type, Media#call.direction} of
 		{voice, inbound} -> "call";
 		{voice, outbound} -> "outgoing";
 		{Type, _ } -> atom_to_list(Type)
 	end;
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, CDR) ->
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) ->
 	?NOTICE("eventdata for ~p is ~p", [T, Transaction#cdr_raw.eventdata]),
 	"".
 

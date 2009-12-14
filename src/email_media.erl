@@ -615,26 +615,6 @@ append_files(Headers, Properties, Path, Files) ->
 	end.
 	
 -ifdef(EUNIT).
-
-%parse_disposition_test_() ->
-%	[{"Basic parse",
-%	fun() ->
-%		Res = parse_disposition("inline;filename=spice-logo.jpg"),
-%		?assertEqual({inline, "spice-logo.jpg"}, Res)
-%	end}].
-
-check_disposition_test_() ->
-	[{"The header exists",
-	fun() ->
-		Res = check_disposition([{<<"disposition">>,<<"inline">>}, {<<"disposition-params">>, [{<<"filename">>, <<"spice-logo.jpg">>}]}]),
-		?DEBUG("das res:  ~p", [Res]),
-		?assertEqual({inline, <<"spice-logo.jpg">>, [{<<"Content-Disposition">>, <<"inline; filename=\"spice-logo.jpg\"">>}]}, Res)
-	end},
-	{"The header doesn't exists",
-	fun() ->
-		Res = check_disposition([]),
-		?assertEqual(inline, Res)
-	end}].
 		
 getmail(File) ->
 	{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),

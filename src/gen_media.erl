@@ -1245,19 +1245,19 @@ url_pop_test_() ->
 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = []}},
 			% if the mock (Conn) gets a cast, it'll error; that's the test.
 			% if it error's, it's a fail.
-			url_pop(Call, Agent)
+			url_pop(Call, Agent, [])
 		end},
 		{"url is an empty list",
 		fun() ->
 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, []}]}},
 			% same as above.
-			url_pop(Call, Agent)
+			url_pop(Call, Agent, [])
 		end},
 		{"url is set",
 		fun() ->
 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com"}]}},
 			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com"}, _) -> ok end),
-			url_pop(Call, Agent),
+			url_pop(Call, Agent, []),
 			gen_server_mock:assert_expectations(Conn)
 		end},
 		{"url is set with some additional options",

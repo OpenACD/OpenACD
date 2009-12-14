@@ -69,7 +69,7 @@ agent_exists(Agent) ->
 -type(skill_list() :: [skill()]).
 -type(profile_data() :: {profile(), skill_list()} | profile() | skill_list()).
 -type(security() :: 'admin' | 'agent' | 'supervisor').
--spec(agent_auth/3 :: (Agent :: string(), Password :: string(), Extended :: [{atom(), any()}]) -> {ok, profile_data(), security()} | 'deny').
+-spec(agent_auth/3 :: (Agent :: string(), Password :: string(), Extended :: [{atom(), any()}]) -> {ok, string(), profile_data(), security(), [{atom(),any()}]} | 'deny' | 'destroy' | {'error', 'nointegration'}).
 agent_auth(Agent, Password, Extended) ->
 	Out = do_call({agent_auth, Agent, Password, Extended}),
 	Test = fun
@@ -110,7 +110,7 @@ client_exists(Key, Value) ->
 -type(url_option() :: {url_pop, string()}).
 -type(client_option() :: url_option()).
 -type(client_options() :: [client_option()]).
--spec(get_client/2 :: (Key :: client_key(), Value :: string()) -> 'none' | {ok, client_id(), label(), client_options()}).
+-spec(get_client/2 :: (Key :: client_key(), Value :: string()) -> 'none' | {ok, client_id(), label(), client_options()} | {'error', 'nointegration'}).
 get_client(Key, Value) ->
 	Out = do_call({get_client, Key, Value}),
 	Test = fun

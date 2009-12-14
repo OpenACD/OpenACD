@@ -67,23 +67,6 @@ _b._handleOnChange(_b.attr("value"),false);
 },0);
 }
 this._refreshState();
-},_onMouseDown:function(){
-this._selectOnUp=!this._focused&&!this.disabled&&!this.readOnly;
-},_onClick:function(){
-if(this._focused&&this._selectOnUp){
-var _c;
-if(dojo.isIE){
-var _d=dojo.doc.selection.createRange();
-var _e=_d.parentElement();
-_c=_e==this.textbox&&_d.text.length==0;
-}else{
-_c=this.textbox.selectionStart==this.textbox.selectionEnd;
-}
-if(_c){
-dijit.selectInputText(this.textbox);
-}
-}
-this._selectOnUp=false;
 },postCreate:function(){
 this.textbox.setAttribute("value",this.textbox.value);
 this.inherited(arguments);
@@ -95,32 +78,28 @@ this.connect(this.textbox,"onkeyup",this._onInput);
 this.connect(this.textbox,"onpaste",this._onInput);
 this.connect(this.textbox,"oncut",this._onInput);
 }
-if(this.selectOnClick){
-this.connect(this.textbox,"onmousedown",this._onMouseDown);
-this.connect(this.textbox,"onclick",this._onClick);
-}
-},_blankValue:"",filter:function(_f){
-if(_f===null){
+},_blankValue:"",filter:function(_c){
+if(_c===null){
 return this._blankValue;
 }
-if(typeof _f!="string"){
-return _f;
+if(typeof _c!="string"){
+return _c;
 }
 if(this.trim){
-_f=dojo.trim(_f);
+_c=dojo.trim(_c);
 }
 if(this.uppercase){
-_f=_f.toUpperCase();
+_c=_c.toUpperCase();
 }
 if(this.lowercase){
-_f=_f.toLowerCase();
+_c=_c.toLowerCase();
 }
 if(this.propercase){
-_f=_f.replace(/[^\s]+/g,function(_10){
-return _10.substring(0,1).toUpperCase()+_10.substring(1);
+_c=_c.replace(/[^\s]+/g,function(_d){
+return _d.substring(0,1).toUpperCase()+_d.substring(1);
 });
 }
-return _f;
+return _c;
 },_setBlurValue:function(){
 this._setValueAttr(this.attr("value"),true);
 },_onBlur:function(e){
@@ -129,12 +108,31 @@ return;
 }
 this._setBlurValue();
 this.inherited(arguments);
+if(this._selectOnClickHandle){
+this.disconnect(this._selectOnClickHandle);
+}
 if(this.selectOnClick&&dojo.isMoz){
 this.textbox.selectionStart=this.textbox.selectionEnd=undefined;
 }
-},_onFocus:function(e){
+},_onFocus:function(by){
 if(this.disabled||this.readOnly){
 return;
+}
+if(this.selectOnClick&&by=="mouse"){
+this._selectOnClickHandle=this.connect(this.domNode,"onmouseup",function(){
+this.disconnect(this._selectOnClickHandle);
+var _e;
+if(dojo.isIE){
+var _f=dojo.doc.selection.createRange();
+var _10=_f.parentElement();
+_e=_10==this.textbox&&_f.text.length==0;
+}else{
+_e=this.textbox.selectionStart==this.textbox.selectionEnd;
+}
+if(_e){
+dijit.selectInputText(this.textbox);
+}
+});
 }
 this._refreshState();
 this.inherited(arguments);

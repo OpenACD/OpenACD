@@ -635,12 +635,12 @@ destroy_client(label, Label) ->
 
 %% @doc Get the `#client{}' associated with the id `Id' using integration
 %% if possible.
--spec(get_client/1 :: (Label :: string()) -> #client{} | 'none').
+-spec(get_client/1 :: (Label :: string() | 'undefined') -> #client{} | 'none').
 get_client(Label) ->
 	get_client(label, Label).
 
 %% @doc Get the `#client{}' associated with the give `Key Value'.
--spec(get_client/2 :: (Key :: 'label' | 'id', Value :: string()) -> #client{} | 'none').
+-spec(get_client/2 :: (Key :: 'label' | 'id', Value :: string() | 'undefined') -> #client{} | 'none').
 get_client(_Key, undefined) ->
 	get_default_client();
 get_client(Key, Value) ->
@@ -669,11 +669,11 @@ get_default_client() ->
 	local_get_client(undefined).
 
 %% @doc Skips integration, goes right for the local cache using key as id.
--spec(local_get_client/1 :: (Id :: string()) -> #client{} | 'none').
+-spec(local_get_client/1 :: (Id :: string() | 'undefined') -> #client{} | 'none').
 local_get_client(Id) ->
 	local_get_client(id, Id).
 
--spec(local_get_client/2 :: (Key :: 'id' | 'label', Value :: string()) -> #client{} | 'none').
+-spec(local_get_client/2 :: (Key :: 'id' | 'label', Value :: string() | 'undefined') -> #client{} | 'none').
 local_get_client(Key, Value) ->
 	F = fun() ->
 		QH = case Key of

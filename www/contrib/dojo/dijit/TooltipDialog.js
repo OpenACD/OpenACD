@@ -41,7 +41,7 @@ this._getFocusItems(this.containerNode);
 }
 var _7=(this._firstFocusItem==this._lastFocusItem);
 if(_5.charOrCode==dk.ESCAPE){
-this.onCancel();
+setTimeout(dojo.hitch(this,"onCancel"),0);
 dojo.stopEvent(_5);
 }else{
 if(_6==this._firstFocusItem&&_5.shiftKey&&_5.charOrCode===dk.TAB){

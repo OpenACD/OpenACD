@@ -8,7 +8,6 @@
 if(!dojo._hasResource["dojox.date.hebrew.locale"]){
 dojo._hasResource["dojox.date.hebrew.locale"]=true;
 dojo.provide("dojox.date.hebrew.locale");
-dojo.experimental("dojox.date.hebrew.locale");
 dojo.require("dojox.date.hebrew.Date");
 dojo.require("dojox.date.hebrew.numerals");
 dojo.require("dojo.regexp");

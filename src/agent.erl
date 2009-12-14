@@ -42,6 +42,7 @@
 
 -type(agent_opt() :: {'nodes', [atom()]} | 'logging').
 -type(agent_opts() :: [agent_opt()]).
+-type(release_code() :: {string(), atom(), -1 | 0 | 1} | 'default').
 
 -type(state() :: #agent{}).
 -define(GEN_FSM, true).
@@ -278,7 +279,7 @@ blab(Pid, Text) ->
 	gen_fsm:send_all_state_event(Pid, {blab, Text}).
 
 %% @doc Make the give `pid() Spy' spy on `pid() Target'.
--spec(spy/2 :: (Spy :: pid(), Target :: pid()) -> 'ok').
+-spec(spy/2 :: (Spy :: pid(), Target :: pid()) -> 'ok' | 'invalid').
 spy(Spy, Target) ->
 	gen_fsm:sync_send_event(Spy, {spy, Target}).
 
@@ -372,7 +373,7 @@ state_to_integer(State) ->
 %%</ul>
 -spec(idle/3 :: (Event :: {'precall', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'precall', #agent{}};
 	(Event :: {'ringing', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'ringing', #agent{}};
-	(Event :: {'released', string()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}}).
+	(Event :: {'released',  release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}}).
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'idle', #agent{}}).
 idle({precall, Call}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
@@ -409,7 +410,7 @@ idle(_Message, State) ->
 %</ul>
 -spec(ringing/3 :: (Event :: 'oncall', From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'oncall', #agent{}};
 	(Event :: {'oncall', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'oncall', #agent{}};
-	(Event :: {'released', string()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}};
 	(Event :: 'idle', From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'idle', #agent{}}).
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'ringing', #agent{}}).
 ringing(oncall, _From, #agent{statedata = Statecall} = State) when Statecall#call.ring_path == inband ->
@@ -510,7 +511,7 @@ precall(_Msg, State) ->
 %%<li>`{warmtransfer, Transferto :: any()}'</li>
 %%</ul>
 -spec(oncall/3 :: (Event :: {'released', 'undefined'}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'oncall', #agent{}};
-	(Event :: {'released', string()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'oncall', #agent{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'oncall', #agent{}};
 	(Event :: 'wrapup', From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'wrapup', #agent{}};
 	(Event :: {'wrapup', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'wrapup', #agent{}};
 	(Event :: {'warmtransfer', any()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'warmtransfer', #agent{}}).
@@ -616,7 +617,7 @@ oncall(Message, State) ->
 %%<li>`{warmtransfer, Transferto :: any()}'</li>
 %%</ul>
 -spec(outgoing/3 :: (Event :: {'released', 'undefined'}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'outgoing', #agent{}};
-	(Event :: {'released', string()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'outgoing', #agent{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'outgoing', #agent{}};
 	(Event :: {'wrapup', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'wrapup', #agent{}};
 	(Event :: {'warmtransfer', any()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'warmtransfer', #agent{}}).
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'outgoing', #agent{}}).
@@ -673,7 +674,7 @@ outgoing(_Msg, State) ->
 %%</ul>
 -spec(released/3 :: (Event :: {'precall', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'precall', #agent{}};
 	(Event :: 'idle', From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'idle', #agent{}};
-	(Event :: {'released', string()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}};
 	(Event :: {'ringing', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'ringing', #agent{}}).
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'released', #agent{}}).
 released({precall, Call}, _From, State) ->
@@ -731,7 +732,7 @@ released(_Msg, State) ->
 %%<li>`{outgoing, Call :: #call{}}'</li> TODO outgoing state will go away when callrec supports in/out directions
 %%</ul>
 -spec(warmtransfer/3 :: (Event :: {'released', undefined}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'warmtransfer', #agent{}};
-	(Event :: {'released', string()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'released', #agent{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'released', #agent{}};
 	(Event :: {'wrapup', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'wrapup', #agent{}};
 	(Event :: {'oncall', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'oncall', #agent{}};
 	(Event :: {'outgoing', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'outgoing', #agent{}}).
@@ -781,7 +782,7 @@ warmtransfer(_Msg, State) ->
 %%<li>`idle'<br />If the agent has a release queued, that state is set instead.</li>
 %%</ul>
 -spec(wrapup/3 :: (Event :: {'released', undefined}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'wrapup', #agent{}};
-	(Event :: {'released', string()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'wrapup', #agent{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'wrapup', #agent{}};
 	(Event :: 'idle', From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'idle', #agent{}}).
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'wrapup', #agent{}}).
 wrapup({released, undefined}, _From, State) ->
@@ -1022,7 +1023,7 @@ wait_for_agent_manager(Count, StateName, State) ->
 			% this will throw an error if the agent is already registered as
 			% a different pid and that error will crash this process
 			?INFO("Notifying new agent manager of agent ~p at ~p", [State#agent.login, self()]),
-			agent_manager:notify(State#agent.login, self()),
+			agent_manager:notify(State#agent.login, State#agent.id, self()),
 			{next_state, StateName, State}
 	end.
 

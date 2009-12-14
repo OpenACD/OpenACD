@@ -104,7 +104,7 @@
 -record(agent_state, {
 	id :: string(),
 	agent :: string(),
-	state :: statename(),
+	state :: statename() | 'login' | 'logout',
 	oldstate :: statename(),
 	statedata :: any(),
 	start :: integer(),

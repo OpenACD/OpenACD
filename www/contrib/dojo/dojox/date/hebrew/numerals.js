@@ -8,7 +8,6 @@
 if(!dojo._hasResource["dojox.date.hebrew.numerals"]){
 dojo._hasResource["dojox.date.hebrew.numerals"]=true;
 dojo.provide("dojox.date.hebrew.numerals");
-dojo.experimental("dojox.date.hebrew.numerals");
 (function(){
 var _1="אבגדהוזחט";
 var _2="יכלמנסעפצ";

@@ -124,9 +124,10 @@ _10.parentMenu=this;
 _10.from_item=_f;
 var _11=this;
 dijit.popup.open({parent:this,popup:_10,around:_f.domNode,orient:this._orient||(this.isLeftToRight()?{"TR":"TL","TL":"TR","BR":"BL","BL":"BR"}:{"TL":"TR","TR":"TL","BL":"BR","BR":"BL"}),onCancel:function(){
-_11._cleanUp();
 _11.focusChild(_f);
+_11._cleanUp();
 _f._setSelected(true);
+_11.focusedChild=_f;
 },onExecute:dojo.hitch(this,"_cleanUp")});
 this.currentPopup=_10;
 _10.connect(_10.domNode,"onmouseenter",dojo.hitch(_11,"_onPopupHover"));

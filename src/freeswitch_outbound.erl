@@ -74,7 +74,7 @@
 	agent :: string(),
 	ringchannel :: pid(),
 	xferchannel :: pid(),
-	xferuuid :: pid(),
+	xferuuid :: string(),
 	voicemail = false :: 'false' | string(),
 	gateway :: string()
 	}).

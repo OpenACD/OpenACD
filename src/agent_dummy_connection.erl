@@ -61,7 +61,7 @@
 	call :: #call{} | 'undefined',
 	agent_fsm :: pid(),
 	life_watch :: any(),
-	release_data = {false, 0, undefined} :: {boolean(), {non_neg_integer(), non_neg_integer()}, any()}
+	release_data = {false, 0, undefined} :: {boolean(), {non_neg_integer(), non_neg_integer()}, any()} % TODO - this spec is wrong, but I don't know why
 }).
 
 -type(state() :: #state{}).

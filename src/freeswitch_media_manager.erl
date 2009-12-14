@@ -182,7 +182,7 @@ get_handler(UUID) ->
 notify(UUID, Pid) ->
 	gen_server:cast(?MODULE, {notify, UUID, Pid}).
 
--spec(make_outbound_call/3 :: (Client :: any(), AgentPid :: pid(), AgentRec :: #agent{}) -> 'ok').
+-spec(make_outbound_call/3 :: (Client :: any(), AgentPid :: pid(), AgentRec :: #agent{}) -> {'ok', pid()} | {'error', any()}).
 make_outbound_call(Client, AgentPid, AgentRec) ->
 	gen_server:call(?MODULE, {make_outbound_call, Client, AgentPid, AgentRec}).
 
@@ -196,7 +196,7 @@ stop() ->
 
 %% @doc Just blindly start an agent's phone ringing, set to hangup on pickup.
 %% Yes, this is a prank call function.
--spec(ring_agent/4 :: (AgentPid :: pid(), Arec :: #agent{}, Call :: #call{}, Timeout :: pos_integer()) -> 'ok').
+-spec(ring_agent/4 :: (AgentPid :: pid(), Arec :: #agent{}, Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
 ring_agent(AgentPid, Arec, Call, Timeout) ->
 	gen_server:call(?MODULE, {ring_agent, AgentPid, Arec, Call, Timeout}).
 

@@ -8,7 +8,6 @@
 if(!dojo._hasResource["dojox.date.hebrew"]){
 dojo._hasResource["dojox.date.hebrew"]=true;
 dojo.provide("dojox.date.hebrew");
-dojo.experimental("dojox.date.hebrew");
 dojo.require("dojox.date.hebrew.Date");
 dojo.require("dojo.date");
 dojox.date.hebrew.getDaysInMonth=function(_1){
@@ -33,7 +32,8 @@ case "weekday":
 var _9=_5.getDay();
 var _a=0;
 if(_7<0&&_9==6){
-_9=5,_a=-1;
+_9=5;
+_a=-1;
 }
 if((_9+_7)<5&&(_9+_7)>=0){
 _8.setDate(_5.getDate()+_7+_a);

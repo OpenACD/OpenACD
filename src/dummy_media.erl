@@ -163,11 +163,11 @@ q() ->
 q(Opts) ->
 	start_link(Opts).
 
--spec(q_x/1 :: (N :: pos_integer()) -> 'ok').
+-spec(q_x/1 :: (N :: pos_integer()) -> [pid()]).
 q_x(N) ->
 	q_x(N, []).
 
--spec(q_x/2 :: (N :: pos_integer(), Queues :: [string()]) -> 'ok').
+-spec(q_x/2 :: (N :: pos_integer(), Options :: [{atom(), any()}]) -> [pid()]).
 q_x(N, Options) ->
 	F = fun(_I) ->
 		{ok, Pid} = q(Options),
@@ -310,7 +310,7 @@ handle_call({start_cook, Recipe, Queuename}, _From, _Callrec, #state{callrec = C
 		fail -> 
 			{reply, invalid, State};
 		success -> 
-			{ok, Pid} = cook:start_link(self(), Recipe, Queuename, #queued_call{id = Call#call.id, media = self()}),
+			{ok, Pid} = cook:start_link(self(), Recipe, Queuename, {Call#call.priority, now()}),
 			NewCall = Call#call{cook = Pid},
 			{reply, ok, State#state{callrec = NewCall}};
 		fail_once ->

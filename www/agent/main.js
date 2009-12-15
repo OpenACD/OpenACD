@@ -739,6 +739,9 @@ dojo.addOnLoad(function(){
 					'searchAttr': 'label',
 					'name':'boutboundcall',
 					'store':store,
+					'fetchProperties':{
+						'sort':[{attribute:'label', descending:false}]
+					},
 					'promptMessage': dojo.i18n.getLocalization("agentUI","labels")["MKOUTBOUND"]
 					}, 'boutboundcall');
 		}

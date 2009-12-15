@@ -29,7 +29,7 @@ if(typeof(supervisorView) == "undefined"){
 	supervisorView.agentProfilesStack = {clear:function(){ return true;}};
 	supervisorView.callsStack = {clear:function(){return true;}};
 	supervisorView.suppressPoll = false;
-	supervisorView.hpCalcInterval = false;
+	supervisorView.hpCalcInterval = 100;
 	/*
 	To use the dndManager:
 		item to drag should implement:
@@ -2404,17 +2404,9 @@ supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(supeve
 	}
 });
 
-/*supervisorView.hpCalcTimer = '';
-supervisorView.hpcalc = function(){
-	supervisorView.hpCalcTimer = setTimeout(function(){
-		supervisorView.setAllHps();
-		supervisorView.hpcalc();}, 5000);
-};*/
-
 if(supervisorView.hpCalcInterval !== false){
 	supervisorView.setMediaHps();
 }
-//supervisorView.aggregateTimer = setTimeout(supervisorView.setMediaHps, supervisorView.hpCalcInterval);
 
 supervisorView.reloadTimer = false;
 supervisorView.reload = function(){
@@ -2429,7 +2421,6 @@ supervisorView.reload();
 window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", function(child){
 	if(child.title == "Supervisor"){
 		dropTab('supervisorTab');
-		//clearTimeout(supervisorView.hpCalcTimer);
 		clearTimeout(supervisorView.aggregateTimer);
 		clearTimeout(supervisorView.reloadTimer);
 		dojo.unsubscribe(window.supervisorViewKillListen);

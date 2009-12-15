@@ -213,9 +213,16 @@ if(typeof(supervisorView) == "undefined"){
 		
 		if(conf.menu){
 			var menu = dijit.byId(conf.menu);
+			if(menu){
+				debug(["menu found on bubble creation"]);				
+			}
+			else{
+				warning(["menu id not found", conf.menu, menu]);
+			}
+			this.boundMenu = conf.menu;
 			this.group.rawNode.oncontextmenu = function(ev){
 				debug(ev);
-				menu._openMyself(ev);
+				dijit.byId(conf.menu)._openMyself(ev);
 				if (dojo.isIE) {
 					ev.returnValue = false;
 				} else {
@@ -223,25 +230,7 @@ if(typeof(supervisorView) == "undefined"){
 					ev.stopPropagation();
 				}
 			};
-			if(menu){
-				/*menu.bindDomNode(this.group.rawNode);*/
-				this.boundMenu = conf.menu;
-				
-				/*if(conf.moveable){
-					dojo.connect(menu, 'onOpen', this, function(){
-						console.log('onOpen!');
-						this.moveable.destroy();
-					});
-					dojo.connect(menu, 'onClose', this, function(){
-						console.log(this.moveable);
-						this.moveable = new dojox.gfx.Moveable(this.group, {delay:1});
-					});
-				}*/
-				
-			}
-			else{
-				warning(["menu id not found", conf.menu]);
-			}
+			
 		}
 		
 		if(conf.moveable){
@@ -1471,6 +1460,7 @@ if(typeof(supervisorView) == "undefined"){
 			point:{x:20, y:20},
 			scale: 0.75,
 			data: {"health":agenthp, "display":"Agents", "id":"Agents"},
+			menu: 'agentAllAction',
 			onmouseenter:function(){
 				clearStacks();
 				supervisorView.drawAgentProfilesStack();

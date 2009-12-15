@@ -380,7 +380,9 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 							end
 					end;
 				"profile" ->
-					{profile, proplists:get_value("value", Post, "")}
+					{profile, proplists:get_value("value", Post, "")};
+				"all" ->
+					all
 			end,
 			Json = case Toagentmanager of
 				{false, false} ->

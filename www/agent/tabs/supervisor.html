@@ -151,6 +151,20 @@
 	</div>
 </div>
 
+<div dojoType="dijit.Menu" id="agentAllAction" style="display:none">
+	<div dojoType="dijit.MenuItem">Blab
+		<script type="dojo/method" event="onClick">
+			var dialog = dijit.byId("blabDialog");
+			var submitblab = function(){
+				var data = dialog.attr('value');
+				supervisorView.blab(data.message, "all", "all");
+			};
+			dialog.attr('execute', submitblab);
+			dialog.show();
+		</script>
+	</div>
+</div>
+
 <div dojoType="dijit.Menu" id="agentProfileAction" style="display:none">
 	<div dojoType="dijit.MenuItem">Blab
 		<script type="dojo/method" event="onClick">

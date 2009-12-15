@@ -386,7 +386,7 @@ push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 
 %% @doc Determine any info messages that should be input based on what the last
 %% actual message ended.
--spec(analyze/5 :: (Trans :: transaction_type(), Call :: #call{}, Time :: time(), Data :: any(), Termed :: transaction_type()) -> [#cdr_raw{}]).
+-spec(analyze/5 :: (Trans :: transaction_type(), Call :: #call{}, Time :: time(), Data :: any(), Termed :: [{transaction_type(), any()}]) -> [#cdr_raw{}]).
 analyze(hangup, #call{id = Cid}, Time, _, [{inivr, _}]) ->
 	[#cdr_raw{id = Cid, start = Time, ended = Time, transaction = abandonivr}];
 analyze(hangup, #call{id = Cid}, Time, _, [{inqueue, Queuename}]) ->

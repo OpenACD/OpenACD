@@ -135,7 +135,7 @@ start(Module, Args) ->
 start() ->
 	gen_server:start({local, ?MODULE}, ?MODULE, null, []).
 
--spec(update_notify/1 :: (TableName :: string()) -> 'ok').
+-spec(update_notify/1 :: (TableName :: atom()) -> 'ok').
 update_notify(TableName) ->
 	Nodes = [node() | nodes()],
 	lists:foreach(fun(Node) -> {?MODULE, Node} ! {update, TableName} end, Nodes).

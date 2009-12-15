@@ -827,7 +827,52 @@ api({medias, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
 			}]),
 			{struct, [{success, true}]}
 	end,
-	{200, [], mochijson2:encode(Json)};
+	{200, [], mochijson2:encode(Json)};	
+api({medias, Node, "cpx_monitor_passive", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_passive]) of
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}]})};
+		#cpx_conf{start_args = [Args]} ->
+			Protofilters = proplists:get_value(outputs, Args, []),
+			Fixfilterlist = fun
+				(all) -> 
+					all; 
+				(List) -> 
+					lists:map(fun
+						(I) when is_atom(I) ->
+							I;
+						(I) -> 
+							list_to_binary(I) 
+					end, List) 
+			end,
+			Fixfilter = fun({Name, Options}) ->
+				{struct, [
+					{<<"name">>, list_to_binary(Name)},
+					{<<"queues">>, Fixfilterlist(proplists:get_value(queues, Options, all))},
+					{<<"queue_groups">>, Fixfilterlist(proplists:get_value(queue_groups, Options, all))},
+					{<<"agents">>, Fixfilterlist(proplists:get_value(agents, Options, all))},
+					{<<"agent_profiles">>, Fixfilterlist(proplists:get_value(agent_profiles, Options, all))},
+					{<<"clients">>, Fixfilterlist(proplists:get_value(clients, Options, all))},
+					{<<"nodes">>, Fixfilterlist(proplists:get_value(nodes, Options, all))},
+					{<<"outputdir">>, list_to_binary(proplists:get_value(file_output, Options, "./"))}
+				]}
+			end,
+			Filters = lists:map(Fixfilter, Protofilters),
+			?DEBUG("Fix filter:  ~p", [Filters]),
+			Json = {struct, [
+				{success, true},
+				{<<"enabled">>, true},
+				{<<"interval">>, proplists:get_value(write_interval, Args, 60)},
+				{<<"filters">>, {struct, [
+					{<<"identifier">>, <<"name">>},
+					{<<"items">>, Filters}
+				]}}
+			]},
+			{200, [], mochijson2:encode(Json)}
+	end;
+%%api({medias, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
+%%	Atomnode = list_to_existing_atom(Node),
 	
 api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
@@ -936,52 +981,6 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 	end,
 	{200, [], mochijson2:encode(Json)};
 	
-api({medias, Node, "cpx_monitor_passive", "get"}, ?COOKIE, _Post) ->
-	Atomnode = list_to_existing_atom(Node),
-	case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_passive]) of
-		undefined ->
-			{200, [], mochijson2:encode({struct, [{success, true}, {<<"enabled">>, false}]})};
-		#cpx_conf{start_args = Args} ->
-			Protofilters = proplists:get_value(outputs, Args, []),
-			Fixfilterlist = fun
-				(all) -> 
-					all; 
-				(List) -> 
-					lists:map(fun
-						(I) when is_atom(I) ->
-							I;
-						(I) -> 
-							list_to_binary(I) 
-					end, List) 
-			end,
-			Fixfilter = fun({Name, Options}) ->
-				{struct, [
-					{<<"name">>, list_to_binary(Name)},
-					{<<"queues">>, Fixfilterlist(proplists:get_value(queues, Options, all))},
-					{<<"queue_groups">>, Fixfilterlist(proplists:get_value(queue_groups, Options, all))},
-					{<<"agents">>, Fixfilterlist(proplists:get_value(agents, Options, all))},
-					{<<"agent_profiles">>, Fixfilterlist(proplists:get_value(agent_profiles, Options, all))},
-					{<<"clients">>, Fixfilterlist(proplists:get_value(clients, Options, all))},
-					{<<"nodes">>< Fixfilterlist(proplists:get_value(nodes, Options, all))},
-					{<<"outputdir">>, list_to_binary(proplists:get_value(file_output, Options, "./"))}
-				]}
-			end,
-			Filters = lists:map(Fixfilter, Protofilters),
-			Json = {struct, [
-				{success, true},
-				{<<"enabled">>, true},
-				{<<"interval">>, proplists:get_value(write_interval, Args, 60)},
-				{<<"filters">>, {struct, [
-					{<<"identifier">>, <<"name">>},
-					{<<"items">>, Filters}
-				]}}
-			]},
-			{200, [], mochijson2:encode(Json)}
-	end;
-%%api({medias, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
-%%	Atomnode = list_to_existing_atom(Node),
-	
-
 api({medias, Node, "cpx_supervisor", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_value, [archivepath]) of

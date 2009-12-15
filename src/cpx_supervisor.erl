@@ -506,7 +506,7 @@ config_test_() ->
 				"Adding a Valid Config gets it to start",
 				fun() -> 
 					Valid = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
-					Out = add_conf(gen_server_mock, gen_server_mock, named, [{local, dummy_media_manager}], management_sup),
+					Out = update_conf(gen_server_mock, Valid),
 					?CONSOLE("Out:  ~p", [Out]),
 					QH = qlc:q([X || X <- mnesia:table(cpx_conf), X#cpx_conf.module_name =:= gen_server_mock]),
 					F = fun() -> 
@@ -521,10 +521,7 @@ config_test_() ->
 				"Destroy a Config by full spec, ensure it also kills what was running.",
 				fun() -> 
 					Spec = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
-					try add_conf(gen_server_mock, gen_server_mock, named, [{local, dummy_media_manager}], management_sup)
-					catch
-						_:_ -> ok
-					end,
+					update_conf(gen_server_mock, Spec),
 					?assert(is_pid(whereis(dummy_media_manager))),
 					destroy(Spec),
 					?assertEqual(undefined, whereis(dummy_media_manager)),
@@ -538,7 +535,8 @@ config_test_() ->
 			{
 				"Destroy a Config by id only",
 				fun() -> 
-					add_conf(gen_server_mock, gen_server_mock, named, [{local, dummy_media_manager}], management_sup),
+					Spec = #cpx_conf{id = gen_server_mock, module_name = gen_server_mock, start_function = named, start_args = [{local, dummy_media_manager}], supervisor = management_sup},
+					update_conf(gen_server_mock, Spec),
 					?assert(is_pid(whereis(dummy_media_manager))),
 					destroy(gen_server_mock),
 					?CONSOLE("~p", [whereis(dummy_media_manager)]),
@@ -554,11 +552,14 @@ config_test_() ->
 				"Update a Config",
 				fun() -> 
 					%Spec = {dummy_mod, {dummy_mod, start, []}, permanent, 100, worker, [?MODULE]},
-					add_conf(gen_server_mock, gen_server_mock, named, [{local, dummy_media_manager}], management_sup),
-%					try add_conf(dummy_media_manager, dummy_media_manager, start_link, ["dummy_arg"], management_sup)
-%					catch
-%						_:_ -> ok
-%					end,
+					Oldrec = #cpx_conf{
+						id = gen_server_mock,
+						module_name = gen_server_mock,
+						start_function = named,
+						start_args = [{local, dummy_media_manager}],
+						supervisor = management_sup
+					},
+					update_conf(gen_server_mock, Oldrec),
 					Oldpid = whereis(dummy_media_manager),
 					Newrec = #cpx_conf{
 						id=gen_server_mock,
@@ -584,7 +585,14 @@ config_test_() ->
 			{
 				"Updating a config fails, so the old config is started",
 				fun() ->
-					add_conf(gen_server_mock, gen_server_mock, named, [{local, dummy_media_manager}], management_sup),
+					Oldrec = #cpx_conf{
+						id = gen_server_mock,
+						module_name = gen_server_mock,
+						start_function = named,
+						start_args = [{local, dummy_media_manager}],
+						supervisor = management_sup
+					},
+					update_conf(gen_server_mock, Oldrec),
 					Oldpid = whereis(dummy_media_manager),
 					Newrec = #cpx_conf{
 						id=gen_server_mock,

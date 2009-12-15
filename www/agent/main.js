@@ -144,6 +144,22 @@ dojo.addOnLoad(function(){
 				return -1;
 		}
 	};
+	
+	window._logLevelToFunction = function(level){
+		if(level > 6){
+			return 'log';
+		}
+		
+		if(level > 4){
+			return 'info';
+		}
+		
+		if(level > 3){
+			return 'warn';
+		}
+		
+		return 'error';
+	}
 
 	window.getLogLevel = function(){
 		return window._logLevelToString(window._logLevel);
@@ -165,11 +181,16 @@ dojo.addOnLoad(function(){
 		window.console.log = function(){
 			return true;
 		};
+		window.console.info = window.console.log;
+		window.console.error = window.console.log;
+		window.console.warn = window.console.log;
 	}
 
 	window.log = function(level, data){
-		if(window._logLevelToNumber(level) <= window._logLevel){
-			console.log([level, data]);
+		var levelNum = window._logLevelToNumber(level)
+		if(levelNum <= window._logLevel){
+			var func = window._logLevelToFunction(levelNum);
+			console[func]([level, data]);
 		}
 	};
 

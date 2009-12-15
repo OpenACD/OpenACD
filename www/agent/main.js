@@ -342,6 +342,19 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
+	dojo.byId("calltypep").stateChanger = dojo.subscribe("agent/state", function(data){
+		switch(data.state){
+			case 'ringing':
+			case 'oncall':
+			case 'wrapup':
+				dojo.byId("calltype").innerHTML = encodeHTML(data.statedata.type);
+				dojo.byId("calltypep").style.display = "block";
+				break;
+			default:
+				dojo.byId("calltypep").style.display = "none";
+		}
+	});
+	
 	dojo.byId("statedisp").stateChanger = dojo.subscribe("agent/state", function(data){
 		var node = dojo.byId("statedisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");

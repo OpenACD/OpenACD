@@ -52,5 +52,6 @@
 	QUEUE: "Queue",
 	SUBMIT: "Submit",
 	USE_OUTBAND_RING: "Use outband ring",
-	OUTBAND_RING_TIP: "Your phone will ring for any media"
+	OUTBAND_RING_TIP: "Your phone will ring for any media",
+	MEDIATYPE: "Media Type"
 }

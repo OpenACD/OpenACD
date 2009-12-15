@@ -229,6 +229,12 @@ dojo.requireLocalization("admin", "labels");
 							agents.newProfile('editAgentProfileForm', 'agentsList');
 						};
 						dijit.byId('agentsMain').selectChild('agentProfileEditor');
+						var skillCallback = function(selectNode){
+							selectNode.name = 'skills';
+							dojo.place(selectNode, dojo.byId('agentProfileSkills'), 'only');
+							var out = new dijit.form.MultiSelect(selectNode);
+						};
+						skills.createSelect(skillCallback, [], ['_brand', '_queue'], ['_brand', '_queue'])
 						dijit.byId('agentProfileName').attr('disabled', false);
 					</script>
 				</button>

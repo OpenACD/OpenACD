@@ -29,7 +29,7 @@ if(typeof(supervisorView) == "undefined"){
 	supervisorView.agentProfilesStack = {clear:function(){ return true;}};
 	supervisorView.callsStack = {clear:function(){return true;}};
 	supervisorView.suppressPoll = false;
-
+	supervisorView.hpCalcInterval = false;
 	/*
 	To use the dndManager:
 		item to drag should implement:
@@ -912,6 +912,7 @@ if(typeof(supervisorView) == "undefined"){
 	};
 
 	supervisorView.setMediaHps = function(){
+		info("setMediaHps entry");
 		var setHps = function(items){
 			info(["setMediaHps fetch done", items]);
 			var setHp = function(obj, ind, arr){
@@ -936,7 +937,11 @@ if(typeof(supervisorView) == "undefined"){
 			};
 			dojo.forEach(items, setHp);
 			supervisorView.dataStore.save();
-			dojo.publish("supervisorView/aggregate/media", []);
+			if(supervisorView.hpCalcInterval !== false){
+				supervisorView.aggregateTimer = setTimeout(supervisorView.setQueueHps, supervisorView.hpCalcInterval);
+			}
+			//dojo.publish("supervisorView/aggregate/media", []);
+			info(["setMediaHps done"]);
 		};
 		supervisorView.dataStore.fetch({
 			query:{"type":"media"},
@@ -946,13 +951,16 @@ if(typeof(supervisorView) == "undefined"){
 	};
 
 	supervisorView.setQueueHps = function(){
+		info("setQueueHps entry");
 		var setHp = function(item){
+			info("setQueueHps setHp entry");
 			var healthobj = supervisorView.dataStore.getValue(item, "health");
 			var hpsvars = [];
 			for(var i in healthobj){
 				hpsvars.push(healthobj[i]);
 			}
 			var gotMedia = function(mitems){
+				info("gotMedia entry");
 				if(mitems.length > 0){
 					dojo.forEach(mitems, function(mitem){
 						hpsvars.push(supervisorView.dataStore.getValue(mitem, "aggregate"));
@@ -969,6 +977,7 @@ if(typeof(supervisorView) == "undefined"){
 					"health":{},
 					"details":{}
 				};
+				info(["setQueueHps fetchMedias done", item]);
 				dojo.publish("supervisorView/set/" + rawobj.id, [item, rawobj]);
 			};
 			
@@ -980,7 +989,6 @@ if(typeof(supervisorView) == "undefined"){
 				},
 				onComplete:function(got){
 					gotMedia(got);
-					dojo.publish("supervisorView/aggregate/queues", []);
 				}
 			});
 		};
@@ -988,6 +996,11 @@ if(typeof(supervisorView) == "undefined"){
 		var setHps = function(items){
 			info(["setQueueHps fetch done", items]);
 			dojo.forEach(items, setHp);
+			if(supervisorView.hpCalcInterval !== false){
+				supervisorView.aggregateTimer = setTimeout(supervisorView.setQueueGroupHps, supervisorView.hpCalcInterval);
+			}
+			//dojo.publish("supervisorView/aggregate/queues", []);
+			info(["setQueueHps done(ish)"]);		
 		};
 
 		supervisorView.dataStore.fetch({
@@ -997,6 +1010,7 @@ if(typeof(supervisorView) == "undefined"){
 	};
 
 	supervisorView.setAgentHps = function(){
+		info("setAgentHps entry");
 		var setHp = function(item){
 			var healthobj = supervisorView.dataStore.getValue(item, "health");
 			var hpsvars = [];
@@ -1005,6 +1019,7 @@ if(typeof(supervisorView) == "undefined"){
 			}
 			
 			var gotMedia = function(mitems){
+				info("setAgentHps gotMedia entry");
 				if(mitems.length > 0){
 					hpsvars.push(supervisorView.dataStore.getValue(mitems[0], "aggregate"));
 				}
@@ -1022,6 +1037,7 @@ if(typeof(supervisorView) == "undefined"){
 					"details":supervisorView.dataStore.getValue(item, "details")
 				};
 				dojo.publish("supervisorView/set/" + rawobj.id, [item, rawobj]);
+				info("setAgentHps gotMedia exit");
 			};
 			
 			supervisorView.dataStore.fetch({
@@ -1031,7 +1047,6 @@ if(typeof(supervisorView) == "undefined"){
 				},
 				onComplete:function(got){
 					gotMedia(got);
-					dojo.publish("supervisorView/aggregate/agents", []);
 				}
 			});
 		};
@@ -1039,6 +1054,11 @@ if(typeof(supervisorView) == "undefined"){
 		var setHps = function(items){
 			info(["Fetch for setAgentHps done", items]);
 			dojo.forEach(items, setHp);
+			if(supervisorView.hpCalcInterval !== false){
+				supervisorView.aggregateTimer = setTimeout(supervisorView.setAgentProfileHps, supervisorView.hpCalcInterval);
+			}
+			//dojo.publish("supervisorView/aggregate/agents", []);
+			info("setAgentHps done(ish)");			
 		};
 		
 		supervisorView.dataStore.fetch({
@@ -1048,13 +1068,15 @@ if(typeof(supervisorView) == "undefined"){
 	};
 
 	supervisorView.setQueueGroupHps = function(){
+		info("setQueueGroupHps entry");
 		var setHp = function(item){
 			var hpsvars = [];
 			var gotQueues = function(items){
+				info("setQueueGroupHps gotQueues entry");
 				dojo.forEach(items, function(i){
 					hpsvars.push(supervisorView.dataStore.getValue(i, "aggregate"));
 				});
-				info(["setQueueGroupHps wants averaged:  ", hpsvars]);
+				debug(["setQueueGroupHps wants averaged:  ", hpsvars]);
 				var hp = supervisorView.averageHp(hpsvars);
 				supervisorView.dataStore.setValue(item, "aggregate", hp);
 				supervisorView.dataStore.save();
@@ -1067,7 +1089,7 @@ if(typeof(supervisorView) == "undefined"){
 					"details":{}
 				};
 				dojo.publish("supervisorView/set/queuegroup-" + rawobj.display, [item, rawobj]);
-				
+				info("setQueueGroupHps gotQueues end");
 			};
 			
 			supervisorView.dataStore.fetch({
@@ -1078,14 +1100,18 @@ if(typeof(supervisorView) == "undefined"){
 				},
 				onComplete:function(got){
 					gotQueues(got);
-					dojo.publish("supervisorView/aggregate/queuegroups", []);
+					//dojo.publish("supervisorView/aggregate/queuegroups", []);
 				}
 			});
 		};
 
 		var setHps = function(items){
 			info(["setQueueGroupHps fetch done", items]);
+			if(supervisorView.hpCalcInterval !== false){
+				supervisorView.aggregateTimer = setTimeout(supervisorView.setGlobalQueueHp, supervisorView.hpCalcInterval);
+			}			
 			dojo.forEach(items, setHp);
+			info("setQueueGroupHps done(ish)");
 		};
 		
 		supervisorView.dataStore.fetch({
@@ -1095,7 +1121,9 @@ if(typeof(supervisorView) == "undefined"){
 	};
 
 	supervisorView.setAgentProfileHps = function(){
+		info("setAGentProfileHps entry");
 		var setHp = function(item){
+			info("setAGentProfileHps setHp");
 			var hpsvars = [];
 			var gotAgents = function(aitems){
 				dojo.forEach(aitems, function(i){
@@ -1114,6 +1142,7 @@ if(typeof(supervisorView) == "undefined"){
 					"details":{}
 				};
 				dojo.publish("supervisorView/set/agentprofile-" + rawobj.display, [item, rawobj]);
+				info("setAGentProfileHps setHp exit");
 			};
 			
 			supervisorView.dataStore.fetch({
@@ -1124,14 +1153,19 @@ if(typeof(supervisorView) == "undefined"){
 				},
 				onComplete:function(got){
 					gotAgents(got);
-					dojo.publish("supervisorView/aggregate/agentprofiles", []);
+					//dojo.publish("supervisorView/aggregate/agentprofiles", []);
 				}
 			});
 		};
 		
 		var setHps = function(items){
+			info("setAgentProfileHps setHps entry");
 			info(["setAgateProfileHps fetch done", items]);
 			dojo.forEach(items, setHp);
+			if(supervisorView.hpCalcInterval !== false){
+				supervisorView.aggregateTimer = setTimeout(supervisorView.setGlobalAgentHp, supervisorView.hpCalcInterval);
+			}
+			info("setAgentProfileHps setHps exit");		
 		};
 		
 		supervisorView.dataStore.fetch({
@@ -1141,15 +1175,20 @@ if(typeof(supervisorView) == "undefined"){
 	};
 
 	supervisorView.setGlobalAgentHp = function(){
+		info("setGlobalAgentHp entry");
 		var setHp = function(items){
 			info(["setGlobalAgentHp fetch done", items]);
 			var hplist = [];
 			dojo.forEach(items, function(item){
 				hplist.push(supervisorView.dataStore.getValue(item, "aggregate"));
 			});
-			info(["setGlobalAgentHp wants averaged:", hplist]);
+			debug(["setGlobalAgentHp wants averaged:", hplist]);
 			var hp = supervisorView.averageHp(hplist);
 			supervisorView.agentBubble.setHp(hp);
+			if(supervisorView.hpCalcInterval !== false){
+				supervisorView.aggregateTimer = setTimeout(supervisorView.setNodeHps, supervisorView.hpCalcInterval);
+			}
+			info("setGlobalAgenthp exit");
 		};
 		supervisorView.dataStore.fetch({
 			query:{"type":"agentprofile"},
@@ -1158,8 +1197,9 @@ if(typeof(supervisorView) == "undefined"){
 	};
 
 	supervisorView.setGlobalQueueHp = function(){
+		info("setGlobalQueueHp entry");
 		var setHp = function(items){
-			info(["setGlobalQueueHp fetch done", items]);
+			debug(["setGlobalQueueHp fetch done", items]);
 			var hplist = [];
 			dojo.forEach(items, function(item){
 				hplist.push(supervisorView.dataStore.getValue(item, "aggregate"));
@@ -1167,6 +1207,10 @@ if(typeof(supervisorView) == "undefined"){
 			debug(["setGlobalQueueHp wants averaged:", hplist]);
 			var hp = supervisorView.averageHp(hplist);
 			supervisorView.queueBubble.setHp(hp);
+			if(supervisorView.hpCalcInterval !== false){
+				supervisorView.aggregateTimer = setTimeout(supervisorView.setAgentHps, supervisorView.hpCalcInterval);
+			}
+			info("setGlobalQueueHp exit");
 		};
 		supervisorView.dataStore.fetch({
 			query:{"type":"queuegroup"},
@@ -1175,12 +1219,14 @@ if(typeof(supervisorView) == "undefined"){
 	};
 
 	supervisorView.setNodeHps = function(){
+		info("setNodeHps entry");
 		var gotNodes = function(items){
 			info(["setNodeHps fetch done", items]);
 			dojo.forEach(items, function(item){
 				var gotNodeItems = function(nitems){
+					info("setNodeHps gotNodeItems entry");
 					var hplist = [];
-					dojo.forEach(nitems, function(nitem){
+					dojo.forEach(items, function(nitem){
 						hplist.push(supervisorView.dataStore.getValue(nitem, "aggregate"));
 					});
 					var hpobj = supervisorView.dataStore.getValue(item, "health");
@@ -1200,6 +1246,7 @@ if(typeof(supervisorView) == "undefined"){
 					};
 					supervisorView.dataStore.save();
 					dojo.publish("supervisorView/set/" + rawobj.id, [item, rawobj]);
+					info("setNOdeHps gotNodeItems exit");
 				};
 				supervisorView.dataStore.save();
 				//supervisorView.refreshSystemStack();
@@ -1208,6 +1255,10 @@ if(typeof(supervisorView) == "undefined"){
 					onComplete:gotNodeItems
 				});
 			});
+			if(supervisorView.hpCalcInterval !== false){
+				supervisorView.aggregateTimer = setTimeout(supervisorView.setSystemHps, supervisorView.hpCalcInterval);
+			}
+			info("setNodeHps exit");			
 		};
 		
 		supervisorView.dataStore.fetch({
@@ -1217,6 +1268,7 @@ if(typeof(supervisorView) == "undefined"){
 	};
 
 	supervisorView.setSystemHps = function(){
+		info("setSystemHps entry");
 		var gotNodes = function(items){
 			info(["setSystemHps fetch done", items]);
 			var hps = [];
@@ -1238,7 +1290,11 @@ if(typeof(supervisorView) == "undefined"){
 				}
 				supervisorView.dataStore.setValue(items[0], "aggreagate", hp);
 				supervisorView.dataStore.save();
+				if(supervisorView.hpCalcInterval !== false){
+					supervisorView.aggregateTimer = setTimeout(supervisorView.setMediaHps, supervisorView.hpCalcInterval);
+				}
 				dojo.publish("supervisorView/set/system-System", [items[0], rawobj]);
+				info("setSystemHps exit");
 			};
 			supervisorView.dataStore.fetch({
 				query:{"type":"system"},
@@ -1252,7 +1308,7 @@ if(typeof(supervisorView) == "undefined"){
 		});
 	};
 	
-	supervisorView.setAllHps = function(){
+	/*supervisorView.setAllHps = function(){
 		info(["setAllHps..."]);
 		supervisorView.setMediaHps();
 		supervisorView.setQueueHps();
@@ -1263,7 +1319,7 @@ if(typeof(supervisorView) == "undefined"){
 		supervisorView.setGlobalQueueHp();
 		supervisorView.setNodeHps();
 		supervisorView.setSystemHps();
-	};
+	};*/
 
 	supervisorView.setDetails = function(fquery, filter){
 		var fetchdone = function(item){
@@ -1968,7 +2024,7 @@ if(typeof(supervisorView) == "undefined"){
 						}
 					});
 					supervisorView.drawSystemStack();
-					supervisorView.setAllHps();
+					//supervisorView.setAllHps();
 				}
 				else{
 					debug(["1422", "stub for no data.data", data]);
@@ -2366,12 +2422,17 @@ supervisorView.masterSub = dojo.subscribe("agent/supervisortab", function(supeve
 	}
 });
 
-supervisorView.hpCalcTimer = '';
+/*supervisorView.hpCalcTimer = '';
 supervisorView.hpcalc = function(){
 	supervisorView.hpCalcTimer = setTimeout(function(){
 		supervisorView.setAllHps();
 		supervisorView.hpcalc();}, 5000);
-};
+};*/
+
+if(supervisorView.hpCalcInterval !== false){
+	supervisorView.setMediaHps();
+}
+//supervisorView.aggregateTimer = setTimeout(supervisorView.setMediaHps, supervisorView.hpCalcInterval);
 
 supervisorView.reloadTimer = false;
 supervisorView.reload = function(){
@@ -2386,7 +2447,8 @@ supervisorView.reload();
 window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", function(child){
 	if(child.title == "Supervisor"){
 		dropTab('supervisorTab');
-		clearTimeout(supervisorView.hpCalcTimer);
+		//clearTimeout(supervisorView.hpCalcTimer);
+		clearTimeout(supervisorView.aggregateTimer);
 		clearTimeout(supervisorView.reloadTimer);
 		dojo.unsubscribe(window.supervisorViewKillListen);
 		dojo.unsubscribe(supervisorView.masterSub);
@@ -2406,7 +2468,7 @@ window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", functio
 	}
 });
 
-supervisorView.hpcalc();
+//supervisorView.hpcalc();
 
 storeTab('supervisorTab');
 

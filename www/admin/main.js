@@ -175,38 +175,34 @@ dojo.addOnLoad(function(){
 
 	var mediaTreeRefreshHandle = dojo.subscribe("medias/tree/refreshed", function(data){
 		dojo.connect(medias.tree, "onClick", function(item){
-			medias.activeNode = item.node[0];
+			medias.activeNode = medias.store.getValue(item, 'node');
+			var node = medias.store.getValue(item, 'node');
 			dijit.byId("mediaConf").onDownloadEnd = function(){
 				dijit.byId("mediaSubmit").onClick = function(){
-					medias.setMedia(item.node[0], item.name[0], dijit.byId("mediaForm").getValues(), 'mediaList');
+					medias.setMedia(node, node, dijit.byId("mediaForm").attr('value'), 'mediaList');
 				};
-				dojo.publish("media/node/changed", [item.node[0]]);
+				dojo.publish("media/node/changed", [node]);
 				dojo.xhrGet({
-					url:"medias/" + item.node[0] + "/" + item.name[0] + "/get",
+					url:"medias/" + node + "/" + medias.store.getValue(item, 'name') + "/get",
 					handleAs:"json",
 					load:function(resp, ioargs){
 						if(resp.success){
-							try{
-								dijit.byId("mediaForm").attr('content', resp);
-								dijit.byId("mediaEnabled").attr('value', resp.enabled);
-							}
-							catch(err){
-								console.log(["setting media data err", err]);
-							}
+							dijit.byId("mediaForm").attr('value', resp);
+							dijit.byId("mediaEnabled").attr('value', resp.enabled);
 						}
 						else{
 							console.log(resp.message);
 						}
 					},
 					error:function(resp){
-						console.log(["error get media", item.node[0], item.name[0], resp]);
+						console.log(["error get media", node, medias.store.getValue(item, 'name'), resp]);
 					}
 				});
 			};
 		
 			if(item.type[0] == "conf"){
-				dojo.requireLocalization("admin", item.mediatype[0]);
-				dijit.byId("mediaConf").attr('href', "spice/medias/" + item.mediatype[0] + ".html");
+				dojo.requireLocalization("admin", medias.store.getValue(item, 'mediatype'));
+				dijit.byId("mediaConf").attr('href', "spice/medias/" + medias.store.getValue(item, 'mediatype') + ".html");
 			}
 			dijit.byId("mediaMain").selectChild("mediaConf");
 		});

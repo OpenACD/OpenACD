@@ -149,7 +149,7 @@ Agent.prototype.setState = function(state){
 
 Agent.prototype.initOutbound = function(Client, Type) {
 	dojo.xhrGet({
-		url: "init_outbound/" + Client + '/' + Type,
+		url: "/init_outbound/" + Client + '/' + Type,
 		handleAs: 'json',
 		error: function(response, ioargs){
 			errMessage(["error for init outbound", response]);

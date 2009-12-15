@@ -402,7 +402,7 @@ if(typeof(supervisorView) == "undefined"){
 	};
 	
 	supervisorView.Bubble.prototype.setDroppable = function(bool){
-		if(this.previousImage === null){
+		if(!this.previousImage){
 			if(this.image){
 				this.previousImage = this.image.getShape().src;
 			}

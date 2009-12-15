@@ -237,11 +237,16 @@ handle_call(stop, _From, State) ->
 	?NOTICE("Normal termination", []),
 	{stop, normal, ok, State};
 handle_call({ring_agent, AgentPid, Arec, Call, Timeout}, _From, #state{nodename = Node} = State) ->
-	Fun = fun(_) ->
-		fun(_, _) -> ok end
-	end,
-	Out = freeswitch_ring:start(Node, Arec, AgentPid, Call, Timeout, Fun, [single_leg]),
-	{reply, Out, State};
+	case State#state.freeswitch_up of
+		true ->
+			Fun = fun(_) ->
+				fun(_, _) -> ok end
+			end,
+			Out = freeswitch_ring:start(Node, Arec, AgentPid, Call, Timeout, Fun, [single_leg]),
+			{reply, Out, State};
+		false ->
+			{reply, {error, noconnection}, State}
+	end;
 handle_call(Request, _From, State) ->
 	?INFO("Unexpected call:  ~p", [Request]),
 	Reply = ok,

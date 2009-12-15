@@ -1,6 +1,7 @@
 dojo.require("dojox.form.FileUploader");
 dojo.require("dojox.widget.Standby");
 dojo.require("dojox.html.styles");
+dojo.require("dijit.form.Textarea");
 dojo.require("dojo.io.iframe");
 dojo.requireLocalization("agentUI", "emailPane");
 

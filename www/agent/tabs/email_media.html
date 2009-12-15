@@ -79,6 +79,16 @@
 			</p>
 
 			<p>
+				<label class="translatecol">CC</label>
+				<textarea dojoType="dijit.form.Textarea" id="emailCC" name="emailCC" cols="20"></textarea>
+			</p>
+			
+			<p>
+				<label class="translatecol">BCC</label>
+				<textarea dojoType="dijit.form.Textarea" id="emailBCC" name="emailBCC" cols="20"></textarea>
+			</p>
+			
+			<p>
 				<label class="translatecol">ATTACHMENTS</label>
 				<button dojoType="dojox.form.FileUploader" uploadUrl="/media" class="btnNormal" hoverClass="btnHover" activeClass="btnActive" disabledClass="btnDisabled", force="html", htmlFieldName="attachFiles", selectMultipleFiles="false" id='fileUploader' selectedList="attachmentList" showProgress="true">Select Files
 					<script type="dojo/connect" event="onComplete">
@@ -133,6 +143,12 @@
 								dojo.unsubscribe(sub);
 							}
 						});
+						var ccs = dijit.byId('emailCC').attr('value');
+						var bccs = dijit.byId('emailBCC').attr('value');
+						// allow split by comma, comma space, comma newline, comma space newline, and newline.
+						var regex = /\,\s*|\,|\,?\s*\n/;
+						ccs = ccs.split(regex);
+						bccs = bccs.split(regex);
 						dojo.xhrPost({
 							url:'/media',
 							content:{
@@ -141,6 +157,8 @@
 									'to':dijit.byId('emailTo').attr('value'),
 									'from':dijit.byId('emailFrom').attr('value'),
 									'subject':dijit.byId('emailSubject').attr('value'),
+									'cc':ccs,
+									'bcc':bccs,
 									'body': dijit.byId('emailReplyEditor').attr('value')
 								}),
 								'mode':'cast'

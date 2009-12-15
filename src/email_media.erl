@@ -366,11 +366,27 @@ handle_call(Msg, _From, _Callrec, State) ->
 handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 	{struct, Args} = mochijson2:decode(proplists:get_value("arguments", Post)),
 	?DEBUG("Starting Send", []),
-	[{_, To}, {_, From}, _] = Headers = [
+	[{_, BaseTo}, {_, From}, _] = BaseHeaders = [
 		{<<"To">>, proplists:get_value(<<"to">>, Args)},
 		{<<"From">>, proplists:get_value(<<"from">>, Args)},
 		{<<"Subject">>, proplists:get_value(<<"subject">>, Args)}
 	],
+	{Bcc, BccHeader} = case proplists:get_value(<<"bcc">>, Args) of
+		[<<>>] ->
+			{[], []};
+		BccElse when is_list(BccElse), length(BccElse) > 0 ->
+			{BccElse, {<<"Bcc">>, binstr:join(BccElse, $,)}};
+		_ ->
+			{[], []}
+	end,
+	{Cc, CcHeader} = case proplists:get_value(<<"cc">>, Args) of
+		[<<>>] ->
+			{[], []};
+		CcElse when is_list(CcElse), length(CcElse) > 0 ->
+			{CcElse, {<<"Cc">>, binstr:join(CcElse, $,)}};
+		_ ->
+			{[], []}
+	end,
 	{Type, Subtype, Body} = case length(State#state.outgoing_attachments) of
 		0 ->
 			{<<"text">>, <<"html">>, proplists:get_value(<<"body">>, Args)};
@@ -391,14 +407,28 @@ handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 			Fullbody = [FirstBody | Attachments],
 			{<<"multipart">>, <<"mixed">>, Fullbody}
 	end,
+	BinTo = lists:append([Bcc, [BaseTo], Cc]),
+	To = lists:foldl(fun
+		([], Acc) ->
+			Acc;
+		(Bin, Acc) ->
+			case binary_to_list(Bin) of
+				[] ->
+					Acc;
+				Binned ->
+					[Binned | Acc]
+			end
+	end, [], BinTo),
+	Headers = lists:flatten(lists:append([BaseHeaders, [BccHeader, CcHeader]])),
 	% Other headers maybe:  in-reply-to and references (if exists)
 	Fullout = {Type, Subtype, Headers, [], Body},
 	?DEBUG("Starting encode", []),
 	Encoded = mimemail:encode(Fullout),
 	?DEBUG("Encoding complete", []),
+	?DEBUG("Trying to send to ~p from ~p", [To, From]),
 	Mail = {
 		binary_to_list(From),
-		[binary_to_list(To)],
+		To,
 		binary_to_list(Encoded)
 	},
 	{ok, Sendopts} = email_media_manager:get_send_opts(),

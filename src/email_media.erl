@@ -167,12 +167,21 @@ get_disposition({_, _, _, Properties, _}) ->
 init(Options) ->
 	process_flag(trap_exit, true),
 	Rawmessage = proplists:get_value(raw, Options),
-	{_Type, _Subtype, Mheads, _Properties, _Body} = Mimed = mimemail:decode(Rawmessage),
+	{_Type, _Subtype, Mheads, _Properties, _Body} = Mimed = try mimemail:decode(Rawmessage) of
+		Result ->
+			Result
+	catch
+		error:Why ->
+			?WARNING("Failed to parse message with error: ~p", [Why]),
+			{Headers, Body} = mimemail:parse_headers(Rawmessage),
+			{<<"text">>, <<"plain">>, Headers, [],
+				list_to_binary(["***This message failed to parse correctly, displaying it as plain text***\r\n\r\n", Body])}
+	end,
 	Mailmap = case proplists:get_value(mail_map, Options) of
 		undefined ->
 			case mimemail:get_header_value(<<"To">>, Mheads) of
 				undefined ->
-					#mail_map{address = "unknown@example.com"};
+					#mail_map{address = "Undisclosed recipients"};
 				Address ->
 					F = fun() ->
 						QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= binary_to_list(Address)]),
@@ -193,7 +202,7 @@ init(Options) ->
 		undefined -> 
 			{"Unknown", "Unknown"};
 		Else ->
-			case re:run(Else, "(?:(.+) |)<([-a-zA-Z0-9._@]+)>", [{capture, all_but_first, list}]) of
+			case re:run(Else, "(?:\"*(.+?)\"* |)<([-a-zA-Z0-9._@]+)>", [{capture, all_but_first, list}]) of
 				{match, [Name, Number]} ->
 					{Name, Number};
 				nomatch ->

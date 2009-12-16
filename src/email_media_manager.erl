@@ -143,7 +143,7 @@ requeue(Filename) ->
 batch_requeue(Dir) ->
 	gen_server:cast(email_media_manager, {batch_queue, Dir}).
 
--spec(get_send_opts/0 :: () -> [{atom(), any()}]).
+-spec(get_send_opts/0 :: () -> {ok, [{atom(), any()}]}).
 get_send_opts() ->
 	gen_server:call(?MODULE, get_send_opts).
 

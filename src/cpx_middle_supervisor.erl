@@ -77,7 +77,7 @@ start_named(Maxr, Maxt, Name) when is_atom(Name) ->
 	Out.
 
 %% @doc Starts the passed `#cpx_conf{} Spec' on the supervisor registered at `atom() Name' with maximum restart `Maxr' in `Maxt' seconds.
--spec(add_with_middleman/4 :: (Name :: atom(), Maxr :: pos_integer(), Maxt :: pos_integer(), Spec :: #cpx_conf{}) -> {'ok', pid()}).
+-spec(add_with_middleman/4 :: (Name :: atom(), Maxr :: pos_integer(), Maxt :: pos_integer(), Spec :: #cpx_conf{}) -> {'ok', pid()} | {'ok', pid(), any()} | {'error', any()}).
 add_with_middleman(Name, Maxr, Maxt, Spec) when is_record(Spec, cpx_conf) ->
 	?DEBUG("~p adding ~p", [Name, Spec]),
 	supervisor:start_child(Name, {Spec#cpx_conf.id, {?MODULE, start_anon, [Maxr, Maxt, Spec]}, temporary, 2000, supervisor, [?MODULE]}).

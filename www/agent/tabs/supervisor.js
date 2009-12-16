@@ -1070,20 +1070,21 @@ if(typeof(supervisorView) == "undefined"){
 			var hpsvars = [];
 			var gotQueues = function(items){
 				info("setQueueGroupHps gotQueues entry");
+				var calls = 0;
 				dojo.forEach(items, function(i){
 					hpsvars.push(supervisorView.dataStore.getValue(i, "aggregate"));
+					calls += supervisorView.dataStore.getValue(i, 'details').calls;
 				});
 				debug(["setQueueGroupHps wants averaged:  ", hpsvars]);
 				var hp = supervisorView.averageHp(hpsvars);
 				supervisorView.dataStore.setValue(item, "aggregate", hp);
+				supervisorView.dataStore.setValue(item, 'details', {'totalCalls':calls});
 				supervisorView.dataStore.save();
 				var rawobj = {
 					"id":"queuegroup-" + supervisorView.dataStore.getValue(item, "display"),
 					"display":supervisorView.dataStore.getValue(item, "display"),
 					"aggregate":hp,
-					"type":"queuegroup",
-					"health":{},
-					"details":{}
+					"type":"queuegroup"
 				};
 				dojo.publish("supervisorView/set/queuegroup-" + rawobj.display, [item, rawobj]);
 				info("setQueueGroupHps gotQueues end");
@@ -1554,21 +1555,26 @@ if(typeof(supervisorView) == "undefined"){
 			var acc = [];
 			var hps = [];
 			dojo.forEach(items, function(obj){
+				var oldDisplay = supervisorView.dataStore.getValue(obj, 'display');
+				var trueDisplay = oldDisplay;
+				if(supervisorView.dataStore.getValue(obj, 'details')){
+					trueDisplay += ' (' + supervisorView.dataStore.getValue(obj, 'details').totalCalls + ')';
+				}
 				acc.push({
 					data:{
-						display:supervisorView.dataStore.getValue(obj, "display"),
+						display:trueDisplay,
 						health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
 						id:supervisorView.dataStore.getValue(obj, "id")
 					},
 					onmouseenter:function(ev){
-						supervisorView.drawQueuesStack(this.data.display, '*', acc.length);
+						supervisorView.drawQueuesStack(oldDisplay, '*', acc.length);
 						supervisorView.setDetails({
 							type:supervisorView.dataStore.getValue(obj, "type"),
 							display:supervisorView.dataStore.getValue(obj, "display")
 						});
 					},
 					dragOver:function(){
-						supervisorView.drawQueuesStack(this.data.display, supervisorView.node, acc.length);
+						supervisorView.drawQueuesStack(oldDisplay, supervisorView.node, acc.length);
 						supervisorView.setDetails({
 							type:supervisorView.dataStore.getValue(obj, 'type'),
 							display:supervisorView.dataStore.getValue(obj, 'display')
@@ -1613,16 +1619,17 @@ if(typeof(supervisorView) == "undefined"){
 			var hps = [];
 			dojo.forEach(items, function(obj){
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate", 50));
+				var dispText = supervisorView.dataStore.getValue(obj, 'display') + ' (' + supervisorView.dataStore.getValue(obj, "details").calls + ')';
 				acc.push({
 					data:{
-						display:supervisorView.dataStore.getValue(obj, "display"),
-						health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
-						id:supervisorView.dataStore.getValue(obj, "id")
+						display: dispText,
+						health: supervisorView.dataStore.getValue(obj, "aggregate", 50),
+						id: supervisorView.dataStore.getValue(obj, "id")
 					},
 					onmouseenter:function(ev){
 						var queryObj = {
 							'node':supervisorView.node,
-							'queue':this.data.display
+							'queue': supervisorView.dataStore.getValue(obj, 'display')
 						};
 						supervisorView.drawCallStack(queryObj, acc.length);
 						supervisorView.setDetails({
@@ -1640,7 +1647,7 @@ if(typeof(supervisorView) == "undefined"){
 					},
 					dropped: function(droppedObj){
 						debug(["queue bubble got a drop", droppedObj]);
-						supervisorView.queueTransfer(droppedObj.data, this.data.display);
+						supervisorView.queueTransfer(droppedObj.data, supervisorView.dataStore.getValue(obj, 'display'));
 					}
 				});
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
@@ -2101,24 +2108,45 @@ if(typeof(supervisorView) == "undefined"){
 	};
 	
 	supervisorView.sendMediaToAgent = function(media, agent){
-		var queue = media.queue;
-		var id = media.id.substring(6);
-		dojo.xhrGet({
-			handleAs:"json",
-			url:"/supervisor/agent_ring/" + queue + "/" + id + "/" + agent,
-			load:function(res){
-				if(res.success){
-					//kewl
-					return true;
+		if(media.query){
+			var queue = media.queue;
+			var id = media.id.substring(6);
+			return dojo.xhrGet({
+				handleAs:"json",
+				url:"/supervisor/agent_ring/" + escape(queue) + "/" + escape(id) + "/" + escape(agent),
+				load:function(res){
+					if(res.success){
+						//kewl
+						return true;
+					}
+					else{
+						errMessage(["agent ring failed", res.message]);
+					}
+				},
+				error:function(res){
+					errMessage(["agent ring errored", res]);
 				}
-				else{
-					errMessage(["agent ring failed", res.message]);
+			});
+		}
+		
+		if(media.agent){
+			var fromAgent = media.agent;
+			//var id = media.id.substring(6);
+			return dojo.xhrGet({
+				handleAs:'json',
+				url:'/supervisor/agent_transfer/' + escape(fromAgent) + '/' + escape(agent),
+				load:function(res){
+					if(res.success){
+						return true;
+					} else{
+						errMessage(["agent transfer failed", res.message]);
+					}
+				},
+				error:function(res){
+					errMessage(["agent transfer errored", res]);
 				}
-			},
-			error:function(res){
-				errMessage(["agent ring errored", res]);
-			}
-		});
+			});
+		}
 	};
 	
 	supervisorView.saveItem = function(item, protoitem){

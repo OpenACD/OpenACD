@@ -471,6 +471,8 @@ if(typeof(supervisorView) == "undefined"){
 		
 		var thisref = this;
 		
+		this._menuBlurConnects = {};
+		
 		for(var i = 0; i < this.bubbleConfs.length; i++){
 			var mixing = {
 				point:{x:pt.x, y:this.indexToY(i)},
@@ -481,6 +483,11 @@ if(typeof(supervisorView) == "undefined"){
 			if(this.bubbleConfs[i].menu){
 				mixing.menu = this.bubbleConfs[i].menu;
 				this._hasMenus = true;
+				if(! this._menuBlurConnects[mixing.menu]){
+					this._menuBlurConnects[mixing.menu] = dojo.connect(dijit.byId(mixing.menu), 'onBlur', this, function(){
+						this.unlockScroll();
+					});
+				}
 			}
 		
 			this.bubbleConfs[i] = dojo.mixin(this.bubbleConfs[i], mixing);
@@ -510,10 +517,12 @@ if(typeof(supervisorView) == "undefined"){
 			this.coll = supervisorView.dndManager.registerCollider(this);
 		}
 		
-		if(this._hasMenus){
-			dojo.connect(dijit.byId(this.conf.menu), 'onBlur', this, function(){
-				this.unlockScroll();
-			});
+		if(this.conf.menu){
+			if(! this._menuBlurConnects[this.conf.menu]){
+				this._menuBlurConnects[this.conf.menu] = dojo.connect(dijit.byId(this.conf.menu), 'onBlur', this, function(){
+					this.unlockScroll();
+				})
+			}
 		}
 	};
 	

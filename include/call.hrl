@@ -28,7 +28,7 @@
 %%
 
 -type(url_format() :: string()).
--type(client_opt() :: {'url_pop', url_format()}).
+-type(client_opt() :: {any(), any()}).
 -type(client_opts() :: [client_opt()]).
 -record(client, {
 		id :: string() | 'undefined',

@@ -269,7 +269,7 @@ stop(Pid) ->
 	gen_server:call(Pid, stop).
 
 %% @private
--spec(do_route/3 :: (Ringstate :: 'ringing' | 'none', Queue :: string(), Callpid :: pid()) -> 'nocall' | {'ringing', pid(), non_neg_integer()} | 'rangout').
+-spec(do_route/3 :: (Ringstate :: 'ringing' | 'none', Queue :: string(), Callpid :: pid()) -> 'nocall' | 'ringing' | 'none').
 do_route(ringing, _Queue, _Callpid) ->
 	?DEBUG("still ringing", []),
 	ringing;
@@ -324,7 +324,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 
 
 %% @private
--spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #queued_call{}) -> 'none' | pid()).
+-spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #queued_call{}) -> 'none' | 'ringing').
 offer_call([], _Call) ->
 	%?DEBUG("No valid agents found", []),
 	none;

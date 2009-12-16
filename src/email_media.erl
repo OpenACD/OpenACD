@@ -131,7 +131,7 @@ post_to_api(Post) ->
 			none
 	end.
 
--spec(get_disposition/1 :: (Mime :: tuple()) -> 'inline' | {'inline', string()} | {'attachment', string()}).
+-spec(get_disposition/1 :: (Mime :: tuple()) -> 'inline' | {'inline', binary()} | {'attachment', binary()}).
 get_disposition({_, _, _, Properties, _}) ->
 	Params = proplists:get_value(<<"disposition-params">>, Properties),
 	case proplists:get_value(<<"disposition">>, Properties, inline) of

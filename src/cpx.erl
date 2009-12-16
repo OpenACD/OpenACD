@@ -67,13 +67,14 @@ start(_Type, StartArgs) ->
 	end,
 	mnesia:change_table_copy_type(schema, node(), disc_copies),
 	mnesia:set_master_nodes(lists:umerge(Nodes, [node()])),
-	case cpx_supervisor:start_link(Nodes) of
+	try cpx_supervisor:start_link(Nodes) of
 		{ok, Pid} ->
 			?NOTICE("Application cpx started sucessfully!", []),
-			{ok, Pid};
-		Else ->
-			?ERROR("Application cpx failed to start successfully!", []),
-			Else
+			{ok, Pid}
+	catch
+		What:Why ->
+			?ERROR("Application cpx failed to start successfully! ~p:~p", [What, Why]),
+			{What, Why}
 	end.
 
 -spec(prep_stop/1 :: (State :: any()) -> any()).

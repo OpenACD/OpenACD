@@ -161,7 +161,7 @@ list_map_with_index(Fun, List) when is_function(Fun), is_list(List) ->
 	% erlang uses 1 index for lists.
 	list_map_with_index(Fun, List, 1, []).
 
--spec(list_map_with_index/4 :: (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [any(),...], Counter :: non_neg_integer(), Acc :: [any(),...]) -> [any(), ...];
+-spec(list_map_with_index/4 :: (Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [any(),...], Counter :: non_neg_integer(), Acc :: [any()]) -> [any(), ...];
 	(Fun :: fun((Counter :: non_neg_integer(), Elem :: any()) -> any()), List :: [], Counter :: non_neg_integer(), Acc :: []) -> []).
 list_map_with_index(_Fun, [], _Counter, Acc) ->
 	lists:reverse(Acc);
@@ -429,13 +429,13 @@ reload_all(Mode) ->
 			{error, Errors}
 	end.
 
--spec(distribution/1 :: (Mean :: pos_integer()) -> pos_integer()).
+-spec(distribution/1 :: (Mean :: pos_integer()) -> float()).
 distribution(Mean) ->
 	(Mean)*math:log(1 - crypto:rand_uniform(1, 65535) / 65535) * -1.
 
 %% @doc Generally only used in the 'dummy' collection, these allow multiple ways
 %% to get a random (or not) number.
--spec(get_number/1 :: (N :: {'distribution', pos_integer()} | 'random' | {pos_integer(), pos_integer()} | pos_integer()) -> pos_integer()).
+-spec(get_number/1 :: (N :: {'distribution', pos_integer()} | 'random' | {non_neg_integer(), pos_integer()} | pos_integer()) -> pos_integer()).
 get_number({distribution, N}) ->
 	trunc(distribution(N));
 get_number(random) ->

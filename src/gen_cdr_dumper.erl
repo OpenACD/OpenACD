@@ -101,21 +101,6 @@ behaviour_info(callbacks) ->
 behaviour_info(_Other) ->
 	undefined.
 
-%% @doc Add a new handler for cdr dumping.
-%-spec(add_handler/2 :: (Module :: atom(), Options :: any()) -> 'ok').
-%add_handler(Module, Options) ->
-	%gen_server:cast(?MODULE, {add_handler, Module, Options}).
-
-%% @doc Drop an existing handler for cdr dumping.
-%-spec(drop_handler/2 :: (Module :: atom(), Reason :: any()) -> 'ok').
-%drop_handler(Module, Reason) ->
-	%gen_server:cast(?MODULE, {drop_handler, Module, Reason}).
-
-%% @doc Start using the default options, and no handlers.
-%-spec(start_link/0 :: () -> {'ok', pid()}).
-%start_link() ->
-	%start_link([]).
-
 %% @doc given `[{Module :: atom(), Startargs :: any()}]' start the dumper with
 %% a handler for each `Module' started with `Startargs'
 -spec(start_link/2 :: (Module :: atom(), Args :: list()) -> {'ok', pid()}).

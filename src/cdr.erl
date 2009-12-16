@@ -152,7 +152,7 @@ ringing(Call, Agent) when is_pid(Agent) ->
 ringing(Call, Agent) ->
 	event({ringing, Call, util:now(), Agent}).
 
-%% @doc Notify cdr handler that `#call{} Call' has rungout from `string() Agent'.
+%% @_doc Notify cdr handler that `#call{} Call' has rungout from `string() Agent'.
 % TODO commented to silence a warning, but is this/should this be used?
 %-spec(ringout/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
 %ringout(Call, Agent) when is_pid(Agent) ->
@@ -365,7 +365,7 @@ mutate(Oldid, Newcallrec) ->
 	mnesia:transaction(F).
 
 %% @private Push the raw transaction into the cdr_raw table.
--spec(push_raw/2 :: (Callrec :: #call{}, Trans :: #cdr_raw{}) -> {'atomic', 'ok'}).
+-spec(push_raw/2 :: (Callrec :: #call{}, Trans :: #cdr_raw{}) -> {'atomic', [{transaction_type(), any()}]}).
 push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 	F = fun() ->
 		Untermed = find_untermed(Trans#cdr_raw.transaction, Callrec, Trans#cdr_raw.eventdata),
@@ -691,7 +691,7 @@ get_summaries([Node | Nodes], Ids, Acc) ->
 			get_summaries(Nodes, Ids, Acc)
 	end.
 
--spec(get_summaries/1 :: (IDs :: [string()]) -> {'atomic', [#cdr_rec{}]}).
+-spec(get_summaries/1 :: (IDs :: [string()]) -> {'atomic', [#cdr_rec{}]} | {'aborted', any()}).
 get_summaries(IDs) ->
 	F = fun() ->
 		QH = qlc:q([X || #cdr_rec{media = Media} = X <- mnesia:table(cdr_rec), lists:member(Media#call.id, IDs)]),

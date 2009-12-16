@@ -249,7 +249,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 			{error, Error, State}
 	end.
 
--spec(handle_warm_transfer_begin/3 :: (Number :: string(), Call :: #call{}, State :: any()) -> {'invlaid', any()}).
+-spec(handle_warm_transfer_begin/3 :: (Number :: string(), Call :: #call{}, State :: any()) -> {'invalid', #state{}}).
 handle_warm_transfer_begin(_Number, _Call, State) ->
 	{invalid, State}.
 

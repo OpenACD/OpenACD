@@ -94,7 +94,7 @@
 %%====================================================================
 
 %% @doc Add `#release_opt{} Rec' to the database. 
--spec(new_release/1 :: (Rec :: #release_opt{}) -> {'atomic', 'ok'}).
+-spec(new_release/1 :: (Rec :: #release_opt{}) -> {'atomic', 'ok'} | {'aborted', any()}).
 new_release(Rec) when is_record(Rec, release_opt) ->
 	F = fun() ->
 		mnesia:write(Rec)
@@ -467,7 +467,7 @@ query_nodes([Node | Tail], Time, Func, Acc) ->
 -type(skill() :: atom() | {atom(), any()}).
 -type(skill_list() :: [skill()]).
 -type(profile_name() :: string()).
--spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | 'destroy' | {'allow', string(), skill_list(), security_level(), profile_name()}).
+-spec(auth/2 :: (Username :: string(), Password :: string()) -> 'deny' | {'allow', string(), skill_list(), security_level(), profile_name()}).
 auth(Username, Password) ->
 	Extended = case get_agent(Username) of
 		{atomic, [Rec]} ->
@@ -679,7 +679,7 @@ destroy(login, Value) ->
 %% @private 
 % Checks the `Username' and prehashed `Password' using the given `Salt' for the cached password.
 % internally called by the auth callback; there should be no need to call this directly (aside from tests).
--spec(local_auth/2 :: (Username :: string(), Password :: string()) -> {'allow', [atom()], security_level(), string()} | 'deny').
+-spec(local_auth/2 :: (Username :: string(), Password :: string()) -> {'allow', string(), skill_list(), security_level(), profile_name()} | 'deny').
 local_auth(Username, BasePassword) -> 
 	Password = util:bin_to_hexstr(erlang:md5(BasePassword)),
 	F = fun() ->

@@ -386,7 +386,7 @@ get_conf() ->
 	end.
 
 %% @private
--spec(start_spec/1 :: (Spec :: #cpx_conf{}) -> {'ok', pid()}).
+-spec(start_spec/1 :: (Spec :: #cpx_conf{}) -> {'ok', pid()} | {'ok', pid(), any()} | {'error', any()}).
 start_spec(Spec) when is_record(Spec, cpx_conf) ->
 	?DEBUG("Starting ~p with supervisor ~p", [Spec#cpx_conf.id, Spec#cpx_conf.supervisor]),
 	cpx_middle_supervisor:add_with_middleman(Spec#cpx_conf.supervisor, 3, 5, Spec).

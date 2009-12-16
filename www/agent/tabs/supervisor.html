@@ -180,10 +180,51 @@
 </div>
 
 <div dojoType="dijit.Menu" id="mediaAction" style="display:none">
-	<div dojoType="dijit.MenuItem">Voicemail
+	<div dojoType="dijit.MenuItem">Send to Agent...
 		<script type="dojo/method" event="onClick">
-			console.log(["mediaAction vm!", dijit.byId('mediaAction').mediaBubbleHit]);
-			supervisorView.sendToVoicemail(dijit.byId('mediaAction').mediaBubbleHit);
+			errMessage('nyi');
+		</script>
+	</div>
+</div>
+
+<div dojoType="dijit.Menu" id="mediaActionemail" style="display:none">
+	<div dojoType="dijit.MenuItem">Peek
+		<script type="dojo/method" event="onClick">
+			supervisorView.mediaPeek(dijit.byId('mediaActionemail').mediaBubbleHit);
+		</script>
+	</div>
+	<div dojoType="dijit.MenuItem">Remove
+		<script type="dojo/method" event="onClick">
+			supervisorView.removeFromQueue(dijit.byId('mediaActionemail').mediaBubbleHit);
+		</script>
+	</div>
+	<div dojoType="dijit.MenuItem">Send to Agent...
+		<script type="dojo/method" event="onClick">
+			supervisorView.sendToAgentDialog(dijit.byId('mediaActionemail').mediaBubbleHit);
+		</script>
+	</div>
+</div>
+
+<div dojoType="dijit.Menu" id="mediaActionvoice" style="display:none">
+	<div dojoType="dijit.MenuItem">Send to Agent...
+		<script type="dojo/method" event="onClick">
+			errMessage('nyi');
+		</script>
+	</div>
+</div>
+
+<div dojoType="dijit.Menu" id="mediaActiondummy" style="display:none">
+	<div dojoType="dijit.MenuItem">Send to Agent...
+		<script type="dojo/method" event="onClick">
+			errMessage('nyi');
+		</script>
+	</div>
+</div>
+
+<div dojoType="dijit.Menu" id="mediaActionvoicemail" style="display:none">
+	<div dojoType="dijit.MenuItem">Send to Agent...
+		<script type="dojo/method" event="onClick">
+			errMessage('nyi');
 		</script>
 	</div>
 </div>

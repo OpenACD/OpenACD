@@ -1926,7 +1926,7 @@ if(typeof(supervisorView) == "undefined"){
 							display:supervisorView.dataStore.getValue(obj, "display")
 						}, ['queue', 'agent', 'ring_path', 'media_path']);
 						if(queryObj.queue){
-							dijit.byId('mediaAction').mediaBubbleHit = supervisorView.dataStore.getValue(obj, "id").substring(6);
+							dijit.byId(menuId).mediaBubbleHit = obj;
 						}
 					}
 				});
@@ -2118,7 +2118,7 @@ if(typeof(supervisorView) == "undefined"){
 	};
 	
 	supervisorView.sendMediaToAgent = function(media, agent){
-		if(media.query){
+		if(media.queue){
 			var queue = media.queue;
 			var id = media.id.substring(6);
 			return dojo.xhrGet({
@@ -2364,6 +2364,48 @@ if(typeof(supervisorView) == "undefined"){
 				'type':'media'
 			},
 			onComplete:fetched
+		});
+	};
+	
+	supervisorView.sendToAgentDialog = function(mediaObj){
+		console.log(["mediaObj", mediaObj]);
+		dojo.xhrGet({
+			url:'/get_avail_agents',
+			handleAs:'json',
+			load: function(res){
+				if(res.success){
+					console.log(res.agents);
+					var selectContent = '';
+					for(var i = 0; i < res.agents.length; i++){
+						selectContent += '<option value="' + res.agents[i].name + '">' + res.agents[i].name + ' (' + res.agents[i].profile + ')</option>';
+					}
+					var content = '<p><label>Agent:</label><select name="agent" id="supSelectAgent">' + selectContent + '</select></p><p><label>&nbsp;</label><input type="submit" dojoType="dijit.form.Button" label="Submit" /></p>';
+					var dialog = new dijit.Dialog({
+						title:'Select Agent',
+						content: content
+					});
+					dialog.attr('execute', function(){
+						var agentName = dojo.byId('supSelectAgent').value;
+						dialog.destroy();
+						console.log([agentName, arguments]);
+						var simpleObj = {
+							id: supervisorView.dataStore.getValue(mediaObj, 'id')
+						};
+						if(supervisorView.dataStore.getValue(mediaObj, 'queue')){
+							simpleObj.queue = supervisorView.dataStore.getValue(mediaObj, 'queue');
+						} else {
+							simpleObj.agent = supervisorView.dataStore.getValue(mediaObj, 'agent');
+						}
+						supervisorView.sendMediaToAgent(simpleObj, agentName);
+					});
+					dialog.show();
+					return true;
+				}
+				errMessage(['getting available agents failed', res.message]);
+			},
+			error: function(res){
+				errMessage(['getting available agents errored', res]);
+			}
 		});
 	};
 	

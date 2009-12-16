@@ -840,25 +840,47 @@ dojo.addOnLoad(function(){
 	});
 	
 	dijit.byId("main").pop = dojo.subscribe("agent/urlpop", function(data){
-		if(dijit.byId("popup")){
-			dijit.byId("popup").destroy();
+		var name = 'popup';
+		if(data.name){
+			name = data.name;
 		}
 		
-		var elem = document.createElement('div');
-		elem.id = "popup";
+		var id = name + '_urlpop';
 		
-		document.body.insertBefore(elem, document.body.firstChild);
+		var widget = false;
+		if(dijit.byId(id)){
+			if(name == 'popup'){
+				dijit.byId(id).destroy();
+			} else {
+				widget = dijit.byId(id);
+			}
+		}
 		
-		var popup = new dojox.layout.FloatingPane({
-			title:"Url Pop",
-			resizable: true,
-			dockable:false,
-			style: 'position:absolute; top: 100px; left: 60%; z-index:1000',
-			content: '<iframe width="99%", height="300px" src="' + data.url + '" />'
-		}, dojo.byId("popup"));
+		var newContent = '<iframe width="99%", height="300px" src="' + data.url + '" />';
+
+		if(widget === false){
+			var elem = document.createElement('div');
+			elem.id = id;
+			document.body.insertBefore(elem, document.body.firstChild);
+			
+			widget = new dojox.layout.FloatingPane({
+				title:name,
+				resizable: true,
+				dockable: false,
+				style: 'position:absolute; top: 100px; left: 60%; z-index: 1000',
+				content: newContent
+			}, dojo.byId(id));
+		} else {
+			widget.attr('content', newContent);
+		}
 		
-		popup.startup();
-		popup.show();
+		// overriding close button to do a hide instead.
+		widget.closable = false;
+		widget._onCloseConnect = dojo.connect(widget.closeNode, 'onclick', widget, function(){
+			this.hide();
+		});
+		widget.startup();
+		widget.show();		
 	});
 
 	dijit.byId("main").blab = dojo.subscribe("agent/blab", function(data){

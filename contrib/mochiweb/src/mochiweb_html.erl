@@ -556,7 +556,9 @@ tree(L=[{data, _Data, _Whitespace} | _], S) ->
             tree(Rest, S);
         {Data, false, Rest} ->
             tree(Rest, append_stack_child(Data, S))
-    end.
+    end;
+tree([{doctype, _} | Rest], Stack) ->
+    tree(Rest, Stack).
 
 norm({Tag, Attrs}) ->
     {norm(Tag), [{norm(K), iolist_to_binary(V)} || {K, V} <- Attrs], []};

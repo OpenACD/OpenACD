@@ -335,7 +335,7 @@ namespace :test do
 		STDOUT.flush
 		# Add -DEUNIT=1 here to make dialyzer evaluate the code in the test cases. This generates some spurious warnings so 
 		# it's not set normally but it can be very helpful occasionally.
-		dialyzer_flags = " -Wrace_conditions"
+		dialyzer_flags = ""
 		dialyzer_flags += " -DEUNIT=1" if ENV['dialyzer_debug']
 		dialyzer_flags += " -Wunderspecs" if ENV['dialyzer_underspecced']
 		contribfiles = Dir['contrib/*/src/*.erl'].join(' ')

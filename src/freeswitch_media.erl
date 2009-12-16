@@ -226,7 +226,7 @@ handle_ring_stop(_Callrec, State) ->
 	end,
 	{ok, State#state{ringchannel=undefined}}.
 
--spec(handle_voicemail/3 :: (Agent :: pid(), Call :: #call{}, State :: #state{}) -> {'ok', #state{}}).
+-spec(handle_voicemail/3 :: (Agent :: pid() | 'undefined', Call :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_voicemail(Agent, Callrec, State) when is_pid(Agent) ->
 	{ok, Midstate} = handle_ring_stop(Callrec, State),
 	handle_voicemail(undefined, Callrec, Midstate);

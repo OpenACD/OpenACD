@@ -84,7 +84,7 @@
 
 -record(state, {
 	send_args = [] :: any(),
-	mimed :: {binary(), binary(), [{binary(), binary()}], [{binary(), binary()}], binary() | [{binary(), binary(), [{binary(), binary()}], [{binary(), binary()}], binary() | [tuple()]}]},
+	mimed :: {binary(), binary(), [{binary(), binary()}], [{binary(), binary()}], binary() | [{binary(), binary(), [{binary(), binary()}], [{binary(), binary()}], binary() | [tuple()]}] | tuple()},
 	mail_map_address = "unknown@example.com" :: string(),
 	skeleton :: any(),
 	file_map = [] :: [{string(), [pos_integer()]}],

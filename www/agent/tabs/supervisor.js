@@ -439,7 +439,10 @@ if(typeof(supervisorView) == "undefined"){
 		
 		conf = dojo.mixin(this.defaultConf, conf);
 		this.conf = conf;
-		
+		this._hasMenus = false;
+		if(this.conf.menu){
+			this._hasMenus = true;
+		}
 		var groupHeight = conf.bubbleConfs.length * 40;
 		var viewHeight = conf.viewHeight;
 		
@@ -472,8 +475,13 @@ if(typeof(supervisorView) == "undefined"){
 			var mixing = {
 				point:{x:pt.x, y:this.indexToY(i)},
 				parent:this.group,
-				menu:this.conf.menu
-			};
+				menu: this.conf.menu
+			}
+			
+			if(this.bubbleConfs[i].menu){
+				mixing.menu = this.bubbleConfs[i].menu;
+				this._hasMenus = true;
+			}
 		
 			this.bubbleConfs[i] = dojo.mixin(this.bubbleConfs[i], mixing);
 		}
@@ -502,7 +510,7 @@ if(typeof(supervisorView) == "undefined"){
 			this.coll = supervisorView.dndManager.registerCollider(this);
 		}
 		
-		if(this.conf.menu){
+		if(this._hasMenus){
 			dojo.connect(dijit.byId(this.conf.menu), 'onBlur', this, function(){
 				this.unlockScroll();
 			});
@@ -1880,12 +1888,14 @@ if(typeof(supervisorView) == "undefined"){
 			items.sort(sortfunc);
 			dojo.forEach(items, function(obj){
 				var imageUrl = '/images/';
+				var menuId = 'mediaAction';
 				var mediaType = supervisorView.dataStore.getValue(obj, 'details').type;
 				switch(mediaType){
 					case 'email':
 					case 'dummy':
 					case 'voice':
 					case 'voicemail':
+						menuId += mediaType;
 						imageUrl += mediaType + '.png';
 						break;
 					default:
@@ -1909,6 +1919,7 @@ if(typeof(supervisorView) == "undefined"){
 					data:datas,
 					moveable:true,
 					image: imageUrl,
+					menu: menuId,
 					onmouseenter:function(ev){
 						supervisorView.setDetails({
 							type:"media",
@@ -1935,8 +1946,7 @@ if(typeof(supervisorView) == "undefined"){
 						x:580 + 240,
 						y:20
 					},
-					bubbleConfs:acc,
-					menu:'mediaAction'
+					bubbleConfs:acc
 				};
 			}
 			

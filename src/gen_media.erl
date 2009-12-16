@@ -982,7 +982,7 @@ url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 				lists:append([Midurl, [$& | Key], [$= | Value]])
 			end,
 			Url = lists:foldl(Appender, BaseUrl, Addedopts),
-			agent:url_pop(Agent, Url)
+			agent:url_pop(Agent, Url, "ring")
 	end.
 %
 %

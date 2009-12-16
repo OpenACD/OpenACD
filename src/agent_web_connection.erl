@@ -760,10 +760,11 @@ handle_cast({change_profile, Profile}, State) ->
 		]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};
-handle_cast({url_pop, URL}, State) ->
+handle_cast({url_pop, URL, Name}, State) ->
 	Headjson = {struct, [
 			{<<"command">>, <<"urlpop">>},
-			{<<"url">>, list_to_binary(URL)}
+			{<<"url">>, list_to_binary(URL)},
+			{<<"name">>, list_to_binary(Name)}
 		]},
 	Newstate = push_event(Headjson, State),
 	{noreply, Newstate};

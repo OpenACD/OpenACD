@@ -870,15 +870,15 @@ dojo.addOnLoad(function(){
 				style: 'position:absolute; top: 100px; left: 60%; z-index: 1000',
 				content: newContent
 			}, dojo.byId(id));
+			// overriding close button to do a hide instead.
+			widget.closable = false;
+			widget._onCloseConnect = dojo.connect(widget.closeNode, 'onclick', widget, function(){
+				this.hide();
+			});
 		} else {
 			widget.attr('content', newContent);
 		}
 		
-		// overriding close button to do a hide instead.
-		widget.closable = false;
-		widget._onCloseConnect = dojo.connect(widget.closeNode, 'onclick', widget, function(){
-			this.hide();
-		});
 		widget.startup();
 		widget.show();		
 	});

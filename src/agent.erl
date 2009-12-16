@@ -101,7 +101,7 @@
 	media_call/2,
 	media_cast/2,
 	media_push/2,
-	url_pop/2,
+	url_pop/3,
 	blab/2,
 	spy/2,
 	warm_transfer_begin/2,
@@ -269,9 +269,9 @@ media_push(Pid, Data) ->
 	S = self(),
 	gen_fsm:send_event(Pid, {mediapush, S, Data}).
 
--spec(url_pop/2 :: (Pid :: pid(), Data :: list()) -> any()).
-url_pop(Pid, Data) ->
-	gen_fsm:sync_send_all_state_event(Pid, {url_pop, Data}).
+-spec(url_pop/3 :: (Pid :: pid(), Data :: list(), Name :: string()) -> any()).
+url_pop(Pid, Data, Name) ->
+	gen_fsm:sync_send_all_state_event(Pid, {url_pop, Data, Name}).
 
 %% @doc Send a message to the human agent.  If there's no connection, it black-holes.
 -spec(blab/2 :: (Pid :: pid(), Text :: string()) -> 'ok').
@@ -843,8 +843,8 @@ handle_sync_event({set_connection, _Pid}, _From, StateName, State) ->
 	{reply, error, StateName, State};
 handle_sync_event({set_endpoint, {Endpointtype, Endpointdata}}, _From, StateName, State) ->
 	{reply, ok, StateName, State#agent{endpointtype = Endpointtype, endpointdata = Endpointdata}};
-handle_sync_event({url_pop, URL}, _From, StateName, #agent{connection=Connection} = State) when is_pid(Connection) ->
-	gen_server:cast(Connection, {url_pop, URL}),
+handle_sync_event({url_pop, URL, Name}, _From, StateName, #agent{connection=Connection} = State) when is_pid(Connection) ->
+	gen_server:cast(Connection, {url_pop, URL, Name}),
 	{reply, ok, StateName, State};
 handle_sync_event({add_skills, Skills}, _From, StateName, State) ->
 	NewSkills = util:merge_skill_lists(expand_magic_skills(State, Skills), State#agent.skills, ['_queue', '_brand']),

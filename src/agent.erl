@@ -721,6 +721,10 @@ released(_Event, _From, State) ->
 -spec(released/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
 released(register_rejected, State) ->
 	{stop, register_rejected, State};
+released({conn_cast, {mediaload, #call{type = email} = Callrec} = Request}, #agent{connection = Pid} = State) ->
+	%% most likely trying to go spy on an email.
+	gen_server:cast(Pid, Request),
+	{next_state, released, State};
 released(_Msg, State) ->
 	{next_state, released, State}.
 

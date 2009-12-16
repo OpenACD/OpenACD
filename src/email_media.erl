@@ -77,7 +77,8 @@
 	handle_ring_stop/2,
 	handle_agent_transfer/4,
 	handle_queue_transfer/2,
-	handle_wrapup/2
+	handle_wrapup/2,
+	handle_spy/3
 ]).
 
 -type(tref() :: any()).
@@ -526,6 +527,10 @@ handle_ring_stop(_Callrec, State) ->
 
 handle_wrapup(_Callrec, State) ->
 	{hangup, State}.
+	
+handle_spy(Spy, Callrec, State) ->
+	agent:conn_cast(Spy, {mediaload, Callrec}),
+	{ok, State}.
 	
 %%--------------------------------------------------------------------
 %%% Internal functions

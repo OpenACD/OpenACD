@@ -436,19 +436,20 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 			cpx_monitor:unsubscribe(),
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 		["spy", Agentname] ->
-			Json = case agent_manager:query_agent(Agentname) of
+			Current = State#state.current_call,
+			{Json, Newcurrent}  = case agent_manager:query_agent(Agentname) of
 				{true, Apid} ->
 					Mepid = State#state.agent_fsm,
 					case agent:spy(Mepid, Apid) of
 						ok ->
-							mochijson2:encode({struct, [{success, true}]});
+							{mochijson2:encode({struct, [{success, true}]}), expect};
 						invalid ->
-							mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid action">>}]})
+							{mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"invalid action">>}]}), Current}
 					end;
 				false ->
-					mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such agent">>}]})
+					{mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such agent">>}]}), Current}
 			end,
-			{reply, {200, [], Json}, State};
+			{reply, {200, [], Json}, State#state{current_call = Newcurrent}};
 		["agentstate" | [Agent | Tail]] ->
 			Json = case agent_manager:query_agent(Agent) of
 				{true, Apid} ->
@@ -689,12 +690,18 @@ handle_cast({poll, Frompid}, State) ->
 			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},
 			{noreply, Newstate}
 	end;
-handle_cast({mediaload, #call{type = email}}, State) ->
+handle_cast({mediaload, #call{type = email} = Call}, State) ->
+	Midstate = case State#state.current_call of
+		expect ->
+			State#state{current_call = Call};
+		_ ->
+			State
+	end,
 	Json = {struct, [
 		{<<"command">>, <<"mediaload">>},
 		{<<"media">>, <<"email">>}
 	]},
-	Newstate = push_event(Json, State),
+	Newstate = push_event(Json, Midstate),
 	{noreply, Newstate};
 handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),

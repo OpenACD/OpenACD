@@ -362,7 +362,7 @@ get_clients(Filter) ->
 			true ->
 				{TestAcc, TrueAcc}
 		end
-	end, [], qlc:e(QH)),
+	end, {[], []}, qlc:e(QH)),
 	Out.
 
 get_queue_groups(Filter) ->

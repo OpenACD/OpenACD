@@ -623,6 +623,21 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 					{{struct, [{success, false}, {<<"message">>, <<"Can only peek while released">>}]}, State}
 			end,
 			{reply, {200, [], mochijson2:encode(UnencodedJson)}, Newstate};
+		["drop_call", Queue, Callid] ->
+			Json = case queue_manager:get_queue(Queue) of
+				undefined ->
+					{struct, [{success, false}, {<<"message">>, <<"queue not found">>}]};
+				Qpid when is_pid(Qpid) ->
+					case call_queue:get_call(Qpid, Callid) of
+						none ->
+							{struct, [{success, false}, {<<"message">>, <<"call not found">>}]};
+						{_, #queued_call{media = _Mpid}} ->
+							%%gen_media:cast(Mpid, email_drop), % only email should respond to this
+							% TODO finish this when hangup can take a reason.
+							{struct, [{success, false}, {<<"message">>, <<"nyi">>}]}
+					end
+			end,
+			{reply, {200, [], mochijson2:encode(Json)}, State};
 		[Node | Do] ->
 			Nodes = get_nodes(Node),
 			{Success, Result} = do_action(Nodes, Do, []),

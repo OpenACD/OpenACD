@@ -1,0 +1,257 @@
+/* default styling */
+body {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color:#FFFFFF;
+}
+
+table {
+  background:#000000;
+  border-color:#66FF66;
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+}
+
+/* main header row */
+.header {
+  border:1px solid #66FF66;
+}
+
+/* header row for trending data */
+.trendheader {
+  border:1px solid #66FF66;
+}
+
+/* calls in any queue not otherwise styled */
+.queue {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color:#FFFFFF;
+}
+
+/* calls in premium queues */
+.premqueue {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color:#FF0000;
+}
+
+
+/*
+ * calls may also be styled by queue or brand
+ * Example:
+ * Display calls for Tenant 2 Brand 1 in high-bright white:
+ .queue[brand="00020001"] {
+ color: #FFFFFF;
+}
+  /* Display calls in the queue named 'L1-00020001' in large, red, flashing, uppercase letters:
+   * Note that you must use the queue's name, not it's common name
+   .queue[queue=L1-00020001] {
+   color: #FF0000;
+   text-decoration: blink;
+   font-size: large;
+   text-transform: uppercase;
+}
+ */
+.queue[queue=CL-00830001] {
+   display:none;
+}
+/*
+ * There are 2 classes for queues:
+ * 	.premqueue for premium queues
+ * 	.queue for all other queues
+ * Each queue class has several attributes:
+ * 	queue - name of the queue (i.e. L1-00310001)
+ * 	group - the name of the group to which the queue belongs (i.e. Level1)
+ * 	count - the number of calls in the queue
+ * 	brandid -  the numeric brand id of the first call in the queue (i.e. 00310001)
+ * 	brandname - the name of the brand of the the first call in the queue (i.e. Slic.com)
+ */
+
+.queue[group=eSoftHosted] {
+  display: none;
+  text-decoration: line-through;
+}
+
+.queue[group=UticaLevel1] {
+  text-decoration: line-through;
+}
+
+
+/*
+ * The .agent class can have the following attributes:
+ * 	agentid - the agent's 4 digit ID
+ * 	agentname - the agent's login name
+ * 	profile - the agent's current profile
+ * 	state - the agent's current state
+ * 	time - the number of seconds the agent has been in this state 
+ * 	releasedbias - one of "1", "0", or "-1", if released
+ * 	releasedcode - reason agent is released, if released
+ * 	talkingto - the brandname of the call, if oncall or in wrapup
+ */
+
+/* Agents can be styled individually by ID */
+.agent[agentid="1510"] {
+  font-size: 10px;
+  color: #7700ff;
+}
+
+/* States can also be styled for individual agents */
+.agent[agentname=seang][state=released], .agent[agentname=nathanw][state=released] {
+  font-size: 15px;
+  background: #000000;
+  color: #ff0000;
+  text-decoration: blink;	
+}
+
+.agent[agentname=seang][releasedcode=lunch], .agent[agentname=nathanw][releasedcode=lunch] {
+  text-decoration: none;
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color:#ff7f00;
+}
+
+/* agent states */
+
+.agent[state=oncall] {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color: #00ff00;
+}
+
+.agent[state=ringing] {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color: #00ff00;
+  text-decoration: blink;
+}
+
+
+.agent[state=pre-call] {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color: #7fff00;
+}
+
+.agent[state=idle] {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color:#ffffff;
+}
+
+.agent[state=wrapup] {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color:#ffff00;
+}
+
+.agent[state=outgoingcall] {
+  color: #00ff7f;
+}
+
+.agent[state=released] {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color:#ff7f00;
+}
+
+
+/* released can also be styled by how it affects utilization */
+.agent[state=released][releasedbias="-1"] {
+  color:#ff5000;
+}
+
+.agent[state=released][releasedbias="0"] {
+  color:#ff7f00;
+}
+.agent[state=released][releasedbias="1"] {
+  color:#dfdf00;
+}
+
+/* each released reason can be styled separately */
+.agent[releasedcode=bathroom] {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color:#9900ff;
+}
+
+
+/* 
+ * for future use - when a state runs longer than 
+ * a predefined time
+ */
+
+.agent[releasedlong] {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#ff7f00;
+  color:#000000;
+}
+
+.agent[wrapuplong] {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#ffff00;
+  color:#000000;
+}
+
+.agent[oncallsoftalert] {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color:#ffff00;
+}
+
+.agent[oncallhardalert] {
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#ff0000;
+  color:#000000;
+}
+
+
+.agent[profile="esoft_hosted_agents"] {
+  display: none;
+}
+
+
+/*
+ * From here down is alignment and sizing 
+ * Please do not edit
+ */
+
+
+body div {
+  height:100%;
+  width: 100%;
+  overflow:auto;
+}
+
+table {
+  width:100%;
+  border:0;
+  border-spacing:0;
+}
+
+td {
+  padding:2;
+}
+
+.trendheader {
+  text-align: center;
+}
+
+tr.queue > td:first-child + td:before {
+  content: "";
+}

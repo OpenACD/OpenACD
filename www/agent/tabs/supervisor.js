@@ -30,6 +30,7 @@ if(typeof(supervisorView) == "undefined"){
 	supervisorView.callsStack = {clear:function(){return true;}};
 	supervisorView.suppressPoll = false;
 	supervisorView.hpCalcInterval = 100;
+	supervisorView.showEmptyProfiles = false;
 	/*
 	To use the dndManager:
 		item to drag should implement:
@@ -90,6 +91,9 @@ if(typeof(supervisorView) == "undefined"){
 			});
 			supervisorView.suppressPoll = true;
 			supervisorView.dndManager._dragging = obj;
+			if(typeof(obj.startDrag) == 'function'){
+				obj.startDrag();
+			}
 		},
 		endDrag:function(){
 			debug("ending drag");
@@ -97,6 +101,9 @@ if(typeof(supervisorView) == "undefined"){
 			supervisorView.surface.disconnect(supervisorView.dndManager._eventHandle);
 			if(supervisorView.dndManager._dropCandidate){
 				supervisorView.dndManager._dropCandidate.dropped(supervisorView.dndManager._dragging);
+			}
+			if(typeof(supervisorView.dndManager._dragging.endDrag) == 'function'){
+				supervisorView.dndManager._dragging.endDrag();
 			}
 		},
 		registerCollider:function(obj){
@@ -136,6 +143,8 @@ if(typeof(supervisorView) == "undefined"){
 			onmouseenter:function(){ return true;},
 			onmouseleave:function(){return true;},
 			onclick:function(){ return false;},
+			startDrag: false,
+			endDrag: false,
 			dropped: function(){ return false;},
 			dragOver: function(){ debug(["default bubble dragOver"]); return false;},
 			subscriptions:[],
@@ -259,6 +268,12 @@ if(typeof(supervisorView) == "undefined"){
 						makeMoveable();
 					}
 				});
+			}
+			if(conf.startDrag){
+				this.startDrag = conf.startDrag;
+			}
+			if(conf.endDrag){
+				this.endDrag = conf.endDrag;
 			}
 		}
 		
@@ -1144,6 +1159,7 @@ if(typeof(supervisorView) == "undefined"){
 				debug(["setAGentProfileHps is averaging:", hpsvars]);
 				var hp = supervisorView.averageHp(hpsvars);
 				supervisorView.dataStore.setValue(item, "aggregate", hp);
+				supervisorView.dataStore.setValue(item, 'details', {totalAgents: aitems.length});
 				supervisorView.dataStore.save();
 				var rawobj = {
 					"id":"agentprofile-" + supervisorView.dataStore.getValue(item, "display"),
@@ -1151,7 +1167,7 @@ if(typeof(supervisorView) == "undefined"){
 					"aggregate":hp,
 					"type":"agentprofile",
 					"health":{},
-					"details":{}
+					"details":{totalAgents: aitems.length}
 				};
 				dojo.publish("supervisorView/set/agentprofile-" + rawobj.display, [item, rawobj]);
 				info("setAGentProfileHps setHp exit");
@@ -1716,6 +1732,13 @@ if(typeof(supervisorView) == "undefined"){
 			var acc = [];
 			var hps = [];
 			dojo.forEach(items, function(obj){
+				var itemDetails = supervisorView.dataStore.getValue(obj, 'details');
+				if(itemDetails && itemDetails.totalAgents !== undefined){
+					if(itemDetails.totalAgents == 0 && supervisorView.showEmptyProfiles === false){
+						return false;
+					}
+				}
+			
 				acc.push({
 					data:{
 						display:supervisorView.dataStore.getValue(obj, "display"),
@@ -1823,6 +1846,9 @@ if(typeof(supervisorView) == "undefined"){
 						}, ['login', 'profile']);
 						dijit.byId('agentAction').agentBubbleHit = supervisorView.dataStore.getValue(obj, 'display');
 					},
+					onmouseleave:function(ev){
+						supervisorView.showEmptyProfiles = false;
+					},
 					dragOver: function(testObj){
 						debug(["agentBubble dragOver", testObj]);
 						if(testObj.data.type == 'media'){
@@ -1834,6 +1860,16 @@ if(typeof(supervisorView) == "undefined"){
 					dropped: function(droppedObj){
 						debug(["agentBubble accepted drop", droppedObj]);
 						supervisorView.sendMediaToAgent(droppedObj.data, this.data.display);
+					},
+					startDrag: function(){
+						supervisorView.agentProfilesStack.clear();
+						supervisorView.showEmptyProfiles = true;
+						supervisorView.drawAgentProfilesStack();
+					},
+					endDrag: function(){
+						supervisorView.agentProfilesStack.clear();
+						supervisorView.showEmptyProfiles = false;
+						supervisorView.drawAgentProfilesStack();
 					},
 					moveable: true,
 					image: imageUrl
@@ -2440,6 +2476,30 @@ if(typeof(supervisorView) == "undefined"){
 			},
 			error: function(res){
 				errMessage(["peeking at media failed", res]);
+			}
+		});
+	}
+	
+	supervisorView.removeFromQueue = function(mediaObj){
+		var queue = supervisorView.dataStore.getValue(mediaObj, 'queue');
+		if(! queue){
+			return false;
+		}
+		
+		queue = escape(queue);
+		var id = supervisorView.dataStore.getValue(mediaObj, 'id').substring(6);
+		dojo.xhrGet({
+			url:'/supervisor/drop_call/' + queue + '/' + id,
+			handleAs: 'json',
+			load: function(res){
+				if(res.success){
+					return true;
+				}
+				
+				errMessage(["drop call failed", res.message]);
+			},
+			error: function(res){
+				errMessage(["drop call errored", res]);
 			}
 		});
 	}

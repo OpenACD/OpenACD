@@ -456,7 +456,7 @@ get_queued_medias(Filter, Queue) ->
 		filter_row(Filter, Row),
 		proplists:get_value(queue, Details) == Queue
 	]),
-	qlc:e(QH).
+	sort_medias(qlc:e(QH)).
 
 get_client_medias(Filter, Client) ->
 	QH = qlc:q([Row ||
@@ -466,7 +466,18 @@ get_client_medias(Filter, Client) ->
 		begin Testc = proplists:get_value(client, Details), Testc#client.label == Client end,
 		proplists:get_value(agent, Details) == undefined
 	]),
-	qlc:e(QH).
+	sort_medias(qlc:e(QH)).
+
+sort_medias(Medias) ->
+	Sort = fun({_, _, _, Adetails, _}, {_, _, _, Bdetails, _}) ->
+		case {proplists:get_value(priority, Adetails, 40), proplists:get_value(priority, Bdetails, 40)} of
+			{P, P} ->
+				proplists:get_value(queued, Adetails, util:now()) > proplists:get_value(queued, Bdetails, util:now());
+			{A, B} ->
+				A < B
+		end
+	end,
+	lists:sort(Sort, Medias).
 
 update_filter_states(none, Filters) ->
 	Filters;
@@ -828,6 +839,51 @@ is_abandon(_) ->
 	false.
 
 -ifdef(EUNIT).
+
+sort_medias_test_() ->
+	{setup,
+	fun() ->
+		Map = fun(List) ->
+			lists:map(fun(E) ->
+				element(1, E)
+			end, List)
+		end,
+		Map
+	end,
+	fun(Map) ->
+		[{"time",
+		fun() ->
+			Medias = [
+				{2, data, data, [{queued, 200}], data},
+				{3, data, data, [{queued, 100}], data},
+				{1, data, data, [{queued, 300}], data}
+			],
+			Expected = [1, 2, 3],
+			?assertEqual(Expected, Map(sort_medias(Medias)))
+		end},
+		{"priority",
+		fun() ->
+			Medias = [
+				{3, data, data, [{priority, 30}], data},
+				{1, data, data, [{priority, 10}], data},
+				{2, data, data, [{priority, 20}], data}
+			],
+			Expected = [1, 2, 3],
+			?assertEqual(Expected, Map(sort_medias(Medias)))
+		end},
+		{"time and priority",
+		fun() ->
+			Medias = [
+				{2, data, data, [{priority, 10}, {queued, 100}], data},
+				{4, data, data, [{priority, 20}, {queued, 100}], data},
+				{1, data, data, [{priority, 10}, {queued, 200}], data},
+				{3, data, data, [{priority, 20}, {queued, 200}], data}
+			],
+			Expected = [1, 2, 3, 4],
+			?assertEqual(Expected, Map(sort_medias(Medias)))
+		end}]
+	end}.
+				
 
 filter_row_test_() ->
 	{setup,

@@ -358,7 +358,7 @@ get_clients(Filter) ->
 	{_, Out} = lists:foldl(fun(I, {TestAcc, TrueAcc}) -> 
 		case lists:member(I#client.id, TestAcc) of
 			false ->
-				{[I#client.id | TestAcc], [I, TrueAcc]};
+				{[I#client.id | TestAcc], [I | TrueAcc]};
 			true ->
 				{TestAcc, TrueAcc}
 		end

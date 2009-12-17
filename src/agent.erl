@@ -2473,8 +2473,8 @@ handle_sync_event_test_() ->
 				state = idle,
 				connection = Connmock
 			},
-			gen_server_mock:expect_cast(Connmock, fun({url_pop, "localhost"}, _State) -> ok end),
-			?assertMatch({reply, ok, idle, _State}, handle_sync_event({url_pop, "localhost"}, "from", idle, Agent)),
+			gen_server_mock:expect_cast(Connmock, fun({url_pop, "localhost", "ring"}, _State) -> ok end),
+			?assertMatch({reply, ok, idle, _State}, handle_sync_event({url_pop, "localhost", "ring"}, "from", idle, Agent)),
 			gen_server_mock:assert_expectations(Connmock)
 		end}
 	end,

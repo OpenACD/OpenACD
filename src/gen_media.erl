@@ -1256,14 +1256,14 @@ url_pop_test_() ->
 		{"url is set",
 		fun() ->
 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com"}]}},
-			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com"}, _) -> ok end),
+			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com", "ring"}, _) -> ok end),
 			url_pop(Call, Agent, []),
 			gen_server_mock:assert_expectations(Conn)
 		end},
 		{"url is set with some additional options",
 		fun() ->
 			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com?a=b"}]}},
-			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com?a=b&addkey=addval"}, _) -> ok end),
+			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com?a=b&addkey=addval", "ring"}, _) -> ok end),
 			url_pop(Call, Agent, [{"addkey", "addval"}]),
 			gen_server_mock:assert_expectations(Conn)
 		end}]

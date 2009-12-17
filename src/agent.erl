@@ -697,7 +697,7 @@ released({released, {_Id, _Text, Bias} = Reason}, _From, State) when is_integer(
 	{reply, ok, released, Newstate};
 released({ringing, Call}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
-	Newstate = State#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now()},
+	Newstate = State#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now(), queuedrelease = State#agent.statedata},
 	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, Newstate};
 released({spy, Target}, {Conn, _Tag}, #agent{connection = Conn} = State) ->

@@ -355,14 +355,15 @@ get_clients(Filter) ->
 		Type == media, 
 		filter_row(Filter, Row)
 	]),
-	lists:foldl(fun(I, Acc) -> 
-		case lists:member(I, Acc) of
+	{_, Out} = lists:foldl(fun(I, {TestAcc, TrueAcc}) -> 
+		case lists:member(I#client.id, TestAcc) of
 			false ->
-				[I | Acc];
+				{[I#client.id | TestAcc], [I, TrueAcc]};
 			true ->
-				Acc
+				{TestAcc, TrueAcc}
 		end
-	end, [], qlc:e(QH)).
+	end, [], qlc:e(QH)),
+	Out.
 
 get_queue_groups(Filter) ->
 	QH = qlc:q([proplists:get_value(queue, Details) || 

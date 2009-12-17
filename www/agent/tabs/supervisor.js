@@ -2418,6 +2418,32 @@ if(typeof(supervisorView) == "undefined"){
 		});
 	};
 	
+	supervisorView.mediaPeek = function(mediaObj){
+		var queue = supervisorView.dataStore.getValue(mediaObj, 'details').queue;
+		if(queue){
+			queue = escape(queue);
+		} else {
+			return false;
+		}
+		
+		var id = supervisorView.dataStore.getValue(mediaObj, 'id').substring(6);
+		id = escape(id);
+		dojo.xhrGet({
+			url: '/supervisor/peek/' + queue + '/' + id,
+			handleAs: 'json',
+			load: function(res){
+				if(res.success){
+					return true;
+				}
+				
+				errMessage(["peeking at media failed", res.message]);
+			},
+			error: function(res){
+				errMessage(["peeking at media failed", res]);
+			}
+		});
+	}
+	
 	supervisorView.clean = function(){
 		/* finds 'g' elements with no children and removes them from the dom */
 		var count = 0;

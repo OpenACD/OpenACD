@@ -600,6 +600,29 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 				list_to_binary(atom_to_list(I))
 			end,
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"nodes">>, lists:map(F, Nodes)}]})}, State};
+		["peek", Queue, Callid] ->
+			{UnencodedJson, Newstate} = case agent:dump_state(State#state.agent_fsm) of
+				#agent{state = released} ->
+					case queue_manager:get_queue(Queue) of
+						Qpid when is_pid(Qpid) ->
+							case call_queue:get_call(Qpid, Callid) of
+								none ->
+									{{struct, [{success, false}, {<<"message">>, <<"Call not queued">>}]}, State};
+								{_Key, #queued_call{media = Mpid}} ->
+									case gen_media:call(Mpid, {peek, State#state.agent_fsm}) of
+										ok ->
+											{{struct, [{success, true}]}, State#state{current_call = expect}};
+										_ ->
+											{{struct, [{success, false}, {<<"message">>, <<"media didn't peek">>}]}, State}
+									end
+							end;
+						_ ->
+							{{struct, [{success, false}, {<<"message">>, <<"Queue doesn't exist">>}]}, State}
+					end;
+				_ ->
+					{{struct, [{success, false}, {<<"message">>, <<"Can only peek while released">>}]}, State}
+			end,
+			{reply, {200, [], mochijson2:encode(UnencodedJson)}, Newstate};
 		[Node | Do] ->
 			Nodes = get_nodes(Node),
 			{Success, Result} = do_action(Nodes, Do, []),

@@ -364,11 +364,14 @@ handle_call({"get_from", _Post}, _From, #call{client = Client}, State) ->
 			end,
 			{reply, {FixedLabel, Address}, State}
 	end;
+handle_call({peek, PeekingApid}, _From, Callrec, State) ->
+	agent:conn_cast(PeekingApid, {mediaload, Callrec}),
+	{reply, ok, State};
 	
 %% and anything else
 handle_call(Msg, _From, _Callrec, State) ->
 	?INFO("unhandled mesage ~p", [Msg]),
-	{reply, ok, State}.
+	{reply, invalid, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |

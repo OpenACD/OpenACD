@@ -39,6 +39,9 @@
 			load:function(res){
 				if(res.success){
 					dijit.byId('passiveEnabled').attr('checked', res.enabled);
+					if(res.interval){
+						dijit.byId('passiveInterval').attr('value', res.interval);
+					}
 					if(res.filters){
 						var data = res.filters;
 					}
@@ -83,7 +86,7 @@
 
 <p>
 	<label class="translatecol">INTERVAL</label>
-	<input dojoType="dijit.form.NumberSpinner" value="60" smallDelta="30" name="interval" />
+	<input dojoType="dijit.form.NumberSpinner" value="60" smallDelta="30" id="passiveInterval" name="interval" />
 </p>
 
 <p>

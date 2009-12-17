@@ -10,14 +10,17 @@
 					handleAs:"json",
 					error:function(response, ioargs){
 						console.error(response);
+						window.setTimeout(update, 5000);
 					},
 					load:function(response, ioargs){
 						drawCalls(response);
 						drawAgents(response);
-						console.log(response);
+						if(window.spew){
+							console.log(response);
+						}
+					window.setTimeout(update, 5000);
 					}
-					});
-				window.setTimeout(update, 5000);
+				});
 			}
 
 			function capitalize(string) {
@@ -96,7 +99,6 @@
 					var c1;
 					dojo.forEach(response.agentProfiles,
 							function(profile) {
-								console.log(profile.name);
 								row = table.insertRow(rownum);
 								c1 = row.insertCell(0);
 								c1.setAttribute("colspan", 2);

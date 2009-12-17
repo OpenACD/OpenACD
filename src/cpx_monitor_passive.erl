@@ -460,11 +460,17 @@ get_queued_medias(Filter, Queue) ->
 
 get_client_medias(Filter, Client) ->
 	QH = qlc:q([Row ||
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, History} = Row <- dets:table(?DETS),
 		Type == media,
 		filter_row(Filter, Row),
 		begin Testc = proplists:get_value(client, Details), Testc#client.label == Client end,
-		proplists:get_value(agent, Details) == undefined
+		proplists:get_value(agent, Details) == undefined,
+		case History of
+			{inbound, HistoryList} ->
+				proplists:get_value(ended, HistoryList) == undefined;
+			Else ->
+				true
+		end
 	]),
 	sort_medias(qlc:e(QH)).
 

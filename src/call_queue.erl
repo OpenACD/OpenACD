@@ -99,7 +99,7 @@
 %gen_server support
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--type(opt_name() :: 'weight' | 'recipe' | 'skills').
+-type(opt_name() :: 'weight' | 'recipe' | 'skills' | 'group').
 -type(start_opt() :: {opt_name(), any()}).
 -type(opts() :: [start_opt()]).
 %% @doc Start a queue named `Name' with no link to the current process.  Sets the `recipe()' to `Recipe' and 
@@ -521,6 +521,14 @@ handle_cast({add_at, Key, Mediapid, Mediarec}, State) ->
 	{noreply, NewState};
 handle_cast({migrate, Node}, State) when is_atom(Node) ->
 	{stop, {move, Node}, State};
+handle_cast({update, Opts}, State) ->
+	Newstate = #state{
+		group = proplists:get_value(group, Opts, State#state.group),
+		recipe = proplists:get_value(recipe, Opts, State#state.recipe),
+		weight = proplists:get_value(weight, Opts, State#state.weight),
+		call_skills = proplists:get_value(skills, Opts, State#state.call_skills)
+	},
+	{noreply, Newstate};
 handle_cast(Msg, State) ->
 	?DEBUG("Unhandled cast ~p", [Msg]),
 	{noreply, State}.

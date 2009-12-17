@@ -113,6 +113,7 @@ add_queue(Name, Opts) when is_list(Name) ->
 				true ->
 					Pid = gen_leader:leader_call(?MODULE, {get_queue, Name}),
 					?DEBUG("queue exists by leader decree at ~p", [Pid]),
+					gen_server:cast(Pid, {update, Opts}),
 					{exists, Pid};
 				false ->
 					?DEBUG("Queue does not exist at all, starting it", []),

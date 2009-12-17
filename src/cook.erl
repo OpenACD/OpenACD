@@ -487,8 +487,7 @@ do_operation({_Conditions, Op, Args, _Runs}, Qpid, Callpid) when is_pid(Qpid), i
 			call_queue:remove_skills(Qpid, Callpid, Args),
 			ok;
 		set_priority ->
-			[Priority] = Args,
-			call_queue:set_priority(Qpid, Callpid, Priority),
+			call_queue:set_priority(Qpid, Callpid, Args),
 			ok;
 		prioritize ->
 			{{Prior, _Time}, _Call} = call_queue:get_call(Qpid, Callpid),
@@ -572,7 +571,7 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				ok
 			end),
-			ok = do_operation({"conditions", set_priority, [5], "runs"}, QPid, Mpid),
+			ok = do_operation({"conditions", set_priority, 5, "runs"}, QPid, Mpid),
 			Assertmocks()
 		end}
 	end,

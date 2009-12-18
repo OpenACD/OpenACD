@@ -133,7 +133,7 @@ table {
 }
 
 
-.agent[state=pre-call] {
+.agent[state=precall] {
   font-family:arial, helvetica, sans-serif;
   font-size:10px;
   background:#000000;

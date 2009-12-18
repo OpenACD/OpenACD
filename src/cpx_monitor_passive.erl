@@ -478,13 +478,31 @@ sort_medias(Medias) ->
 	Sort = fun({_, _, _, Adetails, _}, {_, _, _, Bdetails, _}) ->
 		case {proplists:get_value(priority, Adetails, 40), proplists:get_value(priority, Bdetails, 40)} of
 			{P, P} ->
-				proplists:get_value(queued, Adetails, util:now()) > proplists:get_value(queued, Bdetails, util:now());
+				proplists:get_value(queued, Adetails, util:now()) < proplists:get_value(queued, Bdetails, util:now());
 			{A, B} ->
 				A < B
 		end
 	end,
 	lists:sort(Sort, Medias).
 
+sort_clients(Clients, Filter) ->
+	Sort = fun(ClientA, ClientB) ->
+		case {get_client_medias(Filter, ClientA), get_client_medias(Filter, ClientB)} of
+			{[], _} ->
+				false;
+			{_AMedias, []} -> 
+				true;
+			{[AMedia | _], [BMedia | _]} ->
+				case sort_medias([AMedia, BMedia]) of
+					[AMedia, BMedia] ->
+						true;
+					_ ->
+					 false
+				end
+		end
+	end,
+	lists:sort(Sort, Clients).
+	
 update_filter_states(none, Filters) ->
 	Filters;
 update_filter_states({{media, _}, none}, Filters) ->
@@ -614,7 +632,8 @@ write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter
 		is_abandon(element(2, Hkey)),
 		Time > Hourago
 	],
-	Clients = get_clients(Filter),
+	PresortClients = get_clients(Filter),
+	Clients = sort_clients(PresortClients, Filter),
 	ClientsJson = clients_to_json(Clients, Filter),
 	Queugroups = get_queue_groups(Filter),
 	QueuegroupJson = queuegroups_to_json(Queugroups, Filter),
@@ -861,8 +880,8 @@ sort_medias_test_() ->
 		fun() ->
 			Medias = [
 				{2, data, data, [{queued, 200}], data},
-				{3, data, data, [{queued, 100}], data},
-				{1, data, data, [{queued, 300}], data}
+				{3, data, data, [{queued, 300}], data},
+				{1, data, data, [{queued, 100}], data}
 			],
 			Expected = [1, 2, 3],
 			?assertEqual(Expected, Map(sort_medias(Medias)))
@@ -880,10 +899,10 @@ sort_medias_test_() ->
 		{"time and priority",
 		fun() ->
 			Medias = [
-				{2, data, data, [{priority, 10}, {queued, 100}], data},
-				{4, data, data, [{priority, 20}, {queued, 100}], data},
-				{1, data, data, [{priority, 10}, {queued, 200}], data},
-				{3, data, data, [{priority, 20}, {queued, 200}], data}
+				{2, data, data, [{priority, 10}, {queued, 200}], data},
+				{4, data, data, [{priority, 20}, {queued, 200}], data},
+				{1, data, data, [{priority, 10}, {queued, 100}], data},
+				{3, data, data, [{priority, 20}, {queued, 100}], data}
 			],
 			Expected = [1, 2, 3, 4],
 			?assertEqual(Expected, Map(sort_medias(Medias)))
@@ -1207,17 +1226,17 @@ qlc_test_() ->
 			label = "client2"
 		},
 		Rows = [
-			{{media, "media-c1-q1"}, 5, [], [{queue, "queue1"}, {client, Client1}], {inbound, queued}},
-			{{media, "media-c1-q2"}, 5, [], [{queue, "queue2"}, {client, Client1}], {inbound, queued}},
-			{{media, "media-c1-q3"}, 5, [], [{queue, "queue3"}, {client, Client1}], {inbound, queued}},
-			{{media, "media-c1-q4"}, 5, [], [{queue, "queue4"}, {client, Client1}], {inbound, queued}},
-			{{media, "media-c2-q1"}, 5, [], [{queue, "queue1"}, {client, Client2}], {inbound, queued}},
-			{{media, "media-c2-q2"}, 5, [], [{queue, "queue2"}, {client, Client2}], {inbound, queued}},
-			{{media, "media-c2-q3"}, 5, [], [{queue, "queue3"}, {client, Client2}], {inbound, queued}},
-			{{media, "media-c2-q4"}, 5, [], [{queue, "queue4"}, {client, Client2}], {inbound, queued}},
-			{{media, "media-c1-a1"}, 5, [], [{agent, "agent1"}, {client, Client1}], {inbound, handled}},
-			{{media, "media-c2-a2"}, 5, [], [{agent, "agent2"}, {client, Client2}], {inbound, handled}},
-			{{media, "media-undef-qq"}, 5, [], [{queue, "qq"}, {client, #client{id = undefined, label = undefined}}], {inbound, queued}},
+			{{media, "media-c1-q1"}, 5, [], [{queue, "queue1"}, {client, Client1}], {inbound, [{queued, 10}]}},
+			{{media, "media-c1-q2"}, 5, [], [{queue, "queue2"}, {client, Client1}], {inbound, [{queued, 10}]}},
+			{{media, "media-c1-q3"}, 5, [], [{queue, "queue3"}, {client, Client1}], {inbound, [{queued, 10}]}},
+			{{media, "media-c1-q4"}, 5, [], [{queue, "queue4"}, {client, Client1}], {inbound, [{queued, 10}]}},
+			{{media, "media-c2-q1"}, 5, [], [{queue, "queue1"}, {client, Client2}], {inbound, [{queued, 10}]}},
+			{{media, "media-c2-q2"}, 5, [], [{queue, "queue2"}, {client, Client2}], {inbound, [{queued, 10}]}},
+			{{media, "media-c2-q3"}, 5, [], [{queue, "queue3"}, {client, Client2}], {inbound, [{queued, 10}]}},
+			{{media, "media-c2-q4"}, 5, [], [{queue, "queue4"}, {client, Client2}], {inbound, [{queued, 10}]}},
+			{{media, "media-c1-a1"}, 5, [], [{agent, "agent1"}, {client, Client1}], {inbound, [{queued, 10}, {handled, 20}]}},
+			{{media, "media-c2-a2"}, 5, [], [{agent, "agent2"}, {client, Client2}], {inbound, [{queued, 10}, {handled, 20}]}},
+			{{media, "media-undef-qq"}, 5, [], [{queue, "qq"}, {client, #client{id = undefined, label = undefined}}], {inbound, [{queued, 10}]}},
 			{{agent, "agent1"}, 5, [], [{profile, "profile1"}], undefined},
 			{{agent, "agent2"}, 5, [], [{profile, "profile2"}], undefined}
 		],

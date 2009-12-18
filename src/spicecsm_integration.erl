@@ -442,6 +442,7 @@ build_agent_tuple(Proplist, Agent, Extended) ->
 			S = case Secid of
 				4 -> admin;
 				3 -> supervisor;
+				2 -> supervisor; % power user
 				_Else -> agent
 			end,
 			{P, S}

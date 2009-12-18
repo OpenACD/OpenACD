@@ -42,6 +42,9 @@
 
 -define(TIMEOUT, 10000).
 
+-ifdef(R12B).
+-type(boolean() :: bool()).
+-endif.
 
 %% API
 -export([

@@ -40,6 +40,10 @@
 -include("call.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
+-ifndef(R13B).
+-type(dict() :: any()).
+-endif.
+
 -export([
 	start/0,
 	start_link/0,

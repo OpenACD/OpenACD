@@ -56,6 +56,10 @@
 
 -define(DEFAULT_PRIORITY, 10).
 
+-ifdef(R12B).
+-type(boolean() :: bool()).
+-endif.
+
 % TODO hangup occurs in reverse order.  eg:  if the agent hangs up, it looks
 % like the the caller did, and vice versa.
 
@@ -102,9 +106,9 @@
 	voicemail = false :: 'false' | string(),
 	xferchannel :: pid() | 'undefined',
 	xferuuid :: string() | 'undefined',
-	in_control = false :: bool(),
-	queued = false :: bool(),
-	allow_voicemail = false :: bool(),
+	in_control = false :: boolean(),
+	queued = false :: boolean(),
+	allow_voicemail = false :: boolean(),
 	ivroption :: string(),
 	moh = "moh" :: string()
 	}).

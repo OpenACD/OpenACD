@@ -49,6 +49,10 @@
 -include("call.hrl").
 -include("agent.hrl").
 
+-ifdef(R12B).
+-type(boolean() :: bool()).
+-endif.
+
 -record(state, {
 	ringing = random :: pos_integer() | {pos_integer(), pos_integer()} | 'random',
 	ringtimer :: any(),

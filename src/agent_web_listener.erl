@@ -70,10 +70,6 @@
 -type(connection_handler() :: pid() | 'undefined').
 -type(web_connection() :: {string(), salt(), connection_handler()}).
 
--ifdef(R13B).
--type(ref() :: reference()).
--endif.
-
 -record(state, {
 	connections:: any(), % ets table of the connections
 	mochipid :: pid() % pid of the mochiweb process.
@@ -118,7 +114,7 @@ linkto(Pid) ->
 	gen_server:cast(?MODULE, {linkto, Pid}).
 
 %% @doc Register an already running web_connection.
--spec(linkto/3 :: (Ref :: ref(), Salt :: any(), Pid :: pid()) -> 'ok').
+-spec(linkto/3 :: (Ref :: reference(), Salt :: any(), Pid :: pid()) -> 'ok').
 linkto(Ref, Salt, Pid) ->
 	gen_server:cast(?MODULE, {linkto, Ref, Salt, Pid}).
 

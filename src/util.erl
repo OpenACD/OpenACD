@@ -354,7 +354,7 @@ list_index(Needle, List) ->
 	list_index_(F, Needle, List, 1).
 
 %% @doc Find the position of `Needle' (`any()') in a list using `Fun' (`fun()') as the comparison.
--spec(list_index/3 :: (Fun :: fun((any(), any()) -> bool()), Needle :: any(), List :: [any()]) -> non_neg_integer()).
+-spec(list_index/3 :: (Fun :: fun((any(), any()) -> boolean()), Needle :: any(), List :: [any()]) -> non_neg_integer()).
 list_index(Fun, Needle, List) ->
 	list_index_(Fun, Needle, List, 1).
 

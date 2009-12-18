@@ -56,10 +56,6 @@
 
 -define(DEFAULT_PRIORITY, 10).
 
--ifdef(R12B).
--type(boolean() :: bool()).
--endif.
-
 % TODO hangup occurs in reverse order.  eg:  if the agent hangs up, it looks
 % like the the caller did, and vice versa.
 

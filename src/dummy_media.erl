@@ -84,10 +84,6 @@
 	handle_spy/3
 ]).
 
--ifndef(R13B).
--type(dict() :: any()).
--endif.
-
 -record(state, {
 	callrec = #call{} :: #call{},
 	life_timer = undefined :: any(),

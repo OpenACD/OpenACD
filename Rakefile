@@ -28,8 +28,12 @@ end
 INCLUDE = "include"
 
 vertest = `erl -noshell -eval "io:format(\\"~n~s~n\\", [erlang:system_info(otp_release)]), timer:sleep(10)." -s erlang halt`.chomp.split("\n")[-1]
-if vertest =~ /(R\d\d[AB])/
+if vertest =~ /(R(\d\d)[AB])(\d*)/
 	OTPVERSION = $1
+	unless $2.to_i >= 13 and not ($2 == '13' and $3 == '')
+		STDERR.puts "I'm sorry, but your version of erlang (#{$1}#{$3}) is too old. Please upgrade to R13B01 or later."
+		exit -1
+	end
 else
 	STDERR.puts "unable to determine OTP version! (I got #{vertest})"
 	exit -1

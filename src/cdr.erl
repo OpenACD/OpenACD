@@ -60,7 +60,8 @@
 	status/1,
 	merge/3,
 	get_raws/1,
-	get_summaries/1
+	get_summaries/1,
+	get_unsummarized/0
 ]).
 
 -export([
@@ -224,6 +225,15 @@ status(#call{id = Cid}) ->
 	status(Cid);
 status(Cid) ->
 	gen_event:call(cdr, {?MODULE, Cid}, status).
+
+%% @doc return the call ids that are unsummarized
+-spec(get_unsummarized/0 :: () -> {atomic, [string()]}).
+get_unsummarized() ->
+	F = fun() ->
+		QH = qlc:q([Callrec#call.id || #cdr_rec{media = Callrec, summary = IsInprogress} <- mnesia:table(cdr_rec), IsInprogress == inprogress]),
+		qlc:e(QH)
+	end,
+	mnesia:transaction(F).
 
 %% =====
 %% Gen event callbacks

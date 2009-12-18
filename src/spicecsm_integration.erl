@@ -432,8 +432,6 @@ build_agent_tuple(Proplist, Agent, Extended) ->
 	Intprof = list_to_integer(binary_to_list(proplists:get_value(<<"tierid">>, Proplist))),
 	Id = binary_to_list(proplists:get_value(<<"agentid">>, Proplist)),
 	{MidProfile, Security} = case {Intsec, Intprof} of
-		{Secid, 4} when Secid < 3 ->
-			{"Default", supervisor};
 		{Secid, TierID} ->
 			P = case TierID of
 				1 -> "Probationary";
@@ -443,6 +441,7 @@ build_agent_tuple(Proplist, Agent, Extended) ->
 			end,
 			S = case Secid of
 				4 -> admin;
+				3 -> supervisor;
 				_Else -> agent
 			end,
 			{P, S}

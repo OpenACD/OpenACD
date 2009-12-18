@@ -798,11 +798,11 @@ agents_to_json([{{agent, Id}, _Time, _Hp, Details, _HistoryKey} | Tail], {Avail,
 				Type == media,
 				Idgen == Media#call.id
 			]),
-			{_, _, _, _, [Datajson]} = case qlc:e(Qh) of
+			Datajson = case qlc:e(Qh) of
 				[] ->
-					{undefined, [undefined]};
+					false;
 				[T] ->
-					medias_to_json([T])
+					lists:nth(1, element(5, medias_to_json([T])))
 			end,
 %			Data = {struct, [
 %				{<<"client">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},

@@ -260,45 +260,24 @@ handle_call({agent_auth, Agent, PlainPassword, Extended}, _From, State) when is_
 			?WARNING("Integration error'ed:  ~p", [Message]),
 			{stop, {error, Message}, {error, Message}, State};
 		{ok, {struct, [{<<"msg">>, <<"deny">>}]}} ->
-			{reply, deny, State#state{count = Count}};
+			{ok, Count2, Reply2} = request(State, <<"agentAuth">>, [{struct, [{<<"login">>, Login}, {<<"password">>, binstr:to_upper(Password)}]}]),
+			case check_error(Reply2) of
+				{error, Message} ->
+					?WARNING("Integration error'ed:  ~p", [Message]),
+					{stop, {error, Message}, {error, Message}, State};
+				{ok, {struct, [{<<"msg">>, <<"deny">>}]}} ->
+					{reply, deny, State#state{count = Count2}};
+				{ok, {struct, [{<<"msg">>, <<"destroy">>}]}} ->
+					{reply, destroy, State#state{count = Count}};
+				{ok, [{struct, Proplist}]} ->
+					Out = build_agent_tuple(Proplist, Agent, Extended),
+					{reply, Out, State#state{count = Count}}
+			end;
 		{ok, {struct, [{<<"msg">>, <<"destroy">>}]}} ->
 			{reply, destroy, State#state{count = Count}};
 		{ok, [{struct, Proplist}]} ->
-			Intsec = list_to_integer(binary_to_list(proplists:get_value(<<"securitylevelid">>, Proplist))),
-			Intprof = list_to_integer(binary_to_list(proplists:get_value(<<"tierid">>, Proplist))),
-			Id = binary_to_list(proplists:get_value(<<"agentid">>, Proplist)),
-			{MidProfile, Security} = case {Intsec, Intprof} of
-				{Secid, 4} when Secid < 4 ->
-					{"Default", supervisor};
-				{Secid, TierID} ->
-					P = case TierID of
-						1 -> "Probationary";
-						2 -> "Level 2";
-						3 -> "Level 3";
-						4 -> "Supervisor"
-					end,
-					S = case Secid of
-						4 -> admin;
-						_Else -> agent
-					end,
-					{P, S}
-			end,
-			{Profile, NewExtended} = case proplists:get_value(last_spice_profile, Extended) of
-				undefined ->
-					{MidProfile, [{last_spice_profile, MidProfile} | Extended]};
-				MidProfile ->
-					CurrentProf = case agent_auth:get_agent(Agent) of
-						{atomic, [Rec]} ->
-							Rec#agent_auth.profile;
-						_Else2 ->
-							MidProfile
-					end,
-					{CurrentProf, Extended};
-				_Other ->
-					Midextended = proplists:delete(last_spice_profile, Extended),
-					{MidProfile, [{last_spice_profile, MidProfile} | Midextended]}
-			end,
-			{reply, {ok, Id, Profile, Security, NewExtended}, State#state{count = Count}}
+			Out = build_agent_tuple(Proplist, Agent, Extended),
+			{reply, Out, State#state{count = Count}}
 	end;
 handle_call({client_exists, id, Value}, From, State) ->
 	case handle_call({get_client, id, Value}, From, State) of
@@ -447,3 +426,40 @@ check_error(Reply) ->
 		Else ->
 			{error, Else}
 	end.
+	
+build_agent_tuple(Proplist, Agent, Extended) ->
+	Intsec = list_to_integer(binary_to_list(proplists:get_value(<<"securitylevelid">>, Proplist))),
+	Intprof = list_to_integer(binary_to_list(proplists:get_value(<<"tierid">>, Proplist))),
+	Id = binary_to_list(proplists:get_value(<<"agentid">>, Proplist)),
+	{MidProfile, Security} = case {Intsec, Intprof} of
+		{Secid, 4} when Secid < 4 ->
+			{"Default", supervisor};
+		{Secid, TierID} ->
+			P = case TierID of
+				1 -> "Probationary";
+				2 -> "Level 2";
+				3 -> "Level 3";
+				4 -> "Supervisor"
+			end,
+			S = case Secid of
+				4 -> admin;
+				_Else -> agent
+			end,
+			{P, S}
+	end,
+	{Profile, NewExtended} = case proplists:get_value(last_spice_profile, Extended) of
+		undefined ->
+			{MidProfile, [{last_spice_profile, MidProfile} | Extended]};
+		MidProfile ->
+			CurrentProf = case agent_auth:get_agent(Agent) of
+				{atomic, [Rec]} ->
+					Rec#agent_auth.profile;
+				_Else2 ->
+					MidProfile
+			end,
+			{CurrentProf, Extended};
+		_Other ->
+			Midextended = proplists:delete(last_spice_profile, Extended),
+			{MidProfile, [{last_spice_profile, MidProfile} | Midextended]}
+	end,
+	{ok, Id, Profile, Security, NewExtended}.

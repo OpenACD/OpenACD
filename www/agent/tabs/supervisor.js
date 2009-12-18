@@ -2082,7 +2082,7 @@ if(typeof(supervisorView) == "undefined"){
 			handleAs:"json",
 			url:"/supervisor/blab",
 			content:{
-				message:message,
+				message:replaceUrls(message),
 				type: type,
 				value: target
 			},

@@ -7,6 +7,7 @@
 		stdlib,
 		sasl,
 		mnesia,
+		crypto,
 		{cpx, "0.1"}
 	]
 }.

@@ -1,6 +1,6 @@
 % a basic release file.
 {release,
-	{"cpx_1", "0.1"},
+	{"cpx_1", "0.9.5"},
 	erts,
 	[
 		kernel,
@@ -8,6 +8,6 @@
 		sasl,
 		mnesia,
 		crypto,
-		{cpx, "0.1"}
+		{cpx, "0.9.5"}
 	]
 }.

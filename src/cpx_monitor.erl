@@ -107,7 +107,7 @@
 %%====================================================================
 
 -type(node_opt() :: {nodes, [atom()] | atom()}).
--type(auto_restart_mnesia_opt() :: 'auto_restart_mnesia' | {'auto_restart_mnesia', bool()}).
+-type(auto_restart_mnesia_opt() :: 'auto_restart_mnesia' | {'auto_restart_mnesia', boolean()}).
 -type(option() :: [node_opt() | auto_restart_mnesia_opt()]).
 -type(options() :: [option()]).
 %% @doc Start the monitor using the passed options.<ul>

@@ -47,14 +47,7 @@
 
 -type(key() :: {non_neg_integer(), {pos_integer(), non_neg_integer(), non_neg_integer()}}).
 
--ifdef(R13B).
 -type(call_queue() :: gb_tree()).
--else.
--type(call_queue() ::
-	{non_neg_integer(), 'nil'} |
-	{non_neg_integer(), {key(), #queued_call{}, 'nil', 'nil'}} |
-	{non_neg_integer(), {key(), #queued_call{}, 'nil', tuple()}}).
--endif.
 
 -export([
 	start/2,

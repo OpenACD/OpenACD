@@ -27,9 +27,13 @@ end
 
 INCLUDE = "include"
 
-vertest = `erl -noshell -eval "io:format(\\"~n~s~n\\", [erlang:system_info(otp_release)]), timer:sleep(10)." -s erlang halt`.chomp.split("\n")[-1]
-if vertest =~ /(R\d\d[AB])/
+vertest = `erl -noshell -eval "timer:sleep(10), io:format(\\"~n~s~n\\", [erlang:system_info(otp_release)])." -s init stop`.chomp.split("\n")[-1]
+if vertest =~ /(R(\d\d)[AB])(\d*)/
 	OTPVERSION = $1
+	unless $2.to_i >= 13 and not ($2 == '13' and $3 == '')
+		STDERR.puts "I'm sorry, but your version of erlang (#{$1}#{$3}) is too old. Please upgrade to R13B01 or later."
+		exit -1
+	end
 else
 	STDERR.puts "unable to determine OTP version! (I got #{vertest})"
 	exit -1
@@ -89,9 +93,9 @@ rule ".rel" => ["%{ebin,src}X.rel.src"] do |t|
 	while contents =~ /^[\s\t]*([-a-zA-Z0-9_]+),[\s\t]*$/
 		app = $1
 		if app == "erts"
-			version = `erl -noshell -eval "io:format(\\"~n~s~n\\", [erlang:system_info(version)]), timer:sleep(10)." -s erlang halt`.chomp.split("\n")[-1]
+			version = `erl -noshell -eval "timer:sleep(10), io:format(\\"~n~s~n\\", [erlang:system_info(version)])." -s init stop`.chomp.split("\n")[-1]
 		else
-			version = `erl -noshell -eval "application:load(#{app}), io:format(\\"~n~s~n\\", [proplists:get_value(#{app}, lists:map(fun({Name, Desc, Vsn}) -> {Name, Vsn} end, application:loaded_applications()))]), timer:sleep(10)." -s erlang halt`.chomp.split("\n")[-1]
+			version = `erl -noshell -eval "timer:sleep(10), application:load(#{app}), io:format(\\"~n~s~n\\", [proplists:get_value(#{app}, lists:map(fun({Name, Desc, Vsn}) -> {Name, Vsn} end, application:loaded_applications()))])." -s init stop`.chomp.split("\n")[-1]
 		end
 		if md = /(\d+\.\d+(\.\d+(\.\d+|)|))/.match(version)
 			contents.sub!(app, "{#{app}, \"#{md[1]}\"}")
@@ -114,7 +118,7 @@ rule ".txt" => ["%{coverage,debug_ebin}X.beam"] do |t|
 
 	print "  #{mod.ljust(@maxwidth - 1)} : "
 	STDOUT.flush
-	test_output = `erl -noshell -pa debug_ebin -sname testpx -eval "cover:start(), cover:compile_beam(\\"#{t.source}\\"), try eunit:test(#{mod}, [verbose]) of _Any -> cover:analyse_to_file(#{mod}, \\"coverage/#{mod}.txt\\"), cover:analyse_to_file(#{mod}, \\"coverage/#{mod}.html\\", [html]) catch _:_ -> io:format(\\"This module does not provide a test() function~n\\"), ok end." -s erlang halt`
+	test_output = `erl -noshell -pa debug_ebin -sname testpx -eval "cover:start(), cover:compile_beam(\\"#{t.source}\\"), try eunit:test(#{mod}, [verbose]) of _Any -> cover:analyse_to_file(#{mod}, \\"coverage/#{mod}.txt\\"), cover:analyse_to_file(#{mod}, \\"coverage/#{mod}.html\\", [html]) catch _:_ -> io:format(\\"This module does not provide a test() function~n\\"), ok end." -s init stop`
 	if /(All \d+ tests (successful|passed)|There were no tests to run|This module does not provide a test\(\) function|Test (successful|passed))/ =~ test_output
 		File.delete(t.to_s+'.failed') if File.exists?(t.to_s+'.failed')
 		if ENV['verbose']
@@ -152,7 +156,7 @@ end
 task :compile => ['ebin', :contrib, :keygen] + HEADERS + OBJ + RELEASE do
 	Dir["ebin/*.rel"].each do |rel|
 		rel = File.basename(rel, '.rel')
-		sh "erl -noshell -eval \"systools:make_script(\\\"ebin/#{rel}\\\", [{outdir, \\\"ebin\\\"}]).\" -s erlang halt -pa ebin"
+		sh "erl -noshell -eval \"systools:make_script(\\\"ebin/#{rel}\\\", [{outdir, \\\"ebin\\\"}]).\" -s init stop -pa ebin"
 	end
 end
 

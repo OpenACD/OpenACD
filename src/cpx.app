@@ -1,6 +1,6 @@
 {application, cpx, [
 	{description, "Call queuing and routing system"},
-	{vsn, "0.1"},
+	{vsn, "0.9.5"},
 	{modules, [
 		cpx,
 		agent,

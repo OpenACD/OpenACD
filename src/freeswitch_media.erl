@@ -102,9 +102,9 @@
 	voicemail = false :: 'false' | string(),
 	xferchannel :: pid() | 'undefined',
 	xferuuid :: string() | 'undefined',
-	in_control = false :: bool(),
-	queued = false :: bool(),
-	allow_voicemail = false :: bool(),
+	in_control = false :: boolean(),
+	queued = false :: boolean(),
+	allow_voicemail = false :: boolean(),
 	ivroption :: string(),
 	moh = "moh" :: string()
 	}).

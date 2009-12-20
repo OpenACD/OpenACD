@@ -43,10 +43,6 @@
 -include("call.hrl").
 -include("agent.hrl").
 
--ifndef(R13B).
--type(dict() :: any()).
--endif.
-
 -record(state, {
 	agents = dict:new() :: dict()
 	}).

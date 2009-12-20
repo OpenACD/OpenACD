@@ -54,13 +54,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 		code_change/3]).
 
--ifdef(R13B).
--type(ref() :: reference()).
--endif.
-
 -record(state, {
 		listener :: port(),       % Listening socket
-		acceptor :: ref()       % Asynchronous acceptor's internal reference
+		acceptor :: reference()       % Asynchronous acceptor's internal reference
 		}).
 
 -type(state() :: #state{}).

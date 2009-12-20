@@ -55,7 +55,7 @@
 
 %% @doc Returns `true' if an agent with the loging `Agent' exists, `false'
 %% otherwise.
--spec(agent_exists/1 :: (Agent :: string()) -> bool()).
+-spec(agent_exists/1 :: (Agent :: string()) -> boolean()).
 agent_exists(Agent) ->
 	Out = do_call({agent_exists, Agent}),
 	Test = fun(In) ->
@@ -90,13 +90,13 @@ agent_auth(Agent, Password, Extended) ->
 	check_return(Out, Test).
 
 %% @doc Same as `client_exists(label, Label)'.
--spec(client_exists/1 :: (Label :: string()) -> bool()).
+-spec(client_exists/1 :: (Label :: string()) -> boolean()).
 client_exists(Label) ->
 	client_exists(label, Label).
 
 %% @doc `true' or `false' based on the existance of a client who's `Key' is `Value'.
 -type(client_key() :: 'label' | 'id').
--spec(client_exists/2 :: (Key :: client_key(), Value :: string()) -> bool()).
+-spec(client_exists/2 :: (Key :: client_key(), Value :: string()) -> boolean()).
 client_exists(Key, Value) ->
 	Out = do_call({client_exists, Key, Value}),
 	Test = fun(In) ->

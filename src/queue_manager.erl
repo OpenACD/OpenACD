@@ -43,11 +43,6 @@
 
 -behaviour(gen_leader).
 
-%-type(election() :: tuple()).
--ifndef(R13B).
--type(dict() :: any()).
--endif.
-
 -record(state, {
 	qdict = dict:new() :: dict()
 }).
@@ -171,7 +166,7 @@ get_queue(Name) ->
 	end.			
 
 %% @doc `true' or `false' if the passed queue name exists.
--spec(query_queue/1 :: (Name :: string()) -> bool()).
+-spec(query_queue/1 :: (Name :: string()) -> boolean()).
 query_queue(Name) ->
 	case gen_leader:call(?MODULE, {exists, Name}) of
 		true ->

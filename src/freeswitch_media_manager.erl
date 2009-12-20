@@ -115,13 +115,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--ifndef(R13B).
--type(dict() :: any()).
--endif.
-
 -record(state, {
 	nodename :: atom(),
-	freeswitch_up = false :: bool(),
+	freeswitch_up = false :: boolean(),
 	call_dict = dict:new() :: dict(),
 	voicegateway = "" :: string(),
 	xmlserver :: pid() | 'undefined'

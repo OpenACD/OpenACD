@@ -351,9 +351,22 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	if(agent.state == 'released'){
 		dijit.byId('emailPanel').attr('closable', true);
 		dijit.byId('emailReply').destroy();
-		dijit.byId('emailPanel').spyStateListener = dojo.subscribe("agent/state", function(){
-			dojo.unsubscribe(dijit.byId('emailPanel').spyStateListener);
+		emailPane.spyStateListener = dojo.subscribe("agent/state", function(){
+			console.log("agent/state listener");
+			dojo.unsubscribe(emailPane.spyStateListener);
+			dojo.unsubscribe(emailPane.tabCloseListener);
+			delete emailPane.tabCloseListener;
+			delete emailPane.spyStateListener;
 			dijit.byId('tabPanel').closeChild(dijit.byId('emailPanel'));
+		});
+		emailPane.tabCloseListener = dojo.subscribe("tabPanel-removeChild", function(child){
+			if(child.id == 'emailPanel'){
+				console.log("tabPanel listener");
+				dojo.unsubscribe(emailPane.tabCloseListener);
+				dojo.unsubscribe(emailPane.spyStateListener);
+				delete emailPane.tabCloseListener;
+				delete emailPane.spyStateListener;
+			}
 		});
 	}
 	

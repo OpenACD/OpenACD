@@ -919,16 +919,26 @@ dojo.addOnLoad(function(){
 			closable: false
 		});
 		pane.unloadListener = dojo.subscribe('agent/state', function(data){
-			if(data.state == 'wrapup'){				
+			try{
+				if(data.state == 'wrapup'){
+					dojo.unsubscribe(pane.unloadListener);
+					dojo.unsubscribe(pane.logoutListener);
+					dijit.byId('tabPanel').closeChild(pane);
+				}
+			}
+			catch (err){
+				info(['media pane unload listener erred', err]);
+			}
+		});
+		pane.logoutListener = dojo.subscribe('agent/logout', function(){
+			try{
 				dojo.unsubscribe(pane.unloadListener);
 				dojo.unsubscribe(pane.logoutListener);
 				dijit.byId('tabPanel').closeChild(pane);
 			}
-		});
-		pane.logoutListener = dojo.subscribe('agent/logout', function(){
-			dojo.unsubscribe(pane.unloadListener);
-			dojo.unsubscribe(pane.logoutListener);
-			dijit.byId('tabPanel').closeChild(pane);
+			catch(err){
+				info(['media pan logout listener erred', err]);
+			}
 		});
 		pane.attr('href', "tabs/email_media.html");
 		dijit.byId('tabPanel').addChild(pane);

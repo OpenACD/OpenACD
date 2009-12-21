@@ -793,7 +793,7 @@ agents_to_json(Rows) ->
 
 agents_to_json([], {Avail, Rel, Busy}, Acc) ->
 	{Avail, Rel, Busy, lists:reverse(Acc)};
-agents_to_json([{{agent, Id}, _Time, _Hp, Details, _HistoryKey} | Tail], {Avail, Rel, Busy}, Acc) ->
+agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, Rel, Busy}, Acc) ->
 	{Newcounts, State, Statedata} = case {proplists:get_value(state, Details), proplists:get_value(statedata, Details)} of
 		{idle, {}} ->
 			{{Avail + 1, Rel, Busy}, idle, false};
@@ -822,12 +822,11 @@ agents_to_json([{{agent, Id}, _Time, _Hp, Details, _HistoryKey} | Tail], {Avail,
 					Client = Media#call.client,
 					{struct, [
 						{<<"id">>, list_to_binary(Media#call.id)},
+						{<<"time">>, Time},
+						{<<"brand">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
+						{<<"node">>, whereis(Media#call.source)},
 						{<<"type">>, Media#call.type},
-						{<<"direction">>, Media#call.direction},
-						{<<"client">>, {struct, [
-							{<<"id">>, case Client#client.id of undefined -> undefined; _ -> list_to_binary(Client#client.id) end},
-							{<<"label">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end}
-						]}}
+						{<<"priority">>, Media#call.priority}
 					]};
 				[T] ->
 					lists:nth(1, element(5, medias_to_json([T])))

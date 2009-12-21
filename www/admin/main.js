@@ -179,7 +179,7 @@ dojo.addOnLoad(function(){
 			var node = medias.store.getValue(item, 'node');
 			dijit.byId("mediaConf").onDownloadEnd = function(){
 				dijit.byId("mediaSubmit").onClick = function(){
-					medias.setMedia(node, node, dijit.byId("mediaForm").attr('value'), 'mediaList');
+					medias.setMedia(node, medias.store.getValue(item, 'name'), dijit.byId("mediaForm").attr('value'), 'mediaList');
 				};
 				dojo.publish("media/node/changed", [node]);
 				dojo.xhrGet({

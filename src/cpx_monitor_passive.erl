@@ -824,7 +824,7 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 						{<<"id">>, list_to_binary(Media#call.id)},
 						{<<"time">>, Time},
 						{<<"brand">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
-						{<<"node">>, whereis(Media#call.source)},
+						{<<"node">>, node(Media#call.source)},
 						{<<"type">>, Media#call.type},
 						{<<"priority">>, Media#call.priority}
 					]};

@@ -753,6 +753,12 @@ dojo.addOnLoad(function(){
 					},
 					'promptMessage': dojo.i18n.getLocalization("agentUI","labels")["MKOUTBOUND"]
 					}, 'boutboundcall');
+			dojo.connect(widget, 'onChange', function(val){
+					if(val !== ""){
+					dijit.byId('tabPanel').selectChild('maintab');
+					agent.initOutbound(val, "freeswitch");
+					}
+			});
 		}
 
 		dojo.xhrGet({
@@ -772,12 +778,6 @@ dojo.addOnLoad(function(){
 						}
 					});
 					widget.store = store;
-					dojo.connect(widget, 'onChange', function(val){
-						if(val !== ""){
-							dijit.byId('tabPanel').selectChild('maintab');
-							agent.initOutbound(val, "freeswitch");
-						}
-					});
 				}
 			}
 		});

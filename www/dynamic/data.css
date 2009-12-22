@@ -154,7 +154,7 @@ table {
   color:#ffff00;
 }
 
-.agent[state=outgoingcall] {
+.agent[state=outgoing] {
   color: #00ff7f;
 }
 

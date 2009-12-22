@@ -224,7 +224,7 @@ handle_cast(_Msg, State) ->
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
 handle_info(write_output, #state{filters = Filters} = State) ->
-	?DEBUG("Writing output.", []),
+	%?DEBUG("Writing output.", []),
 	Qh = qlc:q([Key || {Key, Time, _Hp, _Details, _History} <- dets:table(?DETS), util:now() - Time > 86400]),
 	Keys = qlc:e(Qh),
 	lists:foreach(fun(K) -> dets:delete(?DETS, K) end, Keys),
@@ -232,7 +232,7 @@ handle_info(write_output, #state{filters = Filters} = State) ->
 		Pid = spawn_link(?MODULE, write_output, [Filter]),
 		{Pid, Nom}
 	end, Filters),
-	?DEBUG("das pids:  ~p", [WritePids]),
+	%?DEBUG("das pids:  ~p", [WritePids]),
 	Timer = erlang:send_after(State#state.interval, self(), write_output),
 	{noreply, State#state{timer = Timer, write_pids = WritePids}};
 handle_info({cpx_monitor_event, Event}, #state{filters = Filters} = State) ->
@@ -246,7 +246,7 @@ handle_info({'EXIT', Pid, Reason}, #state{write_pids = Pids} = State) ->
 		Name ->
 			case Reason of
 				normal ->
-					?DEBUG("output written for filter ~p", [Name]),
+					%?DEBUG("output written for filter ~p", [Name]),
 					ok;
 				_Else ->
 					?ERROR("output write for ~p exited abnormally:  ~p", [Name, Reason]),
@@ -256,7 +256,7 @@ handle_info({'EXIT', Pid, Reason}, #state{write_pids = Pids} = State) ->
 			{noreply, State#state{write_pids = Newlist}}
 	end;
 handle_info(Info, State) ->
-	?DEBUG("Someother info:  ~p", [Info]),
+	%?DEBUG("Someother info:  ~p", [Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------

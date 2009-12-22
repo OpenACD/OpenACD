@@ -291,7 +291,7 @@ handle_info({get_pid, UUID, Ref, From}, #state{call_dict = Dict} = State) ->
 			?NOTICE("pid for ~s already allocated", [UUID]),
 			Pid;
 		error ->
-			{ok, Pid} = freeswitch_media:start_link(State#state.nodename, UUID),
+			{ok, Pid} = freeswitch_media:start(State#state.nodename, UUID),
 			link(Pid)
 	end,
 	From ! {Ref, Pid},
@@ -326,6 +326,9 @@ handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
 			timer:send_after(1000, freeswitch_ping),
 			{noreply, State}
 	end;
+handle_info(error, State) ->
+	1 = 3,
+	{noreply, State};
 handle_info(Info, State) ->
 	?DEBUG("Unexpected info:  ~p", [Info]),
 	{noreply, State}.

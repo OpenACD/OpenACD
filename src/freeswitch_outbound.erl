@@ -348,8 +348,9 @@ handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 			?DEBUG("call_event ~p", [Event]),
 			{noreply, State}
 	end;
-handle_info(call_hangup, _Call, State) ->
+handle_info(call_hangup, Call, State) ->
 	?DEBUG("Call hangup info", []),
+	catch freeswitch_ring:hangup(State#state.ringchannel),
 	{stop, normal, State};
 handle_info({connect_uuid, Number}, #call{id = UUID} = Call, #state{cnode = Fnode, agent = Agent} = State) ->
 	Gethandle = fun(Recusef, Count) ->

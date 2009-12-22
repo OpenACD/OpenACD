@@ -445,6 +445,7 @@ handle_info(channel_destroy, _Call, #state{in_control = InControl} = State) when
 	{hangup, State};
 handle_info(call_hangup, _Call, State) ->
 	?NOTICE("Call hangup info, terminating", []),
+	catch freeswitch_ring:hangup(State#state.ringchannel),
 	{stop, normal, State};
 handle_info(Info, _Call, State) ->
 	?INFO("unhandled info ~p", [Info]),

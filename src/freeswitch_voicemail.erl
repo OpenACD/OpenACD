@@ -312,6 +312,9 @@ handle_info({'EXIT', Pid, Reason}, _Call, #state{manager_pid = Pid} = State) ->
 	?WARNING("Handling manager exit from ~w due to ~p", [Pid, Reason]),
 	{ok, Tref} = timer:send_after(1000, check_recovery),
 	{noreply, State#state{manager_pid = Tref}};
+handle_info(call_hangup, Call, State) ->
+	catch freeswitch_ring:hangup(State#state.ringchannel),
+	{stop, normal, State};
 handle_info(Info, _Call, State) ->
 	?INFO("unhandled info ~p", [Info]),
 	{noreply, State}.

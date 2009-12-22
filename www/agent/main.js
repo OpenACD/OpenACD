@@ -553,17 +553,21 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("miHangup").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("miHangup");
-		if(data.statedata && data.statedata.mediapath == "inband"){
+		//if(data.statedata && data.statedata.mediapath == "inband"){
 			switch(data.state){
 				case "oncall":
 				case "warmtransfer":
-				case "outband":
+				case "outbound":
 					widget.attr('disabled', false);
+					widget.brutal_kill = true;
+					if(data.statedata.mediapath == "inband"){
+						widget.brutal_kill = false;
+					}
 					break;
 				default:
 					widget.attr('disabled', true);
 			}
-		}
+		//}
 	});
 	
 	dijit.byId("eventLogText").eventLogPushed = dojo.subscribe("eventlog/push", function(text){

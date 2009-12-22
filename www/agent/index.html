@@ -235,6 +235,21 @@
 			<span>FILE</span>
 			<div dojoType="dijit.Menu" id="Filemenu">
 				<div dojoType="dijit.MenuItem" label="HANGUP" id="miHangup" onclick=agent.setState("wrapup");>
+					<script type="dojo/connect" event="onClick">
+						if(this.brutal_kill){
+							dojo.xhrGet({
+								url: "/call_hangup",
+								load:function(res){
+									return true;
+								},
+								error:function(res){
+									warning(["call_hangup erred", res]);
+								}
+							});
+						} else {
+							agent.setState("wrapup");
+						}
+					</script>
 					<script type="dojo/method" event="postCreate">
 						this.inherited("postCreate", arguments);
 						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").HANGUP);

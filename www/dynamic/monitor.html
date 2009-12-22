@@ -116,8 +116,11 @@
 										c1.innerHTML = capitalize(agent.state);
 
 										switch (agent.state) {
+										case "ringing":
 										case "oncall":
 										case "wrapup":
+										case "precall":
+										case "outgoing":
 											if (agent.stateData.type != "voice")
 												c1.innerHTML += "(" + agent.stateData.type + ")";
 											c1.innerHTML += " " + agent.stateData.brand;

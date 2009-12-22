@@ -51,7 +51,8 @@
 	commit/1,
 	rollback/1,
 	terminate/2, 
-	code_change/3]).
+	code_change/3,
+	load_to_mnesia/1]).
 
 -record(state, {
 	agent_dets_ref :: reference(),
@@ -65,6 +66,31 @@
 -type(state() :: #state{}).
 -define(GEN_CDR_DUMPER, true).
 -include("gen_spec.hrl").
+
+%% @doc Takes all records in the passed dets file and loads them into mnesia.
+%% This is useful if you want to migrate the records from the dets dumper to 
+%% another dumper.  Best if used in a spawn, and when the dets dumper is not running.
+-spec(load_to_mnesia/1 :: (File :: string()) -> 'ok').
+load_to_mnesia(File) ->
+	{ok, Detsref} = dets:open_file(File),
+	dets:safe_fixtable(Detsref, true),
+	Objs = load_loop(Detsref),
+	F = fun() ->
+		lists:foreach(fun(O) -> mnesia:write(O) end, Objs)
+	end,
+	mnesia:transaction(F),
+	dets:safe_fixtable(Detsref, false),
+	dets:close(Detsref).
+
+load_loop(Detsref) ->
+	First = dets:first(Detsref),
+	load_loop(First, Detsref, []).
+
+load_loop('$end_of_table', _Detsref, Acc) ->
+	lists:reverse(Acc);
+load_loop(Key, Detsref, Acc) ->
+	Obj = dets:lookup(Detsref, Key),
+	load_loop(dets:next(Detsref, Key), Detsref, [Obj | Acc]).
 
 %%====================================================================
 %% gen_cdr callbacks
@@ -149,4 +175,4 @@ make_file_names(Logdir) ->
 	]),
 	AdetsFile = lists:append([Logdir, "agent_state", Append]), 
 	CdetsFile = lists:append([Logdir, "cdr", Append]),
-	{AdetsFile, CdetsFile}.	
+	{AdetsFile, CdetsFile}.

@@ -669,6 +669,9 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when Call
 		undefined ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
 	end;
+handle_call({undefined, "/call_hangup", _Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
+	Call#call.source ! call_hangup,
+	{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
 	%% considering how things have gone, the best guess is this is a media call.
 	%% Note that the results below are only for email, so this will need

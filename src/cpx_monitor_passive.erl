@@ -330,7 +330,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 				{undefined, inbound} ->
 					?INFO("Didn't find queue, but still inbound.  Assuming it's in ivr call:  ~p", [Key]),
 					Newrow = {Key, EventTime, EventHp, EventDetails, {inbound, [{ivr, EventTime}]}},
-					dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, {inbound, ivr}}),
+					dets:insert(?DETS, Newrow),
 					Newrow;
 				{_Queue, inbound} ->
 					% guess it went right to queue.  /shrug.

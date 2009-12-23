@@ -408,7 +408,7 @@ handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 	],
 	{Type, Subtype, Body} = case length(State#state.outgoing_attachments) of
 		0 ->
-			{<<"multipart">>, <<"alternative">>, Firstbody};
+			{<<"multipart">>, <<"alternative">>, FirstBody};
 		_Else ->
 			Attachments = lists:map(
 				fun({Name, Bin}) -> 

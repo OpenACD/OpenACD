@@ -479,6 +479,7 @@
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").DIAL);
 			</script>
 			<script type="dojo/connect" event="onClick">
+				dijit.byId('wtcancel').suppressHide = true;
 				Agent.warmtransfer(dijit.byId('dialbox').attr('value'));
 			</script>
 		</button>

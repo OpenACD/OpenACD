@@ -594,11 +594,15 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
-	dijit.byId("wtcancel").stateChanger = dojo.subscribe("agent/state", function(data){
-		var widget = dijit.byId("wtcancel");
+	dijit.byId("wtcancel").stateChanger = dojo.subscribe("agent/state", dijit.byId("wtcancel"), function(data){
+		if(this.suppressHide){
+			delete this.suppressHide;
+			return true;
+		}
+		
 		switch(data.state){
 			default:
-				widget.attr('style', 'display:none');
+				this.attr('style', 'display:none');
 		}
 	});
 	

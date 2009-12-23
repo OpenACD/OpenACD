@@ -916,6 +916,20 @@ api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, _Post) ->
 						{<<"cdrFile">>, <<"">>},
 						{<<"traceEnabled">>, Trace},
 						{<<"dsn">>, list_to_binary(DSN)}
+					]};
+				[cdr_dets, [{logdir, Dir}]] ->
+					Dirbin = case Dir of
+						tmp ->
+							<<"__tmp__">>;
+						dynamic ->
+							<<"__dynamic__">>;
+						_ ->
+							list_to_binary(Dir)
+					end,
+					{struct, [
+						{success, true},
+						{<<"dumper">>, <<"dets">>},
+						{<<"destDir">>, Dirbin}
 					]}
 			end
 	end,
@@ -978,6 +992,20 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 				Else ->
 					?WARNING("gen_cdr_dumper update:  ~p", [Else]),
 					{struct, [{success, false}, {<<"message">>, <<"Could not start new dumper">>}]}
+			end;
+		"dets" ->
+			Args = case proplists:get_value("destDir", Post) of
+				undefined ->
+					[];
+				Else ->
+					[{logdir, Else}]
+			end,
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [gen_cdr_dumper, Conf#cpx_conf{start_args = [cdr_dets, Args]}]) of
+				{atomic, {ok, _Pid}} ->
+					{struct, [{success, true}]};
+				Error ->
+					?WARNING("gen_cdr_dumper update:  ~p", [Error]),
+					{struct, [{success, false}, {<<"message">>, <<"could not start new dumper">>}]}
 			end
 	end,
 	{200, [], mochijson2:encode(Json)};

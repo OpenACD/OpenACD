@@ -400,11 +400,16 @@ handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 		_ ->
 			{[], []}
 	end,
+	HtmlPosted = proplists:get_value(<<"body">>, Args),
+	Plaintext = scrub_send_html(HtmlPosted),
+	FirstBody = [
+		{<<"text">>, <<"plain">>, [], Plaintext},
+		{<<"text">>, <<"html">>, [], HtmlPosted}
+	],
 	{Type, Subtype, Body} = case length(State#state.outgoing_attachments) of
 		0 ->
-			{<<"text">>, <<"html">>, proplists:get_value(<<"body">>, Args)};
+			{<<"multipart">>, <<"alternative">>, FirstBody};
 		_Else ->
-			FirstBody = {<<"text">>, <<"html">>, [], [], proplists:get_value(<<"body">>, Args)},
 			Attachments = lists:map(
 				fun({Name, Bin}) -> 
 					{<<"application">>, 
@@ -417,7 +422,7 @@ handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 					[],
 					Bin}
 				end, State#state.outgoing_attachments),
-			Fullbody = [FirstBody | Attachments],
+			Fullbody = [{<<"multipart">>, <<"alternative">>, [], [], FirstBody} | Attachments],
 			{<<"multipart">>, <<"mixed">>, Fullbody}
 	end,
 	BinTo = lists:append([Bcc, [BaseTo], Cc]),
@@ -660,9 +665,89 @@ append_files(Headers, Properties, Path, Files) ->
 					[{Fixedname, lists:reverse(Path)} | Midfiles]
 			end
 	end.
+
+scrub_send_html(Html) ->
+	HtmlList = lists:append(["<span>", binary_to_list(Html), "</span>"]),
+	HtmlParse = mochiweb_html:parse(HtmlList),
+	?DEBUG("~p", [HtmlParse]),
+	list_to_binary(lists:reverse(scrub_send_html([HtmlParse], []))).
+
+scrub_send_html([], Acc) ->
+	Acc;
+scrub_send_html([{comment, _} | Tail], Acc) ->
+	scrub_send_html(Tail, Acc);
+scrub_send_html([{Tag, Props, Children} | Tail], Acc) ->
+	Lowertag = binstr:to_lower(Tag),
+	scrub_send_html_sub([{Lowertag, downcase_headers(Props), Children} | Tail], Acc);
+scrub_send_html([Bin | Tail], Acc) ->
+	scrub_send_html(Tail, [Bin | Acc]).
+
+scrub_send_html_sub([{<<"img">>, Props, []} | Tail], Acc) ->
+	Text = case {proplists:get_value(<<"src">>, Props), proplists:get_value(<<"alt">>, Props)} of
+		{undefined, undefined} ->
+			<<"">>;
+		{Bin, undefined} ->
+			list_to_binary([<<"image:  ">>, Bin]);
+		{_, Bin} ->
+			Bin
+	end,
+	[Text | Acc];
+scrub_send_html_sub([{<<"a">>, Props, Children} | Tail], Acc) ->
+	Text = case proplists:get_value(<<"href">>, Props) of
+		undefined ->
+			<<"">>;
+		Else ->
+			list_to_binary(["(href:  ", Else, ") "])
+	end,
+	Midacc = [Text | Acc],
+	Thirdacc = scrub_send_html(Children, Midacc),
+	scrub_send_html(Tail, Thirdacc);
+scrub_send_html_sub([{<<"li">>, _Props, Children} | Tail], Acc) ->
+	Midacc = scrub_send_html(Children, Acc),
+	scrub_send_html(Tail, [<<"\n">> | Midacc]);
+scrub_send_html_sub([{<<"br">>, _Props, Children} | Tail], Acc) ->
+	Midacc = scrub_send_html(Children, Acc),
+	scrub_send_html(Tail, [<<"\n">> | Midacc]);
+scrub_send_html_sub([{_Tag, _Props, Children} | Tail], Acc) ->
+	Midacc = scrub_send_html(Children, Acc),
+	scrub_send_html(Tail, Midacc).
 	
 -ifdef(EUNIT).
-		
+
+scrub_send_html_test_() ->
+	[{"Simple scrub",
+	fun() ->
+		?assertEqual(<<"hi">>, scrub_send_html(<<"hi">>))
+	end},
+	{"Slightly more complex",
+	fun() ->
+		?assertEqual(<<"123">>, scrub_send_html(<<"<div>1</div><div>2</div><div>3</div>">>))
+	end},
+	{"img scrub",
+	fun() ->
+		?assertEqual(<<"alt text">>, scrub_send_html(<<"<span><img src=\"src\" alt=\"alt text\" /></span>">>))
+	end},
+	{"img no alt text",
+	fun() ->
+		?assertEqual(<<"image:  src">>, scrub_send_html(<<"<span><img src=\"src\" /></span>">>))
+	end},
+	{"a with href",
+	fun() ->
+		?assertEqual(<<"(href:  href) text">>, scrub_send_html(<<"<span><a href=\"href\">text</a></span>">>))
+	end},
+	{"a without href",
+	fun() ->
+		?assertEqual(<<"text">>, scrub_send_html(<<"<span><a name=\"goober\" />text</span>">>))
+	end},
+	{"a list",
+	fun() ->
+		?assertEqual(<<"1\n2\n3\n">>, scrub_send_html(<<"<ul><li>1</li><li>2</li><li>3</li></ul>">>))
+	end},
+	{"br tags",
+	fun() ->
+		?assertEqual(<<"1\n2\n3">>, scrub_send_html(<<"<span>1<br />2<br />3</span>">>))
+	end}].
+
 getmail(File) ->
 	{ok, Bin} = file:read_file(string:concat("contrib/gen_smtp/testdata/", File)),
 	%Email = binary_to_list(Bin),

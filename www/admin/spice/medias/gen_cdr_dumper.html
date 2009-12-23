@@ -49,6 +49,12 @@
 	<span class="translate">CSV_DUMPER</span>
 </p>
 
+<p>
+	<label>&nbsp;</label>
+	<input type="radio" dojoType="dijit.form.RadioButton" name="dumper" value="dets" id="cdrDetsRadio" />
+	<span class="translate">DETS_DUMPER</span>
+</p>
+
 <div class="dumper_p" id="csvDumperP" style="display:none">
 <p>&nbsp;</p>
 <p>
@@ -74,6 +80,17 @@
 </p>
 </div>
 
+<div id="detsDumperP" class="dumper_p" style="display:none">
+<p>&nbsp;</p>
+<p>
+	<label for="destDir" class="translatecol">DETS_DIR</label>
+	<select dojoType="dijit.form.ComboBox" name="destDir" id="destDir">
+		<option value="/tmp/">/tmp/</option>
+		<option value="dynamic/">dynamic/</option>
+	</select>
+</p>
+</div>
+
 <p>
 	<label>&nbsp;</label>
 	<button dojoType="dijit.form.Button" label="SUBMIT">
@@ -93,6 +110,10 @@
 			dojo.connect(dijit.byId('cdrOdbcRadio'), 'onClick', function(){
 				hider();
 				dojo.byId('odbcDumperP').style.display = 'block';
+			});
+			dojo.connect(dijit.byId('cdrDetsRadio'), 'onClick', function(){
+				hider();
+				dojo.byId('detsDumperP').style.display = 'block';
 			});
 		</script>
 		<script type="dojo/connect" event="onClick">

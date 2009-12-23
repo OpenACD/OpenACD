@@ -589,6 +589,7 @@ dojo.addOnLoad(function(){
 	dijit.byId("wtdial").warmtransfer_listener = dojo.subscribe("agent/mediaevent/voice", dijit.byId("wtdial"), function(data){
 		if(data.event == 'warm_transfer_failed'){
 			this.attr('style', 'display:inline');
+			dojo.byId('foo').style.display = 'inline';
 		} else  {
 			this.attr('style', 'display:none');
 		}

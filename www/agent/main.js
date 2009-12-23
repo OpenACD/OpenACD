@@ -150,12 +150,21 @@ function load_media_tab(options){
 		dijit.byId('tabPanel').addChild(pane);
 		dijit.byId('tabPanel').selectChild(options.id);
 	} else {
+		var elem = document.createElement('div');
+		elem.id = options.id,
+		document.body.insertBefore(elem, document.body.firstChild);
 		var pane = new dojox.layout.FloatingPane({
 			title: options.media,
-			executeScripts: "true",
-			id: options.id,
-			closable: false
-		});
+			executeScripts: true,
+			closable: false,
+			dockable: false,
+			href: 'tabs/' + options.href,
+			resizable: true,
+			style: 'position:absolute;top:120px;left:65%;z-index:1000'
+		}, elem);
+		//pane.attr('href', "tabs/" + options.href);
+		pane.startup();
+		pane.show();
 		pane.unloadListener = dojo.subscribe('agent/state', function(data){
 			try{
 				if(data.state == 'wrapup'){
@@ -176,7 +185,6 @@ function load_media_tab(options){
 				info(['media pan logout listener erred', err]);
 			}
 		});
-		pane.attr('href', "tabs/" + options.href);
 	}
 }
 

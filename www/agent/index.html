@@ -482,6 +482,15 @@
 				Agent.warmtransfer(dijit.byId('dialbox').attr('value'));
 			</script>
 		</button>
+		<button dojoType="dijit.form.Button" id="wtcomplete" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").COMPLETE);
+			</script>
+			<script type="dojo/connect" event="onClick">
+				console.log("Replace me with actual code");
+			</script>
+		</button>
 		<button dojoType="dijit.form.Button" id="wtcancel" style="display:none">
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);

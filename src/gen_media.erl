@@ -709,7 +709,7 @@ handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = Rpid, cal
 	end;
 handle_call('$gen_media_agent_oncall', _From, #state{warm_transfer = true} = State) ->
 	?INFO("oncall request during what looks like a warm transfer (outofband)", []),
-	agent:media_push(State#state.oncall_pid, warm_transfer_succeded),
+	agent:media_push(State#state.oncall_pid, warm_transfer_succeeded),
 	{reply, ok, State};
 handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid), is_pid(Rpid) ->
 	?INFO("oncall request during what looks like an agent transfer (outofband) to ~p", [Rpid]),

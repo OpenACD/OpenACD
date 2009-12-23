@@ -586,13 +586,33 @@ dojo.addOnLoad(function(){
 		}
 	});
 	
+	dijit.byId("wtdial").warmtransfer_listener = dojo.subscribe("agent/mediaevent/voice", dijit.byId("wtdial"), function(data){
+		if(data.event == 'warm_transfer_failed'){
+			this.attr('style', 'display:inline');
+		} else  {
+			this.attr('style', 'display:none');
+		}
+	});
+	
 	dijit.byId("wtcancel").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("wtcancel");
 		switch(data.state){
 			default:
 				widget.attr('style', 'display:none');
 		}
-	})
+	});
+	
+	dijit.byId("wtcomplete").stateChanger = dojo.subscribe("agent/state", dijit.byId("wtcomplete"), function(data){
+		this.attr('style', 'display:none');
+	});
+	
+	dijit.byId('wtcomplete').warmtransfer_listener = dojo.subscribe("agent/mediaevent/voice", dijit.byId('wtcomplete'), function(data){
+		if(data.event == 'warm_transfer_succeeded'){
+			this.attr('style', 'display:inline');
+		} else {
+			this.attr('style', 'display:none');
+		}
+	});
 	
 	dojo.byId("state").stateChanger = dojo.subscribe("agent/state", function(data){
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");

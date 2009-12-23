@@ -780,8 +780,29 @@ handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 					?INFO("No other data's supported:  ~p", [Data]),
 					{noreply, State}
 			end;
+		voice ->
+			case Data of
+				warm_transfer_succeded ->
+					Json = {struct, [
+						{<<"command">>, <<"mediaevent">>},
+						{<<"media">>, voice},
+						{<<"event">>, Data},
+						{success, true}
+					]},
+					Newstate = push_event(Json, State),
+					{noreply, Newstate};
+				warm_transfer_failed ->
+					Json = {struct, [
+						{<<"command">>, <<"mediaevent">>},
+						{<<"media">>, voice},
+						{<<"event">>, Data},
+						{success, false}
+					]},
+					Newstate = push_event(Json, State),
+					{noreply, Newstate}
+			end;
 		Else ->
-			?INFO("Currently no supporting other media pushings: ~p", [Else]),
+			?INFO("Currently no for media pushings: ~p", [Else]),
 			{noreply, State}
 	end;
 handle_cast({set_salt, Salt}, State) ->

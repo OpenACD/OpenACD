@@ -466,6 +466,7 @@
 						dojo.byId('foo').style.display = 'inline';
 						dijit.byId('wtcancel').attr('style', 'display:inline');
 						dijit.byId('wtdial').attr('style', 'display:inline');
+						dijit.byId('btransfer').attr('style', 'display:none');
 					</script>
 				</div>
 			</div>
@@ -490,6 +491,7 @@
 				dojo.byId('foo').style.display = 'none';
 				dijit.byId('wtcancel').attr('style', 'display:none');
 				dijit.byId('wtdial').attr('style', 'display:none');
+				dijit.byId('btransfer').attr('style', 'display:inline');
 			</script>
 		</button>
 		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=agent.dial()>

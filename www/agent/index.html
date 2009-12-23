@@ -460,13 +460,38 @@
 					<div dojoType="dijit.Menu" id="transferToQueueMenu">
 					</div>
 				</div>
-				<div dojoType="dijit.MenuItem" label="Transfer to 3rd Party"
-					onclick="Agent.warmtransfer('2440131');">
+				<div dojoType="dijit.MenuItem" label="Transfer to 3rd Party">
+					<script type="dojo/connect" event="onClick">
+					//onclick="Agent.warmtransfer('2440131');">
+						dojo.byId('foo').style.display = 'inline';
+						dijit.byId('wtcancel').attr('style', 'display:inline');
+						dijit.byId('wtdial').attr('style', 'display:inline');
+					</script>
 				</div>
 			</div>
 		</div>
 
 		<div id="foo" style="clear:both;"><input type="text" value="" dojoType="dijit.form.ValidationTextBox" regExp="[\d]+" invalidMessage="Invalid number" id="dialbox" /></div>
+		<button dojoType="dijit.form.Button" id="wtdial" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").DIAL);
+			</script>
+			<script type="dojo/connect" event="onClick">
+				Agent.warmtransfer(dijit.byId('dialbox').attr('value'));
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button" id="wtcancel" style="display:none">
+			<script type="dojo/method" event="postCreate">
+				this.inherited("postCreate", arguments);
+				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").CANCEL);
+			</script>
+			<script type="dojo/connect" event="onClick">
+				dojo.byId('foo').style.display = 'none';
+				dijit.byId('wtcancel').attr('style', 'display:none');
+				dijit.byId('wtdial').attr('style', 'display:none');
+			</script>
+		</button>
 		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=agent.dial()>
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);

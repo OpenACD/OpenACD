@@ -452,7 +452,7 @@ dojo.addOnLoad(function(){
 	dijit.byId("dialbox").stateChanger = dojo.subscribe("agent/state", function(data){
 		var div = dojo.byId("foo");
 		switch(data.state){
-			case "warmtransfer":
+			//case "warmtransfer":
 			case "precall":
 				div.style.display="inline";
 				break;
@@ -464,7 +464,7 @@ dojo.addOnLoad(function(){
 	dijit.byId("bcancel").stateChanger = dojo.subscribe("agent/state", function(data){
 		var widget = dijit.byId("bcancel");
 		switch(data.state){
-			case "warmtransfer":
+			//case "warmtransfer":
 			case "precall":
 				widget.attr('style', 'display:inline');
 				break;
@@ -477,13 +477,29 @@ dojo.addOnLoad(function(){
 		var widget = dijit.byId("bdial");
 		switch(data.state){
 			case "precall":
-			case "warmtransfer":
+			//case "warmtransfer":
 				widget.attr('style', 'display:inline');
 				break;
 			default:
 				widget.attr('style', 'display:none');
 		}
 	});
+	
+	dijit.byId("wtdial").stateChanger = dojo.subscribe("agent/state", function(data){
+		var widget = dijit.byId("wtdial");
+		switch(data.state){
+			default:
+				widget.attr('style', 'display:none');
+		}
+	});
+	
+	dijit.byId("wtcancel").stateChanger = dojo.subscribe("agent/state", function(data){
+		var widget = dijit.byId("wtcancel");
+		switch(data.state){
+			default:
+				widget.attr('style', 'display:none');
+		}
+	})
 	
 	dojo.byId("state").stateChanger = dojo.subscribe("agent/state", function(data){
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");

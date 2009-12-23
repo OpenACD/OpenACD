@@ -556,7 +556,7 @@ oncall({queue_transfer, Queue}, _From, #agent{statedata = Call} = State) ->
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, Reply, wrapup, Newstate};
 oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
-	case gen_media:warm_transfer_begin(Call#call.source, Number) of
+	case gen_media:warm_transfer_begin(Call#call.source, Number, self(), State) of
 		{ok, UUID} ->
 			gen_server:cast(State#agent.connection, {change_state, warmtransfer, UUID}),
 			set_cpx_monitor(State#agent{state = warmtransfer}, ?WARMTRANSFER_LIMITS, []),
@@ -602,7 +602,7 @@ oncall({mediapush, Mediapid, Data}, #agent{statedata = Media} = State) when Medi
 		undefined ->
 			{next_state, oncall, State};
 		Conn when is_pid(Conn) ->
-			?DEBUG("shoring ~p", [Data]),
+			?DEBUG("shoving ~p", [Data]),
 			gen_server:cast(Conn, {mediapush, Media, Data}),
 			{next_state, oncall, State}
 	end;
@@ -777,6 +777,15 @@ warmtransfer(_Event, _From, State) ->
 warmtransfer(register_rejected, #agent{statedata = {onhold, Media, calling, _Target}} = State) ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};
+warmtransfer({mediapush, Mediapid, Data}, #agent{statedata = {onhold, Media, calling, _}} = State) when Media#call.source =:= Mediapid ->
+	case State#agent.connection of
+		undefined ->
+			{next_state, warmtransfer, State};
+		Conn when is_pid(Conn) ->
+			?DEBUG("shoving ~p", [Data]),
+			gen_server:cast(Conn, {mediapush, Media, Data}),
+			{next_state, warmtransfer, State}
+	end;
 warmtransfer(_Msg, State) ->
 	{next_state, warmtransfer, State}.
 

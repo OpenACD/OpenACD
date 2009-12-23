@@ -618,7 +618,6 @@ dojo.addOnLoad(function(){
 		var widget = dijit.byId("btransfer");
 		switch(data.state){
 			case "oncall":
-			case "warmtransfer":
 			case "outgoing":
 				widget.attr('style', 'display:inline');
 				break;

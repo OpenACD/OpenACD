@@ -294,7 +294,7 @@
 	stop_ringing/1,
 	oncall/1,
 	agent_transfer/3,
-	warm_transfer_begin/2,
+	warm_transfer_begin/4,
 	queue/2,
 	call/2,
 	call/3,
@@ -317,7 +317,8 @@
 	queue_failover = true :: 'true' | 'false',
 	queue_pid :: 'undefined' | pid(),
 	ringout = false:: tref() | 'false',
-	outband_ring_pid :: 'undefined' | pid()
+	outband_ring_pid :: 'undefined' | pid(),
+	warm_transfer = false :: boolean()
 }).
 
 -type(state() :: #state{}).
@@ -395,9 +396,9 @@ oncall(Genmedia) ->
 agent_transfer(Genmedia, Apid, Timeout) ->
 	gen_server:call(Genmedia, {'$gen_media_agent_transfer', Apid, Timeout}).
 
--spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> {'ok', string()} | 'invalid').
-warm_transfer_begin(Genmedia, Number) ->
-	gen_server:call(Genmedia, {'$gen_media_warm_transfer_begin', Number}).
+-spec(warm_transfer_begin/4 :: (Genmedia :: pid(), Number :: string(), Apid :: pid(), Astate :: #agent{}) -> {'ok', string()} | 'invalid').
+warm_transfer_begin(Genmedia, Number, Apid, Astate) ->
+	gen_server:call(Genmedia, {'$gen_media_warm_transfer_begin', Number, Apid, Astate}).
 
 %% @doc Transfer the passed media into the given queue.
 -spec(queue/2 :: (Genmedia :: pid(), Queue :: string()) -> 'ok' | 'invalid').
@@ -638,12 +639,12 @@ handle_call({'$gen_media_agent_transfer', Apid, Timeout}, _From, #state{callback
 handle_call({'$gen_media_agent_transfer', _Apid, _Timeout}, _From, State) ->
 	?ERROR("Invalid agent transfer sent when state is ~p.", [State]),
 	{reply, invalid, State};
-handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback, oncall_pid = Apid} = State) when is_pid(Apid) ->
-	case erlang:function_exported(Callback, handle_warm_transfer_begin, 3) of
+handle_call({'$gen_media_warm_transfer_begin', Number, Apid, Astate}, _From, #state{callback = Callback, oncall_pid = Apid} = State) when is_pid(Apid) ->
+	case erlang:function_exported(Callback, handle_warm_transfer_begin, 5) of
 		true ->
-			case Callback:handle_warm_transfer_begin(Number, State#state.callrec, State#state.substate) of
+			case Callback:handle_warm_transfer_begin(Number, Apid, Astate, State#state.callrec, State#state.substate) of
 				{ok, UUID, NewState} ->
-					{reply, {ok, UUID}, State#state{substate = NewState}};
+					{reply, {ok, UUID}, State#state{substate = NewState, warm_transfer = true}};
 				{error, Error, NewState} ->
 					?DEBUG("Callback module ~w errored for warm transfer begin:  ~p", [Callback, Error]),
 					{reply, invalid, State#state{substate = NewState}}
@@ -706,7 +707,11 @@ handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = Rpid, cal
 			?ERROR("Cannot set ~p to oncall due to ~p", [Rpid, Reason]),
 			{reply, invalid, State#state{substate = NewState}}
 	end;
-handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
+handle_call('$gen_media_agent_oncall', _From, #state{warm_transfer = true} = State) ->
+	?INFO("oncall request during what looks like a warm transfer (outofband)", []),
+	agent:media_push(State#state.oncall_pid, warm_transfer_succeded),
+	{reply, ok, State};
+handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid), is_pid(Rpid) ->
 	?INFO("oncall request during what looks like an agent transfer (outofband) to ~p", [Rpid]),
 	case agent:set_state(Rpid, oncall, State#state.callrec) of
 		invalid ->

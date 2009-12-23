@@ -782,7 +782,7 @@ handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 			end;
 		voice ->
 			case Data of
-				warm_transfer_succeded ->
+				warm_transfer_succeeded ->
 					Json = {struct, [
 						{<<"command">>, <<"mediaevent">>},
 						{<<"media">>, voice},

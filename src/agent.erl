@@ -556,7 +556,7 @@ oncall({queue_transfer, Queue}, _From, #agent{statedata = Call} = State) ->
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, Reply, wrapup, Newstate};
 oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
-	case gen_media:warm_transfer_begin(Call#call.source, Number) of
+	case gen_media:warm_transfer_begin(Call#call.source, Number, self(), State) of
 		{ok, UUID} ->
 			gen_server:cast(State#agent.connection, {change_state, warmtransfer, UUID}),
 			set_cpx_monitor(State#agent{state = warmtransfer}, ?WARMTRANSFER_LIMITS, []),

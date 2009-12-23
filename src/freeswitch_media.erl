@@ -86,7 +86,7 @@
 	handle_call/4, 
 	handle_cast/3, 
 	handle_info/3,
-	handle_warm_transfer_begin/3,
+	handle_warm_transfer_begin/5,
 	terminate/3,
 	code_change/4]).
 
@@ -105,6 +105,7 @@
 	in_control = false :: boolean(),
 	queued = false :: boolean(),
 	allow_voicemail = false :: boolean(),
+	warm_transfer = false :: boolean(),
 	ivroption :: string(),
 	moh = "moh" :: string()
 	}).
@@ -283,13 +284,22 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 			{error, Error, State}
 	end.
 
--spec(handle_warm_transfer_begin/3 :: (Number :: pos_integer(), Call :: #call{}, State :: #state{}) -> {'ok', string(), #state{}} | {'error', string(), #state{}}).
-handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = Node} = State) when is_pid(AgentPid) ->
-	freeswitch:api(Node, uuid_setvar, Call#call.id++" park_after_bridge true"),
-	%freeswitch:api(Node, uuid_park, Call#call.id),
-	freeswitch:bgapi(State#state.cnode, uuid_transfer, freeswitch_ring:get_uuid(State#state.ringchannel) ++ " 'bridge:sofia/gateway/hebon.fusedsolutions.com/" ++ Number ++ "' inline"),
+-spec(handle_warm_transfer_begin/5 :: (Number :: pos_integer(), AgentPid :: pid(), AgentState :: #agent{}, Call :: #call{}, State :: #state{}) -> {'ok', string(), #state{}} | {'error', string(), #state{}}).
+handle_warm_transfer_begin(Number, AgentPid, AgentState, Call, #state{agent_pid = AgentPid, cnode = Node, ringchannel = undefined} = State) when is_pid(AgentPid) ->
+	% ring channel is not around, the first warm transfer attempt failed, presumably
+	% TODO ring channel init goes here
 	{ok, Call#call.id, State};
-handle_warm_transfer_begin(_Number, _Call, #state{agent_pid = AgentPid} = State) ->
+handle_warm_transfer_begin(Number, AgentPid, AgentState, Call, #state{agent_pid = AgentPid, cnode = Node} = State) when is_pid(AgentPid) ->
+	freeswitch:api(Node, uuid_setvar, Call#call.id++" park_after_bridge true"),
+	freeswitch:bgapi(State#state.cnode, uuid_transfer,
+		freeswitch_ring:get_uuid(State#state.ringchannel) ++ " 'bridge:sofia/gateway/hebon.fusedsolutions.com/" ++ Number ++ "' inline"),
+	% play musique d'attente 
+	freeswitch:sendmsg(Node, Call#call.id,
+		[{"call-command", "execute"},
+			{"execute-app-name", "playback"},
+			{"execute-app-arg", "local_stream://moh"}]),
+	{ok, Call#call.id, State#state{warm_transfer = true}};
+handle_warm_transfer_begin(_Number, _AgentPid, _AgentState, _Call, #state{agent_pid = AgentPid} = State) ->
 	?WARNING("wtf?! agent pid is ~p", [AgentPid]),
 	{error, "error: no agent bridged to this call~n", State}.
 
@@ -382,6 +392,10 @@ handle_info(check_recovery, Call, State) ->
 handle_info({'EXIT', Pid, Reason}, _Call, #state{xferchannel = Pid} = State) ->
 	?WARNING("Handling transfer channel ~w exit ~p", [Pid, Reason]),
 	{stop_ring, State#state{ringchannel = undefined}};
+handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid, warm_transfer = true} = State) ->
+	?WARNING("Handling ring channel ~w exit ~p while in warm transfer", [Pid, Reason]),
+	agent:media_push(State#state.agent_pid, warm_transfer_failed),
+	{noreply, State#state{ringchannel = undefined}};
 handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p", [Pid, Reason]),
 	{stop_ring, State#state{ringchannel = undefined}};

@@ -95,6 +95,91 @@ function replaceUrls(text){
 	return text.replace(exp,"<a href='$1' target='_blank'>$1</a>");
 }
 
+function load_media_tab(options){
+	console.log("load_media-tab");
+	if(! options.media){
+		throw "media is required for tab";
+	}
+	if(! options.id){
+		options.id = options.media;
+	}
+	if(! options.href){
+		options.href = options.media + '_media.html';
+	}
+	if(options.fullpane == undefined){
+		options.fullpane = true;
+	}
+	if(! options.title){
+		options.title = options.media;
+	}
+	
+	if(dijit.byId(options.id)){
+		return false;
+	}
+	
+	if(options.fullpane){
+		var pane = new dojox.layout.ContentPane({
+			title:options.media,
+			executeScripts: "true",
+			id: options.id,
+			closable: false
+		});
+		pane.unloadListener = dojo.subscribe('agent/state', function(data){
+			try{
+				if(data.state == 'wrapup'){
+					dojo.unsubscribe(pane.unloadListener);
+					dojo.unsubscribe(pane.logoutListener);
+					dijit.byId('tabPanel').closeChild(pane);
+				}
+			}
+			catch (err){
+				info(['media pane unload listener erred', err]);
+			}
+		});
+		pane.logoutListener = dojo.subscribe('agent/logout', function(){
+			try{
+				dojo.unsubscribe(pane.unloadListener);
+				dojo.unsubscribe(pane.logoutListener);
+				dijit.byId('tabPanel').closeChild(pane);
+			}
+			catch(err){
+				info(['media pan logout listener erred', err]);
+			}
+		});
+		pane.attr('href', "tabs/" + options.href);
+		dijit.byId('tabPanel').addChild(pane);
+		dijit.byId('tabPanel').selectChild(options.id);
+	} else {
+		var pane = new dojox.layout.FloatingPane({
+			title: options.media,
+			executeScripts: "true",
+			id: options.id,
+			closable: false
+		});
+		pane.unloadListener = dojo.subscribe('agent/state', function(data){
+			try{
+				if(data.state == 'wrapup'){
+					dojo.unsubscribe(pane.unloadListener);
+					dojo.unsubscribe(pane.logoutListener);
+				}
+			}
+			catch (err){
+				info(['media pane unload listener erred', err]);
+			}
+		});
+		pane.logoutListener = dojo.subscribe('agent/logout', function(){
+			try{
+				dojo.unsubscribe(pane.unloadListener);
+				dojo.unsubscribe(pane.logoutListener);
+			}
+			catch(err){
+				info(['media pan logout listener erred', err]);
+			}
+		});
+		pane.attr('href', "tabs/" + options.href);
+	}
+}
+
 dojo.addOnLoad(function(){
 	//TODO:  Move logging/logger functions to other file.
 	if(window.console.log === undefined){
@@ -923,46 +1008,7 @@ dojo.addOnLoad(function(){
 	
 	dijit.byId("main").mediaload = dojo.subscribe("agent/mediaload", function(eventdata){
 		info(["listening for media load fired:  ", eventdata]);
-		if(eventdata.media != 'email'){
-			return false;
-		}
-		
-		var mediaPanelId = eventdata.media + 'Panel';
-		if(dijit.byId(mediaPanelId)){
-			return false; 
-		}
-		
-		var pane = new dojox.layout.ContentPane({
-			title:eventdata.media,
-			executeScripts: "true",
-			id: mediaPanelId,
-			closable: false
-		});
-		pane.unloadListener = dojo.subscribe('agent/state', function(data){
-			try{
-				if(data.state == 'wrapup'){
-					dojo.unsubscribe(pane.unloadListener);
-					dojo.unsubscribe(pane.logoutListener);
-					dijit.byId('tabPanel').closeChild(pane);
-				}
-			}
-			catch (err){
-				info(['media pane unload listener erred', err]);
-			}
-		});
-		pane.logoutListener = dojo.subscribe('agent/logout', function(){
-			try{
-				dojo.unsubscribe(pane.unloadListener);
-				dojo.unsubscribe(pane.logoutListener);
-				dijit.byId('tabPanel').closeChild(pane);
-			}
-			catch(err){
-				info(['media pan logout listener erred', err]);
-			}
-		});
-		pane.attr('href', "tabs/email_media.html");
-		dijit.byId('tabPanel').addChild(pane);
-		dijit.byId('tabPanel').selectChild(mediaPanelId);
+		load_media_tab(eventdata);
 	});
 });
 

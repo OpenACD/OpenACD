@@ -150,6 +150,12 @@ function load_media_tab(options){
 		dijit.byId('tabPanel').addChild(pane);
 		dijit.byId('tabPanel').selectChild(options.id);
 	} else {
+		if(! options.width){
+			options.width = '160px';
+		}
+		if(! options.height){
+			options.height = '120px';
+		}
 		var elem = document.createElement('div');
 		elem.id = options.id,
 		document.body.insertBefore(elem, document.body.firstChild);
@@ -160,7 +166,7 @@ function load_media_tab(options){
 			dockable: false,
 			href: 'tabs/' + options.href,
 			resizable: true,
-			style: 'position:absolute;top:120px;left:65%;z-index:1000'
+			style: 'position:absolute;top:120px;left:65%;z-index:1000;width:'+options.width+';height:'+options.height
 		}, elem);
 		//pane.attr('href', "tabs/" + options.href);
 		pane.startup();

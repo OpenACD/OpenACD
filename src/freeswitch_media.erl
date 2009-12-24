@@ -373,6 +373,10 @@ handle_call(Msg, _From, _Call, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
+handle_cast({"audiolevel", Arguments}, Call, State) ->
+	?INFO("uuid_audio ~s", [Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)]),
+	freeswitch:bgapi(State#state.cnode, uuid_audio, Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)),
+	{noreply, State};
 handle_cast(_Msg, _Call, State) ->
 	{noreply, State}.
 

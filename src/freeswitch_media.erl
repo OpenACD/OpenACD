@@ -176,6 +176,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	freeswitch:sendmsg(State#state.cnode, XferUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Callrec#call.id}]),
 	%freeswitch_ring:hangup(State#state.ringchannel),
+	agent:conn_cast(Apid, {mediaload, Callrec}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined}};
 handle_answer(Apid, Callrec, State) ->
@@ -190,6 +191,7 @@ handle_answer(Apid, Callrec, State) ->
 			?DEBUG("archiving to ~s.wav", [Path]),
 			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start "++Path++".wav")
 	end,
+	agent:conn_cast(Apid, {mediaload, Callrec}),
 	{ok, State#state{agent_pid = Apid}}.
 
 handle_ring(Apid, Callrec, State) ->

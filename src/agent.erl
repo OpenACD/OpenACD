@@ -105,6 +105,8 @@
 	blab/2,
 	spy/2,
 	warm_transfer_begin/2,
+	warm_transfer_cancel/1,
+	warm_transfer_complete/1,
 	register_rejected/1,
 	log_loop/4]).
 
@@ -318,6 +320,15 @@ queue_transfer(Pid, Queue) ->
 warm_transfer_begin(Pid, Target) ->
 	gen_fsm:sync_send_event(Pid, {warm_transfer_begin, Target}).
 
+%% @doc Cancel the warm_transfer procedure.  Gernally the media will handle it from here.
+-spec(warm_transfer_cancel/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
+warm_transfer_cancel(Pid) ->
+	gen_fsm:sync_send_event(Pid, warm_transfer_cancel).
+
+%% @doc Complete the warm_transfer procedure.  Gernally the media will handle it from here.
+-spec(warm_transfer_complete/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
+warm_transfer_complete(Pid) ->
+	gen_fsm:sync_send_event(Pid, warm_transfer_complete).
 
 %% @doc Translate the integer `Int' to the corresponding internally used atom.
 -spec(integer_to_state/1 :: (Int :: 2) -> 'idle';
@@ -770,6 +781,26 @@ warmtransfer({outgoing, Call}, _From, State) ->
 	Newstate = State#agent{state=outgoing, oldstate=warmtransfer, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, outgoing, Newstate};
+warmtransfer(warm_transfer_cancel, _From, #agent{statedata = {onhold, Onhold, calling, _Calling}} = State) ->
+	case gen_media:warm_transfer_cancel(Onhold#call.source) of
+		ok ->
+			NewState = State#agent{state=oncall, oldstate=warmtransfer, statedata=Onhold, lastchange = util:now()},
+			gen_server:cast(State#agent.connection, {change_state, oncall, Onhold}),
+			set_cpx_monitor(NewState, ?ONCALL_LIMITS, []),
+			{reply, ok, oncall, NewState};
+		_ ->
+			{reply, invalid, warmtransfer, State}
+	end;
+warmtransfer(warm_transfer_complete, _From, #agent{statedata = {onhold, Onhold, calling, _Calling}} = State) ->
+	case gen_media:warm_transfer_complete(Onhold#call.source) of
+		ok ->
+			NewState = State#agent{state=wrapup, oldstate=warmtransfer, statedata=Onhold, lastchange = util:now()},
+			gen_server:cast(State#agent.connection, {change_state, wrapup, Onhold}),
+			set_cpx_monitor(NewState, ?WRAPUP_LIMITS, []),
+			{reply, ok, wrapup, NewState};
+		_ ->
+			{reply, invalid, warmtransfer, State}
+	end;
 warmtransfer(_Event, _From, State) ->
 	{reply, invalid, warmtransfer, State}.
 

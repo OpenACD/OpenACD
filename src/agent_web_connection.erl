@@ -313,6 +313,24 @@ handle_call({warm_transfer, Number}, _From, #state{agent_fsm = Apid} = State) ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
 	end,
 	{reply, Reply, State};
+handle_call(warm_transfer_cancel, _From, #state{agent_fsm = Apid} = State) ->
+	?NOTICE("warm transfer cancel", []),
+	Reply = case agent:warm_transfer_cancel(Apid) of
+		ok ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		invalid ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not cancel transfer">>}]})}
+	end,
+	{reply, Reply, State};
+handle_call(warm_transfer_complete, _From, #state{agent_fsm = Apid} = State) ->
+	?NOTICE("warm transfer complete", []),
+	Reply = case agent:warm_transfer_complete(Apid) of
+		ok ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		invalid ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not complete transfer">>}]})}
+	end,
+	{reply, Reply, State};
 handle_call({queue_transfer, Queue}, _From, #state{agent_fsm = Apid} = State) ->
 	?NOTICE("queue transfer to ~p", [Queue]),
 	Reply = case agent:queue_transfer(Apid, Queue) of

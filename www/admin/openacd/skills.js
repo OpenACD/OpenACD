@@ -1,4 +1,4 @@
-dojo.provide("spice.skills");
+dojo.provide("openacd.skills");
 
 skills = function(){
 	return {};

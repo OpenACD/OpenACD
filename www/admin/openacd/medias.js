@@ -1,4 +1,4 @@
-dojo.provide("spice.medias");
+dojo.provide("openacd.medias");
 
 medias = function(){
 	return {};

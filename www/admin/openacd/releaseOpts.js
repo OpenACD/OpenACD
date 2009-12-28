@@ -1,4 +1,4 @@
-dojo.provide("spice.releaseOpts");
+dojo.provide("openacd.releaseOpts");
 
 releaseOpts = function(){};
 

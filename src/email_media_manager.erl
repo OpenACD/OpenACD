@@ -12,7 +12,7 @@
 %%	License for the specific language governing rights and limitations
 %%	under the License.
 %%
-%%	The Original Code is Spice Telephony.
+%%	The Original Code is OpenACD.
 %%
 %%	The Initial Developers of the Original Code is 
 %%	Andrew Thompson and Micah Warren.
@@ -23,8 +23,8 @@
 %%
 %%	Contributor(s):
 %%
-%%	Andrew Thompson <athompson at spicecsm dot com>
-%%	Micah Warren <mwarren at spicecsm dot com>
+%%	Andrew Thompson <andrew at hijacked dot us>
+%%	Micah Warren <micahw at fusedsolutions dot com>
 %%
 
 %% @doc The media manager for handling email.  This starts the email server
@@ -32,7 +32,7 @@
 %% When the email_media_session callback is ready for an email to enter queue, 
 %% it sends a message back here for an email_media to be created and queued.
 -module(email_media_manager).
--author(spicecsm).
+-author(openacd).
 
 -behaviour(gen_server).
 

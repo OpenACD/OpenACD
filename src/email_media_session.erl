@@ -12,7 +12,7 @@
 %%	License for the specific language governing rights and limitations
 %%	under the License.
 %%
-%%	The Original Code is Spice Telephony.
+%%	The Original Code is OpenACD.
 %%
 %%	The Initial Developers of the Original Code is 
 %%	Andrew Thompson and Micah Warren.
@@ -23,8 +23,8 @@
 %%
 %%	Contributor(s):
 %%
-%%	Andrew Thompson <athompson at spicecsm dot com>
-%%	Micah Warren <mwarren at spicecsm dot com>
+%%	Andrew Thompson <andrew at hijacked dot us>
+%%	Micah Warren <micahw at fusedsolutions dot com>
 %%
 
 %% @doc When a new email connection is made, this is resposible for handling the
@@ -33,7 +33,7 @@
 %% email_media and queue it.
 
 -module(email_media_session).
--author(spicecsm).
+-author(openacd).
 
 -behaviour(gen_smtp_server_session).
 
@@ -74,7 +74,7 @@ init(Hostname, SessionCount, Address) when SessionCount > 20 ->
 	?ERROR("Session limit exceeded at ~s by ~s", [Hostname, Address]),
 	{stop, normal, io_lib:format("421 ~s is too busy to accecpt mail right now", [Hostname])};
 init(Hostname, _SessionCount, _Address) ->
-	Banner = io_lib:format("~s ESMTP spice_telephony", [Hostname]),
+	Banner = io_lib:format("~s ESMTP OpenACD", [Hostname]),
 	{ok, Banner, #state{}}.
 
 -spec(handle_HELO/2 :: (Hostname :: string(), State :: #state{}) -> {'ok', #state{}}).

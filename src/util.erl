@@ -12,7 +12,7 @@
 %%	License for the specific language governing rights and limitations
 %%	under the License.
 %%
-%%	The Original Code is Spice Telephony.
+%%	The Original Code is OpenACD.
 %%
 %%	The Initial Developers of the Original Code is 
 %%	Andrew Thompson and Micah Warren.
@@ -23,8 +23,8 @@
 %%
 %%	Contributor(s):
 %%
-%%	Andrew Thompson <athompson at spicecsm dot com>
-%%	Micah Warren <mwarren at spicecsm dot com>
+%%	Andrew Thompson <andrew at hijacked dot us>
+%%	Micah Warren <micahw at fusedsolutions dot com>
 %%
 
 %% @doc A utility module containing several handy functions not provided by
@@ -404,15 +404,15 @@ reload(Module, Mode) ->
 			end
 	end.
 
-%% @doc Reloads code for all modules in the spice-telephony path using soft purge.
+%% @doc Reloads code for all modules in the OpenACD path using soft purge.
 -spec(reload_all/0 :: () -> 'ok' | {'error', any()}).
 reload_all() ->
 	reload_all(soft).
 
 -ifdef(EUNIT).
--define(BEAM_DIR, "spice-telephony/debug_ebin").
+-define(BEAM_DIR, "OpenACD/debug_ebin").
 -else.
--define(BEAM_DIR, "spice-telephony/ebin").
+-define(BEAM_DIR, "OpenACD/ebin").
 -endif.
 
 %% @doc Reloads code for all modules using either the hard or soft method for 

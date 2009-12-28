@@ -1,8 +1,8 @@
-dojo.provide("spice.PredicateEditorRow");
-dojo.provide("spice.PredicateEditor");
+dojo.provide("openacd.PredicateEditorRow");
+dojo.provide("openacd.PredicateEditor");
 
 dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
-	templatePath: dojo.moduleUrl("spice","PredicateEditorRow.html"),
+	templatePath: dojo.moduleUrl("openacd","PredicateEditorRow.html"),
 	widgetsInTemplate: true,
 	templateString: "",
 	constructor: function(args){
@@ -97,7 +97,7 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 });
 
 dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
-	templatePath: dojo.moduleUrl("spice", "PredicateEditor.html"),
+	templatePath: dojo.moduleUrl("openacd", "PredicateEditor.html"),
 	widgetsInTemplate:true,
 	templateString:"",
 	propwidth : "20em",

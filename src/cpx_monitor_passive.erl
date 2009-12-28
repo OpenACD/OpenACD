@@ -12,7 +12,7 @@
 %%	License for the specific language governing rights and limitations
 %%	under the License.
 %%
-%%	The Original Code is Spice Telephony.
+%%	The Original Code is OpenACD.
 %%
 %%	The Initial Developers of the Original Code is 
 %%	Andrew Thompson and Micah Warren.
@@ -23,8 +23,8 @@
 %%
 %%	Contributor(s):
 %%
-%%	Andrew Thompson <athompson at spicecsm dot com>
-%%	Micah Warren <mwarren at spicecsm dot com>
+%%	Andrew Thompson <andrew at hijacked dot us>
+%%	Micah Warren <micahw at fusedsolutions dot com>
 %%
 
 %% @doc Module to spit a subset of the cpx_monitor data to an xml file 
@@ -1263,6 +1263,7 @@ qlc_test_() ->
 		{AllFilter, Client1, Client2, Getids}
 	end,
 	fun(_) ->
+		file:delete(?DETS),
 		ok
 	end,
 	fun({AllFilter, Client1, Client2, Getids}) ->

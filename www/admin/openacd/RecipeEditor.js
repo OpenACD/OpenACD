@@ -1,12 +1,12 @@
 dojo.require("dijit.form.Select");
 
-dojo.provide("spice.RecipeEditorRow");
-dojo.provide("spice.RecipeEditor");
+dojo.provide("openacd.RecipeEditorRow");
+dojo.provide("openacd.RecipeEditor");
 
 dojo.requireLocalization("admin", "recipeEditor");
 
 dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
-	templatePath: dojo.moduleUrl("spice","RecipeEditorRow.html"),
+	templatePath: dojo.moduleUrl("openacd","RecipeEditorRow.html"),
 	widgetsInTemplate: true,
 	templateString: "",
 	_nullArgsWidget:function(){
@@ -180,7 +180,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 });
 
 dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
-	templatePath: dojo.moduleUrl("spice","RecipeEditor.html"),
+	templatePath: dojo.moduleUrl("openacd","RecipeEditor.html"),
 	widgetsInTemplate: true,
 	templateString: "",
 	addRow: function(){

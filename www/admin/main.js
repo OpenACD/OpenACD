@@ -202,7 +202,7 @@ dojo.addOnLoad(function(){
 		
 			if(item.type[0] == "conf"){
 				dojo.requireLocalization("admin", medias.store.getValue(item, 'mediatype'));
-				dijit.byId("mediaConf").attr('href', "spice/medias/" + medias.store.getValue(item, 'mediatype') + ".html");
+				dijit.byId("mediaConf").attr('href', "openacd/medias/" + medias.store.getValue(item, 'mediatype') + ".html");
 			}
 			dijit.byId("mediaMain").selectChild("mediaConf");
 		});

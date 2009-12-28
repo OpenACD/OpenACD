@@ -1,4 +1,4 @@
-dojo.provide("spice.clients");
+dojo.provide("openacd.clients");
 
 clients = function(){
 	return {};

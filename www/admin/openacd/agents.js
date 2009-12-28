@@ -1,6 +1,6 @@
 /* Functions and operations for the agents tab */
 
-dojo.provide("spice.agents");
+dojo.provide("openacd.agents");
 
 agents = function(){
 	return {};

@@ -1,6 +1,6 @@
 /* Functions and operations for the queues tab */
 
-dojo.provide("spice.queues");
+dojo.provide("openacd.queues");
 
 queues = function(){
 	return {};

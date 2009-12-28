@@ -79,9 +79,9 @@
 -type(timestamp() :: integer()).
 %-type(health_data() :: [{atom(), any()}]).
 %-type(details() :: [{any(), any()}]).
-%-type(historical_event() :: 'ivr' | 'queued' | 'handled' | 'ended').
-%-type(time_list() :: [{historical_event(), pos_integer()}]).
--type(historical_key() :: {'inbound', 'queued'} | {'inbound', 'ivr'} | {'inbound', 'qabandoned'} | {'inbound', 'ivrabandoned'} | {'inbound', 'handled'} | 'outbound' | 'undefined').
+-type(historical_event() :: 'ivr' | 'queued' | 'handled' | 'ended').
+-type(time_list() :: [{historical_event(), pos_integer()}]).
+-type(historical_key() :: {'inbound', time_list()} | {'outbound', time_list()} | 'undefined').
 %-type(historical_tuple() :: {dets_key(), time(), health_data(), details(), historical_key()}).
 
 %% API
@@ -225,7 +225,11 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info(write_output, #state{filters = Filters} = State) ->
 	%?DEBUG("Writing output.", []),
-	Qh = qlc:q([Key || {Key, Time, _Hp, _Details, _History} <- dets:table(?DETS), util:now() - Time > 86400]),
+	Qh = qlc:q([Key || 
+		{Key, Time, _Hp, _Details, {_Direction, History}} <- dets:table(?DETS), 
+		util:now() - Time > 86400,
+		proplists:get_value(ended, History) =/= undefined
+	]),
 	Keys = qlc:e(Qh),
 	lists:foreach(fun(K) -> dets:delete(?DETS, K) end, Keys),
 	WritePids = lists:map(fun({Nom, _F} = Filter) ->
@@ -255,7 +259,7 @@ handle_info({'EXIT', Pid, Reason}, #state{write_pids = Pids} = State) ->
 			Newlist = proplists:delete(Pid, Pids),
 			{noreply, State#state{write_pids = Newlist}}
 	end;
-handle_info(Info, State) ->
+handle_info(_Info, State) ->
 	%?DEBUG("Someother info:  ~p", [Info]),
     {noreply, State}.
 
@@ -468,7 +472,7 @@ get_client_medias(Filter, Client) ->
 		case History of
 			{inbound, HistoryList} ->
 				proplists:get_value(ended, HistoryList) == undefined;
-			Else ->
+			_Else ->
 				true
 		end
 	]),
@@ -537,7 +541,19 @@ filter_row(#filter{max_age = {since, Seconds}} = Filter, Row) ->
 	filter_row(Filter#filter{max_age = Diff}, Row);
 filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, _Row) ->
 	true;
-filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, handled}}) ->
+filter_row(Filter, {{media, _Id} = Key, Time, Hp, Details, {_Direction, History}}) ->
+	Queued = proplists:get_value(queued, History),
+	Qabandoned = proplists:get_value(qabandoned, History),
+	Handled = proplists:get_value(handled, History),
+	case {Queued, Qabandoned, Handled} of
+		{undefined, undefined, undefined} ->
+			false;
+		{_, _, undefined} ->
+			filter_row(Filter, {Key, Time, Hp, Details, queued});
+		{_, _, _} ->
+			filter_row(Filter, {Key, Time, Hp, Details, handled})
+	end;
+filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, handled}) ->
 	#client{label = Client} = proplists:get_value(client, Details),
 	case list_member(Client, Filter#filter.clients) of
 		false ->
@@ -556,7 +572,7 @@ filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, handled}}) -
 					end
 			end
 	end;
-filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, {_Direction, Queued}}) when Queued =:= queued; Queued =:= qabandoned ->
+filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, queued}) ->
 	Node = proplists:get_value(node, Details),
 	case list_member(Node, Filter#filter.nodes) of
 		false ->
@@ -606,7 +622,9 @@ filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
 
 -spec(write_output/1 :: ({Nom :: string(), Filter :: #filter{}}) -> 'ok').
 write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter}) ->
-	Hourago = util:now() - 3600,
+	Now = util:now(),
+	Hourago = Now - 3600,
+	%Dayago = Now - 3600 * 24,
 	Inbound = [X || 
 		{_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, 
 		element(1, Hkey) == inbound
@@ -940,16 +958,16 @@ filter_row_test_() ->
 			label = "client2"
 		},
 		Rows = [
-			{{media, "media-c1-q1"}, 5, [], [{queue, "queue1"}, {client, Client1}], {inbound, queued}},
-			{{media, "media-c1-q2"}, 5, [], [{queue, "queue2"}, {client, Client1}], {inbound, queued}},
-			{{media, "media-c1-q3"}, 5, [], [{queue, "queue3"}, {client, Client1}], {inbound, queued}},
-			{{media, "media-c1-q4"}, 5, [], [{queue, "queue4"}, {client, Client1}], {inbound, queued}},
-			{{media, "media-c2-q1"}, 5, [], [{queue, "queue1"}, {client, Client2}], {inbound, queued}},
-			{{media, "media-c2-q2"}, 5, [], [{queue, "queue2"}, {client, Client2}], {inbound, queued}},
-			{{media, "media-c2-q3"}, 5, [], [{queue, "queue3"}, {client, Client2}], {inbound, queued}},
-			{{media, "media-c2-q4"}, 5, [], [{queue, "queue4"}, {client, Client2}], {inbound, queued}},
-			{{media, "media-c1-a1"}, 5, [], [{agent, "agent1"}, {client, Client1}], {inbound, handled}},
-			{{media, "media-c2-a2"}, 5, [], [{agent, "agent2"}, {client, Client2}], {inbound, handled}},
+			{{media, "media-c1-q1"}, 5, [], [{queue, "queue1"}, {client, Client1}], {inbound, [{queued, 5}]}},
+			{{media, "media-c1-q2"}, 5, [], [{queue, "queue2"}, {client, Client1}], {inbound, [{queued, 5}]}},
+			{{media, "media-c1-q3"}, 5, [], [{queue, "queue3"}, {client, Client1}], {inbound, [{queued, 5}]}},
+			{{media, "media-c1-q4"}, 5, [], [{queue, "queue4"}, {client, Client1}], {inbound, [{queued, 5}]}},
+			{{media, "media-c2-q1"}, 5, [], [{queue, "queue1"}, {client, Client2}], {inbound, [{queued, 5}]}},
+			{{media, "media-c2-q2"}, 5, [], [{queue, "queue2"}, {client, Client2}], {inbound, [{queued, 5}]}},
+			{{media, "media-c2-q3"}, 5, [], [{queue, "queue3"}, {client, Client2}], {inbound, [{queued, 5}]}},
+			{{media, "media-c2-q4"}, 5, [], [{queue, "queue4"}, {client, Client2}], {inbound, [{queued, 5}]}},
+			{{media, "media-c1-a1"}, 5, [], [{agent, "agent1"}, {client, Client1}], {inbound, [{queued, 5}, {handled, 6}]}},
+			{{media, "media-c2-a2"}, 5, [], [{agent, "agent2"}, {client, Client2}], {inbound, [{queued, 5}, {handled, 6}]}},
 			{{agent, "agent1"}, 5, [], [{profile, "profile1"}], undefined},
 			{{agent, "agent2"}, 5, [], [{profile, "profile2"}], undefined}
 		],
@@ -1266,7 +1284,7 @@ qlc_test_() ->
 		file:delete(?DETS),
 		ok
 	end,
-	fun({AllFilter, Client1, Client2, Getids}) ->
+	fun({AllFilter, Client1, _Client2, Getids}) ->
 		[{"get medias with a given client",
 		fun() ->
 			Out = get_client_medias(AllFilter, Client1#client.label),

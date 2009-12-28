@@ -20,7 +20,7 @@ Feature Highlights
 Participants
 ============
 
-Development is sponsored by [Fused Solutions](http://fusedsolutions.com) and the
+Development is sponsored by [Fused Solutions](http://www.fusedsolutions.com) and the
 2 main developers are:
 
 + Andrew Thompson (andrew@hijacked.us)

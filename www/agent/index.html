@@ -489,7 +489,7 @@
 				this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").COMPLETE);
 			</script>
 			<script type="dojo/connect" event="onClick">
-				console.log("Replace me with actual code");
+				Agent.warmtransfercomplete();
 			</script>
 		</button>
 		<button dojoType="dijit.form.Button" id="wtcancel" style="display:none">
@@ -502,6 +502,7 @@
 				dijit.byId('wtcancel').attr('style', 'display:none');
 				dijit.byId('wtdial').attr('style', 'display:none');
 				dijit.byId('btransfer').attr('style', 'display:inline');
+				Agent.warmtransfercancel();
 			</script>
 		</button>
 		<button dojoType="dijit.form.Button" id="bdial" style="display:none" onclick=agent.dial()>

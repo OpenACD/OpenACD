@@ -261,6 +261,42 @@ Agent.warmtransfer = function(num) {
 	});
 };
 
+Agent.warmtransfercancel = function() {
+	dojo.xhrGet({
+		url:"/warm_transfer_cancel",
+		handleAs:"json",
+		error:function(response, ioargs){
+			errMessage(["error cancelling transfer", response]);
+		},
+		load:function(response, ioargs){
+			if(response.success){
+				dojo.publish("agent/warmtransfer_cancel", [response.success]);
+			}
+			else{
+				errMessage(["failed to cancel warm transfer", response]);
+			}
+		}
+	});
+};
+
+Agent.warmtransfercomplete = function() {
+	dojo.xhrGet({
+		url:"/warm_transfer_complete",
+		handleAs:"json",
+		error:function(response, ioargs){
+			errMessage(["error completing transfer", response]);
+		},
+		load:function(response, ioargs){
+			if(response.success){
+				dojo.publish("agent/warmtransfer_complete", [response.success]);
+			}
+			else{
+				errMessage(["failed to complete warm transfer", response]);
+			}
+		}
+	});
+};
+
 Agent.queuetransfer = function(queue) {
 	dojo.xhrGet({
 		url:"/queue_transfer/" + queue,

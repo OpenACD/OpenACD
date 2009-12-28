@@ -560,6 +560,10 @@ parse_path(Path) ->
 					{api, mediapush};
 				["warm_transfer", Number] ->
 					{api, {warm_transfer, Number}};
+				["warm_transfer_complete"] ->
+					{api, warm_transfer_complete};
+				["warm_transfer_cancel"] ->
+					{api, warm_transfer_cancel};
 				["queue_transfer", Number] ->
 					{api, {queue_transfer, Number}};
 				["init_outbound", Client, Type] ->

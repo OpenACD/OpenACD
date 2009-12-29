@@ -1332,7 +1332,7 @@ init_test_() ->
 	[fun({_, _, Assertmocks}) ->
 		{"call rec returned, but no queue",
 		fun() ->
-			Args = [[{id, "dummy"}], success],
+			Args = [[{id, "dummy"}, {queues, none}], success],
 			Res = init([dummy_media, Args]),
 			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}}}, Res),
 			Assertmocks()
@@ -1371,7 +1371,7 @@ init_test_() ->
 handle_call_test_() ->
 	{foreach,
 	fun() ->
-		{ok, Seedstate} = init([dummy_media, [[], success]]),
+		{ok, Seedstate} = init([dummy_media, [[{queues, none}], success]]),
 		{ok, QMmock} = gen_leader_mock:start(queue_manager),
 		{ok, Qpid} = gen_server_mock:new(),
 		{ok, Ammock} = gen_leader_mock:start(agent_manager),
@@ -1383,7 +1383,7 @@ handle_call_test_() ->
 			gen_event_mock:assert_expectations(cdr)
 		end,
 		Makestate = fun() ->
-			{ok, #state{callrec = Callrec} = Out} = init([dummy_media, [[], success]]),
+			{ok, #state{callrec = Callrec} = Out} = init([dummy_media, [[{queues, none}], success]]),
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}), 
 			Out
 		end,
@@ -1427,7 +1427,7 @@ handle_call_test_() ->
 	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
 		{"Spy valid, callback says no",
 		fun() ->
-			{ok, Seedstate} = init([dummy_media, [[], failure]]),
+			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
 			Callrec = Seedstate#state.callrec,
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			Ocpid = dead_spawn(),
@@ -1639,7 +1639,7 @@ handle_call_test_() ->
 	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
 		{"gen_media_ring callback module fails",
 		fun() ->
-			{ok, Seedstate} = init([dummy_media, [[], failure]]),
+			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
 			Callrec = Seedstate#state.callrec,
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			#queued_call{cook = Cook} = Qcall = #queued_call{media = Callrec#call.source, id = "testcall"},
@@ -1707,7 +1707,7 @@ handle_call_test_() ->
 	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
 		{"agent transfer, callback says no",
 		fun() ->
-			{ok, Seedstate} = init([dummy_media, [[], failure]]),
+			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
 			Callrec = Seedstate#state.callrec,
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			{ok, Target} = agent:start(#agent{login = "testagent", state = idle, statedata = {}}),
@@ -1729,7 +1729,7 @@ handle_call_test_() ->
 	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
 		{"gen_media_announce",
 		fun() ->
-			{ok, #state{callrec = Call} = Seedstate} = init([dummy_media, [[], success]]),
+			{ok, #state{callrec = Call} = Seedstate} = init([dummy_media, [[{queues, none}], success]]),
 			gen_event_mock:supplant(cdr, {{cdr, Call#call.id}, []}),
 			{reply, ok, Newstate} = handle_call({'$gen_media_announce', "doesn't matter"}, "from", Seedstate),
 			?CONSOLE("~p", [Seedstate]),
@@ -1779,7 +1779,7 @@ handle_call_test_() ->
 	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
 		{"gen_media_voicemail callback says no",
 		fun() ->
-			{ok, Seedstate} = init([dummy_media, [[], failure]]),
+			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
 			#state{callrec = Call} = State = Seedstate#state{queue_pid = Qpid},
 			gen_event_mock:supplant(cdr, {{cdr, Call#call.id}, []}),
 			?assertMatch({reply, invalid, _State}, handle_call('$gen_media_voicemail', "from", State)),
@@ -1827,7 +1827,7 @@ handle_call_test_() ->
 	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
 		{"agent oncall request when both a ring pid and oncall pid are set and media path is inband, but callback says no",
 		fun() ->
-			{ok, Seedstate} = init([dummy_media, [[], failure]]),
+			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
 			Callrec = Seedstate#state.callrec,
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			{ok, Oncall} = agent:start(#agent{login = "oncall", state = oncall, statedata = Callrec}),
@@ -1878,7 +1878,7 @@ handle_call_test_() ->
 	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
 		{"oncall during transfer with outband media, but callback says no",
 		fun() ->
-			{ok, Seedstate} = init([dummy_media, [[], failure]]),
+			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
 			Seedcall = Seedstate#state.callrec,
 			gen_event_mock:supplant(cdr, {{cdr, Seedcall#call.id}, []}),
 			Callrec = Seedcall#call{ring_path = outband},
@@ -1935,7 +1935,7 @@ handle_call_test_() ->
 	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
 		{"oncall quee to agent request by agent, but callback says no",
 		fun() ->
-			{ok, Seedstate} = init([dummy_media, [[], failure]]),
+			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
 			Callrec = Seedstate#state.callrec,
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Callrec}),
@@ -1986,7 +1986,7 @@ handle_call_test_() ->
 	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
 		{"oncall queue to agent request by whoever with outband media, but callback says no",
 		fun() ->
-			{ok, Seedstate} = init([dummy_media, [[], failure]]),
+			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
 			Seedcall = Seedstate#state.callrec,
 			gen_event_mock:supplant(cdr, {{cdr, Seedcall#call.id}, []}),
 			Callrec = Seedcall#call{ring_path = outband, media_path = outband},
@@ -2018,7 +2018,7 @@ handle_call_test_() ->
 handle_info_test_() ->
 	{foreach,
 	fun() ->
-		{ok, Seedstate} = init([dummy_media, [[], success]]),
+		{ok, Seedstate} = init([dummy_media, [[{queues, none}], success]]),
 		{Seedstate}
 	end,
 	fun(_) ->

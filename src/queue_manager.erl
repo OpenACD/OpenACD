@@ -520,16 +520,16 @@ single_node_test_() ->
 					{ok, Pid2} = add_queue("goober2", [{weight, 10}]), % higher weighted queue
 					{ok, _Pid3} = add_queue("goober3"),
 					?assertMatch([], get_best_bindable_queues()),
-					{ok, Dummy1} = dummy_media:start("Call1"),
+					{ok, Dummy1} = dummy_media:start([{id, "Call1"}, {queues, none}]),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
 					?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
-					{ok, Dummy2} = dummy_media:start("Call2"),
+					{ok, Dummy2} = dummy_media:start([{id, "Call2"}, {queues, none}]),
 					?assertEqual(ok, call_queue:add(Pid2, 10, Dummy2)),
 					?assertMatch([
 							{"goober2", Pid2, {{10,_},#queued_call{id="Call2"}}, 11},
 							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}],
 						get_best_bindable_queues()),
-					{ok, Dummy3} = dummy_media:start("Call3"),
+					{ok, Dummy3} = dummy_media:start([{id, "Call3"}, {queues, none}]),
 					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy3)),
 					?assertMatch([
 							{"goober2", Pid2, {{0,_},#queued_call{id="Call3"}}, 21},
@@ -541,10 +541,10 @@ single_node_test_() ->
 					{ok, Pid} = add_queue("goober"),
 					{ok, Pid2} = add_queue("goober2"),
 					?assertMatch([], get_best_bindable_queues()),
-					{ok, Dummy1} = dummy_media:start("Call1"),
+					{ok, Dummy1} = dummy_media:start([{id, "Call1"}, {queues, none}]),
 					?assertEqual(ok, call_queue:add(Pid, 10, Dummy1)),
 					?assertMatch([{"goober", Pid, {{10,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
-					{ok, Dummy2} = dummy_media:start("Call2"),
+					{ok, Dummy2} = dummy_media:start([{id, "Call2"}, {queues, none}]),
 					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy2)), % higher priority
 					?assertMatch([
 							{"goober2", Pid2, {{0,_},#queued_call{id="Call2"}}, ?DEFAULT_WEIGHT+1},
@@ -556,10 +556,10 @@ single_node_test_() ->
 					{ok, Pid2} = add_queue("goober2"),
 					{ok, Pid} = add_queue("goober"),
 					?assertMatch([], get_best_bindable_queues()),
-					{ok, Dummy1} = dummy_media:start("Call1"),
+					{ok, Dummy1} = dummy_media:start([{id, "Call1"}, {queues, none}]),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
 					?assertMatch([{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], get_best_bindable_queues()),
-					{ok, Dummy2} = dummy_media:start("Call2"),
+					{ok, Dummy2} = dummy_media:start([{id, "Call2"}, {queues, none}]),
 					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy2)),
 					?assertMatch([
 							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT+1},
@@ -720,7 +720,7 @@ multi_node_test_() ->
 			},{
 				"Best bindable queues with failed master", fun() ->
 					{ok, Pid} = rpc:call(Slave, ?MODULE, add_queue, ["queue2", []]),
-					{ok, Dummy1} = rpc:call(Slave, dummy_media, start, ["Call1"]),
+					{ok, Dummy1} = rpc:call(Slave, dummy_media, start, [[{id, "Call1"}, {queues, none}]]),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
 					slave:stop(Master),
 					?assertMatch([{"queue2", Pid, {_, #queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], rpc:call(Slave, ?MODULE, get_best_bindable_queues, []))

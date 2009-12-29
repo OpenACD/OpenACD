@@ -88,6 +88,7 @@
 	callrec = #call{} :: #call{},
 	life_timer = undefined :: any(),
 	%mode = success :: 'success' | 'failure' | 'fail_once',
+	mediaload :: 'undefined' | 'mediaload',
 	fail = dict:new() :: dict()
 	}).
 
@@ -214,11 +215,18 @@ init([Props, Fails]) ->
 			{ok, Timer} = timer:send_after(Number * 1000, <<"hagurk">>),
 			Timer
 	end,
+	Mediaload = proplists:get_value(mediaload, Props),
+	Basestate = #state{
+		callrec = Callrec,
+		fail = dict:from_list(Newfail),
+		life_timer = Life,
+		mediaload = Mediaload
+	},
 	case proplists:get_value(queues, Props) of
 		undefined ->
-			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, Callrec}};
+			{ok, {Basestate, Callrec}};
 		[Q] ->
-			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, {Q, Callrec}}};
+			{ok, {Basestate, {Q, Callrec}}};
 		any ->
 			QF = fun() ->
 				QH = qlc:q([Queue#call_queue.name || Queue <- mnesia:table(call_queue)]),
@@ -227,11 +235,11 @@ init([Props, Fails]) ->
 			{atomic, Qs} = mnesia:transaction(QF),
 			Index = crypto:rand_uniform(1, length(Qs) + 1),
 			Q = lists:nth(Index, Qs),
-			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, {Q, Callrec}}};
+			{ok, {Basestate, {Q, Callrec}}};
 		List ->
 			Index = crypto:rand_uniform(1, length(List) + 1),
 			Q = lists:nth(Index, List),
-			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, {Q, Callrec}}}
+			{ok, {Basestate, {Q, Callrec}}}
 	end.
 
 	
@@ -399,10 +407,16 @@ code_change(_OldVsn, _Callrec, State, _Extra) ->
 handle_announce(_Annouce, _Callrec, State) ->
 	{ok, State}.
 
-handle_answer(_Agent, _Call, #state{fail = Fail} = State) ->
+handle_answer(Agent, Call, #state{fail = Fail} = State) ->
 	case dict:fetch(oncall, Fail) of
 		success ->
 			%agent:set_state(Agent, oncall, Call),
+			case State#state.mediaload of
+				true ->
+					agent:conn_cast(Agent, {mediaload, Call});
+				_ ->
+					ok
+			end,
 			{ok, State};
 		fail ->
 			{error, dummy_fail, State};

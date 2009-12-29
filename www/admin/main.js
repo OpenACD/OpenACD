@@ -367,6 +367,8 @@ dojo.addOnLoad(function(){
 									medias.refreshTree('mediaList');
 									clients.init();
 									releaseOpts.init();
+									dojo.byId("loginerrspan").innerHTML = '';
+									dojo.byId('loginerrp').style.display = 'none';
 								} else {
 									dojo.byId("loginerrp").style.display = "block";
 									dojo.byId("loginerrspan").innerHTML = response2.message;

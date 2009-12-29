@@ -7,5 +7,8 @@
  * default on port 5050, you can login to that using the administrator *
  * credential or the other default account of agent/Password123        *
  *                                                                     *
+ * In the shell, you can get a list of helpful commands by running     *
+ * cpx:help().                                                         *
+ *                                                                     *
  * Thank you for trying OpenACD.                                       *
  ***********************************************************************

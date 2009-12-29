@@ -86,7 +86,7 @@
 	handle_call/4, 
 	handle_cast/3, 
 	handle_info/3,
-	handle_warm_transfer_begin/5,
+	handle_warm_transfer_begin/3,
 	handle_warm_transfer_cancel/2,
 	handle_warm_transfer_complete/2,
 	terminate/3,
@@ -288,12 +288,65 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 			{error, Error, State}
 	end.
 
--spec(handle_warm_transfer_begin/5 :: (Number :: pos_integer(), AgentPid :: pid(), AgentState :: #agent{}, Call :: #call{}, State :: #state{}) -> {'ok', string(), #state{}} | {'error', string(), #state{}}).
-handle_warm_transfer_begin(Number, AgentPid, AgentState, Call, #state{agent_pid = AgentPid, cnode = Node, ringchannel = undefined} = State) when is_pid(AgentPid) ->
-	% ring channel is not around, the first warm transfer attempt failed, presumably
-	% TODO ring channel init goes here
-	{error, "NYI", State};
-handle_warm_transfer_begin(Number, AgentPid, AgentState, Call, #state{agent_pid = AgentPid, cnode = Node} = State) when is_pid(AgentPid) ->
+-spec(handle_warm_transfer_begin/3 :: (Number :: pos_integer(), Call :: #call{}, State :: #state{}) -> {'ok', string(), #state{}} | {'error', string(), #state{}}).
+handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = Node, ringchannel = undefined} = State) when is_pid(AgentPid) ->
+	case freeswitch:api(Node, create_uuid) of
+		{ok, NewUUID} ->
+			?NOTICE("warmxfer UUID is ~p", [NewUUID]),
+			Self = self(),
+			F = fun(RingUUID) ->
+					fun(ok, _Reply) ->
+							Client = Call#call.client,
+							CalleridArgs = case proplists:get_value(<<"callerid">>, Client#client.options) of
+								undefined ->
+									"origination_privacy=hide_namehide_number";
+								CalleridNum ->
+									"effective_caller_id_name="++Client#client.label++",effective_caller_id_name="++CalleridNum
+							end,
+							freeswitch:sendmsg(Node, RingUUID,
+								[{"call-command", "execute"},
+									{"execute-app-name", "bridge"},
+									{"execute-app-arg",
+										lists:flatten(io_lib:format("[ignore_early_media=true,origination_uuid=~s,~s]sofia/gateway/hebon.fusedsolutions.com/~s",
+												[NewUUID, CalleridArgs, Number]))}]),
+							Self ! {connect_uuid, Number};
+						(error, Reply) ->
+							?WARNING("originate failed: ~p", [Reply]),
+							ok
+					end
+			end,
+			F2 = fun(_RingUUID, EventName, _Event) ->
+					case EventName of
+						"CHANNEL_BRIDGE" ->
+							%agent:media_push(AgentPid, warm_transfer_succeeded),
+							case cpx_supervisor:get_archive_path(Call) of
+								none ->
+									?DEBUG("archiving is not configured", []);
+								{error, _Reason, Path} ->
+									?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
+								Path ->
+									?DEBUG("archiving to ~s.wav", [Path]),
+									%freeswitch:api(Fnode, uuid_record, Call#call.id ++ " start "++Path++".wav")
+									ok
+							end;
+						_ ->
+							ok
+					end,
+					true
+			end,
+
+			AgentState = agent:dump_state(AgentPid),
+
+			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [{eventfun, F2}]) of
+				{ok, Pid} ->
+					link(Pid),
+					{ok, NewUUID, State#state{ringchannel = Pid, warm_transfer_uuid = NewUUID}};
+				{error, Error} ->
+					?ERROR("error:  ~p", [Error]),
+					{error, Error, State}
+			end
+		end;
+handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = Node} = State) when is_pid(AgentPid) ->
 	case freeswitch:api(Node, create_uuid) of
 		{ok, NewUUID} ->
 			?NOTICE("warmxfer UUID is ~p", [NewUUID]),
@@ -310,9 +363,9 @@ handle_warm_transfer_begin(Number, AgentPid, AgentState, Call, #state{agent_pid 
 			?ERROR("bgapi call failed ~p", [Else]),
 			{error, "create_uuid failed", State}
 	end;
-handle_warm_transfer_begin(_Number, _AgentPid, _AgentState, _Call, #state{agent_pid = AgentPid} = State) ->
+handle_warm_transfer_begin(_Number, _Call, #state{agent_pid = AgentPid} = State) ->
 	?WARNING("wtf?! agent pid is ~p", [AgentPid]),
-	{error, "error: no agent bridged to this call~n", State}.
+	{error, "error: no agent bridged to this call", State}.
 
 -spec(handle_warm_transfer_cancel/2 :: (Call :: #call{}, State :: #state{}) -> 'ok' | {'error', string(), #state{}}).
 handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, ringchannel = Ring} = State) when is_list(WUUID), is_pid(Ring) ->

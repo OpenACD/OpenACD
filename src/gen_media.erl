@@ -294,7 +294,7 @@
 	stop_ringing/1,
 	oncall/1,
 	agent_transfer/3,
-	warm_transfer_begin/4,
+	warm_transfer_begin/2,
 	warm_transfer_cancel/1,
 	warm_transfer_complete/1,
 	queue/2,
@@ -398,9 +398,9 @@ oncall(Genmedia) ->
 agent_transfer(Genmedia, Apid, Timeout) ->
 	gen_server:call(Genmedia, {'$gen_media_agent_transfer', Apid, Timeout}).
 
--spec(warm_transfer_begin/4 :: (Genmedia :: pid(), Number :: string(), Apid :: pid(), Astate :: #agent{}) -> {'ok', string()} | 'invalid').
-warm_transfer_begin(Genmedia, Number, Apid, Astate) ->
-	gen_server:call(Genmedia, {'$gen_media_warm_transfer_begin', Number, Apid, Astate}).
+-spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> {'ok', string()} | 'invalid').
+warm_transfer_begin(Genmedia, Number) ->
+	gen_server:call(Genmedia, {'$gen_media_warm_transfer_begin', Number}).
 
 -spec(warm_transfer_cancel/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 warm_transfer_cancel(Genmedia) ->
@@ -649,12 +649,13 @@ handle_call({'$gen_media_agent_transfer', Apid, Timeout}, _From, #state{callback
 handle_call({'$gen_media_agent_transfer', _Apid, _Timeout}, _From, State) ->
 	?ERROR("Invalid agent transfer sent when state is ~p.", [State]),
 	{reply, invalid, State};
-handle_call({'$gen_media_warm_transfer_begin', Number, Apid, Astate}, _From, #state{callback = Callback, oncall_pid = Apid} = State) when is_pid(Apid) ->
-	case erlang:function_exported(Callback, handle_warm_transfer_begin, 5) of
+handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback, oncall_pid = Apid} = State) when is_pid(Apid) ->
+	case erlang:function_exported(Callback, handle_warm_transfer_begin, 3) of
 		true ->
-			case Callback:handle_warm_transfer_begin(Number, Apid, Astate, State#state.callrec, State#state.substate) of
+			case Callback:handle_warm_transfer_begin(Number, State#state.callrec, State#state.substate) of
 				{ok, UUID, NewState} ->
-					{reply, {ok, UUID}, State#state{substate = NewState, warm_transfer = true}};
+					Res = agent:set_state(Apid, warmtransfer, {onhold, State#state.callrec, calling, UUID}),
+					{reply, Res, State#state{substate = NewState, warm_transfer = true}};
 				{error, Error, NewState} ->
 					?DEBUG("Callback module ~w errored for warm transfer begin:  ~p", [Callback, Error]),
 					{reply, invalid, State#state{substate = NewState}}
@@ -667,7 +668,8 @@ handle_call('$gen_media_warm_transfer_cancel', _From, #state{callback = Callback
 		true ->
 			case Callback:handle_warm_transfer_cancel(State#state.callrec, State#state.substate) of
 				{ok, NewState} ->
-					{reply, ok, State#state{substate = NewState}};
+					Res = agent:set_state(Apid, oncall, State#state.callrec),
+					{reply, Res, State#state{substate = NewState}};
 				{error, Error, NewState} ->
 					?DEBUG("Callback module ~w errored for warm transfer cancel:  ~p", [Callback, Error]),
 					{reply, invalid, State#state{substate = NewState}}
@@ -680,7 +682,8 @@ handle_call('$gen_media_warm_transfer_complete', _From, #state{callback = Callba
 		true ->
 			case Callback:handle_warm_transfer_complete(State#state.callrec, State#state.substate) of
 				{ok, NewState} ->
-					{reply, ok, State#state{substate = NewState}};
+					Res = agent:set_state(Apid, wrapup, State#state.callrec),
+					{reply, Res, State#state{substate = NewState}};
 				{error, Error, NewState} ->
 					?DEBUG("Callback module ~w errored for warm transfer complete:  ~p", [Callback, Error]),
 					{reply, invalid, State#state{substate = NewState}}

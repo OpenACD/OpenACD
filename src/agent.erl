@@ -104,9 +104,9 @@
 	url_pop/3,
 	blab/2,
 	spy/2,
-	warm_transfer_begin/2,
-	warm_transfer_cancel/1,
-	warm_transfer_complete/1,
+	%warm_transfer_begin/2,
+	%warm_transfer_cancel/1,
+	%warm_transfer_complete/1,
 	register_rejected/1,
 	log_loop/4]).
 
@@ -315,20 +315,20 @@ queue_transfer(Pid, Queue) ->
 	gen_fsm:sync_send_event(Pid, {queue_transfer, Queue}).
 
 
-%% @doc Start the warm_transfer procedure.  Gernally the media will handle it from here.
--spec(warm_transfer_begin/2 :: (Pid :: pid(), Target :: string()) -> 'ok' | 'invalid').
-warm_transfer_begin(Pid, Target) ->
-	gen_fsm:sync_send_event(Pid, {warm_transfer_begin, Target}).
+%% @_doc Start the warm_transfer procedure.  Gernally the media will handle it from here.
+%-spec(warm_transfer_begin/2 :: (Pid :: pid(), Target :: string()) -> 'ok' | 'invalid').
+%warm_transfer_begin(Pid, Target) ->
+	%gen_fsm:sync_send_event(Pid, {warm_transfer_begin, Target}).
 
-%% @doc Cancel the warm_transfer procedure.  Gernally the media will handle it from here.
--spec(warm_transfer_cancel/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
-warm_transfer_cancel(Pid) ->
-	gen_fsm:sync_send_event(Pid, warm_transfer_cancel).
+%% @_doc Cancel the warm_transfer procedure.  Gernally the media will handle it from here.
+%-spec(warm_transfer_cancel/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
+%warm_transfer_cancel(Pid) ->
+	%gen_fsm:sync_send_event(Pid, warm_transfer_cancel).
 
-%% @doc Complete the warm_transfer procedure.  Gernally the media will handle it from here.
--spec(warm_transfer_complete/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
-warm_transfer_complete(Pid) ->
-	gen_fsm:sync_send_event(Pid, warm_transfer_complete).
+%% @_doc Complete the warm_transfer procedure.  Gernally the media will handle it from here.
+%-spec(warm_transfer_complete/1 :: (Pid :: pid()) -> 'ok' | 'invalid').
+%warm_transfer_complete(Pid) ->
+	%gen_fsm:sync_send_event(Pid, warm_transfer_complete).
 
 %% @doc Translate the integer `Int' to the corresponding internally used atom.
 -spec(integer_to_state/1 :: (Int :: 2) -> 'idle';
@@ -566,15 +566,15 @@ oncall({queue_transfer, Queue}, _From, #agent{statedata = Call} = State) ->
 	Newstate = State#agent{state=wrapup, oldstate=State#agent.state, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, Reply, wrapup, Newstate};
-oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
-	case gen_media:warm_transfer_begin(Call#call.source, Number, self(), State) of
-		{ok, UUID} ->
-			gen_server:cast(State#agent.connection, {change_state, warmtransfer, UUID}),
-			set_cpx_monitor(State#agent{state = warmtransfer}, ?WARMTRANSFER_LIMITS, []),
-			{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, UUID}, lastchange = util:now()}};
-		_ ->
-			{reply, invalid, oncall, State}
-	end;
+%oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
+	%case gen_media:warm_transfer_begin(Call#call.source, Number, self(), State) of
+		%{ok, UUID} ->
+			%gen_server:cast(State#agent.connection, {change_state, warmtransfer, UUID}),
+			%set_cpx_monitor(State#agent{state = warmtransfer}, ?WARMTRANSFER_LIMITS, []),
+			%{reply, ok, warmtransfer, State#agent{state=warmtransfer, statedata={onhold, State#agent.statedata, calling, UUID}, lastchange = util:now()}};
+		%_ ->
+			%{reply, invalid, oncall, State}
+	%end;
 oncall(get_media, _From, #agent{statedata = Media} = State) when is_record(Media, call) ->
 	{reply, {ok, Media}, oncall, State};
 oncall({conn_call, Request}, {Pid, _Tag}, #agent{statedata = Media} = State) ->
@@ -781,33 +781,37 @@ warmtransfer({outgoing, Call}, _From, State) ->
 	Newstate = State#agent{state=outgoing, oldstate=warmtransfer, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, outgoing, Newstate};
-warmtransfer({warm_transfer_begin, Number}, _From, #agent{statedata = {onhold, Call, calling, _Call}} = State) ->
-	case gen_media:warm_transfer_begin(Call#call.source, Number, self(), State) of
-		{ok, UUID} ->
-			{reply, ok, warmtransfer, State#agent{statedata={onhold, State#agent.statedata, calling, UUID}}};
-		_ ->
-			{reply, invalid, warmtransfer, State}
-	end;
-warmtransfer(warm_transfer_cancel, _From, #agent{statedata = {onhold, Onhold, calling, _Calling}} = State) ->
-	case gen_media:warm_transfer_cancel(Onhold#call.source) of
-		ok ->
-			NewState = State#agent{state=oncall, oldstate=warmtransfer, statedata=Onhold, lastchange = util:now()},
-			gen_server:cast(State#agent.connection, {change_state, oncall, Onhold}),
-			set_cpx_monitor(NewState, ?ONCALL_LIMITS, []),
-			{reply, ok, oncall, NewState};
-		_ ->
-			{reply, invalid, warmtransfer, State}
-	end;
-warmtransfer(warm_transfer_complete, _From, #agent{statedata = {onhold, Onhold, calling, _Calling}} = State) ->
-	case gen_media:warm_transfer_complete(Onhold#call.source) of
-		ok ->
-			NewState = State#agent{state=wrapup, oldstate=warmtransfer, statedata=Onhold, lastchange = util:now()},
-			gen_server:cast(State#agent.connection, {change_state, wrapup, Onhold}),
-			set_cpx_monitor(NewState, ?WRAPUP_LIMITS, []),
-			{reply, ok, wrapup, NewState};
-		_ ->
-			{reply, invalid, warmtransfer, State}
-	end;
+warmtransfer({warmtransfer, {onhold, Call, calling, UUID} = Statedata}, _From, State) ->
+	Newstate = State#agent{statedata = Statedata},
+	% TODO - cpx_monitor update needed?
+	{reply, ok, warmtransfer, Newstate};
+%warmtransfer({warm_transfer_begin, Number}, _From, #agent{statedata = {onhold, Call, calling, _Call}} = State) ->
+	%case gen_media:warm_transfer_begin(Call#call.source, Number, self(), State) of
+		%{ok, UUID} ->
+			%{reply, ok, warmtransfer, State#agent{statedata={onhold, State#agent.statedata, calling, UUID}}};
+		%_ ->
+			%{reply, invalid, warmtransfer, State}
+	%end;
+%warmtransfer(warm_transfer_cancel, _From, #agent{statedata = {onhold, Onhold, calling, _Calling}} = State) ->
+	%case gen_media:warm_transfer_cancel(Onhold#call.source) of
+		%ok ->
+			%NewState = State#agent{state=oncall, oldstate=warmtransfer, statedata=Onhold, lastchange = util:now()},
+			%gen_server:cast(State#agent.connection, {change_state, oncall, Onhold}),
+			%set_cpx_monitor(NewState, ?ONCALL_LIMITS, []),
+			%{reply, ok, oncall, NewState};
+		%_ ->
+			%{reply, invalid, warmtransfer, State}
+	%end;
+%warmtransfer(warm_transfer_complete, _From, #agent{statedata = {onhold, Onhold, calling, _Calling}} = State) ->
+	%case gen_media:warm_transfer_complete(Onhold#call.source) of
+		%ok ->
+			%NewState = State#agent{state=wrapup, oldstate=warmtransfer, statedata=Onhold, lastchange = util:now()},
+			%gen_server:cast(State#agent.connection, {change_state, wrapup, Onhold}),
+			%set_cpx_monitor(NewState, ?WRAPUP_LIMITS, []),
+			%{reply, ok, wrapup, NewState};
+		%_ ->
+			%{reply, invalid, warmtransfer, State}
+	%end;
 warmtransfer(_Event, _From, State) ->
 	{reply, invalid, warmtransfer, State}.
 

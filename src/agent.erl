@@ -1358,7 +1358,7 @@ from_ringing_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
-		{ok, Mpid} = dummy_media:start("testcall"),
+		{ok, Mpid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 		{ok, Logpid} = gen_server_mock:new(),
 		ProtoCallrec = gen_media:get_call(Mpid),
 		exit(Mpid, kill),
@@ -2613,7 +2613,7 @@ handle_conn_exit_inband_test_() ->
 handle_conn_exit_outband_test_() ->
 	{foreach,
 	fun() ->
-		{ok, Callpid} = dummy_media:start("test"),
+		{ok, Callpid} = dummy_media:start([{id, "test"}, {queues, none}]),
 		Callrec = #call{id = "test", source = Callpid, media_path = outband},
 		{#agent{login = "test", connection = self()}, self(), Callpid, Callrec}
 	end,

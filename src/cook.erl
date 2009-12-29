@@ -1384,10 +1384,6 @@ multinode_test_() ->
 			end
 		]
 	}.
-
-
-
-
 	
 -define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start([{id, "testcall"}, {queues, none}]), {ok, Pid} = start(Dummy,[{[{ticks, 1}], set_priority, 5, run_once}], "testqueue", {1, now()}), {Pid, fun() -> stop(Pid) end} end).
 

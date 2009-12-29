@@ -267,7 +267,7 @@ random_test() ->
 	PCalls = [Call || N <- [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], Call <- ["C" ++ integer_to_list(N)]],
 	?debugFmt("PCalls:  ~p", [PCalls]),
 	F = fun(Callrec) -> 
-		{ok, Mpid} = dummy_media:start(Callrec),
+		{ok, Mpid} = dummy_media:start([{id, Callrec}, {queues, none}]),
 		Mpid
 	end,
 	Mediapids = lists:map(F, PCalls),
@@ -357,7 +357,7 @@ grab_test_() ->
 					{ok, Pid} = start(),
 					PCalls = [Call || N <- [1, 2, 3], Call <- ["C" ++ integer_to_list(N)]],
 					F = fun(Callrec) -> 
-						{ok, Mpid} = dummy_media:start(Callrec),
+						{ok, Mpid} = dummy_media:start([{id, Callrec}, {queues, none}]),
 						Mpid
 					end,
 					Calls = lists:map(F, PCalls),
@@ -383,7 +383,7 @@ grab_test_() ->
 			fun([Pid1, _Pid2, _Pid3]) ->
 				{"Regrabbing with no other calls",
 				fun() ->
-					{ok, MPid} = dummy_media:start("testcall"),
+					{ok, MPid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 					call_queue:add(Pid1, MPid),
 					{ok, DPid} = dispatcher:start(),
 					Queuedcall = dispatcher:bound_call(DPid),
@@ -394,8 +394,8 @@ grab_test_() ->
 			fun([Pid1, Pid2, _Pid3]) ->
 				{"Regrabbing with a call in another queue",
 				fun() ->
-					{ok, MPid1} = dummy_media:start("C1"),
-					{ok, MPid2} = dummy_media:start("C2"),
+					{ok, MPid1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+					{ok, MPid2} = dummy_media:start([{id, "C2"}, {queues, none}]),
 					call_queue:add(Pid1, MPid1),
 					call_queue:add(Pid2, MPid2),
 					{ok, DPid} = dispatcher:start(),
@@ -409,8 +409,8 @@ grab_test_() ->
 			fun([Pid1, _Pid2, _Pid3]) ->
 				{"Regrabbing with a call in the same queue",
 				fun() ->
-					{ok, MPid1} = dummy_media:start("C1"),
-					{ok, MPid2} = dummy_media:start("C2"),
+					{ok, MPid1} = dummy_media:start([{id, "C1"}, {queues, none}]),
+					{ok, MPid2} = dummy_media:start([{id, "C2"}, {queues, none}]),
 					call_queue:add(Pid1, MPid1),
 					call_queue:add(Pid1, MPid2),
 					{ok, DPid} = dispatcher:start(),

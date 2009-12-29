@@ -100,7 +100,7 @@
 %%====================================================================
 %% API
 %%====================================================================
--type(queue_option() :: {'queues', 'any' | [string()]}).
+-type(queue_option() :: {'queues', 'any' | [string()] | 'none'}).
 -type(life_option() :: {'max_flie', pos_integer()}).
 -type(mediaload_option() :: 'mediaload').
 -type(id_option() :: {'id', string()}).
@@ -270,8 +270,8 @@ init([Props, Fails]) ->
 		life_timer = Life,
 		mediaload = Mediaload
 	},
-	case proplists:get_value(queues, Props) of
-		undefined ->
+	case proplists:get_value(queues, Props, any) of
+		none ->
 			{ok, {Basestate, Callrec}};
 		[Q] ->
 			{ok, {Basestate, {Q, Callrec}}};
@@ -565,13 +565,13 @@ dummy_test_() ->
 		{
 			"Simple start",
 			fun() -> 
-				?assertMatch({ok, _Pid}, dummy_media:start())
+				?assertMatch({ok, _Pid}, dummy_media:start([{queues, none}]))
 			end
 		},
 		{
 			"Set agent ringing when set to success",
 			fun() -> 
-				{ok, {State, _Call}} = init([[], success]),
+				{ok, {State, _Call}} = init([[{queues, none}], success]),
 				?assertEqual({ok, State}, handle_ring("apid", "callrec", State))
 			end
 		},
@@ -580,14 +580,14 @@ dummy_test_() ->
 			fun() -> 
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
-				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}], failure),
 				?assertMatch(invalid, gen_media:ring(Dummypid, Agentpid, #queued_call{media=Dummypid, id = "testcall"}, 4000))
 			end
 		},
 		{
 			"Get call when set to success",
 			fun() -> 
-				{ok, Dummypid} = dummy_media:start([{id, "testcall"}]),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 				Call = gen_media:get_call(Dummypid),
 				?assertMatch("testcall", Call#call.id)
 			end
@@ -603,49 +603,49 @@ dummy_test_() ->
 		{
 			"Start cook when set to success",
 			fun() -> 
-				{ok, Dummypid} = dummy_media:start([{id, "testcall"}]),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 				?assertMatch(ok, gen_media:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
 			end
 		},
 		{
 			"Start cook when set to fail",
 			fun() -> 
-				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}], failure),
 				?assertMatch(invalid, gen_media:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
 			end
 		},
 		{
 			"Answer voicemail call when set to success",
 			fun() ->
-				{ok, {State, _Call}} = init([[], success]),
+				{ok, {State, _Call}} = init([[{queues, none}], success]),
 				?assertMatch({ok, State}, handle_voicemail("doesn't matter", "doesn't matter", State))
 			end
 		},
 		{
 			"Answer voicemail call when set to fail",
 			fun() ->
-				{ok, {State, _Call}} = init([[], failure]),
+				{ok, {State, _Call}} = init([[{queues, none}], failure]),
 				?assertMatch({invalid, State}, handle_voicemail("doesn't matter", "doesn't matter", State))
 			end
 		},
 		{
 			"Announce when set for success",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start("testcall"),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 				?assertMatch(ok, gen_media:announce(Dummypid, "Random data"))
 			end
 		},
 		{
 			"Announce when set to fail",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}], failure),
 				?assertMatch(ok, gen_media:announce(Dummypid, "Random data"))
 			end
 		},
 		{
 			"Set to die",
 			fun() ->
-				{ok, {_State, _Call}} = init([[{max_life, 1}], success]),
+				{ok, {_State, _Call}} = init([[{max_life, 1}, {queues, none}], success]),
 				receive
 					<<"hagurk">> ->
 						 ?assert(true)

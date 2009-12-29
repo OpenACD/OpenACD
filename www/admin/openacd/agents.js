@@ -174,11 +174,11 @@ agents.updateAgent = function(subform, node){
 
 agents.newAgent = function(subform, node){
 	var values = dijit.byId(subform).getValues();
-	values.skills = dijit.byId(subform).skills.getValues();
+	values.skills = dijit.byId(subform).domNode.skills.getValues();
 	agents.store.fetchItemByIdentity({
 		identity:values.profile,
 		onItem:function(item, req){
-			values.profile = item.name[0];
+			values.profile = agents.store.getValue(item, 'name');
 		}
 	});
 	dojo.xhrPost({

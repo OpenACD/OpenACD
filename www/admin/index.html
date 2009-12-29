@@ -213,9 +213,14 @@ dojo.requireLocalization("admin", "labels");
 					</script>
 					<script type="dojo/connect" event="onClick">
 						dijit.byId('editAgent').reset();
+						var callback = function(node){
+							node.name = 'skills';
+							dojo.place(node, dojo.byId('agentSkills'), 'only');
+						};
+						skills.createSelect(callback, [], ['_brand', '_queue'], ['_queue', '_brand']);
 						dijit.byId('agentSubmit').onClick = function(){
 							agents.newAgent('editAgent', 'agentsList');
-						}
+						};
 						dijit.byId('agentsMain').selectChild('agentEditor');
 					</script>
 				</button>
@@ -462,7 +467,7 @@ dojo.requireLocalization("admin", "labels");
 					<div dojoType="dojo.data.ItemFileReadStore" id="agentStore"
 						jsId="agentStore">
 					</div>
-					<input dojoType="dijit.form.FilteringSelect" id="agentProfile" name="profile" store="agentStore" value="Default" searchAttr="name" query="{'type':'profile'}">
+					<input dojoType="dijit.form.FilteringSelect" id="agentProfile" name="profile" store="agentStore" value="" searchAttr="name" query="{'type':'profile'}">
 					<script type="dojo/method" event="postCreate">
 						this.store = agents.store;
 					</script>

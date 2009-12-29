@@ -292,7 +292,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 handle_warm_transfer_begin(Number, AgentPid, AgentState, Call, #state{agent_pid = AgentPid, cnode = Node, ringchannel = undefined} = State) when is_pid(AgentPid) ->
 	% ring channel is not around, the first warm transfer attempt failed, presumably
 	% TODO ring channel init goes here
-	{ok, Call#call.id, State};
+	{error, "NYI", State};
 handle_warm_transfer_begin(Number, AgentPid, AgentState, Call, #state{agent_pid = AgentPid, cnode = Node} = State) when is_pid(AgentPid) ->
 	case freeswitch:api(Node, create_uuid) of
 		{ok, NewUUID} ->
@@ -315,21 +315,26 @@ handle_warm_transfer_begin(_Number, _AgentPid, _AgentState, _Call, #state{agent_
 	{error, "error: no agent bridged to this call~n", State}.
 
 -spec(handle_warm_transfer_cancel/2 :: (Call :: #call{}, State :: #state{}) -> 'ok' | {'error', string(), #state{}}).
-handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node} = State) when is_list(WUUID) ->
-	freeswitch:bgapi(Node, uuid_kill, WUUID),
-	% TODO - send caller back to agent
+handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, ringchannel = Ring} = State) when is_list(WUUID), is_pid(Ring) ->
+	RUUID = freeswitch_ring:get_uuid(Ring),
+	?INFO("intercepting ~s from channel ~s", [RUUID, Call#call.id]),
+	freeswitch:sendmsg(State#state.cnode, RUUID,
+		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
 	{ok, State};
+handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, ringchannel = Ring} = State) when is_list(WUUID) ->
+	% No ring channel, have to start a new one that bridges back to the caller
+	{error, "NYI", State};
 handle_warm_transfer_cancel(_Call, State) ->
-	{error, "NYI", State}.
+	{error, "Not in warm transfer", State}.
 
 -spec(handle_warm_transfer_complete/2 :: (Call :: #call{}, State :: #state{}) -> 'ok' | {'error', string(), #state{}}).
 handle_warm_transfer_complete(Call, #state{warm_transfer_uuid = WUUID, cnode = Node} = State) when is_list(WUUID) ->
 	?INFO("intercepting ~s from channel ~s", [WUUID, Call#call.id]),
 	freeswitch:sendmsg(State#state.cnode, WUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
-		{ok, State};
+	{ok, State};
 handle_warm_transfer_complete(_Call, State) ->
-	{error, "NYI", State}.
+	{error, "Not in warm transfer", State}.
 
 handle_wrapup(_Call, State) ->
 	% This intentionally left blank; media is out of band, so there's
@@ -423,7 +428,7 @@ handle_info(check_recovery, Call, State) ->
 handle_info({'EXIT', Pid, Reason}, _Call, #state{xferchannel = Pid} = State) ->
 	?WARNING("Handling transfer channel ~w exit ~p", [Pid, Reason]),
 	{stop_ring, State#state{ringchannel = undefined}};
-handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when W =/= undefined ->
+handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
 	?WARNING("Handling ring channel ~w exit ~p while in warm transfer", [Pid, Reason]),
 	agent:media_push(State#state.agent_pid, warm_transfer_failed),
 	{noreply, State#state{ringchannel = undefined}};

@@ -781,6 +781,13 @@ warmtransfer({outgoing, Call}, _From, State) ->
 	Newstate = State#agent{state=outgoing, oldstate=warmtransfer, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, outgoing, Newstate};
+warmtransfer({warm_transfer_begin, Number}, _From, #agent{statedata = {onhold, Call, calling, _Call}} = State) ->
+	case gen_media:warm_transfer_begin(Call#call.source, Number, self(), State) of
+		{ok, UUID} ->
+			{reply, ok, warmtransfer, State#agent{statedata={onhold, State#agent.statedata, calling, UUID}}};
+		_ ->
+			{reply, invalid, warmtransfer, State}
+	end;
 warmtransfer(warm_transfer_cancel, _From, #agent{statedata = {onhold, Onhold, calling, _Calling}} = State) ->
 	case gen_media:warm_transfer_cancel(Onhold#call.source) of
 		ok ->

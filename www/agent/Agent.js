@@ -193,7 +193,7 @@ Agent.prototype.dial = function() {
 				if (response.success) {
 					debug(["success for dial", response]);
 				} else {
-					errMessage(["failure for dial", response]);
+					errMessage(["failure for dial", response.message]);
 				}
 			}
 		});
@@ -212,7 +212,7 @@ Agent.prototype.mediaPush = function(data){
 				if(response.success){
 					info(["media push success", response]);
 				} else{
-					errMessage(["media push failed", response]);
+					errMessage(["media push failed", response.message]);
 				}
 			},
 			content:{
@@ -237,7 +237,7 @@ Agent.transfer = function(aname) {
 				dojo.publish("agent/transfer", [response.success]);
 			}
 			else{
-				errMessage(["failed to ring to 2nd agent", response]);
+				errMessage(["failed to ring to 2nd agent", response.message]);
 			}
 		}
 	});
@@ -255,7 +255,7 @@ Agent.warmtransfer = function(num) {
 				dojo.publish("agent/warmtransfer", [response.success]);
 			}
 			else{
-				errMessage(["failed to initiate warm transfer", response]);
+				errMessage(["failed to initiate warm transfer", response.message]);
 			}
 		}
 	});
@@ -273,7 +273,7 @@ Agent.warmtransfercancel = function() {
 				dojo.publish("agent/warmtransfer_cancel", [response.success]);
 			}
 			else{
-				errMessage(["failed to cancel warm transfer", response]);
+				errMessage(["failed to cancel warm transfer", response.message]);
 			}
 		}
 	});
@@ -291,7 +291,7 @@ Agent.warmtransfercomplete = function() {
 				dojo.publish("agent/warmtransfer_complete", [response.success]);
 			}
 			else{
-				errMessage(["failed to complete warm transfer", response]);
+				errMessage(["failed to complete warm transfer", response.message]);
 			}
 		}
 	});
@@ -309,7 +309,7 @@ Agent.queuetransfer = function(queue) {
 				dojo.publish("agent/queuetransfer", [response.success]);
 			}
 			else{
-				errMessage(["failed to initiate queue transfer", response]);
+				errMessage(["failed to initiate queue transfer", response.message]);
 			}
 		}
 	});

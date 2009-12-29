@@ -1,5 +1,5 @@
 # From the rake processes
-ebin/*
+ebin/*.beam
 Mnesia.*
 MnesiaCore.*
 debug_ebin/*

@@ -308,8 +308,7 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 									{"execute-app-name", "bridge"},
 									{"execute-app-arg",
 										lists:flatten(io_lib:format("[ignore_early_media=true,origination_uuid=~s,~s]sofia/gateway/hebon.fusedsolutions.com/~s",
-												[NewUUID, CalleridArgs, Number]))}]),
-							Self ! {connect_uuid, Number};
+												[NewUUID, CalleridArgs, Number]))}]);
 						(error, Reply) ->
 							?WARNING("originate failed: ~p", [Reply]),
 							ok
@@ -344,15 +343,17 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 				{error, Error} ->
 					?ERROR("error:  ~p", [Error]),
 					{error, Error, State}
-			end
-		end;
+			end;
+		Else ->
+			{error, Else, State}
+	end;
 handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = Node} = State) when is_pid(AgentPid) ->
 	case freeswitch:api(Node, create_uuid) of
 		{ok, NewUUID} ->
 			?NOTICE("warmxfer UUID is ~p", [NewUUID]),
 			freeswitch:api(Node, uuid_setvar, Call#call.id++" park_after_bridge true"),
 			freeswitch:bgapi(State#state.cnode, uuid_transfer,
-				freeswitch_ring:get_uuid(State#state.ringchannel) ++ " 'bridge:{origination_uuid="++NewUUID++"}sofia/gateway/hebon.fusedsolutions.com/" ++ Number ++ "' inline"),
+				freeswitch_ring:get_uuid(State#state.ringchannel) ++ " 'bridge:{ignore_early_media=true\\,origination_uuid="++NewUUID++"}sofia/gateway/hebon.fusedsolutions.com/" ++ Number ++ "' inline"),
 			% play musique d'attente 
 			freeswitch:sendmsg(Node, Call#call.id,
 				[{"call-command", "execute"},
@@ -374,9 +375,33 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 	freeswitch:sendmsg(State#state.cnode, RUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
 	{ok, State};
-handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, ringchannel = Ring} = State) when is_list(WUUID) ->
-	% No ring channel, have to start a new one that bridges back to the caller
-	{error, "NYI", State};
+handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, ringchannel = Ring, agent_pid = AgentPid} = State) when is_list(WUUID) ->
+	case freeswitch:api(Node, create_uuid) of
+		{ok, NewUUID} ->
+			?NOTICE("warmxfer UUID is ~p", [NewUUID]),
+			Self = self(),
+			F = fun(RingUUID) ->
+					fun(ok, _Reply) ->
+							freeswitch:api(Node, uuid_bridge, RingUUID++" "++Call#call.id);
+						(error, Reply) ->
+							?WARNING("originate failed: ~p", [Reply]),
+							ok
+					end
+			end,
+
+			AgentState = agent:dump_state(AgentPid),
+
+			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [no_oncall_on_bridge]) of
+				{ok, Pid} ->
+					link(Pid),
+					{ok, State#state{ringchannel = Pid, warm_transfer_uuid = NewUUID}};
+				{error, Error} ->
+					?ERROR("error:  ~p", [Error]),
+					{error, Error, State}
+			end;
+		Else ->
+			{error, Else, State}
+	end;
 handle_warm_transfer_cancel(_Call, State) ->
 	{error, "Not in warm transfer", State}.
 

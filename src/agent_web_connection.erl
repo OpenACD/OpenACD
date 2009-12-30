@@ -71,7 +71,7 @@
 -record(state, {
 	salt :: any(),
 	agent_fsm :: pid() | 'undefined',
-	current_call :: #call{} | 'undefined',
+	current_call :: #call{} | 'undefined' | 'expect',
 	mediaload :: any(),
 	poll_queue = [] :: [{struct, [{binary(), any()}]}],
 		% list of json structs to be sent to the client on poll.

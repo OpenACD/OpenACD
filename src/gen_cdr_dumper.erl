@@ -89,8 +89,7 @@
 %% API
 %%====================================================================
 
--spec(behaviour_info/1 :: (Info :: 'callbacks') -> [{atom(), non_neg_integer()}];
-						(Info :: any()) -> 'undefined').
+-spec(behaviour_info/1 :: (Info :: any()) -> [{atom(), non_neg_integer()}] | 'undefined').
 behaviour_info(callbacks) ->
 	[{dump, 2},
 	{commit, 1},

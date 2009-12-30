@@ -56,7 +56,7 @@
 
 -record(state, {
 		listener :: port(),       % Listening socket
-		acceptor :: reference()       % Asynchronous acceptor's internal reference
+		acceptor :: any()       % Asynchronous acceptor's internal reference
 		}).
 
 -type(state() :: #state{}).

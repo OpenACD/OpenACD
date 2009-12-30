@@ -136,7 +136,7 @@ handle_cast({change_state, ringing, #call{} = Call}, State) ->
 	?DEBUG("change_state to ringing with call ~p", [Call]),
 	Counter = State#state.counter,
 	gen_tcp:send(State#state.socket, "ASTATE " ++ integer_to_list(Counter) ++ " " ++ integer_to_list(agent:state_to_integer(ringing)) ++ "\r\n"),
-	gen_tcp:send(State#state.socket, "CALLINFO " ++ integer_to_list(Counter+1) ++ " " ++ clientrec_to_id(Call#call.client) ++ " " ++ atom_to_list(Call#call.type) ++ " " ++ Call#call.callerid  ++ "\r\n"),
+	gen_tcp:send(State#state.socket, "CALLINFO " ++ integer_to_list(Counter+1) ++ " " ++ clientrec_to_id(Call#call.client) ++ " " ++ atom_to_list(Call#call.type) ++ " " ++ lists:flatten(tuple_to_list(Call#call.callerid))  ++ "\r\n"),
 	{noreply, State#state{counter = Counter + 2}};
 
 handle_cast({change_state, AgState, _Data}, State) ->
@@ -226,9 +226,9 @@ handle_event(["LOGIN", Counter, Credentials, RemoteNumber], State) when is_integ
 				deny -> 
 					?INFO("Authentication failure for ~s",[Username]),
 					{err(Counter, "Authentication Failure"), State};
-				{allow, Skills, Security, Profile} -> 
+				{allow, ID, Skills, Security, Profile} -> 
 					%?CONSOLE("Authenciation success, next steps...",[]),
-					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, skills=Skills, profile=Profile}),
+					{_Reply, Pid} = agent_manager:start_agent(#agent{login=Username, id=ID, skills=Skills, profile=Profile}),
 					case agent:set_connection(Pid, self()) of
 						ok ->
 							% TODO validate this?

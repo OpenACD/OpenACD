@@ -176,7 +176,8 @@ function load_media_tab(options){
 				if(data.state == 'wrapup'){
 					dojo.unsubscribe(pane.unloadListener);
 					dojo.unsubscribe(pane.logoutListener);
-					pane.destroy();
+					pane.attr('closable', true);
+					pane.close();
 				}
 			}
 			catch (err){
@@ -187,7 +188,8 @@ function load_media_tab(options){
 			try{
 				dojo.unsubscribe(pane.unloadListener);
 				dojo.unsubscribe(pane.logoutListener);
-				pane.destroy();
+				pane.attr('closable', true);
+				pane.close();
 			}
 			catch(err){
 				info(['media pan logout listener erred', err]);

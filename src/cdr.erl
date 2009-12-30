@@ -57,6 +57,10 @@
 	voicemail/2,
 	agent_transfer/2,
 	queue_transfer/2,
+	warmxfer_begin/2,
+	warmxfer_cancel/1,
+	warmxfer_complete/1,
+	warmxfer_fail/1,
 	status/1,
 	merge/3,
 	get_raws/1,
@@ -189,6 +193,23 @@ endwrapup(Call, Agent) ->
 -spec(transfer/2 :: (Call :: #call{}, Transferto :: string()) -> 'ok').
 transfer(Call, Transferto) ->
 	event({transfer, Call, util:now(), Transferto}).
+
+%% @doc Notify cdr handler that `#cll{} Call' is starting to be warm transfered.
+-spec(warmxfer_begin/2 :: (Call :: #call{}, Numdialed :: string()) -> 'ok').
+warmxfer_begin(Call, Numdialed) ->
+	event({warmxfer_begin, Call, util:now(), Numdialed}).
+
+-spec(warmxfer_cancel/1 :: (Call :: #call{}) -> 'ok').
+warmxfer_cancel(Call) ->
+	event({warmxfer_cancel, Call, util:now(), undefined}).
+
+-spec(warmxfer_fail/1 :: (Call :: #call{}) -> 'ok').
+warmxfer_fail(Call) ->
+	event({warmxfer_begin, Call, util:now(), undefined}).
+
+-spec(warmxfer_complete/1 :: (Call :: #call{}) -> 'ok').
+warmxfer_complete(Call) ->
+	event({warmxfer_complete, Call, util:now(), undefined}).
 
 %% @doc Notify cdr handler that `#call{} Call' is being offered by `string() Offerer'
 %% to `string() Recipient'.
@@ -432,15 +453,7 @@ find_untermed(oncall, #call{id = Cid}, Agent) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
-		( ( (X#cdr_raw.transaction =:= ringing) and (X#cdr_raw.eventdata =:= Agent) ) orelse (X#cdr_raw.transaction =:= inqueue) orelse (X#cdr_raw.transaction =:= precall) ),
-		X#cdr_raw.ended =:= undefined
-	]),
-	qlc:e(QH);
-find_untermed(outgoing, #call{id = Cid}, _Agent) ->
-	QH = qlc:q([X ||
-		X <- mnesia:table(cdr_raw),
-		X#cdr_raw.id =:= Cid,
-		X#cdr_raw.transaction =:= precall,
+		( ( (X#cdr_raw.transaction =:= ringing) and (X#cdr_raw.eventdata =:= Agent) ) orelse (X#cdr_raw.transaction =:= inqueue) orelse (X#cdr_raw.transaction =:= precall) orelse X#cdr_raw.transaction == warmxfer_cancel),
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
@@ -453,32 +466,36 @@ find_untermed(agent_transfer, _, _) ->
 find_untermed(queue_transfer, _, _) ->
 	% inqueue to inqueue for the actual terminations
 	[];
-find_untermed(warmxfer, _, _) ->
-	% start of new events, terminates noting (like ringing)
-	[];
-find_untermed(warmxferfailed, #call{id = Cid}, _) ->
+find_untermed(warmxfer_begin, #call{id = Cid}, DialedNum) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
-		X#cdr_raw.id =:= Cid,
-		(X#cdr_raw.transaction =:= warmxfer orelse X#cdr_raw.transaction =:= warmxferleg),
+		X#cdr_raw.id == Cid,
+		lists:member(X#cdr_raw.transaction, [oncall, warmxfer_fail]),
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(warmxferleg, #call{id = Cid}, _) ->
-	QH = qlc:q([ X ||
+find_untermed(warmxfer_cancel, #call{id = Cid}, _) ->
+	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
-		X#cdr_raw.id =:= Cid,
-		X#cdr_raw.transaction =:= warmxfer,
+		X#cdr_raw.id == Cid,
+		lists:member(X#cdr_raw.transaction, [warmxfer_begin, warmxfer_fail]),
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(warmxfercomplete, #call{id = Cid}, _) ->
-	% a wrapup terminates the oncall that the agent will be in
+find_untermed(warmxfer_fail, #call{id = Cid}, _) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
-		X#cdr_raw.id =:= Cid,
-		X#cdr_raw.ended =:= undefined,
-		X#cdr_raw.transaction =:= warmxferleg
+		X#cdr_raw.id == Cid,
+		X#cdr_raw.transaction == warmxfer_begin,
+		X#cdr_raw.ended =:= undefined
+	]),
+	qlc:e(QH);
+find_untermed(warmxfer_complete, #call{id = Cid}, _) ->
+	QH = qlc:q([X || 
+		X <- mnesia:table(cdr_raw),
+		X#cdr_raw.id == Cid,
+		X#cdr_raw.transaction == warmxfer_begin,
+		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
 find_untermed(wrapup, #call{id = Cid}, Agent) ->
@@ -520,7 +537,7 @@ find_untermed(hangup, #call{id = Cid}, _Whatever) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
-		( (X#cdr_raw.transaction =:= inqueue) orelse (X#cdr_raw.transaction =:= inivr) orelse (X#cdr_raw.transaction =:= precall) ),
+		lists:member(X#cdr_raw.transaction, [inqueue, inivr, precall, warmxfer_complete]),
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
@@ -791,14 +808,13 @@ push_raw_test_() ->
 			{ringing, "testagent"},
 			{precall, "na"},
 			{oncall, "testagent"},
-			{outgoing, "na"},
 			{failedoutgoing, "na"},
 			{agent_transfer, "na"},
 			{queue_transfer, "na"},
-			{warmxfer, "na"},
-			{warmxfercomplete, "na"},
-			{warmxferfailed, "na"},
-			{warmxferleg, "na"},
+			{warmxfer_cancel, "na"},
+			{warmxfer_complete, "na"},
+			{warmxfer_failed, "na"},
+			{warmxfer_begin, "na"},
 			{wrapup, "testagent"},
 			{endwrapup, "testagent"},
 			{abandonqueue, "testqueue"},
@@ -882,15 +898,8 @@ push_raw_test_() ->
 		{"oncall",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = oncall, eventdata = "testagent"}),
-			Testend = [inqueue, ringing, precall],
+			Testend = [inqueue, ringing, precall, warmxfer_cancel],
 			Ended(Pull(), Testend)
-		end}
-	end,
-	fun({Call, Pull, Ended}) ->
-		{"outgoing",
-		fun() ->
-			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = outgoing, eventdata = "testagent"}),
-			Ended(Pull(), [precall])
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
@@ -915,31 +924,31 @@ push_raw_test_() ->
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
-		{"warmxfer",
+		{"warmxfer_begin",
 		fun() ->
-			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxfer}),
-			Ended(Pull(), [])
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxfer_begin}),
+			Ended(Pull(), [oncall, warmxfer_fail])
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
-		{"warmxferleg",
+		{"warmxfer_fail",
 		fun() ->
-			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxferleg}),
-			Ended(Pull(), [warmxfer])
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxfer_fail}),
+			Ended(Pull(), [warmxfer_begin])
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
-		{"warmxfercomplete",
+		{"warmxfer_complete",
 		fun() ->
-			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxfercomplete}),
-			Ended(Pull(), [warmxferleg])
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxfer_complete}),
+			Ended(Pull(), [warmxfer_begin])
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
-		{"warmxferfailed",
+		{"warmxfer_cancel",
 		fun() ->
-			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxferfailed}),
-			Ended(Pull(), [warmxferleg, warmxfer])
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = warmxfer_cancel}),
+			Ended(Pull(), [warmxfer_begin, warmxfer_fail])
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
@@ -988,7 +997,7 @@ push_raw_test_() ->
 		{"hangup",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = hangup, eventdata = "na"}),
-			Ended(Pull(), [inqueue, inivr, precall])
+			Ended(Pull(), [inqueue, inivr, precall, warmxfer_complete])
 		end}
 	end,
 	fun({Call, Pull, Ended}) ->
@@ -1010,14 +1019,13 @@ push_raw_test_() ->
 				ringing,
 				precall,
 				oncall,
-				outgoing,
 				failedoutgoing,
 				agent_transfer,
 				queue_transfer,
-				warmxfer,
-				warmxfercomplete,
-				warmxferfailed,
-				warmxferleg,
+				warmxfer_begin,
+				warmxfer_complete,
+				warmxfer_failed,
+				warmxfer_cancel,
 				wrapup,
 				endwrapup,
 				abandonqueue,

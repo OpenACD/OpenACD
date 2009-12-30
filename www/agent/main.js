@@ -372,9 +372,9 @@ dojo.addOnLoad(function(){
 				agent.state = response.state;
 				dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response.profile;
 				dojo.publish("agent/state", [{"state":response.state, "statedata":response.statedata}]);
-				if( (response.state == "oncall") && (response.statedata.mediapath == "inband") ){
-					var fixedres = response.statedata;
-					fixedres.media = fixedres.type;
+				if( (response.state == "oncall") && (response.mediaload) ){
+					var fixedres = response.mediaload;
+					fixedres.media = response.statedata.type;
 					dojo.publish("agent/mediaload", [fixedres]);
 				}
 

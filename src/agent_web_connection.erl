@@ -58,7 +58,8 @@
 	encode_statedata/1,
 	set_salt/2,
 	poll/2,
-	keep_alive/1
+	keep_alive/1,
+	mediaload/1
 ]).
 
 %% gen_server callbacks
@@ -71,6 +72,7 @@
 	salt :: any(),
 	agent_fsm :: pid() | 'undefined',
 	current_call :: #call{} | 'undefined',
+	mediaload :: any(),
 	poll_queue = [] :: [{struct, [{binary(), any()}]}],
 		% list of json structs to be sent to the client on poll.
 	poll_pid :: 'undefined' | pid(),
@@ -132,6 +134,12 @@ set_salt(Pid, Salt) ->
 -spec(keep_alive/1 :: (Pid :: pid()) -> 'ok').
 keep_alive(Pid) ->
 	gen_server:cast(Pid, keep_alive).
+
+%% @doc Get the settings used for a media load.  Only useful for the web
+%% listener, and then only useful in the checkcookie clause.
+-spec(mediaload/1 :: (Conn :: pid()) -> [{any(), any()}] | 'undefined').
+mediaload(Conn) ->
+	gen_server:call(Conn, mediaload).
 
 %% @doc Encode the given data into a structure suitable for mochijson2:encode
 -spec(encode_statedata/1 :: 
@@ -720,6 +728,8 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} =
 			?DEBUG("Not a mime tuple ~p", [Else]),
 			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}
 	end;
+handle_call(mediaload, _From, State) ->
+	{reply, State#state.mediaload, State};
 handle_call(Allothers, _From, State) ->
 	?DEBUG("unknown call ~p", [Allothers]),
 	{reply, {404, [], <<"unknown_call">>}, State}.
@@ -761,7 +771,7 @@ handle_cast({mediaload, #call{type = email} = Call}, State) ->
 		{<<"media">>, <<"email">>}
 	]},
 	Newstate = push_event(Json, Midstate),
-	{noreply, Newstate};
+	{noreply, Newstate#state{mediaload = []}};
 handle_cast({mediaload, #call{type = voice} = Call}, State) ->
 	Json = {struct, [
 		{<<"command">>, <<"mediaload">>},
@@ -769,7 +779,7 @@ handle_cast({mediaload, #call{type = voice} = Call}, State) ->
 		{<<"fullpane">>, false}
 	]},
 	Newstate = push_event(Json, State),
-	{noreply, Newstate};
+	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false}]}};
 handle_cast({mediaload, #call{type = voice} = Call, Options}, State) ->
 	Base = [
 		{<<"command">>, <<"mediaload">>},
@@ -778,7 +788,7 @@ handle_cast({mediaload, #call{type = voice} = Call, Options}, State) ->
 	],
 	Json = {struct, lists:append(Base, Options)},
 	Newstate = push_event(Json, State),
-	{noreply, Newstate};
+	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false} | Options]}};
 handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 	?DEBUG("mediapush type:  ~p;  Data:  ~p", [Mediatype, Data]),
 	case Mediatype of

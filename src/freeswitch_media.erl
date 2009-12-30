@@ -374,7 +374,7 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 	?INFO("intercepting ~s from channel ~s", [RUUID, Call#call.id]),
 	freeswitch:sendmsg(State#state.cnode, RUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
-	{ok, State};
+	{ok, State#state{warm_transfer_uuid = undefined}};
 handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, ringchannel = Ring, agent_pid = AgentPid} = State) when is_list(WUUID) ->
 	case freeswitch:api(Node, create_uuid) of
 		{ok, NewUUID} ->
@@ -394,7 +394,7 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [no_oncall_on_bridge]) of
 				{ok, Pid} ->
 					link(Pid),
-					{ok, State#state{ringchannel = Pid, warm_transfer_uuid = NewUUID}};
+					{ok, State#state{ringchannel = Pid, warm_transfer_uuid = undefined}};
 				{error, Error} ->
 					?ERROR("error:  ~p", [Error]),
 					{error, Error, State}
@@ -510,7 +510,7 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid, warm_transfer
 	?WARNING("Handling ring channel ~w exit ~p while in warm transfer", [Pid, Reason]),
 	agent:media_push(State#state.agent_pid, warm_transfer_failed),
 	cdr:warmxfer_fail(Call),
-	{noreply, State#state{ringchannel = undefined}};
+	{noreply, State#state{ringchannel = undefined, warm_transfer_uuid = undefined}};
 handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p", [Pid, Reason]),
 	{stop_ring, State#state{ringchannel = undefined}};

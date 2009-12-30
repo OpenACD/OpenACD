@@ -37,7 +37,7 @@
 
 -include_lib("public_key/include/public_key.hrl").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -597,7 +597,7 @@ decrypt_password(Password) ->
 	Bar = crypto:rsa_private_decrypt(util:hexstr_to_bin(Password), PrivKey, rsa_pkcs1_padding),
 	binary_to_list(Bar).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 cooke_file_test_() ->
 	{

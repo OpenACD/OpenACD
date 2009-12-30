@@ -35,7 +35,7 @@
 
 -behaviour(gen_server).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -1611,7 +1611,7 @@ push_event(Eventjson, State) ->
 			State#state{poll_queue = [], poll_pid = undefined}
 	end.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 
 

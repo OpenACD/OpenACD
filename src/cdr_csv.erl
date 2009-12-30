@@ -33,7 +33,7 @@
 -author(micahw).
 -behavior(gen_cdr_dumper).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 

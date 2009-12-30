@@ -37,7 +37,7 @@
 -include("cpx.hrl").
 -include("call.hrl").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -112,7 +112,7 @@ init([Maxr, Maxt, Spec]) ->
 %% Internal functions
 %%====================================================================
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 startup_test_() ->
 	[{"start as an anonymous direct supervisor with one spec.",

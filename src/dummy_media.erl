@@ -34,7 +34,7 @@
 
 -behaviour(gen_media).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 -include_lib("stdlib/include/qlc.hrl").
@@ -548,7 +548,7 @@ check_fail(Key, Dict) ->
 			{success, Dict}
 	end.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 dummy_test_() -> 
 	{foreach,

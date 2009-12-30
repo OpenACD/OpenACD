@@ -42,7 +42,7 @@
 -include("agent.hrl").
 -include("queue.hrl").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
 -define(TICK_LENGTH, 500).
@@ -513,7 +513,7 @@ do_operation({_Conditions, Op, Args, _Runs}, Qpid, Callpid) when is_pid(Qpid), i
 			ok
 	end.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 test_primer() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),

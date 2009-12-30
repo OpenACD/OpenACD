@@ -43,7 +43,7 @@
 -include("smtp.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -1853,7 +1853,7 @@ encode_medias_confs(Node, [{Mod, undefined} | Tail], Acc) ->
 %% tests
 %% =====
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 rec_equals(	#agent_auth{login = Ln, password = Pw, skills = SK, securitylevel = SL, integrated = In, profile = Prof, firstname = Fn, lastname = Lastn},
 			#agent_auth{login = Ln, password = Pw, skills = SK, securitylevel = SL, integrated = In, profile = Prof, firstname = Fn, lastname = Lastn}) ->

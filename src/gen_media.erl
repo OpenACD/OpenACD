@@ -270,7 +270,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -1264,7 +1264,7 @@ outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call) ->
 			{{error, {noagent, Agent}}, State#state{substate = NewState, callrec = Call}}
 	end.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 dead_spawn() ->
 	spawn(fun() -> ok end).

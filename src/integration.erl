@@ -41,7 +41,7 @@
 
 -include("log.hrl").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -142,7 +142,7 @@ check_return(Out, Test) when is_function(Test)->
 			throw({badreturn, Out})
 	end.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 no_integration_test_() ->
 	[?_assertEqual({error, nointegration}, do_call("a message")),

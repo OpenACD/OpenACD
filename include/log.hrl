@@ -40,7 +40,7 @@
 
 -type(loglevels() :: 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency').
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -define(DEBUG(Message, Args), ?debugFmt("[~p][~p][~p]~n	DEBUG: ~s~n", [erlang:localtime(), node(), self(), lists:flatten(io_lib:format(Message, Args))])).
 -define(INFO(Message, Args), ?debugFmt("[~p][~p][~p]~n	INFO: ~s~n", [erlang:localtime(), node(), self(), lists:flatten(io_lib:format(Message, Args))])).
 -define(NOTICE(Message, Args), ?debugFmt("[~p][~p][~p]~n	NOTICE: ~s~n", [erlang:localtime(), node(), self(), lists:flatten(io_lib:format(Message, Args))])).
@@ -60,6 +60,6 @@
 -define(EMERGENCY(Message, Args), cpxlog:emergency(erlang:localtime(), ?MODULE, ?LINE, self(), Message, Args)).
 -endif.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -define(CONSOLE(Message, Args), ?debugFmt("[~p][~p][~p]~n	~s~n", [erlang:localtime(), node(), self(), lists:flatten(io_lib:format(Message, Args))])).
 -endif.

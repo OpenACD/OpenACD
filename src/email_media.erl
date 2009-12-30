@@ -36,7 +36,7 @@
 
 -define(DEFAULT_PRIORITY, 30).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 -include_lib("stdlib/include/qlc.hrl").
@@ -712,7 +712,7 @@ scrub_send_html_sub([{_Tag, _Props, Children} | Tail], Acc) ->
 	Midacc = scrub_send_html(Children, Acc),
 	scrub_send_html(Tail, Midacc).
 	
--ifdef(EUNIT).
+-ifdef(TEST).
 
 scrub_send_html_test_() ->
 	[{"Simple scrub",

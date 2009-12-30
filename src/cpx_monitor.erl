@@ -35,7 +35,7 @@
 
 -behaviour(gen_leader).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -687,7 +687,7 @@ tell_cands(Message, [Node | Tail], Leader) ->
 	{cpx_monitor, Node} ! {leader_event, Message},
 	tell_cands(Message, Tail, Leader).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 health_test_() ->
 	[{"straight translations",

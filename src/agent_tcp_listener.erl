@@ -37,7 +37,7 @@
 %% depends on agent_tcp_connection, util, agent
 
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -179,7 +179,7 @@ set_sockopt(ListSock, CliSocket) ->
 			Error % return error
 	end.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 start_test() -> 
 	{ok, Pid} = start(6666),

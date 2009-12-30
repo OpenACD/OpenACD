@@ -35,7 +35,7 @@
 -author(micahw).
 -behaviour(gen_leader).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -467,7 +467,7 @@ build_tables() ->
 		{type, bag}
 	]).
 
--ifdef('EUNIT').
+-ifdef('TEST').
 
 handle_call_start_test() ->
 	?assertMatch({ok, _Pid}, start([node()])),

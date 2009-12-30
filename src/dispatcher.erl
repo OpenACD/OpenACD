@@ -37,7 +37,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 -define(POLL_INTERVAL, 500).
@@ -249,7 +249,7 @@ regrab(Pid) ->
 stop(Pid) -> 
 	gen_server:call(Pid, stop).
 	
--ifdef(EUNIT).
+-ifdef(TEST).
 
 -define(MAX_RANDOM_TEST, 100000).
 

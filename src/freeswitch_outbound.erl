@@ -33,7 +33,7 @@
 
 -behaviour(gen_media).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 

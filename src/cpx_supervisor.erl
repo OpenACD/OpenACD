@@ -241,7 +241,7 @@ init([]) ->
 %% Internal functions
 %%====================================================================
 
--spec(add_conf/1 :: (Rec :: #cpx_conf{}) -> {'atomic', 'ok'}).
+-spec(add_conf/1 :: (Rec :: #cpx_conf{}) -> {'atomic', {'ok', pid()}} | {'aborted', any()}).
 add_conf(Rec) ->
 	F = fun() -> 
 		mnesia:write(Rec),

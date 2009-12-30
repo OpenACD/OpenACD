@@ -89,7 +89,7 @@
 	callrec = #call{} :: #call{},
 	life_timer = undefined :: any(),
 	%mode = success :: 'success' | 'failure' | 'fail_once',
-	mediaload :: 'undefined' | 'mediaload',
+	mediaload :: 'undefined' | 'mediaload' | 'true',
 	fail = dict:new() :: dict()
 	}).
 
@@ -138,15 +138,15 @@
 -type(fail_item() :: failpoint() | {failpoint() , fail_option()}).
 -type(fail_options() :: 'success' | 'failure' | [fail_item()]).
 
--spec(start_link/1 :: (Props :: start_options()) -> {'ok', pid()}).
-start_link([]) ->
-	start_link([], success).
+-spec(start_link/1 :: (Props :: start_options()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_link(Props) ->
+	start_link(Props, success).
 %start_link([H | _Tail] = Props) when is_tuple(H) ->
 %	start_link(Props, success);
 %start_link(Callid) ->
 %	start_link([{id, Callid}], success).
 
--spec(start_link/2 :: (Props :: start_options(), Fails :: fail_options()) -> {'ok', pid()}).
+-spec(start_link/2 :: (Props :: start_options(), Fails :: fail_options()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 %start_link(Props, success) ->
 %	gen_media:start_link(?MODULE, [Props, success]);
 %start_link(Props, failure) ->
@@ -158,13 +158,13 @@ start_link(Props, Fails) -> %when is_list(Fails) ->
 start() -> 
 	start([]).
 
--spec(start/1 :: (Props :: start_options()) -> {'ok', pid()}).
+-spec(start/1 :: (Props :: start_options()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Props) -> %when is_tuple(H) ->
 	start(Props, success).
 %start(Callid) ->
 %	start([{id, Callid}], success).
 
--spec(start/2 :: (Props :: start_options(), Fails :: fail_options()) -> {'ok', pid()}).
+-spec(start/2 :: (Props :: start_options(), Fails :: fail_options()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 %start(Props, success) ->
 %	gen_media:start(?MODULE, [Props, success]);
 %start(Props, failure) ->
@@ -195,11 +195,11 @@ set_mode(Pid, Action, Mode) ->
 %set_brand(Pid, Brand) ->
 %	gen_media:call(Pid, {set_brand, Brand}).
 
--spec(q/0 :: () -> {'ok', pid()}).
+-spec(q/0 :: () -> {'ok', pid()} | 'ignore' | {'error', any()}).
 q() ->
 	q([]).
 
--spec(q/1 :: (Opts :: start_options()) -> {'ok', pid()}).
+-spec(q/1 :: (Opts :: start_options()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 q(Opts) ->
 	start_link(Opts).
 

@@ -118,12 +118,12 @@ init(Options) ->
 		call_priority = proplists:get_value(call_priority, Options, {distribution, 20})
 	},
 	Seeds = proplists:get_value(start_count, Options, 10),
-	Fun = fun(_, Acc) ->
+	Fun = fun(_) ->
 		Pid = queue_media(Conf),
-		#call{id = Id} = gen_media:get_call(Pid),
-		[{Pid, Id} | Acc]
+		Call = gen_media:get_call(Pid),
+		{Pid, Call#call.id}
 	end,
-	Pidlist = lists:foldl(Fun, [], lists:seq(1, Seeds)),
+	Pidlist = lists:map(Fun, lists:seq(1, Seeds)),
 	Time = util:get_number(Conf#conf.call_frequency) * 1000,
 	?INFO("Spawning new call after ~p", [Time]),
     {ok, #state{
@@ -224,7 +224,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 queue_media(Conf) ->
-	[Pid] = dummy_media:q_x(1, [
+	{ok, Pid} = dummy_media:q([
 		{queues, Conf#conf.queues}, 
 		{max_life, util:get_number(Conf#conf.call_max_life)},
 		{priority, Conf#conf.call_priority}

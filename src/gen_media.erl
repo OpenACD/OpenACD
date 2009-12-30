@@ -440,11 +440,11 @@ cast(Genmedia, Request) ->
 %%====================================================================
 
 %% @doc Start a gen_media linked to the calling process.
--spec(start_link/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | {'error', any()}).
+-spec(start_link/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Callback, Args) ->
 	gen_server:start_link(?MODULE, [Callback, Args], []).
 
--spec(start/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | {'error', any()}).
+-spec(start/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Callback, Args) ->
 	gen_server:start(?MODULE, [Callback, Args], []).
 

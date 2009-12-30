@@ -50,11 +50,26 @@
 		util
 	]},
 	{registered, [
+		agent_connection_sup,
 		agent_manager,
+		agent_sup,
+		agent_web_listener,
+		aweb_mochi,
+		callcenter,
+		cdr,
+		cpx_monitor,
+		cpx_monitor_passive,
 		cpx_supervisor,
+		cpx_web_management,
+		cpxlog,
 		dispatch_manager,
+		dummy_media_manager,
+		email_media_manager,
+		freeswitch_media_manager,
+		gen_cdr_dumper,
+		integration, % TODO potential point of conflict w/ other apps?
 		queue_manager,
-		freeswitch_media_manager
+		routing_sup
 	]},
 	{mod, {cpx, []}},
 	{env, []},
@@ -62,4 +77,10 @@
 	{start_phases, []}
 ]}.
 
+
+
+[user,global_group,init,standard_error_sup,error_logger,rex,
+ kernel_sup,global_name_server,inet_db,file_server_2,
+ code_server,user_drv,erl_prim_loader,application_controller,
+ standard_error,kernel_safe_sup]
 

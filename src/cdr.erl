@@ -205,7 +205,7 @@ warmxfer_cancel(Call) ->
 
 -spec(warmxfer_fail/1 :: (Call :: #call{}) -> 'ok').
 warmxfer_fail(Call) ->
-	event({warmxfer_begin, Call, util:now(), undefined}).
+	event({warmxfer_fail, Call, util:now(), undefined}).
 
 -spec(warmxfer_complete/1 :: (Call :: #call{}) -> 'ok').
 warmxfer_complete(Call) ->

@@ -228,7 +228,7 @@ end
 
 namespace :test do
 	desc "Compile .beam files with -DEUNIT and +debug_info => debug_ebin"
-	task :compile => ['debug_ebin', :contrib] + HEADERS + DEBUGOBJ
+	task :compile => ['debug_ebin', :keygen, :contrib] + HEADERS + DEBUGOBJ
 
 	task :contrib do
 		if File.directory? ".git"

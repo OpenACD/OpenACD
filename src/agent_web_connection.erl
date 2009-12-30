@@ -35,7 +35,7 @@
 
 -behaviour(gen_server).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -71,7 +71,7 @@
 -record(state, {
 	salt :: any(),
 	agent_fsm :: pid() | 'undefined',
-	current_call :: #call{} | 'undefined',
+	current_call :: #call{} | 'undefined' | 'expect',
 	mediaload :: any(),
 	poll_queue = [] :: [{struct, [{binary(), any()}]}],
 		% list of json structs to be sent to the client on poll.
@@ -1634,7 +1634,7 @@ push_event(Eventjson, State) ->
 			State#state{poll_queue = [], poll_pid = undefined}
 	end.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 
 

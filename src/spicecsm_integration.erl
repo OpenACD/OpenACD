@@ -39,7 +39,7 @@
 -include("cpx.hrl").
 -include("agent.hrl").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 

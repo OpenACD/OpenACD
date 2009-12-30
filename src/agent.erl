@@ -31,7 +31,7 @@
 -module(agent).
 -behaviour(gen_fsm).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -1177,7 +1177,7 @@ log_loop(Id, Agentname, Nodes, Profile) ->
 			agent:log_loop(Id, Agentname, Nodes, Profile)
 	end.
 	
--ifdef(EUNIT).
+-ifdef(TEST).
 
 start_arbitrary_state_test() ->
 	{ok, Pid} = start(#agent{login = "testagent", state = idle}),

@@ -53,7 +53,7 @@
 -include("cpx.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -241,7 +241,7 @@ init([]) ->
 %% Internal functions
 %%====================================================================
 
--spec(add_conf/1 :: (Rec :: #cpx_conf{}) -> {'atomic', 'ok'}).
+-spec(add_conf/1 :: (Rec :: #cpx_conf{}) -> {'atomic', {'ok', pid()}} | {'aborted', any()}).
 add_conf(Rec) ->
 	F = fun() -> 
 		mnesia:write(Rec),
@@ -351,7 +351,7 @@ update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 						Out;
 					Else ->
 						?WARNING("Adding new spec got ~p", [Else]),
-						error:error({start_fail, Else})
+						erlang:error({start_fail, Else})
 				end
 		end
 	end,
@@ -482,7 +482,7 @@ get_archive_path(Call) ->
 	end.
 
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 config_test_() -> 
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),

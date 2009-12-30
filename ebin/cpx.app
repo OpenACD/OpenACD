@@ -76,11 +76,3 @@
 	{applications, [kernel, stdlib, mnesia]},
 	{start_phases, []}
 ]}.
-
-
-
-[user,global_group,init,standard_error_sup,error_logger,rex,
- kernel_sup,global_name_server,inet_db,file_server_2,
- code_server,user_drv,erl_prim_loader,application_controller,
- standard_error,kernel_safe_sup]
-

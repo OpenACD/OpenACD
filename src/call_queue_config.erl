@@ -32,7 +32,7 @@
 -module(call_queue_config).
 -author("Micah").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 -define(QUEUE_TABLE(Nodes), 
@@ -804,7 +804,7 @@ timestamp_comp(A, B) when is_record(A, client) ->
 %% Tests
 %% =====
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 test_queue() -> 
 	Recipe = [{2, add_skills, [true], run_once}],

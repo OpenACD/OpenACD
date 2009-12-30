@@ -36,7 +36,7 @@
 
 -define(DEFAULT_PRIORITY, 30).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 -include_lib("stdlib/include/qlc.hrl").
@@ -556,7 +556,7 @@ archive(Rawdata, Callrec, Direction) when is_binary(Rawdata) ->
 			%% get_archive_path ensures the directory is writeable by us and exists, so this
 			%% should be safe to do (the call will be hungup if creating the recording file fails)
 			Path = case Direction of
-				inbound ->
+				inbound -> % TODO - inbound archiving is handled elsewhere in email_media_session
 					BasePath ++ ".eml";
 				outbound ->
 					util:find_first_arc(BasePath ++ "-reply", ".eml")
@@ -658,6 +658,7 @@ append_files(Headers, Properties, Path, Files) ->
 				inline ->
 					Midfiles;
 				{_Linedness, Name} ->
+					% TODO - this should *always* be a binary?
 					Fixedname = case is_binary(Name) of
 						true -> binary_to_list(Name);
 						false -> Name
@@ -712,7 +713,7 @@ scrub_send_html_sub([{_Tag, _Props, Children} | Tail], Acc) ->
 	Midacc = scrub_send_html(Children, Acc),
 	scrub_send_html(Tail, Midacc).
 	
--ifdef(EUNIT).
+-ifdef(TEST).
 
 scrub_send_html_test_() ->
 	[{"Simple scrub",

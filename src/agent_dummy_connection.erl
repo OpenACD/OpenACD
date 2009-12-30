@@ -31,7 +31,7 @@
 
 -module(agent_dummy_connection).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -49,19 +49,21 @@
 -include("call.hrl").
 -include("agent.hrl").
 
+-type(state_interval() :: {'distribution', pos_integer()} | 'random' | {non_neg_integer(), pos_integer()} | pos_integer()).
+
 -record(state, {
-	ringing = random :: pos_integer() | {pos_integer(), pos_integer()} | 'random',
-	ringtimer :: any(),
-	oncall = random :: pos_integer() | {pos_integer(), pos_integer()} | 'random',
-	calltimer :: any(),
-	wrapup = random :: pos_integer() | {pos_integer(), pos_integer()} | 'random',
-	wrapuptimer :: any(),
+	ringing = random :: state_interval(),
+	ringtimer :: timer:tref(),
+	oncall = random :: state_interval(),
+	calltimer :: timer:tref(),
+	wrapup = random :: state_interval(),
+	wrapuptimer :: timer:tref(),
 	scale = 1 :: pos_integer(),
 	maxcalls = unlimited :: pos_integer() | 'unlimited',
 	call :: #call{} | 'undefined',
 	agent_fsm :: pid(),
-	life_watch :: any(),
-	release_data = {false, 0, undefined} :: {boolean(), {non_neg_integer(), non_neg_integer()}, any()} % TODO - this spec is wrong, but I don't know why
+	life_watch :: 'undefined' | timer:tref(),
+	release_data = {false, 0, undefined} :: {boolean(), {non_neg_integer(), float()}, timer:tref()}
 }).
 
 -type(state() :: #state{}).
@@ -138,19 +140,19 @@ handle_call(Request, _From, State) ->
 handle_cast({change_state, ringing, #call{} = Call}, State) ->
 	Time = get_time(State#state.ringing) * State#state.scale,
 	?INFO("answering call after ~p", [Time]),
-	Tref = timer:send_after(Time, answer),
+	{ok, Tref} = timer:send_after(Time, answer),
 	{noreply, State#state{ringtimer = Tref, call = Call}};
 handle_cast({change_state, oncall, #call{} = Call}, State) ->
 	timer:cancel(State#state.ringtimer),
 	Time = get_time(State#state.oncall) * State#state.scale,
 	?INFO("hanging up call after ~p", [Time]),
-	Tref = timer:send_after(Time, hangup),
+	{ok, Tref} = timer:send_after(Time, hangup),
 	{noreply, State#state{ringtimer = undefined, calltimer = Tref, call = Call}};
 handle_cast({change_state, wrapup, #call{} = Call}, State) ->
 	timer:cancel(State#state.calltimer),
 	Time = get_time(State#state.wrapup) * State#state.scale,
 	?INFO("ending wrapup after ~p", [Time]),
-	Tref = timer:send_after(Time, endwrapup),
+	{ok, Tref} = timer:send_after(Time, endwrapup),
 	{noreply, State#state{calltimer = undefined, wrapuptimer = Tref, call = Call}};
 handle_cast({change_state, _AgState, _Data}, State) ->
 	{noreply, State};

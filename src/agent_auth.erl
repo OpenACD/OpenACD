@@ -39,7 +39,7 @@
 -include("agent.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -773,7 +773,7 @@ timestamp_comp(A, B) when is_record(A, agent_profile) ->
 	A#agent_profile.timestamp < B#agent_profile.timestamp.
 
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 %%--------------------------------------------------------------------
 %%% Test functions

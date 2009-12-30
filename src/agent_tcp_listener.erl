@@ -37,7 +37,7 @@
 %% depends on agent_tcp_connection, util, agent
 
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -56,7 +56,7 @@
 
 -record(state, {
 		listener :: port(),       % Listening socket
-		acceptor :: reference()       % Asynchronous acceptor's internal reference
+		acceptor :: any()       % Asynchronous acceptor's internal reference
 		}).
 
 -type(state() :: #state{}).
@@ -179,7 +179,7 @@ set_sockopt(ListSock, CliSocket) ->
 			Error % return error
 	end.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 start_test() -> 
 	{ok, Pid} = start(6666),

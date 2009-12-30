@@ -29,7 +29,7 @@
 
 %% @hidden
 -define(DEFAULT_WEIGHT, 5).
--ifdef(EUNIT).
+-ifdef(TEST).
 -define(DEFAULT_RECIPE, [{[{ticks, 3}], remove_skills, ['_node'], run_once}]).
 -else.
 -define(DEFAULT_RECIPE, [{[{ticks, 15}], remove_skills, ['_node'], run_once}]).

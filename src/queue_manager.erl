@@ -33,7 +33,7 @@
 
 %% depends on call_queue
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -471,7 +471,7 @@ find_queue_name(NeedlePid, [{_Qname, _Otherpid} | Tail]) ->
 find_queue_name(NeedlePid, Dict) ->
 	find_queue_name(NeedlePid, dict:to_list(Dict)).
 
--ifdef('EUNIT').
+-ifdef('TEST').
 
 %% @doc Add a queue named `Name' using the default weight and recipe.
 %-spec(add_queue/1 :: (Name :: string()) -> {'ok', pid()} | {'exists', pid()}).

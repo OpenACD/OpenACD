@@ -34,7 +34,7 @@
 
 -behaviour(gen_server).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -45,7 +45,7 @@
 -include_lib("stdlib/include/qlc.hrl").
 
 -define(WRITE_INTERVAL, 60). % in seconds.
--ifdef(EUNIT).
+-ifdef(TEST).
 -define(DETS, passive_cache_test).
 -else.
 -define(DETS, passive_cache).
@@ -889,7 +889,7 @@ is_abandon([{ivr, _}, {queued, _}, {ended, _}]) ->
 is_abandon(_) ->
 	false.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 sort_medias_test_() ->
 	{setup,

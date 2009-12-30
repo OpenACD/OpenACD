@@ -54,7 +54,7 @@
 	code_change/3
 ]).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 

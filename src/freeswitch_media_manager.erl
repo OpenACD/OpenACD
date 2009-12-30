@@ -42,7 +42,7 @@
 
 -behaviour(gen_server).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 

@@ -32,7 +32,7 @@
 -module(cdr).
 -behaviour(gen_event).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -754,7 +754,7 @@ diff_sum([#cdr_rec{media = Lmedia} = Hleft | Tleft] = Left, [#cdr_rec{media = Rm
 			diff_sum(Left, Tright, [Hright | Acc])
 	end.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 analyze_test_() ->
 	[{"hangup in inv",

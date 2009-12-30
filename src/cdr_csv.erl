@@ -33,7 +33,7 @@
 -author(micahw).
 -behavior(gen_cdr_dumper).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -50,11 +50,12 @@
 	rollback/1
 ]).
 
+-type(file_descriptor() :: pid() | {'file_descriptor', atom(), _}).
 -record(state, {
-	agent_states_file :: string(),
-	agent_states_buffer = [] :: [#agent_state{}],
-	cdr_file :: string(),
-	cdr_buffer = [] :: [#cdr_rec{}]
+	agent_states_file :: 'undefined' | file_descriptor(),
+	agent_states_buffer = [] :: [string()],
+	cdr_file :: 'undefined' | file_descriptor(),
+	cdr_buffer = [] :: [string()]
 }).
 
 -type(state() :: #state{}).
@@ -68,8 +69,8 @@
 init(Opts) ->
 	Agentout = proplists:get_value(agent_file, Opts, "./cpx_agent_states.csv"),
 	Cdrout = proplists:get_value(cdr_file, Opts, "./cpx_cdr.csv"),
-	{ok, Agentfile} = file:open(Agentout, [append]),
-	{ok, Cdrfile} = file:open(Cdrout, [append]),
+	{ok, Agentfile} = file:open(Agentout, [append, raw]),
+	{ok, Cdrfile} = file:open(Cdrout, [append, raw]),
 	{ok, #state{agent_states_file = Agentfile, cdr_file = Cdrfile}}.
 
 terminate(_Reason, _State) ->

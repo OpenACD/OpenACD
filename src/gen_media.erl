@@ -270,7 +270,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -398,7 +398,7 @@ oncall(Genmedia) ->
 agent_transfer(Genmedia, Apid, Timeout) ->
 	gen_server:call(Genmedia, {'$gen_media_agent_transfer', Apid, Timeout}).
 
--spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> {'ok', string()} | 'invalid').
+-spec(warm_transfer_begin/2 :: (Genmedia :: pid(), Number :: string()) -> 'ok' | 'invalid').
 warm_transfer_begin(Genmedia, Number) ->
 	gen_server:call(Genmedia, {'$gen_media_warm_transfer_begin', Number}).
 
@@ -440,11 +440,11 @@ cast(Genmedia, Request) ->
 %%====================================================================
 
 %% @doc Start a gen_media linked to the calling process.
--spec(start_link/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | {'error', any()}).
+-spec(start_link/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_link(Callback, Args) ->
 	gen_server:start_link(?MODULE, [Callback, Args], []).
 
--spec(start/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | {'error', any()}).
+-spec(start/2 :: (Callback :: atom(), Args :: any()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start(Callback, Args) ->
 	gen_server:start(?MODULE, [Callback, Args], []).
 
@@ -1264,7 +1264,7 @@ outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call) ->
 			{{error, {noagent, Agent}}, State#state{substate = NewState, callrec = Call}}
 	end.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 dead_spawn() ->
 	spawn(fun() -> ok end).
@@ -1839,7 +1839,7 @@ handle_call_test_() ->
 				timer_lives ->
 					ok
 			after 150 ->
-				error:error(timer_nolives)
+				erlang:error(timer_nolives)
 			end,
 			?assertEqual(State, Newstate),
 			Assertmocks()

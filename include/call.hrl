@@ -91,19 +91,7 @@
 
 -type(time() :: pos_integer()).
 -type(callid() :: string()).
--type(datalist() :: [{atom(), string()}]).
 -type(cdr_proplist() :: [{any(), any()}]).
--type(transaction() :: {transaction_type(), callid(), time(), datalist()}).
--type(transactions() :: [transaction()]).
--type(raw_transaction() :: {transaction_type(), time(), any()}).
-
--record(cdr_rec, {
-	media :: #call{},
-	summary = inprogress :: 'inprogress' | cdr_proplist(),
-	transactions = inprogress :: 'inprogress' | transactions(),
-	timestamp = util:now() :: time(),
-	nodes = [] :: [atom()]
-}).
 
 -record(cdr_raw, {
 	id :: callid(),
@@ -112,6 +100,14 @@
 	start = util:now() :: time(),
 	ended :: 'undefined' | time(),
 	terminates = [] :: [transaction_type()] | 'infoevent',
+	timestamp = util:now() :: time(),
+	nodes = [] :: [atom()]
+}).
+
+-record(cdr_rec, {
+	media :: #call{},
+	summary = inprogress :: 'inprogress' | cdr_proplist(),
+	transactions = inprogress :: 'inprogress' | [#cdr_raw{}],
 	timestamp = util:now() :: time(),
 	nodes = [] :: [atom()]
 }).

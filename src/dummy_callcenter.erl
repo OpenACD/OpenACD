@@ -36,7 +36,7 @@
 
 -define(SERVER, callcenter).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 

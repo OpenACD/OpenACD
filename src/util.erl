@@ -31,7 +31,7 @@
 %% erlang's standard library.
 -module(util).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -record(test_table, 
 	{name :: any(), 
@@ -409,7 +409,7 @@ reload(Module, Mode) ->
 reload_all() ->
 	reload_all(soft).
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -define(BEAM_DIR, "OpenACD/debug_ebin").
 -else.
 -define(BEAM_DIR, "OpenACD/ebin").
@@ -464,7 +464,7 @@ find_first_arc(Base, Ext, Count) ->
 			find_first_arc(Base, Ext, Count + 1)
 	end.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 
 code_reload_test_() ->
 	% Using dummy_media because using util kills coverage reporting.

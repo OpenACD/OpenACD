@@ -35,7 +35,7 @@
 
 %% depends on util, agent, cook, queue_manager
 
--ifdef(EUNIT).
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -655,7 +655,7 @@ clean_pid_(Deadpid, Recipe, QName, [{Key, Call} | Calls], Acc) ->
 	
 % begin the defintions of the tests.
 
--ifdef(EUNIT).
+-ifdef(TEST).
 test_primer() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	mnesia:stop(),

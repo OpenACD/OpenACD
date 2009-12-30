@@ -320,6 +320,8 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 			State#state{limbo_wrapup_count = Limbocount - 1};
 		oncall ->
 			State#state{limbo_wrapup_count = Limbocount + 1};
+		warmxfer_cancel ->
+			State#state{limbo_wrapup_count = Limbocount - 1};
 		hangup ->
 			State#state{hangup = true};
 		_Else ->

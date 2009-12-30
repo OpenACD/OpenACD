@@ -193,7 +193,7 @@ handle_answer(Apid, Callrec, State) ->
 			?DEBUG("archiving to ~s.wav", [Path]),
 			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start "++Path++".wav")
 	end,
-	agent:conn_cast(Apid, {mediaload, Callrec}),
+	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}]}),
 	{ok, State#state{agent_pid = Apid}}.
 
 handle_ring(Apid, Callrec, State) ->

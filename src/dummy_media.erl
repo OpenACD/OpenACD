@@ -462,8 +462,10 @@ handle_answer(Agent, Call, #state{fail = Fail} = State) ->
 			case State#state.mediaload of
 				true ->
 					agent:conn_cast(Agent, {mediaload, Call});
-				_ ->
-					ok
+				undefined ->
+					ok;
+				List ->
+					agent:conn_cast(Agent, {mediaload, Call, List})
 			end,
 			{ok, State};
 		fail ->

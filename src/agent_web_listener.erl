@@ -292,14 +292,27 @@ api(checkcookie, Cookie, _Post) ->
 		{_Reflist, _Salt, Conn} when is_pid(Conn) ->
 			?DEBUG("Found agent_connection pid ~p", [Conn]),
 			Agentrec = agent_web_connection:dump_agent(Conn),
-			Json = {struct, [
+			Basejson = [
 				{<<"success">>, true},
 				{<<"login">>, list_to_binary(Agentrec#agent.login)},
 				{<<"profile">>, list_to_binary(Agentrec#agent.profile)},
 				{<<"state">>, Agentrec#agent.state},
 				{<<"statedata">>, agent_web_connection:encode_statedata(Agentrec#agent.statedata)},
 				{<<"statetime">>, Agentrec#agent.lastchange},
-				{<<"timestamp">>, util:now()}]},
+				{<<"timestamp">>, util:now()}
+			],
+			Fulljson = case Agentrec#agent.state of
+				oncall ->
+					case agent_web_connection:mediaload(Conn) of
+						undefined ->
+							Basejson;
+						MediaLoad ->
+							[{<<"mediaload">>, {struct, MediaLoad}} | Basejson]
+					end;
+				_ ->
+					Basejson
+			end,
+			Json = {struct, Fulljson},
 			{200, [], mochijson2:encode(Json)};
 		badcookie ->
 			?INFO("cookie not in ets", []),

@@ -852,20 +852,33 @@ handle_cast({change_state, AgState, Data}, State) ->
 		{<<"statedata">>, encode_statedata(Data)}
 	]},
 	Newstate = push_event(Headjson, State),
-	case Data of
+	{noreply, Midstate} = case Data of
 		Call when is_record(Call, call) ->
 			{noreply, Newstate#state{current_call = Call}};
 		{onhold, Call, calling, _Number} ->
 			{noreply, Newstate#state{current_call = Call}};
 		_ ->
 			{noreply, Newstate#state{current_call = undefined}}
-	end;
+	end,
+	Fullstate = case AgState of
+		wrapup ->
+			Midstate#state{mediaload = undefined};
+		_ ->
+			Midstate
+	end,
+	{noreply, Fullstate};
 handle_cast({change_state, AgState}, State) ->
 	Headjson = {struct, [
 			{<<"command">>, <<"astate">>},
 			{<<"state">>, AgState}
 		]},
-	Newstate = push_event(Headjson, State),
+	Midstate = push_event(Headjson, State),
+	Newstate = case AgState of
+		wrapup ->
+			Midstate#state{mediaload = undefined};
+		_ ->
+			Midstate
+	end,
 	{noreply, Newstate#state{current_call = undefined}};
 handle_cast({change_profile, Profile}, State) ->
 	Headjson = {struct, [

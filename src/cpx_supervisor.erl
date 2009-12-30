@@ -351,7 +351,7 @@ update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 						Out;
 					Else ->
 						?WARNING("Adding new spec got ~p", [Else]),
-						error:error({start_fail, Else})
+						erlang:error({start_fail, Else})
 				end
 		end
 	end,

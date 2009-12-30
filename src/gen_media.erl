@@ -1839,7 +1839,7 @@ handle_call_test_() ->
 				timer_lives ->
 					ok
 			after 150 ->
-				error:error(timer_nolives)
+				erlang:error(timer_nolives)
 			end,
 			?assertEqual(State, Newstate),
 			Assertmocks()

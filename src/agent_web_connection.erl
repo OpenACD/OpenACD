@@ -304,27 +304,27 @@ handle_call({agent_transfer, Agentname}, _From, #state{agent_fsm = Apid} = State
 		false ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent not found">>}]})}, State}
 	end;
-handle_call({warm_transfer, Number}, _From, #state{agent_fsm = Apid} = State) ->
+handle_call({warm_transfer, Number}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	?NOTICE("warm transfer to ~p", [Number]),
-	Reply = case agent:warm_transfer_begin(Apid, Number) of
+	Reply = case gen_media:warm_transfer_begin(Call#call.source, Number) of
 		ok ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		invalid ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
 	end,
 	{reply, Reply, State};
-handle_call(warm_transfer_cancel, _From, #state{agent_fsm = Apid} = State) ->
+handle_call(warm_transfer_cancel, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	?NOTICE("warm transfer cancel", []),
-	Reply = case agent:warm_transfer_cancel(Apid) of
+	Reply = case gen_media:warm_transfer_cancel(Call#call.source) of
 		ok ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		invalid ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not cancel transfer">>}]})}
 	end,
 	{reply, Reply, State};
-handle_call(warm_transfer_complete, _From, #state{agent_fsm = Apid} = State) ->
+handle_call(warm_transfer_complete, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	?NOTICE("warm transfer complete", []),
-	Reply = case agent:warm_transfer_complete(Apid) of
+	Reply = case gen_media:warm_transfer_complete(Call#call.source) of
 		ok ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		invalid ->
@@ -768,6 +768,15 @@ handle_cast({mediaload, #call{type = voice} = Call}, State) ->
 		{<<"media">>, <<"voice">>},
 		{<<"fullpane">>, false}
 	]},
+	Newstate = push_event(Json, State),
+	{noreply, Newstate};
+handle_cast({mediaload, #call{type = voice} = Call, Options}, State) ->
+	Base = [
+		{<<"command">>, <<"mediaload">>},
+		{<<"media">>, <<"voice">>},
+		{<<"fullpane">>, false}
+	],
+	Json = {struct, lists:append(Base, Options)},
 	Newstate = push_event(Json, State),
 	{noreply, Newstate};
 handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->

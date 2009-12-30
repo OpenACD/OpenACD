@@ -50,6 +50,7 @@
 -export([
 	start_link/1,
 	start_link/2,
+	start/0,
 	start/1,
 	start/2,
 	ring_agent/2,
@@ -88,6 +89,7 @@
 	callrec = #call{} :: #call{},
 	life_timer = undefined :: any(),
 	%mode = success :: 'success' | 'failure' | 'fail_once',
+	mediaload :: 'undefined' | 'mediaload',
 	fail = dict:new() :: dict()
 	}).
 
@@ -98,34 +100,76 @@
 %%====================================================================
 %% API
 %%====================================================================
--spec(start_link/1 :: (Props :: [any()]) -> {'ok', pid()}).
-start_link([]) ->
-	start_link([], success);
-start_link([H | _Tail] = Props) when is_tuple(H) ->
-	start_link(Props, success);
-start_link(Callid) ->
-	start_link([{id, Callid}], success).
+-type(queue_option() :: {'queues', 'any' | [string()] | 'none'}).
+-type(life_option() :: {'max_flie', pos_integer()}).
+-type(mediaload_option() :: 'mediaload').
+-type(id_option() :: {'id', string()}).
+-type(source_option() :: {'source', pid()}).
+-type(type_option() :: {'type', atom()}).
+-type(callerid_option() :: {'callerid', {string(), string()}}).
+-type(client_option() :: {'client', #client{}}).
+-type(skill() :: atom() | {atom(), string()}).
+-type(skills_option() :: {'skills', [skill()]}).
+-type(priority_option() :: {'priority', pos_integer() | {'distribution', pos_integer()} | {pos_integer(), pos_integer()}}).
+-type(start_option() :: 
+	queue_option() | 
+	life_option() | 
+	mediaload_option() | 
+	id_option() | 
+	source_option() | 
+	type_option() | 
+	callerid_option() | 
+	client_option() |
+	skills_option() |
+	priority_option()
+).
+-type(start_options() :: [start_option()]).
 
--spec(start_link/2 :: (Props :: [any()], Fails :: 'success' | 'failure' | [atom()]) -> {'ok', pid()}).
-start_link(Props, success) ->
-	gen_media:start_link(?MODULE, [Props, success]);
-start_link(Props, failure) ->
-	gen_media:start_link(?MODULE, [Props, failure]);
-start_link(Props, Fails) when is_list(Fails) ->
+-type(failpoint() :: 
+	'start_cook' | 
+	'stop_cook' | 
+	'oncall' | 
+	'ring_agent' | 
+	'voicemail' | 
+	'agent_transfer' | 
+	'spy'
+).
+-type(fail_option() :: 'fail_once' | 'fail' | 'success').
+-type(fail_item() :: failpoint() | {failpoint() , fail_option()}).
+-type(fail_options() :: 'success' | 'failure' | [fail_item()]).
+
+-spec(start_link/1 :: (Props :: start_options()) -> {'ok', pid()}).
+start_link([]) ->
+	start_link([], success).
+%start_link([H | _Tail] = Props) when is_tuple(H) ->
+%	start_link(Props, success);
+%start_link(Callid) ->
+%	start_link([{id, Callid}], success).
+
+-spec(start_link/2 :: (Props :: start_options(), Fails :: fail_options()) -> {'ok', pid()}).
+%start_link(Props, success) ->
+%	gen_media:start_link(?MODULE, [Props, success]);
+%start_link(Props, failure) ->
+%	gen_media:start_link(?MODULE, [Props, failure]);
+start_link(Props, Fails) -> %when is_list(Fails) ->
 	gen_media:start_link(?MODULE, [Props, Fails]).
 
--spec(start/1 :: (Props :: [any()]) -> {'ok', pid()}).
-start([H | _Tail] = Props) when is_tuple(H) ->
-	start(Props, success);
-start(Callid) ->
-	start([{id, Callid}], success).
+-spec(start/0 :: () -> {'ok', pid()}).
+start() -> 
+	start([]).
 
--spec(start/2 :: (Props :: [any()], Fails :: 'success' | 'failure' | [atom()]) -> {'ok', pid()}).
-start(Props, success) ->
-	gen_media:start(?MODULE, [Props, success]);
-start(Props, failure) ->
-	gen_media:start(?MODULE, [Props, failure]);
-start(Props, Fails) when is_list(Fails) ->
+-spec(start/1 :: (Props :: start_options()) -> {'ok', pid()}).
+start(Props) -> %when is_tuple(H) ->
+	start(Props, success).
+%start(Callid) ->
+%	start([{id, Callid}], success).
+
+-spec(start/2 :: (Props :: start_options(), Fails :: fail_options()) -> {'ok', pid()}).
+%start(Props, success) ->
+%	gen_media:start(?MODULE, [Props, success]);
+%start(Props, failure) ->
+%	gen_media:start(?MODULE, [Props, failure]);
+start(Props, Fails) -> %when is_list(Fails) ->
 	gen_media:start(?MODULE, [Props, Fails]).
 
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -140,7 +184,7 @@ stop(Pid, Reason) ->
 ring_agent(Pid, Agentpid) when is_pid(Pid), is_pid(Agentpid) -> 
 	gen_media:call(Pid, {ring_agent, Agentpid}).
 
--spec(set_mode/3 :: (Pid :: pid(), Action :: atom(), Mode :: 'success' | 'fail' | 'fail_once') -> 'ok').
+-spec(set_mode/3 :: (Pid :: pid(), Action :: failpoint(), Mode :: fail_option()) -> 'ok').
 set_mode(Pid, Action, Mode) ->
 	gen_media:call(Pid, {set_action, Action, Mode}).
 
@@ -155,7 +199,7 @@ set_mode(Pid, Action, Mode) ->
 q() ->
 	q([]).
 
--spec(q/1 :: (Opts :: string() | [any()]) -> {'ok', pid()}).
+-spec(q/1 :: (Opts :: start_options()) -> {'ok', pid()}).
 q(Opts) ->
 	start_link(Opts).
 
@@ -163,7 +207,7 @@ q(Opts) ->
 q_x(N) ->
 	q_x(N, []).
 
--spec(q_x/2 :: (N :: pos_integer(), Options :: [{atom(), any()}]) -> [pid()]).
+-spec(q_x/2 :: (N :: pos_integer(), Options :: start_options()) -> [pid()]).
 q_x(N, Options) ->
 	F = fun(_I) ->
 		{ok, Pid} = q(Options),
@@ -203,7 +247,12 @@ init([Props, Fails]) ->
 			lists:map(fun(E) -> {E, fail} end, ?MEDIA_ACTIONS);
 		_Other when is_list(Fails) ->
 			F = fun(E) ->
-				{E, fail}
+				case E of
+					E when is_atom(E) ->
+						{E, fail};
+					_ ->
+						e
+				end
 			end,
 			lists:map(F, Fails)
 	end,
@@ -214,11 +263,18 @@ init([Props, Fails]) ->
 			{ok, Timer} = timer:send_after(Number * 1000, <<"hagurk">>),
 			Timer
 	end,
-	case proplists:get_value(queues, Props) of
-		undefined ->
-			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, Callrec}};
+	Mediaload = proplists:get_value(mediaload, Props),
+	Basestate = #state{
+		callrec = Callrec,
+		fail = dict:from_list(Newfail),
+		life_timer = Life,
+		mediaload = Mediaload
+	},
+	case proplists:get_value(queues, Props, any) of
+		none ->
+			{ok, {Basestate, Callrec}};
 		[Q] ->
-			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, {Q, Callrec}}};
+			{ok, {Basestate, {Q, Callrec}}};
 		any ->
 			QF = fun() ->
 				QH = qlc:q([Queue#call_queue.name || Queue <- mnesia:table(call_queue)]),
@@ -227,11 +283,11 @@ init([Props, Fails]) ->
 			{atomic, Qs} = mnesia:transaction(QF),
 			Index = crypto:rand_uniform(1, length(Qs) + 1),
 			Q = lists:nth(Index, Qs),
-			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, {Q, Callrec}}};
+			{ok, {Basestate, {Q, Callrec}}};
 		List ->
 			Index = crypto:rand_uniform(1, length(List) + 1),
 			Q = lists:nth(Index, List),
-			{ok, {#state{callrec = Callrec, fail = dict:from_list(Newfail), life_timer = Life}, {Q, Callrec}}}
+			{ok, {Basestate, {Q, Callrec}}}
 	end.
 
 	
@@ -399,10 +455,18 @@ code_change(_OldVsn, _Callrec, State, _Extra) ->
 handle_announce(_Annouce, _Callrec, State) ->
 	{ok, State}.
 
-handle_answer(_Agent, _Call, #state{fail = Fail} = State) ->
+handle_answer(Agent, Call, #state{fail = Fail} = State) ->
 	case dict:fetch(oncall, Fail) of
 		success ->
 			%agent:set_state(Agent, oncall, Call),
+			case State#state.mediaload of
+				true ->
+					agent:conn_cast(Agent, {mediaload, Call});
+				undefined ->
+					ok;
+				List ->
+					agent:conn_cast(Agent, {mediaload, Call, List})
+			end,
 			{ok, State};
 		fail ->
 			{error, dummy_fail, State};
@@ -503,13 +567,13 @@ dummy_test_() ->
 		{
 			"Simple start",
 			fun() -> 
-				?assertMatch({ok, _Pid}, dummy_media:start("testcall"))
+				?assertMatch({ok, _Pid}, dummy_media:start([{queues, none}]))
 			end
 		},
 		{
 			"Set agent ringing when set to success",
 			fun() -> 
-				{ok, {State, _Call}} = init([[], success]),
+				{ok, {State, _Call}} = init([[{queues, none}], success]),
 				?assertEqual({ok, State}, handle_ring("apid", "callrec", State))
 			end
 		},
@@ -518,14 +582,14 @@ dummy_test_() ->
 			fun() -> 
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
-				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}], failure),
 				?assertMatch(invalid, gen_media:ring(Dummypid, Agentpid, #queued_call{media=Dummypid, id = "testcall"}, 4000))
 			end
 		},
 		{
 			"Get call when set to success",
 			fun() -> 
-				{ok, Dummypid} = dummy_media:start("testcall"),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 				Call = gen_media:get_call(Dummypid),
 				?assertMatch("testcall", Call#call.id)
 			end
@@ -541,49 +605,49 @@ dummy_test_() ->
 		{
 			"Start cook when set to success",
 			fun() -> 
-				{ok, Dummypid} = dummy_media:start("testcall"),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 				?assertMatch(ok, gen_media:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
 			end
 		},
 		{
 			"Start cook when set to fail",
 			fun() -> 
-				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}], failure),
 				?assertMatch(invalid, gen_media:call(Dummypid, {start_cook, ?DEFAULT_RECIPE, "testqueue"}))
 			end
 		},
 		{
 			"Answer voicemail call when set to success",
 			fun() ->
-				{ok, {State, _Call}} = init([[], success]),
+				{ok, {State, _Call}} = init([[{queues, none}], success]),
 				?assertMatch({ok, State}, handle_voicemail("doesn't matter", "doesn't matter", State))
 			end
 		},
 		{
 			"Answer voicemail call when set to fail",
 			fun() ->
-				{ok, {State, _Call}} = init([[], failure]),
+				{ok, {State, _Call}} = init([[{queues, none}], failure]),
 				?assertMatch({invalid, State}, handle_voicemail("doesn't matter", "doesn't matter", State))
 			end
 		},
 		{
 			"Announce when set for success",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start("testcall"),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 				?assertMatch(ok, gen_media:announce(Dummypid, "Random data"))
 			end
 		},
 		{
 			"Announce when set to fail",
 			fun() ->
-				{ok, Dummypid} = dummy_media:start([{id, "testcall"}], failure),
+				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}], failure),
 				?assertMatch(ok, gen_media:announce(Dummypid, "Random data"))
 			end
 		},
 		{
 			"Set to die",
 			fun() ->
-				{ok, {_State, _Call}} = init([[{max_life, 1}], success]),
+				{ok, {_State, _Call}} = init([[{max_life, 1}, {queues, none}], success]),
 				receive
 					<<"hagurk">> ->
 						 ?assert(true)

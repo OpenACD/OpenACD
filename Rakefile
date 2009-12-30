@@ -58,12 +58,10 @@ end
 @maxwidth = SRC.map{|x| File.basename(x, 'erl').length}.max
 
 CLEAN.include("ebin/*.beam")
-CLEAN.include("ebin/*.app")
 CLEAN.include("ebin/*.script")
 CLEAN.include("ebin/*.boot")
 CLEAN.include("ebin/*.rel")
 CLEAN.include("debug_ebin/*.beam")
-CLEAN.include("debug_ebin/*.app")
 CLEAN.include("debug_ebin/*.script")
 CLEAN.include("debug_ebin/*.boot")
 CLEAN.include("coverage/*.txt")
@@ -188,13 +186,6 @@ task :contrib do
 			end
 		end
 	end
-	unless Dir["src/*.app"].length.zero?
-		if win32
-			sh "copy /Y src\\*.app ebin\\"
-		else
-			sh "cp src/*.app ebin/"
-		end
-	end
 end
 
 task :default => :compile do
@@ -256,13 +247,6 @@ namespace :test do
 				else
 					sh "cp #{cont}/ebin/*.beam debug_ebin"
 				end
-			end
-		end
-		unless Dir["src/*.app"].length.zero?
-			if win32
-				sh "copy /Y src\\*.app debug_ebin\\"
-			else
-				sh "cp src/*.app debug_ebin/"
 			end
 		end
 	end

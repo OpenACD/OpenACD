@@ -1117,7 +1117,7 @@ tick_manipulation_test_() ->
 		test_primer(),
 		queue_manager:start([node()]),
 		{ok, Pid} = queue_manager:add_queue("testqueue", []),
-		{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}]),
+		{ok, Dummy} = dummy_media:start([{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]),
 		{Pid, Dummy}
 	end,
 	fun({Pid, Dummy}) ->
@@ -1177,7 +1177,7 @@ agent_interaction_test_() ->
 		?DEBUG("queue_manager:  ~p", [queue_manager:start([node()])]),
 		{ok, QPid} = queue_manager:add_queue("testqueue", []),
 		?DEBUG("call_queue:  ~p", [QPid]),
-		{ok, MPid} = dummy_media:start("testcall"),
+		{ok, MPid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 		?DEBUG("dummy_media:  ~p", [MPid]),
 		?DEBUG("dispatch_manager:  ~p", [dispatch_manager:start()]),
 		?DEBUG("agent_manager:  ~p", [agent_manager:start([node()])]),
@@ -1247,7 +1247,7 @@ agent_interaction_test_() ->
 		fun({QPid, _MPid, APid}) ->
 			{"Media says the the ring to the agent is invalid.",
 			fun() ->
-				{ok, Media} = dummy_media:start("testcall"),
+				{ok, Media} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 				dummy_media:set_mode(Media, ring_agent, fail),
 				call_queue:add(QPid, Media),
 				agent:set_state(APid, idle),
@@ -1263,7 +1263,7 @@ agent_interaction_test_() ->
 		fun({QPid, _MPid, APid}) ->
 			{"Agent cannot take the call in queue (regrab)",
 			fun() ->
-				{ok, Media} = dummy_media:start([{id, "testcall"}, {skills, [german]}]),
+				{ok, Media} = dummy_media:start([{id, "testcall"}, {skills, [german]}, {queues, none}]),
 				%dummy_media:set_skills(Media, [german]),
 				?CONSOLE("Media response to getting call:  ~p", [gen_media:get_call(Media)]),
 				call_queue:add(QPid, Media),
@@ -1280,7 +1280,7 @@ agent_interaction_test_() ->
 		fun({QPid, _MPid, _APid}) ->
 			{"Agent with the _all skill overrides other skill checking",
 			fun() ->
-				{ok, MPid} = dummy_media:start([{id, "testcall"}, {skills, [german]}]),
+				{ok, MPid} = dummy_media:start([{id, "testcall"}, {skills, [german]}, {queues, none}]),
 				%dummy_media:set_skills(MPid, [german]),
 				call_queue:add(QPid, MPid),
 				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2", skills=[english, '_all']}),
@@ -1294,7 +1294,7 @@ agent_interaction_test_() ->
 		fun({QPid, _MPid, APid}) ->
 			{"Call with the _all skill overrides other skill checking",
 			fun() ->
-				{ok, MPid} = dummy_media:start([{id, "testcall"}, {skills, [german, '_all']}]),
+				{ok, MPid} = dummy_media:start([{id, "testcall"}, {skills, [german, '_all']}, {queues, none}]),
 				%dummy_media:set_skills(MPid, [german, '_all']),
 				call_queue:add(QPid, MPid),
 				agent:set_state(APid, idle),
@@ -1351,7 +1351,7 @@ multinode_test_() ->
 				{"Media goes into a queue on a different node",
 				fun() ->
 					?CONSOLE("cook multi 1", []),
-					{ok, Media} = rpc:call(Slave, dummy_media, start, ["testcall"]),
+					{ok, Media} = rpc:call(Slave, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
 					?assert(node(Media) =:= Slave),
 					QPid = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
 					?CONSOLE("das pid:  ~p", [QPid]),
@@ -1372,7 +1372,7 @@ multinode_test_() ->
 				fun() ->
 					call_queue_config:new_queue(#call_queue{name = "testqueue"}),
 					{ok, Qpid} = rpc:call(Slave, queue_manager, add_queue, ["testqueue", []]),
-					{ok, Media} = rpc:call(Master, dummy_media, start, ["testcall"]),
+					{ok, Media} = rpc:call(Master, dummy_media, start, [[{id, "testcall"}, {queues, none}]]),
 					call_queue:add(Qpid, Media),
 					slave:stop(Slave),
 					timer:sleep(1000),
@@ -1384,12 +1384,8 @@ multinode_test_() ->
 			end
 		]
 	}.
-
-
-
-
 	
--define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start("testcall"), {ok, Pid} = start(Dummy,[{[{ticks, 1}], set_priority, 5, run_once}], "testqueue", {1, now()}), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start([{id, "testcall"}, {queues, none}]), {ok, Pid} = start(Dummy,[{[{ticks, 1}], set_priority, 5, run_once}], "testqueue", {1, now()}), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

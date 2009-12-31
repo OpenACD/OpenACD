@@ -565,8 +565,18 @@ build_tables() ->
 		{type, bag}
 	]),
 	ok.
-spawn_summarizer(Transactions, #call{id = CallID} = Callrec) ->
+
+spawn_summarizer(UsortedTransactions, #call{id = CallID} = Callrec) ->
 	Summarize = fun() ->
+		Sort = fun(#cdr_raw{start = Astart, ended = Aend}, #cdr_raw{start = Bstart, ended = Bend}) ->
+			case {Astart, Bstart} of
+				{X, X} ->
+					Aend =< Bend;
+				_ ->
+					Astart =< Bstart
+			end
+		end,
+		Transactions = lists:sort(Sort, UsortedTransactions),
 		?DEBUG("Summarize inprogress for ~p", [CallID]),
 		Summary = summarize(Transactions),
 		F = fun() ->

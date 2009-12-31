@@ -42,7 +42,8 @@
 		id = erlang:error({undefined, id}) :: string(),
 		type = voice :: 'voice' | 'voicemail' | 'email' | 'chat',
 		callerid = {"Unknown", "Unknown"} :: {string(), string()},
-		% source is the Pid of the media manager this is from
+		% source is the Pid of the media manager this is from TODO o rly?
+		% this is often used to reference back to the call itself.
 		source = erlang:error({undefined, source}) :: pid(),
 		bound = [] :: [pid()],
 		% client record

@@ -862,6 +862,31 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 				{<<"brand">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end}
 			]},
 			{{Avail, Rel, Busy + 1}, Statename, Json};
+		{Statename, {onhold, Media, calling, Transferto}} ->
+			Qh = qlc:q([Row ||
+				{{Type, Idgen}, _, _, _, _} = Row <- dets:table(?DETS),
+				Type == media,
+				Idgen == Media#call.id
+			]),
+			Calljson = case qlc:e(Qh) of
+				[] ->
+					Client = Media#call.client,
+					{struct, [
+						{<<"id">>, list_to_binary(Media#call.id)},
+						{<<"time">>, Time},
+						{<<"brand">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
+						{<<"node">>, node(Media#call.source)},
+						{<<"type">>, Media#call.type},
+						{<<"priority">>, Media#call.priority}
+					]};
+				[T] ->
+					lists:nth(1, element(5, media_to_json([T])))
+			end,
+			Datajson = {struct, [
+				{<<"calling">>, list_to_binary(Transferto)},
+				{<<"onhold">>, Calljson}
+			]},
+			{{Avail, Rel, Busy + 1}, Statename, Datajson};
 		{Statename, _Otherdata} ->
 			{{Avail, Rel, Busy + 1}, Statename, false}
 	end,

@@ -55,7 +55,7 @@
 
 -ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
-	-define(AGENTWEBPORT, 6060).
+	-define(AGENTWEBPORT, 55050).
 -else.
 	-define(AGENTWEBPORT, 5050).
 -endif.

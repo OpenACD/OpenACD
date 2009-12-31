@@ -47,7 +47,7 @@
 -include("agent.hrl").
 
 -ifdef(TEST).
--define(PORT, 6060).
+-define(PORT, 55050).
 -else.
 -define(PORT, 5050).
 -endif.

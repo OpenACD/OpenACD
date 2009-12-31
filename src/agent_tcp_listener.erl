@@ -33,7 +33,7 @@
 -module(agent_tcp_listener).
 
 -ifdef(TEST).
--define(PORT, 1338).
+-define(PORT, 51337).
 -else.
 -define(PORT, 1337).
 -endif.

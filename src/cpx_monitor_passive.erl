@@ -880,7 +880,7 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 						{<<"priority">>, Media#call.priority}
 					]};
 				[T] ->
-					lists:nth(1, element(5, media_to_json([T])))
+					lists:nth(1, element(5, medias_to_json([T])))
 			end,
 			Datajson = {struct, [
 				{<<"calling">>, list_to_binary(Transferto)},

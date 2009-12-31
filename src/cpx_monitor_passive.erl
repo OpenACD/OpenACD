@@ -89,7 +89,7 @@
 	start_link/1,
 	start/1,
 	stop/0,
-	write_output/1
+	write_output/2
 ]).
 
 %% gen_server callbacks
@@ -233,7 +233,7 @@ handle_info(write_output, #state{filters = Filters} = State) ->
 	Keys = qlc:e(Qh),
 	lists:foreach(fun(K) -> dets:delete(?DETS, K) end, Keys),
 	WritePids = lists:map(fun({Nom, _F} = Filter) ->
-		Pid = spawn_link(?MODULE, write_output, [Filter]),
+		Pid = spawn_link(?MODULE, write_output, [Filter, State#state.interval]),
 		{Pid, Nom}
 	end, Filters),
 	%?DEBUG("das pids:  ~p", [WritePids]),
@@ -620,8 +620,8 @@ filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
 			end
 	end.
 
--spec(write_output/1 :: ({Nom :: string(), Filter :: #filter{}}) -> 'ok').
-write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter}) ->
+-spec(write_output/2 :: ({Nom :: string(), Filter :: #filter{}}, Interval :: pos_integer()) -> 'ok').
+write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter}, Interval) ->
 	Now = util:now(),
 	Hourago = Now - 3600,
 	%Dayago = Now - 3600 * 24,
@@ -661,6 +661,7 @@ write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter
 	{_, _, _, _, Rawjson} = medias_to_json(Rawdata),
 	Json = {struct, [
 		{<<"writeTime">>, util:now()},
+		{<<"writeInterval">>, Interval},
 		{<<"totalInbound">>, length(Inbound)},
 		{<<"totalOutbound">>, length(Outbound)},
 		{<<"totalAbandoned">>, length(Abandoned)},
@@ -856,6 +857,11 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 %				{<<"timeQueued">>, Timequeue}
 %			]},
 			{{Avail, Rel, Busy + 1}, Statename, Datajson};
+		{Statename, Client} when is_record(Client, client) ->
+			Json = {struct, [
+				{<<"brand">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end}
+			]},
+			{{Avail, Rel, Busy + 1}, Statename, Json};
 		{Statename, _Otherdata} ->
 			{{Avail, Rel, Busy + 1}, Statename, false}
 	end,

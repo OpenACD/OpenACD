@@ -1074,7 +1074,10 @@ correct_client(#call{client = Client} = Callrec) ->
 			correct_client_sub(Id);
 		undefined ->
 			correct_client_sub(undefined);
-		String -> % TODO WTF?
+		String ->
+			% if given the client id; so a media is not burndened with checking
+			% mnesia or the client itself.
+			% basically, see the next function call:
 			correct_client_sub(String)
 	end,
 	Callrec#call{client = Newclient}.

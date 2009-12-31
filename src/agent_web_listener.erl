@@ -46,7 +46,11 @@
 -include("queue.hrl").
 -include("agent.hrl").
 
+-ifdef(TEST).
+-define(PORT, 6060).
+-else.
 -define(PORT, 5050).
+-endif.
 -define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
 -define(MOCHI_NAME, aweb_mochi).
 

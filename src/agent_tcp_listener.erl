@@ -32,7 +32,11 @@
 
 -module(agent_tcp_listener).
 
+-ifdef(TEST).
+-define(PORT, 1338).
+-else.
 -define(PORT, 1337).
+-endif.
 
 %% depends on agent_tcp_connection, util, agent
 
@@ -201,7 +205,7 @@ async_listsock_test() ->
 
 -define(MYSERVERFUNC, 
 	fun() -> 
-		{ok, Pid} = start_link(5050), 
+		{ok, Pid} = start_link(?PORT), 
 		{Pid, fun() -> stop(Pid) end} 
 	end).
 

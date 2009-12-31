@@ -31,7 +31,11 @@
 -module(cpx_web_management).
 -author("Micah").
 
+-ifdef(TEST).
+-define(PORT, 10000).
+-else.
 -define(PORT, 9999).
+-endif.
 -define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
 -define(COOKIE, {_Reflist, _Salt, _Login}).
 
@@ -1956,7 +1960,7 @@ api_test_() ->
 					id = agent_tcp_listener,
 					module_name = agent_tcp_listener, 
 					start_function = start_link, 
-					start_args = [1337], 
+					start_args = [1338], 
 					supervisor = agent_connection_sup
 				}),
 				?assert(is_pid(Atcppid)),

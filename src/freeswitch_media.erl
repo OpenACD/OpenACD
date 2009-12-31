@@ -510,7 +510,7 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid, warm_transfer
 	?WARNING("Handling ring channel ~w exit ~p while in warm transfer", [Pid, Reason]),
 	agent:media_push(State#state.agent_pid, warm_transfer_failed),
 	cdr:warmxfer_fail(Call),
-	{noreply, State#state{ringchannel = undefined, warm_transfer_uuid = undefined}};
+	{noreply, State#state{ringchannel = undefined}};
 handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p", [Pid, Reason]),
 	{stop_ring, State#state{ringchannel = undefined}};

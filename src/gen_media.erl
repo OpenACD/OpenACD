@@ -688,7 +688,9 @@ handle_call('$gen_media_warm_transfer_complete', _From, #state{callback = Callba
 				{ok, NewState} ->
 					Res = agent:set_state(Apid, wrapup, State#state.callrec),
 					cdr:warmxfer_complete(State#state.callrec),
-					{reply, Res, State#state{substate = NewState}};
+					#agent{login = Agent} = agent:dump_state(Apid),
+					cdr:wrapup(State#state.callrec, Agent),
+					{reply, Res, State#state{substate = NewState, oncall_pid = undefined}};
 				{error, Error, NewState} ->
 					?DEBUG("Callback module ~w errored for warm transfer complete:  ~p", [Callback, Error]),
 					{reply, invalid, State#state{substate = NewState}}

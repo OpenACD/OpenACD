@@ -58,9 +58,9 @@
 	agent_transfer/2,
 	queue_transfer/2,
 	warmxfer_begin/2,
-	warmxfer_cancel/1,
-	warmxfer_complete/1,
-	warmxfer_fail/1,
+	warmxfer_cancel/2,
+	warmxfer_complete/2,
+	warmxfer_fail/2,
 	status/1,
 	merge/3,
 	get_raws/1,
@@ -195,21 +195,29 @@ transfer(Call, Transferto) ->
 	event({transfer, Call, util:now(), Transferto}).
 
 %% @doc Notify cdr handler that `#cll{} Call' is starting to be warm transfered.
--spec(warmxfer_begin/2 :: (Call :: #call{}, Numdialed :: string()) -> 'ok').
-warmxfer_begin(Call, Numdialed) ->
-	event({warmxfer_begin, Call, util:now(), Numdialed}).
+-spec(warmxfer_begin/2 :: (Call :: #call{}, {Agent :: string() | pid(), Numdialed :: string()}) -> 'ok').
+warmxfer_begin(Call, {Agent, Numdialed}) when is_pid(Agent) ->
+	warmxfer_begin(Call, {agent_manager:find_by_pid(Agent), Numdialed});
+warmxfer_begin(Call, {Agent, Numdialed}) ->
+	event({warmxfer_begin, Call, util:now(), {Agent, Numdialed}}).
 
--spec(warmxfer_cancel/1 :: (Call :: #call{}) -> 'ok').
-warmxfer_cancel(Call) ->
-	event({warmxfer_cancel, Call, util:now(), undefined}).
+-spec(warmxfer_cancel/2 :: (Call :: #call{}, Agent :: pid() | string()) -> 'ok').
+warmxfer_cancel(Call, Agent) when is_pid(Agent) ->
+	warmxfer_cancel(Call, agent_manager:find_by_pid(Agent));
+warmxfer_cancel(Call, Agent) ->
+	event({warmxfer_cancel, Call, util:now(), Agent}).
 
--spec(warmxfer_fail/1 :: (Call :: #call{}) -> 'ok').
-warmxfer_fail(Call) ->
-	event({warmxfer_fail, Call, util:now(), undefined}).
+-spec(warmxfer_fail/2 :: (Call :: #call{}, Agent :: pid() | string()) -> 'ok').
+warmxfer_fail(Call, Agent) when is_pid(Agent) ->
+	warmxfer_fail(Call, agent_manager:find_by_pid(Agent));
+warmxfer_fail(Call, Agent) ->
+	event({warmxfer_fail, Call, util:now(), Agent}).
 
--spec(warmxfer_complete/1 :: (Call :: #call{}) -> 'ok').
-warmxfer_complete(Call) ->
-	event({warmxfer_complete, Call, util:now(), undefined}).
+-spec(warmxfer_complete/2 :: (Call :: #call{}, Agent :: pid() | string()) -> 'ok').
+warmxfer_complete(Call, Agent) when is_pid(Agent) ->
+	warmxfer_complete(Call, agent_manager:find_by_pid(Agent));
+warmxfer_complete(Call, Agent) ->
+	event({warmxfer_complete, Call, util:now(), Agent}).
 
 %% @doc Notify cdr handler that `#call{} Call' is being offered by `string() Offerer'
 %% to `string() Recipient'.
@@ -468,7 +476,7 @@ find_untermed(agent_transfer, _, _) ->
 find_untermed(queue_transfer, _, _) ->
 	% inqueue to inqueue for the actual terminations
 	[];
-find_untermed(warmxfer_begin, #call{id = Cid}, DialedNum) ->
+find_untermed(warmxfer_begin, #call{id = Cid}, _) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id == Cid,
@@ -625,6 +633,12 @@ summarize([#cdr_raw{transaction = ringing} = Cdr | Tail], Acc) ->
 	Newacc = summarize(Cdr, ringing, Cdr#cdr_raw.eventdata, Acc),
 	summarize(Tail, Newacc);
 summarize([#cdr_raw{transaction = oncall} = Cdr | Tail], Acc) ->
+	Newacc = summarize(Cdr, oncall, Cdr#cdr_raw.eventdata, Acc),
+	summarize(Tail, Newacc);
+summarize([#cdr_raw{transaction = warmxfer_begin} = Cdr | Tail], Acc) ->
+	Newacc = summarize(Cdr, oncall, element(1, Cdr#cdr_raw.eventdata), Acc),
+	summarize(Tail, Newacc);
+summarize([#cdr_raw{transaction = warmxfer_fail} = Cdr | Tail], Acc) ->
 	Newacc = summarize(Cdr, oncall, Cdr#cdr_raw.eventdata, Acc),
 	summarize(Tail, Newacc);
 summarize([#cdr_raw{transaction = wrapup} = Cdr | Tail], Acc) ->
@@ -1330,6 +1344,81 @@ summarize_test_() ->
 				F(F, Tail)
 		end,
 		Test(Test, Dict)
+	end},
+	{"a basic warm transfer",
+	fun() ->
+		Transactions = [
+			#cdr_raw{id = "id", transaction = cdrinit, start = 5, ended = 35},
+			#cdr_raw{id = "id", transaction = inqueue, start = 10, ended = 20, eventdata = "queue"},
+			#cdr_raw{id = "id", transaction = ringing, start = 15, ended = 20, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = oncall, start = 20, ended = 25, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = warmxfer_begin, start = 25, ended = 30, eventdata = {"agent", "dialed"}},
+			#cdr_raw{id = "id", transaction = warmxfer_complete, start = 30, ended = 30, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = wrapup, start = 30, ended = 35, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = endwrapup, start = 35, ended = 35, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = hangup, start = 40, ended = 40, eventdata = undefined},
+			#cdr_raw{id = "id", transaction = cdrend, start = 40, ended = 40}
+		],
+		Topprop = summarize(Transactions),
+		Assertfun = fun
+			(_F, []) ->
+				ok;
+			(F, [{inqueue, {Total, Props}} | Tail]) ->
+				?assertEqual(10, proplists:get_value("queue", Props)),
+				?assertEqual(10, Total),
+				F(F, Tail);
+			(F, [{ringing, {Total, Props}} | Tail]) ->
+				?assertEqual(5, proplists:get_value("agent", Props)),
+				?assertEqual(5, Total),
+				F(F, Tail);
+			(F, [{oncall, {Total, Props}} | Tail]) ->
+				?assertEqual(10, proplists:get_value("agent", Props)),
+				?assertEqual(10, Total),
+				F(F, Tail);
+			(F, [{wrapup, {Total, Props}} | Tail]) ->
+				?assertEqual(5, proplists:get_value("agent", Props)),
+				?assertEqual(5, Total),
+				F(F, Tail)
+		end,
+		Assertfun(Assertfun, Topprop)
+	end},
+	{"a multi fail warm transfer",
+	fun() ->
+		Transactions = [
+			#cdr_raw{id = "id", transaction = cdrinit, start = 5, ended = 35},
+			#cdr_raw{id = "id", transaction = inqueue, start = 10, ended = 20, eventdata = "queue"},
+			#cdr_raw{id = "id", transaction = ringing, start = 15, ended = 20, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = oncall, start = 20, ended = 25, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = warmxfer_begin, start = 25, ended = 30, eventdata = {"agent", "dialed"}},
+			#cdr_raw{id = "id", transaction = warmxfer_fail, start = 30, ended = 35},
+			#cdr_raw{id = "id", transaction = warmxfer_begin, start = 35, ended = 40, eventdata = {"agent", "dialed2"}},
+			#cdr_raw{id = "id", transaction = warmxfer_fail, start = 40, ended = 45, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = warmxfer_complete, start = 45, ended = 55, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = wrapup, start = 45, ended = 50, eventdata = "agent"},
+			#cdr_raw{id = "id", transaction = hangup, start = 55, ended = 55},
+			#cdr_raw{id = "id", transaction = cdrend, start = 55, ended = 55}
+		],
+		Topprop = summarize(Transactions),
+		Assertfun = fun
+			(_F, []) ->
+				ok;
+			(F, [{inqueue, {Total, Props}} | Tail]) ->
+				?assertEqual(10, proplists:get_value("queue", Props)),
+				?assertEqual(10, Total),
+				F(F, Tail);
+			(F, [{ringing, {Total, Props}} | Tail]) ->
+				?assertEqual(5, proplists:get_value("agent", Props)),
+				?assertEqual(5, Total),
+				F(F, Tail);
+			(F, [{oncall, {Total, Props}} | Tail]) ->
+				?assertEqual(25, proplists:get_value("agent", Props)),
+				?assertEqual(25, Total),
+				F(F, Tail);
+			(F, [{wrapup, {Total, Props}} | Tail]) ->
+				?assertEqual(5, proplists:get_value("agent", Props)),
+				?assertEqual(5, Total)
+		end,
+		Assertfun(Assertfun, Topprop)
 	end}].
 %
 %mnesia_test_() ->

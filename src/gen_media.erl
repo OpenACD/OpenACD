@@ -655,7 +655,7 @@ handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback =
 			case Callback:handle_warm_transfer_begin(Number, State#state.callrec, State#state.substate) of
 				{ok, UUID, NewState} ->
 					Res = agent:set_state(Apid, warmtransfer, {onhold, State#state.callrec, calling, UUID}),
-					cdr:warmxfer_begin(State#state.callrec, Number),
+					cdr:warmxfer_begin(State#state.callrec, {Apid, Number}),
 					{reply, Res, State#state{substate = NewState, warm_transfer = true}};
 				{error, Error, NewState} ->
 					?DEBUG("Callback module ~w errored for warm transfer begin:  ~p", [Callback, Error]),
@@ -670,7 +670,7 @@ handle_call('$gen_media_warm_transfer_cancel', _From, #state{callback = Callback
 			case Callback:handle_warm_transfer_cancel(State#state.callrec, State#state.substate) of
 				{ok, NewState} ->
 					Res = agent:set_state(Apid, oncall, State#state.callrec),
-					cdr:warmxfer_cancel(State#state.callrec),
+					cdr:warmxfer_cancel(State#state.callrec, Apid),
 					#agent{login = Agent} = agent:dump_state(Apid),
 					cdr:oncall(State#state.callrec, Agent),
 					{reply, Res, State#state{substate = NewState}};
@@ -687,7 +687,7 @@ handle_call('$gen_media_warm_transfer_complete', _From, #state{callback = Callba
 			case Callback:handle_warm_transfer_complete(State#state.callrec, State#state.substate) of
 				{ok, NewState} ->
 					Res = agent:set_state(Apid, wrapup, State#state.callrec),
-					cdr:warmxfter_complete(State#state.callrec),
+					cdr:warmxfter_complete(State#state.callrec, Apid),
 					{reply, Res, State#state{substate = NewState}};
 				{error, Error, NewState} ->
 					?DEBUG("Callback module ~w errored for warm transfer complete:  ~p", [Callback, Error]),

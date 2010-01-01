@@ -783,7 +783,7 @@ warmtransfer({outgoing, Call}, _From, State) ->
 	{reply, ok, outgoing, Newstate};
 warmtransfer({warmtransfer, {onhold, Call, calling, UUID} = Statedata}, _From, State) ->
 	Newstate = State#agent{statedata = Statedata},
-	% TODO - cpx_monitor update needed?
+	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};
 %warmtransfer({warm_transfer_begin, Number}, _From, #agent{statedata = {onhold, Call, calling, _Call}} = State) ->
 	%case gen_media:warm_transfer_begin(Call#call.source, Number, self(), State) of
@@ -1147,8 +1147,11 @@ log_loop(Id, Agentname, Nodes, Profile) ->
 					end,
 					Recs
 				),
-				% TODO oldstate
-				Newrec = #agent_state{id = Id, agent = Agentname, state = logout, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
+				Stateage = fun(#agent_state{start = A}, #agent_state{start = B}) ->
+					B =< A
+				end,
+				[#agent_state{state = Oldstate} | _] = lists:sort(Stateage, Recs),
+				Newrec = #agent_state{id = Id, agent = Agentname, state = logout, oldstate = Oldstate, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
 				mnesia:write(Newrec),
 				ok
 			end,

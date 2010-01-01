@@ -450,7 +450,7 @@ handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 		binary_to_list(Encoded)
 	},
 	{ok, Sendopts} = email_media_manager:get_send_opts(),
-	case archive(Encoded, Callrec, outbound) of
+	case email_media_session:archive(Encoded, Callrec, outbound) of
 		ok ->
 			ok;
 		{error, ArcErr} ->
@@ -543,29 +543,6 @@ handle_spy(Spy, Callrec, State) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-
-archive(Rawdata, Callrec, Direction) when is_binary(Rawdata) ->
-	case cpx_supervisor:get_archive_path(Callrec) of
-		none ->
-			?DEBUG("archiving is not configured", []),
-			ok;
-		{error, Reason, Path} ->
-			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]),
-			{error, Reason};
-		BasePath ->
-			%% get_archive_path ensures the directory is writeable by us and exists, so this
-			%% should be safe to do (the call will be hungup if creating the recording file fails)
-			Path = case Direction of
-				% dialyzer was complaining about this clause, setting aside, 
-				% can likely be deleted next time someone notices the TODO
-%				inbound -> % TODO - inbound archiving is handled elsewhere in email_media_session
-%					BasePath ++ ".eml";
-				outbound ->
-					util:find_first_arc(BasePath ++ "-reply", ".eml")
-			end,
-			?DEBUG("archiving to ~s", [Path]),
-			file:write_file(Path, Rawdata)
-	end.
 	
 %% @doc get the keys of a proplist, preserving order.
 %% proplists:get_keys/1 does not have predictable order.

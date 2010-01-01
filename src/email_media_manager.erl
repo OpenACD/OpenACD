@@ -89,7 +89,7 @@ start(Options) ->
 stop() ->
 	gen_server:call(?MODULE, stop).
 
--spec(get_mappings/0 :: () -> {'atomic', [#mail_map{}]}).
+-spec(get_mappings/0 :: () -> {'atomic', [#mail_map{}]} | {'aborted', any()}).
 get_mappings() ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(mail_map)]),

@@ -105,7 +105,7 @@
 
 -record(filter, {
 	file_output :: string(),
-	max_age = max :: 'max' | pos_integer(),
+	max_age = max :: 'max' | pos_integer() | {'since', pos_integer()},
 	queues :: [string()] | 'all',
 	queue_groups :: [string()] | 'all',
 	agents :: [string()] | 'all',

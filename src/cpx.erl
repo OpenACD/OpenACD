@@ -124,11 +124,11 @@ get_agent(Agent) ->
 
 -spec(get_agents/0 :: () -> [{string(), pid()}]).
 get_agents() ->
-	agent_manager:to_list().
+	agent_manager:list().
 
 -spec(get_agents/1 :: (Profile :: string()) -> [{string(), pid()}]).
 get_agents(Profile) ->
-	Agents = agent_manager:to_list(),
+	Agents = agent_manager:list(),
 	Fun = fun({_Login, Pid}) ->
 		case agent:dump_state(Pid) of
 			#agent{profile = Profile} ->
@@ -180,7 +180,7 @@ get_media(LPid) ->
 
 get_media_queues([], _Callref) ->
 	none;
-get_media_queues([Queue | Tail], Callref) ->
+get_media_queues([{Qnom, Queue} | Tail], Callref) ->
 	Calls = call_queue:to_list(Queue),
 	case get_media_queues_medias(Calls, Callref) of
 		none ->

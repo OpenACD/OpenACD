@@ -556,8 +556,10 @@ archive(Rawdata, Callrec, Direction) when is_binary(Rawdata) ->
 			%% get_archive_path ensures the directory is writeable by us and exists, so this
 			%% should be safe to do (the call will be hungup if creating the recording file fails)
 			Path = case Direction of
-				inbound -> % TODO - inbound archiving is handled elsewhere in email_media_session
-					BasePath ++ ".eml";
+				% dialyzer was complaining about this clause, setting aside, 
+				% can likely be deleted next time someone notices the TODO
+%				inbound -> % TODO - inbound archiving is handled elsewhere in email_media_session
+%					BasePath ++ ".eml";
 				outbound ->
 					util:find_first_arc(BasePath ++ "-reply", ".eml")
 			end,
@@ -658,11 +660,7 @@ append_files(Headers, Properties, Path, Files) ->
 				inline ->
 					Midfiles;
 				{_Linedness, Name} ->
-					% TODO - this should *always* be a binary?
-					Fixedname = case is_binary(Name) of
-						true -> binary_to_list(Name);
-						false -> Name
-					end,
+					Fixedname = binary_to_list(Name),
 					[{Fixedname, lists:reverse(Path)} | Midfiles]
 			end
 	end.

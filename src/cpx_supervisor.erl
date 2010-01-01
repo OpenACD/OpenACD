@@ -332,7 +332,7 @@ destroy(Spec) ->
 	mnesia:transaction(F).
 
 %% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
--spec(update_conf/2 :: (Id :: atom(), Conf :: #cpx_conf{}) -> {'atomic', 'ok'}).
+-spec(update_conf/2 :: (Id :: atom(), Conf :: #cpx_conf{}) -> {'atomic', 'ok'} | {'aborted', any()}).
 update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	F = fun() ->
 		case mnesia:read({cpx_conf, Id}) of

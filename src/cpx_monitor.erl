@@ -215,21 +215,27 @@ to_proplist({{Type, Name}, Health, Details}) ->
 	{details, Details}].
 
 %% @doc Convience function to get the key from a health tuple.
--spec(get_key/1 :: (Tuple :: {health_key(), health_details(), other_details()}) -> health_key()).
+-spec(get_key/1 :: (Tuple :: 
+	{health_key(), health_details(), other_details()} | 
+	{health_key(), health_details(), other_details(), pos_integer()}) -> health_key()).
 get_key({Key, _, _, _}) ->
 	Key;
 get_key({Key, _, _}) ->
 	Key.
 
 %% @doc Conviennce function to get the abstract health numbers from a health tuple.
--spec(get_health_list/1 :: (Tuple :: {health_key(), health_details(), other_details()}) -> health_details()).
+-spec(get_health_list/1 :: (Tuple :: 
+	{health_key(), health_details(), other_details()} | 
+	{health_key(), health_details(), other_details(), pos_integer()}) -> health_details()).
 get_health_list({_, Health, _, _}) ->
 	Health;
 get_health_list({_, Health, _}) ->
 	Health.
 
 %% @doc Convience function to get the details list from a health tuple.
--spec(get_details_list/1 :: (Tuple :: {health_key(), health_details(), other_details()}) -> health_details()).
+-spec(get_details_list/1 :: (Tuple :: 
+	{health_key(), health_details(), other_details()} | 
+	{health_key(), health_details(), other_details(), pos_integer()}) -> health_details()).
 get_details_list({_, _, Details, _}) ->
 	Details;
 get_details_list({_, _, Details}) ->

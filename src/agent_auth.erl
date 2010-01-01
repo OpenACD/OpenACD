@@ -108,7 +108,7 @@ destroy_release(Label) when is_list(Label) ->
 
 %% @doc Remove the release option with the key (id, label) of value from the 
 %% database.
--spec(destroy_release/2 :: (Key :: 'id' | 'label', Value :: pos_integer() | string()) -> {'atomic', 'ok'}).
+-spec(destroy_release/2 :: (Key :: 'id' | 'label', Value :: pos_integer() | string()) -> {'atomic', 'ok'} | {'aborted', any()}).
 destroy_release(id, Id) ->
 	F = fun() ->
 		mnesia:delete({release_opt, Id})

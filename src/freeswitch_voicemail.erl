@@ -305,6 +305,9 @@ handle_info(check_recovery, Call, State) ->
 handle_info({'EXIT', Pid, Reason}, _Call, #state{xferchannel = Pid} = State) ->
 	?WARNING("Handling transfer channel ~w exit ~p", [Pid, Reason]),
 	{stop_ring, State#state{ringchannel = undefined}};
+handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid, answered = true, xferchannel = undefined} = State) ->
+	?WARNING("Handling ring channel ~w exit ~p after answered, no transfer", [Pid, Reason]),
+	{stop, normal, State};
 handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p", [Pid, Reason]),
 	{stop_ring, State#state{ringchannel = undefined}};

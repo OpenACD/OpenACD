@@ -63,7 +63,9 @@
 	kick_media/1,
 	is_running/1,
 	help/0,
-	media_state/1
+	media_state/1,
+	uptime/0,
+	uptime/1
 ]).
 
 -spec(start/2 :: (Type :: 'normal' | {'takeover', atom()} | {'failover', atom()}, StartArgs :: [any()]) -> {'ok', pid(), any()} | {'ok', pid()} | {'error', any()}).
@@ -92,6 +94,7 @@ start(_Type, StartArgs) ->
 	mnesia:set_master_nodes(lists:umerge(Nodes, [node()])),
 	try cpx_supervisor:start_link(Nodes) of
 		{ok, Pid} ->
+			application:set_env(cpx, uptime, util:now()),
 			?NOTICE("Application cpx started sucessfully!", []),
 			{ok, Pid}
 	catch
@@ -107,6 +110,7 @@ prep_stop(State) ->
 
 -spec(stop/1 :: (State :: any()) -> 'ok').
 stop(_State) ->
+	application:unset_env(cpx, uptime),
 	ok.
 
 %% =====
@@ -395,6 +399,33 @@ media_state(Media) ->
 			ok
 	end.
 
+-spec(uptime/0 :: () -> non_neg_integer() | 'stopped').
+uptime() ->
+	uptime(false).
+
+-spec(uptime/1 :: (Fallback :: boolean()) -> non_neg_integer() | 'stopped').
+uptime(Fallback) ->
+	Apps = application:which_applications(),
+	Fun = fun({cpx, _, _}) -> true; (_) -> false end,
+	Running = lists:any(Fun, Apps),
+	case Running of
+		false -> 
+			stopped;
+		true ->
+			case {application:get_env(cpx, uptime), Fallback} of
+				{undefined, false} ->
+					io:format("The uptime is not available for this node.~nYou can call cpx:uptime(true) to set the uptime to now~n"),
+					0;
+				{undefined, true} ->
+					io:format("The uptime was not available, so resetting it as requested~n"),
+					Now = util:now(),
+					application:set_env(cpx, uptime, Now),
+					0;
+				{{ok, Time}, _} ->
+					util:now() - Time
+			end
+	end.
+	
 % to be added soon TODO
 %
 %can_answer/2 (Media, Agent) -> true | missing skills

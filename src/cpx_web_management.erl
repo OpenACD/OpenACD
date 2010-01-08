@@ -703,7 +703,8 @@ api({queues, "queue", "new"}, ?COOKIE = Cookie, Post) ->
 %% media -> *
 %% =====
 api({medias, "poll"}, ?COOKIE, _Post) ->
-	Nodes = [node() | nodes()],
+	{ok, Appnodes} = application:get_env(cpx, nodes),
+	Nodes = lists:filter(fun(N) -> lists:member(N, Appnodes) end, [node() | nodes()]),
 	F = fun(Node) ->
 		{Node, [
 			{cpx_monitor_grapher, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_grapher], 2000)},

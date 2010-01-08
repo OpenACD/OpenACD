@@ -48,6 +48,9 @@
 
 % helper funcs
 -export([
+	agent_state/1,
+	agent_states/1,
+	call_state/1,	
 	get_queue/1,
 	get_agent/1,
 	get_agents/0,
@@ -59,7 +62,8 @@
 	kick_call/1,
 	kick_media/1,
 	is_running/1,
-	help/0
+	help/0,
+	media_state/1
 ]).
 
 -spec(start/2 :: (Type :: 'normal' | {'takeover', atom()} | {'failover', atom()}, StartArgs :: [any()]) -> {'ok', pid(), any()} | {'ok', pid()} | {'error', any()}).
@@ -277,12 +281,123 @@ help() ->
 	io:format("~s", [Bin]),
 	ok.
 
+-spec(agent_states/0 :: () -> [{string(), string(), atom()}]).
+agent_states() ->
+	agent_states(any).
+
+-spec(agent_states/1 :: (Profiles :: 'any' | string() | [string()]) -> [{string(), string(), atom()}]).
+agent_states(RawProfiles) ->
+	Agentlist = agent_manager:list(),
+	Profiles = case RawProfiles of
+		any ->
+			any;
+		[H | _] when is_list(H) ->
+			RawProfiles;
+		_ ->
+			[RawProfiles]
+	end,
+	Fold = fun({Login, {Pid, Id}}, Acc) ->
+		Astate = agent:dump_state(Pid),
+		case in_list(Astate#agent.profile, Profiles) of
+			true ->
+				[{Login, Id, Astate#agent.state} | Acc];
+			false ->
+				Acc
+		end
+	end,
+	lists:fold(Fold, [], Agentlist).
+	
+in_list(_Value, any) ->
+	true;
+in_list(Value, List) when is_list(List) ->
+	lists:member(Value, List).
+
+-spec(agent_state/1 :: (Agent :: any()) -> 'ok').
+agent_state(Agent) ->
+	case get_agent(Agent) of
+		none ->
+			io:format("No such agent"),
+			ok;
+		Pid ->
+			State = agent:dump_state(Pid),
+			Print = [
+				{"Id", State#agent.id}, 
+				{"Pid", Pid},
+				{"Profile", State#agent.profile},
+				{"State", State#agent.state},
+				{"Previous", State#agent.oldstate},
+				{"Changed", State#agent.lastchange},
+				{"Queued Release", case State#agent.queuedrelease of
+					default ->
+						"default";
+					{Name, _, _} ->
+						Name;
+					_ ->
+						false
+				end}
+			],
+			pretty_print(Print),
+			ok
+	end.
+
+pretty_print(List) ->
+	FindLongest = fun({K, _}, Length) ->
+		case length(K) > Length of
+			true ->
+				length(K);
+			false ->
+				Length
+		end
+	end,
+	Longest = lists:foldl(FindLongest, 0, List) + 1,
+	{Io, Params} = build_io_and_params(List, Longest, "", []),
+	io:format(Io, Params).
+
+build_io_and_params([], _, Io, Params) ->
+	{Io, lists:reverse(Params)};
+build_io_and_params([{Key, Value} | Tail], Length, Io, Params) ->
+	Newio = lists:append([Io, string:right(Key, Length), ":  ~p~n"]),
+	Newparams = [Value | Params],
+	build_io_and_params(Tail, Length, Newio, Newparams).
+
+-spec(call_state/1 :: (Media :: any()) -> 'ok').
+call_state(Media) ->
+	media_state(Media).
+
+-spec(media_state/1 :: (Media :: any()) -> 'ok').
+media_state(Media) ->
+	case get_media(Media) of
+		none ->
+			io:format("No such media"),
+			ok;
+		Pid ->
+			Call = gen_media:get_call(Pid),
+			io:format("State of call ~p~n", [Media]),
+			Print = [
+				{"Id", Call#call.id},
+				{"Source", Call#call.source},
+				{"Type", Call#call.type},
+				{"Callerid", Call#call.callerid},
+				{"Client", case Call#call.client of
+					undefined ->
+						"Not yet set";
+					Client ->
+						Client#client.label
+				end},
+				{"Cook", Call#call.cook},
+				{"Bound Dispatchers", Call#call.bound},
+				{"Direction", Call#call.direction},
+				{"Priority", Call#call.priority},
+				{"Ring Path", Call#call.ring_path},
+				{"Media Path", Call#call.media_path}
+			],
+			pretty_print(Print),
+			ok
+	end.
+
 % to be added soon TODO
 %
 %can_answer/2 (Media, Agent) -> true | missing skills
-% agent_states/0, /1 -> print a summary of agent states (profile limitation)
-% agent_state/1 -> pretty print the agent dump_state
-% media_state -> pretty print the callrec
 % queue_state -> pretty print the queue state
 % media_states/0, /1 -> print a summary of medias (limited by type)
 % queue_states/0, /1 -> print a summary of queue states (limited by type).

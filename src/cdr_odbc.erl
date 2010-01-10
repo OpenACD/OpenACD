@@ -224,7 +224,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 				string_or_null(DNIS),
 				Type,
 				element(2, Media#call.callerid),
-				element(1, Media#call.callerid),
+				add_slashes(element(1, Media#call.callerid), "'"),
 				string_or_null(Dialednum)
 			]),
 			?NOTICE("query is ~s", [InfoQuery]),
@@ -303,6 +303,20 @@ get_transaction_data(#cdr_raw{transaction = T}, #cdr_rec{media = Media}) when T 
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) ->
 	?NOTICE("eventdata for ~p is ~p", [T, Transaction#cdr_raw.eventdata]),
 	"".
+	
+add_slashes(String, Slashlist) ->
+	add_slashes(String, Slashlist, []).
+		
+add_slashes([], _, Acc) ->
+	lists:reverse(Acc);
+add_slashes([H | Tail], Slashlist, Acc) ->
+	Newacc = case lists:member(H, Slashlist) of
+		true ->
+			[H, 92 | Acc]; % 92 is a backslash
+		false ->
+			[H | Acc]
+	end,
+	add_slashes(Tail, Slashlist, Newacc).
 
 string_or_null([]) ->
 	"NULL";

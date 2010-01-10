@@ -2376,7 +2376,13 @@ if(typeof(supervisorView) == "undefined"){
 		};
 	};
 	
-	supervisorView.sendToVoicemail = function(mediaId){
+	supervisorView.sendToVoicemail = function(mediaObj){
+		var mediaId = supervisorView.dataStore.getValue(mediaObj, 'id');
+		var erlid = mediaId.split('-');
+		erlid.shift();
+		erlid = erlid.join('-');
+		//mediaId.shift;
+		//mediaId = mediaId.join('-');
 		var fetched = function(items){
 			if(items.length === 0){
 				return false;
@@ -2386,7 +2392,7 @@ if(typeof(supervisorView) == "undefined"){
 			if(supervisorView.dataStore.getValue(item, 'queue', false)){
 				var queue = supervisorView.dataStore.getValue(item, 'queue');
 				dojo.xhrPost({
-					url:'/supervisor/voicemail/' + escape(queue) + '/' + escape(mediaId),
+					url:'/supervisor/voicemail/' + escape(queue) + '/' + escape(erlid),
 					handleAs:'json',
 					load:function(res){
 						if(res.success){
@@ -2405,7 +2411,7 @@ if(typeof(supervisorView) == "undefined"){
 		
 		supervisorView.dataStore.fetch({
 			query:{
-				'display':mediaId,
+				'id':mediaId,
 				'type':'media'
 			},
 			onComplete:fetched

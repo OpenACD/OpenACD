@@ -211,6 +211,11 @@
 			supervisorView.sendToAgentDialog(dijit.byId('mediaActionvoice').mediaBubbleHit);
 		</script>
 	</div>
+	<div dojoType="dijit.MenuItem">Send to Voicemail...
+		<script type="dojo/method" event="onClick">
+			supervisorView.sendToVoicemail(dijit.byId('mediaActionvoice').mediaBubbleHit);
+		</script>
+	</div>
 </div>
 
 <div dojoType="dijit.Menu" id="mediaActiondummy" style="display:none">

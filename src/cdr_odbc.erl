@@ -29,6 +29,8 @@
 
 %% @doc Dump CDRs to ODBC
 
+% TODO slashify all potentially problomatic strings.
+
 -module(cdr_odbc).
 -author(micahw).
 -behavior(gen_cdr_dumper).
@@ -303,7 +305,10 @@ get_transaction_data(#cdr_raw{transaction = T}, #cdr_rec{media = Media}) when T 
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) ->
 	?NOTICE("eventdata for ~p is ~p", [T, Transaction#cdr_raw.eventdata]),
 	"".
-	
+
+%% @doc STring is the string to check, Slashlist is what characters to
+%% slashify.  Use:  add_slashes("Barney's ale!", "'!") -> "Barney\'s ale\!"
+-spec(add_slashes/2 :: (String :: string(), Slashlist :: string()) -> string()).
 add_slashes(String, Slashlist) ->
 	add_slashes(String, Slashlist, []).
 		

@@ -1591,7 +1591,7 @@ if(typeof(supervisorView) == "undefined"){
 				var oldDisplay = supervisorView.dataStore.getValue(obj, 'display');
 				var trueDisplay = oldDisplay;
 				if(supervisorView.dataStore.getValue(obj, 'details')){
-					trueDisplay += ' (' + supervisorView.dataStore.getValue(obj, 'details').totalCalls + ')';
+					trueDisplay = '(' + supervisorView.dataStore.getValue(obj, 'details').totalCalls + ') ' + oldDisplay;
 				}
 				acc.push({
 					data:{
@@ -1652,7 +1652,7 @@ if(typeof(supervisorView) == "undefined"){
 			var hps = [];
 			dojo.forEach(items, function(obj){
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate", 50));
-				var dispText = supervisorView.dataStore.getValue(obj, 'display') + ' (' + supervisorView.dataStore.getValue(obj, "details").calls + ')';
+				var dispText = '(' + supervisorView.dataStore.getValue(obj, "details").calls + ') ' + supervisorView.dataStore.getValue(obj, 'display');
 				acc.push({
 					data:{
 						display: dispText,

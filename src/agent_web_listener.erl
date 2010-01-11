@@ -406,13 +406,13 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 									?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
 									gen_server:call(Pid, {set_endpoint, Endpoint}),
 									linkto(Pid),
-									#agent{lastchange = StateTime} = agent_web_connection:dump_agent(Pid),
+									#agent{lastchange = StateTime, profile = EffectiveProfile} = agent_web_connection:dump_agent(Pid),
 									ets:insert(web_connections, {Reflist, Salt, Pid}),
 									?DEBUG("connection started for ~p", [Reflist]),
 									{200, [], mochijson2:encode({struct, [
 										{success, true}, 
 										{message, <<"logged in">>}, 
-										{<<"profile">>, list_to_binary(Profile)}, 
+										{<<"profile">>, list_to_binary(EffectiveProfile)}, 
 										{<<"statetime">>, StateTime},
 										{<<"timestamp">>, util:now()}]})};
 								ignore ->

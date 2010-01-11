@@ -221,24 +221,27 @@ if(typeof(supervisorView) == "undefined"){
 		this.setHp(conf.data.health);
 		
 		if(conf.menu){
-			var menu = dijit.byId(conf.menu);
+			/*var menu = dijit.byId(conf.menu);
 			if(menu){
 				debug(["menu found on bubble creation"]);				
 			}
 			else{
 				warning(["menu id not found", conf.menu, menu]);
 			}
-			this.boundMenu = conf.menu;
-			this.group.rawNode.oncontextmenu = function(ev){
+			this.boundMenu = conf.menu;*/
+			//this.group.rawNode.oncontextmenu = function(ev){
+			this._contextMenuConnect = dojo.connect(this.group.rawNode, 'oncontextmenu', this, function(ev){
 				debug(ev);
-				dijit.byId(conf.menu)._openMyself(ev);
+				var menu = this._buildMenu(conf.menu, conf.menuclose);
+				//dijit.byId(conf.menu)._openMyself(ev);
+				menu._openMyself(ev);
 				if (dojo.isIE) {
 					ev.returnValue = false;
 				} else {
 					ev.preventDefault();
 					ev.stopPropagation();
 				}
-			};
+			});
 			
 		}
 		
@@ -250,7 +253,8 @@ if(typeof(supervisorView) == "undefined"){
 						// Firefox is weird.  If a moveable is defined, it overrides
 						// the menu.  Safari does not have this issue.  Other browsers
 						// are untested.
-						var menu = dijit.byId(conf.menu);
+						//var menu = dijit.byId(conf.menu);
+						var menu = this._buildMenu(conf.menu);
 						menu._openMyself(ev);
 						ev.preventDefault();
 						ev.stopPropagation();
@@ -438,6 +442,24 @@ if(typeof(supervisorView) == "undefined"){
 		}
 	};
 
+	supervisorView.Bubble.prototype._buildMenu = function(menuitems){
+		var bubbleMenu = new dijit.Menu({});
+		for(var i = 0; i < menuitems.length; i++){
+			if(menuitems[i] == 'separator'){
+				bubbleMenu.addChild(new dijit.MenuSeparator());
+			} else {
+				bubbleMenu.addChild(new dijit.MenuItem({
+					label:  menuitems[i].label,
+					onClick: menuitems[i].onClick
+				}));
+			}
+		}
+		dojo.connect(this, 'destroy', this, function(){
+			bubbleMenu.destroy();
+		});
+		return bubbleMenu;
+	};
+	
 	//=====
 	// BubbleStack
 	//=====
@@ -714,6 +736,10 @@ if(typeof(supervisorView) == "undefined"){
 					});
 				}
 				if(thisref.bubbleConfs[ind].menu){
+					thisref.bubbleConfs[ind].menuClose = function(){
+						console.log('unlock scroll');
+						thisref.unlockScroll();
+					};
 					obj = thisref.bubbleConfs[ind].bubble;
 					obj.connect('onmousedown', function(ev){
 						if(ev.button == 2){
@@ -1403,13 +1429,24 @@ if(typeof(supervisorView) == "undefined"){
 					supervisorView.setDetails({
 						display:'System'
 					});
-					dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
 				},
-				menu: 'nodeAction'
+				menu: [
+					{'label':'Blab',
+					'onClick':function(){
+					   var dialog = dijit.byId("blabDialog");
+					   var submitblab = function(){
+							var data = dialog.attr('value');
+							supervisorView.blab(data.message, "node", 'System');
+					   };
+					   dialog.attr('execute', submitblab);
+					   dialog.show();
+					}}
+				]
 			}];
 			
 			for(var i = 0; i < items.length; i++){
 				var id = supervisorView.dataStore.getValue(items[i], 'id');
+				var node = supervisorView.dataStore.getValue(items[i], 'display');
 				acc.push({
 					data:{
 						'id': id,
@@ -1423,9 +1460,19 @@ if(typeof(supervisorView) == "undefined"){
 							display:this.data.display,
 							health:this.data.health
 						});
-						dijit.byId("nodeAction").nodeBubbleHit = this.data.display;
 					},
-					menu: 'nodeAction'
+					menu:[
+						{'label':'Blab',
+						'onClick':function(){
+							var dialog = dijit.byId("blabDialog");
+							var submitblab = function(){
+								var data = dialog.attr('value');
+								supervisorView.blab(data.message, "node", node);
+							};
+							dialog.attr('execute', submitblab);
+							dialog.show();
+						}}
+					]
 				});
 			}
 			
@@ -1532,7 +1579,18 @@ if(typeof(supervisorView) == "undefined"){
 			point:{x:20, y:20},
 			scale: 0.75,
 			data: {"health":agenthp, "display":"Agents", "id":"Agents"},
-			menu: 'agentAllAction',
+			menu: [
+				{'label':'Blab...',
+				'onClick':function(){
+					var dialog = dijit.byId("blabDialog");
+					var submitblab = function(){
+						var data = dialog.attr('value');
+						supervisorView.blab(data.message, "all", "all");
+					};
+					dialog.attr('execute', submitblab);
+					dialog.show();
+				}}
+			],
 			onmouseenter:function(){
 				clearStacks();
 				supervisorView.drawAgentProfilesStack();
@@ -1738,10 +1796,10 @@ if(typeof(supervisorView) == "undefined"){
 						return false;
 					}
 				}
-			
+				var disp = supervisorView.dataStore.getValue(obj, "display")
 				acc.push({
 					data:{
-						display:supervisorView.dataStore.getValue(obj, "display"),
+						display:disp,
 						health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
 						id:supervisorView.dataStore.getValue(obj, "id")
 					},
@@ -1751,7 +1809,6 @@ if(typeof(supervisorView) == "undefined"){
 							type:supervisorView.dataStore.getValue(obj, "type"),
 							display:supervisorView.dataStore.getValue(obj, "display")
 						});
-						dijit.byId('agentProfileAction').agentProfileBubbleHit = supervisorView.dataStore.getValue(obj, "display");
 					},
 					dragOver: function(testobj){
 						 supervisorView.drawAgentsStack(this.data.display, supervisorView.node, acc.length);
@@ -1769,13 +1826,24 @@ if(typeof(supervisorView) == "undefined"){
 					dropped: function(droppedObj){
 						debug(["agentBubbledropped", droppedObj]);
 						supervisorView.setProfile(this.data.display, droppedObj.data.display);
-					}
+					},
+					menu:[
+						{'label':'Blab...',
+						'onClick':function(){
+							var dialog = dijit.byId("blabDialog");
+							var submitblab = function(){
+								var data = dialog.attr('value');
+								supervisorView.blab(data.message, "profile", escape(disp))
+							};
+							dialog.attr('execute', submitblab);
+							dialog.show();
+						}}
+					]
 				});
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
 			});
 
 			supervisorView.callsStack.clear();
-			//warning(["calls stack cleared"]);
 			supervisorView.queueGroupsStack.clear();
 			supervisorView.queuesStack.clear();
 			supervisorView.agentProfilesStack = new supervisorView.BubbleStack({
@@ -1784,17 +1852,9 @@ if(typeof(supervisorView) == "undefined"){
 					y:20
 				},
 				bubbleConfs:acc,
-				registerCollider: true,
-				menu:'agentProfileAction'
+				registerCollider: true
 			});
 	
-			/*supervisorView.agentProfilesStack.forEachBubble(function(bubble){
-				var chan = "supervisorView/set/agentprofile-" + bubble.data.display;
-					bubble.subscriptions.push(dojo.subscribe(chan, function(storeref, rawobj){
-					bubble.setHp(rawobj.aggregate);
-				}));
-			});*/
-
 			supervisorView.agentProfilesStack.scroll(0);
 			supervisorView.agentProfilesStack.group.moveToBack();
 		};
@@ -1828,6 +1888,7 @@ if(typeof(supervisorView) == "undefined"){
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate", 50));
 				var details = supervisorView.dataStore.getValue(obj, 'details', {'state':'released'});
 				var imageUrl = '/images/' + details.state + '.png';
+				var agentHit = supervisorView.dataStore.getValue(obj, 'display');
 				acc.push({
 					data:{
 						display:supervisorView.dataStore.getValue(obj, "display"),
@@ -1844,7 +1905,6 @@ if(typeof(supervisorView) == "undefined"){
 							type:"agent",
 							display:supervisorView.dataStore.getValue(obj, "display")
 						}, ['login', 'profile']);
-						dijit.byId('agentAction').agentBubbleHit = supervisorView.dataStore.getValue(obj, 'display');
 					},
 					onmouseleave:function(ev){
 						supervisorView.showEmptyProfiles = false;
@@ -1872,7 +1932,103 @@ if(typeof(supervisorView) == "undefined"){
 						supervisorView.drawAgentProfilesStack();
 					},
 					moveable: true,
-					image: imageUrl
+					image: imageUrl,
+					menu: [
+						{'label':'Released',
+						'onClick':function(){
+						geturl = "/supervisor/agentstate/" + escape(supervisorView.dataStore.getValue(obj, 'display')) + "/released/default";
+						dojo.xhrGet({
+							url:geturl,
+							handleAs: "json",
+							load: function(resp){
+								if(resp.success){
+									return true;
+								}
+								errMessage(["setting state to released", resp.message]);
+							}
+						})}},
+						{'label':'Idle',
+						'onClick':function(){
+							var geturl = "/supervisor/agentstate/" + escape(agentHit) + "/idle";
+							dojo.xhrGet({
+								url:geturl,
+								handleAs: "json",
+								load: function(resp){
+									if(resp.success){
+										return true;
+									}
+									errMessage(["setting agent to idle", resp.message]);
+								}
+							})
+						}},
+						'separator',
+						{'label':'Blab...',
+						'onClick':function(){
+							var dialog = dijit.byId("blabDialog");
+							var submitblab = function(){
+								var data = dialog.attr('value');
+								supervisorView.blab(data.message, "agent", escape(agentHit));
+							};
+							dialog.attr('execute', submitblab);
+							dialog.show();
+						}},
+						{'label':'Spy',
+						'onClick':function(){
+							supervisorView.spy(agentHit);
+						}},
+						{'label':'Set Profile',
+						'onClick':function(){
+							var dialog = dijit.byId("profileSwapDialog");
+							var submitSetProf = function(){
+								var data = dialog.attr('value');
+								supervisorView.setProfile(data.profile, escape(agentHit));
+							}
+							dialog.attr('execute', submitSetProf);
+							dojo.xhrGet({
+								url:"/supervisor/get_profiles",
+								handleAs:"json",
+								load:function(r){
+									if(r.success){
+										var span = dojo.byId('profileSwapDialogParent');
+										while(span.hasChildNodes()){
+											span.removeChild(span.firstChild);
+										}
+										var html = '<select name="profile">';
+										dojo.forEach(r.profiles, function(item){
+											html += '<option>' + item + '</option>';
+										});
+										html += '</select>';
+										span.innerHTML = html;
+										var modenode = span.firstChild;
+										new dijit.form.ComboBox({
+											name:'profile'
+										}, modenode);
+										dialog.show();
+									} else {
+										warning(["get_profiles failure", r.message]);
+									}
+								},
+								error:function(r){
+									warning(["get_profiles errored", r])
+								}
+							});
+						}},
+						'separator',
+						{'label':'Kick',
+						'onClick':function(){
+							var geturl = "/supervisor/kick_agent/" + escape(agentHit);
+							dojo.xhrGet({
+								url:geturl,
+								handleAs: "json",
+								load:function(resp){
+									if(resp.success){
+										return true;
+									}
+									errMessage(["error kicking agent", resp.message]);
+								}
+							});
+						}}
+					]
 				});
 				hps.push(supervisorView.dataStore.getValue(obj, "aggregate"));
 			});
@@ -1887,7 +2043,6 @@ if(typeof(supervisorView) == "undefined"){
 				},
 				bubbleConfs: acc,
 				registerCollider:true,
-				menu: 'agentAction'
 			});
 			supervisorView.agentsStack.group.moveToBack();
 						
@@ -1933,26 +2088,15 @@ if(typeof(supervisorView) == "undefined"){
 			items.sort(sortfunc);
 			dojo.forEach(items, function(obj){
 				var imageUrl = '/images/';
-				var menuId = 'mediaAction';
+				var menuConf = false;
 				var mediaType = supervisorView.dataStore.getValue(obj, 'details').type;
-				switch(mediaType){
-					case 'email':
-					case 'dummy':
-					case 'voice':
-					case 'voicemail':
-						menuId += mediaType;
-						imageUrl += mediaType + '.png';
-						break;
-					default:
-						imageUrl += 'undefined.png';
-				}
 				var datas = {
 					display: supervisorView.dataStore.getValue(obj, "details").client,
 					health:supervisorView.dataStore.getValue(obj, "aggregate", 50),
 					id:supervisorView.dataStore.getValue(obj, "id"),
 					type:"media"
 				};
-				
+				var rawid = datas.id.substr(6);
 				if(supervisorView.dataStore.getValue(obj, "agent")){
 					datas.agent = supervisorView.dataStore.getValue(obj, "agent");
 				}
@@ -1960,19 +2104,125 @@ if(typeof(supervisorView) == "undefined"){
 					datas.queue = supervisorView.dataStore.getValue(obj, "queue");
 				}
 				
+				switch(mediaType){
+					case 'email':
+						if(datas.queue){
+							menuConf = [
+								{'label':'Peek',
+								'onClick':function(){
+									supervisorView.mediaPeek(obj);
+									supervisorView.callsStack.unlockScroll();
+								}},
+								{'label':'Remove',
+								'onClick':function(){
+									supervisorView.removeFromQueue(obj);
+									supervisorView.callsStack.unlockScroll();
+
+								}},
+								{'label':'Send to Agent...',
+								'onClick':function(){
+									supervisorView.sendToAgentDialog(obj);
+									supervisorView.callsStack.unlockScroll();
+								}}
+							];
+						} else {
+							menuConf = [
+								{'label':'Spy',
+								'onClick':function(){
+									supervisorView.spy(datas.agent);
+									supervisorView.callsStack.unlockScroll();
+								}}
+							];
+						}
+						imageUrl += mediaType + '.png';
+						break;
+					case 'dummy':
+						if(datas.queue){
+							menuConf = [
+								{'label':'Send to Agent...',
+								'onClick':function(){
+									supervisorView.sendToAgentDialog(obj);
+									supervisorView.callsStack.unlockScroll();
+								}}
+							];
+						} else {
+							menuConf = [
+								{'label':'Spy',
+								'onClick':function(){
+									supervisorView.spy(datas.agent);
+									supervisorView.callsStack.unlockScroll();
+								}}
+							];
+						}
+						imageUrl += mediaType + '.png';
+						break;
+					case 'voice':
+						if(datas.queue){
+							menuConf = [
+								{'label':'Send to Agent...',
+								'onClick':function(){
+									supervisorView.sendToAgentDialog(obj);
+									supervisorView.callsStack.unlockScroll();
+
+								}},
+								{'label':'Send to Voicemail...',
+								'onClick':function(){
+									supervisorView.sendToVoicemail(obj);
+									supervisorView.callsStack.unlockScroll();
+								}}
+							];
+						} else {
+							menuConf = [
+								{'label':'Spy',
+								'onClick':function(){
+									supervisorView.spy(datas.agent);
+									supervisorView.callsStack.unlockScroll();
+								}}
+							]
+						}
+						imageUrl += mediaType + '.png';
+						break;
+					case 'voicemail':
+						if(datas.queue){
+							menuConf = [
+								{'label':'Send to Agent...',
+								'onClick':function(){
+									supervisorView.sendToAgentDialog(obj);
+									supervisorView.callsStack.unlockScroll();
+								}}
+							];
+						} else {
+							menuConf = [
+								{'label':'Spy',
+								'onClick':function(){
+									supervisorView.spy(datas.agent);
+									supervisorView.callsStack.unlockScroll();
+								}}
+							]
+						}
+						imageUrl += mediaType + '.png';
+						break;
+					default:
+						menuConf = [
+							{'label':'Send to Agent...',
+							'onClick':function(){
+								supervisorView.sendToAgentDialog(obj);
+								supervisorView.callsStack.unlockScroll();
+							}}
+						];
+						imageUrl += 'undefined.png';
+				}
+									 
 				acc.push({
 					data:datas,
 					moveable:true,
 					image: imageUrl,
-					menu: menuId,
+					menu: menuConf,
 					onmouseenter:function(ev){
 						supervisorView.setDetails({
 							type:"media",
 							display:supervisorView.dataStore.getValue(obj, "display")
 						}, ['queue', 'agent', 'ring_path', 'media_path']);
-						if(queryObj.queue){
-							dijit.byId(menuId).mediaBubbleHit = obj;
-						}
 					}
 				});
 			});
@@ -2077,6 +2327,23 @@ if(typeof(supervisorView) == "undefined"){
 		});
 	};
 
+	supervisorView.spy = function(agent){
+		dojo.xhrGet({
+			url:'/supervisor/spy/' + agent,
+			handleAs:'json',
+			load:function(res){
+				if(res.success){
+					// cool
+				} else {
+					errMessage(['Counldn\'t spy', res.message]);
+				}
+			},
+			error:function(res){
+				errMessage(['error spying', res]);
+			}
+		});
+	}
+	
 	supervisorView.blab = function(message, type, target){
 		dojo.xhrPost({
 			handleAs:"json",

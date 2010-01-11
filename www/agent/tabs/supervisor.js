@@ -149,7 +149,8 @@ if(typeof(supervisorView) == "undefined"){
 			dragOver: function(){ debug(["default bubble dragOver"]); return false;},
 			subscriptions:[],
 			moveable: false,
-			menu:false
+			menu:false,
+			menuBlur:function(){return true}
 		};
 		conf.data = dojo.mixin(this.defaultConf.data, conf.data);
 		conf = dojo.mixin(this.defaultConf, conf);
@@ -232,7 +233,7 @@ if(typeof(supervisorView) == "undefined"){
 			//this.group.rawNode.oncontextmenu = function(ev){
 			this._contextMenuConnect = dojo.connect(this.group.rawNode, 'oncontextmenu', this, function(ev){
 				debug(ev);
-				var menu = this._buildMenu(conf.menu, conf.menuclose);
+				var menu = this._buildMenu(conf.menu, conf.menuBlur);
 				//dijit.byId(conf.menu)._openMyself(ev);
 				menu._openMyself(ev);
 				if (dojo.isIE) {
@@ -254,7 +255,7 @@ if(typeof(supervisorView) == "undefined"){
 						// the menu.  Safari does not have this issue.  Other browsers
 						// are untested.
 						//var menu = dijit.byId(conf.menu);
-						var menu = this._buildMenu(conf.menu);
+						var menu = this._buildMenu(conf.menu, conf.menuBlur);
 						menu._openMyself(ev);
 						ev.preventDefault();
 						ev.stopPropagation();
@@ -442,7 +443,7 @@ if(typeof(supervisorView) == "undefined"){
 		}
 	};
 
-	supervisorView.Bubble.prototype._buildMenu = function(menuitems){
+	supervisorView.Bubble.prototype._buildMenu = function(menuitems, onblur){
 		var bubbleMenu = new dijit.Menu({});
 		for(var i = 0; i < menuitems.length; i++){
 			if(menuitems[i] == 'separator'){
@@ -457,6 +458,7 @@ if(typeof(supervisorView) == "undefined"){
 		dojo.connect(this, 'destroy', this, function(){
 			bubbleMenu.destroy();
 		});
+		dojo.connect(bubbleMenu, 'onBlur', onblur);
 		return bubbleMenu;
 	};
 	
@@ -519,6 +521,7 @@ if(typeof(supervisorView) == "undefined"){
 			
 			if(this.bubbleConfs[i].menu){
 				mixing.menu = this.bubbleConfs[i].menu;
+				mixing.menuBlur = function(){ thisref.unlockScroll(); };
 				this._hasMenus = true;
 				if(! this._menuBlurConnects[mixing.menu]){
 					this._menuBlurConnects[mixing.menu] = dojo.connect(dijit.byId(mixing.menu), 'onBlur', this, function(){

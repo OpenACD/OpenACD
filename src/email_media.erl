@@ -403,8 +403,8 @@ handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 	HtmlPosted = proplists:get_value(<<"body">>, Args),
 	Plaintext = scrub_send_html(HtmlPosted),
 	FirstBody = [
-		{<<"text">>, <<"plain">>, [], Plaintext},
-		{<<"text">>, <<"html">>, [], HtmlPosted}
+		{<<"text">>, <<"plain">>, [], [], Plaintext},
+		{<<"text">>, <<"html">>, [], [], HtmlPosted}
 	],
 	{Type, Subtype, Body} = case length(State#state.outgoing_attachments) of
 		0 ->

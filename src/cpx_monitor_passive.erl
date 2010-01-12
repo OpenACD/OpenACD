@@ -739,27 +739,29 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTi
 		_ ->
 			[]
 	end,
-	NewHead = {struct, lists:append([
-		{<<"id">>, list_to_binary(Id)},
-		{<<"time">>, Time},
-		{<<"brand">>, begin C = proplists:get_value(client, Details), case C#client.label of undefined -> undefined; _ -> list_to_binary(C#client.label) end end},
-		{<<"node">>, proplists:get_value(node, Details)},
-		{<<"type">>, proplists:get_value(type, Details)},
-		{<<"priority">>, proplists:get_value(priority, Details)}
-	], Eventtimes)},
-	{Newin, Newout, Newabn} = case HistoricalKey of
+	{Newin, Newout, Newabn, DidAbandon} = case HistoricalKey of
 		{'inbound', Abandoned} ->
 			case is_abandon(Abandoned) of
 				true ->
-					{In + 1, Out, Abn + 1};
+					{In + 1, Out, Abn + 1, true};
 				false ->
-					{In + 1, Out, Abn}
+					{In + 1, Out, Abn, false}
 			end;
 		outbound ->
 			{In, Out + 1, Abn};
 		_ ->
 			{In, Out, Abn}
 	end,
+	NewHead = {struct, lists:append([
+		{<<"id">>, list_to_binary(Id)},
+		{<<"time">>, Time},
+		{<<"brand">>, begin C = proplists:get_value(client, Details), case C#client.label of undefined -> undefined; _ -> list_to_binary(C#client.label) end end},
+		{<<"node">>, proplists:get_value(node, Details)},
+		{<<"type">>, proplists:get_value(type, Details)},
+		{<<"priority">>, proplists:get_value(priority, Details)},
+		{<<"direction">>, proplists:get_value(direction, Details)},
+		{<<"didAbandon">>, DidAbandon}
+	], Eventtimes)},
 	medias_to_json(Tail, {Newtime, Newin, Newout, Newabn, [NewHead | Acc]}).
 
 queuegroups_to_json(Groups, Filter) ->

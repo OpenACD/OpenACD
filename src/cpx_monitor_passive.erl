@@ -662,12 +662,16 @@ write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter
 	Json = {struct, [
 		{<<"writeTime">>, util:now()},
 		{<<"writeInterval">>, Interval},
-		{<<"totalInbound">>, length(Inbound)},
-		{<<"totalOutbound">>, length(Outbound)},
-		{<<"totalAbandoned">>, length(Abandoned)},
-		{<<"hourInbound">>, length(HourInbound)},
-		{<<"hourOutbound">>, length(HourOutbound)},
-		{<<"hourAbandoned">>, length(HourAbn)},
+		{<<"totals">>, {struct, [
+			{<<"totalInbound">>, length(Inbound)},
+			{<<"totalOutbound">>, length(Outbound)},
+			{<<"totalAbandoned">>, length(Abandoned)}
+		]}},
+		{<<"hour">>, {struct, [
+			{<<"hourInbound">>, length(HourInbound)},
+			{<<"hourOutbound">>, length(HourOutbound)},
+			{<<"hourAbandoned">>, length(HourAbn)}
+		]}},
 		{<<"clients_in_queues">>, ClientsJson},
 		{<<"queueGroups">>, QueuegroupJson},
 		{<<"agentProfiles">>, AgentProfsJson},

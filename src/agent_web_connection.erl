@@ -417,7 +417,49 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 					agent_manager:blab(proplists:get_value("message", Post, ""), Else),
 					mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"blabbing">>}]})
 			end,
-			{reply, {200, [], Json}, State}
+			{reply, {200, [], Json}, State};
+		["motd"] ->
+			{ok, Appnodes} = application:get_env(cpx, nodes),
+			Nodes = case proplists:get_value("node", Post) of
+				"system" ->
+					Appnodes;
+				Postnode ->
+					case lists:any(fun(N) -> atom_to_list(N) == Postnode end, Appnodes) of
+						true ->
+							[list_to_existing_atom(Postnode)];
+						false ->
+							[]
+					end
+			end,
+			case Nodes of
+				[] ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no known nodes">>}]})}, State};
+				_ ->
+					Fun = case proplists:get_value("message", Post) of
+						"" ->
+							fun(Node) ->
+								try rpc:call(Node, cpx_supervisor, drop_value, [motd]) of
+									{atomic, ok} ->
+										ok
+								catch
+									_:_ ->
+										?WARNING("Could not set motd on ~p", [Node])
+								end
+							end;
+						Message ->
+							fun(Node) ->
+								try rpc:call(Node, cpx_supervisor, set_value, [motd, Message]) of
+									{atomic, ok} ->
+										ok
+								catch
+									_:_ ->
+										?WARNING("Count not set motd on ~p", [Node])
+								end
+							end
+					end,
+					lists:foreach(Fun, Nodes),
+					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
+			end
 	end;
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
@@ -852,20 +894,33 @@ handle_cast({change_state, AgState, Data}, State) ->
 		{<<"statedata">>, encode_statedata(Data)}
 	]},
 	Newstate = push_event(Headjson, State),
-	case Data of
+	{noreply, Midstate} = case Data of
 		Call when is_record(Call, call) ->
 			{noreply, Newstate#state{current_call = Call}};
 		{onhold, Call, calling, _Number} ->
 			{noreply, Newstate#state{current_call = Call}};
 		_ ->
 			{noreply, Newstate#state{current_call = undefined}}
-	end;
+	end,
+	Fullstate = case AgState of
+		wrapup ->
+			Midstate#state{mediaload = undefined};
+		_ ->
+			Midstate
+	end,
+	{noreply, Fullstate};
 handle_cast({change_state, AgState}, State) ->
 	Headjson = {struct, [
 			{<<"command">>, <<"astate">>},
 			{<<"state">>, AgState}
 		]},
-	Newstate = push_event(Headjson, State),
+	Midstate = push_event(Headjson, State),
+	Newstate = case AgState of
+		wrapup ->
+			Midstate#state{mediaload = undefined};
+		_ ->
+			Midstate
+	end,
 	{noreply, Newstate#state{current_call = undefined}};
 handle_cast({change_profile, Profile}, State) ->
 	Headjson = {struct, [

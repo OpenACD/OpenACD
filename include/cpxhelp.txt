@@ -1,9 +1,20 @@
+cpx:agent_state(Agent) ->
+	Pretty prints the agent's state.
+cpx:agent_states()
+cpx:agent_states(Profile)
+cpx:agent_states(Profiles)
+	Dump a summay of the agent, id, and state limited to the given 
+	profiles.
+cpx:call_state(Media)
+cpx:media_state(Media)
+	Pretty print the media's state.
 cpx:get_queue(Queuename) -> pid()
 	A specific queue.
 cpx:get_agent(Agentname), (AgentPidString) -> pid()
 	A specific Agent
 cpx:get_agents(), (Profile) -> [pid()]
-	Every Agent currently logged in, optionally limited to those in Profile.
+	Every Agent currently logged in, optionally limited to those in 
+	Profile.
 cpx:get_queues(), (QueueProflie) -> [pid()]
 	Every queue currently active, optionally limited to those in Group.
 cpx:get_media(Id), (PidAsString) -> pid()
@@ -17,3 +28,8 @@ cpx:is_running(SpecId) -> pid() | 'stopped' | 'noexists'
 	Is the spec running
 cpx:help() -> 'ok'
 	This data.
+cpx:uptime() -> non_neg_integer() | 'stopped'
+cpx:uptime(true|false) -> non_neg_integer() | 'stopped'
+	Returns the number of seconds the application has been running.  In 
+	the second form, if the uptime can't be determined, passing 'true' 
+	will force it to be set to util:now().

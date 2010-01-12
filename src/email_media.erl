@@ -403,8 +403,8 @@ handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 	HtmlPosted = proplists:get_value(<<"body">>, Args),
 	Plaintext = scrub_send_html(HtmlPosted),
 	FirstBody = [
-		{<<"text">>, <<"plain">>, [], Plaintext},
-		{<<"text">>, <<"html">>, [], HtmlPosted}
+		{<<"text">>, <<"plain">>, [], [], Plaintext},
+		{<<"text">>, <<"html">>, [], [], HtmlPosted}
 	],
 	{Type, Subtype, Body} = case length(State#state.outgoing_attachments) of
 		0 ->
@@ -450,7 +450,7 @@ handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 		binary_to_list(Encoded)
 	},
 	{ok, Sendopts} = email_media_manager:get_send_opts(),
-	case archive(Encoded, Callrec, outbound) of
+	case email_media_session:archive(Encoded, Callrec, outbound) of
 		ok ->
 			ok;
 		{error, ArcErr} ->
@@ -543,27 +543,6 @@ handle_spy(Spy, Callrec, State) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-
-archive(Rawdata, Callrec, Direction) when is_binary(Rawdata) ->
-	case cpx_supervisor:get_archive_path(Callrec) of
-		none ->
-			?DEBUG("archiving is not configured", []),
-			ok;
-		{error, Reason, Path} ->
-			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]),
-			{error, Reason};
-		BasePath ->
-			%% get_archive_path ensures the directory is writeable by us and exists, so this
-			%% should be safe to do (the call will be hungup if creating the recording file fails)
-			Path = case Direction of
-				inbound -> % TODO - inbound archiving is handled elsewhere in email_media_session
-					BasePath ++ ".eml";
-				outbound ->
-					util:find_first_arc(BasePath ++ "-reply", ".eml")
-			end,
-			?DEBUG("archiving to ~s", [Path]),
-			file:write_file(Path, Rawdata)
-	end.
 	
 %% @doc get the keys of a proplist, preserving order.
 %% proplists:get_keys/1 does not have predictable order.
@@ -658,11 +637,7 @@ append_files(Headers, Properties, Path, Files) ->
 				inline ->
 					Midfiles;
 				{_Linedness, Name} ->
-					% TODO - this should *always* be a binary?
-					Fixedname = case is_binary(Name) of
-						true -> binary_to_list(Name);
-						false -> Name
-					end,
+					Fixedname = binary_to_list(Name),
 					[{Fixedname, lists:reverse(Path)} | Midfiles]
 			end
 	end.

@@ -31,7 +31,11 @@
 -module(cpx_web_management).
 -author("Micah").
 
+-ifdef(TEST).
+-define(PORT, 59999).
+-else.
 -define(PORT, 9999).
+-endif.
 -define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
 -define(COOKIE, {_Reflist, _Salt, _Login}).
 
@@ -699,7 +703,8 @@ api({queues, "queue", "new"}, ?COOKIE = Cookie, Post) ->
 %% media -> *
 %% =====
 api({medias, "poll"}, ?COOKIE, _Post) ->
-	Nodes = [node() | nodes()],
+	{ok, Appnodes} = application:get_env(cpx, nodes),
+	Nodes = lists:filter(fun(N) -> lists:member(N, Appnodes) end, [node() | nodes()]),
 	F = fun(Node) ->
 		{Node, [
 			{cpx_monitor_grapher, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_grapher], 2000)},
@@ -1956,7 +1961,7 @@ api_test_() ->
 					id = agent_tcp_listener,
 					module_name = agent_tcp_listener, 
 					start_function = start_link, 
-					start_args = [1337], 
+					start_args = [51337], 
 					supervisor = agent_connection_sup
 				}),
 				?assert(is_pid(Atcppid)),

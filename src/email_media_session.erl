@@ -54,6 +54,11 @@
 	code_change/3
 ]).
 
+% Other helpful email functions.
+-export([
+	archive/3
+]).
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -67,6 +72,29 @@
 }).
 
 %% API
+
+-spec(archive/3 :: (Rawdata :: binary(), Callrec :: #call{}, Direction :: 'inbound' | 'outbound') -> 'ok' | {'error', any()}).
+archive(Rawdata, Callrec, Direction) when is_binary(Rawdata) ->
+	case cpx_supervisor:get_archive_path(Callrec) of
+		none ->
+			?DEBUG("archiving is not configured", []),
+			ok;
+		{error, Reason, Path} ->
+			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]),
+			{error, Reason};
+		BasePath ->
+			%% get_archive_path ensures the directory is writeable by us and exists, so this
+			%% should be safe to do (the call will be hungup if creating the recording file fails)
+			Path = case Direction of
+				inbound ->
+					BasePath ++ ".eml";
+				outbound ->
+					util:find_first_arc(BasePath ++ "-reply", ".eml")
+			end,
+			?DEBUG("archiving to ~s", [Path]),
+			file:write_file(Path, Rawdata)
+	end.
+
 
 %% gen_smtp_server_session callbacks
 -spec(init/3 :: (Hostname :: string(), SessionCount :: pos_integer(), Address :: string()) -> {'stop', 'normal', any(), [string()]} | {'ok', string(), #state{}}).
@@ -131,21 +159,22 @@ handle_DATA(_From, [To | _Allelse], Data, #state{mail_map = Mailmap} = State) wh
 		source = self(),
 		direction = inbound
 	},
-	case cpx_supervisor:get_archive_path(Callrec) of
-		none ->
-			?DEBUG("archiving is not configured", []),
-			ok;
-		{error, _Reason, Path} ->
-			?WARNING("Unable to create requested call archiving directory ~p", [Path]),
-			%{error, Reason};
-			ok;
-		BasePath ->
-			%% get_archive_path ensures the directory is writeable by us and exists, so this
-			%% should be safe to do (the call will be hungup if creating the recording file fails)
-			Path = BasePath ++ ".eml",
-			?DEBUG("archiving to ~s", [Path]),
-			file:write_file(Path, Data)
-	end,
+	archive(Data, Callrec, inbound),
+%	case cpx_supervisor:get_archive_path(Callrec) of
+%		none ->
+%			?DEBUG("archiving is not configured", []),
+%			ok;
+%		{error, _Reason, Path} ->
+%			?WARNING("Unable to create requested call archiving directory ~p", [Path]),
+%			%{error, Reason};
+%			ok;
+%		BasePath ->
+%			%% get_archive_path ensures the directory is writeable by us and exists, so this
+%			%% should be safe to do (the call will be hungup if creating the recording file fails)
+%			Path = BasePath ++ ".eml",
+%			?DEBUG("archiving to ~s", [Path]),
+%			file:write_file(Path, Data)
+%	end,
 	%?DEBUG("headers:  ~p", [Headers]),
 	case gen_server:call(email_media_manager, {queue, Mailmap, Defaultid, Data}) of
 		ok ->

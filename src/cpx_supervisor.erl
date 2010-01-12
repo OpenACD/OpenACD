@@ -55,12 +55,15 @@
 
 -ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
+	-define(AGENTWEBPORT, 55050).
+-else.
+	-define(AGENTWEBPORT, 5050).
 -endif.
 
 -behaviour(supervisor).
 
 -define(DEFAULT_CONF, [
-	#cpx_conf{id = agent_web_listener, module_name = agent_web_listener, start_function = start_link, start_args = [5050], supervisor = agent_connection_sup},
+	#cpx_conf{id = agent_web_listener, module_name = agent_web_listener, start_function = start_link, start_args = [?AGENTWEBPORT], supervisor = agent_connection_sup},
 	#cpx_conf{id = cpx_web_management, module_name = cpx_web_management, start_function = start_link, start_args = [], supervisor = management_sup},
 	#cpx_conf{id = gen_cdr_dumper, module_name = gen_cdr_dumper, start_function = start_link, start_args = [], supervisor = management_sup}
 ]).
@@ -329,7 +332,7 @@ destroy(Spec) ->
 	mnesia:transaction(F).
 
 %% @doc updates the conf with key `Name' with new `Mod', `Start', and `Args'.
--spec(update_conf/2 :: (Id :: atom(), Conf :: #cpx_conf{}) -> {'atomic', 'ok'}).
+-spec(update_conf/2 :: (Id :: atom(), Conf :: #cpx_conf{}) -> {'atomic', 'ok'} | {'aborted', any()}).
 update_conf(Id, Conf) when is_record(Conf, cpx_conf) ->
 	F = fun() ->
 		case mnesia:read({cpx_conf, Id}) of

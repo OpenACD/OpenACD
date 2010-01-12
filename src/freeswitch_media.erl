@@ -237,7 +237,7 @@ handle_voicemail(Agent, Callrec, State) when is_pid(Agent) ->
 	handle_voicemail(undefined, Callrec, Midstate);
 handle_voicemail(undefined, Call, State) ->
 	UUID = Call#call.id,
-	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:IVR/prrec.wav,record:/tmp/${uuid}.wav' inline"),
+	freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:IVR/prrec.wav,gentones:%(500\\,0\\,500),sleep:600,record:/tmp/${uuid}.wav' inline"),
 	{ok, State#state{voicemail = "/tmp/"++UUID++".wav"}}.
 
 -spec(handle_spy/3 :: (Agent :: pid(), Call :: #call{}, State :: #state{}) -> {'error', 'bad_agent', #state{}} | {'ok', #state{}}).
@@ -374,7 +374,7 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 	?INFO("intercepting ~s from channel ~s", [RUUID, Call#call.id]),
 	freeswitch:sendmsg(State#state.cnode, RUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
-	{ok, State};
+	{ok, State#state{warm_transfer_uuid = undefined}};
 handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, ringchannel = Ring, agent_pid = AgentPid} = State) when is_list(WUUID) ->
 	case freeswitch:api(Node, create_uuid) of
 		{ok, NewUUID} ->
@@ -394,7 +394,7 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [no_oncall_on_bridge]) of
 				{ok, Pid} ->
 					link(Pid),
-					{ok, State#state{ringchannel = Pid, warm_transfer_uuid = NewUUID}};
+					{ok, State#state{ringchannel = Pid, warm_transfer_uuid = undefined}};
 				{error, Error} ->
 					?ERROR("error:  ~p", [Error]),
 					{error, Error, State}
@@ -410,7 +410,7 @@ handle_warm_transfer_complete(Call, #state{warm_transfer_uuid = WUUID, cnode = N
 	?INFO("intercepting ~s from channel ~s", [WUUID, Call#call.id]),
 	freeswitch:sendmsg(State#state.cnode, WUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
-	{ok, State};
+	{ok, State#state{warm_transfer_uuid = undefined}};
 handle_warm_transfer_complete(_Call, State) ->
 	{error, "Not in warm transfer", State}.
 
@@ -506,9 +506,10 @@ handle_info(check_recovery, Call, State) ->
 handle_info({'EXIT', Pid, Reason}, _Call, #state{xferchannel = Pid} = State) ->
 	?WARNING("Handling transfer channel ~w exit ~p", [Pid, Reason]),
 	{stop_ring, State#state{ringchannel = undefined}};
-handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
+handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
 	?WARNING("Handling ring channel ~w exit ~p while in warm transfer", [Pid, Reason]),
 	agent:media_push(State#state.agent_pid, warm_transfer_failed),
+	cdr:warmxfer_fail(Call, State#state.agent_pid),
 	{noreply, State#state{ringchannel = undefined}};
 handle_info({'EXIT', Pid, Reason}, _Call, #state{ringchannel = Pid} = State) ->
 	?WARNING("Handling ring channel ~w exit ~p", [Pid, Reason]),
@@ -650,7 +651,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 				"*" when State#state.allow_voicemail =/= false ->
 					% allow the media to go to voicemail
 					?NOTICE("caller requested to go to voicemail", []),
-					freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:IVR/prrec.wav,record:/tmp/${uuid}.wav' inline"),
+					freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:IVR/prrec.wav,gentones:%(500\\,0\\,500),sleep:600,record:/tmp/${uuid}.wav' inline"),
 					case State#state.ringchannel of
 						undefined ->
 							ok;

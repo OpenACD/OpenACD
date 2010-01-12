@@ -783,7 +783,7 @@ warmtransfer({outgoing, Call}, _From, State) ->
 	{reply, ok, outgoing, Newstate};
 warmtransfer({warmtransfer, {onhold, Call, calling, UUID} = Statedata}, _From, State) ->
 	Newstate = State#agent{statedata = Statedata},
-	% TODO - cpx_monitor update needed?
+	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};
 %warmtransfer({warm_transfer_begin, Number}, _From, #agent{statedata = {onhold, Call, calling, _Call}} = State) ->
 	%case gen_media:warm_transfer_begin(Call#call.source, Number, self(), State) of
@@ -892,6 +892,17 @@ handle_sync_event(dump_state, _From, StateName, State) ->
 handle_sync_event({set_connection, Pid}, _From, StateName, #agent{connection = undefined} = State) ->
 	link(Pid),
 	gen_server:cast(Pid, {change_state, State#agent.state, State#agent.statedata}),
+	case erlang:function_exported(cpx_supervisor, get_value, 1) of
+		true ->
+			case cpx_supervisor:get_value(motd) of
+				{ok, Motd} ->
+					gen_server:cast(Pid, {blab, Motd});
+				_ ->
+					ok
+			end;
+		false ->
+			ok
+	end,
 	{reply, ok, StateName, State#agent{connection=Pid}};
 handle_sync_event({set_connection, _Pid}, _From, StateName, State) ->
 	?WARNING("An attempt to set connection to ~w when there is already a connection ~w", [_Pid, State#agent.connection]),
@@ -907,7 +918,7 @@ handle_sync_event({add_skills, Skills}, _From, StateName, State) ->
 handle_sync_event({remove_skills, Skills}, _From, StateName, State) ->
 	NewSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, Skills)),
 	{reply, ok, StateName, State#agent{skills = NewSkills}};
-handle_sync_event({change_profile, Profile}, _From, StateName, State) when StateName =:= idle; StateName =:= released ->
+handle_sync_event({change_profile, Profile}, _From, StateName, State) ->
 	OldProfile = State#agent.profile,
 	OldSkills = case agent_auth:get_profile(OldProfile) of
 		{OldProfile, Skills} ->
@@ -926,17 +937,30 @@ handle_sync_event({change_profile, Profile}, _From, StateName, State) when State
 					?IDLE_LIMITS;
 				released ->
 					[Rel1, _] = ?RELEASED_LIMITS(0),
-					Rel1
+					Rel1;
+				precall -> 
+					?PRECALL_LIMITS;
+				outgoing -> 
+					?OUTGOING_LIMITS;
+				oncall ->
+					?ONCALL_LIMITS;
+				wrapup -> 
+					?WRAPUP_LIMITS;
+				ringing -> 
+					?RINGING_LIMITS;
+				warmtransfer ->
+					?WARMTRANSFER_LIMITS
 			end,
 			gen_server:cast(State#agent.connection, {change_profile, Profile}),
+			State#agent.log_pid ! {change_profile, Profile, StateName},
 			Time = Newstate#agent.lastchange,
 			Fixedhp = case StateName of
-				idle ->
-					[{S, {T1, T2, T3, {time, Time}}}];
 				released ->
 					{_, _, Bias} = State#agent.statedata,
 					[_, Biashp] = ?RELEASED_LIMITS(Bias),
-					[{S, {T1, T2, T3, {time, Time}}}, Biashp]
+					[{S, {T1, T2, T3, {time, Time}}}, Biashp];
+				_ ->
+					[{S, {T1, T2, T3, {time, Time}}}]
 			end,
 			cpx_monitor:set({agent, State#agent.id}, Fixedhp, Deatils),
 			{reply, ok, StateName, Newstate};
@@ -1119,8 +1143,14 @@ log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
 	ok.
 
 -spec(log_loop/4 :: (Id :: string(), Agentname :: string(), Nodes :: [atom()], Profile :: string()) -> 'ok').
-log_loop(Id, Agentname, Nodes, Profile) ->
+log_loop(Id, Agentname, Nodes, ProfileTup) ->
 	process_flag(trap_exit, true),
+	Profile = case ProfileTup of
+		{Currentp, _Queuedp} ->
+			Currentp;
+		_ ->
+			ProfileTup
+	end,
 	receive
 		{Agentname, login, State, OldState, Statedata} ->
 			F = fun() ->
@@ -1132,7 +1162,7 @@ log_loop(Id, Agentname, Nodes, Profile) ->
 			end,
 			Res = mnesia:async_dirty(F),
 			?DEBUG("res of agent state login:  ~p", [Res]),
-			agent:log_loop(Id, Agentname, Nodes, Profile);
+			agent:log_loop(Id, Agentname, Nodes, ProfileTup);
 		{'EXIT', _Apid, _Reason} ->
 			F = fun() ->
 				Now = util:now(),
@@ -1147,14 +1177,26 @@ log_loop(Id, Agentname, Nodes, Profile) ->
 					end,
 					Recs
 				),
-				% TODO oldstate
-				Newrec = #agent_state{id = Id, agent = Agentname, state = logout, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
+				Stateage = fun(#agent_state{start = A}, #agent_state{start = B}) ->
+					B =< A
+				end,
+				[#agent_state{state = Oldstate} | _] = lists:sort(Stateage, Recs),
+				Newrec = #agent_state{id = Id, agent = Agentname, state = logout, oldstate = Oldstate, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
 				mnesia:write(Newrec),
 				ok
 			end,
 			Res = mnesia:async_dirty(F),
 			?DEBUG("res of agent state change log:  ~p", [Res]),
 			ok;
+		{change_profile, Newprofile, State} when State == idle; State == released ->
+			agent:log_loop(Id, Agentname, Nodes, Newprofile);
+		{change_profile, Newprofile, State} ->
+			case ProfileTup of
+				{Current, _Queued} ->
+					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile});
+				Current ->
+					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile})
+			end;
 		{Agentname, State, OldState, Statedata} ->
 			F = fun() ->
 				Now = util:now(),
@@ -1174,7 +1216,12 @@ log_loop(Id, Agentname, Nodes, Profile) ->
 			end,
 			Res = mnesia:async_dirty(F),
 			?DEBUG("res of agent state change log:  ~p", [Res]),
-			agent:log_loop(Id, Agentname, Nodes, Profile)
+			case {State, ProfileTup} of
+				{State, {Profile, Queued}} when State == wrapup; State == idle; State == released ->
+					agent:log_loop(Id, Agentname, Nodes, Queued);
+				_ ->
+					agent:log_loop(Id, Agentname, Nodes, ProfileTup)
+			end
 	end.
 	
 -ifdef(TEST).

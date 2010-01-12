@@ -326,9 +326,6 @@ handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
 			timer:send_after(1000, freeswitch_ping),
 			{noreply, State}
 	end;
-handle_info(error, State) ->
-	1 = 3,
-	{noreply, State};
 handle_info(Info, State) ->
 	?DEBUG("Unexpected info:  ~p", [Info]),
 	{noreply, State}.

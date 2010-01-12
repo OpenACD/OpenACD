@@ -141,7 +141,7 @@ string_interpolate({match, [{Fullmin1, FullLen}, {Startmin1, Len}]}, String, Re,
 	Post = string:substr(String, Fullmin1 + 1 + FullLen),
 	Val = proplists:get_value(Key, Words, ""),
 	Newstring = lists:flatten(lists:append([Pre, Val, Post])),
-	string_interpolate(re:run(Newstring, Re, [{offset, Offset + FullLen}]), Newstring, Re, Words, Offset + FullLen).
+	string_interpolate(re:run(Newstring, Re, [{offset, Offset + length(Val)}]), Newstring, Re, Words, Offset + FullLen).
 
 -spec(list_contains_all/2 :: (List :: [any()], Members :: []) -> 'true';
                              (List :: [any()], Members :: [any(),...]) -> 'true' | 'false').
@@ -524,7 +524,8 @@ string_interpolate_test_() ->
 	{"grab bag", ?_assertEqual("1:uno;  none:; under:untder", string_interpolate("1:#{one};  none:#{none}; under:#{un_der}", 
 		[{"one", "uno"}, {"un_der", "untder"}]))},
 	{"replacemnet no looping", ?_assertEqual("1:#{one}, 2:duo", string_interpolate("1:#{one}, 2:#{two}", 
-		[{"one", "#{one}"}, {"two", "duo"}]))}].
+		[{"one", "#{one}"}, {"two", "duo"}]))},
+	{"Previous long replacements don't cause skips", ?_assertEqual("1:1234; 2:dot", string_interpolate("1:#{verylong}; 2:#{d}", [{"verylong", "1234"}, {"d", "dot"}]))}].
 
 list_contains_all_test() ->
 	?assertEqual(true, list_contains_all([foo, bar, baz], [foo])),

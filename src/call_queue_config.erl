@@ -559,12 +559,12 @@ merge_skills(Nodes, Time) ->
 
 %% @doc Add a new client with `string()' `Label', `integer()' `Tenantid', and `integer()' `Brandid'.
 %% @see new_client/1
--spec(new_client/3 :: (Label :: string(), Id :: string(), Options :: client_opts()) -> {'atomic', 'ok'}).
+-spec(new_client/3 :: (Label :: string(), Id :: string(), Options :: client_opts()) -> {'atomic', 'ok'} | {'aborted', any()}).
 new_client(Label, ID, Options) ->
 	Rec = #client{label = Label, id = ID, options = Options},
 	new_client(Rec).
 
--spec(new_client/1 :: (Rec :: #client{}) -> {'atomic', 'ok'}).
+-spec(new_client/1 :: (Rec :: #client{}) -> {'atomic', 'ok'} | {'aborted', any()}).
 %% @doc Add a new client based on `#client{}' `Rec'.
 new_client(Rec) when is_record(Rec, client) ->
 	F = fun() ->
@@ -586,13 +586,13 @@ new_client(Rec) when is_record(Rec, client) ->
 
 %% @doc Update the client `string() Id' to `string()' `Newlabel', 'client_opts() Options'.
 %% @see set_client/2
--spec(set_client/3 :: (Id :: string(), Newlabel :: string(), Options :: client_opts() ) -> {'atomic', 'ok'}).
+-spec(set_client/3 :: (Id :: string() | 'undefined', Newlabel :: string(), Options :: client_opts() ) -> {'atomic', 'ok'} | {'aborted', any()}).
 set_client(Id, Newlabel, Options) ->
 	Client = #client{label = Newlabel, id = Id, options = Options},
 	set_client(Id, Client).
 
 %% @doc Update the client `string() Id' to the `#client{}' `Client'.
--spec(set_client/2 :: (Id :: string(), Client :: #client{}) -> {'atomic', 'ok'}).
+-spec(set_client/2 :: (Id :: string() | 'undefined', Client :: #client{}) -> {'atomic', 'ok'} | {'aborted', any()}).
 set_client(Id, Client) when is_record(Client, client) ->
 	F = fun() ->
 		mnesia:delete({client, Id}),
@@ -613,11 +613,11 @@ set_client(Id, Client) when is_record(Client, client) ->
 	mnesia:transaction(F).
 
 %% @doc Removed the client id `Id' from the client database.
--spec(destroy_client/1 :: (Id :: string()) -> {'atomic', 'ok'}).
+-spec(destroy_client/1 :: (Id :: string()) -> {'atomic', 'ok'} | {'aborted', 'protected'}).
 destroy_client(Id) ->
 	destroy_client(id, Id).
 
--spec(destroy_client/2 :: (Key :: 'id' | 'label', Value :: string()) -> {'atomic', 'ok'}).
+-spec(destroy_client/2 :: (Key :: 'id' | 'label', Value :: string()) -> {'atomic', 'ok'} | {'aborted', 'protected'}).
 destroy_client(_Key, undefined) ->
 	{aborted, protected};
 destroy_client(id, Id) ->

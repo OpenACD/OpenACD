@@ -99,7 +99,12 @@ init(Props) ->
 				Dir ->
 					"";
 				Else ->
-					Else ++ "/" % TODO avoid doubling trailing slashes
+					case lists:last(Else) of
+						$/ ->
+							Else;
+						_ ->
+							Else ++ "/"
+					end
 			end,
 			Now = util:now(),
 			GroupedAgents = get_agents(Now),

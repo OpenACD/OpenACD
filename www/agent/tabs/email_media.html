@@ -122,7 +122,7 @@
 				<label>&nbsp;</label>
 				<button label="SUBMIT" dojoType="dijit.form.Button" id="emailSubmit">
 					<script type="dojo/connect" event="onClick">
-						var coveredNode = dijit.byId('emailPanel').domNode;
+						var coveredNode = dijit.byId('email').domNode;
 						var standby = new dojox.widget.Standby({
 							target: coveredNode,
 							zIndex:1000

@@ -1436,40 +1436,11 @@ if(typeof(supervisorView) == "undefined"){
 				menu: [
 					{'label':'Blab',
 					'onClick':function(){
-					   var dialog = dijit.byId("blabDialog");
-					   var submitblab = function(){
-							var data = dialog.attr('value');
-							supervisorView.blab(data.message, "node", 'System');
-					   };
-					   dialog.attr('execute', submitblab);
-					   dialog.show();
+						supervisorView.showBlabDialog('node', 'System');
 					}},
 					{'label':'Set Motd...',
 					'onClick':function(){
-						var dialog = dijit.byId("blabDialog");
-						var submitblab = function(){
-							var data = dialog.attr('value').message;
-							dojo.xhrPost({
-								url:'/supervisor/motd',
-								handleAs:'json',
-								content:{
-									message:data,
-									node:'system'
-								},
-								load:function(res){
-									if(res.success){
-										return true;
-									}
-									
-									errMessage(["setting motd failed", res.message]);
-								},
-								error:function(res){
-									errMessage(["setting motd errored", res]);
-								}
-							});
-						}
-						dialog.attr('execute', submitblab);
-						dialog.show();
+						supervisorView.showMotdDialog('system');
 					}}
 				]
 			}];
@@ -1494,39 +1465,11 @@ if(typeof(supervisorView) == "undefined"){
 					menu:[
 						{'label':'Blab',
 						'onClick':function(){
-							var dialog = dijit.byId("blabDialog");
-							var submitblab = function(){
-								var data = dialog.attr('value');
-								supervisorView.blab(data.message, "node", node);
-							};
-							dialog.attr('execute', submitblab);
-							dialog.show();
+							supervisorView.showBlabDialog('node', node)
 						}},
 						{'label':'Set Motd...',
 						'onClick':function(){
-							var dialog = dijit.byId("blabDialog");
-							var submitblab = function(){
-								var data = dialog.attr('value').message;
-								dojo.xhrPost({
-									url:'/supervisor/motd',
-									handleAs:'json',
-									content:{
-										message:data,
-										'node':node
-									},
-									load:function(res){
-										if(res.success){
-											return true;
-										}
-										errMessage(["setting motd failed", res.message]);
-									},
-									error:function(res){
-										errMessage(["setting motd errored", res]);
-									}
-								});
-							}
-							dialog.attr('execute', submitblab);
-							dialog.show();
+							supervisorView.showMotdDialog(node);
 						}}
 					]
 				});
@@ -1638,13 +1581,7 @@ if(typeof(supervisorView) == "undefined"){
 			menu: [
 				{'label':'Blab...',
 				'onClick':function(){
-					var dialog = dijit.byId("blabDialog");
-					var submitblab = function(){
-						var data = dialog.attr('value');
-						supervisorView.blab(data.message, "all", "all");
-					};
-					dialog.attr('execute', submitblab);
-					dialog.show();
+					supervisorView.showBlabDialog('all', 'all');
 				}}
 			],
 			onmouseenter:function(){
@@ -1886,13 +1823,7 @@ if(typeof(supervisorView) == "undefined"){
 					menu:[
 						{'label':'Blab...',
 						'onClick':function(){
-							var dialog = dijit.byId("blabDialog");
-							var submitblab = function(){
-								var data = dialog.attr('value');
-								supervisorView.blab(data.message, "profile", escape(disp))
-							};
-							dialog.attr('execute', submitblab);
-							dialog.show();
+							supervisorView.showBlabDialog('profile', escape(disp));
 						}}
 					]
 				});
@@ -2020,13 +1951,7 @@ if(typeof(supervisorView) == "undefined"){
 						'separator',
 						{'label':'Blab...',
 						'onClick':function(){
-							var dialog = dijit.byId("blabDialog");
-							var submitblab = function(){
-								var data = dialog.attr('value');
-								supervisorView.blab(data.message, "agent", escape(agentHit));
-							};
-							dialog.attr('execute', submitblab);
-							dialog.show();
+							supervisorView.showBlabDialog('agent', escape(agentHit));
 						}},
 						{'label':'Spy',
 						'onClick':function(){
@@ -2398,6 +2323,18 @@ if(typeof(supervisorView) == "undefined"){
 				errMessage(['error spying', res]);
 			}
 		});
+	}
+	
+	supervisorView.showBlabDialog = function(type, target){
+		var dialog = dijit.byId("blabDialog");
+		dialog.attr('title', 'Blab');
+		dialog.attr('value', {'message':'Type your message here.  Url\'s get automatically interpreted'});
+		var submitblab = function(){
+			var data = dialog.attr('value');
+			supervisorView.blab(data.message, type, target);
+		};
+		dialog.attr('execute', submitblab);
+		dialog.show();
 	}
 	
 	supervisorView.blab = function(message, type, target){
@@ -2832,6 +2769,56 @@ if(typeof(supervisorView) == "undefined"){
 			}
 		});
 	}
+	
+	supervisorView.showMotdDialog = function(nodename){
+		dojo.xhrGet({
+			url:'/supervisor/getmotd',
+			handleAs:'json',
+			load:function(res){
+				if(! res.success){
+					errMessage(["Failed getting motd", res.message]);
+					return false;
+				}
+				
+				var dialog = dijit.byId("blabDialog");
+				dialog.attr('title', 'MotD');
+				if(res.motd){
+					dialog.attr('value', {'message':res.motd});
+				} else {
+					dialog.attr('value', {'message':'Type the Message of the Day here.  Leave blank to unset.'});
+				}
+				var submitblab = function(){
+					var data = dialog.attr('value').message;
+					dojo.xhrPost({
+						url:'/supervisor/motd',
+						handleAs:'json',
+						content:{
+							message:data,
+							node:nodename
+						},
+						load:function(res){
+							if(res.success){
+								return true;
+							}
+							errMessage(["setting motd failed", res.message]);
+						},
+						error:function(res){
+							errMessage(["setting motd errored", res]);
+						}
+					});
+				}
+				dialog.attr('execute', submitblab);
+				dialog.show();
+			},
+			error: function(res){
+				errMessage(["Errored getting motd", res]);
+			}
+		});
+		
+		
+	
+		
+		}
 	
 	supervisorView.clean = function(){
 		/* finds 'g' elements with no children and removes them from the dom */

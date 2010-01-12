@@ -706,6 +706,14 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 					end
 			end,
 			{reply, {200, [], mochijson2:encode(Json)}, State};
+		["getmotd"] ->
+			Motd = case cpx_supervisor:get_value(motd) of
+				none ->
+					false;
+				{ok, Text} ->
+					list_to_binary(Text)
+			end,
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {motd, Motd}]})}, State};
 		[Node | Do] ->
 			Nodes = get_nodes(Node),
 			{Success, Result} = do_action(Nodes, Do, []),

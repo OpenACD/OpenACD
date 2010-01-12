@@ -892,6 +892,17 @@ handle_sync_event(dump_state, _From, StateName, State) ->
 handle_sync_event({set_connection, Pid}, _From, StateName, #agent{connection = undefined} = State) ->
 	link(Pid),
 	gen_server:cast(Pid, {change_state, State#agent.state, State#agent.statedata}),
+	case erlang:function_exported(cpx_supervisor, get_value, 1) of
+		true ->
+			case cpx_supervisor:get_value(motd) of
+				{ok, Motd} ->
+					gen_server:cast(Pid, {blab, Motd});
+				_ ->
+					ok
+			end;
+		false ->
+			ok
+	end,
 	{reply, ok, StateName, State#agent{connection=Pid}};
 handle_sync_event({set_connection, _Pid}, _From, StateName, State) ->
 	?WARNING("An attempt to set connection to ~w when there is already a connection ~w", [_Pid, State#agent.connection]),

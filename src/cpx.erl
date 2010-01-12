@@ -425,7 +425,7 @@ uptime(Fallback) ->
 					util:now() - Time
 			end
 	end.
-	
+
 % to be added soon TODO
 %
 %can_answer/2 (Media, Agent) -> true | missing skills

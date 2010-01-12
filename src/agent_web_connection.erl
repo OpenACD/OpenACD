@@ -417,7 +417,49 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 					agent_manager:blab(proplists:get_value("message", Post, ""), Else),
 					mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"blabbing">>}]})
 			end,
-			{reply, {200, [], Json}, State}
+			{reply, {200, [], Json}, State};
+		["motd"] ->
+			{ok, Appnodes} = application:get_env(cpx, nodes),
+			Nodes = case proplists:get_value("node", Post) of
+				"system" ->
+					Appnodes;
+				Postnode ->
+					case lists:any(fun(N) -> atom_to_list(N) == Postnode end, Appnodes) of
+						true ->
+							[list_to_existing_atom(Postnode)];
+						false ->
+							[]
+					end
+			end,
+			case Nodes of
+				[] ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no known nodes">>}]})}, State};
+				_ ->
+					Fun = case proplists:get_value("message", Post) of
+						"" ->
+							fun(Node) ->
+								try rpc:call(Node, cpx_supervisor, drop_value, [motd]) of
+									{atomic, ok} ->
+										ok
+								catch
+									_:_ ->
+										?WARNING("Could not set motd on ~p", [Node])
+								end
+							end;
+						Message ->
+							fun(Node) ->
+								try rpc:call(Node, cpx_supervisor, set_value, [motd, Message]) of
+									{atomic, ok} ->
+										ok
+								catch
+									_:_ ->
+										?WARNING("Count not set motd on ~p", [Node])
+								end
+							end
+					end,
+					lists:foreach(Fun, Nodes),
+					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
+			end
 	end;
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),

@@ -1443,6 +1443,33 @@ if(typeof(supervisorView) == "undefined"){
 					   };
 					   dialog.attr('execute', submitblab);
 					   dialog.show();
+					}},
+					{'label':'Set Motd...',
+					'onClick':function(){
+						var dialog = dijit.byId("blabDialog");
+						var submitblab = function(){
+							var data = dialog.attr('value').message;
+							dojo.xhrPost({
+								url:'/supervisor/motd',
+								handleAs:'json',
+								content:{
+									message:data,
+									node:'system'
+								},
+								load:function(res){
+									if(res.success){
+										return true;
+									}
+									
+									errMessage(["setting motd failed", res.message]);
+								},
+								error:function(res){
+									errMessage(["setting motd errored", res]);
+								}
+							});
+						}
+						dialog.attr('execute', submitblab);
+						dialog.show();
 					}}
 				]
 			}];
@@ -1472,6 +1499,32 @@ if(typeof(supervisorView) == "undefined"){
 								var data = dialog.attr('value');
 								supervisorView.blab(data.message, "node", node);
 							};
+							dialog.attr('execute', submitblab);
+							dialog.show();
+						}},
+						{'label':'Set Motd...',
+						'onClick':function(){
+							var dialog = dijit.byId("blabDialog");
+							var submitblab = function(){
+								var data = dialog.attr('value').message;
+								dojo.xhrPost({
+									url:'/supervisor/motd',
+									handleAs:'json',
+									content:{
+										message:data,
+										'node':node
+									},
+									load:function(res){
+										if(res.success){
+											return true;
+										}
+										errMessage(["setting motd failed", res.message]);
+									},
+									error:function(res){
+										errMessage(["setting motd errored", res]);
+									}
+								});
+							}
 							dialog.attr('execute', submitblab);
 							dialog.show();
 						}}

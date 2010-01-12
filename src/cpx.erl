@@ -422,9 +422,32 @@ uptime(Fallback) ->
 					application:set_env(cpx, uptime, Now),
 					0;
 				{{ok, Time}, _} ->
-					util:now() - Time
+					Out = util:now() - Time,
+					io:format("~s~n", [pretty_print_time(Out)]),
+					Out
 			end
 	end.
+
+pretty_print_time(Time) ->
+	Times = [
+		{"Seconds", 60},
+		{"Minutes", 60},
+		{"Hours", 24},
+		{"Days", 7},
+		{"Weeks", 52},
+		"Years"
+	],
+	pretty_print_time(Times, Time, "").
+
+pretty_print_time(_, 0, Acc) ->
+	Acc;
+pretty_print_time([Label], Time, Acc) ->
+	lists:append([Label, ":  ", integer_to_list(Time), ";  ", Acc]);
+pretty_print_time([{Label, Interval} | Tail], Time, Acc) ->
+	Rem = Time rem Interval,
+	Newtime = util:floor(Time / Interval),
+	Newacc = lists:append([Label, ":  ", integer_to_list(Rem), ";  ", Acc]),
+	pretty_print_time(Tail, Newtime, Newacc).
 
 % to be added soon TODO
 %
@@ -439,3 +462,20 @@ uptime(Fallback) ->
 % cpx:start_spec
 % uptime
 
+-ifdef(TEST).
+
+pretty_print_time_test_() ->
+	[{"A few seconds",
+	?_assertEqual("Seconds:  5;  ", pretty_print_time(5))},
+	{"A couple of minutes",
+	?_assertEqual("Minutes:  2;  Seconds:  23;  ", pretty_print_time(120 + 23))},
+	{"A few hours",
+	?_assertEqual("Hours:  12;  Minutes:  32;  Seconds:  54;  ", pretty_print_time((12 * 60 * 60) + (32 * 60) + 54))},
+	{"Several days",
+	?_assertEqual("Days:  3;  Hours:  0;  Minutes:  27;  Seconds:  10;  ", pretty_print_time((3 * 24 * 60 * 60) + (60 * 27) + 10))},
+	{"Many weeks",
+	?_assertEqual("Weeks:  32;  Days:  4;  Hours:  10;  Minutes:  3;  Seconds:  7;  ", pretty_print_time((32 * 7 * 24 * 60 * 60) + (4 * 24 * 60 * 60) + (10 * 60 * 60) + (3 * 60) + 7))},
+	{"Years",
+	?_assertEqual("Years:  3;  Weeks:  5;  Days:  6;  Hours:  21;  Minutes:  53;  Seconds:  3;  ", pretty_print_time((3 * 52 * 7 * 24 * 60 * 60) + (5 * 7 * 24 * 60 * 60) + (6 * 24 * 60 * 60) + (60 * 60 * 21) + (53 * 60) + 3))}].
+
+-endif.

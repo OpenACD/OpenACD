@@ -68,7 +68,8 @@
 	reload_all/1,
 	distribution/1,
 	get_number/1,
-	find_first_arc/2
+	find_first_arc/2,
+	floor/1
 ]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
@@ -462,6 +463,16 @@ find_first_arc(Base, Ext, Count) ->
 			Path;
 		_Else ->
 			find_first_arc(Base, Ext, Count + 1)
+	end.
+
+-spec(floor/1 :: (X :: integer()) -> integer()).
+floor(X) ->
+	T = trunc(X),
+	if 
+		X < T ->
+			T - 1;
+		true  -> 
+			T
 	end.
 
 -ifdef(TEST).

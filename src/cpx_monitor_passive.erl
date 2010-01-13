@@ -268,7 +268,7 @@ handle_info({'EXIT', Pid, Reason}, #state{pruning_pid = Pid} = State) ->
 		_ ->
 			?WARNING("Pruning pid exited due to ~p", [Reason])
 	end,
-	{normal, State#state{pruning_pid = undefined}};
+	{noreply, State#state{pruning_pid = undefined}};
 handle_info({'EXIT', Pid, Reason}, #state{write_pids = Pids} = State) ->
 	case proplists:get_value(Pid, Pids) of
 		undefined ->

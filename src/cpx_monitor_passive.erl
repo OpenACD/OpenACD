@@ -227,7 +227,8 @@ handle_cast(stop, State) ->
 	{stop, normal, State};
 handle_cast(prune_dets, #state{pruning_pid = undefined} = State) ->
 	Fun = fun() ->
-		prune_dets_medias()
+		prune_dets_medias(),
+		prune_dets_agents()
 	end,
 	Pid = spawn_link(Fun),
 	{noreply, State#state{pruning_pid = Pid}};
@@ -404,6 +405,22 @@ prune_dets_medias() ->
 				Newrow = setelement(5, Row, {Direction, Newhistory}),
 				dets:insert(?DETS, Newrow);
 			_ ->
+				ok
+		end
+	end,
+	lists:foreach(Checker, List).
+
+prune_dets_agents() ->
+	Qh = qlc:q([ X || X <- dets:table(?DETS),
+		element(1, element(1, X)) == agent
+	]),
+	List = qlc:e(Qh),
+	Checker = fun(Row) ->
+		Details = element(4, Row),
+		case agent_manager:query_agent(Details) of
+			false ->
+				dets:delete_object(?DETS, Row);
+			{true, _} ->
 				ok
 		end
 	end,

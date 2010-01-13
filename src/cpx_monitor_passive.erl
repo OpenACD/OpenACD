@@ -68,9 +68,12 @@
 -type(outputs_option() :: {outputs, outputs()}).
 
 -type(write_interval() :: {write_interval, pos_integer()}). % in seconds
+-type(prune_dets() :: 'prune_dets' | {'prune_dets', boolean()}).
+
 -type(start_option() :: 
 	outputs_option() |
-	write_interval()).
+	write_interval() | 
+	prune_dets()).
 	
 -type(start_options() :: [start_option()]).
 
@@ -205,7 +208,12 @@ init(Options) ->
 	%Mediacache = create_queued_clients(Medias),
 	{ok, Timer} = timer:send_after(Interval, write_output),
 	?DEBUG("started", []),
-	prune_dets(),
+	case proplists:get_value(prune_dets, Options, true) of
+		true ->
+			prune_dets();
+		false ->
+			ok
+	end,
 	{ok, #state{
 		filters = Filters,
 		interval = Interval,

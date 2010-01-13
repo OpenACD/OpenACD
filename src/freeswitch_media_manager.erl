@@ -108,7 +108,8 @@
 	make_outbound_call/3,
 	fetch_domain_user/2,
 	new_voicemail/5,
-	ring_agent/4
+	ring_agent/4,
+	get_media/1
 ]).
 
 %% gen_server callbacks
@@ -196,6 +197,10 @@ stop() ->
 ring_agent(AgentPid, Arec, Call, Timeout) ->
 	gen_server:call(?MODULE, {ring_agent, AgentPid, Arec, Call, Timeout}).
 
+-spec(get_media/1 :: (MediaKey :: pid() | string()) -> {string(), pid()} | 'none').
+get_media(MediaKey) ->
+	gen_server:call(?MODULE, {get_media, MediaKey}).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -242,6 +247,28 @@ handle_call({ring_agent, AgentPid, Arec, Call, Timeout}, _From, #state{nodename 
 			{reply, Out, State};
 		false ->
 			{reply, {error, noconnection}, State}
+	end;
+handle_call({get_media, MediaPid}, _From, #state{call_dict = Dict} = State) when is_pid(MediaPid) ->
+	Folder = fun(Id, Pid, _Acc) ->
+		case Pid of
+			MediaPid ->
+				Id;
+			_ ->
+				none
+		end
+	end,
+	case dict:fold(Folder, none, Dict) of
+		none ->
+			{reply, none, State};
+		Id ->
+			{reply, {Id, MediaPid}, State}
+	end;
+handle_call({get_media, MediaKey}, _From, #state{call_dict = Dict} = State) ->
+	case dict:find(MediaKey, Dict) of
+		{ok, Pid} ->
+			{reply, {MediaKey, Pid}, State};
+		error ->
+			{reply, none, State}
 	end;
 handle_call(Request, _From, State) ->
 	?INFO("Unexpected call:  ~p", [Request]),

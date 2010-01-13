@@ -47,7 +47,9 @@
 	destroy_mapping/1,
 	requeue/1,
 	batch_requeue/1,
-	get_send_opts/0]).
+	get_send_opts/0,
+	get_media/1
+]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -147,6 +149,10 @@ batch_requeue(Dir) ->
 get_send_opts() ->
 	gen_server:call(?MODULE, get_send_opts).
 
+-spec(get_media/1 :: (MediaKey :: pid() | string()) -> {string(), pid()} | 'none').
+get_media(MediaKey) ->
+	gen_server:call(?MODULE, {get_media, MediaKey}).
+	
 %-ifndef(NOWEB).
 %web_api(_Message, _Post) ->
 %	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}.
@@ -214,13 +220,27 @@ handle_call({queue, Mailmap, Id, Data}, _From, #state{mails = Mails} = State) ->
 			case email_media:start([{mail_map, Mailmap}, {raw, Data}, {id, Id}]) of
 				{ok, Mpid} ->
 					link(Mpid),
-					{reply, ok, State#state{mails = [Mpid | Mails]}};
+					{reply, ok, State#state{mails = [{Id, Mpid} | Mails]}};
 				Else ->
 					?WARNING("couldn't queue message due to ~p", [Else]),
 					{reply, {error, Else}, State}
 			end;
 		false ->
 			{reply, {error, not_right_time}, State}
+	end;
+handle_call({get_media, MediaPid}, _From, #state{mails = Mails} = State) when is_pid(MediaPid) ->
+	case lists:keyfind(MediaPid, 2, Mails) of
+		false ->
+			{reply, none, State};
+		{Id, MediaPid} ->
+			{reply, {Id, MediaPid}, State}
+	end;
+handle_call({get_media, MediaKey}, _From, #state{mails = Mails} = State) ->
+	case proplists:get_value(MediaKey, Mails) of
+		undefined ->
+			{reply, none, State};
+		Pid ->
+			{reply, {MediaKey, Pid}, State}
 	end;
 handle_call(Request, _From, State) ->
     {reply, {invalid, Request}, State}.
@@ -237,7 +257,8 @@ handle_cast({queue, Filename}, #state{mails = Mails} = State) ->
 			case email_media:start([{raw, Email}]) of
 				{ok, Mpid} ->
 					link(Mpid),
-					{noreply, State#state{mails = [Mpid | Mails]}};
+					#call{id = Id} = gen_media:get_call(Mpid),
+					{noreply, State#state{mails = [{Id, Mpid} | Mails]}};
 				Else ->
 					?WARNING("Couldn't start new mail media due to ~p", [Else]),
 					{noreply, State}
@@ -268,7 +289,7 @@ handle_info({'EXIT', Pid, Reason}, #state{server = Pid} = State) ->
 	{stop, {server_exit, Reason}, State#state{server = undefined}};
 handle_info({'EXIT', From, Reason}, #state{mails = Mails} = State) ->
 	?DEBUG("Handling exit from ~w due to ~p", [From, Reason]),
-	Newmail = lists:delete(From, Mails),
+	Newmail = lists:keydelete(From, 2, Mails),
 	{noreply, State#state{mails = Newmail}};
 handle_info(_Info, State) ->
     {noreply, State}.

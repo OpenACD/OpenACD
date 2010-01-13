@@ -46,7 +46,8 @@
 	start_supervised/1,
 	stop/0,
 	stop_supped/0,
-	set_option/2
+	set_option/2,
+	get_media/1
 ]).
 
 %% gen_server callbacks
@@ -102,6 +103,10 @@ stop_supped() ->
 set_option(Key, Valu) ->
 	gen_server:cast(?MODULE, {set_option, Key, Valu}).
 	
+-spec(get_media/1 :: (MediaKey :: pid() | string()) -> {string(), pid()} | 'none').
+get_media(MediaKey) ->
+	gen_server:call(?MODULE, {get_media, MediaKey}).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -137,24 +142,22 @@ init(Options) ->
 %%--------------------------------------------------------------------
 handle_call(get_count, _, #state{calls = Pidlist} = State) ->
 	{reply, {ok, length(Pidlist)}, State};
-handle_call({get_call, Needle}, _, #state{calls = Pidlist} = State) ->
-	Out = case is_pid(Needle) of
-		true ->
-			case proplists:get_value(Needle, Pidlist) of
-				undefined ->
-					undefined;
-				Else ->
-					{ok, {Needle, Else}}
-			end;
+handle_call({get_media, MediaPid}, _From, #state{calls = Pidlist} = State) when is_pid(MediaPid) ->
+	case proplists:get_value(MediaPid, Pidlist) of
+		undefined ->
+			{reply, none, State};
+		Id ->
+			{reply, {Id, MediaPid}, State}
+	end;
+handle_call({get_media, Needle}, _From, #state{calls = Pidlist} = State) ->
+	case lists:keyfind(Needle, 2, Pidlist) of
 		false ->
-			case find_key(Needle, Pidlist) of
-				{ok, Key} ->
-					{ok, {Key, Needle}};
-				undefined ->
-					undefined
-			end
-	end,
-	{reply, Out, State};
+			{reply, none, State};
+		{Pid, Needle} ->
+			{reply, {Needle, Pid}, State}
+	end;
+handle_call({get_call, Needle}, From, State) ->
+	handle_call({get_media, Needle}, From, State);
 handle_call(Request, _From, State) ->
     {reply, {invalid, Request}, State}.
 

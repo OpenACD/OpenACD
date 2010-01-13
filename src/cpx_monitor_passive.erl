@@ -89,7 +89,8 @@
 	start_link/1,
 	start/1,
 	stop/0,
-	write_output/2
+	write_output/2,
+	prune_dets/0
 ]).
 
 %% gen_server callbacks
@@ -122,7 +123,8 @@
 	%agent_cache = [],
 	%media_cache = [],
 	timer :: any(),
-	write_pids = [] :: [{pid(), string()}]
+	write_pids = [] :: [{pid(), string()}],
+	pruning_pid :: 'undefined' | pid()
 }).
 
 -type(state() :: #state{}).
@@ -144,6 +146,12 @@ start(Options) ->
 -spec(stop/0 :: () -> 'ok').
 stop() ->
 	gen_server:cast(?MODULE, stop).
+
+%% @doc Attempts to remove from the dets table any medias that no longer
+%% exist.
+-spec(prune_dets/0 :: () -> 'ok').
+prune_dets() ->
+	gen_server:cast(?MODULE, prune_dets).
 
 %%====================================================================
 %% gen_server callbacks
@@ -217,6 +225,15 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast(stop, State) ->
 	{stop, normal, State};
+handle_cast(prune_dets, #state{pruning_pid = undefined} = State) ->
+	Fun = fun() ->
+		prune_dets_medias()
+	end,
+	Pid = spawn_link(Fun),
+	{noreply, State#state{pruning_pid = Pid}};
+handle_cast(prune_dets, State) ->
+	?WARNING("A prune is already running.", []),
+	{noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -243,6 +260,14 @@ handle_info({cpx_monitor_event, Event}, #state{filters = Filters} = State) ->
 	Row = cache_event(Event),
 	Newfilters = update_filter_states(Row, Filters),
 	{noreply, State#state{filters = Newfilters}};
+handle_info({'EXIT', Pid, Reason}, #state{pruning_pid = Pid} = State) ->
+	case Reason of
+		normal ->
+			?INFO("Pruning pid exited normally", []);
+		_ ->
+			?WARNING("Pruning pid exited due to ~p", [Reason])
+	end,
+	{normal, State#state{pruning_pid = undefined}};
 handle_info({'EXIT', Pid, Reason}, #state{write_pids = Pids} = State) ->
 	case proplists:get_value(Pid, Pids) of
 		undefined ->
@@ -352,6 +377,37 @@ cache_event({set, {{agent, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 			dets:insert(?DETS, {Key, Time, EventHp, EventDetails, undefined}),
 			{Key, Time, Hp, Details, undefined}
 	end.
+
+prune_dets_medias() ->
+	Qh = qlc:q([X || X <- dets:table(?DETS),
+		element(1, element(1, X)) == media
+	]),
+	List = qlc:e(Qh),
+	Checker = fun({{media, Id}, Time, _Hp, Details, {Direction, History}} = Row) ->
+		Age = util:now() - Time,
+		Day = 24 * 60 * 60,
+		Manager = case proplists:get_value(type, Details) of
+			email ->
+				email_media_manager;
+			voice ->
+				freeswitch_media_manager;
+			voicemail ->
+				freeswitch_media_manager;
+			_ ->
+				dummy_media_manager
+		end,
+		case {Manager:get_media(Id), Age > Day} of
+			{none, true} ->
+				dets:delete_object(?DETS, Row);
+			{none, false} ->
+				Newhistory = History ++ [{ended, util:now()}],
+				Newrow = setelement(5, Row, {Direction, Newhistory}),
+				dets:insert(?DETS, Newrow);
+			_ ->
+				ok
+		end
+	end,
+	lists:foreach(Checker, List).
 
 get_clients(Filter) ->
 	QH = qlc:q([proplists:get_value(client, Details) || 
@@ -1343,5 +1399,102 @@ qlc_test_() ->
 			?assertEqual({media, "media-undef-qq"}, element(1, H))
 		end}]
 	end}.
-	
+
+prune_dets_medias_test_() ->
+	{setup,
+	fun() ->
+		dets:open_file(?DETS, [])
+	end,
+	fun(_) ->
+		file:delete(?DETS),
+		ok
+	end,
+	fun(_) ->
+		{foreach,
+		fun() ->
+			dets:delete_all_objects(?DETS)
+		end,
+		fun(_) ->
+			ok
+		end,
+		[{"Deleting only medias that are dead and older than a day",
+		fun() ->
+			Objs = [{{media, "dead"}, util:now() - ( (24 * 60 * 60) + (10 * 60) ), [], [{type, dummy}], {inbound, [{queued, 10}]}},
+			{{media, "alive"}, util:now() - ( (24 * 60 * 60) + (10 * 60) ), [], [{type, dummy}], {inbound, [{queued, 10}]}}],
+			dets:insert(?DETS, Objs),
+			gen_server_mock:named({local, dummy_media_manager}),
+			gen_server_mock:expect_call(dummy_media_manager, fun({get_media, "dead"}, _, State) ->
+				{ok, none, State}
+			end),
+			gen_server_mock:expect_call(dummy_media_manager, fun({get_media, "alive"}, _, State) ->
+				Pid = spawn(fun() -> ok end),
+				{ok, {"alive", Pid}, State}
+			end),
+			prune_dets_medias(),
+			?assertEqual([], dets:lookup(?DETS, {media, "dead"})),
+			?assertEqual(1, length(dets:lookup(?DETS, {media, "alive"})))
+		end},
+		{"Ending dead medias younger than a day",
+		fun() ->
+			Objs = [{{media, "dead"}, util:now() - 10 * 60, [], [{type, dummy}], {inbound, [{queued, 10}]}},
+			{{media, "alive"}, util:now() - 10 * 60, [], [{type, dummy}], {inbound, [{queued, 10}]}}],
+			dets:insert(?DETS, Objs),
+			gen_server_mock:named({local, dummy_media_manager}),
+			gen_server_mock:expect_call(dummy_media_manager, fun({get_media, "dead"}, _, State) ->
+				{ok, none, State}
+			end),
+			gen_server_mock:expect_call(dummy_media_manager, fun({get_media, "alive"}, _, State) ->
+				Pid = spawn(fun() -> ok end),
+				{ok, {"alive", Pid}, State}
+			end),
+			prune_dets_medias(),
+			[Deadres] = dets:lookup(?DETS, {media, "dead"}),
+			[AliveRes] = dets:lookup(?DETS, {media, "alive"}),
+			?DEBUG("dead:  ~p;  Alive:  ~p", [Deadres, AliveRes]),
+			?assertNot(undefined == proplists:get_value(ended, element(2, element(5, Deadres)))),
+			?assertEqual(undefined, proplists:get_value(ended, element(2, element(5, AliveRes))))
+		end},
+		{"Types other than dummy",
+		fun() ->
+			Fpid = fun() -> spawn(fun() -> ok end) end,
+			Objs = [
+				{{media, "dead-old-mail"}, util:now() - (24 * 60 * 60 + 10 * 60), [], [{type, email}], {inbound, [{queued, 10}]}},
+				{{media, "dead-old-voice"}, util:now() - (24 * 60 * 60 + 10 * 60), [], [{type, voice}], {inbound, [{queued, 10}]}},
+				{{media, "dead-new-mail"}, util:now() - (10 * 60), [], [{type, email}], {inbound, [{queued, 10}]}},
+				{{media, "dead-new-voice"}, util:now() - (10 * 60), [], [{type, voice}], {inbound, [{queued, 10}]}},
+				{{media, "live-old-mail"}, util:now() - (24 * 60 * 60 + 10 * 60), [], [{type, email}], {inbound, [{queued, 10}]}},
+				{{media, "live-new-voice"}, util:now() - (10 * 60), [], [{type, voice}], {inbound, [{queued, 10}]}}
+			],
+			dets:insert(?DETS, Objs),
+			gen_server_mock:named({local, freeswitch_media_manager}),
+			gen_server_mock:named({local, email_media_manager}),
+			Fsfun = fun({get_media, Id}, _From, State) ->
+				case Id of
+					"live-new-voice" ->
+						{ok, Fpid(), State};
+					_ ->
+						{ok, none, State}
+				end
+			end,
+			Emailfun = fun({get_media, Id}, _From, State) ->
+				case Id of
+					"live-old-mail" ->
+						{ok, Fpid(), State};
+					_ ->
+						{ok, none, State}
+				end
+			end,
+			gen_server_mock:expect_call(freeswitch_media_manager, Fsfun),
+			gen_server_mock:expect_call(freeswitch_media_manager, Fsfun),
+			gen_server_mock:expect_call(freeswitch_media_manager, Fsfun),
+			gen_server_mock:expect_call(email_media_manager, Emailfun),
+			gen_server_mock:expect_call(email_media_manager, Emailfun),
+			gen_server_mock:expect_call(email_media_manager, Emailfun),
+			prune_dets_medias(),
+			Expectedids = ["dead-new-mail", "dead-new-voice", "live-old-mail", "live-new-voice"],
+			Gotids = qlc:e(qlc:q([Id || {{_Type, Id}, _, _, _, _} <- dets:table(?DETS)])),
+			?assertEqual(lists:sort(Expectedids), lists:sort(Gotids))
+		end}]}
+	end}.
+
 -endif.

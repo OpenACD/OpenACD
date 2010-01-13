@@ -205,6 +205,7 @@ init(Options) ->
 	%Mediacache = create_queued_clients(Medias),
 	{ok, Timer} = timer:send_after(Interval, write_output),
 	?DEBUG("started", []),
+	prune_dets(),
 	{ok, #state{
 		filters = Filters,
 		interval = Interval,

@@ -128,13 +128,17 @@ init(Options) ->
 		Call = gen_media:get_call(Pid),
 		{Pid, Call#call.id}
 	end,
-	Pidlist = lists:map(Fun, lists:seq(1, Seeds)),
-	Time = util:get_number(Conf#conf.call_frequency) * 1000,
-	?INFO("Spawning new call after ~p", [Time]),
+	Pidlist = case Seeds of
+		0 ->
+			[];
+		_ ->
+			lists:map(Fun, lists:seq(1, Seeds))
+	end,
+	Timer = spawn_timer(Conf#conf.call_frequency),
     {ok, #state{
 		calls = Pidlist,
 		conf = Conf,
-		timer = erlang:send_after(Time, ?MODULE, spawn_call)
+		timer = Timer
 	}}.
 
 %%--------------------------------------------------------------------
@@ -190,9 +194,7 @@ handle_cast(_Msg, State) ->
 handle_info(spawn_call, #state{calls = Pidlist, conf = Conf} = State) ->
 	Newpid = queue_media(State#state.conf),
 	#call{id = Newid} = gen_media:get_call(Newpid),
-	Time = util:get_number(Conf#conf.call_frequency) * 1000,
-	?INFO("Spawning new call after ~p", [Time]),
-	Timer = erlang:send_after(Time, ?MODULE, spawn_call),
+	Timer = spawn_timer(Conf#conf.call_frequency),
 	{noreply, State#state{calls = [{Newpid, Newid} | Pidlist], timer = Timer}};
 handle_info({'EXIT', _Reason, Pid}, #state{calls = Pidlist} = State) ->
 	case proplists:get_value(Pid, Pidlist) of
@@ -234,9 +236,9 @@ queue_media(Conf) ->
 	]),
 	Pid.
 
-find_key(_Needle, []) ->
+spawn_timer(never) ->
 	undefined;
-find_key(Needle, [{Key, Needle} | _]) ->
-	{ok, Key};
-find_key(Needle, [_ | Tail]) ->
-	find_key(Needle, Tail).
+spawn_timer(Num) ->
+	Time = util:get_number(Num) * 1000,
+	?INFO("Spawning new call after ~p", [Time]),
+	erlang:send_after(Time, ?MODULE, spawn_call).

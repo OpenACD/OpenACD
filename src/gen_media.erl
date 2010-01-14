@@ -882,6 +882,7 @@ handle_info(Info, #state{callback = Callback} = State) ->
 
 %% @private
 terminate(Reason, #state{callback = Callback} = State) ->
+	set_cpx_mon(State, delete),
 	Callback:terminate(Reason, State#state.callrec, State#state.substate).
 
 %%--------------------------------------------------------------------

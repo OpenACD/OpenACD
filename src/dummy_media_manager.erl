@@ -89,7 +89,7 @@ start_supervised(Options) ->
 		start_function = start_link,
 		start_args = [Options]
 	},
-	cpx_middle_supervisor:add_with_middleman(management_sup, 3, 5, Conf).
+	cpx_middle_supervisor:add_with_middleman(mediamanager_sup, 3, 5, Conf).
 
 -spec(stop/0 :: () -> 'ok').
 stop() ->
@@ -97,7 +97,7 @@ stop() ->
 
 -spec(stop_supped/0 :: () -> 'ok').
 stop_supped() ->
-	cpx_middle_supervisor:drop_child(management_sup, dummy_media_manager).
+	cpx_middle_supervisor:drop_child(mediamanager_sup, dummy_media_manager).
 
 -spec(set_option/2 :: (Key :: atom(), Valu :: any()) -> 'ok').
 set_option(Key, Valu) ->
@@ -196,6 +196,15 @@ handle_info(spawn_call, #state{calls = Pidlist, conf = Conf} = State) ->
 	#call{id = Newid} = gen_media:get_call(Newpid),
 	Timer = spawn_timer(Conf#conf.call_frequency),
 	{noreply, State#state{calls = [{Newpid, Newid} | Pidlist], timer = Timer}};
+handle_info({spawn_call, Opts}, #state{calls = Pidlist} = State) ->
+	Fakeconf = #conf{
+		queues = proplists:get_value(queues, Opts, any),
+		call_max_life = proplists:get_value(max_life, Opts),
+		call_priority = proplists:get_value(priority, Opts)
+	},
+	Newpid = queue_media(Fakeconf),
+	#call{id = Newid} = gen_media:get_call(Newpid),
+	{noreply, State#state{calls = [{Newpid, Newid} | Pidlist]}};
 handle_info({'EXIT', _Reason, Pid}, #state{calls = Pidlist} = State) ->
 	case proplists:get_value(Pid, Pidlist) of
 		undefined ->

@@ -194,7 +194,15 @@ init(Options) ->
 		{queues, Protoconf#conf.queues},
 		{call_priority, Protoconf#conf.call_priority}
 	],
-	dummy_media_manager:start_supervised(DmmOpts),
+	case whereis(dummy_media_manager) of
+		undefined ->
+			dummy_media_manager:start_supervised(DmmOpts);
+		_DmmPid ->
+			lists:foreach(fun({Key, Val}) ->
+				dummy_media_manager:set_option(Key, Val)
+			end, DmmOpts),
+			lists:foreach(fun(_) -> dummy_media_manager ! spawn_call end, proplists:get_value(start_count, DmmOpts))
+	end,
 	Newagentopts = proplists_replace(scale, 1000, Protoconf#conf.agent_opts),
 	Conf = Protoconf#conf{agent_opts = Newagentopts},
 	Lifetime = case Conf#conf.simulation_life of

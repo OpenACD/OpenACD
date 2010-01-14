@@ -906,7 +906,7 @@ handle_info(Info, #state{callback = Callback} = State) ->
 %	Callback:terminate(Reason, State#state.callrec, State#state.substate).
 
 terminate(Reason, #state{callback = Callback} = State) ->
-	Callback:terminate(Reason, State#state.substate).
+	Callback:terminate(Reason, State#state.callrec, State#state.substate).
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}

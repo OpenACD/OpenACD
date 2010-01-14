@@ -826,45 +826,8 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined} = Stat
 	?INFO("oncall request from ~p when no ring_pid (probobly a late request)", [From]),
 	{reply, invalid, State};
 handle_call(Request, From, #state{callback = Callback} = State) ->
-	case Callback:handle_call(Request, From, State#state.callrec, State#state.substate) of
-		{reply, Reply, NewState} ->
-			{reply, Reply, State#state{substate = NewState}};
-		{reply, Reply, Newstate, Timeout}  ->
-			{reply, Reply, State#state{substate = Newstate}, Timeout};
-		{noreply, NewState} ->
-			{noreply, State#state{substate = NewState}};
-		{noreply, NewState, Timeout} ->
-			{noreply, State#state{substate = NewState}, Timeout};
-		{stop, Reason, Reply, NewState} ->
-			{stop, Reason, Reply, State#state{substate = NewState}};
-		{stop, Reason, NewState} ->
-			{stop, Reason, State#state{substate = NewState}};
-		{queue, Queue, PCallrec, NewState} ->
-			Callrec = correct_client(PCallrec),
-			case priv_queue(Queue, Callrec, State#state.queue_failover) of
-				invalid ->
-					{reply, {error, {noqueue, Queue}}, State#state{callrec = Callrec, substate = NewState}};
-				{default, Qpid} ->
-					cdr:cdrinit(Callrec),
-					cdr:inqueue(Callrec, "default_queue"),
-					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, "default_queue"}]),
-					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}};
-				Qpid ->
-					cdr:cdrinit(Callrec),
-					cdr:inqueue(Callrec, Queue),
-					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
-					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
-			end;
-		{voicemail, NewState} when is_pid(State#state.queue_pid) ->
-			priv_voicemail(State),
-			{reply, ok, State#state{substate = NewState, queue_pid = undefined, ring_pid = undefined}};
-		Tuple when element(1, Tuple) =:= outbound ->
-			{Reply, NewState} = outgoing(Tuple, State),
-			{reply, Reply, NewState};
-		{Agentact, Reply, NewState} ->
-			Midstate = agent_interact(Agentact, State),
-			{reply, Reply, Midstate#state{substate = NewState}}
-	end.
+	Reply = Callback:handle_call(Request, From, State#state.callrec, State#state.substate),
+	handle_custom_return(Reply, State, noreply).
 	
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -872,39 +835,8 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 
 %% @private
 handle_cast(Msg, #state{callback = Callback} = State) ->
-	case Callback:handle_cast(Msg, State#state.callrec, State#state.substate) of
-		{noreply, NewState} ->
-			{noreply, State#state{substate = NewState}};
-		{noreply, NewState, Timeout} ->
-			{noreply, State#state{substate = NewState}, Timeout};
-		{stop, Reason, NewState} ->
-			{stop, Reason, State#state{substate = NewState}};
-		{queue, Queue, PCallrec, NewState} ->
-			Callrec = correct_client(PCallrec),
-			case priv_queue(Queue, Callrec, State#state.queue_failover) of
-				invalid ->
-					{noreply, State#state{callrec = Callrec, substate = NewState}};
-				{default, Qpid} ->
-					cdr:cdrinit(Callrec),
-					cdr:inqueue(Callrec, Queue),
-					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, "default_queue"}]),
-					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}};
-				Qpid ->
-					cdr:cdrinit(Callrec),
-					cdr:inqueue(Callrec, Queue),
-					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
-					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
-			end;
-		{voicemail, NewState} when is_pid(State#state.queue_pid) ->
-			priv_voicemail(State),
-			{noreply, State#state{substate = NewState, queue_pid = undefined, ring_pid = undefined}};
-		Tuple when element(1, Tuple) =:= outbound ->
-			{_Reply, NewState} = outgoing(Tuple, State),
-			{noreply, NewState};
-		{Agentact, NewState} ->
-			Midstate = agent_interact(Agentact, State),
-			{noreply, Midstate#state{substate = NewState}}
-	end.
+	Reply = Callback:handle_cast(Msg, State#state.callrec, State#state.substate),
+	handle_custom_return(Reply, State, noreply).
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
@@ -941,13 +873,80 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = C
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined}};
 handle_info(Info, #state{callback = Callback} = State) ->
 	?DEBUG("Other info message, going directly to callback.  ~p", [Info]),
-	case Callback:handle_info(Info, State#state.callrec, State#state.substate) of
+	Return = Callback:handle_info(Info, State#state.substate),
+	handle_custom_return(Info, State, noreply).
+	
+%%--------------------------------------------------------------------
+%% Function: terminate(Reason, State) -> void()
+%%--------------------------------------------------------------------
+
+%% @private
+%terminate(hangup, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
+%	?NOTICE("gen_media terminating due to hangup.", []),
+%	?INFO("Qpid ~p  oncall ~p  ring ~p", [Qpid, Ocpid, Rpid]),
+%	Call = State#state.callrec,
+%	case {Qpid, Ocpid, Rpid} of
+%		{undefined, undefined, undefined} ->
+%			Callback:terminate(hangup, State#state.callrec, State#state.substate),
+%			cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
+%			set_cpx_mon(State, delete);
+%		_ ->
+%			set_cpx_mon(State, delete),
+%			agent_interact(hangup, State),
+%			Callback:terminate(hangup, State#state.callrec, State#state.substate)
+%	end;
+%terminate(Reason, #state{callback = Callback, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
+%	Callback:terminate(Reason, State#state.callrec, State#state.substate),
+%	set_cpx_mon(State, delete);
+%terminate(Reason, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
+%	?NOTICE("gen_media termination due to ~p", [Reason]),
+%	?INFO("Qpid ~p  oncall ~p  ring ~p", [Qpid, Ocpid, Rpid]),
+%	set_cpx_mon(State, delete),
+%	agent_interact(hangup, State),
+%	Callback:terminate(Reason, State#state.callrec, State#state.substate).
+
+terminate(Reason, #state{callback = Callback} = State) ->
+	Callback:terminate(Reason, State#state.substate).
+
+%%--------------------------------------------------------------------
+%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
+%%--------------------------------------------------------------------
+
+%% @private
+code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
+	{ok, Newsub} = Callback:code_change(OldVsn, State#state.callrec, State#state.substate, Extra),
+    {ok, State#state{substate = Newsub}}.
+
+%%--------------------------------------------------------------------
+%%% Internal functions
+%%--------------------------------------------------------------------
+
+handle_stop(Reason, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
+	Call = State#state.callrec,
+	case {Qpid, Ocpid, Rpid} of
+		{undefined, undefined, undefined} ->
+			cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
+			set_cpx_mon(State, delete);
+		_ ->
+			set_cpx_mon(State, delete),
+			agent_interact(hangup, State)
+	end,
+	case Reason of
+		hangup ->
+			normal;
+		_ ->
+			Reason
+	end.
+
+handle_custom_return(Return, State, noreply) ->
+	case Return of
 		{noreply, NewState} ->
 			{noreply, State#state{substate = NewState}};
 		{noreply, NewState,  Timeout} ->
 			{noreply, State#state{substate = NewState}, Timeout};
 		{stop, Reason, NewState} ->
-			{stop, Reason, State#state{substate = NewState}};
+			Newstop = handle_stop(Reason, NewState),
+			{stop, Newstop, State#state{substate = NewState}};
 		{queue, Queue, PCallrec, NewState} ->
 			Callrec = correct_client(PCallrec),
 			case priv_queue(Queue, Callrec, State#state.queue_failover) of
@@ -973,49 +972,49 @@ handle_info(Info, #state{callback = Callback} = State) ->
 		{Interact, NewState} ->
 			Midstate = agent_interact(Interact, State),
 			{noreply, Midstate#state{substate = NewState}}
-	end.
-
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%%--------------------------------------------------------------------
-
-%% @private
-terminate(hangup, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
-	?NOTICE("gen_media terminating due to hangup.", []),
-	?INFO("Qpid ~p  oncall ~p  ring ~p", [Qpid, Ocpid, Rpid]),
-	Call = State#state.callrec,
-	case {Qpid, Ocpid, Rpid} of
-		{undefined, undefined, undefined} ->
-			Callback:terminate(hangup, State#state.callrec, State#state.substate),
-			cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
-			set_cpx_mon(State, delete);
-		_ ->
-			set_cpx_mon(State, delete),
-			agent_interact(hangup, State),
-			Callback:terminate(hangup, State#state.callrec, State#state.substate)
 	end;
-terminate(Reason, #state{callback = Callback, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
-	Callback:terminate(Reason, State#state.callrec, State#state.substate),
-	set_cpx_mon(State, delete);
-terminate(Reason, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
-	?NOTICE("gen_media termination due to ~p", [Reason]),
-	?INFO("Qpid ~p  oncall ~p  ring ~p", [Qpid, Ocpid, Rpid]),
-	set_cpx_mon(State, delete),
-	agent_interact(hangup, State),
-	Callback:terminate(Reason, State#state.callrec, State#state.substate).
-
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%%--------------------------------------------------------------------
-
-%% @private
-code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
-	{ok, Newsub} = Callback:code_change(OldVsn, State#state.callrec, State#state.substate, Extra),
-    {ok, State#state{substate = Newsub}}.
-
-%%--------------------------------------------------------------------
-%%% Internal functions
-%%--------------------------------------------------------------------
+handle_custom_return(Return, State, reply) ->
+	case Return of
+		{reply, Reply, NewState} ->
+			{reply, Reply, State#state{substate = NewState}};
+		{reply, Reply, Newstate, Timeout}  ->
+			{reply, Reply, State#state{substate = Newstate}, Timeout};
+		{noreply, NewState} ->
+			{noreply, State#state{substate = NewState}};
+		{noreply, NewState, Timeout} ->
+			{noreply, State#state{substate = NewState}, Timeout};
+		{stop, Reason, Reply, NewState} ->
+			Newreason = handle_stop(Reason, State),
+			{stop, Newreason, Reply, State#state{substate = NewState}};
+		{stop, Reason, NewState} ->
+			Newreason = handle_stop(Reason, State),
+			{stop, Reason, State#state{substate = NewState}};
+		{queue, Queue, PCallrec, NewState} ->
+			Callrec = correct_client(PCallrec),
+			case priv_queue(Queue, Callrec, State#state.queue_failover) of
+				invalid ->
+					{reply, {error, {noqueue, Queue}}, State#state{callrec = Callrec, substate = NewState}};
+				{default, Qpid} ->
+					cdr:cdrinit(Callrec),
+					cdr:inqueue(Callrec, "default_queue"),
+					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, "default_queue"}]),
+					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}};
+				Qpid ->
+					cdr:cdrinit(Callrec),
+					cdr:inqueue(Callrec, Queue),
+					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
+					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
+			end;
+		{voicemail, NewState} when is_pid(State#state.queue_pid) ->
+			priv_voicemail(State),
+			{reply, ok, State#state{substate = NewState, queue_pid = undefined, ring_pid = undefined}};
+		Tuple when element(1, Tuple) =:= outbound ->
+			{Reply, NewState} = outgoing(Tuple, State),
+			{reply, Reply, NewState};
+		{Agentact, Reply, NewState} ->
+			Midstate = agent_interact(Agentact, State),
+			{reply, Reply, Midstate#state{substate = NewState}}
+	end.
 
 url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 	#client{options = DefaultOptions} = correct_client_sub(undefined),

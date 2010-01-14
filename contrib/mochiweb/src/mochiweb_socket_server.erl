@@ -116,7 +116,7 @@ init(State=#mochiweb_socket_server{ip=Ip, port=Port, backlog=Backlog}) ->
     Opts = case Ip of
         any ->
             case ipv6_supported() of % IPv4, and IPv6 if supported
-                true -> [inet, inet6 | BaseOpts];
+                true -> [inet6 | BaseOpts];
                 _ -> BaseOpts
             end;
         {_, _, _, _} -> % IPv4
@@ -175,7 +175,7 @@ acceptor_loop({Server, Listen, Loop}) ->
             gen_server:cast(Server, {accepted, self()}),
             call_loop(Loop, Socket);
         {error, closed} ->
-            exit({error, closed});
+            exit(normal);
         Other ->
             error_logger:error_report(
               [{application, mochiweb},
@@ -246,3 +246,11 @@ handle_info({'EXIT', _LoopPid, Reason},
 handle_info(Info, State) ->
     error_logger:info_report([{'INFO', Info}, {'State', State}]),
     {noreply, State}.
+
+
+%%
+%% Tests
+%%
+-include_lib("eunit/include/eunit.hrl").
+-ifdef(TEST).
+-endif.

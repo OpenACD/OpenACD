@@ -166,7 +166,6 @@ prune_dets() ->
 init(Options) ->
 	process_flag(trap_exit, true),
 	Subtest = fun(Message) ->
-		%?DEBUG("passive sub testing message: ~p", [Message]),
 		Type = case Message of
 			{set, {{T, _}, _, _, _}} ->
 				T;
@@ -206,20 +205,19 @@ init(Options) ->
 	lists:foreach(fun({K, H, D}) -> cache_event({set, {K, H, D, util:now()}}) end, lists:append(Agents, Medias)),
 	%Agentcache = sort_agents(Agents),
 	%Mediacache = create_queued_clients(Medias),
-	{ok, Timer} = timer:send_after(Interval, write_output),
-	?DEBUG("started", []),
 	case proplists:get_value(prune_dets, Options, true) of
 		true ->
-			erlang:send_after(10000, ?MODULE, prune_dets);
+			prune_dets_medias(),
+			prune_dets_agents();
 		false ->
 			ok
 	end,
+	{ok, Timer} = timer:send_after(Interval, write_output),
+	?DEBUG("started", []),
 	{ok, #state{
 		filters = Filters,
 		interval = Interval,
 		timer = Timer
-		%agent_cache = Agentcache,
-		%media_cache = Mediacache
 	}}.
 
 %%--------------------------------------------------------------------

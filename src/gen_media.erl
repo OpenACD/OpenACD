@@ -873,8 +873,8 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = C
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined}};
 handle_info(Info, #state{callback = Callback} = State) ->
 	?DEBUG("Other info message, going directly to callback.  ~p", [Info]),
-	Return = Callback:handle_info(Info, State#state.substate),
-	handle_custom_return(Info, State, noreply).
+	Return = Callback:handle_info(Info, State#state.callrec, State#state.substate),
+	handle_custom_return(Return, State, noreply).
 	
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
@@ -921,7 +921,7 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-handle_stop(Reason, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
+handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
 	Call = State#state.callrec,
 	case {Qpid, Ocpid, Rpid} of
 		{undefined, undefined, undefined} ->
@@ -945,7 +945,7 @@ handle_custom_return(Return, State, noreply) ->
 		{noreply, NewState,  Timeout} ->
 			{noreply, State#state{substate = NewState}, Timeout};
 		{stop, Reason, NewState} ->
-			Newstop = handle_stop(Reason, NewState),
+			Newstop = handle_stop(Reason, State),
 			{stop, Newstop, State#state{substate = NewState}};
 		{queue, Queue, PCallrec, NewState} ->
 			Callrec = correct_client(PCallrec),
@@ -988,7 +988,7 @@ handle_custom_return(Return, State, reply) ->
 			{stop, Newreason, Reply, State#state{substate = NewState}};
 		{stop, Reason, NewState} ->
 			Newreason = handle_stop(Reason, State),
-			{stop, Reason, State#state{substate = NewState}};
+			{stop, Newreason, State#state{substate = NewState}};
 		{queue, Queue, PCallrec, NewState} ->
 			Callrec = correct_client(PCallrec),
 			case priv_queue(Queue, Callrec, State#state.queue_failover) of

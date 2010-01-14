@@ -983,10 +983,11 @@ handle_info(Info, #state{callback = Callback} = State) ->
 terminate(hangup, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
 	?NOTICE("gen_media terminating due to hangup.", []),
 	?INFO("Qpid ~p  oncall ~p  ring ~p", [Qpid, Ocpid, Rpid]),
+	Call = State#state.callrec,
 	case {Qpid, Ocpid, Rpid} of
 		{undefined, undefined, undefined} ->
 			Callback:terminate(hangup, State#state.callrec, State#state.substate),
-			cdr:hangup(State#state.callrec),
+			cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
 			set_cpx_mon(State, delete);
 		_ ->
 			set_cpx_mon(State, delete),

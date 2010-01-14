@@ -154,7 +154,7 @@ stop() ->
 %% exist.
 -spec(prune_dets/0 :: () -> 'ok').
 prune_dets() ->
-	gen_server:cast(?MODULE, prune_dets).
+	?MODULE ! prune_dets.
 
 %%====================================================================
 %% gen_server callbacks
@@ -210,7 +210,7 @@ init(Options) ->
 	?DEBUG("started", []),
 	case proplists:get_value(prune_dets, Options, true) of
 		true ->
-			prune_dets();
+			erlang:send_after(10000, ?MODULE, prune_dets);
 		false ->
 			ok
 	end,
@@ -234,16 +234,6 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast(stop, State) ->
 	{stop, normal, State};
-handle_cast(prune_dets, #state{pruning_pid = undefined} = State) ->
-	Fun = fun() ->
-		prune_dets_medias(),
-		prune_dets_agents()
-	end,
-	Pid = spawn_link(Fun),
-	{noreply, State#state{pruning_pid = Pid}};
-handle_cast(prune_dets, State) ->
-	?WARNING("A prune is already running.", []),
-	{noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -266,6 +256,16 @@ handle_info(write_output, #state{filters = Filters} = State) ->
 	%?DEBUG("das pids:  ~p", [WritePids]),
 	Timer = erlang:send_after(State#state.interval, self(), write_output),
 	{noreply, State#state{timer = Timer, write_pids = WritePids}};
+handle_info(prune_dets, #state{pruning_pid = undefined} = State) ->
+	Fun = fun() ->
+		prune_dets_medias(),
+		prune_dets_agents()
+	end,
+	Pid = spawn_link(Fun),
+	{noreply, State#state{pruning_pid = Pid}};
+handle_info(prune_dets, State) ->
+	?WARNING("A prune is already running.", []),
+	{noreply, State};
 handle_info({cpx_monitor_event, Event}, #state{filters = Filters} = State) ->
 	Row = cache_event(Event),
 	Newfilters = update_filter_states(Row, Filters),
@@ -426,7 +426,8 @@ prune_dets_agents() ->
 	List = qlc:e(Qh),
 	Checker = fun(Row) ->
 		Details = element(4, Row),
-		case agent_manager:query_agent(Details) of
+		Login = proplists:get_value(login, Details),
+		case agent_manager:query_agent(Login) of
 			false ->
 				dets:delete_object(?DETS, Row);
 			{true, _} ->

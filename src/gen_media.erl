@@ -981,6 +981,8 @@ handle_info(Info, #state{callback = Callback} = State) ->
 
 %% @private
 terminate(hangup, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
+	?NOTICE("gen_media terminating due to hangup.", []),
+	?INFO("Qpid ~p  oncall ~p  ring ~p", [Qpid, Ocpid, Rpid]),
 	case {Qpid, Ocpid, Rpid} of
 		{undefined, undefined, undefined} ->
 			Callback:terminate(hangup, State#state.callrec, State#state.substate),
@@ -990,7 +992,7 @@ terminate(hangup, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocp
 			set_cpx_mon(State, delete),
 			agent_interact(hangup, State),
 			Callback:terminate(hangup, State#state.callrec, State#state.substate)
-	end.
+	end;
 terminate(Reason, #state{callback = Callback, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
 	Callback:terminate(Reason, State#state.callrec, State#state.substate),
 	set_cpx_mon(State, delete);

@@ -335,7 +335,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails), History} of
 				{undefined, undefined, []} ->
 					% just update the hp and details.
-					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History}},
+					Newrow = {Key, Time, EventHp, EventDetails, {inbound, [{ivr, EventTime}]}},
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, undefined, _List} ->

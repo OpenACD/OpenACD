@@ -479,10 +479,12 @@ init([Callback, Args]) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
 			apply(cdr, CDRState, [Callrec | CDRArgs]),
+			set_cpx_mon(#state{callrec = Callrec}, []),
 			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
 		{ok, {Substate, PCallrec}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
+			set_cpx_mon(#state{callrec = Callrec}, []),
 			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}}};
 		{stop, Reason} = O ->
 			?WARNING("init aborted due to ~p", [Reason]),
@@ -1118,10 +1120,12 @@ set_cpx_mon(#state{callrec = Call} = _State, Details) ->
 		{media_path, Call#call.media_path},
 		{direction, Call#call.direction}
 	],
-	{Hp, Basedet} = case proplists:get_value(queue, Details) of
-		undefined ->
+	{Hp, Basedet} = case {proplists:get_value(queue, Details), proplists:get_value(agent, Details)} of
+		{undefined, undefined} ->
+			{[], []};
+		{undefined, _A} ->
 			{[{agent_link, {0, 60 * 5, 60 * 15, {time, util:now()}}}], MidBasedet};
-		_Q ->
+		{_Q, _} ->
 			{[{inqueue, {0, 60 * 5, 60 * 10, {time, util:now()}}}], [{queued_at, {timestamp, util:now()}}, {priority, Call#call.priority} | MidBasedet]}
 	end,
 	Fulldet = lists:append([Basedet, Details]),

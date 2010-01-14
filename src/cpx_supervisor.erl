@@ -28,13 +28,30 @@
 %%
 
 %% @doc The top-most supervisor of the cpx system.  This is responsible for starting and monitoring the primary supervisors
-%% as well as any additional modules that are configured.  
-%% Primary (hard coded) modules started:
-%% <ul>
-%% <li>{@link dispatch_manager}</li>
-%% <li>{@link agent_manager}</li>
-%% <li>{@link queue_manager}</li>
-%% </ul>
+%% as well as any additional modules that are configured.
+%% There 4 branches off of cpx_supervisor:  routing_sup, 
+%% mediamanager_sup, agent_sup, and management_sup.  They are started in
+%% that order.
+%% 
+%% routing_sup starts the following process in the listed order (they
+%% cannot be configured aside from applicatoin options):
+%% cpxlog, cpx_monitor, dispatch_manager, queue_manager, and cdr.  Any
+%% additions to this branch MUST NOT be dependant on other branches 
+%% running and MUST be hard-coded in a specific order.
+%% 
+%% mediamanager_sup loads it's children from the cpx_conf table in mnesia.
+%% Start order is undefined.  Any of those children MAY be dependant on
+%% children in routing sup, and MUST NOT be dependant on children from
+%% the other branches.
+%%
+%% agent_sup loads the agent_manager and starts the agent_connection_sup
+%% supervisor.  This follows the same dependancies as mediamanager_sup.
+%%
+%% management_sup contains most other optional modules.  It MAY be
+%% dependant on children in routing_sup, MUST NOT de dependant on
+%% specific children from mediamanager_sup (ie, it should handle the
+%% possibility those process are no longer configured to run).
+%% 
 %% Additional modules are loaded from the mnesia table 'cpx_conf'.  These modules would include 
 %% those for agent authentication and media managers.  If it cannot build or access the 'cpx_conf' table
 %% the supervisor does not start, thus halting all of cpx from starting.
@@ -119,26 +136,29 @@ start_link(Nodes) ->
 	Routingspec = {routing_sup, {cpx_middle_supervisor, start_named, [3, 5, routing_sup]}, temporary, 2000, supervisor, [?MODULE]},
 	Managementspec = {management_sup, {cpx_middle_supervisor, start_named, [3, 5, management_sup]}, permanent, 2000, supervisor, [?MODULE]},
 	Agentspec = {agent_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_sup]}, temporary, 2000, supervisor, [?MODULE]},
-	Specs = [Routingspec, Agentspec, Managementspec],
+	Mediamanagerspec = {mediamanager_sup, {cpx_middle_supervisor, start_named, [3, 5, mediamanager_sup]}, permanent, 2000, supervisor, [?MODULE]},
+	Specs = [Routingspec, Agentspec, Managementspec, Mediamanagerspec],
 	?DEBUG("specs:  ~p", [supervisor:check_childspecs(Specs)]),
 	
-	supervisor:start_child(Pid, Managementspec),
 	%load_specs(),
-	Cpxmonitorspec = {cpx_monitor, {cpx_monitor, start_link, [[{nodes, Nodes}, auto_restart_mnesia]]}, permanent, 2000, worker, [?MODULE]},
-	supervisor:start_child(management_sup, Cpxmonitorspec),
+	%supervisor:start_child(management_sup, Cpxmonitorspec),
 
 	supervisor:start_child(Pid, Routingspec),
 	
 	Cpxlogspec = {cpxlog, {cpxlog, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
+	Cpxmonitorspec = {cpx_monitor, {cpx_monitor, start_link, [[{nodes, Nodes}, auto_restart_mnesia]]}, permanent, 2000, worker, [?MODULE]},
 	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
 	Cdrspec = {cdr, {cdr, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
 	
 	supervisor:start_child(routing_sup, Cpxlogspec),
+	supervisor:start_child(routing_sup, Cpxmonitorspec),
 	supervisor:start_child(routing_sup, DispatchSpec),
 	supervisor:start_child(routing_sup, QueueManagerSpec),
 	supervisor:start_child(routing_sup, Cdrspec),
 	
+	supervisor:start_child(Pid, Mediamanagerspec),
+		
 	supervisor:start_child(Pid, Agentspec),
 	
 	Agentconnspec = {agent_connection_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},
@@ -146,6 +166,7 @@ start_link(Nodes) ->
 	supervisor:start_child(agent_sup, AgentManagerSpec),
 	supervisor:start_child(agent_sup, Agentconnspec),
 	
+	supervisor:start_child(Pid, Managementspec),
 	
 	{ok, Pid}.
 	
@@ -433,26 +454,26 @@ load_specs(Super) ->
 				_Else ->
 					ok
 			end,
-			Startthese = case Super of
-				management_sup ->
-					{ok, Nodes} = case application:get_env(cpx, nodes) of
-						undefined ->
-							{ok, [node()]};
-						Else ->
-							Else
-					end,
-					Monrec = #cpx_conf{
-						id = cpx_monitor,
-						module_name = cpx_monitor,
-						start_function = start_link,
-						start_args = [[{nodes, Nodes}, auto_restart_mnesia]],
-						supervisor = management_sup
-					},
-					[Monrec | Records];
-				_ ->
-					Records
-			end,
-			lists:foreach(fun(I) -> start_spec(I) end, Startthese);
+%			Startthese = case Super of
+%				management_sup ->
+%					{ok, Nodes} = case application:get_env(cpx, nodes) of
+%						undefined ->
+%							{ok, [node()]};
+%						Else ->
+%							Else
+%					end,
+%					Monrec = #cpx_conf{
+%						id = cpx_monitor,
+%						module_name = cpx_monitor,
+%						start_function = start_link,
+%						start_args = [[{nodes, Nodes}, auto_restart_mnesia]],
+%						supervisor = management_sup
+%					},
+%					[Monrec | Records];
+%				_ ->
+%					Records
+%			end,
+			lists:foreach(fun(I) -> start_spec(I) end, Records);
 		Else ->
 			?ERROR("unable to retrieve specs for ~s:  ~p", [Super, Else]),
 			Else
@@ -712,6 +733,16 @@ murder_test_() ->
 		?assertNot(Where =:= Newwhere),
 		?assertNot(whereis(dispatch_manager) =:= undefined),
 		?assertNot(whereis(queue_manager) =:= undefined)
+	end},
+	{"Killing the media manager's branch (and bringin it back)",
+	fun() ->
+		Where = whereis(mediamanager_sup),
+		?assertNot(Where == undefined),
+		exit(Where, kill),
+		timer:sleep(5),
+		restart(mediamanager_sup, []),
+		Newwhere = whereis(mediamanager_sup),
+		?assertNot(Where == Newwhere)
 	end}]}.
 
 mutlinode_test_() ->

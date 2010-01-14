@@ -36,7 +36,7 @@
 	module_name = erlang:error({undefined, module_name}) :: atom(),
 	start_function = erlang:error({undefined, start_function}) :: atom(),
 	start_args = [] :: [any()],
-	supervisor = management_sup :: 'routing_sup' | 'agent_sup' | 'agent_connection_sup' | 'management_sup',
+	supervisor = management_sup :: 'routing_sup' | 'agent_sup' | 'agent_connection_sup' | 'management_sup' | 'mediamanager_sup',
 	timestamp = util:now() :: pos_integer()
 }).
 

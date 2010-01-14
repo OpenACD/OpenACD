@@ -46,6 +46,7 @@
 %%
 %% agent_sup loads the agent_manager and starts the agent_connection_sup
 %% supervisor.  This follows the same dependancies as mediamanager_sup.
+%% Integration tools should go here.
 %%
 %% management_sup contains most other optional modules.  It MAY be
 %% dependant on children in routing_sup, MUST NOT de dependant on

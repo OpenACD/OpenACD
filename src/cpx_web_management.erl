@@ -323,6 +323,7 @@ api({agents, "spiceintegration", "set"}, ?COOKIE, Post) ->
 								id = spicecsm_integration,
 								module_name = spicecsm_integration,
 								start_function = start_link,
+								supervisor = agent_sup,
 								start_args = [[
 									{server, Server},
 									{username, Username},
@@ -1051,6 +1052,7 @@ api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 				id = freeswitch_media_manager,
 				module_name = freeswitch_media_manager,
 				start_function = start_link,
+				supervisor = mediamanager_sup,
 				start_args = Args},
 			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, Conf], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
@@ -1136,6 +1138,7 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 				id = email_media_manager,
 				module_name = email_media_manager,
 				start_function = start_link,
+				supervisor = mediamanager_sup,
 				start_args = [Cleanedpost]
 			},
 			Json = case rpc:call(Atomnode, cpx_supervisor, update_conf, [email_media_manager, Conf], 2000) of

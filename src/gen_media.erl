@@ -260,6 +260,12 @@
 %%		mediapush is only valid if there is an agent oncall with the media, and
 %%		the media is inband.  The given Data is casted to the associaed agent 
 %%		as a media push.
+%%
+%%	{stop, hangup, NewState}
+%%		types:  NewState = any()
+%%
+%%		This causes the media to take any action is would from an
+%%		Agentaction return tuple of hangup, then stop.
 
 -module(gen_media).
 -author(micahw).
@@ -974,6 +980,17 @@ handle_info(Info, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 
 %% @private
+terminate(hangup, #state{callback = Callback, queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
+	case {Qpid, Ocpid, Rpid} of
+		{undefined, undefined, undefined} ->
+			Callback:terminate(hangup, State#state.callrec, State#state.substate),
+			cdr:hangup(State#state.callrec),
+			set_cpx_mon(State, delete);
+		_ ->
+			set_cpx_mon(State, delete),
+			agent_interact(hangup, State),
+			Callback:terminate(hangup, State#state.callrec, State#state.substate)
+	end.
 terminate(Reason, #state{callback = Callback, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
 	Callback:terminate(Reason, State#state.callrec, State#state.substate),
 	set_cpx_mon(State, delete);
@@ -1122,7 +1139,7 @@ set_cpx_mon(#state{callrec = Call} = _State, Details) ->
 	],
 	{Hp, Basedet} = case {proplists:get_value(queue, Details), proplists:get_value(agent, Details)} of
 		{undefined, undefined} ->
-			{[], []};
+			{[], MidBasedet};
 		{undefined, _A} ->
 			{[{agent_link, {0, 60 * 5, 60 * 15, {time, util:now()}}}], MidBasedet};
 		{_Q, _} ->

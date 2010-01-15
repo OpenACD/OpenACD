@@ -2045,13 +2045,16 @@ handle_info_test_() ->
 			{ok, Apid} = agent:start(#agent{login = "testagent", state = ringing, statedata = Seedstate#state.callrec}),
 			{ok, Cook} = gen_server_mock:new(),
 			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
+			{ok, Am} = gen_leader_mock:start(agent_manager),
+			gen_leader_mock:expect_leader_call(Am, fun(_, _, State, _) -> {ok, "testagent", State} end),
 			Callrec = Oldcall#call{cook = Cook},
 			State = Seedstate#state{ring_pid = Apid, callrec = Callrec},
 			{noreply, Newstate} = handle_info({'$gen_media_stop_ring', Apid}, State),
 			?assertNot(Newstate#state.ringout),
 			?assertEqual(undefined, Newstate#state.ring_pid),
 			gen_server_mock:assert_expectations(Cook),
-			gen_server_mock:stop(Cook)
+			gen_server_mock:stop(Cook),
+			gen_leader_mock:stop(Am)
 		end}
 	end,
 	fun({Seedstate}) ->
@@ -2076,12 +2079,15 @@ handle_info_test_() ->
 			{ok, Cook} = gen_server_mock:new(),
 			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Seedstate#state.callrec}),
+			{ok, Am} = gen_leader_mock:start(agent_manager),
+			gen_leader_mock:expect_leader_call(Am, fun(_, _, State, _) -> {ok, "testagent", State} end),
 			State = Seedstate#state{ring_pid = Agent, ringout = true},
 			{noreply, Newstate} = handle_info({'$gen_media_stop_ring', Cook}, State),
 			gen_server_mock:assert_expectations(Cook),
 			?assertEqual({ok, idle}, agent:query_state(Agent)),
 			?assertNot(Newstate#state.ringout),
-			?assertEqual(undefined, Newstate#state.ring_pid)
+			?assertEqual(undefined, Newstate#state.ring_pid),
+			gen_leader_mock:stop(Am)
 		end}
 	end,
 	fun({Seedstate}) ->
@@ -2090,12 +2096,15 @@ handle_info_test_() ->
 			{ok, Cook} = gen_server_mock:new(),
 			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
+			{ok, Am} = gen_leader_mock:start(agent_manager),
+			gen_leader_mock:expect_leader_call(Am, fun(_, _, State, _) -> {ok, "testagent", State} end),
 			State = Seedstate#state{ring_pid = Agent, ringout = true},
 			{noreply, Newstate} = handle_info({'$gen_media_stop_ring', Cook}, State),
 			gen_server_mock:assert_expectations(Cook),
 			?assertEqual({ok, oncall}, agent:query_state(Agent)),
 			?assertNot(Newstate#state.ringout),
-			?assertEqual(undefined, Newstate#state.ring_pid)
+			?assertEqual(undefined, Newstate#state.ring_pid),
+			gen_leader_mock:stop(Am)
 		end}
 	end,
 	fun({Seedstate}) ->
@@ -2103,12 +2112,15 @@ handle_info_test_() ->
 		fun() ->
 			{ok, Cook} = gen_server_mock:new(),
 			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
+			{ok, Am} = gen_leader_mock:start(agent_manager),
+			gen_leader_mock:expect_leader_call(Am, fun(_, _, State, _) -> {ok, "doesn't matter", State} end),
 			Agent = spawn(fun() -> ok end),
 			State = Seedstate#state{ring_pid = Agent, ringout = true},
 			{noreply, Newstate} = handle_info({'$gen_media_stop_ring', Cook}, State),
 			gen_server_mock:assert_expectations(Cook),
 			?assertNot(Newstate#state.ringout),
-			?assertEqual(undefined, Newstate#state.ring_pid)
+			?assertEqual(undefined, Newstate#state.ring_pid),
+			gen_leader_mock:stop(Am)
 		end}
 	end]}.
 	

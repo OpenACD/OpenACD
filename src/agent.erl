@@ -1408,6 +1408,7 @@ from_ringing_test_() ->
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		gen_leader_mock:expect_leader_cast(Monmock, fun({set, _}, _, _) -> ok end),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Mpid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 		{ok, Logpid} = gen_server_mock:new(),

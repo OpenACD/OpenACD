@@ -181,7 +181,9 @@ get_media(LPid) ->
 							none;
 						Pid ->
 							get_media(Pid)
-					end
+					end;
+				Pid ->
+					get_media(Pid)
 			end
 	end.
 	

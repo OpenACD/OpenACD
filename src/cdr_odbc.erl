@@ -151,7 +151,6 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		(_, Acc) -> Acc
 	end, "", T),
 
-
 	[First | _] = T,
 	[Last | _] = lists:reverse(T),
 
@@ -163,19 +162,24 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 				% work around micah's "fanciness" and make cdrinit the 0 length transaction it should be
 				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
 					[Media#call.id,
-					cdr_transaction_to_integer(Transaction#cdr_raw.transaction),
+					cdr_transaction_to_integer(Tfun),
 					Transaction#cdr_raw.start,
 					Transaction#cdr_raw.start,
 					get_transaction_data(Transaction, CDR)]),
 			odbc:sql_query(State#state.ref, lists:flatten(Q));
-			(Transaction) ->
-				Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
-					[Media#call.id,
-					cdr_transaction_to_integer(Transaction#cdr_raw.transaction),
-					Transaction#cdr_raw.start,
-					Transaction#cdr_raw.ended,
-					get_transaction_data(Transaction, CDR)]),
-			odbc:sql_query(State#state.ref, lists:flatten(Q))
+			(#cdr_raw{transaction = Tfun} = Transaction) ->
+				case cdr_transaction_to_integer(Tfun) of
+					undefined ->
+						ok;
+					TID ->
+						Q = io_lib:format("INSERT INTO billing_transactions set UniqueID='~s', Transaction=~B, Start=~B, End=~B, Data='~s'",
+							[Media#call.id,
+								TID,
+								Transaction#cdr_raw.start,
+								Transaction#cdr_raw.ended,
+								get_transaction_data(Transaction, CDR)]),
+						odbc:sql_query(State#state.ref, lists:flatten(Q))
+				end
 	end,
 	T),
 	case Client#client.id of
@@ -273,7 +277,8 @@ cdr_transaction_to_integer(T) ->
 		voicemail -> 18; % was LEFTVOICEMAIL
 		hangup -> 19; % was ENDCALL
 		unknowntermination -> 20;
-		cdrend -> 21
+		cdrend -> 21;
+		_ -> ?WARNING("unhandled CDR transaction ~p", [T]), undefined
 	end.
 
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) when T =:= oncall; T =:= wrapup; T =:= endwrapup; T =:= ringing  ->

@@ -541,15 +541,6 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, onca
 handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = Ocpid} = State) ->
 	?ERROR("Cannot do a wrapup directly unless mediapath is inband, and request is from agent oncall.", []),
 	{reply, invalid, State};
-%handle_call('$gen_media_wrapup', _From, #state{callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
-%	case agent:set_state(Ocpid, wrapup, State#state.callrec) of
-%		ok ->
-%			{ok, NewState} = Callback:handle_wrapup(State#state.substate),
-%			cdr:wrapup(State#state.callrec, Ocpid),
-%			{reply, ok, State#state{oncall_pid = undefined, substate = NewState}};
-%		Else ->
-%			{reply, invalid, State}
-%	end;
 handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = Ocpid} = State) ->
 	?INFO("request to queue call from agent", []),
 	% TODO calls that were previously handled by an agent should get their priority bumped?
@@ -1213,8 +1204,7 @@ agent_interact({stop_ring, Reason}, #state{callrec = Call, ring_pid = Apid} = St
 			State#state{ring_pid = undefined};
 		{Tref, undefined} ->
 			timer:cancel(Tref),
-			?INFO("stop_ring with only a timer", []),
-			cdr:ringout(State#state.callrec, {Reason, Apid}),
+			?WARNING("stop_ring with only a timer", []),
 			State#state{ringout = false};
 		{Tref, Apid} ->
 			?INFO("stop_ring with a timer and agent", []),
@@ -2180,6 +2170,9 @@ agent_interact_test_() ->
 			{ok, Apid} = agent:start(Arec#agent{statedata = Callrec, state = ringing}),
 			{ok, Tref} = timer:send_interval(1000, <<"timer">>),
 			State = #state{ring_pid = Apid, ringout = Tref, callrec = Callrec},
+			gen_event_mock:expect_event(cdr, fun({ringout, Callrec, _Time, {undefined, "testagent"}}, _State) ->
+				ok
+			end),
 			Res = agent_interact(stop_ring, State),
 			agent:stop(Apid),
 			receive
@@ -2207,6 +2200,7 @@ agent_interact_test_() ->
 		fun() ->
 			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
 			State = #state{ring_pid = Apid, ringout = false, callrec = Callrec},
+			gen_event_mock:expect_event(cdr, fun({ringout, Callrec, _Time, {undefined, "testagent"}}, _State) -> ok end),
 			Res = agent_interact(stop_ring, State),
 			agent:stop(Apid),
 			?assertEqual(undefined, Res#state.ring_pid),

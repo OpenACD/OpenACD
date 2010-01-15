@@ -197,11 +197,11 @@ function getQueue(queuegroups, name) {
 
 function updateQueue(node, queue) {
 	if (!queue) {
-		updatespan(dojo.query(".callcount", node)[0].children[0], "0/0");
+		updatespan(dojo.query(".callcount", node)[0].firstChild, "0/0");
 		updatespan(dojo.query(".holdtime", node)[0].firstChild, "00:00");
 		return;
 	}
-	updatespan(dojo.query(".callcount", node)[0].children[0],
+	updatespan(dojo.query(".callcount", node)[0].firstChild,
 			dojo.filter(queue.medias, function(obj) { return obj.type == "voice" && !obj.ended }).length + "/" +
 			dojo.filter(queue.medias, function(obj) { return obj.type != "voice" && !obj.ended }).length);
 	var longest = dojo.filter(queue.medias, function(obj) { return !obj.ended})[0];

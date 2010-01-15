@@ -404,15 +404,22 @@ prune_dets_medias() ->
 			_ ->
 				dummy_media_manager
 		end,
-		case {Manager:get_media(Id), Age > Day} of
-			{none, true} ->
-				dets:delete_object(?DETS, Row);
-			{none, false} ->
+		case whereis(Manager) of
+			undefined ->
 				Newhistory = History ++ [{ended, util:now()}],
 				Newrow = setelement(5, Row, {Direction, Newhistory}),
 				dets:insert(?DETS, Newrow);
-			_ ->
-				ok
+			Mpid ->
+				case {Manager:get_media(Id), Age > Day} of
+					{none, true} ->
+						dets:delete_object(?DETS, Row);
+					{none, false} ->
+						Newhistory = History ++ [{ended, util:now()}],
+						Newrow = setelement(5, Row, {Direction, Newhistory}),
+						dets:insert(?DETS, Newrow);
+					_ ->
+						ok
+				end
 		end
 	end,
 	lists:foreach(Checker, List).

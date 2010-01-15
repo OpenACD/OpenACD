@@ -388,6 +388,19 @@ check_conditions([{calls_queued, Comparision, Number} | Conditions], Ticked, Qpi
 		_Else ->
 			false
 	end;
+check_conditions([{client_calls_queued, Comparision, Number} | Conditions], Ticked, Qpid, Call) ->
+	Callrec = gen_media:get_call(Call),
+	Count = call_queue:call_count_by_client(Qpid, Callrec#call.client),
+	case Comparision of
+		'>' when Count > Number ->
+			check_conditions(Conditions, Ticked, Qpid, Call);
+		'<' when Count < Number ->
+			check_conditions(Conditions, Ticked, Qpid, Call);
+		'=' when Number =:= Count ->
+			check_conditions(Conditions, Ticked, Qpid, Call);
+		_Else ->
+			false
+	end;
 check_conditions([{queue_position, Comparision, Number} | Conditions], Ticked, Qpid, Call) ->
 	Calls = call_queue:to_list(Qpid),
 	Test = fun(Needle, #queued_call{media = Mpid}) ->

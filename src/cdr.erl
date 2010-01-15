@@ -159,7 +159,6 @@ ringing(Call, Agent) ->
 	event({ringing, Call, util:now(), Agent}).
 
 %% @_doc Notify cdr handler that `#call{} Call' has rungout from `string() Agent'.
-% TODO commented to silence a warning, but is this/should this be used?
 -spec(ringout/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
 ringout(Call, {Reason, Agent}) when is_pid(Agent) ->
 	ringout(Call, {Reason, agent_manager:find_by_pid(Agent)});

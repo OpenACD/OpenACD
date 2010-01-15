@@ -49,6 +49,7 @@
 	inqueue/2,
 	dialoutgoing/2,
 	ringing/2,
+	ringout/2,
 	oncall/2,
 	hangup/2,
 	wrapup/2,
@@ -159,11 +160,11 @@ ringing(Call, Agent) ->
 
 %% @_doc Notify cdr handler that `#call{} Call' has rungout from `string() Agent'.
 % TODO commented to silence a warning, but is this/should this be used?
-%-spec(ringout/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
-%ringout(Call, Agent) when is_pid(Agent) ->
-%	ringout(Call, agent_manager:find_by_pid(Agent));
-%ringout(Call, Agent) ->
-%	event({ringout, Call, util:now(), Agent}).
+-spec(ringout/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
+ringout(Call, {Reason, Agent}) when is_pid(Agent) ->
+	ringout(Call, {Reason, agent_manager:find_by_pid(Agent)});
+ringout(Call, {Reason, Agent}) ->
+	event({ringout, Call, util:now(), {Reason, Agent}}).
 
 %% @doc Notify cdr handler that `#call{} Call' is currently oncall with `string() Agent'.
 -spec(oncall/2 :: (Call :: #call{}, Agent :: string() | pid()) -> 'ok').
@@ -301,7 +302,7 @@ handle_event({mutate, Oldid, Newcallrec}, #state{id = Oldid} = State) when is_re
 			{ok, State}
 	end;
 handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = Callid, limbo_wrapup_count = Limbocount} = State) ->
-	Ended = case lists:member(Transaction, [hangup, agent_transfer, voicemail, endwrapup, queue_transfer]) of
+	Ended = case lists:member(Transaction, [hangup, agent_transfer, voicemail, endwrapup, queue_transfer, ringout]) of
 		true ->
 			Time;
 		false ->
@@ -526,7 +527,7 @@ find_untermed(endwrapup, #call{id = Cid}, Agent) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(ringout, #call{id = Cid}, Agent) ->
+find_untermed(ringout, #call{id = Cid}, {Reason, Agent}) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
@@ -1008,7 +1009,7 @@ push_raw_test_() ->
 	fun({Call, Pull, Ended}) ->
 		{"ringout",
 		fun() ->
-			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = ringout, eventdata = "testagent"}),
+			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = ringout, eventdata = {ringout, "testagent"}}),
 			Ended(Pull(), [ringing])
 		end}
 	end,

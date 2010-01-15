@@ -848,6 +848,7 @@ handle_info({'$gen_media_stop_ring', Apid}, #state{ring_pid = Apid, callback = C
 	{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
 	gen_server:cast(Callrec#call.cook, stop_ringing),
 	kill_outband_ring(State),
+	cdr:ringout(Callrec, {agent_request, Apid}),
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, outband_ring_pid = undefined}};
 handle_info({'$gen_media_stop_ring', _Cook}, #state{ring_pid = undefined} = State) ->
 	?NOTICE("No agent is ringing for this call", []),
@@ -857,19 +858,23 @@ handle_info({'$gen_media_stop_ring', _Cook}, #state{ringout = false} = State) ->
 	{noreply, State};
 handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = Callback} = State) when is_pid(Apid) ->
 	?INFO("Handling ringout...", []),
-	try agent:query_state(Apid) of
+	Reason = try agent:query_state(Apid) of
 		{ok, ringing} ->
-			agent:set_state(Apid, idle);
+			agent:set_state(Apid, idle),
+			ringout;
+		{ok, released} ->
+			released;
 		_Else ->
-			ok
+			ringout
 	catch
 		What:Why ->
 			?INFO("getting agent info failed due to ~p:~p", [What, Why]),
-			ok
+			ringout
 	end,
 	gen_server:cast(Cook, stop_ringing),
 	{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
 	kill_outband_ring(State),
+	cdr:ringout(State#state.callrec, {Reason, Apid}),
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined}};
 handle_info(Info, #state{callback = Callback} = State) ->
 	?DEBUG("Other info message, going directly to callback.  ~p", [Info]),

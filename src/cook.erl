@@ -1174,6 +1174,7 @@ agent_interaction_test_() ->
 	{foreach,
 	fun() ->
 		test_primer(),
+		cdr:start(),
 		?DEBUG("queue_manager:  ~p", [queue_manager:start([node()])]),
 		{ok, QPid} = queue_manager:add_queue("testqueue", []),
 		?DEBUG("call_queue:  ~p", [QPid]),
@@ -1195,7 +1196,8 @@ agent_interaction_test_() ->
 		end,
 		?DEBUG("stopping queue_manager:  ~p", [queue_manager:stop()]),
 		?DEBUG("stopping agent:  ~p", [agent:stop(APid)]),
-		?DEBUG("Stopping agent_manager:  ~p", [agent_manager:stop()])
+		?DEBUG("Stopping agent_manager:  ~p", [agent_manager:stop()]),
+		gen_event:stop(cdr)
 	end,
 	[
 		fun({QPid, MPid, APid}) ->
@@ -1241,7 +1243,7 @@ agent_interaction_test_() ->
 				{ok, Statename4} = agent:query_state(APid2),
 				?assertEqual(idle, Statename3),
 				?assertEqual(ringing, Statename4),
-				agent:stop(APid2)
+				agent:set_state(APid2, wrapup)
 			end}
 		end,
 		fun({QPid, _MPid, APid}) ->

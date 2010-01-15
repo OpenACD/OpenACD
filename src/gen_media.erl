@@ -1198,18 +1198,21 @@ agent_interact(stop_ring, #state{callrec = Call, ring_pid = Apid} = State)  ->
 		_ ->
 			ok
 	end,
-	?INFO("stop_ring when there's not much of a ring to handle", []),
 	Midstate = case {State#state.ringout, Apid} of
 		{false, undefined} ->
 			% Nothin' doing.
+			?INFO("stop_ring when there's not much of a ring to handle", []),
 			State;
 		{false, Apid} ->
+			?INFO("stop_ring with an agent ringing but no timer", []),
 			agent:set_state(Apid, idle),
 			State#state{ring_pid = undefined};
 		{Tref, undefined} ->
 			timer:cancel(Tref),
+			?INFO("stop_ring with only a timer", []),
 			State#state{ringout = false};
 		{Tref, Apid} ->
+			?INFO("stop_ring with a timer and agent", []),
 			timer:cancel(Tref),
 			agent:set_state(Apid, idle),
 			State#state{ring_pid = undefined, ringout = false}

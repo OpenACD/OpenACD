@@ -312,7 +312,15 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 			var l = document.createElement('a');
 			l.href = nodes[i].src;
 			console.log(["l.hostname", l.hostname, "l.port", l.port, "l.protocol", l.protocol]);
-			if(l.protocol == 'scrub' || (l.hostname == window.location.hostname && l.port == window.location.port) ){
+			var locationCheck = function(linkNode){
+				if(dojo.isSafari){
+					return linkNode.hostname == window.location.host;
+				}
+				
+				return linkNode.hostname == window.location.hostname && linkNode.port == window.location.port;
+			}
+			
+			if(l.protocol == 'scrub' || locationCheck(l) ){
 				l.protocol = 'http';
 				nodes[i].src = l.href;
 			} else{

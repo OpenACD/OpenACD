@@ -20,6 +20,7 @@ contrib/**/doc/*
 *.boot
 *.script
 www/dynamic/tv_config.js
+www/dynamic/all.json
 
 # from the logger
 *.log

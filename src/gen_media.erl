@@ -230,7 +230,7 @@
 %%
 %%	{Agentaction, NewState}
 %%	{Agentaction, Reply, NewState}
-%%		types:	Agentaction = stop_ring | wrapup | hangup | 
+%%		types:	Agentaction = stop_ring | {stop_ring, Data} | wrapup | hangup | 
 %%					{mediapush, Data, Mode}
 %%				Reply = any()
 %%				NewState = any()
@@ -242,10 +242,11 @@
 %%		as a gen_media:call.  This attempts to take the specified action on the 
 %%		agent, the continues execution with NewState.
 %%
-%%		stop_ring is used to stop the gen_media from handling a ringout.  It 
+%%		{stop_ring, Data} is used to stop the gen_media from handling a ringout.  It 
 %%		does not change the agent's state.  Execution will continue with 
 %%		NewState.  This is useful if there is an error ringing to an agent that
-%%		only becomes apparent at a later time.
+%%		only becomes apparent at a later time.  A return of stop_ring is
+%%		Equivalent to {stop_ring, undefined}.
 %%
 %%		wrapup is only valid if there is an agent associated with a media, and
 %%		that agent is oncall or outgoing.  This sets the agent to wrapup and
@@ -1191,7 +1192,9 @@ agent_interact({mediapush, _Data}, State) ->
 %	agent:set_state(Apid, idle),
 %	State#state{ringout = false, ring_pid = undefined};
 %agent_interact(stop_ring, #state{ring_pid = Apid} = State) when State#state.ringout =:= false; Apid =:= undefined ->
-agent_interact(stop_ring, #state{callrec = Call, ring_pid = Apid} = State)  ->
+agent_interact(stop_ring, State) ->
+	agent_interact({stop_ring, undefined}, State);
+agent_interact({stop_ring, Reason}, #state{callrec = Call, ring_pid = Apid} = State)  ->
 	case Call#call.cook of
 		CookPid when is_pid(CookPid) ->
 			gen_server:cast(CookPid, stop_ringing);
@@ -1206,15 +1209,18 @@ agent_interact(stop_ring, #state{callrec = Call, ring_pid = Apid} = State)  ->
 		{false, Apid} ->
 			?INFO("stop_ring with an agent ringing but no timer", []),
 			agent:set_state(Apid, idle),
+			cdr:ringout(State#state.callrec, {Reason, Apid}),
 			State#state{ring_pid = undefined};
 		{Tref, undefined} ->
 			timer:cancel(Tref),
 			?INFO("stop_ring with only a timer", []),
+			cdr:ringout(State#state.callrec, {Reason, Apid}),
 			State#state{ringout = false};
 		{Tref, Apid} ->
 			?INFO("stop_ring with a timer and agent", []),
 			timer:cancel(Tref),
 			agent:set_state(Apid, idle),
+			cdr:ringout(State#state.callrec, {Reason, Apid}),
 			State#state{ring_pid = undefined, ringout = false}
 	end,
 	kill_outband_ring(Midstate),

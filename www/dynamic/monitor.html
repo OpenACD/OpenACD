@@ -68,9 +68,17 @@
 								if (client.medias[0].type != 'voice')
 									c1.innerHTML += "(" + client.medias[0].type + ")";
 								c1 = row.insertCell(1);
-								c1.innerHTML = client.medias.length;
+								c1.innerHTML = dojo.filter(client.medias, function(obj) { return !!obj.queued; }).length
 								c1 = row.insertCell(2);
-								c1.innerHTML = timeSince(client.oldestAge);
+								c1.innerHTML = dojo.filter(client.medias, function(obj) { return !obj.queued && !!obj.ivr; }).length
+								c1 = row.insertCell(3);
+								var longest = dojo.filter(client.medias, function(obj) { return !!obj.queued; });
+								if (longest.length == 0) {
+									longest = dojo.filter(client.medias, function(obj) { return !obj.queued && !!obj.ivr; })[0].ivr;
+									} else {
+									longest = longest[0].queued;
+								}
+								c1.innerHTML = timeSince(longest);
 								rownum++;
 							}
 					});
@@ -150,7 +158,7 @@
 		<div>
 			<table id="calllist">
 				<tr class="header">
-					<td colspan="3" id='queueheader' class='header'>Queues</td>
+					<td colspan="4" id='queueheader' class='header'>Queues</td>
 				</tr>
 				<!-- data goes here -->
 			</table>

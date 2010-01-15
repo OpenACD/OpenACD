@@ -545,7 +545,7 @@ handle_info({bgerror, Reply}, _Call, State) ->
 	{noreply, State};
 handle_info(channel_destroy, _Call, #state{in_control = InControl} = State) when not InControl ->
 	?NOTICE("Hangup in IVR", []),
-	{hangup, State};
+	{stop, hangup, State};
 handle_info(call_hangup, _Call, State) ->
 	?NOTICE("Call hangup info, terminating", []),
 	catch freeswitch_ring:hangup(State#state.ringchannel),

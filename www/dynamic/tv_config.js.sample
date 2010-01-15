@@ -1,0 +1,16 @@
+/* this file controls what queue/agents statistics are shown where on the TV
+ * monitor. The key is the DIV ID of the relevant area and the value is a list
+ * of what queues/agent profiles map there. */
+
+function tv_config() {
+	return {
+		qgroup1: "My Level 1 Queue",
+		qgroup2: "My Level 2 Queue",
+		qgroup3: "My Level 3 Queue",
+		qgroup4: "My Premium Queue",
+		agroup1: ["Level1", "New Agents"],
+		agroup2: ["Level2"],
+		agroup3: ["Level3"],
+		agroup4: ["Level4"]
+	};
+}

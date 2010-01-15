@@ -19,6 +19,7 @@ contrib/**/doc/*
 *.config
 *.boot
 *.script
+www/dynamic/tv_config.js
 
 # from the logger
 *.log

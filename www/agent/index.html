@@ -397,8 +397,7 @@
 				this.inherited("postCreate", arguments);
 				this.title = dojo.i18n.getLocalization("agentUI", "labels").EVENTLOG;
 			</script>
-			<textarea dojoType="dijit.form.SimpleTextarea" id="eventLogText" name="eventLogText" width="80%" rows="1000" style="width:100%" readonly>
-			</textarea>
+			<ul id="eventLogText" style="list-style-type:none;"></ul>
 		</div>
 		
 	</div>

@@ -713,9 +713,17 @@ dojo.addOnLoad(function(){
 		//}
 	});
 	
-	dijit.byId("eventLogText").eventLogPushed = dojo.subscribe("eventlog/push", function(text){
-		var oldval = dijit.byId("eventLogText").value;
-		dijit.byId("eventLogText").attr('value', oldval + "\n" + text);
+	dojo.byId("eventLogText").eventLogPushed = dojo.subscribe("eventlog/push", function(text){
+		var li = document.createElement('li');
+		li.innerHTML = text;
+		dojo.byId('eventLogText').appendChild(li);
+		//var oldval = dijit.byId("eventLogText").value;
+		//dijit.byId("eventLogText").attr('value', oldval + "\n" + text);
+	});
+	
+	dojo.byId("eventLogText").eventLogShifted = dojo.subscribe("eventlog/shift", dojo.byId("eventLogText"), function(text){
+		var firstKid = this.firstChild;
+		this.removeChild(firstKid);
 	});
 	
 	var loginform = dijit.byId("loginform");

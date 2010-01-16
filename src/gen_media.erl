@@ -900,7 +900,8 @@ set_agent_state(Apid, Args) ->
 		Res ->
 			Res
 	catch
-		exit:{noproc, {gen_fsm, sync_send_event, _Args}} ->
+		exit:{noproc, {gen_fsm, sync_send_event, _TheArgs}} ->
+			?WARNING("Agent ~p is a dead pid", [Apid]),
 			badagent
 	end.
 

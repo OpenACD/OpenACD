@@ -197,8 +197,13 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid
 						_ ->
 							?INFO("Call bridged", []),
 							Call = State#state.callrec,
-							gen_media:oncall(Call#call.source),
-							{noreply, State}
+							case gen_media:oncall(Call#call.source) of
+								invalid ->
+									freeswitch:api(State#state.cnode, uuid_park, Call#call.id),
+									{stop, normal, State};
+								ok ->
+									{noreply, State}
+							end
 					end;
 				"CHANNEL_UNBRIDGE" ->
 					%cdr:hangup(State#state.callrec, agent),

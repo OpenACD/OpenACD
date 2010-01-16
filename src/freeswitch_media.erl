@@ -615,7 +615,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					?WARNING("Agent undefined", []),
 					State2 = State#state{agent = undefined, agent_pid = undefined};
 				_Other ->
-					case agent:query_state(Apid) of
+					try agent:query_state(Apid) of
 						{ok, ringing} ->
 							?NOTICE("caller hung up while we were ringing an agent", []),
 							case State#state.ringchannel of
@@ -626,6 +626,9 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 							end;
 						_Whatever ->
 							ok
+					catch
+						exit:{noproc, _} ->
+							?WARNING("agent ~p is a dead pid", [Apid])
 					end,
 					State2 = State#state{agent = undefined, agent_pid = undefined, ringchannel = undefined}
 			end,

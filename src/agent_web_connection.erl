@@ -964,6 +964,7 @@ handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = unde
 	case Now - Last of
 		N when N > 10 ->
 			?NOTICE("Stopping due to missed_polls; last:  ~w now: ~w difference: ~w", [Last, Now, Now - Last]),
+			% TODO - this should probably be 'normal' or all the linked processes should handle {EXIT, missed_polls} quietly
 			{stop, missed_polls, State};
 		_N ->
 			Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
@@ -1681,7 +1682,7 @@ push_event(Eventjson, State) ->
 		Pid when is_pid(Pid) ->
 			?DEBUG("Sending to the ~w", [Pid]),
 			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, lists:reverse(Newqueue)}]})}},
-			State#state{poll_queue = [], poll_pid = undefined}
+			State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now()}
 	end.
 
 -ifdef(TEST).

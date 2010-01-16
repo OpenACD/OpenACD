@@ -2909,7 +2909,7 @@ supervisorView.reload = function(){
 
 supervisorView.reload();
 
-window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", function(child){
+/*window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", function(child){
 	if(child.title == "Supervisor"){
 		dropTab('supervisorTab');
 		clearTimeout(supervisorView.aggregateTimer);
@@ -2934,5 +2934,5 @@ window.supervisorViewKillListen = dojo.subscribe("tabPanel-removeChild", functio
 
 //supervisorView.hpcalc();
 
-storeTab('supervisorTab');
+storeTab('supervisorTab');*/
 

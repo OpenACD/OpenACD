@@ -155,12 +155,14 @@ get_health(Type) ->
 	gen_leader:leader_call(?MODULE, {get, Type}).
 
 %% @doc Subscribe the calling process to all events from cpx_monitor.
+%% @see subscribe/1
 -spec(subscribe/0 :: () -> 'ok').
 subscribe() ->
 	subscribe(fun(_) -> true end).
 
 %% @doc Subscribe the calling process to certain events.  If the fun returns
-%% true, the event is forwarded on, otherwise not.
+%% true, the event is forwarded on, otherwise not.  Subsequent calls to
+%% this from the same pid over-writes the previous setting.
 -spec(subscribe/1 :: (Fun :: fun()) -> 'ok').
 subscribe(Fun) ->
 	Pid = self(),

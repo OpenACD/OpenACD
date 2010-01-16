@@ -81,6 +81,41 @@ function dropTab(tab){
 	return true;
 }
 
+function loadTab(tabid){
+	var href = '';
+	var title = '';
+	switch(tabid){
+		case 'supervisorTab':
+			href = 'tabs/supervisor.html';
+			title = 'Supervisor';
+			break;
+		case 'queueDashboardTab':
+			href = 'tabs/queue_dashboard.html';
+			title = 'Queues';
+			break;
+		default:
+			return false;
+	}
+	
+	if(! dijit.byId(tabid)){							
+		var t = new dojox.layout.ContentPane({
+			title: title,
+			executeScripts: true,
+			id: tabid,
+			closable: true
+		});
+		dijit.byId("tabPanel").addChild(t);
+	}
+	dijit.byId(tabid).attr('href', href);
+	dijit.byId("tabPanel").selectChild("supervisorTab");
+	var logoutListenerName = tabid + "LogoutListener";
+	dijit.byId("tabPanel")[logoutListenerName] = dojo.subscribe("agent/logout", dijit.byId("tabPanel"), function(data){
+		this.closeChild(t);
+		dojo.unsubscribe(this[logoutListenerName]);
+		storeTab(tabid);
+	});
+}
+
 function inArray(needle, haystack){
 	for(var i = 0; i < haystack.length; i++){
 		if(haystack[i] == needle){
@@ -782,25 +817,7 @@ dojo.addOnLoad(function(){
 								settings.useoutbandring = dijit.byId('useoutbandring').attr('checked');
 								if(settings.tabs){
 									for(var i = 0; i < settings.tabs.length; i++){
-										if(settings.tabs[0] == "supervisorTab"){
-											if(! dijit.byId("supervisorTab")){							
-												var t = new dojox.layout.ContentPane({
-													//href:"tabs/supervisor.html",
-													title:"Supervisor",
-													executeScripts: "true",
-													id:"supervisorTab",
-													closable:true
-												});
-												dijit.byId("tabPanel").addChild(t);
-											}
-											dijit.byId("supervisorTab").attr('href', "tabs/supervisor.html");
-											dijit.byId("tabPanel").selectChild("supervisorTab");
-											dijit.byId("tabPanel").logoutListener = dojo.subscribe("agent/logout", function(data){
-												dijit.byId("tabPanel").closeChild(dijit.byId("supervisorTab"));
-												dojo.unsubscribe(dijit.byId("tabPanel").logoutListener);
-												storeTab('supervisorTab');
-											});
-										}
+										loadTab(settings.tabs[i]);
 									}
 								}
 								dojo.cookie('agentui-settings', dojo.toJson(settings)); 

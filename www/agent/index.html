@@ -332,24 +332,12 @@
 					<div dojoType="dijit.Menu">
 						<div dojoType="dijit.MenuItem">Supervisor
 							<script type="dojo/connect" event="onClick">
-								if(! dijit.byId("supervisorTab")){							
-									var t = new dojox.layout.ContentPane({
-										//href:"tabs/supervisor.html",
-										title:"Supervisor",
-										executeScripts: "true",
-										id:"supervisorTab",
-										closable:true
-									});
-									dijit.byId("tabPanel").addChild(t);
-								}
-								dijit.byId("supervisorTab").attr('href', "tabs/supervisor.html");
-								dijit.byId("tabPanel").selectChild("supervisorTab");
-								dijit.byId("tabPanel").logoutListener = dojo.subscribe("agent/logout", function(data){
-									dijit.byId("tabPanel").closeChild(dijit.byId("supervisorTab"));
-									dojo.unsubscribe(dijit.byId("tabPanel").logoutListener);
-									// because the close child listener on supervisor.js removes itself from the list.
-									storeTab('supervisorTab');
-								});
+								loadTab('supervisorTab');
+							</script>
+						</div>
+						<div dojoType="dijit.MenuItem">Queue Dashboard
+							<script type="dojo/connect" event="onClick">
+								loadTab('queueDashboardTab');
 							</script>
 						</div>
 					</div>

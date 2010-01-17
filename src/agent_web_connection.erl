@@ -464,6 +464,12 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
+		["start_problem_recording", Agentname, Clientid] ->
+			%% TODO given the agent name and clientid, do a problem.wave record for the client id
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}, State};
+		["remove_problem_recording", Clientid] ->
+			% TODO given the client id, remove any problem.wav's recorded for the client.
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}, State};
 		["voicemail", Queue, Callid] ->
 			Json = case queue_manager:get_queue(Queue) of
 				Qpid when is_pid(Qpid) ->

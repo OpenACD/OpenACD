@@ -23,6 +23,42 @@ function errMessage(message){
 	dialog.show();
 }
 
+function confirmDialog(conf){
+	var defaultConf = {
+		'yesLabel': 'Yes',
+		'noLabel': 'No',
+		'yesAction': function(){ return true},
+		'noAction': function(){ return false},
+		'question': 'Are you sure?',
+		'title': 'Confirmation'
+	};
+	
+	conf = dojo.mixin(defaultConf, conf);
+	
+	var dialog = new dijit.Dialog({
+		title: conf.title,
+		content: '<div style="align:center">' + 
+			'<p>' + conf.question + '</p>' + 
+			'<p><input dojoType="dijit.form.Button" type="button" label="' + conf.noLabel + '">' + 
+			'<input dojoType="dijit.form.Button" type="button" label="' + conf.yesLabel + '" />' +
+			'</div>'
+	});
+	dojo.connect(dialog, 'onCancel', dialog, function(){
+		conf.noAction();
+		dialog.destroy();
+	});
+	var kids = dialog.getChildren()
+	dojo.connect(kids[0], 'onClick', dialog, function(){
+		conf.noAction();
+		dialog.destroy();
+	});
+	dojo.connect(kids[1], 'onClick', dialog, function(){
+		conf.yesAction();
+		dialog.destroy();
+	});
+	dialog.show();
+}
+
 function getTheme() {
 	if (dojo.cookie('agentui-settings')) {
 		var settings = dojo.fromJson(dojo.cookie('agentui-settings'));

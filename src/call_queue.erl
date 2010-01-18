@@ -73,7 +73,8 @@
 	to_list/1,
 	add_skills/3,
 	remove_skills/3,
-	call_count/1
+	call_count/1,
+	call_count_by_client/2
 ]).
 
 -type(call_key() :: {pos_integer(), {pos_integer(), pos_integer(), pos_integer()}}).
@@ -257,6 +258,11 @@ bgremove(Pid, Callid) when is_pid(Pid) ->
 -spec(call_count/1 :: (Pid :: pid()) -> non_neg_integer()).
 call_count(Pid) ->
 	gen_server:call(Pid, call_count).
+
+%% @doc Return the number of calls in the queue at `pid()' `Pid'.
+-spec(call_count_by_client/2 :: (Pid :: pid(), Client :: #client{}) -> non_neg_integer()).
+call_count_by_client(Pid, Client) ->
+	gen_server:call(Pid, {call_count_by_client, Client}).
 
 %% @doc Stop the queue at `pid()' `Pid'.
 -spec(stop/1 :: (Pid :: pid()) -> 'ok').
@@ -485,6 +491,14 @@ handle_call(get_calls, _From, #state{queue = Calls} = State) ->
 	
 handle_call(call_count, _From, State) ->
 	{reply, gb_trees:size(State#state.queue), State};
+
+handle_call({call_count_by_client, Client}, _From, State) ->
+	% TODO - if this is too inefficent, micah can make cpx_monitor do it
+	Count = length(lists:filter(
+		fun(Qcall) ->
+				#call{client = Client2} = gen_media:get_call(Qcall#queued_call.media), Client#client.id == Client2#client.id
+		end, gb_trees:values(State#state.queue))),
+	{reply, Count, State};
 
 handle_call(Request, _From, State) ->
 	{reply, {unknown_call, Request}, State}.

@@ -1441,6 +1441,10 @@ if(typeof(supervisorView) == "undefined"){
 					{'label':'Set Motd...',
 					'onClick':function(){
 						supervisorView.showMotdDialog('system');
+					}},
+					{'label':'Record Problem...',
+					'onClick':function(){
+						supervisorView.showProblemRecordingDialog();
 					}}
 				]
 			}];
@@ -2814,11 +2818,72 @@ if(typeof(supervisorView) == "undefined"){
 				errMessage(["Errored getting motd", res]);
 			}
 		});
-		
-		
+	}
 	
-		
-		}
+	supervisorView.showProblemRecordingDialog = function(){
+		dojo.xhrGet({
+			url:'/brandlist',
+			handleAs:'json',
+			load:function(res){
+				if(! res.success){
+					errMessage(["failed loading brands", res.message]);
+					return false;
+				}
+				
+				var sel = dojo.byId('supervisorClientSelect');
+				for(var i = 0; i < res.brands.length; i++){
+					var optionnode = document.createElement('option');
+					optionnode.value = res.brands[i].id;
+					optionnode.innerHTML = res.brands[i].label;
+					sel.appendChild(optionnode);
+				}
+				
+				var dialog = dijit.byId('setProblemRecording');
+				dialog.attr('execute', function(){
+					var clientId = dojo.byId('supervisorClientSelect').value;
+					if(dialog.attr('value').set.length < 1){
+						dojo.xhrGet({
+							url:'/supervisor/remove_problem_recording/' + escape(clientId),
+							handleAs: 'json',
+							load:function(res){
+								if(res.success){
+									return true
+								}
+								
+								errMessage(['removing problem recording failed', res.message]);
+							},
+							error:function(res){
+								errMessage(['error removing problem recording', res]);
+							}
+						});
+					} else {
+						supervisorView.startProblemRecording(clientId);
+					}
+				});
+				dialog.show();
+			},
+			error: function(res){
+				errMessage(["error loading brands", res]);
+			}
+		});
+	}
+	
+	supervisorView.startProblemRecording = function(clientid){
+		dojo.xhrGet({
+			url: '/supervisor/start_problem_recording/' + agent.login + '/' + escape(clientid),
+			handleAs: 'json',
+			load: function(res){
+				if(res.success){
+					return true;
+				}
+				
+				errMessage(['Starting problem recording failed', res.message]);
+			},
+			error: function(res){
+				errMessage(['Starting problem recofing errored', res]);
+			}
+		});
+	}
 	
 	supervisorView.clean = function(){
 		/* finds 'g' elements with no children and removes them from the dom */

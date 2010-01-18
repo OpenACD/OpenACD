@@ -31,6 +31,21 @@
 	</p>
 </div>
 
+<div dojoType="dijit.Dialog" id="setProblemRecording" title="Select Client" style="display:none">
+	<p>
+		<label>&nbsp;</label>
+		<input dojoType="dijit.form.CheckBox" type="checkbox" name="set" value="set" id="setProblemRecordingCheckbox" checked />Check to set, uncheck to clear.
+	</p>
+	<p>
+		<label>Client:</label>
+		<select id="supervisorClientSelect" name="client"></select>
+	</p>
+	<p>
+		<label>&nbsp;</label>
+		<input dojoType="dijit.form.Button" type="submit" value="submit" name="submit" label="Submit" />
+	</p>
+</div>
+
 <div dojoType="dijit.layout.ContentPane" id="supervisorMain">
 	<div id="supervisorMonitor" style="border: black"></div>
 </div>

@@ -5,7 +5,8 @@ OpenACD is an opensource project aimed at providing a distributed, fault
 tolerant contact/call center platform. It's implemented in
 [Erlang](http://erlang.org), uses [Dojo](http://dojotoolkit.org) for
 its web UI and integrates tightly with [FreeSWITCH](http://freeswitch.org) for
-its VoIP components.
+its VoIP components. The sister project
+[gen_smtp](http://github.com/Vagabond/gen_smtp) is used for email support.
 
 Feature Highlights
 ==================
@@ -20,8 +21,8 @@ Feature Highlights
 Participants
 ============
 
-Development is sponsored by [Fused Solutions](http://www.fusedsolutions.com) and the
-2 main developers are:
+Development is sponsored by [Fused Solutions](http://www.fusedsolutions.com) and
+the 2 main developers are:
 
 + Andrew Thompson (andrew@hijacked.us)
 + Micah Warren (micahw@fusedsolutions.com)

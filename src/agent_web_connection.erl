@@ -464,6 +464,9 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Handing supervisor request ~s", [lists:flatten(Request)]),
 	case Request of
+		["startmonitor"] ->
+			cpx_monitor:subscribe(),
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"subscribed">>}]})}, State};
 		["voicemail", Queue, Callid] ->
 			Json = case queue_manager:get_queue(Queue) of
 				Qpid when is_pid(Qpid) ->

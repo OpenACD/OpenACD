@@ -106,6 +106,7 @@
 	get_handler/1,
 	notify/2,
 	make_outbound_call/3,
+	record_outage/3,
 	fetch_domain_user/2,
 	new_voicemail/5,
 	ring_agent/4,
@@ -183,6 +184,9 @@ notify(UUID, Pid) ->
 make_outbound_call(Client, AgentPid, AgentRec) ->
 	gen_server:call(?MODULE, {make_outbound_call, Client, AgentPid, AgentRec}).
 
+record_outage(Client, AgentPid, AgentRec) ->
+	gen_server:call(?MODULE, {record_outage, Client, AgentPid, AgentRec}).
+
 -spec(new_voicemail/5 :: (UUID :: string(), File :: string(), Queue :: string(), Priority :: pos_integer(), Client :: #client{} | string()) -> 'ok').
 new_voicemail(UUID, File, Queue, Priority, Client) ->
 	gen_server:cast(?MODULE, {new_voicemail, UUID, File, Queue, Priority, Client}).
@@ -226,6 +230,29 @@ handle_call({make_outbound_call, Client, AgentPid, AgentRec}, _From, #state{node
 	link(Pid),
 	{reply, {ok, Pid}, State};
 handle_call({make_outbound_call, _Client, _AgentPid, _AgentRec}, _From, State) -> % freeswitch is down
+	{reply, {error, noconnection}, State};
+handle_call({record_outage, Client, AgentPid, AgentRec}, _From, #state{nodename = Node, freeswitch_up = FS} = State) when FS == true ->
+	Recording = "/tmp/"++Client++"/problem.wav",
+	case filelib:ensure_dir(Recording) of
+		ok ->
+			F = fun(UUID) ->
+					fun(ok, _Reply) ->
+							freeswitch:api(State#state.nodename, uuid_transfer, UUID ++ " 'gentones:%(500\\,0\\,500),sleep:600,record:/tmp/"++Client++"/problem.wav' inline");
+						(error, Reply) ->
+							?WARNING("originate failed: ~p", [Reply]),
+							ok
+					end
+			end,
+			case freeswitch_ring:start(Node, AgentRec, AgentPid, #call{id=none, source=none}, 30, F, [no_oncall_on_bridge]) of
+				{ok, _Pid} ->
+					{reply, ok, State};
+				{error, Reason} ->
+					{reply, {error, Reason}, State}
+			end;
+		{error, Reason} ->
+			{reply, {error, Reason}, State}
+	end;
+handle_call({record_outage, _Client, _AgentPid, _AgentRec}, _From, State) -> % freeswitch is down
 	{reply, {error, noconnection}, State};
 handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) ->
 	case dict:find(UUID, Dict) of

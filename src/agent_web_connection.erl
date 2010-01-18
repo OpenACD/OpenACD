@@ -466,10 +466,26 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 	case Request of
 		["start_problem_recording", Agentname, Clientid] ->
 			%% TODO given the agent name and clientid, do a problem.wave record for the client id
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}, State};
+			AgentRec = agent:dump_state(State#state.agent_fsm),
+			case whereis(freeswitch_media_manager) of
+				P when is_pid(P) ->
+					case freeswitch_media_manager:record_outage(Clientid, State#state.agent_fsm, AgentRec) of
+						ok ->
+							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+						{error, _Reason} ->
+							% TODO don't throw the reason away.
+							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Initializing recording channel failed">>}]})}, State}
+					end;
+				_ ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}]})}, State}
+			end;
 		["remove_problem_recording", Clientid] ->
-			% TODO given the client id, remove any problem.wav's recorded for the client.
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}, State};
+			case file:delete("/tmp/"++Clientid++"/problem.wav") of
+				ok ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+				{error, Reason} ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Reason}]})}, State}
+			end;
 		["voicemail", Queue, Callid] ->
 			Json = case queue_manager:get_queue(Queue) of
 				Qpid when is_pid(Qpid) ->

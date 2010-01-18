@@ -2152,7 +2152,15 @@ if(typeof(supervisorView) == "undefined"){
 								}},
 								{'label':'Send to Voicemail...',
 								'onClick':function(){
-									supervisorView.sendToVoicemail(obj);
+									confirmDialog({
+										'title':'Send to Voicemail',
+										'question':'Are you sure you want to send this call to voicemail?',
+										'yesLabel':'Voicemail',
+										'noLabel':'Cancel',
+										'yesAction':function(){
+											supervisorView.sendToVoicemail(obj);
+										}
+									});
 									supervisorView.callsStack.unlockScroll();
 								}}
 							];

@@ -469,10 +469,26 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"subscribed">>}]})}, State};
 		["start_problem_recording", Agentname, Clientid] ->
 			%% TODO given the agent name and clientid, do a problem.wave record for the client id
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}, State};
+			AgentRec = agent:dump_state(State#state.agent_fsm),
+			case whereis(freeswitch_media_manager) of
+				P when is_pid(P) ->
+					case freeswitch_media_manager:record_outage(Clientid, State#state.agent_fsm, AgentRec) of
+						ok ->
+							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+						{error, _Reason} ->
+							% TODO don't throw the reason away.
+							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Initializing recording channel failed">>}]})}, State}
+					end;
+				_ ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}]})}, State}
+			end;
 		["remove_problem_recording", Clientid] ->
-			% TODO given the client id, remove any problem.wav's recorded for the client.
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}, State};
+			case file:delete("/tmp/"++Clientid++"/problem.wav") of
+				ok ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+				{error, Reason} ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Reason}]})}, State}
+			end;
 		["voicemail", Queue, Callid] ->
 			Json = case queue_manager:get_queue(Queue) of
 				Qpid when is_pid(Qpid) ->
@@ -797,6 +813,7 @@ handle_call(Allothers, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(keep_alive, State) ->
+	?DEBUG("keep alive", []),
 	{noreply, State#state{poll_pid_established = util:now()}};
 handle_cast({poll, Frompid}, State) ->
 	?DEBUG("Replacing poll_pid ~w with ~w", [State#state.poll_pid, Frompid]),
@@ -973,8 +990,7 @@ handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = unde
 	case Now - Last of
 		N when N > 10 ->
 			?NOTICE("Stopping due to missed_polls; last:  ~w now: ~w difference: ~w", [Last, Now, Now - Last]),
-			% TODO - this should probably be 'normal' or all the linked processes should handle {EXIT, missed_polls} quietly
-			{stop, missed_polls, State};
+			{stop, normal, State};
 		_N ->
 			Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
 			{noreply, State#state{ack_timer = Tref}}
@@ -983,6 +999,7 @@ handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Poll
 	Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
 	case util:now() - Last of
 		N when N > 20 ->
+			?DEBUG("sending pong to initiate new poll pid", []),
 			Newstate = push_event({struct, [{success, true}, {<<"command">>, <<"pong">>}, {<<"timestamp">>, util:now()}]}, State),
 			{noreply, Newstate#state{ack_timer = Tref}};
 		_N ->
@@ -1691,6 +1708,7 @@ push_event(Eventjson, State) ->
 		Pid when is_pid(Pid) ->
 			?DEBUG("Sending to the ~w", [Pid]),
 			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, lists:reverse(Newqueue)}]})}},
+			unlink(Pid),
 			State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now()}
 	end.
 
@@ -1719,7 +1737,7 @@ check_live_poll_test_() ->
 	{"When poll pid is undefined, and more than 10 seconds have passed",
 	fun() ->
 		State = #state{poll_pid_established = util:now() - 12, poll_pid = undefined},
-		?assertEqual({stop, missed_polls, State}, handle_info(check_live_poll, State)),
+		?assertEqual({stop, normal, State}, handle_info(check_live_poll, State)),
 		Ok = receive
 			check_live_poll	->
 				 false

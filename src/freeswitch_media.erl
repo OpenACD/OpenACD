@@ -109,7 +109,8 @@
 	allow_voicemail = false :: boolean(),
 	warm_transfer_uuid = undefined :: string() | 'undefined',
 	ivroption :: string(),
-	moh = "moh" :: string()
+	moh = "moh" :: string(),
+	record_path :: 'undefined' | string()
 	}).
 
 -type(state() :: #state{}).
@@ -178,23 +179,34 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	freeswitch:sendmsg(State#state.cnode, XferUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Callrec#call.id}]),
 	%freeswitch_ring:hangup(State#state.ringchannel),
+	case State#state.record_path of
+		undefined ->
+			ok;
+		Path ->
+			?DEBUG("resuming recording", []),
+			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start " ++ State#state.record_path)
+	end,
 	agent:conn_cast(Apid, {mediaload, Callrec}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined}};
 handle_answer(Apid, Callrec, State) ->
-	case cpx_supervisor:get_archive_path(Callrec) of
+	RecPath = case cpx_supervisor:get_archive_path(Callrec) of
 		none ->
-			?DEBUG("archiving is not configured", []);
+			?DEBUG("archiving is not configured", []),
+			undefined;
 		{error, _Reason, Path} ->
-			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
+			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]),
+			undefined;
 		Path ->
 			%% get_archive_path ensures the directory is writeable by us and exists, so this
 			%% should be safe to do (the call will be hungup if creating the recording file fails)
 			?DEBUG("archiving to ~s.wav", [Path]),
-			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start "++Path++".wav")
+			freeswitch:api(State#state.cnode, uuid_setvar, Callrec#call.id ++ " RECORD_APPEND true"),
+			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start "++Path++".wav"),
+			Path
 	end,
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}]}),
-	{ok, State#state{agent_pid = Apid}}.
+	{ok, State#state{agent_pid = Apid, record_path = RecPath}}.
 
 handle_ring(Apid, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
@@ -314,19 +326,17 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 							ok
 					end
 			end,
+
 			F2 = fun(_RingUUID, EventName, _Event) ->
 					case EventName of
 						"CHANNEL_BRIDGE" ->
-							%agent:media_push(AgentPid, warm_transfer_succeeded),
-							case cpx_supervisor:get_archive_path(Call) of
-								none ->
-									?DEBUG("archiving is not configured", []);
-								{error, _Reason, Path} ->
-									?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
+							case State#state.record_path of
+								undefined ->
+									ok;
 								Path ->
-									?DEBUG("archiving to ~s.wav", [Path]),
-									%freeswitch:api(Fnode, uuid_record, Call#call.id ++ " start "++Path++".wav")
-									ok
+									?DEBUG("switching to recording the 3rd party leg", []),
+									freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ State#state.record_path),
+									freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ State#state.record_path)
 							end;
 						_ ->
 							ok
@@ -352,6 +362,16 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 		{ok, NewUUID} ->
 			?NOTICE("warmxfer UUID is ~p", [NewUUID]),
 			freeswitch:api(Node, uuid_setvar, Call#call.id++" park_after_bridge true"),
+
+			case State#state.record_path of
+				undefined ->
+					ok;
+				Path ->
+					?DEBUG("switching to recording the 3rd party leg", []),
+					freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ State#state.record_path),
+					freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ State#state.record_path)
+			end,
+
 			freeswitch:bgapi(State#state.cnode, uuid_transfer,
 				freeswitch_ring:get_uuid(State#state.ringchannel) ++ " 'bridge:{ignore_early_media=true\\,origination_uuid="++NewUUID++"}sofia/gateway/hebon.fusedsolutions.com/" ++ Number ++ "' inline"),
 			% play musique d'attente 
@@ -372,6 +392,15 @@ handle_warm_transfer_begin(_Number, _Call, #state{agent_pid = AgentPid} = State)
 handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, ringchannel = Ring} = State) when is_list(WUUID), is_pid(Ring) ->
 	RUUID = freeswitch_ring:get_uuid(Ring),
 	?INFO("intercepting ~s from channel ~s", [RUUID, Call#call.id]),
+	case State#state.record_path of
+		undefined ->
+			ok;
+		Path ->
+			?DEBUG("switching back to recording the original leg", []),
+			freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ State#state.record_path),
+			freeswitch:api(Node, uuid_record, Call#call.id ++ " start " ++ State#state.record_path)
+	end,
+
 	freeswitch:sendmsg(State#state.cnode, RUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
 	{ok, State#state{warm_transfer_uuid = undefined}};
@@ -382,6 +411,14 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 			Self = self(),
 			F = fun(RingUUID) ->
 					fun(ok, _Reply) ->
+							case State#state.record_path of
+								undefined ->
+									ok;
+								Path ->
+									?DEBUG("switching back to recording the original leg", []),
+									freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ State#state.record_path),
+									freeswitch:api(Node, uuid_record, Call#call.id ++ " start " ++ State#state.record_path)
+							end,
 							freeswitch:api(Node, uuid_bridge, RingUUID++" "++Call#call.id);
 						(error, Reply) ->
 							?WARNING("originate failed: ~p", [Reply]),
@@ -408,6 +445,14 @@ handle_warm_transfer_cancel(_Call, State) ->
 -spec(handle_warm_transfer_complete/2 :: (Call :: #call{}, State :: #state{}) -> 'ok' | {'error', string(), #state{}}).
 handle_warm_transfer_complete(Call, #state{warm_transfer_uuid = WUUID, cnode = Node} = State) when is_list(WUUID) ->
 	?INFO("intercepting ~s from channel ~s", [WUUID, Call#call.id]),
+	case State#state.record_path of
+		undefined ->
+			ok;
+		Path ->
+			?DEBUG("stopping recording due to warm transfer complete", []),
+			freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ State#state.record_path)
+	end,
+
 	freeswitch:sendmsg(State#state.cnode, WUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
 	{ok, State#state{warm_transfer_uuid = undefined}};
@@ -420,6 +465,13 @@ handle_wrapup(_Call, State) ->
 	{ok, State}.
 	
 handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
+	case State#state.record_path of
+		undefined ->
+			ok;
+		Path ->
+			?DEBUG("stopping recording due to queue transfer", []),
+			freeswitch:api(Fnode, uuid_record, Call#call.id ++ " stop " ++ Path)
+	end,
 	freeswitch:api(Fnode, uuid_park, Call#call.id),
 	% play musique d'attente (actually, don't because it's already running from before)
 	%freeswitch:sendmsg(Fnode, Call#call.id,

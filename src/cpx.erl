@@ -444,11 +444,11 @@ pretty_print_time(Time) ->
 pretty_print_time(_, 0, Acc) ->
 	Acc;
 pretty_print_time([Label], Time, Acc) ->
-	lists:append([Label, ":  ", integer_to_list(Time), ";  ", Acc]);
+	lists:append([integer_to_list(Time), " ", Label, " ", Acc]);
 pretty_print_time([{Label, Interval} | Tail], Time, Acc) ->
 	Rem = Time rem Interval,
 	Newtime = util:floor(Time / Interval),
-	Newacc = lists:append([Label, ":  ", integer_to_list(Rem), ";  ", Acc]),
+	Newacc = lists:append([integer_to_list(Rem), " ", Label, " ", Acc]),
 	pretty_print_time(Tail, Newtime, Newacc).
 
 % to be added soon TODO
@@ -468,16 +468,16 @@ pretty_print_time([{Label, Interval} | Tail], Time, Acc) ->
 
 pretty_print_time_test_() ->
 	[{"A few seconds",
-	?_assertEqual("Seconds:  5;  ", pretty_print_time(5))},
+	?_assertEqual("5 Seconds ", pretty_print_time(5))},
 	{"A couple of minutes",
-	?_assertEqual("Minutes:  2;  Seconds:  23;  ", pretty_print_time(120 + 23))},
+	?_assertEqual("2 Minutes 23 Seconds ", pretty_print_time(120 + 23))},
 	{"A few hours",
-	?_assertEqual("Hours:  12;  Minutes:  32;  Seconds:  54;  ", pretty_print_time((12 * 60 * 60) + (32 * 60) + 54))},
+	?_assertEqual("12 Hours 32 Minutes 54 Seconds ", pretty_print_time((12 * 60 * 60) + (32 * 60) + 54))},
 	{"Several days",
-	?_assertEqual("Days:  3;  Hours:  0;  Minutes:  27;  Seconds:  10;  ", pretty_print_time((3 * 24 * 60 * 60) + (60 * 27) + 10))},
+	?_assertEqual("3 Days 0 Hours 27 Minutes 10 Seconds ", pretty_print_time((3 * 24 * 60 * 60) + (60 * 27) + 10))},
 	{"Many weeks",
-	?_assertEqual("Weeks:  32;  Days:  4;  Hours:  10;  Minutes:  3;  Seconds:  7;  ", pretty_print_time((32 * 7 * 24 * 60 * 60) + (4 * 24 * 60 * 60) + (10 * 60 * 60) + (3 * 60) + 7))},
+	?_assertEqual("32 Weeks 4 Days 10 Hours 3 Minutes 7 Seconds ", pretty_print_time((32 * 7 * 24 * 60 * 60) + (4 * 24 * 60 * 60) + (10 * 60 * 60) + (3 * 60) + 7))},
 	{"Years",
-	?_assertEqual("Years:  3;  Weeks:  5;  Days:  6;  Hours:  21;  Minutes:  53;  Seconds:  3;  ", pretty_print_time((3 * 52 * 7 * 24 * 60 * 60) + (5 * 7 * 24 * 60 * 60) + (6 * 24 * 60 * 60) + (60 * 60 * 21) + (53 * 60) + 3))}].
+	?_assertEqual("3 Years 5 Weeks 6 Days 21 Hours 53 Minutes 3 Seconds ", pretty_print_time((3 * 52 * 7 * 24 * 60 * 60) + (5 * 7 * 24 * 60 * 60) + (6 * 24 * 60 * 60) + (60 * 60 * 21) + (53 * 60) + 3))}].
 
 -endif.

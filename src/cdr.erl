@@ -531,7 +531,6 @@ find_untermed(ringout, #call{id = Cid}, {Reason, Agent}) ->
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
 		X#cdr_raw.transaction =:= ringing,
-		X#cdr_raw.eventdata =:= Agent,
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);

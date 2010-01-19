@@ -26,5 +26,6 @@
 	COMPAREEQUAL:"is",
 	COMPAREGREATERTHAN:"is greater than",
 	COMPARELESSTHAN:"is less than",
-	COMPARENOTEQUAL:"is not"
+	COMPARENOTEQUAL:"is not",
+	CLIENTCOUNT: "Client's Queued"
 }

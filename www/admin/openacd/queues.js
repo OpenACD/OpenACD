@@ -101,6 +101,15 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 			"comparisons":[
 				{_reference:"="},
 				{_reference:"!="}
+			]},
+			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").CLIENTCOUNT,
+			"value":"client_calls_queued",
+			"type":"property",
+			"filter":"integer",
+			"comparisons":[
+				{_reference:"="},
+				{_reference:">"},
+				{_reference:"<"}
 			]}
 		]
 	}

@@ -1738,7 +1738,9 @@ decode_recipe_conditions([{struct, Props} | Tail], Acc) ->
 		{<<"weekday">>, Comp, Val} when is_integer(Val) ->
 			{weekday, Comp, Val};
 		{<<"mediatype">>, Comp, Val} ->
-			{type, Comp, Val}
+			{type, Comp, Val};
+		{<<"client_calls_queued">>, Comp, Val} when is_integer(Val) ->
+			{client_calls_queued, Comp, Val}
 	end,
 	decode_recipe_conditions(Tail, [Tuple | Acc]).	
 	

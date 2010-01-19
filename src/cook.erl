@@ -1067,7 +1067,7 @@ check_conditions_test_() ->
 			Assertmocks()
 		end}
 	end]}},
-	{"client comparison",
+	{"media type",
 	{foreach,
 	fun() ->
 		{ok, QMPid} = gen_leader_mock:start(queue_manager),
@@ -1119,6 +1119,72 @@ check_conditions_test_() ->
 		{"type != cond false",
 		fun() ->
 			?assertNot(check_conditions([{type, '!=', voice}], "doesn't matter", QPid, Mpid)),
+			Assertmocks()
+		end}
+	end]}},
+	{"medias for given client in queue",
+	{foreach,
+	fun() ->
+		{ok, QMPid} = gen_leader_mock:start(queue_manager),
+		{ok, Qpid} = gen_server_mock:new(),
+		{ok, Mpid} = gen_server_mock:new(),
+		{ok, AMpid} = gen_leader_mock:start(agent_manager),
+		Assertmocks = fun() ->
+			gen_leader_mock:assert_expectations(QMPid),
+			gen_server_mock:assert_expectations(Qpid),
+			gen_server_mock:assert_expectations(Mpid),
+			gen_leader_mock:assert_expectations(AMpid)
+		end,
+		Primer = {QMPid, Qpid, Mpid, AMpid, Assertmocks},
+		?CONSOLE("start args:  ~p", [Primer]),
+		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+			Out = #call{
+				id = "foo", 
+				type=voice, 
+				source = Mpid,
+				client = #client{
+					id = "clientid",
+					label = "clientlabel"
+				}
+			},
+			{ok, Out, State}
+		end),
+		Primer
+	end,
+	fun({QMPid, Qpid, Mpid, AMpid, _Assertmocks}) ->
+		gen_server_mock:stop(Qpid),
+		gen_leader_mock:stop(QMPid),
+		gen_leader_mock:stop(AMpid),
+		gen_server_mock:stop(Mpid),
+		timer:sleep(10)
+	end,
+	[fun({_QMPid, Qpid, Mpid, _AMpid, Assertmocks}) ->
+		{"medias for client = cond true",
+		fun() ->
+			gen_server_mock:expect_call(Qpid, fun({call_count_by_client, _Client}, _From, State) ->
+				{ok, 3, State}
+			end),
+			?assert(check_conditions([{client_calls_queued, '=', 3}], "doesn't matter", Qpid, Mpid)),
+			Assertmocks()
+		end}
+	end,
+	fun({_QMPid, Qpid, Mpid, _AMpid, Assertmocks}) ->
+		{"medias for client > true",
+		fun() ->
+			gen_server_mock:expect_call(Qpid, fun({call_count_by_client, _Client}, _From, State) ->
+				{ok, 4, State}
+			end),
+			?assert(check_conditions([{client_calls_queued, '>', 3}], "doesn't matter", Qpid, Mpid)),
+			Assertmocks()
+		end}
+	end,
+	fun({_QMPid, Qpid, Mpid, _AMpid, Assertmocks}) ->
+		{"medias for client < true",
+		fun() ->
+			gen_server_mock:expect_call(Qpid, fun({call_count_by_client, _Client}, _From, State) ->
+				{ok, 2, State}
+			end),
+			?assert(check_conditions([{client_calls_queued, '<', 3}], "doesn't matter", Qpid, Mpid)),
 			Assertmocks()
 		end}
 	end]}}

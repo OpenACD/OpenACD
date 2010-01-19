@@ -121,11 +121,11 @@ span {
 }
 
 #qgroup1, #agroup1 .profilelabel {
-	background: #990000;
+	background: #8b303f;
 }
 
 #qgroup1, #agroup1 .profilelabel div {
-	color: #000099;
+	color: white;
 }
 
 #agroup1 .profilelabel {
@@ -133,11 +133,11 @@ span {
 }
 
 #qgroup2, #agroup2 .profilelabel {
-	background: #000099;
+	background: #2727a2;
 }
 
 #qgroup2, #agroup2 .profilelabel div {
-	color: #999900;
+	color: white;
 }
 
 #agroup2 .profilelabel {
@@ -145,11 +145,11 @@ span {
 }
 
 #qgroup3, #agroup3 .profilelabel {
-	background: #999900;
+	background: #947e3d;
 }
 
 #qgroup3, #agroup3 .profilelabel div {
-	color: #000099;
+	color: white;
 }
 
 #agroup3 .profilelabel {
@@ -157,11 +157,11 @@ span {
 }
 
 #qgroup4, #agroup4 .profilelabel {
-	background: #990099;
+	background: #248f4a;
 }
 
 #qgroup4, #agroup4 .profilelabel div {
-	color: #009900;
+	color: white;
 }
 
 #agroup4 .profilelabel {

@@ -171,22 +171,22 @@ get_media(LPid) ->
 			get_media(Pid)
 	catch
 		error:badarg ->
-			%% time to ask the queues and the agents.
-			Queues = get_queues(),
-			case get_media_queues(Queues, LPid) of
-				none ->
-					Agents = get_agents(),
-					case get_media_agents(Agents, LPid) of
-						none ->
-							none;
-						Pid ->
-							get_media(Pid)
-					end;
-				Pid ->
-					get_media(Pid)
-			end
+			%% okay, let's ask the media managers.
+			Confs = cpx_supervisor:get_conf(),
+			get_medias_managers(Confs, LPid)
 	end.
-	
+
+get_medias_managers([], _Needle) ->
+	none;
+get_medias_managers([#cpx_conf{supervisor = mediamanager_sup, module_name = Mod} | Tail], Needle) ->
+	case Mod:get_media(Needle) of
+		none ->
+			get_medias_managers(Tail, Needle);
+		{Needle, Pid} ->
+			Pid
+	end;
+get_medias_managers([_Head | Tail], Needle) ->
+	get_medias_managers(Tail, Needle).
 
 get_media_queues([], _Callref) ->
 	none;

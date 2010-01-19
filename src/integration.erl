@@ -124,12 +124,14 @@ get_client(Key, Value) ->
 	check_return(Out, Test).
 
 do_call(Message) ->
-	try gen_server:call(integration, Message) of
+	try gen_server:call(integration, Message, 4000) of
 		Reply ->
 			Reply
 	catch
-		exit:{noproc, {gen_server, call, [integration, Message]}} ->
-			{error, nointegration}
+		exit:{noproc, {gen_server, call, _Requestargs}} ->
+			{error, nointegration};
+		exit:{timeout, {gen_server, call, _Requestargs}} ->
+			timeout
 	end.
 
 check_return({error, nointegration} = O, _Test) ->
@@ -165,7 +167,18 @@ bad_integration_test_() ->
 	[?_assertThrow({badreturn, gooberpants}, get_client(label, "a_client")),
 	?_assertThrow({badreturn, gooberpants}, client_exists(label, "a_client")),
 	?_assertThrow({badreturn, gooberpants}, agent_auth("agent", "password", [])),
-	?_assertThrow({badreturn, gooberpants}, agent_exists("agent"))]}.
+	?_assertThrow({badreturn, gooberpants}, agent_exists("agent")),
+	fun(Mock) ->
+		{"integration hits timeout",
+		fun() ->
+			gen_server:call(Mock, "clearing useless expect"),
+			gen_server_mock:expect_call(Mock, fun(_Whatever, _From, State) ->
+				timer:sleep(4500),
+				{ok, gooberpants, State}
+			end),
+			?assertThrow({badreturn, timeout}, client_exists(label, "a_client"))
+		end}
+	end]}.
 
 good_integration_test_() ->
 	{foreach,

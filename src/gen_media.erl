@@ -654,7 +654,7 @@ handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback =
 		true ->
 			case Callback:handle_warm_transfer_begin(Number, State#state.callrec, State#state.substate) of
 				{ok, UUID, NewState} ->
-					Res = set_agent_state(Apid, [warmtransfer, {onhold, State#state.callrec, calling, UUID}]),
+					Res = set_agent_state(Apid, [warmtransfer, UUID]),
 					cdr:warmxfer_begin(State#state.callrec, {Apid, Number}),
 					{reply, Res, State#state{substate = NewState, warm_transfer = true}};
 				{error, Error, NewState} ->

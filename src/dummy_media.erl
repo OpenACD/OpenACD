@@ -44,7 +44,7 @@
 -include("call.hrl").
 -include("agent.hrl").
 
--define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer, spy]).
+-define(MEDIA_ACTIONS, [ring_agent, get_call, start_cook, voicemail, announce, stop_cook, oncall, agent_transfer, spy, warm_transfer_begin, warm_transfer_cancel, warm_transfer_complete]).
 
 %% API
 -export([
@@ -82,7 +82,10 @@
 	handle_agent_transfer/4,
 	handle_queue_transfer/2,
 	handle_wrapup/2,
-	handle_spy/3
+	handle_spy/3,
+	handle_warm_transfer_begin/3,
+	handle_warm_transfer_cancel/2,
+	handle_warm_transfer_cancel/2
 ]).
 
 -record(state, {
@@ -520,6 +523,30 @@ handle_ring_stop(_Callrec, State) ->
 
 handle_wrapup(_Callrec, State) ->
 	{hangup, State}.
+
+handle_warm_transfer_begin(Number, _Callrec, #state{fail = Fail} = State) ->
+	case check_fail(warm_transfer_begin, Fail) of
+		{success, Newfail} ->
+			{ok, "dummy-" ++ Number, State#state{fail = Newfail}};
+		{_Fail, Newfail} ->
+			{invalid, State#state{fail = Newfail}}
+	end.
+
+handle_warm_transfer_cancel(_Callrec, #state{fail = Fail} = State) ->
+	case check_fail(warm_transfer_cancel, Fail) of
+		{success, Newfail} ->
+			{ok, State#state{fail = Newfail}};
+		{Fail, Newfail} ->
+			{error, Fail, State#state{fail = Newfail}}
+	end.
+
+handle_warm_transfer_complete(_Callrec, #state{fail = Fail} = State) ->
+	case check_fail(warm_transfer_complete, Fail) of
+		{success, Newfail} ->
+			{ok, State#state{fail = Newfail}};
+		{Fail, Newfail} ->
+			{error, Fail, State#state{fail = Newfail}}
+	end.
 
 -spec(handle_spy/3 :: (Spy :: pid(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}} | {'invalid', #state{}} | {'error', 'fail_once', #state{}}).
 handle_spy(Spy, _Callrec, #state{fail = Fail} = State) ->

@@ -2435,6 +2435,10 @@ if(typeof(supervisorView) == "undefined"){
 	};
 	
 	supervisorView.sendMediaToAgent = function(media, agent){
+		if(! agent){
+			return false;
+		}
+		
 		if(media.queue){
 			var queue = media.queue;
 			var id = media.id.substring(6);
@@ -2699,6 +2703,10 @@ if(typeof(supervisorView) == "undefined"){
 				if(res.success){
 					console.log(res.agents);
 					var selectContent = '';
+					if(res.agents.length == 0){
+						errMessage('No agents available!');
+						return false;
+					}
 					for(var i = 0; i < res.agents.length; i++){
 						selectContent += '<option value="' + res.agents[i].name + '">' + res.agents[i].name + ' (' + res.agents[i].profile + ')</option>';
 					}

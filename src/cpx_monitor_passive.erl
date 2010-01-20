@@ -337,8 +337,9 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, undefined, _List} ->
-					% either death in ivr or queue, can be figured out later
-					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History ++ [{ended, EventTime}]}},
+					% either death in ivr or queue, can be figured out later.
+					% let the drop handle the ended time.
+					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History}},
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, _Agent, List} when length(List) > 0, length(List) < 3 ->

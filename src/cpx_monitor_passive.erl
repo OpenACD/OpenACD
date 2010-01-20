@@ -356,7 +356,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 						[] ->
 							[{queued, EventTime}];
 						_ ->
-							?WARNING("Possible corrupted history for ~p", [Key]),
+							?WARNING("Possible corrupted history for ~p (~p)", [Key, Hlist]),
 							Hlist
 					end,
 					Newrow = {Key, Time, EventHp, EventDetails, {inbound, Newhist}},

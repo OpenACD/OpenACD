@@ -345,11 +345,23 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History ++ [{handled, EventTime}]}},
 					dets:insert(?DETS, Newrow),
 					Newrow;
-				{_Queue, undefined, [{ivr, _}]} ->
-					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History ++ [{queued, EventTime}]}},
+				{_Queue, undefined, Hlist} ->
+					Newhist = case lists:reverse(Hlist) of
+						[{ivr, _} | _] ->
+							Hlist ++ [{queued, EventTime}];
+						[{queued, _} | _] ->
+							?WARNING("Possible corrupted history for ~p", [Key]),
+							Hlist;
+						[] ->
+							[{queued, EventTime}];
+						_ ->
+							?WARNING("Possible corrupted history for ~p", [Key]),
+							Hlist
+					end,
+					Newrow = {Key, Time, EventHp, EventDetails, {inbound, Newhist}},
 					dets:insert(?DETS, Newrow),
 					Newrow;
-				{_Queue, _Agent, _} ->
+				{Queue, Agent, _} when Queue =/= undefined, Agent =/= undefined ->
 					?WARNING("both agent and queue defined, ignoring (~p)", [Key]),
 					none
 			end;
@@ -1439,6 +1451,16 @@ prune_dets_medias_test_() ->
 	end,
 	fun(_) ->
 		file:delete(?DETS),
+		Managers = [dummy_media_manager, email_media_manager, freeswitch_media_manager],
+		lists:foreach(fun(Manager) ->
+			case whereis(Manager) of
+				undefined ->
+					ok;
+				Pid ->
+					exit(Pid, kill)
+			end
+		end,
+		Managers),
 		ok
 	end,
 	fun(_) ->
@@ -1528,5 +1550,91 @@ prune_dets_medias_test_() ->
 			?assertEqual(lists:sort(Expectedids), lists:sort(Gotids))
 		end}]}
 	end}.
+
+init_test_() ->
+	[{"no passive cache, but cpx monitor has old data",
+	fun() ->
+		dets:delete_all_objects(?DETS),
+		{ok, Mon} = gen_leader_mock:start(cpx_monitor),
+		Monmedias = [{{media, "media1"}, [{inqueue, 100.0}], [{queued_at, {timestamp,  util:now() - 86460}}, {queue, "a_queue"}, {direction, inbound}]},
+		{{media, "media2"}, [{inqueue, 100.0}], [{queued_at, {timestamp, util:now() - 86460}}, {queue, "b_queue"}, {direction, inbound}]}],
+		Expectfun = fun({get, What}, _From, State, _Elec) ->
+			case What of
+				media ->
+					{ok, {ok, Monmedias}, State};
+				_ ->
+					{ok, {ok, []}, State}
+			end
+		end,
+		gen_leader_mock:expect_leader_call(Mon, Expectfun),
+		gen_leader_mock:expect_leader_call(Mon, Expectfun),
+		gen_leader_mock:expect_leader_cast(Mon, fun({subscribe, _Pid, _Fun}, _State, _Elec) ->
+			ok
+		end),
+		Getmedia = fun(_, _, State) ->
+			P = spawn(fun() -> ok end),
+			{ok, P, State}
+		end,
+		{ok, MMmock} = gen_server_mock:named({local, dummy_media_manager}),
+		gen_server_mock:expect_call(dummy_media_manager, Getmedia),
+		gen_server_mock:expect_call(dummy_media_manager, Getmedia),
+		{ok, _State} = init([]),
+		?assertEqual(2, length(qlc:e(qlc:q([X || X <- dets:table(?DETS)])))),
+		[Media1, Media2] = qlc:e(qlc:q([X || X <- dets:table(?DETS)])),
+		?DEBUG("m1:  ~p;  m2:  ~p", [Media1, Media2]),
+		gen_leader_mock:stop(Mon),
+		gen_server_mock:stop(MMmock)
+	end}].
+
+% commented out because the file this is depdant on is not being put into
+% git.  If someone wants to make it portible and useful, go to it.
+%goober_test_() ->
+%	{ok, [Medias]} = file:consult("mediasdump.hrl"),
+%	goober_gen(Medias).
+%
+%goober_gen([]) ->
+%	[];
+%goober_gen([Media | Tail]) ->
+%	Fun = fun() ->
+%		dets:delete_all_objects(?DETS),
+%		{ok, Mon} = gen_leader_mock:start(cpx_monitor),
+%		Expectfun = fun({get, What}, _From, State, _Elec) ->
+%			case What of
+%				media ->
+%					{ok, {ok, [Media]}, State};
+%				_ ->
+%					{ok, {ok, []}, State}
+%			end
+%		end,
+%		gen_leader_mock:expect_leader_call(Mon, Expectfun),
+%		gen_leader_mock:expect_leader_call(Mon, Expectfun),
+%		gen_leader_mock:expect_leader_cast(Mon, fun({subscribe, _Pid, _Fun}, _State, _Elec) ->
+%			ok
+%		end),
+%		Getmedia = fun(_, _, State) ->
+%			P = spawn(fun() -> ok end),
+%			{ok, P, State}
+%		end,
+%		Managername = case proplists:get_value(type, element(3, Media)) of
+%			email ->
+%				email_media_manager;
+%			voice ->
+%				freeswitch_media_manager;
+%			_ ->
+%				dummy_media_manager
+%		end,
+%		{ok, MMmock} = gen_server_mock:named({local, Managername}),
+%		gen_server_mock:expect_call(Managername, Getmedia),
+%		{ok, _State} = init([]),
+%		?assertEqual(1, length(qlc:e(qlc:q([X || X <- dets:table(?DETS)])))),
+%		%[Media1, Media2] = qlc:e(qlc:q([X || X <- dets:table(?DETS)])),
+%		%?DEBUG("m1:  ~p;  m2:  ~p", [Media1, Media2]),
+%		%?assert(false),
+%		gen_leader_mock:stop(Mon),
+%		gen_server_mock:stop(MMmock),
+%		timer:sleep(10)
+%	end,
+%	{generator, fun() -> [Fun, goober_gen(Tail)] end}.
+	
 
 -endif.

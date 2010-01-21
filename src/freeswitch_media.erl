@@ -319,7 +319,7 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 								[{"call-command", "execute"},
 									{"execute-app-name", "bridge"},
 									{"execute-app-arg",
-										freeswitch_media_manager:do_dial_string(State#state.dialstring, Number, CalleridArgs)}]);
+										freeswitch_media_manager:do_dial_string(State#state.dialstring, Number, ["origination_uuid="++NewUUID | CalleridArgs])}]);
 						(error, Reply) ->
 							?WARNING("originate failed: ~p", [Reply]),
 							ok

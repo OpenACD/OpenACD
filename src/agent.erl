@@ -793,7 +793,8 @@ warmtransfer({outgoing, Call}, _From, State) ->
 	Newstate = State#agent{state=outgoing, oldstate=warmtransfer, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, outgoing, Newstate};
-warmtransfer({warmtransfer, {onhold, Call, calling, UUID} = Statedata}, _From, State) ->
+warmtransfer({warmtransfer, TransferTo}, _From, State) ->
+	Statedata = setelement(4, State#agent.statedata, TransferTo),
 	Newstate = State#agent{statedata = Statedata},
 	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};

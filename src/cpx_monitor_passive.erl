@@ -1032,16 +1032,17 @@ list_member(_Member, all) ->
 list_member(Member, List) ->
 	lists:member(Member, List).
 
-is_abandon([{ended, _}]) ->
-	true;
-is_abandon([{ivr, _}, {ended, _}]) ->
-	true;
-is_abandon([{queued, _}, {ended, _}]) ->
-	true;
-is_abandon([{ivr, _}, {queued, _}, {ended, _}]) ->
-	true;
-is_abandon(_) ->
-	false.
+is_abandon(List) ->
+	case lists:reverse(List) of
+		[{ended, _}, {ivr, _} | _] ->
+			true;
+		[{ended, _}, {queued, _} | _] ->
+			true;
+		[{ended, _}] ->
+			true;
+		_ ->
+			false
+	end.
 
 -ifdef(TEST).
 

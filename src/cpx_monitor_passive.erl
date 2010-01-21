@@ -1029,6 +1029,204 @@ is_abandon(_) ->
 
 -ifdef(TEST).
 
+cache_event_test_() ->
+	{setup,
+	fun() ->
+		dets:open_file(?DETS, [])
+	end,
+	fun() ->
+		{foreach,
+		fun() ->
+			dets:delete_all_objects(?DETS)
+		end,
+		fun(_) ->
+			dets:delete_all_objects(?DETS)
+		end,
+		[{"droping a media properly ends it in dets",
+		fun() ->
+			Media = {{media, "media"}, util:now() - 120, [], [], {inbound, [{queued, util:now() - 60}]}},
+			dets:insert(?DETS, Media),
+			?assertMatch([{queued, _}, {ended, _}], element(2, element(5, cache_event({drop, {media, "media"}})))),
+			?assertMatch([{queued, _}, {ended, _}], element(2, element(5, lists:nth(1, dets:lookup(?DETS, {media, "media"})))))
+		end},
+		{"dropping a non existant media",
+		fun() ->
+			Media = {{media, "media"}, util:now() - 120, [], [], {inbound, [{queued, util:now() - 60}]}},
+			?assertEqual({{media, "media"}, none}, cache_event(Media))
+		end},
+		{"dropping an agent",
+		fun() ->
+			dets:insert(?DETS, {{agent, "agent"}, 10, [], [], undefined}),
+			?assertEqual({{agent, "agent"}, none}, cache_event({drop, {agent, "agent"}})),
+			?assertEqual([], dets:lookup(?DETS, {agent, "agent"}))
+		end},
+		{"setting a brand new inbound media in ivr",
+		fun() ->
+			cache_event({set, {{media, "media"}, [], [{direction, inbound}], util:now()}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertMatch({inbound, [{ivr, _}]}, element(5, Obj))
+		end},
+		{"setting a new inbound media in queue",
+		fun() ->
+			cache_event({set, {{media, "media"}, [], [{direction, inbound}, {queue, "queue"}], util:now()}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertMatch({inbound, [{queued, _}]}, element(5, Obj))
+		end},
+		{"setting a new inbound media in queue respects queued_at",
+		fun() ->
+			cache_event({set, {{media, "media"}, [], [{direction, inbound}, {queue, "queue"}, {queued_at, {timestamp, 1337}}], util:now()}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertMatch({inbound, [{queued, 1337}]}, element(5, Obj))
+		end},
+		{"setting a new outbound media", 
+		fun() ->
+			cache_event({set, {{media, "media"}, [], [{direction, outbound}], util:now()}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertMatch(outbound, element(5, Obj))
+		end},
+		{"setting existing media with no agent, no queue, no history",
+		fun() ->
+			dets:insert(?DETS, {{media, "media"}, 120, [], [], {inbound, []}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{detail, "data"}], util:now()}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertMatch({{media, "media"}, 120, [{hp, 50}], [{detail, "data"}], {inbound, [{ivr, _}]}}, Obj)
+		end},
+		{"setting existing media with no agent, no queue, ivr history",
+		fun() ->
+			dets:insert(?DETS, {{media, "media"}, 120, [], [], {inbound, [{ivr, 130}]}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{detail, "data"}], 140}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{detail, "data"}], {inbound, [{ivr, 130}]}}, Obj)
+		end},
+		{"setting existing media with no agent, queue, ivr history",
+		fun() ->
+			dets:insert(?DETS, {{media, "media"}, 120, [], [], {inbound, [{ivr, 130}]}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{queue, "queue"}], 140}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{queue, "queue"}], {inbound, [{ivr, 130}, {queue, 140}]}}, Obj)
+		end},
+		{"Setting existing media with no agent, same queue data, queue history",
+		fun() ->
+			dets:insert(?DETS, {{media, "media"}, 120, [], [{queue, "queue"}, {queued_at, 130}], {inbound, [{queue, 130}]}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{queue, "queue"}, {queued_at, 130}], 140}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{queue, "queue"}, {queued_at, 130}], {inbound, [{ivr, 130}, {queue, 130}]}}, Obj)
+		end},
+		{"setting existing media with no agent, new queue data, queue history",
+		fun() ->
+			dets:insert(?DETS, {{media, "media"}, 120, [], [{queue, "oldqueue"}], {inbound, [{queue, 130}]}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{queue, "newqueue"}], 140}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{queue, "newqueue"}], {inbound, [{queue, 130}, {queue, 140}]}}, Obj)
+		end},
+		{"setting existing media with no agent, same queue but new queued_at, queue history",
+		fun() ->
+			dets:insert(?DETS, {{media, "media"}, 120, [], [{queue, "queue"}], {inbound, [{queue, 130}]}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{queue, "queue"}, {queued_at, 120}], 140}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{queue, "queue"}, {queued_at, 120}], {inbound, [{queue, 120}]}}, Obj)
+		end},
+		{"Setting existing media with agent, no queue, queue history",
+		fun() ->
+			dets:insert(?DETS, {{media, "media"}, 120, [], [], {inbound, [{queue, 130}]}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{agent, "agent"}], 140}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{agent, "agent"}], {inbound, [{queue, 130}, {handled, 140}]}}, Obj)
+		end},
+		{"Setting existing media with agent and queue",
+		fun() ->
+			dets:insert(?DETS, {{media, "media"}, 120, [], [], {inbound, [{ivr, 130}]}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{agent, "agent"}, {queue, "queue"}], 140}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertEqual({{media, "media"}, 120, [], [], {inbound, [{ivr, 130}]}}, Obj)
+		end}]}
+	end}.
+
+
+
+
+%
+%
+%
+%cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
+%	case dets:lookup(?DETS, Key) of
+%		[{Key, Time, _Hp, _Details, {inbound, History}}] ->
+%			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails), History} of
+%				{undefined, undefined, []} ->
+%					% just update the hp and details.
+%					Newrow = {Key, Time, EventHp, EventDetails, {inbound, [{ivr, EventTime}]}},
+%					dets:insert(?DETS, Newrow),
+%					Newrow;
+%				{undefined, undefined, _List} ->
+%					% either death in ivr or queue, can be figured out later.
+%					% let the drop handle the ended time.
+%					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History}},
+%					dets:insert(?DETS, Newrow),
+%					Newrow;
+%				{undefined, _Agent, List} when length(List) > 0, length(List) < 3 ->
+%					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History ++ [{handled, EventTime}]}},
+%					dets:insert(?DETS, Newrow),
+%					Newrow;
+%				{_Queue, undefined, Hlist} ->
+%					Newhist = case lists:reverse(Hlist) of
+%						[{ivr, _} | _] ->
+%							Hlist ++ [{queued, EventTime}];
+%						[{queued, _} | _] ->
+%							?WARNING("Possible corrupted history for ~p", [Key]),
+%							Hlist;
+%						[] ->
+%							[{queued, EventTime}];
+%						_ ->
+%							?WARNING("Possible corrupted history for ~p (~p)", [Key, Hlist]),
+%							Hlist
+%					end,
+%					Newrow = {Key, Time, EventHp, EventDetails, {inbound, Newhist}},
+%					dets:insert(?DETS, Newrow),
+%					Newrow;
+%				{Queue, Agent, _} when Queue =/= undefined, Agent =/= undefined ->
+%					?WARNING("both agent and queue defined, ignoring (~p)", [Key]),
+%					none
+%			end;
+%		[{Key, Time, _Hp, _Details, History}] ->
+%			% either undefined or outbound history, blind update.
+%			Newrow = {Key, Time, EventHp, EventDetails, History},
+%			dets:insert(?DETS, Newrow),
+%			Newrow;
+%		[] ->
+%			case {proplists:get_value(queue, EventDetails), proplists:get_value(direction, EventDetails)} of
+%				{undefined, outbound} ->
+%					Newrow = {Key, EventTime, EventHp, EventDetails, outbound},
+%					dets:insert(?DETS, Newrow),
+%					Newrow;
+%				{undefined, inbound} ->
+%					?INFO("Didn't find queue, but still inbound.  Assuming it's in ivr call:  ~p", [Key]),
+%					Newrow = {Key, EventTime, EventHp, EventDetails, {inbound, [{ivr, EventTime}]}},
+%					dets:insert(?DETS, Newrow),
+%					Newrow;
+%				{_Queue, inbound} ->
+%					% guess it went right to queue.  /shrug.
+%					Newrow = {Key, EventTime, EventHp, EventDetails, {inbound, [{queued, EventTime}]}},
+%					dets:insert(?DETS, Newrow),
+%					Newrow
+%			end
+%	end;
+%cache_event({set, {{agent, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
+%	case dets:lookup(?DETS, Key) of
+%		[] ->
+%			dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, undefined}),
+%			{Key, EventTime, EventHp, EventDetails, undefined};
+%		[{Key, Time, Hp, Details, undefined}] ->
+%			dets:insert(?DETS, {Key, Time, EventHp, EventDetails, undefined}),
+%			{Key, Time, Hp, Details, undefined}
+%	end.
+%
+%
+%
+%
+%
+
+
+
 sort_medias_test_() ->
 	{setup,
 	fun() ->

@@ -61,6 +61,7 @@
 	kick_agent/1,
 	kick_call/1,
 	kick_media/1,
+	is_running/0,
 	is_running/1,
 	help/0,
 	media_state/1,
@@ -260,6 +261,17 @@ kick_call(Callref) ->
 kick_media(Mediaref) ->
 	kick_call(Mediaref).
 
+-spec(is_running/0 :: () -> 'ok').
+is_running() ->
+	case cpx_supervisor:get_conf() of
+		undefined ->
+			io:format("No modules configured.~n");
+		List ->
+			Outmap = lists:map(fun(#cpx_conf{id = Modid}) -> Status = is_running(Modid), {Modid, Status} end, List),
+			pretty_print(Outmap)
+	end,
+	ok.
+
 -spec(is_running/1 :: (Specid :: atom) -> pid() | 'stopped' | 'noexists').
 is_running(Specid) ->
 	case cpx_supervisor:get_conf(Specid) of
@@ -348,9 +360,17 @@ agent_state(Agent) ->
 
 pretty_print(List) ->
 	FindLongest = fun({K, _}, Length) ->
-		case length(K) > Length of
+		ListK = if 
+			is_atom(K) ->
+				atom_to_list(K);
+			is_binary(K) ->
+				binary_to_list(K);
+			true -> 
+				K 
+		end,
+		case length(ListK) > Length of
 			true ->
-				length(K);
+				length(ListK);
 			false ->
 				Length
 		end
@@ -361,8 +381,16 @@ pretty_print(List) ->
 
 build_io_and_params([], _, Io, Params) ->
 	{Io, lists:reverse(Params)};
-build_io_and_params([{Key, Value} | Tail], Length, Io, Params) ->
-	Newio = lists:append([Io, string:right(Key, Length), ":  ~p~n"]),
+build_io_and_params([{K, Value} | Tail], Length, Io, Params) ->
+	ListK = if 
+		is_atom(K) ->
+			atom_to_list(K);
+		is_binary(K) ->
+			binary_to_list(K);
+		true -> 
+			K 
+	end,
+	Newio = lists:append([Io, string:right(ListK, Length), ":  ~p~n"]),
 	Newparams = [Value | Params],
 	build_io_and_params(Tail, Length, Newio, Newparams).
 

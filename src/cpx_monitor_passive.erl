@@ -383,7 +383,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 		[] ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(direction, EventDetails)} of
 				{undefined, outbound} ->
-					Newrow = {Key, EventTime, EventHp, EventDetails, {outbound, [{start, EventTime}]}},
+					Newrow = {Key, EventTime, EventHp, EventDetails, {outbound, [{handled, EventTime}]}},
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, inbound} ->
@@ -842,32 +842,24 @@ medias_to_json(Rows) ->
 
 medias_to_json([], {Time, In, Out, Abn, Acc}) ->
 	{Time, In, Out, Abn, lists:reverse(Acc)};
-medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTime, In, Out, Abn, Acc}) ->
+medias_to_json([{{media, Id}, Time, _Hp, Details, {Direction, History}} | Tail], {CurTime, In, Out, Abn, Acc}) ->
 	Newtime = case Time < CurTime of
 		true ->
 			Time;
 		false ->
 			CurTime
 	end,
-	Eventtimes = case HistoricalKey of
-		{_Direction, Events} ->
-			Events;
-		_ ->
-			[]
+	{Newin, Newout} = case Direction of
+		inbound ->
+			{In + 1, Out};
+		outbound ->
+			{In, Out + 1}
 	end,
-	{Newin, Newout, Newabn, DidAbandon} = case HistoricalKey of
-		% TODO determine how an outbound call should effect this.
-		{'inbound', Abandoned} ->
-			case is_abandon(Abandoned) of
-				true ->
-					{In + 1, Out, Abn + 1, true};
-				false ->
-					{In + 1, Out, Abn, false}
-			end;
-%		outbound ->
-%			{In, Out + 1, Abn};
-		_ ->
-			{In, Out, Abn}
+	{Newabn, DidAbandon} = case is_abandon(History) of
+		true ->
+			{Abn + 1, true};
+		false ->
+			{Abn, false}
 	end,
 	NewHead = {struct, lists:append([
 		{<<"id">>, list_to_binary(Id)},
@@ -878,7 +870,8 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTi
 		{<<"priority">>, proplists:get_value(priority, Details)},
 		{<<"direction">>, proplists:get_value(direction, Details)},
 		{<<"didAbandon">>, DidAbandon}
-	], Eventtimes)},
+	], History)}, % TODO currnet doesn't do requeueing right, but requires
+	% format change.
 	medias_to_json(Tail, {Newtime, Newin, Newout, Newabn, [NewHead | Acc]}).
 
 queuegroups_to_json(Groups, Filter) ->
@@ -1033,12 +1026,12 @@ list_member(Member, List) ->
 	lists:member(Member, List).
 
 is_abandon(List) ->
-	case lists:reverse(List) of
-		[{ended, _}, {ivr, _} | _] ->
+	case {lists:reverse(List), proplists:get_value(handled, List)} of
+		{[{ended, _}, {ivr, _} | _], undefined} ->
 			true;
-		[{ended, _}, {queued, _} | _] ->
+		{[{ended, _}, {queued, _} | _], undefined} ->
 			true;
-		[{ended, _}] ->
+		{[{ended, _}], undefined} ->
 			true;
 		_ ->
 			false
@@ -1098,7 +1091,7 @@ cache_event_test_() ->
 		fun() ->
 			cache_event({set, {{media, "media"}, [], [{direction, outbound}], 120}}),
 			[Obj] = dets:lookup(?DETS, {media, "media"}),
-			?assertMatch({outbound, [{start, 120}]}, element(5, Obj))
+			?assertMatch({outbound, [{handled, 120}]}, element(5, Obj))
 		end},
 		{"setting existing media with no agent, no queue, no history",
 		fun() ->

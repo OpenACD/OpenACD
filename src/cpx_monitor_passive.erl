@@ -357,7 +357,9 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 							end,
 							Fixedhist = Priorhistory ++ [{queued, Queuedat}],
 							{Key, Time, EventHp, EventDetails, {inbound, Fixedhist}};
-						{Oldqueue, _} ->
+						{undefined, _} ->
+							{Key, Time, EventHp, EventDetails, {inbound, Hlist ++ [{queued, EventTime}]}};
+						{_Oldqueue, _} ->
 							Queuedat = case proplists:get_value(queued_at, EventDetails) of
 								undefined ->
 									EventTime;
@@ -365,9 +367,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 									Etime
 							end,
 							Fixedhist = Hlist ++ [{queued, Queuedat}],
-							{Key, Time, EventHp, EventDetails, {inbound, Fixedhist}};
-						{undefined, _} ->
-							{Key, Time, EventHp, EventDetails, {inbound, Hlist ++ [{queued, EventTime}]}}
+							{Key, Time, EventHp, EventDetails, {inbound, Fixedhist}}
 					end,
 					dets:insert(?DETS, Newrow),
 					Newrow;
@@ -437,7 +437,7 @@ prune_dets_medias() ->
 				Newhistory = History ++ [{ended, util:now()}],
 				Newrow = setelement(5, Row, {Direction, Newhistory}),
 				dets:insert(?DETS, Newrow);
-			Mpid ->
+			_Mpid ->
 				case {Manager:get_media(Id), Age > Day} of
 					{none, true} ->
 						dets:delete_object(?DETS, Row);

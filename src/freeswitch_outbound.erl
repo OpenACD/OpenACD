@@ -76,7 +76,7 @@
 	xferchannel :: pid(),
 	xferuuid :: string(),
 	voicemail = false :: 'false' | string(),
-	gateway :: string()
+	dialstring :: string()
 	}).
 
 -type(state() :: #state{}).
@@ -87,13 +87,13 @@
 %% API
 %%====================================================================
 
--spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), Gateway :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
-start(Fnode, AgentRec, Apid, Number, Gateway, Ringout) when is_pid(Apid) ->
-	gen_media:start(?MODULE, [Fnode, AgentRec, Apid, Number, Gateway, Ringout]).
+-spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), DialString :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
+start(Fnode, AgentRec, Apid, Number, DialString, Ringout) when is_pid(Apid) ->
+	gen_media:start(?MODULE, [Fnode, AgentRec, Apid, Number, DialString, Ringout]).
 
--spec(start_link/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), Gateway :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
-start_link(Fnode, AgentRec, Apid, Number, Gateway, Ringout) when is_pid(Apid) ->
-	gen_media:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, Gateway, Ringout]).
+-spec(start_link/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), DialString :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
+start_link(Fnode, AgentRec, Apid, Number, DialString, Ringout) when is_pid(Apid) ->
+	gen_media:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, DialString, Ringout]).
 
 -spec(hangup/1 :: (Pid :: pid()) -> 'ok').
 hangup(Pid) ->
@@ -103,11 +103,11 @@ hangup(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Client, Gateway, _Ringout]) ->
+init([Fnode, AgentRec, Apid, Client, DialString, _Ringout]) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Call = #call{id=UUID, source=self(), type=voice, direction=outbound, client = Client, priority = 10},
-			{ok, {#state{cnode = Fnode, agent_pid = Apid, gateway = Gateway, agent = AgentRec#agent.login}, Call, {precall, [Client]}}};
+			{ok, {#state{cnode = Fnode, agent_pid = Apid, dialstring = DialString, agent = AgentRec#agent.login}, Call, {precall, [Client]}}};
 		Else ->
 			?ERROR("create_uuid failed: ~p", [Else]),
 			{stop, {error, Else}}
@@ -249,7 +249,7 @@ handle_wrapup(_Call, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, gateway = Gateway, agent_pid = Apid} = State) ->
+handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = DialString, agent_pid = Apid} = State) ->
 	?NOTICE("I'm supposed to dial ~p", [Number]),
 	Self = self(),
 	F = fun(RingUUID) ->
@@ -264,8 +264,7 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, gateway = Gateway
 					freeswitch:sendmsg(Fnode, RingUUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "bridge"},
-							{"execute-app-arg", lists:flatten(io_lib:format("[ignore_early_media=true,origination_uuid=~s,~s]sofia/gateway/~s/~s",
-										[Call#call.id, CalleridArgs, Gateway, Number]))}]),
+							{"execute-app-arg", freeswitch_media_manager:do_dial_string(DialString, Number, ["origination_uuid="++Call#call.id])}]),
 					Self ! {connect_uuid, Number};
 				(error, Reply) ->
 					?WARNING("originate failed: ~p", [Reply]),

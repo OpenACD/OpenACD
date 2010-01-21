@@ -47,7 +47,9 @@
 	stop/0,
 	stop_supped/0,
 	set_option/2,
-	get_media/1
+	get_media/1,
+	spawn_call/0,
+	spawn_call/1
 ]).
 
 %% gen_server callbacks
@@ -106,6 +108,15 @@ set_option(Key, Valu) ->
 -spec(get_media/1 :: (MediaKey :: pid() | string()) -> {string(), pid()} | 'none').
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
+
+-spec(spawn_call/0 :: () -> 'ok').
+spawn_call() ->
+	dummy_media_manager ! spawn_call,
+	ok.
+-spec(spawn_call/1 :: (Options :: [{atom(), any()}]) -> 'ok').
+spawn_call(Options) ->
+	dummy_media_manager ! {spawn_call, Options},
+	ok.
 
 %%====================================================================
 %% gen_server callbacks

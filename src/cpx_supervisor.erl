@@ -102,6 +102,7 @@
 	start_spec/1,
 	stop_spec/1,
 	restart/2,
+	restart_spec/1,
 	get_archive_path/1
 	]).
 %% General system settings
@@ -409,6 +410,19 @@ get_conf() ->
 		{atomic, Rec} ->
 			Rec
 	end.
+
+%% @doc restart the conf
+-spec(restart_spec/1 :: (Spec :: #cpx_conf{} | atom()) -> {'ok', pid()} | {'ok', pid(), any()} | {'error', any()}).
+restart_spec(Spec) when is_atom(Spec) ->
+	case get_conf(Spec) of
+		undefined ->
+			{error, noconf};
+		Conf ->
+			restart_spec(Conf)
+	end;
+restart_spec(Conf) when is_record(Conf, cpx_conf) ->
+	cpx_middle_supervisor:drop_child(Conf#cpx_conf.supervisor, Conf#cpx_conf.id),
+	cpx_middle_supervisor:add_with_middleman(Conf#cpx_conf.supervisor, 3, 5, Conf).
 
 %% @private
 -spec(start_spec/1 :: (Spec :: #cpx_conf{}) -> {'ok', pid()} | {'ok', pid(), any()} | {'error', any()}).

@@ -289,7 +289,12 @@ is_running(Specid) ->
 is_running([], _Specid) ->
 	stopped;
 is_running([Head | _Tail], Specid) when element(1, Head) == Specid ->
-	element(2, Head);
+	case element(2, Head) of
+		undefined ->
+			stopped;
+		Pid ->
+			Pid
+	end;
 is_running([_ | Tail], Specid) ->
 	is_running(Tail, Specid).
 

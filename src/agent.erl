@@ -564,8 +564,8 @@ oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcal
 			{reply, invalid, oncall, State}
 	end;
 oncall({warmtransfer, Transferto}, _From, State) ->
-	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
 	Newstate = State#agent{state=warmtransfer, oldstate=State#agent.state, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchange = util:now()},
+	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Newstate#agent.statedata}),
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};
 oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->

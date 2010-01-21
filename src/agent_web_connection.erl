@@ -59,7 +59,8 @@
 	set_salt/2,
 	poll/2,
 	keep_alive/1,
-	mediaload/1
+	mediaload/1,
+	dump_state/1
 ]).
 
 %% gen_server callbacks
@@ -140,6 +141,9 @@ keep_alive(Pid) ->
 -spec(mediaload/1 :: (Conn :: pid()) -> [{any(), any()}] | 'undefined').
 mediaload(Conn) ->
 	gen_server:call(Conn, mediaload).
+
+dump_state(Conn) ->
+	gen_server:call(Conn, dump_state).
 
 %% @doc Encode the given data into a structure suitable for mochijson2:encode
 -spec(encode_statedata/1 :: 
@@ -811,6 +815,8 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} =
 	end;
 handle_call(mediaload, _From, State) ->
 	{reply, State#state.mediaload, State};
+handle_call(dump_state, _From, State) ->
+	{reply, State, State};
 handle_call(Allothers, _From, State) ->
 	?DEBUG("unknown call ~p", [Allothers]),
 	{reply, {404, [], <<"unknown_call">>}, State}.

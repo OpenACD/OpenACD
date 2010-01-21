@@ -313,7 +313,7 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 								undefined ->
 									["origination_privacy=hide_namehide_number"];
 								CalleridNum ->
-									["effective_caller_id_name="++Client#client.label, "effective_caller_id_name="++CalleridNum]
+									["origination_caller_id_name='"++Client#client.label++"'", "origination_caller_id_number='"++binary_to_list(CalleridNum)++"'"]
 							end,
 							freeswitch:sendmsg(Node, RingUUID,
 								[{"call-command", "execute"},
@@ -377,11 +377,12 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 				undefined ->
 					["origination_privacy=hide_namehide_number"];
 				CalleridNum ->
-					["effective_caller_id_name="++Client#client.label, "effective_caller_id_name="++CalleridNum]
+					["origination_caller_id_name=\\\\'"++Client#client.label++"\\\\'", "origination_caller_id_number=\\\\'"++binary_to_list(CalleridNum)++"\\\\'"]
 			end,
 
 			freeswitch:bgapi(State#state.cnode, uuid_transfer,
-				freeswitch_ring:get_uuid(State#state.ringchannel) ++ " 'bridge:"++ freeswitch_media_manager:do_dial_string(State#state.dialstring, Number, ["origination_uuid="++NewUUID | CalleridArgs]) ++ "' inline"),
+				freeswitch_ring:get_uuid(State#state.ringchannel) ++ " 'bridge:"++ re:replace(freeswitch_media_manager:do_dial_string(State#state.dialstring, Number, ["origination_uuid="++NewUUID | CalleridArgs]), ",", "\\\\,", [{return, list}, global]) ++ "' inline"),
+
 			% play musique d'attente 
 			freeswitch:sendmsg(Node, Call#call.id,
 				[{"call-command", "execute"},

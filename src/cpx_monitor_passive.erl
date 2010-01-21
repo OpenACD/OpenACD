@@ -1034,7 +1034,7 @@ cache_event_test_() ->
 	fun() ->
 		dets:open_file(?DETS, [])
 	end,
-	fun() ->
+	fun(_) ->
 		{foreach,
 		fun() ->
 			dets:delete_all_objects(?DETS)

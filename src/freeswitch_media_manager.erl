@@ -207,13 +207,15 @@ get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
 
 -spec(do_dial_string/3 :: (DialString :: string(), Destination :: string(), Options :: [string()]) -> string()).
+do_dial_string(DialString, Destination, []) ->
+	re:replace(DialString, "\\$1", Destination, [{return, list}]);
 do_dial_string([${ | _] = DialString, Destination, Options) ->
 	% Dialstring begins with a {} block.
-	D1 = re:replace(DialString, "$1", Destination, [{return, list}]),
-	re:replace(D1, "^{", "{" ++ string:join(Options, ","), [{return, list}]);
+	D1 = re:replace(DialString, "\\$1", Destination, [{return, list}]),
+	re:replace(D1, "^{", "{" ++ string:join(Options, ",") ++ ",", [{return, list}]);
 do_dial_string(DialString, Destination, Options) ->
-	D1 = re:replace(DialString, "$1", Destination, [{return, list}]),
-	"{" ++ string:join(Options, ",") ++ D1.
+	D1 = re:replace(DialString, "\\$1", Destination, [{return, list}]),
+	"{" ++ string:join(Options, ",") ++ "}" ++ D1.
 
 %%====================================================================
 %% gen_server callbacks

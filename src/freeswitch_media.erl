@@ -375,9 +375,9 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 
 			CalleridArgs = case proplists:get_value(<<"callerid">>, Client#client.options) of
 				undefined ->
-					"origination_privacy=hide_namehide_number";
+					["origination_privacy=hide_namehide_number"];
 				CalleridNum ->
-					"effective_caller_id_name="++Client#client.label++",effective_caller_id_name="++CalleridNum
+					["effective_caller_id_name="++Client#client.label, "effective_caller_id_name="++CalleridNum]
 			end,
 
 			freeswitch:bgapi(State#state.cnode, uuid_transfer,

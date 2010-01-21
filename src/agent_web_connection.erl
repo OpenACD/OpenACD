@@ -468,7 +468,6 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 			cpx_monitor:subscribe(),
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"subscribed">>}]})}, State};
 		["start_problem_recording", Agentname, Clientid] ->
-			%% TODO given the agent name and clientid, do a problem.wave record for the client id
 			AgentRec = agent:dump_state(State#state.agent_fsm),
 			case whereis(freeswitch_media_manager) of
 				P when is_pid(P) ->

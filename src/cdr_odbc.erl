@@ -29,8 +29,6 @@
 
 %% @doc Dump CDRs to ODBC
 
-% TODO slashify all potentially problomatic strings.
-
 -module(cdr_odbc).
 -author(micahw).
 -behavior(gen_cdr_dumper).
@@ -54,9 +52,7 @@
 
 -record(state, {
 		dsn :: string(),
-		ref :: any(),
-		summary_table :: any(), % TODO Are these actually used?
-		transaction_table :: any()
+		ref :: any()
 }).
 
 -type(state() :: #state{}).
@@ -119,32 +115,16 @@ dump(Agentstate, State) when is_record(Agentstate, agent_state) ->
 dump(CDR, State) when is_record(CDR, cdr_rec) ->
 	Media = CDR#cdr_rec.media,
 	Client = Media#call.client,
-	{InQueue, Oncall, Wrapup, Agent, Queue} = lists:foldl(
-		fun({oncall, {Time, [{Agent,_}]}}, {Q, C, W, _A, Qu}) ->
-				{Q, C + Time, W, Agent, Qu};
-			({inqueue, {Time, [{Queue, _}]}}, {Q, C, W, A, _Qu}) ->
-				{Q + Time, C, W, A, Queue};
-			({wrapup, {Time, _}}, {Q, C, W, A, Qu}) ->
-				{Q, C, W + Time, A, Qu};
-			(_, {Q, C, W, A, Qu}) ->
-				{Q, C, W, A, Qu}
-		end, {0, 0, 0, undefined, ""}, CDR#cdr_rec.summary),
+	{InQueue, Oncall, Wrapup, Agent, Queue} = calculate_times(CDR#cdr_rec.summary),
 
 	T = lists:sort(fun(#cdr_raw{start = Start1, ended = End1}, #cdr_raw{start =
 					Start2, ended = End2}) ->
 				Start1 =< Start2 andalso End1 =< End2
 		end, CDR#cdr_rec.transactions),
 
-	Type = case {Media#call.type, Media#call.direction} of
-		{voice, inbound} -> "call";
-		{voice, outbound} -> "outgoing";
-		{IType, _ } -> atom_to_list(IType)
-	end,
+	Type = calculate_type(Media),
 
-	LastState = lists:foldl(
-		fun(#cdr_raw{transaction = T2}, _Acc) when T2 == abandonqueue; T2 == abandonivr; T2 == voicemail -> T2;
-		(_, Acc) -> Acc
-	end, hangup, T),
+	LastState = calculate_last_transaction(T),
 
 	DNIS = lists:foldl(
 		fun(#cdr_raw{transaction = T2, eventdata = E}, _Acc) when T2 == inivr -> E;
@@ -165,7 +145,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 					cdr_transaction_to_integer(Tfun),
 					Transaction#cdr_raw.start,
 					Transaction#cdr_raw.start,
-					get_transaction_data(Transaction, CDR)]),
+					add_slashes(get_transaction_data(Transaction, CDR), "'")]),
 			odbc:sql_query(State#state.ref, lists:flatten(Q));
 			(#cdr_raw{transaction = Tfun} = Transaction) ->
 				case cdr_transaction_to_integer(Tfun) of
@@ -177,7 +157,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 								TID,
 								Transaction#cdr_raw.start,
 								Transaction#cdr_raw.ended,
-								get_transaction_data(Transaction, CDR)]),
+								add_slashes(get_transaction_data(Transaction, CDR), "'")]),
 						odbc:sql_query(State#state.ref, lists:flatten(Q))
 				end
 	end,
@@ -199,7 +179,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 	end,
 
 	Query = io_lib:format("INSERT INTO billing_summaries set UniqueID='~s',
-		TenantID=~B, BrandID=~B, Start=~B, End=~b, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~B', LastQueue='~s', LastState=~B, DNIS='~s';", [
+		TenantID=~B, BrandID=~B, Start=~B, End=~B, InQueue=~B, InCall=~B, Wrapup=~B, CallType='~s', AgentID='~B', LastQueue='~s', LastState=~B, DNIS='~s';", [
 		Media#call.id,
 		Tenantid,
 		Brandid,
@@ -210,7 +190,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		Wrapup,
 		Type,
 		AgentID,
-		Queue,
+		add_slashes(Queue, "'"),
 		cdr_transaction_to_integer(LastState),
 		DNIS
 	]),
@@ -229,7 +209,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 				Brandid,
 				string_or_null(DNIS),
 				Type,
-				element(2, Media#call.callerid),
+				add_slashes(element(2, Media#call.callerid), "'"),
 				add_slashes(element(1, Media#call.callerid), "'"),
 				string_or_null(Dialednum)
 			]),
@@ -334,3 +314,30 @@ string_or_null(undefined) ->
 	"NULL";
 string_or_null(String) ->
 	lists:flatten([$', String, $']).
+
+calculate_times(Summary) ->
+	lists:foldl(
+		fun({oncall, {Time, [{Agent,_}]}}, {Q, C, W, _A, Qu}) ->
+				{Q, C + Time, W, Agent, Qu};
+			({inqueue, {Time, [{Queue, _}]}}, {Q, C, W, A, _Qu}) ->
+				{Q + Time, C, W, A, Queue};
+			({wrapup, {Time, _}}, {Q, C, W, A, Qu}) ->
+				{Q, C, W + Time, A, Qu};
+			(_, {Q, C, W, A, Qu}) ->
+				{Q, C, W, A, Qu}
+		end, {0, 0, 0, undefined, ""}, Summary).
+
+calculate_type(Media) ->
+	case {Media#call.type, Media#call.direction} of
+		{voice, inbound} -> "call";
+		{voice, outbound} -> "outgoing";
+		{IType, _ } -> atom_to_list(IType)
+	end.
+
+calculate_last_transaction(Transactions) ->
+	lists:foldl(
+		fun(#cdr_raw{transaction = T2}, _Acc) when T2 == abandonqueue; T2 == abandonivr; T2 == voicemail -> T2;
+			(_, Acc) -> Acc
+		end, hangup, Transactions).
+
+% TODO - write some tests for the functions not directly using ODBC

@@ -329,21 +329,21 @@ cache_event({drop, {agent, _Id} = Key}) ->
 	{Key, none};
 cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 	case dets:lookup(?DETS, Key) of
-		[{Key, Time, _Hp, Details, {inbound, History}}] ->
+		[{Key, Time, _Hp, Details, {Direction, History}}] ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails), History} of
 				{undefined, undefined, []} ->
 					% just update the hp and details.
-					Newrow = {Key, Time, EventHp, EventDetails, {inbound, [{ivr, EventTime}]}},
+					Newrow = {Key, Time, EventHp, EventDetails, {Direction, [{ivr, EventTime}]}},
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, undefined, _List} ->
 					% either death in ivr or queue, can be figured out later.
 					% let the drop handle the ended time.
-					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History}},
+					Newrow = {Key, Time, EventHp, EventDetails, {Direction, History}},
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, _Agent, List} when length(List) > 0, length(List) < 3 ->
-					Newrow = {Key, Time, EventHp, EventDetails, {inbound, History ++ [{handled, EventTime}]}},
+					Newrow = {Key, Time, EventHp, EventDetails, {Direction, History ++ [{handled, EventTime}]}},
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{Queue, undefined, Hlist} ->
@@ -356,9 +356,9 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 									Etime
 							end,
 							Fixedhist = Priorhistory ++ [{queued, Queuedat}],
-							{Key, Time, EventHp, EventDetails, {inbound, Fixedhist}};
+							{Key, Time, EventHp, EventDetails, {Direction, Fixedhist}};
 						{undefined, _} ->
-							{Key, Time, EventHp, EventDetails, {inbound, Hlist ++ [{queued, EventTime}]}};
+							{Key, Time, EventHp, EventDetails, {Direction, Hlist ++ [{queued, EventTime}]}};
 						{_Oldqueue, _} ->
 							Queuedat = case proplists:get_value(queued_at, EventDetails) of
 								undefined ->
@@ -367,7 +367,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 									Etime
 							end,
 							Fixedhist = Hlist ++ [{queued, Queuedat}],
-							{Key, Time, EventHp, EventDetails, {inbound, Fixedhist}}
+							{Key, Time, EventHp, EventDetails, {Direction, Fixedhist}}
 					end,
 					dets:insert(?DETS, Newrow),
 					Newrow;
@@ -383,7 +383,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 		[] ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(direction, EventDetails)} of
 				{undefined, outbound} ->
-					Newrow = {Key, EventTime, EventHp, EventDetails, outbound},
+					Newrow = {Key, EventTime, EventHp, EventDetails, {outbound, [{start, EventTime}]}},
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, inbound} ->
@@ -586,7 +586,7 @@ get_client_medias(Filter, Client) ->
 		begin Testc = proplists:get_value(client, Details), Testc#client.label == Client end,
 		proplists:get_value(agent, Details) == undefined,
 		case History of
-			{inbound, HistoryList} ->
+			{_Direction, HistoryList} ->
 				proplists:get_value(ended, HistoryList) == undefined;
 			_Else ->
 				true
@@ -850,12 +850,13 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTi
 			CurTime
 	end,
 	Eventtimes = case HistoricalKey of
-		{inbound, Events} ->
+		{_Direction, Events} ->
 			Events;
 		_ ->
 			[]
 	end,
 	{Newin, Newout, Newabn, DidAbandon} = case HistoricalKey of
+		% TODO determine how an outbound call should effect this.
 		{'inbound', Abandoned} ->
 			case is_abandon(Abandoned) of
 				true ->
@@ -863,8 +864,8 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, HistoricalKey} | Tail], {CurTi
 				false ->
 					{In + 1, Out, Abn, false}
 			end;
-		outbound ->
-			{In, Out + 1, Abn};
+%		outbound ->
+%			{In, Out + 1, Abn};
 		_ ->
 			{In, Out, Abn}
 	end,
@@ -1094,9 +1095,9 @@ cache_event_test_() ->
 		end},
 		{"setting a new outbound media", 
 		fun() ->
-			cache_event({set, {{media, "media"}, [], [{direction, outbound}], util:now()}}),
+			cache_event({set, {{media, "media"}, [], [{direction, outbound}], 120}}),
 			[Obj] = dets:lookup(?DETS, {media, "media"}),
-			?assertMatch(outbound, element(5, Obj))
+			?assertMatch({outbound, [{start, 120}]}, element(5, Obj))
 		end},
 		{"setting existing media with no agent, no queue, no history",
 		fun() ->

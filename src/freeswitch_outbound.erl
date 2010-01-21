@@ -264,7 +264,7 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = Dial
 					freeswitch:sendmsg(Fnode, RingUUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "bridge"},
-							{"execute-app-arg", freeswitch_media_manager:do_dial_string(DialString, Number, ["origination_uuid="++Call#call.id])}]),
+							{"execute-app-arg", freeswitch_media_manager:do_dial_string(DialString, Number, ["origination_uuid="++Call#call.id])} | CalleridArgs]),
 					Self ! {connect_uuid, Number};
 				(error, Reply) ->
 					?WARNING("originate failed: ~p", [Reply]),
@@ -347,7 +347,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 			?DEBUG("call_event ~p", [Event]),
 			{noreply, State}
 	end;
-handle_info(call_hangup, Call, State) ->
+handle_info(call_hangup, _Call, State) ->
 	?DEBUG("Call hangup info", []),
 	catch freeswitch_ring:hangup(State#state.ringchannel),
 	{stop, normal, State};

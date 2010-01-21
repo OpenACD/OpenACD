@@ -185,7 +185,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 			ok;
 		Path ->
 			?DEBUG("resuming recording", []),
-			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start " ++ State#state.record_path)
+			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start " ++ Path)
 	end,
 	agent:conn_cast(Apid, {mediaload, Callrec}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
@@ -306,7 +306,6 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 	case freeswitch:api(Node, create_uuid) of
 		{ok, NewUUID} ->
 			?NOTICE("warmxfer UUID is ~p", [NewUUID]),
-			Self = self(),
 			F = fun(RingUUID) ->
 					fun(ok, _Reply) ->
 							Client = Call#call.client,
@@ -335,8 +334,8 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 									ok;
 								Path ->
 									?DEBUG("switching to recording the 3rd party leg", []),
-									freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ State#state.record_path),
-									freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ State#state.record_path)
+									freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ Path),
+									freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ Path)
 							end;
 						_ ->
 							ok
@@ -368,8 +367,8 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 					ok;
 				Path ->
 					?DEBUG("switching to recording the 3rd party leg", []),
-					freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ State#state.record_path),
-					freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ State#state.record_path)
+					freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ Path),
+					freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ Path)
 			end,
 
 			freeswitch:bgapi(State#state.cnode, uuid_transfer,
@@ -397,18 +396,17 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 			ok;
 		Path ->
 			?DEBUG("switching back to recording the original leg", []),
-			freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ State#state.record_path),
-			freeswitch:api(Node, uuid_record, Call#call.id ++ " start " ++ State#state.record_path)
+			freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ Path),
+			freeswitch:api(Node, uuid_record, Call#call.id ++ " start " ++ Path)
 	end,
 
 	freeswitch:sendmsg(State#state.cnode, RUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
 	{ok, State#state{warm_transfer_uuid = undefined}};
-handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, ringchannel = Ring, agent_pid = AgentPid} = State) when is_list(WUUID) ->
+handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, agent_pid = AgentPid} = State) when is_list(WUUID) ->
 	case freeswitch:api(Node, create_uuid) of
 		{ok, NewUUID} ->
 			?NOTICE("warmxfer UUID is ~p", [NewUUID]),
-			Self = self(),
 			F = fun(RingUUID) ->
 					fun(ok, _Reply) ->
 							case State#state.record_path of
@@ -416,8 +414,8 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 									ok;
 								Path ->
 									?DEBUG("switching back to recording the original leg", []),
-									freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ State#state.record_path),
-									freeswitch:api(Node, uuid_record, Call#call.id ++ " start " ++ State#state.record_path)
+									freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ Path),
+									freeswitch:api(Node, uuid_record, Call#call.id ++ " start " ++ Path)
 							end,
 							freeswitch:api(Node, uuid_bridge, RingUUID++" "++Call#call.id);
 						(error, Reply) ->
@@ -450,7 +448,7 @@ handle_warm_transfer_complete(Call, #state{warm_transfer_uuid = WUUID, cnode = N
 			ok;
 		Path ->
 			?DEBUG("stopping recording due to warm transfer complete", []),
-			freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ State#state.record_path)
+			freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ Path)
 	end,
 
 	freeswitch:sendmsg(State#state.cnode, WUUID,

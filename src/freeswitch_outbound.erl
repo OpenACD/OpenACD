@@ -257,14 +257,14 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = Dial
 					Client = Call#call.client,
 					CalleridArgs = case proplists:get_value(<<"callerid">>, Client#client.options) of
 						undefined ->
-							"origination_privacy=hide_namehide_number";
+							["origination_privacy=hide_namehide_number"];
 						CalleridNum ->
-							"effective_caller_id_name="++Client#client.label++",effective_caller_id_name="++CalleridNum
+							["effective_caller_id_name="++Client#client.label, "effective_caller_id_name="++CalleridNum]
 					end,
 					freeswitch:sendmsg(Fnode, RingUUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "bridge"},
-							{"execute-app-arg", freeswitch_media_manager:do_dial_string(DialString, Number, ["origination_uuid="++Call#call.id])} | CalleridArgs]),
+							{"execute-app-arg", freeswitch_media_manager:do_dial_string(DialString, Number, ["origination_uuid="++Call#call.id | CalleridArgs])}]),
 					Self ! {connect_uuid, Number};
 				(error, Reply) ->
 					?WARNING("originate failed: ~p", [Reply]),
@@ -369,10 +369,10 @@ handle_info({connect_uuid, Number}, #call{id = UUID} = Call, #state{cnode = Fnod
 	case Gethandle(Gethandle, 0) of
 		{error, badsession} ->
 			?ERROR("bad uuid ~p", [UUID]),
-			{stop, {error, session}};
+			{stop, {error, session}, State};
 		{error, Other} ->
 			?ERROR("other error starting; ~p", [Other]),
-			{stop, {error, Other}};
+			{stop, {error, Other}, State};
 		_Else ->
 			?NOTICE("starting for ~p", [UUID]),
 			Client = Call#call.client,

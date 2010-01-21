@@ -1047,7 +1047,7 @@ api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
 			Args = [list_to_atom(proplists:get_value("cnode", Post)), [
-				{voicegateway, proplists:get_value("voicegw", Post, "")}]],
+				{dialstring, proplists:get_value("dialstring", Post, "")}]],
 			Conf = #cpx_conf{
 				id = freeswitch_media_manager,
 				module_name = freeswitch_media_manager,
@@ -1069,9 +1069,9 @@ api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 		Rec when is_record(Rec, cpx_conf) ->
 			[Cnode, [Head | _Tail] = Args] = Rec#cpx_conf.start_args,
 			?DEBUG("Args: ~p", [Args]),
-			{_Domain, Voicegw} = case Head of
+			{_Domain, DialString} = case Head of
 				X when is_tuple(X) ->
-					{proplists:get_value(domain, Args, ""), proplists:get_value(voicegateway, Args, "")};
+					{proplists:get_value(domain, Args, ""), proplists:get_value(dialstring, Args, "")};
 				X ->
 					{X, ""}
 			end,
@@ -1079,7 +1079,7 @@ api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 				{success, true},
 				{<<"enabled">>, true},
 				{<<"cnode">>, list_to_binary(atom_to_list(Cnode))},
-				{<<"voicegw">>, list_to_binary(Voicegw)}
+				{<<"dialstring">>, list_to_binary(DialString)}
 			]},
 			{200, [], mochijson2:encode(Json)}
 	end;

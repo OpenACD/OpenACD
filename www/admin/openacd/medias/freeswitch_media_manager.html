@@ -1,27 +1,42 @@
 <form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
-<p>
+	<p>
 	<label for="mediaEnabled">&nbsp;</label>
 	<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" />
 	<span id="lFREESWITCHENABLED">FREESWITCHENABLED</span>
-</p>
+	</p>
 
-<p>
+	<p>
 	<label for="cnode" id="lCNODE">CNODE:</label>
 	<input dojoType="dijit.form.TextBox" name="cnode" id="cnode" />
-</p>
+	</p>
 
-<p>
-	<label for="voicegw" id="lVOICEGATEWAY">VOICEGATEWAY:</label>
-	<input dojoType="dijit.form.TextBox" name="voicegw" id="voicegw" />
-</p>
+	<p>
+	<label for="voicegw" id="lDIALSTRING">DIALSTRING:</label>
+	<input dojoType="dijit.form.TextBox" name="dialstring" id="dialstring" />
+	</p>
 
-<p>
+	<div dojoType="dijit.Tooltip" connectId="dialstring" position="below">
+		This should be a valid FreeSWITCH &trade; dialstring.
+		Examples can be found at <a href="http://wiki.freeswitch.org/wiki/Freeswitch_IVR_Originate">the FreeSWITCH&trade; wiki</a>.
+		$1 is replaced by the number to be dialed, you probably want to ignore early media.<br/>
+		Some simple examples:
+		<ul>
+			<li>Dial by gateway: <tt>{ignore_early_media=true}sofia/gateway/example.com/$1</tt></li>
+			<li>Dial by profile <tt>{ignore_early_media=true}sofia/mydomain.com/$1</tt></li>
+			<li>Forked dial: <tt>{ignore_early_media=true}sofia/gateway/example.com/$1,sofia/gateway/otherexample.com/$1</tt></li>
+			<li>Failover dial: <tt>{ignore_early_media=true}sofia/gateway/example.com/$1|sofia/gateway/otherexample.com/$1</tt></li>
+			<li>OpenZap dial: <tt>{ignore_early_media}openzap/1/a/$1</tt></li>
+		</ul>
+		Please read the relevant documentation to determine what your dial string should be. This dialstring is used whenever an 'external' number has to be called - outbound calls, warm transfers, agents on a PSTN line, etc.
+	</div>
+
+	<p>
 	<label for="mediaSubmit">&nbsp;</label>
 	<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">
 		<script type="dojo/method" event="postCreate">
 			dojo.byId("lFREESWITCHENABLED").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").FREESWITCHENABLED;
 			dojo.byId("lCNODE").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").CNODE + ":";
-			dojo.byId("lVOICEGATEWAY").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").VOICEGATEWAY + ":";
+			dojo.byId("lDIALSTRING").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").DIALSTRING + ":";
 			this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 		</script>
 	</button>

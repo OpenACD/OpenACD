@@ -76,7 +76,7 @@
 	xferchannel :: pid(),
 	xferuuid :: string(),
 	voicemail = false :: 'false' | string(),
-	gateway :: string()
+	dialstring :: string()
 	}).
 
 -type(state() :: #state{}).
@@ -87,13 +87,13 @@
 %% API
 %%====================================================================
 
--spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), Gateway :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
-start(Fnode, AgentRec, Apid, Number, Gateway, Ringout) when is_pid(Apid) ->
-	gen_media:start(?MODULE, [Fnode, AgentRec, Apid, Number, Gateway, Ringout]).
+-spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), DialString :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
+start(Fnode, AgentRec, Apid, Number, DialString, Ringout) when is_pid(Apid) ->
+	gen_media:start(?MODULE, [Fnode, AgentRec, Apid, Number, DialString, Ringout]).
 
--spec(start_link/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), Gateway :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
-start_link(Fnode, AgentRec, Apid, Number, Gateway, Ringout) when is_pid(Apid) ->
-	gen_media:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, Gateway, Ringout]).
+-spec(start_link/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), DialString :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
+start_link(Fnode, AgentRec, Apid, Number, DialString, Ringout) when is_pid(Apid) ->
+	gen_media:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, DialString, Ringout]).
 
 -spec(hangup/1 :: (Pid :: pid()) -> 'ok').
 hangup(Pid) ->
@@ -103,11 +103,11 @@ hangup(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Client, Gateway, _Ringout]) ->
+init([Fnode, AgentRec, Apid, Client, DialString, _Ringout]) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Call = #call{id=UUID, source=self(), type=voice, direction=outbound, client = Client, priority = 10},
-			{ok, {#state{cnode = Fnode, agent_pid = Apid, gateway = Gateway, agent = AgentRec#agent.login}, Call, {precall, [Client]}}};
+			{ok, {#state{cnode = Fnode, agent_pid = Apid, dialstring = DialString, agent = AgentRec#agent.login}, Call, {precall, [Client]}}};
 		Else ->
 			?ERROR("create_uuid failed: ~p", [Else]),
 			{stop, {error, Else}}
@@ -249,7 +249,7 @@ handle_wrapup(_Call, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, gateway = Gateway, agent_pid = Apid} = State) ->
+handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = DialString, agent_pid = Apid} = State) ->
 	?NOTICE("I'm supposed to dial ~p", [Number]),
 	Self = self(),
 	F = fun(RingUUID) ->
@@ -257,15 +257,14 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, gateway = Gateway
 					Client = Call#call.client,
 					CalleridArgs = case proplists:get_value(<<"callerid">>, Client#client.options) of
 						undefined ->
-							"origination_privacy=hide_namehide_number";
+							["origination_privacy=hide_namehide_number"];
 						CalleridNum ->
-							"effective_caller_id_name="++Client#client.label++",effective_caller_id_name="++CalleridNum
+							["effective_caller_id_name="++Client#client.label, "effective_caller_id_name="++CalleridNum]
 					end,
 					freeswitch:sendmsg(Fnode, RingUUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "bridge"},
-							{"execute-app-arg", lists:flatten(io_lib:format("[ignore_early_media=true,origination_uuid=~s,~s]sofia/gateway/~s/~s",
-										[Call#call.id, CalleridArgs, Gateway, Number]))}]),
+							{"execute-app-arg", freeswitch_media_manager:do_dial_string(DialString, Number, ["origination_uuid="++Call#call.id | CalleridArgs])}]),
 					Self ! {connect_uuid, Number};
 				(error, Reply) ->
 					?WARNING("originate failed: ~p", [Reply]),
@@ -348,7 +347,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 			?DEBUG("call_event ~p", [Event]),
 			{noreply, State}
 	end;
-handle_info(call_hangup, Call, State) ->
+handle_info(call_hangup, _Call, State) ->
 	?DEBUG("Call hangup info", []),
 	catch freeswitch_ring:hangup(State#state.ringchannel),
 	{stop, normal, State};
@@ -370,10 +369,10 @@ handle_info({connect_uuid, Number}, #call{id = UUID} = Call, #state{cnode = Fnod
 	case Gethandle(Gethandle, 0) of
 		{error, badsession} ->
 			?ERROR("bad uuid ~p", [UUID]),
-			{stop, {error, session}};
+			{stop, {error, session}, State};
 		{error, Other} ->
 			?ERROR("other error starting; ~p", [Other]),
-			{stop, {error, Other}};
+			{stop, {error, Other}, State};
 		_Else ->
 			?NOTICE("starting for ~p", [UUID]),
 			Client = Call#call.client,

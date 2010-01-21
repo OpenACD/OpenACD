@@ -268,7 +268,6 @@ start_handler(Node, Type, Module, Function, State) ->
 		{foo, Node} ! Type,
 		receive
 			ok ->
-				io:format("OK!!!!!!!~n"),
 				Self ! {Type, {ok, self()}},
 				apply(Module, Function, [Node, State]);
 			{error,Reason} ->

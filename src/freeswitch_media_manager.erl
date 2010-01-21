@@ -110,7 +110,8 @@
 	fetch_domain_user/2,
 	new_voicemail/5,
 	ring_agent/4,
-	get_media/1
+	get_media/1,
+	do_dial_string/3
 ]).
 
 %% gen_server callbacks
@@ -121,7 +122,8 @@
 	nodename :: atom(),
 	freeswitch_up = false :: boolean(),
 	call_dict = dict:new() :: dict(),
-	voicegateway = "" :: string(),
+	dialstring = "" :: string(),
+	eventserver :: pid() | 'undefined',
 	xmlserver :: pid() | 'undefined'
 	}).
 
@@ -142,7 +144,7 @@
 %% and `[{atom(), term()] Options'.
 %% <ul>
 %% <li>`domain :: string()'</li>
-%% <li>`voicegateway :: string()'</li>
+%% <li>`dialstring :: string()'</li>
 %% </ul>
 -spec(start/2 :: (Nodename :: atom(), Options :: [any()]) -> {'ok', pid()}).
 start(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
@@ -159,7 +161,7 @@ start(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
 %% and `[{atom(), term()] Options'.
 %% <ul>
 %% <li>`domain :: string()'</li>
-%% <li>`voicegateway :: string()'</li>
+%% <li>`dialstring :: string()'</li>
 %% </ul>
 -spec(start_link/2 :: (Nodename :: atom(), Options :: [any()]) -> {'ok', pid()}).
 start_link(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
@@ -205,6 +207,17 @@ ring_agent(AgentPid, Arec, Call, Timeout) ->
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
 
+-spec(do_dial_string/3 :: (DialString :: string(), Destination :: string(), Options :: [string()]) -> string()).
+do_dial_string(DialString, Destination, []) ->
+	re:replace(DialString, "\\$1", Destination, [{return, list}]);
+do_dial_string([${ | _] = DialString, Destination, Options) ->
+	% Dialstring begins with a {} block.
+	D1 = re:replace(DialString, "\\$1", Destination, [{return, list}]),
+	re:replace(D1, "^{", "{" ++ string:join(Options, ",") ++ ",", [{return, list}]);
+do_dial_string(DialString, Destination, Options) ->
+	D1 = re:replace(DialString, "\\$1", Destination, [{return, list}]),
+	"{" ++ string:join(Options, ",") ++ "}" ++ D1.
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -212,21 +225,27 @@ get_media(MediaKey) ->
 init([Nodename, Options]) -> 
 	?DEBUG("starting...", []),
 	process_flag(trap_exit, true),
-	Lpid = start_listener(Nodename),
-	Voicegateway = proplists:get_value(voicegateway, Options, ""),
+	DialString = proplists:get_value(dialstring, Options, ""),
 	monitor_node(Nodename, true),
-	%{api, Nodename} ! register_event_handler,
-	freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
-	freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{voicegateway, Voicegateway}]),
-	{ok, #state{nodename=Nodename, voicegateway = Voicegateway, xmlserver = Lpid, freeswitch_up = true}}.
+	{Listenpid, DomainPid} = case net_adm:ping(Nodename) of
+		pong ->
+			Lpid = start_listener(Nodename),
+			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
+			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, DialString}]),
+			link(Pid),
+			{Lpid, Pid};
+		_ ->
+			{undefined, undefined}
+	end,
+	{ok, #state{nodename=Nodename, dialstring = DialString, eventserver = Listenpid, xmlserver = DomainPid, freeswitch_up = true}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
 
-handle_call({make_outbound_call, Client, AgentPid, AgentRec}, _From, #state{nodename = Node, voicegateway = Vgw, freeswitch_up = FS} = State) when FS == true ->
-	{ok, Pid} = freeswitch_outbound:start(Node, AgentRec, AgentPid, Client, Vgw, 30),
+handle_call({make_outbound_call, Client, AgentPid, AgentRec}, _From, #state{nodename = Node, dialstring = DS, freeswitch_up = FS} = State) when FS == true ->
+	{ok, Pid} = freeswitch_outbound:start(Node, AgentRec, AgentPid, Client, DS, 30),
 	link(Pid),
 	{reply, {ok, Pid}, State};
 handle_call({make_outbound_call, _Client, _AgentPid, _AgentRec}, _From, State) -> % freeswitch is down
@@ -335,7 +354,7 @@ handle_info({freeswitch_sendmsg, "inivr "++UUID}, #state{call_dict = Dict} = Sta
 		{ok, Pid} ->
 			Pid;
 		error ->
-			{ok, Pid} = freeswitch_media:start(State#state.nodename, UUID),
+			{ok, Pid} = freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID),
 			link(Pid)
 	end,
 	{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
@@ -345,12 +364,26 @@ handle_info({get_pid, UUID, Ref, From}, #state{call_dict = Dict} = State) ->
 			?NOTICE("pid for ~s already allocated", [UUID]),
 			Pid;
 		error ->
-			{ok, Pid} = freeswitch_media:start(State#state.nodename, UUID),
+			{ok, Pid} = freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID),
 			link(Pid)
 	end,
 	From ! {Ref, Pid},
 	{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
-handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) -> 
+handle_info({'EXIT', Pid, Reason}, #state{eventserver = Pid, nodename = Nodename, freeswitch_up = true} = State) ->
+	?NOTICE("listener pid exited unexpectedly: ~p", [Reason]),
+	Lpid = start_listener(Nodename),
+	freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
+	{noreply, State#state{eventserver = Lpid}};
+handle_info({'EXIT', Pid, Reason}, #state{xmlserver = Pid, nodename = Nodename, dialstring = DialString, freeswitch_up = true} = State) ->
+	?NOTICE("XML pid exited unexpectedly: ~p", [Reason]),
+	{ok, NPid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, DialString}]),
+	link(NPid),
+	{noreply, State#state{xmlserver = NPid}};
+handle_info({'EXIT', Pid, _Reason}, #state{eventserver = Pid} = State) ->
+	{noreply, State#state{eventserver = undefined}};
+handle_info({'EXIT', Pid, _Reason}, #state{xmlserver = Pid} = State) ->
+	{noreply, State#state{xmlserver = undefined}};
+handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	?NOTICE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
 	F = fun(Key, Value, Acc) -> 
 		case Value of
@@ -362,9 +395,16 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	end,
 	NewDict = dict:fold(F, dict:new(), Dict),
 	{noreply, State#state{call_dict = NewDict}};
-handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Lpid} = State) ->
+handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Pid, eventserver = Lpid} = State) ->
 	?WARNING("Freeswitch node ~p has gone down", [Nodename]),
-	exit(Lpid, kill),
+	case is_pid(Pid) of
+		true -> exit(Pid, kill);
+		_ -> ok
+	end,
+	case is_pid(Lpid) of
+		true -> exit(Lpid, kill);
+		_ -> ok
+	end,
 	timer:send_after(1000, freeswitch_ping),
 	{noreply, State#state{freeswitch_up = false}};
 handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
@@ -373,9 +413,10 @@ handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
 			?NOTICE("Freeswitch node ~p is back up", [Nodename]),
 			monitor_node(Nodename, true),
 			Lpid = start_listener(Nodename),
-			freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{voicegateway, State#state.voicegateway}]),
+			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, State#state.dialstring}]),
+			link(Pid),
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
-			{noreply, State#state{xmlserver = Lpid, freeswitch_up = true}};
+			{noreply, State#state{eventserver = Lpid, xmlserver = Pid, freeswitch_up = true}};
 		pang ->
 			timer:send_after(1000, freeswitch_ping),
 			{noreply, State}
@@ -405,7 +446,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% @private
 start_listener(Nodename) ->
 	Self = self(),
-	spawn(fun() -> 
+	spawn_link(fun() ->
 				{freeswitchnode, Nodename} ! register_event_handler,
 				receive
 					ok ->
@@ -467,8 +508,7 @@ fetch_domain_user(Node, State) ->
 										h323 ->
 											"opal/h323:"++Agent#agent.endpointdata;
 										pstn ->
-											% TODO - make the entire dialstring configurable, so openzap is also an option
-											"{ignore_early_media=true}sofia/gateway/" ++ proplists:get_value(voicegateway, State, "") ++ "/" ++ Agent#agent.endpointdata
+											freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State, ""), Agent#agent.endpointdata, [])
 									end,
 									?NOTICE("returning ~s for user directory entry ~s", [DialString, User]),
 									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, DialString]))})

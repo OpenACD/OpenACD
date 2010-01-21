@@ -61,8 +61,8 @@
 
 %% API
 -export([
-	start/2,
-	start_link/2,
+	start/3,
+	start_link/3,
 	get_call/1,
 	%get_queue/1,
 	%get_agent/1,
@@ -97,6 +97,7 @@
 	cook :: pid() | 'undefined',
 	queue :: string() | 'undefined',
 	cnode :: atom(),
+	dialstring :: string(),
 	agent :: string() | 'undefined',
 	agent_pid :: pid() | 'undefined',
 	ringchannel :: pid() | 'undefined',
@@ -129,13 +130,13 @@
 %start_link(Cnode) ->
 	%gen_media:start_link(?MODULE, [Cnode]).
 
--spec(start/2 :: (Cnode :: atom(), UUID :: string()) -> {'ok', pid()}).
-start(Cnode, UUID) ->
-	gen_media:start(?MODULE, [Cnode, UUID]).
+-spec(start/3 :: (Cnode :: atom(), DialString :: string(), UUID :: string()) -> {'ok', pid()}).
+start(Cnode, DialString, UUID) ->
+	gen_media:start(?MODULE, [Cnode, DialString, UUID]).
 
--spec(start_link/2 :: (Cnode :: atom(), UUID :: string()) -> {'ok', pid()}).
-start_link(Cnode, UUID) ->
-	gen_media:start_link(?MODULE, [Cnode, UUID]).
+-spec(start_link/3 :: (Cnode :: atom(), DialString :: string(), UUID :: string()) -> {'ok', pid()}).
+start_link(Cnode, DialString, UUID) ->
+	gen_media:start_link(?MODULE, [Cnode, DialString, UUID]).
 
 %% @doc returns the record of the call freeswitch media `MPid' is in charge of.
 -spec(get_call/1 :: (MPid :: pid()) -> #call{}).
@@ -158,12 +159,12 @@ dump_state(Mpid) when is_pid(Mpid) ->
 %% gen_media callbacks
 %%====================================================================
 %% @private
-init([Cnode, UUID]) ->
+init([Cnode, DialString, UUID]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
 	{DNIS, Client, Priority, CidName, CidNum} = get_info(Cnode, UUID),
 	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}},
-	{ok, {#state{cnode=Cnode, manager_pid = Manager}, Call, {inivr, [DNIS]}}}.
+	{ok, {#state{cnode=Cnode, manager_pid = Manager, dialstring = DialString}, Call, {inivr, [DNIS]}}}.
 
 -spec(handle_announce/3 :: (Announcement :: string(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_announce(Announcement, Callrec, State) ->
@@ -184,7 +185,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 			ok;
 		Path ->
 			?DEBUG("resuming recording", []),
-			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start " ++ State#state.record_path)
+			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start " ++ Path)
 	end,
 	agent:conn_cast(Apid, {mediaload, Callrec}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
@@ -305,22 +306,20 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 	case freeswitch:api(Node, create_uuid) of
 		{ok, NewUUID} ->
 			?NOTICE("warmxfer UUID is ~p", [NewUUID]),
-			Self = self(),
 			F = fun(RingUUID) ->
 					fun(ok, _Reply) ->
 							Client = Call#call.client,
 							CalleridArgs = case proplists:get_value(<<"callerid">>, Client#client.options) of
 								undefined ->
-									"origination_privacy=hide_namehide_number";
+									["origination_privacy=hide_namehide_number"];
 								CalleridNum ->
-									"effective_caller_id_name="++Client#client.label++",effective_caller_id_name="++CalleridNum
+									["effective_caller_id_name="++Client#client.label, "effective_caller_id_name="++CalleridNum]
 							end,
 							freeswitch:sendmsg(Node, RingUUID,
 								[{"call-command", "execute"},
 									{"execute-app-name", "bridge"},
 									{"execute-app-arg",
-										lists:flatten(io_lib:format("[ignore_early_media=true,origination_uuid=~s,~s]sofia/gateway/hebon.fusedsolutions.com/~s",
-												[NewUUID, CalleridArgs, Number]))}]);
+										freeswitch_media_manager:do_dial_string(State#state.dialstring, Number, CalleridArgs)}]);
 						(error, Reply) ->
 							?WARNING("originate failed: ~p", [Reply]),
 							ok
@@ -335,8 +334,8 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 									ok;
 								Path ->
 									?DEBUG("switching to recording the 3rd party leg", []),
-									freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ State#state.record_path),
-									freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ State#state.record_path)
+									freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ Path),
+									freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ Path)
 							end;
 						_ ->
 							ok
@@ -368,12 +367,21 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 					ok;
 				Path ->
 					?DEBUG("switching to recording the 3rd party leg", []),
-					freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ State#state.record_path),
-					freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ State#state.record_path)
+					freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ Path),
+					freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ Path)
+			end,
+
+			Client = Call#call.client,
+
+			CalleridArgs = case proplists:get_value(<<"callerid">>, Client#client.options) of
+				undefined ->
+					["origination_privacy=hide_namehide_number"];
+				CalleridNum ->
+					["effective_caller_id_name="++Client#client.label, "effective_caller_id_name="++CalleridNum]
 			end,
 
 			freeswitch:bgapi(State#state.cnode, uuid_transfer,
-				freeswitch_ring:get_uuid(State#state.ringchannel) ++ " 'bridge:{ignore_early_media=true\\,origination_uuid="++NewUUID++"}sofia/gateway/hebon.fusedsolutions.com/" ++ Number ++ "' inline"),
+				freeswitch_ring:get_uuid(State#state.ringchannel) ++ " 'bridge:"++ freeswitch_media_manager:do_dial_string(State#state.dialstring, Number, ["origination_uuid="++NewUUID | CalleridArgs]) ++ "' inline"),
 			% play musique d'attente 
 			freeswitch:sendmsg(Node, Call#call.id,
 				[{"call-command", "execute"},
@@ -397,18 +405,17 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 			ok;
 		Path ->
 			?DEBUG("switching back to recording the original leg", []),
-			freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ State#state.record_path),
-			freeswitch:api(Node, uuid_record, Call#call.id ++ " start " ++ State#state.record_path)
+			freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ Path),
+			freeswitch:api(Node, uuid_record, Call#call.id ++ " start " ++ Path)
 	end,
 
 	freeswitch:sendmsg(State#state.cnode, RUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
 	{ok, State#state{warm_transfer_uuid = undefined}};
-handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, ringchannel = Ring, agent_pid = AgentPid} = State) when is_list(WUUID) ->
+handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, agent_pid = AgentPid} = State) when is_list(WUUID) ->
 	case freeswitch:api(Node, create_uuid) of
 		{ok, NewUUID} ->
 			?NOTICE("warmxfer UUID is ~p", [NewUUID]),
-			Self = self(),
 			F = fun(RingUUID) ->
 					fun(ok, _Reply) ->
 							case State#state.record_path of
@@ -416,8 +423,8 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 									ok;
 								Path ->
 									?DEBUG("switching back to recording the original leg", []),
-									freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ State#state.record_path),
-									freeswitch:api(Node, uuid_record, Call#call.id ++ " start " ++ State#state.record_path)
+									freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ Path),
+									freeswitch:api(Node, uuid_record, Call#call.id ++ " start " ++ Path)
 							end,
 							freeswitch:api(Node, uuid_bridge, RingUUID++" "++Call#call.id);
 						(error, Reply) ->
@@ -450,7 +457,7 @@ handle_warm_transfer_complete(Call, #state{warm_transfer_uuid = WUUID, cnode = N
 			ok;
 		Path ->
 			?DEBUG("stopping recording due to warm transfer complete", []),
-			freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ State#state.record_path)
+			freeswitch:api(Node, uuid_record, WUUID ++ " stop " ++ Path)
 	end,
 
 	freeswitch:sendmsg(State#state.cnode, WUUID,

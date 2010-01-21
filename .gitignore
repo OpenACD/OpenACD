@@ -14,6 +14,7 @@ key
 key.pub
 contrib/**/ebin/*
 contrib/**/doc/*
+contrib/mochiweb/_test
 
 # unique config files
 *.config

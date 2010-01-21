@@ -123,6 +123,7 @@
 	freeswitch_up = false :: boolean(),
 	call_dict = dict:new() :: dict(),
 	dialstring = "" :: string(),
+	eventserver :: pid() | 'undefined',
 	xmlserver :: pid() | 'undefined'
 	}).
 
@@ -222,13 +223,19 @@ do_dial_string(DialString, Destination, Options) ->
 init([Nodename, Options]) -> 
 	?DEBUG("starting...", []),
 	process_flag(trap_exit, true),
-	Lpid = start_listener(Nodename),
 	DialString = proplists:get_value(dialstring, Options, ""),
 	monitor_node(Nodename, true),
-	%{api, Nodename} ! register_event_handler,
-	freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
-	freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, DialString}]),
-	{ok, #state{nodename=Nodename, dialstring = DialString, xmlserver = Lpid, freeswitch_up = true}}.
+	{Listenpid, DomainPid} = case net_adm:ping(Nodename) of
+		pong ->
+			Lpid = start_listener(Nodename),
+			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
+			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, DialString}]),
+			link(Pid),
+			{Lpid, Pid};
+		_ ->
+			{undefined, undefined}
+	end,
+	{ok, #state{nodename=Nodename, dialstring = DialString, eventserver = Listenpid, xmlserver = DomainPid, freeswitch_up = true}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -360,7 +367,22 @@ handle_info({get_pid, UUID, Ref, From}, #state{call_dict = Dict} = State) ->
 	end,
 	From ! {Ref, Pid},
 	{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
-handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) -> 
+handle_info({'EXIT', Pid, Reason}, #state{eventserver = Pid, nodename = Nodename, freeswitch_up = true} = State) ->
+	?NOTICE("listener pid exited unexpectedly: ~p", [Reason]),
+	Lpid = start_listener(Nodename),
+	freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
+	link(Lpid),
+	{noreply, State#state{eventserver = Lpid}};
+handle_info({'EXIT', Pid, Reason}, #state{xmlserver = Pid, nodename = Nodename, dialstring = DialString, freeswitch_up = true} = State) ->
+	?NOTICE("XML pid exited unexpectedly: ~p", [Reason]),
+	{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, DialString}]),
+	link(Pid),
+	{noreply, State#state{xmlserver = Pid}};
+handle_info({'EXIT', Pid, _Reason}, #state{eventserver = Pid} = State) ->
+	{noreply, State#state{eventserver = undefined}};
+handle_info({'EXIT', Pid, _Reason}, #state{xmlserver = Pid} = State) ->
+	{noreply, State#state{xmlserver = undefined}};
+handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	?NOTICE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
 	F = fun(Key, Value, Acc) -> 
 		case Value of
@@ -372,8 +394,9 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	end,
 	NewDict = dict:fold(F, dict:new(), Dict),
 	{noreply, State#state{call_dict = NewDict}};
-handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Lpid} = State) ->
+handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Pid, eventserver = Lpid} = State) ->
 	?WARNING("Freeswitch node ~p has gone down", [Nodename]),
+	exit(Pid, kill),
 	exit(Lpid, kill),
 	timer:send_after(1000, freeswitch_ping),
 	{noreply, State#state{freeswitch_up = false}};
@@ -383,9 +406,10 @@ handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
 			?NOTICE("Freeswitch node ~p is back up", [Nodename]),
 			monitor_node(Nodename, true),
 			Lpid = start_listener(Nodename),
-			freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, State#state.dialstring}]),
+			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, State#state.dialstring}]),
+			link(Pid),
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
-			{noreply, State#state{xmlserver = Lpid, freeswitch_up = true}};
+			{noreply, State#state{eventserver = Lpid, xmlserver = Pid, freeswitch_up = true}};
 		pang ->
 			timer:send_after(1000, freeswitch_ping),
 			{noreply, State}

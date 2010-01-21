@@ -373,13 +373,12 @@ handle_info({'EXIT', Pid, Reason}, #state{eventserver = Pid, nodename = Nodename
 	?NOTICE("listener pid exited unexpectedly: ~p", [Reason]),
 	Lpid = start_listener(Nodename),
 	freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
-	link(Lpid),
 	{noreply, State#state{eventserver = Lpid}};
 handle_info({'EXIT', Pid, Reason}, #state{xmlserver = Pid, nodename = Nodename, dialstring = DialString, freeswitch_up = true} = State) ->
 	?NOTICE("XML pid exited unexpectedly: ~p", [Reason]),
-	{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, DialString}]),
-	link(Pid),
-	{noreply, State#state{xmlserver = Pid}};
+	{ok, NPid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, DialString}]),
+	link(NPid),
+	{noreply, State#state{xmlserver = NPid}};
 handle_info({'EXIT', Pid, _Reason}, #state{eventserver = Pid} = State) ->
 	{noreply, State#state{eventserver = undefined}};
 handle_info({'EXIT', Pid, _Reason}, #state{xmlserver = Pid} = State) ->
@@ -398,8 +397,14 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	{noreply, State#state{call_dict = NewDict}};
 handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Pid, eventserver = Lpid} = State) ->
 	?WARNING("Freeswitch node ~p has gone down", [Nodename]),
-	exit(Pid, kill),
-	exit(Lpid, kill),
+	case is_pid(Pid) of
+		true -> exit(Pid, kill);
+		_ -> ok
+	end,
+	case is_pid(Lpid) of
+		true -> exit(Lpid, kill);
+		_ -> ok
+	end,
 	timer:send_after(1000, freeswitch_ping),
 	{noreply, State#state{freeswitch_up = false}};
 handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
@@ -441,7 +446,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% @private
 start_listener(Nodename) ->
 	Self = self(),
-	spawn(fun() -> 
+	spawn_link(fun() ->
 				{freeswitchnode, Nodename} ! register_event_handler,
 				receive
 					ok ->

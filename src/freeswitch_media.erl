@@ -371,8 +371,17 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 					freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ Path)
 			end,
 
+			Client = Call#call.client,
+
+			CalleridArgs = case proplists:get_value(<<"callerid">>, Client#client.options) of
+				undefined ->
+					"origination_privacy=hide_namehide_number";
+				CalleridNum ->
+					"effective_caller_id_name="++Client#client.label++",effective_caller_id_name="++CalleridNum
+			end,
+
 			freeswitch:bgapi(State#state.cnode, uuid_transfer,
-				freeswitch_ring:get_uuid(State#state.ringchannel) ++ " 'bridge:"++ freeswitch_media_manager:do_dial_string(State#state.dialstring, Number, ["origination_uuid="++NewUUID]) ++ "' inline"),
+				freeswitch_ring:get_uuid(State#state.ringchannel) ++ " 'bridge:"++ freeswitch_media_manager:do_dial_string(State#state.dialstring, Number, ["origination_uuid="++NewUUID | CalleridArgs]) ++ "' inline"),
 			% play musique d'attente 
 			freeswitch:sendmsg(Node, Call#call.id,
 				[{"call-command", "execute"},

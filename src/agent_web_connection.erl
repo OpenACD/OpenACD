@@ -772,7 +772,13 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when Call
 	end;
 handle_call({undefined, "/call_hangup", _Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
 	Call#call.source ! call_hangup,
-	{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+	Json = case agent:set_state(State#state.agent_fsm, {wrapup, State#state.current_call}) of
+		invalid ->
+			{struct, [{success, false}, {<<"message">>, <<"agent refused statechange">>}]};
+		ok ->
+			{struct, [{success, true}, {<<"message">>, <<"agent accepted statechange">>}]}
+	end,
+	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
 	%% considering how things have gone, the best guess is this is a media call.
 	%% Note that the results below are only for email, so this will need

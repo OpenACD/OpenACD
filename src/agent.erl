@@ -537,10 +537,21 @@ oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_pat
 	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 	%cdr:hangup(Call, agent),
 	%cdr:wrapup(Call, State#agent.login),
-	gen_media:wrapup(Call#call.source),
-	Newstate = State#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
-	set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
-	{reply, ok, wrapup, Newstate};
+	try gen_media:wrapup(Call#call.source) of
+		ok ->			
+			Newstate = State#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
+			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
+			{reply, ok, wrapup, Newstate};
+		invalid ->
+			?WARNING("a living media replied it could not go to wrapup", []),
+			{reply, invalid, oncall, State}
+	catch
+		exit:{noproc, _Blahblahcall} ->
+			?WARNING("Seems the call died without me noticing", []),
+			Newstate = State#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
+			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
+			{reply, ok, wrapup, Newstate}
+	end;
 oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
 	case Currentcall#call.id of
 		Callid -> 

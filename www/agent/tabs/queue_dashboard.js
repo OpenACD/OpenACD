@@ -157,48 +157,164 @@ if(typeof(queueDashbaord) == "undefined"){
 	queueDashbaord.filterSupevent = function(supevent){
 		return (supevent.type == 'media' || supevent.type == 'queue');
 	}
+	
+	queueDashbaord.getStatus = function(){
+		dojo.xhrGet({
+			url:'/supervisor/status',
+			handleAs:'json',
+			load:function(res){
+				console.log(res);
+				// nab only the medias
+				var real = [];
+				var items = res.data.items;
+				for(var i = 0; i < items.length; i++){
+					if(items[i].type == 'media'){
+						items[i].details = items[i].details._value;
+						items[i].health = items[i].health._value;
+						real.push(items[i]);
+					}
+				}
+				
+				for(i = 0; i < real.length; i++){
+					if(real[i].queue){
+						var queuenom = real[i].queue
+						queueDashbaord.dataStore.queues[queuenom].medias[real[i].display] = real[i];
+						/*if(dojo.query('#queueDashboardTable > tr[queue="' + queuenom + '"]').length == 0){
+							var queueTr = document.createElement('tr');
+							queueTr.queue = queuenom;
+							queueTr.purpose = 'queue_display';
+							queueTr.innerHTML = '<tr>
+							var queueMediasTr = document.createElement('tr');
+							queueMediasTr.queue = queuenom;
+							queueMediasTr.purpose = 'call_display';
+							dojo.byId('queueDashboardTable').appendChild(
+						}*/
+					}
+				}
+			},
+			error:function(res){
+				errMessage(["getting initial status errored", res]);
+			}
+		});
+	}
+	
+	queueDashbaord.updateTable = function(){
+		var nodes = dojo.query('#queueDashboardTable *[queue][purpose="queueDisplay]');
+		for(var i = 0; i < nodes.length; i++){
+			if(! queueDashbaord.dataStore.queues[nodes[i].queue]){
+				var queueNom = nodes[i].queue;
+				var subnodes = dojo.query('#queueDashboardTable *[queue="' + queueNom + '"]');
+				for(var j = 0; j < subnodes.length; j++){
+					dojo.byId('queueDashboardTable').removeChild(subnodes[j]);
+				}
+			}
+		}
+		
+		for(i in queueDashbaord.dataStore.queues){
+			nodes = dojo.query('#queueDashboardTable *[queue="' + i + '"]');
+			if(nodes.length == 0){
+				var queueTr = document.createElement('tr');
+				queueTr.setAttribute('queue', i);
+				queueTr.setAttribute('purpose', 'queueDisplay');
+				queueTr.innerHTML = '<td purpose="name">' + i + 
+				'</td><td purpose="callCount"></td>' + 
+				'<td purpose="completeCount">0</td>' + 
+				'<td purpose="abandonCount">0</td>' + 
+				'<td purpose="avergageHold">0</td>' + 
+				'<td purpose="oldestHold">0</td>';
+				var queueMediasTr = document.createElement('tr');
+				queueMediasTr.setAttribute('queue', i);
+				queueMediasTr.setAttribute('purpose', 'callDisplay');
+				queueMediasTr.innerHTML = '<td></td>' + 
+				'<td colspan=4>' + 
+				'<table>' + 
+				'<tr>' + 
+				'<th>Callid</th>' + 
+				'<th>Type</th>' + 
+				'<th>Hold Time</th>' + 
+				'<th>Brand</th>' + 
+				'</tr>' + 
+				'</table>' + 
+				'</td>';
+				dojo.byId('queueDashboardTable').appendChild(queueTr);
+				dojo.byId('queueDashboardTable').appendChild(queueMediasTr);
+			}
+		}
+	}
 }
 
 dojo.xhrGet({
-	url:'/dynamic/all.json',
-	handleAs: 'json',
-	load: function(res){
-		var raws = res.rawdata;
-		console.log(res);
-		dojo.xhrGet({
-			url:'/supervisor/startmonitor',
-			handleAs: 'json',
-			load: function(res){
-				if(res.success){
-					return true;
-				}
-				
-				return false;
-			},
-			error: function(res){
-				console.log(['error', res]);
+	url:'/queuelist',
+	handleAs:'json',
+	load:function(res){
+		if(res.success){
+			for(var i = 0; i < res.queues.length; i++){
+				queueDashbaord.dataStore.queues[res.queues[i].name] = {medias:{}, completed:0, abandoned:0, averageage: 0, maxage: 0};
 			}
-		});
+			queueDashbaord.getStatus();
+		} else {
+			errMessage(["getting queues failed", res.message]);
+		}
 	},
-	error: function(res){
-		console.log(['error', res]);
+	error:function(res){
+		errMessage(["getting queues errored", res]);
 	}
 });
+
+
+
+
+
+//
+//dojo.xhrGet({
+//	url:'/dynamic/all.json',
+//	handleAs: 'json',
+//	load: function(res){
+//		var raws = res.rawdata;
+//		console.log(res);
+//		dojo.xhrGet({
+//			url:'/supervisor/startmonitor',
+//			handleAs: 'json',
+//			load: function(res){
+//				if(res.success){
+//					return true;
+//				}
+//				
+//				return false;
+//			},
+//			error: function(res){
+//				console.log(['error', res]);
+//			}
+//		});
+//		var now = Math.floor(new Date().getTime() / 1000);
+//		var hourago = now - (60 * 60 * 1000);
+//		for(var i = 0; i < raws.length; i++){
+//			if(raws[i].ended && raws[i].ended + hourago < now){
+//				
+//			}
+//		}
+//	},
+//	error: function(res){
+//		console.log(['error', res]);
+//	}
+//});
 
 queueDashbaord.masterSub = dojo.subscribe("agent/supervisortab", queueDashbaord, function(supevent){
 	if(! this.filterSupevent(supevent.data)){
 		return false;
 	}
 	
-	if(supevent.data.type == 'queue'){
+	/*if(supevent.data.type == 'queue'){
 		if(queueDashbaord.dataStore[supevent.data.display]){
 			queueDashbaord.dataStore[supevent.data.display].consumeEvent(supevent.data);
 		} else {
 			var queue = new queueDashbaord.Queue(supevent.data);
 			queueDashbaord.dataStore[supevent.data.display] = queue;
 		}
-		return true;
-	}
+		//return true;
+	}*/
+	
+	
 	
 	if(supevent.data.type == 'media'){
 		supevent.data.id = supevent.data.id.substr(6);

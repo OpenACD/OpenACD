@@ -1,7 +1,16 @@
-.queueDashboard {
-	border: black outset 2px;
-}
-
 .queueDashboard td[purpose="name"] {
 	cursor: pointer
+}
+
+table.queueDashboard {
+	width:100%;
+}
+
+#queueDashboardTable td, th {
+	border: black outset 2px;
+	text-align: center;
+}
+
+#queueDashboardTable table {
+	width:100%
 }

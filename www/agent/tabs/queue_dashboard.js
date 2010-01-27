@@ -146,7 +146,11 @@ if(typeof(queueDashboard) == "undefined"){
 		}
 		
 		this.maxHold = oldest;
-		this.avgHold = Math.floor(totalAge / counted);
+		if(counted > 0){
+			this.avgHold = Math.floor(totalAge / counted);
+		} else {
+			this.avgHold = 0;
+		}
 		
 		dojo.publish("queueDashboard/queueUpdate", [this]);
 	}
@@ -219,27 +223,28 @@ if(typeof(queueDashboard) == "undefined"){
 	queueDashboard.drawQueueTable = function(){
 		// Should only need to be called once, after the queue list is gotten.
 		for(i in queueDashboard.dataStore.queues){
+			var testnom = i;
 			nodes = dojo.query('#queueDashboardTable *[queue="' + i + '"]');
 			if(nodes.length == 0){
 				var queueTr = document.createElement('tr');
 				queueTr.setAttribute('queue', i);
 				queueTr.setAttribute('purpose', 'queueDisplay');
-				queueTr.innerHTML = '<td purpose="name">' + i + 
-				'</td><td purpose="callCount"></td>' + 
-				'<td purpose="completeCount">0</td>' + 
-				'<td purpose="abandonCount">0</td>' + 
-				'<td purpose="averageHold">0</td>' + 
-				'<td purpose="oldestHold">0</td>';
+				dojo.create('td', {purpose: 'name', innerHTML: testnom}, queueTr);
+				dojo.create('td', {purpose: 'callCount'}, queueTr);
+				dojo.create('td', {purpose: 'completeCount'}, queueTr);
+				dojo.create('td', {purpose: 'abandonCount'}, queueTr);
+				dojo.create('td', {purpose: 'averageHold'}, queueTr);
+				dojo.create('td', {purpose: 'oldestHold'}, queueTr);
 				queueTr.onclick = function(){
-					var callDisps = dojo.query('#queueDashboardTable *[queue="' + i + '"][purpose="callDisplay"]');
+					var callDisps = dojo.query('#queueDashboardTable *[queue="' + testnom + '"][purpose="callDisplay"]');
 					if(callDisps.length == 0){
-						queueDashboard.drawCallTable(i);
+						queueDashboard.drawCallTable(testnom);
 					} else {
 						dojo.byId('queueDashboardTable').removeChild(callDisps[0]);
 					}
 				}
 				queueTr.queueSubscription = dojo.subscribe("queueDashboard/queueUpdate", function(queue){
-					if(queue.name != i){
+					if(queue.name != testnom){
 						return false;
 					}
 					
@@ -275,20 +280,16 @@ if(typeof(queueDashboard) == "undefined"){
 		var queueMediasTr = document.createElement('tr');
 		queueMediasTr.setAttribute('queue', queuename);
 		queueMediasTr.setAttribute('purpose', 'callDisplay');
-		queueMediasTr.innerHTML = '<td></td>' + 
-		'<td colspan=4>' + 
-		'<table>' + 
-		'<tr>' + 
+		dojo.place(queueMediasTr, dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="queueDisplay"]')[0], 'after');
+		dojo.create('td', null, queueMediasTr);
+		var widetd = dojo.create('td', {colspan: 5}, queueMediasTr);
+		var table = dojo.create('table', null, widetd);
+		table.innerHTML = '<tr>' + 
 		'<th>Callid</th>' + 
 		'<th>Type</th>' + 
 		'<th>Hold Time</th>' + 
 		'<th>Brand</th>' + 
-		'</tr>' + 
-		'</table>' + 
-		'</td>';
-		
-		dojo.place(queueMediasTr, dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="queueDisplay"]')[0], 'after');
-		
+		'</tr>';
 		var tbody = dojo.query('#queueDashboardTable *[queue="default_queue"][purpose="callDisplay"] tbody')[0];
 		
 		for(var i in queueDashboard.dataStore.queues[queuename].medias){
@@ -298,13 +299,14 @@ if(typeof(queueDashboard) == "undefined"){
 	
 	queueDashboard.drawCallTableRow = function(queuename, mediaid, tbody){
 		var tr = document.createElement('tr');
+		var media = queueDashboard.dataStore.queues[queuename].medias[mediaid];
 		var now = Math.floor(new Date().getTime() / 1000);
-		var age = now - queueDashboard.dataStore.queues[queuename].medias[mediaid].created;
+		var age = now - media.created;
 		tr.setAttribute('callid', mediaid);
-		tr.innerHTML = '<td>' + mediaid + '</td>' +
-		'<td>' + queueDashboard.dataStore.queues[queuename].medias[mediaid].type + '</td>' +
-		'<td>' + age + '</td>' +
-		'<td>' + queueDashboard.dataStore.queues[queuename].medias[mediaid].client + '</td>';
+		dojo.create('td', {innerHTML: mediaid}, tr);
+		dojo.create('td', {innerHTML: media.type}, tr);
+		dojo.create('td', {innerHTML: age}, tr);
+		dojo.create('td', {innerHTML: media.client}, tr);
 		dojo.place(tr, tbody, 'last');
 	}
 	
@@ -347,11 +349,3 @@ queueDashboard.masterSub = dojo.subscribe("agent/supervisortab", queueDashboard,
 	debug(["queueDashboard forwarding", supevent]);
 	dojo.publish("queueDashboard/supevent", [supevent]);
 });
-
-/*dojo.byId('queueDashboardTable').updateSub = dojo.subscribe('queueDashboard/queueUpdate', dojo.byId('queueDashboardTable'), function(data){
-	if(! dojo.byId('queueDashboardRow-' + data.name)){
-		var queueRow = dojo.create('tr', {id: "queueDashboardRow-" + data.name}, this, 'last');
-		var mediasRow = dojo.create('tr', {id: "queueDashboardMedias-" + data.name}, this, 'last');
-	}
-});*/
-

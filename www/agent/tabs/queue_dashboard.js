@@ -91,13 +91,13 @@ if(typeof(queueDashbaord) == "undefined"){
 		console.log(['updating history', data]);
 		if(data.action == 'drop'){
 			if(this._history[data.id].status != 'completed'){
-				this._history[data.id].status = 'abandoned';
 				this.abandoned++;
+				this._history[data.id].end('abandoned');
 			}
 		} else if(data.details.agent){
 			if(this._history[data.id].status != 'completed'){
-				this._history[data.id].status = 'completed';
 				this.completed++;
+				this._history[data.id].end('completed');
 			}
 		}
 	}
@@ -106,42 +106,47 @@ if(typeof(queueDashbaord) == "undefined"){
 		var now = new Date();
 		now = Math.floor(now.getTime() / 1000);
 		
-		var inqueue = 0;
-		var abandoned = 0;
-		var handled = 0;
-		var age = 0;
-		var oldest = now;
+		//var inqueue = 0;
+		//var abandoned = 0;
+		//var handled = 0;
+		//var age = 0;
+		//var oldest = now;
 		
-		for(var i in this.medias){
-			if(now - 86400 > this.medias[i].time){
-				delete this.medias[i];
-				continue;
-			}
-			
-			if(this.medias[i].time < oldest && this.medias[i].status == 'queued'){
-				oldest = this.medias[i].time;
-			}
-			
-			if(this.medias[i].status == 'queued'){
-				age += (now - this.medias[i].queued); 
-			}
-			
-			switch(this.medias[i].status){
-				case 'queued':
-					inqueue++;
-					break;
-				case 'abandoned':
-					abandoned++;
-					break;
-				case 'handled':
-					handled++;
-					break;
+		for(var i in this._history){
+			if(now - 86400 < this._history[i].ended){
+				if(this._history[i].status == 'abandoned'){
+					this.abandoned--;
+				} else {
+					this.completed--;
+				}
+				delete this._history[i];
 			}
 		}
 		
-		this.inqueue = inqueue;
-		this.abandoned = abandoned;
-		this.averageage = Math.floor(age / inqueue);
+		var totalAge = 0;
+		var counted = 0;
+		var oldest = now;
+		
+		for(i in this.medias){
+			counted++;
+			var age = now - this.medias[i].created;
+			totalAge += age;
+			if(oldest < age){
+				oldest = age;
+			}
+		}
+		
+		for(i in this._history){
+			counted++;
+			var age = this.medias[i].ended - this.medias[i].created;
+			totalAge += age;
+			if(oldest < age){
+				oldest = age;
+			}
+		}
+		
+		this.maxHold = oldest;
+		this.avgHold = Math.floor(totalAge / counted);
 		
 		dojo.publish("queueDashboard/queueUpdate", [this]);
 	}
@@ -156,6 +161,11 @@ if(typeof(queueDashbaord) == "undefined"){
 		this.type = initalEvent.details.type;
 		this.client = initalEvent.details.client;
 		this.status = 'limbo';
+	}
+	
+	queueDashbaord.Media.prototype.end = function(cause){
+		this.status = cause;
+		this.ended = Math.floor(new Date().getTime() / 1000);
 	}
 	
 	// =====
@@ -199,20 +209,6 @@ if(typeof(queueDashbaord) == "undefined"){
 		});
 	}
 	
-/*	queueDashbaord.updateTable = function(){
-		var nodes = dojo.query('#queueDashboardTable *[queue][purpose="queueDisplay"]');
-		for(var i = 0; i < nodes.length; i++){
-			if(! queueDashbaord.dataStore.queues[nodes[i].getAttribute('queue')]){
-				var queueNom = nodes[i].getAttribute('queue');
-				var subnodes = dojo.query('#queueDashboardTable *[queue="' + queueNom + '"]');
-				for(var j = 0; j < subnodes.length; j++){
-					dojo.byId('queueDashboardTable').removeChild(subnodes[j]);
-				}
-			}
-		}
-		
-	}*/
-	
 	queueDashbaord.drawQueueTable = function(){
 		// Should only need to be called once, after the queue list is gotten.
 		for(i in queueDashbaord.dataStore.queues){
@@ -235,8 +231,35 @@ if(typeof(queueDashbaord) == "undefined"){
 						dojo.byId('queueDashboardTable').removeChild(callDisps[0]);
 					}
 				}
+				queueTr.queueSubscription = dojo.subscribe("queueDashboard/queueUpdate", function(queue){
+					if(queue.name != i){
+						return false;
+					}
+					
+					var tds = dojo.query('#queueDashboardTable *[queue="' + i + '"][purpose="queueDisplay"] td');
+					for(var j = 0; j < tds.length; j++){
+						switch(tds[j].getAttribute('purpose')){
+							case 'callCount':
+								tds[j].innerHTML = queue.calls;
+								break;
+							case 'completeCount':
+								tds[j].innerHTML = queue.completed;
+								break;
+							case 'abandonCount':
+								tds[j].innerHTML = queue.abandoned;
+								break;
+							case 'averageHold':
+								tds[j].innerHTML = queue.avgHold;
+								break;
+							case 'oldestHold':
+								tds[j].innerHTML = queue.maxHold;
+								break;
+							default:
+								// do nothing, nothing!
+						}
+					}
+				});
 				dojo.byId('queueDashboardTable').appendChild(queueTr);
-				//dojo.byId('queueDashboardTable').appendChild(queueMediasTr);
 			}
 		}
 	}
@@ -307,9 +330,9 @@ queueDashbaord.masterSub = dojo.subscribe("agent/supervisortab", queueDashbaord,
 	dojo.publish("queueDashbaord/supevent", [supevent]);
 });
 
-dojo.byId('queueDashboardTable').updateSub = dojo.subscribe('queueDashboard/queueUpdate', dojo.byId('queueDashboardTable'), function(data){
+/*dojo.byId('queueDashboardTable').updateSub = dojo.subscribe('queueDashboard/queueUpdate', dojo.byId('queueDashboardTable'), function(data){
 	if(! dojo.byId('queueDashboardRow-' + data.name)){
 		var queueRow = dojo.create('tr', {id: "queueDashboardRow-" + data.name}, this, 'last');
 		var mediasRow = dojo.create('tr', {id: "queueDashboardMedias-" + data.name}, this, 'last');
 	}
-});
+});*/

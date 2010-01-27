@@ -1,0 +1,7 @@
+.queueDashboard {
+	border: black outset 2px;
+}
+
+.queueDashboard td[purpose="name"] {
+	cursor: pointer
+}

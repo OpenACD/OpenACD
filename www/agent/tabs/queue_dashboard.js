@@ -18,25 +18,90 @@ if(typeof(queueDashbaord) == "undefined"){
 	// =====
 	// helper class queue
 	// =====
-	queueDashbaord.Queue = function(initalEvent){
-		this.name = initalEvent.display;
+	queueDashbaord.Queue = function(display){
+		this.name = display;
 		this.medias = {};
-		this.consumeEvent(initalEvent);
+		this._history = {};
+		this._limboMedias = {};
+		this.completed = 0;
+		this.calls = 0;
+		this.abandoned = 0;
+		this.avgHold = 0;
+		this.maxHold = 0;
+		this._masterSubscription = dojo.subscribe("queueDashbaord/supevent", this, function(event){
+			this.consumeEvent(event.data);
+		});
 	}
 	
 	queueDashbaord.Queue.prototype.consumeEvent = function(data){
+		console.log(["nom nom'ing", data]);
 		if(data.type == 'media'){
-			if(this.medias[data.id] == undefined && data.details.queue != this.name){
-				return false;
-			} else if(this.medias[data.id] == undefined){
+			// current, history, or new?
+			if(this.medias[data.id]){
+				this.updateLiveMedia(data);
+			} else if(this._history[data.id]){
+				this.updateHitoricalMedia(data);
+			} else if(this._limboMedias[data.id]){
+				console.log(['updating limbo', data]);
+				if(data.details.queue && data.details.queue == this.name){
+					this.medias[data.id] = this._limboMedias[data.id];
+					this.medias[data.id].status = 'queued';
+					this.calls++;
+				} else if(data.action == 'drop' || data.details.agent){
+					delete this._limboMedias[data.id];
+				}
+			} else if(data.details.queue == this.name) {
+				console.log(['updating medias list', data]);
+				this.calls++;
 				this.medias[data.id] = new queueDashbaord.Media(data);
 			} else {
-				this.medias[data.id].consumeEvent(data);
+				console.log(['appending to limbo', data]);
+				this._limboMedias[data.id] = new queueDashbaord.Media(data);
 			}
 			return true;
 		}
+		
+		console.log(['apparently data.type was not media', data.type]);
+		return false;
 	}
 	
+	queueDashbaord.Queue.prototype.updateLiveMedia = function(data){
+		console.log(['updating live', data]);
+		if(data.action == 'drop'){
+			this.calls--;
+			this.abandoned++;
+			this._history[data.id] = this.medias[data.id];
+			this._history[data.id].status = 'abandoned';
+			delete this.medias[data.id];
+		} else if(data.details.queue != this.name){
+			// moved queue, keep track of it in history.
+			this.calls--;
+			this._history[data.id] = this.medias[data.id];
+			delete this.medias[data.id];
+		} else if(data.details.agent){
+			this.calls--;
+			this.completed++;
+			this._history[data.id] == this.medias[data.id];
+			this._history[data.id].status = 'completed';
+			delete this.medias[data.id];
+		}
+	}
+	
+	queueDashbaord.Queue.prototype.updateHistoricalMedia = function(data){
+		console.log(['updating history', data]);
+		if(data.action == 'drop'){
+			if(this._history[data.id].status != 'completed'){
+				this._history[data.id].status = 'abandoned';
+				this.abandoned++;
+			}
+		} else if(data.details.agent){
+			if(this._history[data.id].status != 'completed'){
+				this._history[data.id].status = 'completed';
+				this.completed++;
+			}
+		}
+	}
+		
 	queueDashbaord.Queue.prototype.recalc = function(){
 		var now = new Date();
 		now = Math.floor(now.getTime() / 1000);
@@ -86,68 +151,11 @@ if(typeof(queueDashbaord) == "undefined"){
 	// ====
 	
 	queueDashbaord.Media = function(initalEvent){
-		this.status = 'limbo';
-		this.id = initalEvent.id.substr(6);
-		this.display = initalEvent.display;
+		this.initalEvent = initalEvent;
+		this.created = Math.floor(new Date().getTime() / 1000);
 		this.type = initalEvent.details.type;
-		this.brand = initalEvent.details.brand;
-		this.consumeEvent(initalEvent);
-	}
-	
-	queueDashbaord.Media.prototype.getHistory  = function(){
-		return this._history;
-	}
-	
-	queueDashbaord.Media.prototype.consumeEvent = function(data){
-		if(data.type != media || data.id != this.id){
-			return false
-		}
-		
-		if(data.action == 'drop'){
-			var historyEvent = {
-				timestamp: new Date(),
-				event: 'ended'
-			};
-			
-			var lastEvent = this._history.length - 1;
-			switch(this._history[lastEvent].event){
-				case 'inivr':
-					this.status = 'ivrAbandon';
-					break;
-				case 'inqueue':
-					this.status = 'queueAbandon';
-					break;
-				case 'handled':
-					this.status = 'completed';
-					break;
-			}
-			this._history.push(historyEvent);
-			return this.status;
-		}
-		
-		if(data.details.queue){
-			if(this.status != 'queued'){
-				var historyEvent = {
-					timestamp: new Date(),
-					event: 'queued'
-				};
-				
-				this._history.push(historyEvent);
-				this.status = 'queued';
-				return this.status;
-			}
-			
-			if(this.queue != data.details.queue){
-				var historyEvent = {
-					timestamp: new Date(),
-					event: 'queued'
-				};
-				
-				this._history.push(historyEvent);
-				this.queue = data.details.queue;
-				return this.status;
-			}
-		}
+		this.client = initalEvent.details.client;
+		this.status = 'limbo';
 	}
 	
 	// =====
@@ -169,27 +177,20 @@ if(typeof(queueDashbaord) == "undefined"){
 				var items = res.data.items;
 				for(var i = 0; i < items.length; i++){
 					if(items[i].type == 'media'){
-						items[i].details = items[i].details._value;
-						items[i].health = items[i].health._value;
-						real.push(items[i]);
+						var fixedItem = {
+							action: 'set',
+							details: items[i].details._value,
+							display: items[i].display,
+							id: items[i].id.substr(6),
+							type: 'media'
+						}
+						real.push(fixedItem);
 					}
 				}
 				
 				for(i = 0; i < real.length; i++){
-					if(real[i].queue){
-						var queuenom = real[i].queue
-						queueDashbaord.dataStore.queues[queuenom].medias[real[i].display] = real[i];
-						/*if(dojo.query('#queueDashboardTable > tr[queue="' + queuenom + '"]').length == 0){
-							var queueTr = document.createElement('tr');
-							queueTr.queue = queuenom;
-							queueTr.purpose = 'queue_display';
-							queueTr.innerHTML = '<tr>
-							var queueMediasTr = document.createElement('tr');
-							queueMediasTr.queue = queuenom;
-							queueMediasTr.purpose = 'call_display';
-							dojo.byId('queueDashboardTable').appendChild(
-						}*/
-					}
+					console.log(["status fixed", real[i]]);
+					dojo.publish("queueDashbaord/supevent", [{data: real[i]}]);
 				}
 			},
 			error:function(res){
@@ -198,11 +199,11 @@ if(typeof(queueDashbaord) == "undefined"){
 		});
 	}
 	
-	queueDashbaord.updateTable = function(){
-		var nodes = dojo.query('#queueDashboardTable *[queue][purpose="queueDisplay]');
+/*	queueDashbaord.updateTable = function(){
+		var nodes = dojo.query('#queueDashboardTable *[queue][purpose="queueDisplay"]');
 		for(var i = 0; i < nodes.length; i++){
-			if(! queueDashbaord.dataStore.queues[nodes[i].queue]){
-				var queueNom = nodes[i].queue;
+			if(! queueDashbaord.dataStore.queues[nodes[i].getAttribute('queue')]){
+				var queueNom = nodes[i].getAttribute('queue');
 				var subnodes = dojo.query('#queueDashboardTable *[queue="' + queueNom + '"]');
 				for(var j = 0; j < subnodes.length; j++){
 					dojo.byId('queueDashboardTable').removeChild(subnodes[j]);
@@ -210,6 +211,10 @@ if(typeof(queueDashbaord) == "undefined"){
 			}
 		}
 		
+	}*/
+	
+	queueDashbaord.drawQueueTable = function(){
+		// Should only need to be called once, after the queue list is gotten.
 		for(i in queueDashbaord.dataStore.queues){
 			nodes = dojo.query('#queueDashboardTable *[queue="' + i + '"]');
 			if(nodes.length == 0){
@@ -222,24 +227,53 @@ if(typeof(queueDashbaord) == "undefined"){
 				'<td purpose="abandonCount">0</td>' + 
 				'<td purpose="avergageHold">0</td>' + 
 				'<td purpose="oldestHold">0</td>';
-				var queueMediasTr = document.createElement('tr');
-				queueMediasTr.setAttribute('queue', i);
-				queueMediasTr.setAttribute('purpose', 'callDisplay');
-				queueMediasTr.innerHTML = '<td></td>' + 
-				'<td colspan=4>' + 
-				'<table>' + 
-				'<tr>' + 
-				'<th>Callid</th>' + 
-				'<th>Type</th>' + 
-				'<th>Hold Time</th>' + 
-				'<th>Brand</th>' + 
-				'</tr>' + 
-				'</table>' + 
-				'</td>';
+				queueTr.onclick = function(){
+					var callDisps = dojo.query('#queueDashboardTable *[queue="' + i + '"][purpose="callDisplay"]');
+					if(callDisps.length == 0){
+						queueDashbaord.drawCallTable(i);
+					} else {
+						dojo.byId('queueDashboardTable').removeChild(callDisps[0]);
+					}
+				}
 				dojo.byId('queueDashboardTable').appendChild(queueTr);
-				dojo.byId('queueDashboardTable').appendChild(queueMediasTr);
+				//dojo.byId('queueDashboardTable').appendChild(queueMediasTr);
 			}
 		}
+	}
+	
+	queueDashbaord.drawCallTable = function(queuename){
+		var queueMediasTr = document.createElement('tr');
+		queueMediasTr.setAttribute('queue', queuename);
+		queueMediasTr.setAttribute('purpose', 'callDisplay');
+		queueMediasTr.innerHTML = '<td></td>' + 
+		'<td colspan=4>' + 
+		'<table>' + 
+		'<tr>' + 
+		'<th>Callid</th>' + 
+		'<th>Type</th>' + 
+		'<th>Hold Time</th>' + 
+		'<th>Brand</th>' + 
+		'</tr>' + 
+		'</table>' + 
+		'</td>';
+		
+		dojo.place(queueMediasTr, dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="queueDisplay"]')[0], 'after');
+		
+		var tbody = dojo.query('#queueDashboardTable *[queue="default_queue"][purpose="callDisplay"] tbody')[0];
+		
+		for(var i in queueDashbaord.dataStore.queues[queuename].medias){
+			queueDashbaord.drawCallTableRow(queuename, i, tbody);
+		}
+	}
+	
+	queueDashbaord.drawCallTableRow = function(queuename, mediaid, tbody){
+		var tr = document.createElement('tr');
+		tr.setAttribute('callid', mediaid);
+		tr.innerHTML = '<td>' + mediaid + '</td>' +
+		'<td>' + queueDashbaord.dataStore.queues[queuename].medias[mediaid].type + '</td>' +
+		'<td>' + queueDashbaord.dataStore.queues[queuename].medias[mediaid].created + '</td>' +
+		'<td>' + queueDashbaord.dataStore.queues[queuename].medias[mediaid].client + '</td>';
+		dojo.place(tr, tbody, 'last');
 	}
 }
 
@@ -249,8 +283,9 @@ dojo.xhrGet({
 	load:function(res){
 		if(res.success){
 			for(var i = 0; i < res.queues.length; i++){
-				queueDashbaord.dataStore.queues[res.queues[i].name] = {medias:{}, completed:0, abandoned:0, averageage: 0, maxage: 0};
+				queueDashbaord.dataStore.queues[res.queues[i].name] = new queueDashbaord.Queue(res.queues[i].name);
 			}
+			queueDashbaord.drawQueueTable();
 			queueDashbaord.getStatus();
 		} else {
 			errMessage(["getting queues failed", res.message]);
@@ -261,67 +296,15 @@ dojo.xhrGet({
 	}
 });
 
-
-
-
-
-//
-//dojo.xhrGet({
-//	url:'/dynamic/all.json',
-//	handleAs: 'json',
-//	load: function(res){
-//		var raws = res.rawdata;
-//		console.log(res);
-//		dojo.xhrGet({
-//			url:'/supervisor/startmonitor',
-//			handleAs: 'json',
-//			load: function(res){
-//				if(res.success){
-//					return true;
-//				}
-//				
-//				return false;
-//			},
-//			error: function(res){
-//				console.log(['error', res]);
-//			}
-//		});
-//		var now = Math.floor(new Date().getTime() / 1000);
-//		var hourago = now - (60 * 60 * 1000);
-//		for(var i = 0; i < raws.length; i++){
-//			if(raws[i].ended && raws[i].ended + hourago < now){
-//				
-//			}
-//		}
-//	},
-//	error: function(res){
-//		console.log(['error', res]);
-//	}
-//});
-
 queueDashbaord.masterSub = dojo.subscribe("agent/supervisortab", queueDashbaord, function(supevent){
 	if(! this.filterSupevent(supevent.data)){
 		return false;
 	}
 	
-	/*if(supevent.data.type == 'queue'){
-		if(queueDashbaord.dataStore[supevent.data.display]){
-			queueDashbaord.dataStore[supevent.data.display].consumeEvent(supevent.data);
-		} else {
-			var queue = new queueDashbaord.Queue(supevent.data);
-			queueDashbaord.dataStore[supevent.data.display] = queue;
-		}
-		//return true;
-	}*/
-	
-	
-	
-	if(supevent.data.type == 'media'){
-		supevent.data.id = supevent.data.id.substr(6);
-		var queue = supevent.data.details
-	}
-	
-	console.log(supevent);
+	supevent.data.id = supevent.data.id.substr(6);
+
+	console.log(["queuedashbaord forwarding", supevent]);
+	dojo.publish("queueDashbaord/supevent", [supevent]);
 });
 
 dojo.byId('queueDashboardTable').updateSub = dojo.subscribe('queueDashboard/queueUpdate', dojo.byId('queueDashboardTable'), function(data){

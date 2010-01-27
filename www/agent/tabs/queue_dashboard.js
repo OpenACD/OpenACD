@@ -1,4 +1,4 @@
-if(typeof(queueDashbaord) == "undefined"){
+if(typeof(queueDashboard) == "undefined"){
 	
 	var link = document.createElement('link');
 	var head = dojo.query('head')[0];
@@ -7,18 +7,18 @@ if(typeof(queueDashbaord) == "undefined"){
 	link.href='/tabs/queue_dashboard.css';
 	link.type = 'text/css';
 	
-	queueDashbaord = function(){
+	queueDashboard = function(){
 		return {};
 	}
 	
-	queueDashbaord.dataStore = {
+	queueDashboard.dataStore = {
 		queues:{}
 	};
 	
 	// =====
 	// helper class queue
 	// =====
-	queueDashbaord.Queue = function(display){
+	queueDashboard.Queue = function(display){
 		this.name = display;
 		this.medias = {};
 		this._history = {};
@@ -28,12 +28,12 @@ if(typeof(queueDashbaord) == "undefined"){
 		this.abandoned = 0;
 		this.avgHold = 0;
 		this.maxHold = 0;
-		this._masterSubscription = dojo.subscribe("queueDashbaord/supevent", this, function(event){
+		this._masterSubscription = dojo.subscribe("queueDashboard/supevent", this, function(event){
 			this.consumeEvent(event.data);
 		});
 	}
 	
-	queueDashbaord.Queue.prototype.consumeEvent = function(data){
+	queueDashboard.Queue.prototype.consumeEvent = function(data){
 		debug(["nom nom'ing", data]);
 		if(data.type == 'media'){
 			// current, history, or new?
@@ -53,10 +53,10 @@ if(typeof(queueDashbaord) == "undefined"){
 			} else if(data.details.queue == this.name) {
 				debug(['updating medias list', data]);
 				this.calls++;
-				this.medias[data.id] = new queueDashbaord.Media(data);
+				this.medias[data.id] = new queueDashboard.Media(data);
 			} else {
 				debug(['appending to limbo', data]);
-				this._limboMedias[data.id] = new queueDashbaord.Media(data);
+				this._limboMedias[data.id] = new queueDashboard.Media(data);
 			}
 			return true;
 		}
@@ -65,7 +65,7 @@ if(typeof(queueDashbaord) == "undefined"){
 		return false;
 	}
 	
-	queueDashbaord.Queue.prototype.updateLiveMedia = function(data){
+	queueDashboard.Queue.prototype.updateLiveMedia = function(data){
 		debug(['updating live', data]);
 		if(data.action == 'drop'){
 			this.calls--;
@@ -87,7 +87,7 @@ if(typeof(queueDashbaord) == "undefined"){
 		}
 	}
 	
-	queueDashbaord.Queue.prototype.updateHistoricalMedia = function(data){
+	queueDashboard.Queue.prototype.updateHistoricalMedia = function(data){
 		debug(['updating history', data]);
 		if(data.action == 'drop'){
 			if(this._history[data.id].status != 'completed'){
@@ -102,7 +102,7 @@ if(typeof(queueDashbaord) == "undefined"){
 		}
 	}
 		
-	queueDashbaord.Queue.prototype.recalc = function(){
+	queueDashboard.Queue.prototype.recalc = function(){
 		var now = new Date();
 		now = Math.floor(now.getTime() / 1000);
 		
@@ -155,7 +155,7 @@ if(typeof(queueDashbaord) == "undefined"){
 	// helper class media
 	// ====
 	
-	queueDashbaord.Media = function(initalEvent){
+	queueDashboard.Media = function(initalEvent){
 		this.initalEvent = initalEvent;
 		this.created = Math.floor(new Date().getTime() / 1000);
 		if(initalEvent.details.queued_at){
@@ -166,7 +166,7 @@ if(typeof(queueDashbaord) == "undefined"){
 		this.status = 'limbo';
 	}
 	
-	queueDashbaord.Media.prototype.end = function(cause){
+	queueDashboard.Media.prototype.end = function(cause){
 		this.status = cause;
 		this.ended = Math.floor(new Date().getTime() / 1000);
 	}
@@ -175,11 +175,11 @@ if(typeof(queueDashbaord) == "undefined"){
 	// Helpful functions
 	// =====
 	
-	queueDashbaord.filterSupevent = function(supevent){
+	queueDashboard.filterSupevent = function(supevent){
 		return (supevent.type == 'media' || supevent.type == 'queue');
 	}
 	
-	queueDashbaord.getStatus = function(){
+	queueDashboard.getStatus = function(){
 		dojo.xhrGet({
 			url:'/supervisor/status',
 			handleAs:'json',
@@ -203,7 +203,11 @@ if(typeof(queueDashbaord) == "undefined"){
 				
 				for(i = 0; i < real.length; i++){
 					debug(["status fixed", real[i]]);
-					dojo.publish("queueDashbaord/supevent", [{data: real[i]}]);
+					dojo.publish("queueDashboard/supevent", [{data: real[i]}]);
+				}
+				
+				if(! queueDashboard.recalcTimer){
+					queueDashboard.recalcTimerFunc();
 				}
 			},
 			error:function(res){
@@ -212,9 +216,9 @@ if(typeof(queueDashbaord) == "undefined"){
 		});
 	}
 	
-	queueDashbaord.drawQueueTable = function(){
+	queueDashboard.drawQueueTable = function(){
 		// Should only need to be called once, after the queue list is gotten.
-		for(i in queueDashbaord.dataStore.queues){
+		for(i in queueDashboard.dataStore.queues){
 			nodes = dojo.query('#queueDashboardTable *[queue="' + i + '"]');
 			if(nodes.length == 0){
 				var queueTr = document.createElement('tr');
@@ -229,7 +233,7 @@ if(typeof(queueDashbaord) == "undefined"){
 				queueTr.onclick = function(){
 					var callDisps = dojo.query('#queueDashboardTable *[queue="' + i + '"][purpose="callDisplay"]');
 					if(callDisps.length == 0){
-						queueDashbaord.drawCallTable(i);
+						queueDashboard.drawCallTable(i);
 					} else {
 						dojo.byId('queueDashboardTable').removeChild(callDisps[0]);
 					}
@@ -267,7 +271,7 @@ if(typeof(queueDashbaord) == "undefined"){
 		}
 	}
 	
-	queueDashbaord.drawCallTable = function(queuename){
+	queueDashboard.drawCallTable = function(queuename){
 		var queueMediasTr = document.createElement('tr');
 		queueMediasTr.setAttribute('queue', queuename);
 		queueMediasTr.setAttribute('purpose', 'callDisplay');
@@ -287,21 +291,30 @@ if(typeof(queueDashbaord) == "undefined"){
 		
 		var tbody = dojo.query('#queueDashboardTable *[queue="default_queue"][purpose="callDisplay"] tbody')[0];
 		
-		for(var i in queueDashbaord.dataStore.queues[queuename].medias){
-			queueDashbaord.drawCallTableRow(queuename, i, tbody);
+		for(var i in queueDashboard.dataStore.queues[queuename].medias){
+			queueDashboard.drawCallTableRow(queuename, i, tbody);
 		}
 	}
 	
-	queueDashbaord.drawCallTableRow = function(queuename, mediaid, tbody){
+	queueDashboard.drawCallTableRow = function(queuename, mediaid, tbody){
 		var tr = document.createElement('tr');
 		var now = Math.floor(new Date().getTime() / 1000);
-		var age = now - queueDashbaord.dataStore.queues[queuename].medias[mediaid].created;
+		var age = now - queueDashboard.dataStore.queues[queuename].medias[mediaid].created;
 		tr.setAttribute('callid', mediaid);
 		tr.innerHTML = '<td>' + mediaid + '</td>' +
-		'<td>' + queueDashbaord.dataStore.queues[queuename].medias[mediaid].type + '</td>' +
+		'<td>' + queueDashboard.dataStore.queues[queuename].medias[mediaid].type + '</td>' +
 		'<td>' + age + '</td>' +
-		'<td>' + queueDashbaord.dataStore.queues[queuename].medias[mediaid].client + '</td>';
+		'<td>' + queueDashboard.dataStore.queues[queuename].medias[mediaid].client + '</td>';
 		dojo.place(tr, tbody, 'last');
+	}
+	
+	queueDashboard.recalcTimerFunc = function(){
+		if(dojo.byId('queueDashboardTable')){
+			for(var i in queueDashboard.dataStore.queues){
+				queueDashboard.dataStore.queues[i].recalc();
+			}
+			queueDashboard.recalcTimer = setTimeout(queueDashboard.recalcTimerFunc, 5000);
+		}
 	}
 }
 
@@ -311,10 +324,10 @@ dojo.xhrGet({
 	load:function(res){
 		if(res.success){
 			for(var i = 0; i < res.queues.length; i++){
-				queueDashbaord.dataStore.queues[res.queues[i].name] = new queueDashbaord.Queue(res.queues[i].name);
+				queueDashboard.dataStore.queues[res.queues[i].name] = new queueDashboard.Queue(res.queues[i].name);
 			}
-			queueDashbaord.drawQueueTable();
-			queueDashbaord.getStatus();
+			queueDashboard.drawQueueTable();
+			queueDashboard.getStatus();
 		} else {
 			errMessage(["getting queues failed", res.message]);
 		}
@@ -324,15 +337,15 @@ dojo.xhrGet({
 	}
 });
 
-queueDashbaord.masterSub = dojo.subscribe("agent/supervisortab", queueDashbaord, function(supevent){
+queueDashboard.masterSub = dojo.subscribe("agent/supervisortab", queueDashboard, function(supevent){
 	if(! this.filterSupevent(supevent.data)){
 		return false;
 	}
 	
 	supevent.data.id = supevent.data.id.substr(6);
 
-	debug(["queuedashbaord forwarding", supevent]);
-	dojo.publish("queueDashbaord/supevent", [supevent]);
+	debug(["queueDashboard forwarding", supevent]);
+	dojo.publish("queueDashboard/supevent", [supevent]);
 });
 
 /*dojo.byId('queueDashboardTable').updateSub = dojo.subscribe('queueDashboard/queueUpdate', dojo.byId('queueDashboardTable'), function(data){
@@ -341,3 +354,4 @@ queueDashbaord.masterSub = dojo.subscribe("agent/supervisortab", queueDashbaord,
 		var mediasRow = dojo.create('tr', {id: "queueDashboardMedias-" + data.name}, this, 'last');
 	}
 });*/
+

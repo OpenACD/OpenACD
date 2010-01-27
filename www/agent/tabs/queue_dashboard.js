@@ -125,7 +125,7 @@ if(typeof(queueDashbaord) == "undefined"){
 		
 		var totalAge = 0;
 		var counted = 0;
-		var oldest = now;
+		var oldest = 0;
 		
 		for(i in this.medias){
 			counted++;
@@ -158,6 +158,9 @@ if(typeof(queueDashbaord) == "undefined"){
 	queueDashbaord.Media = function(initalEvent){
 		this.initalEvent = initalEvent;
 		this.created = Math.floor(new Date().getTime() / 1000);
+		if(initalEvent.details.queued_at){
+			this.created = initalEvent.details.queued_at.timestamp;
+		}
 		this.type = initalEvent.details.type;
 		this.client = initalEvent.details.client;
 		this.status = 'limbo';
@@ -221,7 +224,7 @@ if(typeof(queueDashbaord) == "undefined"){
 				'</td><td purpose="callCount"></td>' + 
 				'<td purpose="completeCount">0</td>' + 
 				'<td purpose="abandonCount">0</td>' + 
-				'<td purpose="avergageHold">0</td>' + 
+				'<td purpose="averageHold">0</td>' + 
 				'<td purpose="oldestHold">0</td>';
 				queueTr.onclick = function(){
 					var callDisps = dojo.query('#queueDashboardTable *[queue="' + i + '"][purpose="callDisplay"]');
@@ -291,10 +294,12 @@ if(typeof(queueDashbaord) == "undefined"){
 	
 	queueDashbaord.drawCallTableRow = function(queuename, mediaid, tbody){
 		var tr = document.createElement('tr');
+		var now = Math.floor(new Date().getTime() / 1000);
+		var age = now - queueDashbaord.dataStore.queues[queuename].medias[mediaid].created;
 		tr.setAttribute('callid', mediaid);
 		tr.innerHTML = '<td>' + mediaid + '</td>' +
 		'<td>' + queueDashbaord.dataStore.queues[queuename].medias[mediaid].type + '</td>' +
-		'<td>' + queueDashbaord.dataStore.queues[queuename].medias[mediaid].created + '</td>' +
+		'<td>' + age + '</td>' +
 		'<td>' + queueDashbaord.dataStore.queues[queuename].medias[mediaid].client + '</td>';
 		dojo.place(tr, tbody, 'last');
 	}

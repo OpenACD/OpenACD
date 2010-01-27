@@ -34,7 +34,7 @@ if(typeof(queueDashbaord) == "undefined"){
 	}
 	
 	queueDashbaord.Queue.prototype.consumeEvent = function(data){
-		console.log(["nom nom'ing", data]);
+		debug(["nom nom'ing", data]);
 		if(data.type == 'media'){
 			// current, history, or new?
 			if(this.medias[data.id]){
@@ -42,7 +42,7 @@ if(typeof(queueDashbaord) == "undefined"){
 			} else if(this._history[data.id]){
 				this.updateHitoricalMedia(data);
 			} else if(this._limboMedias[data.id]){
-				console.log(['updating limbo', data]);
+				debug(['updating limbo', data]);
 				if(data.details.queue && data.details.queue == this.name){
 					this.medias[data.id] = this._limboMedias[data.id];
 					this.medias[data.id].status = 'queued';
@@ -51,22 +51,22 @@ if(typeof(queueDashbaord) == "undefined"){
 					delete this._limboMedias[data.id];
 				}
 			} else if(data.details.queue == this.name) {
-				console.log(['updating medias list', data]);
+				debug(['updating medias list', data]);
 				this.calls++;
 				this.medias[data.id] = new queueDashbaord.Media(data);
 			} else {
-				console.log(['appending to limbo', data]);
+				debug(['appending to limbo', data]);
 				this._limboMedias[data.id] = new queueDashbaord.Media(data);
 			}
 			return true;
 		}
 		
-		console.log(['apparently data.type was not media', data.type]);
+		debug(['apparently data.type was not media', data.type]);
 		return false;
 	}
 	
 	queueDashbaord.Queue.prototype.updateLiveMedia = function(data){
-		console.log(['updating live', data]);
+		debug(['updating live', data]);
 		if(data.action == 'drop'){
 			this.calls--;
 			this.abandoned++;
@@ -88,7 +88,7 @@ if(typeof(queueDashbaord) == "undefined"){
 	}
 	
 	queueDashbaord.Queue.prototype.updateHistoricalMedia = function(data){
-		console.log(['updating history', data]);
+		debug(['updating history', data]);
 		if(data.action == 'drop'){
 			if(this._history[data.id].status != 'completed'){
 				this.abandoned++;
@@ -181,7 +181,7 @@ if(typeof(queueDashbaord) == "undefined"){
 			url:'/supervisor/status',
 			handleAs:'json',
 			load:function(res){
-				console.log(res);
+				debug(res);
 				// nab only the medias
 				var real = [];
 				var items = res.data.items;
@@ -199,7 +199,7 @@ if(typeof(queueDashbaord) == "undefined"){
 				}
 				
 				for(i = 0; i < real.length; i++){
-					console.log(["status fixed", real[i]]);
+					debug(["status fixed", real[i]]);
 					dojo.publish("queueDashbaord/supevent", [{data: real[i]}]);
 				}
 			},
@@ -326,7 +326,7 @@ queueDashbaord.masterSub = dojo.subscribe("agent/supervisortab", queueDashbaord,
 	
 	supevent.data.id = supevent.data.id.substr(6);
 
-	console.log(["queuedashbaord forwarding", supevent]);
+	debug(["queuedashbaord forwarding", supevent]);
 	dojo.publish("queueDashbaord/supevent", [supevent]);
 });
 

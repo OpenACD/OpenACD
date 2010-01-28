@@ -298,6 +298,64 @@ function showErrorReportDialog(conf){
 	dialog.show();
 }
 
+function reportIssue(humanReport){
+	var simpleAgent = {
+		login: agent.login,
+		profile: agent.profile,
+		securityLevel: agent.securityLevel,
+		skew: agent.skew,
+		skills: agent.skills,
+		state: agent.state,
+		statdata: agent.statedata
+	}
+	
+	var simpleLog = [];
+	var i = 0;
+	var maxLog = 100;
+	
+	if(EventLog.logged.length > maxLog){
+		i = EventLog.logged.length - maxLog;
+	}
+	for(i; i < EventLog.logged.length; i++){
+		simpleLog.push(EventLog.logged[i]);
+	}
+	
+	var agentuiSettings = null;
+	if(dojo.cookie('agentui-settings')){
+		agentui = dojo.fromJson(dojo.cookie('agentui-settings'));
+	}
+	
+	var openTabs = dijit.byId('tabPanel').getChildren();
+	for(i = 0; i < openTabs.length; i++){
+		openTabs[i] = openTabs[i].id;
+	}
+	
+	var forJson = {
+		agent: simpleAgent,
+		uisettings: agentuiSettings,
+		tabs: openTabs,
+		log: simpleLog
+	}
+	
+	humanReport.uistate = dojo.toJson(forJson);
+	
+	dojo.xhrPost({
+		url:'/report_issue',
+		handleAs:'json',
+		content: humanReport,
+		load:function(res){
+			if(res.success){
+				return true;
+			}
+			
+			errMessage(["submitting bug report failed", res.message]);
+		},
+		error: function(res){
+			errMessage(["submitting bug report errored", res]);
+		}
+	});
+}
+
 dojo.addOnLoad(function(){
 	//TODO:  Move logging/logger functions to other file.
 	if(window.console.log === undefined){
@@ -478,6 +536,8 @@ dojo.addOnLoad(function(){
 				});
 				agent = new Agent(response.login, parseInt(response.statetime, 10), response.timestamp);
 				agent.setSkew(response.timestamp);
+				agent.profile = response.profile;
+				agent.statedata = response.statedata;
 				buildReleaseMenu(agent);
 				buildOutboundMenu(agent);
 				buildQueueMenu(agent);
@@ -902,6 +962,7 @@ dojo.addOnLoad(function(){
 								dojo.cookie('agentui-settings', dojo.toJson(settings)); 
 								debug(response2);
 								agent = new Agent(attrs.username, parseInt(response2.statetime, 10));
+								agent.profile = response2.profile;
 								agent.setSkew(response2.timestamp);
 								agent.stopwatch.onTick = function(){
 									var elapsed = agent.stopwatch.time();

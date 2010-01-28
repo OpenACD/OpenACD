@@ -286,7 +286,7 @@ if(typeof(queueDashboard) == "undefined"){
 		'<th>Hold Time</th>' + 
 		'<th>Brand</th>' + 
 		'</tr>';
-		var tbody = dojo.query('#queueDashboardTable *[queue="default_queue"][purpose="callDisplay"] tbody')[0];
+		var tbody = dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="callDisplay"] table')[0];
 		
 		for(var i in queueDashboard.dataStore.queues[queuename].medias){
 			queueDashboard.drawCallTableRow(queuename, i, tbody);

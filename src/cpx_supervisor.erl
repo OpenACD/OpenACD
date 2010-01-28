@@ -103,8 +103,9 @@
 	stop_spec/1,
 	restart/2,
 	restart_spec/1,
-	get_archive_path/1
-	]).
+	get_archive_path/1,
+	submit_bug_report/4
+]).
 %% General system settings
 -export([
 	set_value/2,
@@ -520,7 +521,29 @@ get_archive_path(Call) ->
 			none
 	end.
 
-
+%% @doc Try to submit a bug report to a (possibly) configred mantis.
+-spec(submit_bug_report/4 :: (Summary :: binary(), Description :: binary(), Reproduce :: binary(), Other :: binary()) -> 'ok' | {'error', any()}).
+submit_bug_report(Summary, Description, Reproduce, Other) when is_binary(Summary), is_binary(Description), is_binary(Reproduce), is_binary(Other) ->
+	case get_value(mantispath) of
+		none ->
+			{error, noconf};
+		{ok, Path} ->
+			Json = {struct, [
+				{<<"summary">>, Summary},
+				{<<"description">>, Description},
+				{<<"steps_to_reproduce">>, Reproduce},
+				{<<"additional_information">>, Other}
+			]},
+			case http:request(post, {Path, [], "application/x-www-form-urlencoded", lists:append(["report=", binary_to_list(list_to_binary(mochijson2:encode(Json)))])}, [{timeout, 4000}], []) of
+				{ok, {200, _Head, Body}} ->
+					?WARNING("~p", [Body]),
+					?NOTICE("bug report completed (summary:  ~s)", [Summary]),
+					ok;
+				Else ->
+					?NOTICE("bug report attempt (summary:  ~s)", [Summary]),
+					Else
+			end
+	end.
 -ifdef(TEST).
 
 config_test_() -> 

@@ -536,11 +536,19 @@ submit_bug_report(Summary, Description, Reproduce, Other) when is_binary(Summary
 			]},
 			case http:request(post, {Path, [], "application/x-www-form-urlencoded", lists:append(["report=", binary_to_list(list_to_binary(mochijson2:encode(Json)))])}, [{timeout, 4000}], []) of
 				{ok, {{_Ver, 200, _Msg}, _Head, Body}} ->
-					?WARNING("~p", [Body]),
-					?NOTICE("bug report completed (summary:  ~s)", [Summary]),
-					ok;
+					{struct, Props} = mochijson2:decode(Body),
+					case proplists:get_value(<<"success">>, Props) of
+						true ->
+							Bugid = proplists:get_value(<<"issueid">>, Props),
+							?NOTICE("bug report submitted:  ~p", [Bugid]),
+							ok;
+						_ ->
+							Message = proplists:get_value(<<"message">>, Props),
+							?NOTICE("Bug report attempt (summary:  ~s) errored ~p", [Summary, Message]),
+							{error, Message}
+					end;
 				Else ->
-					?NOTICE("bug report attempt (summary:  ~s)", [Summary]),
+					?NOTICE("bug report attempt (summary:  ~s) errored ~p", [Summary, Else]),
 					Else
 			end
 	end.

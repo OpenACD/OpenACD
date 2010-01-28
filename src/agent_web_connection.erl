@@ -784,11 +784,21 @@ handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = St
 	end,
 	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({undefined, "/report_issue", Post}, _From, State) ->
-	case cpx_supervisor:get_value(mantispath) of
-		none ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no bug report system configured">>}]})}, State};
-		{ok, Path} ->
-			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}, State}
+	Summary = proplists:get_value("reportIssueSummary", Post),
+	Description = proplists:get_value("reportIssueError", Post),
+	Reproduce = proplists:get_value("reportIssueReproduce", Post),
+	Humandetails = proplists:get_value("reportIssueDetails", Post),
+	Uidetails = proplists:get_value("uistate", Post),
+	Details = list_to_binary([Humandetails, <<"\n==== automatically gathered ====\n">>, Uidetails]),
+	case cpx_supervisor:submit_bug_report(list_to_binary(Summary), list_to_binary(Description), list_to_binary(Reproduce), Details) of
+		ok ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+		{error, Err} ->
+			Json = {struct, [
+				{success, false},
+				{<<"message">>, list_to_binary(io_lib:format("~p", [Err]))}
+			]},
+			{reply, {200, [], mochijson2:encode(Json)}, State}
 	end;
 handle_call({undefined, [$/ | Path]}, From, State) ->
 	handle_call({undefined, [$/ | Path], []}, From, State);

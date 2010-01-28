@@ -105,13 +105,7 @@ if(typeof(queueDashboard) == "undefined"){
 	queueDashboard.Queue.prototype.recalc = function(){
 		var now = new Date();
 		now = Math.floor(now.getTime() / 1000);
-		
-		//var inqueue = 0;
-		//var abandoned = 0;
-		//var handled = 0;
-		//var age = 0;
-		//var oldest = now;
-		
+				
 		for(var i in this._history){
 			if(now - 86400 < this._history[i].ended){
 				if(this._history[i].status == 'abandoned'){
@@ -222,12 +216,12 @@ if(typeof(queueDashboard) == "undefined"){
 	
 	queueDashboard.drawQueueTable = function(){
 		// Should only need to be called once, after the queue list is gotten.
-		for(i in queueDashboard.dataStore.queues){
+		for(var i in queueDashboard.dataStore.queues){
 			var testnom = i;
-			nodes = dojo.query('#queueDashboardTable *[queue="' + i + '"]');
+			nodes = dojo.query('#queueDashboardTable *[queue="' + testnom + '"]');
 			if(nodes.length == 0){
 				var queueTr = document.createElement('tr');
-				queueTr.setAttribute('queue', i);
+				queueTr.setAttribute('queue', testnom);
 				queueTr.setAttribute('purpose', 'queueDisplay');
 				dojo.create('td', {purpose: 'name', innerHTML: testnom}, queueTr);
 				dojo.create('td', {purpose: 'callCount'}, queueTr);
@@ -236,19 +230,21 @@ if(typeof(queueDashboard) == "undefined"){
 				dojo.create('td', {purpose: 'averageHold'}, queueTr);
 				dojo.create('td', {purpose: 'oldestHold'}, queueTr);
 				queueTr.onclick = function(){
-					var callDisps = dojo.query('#queueDashboardTable *[queue="' + testnom + '"][purpose="callDisplay"]');
+					var queuenom = this.getAttribute('queue');
+					//console.log(["the queue", testnom, this]);
+					var callDisps = dojo.query('#queueDashboardTable *[queue="' + queuenom + '"][purpose="callDisplay"]');
 					if(callDisps.length == 0){
-						queueDashboard.drawCallTable(testnom);
+						queueDashboard.drawCallTable(queuenom);
 					} else {
 						dojo.byId('queueDashboardTable').removeChild(callDisps[0]);
 					}
 				}
-				queueTr.queueSubscription = dojo.subscribe("queueDashboard/queueUpdate", function(queue){
-					if(queue.name != testnom){
+				queueTr.queueSubscription = dojo.subscribe("queueDashboard/queueUpdate", queueTr, function(queue){
+					if(queue.name != this.getAttribute('queue')){
 						return false;
 					}
-					
-					var tds = dojo.query('#queueDashboardTable *[queue="' + i + '"][purpose="queueDisplay"] td');
+					var queuenom = this.getAttribute('queue');
+					var tds = dojo.query('#queueDashboardTable *[queue="' + queuenom + '"][purpose="queueDisplay"] td');
 					for(var j = 0; j < tds.length; j++){
 						switch(tds[j].getAttribute('purpose')){
 							case 'callCount':

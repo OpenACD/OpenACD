@@ -421,6 +421,18 @@ dojo.addOnLoad(function(){
 
 	window._logLevel = 4; //default is warning
 
+	//create a 'bugs' button and move it to a nice spot.
+	var div = dojo.create('div', {'class':'rightFloater'}, 'tabPanel_tablist', 'first');
+	var innerDiv = dojo.create('div', null, div);
+	var bugsButton = new dijit.form.Button({
+		label:'Report Issue',
+		showLabel:false,
+		iconClass:'cpxIconBug',
+		onClick: function(){
+			errMessage('nyi');
+		}
+	}, innerDiv);
+	
 	EventLog.log("Inteface loaded");
 	
 	EventLog.logAgentState = dojo.subscribe("agent/state", function(data){

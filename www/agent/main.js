@@ -683,6 +683,7 @@ dojo.addOnLoad(function(){
 			this.attr('style', 'display:inline');
 			dojo.byId('foo').style.display = 'inline';
 		} else  {
+			dojo.byId('foo').style.display = 'none';
 			this.attr('style', 'display:none');
 		}
 	});

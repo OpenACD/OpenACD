@@ -266,9 +266,10 @@ cdr_transaction_to_integer(T) ->
 		transfer -> 9;
 		agent_transfer -> 9;
 		queue_transfer -> 9;
-		warmtransfer -> 10;
-		warmtransfercomplete -> 11;
-		warmtransferfailed -> 12;
+		warmxfer_begin -> 10;
+		warmxfer_complete -> 11;
+		warmxfer_cancel -> 12;
+		warmxfer_fail -> 12;
 		warmxferleg -> 13;
 		wrapup -> 14; % was INWRAPUP
 		endwrapup -> 15;
@@ -281,7 +282,7 @@ cdr_transaction_to_integer(T) ->
 		_ -> ?WARNING("unhandled CDR transaction ~p", [T]), undefined
 	end.
 
-get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) when T =:= oncall; T =:= wrapup; T =:= endwrapup; T =:= ringing  ->
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) when T =:= oncall; T =:= wrapup; T =:= endwrapup; T =:= ringing; T == warmxfer_cancel; T == warmxfer_fail; T == warmxfer_complete ->
 	case agent_auth:get_agent(Transaction#cdr_raw.eventdata) of
 		{atomic, [Rec]} when is_tuple(Rec) ->
 			integer_to_list(list_to_integer(element(2, Rec)) + 1000);
@@ -292,6 +293,8 @@ get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) when T =:= i
 	Transaction#cdr_raw.eventdata;
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) when T =:= queue_transfer  ->
 	"queue " ++ Transaction#cdr_raw.eventdata;
+get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) when T =:= warmxfer_begin  ->
+	element(2, Transaction#cdr_raw.eventdata);
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) when T =:= agent_transfer  ->
 	{_From, To} = Transaction#cdr_raw.eventdata,
 	Agent = case agent_auth:get_agent(To) of

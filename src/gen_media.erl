@@ -814,6 +814,10 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = 
 			gen_server:cast(Callrec#call.cook, stop_ringing),
 			{reply, invalid, Newstate}
 	end;
+handle_call('$gen_media_agent_oncall', From, #state{oncall_pid = OcPid} = State) when is_pid(OcPid) ->
+	?INFO("oncall request from ~p when already oncall, ignoring", [From]),
+	% TODO - is this a bad thing to do? Micah -- please review this clause.
+	{reply, ok, State};
 handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined} = State) ->
 	?INFO("oncall request from ~p when no ring_pid (probobly a late request)", [From]),
 	{reply, invalid, State};

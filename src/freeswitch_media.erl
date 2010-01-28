@@ -683,6 +683,20 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 				_Otherwise ->
 					{noreply, State}
 			end;
+		"CHANNEL_HANGUP" when is_list(State#state.warm_transfer_uuid) and is_pid(State#state.ringchannel) ->
+			?NOTICE("caller hung up while agent was talking to third party", []),
+			RUUID = freeswitch_ring:get_uuid(State#state.ringchannel),
+			% notify the agent that the caller hung up via some beeping
+			freeswitch:bgapi(State#state.cnode, uuid_displace,
+				RUUID ++ " start tone_stream://v=-7;%(100,0,941.0,1477.0);v=-7;>=2;+=.1;%(1400,0,350,440) mux"),
+			case agent_manager:find_by_pid(Agent) of
+				notfound ->
+					{error, bad_agent, State};
+				AgentName ->
+					agent:blab(Agent, "Caller hung up, sorry.")
+			end,
+			cdr:warmxfer_fail(Callrec, State#state.agent_pid),
+			{hangup, State};
 		"CHANNEL_HANGUP" ->
 			?DEBUG("Channel hangup", []),
 			Apid = State#state.agent_pid,

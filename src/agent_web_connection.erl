@@ -774,7 +774,7 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when Call
 		undefined ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
 	end;
-handle_call({undefined, "/call_hangup", _Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
+handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
 	Call#call.source ! call_hangup,
 	Json = case agent:set_state(State#state.agent_fsm, {wrapup, State#state.current_call}) of
 		invalid ->
@@ -783,6 +783,13 @@ handle_call({undefined, "/call_hangup", _Post}, _From, #state{current_call = Cal
 			{struct, [{success, true}, {<<"message">>, <<"agent accepted statechange">>}]}
 	end,
 	{reply, {200, [], mochijson2:encode(Json)}, State};
+handle_call({undefined, "/report_issue", Post}, _From, State) ->
+	case cpx_supervisor:get_value(mantispath) of
+		none ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no bug report system configured">>}]})}, State};
+		{ok, Path} ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}, State}
+	end;
 handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
 	%% considering how things have gone, the best guess is this is a media call.
 	%% Note that the results below are only for email, so this will need

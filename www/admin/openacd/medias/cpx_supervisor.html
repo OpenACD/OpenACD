@@ -17,7 +17,7 @@
 			this.attr('label', dojo.i18n.getLocalization("admin", 'labels').SUBMIT);
 			console.log("end postCreate");
 			dojo.xhrGet({
-				url:"medias/" + medias.activeNode + "/cpx_supervisor/get",
+				url:"medias/" + medias.activeNode + "/cpx_supervisor/get/archivepath",
 				handleAs:"json",
 				load:function(res){
 					if(res.success){
@@ -34,9 +34,9 @@
 		</script>
 		<script type="dojo/connect" event="onClick">
 			dojo.xhrPost({
-				url:"medias/" + medias.activeNode + "/cpx_supervisor/update",
+				url:"medias/" + medias.activeNode + "/cpx_supervisor/update/archivepath",
 				content:{
-					'key':'archivepath',
+					//'key':'archivepath',
 					'value':dijit.byId('archivepath').value
 				},
 				handleAs:"json",
@@ -73,5 +73,52 @@
 	<li>calltype - email, voice, voicemail ...</li>
 	<li>calldirection - inbound or outbound</li>
 </ul>
+
+<form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="mantisConnectForm">
+<p>
+	<label for="mantisPath" class="translatecol">MANTISPATH</label>
+	<input dojoType="dijit.form.TextBox" name="mantisPath" id="mantispath" />
+	<button dojoType="dijit.form.Button" label="SAVE">
+		<script type="dojo/method" event="postCreate">
+			this.attr('label', dojo.i18n.getLocalization("admin", 'labels').SUBMIT);
+			console.log("end postCreate");
+			dojo.xhrGet({
+				url:"medias/" + medias.activeNode + "/cpx_supervisor/get/mantispath",
+				handleAs:"json",
+				load:function(res){
+					if(res.success){
+						dijit.byId('mantispath').attr('value', res.result);
+					}
+					else{
+						console.log(["load fail", res.message]);
+					}
+				},
+				error:function(err){
+					console.log(["other fail", err]);
+				}
+			});
+		</script>
+		<script type="dojo/connect" event="onClick">
+			dojo.xhrPost({
+				url:"medias/" + medias.activeNode + "/cpx_supervisor/update/mantispath",
+				content:{
+					//'key':'archivepath',
+					'value':dijit.byId('mantispath').value
+				},
+				handleAs:"json",
+				load:function(res){
+					if(res.success){
+						// coolbeans
+					}
+					else{
+						console.log(["res success false", res.message]);
+					}
+				},
+				error:function(err){
+					console.log(["fail!", err]);
+				}
+			});
+		</script>
+	</button>
 
 </div>

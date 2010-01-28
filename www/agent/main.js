@@ -309,6 +309,15 @@ function reportIssue(humanReport){
 		statdata: agent.statedata
 	}
 	
+	var coveredNode = dijit.byId('reportIssueDialog').domNode;
+	var standby = new dojox.widget.Standby({
+		target: coveredNode,
+		zIndex:1000
+	});
+	dojo.doc.body.appendChild(standby.domNode);
+	standby.startup();
+	standby.show();	
+	
 	var simpleLog = [];
 	var i = 0;
 	var maxLog = 100;
@@ -344,13 +353,16 @@ function reportIssue(humanReport){
 		handleAs:'json',
 		content: humanReport,
 		load:function(res){
+			standby.hide();
 			if(res.success){
+				dijit.byId('reportIssueDialog').hide();
 				return true;
 			}
 			
 			errMessage(["submitting bug report failed", res.message]);
 		},
 		error: function(res){
+			standby.hide();
 			errMessage(["submitting bug report errored", res]);
 		}
 	});

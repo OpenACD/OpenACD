@@ -790,6 +790,8 @@ handle_call({undefined, "/report_issue", Post}, _From, State) ->
 		{ok, Path} ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"nyi">>}]})}, State}
 	end;
+handle_call({undefined, [$/ | Path]}, From, State) ->
+	handle_call({undefined, [$/ | Path], []}, From, State);
 handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
 	%% considering how things have gone, the best guess is this is a media call.
 	%% Note that the results below are only for email, so this will need

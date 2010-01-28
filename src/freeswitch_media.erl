@@ -689,12 +689,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 			% notify the agent that the caller hung up via some beeping
 			freeswitch:bgapi(State#state.cnode, uuid_displace,
 				RUUID ++ " start tone_stream://v=-7;%(100,0,941.0,1477.0);v=-7;>=2;+=.1;%(1400,0,350,440) mux"),
-			case agent_manager:find_by_pid(Agent) of
-				notfound ->
-					{error, bad_agent, State};
-				AgentName ->
-					agent:blab(Agent, "Caller hung up, sorry.")
-			end,
+			agent:blab(State#state.agent_pid, "Caller hung up, sorry."),
 			cdr:warmxfer_fail(Callrec, State#state.agent_pid),
 			{hangup, State};
 		"CHANNEL_HANGUP" ->

@@ -280,6 +280,24 @@ function load_media_tab(options){
 	}
 }
 
+function showErrorReportDialog(conf){
+	if(! conf){
+		conf = {};
+	}
+	var dialog = dijit.byId('reportIssueDialog');
+	for(var i in dialog.inputs){
+		var dij = dijit.byId(i);
+		if(conf[dij.id]){
+			dojo.removeClass(dij.domNode, 'softText');
+			dij.attr('value', conf[dij.id]);
+		} else {
+			dojo.addClass(dij.domNode, 'softText');
+			dij.attr('value', dialog.inputs[i]);
+		}
+	}
+	dialog.show();
+}
+
 dojo.addOnLoad(function(){
 	//TODO:  Move logging/logger functions to other file.
 	if(window.console.log === undefined){
@@ -429,7 +447,8 @@ dojo.addOnLoad(function(){
 		showLabel:false,
 		iconClass:'cpxIconBug',
 		onClick: function(){
-			errMessage('nyi');
+			//dijit.byId('reportIssueDialog').show();
+			showErrorReportDialog();
 		}
 	}, innerDiv);
 	

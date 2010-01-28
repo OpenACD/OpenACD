@@ -69,6 +69,12 @@
 		text-align: center;
 		width: 18px;
 	}
+	
+	.softText {
+		font-size: smaller;
+		font-style: italic;
+		color:gray;
+	}
 </style>
 <link rel="stylesheet" href="/dojo/dojox/layout/resources/FloatingPane.css" />	
 <link rel="stylesheet" href="/dojo/dojox/layout/resources/ResizeHandle.css" />
@@ -228,6 +234,78 @@
 				<script type="dojo/method" event="postCreate">
 					this.inherited("postCreate", arguments);
 					this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").LOGIN);
+				</script>
+			</button>
+		</p>
+	</div>
+</div>
+
+<div dojoType="dijit.Dialog" title="Report Issue" id="reportIssueDialog" style="display:none">
+	<div dojoType="dijit.form.Form" id="reportIssueForm" action="/report_issue" method="post">
+		<script type="dojo/connect" event="onSubmit">
+			arguments[0].preventDefault();
+		</script>
+		
+		<p class="softText">The user agent (browser) will automatically be sent as well as your login name.</p>
+
+		<p>
+			<label for="reportIssueSummary" class="translatecol">SUMMARY</label>
+			<input type="text" name="summary" dojoType="dijit.form.TextBox" trim="true" id="reportIssueSummary" />
+		</p>
+		
+		<p>
+			<label for="reportIssueError" class="translatecol">ERRMESSAGE</label>
+			<textarea dojoType="dijit.form.SimpleTextarea" id="reportIssueError" name="reportIssueError" class="softText" cols="40">The error message, or expected behavior</textarea>
+		</p>
+		
+		<p>
+			<label for="reportIssueReproduce" class="translatecol">CAUSE</label>
+			<textarea dojoType="dijit.form.SimpleTextarea" id="reportIssueReproduce" name="reportIssueReproduce" cols="40" rows="10" class="softText">The specific steps needed to reproduce the problem</textarea>
+		</p>
+
+		<p>
+			<label for="reportIssueOther" class="translatecol">DETAILS</label>
+			<textarea dojoType="dijit.form.SimpleTextarea" id="reportIssueDetails" name="reportIssueDetails" cols="40" rows="10" class="softText">Any Additional information you feel is important.</textarea>
+		</p>
+				
+		<p>
+			<label for="reportIssueSubmit">&nbsp;</label>
+			<button dojoType="dijit.form.Button" id="reportIssueSubmit" type="submit">
+				<script type="dojo/method" event="postCreate">
+					this.inherited("postCreate", arguments);
+					this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").SUBMIT);
+					var inputs = {
+						"reportIssueSummary":"Summarize the error", 
+						"reportIssueError":"The error message, or expected behavior", 
+						"reportIssueReproduce":"The specific steps needed to reproduce the problem",
+						"reportIssueDetails":"Any Additional information you feel is important."
+					};
+					dijit.byId('reportIssueDialog').inputs = inputs;
+					for(var i in inputs){
+						dojo.connect(dijit.byId(i), 'onFocus', dijit.byId(i), function(){
+							if(dojo.hasClass(this.domNode, 'softText')){
+								dojo.removeClass(this.domNode, 'softText');
+								this.attr('value', '');
+							}
+						});
+						dojo.connect(dijit.byId(i), 'onBlur', dijit.byId(i), function(){
+							if(this.attr('value') == ''){
+								this.attr('value', inputs[this.id]);
+								dojo.addClass(this.domNode, 'softText');
+							}
+						});
+					}
+				</script>
+				<script type="dojo/method" event="onClick">
+					var inputs = dijit.byId('reportIssueDialog').inputs;
+					for(var i in inputs){
+						var dij = dijit.byId(i);
+						if(dojo.hasClass(dij.domNode, 'softText') || (dij.attr('value') == '')){
+							errMessage("There are no optional fields");
+							return false;
+						}
+					}
+					
 				</script>
 			</button>
 		</p>

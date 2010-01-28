@@ -1016,15 +1016,31 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 	end,
 	{200, [], mochijson2:encode(Json)};
 	
-api({medias, Node, "cpx_supervisor", "get"}, ?COOKIE, _Post) ->
+api({medias, _Node, "cpx_supervisor", "get"}, ?COOKIE, _Post) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"get what now?">>}]})};
+api({medias, Node, "cpx_supervisor", "get", "archivepath"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_value, [archivepath]) of
 		none ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, <<"">>}]})};
 		{ok, Value} ->
-			{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, list_to_binary(Value)}]})}
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, list_to_binary(Value)}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
-api({medias, Node, "cpx_supervisor", "update"}, ?COOKIE, Post) ->
+api({medias, Node, "cpx_supervisor", "get", "mantispath"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_value, [mantispath]) of
+		none ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, <<"">>}]})};
+		{ok, Value} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, list_to_binary(Value)}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+api({medias, _Node, "cpx_supervisor", "update"}, ?COOKIE, Post) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"update what now?">>}]})};
+api({medias, Node, "cpx_supervisor", "update", "archivepath"}, ?COOKIE, Post) ->
 	Atomnode = list_to_atom(Node),
 	{Func, Args} = case proplists:get_value("value", Post) of
 		"" ->
@@ -1037,7 +1053,22 @@ api({medias, Node, "cpx_supervisor", "update"}, ?COOKIE, Post) ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		Else ->
 			?INFO("dropping archivepath: ~p", [Else]),
-			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"shrug">>}]})}
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+api({medias, Node, "cpx_supervisor", "update", "mantispath"}, ?COOKIE, Post) ->
+	Atomnode = list_to_atom(Node),
+	{Func, Args} = case proplists:get_value("value", Post) of
+		"" ->
+			{drop_value, [mantispath]};
+		Data ->
+			{set_value, [mantispath, Data]}
+	end,
+	case rpc:call(Atomnode, cpx_supervisor, Func, Args) of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Else ->
+			?INFO("dropping mantispath: ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
 api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
@@ -1393,6 +1424,8 @@ parse_path(Path) ->
 					{api, {medias, Action}};
 				["", "medias", Node, Media, Action] ->
 					{api, {medias, Node, Media, Action}};
+				["", "medias", Node, Media, Action, Other] ->
+					{api, {medias, Node, Media, Action, Other}};
 				["", "clients", Action] ->
 					{api, {clients, Action}};
 				["", "clients", Client, Action] ->

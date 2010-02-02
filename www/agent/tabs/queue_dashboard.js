@@ -40,7 +40,7 @@ if(typeof(queueDashboard) == "undefined"){
 			if(this.medias[data.id]){
 				this.updateLiveMedia(data);
 			} else if(this._history[data.id]){
-				this.updateHitoricalMedia(data);
+				this.updateHistoricalMedia(data);
 			} else if(this._limboMedias[data.id]){
 				debug(['updating limbo', data]);
 				if(data.details.queue && data.details.queue == this.name){

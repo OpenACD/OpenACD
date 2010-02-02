@@ -122,14 +122,6 @@
 %% API
 %%====================================================================
 %% @doc starts the freeswitch media gen_server.  `Cnode' is the C node the communicates directly with freeswitch.
-%-spec(start/1 :: (Cnode :: atom()) -> {'ok', pid()}).
-%start(Cnode) ->
-	%gen_media:start(?MODULE, [Cnode]).
-
-%-spec(start_link/1 :: (Cnode :: atom()) -> {'ok', pid()}).
-%start_link(Cnode) ->
-	%gen_media:start_link(?MODULE, [Cnode]).
-
 -spec(start/3 :: (Cnode :: atom(), DialString :: string(), UUID :: string()) -> {'ok', pid()}).
 start(Cnode, DialString, UUID) ->
 	gen_media:start(?MODULE, [Cnode, DialString, UUID]).
@@ -142,14 +134,6 @@ start_link(Cnode, DialString, UUID) ->
 -spec(get_call/1 :: (MPid :: pid()) -> #call{}).
 get_call(MPid) ->
 	gen_media:get_call(MPid).
-
-%-spec(get_queue/1 :: (MPid :: pid()) -> pid()).
-%get_queue(MPid) ->
-%	gen_media:call(MPid, get_queue).
-%
-%-spec(get_agent/1 :: (MPid :: pid()) -> pid()).
-%get_agent(MPid) ->
-%	gen_media:call(MPid, get_agent).
 
 -spec(dump_state/1 :: (Mpid :: pid()) -> #state{}).
 dump_state(Mpid) when is_pid(Mpid) ->
@@ -179,7 +163,6 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	?INFO("intercepting ~s from channel ~s", [XferUUID, Callrec#call.id]),
 	freeswitch:sendmsg(State#state.cnode, XferUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Callrec#call.id}]),
-	%freeswitch_ring:hangup(State#state.ringchannel),
 	case State#state.record_path of
 		undefined ->
 			ok;
@@ -273,28 +256,18 @@ handle_spy(_Agent, _Call, State) ->
 handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
 	AgentRec = agent:dump_state(AgentPid),
-	%#agent{login = Offerer} = agent:dump_state(Offererpid),
-	%Ringout = Timeout div 1000,
-	%?DEBUG("ringout ~p", [Ringout]),
-	%cdr:agent_transfer(Call, {Offerer, Recipient}),
 	% fun that returns another fun when passed the UUID of the new channel
 	% (what fun!)
 	F = fun(_UUID) ->
 		fun(ok, _Reply) ->
 			% agent picked up?
-			%unlink(State#state.ringchannel),
-			%freeswitch:sendmsg(State#state.cnode, UUID,
-				%[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
-				%gen_media:oncall(Call#call.source),
 				?INFO("Agent transfer picked up?~n", []);
 		(error, Reply) ->
 			?WARNING("originate failed: ~p", [Reply])
-			%agent:set_state(AgentPid, idle)
 		end
 	end,
 	case freeswitch_ring:start_link(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge]) of
 		{ok, Pid} ->
-			%{ok, State#state{agent_pid = AgentPid, ringchannel=Pid}};
 			{ok, State#state{xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
@@ -492,39 +465,6 @@ handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-%handle_call({transfer_agent, AgentPid, Timeout}, _From, #state{callrec = Call, agent_pid = Offererpid} = State) ->
-%	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
-%	#agent{login = Recipient} = AgentRec = agent:dump_state(AgentPid),
-%	#agent{login = Offerer} = agent:dump_state(Offererpid),
-%	Ringout = Timeout div 1000,
-%	?DEBUG("ringout ~p", [Ringout]),
-%	cdr:agent_transfer(Call, {Offerer, Recipient}),
-%	case agent:set_state(AgentPid, ringing, Call) of
-%		ok ->
-%			% fun that returns another fun when passed the UUID of the new channel
-%			% (what fun!)
-%			F = fun(UUID) ->
-%				fun(ok, _Reply) ->
-%					% agent picked up?
-%					freeswitch:sendmsg(State#state.cnode, UUID,
-%						[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]);
-%				(error, Reply) ->
-%					?WARNING("originate failed: ~p", [Reply]),
-%					agent:set_state(AgentPid, idle)
-%				end
-%			end,
-%			case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Ringout, F) of
-%				{ok, Pid} ->
-%					{reply, ok, State#state{agent_pid = AgentPid, ringchannel=Pid}};
-%				{error, Error} ->
-%					?ERROR("error:  ~p", [Error]),
-%					agent:set_state(AgentPid, released, "badring"),
-%					{reply, invalid, State}
-%			end;
-%		Else ->
-%			?INFO("Agent ringing response:  ~p", [Else]),
-%			{reply, invalid, State}
-%	end;
 handle_call(get_call, _From, Call, State) ->
 	{reply, Call, State};
 handle_call(get_agent, _From, _Call, State) ->
@@ -556,7 +496,6 @@ handle_info(check_recovery, Call, State) ->
 	case whereis(freeswitch_media_manager) of
 		Pid when is_pid(Pid) ->
 			link(Pid),
-			%Call = State#state.callrec,
 			gen_server:cast(freeswitch_media_manager, {notify, Call#call.id, self()}),
 			{noreply, State#state{manager_pid = Pid}};
 		_Else ->
@@ -580,10 +519,7 @@ handle_info({'EXIT', Pid, Reason}, _Call, #state{manager_pid = Pid} = State) ->
 	{noreply, State#state{manager_pid = Tref}};
 handle_info({call, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
 	?DEBUG("reporting new call ~p.", [UUID]),
-	%Callrec = #call{id = UUID, source = self()},
-	%cdr:cdrinit(Callrec),
 	freeswitch_media_manager:notify(UUID, self()),
-	%State2 = State#state{callrec = Callrec},
 	case_event_name([UUID | Rest], Call, State#state{in_control = true});
 handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
 	?DEBUG("reporting existing call progess ~p.", [UUID]),
@@ -736,18 +672,6 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 			{noreply, State}
 	end.
 
-%get_info(Cnode, UUID) ->
-	%{ok, Result} = freeswitch:api(Cnode, uuid_getvar_multi, UUID++" destination_number;brand;queue_priority"),
-	%[DNIS, Brand, P] = re:split(Result, ";", [{return, list}]),
-	%Priority = try list_to_integer(P) of
-		%Pri ->
-			%Pri
-	%catch
-		%error:badarg ->
-			%?DEFAULT_PRIORITY
-	%end,
-	%{DNIS, Brand, Priority}.
-	
 get_info(Cnode, UUID) ->
 	case freeswitch:api(Cnode, uuid_dump, UUID) of
 		{ok, Result} ->

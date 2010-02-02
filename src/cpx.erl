@@ -43,6 +43,12 @@
 	-include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-ifdef(CPXHELP).
+	-cpxhelp(["head data",
+		{chapter1, "chapter1"},
+		{chapter2, "chapter2"}
+	]).
+-endif.
 % behavior cbs.
 -export([start/2, prep_stop/1, stop/1]).
 
@@ -64,6 +70,8 @@
 	is_running/0,
 	is_running/1,
 	help/0,
+	help/1,
+	help/2,
 	media_state/1,
 	uptime/0,
 	uptime/1
@@ -289,7 +297,12 @@ is_running(Specid) ->
 is_running([], _Specid) ->
 	stopped;
 is_running([Head | _Tail], Specid) when element(1, Head) == Specid ->
-	element(2, Head);
+	case element(2, Head) of
+		undefined ->
+			stopped;
+		Pid ->
+			Pid
+	end;
 is_running([_ | Tail], Specid) ->
 	is_running(Tail, Specid).
 
@@ -298,6 +311,62 @@ help() ->
 	{ok, Bin} = file:read_file("include/cpxhelp.txt"),
 	io:format("~s", [Bin]),
 	ok.
+
+-spec(help/1 :: (Module :: atom()) -> 'ok').
+help(Module) ->
+	case check_module(Module) of
+		false ->
+			ok;
+		true ->
+			Attribs = Module:module_info(attributes),
+			case proplists:get_value(cpxhelp, Attribs) of
+				undefined ->
+					io:format("There is no help information available for ~p", [Module]),
+					ok;
+				[Head | Tail] ->
+					io:format("~p", [Head]),
+					ok
+			end
+	end.
+
+-spec(help/2 :: (Module :: atom(), Chapter :: any()) -> 'ok').
+help(Module, exports) ->
+	case check_module(Module) of
+		false ->
+			ok;
+		true ->
+			pretty_print(lists:sort(Module:module_info(exports))),
+			ok
+	end;
+help(Module, Chapter) ->
+	case check_module(Module) of
+		false ->
+			ok;
+		true ->
+			Attribs = Module:module_info(attributes),
+			case proplists:get_value(cpxhelp, Attribs) of
+				undefined ->
+					io:format("There is no help information available for ~p", [Module]),
+					ok;
+				[_Head | Chapters] ->
+					case proplists:get_value(Chapter, Chapters) of
+						undefined ->
+							io:format("There is no help information available for ~p:~p", [Module, Chapter]);
+						Data ->
+							io:format("~p", [Data]),
+							ok
+					end
+			end
+	end.
+
+check_module(Module) ->
+	case erlang:function_exported(Module, module_info, 1) of
+		false ->
+			io:format("There's no such module ~p", [Module]),
+			false;
+		true ->
+			true
+	end.
 
 -spec(agent_states/0 :: () -> [{string(), string(), atom()}]).
 agent_states() ->
@@ -490,7 +559,6 @@ pretty_print_time([{Label, Interval} | Tail], Time, Acc) ->
 % cdr:pending_states (agent/cdr), global/node
 % start_spec pretty print.
 % cpx:start_spec
-% uptime
 
 -ifdef(TEST).
 

@@ -485,8 +485,13 @@ api(poll, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
 			?DEBUG("Got a kill message with heads ~p and body ~p", [Headers, Body]),
 			{408, Headers, Body}
 	end;
-api({undefined, Path}, Cookie, Post)  ->
-	api({undefined, Path, Post}, Cookie, Post);
+api({undefined, Path}, {_Reflist, _Salt, Conn}, Post) when is_pid(Conn) ->
+	case Post of
+		[] ->
+			agent_web_connection:api(Conn, {undefined, Path});
+		_ ->
+			agent_web_connection:api(Conn, {undefined, Path, Post})
+	end;
 api(Api, {_Reflist, _Salt, Conn}, []) when is_pid(Conn) ->
 	case agent_web_connection:api(Conn, Api) of
 		{Code, Headers, Body} ->

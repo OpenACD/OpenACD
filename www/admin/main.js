@@ -73,6 +73,10 @@ dojo.addOnLoad(function(){
 			   
 	dojo.parser.parse();
 
+	var logoutdiv = dojo.byId('logoutButtonDiv');
+	dojo.place(logoutdiv, dojo.byId('main_tablist'), 'first');
+	//dojo.attr(logoutdiv, 'class', 'rightFloater')
+	
 	var agentsSkillRefreshHandle = dojo.subscribe("skills/init", function(data){
 		var skillsCallback = function(selectNode){
 			selectNode.name = 'skills';

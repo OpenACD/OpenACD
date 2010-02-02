@@ -40,6 +40,13 @@
 	.redText{
 		color:red
 	}
+	
+	.rightFloater{
+		display:inline-block;
+		float:right;
+		position:relative;
+		z-index:10;
+	}
 </style> 
 <style>
 	@import "/dojo/dojox/grid/resources/Grid.css";
@@ -153,28 +160,6 @@ dojo.requireLocalization("admin", "labels");
 
 <div dojoType="dijit.Dialog" title="<span class='redText'>Error</span>" id="errorDialog">
 	Goober
-</div>
-
-<div style="position: absolute; top:2%; right:2%; z-index:2000; display:none" id="logoutButtonDiv">
-	<button id="logoutbutton" dojoType="dijit.form.Button" label="Log Out">
-		<script type="dojo/method" event="postCreate">
-			this.attr('label', dojo.i18n.getLocalization("admin", "labels").LOGOUT);
-		</script>
-		<script type="dojo/connect" event="onClick">
-			dojo.xhrGet({
-				url:"/logout",
-				handleAs:"json",
-				load:function(resp, ioargs){
-					console.log(resp);
-					if(resp.success){
-						dojo.byId("main").style.visibility = "hidden";
-						dojo.byId("logoutButtonDiv").style.display = "none";
-						dijit.byId("loginpane").show();
-					}
-				}
-			});
-		</script>
-	</button>
 </div>
 
 <div id="main" dojoType="dijit.layout.TabContainer" style="width:100%;height:600px;visibility:hidden">	
@@ -1008,6 +993,28 @@ dojo.requireLocalization("admin", "labels");
 		}
 	</script>
 
+</div>
+
+<div id="logoutButtonDiv" class="rightFloater">
+	<button id="logoutbutton" dojoType="dijit.form.Button" label="Log Out">
+		<script type="dojo/method" event="postCreate">
+			this.attr('label', dojo.i18n.getLocalization("admin", "labels").LOGOUT);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			dojo.xhrGet({
+				url:"/logout",
+				handleAs:"json",
+				load:function(resp, ioargs){
+					console.log(resp);
+					if(resp.success){
+						dojo.byId("main").style.visibility = "hidden";
+						dojo.byId("logoutButtonDiv").style.display = "none";
+						dijit.byId("loginpane").show();
+					}
+				}
+			});
+		</script>
+	</button>
 </div>
 
 </body>

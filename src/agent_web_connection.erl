@@ -59,7 +59,8 @@
 	set_salt/2,
 	poll/2,
 	keep_alive/1,
-	mediaload/1
+	mediaload/1,
+	dump_state/1
 ]).
 
 %% gen_server callbacks
@@ -140,6 +141,9 @@ keep_alive(Pid) ->
 -spec(mediaload/1 :: (Conn :: pid()) -> [{any(), any()}] | 'undefined').
 mediaload(Conn) ->
 	gen_server:call(Conn, mediaload).
+
+dump_state(Conn) ->
+	gen_server:call(Conn, dump_state).
 
 %% @doc Encode the given data into a structure suitable for mochijson2:encode
 -spec(encode_statedata/1 :: 
@@ -769,9 +773,34 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when Call
 		undefined ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
 	end;
-handle_call({undefined, "/call_hangup", _Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
+handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
 	Call#call.source ! call_hangup,
-	{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+	Json = case agent:set_state(State#state.agent_fsm, {wrapup, State#state.current_call}) of
+		invalid ->
+			{struct, [{success, false}, {<<"message">>, <<"agent refused statechange">>}]};
+		ok ->
+			{struct, [{success, true}, {<<"message">>, <<"agent accepted statechange">>}]}
+	end,
+	{reply, {200, [], mochijson2:encode(Json)}, State};
+handle_call({undefined, "/report_issue", Post}, _From, State) ->
+	Summary = proplists:get_value("reportIssueSummary", Post),
+	Description = proplists:get_value("reportIssueError", Post),
+	Reproduce = proplists:get_value("reportIssueReproduce", Post),
+	Humandetails = proplists:get_value("reportIssueDetails", Post),
+	Uidetails = proplists:get_value("uistate", Post),
+	Details = list_to_binary([Humandetails, <<"\n==== automatically gathered ====\n">>, Uidetails]),
+	case cpx_supervisor:submit_bug_report(list_to_binary(Summary), list_to_binary(Description), list_to_binary(Reproduce), Details) of
+		ok ->
+			{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+		{error, Err} ->
+			Json = {struct, [
+				{success, false},
+				{<<"message">>, list_to_binary(io_lib:format("~p", [Err]))}
+			]},
+			{reply, {200, [], mochijson2:encode(Json)}, State}
+	end;
+handle_call({undefined, [$/ | Path]}, From, State) ->
+	handle_call({undefined, [$/ | Path], []}, From, State);
 handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
 	%% considering how things have gone, the best guess is this is a media call.
 	%% Note that the results below are only for email, so this will need
@@ -804,6 +833,8 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} =
 	end;
 handle_call(mediaload, _From, State) ->
 	{reply, State#state.mediaload, State};
+handle_call(dump_state, _From, State) ->
+	{reply, State, State};
 handle_call(Allothers, _From, State) ->
 	?DEBUG("unknown call ~p", [Allothers]),
 	{reply, {404, [], <<"unknown_call">>}, State}.

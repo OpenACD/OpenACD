@@ -102,8 +102,10 @@
 	start_spec/1,
 	stop_spec/1,
 	restart/2,
-	get_archive_path/1
-	]).
+	restart_spec/1,
+	get_archive_path/1,
+	submit_bug_report/4
+]).
 %% General system settings
 -export([
 	set_value/2,
@@ -410,6 +412,19 @@ get_conf() ->
 			Rec
 	end.
 
+%% @doc restart the conf
+-spec(restart_spec/1 :: (Spec :: #cpx_conf{} | atom()) -> {'ok', pid()} | {'ok', pid(), any()} | {'error', any()}).
+restart_spec(Spec) when is_atom(Spec) ->
+	case get_conf(Spec) of
+		undefined ->
+			{error, noconf};
+		Conf ->
+			restart_spec(Conf)
+	end;
+restart_spec(Conf) when is_record(Conf, cpx_conf) ->
+	cpx_middle_supervisor:drop_child(Conf#cpx_conf.supervisor, Conf#cpx_conf.id),
+	cpx_middle_supervisor:add_with_middleman(Conf#cpx_conf.supervisor, 3, 5, Conf).
+
 %% @private
 -spec(start_spec/1 :: (Spec :: #cpx_conf{}) -> {'ok', pid()} | {'ok', pid(), any()} | {'error', any()}).
 start_spec(Spec) when is_record(Spec, cpx_conf) ->
@@ -506,7 +521,37 @@ get_archive_path(Call) ->
 			none
 	end.
 
-
+%% @doc Try to submit a bug report to a (possibly) configred mantis.
+-spec(submit_bug_report/4 :: (Summary :: binary(), Description :: binary(), Reproduce :: binary(), Other :: binary()) -> 'ok' | {'error', any()}).
+submit_bug_report(Summary, Description, Reproduce, Other) when is_binary(Summary), is_binary(Description), is_binary(Reproduce), is_binary(Other) ->
+	case get_value(mantispath) of
+		none ->
+			{error, noconf};
+		{ok, Path} ->
+			Json = {struct, [
+				{<<"summary">>, Summary},
+				{<<"description">>, Description},
+				{<<"steps_to_reproduce">>, Reproduce},
+				{<<"additional_information">>, Other}
+			]},
+			case http:request(post, {Path, [], "application/x-www-form-urlencoded", lists:append(["report=", binary_to_list(list_to_binary(mochijson2:encode(Json)))])}, [{timeout, 4000}], []) of
+				{ok, {{_Ver, 200, _Msg}, _Head, Body}} ->
+					{struct, Props} = mochijson2:decode(Body),
+					case proplists:get_value(<<"success">>, Props) of
+						true ->
+							Bugid = proplists:get_value(<<"issueid">>, Props),
+							?NOTICE("bug report submitted:  ~p", [Bugid]),
+							ok;
+						_ ->
+							Message = proplists:get_value(<<"message">>, Props),
+							?NOTICE("Bug report attempt (summary:  ~s) errored ~p", [Summary, Message]),
+							{error, Message}
+					end;
+				Else ->
+					?NOTICE("bug report attempt (summary:  ~s) errored ~p", [Summary, Else]),
+					Else
+			end
+	end.
 -ifdef(TEST).
 
 config_test_() -> 

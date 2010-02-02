@@ -280,6 +280,94 @@ function load_media_tab(options){
 	}
 }
 
+function showErrorReportDialog(conf){
+	if(! conf){
+		conf = {};
+	}
+	var dialog = dijit.byId('reportIssueDialog');
+	for(var i in dialog.inputs){
+		var dij = dijit.byId(i);
+		if(conf[dij.id]){
+			dojo.removeClass(dij.domNode, 'softText');
+			dij.attr('value', conf[dij.id]);
+		} else {
+			dojo.addClass(dij.domNode, 'softText');
+			dij.attr('value', dialog.inputs[i]);
+		}
+	}
+	dialog.show();
+}
+
+function reportIssue(humanReport){
+	var simpleAgent = {
+		login: agent.login,
+		profile: agent.profile,
+		securityLevel: agent.securityLevel,
+		skew: agent.skew,
+		skills: agent.skills,
+		state: agent.state,
+		statdata: agent.statedata
+	}
+	
+	var coveredNode = dijit.byId('reportIssueDialog').domNode;
+	var standby = new dojox.widget.Standby({
+		target: coveredNode,
+		zIndex:1000
+	});
+	dojo.doc.body.appendChild(standby.domNode);
+	standby.startup();
+	standby.show();	
+	
+	var simpleLog = [];
+	var i = 0;
+	var maxLog = 100;
+	
+	if(EventLog.logged.length > maxLog){
+		i = EventLog.logged.length - maxLog;
+	}
+	for(i; i < EventLog.logged.length; i++){
+		simpleLog.push(EventLog.logged[i]);
+	}
+	
+	var agentuiSettings = null;
+	if(dojo.cookie('agentui-settings')){
+		agentui = dojo.fromJson(dojo.cookie('agentui-settings'));
+	}
+	
+	var openTabs = dijit.byId('tabPanel').getChildren();
+	for(i = 0; i < openTabs.length; i++){
+		openTabs[i] = openTabs[i].id;
+	}
+	
+	var forJson = {
+		agent: simpleAgent,
+		uisettings: agentuiSettings,
+		tabs: openTabs,
+		log: simpleLog
+	}
+	
+	humanReport.uistate = dojo.toJson(forJson);
+	
+	dojo.xhrPost({
+		url:'/report_issue',
+		handleAs:'json',
+		content: humanReport,
+		load:function(res){
+			standby.hide();
+			if(res.success){
+				dijit.byId('reportIssueDialog').hide();
+				return true;
+			}
+			
+			errMessage(["submitting bug report failed", res.message]);
+		},
+		error: function(res){
+			standby.hide();
+			errMessage(["submitting bug report errored", res]);
+		}
+	});
+}
+
 dojo.addOnLoad(function(){
 	//TODO:  Move logging/logger functions to other file.
 	if(window.console.log === undefined){
@@ -421,6 +509,19 @@ dojo.addOnLoad(function(){
 
 	window._logLevel = 4; //default is warning
 
+	//create a 'bugs' button and move it to a nice spot.
+	var div = dojo.create('div', {'class':'rightFloater'}, 'tabPanel_tablist', 'first');
+	var innerDiv = dojo.create('div', null, div);
+	var bugsButton = new dijit.form.Button({
+		label:'Report Issue',
+		showLabel:false,
+		iconClass:'cpxIconBug',
+		onClick: function(){
+			//dijit.byId('reportIssueDialog').show();
+			showErrorReportDialog();
+		}
+	}, innerDiv);
+	
 	EventLog.log("Inteface loaded");
 	
 	EventLog.logAgentState = dojo.subscribe("agent/state", function(data){
@@ -447,6 +548,8 @@ dojo.addOnLoad(function(){
 				});
 				agent = new Agent(response.login, parseInt(response.statetime, 10), response.timestamp);
 				agent.setSkew(response.timestamp);
+				agent.profile = response.profile;
+				agent.statedata = response.statedata;
 				buildReleaseMenu(agent);
 				buildOutboundMenu(agent);
 				buildQueueMenu(agent);
@@ -683,6 +786,7 @@ dojo.addOnLoad(function(){
 			this.attr('style', 'display:inline');
 			dojo.byId('foo').style.display = 'inline';
 		} else  {
+			dojo.byId('foo').style.display = 'none';
 			this.attr('style', 'display:none');
 		}
 	});
@@ -870,6 +974,7 @@ dojo.addOnLoad(function(){
 								dojo.cookie('agentui-settings', dojo.toJson(settings)); 
 								debug(response2);
 								agent = new Agent(attrs.username, parseInt(response2.statetime, 10));
+								agent.profile = response2.profile;
 								agent.setSkew(response2.timestamp);
 								agent.stopwatch.onTick = function(){
 									var elapsed = agent.stopwatch.time();

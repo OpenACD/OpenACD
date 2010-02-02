@@ -537,10 +537,21 @@ oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_pat
 	gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 	%cdr:hangup(Call, agent),
 	%cdr:wrapup(Call, State#agent.login),
-	gen_media:wrapup(Call#call.source),
-	Newstate = State#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
-	set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
-	{reply, ok, wrapup, Newstate};
+	try gen_media:wrapup(Call#call.source) of
+		ok ->			
+			Newstate = State#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
+			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
+			{reply, ok, wrapup, Newstate};
+		invalid ->
+			?WARNING("a living media replied it could not go to wrapup", []),
+			{reply, invalid, oncall, State}
+	catch
+		exit:{noproc, _Blahblahcall} ->
+			?WARNING("Seems the call died without me noticing", []),
+			Newstate = State#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
+			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
+			{reply, ok, wrapup, Newstate}
+	end;
 oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcall} = State) ->
 	case Currentcall#call.id of
 		Callid -> 
@@ -553,8 +564,9 @@ oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcal
 			{reply, invalid, oncall, State}
 	end;
 oncall({warmtransfer, Transferto}, _From, State) ->
-	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
-	Newstate = State#agent{state=warmtransfer, oldstate=State#agent.state, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchange = util:now()},
+	StateData = {onhold, State#agent.statedata, calling, Transferto},
+	gen_server:cast(State#agent.connection, {change_state, warmtransfer, StateData}),
+	Newstate = State#agent{state=warmtransfer, oldstate=State#agent.state, statedata=StateData, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};
 oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
@@ -781,7 +793,8 @@ warmtransfer({outgoing, Call}, _From, State) ->
 	Newstate = State#agent{state=outgoing, oldstate=warmtransfer, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, outgoing, Newstate};
-warmtransfer({warmtransfer, {onhold, Call, calling, UUID} = Statedata}, _From, State) ->
+warmtransfer({warmtransfer, TransferTo}, _From, State) ->
+	Statedata = setelement(4, State#agent.statedata, TransferTo),
 	Newstate = State#agent{statedata = Statedata},
 	set_cpx_monitor(Newstate, ?OUTGOING_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};

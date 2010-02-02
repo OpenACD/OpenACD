@@ -8,6 +8,7 @@
 		sasl,
 		mnesia,
 		crypto,
+		inets,
 		{cpx, "0.9.5"}
 	]
 }.

@@ -612,10 +612,15 @@ queue_call(Cookpid, Callrec, Key, State) ->
 	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
 	Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
 	Value = Queuedrec#queued_call{skills=Expandedskills},
-	Trees = gb_trees:insert(Key, Value, State#state.queue),
-	%cdr:inqueue(Callrec, State#state.name),
-	set_cpx_mon(State#state{queue=Trees}),
-	State#state{queue = Trees}.
+	try gb_trees:insert(Key, Value, State#state.queue) of
+		Trees ->
+		set_cpx_mon(State#state{queue=Trees}),
+		State#state{queue = Trees}
+	catch
+		error:{key_exists, _} ->
+			?ERROR("Call ~p is already queued at ~p", [Callrec#call.id, Key]),
+			State
+	end.
 
 %% @private
 -spec(set_cpx_mon/1 :: (State :: #state{}) -> 'ok').

@@ -480,11 +480,12 @@ handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
 			freeswitch:api(Fnode, uuid_record, Call#call.id ++ " stop " ++ Path)
 	end,
 	freeswitch:api(Fnode, uuid_park, Call#call.id),
-	% play musique d'attente (actually, don't because it's already running from before)
-	%freeswitch:sendmsg(Fnode, Call#call.id,
-		%[{"call-command", "execute"},
-			%{"execute-app-name", "playback"},
-			%{"execute-app-arg", "local_stream://moh"}]),
+	% play musique d'attente
+	% TODO this can generate an annoying warning in FS, but I don't care right now
+	freeswitch:sendmsg(Fnode, Call#call.id,
+		[{"call-command", "execute"},
+			{"execute-app-name", "playback"},
+			{"execute-app-arg", "local_stream://" ++ State#state.moh}]),
 	{ok, State}.
 
 %%--------------------------------------------------------------------

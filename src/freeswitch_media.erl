@@ -386,7 +386,7 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 			freeswitch:sendmsg(Node, Call#call.id,
 				[{"call-command", "execute"},
 					{"execute-app-name", "playback"},
-					{"execute-app-arg", "local_stream://moh"}]),
+					{"execute-app-arg", "local_stream://" ++ State#state.moh}]),
 			{ok, NewUUID, State#state{warm_transfer_uuid = NewUUID}};
 		Else ->
 			?ERROR("bgapi call failed ~p", [Else]),

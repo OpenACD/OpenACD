@@ -41,17 +41,21 @@ if(typeof(queueDashboard) == "undefined"){
 			this.updateHistoricalMedia(data);
 		} else if(this._limboMedias[data.id]){
 			debug(['updating limbo', data]);
-			if(data.details.queue && data.details.queue == this.name){
+			if(data.action == 'drop'){
+				delete this._limboMedias[data.id];
+			} else if(data.details.agent){
+				delete this._limboMedias[data.id];
+			} else if (data.details.queue && data.details.queue == this.name){
 				this.medias[data.id] = this._limboMedias[data.id];
 				this.medias[data.id].status = 'queued';
 				this.calls++;
-			} else if(data.action == 'drop' || data.details.agent){
-				delete this._limboMedias[data.id];
 			} else if(data.details.queue){
 				delete this._limboMedias[data.id];
 			}
 		} else {
-			if(data.details.queue == this.name){
+			if(data.action == 'drop'){
+				return false;
+			} else if(data.details.queue == this.name){
 				this.medias[data.id] = new queueDashboard.Media(data);
 				this.calls++;
 			} else {
@@ -65,7 +69,6 @@ if(typeof(queueDashboard) == "undefined"){
 	
 	queueDashboard.Queue.prototype.updateLiveMedia = function(data){
 		debug(['updating live', data]);
-		console.log(['updateing live', data]);
 		if(data.action == 'drop'){
 			this.calls--;
 			this.abandoned++;
@@ -174,7 +177,7 @@ if(typeof(queueDashboard) == "undefined"){
 	// =====
 	
 	queueDashboard.filterSupevent = function(supevent){
-		console.log(["the subevent", supevent]);
+		debug(["the subevent", supevent]);
 		if (supevent.type == 'media' || supevent.type == 'queue'){
 			return true;
 		}

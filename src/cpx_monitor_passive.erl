@@ -353,13 +353,8 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 				{Queue, undefined, Hlist} ->
 					Newrow = case {proplists:get_value(queue, Details), lists:reverse(Hlist)} of
 						{Queue, [{queued, T} | Priorhistory]} ->
-							Queuedat = case proplists:get_value(queued_at, EventDetails) of
-								undefined ->
-									T;
-								Etime ->
-									Etime
-							end,
-							Fixedhist = Priorhistory ++ [{queued, Queuedat}],
+							{timestamp, Queuedat} = proplists:get_value(queued_at, EventDetails),
+							Fixedhist = lists:reverse([{queued, Queuedat} | Priorhistory]),
 							{Key, Time, EventHp, EventDetails, {Direction, Fixedhist}};
 						{undefined, _} ->
 							{Key, Time, EventHp, EventDetails, {Direction, Hlist ++ [{queued, EventTime}]}};
@@ -367,7 +362,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 							Queuedat = case proplists:get_value(queued_at, EventDetails) of
 								undefined ->
 									EventTime;
-								Etime ->
+								{timestamp, Etime} ->
 									Etime
 							end,
 							Fixedhist = Hlist ++ [{queued, Queuedat}],
@@ -1121,10 +1116,17 @@ cache_event_test_() ->
 		{"Setting existing media with no agent, same queue data, queue history",
 		fun() ->
 			dets:insert(?DETS, {{media, "media"}, 120, [], [{queue, "queue"}, {queued_at, 130}], {inbound, [{queued, 130}]}}),
-			cache_event({set, {{media, "media"}, [{hp, 50}], [{queue, "queue"}, {queued_at, 130}], 140}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{queue, "queue"}, {queued_at, {timestamp, 130}}], 140}}),
 			[Obj] = dets:lookup(?DETS, {media, "media"}),
-			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{queue, "queue"}, {queued_at, 130}], {inbound, [{queued, 130}]}}, Obj)
+			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{queue, "queue"}, {queued_at, {timestamp, 130}}], {inbound, [{queued, 130}]}}, Obj)
 		end},
+%		{"Setting existing media with no agent, same queue data, queue history, no queued_at",
+%		fun() ->
+%			dets:insert(?DETS, {{media, "media"}, 120, [], [{queue, "queue"}, {queued_at, 130}], {inbound, [{queued, 130}]}}),
+%			cache_event({set, {{media, "media"}, [{hp, 50}], [{queue, "queue"}], 140}}),
+%			[Obj] = dets:lookup(?DETS, {media, "media"}),
+%			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{queue, "queue"}], {inbound, [{queued, 130}]}}, Obj)
+%		end},
 		{"setting existing media with no agent, new queue data, queue history",
 		fun() ->
 			dets:insert(?DETS, {{media, "media"}, 120, [], [{queue, "oldqueue"}], {inbound, [{queue, 130}]}}),
@@ -1132,12 +1134,26 @@ cache_event_test_() ->
 			[Obj] = dets:lookup(?DETS, {media, "media"}),
 			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{queue, "newqueue"}], {inbound, [{queue, 130}, {queued, 140}]}}, Obj)
 		end},
+		{"setting existing media, no agent, new queue, queue history and timestamp",
+		fun() ->
+			dets:insert(?DETS, {{media, "media"}, 120, [], [{queue, "oldqueue"}], {inbound, [{queue, 130}]}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{queue, "newqueue"}, {queued_at, {timestamp, 140}}], 140}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{queue, "newqueue"}, {queued_at, {timestamp, 140}}], {inbound, [{queue, 130}, {queued, 140}]}}, Obj)
+		end},
 		{"setting existing media with no agent, same queue but new queued_at, queue history",
 		fun() ->
 			dets:insert(?DETS, {{media, "media"}, 120, [], [{queue, "queue"}], {inbound, [{queued, 130}]}}),
-			cache_event({set, {{media, "media"}, [{hp, 50}], [{queue, "queue"}, {queued_at, 120}], 140}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{queue, "queue"}, {queued_at, {timestamp, 120}}], 140}}),
 			[Obj] = dets:lookup(?DETS, {media, "media"}),
-			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{queue, "queue"}, {queued_at, 120}], {inbound, [{queued, 120}]}}, Obj)
+			?assertEqual({{media, "media"}, 120, [{hp, 50}], [{queue, "queue"}, {queued_at, {timestamp, 120}}], {inbound, [{queued, 120}]}}, Obj)
+		end},
+		{"setting existing media, no agent, same queue, new queued_at, ivr history",
+		fun() ->
+			dets:insert(?DETS, {{media, "media"}, 110, [], [{queue, "queue"}], {inbound, [{ivr, 110}, {queued, 130}]}}),
+			cache_event({set, {{media, "media"}, [{hp, 50}], [{queue, "queue"}, {queued_at, {timestamp, 120}}], 140}}),
+			[Obj] = dets:lookup(?DETS, {media, "media"}),
+			?assertEqual({{media, "media"}, 110, [{hp, 50}], [{queue, "queue"}, {queued_at, {timestamp, 120}}], {inbound, [{ivr, 110}, {queued, 120}]}}, Obj)
 		end},
 		{"Setting existing media with agent, no queue, queue history",
 		fun() ->

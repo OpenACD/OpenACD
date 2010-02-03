@@ -6,7 +6,7 @@ table.queueDashboard {
 	width:100%;
 }
 
-#queueDashboardTable td, th {
+#queueDashboardTable td, #queueDashboardTable th {
 	border: black outset 2px;
 	text-align: center;
 }

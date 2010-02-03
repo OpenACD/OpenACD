@@ -674,15 +674,32 @@ dojo.addOnLoad(function(){
 		var node = dojo.byId("statedisp");
 		var nlsStrings = dojo.i18n.getLocalization("agentUI","labels");
 		var innerh = nlsStrings.STATE + ":  " + nlsStrings[data.state.toUpperCase()];
-		if(data.state == "released"){
-			if(data.statedata.constructor == String){
-				innerh += " (" + data.statedata + ")";
-			}
-			else{
-				innerh += " (" + data.statedata.reason + ")";
-			}
+		switch(data.state){
+			case "oncall":
+				node.innerHTML = innerh;
+				dojo.addClass(node, "profit");
+				dojo.removeClass(node, "loss");
+				break;
+			
+			case "wrapup":
+				node.innerHTML = innerh;
+				dojo.addClass(node, "loss");
+				dojo.removeClass(node, "profit");
+				break;
+			
+			default:
+				if(data.state == "released"){
+					if(data.statedata.constructor == String){
+						innerh += " (" + data.statedata + ")";
+					}
+					else{
+						innerh += " (" + data.statedata.reason + ")";
+					}
+				}
+				dojo.removeClass(node, "profit");
+				dojo.removeClass(node, "loss");
+				node.innerHTML = innerh;
 		}
-		node.innerHTML = innerh;
 	});
 
 	dojo.byId("profiledisp").stateChanger = dojo.subscribe("agent/profile", function(data){

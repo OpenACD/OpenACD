@@ -292,11 +292,11 @@ if(typeof(queueDashboard) == "undefined"){
 		dojo.create('td', null, queueMediasTr);
 		var widetd = dojo.create('td', {colspan: 5}, queueMediasTr);
 		var table = dojo.create('table', null, widetd);
-		table.innerHTML = '<tr>' + 
-		'<th>Callid</th>' + 
-		'<th>Type</th>' + 
-		'<th>Hold Time</th>' + 
-		'<th>Brand</th>' + 
+		table.innerHTML = '<tr>' +
+		'<th>Caller ID</th>' +
+		'<th>Type</th>' +
+		'<th>Hold Time</th>' +
+		'<th>Brand</th>' +
 		'</tr>';
 		var tbody = dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="callDisplay"] table')[0];
 		
@@ -311,7 +311,7 @@ if(typeof(queueDashboard) == "undefined"){
 		var now = Math.floor(new Date().getTime() / 1000);
 		var age = now - media.created;
 		tr.setAttribute('callid', mediaid);
-		dojo.create('td', {innerHTML: mediaid.substr(6)}, tr);
+		dojo.create('td', {innerHTML: media.initalEvent.details.callid_name + " " + media.initalEvent.details.callid_data}, tr);
 		dojo.create('td', {innerHTML: media.type}, tr);
 		dojo.create('td', {innerHTML: formatseconds(age)}, tr);
 		dojo.create('td', {innerHTML: media.client}, tr);

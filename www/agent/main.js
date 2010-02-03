@@ -27,13 +27,16 @@ function formatseconds(seconds) {
 	var d = new Date();
 	d.setHours(0);
 	d.setMinutes(0);
-	d.setSeconds(elapsed);
+	d.setSeconds(seconds);
 	var s = "" + d.getSeconds();
 	if (d.getSeconds() < 10) {
 		s = "0"+s;
 	}
 	s = d.getMinutes()+":"+s;
 	if (d.getHours() > 0) {
+		if (d.getMinutes() < 10) {
+			s = "0"+s;
+		}
 		s = d.getHours() + ":" + s;
 	}
 	return s;

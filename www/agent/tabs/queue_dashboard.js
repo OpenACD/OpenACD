@@ -49,11 +49,14 @@ if(typeof(queueDashboard) == "undefined"){
 					this.calls++;
 				} else if(data.action == 'drop' || data.details.agent){
 					delete this._limboMedias[data.id];
+				} else if(data.details.queue){
+					delete this._limboMedias[data.id];
 				}
 			} else if(data.details.queue == this.name) {
 				debug(['updating medias list', data]);
 				this.calls++;
 				this.medias[data.id] = new queueDashboard.Media(data);
+				this.medias[data.id].status = 'queued';
 			} else {
 				debug(['appending to limbo', data]);
 				this._limboMedias[data.id] = new queueDashboard.Media(data);
@@ -73,16 +76,16 @@ if(typeof(queueDashboard) == "undefined"){
 			this._history[data.id] = this.medias[data.id];
 			this._history[data.id].status = 'abandoned';
 			delete this.medias[data.id];
-		} else if(data.details.queue != this.name){
+		} else if(data.details.queue != this.name && ! data.details.agent){
 			// moved queue, keep track of it in history.
 			this.calls--;
 			this._history[data.id] = this.medias[data.id];
 			delete this.medias[data.id];
-		} else if(data.details.agent){
+		} else if(data.details.agent && ! data.details.queue){
 			this.calls--;
 			this.completed++;
-			this._history[data.id] == this.medias[data.id];
-			this._history[data.id].status = 'completed';
+			this._history[data.id] = this.medias[data.id];
+			this._history[data.id].end('completed');
 			delete this.medias[data.id];
 		}
 	}
@@ -107,7 +110,7 @@ if(typeof(queueDashboard) == "undefined"){
 		now = Math.floor(now.getTime() / 1000);
 				
 		for(var i in this._history){
-			if(now - 86400 < this._history[i].ended){
+			if(now - 86400 > this._history[i].ended){
 				if(this._history[i].status == 'abandoned'){
 					this.abandoned--;
 				} else {
@@ -139,6 +142,7 @@ if(typeof(queueDashboard) == "undefined"){
 			}
 		}
 		
+		//console.log(["recalc data", totalAge, counted]);
 		this.maxHold = oldest;
 		if(counted > 0){
 			this.avgHold = Math.floor(totalAge / counted);

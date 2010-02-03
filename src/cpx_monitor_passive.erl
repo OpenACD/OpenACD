@@ -238,7 +238,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(write_output, #state{filters = Filters} = State) ->
+handle_info(write_output, #state{filters = Filters, write_pids = Writers} = State) when length(Writers) > 0 ->
 	%?DEBUG("Writing output.", []),
 	Qh = qlc:q([Key || 
 		{Key, Time, _Hp, _Details, {_Direction, History}} <- dets:table(?DETS), 
@@ -254,6 +254,9 @@ handle_info(write_output, #state{filters = Filters} = State) ->
 	%?DEBUG("das pids:  ~p", [WritePids]),
 	Timer = erlang:send_after(State#state.interval, self(), write_output),
 	{noreply, State#state{timer = Timer, write_pids = WritePids}};
+handle_info(write_output, State) ->
+	?WARNING("Write output request with an outstanding write:  ~p", [State#state.write_pids]),
+	{noreply, State};
 handle_info(prune_dets, #state{pruning_pid = undefined} = State) ->
 	Fun = fun() ->
 		prune_dets_medias(),

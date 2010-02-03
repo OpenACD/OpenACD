@@ -109,7 +109,7 @@ if(typeof(queueDashboard) == "undefined"){
 		now = Math.floor(now.getTime() / 1000);
 				
 		for(var i in this._history){
-			if(now - 86400 > this._history[i].ended){
+			if(now - 3600 > this._history[i].ended){
 				if(this._history[i].status == 'abandoned'){
 					this.abandoned--;
 				} else {
@@ -141,7 +141,6 @@ if(typeof(queueDashboard) == "undefined"){
 			}
 		}
 		
-		//console.log(["recalc data", totalAge, counted]);
 		this.maxHold = oldest;
 		if(counted > 0){
 			this.avgHold = Math.floor(totalAge / counted);
@@ -152,6 +151,25 @@ if(typeof(queueDashboard) == "undefined"){
 		dojo.publish("queueDashboard/queueUpdate", [this]);
 	}
 	
+	queueDashboard.Queue.prototype.awareOfMedia = function(id){
+		if(! id.match(/^media-/)){
+			id = 'media-' + id;
+		}
+		
+		if(this.medias[id]){
+			return true;
+		}
+		
+		if(this._history[id]){
+			return true;
+		}
+		
+		if(this._limboMedias[id]){
+			return true;
+		}
+		
+		return false;
+	}
 	// =====
 	// helper class media
 	// ====
@@ -219,9 +237,81 @@ if(typeof(queueDashboard) == "undefined"){
 				if(! queueDashboard.recalcTimer){
 					queueDashboard.recalcTimerFunc();
 				}
+				
+				queueDashboard.getHistory();
 			},
 			error:function(res){
 				errMessage(["getting initial status errored", res]);
+			}
+		});
+	}
+	
+	queueDashboard.getHistory = function(file){
+		if(! file){
+			file = "/dynamic/all.json";
+		}
+		var now = new Date();
+		now = Math.floor(now.getTime() / 1000);
+		dojo.xhrGet({
+			url:file,
+			handleAs:'json',
+			load:function(res){
+				for(var i = 0; i < res.queueGroups.length; i++){
+					var queues = res.queueGroups[i].queues;
+					for(var j = 0; j < queues.length; j++){
+						var queue = queues[j].name;
+						var medias = queues[j].medias;
+						for(var k = 0; k < medias.length; k++){
+							var media = medias[k];
+							if(media.ended && (now - media.ended > 3600)){
+								continue;
+							}
+							
+							if(queueDashboard.dataStore.queues[queue].awareOfMedia(media.id)){
+								continue;
+							}
+							
+							debug(["transform and roll out!", media]);
+							
+							media.id = 'media-' + media.id;
+							var initEvent = {
+								details:{
+									queued_at: {
+										timestamp: media.queued
+									},
+									type: media.type,
+									client: media.brand
+								}
+							};
+							
+							var usableMedia = new queueDashboard.Media(initEvent);
+							
+							usableMedia.note = 'transformed from historical data';
+							if(media.ended){
+								if(media.didAbandon){
+									usableMedia.status = 'abandoned';
+									usableMedia.ended = media.ended;
+									queueDashboard.dataStore.queues[queue].abandoned++;
+								} else {
+									usableMedia.status = 'completed';
+									usableMedia.ended = media.ended;
+									queueDashboard.dataStore.queues[queue].completed++;
+								}
+								
+								queueDashboard.dataStore.queues[queue]._history[media.id] = usableMedia;
+							} else {
+								usableMedia.status = 'queued';
+								queueDashboard.dataStore.queues[queue].medias[media.id] = usableMedia;
+								queueDashboard.dataStore.queues[queue].calls++
+							}
+						}
+					}
+				}
+			},
+			error:function(res){
+				var m = ["getting historical data errored", res];
+				warning(m);
+				errMessage(m);
 			}
 		});
 	}
@@ -243,7 +333,6 @@ if(typeof(queueDashboard) == "undefined"){
 				dojo.create('td', {purpose: 'oldestHold'}, queueTr);
 				queueTr.onclick = function(){
 					var queuenom = this.getAttribute('queue');
-					//console.log(["the queue", testnom, this]);
 					var callDisps = dojo.query('#queueDashboardTable *[queue="' + queuenom + '"][purpose="callDisplay"]');
 					if(callDisps.length == 0){
 						queueDashboard.drawCallTable(queuenom);

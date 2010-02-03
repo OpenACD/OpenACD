@@ -23,6 +23,22 @@ function errMessage(message){
 	dialog.show();
 }
 
+function formatseconds(seconds) {
+	var d = new Date();
+	d.setHours(0);
+	d.setMinutes(0);
+	d.setSeconds(elapsed);
+	var s = "" + d.getSeconds();
+	if (d.getSeconds() < 10) {
+		s = "0"+s;
+	}
+	s = d.getMinutes()+":"+s;
+	if (d.getHours() > 0) {
+		s = d.getHours() + ":" + s;
+	}
+	return s;
+}
+
 function confirmDialog(conf){
 	var defaultConf = {
 		'yesLabel': 'Yes',
@@ -566,19 +582,7 @@ dojo.addOnLoad(function(){
 
 				agent.stopwatch.onTick = function(){
 					var elapsed = agent.stopwatch.time();
-					var d = new Date();
-					d.setHours(0);
-					d.setMinutes(0);
-					d.setSeconds(elapsed);
-					var s = "" + d.getSeconds();
-					if (d.getSeconds() < 10) {
-						s = "0"+s;
-					}
-					s = d.getMinutes()+":"+s;
-					if (d.getHours() > 0) {
-						s = d.getHours() + ":" + s;
-					}
-					dojo.byId("timerdisp").innerHTML = s;
+					dojo.byId("timerdisp").innerHTML = formatseconds(elapsed);
 				};
 				agent.stopwatch.start();
 				var settings = {
@@ -979,19 +983,7 @@ dojo.addOnLoad(function(){
 								agent.setSkew(response2.timestamp);
 								agent.stopwatch.onTick = function(){
 									var elapsed = agent.stopwatch.time();
-									var d = new Date();
-									d.setHours(0);
-									d.setMinutes(0);
-									d.setSeconds(elapsed);
-									var s = "" + d.getSeconds();
-									if (d.getSeconds() < 10) {
-										s = "0"+s;
-									}
-									s = d.getMinutes()+":"+s;
-									if (d.getHours() > 0) {
-										s = d.getHours() + ":" + s;
-									}
-									dojo.byId("timerdisp").innerHTML = s;
+									dojo.byId("timerdisp").innerHTML = formatseconds(elapsed);
 								};
 								buildReleaseMenu(agent);
 								buildOutboundMenu(agent);

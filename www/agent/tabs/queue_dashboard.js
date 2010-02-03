@@ -269,10 +269,10 @@ if(typeof(queueDashboard) == "undefined"){
 								tds[j].innerHTML = queue.abandoned;
 								break;
 							case 'averageHold':
-								tds[j].innerHTML = queue.avgHold;
+								tds[j].innerHTML = formatseconds(queue.avgHold);
 								break;
 							case 'oldestHold':
-								tds[j].innerHTML = queue.maxHold;
+								tds[j].innerHTML = formatseconds(queue.maxHold);
 								break;
 							default:
 								// do nothing, nothing!
@@ -313,7 +313,7 @@ if(typeof(queueDashboard) == "undefined"){
 		tr.setAttribute('callid', mediaid);
 		dojo.create('td', {innerHTML: mediaid.substr(6)}, tr);
 		dojo.create('td', {innerHTML: media.type}, tr);
-		dojo.create('td', {innerHTML: age}, tr);
+		dojo.create('td', {innerHTML: formatseconds(age)}, tr);
 		dojo.create('td', {innerHTML: media.client}, tr);
 		dojo.place(tr, tbody, 'last');
 	}

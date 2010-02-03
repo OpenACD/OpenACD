@@ -104,7 +104,8 @@
 	restart/2,
 	restart_spec/1,
 	get_archive_path/1,
-	submit_bug_report/4
+	submit_bug_report/4,
+	submit_bug_report/1
 ]).
 %% General system settings
 -export([
@@ -524,34 +525,45 @@ get_archive_path(Call) ->
 %% @doc Try to submit a bug report to a (possibly) configred mantis.
 -spec(submit_bug_report/4 :: (Summary :: binary(), Description :: binary(), Reproduce :: binary(), Other :: binary()) -> 'ok' | {'error', any()}).
 submit_bug_report(Summary, Description, Reproduce, Other) when is_binary(Summary), is_binary(Description), is_binary(Reproduce), is_binary(Other) ->
-	case get_value(mantispath) of
-		none ->
-			{error, noconf};
-		{ok, Path} ->
-			Json = {struct, [
-				{<<"summary">>, Summary},
-				{<<"description">>, Description},
-				{<<"steps_to_reproduce">>, Reproduce},
-				{<<"additional_information">>, Other}
-			]},
-			case http:request(post, {Path, [], "application/x-www-form-urlencoded", lists:append(["report=", binary_to_list(list_to_binary(mochijson2:encode(Json)))])}, [{timeout, 4000}], []) of
-				{ok, {{_Ver, 200, _Msg}, _Head, Body}} ->
-					{struct, Props} = mochijson2:decode(Body),
-					case proplists:get_value(<<"success">>, Props) of
-						true ->
-							Bugid = proplists:get_value(<<"issueid">>, Props),
-							?NOTICE("bug report submitted:  ~p", [Bugid]),
-							ok;
-						_ ->
-							Message = proplists:get_value(<<"message">>, Props),
-							?NOTICE("Bug report attempt (summary:  ~s) errored ~p", [Summary, Message]),
-							{error, Message}
-					end;
-				Else ->
-					?NOTICE("bug report attempt (summary:  ~s) errored ~p", [Summary, Else]),
-					Else
+	Options = [
+		{<<"summary">>, Summary},
+		{<<"description">>, Description},
+		{<<"steps_to_reproduce">>, Reproduce},
+		{<<"additional_information">>, Other}
+	],
+	submit_bug_report(Options).
+
+-spec(submit_bug_report/1 :: (Options :: [{binary(), binary()}]) -> 'ok' | {'error', any()}).
+submit_bug_report(Options) when is_list(Options) ->
+	case lists:any(fun({Key, Val}) when is_binary(Key) -> false; (_) -> true end, Options) of
+		true ->
+			{error, badarg};
+		false ->
+			case get_value(mantispath) of
+				none ->
+					{error, noconf};
+				{ok, Path} ->
+					Json = {struct, Options},
+					case http:request(post, {Path, [], "application/x-www-form-urlencoded", lists:append(["report=", binary_to_list(list_to_binary(mochijson2:encode(Json)))])}, [{timeout, 4000}], []) of
+						{ok, {{_Ver, 200, _Msg}, _Head, Body}} ->
+							{struct, Props} = mochijson2:decode(Body),
+							case proplists:get_value(<<"success">>, Props) of
+								true ->
+									Bugid = proplists:get_value(<<"issueid">>, Props),
+									?NOTICE("bug report submitted:  ~p", [Bugid]),
+									ok;
+								_ ->
+									Message = proplists:get_value(<<"message">>, Props),
+									?NOTICE("Bug report attempt errored ~p", [Message]),
+									{error, Message}
+							end;
+						Else ->
+							?NOTICE("bug report attempt errored ~p", [Else]),
+							Else
+					end
 			end
 	end.
+
 -ifdef(TEST).
 
 config_test_() -> 

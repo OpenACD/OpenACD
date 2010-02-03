@@ -343,7 +343,8 @@ function reportIssue(humanReport){
 		agent: simpleAgent,
 		uisettings: agentuiSettings,
 		tabs: openTabs,
-		log: simpleLog
+		log: simpleLog,
+		userAgent: window.navigator.userAgent
 	}
 	
 	humanReport.uistate = dojo.toJson(forJson);

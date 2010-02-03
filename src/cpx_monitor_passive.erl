@@ -256,7 +256,8 @@ handle_info(write_output, #state{filters = Filters, write_pids = Writers} = Stat
 	{noreply, State#state{timer = Timer, write_pids = WritePids}};
 handle_info(write_output, State) ->
 	?WARNING("Write output request with an outstanding write:  ~p", [State#state.write_pids]),
-	{noreply, State};
+	Timer = erlang:send_after(State#state.interval, self(), write_output),
+	{noreply, State#state{timer = Timer}};
 handle_info(prune_dets, #state{pruning_pid = undefined} = State) ->
 	Fun = fun() ->
 		prune_dets_medias(),

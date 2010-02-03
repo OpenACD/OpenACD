@@ -38,6 +38,12 @@ function Agent(username, statetime, timestamp){
 					agentref.statedata = datalist[i].statedata;
 					dojo.publish("agent/state", [datalist[i]]);
 					agentref.stopwatch.reset();
+					if(datalist[i].state == 'wrapup'){
+						this._wrapupNag = this.setNag("You have been in wrapup for more than 3 minutes.  Perhaps you forgot?", 1000 * 60 * 3);
+					} else if(this._wrapupNag){
+						this.clearNag(this._wrapupNag);
+						delete(this._wrapupNag);
+					}
 					break;
 
 				case "aprofile":

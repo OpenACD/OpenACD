@@ -132,7 +132,7 @@ if(typeof(queueDashboard) == "undefined"){
 		
 		for(i in this._history){
 			counted++;
-			var age = this.medias[i].ended - this.medias[i].created;
+			var age = this._history[i].ended - this._history[i].created;
 			totalAge += age;
 			if(oldest < age){
 				oldest = age;
@@ -339,7 +339,7 @@ queueDashboard.masterSub = dojo.subscribe("agent/supervisortab", queueDashboard,
 	if(! this.filterSupevent(supevent.data)){
 		return false;
 	}
-	
+	console.log(["supevent id", supevent.data.id]);
 	supevent.data.id = supevent.data.id.substr(6);
 
 	debug(["queueDashboard forwarding", supevent]);

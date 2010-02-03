@@ -238,7 +238,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(write_output, #state{filters = Filters, write_pids = Writers} = State) when length(Writers) > 0 ->
+handle_info(write_output, #state{filters = Filters, write_pids = Writers} = State) when length(Writers) == 0 ->
 	%?DEBUG("Writing output.", []),
 	Qh = qlc:q([Key || 
 		{Key, Time, _Hp, _Details, {_Direction, History}} <- dets:table(?DETS), 

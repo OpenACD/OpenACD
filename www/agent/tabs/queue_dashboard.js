@@ -35,33 +35,28 @@ if(typeof(queueDashboard) == "undefined"){
 	
 	queueDashboard.Queue.prototype.consumeEvent = function(data){
 		debug(["nom nom'ing", data]);
-		if(data.type == 'media'){
-			// current, history, or new?
-			if(this.medias[data.id]){
-				this.updateLiveMedia(data);
-			} else if(this._history[data.id]){
-				this.updateHistoricalMedia(data);
-			} else if(this._limboMedias[data.id]){
-				debug(['updating limbo', data]);
-				if(data.details.queue && data.details.queue == this.name){
-					this.medias[data.id] = this._limboMedias[data.id];
-					this.medias[data.id].status = 'queued';
-					this.calls++;
-				} else if(data.action == 'drop' || data.details.agent){
-					delete this._limboMedias[data.id];
-				} else if(data.details.queue){
-					delete this._limboMedias[data.id];
-				}
-			} else if(data.details.queue == this.name) {
-				debug(['updating medias list', data]);
-				this.calls++;
-				this.medias[data.id] = new queueDashboard.Media(data);
+		if(this.medias[data.id]){
+			this.updateLiveMedia(data);
+		} else if(this._history[data.id]){
+			this.updateHistoricalMedia(data);
+		} else if(this._limboMedias[data.id]){
+			debug(['updating limbo', data]);
+			if(data.details.queue && data.details.queue == this.name){
+				this.medias[data.id] = this._limboMedias[data.id];
 				this.medias[data.id].status = 'queued';
+				this.calls++;
+			} else if(data.action == 'drop' || data.details.agent){
+				delete this._limboMedias[data.id];
+			} else if(data.details.queue){
+				delete this._limboMedias[data.id];
+			}
+		} else {
+			if(data.details.queue == this.name){
+				this.medias[data.id] = new queueDashboard.Media(data);
+				this.calls++;
 			} else {
-				debug(['appending to limbo', data]);
 				this._limboMedias[data.id] = new queueDashboard.Media(data);
 			}
-			return true;
 		}
 		
 		debug(['apparently data.type was not media', data.type]);
@@ -70,11 +65,12 @@ if(typeof(queueDashboard) == "undefined"){
 	
 	queueDashboard.Queue.prototype.updateLiveMedia = function(data){
 		debug(['updating live', data]);
+		console.log(['updateing live', data]);
 		if(data.action == 'drop'){
 			this.calls--;
 			this.abandoned++;
 			this._history[data.id] = this.medias[data.id];
-			this._history[data.id].status = 'abandoned';
+			this._history[data.id].end('abandoned');
 			delete this.medias[data.id];
 		} else if(data.details.queue != this.name && ! data.details.agent){
 			// moved queue, keep track of it in history.
@@ -178,7 +174,16 @@ if(typeof(queueDashboard) == "undefined"){
 	// =====
 	
 	queueDashboard.filterSupevent = function(supevent){
-		return (supevent.type == 'media' || supevent.type == 'queue');
+		console.log(["the subevent", supevent]);
+		if (supevent.type == 'media' || supevent.type == 'queue'){
+			return true;
+		}
+		
+		if( (supevent.action == 'drop') && supevent.id.match(/^media-/) ){
+			return true;
+		}
+		
+		return false;
 	}
 	
 	queueDashboard.getStatus = function(){
@@ -347,6 +352,6 @@ queueDashboard.masterSub = dojo.subscribe("agent/supervisortab", queueDashboard,
 	//supcp.data.id = supcp.data.id.substr(6);
 
 	debug(["queueDashboard forwarding", supcp]);
-	console.log(["new id", supcp.data.id]);
+
 	dojo.publish("queueDashboard/supevent", [supcp]);
 });

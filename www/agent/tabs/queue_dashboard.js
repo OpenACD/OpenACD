@@ -192,7 +192,7 @@ if(typeof(queueDashboard) == "undefined"){
 							action: 'set',
 							details: items[i].details._value,
 							display: items[i].display,
-							id: items[i].id.substr(6),
+							id: items[i].id,
 							type: 'media'
 						}
 						real.push(fixedItem);
@@ -299,7 +299,7 @@ if(typeof(queueDashboard) == "undefined"){
 		var now = Math.floor(new Date().getTime() / 1000);
 		var age = now - media.created;
 		tr.setAttribute('callid', mediaid);
-		dojo.create('td', {innerHTML: mediaid}, tr);
+		dojo.create('td', {innerHTML: mediaid.substr(6)}, tr);
 		dojo.create('td', {innerHTML: media.type}, tr);
 		dojo.create('td', {innerHTML: age}, tr);
 		dojo.create('td', {innerHTML: media.client}, tr);
@@ -339,9 +339,10 @@ queueDashboard.masterSub = dojo.subscribe("agent/supervisortab", queueDashboard,
 	if(! this.filterSupevent(supevent.data)){
 		return false;
 	}
-	console.log(["supevent id", supevent.data.id]);
-	supevent.data.id = supevent.data.id.substr(6);
+	var supcp = supevent;
+	//supcp.data.id = supcp.data.id.substr(6);
 
-	debug(["queueDashboard forwarding", supevent]);
-	dojo.publish("queueDashboard/supevent", [supevent]);
+	debug(["queueDashboard forwarding", supcp]);
+	console.log(["new id", supcp.data.id]);
+	dojo.publish("queueDashboard/supevent", [supcp]);
 });

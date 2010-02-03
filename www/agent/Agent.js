@@ -7,6 +7,7 @@ function Agent(username, statetime, timestamp){
 	this.statedata = "";
 	this.pollfailures = 0;
 	this.skew = 0;
+	this._nags = {};
 	
 	var agentref = this;
 
@@ -224,6 +225,23 @@ Agent.prototype.mediaPush = function(data){
 	
 	return false;
 };
+
+Agent.prototype.setNag = function(message, time){
+	var ref = this;
+	var nag = setTimeout(function(){
+		dojo.publish("agent/blab", [message]);
+		delete(ref._nags[nag]);
+	}, time);
+	this._nags[nag] = true;
+	return nag;
+}
+
+Agent.prototype.clearNag = function(nagref){
+	if(this._nags[nagref]){
+		clearTimeout(nagref);
+	}
+	delete this._nags[nagref];
+}
 
 Agent.transfer = function(aname) {
 	dojo.xhrGet({

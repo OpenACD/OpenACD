@@ -1,5 +1,14 @@
 #! /usr/bin/env ruby
+=begin
+This script is mean to make an 'all.json' file (named auto.json in this
+case).  Reasoning:
+* always time appropriate files (as opposed to using archived all.json)
+* exacting control of times, abandonments, completes, and which queues.
 
+Currently adds 2 calls to default_queue and doobie_q, one completed and 
+abandoned.
+
+=end
 require 'rubygems'
 require 'json'
 

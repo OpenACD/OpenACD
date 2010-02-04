@@ -19,10 +19,10 @@ Received: from DM ([127.0.0.1])
 	for <info@example.com>; Wed, 09 Dec 2009 10:24:26 +0800
 Date: Tue, 8 Dec 2009 21:25:23 -0500
 From: "From" <from@example.com>
-To: First first@example.com,
-	Second second@example.com,
-	Third third@example.com,
-	Fourth fourth@example.com
+To: "First" <first@example.com>,
+	"Second" <second@example.com>,
+	"Third" <third@example.com>,
+	"Fourth" <fourth@example.com>
 Message-ID: <20091209022524.7BE90788DB@mx.example.com>
 Subject: Test for correct 'from' field on reply.
 Priority: normal

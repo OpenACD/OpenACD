@@ -349,7 +349,7 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 				val += '<' + data.data.address + '>';
 				dijit.byId('emailFrom').attr('value', val);
 			} else {
-				dijit.byId('emailFrom').attr('value', skel.headers.to);
+				dijit.byId('emailFrom').attr('value', skel.headers.to.split(',')[0]);
 			}
 		}
 		emailPane.getFrom(fetchFromCallback);

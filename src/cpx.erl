@@ -321,12 +321,15 @@ help(Module) ->
 			Attribs = Module:module_info(attributes),
 			case proplists:get_value(cpxhelp, Attribs) of
 				undefined ->
-					io:format("There is no help information available for ~p", [Module]),
+					io:format("There is no help information available for ~p~n~n", [Module]),
 					ok;
 				[Head | Tail] ->
 					io:format("~p", [Head]),
 					ok
-			end
+			end,
+			Exports = Module:module_info(exports),
+			pretty_print(Exports),
+			ok
 	end.
 
 -spec(help/2 :: (Module :: atom(), Chapter :: any()) -> 'ok').

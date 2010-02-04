@@ -37,7 +37,7 @@
 
 -behaviour(gen_server).
 
--export([start/0, start/1, start_link/0, start_link/1, start_x/1, start_x/2]).
+-export([start/0, start/1, start_link/0, start_link/1, start_x/1, start_x/2, clear_bot/0]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
 		code_change/3]).
@@ -96,6 +96,10 @@ start_link() ->
 -spec(start_link/1 :: (Args :: [any()]) -> {'ok', pid()}).
 start_link(Args) ->
 	gen_server:start_link(?MODULE, [Args], []).
+
+-spec(clear_bot/0 :: () -> {'ok', pid()}).
+clear_bot() ->
+	start([{ringing, 10}, {oncall, 20}, {scale, 10}, {login, "clearbot"}, {skills, ['_all']}]).
 
 init([Args]) ->
 	crypto:start(),

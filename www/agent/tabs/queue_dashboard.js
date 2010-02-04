@@ -261,17 +261,29 @@ if(typeof(queueDashboard) == "undefined"){
 					for(var j = 0; j < queues.length; j++){
 						var queue = queues[j].name;
 						var medias = queues[j].medias;
+						var seedAbn = queues[j].totalAbandoned;
+						var seedComplete = queues[j].totalInbound - seedAbn;
 						for(var k = 0; k < medias.length; k++){
 							var media = medias[k];
 							if(media.ended && (now - media.ended > 3600)){
+								console.log(["too old", media]);
+								/*if(media.didAbandon){
+									seedAbn--;
+								} else {
+									seedComplete--;
+								}*/
 								continue;
 							}
 							
 							if(queueDashboard.dataStore.queues[queue].awareOfMedia(media.id)){
+								console.log(["already knew", media]);
+								/*if(media.didAbandon){
+									seedAbn--;
+								} else {
+									seedComplete--;
+								}*/
 								continue;
 							}
-							
-							debug(["transform and roll out!", media]);
 							
 							media.id = 'media-' + media.id;
 							var initEvent = {
@@ -283,7 +295,6 @@ if(typeof(queueDashboard) == "undefined"){
 									client: media.brand
 								}
 							};
-							
 							var usableMedia = new queueDashboard.Media(initEvent);
 							
 							usableMedia.note = 'transformed from historical data';
@@ -292,17 +303,18 @@ if(typeof(queueDashboard) == "undefined"){
 									usableMedia.status = 'abandoned';
 									usableMedia.ended = media.ended;
 									queueDashboard.dataStore.queues[queue].abandoned++;
+									console.log(['abandoned', media]);
 								} else {
 									usableMedia.status = 'completed';
 									usableMedia.ended = media.ended;
 									queueDashboard.dataStore.queues[queue].completed++;
+									console.log(['completed', media]);
 								}
-								
 								queueDashboard.dataStore.queues[queue]._history[media.id] = usableMedia;
 							} else {
 								usableMedia.status = 'queued';
 								queueDashboard.dataStore.queues[queue].medias[media.id] = usableMedia;
-								queueDashboard.dataStore.queues[queue].calls++
+								queueDashboard.dataStore.queues[queue].calls++;
 							}
 						}
 					}

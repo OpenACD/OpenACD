@@ -1878,7 +1878,8 @@ from_oncall_test_() ->
 	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to warmtransfer",
 		fun() ->
-			gen_server_mock:expect_cast(Connmock, fun({change_state, warmtransfer, "transferto"}, _State) ->
+			Callrec = Agent#agent.statedata,
+			gen_server_mock:expect_cast(Connmock, fun({change_state, warmtransfer, {onhold, Callrec, calling, "transferto"}}, _State) ->
 				ok
 			end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->

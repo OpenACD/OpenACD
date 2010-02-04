@@ -1,0 +1,156 @@
+<html>
+<style>
+	li.test {
+		padding-left:1em;
+	}
+	.code {
+		font-family:monospace;
+	}
+</style>
+<head>
+	<title>Tasks for Testing agent ui</title>
+</head>
+<body>
+
+<h1>Voice Media handling</h1>
+
+<h2>Requirements</h2>
+
+For each test:
+
+<ol>
+	<li>Enable Freeswitch, ensure it is configured to send a call to queue</li>
+	<li>Log into agent ui.</li>
+	<li>Use a softphone to register with freeswitch.</li>
+	<li class="test"><input type="checkbox" />Phone sucessfully registered</li>
+	<li>Use an other phone to call into freeswitch</li>
+	<li class="test"><input type="checkbox" />Call is in configured queue</li>
+	<li>If you don't ring with call, use supervisor view to send call to self</li>
+</ol>
+
+<h2>Tests</h2>
+
+<h3>Simple call flow</h3>
+
+<ol>
+	<li class="test"><input type="checkbox" />Answer Button in Agent ui not visible</li>
+	<li class="test"><input type="checkbox" />Softphone rings</li>
+	<li>Answer call</li>
+	<li class="test"><input type="checkbox" />Agent ui says you are on call</li>
+	<li class="test"><input type="checkbox" />You are able to hear yourself on both legs of call</li>
+	<li class="test"><input type="checkbox" />There is no hangup button</li>
+	<li>Use softphone to hang up on call</li>
+	<li class="test"><input type="checkbox" />Agent ui says you are in wrapup</li>
+</ol>
+
+<h3>Call Requeue</h3>
+
+<ol>
+	<li>Answer the call</li>
+	<li>Use "Transfer to..." to send the call back to the queue it came from</li>
+	<li class="test"><input type="checkbox" />Agent UI says you are in wrapup</li>
+	<li class="test"><input type="checkbox" />You have moh on phone</li>
+	<li class="test"><input type="checkbox" />Call is in queue</li>
+	<li>Go available</li>
+	<li>Send the call to yourself if need be</li>
+	<li>Follow directions in Simple Call Flow</li>
+</ol>
+
+<h3>Call voicemail</h3>
+
+<ol>
+	<li>Use supervisor view to send call to voicemail</li>
+	<li class="test"><input type="checkbox" />You hear a beep</li>
+	<li>Leave a message</li>
+	<li>Hang up phone</li>
+	<li class="test"><input type="checkbox" />Voicemail is in queue</li>
+	<li>use supervisor view to send voicemail to self if need be</li>
+	<li>Answer the call</li>
+	<li class="test"><input type="checkbox" />You don't hear the beep</li>
+	<li class="test"><input type="checkbox" />You do hear the message</li>
+	<li class="test"><input type="checkbox" />Pressing 5 on softphone replays message</li>
+	<li>Hangup on call</li>
+</ol>
+
+<h3>Warm Transfer Cases</h3>
+
+For each test:
+
+<ol>
+	<li>Answer the call</li>
+	<li>Use the "Transfer to..." menu and select "3rd party"</li>
+	<li>Call a number you can answer (like your cell phone)</li>
+	<li class="test"><input type="checkbox" />Your calling leg is on hold</li>
+	<li class="test"><input type="checkbox" />Your cell phone/3rd party rings</li>
+</ol>
+
+<h4>Warm Transfer Simple Case</h4>
+
+<ol>
+	<li>Pick up 3rd party phone</li>
+	<li class="test"><input type="checkbox" />You have a 'complete' button in agent ui</li>
+	<li>Click the complete button</li>
+	<li class="test"><input type="checkbox" />Agent ui is in wrapup</li>
+	<li class="test"><input type="checkbox" />calling leg and 3rd party are talking to each other</li>
+</ol>
+
+<h4>Warm Transfer Canceled by agent before 3rd party picks up</h4>
+
+<ol>
+	<li>Click cancel in agent UI</li>
+	<li class="test"><input type="checkbox" />You are back on call w/ orignal leg</li>
+</ol>
+
+<h4>Warm Transfer Canceled by agent after 3rd party picks up</h4>
+
+<ol>
+	<li>Pick up 3rd party phone</li>
+	<li class="test"><input type="checkbox" />You have a complete button in agent ui</li>
+	<li>Click the cancel in agent UI</li>
+	<li class="test"><input type="checkbox" />You are able to make a new outbound call</li>
+</ol>
+
+<h4>Warm Transfer - caller hangs up before 3rd party picks up.</h4>
+
+<ol>
+	<li>Hang up first leg (orignal call)</li>
+	<li class="test"><input type="checkbox" />You are set to wrapup</li>
+</ol>
+
+<h4>Warm Transfer - caller hangs up after 3rd party picks up.</h4>
+
+<ol>
+	<li>Pick up 3rd party phone.</li>
+	<li>Hang up original caller</li>
+	<li class="test"><input type="checkbox" />You are still in warm transfer w/ 3rd party</li>
+	<li>Hang up 3rd party phone</li>
+	<li class="test"><input type="checkbox" />You are now in wrapup</li>
+</ol>
+
+<h1>Email Tests</h1>
+
+Do once:
+
+<ol>
+	<li>Enable the email server.</li>
+	<li>In the erl shell <span class="code">email_media_manager:batch_requeue("tests/emails/").</span></li>
+</ol>
+
+<h2>Tests</h2>
+
+<ol>
+	<li>Direct each email to your agent, following the directions in the message.</li>
+	<li class="test"><input type="checkbox" />All Mail pass</li>
+</ol>
+
+<h1>Url Pop test</h1>
+
+<ol>
+	<li>Configure the url pop (clients tab, defaults) to http://www.google.com/search?q=#{label} if it is blank.</li>
+	<li>In the erl shell <span class="code">dummy_media:q()</span></li>
+	<li>Direct the call to yourself if need be.</li>
+	<li class="test"><input type="checkbox" />The configured url popped.  In case of recommended url, google searched for 'undefined'</li>
+</ol>
+
+</body>
+</html>

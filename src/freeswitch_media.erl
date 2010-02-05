@@ -723,5 +723,8 @@ get_info(Cnode, UUID) ->
 			};
 		timeout ->
 			?WARNING("uuid_dump for ~s timed out", [UUID]),
+			{"", "", "Unknown", "Unknown"};
+		{error, Error} ->
+			?WARNING("uuid_dump for ~s errored:  ~p", [UUID, Error]),
 			{"", "", "Unknown", "Unknown"}
 	end.

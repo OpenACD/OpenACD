@@ -201,7 +201,7 @@ init(Options) ->
 			lists:foreach(fun({Key, Val}) ->
 				dummy_media_manager:set_option(Key, Val)
 			end, DmmOpts),
-			lists:foreach(fun(_) -> dummy_media_manager ! spawn_call end, proplists:get_value(start_count, DmmOpts))
+			lists:foreach(fun(_) -> dummy_media_manager ! spawn_call end, lists:seq(1, proplists:get_value(start_count, DmmOpts)))
 	end,
 	Newagentopts = proplists_replace(scale, 1000, Protoconf#conf.agent_opts),
 	Conf = Protoconf#conf{agent_opts = Newagentopts},

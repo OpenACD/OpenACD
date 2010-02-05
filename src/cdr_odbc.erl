@@ -98,7 +98,7 @@ dump(Agentstate, State) when is_record(Agentstate, agent_state) ->
 	end,
 	Query = io_lib:format("INSERT INTO agent_states set agent=~B, newstate=~B,
 		oldstate=~B, start=~B, end=~B, data='~s';", [
-		list_to_integer(Agentstate#agent_state.id) + 1000,
+		(try list_to_integer(Agentstate#agent_state.id) catch error:badarg -> 0 end) + 1000,
 		agent:state_to_integer(Agentstate#agent_state.state),
 		agent:state_to_integer(Agentstate#agent_state.oldstate),
 		Agentstate#agent_state.start, 

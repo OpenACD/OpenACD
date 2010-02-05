@@ -292,8 +292,13 @@ handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 			#agent{statedata = Call} = AgentRec,
 			case Call#call.direction of
 				outbound ->
-					gen_media:call(Call#call.source, {dial, Number}),
-					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+					case gen_media:call(Call#call.source, {dial, Number}) of
+						ok ->
+							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+						{error, Error} ->
+							?NOTICE("Outbound call error ~p", [Error]),
+							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, lists:flatten(io_lib:format("~p", [Error]))}]})}, State}
+					end;
 				_ ->
 					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"This is not an outbound call">>}]})}, State}
 			end;

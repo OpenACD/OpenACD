@@ -302,7 +302,7 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = Dial
 			{reply, ok, State#state{ringchannel = Pid}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
-			{stop, bad_call, {error, Error}, State}
+			{reply, {error, Error}, State}
 	end;
 handle_call(Msg, _From, _Call, State) ->
 	?INFO("unhandled mesage ~p", [Msg]),

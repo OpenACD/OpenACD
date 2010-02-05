@@ -270,6 +270,7 @@ handle_call({get_id, Id}, From, Callrec, #state{file_map = Map} = State) when is
 			handle_call({get_path, Path}, From, Callrec, State)
 	end;
 handle_call({get_blind, Key}, _From, _Callrec, #state{file_map = Map, mimed = Mime} = State) when is_list(Key) ->
+	?DEBUG("get blind: ~p", [Key]),
 	case proplists:get_value(Key, Map) of
 		undefined ->
 			Splitpath = util:string_split(Key, "/"),
@@ -286,6 +287,10 @@ handle_call({get_blind, Key}, _From, _Callrec, #state{file_map = Map, mimed = Mi
 				true ->
 					Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
 					Out = get_part(Intpath, Mime),
+					{reply, Out, State};
+				false when is_list(element(5, Mime)) ->
+					% TODO better searching by content-location
+					Out = get_part_by_content_location(element(5, Mime), list_to_binary(Key)),
 					{reply, Out, State};
 				false ->
 					{reply, none, State}
@@ -620,6 +625,20 @@ get_part([1 | Tail], {<<"message">>, _Subtype, _Headers, _Properties, Body}) ->
 get_part(Path, Mime) ->
 	?INFO("Invalid path ~p.  ~p/~p", [Path, element(1, Mime), element(2, Mime)]),
 	none.
+
+get_part_by_content_location([], _Key) ->
+	none;
+get_part_by_content_location([Part | Parts], Key) ->
+	% TODO this is a hack
+	Key2 = list_to_binary(edoc_lib:escape_uri(binary_to_list(Key))),
+	case mimemail:get_header_value(<<"Content-Location">>, element(3, Part)) of
+		Key ->
+			{ok, Part};
+		Key2 ->
+			{ok, Part};
+		X ->
+			get_part_by_content_location(Parts, Key)
+	end.
 
 append_files(Headers, Properties, Path, Files) ->
 	?DEBUG("append_files:  ~p, ~p", [Headers, Properties]),

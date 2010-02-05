@@ -259,8 +259,12 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = Dial
 						undefined ->
 							["origination_privacy=hide_namehide_number"];
 						CalleridNum ->
-							["effective_caller_id_name="++Client#client.label, "effective_caller_id_name="++CalleridNum]
+							["origination_caller_id_name='"++Client#client.label++"'", "origination_caller_id_number='"++binary_to_list(CalleridNum)++"'"]
 					end,
+
+					%freeswitch:bgapi(Fnode, uuid_setvar, RingUUID ++ " ringback %(2000,4000,440.0,480.0)"),
+					freeswitch:bgapi(Fnode, uuid_setvar, RingUUID ++ " ringback tone_stream://path=/usr/local/freeswitch/conf/tetris.ttml;loops=10"),
+
 					freeswitch:sendmsg(Fnode, RingUUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "bridge"},

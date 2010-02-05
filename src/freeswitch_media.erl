@@ -172,7 +172,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	end,
 	agent:conn_cast(Apid, {mediaload, Callrec}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
-			xferchannel = undefined, xferuuid = undefined}};
+			xferchannel = undefined, xferuuid = undefined, queued = false}};
 handle_answer(Apid, Callrec, State) ->
 	RecPath = case cpx_supervisor:get_archive_path(Callrec) of
 		none ->
@@ -190,7 +190,7 @@ handle_answer(Apid, Callrec, State) ->
 			Path++".wav"
 	end,
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}]}),
-	{ok, State#state{agent_pid = Apid, record_path = RecPath}}.
+	{ok, State#state{agent_pid = Apid, record_path = RecPath, queued = false}}.
 
 handle_ring(Apid, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
@@ -472,7 +472,7 @@ handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
 		[{"call-command", "execute"},
 			{"execute-app-name", "playback"},
 			{"execute-app-arg", "local_stream://" ++ State#state.moh}]),
-	{ok, State}.
+	{ok, State#state{queued = true}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -673,7 +673,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 			{stop, normal, State};
 		"DTMF" ->
 			case proplists:get_value("DTMF-Digit", Rawcall) of
-				"*" when State#state.allow_voicemail =/= false ->
+				"*" when State#state.allow_voicemail =/= false, State#state.queued == true ->
 					% allow the media to go to voicemail
 					?NOTICE("caller requested to go to voicemail", []),
 					freeswitch:bgapi(State#state.cnode, uuid_transfer, UUID ++ " 'playback:IVR/prrec.wav,gentones:%(500\\,0\\,500),sleep:600,record:/tmp/${uuid}.wav' inline"),

@@ -297,7 +297,7 @@ handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 						{error, Error} ->
 							?NOTICE("Outbound call error ~p", [Error]),
-							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, lists:flatten(io_lib:format("~p", [Error]))}]})}, State}
+							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(lists:flatten(io_lib:format("~p, Check your phone configuration", [Error])))}]})}, State}
 					end;
 				_ ->
 					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"This is not an outbound call">>}]})}, State}

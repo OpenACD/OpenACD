@@ -50,7 +50,12 @@ function drawCalls(response) {
 			c1 = row.insertCell(3);
 			var longest = dojo.filter(client.medias, function(obj) { return !!obj.queued; });
 			if (longest.length === 0) {
-			longest = dojo.filter(client.medias, function(obj) { return !obj.queued && !!obj.ivr; })[0].ivr;
+				var filtered = dojo.filter(client.medias, function(obj) { return !obj.queued && !!obj.ivr; });
+				if(filtered.length > 0){
+					longest = filtered[0].ivr;
+				} else {
+					longest = Math.floor(new Date().getTime() / 1000);
+				}
 			} else {
 			longest = longest[0].queued;
 			}

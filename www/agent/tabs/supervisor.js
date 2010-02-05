@@ -2067,12 +2067,12 @@ if(typeof(supervisorView) == "undefined"){
 				if(aDetails.priority == bDetails.priority){
 					if(! aDetails.queued_at){
 						aDetails.queued_at = {
-							timestamp: Math.floor(new Date().getTime() / 1000);
+							timestamp: Math.floor(new Date().getTime() / 1000)
 						}
 					}
 					if(! bDetails.queued_at){
 						bDetails.queued_at = {
-							timestamp: Math.floor(new Date().getTime() / 1000);
+							timestamp: Math.floor(new Date().getTime() / 1000)
 						}
 					}
 					return aDetails.queued_at.timestamp - bDetails.queued_at.timestamp;

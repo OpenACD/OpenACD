@@ -585,6 +585,8 @@ get_client_medias(Filter, Client) ->
 		begin Testc = proplists:get_value(client, Details), Testc#client.label == Client end,
 		proplists:get_value(agent, Details) == undefined,
 		case History of
+			{outbound, _} ->
+				false;
 			{_Direction, HistoryList} ->
 				proplists:get_value(ended, HistoryList) == undefined;
 			_Else ->

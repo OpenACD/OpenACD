@@ -1244,7 +1244,7 @@ outgoing({outbound, Agent, NewState}, State) when is_record(State#state.callrec,
 			{{error, {noagent, Agent}}, State#state{substate = NewState}}
 	end;
 outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call) ->
-	?INFO("Told to set ~s to outbound and call ~p", [Agent, Call]),
+	?INFO("Told to set ~s to outbound and call ~p", [Agent, Call#call.id]),
 	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
 			agent:set_state(Apid, outgoing, Call),

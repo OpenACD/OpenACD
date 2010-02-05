@@ -346,8 +346,14 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 					Newrow = {Key, Time, EventHp, EventDetails, {Direction, History}},
 					dets:insert(?DETS, Newrow),
 					Newrow;
-				{undefined, _Agent, List} when length(List) > 0, length(List) < 3 ->
-					Newrow = {Key, Time, EventHp, EventDetails, {Direction, History ++ [{handled, EventTime}]}},
+				{undefined, _Agent, List} ->
+					% TODO And if a new agent handles it?
+					Newrow = case proplists:get_value(handled, List) of
+						undefined ->
+							{Key, Time, EventHp, EventDetails, {Direction, History ++ [{handled, EventTime}]}};
+						_ ->
+							{Key, Time, EventHp, EventDetails, {Direction, History}}
+					end,
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{Queue, undefined, Hlist} ->

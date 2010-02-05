@@ -182,7 +182,7 @@ init(Options) ->
 		undefined ->
 			case mimemail:get_header_value(<<"To">>, Mheads) of
 				undefined ->
-					#mail_map{address = "Undisclosed recipients"};
+					#mail_map{address = "Undisclosed recipients"}; % TODO - this fails the 'RawDomain' parsing below!
 				Address ->
 					F = fun() ->
 						QH = qlc:q([X || X <- mnesia:table(mail_map), X#mail_map.address =:= binary_to_list(Address)]),

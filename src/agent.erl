@@ -680,6 +680,14 @@ outgoing(_Event, _From, State) ->
 	{reply, invalid, outgoing, State}.
 
 -spec(outgoing/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
+outgoing({conn_cast, Request}, #agent{connection = Pid} = State) ->
+	case is_pid(Pid) of
+		true ->
+			gen_server:cast(Pid, Request);
+		false ->
+			ok
+	end,
+	{next_state, outgoing, State};
 outgoing(register_rejected, #agent{statedata = Media} = State) when Media#call.media_path =:= inband ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};

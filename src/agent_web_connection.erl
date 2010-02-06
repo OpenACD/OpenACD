@@ -848,10 +848,10 @@ handle_call(Allothers, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast(keep_alive, State) ->
-	?DEBUG("keep alive", []),
+	%?DEBUG("keep alive", []),
 	{noreply, State#state{poll_pid_established = util:now()}};
 handle_cast({poll, Frompid}, State) ->
-	?DEBUG("Replacing poll_pid ~w with ~w", [State#state.poll_pid, Frompid]),
+	%?DEBUG("Replacing poll_pid ~w with ~w", [State#state.poll_pid, Frompid]),
 	case State#state.poll_pid of
 		undefined -> 
 			ok;
@@ -860,11 +860,11 @@ handle_cast({poll, Frompid}, State) ->
 	end,
 	case State#state.poll_queue of
 		[] ->
-			?DEBUG("Empty poll queue", []),
+			%?DEBUG("Empty poll queue", []),
 			link(Frompid),
 			{noreply, State#state{poll_pid = Frompid, poll_pid_established = util:now()}};
 		Pollq ->
-			?DEBUG("Poll queue length: ~p", [length(Pollq)]),
+			%?DEBUG("Poll queue length: ~p", [length(Pollq)]),
 			Newstate = State#state{poll_queue=[], poll_pid_established = util:now(), poll_pid = undefined},
 			Json2 = {struct, [{success, true}, {message, <<"Poll successful">>}, {data, lists:reverse(Pollq)}]},
 			Frompid ! {poll, {200, [], mochijson2:encode(Json2)}},

@@ -610,6 +610,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					freeswitch:sendmsg(State#state.cnode, UUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "answer"}]),
+					freeswitch:bgapi(State#state.cnode, uuid_setvar, UUID ++ " hangup_after_bridge true"),
 					% play musique d'attente
 					freeswitch:sendmsg(State#state.cnode, UUID,
 						[{"call-command", "execute"},

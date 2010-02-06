@@ -252,6 +252,7 @@ handle_wrapup(_Call, State) ->
 handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = DialString, agent_pid = Apid} = State) ->
 	?NOTICE("I'm supposed to dial ~p", [Number]),
 	Self = self(),
+	AgentRec = agent:dump_state(Apid),
 	F = fun(RingUUID) ->
 			fun(ok, _Reply) ->
 					Client = Call#call.client,
@@ -271,7 +272,7 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = Dial
 							{"execute-app-arg", freeswitch_media_manager:do_dial_string(DialString, Number, ["origination_uuid="++Call#call.id | CalleridArgs])}]),
 					Self ! {connect_uuid, Number};
 				(error, Reply) ->
-					?WARNING("originate failed: ~p", [Reply]),
+					?WARNING("originate failed: ~p; agent:  ~s", [Reply, AgentRec#agent.login]),
 					ok
 			end
 	end,
@@ -292,16 +293,13 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = Dial
 			end,
 			true
 	end,
-
-	AgentRec = agent:dump_state(Apid),
-
 	case freeswitch_ring:start(Fnode, AgentRec, Apid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}]) of
 		{ok, Pid} ->
 			link(Pid),
 			cdr:dialoutgoing(Call, Number),
 			{reply, ok, State#state{ringchannel = Pid}};
 		{error, Error} ->
-			?ERROR("error:  ~p", [Error]),
+			?ERROR("error:  ~p; agent:  ~s", [Error, AgentRec#agent.login]),
 			{reply, {error, Error}, State}
 	end;
 handle_call(Msg, _From, _Call, State) ->

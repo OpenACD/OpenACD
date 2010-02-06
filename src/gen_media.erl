@@ -873,7 +873,7 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = C
 	cdr:ringout(State#state.callrec, {Reason, Apid}),
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined}};
 handle_info(Info, #state{callback = Callback} = State) ->
-	?DEBUG("Other info message, going directly to callback.  ~p", [Info]),
+	%?DEBUG("Other info message, going directly to callback.  ~p", [Info]),
 	Return = Callback:handle_info(Info, State#state.callrec, State#state.substate),
 	handle_custom_return(Return, State, noreply).
 	

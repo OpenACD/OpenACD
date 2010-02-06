@@ -694,7 +694,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 			?WARNING("event name not found: ~p", [freeswitch:get_event_header(Rawcall, "Content-Type")]),
 			{noreply, State};
 		Else ->
-			?DEBUG("Event unhandled ~p", [Else]),
+			%?DEBUG("Event unhandled ~p", [Else]),
 			{noreply, State}
 	end.
 

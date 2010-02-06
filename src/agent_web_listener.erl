@@ -526,7 +526,7 @@ check_cookie(Allothers) ->
 %% @doc determine if the given path is an api call, or if it's a file request.
 parse_path(Path) ->
 	% easy tests first.
-	?DEBUG("Path:  ~s", [Path]),
+	%?DEBUG("Path:  ~s", [Path]),
 	case Path of
 		"/" ->
 			{file, {"index.html", "www/agent/"}};

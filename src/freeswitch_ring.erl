@@ -219,7 +219,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid
 %					end,
 					{noreply, State};
 				_Else ->
-					?DEBUG("call_event ~p", [Event]),
+					%?DEBUG("call_event ~p", [Event]),
 					{noreply, State}
 			end;
 		ReturnVal ->

@@ -1,6 +1,8 @@
 
 var specialtext=[];
 var nextspecialtext=0;
+var chars="M1234567890ABCDEFGHIJKLNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz !@#$%^&*()_+-=[]\\{}|;\':<>?,./`~";
+var emsize=Array(1, 0.625, 0.6875, 0.625, 0.6875, 0.625, 0.625, 0.625, 0.625, 0.625, 0.625, 0.75, 0.75, 0.75, 0.8125, 0.6875, 0.6875, 0.8125, 0.8125, 0.375, 0.4375, 0.75, 0.625, 0.8125, 0.8125, 0.625, 0.8125, 0.75, 0.6875, 0.625, 0.8125, 0.75, 1, 0.6875, 0.6875, 0.75, 0.625, 0.6875, 0.5625, 0.6875, 0.625, 0.375, 0.6875, 0.625, 0.375, 0.375, 0.625, 0.375, 0.9375, 0.625, 0.625, 0.6875, 0.6875, 0.5, 0.5625, 0.5, 0.6875, 0.5625, 0.875, 0.5625, 0.5625, 0.5625, 0.3125, 0.375, 1, 0.8125, 0.625, 1, 0.8125, 0.875, 0.5, 0.375, 0.375, 0.5, 0.875, 0.375, 0.875, 0.375, 0.375, 0.3125, 0.625, 0.625, 0.375, 0.375, 0.3125, 0.3125, 0.875, 0.875, 0.5625, 0.3125, 0.3125, 0.3125, 0.5, 0.84)
 
 function sign(x) {
 	if (x > 0) {return 1;}
@@ -8,7 +10,32 @@ function sign(x) {
 	return 0;
 }
 
-function resizespan(spn) {
+function resizespan2(spn) {
+	var parentht = parseInt(spn.parentNode.clientHeight, 10);
+	var parentwd = parseInt(spn.parentNode.clientWidth, 10);
+	if (parentht === 0) {return;}
+	var ems = 0;
+	var offset = -1;
+	for (var i=0;i<spn.innerHTML.length;i++){
+		offset = chars.indexOf(spn.innerHTML[i]);
+		if (offset < 1) {
+			ems ++;
+		} else {
+			ems += emsize[offset];
+		}
+	}
+	if (ems == 0) {return;}
+	fontsz = parseInt(parentwd/ems);
+	var ruler = document.getElementById('ruler');
+	ruler.innerHTML = spn.innerHTML;
+	ruler.style.fontSize = fontsz + 'px';
+	if (ruler.offsetHeight > parentht) {
+		fontsz = parseInt((fontsz * parentht)/ruler.offsetHeight);
+	}
+	spn.style.fontSize = fontsz + 'px';
+}
+
+function resizespan1(spn) {
 	var fontmax=140;
 	var curfont = parseInt(spn.style.fontSize, 10);
 	var parentht = parseInt(spn.parentNode.clientHeight, 10) * 0.95;
@@ -68,12 +95,14 @@ function resizespan(spn) {
 		spn.style.fontSize = curfont;
 		done = (((Math.abs(hdiff) < 2) || (ht <= parentht)) && ((Math.abs(wdiff) < 2) || (wd <= parentwd)) && (diff < (parentwd / 10)) && (Math.abs(step) < 3)) ;
 		lastdiff = diff;
-		if (cnt++ > 50) {
+		if (cnt++ > 20) {
 			done = true;
 			spn.style.fontSize = closest;
 		}
 	}
 }
+
+resizespan = resizespan2;
 
 function resizeall() {
 	var spans = document.getElementsByTagName("span");

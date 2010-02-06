@@ -615,10 +615,10 @@ write_rows(Dict) ->
 	write_rows_loop(dict:to_list(Dict)).
 
 write_rows_loop([]) ->
-	?DEBUG("No more to write.", []),
+	%?DEBUG("No more to write.", []),
 	ok;
 write_rows_loop([{_Mod, Recs} | Tail]) ->
-	?DEBUG("Writing ~p to mnesia", [Recs]),
+	%?DEBUG("Writing ~p to mnesia", [Recs]),
 	F = fun() ->
 		lists:foreach(fun(R) -> mnesia:write(R) end, Recs)
 	end,
@@ -671,7 +671,7 @@ entry(Entry, #state{ets = Tid} = State, Election) ->
 	tell_cands(Message, Election).
 
 tell_subs(Message, Subs) ->
-	?DEBUG("Telling subs ~p message", [Subs]),
+	%?DEBUG("Telling subs ~p message", [Subs]),
 	lists:foreach(fun({Pid, Fun}) ->
 		case Fun(Message) of
 			true ->
@@ -684,7 +684,7 @@ tell_subs(Message, Subs) ->
 tell_cands(Message, Election) ->
 	Nodes = gen_leader:candidates(Election),
 	Leader = gen_leader:leader_node(Election),
-	?DEBUG("Leader ~p is telling nodes ~p", [Leader, Nodes]),
+	%?DEBUG("Leader ~p is telling nodes ~p", [Leader, Nodes]),
 	tell_cands(Message, Nodes, Leader).
 
 tell_cands(_Message, [], _Leader) ->

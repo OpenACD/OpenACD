@@ -114,7 +114,8 @@ split_id(Comboid) ->
 		{Tenant, Brand}
 	catch
 		_:_ ->
-			?ERROR("Combo id failed:  ~p", [Comboid]),
+			S = self(),
+			?ERROR("Combo id failed:  ~p; pid:  ~p", [Comboid, S]),
 			{0, 0}
 	end.
 
@@ -421,7 +422,7 @@ build_request(Apicall, Params, Count) when is_binary(Apicall) ->
 request(State, Apicall, Params) ->
 	{ok, Count, Submitbody} = build_request(Apicall, lists:append(Params, [State#state.session]), State#state.count),
 	{ok, {{_Version, 200, _Ok}, _Headers, Body}} = http:request(post, {State#state.server, [], "application/x-www-form-urlencoded", Submitbody}, [], []),
-	?DEBUG("The body:  ~p", [Body]),
+	%?DEBUG("The body:  ~p", [Body]),
 	{struct, Reply} = mochijson2:decode(Body),
 	{ok, Count, Reply}.
 

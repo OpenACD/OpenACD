@@ -539,7 +539,7 @@ handle_info({call, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
 	freeswitch_media_manager:notify(UUID, self()),
 	case_event_name([UUID | Rest], Call, State#state{in_control = true});
 handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
-	?DEBUG("reporting existing call progess ~p.", [UUID]),
+	%?DEBUG("reporting existing call progess ~p.", [UUID]),
 	case_event_name([ UUID | Rest], Call, State);
 handle_info({set_agent, Login, Apid}, _Call, State) ->
 	{noreply, State#state{agent = Login, agent_pid = Apid}};
@@ -589,7 +589,7 @@ code_change(_OldVsn, _Call, State, _Extra) ->
 %% @private
 case_event_name([UUID | Rawcall], Callrec, State) ->
 	Ename = freeswitch:get_event_name(Rawcall),
-	?DEBUG("Event:  ~p;  UUID:  ~p", [Ename, UUID]),
+	%?DEBUG("Event:  ~p;  UUID:  ~p", [Ename, UUID]),
 	case Ename of
 		"CHANNEL_PARK" ->
 			case State#state.queued of

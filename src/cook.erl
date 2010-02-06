@@ -271,7 +271,7 @@ stop(Pid) ->
 %% @private
 -spec(do_route/3 :: (Ringstate :: 'ringing' | 'none', Queue :: string(), Callpid :: pid()) -> 'nocall' | 'ringing' | 'none').
 do_route(ringing, _Queue, _Callpid) ->
-	?DEBUG("still ringing", []),
+	%?DEBUG("still ringing", []),
 	ringing;
 do_route(none, Queue, Callpid) ->
 	%?DEBUG("Searching for agent to ring to...",[]),
@@ -295,7 +295,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	F = fun(Dpid) ->
 		try dispatcher:get_agents(Dpid) of
 			[] ->
-				?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
+				%?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
 				dispatcher:regrab(Dpid),
 				[];
 			Ag ->
@@ -365,7 +365,7 @@ check_conditions([{eligible_agents, Comparision, Number} | Conditions], Ticked, 
 	{_Key, Callrec} = call_queue:get_call(Qpid, Call),
 	L = agent_manager:find_by_skill(Callrec#queued_call.skills),
 	Agents = length(L),
-	?DEBUG("Number: ~p; agents: ~p", [Number, Agents]),
+	%?DEBUG("Number: ~p; agents: ~p", [Number, Agents]),
 	case Comparision of
 		'>' when Agents > Number ->
 			check_conditions(Conditions, Ticked, Qpid, Call);

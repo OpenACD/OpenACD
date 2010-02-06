@@ -224,7 +224,7 @@ loop(Req, Table) ->
 					Whoa
 			catch
 				What:Why ->
-					?DEBUG("Going with a blank post due to mulipart parse fail:  ~p:~p", [What, Why]),
+					%?DEBUG("Going with a blank post due to mulipart parse fail:  ~p:~p", [What, Why]),
 					[]
 			end
 	end,
@@ -294,7 +294,7 @@ keep_alive(_) ->
 api(checkcookie, Cookie, _Post) ->
 	case Cookie of
 		{_Reflist, _Salt, Conn} when is_pid(Conn) ->
-			?DEBUG("Found agent_connection pid ~p", [Conn]),
+			%?DEBUG("Found agent_connection pid ~p", [Conn]),
 			Agentrec = agent_web_connection:dump_agent(Conn),
 			Basejson = [
 				{<<"success">>, true},
@@ -577,6 +577,7 @@ parse_path(Path) ->
 					{api, media};
 				["mediapull" | Pulltail] ->
 					?DEBUG("pulltail:  ~p", [Pulltail]),
+					% TODO Is this even used anymore?
 					{api, {mediapull, Pulltail}};
 				["mediapush"] ->
 					{api, mediapush};

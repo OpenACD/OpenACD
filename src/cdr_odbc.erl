@@ -194,7 +194,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 		cdr_transaction_to_integer(LastState),
 		DNIS
 	]),
-	?NOTICE("query is ~s", [Query]),
+	%?NOTICE("query is ~s", [Query]),
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
 		{error, Reason} ->
 			{error, Reason};
@@ -213,7 +213,7 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 				add_slashes(element(1, Media#call.callerid), "'"),
 				string_or_null(Dialednum)
 			]),
-			?NOTICE("query is ~s", [InfoQuery]),
+			%?NOTICE("query is ~s", [InfoQuery]),
 			case odbc:sql_query(State#state.ref, lists:flatten(InfoQuery)) of
 				{error, Reason} ->
 					{error, Reason};
@@ -223,12 +223,12 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 	end.
 
 commit(State) ->
-	?NOTICE("committing pending operations", []),
+	%?NOTICE("committing pending operations", []),
 	odbc:commit(State#state.ref, commit),
 	{ok, State}.
 
 rollback(State) ->
-	?NOTICE("committing pending operations", []),
+	%?NOTICE("committing pending operations", []),
 	odbc:commit(State#state.ref, rollback),
 	{ok, State}.
 

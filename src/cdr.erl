@@ -316,7 +316,7 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 		nodes = State#state.nodes
 	},
 	{atomic, Termed} = push_raw(Call, Cdr),
-	?DEBUG("Termed:  ~p", [Termed]),
+	%?DEBUG("Termed:  ~p", [Termed]),
 	Extra = analyze(Transaction, Call, Time, Data, Termed),
 	mnesia:transaction(fun() ->
 		lists:foreach(fun(Rec) ->
@@ -411,19 +411,17 @@ push_raw(#call{id = Cid} = Callrec, #cdr_raw{id = Cid, start = Now} = Trans) ->
 	F = fun() ->
 		Untermed = find_untermed(Trans#cdr_raw.transaction, Callrec, Trans#cdr_raw.eventdata),
 		Termedatoms = lists:map(fun(#cdr_raw{transaction = T, eventdata = E}) -> {T, E} end, Untermed),
-		?DEBUG("closing cdr records ~p", [Untermed]),
+		%?DEBUG("closing cdr records ~p", [Untermed]),
 		Terminate = fun(Rec) ->
 			mnesia:delete_object(Rec),
 			mnesia:write(Rec#cdr_raw{ended = Now})
 		end,
 		lists:foreach(Terminate, Untermed),
-		?DEBUG("Writing ~p", [Trans]),
+		%?DEBUG("Writing ~p", [Trans]),
 		mnesia:write(Trans#cdr_raw{terminates = lists:map(fun({T, _}) -> T end, Termedatoms)}),
 		Termedatoms
 	end,
-	Out = mnesia:transaction(F),
-	?DEBUG("push_raw:  ~p", [Out]),
-	Out.
+	mnesia:transaction(F).
 
 %% @doc Determine any info messages that should be input based on what the last
 %% actual message ended.
@@ -619,7 +617,7 @@ spawn_summarizer(UsortedTransactions, #call{id = CallID} = Callrec) ->
 %% breakdown :: `[{agent_login() | queue_name(), total()}]'
 -spec(summarize/1 :: (Transactions :: [#cdr_raw{}]) -> [dict()]).
 summarize(Transactions) ->
-	?DEBUG("Summarizing ~p", [Transactions]),
+	%?DEBUG("Summarizing ~p", [Transactions]),
 	summarize(Transactions, dict:new()).
 
 -spec(summarize/2 :: (Transactions :: [#cdr_raw{}], Sumacc :: dict()) -> any()).
@@ -654,14 +652,14 @@ summarize(Cdr, Catagory, Individual, Acc) ->
 		{ok, Else} ->
 			Else
 	end,
-	?DEBUG("total:  ~p;  propdict:  ~p", [Total, Propdict]),
+	%?DEBUG("total:  ~p;  propdict:  ~p", [Total, Propdict]),
 	Duration = Cdr#cdr_raw.ended - Cdr#cdr_raw.start,
 	Detail = proplists:get_value(Individual, Propdict, 0),
 	Cleanedprops = proplists:delete(Individual, Propdict),
 	Newdetail = Detail + Duration,
 	Newtotal = Total + Duration,
 	Newprops = [{Individual, Newdetail} | Cleanedprops],
-	?DEBUG("newtotal:  ~p;  newpropdict:  ~p", [Newtotal, Newprops]),
+	%?DEBUG("newtotal:  ~p;  newpropdict:  ~p", [Newtotal, Newprops]),
 	Newacc = dict:store(Catagory, {Newtotal, Newprops}, Acc),
 	Newacc.
 

@@ -554,7 +554,7 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 		["agentstate" | [Agent | Tail]] ->
 			Json = case agent_manager:query_agent(Agent) of
 				{true, Apid} ->
-					?DEBUG("Tail:  ~p", [Tail]),
+					%?DEBUG("Tail:  ~p", [Tail]),
 					Statechange = case Tail of
 						["released", "default"] ->
 							agent:set_state(Apid, released, default);
@@ -833,7 +833,7 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} =
 			Encoded = mimemail:encode(Mime),
 			{reply, {200, Heads, Encoded}, State};
 		Else ->
-			?DEBUG("Not a mime tuple ~p", [Else]),
+			?INFO("Not a mime tuple ~p", [Else]),
 			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}
 	end;
 handle_call(mediaload, _From, State) ->
@@ -956,7 +956,7 @@ handle_cast({mediapush, #call{type = Mediatype}, Data}, State) ->
 handle_cast({set_salt, Salt}, State) ->
 	{noreply, State#state{salt = Salt}};
 handle_cast({change_state, AgState, Data}, State) ->
-	?DEBUG("State:  ~p; Data:  ~p", [AgState, Data]),
+	%?DEBUG("State:  ~p; Data:  ~p", [AgState, Data]),
 	Headjson = {struct, [
 		{<<"command">>, <<"astate">>},
 		{<<"state">>, AgState},
@@ -1034,7 +1034,7 @@ handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = Poll
 	Tref = erlang:send_after(?TICK_LENGTH, self(), check_live_poll),
 	case util:now() - Last of
 		N when N > 20 ->
-			?DEBUG("sending pong to initiate new poll pid", []),
+			%?DEBUG("sending pong to initiate new poll pid", []),
 			Newstate = push_event({struct, [{success, true}, {<<"command">>, <<"pong">>}, {<<"timestamp">>, util:now()}]}, State),
 			{noreply, Newstate#state{ack_timer = Tref}};
 		_N ->
@@ -1045,7 +1045,7 @@ handle_info({cpx_monitor_event, _Message}, #state{securitylevel = agent} = State
 	cpx_monitor:unsubscribe(),
 	{noreply, State};
 handle_info({cpx_monitor_event, Message}, State) ->
-	?DEBUG("Ingesting cpx_monitor_event ~p", [Message]),
+	%?DEBUG("Ingesting cpx_monitor_event ~p", [Message]),
 	Json = case Message of
 		{drop, {Type, Name}} ->
 			{struct, [
@@ -1079,7 +1079,12 @@ handle_info({cpx_monitor_event, Message}, State) ->
 	Newstate = push_event(Json, State),
 	{noreply, Newstate};
 handle_info({'EXIT', Pollpid, Reason}, #state{poll_pid = Pollpid} = State) ->
-	?DEBUG("The pollpid died due to ~p", [Reason]),
+	case Reason of
+		normal ->
+			ok;
+		_ ->
+			?NOTICE("The pollpid died due to ~p", [Reason])
+	end,
 	{noreply, State#state{poll_pid = undefined}};
 handle_info({'EXIT', Pid, Reason}, #state{listener = Pid} = State) ->
 	?WARNING("The listener at ~w died due to ~p", [Pid, Reason]),
@@ -1237,10 +1242,10 @@ parse_media_call(#call{type = email}, {"get_skeleton", _Args}, {TopType, TopSubT
 	{[], mochijson2:encode(Json)};
 parse_media_call(#call{type = email}, {"get_path", _Path}, {ok, {Type, Subtype, _Headers, _Properties, Body} = Mime}) ->
 	Emaildispo = email_media:get_disposition(Mime),
-	?DEBUG("Type:  ~p; Subtype:  ~p;  Dispo:  ~p", [Type, Subtype, Emaildispo]),
+	%?DEBUG("Type:  ~p; Subtype:  ~p;  Dispo:  ~p", [Type, Subtype, Emaildispo]),
 	case {Type, Subtype, Emaildispo} of
 		{Type, Subtype, {attachment, Name}} ->
-			?DEBUG("Trying to some ~p/~p (~p) as attachment", [Type, Subtype, Name]),
+			%?DEBUG("Trying to some ~p/~p (~p) as attachment", [Type, Subtype, Name]),
 			{[
 				{"Content-Disposition", lists:flatten(io_lib:format("attachment; filename=\"~s\"", [binary_to_list(Name)]))},
 				{"Content-Type", lists:append([binary_to_list(Type), "/", binary_to_list(Subtype)])}
@@ -1310,7 +1315,7 @@ parse_media_call(#call{type = email}, {"get_path", _Path}, {ok, {Type, Subtype, 
 %			{[], <<"404">>}
 	end;
 parse_media_call(#call{type = email}, {"get_path", _Path}, {message, Bin}) when is_binary(Bin) ->
-	?DEBUG("Path is a message/Subtype with binary body", []),
+	%?DEBUG("Path is a message/Subtype with binary body", []),
 	{[], Bin};
 parse_media_call(#call{type = email}, {"get_from", _}, undefined) ->
 	{[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no reply info">>}]})};
@@ -1618,7 +1623,7 @@ encode_health([_Whatever | Tail], Acc) ->
 	
 -spec(encode_groups/2 :: (Stats :: [{string(), string()}], Count :: non_neg_integer()) -> {non_neg_integer(), [tuple()]}).
 encode_groups(Stats, Count) ->
-	?DEBUG("Stats to encode:  ~p", [Stats]),
+	%?DEBUG("Stats to encode:  ~p", [Stats]),
 	encode_groups(Stats, Count + 1, [], [], []).
 
 -spec(encode_groups/5 :: (Groups :: [{string(), string()}], Count :: non_neg_integer(), Acc :: [tuple()], Gotqgroup :: [string()], Gotaprof :: [string()]) -> {non_neg_integer(), [tuple()]}).
@@ -1701,7 +1706,7 @@ encode_proplist([_Head | Tail], Acc) ->
 	encode_proplist(Tail, Acc).
 
 extract_groups(Stats) ->
-	?DEBUG("Stats to extract groups from:  ~p", [Stats]),
+	%?DEBUG("Stats to extract groups from:  ~p", [Stats]),
 	extract_groups(Stats, []).
 
 extract_groups([], Acc) ->
@@ -1729,7 +1734,7 @@ extract_groups([Head | Tail], Acc) ->
 					extract_groups(Tail, [Top | Acc])
 			end;
 		Else ->
-			?DEBUG("no group to extract for type ~w", [Else]),
+			%?DEBUG("no group to extract for type ~w", [Else]),
 			extract_groups(Tail, Acc)
 	end.
 
@@ -1738,10 +1743,10 @@ push_event(Eventjson, State) ->
 	Newqueue = [Eventjson | State#state.poll_queue],
 	case State#state.poll_pid of
 		undefined ->
-			?DEBUG("No poll pid to send to", []),
+			%?DEBUG("No poll pid to send to", []),
 			State#state{poll_queue = Newqueue};
 		Pid when is_pid(Pid) ->
-			?DEBUG("Sending to the ~w", [Pid]),
+			%?DEBUG("Sending to the ~w", [Pid]),
 			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, true}, {<<"data">>, lists:reverse(Newqueue)}]})}},
 			unlink(Pid),
 			State#state{poll_queue = [], poll_pid = undefined, poll_pid_established = util:now()}

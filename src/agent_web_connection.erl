@@ -811,7 +811,7 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} =
 	%% Note that the results below are only for email, so this will need
 	%% to be refactored when we support more medias.
 	?DEBUG("forwarding request to media.  Path: ~p; Post: ~p", [Path, Post]),
-	case gen_media:call(Call#call.source, {get_blind, Path}) of
+	try gen_media:call(Call#call.source, {get_blind, Path}) of
 		{ok, Mime} ->
 			{Heads, Data} = parse_media_call(Call, {"get_path", Path}, {ok, Mime}),
 %			Body = element(5, Mime),
@@ -835,6 +835,10 @@ handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} =
 		Else ->
 			?INFO("Not a mime tuple ~p", [Else]),
 			{reply, {404, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"unparsable reply">>}]})}, State}
+	catch
+		exit:{noproc, _} ->
+			?ERROR("request to fetch ~p from ~p ~p by ~p", [Path, Call#call.id, Call#call.source, State#state.agent_fsm]),
+			{reply, {404, [], <<"path not found">>}, State}
 	end;
 handle_call(mediaload, _From, State) ->
 	{reply, State#state.mediaload, State};

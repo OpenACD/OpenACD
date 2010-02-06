@@ -108,9 +108,15 @@ state_dump() ->
 %% @doc Return `{Tenantid, Brandid}' when given a `ComboId'
 -spec(split_id/1 :: (Comboid :: string()) -> {pos_integer(), pos_integer()}).
 split_id(Comboid) ->
-	Tenant = list_to_integer(string:substr(Comboid, 1, 4)),
-	Brand = list_to_integer(string:substr(Comboid, 5, 4)),
-	{Tenant, Brand}.
+	try 
+		Tenant = list_to_integer(string:substr(Comboid, 1, 4)),
+		Brand = list_to_integer(string:substr(Comboid, 5, 4)),
+		{Tenant, Brand}
+	catch
+		_:_ ->
+			?ERROR("Combo id failed:  ~p", [Comboid]),
+			{0, 0}
+	end.
 
 %% @doc Combine the `Tenantid' and `Brandid' to the 8 character `Comboid' used
 %% for the general client id

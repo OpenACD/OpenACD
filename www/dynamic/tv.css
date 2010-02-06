@@ -112,11 +112,11 @@ span#ruler {
 }
 
 #histhour {
-	background: #27ab5d;
+	background: #0c8c58;
 }
 
 #histmid {
-	background: #009999;
+	background: #0480a0;
 }
 
 .callcount {
@@ -172,6 +172,10 @@ span#ruler {
 	color: white;
 }
 
+#qgroup5, #agroup5 .profilelabel {
+	background: white;
+}
+
 #agroup4 .profilelabel {
 	color: #C930C9;
 }
@@ -194,7 +198,7 @@ span#ruler {
 
 .queuegroup {
 	float: left;
-	width: 25%;
+	width: 20%;
 	height: 100%;
 	text-align: center;
 }

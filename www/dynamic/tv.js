@@ -339,6 +339,7 @@ function update() {
 			updateQueue(dojo.byId("qgroup2"), getQueue(response.queueGroups, config.qgroup2));
 			updateQueue(dojo.byId("qgroup3"), getQueue(response.queueGroups, config.qgroup3));
 			updateQueue(dojo.byId("qgroup4"), getQueue(response.queueGroups, config.qgroup4));
+			updateQueue(dojo.byId("qgroup5"), getQueue(response.queueGroups, config.qgroup5));
 
 			agentAlerts(getAgentsInProfiles(response.agentProfiles, "*"));
 

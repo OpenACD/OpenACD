@@ -115,7 +115,7 @@ split_id(Comboid) ->
 	catch
 		_:_ ->
 			S = self(),
-			?ERROR("Combo id failed:  ~p; pid:  ~p", [Comboid, S]),
+			?ERROR("Combo id failed:  ~p; pid:  ~p; Why:  ~p", [Comboid, S, erlang:get_stacktrace()]),
 			{0, 0}
 	end.
 

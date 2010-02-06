@@ -472,7 +472,7 @@ handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
 		[{"call-command", "execute"},
 			{"execute-app-name", "playback"},
 			{"execute-app-arg", "local_stream://" ++ State#state.moh}]),
-	{ok, State#state{queued = true}}.
+	{ok, State#state{queued = true, agent_pid = undefined}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -593,7 +593,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 	case Ename of
 		"CHANNEL_PARK" ->
 			case State#state.queued of
-				false ->
+				false when not is_pid(State#state.agent_pid) ->
 					Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 					Client = proplists:get_value("variable_brand", Rawcall),
 					AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),
@@ -617,6 +617,9 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 							{"execute-app-arg", "local_stream://"++Moh}]),
 						%% tell gen_media to (finally) queue the media
 					{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, moh=Moh}};
+				false ->
+					?ERROR("park event while bridged to an agent ~p", [Callrec#call.id]),
+					{noreply, State};
 				_Otherwise ->
 					{noreply, State}
 			end;

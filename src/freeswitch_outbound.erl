@@ -179,6 +179,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	?INFO("intercepting ~s from channel ~s", [XferUUID, Callrec#call.id]),
 	freeswitch:sendmsg(State#state.cnode, XferUUID,
 		[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Callrec#call.id}]),
+	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}]}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined}};
 handle_answer(_Apid, _Call, State) ->
@@ -279,6 +280,7 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = Dial
 	F2 = fun(_RingUUID, EventName, _Event) ->
 			case EventName of
 				"CHANNEL_BRIDGE" ->
+					agent:conn_cast(Apid, {mediaload, Call, [{<<"height">>, <<"300px">>}]}),
 					case cpx_supervisor:get_archive_path(Call) of
 						none ->
 							?DEBUG("archiving is not configured", []);
@@ -309,6 +311,10 @@ handle_call(Msg, _From, _Call, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast({"audiolevel", Arguments}, Call, State) ->
+	?INFO("uuid_audio ~s", [Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)]),
+	freeswitch:bgapi(State#state.cnode, uuid_audio, Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)),
+	{noreply, State};
 handle_cast(hangup, Call, State) ->
 	freeswitch:sendmsg(State#state.cnode, Call#call.id,
 		[{"call-command", "hangup"},

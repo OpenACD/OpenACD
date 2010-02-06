@@ -194,15 +194,15 @@ handle_answer(Apid, Callrec, State) ->
 
 handle_ring(Apid, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
+	AgentRec = agent:dump_state(Apid),
 	F = fun(UUID) ->
 		fun(ok, _Reply) ->
 			freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Callrec#call.id);
 		(error, Reply) ->
-			?WARNING("originate failed: ~p", [Reply]),
+			?WARNING("originate failed: ~p; agent:  ~s", [Reply, AgentRec#agent.login]),
 			ok
 		end
 	end,
-	AgentRec = agent:dump_state(Apid),
 	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F) of
 		{ok, Pid} ->
 			link(Pid),
@@ -213,7 +213,7 @@ handle_ring(Apid, Callrec, State) ->
 					{ok, [{"ivropt", Option}], State#state{ringchannel = Pid, agent_pid = Apid}}
 			end;
 		{error, Error} ->
-			?ERROR("error:  ~p", [Error]),
+			?ERROR("error:  ~p; agent:  ~s", [Error, AgentRec#agent.login]),
 			{invalid, State}
 	end.
 

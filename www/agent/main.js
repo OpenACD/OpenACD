@@ -267,7 +267,7 @@ function load_media_tab(options){
 			dockable: false,
 			href: 'tabs/' + options.href,
 			resizable: true,
-			style: 'position:absolute;top:120px;left:65%;z-index:1000;width:'+options.width+';height:'+options.height
+			style: 'position:absolute;top:30px;left:70%;z-index:999;width:'+options.width+';height:'+options.height
 		}, elem);
 		//pane.attr('href', "tabs/" + options.href);
 		pane.startup();

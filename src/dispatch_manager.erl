@@ -179,7 +179,8 @@ handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State) ->
 handle_info({'EXIT', Pid, Reason}, #state{dispatchers = Dispatchers} = State) ->
 	case (Reason =:= normal orelse Reason =:= shutdown) of
 		true ->
-			?DEBUG("Dispatcher exited normally ~p", [Pid]);
+			%?DEBUG("Dispatcher exited normally ~p", [Pid]),
+			ok;
 		false ->
 			?NOTICE("Dispatcher unexpected exit:  ~p ~p", [Pid, Reason])
 	end,
@@ -220,13 +221,8 @@ balance(State) when length(State#state.agents) < length(State#state.dispatchers)
 	?DEBUG("Killing a dispatcher",[]),
 	[Pid | Dispatchers] = lists:reverse(State#state.dispatchers),
 	?DEBUG("Pid I'm about to kill: ~p.  me:  ~p.  Dispatchers:  ~p~n", [Pid, self(), Dispatchers]),
-	case is_process_alive(Pid) of
-		true ->
-			ok = dispatcher:stop(Pid);
-		_Else -> 
-			% don't try to kill it.
-			ok
-	end,
+	dispatcher:stop(Pid),
+	% if it dies, we'll get the exit message.
 	balance(State#state{dispatchers=Dispatchers});
 balance(State) -> 
 	?DEBUG("It is fully balanced!",[]),

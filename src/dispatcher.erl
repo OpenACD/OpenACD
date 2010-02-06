@@ -131,6 +131,8 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
+handle_cast(stop, State) ->
+	{stop, normal, State};
 handle_cast({update_skills, Skills}, #state{call = Call} = State) ->
 	Newcall = Call#queued_call{skills = Skills},
 	{noreply, State#state{call = Newcall}};
@@ -247,7 +249,7 @@ regrab(Pid) ->
 %% @doc Stops the dispatcher at `pid() Pid' with reason `normal'.
 -spec(stop/1 :: (pid()) -> 'ok').
 stop(Pid) -> 
-	gen_server:call(Pid, stop).
+	gen_server:cast(Pid, stop).
 	
 -ifdef(TEST).
 

@@ -231,7 +231,7 @@ init(Options) ->
 		queue_group_cache = QueueRecsCache,
 		agent_profile_cache = AgentProfsCache
 	}}.
-l(cpx_monitor_passive), exit(whereis(cpx_monitor_passive), kill).
+
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------

@@ -775,7 +775,7 @@ write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter
 	AgentProfiles = get_agent_profiles(Filter, QueueCache, AgentCache),
 	AgentProfsJson = agentprofiles_to_json(AgentProfiles, Filter, QueueCache, AgentCache),
 	Rawdata = get_all_media(Filter, QueueCache, AgentCache),
-	{_, _, _, _, Rawjson} = medias_to_json(Rawdata),
+	Rawjson = medias_to_json(Rawdata),
 	Json = {struct, [
 		{<<"writeTime">>, util:now()},
 		{<<"writeInterval">>, Interval},
@@ -796,7 +796,8 @@ write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter
 	]},
 	Out = mochijson2:encode(Json),
 	{ok, File} = file:open(Fileout, [write, binary]),
-	file:write(File, Out).
+	O = file:write(File, Out),
+	O.
 
 get_all_media(Filter, QueueCache, AgentCache) ->
 	QH = qlc:q([Row || Row <- dets:table(?DETS), element(1, element(1, Row)) == media]),
@@ -814,13 +815,16 @@ get_all_media(Filter, [Row | Tail], Acc, QueueCache, AgentCache) ->
 	end.
 
 clients_to_json(Clients, Filter, QueueCache, AgentCache) ->
+	%util:timemark(clients_to_json),
 	clients_to_json(Clients, Filter, [], QueueCache, AgentCache).
 
 clients_to_json([], _Filter, Acc, QueueCache, AgentCache) ->
+	%util:timemark(clients_to_json),
 	lists:reverse(Acc);
 clients_to_json([Client | Tail], Filter, Acc, QueueCache, AgentCache) ->
 	Medias = get_client_medias(Filter, Client#client.label, QueueCache, AgentCache),
-	{Oldest, TotalIn, TotalOut, TotalAbn, MediaJson} = medias_to_json(Medias),
+	%{Oldest, TotalIn, TotalOut, TotalAbn} = analyze_medias(Medias), 
+	MediaJson = medias_to_json(Medias),
 	Label = case Client#client.label of
 		undefined ->
 			undefined;
@@ -829,21 +833,21 @@ clients_to_json([Client | Tail], Filter, Acc, QueueCache, AgentCache) ->
 	end,
 	Json = {struct, [
 		{<<"label">>, Label},
-		{<<"oldestAge">>, Oldest},
-		{<<"totalInbound">>, TotalIn},
-		{<<"totalOutbound">>, TotalOut},
-		{<<"totalAbandoned">>, TotalAbn},
+		%{<<"oldestAge">>, Oldest},
+		%{<<"totalInbound">>, TotalIn},
+		%{<<"totalOutbound">>, TotalOut},
+		%{<<"totalAbandoned">>, TotalAbn},
 		{<<"medias">>, MediaJson}
 	]},
 	clients_to_json(Tail, Filter, [Json | Acc], QueueCache, AgentCache).
 
-medias_to_json(Rows) ->
+analyze_medias(Rows) ->
 	Time = util:now(),
-	medias_to_json(Rows, {Time, 0, 0, 0, []}).
+	analyze_medias(Rows, {Time, 0, 0, 0}).
 
-medias_to_json([], {Time, In, Out, Abn, Acc}) ->
-	{Time, In, Out, Abn, lists:reverse(Acc)};
-medias_to_json([{{media, Id}, Time, _Hp, Details, {Direction, History}} | Tail], {CurTime, In, Out, Abn, Acc}) ->
+analyze_medias([], Stats) ->
+	Stats;
+analyze_medias([{{media, Id}, Time, _Hp, Details, {Direction, History}} | Tail], {CurTime, In, Out, Abn}) ->
 	Newtime = case Time < CurTime of
 		true ->
 			Time;
@@ -862,6 +866,17 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, {Direction, History}} | Tail],
 		false ->
 			{Abn, false}
 	end,
+	analyze_medias(Tail, {newtime, Newin, Newout, Newabn}).
+
+medias_to_json(Rows) ->
+	%util:timemark(medias_to_json),
+	medias_to_json(Rows, []).
+
+medias_to_json([], Acc) ->
+	%util:timemark(medias_to_json, "done"),
+	%util:timemark_clear(medias_to_json),
+	lists:reverse(Acc);
+medias_to_json([{{media, Id}, Time, _Hp, Details, {Direction, History}} | Tail], Acc) ->
 	NewHead = {struct, lists:append([
 		{<<"id">>, list_to_binary(Id)},
 		{<<"time">>, Time},
@@ -870,10 +885,12 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, {Direction, History}} | Tail],
 		{<<"type">>, proplists:get_value(type, Details)},
 		{<<"priority">>, proplists:get_value(priority, Details)},
 		{<<"direction">>, proplists:get_value(direction, Details)},
-		{<<"didAbandon">>, DidAbandon}
+		{<<"didAbandon">>, is_abandon(History)}
 	], History)}, % TODO currnet doesn't do requeueing right, but requires
 	% format change.
-	medias_to_json(Tail, {Newtime, Newin, Newout, Newabn, [NewHead | Acc]}).
+	medias_to_json(Tail, [NewHead | Acc]).
+
+
 
 queuegroups_to_json(Groups, Filter, QueueCache, AgentCache) ->
 	queuegroups_to_json(Groups, Filter, [], QueueCache, AgentCache).
@@ -896,7 +913,8 @@ queues_to_json([], _Filter, Acc, _QueueCache, _AgentCache) ->
 	lists:reverse(Acc);
 queues_to_json([Queue | Tail], Filter, Acc, QueueCache, AgentCache) ->
 	Medias = get_queued_medias(Filter, Queue, QueueCache, AgentCache),
-	{Oldest, TotalIn, TotalOut, TotalAbn, MediaJson} = medias_to_json(Medias),
+	{Oldest, TotalIn, TotalOut, TotalAbn} = analyze_medias(Medias), 
+	MediaJson = medias_to_json(Medias),
 	Json = {struct, [
 		{<<"name">>, list_to_binary(Queue)},
 		{<<"oldestAge">>, Oldest},
@@ -965,7 +983,7 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 						{<<"priority">>, Media#call.priority}
 					]};
 				[T] ->
-					lists:nth(1, element(5, medias_to_json([T])))
+					lists:nth(1, medias_to_json([T]))
 			end,
 %			Data = {struct, [
 %				{<<"client">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
@@ -997,7 +1015,7 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 						{<<"priority">>, Media#call.priority}
 					]};
 				[T] ->
-					lists:nth(1, element(5, medias_to_json([T])))
+					lists:nth(1, medias_to_json([T]))
 			end,
 			Datajson = {struct, [
 				{<<"calling">>, list_to_binary(Transferto)},

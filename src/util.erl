@@ -496,12 +496,12 @@ timemark(Markname, Message) ->
 	case get({timemark, Markname}) of
 		undefined ->
 			put({timemark, Markname}, util:now()),
-			io:format("*** timemark ~p created ***", [Markname]);
+			io:format("*** timemark ~p created ***~n", [Markname]);
 		Time ->
 			Now = util:now(),
 			Diff = Now - Time,
 			put({timemark, Markname}, Now),
-			io:format("*** timemark ~p ~s Duration: ~p", [Markname, Message, Diff])
+			io:format("*** timemark ~p ~s Duration: ~p~n", [Markname, Message, Diff])
 	end,
 	ok.
 
@@ -511,7 +511,7 @@ timemark_clear() ->
 
 -spec(timemark_clear/1 :: (Markname :: atom()) -> 'ok').
 timemark_clear(Markname) ->
-	io:format("*** timemark ~p cleared", [Markname]),
+	io:format("*** timemark ~p cleared~n", [Markname]),
 	erase({timemark, Markname}),
 	ok.
 

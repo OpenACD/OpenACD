@@ -479,14 +479,17 @@ prune_dets_medias() ->
 			undefined ->
 				Newhistory = History ++ [{ended, util:now()}],
 				Newrow = setelement(5, Row, {Direction, Newhistory}),
+				ets:insert(?DETS, Newrow),
 				dets:insert(?DETS, Newrow);
 			_Mpid ->
 				case {Manager:get_media(Id), Age > Day} of
 					{none, true} ->
+						ets:delete(?DETS, {media, Id}),
 						dets:delete_object(?DETS, Row);
 					{none, false} ->
 						Newhistory = History ++ [{ended, util:now()}],
 						Newrow = setelement(5, Row, {Direction, Newhistory}),
+						ets:insert(?DETS, Newrow),
 						dets:insert(?DETS, Newrow);
 					_ ->
 						ok
@@ -505,6 +508,7 @@ prune_dets_agents() ->
 		Login = proplists:get_value(login, Details),
 		case agent_manager:query_agent(Login) of
 			false ->
+				ets:delete(?DETS, {agent, Login}),
 				dets:delete_object(?DETS, Row);
 			{true, _} ->
 				ok

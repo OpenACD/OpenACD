@@ -208,7 +208,7 @@ init(Options) ->
 	AgentProfsCache = [{Agent, Profile} || #agent_auth{login = Agent, profile = Profile} <- AgentRecs],
 	dets:open_file(?DETS, []),
 	ets:new(cpx_passive_ets, [named_table]),
-	qlc:e(qlc:q([ets:insert(Id, media_to_json(Row)) || {{Type, Id}, _, _, _, _} = Row <- dets:table(?DETS), Type == media])),
+	qlc:e(qlc:q([ets:insert(cpx_passive_ets, {Id, media_to_json(Row)}) || {{Type, Id}, _, _, _, _} = Row <- dets:table(?DETS), Type == media])),
 	{ok, Agents} = cpx_monitor:get_health(agent),
 	{ok, Medias} = cpx_monitor:get_health(media),
 	cpx_monitor:subscribe(Subtest),
@@ -231,7 +231,7 @@ init(Options) ->
 		queue_group_cache = QueueRecsCache,
 		agent_profile_cache = AgentProfsCache
 	}}.
-
+l(cpx_monitor_passive), exit(whereis(cpx_monitor_passive), kill).
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
 %%--------------------------------------------------------------------

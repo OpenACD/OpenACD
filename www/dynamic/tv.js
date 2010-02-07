@@ -343,7 +343,9 @@ function update() {
 
 			agentAlerts(getAgentsInProfiles(response.agentProfiles, "*"));
 
-			console.log(response);
+			if(window.spew){
+				console.log(response);
+			}
 		}
 	});
 }

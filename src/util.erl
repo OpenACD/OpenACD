@@ -71,6 +71,14 @@
 	find_first_arc/2,
 	floor/1
 ]).
+%% time tracking util functions
+-export([
+	timemark/0,
+	timemark/1,
+	timemark/2,
+	timemark_clear/0,
+	timemark_clear/1
+]).
 
 -spec(string_split/3 :: (String :: [], Separator :: [integer()], SplitCount :: pos_integer()) -> [];
                         %(String :: [integer(),...], Separator :: [], SplitCount :: 1) -> [integer(),...];
@@ -474,6 +482,38 @@ floor(X) ->
 		true  -> 
 			T
 	end.
+
+-spec(timemark/0 :: () -> 'ok').
+timemark() ->
+	timemark(default).
+
+-spec(timemark/1 :: (Markname :: atom()) -> 'ok').
+timemark(Markname) ->
+	timemark(Markname, "").
+
+-spec(timemark/2 :: (Markname :: atom(), Message :: string()) -> 'ok').
+timemark(Markname, Message) ->
+	case get({timemark, Markname}) of
+		undefined ->
+			put({timemark, Markname}, util:now()),
+			io:format("*** timemark ~p created ***~n", [Markname]);
+		Time ->
+			Now = util:now(),
+			Diff = Now - Time,
+			put({timemark, Markname}, Now),
+			io:format("*** timemark ~p ~s Duration: ~p~n", [Markname, Message, Diff])
+	end,
+	ok.
+
+-spec(timemark_clear/0 :: () -> 'ok').
+timemark_clear() ->
+	timemark_clear(default).
+
+-spec(timemark_clear/1 :: (Markname :: atom()) -> 'ok').
+timemark_clear(Markname) ->
+	io:format("*** timemark ~p cleared~n", [Markname]),
+	erase({timemark, Markname}),
+	ok.
 
 -ifdef(TEST).
 

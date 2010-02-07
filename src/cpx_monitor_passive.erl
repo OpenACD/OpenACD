@@ -618,6 +618,8 @@ sort_medias(Medias) ->
 	lists:sort(Sort, Medias).
 
 sort_clients(Clients, Filter, QueueCache, AgentCache) ->
+	Clients;
+sort_clients(Clients, Filter, QueueCache, AgentCache) ->
 	Sort = fun(ClientA, ClientB) ->
 		case {get_client_medias(Filter, ClientA, QueueCache, AgentCache), get_client_medias(Filter, ClientB, QueueCache, AgentCache)} of
 			{[], _} ->
@@ -655,6 +657,8 @@ update_filter_states({{media, Id}, Time, _Hp, _Details, Histroy} = Row, [{Nom, #
 	update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc]).				
 
 %% @doc If the row passes through the filter, return true.
+filter_row(_, _, _, _) ->
+	true;
 filter_row(#filter{max_age = Seconds} = Filter, Row, QueueCache, AgentCache) when is_integer(Seconds) ->
 	Now = util:now(),
 	case (Now - Seconds) > element(2, Row) of
@@ -792,7 +796,7 @@ write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter
 	]},
 	Out = mochijson2:encode(Json),
 	{ok, File} = file:open(Fileout, [write, binary]),
-	file:write(File, Out).	
+	file:write(File, Out).
 
 get_all_media(Filter, QueueCache, AgentCache) ->
 	QH = qlc:q([Row || Row <- dets:table(?DETS), element(1, element(1, Row)) == media]),
@@ -804,9 +808,9 @@ get_all_media(_Filter, [], Acc, _QueueCache, _AgentCache) ->
 get_all_media(Filter, [Row | Tail], Acc, QueueCache, AgentCache) ->
 	case filter_row(Filter, Row, QueueCache, AgentCache) of
 		false ->
-			get_all_media(Filter, Tail, Acc);
+			get_all_media(Filter, Tail, Acc, QueueCache, AgentCache);
 		true ->
-			get_all_media(Filter, Tail, [Row | Acc])
+			get_all_media(Filter, Tail, [Row | Acc], QueueCache, AgentCache)
 	end.
 
 clients_to_json(Clients, Filter, QueueCache, AgentCache) ->

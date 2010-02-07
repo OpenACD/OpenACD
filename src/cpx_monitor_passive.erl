@@ -263,6 +263,7 @@ handle_info(write_output, #state{filters = Filters, write_pids = Writers, queue_
 	]),
 	Keys = qlc:e(Qh),
 	lists:foreach(fun(K) -> dets:delete(?DETS, K), ets:delete(?DETS, K) end, Keys),
+	[ets:delete(cpx_passive_ets, Id) || {Type, Id} <- Keys, Type == media],
 	WritePids = lists:map(fun({Nom, _F} = Filter) ->
 		Pid = spawn_link(?MODULE, write_output, [Filter, State#state.interval, QueueCache, AgentCache]),
 		{Pid, Nom}
@@ -484,6 +485,7 @@ prune_dets_medias() ->
 			_Mpid ->
 				case {Manager:get_media(Id), Age > Day} of
 					{none, true} ->
+						ets:delete(cpx_passive_ets, Id),
 						ets:delete(?DETS, {media, Id}),
 						dets:delete_object(?DETS, Row);
 					{none, false} ->

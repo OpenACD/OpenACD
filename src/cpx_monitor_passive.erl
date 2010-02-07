@@ -92,7 +92,7 @@
 	start_link/1,
 	start/1,
 	stop/0,
-	write_output/2,
+	write_output/4,
 	prune_dets/0
 ]).
 
@@ -127,7 +127,9 @@
 	%media_cache = [],
 	timer :: any(),
 	write_pids = [] :: [{pid(), string()}],
-	pruning_pid :: 'undefined' | pid()
+	pruning_pid :: 'undefined' | pid(),
+	queue_group_cache = [] :: [{string(), string()}], %% [{queue_name, group_queue_is_in}]
+	agent_profile_cache = [] :: [{string(), string()}] %% [{agent_name, agent_profile}]
 }).
 
 -type(state() :: #state{}).
@@ -198,6 +200,12 @@ init(Options) ->
 		{Name, Filter}
 	end,
 	Filters = lists:map(Torec, proplists:get_value(outputs, Options, [{"default", []}])),
+	%% caching the queue groups
+	QueueRecs = call_queue_config:get_queues(),
+	QueueRecsCache = [{Queue, Group} || #call_queue{name = Queue, group = Group} <- QueueRecs],
+	%% and cache the agent proflies
+	AgentRecs = agent_auth:get_agents(),
+	AgentProfsCache = [{Agent, Profile} || #agent_auth{login = Agent, profile = Profile} <- AgentRecs],
 	dets:open_file(?DETS, []),
 	{ok, Agents} = cpx_monitor:get_health(agent),
 	{ok, Medias} = cpx_monitor:get_health(media),
@@ -217,7 +225,9 @@ init(Options) ->
 	{ok, #state{
 		filters = Filters,
 		interval = Interval,
-		timer = Timer
+		timer = Timer,
+		queue_group_cache = QueueRecsCache,
+		agent_profile_cache = AgentProfsCache
 	}}.
 
 %%--------------------------------------------------------------------
@@ -238,7 +248,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(write_output, #state{filters = Filters, write_pids = Writers} = State) when length(Writers) == 0 ->
+handle_info(write_output, #state{filters = Filters, write_pids = Writers, queue_group_cache = QueueCache, agent_profile_cache = AgentCache} = State) when length(Writers) == 0 ->
 	%?DEBUG("Writing output.", []),
 	Qh = qlc:q([Key || 
 		{Key, Time, _Hp, _Details, {_Direction, History}} <- dets:table(?DETS), 
@@ -248,7 +258,7 @@ handle_info(write_output, #state{filters = Filters, write_pids = Writers} = Stat
 	Keys = qlc:e(Qh),
 	lists:foreach(fun(K) -> dets:delete(?DETS, K) end, Keys),
 	WritePids = lists:map(fun({Nom, _F} = Filter) ->
-		Pid = spawn_link(?MODULE, write_output, [Filter, State#state.interval]),
+		Pid = spawn_link(?MODULE, write_output, [Filter, State#state.interval, QueueCache, AgentCache]),
 		{Pid, Nom}
 	end, Filters),
 	%?DEBUG("das pids:  ~p", [WritePids]),
@@ -358,7 +368,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 					Newrow;
 				{Queue, undefined, Hlist} ->
 					Newrow = case {proplists:get_value(queue, Details), lists:reverse(Hlist)} of
-						{Queue, [{queued, T} | Priorhistory]} ->
+						{Queue, [{queued, _T} | Priorhistory]} ->
 							{timestamp, Queuedat} = proplists:get_value(queued_at, EventDetails),
 							Fixedhist = lists:reverse([{queued, Queuedat} | Priorhistory]),
 							{Key, Time, EventHp, EventDetails, {Direction, Fixedhist}};
@@ -474,11 +484,11 @@ prune_dets_agents() ->
 	end,
 	lists:foreach(Checker, List).
 
-get_clients(Filter) ->
+get_clients(Filter, QueueCache, AgentCache) ->
 	QH = qlc:q([proplists:get_value(client, Details) || 
 		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS), 
 		Type == media, 
-		filter_row(Filter, Row)
+		filter_row(Filter, Row, QueueCache, AgentCache)
 	]),
 	{_, Out} = lists:foldl(fun(I, {TestAcc, TrueAcc}) -> 
 		case lists:member(I#client.id, TestAcc) of
@@ -490,11 +500,11 @@ get_clients(Filter) ->
 	end, {[], []}, qlc:e(QH)),
 	Out.
 
-get_queue_groups(Filter) ->
+get_queue_groups(Filter, QueueCache, AgentCache) ->
 	QH = qlc:q([proplists:get_value(queue, Details) || 
 		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
 		Type == media,
-		filter_row(Filter, Row),
+		filter_row(Filter, Row, QueueCache, AgentCache),
 		proplists:get_value(queue, Details) =/= undefined
 	]),
 	Dupped = qlc:e(QH),
@@ -503,11 +513,11 @@ get_queue_groups(Filter) ->
 			true ->
 				{Acc, Queues};
 			false ->
-				Group = case call_queue_config:get_queue(I) of
-					Rec when is_record(Rec, call_queue) ->
-						Rec#call_queue.group;
-					_ ->
-						"Default"
+				Group = case proplists:get_value(I, QueueCache) of
+					undefined ->
+						"Default"; %% TODO do a proper caching
+					Else ->
+						Else
 				end,
 				case lists:member(Group, Acc) of
 					true ->
@@ -521,11 +531,11 @@ get_queue_groups(Filter) ->
 	Dupped),
 	Groups.
 
-get_agent_profiles(Filter) ->
+get_agent_profiles(Filter, QueueCache, AgentCache) ->
 	QH = qlc:q([proplists:get_value(profile, Details) ||
 		{{Type, _Id}, _Time, _Hp, Details, _Historyf} = Row <- dets:table(?DETS),
 		Type == agent,
-		filter_row(Filter, Row),
+		filter_row(Filter, Row, QueueCache, AgentCache),
 		proplists:get_value(profile, Details) =/= undefined
 	]),
 	Dupped = qlc:e(QH),
@@ -539,28 +549,23 @@ get_agent_profiles(Filter) ->
 	end,
 	[], Dupped).
 
-get_agents(Filter, Profile) ->
+get_agents(Filter, Profile, QueueCache, AgentCache) ->
 	QH = qlc:q([Row ||
 		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
 		Type == agent,
-		filter_row(Filter, Row),
+		filter_row(Filter, Row, QueueCache, AgentCache),
 		proplists:get_value(profile, Details) == Profile
 	]),
 	qlc:e(QH).
 
-get_queues(Filter, Group) ->
+get_queues(Filter, Group, QueueCache, AgentCache) ->
 	QH = qlc:q([proplists:get_value(queue, Details) || 
 		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
 		Type == media,
-		filter_row(Filter, Row),
+		filter_row(Filter, Row, QueueCache, AgentCache),
 		begin 
 			Q = proplists:get_value(queue, Details),
-			case call_queue_config:get_queue(Q) of
-				#call_queue{group = Group} ->
-					true;
-				_ ->
-					false
-			end
+			proplists:get_value(Q, QueueCache) =:= Group
 		end
 	]),
 	Dupped = qlc:e(QH),
@@ -574,20 +579,20 @@ get_queues(Filter, Group) ->
 	end,
 	[], Dupped).
 
-get_queued_medias(Filter, Queue) ->
+get_queued_medias(Filter, Queue, QueueCache, AgentCache) ->
 	QH = qlc:q([Row || 
 		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
 		Type == media,
-		filter_row(Filter, Row),
+		filter_row(Filter, Row, QueueCache, AgentCache),
 		proplists:get_value(queue, Details) == Queue
 	]),
 	sort_medias(qlc:e(QH)).
 
-get_client_medias(Filter, Client) ->
+get_client_medias(Filter, Client, QueueCache, AgentCache) ->
 	QH = qlc:q([Row ||
 		{{Type, _Id}, _Time, _Hp, Details, History} = Row <- dets:table(?DETS),
 		Type == media,
-		filter_row(Filter, Row),
+		filter_row(Filter, Row, QueueCache, AgentCache),
 		begin Testc = proplists:get_value(client, Details), Testc#client.label == Client end,
 		proplists:get_value(agent, Details) == undefined,
 		case History of
@@ -612,9 +617,9 @@ sort_medias(Medias) ->
 	end,
 	lists:sort(Sort, Medias).
 
-sort_clients(Clients, Filter) ->
+sort_clients(Clients, Filter, QueueCache, AgentCache) ->
 	Sort = fun(ClientA, ClientB) ->
-		case {get_client_medias(Filter, ClientA), get_client_medias(Filter, ClientB)} of
+		case {get_client_medias(Filter, ClientA, QueueCache, AgentCache), get_client_medias(Filter, ClientB, QueueCache, AgentCache)} of
 			{[], _} ->
 				false;
 			{_AMedias, []} -> 
@@ -650,21 +655,21 @@ update_filter_states({{media, Id}, Time, _Hp, _Details, Histroy} = Row, [{Nom, #
 	update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc]).				
 
 %% @doc If the row passes through the filter, return true.
-filter_row(#filter{max_age = Seconds} = Filter, Row) when is_integer(Seconds) ->
+filter_row(#filter{max_age = Seconds} = Filter, Row, QueueCache, AgentCache) when is_integer(Seconds) ->
 	Now = util:now(),
 	case (Now - Seconds) > element(2, Row) of
 		true ->
 			false;
 		false ->
-			filter_row(Filter#filter{max_age = max}, Row)
+			filter_row(Filter#filter{max_age = max}, Row, QueueCache, AgentCache)
 	end;
-filter_row(#filter{max_age = {since, Seconds}} = Filter, Row) ->
+filter_row(#filter{max_age = {since, Seconds}} = Filter, Row, QueueCache, AgentCache) ->
 	{_Date, {Hour, Min, Sec}} = erlang:localtime(),
 	Diff = Sec + (Min * 60) + (Hour * 60 * 60) - Seconds,
-	filter_row(Filter#filter{max_age = Diff}, Row);
-filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, _Row) ->
+	filter_row(Filter#filter{max_age = Diff}, Row, QueueCache, AgentCache);
+filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, _Row, _QueueCache, _AgentCache) ->
 	true;
-filter_row(Filter, {{media, _Id} = Key, Time, Hp, Details, {_Direction, History}}) ->
+filter_row(Filter, {{media, _Id} = Key, Time, Hp, Details, {_Direction, History}}, QueueCache, AgentCache) ->
 	Queued = proplists:get_value(queued, History),
 	Qabandoned = proplists:get_value(qabandoned, History),
 	Handled = proplists:get_value(handled, History),
@@ -672,11 +677,11 @@ filter_row(Filter, {{media, _Id} = Key, Time, Hp, Details, {_Direction, History}
 		{undefined, undefined, undefined} ->
 			false;
 		{_, _, undefined} ->
-			filter_row(Filter, {Key, Time, Hp, Details, queued});
+			filter_row(Filter, {Key, Time, Hp, Details, queued}, QueueCache, AgentCache);
 		{_, _, _} ->
-			filter_row(Filter, {Key, Time, Hp, Details, handled})
+			filter_row(Filter, {Key, Time, Hp, Details, handled}, QueueCache, AgentCache)
 	end;
-filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, handled}) ->
+filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, handled}, QueueCache, AgentCache) ->
 	#client{label = Client} = proplists:get_value(client, Details),
 	case list_member(Client, Filter#filter.clients) of
 		false ->
@@ -687,15 +692,10 @@ filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, handled}) ->
 				false ->
 					false;
 				true ->
-					case agent_auth:get_agent(Agent) of
-						{atomic, [#agent_auth{profile = Prof}]} ->
-							list_member(Prof, Filter#filter.agent_profiles);
-						_ ->
-							false
-					end
+					list_member(proplists:get_value(Agent, AgentCache), Filter#filter.agent_profiles)
 			end
 	end;
-filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, queued}) ->
+filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, queued}, QueueCache, AgentCache) ->
 	Node = proplists:get_value(node, Details),
 	case list_member(Node, Filter#filter.nodes) of
 		false ->
@@ -713,18 +713,13 @@ filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, queued}) ->
 						{true, all} ->
 							true;
 						{true, List} ->
-							case call_queue_config:get_queue(Queue) of
-								noexists ->
-									false;
-								#call_queue{group = Group} ->
-									list_member(Group, List)
-							end
+							list_member(proplists:get_value(Queue, QueueCache), List)
 					end
 			end
 	end;
-filter_row(_Filter, {{media, _Id}, _Time, _Hp, _Details, _History}) ->
+filter_row(_Filter, {{media, _Id}, _Time, _Hp, _Details, _History}, _QueueCache, _AgentCache) ->
 	false;
-filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
+filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}, _QueueCache, AgentCache) ->
 	Node = proplists:get_value(node, Details),
 	case list_member(Node, Filter#filter.nodes) of
 		false ->
@@ -734,17 +729,12 @@ filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}) ->
 				false ->
 					false;
 				true ->
-					case agent_auth:get_agent(Agent) of
-						{atomic, [#agent_auth{profile = Prof}]} ->
-							list_member(Prof, Filter#filter.agent_profiles);
-						_ ->
-							false
-					end
+					list_member(proplists:get_value(Agent, AgentCache), Filter#filter.agent_profiles)
 			end
 	end.
 
--spec(write_output/2 :: ({Nom :: string(), Filter :: #filter{}}, Interval :: pos_integer()) -> 'ok').
-write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter}, Interval) ->
+-spec(write_output/4 :: ({Nom :: string(), Filter :: #filter{}}, Interval :: pos_integer(), QueueCache :: [any()], AgentCache :: [any()]) -> 'ok').
+write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter}, Interval, QueueCache, AgentCache) ->
 	Now = util:now(),
 	Hourago = Now - 3600,
 	%Dayago = Now - 3600 * 24,
@@ -773,14 +763,14 @@ write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter
 		is_abandon(element(2, Hkey)),
 		Time > Hourago
 	],
-	PresortClients = get_clients(Filter),
-	Clients = sort_clients(PresortClients, Filter),
-	ClientsJson = clients_to_json(Clients, Filter),
-	Queugroups = get_queue_groups(Filter),
-	QueuegroupJson = queuegroups_to_json(Queugroups, Filter),
-	AgentProfiles = get_agent_profiles(Filter),
-	AgentProfsJson = agentprofiles_to_json(AgentProfiles, Filter),
-	Rawdata = get_all_media(Filter),
+	PresortClients = get_clients(Filter, QueueCache, AgentCache),
+	Clients = sort_clients(PresortClients, Filter, QueueCache, AgentCache),
+	ClientsJson = clients_to_json(Clients, Filter, QueueCache, AgentCache),
+	Queugroups = get_queue_groups(Filter, QueueCache, AgentCache),
+	QueuegroupJson = queuegroups_to_json(Queugroups, Filter, QueueCache, AgentCache),
+	AgentProfiles = get_agent_profiles(Filter, QueueCache, AgentCache),
+	AgentProfsJson = agentprofiles_to_json(AgentProfiles, Filter, QueueCache, AgentCache),
+	Rawdata = get_all_media(Filter, QueueCache, AgentCache),
 	{_, _, _, _, Rawjson} = medias_to_json(Rawdata),
 	Json = {struct, [
 		{<<"writeTime">>, util:now()},
@@ -804,28 +794,28 @@ write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter
 	{ok, File} = file:open(Fileout, [write, binary]),
 	file:write(File, Out).	
 
-get_all_media(Filter) ->
+get_all_media(Filter, QueueCache, AgentCache) ->
 	QH = qlc:q([Row || Row <- dets:table(?DETS), element(1, element(1, Row)) == media]),
 	List = qlc:e(QH),
-	get_all_media(Filter, List, []).
+	get_all_media(Filter, List, [], QueueCache, AgentCache).
 
-get_all_media(_Filter, [], Acc) ->
+get_all_media(_Filter, [], Acc, _QueueCache, _AgentCache) ->
 	lists:reverse(Acc);
-get_all_media(Filter, [Row | Tail], Acc) ->
-	case filter_row(Filter, Row) of
+get_all_media(Filter, [Row | Tail], Acc, QueueCache, AgentCache) ->
+	case filter_row(Filter, Row, QueueCache, AgentCache) of
 		false ->
 			get_all_media(Filter, Tail, Acc);
 		true ->
 			get_all_media(Filter, Tail, [Row | Acc])
 	end.
 
-clients_to_json(Clients, Filter) ->
-	clients_to_json(Clients, Filter, []).
+clients_to_json(Clients, Filter, QueueCache, AgentCache) ->
+	clients_to_json(Clients, Filter, [], QueueCache, AgentCache).
 
-clients_to_json([], _Filter, Acc) ->
+clients_to_json([], _Filter, Acc, QueueCache, AgentCache) ->
 	lists:reverse(Acc);
-clients_to_json([Client | Tail], Filter, Acc) ->
-	Medias = get_client_medias(Filter, Client#client.label),
+clients_to_json([Client | Tail], Filter, Acc, QueueCache, AgentCache) ->
+	Medias = get_client_medias(Filter, Client#client.label, QueueCache, AgentCache),
 	{Oldest, TotalIn, TotalOut, TotalAbn, MediaJson} = medias_to_json(Medias),
 	Label = case Client#client.label of
 		undefined ->
@@ -841,7 +831,7 @@ clients_to_json([Client | Tail], Filter, Acc) ->
 		{<<"totalAbandoned">>, TotalAbn},
 		{<<"medias">>, MediaJson}
 	]},
-	clients_to_json(Tail, Filter, [Json | Acc]).
+	clients_to_json(Tail, Filter, [Json | Acc], QueueCache, AgentCache).
 
 medias_to_json(Rows) ->
 	Time = util:now(),
@@ -881,27 +871,27 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, {Direction, History}} | Tail],
 	% format change.
 	medias_to_json(Tail, {Newtime, Newin, Newout, Newabn, [NewHead | Acc]}).
 
-queuegroups_to_json(Groups, Filter) ->
-	queuegroups_to_json(Groups, Filter, []).
+queuegroups_to_json(Groups, Filter, QueueCache, AgentCache) ->
+	queuegroups_to_json(Groups, Filter, [], QueueCache, AgentCache).
 
-queuegroups_to_json([], _Filter, Acc) ->
+queuegroups_to_json([], _Filter, Acc, _QueueCache, _AgentCache) ->
 	lists:reverse(Acc);
-queuegroups_to_json([Group | Tail], Filter, Acc) ->
-	Queues = get_queues(Filter, Group),
-	QueuesJson = queues_to_json(Queues, Filter),
+queuegroups_to_json([Group | Tail], Filter, Acc, QueueCache, AgentCache) ->
+	Queues = get_queues(Filter, Group, QueueCache, AgentCache),
+	QueuesJson = queues_to_json(Queues, Filter, QueueCache, AgentCache),
 	Json = {struct, [
 		{<<"name">>, list_to_binary(Group)},
 		{<<"queues">>, QueuesJson}
 	]},
-	queuegroups_to_json(Tail, Filter, [Json | Acc]).
+	queuegroups_to_json(Tail, Filter, [Json | Acc], QueueCache, AgentCache).
 
-queues_to_json(Queues, Filter) ->
-	queues_to_json(Queues, Filter, []).
+queues_to_json(Queues, Filter, QueueCache, AgentCache) ->
+	queues_to_json(Queues, Filter, [], QueueCache, AgentCache).
 
-queues_to_json([], _Filter, Acc) ->
+queues_to_json([], _Filter, Acc, _QueueCache, _AgentCache) ->
 	lists:reverse(Acc);
-queues_to_json([Queue | Tail], Filter, Acc) ->
-	Medias = get_queued_medias(Filter, Queue),
+queues_to_json([Queue | Tail], Filter, Acc, QueueCache, AgentCache) ->
+	Medias = get_queued_medias(Filter, Queue, QueueCache, AgentCache),
 	{Oldest, TotalIn, TotalOut, TotalAbn, MediaJson} = medias_to_json(Medias),
 	Json = {struct, [
 		{<<"name">>, list_to_binary(Queue)},
@@ -911,15 +901,15 @@ queues_to_json([Queue | Tail], Filter, Acc) ->
 		{<<"totalAbandoned">>, TotalAbn},
 		{<<"medias">>, MediaJson}
 	]},
-	queues_to_json(Tail, Filter, [Json | Acc]).
+	queues_to_json(Tail, Filter, [Json | Acc], QueueCache, AgentCache).
 
-agentprofiles_to_json(Profiles, Filter) ->
-	agentprofiles_to_json(Profiles, Filter, []).
+agentprofiles_to_json(Profiles, Filter, QueueCache, AgentCache) ->
+	agentprofiles_to_json(Profiles, Filter, [], QueueCache, AgentCache).
 
-agentprofiles_to_json([], _Filter, Acc) ->
+agentprofiles_to_json([], _Filter, Acc, _QueueCache, _AgentCache) ->
 	lists:reverse(Acc);
-agentprofiles_to_json([Profile | Tail], Filter, Acc) ->
-	Agents = get_agents(Filter, Profile),
+agentprofiles_to_json([Profile | Tail], Filter, Acc, QueueCache, AgentCache) ->
+	Agents = get_agents(Filter, Profile, QueueCache, AgentCache),
 	{Avail, Rel, Busy, AgentJson} = agents_to_json(Agents),
 	Json = {struct, [
 		{<<"name">>, list_to_binary(Profile)},
@@ -928,7 +918,7 @@ agentprofiles_to_json([Profile | Tail], Filter, Acc) ->
 		{<<"incall">>, Busy},
 		{<<"agents">>, AgentJson}
 	]},
-	agentprofiles_to_json(Tail, Filter, [Json | Acc]).
+	agentprofiles_to_json(Tail, Filter, [Json | Acc], QueueCache, AgentCache).
 
 agents_to_json(Rows) ->
 	agents_to_json(Rows, {0, 0, 0}, []).

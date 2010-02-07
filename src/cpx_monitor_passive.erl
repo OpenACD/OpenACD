@@ -208,6 +208,7 @@ init(Options) ->
 	AgentProfsCache = [{Agent, Profile} || #agent_auth{login = Agent, profile = Profile} <- AgentRecs],
 	dets:open_file(?DETS, []),
 	ets:new(cpx_passive_ets, [named_table]),
+	qlc:e(qlc:q([ets:insert(Id, media_to_json(Row)) || {{Type, Id}, _, _, _, _} = Row <- dets:table(?DETS), Type == media])),
 	{ok, Agents} = cpx_monitor:get_health(agent),
 	{ok, Medias} = cpx_monitor:get_health(media),
 	cpx_monitor:subscribe(Subtest),
@@ -389,6 +390,7 @@ cache_event({set, {{media, Id} = Key, EventHp, EventDetails, EventTime}}) ->
 							Fixedhist = Hlist ++ [{queued, Queuedat}],
 							{Key, Time, EventHp, EventDetails, {Direction, Fixedhist}}
 					end,
+					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{Queue, Agent, _} when Queue =/= undefined, Agent =/= undefined ->

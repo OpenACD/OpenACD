@@ -97,12 +97,12 @@ dump(Agentstate, State) when is_record(Agentstate, agent_state) ->
 			""
 	end,
 	Query = io_lib:format("INSERT INTO agent_states set agent=~B, newstate=~B,
-		oldstate=~B, start=~B, end=~B, data='~s';", [
+		oldstate=~B, start=~B, end=~B, data='~s', profile=~B;", [
 		(try list_to_integer(Agentstate#agent_state.id) catch error:badarg -> 0 end) + 1000,
 		agent:state_to_integer(Agentstate#agent_state.state),
 		agent:state_to_integer(Agentstate#agent_state.oldstate),
 		Agentstate#agent_state.start, 
-		Agentstate#agent_state.ended, CallID]),
+		Agentstate#agent_state.ended, CallID, profile_id(Agentstate#agent_state.profile)]),
 	case odbc:sql_query(State#state.ref, lists:flatten(Query)) of
 		{error, Reason} ->
 			{error, Reason};
@@ -338,9 +338,63 @@ calculate_type(Media) ->
 	end.
 
 calculate_last_transaction(Transactions) ->
-	lists:foldl(
+	Last = lists:foldl(
 		fun(#cdr_raw{transaction = T2}, _Acc) when T2 == abandonqueue; T2 == abandonivr; T2 == voicemail -> T2;
 			(_, Acc) -> Acc
-		end, hangup, Transactions).
+		end, hangup, Transactions),
+	case Last of
+		abandonqueue ->
+			case lists:any(fun(#cdr_raw{transaction = T3}) when T3 == oncall; T3 == inoutgoing -> true; (_) -> false end, Transactions) of
+				true ->
+					hangup;
+				false ->
+					Last
+			end;
+		_ ->
+			Last
+	end.
 
+profile_id(Profile) ->
+	case Profile of
+		"Probationary" -> 1;
+		"Level 1" -> 2;
+		"Level 2" -> 3;
+		"Level 3" -> 4;
+		"Supervisor" -> 5;
+		"CustomerService" -> 6;
+		"Graveyard" -> 7;
+		"Magic" -> 9;
+		"NRTC Only" -> 13;
+		"Master Tech" -> 10;
+		Else ->
+			?NOTICE("Unknown profile ~p", [Else]),
+			1
+	end.
 % TODO - write some tests for the functions not directly using ODBC
+
+-ifdef(TEST).
+last_transaction_test_() ->
+	[
+		{"abandon in IVR",
+			fun() ->
+					?assertEqual(abandonivr, calculate_last_transaction([#cdr_raw{transaction = cdrinit}, #cdr_raw{transaction=inivr}, #cdr_raw{transaction=abandonivr}]))
+			end
+		},
+		{"abandon in Queue",
+			fun() ->
+					?assertEqual(abandonqueue, calculate_last_transaction([#cdr_raw{transaction = cdrinit}, #cdr_raw{transaction=inivr}, #cdr_raw{transaction=inqueue}, #cdr_raw{transaction=abandonqueue}]))
+			end
+		},
+		{"abandon in Queue after ringing",
+			fun() ->
+					?assertEqual(abandonqueue, calculate_last_transaction([#cdr_raw{transaction = cdrinit}, #cdr_raw{transaction=inivr}, #cdr_raw{transaction=inqueue}, #cdr_raw{transaction=ringing}, #cdr_raw{transaction=abandonqueue}]))
+			end
+t		},
+		{"abandon in Queue after oncall",
+			fun() ->
+					?assertEqual(hangup, calculate_last_transaction([#cdr_raw{transaction = cdrinit}, #cdr_raw{transaction=inivr}, #cdr_raw{transaction=inqueue}, #cdr_raw{transaction=ringing}, #cdr_raw{transaction=oncall}, #cdr_raw{transaction=queue_transfer}, #cdr_raw{transaction=abandonqueue}]))
+			end
+		}
+	].
+
+-endif.

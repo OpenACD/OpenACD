@@ -170,7 +170,7 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 			?DEBUG("resuming recording", []),
 			freeswitch:api(State#state.cnode, uuid_record, Callrec#call.id ++ " start " ++ Path)
 	end,
-	agent:conn_cast(Apid, {mediaload, Callrec}),
+	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}]}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined, queued = false}};
 handle_answer(Apid, Callrec, State) ->
@@ -472,7 +472,7 @@ handle_queue_transfer(Call, #state{cnode = Fnode} = State) ->
 		[{"call-command", "execute"},
 			{"execute-app-name", "playback"},
 			{"execute-app-arg", "local_stream://" ++ State#state.moh}]),
-	{ok, State#state{queued = true}}.
+	{ok, State#state{queued = true, agent_pid = undefined}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -593,7 +593,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 	case Ename of
 		"CHANNEL_PARK" ->
 			case State#state.queued of
-				false ->
+				false when not is_pid(State#state.agent_pid) ->
 					Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 					Client = proplists:get_value("variable_brand", Rawcall),
 					AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),
@@ -610,6 +610,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					freeswitch:sendmsg(State#state.cnode, UUID,
 						[{"call-command", "execute"},
 							{"execute-app-name", "answer"}]),
+					freeswitch:bgapi(State#state.cnode, uuid_setvar, UUID ++ " hangup_after_bridge true"),
 					% play musique d'attente
 					freeswitch:sendmsg(State#state.cnode, UUID,
 						[{"call-command", "execute"},
@@ -617,6 +618,9 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 							{"execute-app-arg", "local_stream://"++Moh}]),
 						%% tell gen_media to (finally) queue the media
 					{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, moh=Moh}};
+				false ->
+					?ERROR("park event while bridged to an agent ~p", [Callrec#call.id]),
+					{noreply, State};
 				_Otherwise ->
 					{noreply, State}
 			end;

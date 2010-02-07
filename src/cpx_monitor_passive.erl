@@ -338,6 +338,7 @@ cache_event({drop, {media, Id} = Key}) ->
 		[{Key, Time, Hp, Details, {inbound, History}}] ->
 			Newhistory = History ++ [{ended, util:now()}],
 			Newrow = {Key, Time, Hp, Details, {inbound, Newhistory}},
+			ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
 			ets:insert(?DETS, Newrow),
 			dets:insert(?DETS, Newrow),
 			Newrow;

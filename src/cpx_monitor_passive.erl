@@ -890,7 +890,7 @@ medias_to_json([Head | Tail], Acc) ->
 	NewHead = case ets:lookup(cpx_passive_ets, Id) of
 		[] ->
 			media_to_json(Head);
-		[Obj] ->
+		[{Id, Obj}] ->
 			Obj
 	end,
 	medias_to_json(Tail, [NewHead | Acc]).

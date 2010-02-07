@@ -13,6 +13,9 @@ function decodeHTML(str) {
 }
 
 function errMessage(message){
+	if(EventLog){
+		EventLog.log("error displayed:  " + message);
+	}
 	var dialog = new dijit.Dialog({
 		title: "<span style='color:#ff3333'>Error</span>",
 		content: message.toString()

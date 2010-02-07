@@ -83,6 +83,14 @@
 	.loss {
 		color:red;
 	}
+	
+	html, body, #containerDiv {
+		width: 99.9%;
+		height: 99.9%;
+		border: 0; 
+		padding: 0; 
+		margin: 0;
+	}
 </style>
 <link rel="stylesheet" href="/dojo/dojox/layout/resources/FloatingPane.css" />	
 <link rel="stylesheet" href="/dojo/dojox/layout/resources/ResizeHandle.css" />
@@ -322,8 +330,9 @@
 	</div>
 </div>
 
-<div dojoType="dijit.layout.BorderContainer" style="width: 100%; height:600px; border: 1px solid #ccc;visibility:hidden" id="main">
-	<div dojoType="dijit.layout.ContentPane" region="top" style="height:40px">
+<div id="containerDiv">
+<div dojoType="dijit.layout.BorderContainer" style="width:100%; height:100%; border: 1px solid #ccc;visibility:hidden" id="main">
+	<div dojoType="dijit.layout.ContentPane" region="top">
 		<span style="float:right">
 			<span class="statusdisplay" id="timerdisp">Time</span>
 			<span class="statusdisplay" id="profiledisp">Profile:Goober</span>
@@ -447,7 +456,6 @@
 				</div>
 			</div>
 		</div>
-		
 	</div>
 	<div dojoType="dijit.layout.TabContainer" region="center" id="tabPanel">
 		<div dojoType="dijit.layout.ContentPane" title="MAIN" id="maintab">
@@ -625,6 +633,7 @@
 	<div dojoType="dojox.layout.Dock" id="rightDock" region="right">
 	
 	</div>
+</div>
 </div>
 
 </body>

@@ -208,7 +208,11 @@ init(Options) ->
 	AgentProfsCache = [{Agent, Profile} || #agent_auth{login = Agent, profile = Profile} <- AgentRecs],
 	dets:open_file(?DETS, []),
 	ets:new(cpx_passive_ets, [named_table]),
-	qlc:e(qlc:q([ets:insert(cpx_passive_ets, {Id, media_to_json(Row)}) || {{Type, Id}, _, _, _, _} = Row <- dets:table(?DETS), Type == media])),
+	ets:new(?DETS, [named_table]),
+	qlc:e(qlc:q([begin
+		ets:insert(cpx_passive_ets, {Id, media_to_json(Row)}),
+		ets:insert(?DETS, Row)
+	end || {{Type, Id}, _, _, _, _} = Row <- dets:table(?DETS), Type == media])),
 	{ok, Agents} = cpx_monitor:get_health(agent),
 	{ok, Medias} = cpx_monitor:get_health(media),
 	cpx_monitor:subscribe(Subtest),
@@ -253,12 +257,12 @@ handle_cast(_Msg, State) ->
 handle_info(write_output, #state{filters = Filters, write_pids = Writers, queue_group_cache = QueueCache, agent_profile_cache = AgentCache} = State) when length(Writers) == 0 ->
 	%?DEBUG("Writing output.", []),
 	Qh = qlc:q([Key || 
-		{Key, Time, _Hp, _Details, {_Direction, History}} <- dets:table(?DETS), 
+		{Key, Time, _Hp, _Details, {_Direction, History}} <- ets:table(?DETS), 
 		util:now() - Time > 86400,
 		proplists:get_value(ended, History) =/= undefined
 	]),
 	Keys = qlc:e(Qh),
-	lists:foreach(fun(K) -> dets:delete(?DETS, K) end, Keys),
+	lists:foreach(fun(K) -> dets:delete(?DETS, K), ets:delete(?DETS, K) end, Keys),
 	WritePids = lists:map(fun({Nom, _F} = Filter) ->
 		Pid = spawn_link(?MODULE, write_output, [Filter, State#state.interval, QueueCache, AgentCache]),
 		{Pid, Nom}
@@ -330,28 +334,30 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 cache_event({drop, {media, Id} = Key}) ->
-	Row = case dets:lookup(?DETS, Key) of
+	Row = case ets:lookup(?DETS, Key) of
 		[{Key, Time, Hp, Details, {inbound, History}}] ->
 			Newhistory = History ++ [{ended, util:now()}],
 			Newrow = {Key, Time, Hp, Details, {inbound, Newhistory}},
+			ets:insert(?DETS, Newrow),
 			dets:insert(?DETS, Newrow),
 			Newrow;
 		_Else ->
 			{Key, none}
 	end,
-	ets:delete(cpx_passive_ets, Id),
 	Row;
 cache_event({drop, {agent, _Id} = Key}) ->
+	ets:delete(?DETS, Key),
 	dets:delete(?DETS, Key),
 	{Key, none};
 cache_event({set, {{media, Id} = Key, EventHp, EventDetails, EventTime}}) ->
-	case dets:lookup(?DETS, Key) of
+	case ets:lookup(?DETS, Key) of
 		[{Key, Time, _Hp, Details, {Direction, History}}] ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails), History} of
 				{undefined, undefined, []} ->
 					% just update the hp and details.
 					Newrow = {Key, Time, EventHp, EventDetails, {Direction, [{ivr, EventTime}]}},
 					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
+					ets:insert(?DETS, Newrow),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, undefined, _List} ->
@@ -359,6 +365,7 @@ cache_event({set, {{media, Id} = Key, EventHp, EventDetails, EventTime}}) ->
 					% let the drop handle the ended time.
 					Newrow = {Key, Time, EventHp, EventDetails, {Direction, History}},
 					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
+					ets:insert(?DETS, Newrow),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, _Agent, List} ->
@@ -370,6 +377,7 @@ cache_event({set, {{media, Id} = Key, EventHp, EventDetails, EventTime}}) ->
 							{Key, Time, EventHp, EventDetails, {Direction, History}}
 					end,
 					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
+					ets:insert(?DETS, Newrow),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{Queue, undefined, Hlist} ->
@@ -391,6 +399,7 @@ cache_event({set, {{media, Id} = Key, EventHp, EventDetails, EventTime}}) ->
 							{Key, Time, EventHp, EventDetails, {Direction, Fixedhist}}
 					end,
 					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
+					ets:insert(?DETS, Newrow),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{Queue, Agent, _} when Queue =/= undefined, Agent =/= undefined ->
@@ -401,6 +410,7 @@ cache_event({set, {{media, Id} = Key, EventHp, EventDetails, EventTime}}) ->
 			% either undefined or outbound history, blind update.
 			Newrow = {Key, Time, EventHp, EventDetails, History},
 			ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
+			ets:insert(?DETS, Newrow),
 			dets:insert(?DETS, Newrow),
 			Newrow;
 		[] ->
@@ -408,12 +418,14 @@ cache_event({set, {{media, Id} = Key, EventHp, EventDetails, EventTime}}) ->
 				{undefined, outbound} ->
 					Newrow = {Key, EventTime, EventHp, EventDetails, {outbound, [{handled, EventTime}]}},
 					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
+					ets:insert(?DETS, Newrow),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, inbound} ->
 					?INFO("Didn't find queue, but still inbound.  Assuming it's in ivr call:  ~p", [Key]),
 					Newrow = {Key, EventTime, EventHp, EventDetails, {inbound, [{ivr, EventTime}]}},
 					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
+					ets:insert(?DETS, Newrow),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{_Queue, inbound} ->
@@ -426,18 +438,23 @@ cache_event({set, {{media, Id} = Key, EventHp, EventDetails, EventTime}}) ->
 					end,
 					Newrow = {Key, EventTime, EventHp, EventDetails, {inbound, [{queued, Qtime}]}},
 					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
+					ets:insert(?DETS, Newrow),
 					dets:insert(?DETS, Newrow),
 					Newrow
 			end
 	end;
 cache_event({set, {{agent, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
-	case dets:lookup(?DETS, Key) of
+	case ets:lookup(?DETS, Key) of
 		[] ->
-			dets:insert(?DETS, {Key, EventTime, EventHp, EventDetails, undefined}),
-			{Key, EventTime, EventHp, EventDetails, undefined};
+			Row = {Key, EventTime, EventHp, EventDetails, undefined},
+			ets:insert(?DETS, Row),
+			dets:insert(?DETS, Row),
+			Row;
 		[{Key, Time, Hp, Details, undefined}] ->
-			dets:insert(?DETS, {Key, Time, EventHp, EventDetails, undefined}),
-			{Key, Time, Hp, Details, undefined}
+			Row = {Key, Time, EventHp, EventDetails, undefined},
+			ets:insert(?DETS, Row),
+			dets:insert(?DETS, Row),
+			Row
 	end.
 
 prune_dets_medias() ->
@@ -497,7 +514,7 @@ prune_dets_agents() ->
 
 get_clients(Filter, QueueCache, AgentCache) ->
 	QH = qlc:q([proplists:get_value(client, Details) || 
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS), 
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- ets:table(?DETS), 
 		Type == media, 
 		filter_row(Filter, Row, QueueCache, AgentCache)
 	]),
@@ -513,7 +530,7 @@ get_clients(Filter, QueueCache, AgentCache) ->
 
 get_queue_groups(Filter, QueueCache, AgentCache) ->
 	QH = qlc:q([proplists:get_value(queue, Details) || 
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- ets:table(?DETS),
 		Type == media,
 		filter_row(Filter, Row, QueueCache, AgentCache),
 		proplists:get_value(queue, Details) =/= undefined
@@ -544,7 +561,7 @@ get_queue_groups(Filter, QueueCache, AgentCache) ->
 
 get_agent_profiles(Filter, QueueCache, AgentCache) ->
 	QH = qlc:q([proplists:get_value(profile, Details) ||
-		{{Type, _Id}, _Time, _Hp, Details, _Historyf} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, _Historyf} = Row <- ets:table(?DETS),
 		Type == agent,
 		filter_row(Filter, Row, QueueCache, AgentCache),
 		proplists:get_value(profile, Details) =/= undefined
@@ -562,7 +579,7 @@ get_agent_profiles(Filter, QueueCache, AgentCache) ->
 
 get_agents(Filter, Profile, QueueCache, AgentCache) ->
 	QH = qlc:q([Row ||
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- ets:table(?DETS),
 		Type == agent,
 		filter_row(Filter, Row, QueueCache, AgentCache),
 		proplists:get_value(profile, Details) == Profile
@@ -571,7 +588,7 @@ get_agents(Filter, Profile, QueueCache, AgentCache) ->
 
 get_queues(Filter, Group, QueueCache, AgentCache) ->
 	QH = qlc:q([proplists:get_value(queue, Details) || 
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- ets:table(?DETS),
 		Type == media,
 		filter_row(Filter, Row, QueueCache, AgentCache),
 		begin 
@@ -592,7 +609,7 @@ get_queues(Filter, Group, QueueCache, AgentCache) ->
 
 get_queued_medias(Filter, Queue, QueueCache, AgentCache) ->
 	QH = qlc:q([Row || 
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- ets:table(?DETS),
 		Type == media,
 		filter_row(Filter, Row, QueueCache, AgentCache),
 		proplists:get_value(queue, Details) == Queue
@@ -601,7 +618,7 @@ get_queued_medias(Filter, Queue, QueueCache, AgentCache) ->
 
 get_client_medias(Filter, Client, QueueCache, AgentCache) ->
 	QH = qlc:q([Row ||
-		{{Type, _Id}, _Time, _Hp, Details, History} = Row <- dets:table(?DETS),
+		{{Type, _Id}, _Time, _Hp, Details, History} = Row <- ets:table(?DETS),
 		Type == media,
 		filter_row(Filter, Row, QueueCache, AgentCache),
 		begin Testc = proplists:get_value(client, Details), Testc#client.label == Client end,
@@ -811,7 +828,7 @@ write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter
 	O.
 
 get_all_media(Filter, QueueCache, AgentCache) ->
-	QH = qlc:q([Row || Row <- dets:table(?DETS), element(1, element(1, Row)) == media]),
+	QH = qlc:q([Row || Row <- ets:table(?DETS), element(1, element(1, Row)) == media]),
 	List = qlc:e(QH),
 	get_all_media(Filter, List, [], QueueCache, AgentCache).
 
@@ -985,7 +1002,7 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 			{{Avail, Rel + 1, Busy}, released, Data};
 		{Statename, Media} when is_record(Media, call) ->
 			Qh = qlc:q([Row ||
-				{{Type, Idgen}, _Timegen, _Hpgen, _Detailsgen, _History} = Row <- dets:table(?DETS),
+				{{Type, Idgen}, _Timegen, _Hpgen, _Detailsgen, _History} = Row <- ets:table(?DETS),
 				Type == media,
 				Idgen == Media#call.id
 			]),
@@ -1017,7 +1034,7 @@ agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, 
 			{{Avail, Rel, Busy + 1}, Statename, Json};
 		{Statename, {onhold, Media, calling, Transferto}} ->
 			Qh = qlc:q([Row ||
-				{{Type, Idgen}, _, _, _, _} = Row <- dets:table(?DETS),
+				{{Type, Idgen}, _, _, _, _} = Row <- ets:table(?DETS),
 				Type == media,
 				Idgen == Media#call.id
 			]),

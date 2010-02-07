@@ -207,6 +207,7 @@ init(Options) ->
 	AgentRecs = agent_auth:get_agents(),
 	AgentProfsCache = [{Agent, Profile} || #agent_auth{login = Agent, profile = Profile} <- AgentRecs],
 	dets:open_file(?DETS, []),
+	ets:new(cpx_passive_ets, [named_table]),
 	{ok, Agents} = cpx_monitor:get_health(agent),
 	{ok, Medias} = cpx_monitor:get_health(media),
 	cpx_monitor:subscribe(Subtest),
@@ -327,7 +328,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-cache_event({drop, {media, _Id} = Key}) ->
+cache_event({drop, {media, Id} = Key}) ->
 	Row = case dets:lookup(?DETS, Key) of
 		[{Key, Time, Hp, Details, {inbound, History}}] ->
 			Newhistory = History ++ [{ended, util:now()}],
@@ -337,23 +338,26 @@ cache_event({drop, {media, _Id} = Key}) ->
 		_Else ->
 			{Key, none}
 	end,
+	ets:delete(cpx_passive_ets, Id),
 	Row;
 cache_event({drop, {agent, _Id} = Key}) ->
 	dets:delete(?DETS, Key),
 	{Key, none};
-cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
+cache_event({set, {{media, Id} = Key, EventHp, EventDetails, EventTime}}) ->
 	case dets:lookup(?DETS, Key) of
 		[{Key, Time, _Hp, Details, {Direction, History}}] ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails), History} of
 				{undefined, undefined, []} ->
 					% just update the hp and details.
 					Newrow = {Key, Time, EventHp, EventDetails, {Direction, [{ivr, EventTime}]}},
+					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, undefined, _List} ->
 					% either death in ivr or queue, can be figured out later.
 					% let the drop handle the ended time.
 					Newrow = {Key, Time, EventHp, EventDetails, {Direction, History}},
+					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, _Agent, List} ->
@@ -364,6 +368,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 						_ ->
 							{Key, Time, EventHp, EventDetails, {Direction, History}}
 					end,
+					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{Queue, undefined, Hlist} ->
@@ -393,17 +398,20 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 		[{Key, Time, _Hp, _Details, History}] ->
 			% either undefined or outbound history, blind update.
 			Newrow = {Key, Time, EventHp, EventDetails, History},
+			ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
 			dets:insert(?DETS, Newrow),
 			Newrow;
 		[] ->
 			case {proplists:get_value(queue, EventDetails), proplists:get_value(direction, EventDetails)} of
 				{undefined, outbound} ->
 					Newrow = {Key, EventTime, EventHp, EventDetails, {outbound, [{handled, EventTime}]}},
+					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{undefined, inbound} ->
 					?INFO("Didn't find queue, but still inbound.  Assuming it's in ivr call:  ~p", [Key]),
 					Newrow = {Key, EventTime, EventHp, EventDetails, {inbound, [{ivr, EventTime}]}},
+					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
 					dets:insert(?DETS, Newrow),
 					Newrow;
 				{_Queue, inbound} ->
@@ -415,6 +423,7 @@ cache_event({set, {{media, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
 							T
 					end,
 					Newrow = {Key, EventTime, EventHp, EventDetails, {inbound, [{queued, Qtime}]}},
+					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
 					dets:insert(?DETS, Newrow),
 					Newrow
 			end
@@ -876,8 +885,18 @@ medias_to_json([], Acc) ->
 	%util:timemark(medias_to_json, "done"),
 	%util:timemark_clear(medias_to_json),
 	lists:reverse(Acc);
-medias_to_json([{{media, Id}, Time, _Hp, Details, {Direction, History}} | Tail], Acc) ->
-	NewHead = {struct, lists:append([
+medias_to_json([Head | Tail], Acc) ->
+	Id = element(2, element(1, Head)),
+	NewHead = case ets:lookup(cpx_passive_ets, Id) of
+		[] ->
+			media_to_json(Head);
+		[Obj] ->
+			Obj
+	end,
+	medias_to_json(Tail, [NewHead | Acc]).
+
+media_to_json({{media, Id}, Time, _Hp, Details, {Direction, History}}) ->
+	{struct, lists:append([
 		{<<"id">>, list_to_binary(Id)},
 		{<<"time">>, Time},
 		{<<"brand">>, begin C = proplists:get_value(client, Details), case C#client.label of undefined -> undefined; _ -> list_to_binary(C#client.label) end end},
@@ -886,11 +905,8 @@ medias_to_json([{{media, Id}, Time, _Hp, Details, {Direction, History}} | Tail],
 		{<<"priority">>, proplists:get_value(priority, Details)},
 		{<<"direction">>, proplists:get_value(direction, Details)},
 		{<<"didAbandon">>, is_abandon(History)}
-	], History)}, % TODO currnet doesn't do requeueing right, but requires
+	], History)}. % TODO currnet doesn't do requeueing right, but requires
 	% format change.
-	medias_to_json(Tail, [NewHead | Acc]).
-
-
 
 queuegroups_to_json(Groups, Filter, QueueCache, AgentCache) ->
 	queuegroups_to_json(Groups, Filter, [], QueueCache, AgentCache).

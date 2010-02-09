@@ -85,7 +85,7 @@
 	handle_spy/3,
 	handle_warm_transfer_begin/3,
 	handle_warm_transfer_cancel/2,
-	handle_warm_transfer_cancel/2
+	handle_warm_transfer_complete/2
 ]).
 
 -record(state, {

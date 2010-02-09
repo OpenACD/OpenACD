@@ -104,7 +104,7 @@ init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, 
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			{CallerName, CallerNumber} = Call#call.callerid,
-			Args = "[origination_caller_id_name='"++CallerName++"',origination_caller_id_number="++CallerNumber++",hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ re:replace(AgentRec#agent.login, "@", "_", [{return, list}]) ++ " &park()",
+			Args = "[origination_caller_id_name='"++re:replace(CallerName, "'", "", [{return, list}])++"',origination_caller_id_number="++CallerNumber++",hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ re:replace(AgentRec#agent.login, "@", "_", [{return, list}]) ++ " &park()",
 			?INFO("originating ring channel with args: ~p", [Args]),
 			case freeswitch:bgapi(Fnode, originate, Args, Fun(UUID)) of
 				ok ->

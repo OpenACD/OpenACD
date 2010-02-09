@@ -124,17 +124,17 @@ init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, 
 					end,
 					case Gethandle(Gethandle, 0) of
 						{error, badsession} ->
-							?ERROR("bad uuid ~p", [UUID]),
+							?ERROR("bad uuid ~p when calling ~p", [UUID, AgentRec#agent.login]),
 							{stop, {error, session}};
 						{error, Other} ->
-							?ERROR("other error starting; ~p", [Other]),
+							?ERROR("other error starting; ~p for ~p", [Other, AgentRec#agent.login]),
 							{stop, {error, Other}};
 						_Else ->
 							?DEBUG("starting for ~p", [UUID]),
 							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Call, options = Options}}
 					end;
 				Else ->
-					?ERROR("bgapi call failed ~p", [Else]),
+					?ERROR("bgapi call failed ~p  when calling ~p", [Else, AgentRec#agent.login]),
 					{stop, {error, Else}}
 			end
 	end.

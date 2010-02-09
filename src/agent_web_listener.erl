@@ -411,7 +411,7 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 											linkto(Pid),
 											#agent{lastchange = StateTime, profile = EffectiveProfile} = agent_web_connection:dump_agent(Pid),
 											ets:insert(web_connections, {Reflist, Salt, Pid}),
-											?DEBUG("connection started for ~p", [Reflist]),
+											?DEBUG("connection started for ~p ~p", [Reflist, Username]),
 											{200, [], mochijson2:encode({struct, [
 												{success, true},
 												{message, <<"logged in">>},
@@ -419,10 +419,10 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 												{<<"statetime">>, StateTime},
 												{<<"timestamp">>, util:now()}]})};
 										ignore ->
-											?WARNING("Ignore message trying to start connection for ~p", [Reflist]),
+											?WARNING("Ignore message trying to start connection for ~p ~p", [Reflist, Username]),
 											{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
 										{error, Error} ->
-											?ERROR("Error ~p trying to start connection for ~p", [Error, Reflist]),
+											?ERROR("Error ~p trying to start connection for ~p ~p", [Error, Reflist, Username]),
 											{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(Error)}]})}
 									end
 							end

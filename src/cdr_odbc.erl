@@ -328,9 +328,9 @@ string_or_null(String) ->
 
 calculate_times(Summary) ->
 	lists:foldl(
-		fun({oncall, {Time, [{Agent,_}]}}, {Q, C, W, _A, Qu}) ->
+		fun({oncall, {Time, [{Agent,_} | _]}}, {Q, C, W, _A, Qu}) ->
 				{Q, C + Time, W, Agent, Qu};
-			({inqueue, {Time, [{Queue, _}]}}, {Q, C, W, A, _Qu}) ->
+			({inqueue, {Time, [{Queue, _} | _]}}, {Q, C, W, A, _Qu}) ->
 				{Q + Time, C, W, A, Queue};
 			({wrapup, {Time, _}}, {Q, C, W, A, Qu}) ->
 				{Q, C, W + Time, A, Qu};

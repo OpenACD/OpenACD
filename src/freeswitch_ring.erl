@@ -100,10 +100,11 @@ get_uuid(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun, Options]) when is_record(Qcall, call) ->
+init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, call) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
-			Args = "[hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ re:replace(AgentRec#agent.login, "@", "_", [{return, list}]) ++ " &park()",
+			{CallerName, CallerNumber} = Call#call.callerid,
+			Args = "[origination_caller_id_name='"++CallerName++"',origination_caller_id_number="++CallerNumber++",hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ re:replace(AgentRec#agent.login, "@", "_", [{return, list}]) ++ " &park()",
 			?INFO("originating ring channel with args: ~p", [Args]),
 			case freeswitch:bgapi(Fnode, originate, Args, Fun(UUID)) of
 				ok ->
@@ -130,7 +131,7 @@ init([Fnode, AgentRec, Apid, Qcall, Ringout, Fun, Options]) when is_record(Qcall
 							{stop, {error, Other}};
 						_Else ->
 							?DEBUG("starting for ~p", [UUID]),
-							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Qcall, options = Options}}
+							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Call, options = Options}}
 					end;
 				Else ->
 					?ERROR("bgapi call failed ~p", [Else]),

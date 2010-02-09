@@ -29,6 +29,10 @@ function resizespan2(spn) {
 	var ruler = document.getElementById('ruler');
 	ruler.innerHTML = spn.innerHTML;
 	ruler.style.fontSize = fontsz + 'px';
+	while (ruler.offsetHeight < (parentht / 2)) {
+		fontsz = fontsz * 2;
+		ruler.style.fontSize = fontsz + 'px';
+	}
 	if (ruler.offsetHeight > parentht) {
 		fontsz = parseInt((fontsz * parentht)/ruler.offsetHeight);
 	}

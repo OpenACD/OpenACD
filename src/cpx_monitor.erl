@@ -68,7 +68,8 @@
 	unsubscribe/0,
 	get_key/1,
 	get_health_list/1,
-	get_details_list/1
+	get_details_list/1,
+	clear_dead_media/0
 	]).
 
 %% gen_server callbacks
@@ -242,6 +243,10 @@ get_details_list({_, _, Details, _}) ->
 	Details;
 get_details_list({_, _, Details}) ->
 	Details.
+
+-spec(clear_dead_media/0 :: () -> 'ok').
+clear_dead_media() ->
+	gen_leader:leader_cast(?MODULE, clear_dead_media).
 	
 %%====================================================================
 %% gen_server callbacks
@@ -429,6 +434,31 @@ handle_leader_cast({ensure_live, Node, Time}, State, Election) ->
 			entry(Entry, State, Election),
 			{noreply, State}
 	end;
+handle_leader_cast(clear_dead_media, #state{ets = Tid} = State, Election) ->
+	Dropples = qlc:e(qlc:q([Id || 
+		{{Type, Id}, _Hp, Details, _Time} <- ets:table(Tid), 
+		Type == media, 
+		begin 
+			Module = case proplists:get_value(type, Details) of
+				voice ->
+					freeswitch_media_manager;
+				email ->
+					email_media_manager;
+				dummy ->
+					dummy_media_manager;
+				_ ->
+					false
+			end,
+			case Module of
+				false ->
+					false;
+				_ ->
+					Module:get_media(Id) =:= none
+			end
+		end
+	])),
+	[Id || Id <- Dropples, entry({drop, {media, Id}}, State, Election) == ok],
+	{noreply, State};
 handle_leader_cast(Message, State, _Election) ->
 	?WARNING("received unexpected leader_cast ~p", [Message]),
 	{noreply, State}.

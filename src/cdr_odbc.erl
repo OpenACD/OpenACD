@@ -203,7 +203,14 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 				fun(#cdr_raw{transaction = T2, eventdata = E}, _Acc) when T2 == dialoutgoing -> E;
 					(_, Acc) -> Acc
 				end, "", T),
-			InfoQuery = io_lib:format("INSERT INTO call_info SET UniqueID='~s', TenantID=~B, BrandID=~B, DNIS=~s, CallType='~s', CallerIDNum='~s', CallerIDName='~s', DialedNumber=~s;", [
+			VoicemailID = case Media#call.type of
+				voicemail ->
+					% store ID of original call
+					string:substr(Media#call.id, 1, length(Media#call.id) - 3);
+				_ ->
+					""
+			end,
+			InfoQuery = io_lib:format("INSERT INTO call_info SET UniqueID='~s', TenantID=~B, BrandID=~B, DNIS=~s, CallType='~s', CallerIDNum='~s', CallerIDName='~s', DialedNumber=~s, VoicemailID=~s;", [
 				Media#call.id,
 				Tenantid,
 				Brandid,
@@ -211,7 +218,8 @@ dump(CDR, State) when is_record(CDR, cdr_rec) ->
 				Type,
 				add_slashes(element(2, Media#call.callerid), "'"),
 				add_slashes(element(1, Media#call.callerid), "'"),
-				string_or_null(Dialednum)
+				string_or_null(Dialednum),
+				string_or_null(VoicemailID)
 			]),
 			%?NOTICE("query is ~s", [InfoQuery]),
 			case odbc:sql_query(State#state.ref, lists:flatten(InfoQuery)) of
@@ -320,9 +328,9 @@ string_or_null(String) ->
 
 calculate_times(Summary) ->
 	lists:foldl(
-		fun({oncall, {Time, [{Agent,_}]}}, {Q, C, W, _A, Qu}) ->
+		fun({oncall, {Time, [{Agent,_} | _]}}, {Q, C, W, _A, Qu}) ->
 				{Q, C + Time, W, Agent, Qu};
-			({inqueue, {Time, [{Queue, _}]}}, {Q, C, W, A, _Qu}) ->
+			({inqueue, {Time, [{Queue, _} | _]}}, {Q, C, W, A, _Qu}) ->
 				{Q + Time, C, W, A, Queue};
 			({wrapup, {Time, _}}, {Q, C, W, A, Qu}) ->
 				{Q, C, W + Time, A, Qu};
@@ -389,7 +397,7 @@ last_transaction_test_() ->
 			fun() ->
 					?assertEqual(abandonqueue, calculate_last_transaction([#cdr_raw{transaction = cdrinit}, #cdr_raw{transaction=inivr}, #cdr_raw{transaction=inqueue}, #cdr_raw{transaction=ringing}, #cdr_raw{transaction=abandonqueue}]))
 			end
-t		},
+		},
 		{"abandon in Queue after oncall",
 			fun() ->
 					?assertEqual(hangup, calculate_last_transaction([#cdr_raw{transaction = cdrinit}, #cdr_raw{transaction=inivr}, #cdr_raw{transaction=inqueue}, #cdr_raw{transaction=ringing}, #cdr_raw{transaction=oncall}, #cdr_raw{transaction=queue_transfer}, #cdr_raw{transaction=abandonqueue}]))

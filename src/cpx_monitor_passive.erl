@@ -263,6 +263,7 @@ handle_info(write_output, #state{filters = Filters, write_pids = Writers, queue_
 	]),
 	Keys = qlc:e(Qh),
 	lists:foreach(fun(K) -> dets:delete(?DETS, K), ets:delete(?DETS, K) end, Keys),
+	[ets:delete(cpx_passive_ets, Id) || {Type, Id} <- Keys, Type == media],
 	WritePids = lists:map(fun({Nom, _F} = Filter) ->
 		Pid = spawn_link(?MODULE, write_output, [Filter, State#state.interval, QueueCache, AgentCache]),
 		{Pid, Nom}
@@ -485,6 +486,7 @@ prune_dets_medias() ->
 			_Mpid ->
 				case {Manager:get_media(Id), Age > Day} of
 					{none, true} ->
+						ets:delete(cpx_passive_ets, Id),
 						ets:delete(?DETS, {media, Id}),
 						dets:delete_object(?DETS, Row);
 					{none, false} ->
@@ -1398,7 +1400,8 @@ filter_row_test_() ->
 		],
 		DoFilter = fun(Filter) ->
 			Test = fun(R, Acc) ->
-				case filter_row(Filter, R) of
+				% TODO - fix this properly
+				case filter_row(Filter, R, [], []) of
 					true ->
 						[element(1, R) | Acc];
 					false ->
@@ -1426,7 +1429,7 @@ filter_row_test_() ->
 				agent_profiles = all,
 				nodes = all
 			},
-			Out = lists:map(fun(R) -> filter_row(Filter, R) end, Rows),
+			Out = lists:map(fun(R) -> filter_row(Filter, R, [], []) end, Rows),
 			?assert(lists:all(fun(In) -> In end, Out))
 		end},
 		{"filter by client only",
@@ -1618,7 +1621,7 @@ filter_row_test_() ->
 			],
 			Expected = [{{media, "post-midnight"}, Midnight + 100, [], [], {inbound, queued}}],
 			Fun = fun(R, Acc) -> 
-				case filter_row(TheFilter, R) of
+				case filter_row(TheFilter, R, [], []) of
 					true ->
 						[R | Acc];
 					false ->
@@ -1651,7 +1654,7 @@ filter_row_test_() ->
 			],
 			Expected = [{{media, "post-midnight-3"}, Midnight + 180, [], [], {inbound, queued}}],
 			Fun = fun(R, Acc) -> 
-				case filter_row(TheFilter, R) of
+				case filter_row(TheFilter, R, [], []) of
 					true ->
 						[R | Acc];
 					false ->
@@ -1712,21 +1715,21 @@ qlc_test_() ->
 	fun({AllFilter, Client1, _Client2, Getids}) ->
 		[{"get medias with a given client",
 		fun() ->
-			Out = get_client_medias(AllFilter, Client1#client.label),
+			Out = get_client_medias(AllFilter, Client1#client.label, [], []),
 			?assertEqual(4, length(Out)),
 			Expected = ["media-c1-q1", "media-c1-q2", "media-c1-q3", "media-c1-q4"],
 			?assert(lists:all(fun(I) -> lists:member(I, Expected) end, lists:map(Getids, Out)))
 		end},
 		{"get medias with a given queue",
 		fun() ->
-			Out = get_queued_medias(AllFilter, "queue1"),
+			Out = get_queued_medias(AllFilter, "queue1", [], []),
 			?assertEqual(2, length(Out)),
 			Expected = ["media-c1-q1", "media-c2-q1"],
 			?assert(lists:all(fun(I) -> lists:member(I, Expected) end, lists:map(Getids, Out)))
 		end},
 		{"get media with an 'undefined' client",
 		fun() ->
-			[H | _] = Out = get_client_medias(AllFilter, undefined),
+			[H | _] = Out = get_client_medias(AllFilter, undefined, [], []),
 			?assertEqual(1, length(Out)),
 			?assertEqual({media, "media-undef-qq"}, element(1, H))
 		end}]

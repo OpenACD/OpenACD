@@ -1234,6 +1234,7 @@ dojo.addOnLoad(function(){
 			title: "Message from Supervisor",
 			content: '<div style="width: 200px; height: 100px; overflow: auto;">' + data + '</div>'
 		});
+		soundManager.play('gong');
 		dia.show();
 	});
 

@@ -121,6 +121,10 @@
 <script language="JavaScript" type="text/javascript" src="jsbn/rng.js"></script>
 <script language="JavaScript" type="text/javascript" src="jsbn/rsa.js"></script>
 
+<!-- SoundManager2 -->
+<!--<script type="text/javascript" src="SoundManager2/soundmanager2.js"></script>-->
+<script type="text/javascript" src="SoundManager2/soundmanager2-nodebug-jsmin.js"></script>
+
 <script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
 <script type="text/javascript">
 	dojo.require("dijit.layout.BorderContainer");
@@ -162,6 +166,19 @@
 		window.setLogLevel(dojo.cookie("agentui-log"));
 	}
 	dojo.addOnLoad(init);
+	soundManager.url = '/SoundManager2/';
+
+	soundManager.onready(function(oStatus) {
+		if (!oStatus.success) {
+			return false;
+		}
+
+		soundManager.createSound({
+			id: 'gong',
+			url: '/SoundManager2/59239__info_in_tune.nl__gong.mp3',
+			volume: 25
+		});
+	});
 </script>
 
 <script type="text/javascript" src="/eventLog.js"></script>
@@ -570,7 +587,7 @@
 			</div>
 		</div>
 
-		<div id="foo" style="clear:both;"><input type="text" value="" dojoType="dijit.form.ValidationTextBox" regExp="[\d]+" invalidMessage="Invalid number" id="dialbox" /></div>
+		<div id="foo" style="clear:both;"><input type="text" value="" dojoType="dijit.form.ValidationTextBox" regExp="[\d]+" invalidMessage="Invalid number - no spaces, parentheses or dashes" id="dialbox" /></div>
 		<button dojoType="dijit.form.Button" id="wtdial" style="display:none">
 			<script type="dojo/method" event="postCreate">
 				this.inherited("postCreate", arguments);

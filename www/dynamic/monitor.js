@@ -36,7 +36,7 @@ function drawCalls(response) {
 	var c1;
 	dojo.forEach(response.clients_in_queues,
 			function(client) {
-			if (client.medias.length > 0 && client.totalInbound > 0) {
+			if (client.medias.length > 0 /*&& client.totalInbound > 0*/) {
 			row = table.insertRow(rownum);
 			c1 = row.insertCell(0);
 			c1.innerHTML = client.label;

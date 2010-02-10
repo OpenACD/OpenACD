@@ -223,7 +223,7 @@ loop(Req, Table) ->
 				Whoa ->
 					Whoa
 			catch
-				What:Why ->
+				_:_ ->
 					%?DEBUG("Going with a blank post due to mulipart parse fail:  ~p:~p", [What, Why]),
 					[]
 			end
@@ -394,34 +394,42 @@ api(login, {Reflist, Salt, _Conn}, Post) ->
 		_ ->
 			try decrypt_password(Password) of
 				Decrypted ->
-					Salt = string:substr(Decrypted, 1, length(Salt)),
-					DecryptedPassword = string:substr(Decrypted, length(Salt) + 1),
-					case agent_auth:auth(Username, DecryptedPassword) of
-						deny ->
-							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
-						{allow, Id, Skills, Security, Profile} ->
-							Agent = #agent{id = Id, defaultringpath = Bandedness, login = Username, skills = Skills, profile=Profile, password=DecryptedPassword},
-							case agent_web_connection:start(Agent, Security) of
-								{ok, Pid} ->
-									?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
-									gen_server:call(Pid, {set_endpoint, Endpoint}),
-									linkto(Pid),
-									#agent{lastchange = StateTime, profile = EffectiveProfile} = agent_web_connection:dump_agent(Pid),
-									ets:insert(web_connections, {Reflist, Salt, Pid}),
-									?DEBUG("connection started for ~p", [Reflist]),
-									{200, [], mochijson2:encode({struct, [
-										{success, true}, 
-										{message, <<"logged in">>}, 
-										{<<"profile">>, list_to_binary(EffectiveProfile)}, 
-										{<<"statetime">>, StateTime},
-										{<<"timestamp">>, util:now()}]})};
-								ignore ->
-									?WARNING("Ignore message trying to start connection for ~p", [Reflist]),
-									{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
-								{error, Error} ->
-									?ERROR("Error ~p trying to start connection for ~p", [Error, Reflist]),
-									{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(Error)}]})}
+					try
+						Salt = string:substr(Decrypted, 1, length(Salt)),
+						string:substr(Decrypted, length(Salt) + 1)
+						of
+						DecryptedPassword ->
+							case agent_auth:auth(Username, DecryptedPassword) of
+								deny ->
+									{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Authentication failed">>}]})};
+								{allow, Id, Skills, Security, Profile} ->
+									Agent = #agent{id = Id, defaultringpath = Bandedness, login = Username, skills = Skills, profile=Profile, password=DecryptedPassword},
+									case agent_web_connection:start(Agent, Security) of
+										{ok, Pid} ->
+											?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
+											gen_server:call(Pid, {set_endpoint, Endpoint}),
+											linkto(Pid),
+											#agent{lastchange = StateTime, profile = EffectiveProfile} = agent_web_connection:dump_agent(Pid),
+											ets:insert(web_connections, {Reflist, Salt, Pid}),
+											?DEBUG("connection started for ~p ~p", [Reflist, Username]),
+											{200, [], mochijson2:encode({struct, [
+												{success, true},
+												{message, <<"logged in">>},
+												{<<"profile">>, list_to_binary(EffectiveProfile)},
+												{<<"statetime">>, StateTime},
+												{<<"timestamp">>, util:now()}]})};
+										ignore ->
+											?WARNING("Ignore message trying to start connection for ~p ~p", [Reflist, Username]),
+											{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"login err">>}]})};
+										{error, Error} ->
+											?ERROR("Error ~p trying to start connection for ~p ~p", [Error, Reflist, Username]),
+											{200, [], mochijson2:encode({struct, [{success, false}, {message, list_to_binary(Error)}]})}
+									end
 							end
+					catch
+						error:{badmatch, _} ->
+							?NOTICE("authentication failure for ~p using salt ~p (expected ~p)", [Username, string:substr(Decrypted, 1, length(Salt)), Salt]),
+							{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Invalid salt">>}]})}
 					end
 			catch
 				error:decrypt_failed ->
@@ -783,9 +791,10 @@ web_connection_login_test_() ->
 			fun({_Httpc, Cookie, _Salt}) ->
 				{"Trying to login before salt request",
 				fun() ->
-					Unsalted = util:bin_to_hexstr(erlang:md5("pass")),
-					Salted = util:bin_to_hexstr(erlang:md5(string:concat("12345", Unsalted))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", Salted])}, [], []),
+					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
+					Salted = crypto:rsa_public_encrypt(string:concat("123345", "badpass"), Key, rsa_pkcs1_padding),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
 					?assertEqual(<<"No salt set">>, proplists:get_value(<<"message">>, Json))
@@ -794,24 +803,49 @@ web_connection_login_test_() ->
 			fun({_Httpc, Cookie, Salt}) ->
 				{"Login with a bad pw",
 				fun() ->
-					Unsalted = util:bin_to_hexstr(erlang:md5("badpass")),
-					Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt(), Unsalted))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", Salted, "&voipendpoint=SIP Registration"])}, [], []),
+					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
+					Salted = crypto:rsa_public_encrypt(string:concat(Salt(),"badpass"), Key, rsa_pkcs1_padding),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
-					?assertEqual(false, proplists:get_value(<<"success">>, Json))
-					%?assertEqual(<<"login err">>, proplists:get_value(<<"message">>, Json))
+					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
+					?assertEqual(<<"Authentication failed">>, proplists:get_value(<<"message">>, Json))
 				end}
 			end,
 			fun({_Httpc, Cookie, Salt}) ->
 				{"Login with bad un",
 				fun() ->
-					Unsalted = util:bin_to_hexstr(erlang:md5("pass")),
-					Salted = util:bin_to_hexstr(erlang:md5(string:concat(Salt(), Unsalted))),
-					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", Salted, "&voipendpoint=SIP Registration"])}, [], []),
+					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
+					Salted = crypto:rsa_public_encrypt(string:concat(Salt(),"pass"), Key, rsa_pkcs1_padding),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
-					?assertEqual(false, proplists:get_value(<<"success">>, Json))
-					%?assertEqual(<<"login err">>, proplists:get_value(<<"message">>, Json))
+					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
+					?assertEqual(<<"Authentication failed">>, proplists:get_value(<<"message">>, Json))
+				end}
+			end,
+			fun({_Httpc, Cookie, Salt}) ->
+				{"Login with bad salt",
+				fun() ->
+					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
+					Salt(),
+					Salted = crypto:rsa_public_encrypt(string:concat("345678","pass"), Key, rsa_pkcs1_padding),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					?CONSOLE("BODY:  ~p", [Body]),
+					{struct, Json} = mochijson2:decode(Body),
+					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
+					?assertEqual(<<"Invalid salt">>, proplists:get_value(<<"message">>, Json))
+				end}
+			end,
+			fun({_Httpc, Cookie, Salt}) ->
+				{"Login properly",
+				fun() ->
+					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
+					Salted = crypto:rsa_public_encrypt(string:concat(Salt(),"pass"), Key, rsa_pkcs1_padding),
+					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
+					?CONSOLE("BODY:  ~p", [Body]),
+					{struct, Json} = mochijson2:decode(Body),
+					?assertEqual(true, proplists:get_value(<<"success">>, Json))
 				end}
 			end
 		]

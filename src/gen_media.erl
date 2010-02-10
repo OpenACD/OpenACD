@@ -952,7 +952,7 @@ handle_custom_return(Return, State, noreply) ->
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
 					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
-		{voicemail, NewState} when is_pid(State#state.queue_pid) ->
+		{voicemail, NewState} when is_pid(State#state.queue_pid)  orelse State#state.oncall_pid == undefined ->
 			priv_voicemail(State),
 			{noreply, State#state{substate = NewState, queue_pid = undefined, ring_pid = undefined}};
 		Tuple when element(1, Tuple) =:= outbound ->
@@ -995,7 +995,7 @@ handle_custom_return(Return, State, reply) ->
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, Queue}]),
 					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}}
 			end;
-		{voicemail, NewState} when is_pid(State#state.queue_pid) ->
+		{voicemail, NewState} when is_pid(State#state.queue_pid) orelse State#state.oncall_pid == undefined ->
 			priv_voicemail(State),
 			{reply, ok, State#state{substate = NewState, queue_pid = undefined, ring_pid = undefined}};
 		Tuple when element(1, Tuple) =:= outbound ->
@@ -1129,8 +1129,10 @@ priv_queue(Queue, Callrec, Failover) ->
 			Qpid
 	end.
 
-priv_voicemail(State) ->
+priv_voicemail(State) when is_pid(State#state.queue_pid) ->
 	call_queue:remove(State#state.queue_pid, self()),
+	priv_voicemail(State#state{queue_pid = undefined});
+priv_voicemail(State) ->
 	cdr:voicemail(State#state.callrec, State#state.queue_pid),
 	case State#state.ring_pid of
 		undefined ->

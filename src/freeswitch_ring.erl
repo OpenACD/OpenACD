@@ -198,12 +198,18 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid
 						_ ->
 							?INFO("Call bridged", []),
 							Call = State#state.callrec,
-							case gen_media:oncall(Call#call.source) of
+							try gen_media:oncall(Call#call.source) of
 								invalid ->
 									freeswitch:api(State#state.cnode, uuid_park, Call#call.id),
 									{stop, normal, State};
 								ok ->
 									{noreply, State}
+							catch
+								exit:{noproc, _} ->
+									?WARNING("~p died before I could complete the bridge", [Call#call.source]),
+									% prolly get no such channel, but just in case it still lives.
+									freeswitch:api(State#state.cnode, uuid_park, Call#call.id),
+									{stop, normal, State}
 							end
 					end;
 				"CHANNEL_UNBRIDGE" ->

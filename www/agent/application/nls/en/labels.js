@@ -54,5 +54,9 @@
 	USE_OUTBAND_RING: "Use outband ring",
 	OUTBAND_RING_TIP: "Your phone will ring for any media",
 	MEDIATYPE: "Media Type",
-	COMPLETE: "Complete"
+	COMPLETE: "Complete",
+	SUMMARY: "Summary",
+	ERRMESSAGE: "Error Message",
+	HOWTOCAUSE: "How To Cause",
+	DETAILS: "Other Details"
 }

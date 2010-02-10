@@ -544,7 +544,17 @@ dojo.addOnLoad(function(){
 			showErrorReportDialog();
 		}
 	}, innerDiv);
-	
+
+	// make the labels on the bug form nicer.
+	var nodes = dojo.query('.translatecol', dojo.byId('reportIssueDialog'));
+	console.log(nodes);
+	for(var i = 0; i < nodes.length; i++){
+		var label = dojo.i18n.getLocalization("agentUI", "labels")[nodes[i].innerHTML];
+		if(label){
+			nodes[i].innerHTML = label + ":";
+		}
+	}
+
 	EventLog.log("Inteface loaded");
 	
 	EventLog.logAgentState = dojo.subscribe("agent/state", function(data){

@@ -240,7 +240,12 @@ queue_transfer(Call, Queue) ->
 -spec(voicemail/2 :: (Call :: #call{}, Queue :: pid() | string()) -> 'ok').
 voicemail(Call, Qpid) when is_pid(Qpid) ->
 	List = queue_manager:queues(),
-	{value, {Queue, Qpid}} = lists:keysearch(Qpid, 2, List),
+	Queue = case lists:keysearch(Qpid, 2, List) of
+		{value, {Qnom, Qpid}} ->
+			 Qnom; 
+		 false -> 
+			 undefined 
+	end,
 	voicemail(Call, Queue);
 voicemail(Call, Queue) ->
 	event({voicemail, Call, util:now(), Queue}).

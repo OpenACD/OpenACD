@@ -1570,8 +1570,8 @@ encode_stats([Head | Tail], Count, Acc) ->
 		[{_, media}] ->
 			case {proplists:get_value(agent, Protodetails), proplists:get_value(queue, Protodetails)} of
 				{undefined, undefined} ->
-					?WARNING("Even though this media seems fully orphaned, I'm saying it's under the default queue for now. ~p", [proplists:get_value(name, Proplisted)]),
-					[{queue, <<"default_queue">>}];
+					?DEBUG("Ignoring ~p as it's likely in ivr (no agent/queu)", [proplists:get_value(name, Proplisted)]),
+					[];
 				{undefined, Queue} ->
 					[{queue, list_to_binary(Queue)}];
 				{Agent, undefined} ->

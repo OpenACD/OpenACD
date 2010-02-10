@@ -944,6 +944,7 @@ handle_custom_return(Return, State, noreply) ->
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, "default_queue"}]),
 					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}};
 				invalid ->
+					?WARNING("Could not queue ~p into ~p (failover ~p)", [Callrec#call.id, Queue, State#state.queue_failover]),
 					{noreply, State#state{callrec = Callrec, substate = NewState}};
 				Qpid ->
 					cdr:cdrinit(Callrec),
@@ -981,6 +982,7 @@ handle_custom_return(Return, State, reply) ->
 			Callrec = correct_client(PCallrec),
 			case priv_queue(Queue, Callrec, State#state.queue_failover) of
 				invalid ->
+					?WARNING("Could not queue ~p into ~p (failover ~p)", [Callrec#call.id, Queue, State#state.queue_failover]),
 					{reply, {error, {noqueue, Queue}}, State#state{callrec = Callrec, substate = NewState}};
 				{default, Qpid} ->
 					cdr:cdrinit(Callrec),

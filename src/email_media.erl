@@ -244,6 +244,8 @@ init(Options) ->
 		source = self()
 	},
 	?DEBUG("started ~p for callerid:  ~p", [Defaultid, Callerid]),
+	[_, _ | FakingAncestors] = get('$ancestors'),
+	put('$ancestors', FakingAncestors),
 	{ok, {#state{
 				send_args = proplists:get_value(send_opts, Options),
 				skeleton = Skeleton,

@@ -160,30 +160,23 @@ handle_DATA(_From, [To | _Allelse], Data, #state{mail_map = Mailmap} = State) wh
 		direction = inbound
 	},
 	archive(Data, Callrec, inbound),
-%	case cpx_supervisor:get_archive_path(Callrec) of
-%		none ->
-%			?DEBUG("archiving is not configured", []),
-%			ok;
-%		{error, _Reason, Path} ->
-%			?WARNING("Unable to create requested call archiving directory ~p", [Path]),
-%			%{error, Reason};
-%			ok;
-%		BasePath ->
-%			%% get_archive_path ensures the directory is writeable by us and exists, so this
-%			%% should be safe to do (the call will be hungup if creating the recording file fails)
-%			Path = BasePath ++ ".eml",
-%			?DEBUG("archiving to ~s", [Path]),
-%			file:write_file(Path, Data)
-%	end,
-	%?DEBUG("headers:  ~p", [Headers]),
-	case gen_server:call(email_media_manager, {queue, Mailmap, Defaultid, Data}) of
-		ok ->
-			{ok, Defaultid, State#state{mail_map = undefined}};
-		{error, not_right_time} ->
+	case gen_server:call(email_media_manager, {right_time, Mailmap}) of
+		false ->
 			% faking it so they don't retry
 			{ok, Defaultid, State#state{mail_map = undefined}};
-		{error, Error} ->
-			{error, Error, State}
+		true ->
+			case email_media:start([{mail_map, Mailmap}, {raw, Data}, {id, Defaultid}]) of
+				{ok, Mpid} ->
+					case gen_server:call(email_media_manager, {queue, Defaultid, Mpid}) of
+						{error, duplicate} ->
+							{error, duplicate, State};
+						ok ->
+							{ok, Defaultid, State#state{mail_map = undefined}}
+					end;
+				EmailMediaErr ->
+					?WARNING("Couldn't start new email media for ~p due to ~p", [Defaultid, EmailMediaErr]),
+					{error, EmailMediaErr, State}
+			end
 	end.
 
 -spec(handle_RSET/1 :: (State :: #state{}) -> #state{}).

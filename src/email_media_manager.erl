@@ -228,6 +228,22 @@ handle_call({queue, Mailmap, Id, Data}, _From, #state{mails = Mails} = State) ->
 		false ->
 			{reply, {error, not_right_time}, State}
 	end;
+handle_call({queue, Id, Pid}, _From, #state{mails = Mails} = State) ->
+	{Newmails, Reply} = case proplists:get_value(Id, Mails) of
+		undefined ->
+			link(Pid),
+			{[{Id, Pid} | Mails], ok};
+		Pid ->
+			link(Pid),
+			{Mails, ok};
+		Err ->
+			?ERROR("informed that ~p was queued, but existing pid (~p) doesn't match stashed pid(~p)", [Id, Err, Pid]),
+			{Mails, {error, duplicate}}
+	end,
+	{reply, Reply, State#state{mails = Newmails}};
+handle_call({right_time, Mailmap}, _From, State) ->
+	Res = right_time(Mailmap#mail_map.client),
+	{reply, Res, State};
 handle_call({get_media, MediaPid}, _From, #state{mails = Mails} = State) when is_pid(MediaPid) ->
 	case lists:keyfind(MediaPid, 2, Mails) of
 		false ->
@@ -242,6 +258,8 @@ handle_call({get_media, MediaKey}, _From, #state{mails = Mails} = State) ->
 		Pid ->
 			{reply, {MediaKey, Pid}, State}
 	end;
+handle_call(list, _From, #state{mails = Mails} = State) ->
+	{reply, Mails, State};
 handle_call(Request, _From, State) ->
     {reply, {invalid, Request}, State}.
 

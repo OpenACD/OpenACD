@@ -207,8 +207,8 @@ init(Options) ->
 	AgentRecs = agent_auth:get_agents(),
 	AgentProfsCache = [{Agent, Profile} || #agent_auth{login = Agent, profile = Profile} <- AgentRecs],
 	dets:open_file(?DETS, []),
-	ets:new(cpx_passive_ets, [named_table]),
-	ets:new(?DETS, [named_table]),
+	ets:new(cpx_passive_ets, [named_table, public]),
+	ets:new(?DETS, [named_table, public]),
 	qlc:e(qlc:q([begin
 		ets:insert(cpx_passive_ets, {Id, media_to_json(Row)}),
 		ets:insert(?DETS, Row)

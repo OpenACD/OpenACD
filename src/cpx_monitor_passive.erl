@@ -240,10 +240,15 @@ init(Options) ->
 	AgentRecs = agent_auth:get_agents(),
 	AgentProfsCache = [{Agent, Profile} || #agent_auth{login = Agent, profile = Profile} <- AgentRecs],
 	dets:open_file(?DETS, []),
-	Mets = ets:new(cached_media, [named_table, public, {keypos, 2}]),
-	Aets = ets:new(cached_agent, [named_table, public, {keypos, 2}]),
-	Sts = ets:new(stats_cache, [named_table, public]),
-
+	ets:new(cached_media, [named_table, public, {keypos, 2}]),
+	ets:new(cached_agent, [named_table, public, {keypos, 2}]),
+	ets:new(stats_cache, [named_table, public]),
+	qlc:e(qlc:q([
+		begin
+			update_queue_stats(null, Row),
+			update_client_stats(null, Row),
+			ets:insert(cached_media, Row)
+		end || Row <- dets:table(?DETS)])),
 	cpx_monitor:subscribe(Subtest),
 	{ok, Timer} = timer:send_after(Interval, write_output),
 	?DEBUG("started", []),
@@ -495,6 +500,10 @@ update_queue_stats(null, #cached_media{state = queue} = New) ->
 	ets:insert(stats_cache, {{queue, Newqueue}, Newstats});
 update_queue_stats(null, _) ->
 	?slug(),
+	ok;
+update_queue_stats(_, _) ->
+	?slug(),
+	% anything else we ignore.
 	ok.
 
 update_media_stats(null, #cached_media{direction = inbound, state = ivr} = New, Oldstats) when is_record(New, cached_media) ->
@@ -546,7 +555,9 @@ update_media_stats(Old, New, Oldstats) when is_record(New, cached_media) ->
 		{_, queue} ->
 			Oldstats#media_stats{
 				inqueue = Oldstats#media_stats.inqueue + 1
-			}
+			};
+		{_, _} ->
+			Oldstats
 	end;
 update_media_stats(Old, null, Oldstats) when is_record(Old, cached_media) ->
 	?slug(),
@@ -713,6 +724,8 @@ transform_event({drop, {media, Id}}, [#cached_media{state = OldState, statedata 
 			{ivrabandoned, OldRec#cached_media.history ++ [{util:now(), ended, ivrabandoned}]};
 		{queue, inprogress} ->
 			{queueabandoned, OldRec#cached_media.history ++ [{util:now(), ended, queueabandoned}]};
+		{ended, _} ->
+			{OldRec#cached_media.statedata, OldRec#cached_media.history};
 		{_, handled} ->
 			{handled, OldRec#cached_media.history ++ [{util:now(), ended, handled}]}
 	end,

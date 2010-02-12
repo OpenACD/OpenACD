@@ -56,18 +56,32 @@ function drawCalls(response) {
 			c1 = row.insertCell(3);
 			var longest = dojo.filter(client.medias, function(obj) { 
 				var fullm = response.rawData[obj];
-				return (fullm.state == 'queued' || fullm.state == 'ivr');
+				return (fullm.state == 'queue' || fullm.state == 'ivr');
 			});
-			if (longest.length === 0) {
-				var filtered = dojo.filter(client.medias, function(obj) { return !obj.queued && !!obj.ivr; });
+			/*if (longest.length === 0) {
+				var filtered = dojo.filter(client.medias, function(obj) { 
+					var fullm = response.rawData[obj];
+					return fullm.state == 'queue' || fullm.state == 'ivr'; 
+				});
 				if(filtered.length > 0){
 					longest = filtered[0].ivr;
 				} else {
 					longest = Math.floor(new Date().getTime() / 1000);
 				}
 			} else {
+				
 			longest = longest[0].queued;
+			}*/
+			var now = Math.floor(new Date().getTime() / 1000);
+			var eldest = now;
+			for(var i = 0; i < longest.length; i++){
+				var fullm = response.rawData[longest[i]];
+				var lastHistory = fullm.history.length - 1;
+				if(fullm.history[lastHistory].timestamp < eldest){
+					eldest = fullm.history[lastHistory].timestamp;
+				}
 			}
+			longest = eldest;
 			c1.innerHTML = timeSince(longest);
 			rownum++;
 			}

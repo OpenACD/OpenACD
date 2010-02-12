@@ -250,6 +250,10 @@ init(Options) ->
 			ets:insert(cached_media, Row)
 		end || Row <- dets:table(?DETS)])),
 	cpx_monitor:subscribe(Subtest),
+	{ok, Amons} = cpx_monitor:get_health(agent),
+	{ok, MMons} = cpx_monitor:get_health(media),
+	Cpxstuff = Amons ++ MMons,
+	[handle_info({cpx_monitor_event, {set, {Key, Hp, Details, util:now()}}}, #state{queue_group_cache = QueueRecsCache, agent_profile_cache = AgentProfsCache}) || {Key, Hp, Details} <- Cpxstuff],
 	{ok, Timer} = timer:send_after(Interval, write_output),
 	?DEBUG("started", []),
 	{ok, #state{
@@ -302,7 +306,7 @@ handle_info(prune_dets, #state{pruning_pid = undefined} = State) ->
 handle_info(prune_dets, State) ->
 	?WARNING("A prune is already running.", []),
 	{noreply, State};
-handle_info({cpx_monitor_event, Event}, #state{filters = Filters} = State) ->
+handle_info({cpx_monitor_event, Event}, State) ->
 	case cache_event(Event, State#state.queue_group_cache, State#state.agent_profile_cache) of
 		nochange ->
 			{noreply, State};

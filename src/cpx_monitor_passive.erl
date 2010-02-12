@@ -881,7 +881,8 @@ write_output(Interval, QueueCache, AgentCache) ->
 		{clients, Clients},
 		{queues, Queues},
 		{<<"agentProfiles">>, Agents},
-		{<<"rawData">>, Raws}
+		{<<"rawData">>, Raws},
+		{<<"ivrAlerts">>, get_ivr_alerts()}
 	]},
 	{ok, File} = file:open("www/dynamic/all.json", [write, binary]),
 	file:write(File, mochijson2:encode(Json)).
@@ -931,6 +932,10 @@ get_agents_json(Pname, Stats) ->
 get_medias_json() ->
 	Props = qlc:e(qlc:q([{list_to_binary(Id), Json} || #cached_media{id = Id, json = Json} <- ets:table(cached_media)])),
 	{struct, Props}.
+
+get_ivr_alerts() ->
+	Clients = [call_queue_config:get_client(id, lists:nth(1, util:string_split(N, "/", 2))) || N <- filelib:wildcard("*/problem.wav", "/tmp")],
+	[list_to_binary(Client#client.label) || Client <- Clients].
 
 -ifdef(TEST).
 

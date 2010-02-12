@@ -51,6 +51,8 @@
 -define(DETS, passive_cache).
 -endif.
 
+-define(slug(), ?DEBUG("slug", [])).
+
 -type(xml_output() :: {xmlfile, string()}).
 -type(queues() :: {queues, [string()]}).
 -type(queue_groups() :: {queue_groups, [string()]}).
@@ -78,13 +80,10 @@
 -type(start_options() :: [start_option()]).
 
 %% Dets data types
--type(dets_key() :: {'media' | 'agent', string()}).
 -type(timestamp() :: integer()).
 %-type(health_data() :: [{atom(), any()}]).
 %-type(details() :: [{any(), any()}]).
 -type(historical_event() :: 'ivr' | 'queued' | 'handled' | 'ended').
--type(time_list() :: [{historical_event(), pos_integer()}]).
--type(historical_key() :: {'inbound', time_list()} | {'outbound', time_list()} | 'undefined').
 %-type(historical_tuple() :: {dets_key(), time(), health_data(), details(), historical_key()}).
 
 %% API
@@ -101,10 +100,14 @@
 	 terminate/2, code_change/3]).
 
 -record(filter_state, {
-	state = [] :: [{dets_key(), {timestamp(), historical_key()}}],
-	agent_profiles = [] :: [{string(), [string()]}],
-	queue_groups = [] :: [{string(), [string()]}],
-	clients = [] :: [{string(), [any()]}]
+	inbound = 0 :: non_neg_integer(),
+	outbound = 0 :: non_neg_integer(),
+	abandoned = 0 :: non_neg_integer(),
+	agents = 0 :: non_neg_integer(),
+	available = 0 :: non_neg_integer(),
+	incall = 0 :: non_neg_integer(),
+	released = 0 :: non_neg_integer(),
+	wrapup = 0 :: non_neg_integer()
 }).
 
 -record(filter, {
@@ -120,17 +123,62 @@
 	state = #filter_state{} :: #filter_state{}
 }).
 
+-type(agent_login() :: string()).
+-type(agent_profile() :: string()).
+-type(queue_name() :: string()).
+-type(queue_group() :: string()).
+
+-record(cached_media, {
+	id :: string(),
+	client_id :: string(),
+	client_label :: string(),
+	direction :: 'inbound' | 'outbound',
+	state :: 'ivr' | 'queue' | 'agent' | 'ended',
+	statedata :: {queue_group(), queue_name()} | {agent_profile(), agent_login()} | 'null',
+	endstate = inprogress :: 'ivrabandoned' | 'queueabandoned' | 'handled' | 'inprogress',
+	time = 0 :: non_neg_integer(),
+	history = [] :: [{timestamp(), historical_event(), any()}],
+	json :: any()
+}).
+
+-record(cached_agent, {
+	id :: string(),
+	login :: string(),
+	profile :: string(),
+	state :: atom(),
+	statedata :: any(),
+	time :: non_neg_integer(),
+	json :: any()
+}).
+
+-record(media_stats, {
+	inbound = 0,
+	outbound = 0,
+	inivr = 0,
+	inqueue = 0,
+	abandoned = 0,
+	oldest = null :: 'null' | {string(), non_neg_integer()}
+}).
+
+-record(agent_stats, {
+	total = 0,
+	available = 0,
+	oncall = 0,
+	released = 0,
+	wrapup = 0
+}).
+
 -record(state, {
+	agent_cache :: any(), % ets tid
+	media_cache :: any(), % ets tid
 	filters = [] :: [{string(), #filter{}}],
 	interval = ?WRITE_INTERVAL :: pos_integer(),
-	%agent_cache = [],
-	%media_cache = [],
 	timer :: any(),
-	write_pids = [] :: [{pid(), string()}],
+	write_pids = undefined :: [{pid(), string()}],
 	pruning_pid :: 'undefined' | pid(),
 	queue_group_cache = [] :: [{string(), string()}], %% [{queue_name, group_queue_is_in}]
 	agent_profile_cache = [] :: [{string(), string()}] %% [{agent_name, agent_profile}]
-}).
+}).	
 
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
@@ -184,22 +232,7 @@ init(Options) ->
 		end
 	end,
 	Interval = proplists:get_value(write_interval, Options, ?WRITE_INTERVAL) * 1000,
-	Torec = fun({Name, Props}) ->
-		Fileout = lists:append([proplists:get_value(file_output, Props, "."), "/", Name]),
-		Filter = #filter{
-			file_output = lists:append([Fileout, ".", atom_to_list(json)]),
-			max_age = proplists:get_value(max_age, Props, max),
-			queues = proplists:get_value(queues, Props, all),
-			queue_groups = proplists:get_value(queue_groups, Props, all),
-			agents = proplists:get_value(agents, Props, all),
-			agent_profiles = proplists:get_value(agent_profiles, Props, all),
-			clients = proplists:get_value(clients, Props, all),
-			nodes = proplists:get_value(nodes, Props, all),
-			output_as = json
-		},
-		{Name, Filter}
-	end,
-	Filters = lists:map(Torec, proplists:get_value(outputs, Options, [{"default", []}])),
+
 	%% caching the queue groups
 	QueueRecs = call_queue_config:get_queues(),
 	QueueRecsCache = [{Queue, Group} || #call_queue{name = Queue, group = Group} <- QueueRecs],
@@ -207,29 +240,15 @@ init(Options) ->
 	AgentRecs = agent_auth:get_agents(),
 	AgentProfsCache = [{Agent, Profile} || #agent_auth{login = Agent, profile = Profile} <- AgentRecs],
 	dets:open_file(?DETS, []),
-	ets:new(cpx_passive_ets, [named_table, public]),
-	ets:new(?DETS, [named_table, public]),
-	qlc:e(qlc:q([begin
-		ets:insert(cpx_passive_ets, {Id, media_to_json(Row)}),
-		ets:insert(?DETS, Row)
-	end || {{Type, Id}, _, _, _, _} = Row <- dets:table(?DETS), Type == media])),
-	{ok, Agents} = cpx_monitor:get_health(agent),
-	{ok, Medias} = cpx_monitor:get_health(media),
+	Mets = ets:new(cached_media, [named_table, public, {keypos, 2}]),
+	Aets = ets:new(cached_agent, [named_table, public, {keypos, 2}]),
+	Sts = ets:new(stats_cache, [named_table, public]),
+
 	cpx_monitor:subscribe(Subtest),
-	lists:foreach(fun({K, H, D}) -> cache_event({set, {K, H, D, util:now()}}) end, lists:append(Agents, Medias)),
-	%Agentcache = sort_agents(Agents),
-	%Mediacache = create_queued_clients(Medias),
-	case proplists:get_value(prune_dets, Options, true) of
-		true ->
-			prune_dets_medias(),
-			prune_dets_agents();
-		false ->
-			ok
-	end,
 	{ok, Timer} = timer:send_after(Interval, write_output),
 	?DEBUG("started", []),
 	{ok, #state{
-		filters = Filters,
+		filters = undefined,
 		interval = Interval,
 		timer = Timer,
 		queue_group_cache = QueueRecsCache,
@@ -254,41 +273,48 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(write_output, #state{filters = Filters, write_pids = Writers, queue_group_cache = QueueCache, agent_profile_cache = AgentCache} = State) when length(Writers) == 0 ->
-	%?DEBUG("Writing output.", []),
-	Qh = qlc:q([Key || 
-		{Key, Time, _Hp, _Details, {_Direction, History}} <- ets:table(?DETS), 
-		util:now() - Time > 86400,
-		proplists:get_value(ended, History) =/= undefined
-	]),
-	Keys = qlc:e(Qh),
-	lists:foreach(fun(K) -> dets:delete(?DETS, K), ets:delete(?DETS, K) end, Keys),
-	[ets:delete(cpx_passive_ets, Id) || {Type, Id} <- Keys, Type == media],
-	WritePids = lists:map(fun({Nom, _F} = Filter) ->
-		Pid = spawn_link(?MODULE, write_output, [Filter, State#state.interval, QueueCache, AgentCache]),
-		{Pid, Nom}
-	end, Filters),
+handle_info(write_output, #state{filters = Filters, write_pids = undefined, queue_group_cache = QueueCache, agent_profile_cache = AgentCache} = State) ->
+	qlc:e(qlc:q([
+		begin
+			ets:delete(cached_media, Id),
+			dets:delete(?DETS, Id)
+		end || 
+		#cached_media{id = Id} = M <- ets:table(cached_media),
+		util:now() - M#cached_media.time > 86400,
+		M#cached_media.state == ended
+	])),
 	%?DEBUG("das pids:  ~p", [WritePids]),
 	Timer = erlang:send_after(State#state.interval, self(), write_output),
-	{noreply, State#state{timer = Timer, write_pids = WritePids}};
+	{noreply, State#state{timer = Timer, write_pids = undefined}};
 handle_info(write_output, State) ->
 	?WARNING("Write output request with an outstanding write:  ~p", [State#state.write_pids]),
 	Timer = erlang:send_after(State#state.interval, self(), write_output),
 	{noreply, State#state{timer = Timer}};
 handle_info(prune_dets, #state{pruning_pid = undefined} = State) ->
-	Fun = fun() ->
-		prune_dets_medias(),
-		prune_dets_agents()
-	end,
-	Pid = spawn_link(Fun),
-	{noreply, State#state{pruning_pid = Pid}};
+	{noreply, State#state{pruning_pid = undefined}};
 handle_info(prune_dets, State) ->
 	?WARNING("A prune is already running.", []),
 	{noreply, State};
 handle_info({cpx_monitor_event, Event}, #state{filters = Filters} = State) ->
-	Row = cache_event(Event),
-	Newfilters = update_filter_states(Row, Filters),
-	{noreply, State#state{filters = Newfilters}};
+	case cache_event(Event, State#state.queue_group_cache, State#state.agent_profile_cache) of
+		nochange ->
+			{noreply, State};
+		{Old, New} ->
+			Update = case Event of
+				{drop, {T, _}} ->
+					T;
+				{set, {{T, _}, _, _, _}} ->
+					T
+			end,
+			case Update of
+				media ->
+					update_queue_stats(Old, New),
+					update_client_stats(Old, New);
+				agent ->
+					update_agent_profiles(Old, New)
+			end,
+			{noreply, State}
+	end;
 handle_info({'EXIT', Pid, Reason}, #state{pruning_pid = Pid} = State) ->
 	case Reason of
 		normal ->
@@ -334,769 +360,472 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-cache_event({drop, {media, Id} = Key}) ->
-	Row = case ets:lookup(?DETS, Key) of
-		[{Key, Time, Hp, Details, {inbound, History}}] ->
-			Newhistory = History ++ [{ended, util:now()}],
-			Newrow = {Key, Time, Hp, Details, {inbound, Newhistory}},
-			ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
-			ets:insert(?DETS, Newrow),
-			dets:insert(?DETS, Newrow),
-			Newrow;
-		_Else ->
-			{Key, none}
-	end,
-	Row;
-cache_event({drop, {agent, _Id} = Key}) ->
-	ets:delete(?DETS, Key),
-	dets:delete(?DETS, Key),
-	{Key, none};
-cache_event({set, {{media, Id} = Key, EventHp, EventDetails, EventTime}}) ->
-	case ets:lookup(?DETS, Key) of
-		[{Key, Time, _Hp, Details, {Direction, History}}] ->
-			case {proplists:get_value(queue, EventDetails), proplists:get_value(agent, EventDetails), History} of
-				{undefined, undefined, []} ->
-					% just update the hp and details.
-					Newrow = {Key, Time, EventHp, EventDetails, {Direction, [{ivr, EventTime}]}},
-					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
-					ets:insert(?DETS, Newrow),
-					dets:insert(?DETS, Newrow),
-					Newrow;
-				{undefined, undefined, _List} ->
-					% either death in ivr or queue, can be figured out later.
-					% let the drop handle the ended time.
-					Newrow = {Key, Time, EventHp, EventDetails, {Direction, History}},
-					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
-					ets:insert(?DETS, Newrow),
-					dets:insert(?DETS, Newrow),
-					Newrow;
-				{undefined, _Agent, List} ->
-					% TODO And if a new agent handles it?
-					Newrow = case proplists:get_value(handled, List) of
-						undefined ->
-							{Key, Time, EventHp, EventDetails, {Direction, History ++ [{handled, EventTime}]}};
-						_ ->
-							{Key, Time, EventHp, EventDetails, {Direction, History}}
-					end,
-					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
-					ets:insert(?DETS, Newrow),
-					dets:insert(?DETS, Newrow),
-					Newrow;
-				{Queue, undefined, Hlist} ->
-					Newrow = case {proplists:get_value(queue, Details), lists:reverse(Hlist)} of
-						{Queue, [{queued, _T} | Priorhistory]} ->
-							{timestamp, Queuedat} = proplists:get_value(queued_at, EventDetails),
-							Fixedhist = lists:reverse([{queued, Queuedat} | Priorhistory]),
-							{Key, Time, EventHp, EventDetails, {Direction, Fixedhist}};
-						{undefined, _} ->
-							{Key, Time, EventHp, EventDetails, {Direction, Hlist ++ [{queued, EventTime}]}};
-						{_Oldqueue, _} ->
-							Queuedat = case proplists:get_value(queued_at, EventDetails) of
-								undefined ->
-									EventTime;
-								{timestamp, Etime} ->
-									Etime
-							end,
-							Fixedhist = Hlist ++ [{queued, Queuedat}],
-							{Key, Time, EventHp, EventDetails, {Direction, Fixedhist}}
-					end,
-					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
-					ets:insert(?DETS, Newrow),
-					dets:insert(?DETS, Newrow),
-					Newrow;
-				{Queue, Agent, _} when Queue =/= undefined, Agent =/= undefined ->
-					?WARNING("both agent and queue defined, ignoring (~p)", [Key]),
-					none
-			end;
-		[{Key, Time, _Hp, _Details, History}] ->
-			% either undefined or outbound history, blind update.
-			Newrow = {Key, Time, EventHp, EventDetails, History},
-			ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
-			ets:insert(?DETS, Newrow),
-			dets:insert(?DETS, Newrow),
-			Newrow;
+cache_event({set, {{media, Id}, _, _, _}} = Event, QueueCache, AgentCache) ->
+	Old = ets:lookup(cached_media, Id),
+	New = transform_event(Event, Old, QueueCache, AgentCache),
+	dets:insert(?DETS, New),
+	Fixedold = case Old of [] -> null; _ -> Old end,
+	{Fixedold, New};
+cache_event({drop, {media, Id}} = Event, QueueCache, AgentCache) ->
+	case ets:lookup(cached_media, Id) of
 		[] ->
-			case {proplists:get_value(queue, EventDetails), proplists:get_value(direction, EventDetails)} of
-				{undefined, outbound} ->
-					Newrow = {Key, EventTime, EventHp, EventDetails, {outbound, [{handled, EventTime}]}},
-					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
-					ets:insert(?DETS, Newrow),
-					dets:insert(?DETS, Newrow),
-					Newrow;
-				{undefined, inbound} ->
-					?INFO("Didn't find queue, but still inbound.  Assuming it's in ivr call:  ~p", [Key]),
-					Newrow = {Key, EventTime, EventHp, EventDetails, {inbound, [{ivr, EventTime}]}},
-					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
-					ets:insert(?DETS, Newrow),
-					dets:insert(?DETS, Newrow),
-					Newrow;
-				{_Queue, inbound} ->
-					% guess it went right to queue.  /shrug.
-					Qtime = case proplists:get_value(queued_at, EventDetails) of
-						undefined ->
-							EventTime;
-						{timestamp, T} ->
-							T
-					end,
-					Newrow = {Key, EventTime, EventHp, EventDetails, {inbound, [{queued, Qtime}]}},
-					ets:insert(cpx_passive_ets, {Id, media_to_json(Newrow)}),
-					ets:insert(?DETS, Newrow),
-					dets:insert(?DETS, Newrow),
-					Newrow
-			end
+			nochange;
+		[Realold] = Old ->
+			New = transform_event(Event, Old, QueueCache, AgentCache),
+			dets:insert(?DETS, New),
+			{Realold, New}
 	end;
-cache_event({set, {{agent, _Id} = Key, EventHp, EventDetails, EventTime}}) ->
-	case ets:lookup(?DETS, Key) of
+cache_event({drop, {agent, Id}}, _QueueCache, _AgentCache) ->
+	case ets:lookup(cached_agent, Id) of
 		[] ->
-			Row = {Key, EventTime, EventHp, EventDetails, undefined},
-			ets:insert(?DETS, Row),
-			dets:insert(?DETS, Row),
-			Row;
-		[{Key, Time, Hp, Details, undefined}] ->
-			Row = {Key, Time, EventHp, EventDetails, undefined},
-			ets:insert(?DETS, Row),
-			dets:insert(?DETS, Row),
+			nochange;
+		[Rold] = Old ->
+			ets:delete(cached_agent, Id),
+			{Rold, null}
+	end;
+cache_event({set, {{agent, Id}, _, _, _}} = Event, QueueCache, AgentCache) ->
+	New = transform_event(Event, [], QueueCache, AgentCache),
+	Old = case ets:lookup(cached_agent, Id) of
+		[] ->
+			null;
+		[Row] ->
 			Row
-	end.
-
-prune_dets_medias() ->
-	Qh = qlc:q([X || X <- dets:table(?DETS),
-		element(1, element(1, X)) == media
-	]),
-	List = qlc:e(Qh),
-	Checker = fun({{media, Id}, Time, _Hp, Details, {Direction, History}} = Row) ->
-		Age = util:now() - Time,
-		Day = 24 * 60 * 60,
-		Manager = case proplists:get_value(type, Details) of
-			email ->
-				email_media_manager;
-			voice ->
-				freeswitch_media_manager;
-			voicemail ->
-				freeswitch_media_manager;
-			_ ->
-				dummy_media_manager
-		end,
-		case whereis(Manager) of
-			undefined ->
-				Newhistory = History ++ [{ended, util:now()}],
-				Newrow = setelement(5, Row, {Direction, Newhistory}),
-				ets:insert(?DETS, Newrow),
-				dets:insert(?DETS, Newrow);
-			_Mpid ->
-				case {Manager:get_media(Id), Age > Day} of
-					{none, true} ->
-						ets:delete(cpx_passive_ets, Id),
-						ets:delete(?DETS, {media, Id}),
-						dets:delete_object(?DETS, Row);
-					{none, false} ->
-						Newhistory = History ++ [{ended, util:now()}],
-						Newrow = setelement(5, Row, {Direction, Newhistory}),
-						ets:insert(?DETS, Newrow),
-						dets:insert(?DETS, Newrow);
-					_ ->
-						ok
-				end
-		end
 	end,
-	lists:foreach(Checker, List).
+	ets:insert(cached_agent, New),
+	{Old, New}.
 
-prune_dets_agents() ->
-	Qh = qlc:q([ X || X <- dets:table(?DETS),
-		element(1, element(1, X)) == agent
-	]),
-	List = qlc:e(Qh),
-	Checker = fun(Row) ->
-		Details = element(4, Row),
-		Login = proplists:get_value(login, Details),
-		case agent_manager:query_agent(Login) of
-			false ->
-				ets:delete(?DETS, {agent, Login}),
-				dets:delete_object(?DETS, Row);
-			{true, _} ->
-				ok
-		end
-	end,
-	lists:foreach(Checker, List).
-
-get_clients(Filter, QueueCache, AgentCache) ->
-	QH = qlc:q([proplists:get_value(client, Details) || 
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- ets:table(?DETS), 
-		Type == media, 
-		filter_row(Filter, Row, QueueCache, AgentCache)
-	]),
-	{_, Out} = lists:foldl(fun(I, {TestAcc, TrueAcc}) -> 
-		case lists:member(I#client.id, TestAcc) of
-			false ->
-				{[I#client.id | TestAcc], [I | TrueAcc]};
-			true ->
-				{TestAcc, TrueAcc}
-		end
-	end, {[], []}, qlc:e(QH)),
-	Out.
-
-get_queue_groups(Filter, QueueCache, AgentCache) ->
-	QH = qlc:q([proplists:get_value(queue, Details) || 
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- ets:table(?DETS),
-		Type == media,
-		filter_row(Filter, Row, QueueCache, AgentCache),
-		proplists:get_value(queue, Details) =/= undefined
-	]),
-	Dupped = qlc:e(QH),
-	{Groups, _} = lists:foldl(fun(I, {Acc, Queues}) ->
-		case lists:member(I, Queues) of
-			true ->
-				{Acc, Queues};
-			false ->
-				Group = case proplists:get_value(I, QueueCache) of
-					undefined ->
-						"Default"; %% TODO do a proper caching
-					Else ->
-						Else
-				end,
-				case lists:member(Group, Acc) of
-					true ->
-						{Acc, Queues};
-					false ->
-						{[Group | Acc], [I | Queues]}
-				end
-		end
-	end,
-	{[], []},
-	Dupped),
-	Groups.
-
-get_agent_profiles(Filter, QueueCache, AgentCache) ->
-	QH = qlc:q([proplists:get_value(profile, Details) ||
-		{{Type, _Id}, _Time, _Hp, Details, _Historyf} = Row <- ets:table(?DETS),
-		Type == agent,
-		filter_row(Filter, Row, QueueCache, AgentCache),
-		proplists:get_value(profile, Details) =/= undefined
-	]),
-	Dupped = qlc:e(QH),
-	lists:foldl(fun(I, Acc) ->
-		case lists:member(I, Acc) of
-			true ->
-				Acc;
-			false ->
-				[I | Acc]
-		end
-	end,
-	[], Dupped).
-
-get_agents(Filter, Profile, QueueCache, AgentCache) ->
-	QH = qlc:q([Row ||
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- ets:table(?DETS),
-		Type == agent,
-		filter_row(Filter, Row, QueueCache, AgentCache),
-		proplists:get_value(profile, Details) == Profile
-	]),
-	qlc:e(QH).
-
-get_queues(Filter, Group, QueueCache, AgentCache) ->
-	QH = qlc:q([proplists:get_value(queue, Details) || 
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- ets:table(?DETS),
-		Type == media,
-		filter_row(Filter, Row, QueueCache, AgentCache),
-		begin 
-			Q = proplists:get_value(queue, Details),
-			proplists:get_value(Q, QueueCache) =:= Group
-		end
-	]),
-	Dupped = qlc:e(QH),
-	lists:foldl(fun(I, Acc) ->
-		case lists:member(I, Acc) of
-			true ->
-				Acc;
-			false ->
-				[I | Acc]
-		end
-	end,
-	[], Dupped).
-
-get_queued_medias(Filter, Queue, QueueCache, AgentCache) ->
-	QH = qlc:q([Row || 
-		{{Type, _Id}, _Time, _Hp, Details, _History} = Row <- ets:table(?DETS),
-		Type == media,
-		filter_row(Filter, Row, QueueCache, AgentCache),
-		proplists:get_value(queue, Details) == Queue
-	]),
-	sort_medias(qlc:e(QH)).
-
-get_client_medias(Filter, Client, QueueCache, AgentCache) ->
-	QH = qlc:q([Row ||
-		{{Type, _Id}, _Time, _Hp, Details, History} = Row <- ets:table(?DETS),
-		Type == media,
-		filter_row(Filter, Row, QueueCache, AgentCache),
-		begin Testc = proplists:get_value(client, Details), Testc#client.label == Client end,
-		proplists:get_value(agent, Details) == undefined,
-		case History of
-			{outbound, _} ->
-				false;
-			{_Direction, HistoryList} ->
-				proplists:get_value(ended, HistoryList) == undefined;
-			_Else ->
-				true
-		end
-	]),
-	sort_medias(qlc:e(QH)).
-
-sort_medias(Medias) ->
-	Sort = fun({_, _, _, Adetails, _}, {_, _, _, Bdetails, _}) ->
-		case {proplists:get_value(priority, Adetails, 40), proplists:get_value(priority, Bdetails, 40)} of
-			{P, P} ->
-				proplists:get_value(queued, Adetails, util:now()) < proplists:get_value(queued, Bdetails, util:now());
-			{A, B} ->
-				A < B
-		end
-	end,
-	lists:sort(Sort, Medias).
-
-sort_clients(Clients, Filter, QueueCache, AgentCache) ->
-	Clients;
-sort_clients(Clients, Filter, QueueCache, AgentCache) ->
-	Sort = fun(ClientA, ClientB) ->
-		case {get_client_medias(Filter, ClientA, QueueCache, AgentCache), get_client_medias(Filter, ClientB, QueueCache, AgentCache)} of
-			{[], _} ->
-				false;
-			{_AMedias, []} -> 
-				true;
-			{[AMedia | _], [BMedia | _]} ->
-				case sort_medias([AMedia, BMedia]) of
-					[AMedia, BMedia] ->
-						true;
-					_ ->
-					 false
-				end
-		end
-	end,
-	lists:sort(Sort, Clients).
-	
-update_filter_states(none, Filters) ->
-	Filters;
-update_filter_states({{media, _}, none}, Filters) ->
-	Filters;
-update_filter_states({{agent, _}, none}, Filters) ->
-	Filters;
-update_filter_states({{agent, _}, _, _, _, _}, Filters) ->
-	Filters;
-update_filter_states(Row, Filters) ->
-	update_filter_states(Row, Filters, []).
-
-update_filter_states(_Row, [], Acc) ->
-	lists:reverse(Acc);
-update_filter_states({{media, Id}, Time, _Hp, _Details, Histroy} = Row, [{Nom, #filter{state = State} = Filter} | Tail], Acc) ->
-	Midstatistics = proplists_replace(Id, {Time, Histroy}, State#filter_state.state),
-	Newstatistics = lists:filter(fun({_, {T, _}}) -> T > util:now() - 86400 end, Midstatistics),
-	Newstate = State#filter_state{state = Newstatistics},
-	update_filter_states(Row, Tail, [{Nom, Filter#filter{state = Newstate}} | Acc]).				
-
-%% @doc If the row passes through the filter, return true.
-filter_row(_, _, _, _) ->
-	true;
-filter_row(#filter{max_age = Seconds} = Filter, Row, QueueCache, AgentCache) when is_integer(Seconds) ->
-	Now = util:now(),
-	case (Now - Seconds) > element(2, Row) of
-		true ->
-			false;
-		false ->
-			filter_row(Filter#filter{max_age = max}, Row, QueueCache, AgentCache)
-	end;
-filter_row(#filter{max_age = {since, Seconds}} = Filter, Row, QueueCache, AgentCache) ->
-	{_Date, {Hour, Min, Sec}} = erlang:localtime(),
-	Diff = Sec + (Min * 60) + (Hour * 60 * 60) - Seconds,
-	filter_row(Filter#filter{max_age = Diff}, Row, QueueCache, AgentCache);
-filter_row(#filter{queues = all, queue_groups = all, agents = all, agent_profiles = all, clients = all, nodes = all}, _Row, _QueueCache, _AgentCache) ->
-	true;
-filter_row(Filter, {{media, _Id} = Key, Time, Hp, Details, {_Direction, History}}, QueueCache, AgentCache) ->
-	Queued = proplists:get_value(queued, History),
-	Qabandoned = proplists:get_value(qabandoned, History),
-	Handled = proplists:get_value(handled, History),
-	case {Queued, Qabandoned, Handled} of
-		{undefined, undefined, undefined} ->
-			false;
-		{_, _, undefined} ->
-			filter_row(Filter, {Key, Time, Hp, Details, queued}, QueueCache, AgentCache);
-		{_, _, _} ->
-			filter_row(Filter, {Key, Time, Hp, Details, handled}, QueueCache, AgentCache)
-	end;
-filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, handled}, QueueCache, AgentCache) ->
-	#client{label = Client} = proplists:get_value(client, Details),
-	case list_member(Client, Filter#filter.clients) of
-		false ->
-			false;
-		true ->
-			Agent = proplists:get_value(agent, Details),
-			case list_member(Agent, Filter#filter.agents) of
-				false ->
-					false;
-				true ->
-					list_member(proplists:get_value(Agent, AgentCache), Filter#filter.agent_profiles)
-			end
-	end;
-filter_row(Filter, {{media, _Id}, _Time, _Hp, Details, queued}, QueueCache, AgentCache) ->
-	Node = proplists:get_value(node, Details),
-	case list_member(Node, Filter#filter.nodes) of
-		false ->
-			false;
-		true ->
-			#client{label = Client} = proplists:get_value(client, Details),
-			case list_member(Client, Filter#filter.clients) of
-				false ->
-					false;
-				true ->
-					Queue = proplists:get_value(queue, Details),
-					case {list_member(Queue, Filter#filter.queues), Filter#filter.queue_groups} of
-						{false, _} ->
-							false;
-						{true, all} ->
-							true;
-						{true, List} ->
-							list_member(proplists:get_value(Queue, QueueCache), List)
-					end
-			end
-	end;
-filter_row(_Filter, {{media, _Id}, _Time, _Hp, _Details, _History}, _QueueCache, _AgentCache) ->
-	false;
-filter_row(Filter, {{agent, Agent}, _Time, _Hp, Details, _History}, _QueueCache, AgentCache) ->
-	Node = proplists:get_value(node, Details),
-	case list_member(Node, Filter#filter.nodes) of
-		false ->
-			false;
-		true ->
-			case list_member(Agent, Filter#filter.agents) of
-				false ->
-					false;
-				true ->
-					list_member(proplists:get_value(Agent, AgentCache), Filter#filter.agent_profiles)
-			end
-	end.
-
--spec(write_output/4 :: ({Nom :: string(), Filter :: #filter{}}, Interval :: pos_integer(), QueueCache :: [any()], AgentCache :: [any()]) -> 'ok').
-write_output({_Nom, #filter{state = FilterState, file_output = Fileout} = Filter}, Interval, QueueCache, AgentCache) ->
-	Now = util:now(),
-	Hourago = Now - 3600,
-	%Dayago = Now - 3600 * 24,
-	Inbound = [X || 
-		{_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, 
-		element(1, Hkey) == inbound
-	],
-	Outbound = [X || 
-		{_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, 
-		element(1, Hkey) == outbound
-	],
-	Abandoned = [X || 
-		{_Key, {_Time, Hkey}} = X <- FilterState#filter_state.state, 
-		element(1, Hkey) == inbound, 
-		is_abandon(element(2, Hkey))
-	],
-	HourInbound = [X || 
-		{_Key, {Time, Hkey}} = X <- FilterState#filter_state.state, 
-		element(1, Hkey) == inbound, 
-		Time > Hourago
-	],
-	HourOutbound = [X || {_Key, {Time, Hkey}} = X <- FilterState#filter_state.state, element(1, Hkey) == outbound, Time > Hourago],
-	HourAbn = [X || 
-		{_Key, {Time, Hkey}} = X <- FilterState#filter_state.state, 
-		element(1, Hkey) == inbound, 
-		is_abandon(element(2, Hkey)),
-		Time > Hourago
-	],
-	PresortClients = get_clients(Filter, QueueCache, AgentCache),
-	Clients = sort_clients(PresortClients, Filter, QueueCache, AgentCache),
-	ClientsJson = clients_to_json(Clients, Filter, QueueCache, AgentCache),
-	Queugroups = get_queue_groups(Filter, QueueCache, AgentCache),
-	QueuegroupJson = queuegroups_to_json(Queugroups, Filter, QueueCache, AgentCache),
-	AgentProfiles = get_agent_profiles(Filter, QueueCache, AgentCache),
-	AgentProfsJson = agentprofiles_to_json(AgentProfiles, Filter, QueueCache, AgentCache),
-	Rawdata = get_all_media(Filter, QueueCache, AgentCache),
-	Rawjson = medias_to_json(Rawdata),
-	Json = {struct, [
-		{<<"writeTime">>, util:now()},
-		{<<"writeInterval">>, Interval},
-		{<<"totals">>, {struct, [
-			{<<"inbound">>, length(Inbound)},
-			{<<"outbound">>, length(Outbound)},
-			{<<"abandoned">>, length(Abandoned)}
-		]}},
-		{<<"hour">>, {struct, [
-			{<<"inbound">>, length(HourInbound)},
-			{<<"outbound">>, length(HourOutbound)},
-			{<<"abandoned">>, length(HourAbn)}
-		]}},
-		{<<"clients_in_queues">>, ClientsJson},
-		{<<"queueGroups">>, QueuegroupJson},
-		{<<"agentProfiles">>, AgentProfsJson},
-		{<<"rawdata">>, Rawjson}
-	]},
-	Out = mochijson2:encode(Json),
-	{ok, File} = file:open(Fileout, [write, binary]),
-	O = file:write(File, Out),
-	O.
-
-get_all_media(Filter, QueueCache, AgentCache) ->
-	QH = qlc:q([Row || Row <- ets:table(?DETS), element(1, element(1, Row)) == media]),
-	List = qlc:e(QH),
-	get_all_media(Filter, List, [], QueueCache, AgentCache).
-
-get_all_media(_Filter, [], Acc, _QueueCache, _AgentCache) ->
-	lists:reverse(Acc);
-get_all_media(Filter, [Row | Tail], Acc, QueueCache, AgentCache) ->
-	case filter_row(Filter, Row, QueueCache, AgentCache) of
-		false ->
-			get_all_media(Filter, Tail, Acc, QueueCache, AgentCache);
-		true ->
-			get_all_media(Filter, Tail, [Row | Acc], QueueCache, AgentCache)
-	end.
-
-clients_to_json(Clients, Filter, QueueCache, AgentCache) ->
-	%util:timemark(clients_to_json),
-	clients_to_json(Clients, Filter, [], QueueCache, AgentCache).
-
-clients_to_json([], _Filter, Acc, QueueCache, AgentCache) ->
-	%util:timemark(clients_to_json),
-	lists:reverse(Acc);
-clients_to_json([Client | Tail], Filter, Acc, QueueCache, AgentCache) ->
-	Medias = get_client_medias(Filter, Client#client.label, QueueCache, AgentCache),
-	%{Oldest, TotalIn, TotalOut, TotalAbn} = analyze_medias(Medias), 
-	MediaJson = medias_to_json(Medias),
-	Label = case Client#client.label of
-		undefined ->
-			undefined;
-		Else ->
-			list_to_binary(Else)
-	end,
-	Json = {struct, [
-		{<<"label">>, Label},
-		%{<<"oldestAge">>, Oldest},
-		%{<<"totalInbound">>, TotalIn},
-		%{<<"totalOutbound">>, TotalOut},
-		%{<<"totalAbandoned">>, TotalAbn},
-		{<<"medias">>, MediaJson}
-	]},
-	clients_to_json(Tail, Filter, [Json | Acc], QueueCache, AgentCache).
-
-analyze_medias(Rows) ->
-	Time = util:now(),
-	analyze_medias(Rows, {Time, 0, 0, 0}).
-
-analyze_medias([], Stats) ->
-	Stats;
-analyze_medias([{{media, Id}, Time, _Hp, Details, {Direction, History}} | Tail], {CurTime, In, Out, Abn}) ->
-	Newtime = case Time < CurTime of
-		true ->
-			Time;
-		false ->
-			CurTime
-	end,
-	{Newin, Newout} = case Direction of
-		inbound ->
-			{In + 1, Out};
-		outbound ->
-			{In, Out + 1}
-	end,
-	{Newabn, DidAbandon} = case is_abandon(History) of
-		true ->
-			{Abn + 1, true};
-		false ->
-			{Abn, false}
-	end,
-	analyze_medias(Tail, {newtime, Newin, Newout, Newabn}).
-
-medias_to_json(Rows) ->
-	%util:timemark(medias_to_json),
-	medias_to_json(Rows, []).
-
-medias_to_json([], Acc) ->
-	%util:timemark(medias_to_json, "done"),
-	%util:timemark_clear(medias_to_json),
-	lists:reverse(Acc);
-medias_to_json([Head | Tail], Acc) ->
-	Id = element(2, element(1, Head)),
-	NewHead = case ets:lookup(cpx_passive_ets, Id) of
+update_client_stats(#cached_media{client_id = Id} = Old, #cached_media{client_id = Id} = New) ->
+	Oldstats = case ets:lookup(stats_cache, {client, Id}) of
 		[] ->
-			media_to_json(Head);
-		[{Id, Obj}] ->
-			Obj
+			#media_stats{};
+		[{{client, Id}, S}] ->
+			S
 	end,
-	medias_to_json(Tail, [NewHead | Acc]).
-
-media_to_json({{media, Id}, Time, _Hp, Details, {Direction, History}}) ->
-	{struct, lists:append([
-		{<<"id">>, list_to_binary(Id)},
-		{<<"time">>, Time},
-		{<<"brand">>, begin C = proplists:get_value(client, Details), case C#client.label of undefined -> undefined; _ -> list_to_binary(C#client.label) end end},
-		{<<"node">>, proplists:get_value(node, Details)},
-		{<<"type">>, proplists:get_value(type, Details)},
-		{<<"priority">>, proplists:get_value(priority, Details)},
-		{<<"direction">>, proplists:get_value(direction, Details)},
-		{<<"didAbandon">>, is_abandon(History)}
-	], History)}. % TODO currnet doesn't do requeueing right, but requires
-	% format change.
-
-queuegroups_to_json(Groups, Filter, QueueCache, AgentCache) ->
-	queuegroups_to_json(Groups, Filter, [], QueueCache, AgentCache).
-
-queuegroups_to_json([], _Filter, Acc, _QueueCache, _AgentCache) ->
-	lists:reverse(Acc);
-queuegroups_to_json([Group | Tail], Filter, Acc, QueueCache, AgentCache) ->
-	Queues = get_queues(Filter, Group, QueueCache, AgentCache),
-	QueuesJson = queues_to_json(Queues, Filter, QueueCache, AgentCache),
-	Json = {struct, [
-		{<<"name">>, list_to_binary(Group)},
-		{<<"queues">>, QueuesJson}
-	]},
-	queuegroups_to_json(Tail, Filter, [Json | Acc], QueueCache, AgentCache).
-
-queues_to_json(Queues, Filter, QueueCache, AgentCache) ->
-	queues_to_json(Queues, Filter, [], QueueCache, AgentCache).
-
-queues_to_json([], _Filter, Acc, _QueueCache, _AgentCache) ->
-	lists:reverse(Acc);
-queues_to_json([Queue | Tail], Filter, Acc, QueueCache, AgentCache) ->
-	Medias = get_queued_medias(Filter, Queue, QueueCache, AgentCache),
-	{Oldest, TotalIn, TotalOut, TotalAbn} = analyze_medias(Medias), 
-	MediaJson = medias_to_json(Medias),
-	Json = {struct, [
-		{<<"name">>, list_to_binary(Queue)},
-		{<<"oldestAge">>, Oldest},
-		{<<"totalInbound">>, TotalIn},
-		{<<"totalOutbound">>, TotalOut},
-		{<<"totalAbandoned">>, TotalAbn},
-		{<<"medias">>, MediaJson}
-	]},
-	queues_to_json(Tail, Filter, [Json | Acc], QueueCache, AgentCache).
-
-agentprofiles_to_json(Profiles, Filter, QueueCache, AgentCache) ->
-	agentprofiles_to_json(Profiles, Filter, [], QueueCache, AgentCache).
-
-agentprofiles_to_json([], _Filter, Acc, _QueueCache, _AgentCache) ->
-	lists:reverse(Acc);
-agentprofiles_to_json([Profile | Tail], Filter, Acc, QueueCache, AgentCache) ->
-	Agents = get_agents(Filter, Profile, QueueCache, AgentCache),
-	{Avail, Rel, Busy, AgentJson} = agents_to_json(Agents),
-	Json = {struct, [
-		{<<"name">>, list_to_binary(Profile)},
-		{<<"available">>, Avail},
-		{<<"released">>, Rel},
-		{<<"incall">>, Busy},
-		{<<"agents">>, AgentJson}
-	]},
-	agentprofiles_to_json(Tail, Filter, [Json | Acc], QueueCache, AgentCache).
-
-agents_to_json(Rows) ->
-	agents_to_json(Rows, {0, 0, 0}, []).
-
-agents_to_json([], {Avail, Rel, Busy}, Acc) ->
-	{Avail, Rel, Busy, lists:reverse(Acc)};
-agents_to_json([{{agent, Id}, Time, _Hp, Details, _HistoryKey} | Tail], {Avail, Rel, Busy}, Acc) ->
-	{Newcounts, State, Statedata} = case {proplists:get_value(state, Details), proplists:get_value(statedata, Details)} of
-		{idle, {}} ->
-			{{Avail + 1, Rel, Busy}, idle, false};
-		{released, {RelId, default, Bias}} ->
-			Data = {struct, [
-				{<<"id">>, list_to_binary(RelId)},
-				{<<"label">>, default},
-				{<<"bias">>, Bias}
-			]},
-			{{Avail, Rel + 1, Busy}, released, Data};
-		{released, {RelId, Label, Bias}} ->
-			Data = {struct, [
-				{<<"id">>, list_to_binary(RelId)},
-				{<<"label">>, list_to_binary(Label)},
-				{<<"bias">>, Bias}
-			]},
-			{{Avail, Rel + 1, Busy}, released, Data};
-		{Statename, Media} when is_record(Media, call) ->
-			Qh = qlc:q([Row ||
-				{{Type, Idgen}, _Timegen, _Hpgen, _Detailsgen, _History} = Row <- ets:table(?DETS),
-				Type == media,
-				Idgen == Media#call.id
-			]),
-			Datajson = case qlc:e(Qh) of
-				[] ->
-					Client = Media#call.client,
-					{struct, [
-						{<<"id">>, list_to_binary(Media#call.id)},
-						{<<"time">>, Time},
-						{<<"brand">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
-						{<<"node">>, node(Media#call.source)},
-						{<<"type">>, Media#call.type},
-						{<<"priority">>, Media#call.priority}
-					]};
-				[T] ->
-					lists:nth(1, medias_to_json([T]))
-			end,
-%			Data = {struct, [
-%				{<<"client">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
-%				{<<"mediaType">>, Media#call.type},
-%				{<<"mediaId">>, list_to_binary(Media#call.id)},
-%				{<<"timeQueued">>, Timequeue}
-%			]},
-			{{Avail, Rel, Busy + 1}, Statename, Datajson};
-		{Statename, Client} when is_record(Client, client) ->
-			Json = {struct, [
-				{<<"brand">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end}
-			]},
-			{{Avail, Rel, Busy + 1}, Statename, Json};
-		{Statename, {onhold, Media, calling, Transferto}} ->
-			Qh = qlc:q([Row ||
-				{{Type, Idgen}, _, _, _, _} = Row <- ets:table(?DETS),
-				Type == media,
-				Idgen == Media#call.id
-			]),
-			Calljson = case qlc:e(Qh) of
-				[] ->
-					Client = Media#call.client,
-					{struct, [
-						{<<"id">>, list_to_binary(Media#call.id)},
-						{<<"time">>, Time},
-						{<<"brand">>, case Client#client.label of undefined -> undefined; _ -> list_to_binary(Client#client.label) end},
-						{<<"node">>, node(Media#call.source)},
-						{<<"type">>, Media#call.type},
-						{<<"priority">>, Media#call.priority}
-					]};
-				[T] ->
-					lists:nth(1, medias_to_json([T]))
-			end,
-			Datajson = {struct, [
-				{<<"calling">>, list_to_binary(Transferto)},
-				{<<"onhold">>, Calljson}
-			]},
-			{{Avail, Rel, Busy + 1}, Statename, Datajson};
-		{Statename, _Otherdata} ->
-			{{Avail, Rel, Busy + 1}, Statename, false}
+	Newstats = update_media_stats(Old, New, Oldstats),
+	ets:insert(stats_cache, {{client, Id}, Newstats});
+update_client_stats(null, #cached_media{client_id = Id} = New) ->
+	Oldstats = case ets:lookup(stats_cache, {client, Id}) of
+		[] ->
+			#media_stats{};
+		[{{client, Id}, S}] ->
+			S
 	end,
-	NewHead = {struct, [
-		{<<"id">>, list_to_binary(Id)},
-		{<<"login">>, list_to_binary(proplists:get_value(login, Details))},
-		{<<"node">>, proplists:get_value(node, Details)},
-		{<<"lastchange">>, element(2, proplists:get_value(lastchange, Details))},
-		{<<"state">>, State},
-		{<<"stateData">>, Statedata}
-	]},
-	agents_to_json(Tail, Newcounts, [NewHead | Acc]).
+	Newstats = update_media_stats(null, New, Oldstats),
+	ets:insert(stats_cache, {{client, Id}, Newstats}).
 
-proplists_replace(Key, Value, List) ->
-	Mid = proplists:delete(Key, List),
-	[{Key, Value} | Mid].
-
-list_member(_Member, all) ->
-	true;
-list_member(Member, List) ->
-	lists:member(Member, List).
-
-is_abandon(List) ->
-	case {lists:reverse(List), proplists:get_value(handled, List)} of
-		{[{ended, _}, {ivr, _} | _], undefined} ->
-			true;
-		{[{ended, _}, {queued, _} | _], undefined} ->
-			true;
-		{[{ended, _}], undefined} ->
-			true;
+update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = queue} = New) ->
+	% TODO if/when we do queue transfer, this'll become important.
+	ok;
+update_queue_stats(#cached_media{state = ivr} = Old, #cached_media{state = queue} = New) ->
+	{_G, Newqueue} = New#cached_media.statedata,
+	Stats = case ets:lookup(stats_cache, {queue, Newqueue}) of
+		[] ->
+			#media_stats{inqueue = 1};
+		[{{queue, Newqueue}, S}] ->
+			S#media_stats{inqueue = S#media_stats.inqueue + 1}
+	end,
+	case lists:any(fun({_, queue, {_, Newqueue}}) -> true; (_) -> false end, Old#cached_media.history) of
+		true ->
+			ets:insert(stats_cache, {{queue, Newqueue}, Stats});
+		false ->
+			Newstats = case Old#cached_media.direction of
+				inbound ->
+					Stats#media_stats{inbound = Stats#media_stats.inbound + 1};
+				outbound ->
+					Stats#media_stats{outbound = Stats#media_stats.outbound + 1}
+			end,
+			ets:insert(stats_cache, {{queue, Newqueue}, Stats})
+	end;
+update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = agent} = New) ->
+	{_G, Newqueue} = Old#cached_media.statedata,
+	[{{queue, Newqueue}, Stats}] = ets:lookup(stats_cache, {queue, Newqueue}),
+	Newstats = Stats#media_stats{inqueue = Stats#media_stats.inqueue + 1},
+	ets:insert(stats_cache, {{queue, Newqueue}, Newstats});
+update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = ended} = New) ->
+	{_G, Newqueue} = Old#cached_media.statedata,
+	[{{queue, Newqueue}, Stats}] = ets:lookup(stats_cache, {queue, Newqueue}),
+	Midstats = Stats#media_stats{inqueue = Stats#media_stats.inqueue + 1},
+	Newstats = case New#cached_media.endstate of
+		handled ->
+			Midstats;
 		_ ->
-			false
+			Midstats#media_stats{abandoned = Stats#media_stats.abandoned + 1}
+	end,
+	ets:insert(stats_cache, {{queue, Newqueue}, Newstats});
+update_queue_stats(#cached_media{state = queue} = Old, null) ->
+	{_G, Newqueue} = Old#cached_media.statedata,
+	[{{queue, Newqueue}, Stats}] = ets:lookup(stats_cache, {queue, Newqueue}),
+	case lists:any(fun({_, queue, {_, Newqueue}}) -> true; (_) -> false end, Old#cached_media.history) of
+		true ->
+			Midstats = case Old#cached_media.direction of
+				inbound ->
+					Stats#media_stats{inbound = Stats#media_stats.inbound - 1};
+				outbound ->
+					Stats#media_stats{outbound = Stats#media_stats.outbound - 1}
+			end,
+			Newstats = case Old#cached_media.endstate of
+				handled ->
+					Midstats;
+				_ ->
+					Midstats#media_stats{abandoned = Midstats#media_stats.abandoned - 1}
+			end,
+			ets:insert(stats_cache, {{queue, Newqueue}, Newstats});
+		false ->
+			ok
+	end;
+update_queue_stats(null, #cached_media{state = queue} = New) ->
+	{_G, Newqueue} = New#cached_media.statedata,
+	Stats = case ets:lookup(stats_cache, {queue, Newqueue}) of
+		[] ->
+			#media_stats{};
+		[{{queue, Newqueue}, S}] ->
+			S
+	end,
+	Newstats = update_media_stats(null, New, Stats),
+	ets:insert(stats_cache, {{queue, Newqueue}, Newstats});
+update_queue_stats(null, _) ->
+	ok.
+
+update_media_stats(null, #cached_media{direction = inbound, state = ivr} = New, Oldstats) when is_record(New, cached_media) ->
+	Oldstats#media_stats{
+		inbound = Oldstats#media_stats.inbound + 1,
+		inivr = Oldstats#media_stats.inivr + 1
+	};
+update_media_stats(null, #cached_media{direction = inbound, state = queue} = New, Oldstats) when is_record(New, cached_media) ->
+	Oldstats#media_stats{
+		inbound = Oldstats#media_stats.inbound + 1,
+		inqueue = Oldstats#media_stats.inqueue + 1
+	};
+update_media_stats(Old, New, Oldstats) when is_record(New, cached_media) ->
+	case {Old#cached_media.state, New#cached_media.state} of
+		{X, X} ->
+			Oldstats;
+		{ivr, queue} ->
+			Oldstats#media_stats{
+				inivr = Oldstats#media_stats.inivr - 1,
+				inqueue = Oldstats#media_stats.inqueue + 1
+			};
+		{ivr, ended} ->
+			Inivr = Oldstats#media_stats.inivr - 1,
+			case New#cached_media.endstate of
+				handled ->
+					Oldstats#media_stats{inivr = Inivr};
+				_ ->
+					Oldstats#media_stats{inivr = Inivr, abandoned = Oldstats#media_stats.abandoned + 1}
+			end;
+		{queue, agent} ->
+			Oldstats#media_stats{
+				inqueue = Oldstats#media_stats.inqueue - 1
+			};
+		{queue, ended} ->
+			Inqueue = Oldstats#media_stats.inqueue - 1,
+			case New#cached_media.endstate of
+				handled ->
+					Oldstats#media_stats{inqueue = Inqueue};
+				_ ->
+					Oldstats#media_stats{inqueue = Inqueue, abandoned = Oldstats#media_stats.abandoned + 1}
+			end;
+		{_, ivr} ->
+			Oldstats#media_stats{
+				inivr = Oldstats#media_stats.inivr + 1
+			};
+		{_, queue} ->
+			Oldstats#media_stats{
+				inqueue = Oldstats#media_stats.inqueue + 1
+			}
+	end;
+update_media_stats(Old, null, Oldstats) when is_record(Old, cached_media) ->
+	Abn = case Old#cached_media.endstate of
+		handled ->
+			Oldstats#media_stats.abandoned;
+		_ ->
+			Oldstats#media_stats.abandoned - 1
+	end,
+	Oldstats#media_stats{abandoned = Abn}.	
+
+update_agent_profiles(#cached_agent{profile = P} = Old, #cached_agent{profile = P} = New) ->
+	?slug(),
+	Stats = case ets:lookup(stats_cache, {profile, P}) of
+		[] ->
+			#agent_stats{};
+		[{{profile, P}, S}] ->
+			S
+	end,
+	Mid = update_agent_profiles_down(Old, Stats),
+	Newstasts = update_agent_profiles_up(New, Mid),
+	ets:insert(stats_cache, {{profile, P}, Newstasts});
+update_agent_profiles(#cached_agent{profile = P} = Old, #cached_agent{profile = Q} = New) ->
+	?slug(),
+	PStats = case ets:lookup(stats_cache, {profile, P}) of
+		[] ->
+			#agent_stats{};
+		[{{profile, P}, PS}] ->
+			PS
+	end,
+	Qstast = case ets:lookup(stats_cache, {profile, Q}) of
+		[] ->
+			#agent_stats{};
+		[{{profile, Q}, Qs}] ->
+			Qs
+	end,
+	NewP = update_agent_profiles_down(Old, PStats),
+	NewQ = update_agent_profiles_up(New, Qstast),
+	ets:insert(stats_cache, {{profile, P}, NewP}),
+	ets:insert(stats_cache, {{profile, Q}, NewQ});
+update_agent_profiles(#cached_agent{profile = P} = Old, null) ->
+	?slug(),
+	Stats = case ets:lookup(stats_cache, {profile, P}) of
+		[] ->
+			#agent_stats{};
+		[{{profile, P}, S}] ->
+			S
+	end,
+	Newstasts = update_agent_profiles_down(Old, Stats),
+	ets:insert(stats_cache, {{profile, P}, Newstasts});
+update_agent_profiles(null, #cached_agent{profile = P} = New) ->
+	?slug(),
+	Stats = case ets:lookup(stats_cache, {profile, P}) of
+		[] ->
+			#agent_stats{};
+		[{{profile, P}, S}] ->
+			S
+	end,
+	Newstats = update_agent_profiles_up(New, Stats),
+	ets:insert(stats_cache, {{profile, P}, Newstats});
+update_agent_profiles(null, null) ->
+	?slug(),
+	?ERROR("THE IMPOSSIBLE HAS HAPPENED!", []).
+
+update_agent_profiles_down(Old, Stats) ->
+	?slug(),
+	case Old#cached_agent.state of
+		released ->
+			Stats#agent_stats{released = Stats#agent_stats.released - 1};
+		wrapup ->
+			Stats#agent_stats{wrapup = Stats#agent_stats.wrapup - 1};
+		idle ->
+			Stats#agent_stats{available = Stats#agent_stats.available - 1};
+		_ ->
+			Stats#agent_stats{oncall = Stats#agent_stats.oncall - 1}
 	end.
+
+update_agent_profiles_up(New, Mid) ->
+	?slug(),
+	case New#cached_agent.state of
+		released ->
+			Mid#agent_stats{released = Mid#agent_stats.released + 1};
+		wrapup ->
+			Mid#agent_stats{wrapup = Mid#agent_stats.wrapup + 1};
+		idle ->
+			Mid#agent_stats{available = Mid#agent_stats.available + 1};
+		_ ->
+			Mid#agent_stats{oncall = Mid#agent_stats.oncall + 1}
+	end.
+
+transform_event({set, {{media, Id}, Hp, Details, Time}}, [], QueueCache, AgentCache) ->
+	{State, Statedata} = case proplists:get_value(queue, Details) of
+		undefined ->
+			{ivr, null};
+		Nom ->
+			Group = proplists:get_value(Nom, QueueCache),
+			{queue, {Group, Nom}}
+	end,
+	History = case State of
+		ivr ->
+			[{Time, ivr, null}];
+		queue ->
+			[{Time, queue, Statedata}]
+	end,
+	#client{id = ClientId, label = ClientLabel} = proplists:get_value(client, Details),
+	RecInit = #cached_media{
+		id = Id,
+		time = Time,
+		client_id = ClientId,
+		client_label = ClientLabel,
+		direction = proplists:get_value(direction, Details, inbound),
+		state = State,
+		statedata = Statedata,
+		endstate = inprogress,
+		history = History
+	},
+	RecInit#cached_media{json = media_to_json(RecInit)};
+transform_event({set, {{media, Id}, Hp, Details, Time}}, [#cached_media{state = OldState, statedata = OldStateData} = OldRec], QueueCache, AgentCache) ->
+	% movements:
+	% ivr -> queue
+	% ivr -> drop (though with a set, that's impossible)
+	% queue -> queue
+	% queue -> agent
+	% queue -> drop
+	% agent -> agent
+	% agent -> queue
+	% agent -> drop
+	{NewState, NewStateData, Change} = determine_event(OldState, OldStateData, Details, QueueCache, AgentCache),
+	case Change of
+		nochange ->
+			OldRec#cached_media{time = Time};
+		changed ->
+			{Endstate, History} = case {OldState, NewState} of
+				{ivr, ended} -> 
+					{ivrabandoned, OldRec#cached_media.history ++ [{Time, ended, ivrabandoned}]};
+				{ivr, queue} ->
+					{OldRec#cached_media.endstate, OldRec#cached_media.history ++ [{Time, queue, NewStateData}]};
+				{queue, ended} ->
+					{queueabandoned, OldRec#cached_media.history ++ [{Time, ended, queueabandoned}]};
+				{queue, queue} ->
+					{OldRec#cached_media.endstate, OldRec#cached_media.history ++ [{Time, queue, NewStateData}]};
+				{queue, agent} ->
+					{handled, OldRec#cached_media.history ++ [{Time, agent, NewStateData}]};
+				{agent, agent} ->
+					{handled, OldRec#cached_media.history ++ [{Time, agent, NewStateData}]};
+				{agent, queue} ->
+					{handled, OldRec#cached_media.history ++ [{Time, queue, NewStateData}]};
+				{agent, ended} ->
+					{handled, OldRec#cached_media.history ++ [{Time, ended, handled}]}
+			end,
+			Midrec = OldRec#cached_media{state = NewState, statedata = NewStateData, endstate = Endstate, history = History},
+			Midrec#cached_media{time = Time, json = media_to_json(Midrec)}
+	end;
+transform_event({drop, {media, Id}}, [#cached_media{state = OldState, statedata = OldStateData} = OldRec], _QueueCache, _AgentCache) ->
+	% if dropping we were:
+	% queue
+	% ivr
+	% agent
+	{EndState, History} = case {OldState, OldRec#cached_media.endstate} of
+		{ivr, inprogress} ->
+			{ivrabandoned, OldRec#cached_media.history ++ [{util:now(), ended, ivrabandoned}]};
+		{queue, inprogress} ->
+			{queueabandoned, OldRec#cached_media.history ++ [{util:now(), ended, queueabandoned}]};
+		{_, handled} ->
+			{handled, OldRec#cached_media.history ++ [{util:now(), ended, handled}]}
+	end,
+	Midrec = OldRec#cached_media{state = ended, statedata = EndState, endstate = EndState, history = History},
+	Midrec#cached_media{time = util:now(), json = media_to_json(Midrec)};
+transform_event({set, {{agent, Id}, _Hp, Details, Time}}, _, _QueueCache, _AgentCache) ->
+	State = proplists:get_value(state, Details),
+	StateData = proplists:get_value(statedata, Details),
+	Midrec = #cached_agent{
+		id = Id, 
+		profile = proplists:get_value(profile, Details, "default"),
+		state = State,
+		statedata = simplify_agent_state(State, StateData),
+		time = Time
+	},
+	Midrec#cached_agent{time = Time, json = agent_to_json(Midrec)}.
+
+simplify_agent_state(oncall, #call{client = Client, id = Callid}) ->
+	{Callid, Client#client.id, Client#client.label};
+simplify_agent_state(released, {Nom, _, _}) ->
+	Nom;
+simplify_agent_state(wrapup, #call{client = Client, id = Callid}) ->
+	{Callid, Client#client.id, Client#client.label};
+simplify_agent_state(_, _) ->
+	null.
+
+media_to_json(Rec) ->
+	[State, Statedata] = media_statedata_to_json(Rec#cached_media.state, Rec#cached_media.statedata),
+	{struct, [
+		{<<"id">>, list_to_binary(Rec#cached_media.id)},
+		{<<"clientId">>, case Rec#cached_media.client_id of undefined -> <<"undefined">>; _ -> list_to_binary(Rec#cached_media.client_id) end},
+		{<<"clientLabel">>, case Rec#cached_media.client_label of undefined -> undefined; _ -> list_to_binary(Rec#cached_media.client_label) end},
+		{<<"direction">>, Rec#cached_media.direction},
+		State,
+		Statedata,
+		{<<"endState">>, Rec#cached_media.endstate},
+		{<<"history">>, media_history_to_json(Rec#cached_media.history)}
+	]}.
+
+media_statedata_to_json(State, Data) ->
+	case {State, Data} of
+		{queue, {Group, Queue}} ->
+			[{<<"state">>, queue}, {<<"statedata">>, {struct, [{<<"group">>, list_to_binary(Group)}, {<<"queue">>, list_to_binary(Queue)}]}}];
+		{agent, {Prof, Nom}} ->
+			[{<<"state">>, agent}, {<<"statedata">>, {struct, [{<<"profile">>, list_to_binary(Prof)}, {<<"agent">>, list_to_binary(Nom)}]}}];
+		{S, _} ->
+			[{<<"state">>, S}, {<<"statedata">>, null}]
+	end.
+
+media_history_to_json(L) ->
+	media_history_to_json(L, []).
+
+media_history_to_json([], Acc) ->
+	lists:reverse(Acc);
+media_history_to_json([{T, S, D} | Tail], Acc) ->
+	[State, Data] = media_statedata_to_json(S, D),
+	Newhead = {struct, [
+		{timestamp, T},
+		State,
+		Data
+	]},
+	media_history_to_json(Tail, [Newhead | Acc]).
+
+agent_to_json(Rec) ->
+	Statedata = case Rec#cached_agent.statedata of
+		null ->
+			null;
+		{Cid, undefined, undefined} ->
+			{struct, [
+				{<<"callId">>, list_to_binary(Cid)},
+				{<<"clientId">>, undefined},
+				{<<"clientLabel">>, undefined}
+			]};
+		{Cid, Cliid, Clilab} ->
+			{struct, [
+				{<<"callId">>, list_to_binary(Cid)},
+				{<<"clientId">>, list_to_binary(Cliid)},
+				{<<"clientLabel">>, list_to_binary(Clilab)}
+			]};
+		Nom ->
+			list_to_binary(Nom)
+	end,
+	{struct, [
+		{id, list_to_binary(Rec#cached_agent.id)},
+		{login, list_to_binary(Rec#cached_agent.id)},
+		{profile, list_to_binary(Rec#cached_agent.profile)},
+		{state, Rec#cached_agent.state},
+		{statedata, Statedata},
+		{timestamp, Rec#cached_agent.time}
+	]}.
+
+determine_event(ivr, null, Details, QueueCache, _AgentCache) ->
+	case proplists:get_value(queue, Details) of
+		undefined ->
+			{ivr, null, nochange};
+		Queue ->
+			Group = proplists:get_value(Queue, QueueCache, "default"),
+			{queue, {Group, Queue}, changed}
+	end;
+determine_event(queue, {Group, Queue}, Details, QueueCache, AgentCache) ->
+	case {proplists:get_value(queue, Details), proplists:get_value(agent, Details)} of
+		{undefined, undefined} ->
+			{ended, null, changed};
+		{Queue, undefined} ->
+			{queue, {Group, Queue}};
+		{NewQueue, undefined, nochange} ->
+			NewGroup = proplists:get_value(Queue, QueueCache, "default"),
+			{queue, {NewGroup, NewQueue}, changed};
+		{undefined, Agent} ->
+			Profile = proplists:get_value(Agent, AgentCache, "default"),
+			{agent, {Profile, Agent}, changed}
+	end;
+determine_event(agent, {Profile, Agent}, Details, QueueCache, AgentCache) ->
+	case {proplists:get_value(queue, Details), proplists:get_value(agent, Details)} of
+		{undefined, undefined} ->
+			{ended, null, changed};
+		{Queue, undefined} ->
+			Group = proplists:get_value(Queue, QueueCache, "default"),
+			{queue, {Group, Queue}, changed};
+		{undefined, Agent} ->
+			{agent, {Profile, Agent}, nochange};
+		{undefined, NewAgent} ->
+			NewProfile = proplists:get_value(Agent, AgentCache, "default"),
+			{agent, {NewProfile, NewAgent}, changed}
+	end;
+determine_event(ended, D, _, _, _) ->
+	% I am not going to dignify this with a response.
+	{ended, D, nochange}.
+
+write_output(_Nom, Interval, QueueCache, AgentCache) ->
+	ok.
 
 -ifdef(TEST).
 

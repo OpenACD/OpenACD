@@ -111,16 +111,16 @@ function drawAgents(response) {
 						case "wrapup":
 						case "precall":
 						case "outgoing":
-						if (agent.stateData.type != "voice") {
-							c1.innerHTML += "(" + agent.stateData.type + ")";
+						if (agent.statedata.type != "voice") {
+							c1.innerHTML += "(" + agent.statedata.type + ")";
 						}
-						c1.innerHTML += " " + agent.stateData.brand;
+						c1.innerHTML += " " + agent.statedata.brand;
 						break;
 						case "warmtransfer":
-						c1.innerHTML += "(" + agent.stateData.onhold.brand + ") (" + agent.stateData.calling + ")";
+						c1.innerHTML += "(" + agent.statedata.onhold.brand + ") (" + agent.statedata.calling + ")";
 						break;
 						case "released":
-							c1.innerHTML += "("+agent.stateData.label+")";
+							c1.innerHTML += "("+agent.statedata.label+")";
 						break;
 						}
 

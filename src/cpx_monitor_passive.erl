@@ -366,7 +366,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 cache_event({set, {{media, Id}, _, _, _}} = Event, QueueCache, AgentCache) ->
-	?slug(),
+	
 	Old = ets:lookup(cached_media, Id),
 	New = transform_event(Event, Old, QueueCache, AgentCache),
 	dets:insert(?DETS, New),
@@ -374,7 +374,7 @@ cache_event({set, {{media, Id}, _, _, _}} = Event, QueueCache, AgentCache) ->
 	Fixedold = case Old of [] -> null; [O] -> O end,
 	{Fixedold, New};
 cache_event({drop, {media, Id}} = Event, QueueCache, AgentCache) ->
-	?slug(),
+	
 	case ets:lookup(cached_media, Id) of
 		[] ->
 			nochange;
@@ -385,7 +385,7 @@ cache_event({drop, {media, Id}} = Event, QueueCache, AgentCache) ->
 			{Realold, New}
 	end;
 cache_event({drop, {agent, Id}}, _QueueCache, _AgentCache) ->
-	?slug(),
+	
 	case ets:lookup(cached_agent, Id) of
 		[] ->
 			nochange;
@@ -394,7 +394,7 @@ cache_event({drop, {agent, Id}}, _QueueCache, _AgentCache) ->
 			{Rold, null}
 	end;
 cache_event({set, {{agent, Id}, _, _, _}} = Event, QueueCache, AgentCache) ->
-	?slug(),
+	
 	New = transform_event(Event, [], QueueCache, AgentCache),
 	Old = case ets:lookup(cached_agent, Id) of
 		[] ->
@@ -406,7 +406,7 @@ cache_event({set, {{agent, Id}, _, _, _}} = Event, QueueCache, AgentCache) ->
 	{Old, New}.
 
 update_client_stats(#cached_media{client_id = Id, client_label = Label} = Old, #cached_media{client_id = Id} = New) ->
-	?slug(),
+	
 	Oldstats = case ets:lookup(stats_cache, {client, Id}) of
 		[] ->
 			#media_stats{};
@@ -416,7 +416,7 @@ update_client_stats(#cached_media{client_id = Id, client_label = Label} = Old, #
 	Newstats = update_media_stats(Old, New, Oldstats),
 	ets:insert(stats_cache, {{client, Id, Label}, Newstats});
 update_client_stats(null, #cached_media{client_id = Id, client_label = Label} = New) ->
-	?slug(),
+	
 	Oldstats = case ets:lookup(stats_cache, {client, Id, Label}) of
 		[] ->
 			#media_stats{};
@@ -427,11 +427,11 @@ update_client_stats(null, #cached_media{client_id = Id, client_label = Label} = 
 	ets:insert(stats_cache, {{client, Id, Label}, Newstats}).
 
 update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = queue} = New) ->
-	?slug(),
+	
 	% TODO if/when we do queue transfer, this'll become important.
 	ok;
 update_queue_stats(#cached_media{state = ivr} = Old, #cached_media{state = queue} = New) ->
-	?slug(),
+	
 	{_G, Newqueue} = New#cached_media.statedata,
 	Stats = case ets:lookup(stats_cache, {queue, Newqueue}) of
 		[] ->
@@ -452,13 +452,13 @@ update_queue_stats(#cached_media{state = ivr} = Old, #cached_media{state = queue
 			ets:insert(stats_cache, {{queue, Newqueue}, Stats})
 	end;
 update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = agent} = New) ->
-	?slug(),
+	
 	{_G, Newqueue} = Old#cached_media.statedata,
 	[{{queue, Newqueue}, Stats}] = ets:lookup(stats_cache, {queue, Newqueue}),
 	Newstats = Stats#media_stats{inqueue = Stats#media_stats.inqueue + 1},
 	ets:insert(stats_cache, {{queue, Newqueue}, Newstats});
 update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = ended} = New) ->
-	?slug(),
+	
 	{_G, Newqueue} = Old#cached_media.statedata,
 	[{{queue, Newqueue}, Stats}] = ets:lookup(stats_cache, {queue, Newqueue}),
 	Midstats = Stats#media_stats{inqueue = Stats#media_stats.inqueue + 1},
@@ -470,7 +470,7 @@ update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = end
 	end,
 	ets:insert(stats_cache, {{queue, Newqueue}, Newstats});
 update_queue_stats(#cached_media{state = queue} = Old, null) ->
-	?slug(),
+	
 	{_G, Newqueue} = Old#cached_media.statedata,
 	[{{queue, Newqueue}, Stats}] = ets:lookup(stats_cache, {queue, Newqueue}),
 	case lists:any(fun({_, queue, {_, Newqueue}}) -> true; (_) -> false end, Old#cached_media.history) of
@@ -492,7 +492,7 @@ update_queue_stats(#cached_media{state = queue} = Old, null) ->
 			ok
 	end;
 update_queue_stats(null, #cached_media{state = queue} = New) ->
-	?slug(),
+	
 	{_G, Newqueue} = New#cached_media.statedata,
 	Stats = case ets:lookup(stats_cache, {queue, Newqueue}) of
 		[] ->
@@ -503,27 +503,27 @@ update_queue_stats(null, #cached_media{state = queue} = New) ->
 	Newstats = update_media_stats(null, New, Stats),
 	ets:insert(stats_cache, {{queue, Newqueue}, Newstats});
 update_queue_stats(null, _) ->
-	?slug(),
+	
 	ok;
 update_queue_stats(_, _) ->
-	?slug(),
+	
 	% anything else we ignore.
 	ok.
 
 update_media_stats(null, #cached_media{direction = inbound, state = ivr} = New, Oldstats) when is_record(New, cached_media) ->
-	?slug(),
+	
 	Oldstats#media_stats{
 		inbound = Oldstats#media_stats.inbound + 1,
 		inivr = Oldstats#media_stats.inivr + 1
 	};
 update_media_stats(null, #cached_media{direction = inbound, state = queue} = New, Oldstats) when is_record(New, cached_media) ->
-	?slug(),
+	
 	Oldstats#media_stats{
 		inbound = Oldstats#media_stats.inbound + 1,
 		inqueue = Oldstats#media_stats.inqueue + 1
 	};
 update_media_stats(Old, New, Oldstats) when is_record(New, cached_media) ->
-	?slug(),
+	
 	case {Old#cached_media.state, New#cached_media.state} of
 		{X, X} ->
 			Oldstats;
@@ -564,7 +564,7 @@ update_media_stats(Old, New, Oldstats) when is_record(New, cached_media) ->
 			Oldstats
 	end;
 update_media_stats(Old, null, Oldstats) when is_record(Old, cached_media) ->
-	?slug(),
+	
 	Abn = case Old#cached_media.endstate of
 		handled ->
 			Oldstats#media_stats.abandoned;
@@ -574,7 +574,7 @@ update_media_stats(Old, null, Oldstats) when is_record(Old, cached_media) ->
 	Oldstats#media_stats{abandoned = Abn}.	
 
 update_agent_profiles(#cached_agent{profile = P} = Old, #cached_agent{profile = P} = New) ->
-	?slug(),
+	
 	Stats = case ets:lookup(stats_cache, {profile, P}) of
 		[] ->
 			#agent_stats{};
@@ -585,7 +585,7 @@ update_agent_profiles(#cached_agent{profile = P} = Old, #cached_agent{profile = 
 	Newstasts = update_agent_profiles_up(New, Mid),
 	ets:insert(stats_cache, {{profile, P}, Newstasts});
 update_agent_profiles(#cached_agent{profile = P} = Old, #cached_agent{profile = Q} = New) ->
-	?slug(),
+	
 	PStats = case ets:lookup(stats_cache, {profile, P}) of
 		[] ->
 			#agent_stats{};
@@ -603,7 +603,7 @@ update_agent_profiles(#cached_agent{profile = P} = Old, #cached_agent{profile = 
 	ets:insert(stats_cache, {{profile, P}, NewP}),
 	ets:insert(stats_cache, {{profile, Q}, NewQ});
 update_agent_profiles(#cached_agent{profile = P} = Old, null) ->
-	?slug(),
+	
 	Stats = case ets:lookup(stats_cache, {profile, P}) of
 		[] ->
 			#agent_stats{};
@@ -613,7 +613,7 @@ update_agent_profiles(#cached_agent{profile = P} = Old, null) ->
 	Newstasts = update_agent_profiles_down(Old, Stats),
 	ets:insert(stats_cache, {{profile, P}, Newstasts});
 update_agent_profiles(null, #cached_agent{profile = P} = New) ->
-	?slug(),
+	
 	Stats = case ets:lookup(stats_cache, {profile, P}) of
 		[] ->
 			#agent_stats{};
@@ -623,11 +623,11 @@ update_agent_profiles(null, #cached_agent{profile = P} = New) ->
 	Newstats = update_agent_profiles_up(New, Stats),
 	ets:insert(stats_cache, {{profile, P}, Newstats});
 update_agent_profiles(null, null) ->
-	?slug(),
+	
 	?ERROR("THE IMPOSSIBLE HAS HAPPENED!", []).
 
 update_agent_profiles_down(Old, Stats) ->
-	?slug(),
+	
 	case Old#cached_agent.state of
 		released ->
 			Stats#agent_stats{released = Stats#agent_stats.released - 1};
@@ -640,7 +640,7 @@ update_agent_profiles_down(Old, Stats) ->
 	end.
 
 update_agent_profiles_up(New, Mid) ->
-	?slug(),
+	
 	case New#cached_agent.state of
 		released ->
 			Mid#agent_stats{released = Mid#agent_stats.released + 1};
@@ -653,7 +653,7 @@ update_agent_profiles_up(New, Mid) ->
 	end.
 
 transform_event({set, {{media, Id}, Hp, Details, Time}}, [], QueueCache, AgentCache) ->
-	?slug(),
+	
 	{State, Statedata} = case proplists:get_value(queue, Details) of
 		undefined ->
 			{ivr, null};
@@ -681,7 +681,7 @@ transform_event({set, {{media, Id}, Hp, Details, Time}}, [], QueueCache, AgentCa
 	},
 	RecInit#cached_media{json = media_to_json(RecInit)};
 transform_event({set, {{media, Id}, Hp, Details, Time}}, [#cached_media{state = OldState, statedata = OldStateData} = OldRec], QueueCache, AgentCache) ->
-	?slug(),
+	
 	% movements:
 	% ivr -> queue
 	% ivr -> drop (though with a set, that's impossible)
@@ -718,7 +718,7 @@ transform_event({set, {{media, Id}, Hp, Details, Time}}, [#cached_media{state = 
 			Midrec#cached_media{time = Time, json = media_to_json(Midrec)}
 	end;
 transform_event({drop, {media, Id}}, [#cached_media{state = OldState, statedata = OldStateData} = OldRec], _QueueCache, _AgentCache) ->
-	?slug(),
+	
 	% if dropping we were:
 	% queue
 	% ivr
@@ -736,7 +736,7 @@ transform_event({drop, {media, Id}}, [#cached_media{state = OldState, statedata 
 	Midrec = OldRec#cached_media{state = ended, statedata = EndState, endstate = EndState, history = History},
 	Midrec#cached_media{time = util:now(), json = media_to_json(Midrec)};
 transform_event({set, {{agent, Id}, _Hp, Details, Time}}, _, _QueueCache, _AgentCache) ->
-	?slug(),
+	
 	State = proplists:get_value(state, Details),
 	StateData = proplists:get_value(statedata, Details),
 	Midrec = #cached_agent{
@@ -801,7 +801,7 @@ agent_to_json(Rec) ->
 		null ->
 			null;
 		{Cid, Clientid, Clientlabel, Type, Calling} ->
-			?slug(),
+			
 			{struct, [
 				{onhold, Cid},
 				{<<"clientId">>, case Clientid of undefined -> undefined; _ -> list_to_binary(Clientid) end},
@@ -809,7 +809,7 @@ agent_to_json(Rec) ->
 				{calling, list_to_binary(Calling)}
 			]};
 		{Cid, undefined, undefined, Type} ->
-			?slug(),
+			
 			{struct, [
 				{<<"callId">>, list_to_binary(Cid)},
 				{<<"clientId">>, undefined},
@@ -817,7 +817,7 @@ agent_to_json(Rec) ->
 				{type, Type}
 			]};
 		{Cid, Cliid, Clilab, Type} ->
-			?slug(),
+			
 			{struct, [
 				{<<"callId">>, list_to_binary(Cid)},
 				{<<"clientId">>, list_to_binary(Cliid)},

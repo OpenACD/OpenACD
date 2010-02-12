@@ -130,6 +130,7 @@
 
 -record(cached_media, {
 	id :: string(),
+	type :: atom(),
 	client_id :: string(),
 	client_label :: string(),
 	direction :: 'inbound' | 'outbound',
@@ -658,6 +659,7 @@ transform_event({set, {{media, Id}, Hp, Details, Time}}, [], QueueCache, AgentCa
 	#client{id = ClientId, label = ClientLabel} = proplists:get_value(client, Details),
 	RecInit = #cached_media{
 		id = Id,
+		type = proplists:get_value(type, Details),
 		time = Time,
 		client_id = ClientId,
 		client_label = ClientLabel,
@@ -734,8 +736,13 @@ transform_event({set, {{agent, Id}, _Hp, Details, Time}}, _, _QueueCache, _Agent
 	},
 	Midrec#cached_agent{time = Time, json = agent_to_json(Midrec)}.
 
-simplify_agent_state(released, {Nom, _, _}) ->
-	Nom;
+simplify_agent_state(released, {_, Nom, _}) ->
+	% TODO - DEFAULT_REL in agent.erl has an atom as the label - this is wrong!
+	case Nom of
+		N when is_atom(Nom) ->
+			atom_to_list(Nom);
+		Nom -> Nom
+	end;
 simplify_agent_state(warmtransfer, {onhold, #call{client = Client} = Call, calling, Calling}) ->
 	{Call#call.id, Client#client.id, Client#client.label, Call#call.type, Calling};
 simplify_agent_state(_, #call{client = Client, id = Callid} = Call) ->
@@ -747,6 +754,7 @@ media_to_json(Rec) ->
 	[State, Statedata] = media_statedata_to_json(Rec#cached_media.state, Rec#cached_media.statedata),
 	{struct, [
 		{<<"id">>, list_to_binary(Rec#cached_media.id)},
+		{<<"type">>, Rec#cached_media.type},
 		{<<"clientId">>, case Rec#cached_media.client_id of undefined -> <<"undefined">>; _ -> list_to_binary(Rec#cached_media.client_id) end},
 		{<<"clientLabel">>, case Rec#cached_media.client_label of undefined -> undefined; _ -> list_to_binary(Rec#cached_media.client_label) end},
 		{<<"direction">>, Rec#cached_media.direction},

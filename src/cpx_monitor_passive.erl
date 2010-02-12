@@ -362,7 +362,7 @@ cache_event({set, {{media, Id}, _, _, _}} = Event, QueueCache, AgentCache) ->
 	New = transform_event(Event, Old, QueueCache, AgentCache),
 	dets:insert(?DETS, New),
 	ets:insert(cached_media, New),
-	Fixedold = case Old of [] -> null; _ -> Old end,
+	Fixedold = case Old of [] -> null; [O] -> O end,
 	{Fixedold, New};
 cache_event({drop, {media, Id}} = Event, QueueCache, AgentCache) ->
 	?slug(),

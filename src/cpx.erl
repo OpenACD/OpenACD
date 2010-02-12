@@ -74,7 +74,8 @@
 	help/2,
 	media_state/1,
 	uptime/0,
-	uptime/1
+	uptime/1,
+	reload_recipe/1
 ]).
 
 -spec(start/2 :: (Type :: 'normal' | {'takeover', atom()} | {'failover', atom()}, StartArgs :: [any()]) -> {'ok', pid(), any()} | {'ok', pid()} | {'error', any()}).
@@ -551,6 +552,13 @@ pretty_print_time([{Label, Interval} | Tail], Time, Acc) ->
 	Newacc = lists:append([integer_to_list(Rem), " ", Label, " ", Acc]),
 	pretty_print_time(Tail, Newtime, Newacc).
 
+reload_recipe(Queue) ->
+	#call_queue{group = Group, recipe = Recipe} = call_queue_config:get_queue(Queue),
+	{atomic, [#queue_group{recipe = Grep}]} = call_queue_config:get_queue_group(Group),
+	Newrec = lists:append(Grep, Recipe),
+	Q = queue_manager:get_queue(Queue),
+	call_queue:set_recipe(Q, Newrec).
+	
 % to be added soon TODO
 %
 %can_answer/2 (Media, Agent) -> true | missing skills

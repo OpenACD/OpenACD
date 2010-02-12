@@ -819,8 +819,8 @@ determine_event(queue, {Group, Queue}, Details, QueueCache, AgentCache) ->
 		{undefined, undefined} ->
 			{ended, null, changed};
 		{Queue, undefined} ->
-			{queue, {Group, Queue}};
-		{NewQueue, undefined, nochange} ->
+			{queue, {Group, Queue}, changed};
+		{NewQueue, undefined} ->
 			NewGroup = proplists:get_value(Queue, QueueCache, "default"),
 			{queue, {NewGroup, NewQueue}, changed};
 		{undefined, Agent} ->

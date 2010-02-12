@@ -34,7 +34,7 @@ function drawCalls(response) {
 	var rownum = 1;
 	var row;
 	var c1;
-	dojo.forEach(response.clients_in_queues,
+	dojo.forEach(response.clients,
 			function(client) {
 			if (client.medias.length > 0 /*&& client.totalInbound > 0*/) {
 			row = table.insertRow(rownum);
@@ -44,11 +44,20 @@ function drawCalls(response) {
 				c1.innerHTML += "(" + client.medias[0].type + ")";
 			}
 			c1 = row.insertCell(1);
-			c1.innerHTML = dojo.filter(client.medias, function(obj) { return !!obj.queued; }).length;
+			c1.innerHTML = dojo.filter(client.medias, function(obj) { 
+				var fullm = response.rawData[obj];
+				return fullm.state == 'queue'; 
+			}).length;
 			c1 = row.insertCell(2);
-			c1.innerHTML = dojo.filter(client.medias, function(obj) { return !obj.queued && !!obj.ivr; }).length;
+			c1.innerHTML = dojo.filter(client.medias, function(obj) { 
+				var fullm = response.rawData[obj];
+				return fullm.state == 'ivr'; 
+			}).length;
 			c1 = row.insertCell(3);
-			var longest = dojo.filter(client.medias, function(obj) { return !!obj.queued; });
+			var longest = dojo.filter(client.medias, function(obj) { 
+				var fullm = response.rawData[obj];
+				return (fullm.state == 'queued' || fullm.state == 'ivr');
+			});
 			if (longest.length === 0) {
 				var filtered = dojo.filter(client.medias, function(obj) { return !obj.queued && !!obj.ivr; });
 				if(filtered.length > 0){

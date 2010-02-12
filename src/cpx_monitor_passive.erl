@@ -737,6 +737,7 @@ transform_event({set, {{agent, Id}, _Hp, Details, Time}}, _, _QueueCache, _Agent
 	StateData = proplists:get_value(statedata, Details),
 	Midrec = #cached_agent{
 		id = Id, 
+		login = proplists:get_value(login, Details, "Unknown"),
 		profile = proplists:get_value(profile, Details, "default"),
 		state = State,
 		statedata = simplify_agent_state(State, StateData),
@@ -744,11 +745,11 @@ transform_event({set, {{agent, Id}, _Hp, Details, Time}}, _, _QueueCache, _Agent
 	},
 	Midrec#cached_agent{time = Time, json = agent_to_json(Midrec)}.
 
-simplify_agent_state(oncall, #call{client = Client, id = Callid} = Call) ->
-	{Callid, Client#client.id, Client#client.label, Call#call.type};
 simplify_agent_state(released, {Nom, _, _}) ->
 	Nom;
-simplify_agent_state(wrapup, #call{client = Client, id = Callid} = Call) ->
+simplify_agent_state(warmtransfer, {onhold, #call{client = Client} = Call, calling, Calling}) ->
+	{Call#call.id, Client#client.id, Client#client.label, Call#call.type, Calling};
+simplify_agent_state(_, #call{client = Client, id = Callid} = Call) ->
 	{Callid, Client#client.id, Client#client.label, Call#call.type};
 simplify_agent_state(_, _) ->
 	null.
@@ -791,10 +792,20 @@ media_history_to_json([{T, S, D} | Tail], Acc) ->
 	media_history_to_json(Tail, [Newhead | Acc]).
 
 agent_to_json(Rec) ->
+	?DEBUG("cached rec:  ~p", [Rec]),
 	Statedata = case Rec#cached_agent.statedata of
 		null ->
 			null;
+		{Cid, Clientid, Clientlabel, Type, Calling} ->
+			?slug(),
+			{struct, [
+				{onhold, Cid},
+				{<<"clientId">>, case Clientid of undefined -> undefined; _ -> list_to_binary(Clientid) end},
+				{<<"clientLabel">>, case Clientlabel of undefined -> undefined; _ -> list_to_binary(Clientlabel) end},
+				{calling, list_to_binary(Calling)}
+			]};
 		{Cid, undefined, undefined, Type} ->
+			?slug(),
 			{struct, [
 				{<<"callId">>, list_to_binary(Cid)},
 				{<<"clientId">>, undefined},
@@ -802,6 +813,7 @@ agent_to_json(Rec) ->
 				{type, Type}
 			]};
 		{Cid, Cliid, Clilab, Type} ->
+			?slug(),
 			{struct, [
 				{<<"callId">>, list_to_binary(Cid)},
 				{<<"clientId">>, list_to_binary(Cliid)},
@@ -813,7 +825,7 @@ agent_to_json(Rec) ->
 	end,
 	{struct, [
 		{id, list_to_binary(Rec#cached_agent.id)},
-		{login, list_to_binary(Rec#cached_agent.id)},
+		{login, list_to_binary(Rec#cached_agent.login)},
 		{profile, list_to_binary(Rec#cached_agent.profile)},
 		{state, Rec#cached_agent.state},
 		{statedata, Statedata},
@@ -881,7 +893,7 @@ get_clients_json() ->
 	qlc:e(qlc:q([get_client_json(Id, Label, Stats) || {{client, Id, Label}, Stats} <- ets:table(stats_cache)])).
 	
 get_client_json(Id, Label, Stats) ->
-	JMedias = qlc:e(qlc:q([list_to_binary(Callid) || #cached_media{id = Callid, client_id = Id} <- ets:table(cached_media)])),
+	JMedias = qlc:e(qlc:q([list_to_binary(Callid) || #cached_media{id = Callid, client_id = ClientId} <- ets:table(cached_media), ClientId =:= Id])),
 	JStats = stats_to_proplist(Stats),
 	Jdata = [{id, case Id of undefined -> undefined; _ -> list_to_binary(Id) end},
 		{label, case Label of undefined -> undefined; _ -> list_to_binary(Label) end}],
@@ -906,7 +918,7 @@ get_queues_json() ->
 
 get_queue_json(Qnom, Stats) ->
 	JStats = stats_to_proplist(Stats),
-	JMedias = qlc:e(qlc:q([list_to_binary(Callid) || #cached_media{id = Callid, state = queue, statedata = {_, Qnom}} <- ets:table(cached_media)])),
+	JMedias = qlc:e(qlc:q([list_to_binary(Callid) || #cached_media{id = Callid, state = queue, statedata = {_, Qname}} <- ets:table(cached_media), Qname =:= Qnom])),
 	Props = lists:append([[{<<"name">>, list_to_binary(Qnom)}, {medias, JMedias}], JStats]),
 	{struct, Props}.
 
@@ -915,7 +927,7 @@ get_agents_json() ->
 
 get_agents_json(Pname, Stats) ->
 	JStats = stats_to_proplist(Stats),
-	JAgents = qlc:e(qlc:q([Json || #cached_agent{profile = Pname, json = Json} <- ets:table(cached_agent)])),
+	JAgents = qlc:e(qlc:q([Json || #cached_agent{profile = Profile, json = Json} <- ets:table(cached_agent), Pname =:= Profile])),
 	Props = lists:append([[{<<"name">>, list_to_binary(Pname)}, {agents, JAgents}], JStats]),
 	{struct, Props}.
 

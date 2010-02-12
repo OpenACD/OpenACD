@@ -495,16 +495,31 @@ update_queue_stats(_, _) ->
 	% anything else we ignore.
 	ok.
 
-update_media_stats(null, #cached_media{direction = inbound, state = ivr} = New, Oldstats) when is_record(New, cached_media) ->
+update_media_stats(null, #cached_media{direction = inbound, state = ivr} = New, Oldstats) ->
 	Oldstats#media_stats{
 		inbound = Oldstats#media_stats.inbound + 1,
 		inivr = Oldstats#media_stats.inivr + 1
 	};
-update_media_stats(null, #cached_media{direction = inbound, state = queue} = New, Oldstats) when is_record(New, cached_media) ->
+update_media_stats(null, #cached_media{direction = inbound, state = queue} = New, Oldstats) ->
 	Oldstats#media_stats{
 		inbound = Oldstats#media_stats.inbound + 1,
 		inqueue = Oldstats#media_stats.inqueue + 1
 	};
+update_media_stats(null, New, Oldstats) when is_record(New, cached_media) ->
+	Midstats = case New#cached_media.direction of
+		inbound ->
+			Oldstats#media_stats{inbound = Oldstats#media_stats.inbound + 1};
+		outbound ->
+			Oldstats#media_stats{outbound = Oldstats#media_stats.outbound + 1}
+	end,
+	case {New#cached_media.state, New#cached_media.endstate} of
+		{ended, handled} ->
+			Midstats;
+		{ended, _} ->
+			Midstats#media_stats{abandoned = Midstats#media_stats.abandoned + 1};
+		{_, _} ->
+			Midstats
+	end;
 update_media_stats(Old, New, Oldstats) when is_record(New, cached_media), is_record(Old, cached_media) ->
 	case {Old#cached_media.state, New#cached_media.state} of
 		{X, X} ->
@@ -552,7 +567,7 @@ update_media_stats(Old, null, Oldstats) when is_record(Old, cached_media) ->
 		_ ->
 			Oldstats#media_stats.abandoned - 1
 	end,
-	Oldstats#media_stats{abandoned = Abn}.	
+	Oldstats#media_stats{abandoned = Abn}.
 
 update_agent_profiles(#cached_agent{profile = P} = Old, #cached_agent{profile = P} = New) ->
 	Stats = case ets:lookup(stats_cache, {profile, P}) of

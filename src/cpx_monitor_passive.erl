@@ -744,12 +744,12 @@ transform_event({set, {{agent, Id}, _Hp, Details, Time}}, _, _QueueCache, _Agent
 	},
 	Midrec#cached_agent{time = Time, json = agent_to_json(Midrec)}.
 
-simplify_agent_state(oncall, #call{client = Client, id = Callid}) ->
-	{Callid, Client#client.id, Client#client.label};
+simplify_agent_state(oncall, #call{client = Client, id = Callid} = Call) ->
+	{Callid, Client#client.id, Client#client.label, Call#call.type};
 simplify_agent_state(released, {Nom, _, _}) ->
 	Nom;
-simplify_agent_state(wrapup, #call{client = Client, id = Callid}) ->
-	{Callid, Client#client.id, Client#client.label};
+simplify_agent_state(wrapup, #call{client = Client, id = Callid} = Call) ->
+	{Callid, Client#client.id, Client#client.label, Call#call.type};
 simplify_agent_state(_, _) ->
 	null.
 
@@ -794,17 +794,19 @@ agent_to_json(Rec) ->
 	Statedata = case Rec#cached_agent.statedata of
 		null ->
 			null;
-		{Cid, undefined, undefined} ->
+		{Cid, undefined, undefined, Type} ->
 			{struct, [
 				{<<"callId">>, list_to_binary(Cid)},
 				{<<"clientId">>, undefined},
-				{<<"clientLabel">>, undefined}
+				{<<"clientLabel">>, undefined},
+				{type, Type}
 			]};
-		{Cid, Cliid, Clilab} ->
+		{Cid, Cliid, Clilab, Type} ->
 			{struct, [
 				{<<"callId">>, list_to_binary(Cid)},
 				{<<"clientId">>, list_to_binary(Cliid)},
-				{<<"clientLabel">>, list_to_binary(Clilab)}
+				{<<"clientLabel">>, list_to_binary(Clilab)},
+				{type, Type}
 			]};
 		Nom ->
 			list_to_binary(Nom)

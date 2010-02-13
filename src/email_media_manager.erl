@@ -307,6 +307,7 @@ handle_info({'EXIT', Pid, Reason}, #state{server = Pid} = State) ->
 	{stop, {server_exit, Reason}, State#state{server = undefined}};
 handle_info({'EXIT', From, Reason}, #state{mails = Mails} = State) ->
 	?DEBUG("Handling exit from ~w due to ~p", [From, Reason]),
+	% TODO - do some CDR cleanup or try to restart the process
 	Newmail = lists:keydelete(From, 2, Mails),
 	{noreply, State#state{mails = Newmail}};
 handle_info(_Info, State) ->

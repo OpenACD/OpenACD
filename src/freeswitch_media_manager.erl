@@ -387,9 +387,10 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	?NOTICE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
 	F = fun(Key, Value, Acc) -> 
 		case Value of
-			Pid -> 
+			Pid ->
+				% TODO - do something with the CDR here - or try to restart the call!
 				Acc;
-			_Else -> 
+			_Else ->
 				dict:store(Key, Value, Acc)
 		end
 	end,

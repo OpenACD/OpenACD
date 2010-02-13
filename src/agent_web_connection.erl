@@ -308,6 +308,9 @@ handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
 	{reply, Astate, State};
+handle_call({agent_transfer, Agentname, CaseID}, From, #state{current_call = Call} = State) ->
+	gen_media:cast(Call#call.source, {set_caseid, CaseID}),
+	handle_call({agent_transfer, Agentname}, From, State);
 handle_call({agent_transfer, Agentname}, _From, #state{agent_fsm = Apid} = State) ->
 	case agent_manager:query_agent(Agentname) of
 		{true, Target} ->
@@ -348,6 +351,9 @@ handle_call(warm_transfer_complete, _From, #state{current_call = Call} = State) 
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not complete transfer">>}]})}
 	end,
 	{reply, Reply, State};
+handle_call({queue_transfer, Queue, CaseID}, From, #state{current_call = Call} = State) ->
+	gen_media:cast(Call#call.source, {set_caseid, CaseID}),
+	handle_call({queue_transfer, Queue}, From, State);
 handle_call({queue_transfer, Queue}, _From, #state{agent_fsm = Apid} = State) ->
 	?NOTICE("queue transfer to ~p", [Queue]),
 	Reply = case agent:queue_transfer(Apid, Queue) of

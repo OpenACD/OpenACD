@@ -581,6 +581,8 @@ parse_path(Path) ->
 					{api, get_avail_agents};
 				["agent_transfer", Agent] ->
 					{api, {agent_transfer, Agent}};
+				["agent_transfer", Agent, CaseID] ->
+					{api, {agent_transfer, Agent, CaseID}};
 				["media"] ->
 					{api, media};
 				["mediapull" | Pulltail] ->
@@ -597,6 +599,8 @@ parse_path(Path) ->
 					{api, warm_transfer_cancel};
 				["queue_transfer", Number] ->
 					{api, {queue_transfer, Number}};
+				["queue_transfer", Number, CaseID] ->
+					{api, {queue_transfer, Number, CaseID}};
 				["init_outbound", Client, Type] ->
 					{api, {init_outbound, Client, Type}};
 				["supervisor" | Supertail] ->
@@ -875,6 +879,7 @@ web_connection_login_test_() ->
 		{"/dial/12345", {api, {dial, "12345"}}},
 		{"/get_avail_agents", {api, get_avail_agents}},
 		{"/agent_transfer/agent", {api, {agent_transfer, "agent"}}},
+		{"/agent_transfer/agent/1234", {api, {agent_transfer, "agent", "1234"}}},
 		{"/mediapush", {api, mediapush}},
 		{"/dynamic/test.html", {file, {"test.html", "www/dynamic"}}}
 	]

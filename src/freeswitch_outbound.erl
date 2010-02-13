@@ -76,7 +76,8 @@
 	xferchannel :: pid(),
 	xferuuid :: string(),
 	voicemail = false :: 'false' | string(),
-	dialstring :: string()
+	dialstring :: string(),
+	caseid :: string() | 'undefined'
 	}).
 
 -type(state() :: #state{}).
@@ -229,7 +230,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 	end,
 	case freeswitch_ring:start_link(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge]) of
 		{ok, Pid} ->
-			{ok, State#state{xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
+			{ok, [{"caseid", State#state.caseid}], State#state{xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{error, Error, State}
@@ -315,6 +316,8 @@ handle_cast({"audiolevel", Arguments}, Call, State) ->
 	?INFO("uuid_audio ~s", [Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)]),
 	freeswitch:bgapi(State#state.cnode, uuid_audio, Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)),
 	{noreply, State};
+handle_cast({set_caseid, CaseID}, _Call, State) ->
+	{noreply, State#state{caseid = CaseID}};
 handle_cast(hangup, Call, State) ->
 	freeswitch:sendmsg(State#state.cnode, Call#call.id,
 		[{"call-command", "hangup"},

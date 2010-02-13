@@ -628,15 +628,22 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 handle_call({'$gen_media_agent_transfer', Apid}, _From, #state{oncall_pid = Apid} = State) ->
 	?NOTICE("Can't transfer to yourself, silly ~p!", [Apid]),
 	{reply, invalid, State};
-handle_call({'$gen_media_agent_transfer', Apid, Timeout}, _From, #state{callback = Callback, ring_pid = undefined, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
+handle_call({'$gen_media_agent_transfer', Apid, Timeout}, _From, #state{callrec = Call, callback = Callback, ring_pid = undefined, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
 	case set_agent_state(Apid, [ringing, State#state.callrec]) of
 		ok ->
 			case Callback:handle_agent_transfer(Apid, Timeout, State#state.callrec, State#state.substate) of
-				{ok, NewState} ->
+				Success when element(1, Success) == ok ->
+					Popopts = case Success of
+						{ok, Substate} ->
+							[];
+						{ok, Opts, Substate} ->
+							Opts
+					end,
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', dummy}),
 					cdr:agent_transfer(State#state.callrec, {Ocpid, Apid}),
 					cdr:ringing(State#state.callrec, Apid),
-					{reply, ok, State#state{ring_pid = Apid, ringout = Tref, substate = NewState}};
+					url_pop(Call, Apid, Popopts),
+					{reply, ok, State#state{ring_pid = Apid, ringout = Tref, substate = Substate}};
 				{error, Error, NewState} ->
 					?NOTICE("Could not set agent ringing for transfer due to ~p", [Error]),
 					set_agent_state(Apid, [idle]),
@@ -1040,7 +1047,9 @@ url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 				{"direction", atom_to_list(Call#call.direction)}
 			],
 			BaseUrl = util:string_interpolate(String, Words),
-			Appender = fun({Key, Value}, Midurl) ->
+			Appender = fun({_Key, undefined}, Midurl) ->
+					Midurl;
+				({Key, Value}, Midurl) ->
 				lists:append([Midurl, [$& | Key], [$= | Value]])
 			end,
 			Url = lists:foldl(Appender, BaseUrl, Addedopts),
@@ -1305,7 +1314,15 @@ url_pop_test_() ->
 			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com?a=b&addkey=addval", "ring"}, _) -> ok end),
 			url_pop(Call, Agent, [{"addkey", "addval"}]),
 			gen_server_mock:assert_expectations(Conn)
-		end}]
+		end},
+		{"url is set with some additional options, some of which are blank",
+		fun() ->
+			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com?a=b"}]}},
+			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com?a=b&addkey=addval", "ring"}, _) -> ok end),
+			url_pop(Call, Agent, [{"addkey", "addval"}, {"foo", undefined}]),
+			gen_server_mock:assert_expectations(Conn)
+		end}
+	]
 	end}.
 	
 init_test_() ->

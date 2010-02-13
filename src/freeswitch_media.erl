@@ -109,7 +109,8 @@
 	queued = false :: boolean(),
 	allow_voicemail = false :: boolean(),
 	warm_transfer_uuid = undefined :: string() | 'undefined',
-	ivroption :: string(),
+	ivroption :: string() | 'undefined',
+	caseid :: string() | 'undefined',
 	moh = "moh" :: string(),
 	record_path :: 'undefined' | string()
 	}).
@@ -206,12 +207,7 @@ handle_ring(Apid, Callrec, State) ->
 	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F) of
 		{ok, Pid} ->
 			link(Pid),
-			case State#state.ivroption of
-				undefined ->
-					{ok, State#state{ringchannel = Pid, agent_pid = Apid}};
-				Option ->
-					{ok, [{"ivropt", Option}], State#state{ringchannel = Pid, agent_pid = Apid}}
-			end;
+			{ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], State#state{ringchannel = Pid, agent_pid = Apid}};
 		{error, Error} ->
 			?ERROR("error:  ~p; agent:  ~s", [Error, AgentRec#agent.login]),
 			{invalid, State}
@@ -268,7 +264,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 	end,
 	case freeswitch_ring:start_link(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge]) of
 		{ok, Pid} ->
-			{ok, State#state{xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
+			{ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], State#state{xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{error, Error, State}
@@ -498,6 +494,9 @@ handle_cast({"audiolevel", Arguments}, Call, State) ->
 	?INFO("uuid_audio ~s", [Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)]),
 	freeswitch:bgapi(State#state.cnode, uuid_audio, Call#call.id++" start "++proplists:get_value("target", Arguments)++" level "++proplists:get_value("value", Arguments)),
 	{noreply, State};
+handle_cast({set_caseid, CaseID}, Call, State) ->
+	?INFO("setting caseid for ~p to ~p", [Call#call.id, CaseID]),
+	{noreply, State#state{caseid = CaseID}};
 handle_cast(_Msg, _Call, State) ->
 	{noreply, State}.
 
@@ -523,7 +522,7 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid, warm_transfer
 	agent:media_push(State#state.agent_pid, warm_transfer_failed),
 	cdr:warmxfer_fail(Call, State#state.agent_pid),
 	{noreply, State#state{ringchannel = undefined}};
-handle_info(warm_transfer_succeeded, Call, #state{warm_transfer_uuid = W} = State) when is_list(W) ->
+handle_info(warm_transfer_succeeded, _Call, #state{warm_transfer_uuid = W} = State) when is_list(W) ->
 	?DEBUG("Got warm transfer success notification from ring channel", []),
 	agent:media_push(State#state.agent_pid, warm_transfer_succeeded),
 	{noreply, State};
@@ -697,7 +696,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 		{error, notfound} ->
 			?WARNING("event name not found: ~p", [freeswitch:get_event_header(Rawcall, "Content-Type")]),
 			{noreply, State};
-		Else ->
+		_Else ->
 			%?DEBUG("Event unhandled ~p", [Else]),
 			{noreply, State}
 	end.

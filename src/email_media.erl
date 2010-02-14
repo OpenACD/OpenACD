@@ -478,6 +478,8 @@ handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 handle_cast(print_file_map, _Callrec, #state{file_map = Out} = State) ->
 	io:format("Printing filemap: ~n~p", [Out]),
 	{noreply, State};
+handle_cast({set_caseid, CaseID}, _Callrec, State) ->
+	{noreply, State#state{caseid = CaseID}};
 handle_cast(Msg, _Callrec, State) ->
 	?WARNING("cast msg:  ~p", [Msg]),
 	{noreply, State}.
@@ -526,13 +528,11 @@ handle_answer(Agent, Call, State) ->
 	agent:conn_cast(Agent, {mediaload, Call}),
 	{ok, State}.
 
-handle_ring(_Agent, _Call, #state{caseid = CaseID} = State) when CaseID =/= undefined ->
-	{ok, [{"Caseid", CaseID}], State};
-handle_ring(_Agent, _Call, State) ->
-	{ok, State}.
+handle_ring(_Agent, _Call, #state{caseid = CaseID} = State) ->
+	{ok, [{"caseid", CaseID}], State}.
 
 handle_agent_transfer(_Agent, _Timeout, _Callrec, State) ->
-	{ok, State}.
+	{ok, [{"caseid", State#state.caseid}], State}.
 
 handle_queue_transfer(_Callrec, State) ->
 	{ok, State}.

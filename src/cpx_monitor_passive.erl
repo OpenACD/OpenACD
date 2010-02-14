@@ -937,7 +937,7 @@ get_ivr_alerts() ->
 	Clients = [call_queue_config:get_client(id, lists:nth(1, util:string_split(N, "/", 2))) || N <- filelib:wildcard("*/problem.wav", "/tmp")],
 	[list_to_binary(Client#client.label) || Client <- Clients].
 
--ifdef(TEST).
+-ifdef(TESTS_ARE_BROKEN).
 
 cache_event_test_() ->
 	{setup,

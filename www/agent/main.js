@@ -1195,6 +1195,9 @@ dojo.addOnLoad(function(){
 	});
 	
 	dijit.byId("main").pop = dojo.subscribe("agent/urlpop", function(data){
+		if(EventLog){
+			EventLog.log("URL popped:  " + data.url);
+		}
 		var name = 'popup';
 		if(data.name){
 			name = data.name;

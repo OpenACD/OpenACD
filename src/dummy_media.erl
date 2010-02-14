@@ -93,7 +93,8 @@
 	life_timer = undefined :: any(),
 	%mode = success :: 'success' | 'failure' | 'fail_once',
 	mediaload :: 'undefined' | 'mediaload' | 'true',
-	fail = dict:new() :: dict()
+	fail = dict:new() :: dict(),
+	caseid :: string() | 'undefined'
 	}).
 
 -type(state() :: #state{}).
@@ -421,6 +422,8 @@ handle_call(Msg, _From, _Callrec, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast({set_caseid, CaseID}, _Call, State) ->
+	{noreply, State#state{caseid = CaseID}};
 handle_cast(_Msg, _Callrec, State) ->
 	{noreply, State}.
 
@@ -481,7 +484,7 @@ handle_answer(Agent, Call, #state{fail = Fail} = State) ->
 handle_ring(_Agent, _Call, #state{fail = Fail} = State) ->
 	case dict:fetch(ring_agent, Fail) of
 		success ->
-			{ok, State};
+			{ok, [{"caseid", State#state.caseid}], State};
 		fail ->
 			{invalid, State};
 		fail_once ->
@@ -512,7 +515,7 @@ handle_agent_transfer(_Agent, _Timeout, _Callrec, #state{fail = Fail} = State) -
 		fail ->
 			{error, fail, State};
 		success ->
-			{ok, State}
+			{ok, [{"caseid", State#state.caseid}], State}
 	end.
 
 handle_queue_transfer(_Callrec, State) ->
@@ -601,7 +604,7 @@ dummy_test_() ->
 			"Set agent ringing when set to success",
 			fun() -> 
 				{ok, {State, _Call}} = init([[{queues, none}], success]),
-				?assertEqual({ok, State}, handle_ring("apid", "callrec", State))
+				?assertEqual({ok, [{"caseid", undefined}], State}, handle_ring("apid", "callrec", State))
 			end
 		},
 		{

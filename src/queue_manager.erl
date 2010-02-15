@@ -185,7 +185,7 @@ queues() ->
 -spec(get_best_bindable_queues/0 :: () -> [{string(), pid(), {any(), #queued_call{}}, pos_integer()}]).
 get_best_bindable_queues() ->
 	List = gen_leader:leader_call(?MODULE, queues_as_list),
-	List1 = [{K, V, Call, W} || {K, V} <- List, Call <- [call_queue:ask(V)], Call =/= none, W <- [call_queue:get_weight(V) * call_queue:call_count(V)]],
+	List1 = [{K, V, Call, W} || {K, V} <- List, Call <- [call_queue:ask(V)], Call =/= none, W <- [call_queue:get_weight(V)]],
 	% sort queues by queuetime of first bindable call, longest first (lowest unix epoch time)
 	List2 = lists:sort(fun({_K1, _V1,{{_P1, T1}, _Call1}, _W1}, {_K2, _V2,{{_P2, T2}, _Call2}, _W2}) -> T1 =< T2 end, List1),
 	% sort queues by priority of first bindable call, lowest is higher priority

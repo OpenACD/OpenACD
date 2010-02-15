@@ -256,13 +256,13 @@ if(typeof(queueDashboard) == "undefined"){
 			url:file,
 			handleAs:'json',
 			load:function(res){
-				for(var i = 0; i < res.queueGroups.length; i++){
-					var queues = res.queueGroups[i].queues;
-					for(var j = 0; j < queues.length; j++){
-						var queue = queues[j].name;
-						var medias = queues[j].medias;
-						var seedAbn = queues[j].totalAbandoned;
-						var seedComplete = queues[j].totalInbound - seedAbn;
+				/*for(var i = 0; i < res.queueGroups.length; i++){*/
+					/*var queues = res.queueGroups[i].queues;*/
+					for(var j = 0; j < res.queues.length; j++){
+						var queue = res.queues[j].name;
+						var medias = res.queues[j].medias;
+						var seedAbn = res.queues[j].totalAbandoned;
+						var seedComplete = res.queues[j].totalInbound - seedAbn;
 						for(var k = 0; k < medias.length; k++){
 							var media = medias[k];
 							if(media.ended && (now - media.ended > 3600)){
@@ -318,7 +318,7 @@ if(typeof(queueDashboard) == "undefined"){
 							}
 						}
 					}
-				}
+				/*}*/
 			},
 			error:function(res){
 				var m = ["getting historical data errored", res];

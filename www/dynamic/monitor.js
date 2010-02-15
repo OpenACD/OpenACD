@@ -118,6 +118,8 @@ function drawAgents(response) {
 		var rownum = 1;
 		dojo.forEach(response.agentProfiles.sort(function(a, b) { return a.name > b.name}), 
 				function(profile) {
+				if (profile.agents.length == 0)
+					return;
 				row = table.insertRow(rownum);
 				c1 = row.insertCell(0);
 				c1.setAttribute("colspan", 2);

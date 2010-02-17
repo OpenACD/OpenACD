@@ -33,3 +33,17 @@ cpx:uptime(true|false) -> non_neg_integer() | 'stopped'
 	Returns the number of seconds the application has been running.  In 
 	the second form, if the uptime can't be determined, passing 'true' 
 	will force it to be set to util:now().
+
+The options for finding cdrs:
+	type - voice, email, voicemail
+	mediatype - see above
+	older - a timestamp shows max age
+	younger - a timestamp shows min age
+	duration - max duration
+	length - see above
+	brand - either label or id
+	client - see above.
+	agent - if agent had anything to do with the cdr
+	callerid - partial match
+	callid - full match
+	mediaid - see above

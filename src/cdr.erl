@@ -275,22 +275,27 @@ truncate(Callrec) ->
 	{atomic, Raws} = mnesia:transaction(fun() ->
 		qlc:e(qlc:q([X || #cdr_raw{id = Id} = X <- mnesia:table(cdr_raw), Id =:= Callrec#call.id]))
 	end),
-	[R | _] = Raws,
-	case attached_agent(Raws) of
-		true ->
-			ok;
-		false ->
-			gen_event:delete_handler(cdr, {cdr, Callrec#call.id}, truncate),
-			Time = cdr_big_time(Raws, 0),
-			Cdr = #cdr_raw{
-				id = Callrec#call.id,
-				transaction = cdrend,
-				start = Time,
-				ended = Time,
-				nodes = R#cdr_raw.nodes
-			},
-			push_raw(Callrec, Cdr),
-			spawn_summarizer(Callrec)
+	case Raws of 
+		[] ->
+			?WARNING("~p has no raws", [Callrec#call.id]);
+		_ ->
+			[R | _] = Raws,
+			case attached_agent(Raws) of
+				true ->
+					ok;
+				false ->
+					gen_event:delete_handler(cdr, {cdr, Callrec#call.id}, truncate),
+					Time = cdr_big_time(Raws, 0),
+					Cdr = #cdr_raw{
+						id = Callrec#call.id,
+						transaction = cdrend,
+						start = Time,
+						ended = Time,
+						nodes = R#cdr_raw.nodes
+					},
+					push_raw(Callrec, Cdr),
+					spawn_summarizer(Callrec)
+			end
 	end.
 
 attached_agent([]) ->

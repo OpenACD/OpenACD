@@ -272,7 +272,7 @@ truncate() ->
 	%Handles = [gen_event:delete_handler(cdr, {cdr, Id}, truncate) || {cdr, Id} <- gen_event:which_handlers(cdr), lists:member(Deads, Id)],
 	
 truncate(Callrec) ->
-	{atomic, Raws} = mnesia:transcation(fun() ->
+	{atomic, Raws} = mnesia:transaction(fun() ->
 		qlc:e(qlc:q([X || #cdr_raw{id = Id} = X <- mnesia:table(cdr_raw), Id =:= Callrec#call.id]))
 	end),
 	[R | _] = Raws,

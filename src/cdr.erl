@@ -256,8 +256,16 @@ voicemail(Call, Queue) ->
 truncate() ->
 	{atomic, Deads} = mnesia:transaction(fun() -> 
 		qlc:e(qlc:q([M || 
-			#cdr_rec{media = M, summary = inprogress} = X <- mnesia:table(cdr_rec), 
-			is_process_alive(M#call.source) == false
+			#cdr_rec{media = M, summary = inprogress} = X <- mnesia:table(cdr_rec),
+			begin
+				N = node(),
+				case node(M#call.source) of
+					N ->
+						is_process_alive(M#call.source) == false;
+					_ ->
+						true
+				end
+			end
 		])) 
 	end),
 	[truncate(X) || X <- Deads].

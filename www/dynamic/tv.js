@@ -212,15 +212,18 @@ function getStatsSince(time, calls) {
 	var inbound = 0;
 	var outbound = 0;
 	var abandoned = 0;
-	var callssince = dojo.filter(calls, function (obj) { return obj.time >= time;});
-	for(var i in callssince) {
-		if (callssince[i].direction == "inbound") {
-			inbound += 1;
-			if (callssince[i].didAbandon) {
-				abandoned += 1;
+	/*var callssince = dojo.filter(calls, function (obj) { console.log(obj); return calls[obj].history[0].timestamp >= time;});*/
+	/*console.log(callssince);*/
+	for(var i in calls) {
+		if (calls[i].history[0].timestamp >= time) {
+			if (calls[i].direction == "inbound") {
+				inbound += 1;
+				if (calls[i].endState == "queueabandoned") {
+					abandoned += 1;
+				}
+			} else {
+				outbound += 1;
 			}
-		} else {
-			outbound += 1;
 		}
 	}
 	return {inbound: inbound, outbound: outbound, abandoned: abandoned};
@@ -248,33 +251,30 @@ function updateAgents(node, agents) {
 			dojo.filter(agents, function (obj) { return obj.state == "wrapup";}).length);
 }
 
-function getQueue(queuegroups, name) {
-	for(var i in queuegroups) {
-		var group = queuegroups[i].queues;
-		for(var j in group) {
-			if (group[j].name == name) {
-				return group[j];
-			}
+function getQueue(queues, name) {
+	for(var i in queues) {
+		if (queues[i].name == name) {
+			return queues[i];
 		}
 	}
 }
 
-function updateQueue(node, queue) {
+function updateQueue(node, queue, rawdata) {
 	if (!queue) {
 		updatespan(dojo.query(".callcount", node)[0].firstChild, "0/0");
 		updatespan(dojo.query(".holdtime", node)[0].firstChild, "00:00");
 		return;
 	}
 	updatespan(dojo.query(".callcount", node)[0].firstChild,
-			dojo.filter(queue.medias, function(obj) { return obj.type == "voice" && !obj.ended; }).length + "/" +
-			dojo.filter(queue.medias, function(obj) { return obj.type != "voice" && !obj.ended; }).length);
-	var longest = dojo.filter(queue.medias, function(obj) { return !obj.ended;})[0];
+			dojo.filter(queue.medias, function(obj) { return rawdata[obj].type == "voice" && rawdata[obj].state != "ended"; }).length + "/" +
+			dojo.filter(queue.medias, function(obj) { return rawdata[obj].type != "voice" && rawdata[obj].state != "ended"; }).length);
+	var longest = dojo.filter(queue.medias, function(obj) { return rawdata[obj].state != 'ended';}).sort(function (a, b) { return rawdata[a].history[0].timestamp > rawdata[b].history[0].timestamp; })[0];
 	if (!longest) {
 		updatespan(dojo.query(".holdtime", node)[0].firstChild, "00:00");
 		return;
 	}
 	var now = Math.floor(new Date().getTime() / 1000);
-	var elapsed = now - longest.queued;
+	var elapsed = now - rawdata[longest].history[rawdata[longest].history.length - 1].timestamp;
 
 	if (elapsed < 10) {
 		updatespan(dojo.query(".holdtime", node)[0].firstChild, "00:0" + elapsed);
@@ -293,7 +293,7 @@ function agentAlerts(agents) {
 	var adiv = dojo.byId("agentalerts");
 	var now = new Date().getTime() / 1000;
 	for(var i in agents) {
-		if (agents[i].state == "released" && (now - agents[i].lastchange) > 6) {
+		if (agents[i].state == "released" && (now - agents[i].timestamp) > 6) {
 			var s;
 			if (dojo.byId(agents[i].login)) {
 				s =dojo.byId(agents[i].login).firstChild;
@@ -321,6 +321,30 @@ function agentAlerts(agents) {
 	});
 }
 
+function ivrAlerts(alerts) {
+	var adiv = dojo.byId("globalalerts");
+
+	for(var i in alerts) {
+		var s;
+		if (dojo.byId(alerts[i])) {
+			s = dojo.byId(alerts[i]).firstChild;
+		}else{
+			var a = document.createElement("div");
+			s = document.createElement("span");
+			a.setAttribute("class", "alerttext");
+			a.id = alerts[i];
+			a.appendChild(s);
+			adiv.appendChild(a);
+		}
+		updatespan(s, alerts[i] + " has an IVR posted");
+	}
+	dojo.query(".alerttext", adiv).forEach(function(e) {
+			if (dojo.filter(alerts, function(obj) { return obj == e.id; }).length === 0) {
+				adiv.removeChild(e);
+			}
+	});
+}
+
 function update() {
 	dojo.xhrGet({
 		url:"all.json",
@@ -329,23 +353,24 @@ function update() {
 			console.error(response);
 		},
 		load:function(response, ioargs){
-			updateStats(dojo.byId("histhour"), response.hour);
-			updateStats(dojo.byId("histday"), response.totals);
 			var now = new Date();
-			updateStats(dojo.byId("histmid"), getStatsSince(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000, response.rawdata));
+			updateStats(dojo.byId("histhour"), getStatsSince((new Date().getTime() / 1000) - 3600, response.rawData));
+			updateStats(dojo.byId("histday"), getStatsSince((new Date().getTime() / 1000) - 86400, response.rawData));
+			updateStats(dojo.byId("histmid"), getStatsSince(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000, response.rawData));
 			var config = tv_config();
 			updateAgents(dojo.byId("agroup1"), getAgentsInProfiles(response.agentProfiles, config.agroup1));
 			updateAgents(dojo.byId("agroup2"), getAgentsInProfiles(response.agentProfiles, config.agroup2));
 			updateAgents(dojo.byId("agroup3"), getAgentsInProfiles(response.agentProfiles, config.agroup3));
 			updateAgents(dojo.byId("agroup4"), getAgentsInProfiles(response.agentProfiles, config.agroup4));
 
-			updateQueue(dojo.byId("qgroup1"), getQueue(response.queueGroups, config.qgroup1));
-			updateQueue(dojo.byId("qgroup2"), getQueue(response.queueGroups, config.qgroup2));
-			updateQueue(dojo.byId("qgroup3"), getQueue(response.queueGroups, config.qgroup3));
-			updateQueue(dojo.byId("qgroup4"), getQueue(response.queueGroups, config.qgroup4));
-			updateQueue(dojo.byId("qgroup5"), getQueue(response.queueGroups, config.qgroup5));
+			updateQueue(dojo.byId("qgroup1"), getQueue(response.queues, config.qgroup1), response.rawData);
+			updateQueue(dojo.byId("qgroup2"), getQueue(response.queues, config.qgroup2), response.rawData);
+			updateQueue(dojo.byId("qgroup3"), getQueue(response.queues, config.qgroup3), response.rawData);
+			updateQueue(dojo.byId("qgroup4"), getQueue(response.queues, config.qgroup4), response.rawData);
+			updateQueue(dojo.byId("qgroup5"), getQueue(response.queues, config.qgroup5), response.rawData);
 
 			agentAlerts(getAgentsInProfiles(response.agentProfiles, "*"));
+			ivrAlerts(response.ivrAlerts);
 
 			if(window.spew){
 				console.log(response);

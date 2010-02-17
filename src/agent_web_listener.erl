@@ -349,7 +349,7 @@ api(Apirequest, badcookie, _Post) ->
 api(logout, {Reflist, _Salt, Conn}, _Post) ->
 	ets:insert(web_connections, {Reflist, undefined, undefined}),
 	Cookie = io_lib:format("cpx_id=~p; path=/; Expires=Tue, 29-Mar-2005 19:30: 42 GMT; Max-Age=86400", [Reflist]),
-	agent_web_connection:api(Conn, logout),
+	catch agent_web_connection:api(Conn, logout),
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
 api(login, {_Reflist, undefined, _Conn}, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})};
@@ -581,6 +581,8 @@ parse_path(Path) ->
 					{api, get_avail_agents};
 				["agent_transfer", Agent] ->
 					{api, {agent_transfer, Agent}};
+				["agent_transfer", Agent, CaseID] ->
+					{api, {agent_transfer, Agent, CaseID}};
 				["media"] ->
 					{api, media};
 				["mediapull" | Pulltail] ->
@@ -597,6 +599,8 @@ parse_path(Path) ->
 					{api, warm_transfer_cancel};
 				["queue_transfer", Number] ->
 					{api, {queue_transfer, Number}};
+				["queue_transfer", Number, CaseID] ->
+					{api, {queue_transfer, Number, CaseID}};
 				["init_outbound", Client, Type] ->
 					{api, {init_outbound, Client, Type}};
 				["supervisor" | Supertail] ->
@@ -874,7 +878,8 @@ web_connection_login_test_() ->
 		{"/checkcookie", {api, checkcookie}},
 		{"/dial/12345", {api, {dial, "12345"}}},
 		{"/get_avail_agents", {api, get_avail_agents}},
-		{"/agent_transfer/agent", {api, {agent_transfer, "agent"}}},
+		{"/agent_transfer/agent@domain", {api, {agent_transfer, "agent@domain"}}},
+		{"/agent_transfer/agent@domain/1234", {api, {agent_transfer, "agent@domain", "1234"}}},
 		{"/mediapush", {api, mediapush}},
 		{"/dynamic/test.html", {file, {"test.html", "www/dynamic"}}}
 	]

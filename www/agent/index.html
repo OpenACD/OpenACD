@@ -1,7 +1,8 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
-<head>
-<title>Agent UI</title>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>Agent UI</title>
 <style type="text/css">
   @import "/dojo/dijit/themes/soria/soria.css";
   @import "/dojo/dijit/themes/tundra/tundra.css";
@@ -178,6 +179,11 @@
 			url: '/SoundManager2/59239__info_in_tune.nl__gong.mp3',
 			volume: 25
 		});
+		soundManager.createSound({
+			id: 'chime',
+			url: '/SoundManager2/36365__matiasromero__clareira_sininho.mp3',
+			volume: 25
+		});
 	});
 </script>
 
@@ -272,6 +278,12 @@
 			</button>
 		</p>
 	</div>
+</div>
+
+<div dojoType="dijit.Dialog" title="Enter Case ID" id="getCaseIDDialog" style="display:none">
+	Please enter the Case ID for this call, if any<br/>(you can leave it blank if its already been set, too).<br/>
+	<input type="text" value="" dojoType="dijit.form.ValidationTextBox" regExp="[\d]*" invalidMessage="Invalid case ID" id="caseid" /><br/>
+	<input type="submit" dojoType="dijit.form.Button" label="Submit" />
 </div>
 
 <div dojoType="dijit.Dialog" title="Report Issue" id="reportIssueDialog" style="display:none">

@@ -36,12 +36,16 @@ function drawCalls(response) {
 	var c1;
 	dojo.forEach(response.clients,
 			function(client) {
-			if (client.medias.length > 0 /*&& client.totalInbound > 0*/) {
+			var len = dojo.filter(client.medias, function(obj) { 
+				var fullm = response.rawData[obj];
+				return fullm.state == 'queue'; 
+			}).length;
+			if (client.medias.length > 0 && len > 0/*&& client.totalInbound > 0*/) {
 			row = table.insertRow(rownum);
 			c1 = row.insertCell(0);
 			c1.innerHTML = client.label;
-			if (client.medias[0].type != 'voice') {
-				c1.innerHTML += "(" + client.medias[0].type + ")";
+			if (response.rawData[client.medias[0]].type != 'voice') {
+				c1.innerHTML += "(" + response.rawData[client.medias[0]].type + ")";
 			}
 			c1 = row.insertCell(1);
 			c1.innerHTML = dojo.filter(client.medias, function(obj) { 
@@ -49,14 +53,14 @@ function drawCalls(response) {
 				return fullm.state == 'queue'; 
 			}).length;
 			c1 = row.insertCell(2);
-			c1.innerHTML = dojo.filter(client.medias, function(obj) { 
+			c1.innerHTML = ''; /*dojo.filter(client.medias, function(obj) { 
 				var fullm = response.rawData[obj];
 				return fullm.state == 'ivr'; 
-			}).length;
+			}).length;*/
 			c1 = row.insertCell(3);
 			var longest = dojo.filter(client.medias, function(obj) { 
 				var fullm = response.rawData[obj];
-				return (fullm.state == 'queue' || fullm.state == 'ivr');
+				return (fullm.state == 'queue' /*|| fullm.state == 'ivr'*/);
 			});
 			/*if (longest.length === 0) {
 				var filtered = dojo.filter(client.medias, function(obj) { 
@@ -112,8 +116,10 @@ function drawAgents(response) {
 		c1.innerHTML = "No Agents";
 	} else {
 		var rownum = 1;
-		dojo.forEach(response.agentProfiles,
+		dojo.forEach(response.agentProfiles.sort(function(a, b) { return a.name > b.name}), 
 				function(profile) {
+				if (profile.agents.length == 0)
+					return;
 				row = table.insertRow(rownum);
 				c1 = row.insertCell(0);
 				c1.setAttribute("colspan", 2);
@@ -137,18 +143,18 @@ function drawAgents(response) {
 						if (agent.statedata.type != "voice") {
 							c1.innerHTML += "(" + agent.statedata.type + ")";
 						}
-						c1.innerHTML += " " + agent.statedata.brand;
+						c1.innerHTML += " " + agent.statedata.clientLabel;
 						break;
 						case "warmtransfer":
-						c1.innerHTML += "(" + agent.statedata.onhold.brand + ") (" + agent.statedata.calling + ")";
+						c1.innerHTML += "(" + agent.statedata.onhold.clientLabel + ") (" + agent.statedata.calling + ")";
 						break;
 						case "released":
-							c1.innerHTML += "("+agent.statedata.label+")";
+							c1.innerHTML += "("+agent.statedata+")";
 						break;
 						}
 
 						c1 = row.insertCell(2);
-						c1.innerHTML = timeSince(agent.lastchange);
+						c1.innerHTML = timeSince(agent.timestamp);
 
 						row.setAttribute("class", "agent");
 						row.setAttribute("state", agent.state);

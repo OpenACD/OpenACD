@@ -79,7 +79,8 @@
 	xferuuid :: string() | 'undefined',
 	manager_pid :: 'undefined' | any(),
 	file = erlang:error({undefined, file}):: string(),
-	answered = false :: boolean()
+	answered = false :: boolean(),
+	caseid :: string() | 'undefined'
 	}).
 
 -type(state() :: #state{}).
@@ -184,7 +185,7 @@ handle_ring(Apid, Callrec, State) ->
 	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F, [single_leg, {eventfun, F2}]) of
 		{ok, Pid} ->
 			link(Pid),
-			{ok, State#state{ringchannel = Pid, ringuuid = freeswitch_ring:get_uuid(Pid), agent_pid = Apid}};
+			{ok, [{"caseid", State#state.caseid}], State#state{ringchannel = Pid, ringuuid = freeswitch_ring:get_uuid(Pid), agent_pid = Apid}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{invalid, State}
@@ -242,7 +243,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 	end,
 	case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, {eventfun, F2}]) of
 		{ok, Pid} ->
-			{ok, State#state{agent_pid = AgentPid, xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
+			{ok, [{"caseid", State#state.caseid}], State#state{agent_pid = AgentPid, xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->
 			?ERROR("error:  ~p", [Error]),
 			{error, Error, State}
@@ -285,6 +286,8 @@ handle_call(Msg, _From, _Call, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
+handle_cast({set_caseid, CaseID}, _Call, State) ->
+	{noreply, State#state{caseid = CaseID}};
 handle_cast(_Msg, _Call, State) ->
 	{noreply, State}.
 

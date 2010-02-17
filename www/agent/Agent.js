@@ -250,21 +250,36 @@ Agent.prototype.clearNag = function(nagref){
 }
 
 Agent.transfer = function(aname) {
-	dojo.xhrGet({
-		url:"/agent_transfer/" + aname,
-		handleAs:"json",
-		error:function(response, ioargs){
-			errMessage(["error on transfer", response]);
-		},
-		load:function(response, ioargs){
-			if(response.success){
-				dojo.publish("agent/transfer", [response.success]);
+	var dialog = dijit.byId("getCaseIDDialog");
+	var caseid = dijit.byId('caseid');
+	caseid.setAttribute("value", "");
+	dialog.attr('execute', function(){
+			if (caseid.isValid()) {
+				dialog.hide();
+				var url = "/agent_transfer/"+aname;
+				if (caseid.attr("value") != "") {
+					url += "/" + caseid.attr("value");
+				}
+				dojo.xhrGet({
+					url: url,
+					handleAs:"json",
+					error:function(response, ioargs){
+						errMessage(["error on transfer", response]);
+					},
+					load:function(response, ioargs){
+						if(response.success){
+							dojo.publish("agent/transfer", [response.success]);
+						}
+						else{
+							errMessage(["failed to ring to 2nd agent", response.message]);
+						}
+					}
+				});
+			} else {
+				dialog.show();
 			}
-			else{
-				errMessage(["failed to ring to 2nd agent", response.message]);
-			}
-		}
 	});
+	dialog.show();
 };
 
 Agent.warmtransfer = function(num) {
@@ -322,21 +337,36 @@ Agent.warmtransfercomplete = function() {
 };
 
 Agent.queuetransfer = function(queue) {
-	dojo.xhrGet({
-		url:"/queue_transfer/" + queue,
-		handleAs:"json",
-		error:function(response, ioargs){
-			errMessage(["error on transfer", response]);
-		},
-		load:function(response, ioargs){
-			if(response.success){
-				dojo.publish("agent/queuetransfer", [response.success]);
+	var dialog = dijit.byId("getCaseIDDialog");
+	var caseid = dijit.byId('caseid');
+	caseid.setAttribute("value", "");
+	dialog.attr('execute', function(){
+			if (caseid.isValid()) {
+				dialog.hide();
+				var url = "/queue_transfer/"+queue;
+				if (caseid.attr("value") != "") {
+					url += "/" + caseid.attr("value");
+				}
+				dojo.xhrGet({
+					url: url,
+					handleAs:"json",
+					error:function(response, ioargs){
+						errMessage(["error on transfer", response]);
+					},
+					load:function(response, ioargs){
+						if(response.success){
+							dojo.publish("agent/queuetransfer", [response.success]);
+						}
+						else{
+							errMessage(["failed to initiate queue transfer", response.message]);
+						}
+					}
+				});
+			} else {
+				dialog.show();
 			}
-			else{
-				errMessage(["failed to initiate queue transfer", response.message]);
-			}
-		}
 	});
+	dialog.show();
 };
 
 

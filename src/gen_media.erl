@@ -510,13 +510,13 @@ handle_call({'$gen_media_spy', Spy}, _From, #state{oncall_pid = Spy} = State) ->
 	%% Can't spy on yourself.
 	?DEBUG("Can't spy on yourself", []),
 	{reply, invalid, State};
-handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
+handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, oncall_pid = Ocpid, callrec = Call} = State) when is_pid(Ocpid) ->
 	case erlang:function_exported(Callback, handle_spy, 3) of
 		false ->
-			?DEBUG("Callback ~p doesn't support spy", [Callback]),
+			?DEBUG("Callback ~p doesn't support spy for ~p", [Callback, Call#call.id]),
 			{reply, invalid, State};
 		true ->
-			case Callback:handle_spy(Spy, State#state.callrec, State#state.substate) of
+			case Callback:handle_spy(Spy, Call, State#state.substate) of
 				{ok, Newstate} ->
 					{reply, ok, State#state{substate = Newstate}};
 				{invalid, Newstate} ->
@@ -529,7 +529,7 @@ handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, on
 handle_call({'$gen_media_spy', _Spy}, _From, State) ->
 	{reply, invalid, State};
 handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = Ocpid, callrec = Call} = State) when Call#call.media_path =:= inband ->
-	?INFO("Request to end call from agent", []),
+	?INFO("Request to end call ~p from agent", [Call#call.id]),
 	cdr:wrapup(State#state.callrec, Ocpid),
 	case Callback:handle_wrapup(State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
@@ -538,11 +538,11 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, onca
 			cdr:hangup(State#state.callrec, agent),
 			{stop, normal, ok, State#state{oncall_pid = undefined, substate = NewState}}
 	end;
-handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = Ocpid} = State) ->
-	?ERROR("Cannot do a wrapup directly unless mediapath is inband, and request is from agent oncall.", []),
+handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = Ocpid, callrec = Call} = State) ->
+	?ERROR("Cannot do a wrapup directly unless mediapath is inband, and request is from agent oncall. ~p", [Call#call.id]),
 	{reply, invalid, State};
-handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = Ocpid} = State) ->
-	?INFO("request to queue call from agent", []),
+handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, callrec = Call, oncall_pid = Ocpid} = State) ->
+	?INFO("request to queue call ~p from agent", [Call#call.id]),
 	% TODO calls that were previously handled by an agent should get their priority bumped?
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->
@@ -562,9 +562,9 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}}
 	end;
-handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = State) when is_pid(State#state.oncall_pid) ->
+handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callrec = Call} = State) when is_pid(State#state.oncall_pid) ->
 	% TODO calls that were previously handled by an agent should get their priority bumped?
-	?INFO("Request to queue from ~p", [From]),
+	?INFO("Request to queue ~p from ~p", [Call#call.id, From]),
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
@@ -588,7 +588,7 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback} = Sta
 handle_call('$gen_media_get_call', _From, State) ->
 	{reply, State#state.callrec, State};
 handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = Call, callback = Callback} = State) ->
-	?INFO("Trying to ring ~p with timeout ~p", [Agent, Timeout]),
+	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, Call#call.id, Timeout]),
 	case set_agent_state(Agent, [ringing, Call#call{cook=QCall#queued_call.cook}]) of
 		ok ->
 			case Callback:handle_ring(Agent, State#state.callrec, State#state.substate) of
@@ -610,7 +610,7 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 								{ok, RingChanPid} ->
 									RingChanPid;
 								Else ->
-									?WARNING("Failed to do out of band ring:  ~p", [Else]),
+									?WARNING("Failed to do out of band ring:  ~p for ~p", [Else, Call#call.id]),
 									undefined
 							end;
 						_ ->
@@ -622,99 +622,106 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 					{reply, invalid, State#state{substate = Substate}}
 			end;
 		Else ->
-			?INFO("Agent ~p ringing response:  ~p", [Agent, Else]),
+			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, Call#call.id]),
 			{reply, invalid, State}
 	end;
-handle_call({'$gen_media_agent_transfer', Apid}, _From, #state{oncall_pid = Apid} = State) ->
-	?NOTICE("Can't transfer to yourself, silly ~p!", [Apid]),
+handle_call({'$gen_media_agent_transfer', Apid}, _From, #state{oncall_pid = Apid, callrec = Call} = State) ->
+	?NOTICE("Can't transfer to yourself, silly ~p! ~p", [Apid, Call#call.id]),
 	{reply, invalid, State};
-handle_call({'$gen_media_agent_transfer', Apid, Timeout}, _From, #state{callback = Callback, ring_pid = undefined, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
+handle_call({'$gen_media_agent_transfer', Apid, Timeout}, _From, #state{callrec = Call, callback = Callback, ring_pid = undefined, oncall_pid = Ocpid} = State) when is_pid(Ocpid) ->
 	case set_agent_state(Apid, [ringing, State#state.callrec]) of
 		ok ->
 			case Callback:handle_agent_transfer(Apid, Timeout, State#state.callrec, State#state.substate) of
-				{ok, NewState} ->
+				Success when element(1, Success) == ok ->
+					Popopts = case Success of
+						{ok, Substate} ->
+							[];
+						{ok, Opts, Substate} ->
+							Opts
+					end,
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', dummy}),
 					cdr:agent_transfer(State#state.callrec, {Ocpid, Apid}),
 					cdr:ringing(State#state.callrec, Apid),
-					{reply, ok, State#state{ring_pid = Apid, ringout = Tref, substate = NewState}};
+					url_pop(Call, Apid, Popopts),
+					{reply, ok, State#state{ring_pid = Apid, ringout = Tref, substate = Substate}};
 				{error, Error, NewState} ->
-					?NOTICE("Could not set agent ringing for transfer due to ~p", [Error]),
+					?NOTICE("Could not set agent ringing for transfer ~p due to ~p", [Error, Call#call.id]),
 					set_agent_state(Apid, [idle]),
 					{reply, invalid, State#state{substate = NewState}}
 			end;
 		invalid ->
-			?NOTICE("Could not ring to target agent ~p", [Apid]),
+			?NOTICE("Could not ring ~p to target agent ~p", [Call#call.id, Apid]),
 			{reply, invalid, State}
 	end;
 handle_call({'$gen_media_agent_transfer', _Apid, _Timeout}, _From, State) ->
 	?ERROR("Invalid agent transfer sent when state is ~p.", [State]),
 	{reply, invalid, State};
-handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback, oncall_pid = Apid} = State) when is_pid(Apid) ->
+handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback, oncall_pid = Apid, callrec = Call} = State) when is_pid(Apid) ->
 	case erlang:function_exported(Callback, handle_warm_transfer_begin, 3) of
 		true ->
-			case Callback:handle_warm_transfer_begin(Number, State#state.callrec, State#state.substate) of
+			case Callback:handle_warm_transfer_begin(Number, Call, State#state.substate) of
 				{ok, UUID, NewState} ->
 					Res = set_agent_state(Apid, [warmtransfer, UUID]),
 					cdr:warmxfer_begin(State#state.callrec, {Apid, Number}),
 					{reply, Res, State#state{substate = NewState, warm_transfer = true}};
 				{error, Error, NewState} ->
-					?DEBUG("Callback module ~w errored for warm transfer begin:  ~p", [Callback, Error]),
+					?DEBUG("Callback module ~w errored for warm transfer begin:  ~p for ~p", [Callback, Error, Call#call.id]),
 					{reply, invalid, State#state{substate = NewState}}
 			end;
 		false ->
 			{reply, invalid, State}
 	end;
-handle_call('$gen_media_warm_transfer_cancel', _From, #state{callback = Callback, oncall_pid = Apid} = State) when is_pid(Apid) ->
+handle_call('$gen_media_warm_transfer_cancel', _From, #state{callback = Callback, oncall_pid = Apid, callrec = Call} = State) when is_pid(Apid) ->
 	case erlang:function_exported(Callback, handle_warm_transfer_cancel, 2) of
 		true ->
-			case Callback:handle_warm_transfer_cancel(State#state.callrec, State#state.substate) of
+			case Callback:handle_warm_transfer_cancel(Call, State#state.substate) of
 				{ok, NewState} ->
-					Res = set_agent_state(Apid, [oncall, State#state.callrec]),
-					cdr:warmxfer_cancel(State#state.callrec, Apid),
+					Res = set_agent_state(Apid, [oncall, Call]),
+					cdr:warmxfer_cancel(Call, Apid),
 					#agent{login = Agent} = agent:dump_state(Apid),
-					cdr:oncall(State#state.callrec, Agent),
+					cdr:oncall(Call, Agent),
 					{reply, Res, State#state{substate = NewState, warm_transfer = false}};
 				{error, Error, NewState} ->
-					?DEBUG("Callback module ~w errored for warm transfer cancel:  ~p", [Callback, Error]),
+					?DEBUG("Callback module ~w errored for warm transfer cancel:  ~p for ~p", [Callback, Error, Call#call.id]),
 					{reply, invalid, State#state{substate = NewState}}
 			end;
 		false ->
 			{reply, invalid, State}
 	end;
-handle_call('$gen_media_warm_transfer_complete', _From, #state{callback = Callback, oncall_pid = Apid} = State) when is_pid(Apid) ->
+handle_call('$gen_media_warm_transfer_complete', _From, #state{callback = Callback, oncall_pid = Apid, callrec = Call} = State) when is_pid(Apid) ->
 	case erlang:function_exported(Callback, handle_warm_transfer_complete, 2) of
 		true ->
-			case Callback:handle_warm_transfer_complete(State#state.callrec, State#state.substate) of
+			case Callback:handle_warm_transfer_complete(Call, State#state.substate) of
 				{ok, NewState} ->
-					Res = set_agent_state(Apid, [wrapup, State#state.callrec]),
-					cdr:warmxfer_complete(State#state.callrec, Apid),
+					Res = set_agent_state(Apid, [wrapup, Call]),
+					cdr:warmxfer_complete(Call, Apid),
 					#agent{login = Agent} = agent:dump_state(Apid),
-					cdr:wrapup(State#state.callrec, Agent),
+					cdr:wrapup(Call, Agent),
 					{reply, Res, State#state{substate = NewState, oncall_pid = undefined}};
 				{error, Error, NewState} ->
-					?DEBUG("Callback module ~w errored for warm transfer complete:  ~p", [Callback, Error]),
+					?DEBUG("Callback module ~w errored for warm transfer complete:  ~p for ~p", [Callback, Error, Call#call.id]),
 					{reply, invalid, State#state{substate = NewState}}
 			end;
 		false ->
 			{reply, invalid, State}
 	end;
-handle_call({'$gen_media_announce', Annouce}, _From, #state{callback = Callback, substate = InSubstate} = State) ->
-	?INFO("Doing announce", []),
+handle_call({'$gen_media_announce', Annouce}, _From, #state{callback = Callback, substate = InSubstate, callrec = Call} = State) ->
+	?INFO("Doing announce for ~p", [Call#call.id]),
 	Substate = case erlang:function_exported(Callback, handle_announce, 3) of
 		true ->
-			{ok, N} = Callback:handle_announce(Annouce, State#state.callrec, InSubstate),
+			{ok, N} = Callback:handle_announce(Annouce, Call, InSubstate),
 			N;
 		false ->
 			State#state.substate
 	end,
 	{reply, ok, State#state{substate = Substate}};
-handle_call('$gen_media_voicemail', _From, #state{callback = Callback} = State) when is_pid(State#state.queue_pid) ->
-	?INFO("trying to send media to voicemail", []),
+handle_call('$gen_media_voicemail', _From, #state{callback = Callback, callrec = Call} = State) when is_pid(State#state.queue_pid) ->
+	?INFO("trying to send media ~p to voicemail", [Call#call.id]),
 	case erlang:function_exported(Callback, handle_voicemail, 3) of
 		false ->
 			{reply, invalid, State};
 		true ->
-			case  Callback:handle_voicemail(State#state.ring_pid, State#state.callrec, State#state.substate) of
+			case  Callback:handle_voicemail(State#state.ring_pid, Call, State#state.substate) of
 				{ok, Substate} ->
 					priv_voicemail(State),
 					{reply, ok, State#state{substate = Substate, queue_pid = undefined, ring_pid = undefined}};
@@ -722,34 +729,34 @@ handle_call('$gen_media_voicemail', _From, #state{callback = Callback} = State) 
 					{reply, invalid, State#state{substate = Substate}}
 			end
 	end;
-handle_call('$gen_media_voicemail', _From, #state{queue_pid = undefined} = State) ->
-	?ERROR("voicemail only valid when the media is queued", []),
+handle_call('$gen_media_voicemail', _From, #state{queue_pid = undefined, callrec = Call} = State) ->
+	?ERROR("voicemail only valid when the media ~p is queued", [Call#call.id]),
 	{reply, invalid, State};
-handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{ring_pid = Apid, callrec = #call{ring_path = outband}} = State) ->
-	?INFO("Cannot accept on call requests from agent (~p) unless ring_path is inband", [Apid]),
+handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{ring_pid = Apid, callrec = #call{ring_path = outband} = Call} = State) ->
+	?INFO("Cannot accept on call requests from agent (~p) unless ring_path is inband for ~p", [Apid, Call#call.id]),
 	{reply, invalid, State};
-handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid, callrec = #call{ring_path = inband}} = State) when is_pid(Ocpid) ->
-	?INFO("oncall request during what looks like an agent transfer (inband)", []),
-	case Callback:handle_answer(Rpid, State#state.callrec, State#state.substate) of
+handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid, callrec = #call{ring_path = inband} = Call} = State) when is_pid(Ocpid) ->
+	?INFO("oncall request during what looks like an agent transfer (inband) for ~p", [Call#call.id]),
+	case Callback:handle_answer(Rpid, Call, State#state.substate) of
 		{ok, NewState} ->
 			kill_outband_ring(State),
-			cdr:oncall(State#state.callrec, Rpid),
+			cdr:oncall(Call, Rpid),
 			timer:cancel(State#state.ringout),
-			set_agent_state(Ocpid, [wrapup, State#state.callrec]),
-			cdr:wrapup(State#state.callrec, Ocpid),
+			set_agent_state(Ocpid, [wrapup, Call]),
+			cdr:wrapup(Call, Ocpid),
 			Agent = agent_manager:find_by_pid(Rpid),
 			set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}, [{agent, Agent}]),
 			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined, outband_ring_pid = undefined}};
 		{error, Reason, NewState} ->
-			?ERROR("Cannot set ~p to oncall due to ~p", [Rpid, Reason]),
+			?ERROR("Cannot set ~p for ~p to oncall due to ~p", [Rpid, Call#call.id, Reason]),
 			{reply, invalid, State#state{substate = NewState}}
 	end;
-handle_call('$gen_media_agent_oncall', _From, #state{warm_transfer = true} = State) ->
-	?INFO("oncall request during what looks like a warm transfer (outofband)", []),
+handle_call('$gen_media_agent_oncall', _From, #state{warm_transfer = true, callrec = Call} = State) ->
+	?INFO("oncall request during what looks like a warm transfer (outofband) for ~", [Call#call.id]),
 	agent:media_push(State#state.oncall_pid, warm_transfer_succeeded),
 	{reply, ok, State};
-handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid} = State) when is_pid(Ocpid), is_pid(Rpid) ->
-	?INFO("oncall request during what looks like an agent transfer (outofband) to ~p", [Rpid]),
+handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = Rpid, callback = Callback, oncall_pid = Ocpid, callrec = Call} = State) when is_pid(Ocpid), is_pid(Rpid) ->
+	?INFO("oncall request during what looks like an agent transfer (outofband) to ~p for ~p", [Rpid, Call#call.id]),
 	case set_agent_state(Rpid, [oncall, State#state.callrec]) of
 		invalid ->
 			{reply, invalid, State};
@@ -765,12 +772,12 @@ handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = Rpid, callback =
 					set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined}, [{agent, Agent}]),
 					{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = Rpid, ring_pid = undefined, outband_ring_pid = undefined}};
 				{error, Reason, NewState} ->
-					?ERROR("Cannot set ~p to oncall due to ~p", [Rpid, Reason]),
+					?ERROR("Cannot set ~p to oncall due to ~p for ~p", [Rpid, Reason, Call#call.id]),
 					{reply, invalid, State#state{substate = NewState}}
 			end
 	end;
-handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback, ring_pid = Apid, callrec = #call{ring_path = inband}} = State) ->
-	?INFO("oncall request from agent ~p", [Apid]),
+handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback, ring_pid = Apid, callrec = #call{ring_path = inband} = Call} = State) ->
+	?INFO("oncall request from agent ~p for ~p", [Apid, Call#call.id]),
 	case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
 			kill_outband_ring(State),
@@ -781,27 +788,27 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 			set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, ring_pid = undefined, oncall_pid = Apid}, [{agent, Agent}]),
 			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, ring_pid = undefined, oncall_pid = Apid, outband_ring_pid = undefined}};
 		{error, Reason, NewState} ->
-			?ERROR("Could not set ~p on call due to ~p", [Apid, Reason]),
+			?ERROR("Could not set ~p on call due to ~p for ~p", [Apid, Reason, Call#call.id]),
 			{reply, invalid, State#state{substate = NewState}}
 	end;
 
-handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = Callback} = State) when is_pid(Apid) ->
-	?INFO("oncall request from ~p; agent to set on call is ~p", [From, Apid]),
-	case set_agent_state(Apid, [oncall, State#state.callrec]) of
+handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = Callback, callrec = Call} = State) when is_pid(Apid) ->
+	?INFO("oncall request from ~p; agent to set on call is ~p for ~p", [From, Apid, Call#call.id]),
+	case set_agent_state(Apid, [oncall, Call]) of
 		invalid ->
 			{reply, invalid, State};
 		ok ->
-			case Callback:handle_answer(Apid, State#state.callrec, State#state.substate) of
+			case Callback:handle_answer(Apid, Call, State#state.substate) of
 				{ok, NewState} ->
 					kill_outband_ring(State),
-					cdr:oncall(State#state.callrec, Apid),
+					cdr:oncall(Call, Apid),
 					timer:cancel(State#state.ringout),
 					call_queue:remove(State#state.queue_pid, self()),
 					Agent = agent_manager:find_by_pid(Apid),
 					set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = Apid, ring_pid = undefined}, [{agent, Agent}]),
 					{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = Apid, ring_pid = undefined, outband_ring_pid = undefined}};
 				{error, Reason, NewState} ->
-					?ERROR("Could not set ~p on call due to ~p", [Apid, Reason]),
+					?ERROR("Could not set ~p on call with ~p due to ~p", [Apid, Call#call.id, Reason]),
 					{reply, invalid, State#state{substate = NewState}}
 			end;
 		badagent ->
@@ -814,12 +821,12 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = Apid, callback = 
 			gen_server:cast(Callrec#call.cook, stop_ringing),
 			{reply, invalid, Newstate}
 	end;
-handle_call('$gen_media_agent_oncall', From, #state{oncall_pid = OcPid} = State) when is_pid(OcPid) ->
-	?INFO("oncall request from ~p when already oncall, ignoring", [From]),
+handle_call('$gen_media_agent_oncall', From, #state{oncall_pid = OcPid, callrec = Call} = State) when is_pid(OcPid) ->
+	?INFO("oncall request from ~p for ~p when already oncall, ignoring", [From, Call#call.id]),
 	% TODO - is this a bad thing to do? Micah -- please review this clause.
 	{reply, ok, State};
-handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined} = State) ->
-	?INFO("oncall request from ~p when no ring_pid (probobly a late request)", [From]),
+handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined, callrec = Call} = State) ->
+	?INFO("oncall request from ~p for ~p when no ring_pid (probobly a late request)", [From, Call#call.id]),
 	{reply, invalid, State};
 handle_call(Request, From, #state{callback = Callback} = State) ->
 	Reply = Callback:handle_call(Request, From, State#state.callrec, State#state.substate),
@@ -840,20 +847,20 @@ handle_cast(Msg, #state{callback = Callback} = State) ->
 
 %% @private
 handle_info({'$gen_media_stop_ring', Apid}, #state{ring_pid = Apid, callback = Callback, callrec = Callrec} = State) ->
-	?INFO("ring agent ~w requested a stop to ringing", [Apid]),
+	?INFO("ring agent ~w requested a stop to ringing for ~p", [Apid, Callrec#call.id]),
 	{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
 	gen_server:cast(Callrec#call.cook, stop_ringing),
 	kill_outband_ring(State),
 	cdr:ringout(Callrec, {agent_request, Apid}),
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, outband_ring_pid = undefined}};
-handle_info({'$gen_media_stop_ring', _Cook}, #state{ring_pid = undefined} = State) ->
-	?NOTICE("No agent is ringing for this call", []),
+handle_info({'$gen_media_stop_ring', _Cook}, #state{ring_pid = undefined, callrec = Call} = State) ->
+	?NOTICE("No agent is ringing for this call ~p", [Call#call.id]),
 	{noreply, State};
-handle_info({'$gen_media_stop_ring', _Cook}, #state{ringout = false} = State) ->
-	?NOTICE("Ringout is set not to be handled", []),
+handle_info({'$gen_media_stop_ring', _Cook}, #state{ringout = false, callrec = Call} = State) ->
+	?NOTICE("Ringout is set not to be handled for ~p", [Call#call.id]),
 	{noreply, State};
-handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = Callback} = State) when is_pid(Apid) ->
-	?INFO("Handling ringout...", []),
+handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = Callback, callrec = Call} = State) when is_pid(Apid) ->
+	?INFO("Handling ringout... for ~p", [Call#call.id]),
 	Reason = try agent:query_state(Apid) of
 		{ok, ringing} ->
 			set_agent_state(Apid, [idle]),
@@ -864,7 +871,7 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = Apid, callback = C
 			ringout
 	catch
 		What:Why ->
-			?INFO("getting agent info failed due to ~p:~p", [What, Why]),
+			?INFO("getting agent info failed due to ~p:~p for ~p", [What, Why, Call#call.id]),
 			ringout
 	end,
 	gen_server:cast(Cook, stop_ringing),
@@ -1040,7 +1047,9 @@ url_pop(#call{client = Client} = Call, Agent, Addedopts) ->
 				{"direction", atom_to_list(Call#call.direction)}
 			],
 			BaseUrl = util:string_interpolate(String, Words),
-			Appender = fun({Key, Value}, Midurl) ->
+			Appender = fun({_Key, undefined}, Midurl) ->
+					Midurl;
+				({Key, Value}, Midurl) ->
 				lists:append([Midurl, [$& | Key], [$= | Value]])
 			end,
 			Url = lists:foldl(Appender, BaseUrl, Addedopts),
@@ -1111,7 +1120,7 @@ set_cpx_mon(#state{callrec = Call} = _State, Details) ->
 priv_queue(Queue, Callrec, Failover) ->
 	case queue_manager:get_queue(Queue) of
 		undefined ->
-			?WARNING("Uh oh, no queue of ~p, failover:  ~w", [Queue, Failover]),
+			?WARNING("Uh oh, no queue of ~p, failover:  ~w for ~p", [Queue, Failover, Callrec#call.id]),
 			case Failover of
 				true ->
 					Dqpid = queue_manager:get_queue("default_queue"),
@@ -1122,9 +1131,9 @@ priv_queue(Queue, Callrec, Failover) ->
 					invalid
 			end;
 		Qpid ->
-			?DEBUG("Trying to add to queue...", []),
+			?DEBUG("Trying to add ~p to queue...", [Callrec#call.id]),
 			R = call_queue:add(Qpid, self(), Callrec),
-			?DEBUG("q response:  ~p", [R]),
+			?DEBUG("q response:  ~p for ~p", [R, Callrec#call.id]),
 			?INFO("Queueing call ~s into ~s", [Callrec#call.id, Queue]),
 			Qpid
 	end.
@@ -1157,11 +1166,11 @@ kill_outband_ring(State) ->
 	end.
 
 agent_interact({mediapush, Data}, #state{oncall_pid = Ocpid, callrec = Call} = State) when is_pid(Ocpid), Call#call.media_path =:= inband ->
-	?DEBUG("Shoving ~p", [Data]),
+	?DEBUG("Shoving ~p from ~p", [Data, Call#call.id]),
 	agent:media_push(Ocpid, Data),
 	State;
-agent_interact({mediapush, _Data}, State) ->
-	?INFO("Cannot do a media push in current state:  ~p", [State]),
+agent_interact({mediapush, _Data}, #state{callrec = Call} = State) ->
+	?INFO("Cannot do a media push from ~p in current state:  ~p", [Call#call.id, State]),
 	State;
 agent_interact(stop_ring, State) ->
 	agent_interact({stop_ring, undefined}, State);
@@ -1175,19 +1184,19 @@ agent_interact({stop_ring, Reason}, #state{callrec = Call, ring_pid = Apid} = St
 	Midstate = case {State#state.ringout, Apid} of
 		{false, undefined} ->
 			% Nothin' doing.
-			?INFO("stop_ring when there's not much of a ring to handle", []),
+			?INFO("stop_ring for ~p when there's not much of a ring to handle", [Call#call.id]),
 			State;
 		{false, Apid} ->
-			?INFO("stop_ring with an agent ringing but no timer", []),
+			?INFO("stop_ring for ~p with an agent ringing but no timer", [Call#call.id]),
 			set_agent_state(Apid, [idle]),
 			cdr:ringout(State#state.callrec, {Reason, Apid}),
 			State#state{ring_pid = undefined};
 		{Tref, undefined} ->
 			timer:cancel(Tref),
-			?WARNING("stop_ring with only a timer", []),
+			?WARNING("stop_ring for ~p with only a timer", [Call#call.id]),
 			State#state{ringout = false};
 		{Tref, Apid} ->
-			?INFO("stop_ring with a timer and agent", []),
+			?INFO("stop_ring for ~p with a timer and agent", [Call#call.id]),
 			timer:cancel(Tref),
 			set_agent_state(Apid, [idle]),
 			cdr:ringout(State#state.callrec, {Reason, Apid}),
@@ -1195,13 +1204,13 @@ agent_interact({stop_ring, Reason}, #state{callrec = Call, ring_pid = Apid} = St
 	end,
 	kill_outband_ring(Midstate),
 	Midstate#state{outband_ring_pid = undefined};
-agent_interact(wrapup, #state{oncall_pid = Apid} = State) ->
-	?INFO("Attempting to set agent at ~p to wrapup", [Apid]),
+agent_interact(wrapup, #state{oncall_pid = Apid, callrec = Call} = State) ->
+	?INFO("Attempting to set agent at ~p to wrapup for ~p", [Apid, Call#call.id]),
 	set_agent_state(Apid, [wrapup, State#state.callrec]),
 	cdr:wrapup(State#state.callrec, Apid),
 	State#state{oncall_pid = undefined};
-agent_interact(hangup, #state{oncall_pid = Oncallpid, ring_pid = Ringpid} = State) when is_pid(Oncallpid), is_pid(Ringpid) ->
-	?INFO("hangup when both oncall and ring are pids", []),
+agent_interact(hangup, #state{oncall_pid = Oncallpid, ring_pid = Ringpid, callrec = Call} = State) when is_pid(Oncallpid), is_pid(Ringpid) ->
+	?INFO("hangup for ~p when both oncall and ring are pids", [Call#call.id]),
 	set_agent_state(Ringpid, [idle]),
 	set_agent_state(Oncallpid, [wrapup, State#state.callrec]),
 	cdr:wrapup(State#state.callrec, Oncallpid),
@@ -1209,26 +1218,26 @@ agent_interact(hangup, #state{oncall_pid = Oncallpid, ring_pid = Ringpid} = Stat
 	cdr:hangup(Callrec, string:join(tuple_to_list(Callrec#call.callerid), " ")),
 	kill_outband_ring(State),
 	State#state{oncall_pid = undefined, ring_pid = undefined, outband_ring_pid = undefined};
-agent_interact(hangup, #state{oncall_pid = Apid} = State) when is_pid(Apid) ->
-	?INFO("hangup when only oncall is a pid", []),
+agent_interact(hangup, #state{oncall_pid = Apid, callrec = Call} = State) when is_pid(Apid) ->
+	?INFO("hangup for ~p when only oncall is a pid", [Call#call.id]),
 	set_agent_state(Apid, [wrapup, State#state.callrec]),
 	cdr:wrapup(State#state.callrec, Apid),
 	Callrec = State#state.callrec,
 	cdr:hangup(Callrec, string:join(tuple_to_list(Callrec#call.callerid), " ")),
 	State#state{oncall_pid = undefined};
 agent_interact(hangup, #state{ring_pid = Apid, callrec = Call} = State) when is_pid(Apid) ->
-	?INFO("hangup when only ringing is a pid", []),
+	?INFO("hangup for ~p when only ringing is a pid", [Call#call.id]),
 	set_agent_state(Apid, [idle]),
 	cdr:hangup(Call, string:join(tuple_to_list(Call#call.callerid), " ")),
 	kill_outband_ring(State),
 	State#state{ring_pid = undefined, outband_ring_pid = undefined};
 agent_interact(hangup, #state{queue_pid = Qpid, callrec = Call} = State) when is_pid(Qpid) ->
-	?INFO("hang up when only queue is a pid", []),
+	?INFO("hang for ~p up when only queue is a pid", [Call#call.id]),
 	unqueue(Qpid, self()),
 	cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
 	State#state{queue_pid = undefined};
 agent_interact(hangup, #state{callrec = Call, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) when is_record(Call, call) ->
-	?INFO("orphaned call, no queue or agents at all", []),
+	?INFO("orphaned call ~p, no queue or agents at all", [Call#call.id]),
 	cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
 	State;
 agent_interact(hangup, #state{queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
@@ -1236,15 +1245,15 @@ agent_interact(hangup, #state{queue_pid = undefined, oncall_pid = undefined, rin
 	State.
 
 %% These should crash the media if the agent doesn't exist.
-outgoing({outbound, Agent, NewState}, State) when is_record(State#state.callrec, call) ->
-	?INFO("Told to set ~s to outbound", [Agent]),
+outgoing({outbound, Agent, NewState}, #state{callrec = Call} = State) when is_record(State#state.callrec, call) ->
+	?INFO("Told to set ~s to outbound for ~p", [Agent, Call#call.id]),
 	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
 			agent:set_state(Apid, outgoing, State#state.callrec),
 			cdr:oncall(State#state.callrec, Agent),
 			{ok, State#state{oncall_pid = Apid, substate = NewState}};
 		false ->
-			?ERROR("Agent ~s doesn't exists; can't set outgoing", [Agent]),
+			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
 			{{error, {noagent, Agent}}, State#state{substate = NewState}}
 	end;
 outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call) ->
@@ -1255,7 +1264,7 @@ outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call) ->
 			cdr:oncall(Call, Agent),
 			{ok, State#state{callrec = Call, substate = NewState, oncall_pid = Apid}};
 		false ->
-			?ERROR("Agent ~s doesn't exists; can't set outgoing", [Agent]),
+			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
 			{{error, {noagent, Agent}}, State#state{substate = NewState, callrec = Call}}
 	end.
 
@@ -1305,7 +1314,15 @@ url_pop_test_() ->
 			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com?a=b&addkey=addval", "ring"}, _) -> ok end),
 			url_pop(Call, Agent, [{"addkey", "addval"}]),
 			gen_server_mock:assert_expectations(Conn)
-		end}]
+		end},
+		{"url is set with some additional options, some of which are blank",
+		fun() ->
+			Call = BaseCall#call{client = #client{label = "client", id = "client", options = [{url_pop, "example.com?a=b"}]}},
+			gen_server_mock:expect_cast(Conn, fun({url_pop, "example.com?a=b&addkey=addval", "ring"}, _) -> ok end),
+			url_pop(Call, Agent, [{"addkey", "addval"}, {"foo", undefined}]),
+			gen_server_mock:assert_expectations(Conn)
+		end}
+	]
 	end}.
 	
 init_test_() ->

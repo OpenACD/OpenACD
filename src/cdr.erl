@@ -38,6 +38,7 @@
 
 -include("log.hrl").
 -include("call.hrl").
+-include("agent.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
 -export([
@@ -62,6 +63,8 @@
 	warmxfer_cancel/2,
 	warmxfer_complete/2,
 	warmxfer_fail/2,
+	truncate/0,
+	truncate/1,
 	status/1,
 	merge/3,
 	get_raws/1,
@@ -250,6 +253,70 @@ voicemail(Call, Qpid) when is_pid(Qpid) ->
 voicemail(Call, Queue) ->
 	event({voicemail, Call, util:now(), Queue}).
 
+truncate() ->
+	{atomic, Deads} = mnesia:transaction(fun() -> 
+		qlc:e(qlc:q([M || 
+			#cdr_rec{media = M, summary = inprogress} = X <- mnesia:table(cdr_rec), 
+			is_process_alive(M#call.source) == false
+		])) 
+	end),
+	[truncate(X) || X <- Deads].
+	%Handles = [gen_event:delete_handler(cdr, {cdr, Id}, truncate) || {cdr, Id} <- gen_event:which_handlers(cdr), lists:member(Deads, Id)],
+	
+truncate(Callrec) ->
+	{atomic, Raws} = mnesia:transcation(fun() ->
+		qlc:e(qlc:q([X || #cdr_raw{id = Id} = X <- mnesia:table(cdr_raw), Id =:= Callrec#call.id]))
+	end),
+	[R | _] = Raws,
+	case attached_agent(Raws) of
+		true ->
+			ok;
+		false ->
+			gen_event:delete_handler(cdr, {cdr, Callrec#call.id}, truncate),
+			Time = cdr_big_time(Raws, 0),
+			Cdr = #cdr_raw{
+				id = Callrec#call.id,
+				transaction = cdrend,
+				start = Time,
+				ended = Time,
+				nodes = R#cdr_raw.nodes
+			},
+			push_raw(Callrec, Cdr),
+			spawn_summarizer(Callrec)
+	end.
+
+attached_agent([]) ->
+	false;
+attached_agent([Head | Tail]) ->
+	case attached_agent(Head) of
+		true ->
+			true;
+		_ ->
+			attached_agent(Tail)
+	end;
+attached_agent(#cdr_raw{eventdata = D, id = Id}) ->
+	case cpx:get_agent(D) of
+		none ->
+			false;
+		Pid ->
+			#agent{statedata = Sdata} = agent:dump_state(Pid),
+			case Sdata of
+				#call{id = Id} ->
+					true;
+				_ ->
+					false
+			end
+	end.
+
+cdr_big_time([], Acc) ->
+	Acc;
+cdr_big_time([#cdr_raw{start = N, ended = undefined} | Tail], Acc) when Acc < N ->
+	cdr_big_time(Tail, N);
+cdr_big_time([#cdr_raw{ended = N} | Tail], Acc) when Acc < N ->
+	cdr_big_time(Tail, N);
+cdr_big_time([_H | Tail], Acc) ->
+	cdr_big_time(Tail, Acc).
+
 event(Tuple) ->
 	catch gen_event:notify(cdr, Tuple).
 %% @doc Return the completed and partial transactions for `#call{} Call'.
@@ -348,11 +415,15 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 	end;
 handle_event({_Transaction, _Call, _Time, _Data}, State) ->
 	% this is an event for a different CDR handler, ignore it
+	{ok, State};
+handle_event({truncate, Callid}, #state{id = Callid} = State) ->
+	remove_handler;
+handle_event({truncate, _Callid}, State) ->
 	{ok, State}.
 
 %% @private
 handle_call(status, State) ->
-	catch toolbar:start(),
+	%catch toolbar:start(),
 	{ok, ok, State};
 handle_call(_Request, State) ->
 	{ok, ok, State}.

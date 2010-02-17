@@ -573,10 +573,12 @@ in_progress() ->
 print_raws(#cdr_rec{transactions = inprogress, media = Media}) ->
 	Id = Media#call.id,
 	print_raws(Id);
-print_raws(#cdr_rec{transactions = Trans}) ->
+print_raws(#cdr_rec{media = Call, transactions = Trans}) ->
+	io:format("Id:  ~s~n", [Call#call.id]),
 	pretty_print_raws(Trans);
 print_raws(Id) ->
 	{atomic, List} = mnesia:transaction(fun() -> qlc:e(qlc:q([X || #cdr_raw{id = Testid} = X <- mnesia:table(cdr_raw), Testid =:= Id])) end),
+	io:format("Id:  ~s~n", [Id]),
 	pretty_print_raws(List).
 
 pretty_print_raws(UnsortedList) ->

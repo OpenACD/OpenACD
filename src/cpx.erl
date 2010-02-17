@@ -42,6 +42,7 @@
 -ifdef(TEST).
 	-include_lib("eunit/include/eunit.hrl").
 -endif.
+-include_lib("stdlib/include/qlc.hrl").
 
 -ifdef(CPXHELP).
 	-cpxhelp(["head data",
@@ -75,7 +76,10 @@
 	media_state/1,
 	uptime/0,
 	uptime/1,
-	reload_recipe/1
+	reload_recipe/1,
+	in_progress/0,
+	print_raws/1,
+	find_cdr/1
 ]).
 
 -spec(start/2 :: (Type :: 'normal' | {'takeover', atom()} | {'failover', atom()}, StartArgs :: [any()]) -> {'ok', pid(), any()} | {'ok', pid()} | {'error', any()}).
@@ -558,7 +562,113 @@ reload_recipe(Queue) ->
 	Newrec = lists:append(Grep, Recipe),
 	Q = queue_manager:get_queue(Queue),
 	call_queue:set_recipe(Q, Newrec).
-	
+
+in_progress() ->
+	{atomic, List} = mnesia:transaction(fun() -> qlc:e(qlc:q([begin M = R#cdr_rec.media, M#call.id end || #cdr_rec{summary = inprogress} = R <- mnesia:table(cdr_rec)])) end),
+	List.
+
+print_raws(#cdr_rec{transactions = inprogress, media = Media}) ->
+	Id = Media#call.id,
+	print_raws(Id);
+print_raws(#cdr_rec{transactions = Trans}) ->
+	pretty_print_raws(Trans);
+print_raws(Id) ->
+	{atomic, List} = mnesia:transaction(fun() -> qlc:e(qlc:q([X || #cdr_raw{id = Testid} = X <- mnesia:table(cdr_raw), Testid =:= Id])) end),
+	pretty_print_raws(List).
+
+pretty_print_raws(UnsortedList) ->
+	Sort = fun
+		(#cdr_raw{transaction = cdrinit, start = Astart}, #cdr_raw{transaction = Btran, start = Bstart}) ->
+			true;
+		(#cdr_raw{transaction = _Tran, start = Astart}, #cdr_raw{transaction = cdrinit, start = Bstart}) ->
+			false;
+		(#cdr_raw{start = Astart}, #cdr_raw{start = Bstart}) ->
+			Astart =< Bstart
+	end,
+	List = lists:sort(Sort, UnsortedList),
+	F = fun(#cdr_raw{transaction = Trans, eventdata = Edata, start = Start, ended = End}) ->
+		Fixedend = case Edata of
+			#call{client = Client} ->
+				Client#client.label;
+			_ ->
+				Edata
+		end,
+		Duration = case End of
+			undefined ->
+				undefined;
+			_ ->
+				End - Start
+		end,
+		io:format("~s\t~p - ~p\t~p\t~p~n", [Trans, Start, End, Duration, Fixedend])
+	end,
+	[F(X) || X <- List],
+	ok.
+
+find_cdr(Tests) when is_list(Tests) ->
+	QH = qlc:q([Cdr || Cdr <- mnesia:table(cdr_rec), lists:all(fun(Test) -> find_cdr_test(Test, Cdr) end, Tests)]),
+	find_cdr(QH);
+find_cdr(QH) ->
+	{atomic, List} = mnesia:transaction(fun() -> qlc:e(QH) end),
+	List.
+
+find_cdr_test({type, Type}, Cdr) ->
+	find_cdr_test({mediatype, Type}, Cdr);
+find_cdr_test({mediatype, Type}, #cdr_rec{media = Call}) ->
+	Call#call.type =:= Type;
+find_cdr_test({older, Time}, #cdr_rec{timestamp = Tstamp}) when Time < Tstamp ->
+	true;
+find_cdr_test({younger, Time}, #cdr_rec{timestamp = Tstamp}) when Time > Tstamp ->
+	true;
+find_cdr_test({duration, Time}, Cdr) ->
+	find_cdr_test({length, Time}, Cdr);
+find_cdr_test({length, Time}, #cdr_rec{timestamp = Tstamp, transactions = inprogress}) ->
+	Now = util:now(),
+	Now - Tstamp >= Time;
+find_cdr_test({length, Time}, #cdr_rec{transactions = Trans}) ->
+	[#cdr_raw{start = S, ended = E}] = [X || #cdr_raw{transaction = cdrinit} = X <- Trans],
+	E - S >= Time;
+find_cdr_test({brand, Data}, Cdr) ->
+	find_cdr_test({client, Data}, Cdr);
+find_cdr_test({client, Data}, #cdr_rec{media = Media}) ->
+	Client = Media#call.client,
+	case Data of
+		#client{label = Data} ->
+			true;
+		#client{id = Data} ->
+			true;
+		_ ->
+			false
+	end;
+find_cdr_test({agent, Agent}, #cdr_rec{media = Media, transactions = inprogress}) ->
+	Id = Media#call.id,
+	case mnesia:transaction(fun() -> qlc:e(qlc:q([X || #cdr_raw{id = Testid, eventdata = Edata} = X <- mnesia:table(cdr_raw), Edata =:= Agent, Testid =:= Id])) end) of
+		{atomic, []} ->
+			false;
+		{atomic, _} ->
+			true
+	end;
+find_cdr_test({agent, Agent}, #cdr_rec{media = Media, transactions = Trans}) ->
+	case [X || #cdr_raw{eventdata = Edata} = X <- Trans, Edata =:= Agent] of
+		[] ->
+			false;
+		_ ->
+			true
+	end;
+find_cdr_test({callerid, Idbit}, #cdr_rec{media = Media}) ->
+	Callerid = Media#call.callerid,
+	case string:str(Idbit, Callerid) of
+		0 ->
+			false;
+		_ ->
+			true
+	end;
+find_cdr_test({callid, Id}, Cdr) ->
+	find_cdr_test({mediaid, Id}, Cdr);
+find_cdr_test({mediaid, Id}, #cdr_rec{media = Media}) ->
+	Media#call.id =:= Id;
+find_cdr_test(_, _) ->
+	false.
+
 % to be added soon TODO
 %
 %can_answer/2 (Media, Agent) -> true | missing skills

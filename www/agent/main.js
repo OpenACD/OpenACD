@@ -45,6 +45,26 @@ function formatseconds(seconds) {
 	return s;
 }
 
+function format_statedata(data, state) {
+	switch (state) {
+		case 'released':
+			return data.reason;
+		case 'idle':
+			return '';
+		case 'precall':
+			return data.brandname;
+		case 'oncall':
+		case 'wrapup':
+		case 'ringing':
+		case 'outgoing':
+			return 'id: '+ data.callid + " callerid: " + data.callerid + " type: " + data.type + " brand: " + data.brandname;
+		case 'warmtransfer':
+			return 'onhold: ' + data.onhold.callid + ' calling: ' + data.calling;
+		default:
+			data.toString();
+	}
+}
+
 function confirmDialog(conf){
 	var defaultConf = {
 		'yesLabel': 'Yes',
@@ -270,7 +290,7 @@ function load_media_tab(options){
 			dockable: false,
 			href: 'tabs/' + options.href,
 			resizable: true,
-			style: 'position:absolute;top:30px;left:70%;z-index:999;width:'+options.width+';height:'+options.height
+			style: 'position:absolute;top:30px;left:70%;z-index:800;width:'+options.width+';height:'+options.height
 		}, elem);
 		//pane.attr('href', "tabs/" + options.href);
 		pane.startup();
@@ -559,8 +579,9 @@ dojo.addOnLoad(function(){
 	
 	EventLog.logAgentState = dojo.subscribe("agent/state", function(data){
 		var line = "Agent state changed to " + data.state;
+		console.log(data.statedata);
 		if(data.statedata){
-			line += data.statedata.toString();
+			line += '('+format_statedata(data.statedata, data.state)+')';
 		}
 		EventLog.log(line);
 	});

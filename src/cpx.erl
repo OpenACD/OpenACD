@@ -136,13 +136,16 @@ get_queue(Queue) ->
 	queue_manager:get_queue(Queue).
 
 -spec(get_agent/1 :: (Agent :: string()) -> pid() | 'none').
-get_agent(Agent) ->
+get_agent(Agent) when is_list(Agent) ->
 	case agent_manager:query_agent(Agent) of
 		{true, Pid} ->
 			Pid;
 		false ->
 			none
-	end.
+	end;
+get_agent(_) ->
+	io:format("Give a name~n"),
+	none.
 
 -spec(get_agents/0 :: () -> [{string(), pid()}]).
 get_agents() ->

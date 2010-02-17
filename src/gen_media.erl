@@ -587,7 +587,7 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callr
 	end;
 handle_call('$gen_media_get_call', _From, State) ->
 	{reply, State#state.callrec, State};
-handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = Call, callback = Callback} = State) ->
+handle_call({'$gen_media_ring', Agent, #queued_call{cook = Requester} = QCall, Timeout}, {Requester, _Tag}, #state{callrec = Call, callback = Callback, ring_pid = undefined} = State) ->
 	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, Call#call.id, Timeout]),
 	case set_agent_state(Agent, [ringing, Call#call{cook=QCall#queued_call.cook}]) of
 		ok ->
@@ -625,6 +625,16 @@ handle_call({'$gen_media_ring', Agent, QCall, Timeout}, _From, #state{callrec = 
 			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, Call#call.id]),
 			{reply, invalid, State}
 	end;
+handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = Call, callback = Callback, ring_pid = undefined} = State) ->
+	gen_server:cast(QCall#queued_call.cook, {ring_to, Agent, QCall}),
+	{reply, deferred, State};
+handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, #state{callrec = Call, callback = Callback, ring_pid = Rpid} = State) ->
+	?NOTICE("Changing ring from ~p to ~p for ~p", [Rpid, Agent, Call#call.id]),
+	Cook = QCall#queued_call.cook,
+	{noreply, Midstate} = handle_info({'$gen_media_stop_ring', Cook}, State),
+	handle_call({'$gen_media_ring', Agent, QCall, Timeout}, From, Midstate);
+
+	
 handle_call({'$gen_media_agent_transfer', Apid}, _From, #state{oncall_pid = Apid, callrec = Call} = State) ->
 	?NOTICE("Can't transfer to yourself, silly ~p! ~p", [Apid, Call#call.id]),
 	{reply, invalid, State};

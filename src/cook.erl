@@ -156,6 +156,14 @@ handle_cast(restart_tick, State) ->
 	end;
 handle_cast(stop_ringing, State) ->
 	{noreply, State#state{ringstate = none}};
+handle_cast({ring_to, Agent, QCall}, State) ->
+	Newstate = case offer_call([{10, Agent}], QCall) of
+		ringing ->
+			State#state{ringstate = ringing};
+		none ->
+			State
+	end,
+	{noreply, Newstate};
 handle_cast(stop_tick, State) ->
 	erlang:cancel_timer(State#state.tref),
 	{noreply, State#state{tref=undefined}};

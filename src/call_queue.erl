@@ -391,7 +391,7 @@ handle_call({set_recipe, Recipe}, _From, State) ->
 	{reply, ok, State#state{recipe=Recipe}};
 handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid) ->
 	% cook is started on the same node callpid is on
-	?INFO("adding call ~p request from ~p on node ~p", [Callpid, From, node(Callpid)]),
+	?INFO("adding call ~p to ~p request from ~p on node ~p", [Callrec#call.id, State#state.name, From, node(Callpid)]),
 	Key = {Priority, now()},
 	{ok, Cookpid} = cook:start_at(node(Callpid), Callpid, State#state.recipe, State#state.name, Key),
 	NewState = queue_call(Cookpid, Callrec, Key, State),
@@ -445,10 +445,10 @@ handle_call(dump, _From, State) ->
 	{reply, State, State};
 
 handle_call({remove, Callpid}, _From, State) ->
-	?INFO("Trying to remove call ~p...", [Callpid]),
+	?INFO("Trying to remove call ~p from ~p", [Callpid, State#state.name]),
 	case find_by_pid(Callpid, State#state.queue) of
 		none ->
-			?INFO("Did not find call ~w", [Callpid]),
+			?INFO("Did not find call ~w in ~p", [Callpid, State#state.name]),
 			{reply, none, State};
 		{Key, #queued_call{cook=Cookpid} = Qcall} ->
 			unlink(Cookpid),
@@ -456,6 +456,7 @@ handle_call({remove, Callpid}, _From, State) ->
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			lists:foreach(fun(D) -> exit(D, kill) end, Qcall#queued_call.dispatchers),
 			set_cpx_mon(State2),
+			?INFO("Removed call ~p from queue ~p", [Qcall#queued_call.id, State#state.name]),
 			{reply, ok, State2}
 	end;
 handle_call(stop, _From, State) ->
@@ -509,19 +510,21 @@ handle_call(Request, _From, State) ->
 
 %% @private
 handle_cast({remove, Callpid}, State) ->
-	?INFO("Trying to remove call ~p (cast)...", [Callpid]),
+	?INFO("Trying to remove call ~p (cast) from ~p", [Callpid, State#state.name]),
 	case find_by_pid(Callpid, State#state.queue) of
 		none ->
+			?INFO("Did not find ~p (cast) in ~p", [Callpid, State#state.name]),
 			{noreply, State};
-		{Key, #queued_call{cook=Cookpid}} ->
+		{Key, #queued_call{cook=Cookpid, id=ID}} ->
 			unlink(Cookpid),
 			gen_server:cast(Cookpid, stop),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			set_cpx_mon(State2),
+			?INFO("Removed ~p from ~p", [ID, State#state.name]),
 			{noreply, State2}
 	end;
 handle_cast({add_at, Key, Mediapid, Mediarec}, State) ->
-	?INFO("adding call ~p on node ~p at position ~p", [Mediapid, node(Mediapid), Key]),
+	?INFO("adding call ~p to ~p on node ~p at position ~p", [Mediarec#call.id, State#state.name, node(Mediapid), Key]),
 	% cook is started on the same node Mediapid is on
 	{ok, Cookpid} = cook:start_at(node(Mediapid), Mediapid, State#state.recipe, State#state.name, Key),
 	NewState = queue_call(Cookpid, Mediarec, Key, State),
@@ -537,7 +540,7 @@ handle_cast({update, Opts}, State) ->
 	},
 	{noreply, Newstate};
 handle_cast(Msg, State) ->
-	?DEBUG("Unhandled cast ~p", [Msg]),
+	?DEBUG("Unhandled cast ~p for ~p", [Msg, State#state.name]),
 	{noreply, State}.
 
 %% =====
@@ -546,10 +549,10 @@ handle_cast(Msg, State) ->
 
 %% @private
 handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
-	?NOTICE("Handling down process ~p due to ~p", [Pid, Reason]),
+	?NOTICE("~p Handling down process ~p due to ~p", [State#state.name, Pid, Reason]),
 	case find_by_pid(Pid, State#state.queue) of
 		none ->
-			?INFO("Did not find pid ~w", [Pid]),
+			?INFO("~p Did not find pid ~w", [State#state.name, Pid]),
 			{noreply, State};
 		{Key, #queued_call{cook=Cookpid, dispatchers = Dips}} ->
 			cook:stop(Cookpid),
@@ -561,13 +564,13 @@ handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
 handle_info({'EXIT', From, Reason}, State) ->
 	case whereis(queue_manager) of
 		undefined ->
-			?ERROR("Can't find the manager.  dying", []),
+			?ERROR("~p Can't find the manager.  dying", [State#state.name]),
 			{stop, {queue_manager, Reason}, State};
 		From ->
-			?NOTICE("Handling exit of queue manager with reason ~p.  Dying with it.", [Reason]),
+			?NOTICE("~p Handling exit of queue manager with reason ~p.  Dying with it.", [State#state.name, Reason]),
 			{stop, {queue_manager_died, Reason}, State};
 		_Else ->
-			?DEBUG("~w exited due to ~p; looping through calls", [From, Reason]),
+			?DEBUG("~p ~w exited due to ~p; looping through calls", [State#state.name, From, Reason]),
 			Calls = gb_trees:to_list(State#state.queue),
 			Cleancalls = clean_pid(From, State#state.recipe, Calls, State#state.name),
 			Newtree = gb_trees:from_orddict(Cleancalls),
@@ -575,7 +578,7 @@ handle_info({'EXIT', From, Reason}, State) ->
 			{noreply, State#state{queue=Newtree}}
 	end;
 handle_info(Info, State) ->
-	?DEBUG("got info ~p", [Info]),
+	?DEBUG("~p got info ~p", [State#state.name, Info]),
 	{noreply, State}.
 
 %% =====
@@ -584,12 +587,12 @@ handle_info(Info, State) ->
 
 %% @private
 terminate(Reason, State) when is_atom(Reason) andalso Reason =:= normal orelse Reason =:= shutdown ->
-	?NOTICE("~p terminate", [atom_to_list(Reason)]),
+	?NOTICE("~p terminated with reason ~p", [State#state.name, Reason]),
 	lists:foreach(fun({_K,V}) when is_pid(V#call.cook) -> cook:stop(V#call.cook); (_) -> ok end, gb_trees:to_list(State#state.queue)),
 	set_cpx_mon(State, delete),
 	ok;
 terminate(Reason, State) ->
-	?NOTICE("unusual terminate:  ~p", [Reason]),
+	?NOTICE("~p unusual terminate:  ~p", [State#state.name, Reason]),
 	set_cpx_mon(State, delete),
 	ok.
 
@@ -618,7 +621,7 @@ queue_call(Cookpid, Callrec, Key, State) ->
 		State#state{queue = Trees}
 	catch
 		error:{key_exists, _} ->
-			?ERROR("Call ~p is already queued at ~p", [Callrec#call.id, Key]),
+			?ERROR("Call ~p is already queued in ~p at ~p", [Callrec#call.id, State#state.name, Key]),
 			State
 	end.
 

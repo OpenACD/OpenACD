@@ -284,6 +284,8 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 								CalleridNum ->
 									["origination_caller_id_name='"++Client#client.label++"'", "origination_caller_id_number='"++binary_to_list(CalleridNum)++"'"]
 							end,
+
+							freeswitch:bgapi(Node, uuid_setvar, RingUUID ++ " ringback %(2000,4000,440.0,480.0)"),
 							freeswitch:sendmsg(Node, RingUUID,
 								[{"call-command", "execute"},
 									{"execute-app-name", "bridge"},
@@ -306,9 +308,9 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 								Path ->
 									?DEBUG("switching to recording the 3rd party leg for ~p", [Call#call.id]),
 									freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ Path),
-									freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ Path),
-									Self ! warm_transfer_succeeded
-							end;
+									freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ Path)
+							end,
+							Self ! warm_transfer_succeeded;
 						_ ->
 							ok
 					end,
@@ -354,6 +356,8 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 
 			Dialplan = " 'm:^:bridge:"++ re:replace(freeswitch_media_manager:do_dial_string(State#state.dialstring, Number, ["origination_uuid="++NewUUID | CalleridArgs]), ",", ",", [{return, list}, global]) ++ "' inline",
 			?NOTICE("~s", [Dialplan]),
+
+			freeswitch:bgapi(Node, uuid_setvar, freeswitch_ring:get_uuid(State#state.ringchannel) ++ " ringback %(2000,4000,440.0,480.0)"),
 
 			freeswitch:bgapi(State#state.cnode, uuid_transfer,
 				freeswitch_ring:get_uuid(State#state.ringchannel) ++ Dialplan), 
@@ -516,7 +520,7 @@ handle_info(check_recovery, Call, State) ->
 	end;
 handle_info({'EXIT', Pid, Reason}, Call, #state{xferchannel = Pid} = State) ->
 	?WARNING("Handling transfer channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
-	{stop_ring, State#state{ringchannel = undefined}};
+	{stop_ring, State#state{xferchannel = undefined}};
 handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
 	?WARNING("Handling ring channel ~w exit ~p while in warm transfer for ~p", [Pid, Reason, Call#call.id]),
 	agent:media_push(State#state.agent_pid, warm_transfer_failed),

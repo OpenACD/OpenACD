@@ -110,6 +110,7 @@ hangup(Pid) ->
 %%====================================================================
 
 init([Fnode, AgentRec, Apid, Client, DialString, _Ringout]) ->
+	process_flag(trap_exit, true),
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Call = #call{id=UUID, source=self(), type=voice, direction=outbound, client = Client, priority = 10},
@@ -118,55 +119,6 @@ init([Fnode, AgentRec, Apid, Client, DialString, _Ringout]) ->
 			?ERROR("create_uuid failed: ~p", [Else]),
 			{stop, {error, Else}}
 	end.
-
-	
-	%case freeswitch:api(Fnode, create_uuid) of
-		%{ok, UUID} ->
-			%Call = #call{id=UUID, source=self(), type=voice, direction=outbound},
-			%Self = self(),
-
-			%F = fun(RingUUID) ->
-				%fun(ok, _Reply) ->
-					%freeswitch:sendmsg(Fnode, RingUUID,
-						%[{"call-command", "execute"},
-							%{"execute-app-name", "bridge"},
-							%{"execute-app-arg", "[ignore_early_media=true,origination_uuid="++UUID++"]sofia/gateway/"++Gateway++"/"++Number}]),
-					%Self ! connect_uuid;
-				%(error, Reply) ->
-					%?WARNING("originate failed: ~p", [Reply]),
-					%ok
-				%end
-			%end,
-			%F2 = fun(RingUUID, EventName, Event) ->
-					%case EventName of
-						%"CHANNEL_BRIDGE" ->
-								%case cpx_supervisor:get_archive_path(Call) of
-									%none ->
-										%?DEBUG("archiving is not configured", []);
-									%{error, Reason, Path} ->
-										%?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]);
-									%Path ->
-										%?DEBUG("archiving to ~s.wav", [Path]),
-										%freeswitch:api(Fnode, uuid_record, UUID ++ " start "++Path++".wav")
-								%end;
-						%_ ->
-							%ok
-					%end,
-					%true
-			%end,
-
-			%case freeswitch_ring:start(Fnode, AgentRec, Apid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}]) of
-				%{ok, Pid} ->
-					%link(Pid),
-					%{ok, {#state{cnode = Fnode, uuid = UUID, ringchannel = Pid, agent_pid = Apid, agent = AgentRec#agent.login}, Call}};
-				%{error, Error} ->
-					%?ERROR("error:  ~p", [Error]),
-					%{stop, {error, Error}}
-			%end;
-		%Else ->
-			%?ERROR("bgapi call failed ~p", [Else]),
-			%{stop, {error, Else}}
-	%end.
 
 %%--------------------------------------------------------------------
 %% Description: gen_media
@@ -228,16 +180,16 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 	F = fun(_UUID) ->
 		fun(ok, _Reply) ->
 			% agent picked up?
-				?INFO("Agent transfer picked up?~n", []);
+				?INFO("Agent transfer picked up ~p?~n", [Call#call.id]);
 		(error, Reply) ->
-			?WARNING("originate failed: ~p", [Reply])
+			?WARNING("originate agent_transfer for ~p failed: ~p", [Call#call.id, Reply])
 		end
 	end,
 	case freeswitch_ring:start_link(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge]) of
 		{ok, Pid} ->
 			{ok, [{"caseid", State#state.caseid}], State#state{xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->
-			?ERROR("error:  ~p", [Error]),
+			?ERROR("error starting ring channel for ~p:  ~p", [Call#call.id, Error]),
 			{error, Error, State}
 	end.
 
@@ -264,6 +216,7 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 								CalleridNum ->
 									["origination_caller_id_name='"++Client#client.label++"'", "origination_caller_id_number='"++binary_to_list(CalleridNum)++"'"]
 							end,
+							freeswitch:bgapi(Node, uuid_setvar, RingUUID ++ " ringback %(2000,4000,440.0,480.0)"),
 							freeswitch:sendmsg(Node, RingUUID,
 								[{"call-command", "execute"},
 									{"execute-app-name", "bridge"},
@@ -286,9 +239,9 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 								Path ->
 									?DEBUG("switching to recording the 3rd party leg for ~p", [Call#call.id]),
 									freeswitch:api(Node, uuid_record, Call#call.id ++ " stop " ++ Path),
-									freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ Path),
-									Self ! warm_transfer_succeeded
-							end;
+									freeswitch:api(Node, uuid_record, NewUUID ++ " start " ++ Path)
+							end,
+							Self ! warm_transfer_succeeded;
 						_ ->
 							ok
 					end,
@@ -369,7 +322,7 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 		%[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
 	%?NOTICE("intercept result: ~p", [Result]),
 	Result = freeswitch:api(State#state.cnode, uuid_bridge,  RUUID ++" " ++Call#call.id),
-	?INFO("uuid_bridge result for ~p: ~p", [Call#call.id, Result]),
+	?INFO("uuid_bridge result for ~p to ~p: ~p", [RUUID, Call#call.id, Result]),
 	{ok, State#state{warm_transfer_uuid = undefined}};
 handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Node, agent_pid = AgentPid} = State) when is_list(WUUID) ->
 	case freeswitch:api(Node, create_uuid) of
@@ -399,7 +352,7 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 					link(Pid),
 					{ok, State#state{ringchannel = Pid, warm_transfer_uuid = undefined}};
 				{error, Error} ->
-					?ERROR("error:  ~p", [Error]),
+					?ERROR("error starting ring channel for ~p:  ~p", [Call#call.id, Error]),
 					{error, Error, State}
 			end;
 		Else ->
@@ -423,7 +376,7 @@ handle_warm_transfer_complete(Call, #state{warm_transfer_uuid = WUUID, cnode = N
 		%[{"call-command", "execute"}, {"execute-app-name", "intercept"}, {"execute-app-arg", Call#call.id}]),
 	%?INFO("intercept result: ~p", [Result]),
 	Result = freeswitch:api(State#state.cnode, uuid_bridge,  WUUID ++" " ++Call#call.id),
-	?INFO("uuid_bridge result: ~p", [Result]),
+	?INFO("uuid_bridge result for ~p: ~p", [Call#call.id, Result]),
 	{ok, State#state{warm_transfer_uuid = undefined}};
 handle_warm_transfer_complete(_Call, State) ->
 	{error, "Not in warm transfer", State}.
@@ -436,7 +389,7 @@ handle_wrapup(_Call, State) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = DialString, agent_pid = Apid} = State) ->
-	?NOTICE("I'm supposed to dial ~p", [Number]),
+	?NOTICE("I'm supposed to dial ~p for ~p", [Number, Call#call.id]),
 	Self = self(),
 	AgentRec = agent:dump_state(Apid),
 	F = fun(RingUUID) ->
@@ -458,16 +411,16 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = Dial
 							{"execute-app-arg", freeswitch_media_manager:do_dial_string(DialString, Number, ["origination_uuid="++Call#call.id | CalleridArgs])}]),
 					Self ! {connect_uuid, Number};
 				(error, Reply) ->
-					?WARNING("originate failed: ~p; agent:  ~s", [Reply, AgentRec#agent.login]),
+					?WARNING("originate failed for ~p: ~p; agent:  ~s", [Call#call.id, Reply, AgentRec#agent.login]),
 					ok
 			end
 	end,
 	RecPath = case cpx_supervisor:get_archive_path(Call) of
 		none ->
-			?DEBUG("archiving is not configured", []),
+			?DEBUG("archiving is not configured for ~p", [Call#call.id]),
 			undefined;
 		{error, _Reason, Path} ->
-			?WARNING("Unable to create requested call archiving directory for recording ~p", [Path]),
+			?WARNING("Unable to create requested call archiving directory for recording ~p for ~p", [Path, Call#call.id]),
 			undefined;
 		Path ->
 			Path++".wav"
@@ -477,9 +430,10 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = Dial
 			case EventName of
 				"CHANNEL_BRIDGE" ->
 					agent:conn_cast(Apid, {mediaload, Call, [{<<"height">>, <<"300px">>}]}),
-					?DEBUG("archiving to ~s.wav", [RecPath]),
+					?DEBUG("archiving ~p to ~s.wav", [Call#call.id, RecPath]),
 					freeswitch:api(State#state.cnode, uuid_setvar, Call#call.id ++ " RECORD_APPEND true"),
-					freeswitch:api(Fnode, uuid_record, Call#call.id ++ " start "++RecPath);
+					freeswitch:api(Fnode, uuid_record, Call#call.id ++ " start "++RecPath),
+					Self ! bridge;
 				_ ->
 					ok
 			end,
@@ -491,11 +445,11 @@ handle_call({dial, Number}, _From, Call, #state{cnode = Fnode, dialstring = Dial
 			cdr:dialoutgoing(Call, Number),
 			{reply, ok, State#state{ringchannel = Pid, record_path = RecPath}};
 		{error, Error} ->
-			?ERROR("error:  ~p; agent:  ~s", [Error, AgentRec#agent.login]),
+			?ERROR("error creating ring channel for ~p:  ~p; agent:  ~s", [Call#call.id, Error, AgentRec#agent.login]),
 			{reply, {error, Error}, State}
 	end;
-handle_call(Msg, _From, _Call, State) ->
-	?INFO("unhandled mesage ~p", [Msg]),
+handle_call(Msg, _From, Call, State) ->
+	?INFO("unhandled mesage ~p for ~p", [Msg, Call#call.id]),
 	{reply, ok, State}.
 
 %%--------------------------------------------------------------------
@@ -519,7 +473,7 @@ handle_cast(_Msg, _Call, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({call, {event, [UUID | _Rest]}}, #call{id = UUID}, State) ->
-	?DEBUG("call", []),
+	?DEBUG("call ~p", [UUID]),
 	{noreply, State};
 handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 	Event = freeswitch:get_event_name(Rest),
@@ -527,33 +481,33 @@ handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 		"CHANNEL_HANGUP" ->
 			Elem1 = case proplists:get_value("variable_hangup_cause", Rest) of
 				"NO_ROUTE_DESTINATION" ->
-					?ERROR("No route to destination for outbound call", []),
+					?ERROR("No route to destination for outbound call ~p", [UUID]),
 					noreply;
 				"NORMAL_CLEARING" ->
-					?INFO("Normal clearing", []),
+					?INFO("Normal clearing ~p", [UUID]),
 					wrapup;
 				"USER_BUSY" ->
-					?WARNING("Agent's phone rejected the call", []),
+					?WARNING("Agent's phone rejected call ~p", [UUID]),
 					noreply;
 				"NO_ANSWER" ->
-					?NOTICE("Agent rangout on outbound call", []),
+					?NOTICE("Agent rangout on outbound call ~p", [UUID]),
 					noreply;
 				Else ->
-					?INFO("Hangup cause: ~p", [Else]),
+					?INFO("Hangup cause for ~p: ~p", [UUID, Else]),
 					noreply
 			end,
 			{Elem1, State};
 		_Else ->
-			?DEBUG("call_event ~p", [Event]),
+			?DEBUG("call_event ~p for ~p", [Event, UUID]),
 			{noreply, State}
 	end;
-handle_info(call_hangup, _Call, State) ->
-	?DEBUG("Call hangup info", []),
+handle_info(call_hangup, Call, State) ->
+	?DEBUG("Call hangup info for ~p", [Call#call.id]),
 	catch freeswitch_ring:hangup(State#state.ringchannel),
 	{stop, normal, State};
 handle_info({connect_uuid, Number}, #call{id = UUID} = Call, #state{cnode = Fnode, agent = Agent} = State) ->
 	Gethandle = fun(Recusef, Count) ->
-			?DEBUG("Counted ~p", [Count]),
+			?DEBUG("Counted ~p for ~p", [Count, Call#call.id]),
 			case freeswitch:handlecall(Fnode, Call#call.id) of
 				{error, badsession} when Count > 4 ->
 					{error, badsession};
@@ -579,15 +533,38 @@ handle_info({connect_uuid, Number}, #call{id = UUID} = Call, #state{cnode = Fnod
 			%% callerid internally is set to the brandname/dialed number
 			{outbound, Agent, Call#call{callerid = {Client#client.label, Number}}, State}
 	end;
-handle_info(Info, _Call, State) ->
-	?DEBUG("unhandled info ~p", [Info]),
+handle_info(warm_transfer_succeeded, Call, #state{warm_transfer_uuid = W} = State) when is_list(W) ->
+	?DEBUG("Got warm transfer success notification from ring channel for ~p", [Call#call.id]),
+	agent:media_push(State#state.agent_pid, warm_transfer_succeeded),
+	{noreply, State};
+handle_info({'EXIT', Pid, Reason}, Call, #state{xferchannel = Pid} = State) ->
+	?WARNING("Handling transfer channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
+	{stop_ring, State#state{xferchannel = undefined}};
+handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
+	?WARNING("Handling ring channel ~w exit ~p while in warm transfer for ~p", [Pid, Reason, Call#call.id]),
+	agent:media_push(State#state.agent_pid, warm_transfer_failed),
+	cdr:warmxfer_fail(Call, State#state.agent_pid),
+	{noreply, State#state{ringchannel = undefined}};
+handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid} = State) ->
+	?WARNING("Handling ring channel ~w exit ~p for ~p", [Pid, Reason, Call#call.id]),
+	{stop_ring, State#state{ringchannel = undefined}};
+%handle_info({'EXIT', Pid, Reason}, Call, #state{manager_pid = Pid} = State) ->
+	%?WARNING("Handling manager exit from ~w due to ~p for ~p", [Pid, Reason, Call#call.id]),
+	%{ok, Tref} = timer:send_after(1000, check_recovery),
+	%{noreply, State#state{manager_pid = Tref}};
+handle_info(bridge, Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
+	?INFO("bridged when warm transfer... ~p", [Call#call.id]),
+	agent:media_push(State#state.agent_pid, warm_transfer_succeeded),
+	{noreply, State};
+handle_info(Info, Call, State) ->
+	?DEBUG("unhandled info ~p for ~p", [Info, Call#call.id]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(Reason, _Call, _State) ->
-	?NOTICE("FreeSWITCH outbound channel teminating ~p", [Reason]),
+terminate(Reason, Call, _State) ->
+	?NOTICE("FreeSWITCH outbound channel ~p teminating ~p", [Call#call.id, Reason]),
 	ok.
 
 %%--------------------------------------------------------------------

@@ -660,9 +660,10 @@ outgoing({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentc
 		_Else -> 
 			{reply, invalid, outgoing, State}
 	end;
-outgoing({warmtransfer, Transferto}, _From, State) -> 
-	gen_server:cast(State#agent.connection, {change_state, warmtransfer, Transferto}),
-	Newstate = State#agent{state=warmtransfer, oldstate=outgoing, statedata={onhold, State#agent.statedata, calling, Transferto}, lastchange = util:now()},
+outgoing({warmtransfer, Transferto}, _From, State) ->
+	StateData = {onhold, State#agent.statedata, calling, Transferto},
+	gen_server:cast(State#agent.connection, {change_state, warmtransfer, StateData}),
+	Newstate = State#agent{state=warmtransfer, oldstate=outgoing, statedata=StateData, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};
 outgoing({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->

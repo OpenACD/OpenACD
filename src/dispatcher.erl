@@ -87,7 +87,7 @@ init([]) ->
 			{ok, Tref} = timer:send_interval(?POLL_INTERVAL, grab_best),
 			{ok, State#state{tref=Tref}};
 		{Qpid, Call} ->
-			?DEBUG("sweet, grabbed a call: ~p", [Call]),
+			?DEBUG("sweet, grabbed a call: ~p", [Call#queued_call.id]),
 			{ok, State#state{call=Call, qpid=Qpid}}
 	end.
 
@@ -208,7 +208,8 @@ loop_queues(Queues) ->
 	case call_queue:grab(Qpid) of
 			none -> 
 				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues));
-			{_Key, Call2} -> 
+			{_Key, Call2} ->
+				?DEBUG("grabbed call ~p", [Call2#queued_call.id]),
 				link(Call2#queued_call.cook),
 				{Qpid, Call2}
 	end.

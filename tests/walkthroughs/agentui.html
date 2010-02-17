@@ -127,6 +127,27 @@ For each test:
 	<li class="test"><input type="checkbox" />You are now in wrapup</li>
 </ol>
 
+<h4>Warm Transfer - 3rd party hangs up</h4>
+
+<ol>
+	<li>Pick up 3rd party phone.</li>
+	<li>Hnag up 3rd party phone.</li>
+	<li class="test"><input type="checkbox" />Caller is still on hold.</li>
+	<li>Click the cancel in the agent UI</li>
+	<li class="test"><input type="checkbox" />You are on call with the original caller</li>
+</ol>
+
+<h4>Warm Transfer - Agent phone hangs up</h4>
+
+<ol>
+	<li>Pick up 3rd party phone.</li>
+	<li>Hang up your agent softphone.</li>
+	<li class="test"><input type="checkbox" />Call is still on hold.</li>
+	<li class="test"><input type="checkbox" />You are able to make a new outbound call</li>
+	<li>Click cancel in the agent UI</li>
+	<li class="test"><input type="checkbox" />You are talking with the original caller now</li>
+</ol>
+
 <h1>Email Tests</h1>
 
 Do once:

@@ -1685,7 +1685,7 @@ decode_recipe([{struct, Proplist} | Tail], Acc) ->
 			announce;
 		<<"add_recipe">> ->
 			add_recipe;
-		<<"agents_eligible">> ->
+		<<"eligible_agents">> ->
 			eligible_agents
 	end,
 	Args = decode_recipe_args(Action, proplists:get_value(<<"arguments">>, Proplist)),
@@ -1758,7 +1758,7 @@ decode_recipe_conditions([{struct, Props} | Tail], Acc) ->
 	Tuple = case {Cond, Comp, Val} of
 		{<<"ticks">>, '=', Val} when is_integer(Val) ->
 			{ticks, Val};
-		{<<"agents_eligible">>, Comp, Val} when is_integer(Val) ->
+		{<<"eligible_agents">>, Comp, Val} when is_integer(Val) ->
 			{eligible_agents, Comp, Val};
 		{<<"agents_avail">>, Comp, Val} when is_integer(Val) ->
 			{available_agents, Comp, Val};
@@ -1807,6 +1807,10 @@ encode_recipe_step({Conditions, Action, Args, Runs}) ->
 		voicemail ->
 			<<"">>;
 		announce ->
+			list_to_binary(Args);
+		eligible_agents ->
+			Args;
+		client ->
 			list_to_binary(Args);
 		add_recipe ->
 			% TODO:  more encoding

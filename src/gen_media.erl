@@ -1151,10 +1151,14 @@ priv_queue(Queue, Callrec, Failover) ->
 			Qpid
 	end.
 
-priv_voicemail(State) when is_pid(State#state.queue_pid) ->
-	call_queue:remove(State#state.queue_pid, self()),
-	priv_voicemail(State#state{queue_pid = undefined});
 priv_voicemail(State) ->
+	case State#state.queue_pid of
+		undefined ->
+			% meh
+			ok;
+		Qpid ->
+			call_queue:remove(State#state.queue_pid, self())
+	end,
 	cdr:voicemail(State#state.callrec, State#state.queue_pid),
 	case State#state.ring_pid of
 		undefined ->
@@ -1633,7 +1637,7 @@ handle_call_test_() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			gen_event_mock:expect_event(cdr, fun({ringing, Callrec, _Time, "testagent"}, _State) -> ok end),
 			#queued_call{cook = Cook} = Qcall = #queued_call{media = Callrec#call.source, id = "testcall"},
-			{reply, ok, Newstate} = handle_call({'$gen_media_ring', Agent, Qcall, 100}, "from", Seedstate),
+			{reply, ok, Newstate} = handle_call({'$gen_media_ring', Agent, Qcall, 100}, {Cook, "tag"}, Seedstate),
 			receive
 				{'$gen_media_stop_ring', Cook} ->
 					ok
@@ -1651,7 +1655,7 @@ handle_call_test_() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			#queued_call{cook = Cook} = Qcall = #queued_call{media = Callrec#call.source, id = "testcall"},
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = "whatever"}),
-			?assertMatch({reply, invalid, _State}, handle_call({'$gen_media_ring', Agent, Qcall, 100}, "from", Seedstate)),
+			?assertMatch({reply, invalid, _State}, handle_call({'$gen_media_ring', Agent, Qcall, 100}, {Cook, "tag"}, Seedstate)),
 			receive
 				{'$gen_media_stop_ring', Cook} ->
 					erlang:error(timer_lives)
@@ -1669,7 +1673,7 @@ handle_call_test_() ->
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			#queued_call{cook = Cook} = Qcall = #queued_call{media = Callrec#call.source, id = "testcall"},
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = idle, statedata = {}}),
-			{reply, invalid, Newstate} = handle_call({'$gen_media_ring', Agent, Qcall, 150}, "from", Seedstate),
+			{reply, invalid, Newstate} = handle_call({'$gen_media_ring', Agent, Qcall, 150}, {Cook, "tag"}, Seedstate),
 			receive
 				{'$gen_media_stop_ring', Cook} ->
 					erlang:error(timer_lives)

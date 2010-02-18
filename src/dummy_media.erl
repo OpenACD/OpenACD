@@ -581,6 +581,7 @@ check_fail(Key, Dict) ->
 -ifdef(TEST).
 
 dummy_test_() -> 
+	% oh goodie, tests that don't use the callbacks.
 	{foreach,
 	fun() ->
 		mnesia:stop(),
@@ -613,7 +614,8 @@ dummy_test_() ->
 				{ok, Agentpid} = agent:start(#agent{login="testagent"}),
 				agent:set_state(Agentpid, idle),
 				{ok, Dummypid} = dummy_media:start([{id, "testcall"}, {queues, none}], failure),
-				?assertMatch(invalid, gen_media:ring(Dummypid, Agentpid, #queued_call{media=Dummypid, id = "testcall"}, 4000))
+				% TODO a real test would hit the handle_ring function directly.
+				?assertMatch(deferred, gen_media:ring(Dummypid, Agentpid, #queued_call{media=Dummypid, id = "testcall"}, 4000))
 			end
 		},
 		{

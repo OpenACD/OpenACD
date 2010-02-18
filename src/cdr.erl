@@ -279,11 +279,13 @@ truncate(Callid) when is_list(Callid) ->
 	end),
 	case Res of
 		{atomic, []} ->
+			?INFO("no cdr_rec found for ~p; thus, no truncating", [Callid]),
 			none;
 		{atomic, [Callrec]} ->
 			truncate(Callrec)
 	end;
 truncate(Callrec) when is_record(Callrec, call) ->
+	?NOTICE("Beginning truncate for ~p", [Callrec#call.id]),
 	{atomic, Raws} = mnesia:transaction(fun() ->
 		qlc:e(qlc:q([X || #cdr_raw{id = Id} = X <- mnesia:table(cdr_raw), Id =:= Callrec#call.id]))
 	end),

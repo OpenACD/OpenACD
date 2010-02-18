@@ -42,7 +42,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 			"value":"!=",
 			"type":"comparison"},
 			{"label":dojo.i18n.getLocalization("admin", "recipeEditor").AGENTSELIGIBLE,
-			"value":"agents_eligible",
+			"value":"eligible_agents",
 			"type":"property",
 			"filter":"integer",
 			"comparisons":[

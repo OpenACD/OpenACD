@@ -79,7 +79,8 @@
 	reload_recipe/1,
 	in_progress/0,
 	print_raws/1,
-	find_cdr/1
+	find_cdr/1,
+	print_cdr/1
 ]).
 
 -spec(start/2 :: (Type :: 'normal' | {'takeover', atom()} | {'failover', atom()}, StartArgs :: [any()]) -> {'ok', pid(), any()} | {'ok', pid()} | {'error', any()}).

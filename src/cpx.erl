@@ -621,6 +621,49 @@ pretty_print_raws(UnsortedList) ->
 	[F(X) || X <- List],
 	ok.
 
+pretty_print_summary(Summary) ->
+	pretty_print_summary_sections(Summary).
+
+pretty_print_summary_sections([]) ->
+	ok;
+pretty_print_summary_sections([{Name, {Total, Details}} | Tail]) ->
+	io:format("\t~s:  ~p~n", [Name, Total]),
+	pretty_print_summary_details(Details),
+	pretty_print_summary_sections(Tail).
+
+pretty_print_summary_details([]) ->
+	ok;
+pretty_print_summary_details([{Key, Total} | Tail]) ->
+	io:format("\t\t~s:  ~p~n", [Key, Total]),
+	pretty_print_summary_details(Tail).
+
+print_cdr(#cdr_rec{media = M, summary = inprogress, transactions = inprogress}) ->
+	Id = M#call.id,
+	io:format("Id:  ~s~n", [Id]),
+	io:format("No Summary~n", []),
+	{atomic, List} = mnesia:transaction(fun() -> qlc:e(qlc:q([X || #cdr_raw{id = Testid} = X <- mnesia:table(cdr_raw), Testid =:= Id])) end),
+	pretty_print_raws(List),
+	io:format("~n"),
+	ok;
+print_cdr(#cdr_rec{media = M, summary = S, transactions = T}) when is_list(S), is_list(T) ->
+	Id = M#call.id,
+	io:format("Id:  ~s~n", [Id]),
+	io:format("Summary:~n"),
+	pretty_print_summary(S),
+	io:format("~nRaws:~n"),
+	pretty_print_raws(T),
+	io:format("~n"),
+	ok;
+print_cdr(Id) ->
+	Res = mnesia:transaction(fun() -> qlc:e(qlc:q([X || #cdr_rec{media = M} = X <- mnesia:table(cdr_rec), M#call.id =:= Id])) end),
+	case Res of
+		{atomic, []} ->
+			io:format("~s has no cdr_rec~n", [Id]),
+			ok;
+		{atomic, [Rec]} ->
+			print_cdr(Rec)
+	end.
+
 find_cdr(Tests) when is_list(Tests) ->
 	QH = qlc:q([Cdr || Cdr <- mnesia:table(cdr_rec), lists:all(fun(Test) -> find_cdr_test(Test, Cdr) end, Tests)]),
 	find_cdr(QH);

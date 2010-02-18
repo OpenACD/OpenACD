@@ -532,7 +532,7 @@ single_node_test_() ->
 					{ok, Dummy3} = dummy_media:start([{id, "Call3"}, {queues, none}]),
 					?assertEqual(ok, call_queue:add(Pid2, 0, Dummy3)),
 					?assertMatch([
-							{"goober2", Pid2, {{0,_},#queued_call{id="Call3"}}, 21},
+							{"goober2", Pid2, {{0,_},#queued_call{id="Call3"}}, 11},
 							{"goober", Pid, {{0,_},#queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}],
 						get_best_bindable_queues())
 				end

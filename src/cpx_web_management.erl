@@ -1684,7 +1684,9 @@ decode_recipe([{struct, Proplist} | Tail], Acc) ->
 		<<"announce">> ->
 			announce;
 		<<"add_recipe">> ->
-			add_recipe
+			add_recipe;
+		<<"agents_eligible">> ->
+			eligible_agents
 	end,
 	Args = decode_recipe_args(Action, proplists:get_value(<<"arguments">>, Proplist)),
 	Runs = case proplists:get_value(<<"runs">>, Proplist) of

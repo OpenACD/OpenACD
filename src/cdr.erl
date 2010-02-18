@@ -307,19 +307,15 @@ attached_agent([Head | Tail]) ->
 		_ ->
 			attached_agent(Tail)
 	end;
-attached_agent(#cdr_raw{eventdata = D, id = Id}) ->
-	case cpx:get_agent(D) of
-		none ->
-			false;
-		Pid ->
-			#agent{statedata = Sdata} = agent:dump_state(Pid),
-			case Sdata of
-				#call{id = Id} ->
-					true;
-				_ ->
-					false
-			end
-	end.
+attached_agent(#cdr_raw{eventdata = D, id = Id}) when is_list(D) ->
+	case agent_manager:query_agent(D) of
+		{true, Pid} ->
+			true;
+		false ->
+			false
+	end;
+attached_agent(_) ->
+	false.
 
 cdr_big_time([], Acc) ->
 	Acc;

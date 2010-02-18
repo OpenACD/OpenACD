@@ -1098,7 +1098,7 @@ handle_info({'EXIT', Pollpid, Reason}, #state{poll_pid = Pollpid} = State) ->
 	{noreply, State#state{poll_pid = undefined}};
 handle_info({'EXIT', Pid, Reason}, #state{listener = Pid} = State) ->
 	?WARNING("The listener at ~w died due to ~p", [Pid, Reason]),
-	{stop, {listener_exit, Reason}, State};
+	{stop, Reason, State};
 handle_info({'EXIT', Agent, Reason}, #state{agent_fsm = Agent} = State) ->
 	case State#state.poll_pid of
 		undefined ->
@@ -1107,7 +1107,7 @@ handle_info({'EXIT', Agent, Reason}, #state{agent_fsm = Agent} = State) ->
 			Pid ! {poll, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"forced logout by fsm death">>}]})}},
 			ok
 	end,
-	{stop, {agent_fsm_exit, Reason}, State};
+	{stop, Reason, State};
 handle_info(Info, State) ->
 	?DEBUG("info I can't handle:  ~p", [Info]),
 	{noreply, State}.

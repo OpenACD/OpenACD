@@ -293,7 +293,7 @@ truncate(Callrec) ->
 						ended = Time,
 						nodes = R#cdr_raw.nodes
 					},
-					push_raw(Callrec, Cdr),
+					{atomic, _} = push_raw(Callrec, Cdr),
 					spawn_summarizer(Callrec)
 			end
 	end.
@@ -323,9 +323,9 @@ attached_agent(#cdr_raw{eventdata = D, id = Id}) ->
 
 cdr_big_time([], Acc) ->
 	Acc;
-cdr_big_time([#cdr_raw{start = N, ended = undefined} | Tail], Acc) when Acc < N ->
+cdr_big_time([#cdr_raw{start = N, ended = undefined} | Tail], Acc) when is_integer(N), Acc < N ->
 	cdr_big_time(Tail, N);
-cdr_big_time([#cdr_raw{ended = N} | Tail], Acc) when Acc < N ->
+cdr_big_time([#cdr_raw{ended = N} | Tail], Acc) when is_integer(N), Acc < N ->
 	cdr_big_time(Tail, N);
 cdr_big_time([_H | Tail], Acc) ->
 	cdr_big_time(Tail, Acc).

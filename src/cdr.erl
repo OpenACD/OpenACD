@@ -254,9 +254,10 @@ voicemail(Call, Queue) ->
 	event({voicemail, Call, util:now(), Queue}).
 
 truncate() ->
+	Now = util:now(),
 	{atomic, Deads} = mnesia:transaction(fun() -> 
 		qlc:e(qlc:q([M || 
-			#cdr_rec{media = M, summary = inprogress} = X <- mnesia:table(cdr_rec),
+			#cdr_rec{media = M, summary = inprogress, timestamp = Time} = X <- mnesia:table(cdr_rec),
 			begin
 				N = node(),
 				case node(M#call.source) of
@@ -265,7 +266,8 @@ truncate() ->
 					_ ->
 						true
 				end
-			end
+			end,
+			Now - Time > 3600
 		])) 
 	end),
 	[truncate(X) || X <- Deads].

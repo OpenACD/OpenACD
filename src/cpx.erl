@@ -577,9 +577,21 @@ print_raws(#cdr_rec{media = Call, transactions = Trans}) ->
 	io:format("Id:  ~s~n", [Call#call.id]),
 	pretty_print_raws(Trans);
 print_raws(Id) ->
-	{atomic, List} = mnesia:transaction(fun() -> qlc:e(qlc:q([X || #cdr_raw{id = Testid} = X <- mnesia:table(cdr_raw), Testid =:= Id])) end),
-	io:format("Id:  ~s~n", [Id]),
-	pretty_print_raws(List).
+	Recres = mnesia:transaction(fun() -> 
+		qlc:e(qlc:q([X || 
+			#cdr_rec{media = Call, transactions = Trans} = X <- mnesia:table(cdr_rec),
+			Trans =/= inprogress,
+			Call#call.id =:= Id
+		]))
+	end),
+	case Recres of
+		{atomic, []} ->
+			{atomic, List} = mnesia:transaction(fun() -> qlc:e(qlc:q([X || #cdr_raw{id = Testid} = X <- mnesia:table(cdr_raw), Testid =:= Id])) end),
+			io:format("Id:  ~s~n", [Id]),
+			pretty_print_raws(List);
+		{atomic, [Rec]} ->
+			print_raws(Rec)
+	end.
 
 pretty_print_raws(UnsortedList) ->
 	Sort = fun

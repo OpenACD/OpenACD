@@ -254,9 +254,10 @@ voicemail(Call, Queue) ->
 	event({voicemail, Call, util:now(), Queue}).
 
 truncate() ->
+	Now = util:now(),
 	{atomic, Deads} = mnesia:transaction(fun() -> 
 		qlc:e(qlc:q([M || 
-			#cdr_rec{media = M, summary = inprogress} = X <- mnesia:table(cdr_rec),
+			#cdr_rec{media = M, summary = inprogress, timestamp = Time} = X <- mnesia:table(cdr_rec),
 			begin
 				N = node(),
 				case node(M#call.source) of
@@ -265,7 +266,8 @@ truncate() ->
 					_ ->
 						true
 				end
-			end
+			end,
+			Now - Time > 3600
 		])) 
 	end),
 	[truncate(X) || X <- Deads].
@@ -307,19 +309,15 @@ attached_agent([Head | Tail]) ->
 		_ ->
 			attached_agent(Tail)
 	end;
-attached_agent(#cdr_raw{eventdata = D, id = Id}) ->
-	case cpx:get_agent(D) of
-		none ->
-			false;
-		Pid ->
-			#agent{statedata = Sdata} = agent:dump_state(Pid),
-			case Sdata of
-				#call{id = Id} ->
-					true;
-				_ ->
-					false
-			end
-	end.
+attached_agent(#cdr_raw{eventdata = D, id = Id}) when is_list(D) ->
+	case agent_manager:query_agent(D) of
+		{true, Pid} ->
+			true;
+		false ->
+			false
+	end;
+attached_agent(_) ->
+	false.
 
 cdr_big_time([], Acc) ->
 	Acc;

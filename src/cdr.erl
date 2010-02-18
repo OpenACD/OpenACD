@@ -272,14 +272,24 @@ truncate() ->
 	end),
 	[truncate(X) || X <- Deads].
 	%Handles = [gen_event:delete_handler(cdr, {cdr, Id}, truncate) || {cdr, Id} <- gen_event:which_handlers(cdr), lists:member(Deads, Id)],
-	
-truncate(Callrec) ->
+
+truncate(Callid) when is_list(Callid) ->
+	Res = mnesia:transaction(fun() ->
+		qlc:e(qlc:q([M || #cdr_rec{media = M} = X <- mnesia:table(cdr_rec), M#call.id =:= Callid]))
+	end),
+	case Res of
+		{atomic, []} ->
+			none;
+		{atomic, [Callrec]} ->
+			truncate(Callrec)
+	end;
+truncate(Callrec) when is_record(Callrec, call) ->
 	{atomic, Raws} = mnesia:transaction(fun() ->
 		qlc:e(qlc:q([X || #cdr_raw{id = Id} = X <- mnesia:table(cdr_raw), Id =:= Callrec#call.id]))
 	end),
 	case Raws of 
 		[] ->
-			?WARNING("~p has no raws", [Callrec#call.id]);
+			?WARNING("~p has nothing in cdr_raws (already summarized?)", [Callrec#call.id]);
 		_ ->
 			[R | _] = Raws,
 			case attached_agent(Raws) of

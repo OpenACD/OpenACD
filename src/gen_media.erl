@@ -522,7 +522,7 @@ handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, on
 				{invalid, Newstate} ->
 					{reply, invalid, State#state{substate = Newstate}};
 				{error, Error, Newstate} ->
-					?INFO("Callback ~p errored ~p on spy", [Callback, Error]),
+					?INFO("Callback ~p errored ~p on spy for ~p", [Callback, Error, Call#call.id]),
 					{reply, {error, Error}, State#state{substate = Newstate}}
 			end
 	end;
@@ -663,8 +663,8 @@ handle_call({'$gen_media_agent_transfer', Apid, Timeout}, _From, #state{callrec 
 			?NOTICE("Could not ring ~p to target agent ~p", [Call#call.id, Apid]),
 			{reply, invalid, State}
 	end;
-handle_call({'$gen_media_agent_transfer', _Apid, _Timeout}, _From, State) ->
-	?ERROR("Invalid agent transfer sent when state is ~p.", [State]),
+handle_call({'$gen_media_agent_transfer', _Apid, _Timeout}, _From, #state{callrec = Call, ring_pid = Rpid} = State) ->
+	?ERROR("Invalid agent transfer for ~p sent when no agent oncall (ring_pid:  ~p)", [Call#call.id, Rpid]),
 	{reply, invalid, State};
 handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback = Callback, oncall_pid = Apid, callrec = Call} = State) when is_pid(Apid) ->
 	case erlang:function_exported(Callback, handle_warm_transfer_begin, 3) of

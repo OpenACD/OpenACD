@@ -268,11 +268,11 @@ handle_call({get_id, Id}, From, Callrec, #state{file_map = Map} = State) when is
 		undefined ->
 			{reply, none, State};
 		Path ->
-			?DEBUG("path:  ~p", [Path]),
+			?DEBUG("path:  ~p (~p)", [Path, Callrec#call.id]),
 			handle_call({get_path, Path}, From, Callrec, State)
 	end;
-handle_call({get_blind, Key}, _From, _Callrec, #state{file_map = Map, mimed = Mime} = State) when is_list(Key) ->
-	?DEBUG("get blind: ~p", [Key]),
+handle_call({get_blind, Key}, _From, Callrec, #state{file_map = Map, mimed = Mime} = State) when is_list(Key) ->
+	?DEBUG("get blind: ~p (~p)", [Key, Callrec#call.id]),
 	case proplists:get_value(Key, Map) of
 		undefined ->
 			Splitpath = util:string_split(Key, "/"),
@@ -313,7 +313,7 @@ handle_call({"get_path", Post}, _From, _Callrec, #state{mimed = Mime} = State) -
 	Intpath = lists:map(fun(E) -> list_to_integer(E) end, Splitpath),
 	Out = get_part(Intpath, Mime),
 	{reply, Out, State};
-handle_call({"attach", Postdata}, _From, _Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
+handle_call({"attach", Postdata}, _From, Callrec, #state{outgoing_attachments = Oldattachments} = State) ->
 	case proplists:get_value("attachFiles", Postdata) of
 		{_Name, Bin} = T ->
 			case byte_size(Bin) + State#state.attachment_size of
@@ -323,11 +323,11 @@ handle_call({"attach", Postdata}, _From, _Callrec, #state{outgoing_attachments =
 				Size ->
 					Attachments = [T | Oldattachments],
 					Keys = get_prop_keys(Attachments),
-					?DEBUG("files list:  ~p", [Keys]),
+					?DEBUG("files list:  ~p (~p)", [Keys, Callrec#call.id]),
 					{reply, {ok, Keys}, State#state{outgoing_attachments = Attachments, attachment_size = Size}}
 			end;
 		_Else ->
-			?INFO("Uploading attempted with no file uploaded", []),
+			?INFO("Uploading attempted with no file uploaded (~p)", [Callrec#call.id]),
 			{reply, {error, nofile}, State}
 	end;
 handle_call({"detach", Postdata}, _From, _Callrec, #state{outgoing_attachments = Attachments} = State) ->
@@ -376,8 +376,8 @@ handle_call({peek, PeekingApid}, _From, Callrec, State) ->
 	{reply, ok, State};
 	
 %% and anything else
-handle_call(Msg, _From, _Callrec, State) ->
-	?INFO("unhandled mesage ~p", [Msg]),
+handle_call(Msg, _From, Callrec, State) ->
+	?INFO("unhandled mesage ~p (~p)", [Msg, Callrec#call.id]),
 	{reply, invalid, State}.
 
 %%--------------------------------------------------------------------
@@ -385,7 +385,7 @@ handle_call(Msg, _From, _Callrec, State) ->
 %%--------------------------------------------------------------------
 handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 	{struct, Args} = mochijson2:decode(proplists:get_value("arguments", Post)),
-	?DEBUG("Starting Send", []),
+	?DEBUG("Starting Send (~p)", [Callrec#call.id]),
 	[{_, BaseTo}, {_, From}, _] = BaseHeaders = [
 		{<<"To">>, proplists:get_value(<<"to">>, Args)},
 		{<<"From">>, proplists:get_value(<<"from">>, Args)},
@@ -447,10 +447,10 @@ handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 	Headers = lists:flatten(lists:append([BaseHeaders, [BccHeader, CcHeader]])),
 	% Other headers maybe:  in-reply-to and references (if exists)
 	Fullout = {Type, Subtype, Headers, [], Body},
-	?DEBUG("Starting encode", []),
+	?DEBUG("Starting encode (~p)", [Callrec#call.id]),
 	Encoded = mimemail:encode(Fullout),
-	?DEBUG("Encoding complete", []),
-	?DEBUG("Trying to send to ~p from ~p", [To, From]),
+	?DEBUG("Encoding complete (~p)", [Callrec#call.id]),
+	?DEBUG("Trying to send to ~p from ~p (~p)", [To, From, Callrec#call.id]),
 	Mail = {
 		binary_to_list(From),
 		To,
@@ -461,16 +461,16 @@ handle_cast({"send", Post}, Callrec, #state{sending_pid = undefined} = State) ->
 		ok ->
 			ok;
 		{error, ArcErr} ->
-			?WARNING("Could not write archive due to ~p", [ArcErr]),
+			?WARNING("Could not write archive due to ~p (~p)", [ArcErr, Callrec#call.id]),
 			ok
 	end,
 
 	case gen_smtp_client:send(Mail, Sendopts) of
 		{ok, Pid} = ClientRes ->
-			?DEBUG("Client res:  ~p;  Send opts:  ~p, From/To:  ~p", [ClientRes, Sendopts, {From, To}]),
+			?DEBUG("Client res:  ~p;  Send opts:  ~p, From/To:  ~p (~p)", [ClientRes, Sendopts, {From, To}, Callrec#call.id]),
 			{noreply, State#state{sending_pid = Pid}};
 		ClientRes ->
-			?DEBUG("Client res:  ~p;  Send opts:  ~p, From/To:  ~p", [ClientRes, Sendopts, {From, To}]),
+			?DEBUG("Client res:  ~p;  Send opts:  ~p, From/To:  ~p (~p)", [ClientRes, Sendopts, {From, To}, Callrec#call.id]),
 			{{mediapush, {send_fail, ClientRes}}, State}
 	end;
 %	{noreply, State};
@@ -480,8 +480,8 @@ handle_cast(print_file_map, _Callrec, #state{file_map = Out} = State) ->
 	{noreply, State};
 handle_cast({set_caseid, CaseID}, _Callrec, State) ->
 	{noreply, State#state{caseid = CaseID}};
-handle_cast(Msg, _Callrec, State) ->
-	?WARNING("cast msg:  ~p", [Msg]),
+handle_cast(Msg, Callrec, State) ->
+	?WARNING("cast msg:  ~p (~p)", [Msg, Callrec#call.id]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -496,18 +496,18 @@ handle_info(check_manager, _Callrec, State) ->
 			{ok, Tref} = timer:send_after(1000, check_manager),
 			{noreply, State#state{manager = Tref}}
 	end;
-handle_info({'EXIT', Pid, normal}, _Callrec, #state{sending_pid = Pid} = State) ->
-	?DEBUG("sending complete", []),
+handle_info({'EXIT', Pid, normal}, Callrec, #state{sending_pid = Pid} = State) ->
+	?DEBUG("sending complete (~p)", [Callrec#call.id]),
 	{{mediapush, send_done}, State#state{sending_pid = undefined}};
-handle_info({'EXIT', Pid, Notnormal}, _Callrec, #state{sending_pid = Pid} = State) ->
-	?INFO("Sending failed:  ~p", [Notnormal]),
+handle_info({'EXIT', Pid, Notnormal}, Callrec, #state{sending_pid = Pid} = State) ->
+	?INFO("Sending failed:  ~p (~p)", [Notnormal, Callrec#call.id]),
 	{{mediapush, {send_fail, Notnormal}}, State#state{sending_pid = undefined}};
-handle_info({'EXIT', Pid, Reason}, _Callrec, #state{manager = Pid} = State) ->
-	?WARNING("Handling media manager ~w death of ~p", [Pid, Reason]),
+handle_info({'EXIT', Pid, Reason}, Callrec, #state{manager = Pid} = State) ->
+	?WARNING("Handling media manager ~w death of ~p (~p)", [Pid, Reason, Callrec#call.id]),
 	{ok, Tref} = timer:send_after(1000, check_manager),
 	{noreply, State#state{manager = Tref}};
-handle_info(Info, _Callrec, State) ->
-	?DEBUG("Info: ~p", [Info]),
+handle_info(Info, Callrec, State) ->
+	?DEBUG("Info: ~p (~p)", [Info, Callrec#call.id]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------

@@ -761,6 +761,9 @@ handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = Rpid, cal
 			?ERROR("Cannot set ~p for ~p to oncall due to ~p", [Rpid, Call#call.id, Reason]),
 			{reply, invalid, State#state{substate = NewState}}
 	end;
+handle_call('$gen_media_agent_oncall', _From, #state{warm_transfer = true, callrec = Call, oncall_pid = undefined} = State) ->
+	?INFO("stray oncall request during what looks like a warm transfer complete (outofband) for ~p", [Call#call.id]),
+	{reply, ok, State};
 handle_call('$gen_media_agent_oncall', _From, #state{warm_transfer = true, callrec = Call} = State) ->
 	?INFO("oncall request during what looks like a warm transfer (outofband) for ~p", [Call#call.id]),
 	agent:media_push(State#state.oncall_pid, warm_transfer_succeeded),

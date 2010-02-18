@@ -387,9 +387,27 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 	?NOTICE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
 	F = fun(Key, Value, Acc) -> 
 		case Value of
+			{watcher, Pid} ->
+				case Reason of
+					normal ->
+						% Call is ended, life is good.
+						Acc;
+					_ ->
+						?NOTICE("Restarting watcher for ~p", [Key]),
+						Newpid = spawn_watcher(Key, State#state.nodename),
+						dict:store(Key, {watcher, Newpid}, Acc)
+				end;
 			Pid ->
 				% TODO - do something with the CDR here - or try to restart the call!
-				Acc;
+				case freeswitch:api(State#state.nodename, uuid_exists, Key) of
+					{ok, "false"} ->
+						% Call is ended, life is good
+						Acc;
+					{ok, "true"} ->
+						% Call has not ended, setting up a watcher to close the cdr
+						Newpid = spawn_watcher(Key, State#state.nodename),
+						dict:store(Key, {watcher, Newpid}, Acc)
+				end;
 			_Else ->
 				dict:store(Key, Value, Acc)
 		end
@@ -578,4 +596,16 @@ fetch_domain_user(Node, State) ->
 		Other ->
 			?DEBUG("got other response: ~p", [Other]),
 			?MODULE:fetch_domain_user(Node, State)
+	end.
+
+spawn_watcher(Key, Node) ->
+	spawn_link(fun() -> ?MODULE:watch(Key, Node) end).
+
+watch(Key, Node) ->
+	case freeswitch:api(Node, uuid_exists, Key) of
+		{ok, "false"} ->
+			cdr:truncate(Key);
+		{ok, "true"} ->
+			timer:sleep(1000),
+			?MODULE:watch(Key, Node)
 	end.

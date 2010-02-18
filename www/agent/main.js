@@ -243,7 +243,7 @@ function load_media_tab(options){
 	
 	if(options.fullpane){
 		var pane = new dojox.layout.ContentPane({
-			title:options.media,
+			title:options.title,
 			executeScripts: "true",
 			id: options.id,
 			closable: false
@@ -284,13 +284,13 @@ function load_media_tab(options){
 		elem.id = options.id,
 		document.body.insertBefore(elem, document.body.firstChild);
 		var pane = new dojox.layout.FloatingPane({
-			title: options.media,
+			title: options.title,
 			executeScripts: true,
 			closable: false,
 			dockable: false,
 			href: 'tabs/' + options.href,
 			resizable: true,
-			style: 'position:absolute;top:30px;left:70%;z-index:800;width:'+options.width+';height:'+options.height
+			style: 'position:absolute;top:30px;left:80%;z-index:800;width:'+options.width+';height:'+options.height
 		}, elem);
 		//pane.attr('href', "tabs/" + options.href);
 		pane.startup();
@@ -1246,7 +1246,7 @@ dojo.addOnLoad(function(){
 				title:name,
 				resizable: true,
 				dockable: false,
-				style: 'position:absolute; top: 100px; left: 60%; z-index: 1000',
+				style: 'position:absolute; top: 100px; left: 50%; z-index: 1000',
 				content: newContent
 			}, dojo.byId(id));
 			// overriding close button to do a hide instead.

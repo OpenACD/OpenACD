@@ -555,7 +555,7 @@ handle_info({'DOWN', _Ref, process, Pid, Reason}, State) ->
 			?INFO("~p Did not find pid ~w", [State#state.name, Pid]),
 			{noreply, State};
 		{Key, #queued_call{cook=Cookpid, dispatchers = Dips}} ->
-			cook:stop(Cookpid),
+			catch cook:stop(Cookpid),
 			lists:foreach(fun(D) -> exit(D, kill) end, Dips),
 			State2 = State#state{queue=gb_trees:delete(Key, State#state.queue)},
 			set_cpx_mon(State2),

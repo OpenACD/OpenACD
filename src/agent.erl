@@ -1174,12 +1174,13 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 			ProfileTup
 	end,
 	receive
-		{Agentname, login, State, OldState, Statedata} ->
+		{Agentname, login, State, Statedata} ->
 			F = fun() ->
 				Now = util:now(),
-				mnesia:dirty_write(#agent_state{id = Id, agent = Agentname, state = login, oldstate=OldState,
-						statedata = {state, State, data, Statedata}, start = Now, profile= Profile, nodes = Nodes}),
-				%mnesia:dirty_write(#agent_state{agent = Agentname, state = State, statedata = Statedata, start = Now, nodes = Nodes}),
+				mnesia:dirty_write(#agent_state{id = Id, agent = Agentname, oldstate = login, state=State,
+						start = Now, ended = Now, profile= Profile, nodes = Nodes}),
+				mnesia:dirty_write(#agent_state{agent = Agentname, oldstate = State, statedata = Statedata, start = Now, nodes = Nodes}),
+				gen_cdr_dumper:update_notify(agent_state),
 				ok
 			end,
 			Res = mnesia:async_dirty(F),
@@ -1188,23 +1189,23 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 		{'EXIT', _Apid, _Reason} ->
 			F = fun() ->
 				Now = util:now(),
-				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.agent =:= Agentname, Rec#agent_state.ended =:= undefined]),
+				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
 				Recs = qlc:e(QH),
 				?DEBUG("Recs to loop through:  ~p", [Recs]),
 				lists:foreach(
 					fun(Untermed) ->
 						mnesia:delete_object(Untermed), 
-						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now}),
-						gen_cdr_dumper:update_notify(agent_state)
+						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now, state = logout})
 					end,
 					Recs
 				),
-				Stateage = fun(#agent_state{start = A}, #agent_state{start = B}) ->
-					B =< A
-				end,
-				[#agent_state{state = Oldstate} | _] = lists:sort(Stateage, Recs),
-				Newrec = #agent_state{id = Id, agent = Agentname, state = logout, oldstate = Oldstate, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
-				mnesia:write(Newrec),
+				gen_cdr_dumper:update_notify(agent_state),
+				%Stateage = fun(#agent_state{start = A}, #agent_state{start = B}) ->
+					%B =< A
+				%end,
+				%[#agent_state{state = Oldstate} | _] = lists:sort(Stateage, Recs),
+				%Newrec = #agent_state{id = Id, agent = Agentname, state = logout, oldstate = State, statedata = "job done", start = Now, ended = Now, timestamp = Now, nodes = Nodes},
+				%mnesia:write(Newrec),
 				ok
 			end,
 			Res = mnesia:async_dirty(F),
@@ -1212,27 +1213,27 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 			ok;
 		{change_profile, Newprofile, State} when State == idle; State == released ->
 			agent:log_loop(Id, Agentname, Nodes, Newprofile);
-		{change_profile, Newprofile, State} ->
+		{change_profile, Newprofile, _State} ->
 			case ProfileTup of
 				{Current, _Queued} ->
 					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile});
 				Current ->
 					agent:log_loop(Id, Agentname, Nodes, {Current, Newprofile})
 			end;
-		{Agentname, State, OldState, Statedata} ->
+		{Agentname, State, _OldState, Statedata} ->
 			F = fun() ->
 				Now = util:now(),
-				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined, Rec#agent_state.state =/= login]),
+				QH = qlc:q([Rec || Rec <- mnesia:table(agent_state), Rec#agent_state.id =:= Id, Rec#agent_state.ended =:= undefined]),
 				Recs = qlc:e(QH),
 				lists:foreach(
 					fun(Untermed) -> 
 						mnesia:delete_object(Untermed), 
-						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now}),
-						gen_cdr_dumper:update_notify(agent_state)
+						mnesia:write(Untermed#agent_state{ended = Now, timestamp = Now, state = State})
 					end,
 					Recs
 				),
-				Newrec = #agent_state{id = Id, agent = Agentname, state = State, oldstate=OldState, statedata = Statedata, profile=Profile, start = Now, nodes = Nodes},
+				gen_cdr_dumper:update_notify(agent_state),
+				Newrec = #agent_state{id = Id, agent = Agentname, oldstate = State, statedata = Statedata, profile = Profile, start = Now, nodes = Nodes},
 				mnesia:write(Newrec),
 				ok
 			end,

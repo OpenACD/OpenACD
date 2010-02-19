@@ -308,7 +308,7 @@ handle_call({dial, Number}, _From, #state{agent_fsm = AgentPid} = State) ->
 handle_call(dump_agent, _From, #state{agent_fsm = Apid} = State) ->
 	Astate = agent:dump_state(Apid),
 	{reply, Astate, State};
-handle_call({agent_transfer, Agentname, CaseID}, From, #state{current_call = Call} = State) ->
+handle_call({agent_transfer, Agentname, CaseID}, From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	gen_media:cast(Call#call.source, {set_caseid, CaseID}),
 	handle_call({agent_transfer, Agentname}, From, State);
 handle_call({agent_transfer, Agentname}, _From, #state{agent_fsm = Apid} = State) ->
@@ -351,7 +351,7 @@ handle_call(warm_transfer_complete, _From, #state{current_call = Call} = State) 
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not complete transfer">>}]})}
 	end,
 	{reply, Reply, State};
-handle_call({queue_transfer, Queue, CaseID}, From, #state{current_call = Call} = State) ->
+handle_call({queue_transfer, Queue, CaseID}, From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	gen_media:cast(Call#call.source, {set_caseid, CaseID}),
 	handle_call({queue_transfer, Queue}, From, State);
 handle_call({queue_transfer, Queue}, _From, #state{agent_fsm = Apid} = State) ->
@@ -761,7 +761,7 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 handle_call({supervisor, _Request}, _From, State) ->
 	?NOTICE("Unauthorized access to a supervisor web call", []),
 	{reply, {403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"insufficient privledges">>}]})}, State};
-handle_call({media, Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
+handle_call({media, Post}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	Commande = proplists:get_value("command", Post),
 	?DEBUG("Media Command:  ~p", [Commande]),
 	case proplists:get_value("mode", Post) of
@@ -784,7 +784,7 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when Call
 		undefined ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
 	end;
-handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
+handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	Call#call.source ! call_hangup,
 	Json = case agent:set_state(State#state.agent_fsm, {wrapup, State#state.current_call}) of
 		invalid ->
@@ -812,7 +812,7 @@ handle_call({undefined, "/report_issue", Post}, _From, State) ->
 	end;
 handle_call({undefined, [$/ | Path]}, From, State) ->
 	handle_call({undefined, [$/ | Path], []}, From, State);
-handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} = State) when Call =/= undefined ->
+handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	%% considering how things have gone, the best guess is this is a media call.
 	%% Note that the results below are only for email, so this will need
 	%% to be refactored when we support more medias.

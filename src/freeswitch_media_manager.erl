@@ -533,8 +533,8 @@ fetch_domain_user(Node, State) ->
 										Agent ->
 											Password=Agent#agent.password,
 											Hash = util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password)),
-											agent_auth:set_extended_prop({login, Agent#agent.login}, a1_hash, Hash),
-											freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))})
+											freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))}),
+											agent_auth:set_extended_prop({login, Agent#agent.login}, a1_hash, Hash)
 									catch
 										_:_ -> % agent pid is toast?
 											freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})

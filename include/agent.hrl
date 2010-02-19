@@ -88,9 +88,9 @@
 
 -record(agent_profile, {
 	name = erlang:error({undefined, name}) :: string(),
-	% TODO - add ID field
-	% TODO - add hidden field
-	% TODO - add sort order
+	id :: string() | 'undefined', % TODO = erlang:error({undefined, id}) :: string(),
+	order = 1 :: pos_integer(),
+	hidden = false :: boolean(),
 	skills = [] :: [atom()],
 	timestamp = util:now() :: pos_integer()
 }).

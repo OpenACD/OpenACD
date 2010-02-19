@@ -79,15 +79,15 @@ start() ->
 %%====================================================================
 %% @private
 init([]) ->
-	?DEBUG("Dispatcher starting", []),
+	%?DEBUG("Dispatcher starting", []),
 	State = #state{},
 	case grab_best() of
 		none ->
-			?DEBUG("no call to grab, lets start a timer", []),
+			%?DEBUG("no call to grab, lets start a timer", []),
 			{ok, Tref} = timer:send_interval(?POLL_INTERVAL, grab_best),
 			{ok, State#state{tref=Tref}};
 		{Qpid, Call} ->
-			?DEBUG("sweet, grabbed a call: ~p", [Call#queued_call.id]),
+			%?DEBUG("sweet, grabbed a call: ~p", [Call#queued_call.id]),
 			{ok, State#state{call=Call, qpid=Qpid}}
 	end.
 
@@ -140,7 +140,7 @@ handle_cast(regrab, State) ->
 	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
-	?DEBUG("looping through filtered queues... ~p", [Filtered]),
+	%?DEBUG("looping through filtered queues... ~p", [Filtered]),
 	case loop_queues(Filtered) of
 		none -> 
 			{noreply, State};
@@ -200,16 +200,16 @@ loop_queues([]) ->
 	%?DEBUG("queue list is empty", []),
 	none;
 loop_queues(Queues) ->
-	?DEBUG("queues: ~p", [Queues]),
+	%?DEBUG("queues: ~p", [Queues]),
 	Total = lists:foldl(fun(Elem, Acc) -> Acc + element(4, Elem) end, 0, Queues),
 	Rand = random:uniform(Total),
 	{Name, Qpid, Call, Weight} = biased_to(Queues, 0, Rand),
-	?DEBUG("grabbing call", []),
+	%?DEBUG("grabbing call", []),
 	case call_queue:grab(Qpid) of
 			none -> 
 				loop_queues(lists:delete({Name, Qpid, Call, Weight}, Queues));
 			{_Key, Call2} ->
-				?DEBUG("grabbed call ~p", [Call2#queued_call.id]),
+				%?DEBUG("grabbed call ~p", [Call2#queued_call.id]),
 				link(Call2#queued_call.cook),
 				{Qpid, Call2}
 	end.
@@ -243,7 +243,7 @@ grab_best() ->
 %% @doc tries to grab a new call ignoring the queue it's current call is bound to
 -spec(regrab/1 :: (pid()) -> 'ok').
 regrab(Pid) -> 
-	?DEBUG("dispatcher trying to regrab", []),
+	%?DEBUG("dispatcher trying to regrab", []),
 	gen_server:cast(Pid, regrab),
 	ok.
 

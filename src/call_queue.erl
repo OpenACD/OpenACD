@@ -609,16 +609,16 @@ code_change(_OldVsn, State, _Extra) ->
 %% =====
 
 queue_call(Cookpid, Callrec, Key, State) ->
-	link(Cookpid),
-	erlang:monitor(process, Callrec#call.source),
 	Queuedrec = #queued_call{media = Callrec#call.source, cook = Cookpid, id = Callrec#call.id},
 	NewSkills = lists:umerge(lists:sort(State#state.call_skills), lists:sort(Callrec#call.skills)),
 	Expandedskills = expand_magic_skills(State, Queuedrec, NewSkills),
 	Value = Queuedrec#queued_call{skills=Expandedskills},
 	try gb_trees:insert(Key, Value, State#state.queue) of
 		Trees ->
-		set_cpx_mon(State#state{queue=Trees}),
-		State#state{queue = Trees}
+			link(Cookpid),
+			erlang:monitor(process, Callrec#call.source),
+			set_cpx_mon(State#state{queue=Trees}),
+			State#state{queue = Trees}
 	catch
 		error:{key_exists, _} ->
 			?ERROR("Call ~p is already queued in ~p at ~p", [Callrec#call.id, State#state.name, Key]),
@@ -662,8 +662,10 @@ clean_pid_(_Deadpid, _Recipe, _QName, [], Acc) ->
 	lists:reverse(Acc);
 clean_pid_(Deadpid, Recipe, QName, [{Key, #queued_call{cook = Deadpid} = Call} | Calls], Acc) ->
 	{ok, Pid} = cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName, Key),
+	?NOTICE("Cook for ~p died - respawning as ~p", [Call#call.id, Pid]),
 	link(Pid),
 	Cleancall = Call#queued_call{cook = Pid},
+	gen_media:set_cook(Call#call.id, Pid),
 	lists:append(lists:reverse(Acc), [{Key, Cleancall} | Calls]);
 clean_pid_(Deadpid, Recipe, QName, [{Key, Call} | Calls], Acc) ->
 	case lists:member(Deadpid, Call#queued_call.dispatchers) of

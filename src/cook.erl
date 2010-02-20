@@ -120,7 +120,7 @@ start_at(Node, Call, Recipe, Queue, Key) ->
 init([Call, Recipe, Queue, Key]) ->
 	?DEBUG("Cook starting for call ~p from queue ~p", [Call, Queue]),
 	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
-	process_flag(trap_exit, true),
+	%process_flag(trap_exit, true),
 	Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 	State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref, key = Key},
 	{ok, State}.
@@ -220,8 +220,14 @@ terminate(Reason, State) ->
 	?WARNING("Unusual death:  ~p", [Reason]),
 	erlang:cancel_timer(State#state.tref),
 	Qpid = wait_for_queue(State#state.queue),
-	?INFO("Looks like the queue recovered (~w), dieing now",[Qpid]),
-	call_queue:add_at(Qpid, State#state.key, State#state.call),
+	?INFO("Looks like the queue ~s recovered (~w), dieing now",[State#state.queue, Qpid]),
+	case call_queue:get_call(Qpid, State#state.call) of
+		none ->
+			?INFO("Call was not in queue ~s - adding it", [State#state.queue]),
+			call_queue:add_at(Qpid, State#state.key, State#state.call);
+		_ ->
+			ok
+	end,
 	ok.
 
 %%--------------------------------------------------------------------
@@ -229,7 +235,7 @@ terminate(Reason, State) ->
 %%--------------------------------------------------------------------
 %% @private
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+	{ok, State}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions

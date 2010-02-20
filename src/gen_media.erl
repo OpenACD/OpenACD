@@ -309,7 +309,8 @@
 	call/3,
 	cast/2,
 	wrapup/1,
-	spy/2
+	spy/2,
+	set_cook/2
 ]).
 
 % TODO - add these to a global .hrl, cpx perhaps?
@@ -426,6 +427,9 @@ queue(Genmedia, Queue) ->
 -spec(spy/2 :: (Genmedia :: pid(), Spy :: pid()) -> 'ok' | 'invalid' | {'error', any()}).
 spy(Genmedia, Spy) ->
 	gen_server:call(Genmedia, {'$gen_media_spy', Spy}).
+
+set_cook(Genmedia, CookPid) ->
+	gen_server:call(Genmedia, {'$gen_media_set_cook', CookPid}).
 
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
@@ -841,6 +845,10 @@ handle_call('$gen_media_agent_oncall', From, #state{oncall_pid = OcPid, callrec 
 handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined, callrec = Call} = State) ->
 	?INFO("oncall request from ~p for ~p when no ring_pid (probobly a late request)", [From, Call#call.id]),
 	{reply, invalid, State};
+handle_call({'$gen_media_set_cook', CookPid}, From, #state{ring_pid = undefined, callrec = Call} = State) ->
+	Callrec = State#state.callrec,
+	?NOTICE("Updating cook pid for ~p to ~p", [Callrec#call.id, CookPid]),
+	{reply, ok, State#state{callrec = Callrec#call{cook = CookPid}}};
 handle_call(Request, From, #state{callback = Callback} = State) ->
 	Reply = Callback:handle_call(Request, From, State#state.callrec, State#state.substate),
 	handle_custom_return(Reply, State, reply).

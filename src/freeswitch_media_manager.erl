@@ -389,7 +389,8 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 						% all is well.
 						Acc;
 					_ ->
-						cdr:truncate(Key)
+						cdr:truncate(Key),
+						Acc
 				end;
 			_Else ->
 				dict:store(Key, Value, Acc)

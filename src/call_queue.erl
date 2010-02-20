@@ -665,7 +665,7 @@ clean_pid_(Deadpid, Recipe, QName, [{Key, #queued_call{cook = Deadpid} = Call} |
 	?NOTICE("Cook for ~p died - respawning as ~p", [Call#call.id, Pid]),
 	link(Pid),
 	Cleancall = Call#queued_call{cook = Pid},
-	gen_media:set_cook(Call#call.id, Pid),
+	gen_media:set_cook(Call#queued_call.id, Pid),
 	lists:append(lists:reverse(Acc), [{Key, Cleancall} | Calls]);
 clean_pid_(Deadpid, Recipe, QName, [{Key, Call} | Calls], Acc) ->
 	case lists:member(Deadpid, Call#queued_call.dispatchers) of

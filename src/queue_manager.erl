@@ -97,27 +97,7 @@ start(Nodes) ->
 %% @doc Add a queue named `Name' using the given Options.
 -spec(add_queue/2 :: (Name :: string(), Opts :: [{atom(), any()}]) -> {'ok', pid()} | {'exists', pid()}).
 add_queue(Name, Opts) when is_list(Name) ->
-	case gen_leader:call(?MODULE, {exists, Name}) of
-		true ->
-			?DEBUG("Queue exists locally", []),
-			Pid = gen_leader:call(?MODULE, {get_queue, Name}),
-			{exists, Pid};
-		false ->
-			?DEBUG("Queue does not exist locally", []),
-			case gen_leader:leader_call(?MODULE, {exists, Name}) of
-				true ->
-					Pid = gen_leader:leader_call(?MODULE, {get_queue, Name}),
-					?DEBUG("queue exists by leader decree at ~p", [Pid]),
-					gen_server:cast(Pid, {update, Opts}),
-					{exists, Pid};
-				false ->
-					?DEBUG("Queue does not exist at all, starting it", []),
-					{ok, Pid} = call_queue:start(Name, Opts),
-					ok = gen_leader:cast(?MODULE, {notify, Name, Pid}),
-					%ok = gen_leader:leader_call(?MODULE, {notify, Name, Pid}),
-					{ok, Pid}
-			end
-	end.
+	gen_leader:call(?MODULE, {start, Name, Opts}).
 
 %% @doc load a queue from call_queue_config and start it
 -spec(load_queue/1 :: (Name :: string()) -> 'ok' | 'noexists').
@@ -348,6 +328,39 @@ handle_call(print, _From, State, _Election) ->
 	{reply, State#state.qdict, State};
 handle_call(queues_as_list, _From, State, _Election) ->
 	{reply, dict:to_list(State#state.qdict), State};
+handle_call({start, Name, Options}, _From, #state{qdict = Qdict} = State, Election) ->
+	{ok, Pid} = call_queue:start_link(Name, Options),
+	case gen_leader:leader_node(Election) of
+		Node when Node == node() ->
+			% we're the leader
+			case dict:find(Name, Qdict) of
+				{ok, OPid} ->
+					unlink(Pid),
+					call_queue:stop(Pid),
+					?NOTICE("Leader says ~p already exists at ~p", [Name, OPid]),
+					{reply, {exists, OPid}, State};
+				error ->
+					?DEBUG("Leader notified of  ~p at ~p", [Name, Pid]),
+					NewDict = dict:store(Name, Pid, Qdict),
+					{reply, {ok, Pid}, State#state{qdict = NewDict}}
+			end;
+		Node ->
+			% we're not the leader, notify them
+			?INFO("Notifying leader ~p of new queue ~p at ~p", [Node, Name, Pid]),
+			% unfortunately, you can't make a leader_call from a handle_call because it blocks
+			% so we're going to do it via old fashioned messages
+			Ref = make_ref(),
+			{?MODULE, Node} ! {notify, {self(), Ref}, Name, Pid},
+			receive
+				{Ref, {ok, Pid}} ->
+					NewDict = dict:store(Name, Pid, Qdict),
+					{reply, {ok, Pid}, State#state{qdict = NewDict}};
+				{Ref, {exists, OPid}} ->
+					unlink(Pid),
+					call_queue:stop(Pid),
+					{reply, {exists, OPid}, State}
+			end
+	end;
 handle_call(stop, _From, State, _Election) ->
 	?INFO("stop requested",[]),
 	{stop, normal, ok, State};
@@ -381,6 +394,18 @@ handle_cast(_Msg, State, _Election) ->
 
 %% @private
 %-spec(handle_info/2 :: (Info :: any(), State :: #state{}) -> {'noreply', #state{}}).
+handle_info({notify, {From, Ref}, Name, Pid}, #state{qdict = Qdict} = State) ->
+	case dict:find(Name, Qdict) of
+		{ok, OPid} ->
+			?NOTICE("Leader says ~p already exists at ~p", [Name, OPid]),
+			From ! {Ref, {exists, OPid}},
+			{noreply, State};
+		error ->
+			?DEBUG("Leader notified of  ~p at ~p", [Name, Pid]),
+			NewDict = dict:store(Name, Pid, Qdict),
+			From ! {Ref, {ok, Pid}},
+			{noreply, State#state{qdict = NewDict}}
+	end;
 handle_info({mnesia_system_event, {inconsistent_database, _Context, _Node}}, State) ->
 	?WARNING("inconsistant_database event, setting master nodes...", []),
 	mnesia:set_master_nodes(call_queue, [node()]),

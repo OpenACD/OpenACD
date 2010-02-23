@@ -14,7 +14,7 @@
 %%
 %%	The Original Code is OpenACD.
 %%
-%%	The Initial Developers of the Original Code is 
+%%	The Initial Developers of the Original Code is
 %%	Andrew Thompson and Micah Warren.
 %%
 %%	All portions of the code written by the Initial Developers are Copyright
@@ -59,8 +59,8 @@
 
 %% API
 -export([
-	start_link/4,
-	start/4,
+	start_link/5,
+	start/5,
 	stop/1,
 	restart_tick/1,
 	stop_tick/1,
@@ -76,7 +76,8 @@
 		recipe = [] :: recipe(),
 		ticked = 1 :: pos_integer(), % number of ticks we've done
 		call :: pid() | 'undefined',
-		queue :: string() | 'undefined',
+		queue :: string(),
+		qpid :: pid(),
 		key :: call_key(),
 		ringstate = none :: 'none' | 'ringing',
 		tref :: any() % timer reference
@@ -91,38 +92,42 @@
 %%====================================================================
 
 %% @doc Starts a cook linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
--spec(start_link/4 :: (Call :: pid(), Recipe :: recipe(), Queue :: string(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start_link(Call, Recipe, Queue, Key) when is_pid(Call) ->
-    gen_server:start_link(?MODULE, [Call, Recipe, Queue, Key], []).
+-spec(start_link/5 :: (Call :: pid(), Recipe :: recipe(), Queue :: string(), Qpid :: pid(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_link(Call, Recipe, Queue, Qpid, Key) when is_pid(Call) ->
+	gen_server:start_link(?MODULE, [Call, Recipe, Queue, Qpid, Key], []).
 
 %% @doc Starts a cook not linked to the parent process for `Call' processed by `Recipe' for call_queue named `Queue'.
--spec(start/4 :: (Call :: pid(), Recipe :: recipe(), Queue :: string(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start(Call, Recipe, Queue, Key) when is_pid(Call) ->
-	gen_server:start(?MODULE, [Call, Recipe, Queue, Key], []).
+-spec(start/5 :: (Call :: pid(), Recipe :: recipe(), Queue :: string(), Qpid :: pid(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start(Call, Recipe, Queue, Qpid, Key) when is_pid(Call) ->
+	gen_server:start(?MODULE, [Call, Recipe, Queue, Qpid, Key], []).
 
 %% @doc starts a new cook on the give `node()' `Node' for `Call' to be process by `Recipe' for the call_queue named `Queue'.
 %% This is used in place of start and start_link to allow a queue on a different node to start the cook on the same node
 %% the media exists on.
--spec(start_at/5 :: (Node :: atom(), Call :: pid(), Recipe :: recipe(), Queue :: string(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start_at(Node, Call, Recipe, Queue, Key) ->
+-spec(start_at/6 :: (Node :: atom(), Call :: pid(), Recipe :: recipe(), Queue :: string(), Qpid :: pid(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 	F = fun() ->
-		{ok, State} = init([Call, Recipe, Queue, Key]),
-		?DEBUG("about to enter loop", []),
-		gen_server:enter_loop(?MODULE, [], State)%;
+		{ok, State} = init([Call, Recipe, Queue, Qpid, Key]),
+		?DEBUG("about to enter loop ~p, ~p", [get('$ancestors'), Call]),
+		put('$ancestors', [Call]), % we don't want to die with the queue
+		gen_server:enter_loop(?MODULE, [], State)
 	end,
 	{ok, proc_lib:spawn_link(Node, F)}.
-	
+
+die(Pid) ->
+	gen_server:cast(Pid, die).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
 
 %% @private
-init([Call, Recipe, Queue, Key]) ->
+init([Call, Recipe, Queue, Qpid, Key]) ->
 	?DEBUG("Cook starting for call ~p from queue ~p", [Call, Queue]),
 	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
-	%process_flag(trap_exit, true),
+	process_flag(trap_exit, true),
 	Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
-	State = #state{recipe=Recipe, call=Call, queue=Queue, tref=Tref, key = Key},
+	State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key},
 	{ok, State}.
 
 %%--------------------------------------------------------------------
@@ -132,7 +137,7 @@ init([Call, Recipe, Queue, Key]) ->
 handle_call(stop, From, State) ->
 	?NOTICE("Stop requested from ~p", [From]),
 	{stop, normal, ok, State};
-handle_call({stop, Reason}, From, State) -> 
+handle_call({stop, Reason}, From, State) ->
 	?NOTICE("Stop requested from ~p for ~p.", [From, Reason]),
 	{stop, {normal, Reason}, ok, State};
 handle_call(Request, _From, State) ->
@@ -142,13 +147,12 @@ handle_call(Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_cast(restart_tick, State) ->
-	case do_route(State#state.ringstate, State#state.queue, State#state.call) of
-		nocall -> 
+handle_cast(restart_tick, #state{qpid = Qpid} = State) ->
+	case do_route(State#state.ringstate, Qpid, State#state.call) of
+		nocall ->
 			{stop, {call_not_queued, State#state.call}, State};
-		Ringstate -> 
+		Ringstate ->
 			State2 = State#state{ringstate = Ringstate},
-			Qpid = queue_manager:get_queue(State2#state.queue),
 			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, Qpid, State2#state.call),
 			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe},
 			Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
@@ -177,28 +181,26 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info(do_tick, State) ->
+handle_info(do_tick, #state{qpid = Qpid} = State) ->
 	%?DEBUG("do_tick caught, beginning processing...", []),
-	case whereis(queue_manager) of % TODO do we even need this?  We do have a terminate that should catch a no-proc.
-		undefined ->
-			{stop, queue_manager_undefined, State};
-		_Else ->
-			case queue_manager:get_queue(State#state.queue) of
-				undefined ->
-					{stop, {queue_undefined, State#state.queue}, State};
-				Qpid ->
-					case do_route(State#state.ringstate, State#state.queue, State#state.call) of
-						nocall -> 
-							{stop, {call_not_queued, State#state.call}, State};
-						Ringstate -> 
-							State2 = State#state{ringstate = Ringstate},
-							NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, Qpid, State2#state.call),
-							Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
-							State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe, tref = Tref},
-							{noreply, State3}
-					end
-			end
+	case do_route(State#state.ringstate, Qpid, State#state.call) of
+		nocall ->
+			{stop, {call_not_queued, State#state.call}, State};
+		Ringstate ->
+			State2 = State#state{ringstate = Ringstate},
+			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, Qpid, State2#state.call),
+			Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
+			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe, tref = Tref},
+			{noreply, State3}
 	end;
+handle_info({'EXIT', From, Reason}, #state{qpid = From} = State) when Reason == shutdown; Reason == normal ->
+	{stop, Reason, State};
+handle_info({'EXIT', From, _Reason}, #state{qpid = From} = State) ->
+	?NOTICE("queue died unexpectedly - trying to add the call back into the new queue", []),
+	Qpid = wait_for_queue(State#state.queue),
+	call_queue:add_at(Qpid, State#state.key, State#state.call),
+	gen_media:set_queue(State#state.call, Qpid),
+	{stop, normal, State};
 handle_info(Info, State) ->
 	?DEBUG("received random info message: ~p", [Info]),
 	{noreply, State}.
@@ -218,16 +220,16 @@ terminate({normal, Reason}, _State) ->
 	ok;
 terminate(Reason, State) ->
 	?WARNING("Unusual death:  ~p", [Reason]),
-	erlang:cancel_timer(State#state.tref),
-	Qpid = wait_for_queue(State#state.queue),
-	?INFO("Looks like the queue ~s recovered (~w), dieing now",[State#state.queue, Qpid]),
-	case call_queue:get_call(Qpid, State#state.call) of
-		none ->
-			?INFO("Call was not in queue ~s - adding it", [State#state.queue]),
-			call_queue:add_at(Qpid, State#state.key, State#state.call);
-		_ ->
-			ok
-	end,
+	%erlang:cancel_timer(State#state.tref),
+	%Qpid = wait_for_queue(State#state.queue),
+	%?INFO("Looks like the queue ~s recovered (~w), dieing now",[State#state.queue, Qpid]),
+	%case call_queue:get_call(Qpid, State#state.call) of
+		%none ->
+			%?INFO("Call was not in queue ~s - adding it", [State#state.queue]),
+			%call_queue:add_at(Qpid, State#state.key, State#state.call);
+		%_ ->
+			%ok
+	%end,
 	ok.
 
 %%--------------------------------------------------------------------
@@ -283,29 +285,28 @@ stop(Pid) ->
 	gen_server:call(Pid, stop).
 
 %% @private
--spec(do_route/3 :: (Ringstate :: 'ringing' | 'none', Queue :: string(), Callpid :: pid()) -> 'nocall' | 'ringing' | 'none').
-do_route(ringing, _Queue, _Callpid) ->
+-spec(do_route/3 :: (Ringstate :: 'ringing' | 'none', Queue :: pid(), Callpid :: pid()) -> 'nocall' | 'ringing' | 'none').
+do_route(ringing, _Qpid, _Callpid) ->
 	%?DEBUG("still ringing", []),
 	ringing;
-do_route(none, Queue, Callpid) ->
+do_route(none, Qpid, Callpid) ->
 	%?DEBUG("Searching for agent to ring to...",[]),
-	Qpid = queue_manager:get_queue(Queue),
 	case call_queue:get_call(Qpid, Callpid) of
 		{_Key, Call} ->
 			Dispatchers = Call#queued_call.dispatchers,
 			Agents = sort_agent_list(Dispatchers),
 			%?DEBUG("Dispatchers:  ~p; Agents:  ~p", [Dispatchers, Agents]),
 			offer_call(Agents, Call);
-		none -> 
+		none ->
 			?DEBUG("No call to ring",[]),
 			nocall
 	end.
 
 %% @private
 -spec(sort_agent_list/1 :: (Dispatchers :: [pid()]) -> [{non_neg_integer(), pid()}]).
-sort_agent_list([]) -> 
+sort_agent_list([]) ->
 	[];
-sort_agent_list(Dispatchers) when is_list(Dispatchers) -> 
+sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	F = fun(Dpid) ->
 		try dispatcher:get_agents(Dpid) of
 			[] ->
@@ -572,7 +573,7 @@ do_operation_test_() ->
 	[fun({_QMPid, QPid, Mpid, Assertmocks}) ->
 		{"add skills",
 		fun() ->
-			gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) -> 
+			gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
 				{ok, #call{id = "testcall", source = Mpid}, State}
 			end),
 			gen_server_mock:expect_call(QPid, fun({add_skills, "testcall", [skill1, skill2]}, _From, _State) -> ok end),
@@ -583,7 +584,7 @@ do_operation_test_() ->
 	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
 		{"remove skills",
 		fun() ->
-			gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) -> 
+			gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
 				{ok, #call{id = "testcall", source = Mpid}, State}
 			end),
 			gen_server_mock:expect_call(QPid, fun({remove_skills, "testcall", [english]}, _From, _State) -> ok end),
@@ -594,7 +595,7 @@ do_operation_test_() ->
 	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
 		{"set priority",
 		fun() ->
-			gen_server_mock:expect_call(QPid, fun({set_priority, Incpid, 5}, _From, _State) -> 
+			gen_server_mock:expect_call(QPid, fun({set_priority, Incpid, 5}, _From, _State) ->
 				Incpid = Mpid,
 				ok
 			end),
@@ -609,11 +610,11 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				{ok, {{7, now()}, #call{id = "testcall", source = Mpid}}, State}
 			end),
-			gen_server_mock:expect_call(QPid, fun({set_priority, Incpid, 8}, _Fun, _State) -> 
+			gen_server_mock:expect_call(QPid, fun({set_priority, Incpid, 8}, _Fun, _State) ->
 				Incpid = Mpid,
 				ok
 			end),
-			
+
 			ok = do_operation({"conditions", prioritize, "doesn't matter", "runs"}, QPid, Mpid),
 			Assertmocks()
 		end}
@@ -625,7 +626,7 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				{ok, {{27, now()}, #call{id = "testcall", source = Mpid}}, State}
 			end),
-			gen_server_mock:expect_call(QPid, fun({set_priority, Incpid, 26}, _Fun, _State) -> 
+			gen_server_mock:expect_call(QPid, fun({set_priority, Incpid, 26}, _Fun, _State) ->
 				Incpid = Mpid,
 				ok
 			end),
@@ -636,7 +637,7 @@ do_operation_test_() ->
 	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
 		{"voicemail with media that can handle it",
 		fun() ->
-			gen_server_mock:expect_call(Mpid, fun('$gen_media_voicemail', _From, State) -> 
+			gen_server_mock:expect_call(Mpid, fun('$gen_media_voicemail', _From, State) ->
 				{ok, ok, State}
 			end),
 			gen_server_mock:expect_cast(QPid, fun({remove, Incpid}, _State) ->
@@ -762,7 +763,7 @@ check_conditions_test_() ->
 		gen_leader_mock:stop(AMpid),
 		timer:sleep(10)
 	end,
-	[fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) -> 
+	[fun({_QMPid, QPid, Mpid, _AMpid, Assertmocks}) ->
 		{"available agents > condition is true",
 		fun() ->
 			?assert(check_conditions([{available_agents, '>', 2}], "doesn't matter", QPid, Mpid)),
@@ -1153,8 +1154,8 @@ check_conditions_test_() ->
 		?CONSOLE("start args:  ~p", [Primer]),
 		gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
 			Out = #call{
-				id = "foo", 
-				type=voice, 
+				id = "foo",
+				type=voice,
 				source = Mpid,
 				client = #client{
 					id = "clientid",
@@ -1223,9 +1224,9 @@ tick_manipulation_test_() ->
 		queue_manager:stop()
 	end,
 	[
-		fun({Pid, Dummy}) -> 
+		fun({Pid, Dummy}) ->
 			{"Stop Tick Test",
-			fun() ->	
+			fun() ->
 				call_queue:set_recipe(Pid, [{[{ticks, 1}], prioritize, [], run_many}]),
 				call_queue:add(Pid, Dummy),
 				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
@@ -1411,30 +1412,30 @@ multinode_test_() ->
 			Slave = list_to_atom(lists:append("slave@", Host)),
 			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
 			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
-			
+
 			mnesia:stop(),
-			
+
 			mnesia:change_config(extra_db_nodes, [Master, Slave]),
 			mnesia:delete_schema([node(), Master, Slave]),
 			mnesia:create_schema([node(), Master, Slave]),
-			
+
 			cover:start([Master, Slave]),
-			
+
 			rpc:call(Master, mnesia, start, []),
 			rpc:call(Slave, mnesia, start, []),
 			mnesia:start(),
-			
+
 			mnesia:change_table_copy_type(schema, Master, disc_copies),
 			mnesia:change_table_copy_type(schema, Slave, disc_copies),
-			
+
 			rpc:call(Master, queue_manager, start, [[Master, Slave]]),
 			rpc:call(Slave, queue_manager, start, [[Master, Slave]]),
-			
+
 			{Master, Slave}
 		end,
 		fun({Master, Slave}) ->
 			cover:stop([Master, Slave]),
-			
+
 			slave:stop(Master),
 			slave:stop(Slave),
 			mnesia:stop(),
@@ -1479,8 +1480,8 @@ multinode_test_() ->
 			end
 		]
 	}.
-	
--define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start([{id, "testcall"}, {queues, none}]), {ok, Pid} = start(Dummy,[{[{ticks, 1}], set_priority, 5, run_once}], "testqueue", {1, now()}), {Pid, fun() -> stop(Pid) end} end).
+
+-define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start([{id, "testcall"}, {queues, none}]), {ok, Pid} = start(Dummy,[{[{ticks, 1}], set_priority, 5, run_once}], "testqueue", self(), {1, now()}), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

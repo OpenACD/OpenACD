@@ -104,12 +104,21 @@ add_queue(Name, Opts) when is_list(Name) ->
 load_queue(Name) ->
 	case call_queue_config:get_queue(Name) of
 		Qrec when is_record(Qrec, call_queue) ->
-			add_queue(Name, [
-				{weight, Qrec#call_queue.weight},
-				{skills, Qrec#call_queue.skills},
-				{recipe, Qrec#call_queue.recipe},
-				{group, Qrec#call_queue.group}
-			]);
+			case get_queue(Name) of
+				Qpid when is_pid(Qpid) ->
+					?NOTICE("Updating running queue configuration for ~p at ~p", [Name, Qpid]),
+					gen_server:cast(Qpid, {update, [{group, Qrec#call_queue.group},
+								{recipe, Qrec#call_queue.recipe}, {weight, Qrec#call_queue.weight},
+								{skills, Qrec#call_queue.skills}]}),
+					ok;
+				_ ->
+					add_queue(Name, [
+						{weight, Qrec#call_queue.weight},
+						{skills, Qrec#call_queue.skills},
+						{recipe, Qrec#call_queue.recipe},
+						{group, Qrec#call_queue.group}
+					])
+			end;
 		_Else ->
 			noexists
 	end.

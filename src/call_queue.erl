@@ -532,7 +532,7 @@ handle_cast({add_at, Key, Mediapid, Mediarec}, State) ->
 handle_cast({migrate, Node}, State) when is_atom(Node) ->
 	{stop, {move, Node}, State};
 handle_cast({update, Opts}, State) ->
-	Newstate = #state{
+	Newstate = State#state{
 		group = proplists:get_value(group, Opts, State#state.group),
 		recipe = proplists:get_value(recipe, Opts, State#state.recipe),
 		weight = proplists:get_value(weight, Opts, State#state.weight),

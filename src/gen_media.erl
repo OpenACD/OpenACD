@@ -310,7 +310,8 @@
 	cast/2,
 	wrapup/1,
 	spy/2,
-	set_cook/2
+	set_cook/2,
+	set_queue/2
 ]).
 
 % TODO - add these to a global .hrl, cpx perhaps?
@@ -430,6 +431,9 @@ spy(Genmedia, Spy) ->
 
 set_cook(Genmedia, CookPid) ->
 	gen_server:call(Genmedia, {'$gen_media_set_cook', CookPid}).
+
+set_queue(Genmedia, Qpid) ->
+	gen_server:call(Genmedia, {'$gen_media_set_queue', Qpid}).
 
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
@@ -845,10 +849,12 @@ handle_call('$gen_media_agent_oncall', From, #state{oncall_pid = OcPid, callrec 
 handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined, callrec = Call} = State) ->
 	?INFO("oncall request from ~p for ~p when no ring_pid (probobly a late request)", [From, Call#call.id]),
 	{reply, invalid, State};
-handle_call({'$gen_media_set_cook', CookPid}, From, #state{ring_pid = undefined, callrec = Call} = State) ->
-	Callrec = State#state.callrec,
-	?NOTICE("Updating cook pid for ~p to ~p", [Callrec#call.id, CookPid]),
-	{reply, ok, State#state{callrec = Callrec#call{cook = CookPid}}};
+handle_call({'$gen_media_set_cook', CookPid}, From, #state{callrec = Call} = State) ->
+	?NOTICE("Updating cook pid for ~p to ~p", [Call#call.id, CookPid]),
+	{reply, ok, State#state{callrec = Call#call{cook = CookPid}}};
+handle_call({'$gen_media_set_queue', Qpid}, From, #state{callrec = Call} = State) ->
+	?NOTICE("Updating queue pid for ~p to ~p", [Call#call.id, Qpid]),
+	{reply, ok, State#state{queue_pid = Qpid}};
 handle_call(Request, From, #state{callback = Callback} = State) ->
 	Reply = Callback:handle_call(Request, From, State#state.callrec, State#state.substate),
 	handle_custom_return(Reply, State, reply).

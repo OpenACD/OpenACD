@@ -64,7 +64,7 @@
 	stop/1,
 	restart_tick/1,
 	stop_tick/1,
-	start_at/5
+	start_at/6
 ]).
 
 %% gen_server callbacks

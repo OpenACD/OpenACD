@@ -216,14 +216,14 @@ init([]) ->
 %% @private
 %-spec(elected/3 :: (State :: #state{}, Election :: election(), Node :: atom()) -> {'ok', dict(), #state{}}).
 elected(State, _Election, _Node) ->
-	?INFO("elected",[]),
+	?INFO("~p elected",[node()]),
 	mnesia:subscribe(system),
 	{ok, State#state.qdict, State}.
 
 %% @private
 %-spec(surrendered/3 :: (State :: #state{}, LeaderDict :: dict(), Election :: election()) -> {'ok', #state{}}).
-surrendered(#state{qdict = Qdict} = State, LeaderDict, _Election) ->
-	?INFO("surrendered.",[]),
+surrendered(#state{qdict = Qdict} = State, LeaderDict, Election) ->
+	?INFO("~p surrendered to ~p.",[node(), gen_leader:leader_node(Election)]),
 	mnesia:unsubscribe(system),
 	% any queues the leader has that do not match the pid we have
 	F = fun(Key, Value, {Mestate, Tokill}) ->
@@ -232,9 +232,9 @@ surrendered(#state{qdict = Qdict} = State, LeaderDict, _Election) ->
 				{Mestate, Tokill};
 			{ok, Value} ->
 				{Mestate, Tokill};
-			{ok, _Otherpid} ->
-				?INFO("slated to die: ~p at ~p", [Key, Value]),
-				{dict:erase(Key, Mestate), [Value | Tokill]}
+			{ok, Otherpid} ->
+				?INFO("slated to die: ~p at ~p", [Key, Otherpid]),
+				{dict:erase(Key, Mestate), [Otherpid | Tokill]}
 		end
 	end,
 	{Noleader, Todie} = dict:fold(F, {Qdict, []}, LeaderDict),
@@ -244,8 +244,8 @@ surrendered(#state{qdict = Qdict} = State, LeaderDict, _Election) ->
 	end,
 	lists:foreach(F2, dict:to_list(Noleader)),
 	Killem = fun(Pid) ->
-		timer:exit_after(100, Pid, normal)
-		%call_queue:stop(Pid)
+		%timer:exit_after(100, Pid, normal)
+		call_queue:stop(Pid)
 	end,
 	lists:foreach(Killem, Todie),
 	%?CONSOLE("Lead: ~p.  Self: ~p", [LeaderDict, Noleader]),
@@ -412,24 +412,26 @@ handle_info({mnesia_system_event, {inconsistent_database, _Context, _Node}}, Sta
 	mnesia:set_master_nodes(skill_rec, [node()]),
 	{noreply, State};
 handle_info({mnesia_system_event, MEvent}, State) ->
-	?INFO("other mnesia syste event:  ~p", [MEvent]),
+	?INFO("other mnesia system event:  ~p", [MEvent]),
 	{noreply, State};
 handle_info({'EXIT', Pid, normal}, #state{qdict = Qdict} = State) ->
-	?NOTICE("~p died normally", [Pid]),
 	case find_queue_name(Pid, Qdict) of
 		none ->
+			?DEBUG("Normal exit of pid ~p", [Pid]),
 			{noreply, State};
 		Qname ->
+			?NOTICE("~p @ ~p died normally", [Qname, Pid]),
 			gen_leader:leader_cast(?MODULE, {notify, Qname}),
 			Newdict = dict:erase(Qname, Qdict),
 			{noreply, State#state{qdict = Newdict}}
 	end;
 handle_info({'EXIT', Pid, shutdown}, #state{qdict = Qdict} = State) ->
-	?NOTICE("~p was shutdown.", [Pid]),
 	case find_queue_name(Pid, Qdict) of
 		none ->
+			?DEBUG("Shutdown of pid ~p", [Pid]),
 			{noreply, State};
 		Qname ->
+			?NOTICE("~p @ ~p was shutdown.", [Qname, Pid]),
 			gen_leader:leader_cast(?MODULE, {notify, Qname}),
 			Newdict = dict:erase(Qname, Qdict),
 			{noreply, State#state{qdict = Newdict}}
@@ -438,28 +440,31 @@ handle_info({'EXIT', Pid, Reason}, #state{qdict = Qdict} = State) ->
 	?NOTICE("~p died due to ~p.", [Pid, Reason]),
 	case find_queue_name(Pid, Qdict) of
 		none ->
-			?WARNING("Cannot find queue", []),
+			?WARNING("Cannot find queue corresponding with ~p", [Pid]),
 			{noreply, State};
 		Qname ->
 			case call_queue_config:get_queue(Qname) of
 				noexists ->
-					?WARNING("queue not in the config database", []),
+					?WARNING("queue ~p not in the config database", [Qname]),
 					gen_leader:leader_cast(?MODULE, {notify, Qname}),
 					{noreply, State};
 				Queuerec ->
 					gen_leader:leader_cast(?MODULE, {notify, Qname}),
-					?DEBUG("Got call_queue_config of ~p", [Queuerec]),
+					?DEBUG("Got call_queue_config of ~p for ~p", [Queuerec, Qname]),
 					Newdict = dict:erase(Queuerec#call_queue.name, Qdict),
 					Fun = fun() ->
 						case Reason of
-							{move, Node} when Node =/= node() -> 
+							{move, Node} when Node =/= node() ->
+								?INFO("trying to migrate queue ~p from ~p to ~p", [Qname, node(), Node]),
 								case net_adm:ping(Node) of
 									pong ->
 										rpc:call(Node, queue_manager, load_queue, [Qname]);
 									pang ->
+										?WARNING("Node ~p is not responding, unable to migrate ~p to it, restarting it locally on ~p", [Node, Qname, node()]),
 										load_queue(Qname)
 								end;
 							_Else ->
+								?INFO("Restarting ~p", [Qname]),
 								load_queue(Qname)
 						end
 					end,
@@ -657,6 +662,7 @@ multi_node_test_() ->
 
 			{ok, _Pid} = rpc:call(Master, ?MODULE, start, [[Master, Slave]]),
 			{ok, _Pid2} = rpc:call(Slave, ?MODULE, start, [[Master, Slave]]),
+			timer:sleep(100), % time to stabilize
 			{}
 		end,
 		fun({}) ->
@@ -740,6 +746,7 @@ multi_node_test_() ->
 			},{
 				"No proc", fun() ->
 					slave:stop(Master),
+					timer:sleep(200),
 					?assertMatch(false, rpc:call(Slave, ?MODULE, query_queue, ["queue1"]))
 				end
 			},{
@@ -748,6 +755,7 @@ multi_node_test_() ->
 					{ok, Dummy1} = rpc:call(Slave, dummy_media, start, [[{id, "Call1"}, {queues, none}]]),
 					?assertEqual(ok, call_queue:add(Pid, 0, Dummy1)),
 					slave:stop(Master),
+					timer:sleep(200),
 					?assertMatch([{"queue2", Pid, {_, #queued_call{id="Call1"}}, ?DEFAULT_WEIGHT}], rpc:call(Slave, ?MODULE, get_best_bindable_queues, []))
 				end
 			}, {
@@ -756,7 +764,7 @@ multi_node_test_() ->
 					?assertMatch({exists, QPid}, rpc:call(Master, ?MODULE, add_queue, ["queue2", []])),
 					gen_server:call(QPid, {stop, test_kill}),
 					receive
-					after 100 ->
+					after 200 ->
 						ok
 					end,
 					NewQPid = rpc:call(Slave, ?MODULE, get_queue, ["queue2"]),
@@ -793,6 +801,7 @@ multi_node_test_() ->
 			}, {
 				"Queue migration", fun() ->
 					Oldq = rpc:call(Master, queue_manager, get_queue, ["default_queue"]),
+					?debugFmt("Queue is at ~p ~p", [Oldq, node(Oldq)]),
 					call_queue:migrate(Oldq, Slave),
 					timer:sleep(10),
 					OldNode = node(Oldq),
@@ -805,7 +814,7 @@ multi_node_test_() ->
 		]
 	}.
 
-node_death_test__disabled() ->
+node_death_test_() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),
 	{Master, Slave} = get_nodes(),
 	{
@@ -855,7 +864,7 @@ node_death_test__disabled() ->
 				?DEBUG("~p", [rpc:call(Master, ?MODULE, get_queue, ["queue2"])]),
 				?assertEqual(Pid, rpc:call(Master, ?MODULE, get_queue, ["queue2"])),
 				slave:stop(Slave),
-				timer:sleep(1000), % because starting a queue takes time.
+				timer:sleep(100), % because starting a queue takes time.
 				Newpid = rpc:call(Master, queue_manager, get_queue, ["queue2"]),
 				?assertNot(undefined =:= Newpid),
 				?assertNot(Pid =:= Newpid),

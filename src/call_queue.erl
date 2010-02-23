@@ -393,7 +393,7 @@ handle_call({add, Priority, Callpid, Callrec}, From, State) when is_pid(Callpid)
 	% cook is started on the same node callpid is on
 	?INFO("adding call ~p to ~p request from ~p on node ~p", [Callrec#call.id, State#state.name, From, node(Callpid)]),
 	Key = {Priority, now()},
-	{ok, Cookpid} = cook:start_at(node(Callpid), Callpid, State#state.recipe, State#state.name, Key),
+	{ok, Cookpid} = cook:start_at(node(Callpid), Callpid, State#state.recipe, State#state.name, self(), Key),
 	NewState = queue_call(Cookpid, Callrec, Key, State),
 	{reply, ok, NewState};
 handle_call({add_skills, Callid, Skills}, _From, State) ->
@@ -526,7 +526,7 @@ handle_cast({remove, Callpid}, State) ->
 handle_cast({add_at, Key, Mediapid, Mediarec}, State) ->
 	?INFO("adding call ~p to ~p on node ~p at position ~p", [Mediarec#call.id, State#state.name, node(Mediapid), Key]),
 	% cook is started on the same node Mediapid is on
-	{ok, Cookpid} = cook:start_at(node(Mediapid), Mediapid, State#state.recipe, State#state.name, Key),
+	{ok, Cookpid} = cook:start_at(node(Mediapid), Mediapid, State#state.recipe, State#state.name, self(), Key),
 	NewState = queue_call(Cookpid, Mediarec, Key, State),
 	{noreply, NewState};
 handle_cast({migrate, Node}, State) when is_atom(Node) ->
@@ -661,11 +661,11 @@ clean_pid(Deadpid, Recipe, Calls, QName) ->
 clean_pid_(_Deadpid, _Recipe, _QName, [], Acc) ->
 	lists:reverse(Acc);
 clean_pid_(Deadpid, Recipe, QName, [{Key, #queued_call{cook = Deadpid} = Call} | Calls], Acc) ->
-	{ok, Pid} = cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName, Key),
-	?NOTICE("Cook for ~p died - respawning as ~p", [Call#call.id, Pid]),
+	{ok, Pid} = cook:start_at(node(Call#queued_call.media), Call#queued_call.media, Recipe, QName, self(), Key),
+	?NOTICE("Cook for ~p died - respawning as ~p", [Call#queued_call.id, Pid]),
 	link(Pid),
 	Cleancall = Call#queued_call{cook = Pid},
-	gen_media:set_cook(Call#queued_call.id, Pid),
+	gen_media:set_cook(Call#queued_call.media, Pid),
 	lists:append(lists:reverse(Acc), [{Key, Cleancall} | Calls]);
 clean_pid_(Deadpid, Recipe, QName, [{Key, Call} | Calls], Acc) ->
 	case lists:member(Deadpid, Call#queued_call.dispatchers) of

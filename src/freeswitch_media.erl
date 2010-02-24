@@ -672,6 +672,18 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					end
 			end,
 			{hangup, State2};
+		"CHANNEL_HANGUP_COMPLETE" ->
+			% TODO - this is protocol specific and we only handle SIP right now
+			% TODO - this should go in the CDR
+			case proplists:get_value("variable_sip_hangup_disposition", Rawcall) of
+				"recv_bye" ->
+					?DEBUG("Caller hungup ~p", [UUID]);
+				"send_bye" ->
+					?DEBUG("Agent hungup ~p", [UUID]);
+				_ ->
+					?DEBUG("I don't know who hung up ~p", [UUID])
+				end,
+			{noreply, State};
 		"CHANNEL_DESTROY" ->
 			?DEBUG("Last message this will recieve, channel destroy ~p", [Callrec#call.id]),
 			{stop, normal, State};

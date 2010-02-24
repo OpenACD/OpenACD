@@ -476,7 +476,7 @@ handle_info({call, {event, [UUID | _Rest]}}, #call{id = UUID}, State) ->
 	?DEBUG("call ~p", [UUID]),
 	{noreply, State};
 handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
-	Event = freeswitch:get_event_name(Rest),
+	Event = proplists:get_value("Event-Name", Rest),
 	case Event of
 		"CHANNEL_HANGUP" ->
 			Elem1 = case proplists:get_value("variable_hangup_cause", Rest) of

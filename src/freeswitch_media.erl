@@ -591,7 +591,7 @@ code_change(_OldVsn, _Call, State, _Extra) ->
 
 %% @private
 case_event_name([UUID | Rawcall], Callrec, State) ->
-	Ename = freeswitch:get_event_name(Rawcall),
+	Ename = proplists:get_value("Event-Name", Rawcall),
 	%?DEBUG("Event:  ~p;  UUID:  ~p", [Ename, UUID]),
 	case Ename of
 		"CHANNEL_PARK" ->
@@ -695,10 +695,10 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					{noreply, State}
 			end;
 		{error, notfound} ->
-			?WARNING("event name not found: ~p for ~p", [freeswitch:get_event_header(Rawcall, "Content-Type"), Callrec#call.id]),
+			?WARNING("event name not found: ~p for ~p", [proplists:get_value("Content-Type", Rawcall), Callrec#call.id]),
 			{noreply, State};
 		_Else ->
-			%?DEBUG("Event unhandled ~p", [Else]),
+			%?DEBUG("Event unhandled ~p", [_Else]),
 			{noreply, State}
 	end.
 

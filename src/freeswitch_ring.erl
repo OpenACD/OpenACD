@@ -166,7 +166,7 @@ handle_info({call, {event, [UUID | _Rest]}}, #state{uuid = UUID} = State) ->
 	?DEBUG("call", []),
 	{noreply, State};
 handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid = UUID} = State) ->
-	Event = freeswitch:get_event_name(Rest),
+	Event = proplists:get_value("Event-Name", Rest),
 	Continue = case lists:keysearch(eventfun, 1, Options) of
 		{value, {eventfun, Fun}} when is_function(Fun) ->
 			case Fun(UUID, Event, Rest) of

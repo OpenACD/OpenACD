@@ -476,7 +476,7 @@ handle_info({call, {event, [UUID | _Rest]}}, #call{id = UUID}, State) ->
 	?DEBUG("call ~p", [UUID]),
 	{noreply, State};
 handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
-	Event = freeswitch:get_event_name(Rest),
+	Event = proplists:get_value("Event-Name", Rest),
 	case Event of
 		"CHANNEL_HANGUP" ->
 			Elem1 = case proplists:get_value("variable_hangup_cause", Rest) of
@@ -497,6 +497,18 @@ handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 					noreply
 			end,
 			{Elem1, State};
+		"CHANNEL_HANGUP_COMPLETE" ->
+			% TODO - this is protocol specific and we only handle SIP right now
+			% TODO - this should go in the CDR
+			case proplists:get_value("variable_sip_hangup_disposition", Rest) of
+				"recv_bye" ->
+					?DEBUG("Caller hungup ~p", [UUID]);
+				"send_bye" ->
+					?DEBUG("Agent hungup ~p", [UUID]);
+				_ ->
+					?DEBUG("I don't know who hung up ~p", [UUID])
+				end,
+			{noreply, State};
 		_Else ->
 			?DEBUG("call_event ~p for ~p", [Event, UUID]),
 			{noreply, State}

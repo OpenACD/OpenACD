@@ -468,7 +468,7 @@ listener(Node) ->
 	receive
 		{event, [UUID | Event]} ->
 			?DEBUG("recieved event '~p' from c node.", [UUID]),
-			Ename = freeswitch:get_event_name(Event),
+			Ename = proplists:get_value("Event-Name", Event),
 			case Ename of
 				"CHANNEL_DESTROY" ->
 					gen_server:cast(?MODULE, {channel_destroy, UUID});

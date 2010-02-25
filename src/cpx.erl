@@ -404,7 +404,7 @@ agent_states(RawProfiles) ->
 				Acc
 		end
 	end,
-	lists:fold(Fold, [], Agentlist).
+	lists:foldl(Fold, [], Agentlist).
 	
 in_list(_Value, any) ->
 	true;
@@ -693,9 +693,7 @@ find_cdr_test({brand, Data}, Cdr) ->
 find_cdr_test({client, Data}, #cdr_rec{media = Media}) ->
 	Client = Media#call.client,
 	case Data of
-		#client{label = Data} ->
-			true;
-		#client{id = Data} ->
+		_ when Client#client.label == Data; Client#client.id == Data ->
 			true;
 		_ ->
 			false

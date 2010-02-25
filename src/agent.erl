@@ -69,7 +69,7 @@
 -define(DEFAULT_REL, {"default", default, -1}).
 
 %% gen_fsm exports
--export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
+-export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4, format_status/2]).
 %% defined state exports
 -export([idle/3, ringing/3, precall/3, oncall/3, outgoing/3, released/3, warmtransfer/3, wrapup/3]).
 %% defining async state exports
@@ -753,7 +753,7 @@ released(_Event, _From, State) ->
 -spec(released/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
 released(register_rejected, State) ->
 	{stop, register_rejected, State};
-released({conn_cast, {mediaload, #call{type = email} = Callrec} = Request}, #agent{connection = Pid} = State) ->
+released({conn_cast, {mediaload, #call{type = email}} = Request}, #agent{connection = Pid} = State) ->
 	%% most likely trying to go spy on an email.
 	gen_server:cast(Pid, Request),
 	{next_state, released, State};
@@ -1146,6 +1146,19 @@ terminate(Reason, StateName, State) ->
 %-spec(code_change/4 :: (OldVsn :: string(), StateName :: statename(), State :: #agent{}, Extra :: any()) -> {'ok', statename(), #agent{}}).
 code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
+
+format_status(normal, [_PDict, State]) ->
+	% prevent client data from being dumped
+	NewState = case State#agent.statedata of
+		#call{client = Client} = Call when is_record(Call#call.client, client) ->
+			Client = Call#call.client,
+			State#agent{statedata = Call#call{client = Client#client{options = []}}};
+		{onhold, #call{client = Client} = Call, calling, ID} when is_record(Client, client) ->
+			State#agent{statedata = {onhold, Call#call{client = Client#client{options = []}}, calling, ID}};
+		_ ->
+			State
+	end,
+	[{data, [{"State", NewState#agent{password = redacted}}]}].
 
 %% =====
 %% Internal functions

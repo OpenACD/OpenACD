@@ -257,7 +257,7 @@ truncate() ->
 	Now = util:now(),
 	{atomic, Deads} = mnesia:transaction(fun() -> 
 		qlc:e(qlc:q([M || 
-			#cdr_rec{media = M, summary = inprogress, timestamp = Time} = X <- mnesia:table(cdr_rec),
+			#cdr_rec{media = M, summary = inprogress, timestamp = Time} <- mnesia:table(cdr_rec),
 			begin
 				N = node(),
 				case node(M#call.source) of
@@ -275,7 +275,7 @@ truncate() ->
 
 truncate(Callid) when is_list(Callid) ->
 	Res = mnesia:transaction(fun() ->
-		qlc:e(qlc:q([M || #cdr_rec{media = M} = X <- mnesia:table(cdr_rec), M#call.id =:= Callid]))
+		qlc:e(qlc:q([M || #cdr_rec{media = M} <- mnesia:table(cdr_rec), M#call.id =:= Callid]))
 	end),
 	case Res of
 		{atomic, []} ->
@@ -323,7 +323,7 @@ attached_agent([Head | Tail]) ->
 	end;
 attached_agent(#cdr_raw{eventdata = D, id = Id}) when is_list(D) ->
 	case agent_manager:query_agent(D) of
-		{true, Pid} ->
+		{true, _Pid} ->
 			true;
 		false ->
 			false
@@ -439,7 +439,7 @@ handle_event({Transaction, #call{id = Callid} = Call, Time, Data}, #state{id = C
 handle_event({_Transaction, _Call, _Time, _Data}, State) ->
 	% this is an event for a different CDR handler, ignore it
 	{ok, State};
-handle_event({truncate, Callid}, #state{id = Callid} = State) ->
+handle_event({truncate, Callid}, #state{id = Callid}) ->
 	remove_handler;
 handle_event({truncate, _Callid}, State) ->
 	{ok, State}.
@@ -623,7 +623,7 @@ find_untermed(endwrapup, #call{id = Cid}, Agent) ->
 		X#cdr_raw.ended =:= undefined
 	]),
 	qlc:e(QH);
-find_untermed(ringout, #call{id = Cid}, {Reason, Agent}) ->
+find_untermed(ringout, #call{id = Cid}, {_Reason, Agent}) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,

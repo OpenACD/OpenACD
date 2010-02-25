@@ -115,9 +115,6 @@ start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 	end,
 	{ok, proc_lib:spawn_link(Node, F)}.
 
-die(Pid) ->
-	gen_server:cast(Pid, die).
-
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -211,16 +208,16 @@ handle_info(Info, #state{callrec = CallRec} = State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(normal, #state{callrec = CallRec} = State) ->
+terminate(normal, #state{callrec = CallRec}) ->
 	?DEBUG("normal cook death for ~p", [CallRec#call.id]),
 	ok;
-terminate(shutdown, #state{callrec = CallRec} = State) ->
+terminate(shutdown, #state{callrec = CallRec}) ->
 	?DEBUG("shutdown cook death for ~p", [CallRec#call.id]),
 	ok;
-terminate({normal, Reason}, #state{callrec = CallRec} = State) ->
+terminate({normal, Reason}, #state{callrec = CallRec}) ->
 	?NOTICE("An inelegant cook shutdown requested for ~p with reason ~p", [CallRec#call.id, Reason]),
 	ok;
-terminate(Reason, #state{callrec = CallRec} = State) ->
+terminate(Reason, #state{callrec = CallRec}) ->
 	?WARNING("Unusual cook death for ~p with reason ~p", [CallRec#call.id, Reason]),
 	%erlang:cancel_timer(State#state.tref),
 	%Qpid = wait_for_queue(State#state.queue),

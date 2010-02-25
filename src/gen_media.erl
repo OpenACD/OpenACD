@@ -290,7 +290,7 @@
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3]).
+	 terminate/2, code_change/3, format_status/2]).
 
 %% gen_media api
 -export([
@@ -591,8 +591,8 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = {_Agent, Ocp
 	{reply, invalid, State};
 handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, callrec = Call, oncall_pid = {Ocagent, Ocpid}, monitors = Mons} = State) ->
 	?INFO("request to queue call ~p from agent", [Call#call.id]),
-	% TODO calls that were previously handled by an agent should get their priority bumped?
-	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
+	% Decrement the call's priority by 5 when requeueing
+	case priv_queue(Queue, reprioritize_for_requeue(Call), State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
 		{default, Qpid} ->
@@ -615,9 +615,9 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {Queue, Qpid}, monitors = Newmons}}
 	end;
 handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callrec = Call, oncall_pid = {Ocagent, Apid}, monitors = Mons} = State) when is_pid(Apid) ->
-	% TODO calls that were previously handled by an agent should get their priority bumped?
 	?INFO("Request to queue ~p from ~p", [Call#call.id, From]),
-	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
+	% Decrement the call's priority by 5 when requeueing
+	case priv_queue(Queue, reprioritize_for_requeue(Call), State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
 		{default, Qpid} ->
@@ -1076,6 +1076,28 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 	{ok, Newsub} = Callback:code_change(OldVsn, State#state.callrec, State#state.substate, Extra),
     {ok, State#state{substate = Newsub}}.
 
+format_status(Opt, [PDict, #state{callback = Mod, substate = SubState, callrec = Call} = State]) ->
+	% prevent client data from being dumped
+	NewCall = case Call#call.client of
+		Client when is_record(Client, client) ->
+			Call#call{client = Client#client{options = []}};
+		_ ->
+			Call
+	end,
+	NewState = State#state{callrec = NewCall},
+
+	% allow media callback to scrub its state
+	SubStat = case erlang:function_exported(Mod, format_status, 2) of
+		true ->
+			case catch Mod:format_status(Opt, [PDict, SubState]) of
+				{'EXIT', _} -> SubState;
+				Else -> Else
+			end;
+		_ ->
+			SubState
+	end,
+	[{data, [{"State", NewState#state{substate = ""}}, {"SubState", SubState}]}].
+
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
@@ -1331,6 +1353,16 @@ priv_voicemail(#state{monitors = Mons} = State) ->
 			set_agent_state(Apid, [idle])
 	end,
 	ok.
+
+% make the call higher priority in preparation for requeueing
+reprioritize_for_requeue(Call) ->
+	NewPriority = case Call#call.priority of
+		P when P < 5 ->
+			0;
+		P ->
+			P - 5
+	end,
+	Call#call{priority = NewPriority}.
 
 unqueue(undefined, _Callpid) ->
 	ok;

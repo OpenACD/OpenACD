@@ -591,7 +591,7 @@ code_change(_OldVsn, _Call, State, _Extra) ->
 
 %% @private
 case_event_name([UUID | Rawcall], Callrec, State) ->
-	Ename = freeswitch:get_event_name(Rawcall),
+	Ename = proplists:get_value("Event-Name", Rawcall),
 	%?DEBUG("Event:  ~p;  UUID:  ~p", [Ename, UUID]),
 	case Ename of
 		"CHANNEL_PARK" ->
@@ -672,6 +672,19 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					end
 			end,
 			{hangup, State2};
+		"CHANNEL_HANGUP_COMPLETE" ->
+			% TODO - this is protocol specific and we only handle SIP right now
+			% TODO - this should go in the CDR
+			Cause = proplists:get_value("variable_hangup_cause", Rawcall),
+			case proplists:get_value("variable_sip_hangup_disposition", Rawcall) of
+				"recv_bye" ->
+					?DEBUG("Caller hungup ~p, cause ~p", [UUID, Cause]);
+				"send_bye" ->
+					?DEBUG("Agent hungup ~p, cause ~p", [UUID, Cause]);
+				_ ->
+					?DEBUG("I don't know who hung up ~p, cause ~p", [UUID, Cause])
+				end,
+			{noreply, State};
 		"CHANNEL_DESTROY" ->
 			?DEBUG("Last message this will recieve, channel destroy ~p", [Callrec#call.id]),
 			{stop, normal, State};
@@ -695,10 +708,10 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					{noreply, State}
 			end;
 		{error, notfound} ->
-			?WARNING("event name not found: ~p for ~p", [freeswitch:get_event_header(Rawcall, "Content-Type"), Callrec#call.id]),
+			?WARNING("event name not found: ~p for ~p", [proplists:get_value("Content-Type", Rawcall), Callrec#call.id]),
 			{noreply, State};
 		_Else ->
-			%?DEBUG("Event unhandled ~p", [Else]),
+			%?DEBUG("Event unhandled ~p", [_Else]),
 			{noreply, State}
 	end.
 

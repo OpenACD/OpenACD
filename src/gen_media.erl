@@ -551,8 +551,8 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = Ocpid, callr
 	{reply, invalid, State};
 handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, callrec = Call, oncall_pid = Ocpid} = State) ->
 	?INFO("request to queue call ~p from agent", [Call#call.id]),
-	% TODO calls that were previously handled by an agent should get their priority bumped?
-	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
+	% Decrement the call's priority by 5 when requeueing
+	case priv_queue(Queue, reprioritize_for_requeue(Call), State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
 		{default, Qpid} ->
@@ -571,9 +571,9 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = Qpid}}
 	end;
 handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callrec = Call} = State) when is_pid(State#state.oncall_pid) ->
-	% TODO calls that were previously handled by an agent should get their priority bumped?
 	?INFO("Request to queue ~p from ~p", [Call#call.id, From]),
-	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
+	% Decrement the call's priority by 5 when requeueing
+	case priv_queue(Queue, reprioritize_for_requeue(Call), State#state.queue_failover) of
 		invalid ->
 			{reply, invalid, State};
 		{default, Qpid} ->
@@ -1181,6 +1181,16 @@ priv_voicemail(State) ->
 			set_agent_state(Apid, [idle])
 	end,
 	ok.
+
+% make the call higher priority in preparation for requeueing
+reprioritize_for_requeue(Call) ->
+	NewPriority = case Call#call.priority of
+		P when P < 5 ->
+			0;
+		P ->
+			P - 5
+	end,
+	Call#call{priority = NewPriority}.
 
 unqueue(undefined, _Callpid) ->
 	ok;

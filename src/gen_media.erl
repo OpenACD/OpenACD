@@ -1089,7 +1089,7 @@ format_status(Opt, [PDict, #state{callback = Mod, substate = SubState, callrec =
 		_ ->
 			SubState
 	end,
-	[{data, [{"State", NewState#state{substate = ""}}, {"SubState", SubState}]}].
+	[{data, [{"State", NewState#state{substate = ""}}, {"SubState", SubStat}]}].
 
 %%--------------------------------------------------------------------
 %%% Internal functions
@@ -1815,7 +1815,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"sent to queue by something else, but falling back",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
@@ -2507,7 +2507,7 @@ handle_info_test_() ->
 			gen_leader_mock:stop(Mock)
 		end}
 	end,
-	fun({#state{callrec = Oldcall} = Seedstate}) ->
+	fun({Seedstate}) ->
 		{"oncall agent dies with a ringing agent",
 		fun() ->
 			OncallRef = make_ref(),

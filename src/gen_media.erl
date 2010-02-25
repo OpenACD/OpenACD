@@ -1489,7 +1489,7 @@ agent_interact({hangup, Who}, #state{queue_pid = {Queue, Qpid}, callrec = Call, 
 	cdr:hangup(State#state.callrec, Who),
 	erlang:demonitor(Mons#monitors.queue_pid),
 	State#state{queue_pid = Queue, monitors = #monitors{}};
-agent_interact({hangup, Who}, #state{callrec = Call, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) when is_record(Call, call) ->
+agent_interact({hangup, Who}, #state{callrec = Call, queue_pid = _Nottuple, oncall_pid = undefined, ring_pid = undefined} = State) when is_record(Call, call) ->
 	?INFO("orphaned call ~p, no queue or agents at all", [Call#call.id]),
 	cdr:hangup(State#state.callrec, Who),
 	State;

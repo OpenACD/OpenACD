@@ -1118,7 +1118,7 @@ handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid
 	end,
 	case {Qpid, Ocpid, Rpid} of
 		{undefined, undefined, undefined} ->
-			cdr:hangup(State#state.callrec, Who),
+			%cdr:hangup(State#state.callrec, Who),
 			set_cpx_mon(State, delete);
 		_ ->
 			set_cpx_mon(State, delete),

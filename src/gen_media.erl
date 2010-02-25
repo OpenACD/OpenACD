@@ -911,12 +911,26 @@ handle_call('$gen_media_agent_oncall', From, #state{oncall_pid = {Ocagent, OcPid
 handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined, callrec = Call} = State) ->
 	?INFO("oncall request from ~p for ~p when no ring_pid (probobly a late request)", [From, Call#call.id]),
 	{reply, invalid, State};
-handle_call({'$gen_media_set_cook', CookPid}, From, #state{callrec = Call} = State) ->
+handle_call({'$gen_media_set_cook', CookPid}, From, #state{callrec = Call, monitors = Mons} = State) ->
 	?NOTICE("Updating cook pid for ~p to ~p", [Call#call.id, CookPid]),
-	{reply, ok, State#state{callrec = Call#call{cook = CookPid}}};
-handle_call({'$gen_media_set_queue', Qpid}, From, #state{callrec = Call, queue_pid = {Queue, _}} = State) ->
+	case Mons#monitors.cook of
+		undefined ->
+			ok;
+		M ->
+			erlang:demonitor(M)
+	end,
+	Newmons = Mons#monitors{cook = erlang:monitor(process, CookPid)},
+	{reply, ok, State#state{callrec = Call#call{cook = CookPid}, monitors = Newmons}};
+handle_call({'$gen_media_set_queue', Qpid}, From, #state{callrec = Call, queue_pid = {Queue, _}, monitors = Mons} = State) ->
 	?NOTICE("Updating queue pid for ~p to ~p", [Call#call.id, Qpid]),
-	{reply, ok, State#state{queue_pid = {Queue, Qpid}}};
+	case Mons#monitors.queue_pid of
+		undefined ->
+			ok;
+		M ->
+			erlang:demonitor(M)
+	end,
+	Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
+	{reply, ok, State#state{queue_pid = {Queue, Qpid}, monitors = Newmons}};
 handle_call(Request, From, #state{callback = Callback} = State) ->
 	Reply = Callback:handle_call(Request, From, State#state.callrec, State#state.substate),
 	handle_custom_return(Reply, State, reply).
@@ -972,6 +986,73 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = {Agent, Apid}, cal
 	erlang:demonitor(Mons#monitors.ring_pid),
 	Newmons = Mons#monitors{ring_pid = undefined},
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}};
+handle_info({'DOWN', Ref, process, Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.queue_pid ->
+	?WARNING("Queue ~p died due to ~p (I'm ~p)", [element(1, State#state.queue_pid), Info, Call#call.id]),
+	%% in theory, the cook will tell us when the queue is back up.
+	Newmons = Mons#monitors{queue_pid = undefined},
+	Newstate = State#state{monitors = Newmons, queue_pid = undefined},
+	{noreply, Newstate};
+handle_info({'DOWN', Ref, process, Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.cook ->
+	?WARNING("Cook died due to ~p (I'm ~p)", [Info, Call#call.id]),
+	%% if we're queued (which we should be) and ringing, stop ringing
+	%% so the new cook doesn't stomp / route on us
+	Midmons = Mons#monitors{cook = undefined},
+	case {State#state.ring_pid, State#state.queue_pid} of
+		{undefined, _} ->
+			%% must be a late down message.
+			Newstate = State#state{monitors = Midmons},
+			{noreply, Newstate};
+		{{Aname, Apid}, undefined} ->
+			% no queue means there should be no cook.
+			% must be a late message.
+			Newstate = State#state{monitors = Midmons},
+			{noreply, Newstate};
+		{{Aname, Apid}, {Qnom, Qpid}} ->
+			case agent:query_state(Apid) of
+				{ok, ringing} ->
+					set_agent_state(Apid, [idle]);
+				_ ->
+					ok
+			end,
+			{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
+			kill_outband_ring(State),
+			cdr:ringout(State#state.callrec, {cook_death, Apid}),
+			erlang:demonitor(Mons#monitors.ring_pid),
+			Newmons = Midmons#monitors{ring_pid = undefined},
+			{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}}
+	end;
+handle_info({'DOWN', Ref, process, Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.ring_pid ->
+	?WARNING("ringing Agent fsm ~p died due to ~p (I'm ~p)", [element(1, State#state.ring_pid), Info, Call#call.id]),
+	% no need to modify agent state since it's already dead.
+	gen_server:cast(Call#call.cook, stop_ringing),
+	{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
+	kill_outband_ring(State),
+	cdr:ringout(State#state.callrec, {agent_fsm_death, element(1, State#state.ring_pid)}),
+	Newmons = Mons#monitors{ring_pid = undefined},
+	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}};
+handle_info({'DOWN', Ref, process, Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.oncall_pid ->
+	?WARNING("Oncall agent fsm ~p died due to ~p (I'm ~p)", [element(1, State#state.oncall_pid), Info, Call#call.id]),
+	Midstate = case State#state.ring_pid of
+		{Ragent, Rpid} ->
+			 % if this agent doesn't answer, the call is orphaned.  Just going to queue.
+			{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
+			agent_interact({stop_ring, oncall_fsm_death}, State#state{substate = Newsub});
+		_ ->
+			% noop
+			State
+	end,
+	%% TODO add the {'_agent', Ragent} skill to the call?
+	Newpriority = if 
+		Call#call.priority < 5 ->
+			 0; 
+		 true -> 
+			 Call#call.priority - 5
+	end,
+	Bumpedcall = Call#call{priority = Newpriority},
+	% yes I want this to die horribly if we can't requeue
+	{reply, ok, Newstate} = handle_call({'$gen_media_queue', "default_queue"}, {self(), make_ref()}, Midstate#state{callrec = Bumpedcall}),
+	cdr:endwrapup(State#state.callrec, element(1, State#state.oncall_pid)),
+	{noreply, Newstate};
 handle_info(Info, #state{callback = Callback} = State) ->
 	%?DEBUG("Other info message, going directly to callback.  ~p", [Info]),
 	Return = Callback:handle_info(Info, State#state.callrec, State#state.substate),

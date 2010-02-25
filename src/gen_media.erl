@@ -262,7 +262,9 @@
 %%		as a media push.
 %%
 %%	{stop, hangup, NewState}
+%%	{stop, {hangup, Data}, NewState}
 %%		types:  NewState = any()
+%%				Data = any()
 %%
 %%		This causes the media to take any action is would from an
 %%		Agentaction return tuple of hangup, then stop.
@@ -1104,22 +1106,24 @@ set_agent_state(Apid, Args) ->
 			badagent
 	end.
 
+handle_stop(hangup, State) ->
+	handle_stop({hangup, undefined}, State);
 handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
-	Call = State#state.callrec,
+	{Who, Return} = case Reason of
+		{hangup, W} ->
+			{W, normal};
+		_ ->
+			{undefined, Reason}
+	end,
 	case {Qpid, Ocpid, Rpid} of
 		{undefined, undefined, undefined} ->
-			cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
+			cdr:hangup(State#state.callrec, Who),
 			set_cpx_mon(State, delete);
 		_ ->
 			set_cpx_mon(State, delete),
-			agent_interact(hangup, State)
+			agent_interact({hangup, Who}, State)
 	end,
-	case Reason of
-		hangup ->
-			normal;
-		_ ->
-			Reason
-	end.
+	Return.
 
 handle_custom_return(Return, State, noreply) ->
 	case Return of

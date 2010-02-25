@@ -482,7 +482,7 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 		["startmonitor"] ->
 			cpx_monitor:subscribe(),
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"subscribed">>}]})}, State};
-		["start_problem_recording", Agentname, Clientid] ->
+		["start_problem_recording", _Agentname, Clientid] ->
 			AgentRec = agent:dump_state(State#state.agent_fsm),
 			case whereis(freeswitch_media_manager) of
 				P when is_pid(P) ->
@@ -893,7 +893,7 @@ handle_cast({mediaload, #call{type = email} = Call}, State) ->
 	]},
 	Newstate = push_event(Json, Midstate),
 	{noreply, Newstate#state{mediaload = []}};
-handle_cast({mediaload, #call{type = voice} = Call}, State) ->
+handle_cast({mediaload, #call{type = voice}}, State) ->
 	Json = {struct, [
 		{<<"command">>, <<"mediaload">>},
 		{<<"media">>, <<"voice">>},
@@ -901,7 +901,7 @@ handle_cast({mediaload, #call{type = voice} = Call}, State) ->
 	]},
 	Newstate = push_event(Json, State),
 	{noreply, Newstate#state{mediaload = [{<<"fullpane">>, false}]}};
-handle_cast({mediaload, #call{type = voice} = Call, Options}, State) ->
+handle_cast({mediaload, #call{type = voice}, Options}, State) ->
 	Base = [
 		{<<"command">>, <<"mediaload">>},
 		{<<"media">>, <<"voice">>},
@@ -1743,8 +1743,8 @@ extract_groups([Head | Tail], Acc) ->
 					Top = {"agentprofile", Display},
 					extract_groups(Tail, [Top | Acc])
 			end;
-		Else ->
-			%?DEBUG("no group to extract for type ~w", [Else]),
+		_Else ->
+			%?DEBUG("no group to extract for type ~w", [_Else]),
 			extract_groups(Tail, Acc)
 	end.
 

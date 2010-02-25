@@ -298,6 +298,13 @@ get_transaction_data(#cdr_raw{transaction = T}, #cdr_rec{media = Media}) when T 
 		{voice, outbound} -> "outgoing";
 		{Type, _ } -> atom_to_list(Type)
 	end;
+get_transaction_data(#cdr_raw{transaction = T, eventdata = D}, _Rec) when T =:= hangup  ->
+	case D of
+		undefined ->
+			"";
+		_ ->
+			D
+	end;
 get_transaction_data(#cdr_raw{transaction = T} = Transaction, _CDR) ->
 	?NOTICE("eventdata for ~p is ~p", [T, Transaction#cdr_raw.eventdata]),
 	"".

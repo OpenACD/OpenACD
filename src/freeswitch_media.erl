@@ -632,8 +632,8 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 				RUUID ++ " start tone_stream://v=-7;%(100,0,941.0,1477.0);v=-7;>=2;+=.1;%(1400,0,350,440) mux"),
 			agent:blab(State#state.agent_pid, "Caller hung up, sorry."),
 			cdr:warmxfer_fail(Callrec, State#state.agent_pid),
-			{hangup, State};
-		"CHANNEL_HANGUP" ->
+			{{hangup, "caller"}, State};
+		"CHANNEL_HANGUP_COMPLETE" ->
 			?DEBUG("Channel hangup ~p", [Callrec#call.id]),
 			Apid = State#state.agent_pid,
 			case Apid of
@@ -671,20 +671,24 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 							?NOTICE("~s hungup without leaving a voicemail", [UUID])
 					end
 			end,
-			{hangup, State2};
-		"CHANNEL_HANGUP_COMPLETE" ->
+		%	{hangup, State2};
+		%"CHANNEL_HANGUP_COMPLETE" ->
 			% TODO - this is protocol specific and we only handle SIP right now
 			% TODO - this should go in the CDR
 			Cause = proplists:get_value("variable_hangup_cause", Rawcall),
-			case proplists:get_value("variable_sip_hangup_disposition", Rawcall) of
+			Who = case proplists:get_value("variable_sip_hangup_disposition", Rawcall) of
 				"recv_bye" ->
-					?DEBUG("Caller hungup ~p, cause ~p", [UUID, Cause]);
+					?DEBUG("Caller hungup ~p, cause ~p", [UUID, Cause]),
+					"caller";
 				"send_bye" ->
-					?DEBUG("Agent hungup ~p, cause ~p", [UUID, Cause]);
+					?DEBUG("Agent hungup ~p, cause ~p", [UUID, Cause]),
+					"agent";
 				_ ->
-					?DEBUG("I don't know who hung up ~p, cause ~p", [UUID, Cause])
+					?DEBUG("I don't know who hung up ~p, cause ~p", [UUID, Cause]),
+					undefined
 				end,
-			{noreply, State};
+			%{noreply, State};
+			{{hangup, Who}, State2};
 		"CHANNEL_DESTROY" ->
 			?DEBUG("Last message this will recieve, channel destroy ~p", [Callrec#call.id]),
 			{stop, normal, State};

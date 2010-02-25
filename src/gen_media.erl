@@ -1729,9 +1729,9 @@ handle_call_test_() ->
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 40, Mpid, Rec}, _From, _State) ->
+			gen_server_mock:expect_call(Qpid, fun({add, 35, Mpid, Rec}, _From, _State) ->
 				Mpid = Callrec#call.source,
-				Rec = Callrec,
+				Rec = Callrec#call{priority = 35},
 				ok
 			end),
 			gen_event_mock:expect_event(cdr, fun({queue_transfer, _Callrec, _Time, "testqueue"}, _State) -> ok end),
@@ -1761,9 +1761,9 @@ handle_call_test_() ->
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "default_queue"}, _From, MState, _Elec) ->
 				{ok, Qpid, MState}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 40, Mpid, Rec}, _From, _State) ->
+			gen_server_mock:expect_call(Qpid, fun({add, 35, Mpid, Rec}, _From, _State) ->
 				Mpid = Callrec#call.source,
-				Rec = Callrec,
+				Rec = Callrec#call{priority = 35},
 				ok
 			end),
 			gen_event_mock:expect_event(cdr, fun({queue_transfer, _Callrec, _Time, "default_queue"}, _State) -> ok end),
@@ -1800,9 +1800,9 @@ handle_call_test_() ->
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
-			gen_server_mock:expect_call(Qpid, fun({add, 40, Mpid, Rec}, _From, _State) ->
+			gen_server_mock:expect_call(Qpid, fun({add, 35, Mpid, Rec}, _From, _State) ->
 				Mpid = Callrec#call.source, 
-				Rec = Callrec,
+				Rec = Callrec#call{priority = 35},
 				ok
 			end),
 			gen_leader_mock:expect_leader_call(queue_manager, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
@@ -1827,9 +1827,9 @@ handle_call_test_() ->
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
-			gen_server_mock:expect_call(Qpid, fun({add, 40, Mpid, Rec}, _From, _state) ->
+			gen_server_mock:expect_call(Qpid, fun({add, 35, Mpid, Rec}, _From, _state) ->
 				Mpid = Callrec#call.source,
-				Rec = Callrec,
+				Rec = Callrec#call{priority = 35},
 				ok
 			end),
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
@@ -2513,64 +2513,40 @@ handle_info_test_() ->
 			?assertEqual(undefined, Newstate#state.oncall_pid),
 			gen_leader_mock:stop(Mock)
 		end}
+	end,
+	fun({#state{callrec = Oldcall} = Seedstate}) ->
+		{"oncall agent dies with a ringing agent",
+		fun() ->
+			OncallRef = make_ref(),
+			Ocagent = dead_spawn(),
+			Ringref = make_ref(),
+			{ok, Ragent} = agent:start(#agent{login = "ringagent", state = ringing, statedata = Seedstate#state.callrec}),
+			Mons = #monitors{
+				oncall_pid = OncallRef,
+				ring_pid = Ringref
+			},
+			{ok, Newqueue} = gen_server_mock:new(),
+			gen_server_mock:expect_call(Newqueue, fun(_Msg, _From, _State) ->
+				ok
+			end),
+			gen_server_mock:expect_call(Newqueue, fun(_Msg, _From, _State) ->
+				ok
+			end),
+			{ok, Mock} = gen_leader_mock:start(queue_manager),
+			gen_leader_mock:expect_leader_call(Mock, fun(_Msg, _From, State, _Elec) ->
+				{ok, Newqueue, State}
+			end),
+			State = Seedstate#state{monitors = Mons, oncall_pid = {"deadagent", Ocagent}, ring_pid = {"ringagent", Ragent}},
+			{noreply, #state{monitors = Newmons} = Newstate} = handle_info({'DOWN', OncallRef, process, Ocagent, testdeath}, State),
+			?assertMatch({"default_queue", _}, Newstate#state.queue_pid),
+			?assertEqual(undefined, Newmons#monitors.oncall_pid),
+			?assertNot(undefined =:= Newmons#monitors.queue_pid),
+			?assertEqual(undefined, Newstate#state.oncall_pid),
+			?assertEqual(undefined, Newmons#monitors.ring_pid),
+			?assertEqual(undefined, Newstate#state.ring_pid),
+			gen_leader_mock:stop(Mock)
+		end}
 	end]}.
-	
-	
-	
-	
-	
-	
-	
-%handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.oncall_pid ->
-%	?WARNING("Oncall agent fsm ~p died due to ~p (I'm ~p)", [element(1, State#state.oncall_pid), Info, Call#call.id]),
-%	Midstate = case State#state.ring_pid of
-%		{_Ragent, _Rpid} ->
-%			 % if this agent doesn't answer, the call is orphaned.  Just going to queue.
-%			{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
-%			agent_interact({stop_ring, oncall_fsm_death}, State#state{substate = Newsub});
-%		_ ->
-%			% noop
-%			State
-%	end,
-%	%% TODO add the {'_agent', Ragent} skill to the call?
-%	Newpriority = if 
-%		Call#call.priority < 5 ->
-%			 0; 
-%		 true -> 
-%			 Call#call.priority - 5
-%	end,
-%	Bumpedcall = Call#call{priority = Newpriority},
-%	% yes I want this to die horribly if we can't requeue
-%	{reply, ok, Newstate} = handle_call({'$gen_media_queue', "default_queue"}, {self(), make_ref()}, Midstate#state{callrec = Bumpedcall}),
-%	cdr:endwrapup(State#state.callrec, element(1, State#state.oncall_pid)),
-%	{noreply, Newstate};
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
 	
 agent_interact_test_() ->
 	{foreach,

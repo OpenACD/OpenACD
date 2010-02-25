@@ -231,7 +231,7 @@
 %%	{Agentaction, NewState}
 %%	{Agentaction, Reply, NewState}
 %%		types:	Agentaction = stop_ring | {stop_ring, Data} | wrapup | hangup | 
-%%					{mediapush, Data, Mode}
+%%					{hangup, Data} | {mediapush, Data, Mode}
 %%				Reply = any()
 %%				NewState = any()
 %%				Data = any()
@@ -252,11 +252,10 @@
 %%		that agent is oncall or outgoing.  This sets the agent to wrapup and
 %%		continues execution with NewState.
 %%
-%%		hangup is valid at any time an agent is (or was) associated a call.
-%%		It is useful when the remote party of a media disconnects, as the 
-%%		callback does not have any knowledge of what state an agent is in.
-%%		This determine's the agent's state, then set's the agent's state 
-%%		apropriately.  Execution then coninues with NewState.
+%%		{hangup, Data} is valid at any time.  This will unqueue the media, and set
+%%		the appropriate state for any agents.  The cdr record will record Data
+%%		as who hung up the call.  A return of hangup is Equivalent to 
+%%		{hangup, undefined}.  Execution then coninues with NewState.
 %%
 %%		mediapush is only valid if there is an agent oncall with the media, and
 %%		the media is inband.  The given Data is casted to the associaed agent 
@@ -1423,53 +1422,55 @@ agent_interact(wrapup, #state{oncall_pid = {Agent, Apid}, callrec = Call, monito
 	erlang:demonitor(Mons#monitors.oncall_pid),
 	Newmons = Mons#monitors{oncall_pid = undefined},
 	State#state{oncall_pid = undefined, monitors = Newmons};
-agent_interact(hangup, #state{oncall_pid = {Ocagent, Oncallpid}, ring_pid = {_Ragent, Ringpid}, callrec = Call, monitors = Mons} = State) when is_pid(Oncallpid), is_pid(Ringpid) ->
+agent_interact(hangup, State) ->
+	agent_interact({hangup, undefined}, State);
+agent_interact({hangup, Who}, #state{oncall_pid = {Ocagent, Oncallpid}, ring_pid = {_Ragent, Ringpid}, callrec = Call, monitors = Mons} = State) when is_pid(Oncallpid), is_pid(Ringpid) ->
 	?INFO("hangup for ~p when both oncall and ring are pids", [Call#call.id]),
 	set_agent_state(Ringpid, [idle]),
 	set_agent_state(Oncallpid, [wrapup, State#state.callrec]),
 	cdr:wrapup(State#state.callrec, Ocagent),
 	Callrec = State#state.callrec,
-	cdr:hangup(Callrec, string:join(tuple_to_list(Callrec#call.callerid), " ")),
+	cdr:hangup(Callrec, Who),
 	kill_outband_ring(State),
 	erlang:demonitor(Mons#monitors.ring_pid),
 	erlang:demonitor(Mons#monitors.oncall_pid),
 	Newmons = Mons#monitors{oncall_pid = undefined, ring_pid = undefined},
 	State#state{oncall_pid = undefined, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons};
-agent_interact(hangup, #state{oncall_pid = {Agent, Apid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
+agent_interact({hangup, Who}, #state{oncall_pid = {Agent, Apid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
 	?INFO("hangup for ~p when only oncall is a pid", [Call#call.id]),
 	set_agent_state(Apid, [wrapup, State#state.callrec]),
 	cdr:wrapup(State#state.callrec, Agent),
 	Callrec = State#state.callrec,
-	cdr:hangup(Callrec, string:join(tuple_to_list(Callrec#call.callerid), " ")),
+	cdr:hangup(Callrec, Who),
 	erlang:demonitor(Mons#monitors.oncall_pid),
 	State#state{oncall_pid = undefined, monitors = #monitors{}};
-agent_interact(hangup, #state{ring_pid = {_Agent, Apid}, queue_pid = {_Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid), is_pid(Qpid) ->
+agent_interact({hangup, Who}, #state{ring_pid = {_Agent, Apid}, queue_pid = {_Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid), is_pid(Qpid) ->
 	?INFO("hangup for ~p when both agent and queue are pid", [Call#call.id]),
 	set_agent_state(Apid, [idle]),
-	cdr:hangup(Call, string:join(tuple_to_list(Call#call.callerid), " ")),
+	cdr:hangup(Call, Who),
 	kill_outband_ring(State),
 	erlang:demonitor(Mons#monitors.ring_pid),
 	unqueue(Qpid, self()),
 	erlang:demonitor(Mons#monitors.queue_pid),
 	State#state{queue_pid = undefined, ring_pid = undefined, monitors = #monitors{}};
-agent_interact(hangup, #state{ring_pid = {_Agent, Apid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
+agent_interact({hangup, Who}, #state{ring_pid = {_Agent, Apid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
 	?INFO("hangup for ~p when only ringing is a pid", [Call#call.id]),
 	set_agent_state(Apid, [idle]),
-	cdr:hangup(Call, string:join(tuple_to_list(Call#call.callerid), " ")),
+	cdr:hangup(Call, Who),
 	kill_outband_ring(State),
 	erlang:demonitor(Mons#monitors.ring_pid),
 	State#state{ring_pid = undefined, outband_ring_pid = undefined, monitors = #monitors{}};
-agent_interact(hangup, #state{queue_pid = {_Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Qpid) ->
+agent_interact({hangup, Who}, #state{queue_pid = {_Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Qpid) ->
 	?INFO("hang for ~p up when only queue is a pid", [Call#call.id]),
 	unqueue(Qpid, self()),
-	cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
+	cdr:hangup(State#state.callrec, Who),
 	erlang:demonitor(Mons#monitors.queue_pid),
 	State#state{queue_pid = undefined, monitors = #monitors{}};
-agent_interact(hangup, #state{callrec = Call, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) when is_record(Call, call) ->
+agent_interact({hangup, Who}, #state{callrec = Call, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) when is_record(Call, call) ->
 	?INFO("orphaned call ~p, no queue or agents at all", [Call#call.id]),
-	cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
+	cdr:hangup(State#state.callrec, Who),
 	State;
-agent_interact(hangup, #state{queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
+agent_interact({hangup, _Who}, #state{queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) ->
 	?INFO("Truely orphaned call, no queue, agents, or even a call record", []),
 	State.
 
@@ -2670,7 +2671,7 @@ agent_interact_test_() ->
 			Mons = #monitors{ring_pid = make_ref(), oncall_pid = make_ref()},
 			State = #state{oncall_pid = {"testagent", Oncall}, ring_pid = {"ring", Ringing}, callrec = Callrec, monitors = Mons},
 			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "testagent"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, undefined}, _State) -> ok end),
 			Res = agent_interact(hangup, State),
 			agent:stop(Oncall),
 			agent:stop(Ringing),
@@ -2689,7 +2690,7 @@ agent_interact_test_() ->
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = #state{oncall_pid = {"testagent", Apid}, callrec = Callrec, monitors = Mons},
 			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "testagent"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, undefined}, _State) -> ok end),
 			Res = agent_interact(hangup, State),
 			agent:stop(Apid),
 			?assertEqual(undefined, Res#state.oncall_pid),
@@ -2703,7 +2704,7 @@ agent_interact_test_() ->
 		fun() ->
 			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
 			Mons = #monitors{ring_pid = make_ref()},
-			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, undefined}, _State) -> ok end),
 			State = #state{ring_pid = {"testagent", Apid}, callrec = Callrec, monitors = Mons},
 			Res = agent_interact(hangup, State),
 			agent:stop(Apid),
@@ -2718,7 +2719,7 @@ agent_interact_test_() ->
 		fun() ->
 			{ok, Qpid} = gen_server_mock:new(),
 			gen_server_mock:expect_call(Qpid, fun({remove, _Incpid}, _From, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, undefined}, _State) -> ok end),
 			Mons = #monitors{queue_pid = make_ref()},
 			State = #state{queue_pid = {"testqueue", Qpid}, callrec = Callrec, monitors = Mons},
 			#state{monitors = Newmons} = Res = agent_interact(hangup, State),
@@ -2735,7 +2736,7 @@ agent_interact_test_() ->
 			{ok, Qpid} = gen_server_mock:new(),
 			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
 			gen_server_mock:expect_call(Qpid, fun({remove, _Incpid}, _From, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, undefined}, _State) -> ok end),
 			Mons = #monitors{queue_pid = make_ref(), ring_pid = make_ref()},
 			State = #state{queue_pid = {"testqueue", Qpid}, ring_pid = {"testagent", Apid}, callrec = Callrec, monitors = Mons},
 			#state{monitors = Newmons} = Res = agent_interact(hangup, State),

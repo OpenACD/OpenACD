@@ -290,7 +290,7 @@
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3]).
+	 terminate/2, code_change/3, format_status/2]).
 
 %% gen_media api
 -export([
@@ -928,6 +928,28 @@ terminate(Reason, #state{callback = Callback} = State) ->
 code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 	{ok, Newsub} = Callback:code_change(OldVsn, State#state.callrec, State#state.substate, Extra),
     {ok, State#state{substate = Newsub}}.
+
+format_status(Opt, [PDict, #state{callback = Mod, substate = SubState, callrec = Call} = State]) ->
+	% prevent client data from being dumped
+	NewCall = case Call#call.client of
+		Client when is_record(Client, client) ->
+			Call#call{client = Client#client{options = []}};
+		_ ->
+			Call
+	end,
+	NewState = State#state{callrec = NewCall},
+
+	% allow media callback to scrub its state
+	SubStat = case erlang:function_exported(Mod, format_status, 2) of
+		true ->
+			case catch Mod:format_status(Opt, [PDict, SubState]) of
+				{'EXIT', _} -> SubState;
+				Else -> Else
+			end;
+		_ ->
+			SubState
+	end,
+	[{data, [{"State", NewState#state{substate = ""}}, {"SubState", SubState}]}].
 
 %%--------------------------------------------------------------------
 %%% Internal functions

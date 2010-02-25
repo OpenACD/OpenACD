@@ -500,13 +500,14 @@ handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 		"CHANNEL_HANGUP_COMPLETE" ->
 			% TODO - this is protocol specific and we only handle SIP right now
 			% TODO - this should go in the CDR
+			Cause = proplists:get_value("variable_hangup_cause", Rest),
 			case proplists:get_value("variable_sip_hangup_disposition", Rest) of
 				"recv_bye" ->
-					?DEBUG("Caller hungup ~p", [UUID]);
+					?DEBUG("Caller hungup ~p, cause ~p", [UUID, Cause]);
 				"send_bye" ->
-					?DEBUG("Agent hungup ~p", [UUID]);
+					?DEBUG("Agent hungup ~p, cause ~p", [UUID, Cause]);
 				_ ->
-					?DEBUG("I don't know who hung up ~p", [UUID])
+					?DEBUG("I don't know who hung up ~p, cause", [UUID, Cause])
 				end,
 			{noreply, State};
 		_Else ->
@@ -564,7 +565,7 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{ringchannel = Pid} = State) ->
 	%?WARNING("Handling manager exit from ~w due to ~p for ~p", [Pid, Reason, Call#call.id]),
 	%{ok, Tref} = timer:send_after(1000, check_recovery),
 	%{noreply, State#state{manager_pid = Tref}};
-handle_info(bridge, Call, #state{ringchannel = Pid, warm_transfer_uuid = W} = State) when is_list(W) ->
+handle_info(bridge, Call, #state{warm_transfer_uuid = W} = State) when is_list(W) ->
 	?INFO("bridged when warm transfer... ~p", [Call#call.id]),
 	agent:media_push(State#state.agent_pid, warm_transfer_succeeded),
 	{noreply, State};

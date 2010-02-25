@@ -675,13 +675,14 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 		"CHANNEL_HANGUP_COMPLETE" ->
 			% TODO - this is protocol specific and we only handle SIP right now
 			% TODO - this should go in the CDR
+			Cause = proplists:get_value("variable_hangup_cause", Rawcall),
 			case proplists:get_value("variable_sip_hangup_disposition", Rawcall) of
 				"recv_bye" ->
-					?DEBUG("Caller hungup ~p", [UUID]);
+					?DEBUG("Caller hungup ~p, cause ~p", [UUID, Cause]);
 				"send_bye" ->
-					?DEBUG("Agent hungup ~p", [UUID]);
+					?DEBUG("Agent hungup ~p, cause ~p", [UUID, Cause]);
 				_ ->
-					?DEBUG("I don't know who hung up ~p", [UUID])
+					?DEBUG("I don't know who hung up ~p, cause ~p", [UUID, Cause])
 				end,
 			{noreply, State};
 		"CHANNEL_DESTROY" ->

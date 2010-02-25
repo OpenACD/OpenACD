@@ -337,7 +337,7 @@
 	ringout = false:: tref() | 'false',
 	outband_ring_pid :: 'undefined' | pid(),
 	warm_transfer = false :: boolean(),
-	monitors = #monitors{}
+	monitors = #monitors{} :: #monitors{}
 }).
 
 -type(state() :: #state{}).
@@ -371,7 +371,7 @@ behaviour_info(_Other) ->
 %% @doc Make the `pid() Genmedia' ring to `pid() Agent' based off of
 %% `#queued_call{} Qcall' with a ringout of `pos_integer() Timeout' miliseconds.
 -spec(ring/4 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}, Qcall :: #queued_call{}, Timeout :: pos_integer())  -> 'ok' | 'invalid').
-ring(Genmedia, {Agent, Apid} = A, Qcall, Timeout) when is_pid(Apid) ->
+ring(Genmedia, {_Agent, Apid} = A, Qcall, Timeout) when is_pid(Apid) ->
 	gen_server:call(Genmedia, {'$gen_media_ring', A, Qcall, Timeout});
 ring(Genmedia, Apid, Qcall, Timeout) when is_pid(Apid) ->
 	case agent_manager:find_by_pid(Apid) of
@@ -424,7 +424,7 @@ oncall(Genmedia) ->
 
 %% @doc Transfer the call from the agent it is associated with to a new agent.
 -spec(agent_transfer/3 :: (Genmedia :: pid(), Apid :: pid() | string() | {string(), pid()}, Timeout :: pos_integer()) -> 'ok' | 'invalid').
-agent_transfer(Genmedia, {Login, Apid} = Agent, Timeout) when is_pid(Apid) ->
+agent_transfer(Genmedia, {_Login, Apid} = Agent, Timeout) when is_pid(Apid) ->
 	gen_server:call(Genmedia, {'$gen_media_agent_transfer', Agent, Timeout});
 agent_transfer(Genmedia, Apid, Timeout) when is_pid(Apid) ->
 	case agent_manager:find_by_pid(Apid) of
@@ -512,6 +512,7 @@ init([Callback, Args]) ->
 			{Qnom, Qpid} = case priv_queue(Queue, Callrec, true) of
 				invalid when Queue =/= "default_queue" ->
 					% this clause, if hit, will cause a (justifiable) crash
+					% TODO wtf?
 					priv_queue("default_queue", Callrec, true),
 					set_cpx_mon(#state{callrec = Callrec}, [{queue, "default_queue"}]),
 					cdr:inqueue(Callrec, "default_queue");
@@ -553,7 +554,7 @@ handle_call({'$gen_media_spy', Spy}, _From, #state{oncall_pid = {_Nom, Spy}} = S
 	%% Can't spy on yourself.
 	?DEBUG("Can't spy on yourself", []),
 	{reply, invalid, State};
-handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, oncall_pid = {Agent, Ocpid}, callrec = Call} = State) when is_pid(Ocpid) ->
+handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) when is_pid(Ocpid) ->
 	case erlang:function_exported(Callback, handle_spy, 3) of
 		false ->
 			?DEBUG("Callback ~p doesn't support spy for ~p", [Callback, Call#call.id]),
@@ -571,9 +572,9 @@ handle_call({'$gen_media_spy', Spy}, {Spy, _Tag}, #state{callback = Callback, on
 	end;
 handle_call({'$gen_media_spy', _Spy}, _From, State) ->
 	{reply, invalid, State};
-handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = {Agent, Ocpid}, callrec = Call, monitors = Mons} = State) when Call#call.media_path =:= inband ->
+handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, oncall_pid = {Ocagent, Ocpid}, callrec = Call, monitors = Mons} = State) when Call#call.media_path =:= inband ->
 	?INFO("Request to end call ~p from agent", [Call#call.id]),
-	cdr:wrapup(State#state.callrec, Ocpid),
+	cdr:wrapup(State#state.callrec, Ocagent),
 	case Callback:handle_wrapup(State#state.callrec, State#state.substate) of
 		{ok, NewState} ->
 			erlang:demonitor(Mons#monitors.oncall_pid),
@@ -585,10 +586,10 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, onca
 			Newmons = Mons#monitors{oncall_pid = undefined},
 			{stop, normal, ok, State#state{oncall_pid = undefined, substate = NewState, monitors = Newmons}}
 	end;
-handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = {Agent, Ocpid}, callrec = Call} = State) ->
+handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{oncall_pid = {_Agent, Ocpid}, callrec = Call} = State) ->
 	?ERROR("Cannot do a wrapup directly unless mediapath is inband, and request is from agent oncall. ~p", [Call#call.id]),
 	{reply, invalid, State};
-handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, callrec = Call, oncall_pid = {Agent, Ocpid}, monitors = Mons} = State) ->
+handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callback, callrec = Call, oncall_pid = {Ocagent, Ocpid}, monitors = Mons} = State) ->
 	?INFO("request to queue call ~p from agent", [Call#call.id]),
 	% TODO calls that were previously handled by an agent should get their priority bumped?
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
@@ -598,7 +599,7 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
 			cdr:queue_transfer(State#state.callrec, "default_queue"),
 			cdr:inqueue(State#state.callrec, "default_queue"),
-			cdr:wrapup(State#state.callrec, Ocpid),
+			cdr:wrapup(State#state.callrec, Ocagent),
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid), oncall_pid = undefined},
@@ -607,13 +608,13 @@ handle_call({'$gen_media_queue', Queue}, {Ocpid, _Tag}, #state{callback = Callba
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
 			cdr:queue_transfer(State#state.callrec, Queue),
 			cdr:inqueue(State#state.callrec, Queue),
-			cdr:wrapup(State#state.callrec, Ocpid),
+			cdr:wrapup(State#state.callrec, Ocagent),
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid), oncall_pid = undefined},
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
 			{reply, ok, State#state{substate = NewState, oncall_pid = undefined, queue_pid = {Queue, Qpid}, monitors = Newmons}}
 	end;
-handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callrec = Call, oncall_pid = {_, Apid}, monitors = Mons} = State) when is_pid(Apid) ->
+handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callrec = Call, oncall_pid = {Ocagent, Apid}, monitors = Mons} = State) when is_pid(Apid) ->
 	% TODO calls that were previously handled by an agent should get their priority bumped?
 	?INFO("Request to queue ~p from ~p", [Call#call.id, From]),
 	case priv_queue(Queue, State#state.callrec, State#state.queue_failover) of
@@ -624,7 +625,7 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callr
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
 			cdr:queue_transfer(State#state.callrec, "default_queue"),
 			cdr:inqueue(State#state.callrec, "default_queue"),
-			cdr:wrapup(State#state.callrec, Apid),
+			cdr:wrapup(State#state.callrec, Ocagent),
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid), oncall_pid = undefined},
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, "default_queue"}]),
@@ -634,7 +635,7 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callr
 			{ok, NewState} = Callback:handle_queue_transfer(State#state.callrec, State#state.substate),
 			cdr:queue_transfer(State#state.callrec, Queue),
 			cdr:inqueue(State#state.callrec, Queue),
-			cdr:wrapup(State#state.callrec, Apid),
+			cdr:wrapup(State#state.callrec, Ocagent),
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid), oncall_pid = undefined},
 			set_cpx_mon(State#state{substate = NewState, oncall_pid = undefined}, [{queue, Queue}]),
@@ -656,7 +657,7 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 							Opts
 					end,
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
-					cdr:ringing(Call, Apid),
+					cdr:ringing(Call, Agent),
 					url_pop(Call, Apid, Popopts),
 					Newcall = Call#call{cook = QCall#queued_call.cook},
 					Arec = agent:dump_state(Apid),
@@ -682,11 +683,11 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 			?INFO("Agent ~p ringing response:  ~p for ~p", [Agent, Else, Call#call.id]),
 			{reply, invalid, State}
 	end;
-handle_call({'$gen_media_ring', {Agent, Apid}, QCall, Timeout}, From, #state{callrec = Call, callback = Callback, ring_pid = undefined} = State) ->
+handle_call({'$gen_media_ring', {_Agent, Apid}, QCall, _Timeout}, _From, #state{callrec = _Call, callback = _Callback, ring_pid = undefined} = State) ->
 	gen_server:cast(QCall#queued_call.cook, {ring_to, Apid, QCall}),
 	{reply, deferred, State};
-handle_call({'$gen_media_ring', {Agent, Apid}, QCall, Timeout}, From, #state{callrec = Call, callback = Callback, ring_pid = {RAgent, Rpid}} = State) ->
-	?NOTICE("Changing ring from ~p to ~p for ~p", [Rpid, Agent, Call#call.id]),
+handle_call({'$gen_media_ring', {Agent, Apid}, QCall, Timeout}, From, #state{callrec = Call, callback = _Callback, ring_pid = {RAgent, _Rpid}} = State) ->
+	?NOTICE("Changing ring from ~p to ~p for ~p", [RAgent, Agent, Call#call.id]),
 	Cook = QCall#queued_call.cook,
 	{noreply, Midstate} = handle_info({'$gen_media_stop_ring', Cook}, State),
 	handle_call({'$gen_media_ring', Apid, QCall, Timeout}, From, Midstate);
@@ -707,8 +708,8 @@ handle_call({'$gen_media_agent_transfer', {Agent, Apid}, Timeout}, _From, #state
 							Opts
 					end,
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', dummy}),
-					cdr:agent_transfer(State#state.callrec, {Ocpid, Apid}),
-					cdr:ringing(State#state.callrec, Apid),
+					cdr:agent_transfer(State#state.callrec, {OcAgent, Agent}),
+					cdr:ringing(State#state.callrec, Agent),
 					url_pop(Call, Apid, Popopts),
 					Newmons = Mons#monitors{ring_pid = erlang:monitor(process, Apid)},
 					{reply, ok, State#state{ring_pid = {Agent, Apid}, ringout = Tref, substate = Substate, monitors = Newmons}};
@@ -730,7 +731,7 @@ handle_call({'$gen_media_warm_transfer_begin', Number}, _From, #state{callback =
 			case Callback:handle_warm_transfer_begin(Number, Call, State#state.substate) of
 				{ok, UUID, NewState} ->
 					Res = set_agent_state(Apid, [warmtransfer, UUID]),
-					cdr:warmxfer_begin(State#state.callrec, {Apid, Number}),
+					cdr:warmxfer_begin(State#state.callrec, {Agent, Number}),
 					{reply, Res, State#state{substate = NewState, warm_transfer = true}};
 				{error, Error, NewState} ->
 					?DEBUG("Callback module ~w errored for warm transfer begin:  ~p for ~p", [Callback, Error, Call#call.id]),
@@ -745,7 +746,7 @@ handle_call('$gen_media_warm_transfer_cancel', _From, #state{callback = Callback
 			case Callback:handle_warm_transfer_cancel(Call, State#state.substate) of
 				{ok, NewState} ->
 					Res = set_agent_state(Apid, [oncall, Call]),
-					cdr:warmxfer_cancel(Call, Apid),
+					cdr:warmxfer_cancel(Call, Agent),
 					#agent{login = Agent} = agent:dump_state(Apid),
 					cdr:oncall(Call, Agent),
 					{reply, Res, State#state{substate = NewState, warm_transfer = false}};
@@ -762,7 +763,7 @@ handle_call('$gen_media_warm_transfer_complete', _From, #state{callback = Callba
 			case Callback:handle_warm_transfer_complete(Call, State#state.substate) of
 				{ok, NewState} ->
 					Res = set_agent_state(Apid, [wrapup, Call]),
-					cdr:warmxfer_complete(Call, Apid),
+					cdr:warmxfer_complete(Call, Agent),
 					#agent{login = Agent} = agent:dump_state(Apid),
 					cdr:wrapup(Call, Agent),
 					erlang:demonitor(Mons#monitors.oncall_pid),
@@ -788,7 +789,7 @@ handle_call({'$gen_media_announce', Annouce}, _From, #state{callback = Callback,
 handle_call('$gen_media_voicemail', _From, #state{queue_pid = undefined, callrec = Call} = State) ->
 	?ERROR("voicemail only valid when the media ~p is queued", [Call#call.id]),
 	{reply, invalid, State};
-handle_call('$gen_media_voicemail', _From, #state{callback = Callback, callrec = Call, queue_pid = {Queue, Qpid}, monitors = Mons} = State) when is_pid(Qpid) ->
+handle_call('$gen_media_voicemail', _From, #state{callback = Callback, callrec = Call, queue_pid = {_Queue, Qpid}} = State) when is_pid(Qpid) ->
 	?INFO("trying to send media ~p to voicemail", [Call#call.id]),
 	case erlang:function_exported(Callback, handle_voicemail, 3) of
 		false ->
@@ -802,7 +803,7 @@ handle_call('$gen_media_voicemail', _From, #state{callback = Callback, callrec =
 					{reply, invalid, State#state{substate = Substate}}
 			end
 	end;
-handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{ring_pid = {Agent, Apid}, callrec = #call{ring_path = outband} = Call} = State) ->
+handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{ring_pid = {_Agent, Apid}, callrec = #call{ring_path = outband} = Call} = State) ->
 	?INFO("Cannot accept on call requests from agent (~p) unless ring_path is inband for ~p", [Apid, Call#call.id]),
 	{reply, invalid, State};
 handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = {Ragent, Rpid}, callback = Callback, oncall_pid = {OcAgent, Ocpid}, callrec = #call{ring_path = inband} = Call, monitors = Mons} = State) when is_pid(Ocpid) ->
@@ -810,14 +811,13 @@ handle_call('$gen_media_agent_oncall', {Rpid, _Tag}, #state{ring_pid = {Ragent, 
 	case Callback:handle_answer(Rpid, Call, State#state.substate) of
 		{ok, NewState} ->
 			kill_outband_ring(State),
-			cdr:oncall(Call, Rpid),
+			cdr:oncall(Call, Ragent),
 			timer:cancel(State#state.ringout),
 			set_agent_state(Ocpid, [wrapup, Call]),
-			cdr:wrapup(Call, Ocpid),
-			Agent = agent_manager:find_by_pid(Rpid),
+			cdr:wrapup(Call, OcAgent),
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{ring_pid = undefined, oncall_pid = Mons#monitors.ring_pid},
-			set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined}, [{agent, Agent}]),
+			set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined}, [{agent, Ragent}]),
 			{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons}};
 		{error, Reason, NewState} ->
 			?ERROR("Cannot set ~p for ~p to oncall due to ~p", [Rpid, Call#call.id, Reason]),
@@ -831,7 +831,7 @@ handle_call('$gen_media_agent_oncall', _From, #state{warm_transfer = true, callr
 	agent:media_push(element(2, State#state.oncall_pid), warm_transfer_succeeded),
 	{reply, ok, State};
 handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = {Ragent, Rpid}, callback = Callback, oncall_pid = {OcAgent, Ocpid}, callrec = Call, monitors = Mons} = State) when is_pid(Ocpid), is_pid(Rpid) ->
-	?INFO("oncall request during what looks like an agent transfer (outofband) to ~p for ~p", [Rpid, Call#call.id]),
+	?INFO("oncall request during what looks like an agent transfer (outofband) to ~p for ~p", [Ragent, Call#call.id]),
 	case set_agent_state(Rpid, [oncall, State#state.callrec]) of
 		invalid ->
 			{reply, invalid, State};
@@ -839,12 +839,12 @@ handle_call('$gen_media_agent_oncall', _From, #state{ring_pid = {Ragent, Rpid}, 
 			case Callback:handle_answer(Rpid, State#state.callrec, State#state.substate) of
 				{ok, NewState} ->
 					kill_outband_ring(State),
-					cdr:oncall(State#state.callrec, Rpid),
+					cdr:oncall(State#state.callrec, Ragent),
 					timer:cancel(State#state.ringout),
 					set_agent_state(Ocpid, [wrapup, State#state.callrec]),
-					cdr:wrapup(State#state.callrec, Ocpid),
-					Agent = agent_manager:find_by_pid(Rpid),
-					set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined}, [{agent, Agent}]),
+					cdr:wrapup(State#state.callrec, OcAgent),
+					%Agent = agent_manager:find_by_pid(Rpid),
+					set_cpx_mon(State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined}, [{agent, Ragent}]),
 					erlang:demonitor(Mons#monitors.oncall_pid),
 					Newmons = #monitors{oncall_pid = Mons#monitors.ring_pid},
 					{reply, ok, State#state{substate = NewState, ringout = false, oncall_pid = {Ragent, Rpid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons}};
@@ -860,7 +860,7 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 			kill_outband_ring(State),
 			timer:cancel(State#state.ringout),
 			unqueue(State#state.queue_pid, self()),
-			cdr:oncall(State#state.callrec, Apid),
+			cdr:oncall(State#state.callrec, Agent),
 			%Agent = agent_manager:find_by_pid(Apid),
 			set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, ring_pid = undefined, oncall_pid = {Agent, Apid}}, [{agent, Agent}]),
 			erlang:demonitor(Mons#monitors.queue_pid),
@@ -880,7 +880,7 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = {Agent, Apid}, ca
 			case Callback:handle_answer(Apid, Call, State#state.substate) of
 				{ok, NewState} ->
 					kill_outband_ring(State),
-					cdr:oncall(Call, Apid),
+					cdr:oncall(Call, Agent),
 					timer:cancel(State#state.ringout),
 					call_queue:remove(element(2, State#state.queue_pid), self()),
 					%Agent = agent_manager:find_by_pid(Apid),
@@ -895,7 +895,7 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = {Agent, Apid}, ca
 		badagent ->
 			{ok, NewSubstate} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
 			kill_outband_ring(State),
-			cdr:ringout(State#state.callrec, {badagent, Apid}),
+			cdr:ringout(State#state.callrec, {badagent, Agent}),
 			timer:cancel(State#state.ringout),
 			erlang:demonitor(Mons#monitors.ring_pid),
 			Newmons = Mons#monitors{ring_pid = undefined},
@@ -904,14 +904,14 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = {Agent, Apid}, ca
 			gen_server:cast(Callrec#call.cook, stop_ringing),
 			{reply, invalid, Newstate}
 	end;
-handle_call('$gen_media_agent_oncall', From, #state{oncall_pid = {Ocagent, OcPid}, callrec = Call} = State) when is_pid(OcPid) ->
+handle_call('$gen_media_agent_oncall', From, #state{oncall_pid = {_Ocagent, OcPid}, callrec = Call} = State) when is_pid(OcPid) ->
 	?INFO("oncall request from ~p for ~p when already oncall, ignoring", [From, Call#call.id]),
 	% TODO - is this a bad thing to do? Micah -- please review this clause.
 	{reply, ok, State};
 handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined, callrec = Call} = State) ->
 	?INFO("oncall request from ~p for ~p when no ring_pid (probobly a late request)", [From, Call#call.id]),
 	{reply, invalid, State};
-handle_call({'$gen_media_set_cook', CookPid}, From, #state{callrec = Call, monitors = Mons} = State) ->
+handle_call({'$gen_media_set_cook', CookPid}, _From, #state{callrec = Call, monitors = Mons} = State) ->
 	?NOTICE("Updating cook pid for ~p to ~p", [Call#call.id, CookPid]),
 	case Mons#monitors.cook of
 		undefined ->
@@ -921,7 +921,7 @@ handle_call({'$gen_media_set_cook', CookPid}, From, #state{callrec = Call, monit
 	end,
 	Newmons = Mons#monitors{cook = erlang:monitor(process, CookPid)},
 	{reply, ok, State#state{callrec = Call#call{cook = CookPid}, monitors = Newmons}};
-handle_call({'$gen_media_set_queue', Qpid}, From, #state{callrec = Call, queue_pid = {Queue, _}, monitors = Mons} = State) ->
+handle_call({'$gen_media_set_queue', Qpid}, _From, #state{callrec = Call, queue_pid = {Queue, _}, monitors = Mons} = State) ->
 	?NOTICE("Updating queue pid for ~p to ~p", [Call#call.id, Qpid]),
 	case Mons#monitors.queue_pid of
 		undefined ->
@@ -954,7 +954,7 @@ handle_info({'$gen_media_stop_ring', Apid}, #state{ring_pid = {Agent, Apid}, cal
 	{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
 	gen_server:cast(Callrec#call.cook, stop_ringing),
 	kill_outband_ring(State),
-	cdr:ringout(Callrec, {agent_request, Apid}),
+	cdr:ringout(Callrec, {agent_request, Agent}),
 	erlang:demonitor(Mons#monitors.ring_pid),
 	Newmons = Mons#monitors{ring_pid = undefined},
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons}};
@@ -982,17 +982,17 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = {Agent, Apid}, cal
 	gen_server:cast(Cook, stop_ringing),
 	{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
 	kill_outband_ring(State),
-	cdr:ringout(State#state.callrec, {Reason, Apid}),
+	cdr:ringout(State#state.callrec, {Reason, Agent}),
 	erlang:demonitor(Mons#monitors.ring_pid),
 	Newmons = Mons#monitors{ring_pid = undefined},
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}};
-handle_info({'DOWN', Ref, process, Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.queue_pid ->
+handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = _Callback} = State) when Ref =:= Mons#monitors.queue_pid ->
 	?WARNING("Queue ~p died due to ~p (I'm ~p)", [element(1, State#state.queue_pid), Info, Call#call.id]),
 	%% in theory, the cook will tell us when the queue is back up.
 	Newmons = Mons#monitors{queue_pid = undefined},
 	Newstate = State#state{monitors = Newmons, queue_pid = undefined},
 	{noreply, Newstate};
-handle_info({'DOWN', Ref, process, Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.cook ->
+handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.cook ->
 	?WARNING("Cook died due to ~p (I'm ~p)", [Info, Call#call.id]),
 	%% if we're queued (which we should be) and ringing, stop ringing
 	%% so the new cook doesn't stomp / route on us
@@ -1002,12 +1002,12 @@ handle_info({'DOWN', Ref, process, Pid, Info}, #state{monitors = Mons, callrec =
 			%% must be a late down message.
 			Newstate = State#state{monitors = Midmons},
 			{noreply, Newstate};
-		{{Aname, Apid}, undefined} ->
+		{{_Aname, _Apid}, undefined} ->
 			% no queue means there should be no cook.
 			% must be a late message.
 			Newstate = State#state{monitors = Midmons},
 			{noreply, Newstate};
-		{{Aname, Apid}, {Qnom, Qpid}} ->
+		{{Aname, Apid}, {_Qnom, _Qpid}} ->
 			case agent:query_state(Apid) of
 				{ok, ringing} ->
 					set_agent_state(Apid, [idle]);
@@ -1016,12 +1016,12 @@ handle_info({'DOWN', Ref, process, Pid, Info}, #state{monitors = Mons, callrec =
 			end,
 			{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
 			kill_outband_ring(State),
-			cdr:ringout(State#state.callrec, {cook_death, Apid}),
+			cdr:ringout(State#state.callrec, {cook_death, Aname}),
 			erlang:demonitor(Mons#monitors.ring_pid),
 			Newmons = Midmons#monitors{ring_pid = undefined},
 			{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}}
 	end;
-handle_info({'DOWN', Ref, process, Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.ring_pid ->
+handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.ring_pid ->
 	?WARNING("ringing Agent fsm ~p died due to ~p (I'm ~p)", [element(1, State#state.ring_pid), Info, Call#call.id]),
 	% no need to modify agent state since it's already dead.
 	gen_server:cast(Call#call.cook, stop_ringing),
@@ -1030,10 +1030,10 @@ handle_info({'DOWN', Ref, process, Pid, Info}, #state{monitors = Mons, callrec =
 	cdr:ringout(State#state.callrec, {agent_fsm_death, element(1, State#state.ring_pid)}),
 	Newmons = Mons#monitors{ring_pid = undefined},
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}};
-handle_info({'DOWN', Ref, process, Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.oncall_pid ->
+handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.oncall_pid ->
 	?WARNING("Oncall agent fsm ~p died due to ~p (I'm ~p)", [element(1, State#state.oncall_pid), Info, Call#call.id]),
 	Midstate = case State#state.ring_pid of
-		{Ragent, Rpid} ->
+		{_Ragent, _Rpid} ->
 			 % if this agent doesn't answer, the call is orphaned.  Just going to queue.
 			{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
 			agent_interact({stop_ring, oncall_fsm_death}, State#state{substate = Newsub});
@@ -1317,10 +1317,10 @@ priv_voicemail(#state{monitors = Mons} = State) ->
 		undefined ->
 			% meh
 			undefined;
-		{_, Qpid} ->
+		{Qnom, Qpid} ->
 			erlang:demonitor(Mons#monitors.queue_pid),
 			call_queue:remove(Qpid, self()),
-			Qpid
+			Qnom
 	end,
 	cdr:voicemail(State#state.callrec, Qref),
 	case State#state.ring_pid of
@@ -1348,7 +1348,7 @@ kill_outband_ring(State) ->
 			freeswitch_ring:hangup(Pid)
 	end.
 
-agent_interact({mediapush, Data}, #state{oncall_pid = {OcAgent, Ocpid}, callrec = Call} = State) when is_pid(Ocpid), Call#call.media_path =:= inband ->
+agent_interact({mediapush, Data}, #state{oncall_pid = {_OcAgent, Ocpid}, callrec = Call} = State) when is_pid(Ocpid), Call#call.media_path =:= inband ->
 	?DEBUG("Shoving ~p from ~p", [Data, Call#call.id]),
 	agent:media_push(Ocpid, Data),
 	State;
@@ -1369,10 +1369,10 @@ agent_interact({stop_ring, Reason}, #state{callrec = Call, ring_pid = Ragent, mo
 			% Nothin' doing.
 			?INFO("stop_ring for ~p when there's not much of a ring to handle", [Call#call.id]),
 			State;
-		{false, {_Nom, Apid}} ->
+		{false, {Nom, Apid}} ->
 			?INFO("stop_ring for ~p with an agent ringing but no timer", [Call#call.id]),
 			set_agent_state(Apid, [idle]),
-			cdr:ringout(State#state.callrec, {Reason, Apid}),
+			cdr:ringout(State#state.callrec, {Reason, Nom}),
 			erlang:demonitor(Mons#monitors.ring_pid),
 			Newmons = Mons#monitors{ring_pid = undefined},
 			State#state{ring_pid = undefined, monitors = Newmons};
@@ -1380,11 +1380,11 @@ agent_interact({stop_ring, Reason}, #state{callrec = Call, ring_pid = Ragent, mo
 			timer:cancel(Tref),
 			?WARNING("stop_ring for ~p with only a timer", [Call#call.id]),
 			State#state{ringout = false};
-		{Tref, {_Nom, Apid}} ->
+		{Tref, {Nom, Apid}} ->
 			?INFO("stop_ring for ~p with a timer and agent", [Call#call.id]),
 			timer:cancel(Tref),
 			set_agent_state(Apid, [idle]),
-			cdr:ringout(State#state.callrec, {Reason, Apid}),
+			cdr:ringout(State#state.callrec, {Reason, Nom}),
 			erlang:demonitor(Mons#monitors.ring_pid),
 			Newmons = Mons#monitors{ring_pid = undefined},
 			State#state{ring_pid = undefined, ringout = false, monitors = Newmons}
@@ -1394,15 +1394,15 @@ agent_interact({stop_ring, Reason}, #state{callrec = Call, ring_pid = Ragent, mo
 agent_interact(wrapup, #state{oncall_pid = {Agent, Apid}, callrec = Call, monitors = Mons} = State) ->
 	?INFO("Attempting to set agent at ~p to wrapup for ~p", [Apid, Call#call.id]),
 	set_agent_state(Apid, [wrapup, State#state.callrec]),
-	cdr:wrapup(State#state.callrec, Apid),
+	cdr:wrapup(State#state.callrec, Agent),
 	erlang:demonitor(Mons#monitors.oncall_pid),
 	Newmons = Mons#monitors{oncall_pid = undefined},
 	State#state{oncall_pid = undefined, monitors = Newmons};
-agent_interact(hangup, #state{oncall_pid = {Ocagent, Oncallpid}, ring_pid = {Ragent, Ringpid}, callrec = Call, monitors = Mons} = State) when is_pid(Oncallpid), is_pid(Ringpid) ->
+agent_interact(hangup, #state{oncall_pid = {Ocagent, Oncallpid}, ring_pid = {_Ragent, Ringpid}, callrec = Call, monitors = Mons} = State) when is_pid(Oncallpid), is_pid(Ringpid) ->
 	?INFO("hangup for ~p when both oncall and ring are pids", [Call#call.id]),
 	set_agent_state(Ringpid, [idle]),
 	set_agent_state(Oncallpid, [wrapup, State#state.callrec]),
-	cdr:wrapup(State#state.callrec, Oncallpid),
+	cdr:wrapup(State#state.callrec, Ocagent),
 	Callrec = State#state.callrec,
 	cdr:hangup(Callrec, string:join(tuple_to_list(Callrec#call.callerid), " ")),
 	kill_outband_ring(State),
@@ -1413,12 +1413,12 @@ agent_interact(hangup, #state{oncall_pid = {Ocagent, Oncallpid}, ring_pid = {Rag
 agent_interact(hangup, #state{oncall_pid = {Agent, Apid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
 	?INFO("hangup for ~p when only oncall is a pid", [Call#call.id]),
 	set_agent_state(Apid, [wrapup, State#state.callrec]),
-	cdr:wrapup(State#state.callrec, Apid),
+	cdr:wrapup(State#state.callrec, Agent),
 	Callrec = State#state.callrec,
 	cdr:hangup(Callrec, string:join(tuple_to_list(Callrec#call.callerid), " ")),
 	erlang:demonitor(Mons#monitors.oncall_pid),
 	State#state{oncall_pid = undefined, monitors = #monitors{}};
-agent_interact(hangup, #state{ring_pid = {Agent, Apid}, queue_pid = {Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid), is_pid(Qpid) ->
+agent_interact(hangup, #state{ring_pid = {_Agent, Apid}, queue_pid = {_Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid), is_pid(Qpid) ->
 	?INFO("hangup for ~p when both agent and queue are pid", [Call#call.id]),
 	set_agent_state(Apid, [idle]),
 	cdr:hangup(Call, string:join(tuple_to_list(Call#call.callerid), " ")),
@@ -1427,14 +1427,14 @@ agent_interact(hangup, #state{ring_pid = {Agent, Apid}, queue_pid = {Queue, Qpid
 	unqueue(Qpid, self()),
 	erlang:demonitor(Mons#monitors.queue_pid),
 	State#state{queue_pid = undefined, ring_pid = undefined, monitors = #monitors{}};
-agent_interact(hangup, #state{ring_pid = {Agent, Apid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
+agent_interact(hangup, #state{ring_pid = {_Agent, Apid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
 	?INFO("hangup for ~p when only ringing is a pid", [Call#call.id]),
 	set_agent_state(Apid, [idle]),
 	cdr:hangup(Call, string:join(tuple_to_list(Call#call.callerid), " ")),
 	kill_outband_ring(State),
 	erlang:demonitor(Mons#monitors.ring_pid),
 	State#state{ring_pid = undefined, outband_ring_pid = undefined, monitors = #monitors{}};
-agent_interact(hangup, #state{queue_pid = {Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Qpid) ->
+agent_interact(hangup, #state{queue_pid = {_Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Qpid) ->
 	?INFO("hang for ~p up when only queue is a pid", [Call#call.id]),
 	unqueue(Qpid, self()),
 	cdr:hangup(State#state.callrec, string:join(tuple_to_list(Call#call.callerid), " ")),
@@ -1561,7 +1561,7 @@ init_test_() ->
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 40, Inpid, Callrec}, _From, _State) -> ok end),
+			gen_server_mock:expect_call(Qpid, fun({add, 40, _Inpid, _Callrec}, _From, _State) -> ok end),
 			Res = init([dummy_media, Args]),
 			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = {"testqueue", Qpid}}}, Res),
 			Assertmocks()
@@ -1577,7 +1577,7 @@ init_test_() ->
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 40, Inpid, Callrec}, _From, _State) -> ok end),
+			gen_server_mock:expect_call(Qpid, fun({add, 40, _Inpid, _Callrec}, _From, _State) -> ok end),
 			Res = init([dummy_media, Args]),
 			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = {"default_queue", Qpid}}}, Res),
 			Assertmocks()
@@ -1587,7 +1587,6 @@ init_test_() ->
 handle_call_test_() ->
 	{foreach,
 	fun() ->
-		{ok, Seedstate} = init([dummy_media, [[{queues, none}], success]]),
 		{ok, QMmock} = gen_leader_mock:start(queue_manager),
 		{ok, Qpid} = gen_server_mock:new(),
 		{ok, Ammock} = gen_leader_mock:start(agent_manager),
@@ -1624,14 +1623,13 @@ handle_call_test_() ->
 		{"Spy is not the pid making the request",
 		fun() ->
 			{ok, Spy} = agent:start(#agent{login = "testagent", state = released, statedata = "default"}),
-			Pid = spawn(fun() -> ok end),
 			Seedstate = Makestate(),
 			State = Seedstate#state{oncall_pid = {"testagent", Spy}},
 			?assertMatch({reply, invalid, State}, handle_call({'$gen_media_spy', Spy}, {self(), "tag"}, State)),
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
+	fun({Makestate, _QMock, _Qpid, _Ammock, _Assertmocks}) ->
 		{"Can't spy on yourself", 
 		fun() ->
 			Seedstate = Makestate(),
@@ -1640,7 +1638,7 @@ handle_call_test_() ->
 			?assertMatch({reply, invalid, State}, handle_call({'$gen_media_spy', Spy}, {Spy, "tag"}, State))
 		end}
 	end,
-	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
+	fun({_Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
 		{"Spy valid, callback says no",
 		fun() ->
 			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
@@ -1652,7 +1650,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, _QMock, Qpid, _Ammock, Assertmocks}) ->
+	fun({Makestate, _QMock, _Qpid, _Ammock, Assertmocks}) ->
 		{"Spy valid, callback says ok",
 		fun() ->
 			Seedstate = Makestate(),
@@ -1663,17 +1661,13 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,	
-	fun({Makestate, _, _, Ammock, Assertmocks}) ->
+	fun({Makestate, _, _, _Ammock, Assertmocks}) ->
 		{"oncall_pid requests wrapup",
 		fun() ->
 			Seedstate = Makestate(),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
-			gen_leader_mock:expect_leader_call(Ammock, fun({get_login, Apid}, _From, State, _Elec) ->
-				Apid = Agent,
-				{ok, "testagent", State}
-			end),
-			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, "testagent"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, Callrer, _Time, agent}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrer, _Time, agent}, _State) -> ok end),
 			Monref = make_ref(),
 			Mons = #monitors{oncall_pid = Monref},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
@@ -1695,7 +1689,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"sending to queue requested by oncall pid, all works",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
@@ -1708,12 +1702,9 @@ handle_call_test_() ->
 				Rec = Callrec,
 				ok
 			end),
-			gen_event_mock:expect_event(cdr, fun({queue_transfer, Callrec, _Time, "testqueue"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({queue_transfer, _Callrec, _Time, "testqueue"}, _State) -> ok end),
 			gen_event_mock:expect_event(cdr, fun({inqueue, _Callrec, _Time, "testqueue"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, Agent}, _State) -> ok end),
-			gen_leader_mock:expect_leader_call(Ammock, fun({get_login, Agent}, _From, State, _Elec) ->
-				{ok, "testagent", State}
-			end),
+			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, _Agent}, _State) -> ok end),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
 			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, {Agent, "tag"}, State),
@@ -1725,30 +1716,27 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"oncall pid sends call to queue, but falls back to default queue",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
-			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
-				{ok, undefined, State}
+			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, MState, _Elec) ->
+				{ok, undefined, MState}
 			end),
-			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
-				{ok, Qpid, State}
+			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "default_queue"}, _From, MState, _Elec) ->
+				{ok, Qpid, MState}
 			end),
 			gen_server_mock:expect_call(Qpid, fun({add, 40, Mpid, Rec}, _From, _State) ->
 				Mpid = Callrec#call.source,
 				Rec = Callrec,
 				ok
 			end),
-			gen_event_mock:expect_event(cdr, fun({queue_transfer, Callrec, _Time, "default_queue"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({inqueue, Callrec, _Time, "default_queue"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, Agent}, _State) -> ok end),
-			gen_leader_mock:expect_leader_call(Ammock, fun({get_login, Agent}, _From, State, _Elec) ->
-				{ok, "testagent", State}
-			end),
+			gen_event_mock:expect_event(cdr, fun({queue_transfer, _Callrec, _Time, "default_queue"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({inqueue, _Callrec, _Time, "default_queue"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, _Agent}, _State) -> ok end),
 			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, {Agent, "tag"}, State),
 			Newmons = Newstate#state.monitors,
 			?assertEqual(undefined, Newstate#state.oncall_pid),
@@ -1758,15 +1746,15 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"oncall pid sends call to queue, but falls back to nowhere w/ fallback set to false",
 		fun() ->
-			#state{callrec = Callrec} = Seedstate = Makestate(),
+			Seedstate = Makestate(),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, queue_failover = false, monitors = Mons},
-			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
-				{ok, undefined, State}
+			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, MState, _Elec) ->
+				{ok, undefined, MState}
 			end),
 			Out = handle_call({'$gen_media_queue', "testqueue"}, {Agent, "tag"}, State),
 			?assertMatch({reply, invalid, _State}, Out),
@@ -1775,7 +1763,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"sent to queue by something else, and alls well.",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
@@ -1785,15 +1773,12 @@ handle_call_test_() ->
 				Rec = Callrec,
 				ok
 			end),
-			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
+			gen_leader_mock:expect_leader_call(queue_manager, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_leader_mock:expect_leader_call(Ammock, fun({get_login, Agent}, _From, State, _Elec) ->
-				{ok, "testagent", State}
-			end),
-			gen_event_mock:expect_event(cdr, fun({queue_transfer, Callrec, _Time, "testqueue"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({inqueue, Callrec, _Time, "testqueue"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, Agent}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({queue_transfer, _Callrec, _Time, "testqueue"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({inqueue, _Callrec, _Time, "testqueue"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, _Agent}, _State) -> ok end),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
 			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, "from", State),
@@ -1821,12 +1806,9 @@ handle_call_test_() ->
 			gen_leader_mock:expect_leader_call(QMmock, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_event_mock:expect_event(cdr, fun({queue_transfer, Callrec, _Time, "default_queue"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({inqueue, Callrec, _Time, "default_queue"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, Agent}, _State) -> ok end),
-			gen_leader_mock:expect_leader_call(Ammock, fun({get_login, Agent}, _From, State, _Elec) ->
-				{ok, "testagent", State}
-			end),
+			gen_event_mock:expect_event(cdr, fun({queue_transfer, _Callrec, _Time, "default_queue"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({inqueue, _Callrec, _Time, "default_queue"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, _Agent}, _State) -> ok end),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
 			{reply, ok, Newstate} = handle_call({'$gen_media_queue', "testqueue"}, "from", State),
@@ -1838,16 +1820,12 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"gen_media_ring setting agent successful, as is the callback module.",
 		fun() ->
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = idle, statedata = {}}),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_, _, State, _) ->
-				%% cdr sends a call here.
-				{ok, "testagent", State}
-			end),
 			#state{callrec = Callrec} = Seedstate = Makestate(),
-			gen_event_mock:expect_event(cdr, fun({ringing, Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({ringing, _Callrec, _Time, "testagent"}, _State) -> ok end),
 			#queued_call{cook = Cook} = Qcall = #queued_call{media = Callrec#call.source, id = "testcall"},
 			{reply, ok, Newstate} = handle_call({'$gen_media_ring', {"testagent", Agent}, Qcall, 100}, {Cook, "tag"}, Seedstate),
 			receive
@@ -1863,7 +1841,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"gen_media_ring setting the agent fails.",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
@@ -1882,7 +1860,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({_Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"gen_media_ring callback module fails",
 		fun() ->
 			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
@@ -1903,7 +1881,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"can't transfer to yourself, silly!",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
@@ -1914,7 +1892,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"agent transfer, target agent can't change state",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
@@ -1926,23 +1904,20 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"agent transfer, all is well",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			%% cdr makes 2 call outs to this, but that will be tested in cdr
-			gen_leader_mock:expect_leader_call(Ammock, fun(_, _, S, _) -> {ok, "testagent", S} end),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_, _, S, _) -> {ok, "targetagent", S} end),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_, _, S, _) -> {ok, "targetagent", S} end),
-			gen_event_mock:expect_event(cdr, fun({agent_transfer, Callrec, _Time, {"testagent", "targetagent"}}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({ringing, Callrec, _Time, "targetagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({agent_transfer, _Callrec, _Time, {"testagent", "targetagent"}}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({ringing, _Callrec, _Time, "targetagent"}, _State) -> ok end),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Callrec}),
 			{ok, Target} = agent:start(#agent{login = "targetagent", state = idle, statedata = {}}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},
 			{reply, ok, Newstate} = handle_call({'$gen_media_agent_transfer', {"targetagent", Target}, 100}, "from", State),
 			receive
-				{'$gen_media_stop_ring', Cook} ->
+				{'$gen_media_stop_ring', _Cook} ->
 					ok
 			after 150 ->
 				erlang:error(timer_nolives)
@@ -1957,7 +1932,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({_Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"agent transfer, callback says no",
 		fun() ->
 			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
@@ -1979,7 +1954,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({_Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"gen_media_announce",
 		fun() ->
 			{ok, #state{callrec = Call} = Seedstate} = init([dummy_media, [[{queues, none}], success]]),
@@ -1991,21 +1966,17 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"gen_media_voicemail works",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			Mons = #monitors{queue_pid = make_ref()},
-			State = Seedstate#state{queue_pid = {"testqueue", Qpid}, monitors = Mons},
-			% this expect is because the cdr is going to want it.
-			gen_leader_mock:expect_leader_call(QMmock, fun(queues_as_list, _From, State, _Elec) ->
-				{ok, [{"default_queue", Qpid}], State}
-			end),
+			State = Seedstate#state{queue_pid = {"default_queue", Qpid}, monitors = Mons},
 			gen_server_mock:expect_call(Qpid, fun({remove, Inpid}, _From, _State) ->
 				Inpid = Callrec#call.source,
 				ok
 			end),
-			gen_event_mock:expect_event(cdr, fun({voicemail, Callrec, _Time, "default_queue"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({voicemail, _Callrec, _Time, "default_queue"}, _State) -> ok end),
 			Out = handle_call('$gen_media_voicemail', "from", State),
 			?assertMatch({reply, ok, _State}, Out),
 			#state{monitors = Newmons} = element(3, Out),
@@ -2013,21 +1984,18 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"gen_media_voicemail while an agent's ringing",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Callrec}),
 			Mons = #monitors{queue_pid = make_ref(), ring_pid = make_ref()},
 			State = Seedstate#state{queue_pid = {"default_queue", Qpid}, ring_pid = {"testagent", Agent}, monitors = Mons},
-			gen_leader_mock:expect_leader_call(QMmock, fun(queues_as_list, _From, State, _Elec) ->
-				{ok, [{"default_queue", Qpid}], State}
-			end),
 			gen_server_mock:expect_call(Qpid, fun({remove, Inpid}, _From, _State) ->
 				Inpid = Callrec#call.source,
 				ok
 			end),
-			gen_event_mock:expect_event(cdr, fun({voicemail, Callrec, _Time, "default_queue"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({voicemail, _Callrec, _Time, "default_queue"}, _State) -> ok end),
 			{reply, ok, NewState} = handle_call('$gen_media_voicemail', "from", State),
 			Newmons = NewState#state.monitors,
 			?assertEqual(undefined, NewState#state.ring_pid),
@@ -2037,7 +2005,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({_Makestate, _QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"gen_media_voicemail callback says no",
 		fun() ->
 			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
@@ -2047,7 +2015,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"Agent can't request oncall if ring_path is outband",
 		fun() ->
 			#state{callrec = Seedcall} = Seedstate = Makestate(),
@@ -2058,17 +2026,14 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"agent oncall request when both a ring pid and oncall pid are set and media path is inband",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			{ok, Oncall} = agent:start(#agent{login = "oncall", state = oncall, statedata = Callrec}),
 			{ok, Ring} = agent:start(#agent{login = "ringing", state = oncall, statedata = Callrec}),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_Msg, _From, State, _Elec) -> {ok, "ringing", State} end),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_Msg, _From, State, _Elec) -> {ok, "oncall", State} end),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_Msg, _From, _State, _Elec) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({oncall, Callrec, _Time, "ringing"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, "oncall"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "ringing"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "oncall"}, _State) -> ok end),
 			{ok, Tref} = timer:send_after(100, timer_lives),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = Seedstate#state{oncall_pid = {"oncall", Oncall}, ring_pid = {"ringing", Ring}, ringout = Tref, monitors = Mons},
@@ -2089,7 +2054,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({_Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"agent oncall request when both a ring pid and oncall pid are set and media path is inband, but callback says no",
 		fun() ->
 			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
@@ -2111,7 +2076,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"oncall during transfer with outband media",
 		fun() ->
 			#state{callrec = Seedcall} = Seedstate = Makestate(),
@@ -2119,11 +2084,8 @@ handle_call_test_() ->
 			gen_event_mock:supplant(cdr, {{cdr, Callrec#call.id}, []}),
 			{ok, Oncall} = agent:start(#agent{login = "oncall", state = oncall, statedata = Callrec}),
 			{ok, Ring} = agent:start(#agent{login = "ring", state = ringing, statedata = Callrec}),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_Msg, _From, State, _Elec) -> {ok, "ring", State} end),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_Msg, _From, State, _Elec) -> {ok, "oncall", State} end),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_Msg, _From, _State, _Elec) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({oncall, Callrec, _Time, "ring"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, "oncall"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "ring"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "oncall"}, _State) -> ok end),
 			{ok, Tref} = timer:send_after(100, timer_lives),
 			Mons = #monitors{
 				oncall_pid = make_ref(),
@@ -2148,7 +2110,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({_Makestate, _QMmock, _Qpid, _Ammock, Assertmocks}) ->
 		{"oncall during transfer with outband media, but callback says no",
 		fun() ->
 			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
@@ -2177,18 +2139,16 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"oncall queue to agent requested by agent with inband media",
 		fun() ->
 			#state{callrec = Callrec} = Seedstate = Makestate(),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Callrec}),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_Msg, _From, State, _Elec) -> {ok, "testagent", State} end),
-			%gen_leader_mock:expect_leader_call(Ammock, fun(_Msg, _From, _State, _Elec) -> ok end),
 			gen_server_mock:expect_call(Qpid, fun({remove, Inpid}, _From, _State) ->
 				Inpid = Callrec#call.source,
 				ok
 			end),
-			gen_event_mock:expect_event(cdr, fun({oncall, Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "testagent"}, _State) -> ok end),
 			{ok, Tref} = timer:send_after(100, timer_lives),
 			Mons = #monitors{ring_pid = make_ref(), queue_pid = make_ref()},
 			State = Seedstate#state{queue_pid = {"default_queue", Qpid}, ring_pid = {"testagent", Agent}, ringout = Tref, monitors = Mons},
@@ -2210,7 +2170,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({_Makestate, _QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"oncall quee to agent request by agent, but callback says no",
 		fun() ->
 			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
@@ -2234,7 +2194,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"oncall queue to agent requst by whoever with outband media",
 		fun() ->
 			#state{callrec = Seedcall} = Seedstate = Makestate(),
@@ -2244,9 +2204,7 @@ handle_call_test_() ->
 				Inpid = Callrec#call.source,
 				ok
 			end),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_, _, State, _) -> {ok, "testagent", State} end),
-			%gen_leader_mock:expect_leader_call(Ammock, fun(_, _, _, _) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({oncall, Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "testagent"}, _State) -> ok end),
 			{ok, Tref} = timer:send_after(100, timer_lives),
 			Mons = #monitors{ring_pid = make_ref(), queue_pid = make_ref()},
 			State = Seedstate#state{callrec = Callrec, ring_pid = {"testagent", Agent}, queue_pid = {"default_queue", Qpid}, ringout = Tref, monitors = Mons},
@@ -2268,7 +2226,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({_Makestate, _QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"oncall queue to agent request by whoever with outband media, but callback says no",
 		fun() ->
 			{ok, Seedstate} = init([dummy_media, [[{queues, none}], failure]]),
@@ -2296,7 +2254,7 @@ handle_call_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({Makestate, _QMmock, _Qpid, _Ammock, _Assertmocks}) ->
 		{"late oncall request (ring_pid is undefined)",
 		fun() ->
 			Seedstate = Makestate(),
@@ -2304,7 +2262,7 @@ handle_call_test_() ->
 			?assertMatch({reply, invalid, State}, handle_call('$gen_media_agent_oncall', "from", State))
 		end}
 	end,
-	fun({Makestate, QMmock, Qpid, Ammock, Assertmocks}) ->
+	fun({_Makestate, _QMmock, Qpid, _Ammock, Assertmocks}) ->
 		{"oncall request to agent that is no longer running",
 		fun() ->
 			{ok, Seedstate} = init([dummy_media, [[{queues, none}], success]]),
@@ -2315,8 +2273,7 @@ handle_call_test_() ->
 			{ok, Tref} = timer:send_after(100, timer_lives),
 			Mon = #monitors{ring_pid = make_ref()},
 			State = Seedstate#state{callrec = Callrec, ring_pid = {"deadagent", Agent}, ringout = Tref, queue_pid = {"default_queue", Qpid}, monitors = Mon},
-			gen_event_mock:expect_event(cdr, fun({ringout, Callrec, _Time, _Data}, _) -> ok end),
-			gen_leader_mock:expect_leader_call(Ammock, fun(_, _, S, _) -> {ok, notfound, S} end),
+			gen_event_mock:expect_event(cdr, fun({ringout, _Callrec, _Time, _Data}, _) -> ok end),
 			Out = handle_call('$gen_media_agent_oncall', "from", State),
 			?assertMatch({reply, invalid, _}, Out),
 			{reply, invalid, Newstate} = Out,
@@ -2438,7 +2395,150 @@ handle_info_test_() ->
 			?assertEqual(undefined, Newmons#monitors.ring_pid),
 			gen_leader_mock:stop(Am)
 		end}
+	end,
+	fun({Seedstate}) ->
+		{"queue pid goes down",
+		fun() ->
+			Qpid = dead_spawn(),
+			Qref = make_ref(),
+			Mons = #monitors{queue_pid = Qref},
+			State = Seedstate#state{monitors = Mons, queue_pid = {"testqueue", Qpid}},
+			{noreply, Newstate} = handle_info({'DOWN', Qref, process, Qpid, testdeath}, State),
+			?assertEqual(#monitors{}, Newstate#state.monitors),
+			?assertEqual(undefined, Newstate#state.queue_pid)
+		end}
+	end,
+	fun({#state{callrec = Oldcall} = Seedstate}) ->
+		{"Cook pid goes down with no agent ringing",
+		fun() ->
+			Qpid = dead_spawn(),
+			Cook = dead_spawn(),
+			Qref = make_ref(),
+			CookRef = make_ref(),
+			Mons = #monitors{queue_pid = Qref, cook = CookRef},
+			State = Seedstate#state{queue_pid = {"testqueue", Qpid}, callrec = Oldcall#call{cook = Cook}, monitors = Mons},
+			{noreply, Newstate} = handle_info({'DOWN', CookRef, process, Cook, testdeath}, State),
+			?assertEqual(#monitors{cook = undefined, queue_pid = Qref}, Newstate#state.monitors),
+			?assertEqual({"testqueue", Qpid}, Newstate#state.queue_pid)
+		end}
+	end,
+	fun({#state{callrec = Oldcall} = Seedstate}) ->
+		{"Cook pid goes down with an agent ringing",
+		fun() ->
+			Qpid = dead_spawn(),
+			Cook = dead_spawn(),
+			{ok, Agent} = agent:start(#agent{login = "testagent", state = ringing, statedata = Seedstate#state.callrec}),
+			Qref = make_ref(),
+			CookRef = make_ref(),
+			Aref = make_ref(),
+			Mons = #monitors{queue_pid = Qref, cook = CookRef, ring_pid = Aref},
+			State = Seedstate#state{queue_pid = {"testqueue", Qpid}, ring_pid = {"testagent", Agent}, callrec = Oldcall#call{cook = Cook}, monitors = Mons},
+			{noreply, Newstate} = handle_info({'DOWN', CookRef, process, Cook, testdeath}, State),
+			?assertEqual(#monitors{queue_pid = Qref}, Newstate#state.monitors),
+			?assertEqual({"testqueue", Qpid}, Newstate#state.queue_pid),
+			?assertEqual(undefined, Newstate#state.ring_pid)
+		end}
+	end,
+	fun({#state{callrec = Oldcall} = Seedstate}) ->
+		{"ringing agent dies",
+		fun() ->
+			{ok, Cook} = gen_server_mock:new(),
+			gen_server_mock:expect_cast(Cook, fun(stop_ringing, _State) -> ok end),
+			Agent = dead_spawn(),
+			AgentRef = make_ref(),
+			Qref = make_ref(),
+			Cookref = make_ref(),
+			Mons = #monitors{queue_pid = Qref, cook = Cookref, ring_pid = AgentRef},
+			Call = Oldcall#call{cook = Cook},
+			State = Seedstate#state{monitors = Mons, queue_pid = {"testqueue", dead_spawn()}, ring_pid = {"testagent", Agent}, callrec = Call},
+			{noreply, Newstate} = handle_info({'DOWN', AgentRef, process, Agent, testdeath}, State),
+			gen_server_mock:assert_expectations(Cook),
+			?assertEqual(#monitors{queue_pid = Qref, cook = Cookref}, Newstate#state.monitors),
+			?assertEqual(undefined, Newstate#state.ring_pid)
+		end}
+	end,
+	fun({Seedstate}) ->
+		{"oncall agent dies with no ringing agent",
+		fun() ->
+			OncallRef = make_ref(),
+			Agent = dead_spawn(),
+			Mons = #monitors{
+				oncall_pid = OncallRef
+			},
+			{ok, Newqueue} = gen_server_mock:new(),
+			gen_server_mock:expect_call(Newqueue, fun(_Msg, _From, _State) ->
+				ok
+			end),
+			{ok, Mock} = gen_leader_mock:start(queue_manager),
+			gen_leader_mock:expect_leader_call(Mock, fun(_Msg, _From, State, _Elec) ->
+				{ok, Newqueue, State}
+			end),
+			State = Seedstate#state{monitors = Mons, oncall_pid = {"testagent", Agent}},
+			{noreply, #state{monitors = Newmons} = Newstate} = handle_info({'DOWN', OncallRef, process, Agent, testdeath}, State),
+			?assertMatch({"default_queue", _}, Newstate#state.queue_pid),
+			?assertEqual(undefined, Newmons#monitors.oncall_pid),
+			?assertNot(undefined =:= Newmons#monitors.queue_pid),
+			?assertEqual(undefined, Newstate#state.oncall_pid),
+			gen_leader_mock:stop(Mock)
+		end}
 	end]}.
+	
+	
+	
+	
+	
+	
+	
+%handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.oncall_pid ->
+%	?WARNING("Oncall agent fsm ~p died due to ~p (I'm ~p)", [element(1, State#state.oncall_pid), Info, Call#call.id]),
+%	Midstate = case State#state.ring_pid of
+%		{_Ragent, _Rpid} ->
+%			 % if this agent doesn't answer, the call is orphaned.  Just going to queue.
+%			{ok, Newsub} = Callback:handle_ring_stop(State#state.callrec, State#state.substate),
+%			agent_interact({stop_ring, oncall_fsm_death}, State#state{substate = Newsub});
+%		_ ->
+%			% noop
+%			State
+%	end,
+%	%% TODO add the {'_agent', Ragent} skill to the call?
+%	Newpriority = if 
+%		Call#call.priority < 5 ->
+%			 0; 
+%		 true -> 
+%			 Call#call.priority - 5
+%	end,
+%	Bumpedcall = Call#call{priority = Newpriority},
+%	% yes I want this to die horribly if we can't requeue
+%	{reply, ok, Newstate} = handle_call({'$gen_media_queue', "default_queue"}, {self(), make_ref()}, Midstate#state{callrec = Bumpedcall}),
+%	cdr:endwrapup(State#state.callrec, element(1, State#state.oncall_pid)),
+%	{noreply, Newstate};
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	
 agent_interact_test_() ->
 	{foreach,
@@ -2488,7 +2588,7 @@ agent_interact_test_() ->
 			{ok, Tref} = timer:send_interval(1000, <<"timer">>),
 			Mons = #monitors{ring_pid = make_ref()},
 			State = #state{ring_pid = {"testagent", Apid}, ringout = Tref, callrec = Callrec, monitors = Mons},
-			gen_event_mock:expect_event(cdr, fun({ringout, Callrec, _Time, {undefined, "testagent"}}, _State) ->
+			gen_event_mock:expect_event(cdr, fun({ringout, _Callrec, _Time, {undefined, "testagent"}}, _State) ->
 				ok
 			end),
 			Res = agent_interact(stop_ring, State),
@@ -2506,7 +2606,7 @@ agent_interact_test_() ->
 			gen_event_mock:assert_expectations(cdr)
 		end}
 	end,
-	fun({Arec, Callrec}) ->
+	fun({_Arec, Callrec}) ->
 		{"stop_ring with no ringout or ring_pid defined",
 		fun() ->
 			State = #state{ring_pid = undefined, ringout = false, callrec = Callrec},
@@ -2521,7 +2621,7 @@ agent_interact_test_() ->
 			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
 			Mons = #monitors{ring_pid = make_ref()},
 			State = #state{ring_pid = {"testagent", Apid}, ringout = false, callrec = Callrec, monitors = Mons},
-			gen_event_mock:expect_event(cdr, fun({ringout, Callrec, _Time, {undefined, "testagent"}}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({ringout, _Callrec, _Time, {undefined, "testagent"}}, _State) -> ok end),
 			Res = agent_interact(stop_ring, State),
 			agent:stop(Apid),
 			?assertEqual(undefined, Res#state.ring_pid),
@@ -2530,7 +2630,7 @@ agent_interact_test_() ->
 			gen_event_mock:assert_expectations(cdr)
 		end}
 	end,
-	fun({Arec, Callrec}) ->
+	fun({_Arec, Callrec}) ->
 		{"stop_ring with only ringout defined",
 		fun() ->
 			{ok, Tref} = timer:send_interval(1000, <<"timer">>),
@@ -2552,7 +2652,7 @@ agent_interact_test_() ->
 			{ok, Apid} = agent:start(Arec#agent{state = oncall, statedata = Callrec}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = #state{oncall_pid = {"testagent", Apid}, callrec = Callrec, monitors = Mons},
-			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "testagent"}, _State) -> ok end),
 			Res = agent_interact(wrapup, State),
 			agent:stop(Apid),
 			?assertEqual(undefined, Res#state.oncall_pid),
@@ -2568,8 +2668,8 @@ agent_interact_test_() ->
 			{ok, Ringing} = agent:start(Arec#agent{state = ringing, statedata = Callrec, login = "ringing"}),
 			Mons = #monitors{ring_pid = make_ref(), oncall_pid = make_ref()},
 			State = #state{oncall_pid = {"testagent", Oncall}, ring_pid = {"ring", Ringing}, callrec = Callrec, monitors = Mons},
-			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, "testagent"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
 			Res = agent_interact(hangup, State),
 			agent:stop(Oncall),
 			agent:stop(Ringing),
@@ -2587,8 +2687,8 @@ agent_interact_test_() ->
 			{ok, Apid} = agent:start(Arec#agent{state = oncall, statedata = Callrec}),
 			Mons = #monitors{oncall_pid = make_ref()},
 			State = #state{oncall_pid = {"testagent", Apid}, callrec = Callrec, monitors = Mons},
-			gen_event_mock:expect_event(cdr, fun({wrapup, Callrec, _Time, "testagent"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
 			Res = agent_interact(hangup, State),
 			agent:stop(Apid),
 			?assertEqual(undefined, Res#state.oncall_pid),
@@ -2602,7 +2702,7 @@ agent_interact_test_() ->
 		fun() ->
 			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
 			Mons = #monitors{ring_pid = make_ref()},
-			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
 			State = #state{ring_pid = {"testagent", Apid}, callrec = Callrec, monitors = Mons},
 			Res = agent_interact(hangup, State),
 			agent:stop(Apid),
@@ -2612,12 +2712,12 @@ agent_interact_test_() ->
 			gen_event_mock:assert_expectations(cdr)
 		end}
 	end,
-	fun({Arec, Callrec}) ->
+	fun({_Arec, Callrec}) ->
 		{"hang up when only queue is a pid",
 		fun() ->
 			{ok, Qpid} = gen_server_mock:new(),
-			gen_server_mock:expect_call(Qpid, fun({remove, Incpid}, _From, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
+			gen_server_mock:expect_call(Qpid, fun({remove, _Incpid}, _From, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
 			Mons = #monitors{queue_pid = make_ref()},
 			State = #state{queue_pid = {"testqueue", Qpid}, callrec = Callrec, monitors = Mons},
 			#state{monitors = Newmons} = Res = agent_interact(hangup, State),
@@ -2633,8 +2733,8 @@ agent_interact_test_() ->
 		fun() ->
 			{ok, Qpid} = gen_server_mock:new(),
 			{ok, Apid} = agent:start(Arec#agent{state = ringing, statedata = Callrec}),
-			gen_server_mock:expect_call(Qpid, fun({remove, Incpid}, _From, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
+			gen_server_mock:expect_call(Qpid, fun({remove, _Incpid}, _From, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrec, _Time, "Unknown Unknown"}, _State) -> ok end),
 			Mons = #monitors{queue_pid = make_ref(), ring_pid = make_ref()},
 			State = #state{queue_pid = {"testqueue", Qpid}, ring_pid = {"testagent", Apid}, callrec = Callrec, monitors = Mons},
 			#state{monitors = Newmons} = Res = agent_interact(hangup, State),
@@ -2661,7 +2761,7 @@ agent_interact_test_() ->
 		fun() ->
 			Mon = #monitors{ring_pid = make_ref()},
 			State = #state{ring_pid = {"testagent", spawn(fun() -> ok end)}, callrec = Callrec, monitors = Mon},
-			gen_event_mock:expect_event(cdr, fun({ringout, Callrec, _Time, {undefined, "testagent"}}, _) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({ringout, _Callrec, _Time, {undefined, "testagent"}}, _) -> ok end),
 			Res = agent_interact(stop_ring, State),
 			?assertEqual(undefined, Res#state.ring_pid),
 			gen_event_mock:assert_expectations(cdr)
@@ -2689,7 +2789,7 @@ outgoing_test_() ->
 			gen_leader_mock:expect_leader_call(Ammock, fun({exists, "testagent"}, _From, State, _Elec) ->
 				{ok, {true, Apid}, State}
 			end),
-			gen_event_mock:expect_event(cdr, fun({oncall, Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "testagent"}, _State) -> ok end),
 			State = #state{callrec = #call{id = "testcall", source = self()}},
 			{ok, Res} = outgoing({outbound, "testagent", "newsubstate"}, State),
 			?assertEqual({"testagent", Apid}, Res#state.oncall_pid),
@@ -2719,7 +2819,7 @@ outgoing_test_() ->
 			gen_leader_mock:expect_leader_call(Ammock, fun({exists, "testagent"}, _From, State, _Elec) ->
 				{ok, {true, Apid}, State}
 			end),
-			gen_event_mock:expect_event(cdr, fun({oncall, Callrec, _Time, "testagent"}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({oncall, _Callrec, _Time, "testagent"}, _State) -> ok end),
 			Callrec = #call{id = "testcall", source = self()},
 			State = #state{},
 			{ok, Res} = outgoing({outbound, "testagent", Callrec, "newsubstate"}, State),
@@ -2730,7 +2830,7 @@ outgoing_test_() ->
 			gen_event_mock:assert_expectations(cdr)
 		end}
 	end,
-	fun({Apid, Ammock}) ->
+	fun({_Apid, Ammock}) ->
 		{"set agent outbound iwth a new call rec, but agent doesn't exist",
 		fun() ->
 			gen_leader_mock:expect_leader_call(Ammock, fun({exists, "testagent"}, _From, State, _Elec) ->
@@ -2772,7 +2872,7 @@ priv_queue_test_() ->
 			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "testqueue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 40, Inpid, Callrec}, _From, _State) -> ok end),
+			gen_server_mock:expect_call(Qpid, fun({add, 40, _Inpid, _Callrec}, _From, _State) -> ok end),
 			?assertEqual(Qpid, priv_queue("testqueue", Callrec, "doesn't matter")),
 			Mocks()
 		end}
@@ -2796,7 +2896,7 @@ priv_queue_test_() ->
 			gen_leader_mock:expect_leader_call(QMpid, fun({get_queue, "default_queue"}, _From, State, _Elec) ->
 				{ok, Qpid, State}
 			end),
-			gen_server_mock:expect_call(Qpid, fun({add, 40, Inpid, Callrec}, _From, _State) -> ok end),
+			gen_server_mock:expect_call(Qpid, fun({add, 40, _Inpid, _Callrec}, _From, _State) -> ok end),
 			?assertEqual({default, Qpid}, priv_queue("testqueue", Callrec, true)),
 			Mocks()
 		end}

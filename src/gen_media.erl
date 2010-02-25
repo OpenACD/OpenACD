@@ -1126,7 +1126,7 @@ handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid
 			?DEBUG("hanging up orphaned call ~p", [Call#call.id]),
 			cdr:hangup(State#state.callrec, Who),
 			set_cpx_mon(State, delete);
-		{Queuenom, _, _} when is_list(Queuenom) ->
+		{Queuenom, undefined, undefined} when is_list(Queuenom) ->
 			%cdr:hangup(State#state.callrec, Who),
 			?DEBUG("Once queued, assuming somethign else handles hangup.  ~p", [Call#call.id]),
 			set_cpx_mon(State, delete);

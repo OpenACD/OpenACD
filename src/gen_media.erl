@@ -1041,14 +1041,7 @@ handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec 
 			% noop
 			State
 	end,
-	%% TODO add the {'_agent', Ragent} skill to the call?
-	Newpriority = if 
-		Call#call.priority < 5 ->
-			 0; 
-		 true -> 
-			 Call#call.priority - 5
-	end,
-	Bumpedcall = Call#call{priority = Newpriority},
+	Bumpedcall = reprioritize_for_requeue(Call),
 	% yes I want this to die horribly if we can't requeue
 	{reply, ok, Newstate} = handle_call({'$gen_media_queue', "default_queue"}, {self(), make_ref()}, Midstate#state{callrec = Bumpedcall}),
 	cdr:endwrapup(State#state.callrec, element(1, State#state.oncall_pid)),

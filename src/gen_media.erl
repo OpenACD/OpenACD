@@ -1114,7 +1114,7 @@ set_agent_state(Apid, Args) ->
 
 handle_stop(hangup, State) ->
 	handle_stop({hangup, undefined}, State);
-handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
+handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid, callrec = Call} = State) ->
 	{Who, Return} = case Reason of
 		{hangup, W} ->
 			{W, normal};
@@ -1123,12 +1123,15 @@ handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid
 	end,
 	case {Qpid, Ocpid, Rpid} of
 		{undefined, undefined, undefined} ->
+			?DEBUG("hanging up orphaned call ~p", [Call#call.id]),
 			cdr:hangup(State#state.callrec, Who),
 			set_cpx_mon(State, delete);
 		{Queuenom, _, _} when is_list(Queuenom) ->
 			%cdr:hangup(State#state.callrec, Who),
+			?DEBUG("Once queued, assuming somethign else handles hangup.  ~p", [Call#call.id]),
 			set_cpx_mon(State, delete);
 		_ ->
+			?DEBUG("Forwarding to agent_interact.  ~p", [Call#call.id]),
 			set_cpx_mon(State, delete),
 			agent_interact({hangup, Who}, State)
 	end,

@@ -1595,6 +1595,8 @@ init_test_() ->
 			gen_server_mock:expect_call(Qpid, fun({add, 40, _Inpid, _Callrec}, _From, _State) -> ok end),
 			Res = init([dummy_media, Args]),
 			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = {"testqueue", Qpid}}}, Res),
+			#state{monitors = Mons} = element(2, Res),
+			?assertNot(undefined =:= Mons#monitors.queue_pid),
 			Assertmocks()
 		end}
 	end,

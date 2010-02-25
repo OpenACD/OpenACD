@@ -478,14 +478,26 @@ handle_info({call, {event, [UUID | _Rest]}}, #call{id = UUID}, State) ->
 handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 	Event = proplists:get_value("Event-Name", Rest),
 	case Event of
-		"CHANNEL_HANGUP" ->
+		"CHANNEL_HANGUP_COMPLETE" ->
 			Elem1 = case proplists:get_value("variable_hangup_cause", Rest) of
 				"NO_ROUTE_DESTINATION" ->
 					?ERROR("No route to destination for outbound call ~p", [UUID]),
 					noreply;
 				"NORMAL_CLEARING" ->
-					?INFO("Normal clearing ~p", [UUID]),
-					wrapup;
+					?INFO("Normal clearing ~p", [UUID]),					
+					Cause = proplists:get_value("variable_hangup_cause", Rest),
+					Who = case proplists:get_value("variable_sip_hangup_disposition", Rest) of
+						"recv_bye" ->
+							?DEBUG("Caller hungup ~p, cause ~p", [UUID, Cause]),
+							"caller";
+						"send_bye" ->
+							?DEBUG("Agent hungup ~p, cause ~p", [UUID, Cause]),
+							"agent";
+						_ ->
+							?DEBUG("I don't know who hung up ~p, cause", [UUID, Cause]),
+							undefined
+					end,
+					{hangup, Who};
 				"USER_BUSY" ->
 					?WARNING("Agent's phone rejected call ~p", [UUID]),
 					noreply;
@@ -497,19 +509,19 @@ handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 					noreply
 			end,
 			{Elem1, State};
-		"CHANNEL_HANGUP_COMPLETE" ->
+		%"CHANNEL_HANGUP_COMPLETE" ->
 			% TODO - this is protocol specific and we only handle SIP right now
 			% TODO - this should go in the CDR
-			Cause = proplists:get_value("variable_hangup_cause", Rest),
-			case proplists:get_value("variable_sip_hangup_disposition", Rest) of
-				"recv_bye" ->
-					?DEBUG("Caller hungup ~p, cause ~p", [UUID, Cause]);
-				"send_bye" ->
-					?DEBUG("Agent hungup ~p, cause ~p", [UUID, Cause]);
-				_ ->
-					?DEBUG("I don't know who hung up ~p, cause", [UUID, Cause])
-				end,
-			{noreply, State};
+%			Cause = proplists:get_value("variable_hangup_cause", Rest),
+%			case proplists:get_value("variable_sip_hangup_disposition", Rest) of
+%				"recv_bye" ->
+%					?DEBUG("Caller hungup ~p, cause ~p", [UUID, Cause]);
+%				"send_bye" ->
+%					?DEBUG("Agent hungup ~p, cause ~p", [UUID, Cause]);
+%				_ ->
+%					?DEBUG("I don't know who hung up ~p, cause", [UUID, Cause])
+%				end,
+%			{noreply, State};
 		_Else ->
 			?DEBUG("call_event ~p for ~p", [Event, UUID]),
 			{noreply, State}

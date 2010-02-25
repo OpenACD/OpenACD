@@ -526,7 +526,8 @@ init([Callback, Args]) ->
 					set_cpx_mon(#state{callrec = Callrec}, [{queue, Queue}]),
 					{Queue, Else}
 			end,
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = {Qnom, Qpid}}};
+			Mons = #monitors{queue_pid = erlang:monitor(process, Qpid)},
+			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = {Qnom, Qpid}, monitors = Mons}};
 		{ok, {Substate, PCallrec, {CDRState, CDRArgs}}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),

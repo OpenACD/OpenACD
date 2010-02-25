@@ -473,7 +473,7 @@ find_first_arc(Base, Ext, Count) ->
 			find_first_arc(Base, Ext, Count + 1)
 	end.
 
--spec(floor/1 :: (X :: integer()) -> integer()).
+-spec(floor/1 :: (X :: integer() | float()) -> integer()).
 floor(X) ->
 	T = trunc(X),
 	if 

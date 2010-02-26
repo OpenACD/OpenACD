@@ -583,7 +583,7 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, onca
 			Newmons = Mons#monitors{oncall_pid = undefined},
 			{reply, ok, State#state{oncall_pid = undefined, substate = NewState, monitors = Newmons}};
 		{hangup, NewState} ->
-			cdr:hangup(State#state.callrec, agent),
+			cdr:hangup(State#state.callrec, "agent"),
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{oncall_pid = undefined},
 			{stop, normal, ok, State#state{oncall_pid = undefined, substate = NewState, monitors = Newmons}}
@@ -1128,7 +1128,7 @@ handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid
 			set_cpx_mon(State, delete);
 		{Queuenom, undefined, undefined} when is_list(Queuenom) ->
 			%cdr:hangup(State#state.callrec, Who),
-			?DEBUG("Once queued, assuming somethign else handles hangup.  ~p", [Call#call.id]),
+			?DEBUG("Once queued in ~p, assuming somethign else handles hangup.  ~p", [Queuenom, Call#call.id]),
 			set_cpx_mon(State, delete);
 		_ ->
 			?DEBUG("Forwarding to agent_interact.  ~p", [Call#call.id]),
@@ -1501,24 +1501,26 @@ agent_interact({hangup, _Who}, #state{queue_pid = undefined, oncall_pid = undefi
 	State.
 
 %% These should crash the media if the agent doesn't exist.
-outgoing({outbound, Agent, NewState}, #state{callrec = Call} = State) when is_record(State#state.callrec, call) ->
+outgoing({outbound, Agent, NewState}, #state{callrec = Call, monitors = Mons} = State) when is_record(State#state.callrec, call) ->
 	?INFO("Told to set ~s to outbound for ~p", [Agent, Call#call.id]),
 	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
 			agent:set_state(Apid, outgoing, State#state.callrec),
 			cdr:oncall(State#state.callrec, Agent),
-			{ok, State#state{oncall_pid = {Agent, Apid}, substate = NewState}};
+			NewMons = Mons#monitors{oncall_pid = erlang:monitor(process, Apid)},
+			{ok, State#state{oncall_pid = {Agent, Apid}, substate = NewState}, monitors = NewMons};
 		false ->
 			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
 			{{error, {noagent, Agent}}, State#state{substate = NewState}}
 	end;
-outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call) ->
+outgoing({outbound, Agent, Call, NewState}, #state{monitors = Mons} = State) when is_record(Call, call) ->
 	?INFO("Told to set ~s to outbound and call ~p", [Agent, Call#call.id]),
 	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
 			agent:set_state(Apid, outgoing, Call),
 			cdr:oncall(Call, Agent),
-			{ok, State#state{callrec = Call, substate = NewState, oncall_pid = {Agent, Apid}}};
+			NewMons = Mons#monitors{oncall_pid = erlang:monitor(process, Apid)},
+			{ok, State#state{callrec = Call, substate = NewState, oncall_pid = {Agent, Apid}, monitors = NewMons}};
 		false ->
 			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
 			{{error, {noagent, Agent}}, State#state{substate = NewState, callrec = Call}}

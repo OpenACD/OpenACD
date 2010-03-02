@@ -331,10 +331,10 @@
 	callback :: atom(),
 	substate :: any(),
 	callrec :: #call{},
-	ring_pid :: 'undefined' | pid(),
-	oncall_pid :: 'undefined' | pid(),
+	ring_pid :: 'undefined' | {string(), pid()},
+	oncall_pid :: 'undefined' | {string(), pid()},
 	queue_failover = true :: 'true' | 'false',
-	queue_pid :: 'undefined' | pid(),
+	queue_pid :: 'undefined' | string() | {string(), pid()},
 	ringout = false:: tref() | 'false',
 	outband_ring_pid :: 'undefined' | pid(),
 	warm_transfer = false :: boolean(),
@@ -526,7 +526,8 @@ init([Callback, Args]) ->
 					set_cpx_mon(#state{callrec = Callrec}, [{queue, Queue}]),
 					{Queue, Else}
 			end,
-			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = {Qnom, Qpid}}};
+			Mons = #monitors{queue_pid = erlang:monitor(process, Qpid)},
+			{ok, #state{callback = Callback, substate = Substate, callrec = Callrec#call{source = self()}, queue_pid = {Qnom, Qpid}, monitors = Mons}};
 		{ok, {Substate, PCallrec, {CDRState, CDRArgs}}} when is_record(PCallrec, call) ->
 			Callrec = correct_client(PCallrec),
 			cdr:cdrinit(Callrec),
@@ -582,7 +583,7 @@ handle_call('$gen_media_wrapup', {Ocpid, _Tag}, #state{callback = Callback, onca
 			Newmons = Mons#monitors{oncall_pid = undefined},
 			{reply, ok, State#state{oncall_pid = undefined, substate = NewState, monitors = Newmons}};
 		{hangup, NewState} ->
-			cdr:hangup(State#state.callrec, agent),
+			cdr:hangup(State#state.callrec, "agent"),
 			erlang:demonitor(Mons#monitors.oncall_pid),
 			Newmons = Mons#monitors{oncall_pid = undefined},
 			{stop, normal, ok, State#state{oncall_pid = undefined, substate = NewState, monitors = Newmons}}
@@ -790,7 +791,7 @@ handle_call({'$gen_media_announce', Annouce}, _From, #state{callback = Callback,
 handle_call('$gen_media_voicemail', _From, #state{queue_pid = undefined, callrec = Call} = State) ->
 	?ERROR("voicemail only valid when the media ~p is queued", [Call#call.id]),
 	{reply, invalid, State};
-handle_call('$gen_media_voicemail', _From, #state{callback = Callback, callrec = Call, queue_pid = {_Queue, Qpid}} = State) when is_pid(Qpid) ->
+handle_call('$gen_media_voicemail', _From, #state{callback = Callback, callrec = Call, queue_pid = {Queue, Qpid}} = State) when is_pid(Qpid) ->
 	?INFO("trying to send media ~p to voicemail", [Call#call.id]),
 	case erlang:function_exported(Callback, handle_voicemail, 3) of
 		false ->
@@ -799,7 +800,7 @@ handle_call('$gen_media_voicemail', _From, #state{callback = Callback, callrec =
 			case  Callback:handle_voicemail(State#state.ring_pid, Call, State#state.substate) of
 				{ok, Substate} ->
 					priv_voicemail(State),
-					{reply, ok, State#state{substate = Substate, queue_pid = undefined, ring_pid = undefined, monitors = #monitors{}}};
+					{reply, ok, State#state{substate = Substate, queue_pid = Queue, ring_pid = undefined, monitors = #monitors{}}};
 				{invalid, Substate} ->
 					{reply, invalid, State#state{substate = Substate}}
 			end
@@ -866,7 +867,7 @@ handle_call('$gen_media_agent_oncall', {Apid, _Tag}, #state{callback = Callback,
 			set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, ring_pid = undefined, oncall_pid = {Agent, Apid}}, [{agent, Agent}]),
 			erlang:demonitor(Mons#monitors.queue_pid),
 			Newsmons = #monitors{oncall_pid = Mons#monitors.ring_pid},
-			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, ring_pid = undefined, oncall_pid = {Agent, Apid}, outband_ring_pid = undefined, monitors = Newsmons}};
+			{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = element(1, State#state.queue_pid), ring_pid = undefined, oncall_pid = {Agent, Apid}, outband_ring_pid = undefined, monitors = Newsmons}};
 		{error, Reason, NewState} ->
 			?ERROR("Could not set ~p on call due to ~p for ~p", [Apid, Reason, Call#call.id]),
 			{reply, invalid, State#state{substate = NewState}}
@@ -888,7 +889,7 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = {Agent, Apid}, ca
 					set_cpx_mon(State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = {Agent, Apid}, ring_pid = undefined}, [{agent, Agent}]),
 					erlang:demonitor(Mons#monitors.queue_pid),
 					Newmons = #monitors{oncall_pid = Mons#monitors.ring_pid},
-					{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = undefined, oncall_pid = {Agent, Apid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons}};
+					{reply, ok, State#state{substate = NewState, ringout = false, queue_pid = element(1, State#state.queue_pid), oncall_pid = {Agent, Apid}, ring_pid = undefined, outband_ring_pid = undefined, monitors = Newmons}};
 				{error, Reason, NewState} ->
 					?ERROR("Could not set ~p on call with ~p due to ~p", [Apid, Call#call.id, Reason]),
 					{reply, invalid, State#state{substate = NewState}}
@@ -907,7 +908,6 @@ handle_call('$gen_media_agent_oncall', From, #state{ring_pid = {Agent, Apid}, ca
 	end;
 handle_call('$gen_media_agent_oncall', From, #state{oncall_pid = {_Ocagent, OcPid}, callrec = Call} = State) when is_pid(OcPid) ->
 	?INFO("oncall request from ~p for ~p when already oncall, ignoring", [From, Call#call.id]),
-	% TODO - is this a bad thing to do? Micah -- please review this clause.
 	{reply, ok, State};
 handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined, callrec = Call} = State) ->
 	?INFO("oncall request from ~p for ~p when no ring_pid (probobly a late request)", [From, Call#call.id]),
@@ -987,11 +987,11 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = {Agent, Apid}, cal
 	erlang:demonitor(Mons#monitors.ring_pid),
 	Newmons = Mons#monitors{ring_pid = undefined},
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}};
-handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = _Callback} = State) when Ref =:= Mons#monitors.queue_pid ->
+handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = _Callback, queue_pid = {Q, _Qp}} = State) when Ref =:= Mons#monitors.queue_pid ->
 	?WARNING("Queue ~p died due to ~p (I'm ~p)", [element(1, State#state.queue_pid), Info, Call#call.id]),
 	%% in theory, the cook will tell us when the queue is back up.
 	Newmons = Mons#monitors{queue_pid = undefined},
-	Newstate = State#state{monitors = Newmons, queue_pid = undefined},
+	Newstate = State#state{monitors = Newmons, queue_pid = {Q, undefined}},
 	{noreply, Newstate};
 handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = Callback} = State) when Ref =:= Mons#monitors.cook ->
 	?WARNING("Cook died due to ~p (I'm ~p)", [Info, Call#call.id]),
@@ -1044,7 +1044,13 @@ handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec 
 	end,
 	Bumpedcall = reprioritize_for_requeue(Call),
 	% yes I want this to die horribly if we can't requeue
-	{reply, ok, Newstate} = handle_call({'$gen_media_queue', "default_queue"}, {self(), make_ref()}, Midstate#state{callrec = Bumpedcall}),
+	Queunom = case State#state.queue_pid of
+		undefined ->
+			"default_queue";
+		_ ->
+			State#state.queue_pid
+	end,
+	{reply, ok, Newstate} = handle_call({'$gen_media_queue', Queunom}, {self(), make_ref()}, Midstate#state{callrec = Bumpedcall}),
 	cdr:endwrapup(State#state.callrec, element(1, State#state.oncall_pid)),
 	{noreply, Newstate};
 handle_info(Info, #state{callback = Callback} = State) ->
@@ -1108,7 +1114,7 @@ set_agent_state(Apid, Args) ->
 
 handle_stop(hangup, State) ->
 	handle_stop({hangup, undefined}, State);
-handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid} = State) ->
+handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid, callrec = Call} = State) ->
 	{Who, Return} = case Reason of
 		{hangup, W} ->
 			{W, normal};
@@ -1117,15 +1123,21 @@ handle_stop(Reason, #state{queue_pid = Qpid, oncall_pid = Ocpid, ring_pid = Rpid
 	end,
 	case {Qpid, Ocpid, Rpid} of
 		{undefined, undefined, undefined} ->
+			?DEBUG("hanging up orphaned call ~p", [Call#call.id]),
 			cdr:hangup(State#state.callrec, Who),
 			set_cpx_mon(State, delete);
+		{Queuenom, undefined, undefined} when is_list(Queuenom) ->
+			%cdr:hangup(State#state.callrec, Who),
+			?DEBUG("Once queued in ~p, assuming somethign else handles hangup.  ~p", [Queuenom, Call#call.id]),
+			set_cpx_mon(State, delete);
 		_ ->
+			?DEBUG("Forwarding to agent_interact.  ~p", [Call#call.id]),
 			set_cpx_mon(State, delete),
 			agent_interact({hangup, Who}, State)
 	end,
 	Return.
 
-handle_custom_return(Return, State, noreply) ->
+handle_custom_return(Return, #state{monitors = Mons} = State, noreply) ->
 	case Return of
 		{noreply, NewState} ->
 			{noreply, State#state{substate = NewState}};
@@ -1141,7 +1153,8 @@ handle_custom_return(Return, State, noreply) ->
 					cdr:cdrinit(Callrec),
 					cdr:inqueue(Callrec, "default_queue"),
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = Qpid}, [{queue, "default_queue"}]),
-					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}}};
+					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
+					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
 				invalid ->
 					?WARNING("Could not queue ~p into ~p (failover ~p)", [Callrec#call.id, Queue, State#state.queue_failover]),
 					{noreply, State#state{callrec = Callrec, substate = NewState}};
@@ -1149,11 +1162,12 @@ handle_custom_return(Return, State, noreply) ->
 					cdr:cdrinit(Callrec),
 					cdr:inqueue(Callrec, Queue),
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}}, [{queue, Queue}]),
-					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}}}
+					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
+					{noreply, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons}}
 			end;
-		{voicemail, NewState} when is_pid(State#state.queue_pid)  orelse State#state.oncall_pid == undefined ->
+		{voicemail, NewState} when is_tuple(State#state.queue_pid) orelse State#state.oncall_pid == undefined ->
 			priv_voicemail(State),
-			{noreply, State#state{substate = NewState, queue_pid = undefined, ring_pid = undefined}};
+			{noreply, State#state{substate = NewState, queue_pid = element(1, State#state.queue_pid), ring_pid = undefined}};
 		Tuple when element(1, Tuple) =:= outbound ->
 			{_Reply, NewState} = outgoing(Tuple, State),
 			{noreply, NewState};
@@ -1161,7 +1175,7 @@ handle_custom_return(Return, State, noreply) ->
 			Midstate = agent_interact(Interact, State),
 			{noreply, Midstate#state{substate = NewState}}
 	end;
-handle_custom_return(Return, State, reply) ->
+handle_custom_return(Return, #state{monitors = Mons} = State, reply) ->
 	case Return of
 		{reply, Reply, NewState} ->
 			{reply, Reply, State#state{substate = NewState}};
@@ -1187,16 +1201,24 @@ handle_custom_return(Return, State, reply) ->
 					cdr:cdrinit(Callrec),
 					cdr:inqueue(Callrec, "default_queue"),
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}}, [{queue, "default_queue"}]),
-					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}}};
+					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
+					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {"default_queue", Qpid}, monitors = Newmons}};
 				Qpid ->
 					cdr:cdrinit(Callrec),
 					cdr:inqueue(Callrec, Queue),
 					set_cpx_mon(State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}}, [{queue, Queue}]),
-					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}}}
+					Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
+					{reply, ok, State#state{callrec = Callrec, substate = NewState, queue_pid = {Queue, Qpid}, monitors = Newmons}}
 			end;
-		{voicemail, NewState} when State#state.queue_pid =/= undefined orelse State#state.oncall_pid == undefined ->
+		{voicemail, NewState} when is_tuple(State#state.queue_pid) orelse State#state.oncall_pid == undefined ->
 			priv_voicemail(State),
-			{reply, ok, State#state{substate = NewState, queue_pid = undefined, ring_pid = undefined}};
+			Newqnom = case State#state.queue_pid of
+				undefined ->
+					undefined;
+				{Nom, _} ->
+					Nom
+			end,
+			{reply, ok, State#state{substate = NewState, queue_pid = Newqnom, ring_pid = undefined}};
 		Tuple when element(1, Tuple) =:= outbound ->
 			{Reply, NewState} = outgoing(Tuple, State),
 			{reply, Reply, NewState};
@@ -1448,7 +1470,7 @@ agent_interact({hangup, Who}, #state{oncall_pid = {Agent, Apid}, callrec = Call,
 	cdr:hangup(Callrec, Who),
 	erlang:demonitor(Mons#monitors.oncall_pid),
 	State#state{oncall_pid = undefined, monitors = #monitors{}};
-agent_interact({hangup, Who}, #state{ring_pid = {_Agent, Apid}, queue_pid = {_Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid), is_pid(Qpid) ->
+agent_interact({hangup, Who}, #state{ring_pid = {_Agent, Apid}, queue_pid = {Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid), is_pid(Qpid) ->
 	?INFO("hangup for ~p when both agent and queue are pid", [Call#call.id]),
 	set_agent_state(Apid, [idle]),
 	cdr:hangup(Call, Who),
@@ -1456,7 +1478,7 @@ agent_interact({hangup, Who}, #state{ring_pid = {_Agent, Apid}, queue_pid = {_Qu
 	erlang:demonitor(Mons#monitors.ring_pid),
 	unqueue(Qpid, self()),
 	erlang:demonitor(Mons#monitors.queue_pid),
-	State#state{queue_pid = undefined, ring_pid = undefined, monitors = #monitors{}};
+	State#state{queue_pid = Queue, ring_pid = undefined, monitors = #monitors{}};
 agent_interact({hangup, Who}, #state{ring_pid = {_Agent, Apid}, callrec = Call, monitors = Mons} = State) when is_pid(Apid) ->
 	?INFO("hangup for ~p when only ringing is a pid", [Call#call.id]),
 	set_agent_state(Apid, [idle]),
@@ -1464,13 +1486,13 @@ agent_interact({hangup, Who}, #state{ring_pid = {_Agent, Apid}, callrec = Call, 
 	kill_outband_ring(State),
 	erlang:demonitor(Mons#monitors.ring_pid),
 	State#state{ring_pid = undefined, outband_ring_pid = undefined, monitors = #monitors{}};
-agent_interact({hangup, Who}, #state{queue_pid = {_Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Qpid) ->
+agent_interact({hangup, Who}, #state{queue_pid = {Queue, Qpid}, callrec = Call, monitors = Mons} = State) when is_pid(Qpid) ->
 	?INFO("hang for ~p up when only queue is a pid", [Call#call.id]),
 	unqueue(Qpid, self()),
 	cdr:hangup(State#state.callrec, Who),
 	erlang:demonitor(Mons#monitors.queue_pid),
-	State#state{queue_pid = undefined, monitors = #monitors{}};
-agent_interact({hangup, Who}, #state{callrec = Call, queue_pid = undefined, oncall_pid = undefined, ring_pid = undefined} = State) when is_record(Call, call) ->
+	State#state{queue_pid = Queue, monitors = #monitors{}};
+agent_interact({hangup, Who}, #state{callrec = Call, queue_pid = _Nottuple, oncall_pid = undefined, ring_pid = undefined} = State) when is_record(Call, call) ->
 	?INFO("orphaned call ~p, no queue or agents at all", [Call#call.id]),
 	cdr:hangup(State#state.callrec, Who),
 	State;
@@ -1479,24 +1501,26 @@ agent_interact({hangup, _Who}, #state{queue_pid = undefined, oncall_pid = undefi
 	State.
 
 %% These should crash the media if the agent doesn't exist.
-outgoing({outbound, Agent, NewState}, #state{callrec = Call} = State) when is_record(State#state.callrec, call) ->
+outgoing({outbound, Agent, NewState}, #state{callrec = Call, monitors = Mons} = State) when is_record(State#state.callrec, call) ->
 	?INFO("Told to set ~s to outbound for ~p", [Agent, Call#call.id]),
 	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
 			agent:set_state(Apid, outgoing, State#state.callrec),
 			cdr:oncall(State#state.callrec, Agent),
-			{ok, State#state{oncall_pid = {Agent, Apid}, substate = NewState}};
+			NewMons = Mons#monitors{oncall_pid = erlang:monitor(process, Apid)},
+			{ok, State#state{oncall_pid = {Agent, Apid}, substate = NewState}, monitors = NewMons};
 		false ->
 			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
 			{{error, {noagent, Agent}}, State#state{substate = NewState}}
 	end;
-outgoing({outbound, Agent, Call, NewState}, State) when is_record(Call, call) ->
+outgoing({outbound, Agent, Call, NewState}, #state{monitors = Mons} = State) when is_record(Call, call) ->
 	?INFO("Told to set ~s to outbound and call ~p", [Agent, Call#call.id]),
 	case agent_manager:query_agent(Agent) of
 		{true, Apid} ->
 			agent:set_state(Apid, outgoing, Call),
 			cdr:oncall(Call, Agent),
-			{ok, State#state{callrec = Call, substate = NewState, oncall_pid = {Agent, Apid}}};
+			NewMons = Mons#monitors{oncall_pid = erlang:monitor(process, Apid)},
+			{ok, State#state{callrec = Call, substate = NewState, oncall_pid = {Agent, Apid}, monitors = NewMons}};
 		false ->
 			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
 			{{error, {noagent, Agent}}, State#state{substate = NewState, callrec = Call}}
@@ -1594,6 +1618,8 @@ init_test_() ->
 			gen_server_mock:expect_call(Qpid, fun({add, 40, _Inpid, _Callrec}, _From, _State) -> ok end),
 			Res = init([dummy_media, Args]),
 			?assertMatch({ok, #state{callback = dummy_media, callrec = #call{id = "dummy"}, queue_pid = {"testqueue", Qpid}}}, Res),
+			#state{monitors = Mons} = element(2, Res),
+			?assertNot(undefined =:= Mons#monitors.queue_pid),
 			Assertmocks()
 		end}
 	end,
@@ -2192,7 +2218,7 @@ handle_call_test_() ->
 			?assertNot(Newstate#state.ringout),
 			?assertEqual({"testagent", Agent}, Newstate#state.oncall_pid),
 			?assertEqual(undefined, Newstate#state.ring_pid),
-			?assertEqual(undefined, Newstate#state.queue_pid),
+			?assertEqual("default_queue", Newstate#state.queue_pid),
 			Newmons = Newstate#state.monitors,
 			?assertEqual(undefined, Newmons#monitors.ring_pid),
 			?assertEqual(undefined, Newmons#monitors.queue_pid),
@@ -2247,7 +2273,7 @@ handle_call_test_() ->
 			end,
 			?assertNot(Newstate#state.ringout),
 			?assertEqual({"testagent", Agent}, Newstate#state.oncall_pid),
-			?assertEqual(undefined, Newstate#state.queue_pid),
+			?assertEqual("default_queue", Newstate#state.queue_pid),
 			?assertEqual(undefined, Newstate#state.ring_pid),
 			Newmons = Newstate#state.monitors,
 			?assertEqual(undefined, Newmons#monitors.queue_pid),
@@ -2435,7 +2461,7 @@ handle_info_test_() ->
 			State = Seedstate#state{monitors = Mons, queue_pid = {"testqueue", Qpid}},
 			{noreply, Newstate} = handle_info({'DOWN', Qref, process, Qpid, testdeath}, State),
 			?assertEqual(#monitors{}, Newstate#state.monitors),
-			?assertEqual(undefined, Newstate#state.queue_pid)
+			?assertEqual({"testqueue", undefined}, Newstate#state.queue_pid)
 		end}
 	end,
 	fun({#state{callrec = Oldcall} = Seedstate}) ->
@@ -2727,7 +2753,7 @@ agent_interact_test_() ->
 			Mons = #monitors{queue_pid = make_ref()},
 			State = #state{queue_pid = {"testqueue", Qpid}, callrec = Callrec, monitors = Mons},
 			#state{monitors = Newmons} = Res = agent_interact(hangup, State),
-			?assertEqual(undefined, Res#state.queue_pid),
+			?assertEqual("testqueue", Res#state.queue_pid),
 			?assertEqual(undefined, Newmons#monitors.queue_pid),
 			gen_server_mock:assert_expectations(Qpid),
 			gen_server_mock:stop(Qpid),
@@ -2745,7 +2771,7 @@ agent_interact_test_() ->
 			State = #state{queue_pid = {"testqueue", Qpid}, ring_pid = {"testagent", Apid}, callrec = Callrec, monitors = Mons},
 			#state{monitors = Newmons} = Res = agent_interact(hangup, State),
 			agent:stop(Apid),
-			?assertEqual(undefined, Res#state.queue_pid),
+			?assertEqual("testqueue", Res#state.queue_pid),
 			?assertEqual(undefined, Newmons#monitors.queue_pid),
 			?assertEqual(undefined, Res#state.ring_pid),
 			?assertEqual(undefined, Newmons#monitors.ring_pid),

@@ -123,7 +123,7 @@ start_agent(#agent{login = ALogin} = Agent) ->
 %% then the length of the list of skills the agent has;  this means idle time is less important.
 -spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [{string(), pid(), #agent{}}]).
 find_avail_agents_by_skill(Skills) -> 
-	?DEBUG("skills passed:  ~p.", [Skills]),
+	%?DEBUG("skills passed:  ~p.", [Skills]),
 	AvailSkilledAgents = [{K, V, AgState} || {K, {V, _}} <-
 		gen_leader:call(?MODULE, list_agents), % get all the agents
 		AgState <- [agent:dump_state(V)], % dump their state

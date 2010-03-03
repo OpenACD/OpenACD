@@ -1508,7 +1508,7 @@ outgoing({outbound, Agent, NewState}, #state{callrec = Call, monitors = Mons} = 
 			agent:set_state(Apid, outgoing, State#state.callrec),
 			cdr:oncall(State#state.callrec, Agent),
 			NewMons = Mons#monitors{oncall_pid = erlang:monitor(process, Apid)},
-			{ok, State#state{oncall_pid = {Agent, Apid}, substate = NewState}, monitors = NewMons};
+			{ok, State#state{oncall_pid = {Agent, Apid}, substate = NewState, monitors = NewMons}};
 		false ->
 			?ERROR("Agent ~s doesn't exists; can't set outgoing for ~p", [Agent, Call#call.id]),
 			{{error, {noagent, Agent}}, State#state{substate = NewState}}
@@ -1723,7 +1723,7 @@ handle_call_test_() ->
 			Seedstate = Makestate(),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = oncall, statedata = Seedstate#state.callrec}),
 			gen_event_mock:expect_event(cdr, fun({wrapup, _Callrec, _Time, "testagent"}, _State) -> ok end),
-			gen_event_mock:expect_event(cdr, fun({hangup, _Callrer, _Time, agent}, _State) -> ok end),
+			gen_event_mock:expect_event(cdr, fun({hangup, _Callrer, _Time, "agent"}, _State) -> ok end),
 			Monref = make_ref(),
 			Mons = #monitors{oncall_pid = Monref},
 			State = Seedstate#state{oncall_pid = {"testagent", Agent}, monitors = Mons},

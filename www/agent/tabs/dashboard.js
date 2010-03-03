@@ -4,7 +4,7 @@ if(typeof(queueDashboard) == "undefined"){
 	var head = dojo.query('head')[0];
 	head.appendChild(link);
 	link.rel = 'stylesheet';
-	link.href='/tabs/queue_dashboard.css';
+	link.href='/tabs/dashboard.css';
 	link.type = 'text/css';
 	
 	queueDashboard = function(){

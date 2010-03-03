@@ -1,16 +1,12 @@
-.queueDashboard td[purpose="name"] {
+.dashboard td[purpose="name"] {
 	cursor: pointer
 }
 
-table.queueDashboard {
+table.dashboard {
 	width:100%;
 }
 
-#queueDashboardTable td, #queueDashboardTable th {
+.dashboard td, .dashboard th {
 	border: black outset 2px;
 	text-align: center;
-}
-
-#queueDashboardTable table {
-	width:100%
 }

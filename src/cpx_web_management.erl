@@ -358,11 +358,13 @@ api({agents, "spiceintegration", "set"}, ?COOKIE, Post) ->
 %% =====
 api({agents, "profiles", "get"}, ?COOKIE, _Post) ->
 	Profiles = agent_auth:get_profiles(),
-	Foreachprofile = fun(#agent_profile{name = Pname, skills = Pskills}) ->
+	Foreachprofile = fun(#agent_profile{name = Pname, skills = Pskills} = P) ->
 		Agents = agent_auth:get_agents(Pname),
 		{struct, [
 			{<<"name">>, list_to_binary(Pname)}, 
 			{<<"type">>, <<"profile">>},
+			{<<"order">>, P#agent_profile.order},
+			{<<"id">>, list_to_binary(P#agent_profile.id)},
 			{<<"skills">>, encode_skills(Pskills)}, 
 			{<<"agents">>, encode_agents(Agents)}]}
 	end,
@@ -374,28 +376,37 @@ api({agents, "profiles", Profile, "getskills"}, ?COOKIE, _Post) ->
 	Encoded = encode_skills(Skillatoms),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"items">>, Encoded}]})};
 api({agents, "profiles", "new"}, ?COOKIE, Post) ->
-	Skillatoms = parse_posted_skills(proplists:get_all_values("skills", Post)),
-	agent_auth:new_profile(#agent_profile{name = proplists:get_value("name", Post), skills = Skillatoms}),
+	Prof = #agent_profile{
+		name = proplists:get_value("name", Post),
+		skills = parse_posted_skills(proplists:get_all_values("skills", Post)),
+		order = list_to_integer(proplists:get_value("order", Post, "10")),
+		id = proplists:get_value("id", Post, "")
+	},
+	agent_auth:new_profile(Prof),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, "profiles", "Default", "update"}, {_Reflist, _Salt, _Login}, Post) ->
 	Oldprof = agent_auth:get_profile("Default"),
 	case proplists:get_value("name", Post) of
 		undefined ->
-			Skillatoms = parse_posted_skills(proplists:get_all_values("skills", Post)),
-			agent_auth:set_profile("Default", Oldprof#agent_profile{skills = Skillatoms}),
+			Prof = #agent_profile{
+				name = "Default",
+				skills = parse_posted_skills(proplists:get_all_values("skills", Post)),
+				order = list_to_integer(proplists:get_value("order", Post, "10")),
+				id = proplists:get_value("id", Post, "")
+			},
+			agent_auth:set_profile("Default", Prof),
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be renamed">>}]})}
 	end;
 api({agents, "profiles", Profile, "update"}, ?COOKIE, Post) ->
-	Skillatoms = parse_posted_skills(proplists:get_all_values("skills", Post)),
-	Oldprof = case agent_auth:get_profile(Profile) of
-		undefined ->
-			#agent_profile{};
-		Else ->
-			Else
-	end,
-	agent_auth:set_profile(Profile, Oldprof#agent_profile{name = proplists:get_value("name", Post), skills = Skillatoms}),
+	New = #agent_profile{
+		name = proplists:get_value("name", Post),
+		skills = parse_posted_skills(proplists:get_all_values("skills", Post)),
+		order = list_to_integer(proplists:get_value("order", Post, "10")),
+		id = proplists:get_value("id", Post, "")
+	},
+	agent_auth:set_profile(Profile, New),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
 api({agents, "profiles", "Default", "delete"}, ?COOKIE, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be deleted">>}]})};
@@ -2079,8 +2090,8 @@ api_test_() ->
 			fun() ->
 				agent_auth:new_profile(#agent_profile{name = "someprofile", skills = ['_all', english]}),
 				agent_auth:add_agent("someagent", "", [], agent, "someprofile"),
-				{200, [], _Json} = api({agents, "profiles", "someprofile", "update"}, Cookie, [{"name", "newprofile"}, {"skills", "_all"}]),
-				?assertEqual(#agent_profile{name = "newprofile", skills = ['_all']}, agent_auth:get_profile("newprofile")),
+				{200, [], _Json} = api({agents, "profiles", "someprofile", "update"}, Cookie, [{"name", "newprofile"}, {"skills", "_all"}, {"order", "1"}]),
+				?assertEqual(#agent_profile{name = "newprofile", id = "", skills = ['_all']}, agent_auth:get_profile("newprofile")),
 				?assertEqual(undefined, agent_auth:get_profile("someprofile")),
 				{atomic, [Agent]} = agent_auth:get_agent("someagent"),
 				?assertEqual("newprofile", Agent#agent_auth.profile)

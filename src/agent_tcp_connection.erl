@@ -487,7 +487,7 @@ securitylevel_to_id(admin) ->
 	4.
 
 -ifdef(TEST_DEPRICATED).
-
+% these will likely fail, and fail hard.
 unauthenticated_agent_test_() ->
 	{
 		foreach,

@@ -174,7 +174,7 @@ import_skills_and_profiles([]) ->
 import_skills_and_profiles([{_Atom, Name, Enddesc, _Group} | Tail]) ->
 	_Desc = lists:append("Added by spicecsm_integration:import.  Corresponds to ", Enddesc),
 	%%call_queue_config:new_skill(Atom, Name, Desc, Group),
-	agent_auth:new_profile(Name, ['_profile']),
+	agent_auth:new_profile(#agent_profile{name = Name, skills = ['_profile']}),
 	import_skills_and_profiles(Tail).
 		
 write_brands([], _, _, _) ->

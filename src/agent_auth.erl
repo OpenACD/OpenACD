@@ -68,8 +68,8 @@
 	get_extended_prop/2
 ]).
 -export([
-	new_profile/2,
-	set_profile/3,
+	new_profile/1,
+	set_profile/2,
 	get_profile/1,
 	get_profiles/0,
 	destroy_profile/1
@@ -147,6 +147,17 @@ get_releases() ->
 	{atomic, Opts} = mnesia:transaction(F),
 	lists:sort(Opts).
 
+%% @doc Create a new agent profile.
+-spec(new_profile/1 :: (Rec :: #agent_profile{}) -> 'error' | {'atomic', 'ok'}).
+new_profile(#agent_profile{name = "Default"}) ->
+	?ERROR("Default cannot be added as a new profile", []),
+	error;
+new_profile(Rec) ->
+	F = fun() ->
+		mnesia:write(Rec)
+	end,
+	mnesia:transaction(F).
+
 %% @doc Create a new agent profile `string() Name' with `[atom()] Skills'.
 -spec(new_profile/2 :: (Name :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
 new_profile(Name, Skills) ->
@@ -156,27 +167,22 @@ new_profile(Name, Skills) ->
 	end,
 	mnesia:transaction(F).
 
-%% @doc Update the proflie `string() Oldname' to `string() Newname' with `[atom()] Skills'.
--spec(set_profile/3 :: (Oldname :: string(), Newname :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
-set_profile(Oldname, Oldname, Skills) ->
-	Rec = #agent_profile{name = Oldname, skills = Skills},
+%% @doc Update the profile `string() Oldname' to the given rec.
+-spec(set_profile/2 :: (Oldname :: string(), Rec :: #agent_profile{}) -> {'atomic', 'ok'}).
+set_profile(Oldname, #agent_profile{name = Oldname} = Rec) ->
 	F = fun() ->
 		mnesia:delete({agent_profile, Oldname}),
 		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F);
-set_profile(Oldname, Newname, Skills) ->
-	Rec = #agent_profile{name = Newname, skills = Skills},
+set_profile("Default", _Rec) ->
+	?ERROR("Cannot change the name of the default profile", []),
+	error;
+set_profile(Oldname, #agent_profile{name = Newname} = Rec) ->
 	F = fun() ->
 		mnesia:delete({agent_profile, Oldname}),
 		mnesia:write(Rec),
-		Agents = get_agents(Oldname),
-		Update = fun(Arec) ->
-			Newagent = Arec#agent_auth{profile = Newname},
-			destroy(Arec#agent_auth.login),
-			mnesia:write(Newagent)
-		end,
-		lists:map(Update, Agents),
+		[mnesia:write(Arec#agent_auth{profile = Newname}) || Arec <- mnesia:table(agent_auth), Arec#agent_auth.profile =:= Oldname],
 		ok
 	end,
 	mnesia:transaction(F).
@@ -200,7 +206,7 @@ destroy_profile(Name) ->
 	mnesia:transaction(F).
 
 %% @doc Gets the proflie `string() Name'
--spec(get_profile/1 :: (Name :: string()) -> {string(), [atom()]} | 'undefined').
+-spec(get_profile/1 :: (Name :: string()) -> #agent_profile{} | 'undefined').
 get_profile(Name) ->
 	F = fun() ->
 		mnesia:read({agent_profile, Name})
@@ -209,25 +215,18 @@ get_profile(Name) ->
 		{atomic, []} ->
 			undefined;
 		{atomic, [Profile]} ->
-			{Profile#agent_profile.name, Profile#agent_profile.skills}
+			Profile
 	end.
 
 %% @doc Return all profiles as `[{string() Name, [atom] Skills}]'.
--spec(get_profiles/0 :: () -> [{string(), [atom()]}]).
+-spec(get_profiles/0 :: () -> [#agent_profile{}]).
 get_profiles() ->
 	F = fun() ->
 		QH = qlc:q([ X || X <- mnesia:table(agent_profile)]),
 		qlc:e(QH)
 	end,
 	{atomic, Profiles} = mnesia:transaction(F),
-	Convert = fun(Profile) ->
-		{Profile#agent_profile.name, Profile#agent_profile.skills}
-	end,
-	Cprofs = lists:map(Convert, Profiles),
-	Sort = fun({Name1, _Skills1}, {Name2, _Skills2}) ->
-		Name1 < Name2
-	end,
-	lists:sort(Sort, Cprofs).
+	Profiles.
 
 %% @doc Update the agent `string() Oldlogin' without changing the password.
 -spec(set_agent/5 :: (Id :: string(), Newlogin :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'ok'}).
@@ -991,10 +990,10 @@ profile_test_() ->
 			{
 				"Update a profile",
 				fun() ->
-					new_profile("inital", [english]),
-					set_profile("initial", "new", [german]),
+					new_profile(#agent_profile{name = "inital", skills = [english]}),
+					set_profile("initial", #agent_profile{name = "new", skills = [german]}),
 					?assertEqual(undefined, get_profile("initial")),
-					?assertEqual({"new", [german]}, get_profile("new"))
+					?assertEqual(#agent_profile{name = "new", skills = [german]}, get_profile("new"))
 				end
 			},
 			{

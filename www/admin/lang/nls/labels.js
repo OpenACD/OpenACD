@@ -64,5 +64,10 @@
 	CLIENTLABEL: "Label",
 	INTEGRATEDSINCE: "Integration",
 	CLIENT_INTEGRATION_LIST: "Integrated Clients",
-	CLIENT_STAND_ALONE_LIST: "Stand Alone Clients"
+	CLIENT_STAND_ALONE_LIST: "Stand Alone Clients",
+	PROFILEID: "Id",
+	HIDDEN: "Hidden",
+	LIMIT_QUEUES: "Limit Queues",
+	LIMIT_PROFILES: "Limit Profiles",
+	LIMIT_CLIENTS: "Limit Clients"
 }

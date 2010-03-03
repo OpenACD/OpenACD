@@ -535,7 +535,7 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 			end;
 		["get_profiles"] ->
 			Profiles = agent_auth:get_profiles(),
-			F = fun({Nom, _}) ->
+			F = fun(#agent_profile{name = Nom}) ->
 				list_to_binary(Nom)
 			end,
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"profiles">>, lists:map(F, Profiles)}]})}, State};
@@ -1345,7 +1345,7 @@ do_action([], _Do, Acc) ->
 %% get a list of the agent profiles and how many agents are logged into each
 do_action([Node | Tail], ["agent_profiles"] = Do, Acc) ->
 	Profiles = agent_auth:get_profiles(),
-	Makeprops = fun({Name, _Skills}) ->
+	Makeprops = fun(#agent_profile{name = Name}) ->
 		{Name, 0}
 	end,
 	Dict = dict:from_list(lists:map(Makeprops, Profiles)),

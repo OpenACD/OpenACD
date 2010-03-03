@@ -177,7 +177,7 @@ media_cast(Apid, Request) ->
 %-spec(init/1 :: (Args :: [#agent{}]) -> {'ok', 'released', #agent{}}).
 init([State, Options]) when is_record(State, agent) ->
 	process_flag(trap_exit, true),
-	{Profile, Skills} = try agent_auth:get_profile(State#agent.profile) of
+	#agent_profile{name = Profile, skills = Skills} = try agent_auth:get_profile(State#agent.profile) of
 		undefined ->
 			?WARNING("Agent ~p has an invalid profile of ~p, using Default", [State#agent.login, State#agent.profile]),
 			agent_auth:get_profile("Default");
@@ -943,13 +943,13 @@ handle_sync_event({remove_skills, Skills}, _From, StateName, State) ->
 handle_sync_event({change_profile, Profile}, _From, StateName, State) ->
 	OldProfile = State#agent.profile,
 	OldSkills = case agent_auth:get_profile(OldProfile) of
-		{OldProfile, Skills} ->
+		#agent_profile{skills = Skills} ->
 			Skills;
 		_ ->
 			[]
 	end,
 	case agent_auth:get_profile(Profile) of
-		{Profile, Skills2} ->
+		#agent_profile{name = Profile, skills = Skills2} ->
 			NewAgentSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, OldSkills)),
 			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(State#agent{profile = Profile}, Skills2), ['_queue', '_brand']),
 			Newstate = State#agent{skills = NewAgentSkills2, profile = Profile},

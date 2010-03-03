@@ -86,11 +86,18 @@
 	timestamp = util:now() :: pos_integer()
 }).
 
+-type(profile_option() :: 
+	'hidden' | 
+	'isolated' |
+	{'queues', [string()]} |
+	{'profiles', [string()]} |
+	{'clients', [string()]}).
+
 -record(agent_profile, {
 	name = erlang:error({undefined, name}) :: string(),
 	id :: string() | 'undefined', % TODO = erlang:error({undefined, id}) :: string(),
 	order = 1 :: pos_integer(),
-	hidden = false :: boolean(),
+	options = [] :: [profile_option()],
 	skills = [] :: [atom()],
 	timestamp = util:now() :: pos_integer()
 }).

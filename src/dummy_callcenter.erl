@@ -41,6 +41,8 @@
 -endif.
 
 -include("log.hrl").
+-include("call.hrl").
+-include("agent.hrl").
 
 %% API
 -export([
@@ -356,7 +358,7 @@ spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 			[{maxcalls, Rand} | Midopts]
 	end,
 	Profiles = agent_auth:get_profiles(),
-	Profile = element(1, lists:nth(crypto:rand_uniform(1, length(Profiles) + 1), Profiles)),
+	#agent_profile{name = Profile} = lists:nth(crypto:rand_uniform(1, length(Profiles) + 1), Profiles),
 	Midopts3 = proplists_replace(login, Login, Midopts2),
 	Midopts4 = proplists_replace(profile, Profile, Midopts3),
 	Midopts5 = proplists_replace(id, Login, Midopts4),

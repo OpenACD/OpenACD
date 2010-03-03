@@ -518,8 +518,48 @@ dojo.requireLocalization("admin", "labels");
 						<input dojoType="dijit.form.TextBox" name="name" id="agentProfileName" />
 					</p>
 					<p>
+						<label for="agentProfileId" class="translatecol">PROFILEID</label>
+						<input dojoType="dijit.form.TextBox" name="id" id="agentProfileId" />
+					</p>
+					<p>
+						<label for="agentProfileSort" class="translatecol">SORT</label>
+						<input dojoType="dijit.form.TextBox" name="sort" id="agentProfileSort" />
+					</p>
+					<p>
 						<label for="agentProfileSkills" class="translatecol">SKILLS</label>
 						<div id="agentProfileSkills"></div>
+					</p>
+					<p>
+						<label for="agentProfileHidden">&nbsp;</label>
+						<span id="agentProfileHiddenLabel"><input dojoType="dijit.form.CheckBox" name="hidden" id="agentProfileHidden" type="checkbox" value="hidden" /><span class="translate">HIDDEN</span></span>
+						<div dojoType="dijit.Tooltip" connectId="agentProfileHiddenLabel" position="after">Unless an agent is a member of this profile, it will not appear.</div>
+					</p>
+					<p>
+						<label for="agentProfileQueues">&nbsp;</label>
+						<span id="agentProfileQueuesLabel"><input dojoType="dijit.form.CheckBox" name="queues" id="agentProfileQueues" type="checkbox" value="limitQueues" /><span class="translate">LIMIT_QUEUES</span></span>
+						<div dojoType="dijit.Tooltip" connectId="agentProfileQueuesLabel" position="after">If selected, members of this profile will only be able to see the queues selected</div>
+					</p>
+					<p id="agentProfileQueuesP">
+						<label>&nbsp;</label>
+						<span>Placeholder for the queues select</span>
+					</p>
+					<p>
+						<label for="agentProfileProfiles">&nbsp;</label>
+						<span id="agentProfileProfilesLabel"><input dojoType="dijit.form.CheckBox" name="profiles" id="agentProfileProfiles" type="checkbox" value="limitProfiles" /><span class="translate">LIMIT_PROFILES</span></span>
+						<div dojoType="dijit.Tooltip" connectId="agentProfileProfilesLabel" position="after">If selected, members of this profile will only be able to see agents in this and the selected profiles.</div>
+					</p>
+					<p id="agentProfileProfilesP">
+						<label>&nbsp;</label>
+						<span>Placeholder for the profiles select</span>
+					</p>
+					<p>
+						<label>&nbsp;</label>
+						<span id="agentProfileClientsLabel"><input dojoType="dijit.form.CheckBox" name="clients" id="agentProfileClients" type="checkbox" value="limitClients" /><span class="translate">LIMIT_CLIENTS</span></span>
+						<div dojoType="dijit.Tooltip" connectId="agentProfileClientsLabel" position="after">If selected, members of this profile will only be able to see media from the selected clients.</div>
+					</p>
+					<p id="agentProfileClientsP">
+						<label>&nbsp;</label>
+						<span>Placeholder for the profiles selected</span>
 					</p>
 					<p>
 						<label for="agentProfileSubmit">&nbsp;</label>

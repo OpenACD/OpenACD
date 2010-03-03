@@ -1,0 +1,14 @@
+<div dojoType="dijit.layout.BorderContainer" gutters="true">
+    <div dojoType="dijit.layout.ContentPane" splitter="true" region="leading"
+    style="width: 50%;">
+		<table class="queueDashboard"><tbody  id="queueDashboardTable">
+			<tr><th>Queue</th><th>calls</th><th>Completed</th><th>Abandoned</th><th>Avg Queue</th><th>Max Queue</th></tr>
+		</tbody></table>
+    </div>
+    <div dojoType="dijit.layout.ContentPane" splitter="true" region="center">
+		<table class="queueDashboard"><tbody id="agentDashboardTable">
+			<tr><th>Profile</th><th>Agents</th></tr>
+		</tbody></table>
+    </div>
+</div>
+<script type="text/javascript" src="tabs/queue_dashboard.js"></script>

@@ -169,7 +169,8 @@ new_profile(Name, Skills) ->
 %% @doc Update the profile `string() Oldname' to the given rec.
 -spec(set_profile/2 :: (Oldname :: string(), Rec :: #agent_profile{}) -> {'atomic', 'ok'}).
 set_profile(Old, #agent_profile{id = undefined} = Rec) ->
-	set_profile(Old, give_profile_id(Rec));
+	Oldprof = get_profile(Old),
+	set_profile(Old, Rec#agent_profile{id = Oldprof#agent_profile.id});
 set_profile(Oldname, #agent_profile{name = Oldname} = Rec) ->
 	F = fun() ->
 		mnesia:write(Rec)
@@ -192,7 +193,7 @@ give_profile_id(Rec) ->
 	F = fun() ->
 		qlc:e(qlc:q([Id || #agent_profile{id = Id} <- mnesia:table(agent_profile)]))
 	end,
-	{atomic, Ids} = mnesia:transcation(F),
+	{atomic, Ids} = mnesia:transaction(F),
 	Fold = fun(Elem, Acc) ->
 		Newacc = try list_to_integer(Elem) of
 			E when Acc < E->
@@ -205,7 +206,7 @@ give_profile_id(Rec) ->
 		end,
 		Newacc
 	end,
-	Id = integer_to_list(lists:foldl(Fold, Ids) + 1),
+	Id = integer_to_list(lists:foldl(Fold, 0, Ids) + 1),
 	Rec#agent_profile{id = Id}.
 	
 
@@ -1016,7 +1017,7 @@ profile_test_() ->
 					?assertEqual({atomic, []}, mnesia:transaction(F)),
 					?assertEqual({atomic, ok}, new_profile("test profile", [testskill])),
 					Test = #agent_profile{name = "test profile", skills = [testskill]},
-					?assertEqual({atomic, [Test#agent_profile{name = "test profile"}]}, mnesia:transaction(F)),
+					?assertEqual({atomic, [Test#agent_profile{name = "test profile", id = "1"}]}, mnesia:transaction(F)),
 					?assertMatch(#agent_profile{name = "test profile", skills = [testskill]}, get_profile("test profile"))
 				end
 			},
@@ -1027,7 +1028,7 @@ profile_test_() ->
 					?assertNot(undefined == get_profile("initial")),
 					?assertEqual({atomic, ok}, set_profile("initial", #agent_profile{name = "new", skills = [german]})),
 					?assertEqual(undefined, get_profile("initial")),
-					?assertEqual(#agent_profile{name = "new", skills = [german]}, get_profile("new"))
+					?assertEqual(#agent_profile{name = "new", id = "1", skills = [german]}, get_profile("new"))
 				end
 			},
 			{
@@ -1038,7 +1039,7 @@ profile_test_() ->
 						qlc:e(QH)
 					end,
 					new_profile("test profile", [english]),
-					?assertEqual({atomic, [#agent_profile{name = "test profile", skills=[english], timestamp = util:now()}]}, mnesia:transaction(F)),
+					?assertEqual({atomic, [#agent_profile{name = "test profile", skills=[english], id = "1", timestamp = util:now()}]}, mnesia:transaction(F)),
 					?assertEqual({atomic, ok}, destroy_profile("test profile")),
 					?assertEqual({atomic, []}, mnesia:transaction(F))
 				end
@@ -1048,7 +1049,7 @@ profile_test_() ->
 				fun() ->
 					?assertEqual(undefined, get_profile("noexists")),
 					new_profile("test profile", [testskill]),
-					?assertEqual(#agent_profile{name = "test profile", skills = [testskill]}, get_profile("test profile"))
+					?assertEqual(#agent_profile{name = "test profile", id = "1", skills = [testskill]}, get_profile("test profile"))
 				end
 			},
 			{

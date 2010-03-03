@@ -2074,14 +2074,14 @@ api_test_() ->
 			{"/agents/profiles/Default/delete does nothing",
 			fun() ->
 				{200, [], _Json} = api({agents, "profiles", "Default", "delete"}, Cookie, []),
-				?assertEqual(#agent_profile{name = "Default", skills = []}, agent_auth:get_profile("Default"))
+				?assertMatch(#agent_profile{name = "Default", skills = [], id = "0"}, agent_auth:get_profile("Default"))
 			end}
 		end,
 		fun(Cookie) ->
 			{"/agents/profiles/someprofile/delete kills the profile",
 			fun() ->
 				?CONSOLE("~p", [agent_auth:new_profile(#agent_profile{name = "someprofile", skills = []})]),
-				?assertEqual(#agent_profile{name = "someprofile", skills = []}, agent_auth:get_profile("someprofile")),
+				?assertEqual(#agent_profile{name = "someprofile", skills = [], id = "1"}, agent_auth:get_profile("someprofile")),
 				{200, [], _Json} = api({agents, "profiles", "someprofile", "delete"}, Cookie, []),
 				?assertEqual(undefined, agent_auth:get_profile("someprofile"))
 			end}
@@ -2092,7 +2092,7 @@ api_test_() ->
 				agent_auth:new_profile(#agent_profile{name = "someprofile", skills = ['_all', english]}),
 				agent_auth:add_agent("someagent", "", [], agent, "someprofile"),
 				{200, [], _Json} = api({agents, "profiles", "someprofile", "update"}, Cookie, [{"name", "newprofile"}, {"skills", "_all"}, {"order", "1"}]),
-				?assertEqual(#agent_profile{name = "newprofile", id = "", skills = ['_all']}, agent_auth:get_profile("newprofile")),
+				?assertEqual(#agent_profile{name = "newprofile", id = "1", skills = ['_all']}, agent_auth:get_profile("newprofile")),
 				?assertEqual(undefined, agent_auth:get_profile("someprofile")),
 				{atomic, [Agent]} = agent_auth:get_agent("someagent"),
 				?assertEqual("newprofile", Agent#agent_auth.profile)

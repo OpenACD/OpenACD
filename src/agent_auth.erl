@@ -149,6 +149,8 @@ get_releases() ->
 
 %% @doc Create a new agent profile.
 -spec(new_profile/1 :: (Rec :: #agent_profile{}) -> 'error' | {'atomic', 'ok'}).
+new_profile(#agent_profile{id = undefined} = Rec) ->
+	new_profile(give_profile_id(Rec));
 new_profile(#agent_profile{name = "Default"}) ->
 	?ERROR("Default cannot be added as a new profile", []),
 	error;
@@ -162,13 +164,12 @@ new_profile(Rec) ->
 -spec(new_profile/2 :: (Name :: string(), Skills :: [atom()]) -> {'atomic', 'ok'}).
 new_profile(Name, Skills) ->
 	Rec = #agent_profile{name = Name, skills = Skills},
-	F = fun() ->
-		mnesia:write(Rec)
-	end,
-	mnesia:transaction(F).
+	new_profile(Rec).
 
 %% @doc Update the profile `string() Oldname' to the given rec.
 -spec(set_profile/2 :: (Oldname :: string(), Rec :: #agent_profile{}) -> {'atomic', 'ok'}).
+set_profile(Old, #agent_profile{id = undefined} = Rec) ->
+	set_profile(Old, give_profile_id(Rec));
 set_profile(Oldname, #agent_profile{name = Oldname} = Rec) ->
 	F = fun() ->
 		mnesia:write(Rec)
@@ -185,6 +186,28 @@ set_profile(Oldname, #agent_profile{name = Newname} = Rec) ->
 		ok
 	end,
 	mnesia:transaction(F).
+
+%% @doc generate an id for the profile rec and return the 'fixed' rec.
+give_profile_id(Rec) ->
+	F = fun() ->
+		qlc:e(qlc:q([Id || #agent_profile{id = Id} <- mnesia:table(agent_profile)]))
+	end,
+	{atomic, Ids} = mnesia:transcation(F),
+	Fold = fun(Elem, Acc) ->
+		Newacc = try list_to_integer(Elem) of
+			E when Acc < E->
+				E;
+			_ ->
+				Acc
+		catch
+			error:badarg ->
+				Acc
+		end,
+		Newacc
+	end,
+	Id = integer_to_list(lists:foldl(Fold, Ids) + 1),
+	Rec#agent_profile{id = Id}.
+	
 
 %% @doc Remove the profile `string() Name'.  Returns `error' if you try to remove the profile `"Default"'.
 -spec(destroy_profile/1 :: (Name :: string()) -> 'error' | {'atomic', 'ok'}).

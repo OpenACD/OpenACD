@@ -224,6 +224,7 @@ dojo.requireLocalization("admin", "labels");
 						};
 						skills.createSelect(skillCallback, [], ['_brand', '_queue'], ['_brand', '_queue'])
 						dijit.byId('agentProfileName').attr('disabled', false);
+						dijit.byId('agentProfileId').attr('disabled', false);
 					</script>
 				</button>
 				<button dojoType="dijit.form.Button" label="DROPAGENTORPROFILE" id="agentsDestroyButton">
@@ -522,8 +523,8 @@ dojo.requireLocalization("admin", "labels");
 						<input dojoType="dijit.form.TextBox" name="id" id="agentProfileId" />
 					</p>
 					<p>
-						<label for="agentProfileSort" class="translatecol">SORT</label>
-						<input dojoType="dijit.form.TextBox" name="sort" id="agentProfileSort" />
+						<label for="agentProfileOrder" class="translatecol">SORT</label>
+						<input dojoType="dijit.form.TextBox" name="order" id="agentProfileOrder" />
 					</p>
 					<p>
 						<label for="agentProfileSkills" class="translatecol">SKILLS</label>

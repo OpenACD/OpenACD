@@ -102,7 +102,7 @@
 	timestamp = util:now() :: pos_integer()
 }).
 
--define(DEFAULT_PROFILE, #agent_profile{name = "Default", timestamp = util:now()}).
+-define(DEFAULT_PROFILE, #agent_profile{name = "Default", id = "0", timestamp = util:now()}).
 
 -record(release_opt, {
 	id :: pos_integer(),

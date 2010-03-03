@@ -392,7 +392,7 @@ api({agents, "profiles", "Default", "update"}, {_Reflist, _Salt, _Login}, Post) 
 				name = "Default",
 				skills = parse_posted_skills(proplists:get_all_values("skills", Post)),
 				order = list_to_integer(proplists:get_value("order", Post, "10")),
-				id = proplists:get_value("id", Post, "")
+				id = Oldprof#agent_profile.id
 			},
 			agent_auth:set_profile("Default", Prof),
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
@@ -400,11 +400,12 @@ api({agents, "profiles", "Default", "update"}, {_Reflist, _Salt, _Login}, Post) 
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Default is a protected profile and cannot be renamed">>}]})}
 	end;
 api({agents, "profiles", Profile, "update"}, ?COOKIE, Post) ->
+	Old = agent_auth:get_profile(Profile),
 	New = #agent_profile{
 		name = proplists:get_value("name", Post),
 		skills = parse_posted_skills(proplists:get_all_values("skills", Post)),
 		order = list_to_integer(proplists:get_value("order", Post, "10")),
-		id = proplists:get_value("id", Post, "")
+		id = Old#agent_profile.id
 	},
 	agent_auth:set_profile(Profile, New),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};

@@ -221,6 +221,9 @@ dojo.addOnLoad(function(){
 				};
 				dojo.byId("agentProfileOldName").value = agents.store.getValue(item, 'name');
 				dijit.byId("agentProfileName").attr("value", agents.store.getValue(item, 'name'));
+				dijit.byId("agentProfileId").attr("value", agents.store.getValue(item, 'id'));
+				dijit.byId('agentProfileId').attr('disabled', true);
+				dijit.byId("agentProfileOrder").attr("value", agents.store.getValue(item, 'order'));
 				if(agents.store.getValue(item, 'name') == "Default"){
 					dijit.byId("agentProfileName").attr('disabled', true);
 				}

@@ -185,7 +185,7 @@ init([State, Options]) when is_record(State, agent) ->
 			Else
 	catch
 		error:{case_clause, {aborted, _}} ->
-			#agent_profile{name = "Default"}
+			#agent_profile{name = error}
 	end,
 	State2 = State#agent{skills = util:merge_skill_lists(expand_magic_skills(State, Skills), expand_magic_skills(State, State#agent.skills), ['_queue', '_brand']), profile = Profile},
 	case State#agent.state of

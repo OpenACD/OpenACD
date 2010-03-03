@@ -171,7 +171,6 @@ new_profile(Name, Skills) ->
 -spec(set_profile/2 :: (Oldname :: string(), Rec :: #agent_profile{}) -> {'atomic', 'ok'}).
 set_profile(Oldname, #agent_profile{name = Oldname} = Rec) ->
 	F = fun() ->
-		mnesia:delete({agent_profile, Oldname}),
 		mnesia:write(Rec)
 	end,
 	mnesia:transaction(F);
@@ -182,7 +181,7 @@ set_profile(Oldname, #agent_profile{name = Newname} = Rec) ->
 	F = fun() ->
 		mnesia:delete({agent_profile, Oldname}),
 		mnesia:write(Rec),
-		[mnesia:write(Arec#agent_auth{profile = Newname}) || Arec <- mnesia:table(agent_auth), Arec#agent_auth.profile =:= Oldname],
+		qlc:e(qlc:q([mnesia:write(Arec#agent_auth{profile = Newname}) || Arec <- mnesia:table(agent_auth), Arec#agent_auth.profile =:= Oldname])),
 		ok
 	end,
 	mnesia:transaction(F).
@@ -226,7 +225,7 @@ get_profiles() ->
 		qlc:e(QH)
 	end,
 	{atomic, Profiles} = mnesia:transaction(F),
-	Profiles.
+	sort_profiles(Profiles).
 
 %% @doc Update the agent `string() Oldlogin' without changing the password.
 -spec(set_agent/5 :: (Id :: string(), Newlogin :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'ok'}).
@@ -695,6 +694,16 @@ local_auth(Username, BasePassword) ->
 			deny
 	end.
 
+%% @doc Sorts the profiles based on sort order, then alphabetical.
+-spec(sort_profiles/1 :: (List :: [#agent_profile{}]) -> [#agent_profile{}]).
+sort_profiles(List) ->
+	lists:sort(fun comp_profiles/2, List).
+			
+comp_profiles(#agent_profile{name = Aname, order = S}, #agent_profile{name = Bname, order = S}) ->
+	Aname =< Bname;
+comp_profiles(#agent_profile{order = Asort}, #agent_profile{order = Bsort}) ->
+	Asort =< Bsort.
+
 %% @doc Builds up an `#agent_auth{}' from the given `proplist() Proplist';
 -spec(build_agent_record/2 :: (Proplist :: [{atom(), any()}], Rec :: #agent_auth{}) -> #agent_auth{}).
 build_agent_record([], Rec) ->
@@ -984,14 +993,16 @@ profile_test_() ->
 					?assertEqual({atomic, []}, mnesia:transaction(F)),
 					?assertEqual({atomic, ok}, new_profile("test profile", [testskill])),
 					Test = #agent_profile{name = "test profile", skills = [testskill]},
-					?assertEqual({atomic, [Test#agent_profile{name = "test profile"}]}, mnesia:transaction(F))
+					?assertEqual({atomic, [Test#agent_profile{name = "test profile"}]}, mnesia:transaction(F)),
+					?assertMatch(#agent_profile{name = "test profile", skills = [testskill]}, get_profile("test profile"))
 				end
 			},
 			{
 				"Update a profile",
 				fun() ->
-					new_profile(#agent_profile{name = "inital", skills = [english]}),
-					set_profile("initial", #agent_profile{name = "new", skills = [german]}),
+					new_profile(#agent_profile{name = "initial", skills = [english]}),
+					?assertNot(undefined == get_profile("initial")),
+					?assertEqual({atomic, ok}, set_profile("initial", #agent_profile{name = "new", skills = [german]})),
 					?assertEqual(undefined, get_profile("initial")),
 					?assertEqual(#agent_profile{name = "new", skills = [german]}, get_profile("new"))
 				end
@@ -1014,7 +1025,7 @@ profile_test_() ->
 				fun() ->
 					?assertEqual(undefined, get_profile("noexists")),
 					new_profile("test profile", [testskill]),
-					?assertEqual({"test profile", [testskill]}, get_profile("test profile"))
+					?assertEqual(#agent_profile{name = "test profile", skills = [testskill]}, get_profile("test profile"))
 				end
 			},
 			{
@@ -1028,7 +1039,11 @@ profile_test_() ->
 					end,
 					mnesia:transaction(F),
 					?CONSOLE("profs:  ~p", [get_profiles()]),
-					?assertEqual([{"A", [english]}, {"B", [german]}, {"C", [testskill]}], get_profiles())
+					?assertMatch([
+						#agent_profile{name = "A", skills = [english]},
+						#agent_profile{name = "B", skills = [german]},
+						#agent_profile{name = "C", skills = [testskill]}], 
+						get_profiles())
 				end
 			}
 		]

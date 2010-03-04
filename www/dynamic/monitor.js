@@ -116,7 +116,7 @@ function drawAgents(response) {
 		c1.innerHTML = "No Agents";
 	} else {
 		var rownum = 1;
-		dojo.forEach(response.agentProfiles.sort(function(a, b) { return a.name > b.name}), 
+		dojo.forEach(response.agentProfiles.sort(function(a, b) { return a.order > b.order}),
 				function(profile) {
 				if (profile.agents.length == 0)
 					return;

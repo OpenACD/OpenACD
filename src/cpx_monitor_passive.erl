@@ -925,8 +925,9 @@ get_agents_json() ->
 
 get_agents_json(Pname, Stats) ->
 	JStats = stats_to_proplist(Stats),
+	ProfileRec = agent_auth:get_profile(Pname),
 	JAgents = qlc:e(qlc:q([Json || #cached_agent{profile = Profile, json = Json} <- ets:table(cached_agent), Pname =:= Profile])),
-	Props = lists:append([[{<<"name">>, list_to_binary(Pname)}, {agents, JAgents}], JStats]),
+	Props = lists:append([[{<<"name">>, list_to_binary(Pname)}, {<<"order">>, ProfileRec#agent_profile.order}, {agents, JAgents}], JStats]),
 	{struct, Props}.
 
 get_medias_json() ->

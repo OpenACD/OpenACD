@@ -5,12 +5,12 @@
 				dojo.animateProperty({
 					node:dijit.byId('dashboardQueuePane').domNode,
 					properties:{
-						width:{end: 10, units: '%', start: dijit.byId('dashboardQueuePane').domNode.style.width}
-					},
-					onBegin: function(){
-						console.log(dijit.byId('dashboardQueuePane').domNode);
+						width:{end: 200, units: 'px', start: dijit.byId('dashboardQueuePane').domNode.style.width}
 					},
 					onAnimate: function(){
+						dijit.byId('dashboardMain').resize();
+					},
+					onEnd: function(){
 						dijit.byId('dashboardMain').resize();
 					}
 				}).play();
@@ -18,12 +18,33 @@
 		</button>
 		<button dojoType="dijit.form.Button">Queues
 			<script type="dojo/connect" event="onClick">
+				var endW = parseInt(dijit.byId('dashboardMain').domNode.style.width) - 200;
 				dojo.animateProperty({
 					node:dijit.byId('dashboardQueuePane').domNode,
 					properties:{
-						width:{end: 90, units: '%', start: dijit.byId('dashboardQueuePane').domNode.style.width}
+						width:{end: endW, units: 'px', start: dijit.byId('dashboardQueuePane').domNode.style.width}
 					},
 					onAnimate: function(){
+						dijit.byId('dashboardMain').resize();
+					},
+					onEnd: function(){
+						dijit.byId('dashboardMain').resize();
+					}
+				}).play();
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button" style="position:relative; left:45%">| |
+			<script type="dojo/connect" event="onClick">
+				var endW = Math.floor(parseInt(dijit.byId('dashboardMain').domNode.style.width) / 2);
+				dojo.animateProperty({
+					node:dijit.byId('dashboardQueuePane').domNode,
+					properties:{
+						width:{end: endW, units: 'px', start: dijit.byId('dashboardQueuePane').domNode.style.width}
+					},
+					onAnimate:function(){
+						dijit.byId('dashboardMain').resize();
+					},
+					onEnd: function(){
 						dijit.byId('dashboardMain').resize();
 					}
 				}).play();
@@ -41,4 +62,6 @@
 		</tbody></table>
     </div>
 </div>
-<script type="text/javascript" src="tabs/	dashboard.js"></script>
+<script type="text/javascript" src="tabs/dashboard.js"></script>
+<script type="text/javascript" src="tabs/queueDashboard.js"></script>
+<script type="text/javascript" src="tabs/agentDashboard.js"></script>

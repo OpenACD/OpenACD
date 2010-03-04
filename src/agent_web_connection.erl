@@ -1058,29 +1058,38 @@ handle_info({cpx_monitor_event, Message}, State) ->
 	%?DEBUG("Ingesting cpx_monitor_event ~p", [Message]),
 	Json = case Message of
 		{drop, {Type, Name}} ->
+			Fixedname = if 
+				is_atom(Name) ->
+					 atom_to_binary(Name, latin1); 
+				 true -> 
+					 Name 
+			end,
 			{struct, [
 				{<<"command">>, <<"supervisortab">>},
 				{<<"data">>, {struct, [
 					{<<"action">>, drop},
-					{<<"id">>, list_to_binary(lists:append([atom_to_list(Type), "-", Name]))}
+					{<<"type">>, Type},
+					{<<"id">>, list_to_binary([atom_to_binary(Type, latin1), $-, Fixedname])},
+					{<<"name">>, Fixedname}
 				]}}
 			]};
 		{set, {{Type, Name}, Healthprop, Detailprop, _Timestamp}} ->
 			Encodedhealth = encode_health(Healthprop),
 			Encodeddetail = encode_proplist(Detailprop),
-			Fixedname = case is_atom(Name) of
-				true ->
-					atom_to_list(Name);
-				false ->
-					Name
+			Fixedname = if 
+				is_atom(Name) ->
+					 atom_to_binary(Name, latin1); 
+				 true -> 
+					 Name 
 			end,
 			{struct, [
 				{<<"command">>, <<"supervisortab">>},
 				{<<"data">>, {struct, [
 					{<<"action">>, set},
-					{<<"id">>, list_to_binary([atom_to_list(Type), "-", Fixedname])},
+					{<<"id">>, list_to_binary([atom_to_binary(Type, latin1), $-, Fixedname])},
 					{<<"type">>, Type},
-					{<<"display">>, list_to_binary(Fixedname)},
+					{<<"name">>, Fixedname},
+					{<<"display">>, Fixedname},
 					{<<"health">>, Encodedhealth},
 					{<<"details">>, Encodeddetail}
 				]}}

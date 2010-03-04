@@ -1079,7 +1079,7 @@ handle_info({cpx_monitor_event, Message}, State) ->
 				is_atom(Name) ->
 					 atom_to_binary(Name, latin1); 
 				 true -> 
-					 Name 
+					 list_to_binary(Name) 
 			end,
 			{struct, [
 				{<<"command">>, <<"supervisortab">>},
@@ -1097,7 +1097,7 @@ handle_info({cpx_monitor_event, Message}, State) ->
 				is_atom(Name) ->
 					 atom_to_binary(Name, latin1); 
 				 true -> 
-					 Name 
+					 list_to_binary(Name) 
 			end,
 			{struct, [
 				{<<"command">>, <<"supervisortab">>},

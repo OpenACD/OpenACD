@@ -78,7 +78,8 @@
 	handle_agent_transfer/4,
 	handle_queue_transfer/2,
 	handle_wrapup/2,
-	handle_spy/3
+	handle_spy/3,
+	format_status/2
 ]).
 
 -type(tref() :: any()).
@@ -521,6 +522,10 @@ terminate(_Reason, _Callrec, _State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, _Callrec, State, _Extra) ->
 	{ok, State}.
+
+format_status(_, [PDict, State]) ->
+	% strip large data out of the state
+	State#state{mimed = {}, skeleton = undefined, file_map = [], outgoing_attachments = []}.
 
 %% gen_media specific callbacks
 handle_answer(Agent, Call, State) ->

@@ -76,7 +76,7 @@
 		recipe = [] :: recipe(),
 		ticked = 1 :: pos_integer(), % number of ticks we've done
 		call :: pid() | 'undefined',
-		callrec :: #call{},
+		callid :: string,
 		queue :: string(),
 		qpid :: pid(),
 		key :: call_key(),
@@ -126,18 +126,18 @@ init([Call, Recipe, Queue, Qpid, Key]) ->
 	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
 	process_flag(trap_exit, true),
 	Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
-	State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key, callrec = CallRec},
+	State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key, callid = CallRec#call.id},
 	{ok, State}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call(stop, From, #state{callrec = CallRec} = State) ->
-	?NOTICE("Stop requested from ~p for ~p", [From, CallRec#call.id]),
+handle_call(stop, From, #state{callid = CallID} = State) ->
+	?NOTICE("Stop requested from ~p for ~p", [From, CallID]),
 	{stop, normal, ok, State};
-handle_call({stop, Reason}, From, #state{callrec = CallRec} = State) ->
-	?NOTICE("Stop requested from ~p for ~p with reason ~p.", [From, CallRec#call.id, Reason]),
+handle_call({stop, Reason}, From, #state{callid = CallID} = State) ->
+	?NOTICE("Stop requested from ~p for ~p with reason ~p.", [From, CallID, Reason]),
 	{stop, {normal, Reason}, ok, State};
 handle_call(Request, _From, State) ->
     {reply, {unknown_call, Request}, State}.
@@ -172,8 +172,8 @@ handle_cast(stop_tick, State) ->
 	{noreply, State#state{tref=undefined}};
 handle_cast(stop, State) ->
 	{stop, normal, State};
-handle_cast(Msg, #state{callrec = CallRec} = State) ->
-	?DEBUG("unhandled cast ~p ~p", [Msg, CallRec#call.id]),
+handle_cast(Msg, #state{callid = CallID} = State) ->
+	?DEBUG("unhandled cast ~p ~p", [Msg, CallID]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -194,31 +194,31 @@ handle_info(do_tick, #state{qpid = Qpid} = State) ->
 	end;
 handle_info({'EXIT', From, Reason}, #state{qpid = From} = State) when Reason == shutdown; Reason == normal ->
 	{stop, Reason, State};
-handle_info({'EXIT', From, _Reason}, #state{qpid = From, callrec = CallRec} = State) ->
-	?NOTICE("queue ~p died unexpectedly - trying to add call ~p back into the new queue", [State#state.queue, CallRec#call.id]),
+handle_info({'EXIT', From, _Reason}, #state{qpid = From, callid = CallID} = State) ->
+	?NOTICE("queue ~p died unexpectedly - trying to add call ~p back into the new queue", [State#state.queue, CallID]),
 	Qpid = wait_for_queue(State#state.queue),
 	call_queue:add_at(Qpid, State#state.key, State#state.call),
 	gen_media:set_queue(State#state.call, Qpid),
 	{stop, normal, State};
-handle_info(Info, #state{callrec = CallRec} = State) ->
-	?DEBUG("received random info message: ~p ~p", [Info, CallRec#call.id]),
+handle_info(Info, #state{callid = CallID} = State) ->
+	?DEBUG("received random info message: ~p ~p", [Info, CallID]),
 	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @private
-terminate(normal, #state{callrec = CallRec}) ->
-	?DEBUG("normal cook death for ~p", [CallRec#call.id]),
+terminate(normal, #state{callid = CallID}) ->
+	?DEBUG("normal cook death for ~p", [CallID]),
 	ok;
-terminate(shutdown, #state{callrec = CallRec}) ->
-	?DEBUG("shutdown cook death for ~p", [CallRec#call.id]),
+terminate(shutdown, #state{callid = CallID}) ->
+	?DEBUG("shutdown cook death for ~p", [CallID]),
 	ok;
-terminate({normal, Reason}, #state{callrec = CallRec}) ->
-	?NOTICE("An inelegant cook shutdown requested for ~p with reason ~p", [CallRec#call.id, Reason]),
+terminate({normal, Reason}, #state{callid = CallID}) ->
+	?NOTICE("An inelegant cook shutdown requested for ~p with reason ~p", [CallID, Reason]),
 	ok;
-terminate(Reason, #state{callrec = CallRec}) ->
-	?WARNING("Unusual cook death for ~p with reason ~p", [CallRec#call.id, Reason]),
+terminate(Reason, #state{callid = CallID}) ->
+	?WARNING("Unusual cook death for ~p with reason ~p", [CallID, Reason]),
 	%erlang:cancel_timer(State#state.tref),
 	%Qpid = wait_for_queue(State#state.queue),
 	%?INFO("Looks like the queue ~s recovered (~w), dieing now",[State#state.queue, Qpid]),

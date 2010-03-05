@@ -144,7 +144,8 @@ handle_info(graph, #state{rrd = RRD, rrd_dir = Dir, image_dir = Imagedir} = Stat
 			Name = filename:rootname(FileName),
 			{
 				["DEF:"++Name++"raw="++FileName++":"++Name++":LAST:start=~s" | Defines],
-				["CDEF:"++Name++"="++Name++"raw,~B,TRENDNAN" | CDefines],
+				["CDEF:"++Name++"="++Name++"raw,~B,TRENDNAN VDEF:"++Name++"avg="++Name++",AVERAGE" | CDefines],
+				%["LINE2:"++Name++name_to_color(Name)++":"++Name++" GPRINT:"++Name++"avg:\"Avg %6.2lf %S\"" | Lines]
 				["LINE2:"++Name++name_to_color(Name)++":"++Name | Lines]
 			}
 	end,
@@ -167,7 +168,33 @@ handle_info(update, State) ->
 	GroupedAgents = get_agents(Now),
 	timer:send_after(30000, update),
 	Util = calculate_utilization(State#state.agents),
-	update_utilization(Util, State#state.rrd),
+	%?DEBUG("utilization: ~p", [Util]),
+	%?DEBUG("agents: ~p", [State#state.agents]),
+	AgentCount = lists:foldl(
+		fun({Profile, Agents}, A) when Profile =/= "Supervisor", Profile =/= "Customer Service" ->
+			%?DEBUG("Counting profile ~p", [Profile]),
+			%GroupedAgents1 = util:group_by_with_key(fun(Agent) -> proplists:get_value(login, Agent) end, Agents),
+			A + 1;
+		(_, A) ->
+			A
+	end, 0, State#state.agents),
+	%?DEBUG("Agentcount is ~p", [AgentCount]),
+
+	Composite = case AgentCount of
+		0 ->
+			0;
+		_ ->
+			lists:foldl(
+				fun({Profile, U}, A) when Profile =/= "Supervisor", Profile =/= "Customer Service" ->
+						A + U;
+					(_, A) ->
+						A
+				end,
+				0, Util) / AgentCount
+	end,
+
+	%?DEBUG("Composite is ~p", [Composite]),
+	update_utilization(Util ++ [{"Composite", Composite}], State#state.rrd),
 	{noreply, State#state{lastrun = Now, agents = GroupedAgents}, hibernate};
 handle_info({cpx_monitor_event, {set, {{agent, _}, _, Agent, _}}}, #state{agents = Agents} = State) ->
 	NewAgents = update_agent(Agent, Agents),

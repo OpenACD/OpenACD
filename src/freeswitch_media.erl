@@ -596,7 +596,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 	case Ename of
 		"CHANNEL_PARK" ->
 			case State#state.queued of
-				false ->
+				false when State#state.warm_transfer_uuid == undefined ->
 					Queue = proplists:get_value("variable_queue", Rawcall, "default_queue"),
 					Client = proplists:get_value("variable_brand", Rawcall),
 					AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),

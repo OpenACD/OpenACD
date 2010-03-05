@@ -97,7 +97,7 @@ dump(Agentstate, State) when is_record(Agentstate, agent_state) ->
 			""
 	end,
 	Query = io_lib:format("INSERT INTO agent_states set agent=~B, newstate=~B,
-		oldstate=~B, start=~B, end=~B, data='~s', profile=~B;", [
+		oldstate=~B, start=~B, end=~B, data='~s', profile='~s';", [
 		(try list_to_integer(Agentstate#agent_state.id) catch error:badarg -> 0 end) + 1000,
 		agent:state_to_integer(Agentstate#agent_state.state),
 		agent:state_to_integer(Agentstate#agent_state.oldstate),
@@ -370,21 +370,13 @@ calculate_last_transaction(Transactions) ->
 	end.
 
 profile_id(Profile) ->
-	case Profile of
-		"Probationary" -> 1;
-		"Level 1" -> 2;
-		"Level 2" -> 3;
-		"Level 3" -> 4;
-		"Supervisor" -> 5;
-		"CustomerService" -> 6;
-		"Graveyard" -> 7;
-		"Magic" -> 9;
-		"NRTC Only" -> 13;
-		"Master Tech" -> 10;
-		Else ->
-			?NOTICE("Unknown profile ~p", [Else]),
-			1
+	case agent_auth:get_profile(Profile) of
+		undefined ->
+			"0";
+		#agent_profile{id=ID} ->
+			ID
 	end.
+
 % TODO - write some tests for the functions not directly using ODBC
 
 -ifdef(TEST).

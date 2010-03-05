@@ -140,14 +140,39 @@ handle_answer(Apid, Callrec, #state{xferchannel = XferChannel, xferuuid = XferUU
 	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}]}),
 	{ok, State#state{agent_pid = Apid, ringchannel = XferChannel,
 			xferchannel = undefined, xferuuid = undefined}};
-handle_answer(_Apid, _Call, State) ->
-	{error, outgoing_only, State}.
+handle_answer(Apid, Callrec, State) ->
+	agent:conn_cast(Apid, {mediaload, Callrec, [{<<"height">>, <<"300px">>}, {<<"title">>, <<"Server Boosts">>}]}),
+	{ok, State#state{agent_pid = Apid}}.
 
-handle_ring(_Apid, _Call, State) ->
-	{invalid, State}.
-	
-handle_ring_stop(_Call, State) ->
-	{ok, State}.
+handle_ring(Apid, Callrec, State) ->
+	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
+	AgentRec = agent:dump_state(Apid),
+	F = fun(UUID) ->
+		fun(ok, _Reply) ->
+			freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Callrec#call.id);
+		(error, Reply) ->
+			?WARNING("originate failed: ~p; agent:  ~s, call: ~p", [Reply, AgentRec#agent.login, Callrec#call.id]),
+			ok
+		end
+	end,
+	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F) of
+		{ok, Pid} ->
+			link(Pid),
+			{ok, [{"caseid", State#state.caseid}], State#state{ringchannel = Pid, agent_pid = Apid}};
+		{error, Error} ->
+			?ERROR("error ringing agent:  ~p; agent:  ~s call: ~p", [Error, AgentRec#agent.login, Callrec#call.id]),
+			{invalid, State}
+	end.
+
+handle_ring_stop(Callrec, State) ->
+	?DEBUG("hanging up ring channel for ~p", [Callrec#call.id]),
+	case State#state.ringchannel of
+		undefined ->
+			ok;
+		RingChannel ->
+			freeswitch_ring:hangup(RingChannel)
+	end,
+	{ok, State#state{ringchannel=undefined}}.
 
 -spec(handle_voicemail/3 :: ('undefined', Call :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_voicemail(undefined, Call, State) ->

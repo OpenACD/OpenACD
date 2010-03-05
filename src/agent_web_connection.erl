@@ -811,6 +811,23 @@ handle_call({undefined, "/report_issue", Post}, _From, State) ->
 			]},
 			{reply, {200, [], mochijson2:encode(Json)}, State}
 	end;
+handle_call({undefined, "/profilelist"}, _From, State) ->
+	Profiles = agent_auth:get_profiles(),
+	% TODO finish off the filtering.
+%	#agent{profile = Myprof} = agent:dump_state(State#state.agent_fsm);
+%	Filter = fun(#agent_profile{options = Opts} = Prof) ->
+%		if
+%			proplists:get_value(hidden, Opts) ->
+%				false;
+%			proplists:get_value(isolated, Opts, false) andalso (Prof#agent_profile.name =/= Myprof) ->
+%				false;
+	
+	Jsons = [
+		{struct, [{<<"name">>, list_to_binary(Name)}, {<<"order">>, Order}]} ||
+		#agent_profile{name = Name, order = Order} <- Profiles
+	],
+	R = {200, [], mochijson2:encode({struct, [{success, true}, {<<"profiles">>, Jsons}]})},
+	{reply, R, State};	
 handle_call({undefined, [$/ | Path]}, From, State) ->
 	handle_call({undefined, [$/ | Path], []}, From, State);
 handle_call({undefined, [$/ | Path], Post}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
@@ -1059,29 +1076,38 @@ handle_info({cpx_monitor_event, Message}, State) ->
 	%?DEBUG("Ingesting cpx_monitor_event ~p", [Message]),
 	Json = case Message of
 		{drop, {Type, Name}} ->
+			Fixedname = if 
+				is_atom(Name) ->
+					 atom_to_binary(Name, latin1); 
+				 true -> 
+					 list_to_binary(Name) 
+			end,
 			{struct, [
 				{<<"command">>, <<"supervisortab">>},
 				{<<"data">>, {struct, [
 					{<<"action">>, drop},
-					{<<"id">>, list_to_binary(lists:append([atom_to_list(Type), "-", Name]))}
+					{<<"type">>, Type},
+					{<<"id">>, list_to_binary([atom_to_binary(Type, latin1), $-, Fixedname])},
+					{<<"name">>, Fixedname}
 				]}}
 			]};
 		{set, {{Type, Name}, Healthprop, Detailprop, _Timestamp}} ->
 			Encodedhealth = encode_health(Healthprop),
 			Encodeddetail = encode_proplist(Detailprop),
-			Fixedname = case is_atom(Name) of
-				true ->
-					atom_to_list(Name);
-				false ->
-					Name
+			Fixedname = if 
+				is_atom(Name) ->
+					 atom_to_binary(Name, latin1); 
+				 true -> 
+					 list_to_binary(Name) 
 			end,
 			{struct, [
 				{<<"command">>, <<"supervisortab">>},
 				{<<"data">>, {struct, [
 					{<<"action">>, set},
-					{<<"id">>, list_to_binary([atom_to_list(Type), "-", Fixedname])},
+					{<<"id">>, list_to_binary([atom_to_binary(Type, latin1), $-, Fixedname])},
 					{<<"type">>, Type},
-					{<<"display">>, list_to_binary(Fixedname)},
+					{<<"name">>, Fixedname},
+					{<<"display">>, Fixedname},
 					{<<"health">>, Encodedhealth},
 					{<<"details">>, Encodeddetail}
 				]}}
@@ -1722,6 +1748,14 @@ encode_proplist([{callerid, {CidName, CidDAta}} | Tail], Acc) ->
 	CidDAtaBin = list_to_binary(CidDAta),
 	Newacc = [{callid_name, CidNameBin} | [{callid_data, CidDAtaBin} | Acc ]],
 	encode_proplist(Tail, Newacc);
+encode_proplist([{Key, Media} | Tail], Acc) when is_record(Media, call) ->
+	Simple = [{callerid, Media#call.callerid},
+	{type, Media#call.type},
+	{client, Media#call.client},
+	{direction, Media#call.direction},
+	{id, Media#call.id}],
+	Json = encode_proplist(Simple),
+	encode_proplist(Tail, [{Key, Json} | Acc]);
 encode_proplist([_Head | Tail], Acc) ->
 	encode_proplist(Tail, Acc).
 

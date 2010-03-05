@@ -1,12 +1,5 @@
 if(typeof(queueDashboard) == "undefined"){
-	
-	var link = document.createElement('link');
-	var head = dojo.query('head')[0];
-	head.appendChild(link);
-	link.rel = 'stylesheet';
-	link.href='/tabs/queue_dashboard.css';
-	link.type = 'text/css';
-	
+		
 	queueDashboard = function(){
 		return {};
 	}
@@ -21,52 +14,55 @@ if(typeof(queueDashboard) == "undefined"){
 	queueDashboard.Queue = function(display){
 		this.name = display;
 		this.medias = {};
-		this._history = {};
-		this._limboMedias = {};
-		this.completed = 0;
-		this.calls = 0;
-		this.abandoned = 0;
-		this.avgHold = 0;
-		this.maxHold = 0;
 		this._masterSubscription = dojo.subscribe("queueDashboard/supevent", this, function(event){
-			this.consumeEvent(event.data);
+			this.consumeEvent(event);
 		});
 	}
 	
+	queueDashboard.Queue.prototype.now = function(){
+		return Math.floor(new Date().getTime() / 1000);
+	}
+	
 	queueDashboard.Queue.prototype.consumeEvent = function(data){
-		debug(["nom nom'ing", data]);
-		if(this.medias[data.id]){
-			this.updateLiveMedia(data);
-		} else if(this._history[data.id]){
-			this.updateHistoricalMedia(data);
-		} else if(this._limboMedias[data.id]){
-			debug(['updating limbo', data]);
-			if(data.action == 'drop'){
-				delete this._limboMedias[data.id];
-			} else if(data.details.agent){
-				delete this._limboMedias[data.id];
-			} else if (data.details.queue && data.details.queue == this.name){
-				this.medias[data.id] = this._limboMedias[data.id];
-				this.medias[data.id].status = 'queued';
-				this.calls++;
-			} else if(data.details.queue){
-				delete this._limboMedias[data.id];
+		//console.log(["nom nom'ing", data]);
+		if(data.type != 'media'){
+			return false;
+		}
+		
+		if(data.action == 'drop'){
+			delete this.medias[data.name];
+			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
+			while(nodes.length > 0){
+				var n = nodes.pop();
+				n.parentNode.removeChild(n);
 			}
-		} else {
-			if(data.action == 'drop'){
-				return false;
-			} else if(data.details.queue == this.name){
-				this.medias[data.id] = new queueDashboard.Media(data);
-				this.calls++;
+			return true;
+		}
+		
+		if(data.details.queue != this.name && this.medias[data.name]){
+			delete this.medias[data.name];
+			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
+			while(nodes.length > 0){
+				var n = nodes.pop();
+				n.parentNode.removeChild(n);
+			}			
+			dojo.publish('queueDashboard/updateQueue/' + data.name, [{action:'drop'}]);
+		}
+		
+		if(data.details.queue == this.name){
+			this.medias[data.name] = data;
+			dojo.publish('queueDashboard/updateQueue/' + data.name, [{action:'set'}]);
+			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name = '"]');
+			if(nodes.length == 0){
+			
 			} else {
-				this._limboMedias[data.id] = new queueDashboard.Media(data);
+			
 			}
 		}
 		
-		debug(['apparently data.type was not media', data.type]);
-		return false;
+		return true;
 	}
-	
+	/*
 	queueDashboard.Queue.prototype.updateLiveMedia = function(data){
 		debug(['updating live', data]);
 		if(data.action == 'drop'){
@@ -170,31 +166,12 @@ if(typeof(queueDashboard) == "undefined"){
 		
 		return false;
 	}
-	// =====
-	// helper class media
-	// ====
-	
-	queueDashboard.Media = function(initalEvent){
-		this.initalEvent = initalEvent;
-		this.created = Math.floor(new Date().getTime() / 1000);
-		if(initalEvent.details.queued_at){
-			this.created = initalEvent.details.queued_at.timestamp;
-		}
-		this.type = initalEvent.details.type;
-		this.client = initalEvent.details.client;
-		this.status = 'limbo';
-	}
-	
-	queueDashboard.Media.prototype.end = function(cause){
-		this.status = cause;
-		this.ended = Math.floor(new Date().getTime() / 1000);
-	}
-	
+	*/
 	// =====
 	// Helpful functions
 	// =====
 	
-	queueDashboard.filterSupevent = function(supevent){
+	/*queueDashboard.filterSupevent = function(supevent){
 		debug(["the subevent", supevent]);
 		if (supevent.type == 'media' || supevent.type == 'queue'){
 			return true;
@@ -205,9 +182,9 @@ if(typeof(queueDashboard) == "undefined"){
 		}
 		
 		return false;
-	}
+	}*/
 	
-	queueDashboard.getStatus = function(){
+	/*queueDashboard.getStatus = function(){
 		dojo.xhrGet({
 			url:'/supervisor/status',
 			handleAs:'json',
@@ -244,8 +221,8 @@ if(typeof(queueDashboard) == "undefined"){
 				errMessage(["getting initial status errored", res]);
 			}
 		});
-	}
-	
+	}*/
+	/*
 	queueDashboard.getHistory = function(file){
 		if(! file){
 			file = "/dynamic/all.json";
@@ -256,69 +233,56 @@ if(typeof(queueDashboard) == "undefined"){
 			url:file,
 			handleAs:'json',
 			load:function(res){
-				/*for(var i = 0; i < res.queueGroups.length; i++){*/
-					/*var queues = res.queueGroups[i].queues;*/
-					for(var j = 0; j < res.queues.length; j++){
-						var queue = res.queues[j].name;
-						var medias = res.queues[j].medias;
-						var seedAbn = res.queues[j].totalAbandoned;
-						var seedComplete = res.queues[j].totalInbound - seedAbn;
-						for(var k = 0; k < medias.length; k++){
-							var media = medias[k];
-							if(media.ended && (now - media.ended > 3600)){
-								console.log(["too old", media]);
-								/*if(media.didAbandon){
-									seedAbn--;
-								} else {
-									seedComplete--;
-								}*/
-								continue;
+				for(var j = 0; j < res.queues.length; j++){
+					var queue = res.queues[j].name;
+					var medias = res.queues[j].medias;
+					var seedAbn = res.queues[j].totalAbandoned;
+					var seedComplete = res.queues[j].totalInbound - seedAbn;
+					for(var k = 0; k < medias.length; k++){
+						var media = medias[k];
+						if(media.ended && (now - media.ended > 3600)){
+							console.log(["too old", media]);
+							continue;
+						}
+						
+						if(queueDashboard.dataStore.queues[queue].awareOfMedia(media.id)){
+							console.log(["already knew", media]);
+							continue;
+						}
+						
+						media.id = 'media-' + media.id;
+						var initEvent = {
+							details:{
+								queued_at: {
+									timestamp: media.queued
+								},
+								type: media.type,
+								client: media.brand
 							}
-							
-							if(queueDashboard.dataStore.queues[queue].awareOfMedia(media.id)){
-								console.log(["already knew", media]);
-								/*if(media.didAbandon){
-									seedAbn--;
-								} else {
-									seedComplete--;
-								}*/
-								continue;
-							}
-							
-							media.id = 'media-' + media.id;
-							var initEvent = {
-								details:{
-									queued_at: {
-										timestamp: media.queued
-									},
-									type: media.type,
-									client: media.brand
-								}
-							};
-							var usableMedia = new queueDashboard.Media(initEvent);
-							
-							usableMedia.note = 'transformed from historical data';
-							if(media.ended){
-								if(media.didAbandon){
-									usableMedia.status = 'abandoned';
-									usableMedia.ended = media.ended;
-									queueDashboard.dataStore.queues[queue].abandoned++;
-									console.log(['abandoned', media]);
-								} else {
-									usableMedia.status = 'completed';
-									usableMedia.ended = media.ended;
-									queueDashboard.dataStore.queues[queue].completed++;
-									console.log(['completed', media]);
-								}
-								queueDashboard.dataStore.queues[queue]._history[media.id] = usableMedia;
+						};
+						var usableMedia = new dashboard.Media(initEvent);
+						
+						usableMedia.note = 'transformed from historical data';
+						if(media.ended){
+							if(media.didAbandon){
+								usableMedia.status = 'abandoned';
+								usableMedia.ended = media.ended;
+								queueDashboard.dataStore.queues[queue].abandoned++;
+								console.log(['abandoned', media]);
 							} else {
-								usableMedia.status = 'queued';
-								queueDashboard.dataStore.queues[queue].medias[media.id] = usableMedia;
-								queueDashboard.dataStore.queues[queue].calls++;
+								usableMedia.status = 'completed';
+								usableMedia.ended = media.ended;
+								queueDashboard.dataStore.queues[queue].completed++;
+								console.log(['completed', media]);
 							}
+							queueDashboard.dataStore.queues[queue]._history[media.id] = usableMedia;
+						} else {
+							usableMedia.status = 'queued';
+							queueDashboard.dataStore.queues[queue].medias[media.id] = usableMedia;
+							queueDashboard.dataStore.queues[queue].calls++;
 						}
 					}
-				/*}*/
+				}
 			},
 			error:function(res){
 				var m = ["getting historical data errored", res];
@@ -327,7 +291,7 @@ if(typeof(queueDashboard) == "undefined"){
 			}
 		});
 	}
-	
+	*/
 	queueDashboard.drawQueueTable = function(){
 		// Should only need to be called once, after the queue list is gotten.
 		for(var i in queueDashboard.dataStore.queues){
@@ -337,6 +301,7 @@ if(typeof(queueDashboard) == "undefined"){
 				var queueTr = document.createElement('tr');
 				queueTr.setAttribute('queue', testnom);
 				queueTr.setAttribute('purpose', 'queueDisplay');
+				queueTr.setAttribute('expanded', false);
 				dojo.create('td', {purpose: 'name', innerHTML: testnom}, queueTr);
 				dojo.create('td', {purpose: 'callCount'}, queueTr);
 				dojo.create('td', {purpose: 'completeCount'}, queueTr);
@@ -344,13 +309,26 @@ if(typeof(queueDashboard) == "undefined"){
 				dojo.create('td', {purpose: 'averageHold'}, queueTr);
 				dojo.create('td', {purpose: 'oldestHold'}, queueTr);
 				queueTr.onclick = function(){
-					var queuenom = this.getAttribute('queue');
-					var callDisps = dojo.query('#queueDashboardTable *[queue="' + queuenom + '"][purpose="callDisplay"]');
-					if(callDisps.length == 0){
-						queueDashboard.drawCallTable(queuenom);
+					console.log(this);
+					var ex = this.getAttribute('expanded');
+					if(ex == 'false'){
+						ex = false;
 					} else {
-						dojo.byId('queueDashboardTable').removeChild(callDisps[0]);
+					 ex = true
 					}
+					console.log(['got ex', ex]);
+					var queuenom = this.getAttribute('queue');
+					console.log('got queuenom');
+					if(ex){
+						console.log('should try to collapse');
+						var callDisps = dojo.query('#queueDashboardTable *[queue="' + queuenom + '"][purpose="callDisplay"]');
+						dojo.byId('queueDashboardTable').removeChild(callDisps[0]);
+					} else {
+						console.log('should try to expand');
+						queueDashboard.drawCallTable(queuenom);
+					}
+					console.log('toggling state');
+					this.setAttribute('expanded', ! ex);
 				}
 				queueTr.queueSubscription = dojo.subscribe("queueDashboard/queueUpdate", queueTr, function(queue){
 					if(queue.name != this.getAttribute('queue')){
@@ -410,15 +388,15 @@ if(typeof(queueDashboard) == "undefined"){
 		var tr = document.createElement('tr');
 		var media = queueDashboard.dataStore.queues[queuename].medias[mediaid];
 		var now = Math.floor(new Date().getTime() / 1000);
-		var age = now - media.created;
+		var age = now - media.details.queued_at.timestamp;
 		tr.setAttribute('callid', mediaid);
-		dojo.create('td', {innerHTML: media.initalEvent.details.callid_name + " " + media.initalEvent.details.callid_data}, tr);
-		dojo.create('td', {innerHTML: media.type}, tr);
-		dojo.create('td', {innerHTML: formatseconds(age)}, tr);
-		dojo.create('td', {innerHTML: media.client}, tr);
+		dojo.create('td', {purpose:'callerid', innerHTML: media.details.callid_name + " " + media.details.callid_data}, tr);
+		dojo.create('td', {purpose: 'mediaType', innerHTML: '<img src="/images/' + media.details.type + '.png" />'}, tr);
+		dojo.create('td', {purpose: 'age', innerHTML: formatseconds(age)}, tr);
+		dojo.create('td', {purpose: 'client', innerHTML: media.client}, tr);
 		dojo.place(tr, tbody, 'last');
 	}
-	
+	/*
 	queueDashboard.recalcTimerFunc = function(){
 		if(dojo.byId('queueDashboardTable')){
 			for(var i in queueDashboard.dataStore.queues){
@@ -426,7 +404,7 @@ if(typeof(queueDashboard) == "undefined"){
 			}
 			queueDashboard.recalcTimer = setTimeout(queueDashboard.recalcTimerFunc, 5000);
 		}
-	}
+	}*/
 }
 
 dojo.xhrGet({
@@ -438,7 +416,8 @@ dojo.xhrGet({
 				queueDashboard.dataStore.queues[res.queues[i].name] = new queueDashboard.Queue(res.queues[i].name);
 			}
 			queueDashboard.drawQueueTable();
-			queueDashboard.getStatus();
+			//queueDashboard.getHistory();
+			//queueDashboard.getStatus();
 		} else {
 			errMessage(["getting queues failed", res.message]);
 		}
@@ -448,14 +427,12 @@ dojo.xhrGet({
 	}
 });
 
-queueDashboard.masterSub = dojo.subscribe("agent/supervisortab", queueDashboard, function(supevent){
-	if(! this.filterSupevent(supevent.data)){
-		return false;
-	}
+/*queueDashboard.queueSub = dojo.subscribe('dashboard/supevent/queue', queueDashboard, function(action, supevent){
+	console.log(['wow, queue sup event', supevent]);
+});*/
+
+queueDashboard.mediaSub = dojo.subscribe('dashboard/supevent/media', queueDashboard, function(supevent){
 	var supcp = supevent;
-	//supcp.data.id = supcp.data.id.substr(6);
-
 	debug(["queueDashboard forwarding", supcp]);
-
 	dojo.publish("queueDashboard/supevent", [supcp]);
 });

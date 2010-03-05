@@ -1,0 +1,70 @@
+<div dojoType="dijit.layout.BorderContainer" gutters="true" id="dashboardMain">
+	<div dojoType="dijit.layout.ContentPane" region="top">
+		<button dojoType="dijit.form.Button" style="float:right">Agents
+			<script type="dojo/connect" event="onClick">
+				dojo.animateProperty({
+					node:dijit.byId('dashboardQueuePane').domNode,
+					properties:{
+						width:{end: 200, units: 'px', start: dijit.byId('dashboardQueuePane').domNode.style.width}
+					},
+					onAnimate: function(){
+						dijit.byId('dashboardMain').resize();
+					},
+					onEnd: function(){
+						dijit.byId('dashboardMain').resize();
+					}
+				}).play();
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button">Queues
+			<script type="dojo/connect" event="onClick">
+				var endW = parseInt(dijit.byId('dashboardMain').domNode.style.width) - 200;
+				dojo.animateProperty({
+					node:dijit.byId('dashboardQueuePane').domNode,
+					properties:{
+						width:{end: endW, units: 'px', start: dijit.byId('dashboardQueuePane').domNode.style.width}
+					},
+					onAnimate: function(){
+						dijit.byId('dashboardMain').resize();
+					},
+					onEnd: function(){
+						dijit.byId('dashboardMain').resize();
+					}
+				}).play();
+			</script>
+		</button>
+		<button dojoType="dijit.form.Button" style="position:relative; left:45%">| |
+			<script type="dojo/connect" event="onClick">
+				var endW = Math.floor(parseInt(dijit.byId('dashboardMain').domNode.style.width) / 2);
+				dojo.animateProperty({
+					node:dijit.byId('dashboardQueuePane').domNode,
+					properties:{
+						width:{end: endW, units: 'px', start: dijit.byId('dashboardQueuePane').domNode.style.width}
+					},
+					onAnimate:function(){
+						dijit.byId('dashboardMain').resize();
+					},
+					onEnd: function(){
+						dijit.byId('dashboardMain').resize();
+					}
+				}).play();
+			</script>
+		</button>
+	</div>
+    <div dojoType="dijit.layout.ContentPane" splitter="true" region="leading" style="width: 50%;" id="dashboardQueuePane">
+		<table class="dashboard"><tbody  id="queueDashboardTable">
+			<tr><th>Queue</th><th>calls</th><th>Completed</th><th>Abandoned</th><th>Avg Queue</th><th>Max Queue</th></tr>
+		</tbody></table>
+    </div>
+    <div dojoType="dijit.layout.ContentPane" splitter="true" region="center" id="dashboardAgentPane">
+		<table class="dashboard"><tbody id="agentDashboardTable">
+			<tr><th>Profile</th><th>Agents</th><th>Avail</th><th>In Call</th><th>Released</th><th>Wrapup</th></tr>
+		</tbody></table>
+    </div>
+</div>
+<script type="text/javascript" src="tabs/dashboard.js"></script>
+<script type="text/javascript" src="tabs/queueDashboard.js"></script>
+<script type="text/javascript" src="tabs/agentDashboard.js"></script>
+<script type="text/javascript">
+	dashboard.getStatus();
+</script>

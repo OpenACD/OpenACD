@@ -167,9 +167,9 @@ function loadTab(tabid){
 			href = 'tabs/supervisor.html';
 			title = 'Supervisor';
 			break;
-		case 'queueDashboardTab':
-			href = 'tabs/queue_dashboard.html';
-			title = 'Queues';
+		case 'dashboardTab':
+			href = 'tabs/dashboard.html';
+			title = 'Dashboard';
 			break;
 		default:
 			return false;

@@ -1,0 +1,12 @@
+.dashboard td[purpose="name"] {
+	cursor: pointer
+}
+
+table.dashboard {
+	width:100%;
+}
+
+.dashboard td, .dashboard th {
+	border: black outset 2px;
+	text-align: center;
+}

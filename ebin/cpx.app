@@ -73,6 +73,6 @@
 	]},
 	{mod, {cpx, []}},
 	{env, []},
-	{applications, [kernel, stdlib, mnesia]},
+	{applications, [kernel, stdlib, mnesia]}, %, mochiweb, gen_smtp]},
 	{start_phases, []}
 ]}.

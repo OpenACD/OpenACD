@@ -95,7 +95,7 @@
 
 -record(agent_profile, {
 	name = erlang:error({undefined, name}) :: string(),
-	id = erlang:error({undefined, id}) :: string(),
+	id :: 'undefined' | string(), %erlang:error({undefined, id}) :: string(),
 	order = 1 :: pos_integer(),
 	options = [] :: [profile_option()],
 	skills = [] :: [atom()],

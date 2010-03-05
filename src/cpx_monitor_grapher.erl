@@ -168,17 +168,17 @@ handle_info(update, State) ->
 	GroupedAgents = get_agents(Now),
 	timer:send_after(30000, update),
 	Util = calculate_utilization(State#state.agents),
-	?DEBUG("utilization: ~p", [Util]),
+	%?DEBUG("utilization: ~p", [Util]),
 	%?DEBUG("agents: ~p", [State#state.agents]),
 	AgentCount = lists:foldl(
 		fun({Profile, Agents}, A) when Profile =/= "Supervisor", Profile =/= "Customer Service" ->
-			?DEBUG("Counting profile ~p", [Profile]),
+			%?DEBUG("Counting profile ~p", [Profile]),
 			%GroupedAgents1 = util:group_by_with_key(fun(Agent) -> proplists:get_value(login, Agent) end, Agents),
 			A + 1;
 		(_, A) ->
 			A
 	end, 0, State#state.agents),
-	?DEBUG("Agentcount is ~p", [AgentCount]),
+	%?DEBUG("Agentcount is ~p", [AgentCount]),
 
 	Composite = case AgentCount of
 		0 ->
@@ -193,7 +193,7 @@ handle_info(update, State) ->
 				0, Util) / AgentCount
 	end,
 
-	?DEBUG("Composite is ~p", [Composite]),
+	%?DEBUG("Composite is ~p", [Composite]),
 	update_utilization(Util ++ [{"Composite", Composite}], State#state.rrd),
 	{noreply, State#state{lastrun = Now, agents = GroupedAgents}, hibernate};
 handle_info({cpx_monitor_event, {set, {{agent, _}, _, Agent, _}}}, #state{agents = Agents} = State) ->

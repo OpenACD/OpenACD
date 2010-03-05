@@ -1738,6 +1738,14 @@ encode_proplist([{callerid, {CidName, CidDAta}} | Tail], Acc) ->
 	CidDAtaBin = list_to_binary(CidDAta),
 	Newacc = [{callid_name, CidNameBin} | [{callid_data, CidDAtaBin} | Acc ]],
 	encode_proplist(Tail, Newacc);
+encode_proplist([{Key, Media} | Tail], Acc) when is_record(Media, call) ->
+	Simple = [{callerid, Media#call.callerid},
+	{type, Media#call.type},
+	{client, Media#call.client},
+	{direction, Media#call.direction},
+	{id, Media#call.id}],
+	Json = encode_proplist(Simple),
+	encode_proplist(Tail, [{Key, Json} | Acc]);
 encode_proplist([_Head | Tail], Acc) ->
 	encode_proplist(Tail, Acc).
 

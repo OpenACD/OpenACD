@@ -1147,7 +1147,10 @@ terminate(Reason, StateName, State) ->
 code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
 
-format_status(normal, [_PDict, State]) ->
+
+format_status(normal, [PDict, State]) ->
+	[{data, [{"State", format_status(terminate, [PDict, State])}]}];
+format_status(terminate, [_PDict, State]) ->
 	% prevent client data from being dumped
 	NewState = case State#agent.statedata of
 		#call{client = Client} = Call when is_record(Call#call.client, client) ->
@@ -1158,7 +1161,8 @@ format_status(normal, [_PDict, State]) ->
 		_ ->
 			State
 	end,
-	[{data, [{"State", NewState#agent{password = redacted}}]}].
+	NewState#agent{password = redacted}.
+
 
 %% =====
 %% Internal functions

@@ -60,7 +60,8 @@
 	poll/2,
 	keep_alive/1,
 	mediaload/1,
-	dump_state/1
+	dump_state/1,
+	format_status/2
 ]).
 
 %% gen_server callbacks
@@ -1131,6 +1132,15 @@ terminate(Reason, State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+format_status(normal, [PDict, State]) ->
+	[{data, [{"State", format_status(terminate, [PDict, State])}]}];
+format_status(terminate, [_PDict, State]) ->
+	case State#state.current_call of
+		#call{id = ID} ->
+			State#state{current_call = ID};
+		_ -> State
+	end.
 
 %%--------------------------------------------------------------------
 %%% Internal functions

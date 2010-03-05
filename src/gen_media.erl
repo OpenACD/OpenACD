@@ -1076,7 +1076,7 @@ code_change(OldVsn, #state{callback = Callback} = State, Extra) ->
 	{ok, Newsub} = Callback:code_change(OldVsn, State#state.callrec, State#state.substate, Extra),
     {ok, State#state{substate = Newsub}}.
 
-format_status(Opt, [PDict, #state{callback = Mod, substate = SubState, callrec = Call} = State]) ->
+format_status(normal, [PDict, #state{callback = Mod, substate = SubState, callrec = Call} = State]) ->
 	% prevent client data from being dumped
 	NewCall = case Call#call.client of
 		Client when is_record(Client, client) ->
@@ -1089,14 +1089,36 @@ format_status(Opt, [PDict, #state{callback = Mod, substate = SubState, callrec =
 	% allow media callback to scrub its state
 	SubStat = case erlang:function_exported(Mod, format_status, 2) of
 		true ->
-			case catch Mod:format_status(Opt, [PDict, SubState]) of
+			case catch Mod:format_status(normal, [PDict, SubState]) of
 				{'EXIT', _} -> SubState;
 				Else -> Else
 			end;
 		_ ->
 			SubState
 	end,
-	[{data, [{"State", NewState#state{substate = ""}}, {"SubState", SubStat}]}].
+	NewState#state{substate = SubStat},
+	[{data, [{"State", NewState#state{substate = ""}}, {"SubState", NewState#state.substate}]}];
+format_status(terminate, [PDict, #state{callback = Mod, substate = SubState, callrec = Call} = State]) ->
+	% prevent client data from being dumped
+	NewCall = case Call#call.client of
+		Client when is_record(Client, client) ->
+			Call#call{client = Client#client{options = []}};
+		_ ->
+			Call
+	end,
+	NewState = State#state{callrec = NewCall},
+
+	% allow media callback to scrub its state
+	SubStat = case erlang:function_exported(Mod, format_status, 2) of
+		true ->
+			case catch Mod:format_status(terminate, [PDict, SubState]) of
+				{'EXIT', _} -> SubState;
+				Else -> Else
+			end;
+		_ ->
+			SubState
+	end,
+	NewState#state{substate = SubStat}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions

@@ -1096,8 +1096,7 @@ format_status(normal, [PDict, #state{callback = Mod, substate = SubState, callre
 		_ ->
 			SubState
 	end,
-	NewState#state{substate = SubStat},
-	[{data, [{"State", NewState#state{substate = ""}}, {"SubState", NewState#state.substate}]}];
+	[{data, [{"State", NewState#state{substate = ""}}, {"SubState", SubStat}]}];
 format_status(terminate, [PDict, #state{callback = Mod, substate = SubState, callrec = Call} = State]) ->
 	% prevent client data from being dumped
 	NewCall = case Call#call.client of

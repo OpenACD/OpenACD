@@ -35,6 +35,9 @@ if(typeof(queueDashboard) == "undefined"){
 			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
 			while(nodes.length > 0){
 				var n = nodes.pop();
+				var queuerow = n.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.rowIndex - 2];
+				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
+				queuerow.cells[3].innerHTML = parseInt(queuerow.cells[3].innerHTML) + 1; /* abandoned */
 				n.parentNode.removeChild(n);
 			}
 			return true;
@@ -46,8 +49,11 @@ if(typeof(queueDashboard) == "undefined"){
 			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
 			while(nodes.length > 0){
 				var n = nodes.pop();
+				var queuerow = n.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.rowIndex - 2];
+				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
+				queuerow.cells[2].innerHTML = parseInt(queuerow.cells[2].innerHTML) + 1; /* completed */
 				n.parentNode.removeChild(n);
-			}			
+			}
 			dojo.publish('queueDashboard/updateQueue/' + data.name, [{action:'drop'}]);
 		} else if(data.details.queue == this.name){
 			this.medias[data.name] = data;
@@ -55,8 +61,9 @@ if(typeof(queueDashboard) == "undefined"){
 			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
 			if(nodes.length == 0){
 				/* add row */
-				var rows = dojo.query('#queueDashboardTable *[queue="' + data.details.queue + '"][purpose="callDisplay"] table');
+				var rows = dojo.query('#queueDashboardTable tr[queue="' + data.details.queue + '"][purpose="queueDisplay"]');
 				if(rows.length == 1) {
+					rows[0].cells[1].innerHTML = parseInt(rows[0].cells[1].innerHTML) + 1;
 					var tbody = dojo.query('#queueDashboardTable *[queue="' + data.details.queue + '"][purpose="callDisplay"] table')[0];
 					queueDashboard.drawCallTableRow(data.details.queue, data.name, tbody);
 				}
@@ -306,15 +313,14 @@ if(typeof(queueDashboard) == "undefined"){
 			if(nodes.length == 0){
 				var queueTr = document.createElement('tr');
 				queueTr.setAttribute('queue', testnom);
-				queueTr.setAttribute('class', "queueDisplay");
 				queueTr.setAttribute('purpose', 'queueDisplay');
 				queueTr.setAttribute('expanded', false);
 				dojo.create('td', {purpose: 'name', innerHTML: testnom}, queueTr);
-				dojo.create('td', {purpose: 'callCount'}, queueTr);
-				dojo.create('td', {purpose: 'completeCount'}, queueTr);
-				dojo.create('td', {purpose: 'abandonCount'}, queueTr);
-				dojo.create('td', {purpose: 'averageHold'}, queueTr);
-				dojo.create('td', {purpose: 'oldestHold'}, queueTr);
+				dojo.create('td', {purpose: 'callCount', innerHTML: "0"}, queueTr);
+				dojo.create('td', {purpose: 'completeCount', innerHTML: "0"}, queueTr);
+				dojo.create('td', {purpose: 'abandonCount', innerHTML: "0"}, queueTr);
+				dojo.create('td', {purpose: 'averageHold', innerHTML: "0:00"}, queueTr);
+				dojo.create('td', {purpose: 'oldestHold', innerHTML: "0:00"}, queueTr);
 				queueTr.onclick = function(){
 					console.log(this);
 					var ex = this.getAttribute('expanded');

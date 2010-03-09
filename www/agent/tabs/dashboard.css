@@ -4,9 +4,13 @@
 
 table.dashboard {
 	width:100%;
+	border: none;
 }
 
-.dashboard td, .dashboard th {
+/*.dashboard td, .dashboard th {
 	border: black outset 2px;
 	text-align: center;
-}
+}*/
+
+.dashboard tr:nth-child(odd)    { background-color:#eee; }
+.dashboard tr:nth-child(even)    { background-color:#fff; }

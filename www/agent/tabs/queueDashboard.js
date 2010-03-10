@@ -423,26 +423,24 @@ if(typeof(queueDashboard) == "undefined"){
 		dojo.create('td', {purpose: 'age', innerHTML: formatseconds(age)}, tr);
 		dojo.create('td', {purpose: 'client', innerHTML: media.details.client}, tr);
 		dojo.place(tr, tbody, 'last');
-		tr.onclick = function(event){
-			var menu = new dijit.Menu({});
+		var menu = new dijit.Menu({});
+		menu.addChild(new dijit.MenuItem({
+			label: "Send To Agent...",
+			onClick: function() { queueDashboard.sendToAgentDialog(mediaid, queuename);}
+		}));
+		if (media.details.type == "email") {
 			menu.addChild(new dijit.MenuItem({
-				label: "Send To Agent...",
-				onClick: function() { queueDashboard.sendToAgentDialog(mediaid, queuename);}
+				label: "Peek",
+				onClick: function() {alert("peek");}
 			}));
-
-			if (media.details.type == "email") {
-				menu.addChild(new dijit.MenuItem({
-					label: "Peek",
-					onClick: function() {alert("peek");}
-				}));
-			} else if (media.details.type == "voice") {
-				menu.addChild(new dijit.MenuItem({
-					label: "Send to voicemail",
-					onClick: function() {alert("voicemail");}
-				}));
-			}
-			menu._openMyself(event);
+		} else if (media.details.type == "voice") {
+			menu.addChild(new dijit.MenuItem({
+				label: "Send to voicemail",
+				onClick: function() {alert("voicemail");}
+			}));
 		}
+		tr.boundMenu = menu;
+		menu.bindDomNode(tr);
 	}
 
 	queueDashboard.sendToAgentDialog = function(mediaID, queue){

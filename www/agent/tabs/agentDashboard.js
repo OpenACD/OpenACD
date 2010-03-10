@@ -258,8 +258,6 @@ if(typeof(agentDashboard) == 'undefined'){
 				// TODO put the subscription here.
 				dojo.byId('agentDashboardTable').appendChild(profileTr);
 				agentDashboard.drawAgentTable(profCache);
-				// make the odd/even stripping correct.
-				dojo.create('tr', {style:'display:none'}, 'agentDashboardTable');
 			}
 		}
 	}
@@ -269,7 +267,9 @@ if(typeof(agentDashboard) == 'undefined'){
 		//console.log('drawAgentTable');
 		var profileAgentsTr = dojo.create('tr', {'profile': profile, purpose: 'agentDisplay', style:'display:none'});
 		dojo.place(profileAgentsTr, dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="profileDisplay"]')[0], 'after');
-		//dojo.create('td', null, profileAgentsTr);
+		// make the odd even stripping consistant w/ queueDashboard
+		dojo.create('tr', {style:'display:none'}, profileAgentsTr, 'before');
+
 		var widetd = dojo.create('td', {colspan: 6}, profileAgentsTr);
 		var table = dojo.create('table', null, widetd);
 		table.innerHTML = '<tr>' + 

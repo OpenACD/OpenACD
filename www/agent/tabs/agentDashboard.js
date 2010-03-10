@@ -126,7 +126,7 @@ if(typeof(agentDashboard) == 'undefined'){
 		//console.log(['drawAgentTableRow', profile, agent, tbody]);
 		var tr = dojo.create('tr', {'agent':agent.name}, tbody, 'last');
 		var now = Math.floor(new Date().getTime() / 1000);
-		dojo.create('td', {'agent':agent.name, purpose:'name', innerHTML:agent.name}, tr);
+		dojo.create('td', {'agent':agent.name, purpose:'name', innerHTML:agent.details.login}, tr);
 		dojo.create('td', {'agent':agent.name, purpose:'state', style: 'background-image:url("/images/' + agent.details.state + '.png")'}, tr);
 		dojo.create('td', {'agent':agent.name, purpose:'time', innerHTML: formatseconds(now - agent.details.lastchange.timestamp)}, tr);
 		dojo.create('td', {'agent':agent.name, purpose:'util', innerHTML:agent.util}, tr);

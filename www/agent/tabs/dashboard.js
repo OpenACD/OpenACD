@@ -63,6 +63,9 @@ if(typeof(dashboard) == 'undefined'){
 							type: items[i].type,
 							name: items[i].display
 						}
+						if(items[i].type == 'agent'){
+							fixedItem.name = fixedItem.id.substr(6);
+						}
 						real.push(fixedItem);
 					}
 				}

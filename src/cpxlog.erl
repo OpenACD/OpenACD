@@ -127,6 +127,7 @@ stop() ->
 		false ->
 			error_logger:add_report_handler(error_logger_tty_h, []);
 		_ ->
+			ok
 	end,
 	case lists:member(sasl_report_tty_h, gen_event:which_handlers(error_logger)) of
 		false ->

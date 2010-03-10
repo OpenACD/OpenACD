@@ -1,13 +1,13 @@
 if(typeof(queueDashboard) == "undefined"){
-		
+
 	queueDashboard = function(){
 		return {};
 	}
-	
+
 	queueDashboard.dataStore = {
 		queues:{}
 	};
-	
+
 	// =====
 	// helper class queue
 	// =====
@@ -18,18 +18,18 @@ if(typeof(queueDashboard) == "undefined"){
 			this.consumeEvent(event);
 		});
 	}
-	
+
 	queueDashboard.Queue.prototype.now = function(){
 		return Math.floor(new Date().getTime() / 1000);
 	}
-	
+
 	queueDashboard.Queue.prototype.consumeEvent = function(data){
 		//console.log(["nom nom'ing", data]);
 		/*console.log(data);*/
 		if(data.type != 'media'){
 			return false;
 		}
-		
+
 		if(data.action == 'drop'){
 			if(! this.medias[data.name]){
 				return true;
@@ -45,7 +45,7 @@ if(typeof(queueDashboard) == "undefined"){
 			}
 			return true;
 		}
-		
+
 		/* wtf? */
 		if(data.details.queue != this.name && this.medias[data.name]){
 			delete this.medias[data.name];
@@ -75,14 +75,14 @@ if(typeof(queueDashboard) == "undefined"){
 				console.log("update row NYI");
 			}
 		}
-		
+
 		return true;
 	}
-	
+
 	// =====
 	// Helpful functions
 	// =====
-	
+
 	queueDashboard.drawQueueTable = function(){
 		// Should only need to be called once, after the queue list is gotten.
 		for(var i in queueDashboard.dataStore.queues){
@@ -158,7 +158,7 @@ if(typeof(queueDashboard) == "undefined"){
 			}
 		}
 	}
-	
+
 	queueDashboard.drawCallTable = function(queuename){
 		var queueMediasTr = document.createElement('tr');
 		queueMediasTr.setAttribute('queue', queuename);
@@ -180,12 +180,12 @@ if(typeof(queueDashboard) == "undefined"){
 		tr.setAttribute('style', 'display:none;');
 		dojo.place(tr, dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="queueDisplay"]')[0], 'after');
 		/*var tbody = dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="callDisplay"] table')[0];*/
-		
+
 		/*for(var i in queueDashboard.dataStore.queues[queuename].medias){*/
 			/*queueDashboard.drawCallTableRow(queuename, i, tbody);*/
 		/*}*/
 	}
-	
+
 	queueDashboard.drawCallTableRow = function(queuename, mediaid, tbody){
 		var tr = document.createElement('tr');
 		var media = queueDashboard.dataStore.queues[queuename].medias[mediaid];
@@ -209,12 +209,24 @@ if(typeof(queueDashboard) == "undefined"){
 		if (media.details.type == "email") {
 			menu.addChild(new dijit.MenuItem({
 				label: "Peek",
-				onClick: function() {alert("peek");}
+				onClick: function() {queueDashboard.mediaPeek(mediaid, queuename)}
+			}));
+			menu.addChild(new dijit.MenuItem({
+				label: "Remove",
+				onClick: function() {queueDashboard.removeFromQueue(mediaid, queuename)}
 			}));
 		} else if (media.details.type == "voice") {
 			menu.addChild(new dijit.MenuItem({
 				label: "Send to voicemail",
-				onClick: function() {alert("voicemail");}
+				onClick: function(){
+					confirmDialog({
+						'title':'Send to Voicemail',
+						'question':'Are you sure you want to send this call to voicemail?',
+						'yesLabel':'Voicemail',
+						'noLabel':'Cancel',
+						'yesAction':function(){queueDashboard.sendToVoicemail(mediaid, queuename);}
+					});
+				}
 			}));
 		}
 		tr.boundMenu = menu;
@@ -269,7 +281,7 @@ if(typeof(queueDashboard) == "undefined"){
 		if(! agent){
 			return false;
 		}
-		
+
 		if(media.queue){
 			var queue = media.queue;
 			var id = media.id;
@@ -290,6 +302,71 @@ if(typeof(queueDashboard) == "undefined"){
 				}
 			});
 		}
+	};
+
+	queueDashboard.mediaPeek = function(mediaid, queue){
+		if(queue){
+			queue = escape(queue);
+		} else {
+			return false;
+		}
+
+		id = escape(mediaid);
+		dojo.xhrGet({
+			url: '/supervisor/peek/' + queue + '/' + id,
+			handleAs: 'json',
+			load: function(res){
+				if(res.success){
+					return true;
+				}
+
+				errMessage(["peeking at media failed", res.message]);
+			},
+			error: function(res){
+				errMessage(["peeking at media failed", res]);
+			}
+		});
+	}
+
+	queueDashboard.removeFromQueue = function(mediaid, queue){
+		if(! queue){
+			return false;
+		}
+
+		queue = escape(queue);
+		var id = mediaid;
+		dojo.xhrGet({
+			url:'/supervisor/drop_call/' + queue + '/' + id,
+			handleAs: 'json',
+			load: function(res){
+				if(res.success){
+					return true;
+				}
+
+				errMessage(["drop call failed", res.message]);
+			},
+			error: function(res){
+				errMessage(["drop call errored", res]);
+			}
+		});
+	}
+
+	queueDashboard.sendToVoicemail = function(mediaid, queue){
+		dojo.xhrPost({
+			url:'/supervisor/voicemail/' + escape(queue) + '/' + escape(mediaid),
+			handleAs:'json',
+			load:function(res){
+				if(res.success){
+					return true;
+				}
+				else{
+					errMessage(["sending to voicemail failed", res.message]);
+				}
+			},
+			error:function(res){
+				errMessage(["sending to voicemail errored", res]);
+			}
+		});
 	};
 
 	/*

@@ -3,6 +3,17 @@
 	<p><input type="submit" dojoType="dijit.form.Button" label="Submit" /></p>
 </div>
 
+<div dojoType="dijit.Dialog" id="profileSwapDialog" title="Select Profile" style="display:none">
+	<p>
+		<label>Profile:</label>
+		<span id="profileSwapDialogParent"><select name="profile"></select></span>
+	</p>
+	<p>
+		<label>&nbsp;</label>
+		<input type="submit" dojoType="dijit.form.Button" label="Submit" />
+	</p>
+</div>
+
 <div dojoType="dijit.layout.BorderContainer" gutters="true" id="dashboardMain">
 	<div dojoType="dijit.layout.ContentPane" region="top">
 		<button dojoType="dijit.form.Button" style="float:right">Agents

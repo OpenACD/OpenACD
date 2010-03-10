@@ -17,16 +17,86 @@ if(typeof(agentDashboard) == 'undefined'){
 					}
 				}
 				var agent = profile.agents[agentNom];
-				if(agent.state == 'oncall'){
-					this.addChild(new dijit.MenuItem({
-						label:'Spy',
-						onClick:function(){ errMessage('spy nyi ' + agentNom) }
-					}));
+				switch(agent.state){
+					case 'released':
+					case 'wrapup':
+						this.addChild(new dijit.MenuItem({
+							label:'Idle',
+							onClick:function(){
+								agent.setState('idle');
+							}
+						}));
+						break;
+					case 'idle':
+						this.addChild(new dijit.MenuItem({
+							label:'Released',
+							onClick:function(){
+								agent.setState('released', 'default');
+							}
+						}));
+						break;
+					case 'oncall':
+						this.addChild(new dijit.MenuItem({
+							label:'Spy',
+							onClick:function(){
+								agent.spy();
+							}
+						}));
+						break;
+					default:
+						// noop
 				}
+				this.addChild(new dijit.MenuSeparator());
 				this.addChild(new dijit.MenuItem({
-					label:'Blab',
+					label:'Blab...',
 					onClick:function(){ 
 						agentDashboard.showBlabDialog('agent', agent.name);
+					}
+				}));
+				this.addChild(new dijit.MenuItem({
+					label:'Set Profile...',
+					onClick:function(){
+						var dialog = dijit.byId("profileSwapDialog");
+						var submitSetProf = function(){
+							var data = dialog.attr('value');
+							agent.setProfile(data.profile);
+						}
+						dialog.attr('execute', submitSetProf);
+						dojo.xhrGet({
+							url:"/supervisor/get_profiles",
+							handleAs:"json",
+							load:function(r){
+								if(r.success){
+									var span = dojo.byId('profileSwapDialogParent');
+									while(span.hasChildNodes()){
+										span.removeChild(span.firstChild);
+									}
+									var html = '<select name="profile">';
+									dojo.forEach(r.profiles, function(item){
+										html += '<option>' + item + '</option>';
+									});
+									html += '</select>';
+									span.innerHTML = html;
+									var modenode = span.firstChild;
+									new dijit.form.ComboBox({
+										name:'profile'
+									}, modenode);
+									dialog.show();
+								} else {
+									warning(["get_profiles failure", r.message]);
+								}
+							},
+							error:function(r){
+								warning(["get_profiles errored", r])
+							}
+						});
+					}
+				}));
+				this.addChild(new dijit.MenuSeparator());
+				this.addChild(new dijit.MenuItem({
+					label: 'Kick',
+					onClick:function(){
+						agent.kick();
 					}
 				}));
 			},
@@ -258,6 +328,82 @@ if(typeof(agentDashboard) == 'undefined'){
 				//console.log(['dinna parse', this.statedata]);
 				return '';
 		}
+	}
+	
+	agentDashboard.Agent.prototype.spy = function(){
+		dojo.xhrGet({
+			url:'/supervisor/spy/' + this.name,
+			handleAs:'json',
+			load:function(res){
+				if(res.success){
+					// cool
+				} else {
+					errMessage(['Counldn\'t spy', res.message]);
+				}
+			},
+			error:function(res){
+				errMessage(['error spying', res]);
+			}
+		});
+	}
+
+	agentDashboard.Agent.prototype.setState = function(stateName, stateData){
+		if(! stateData){
+			stateData = '';
+		} else {
+			stateData = '/' + escape(stateData);
+		}
+		
+		var geturl = "/supervisor/agentstate/" + escape(this.name) + "/" + stateName + stateData;
+		dojo.xhrGet({
+			url:geturl,
+			handleAs: "json",
+			load: function(resp){
+				if(resp.success){
+					return true;
+				}
+				errMessage(["setting state to idle failed", resp.message]);
+			},
+			errror: function(res){
+				errMessage(["setting state to idle error'ed", res]);
+			}
+		});
+	}
+	
+	agentDashboard.Agent.prototype.setProfile = function(newProf){
+		// letting the subscriptions that happen on agent changes deal w/ the repercussions.
+		dojo.xhrGet({
+			handleAs:"json",
+			url:"/supervisor/set_profile/" + escape(this.name) + "/" + escape(newProf),
+			load:function(res){
+				if(res.success){
+					//kewl
+					return true;
+				} else{
+					errMessage(["set profile failed", res.message]);
+				}
+			},
+			error:function(res){
+				errMessage(["set profile errored", res]);
+			}
+		});
+	}
+	
+	agentDashboard.Agent.prototype.kick = function(){
+		var geturl = "/supervisor/kick_agent/" + escape(this.name);
+		dojo.xhrGet({
+			url:geturl,
+			handleAs: "json",
+			load:function(resp){
+				if(resp.success){
+					return true;
+				}
+				errMessage(["kicking agent failed", resp.message]);
+			},
+			error:function(res){
+				errMessage(["Kicking agent errored", res]);
+			}
+		});
 	}
 	
 	// =====

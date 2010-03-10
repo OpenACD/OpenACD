@@ -1314,7 +1314,7 @@ from_idle_test_() ->
 		% before the next test runs.
 		ok
 	end,
-	[fun({Agent, Dmock, Monmock, Connmock, Assertmocks} = Testargs) ->
+	[fun({Agent, Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
 		{"to precall",
 		fun() ->
 			Client = #client{label = "testclient"},
@@ -1332,12 +1332,12 @@ from_idle_test_() ->
 				Inclient = Client,
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", precall, idle, Client}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", precall, idle, _Client}, _State) -> ok end),
 			?assertMatch({reply, ok, precall, _State}, idle({precall, Client}, {"ref", "pid"}, Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, Dmock, Monmock, Connmock, Assertmocks} = Testargs) ->
+	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
 		{"to ringing",
 		fun() ->
 			Self = self(),
@@ -1354,15 +1354,15 @@ from_idle_test_() ->
 				Call = Incall,
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, idle, Call}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, idle, _Call}, _State) -> ok end),
 			?assertMatch({reply, ok, ringing, _State}, idle({ringing, Call}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released with invalid format",
 		fun() ->
-			?assertMatch({reply, invalid, idle, _State}, idle({released, "not a valid data"}, "from", Agent))
+			?assertMatch({reply, invalid, idle, _State}, idle({released, "not a valid data"}, "from", Agent)), Assertmocks()
 		end}
 	end,
 	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
@@ -1475,10 +1475,10 @@ from_ringing_test_() ->
 		% before the next test runs.
 		ok
 	end,
-	[fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+	[fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to idle",
 		fun() ->
-			Aself = self(),
+			%Aself = self(),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{idle, _Limits}] = Health,
 				Node = node(),
@@ -1523,7 +1523,7 @@ from_ringing_test_() ->
 			gen_server_mock:expect_call(Callrec#call.source, fun(_Message, _From, _State) ->
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, ringing, Callrec}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, ringing, _Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, ringing(oncall, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1555,7 +1555,7 @@ from_ringing_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, ringing, Callrec}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, ringing, _Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, ringing({oncall, Callrec}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -1728,7 +1728,7 @@ from_precall_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released with bad info",
 		fun() ->
 			?assertMatch({reply, invalid, precall, _State}, precall({released, "reason"}, "from", Agent)),
@@ -1905,8 +1905,8 @@ from_oncall_test_() ->
 	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to warmtransfer",
 		fun() ->
-			Callrec = Agent#agent.statedata,
-			gen_server_mock:expect_cast(Connmock, fun({change_state, warmtransfer, {onhold, Callrec, calling, "transferto"}}, _State) ->
+			%Callrec = Agent#agent.statedata,
+			gen_server_mock:expect_cast(Connmock, fun({change_state, warmtransfer, {onhold, _Callrec, calling, "transferto"}}, _State) ->
 				ok
 			end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
@@ -2207,7 +2207,7 @@ from_released_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released invalid",
 		fun() ->
 			?assertMatch({reply, invalid, released, _State}, released({released, "not gonna work"}, "from", Agent)),
@@ -2295,7 +2295,7 @@ from_warmtransfer_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, warmtransfer, Callrec}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, warmtransfer, _Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, warmtransfer({oncall, Callrec}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -2340,7 +2340,7 @@ from_warmtransfer_test_() ->
 				Node = node(),
 				ok
 			end),
-			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, warmtransfer, Callrec}, _State) -> ok end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, warmtransfer, _Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, wrapup, _State}, warmtransfer({wrapup, Callrec}, "from", Agent)),
 			Assertmocks()
 		end}
@@ -2713,28 +2713,28 @@ handle_conn_exit_outband_test_() ->
 	fun(_) ->
 		ok
 	end,
-	[fun({A, P, Mp, C}) ->
+	[fun({A, P, _Mp, _C}) ->
 		{"Death in idle",
 		fun() ->
 			Res = handle_info({'EXIT', P, "fail"}, idle, A),
 			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
 		end}
 	end,
-	fun({A, P, Mp, C}) ->
+	fun({A, P, _Mp, _C}) ->
 		{"Death in ringing",
 		fun() ->
 			Res = handle_info({'EXIT', P, "fail"}, ringing, A),
 			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
 		end}
 	end,
-	fun({A, P, Mp, C}) ->
+	fun({A, P, _Mp, _C}) ->
 		{"Death in precall",
 		fun() ->
 			Res = handle_info({'EXIT', P, "fail"}, precall, A),
 			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
 		end}
 	end,
-	fun({A, P, Mp, C}) ->
+	fun({A, P, _Mp, C}) ->
 		{"Death in oncall",
 		fun() ->
 			Agent = A#agent{statedata = C},
@@ -2742,7 +2742,7 @@ handle_conn_exit_outband_test_() ->
 			?assertEqual({next_state, oncall, Agent#agent{connection = undefined}}, Res)
 		end}
 	end,
-	fun({A, P, Mp, C}) ->
+	fun({A, P, _Mp, C}) ->
 		{"Death in outgoing",
 		fun() ->
 			Agent = A#agent{statedata = C},
@@ -2750,14 +2750,14 @@ handle_conn_exit_outband_test_() ->
 			?assertEqual({next_state, outgoing, Agent#agent{connection = undefined}}, Res)
 		end}
 	end,
-	fun({A, P, Mp, C}) ->
+	fun({A, P, _Mp, _C}) ->
 		{"Death in released",
 		fun() ->
 			Res = handle_info({'EXIT', P, "fail"}, released, A),
 			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
 		end}
 	end,
-	fun({A, P, Mp, C}) ->
+	fun({A, P, _Mp, C}) ->
 		{"Death in warm transfer",
 		fun() ->
 			Agent = A#agent{statedata = {onhold, C, calling, "target"}},
@@ -2765,7 +2765,7 @@ handle_conn_exit_outband_test_() ->
 			?assertEqual({next_state, warmtransfer, Agent#agent{connection = undefined}}, Res)
 		end}
 	end,
-	fun({A, P, Mp, C}) ->
+	fun({A, P, _Mp, _C}) ->
 		{"Death in wrapup",
 		fun() ->
 			Res = handle_info({'EXIT', P, "fail"}, wrapup, A),

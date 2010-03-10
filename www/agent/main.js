@@ -411,6 +411,20 @@ function reportIssue(humanReport){
 	});
 }
 
+window.declareTick = function(){
+	window.globalTick = setTimeout(window.declareTick, 1000);
+	dojo.publish('globaltick', []);
+}
+
+window.stopGlobalTick = function(){
+	clearTimeout(window.globalTick);
+}
+
+window.startGlobalTick = function(){
+	window.stopGlobalTick();
+	window.globalTick = setTimeout(window.declareTick, 1000);
+}
+
 dojo.addOnLoad(function(){
 	//TODO:  Move logging/logger functions to other file.
 	if(window.console.log === undefined){
@@ -574,6 +588,8 @@ dojo.addOnLoad(function(){
 			nodes[i].innerHTML = label + ":";
 		}
 	}
+
+	window.startGlobalTick();
 
 	EventLog.log("Inteface loaded");
 	

@@ -121,7 +121,6 @@ start_link() ->
 -spec(stop/0 :: () -> 'ok').
 stop() ->
 	% try to clean everything up
-	gen_event:stop(cpxlog),
 	error_logger:delete_report_handler(cpxlog_error_logger_redirect),
 	case lists:member(error_logger_tty_h, gen_event:which_handlers(error_logger)) of
 		false ->
@@ -135,6 +134,7 @@ stop() ->
 		_ ->
 			ok
 	end,
+	gen_event:stop(cpxlog),
 	ok.
 
 -spec(log/7 :: (Level :: level(), Time :: any(), Module :: atom(), Line :: non_neg_integer(), Pid :: pid(), Message :: any(), Args :: [any()]) -> 'ok').

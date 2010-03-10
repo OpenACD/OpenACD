@@ -51,7 +51,7 @@ if(typeof(agentDashboard) == 'undefined'){
 				this._decState(state);
 				this.agentsCount--;
 				delete this.agents[event.name];
-				// update the ui.
+				this._destoryAgentRow(event.name);
 			}
 			return true;
 		}
@@ -62,7 +62,6 @@ if(typeof(agentDashboard) == 'undefined'){
 			this.agentsCount++;
 			this._incState(agent.state);
 			agentDashboard.drawAgentTableRow(this.name, agent);
-			// update the ui.
 			return true;
 		}
 		
@@ -71,7 +70,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			this.agentsCount--;
 			this._decState(agent.state);
 			delete this.agents[event.name];
-			// update ui
+			this._destoryAgentRow(event.name);
 			return true;
 		}
 		
@@ -84,6 +83,17 @@ if(typeof(agentDashboard) == 'undefined'){
 		
 		return true;
 	};
+	
+	agentDashboard.Profile.prototype._destoryAgentRow = function(agentname){
+		var tbody = dojo.query('#agentDashboardTable *[profile="' + this.name + '"][purpose="agentDisplay"] table')[0];
+		var rows = dojo.query('tr[agent="' + agentname + '"]', tbody);
+		for(var i = 0; i < rows.length; i++){
+			dojo.forEach(rows[i].subs, function(obj){
+				dojo.unsubscribe(obj);
+			});
+			dojo.destroy(rows[i]);
+		}
+	}
 	
 	// ======
 	// Helper class Agent
@@ -100,7 +110,9 @@ if(typeof(agentDashboard) == 'undefined'){
 		var now = Math.floor(new Date().getTime() / 1000);
 		if(this._isWorking){
 			this._working = now - initEvent.details.lastchange;
+			this._idleing = 0;
 		} else {
+			this._working = 0;
 			this._idleing = now - initEvent.details.lastchange;
 		}
 		//this._isWorking = false;
@@ -138,6 +150,7 @@ if(typeof(agentDashboard) == 'undefined'){
 		this._setStateData(event.details);
 		//this.statedata = event.details.statedata;
 		this.lastchange = event.details.lastchange.timestamp;
+		dojo.publish('agentDashboard/agent/' + this.id + '/update', [this]);
 		return out;
 	}
 	
@@ -171,6 +184,23 @@ if(typeof(agentDashboard) == 'undefined'){
 		}
 		var total = idle + working;
 		return (idle / total) * 100;
+	}
+	
+	agentDashboard.Agent.prototype.statedataDisplay = function(){
+		switch(this.state){
+			case 'released':
+				return this.statedata.reason;
+				break;
+			case 'oncall':
+			case 'wrapup':
+			case 'ringing':
+			case 'outgoing':
+				d = agent.statedata;
+				return '<img src="/images/' + this.statedata.type + '.png" />' + this.statedata.client
+			default:
+				console.log(['dinna parse', this.statedata]);
+				return '';
+		}
 	}
 	
 	// =====
@@ -243,28 +273,14 @@ if(typeof(agentDashboard) == 'undefined'){
 	}
 	
 	agentDashboard.drawAgentTableRow = function(profile, agent){
-		var tr = dojo.create('tr', {'agent':agent.name});//, tbody, 'last');
+		console.log(['draing agent row', agent]);
+		var tr = dojo.create('tr', {'agent':agent.id});//, tbody, 'last');
 		var now = Math.floor(new Date().getTime() / 1000);
-		dojo.create('td', {'agent':agent.name, purpose:'name', innerHTML:agent.name}, tr);
-		dojo.create('td', {'agent':agent.name, purpose:'state', style: 'background-image:url("/images/' + agent.state + '.png")'}, tr);
-		dojo.create('td', {'agent':agent.name, purpose:'time', innerHTML: formatseconds(now - agent.lastchange)}, tr);
-		dojo.create('td', {'agent':agent.name, purpose:'util', innerHTML:agent.util}, tr);
-		var details = '';
-		switch(agent.state){
-			case 'released':
-				details = agent.statedata.reason;
-				break;
-			case 'oncall':
-			case 'wrapup':
-			case 'ringing':
-			case 'outgoing':
-				d = agent.statedata;
-				details = '<img src="/images/' + d.type + '.png" />' + d.client;
-				break;
-			default:
-				console.log(['dinna parse', agent]);
-		}
-		dojo.create('td', {'agent':agent.name, purpose:'details', innerHTML:details}, tr);
+		dojo.create('td', {'agent':agent.id, purpose:'name', innerHTML:agent.name}, tr);
+		dojo.create('td', {'agent':agent.id, purpose:'state', style: 'background-image:url("/images/' + agent.state + '.png")'}, tr);
+		dojo.create('td', {'agent':agent.id, purpose:'time', innerHTML: formatseconds(now - agent.lastchange)}, tr);
+		dojo.create('td', {'agent':agent.id, purpose:'util', innerHTML:agent.util}, tr);
+		dojo.create('td', {'agent':agent.id, purpose:'details', innerHTML:agent.statedataDisplay()}, tr);
 		//name, state, time, util, details
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="agentDisplay"] table')[0];
 		//console.log(['drawAgentTableRow', profile, agent, tbody]);
@@ -276,6 +292,15 @@ if(typeof(agentDashboard) == 'undefined'){
 			}
 		}
 		dojo.place(tr, tbody, i);
+		tr.subs = [];
+		tr.subs.push(dojo.subscribe('agentDashboard/agent/' + agent.id + '/update', tr, function(inAgent){
+			console.log(['tr sub hit', agent.name, agent.id]);
+			var nowTime = Math.floor(new Date().getTime() / 1000);
+			tr.cells[1].style.backgroundImage = 'url("/images/' + inAgent.state + '.png")';
+			tr.cells[2].innerHTML = formatseconds(nowTime - inAgent.lastchange);
+			tr.cells[3].innerHTML = inAgent.calcUtilPercent();
+			tr.cells[4].innerHTML = inAgent.statedataDisplay();
+		}));
 	}
 }
 

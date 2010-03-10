@@ -25,7 +25,9 @@ if(typeof(agentDashboard) == 'undefined'){
 				}
 				this.addChild(new dijit.MenuItem({
 					label:'Blab',
-					onClick:function(){ errMessage('blabl nyi ' + agentNom) }
+					onClick:function(){ 
+						agentDashboard.showBlabDialog('agent', agent.name);
+					}
 				}));
 			},
 			onClose:function(){
@@ -259,7 +261,7 @@ if(typeof(agentDashboard) == 'undefined'){
 	}
 	
 	// =====
-	// Other Helper functions
+	// drawing functions
 	// =====
 	
 	agentDashboard.drawProfileTable = function(){
@@ -307,7 +309,7 @@ if(typeof(agentDashboard) == 'undefined'){
 					label:'Blab...',
 					profile: testnom,
 					onClick: function(){
-						errMessage('profile blab nyi ' + this.profile);
+						agentDashboard.showBlabDialog('profile', this.profile);
 					}
 				}));
 				menu.bindDomNode(profileTr);
@@ -370,7 +372,66 @@ if(typeof(agentDashboard) == 'undefined'){
 		var menu = agentDashboard.makeMenu(profile, agent.id);
 		menu.bindDomNode(tr);
 	}
+	
+	// =====
+	// Action functions (usual requires server communication)
+	// =====
+	
+	agentDashboard.spy = function(agent){
+		dojo.xhrGet({
+			url:'/supervisor/spy/' + agent,
+			load:function(res){
+				if(res.success){
+					// cool
+				} else {
+					errMessage(['Counldn\'t spy', res.message]);
+				}
+			},
+			error:function(res){
+				errMessage(['error spying', res]);
+			}
+		});
+	}
+	
+	agentDashboard.showBlabDialog = function(type, target){
+		var dialog = dijit.byId('blabDialog');
+		dialog.attr('title', 'Blab');
+		dialog.attr('value', {'message':'Type your message here.  Url\'s get automatically interpreted'});
+		var submitblab = function(){
+			var data = dialog.attr('value');
+			agentDashboard.blab(data.message, type, target);
+		}
+		dialog.attr('execute', submitblab);
+		dialog.show();
+	}
+	
+	agentDashboard.blab = function(message, type, target){
+		dojo.xhrPost({
+			handleAs:"json",
+			url:"/supervisor/blab",
+			content:{
+				message:replaceUrls(message),
+				type: type,
+				value: target
+			},
+			load:function(res){
+				debug(["blab worked", res]);
+			},
+			error:function(res){
+				errMessage(["blab failed", res]);
+			}
+		});
+	};	
 }
+
+var menu = new dijit.Menu({});
+menu.addChild(new dijit.MenuItem({
+	label:'Blab...',
+	onClick:function(){
+		agentDashboard.showBlabDialog('all', 'all');
+	}
+}));
+menu.bindDomNode(dojo.byId('agentDashboardTable').rows[0]);
 
 dojo.xhrGet({
 	url:'/profilelist',

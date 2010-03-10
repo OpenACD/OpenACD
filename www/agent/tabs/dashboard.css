@@ -12,5 +12,10 @@ table.dashboard {
 	text-align: center;
 }*/
 
+td[purpose="state"] {
+	background-repeat:no-repeat;
+	background-position:center
+}
+
 .dashboard tr:nth-child(odd)    { background-color:#eee; }
 .dashboard tr:nth-child(even)    { background-color:#fff; }

@@ -187,7 +187,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			idle += (now - this.lastchange);
 		}
 		var total = idle + working;
-		return (idle / total) * 100;
+		return (working / total) * 100;
 	}
 	
 	agentDashboard.Agent.prototype.statedataDisplay = function(){

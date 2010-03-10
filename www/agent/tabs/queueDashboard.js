@@ -38,10 +38,26 @@ if(typeof(queueDashboard) == "undefined"){
 			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
 			while(nodes.length > 0){
 				var n = nodes.pop();
+				var thistable = n.parentNode;
 				var queuerow = n.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.rowIndex - 2];
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[3].innerHTML = parseInt(queuerow.cells[3].innerHTML) + 1; /* abandoned */
 				n.parentNode.removeChild(n);
+				var longest = 0;
+				for(var i = 0; i < thistable.rows.length - 1; i++) {
+					var realvalue = thistable.rows[i].cells[5].getAttribute("realvalue");
+					if (longest == 0 || longest > realvalue) {
+						longest = realvalue;
+					}
+				}
+				queuerow.cells[5].setAttribute("realvalue", longest);
+				if (longest > 0) {
+					var now = Math.floor(new Date().getTime() / 1000);
+					var age = now - longest;
+					queuerow.cells[5].innerHTML = formatseconds(age);
+				} else {
+					queuerow.cells[5].innerHTML = "0:00";
+				}
 			}
 			return true;
 		}
@@ -52,10 +68,26 @@ if(typeof(queueDashboard) == "undefined"){
 			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
 			while(nodes.length > 0){
 				var n = nodes.pop();
+				var thistable = n.parentNode;
 				var queuerow = n.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.rowIndex - 2];
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[2].innerHTML = parseInt(queuerow.cells[2].innerHTML) + 1; /* completed */
 				n.parentNode.removeChild(n);
+				var longest = 0;
+				for(var i = 0; i < thistable.rows.length - 1; i++) {
+					var realvalue = thistable.rows[i].cells[5].getAttribute("realvalue");
+					if (longest == 0 || longest > realvalue) {
+						longest = realvalue;
+					}
+				}
+				queuerow.cells[5].setAttribute("realvalue", longest);
+				if (longest > 0) {
+					var now = Math.floor(new Date().getTime() / 1000);
+					var age = now - longest;
+					queuerow.cells[5].innerHTML = formatseconds(age);
+				} else {
+					queuerow.cells[5].innerHTML = "0:00";
+				}
 			}
 			dojo.publish('queueDashboard/updateQueue/' + data.name, [{action:'drop'}]);
 		} else if(data.details.queue == this.name){
@@ -67,6 +99,14 @@ if(typeof(queueDashboard) == "undefined"){
 				var rows = dojo.query('#queueDashboardTable tr[queue="' + data.details.queue + '"][purpose="queueDisplay"]');
 				if(rows.length == 1) {
 					rows[0].cells[1].innerHTML = parseInt(rows[0].cells[1].innerHTML) + 1;
+					var queuerow = rows[0];
+					var realvalue = parseInt(queuerow.cells[5].getAttribute("realvalue"));
+					if (realvalue < 1 || realvalue > data.details.queued_at) {
+						var now = Math.floor(new Date().getTime() / 1000);
+						var age = now - data.details.queued_at.timestamp;
+						queuerow.cells[5].setAttribute("realvalue", data.details.queued_at);
+						queuerow.cells[5].innerHTML = formatseconds(age);
+					}
 					var tbody = dojo.query('#queueDashboardTable *[queue="' + data.details.queue + '"][purpose="callDisplay"] table')[0];
 					queueDashboard.drawCallTableRow(data.details.queue, data.name, tbody);
 				}
@@ -97,8 +137,8 @@ if(typeof(queueDashboard) == "undefined"){
 				dojo.create('td', {purpose: 'callCount', innerHTML: "0"}, queueTr);
 				dojo.create('td', {purpose: 'completeCount', innerHTML: "0"}, queueTr);
 				dojo.create('td', {purpose: 'abandonCount', innerHTML: "0"}, queueTr);
-				dojo.create('td', {purpose: 'averageHold', innerHTML: "0:00"}, queueTr);
-				dojo.create('td', {purpose: 'oldestHold', innerHTML: "0:00"}, queueTr);
+				dojo.create('td', {purpose: 'averageHold', realvalue: 0, innerHTML: "0:00"}, queueTr);
+				dojo.create('td', {purpose: 'oldestHold', realvalue: 0, innerHTML: "0:00"}, queueTr);
 				queueTr.onclick = function(){
 					console.log(this);
 					var ex = this.getAttribute('expanded');
@@ -198,7 +238,7 @@ if(typeof(queueDashboard) == "undefined"){
 		tr.setAttribute('callid', mediaid);
 		dojo.create('td', {purpose:'callerid', innerHTML: media.details.callid_name + " " + media.details.callid_data}, tr);
 		dojo.create('td', {purpose: 'mediaType', innerHTML: '<img src="/images/' + media.details.type + '.png" />'}, tr);
-		dojo.create('td', {purpose: 'age', innerHTML: formatseconds(age)}, tr);
+		dojo.create('td', {purpose: 'age', realvalue: media.details.queued_at, innerHTML: formatseconds(age)}, tr);
 		dojo.create('td', {purpose: 'client', innerHTML: media.details.client}, tr);
 		dojo.place(tr, tbody, 'last');
 		var menu = new dijit.Menu({});

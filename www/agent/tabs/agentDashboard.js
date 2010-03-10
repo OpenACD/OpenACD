@@ -6,10 +6,50 @@ if(typeof(agentDashboard) == 'undefined'){
 	
 	agentDashboard.profiles = [];
 	
+	agentDashboard.makeMenu = function(profileNom, agentNom){
+		var menu = new dijit.Menu({
+			onOpen:function(){
+				var profile = {};
+				for(var i = 0; i < agentDashboard.profiles.length; i++){
+					if(agentDashboard.profiles[i].name == profileNom){
+						profile = agentDashboard.profiles[i];
+						break;
+					}
+				}
+				var agent = profile.agents[agentNom];
+				if(agent.state == 'oncall'){
+					this.addChild(new dijit.MenuItem({
+						label:'Spy',
+						onClick:function(){ errMessage('spy nyi ' + agentNom) }
+					}));
+				}
+				this.addChild(new dijit.MenuItem({
+					label:'Blab',
+					onClick:function(){ errMessage('blabl nyi ' + agentNom) }
+				}));
+			},
+			onClose:function(){
+				this.destroyDescendants();
+			}
+		});
+		return menu;
+	}
+	
 	agentDashboard.agentMenu = new dijit.Menu({
 		onOpen:function(ev){
 			console.log(['menu opened', ev]);
-		}});
+			agentDashboard.agentMenu.addChild(new dijit.MenuItem({
+				label: 'goober',
+				onClick:function(){
+					console.log('goober click');
+				}
+			}));
+		},
+		onClose:function(ev){
+			this.destroyDescendants();
+			//console.log('clank');
+		}
+	});
 	agentDashboard.agentMenu.addChild(new dijit.MenuItem({
 		label:'test',
 		onClick:function(ev){
@@ -255,19 +295,22 @@ if(typeof(agentDashboard) == 'undefined'){
 						}
 					}
 					var agentDisps = dojo.query('#agentDashboardTable *[profile="' + profileNom + '"][purpose="agentDisplay"]');
-					/*if(agentDisps.length == 0){
-						agentDashboard.drawAgentTable(profile);
-					} else {
-						dojo.byId('agentDashboardTable').removeChild(agentDisps[0]);
-					}*/
 					if(agentDisps[0].style.display == 'none'){
 						agentDisps[0].style.display = '';
 					} else {
 						agentDisps[0].style.display = 'none';
 					}
 				}
-				// TODO put the subscription here.
 				dojo.byId('agentDashboardTable').appendChild(profileTr);
+				var menu = new dijit.Menu({});
+				menu.addChild(new dijit.MenuItem({
+					label:'Blab...',
+					profile: testnom,
+					onClick: function(){
+						errMessage('profile blab nyi ' + this.profile);
+					}
+				}));
+				menu.bindDomNode(profileTr);
 				agentDashboard.drawAgentTable(profCache);
 			}
 		}
@@ -324,7 +367,8 @@ if(typeof(agentDashboard) == 'undefined'){
 			tr.cells[3].innerHTML = Math.floor(inAgent.calcUtilPercent()) + '%';
 			tr.cells[4].innerHTML = inAgent.statedataDisplay();
 		}));
-		agentDashboard.agentMenu.bindDomNode(tr);
+		var menu = agentDashboard.makeMenu(profile, agent.id);
+		menu.bindDomNode(tr);
 	}
 }
 

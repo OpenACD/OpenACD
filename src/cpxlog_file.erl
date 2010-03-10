@@ -32,6 +32,7 @@
 -module(cpxlog_file).
 -behaviour(gen_event).
 
+-include_lib("kernel/include/file.hrl").
 -include("log.hrl").
 
 -export([
@@ -47,7 +48,7 @@
 	%level = info :: loglevels(),
 	%debugmodules = [] :: [atom()],
 	lasttime = erlang:localtime() :: {{non_neg_integer(), non_neg_integer(), non_neg_integer()}, {non_neg_integer(), non_neg_integer(), non_neg_integer()}},
-	filehandles = [] :: [{string(), any(), loglevels()}]
+	filehandles = [] :: [{string(), any(), integer(), loglevels()}]
 }).
 
 -type(state() :: #state{}).
@@ -64,22 +65,24 @@ open_files([], State) ->
 open_files([{Filename, LogLevel} | Tail], State) ->
 	case file:open(Filename, [append, raw]) of
 		{ok, FileHandle} ->
-			open_files(Tail, State#state{filehandles = [{Filename, FileHandle, LogLevel} | State#state.filehandles]});
+			{ok, FileInfo} = file:read_file_info(Filename),
+			open_files(Tail, State#state{filehandles = [{Filename, FileHandle, FileInfo#file_info.inode, LogLevel} | State#state.filehandles]});
 		{error, _Reason} ->
 			io:format("can't open logfile ~p~n", [Filename]),
 			{'EXIT', "unable to open logfile " ++ Filename}
 	end.
 
 handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
+	Filehandles = check_filehandles(State#state.filehandles),
 	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of
 		true ->
-			lists:foreach(fun({_, FH, _}) ->
+			lists:foreach(fun({_, FH, _, _}) ->
 						file:write(FH, io_lib:format("Day changed from ~p to ~p~n", [element(1, State#state.lasttime), element(1, Time)]))
-			end, State#state.filehandles);
+			end, Filehandles);
 		false ->
 			ok
 	end,
-	lists:foreach(fun({_, FH, LogLevel}) ->
+	lists:foreach(fun({_, FH, _, LogLevel}) ->
 				case ((lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(LogLevel, ?LOGLEVELS)))) of
 					true ->
 						file:write(FH,
@@ -93,18 +96,19 @@ handle_event({Level, Time, Module, Line, Pid, Message, Args}, State) ->
 					false ->
 						ok
 				end
-		end, State#state.filehandles),
-	{ok, State#state{lasttime = Time}};
+		end, Filehandles),
+	{ok, State#state{lasttime = Time, filehandles = Filehandles}};
 handle_event({Level, Time, Pid, Message, Args}, State) ->
+	Filehandles = check_filehandles(State#state.filehandles),
 	case (element(3, element(1, Time)) =/= element(3, element(1, State#state.lasttime))) of
 		true ->
-			lists:foreach(fun({_, FH, _}) ->
+			lists:foreach(fun({_, FH, _, _}) ->
 						file:write(FH, io_lib:format("Day changed from ~p to ~p~n", [element(1, State#state.lasttime), element(1, Time)]))
-			end, State#state.filehandles);
+			end, Filehandles);
 		false ->
 			ok
 	end,
-	lists:foreach(fun({_, FH, LogLevel}) ->
+	lists:foreach(fun({_, FH, _, LogLevel}) ->
 				case ((lists:member(Level, ?LOGLEVELS) andalso (util:list_index(Level, ?LOGLEVELS) >= util:list_index(LogLevel, ?LOGLEVELS)))) of
 					true ->
 						file:write(FH,
@@ -118,8 +122,8 @@ handle_event({Level, Time, Pid, Message, Args}, State) ->
 					false ->
 						ok
 				end
-		end, State#state.filehandles),
-	{ok, State#state{lasttime = Time}};
+		end, Filehandles),
+	{ok, State#state{lasttime = Time, filehandles = Filehandles}};
 handle_event(_Event, State) ->
 	{ok, State}.
 
@@ -130,8 +134,60 @@ handle_info(_Info, State) ->
 	{ok, State}.
 
 terminate(_Args, State) ->
-	lists:foreach(fun({_, FH, _}) -> file:close(FH) end, State#state.filehandles),
+	lists:foreach(fun({_, FH, _, _}) -> file:close(FH) end, State#state.filehandles),
 	ok.
 
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+check_filehandles(Handles) ->
+	check_filehandles(Handles, []).
+
+check_filehandles([], Acc) ->
+	lists:reverse(Acc);
+check_filehandles([{Filename, Handle, Inode, Loglevel}|Tail], Acc) ->
+	% check the file info to check for a rotate
+	case file:read_file_info(Filename) of
+		{ok, FileInfo} ->
+			% compare inodes
+			% XXX this won't work on win32
+			case FileInfo#file_info.inode of
+				Inode ->
+					% file hasn't been rotated, yay
+					check_filehandles(Tail, [{Filename, Handle, Inode, Loglevel} | Acc]);
+				_ ->
+					?INFO("~s has been replaced, reopening", [Filename]),
+					case file:open(Filename, [append, raw]) of
+						{ok, FileHandle} ->
+							{ok, FileInfo} = file:read_file_info(Filename),
+							check_filehandles(Tail, [{Filename, FileHandle, FileInfo#file_info.inode, Loglevel} | Acc]);
+						{error, Reason} ->
+							% this should never happen, since we were able to stat the file. Just retain the old file handle for now
+							?ERROR("can't re-open logfile ~p: ~p but we could stat it?", [Filename, Reason]),
+							check_filehandles(Tail, [{Filename, Handle, Inode, Loglevel} | Acc])
+					end
+			end;
+		{error, Reason} ->
+			% file probably got rotated on us
+			case file:open(Filename, [append, raw]) of
+				{ok, FileHandle} ->
+					?INFO("~s has been moved, reopening", [Filename]),
+					{ok, FileInfo} = file:read_file_info(Filename),
+					check_filehandles(Tail, [{Filename, FileHandle, FileInfo#file_info.inode, Loglevel} | Acc]);
+				{error, Reason} ->
+					% this is pretty bad - the disk is probably full or something.
+					% We have to discard this file handle now
+					?ERROR("can't re-open logfile ~p: ~p", [Filename, Reason]),
+					check_filehandles(Tail, Acc)
+			end
+	end.
+
+
+
+
+
+
+
+
+
+

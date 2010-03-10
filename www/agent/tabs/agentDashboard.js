@@ -44,7 +44,6 @@ if(typeof(agentDashboard) == 'undefined'){
 	}
 		
 	agentDashboard.Profile.prototype.consumeEvent = function(event){
-		// TODO update incall, rel, etc...
 		if(event.action == 'drop'){
 			if(this.agents[event.name]){
 				var state = this.agents[event.name].state;
@@ -52,6 +51,7 @@ if(typeof(agentDashboard) == 'undefined'){
 				this.agentsCount--;
 				delete this.agents[event.name];
 				this._destoryAgentRow(event.name);
+				dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			}
 			return true;
 		}
@@ -62,6 +62,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			this.agentsCount++;
 			this._incState(agent.state);
 			agentDashboard.drawAgentTableRow(this.name, agent);
+			dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			return true;
 		}
 		
@@ -71,6 +72,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			this._decState(agent.state);
 			delete this.agents[event.name];
 			this._destoryAgentRow(event.name);
+			dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			return true;
 		}
 		
@@ -78,7 +80,8 @@ if(typeof(agentDashboard) == 'undefined'){
 			var change = this.agents[event.name].consumeEvent(event);
 			this._decState(change.oldState);
 			this._incState(change.newState);
-			// update ui
+			console.log(['doing publish', this.name, this]);
+			dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 		}
 		
 		return true;
@@ -109,11 +112,11 @@ if(typeof(agentDashboard) == 'undefined'){
 		this.setWorking(initEvent);
 		var now = Math.floor(new Date().getTime() / 1000);
 		if(this._isWorking){
-			this._working = now - initEvent.details.lastchange;
+			this._working = now - initEvent.details.lastchange.timestamp;
 			this._idleing = 0;
 		} else {
 			this._working = 0;
-			this._idleing = now - initEvent.details.lastchange;
+			this._idleing = now - initEvent.details.lastchange.timestamp;
 		}
 		//this._isWorking = false;
 		this.lastchange = initEvent.details.lastchange.timestamp;
@@ -174,13 +177,14 @@ if(typeof(agentDashboard) == 'undefined'){
 	}
 	
 	agentDashboard.Agent.prototype.calcUtilPercent = function(){
+		// TODO This is going to be horribly wrong since we have no history.
 		var idle = this._idleing;
 		var working = this._working;
 		var now = Math.floor(new Date().getTime() / 1000);
 		if(this._isWorking){
-			working += (now - this._lastChangeTime);
+			working += (now - this.lastchange);
 		} else {
-			idle += (now - this._lastChangeTime);
+			idle += (now - this.lastchange);
 		}
 		var total = idle + working;
 		return (idle / total) * 100;
@@ -222,6 +226,14 @@ if(typeof(agentDashboard) == 'undefined'){
 				dojo.create('td', {purpose: 'incall', innerHTML: profCache.incall}, profileTr);
 				dojo.create('td', {purpose: 'released', innerHTML: profCache.released}, profileTr);
 				dojo.create('td', {purpose: 'wrapup', innerHTML: profCache.wrapup}, profileTr);
+				profileTr.sub = dojo.subscribe('agentDashboard/profile/' + testnom + '/update', profileTr, function(inProf){
+					console.log('updating profile');
+					this.cells[1].innerHTML = inProf.agentsCount;
+					this.cells[2].innerHTML = inProf.idle;
+					this.cells[3].innerHTML = inProf.incall;
+					this.cells[4].innerHTML = inProf.released;
+					this.cells[5].innerHTML = inProf.wrapup;
+				});
 				profileTr.onclick = function(){
 					var profileNom = this.getAttribute('profile');
 					var profile = {};
@@ -273,13 +285,13 @@ if(typeof(agentDashboard) == 'undefined'){
 	}
 	
 	agentDashboard.drawAgentTableRow = function(profile, agent){
-		console.log(['draing agent row', agent]);
+		//console.log(['draing agent row', agent]);
 		var tr = dojo.create('tr', {'agent':agent.id});//, tbody, 'last');
 		var now = Math.floor(new Date().getTime() / 1000);
 		dojo.create('td', {'agent':agent.id, purpose:'name', innerHTML:agent.name}, tr);
 		dojo.create('td', {'agent':agent.id, purpose:'state', style: 'background-image:url("/images/' + agent.state + '.png")'}, tr);
 		dojo.create('td', {'agent':agent.id, purpose:'time', innerHTML: formatseconds(now - agent.lastchange)}, tr);
-		dojo.create('td', {'agent':agent.id, purpose:'util', innerHTML:agent.util}, tr);
+		dojo.create('td', {'agent':agent.id, purpose:'util', innerHTML: Math.floor(agent.calcUtilPercent()) + '%'}, tr);
 		dojo.create('td', {'agent':agent.id, purpose:'details', innerHTML:agent.statedataDisplay()}, tr);
 		//name, state, time, util, details
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="agentDisplay"] table')[0];
@@ -294,11 +306,11 @@ if(typeof(agentDashboard) == 'undefined'){
 		dojo.place(tr, tbody, i);
 		tr.subs = [];
 		tr.subs.push(dojo.subscribe('agentDashboard/agent/' + agent.id + '/update', tr, function(inAgent){
-			console.log(['tr sub hit', agent.name, agent.id]);
+			//console.log(['tr sub hit', agent.name, agent.id]);
 			var nowTime = Math.floor(new Date().getTime() / 1000);
 			tr.cells[1].style.backgroundImage = 'url("/images/' + inAgent.state + '.png")';
 			tr.cells[2].innerHTML = formatseconds(nowTime - inAgent.lastchange);
-			tr.cells[3].innerHTML = inAgent.calcUtilPercent();
+			tr.cells[3].innerHTML = Math.floor(inAgent.calcUtilPercent()) + '%';
 			tr.cells[4].innerHTML = inAgent.statedataDisplay();
 		}));
 	}

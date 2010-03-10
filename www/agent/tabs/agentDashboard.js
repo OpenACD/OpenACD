@@ -6,6 +6,17 @@ if(typeof(agentDashboard) == 'undefined'){
 	
 	agentDashboard.profiles = [];
 	
+	agentDashboard.agentMenu = new dijit.Menu({
+		onOpen:function(ev){
+			console.log(['menu opened', ev]);
+		}});
+	agentDashboard.agentMenu.addChild(new dijit.MenuItem({
+		label:'test',
+		onClick:function(ev){
+			console.log(['test clicked', ev]);
+		}
+	}));
+	
 	// ======
 	// Helper class Profile
 	// ======
@@ -16,7 +27,7 @@ if(typeof(agentDashboard) == 'undefined'){
 		this.agentsCount = 0;
 		this.avail = 0;
 		this.idle = 0;
-		this.incall = 0;
+		this.oncall = 0;
 		this.released = 0;
 		this.wrapup = 0;
 		this._masterSubscription = dojo.subscribe('dashboard/supevent/agent', this, function(event){
@@ -80,7 +91,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			var change = this.agents[event.name].consumeEvent(event);
 			this._decState(change.oldState);
 			this._incState(change.newState);
-			console.log(['doing publish', this.name, this]);
+			//console.log(['doing publish', this.name, this]);
 			dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 		}
 		
@@ -202,7 +213,7 @@ if(typeof(agentDashboard) == 'undefined'){
 				d = agent.statedata;
 				return '<img src="/images/' + this.statedata.type + '.png" />' + this.statedata.client
 			default:
-				console.log(['dinna parse', this.statedata]);
+				//console.log(['dinna parse', this.statedata]);
 				return '';
 		}
 	}
@@ -213,7 +224,7 @@ if(typeof(agentDashboard) == 'undefined'){
 	
 	agentDashboard.drawProfileTable = function(){
 		// Call after fetching the profiles.  Should only need to be done once.
-		console.log('drawing profile table');
+		//console.log('drawing profile table');
 		for(var i = 0; i < agentDashboard.profiles.length; i++){
 			var testnom = agentDashboard.profiles[i].name;
 			nodes = dojo.query('#agentDashboard *[profile="' + testnom + '"]');
@@ -223,14 +234,14 @@ if(typeof(agentDashboard) == 'undefined'){
 				dojo.create('td', {purpose: 'name', innerHTML: testnom}, profileTr);
 				dojo.create('td', {purpose: 'agentCount', innerHTML: profCache.agentsCount}, profileTr);
 				dojo.create('td', {purpose: 'idle', innerHTML: profCache.idle}, profileTr);
-				dojo.create('td', {purpose: 'incall', innerHTML: profCache.incall}, profileTr);
+				dojo.create('td', {purpose: 'incall', innerHTML: profCache.oncall}, profileTr);
 				dojo.create('td', {purpose: 'released', innerHTML: profCache.released}, profileTr);
 				dojo.create('td', {purpose: 'wrapup', innerHTML: profCache.wrapup}, profileTr);
 				profileTr.sub = dojo.subscribe('agentDashboard/profile/' + testnom + '/update', profileTr, function(inProf){
-					console.log('updating profile');
+					//console.log('updating profile');
 					this.cells[1].innerHTML = inProf.agentsCount;
 					this.cells[2].innerHTML = inProf.idle;
-					this.cells[3].innerHTML = inProf.incall;
+					this.cells[3].innerHTML = inProf.oncall;
 					this.cells[4].innerHTML = inProf.released;
 					this.cells[5].innerHTML = inProf.wrapup;
 				});
@@ -313,6 +324,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			tr.cells[3].innerHTML = Math.floor(inAgent.calcUtilPercent()) + '%';
 			tr.cells[4].innerHTML = inAgent.statedataDisplay();
 		}));
+		agentDashboard.agentMenu.bindDomNode(tr);
 	}
 }
 

@@ -39,7 +39,6 @@ if(typeof(queueDashboard) == "undefined"){
 			while(nodes.length > 0){
 				var n = nodes.pop();
 				var thistable = n.parentNode;
-				//var queuerow = n.parentNode.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.parentNode.rowIndex - 2];
 				var queuerow = dojo.query('#queueDashboardTable tr[purpose="queueDisplay"][queue="' + this.name + '"]')[0];
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[3].innerHTML = parseInt(queuerow.cells[3].innerHTML) + 1; /* abandoned */
@@ -70,7 +69,6 @@ if(typeof(queueDashboard) == "undefined"){
 			while(nodes.length > 0){
 				var n = nodes.pop();
 				var thistable = n.parentNode;
-				//var queuerow = n.parentNode.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.parentNode.rowIndex - 2];
 				var queuerow = dojo.query('#queueDashboardTable tr[purpose="queueDisplay"][queue="' + this.name + '"]')[0];
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[2].innerHTML = parseInt(queuerow.cells[2].innerHTML) + 1; /* completed */
@@ -196,14 +194,7 @@ if(typeof(queueDashboard) == "undefined"){
 	}
 
 	queueDashboard.drawCallTable = function(queuename){
-		var queueMediasTr = document.createElement('tr');
-		queueMediasTr.setAttribute('queue', queuename);
-		queueMediasTr.setAttribute('purpose', 'callDisplay');
-		queueMediasTr.setAttribute('style', 'display:none;');
-		dojo.place(queueMediasTr, dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="queueDisplay"]')[0], 'after');
-		/*dojo.create('td', null, queueMediasTr);*/
-		var widetd = dojo.create('td', {colspan: 6}, queueMediasTr);
-		var table = dojo.create('table', {width: "100%", 'class':'dashboard'}, dojo.create('div', {'class':'subData'}, widetd));
+		var table = dojo.create('table', {width: "100%", 'class':'dashboard'}, dojo.create('div', {'class':'subData'}));
 		table.innerHTML = '<tr>' +
 		'<th>Caller ID</th>' +
 		'<th>Type</th>' +
@@ -211,18 +202,10 @@ if(typeof(queueDashboard) == "undefined"){
 		'<th>Brand</th>' +
 		'</tr>';
 
-		/* hack to make alternate rows color right */
-		var tr = document.createElement('tr');
-		tr.setAttribute('style', 'display:none;');
 		table.style.display = 'none';
 		table.setAttribute('queue', queuename);
 		table.setAttribute('purpose', 'callDisplay');
-		//dojo.place(tr, dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="queueDisplay"]')[0], 'after');
-		/*var tbody = dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="callDisplay"] table')[0];*/
 		dojo.place(table, 'dashboardQueueCallsPane', 'last');
-		/*for(var i in queueDashboard.dataStore.queues[queuename].medias){*/
-			/*queueDashboard.drawCallTableRow(queuename, i, tbody);*/
-		/*}*/
 	}
 
 	queueDashboard.drawCallTableRow = function(queuename, mediaid, tbody){
@@ -428,8 +411,6 @@ dojo.xhrGet({
 				queueDashboard.dataStore.queues[res.queues[i].name] = new queueDashboard.Queue(res.queues[i].name);
 			}
 			queueDashboard.drawQueueTable();
-			//queueDashboard.getHistory();
-			//queueDashboard.getStatus();
 		} else {
 			errMessage(["getting queues failed", res.message]);
 		}
@@ -438,10 +419,6 @@ dojo.xhrGet({
 		errMessage(["getting queues errored", res]);
 	}
 });
-
-/*queueDashboard.queueSub = dojo.subscribe('dashboard/supevent/queue', queueDashboard, function(action, supevent){
-	console.log(['wow, queue sup event', supevent]);
-});*/
 
 queueDashboard.mediaSub = dojo.subscribe('dashboard/supevent/media', queueDashboard, function(supevent){
 	var supcp = supevent;

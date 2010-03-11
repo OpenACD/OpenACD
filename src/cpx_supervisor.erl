@@ -203,7 +203,7 @@ restart(routing_sup, [Nodes]) ->
 	supervisor:start_child(routing_sup, Cpxlogspec),
 	supervisor:start_child(routing_sup, Cdrspec),
 	Out;
-restart(agent_sup, [Nodes]) ->
+restart(agent_sup, Nodes) ->
 	?INFO("Restarting agent_sup.", []),
 	Out = supervisor:restart_child(cpx_supervisor, agent_sup),
 	Agentconnspec = {agent_connection_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},

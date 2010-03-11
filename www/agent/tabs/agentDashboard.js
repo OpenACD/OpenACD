@@ -596,3 +596,10 @@ dojo.xhrGet({
 		errMessage(['Getting profiles errored', res]);
 	}
 });
+
+agentDashboard.unloadSub = dojo.subscribe('tabPanel-removeChild', function(child){
+	if(child.title == 'Dashboard'){
+		dojo.unsubscribe(agentDashboard.unloadSub);
+		agentDashboard.profiles = [];
+	}
+});

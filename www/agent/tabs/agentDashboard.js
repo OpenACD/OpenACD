@@ -600,6 +600,34 @@ dojo.xhrGet({
 agentDashboard.unloadSub = dojo.subscribe('tabPanel-removeChild', function(child){
 	if(child.title == 'Dashboard'){
 		dojo.unsubscribe(agentDashboard.unloadSub);
+		dojo.unsubscribe(agentDashboard.globalTickSub);
 		agentDashboard.profiles = [];
 	}
+});
+
+agentDashboard.refreshRate = 1;
+agentDashboard.tickCount = 0;
+
+agentDashboard.globalTickSub = dojo.subscribe('globaltick', agentDashboard, function(){
+	if(this.doingTick){
+		return;
+	}
+	
+	this.tickCount++;
+	if(this.tickCount % this.refreshRate == 0){
+		this.doingTick = true;
+		var now = Math.floor(new Date().getTime() / 1000);
+		for(var i = 0; i < this.profiles.length; i++){
+			for(var agentNom in this.profiles[i].agents){
+				var agent = this.profiles[i].agents[agentNom];
+				var nodes = dojo.query('tr[agent="' + agentNom + '"] td[purpose="time"]');
+				if(nodes.length > 0){
+					nodes[0].innerHTML = formatseconds(now - agent.lastchange);
+				}
+			}
+		}
+		delete this.doingTick;
+		this.tickCount = 0;
+	}
+	//console.log('tick!');
 });

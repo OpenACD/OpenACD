@@ -38,7 +38,7 @@ if(typeof(queueDashboard) == "undefined"){
 			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
 			while(nodes.length > 0){
 				var n = nodes.pop();
-				var queuerow = n.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.rowIndex - 2];
+				var queuerow = n.parentNode.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.parentNode.rowIndex - 2];
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[3].innerHTML = parseInt(queuerow.cells[3].innerHTML) + 1; /* abandoned */
 				n.parentNode.removeChild(n);
@@ -52,7 +52,7 @@ if(typeof(queueDashboard) == "undefined"){
 			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
 			while(nodes.length > 0){
 				var n = nodes.pop();
-				var queuerow = n.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.rowIndex - 2];
+				var queuerow = n.parentNode.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.parentNode.rowIndex - 2];
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[2].innerHTML = parseInt(queuerow.cells[2].innerHTML) + 1; /* completed */
 				n.parentNode.removeChild(n);
@@ -167,7 +167,7 @@ if(typeof(queueDashboard) == "undefined"){
 		dojo.place(queueMediasTr, dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="queueDisplay"]')[0], 'after');
 		/*dojo.create('td', null, queueMediasTr);*/
 		var widetd = dojo.create('td', {colspan: 6}, queueMediasTr);
-		var table = dojo.create('table', {width: "100%"}, widetd);
+		var table = dojo.create('table', {width: "100%"}, dojo.create('div', {'class':'subData'}, widetd));
 		table.innerHTML = '<tr>' +
 		'<th>Caller ID</th>' +
 		'<th>Type</th>' +

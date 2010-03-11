@@ -473,7 +473,7 @@ if(typeof(agentDashboard) == 'undefined'){
 		dojo.create('tr', {style:'display:none'}, profileAgentsTr, 'before');
 
 		var widetd = dojo.create('td', {colspan: 6}, profileAgentsTr);
-		var table = dojo.create('table', {style:'width:100%'}, widetd);
+		var table = dojo.create('table', {'width':'100%'}, dojo.create('div', {'class':'subData'}, widetd));
 		table.innerHTML = '<tr>' + 
 		'<th>name</th>' +
 		'<th>state</th>' +

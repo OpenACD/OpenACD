@@ -107,28 +107,6 @@ if(typeof(agentDashboard) == 'undefined'){
 		return menu;
 	}
 	
-	agentDashboard.agentMenu = new dijit.Menu({
-		onOpen:function(ev){
-			console.log(['menu opened', ev]);
-			agentDashboard.agentMenu.addChild(new dijit.MenuItem({
-				label: 'goober',
-				onClick:function(){
-					console.log('goober click');
-				}
-			}));
-		},
-		onClose:function(ev){
-			this.destroyDescendants();
-			//console.log('clank');
-		}
-	});
-	agentDashboard.agentMenu.addChild(new dijit.MenuItem({
-		label:'test',
-		onClick:function(ev){
-			console.log(['test clicked', ev]);
-		}
-	}));
-	
 	// ======
 	// Helper class Profile
 	// ======
@@ -143,7 +121,6 @@ if(typeof(agentDashboard) == 'undefined'){
 		this.released = 0;
 		this.wrapup = 0;
 		this._masterSubscription = dojo.subscribe('dashboard/supevent/agent', this, function(event){
-			//console.log(["consuming profile event thing", event]);
 			this.consumeEvent(event);
 		});
 	}
@@ -203,7 +180,6 @@ if(typeof(agentDashboard) == 'undefined'){
 			var change = this.agents[event.name].consumeEvent(event);
 			this._decState(change.oldState);
 			this._incState(change.newState);
-			//console.log(['doing publish', this.name, this]);
 			dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 		}
 		
@@ -283,7 +259,11 @@ if(typeof(agentDashboard) == 'undefined'){
 	agentDashboard.Agent.prototype._setStateData = function(details){
 		switch(this.state){
 			case 'released':
-				this.statedata = details.reason;
+				if(details.reason){
+					this.statedata = details.reason;
+				} else {
+					this.statedata = 'Default'
+				}
 				break;
 			case 'idle':
 				this.statedata = '';
@@ -412,7 +392,6 @@ if(typeof(agentDashboard) == 'undefined'){
 	
 	agentDashboard.drawProfileTable = function(){
 		// Call after fetching the profiles.  Should only need to be done once.
-		//console.log('drawing profile table');
 		for(var i = 0; i < agentDashboard.profiles.length; i++){
 			var testnom = agentDashboard.profiles[i].name;
 			nodes = dojo.query('#agentDashboard *[profile="' + testnom + '"]');
@@ -426,7 +405,6 @@ if(typeof(agentDashboard) == 'undefined'){
 				dojo.create('td', {purpose: 'released', innerHTML: profCache.released}, profileTr);
 				dojo.create('td', {purpose: 'wrapup', innerHTML: profCache.wrapup}, profileTr);
 				profileTr.sub = dojo.subscribe('agentDashboard/profile/' + testnom + '/update', profileTr, function(inProf){
-					//console.log('updating profile');
 					this.cells[1].innerHTML = inProf.agentsCount;
 					this.cells[2].innerHTML = inProf.idle;
 					this.cells[3].innerHTML = inProf.oncall;
@@ -466,7 +444,6 @@ if(typeof(agentDashboard) == 'undefined'){
 	
 	agentDashboard.drawAgentTable = function(profCache){
 		var profile = profCache.name;
-		//console.log('drawAgentTable');
 		var profileAgentsTr = dojo.create('tr', {'profile': profile, purpose: 'agentDisplay', style:'display:none'});
 		dojo.place(profileAgentsTr, dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="profileDisplay"]')[0], 'after');
 		// make the odd even stripping consistant w/ queueDashboard
@@ -487,7 +464,6 @@ if(typeof(agentDashboard) == 'undefined'){
 	}
 	
 	agentDashboard.drawAgentTableRow = function(profile, agent){
-		//console.log(['draing agent row', agent]);
 		var tr = dojo.create('tr', {'agent':agent.id});//, tbody, 'last');
 		var now = Math.floor(new Date().getTime() / 1000);
 		dojo.create('td', {'agent':agent.id, purpose:'name', innerHTML:agent.name}, tr);
@@ -497,7 +473,6 @@ if(typeof(agentDashboard) == 'undefined'){
 		dojo.create('td', {'agent':agent.id, purpose:'details', innerHTML:agent.statedataDisplay()}, tr);
 		//name, state, time, util, details
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="agentDisplay"] table')[0];
-		//console.log(['drawAgentTableRow', profile, agent, tbody]);
 		var agentRows = dojo.query('[agent]', tbody);
 		var i = 1;
 		for(i; i < agentRows.length; i++){
@@ -505,10 +480,10 @@ if(typeof(agentDashboard) == 'undefined'){
 				break;
 			}
 		}
+		console.log(['the i', i]);
 		dojo.place(tr, tbody, i);
 		tr.subs = [];
 		tr.subs.push(dojo.subscribe('agentDashboard/agent/' + agent.id + '/update', tr, function(inAgent){
-			//console.log(['tr sub hit', agent.name, agent.id]);
 			var nowTime = Math.floor(new Date().getTime() / 1000);
 			tr.cells[1].style.backgroundImage = 'url("/images/' + inAgent.state + '.png")';
 			tr.cells[2].innerHTML = formatseconds(nowTime - inAgent.lastchange);
@@ -629,5 +604,4 @@ agentDashboard.globalTickSub = dojo.subscribe('globaltick', agentDashboard, func
 		delete this.doingTick;
 		this.tickCount = 0;
 	}
-	//console.log('tick!');
 });

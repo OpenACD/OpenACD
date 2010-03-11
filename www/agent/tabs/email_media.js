@@ -5,6 +5,19 @@ dojo.require("dijit.form.Textarea");
 dojo.require("dojo.io.iframe");
 dojo.requireLocalization("agentUI", "emailPane");
 
+var nodes = dojo.query('.translatecol, .translate', 'emailView');
+nodes = nodes.concat(dojo.query('.translatecol, .translate', 'emailReplyDiv'));
+var out = [];
+for(var i = 0; i < nodes.length; i++){
+	var trans = dojo.i18n.getLocalization("agentUI", "emailPane")[nodes[i].innerHTML];
+	if(trans){
+		if(dojo.hasClass(nodes[i], 'translatecol')){
+			trans += ':';
+		}
+		nodes[i].innerHTML = trans;
+	}
+}
+
 if(typeof(emailPane) == 'undefined'){
 
 	emailPane = function(){};
@@ -385,6 +398,11 @@ dojo.byId('attachedList').rebuildList = function(filenames){
 	while(this.firstChild){
 		this.removeChild(this.firstChild);
 	}
+	if(filenames.length == 0){
+		dojo.byId('attachmentListP').style.display = 'none';
+		return;
+	}
+	dojo.byId('attachmentListP').style.display = '';
 	for(var i = 0; i < filenames.length; i++){
 		var li = this.appendChild(dojo.doc.createElement('li'));
 		li.innerHTML += filenames[i];
@@ -392,11 +410,12 @@ dojo.byId('attachedList').rebuildList = function(filenames){
 		var buttonNode = li.firstChild;
 		buttonNode.type = 'image';
 		buttonNode.src = '/images/redx.png';
-		buttonNode.fileIndex = i;
-		buttonNode.filename = filenames[i];
+		buttonNode.setAttribute('fileIndex', i);
+		buttonNode.setAttribute('filename', filenames[i]);
 		li.firstChild.onclick = function(e){
-			var index = e.originalTarget.fileIndex;
-			var nom = e.originalTarget.filename;
+			console.log([e, e.target]);
+			var index = parseInt(e.target.getAttribute('fileIndex'));
+			var nom = e.target.getAttribute('filename');
 			dojo.xhrPost({
 				url:"/media",
 				content:{

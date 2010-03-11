@@ -17,7 +17,7 @@
 			<td id="emailDateSpan"></td>
 		</tr>
 		<tr>
-			<th class="translate">SHOW_HEADERS</th>
+			<th class="translatecol">SHOW_HEADERS</th>
 			<td>
 			<button label='&rarr;' dojoType='dijit.form.Button' style="float:left">
 				<script type="dojo/connect" event="onClick">
@@ -39,6 +39,9 @@
 			<th>&nbsp;</th>
 			<td>
 			<button label="REPLY" id="emailReply" dojoType="dijit.form.Button">
+				<script type="dojo/method" event="postCreate">
+					this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").REPLY);
+				</script>
 				<script type="dojo/connect" event="onClick">
 					dojo.byId('emailView').style.display = 'none';
 					//dojo.byId('emailReplyDiv').style.visibility = 'visible';
@@ -62,7 +65,7 @@
 <div id="emailReplyDiv">
 
 	<form dojoType="dijit.form.Form" action="javascript:void(0)" id="emailReplyForm">
-		<div style="width:30%; float:left; padding: 2%">
+		<div style="width:90%;">
 			<p>
 				<label class="translatecol">TO</label>
 				<input dojoType="dijit.form.TextBox" id="emailTo" />
@@ -101,6 +104,9 @@
 				</button>
 				<span id="attachmentList"></span>
 				<button label="UPLOAD" dojoType="dijit.form.Button">
+					<script type="dojo/method" event="postCreate">
+						this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").UPLOAD);
+					</script>
 					<script type="dojo/connect" event="onClick">
 						var uploader = dijit.byId('fileUploader');
 						uploader.upload({
@@ -113,14 +119,24 @@
 				</button>
 			</p>
 			
-			<p id="attachmentListP">
+			<div id="attachmentListP" style="display:none">
 				<label>&nbsp;</label>
 				<ul style="list-style-type:none; display:inline-block" id="attachedList"></ul>
-			</p>
+			</div>
 			
-			<p>
+			
+		</div>
+
+	<div>
+		<div id="emailDisp" style="width:90%;" />
+</div>
+<div>
+		<p>
 				<label>&nbsp;</label>
 				<button label="SUBMIT" dojoType="dijit.form.Button" id="emailSubmit">
+					<script type="dojo/method" event="postCreate">
+						this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").SUBMIT);
+					</script>
 					<script type="dojo/connect" event="onClick">
 						var coveredNode = dijit.byId('email').domNode;
 						var standby = new dojox.widget.Standby({
@@ -174,6 +190,9 @@
 				</button>
 				
 				<button label="CANCEL" dojoType="dijit.form.Button" id="emailCancel">
+					<script type="dojo/method" event="postCreate">
+						this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").CANCEL);
+					</script>
 					<script type="dojo/connect" event="onClick">
 						dijit.byId('emailReplyEditor').destroy();
 						//var node = dojo.byId('emailReplyEditor');
@@ -184,11 +203,7 @@
 					</script>
 				</button>
 			</p>
-
-		</div>
-
-		<div id="emailDisp" style="width:60%; float:right; padding:2%" />
-
+</div>
 	</form>
 
 <script type="text/javascript" src="/html-sanitizer-minified.js"></script>

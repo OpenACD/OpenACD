@@ -39,7 +39,7 @@ if(typeof(queueDashboard) == "undefined"){
 			while(nodes.length > 0){
 				var n = nodes.pop();
 				var thistable = n.parentNode;
-				var queuerow = n.parentNode.parentNode.parentNodeparentNode.parentNode.rows[n.parentNode.parentNodeparentNode.parentNode.rowIndex - 2];
+				var queuerow = n.parentNode.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.parentNode.rowIndex - 2];
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[3].innerHTML = parseInt(queuerow.cells[3].innerHTML) + 1; /* abandoned */
 				n.parentNode.removeChild(n);

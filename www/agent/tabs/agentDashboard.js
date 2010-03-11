@@ -161,7 +161,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			this.agents[event.name] = agent;
 			this.agentsCount++;
 			this._incState(agent.state);
-			agentDashboard.drawAgentTableRow(this.name, agent);
+			agentDashboard.drawAgentTableRow(this, agent);
 			dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			return true;
 		}
@@ -459,7 +459,7 @@ if(typeof(agentDashboard) == 'undefined'){
 		'<th>Details</th>';
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="agentDisplay"] table')[0];
 		for(var i in profCache.agents){
-			agentDashboard.drawAgentTableRow(profile, profCache.agents[i], tbody);
+			agentDashboard.drawAgentTableRow(profCache, profCache.agents[i], tbody);
 		}
 	}
 	
@@ -472,16 +472,17 @@ if(typeof(agentDashboard) == 'undefined'){
 		dojo.create('td', {'agent':agent.id, purpose:'util', innerHTML: Math.floor(agent.calcUtilPercent()) + '%'}, tr);
 		dojo.create('td', {'agent':agent.id, purpose:'details', innerHTML:agent.statedataDisplay()}, tr);
 		//name, state, time, util, details
-		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="agentDisplay"] table')[0];
-		var agentRows = dojo.query('[agent]', tbody);
+		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile.name + '"][purpose="agentDisplay"] table')[0];
+		var agentRows = dojo.query('tr[agent]', tbody);
 		var i = 1;
 		for(i; i < agentRows.length; i++){
-			if(agentRows[i].getAttribute('agent') > agent.ane){
+			var agentId = agentRows[i].getAttribute('agent');
+			var compName = profile.agents[agentId].name;
+			if(compName > agent.name){
 				break;
 			}
 		}
-		console.log(['the i', i]);
-		dojo.place(tr, tbody, i);
+		dojo.place(tr, tbody, i + 1);
 		tr.subs = [];
 		tr.subs.push(dojo.subscribe('agentDashboard/agent/' + agent.id + '/update', tr, function(inAgent){
 			var nowTime = Math.floor(new Date().getTime() / 1000);
@@ -490,7 +491,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			tr.cells[3].innerHTML = Math.floor(inAgent.calcUtilPercent()) + '%';
 			tr.cells[4].innerHTML = inAgent.statedataDisplay();
 		}));
-		var menu = agentDashboard.makeMenu(profile, agent.id);
+		var menu = agentDashboard.makeMenu(profile.name, agent.id);
 		menu.bindDomNode(tr);
 	}
 	

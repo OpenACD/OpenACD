@@ -474,7 +474,7 @@ if(typeof(agentDashboard) == 'undefined'){
 		//name, state, time, util, details
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile.name + '"][purpose="agentDisplay"] table')[0];
 		var agentRows = dojo.query('tr[agent]', tbody);
-		var i = 1;
+		var i = 0;
 		for(i; i < agentRows.length; i++){
 			var agentId = agentRows[i].getAttribute('agent');
 			var compName = profile.agents[agentId].name;

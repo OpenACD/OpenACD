@@ -35,11 +35,12 @@ if(typeof(queueDashboard) == "undefined"){
 				return true;
 			}
 			delete this.medias[data.name];
-			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
+			var nodes = dojo.query('table[purpose="callDisplay"][queue="' + this.name + '"] tr[callid="' + data.name + '"]');
 			while(nodes.length > 0){
 				var n = nodes.pop();
 				var thistable = n.parentNode;
-				var queuerow = n.parentNode.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.parentNode.rowIndex - 2];
+				//var queuerow = n.parentNode.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.parentNode.rowIndex - 2];
+				var queuerow = dojo.query('#queueDashboardTable tr[purpose="queueDisplay"][queue="' + this.name + '"]')[0];
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[3].innerHTML = parseInt(queuerow.cells[3].innerHTML) + 1; /* abandoned */
 				n.parentNode.removeChild(n);
@@ -65,11 +66,12 @@ if(typeof(queueDashboard) == "undefined"){
 		/* wtf? */
 		if(data.details.queue != this.name && this.medias[data.name]){
 			delete this.medias[data.name];
-			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
+			var nodes = dojo.query('table[purpose="callDisplay"][queue="' + this.name + '"] tr[callid="' + data.name + '"]');
 			while(nodes.length > 0){
 				var n = nodes.pop();
 				var thistable = n.parentNode;
-				var queuerow = n.parentNode.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.parentNode.rowIndex - 2];
+				//var queuerow = n.parentNode.parentNode.parentNode.parentNode.parentNode.rows[n.parentNode.parentNode.parentNode.parentNode.rowIndex - 2];
+				var queuerow = dojo.query('#queueDashboardTable tr[purpose="queueDisplay"][queue="' + this.name + '"]')[0];
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[2].innerHTML = parseInt(queuerow.cells[2].innerHTML) + 1; /* completed */
 				n.parentNode.removeChild(n);
@@ -93,7 +95,7 @@ if(typeof(queueDashboard) == "undefined"){
 		} else if(data.details.queue == this.name){
 			this.medias[data.name] = data;
 			dojo.publish('queueDashboard/updateQueue/' + data.name, [{action:'set'}]);
-			var nodes = dojo.query('#queueDashboardTable tr[callid="' + data.name + '"]');
+			var nodes = dojo.query('table[purpose="callDisplay"][queue="' + this.name + '"] tr[callid="' + data.name + '"]');
 			if(nodes.length == 0){
 				/* add row */
 				var rows = dojo.query('#queueDashboardTable tr[queue="' + data.details.queue + '"][purpose="queueDisplay"]');
@@ -107,7 +109,7 @@ if(typeof(queueDashboard) == "undefined"){
 						queuerow.cells[5].setAttribute("realvalue", data.details.queued_at);
 						queuerow.cells[5].innerHTML = formatseconds(age);
 					}
-					var tbody = dojo.query('#queueDashboardTable *[queue="' + data.details.queue + '"][purpose="callDisplay"] table')[0];
+					var tbody = dojo.query('table[purpose="callDisplay"][queue="' + this.name + '"]')[0];
 					queueDashboard.drawCallTableRow(data.details.queue, data.name, tbody);
 				}
 			} else {
@@ -140,28 +142,22 @@ if(typeof(queueDashboard) == "undefined"){
 				dojo.create('td', {purpose: 'averageHold', realvalue: 0, innerHTML: "0:00"}, queueTr);
 				dojo.create('td', {purpose: 'oldestHold', realvalue: 0, innerHTML: "0:00"}, queueTr);
 				queueTr.onclick = function(){
-					console.log(this);
-					var ex = this.getAttribute('expanded');
-					if(ex == 'false'){
-						ex = false;
-					} else {
-					 ex = true
-					}
-					console.log(['got ex', ex]);
+					this.setAttribute('expanded', 'true');
 					var queuenom = this.getAttribute('queue');
-					console.log('got queuenom');
-					if(ex){
-						console.log('should try to collapse');
-						var callDisps = dojo.query('#queueDashboardTable *[queue="' + queuenom + '"][purpose="callDisplay"]');
-						callDisps[0].style.display = "none";
-					} else {
-						console.log('should try to expand');
-						var callDisps = dojo.query('#queueDashboardTable *[queue="' + queuenom + '"][purpose="callDisplay"]');
-						callDisps[0].style.display = "";
-						/*queueDashboard.drawCallTable(queuenom);*/
+					var tables = dojo.query('table[purpose="callDisplay"]');
+					for(var i = 0; i < tables.length; i++){
+						if(tables[i].getAttribute('queue') == queuenom){
+							tables[i].style.display = '';
+						} else {
+							tables[i].style.display = 'none';
+						}
 					}
-					console.log('toggling state');
-					this.setAttribute('expanded', ! ex);
+					var rows = dojo.byId('queueDashboardTable').rows;
+					for(i = 1; i < rows.length; i++){
+						if(rows[i].getAttribute('queue') != queuenom){
+							rows[i].removeAttribute('expanded');
+						}
+					}
 				}
 
 				queueTr.queueSubscription = dojo.subscribe("queueDashboard/queueUpdate", queueTr, function(queue){
@@ -207,7 +203,7 @@ if(typeof(queueDashboard) == "undefined"){
 		dojo.place(queueMediasTr, dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="queueDisplay"]')[0], 'after');
 		/*dojo.create('td', null, queueMediasTr);*/
 		var widetd = dojo.create('td', {colspan: 6}, queueMediasTr);
-		var table = dojo.create('table', {width: "100%"}, dojo.create('div', {'class':'subData'}, widetd));
+		var table = dojo.create('table', {width: "100%", 'class':'dashboard'}, dojo.create('div', {'class':'subData'}, widetd));
 		table.innerHTML = '<tr>' +
 		'<th>Caller ID</th>' +
 		'<th>Type</th>' +
@@ -218,9 +214,12 @@ if(typeof(queueDashboard) == "undefined"){
 		/* hack to make alternate rows color right */
 		var tr = document.createElement('tr');
 		tr.setAttribute('style', 'display:none;');
-		dojo.place(tr, dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="queueDisplay"]')[0], 'after');
+		table.style.display = 'none';
+		table.setAttribute('queue', queuename);
+		table.setAttribute('purpose', 'callDisplay');
+		//dojo.place(tr, dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="queueDisplay"]')[0], 'after');
 		/*var tbody = dojo.query('#queueDashboardTable *[queue="' + queuename + '"][purpose="callDisplay"] table')[0];*/
-
+		dojo.place(table, 'dashboardQueueCallsPane', 'last');
 		/*for(var i in queueDashboard.dataStore.queues[queuename].medias){*/
 			/*queueDashboard.drawCallTableRow(queuename, i, tbody);*/
 		/*}*/

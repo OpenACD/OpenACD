@@ -19,8 +19,12 @@ td[purpose="state"] {
 
 .dashboard tr:nth-child(odd)    { background-color:#eee; }
 .dashboard tr:nth-child(even)    { background-color:#fff; }
+.dashboard tr[expanded="true"] {
+	background-color: #9ff;
+}
 
 .subData {
 	margin-left:1em;
 	width:calc(100% - 3em);
 }
+

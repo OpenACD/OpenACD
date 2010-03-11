@@ -83,9 +83,15 @@
 		</button>
 	</div>
     <div dojoType="dijit.layout.ContentPane" splitter="true" region="leading" style="width: 50%;" id="dashboardQueuePane">
-		<table class="dashboard"><tbody  id="queueDashboardTable">
-			<tr><th>Queue</th><th>Calls</th><th>Comp</th><th>Abn</th><th>Avg</th><th>Max</th></tr>
-		</tbody></table>
+		<div dojoType="dijit.layout.BorderContainer" gutters="true">
+			<div dojoType="dijit.layout.ContentPane" splitter="true" region="top" style="height: 50%">
+				<table class="dashboard"><tbody  id="queueDashboardTable">
+					<tr><th>Queue</th><th>Calls</th><th>Comp</th><th>Abn</th><th>Avg</th><th>Max</th></tr>
+				</tbody></table>
+			</div>
+			<div dojoType="dijit.layout.ContentPane" region="center" splitter="true" id="dashboardQueueCallsPane">
+			</div>
+		</div>
     </div>
     <div dojoType="dijit.layout.ContentPane" splitter="true" region="center" id="dashboardAgentPane">
 		<table class="dashboard"><tbody id="agentDashboardTable">

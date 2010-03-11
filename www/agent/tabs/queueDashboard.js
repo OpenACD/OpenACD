@@ -75,7 +75,7 @@ if(typeof(queueDashboard) == "undefined"){
 				n.parentNode.removeChild(n);
 				var longest = 0;
 				for(var i = 0; i < thistable.rows.length - 1; i++) {
-					var realvalue = thistable.rows[i].cells[5].getAttribute("realvalue");
+					var realvalue = queuerow.cells[5].getAttribute("realvalue");
 					if (longest == 0 || longest > realvalue) {
 						longest = realvalue;
 					}

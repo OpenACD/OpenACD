@@ -324,7 +324,6 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		for(var i = 0; i < nodes.length; i++){
 			var l = document.createElement('a');
 			l.href = nodes[i].src;
-			console.log(["l.hostname", l.hostname, "l.port", l.port, "l.protocol", l.protocol]);
 			var locationCheck = function(linkNode){
 				if(dojo.isSafari){
 					return linkNode.hostname == window.location.host;
@@ -373,7 +372,6 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		dijit.byId('email').attr('closable', true);
 		dijit.byId('emailReply').destroy();
 		emailPane.spyStateListener = dojo.subscribe("agent/state", function(){
-			console.log("agent/state listener");
 			dojo.unsubscribe(emailPane.spyStateListener);
 			dojo.unsubscribe(emailPane.tabCloseListener);
 			delete emailPane.tabCloseListener;
@@ -382,7 +380,6 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		});
 		emailPane.tabCloseListener = dojo.subscribe("tabPanel-removeChild", function(child){
 			if(child.id == 'email'){
-				console.log("tabPanel listener");
 				dojo.unsubscribe(emailPane.tabCloseListener);
 				dojo.unsubscribe(emailPane.spyStateListener);
 				delete emailPane.tabCloseListener;
@@ -413,7 +410,6 @@ dojo.byId('attachedList').rebuildList = function(filenames){
 		buttonNode.setAttribute('fileIndex', i);
 		buttonNode.setAttribute('filename', filenames[i]);
 		li.firstChild.onclick = function(e){
-			console.log([e, e.target]);
 			var index = parseInt(e.target.getAttribute('fileIndex'));
 			var nom = e.target.getAttribute('filename');
 			dojo.xhrPost({

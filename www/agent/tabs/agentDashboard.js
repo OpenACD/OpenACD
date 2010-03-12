@@ -107,28 +107,6 @@ if(typeof(agentDashboard) == 'undefined'){
 		return menu;
 	}
 	
-	agentDashboard.agentMenu = new dijit.Menu({
-		onOpen:function(ev){
-			console.log(['menu opened', ev]);
-			agentDashboard.agentMenu.addChild(new dijit.MenuItem({
-				label: 'goober',
-				onClick:function(){
-					console.log('goober click');
-				}
-			}));
-		},
-		onClose:function(ev){
-			this.destroyDescendants();
-			//console.log('clank');
-		}
-	});
-	agentDashboard.agentMenu.addChild(new dijit.MenuItem({
-		label:'test',
-		onClick:function(ev){
-			console.log(['test clicked', ev]);
-		}
-	}));
-	
 	// ======
 	// Helper class Profile
 	// ======
@@ -143,7 +121,6 @@ if(typeof(agentDashboard) == 'undefined'){
 		this.released = 0;
 		this.wrapup = 0;
 		this._masterSubscription = dojo.subscribe('dashboard/supevent/agent', this, function(event){
-			//console.log(["consuming profile event thing", event]);
 			this.consumeEvent(event);
 		});
 	}
@@ -184,7 +161,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			this.agents[event.name] = agent;
 			this.agentsCount++;
 			this._incState(agent.state);
-			agentDashboard.drawAgentTableRow(this.name, agent);
+			agentDashboard.drawAgentTableRow(this, agent);
 			dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			return true;
 		}
@@ -203,7 +180,6 @@ if(typeof(agentDashboard) == 'undefined'){
 			var change = this.agents[event.name].consumeEvent(event);
 			this._decState(change.oldState);
 			this._incState(change.newState);
-			//console.log(['doing publish', this.name, this]);
 			dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 		}
 		
@@ -283,7 +259,11 @@ if(typeof(agentDashboard) == 'undefined'){
 	agentDashboard.Agent.prototype._setStateData = function(details){
 		switch(this.state){
 			case 'released':
-				this.statedata = details.reason;
+				if(details.reason){
+					this.statedata = details.reason;
+				} else {
+					this.statedata = 'Default'
+				}
 				break;
 			case 'idle':
 				this.statedata = '';
@@ -412,7 +392,6 @@ if(typeof(agentDashboard) == 'undefined'){
 	
 	agentDashboard.drawProfileTable = function(){
 		// Call after fetching the profiles.  Should only need to be done once.
-		//console.log('drawing profile table');
 		for(var i = 0; i < agentDashboard.profiles.length; i++){
 			var testnom = agentDashboard.profiles[i].name;
 			nodes = dojo.query('#agentDashboard *[profile="' + testnom + '"]');
@@ -426,7 +405,6 @@ if(typeof(agentDashboard) == 'undefined'){
 				dojo.create('td', {purpose: 'released', innerHTML: profCache.released}, profileTr);
 				dojo.create('td', {purpose: 'wrapup', innerHTML: profCache.wrapup}, profileTr);
 				profileTr.sub = dojo.subscribe('agentDashboard/profile/' + testnom + '/update', profileTr, function(inProf){
-					//console.log('updating profile');
 					this.cells[1].innerHTML = inProf.agentsCount;
 					this.cells[2].innerHTML = inProf.idle;
 					this.cells[3].innerHTML = inProf.oncall;
@@ -466,14 +444,13 @@ if(typeof(agentDashboard) == 'undefined'){
 	
 	agentDashboard.drawAgentTable = function(profCache){
 		var profile = profCache.name;
-		//console.log('drawAgentTable');
 		var profileAgentsTr = dojo.create('tr', {'profile': profile, purpose: 'agentDisplay', style:'display:none'});
 		dojo.place(profileAgentsTr, dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="profileDisplay"]')[0], 'after');
 		// make the odd even stripping consistant w/ queueDashboard
 		dojo.create('tr', {style:'display:none'}, profileAgentsTr, 'before');
 
 		var widetd = dojo.create('td', {colspan: 6}, profileAgentsTr);
-		var table = dojo.create('table', {style:'width:100%'}, widetd);
+		var table = dojo.create('table', {'width':'100%'}, dojo.create('div', {'class':'subData'}, widetd));
 		table.innerHTML = '<tr>' + 
 		'<th>name</th>' +
 		'<th>state</th>' +
@@ -482,12 +459,11 @@ if(typeof(agentDashboard) == 'undefined'){
 		'<th>Details</th>';
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="agentDisplay"] table')[0];
 		for(var i in profCache.agents){
-			agentDashboard.drawAgentTableRow(profile, profCache.agents[i], tbody);
+			agentDashboard.drawAgentTableRow(profCache, profCache.agents[i], tbody);
 		}
 	}
 	
 	agentDashboard.drawAgentTableRow = function(profile, agent){
-		//console.log(['draing agent row', agent]);
 		var tr = dojo.create('tr', {'agent':agent.id});//, tbody, 'last');
 		var now = Math.floor(new Date().getTime() / 1000);
 		dojo.create('td', {'agent':agent.id, purpose:'name', innerHTML:agent.name}, tr);
@@ -496,26 +472,26 @@ if(typeof(agentDashboard) == 'undefined'){
 		dojo.create('td', {'agent':agent.id, purpose:'util', innerHTML: Math.floor(agent.calcUtilPercent()) + '%'}, tr);
 		dojo.create('td', {'agent':agent.id, purpose:'details', innerHTML:agent.statedataDisplay()}, tr);
 		//name, state, time, util, details
-		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="agentDisplay"] table')[0];
-		//console.log(['drawAgentTableRow', profile, agent, tbody]);
-		var agentRows = dojo.query('[agent]', tbody);
-		var i = 1;
+		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile.name + '"][purpose="agentDisplay"] table')[0];
+		var agentRows = dojo.query('tr[agent]', tbody);
+		var i = 0;
 		for(i; i < agentRows.length; i++){
-			if(agentRows[i].getAttribute('agent') > agent.ane){
+			var agentId = agentRows[i].getAttribute('agent');
+			var compName = profile.agents[agentId].name;
+			if(compName > agent.name){
 				break;
 			}
 		}
-		dojo.place(tr, tbody, i);
+		dojo.place(tr, tbody, i + 1);
 		tr.subs = [];
 		tr.subs.push(dojo.subscribe('agentDashboard/agent/' + agent.id + '/update', tr, function(inAgent){
-			//console.log(['tr sub hit', agent.name, agent.id]);
 			var nowTime = Math.floor(new Date().getTime() / 1000);
 			tr.cells[1].style.backgroundImage = 'url("/images/' + inAgent.state + '.png")';
 			tr.cells[2].innerHTML = formatseconds(nowTime - inAgent.lastchange);
 			tr.cells[3].innerHTML = Math.floor(inAgent.calcUtilPercent()) + '%';
 			tr.cells[4].innerHTML = inAgent.statedataDisplay();
 		}));
-		var menu = agentDashboard.makeMenu(profile, agent.id);
+		var menu = agentDashboard.makeMenu(profile.name, agent.id);
 		menu.bindDomNode(tr);
 	}
 	
@@ -594,5 +570,39 @@ dojo.xhrGet({
 	},
 	error:function(res){
 		errMessage(['Getting profiles errored', res]);
+	}
+});
+
+agentDashboard.unloadSub = dojo.subscribe('tabPanel-removeChild', function(child){
+	if(child.title == 'Dashboard'){
+		dojo.unsubscribe(agentDashboard.unloadSub);
+		dojo.unsubscribe(agentDashboard.globalTickSub);
+		agentDashboard.profiles = [];
+	}
+});
+
+agentDashboard.refreshRate = 1;
+agentDashboard.tickCount = 0;
+
+agentDashboard.globalTickSub = dojo.subscribe('globaltick', agentDashboard, function(){
+	if(this.doingTick){
+		return;
+	}
+	
+	this.tickCount++;
+	if(this.tickCount % this.refreshRate == 0){
+		this.doingTick = true;
+		var now = Math.floor(new Date().getTime() / 1000);
+		for(var i = 0; i < this.profiles.length; i++){
+			for(var agentNom in this.profiles[i].agents){
+				var agent = this.profiles[i].agents[agentNom];
+				var nodes = dojo.query('tr[agent="' + agentNom + '"] td[purpose="time"]');
+				if(nodes.length > 0){
+					nodes[0].innerHTML = formatseconds(now - agent.lastchange);
+				}
+			}
+		}
+		delete this.doingTick;
+		this.tickCount = 0;
 	}
 });

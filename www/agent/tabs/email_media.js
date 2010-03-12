@@ -5,6 +5,19 @@ dojo.require("dijit.form.Textarea");
 dojo.require("dojo.io.iframe");
 dojo.requireLocalization("agentUI", "emailPane");
 
+var nodes = dojo.query('.translatecol, .translate', 'emailView');
+nodes = nodes.concat(dojo.query('.translatecol, .translate', 'emailReplyDiv'));
+var out = [];
+for(var i = 0; i < nodes.length; i++){
+	var trans = dojo.i18n.getLocalization("agentUI", "emailPane")[nodes[i].innerHTML];
+	if(trans){
+		if(dojo.hasClass(nodes[i], 'translatecol')){
+			trans += ':';
+		}
+		nodes[i].innerHTML = trans;
+	}
+}
+
 if(typeof(emailPane) == 'undefined'){
 
 	emailPane = function(){};
@@ -311,7 +324,6 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		for(var i = 0; i < nodes.length; i++){
 			var l = document.createElement('a');
 			l.href = nodes[i].src;
-			console.log(["l.hostname", l.hostname, "l.port", l.port, "l.protocol", l.protocol]);
 			var locationCheck = function(linkNode){
 				if(dojo.isSafari){
 					return linkNode.hostname == window.location.host;
@@ -360,7 +372,6 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		dijit.byId('email').attr('closable', true);
 		dijit.byId('emailReply').destroy();
 		emailPane.spyStateListener = dojo.subscribe("agent/state", function(){
-			console.log("agent/state listener");
 			dojo.unsubscribe(emailPane.spyStateListener);
 			dojo.unsubscribe(emailPane.tabCloseListener);
 			delete emailPane.tabCloseListener;
@@ -369,7 +380,6 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		});
 		emailPane.tabCloseListener = dojo.subscribe("tabPanel-removeChild", function(child){
 			if(child.id == 'email'){
-				console.log("tabPanel listener");
 				dojo.unsubscribe(emailPane.tabCloseListener);
 				dojo.unsubscribe(emailPane.spyStateListener);
 				delete emailPane.tabCloseListener;
@@ -385,6 +395,11 @@ dojo.byId('attachedList').rebuildList = function(filenames){
 	while(this.firstChild){
 		this.removeChild(this.firstChild);
 	}
+	if(filenames.length == 0){
+		dojo.byId('attachmentListP').style.display = 'none';
+		return;
+	}
+	dojo.byId('attachmentListP').style.display = '';
 	for(var i = 0; i < filenames.length; i++){
 		var li = this.appendChild(dojo.doc.createElement('li'));
 		li.innerHTML += filenames[i];
@@ -392,11 +407,11 @@ dojo.byId('attachedList').rebuildList = function(filenames){
 		var buttonNode = li.firstChild;
 		buttonNode.type = 'image';
 		buttonNode.src = '/images/redx.png';
-		buttonNode.fileIndex = i;
-		buttonNode.filename = filenames[i];
+		buttonNode.setAttribute('fileIndex', i);
+		buttonNode.setAttribute('filename', filenames[i]);
 		li.firstChild.onclick = function(e){
-			var index = e.originalTarget.fileIndex;
-			var nom = e.originalTarget.filename;
+			var index = parseInt(e.target.getAttribute('fileIndex'));
+			var nom = e.target.getAttribute('filename');
 			dojo.xhrPost({
 				url:"/media",
 				content:{

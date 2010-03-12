@@ -884,7 +884,7 @@ handle_cast({poll, Frompid}, State) ->
 		undefined -> 
 			ok;
 		Pid when is_pid(Pid) ->
-			Pid ! {kill, {[], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Poll pid replaced">>}]})}}
+			Pid ! {kill, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Poll pid replaced">>}]})}
 	end,
 	case State#state.poll_queue of
 		[] ->

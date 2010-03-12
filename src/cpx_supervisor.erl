@@ -192,7 +192,7 @@ stop() ->
 restart(agent_connection_sup, _Args) ->
 	?INFO("Restaring agent_connection_sup.", []),
 	supervisor:restart_child(agent_sup, agent_connection_sup);
-restart(routing_sup, [Nodes]) ->
+restart(routing_sup, Nodes) ->
 	Out = supervisor:restart_child(cpx_supervisor, routing_sup),
 	DispatchSpec = {dispatch_manager, {dispatch_manager, start_link, []}, permanent, 2000, worker, [?MODULE]},
 	QueueManagerSpec = {queue_manager, {queue_manager, start_link, [Nodes]}, permanent, 20000, worker, [?MODULE]},
@@ -203,7 +203,7 @@ restart(routing_sup, [Nodes]) ->
 	supervisor:start_child(routing_sup, Cpxlogspec),
 	supervisor:start_child(routing_sup, Cdrspec),
 	Out;
-restart(agent_sup, [Nodes]) ->
+restart(agent_sup, Nodes) ->
 	?INFO("Restarting agent_sup.", []),
 	Out = supervisor:restart_child(cpx_supervisor, agent_sup),
 	Agentconnspec = {agent_connection_sup, {cpx_middle_supervisor, start_named, [3, 5, agent_connection_sup]}, temporary, 2000, supervisor, [?MODULE]},

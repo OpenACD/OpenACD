@@ -277,7 +277,9 @@ if(typeof(queueDashboard) == "undefined"){
 						content: content
 					});
 					dialog.attr('execute', function(){
-						var agentName = dojo.byId('supSelectAgent').value;
+						var select = dojo.byId('supSelectAgent');
+						var agentName = select.value;
+						select.parentNode.removeChild(select);
 						dialog.destroy();
 						console.log([agentName, arguments]);
 

@@ -26,7 +26,7 @@ return _1;
 var _5=null,_6=null,_7=dojo.config.hashPollFrequency||100;
 function _3(){
 var h=location.href,i=h.indexOf("#");
-return (i>=0)?decodeURIComponent(h.substring(i+1)):"";
+return (i>=0)?h.substring(i+1):"";
 };
 function _8(){
 dojo.publish("/dojo/hashchange",[_3()]);

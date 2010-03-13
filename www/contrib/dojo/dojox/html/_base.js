@@ -63,7 +63,7 @@ return "";
 var _27=dojox.html._snarfScripts=function(_28,_29){
 _29.code="";
 _28=_28.replace(/<[!][-][-](.|\s){5,}?[-][-]>/g,function(_2a){
-return _2a.replace(/<(\/?)script\b([^>]|\s)*\>/ig,"&lt;$1Script$2&gt;");
+return _2a.replace(/<(\/?)script\b/ig,"&lt;$1Script");
 });
 function _2b(src){
 if(_29.downloadRemote){

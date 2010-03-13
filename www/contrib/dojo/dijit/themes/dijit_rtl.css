@@ -77,3 +77,6 @@
 .dijitRtl .dijitTabContainer .tabStripMenuButton {
 	float: left;
 }
+.dj_iequirks-rtl .dijitComboButton BUTTON {
+        float:left;
+}

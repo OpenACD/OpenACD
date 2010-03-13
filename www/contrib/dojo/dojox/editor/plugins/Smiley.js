@@ -14,7 +14,7 @@ dojo.require("dijit._editor._Plugin");
 dojo.require("dijit.form.ToggleButton");
 dojo.require("dijit.form.DropDownButton");
 dojo.require("dojox.editor.plugins._SmileyPalette");
-dojo.requireLocalization("dojox.editor.plugins","Smiley",null,"ROOT");
+dojo.requireLocalization("dojox.editor.plugins","Smiley",null,"ROOT,cs,de,es,fr,hu,it,ja,ko,pl,pt,ru,zh,zh-tw");
 dojo.declare("dojox.editor.plugins.Smiley",dijit._editor._Plugin,{iconClassPrefix:"dijitAdditionalEditorIcon",_initButton:function(){
 this.dropDown=new dojox.editor.plugins._SmileyPalette();
 this.connect(this.dropDown,"onChange",function(_1){

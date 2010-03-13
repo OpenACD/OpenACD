@@ -245,7 +245,7 @@ dijit.getUniqueId = function(/*String*/widgetType){
 			(widgetType in dijit._widgetTypeCtr ?
 				++dijit._widgetTypeCtr[widgetType] : dijit._widgetTypeCtr[widgetType] = 0);
 	}while(dijit.byId(id));
-	return id; // String
+	return dijit._scopeName == "dijit" ? id : dijit._scopeName + "_" + id; // String
 };
 
 dijit.findWidgets = function(/*DomNode*/ root){
@@ -371,9 +371,16 @@ dijit.isTabNavigable = function(/*Element*/elem){
 						body = doc && doc.body;
 					return body && body.contentEditable == 'true';
 				}else{
-					doc = elem.contentWindow.document;
-					body = doc && doc.body;
-					return body && body.firstChild && body.firstChild.contentEditable == 'true';
+					// contentWindow.document isn't accessible within IE7/8
+					// if the iframe.src points to a foreign url and this
+					// page contains an element, that could get focus
+					try{
+						doc = elem.contentWindow.document;
+						body = doc && doc.body;
+						return body && body.firstChild && body.firstChild.contentEditable == 'true';
+					}catch(e){
+						return false;
+					}
 				}
 			default:
 				return elem.contentEditable == 'true';
@@ -4272,7 +4279,6 @@ dojo.declare("dijit._Templated",
 	{
 		// summary:
 		//		Mixin for widgets that are instantiated from a template
-		//
 
 		// templateString: [protected] String
 		//		A string that represents the widget template. Pre-empts the
@@ -4308,6 +4314,17 @@ dojo.declare("dijit._Templated",
 		//		'true' to re-enable to previous, arguably broken, behavior.
 		_earlyTemplatedStartup: false,
 
+		// _attachPoints: [private] String[]
+		//		List of widget attribute names associated with dojoAttachPoint=... in the
+		//		template, ex: ["containerNode", "labelNode"]
+/*=====
+ 		_attachPoints: [],
+ =====*/
+
+		constructor: function(){
+			this._attachPoints = [];
+		},
+
 		_stringRepl: function(tmpl){
 			// summary:
 			//		Does substitution of ${foo} type properties in template string
@@ -4336,8 +4353,6 @@ dojo.declare("dijit._Templated",
 			//		Construct the UI for this widget from a template, setting this.domNode.
 			// tags:
 			//		protected
-
-			this._attachPoints = [];
 
 			// Lookup cached version of template, and download to cache if it
 			// isn't there already.  Returns either a DomNode or a string, depending on
@@ -5656,7 +5671,9 @@ dojo.declare("dijit._KeyNavContainer",
 			// tags:
 			//		protected
 			var child = this._getFirstFocusableChild();
-			this.focusChild(child);
+			if(child){ // edge case: Menu could be empty or hidden
+				this.focusChild(child);
+			}
 		},
 
 		focusNext: function(){
@@ -6916,8 +6933,8 @@ dojo.provide("dojox.html.metrics");
 		if(!measuringNode){
 			m = measuringNode = dojo.doc.createElement("div");
 			m.style.position = "absolute";
-			m.style.left = "-10000px";
-			m.style.top = "0";
+			m.style.left = "0px";
+			m.style.top = "-10000px";
 			dojo.body().appendChild(m);
 		}else{
 			m = measuringNode;
@@ -8057,6 +8074,8 @@ dojo.provide("dojox.grid.cells");
 if(!dojo._hasResource["dojo.dnd.common"]){ //_hasResource checks added by build. Do not use _hasResource directly in your code.
 dojo._hasResource["dojo.dnd.common"] = true;
 dojo.provide("dojo.dnd.common");
+
+dojo.dnd.getCopyKeyState = dojo.isCopyKeyPressed;
 
 dojo.dnd._uniqueId = 0;
 dojo.dnd.getUniqueId = function(){
@@ -12380,8 +12399,10 @@ dojo.declare("dojox.grid._FocusManager", null, {
 		this.cell = null;
 		this.rowIndex = -1;
 		this._connects = [];
+		this.headerMenu = this.grid.headerMenu;
 		this._connects.push(dojo.connect(this.grid.domNode, "onfocus", this, "doFocus"));
 		this._connects.push(dojo.connect(this.grid.domNode, "onblur", this, "doBlur"));
+		this._connects.push(dojo.connect(this.grid.domNode, "oncontextmenu", this, "doContextMenu"));
 		this._connects.push(dojo.connect(this.grid.lastFocusNode, "onfocus", this, "doLastNodeFocus"));
 		this._connects.push(dojo.connect(this.grid.lastFocusNode, "onblur", this, "doLastNodeBlur"));
 		this._connects.push(dojo.connect(this.grid,"_onFetchComplete", this, "_delayedCellFocus"));
@@ -12394,6 +12415,7 @@ dojo.declare("dojox.grid._FocusManager", null, {
 	},
 	_colHeadNode: null,
 	_colHeadFocusIdx: null,
+	_contextMenuBindNode: null,
 	tabbingOut: false,
 	focusClass: "dojoxGridCellFocus",
 	focusView: null,
@@ -12469,7 +12491,7 @@ dojo.declare("dojox.grid._FocusManager", null, {
 			try{
 				if(!this.grid.edit.isEditing()){
 					dojo.toggleClass(n, this.focusClass, true);
-					dojo.removeAttr(this.grid.domNode,"aria-activedescendant");
+					this.blurHeader();
 					dojox.grid.util.fire(n, "focus");
 				}
 			} 
@@ -12654,8 +12676,7 @@ dojo.declare("dojox.grid._FocusManager", null, {
 		if(inCell && !this.isFocusCell(inCell, inRowIndex)){
 			this.tabbingOut = false;
 			if (this._colHeadNode){
-				dojo.toggleClass(this._colHeadNode, this.focusClass, false);
-				dojo.removeAttr(this.grid.domNode,"aria-activedescendant");
+				this.blurHeader();
 			}
 			this._colHeadNode = this._colHeadFocusIdx = null;
 			this.focusGridView();
@@ -12806,7 +12827,7 @@ dojo.declare("dojox.grid._FocusManager", null, {
 			dojo.stopEvent(e);
 		}else if(this.isNavHeader()){
 			// if tabbing from col header, then go to grid proper. 
-			dojo.toggleClass(this._colHeadNode, this.focusClass, false);
+			this.blurHeader();
 			if(!this.findAndFocusGridCell()){
 				this.tabOut(this.grid.lastFocusNode);
 			}
@@ -12884,12 +12905,32 @@ dojo.declare("dojox.grid._FocusManager", null, {
 			this._colHeadNode = headerNodes[this._colHeadFocusIdx];
 		}
 		if(this._colHeadNode && this._colHeadNode.style.display != "none"){
+			// Column header cells know longer receive actual focus.  So, for keyboard invocation of
+			// contextMenu to work, the contextMenu must be bound to the grid.domNode rather than the viewsHeaderNode.
+			// unbind the contextmenu from the viewsHeaderNode and to the grid when header cells are active.  Reset
+			// the binding back to the viewsHeaderNode when header cells are no longer acive (in blurHeader) #10483
+			if (this.headerMenu && this._contextMenuBindNode != this.grid.domNode){
+				this.headerMenu.unBindDomNode(this.grid.viewsHeaderNode);
+				this.headerMenu.bindDomNode(this.grid.domNode);
+				this._contextMenuBindNode = this.grid.domNode;
+			}
 			this._setActiveColHeader(this._colHeadNode, this._colHeadFocusIdx, saveColHeadFocusIdx);
 			this._scrollHeader(this._colHeadFocusIdx);
 			this._focusifyCellNode(false);
 		}else {
 			// all col head nodes are hidden - focus the grid
 			this.findAndFocusGridCell();
+		}
+	},
+	blurHeader: function(){
+		dojo.removeClass(this._colHeadNode, this.focusClass);
+		dojo.removeAttr(this.grid.domNode,"aria-activedescendant");
+		// reset contextMenu onto viewsHeaderNode so right mouse on header will invoke (see focusHeader)
+		if (this.headerMenu && this._contextMenuBindNode == this.grid.domNode) {
+			var viewsHeader = this.grid.viewsHeaderNode;
+			this.headerMenu.unBindDomNode(this.grid.domNode);
+			this.headerMenu.bindDomNode(viewsHeader);
+			this._contextMenuBindNode = viewsHeader;
 		}
 	},
 	doFocus: function(e){
@@ -12907,6 +12948,12 @@ dojo.declare("dojox.grid._FocusManager", null, {
 	},
 	doBlur: function(e){
 		dojo.stopEvent(e);	// FF2
+	},
+	doContextMenu: function(e){
+	//stop contextMenu event if no header Menu to prevent default/browser contextMenu
+		if (!this.headerMenu){
+			dojo.stopEvent(e); 
+		}
 	},
 	doLastNodeFocus: function(e){
 		if (this.tabbingOut){
@@ -16278,4 +16325,4 @@ dojox.grid.DataGrid.markupFactory = function(props, node, ctor, cellFunc){
 }
 
 
-dojo.i18n._preloadLocalizations("dojox.grid.nls.DataGrid", ["ROOT","ar","ca","cs","da","de","de-de","el","en","en-gb","en-us","es","es-es","fi","fi-fi","fr","fr-fr","he","he-il","hu","it","it-it","ja","ja-jp","ko","ko-kr","nl","nl-nl","no","pl","pt","pt-br","pt-pt","ru","sk","sl","sv","th","tr","xx","zh","zh-cn","zh-tw"]);
+dojo.i18n._preloadLocalizations("dojox.grid.nls.DataGrid", ["ROOT","ar","ca","cs","da","de","de-de","el","en","en-gb","en-us","es","es-es","fi","fi-fi","fr","fr-fr","he","he-il","hu","it","it-it","ja","ja-jp","ko","ko-kr","nb","nl","nl-nl","pl","pt","pt-br","pt-pt","ru","sk","sl","sv","th","tr","xx","zh","zh-cn","zh-tw"]);

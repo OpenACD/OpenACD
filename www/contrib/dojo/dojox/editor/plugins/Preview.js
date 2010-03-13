@@ -11,7 +11,7 @@ dojo.provide("dojox.editor.plugins.Preview");
 dojo.require("dijit._editor._Plugin");
 dojo.require("dijit.form.Button");
 dojo.require("dojo.i18n");
-dojo.requireLocalization("dojox.editor.plugins","Preview",null,"ROOT");
+dojo.requireLocalization("dojox.editor.plugins","Preview",null,"ROOT,cs,de,es,fr,hu,it,ja,ko,pl,pt,ru,zh,zh-tw");
 dojo.declare("dojox.editor.plugins.Preview",dijit._editor._Plugin,{useDefaultCommand:false,styles:"",stylesheets:null,iconClassPrefix:"dijitAdditionalEditorIcon",_initButton:function(){
 this._nlsResources=dojo.i18n.getLocalization("dojox.editor.plugins","Preview");
 this.button=new dijit.form.Button({label:this._nlsResources["preview"],showLabel:false,iconClass:this.iconClassPrefix+" "+this.iconClassPrefix+"Preview",tabIndex:"-1",onClick:dojo.hitch(this,"_preview")});

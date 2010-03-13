@@ -19,7 +19,7 @@ dojo.require("dijit.CheckedMenuItem");
 dojo.require("dojox.editor.plugins.ToolbarLineBreak");
 dojo.require("dojo.i18n");
 dojo.require("dojo.string");
-dojo.requireLocalization("dojox.editor.plugins","FindReplace",null,"ROOT");
+dojo.requireLocalization("dojox.editor.plugins","FindReplace",null,"ROOT,cs,de,es,fr,hu,it,ja,ko,pl,pt,ru,zh,zh-tw");
 dojo.experimental("dojox.editor.plugins.FindReplace");
 dojo.declare("dojox.editor.plugins._FindReplaceTextBox",[dijit._Widget,dijit._Templated],{textId:"",label:"",widget:null,widgetsInTemplate:true,templateString:"<span style='white-space: nowrap' class='dijit dijitReset dijitInline findReplaceTextBox'>"+"<label class='dijitLeft dijitInline' for='${textId}'>${label}</label>"+"<input dojoType='dijit.form.TextBox' required=false intermediateChanges='true'"+"tabIndex='-1' id='${textId}' dojoAttachPoint='textBox' value='' style='width: 20em;'/>"+"</span>",postMixInProperties:function(){
 this.inherited(arguments);

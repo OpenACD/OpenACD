@@ -70,16 +70,11 @@ dojo.marginBox(this.editor.iframe,{h:_6});
 var vp=dijit.getViewport();
 var ed=this.editor;
 var _8=dojo.body();
+var _9=ed.domNode.parentNode;
 this.isFullscreen=_7;
 if(_7){
-var _9=ed.domNode.parentNode;
-this._classedParents=[];
 while(_9&&_9!==dojo.body()){
-var _a=dojo.attr(_9,"class");
-if(_a){
-this._classedParents.push({node:_9,classes:_a});
-dojo.attr(_9,"class","");
-}
+dojo.addClass(_9,"dijitForceStatic");
 _9=_9.parentNode;
 }
 this._editorResizeHolder=this.editor.resize;
@@ -89,11 +84,11 @@ ed._fullscreen_oldOnKeyDown=ed.onKeyDown;
 ed.onKeyDown=dojo.hitch(this,this._containFocus);
 this._origState={};
 this._origiFrameState={};
-var _b=ed.domNode,_c=_b&&_b.style||{};
-this._origState={width:_c.width||"",height:_c.height||"",top:dojo.style(_b,"top")||"",left:dojo.style(_b,"left")||"",position:dojo.style(_b,"position")||"static"};
-var _d=ed.iframe,_e=_d&&_d.style||{};
+var _a=ed.domNode,_b=_a&&_a.style||{};
+this._origState={width:_b.width||"",height:_b.height||"",top:dojo.style(_a,"top")||"",left:dojo.style(_a,"left")||"",position:dojo.style(_a,"position")||"static"};
+var _c=ed.iframe,_d=_c&&_c.style||{};
 var bc=dojo.style(ed.iframe,"backgroundColor");
-this._origiFrameState={backgroundColor:bc||"transparent",width:_e.width||"auto",height:_e.height||"auto",zIndex:_e.zIndex||""};
+this._origiFrameState={backgroundColor:bc||"transparent",width:_d.width||"auto",height:_d.height||"auto",zIndex:_d.zIndex||""};
 dojo.style(ed.domNode,{position:"absolute",top:"0px",left:"0px",zIndex:this.zIndex,width:vp.w+"px",height:vp.h+"px"});
 dojo.style(ed.iframe,{height:"100%",width:"100%",zIndex:this.zIndex,backgroundColor:bc!=="transparent"&&bc!=="rgba(0, 0, 0, 0)"?bc:"white"});
 dojo.style(ed.iframe.parentNode,{height:"95%",width:"100%"});
@@ -111,12 +106,7 @@ this._oldBodyParentOverflow="scroll";
 dojo.style(_8.parentNode,"overflow","hidden");
 }
 dojo.style(_8,"overflow","hidden");
-var _f=function(){
-var _10=this.editor.domNode.parentNode;
-while(_10&&_10!==dojo.body()){
-dojo.attr(_10,"class","");
-_10=_10.parentNode;
-}
+var _e=function(){
 var vp=dijit.getViewport();
 if("_prevW" in this&&"_prevH" in this){
 if(vp.w===this._prevW&&vp.h===this._prevH){
@@ -135,20 +125,13 @@ delete this._resizer;
 this._resizeEditor();
 }),10);
 };
-this._resizeHandle=dojo.connect(window,"onresize",this,_f);
+this._resizeHandle=dojo.connect(window,"onresize",this,_e);
 this._resizeEditor();
 var dn=this.editor.toolbar.domNode;
 setTimeout(function(){
 dijit.scrollIntoView(dn);
 },250);
 }else{
-if(this._classedParents){
-while(this._classedParents.length>0){
-var _11=this._classedParents.pop();
-dojo.attr(_11.node,"class",_11.classes);
-}
-delete this._classedParents;
-}
 if(this._editorResizeHolder){
 this.editor.resize=this._editorResizeHolder;
 }
@@ -167,25 +150,29 @@ if(this._rst){
 clearTimeout(this._rst);
 this._rst=null;
 }
-var _12=this;
+while(_9&&_9!==dojo.body()){
+dojo.removeClass(_9,"dijitForceStatic");
+_9=_9.parentNode;
+}
+var _f=this;
 setTimeout(function(){
 if(dojo.isIE&&!dojo.isQuirks){
-_8.parentNode.style.overflow=_12._oldBodyParentOverflow;
-delete _12._oldBodyParentOverflow;
+_8.parentNode.style.overflow=_f._oldBodyParentOverflow;
+delete _f._oldBodyParentOverflow;
 }
-dojo.style(_8,"overflow",_12._oldOverflow);
-delete _12._oldOverflow;
-dojo.style(ed.domNode,_12._origState);
+dojo.style(_8,"overflow",_f._oldOverflow);
+delete _f._oldOverflow;
+dojo.style(ed.domNode,_f._origState);
 dojo.style(ed.iframe.parentNode,{height:"",width:""});
-dojo.style(ed.iframe,_12._origiFrameState);
-delete _12._origState;
-delete _12._origiFrameState;
+dojo.style(ed.iframe,_f._origiFrameState);
+delete _f._origState;
+delete _f._origiFrameState;
 ed.resize();
-var _13=dijit.getEnclosingWidget(ed.domNode.parentNode);
-if(_13&&_13.resize){
-_13.resize();
+var _10=dijit.getEnclosingWidget(ed.domNode.parentNode);
+if(_10&&_10.resize){
+_10.resize();
 }
-dijit.scrollIntoView(_12.editor.toolbar.domNode);
+dijit.scrollIntoView(_f.editor.toolbar.domNode);
 },100);
 }
 },destroy:function(){
@@ -203,8 +190,8 @@ dojo.subscribe(dijit._scopeName+".Editor.getPlugin",null,function(o){
 if(o.plugin){
 return;
 }
-var _14=o.args.name.toLowerCase();
-if(_14==="fullscreen"){
+var _11=o.args.name.toLowerCase();
+if(_11==="fullscreen"){
 o.plugin=new dijit._editor.plugins.FullScreen({zIndex:("zIndex" in o.args)?o.args.zIndex:500});
 }
 });

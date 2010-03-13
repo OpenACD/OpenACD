@@ -700,7 +700,12 @@ break;
 }else{
 if(_4b.nodeType==1){
 _4a=true;
+var tg=_4b.tagName?_4b.tagName.toLowerCase():"";
+if(/br|input|img|base|meta|area|basefont/.test(tg)){
+this._sCall("selectElement",[_4b]);
+}else{
 this._sCall("selectElementChildren",[_4b]);
+}
 break;
 }
 }

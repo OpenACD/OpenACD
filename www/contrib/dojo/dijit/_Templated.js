@@ -12,7 +12,9 @@ dojo.require("dijit._Widget");
 dojo.require("dojo.string");
 dojo.require("dojo.parser");
 dojo.require("dojo.cache");
-dojo.declare("dijit._Templated",null,{templateString:null,templatePath:null,widgetsInTemplate:false,_skipNodeCache:false,_earlyTemplatedStartup:false,_stringRepl:function(_1){
+dojo.declare("dijit._Templated",null,{templateString:null,templatePath:null,widgetsInTemplate:false,_skipNodeCache:false,_earlyTemplatedStartup:false,constructor:function(){
+this._attachPoints=[];
+},_stringRepl:function(_1){
 var _2=this.declaredClass,_3=this;
 return dojo.string.substitute(_1,this,function(_4,_5){
 if(_5.charAt(0)=="!"){
@@ -27,7 +29,6 @@ return "";
 return _5.charAt(0)=="!"?_4:_4.toString().replace(/"/g,"&quot;");
 },this);
 },buildRendering:function(){
-this._attachPoints=[];
 var _6=dijit._Templated.getCachedTemplate(this.templatePath,this.templateString,this._skipNodeCache);
 var _7;
 if(dojo.isString(_6)){

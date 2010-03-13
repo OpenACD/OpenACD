@@ -32,6 +32,9 @@ this.disabled=this.select.attr("disabled");
 },_setValueAttr:function(_4,_5){
 _5=_5!==false?true:false;
 this.select.attr("value",dojo.indexOf(this.values,_4)<0?"":_4,_5);
+if(!_5){
+this.select._lastValueReported=null;
+}
 },_getValueAttr:function(){
 return this.select.attr("value");
 },focus:function(){

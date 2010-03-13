@@ -11,7 +11,7 @@ dojo.provide("dojox.editor.plugins._SmileyPalette");
 dojo.require("dijit._Widget");
 dojo.require("dijit._Templated");
 dojo.require("dojo.i18n");
-dojo.requireLocalization("dojox.editor.plugins","Smiley",null,"ROOT");
+dojo.requireLocalization("dojox.editor.plugins","Smiley",null,"ROOT,cs,de,es,fr,hu,it,ja,ko,pl,pt,ru,zh,zh-tw");
 dojo.experimental("dojox.editor.plugins._SmileyPalette");
 dojo.declare("dojox.editor.plugins._SmileyPalette",[dijit._Widget,dijit._Templated],{templateString:"<div class=\"dojoxEntityPalette\">\n"+"<table>\n"+"<tbody>\n"+"<tr>\n"+"<td>\n"+"<table class=\"dojoxEntityPaletteTable\"  waiRole=\"grid\" tabIndex=\"${tabIndex}\">\n"+"<tbody dojoAttachPoint=\"tableNode\"></tbody>\n"+"</table>\n"+"</td>\n"+"</tr>\n"+"</tbody>\n"+"</table>\n"+"</div>",defaultTimeout:500,timeoutChangeRate:0.9,smileys:{emoticonSmile:":-)",emoticonLaughing:"lol",emoticonWink:";-)",emoticonGrin:":-D",emoticonCool:"8-)",emoticonAngry:":-@",emoticonHalf:":-/",emoticonEyebrow:"/:)",emoticonFrown:":-(",emoticonShy:":-$",emoticonGoofy:":-S",emoticonOops:":-O",emoticonTongue:":-P",emoticonIdea:"(i)",emoticonYes:"(y)",emoticonNo:"(n)",emoticonAngel:"0:-)",emoticonCrying:":'("},value:null,_currentFocus:0,_xDim:null,_yDim:null,tabIndex:"0",_created:false,postCreate:function(){
 if(!this._created){

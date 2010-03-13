@@ -46,7 +46,7 @@ if(dojo.isObject(id)){
 id=dojo.objectToQuery(id);
 id=id?"?"+id:"";
 }
-if(_14&&_14.sort){
+if(_14&&_14.sort&&!_14.queryStr){
 id+=(id?"&":"?")+"sort(";
 for(var i=0;i<_14.sort.length;i++){
 var _15=_14.sort[i];

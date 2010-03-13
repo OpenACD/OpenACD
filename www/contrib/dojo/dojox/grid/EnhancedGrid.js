@@ -10,7 +10,7 @@ dojo._hasResource["dojox.grid.EnhancedGrid"]=true;
 dojo.provide("dojox.grid.EnhancedGrid");
 dojo.require("dojox.grid.DataGrid");
 dojo.require("dojox.grid.enhanced._Plugin");
-dojo.requireLocalization("dojox.grid.enhanced","EnhancedGrid",null,"ROOT,zh");
+dojo.requireLocalization("dojox.grid.enhanced","EnhancedGrid",null,"ROOT,cs,de,es,fr,hu,it,ja,ko,pl,pt,ru,zh,zh-tw");
 dojo.experimental("dojox.grid.EnhancedGrid");
 dojo.declare("dojox.grid.EnhancedGrid",dojox.grid.DataGrid,{plugins:null,pluginMgr:null,doubleAffordance:false,postMixInProperties:function(){
 this._nls=dojo.i18n.getLocalization("dojox.grid.enhanced","EnhancedGrid",this.lang);

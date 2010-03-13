@@ -192,6 +192,9 @@ if(_13.h<this._popupWidget.domNode.scrollHeight){
 _15+=16;
 }
 dojo.marginBox(this._popupWidget.domNode,{h:_13.h,w:Math.max(_15,this.domNode.offsetWidth)});
+if(_15<this.domNode.offsetWidth){
+this._popupWidget.domNode.parentNode.style.left=dojo.position(this.domNode).x+"px";
+}
 dijit.setWaiState(this.comboNode,"expanded","true");
 },_hideResultList:function(){
 this._abortQuery();

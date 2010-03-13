@@ -271,7 +271,7 @@ dojo.global = {
 =====*/
 	dojo.locale = d.config.locale;
 
-	var rev = "$Rev: 20973 $".match(/\d+/);
+	var rev = "$Rev: 21516 $".match(/\d+/);
 
 /*=====
 	dojo.version = function(){
@@ -295,7 +295,7 @@ dojo.global = {
 	}
 =====*/
 	dojo.version = {
-		major: 1, minor: 4, patch: 0, flag: "",
+		major: 1, minor: 4, patch: 2, flag: "",
 		revision: rev ? +rev[0] : NaN,
 		toString: function(){
 			with(d.version){
@@ -2043,7 +2043,7 @@ dojo.provide("dojo._base.lang");
 			// null, undefined, any non-object, or function
 			return o;	// anything
 		}
-		if(o.nodeType && o.cloneNode){
+		if(o.nodeType && "cloneNode" in o){
 			// DOM Node
 			return o.cloneNode(true); // Node
 		}

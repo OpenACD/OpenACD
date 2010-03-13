@@ -83,7 +83,7 @@ return _14&&(_14.min&&(_13(_14.min,_12,_f._selector)>0)||(_14.max&&_13(_14.max,_
 this._picker.attr("value",this.attr("value")||new this.dateClassObj());
 }
 if(!this._opened){
-dijit.popup.open({parent:this,popup:this._picker,around:this.domNode,onCancel:dojo.hitch(this,this._close),onClose:function(){
+dijit.popup.open({parent:this,popup:this._picker,orient:{"BL":"TL","TL":"BL"},around:this.domNode,onCancel:dojo.hitch(this,this._close),onClose:function(){
 _f._opened=false;
 }});
 this._opened=true;

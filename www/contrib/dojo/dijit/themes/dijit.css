@@ -1450,3 +1450,6 @@ div.dijitTabBtnDisabled, .dj_ie div.dijitTabBtnDisabled {
 	width: auto;
 	margin: 0px 4px;
 }
+.dijitForceStatic {
+    position: static !important;
+}

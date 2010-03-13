@@ -30,7 +30,9 @@ this._startupChild(_8);
 this.focusFirstChild();
 },focusFirstChild:function(){
 var _a=this._getFirstFocusableChild();
+if(_a){
 this.focusChild(_a);
+}
 },focusNext:function(){
 var _b=this._getNextFocusableChild(this.focusedChild,1);
 this.focusChild(_b);

@@ -14,6 +14,9 @@ dojo.require("dojox.embed.Flash");
 dojo.require("dojox.av._Media");
 dojo.require("dojox.timing.doLater");
 dojo.declare("dojox.av.FLAudio",null,{id:"",initialVolume:0.7,initialPan:0,isDebug:false,statusInterval:200,_swfPath:dojo.moduleUrl("dojox.av","resources/audio.swf"),constructor:function(_1){
+dojo.global.swfIsInHTML=function(){
+return true;
+};
 dojo.mixin(this,_1||{});
 if(!this.id){
 this.id="flaudio_"+new Date().getTime();

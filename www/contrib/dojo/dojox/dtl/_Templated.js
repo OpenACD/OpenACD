@@ -56,7 +56,7 @@ var _8=_5||_4;
 if(_7[_8]){
 return _7[_8];
 }
-_5=dojo.string.trim(_5||dijit._Templated._sanitizeTemplateString(dojo._getText(_4)));
+_5=dojo.string.trim(_5||dojo.cache(_4,{sanitize:true}));
 if(this._dijitTemplateCompat&&(_6||_5.match(/\$\{([^\}]+)\}/g))){
 _5=this._stringRepl(_5);
 }

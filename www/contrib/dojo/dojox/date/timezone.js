@@ -421,6 +421,7 @@ _16(f);
 var _4e=_1.date.locale.format;
 var _4f=_1.date.locale._getZone;
 _1.date.locale.format=function(_50,_51){
+_51=_51||{};
 if(_51.timezone&&!_51._tzInfo){
 _51._tzInfo=dojox.date.timezone.getTzInfo(_50,_51.timezone);
 }

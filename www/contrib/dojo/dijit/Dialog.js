@@ -95,7 +95,7 @@ if(this._fadeOut&&this._fadeOut.status()=="playing"){
 _6=true;
 this._fadeOut.stop();
 }
-if(this.open||_6){
+if((this.open||_6)&&!dijit._underlay._destroyed){
 dijit._underlay.hide();
 }
 if(this._moveable){

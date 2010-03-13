@@ -99,7 +99,7 @@ dojo.clone=function(o){
 if(!o||typeof o!="object"||d.isFunction(o)){
 return o;
 }
-if(o.nodeType&&o.cloneNode){
+if(o.nodeType&&"cloneNode" in o){
 return o.cloneNode(true);
 }
 if(o instanceof Date){

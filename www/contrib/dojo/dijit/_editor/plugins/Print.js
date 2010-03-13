@@ -26,7 +26,7 @@ this.button.attr("disabled",true);
 },_print:function(){
 var _3=this.editor.iframe;
 if(_3.contentWindow["print"]){
-if(!dojo.isOpera){
+if(!dojo.isOpera&&!dojo.isChrome){
 dijit.focus(_3);
 _3.contentWindow.print();
 }else{

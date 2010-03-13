@@ -41,22 +41,23 @@ this.inherited(arguments);
 if(!this._contentBox||typeof (this._contentBox.l)=="undefined"){
 return;
 }
+var sc=this.selectedChildWidget;
 if(this.doLayout){
 var _2=this.tabPosition.replace(/-h/,"");
 this.tablist.layoutAlign=_2;
 var _3=[this.tablist,{domNode:this.tablistSpacer,layoutAlign:_2},{domNode:this.containerNode,layoutAlign:"client"}];
 dijit.layout.layoutChildren(this.domNode,this._contentBox,_3);
 this._containerContentBox=dijit.layout.marginBox2contentBox(this.containerNode,_3[2]);
-if(this.selectedChildWidget){
-if(this.selectedChildWidget.resize){
-this.selectedChildWidget.resize(this._containerContentBox);
-}
+if(sc&&sc.resize){
+sc.resize(this._containerContentBox);
 }
 }else{
 if(this.tablist.resize){
 this.tablist.resize({w:dojo.contentBox(this.domNode).w});
 }
-this.selectedChildWidget.resize();
+if(sc&&sc.resize){
+sc.resize();
+}
 }
 },destroy:function(){
 if(this.tablist){

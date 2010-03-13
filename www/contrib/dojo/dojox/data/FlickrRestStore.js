@@ -237,6 +237,10 @@ case "imageUrlSmall":
 return [_22.media.s];
 case "imageUrl":
 return [_22.media.l];
+case "imageUrlOriginal":
+return [_22.media.o];
+case "imageUrlLarge":
+return [_22.media.l];
 case "imageUrlMedium":
 return [_22.media.m];
 case "imageUrlThumb":
@@ -267,7 +271,7 @@ _27[3]=_2a.server;
 _27[5]=_2a.id;
 _27[7]=_2a.secret;
 var _2b=_27.join("");
-_2a.media={s:_2b+"_s.jpg",m:_2b+"_m.jpg",l:_2b+".jpg",t:_2b+"_t.jpg"};
+_2a.media={s:_2b+"_s.jpg",m:_2b+"_m.jpg",l:_2b+".jpg",t:_2b+"_t.jpg",o:_2b+"_o.jpg"};
 if(!_2a.owner&&_24.photoset){
 _2a.owner=_24.photoset.owner;
 }

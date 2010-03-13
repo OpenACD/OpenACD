@@ -200,6 +200,7 @@ if(i!="type"){
 this.rawNode.setAttribute(i,this.shape[i]);
 }
 }
+this.bbox=null;
 return this;
 },_moveToFront:function(){
 this.rawNode.parentNode.appendChild(this.rawNode);
@@ -244,15 +245,11 @@ this.shape.points.push(this.shape.points[0]);
 }else{
 this.shape=g.makeParameters(this.shape,_15);
 }
-this.box=null;
+this.bbox=null;
+this._normalizePoints();
 var _17=[],p=this.shape.points;
 for(var i=0;i<p.length;++i){
-if(typeof p[i]=="number"){
-_17.push(p[i].toFixed(8));
-}else{
-_17.push(p[i].x.toFixed(8));
-_17.push(p[i].y.toFixed(8));
-}
+_17.push(p[i].x.toFixed(8),p[i].y.toFixed(8));
 }
 this.rawNode.setAttribute("points",_17.join(" "));
 return this;
@@ -267,6 +264,7 @@ if(i!="type"&&i!="src"){
 _19.setAttribute(i,this.shape[i]);
 }
 }
+_19.setAttribute("preserveAspectRatio","none");
 _19.setAttributeNS(_1.xmlns.xlink,"href",this.shape.src);
 return this;
 }});

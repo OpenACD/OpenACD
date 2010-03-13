@@ -245,7 +245,7 @@ dijit.getUniqueId = function(/*String*/widgetType){
 			(widgetType in dijit._widgetTypeCtr ?
 				++dijit._widgetTypeCtr[widgetType] : dijit._widgetTypeCtr[widgetType] = 0);
 	}while(dijit.byId(id));
-	return id; // String
+	return dijit._scopeName == "dijit" ? id : dijit._scopeName + "_" + id; // String
 };
 
 dijit.findWidgets = function(/*DomNode*/ root){
@@ -371,9 +371,16 @@ dijit.isTabNavigable = function(/*Element*/elem){
 						body = doc && doc.body;
 					return body && body.contentEditable == 'true';
 				}else{
-					doc = elem.contentWindow.document;
-					body = doc && doc.body;
-					return body && body.firstChild && body.firstChild.contentEditable == 'true';
+					// contentWindow.document isn't accessible within IE7/8
+					// if the iframe.src points to a foreign url and this
+					// page contains an element, that could get focus
+					try{
+						doc = elem.contentWindow.document;
+						body = doc && doc.body;
+						return body && body.firstChild && body.firstChild.contentEditable == 'true';
+					}catch(e){
+						return false;
+					}
 				}
 			default:
 				return elem.contentEditable == 'true';
@@ -4272,7 +4279,6 @@ dojo.declare("dijit._Templated",
 	{
 		// summary:
 		//		Mixin for widgets that are instantiated from a template
-		//
 
 		// templateString: [protected] String
 		//		A string that represents the widget template. Pre-empts the
@@ -4308,6 +4314,17 @@ dojo.declare("dijit._Templated",
 		//		'true' to re-enable to previous, arguably broken, behavior.
 		_earlyTemplatedStartup: false,
 
+		// _attachPoints: [private] String[]
+		//		List of widget attribute names associated with dojoAttachPoint=... in the
+		//		template, ex: ["containerNode", "labelNode"]
+/*=====
+ 		_attachPoints: [],
+ =====*/
+
+		constructor: function(){
+			this._attachPoints = [];
+		},
+
 		_stringRepl: function(tmpl){
 			// summary:
 			//		Does substitution of ${foo} type properties in template string
@@ -4336,8 +4353,6 @@ dojo.declare("dijit._Templated",
 			//		Construct the UI for this widget from a template, setting this.domNode.
 			// tags:
 			//		protected
-
-			this._attachPoints = [];
 
 			// Lookup cached version of template, and download to cache if it
 			// isn't there already.  Returns either a DomNode or a string, depending on

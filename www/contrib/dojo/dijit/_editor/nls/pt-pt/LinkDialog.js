@@ -1,1 +1,1 @@
-({"set":"Definir","text":"Descrição:","insertImageTitle":"Propriedades da imagem","url":"URL:","createLinkTitle":"Propriedades da ligação","newWindow":"New Window","topWindow":"Topmost Window","target":"Target:","parentWindow":"Parent Window","currentWindow":"Current Window"})
+({"set":"Definir","text":"Descrição:","insertImageTitle":"Propriedades da imagem","url":"URL:","createLinkTitle":"Propriedades da ligação","newWindow":"Nova Janela","topWindow":"Primeira Janela","target":"Destino:","parentWindow":"Janela Pai","currentWindow":"Janela Atual"})

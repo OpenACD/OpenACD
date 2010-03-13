@@ -11,7 +11,7 @@ dojo.provide("dojox.editor.plugins.ShowBlockNodes");
 dojo.require("dijit._editor._Plugin");
 dojo.require("dijit.form.Button");
 dojo.require("dojo.i18n");
-dojo.requireLocalization("dojox.editor.plugins","ShowBlockNodes",null,"ROOT");
+dojo.requireLocalization("dojox.editor.plugins","ShowBlockNodes",null,"ROOT,cs,de,es,fr,hu,it,ja,ko,pl,pt,ru,zh,zh-tw");
 dojo.declare("dojox.editor.plugins.ShowBlockNodes",dijit._editor._Plugin,{useDefaultCommand:false,iconClassPrefix:"dijitAdditionalEditorIcon",_styled:false,_initButton:function(){
 var _1=dojo.i18n.getLocalization("dojox.editor.plugins","ShowBlockNodes");
 this.button=new dijit.form.ToggleButton({label:_1["showBlockNodes"],showLabel:false,iconClass:this.iconClassPrefix+" "+this.iconClassPrefix+"ShowBlockNodes",tabIndex:"-1",onChange:dojo.hitch(this,"_showBlocks")});

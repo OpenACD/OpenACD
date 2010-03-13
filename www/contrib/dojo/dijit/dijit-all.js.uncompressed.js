@@ -949,6 +949,8 @@ if(!dojo._hasResource["dojo.dnd.common"]){ //_hasResource checks added by build.
 dojo._hasResource["dojo.dnd.common"] = true;
 dojo.provide("dojo.dnd.common");
 
+dojo.dnd.getCopyKeyState = dojo.isCopyKeyPressed;
+
 dojo.dnd._uniqueId = 0;
 dojo.dnd.getUniqueId = function(){
 	// summary:
@@ -4221,7 +4223,10 @@ dojo.declare(
 				wasPlaying = true;
 				this._fadeOut.stop();
 			}
-			if(this.open || wasPlaying){
+			
+			// Hide the underlay, unless the underlay widget has already been destroyed
+			// because we are being called during page unload (when all widgets are destroyed)
+			if((this.open || wasPlaying) && !dijit._underlay._destroyed){
 				dijit._underlay.hide();
 			}
 			if(this._moveable){
@@ -6750,6 +6755,7 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 		//see comments in placeCursorAtEnd
 		var isvalid=false;
 		if(dojo.isMoz){
+			// TODO:  Is this branch even necessary?
 			var first=this.editNode.firstChild;
 			while(first){
 				if(first.nodeType == 3){
@@ -6760,7 +6766,14 @@ dojo.declare("dijit._editor.RichText", dijit._Widget, {
 					}
 				}else if(first.nodeType == 1){
 					isvalid=true;
-					this._sCall("selectElementChildren", [ first ]);
+					var tg = first.tagName ? first.tagName.toLowerCase() : "";
+					// Collapse before childless tags.
+					if(/br|input|img|base|meta|area|basefont/.test(tg)){
+						this._sCall("selectElement", [ first ]);
+					}else{
+						// Collapse inside tags with children.
+						this._sCall("selectElementChildren", [ first ]);
+					}
 					break;
 				}
 				first = first.nextSibling;
@@ -7382,7 +7395,9 @@ dojo.declare("dijit._KeyNavContainer",
 			// tags:
 			//		protected
 			var child = this._getFirstFocusableChild();
-			this.focusChild(child);
+			if(child){ // edge case: Menu could be empty or hidden
+				this.focusChild(child);
+			}
 		},
 
 		focusNext: function(){
@@ -8215,6 +8230,7 @@ dojo.declare("dijit.form.DropDownButton", [dijit.form.Button, dijit._Container, 
 			this.dropDown = dijit.byNode(dropDownNode);
 			delete this.dropDownContainer;
 		}
+		dijit.popup.moveOffScreen(this.dropDown.domNode);
 
 		this.inherited(arguments);
 	},
@@ -8231,7 +8247,7 @@ dojo.declare("dijit.form.DropDownButton", [dijit.form.Button, dijit._Container, 
 		var dropDown = this.dropDown;
 		if(!dropDown){ return; }
 		if(!this.isLoaded()){
-			var handler = dojo.connect(dropDown, "onLoad", function(){
+			var handler = dojo.connect(dropDown, "onLoad", this, function(){
 				dojo.disconnect(handler);
 				this.openDropDown();
 			});
@@ -9051,8 +9067,9 @@ dojo.declare("dijit._editor.plugins.EnterKeyHandling", dijit._editor._Plugin, {
 		var ps = element.getElementsByTagName('p');
 		dojo.forEach(ps, function(p){ pList.push(p); });
 		dojo.forEach(pList, function(p){
-			if(	(p.previousSibling) &&
-				(p.previousSibling.nodeName == 'P' || dojo.style(p.previousSibling, 'display') != 'block')
+			var prevSib = p.previousSibling;
+			if(	(prevSib) && (prevSib.nodeType == 1) && 
+				(prevSib.nodeName == 'P' || dojo.style(prevSib, 'display') != 'block')
 			){
 				var newP = p.parentNode.insertBefore(this.document.createElement('p'), p);
 				// this is essential to prevent IE from losing the P.
@@ -11604,7 +11621,7 @@ dojo.declare("dijit.ProgressBar", [dijit._Widget, dijit._Templated], {
 	//		this widget in a dijit.form.Form widget (such as dijit.Dialog)
 	name: '',
 
-	templateString: dojo.cache("dijit", "templates/ProgressBar.html", "<div class=\"dijitProgressBar dijitProgressBarEmpty\"\n\t><div waiRole=\"progressbar\" tabindex=\"0\" dojoAttachPoint=\"internalProgress\" class=\"dijitProgressBarFull\"\n\t\t><div class=\"dijitProgressBarTile\"></div\n\t\t><span style=\"visibility:hidden\">&nbsp;</span\n\t></div\n\t><div dojoAttachPoint=\"label\" class=\"dijitProgressBarLabel\" id=\"${id}_label\">&nbsp;</div\n\t><img dojoAttachPoint=\"indeterminateHighContrastImage\" class=\"dijitProgressBarIndeterminateHighContrastImage\" alt=\"\"\n\t></img\n></div>\n"),
+	templateString: dojo.cache("dijit", "templates/ProgressBar.html", "<div class=\"dijitProgressBar dijitProgressBarEmpty\"\n\t><div waiRole=\"progressbar\" dojoAttachPoint=\"internalProgress\" class=\"dijitProgressBarFull\"\n\t\t><div class=\"dijitProgressBarTile\"></div\n\t\t><span style=\"visibility:hidden\">&nbsp;</span\n\t></div\n\t><div dojoAttachPoint=\"label\" class=\"dijitProgressBarLabel\" id=\"${id}_label\">&nbsp;</div\n\t><img dojoAttachPoint=\"indeterminateHighContrastImage\" class=\"dijitProgressBarIndeterminateHighContrastImage\" alt=\"\"\n\t></img\n></div>\n"),
 
 	// _indeterminateHighContrastImagePath: [private] dojo._URL
 	//		URL to image to use for indeterminate progress bar when display is in high contrast mode
@@ -18631,9 +18648,12 @@ dojo.declare(
 				this._picker.attr('value', this.attr('value') || new this.dateClassObj());
 			}
 			if(!this._opened){
+				// Open drop down.  Align left sides of input box and drop down, even in RTL mode,
+				// otherwise positioning thrown off when the drop down width is changed in marginBox call below (#10676)
 				dijit.popup.open({
 					parent: this,
 					popup: this._picker,
+					orient: {'BL':'TL', 'TL':'BL'},
 					around: this.domNode,
 					onCancel: dojo.hitch(this, this._close),
 					onClose: function(){ textBox._opened=false; }
@@ -19618,6 +19638,14 @@ dojo.declare(
 				h: best.h,
 				w: Math.max(newwidth, this.domNode.offsetWidth)
 			});
+			
+			// If we increased the width of drop down to match the width of ComboBox.domNode,
+			// then need to reposition the drop down (wrapper) so (all of) the drop down still
+			// appears underneath the ComboBox.domNode
+			if(newwidth < this.domNode.offsetWidth){
+				this._popupWidget.domNode.parentNode.style.left = dojo.position(this.domNode).x + "px";
+			}
+
 			dijit.setWaiState(this.comboNode, "expanded", "true");
 		},
 
@@ -24037,7 +24065,10 @@ dojo.declare("dijit.layout._TabContainerBase",
 	layout: function(){
 		// Overrides StackContainer.layout().
 		// Configure the content pane to take up all the space except for where the tabs are
+
 		if(!this._contentBox || typeof(this._contentBox.l) == "undefined"){return;}
+
+		var sc = this.selectedChildWidget;
 
 		if(this.doLayout){
 			// position and size the titles and the container node
@@ -24056,10 +24087,8 @@ dojo.declare("dijit.layout._TabContainerBase",
 			// children[2] is the margin-box size of this.containerNode, set by layoutChildren() call above
 			this._containerContentBox = dijit.layout.marginBox2contentBox(this.containerNode, children[2]);
 
-			if(this.selectedChildWidget){
-				if(this.selectedChildWidget.resize){
-					this.selectedChildWidget.resize(this._containerContentBox);
-				}
+			if(sc && sc.resize){
+				sc.resize(this._containerContentBox);
 			}
 		}else{
 			// just layout the tab controller, so it can position left/right buttons etc.
@@ -24067,8 +24096,10 @@ dojo.declare("dijit.layout._TabContainerBase",
 				this.tablist.resize({w: dojo.contentBox(this.domNode).w});
 			}
 
-			// and call resize() on the pane just to tell it that it's been made visible
-			this.selectedChildWidget.resize();
+			// and call resize() on the selected pane just to tell it that it's been made visible
+			if(sc && sc.resize){
+				sc.resize();
+			}
 		}
 	},
 
@@ -24482,7 +24513,7 @@ dojo.declare("dijit.layout.ScrollingTabController",
 		//		Returns the current scroll of the tabs where 0 means
 		//		"scrolled all the way to the left" and some positive number, based on #
 		//		of pixels of possible scroll (ex: 1000) means "scrolled all the way to the right"
-		var sl = (this.isLeftToRight() || dojo.isIE < 8) ? this.scrollNode.scrollLeft :
+		var sl = (this.isLeftToRight() || dojo.isIE < 8 || dojo.isQuirks || dojo.isWebKit) ? this.scrollNode.scrollLeft :
 				dojo.style(this.containerNode, "width") - dojo.style(this.scrollNode, "width")
 					 + (dojo.isIE == 8 ? -1 : 1) * this.scrollNode.scrollLeft;
 		return sl;
@@ -24496,7 +24527,7 @@ dojo.declare("dijit.layout.ScrollingTabController",
 		//		to achieve that scroll.
 		//
 		//		This method is to adjust for RTL funniness in various browsers and versions.
-		if(this.isLeftToRight() || dojo.isIE < 8){
+		if(this.isLeftToRight() || dojo.isIE < 8 || dojo.isQuirks || dojo.isWebKit){
 			return val;
 		}else{
 			var maxScroll = dojo.style(this.containerNode, "width") - dojo.style(this.scrollNode, "width");
@@ -24518,18 +24549,9 @@ dojo.declare("dijit.layout.ScrollingTabController",
 			var sl = this._getScroll();
 
 			if(sl > node.offsetLeft ||
-				sl + dojo.style(this.scrollNode, "width") <
-				node.offsetLeft + dojo.style(node, "width")){
-
-				var anim = this.createSmoothScroll();
-				// use dojo.connect() rather than this.connect() because the animation will soon be
-				// garbage collected and there's no reason to leave a reference to the connection in this._connects[]
-				dojo.connect(anim, "onEnd", function(){
-					tab.onClick(null);
-				});
-				anim.play();
-			}else{
-				tab.onClick(null);
+					sl + dojo.style(this.scrollNode, "width") <
+					node.offsetLeft + dojo.style(node, "width")){
+				this.createSmoothScroll().play();
 			}
 		}
 
@@ -24874,4 +24896,4 @@ dijit["dijit-all"] = {
 }
 
 
-dojo.i18n._preloadLocalizations("dijit.nls.dijit-all", ["ROOT","ar","ca","cs","da","de","de-de","el","en","en-gb","en-us","es","es-es","fi","fi-fi","fr","fr-fr","he","he-il","hu","it","it-it","ja","ja-jp","ko","ko-kr","nl","nl-nl","no","pl","pt","pt-br","pt-pt","ru","sk","sl","sv","th","tr","xx","zh","zh-cn","zh-tw"]);
+dojo.i18n._preloadLocalizations("dijit.nls.dijit-all", ["ROOT","ar","ca","cs","da","de","de-de","el","en","en-gb","en-us","es","es-es","fi","fi-fi","fr","fr-fr","he","he-il","hu","it","it-it","ja","ja-jp","ko","ko-kr","nb","nl","nl-nl","pl","pt","pt-br","pt-pt","ru","sk","sl","sv","th","tr","xx","zh","zh-cn","zh-tw"]);

@@ -50,8 +50,8 @@ var m;
 if(!_6){
 m=_6=dojo.doc.createElement("div");
 m.style.position="absolute";
-m.style.left="-10000px";
-m.style.top="0";
+m.style.left="0px";
+m.style.top="-10000px";
 dojo.body().appendChild(m);
 }else{
 m=_6;

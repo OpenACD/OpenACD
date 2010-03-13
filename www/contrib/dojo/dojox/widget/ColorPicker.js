@@ -9,7 +9,7 @@ if(!dojo._hasResource["dojox.widget.ColorPicker"]){
 dojo._hasResource["dojox.widget.ColorPicker"]=true;
 dojo.provide("dojox.widget.ColorPicker");
 dojo.experimental("dojox.widget.ColorPicker");
-dojo.requireLocalization("dojox.widget","ColorPicker",null,"ROOT,th");
+dojo.requireLocalization("dojox.widget","ColorPicker",null,"ROOT,cs,de,es,fr,hu,it,ja,ko,pl,pt,ru,th,zh,zh-tw");
 dojo.requireLocalization("dojo.cldr","number",null,"ROOT,ar,ca,cs,da,de,de-de,el,en,en-au,en-gb,en-us,es,es-es,fi,fr,he,hu,it,ja,ja-jp,ko,ko-kr,nb,nl,pl,pt,pt-pt,ru,sk,sl,sv,th,tr,zh,zh-cn,zh-tw");
 dojo.require("dijit.form._FormWidget");
 dojo.require("dojo.dnd.move");

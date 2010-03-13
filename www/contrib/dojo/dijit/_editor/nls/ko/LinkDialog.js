@@ -1,1 +1,1 @@
-({"set":"설정","text":"설명:","insertImageTitle":"이미지 등록 정보","url":"URL:","createLinkTitle":"링크 등록 정보","newWindow":"New Window","topWindow":"Topmost Window","target":"Target:","parentWindow":"Parent Window","currentWindow":"Current Window"})
+({"text":"설명:","insertImageTitle":"이미지 특성","set":"설정","newWindow":"새 창","topWindow":"최상위 창","target":"대상:","createLinkTitle":"링크 특성","parentWindow":"상위 창","currentWindow":"현재 창","url":"URL:"})

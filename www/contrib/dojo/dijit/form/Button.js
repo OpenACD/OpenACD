@@ -76,6 +76,7 @@ var _a=dojo.query("[widgetId]",this.dropDownContainer)[0];
 this.dropDown=dijit.byNode(_a);
 delete this.dropDownContainer;
 }
+dijit.popup.moveOffScreen(this.dropDown.domNode);
 this.inherited(arguments);
 },isLoaded:function(){
 var _b=this.dropDown;
@@ -86,7 +87,7 @@ if(!_c){
 return;
 }
 if(!this.isLoaded()){
-var _d=dojo.connect(_c,"onLoad",function(){
+var _d=dojo.connect(_c,"onLoad",this,function(){
 dojo.disconnect(_d);
 this.openDropDown();
 });

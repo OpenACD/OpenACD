@@ -78,6 +78,9 @@
 .dijitRtl .dijitTabContainer .tabStripMenuButton {
 	float: left;
 }
+.dj_iequirks-rtl .dijitComboButton BUTTON {
+        float:left;
+}
 .dijitRtl .soria .dijitTab {
 	margin-right:0;
 	margin-left:2px;		

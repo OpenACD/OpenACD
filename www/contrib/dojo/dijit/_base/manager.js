@@ -84,7 +84,7 @@ var id;
 do{
 id=_10+"_"+(_10 in dijit._widgetTypeCtr?++dijit._widgetTypeCtr[_10]:dijit._widgetTypeCtr[_10]=0);
 }while(dijit.byId(id));
-return id;
+return dijit._scopeName=="dijit"?id:dijit._scopeName+"_"+id;
 };
 dijit.findWidgets=function(_11){
 var _12=[];
@@ -170,9 +170,14 @@ if(dojo.isWebKit){
 var doc=_1d.contentDocument,_1e=doc&&doc.body;
 return _1e&&_1e.contentEditable=="true";
 }else{
+try{
 doc=_1d.contentWindow.document;
 _1e=doc&&doc.body;
 return _1e&&_1e.firstChild&&_1e.firstChild.contentEditable=="true";
+}
+catch(e){
+return false;
+}
 }
 }
 default:

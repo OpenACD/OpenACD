@@ -1,1 +1,1 @@
-({"set":"Ustaw","text":"Opis:","insertImageTitle":"Właściwości obrazu","url":"Adres URL:","createLinkTitle":"Właściwości odsyłacza","newWindow":"New Window","topWindow":"Topmost Window","target":"Target:","parentWindow":"Parent Window","currentWindow":"Current Window"})
+({"text":"Opis:","insertImageTitle":"Właściwości obrazu","set":"Ustaw","newWindow":"Nowe okno","topWindow":"Okno najwyższego poziomu","target":"Cel:","createLinkTitle":"Właściwości odsyłacza","parentWindow":"Okno macierzyste","currentWindow":"Bieżące okno","url":"Adres URL:"})

@@ -10,7 +10,7 @@ dojo._hasResource["dojox.editor.plugins.PageBreak"]=true;
 dojo.provide("dojox.editor.plugins.PageBreak");
 dojo.require("dijit._editor._Plugin");
 dojo.require("dojo.i18n");
-dojo.requireLocalization("dojox.editor.plugins","PageBreak",null,"ROOT");
+dojo.requireLocalization("dojox.editor.plugins","PageBreak",null,"ROOT,cs,de,es,fr,hu,it,ja,ko,pl,pt,ru,zh,zh-tw");
 dojo.declare("dojox.editor.plugins.PageBreak",dijit._editor._Plugin,{useDefaultCommand:false,iconClassPrefix:"dijitAdditionalEditorIcon",_unbreakableNodes:["li","ul","ol"],_pbContent:"<hr style='page-break-after: always;' class='dijitEditorPageBreak'>",_initButton:function(){
 var ed=this.editor;
 var _1=dojo.i18n.getLocalization("dojox.editor.plugins","PageBreak");

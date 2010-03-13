@@ -324,27 +324,15 @@ this.shape.points.push(this.shape.points[0]);
 this.shape=g.makeParameters(this.shape,_24);
 }
 this.bbox=null;
+this._normalizePoints();
 var _26=[],p=this.shape.points;
 if(p.length>0){
 _26.push("m");
-var k=1;
-if(typeof p[0]=="number"){
-_26.push(p[0].toFixed());
-_26.push(p[1].toFixed());
-k=2;
-}else{
-_26.push(p[0].x.toFixed());
-_26.push(p[0].y.toFixed());
-}
-if(p.length>k){
+_26.push(p[0].x.toFixed(),p[0].y.toFixed());
+if(p.length>1){
 _26.push("l");
-for(var i=k;i<p.length;++i){
-if(typeof p[i]=="number"){
-_26.push(p[i].toFixed());
-}else{
-_26.push(p[i].x.toFixed());
-_26.push(p[i].y.toFixed());
-}
+for(var i=1;i<p.length;++i){
+_26.push(p[i].x.toFixed(),p[i].y.toFixed());
 }
 }
 }

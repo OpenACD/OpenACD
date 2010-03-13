@@ -44,13 +44,8 @@
 				</script>
 				<script type="dojo/connect" event="onClick">
 					dojo.byId('emailView').style.display = 'none';
-					//dojo.byId('emailReplyDiv').style.visibility = 'visible';
 					dojo.byId('emailReplyDiv').style.display = 'block';
-					var replyBase = dojo.doc.createElement('div');
-					replyBase.id = 'emailReplyEditor';
-					replyBase.style.height = '300px';
-					dojo.byId('emailDisp').appendChild(replyBase);
-					var widget = new dijit.Editor({height:'300px'}, replyBase);
+					var widget = new dijit.Editor({height:'250px'}, dojo.byId("emailDisp"));
 					widget.setValue(dojo.byId('emailViewDiv').innerHTML);
 				</script>
 			</button>
@@ -65,34 +60,22 @@
 <div id="emailReplyDiv">
 
 	<form dojoType="dijit.form.Form" action="javascript:void(0)" id="emailReplyForm">
-		<div style="width:40%; display:inline-block">
-			<p>
-				<label class="translatecol narrow">TO</label>
-				<input dojoType="dijit.form.TextBox" id="emailTo" />
-			</p>
-
-			<p>
-				<label class="translatecol narrow">FROM</label>
-				<input dojoType="dijit.form.TextBox" id="emailFrom" />
-			</p>
-
-			<p>
-				<label class="translatecol narrow">SUBJECT</label>
-				<input dojoType="dijit.form.TextBox" id="emailSubject" />
-			</p>
-
-			<p>
-				<label class="translatecol narrow">CC</label>
-				<textarea dojoType="dijit.form.Textarea" id="emailCC" name="emailCC" cols="20"></textarea>
-			</p>
-			
-			<p>
-				<label class="translatecol narrow">BCC</label>
-				<textarea dojoType="dijit.form.Textarea" id="emailBCC" name="emailBCC" cols="20"></textarea>
-			</p>
+		<div style="width:59%; display:inline-block;">
+			<label class="translatecol narrow">TO</label>
+			<input dojoType="dijit.form.TextBox" id="emailTo" style="width: 30em;"/><br/>
+			<label class="translatecol narrow">FROM</label>
+			<input dojoType="dijit.form.TextBox" id="emailFrom" style="width: 30em;"/><br/>
+			<label class="translatecol narrow">SUBJECT</label>
+			<input dojoType="dijit.form.TextBox" id="emailSubject" style="width: 30em;"/><br/>
+			<label class="translatecol narrow">CC</label>
+			<textarea dojoType="dijit.form.Textarea" id="emailCC" name="emailCC" cols="20"></textarea><br/>
+			<label class="translatecol narrow">BCC</label>
+			<textarea dojoType="dijit.form.Textarea" id="emailBCC" name="emailBCC" cols="20"></textarea><br/>
+			<label class="translatecol narrow">DATE</label>
+			<span id="emailDateSpanReply"></span><br/>
 		</div>
 		
-		<div style="width:40%;display:inline-block;float:right">
+		<div style="width:40%;display:inline-block;float:right;">
 			<p>
 				<label class="translatecol narrow">ATTACHMENTS</label>
 				<button dojoType="dojox.form.FileUploader" uploadUrl="/media" class="btnNormal" hoverClass="btnHover" activeClass="btnActive" disabledClass="btnDisabled", force="html", htmlFieldName="attachFiles", selectMultipleFiles="false" id='fileUploader' selectedList="attachmentList" showProgress="true">Select Files
@@ -128,81 +111,78 @@
 		</div>
 
 		<div>
-			<div id="emailDisp" style="width:90%;" />
+			<div id="emailDisp" style="width:100%;" />
 		</div>
-		<div>
-			<p>
-				<label>&nbsp;</label>
-				<button label="SUBMIT" dojoType="dijit.form.Button" id="emailSubmit">
-					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").SUBMIT);
-					</script>
-					<script type="dojo/connect" event="onClick">
-						var coveredNode = dijit.byId('email').domNode;
-						var standby = new dojox.widget.Standby({
-							target: coveredNode,
-							zIndex:1000
-						});
-						dojo.doc.body.appendChild(standby.domNode);
-						standby.startup();
-						standby.show();
-						var sub = dojo.subscribe("agent/mediaevent/email", function(data){
-							if(data.event == 'send_complete'){
-								standby.hide();
-								if(! data.success){
-									errMessage('send mail failed' + data.message);
-								} else {
-									dijit.byId('emailReplyEditor').destroy();
-									dojo.byId('emailView').style.display = 'block';
-									dojo.byId('emailReplyDiv').style.display = 'none';
-								}
-								dojo.unsubscribe(sub);
+		<div style="margin-left: auto; margin-right: auto; width: 20%;">
+			<button label="SUBMIT" dojoType="dijit.form.Button" id="emailSubmit">
+				<script type="dojo/method" event="postCreate">
+					this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").SUBMIT);
+				</script>
+				<script type="dojo/connect" event="onClick">
+					var coveredNode = dijit.byId('email').domNode;
+					var standby = new dojox.widget.Standby({
+						target: coveredNode,
+						zIndex:1000
+					});
+					dojo.doc.body.appendChild(standby.domNode);
+					standby.startup();
+					standby.show();
+					var sub = dojo.subscribe("agent/mediaevent/email", function(data){
+						if(data.event == 'send_complete'){
+							standby.hide();
+							if(! data.success){
+								errMessage('send mail failed' + data.message);
+							} else {
+								dijit.byId('emailReplyEditor').destroy();
+								dojo.byId('emailView').style.display = 'block';
+								dojo.byId('emailReplyDiv').style.display = 'none';
 							}
-						});
-						var ccs = dijit.byId('emailCC').attr('value');
-						var bccs = dijit.byId('emailBCC').attr('value');
-						// allow split by comma, comma space, comma newline, comma space newline, and newline.
-						var regex = /\,\s*|\,|\,?\s*\n/;
-						ccs = ccs.split(regex);
-						bccs = bccs.split(regex);
-						dojo.xhrPost({
-							url:'/media',
-							content:{
-								'command':'send',
-								'arguments':dojo.toJson({
-									'to':dijit.byId('emailTo').attr('value'),
-									'from':dijit.byId('emailFrom').attr('value'),
-									'subject':dijit.byId('emailSubject').attr('value'),
-									'cc':ccs,
-									'bcc':bccs,
-									'body': dijit.byId('emailReplyEditor').attr('value')
-								}),
-								'mode':'cast'
-							},
-							load: function(res){
-								return true;
-							},
-							error: function(res){
-								errMessage(['mail errored', res]);
-							}
-						});
-					</script>
-				</button>
-				
-				<button label="CANCEL" dojoType="dijit.form.Button" id="emailCancel">
-					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").CANCEL);
-					</script>
-					<script type="dojo/connect" event="onClick">
-						dijit.byId('emailReplyEditor').destroy();
-						//var node = dojo.byId('emailReplyEditor');
-						//node.parentNode.removeChild(node);
-						dojo.byId('emailView').style.display = 'block';
-						//dojo.byId('emailReplyDiv').style.visibility = 'hidden';
-						dojo.byId('emailReplyDiv').style.display = 'none';
-					</script>
-				</button>
-			</p>
+							dojo.unsubscribe(sub);
+						}
+					});
+					var ccs = dijit.byId('emailCC').attr('value');
+					var bccs = dijit.byId('emailBCC').attr('value');
+					// allow split by comma, comma space, comma newline, comma space newline, and newline.
+					var regex = /\,\s*|\,|\,?\s*\n/;
+					ccs = ccs.split(regex);
+					bccs = bccs.split(regex);
+					dojo.xhrPost({
+						url:'/media',
+						content:{
+							'command':'send',
+							'arguments':dojo.toJson({
+								'to':dijit.byId('emailTo').attr('value'),
+								'from':dijit.byId('emailFrom').attr('value'),
+								'subject':dijit.byId('emailSubject').attr('value'),
+								'cc':ccs,
+								'bcc':bccs,
+								'body': dijit.byId('emailReplyEditor').attr('value')
+							}),
+							'mode':'cast'
+						},
+						load: function(res){
+							return true;
+						},
+						error: function(res){
+							errMessage(['mail errored', res]);
+						}
+					});
+				</script>
+			</button>
+			
+			<button label="CANCEL" dojoType="dijit.form.Button" id="emailCancel">
+				<script type="dojo/method" event="postCreate">
+					this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").CANCEL);
+				</script>
+				<script type="dojo/connect" event="onClick">
+					dijit.byId('emailReplyEditor').destroy();
+					//var node = dojo.byId('emailReplyEditor');
+					//node.parentNode.removeChild(node);
+					dojo.byId('emailView').style.display = 'block';
+					//dojo.byId('emailReplyDiv').style.visibility = 'hidden';
+					dojo.byId('emailReplyDiv').style.display = 'none';
+				</script>
+			</button>
 		</div>
 	</form>
 

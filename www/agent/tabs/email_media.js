@@ -295,6 +295,7 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	dojo.byId('emailFromSpan').innerHTML = emailPane.scrubString(skel.headers.from);
 	dojo.byId('emailSubjectSpan').innerHTML = emailPane.scrubString(skel.headers.subject);
 	dojo.byId('emailDateSpan').innerHTML = emailPane.scrubString(skel.headers.date);
+	dojo.byId('emailDateSpanReply').innerHTML = emailPane.scrubString(skel.headers.date);
 	dojo.byId('emailRawHeadersSpan').innerHTML = function(){
 		var out = []; //['<pre>'];
 		for(var i in skel.headers){

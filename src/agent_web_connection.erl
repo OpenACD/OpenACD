@@ -794,6 +794,23 @@ handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = St
 			{struct, [{success, true}, {<<"message">>, <<"agent accepted statechange">>}]}
 	end,
 	{reply, {200, [], mochijson2:encode(Json)}, State};
+handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined, agent_fsm = Apid} = State) ->
+	AgentRec = agent:dump_state(Apid),
+	Json = case whereis(freeswitch_media_manager) of
+		Pid when is_pid(Pid), AgentRec#agent.state == released ->
+			Callrec = #call{id="unused", source=self(), callerid={"Echo Test", "0000000"}},
+			case freeswitch_media_manager:ring_agent_echo(Apid, AgentRec, Callrec, 600) of
+				{ok, _} ->
+					{struct, [{success, true}]};
+				{error, Error} ->
+					{struct, [{success, false}, {<<"message">>, iolist_to_binary(io_lib:format("ring test failed: ~p", [Error]))}]}
+			end;
+		undefined ->
+			{struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}]};
+		_ ->
+			{struct, [{success, false}, {<<"message">>, <<"you must be released to perform a ring test">>}]}
+	end,
+	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({undefined, "/report_issue", Post}, _From, State) ->
 	Summary = proplists:get_value("reportIssueSummary", Post),
 	Description = proplists:get_value("reportIssueError", Post),

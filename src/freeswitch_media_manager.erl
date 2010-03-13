@@ -110,6 +110,7 @@
 	fetch_domain_user/2,
 	new_voicemail/5,
 	ring_agent/4,
+	ring_agent_echo/4,
 	get_media/1,
 	do_dial_string/3
 ]).
@@ -198,6 +199,12 @@ stop() ->
 ring_agent(AgentPid, Arec, Call, Timeout) ->
 	gen_server:call(?MODULE, {ring_agent, AgentPid, Arec, Call, Timeout}).
 
+%% @doc Just blindly start an agent's phone ringing, set to echo test on pickup.
+%% Yes, this is a prank call function.
+-spec(ring_agent_echo/4 :: (AgentPid :: pid(), Arec :: #agent{}, Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
+ring_agent_echo(AgentPid, Arec, Call, Timeout) ->
+	gen_server:call(?MODULE, {ring_agent_echo, AgentPid, Arec, Call, Timeout}).
+
 -spec(get_media/1 :: (MediaKey :: pid() | string()) -> {string(), pid()} | 'none').
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
@@ -285,6 +292,26 @@ handle_call({ring_agent, AgentPid, Arec, Call, Timeout}, _From, #state{nodename 
 				fun(_, _) -> ok end
 			end,
 			Out = freeswitch_ring:start(Node, Arec, AgentPid, Call, Timeout, Fun, [single_leg]),
+			{reply, Out, State};
+		false ->
+			{reply, {error, noconnection}, State}
+	end;
+handle_call({ring_agent_echo, AgentPid, Arec, Call, Timeout}, _From, #state{nodename = Node} = State) ->
+	case State#state.freeswitch_up of
+		true ->
+			Fun = fun(UUID) ->
+				fun(ok, _Reply) ->
+					freeswitch:sendmsg(Node, UUID,
+						[{"call-command", "execute"},
+						{"execute-app-name", "delay_echo"},
+						{"execute-app-arg", "1000"}]);
+				(error, Reply) ->
+					agent:blab(AgentPid, lists:flatten(io_lib:format("ring test failed: ~p", [Reply]))),
+					%?WARNING("originate failed: ~p; agent:  ~s, call: ~p", [Reply, AgentRec#agent.login, Callrec#call.id]),
+					ok
+				end
+			end,
+			Out = freeswitch_ring:start(Node, Arec, AgentPid, Call, Timeout, Fun, [no_oncall_on_bridge]),
 			{reply, Out, State};
 		false ->
 			{reply, {error, noconnection}, State}

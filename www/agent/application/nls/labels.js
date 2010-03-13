@@ -25,6 +25,7 @@
 	CANCEL: "Cancel",
 	ANSWER: "Answer",
 	HANGUP: "Hang up",
+	RINGTEST: "Ring Test",
 	MAIN: "Main",
 	AGENTS: "Agents",
 	QUEUES: "Queues",

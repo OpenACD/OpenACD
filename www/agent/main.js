@@ -973,6 +973,20 @@ dojo.addOnLoad(function(){
 			}
 		//}
 	});
+
+	dijit.byId("miRingtest").stateChanger = dojo.subscribe("agent/state", function(data){
+		var widget = dijit.byId("miRingtest");
+		//if(data.statedata && data.statedata.mediapath == "inband"){
+			switch(data.state){
+				case "released":
+					widget.attr('disabled', false);
+					break;
+				default:
+					widget.attr('disabled', true);
+			}
+		//}
+	});
+
 	
 	dojo.byId("eventLogText").eventLogPushed = dojo.subscribe("eventlog/push", function(text){
 		var li = document.createElement('li');

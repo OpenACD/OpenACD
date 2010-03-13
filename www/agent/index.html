@@ -375,12 +375,35 @@
 			</script>
 			<span>FILE</span>
 			<div dojoType="dijit.Menu" id="Filemenu">
+				<div dojoType="dijit.MenuItem" label="RINGTEST" id="miRingtest">
+					<script type="dojo/connect" event="onClick">
+						dojo.xhrGet({
+							url: "/ringtest",
+							handleAs:"json",
+							load:function(res){
+								if (!res.success && res.message)
+									errMessage(res.message);
+								return true;
+							},
+							error:function(res){
+								warning(["call_hangup erred", res]);
+							}
+						});
+					</script>
+					<script type="dojo/method" event="postCreate">
+						this.inherited("postCreate", arguments);
+						this.attr('label', dojo.i18n.getLocalization("agentUI", "labels").RINGTEST);
+					</script>
+				</div>
 				<div dojoType="dijit.MenuItem" label="HANGUP" id="miHangup" onclick=agent.setState("wrapup");>
 					<script type="dojo/connect" event="onClick">
 						if(this.brutal_kill){
 							dojo.xhrGet({
 								url: "/call_hangup",
+								handleAs:"json",
 								load:function(res){
+									if (!res.success && res.message)
+										errMessage(res.message);
 									return true;
 								},
 								error:function(res){

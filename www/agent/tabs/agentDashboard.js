@@ -28,6 +28,7 @@ if(typeof(agentDashboard) == 'undefined'){
 						}));
 						break;
 					case 'idle':
+					case 'ringing':
 						this.addChild(new dijit.MenuItem({
 							label:'Released',
 							onClick:function(){
@@ -150,7 +151,7 @@ if(typeof(agentDashboard) == 'undefined'){
 				this._decState(state);
 				this.agentsCount--;
 				delete this.agents[event.name];
-				this._destoryAgentRow(event.name);
+				this._destroyAgentRow(event.name);
 				dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			}
 			return true;
@@ -171,7 +172,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			this.agentsCount--;
 			this._decState(agent.state);
 			delete this.agents[event.name];
-			this._destoryAgentRow(event.name);
+			this._destroyAgentRow(event.name);
 			dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			return true;
 		}
@@ -186,7 +187,7 @@ if(typeof(agentDashboard) == 'undefined'){
 		return true;
 	};
 	
-	agentDashboard.Profile.prototype._destoryAgentRow = function(agentname){
+	agentDashboard.Profile.prototype._destroyAgentRow = function(agentname){
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + this.name + '"][purpose="agentDisplay"] table')[0];
 		var rows = dojo.query('tr[agent="' + agentname + '"]', tbody);
 		for(var i = 0; i < rows.length; i++){

@@ -47,6 +47,12 @@
 					dojo.byId('emailReplyDiv').style.display = 'block';
 					var widget = new dijit.Editor({height:'250px'}, dojo.byId("emailDisp"));
 					widget.setValue(dojo.byId('emailViewDiv').innerHTML);
+					var div = dojo.create('div', {}, dijit.byId('emailDisp').toolbar.domNode);
+					var button = new dijit.form.Button({
+						label:'Attach',
+						showLabel:false,
+						iconClass:'attachIcon'
+					}, div);
 				</script>
 			</button>
 			</td>
@@ -73,41 +79,36 @@
 			<textarea dojoType="dijit.form.Textarea" id="emailBCC" name="emailBCC" cols="20"></textarea><br/>
 			<label class="translatecol narrow">DATE</label>
 			<span id="emailDateSpanReply"></span><br/>
-		</div>
-		
-		<div style="width:40%;display:inline-block;float:right;">
-			<p>
-				<label class="translatecol narrow">ATTACHMENTS</label>
-				<button dojoType="dojox.form.FileUploader" uploadUrl="/media" class="btnNormal" hoverClass="btnHover" activeClass="btnActive" disabledClass="btnDisabled", force="html", htmlFieldName="attachFiles", selectMultipleFiles="false" id='fileUploader' selectedList="attachmentList" showProgress="true">Select Files
-					<script type="dojo/connect" event="onComplete">
-						dojo.publish("emailPane/attachment/add", arguments[0]);
-					</script>
-					<script type="dojo/connect" event="onChange" args="datalist">
-						var data = datalist[0];
-						dojo.byId('attachmentList').innerHTML = data.name + ' ' + Math.ceil(data.size * .001) + 'kb';
-					</script>
-				</button>
-				<span id="attachmentList"></span>
-				<button label="UPLOAD" dojoType="dijit.form.Button">
-					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").UPLOAD);
-					</script>
-					<script type="dojo/connect" event="onClick">
-						var uploader = dijit.byId('fileUploader');
-						uploader.upload({
-							'command':'attach',
-							'mode':'call',
-							'filename':'fileUpload',
-							'htmlFieldName':'attachFiles'
-						});
-					</script>
-				</button>
-			</p>
-		
-			<div id="attachmentListP" style="display:none">
+			<!--<label class="translatecol narrow">ATTACHMENTS</label>-->
+			<label class="narrow">&nbsp;</label>
+			<button dojoType="dojox.form.FileUploader" uploadUrl="/media" class="btnNormal" hoverClass="btnHover" activeClass="btnActive" disabledClass="btnDisabled", force="html", htmlFieldName="attachFiles", selectMultipleFiles="false" id='fileUploader' selectedList="attachmentList" showProgress="true">Select Files
+				<script type="dojo/connect" event="onComplete">
+					dojo.publish("emailPane/attachment/add", arguments[0]);
+				</script>
+				<script type="dojo/connect" event="onChange" args="datalist">
+					var data = datalist[0];
+					dojo.byId('attachmentList').innerHTML = data.name + ' ' + Math.ceil(data.size * .001) + 'kb';
+				</script>
+			</button>
+			<span id="attachmentList"></span>
+			<button label="UPLOAD" dojoType="dijit.form.Button">
+				<script type="dojo/method" event="postCreate">
+					this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").UPLOAD);
+				</script>
+				<script type="dojo/connect" event="onClick">
+					var uploader = dijit.byId('fileUploader');
+					uploader.upload({
+						'command':'attach',
+						'mode':'call',
+						'filename':'fileUpload',
+						'htmlFieldName':'attachFiles'
+					});
+				</script>
+			</button>		
+			<span id="attachmentListP" style="display:none">
 				<label>&nbsp;</label>
 				<ul style="list-style-type:none; display:inline-block" id="attachedList"></ul>
-			</div>
+			</span>
 		</div>
 
 		<div>
@@ -175,7 +176,7 @@
 					this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").CANCEL);
 				</script>
 				<script type="dojo/connect" event="onClick">
-					dijit.byId('emailReplyEditor').destroy();
+					//dijit.byId('emailReplyEditor').destroy();
 					//var node = dojo.byId('emailReplyEditor');
 					//node.parentNode.removeChild(node);
 					dojo.byId('emailView').style.display = 'block';

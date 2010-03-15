@@ -20,6 +20,8 @@ for(var i = 0; i < nodes.length; i++){
 
 if(typeof(emailPane) == 'undefined'){
 
+	dojo.create('link', {rel:'stylesheet', href:'/tabs/email_media.css', type:'text/css'}, dojo.query('head')[0]);
+
 	emailPane = function(){};
 
 	emailPane.getSkeleton = function(){

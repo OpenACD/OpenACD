@@ -1,0 +1,12 @@
+#attachedList li{
+	display:inline;
+	padding-right:5px;
+}
+
+.attachIcon{
+	background-image:url('/images/paperclip.png');
+	background-repeat: no-repeat;
+	height: 20px;
+	text-align: center;
+	width: 24px;
+}

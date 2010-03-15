@@ -120,12 +120,13 @@ start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 %%====================================================================
 
 %% @private
-init([Call, Recipe, Queue, Qpid, Key]) ->
+init([Call, InRecipe, Queue, Qpid, Key]) ->
 	CallRec = gen_media:get_call(Call),
 	?DEBUG("Cook starting for call ~p from queue ~p", [CallRec#call.id, Queue]),
 	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
 	process_flag(trap_exit, true),
 	Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
+	Recipe = optimize_recipe(InRecipe),
 	State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key, callid = CallRec#call.id},
 	{ok, State}.
 
@@ -540,7 +541,50 @@ do_operation({_Conditions, Op, Args, _Runs}, Qpid, Callpid) when is_pid(Qpid), i
 			ok
 	end.
 
+optimize_recipe(Recipe) ->
+	optimize_recipe(Recipe, []).
+
+optimize_recipe([], Acc) ->
+	lists:reverse(Acc);
+optimize_recipe([{Conds, Op, Args, Runs} | Tail], Acc) ->
+	Newacc = [{sort_conditions(Conds), Op, Args, Runs} | Acc],
+	optimize_recipe(Tail, Newacc).
+
+sort_conditions(Conditions) ->
+	lists:sort(fun sort_conditions_compare/2, Conditions).
+
+sort_conditions_compare(CondA, CondB) ->
+	Condlist = [type, client, ticks, hour, weekday, calls_queued, queue_position, client_calls_queued, available_agents, eligible_agents],
+	A = element(1, CondA),
+	B = element(1, CondB),
+	util:list_index(A, Condlist) < util:list_index(B, Condlist).
+
 -ifdef(TEST).
+
+sort_conditions_test() ->
+	[{"Simple comparison",
+	fun() ->
+		Input = [{eligible_agents, '=', "Doesn't matter"}, {queue_position, '=', "Doesn't matter"}, {type, '=', "Doesn't matter"}],
+		Expected = [{type, '=', "Doesn't matter"}, {queue_position, '=', "Doesn't matter"}, {eligible_agents, '=', "Doesn't matter"}],
+		?assertEqual(Expected, sort_conditions(Input))
+	end},
+	{"It's a reverse",
+	fun() ->
+		Expected = [
+			{type, nomatter, nomatter},
+			{client, nomatter, nomatter},
+			{ticks, nomatter, nomatter},
+			{hour, nomatter, nomatter},
+			{weekday, nomatter, nomatter},
+			{calls_queued, nomatter, nomatter},
+			{queue_position, nomatter, nomatter},
+			{client_calls_queued, nomatter, nomatter},
+			{available_agents, nomatter, nomatter},
+			{eligible_agents, nomatter, nomatter}
+		],
+		Input = lists:reverse(Expected),
+		?assertEqual(Expected, sort_conditions(Input))
+	end}].
 
 test_primer() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),

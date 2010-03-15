@@ -483,24 +483,30 @@ check_conditions([{type, Comparision, CType} | Conditions], Ticked, Qpid, Call) 
 -spec(do_recipe/4 :: (Recipe :: recipe(), Ticked :: non_neg_integer(), Qpid :: pid(), Call :: pid()) -> recipe()).
 do_recipe([], _Ticked, _Qpid, _Call) ->
 	[];
-do_recipe([{Conditions, Op, Args, Runs} | Recipe], Ticked, Qpid, Call) when is_pid(Qpid), is_pid(Call) ->
+do_recipe(Recipe, Ticked, Qpid, Call) when is_pid(Qpid), is_pid(Call) ->
+	do_recipe(Recipe, Ticked, Qpid, Call, []).
+
+do_recipe([], _Ticked, Qpid, Call, Acc) ->
+	optimize_recipe(lists:reverse(Acc));
+do_recipe([{Conditions, Op, Args, Runs} = OldAction | Recipe], Ticked, Qpid, Call, Acc) ->
 	case check_conditions(Conditions, Ticked, Qpid, Call) of
 		true ->
 			Doneop = do_operation({Conditions, Op, Args, Runs}, Qpid, Call),
 			case Doneop of
-				{Newconds, Newop, Newargs, Newruns} when Runs =:= run_once ->
+				{Newconds, Newop, Newargs, Newruns} = NewAction when Runs =:= run_once ->
 					%add to the output recipe
-					[{Newconds, Newop, Newargs, Newruns} | do_recipe(Recipe, Ticked, Qpid, Call)];
-				{Newconds, Newop, Newargs, Newruns} when Runs =:= run_many ->
-					lists:append([{Newconds, Newop, Newargs, Newruns}, {Conditions, Op, Args, Runs}], do_recipe(Recipe, Ticked, Qpid, Call));
+					do_recipe(Recipe, Ticked, Qpid, Call, [NewAction | Acc]);
+				{Newconds, Newop, Newargs, Newruns} = NewAction when Runs =:= run_many ->
+					NewAcc = [OldAction, NewAction | Acc], % the reverseal once done should make the new happen before old.
+					do_recipe(Recipe, Ticked, Qpid, Call, NewAcc);
 				ok when Runs =:= run_many ->
-					[{Conditions, Op, Args, Runs} | do_recipe(Recipe, Ticked, Qpid, Call)];
+					do_recipe(Recipe, Ticked, Qpid, Call, [OldAction | Acc]);
 				ok when Runs =:= run_once ->
-					do_recipe(Recipe, Ticked, Qpid, Call)
+					do_recipe(Recipe, Ticked, Qpid, Call, Acc)
 					% don't, just dance.
 			end;
 		false ->
-			[{Conditions, Op, Args, Runs} | do_recipe(Recipe, Ticked, Qpid, Call)]
+			do_recipe(Recipe, Ticked, Qpid, Call, [OldAction | Acc])
 	end.
 
 %% @private

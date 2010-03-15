@@ -151,7 +151,7 @@ if(typeof(agentDashboard) == 'undefined'){
 				this._decState(state);
 				this.agentsCount--;
 				delete this.agents[event.name];
-				this._destroyAgentRow(escape(event.name)	);
+				this._destroyAgentRow(event.name);
 				dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			}
 			return true;
@@ -172,7 +172,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			this.agentsCount--;
 			this._decState(agent.state);
 			delete this.agents[event.name];
-			this._destroyAgentRow(escape(event.name));
+			this._destroyAgentRow(event.name);
 			dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			return true;
 		}
@@ -189,7 +189,7 @@ if(typeof(agentDashboard) == 'undefined'){
 	
 	agentDashboard.Profile.prototype._destroyAgentRow = function(agentname){
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + this.name + '"][purpose="agentDisplay"] table')[0];
-		var rows = dojo.query('tr[agent="' + agentname + '"]', tbody);
+		var rows = dojo.query('tr[agent="' + escape(agentname) + '"]', tbody);
 		for(var i = 0; i < rows.length; i++){
 			dojo.forEach(rows[i].subs, function(obj){
 				dojo.unsubscribe(obj);

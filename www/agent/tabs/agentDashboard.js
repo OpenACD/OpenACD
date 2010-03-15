@@ -172,7 +172,7 @@ if(typeof(agentDashboard) == 'undefined'){
 			this.agentsCount--;
 			this._decState(agent.state);
 			delete this.agents[event.name];
-			this._destroyAgentRow(event.name);
+			this._destroyAgentRow(escape(event.name));
 			dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			return true;
 		}

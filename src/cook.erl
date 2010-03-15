@@ -487,7 +487,7 @@ do_recipe(Recipe, Ticked, Qpid, Call) when is_pid(Qpid), is_pid(Call) ->
 	do_recipe(Recipe, Ticked, Qpid, Call, []).
 
 do_recipe([], _Ticked, Qpid, Call, Acc) ->
-	optimize_recipe(lists:reverse(Acc));
+	lists:reverse(Acc);
 do_recipe([{Conditions, Op, Args, Runs} = OldAction | Recipe], Ticked, Qpid, Call, Acc) ->
 	case check_conditions(Conditions, Ticked, Qpid, Call) of
 		true ->
@@ -498,9 +498,9 @@ do_recipe([{Conditions, Op, Args, Runs} = OldAction | Recipe], Ticked, Qpid, Cal
 					do_recipe(Recipe, Ticked, Qpid, Call, [NewAction | Acc]);
 				{Newconds, Newop, Newargs, Newruns} = NewAction when Runs =:= run_many ->
 					NewAcc = [OldAction, NewAction | Acc], % the reverseal once done should make the new happen before old.
-					do_recipe(Recipe, Ticked, Qpid, Call, NewAcc);
+					do_recipe(Recipe, Ticked, Qpid, Call, optimize_recipe(NewAcc));
 				ok when Runs =:= run_many ->
-					do_recipe(Recipe, Ticked, Qpid, Call, [OldAction | Acc]);
+					do_recipe(Recipe, Ticked, Qpid, Call, optimize_recipe([OldAction | Acc]));
 				ok when Runs =:= run_once ->
 					do_recipe(Recipe, Ticked, Qpid, Call, Acc)
 					% don't, just dance.

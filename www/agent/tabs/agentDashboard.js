@@ -151,7 +151,7 @@ if(typeof(agentDashboard) == 'undefined'){
 				this._decState(state);
 				this.agentsCount--;
 				delete this.agents[event.name];
-				this._destroyAgentRow(escape(event.name));
+				this._destroyAgentRow(escape(event.name)	);
 				dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			}
 			return true;
@@ -478,7 +478,7 @@ if(typeof(agentDashboard) == 'undefined'){
 		var i = 0;
 		for(i; i < agentRows.length; i++){
 			var agentId = agentRows[i].getAttribute('agent');
-			var compName = profile.agents[agentId].name;
+			var compName = profile.agents[unescape(agentId)].name;
 			if(compName > agent.name){
 				break;
 			}

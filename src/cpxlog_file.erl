@@ -35,6 +35,10 @@
 -include_lib("kernel/include/file.hrl").
 -include("log.hrl").
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -export([
 	init/1,
 	handle_event/2,

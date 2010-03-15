@@ -871,134 +871,142 @@ dojo.requireLocalization("admin", "labels");
 				</form>
 			</div>
 			<div dojoType="dijit.layout.ContentPane" id="clientsGridPane">
-				<div dojoType="dijit.Dialog" id="addClientDialog">
-					<script type="dojo/method" event="onShow">
-						dijit.byId('addClientForm').attr('value', {
-							'id':'',
-							'label':''
-						});
-					</script>
-					<div dojoType="dijit.layout.ContentPane" title="boo">
-						<form dojoType="dijit.form.Form" method="post" id="addClientForm" action="javascript:void(0)">
-							<script type="dojo/method" event="onSubmit">
-								console.log(this.getValues());
-								var postData = this.getValues();
-								dojo.xhrPost({
-									url:'/clients/add',
-									handleAs:'json',
-									content:postData,
-									load:function(res){
-										if(res.success){
-											clients.store.newItem({
-												id:postData.id,
-												label:postData.label
-											});
-											clients.store.save();
-											dijit.byId('clientsStaticGrid')._refresh();
-											dijit.byId('addClientDialog').hide();
-										}
-										else{
-											console.log(res)
-										}
-									},
-									error:function(res){
-										console.log(res)
-									}
+				<div dojoType="dijit.layout.TabContainer">
+					<div dojoType="dijit.layout.ContentPane" title="CLIENT_STAND_ALONE_LIST">
+						<script type="dojo/method" event="postCreate">
+							this.attr('title', dojo.i18n.getLocalization('admin', 'labels').CLIENT_STAND_ALONE_LIST);
+						</script>
+						<div dojoType="dijit.Dialog" id="addClientDialog">
+							<script type="dojo/method" event="onShow">
+								dijit.byId('addClientForm').attr('value', {
+									'id':'',
+									'label':''
 								});
 							</script>
-							<p><label class="translatecol">ID</label>
-							<input dojoType="dijit.form.TextBox" name="id" /></p>
-							<p><label class="translatecol">LABEL</label>
-							<input dojoType="dijit.form.TextBox" name="label" /></p>
-							<p><label>&nbsp;</label><button dojoType="dijit.form.Button" type="submit" label="submit">
-								<script type="dojo/method" event="postCreate">
-									this.label=dojo.i18n.getLocalization('admin', 'labels').SUBMIT;
+							<div dojoType="dijit.layout.ContentPane" title="boo">
+								<form dojoType="dijit.form.Form" method="post" id="addClientForm" action="javascript:void(0)">
+									<script type="dojo/method" event="onSubmit">
+										console.log(this.getValues());
+										var postData = this.getValues();
+										dojo.xhrPost({
+											url:'/clients/add',
+											handleAs:'json',
+											content:postData,
+											load:function(res){
+												if(res.success){
+													clients.store.newItem({
+														id:postData.id,
+														label:postData.label
+													});
+													clients.store.save();
+													dijit.byId('clientsStaticGrid')._refresh();
+													dijit.byId('addClientDialog').hide();
+												}
+												else{
+													console.log(res)
+												}
+											},
+											error:function(res){
+												console.log(res)
+											}
+										});
+									</script>
+									<p><label class="translatecol">ID</label>
+									<input dojoType="dijit.form.TextBox" name="id" /></p>
+									<p><label class="translatecol">LABEL</label>
+									<input dojoType="dijit.form.TextBox" name="label" /></p>
+									<p><label>&nbsp;</label><button dojoType="dijit.form.Button" type="submit" label="submit">
+										<script type="dojo/method" event="postCreate">
+											this.label=dojo.i18n.getLocalization('admin', 'labels').SUBMIT;
+										</script>
+									</button></p>
+								</form>
+							</div>
+						</div>
+						<div style="margin:1em; display:inline-block; width:420px; height:400px" >
+							<table dojoType="dojox.grid.DataGrid" id="clientsEditableGrid" query="{id:'?*',integration:'undefined'}" selectionMode="single">
+								<script type="dojo/method" event="onApplyEdit">
+									var row = arguments[0];
+									var item = this.getItem(row);
+									var id = clients.store.getValue(item, 'id');
+									var label = clients.store.getValue(item, 'label');
+									dojo.xhrPost({
+										url:'/clients/' + id + '/set',
+										content:{
+											'label':label
+										},
+										handleAs:'json',
+										load:function(res){
+											if(res.success){
+												clients.store.save();
+											}
+											else{
+												console.log(res)
+											}
+										},
+										error:function(res){
+											console.log(['load fail', res])
+										}
+									});
 								</script>
-							</button></p>
-						</form>
+								<thead>
+									<tr>
+										<th field="id" width="200px" class="translate">CLIENTID</th>
+										<th field="label" width="200px" editable="true" class="translate">CLIENTLABEL</th>
+									</tr>
+								</thead>
+							</table><br clear="none" />
+							<button dojoType="dijit.form.Button" label="-">
+								<script type="dojo/method" event="onClick">
+									var items = dijit.byId('clientsEditableGrid').selection.getSelected();
+									if(items.length == 0){
+										return;
+									}
+									var item = items[0];
+									if(item != null){
+										var id = clients.store.getValue(item, 'id');
+										dojo.xhrPost({
+											url:"/clients/" + id + "/drop",
+											handleAs:"json",
+											load:function(res){
+												if(res.success){
+													clients.store.deleteItem(item);
+													clients.store.save();
+												}
+												else{
+													console.log(["client drop fail", res])
+												}
+											},
+											error:function(res){
+												console.log(["client drop uberfail", res])
+											}
+										});
+									}
+								</script>
+							</button>
+							<button dojoType="dijit.form.Button" label="+">
+								<script type="dojo/method" event="onClick">
+									dijit.byId('addClientDialog').show();
+								</script>
+							</button>
+							<br clear="none" />
+							
+						</div>
 					</div>
-				</div>
-				<div style="margin:1em; display:inline-block; width:420px; height:400px" >
-					<label class="wide translate">CLIENT_STAND_ALONE_LIST</label><br clear="none" />
-					<table dojoType="dojox.grid.DataGrid" id="clientsEditableGrid" query="{id:'?*',integration:'undefined'}" selectionMode="single">
-						<script type="dojo/method" event="onApplyEdit">
-							var row = arguments[0];
-							var item = this.getItem(row);
-							var id = clients.store.getValue(item, 'id');
-							var label = clients.store.getValue(item, 'label');
-							dojo.xhrPost({
-								url:'/clients/' + id + '/set',
-								content:{
-									'label':label
-								},
-								handleAs:'json',
-								load:function(res){
-									if(res.success){
-										clients.store.save();
-									}
-									else{
-										console.log(res)
-									}
-								},
-								error:function(res){
-									console.log(['load fail', res])
-								}
-							});
+					<div dojoType="dijit.layout.ContentPane" title="CLIENT_INTEGRATION_LIST">
+						<script type="dojo/method" event="postCreate">
+							this.attr('title', dojo.i18n.getLocalization('admin', 'labels').CLIENT_INTEGRATION_LIST);
 						</script>
-						<thead>
-							<tr>
-								<th field="id" width="200px" class="translate">CLIENTID</th>
-								<th field="label" width="200px" editable="true" class="translate">CLIENTLABEL</th>
-							</tr>
-						</thead>
-					</table><br clear="none" />
-					<button dojoType="dijit.form.Button" label="-">
-						<script type="dojo/method" event="onClick">
-							var items = dijit.byId('clientsEditableGrid').selection.getSelected();
-							if(items.length == 0){
-								return;
-							}
-							var item = items[0];
-							if(item != null){
-								var id = clients.store.getValue(item, 'id');
-								dojo.xhrPost({
-									url:"/clients/" + id + "/drop",
-									handleAs:"json",
-									load:function(res){
-										if(res.success){
-											clients.store.deleteItem(item);
-											clients.store.save();
-										}
-										else{
-											console.log(["client drop fail", res])
-										}
-									},
-									error:function(res){
-										console.log(["client drop uberfail", res])
-									}
-								});
-							}
-						</script>
-					</button>
-					<button dojoType="dijit.form.Button" label="+">
-						<script type="dojo/method" event="onClick">
-							dijit.byId('addClientDialog').show();
-						</script>
-					</button>
-					<br clear="none" />
-					
-				</div>
-				<div style="margin:1em; display:inline-block; width:625px; height:400px" >
-					<label class="wide translate">CLIENT_INTEGRATION_LIST</label><br clear="none" />
-					<table dojoType="dojox.grid.DataGrid" id="clientsStaticGrid" query="{id:'?*',integration:'12*'}">
-						<thead>
-							<tr>
-								<th field="id" width="200px" class="translate">CLIENTID</th>
-								<th field="label" width="200px" class="translate">CLIENTLABEL</th>
-								<th field="integration" width="200px" formatter='timeSince' class="translate">INTEGRATEDSINCE</th>
-							</tr>
-						</thead>
-					</table>
+						<table dojoType="dojox.grid.DataGrid" id="clientsStaticGrid" query="{id:'?*',integration:'12*'}">
+							<thead>
+								<tr>
+									<th field="id" width="200px" class="translate">CLIENTID</th>
+									<th field="label" width="200px" class="translate">CLIENTLABEL</th>
+									<th field="integration" width="200px" formatter='timeSince' class="translate">INTEGRATEDSINCE</th>
+								</tr>
+							</thead>
+						</table>
+					</div>
 				</div>
 			</div>
 		</div>

@@ -220,7 +220,7 @@ if(typeof(queueDashboard) == "undefined"){
 		tr.setAttribute('callid', mediaid);
 		dojo.create('td', {purpose:'callerid', innerHTML: media.details.callid_name + " " + media.details.callid_data}, tr);
 		dojo.create('td', {purpose: 'mediaType', innerHTML: '<img src="/images/' + media.details.type + '.png" />'}, tr);
-		dojo.create('td', {purpose: 'age', realvalue: media.details.queued_at, innerHTML: formatseconds(age)}, tr);
+		dojo.create('td', {purpose: 'age', realvalue: media.details.queued_at.timestamp, innerHTML: formatseconds(age)}, tr);
 		dojo.create('td', {purpose: 'client', innerHTML: media.details.client}, tr);
 		dojo.place(tr, tbody, 'last');
 		var menu = new dijit.Menu({});
@@ -426,4 +426,21 @@ queueDashboard.mediaSub = dojo.subscribe('dashboard/supevent/media', queueDashbo
 	var supcp = supevent;
 	debug(["queueDashboard forwarding", supcp]);
 	dojo.publish("queueDashboard/supevent", [supcp]);
+});
+
+queueDashboard.globalTick = dojo.subscribe('globaltick', function(){
+	var now = Math.floor(new Date().getTime() / 1000);
+	var nodes = dojo.query('table[queue][purpose="callDisplay"] td[purpose="age"]', 'dashboardQueueCallsPane');
+	for(var i = 0; i < nodes.length; i++){
+		var time = nodes[i].getAttribute('realvalue');
+		nodes[i].innerHTML = formatseconds(now - parseInt(time));
+	}
+	
+});
+
+queueDashboard.unloadSub = dojo.subscribe('tabPanel-removeChild', function(child){
+	if(child.title == 'Dashboard'){
+		dojo.unsubscribe(queueDashboard.unloadSub);
+		dojo.unsubscribe(queueDashboard.gloablTick);
+	}
 });

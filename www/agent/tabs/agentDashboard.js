@@ -60,7 +60,8 @@ if(typeof(agentDashboard) == 'undefined'){
 						var dialog = dijit.byId("profileSwapDialog");
 						var submitSetProf = function(){
 							var data = dialog.attr('value');
-							agent.setProfile(data.profile);
+							console.log(['das data', data]);
+							agent.setProfile(data.profile, data.makePermanent[0]);
 						}
 						dialog.attr('execute', submitSetProf);
 						dojo.xhrGet({
@@ -351,11 +352,23 @@ if(typeof(agentDashboard) == 'undefined'){
 		});
 	}
 	
-	agentDashboard.Agent.prototype.setProfile = function(newProf){
+	agentDashboard.Agent.prototype.setProfile = function(newProf, makePerm){
 		// letting the subscriptions that happen on agent changes deal w/ the repercussions.
-		dojo.xhrGet({
+		console.log(['das smack', newProf, makePerm]);
+		if(makePerm){
+			makePerm = "makePerm";
+		} else {
+			makePerm = ""
+		}
+		dojo.xhrPost({
 			handleAs:"json",
-			url:"/supervisor/set_profile/" + escape(this.name) + "/" + escape(newProf),
+			url:"/supervisor/set_profile",
+			content:{
+				id:this.id,
+				name: this.name,
+				profile: newProf,
+				'makePerm': makePerm
+			},
 			load:function(res){
 				if(res.success){
 					//kewl

@@ -399,6 +399,43 @@ handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = Sta
 handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Seclevel} = State) when Seclevel =:= supervisor; Seclevel =:= admin ->
 	?DEBUG("Supervisor request with post data:  ~s", [lists:flatten(Request)]),
 	case Request of
+		["set_profile"] ->
+			Login = proplists:get_value("name", Post),
+			%Id = proplists:get_value("id", Post),
+			Newprof = proplists:get_value("profile", Post),
+			Midgood = case agent_manager:query_agent(Login) of
+				{true, Apid} ->
+					agent:change_profile(Apid, Newprof);
+				false ->
+					{error, noagent}
+			end,
+			case {Midgood, proplists:get_value("makePerm", Post)} of
+				{{error, Err}, _} ->
+					Msg = case Err of
+						noagent ->
+							<<"unknown agent">>;
+						unknown_profile ->
+							<<"unknown profile">>;
+						_ ->
+							list_to_binary(io_lib:format("~p", [Err]))
+					end,
+					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Msg}]})}, State};
+				{ok, "makePerm"} ->
+					case agent_auth:get_agent(login, Login) of
+						{atomic, [Arec]} ->
+							case agent_auth:set_agent(Arec#agent_auth.id, Login, Arec#agent_auth.skills, Arec#agent_auth.securitylevel, Newprof) of
+								{atomic, ok} ->
+									{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
+								{aborted, Err} ->
+									Msg = list_to_binary(io_lib:format("Profile changed, but not permanent:  ~p", [Err])),
+									{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Msg}]})}, State}
+							end;
+						{atomic, []} ->
+							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent is not permantent, so not permanent change made">>}]})}, State}
+					end;
+				{ok, _} ->
+					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}
+			end;
 		["blab"] ->
 			Toagentmanager = case proplists:get_value("type", Post) of
 				"agent" ->

@@ -282,7 +282,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info(write_output, #state{filters = Filters, write_pids = undefined, queue_group_cache = QueueCache, agent_profile_cache = AgentCache} = State) ->
+handle_info(write_output, #state{filters = _Filters, write_pids = undefined, queue_group_cache = QueueCache, agent_profile_cache = AgentCache} = State) ->
 	qlc:e(qlc:q([
 		begin
 			ets:delete(cached_media, Id),
@@ -386,7 +386,7 @@ cache_event({drop, {agent, Id}}, _QueueCache, _AgentCache) ->
 	case ets:lookup(cached_agent, Id) of
 		[] ->
 			nochange;
-		[Rold] = Old ->
+		[Rold] = _Old ->
 			ets:delete(cached_agent, Id),
 			{Rold, null}
 	end;
@@ -420,7 +420,7 @@ update_client_stats(null, #cached_media{client_id = Id, client_label = Label} = 
 	Newstats = update_media_stats(null, New, Oldstats),
 	ets:insert(stats_cache, {{client, Id, Label}, Newstats}).
 
-update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = queue} = New) ->
+update_queue_stats(#cached_media{state = queue} = _Old, #cached_media{state = queue} = _New) ->
 	% TODO if/when we do queue transfer, this'll become important.
 	ok;
 update_queue_stats(#cached_media{state = ivr} = Old, #cached_media{state = queue} = New) ->
@@ -431,7 +431,7 @@ update_queue_stats(#cached_media{state = ivr} = Old, #cached_media{state = queue
 		[{{queue, Newqueue}, S}] ->
 			S#media_stats{inqueue = S#media_stats.inqueue + 1}
 	end,
-	case lists:any(fun({_, queue, {_, Newqueue}}) -> true; (_) -> false end, Old#cached_media.history) of
+	case lists:any(fun({_, queue, {_, Qnom}}) when Qnom =:= Newqueue -> true; (_) -> false end, Old#cached_media.history) of
 		true ->
 			ets:insert(stats_cache, {{queue, Newqueue}, Stats});
 		false ->
@@ -462,7 +462,7 @@ update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = end
 update_queue_stats(#cached_media{state = queue} = Old, null) ->
 	{_G, Newqueue} = Old#cached_media.statedata,
 	[{{queue, Newqueue}, Stats}] = ets:lookup(stats_cache, {queue, Newqueue}),
-	case lists:any(fun({_, queue, {_, Newqueue}}) -> true; (_) -> false end, Old#cached_media.history) of
+	case lists:any(fun({_, queue, {_, Qnom}}) when Qnom =:= Newqueue -> true; (_) -> false end, Old#cached_media.history) of
 		true ->
 			Midstats = case Old#cached_media.direction of
 				inbound ->
@@ -496,12 +496,12 @@ update_queue_stats(_, _) ->
 	% anything else we ignore.
 	ok.
 
-update_media_stats(null, #cached_media{direction = inbound, state = ivr} = New, Oldstats) ->
+update_media_stats(null, #cached_media{direction = inbound, state = ivr} = _New, Oldstats) ->
 	Oldstats#media_stats{
 		inbound = Oldstats#media_stats.inbound + 1,
 		inivr = Oldstats#media_stats.inivr + 1
 	};
-update_media_stats(null, #cached_media{direction = inbound, state = queue} = New, Oldstats) ->
+update_media_stats(null, #cached_media{direction = inbound, state = queue} = _New, Oldstats) ->
 	Oldstats#media_stats{
 		inbound = Oldstats#media_stats.inbound + 1,
 		inqueue = Oldstats#media_stats.inqueue + 1
@@ -642,7 +642,7 @@ update_agent_profiles_up(New, Mid) ->
 			Mid#agent_stats{oncall = Mid#agent_stats.oncall + 1}
 	end.
 
-transform_event({set, {{media, Id}, Hp, Details, Time}}, [], QueueCache, AgentCache) ->
+transform_event({set, {{media, Id}, _Hp, Details, Time}}, [], QueueCache, AgentCache) ->
 	{State, Statedata} = case proplists:get_value(queue, Details) of
 		undefined ->
 			{ivr, null};
@@ -670,7 +670,7 @@ transform_event({set, {{media, Id}, Hp, Details, Time}}, [], QueueCache, AgentCa
 		history = History
 	},
 	RecInit#cached_media{json = media_to_json(RecInit)};
-transform_event({set, {{media, Id}, Hp, Details, Time}}, [#cached_media{state = OldState, statedata = OldStateData} = OldRec], QueueCache, AgentCache) ->
+transform_event({set, {{media, _Id}, _Hp, Details, Time}}, [#cached_media{state = OldState, statedata = OldStateData} = OldRec], QueueCache, AgentCache) ->
 	% movements:
 	% ivr -> queue
 	% ivr -> drop (though with a set, that's impossible)
@@ -706,7 +706,7 @@ transform_event({set, {{media, Id}, Hp, Details, Time}}, [#cached_media{state = 
 			Midrec = OldRec#cached_media{state = NewState, statedata = NewStateData, endstate = Endstate, history = History},
 			Midrec#cached_media{time = Time, json = media_to_json(Midrec)}
 	end;
-transform_event({drop, {media, Id}}, [#cached_media{state = OldState, statedata = OldStateData} = OldRec], _QueueCache, _AgentCache) ->
+transform_event({drop, {media, _Id}}, [#cached_media{state = OldState} = OldRec], _QueueCache, _AgentCache) ->
 	% if dropping we were:
 	% queue
 	% ivr
@@ -739,7 +739,7 @@ transform_event({set, {{agent, Id}, _Hp, Details, Time}}, _, _QueueCache, _Agent
 simplify_agent_state(released, {_, Nom, _}) ->
 	% TODO - DEFAULT_REL in agent.erl has an atom as the label - this is wrong!
 	case Nom of
-		N when is_atom(Nom) ->
+		_N when is_atom(Nom) ->
 			atom_to_list(Nom);
 		Nom -> Nom
 	end;
@@ -793,8 +793,8 @@ agent_to_json(Rec) ->
 	Statedata = case Rec#cached_agent.statedata of
 		null ->
 			null;
-		{Cid, Clientid, Clientlabel, Type, Calling} ->
-			
+		{Cid, Clientid, Clientlabel, _Type, Calling} ->
+
 			{struct, [
 				{onhold, Cid},
 				{<<"clientId">>, case Clientid of undefined -> undefined; _ -> list_to_binary(Clientid) end},
@@ -867,7 +867,7 @@ determine_event(ended, D, _, _, _) ->
 	% I am not going to dignify this with a response.
 	{ended, D, nochange}.
 
-write_output(Interval, QueueCache, AgentCache) ->
+write_output(Interval, _QueueCache, _AgentCache) ->
 	% clients
 	% queues
 	% agents

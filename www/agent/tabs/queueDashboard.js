@@ -60,22 +60,6 @@ if(typeof(queueDashboard) == "undefined"){
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[3].innerHTML = parseInt(queuerow.cells[3].innerHTML) + 1; /* abandoned */
 				n.parentNode.removeChild(n);
-				/*
-				var longest = 0;
-				for(var i = 0; i < thistable.rows.length - 1; i++) {
-					var realvalue = queuerow.cells[5].getAttribute("realvalue");
-					if (longest == 0 || longest > realvalue) {
-						longest = realvalue;
-					}
-				}
-				queuerow.cells[5].setAttribute("realvalue", longest);
-				if (longest > 0) {
-					var now = Math.floor(new Date().getTime() / 1000);
-					var age = now - longest;
-					queuerow.cells[5].innerHTML = formatseconds(age);
-				} else {
-					queuerow.cells[5].innerHTML = "0:00";
-				}*/
 				if(data.name == this._oldestId){
 					var oldMedia = this._findOldest();
 					if(oldMedia == ''){
@@ -85,7 +69,7 @@ if(typeof(queueDashboard) == "undefined"){
 					} else {
 						this._oldestId = oldMedia.name;
 						queuerow.cells[5].innerHTML = formatseconds(dashboard.now() - oldMedia.details.queued_at.timestamp);
-						queuerow.cells[5].setAttribute('realvalue', dashboard.now() - oldMedia.details.queued_at.timestamp);
+						queuerow.cells[5].setAttribute('realvalue', oldMedia.details.queued_at.timestamp);
 					}
 				}
 			}
@@ -103,20 +87,17 @@ if(typeof(queueDashboard) == "undefined"){
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[2].innerHTML = parseInt(queuerow.cells[2].innerHTML) + 1; /* completed */
 				n.parentNode.removeChild(n);
-				var longest = 0;
-				for(var i = 0; i < thistable.rows.length - 1; i++) {
-					var realvalue = queuerow.cells[5].getAttribute("realvalue");
-					if (longest == 0 || longest > realvalue) {
-						longest = realvalue;
+				if(data.name == this._oldestId){
+					var oldMedia = this._findOldest();
+					if(oldMedia == ''){
+						this._oldestId = '';
+						queuerow.cells[5].innerHTML = '0:00';
+						queuerow.cells[5].setAttribute('realvalue', false);
+					} else {
+						this._oldestId = oldMedia.name;
+						queuerow.cells[5].innerHTML = formatseconds(dashboard.now() - oldMedia.details.queued_at.timestamp);
+						queuerow.cells[5].setAttribute('realvalue', oldMedia.details.queued_at.timestamp);
 					}
-				}
-				queuerow.cells[5].setAttribute("realvalue", longest);
-				if (longest > 0) {
-					var now = Math.floor(new Date().getTime() / 1000);
-					var age = now - longest;
-					queuerow.cells[5].innerHTML = formatseconds(age);
-				} else {
-					queuerow.cells[5].innerHTML = "0:00";
 				}
 			}
 			dojo.publish('queueDashboard/updateQueue/' + data.name, [{action:'drop'}]);
@@ -130,8 +111,8 @@ if(typeof(queueDashboard) == "undefined"){
 				if(rows.length == 1) {
 					rows[0].cells[1].innerHTML = parseInt(rows[0].cells[1].innerHTML) + 1;
 					var queuerow = rows[0];
-					var realvalue = parseInt(queuerow.cells[5].getAttribute("realvalue"));
-					if (realvalue < 1 || realvalue > data.details.queued_at) {
+					var realvalue = queuerow.cells[5].getAttribute("realvalue");
+					if (realvalue == 'false' || parseInt(realvalue) > data.details.queued_at) {
 						var now = Math.floor(new Date().getTime() / 1000);
 						var age = now - data.details.queued_at.timestamp;
 						queuerow.cells[5].setAttribute("realvalue", data.details.queued_at.timestamp);
@@ -169,7 +150,7 @@ if(typeof(queueDashboard) == "undefined"){
 				dojo.create('td', {purpose: 'completeCount', innerHTML: "0"}, queueTr);
 				dojo.create('td', {purpose: 'abandonCount', innerHTML: "0"}, queueTr);
 				dojo.create('td', {purpose: 'averageHold', realvalue: 0, innerHTML: "0:00"}, queueTr);
-				dojo.create('td', {purpose: 'oldestHold', realvalue: 0, innerHTML: "0:00"}, queueTr);
+				dojo.create('td', {purpose: 'oldestHold', realvalue: 'false', innerHTML: "0:00"}, queueTr);
 				queueTr.onclick = function(){
 					this.setAttribute('expanded', 'true');
 					var queuenom = this.getAttribute('queue');

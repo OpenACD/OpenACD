@@ -14,6 +14,7 @@ if(typeof(queueDashboard) == "undefined"){
 	queueDashboard.Queue = function(display){
 		this.name = display;
 		this.medias = {};
+		this._oldestId = '';
 		this._masterSubscription = dojo.subscribe("queueDashboard/supevent", this, function(event){
 			this.consumeEvent(event);
 		});
@@ -23,6 +24,22 @@ if(typeof(queueDashboard) == "undefined"){
 		return Math.floor(new Date().getTime() / 1000);
 	}
 
+	queueDashboard.Queue.prototype._findOldest = function(){
+		var out = dashboard.now();
+		var id = '';
+		for(var i in this.medias){
+			if(this.medias[i].details.queued_at.timestamp < out){
+				out = this.medias[i].details.queued_at.timestamp;
+				id = i;
+			}
+		}
+		if(id == ''){
+			return '';
+		} else {
+			return this.medias[id];
+		}
+	}
+	
 	queueDashboard.Queue.prototype.consumeEvent = function(data){
 		//console.log(["nom nom'ing", data]);
 		/*console.log(data);*/
@@ -43,6 +60,7 @@ if(typeof(queueDashboard) == "undefined"){
 				queuerow.cells[1].innerHTML = parseInt(queuerow.cells[1].innerHTML) - 1; /* callcount */
 				queuerow.cells[3].innerHTML = parseInt(queuerow.cells[3].innerHTML) + 1; /* abandoned */
 				n.parentNode.removeChild(n);
+				/*
 				var longest = 0;
 				for(var i = 0; i < thistable.rows.length - 1; i++) {
 					var realvalue = queuerow.cells[5].getAttribute("realvalue");
@@ -57,6 +75,18 @@ if(typeof(queueDashboard) == "undefined"){
 					queuerow.cells[5].innerHTML = formatseconds(age);
 				} else {
 					queuerow.cells[5].innerHTML = "0:00";
+				}*/
+				if(data.name == this._oldestId){
+					var oldMedia = this._findOldest();
+					if(oldMedia == ''){
+						this._oldestId = '';
+						queuerow.cells[5].innerHTML = '0:00';
+						queuerow.cells[5].setAttribute('realvalue', false);
+					} else {
+						this._oldestId = oldMedia.name;
+						queuerow.cells[5].innerHTML = formatseconds(dashboard.now() - oldMedia.details.queued_at.timestamp);
+						queuerow.cells[5].setAttribute('realvalue', dashboard.now() - oldMedia.details.queued_at.timestamp);
+					}
 				}
 			}
 			return true;
@@ -104,8 +134,9 @@ if(typeof(queueDashboard) == "undefined"){
 					if (realvalue < 1 || realvalue > data.details.queued_at) {
 						var now = Math.floor(new Date().getTime() / 1000);
 						var age = now - data.details.queued_at.timestamp;
-						queuerow.cells[5].setAttribute("realvalue", data.details.queued_at);
+						queuerow.cells[5].setAttribute("realvalue", data.details.queued_at.timestamp);
 						queuerow.cells[5].innerHTML = formatseconds(age);
+						this._oldestId = data.name;
 					}
 					var tbody = dojo.query('table[purpose="callDisplay"][queue="' + this.name + '"]')[0];
 					queueDashboard.drawCallTableRow(data.details.queue, data.name, tbody);
@@ -435,7 +466,13 @@ queueDashboard.globalTick = dojo.subscribe('globaltick', function(){
 		var time = nodes[i].getAttribute('realvalue');
 		nodes[i].innerHTML = formatseconds(now - parseInt(time));
 	}
-	
+	var nodes = dojo.query('#queueDashboardTable tr[purpose="queueDisplay"]');
+	for(i = 0; i < nodes.length; i++){
+		var real = nodes[i].cells[5].getAttribute('realvalue');
+		if(real != 'false'){
+			nodes[i].cells[5].innerHTML = formatseconds(now - parseInt(real));
+		}
+	}
 });
 
 queueDashboard.unloadSub = dojo.subscribe('tabPanel-removeChild', function(child){

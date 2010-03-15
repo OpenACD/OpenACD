@@ -197,6 +197,10 @@ if(typeof(dashboard) == 'undefined'){
 			}
 		});
 	}
+	
+	dashboard.now = function(){
+		return Math.floor(new Date().getTime() / 1000);
+	}
 }
 
 dashboard.masterSub = dojo.subscribe("agent/supervisortab", dashboard, function(supevent){

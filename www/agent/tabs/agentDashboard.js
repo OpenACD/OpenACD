@@ -151,7 +151,7 @@ if(typeof(agentDashboard) == 'undefined'){
 				this._decState(state);
 				this.agentsCount--;
 				delete this.agents[event.name];
-				this._destroyAgentRow(event.name);
+				this._destroyAgentRow(escape(event.name));
 				dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
 			}
 			return true;
@@ -465,13 +465,13 @@ if(typeof(agentDashboard) == 'undefined'){
 	}
 	
 	agentDashboard.drawAgentTableRow = function(profile, agent){
-		var tr = dojo.create('tr', {'agent':agent.id});//, tbody, 'last');
+		var tr = dojo.create('tr', {'agent':escape(agent.id)});//, tbody, 'last');
 		var now = Math.floor(new Date().getTime() / 1000);
-		dojo.create('td', {'agent':agent.id, purpose:'name', innerHTML:agent.name}, tr);
-		dojo.create('td', {'agent':agent.id, purpose:'state', style: 'background-image:url("/images/' + agent.state + '.png")'}, tr);
-		dojo.create('td', {'agent':agent.id, purpose:'time', innerHTML: formatseconds(now - agent.lastchange)}, tr);
-		dojo.create('td', {'agent':agent.id, purpose:'util', innerHTML: Math.floor(agent.calcUtilPercent()) + '%'}, tr);
-		dojo.create('td', {'agent':agent.id, purpose:'details', innerHTML:agent.statedataDisplay()}, tr);
+		dojo.create('td', {'agent':escape(agent.id), purpose:'name', innerHTML:agent.name}, tr);
+		dojo.create('td', {'agent':escape(agent.id), purpose:'state', style: 'background-image:url("/images/' + agent.state + '.png")'}, tr);
+		dojo.create('td', {'agent':escape(agent.id), purpose:'time', innerHTML: formatseconds(now - agent.lastchange)}, tr);
+		dojo.create('td', {'agent':escape(agent.id), purpose:'util', innerHTML: Math.floor(agent.calcUtilPercent()) + '%'}, tr);
+		dojo.create('td', {'agent':escape(agent.id), purpose:'details', innerHTML:agent.statedataDisplay()}, tr);
 		//name, state, time, util, details
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile.name + '"][purpose="agentDisplay"] table')[0];
 		var agentRows = dojo.query('tr[agent]', tbody);
@@ -597,7 +597,7 @@ agentDashboard.globalTickSub = dojo.subscribe('globaltick', agentDashboard, func
 		for(var i = 0; i < this.profiles.length; i++){
 			for(var agentNom in this.profiles[i].agents){
 				var agent = this.profiles[i].agents[agentNom];
-				var nodes = dojo.query('tr[agent="' + agentNom + '"] td[purpose="time"]');
+				var nodes = dojo.query('tr[agent="' + escape(agentNom) + '"] td[purpose="time"]');
 				if(nodes.length > 0){
 					nodes[0].innerHTML = formatseconds(now - agent.lastchange);
 				}

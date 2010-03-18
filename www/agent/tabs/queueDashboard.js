@@ -459,6 +459,7 @@ queueDashboard.globalTick = dojo.subscribe('globaltick', function(){
 queueDashboard.unloadSub = dojo.subscribe('tabPanel-removeChild', function(child){
 	if(child.title == 'Dashboard'){
 		dojo.unsubscribe(queueDashboard.unloadSub);
-		dojo.unsubscribe(queueDashboard.gloablTick);
+		dojo.unsubscribe(queueDashboard.globalTick);
+		dojo.unsubscribe(queueDashboard.mediaSub);
 	}
 });

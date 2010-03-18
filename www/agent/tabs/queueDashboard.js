@@ -461,5 +461,10 @@ queueDashboard.unloadSub = dojo.subscribe('tabPanel-removeChild', function(child
 		dojo.unsubscribe(queueDashboard.unloadSub);
 		dojo.unsubscribe(queueDashboard.globalTick);
 		dojo.unsubscribe(queueDashboard.mediaSub);
+		for(var i in queueDashboard.dataStore.queues){
+			dojo.unsubscribe(queueDashboard.dataStore.queues[i]._masterSubscription);
+			nodes = dojo.query('#queueDashboardTable *[queue="' + i + '"]');
+			dojo.destroy(nodes[0]);
+		}
 	}
 });

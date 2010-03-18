@@ -1,11 +1,14 @@
-#! /usr/bin/env ruby
+#!/usr/bin/env ruby
 
 require 'socket'
+
+# change to the directory this file lives in
+Dir.chdir(File.dirname(__FILE__))
 
 def helpdump
 	STDERR.puts "usage: #{$0} [-c cookiename] [-s shortname | -n longname] [-b bootfile] [-f configfile] [-d] [-r]"
 	STDERR.puts
-	STDERR.puts "  -c defaults to \"ClueCon\"."
+	STDERR.puts "  -c defaults to \"ClueCon\" or, if a .erlang.cookie file is in the directory, the contents of that."
 	STDERR.puts "  -s and -n override each other.  Defaults to \"-s testme\"."
 	STDERR.puts "  -b only needs the file name, ebin is assumed.  Defaults to \"cpx-rel-0.1\"."
 	STDERR.puts "  -f defaults to \"single\"."
@@ -19,7 +22,12 @@ def helpdump
 	exit
 end
 
-$cookie = "ClueCon"
+if File.exists?(".erlang.cookie")
+	$cookie = File.read(".erlang.cookie").chomp
+else
+	$cookie = "ClueCon"
+end
+
 $ebin = 'ebin/'
 $nametype = '-sname'
 $name = 'testme'

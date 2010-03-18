@@ -268,13 +268,13 @@ if(typeof(queueDashboard) == "undefined"){
 	}
 
 	queueDashboard.sendToAgentDialog = function(mediaID, queue){
-		console.log(["mediaID", mediaID]);
+		/*console.log(["mediaID", mediaID]);*/
 		dojo.xhrGet({
 			url:'/get_avail_agents',
 			handleAs:'json',
 			load: function(res){
 				if(res.success){
-					console.log(res.agents);
+					/*console.log(res.agents);*/
 					var selectContent = '';
 					if(res.agents.length == 0){
 						errMessage('No agents available!');

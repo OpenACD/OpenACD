@@ -190,6 +190,7 @@ Agent.prototype.logout = function(/*callback*/){
 
 Agent.prototype.dial = function() {
 	if (dijit.byId("dialbox").isValid()) {
+		EventLog.log("dialing outbound to "+dijit.byId("dialbox").getValue());
 		dojo.xhrGet({
 			url:"/dial/"+dijit.byId("dialbox").getValue(),
 			handleAs:"json",

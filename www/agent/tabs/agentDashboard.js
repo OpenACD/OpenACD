@@ -293,6 +293,9 @@ if(typeof(agentDashboard) == 'undefined'){
 			case 'ringing':
 				this.statedata = details.statedata;
 				break;
+			case 'warmtransfer':
+				this.statedata = details.statedata;
+				break;
 			default:
 				console.log(['state data not properly determined', this.state, details]);
 				this.statedata = details;
@@ -322,6 +325,8 @@ if(typeof(agentDashboard) == 'undefined'){
 			case 'wrapup':
 			case 'ringing':
 			case 'outgoing':
+			case 'precall':
+			case 'warmtransfer':
 				d = agent.statedata;
 				return '<img src="/images/' + this.statedata.type + '.png" />' + this.statedata.client
 			default:

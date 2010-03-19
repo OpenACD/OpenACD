@@ -80,7 +80,8 @@
 	manager_pid :: 'undefined' | any(),
 	file = erlang:error({undefined, file}):: string(),
 	answered = false :: boolean(),
-	caseid :: string() | 'undefined'
+	caseid :: string() | 'undefined',
+	time = util:now() :: integer()
 	}).
 
 -type(state() :: #state{}).
@@ -134,6 +135,12 @@ handle_answer(Apid, Callrec, #state{file=File, xferchannel = XferChannel} = Stat
 	?NOTICE("Voicemail ~s successfully transferred! Time to play ~s", [Callrec#call.id, File]),
 	freeswitch:sendmsg(State#state.cnode, State#state.xferuuid,
 		[{"call-command", "execute"},
+			{"event-lock", "true"},
+			{"execute-app-name", "phrase"},
+			{"execute-app-arg", "voicemail_say_date,"++integer_to_list(State#state.time)}]),
+	freeswitch:sendmsg(State#state.cnode, State#state.xferuuid,
+		[{"call-command", "execute"},
+			{"event-lock", "true"},
 			{"execute-app-name", "playback"},
 			{"execute-app-arg", File}]),
 	{ok, State#state{agent_pid = Apid, ringchannel = State#state.xferchannel,
@@ -142,6 +149,12 @@ handle_answer(Apid, Callrec, #state{file=File} = State) ->
 	?NOTICE("Voicemail ~s successfully answered! Time to play ~s", [Callrec#call.id, File]),
 	freeswitch:sendmsg(State#state.cnode, State#state.ringuuid,
 		[{"call-command", "execute"},
+			{"event-lock", "true"},
+			{"execute-app-name", "phrase"},
+			{"execute-app-arg", "voicemail_say_date,"++integer_to_list(State#state.time)}]),
+	freeswitch:sendmsg(State#state.cnode, State#state.ringuuid,
+		[{"call-command", "execute"},
+			{"event-lock", "true"},
 			{"execute-app-name", "playback"},
 			{"execute-app-arg", File}]),
 	{ok, State#state{agent_pid = Apid, answered = true}}.
@@ -163,6 +176,7 @@ handle_ring(Apid, Callrec, State) ->
 						"5" ->
 							freeswitch:sendmsg(State#state.cnode, UUID,
 								[{"call-command", "execute"},
+									{"event-lock", "true"},
 									{"execute-app-name", "playback"},
 									{"execute-app-arg", State#state.file}]);
 						_ ->
@@ -172,7 +186,12 @@ handle_ring(Apid, Callrec, State) ->
 					File = State#state.file,
 					case proplists:get_value("Application-Data", Event) of
 						File ->
-							?NOTICE("Finished playing voicemail recording", []);
+							?NOTICE("Finished playing voicemail recording", []),
+							freeswitch:sendmsg(State#state.cnode, UUID,
+								[{"call-command", "execute"},
+									{"event-lock", "true"},
+									{"execute-app-name", "playback"},
+									{"execute-app-arg", "file_string://voicemail/8000/vm-press.wav!digits/8000/5.wav!voicemail/8000/vm-repeat_message.wav"}]);
 						_ ->
 							ok
 					end;

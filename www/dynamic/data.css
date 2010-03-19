@@ -165,6 +165,12 @@ table {
   color:#ff7f00;
 }
 
+.agent[state="warmtransfer"]{
+  font-family:arial, helvetica, sans-serif;
+  font-size:10px;
+  background:#000000;
+  color: #00ff00;
+}
 
 /* released can also be styled by how it affects utilization */
 .agent[state=released][releasedbias="-1"] {

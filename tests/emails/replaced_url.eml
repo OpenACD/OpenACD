@@ -10,3 +10,5 @@ Date: Mon, 1 Jun 2009 15:04:25 -0400
 
 The next line should be a link.
 http://www.google.com
+The next line should not.
+file:///tmp/

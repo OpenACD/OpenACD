@@ -204,7 +204,7 @@ if(typeof(emailPane) == 'undefined'){
 						fetched += html_sanitize(res, emailPane.urlSanitize, emailPane.nameIdSanitize);
 					}else{
 						res = emailPane.scrubString(res).replace(/\n/g, '<br />');
-						fetched += '<span style="font-family:monospace;">' + res + '</span>';
+						fetched += '<span style="font-family:monospace;">' + replaceUrls(res) + '</span>';
 					}
 				}
 				else{

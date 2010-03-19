@@ -1,0 +1,12 @@
+Message-Id: <98EE8341-05D7-4BAD-846B-1A45979B01EA@spicecsm.com>
+From: Micah Warren <mwarren@spicecsm.com>
+To: test@devmicah.example.com
+Content-Type: text/plain;
+X-Smtp-Server: mail.example.com:micahw@example.com
+Mime-Version: 1.0 (Apple Message framework v935.3)
+Subject: Url's in plain text should be linkified.
+Date: Mon, 1 Jun 2009 15:04:25 -0400
+
+
+The next line should be a link.
+http://www.google.com

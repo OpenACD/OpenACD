@@ -279,6 +279,7 @@ if(typeof(agentDashboard) == 'undefined'){
 	agentDashboard.Agent.prototype._setStateData = function(details){
 		switch(this.state){
 			case 'released':
+				console.log(['went released', details]);
 				if(details.reason){
 					this.statedata = details.reason;
 				} else {
@@ -319,7 +320,7 @@ if(typeof(agentDashboard) == 'undefined'){
 	agentDashboard.Agent.prototype.statedataDisplay = function(){
 		switch(this.state){
 			case 'released':
-				return this.statedata.reason;
+				return this.statedata;
 				break;
 			case 'oncall':
 			case 'wrapup':

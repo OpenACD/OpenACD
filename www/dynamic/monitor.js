@@ -2,12 +2,12 @@ function capitalize(string) {
 	return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
-function timeSince(timestamp){
+function timeSince(timestamp,now){
 	if(isNaN(timestamp)){
 		return timestamp;
 	}
 
-	var now = Math.floor(new Date().getTime() / 1000);
+	if (now === undefined) var now = Math.floor(new Date().getTime() / 1000);
 	var elapsed = now - timestamp;
 	if(elapsed < 60){
 		return elapsed + " second" + (elapsed != 1 ? "s" : "");
@@ -76,7 +76,8 @@ function drawCalls(response) {
 				
 			longest = longest[0].queued;
 			}*/
-			var now = Math.floor(new Date().getTime() / 1000);
+			var now = response.writeTime;
+			if (now === undefined) now = Math.floor(new Date().getTime() / 1000);
 			var eldest = now;
 			for(var i = 0; i < longest.length; i++){
 				var fullm = response.rawData[longest[i]];
@@ -86,7 +87,7 @@ function drawCalls(response) {
 				}
 			}
 			longest = eldest;
-			c1.innerHTML = timeSince(longest);
+			c1.innerHTML = timeSince(longest,response.writeTime);
 			rownum++;
 			}
 			});
@@ -154,7 +155,7 @@ function drawAgents(response) {
 						}
 
 						c1 = row.insertCell(2);
-						c1.innerHTML = timeSince(agent.timestamp);
+						c1.innerHTML = timeSince(agent.timestamp,response.writeTime);
 
 						row.setAttribute("class", "agent");
 						row.setAttribute("state", agent.state);

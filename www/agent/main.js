@@ -179,22 +179,24 @@ function loadTab(tabid){
 		window.tabCloseListeners = {};
 	}
 	
-	if(! dijit.byId(tabid)){							
-		var t = new dojox.layout.ContentPane({
-			title: title,
-			executeScripts: true,
-			id: tabid,
-			closable: true
-		});
-		dijit.byId("tabPanel").addChild(t);
-		window.tabCloseListeners[tabid] = dojo.subscribe('tabPanel-removeChild', function(child){
-			if(child.id == tabid){
-				dropTab(tabid);
-				dojo.unsubscribe(window.tabCloseListeners[tabid]);
-				delete window.tabCloseListeners[tabid];
-			}
-		});
+	if(dijit.byId(tabid)){
+		dijit.byId('tabPanel').closeChild(dijit.byId(tabid));
 	}
+	
+	var t = new dojox.layout.ContentPane({
+		title: title,
+		executeScripts: true,
+		id: tabid,
+		closable: true
+	});
+	dijit.byId("tabPanel").addChild(t);
+	window.tabCloseListeners[tabid] = dojo.subscribe('tabPanel-removeChild', function(child){
+		if(child.id == tabid){
+			dropTab(tabid);
+			dojo.unsubscribe(window.tabCloseListeners[tabid]);
+			delete window.tabCloseListeners[tabid];
+		}
+	});
 	dijit.byId(tabid).attr('href', href);
 	dijit.byId("tabPanel").selectChild(tabid);
 	var logoutListenerName = tabid + "LogoutListener";

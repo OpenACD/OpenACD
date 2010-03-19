@@ -81,8 +81,8 @@ function confirmDialog(conf){
 		title: conf.title,
 		content: '<div style="align:center">' + 
 			'<p>' + conf.question + '</p>' + 
-			'<p><input dojoType="dijit.form.Button" type="button" label="' + conf.noLabel + '">' + 
-			'<input dojoType="dijit.form.Button" type="button" label="' + conf.yesLabel + '" />' +
+			'<p><input dojoType="dijit.form.Button" type="button" label="' + conf.yesLabel + '" />' +
+			'<input dojoType="dijit.form.Button" type="button" label="' + conf.noLabel + '">' + 
 			'</div>'
 	});
 	dojo.connect(dialog, 'onCancel', dialog, function(){
@@ -90,11 +90,11 @@ function confirmDialog(conf){
 		dialog.destroy();
 	});
 	var kids = dialog.getChildren()
-	dojo.connect(kids[0], 'onClick', dialog, function(){
+	dojo.connect(kids[1], 'onClick', dialog, function(){
 		conf.noAction();
 		dialog.destroy();
 	});
-	dojo.connect(kids[1], 'onClick', dialog, function(){
+	dojo.connect(kids[0], 'onClick', dialog, function(){
 		conf.yesAction();
 		dialog.destroy();
 	});

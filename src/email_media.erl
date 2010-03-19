@@ -208,7 +208,7 @@ init(Options) ->
 				{match, [Name, Number]} ->
 					{Name, Number};
 				nomatch ->
-					{"Unknown", binary_to_list(Else)}
+					{"", binary_to_list(Else)}
 			end
 	end,
 	Defaultid = case proplists:get_value(id, Options) of

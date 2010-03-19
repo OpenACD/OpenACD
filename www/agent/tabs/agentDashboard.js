@@ -60,7 +60,7 @@ if(typeof(agentDashboard) == 'undefined'){
 						var dialog = dijit.byId("profileSwapDialog");
 						var submitSetProf = function(){
 							var data = dialog.attr('value');
-							console.log(['das data', data]);
+							/*console.log(['das data', data]);*/
 							agent.setProfile(data.profile, data.makePermanent[0]);
 						}
 						dialog.attr('execute', submitSetProf);
@@ -151,6 +151,12 @@ if(typeof(agentDashboard) == 'undefined'){
 				var state = this.agents[event.name].state;
 				this._decState(state);
 				this.agentsCount--;
+				if (this.agentsCount == 0) {
+					nodes = dojo.query('tr[profile="' + this.name + '"]');
+					for(var i = 0; i < nodes.length; i++) {
+						nodes[i].style.display = 'none';
+					}
+				}
 				delete this.agents[event.name];
 				this._destroyAgentRow(event.name);
 				dojo.publish('agentDashboard/profile/' + this.name + '/update', [this]);
@@ -161,6 +167,12 @@ if(typeof(agentDashboard) == 'undefined'){
 		if( (event.details.profile == this.name) && ! this.agents[event.name]){
 			var agent = new agentDashboard.Agent(event);
 			this.agents[event.name] = agent;
+			if (this.agentsCount == 0) {
+				nodes = dojo.query('tr[profile="' + this.name + '"][purpose="profileDisplay"]');
+				for(var i = 0; i < nodes.length; i++) {
+					nodes[i].style.display = '';
+				}
+			}
 			this.agentsCount++;
 			this._incState(agent.state);
 			agentDashboard.drawAgentTableRow(this, agent);
@@ -171,6 +183,12 @@ if(typeof(agentDashboard) == 'undefined'){
 		if( (event.details.profile != this.name) && this.agents[event.name]){
 			var agent = this.agents[event.name]
 			this.agentsCount--;
+			if (this.agentsCount == 0) {
+				nodes = dojo.query('tr[profile="' + this.name + '"]');
+				for(var i = 0; i < nodes.length; i++) {
+					nodes[i].style.display = 'none';
+				}
+			}
 			this._decState(agent.state);
 			delete this.agents[event.name];
 			this._destroyAgentRow(event.name);
@@ -354,7 +372,7 @@ if(typeof(agentDashboard) == 'undefined'){
 	
 	agentDashboard.Agent.prototype.setProfile = function(newProf, makePerm){
 		// letting the subscriptions that happen on agent changes deal w/ the repercussions.
-		console.log(['das smack', newProf, makePerm]);
+		/*console.log(['das smack', newProf, makePerm]);*/
 		if(makePerm){
 			makePerm = "makePerm";
 		} else {
@@ -452,6 +470,9 @@ if(typeof(agentDashboard) == 'undefined'){
 				}));
 				menu.bindDomNode(profileTr);
 				agentDashboard.drawAgentTable(profCache);
+				if (profCache.agentsCount == 0) {
+					profileTr.style.display = 'none';
+				}
 			}
 		}
 	}
@@ -474,6 +495,9 @@ if(typeof(agentDashboard) == 'undefined'){
 		var tbody = dojo.query('#agentDashboardTable *[profile="' + profile + '"][purpose="agentDisplay"] table')[0];
 		for(var i in profCache.agents){
 			agentDashboard.drawAgentTableRow(profCache, profCache.agents[i], tbody);
+		}
+		if (profCache.agentsCount == 0) {
+			profileAgentsTr.style.display = 'none';
 		}
 	}
 	

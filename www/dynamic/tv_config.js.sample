@@ -11,6 +11,8 @@ function tv_config() {
 		agroup1: ["Level1", "New Agents"],
 		agroup2: ["Level2"],
 		agroup3: ["Level3"],
-		agroup4: ["Level4"]
+		agroup4: ["Level4"],
+		agenttext: "",
+		globaltext: ""
 	};
 }

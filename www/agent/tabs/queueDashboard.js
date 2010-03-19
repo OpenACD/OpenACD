@@ -268,13 +268,13 @@ if(typeof(queueDashboard) == "undefined"){
 	}
 
 	queueDashboard.sendToAgentDialog = function(mediaID, queue){
-		console.log(["mediaID", mediaID]);
+		/*console.log(["mediaID", mediaID]);*/
 		dojo.xhrGet({
 			url:'/get_avail_agents',
 			handleAs:'json',
 			load: function(res){
 				if(res.success){
-					console.log(res.agents);
+					/*console.log(res.agents);*/
 					var selectContent = '';
 					if(res.agents.length == 0){
 						errMessage('No agents available!');
@@ -459,6 +459,12 @@ queueDashboard.globalTick = dojo.subscribe('globaltick', function(){
 queueDashboard.unloadSub = dojo.subscribe('tabPanel-removeChild', function(child){
 	if(child.title == 'Dashboard'){
 		dojo.unsubscribe(queueDashboard.unloadSub);
-		dojo.unsubscribe(queueDashboard.gloablTick);
+		dojo.unsubscribe(queueDashboard.globalTick);
+		dojo.unsubscribe(queueDashboard.mediaSub);
+		for(var i in queueDashboard.dataStore.queues){
+			dojo.unsubscribe(queueDashboard.dataStore.queues[i]._masterSubscription);
+			nodes = dojo.query('#queueDashboardTable *[queue="' + i + '"]');
+			dojo.destroy(nodes[0]);
+		}
 	}
 });

@@ -45,9 +45,13 @@
 				<script type="dojo/connect" event="onClick">
 					dojo.byId('emailView').style.display = 'none';
 					dojo.byId('emailReplyDiv').style.display = 'block';
-					var widget = new dijit.Editor({height:'250px'}, dojo.byId("emailDisp"));
+					var replyBase = dojo.doc.createElement('div');
+					replyBase.id = 'emailReplyEditor';
+					replyBase.style.height = '100%';
+					dojo.byId('emailDisp').appendChild(replyBase);
+					var widget = new dijit.Editor({height:'300px'}, replyBase);
 					widget.setValue(dojo.byId('emailViewDiv').innerHTML);
-					var div = dojo.create('div', {}, dijit.byId('emailDisp').toolbar.domNode);
+					var div = dojo.create('div', {}, dijit.byId('emailReplyEditor').toolbar.domNode);
 					var button = new dijit.form.Button({
 						label:'Attach',
 						showLabel:false,
@@ -59,7 +63,7 @@
 		</tr>
 	</table>
 
-	<div id="emailViewDiv" style="border: grey solid 1px"></div>
+	<div id="emailViewDiv" style="height: 250px; overflow: auto; border: grey solid 1px;"></div>
 	
 </div>
 
@@ -176,7 +180,7 @@
 					this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").CANCEL);
 				</script>
 				<script type="dojo/connect" event="onClick">
-					//dijit.byId('emailReplyEditor').destroy();
+					dijit.byId('emailReplyEditor').destroy();
 					//var node = dojo.byId('emailReplyEditor');
 					//node.parentNode.removeChild(node);
 					dojo.byId('emailView').style.display = 'block';

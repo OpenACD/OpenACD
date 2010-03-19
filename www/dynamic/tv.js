@@ -157,20 +157,22 @@ function swapalert(alertdiv) {
 	var adiv = dojo.byId(alertdiv);
 	var divs = dojo.query(".alerttext", adiv);
 	var stxt = dojo.query(".specialtext",adiv)[0];
-	stxt.firstChild.innerHTML = ".";
+//	stxt.firstChild.innerHTML = ".";
 	dojo.query(".alertcount", adiv)[0].firstChild.innerHTML = divs.length;
 	if (divs.length === 0) {
-		if (specialtext.length > 0) {
+//		if (specialtext.length > 0) {
 			stxt.style.display = 'block';
-			stxt.firstChild.innerHTML = specialtext[nextspecialtext];
-			nextspecialtext += 1;
-			if (nextspecialtext >= specialtext.length) {
-				nextspecialtext = 0;
-			}
-			stxt.firstChild.style.fontSize = '150px';
-			resizespan(stxt.firstChild);
-		}
-		return;
+//			stxt.firstChild.innerHTML = specialtext[nextspecialtext];
+//			nextspecialtext += 1;
+//			if (nextspecialtext >= specialtext.length) {
+//				nextspecialtext = 0;
+//				}
+//			istxt.firstChild.style.fontSize = '150px';
+//			resizespan(stxt.firstChild);
+//		}
+			return;
+	} else {
+		stxt.style.display = "none";
 	}
 	stxt.style.display = 'none';
 	var alerts = [];
@@ -369,6 +371,9 @@ function update() {
 			updateQueue(dojo.byId("qgroup4"), getQueue(response.queues, config.qgroup4), response.rawData);
 			updateQueue(dojo.byId("qgroup5"), getQueue(response.queues, config.qgroup5), response.rawData);
 
+			dojo.byId("agenttext").src = config.agenttext;
+			dojo.byId("globaltext").src = config.globaltext;
+
 			agentAlerts(getAgentsInProfiles(response.agentProfiles, "*"));
 			ivrAlerts(response.ivrAlerts);
 
@@ -379,7 +384,8 @@ function update() {
 	});
 }
 
-function getspecialtext() {
+/*
+  function getspecialtext() {
 	dojo.xhrGet({url:"text.txt",
 		error:function(response, ioargs){
 			console.error(response);
@@ -392,14 +398,17 @@ function getspecialtext() {
 		}
 	});
 }
+*/
 
 function swapstuff() {
 	if (typeof tv_config == 'function') {
 		update();
 		swapstat();
-		if (specialtext.length === 0) {
+/*
+  if (specialtext.length === 0) {
 			getspecialtext();
 		}
+*/
 		swapalert("agentalerts");
 		swapalert("globalalerts");
 		setTimeout(swapstuff, 5000);

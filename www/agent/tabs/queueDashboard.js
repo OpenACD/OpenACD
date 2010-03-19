@@ -234,7 +234,25 @@ if(typeof(queueDashboard) == "undefined"){
 		dojo.create('td', {purpose: 'mediaType', innerHTML: '<img src="/images/' + media.details.type + '.png" />'}, tr);
 		dojo.create('td', {purpose: 'age', realvalue: media.details.queued_at.timestamp, innerHTML: formatseconds(age)}, tr);
 		dojo.create('td', {purpose: 'client', innerHTML: media.details.client}, tr);
-		dojo.place(tr, tbody, 'last');
+		var i = 1;
+		for(i; i < tbody.rows.length; i++){
+			var mediaId = tbody.rows[i].getAttribute('callid');
+			var mediaObj = queueDashboard.dataStore.queues[queuename].medias[mediaId];
+			if(mediaObj.details.priority > media.details.priority){
+				continue;
+			}
+			if(mediaObj.details.priority < media.details.priority){
+				break;
+			}
+			if(mediaObj.details.queued_at.timestamp < media.details.queued_at.timestamp){
+				continue;
+			}
+			if(mediaObj.details.queued_at.timestamp >= media.details.queued_at.timestamp){
+				break;
+			}
+		}
+		dojo.place(tr, tbody.rows[i-1], 'after');
+		//dojo.place(tr, tbody, 'last');
 		var menu = new dijit.Menu({});
 		menu.addChild(new dijit.MenuItem({
 			label: "Send To Agent...",

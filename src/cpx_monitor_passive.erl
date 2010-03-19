@@ -445,12 +445,22 @@ update_queue_stats(#cached_media{state = ivr} = Old, #cached_media{state = queue
 	end;
 update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = agent} = New) ->
 	{_G, Newqueue} = Old#cached_media.statedata,
-	[{{queue, Newqueue}, Stats}] = ets:lookup(stats_cache, {queue, Newqueue}),
+	[{{queue, Newqueue}, Stats}] = case ets:lookup(stats_cache, {queue, Newqueue}) of
+		[] ->
+			[{{queue, Newqueue}, #media_stats{}}];
+		E ->
+			E
+	end,
 	Newstats = Stats#media_stats{inqueue = Stats#media_stats.inqueue + 1},
 	ets:insert(stats_cache, {{queue, Newqueue}, Newstats});
 update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = ended} = New) ->
 	{_G, Newqueue} = Old#cached_media.statedata,
-	[{{queue, Newqueue}, Stats}] = ets:lookup(stats_cache, {queue, Newqueue}),
+	[{{queue, Newqueue}, Stats}] = case ets:lookup(stats_cache, {queue, Newqueue}) of
+		[] ->
+			[{{queue, Newqueue}, #media_stats{}}];
+		E ->
+			E
+	end,
 	Midstats = Stats#media_stats{inqueue = Stats#media_stats.inqueue + 1},
 	Newstats = case New#cached_media.endstate of
 		handled ->
@@ -461,7 +471,12 @@ update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = end
 	ets:insert(stats_cache, {{queue, Newqueue}, Newstats});
 update_queue_stats(#cached_media{state = queue} = Old, null) ->
 	{_G, Newqueue} = Old#cached_media.statedata,
-	[{{queue, Newqueue}, Stats}] = ets:lookup(stats_cache, {queue, Newqueue}),
+	[{{queue, Newqueue}, Stats}] = case ets:lookup(stats_cache, {queue, Newqueue}) of
+		[] ->
+			[{{queue, Newqueue}, #media_stats{}}];
+		E ->
+			E
+	end,
 	case lists:any(fun({_, queue, {_, Qnom}}) when Qnom =:= Newqueue -> true; (_) -> false end, Old#cached_media.history) of
 		true ->
 			Midstats = case Old#cached_media.direction of

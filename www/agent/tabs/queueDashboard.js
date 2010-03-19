@@ -238,10 +238,10 @@ if(typeof(queueDashboard) == "undefined"){
 		for(i; i < tbody.rows.length; i++){
 			var mediaId = tbody.rows[i].getAttribute('callid');
 			var mediaObj = queueDashboard.dataStore.queues[queuename].medias[mediaId];
-			if(mediaObj.details.priority > media.details.priority){
+			if(mediaObj.details.priority < media.details.priority){
 				continue;
 			}
-			if(mediaObj.details.priority < media.details.priority){
+			if(mediaObj.details.priority > media.details.priority){
 				break;
 			}
 			if(mediaObj.details.queued_at.timestamp < media.details.queued_at.timestamp){

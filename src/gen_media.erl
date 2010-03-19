@@ -692,7 +692,7 @@ handle_call({'$gen_media_ring', {Agent, Apid}, QCall, Timeout}, From, #state{cal
 	?NOTICE("Changing ring from ~p to ~p for ~p", [RAgent, Agent, Call#call.id]),
 	Cook = QCall#queued_call.cook,
 	{noreply, Midstate} = handle_info({'$gen_media_stop_ring', Cook}, State),
-	handle_call({'$gen_media_ring', Apid, QCall, Timeout}, From, Midstate);
+	handle_call({'$gen_media_ring', {Agent, Apid}, QCall, Timeout}, From, Midstate);
 
 	
 handle_call({'$gen_media_agent_transfer', {Agent, Apid}}, _From, #state{oncall_pid = {Agent, Apid}, callrec = Call} = State) ->

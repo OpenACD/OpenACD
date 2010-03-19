@@ -811,7 +811,11 @@ agent_to_json(Rec) ->
 		{Cid, Clientid, Clientlabel, _Type, Calling} ->
 
 			{struct, [
-				{onhold, Cid},
+				{onhold, {struct, [
+					{<<"id">>, list_to_binary(Cid)},
+					{<<"clientLabel">>, case Clientlabel of undefined -> undefined; _ -> list_to_binary(Clientlabel) end},
+					{<<"clientId">>, case Clientid of undefined -> undefined; _ -> list_to_binary(Clientid) end}
+				]}},
 				{<<"clientId">>, case Clientid of undefined -> undefined; _ -> list_to_binary(Clientid) end},
 				{<<"clientLabel">>, case Clientlabel of undefined -> undefined; _ -> list_to_binary(Clientlabel) end},
 				{calling, list_to_binary(Calling)}

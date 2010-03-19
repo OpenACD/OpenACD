@@ -147,7 +147,7 @@ function drawAgents(response) {
 						c1.innerHTML += " " + agent.statedata.clientLabel;
 						break;
 						case "warmtransfer":
-						c1.innerHTML += "(" + agent.statedata.onhold.clientLabel + ") (" + agent.statedata.calling + ")";
+						c1.innerHTML += "(" + agent.statedata.onhold.clientLabel + ")";
 						break;
 						case "released":
 							c1.innerHTML += "("+agent.statedata+")";

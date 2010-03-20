@@ -1963,7 +1963,7 @@ if(typeof(supervisorView) == "undefined"){
 						}},
 						{'label':'Set Profile',
 						'onClick':function(){
-							var dialog = dijit.byId("profileSwapDialog");
+							var dialog = dijit.byId("superProfileSwapDialog");
 							var submitSetProf = function(){
 								var data = dialog.attr('value');
 								supervisorView.setProfile(data.profile, escape(agentHit));
@@ -1974,7 +1974,7 @@ if(typeof(supervisorView) == "undefined"){
 								handleAs:"json",
 								load:function(r){
 									if(r.success){
-										var span = dojo.byId('profileSwapDialogParent');
+										var span = dojo.byId('superProfileSwapDialogParent');
 										while(span.hasChildNodes()){
 											span.removeChild(span.firstChild);
 										}
@@ -2348,7 +2348,7 @@ if(typeof(supervisorView) == "undefined"){
 	}
 	
 	supervisorView.showBlabDialog = function(type, target){
-		var dialog = dijit.byId("blabDialog");
+		var dialog = dijit.byId("superBlabDialog");
 		dialog.attr('title', 'Blab');
 		dialog.attr('value', {'message':'Type your message here.  Url\'s get automatically interpreted'});
 		var submitblab = function(){
@@ -2810,7 +2810,7 @@ if(typeof(supervisorView) == "undefined"){
 					return false;
 				}
 				
-				var dialog = dijit.byId("blabDialog");
+				var dialog = dijit.byId("superBlabDialog");
 				dialog.attr('title', 'MotD');
 				if(res.motd){
 					dialog.attr('value', {'message':res.motd});
@@ -2864,7 +2864,7 @@ if(typeof(supervisorView) == "undefined"){
 					sel.appendChild(optionnode);
 				}
 				
-				var dialog = dijit.byId('setProblemRecording');
+				var dialog = dijit.byId('superSetProblemRecording');
 				dialog.attr('execute', function(){
 					var clientId = dojo.byId('supervisorClientSelect').value;
 					if(dialog.attr('value').set.length < 1){

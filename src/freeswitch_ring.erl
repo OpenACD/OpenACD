@@ -55,7 +55,7 @@
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3]).
+	 terminate/2, code_change/3, format_status/2]).
 
 -record(state, {
 	cnode :: atom(),
@@ -198,7 +198,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid
 									% prolly get no such channel, but just in case it still lives.
 									freeswitch:api(State#state.cnode, uuid_park, Call#call.id),
 									{stop, normal, State}
-							end
+							end;
 						_ ->
 							{noreply, State}
 					end;
@@ -262,6 +262,12 @@ terminate(Reason, _State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+format_status(normal, [PDict, State]) ->
+	[{data, [{"State", format_status(terminate, [PDict, State])}]}];
+format_status(terminate, [_PDict, #state{callrec = Call} = State]) ->
+	Client = Call#call.client,
+	State#state{callrec = Call#call{client = Client#client{options = []}}}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions

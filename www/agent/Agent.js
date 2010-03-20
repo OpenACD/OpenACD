@@ -172,18 +172,18 @@ Agent.prototype.initOutbound = function(Client, Type) {
 };
 
 Agent.prototype.logout = function(/*callback*/){
-	var agentref = this;
+	// cancel this up front so
+	this._pollHandle.cancel();
+	// this should always succeed, so send the agent/logout in all cases
 	dojo.xhrGet({
 		url:"/logout",
 		handleAs:"json",
 		error:function(response, ioargs){
 			errMessage(["error logging out", response]);
+			dojo.publish("agent/logout", [true]);
 		},
 		load:function(response, ioargs){
-			if(response.success){
-				dojo.publish("agent/logout", [true]);
-				agentref._pollHandle.cancel();
-			}			
+			dojo.publish("agent/logout", [true]);
 		}
 	});
 };

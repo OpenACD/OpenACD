@@ -192,19 +192,20 @@ function loadTab(tabid){
 	dijit.byId("tabPanel").addChild(t);
 	window.tabCloseListeners[tabid] = dojo.subscribe('tabPanel-removeChild', function(child){
 		if(child.id == tabid){
-			dropTab(tabid);
 			dojo.unsubscribe(window.tabCloseListeners[tabid]);
 			delete window.tabCloseListeners[tabid];
+			dropTab(tabid);
 		}
 	});
 	dijit.byId(tabid).attr('href', href);
 	dijit.byId("tabPanel").selectChild(tabid);
 	var logoutListenerName = tabid + "LogoutListener";
 	dijit.byId("tabPanel")[logoutListenerName] = dojo.subscribe("agent/logout", dijit.byId("tabPanel"), function(data){
+		dojo.unsubscribe(window.tabCloseListeners[tabid]);
 		this.closeChild(t);
 		dojo.unsubscribe(this[logoutListenerName]);
-		storeTab(tabid);
 	});
+	storeTab(tabid);
 }
 
 function inArray(needle, haystack){
@@ -649,6 +650,14 @@ dojo.addOnLoad(function(){
 						settings.tabs = [];
 					}
 				}
+				console.log("tabs:");
+				console.log(settings.tabs);
+				for(var i = 0; i < settings.tabs.length; i++){
+					loadTab(settings.tabs[i]);
+				}
+
+				/* XXX wtf is this ? I'm disabling it pending review */
+				/*
 				for(var i = 0; i < settings.tabs.length; i++){
 					// TODO This could get ugly if/when we add more tabs.
 					if(settings.tabs[0] == "supervisorTab"){
@@ -670,7 +679,7 @@ dojo.addOnLoad(function(){
 							storeTab('supervisorTab');
 						});
 					}
-				}
+				}*/
 				dojo.cookie('agentui-settings', dojo.toJson(settings)); 
 			}
 			else{

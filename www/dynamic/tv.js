@@ -371,8 +371,10 @@ function update() {
 			updateQueue(dojo.byId("qgroup4"), getQueue(response.queues, config.qgroup4), response.rawData);
 			updateQueue(dojo.byId("qgroup5"), getQueue(response.queues, config.qgroup5), response.rawData);
 
-			dojo.byId("agenttext").src = config.agenttext;
-			dojo.byId("globaltext").src = config.globaltext;
+			if (dojo.byId("agenttext").src == "")
+				dojo.byId("agenttext").src = config.agenttext;
+			if (dojo.byId("globaltext").src == "")
+				dojo.byId("globaltext").src = config.globaltext;
 
 			agentAlerts(getAgentsInProfiles(response.agentProfiles, "*"));
 			ivrAlerts(response.ivrAlerts);

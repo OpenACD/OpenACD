@@ -303,7 +303,7 @@ do_route(none, Qpid, Callpid) ->
 	end.
 
 %% @private
--spec(sort_agent_list/1 :: (Dispatchers :: [pid()]) -> [{non_neg_integer(), pid()}]).
+-spec(sort_agent_list/1 :: (Dispatchers :: [pid()]) -> [{string(), pid(), #agent{}}]).
 sort_agent_list([]) ->
 	[];
 sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
@@ -323,30 +323,17 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	end,
 	Agents = lists:map(F, Dispatchers),
 	Agents2 = lists:flatten(Agents),
-	% calculate costs and sort by same.
-	Agents3 = lists:sort([{ARemote + Askills + Aidle, APid} ||
-		{_AName, APid, AState} <- Agents2,
-		ARemote <-
-		case APid of
-			_X when node() =:= node(APid) ->
-				[0];
-			_Y ->
-				[?DEFAULT_PATHCOST]
-		end,
-		Askills <- [length(AState#agent.skills)],
-		Aidle <- [AState#agent.lastchange]]),
-	Agents3.
-
+	% XXX - sort_agents_by_elegibility doesn't sort by pathcost yet
+	agent_manager:sort_agents_by_elegibility(Agents2).
 
 %% @private
 -spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #queued_call{}) -> 'none' | 'ringing').
 offer_call([], _Call) ->
 	%?DEBUG("No valid agents found", []),
 	none;
-offer_call([{_ACost, Apid} | Tail], Call) ->
+offer_call([{_, Apid, Agent} | Tail], Call) ->
 	case gen_media:ring(Call#queued_call.media, Apid, Call, ?TICK_LENGTH * ?RINGOUT) of
 		ok ->
-			Agent = agent:dump_state(Apid),
 			Callrec = gen_media:get_call(Call#queued_call.media),
 			?INFO("cook offering call:  ~p to ~p", [Callrec#call.id, Agent#agent.login]),
 			ringing;

@@ -219,6 +219,8 @@ handle_ring_stop(Callrec, State) ->
 		undefined ->
 			ok;
 		RingChannel ->
+			% TODO - make sure the call didn't get bridged in the interim?
+			% the ring channel might have bridged and the message is sitting in our mailbox
 			freeswitch_ring:hangup(RingChannel)
 	end,
 	{ok, State#state{ringchannel=undefined}}.
@@ -250,8 +252,8 @@ handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.
 
 handle_agent_transfer(AgentPid, Timeout, Call, State) ->
-	?INFO("transfer_agent to ~p for call ~p", [AgentPid, Call#call.id]),
 	AgentRec = agent:dump_state(AgentPid),
+	?INFO("transfer_agent to ~p for call ~p", [AgentRec#agent.login, Call#call.id]),
 	% fun that returns another fun when passed the UUID of the new channel
 	% (what fun!)
 	F = fun(_UUID) ->

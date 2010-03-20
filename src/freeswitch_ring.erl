@@ -186,8 +186,19 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid
 						true ->
 							?INFO("Call with single leg answered", []),
 							Call = State#state.callrec,
-							gen_media:oncall(Call#call.source),
-							{noreply, State};
+							try gen_media:oncall(Call#call.source) of
+								invalid ->
+									freeswitch:api(State#state.cnode, uuid_park, Call#call.id),
+									{stop, normal, State};
+								ok ->
+									{noreply, State}
+							catch
+								exit:{noproc, _} ->
+									?WARNING("~p died before I could complete the bridge", [Call#call.source]),
+									% prolly get no such channel, but just in case it still lives.
+									freeswitch:api(State#state.cnode, uuid_park, Call#call.id),
+									{stop, normal, State}
+							end
 						_ ->
 							{noreply, State}
 					end;

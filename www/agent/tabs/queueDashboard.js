@@ -292,6 +292,11 @@ if(typeof(queueDashboard) == "undefined"){
 			handleAs:'json',
 			load: function(res){
 				if(res.success){
+						var select = dojo.byId('supSelectAgent');
+						if (select) {
+							/* destroy old widget with same ID */
+							select.parentNode.removeChild(select);
+						}
 					/*console.log(res.agents);*/
 					var selectContent = '';
 					if(res.agents.length == 0){
@@ -309,7 +314,6 @@ if(typeof(queueDashboard) == "undefined"){
 					dialog.attr('execute', function(){
 						var select = dojo.byId('supSelectAgent');
 						var agentName = select.value;
-						select.parentNode.removeChild(select);
 						dialog.destroy();
 						console.log([agentName, arguments]);
 

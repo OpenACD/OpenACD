@@ -160,8 +160,9 @@ handle_cast(restart_tick, #state{qpid = Qpid} = State) ->
 	end;
 handle_cast(stop_ringing, State) ->
 	{noreply, State#state{ringstate = none}};
-handle_cast({ring_to, Agent, QCall}, State) ->
-	Newstate = case offer_call([{10, Agent}], QCall) of
+handle_cast({ring_to, Apid, QCall}, State) ->
+	Agent = agent:dump_state(Apid),
+	Newstate = case offer_call([{Agent#agent.login, Apid, Agent}], QCall) of
 		ringing ->
 			State#state{ringstate = ringing};
 		none ->
@@ -327,7 +328,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	agent_manager:sort_agents_by_elegibility(Agents2).
 
 %% @private
--spec(offer_call/2 :: (Agents :: [{non_neg_integer, pid()}], Call :: #queued_call{}) -> 'none' | 'ringing').
+-spec(offer_call/2 :: (Agents :: [{string(), pid(), #agent{}}], Call :: #queued_call{}) -> 'none' | 'ringing').
 offer_call([], _Call) ->
 	%?DEBUG("No valid agents found", []),
 	none;

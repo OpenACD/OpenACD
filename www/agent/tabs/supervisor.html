@@ -15,15 +15,15 @@
 	<p style="padding:12px">nocontent</p>
 </div> 
 
-<div dojoType="dijit.Dialog" id="blabDialog" title="Blab" style="display:none">
+<div dojoType="dijit.Dialog" id="superBlabDialog" title="Blab" style="display:none">
 	<p><textarea name="message" dojoType="dijit.form.SimpleTextarea">Type your message here.</textarea></p>
 	<p><input type="submit" dojoType="dijit.form.Button" label="Submit" /></p>
 </div>
 
-<div dojoType="dijit.Dialog" id="profileSwapDialog" title="Select Profile" style="display:none">
+<div dojoType="dijit.Dialog" id="superProfileSwapDialog" title="Select Profile" style="display:none">
 	<p>
 		<label>Profile:</label>
-		<span id="profileSwapDialogParent"><select name="profile"></select></span>
+		<span id="superProfileSwapDialogParent"><select name="profile"></select></span>
 	</p>
 	<p>
 		<label>&nbsp;</label>
@@ -31,10 +31,10 @@
 	</p>
 </div>
 
-<div dojoType="dijit.Dialog" id="setProblemRecording" title="Select Client" style="display:none">
+<div dojoType="dijit.Dialog" id="superSetProblemRecording" title="Select Client" style="display:none">
 	<p>
 		<label>&nbsp;</label>
-		<input dojoType="dijit.form.CheckBox" type="checkbox" name="set" value="set" id="setProblemRecordingCheckbox" checked />Check to set, uncheck to clear.
+		<input dojoType="dijit.form.CheckBox" type="checkbox" name="set" value="set" id="superSetProblemRecordingCheckbox" checked />Check to set, uncheck to clear.
 	</p>
 	<p>
 		<label>Client:</label>

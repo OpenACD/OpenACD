@@ -62,6 +62,7 @@
 	query_agent/1, 
 	find_by_skill/1,
 	find_avail_agents_by_skill/1,
+	sort_agents_by_elegibility/1,
 	find_by_pid/1,
 	blab/2,
 	get_leader/0,
@@ -119,8 +120,7 @@ start_agent(#agent{login = ALogin} = Agent) ->
 			{exists, Apid}
 	end.
 
-%% @doc Locally find all available agents with a particular skillset that contains the subset `Skills'.  Sorted by idle time, 
-%% then the length of the list of skills the agent has;  this means idle time is less important.
+%% @doc Locally find all available agents with a particular skillset that contains the subset `Skills'.
 -spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [{string(), pid(), #agent{}}]).
 find_avail_agents_by_skill(Skills) -> 
 	%?DEBUG("skills passed:  ~p.", [Skills]),
@@ -133,7 +133,20 @@ find_avail_agents_by_skill(Skills) ->
 			lists:member('_all', Skills)
 			% if there's no _all skill, make sure the agent has all the required skills
 		) orelse util:list_contains_all(AgState#agent.skills, Skills)],
-	AvailSkilledAgentsByIdleTime = lists:sort(fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> State1#agent.lastchange =< State2#agent.lastchange end, AvailSkilledAgents), 
+	AvailSkilledAgents.
+
+%% @doc Sorted by idle time, then the length of the list of skills the agent has;  this means idle time is less important.
+-spec(sort_agents_by_elegibility/1 :: (Agents :: [{string(), pid(), #agent{}}]) -> [{string(), pid(), #agent{}}]).
+sort_agents_by_elegibility(AvailSkilledAgents) ->
+	AvailSkilledAgentsByIdleTime = lists:sort(
+		fun({_K1, _V1, State1}, {_K2, _V2, State2}) ->
+				State1#agent.lastchange =< State2#agent.lastchange
+		end, AvailSkilledAgents),
+
+	% TODO - path cost sorting. We need to make sure that we prefer local
+	% delivery slightly over remote delivery so that we tie up less long
+	% distance network resources.
+
 	F = fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> 
 		case {lists:member('_all', State1#agent.skills), lists:member('_all', State2#agent.skills)} of
 			{true, false} -> 
@@ -526,14 +539,17 @@ single_node_test_() ->
 						Agent1 = #agent{login="Agent1"},
 						Agent2 = #agent{login="Agent2", skills=[english, '_agent', '_node', coolskill, otherskill]},
 						Agent3 = #agent{login="Agent3", skills=[english, '_agent', '_node', coolskill]},
+						Agent4 = #agent{login="Agent4", skills=[english, '_agent', '_node', coolskill, a, b, c, d, e, f]},
 						{ok, Agent1Pid} = gen_leader:call(?MODULE, {start_agent, Agent1}),
 						{ok, Agent2Pid} = gen_leader:call(?MODULE, {start_agent, Agent2}),
 						{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
+						{ok, Agent4Pid} = gen_leader:call(?MODULE, {start_agent, Agent4}),
 						agent:set_state(Agent1Pid, idle),
 						agent:set_state(Agent3Pid, idle),
-						?assertMatch([{"Agent3", Agent3Pid, _State}], find_avail_agents_by_skill([coolskill])),
+						?assertMatch([{"Agent3", Agent3Pid, _}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill]))),
 						agent:set_state(Agent2Pid, idle),
-						?assertMatch([{"Agent3", Agent3Pid, _State1}, {"Agent2", Agent2Pid, _State2}], find_avail_agents_by_skill([coolskill]))
+						agent:set_state(Agent4Pid, idle),
+						?assertMatch([{"Agent3", Agent3Pid, _}, {"Agent2", Agent2Pid, _}, {"Agent4", Agent4Pid, _}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
 					end
 				}
 			end,
@@ -547,11 +563,11 @@ single_node_test_() ->
 						{ok, Agent2Pid} = gen_leader:call(?MODULE, {start_agent, Agent2}),
 						{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
 						agent:set_state(Agent1Pid, idle),
-						agent:set_state(Agent3Pid, idle),
-						?assertMatch([{"Agent3", Agent3Pid, _State}], find_avail_agents_by_skill([coolskill])),
-						receive after 500 -> ok end,
 						agent:set_state(Agent2Pid, idle),
-						?assertMatch([{"Agent3", Agent3Pid, _State1}, {"Agent2", Agent2Pid, _State2}], find_avail_agents_by_skill([coolskill]))
+						?assertMatch([{"Agent2", Agent2Pid, _}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill]))),
+						receive after 1000 -> ok end,
+						agent:set_state(Agent3Pid, idle),
+						?assertMatch([{"Agent2", Agent2Pid, _}, {"Agent3", Agent3Pid, _}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
 					end
 				}
 			end

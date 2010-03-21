@@ -350,37 +350,41 @@ function ivrAlerts(alerts) {
 function update() {
 	dojo.xhrGet({
 		url:"all.json",
+		preventCache: true,
+		timeout: 5000,
 		handleAs:"json",
 		error:function(response, ioargs){
 			console.error(response);
 		},
 		load:function(response, ioargs){
-			var now = new Date();
-			updateStats(dojo.byId("histhour"), getStatsSince((new Date().getTime() / 1000) - 3600, response.rawData));
-			updateStats(dojo.byId("histday"), getStatsSince((new Date().getTime() / 1000) - 86400, response.rawData));
-			updateStats(dojo.byId("histmid"), getStatsSince(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000, response.rawData));
-			var config = tv_config();
-			updateAgents(dojo.byId("agroup1"), getAgentsInProfiles(response.agentProfiles, config.agroup1));
-			updateAgents(dojo.byId("agroup2"), getAgentsInProfiles(response.agentProfiles, config.agroup2));
-			updateAgents(dojo.byId("agroup3"), getAgentsInProfiles(response.agentProfiles, config.agroup3));
-			updateAgents(dojo.byId("agroup4"), getAgentsInProfiles(response.agentProfiles, config.agroup4));
+			if(response) {
+				var now = new Date();
+				updateStats(dojo.byId("histhour"), getStatsSince((new Date().getTime() / 1000) - 3600, response.rawData));
+				updateStats(dojo.byId("histday"), getStatsSince((new Date().getTime() / 1000) - 86400, response.rawData));
+				updateStats(dojo.byId("histmid"), getStatsSince(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000, response.rawData));
+				var config = tv_config();
+				updateAgents(dojo.byId("agroup1"), getAgentsInProfiles(response.agentProfiles, config.agroup1));
+				updateAgents(dojo.byId("agroup2"), getAgentsInProfiles(response.agentProfiles, config.agroup2));
+				updateAgents(dojo.byId("agroup3"), getAgentsInProfiles(response.agentProfiles, config.agroup3));
+				updateAgents(dojo.byId("agroup4"), getAgentsInProfiles(response.agentProfiles, config.agroup4));
 
-			updateQueue(dojo.byId("qgroup1"), getQueue(response.queues, config.qgroup1), response.rawData);
-			updateQueue(dojo.byId("qgroup2"), getQueue(response.queues, config.qgroup2), response.rawData);
-			updateQueue(dojo.byId("qgroup3"), getQueue(response.queues, config.qgroup3), response.rawData);
-			updateQueue(dojo.byId("qgroup4"), getQueue(response.queues, config.qgroup4), response.rawData);
-			updateQueue(dojo.byId("qgroup5"), getQueue(response.queues, config.qgroup5), response.rawData);
+				updateQueue(dojo.byId("qgroup1"), getQueue(response.queues, config.qgroup1), response.rawData);
+				updateQueue(dojo.byId("qgroup2"), getQueue(response.queues, config.qgroup2), response.rawData);
+				updateQueue(dojo.byId("qgroup3"), getQueue(response.queues, config.qgroup3), response.rawData);
+				updateQueue(dojo.byId("qgroup4"), getQueue(response.queues, config.qgroup4), response.rawData);
+				updateQueue(dojo.byId("qgroup5"), getQueue(response.queues, config.qgroup5), response.rawData);
 
-			if (dojo.byId("agenttext").src == "")
-				dojo.byId("agenttext").src = config.agenttext;
-			if (dojo.byId("globaltext").src == "")
-				dojo.byId("globaltext").src = config.globaltext;
+				if (dojo.byId("agenttext").src == "")
+					dojo.byId("agenttext").src = config.agenttext;
+				if (dojo.byId("globaltext").src == "")
+					dojo.byId("globaltext").src = config.globaltext;
 
-			agentAlerts(getAgentsInProfiles(response.agentProfiles, "*"));
-			ivrAlerts(response.ivrAlerts);
+				agentAlerts(getAgentsInProfiles(response.agentProfiles, "*"));
+				ivrAlerts(response.ivrAlerts);
 
-			if(window.spew){
-				console.log(response);
+				if(window.spew){
+					console.log(response);
+				}
 			}
 		}
 	});

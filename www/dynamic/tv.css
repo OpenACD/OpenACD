@@ -112,7 +112,8 @@ span#ruler {
 }
 
 #histhour {
-	background: #0c8c58;
+	/*background: #0c8c58;*/
+	background: #0c7767;
 }
 
 #histmid {

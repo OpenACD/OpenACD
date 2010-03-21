@@ -170,17 +170,22 @@ function drawAgents(response) {
 function update() {
 	dojo.xhrGet({
 		url:"all.json",
-		handleAs:"json",
+		preventCache: true,
+		handleAs: "json",
+		timeout: 5000,
 		error:function(response, ioargs){
 			console.error(response);
-			window.setTimeout(update, 5000);
 		},
 		load:function(response, ioargs){
-			drawCalls(response);
-			drawAgents(response);
-			if(window.spew){
-				console.log(response);
+			if(response) {
+				drawCalls(response);
+				drawAgents(response);
+				if(window.spew){
+					console.log(response);
+				}
 			}
+		},
+		handle: function(response, ioargs) {
 			window.setTimeout(update, 5000);
 		}
 	});

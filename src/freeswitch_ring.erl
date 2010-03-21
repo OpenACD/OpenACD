@@ -55,7 +55,7 @@
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3]).
+	 terminate/2, code_change/3, format_status/2]).
 
 -record(state, {
 	cnode :: atom(),
@@ -186,8 +186,19 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid
 						true ->
 							?INFO("Call with single leg answered", []),
 							Call = State#state.callrec,
-							gen_media:oncall(Call#call.source),
-							{noreply, State};
+							try gen_media:oncall(Call#call.source) of
+								invalid ->
+									freeswitch:api(State#state.cnode, uuid_park, Call#call.id),
+									{stop, normal, State};
+								ok ->
+									{noreply, State}
+							catch
+								exit:{noproc, _} ->
+									?WARNING("~p died before I could complete the bridge", [Call#call.source]),
+									% prolly get no such channel, but just in case it still lives.
+									freeswitch:api(State#state.cnode, uuid_park, Call#call.id),
+									{stop, normal, State}
+							end;
 						_ ->
 							{noreply, State}
 					end;
@@ -251,6 +262,12 @@ terminate(Reason, _State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+format_status(normal, [PDict, State]) ->
+	[{data, [{"State", format_status(terminate, [PDict, State])}]}];
+format_status(terminate, [_PDict, #state{callrec = Call} = State]) ->
+	Client = Call#call.client,
+	State#state{callrec = Call#call{client = Client#client{options = []}}}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions

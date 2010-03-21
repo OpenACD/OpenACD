@@ -36,22 +36,23 @@ function drawCalls(response) {
 	var c1;
 	dojo.forEach(response.clients,
 			function(client) {
-			var len = dojo.filter(client.medias, function(obj) { 
+			var len = dojo.filter(client.medias, function(obj) {
 				var fullm = response.rawData[obj];
-				return fullm.state == 'queue'; 
+				return fullm.state == 'queue';
 			}).length;
 			if (client.medias.length > 0 && len > 0/*&& client.totalInbound > 0*/) {
+			var queuedcalls = dojo.filter(client.medias, function(obj) {
+				var fullm = response.rawData[obj];
+				return fullm.state == 'queue';
+			});
 			row = table.insertRow(rownum);
 			c1 = row.insertCell(0);
 			c1.innerHTML = client.label;
-			if (response.rawData[client.medias[0]].type != 'voice') {
-				c1.innerHTML += "(" + response.rawData[client.medias[0]].type + ")";
+			if (response.rawData[queuedcalls[0]].type != 'voice') {
+				c1.innerHTML += "(" + response.rawData[queuedcalls[0]].type + ")";
 			}
 			c1 = row.insertCell(1);
-			c1.innerHTML = dojo.filter(client.medias, function(obj) { 
-				var fullm = response.rawData[obj];
-				return fullm.state == 'queue'; 
-			}).length;
+			c1.innerHTML = queuedcalls.length;
 			c1 = row.insertCell(2);
 			c1.innerHTML = ''; /*dojo.filter(client.medias, function(obj) { 
 				var fullm = response.rawData[obj];

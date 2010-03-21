@@ -34,6 +34,11 @@ Project Status
 
 The project is approaching a 1.0 release (which indicates that Fused Solutions
 will be able to use it internally). We expect to have the 1.0 milestone reached
-by late January 2010. After 1.0 we intend to add more features such as chat
+by late March 2010. After 1.0 we intend to add more features such as chat
 support and the ability for an agent to handle more than one email/chat
 simultaneously.
+
+More Info
+=========
+
+More information can be found on the [github wiki](http://wiki.github.com/Vagabond/OpenACD/).

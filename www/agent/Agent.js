@@ -78,7 +78,15 @@ function Agent(username, statetime, timestamp){
 		this._pollHandle = dojo.xhrGet({
 			url:"/poll",
 			handleAs:"json",
+			timeout: 30000,
+			/*failOK: true,*/
 			error:function(response, ioargs){
+				if (response.dojoType == "timeout") {
+					/*console.log("repolling");*/
+					agentref.poll();
+					return;
+				}
+
 				if(ioargs.xhr.status === 0){
 					warning(["status 0, prolly due to logout", response]);
 					dojo.publish("agent/logout", [response.responseText]);

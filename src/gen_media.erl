@@ -709,6 +709,7 @@ handle_call({'$gen_media_agent_transfer', {Agent, Apid}, Timeout}, _From, #state
 						{ok, Opts, Substate} ->
 							Opts
 					end,
+					% TODO - this is a little ambigious - the pattern match for stop_ring doesn't check for dummy or anything
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', dummy}),
 					cdr:agent_transfer(State#state.callrec, {OcAgent, Agent}),
 					cdr:ringing(State#state.callrec, Agent),

@@ -164,6 +164,10 @@ handle_ring(Apid, Callrec, State) ->
 			{invalid, State}
 	end.
 
+handle_ring_stop(Callrec, #state{xferchannel = RingChannel} = State) when is_pid(RingChannel) ->
+	?DEBUG("hanging up transfer channel for ~p", [Callrec#call.id]),
+	freeswitch_ring:hangup(RingChannel),
+	{ok, State#state{xferchannel = undefined, xferuuid = undefined}};
 handle_ring_stop(Callrec, State) ->
 	?DEBUG("hanging up ring channel for ~p", [Callrec#call.id]),
 	case State#state.ringchannel of

@@ -183,7 +183,7 @@ if(typeof(dashboard) == 'undefined'){
 	
 	dashboard.startProblemRecording = function(clientId){
 		dojo.xhrGet({
-			url: '/supervisor/start_problem_recording/' + agent.login + '/' + escape(clientid),
+			url: '/supervisor/start_problem_recording/' + agent.login + '/' + escape(clientId),
 			handleAs: 'json',
 			load: function(res){
 				if(res.success){

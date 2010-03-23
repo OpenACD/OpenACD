@@ -570,7 +570,8 @@ oncall({warmtransfer, Transferto}, _From, State) ->
 	set_cpx_monitor(Newstate, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, Newstate};
 oncall({agent_transfer, Agent}, _From, #agent{statedata = Call} = State) when is_pid(Agent) ->
-	Reply = gen_media:agent_transfer(Call#call.source, Agent, 10000),
+	% TODO - why is the timeout hardcoded, any why was it only 10 seconds
+	Reply = gen_media:agent_transfer(Call#call.source, Agent, 30000),
 	{reply, Reply, oncall, State};
 oncall({queue_transfer, Queue}, _From, #agent{statedata = Call} = State) ->
 	Reply = gen_media:queue(Call#call.source, Queue),

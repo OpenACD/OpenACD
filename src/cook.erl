@@ -475,33 +475,31 @@ do_recipe(Recipe, Ticked, Qpid, Call) when is_pid(Qpid), is_pid(Call) ->
 	do_recipe(Recipe, Ticked, Qpid, Call, []).
 
 do_recipe([], _Ticked, Qpid, Call, Acc) ->
-	lists:reverse(Acc);
-do_recipe([{Conditions, Op, Args, Runs} = OldAction | Recipe], Ticked, Qpid, Call, Acc) ->
+	Acc;
+do_recipe([{Conditions, Op, Runs} = OldAction | Recipe], Ticked, Qpid, Call, Acc) ->
 	case check_conditions(Conditions, Ticked, Qpid, Call) of
 		true ->
-			Doneop = do_operation({Conditions, Op, Args, Runs}, Qpid, Call),
-			case Doneop of
-				{Newconds, Newop, Newargs, Newruns} = NewAction when Runs =:= run_once ->
-					%add to the output recipe
-					do_recipe(Recipe, Ticked, Qpid, Call, [NewAction | Acc]);
-				{Newconds, Newop, Newargs, Newruns} = NewAction when Runs =:= run_many ->
-					NewAcc = [OldAction, NewAction | Acc], % the reverseal once done should make the new happen before old.
-					do_recipe(Recipe, Ticked, Qpid, Call, optimize_recipe(NewAcc));
-				ok when Runs =:= run_many ->
-					do_recipe(Recipe, Ticked, Qpid, Call, optimize_recipe([OldAction | Acc]));
-				ok when Runs =:= run_once ->
-					do_recipe(Recipe, Ticked, Qpid, Call, Acc)
-					% don't, just dance.
+			Doneop = do_operation(Op, Qpid, Call),
+			case Runs of
+				run_once ->
+					do_recipe(Recipe, Ticked, Qpid, Call, lists:append(Doneop, Acc));
+				run_many ->
+					do_recipe(Recipe, Ticked, Qpid, Call, lists:append([Doneop, [OldAction], Acc]))
 			end;
 		false ->
-			do_recipe(Recipe, Ticked, Qpid, Call, [OldAction | Acc])
+			do_recipe(Recipe, Ticked, Qpid, Call, lists:append([OldAction], Acc))
 	end.
 
 %% @private
--spec(do_operation/3 :: (Recipe :: recipe_step(), Qpid :: pid(), Callpid :: pid()) -> 'ok' | recipe_step()).
-do_operation({_Conditions, Op, Args, _Runs}, Qpid, Callpid) when is_pid(Qpid), is_pid(Callpid) ->
-	?INFO("do_operation ~p with args ~p", [Op, Args]),
-	case Op of
+-spec(do_operation/3 :: (Operations :: [recipe_operation()], Qpid :: pid(), Callpid :: pid()) -> [recipe_step()]).
+do_operation(Operations, Qpid, Callpid) when is_pid(Qpid), is_pid(Callpid) ->
+	do_operation(Operations, Qpid, Callpid, []).
+
+-spec(do_operation/4 :: (Operations :: [recipe_operation()], Qpid :: pid(), Callpid :: pid(), Acc :: [recipe_step()]) -> [recipe_step()]).
+do_operation([], _Qpid, _Callpid, Acc) ->
+	lists:reverse(Acc);
+do_operation([{Op, Args} | Tail], Qpid, Callpid, Acc) ->
+	Out = case Op of
 		add_skills ->
 			call_queue:add_skills(Qpid, Callpid, Args),
 			ok;
@@ -533,15 +531,72 @@ do_operation({_Conditions, Op, Args, _Runs}, Qpid, Callpid) when is_pid(Qpid), i
 		announce ->
 			gen_media:announce(Callpid, Args),
 			ok
-	end.
+	end,
+	Newacc = case Out of
+		ok ->
+			Acc;
+		_ ->
+			[Out | Acc]
+	end,
+	do_operation(Tail, Qpid, Callpid, Newacc).
+
+%
+%
+%
+%-spec(do_operation/3 :: (Recipe :: recipe_step(), Qpid :: pid(), Callpid :: pid()) -> [recipe_step()]).
+%do_operation({_Conditions, Ops, _Args, _Runs} = Doops, Qpid, Callpid) when is_pid(Qpid), is_pid(Callpid), is_list(Ops) ->
+%	do_operation(Doops, Qpid, Callpid, []);
+%do_operation({Conditions, Op, Args, Runs}, Qpid, Callpid) ->
+%	do_operation({Conditions, [Op], Args, Runs}, Qpid, Callpid).
+%
+%-spec(do_operation/4 :: (Recipe :: recipe_step(), Qpid :: pid(), Callpid :: pid(), Acc :: [recipe_step()])).
+%do_operation({_Conditions, [], _Args, _Runs}, _Qpid, _Callpid, Acc) ->
+%	lists:reverse(Acc);
+%do_operation({_Conditions, [Op | Tail], Args, 
+%
+%-spec(do_operation/4 :: (Recipe :: recipe_stop(), Qpid :: pid(), Callpid :: pid()) -> [recipe_step()]).
+%	?INFO("do_operation ~p with args ~p", [Op, Args]),
+%	case Op of
+%		add_skills ->
+%			call_queue:add_skills(Qpid, Callpid, Args),
+%			ok;
+%		remove_skills ->
+%			call_queue:remove_skills(Qpid, Callpid, Args),
+%			ok;
+%		set_priority ->
+%			call_queue:set_priority(Qpid, Callpid, Args),
+%			ok;
+%		prioritize ->
+%			{{Prior, _Time}, _Call} = call_queue:get_call(Qpid, Callpid),
+%			call_queue:set_priority(Qpid, Callpid, Prior + 1),
+%			ok;
+%		deprioritize ->
+%			{{Prior, _Time}, _Call} = call_queue:get_call(Qpid, Callpid),
+%			call_queue:set_priority(Qpid, Callpid, Prior - 1),
+%			ok;
+%		voicemail ->
+%			case gen_media:voicemail(Callpid) of
+%				ok ->
+%					?DEBUG("voicemail successfully, removing from queue", []),
+%					call_queue:bgremove(Qpid, Callpid);
+%				invalid ->
+%					?WARNING("voicemail failed.", []),
+%					ok
+%			end;
+%		add_recipe ->
+%			list_to_tuple(Args);
+%		announce ->
+%			gen_media:announce(Callpid, Args),
+%			ok
+%	end.
 
 optimize_recipe(Recipe) ->
 	optimize_recipe(Recipe, []).
 
 optimize_recipe([], Acc) ->
 	lists:reverse(Acc);
-optimize_recipe([{Conds, Op, Args, Runs} | Tail], Acc) ->
-	Newacc = [{sort_conditions(Conds), Op, Args, Runs} | Acc],
+optimize_recipe([{Conds, Op, Runs} | Tail], Acc) ->
+	Newacc = [{sort_conditions(Conds), Op, Runs} | Acc],
 	optimize_recipe(Tail, Newacc).
 
 sort_conditions(Conditions) ->
@@ -614,7 +669,7 @@ do_operation_test_() ->
 				{ok, #call{id = "testcall", source = Mpid}, State}
 			end),
 			gen_server_mock:expect_call(QPid, fun({add_skills, "testcall", [skill1, skill2]}, _From, _State) -> ok end),
-			ok = do_operation({"conditions", add_skills, [skill1, skill2], "runs"}, QPid, Mpid),
+			?assertEqual([], do_operation([{add_skills, [skill1, skill2]}], QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
@@ -625,7 +680,7 @@ do_operation_test_() ->
 				{ok, #call{id = "testcall", source = Mpid}, State}
 			end),
 			gen_server_mock:expect_call(QPid, fun({remove_skills, "testcall", [english]}, _From, _State) -> ok end),
-			ok = do_operation({"conditions", remove_skills, [english], "runs"}, QPid, Mpid),
+			?assertEqual([], do_operation([{remove_skills, [english]}], QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
@@ -636,7 +691,7 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				ok
 			end),
-			ok = do_operation({"conditions", set_priority, 5, "runs"}, QPid, Mpid),
+			?assertEqual([], do_operation([{set_priority, 5}], QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
@@ -651,8 +706,7 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				ok
 			end),
-
-			ok = do_operation({"conditions", prioritize, "doesn't matter", "runs"}, QPid, Mpid),
+			?assertEqual([], do_operation([{prioritize, "doesn't matter"}], QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
@@ -667,7 +721,7 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				ok
 			end),
-			ok = do_operation({"conditions", deprioritize, "doesn't matter", "runs"}, QPid, Mpid),
+			?assertEqual([], do_operation([{deprioritize, "doesn't matter"}], QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
@@ -681,7 +735,7 @@ do_operation_test_() ->
 				Incpid = Mpid,
 				ok
 			end),
-			ok = do_operation({"conditions", voicemail, "doesn't matter", "runs"}, QPid, Mpid),
+			?assertEqual([], do_operation([{voicemail, "doesn't matter"}], QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
@@ -691,14 +745,14 @@ do_operation_test_() ->
 			gen_server_mock:expect_call(Mpid, fun('$gen_media_voicemail', _From, State) ->
 				{ok, invalid, State}
 			end),
-			ok = do_operation({"conditions", voicemail, "doesn't matter", "runs"}, QPid, Mpid),
+			?assertEqual([], do_operation([{voicemail, "doesn't matter"}], QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
 	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
 		{"add recipe",
 		fun() ->
-			?assertEqual({1, 2, 3}, do_operation({"conditions", add_recipe, [1, 2, 3], "runs"}, QPid, Mpid)),
+			?assertEqual([{1, 2, 3}], do_operation([{add_recipe, [1, 2, 3]}], QPid, Mpid)),
 			Assertmocks()
 		end}
 	end,
@@ -706,7 +760,7 @@ do_operation_test_() ->
 		{"announce",
 		fun() ->
 			gen_server_mock:expect_call(Mpid, fun({'$gen_media_announce', "do the robot"}, _From, _State) -> ok end),
-			ok = do_operation({"conditions", announce, "do the robot", "runs"}, QPid, Mpid),
+			?assertEqual([], do_operation([{announce, "do the robot"}], QPid, Mpid)),
 			Assertmocks()
 		end}
 	end]}.
@@ -1264,7 +1318,7 @@ tick_manipulation_test_() ->
 		fun({Pid, Dummy}) ->
 			{"Stop Tick Test",
 			fun() ->
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], prioritize, [], run_many}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many}]),
 				call_queue:add(Pid, Dummy),
 				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
 				stop_tick(Cookpid),
@@ -1279,7 +1333,7 @@ tick_manipulation_test_() ->
 		fun({Pid, Dummy}) ->
 			{"Restart Tick Test",
 			fun() ->
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], prioritize, [], run_many}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many}]),
 				call_queue:add(Pid, Dummy),
 				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
 				stop_tick(Cookpid),
@@ -1490,7 +1544,7 @@ multinode_test_() ->
 					?CONSOLE("das pid:  ~p", [QPid]),
 					?assert(is_pid(QPid)),
 					%QPid = queue_manager:get_queue("default_queue"),
-					call_queue:set_recipe(QPid, [{[{ticks, 1}], prioritize, [], run_many}]),
+					call_queue:set_recipe(QPid, [{[{ticks, 1}], [{prioritize, []}], run_many}]),
 					call_queue:add(QPid, Media),
 					receive
 					after ?TICK_LENGTH * 2 + 100 ->
@@ -1518,7 +1572,7 @@ multinode_test_() ->
 		]
 	}.
 
--define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start([{id, "testcall"}, {queues, none}]), {ok, Pid} = start(Dummy,[{[{ticks, 1}], set_priority, 5, run_once}], "testqueue", self(), {1, now()}), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start([{id, "testcall"}, {queues, none}]), {ok, Pid} = start(Dummy,[{[{ticks, 1}], [{set_priority, 5}], run_once}], "testqueue", self(), {1, now()}), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

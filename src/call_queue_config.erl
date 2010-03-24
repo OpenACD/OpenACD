@@ -214,8 +214,16 @@ get_queue(Queue) ->
 	case mnesia:transaction(F) of
 		{atomic, []} -> 
 			noexists;
-		{atomic, [Rec]} when is_record(Rec, call_queue) -> 
-			Rec;
+		{atomic, [Rec]} when is_record(Rec, call_queue) ->
+			Oldrecipe = Rec#call_queue.recipe,
+			case correct_recipe(Rec#call_queue.recipe) of
+				Oldrecipe ->
+					Rec;
+				NewRecipe ->
+					Outrec = Rec#call_queue{recipe = NewRecipe},
+					set_queue(Queue, Outrec),
+					Outrec
+			end;
 		Else -> 
 			{noexists, Else}
 	end.
@@ -227,7 +235,18 @@ get_queues(Group) ->
 	F = fun() ->
 		qlc:e(QH)
 	end,
-	{atomic, Queues} = mnesia:transaction(F),
+	{atomic, MidQueues} = mnesia:transaction(F),
+	Queues = [begin 
+		Oldrecipe = Rec#call_queue.recipe,
+		case correct_recipe(Rec#call_queue.recipe) of
+		Oldrecipe ->
+			Rec;
+		NewRecipe ->
+			Outrec = Rec#call_queue{recipe = NewRecipe},
+			set_queue(Rec#call_queue.name, Outrec),
+			Outrec
+		end
+	end || Rec <- MidQueues ],
 	lists:sort(fun(Qreca, Qrecb) -> Qreca#call_queue.name =< Qrecb#call_queue.name end, Queues).
 	
 %% @doc Get all the queue configurations (`[#call_queue{}]').
@@ -244,7 +263,7 @@ get_queues() ->
 	{atomic, Reply} = mnesia:transaction(F),
 	Mergereci = fun({#call_queue{recipe = Qreci} = Queue, Groupreci}) ->
 		Newreci = lists:append([Qreci, Groupreci]),
-		Queue#call_queue{recipe = Newreci}
+		Queue#call_queue{recipe = correct_recipe(Newreci)}
 	end,
 	lists:map(Mergereci, Reply).
 
@@ -322,7 +341,17 @@ new_queue_group(Name, Sort, Recipe) when is_integer(Sort) ->
 -spec(get_queue_group/1 :: (Name :: string()) -> {'atomic', [#queue_group{}]}).
 get_queue_group(Name) ->
 	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(queue_group), X#queue_group.name =:= Name]),
+		QH = qlc:q([begin
+			Oldrecipe =X#queue_group.recipe,
+			case correct_recipe(X#queue_group.recipe) of
+				Oldrecipe ->
+					X;
+				NewRecipe ->
+					Outrec = X#queue_group{recipe = NewRecipe},
+					mnesia:write(Outrec#queue_group{timestamp = util:now()}),
+					Outrec
+			end
+		end || X <- mnesia:table(queue_group), X#queue_group.name =:= Name]),
 		qlc:e(QH)
 	end,
 	mnesia:transaction(F).
@@ -331,7 +360,17 @@ get_queue_group(Name) ->
 -spec(get_queue_groups/0 :: () -> [#queue_group{}]).
 get_queue_groups() ->
 	F = fun() ->
-		QH = qlc:q([X || X <- mnesia:table(queue_group)]),
+		QH = qlc:q([begin
+			Oldrecipe =X#queue_group.recipe,
+			case correct_recipe(X#queue_group.recipe) of
+				Oldrecipe ->
+					X;
+				NewRecipe ->
+					Outrec = X#queue_group{timestamp = util:now(), recipe = NewRecipe},
+					mnesia:write(Outrec),
+					Outrec
+			end
+		end || X <- mnesia:table(queue_group)]),
 		qlc:e(QH)
 	end,
 	{atomic, Groups} = mnesia:transaction(F),
@@ -799,7 +838,16 @@ timestamp_comp(A, B) when is_record(A, skill_rec) ->
 	A#skill_rec.timestamp < B#skill_rec.timestamp;
 timestamp_comp(A, B) when is_record(A, client) ->
 	A#client.timestamp < B#client.timestamp.
-	
+
+correct_recipe(Recipe) ->
+	correct_recipe(Recipe, []).
+
+correct_recipe([], Acc) ->
+	lists:reverse(Acc);
+correct_recipe([{Cond, Op, Args, Runs} | Tail], Acc) ->
+	correct_recipe(Tail, [{Cond, [{Op, Args}], Runs} | Acc]);
+correct_recipe([H | T], Acc) ->
+	correct_recipe(T, [H | Acc]).
 %% =====
 %% Tests
 %% =====
@@ -807,7 +855,7 @@ timestamp_comp(A, B) when is_record(A, client) ->
 -ifdef(TEST).
 
 test_queue() -> 
-	Recipe = [{2, add_skills, [true], run_once}],
+	Recipe = [{[{ticks, 2}], [{add_skills, [true]}], run_once}],
 	new_queue("test queue", 3, [testskill], Recipe, "Default"),
 	%Default = #call_queue{name = "goober"},
 	#call_queue{name = "test queue", weight = 3, skills = [testskill], recipe = Recipe, group = "Default"}.
@@ -878,7 +926,7 @@ call_queue_test_() ->
 			{
 				"New Queue with Recipe",
 				fun() -> 
-					Recipe = [{[{ticks, 2}], add_skills, [true], run_once}],
+					Recipe = [{[{ticks, 2}], [{add_skills, [true]}], run_once}],
 					Queue = #call_queue{name="test queue", recipe=Recipe, skills = []},
 					?assertEqual({atomic, ok}, new_queue("test queue", 1, [], Recipe, "Default")),
 					F = fun() ->
@@ -960,6 +1008,21 @@ call_queue_test_() ->
 					destroy_queue(Queue),
 					?assertMatch(noexists, get_queue(Queue#call_queue.name))
 				end
+			},
+			{
+				"Get queue with old style recipe",
+				fun() ->
+					BaseQueue = test_queue(),
+					Queue = BaseQueue#call_queue{recipe = [{[{ticks, 3}], add_skills, [true], run_once}]},
+					new_queue(Queue),
+					?assertMatch(#call_queue{recipe = [{[{ticks, 3}], [{add_skills, [true]}], run_once}]}, get_queue("test queue")),
+					F = fun() ->
+						QH = qlc:q([ X#call_queue.recipe || X <- mnesia:table(call_queue), X#call_queue.name == "test queue"]),
+						qlc:e(QH)
+					end,
+					{atomic, [Out | _]} = mnesia:transaction(F),
+					?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once}], Out)
+				end
 			}
 		]
 	}.
@@ -995,7 +1058,7 @@ queue_group_test_() ->
 			{
 				"New call group explicit",
 				fun() ->
-					Recipe = [{[{ticks, 3}], prioritize, [], run_once}],
+					Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once}],
 					Qgroup = #queue_group{name = "test group", sort = 15, recipe = Recipe},
 					new_queue_group("test group", 15, Recipe),
 					F = fun() ->
@@ -1060,7 +1123,7 @@ queue_group_test_() ->
 			{
 				"update a protected call group by record",
 				fun() ->
-					Recipe = [{[{ticks, 3}], prioritize, [], run_once}],
+					Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once}],
 					Updateto = #queue_group{name = "newname", sort = 5, protected = false, recipe = Recipe},
 					Default = ?DEFAULT_QUEUE_GROUP,
 					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
@@ -1073,7 +1136,7 @@ queue_group_test_() ->
 			{
 				"update a protected call group explicitly",
 				fun() ->
-					Recipe = [{[{ticks, 3}], prioritize, [], run_once}],
+					Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once}],
 					Default = ?DEFAULT_QUEUE_GROUP,
 					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
 					set_queue_group(Default#queue_group.name, "newname", 5, Recipe),
@@ -1084,6 +1147,18 @@ queue_group_test_() ->
 				"update a group that doesn't exist",
 				fun() ->
 					?assertEqual({atomic, {error, {noexists, "testname"}}}, set_queue_group("testname", ?DEFAULT_QUEUE_GROUP))
+				end
+			},
+			{
+				"Get a queue group with old style recipe",
+				fun() ->
+					new_queue_group("name", 5, [{[{ticks, 3}], add_skills, [true], run_once}]),
+					?assertMatch({atomic, [#queue_group{recipe = [{[{ticks, 3}], [{add_skills, [true]}], run_once}]}]}, get_queue_group("name")),
+					F = fun() ->
+						qlc:e(qlc:q([ X#queue_group.recipe || X <- mnesia:table(queue_group), X#queue_group.name == "name"]))
+					end,
+					{atomic, [R | _]} = mnesia:transaction(F),
+					?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once}], R)
 				end
 			}
 		]

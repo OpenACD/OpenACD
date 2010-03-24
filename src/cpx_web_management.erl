@@ -1687,35 +1687,43 @@ decode_recipe(Json) ->
 decode_recipe([], Acc) ->
 	lists:reverse(Acc);
 decode_recipe([{struct, Proplist} | Tail], Acc) ->
-	Action = case proplists:get_value(<<"action">>, Proplist) of
-		<<"add_skills">> ->
-			add_skills;
-		<<"remove_skills">> ->
-			remove_skills;
-		<<"set_priority">> ->
-			set_priority;
-		<<"prioritize">> ->
-			prioritize;
-		<<"deprioritize">> ->
-			deprioritize;
-		<<"voicemail">> ->
-			voicemail;
-		<<"announce">> ->
-			announce;
-		<<"add_recipe">> ->
-			add_recipe;
-		<<"eligible_agents">> ->
-			eligible_agents
-	end,
-	Args = decode_recipe_args(Action, proplists:get_value(<<"arguments">>, Proplist)),
+	Conditions = decode_recipe_conditions(proplists:get_value(<<"conditions">>, Proplist)),
+	Actions = decode_recipe_actions(proplists:get_value(<<"actions">>, Proplist)),
 	Runs = case proplists:get_value(<<"runs">>, Proplist) of
 		<<"run_once">> ->
 			run_once;
 		<<"run_many">> ->
 			run_many
 	end,
-	Conditions = decode_recipe_conditions(proplists:get_value(<<"conditions">>, Proplist)),
-	decode_recipe(Tail, [{Conditions, Action, Args, Runs} | Acc]).
+	decode_recipe(Tail, [{Conditions, Actions, Runs} | Acc]).
+
+decode_recipe_actions(Actions) ->
+	decode_recipe_actions(Actions, []).
+
+decode_recipe_actions([], Acc) ->
+	lists:reverse(Acc);
+decode_recipe_actions([{struct, Proplist} | Tail], Acc) ->
+	Actbin = proplists:get_value(<<"action">>, Proplist),
+	Argbin = proplists:get_value(<<"arguments">>, Proplist),
+	Head = case Actbin of
+		<<"add_skills">> ->
+			{add_skills, decode_recipe_args(add_skills, Argbin)};
+		<<"remove_skills">> ->
+			{remove_skills, decode_recipe_args(remove_skills, Argbin)};
+		<<"set_priority">> ->
+			{set_priority, decode_recipe_args(set_priority, Argbin)};
+		<<"prioritize">> ->
+			{prioritize, []};
+		<<"deprioritize">> ->
+			{deprioritize, []};
+		<<"voicemail">> ->
+			{voicemail, decode_recipe_args(voicemail, Argbin)};
+		<<"announce">> ->
+			{announce, decode_recipe_args(announce, Argbin)};
+		<<"add_recipe">> ->
+			{add_recipe, decode_recipe_args(add_recipe, Argbin)}
+	end,
+	decode_recipe_actions(Tail, [Head | Acc]).
 
 decode_recipe_args(add_skills, Args) ->
 	decode_recipe_args(remove_skills, Args);
@@ -1799,10 +1807,7 @@ decode_recipe_conditions([{struct, Props} | Tail], Acc) ->
 	decode_recipe_conditions(Tail, [Tuple | Acc]).	
 	
 encode_recipe(Recipe) ->
-	encode_recipe_steps(Recipe).
-
-encode_recipe_steps(Steps) ->
-	encode_recipe_steps(Steps, []).
+	encode_recipe_steps(Recipe, []).
 
 encode_recipe_steps([], Acc) ->
 	lists:reverse(Acc);
@@ -1810,35 +1815,12 @@ encode_recipe_steps([Step | Tail], Acc) ->
 	Jstep = encode_recipe_step(Step),
 	encode_recipe_steps(Tail, [Jstep | Acc]).
 
-encode_recipe_step({Conditions, Action, Args, Runs}) ->
+encode_recipe_step({Conditions, Actions, Runs}) ->
 	Jcond = encode_recipe_conditions(Conditions),
-	Jargs = case Action of
-		add_skills ->
-			encode_skills_simple(Args);
-		remove_skills ->
-			encode_skills_simple(Args);
-		set_priority ->
-			Args;
-		prioritize ->
-			<<"">>;
-		deprioritize ->
-			<<"">>;
-		voicemail ->
-			<<"">>;
-		announce ->
-			list_to_binary(Args);
-		eligible_agents ->
-			Args;
-		client ->
-			list_to_binary(Args);
-		add_recipe ->
-			% TODO:  more encoding
-			<<"">>
-	end,
+	Jactions = encode_recipe_actions(Actions),
 	{struct, [
 		{<<"conditions">>, Jcond},
-		{<<"action">>, Action},
-		{<<"arguments">>, Jargs},
+		{<<"actions">>, Jactions},
 		{<<"runs">>, Runs}
 	]}.
 
@@ -1864,6 +1846,41 @@ encode_recipe_conditions([{Prop, Comp, Val} | Tail], Acc) ->
 		{<<"value">>, Fixedval}
 	]},
 	encode_recipe_conditions(Tail, [Jcond | Acc]).
+
+encode_recipe_actions(Actions) ->
+	encode_recipe_actions(Actions, []).
+
+encode_recipe_actions([], Acc) ->
+	lists:reverse(Acc);
+encode_recipe_actions([{Operation, Args} | Tail], Acc) ->
+	Jargs = case Operation of
+		add_skills ->
+			encode_skills_simple(Args);
+		remove_skills ->
+			encode_skills_simple(Args);
+		set_priority ->
+			Args;
+		prioritize ->
+			<<"">>;
+		deprioritize ->
+			<<"">>;
+		voicemail ->
+			<<"">>;
+		announce ->
+			list_to_binary(Args);
+		eligible_agents ->
+			Args;
+		client ->
+			list_to_binary(Args);
+		add_recipe ->
+			% TODO:  more encoding
+			<<"">>
+	end,
+	Head = {struct, [
+		{<<"action">>, Operation},
+		{<<"arguments">>, Jargs}
+	]},
+	encode_recipe_actions(Tail, [Head | Acc]).
 
 encode_medias([], Acc) ->
 	lists:reverse(Acc);
@@ -1977,6 +1994,23 @@ cookie_test_() ->
 			?assertEqual({"ref", "salt", "login"}, check_cookie([{"cpx_management", "ref"}]))
 		end}
 	]}.
+
+recipe_encode_decode_test_() ->
+	[{"Simple encode",
+	?_assertEqual([{struct, [
+		{<<"conditions">>, [{struct, [
+			{<<"property">>, ticks},
+			{<<"comparison">>, '='},
+			{<<"value">>, 3}
+		]}]},
+		{<<"actions">>, [{struct, [
+			{<<"action">>, set_priority},
+			{<<"arguments">>, 5}
+		]}]},
+		{<<"runs">>, run_once}
+	]}], encode_recipe([{[{ticks, 3}], [{set_priority, 5}], run_once}]))},
+	{"Simple decode",
+	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once}], decode_recipe("[{\"conditions\":[{\"property\":\"ticks\",\"comparison\":\"=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\"}]"))}].
 
 api_test_() ->
 	{foreach,
@@ -2299,7 +2333,7 @@ api_test_() ->
 		fun(Cookie) ->
 			{"/queues/groups/new Creating queue group",
 			fun() ->
-				Recipe = [{[{ticks, 5}], prioritize, [], run_many}],
+				Recipe = [{[{ticks, 5}], [{prioritize, []}], run_many}],
 				Jrecipe = mochijson2:encode(encode_recipe(Recipe)),
 				Post = [
 					{"name", "Test Q Group"},
@@ -2322,14 +2356,14 @@ api_test_() ->
 		fun(Cookie) ->
 			{"/queus/groups/Test Q Group/update Updating a queue group",
 			fun() ->
-				Recipe = [{[{ticks, 5}], prioritize, [], run_many}],
+				Recipe = [{[{ticks, 5}], [{prioritize, []}], run_many}],
 				Qgrouprec = #queue_group{
 					name = "Test Q Group",
 					recipe = Recipe,
 					sort = 35
 				},
 				call_queue_config:new_queue_group(Qgrouprec),
-				Newrecipe = [{[{calls_queued, '<', 200}], deprioritize, [], run_once}],
+				Newrecipe = [{[{calls_queued, '<', 200}], [{deprioritize, []}], run_once}],
 				Newjrecipe = mochijson2:encode(encode_recipe(Newrecipe)),
 				Post = [
 					{"name", "Renamed Q Group"},

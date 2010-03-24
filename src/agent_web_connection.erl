@@ -378,9 +378,8 @@ handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = Sta
 									Call = gen_media:get_call(Pid),
 									agent:set_state(Apid, precall, Call),
 									{200, [], mochijson2:encode({struct, [{success, true}]})};
-								{error, _Reason} ->
-									% TODO don't throw the reason away.
-									{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Initializing outbound call failed">>}]})}
+								{error, Reason} ->
+									{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("Initializing outbound call failed (~p)", [Reason]))}]})}
 							end;
 						_ ->
 							{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"freeswitch is not available">>}]})}

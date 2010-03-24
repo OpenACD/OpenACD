@@ -323,7 +323,7 @@ api(checkcookie, Cookie, _Post) ->
 			Reflist = erlang:ref_to_list(make_ref()),
 			NewCookie = make_cookie(Reflist),
 			ets:insert(web_connections, {Reflist, undefined, undefined}),
-			Json = {struct, [{<<"success">>, false}, {<<"message">>, <<"cookie reset">>}]},
+			Json = {struct, [{<<"success">>, false}, {<<"message">>, <<"Your cookie was expired, issueing you a new one">>}]},
 			{200, [{"Set-Cookie", NewCookie}], mochijson2:encode(Json)};
 		{_Reflist, _Salt, undefined} ->
 			?INFO("cookie found, no agent", []),
@@ -345,14 +345,14 @@ api(Apirequest, badcookie, _Post) ->
 	Reflist = erlang:ref_to_list(make_ref()),
 	Cookie = make_cookie(Reflist),
 	ets:insert(web_connections, {Reflist, undefined, undefined}),
-	{403, [{"Set-Cookie", Cookie}], <<"Cookie reset, retry.">>};
+	{403, [{"Set-Cookie", Cookie}], <<"Your session was reset due to a lack of keepalive requests, please log back in.">>};
 api(logout, {Reflist, _Salt, Conn}, _Post) ->
 	ets:insert(web_connections, {Reflist, undefined, undefined}),
 	Cookie = io_lib:format("cpx_id=~p; path=/; Expires=Tue, 29-Mar-2005 19:30: 42 GMT; Max-Age=86400", [Reflist]),
 	catch agent_web_connection:api(Conn, logout),
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
 api(login, {_Reflist, undefined, _Conn}, _Post) ->
-	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"No salt set">>}]})};
+	{200, [], mochijson2:encode({struct, [{success, false}, {message, <<"Your client is requesting a login without first requesting a salt.">>}]})};
 api(login, {Reflist, Salt, _Conn}, Post) ->
 	Username = proplists:get_value("username", Post, ""),
 	Password = proplists:get_value("password", Post, ""),

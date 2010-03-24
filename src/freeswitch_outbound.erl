@@ -557,7 +557,18 @@ handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 	end;
 handle_info(call_hangup, Call, State) ->
 	?DEBUG("Call hangup info for ~p", [Call#call.id]),
-	catch freeswitch_ring:hangup(State#state.ringchannel),
+	case State#state.warm_transfer_uuid of
+		undefined ->
+			catch freeswitch_ring:hangup(State#state.ringchannel);
+		Else ->
+			% TODO - check if the call is still ringing or if its bridged so we can hang up if we're only ringing
+			RUUID = freeswitch_ring:get_uuid(State#state.ringchannel),
+			?INFO("original call hung up, but agent is still oncall with a warm transfer call", []),
+			freeswitch:bgapi(State#state.cnode, uuid_displace,
+				RUUID ++ " start tone_stream://v=-7;%(100,0,941.0,1477.0);v=-7;>=2;+=.1;%(1400,0,350,440) mux"),
+			agent:blab(State#state.agent_pid, "Caller hung up, sorry."),
+			cdr:warmxfer_fail(Call, State#state.agent_pid)
+	end,
 	{stop, normal, State};
 handle_info({connect_uuid, Number}, #call{id = UUID} = Call, #state{cnode = Fnode, agent = Agent} = State) ->
 	Gethandle = fun(Recusef, Count) ->

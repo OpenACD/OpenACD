@@ -1103,7 +1103,7 @@ handle_cast(Msg, State) ->
 handle_info(check_live_poll, #state{poll_pid_established = Last, poll_pid = undefined} = State) ->
 	Now = util:now(),
 	case Now - Last of
-		N when N > 10 ->
+		N when N > 20 ->
 			?NOTICE("Stopping due to missed_polls; last:  ~w now: ~w difference: ~w", [Last, Now, Now - Last]),
 			{stop, normal, State};
 		_N ->

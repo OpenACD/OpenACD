@@ -264,8 +264,37 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 			propwidth: this.propwidth,
 			compwidth: this.compwidth,
 			valwidth: this.valwidth,
-			style:"padding-left:2em;background-color:#ffffff"
+			style:"padding-left:2em;background-color:#ffffff",
+			onClose:function(){
+				console.log('hi!');
+			}
 		});
+		this.rows.push(row.id);
+		this.stepsContainer.addChild(row);
+		var editCommentButton = new dijit.form.Button({
+			label:dojo.i18n.getLocalization("admin", "recipeEditor").EDIT,
+			style:'font-size:xx-small;'
+		});
+		var rowTitleButton = dijit.byId(row.id + '_button');
+		console.log(['the row title thang', rowTitleButton]);
+		rowTitleButton.attr('label', 'New Step');
+		dojo.place(editCommentButton.domNode, rowTitleButton.domNode, 'first');
+		var addRowButton = new dijit.form.Button({
+			label:dojo.i18n.getLocalization("admin", "recipeEditor").ADDSTEP,
+			style:'float:right;font-size:xx-small'
+		});
+		var dropRowButton = new dijit.form.Button({
+			label:dojo.i18n.getLocalization("admin", "recipeEditor").DROPSTEP,
+			style:'float:right;font-size:xx-small'
+		});
+		dojo.connect(addRowButton, 'onClick', this, function(){
+			this.addRow();
+		});
+		dojo.connect(dropRowButton, 'onClick', this, function(){
+			this.dropRow(row.id);
+		});
+		dojo.place(dropRowButton.domNode, rowTitleButton.domNode, 'last');
+		dojo.place(addRowButton.domNode, rowTitleButton.domNode, 'last');
 		/*row.addButton.onClick = function(){
 			ithis.addRow();
 		};
@@ -282,8 +311,6 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 			ithis._focusedOn = row.id;
 			row.domNode.style.backgroundColor = "#ccffff";
 		};*/
-		this.rows.push(row.id);
-		this.stepsContainer.addChild(row);
 		this.nullButton.domNode.style.display = "none";
 	},
 	dropRow: function(rowid){
@@ -308,6 +335,11 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		this.rows = [];
 	},
 	postCreate: function(){
+		//this.addRow();
+	},
+	startup: function(){
+		this.inherited(arguments);
+		console.log(['ooo, startup']);
 		this.addRow();
 	},
 	getValue:function(){

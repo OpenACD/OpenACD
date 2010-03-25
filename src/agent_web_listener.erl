@@ -801,7 +801,7 @@ web_connection_login_test_() ->
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
 					?assertEqual(false, proplists:get_value(<<"success">>, Json)),
-					?assertEqual(<<"No salt set">>, proplists:get_value(<<"message">>, Json))
+					?assertEqual(<<"Your client is requesting a login without first requesting a salt.">>, proplists:get_value(<<"message">>, Json))
 				end}
 			end,
 			fun({_Httpc, Cookie, Salt}) ->

@@ -91,7 +91,8 @@
 	'isolated' |
 	{'queues', [string()]} |
 	{'profiles', [string()]} |
-	{'clients', [string()]}).
+	{'clients', [string()]} |
+	{'graphed', bool()}).
 
 -record(agent_profile, {
 	name = erlang:error({undefined, name}) :: string(),

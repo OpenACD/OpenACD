@@ -1695,7 +1695,8 @@ decode_recipe([{struct, Proplist} | Tail], Acc) ->
 		<<"run_many">> ->
 			run_many
 	end,
-	decode_recipe(Tail, [{Conditions, Actions, Runs} | Acc]).
+	Comment = proplists:get_value(<<"comment">>, Proplist, <<"">>),
+	decode_recipe(Tail, [{Conditions, Actions, Runs, Comment} | Acc]).
 
 decode_recipe_actions(Actions) ->
 	decode_recipe_actions(Actions, []).
@@ -1815,13 +1816,14 @@ encode_recipe_steps([Step | Tail], Acc) ->
 	Jstep = encode_recipe_step(Step),
 	encode_recipe_steps(Tail, [Jstep | Acc]).
 
-encode_recipe_step({Conditions, Actions, Runs}) ->
+encode_recipe_step({Conditions, Actions, Runs, Comment}) ->
 	Jcond = encode_recipe_conditions(Conditions),
 	Jactions = encode_recipe_actions(Actions),
 	{struct, [
 		{<<"conditions">>, Jcond},
 		{<<"actions">>, Jactions},
-		{<<"runs">>, Runs}
+		{<<"runs">>, Runs},
+		{<<"comment">>, Comment}
 	]}.
 
 encode_recipe_conditions(Conditions) ->
@@ -2007,10 +2009,11 @@ recipe_encode_decode_test_() ->
 			{<<"action">>, set_priority},
 			{<<"arguments">>, 5}
 		]}]},
-		{<<"runs">>, run_once}
-	]}], encode_recipe([{[{ticks, 3}], [{set_priority, 5}], run_once}]))},
+		{<<"runs">>, run_once},
+		{<<"comment">>, <<"commented">>}
+	]}], encode_recipe([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}]))},
 	{"Simple decode",
-	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once}], decode_recipe("[{\"conditions\":[{\"property\":\"ticks\",\"comparison\":\"=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\"}]"))}].
+	?_assertEqual([{[{ticks, 3}], [{set_priority, 5}], run_once, <<"commented">>}], decode_recipe("[{\"conditions\":[{\"property\":\"ticks\",\"comparison\":\"=\",\"value\":3}],\"actions\":[{\"action\":\"set_priority\",\"arguments\":\"5\"}],\"runs\":\"run_once\",\"comment\":\"commented\"}]"))}].
 
 api_test_() ->
 	{foreach,
@@ -2333,7 +2336,7 @@ api_test_() ->
 		fun(Cookie) ->
 			{"/queues/groups/new Creating queue group",
 			fun() ->
-				Recipe = [{[{ticks, 5}], [{prioritize, []}], run_many}],
+				Recipe = [{[{ticks, 5}], [{prioritize, []}], run_many, <<"Comment">>}],
 				Jrecipe = mochijson2:encode(encode_recipe(Recipe)),
 				Post = [
 					{"name", "Test Q Group"},
@@ -2356,14 +2359,14 @@ api_test_() ->
 		fun(Cookie) ->
 			{"/queus/groups/Test Q Group/update Updating a queue group",
 			fun() ->
-				Recipe = [{[{ticks, 5}], [{prioritize, []}], run_many}],
+				Recipe = [{[{ticks, 5}], [{prioritize, []}], run_many, <<"comment">>}],
 				Qgrouprec = #queue_group{
 					name = "Test Q Group",
 					recipe = Recipe,
 					sort = 35
 				},
 				call_queue_config:new_queue_group(Qgrouprec),
-				Newrecipe = [{[{calls_queued, '<', 200}], [{deprioritize, []}], run_once}],
+				Newrecipe = [{[{calls_queued, '<', 200}], [{deprioritize, []}], run_once, <<"new comment">>}],
 				Newjrecipe = mochijson2:encode(encode_recipe(Newrecipe)),
 				Post = [
 					{"name", "Renamed Q Group"},
@@ -2388,7 +2391,7 @@ api_test_() ->
 		fun(Cookie) ->
 			{"/queues/groups/Test Q Group/delete Destroying queue group",
 			fun() ->
-				Recipe = [{[{ticks, 5}], prioritize, [], run_many}],
+				Recipe = [{[{ticks, 5}], prioritize, [], run_many, <<"comment">>}],
 				Qgrouprec = #queue_group{
 					name = "Test Q Group",
 					recipe = Recipe,

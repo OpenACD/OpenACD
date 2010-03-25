@@ -30,9 +30,9 @@
 %% @hidden
 -define(DEFAULT_WEIGHT, 5).
 -ifdef(TEST).
--define(DEFAULT_RECIPE, [{[{ticks, 3}], [{remove_skills, ['_node']}], run_once}]).
+-define(DEFAULT_RECIPE, [{[{ticks, 3}], [{remove_skills, ['_node']}], run_once, <<"Default Recipe">>}]).
 -else.
--define(DEFAULT_RECIPE, [{[{ticks, 15}], [{remove_skills, ['_node']}], run_once}]).
+-define(DEFAULT_RECIPE, [{[{ticks, 15}], [{remove_skills, ['_node']}], run_once, <<"Default Recipe">>}]).
 -endif.
 
 %-type(recipe_step() :: {non_neg_integer(),
@@ -62,8 +62,10 @@
 	{'add_recipe', tuple()}
 ). % no recursive types, so you can't use recipe_step here.
 
+-type(recipe_comment() :: binary()).
+
 -type(recipe_step() ::
-	{[recipe_condition(), ...], [recipe_operation(), ...], recipe_runs()}
+	{[recipe_condition(), ...], [recipe_operation(), ...], recipe_runs(), recipe_comment()}
 ).
 
 -type(recipe() :: [recipe_step()]).

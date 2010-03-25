@@ -476,7 +476,7 @@ do_recipe(Recipe, Ticked, Qpid, Call) when is_pid(Qpid), is_pid(Call) ->
 
 do_recipe([], _Ticked, Qpid, Call, Acc) ->
 	Acc;
-do_recipe([{Conditions, Op, Runs} = OldAction | Recipe], Ticked, Qpid, Call, Acc) ->
+do_recipe([{Conditions, Op, Runs, _Comment} = OldAction | Recipe], Ticked, Qpid, Call, Acc) ->
 	case check_conditions(Conditions, Ticked, Qpid, Call) of
 		true ->
 			Doneop = do_operation(Op, Qpid, Call),
@@ -595,8 +595,8 @@ optimize_recipe(Recipe) ->
 
 optimize_recipe([], Acc) ->
 	lists:reverse(Acc);
-optimize_recipe([{Conds, Op, Runs} | Tail], Acc) ->
-	Newacc = [{sort_conditions(Conds), Op, Runs} | Acc],
+optimize_recipe([{Conds, Op, Runs, Comment} | Tail], Acc) ->
+	Newacc = [{sort_conditions(Conds), Op, Runs, Comment} | Acc],
 	optimize_recipe(Tail, Newacc).
 
 sort_conditions(Conditions) ->
@@ -1318,7 +1318,7 @@ tick_manipulation_test_() ->
 		fun({Pid, Dummy}) ->
 			{"Stop Tick Test",
 			fun() ->
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many, "Comment"}]),
 				call_queue:add(Pid, Dummy),
 				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
 				stop_tick(Cookpid),
@@ -1333,7 +1333,7 @@ tick_manipulation_test_() ->
 		fun({Pid, Dummy}) ->
 			{"Restart Tick Test",
 			fun() ->
-				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many}]),
+				call_queue:set_recipe(Pid, [{[{ticks, 1}], [{prioritize, []}], run_many, "Comment"}]),
 				call_queue:add(Pid, Dummy),
 				{_Pri, #queued_call{cook = Cookpid}} = call_queue:ask(Pid),
 				stop_tick(Cookpid),
@@ -1544,7 +1544,7 @@ multinode_test_() ->
 					?CONSOLE("das pid:  ~p", [QPid]),
 					?assert(is_pid(QPid)),
 					%QPid = queue_manager:get_queue("default_queue"),
-					call_queue:set_recipe(QPid, [{[{ticks, 1}], [{prioritize, []}], run_many}]),
+					call_queue:set_recipe(QPid, [{[{ticks, 1}], [{prioritize, []}], run_many, "Comment"}]),
 					call_queue:add(QPid, Media),
 					receive
 					after ?TICK_LENGTH * 2 + 100 ->
@@ -1572,7 +1572,7 @@ multinode_test_() ->
 		]
 	}.
 
--define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start([{id, "testcall"}, {queues, none}]), {ok, Pid} = start(Dummy,[{[{ticks, 1}], [{set_priority, 5}], run_once}], "testqueue", self(), {1, now()}), {Pid, fun() -> stop(Pid) end} end).
+-define(MYSERVERFUNC, fun() -> {ok, Dummy} = dummy_media:start([{id, "testcall"}, {queues, none}]), {ok, Pid} = start(Dummy,[{[{ticks, 1}], [{set_priority, 5}], run_once, "Comment"}], "testqueue", self(), {1, now()}), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").
 

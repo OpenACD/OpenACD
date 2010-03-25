@@ -844,8 +844,8 @@ correct_recipe(Recipe) ->
 
 correct_recipe([], Acc) ->
 	lists:reverse(Acc);
-correct_recipe([{Cond, Op, Args, Runs} | Tail], Acc) ->
-	correct_recipe(Tail, [{Cond, [{Op, Args}], Runs} | Acc]);
+correct_recipe([{Cond, Op, Args, Runs} | Tail], Acc) when is_atom(Runs) ->
+	correct_recipe(Tail, [{Cond, [{Op, Args}], Runs, <<"No Comment">>} | Acc]);
 correct_recipe([H | T], Acc) ->
 	correct_recipe(T, [H | Acc]).
 %% =====
@@ -926,7 +926,7 @@ call_queue_test_() ->
 			{
 				"New Queue with Recipe",
 				fun() -> 
-					Recipe = [{[{ticks, 2}], [{add_skills, [true]}], run_once}],
+					Recipe = [{[{ticks, 2}], [{add_skills, [true]}], run_once, <<"recipe">>}],
 					Queue = #call_queue{name="test queue", recipe=Recipe, skills = []},
 					?assertEqual({atomic, ok}, new_queue("test queue", 1, [], Recipe, "Default")),
 					F = fun() ->
@@ -1015,13 +1015,13 @@ call_queue_test_() ->
 					BaseQueue = test_queue(),
 					Queue = BaseQueue#call_queue{recipe = [{[{ticks, 3}], add_skills, [true], run_once}]},
 					new_queue(Queue),
-					?assertMatch(#call_queue{recipe = [{[{ticks, 3}], [{add_skills, [true]}], run_once}]}, get_queue("test queue")),
+					?assertMatch(#call_queue{recipe = [{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}]}, get_queue("test queue")),
 					F = fun() ->
 						QH = qlc:q([ X#call_queue.recipe || X <- mnesia:table(call_queue), X#call_queue.name == "test queue"]),
 						qlc:e(QH)
 					end,
 					{atomic, [Out | _]} = mnesia:transaction(F),
-					?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once}], Out)
+					?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}], Out)
 				end
 			}
 		]
@@ -1058,7 +1058,7 @@ queue_group_test_() ->
 			{
 				"New call group explicit",
 				fun() ->
-					Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once}],
+					Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once, <<"recipe">>}],
 					Qgroup = #queue_group{name = "test group", sort = 15, recipe = Recipe},
 					new_queue_group("test group", 15, Recipe),
 					F = fun() ->
@@ -1123,24 +1123,28 @@ queue_group_test_() ->
 			{
 				"update a protected call group by record",
 				fun() ->
-					Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once}],
+					Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once, <<"recipe">>}],
 					Updateto = #queue_group{name = "newname", sort = 5, protected = false, recipe = Recipe},
 					Default = ?DEFAULT_QUEUE_GROUP,
 					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
 					Setres = set_queue_group(Default#queue_group.name, Updateto),
 					?CONSOLE("res:  ~p", [Setres]),
 					?assertEqual({atomic, ok}, Setres),
-					?assertMatch({atomic, [#queue_group{name = "newname", sort = 5, recipe = Recipe}]}, get_queue_group("newname"))
+					Got = get_queue_group("newname"),
+					?CONSOLE("also res:  ~p", [Got]),
+					?assertMatch({atomic, [#queue_group{name = "newname", sort = 5, recipe = Recipe}]}, Got)
 				end
 			},
 			{
 				"update a protected call group explicitly",
 				fun() ->
-					Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once}],
+					Recipe = [{[{ticks, 3}], [{prioritize, []}], run_once, <<"recipe">>}],
 					Default = ?DEFAULT_QUEUE_GROUP,
 					Test = Default#queue_group{name = "newname", sort = 5, recipe = Recipe},
 					set_queue_group(Default#queue_group.name, "newname", 5, Recipe),
-					?assertMatch({atomic, [#queue_group{name = "newname", sort = 5, recipe = Recipe}]}, get_queue_group("newname"))
+					Got = get_queue_group("newname"),
+					?CONSOLE("Got:  ~p", [Got]),
+					?assertMatch({atomic, [#queue_group{name = "newname", sort = 5, recipe = Recipe}]}, Got)
 				end
 			},
 			{
@@ -1153,12 +1157,12 @@ queue_group_test_() ->
 				"Get a queue group with old style recipe",
 				fun() ->
 					new_queue_group("name", 5, [{[{ticks, 3}], add_skills, [true], run_once}]),
-					?assertMatch({atomic, [#queue_group{recipe = [{[{ticks, 3}], [{add_skills, [true]}], run_once}]}]}, get_queue_group("name")),
+					?assertMatch({atomic, [#queue_group{recipe = [{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}]}]}, get_queue_group("name")),
 					F = fun() ->
 						qlc:e(qlc:q([ X#queue_group.recipe || X <- mnesia:table(queue_group), X#queue_group.name == "name"]))
 					end,
 					{atomic, [R | _]} = mnesia:transaction(F),
-					?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once}], R)
+					?assertEqual([{[{ticks, 3}], [{add_skills, [true]}], run_once, <<"No Comment">>}], R)
 				end
 			}
 		]

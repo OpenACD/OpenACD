@@ -560,8 +560,12 @@ find_untermed(oncall, #call{id = Cid}, Agent) ->
 	QH = qlc:q([X ||
 		X <- mnesia:table(cdr_raw),
 		X#cdr_raw.id =:= Cid,
-		( ( (X#cdr_raw.transaction =:= ringing) and (X#cdr_raw.eventdata =:= Agent) ) orelse (X#cdr_raw.transaction =:= inqueue) orelse (X#cdr_raw.transaction =:= precall) orelse X#cdr_raw.transaction == warmxfer_cancel),
-		X#cdr_raw.ended =:= undefined
+		( ( (X#cdr_raw.transaction == ringing) andalso (X#cdr_raw.eventdata == Agent) )
+			orelse X#cdr_raw.transaction == inqueue
+			orelse X#cdr_raw.transaction == precall
+			orelse X#cdr_raw.transaction == dialoutgoing
+			orelse X#cdr_raw.transaction == warmxfer_cancel),
+		X#cdr_raw.ended == undefined
 	]),
 	qlc:e(QH);
 find_untermed(failedoutgoing, _, _) ->
@@ -1020,7 +1024,7 @@ push_raw_test_() ->
 		{"oncall",
 		fun() ->
 			push_raw(Call, #cdr_raw{id = Call#call.id, transaction = oncall, eventdata = "testagent"}),
-			Testend = [inqueue, ringing, precall, warmxfer_cancel],
+			Testend = [inqueue, ringing, precall, warmxfer_cancel, dialoutgoing],
 			Ended(Pull(), Testend)
 		end}
 	end,

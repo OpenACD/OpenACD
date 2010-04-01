@@ -243,6 +243,8 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 			for(var i = 0; i < this.actions.length; i++){
 				dijit.byId(this.actions[i]).dropButton.attr('disabled', false);
 			}
+		} else if(this.actions.length == 1) {
+			dijit.byId(this.actions[0]).dropButton.attr('disabled', true);
 		}
 		return widget;
 	},
@@ -263,7 +265,9 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		console.log(['das setValue', recipeStep]);
 		this.conditionsEditor.setValue(recipeStep.conditions);
 		console.log('next, destroy kids');
-		dojo.empty(this.actionsDiv); //.destroyDescendants();
+		while(this.actions.length > 0){
+			this.dropAction(this.actions[0]);
+		}
 		for(var i = 0; i < recipeStep.actions.length; i++){
 			var widget = this.addAction(i);
 			widget.setValue(recipeStep.actions[i]);
@@ -305,12 +309,13 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 				{action:'prioritize',
 				'arguments':''}
 			],
-			runs:'run_once'
+			runs:'run_once',
+			comment:'New Step'
 		}
 		this.setValue(fakeOpts);
 	},
 	resize:function(){
-		console.log(arguments);
+		//console.log(arguments);
 	},
 	setDisabled:function(bool){
 		this._disabled = bool;
@@ -407,7 +412,10 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		row.addRowButton = addRowButton;
 		row.dropRowButton = dropRowButton;
 		row.editCommentButton = editCommentButton;
+		row.commentEditor = commentEditor;
 		this.nullButton.domNode.style.display = "none";
+		this.stepsContainer.resize();
+		this.stepsContainer.selectChild(row.id);
 	},
 	dropRow: function(rowid){
 		this.stepsContainer.removeChild(dijit.byId(rowid));
@@ -452,6 +460,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		}
 		for(i = 0; i < value.length; i++){
 			this.addRow();
+			dijit.byId(this.rows[i] + '_button').attr('label', value[i].comment);
 			dijit.byId(this.rows[i]).setValue(value[i]);
 		}
 	},

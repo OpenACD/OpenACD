@@ -11,3 +11,9 @@
 	text-align: center;
 	width: 24px;
 }
+
+img.popout {
+	border:0;
+	position:fixed;
+	left:95%;
+}

@@ -3,7 +3,8 @@ dojo.require("dojox.widget.Standby");
 dojo.require("dojox.html.styles");
 dojo.require("dijit.form.Textarea");
 dojo.require("dojo.io.iframe");
-dojo.require("tabs.emailLib");
+dojo.require("agentUI.emailLib");
+
 dojo.requireLocalization("agentUI", "emailPane");
 
 var nodes = dojo.query('.translatecol, .translate', 'emailView');

@@ -11,7 +11,7 @@ dojo.requireLocalization("admin", "recipeEditor");
 dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 	// actions go in rows, which go in the editor
 	widgetsInTemplate: true,
-	templateString: '<div><select dojoType="dijit.form.FilteringSelect" dojoAttachPoint="actionField" name="action" style="width:12em">' +
+	templateString: '<div><select dojoType="dijit.form.FilteringSelect" dojoAttachPoint="actionField" name="action" style="width:12em;">' +
 		'<option value="add_skills">ADDSKILLS</option>' +
 		'<option value="remove_skills">REMOVESKILLS</option>' +
 		'<option value="set_priority">SETPRIORITY</option>' +
@@ -21,18 +21,18 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 		'<option value="announce">MEDIAANNOUCE</option>' +
 		'<option value="add_recipe">ADDRECIPE</option>' +
 	'</select>' +
-	'<div dojoType="dijit.layout.ContentPane" dojoAttachPoint="argumentsDiv" style="display:inline"></div>' +
 	'<button dojoType="dijit.form.Button" dojoAttachPoint="dropButton" label="DROPSTEP"></button>' +
 	'<button dojotype="dijit.form.Button" dojoAttachPoint="addButton" label="ADDSTEP"></button></div>',
 	_nullArgsWidget: function(){
 		console.log('_nullArgsWidget');
 		this.argsWidget = {
-			getValue:function(){},
-			setValue:function(){ return ""; }
+			getValue:function(){ return ""; },
+			setValue:function(){ return ""; },
+			destroy:function(){ }
 		};
 	},
 	_buildSelect: function(select){
-		console.log('building select')
+		console.log(['building select', this])
 		select.size = 3;
 		select.getValue = function(){
 			return select.getValues();
@@ -52,6 +52,10 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 				}
 			}
 		};
+		dojo.place(select, this.argumentsDiv, 'after');
+	},
+	_insertArgsDiv: function(){
+		return dojo.create('div', {'dojoAttachPoint':'argumentsDiv'}, this.actionField.domNode, 'after');
 	},
 	setArguments: function(action, args){
 		console.log('setting arguments');
@@ -59,16 +63,40 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 			delete this._suppressNextSetArgs;
 			return;
 		}
+		if(this.argsWidget){
+			this.argsWidget.destroy();
+		}
 		switch(action){
 			case "add_skills":
 			case "remove_skills":
-				var ithis = this;
-				var argdiv = this.argumentsDiv;
+				var thisid = this.id;
+				//var argdiv = this._insertArgsDiv();
 				var callback = function(select){
 					select.size = 3;
-					argdiv.attr('content', select);
-					ithis.argsWidget = ithis._buildSelect(select);
-				};
+					dojo.place(select, dijit.byId(thisid).actionField.domNode, 'after');
+					select.getValue = function(){
+						return select.getValues();
+					};
+					select.setValue = function(values){
+						if(! values){
+							values = [];
+						}
+						if(values.constructor == String){
+							values = [values];
+						}
+						var nodes = dojo.query('> optgroup > option', select);
+						for(var i = 0; i < nodes.length; i++){
+							console.log(nodes[i]);
+							if(openacd.inArray(nodes[i].value, values)){
+								nodes[i].selected = true;
+							}
+						}
+					};
+					select.destroy = function(){
+						dijit.byId(thisid).actionField.domNode.parentNode.removeChild(select);
+					}
+					dijit.byId(thisid).argsWidget = select;
+				}
 				var selected = [];
 				if(args){
 					selected = args;
@@ -79,22 +107,25 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 				var argsWidget = new dijit.form.ValidationTextBox({
 					regExp:"[\\d]+",
 					style:"width:5em"
-				});
+				}, this._insertArgsDiv());
 				this.argumentsId = argsWidget.id;
-				this.argumentsDiv.attr('content', argsWidget.domNode);
+				//dojo.place(argsWidget.domNode, this.argumentsDiv, 'after');
 				this.argsWidget = argsWidget;
+				//argsWidget.attr('disabled', true);
+				//argsWidget.attr('dsiabled', false);
 				break;
 			case "prioritize":
 			case "deprioritize":
 			case "voicemail":
-				this.argumentsDiv.attr('content', "");
+				//this.argumentsDiv.attr('content', "");
 				this._nullArgsWidget();
 				break;
 			case "announce":
 				var argsWidgetAnnounce = new dijit.form.TextBox({
 					style:"width:10em"
-				});
-				this.argumentsDiv.attr('content', argsWidgetAnnounce.domNode);
+				}, this._insertArgsDiv());
+				//this.argumentsDiv.attr('content', argsWidgetAnnounce.domNode);
+				//dojo.place(argsWidgetAnnounce.domNode, this.argumentsDiv, 'after');
 				this.argsWidget = argsWidgetAnnounce;
 				break;
 			case "add_recipe":
@@ -130,7 +161,7 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 		if(! openacd.inArray(actionObj.action, ['add_skills', 'remove_skills'])){
 			if(this.argsWidget.attr){
 				this.argsWidget.attr('value', actionObj['arguments']);
-			} else {
+			} else if(this.argsWidget.setValue) {
 				this.argsWidget.setValue(actionObj['arguments']);
 			}
 		}
@@ -141,6 +172,11 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 		this.actionField.setArgumentsConn = dojo.connect(this.actionField, 'onChange', this, function(arg){
 			this.setArguments(arg);
 		});
+		this.actionField.meBlur = dojo.connect(this.actionField, 'onBlur', this, function(){
+			if(this.argsWidget.focus){
+				this.argsWidget.focus();
+			}
+		});
 		var nodes = this.actionField.store.root;
 		console.log(['das nodes', nodes]);
 		for(var i = 0; i < nodes.childNodes.length; i++){
@@ -149,10 +185,15 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 				nodes.childNodes[i].innerHTML = dojo.i18n.getLocalization('admin', 'recipeEditor')[untransed];
 			}
 		}
-		console.log(['relabing buttons', this.addButton, this.dropButton]);
+		console.log(['reloading buttons', this.addButton, this.dropButton]);
 		this.addButton.attr('label', dojo.i18n.getLocalization('admin', 'recipeEditor').ADDSTEP);
 		this.dropButton.attr('label', dojo.i18n.getLocalization('admin', 'recipeEditor').DROPSTEP);
 		console.log('buttons labeled');
+	},
+	setDisabled:function(bool){
+		this._disabled = bool;
+		this.actionField.attr('disabled', bool);
+		this._nullArgsWidget('disabled', bool);
 	}
 });
 
@@ -160,6 +201,27 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	templatePath: dojo.moduleUrl("openacd","RecipeEditorRow.html"),
 	widgetsInTemplate: true,
 	templateString: "",
+	comment:'',
+	/*_explain:function(){
+		var value = this.getValue();
+		if(value.runs == 'runs_once'){
+			out = 'These actions are only done the first time all conditions are met.<ul>';
+		} else {
+			out = 'These actions are done every time all conditions are met.<ul>';
+		}
+		var i = 0;
+		for(i = 0; i < value.actions.length; i++){
+			switch(value.actions[i].action){
+				case 'prioritize':
+					out += '<li>The priority is increased by one.</li>';
+					break;
+				case 'deprioritize':
+					out += '<li>The priority is decreased by one.</li>';
+					break;
+					
+			}
+		}
+	},*/
 	addAction:function(index){
 		var widget = new RecipeEditorAction();
 		if(index >= this.actionsDiv.childNodes.length){
@@ -208,19 +270,26 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		}
 		this.runsField.attr('value', recipeStep.runs);
 		this.containerNode.attr('title', recipeStep.comment);
+		this.comment = recipeStep.comment;
+	},
+	getValue:function(){
+		var actionsArray = [];
+		for(var i = 0; i < this.actions.length; i++){
+			actionsArray.push(dijit.byId(this.actions[i]).getValue());
+		}
+		out = {
+			actions: actionsArray,
+			conditions: this.conditionsEditor.getValue(),
+			runs:this.runsField.attr('value'),
+			comment:this.comment
+		};
+		return out;
 	},
 	constructor:function(){
 		this.labels = dojo.i18n.getLocalization("admin", "recipeEditor");
-		//this.inherited("constructor", arguments);
 		this.propwidth = "20em";
 		this.compwidth = "10em";
 		this.valwidth = "20em";
-		//labels:[],
-		/*this.argsWidget = {
-			 getValue:function(){return ""; },
-			 setValue:function(){},
-			 attr:function(){}
-		};*/
 		this.actions = [];
 		this._disabled = false;
 	},
@@ -245,9 +314,8 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	},
 	setDisabled:function(bool){
 		this._disabled = bool;
-		var actionKids = this.actionsDiv.getChildren();
-		for(var i = 0; i < actionKids.length; i++){
-			actionKids[i].setDisabled(bool);
+		for(var i = 0; i < this.actions.length; i++){
+			dijit.byId(this.actions[i]).setDisabled(bool);
 		}
 		this.conditionsEditor.setDisabled(bool);
 		this.runsField.attr('disabled', bool);
@@ -259,6 +327,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 	widgetsInTemplate: true,
 	templateString: "",
 	addRow: function(){
+		this.stepsContainer.attr('style', 'visibility:visible');
 		var ithis = this;
 		var row = new RecipeEditorRow({
 			propwidth: this.propwidth,
@@ -271,13 +340,53 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		});
 		this.rows.push(row.id);
 		this.stepsContainer.addChild(row);
-		var editCommentButton = new dijit.form.Button({
-			label:dojo.i18n.getLocalization("admin", "recipeEditor").EDIT,
-			style:'font-size:xx-small;'
-		});
 		var rowTitleButton = dijit.byId(row.id + '_button');
 		console.log(['the row title thang', rowTitleButton]);
 		rowTitleButton.attr('label', 'New Step');
+		row.comment = 'New Step';
+		var commentEditor = new dijit.form.TextBox({
+			style:'display:none',
+			onBlur:function(){
+				this.attr('style', 'display:none');
+				rowTitleButton.attr('label', this.attr('value'));
+				row.comment = this.attr('value');
+			},
+			onClick:function(e){
+				console.log('stop onClick');
+				e.stopPropagation();
+			},
+			onKeyPress:function(e){
+				console.log('stop onkeypress');
+				if(e.which != 13){
+					e.stopPropagation();
+				}
+			},
+			onKeyDown:function(e){
+				console.log('stop onkeydown');
+				if(e.which != 13){
+					e.stopPropagation();
+				}
+			},
+			onKeyUp:function(e){
+				console.log('stop onkeyup');
+				if(e.which != 13){
+					e.stopPropagation();
+				}
+			}
+		});
+		dojo.place(commentEditor.domNode, rowTitleButton.domNode, 1);
+		var editCommentButton = new dijit.form.Button({
+			label:dojo.i18n.getLocalization("admin", "recipeEditor").EDIT,
+			style:'font-size:xx-small;',
+			onClick:function(e){
+				console.log(e);
+				e.stopPropagation();
+				commentEditor.attr('value', rowTitleButton.attr('label'));
+				rowTitleButton.attr('label', '');
+				commentEditor.attr('style', 'display:inline');
+				commentEditor.focus();
+			}
+		});
 		dojo.place(editCommentButton.domNode, rowTitleButton.domNode, 'first');
 		var addRowButton = new dijit.form.Button({
 			label:dojo.i18n.getLocalization("admin", "recipeEditor").ADDSTEP,
@@ -295,26 +404,13 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		});
 		dojo.place(dropRowButton.domNode, rowTitleButton.domNode, 'last');
 		dojo.place(addRowButton.domNode, rowTitleButton.domNode, 'last');
-		/*row.addButton.onClick = function(){
-			ithis.addRow();
-		};
-		row.dropButton.onClick = function(){
-			ithis.dropRow(row.id);
-		};
-		row.onFocus = function(){
-			if(dijit.byId(ithis._focusedOn)){
-				dijit.byId(ithis._focusedOn).setConditions(ithis.conditionsEditor.getValue());
-				dijit.byId(ithis._focusedOn).domNode.style.backgroundColor = "#ffffff";
-			}
-			ithis.conditionsEditor.setValue(row.getConditions());
-			ithis.conditionsEditor.setDisabled(ithis._disabled);
-			ithis._focusedOn = row.id;
-			row.domNode.style.backgroundColor = "#ccffff";
-		};*/
+		row.addRowButton = addRowButton;
+		row.dropRowButton = dropRowButton;
+		row.editCommentButton = editCommentButton;
 		this.nullButton.domNode.style.display = "none";
 	},
 	dropRow: function(rowid){
-		/*dijit.byId(rowid).destroy();
+		this.stepsContainer.removeChild(dijit.byId(rowid));
 		var newrows = [];
 		for(var i in this.rows){
 			if(this.rows[i] != rowid){
@@ -324,7 +420,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		this.rows = newrows;
 		if(this.rows.length === 0){
 			this.nullButton.domNode.style.display = "inline";
-		}*/
+		}
 	},
 	constructor: function(arg){
 		this.propwidth = "20em";
@@ -351,22 +447,12 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		return out;
 	},
 	setValue:function(value){
-		var cpyrows = this.rows;
-		for(var i = 0; i < cpyrows.length; i++){
-			try{
-				dijit.byId(cpyrows[i]).destroy();
-			}
-			catch(err){
-				//destroy failed due to + err.message);
-			}
+		while(this.rows.length > 0){
+			this.dropRow(this.rows[0]);
 		}
-		this.rows = [];
 		for(i = 0; i < value.length; i++){
 			this.addRow();
 			dijit.byId(this.rows[i]).setValue(value[i]);
-		}
-		if(this.rows.length === 0){
-			 this.nullButton.domNode.style.display = "inline";
 		}
 	},
 	setDisabled:function(bool){
@@ -374,8 +460,9 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		for(var i = 0; i < this.rows.length; i++){
 			var dahrow = dijit.byId(this.rows[i]);
 			dahrow.setDisabled(bool);
-			dahrow.addButton.attr('disabled', bool);
-			dahrow.dropButton.attr('disabled', bool);
+			dahrow.addRowButton.attr('disabled', bool);
+			dahrow.dropRowButton.attr('disabled', bool);
+			dahrow.editCommentButton.attr('disabled', bool);
 		}
 		this.nullButton.attr('disabled', true);
 	}

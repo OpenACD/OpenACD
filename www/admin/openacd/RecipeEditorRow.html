@@ -1,8 +1,9 @@
 <div><div dojoType="dijit.layout.ContentPane" dojoAttachPoint="containerNode">
 	<div dojoAttachPoint="actionsDiv" style="display:inline-block;float:left"></div>
-		<select dojoType="dijit.form.Select" dojoAttachPoint="runsField" style="float:right">
+	<select dojoType="dijit.form.Select" dojoAttachPoint="runsField" style="float:right">
 		<option value="run_once">${labels.RUNONCE}</option>
 		<option value="run_many">${labels.RUNMANY}</option>
 	</select>
-	<div dojoType="PredicateEditor" border="1" store="openacd.RecipeEditor.recipeConditionsStore" propwidth="12em" valwidth="4em"compwidth="4em" style="display:inline-block" dojoAttachPoint="conditionsEditor"></div>
+	<div dojoAttachPoint="translate" style="float:right;clear:left" dojoType="dijit.form.Button" label="?"></div>
+	<div dojoType="PredicateEditor" border="1" store="openacd.RecipeEditor.recipeConditionsStore" propwidth="12em" valwidth="4em"compwidth="4em" style="display:inline-block;padding:0 2em 0 2em;" dojoAttachPoint="conditionsEditor"></div>
 </div></div>

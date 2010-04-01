@@ -6,6 +6,7 @@
 .attachIcon{
 	background-image:url('/images/paperclip.png');
 	background-repeat: no-repeat;
+	background-position: center;
 	height: 20px;
 	text-align: center;
 	width: 24px;

@@ -109,37 +109,6 @@
 			<label for="mediaSubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">
 				<script type="dojo/method" event="postCreate">
-					//id of node, key for replacement text, postscript
-					/*var trans = [
-						["emailEnabled", "EMAILENABLED", ""],
-						["lport", "PORT", ":"],
-						["loutrelayport", "PORT", ":"],
-						["linrelays", "IN_RELAYS", ":"],
-						["loutrelay", "OUT_RELAY", ":"],
-						["lhost", "HOST", ":"],
-						["lbindip", "BINDIP", ":"],
-						["loutrelayauth", "REQUIRE_AUTH", ":"],
-						["lauth_always", "ALWAYS", ""],
-						["lauth_ifcan", "IF_AVAILABLE", ""],
-						["lauth_never", "NEVER", ""],
-						["lusername", "USERNAME", ":"],
-						["lpassword", "PASSWORD", ":"],
-						["lssl", "SSL", ""],
-						["ltls", "TLS", ""],
-						["ltls_always", "ALWAYS", ""],
-						["ltls_ifcan", "IF_AVAILABLE", ""],
-						["ltls_never", "NEVER", ""]
-					];
-					
-					for(var i = 0; i < trans.length; i++){
-						try{
-							dojo.byId(trans[i][0]).innerHTML = dojo.i18n.getLocalization("admin", "email_media_manager")[trans[i][1]] + trans[i][2];
-						}
-						catch(err){
-							console.log(["err", trans[i][0], err]);
-						}
-					}*/
-					
 					this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 				</script>
 			</button>

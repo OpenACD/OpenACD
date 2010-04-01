@@ -444,6 +444,7 @@ dojo.byId('attachedList').attachListAddSub = dojo.subscribe("emailPane/attachmen
 		this.rebuildList(data.filenames);
 	}
 	else{
+		console.log(['attaching failed', data]);
 		errMessage(['attaching failed', data.message]);
 	}
 });

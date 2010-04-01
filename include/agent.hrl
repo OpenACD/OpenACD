@@ -92,7 +92,7 @@
 	{'queues', [string()]} |
 	{'profiles', [string()]} |
 	{'clients', [string()]} |
-	{'graphed', bool()}).
+	{'graphed', boolean()}).
 
 -record(agent_profile, {
 	name = erlang:error({undefined, name}) :: string(),

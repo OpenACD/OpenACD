@@ -1152,7 +1152,8 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 				{"username", username},
 				{"password", password},
 				{"ssl", ssl},
-				{"tls", tls}
+				{"tls", tls},
+				{"barenewline", barenewline}
 			],
 			Newpost = proplists:substitute_aliases(Aliases, Post),
 			Cleanpost = fun
@@ -1178,6 +1179,19 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 							list_to_tuple(Else)
 					end,
 					[{address, Newval} | Acc];
+				({barenewline, Behaviour}, Acc) ->
+					SessionOptions = proplists:get_value(sessionoptions, Acc, []),
+					Val = case Behaviour of
+						"ignore" ->
+							ignore;
+						"fix" ->
+							fix;
+						"strip" ->
+							strip;
+						"error" ->
+							error
+					end,
+					[{sessionoptions, [{allow_bare_newlines, Val} | SessionOptions]} | proplists:delete(sessionoptions, Acc)];
 				({"enabled", _}, Acc) ->
 					Acc;
 				(Val, Acc) ->
@@ -1240,7 +1254,12 @@ api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 						<<"ifcan">>;
 					Else ->
 						Else
-				end}
+				end},
+			{<<"barenewline">>, proplists:get_value(allow_bare_newlines, proplists:get_value(sessionoptions, Args, []), error)}
+				%{<<"sessionoptions">>, {struct, [
+							%{"barenewline", proplists:get_value(allow_bare_newlines, proplists:get_value(sessionoptions, Args, []), error)}
+							% TODO more options are available
+						%]}}
 			],
 			{200, [], mochijson2:encode({struct, Sendargs})}
 	end;

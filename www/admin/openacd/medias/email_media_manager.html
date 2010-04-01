@@ -27,9 +27,21 @@
 		</p>
 
 		<p>
+			<label for="barenewline" id="lbarenewline">BARENEWLINE</label>
+			<input type="radio" dojoType="dijit.form.RadioButton" name="barenewline" id="nlfix" value="fix">
+			<label class="radio" id="lfix" for="nlfix">FIX</label>&nbsp;
+			<input type="radio" dojoType="dijit.form.RadioButton" name="barenewline" id="nlstrip" value="strip">
+			<label class="radio" id="lstrip" for="nlstrip">STRIP</label>&nbsp;
+			<input type="radio" dojoType="dijit.form.RadioButton" name="barenewline" id="nlignore" value="ignore">
+			<label class="radio" id="lignore" for="nlignore">IGNORE</label>&nbsp;
+			<input type="radio" dojoType="dijit.form.RadioButton" name="barenewline" id="nlerror" value="error">
+			<label class="radio" id="lerror" for="nlerror">ERROR</label>&nbsp;
+		</p>
+
+		<p>
 			<label for="inrelays" id="linrelays">IN_RELAYS:</label><div style="font-size:smaller">Comma separated list</div>
 			<textarea dojoType="dijit.form.Textarea" name="inrelays" style="width:50em"></textarea>
-		</p>
+			</p>
 
 		<p>
 			<label for="outrelay" id="loutrelay">OUT_RELAY:</label>

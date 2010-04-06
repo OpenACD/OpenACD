@@ -64,6 +64,7 @@
 	get_agents/1,
 	get_queues/0,
 	get_queues/1,
+	get_queue_lengths/0,
 	get_media/1,
 	kick_agent/1,
 	kick_call/1,
@@ -168,6 +169,10 @@ get_agents(Profile) ->
 -spec(get_queues/0 :: () -> [{string(), pid()}]).
 get_queues() ->
 	queue_manager:queues().
+
+get_queue_lengths() ->
+	[io:format("Queue: ~s; ~B calls~n", [Name, call_queue:call_count(Pid)]) || {Name, Pid} <- queue_manager:queues()],
+	ok.
 
 -spec(get_queues/1 :: (Group :: string()) -> [{string(), pid()}]).
 get_queues(Group) ->

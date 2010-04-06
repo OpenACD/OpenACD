@@ -146,8 +146,6 @@ handle_info(update, State) ->
 	GroupedAgents = get_agents(Now),
 	timer:send_after(30000, update),
 	Util = calculate_utilization(State#state.agents),
-	?INFO("utilization: ~p", [Util]),
-	%?DEBUG("agents: ~p", [State#state.agents]),
 
 	AgentCount = length(State#state.agents),
 
@@ -162,7 +160,6 @@ handle_info(update, State) ->
 				0, Util) / AgentCount}]
 	end,
 
-	?INFO("Composite: ~p, AgentCount: ~p, Util: ~p", [Composite, AgentCount, Util]),
 	update_utilization(Util ++ Composite, State#state.rrd),
 	{noreply, State#state{lastrun = Now, agents = GroupedAgents}, hibernate};
 handle_info({cpx_monitor_event, {set, {{agent, _}, _, Agent, _}}}, #state{agents = Agents} = State) ->

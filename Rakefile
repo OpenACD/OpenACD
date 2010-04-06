@@ -158,11 +158,14 @@ task :compile => ['ebin', :contrib, :keygen] + HEADERS + OBJ + RELEASE do
 	end
 end
 
-task :contrib do
+task :submodules do
 	if File.directory? ".git"
 		sh "git submodule init"
 		sh "git submodule update"
 	end
+end
+
+task :contrib => [:submodules] do
 	CONTRIB.each do |cont|
 		if File.exists? File.join(cont, 'Rakefile')
 			pwd = Dir.pwd
@@ -215,6 +218,15 @@ task :keygen do
 			exit -1
 		end
 	end
+end
+
+task :roll_release => [:submodules] do
+	version = `git describe`
+	puts $?.exitstatus
+	if $?.exitstatus != 0
+		version = "snapshot-#{Time.now.strftime('%Y-%m-%d')}"
+	end
+	sh "./git-archive-all.sh OpenACD-#{version}.tar"
 end
 
 namespace :test do

@@ -1,3 +1,7 @@
+<a href='/tabs/email_media_popout.html' target='_blank'>
+<img src='/images/popout.png' class='popout' />
+</a>
+
 <div id="emailView">
 	<table>
 		<tr>
@@ -51,18 +55,39 @@
 					dojo.byId('emailDisp').appendChild(replyBase);
 					var widget = new dijit.Editor({height:'300px'}, replyBase);
 					widget.setValue(dojo.byId('emailViewDiv').innerHTML);
-					var div = dojo.create('div', {}, dijit.byId('emailReplyEditor').toolbar.domNode);
-					var button = new dijit.form.Button({
+					var div = dojo.create('button', {'class':'attachIcon'}, dijit.byId('emailReplyEditor').toolbar.domNode);
+					var button = new dojox.form.FileUploader({
 						label:'Attach',
+						force:'html',
+						htmlFieldName:'attachFiles',
+						selectMultipleFiles:false,
+						id:'fileUploader',
+						selectedList:'attachmentList',
+						showProgress:true,
 						showLabel:false,
-						iconClass:'attachIcon'
+						iconClass:'attachIcon',
+						uploadUrl:'/media',
+						hoverClass:'attachIcon',
+						activeClass:'attachIcon',
+						disabledClass:'btnDisabled',
+						/*onClick:function(ev){
+							dijit.byId('fileUploader').onClick(ev);
+						}*/
+						onComplete:function(e){
+							dijit.byId('emailUploadButton').domNode.style.display = 'none';
+							dojo.publish('emailPane/attachment/add', e);
+						},
+						onChange:function(data){
+							dijit.byId('emailUploadButton').domNode.style.display = '';
+							dojo.byId('attachmentList').innerHTML = data.name + ' ' + Math.ceil(data.size * .001) + 'kb';
+						}
 					}, div);
+					button.insideNode.style.backgroundImage = "url('images/paperclip.png')";
 				</script>
 			</button>
 			</td>
 		</tr>
 	</table>
-
 	<div id="emailViewDiv" style="height: 250px; overflow: auto; border: grey solid 1px;"></div>
 	
 </div>
@@ -85,17 +110,8 @@
 			<span id="emailDateSpanReply"></span><br/>
 			<!--<label class="translatecol narrow">ATTACHMENTS</label>-->
 			<label class="narrow">&nbsp;</label>
-			<button dojoType="dojox.form.FileUploader" uploadUrl="/media" class="btnNormal" hoverClass="btnHover" activeClass="btnActive" disabledClass="btnDisabled", force="html", htmlFieldName="attachFiles", selectMultipleFiles="false" id='fileUploader' selectedList="attachmentList" showProgress="true">Select Files
-				<script type="dojo/connect" event="onComplete">
-					dojo.publish("emailPane/attachment/add", arguments[0]);
-				</script>
-				<script type="dojo/connect" event="onChange" args="datalist">
-					var data = datalist[0];
-					dojo.byId('attachmentList').innerHTML = data.name + ' ' + Math.ceil(data.size * .001) + 'kb';
-				</script>
-			</button>
 			<span id="attachmentList"></span>
-			<button label="UPLOAD" dojoType="dijit.form.Button">
+			<button label="UPLOAD" dojoType="dijit.form.Button" style="display:none" id="emailUploadButton">
 				<script type="dojo/method" event="postCreate">
 					this.attr('label', dojo.i18n.getLocalization("agentUI", "emailPane").UPLOAD);
 				</script>

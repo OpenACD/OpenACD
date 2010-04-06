@@ -1,5 +1,8 @@
 dojo.provide("openacd.PredicateEditorRow");
 dojo.provide("openacd.PredicateEditor");
+dojo.require("dijit._Widget");
+dojo.require("dijit._Templated");
+dojo.require("dijit.form.Button");
 
 dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 	templatePath: dojo.moduleUrl("openacd","PredicateEditorRow.html"),
@@ -130,6 +133,9 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 		};
 		this.rows.push(row.id);
 		this.topNode.appendChild(row.domNode);
+		if(this.rows.length > 1){
+			dijit.byId(this.rows[0]).dropButton.attr('disabled', false);
+		}
 	},
 	dropRow:function(rowid){
 		if(this._disabled){
@@ -146,6 +152,9 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 			}
 		}
 		this.rows = newrows;
+		if(this.rows.length == 1){
+			dijit.byId(this.rows[0]).dropButton.attr('disabled', true);
+		}
 	},
 	getValue:function(){
 		var items = [];
@@ -155,6 +164,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 		return items;
 	},
 	setValue:function(list){
+		console.log('Predicate editor set value hit');
 		for(var i = 0; i < this.rows.length; i++){
 			try{
 				dijit.byId(this.rows[i]).destroy();
@@ -164,6 +174,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 			}
 		}
 		this.rows = [];
+		console.log('adding row');
 		for(i = 0; i < list.length; i++){
 			this.addRow();
 			dijit.byId(this.rows[i]).setValue(list[i]);

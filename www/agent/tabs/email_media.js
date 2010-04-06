@@ -3,6 +3,8 @@ dojo.require("dojox.widget.Standby");
 dojo.require("dojox.html.styles");
 dojo.require("dijit.form.Textarea");
 dojo.require("dojo.io.iframe");
+dojo.require("agentUI.emailLib");
+
 dojo.requireLocalization("agentUI", "emailPane");
 
 var nodes = dojo.query('.translatecol, .translate', 'emailView');
@@ -21,271 +23,13 @@ for(var i = 0; i < nodes.length; i++){
 if(typeof(emailPane) == 'undefined'){
 
 	dojo.create('link', {rel:'stylesheet', href:'/tabs/email_media.css', type:'text/css'}, dojo.query('head')[0]);
-
-	emailPane = function(){};
-
-	emailPane.getSkeleton = function(){
-		dojo.xhrPost({
-			url:"/media",
-			handleAs:"json",
-			content:{
-				"command":"get_skeleton",
-				"arguments":[],
-				"mode":"call"
-			},
-			load:function(res){
-				dojo.publish("emailPane/get_skeleton", [res]);
-			},
-			error:function(res){
-				warning(["err getting email skeleton", res]);
-			}
-		});
-	};
-
-	emailPane.getPath = function(path){
-		path = path.join("/");
-		dojo.xhrPost({
-			url:"/media",
-			content:{
-				"command":"get_path",
-				"arguments":path,
-				"mode":"call"
-			},
-			load:function(res){
-				debug(["load done", res, "emailPane/get_path/" + path]);
-				dojo.publish("emailPane/get_path/" + path, [res]);
-			},
-			error:function(res){
-				warning(["err getting path", res]);
-			}
-		});
-	};
 	
-	emailPane.pathsToFetch = function(skeleton, path, fetches){
-		if(! path){
-			path = [];
-		}
-		if(! fetches){
-			fetches = [];
-		}
-
-		var copyPath = function(arr){
-			var out = [];
-			for(var i = 0; i < arr.length; i++){
-				out.push(arr[i]);
-			}
-			return out;
-		};
-		
-		debug(["pathsToFetch", skeleton, path]);
-		if( (skeleton.type == "multipart") && (skeleton.subtype == "alternative") ){
-			var getting = 0;
-			var pushon = false;
-			var texttype = "";
-			for(var i = 0; i < skeleton.parts.length; i++){
-				if( (skeleton.parts[i].subtype == "plain") && (getting < 1) ){
-					getting = 1;
-					pushon = i + 1;
-					texttype = 'plain';
-				}				
-				if( (skeleton.parts[i].subtype == "html") && ( getting < 2 ) ){
-					getting = 2;
-					pushon = i + 1;
-					texttype = 'html';
-				}
-				if( (skeleton.parts[i].type == "multipart") && (getting < 3) ){
-					getting = 3;
-					pushon = i + 1;
-				}
-			}
-			
-			if(pushon){
-				var tpath = copyPath(path);
-				tpath.push(pushon);
-				if(getting == 3){
-					fetches = emailPane.pathsToFetch(skeleton.parts[pushon - 1], tpath, fetches);
-				}
-				else{
-					fetches.push({
-						'mode':'fetch',
-						'path':tpath,
-						'textType':texttype
-					});
-				}
-			}
-			
-			debug(["fetches", fetches]);
-			return fetches;
-		}
-		
-		if( (skeleton.type == "multipart") ){
-			for(i = 0; i < skeleton.parts.length; i++){
-				tpath = copyPath(path);
-				tpath.push(i + 1);
-				fetches = emailPane.pathsToFetch(skeleton.parts[i], tpath, fetches);
-			}
-			
-			return fetches;
-		}
-		
-		if(skeleton.type == "message" && skeleton.subtype == "delivery-status"){
-			fetches.push({
-				'mode':'fetch',
-				'path':path,
-				'textType':'plain'
-			});
-			return fetches;
-		}
-		
-		if(skeleton.type == "message"){
-			tpath = copyPath(path);
-			tpath.push(1);
-			fetches.push({
-				'mode':'a',
-				'path':path,
-				'label':skeleton.properties['disposition-params'].filename
-			});
-			fetches = emailPane.pathsToFetch(skeleton.parts[0], tpath, fetches);
-			return fetches;
-		}
-		
-		if(skeleton.type == "text" && skeleton.subtype != "rtf"){
-			fetches.push({
-				'mode':'fetch',
-				'path':path,
-				'textType':skeleton.subtype
-			});
-			return fetches;
-		}
-		
-		if(skeleton.type == "image"){
-			fetches.push({
-				'mode':'img',
-				'path':path
-			});
-			return fetches;
-		}
-		
-		fetches.push({
-			'mode':'a',
-			'path':path,
-			'label':skeleton.properties['disposition-params'].filename
-		});
-		
-		return fetches;
-	};
-	
-	emailPane.fetchPaths = function(fetchObjs, fetched){
-		debug(["fetchPaths", fetchObjs[0]]);
-		if(emailPane.fetchSub){
-			return false;
-		}
-		
-		if(! fetched){
-			fetched = "";
-		}
-		
-		var jpath = fetchObjs[0].path.join("/");
-		
-		debug(["subbed to", "emailPane/get_path/" + fetchObjs[0].path.join("/")]);
-		if(fetchObjs[0].mode == 'a'){
-			fetched += '<a href="/' + jpath + '" target="_blank"><img src="/images/dl.png" style="border:none"/>' + fetchObjs[0].label + '</a>';
-		}
-		else if(fetchObjs[0].mode == 'img'){
-			fetched += '<img src="/' + jpath + '" />';
-		}
-		else if(fetchObjs[0].mode == 'fetch'){
-			emailPane.fetchSub = dojo.subscribe("emailPane/get_path/" + jpath, function(res){
-				debug(["sub hit", "emailPane/get_path/" + jpath, res]);
-				dojo.unsubscribe(emailPane.fetchSub);
-				emailPane.fetchSub = false;
-				if(fetchObjs[0].textType){
-					if(fetchObjs[0].textType == 'html'){
-						fetched += html_sanitize(res, emailPane.urlSanitize, emailPane.nameIdSanitize);
-					}else{
-						res = emailPane.scrubString(res).replace(/\n/g, '<br />');
-						fetched += '<span style="font-family:monospace;">' + replaceUrls(res) + '</span>';
-					}
-				}
-				else{
-					fetched += res;
-				}
-				fetchObjs.shift();
-				if(fetchObjs.length > 0){
-					emailPane.fetchPaths(fetchObjs, fetched);
-				}
-				else{
-					dojo.publish("emailPane/fetchPaths/done", [fetched]);
-				}
-			});			
-			emailPane.getPath(fetchObjs[0].path);
-			return;
-		}
-		fetchObjs.shift();
-		if(fetchObjs.length > 0){
-			emailPane.fetchPaths(fetchObjs, fetched);
-		}
-		else{
-			dojo.publish("emailPane/fetchPaths/done", [fetched]);
-		}
-	};
-	
-	//scrub &, <, and > so it's displayable via html
-	emailPane.scrubString = function(instr){
-		return instr.replace(/\&/g, '&amp;').replace(/\</g, '&lt;').replace(/\>/g, '&gt;').replace(/\"/g, '&quot;'); //"
-	};
-	
-	emailPane.urlSanitize = function(url){
-		// following 'borrowed' from
-		// http://stackoverflow.com/questions/736513/how-do-i-parse-a-url-into-hostname-and-path-in-javascript
-		var l = document.createElement("a");
-		l.href = url;
-		switch(l.protocol){
-			case 'cid:':
-				return escape(url);
-				break;
-			case 'mailto:':
-				return url;
-				break;
-			case 'http:':
-				if( (l.hostname == window.location.hostname) &&
-					(l.port == window.location.port) ){
-					return url;
-				} else {
-					l.protocol = 'scrub';
-					return l.href;
-				}
-				break;
-			default:
-				l.protocol = 'scrub';
-				return l.href;
-		}
-	}
-	
-	emailPane.nameIdSanitize = function(name){
-		return "santizationPrefix-" + name;
-	}
-	
-	emailPane.getFrom = function(callback){
-		dojo.xhrPost({
-			url:"/media",
-			handleAs:"json",
-			content:{
-				"command":"get_from",
-				"arguments":[],
-				"mode":"call"
-			},
-			load:function(res){
-				callback(res);
-			},
-			error:function(res){
-				warning(["err getting from address", res]);
-			}
-		});
+	emailPane = function(){
+		throw new Error("lib, can't be instantiated");
 	}
 }
 
-emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
+emailPane.sub = dojo.subscribe("emailLib/get_skeleton", function(skel){
 	debug(skel);
 	dojo.unsubscribe(emailPane.sub);
 	emailPane.skel = skel;
@@ -293,22 +37,22 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 	dojo.byId('attachmentList').clearSub = dojo.subscribe('emailPane/attachment/add', dojo.byId('attachmentList'), function(){
 		this.innerHTML = '';
 	});
-	dojo.byId('emailToSpan').innerHTML = emailPane.scrubString(skel.headers.to);
-	dojo.byId('emailFromSpan').innerHTML = emailPane.scrubString(skel.headers.from);
-	dojo.byId('emailSubjectSpan').innerHTML = emailPane.scrubString(skel.headers.subject);
-	dojo.byId('emailDateSpan').innerHTML = emailPane.scrubString(skel.headers.date);
-	dojo.byId('emailDateSpanReply').innerHTML = emailPane.scrubString(skel.headers.date);
+	dojo.byId('emailToSpan').innerHTML = emailLib.scrubString(skel.headers.to);
+	dojo.byId('emailFromSpan').innerHTML = emailLib.scrubString(skel.headers.from);
+	dojo.byId('emailSubjectSpan').innerHTML = emailLib.scrubString(skel.headers.subject);
+	dojo.byId('emailDateSpan').innerHTML = emailLib.scrubString(skel.headers.date);
+	dojo.byId('emailDateSpanReply').innerHTML = emailLib.scrubString(skel.headers.date);
 	dojo.byId('emailRawHeadersSpan').innerHTML = function(){
 		var out = []; //['<pre>'];
 		for(var i in skel.headers){
-			out.push(emailPane.scrubString(i) + ': ' + emailPane.scrubString(skel.headers[i]));
+			out.push(emailLib.scrubString(i) + ': ' + emailLib.scrubString(skel.headers[i]));
 		}
 		//out.push('</pre>');
 		out = out.join('</p><p>');
 		return '<p>' + out + '</p>';
 	}();
 	
-	dijit.byId('emailSubject').attr('value', 're:  ' + emailPane.scrubString(skel.headers.subject));
+	dijit.byId('emailSubject').attr('value', 're:  ' + emailLib.scrubString(skel.headers.subject));
 	dijit.byId('emailFrom').attr('value', skel.headers.to);
 	if(skel.headers['reply-to']){
 		dijit.byId('emailTo').attr('value', skel.headers['reply-to']);
@@ -316,9 +60,9 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		dijit.byId('emailTo').attr('value', skel.headers.from);
 	}
 	
-	var paths = emailPane.pathsToFetch(skel);
+	var paths = emailLib.pathsToFetch(skel);
 	var disp = dojo.byId("emailViewDiv");
-	disp.sub = dojo.subscribe("emailPane/fetchPaths/done", function(fetched){
+	disp.sub = dojo.subscribe("emailLib/fetchPaths/done", function(fetched){
 		debug(fetched);
 		dojo.unsubscribe(disp.sub);
 		disp.innerHTML = fetched;
@@ -367,7 +111,7 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 				dijit.byId('emailFrom').attr('value', skel.headers.to.split(',')[0]);
 			}
 		}
-		emailPane.getFrom(fetchFromCallback);
+		emailLib.getFrom(fetchFromCallback);
 	});
 	
 	//This could be set up when spying, so disable reply, and allow closability.
@@ -391,7 +135,7 @@ emailPane.sub = dojo.subscribe("emailPane/get_skeleton", function(skel){
 		});
 	}
 	
-	emailPane.fetchPaths(paths);
+	emailLib.fetchPaths(paths);
 });
 
 dojo.byId('attachedList').rebuildList = function(filenames){
@@ -444,6 +188,7 @@ dojo.byId('attachedList').attachListAddSub = dojo.subscribe("emailPane/attachmen
 		this.rebuildList(data.filenames);
 	}
 	else{
+		console.log(['attaching failed', data]);
 		errMessage(['attaching failed', data.message]);
 	}
 });
@@ -456,4 +201,4 @@ setTimeout(function(){
 	dojo.byId('emailReplyDiv').style.display = 'none';
 }, 250);
 
-emailPane.getSkeleton();
+emailLib.getSkeleton();

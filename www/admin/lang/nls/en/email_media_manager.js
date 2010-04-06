@@ -14,5 +14,11 @@
 	IF_AVAILABLE: "If available",
 	NEVER: "Never",
 	CONFIG: "Base Configuration",
-	MAIL_MAPPINGS: "Mail Mappings"
+	MAIL_MAPPINGS: "Mail Mappings",
+	BARENEWLINE: "Bare Newline",
+	FIX: "Fix",
+	STRIP: "Strip",
+	IGNORE: "Ignore",
+	ERROR: "Error",
+	COMMA_SEPARATED_LIST: "Comma separated list"
 }

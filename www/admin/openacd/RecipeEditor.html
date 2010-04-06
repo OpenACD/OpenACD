@@ -1,6 +1,5 @@
-<div dojoAttachPoint="topNode" style="display:table;background-color:#ccffff">
+<div dojoAttachPoint="containerNode" style="display:table">
 <button dojoType="dijit.form.Button" label="Add step" dojoAttachPoint="nullButton" style="display:none" dojoAttachEvent='onClick: addRow'></button>
-<div dojoType="PredicateEditor" border="1" store="queues.recipeConditionsStore" propwidth="12em" valwidth="4em"compwidth="4em" style="float:left" dojoAttachPoint="conditionsEditor"></div>
-<div style="display:table;float:right" dojoAttachPoint="stepsContainer">
+<div style="display:table;float:right;height:400px" dojoAttachPoint="stepsContainer" dojoType="dijit.layout.AccordionContainer">
 </div>
 </div>

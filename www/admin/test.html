@@ -1,0 +1,32 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>OpenACD Management</title>
+		<link rel="stylesheet" href="/dojo/dijit/themes/tundra/tundra.css">
+		<style type="text/css">
+			@import "/dojo/dijit/themes/tundra/tundra.css";
+		</style>
+		<script type="text/javascript">
+		var djConfig = {
+			parseOnLoad:true,
+			isDebug:true,
+			locale:'en-US',
+			modulePaths:{
+				"admin":"/lang"
+			}
+		}
+		</script>
+		<script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
+		<script>
+dojo.registerModulePath("openacd", "../../openacd");
+dojo.registerModulePath("openacd.PredicateEditor", "../../openacd/PredicateEditor");
+dojo.registerModulePath("openacd.RecipeEditor", "../../openacd/RecipeEditor");
+dojo.require("openacd.PredicateEditor");
+dojo.require("openacd.RecipeEditor");
+		</script>
+	</head>
+	<body class="tundra">
+		<div dojoType="RecipeEditor" id="r"></div>
+	</body>
+</html>

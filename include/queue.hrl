@@ -30,9 +30,9 @@
 %% @hidden
 -define(DEFAULT_WEIGHT, 5).
 -ifdef(TEST).
--define(DEFAULT_RECIPE, [{[{ticks, 3}], remove_skills, ['_node'], run_once}]).
+-define(DEFAULT_RECIPE, [{[{ticks, 3}], [{remove_skills, ['_node']}], run_once, <<"Default Recipe">>}]).
 -else.
--define(DEFAULT_RECIPE, [{[{ticks, 15}], remove_skills, ['_node'], run_once}]).
+-define(DEFAULT_RECIPE, [{[{ticks, 15}], [{remove_skills, ['_node']}], run_once, <<"Default Recipe">>}]).
 -endif.
 
 %-type(recipe_step() :: {non_neg_integer(),
@@ -50,8 +50,27 @@
 	{'available_agents', recipe_comparison(), non_neg_integer()} |
 	{'queue_position', recipe_comparison(), non_neg_integer()} |
 	{'calls_queued', recipe_comparison(), non_neg_integer()}).
-	
+
+-type(recipe_operation() ::
+	{'add_skills', [atom(), ...]} |
+	{'remove_skills', [atom(), ...]} |
+	{'set_priority', integer()} |
+	{'prioritize', []} |
+	{'deprioritize', []} |
+	{'voicemail', []} |
+	{'announce', string()} |
+	{'add_recipe', tuple()}
+). % no recursive types, so you can't use recipe_step here.
+
+-type(recipe_comment() :: binary()).
+
 -type(recipe_step() ::
+	{[recipe_condition(), ...], [recipe_operation(), ...], recipe_runs(), recipe_comment()}
+).
+
+-type(recipe() :: [recipe_step()]).
+
+-type(recipe_step_old() ::
 	{[recipe_condition(), ...], 'add_skills', [atom(),...], recipe_runs()} |
 	{[recipe_condition(), ...], 'remove_skills', [atom(),...], recipe_runs()} |
 	{[recipe_condition(), ...], 'set_priority', integer(), recipe_runs()} |
@@ -61,7 +80,7 @@
 	{[recipe_condition(), ...], 'announce', string(), recipe_runs()} |
 	{[recipe_condition(), ...], 'add_recipe', tuple(), recipe_runs()}). % no recursive types, so you can't use recipe_step here.
 
--type(recipe() :: [recipe_step()]).
+-type(recipe_old() :: [recipe_step_old()]).
 
 -record(call_queue, {
 	name = erlang:error({undefined, name}) :: string(),

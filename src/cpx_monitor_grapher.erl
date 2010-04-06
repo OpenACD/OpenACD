@@ -138,63 +138,32 @@ handle_info(graph, #state{rrd = RRD, rrd_dir = Dir, image_dir = Imagedir} = Stat
 		{"util-1h", "1 hour trend", "now-2h", 3600},
 		{"util-8h", "8 hour trend", "now-16h", 28800}
 	],
-
-	Fun = fun(F, {Defines, CDefines, Lines}) ->
-			FileName = filename:basename(F),
-			Name = filename:rootname(FileName),
-			{
-				["DEF:"++Name++"raw="++FileName++":"++Name++":LAST:start=~s" | Defines],
-				["CDEF:"++Name++"="++Name++"raw,~B,TRENDNAN VDEF:"++Name++"avg="++Name++",AVERAGE" | CDefines],
-				%["LINE2:"++Name++name_to_color(Name)++":"++Name++" GPRINT:"++Name++"avg:\"Avg %6.2lf %S\"" | Lines]
-				["LINE2:"++Name++name_to_color(Name)++":"++Name | Lines]
-			}
-	end,
-
-	{D, C, L} = filelib:fold_files(Dir, ".rrd", false, Fun , {[], [], []}),
-
-	%Command = "graph util-15m.png --end now --start end-~B --slope-mode --title \"~s\" --imgformat PNG --height 200 --width 600 " ++
-		%string:join(D, " ") ++ " " ++ string:join(C, " ") ++ " " ++ string:join(L, " ") ++ "\n",
 	
-	lists:map(fun({Imgname, Title, Start, Duration}) ->
-		Defines = re:replace(string:join(D, " "), "~s", Start, [{return, list}, global]),
-		CDefines = re:replace(string:join(C, " "), "~B", integer_to_list(Duration), [{return, list}, global]),
-		Command = "graph "++Imagedir++Imgname++".png --end now --start end-"++integer_to_list(Duration)++" --slope-mode --title \""++Title++"\" --imgformat PNG --height 200 --width 600 " ++
-			Defines ++ " " ++ CDefines ++ " " ++ string:join(L, " ") ++ "\n",
-		errd_server:raw(RRD, Command)
-	end, Graphs),
+	[do_graph(RRD, Dir, Imagedir, X) || X <- Graphs],
 	{noreply, State};
 handle_info(update, State) ->
 	Now = util:now(),
 	GroupedAgents = get_agents(Now),
 	timer:send_after(30000, update),
 	Util = calculate_utilization(State#state.agents),
-	%?DEBUG("utilization: ~p", [Util]),
+	?INFO("utilization: ~p", [Util]),
 	%?DEBUG("agents: ~p", [State#state.agents]),
-	AgentCount = lists:foldl(
-		fun({Profile, Agents}, A) when Profile =/= "Supervisor", Profile =/= "Customer Service" ->
-			%?DEBUG("Counting profile ~p", [Profile]),
-			%GroupedAgents1 = util:group_by_with_key(fun(Agent) -> proplists:get_value(login, Agent) end, Agents),
-			A + 1;
-		(_, A) ->
-			A
-	end, 0, State#state.agents),
-	%?DEBUG("Agentcount is ~p", [AgentCount]),
+
+	AgentCount = length(State#state.agents),
 
 	Composite = case AgentCount of
 		0 ->
-			0;
+			[];
 		_ ->
-			lists:foldl(
-				fun({Profile, U}, A) when Profile =/= "Supervisor", Profile =/= "Customer Service" ->
-						A + U;
-					(_, A) ->
-						A
+			[{"Composite", lists:foldl(
+				fun({Profile, U}, A) ->
+						A + U
 				end,
-				0, Util) / AgentCount
+				0, Util) / AgentCount}]
 	end,
 
-	%?DEBUG("Composite is ~p", [Composite]),
-	update_utilization(Util ++ [{"Composite", Composite}], State#state.rrd),
+	?INFO("Composite: ~p, AgentCount: ~p, Util: ~p", [Composite, AgentCount, Util]),
+	update_utilization(Util ++ Composite, State#state.rrd),
 	{noreply, State#state{lastrun = Now, agents = GroupedAgents}, hibernate};
 handle_info({cpx_monitor_event, {set, {{agent, _}, _, Agent, _}}}, #state{agents = Agents} = State) ->
 	NewAgents = update_agent(Agent, Agents),
@@ -212,7 +181,8 @@ code_change(_Oldvsn, State, _Extra) ->
 
 get_agents(Now) ->
 	Agents = lists:map(fun({_, _, Agent}) -> [{lastchange, {timestamp, Now}} | proplists:delete(lastchange, Agent)] end, element(2, cpx_monitor:get_health(agent))),
-	util:group_by_with_key(fun(Agent) -> proplists:get_value(profile, Agent) end, Agents).
+	GroupedList = util:group_by_with_key(fun(Agent) -> proplists:get_value(profile, Agent) end, Agents),
+	lists:filter(fun({P, _A}) -> P =/= "Supervisor" andalso P =/= "Customer Service" end, GroupedList).
 
 update_agent(Agent, Agents) ->
 	Profile = proplists:get_value(profile, Agent),
@@ -323,4 +293,31 @@ floor(X) ->
 		if X < T -> T - 1
 				; true  -> T
 		end.
+
+do_graph(RRD, Dir, Imagedir, {Imagename, Title, Start, Duration}) ->
+	Cutoff = util:now() - Duration,
+	Fun = fun(F, {Defines, CDefines, Lines}) ->
+			FileName = filename:basename(F),
+			LastUpdate = element(7, errd_server:info(RRD, FileName)),
+			Name = filename:rootname(FileName),
+			if
+				LastUpdate > Cutoff ->
+					{
+						["DEF:"++Name++"raw="++FileName++":"++Name++":LAST:start=~s" | Defines],
+						["CDEF:"++Name++"="++Name++"raw,~B,TRENDNAN VDEF:"++Name++"avg="++Name++",AVERAGE" | CDefines],
+						%["LINE2:"++Name++name_to_color(Name)++":"++Name++" GPRINT:"++Name++"avg:\"Avg %6.2lf %S\"" | Lines]
+						["LINE2:"++Name++name_to_color(Name)++":"++Name | Lines]
+					};
+				true ->
+					{Defines, CDefines, Lines}
+			end
+	end,
+
+	{D, C, L} = filelib:fold_files(Dir, ".rrd", false, Fun , {[], [], ["LINE2:77#000000::dashes"]}),
+
+	Defines = re:replace(string:join(D, " "), "~s", Start, [{return, list}, global]),
+	CDefines = re:replace(string:join(C, " "), "~B", integer_to_list(Duration), [{return, list}, global]),
+	Command = "graph "++Imagedir++Imagename++".png --end now --start end-"++integer_to_list(Duration)++" --slope-mode --title \""++Title++"\" --imgformat PNG --height 200 --width 600 " ++
+	Defines ++ " " ++ CDefines ++ " " ++ string:join(L, " ") ++ "\n",
+	errd_server:raw(RRD, Command).
 

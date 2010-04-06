@@ -29,6 +29,14 @@ the 2 main developers are:
 
 Other contributions are welcome.
 
+Contributing
+============
+
+If you'd like to contribute - simply make a fork on github, and once you've got
+some changes you like reviewed, send a pull request or email to either of the
+main developers. We'll review the changes and either include them or let you
+know why not. Also feel free to contribute documentation, translations or report bugs.
+
 Project Status
 ==============
 
@@ -41,4 +49,7 @@ simultaneously.
 More Info
 =========
 
-More information can be found on the [github wiki](http://wiki.github.com/Vagabond/OpenACD/).
+More information can be found on the
+[github wiki](http://wiki.github.com/Vagabond/OpenACD/).
+Please feel free to contribute
+additional information on the wiki if you have it.

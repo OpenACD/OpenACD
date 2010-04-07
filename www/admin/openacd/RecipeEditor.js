@@ -68,6 +68,11 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 		}
 		this.numberWidget.domNode.style.display = 'none';
 		this.stringWidget.domNode.style.display = 'none';
+		if(this.argsWidget){
+			if(this.argsWidget.destroy){
+				this.argsWidget.destroy();
+			}
+		}
 		switch(action){
 			case "add_skills":
 			case "remove_skills":

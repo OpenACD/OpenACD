@@ -221,7 +221,7 @@ task :keygen do
 end
 
 task :roll_release => [:submodules] do
-	version = `git describe`
+	version = `git describe --exact-match`
 	puts $?.exitstatus
 	if $?.exitstatus != 0
 		version = "snapshot-#{Time.now.strftime('%Y-%m-%d')}"

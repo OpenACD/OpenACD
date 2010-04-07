@@ -1,9 +1,14 @@
+dojo.require("agentUI.logLib");
+dojo.require("agentUI.util");
+
 dojo.provide("agentUI.emailLib");
 
 if(typeof(emailLib) == 'undefined'){
 	emailLib = function(){
 		throw new Error("emailLib is a lib, and so can't be instantiated");
 	}
+	
+	dojo.create('script', {type:'text/javascript', src:'/html-sanitizer-minified.js'}, dojo.query('head')[0], 'last');
 	
 	emailLib.getSkeleton = function(){
 		dojo.xhrPost({

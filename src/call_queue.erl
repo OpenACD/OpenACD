@@ -438,6 +438,7 @@ handle_call(grab, {From, _Tag}, State) ->
 		{Key, Value} ->
 			link(From), % to catch exits from the dispatcher so we can clean out dead pids
 			State2 = State#state{queue=gb_trees:update(Key, Value#queued_call{dispatchers=lists:append(Value#queued_call.dispatchers, [From])}, State#state.queue)},
+			Value#queued_call.cook ! {grab, From}, % notify the cook that we grabbed
 			{reply, {Key, Value}, State2}
 	end;
 

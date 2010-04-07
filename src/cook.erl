@@ -45,12 +45,12 @@
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
--define(TICK_LENGTH, 500).
+-define(TICK_LENGTH, 1000).
 -define(RINGOUT, 3).
 
 -else.
 
--define(TICK_LENGTH, 500).
+-define(TICK_LENGTH, 1000).
 -define(RINGOUT, 60).
 
 -endif.
@@ -183,16 +183,26 @@ handle_cast(Msg, #state{callid = CallID} = State) ->
 %%--------------------------------------------------------------------
 %% @private
 handle_info(do_tick, #state{qpid = Qpid} = State) ->
-	%?DEBUG("do_tick caught, beginning processing...", []),
+	NewRecipe = do_recipe(State#state.recipe, State#state.ticked, Qpid, State#state.call),
+	Tref = case NewRecipe of
+		[] ->
+			% empty recipe, don't wake up later
+			undefined;
+		_ ->
+			% TODO calculate if we can sleep longer here
+			erlang:send_after(?TICK_LENGTH, self(), do_tick)
+	end,
+	State2 = State#state{ticked = State#state.ticked + 1, recipe = NewRecipe, tref = Tref},
+	{noreply, State2};
+handle_info({grab, Pid}, #state{qpid = Qpid} = State) ->
+	% TODO - we should wait to see if more nodes want to bind to make distributed delivery fairer
+	?DEBUG("a dispatcher grabbed the call", []),
 	case do_route(State#state.ringstate, Qpid, State#state.call) of
 		nocall ->
 			{stop, {call_not_queued, State#state.call}, State};
 		Ringstate ->
 			State2 = State#state{ringstate = Ringstate},
-			NewRecipe = do_recipe(State2#state.recipe, State2#state.ticked, Qpid, State2#state.call),
-			Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
-			State3 = State2#state{ticked = State2#state.ticked + 1, recipe = NewRecipe, tref = Tref},
-			{noreply, State3}
+			{noreply, State2}
 	end;
 handle_info({'EXIT', From, Reason}, #state{qpid = From} = State) when Reason == shutdown; Reason == normal ->
 	{stop, Reason, State};

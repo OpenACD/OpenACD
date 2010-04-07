@@ -8,18 +8,6 @@ function switchtab(tab) {
 	currenttab = tab;
 }
 
-function inspect(obj){
-	console.log(obj);
-	for(var i in obj){
-		if(typeof(obj[i]) == "function"){
-			console.log("  " + i + ": function()");
-		}
-		else{
-			console.log("  " + i + ": " + obj[i]);
-		}
-	}
-}
-
 function timeSince(timestamp){
 	if(isNaN(timestamp)){
 		return timestamp;

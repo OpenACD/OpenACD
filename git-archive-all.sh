@@ -167,11 +167,18 @@ while read path; do
     cd "$OLD_PWD"
 done < $TOARCHIVE
 
+
 # Concatenate archives into a super-archive.
 if [ $SEPARATE -eq 0 ]; then
-    if [ $FORMAT == 'tar' ]; then
+    GNUTAR=`tar --version | grep -q GNU; echo $?`
+    if [ $FORMAT == 'tar' -a $GNUTAR -eq 0 ]; then
+        echo "GNU tar"
         sed -e '1d' $TMPFILE | while read file; do
             tar --concatenate -f "$superfile" "$file" && rm -f "$file"
+        done
+    elif [ $FORMAT == 'tar' ]; then
+        sed -e '1d' $TMPFILE | while read file; do
+            tar  -rf ${superfile} @$file && rm -f "$file"
         done
     elif [ $FORMAT == 'zip' ]; then
         sed -e '1d' $TMPFILE | while read file; do

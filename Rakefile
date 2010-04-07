@@ -227,6 +227,7 @@ task :roll_release => [:submodules] do
 		version = "snapshot-#{Time.now.strftime('%Y-%m-%d')}"
 	end
 	sh "./git-archive-all.sh --prefix OpenACD-#{version}/ OpenACD-#{version}.tar"
+	sh "gzip -f OpenACD-#{version}.tar"
 end
 
 namespace :test do

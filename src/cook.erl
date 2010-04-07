@@ -45,7 +45,7 @@
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
--define(TICK_LENGTH, 1000).
+-define(TICK_LENGTH, 500).
 -define(RINGOUT, 3).
 
 -else.
@@ -158,8 +158,15 @@ handle_cast(restart_tick, #state{qpid = Qpid} = State) ->
 			Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 			{noreply, State3#state{tref=Tref}}
 	end;
-handle_cast(stop_ringing, State) ->
-	{noreply, State#state{ringstate = none}};
+handle_cast(stop_ringing, #state{qpid = Qpid} = State) ->
+	?DEBUG("rang out or ring aborted, trying to find new candidate", []),
+	case do_route(none, Qpid, State#state.call) of
+		nocall ->
+			{stop, {call_not_queued, State#state.call}, State};
+		Ringstate ->
+			State2 = State#state{ringstate = Ringstate},
+			{noreply, State2}
+	end;
 handle_cast({ring_to, Apid, QCall}, State) ->
 	Agent = agent:dump_state(Apid),
 	Newstate = case offer_call([{Agent#agent.login, Apid, Agent}], QCall) of
@@ -194,7 +201,7 @@ handle_info(do_tick, #state{qpid = Qpid} = State) ->
 	end,
 	State2 = State#state{ticked = State#state.ticked + 1, recipe = NewRecipe, tref = Tref},
 	{noreply, State2};
-handle_info({grab, Pid}, #state{qpid = Qpid} = State) ->
+handle_info(grab, #state{qpid = Qpid} = State) ->
 	% TODO - we should wait to see if more nodes want to bind to make distributed delivery fairer
 	?DEBUG("a dispatcher grabbed the call", []),
 	case do_route(State#state.ringstate, Qpid, State#state.call) of

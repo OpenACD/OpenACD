@@ -19,11 +19,202 @@
 		</script>
 		<script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
 		<script>
+		
+inArray = function(needle, haystack){
+	for(var i = 0; i < haystack.length; i++){
+		if(haystack[i] == needle){
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+skills = function(){
+	return {};
+};
+/*
+skills.store = new dojo.data.ItemFileReadStore({
+	data:{
+		"items":[]
+	}
+});
+
+skills.model = new dijit.tree.ForestStoreModel({
+	store:skills.store,
+	labelAttr:"name",
+	query:{"type":"group"},
+	childrenAttrs:"skills",
+	rootId:"skills",
+	rootLabel:"Skills"
+});
+
+skills.tree = false;
+
+skills.init = function(){
+	skills.store = new dojo.data.ItemFileWriteStore({
+		url:"/skills/groups/get"
+	});
+	skills.store.fetch();
+	skills.model = new dijit.tree.ForestStoreModel({
+		store:skills.store,
+		labelAttr: "name",
+		query:{"type":"group"},
+		childrenAttrs:["skills"],
+		rootId:"skills",
+		rootLabel:"Skills"
+	});
+	dojo.publish("skills/init", []);
+};
+
+skills.refreshTree = function(targetnode){
+	var parent = dojo.byId(targetnode).parentNode;
+	skills.store = new dojo.data.ItemFileWriteStore({
+		url:"/skills/groups/get"
+	});
+	skills.store.fetch();
+	skills.model = new dijit.tree.ForestStoreModel({
+		store:skills.store,
+		labelAttr: "name",
+		query:{"type":"group"},
+		childrenAttrs:["skills"],
+		rootId:"skills",
+		rootLabel:"Skills"
+	});
+	if(dijit.byId(skills.tree.id)){
+		dijit.byId(skills.tree.id).destroy();
+	}
+	var n = dojo.doc.createElement('div');
+	n.id = targetnode;
+	parent.appendChild(n);
+	skills.tree = new dijit.Tree({
+		store: skills.store,
+		model: skills.model,
+		showRoot: false
+	}, targetnode);
+	dojo.publish("skills/tree/refreshed", []);
+};*/
+
+skills.createSelect = function(callback, selected, hidden, expand){
+	//var selectNode = document.createElement('select');
+	//selectNode.multiple = 'true';
+	var selectNode = dojo.create('select', {'multiple':true,
+		'innerHTML':'<optgroup label="group1">' +
+			'<option value="skill1">Skill 1</option>' +
+			'<option value="skill2">Skill 2</option>' +
+		'</optgroup>' +
+		'<optgroup label="_magic">' +
+			'<option value="{_magic,magicone}">Magic 1</option>' +
+			'<option value="{_magic,magictwo}">Magic 2</option>' +
+		'</optgroup>'});
+	
+	selectNode.getValues = function(){
+		var nodelist = dojo.query('> optgroup > option', selectNode);
+		var out = [];
+		for(var i =0; i < nodelist.length; i++){
+			if(nodelist[i].selected){
+				out.push(nodelist[i].value);
+			}
+		}
+		return out;
+	};
+	
+	var options = dojo.query('> optgroup > option', selectNode);
+	for(var i = 0; i < options.length; i++){
+		var val = options[i].value;
+		if(inArray(val, selected)){
+			options[i].selected = true;
+		}
+	}
+	
+	callback(selectNode);
+};
+/*
+skills.expandSkill = function(callback, magicskill){
+	dojo.xhrGet({
+		url:"/skills/skill/" + magicskill + "/expand",
+		handleAs:"json",
+		load:function(response, ioargs){
+			callback(response.items, magicskill);
+		},
+		error: function(res){
+			errMessage(["expanding skill errored", res]);
+			console.log(["expanding skill errored", res]);
+		}
+	});
+};
+
+skills.updateGroup = function(submform, node){
+	var values = dijit.byId(submform).getValues();
+	dojo.xhrPost({
+		url:"/skills/groups/" + values.oldname + "/update",
+		form:submform,
+		handleAs:"json",
+		load:function(response, ioargs){
+			skills.refreshTree(node);
+		},
+		error:function(response, ioargs){
+			errMessage(["skill group update errored", response]);
+			console.log(["skill group update errored", response]);
+		}
+	});
+};
+
+skills.updateSkill = function(submform, node){
+	var values = dijit.byId(submform).getValues();
+	var atom = dijit.byId('skillAtom').getValue();
+	dojo.xhrPost({
+		url:"/skills/skill/" + atom + "/update",
+		form:submform,
+		content:{
+			'atom':atom
+		},
+		handleAs:"json",
+		load:function(response, ioargs){
+			skills.refreshTree(node);
+		},
+		error:function(response, ioargs){
+			errMessage(["update skill errored", response]);
+			console.log(["update skill errored", response]);
+		}
+	});
+};
+
+skills.newSkill = function(submform, node){
+	var values = dijit.byId(submform).getValues();
+	dojo.xhrPost({
+		url:"/skills/skill/new",
+		form:submform,
+		handleAs:"json",
+		load:function(response, ioargs){
+			skills.refreshTree(node);
+		},
+		error:function(response, ioargs){
+			errMessage(["create skill errored", response]);
+			console.log(["create skill errored", response]);
+		}
+	});
+};
+
+
+*/
+
+
+
+
+
 dojo.registerModulePath("openacd", "../../openacd");
 dojo.registerModulePath("openacd.PredicateEditor", "../../openacd/PredicateEditor");
 dojo.registerModulePath("openacd.RecipeEditor", "../../openacd/RecipeEditor");
 dojo.require("openacd.PredicateEditor");
 dojo.require("openacd.RecipeEditor");
+
+
+
+
+
+
+
 		</script>
 	</head>
 	<body class="tundra">

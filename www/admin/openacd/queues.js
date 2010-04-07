@@ -8,7 +8,7 @@ queues = function(){
 
 dojo.requireLocalization("admin", "recipeEditor");
 
-queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
+/*queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 	data:{
 		identifier:"value",
 		label:"label",
@@ -113,7 +113,7 @@ queues.recipeConditionsStore = new dojo.data.ItemFileReadStore({
 			]}
 		]
 	}
-});
+});*/
 
 queues.store = new dojo.data.ItemFileWriteStore({
 	data:{

@@ -11,7 +11,7 @@ dojo.requireLocalization("admin", "recipeEditor");
 dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 	// actions go in rows, which go in the editor
 	widgetsInTemplate: true,
-	templateString: '<div><select dojoType="dijit.form.FilteringSelect" dojoAttachPoint="actionField" name="action" style="width:12em;">' +
+	templateString: '<div dojoAttachPoint="containerNode"><select dojoType="dijit.form.FilteringSelect" dojoAttachPoint="actionField" name="action" style="width:12em;">' +
 		'<option value="add_skills">ADDSKILLS</option>' +
 		'<option value="remove_skills">REMOVESKILLS</option>' +
 		'<option value="set_priority">SETPRIORITY</option>' +
@@ -21,6 +21,8 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 		'<option value="announce">MEDIAANNOUCE</option>' +
 		'<option value="add_recipe">ADDRECIPE</option>' +
 	'</select>' +
+	'<input dojoType="dijit.form.ValidationTextBox" dojoAttachPoint="numberWidget" regExp="[\\d]+" style="width:5em;display:none" />' +
+	'<input dojoType="dijit.form.TextBox" dojoAttachPoint="stringWidget" style="width:10em;display:none" />' +
 	'<button dojoType="dijit.form.Button" dojoAttachPoint="dropButton" label="DROPSTEP"></button>' +
 	'<button dojotype="dijit.form.Button" dojoAttachPoint="addButton" label="ADDSTEP"></button></div>',
 	_nullArgsWidget: function(){
@@ -28,7 +30,8 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 		this.argsWidget = {
 			getValue:function(){ return ""; },
 			setValue:function(){ return ""; },
-			destroy:function(){ }
+			destroy:function(){ },
+			setDisabled:function(){ }
 		};
 	},
 	_buildSelect: function(select){
@@ -55,7 +58,7 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 		dojo.place(select, this.argumentsDiv, 'after');
 	},
 	_insertArgsDiv: function(){
-		return dojo.create('div', {'dojoAttachPoint':'argumentsDiv'}, this.actionField.domNode, 'after');
+		return dojo.create('div', {'dojoAttachPoint':'argumentsDiv'}, this.containerNode, 'first');
 	},
 	setArguments: function(action, args){
 		console.log('setting arguments');
@@ -63,9 +66,8 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 			delete this._suppressNextSetArgs;
 			return;
 		}
-		if(this.argsWidget){
-			this.argsWidget.destroy();
-		}
+		this.numberWidget.domNode.style.display = 'none';
+		this.stringWidget.domNode.style.display = 'none';
 		switch(action){
 			case "add_skills":
 			case "remove_skills":
@@ -94,7 +96,10 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 					};
 					select.destroy = function(){
 						dijit.byId(thisid).actionField.domNode.parentNode.removeChild(select);
-					}
+					};
+					select.setDisabled = function(bool){
+						select.disabled = bool;
+					};
 					dijit.byId(thisid).argsWidget = select;
 				}
 				var selected = [];
@@ -104,15 +109,9 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 				skills.createSelect(callback, selected, ['_agent'], ['_profile']);
 				break;
 			case "set_priority":
-				var argsWidget = new dijit.form.ValidationTextBox({
-					regExp:"[\\d]+",
-					style:"width:5em"
-				}, this._insertArgsDiv());
-				this.argumentsId = argsWidget.id;
-				//dojo.place(argsWidget.domNode, this.argumentsDiv, 'after');
-				this.argsWidget = argsWidget;
-				//argsWidget.attr('disabled', true);
-				//argsWidget.attr('dsiabled', false);
+				this.numberWidget.domNode.style.display = '';
+				this.argsWidget = 'numberWidget';
+				this.numberWidget.attr('value', args);
 				break;
 			case "prioritize":
 			case "deprioritize":
@@ -121,27 +120,26 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 				this._nullArgsWidget();
 				break;
 			case "announce":
-				var argsWidgetAnnounce = new dijit.form.TextBox({
-					style:"width:10em"
-				}, this._insertArgsDiv());
-				//this.argumentsDiv.attr('content', argsWidgetAnnounce.domNode);
-				//dojo.place(argsWidgetAnnounce.domNode, this.argumentsDiv, 'after');
-				this.argsWidget = argsWidgetAnnounce;
+				this.stringWidget.domNode.style.display = '';
+				this.argsWidget = 'stringWidget';
+				this.stringWidget.attr('value', args);
 				break;
 			case "add_recipe":
 				//TODO : implement real recusive recipe-age.
 				this._nullArgsWidget();
 				break;
-			}
-		if(this.argsWidget.attr){
-			this.argsWidget.attr('disabled', this._disabled);
-		} else if(this.argsWidget.setDisabled) {
-			this.argsWidget.setDisabled(this._disabled);
+		}
+		if(this.argsWidget != 'numberWidget' && this.argsWidget != 'stringWidget'){
+			 this.argsWidget.setDisabled(this._disabled);
 		}
 	},
 	getValue:function(){
 		var args = "";
-		if(this.argsWidget.attr){
+		if(this.argsWidget == 'numberWidget'){
+			args = this.numberWidget.attr('value');
+		} else if ( this.argsWidget == 'stringWidget') {
+			args = this.stringWidget.attr('value');
+		} else if (this.argsWidget.attr){
 			args = this.argsWidget.attr('value');
 		} else{
 			args = this.argsWidget.getValue();
@@ -194,6 +192,8 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 		this._disabled = bool;
 		this.actionField.attr('disabled', bool);
 		this._nullArgsWidget('disabled', bool);
+		this.numberWidget.attr('disabled', bool);
+		this.stringWidget.attr('disabled', bool);
 	}
 });
 
@@ -202,26 +202,6 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 	widgetsInTemplate: true,
 	templateString: "",
 	comment:'',
-	/*_explain:function(){
-		var value = this.getValue();
-		if(value.runs == 'runs_once'){
-			out = 'These actions are only done the first time all conditions are met.<ul>';
-		} else {
-			out = 'These actions are done every time all conditions are met.<ul>';
-		}
-		var i = 0;
-		for(i = 0; i < value.actions.length; i++){
-			switch(value.actions[i].action){
-				case 'prioritize':
-					out += '<li>The priority is increased by one.</li>';
-					break;
-				case 'deprioritize':
-					out += '<li>The priority is decreased by one.</li>';
-					break;
-					
-			}
-		}
-	},*/
 	addAction:function(index){
 		var widget = new RecipeEditorAction();
 		if(index >= this.actionsDiv.childNodes.length){
@@ -236,7 +216,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 			this.dropAction(widget.id);
 		});
 		console.log('setting value');
-		//widget.setValue({action:'prioritze', 'arguments':''});
+		widget.setValue({action:'prioritize', 'arguments':''});
 		console.log('spitting it back');
 		this.actions.splice(index, 0, widget.id);
 		if(this.actions.length > 1){

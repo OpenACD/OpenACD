@@ -29,6 +29,8 @@ the 2 main developers are:
 
 Other contributions are welcome.
 
+You can also (possibly) get help on IRC via #openacd on FreeNode.
+
 Contributing
 ============
 

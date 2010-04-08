@@ -987,7 +987,6 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = {Agent, Apid}, cal
 	cdr:ringout(State#state.callrec, {Reason, Agent}),
 	erlang:demonitor(Mons#monitors.ring_pid),
 	Newmons = Mons#monitors{ring_pid = undefined},
-	gen_server:cast(Call#call.cook, stop_ringing),% tell the cook to try to ring again
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}};
 handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = _Callback, queue_pid = {Q, _Qp}} = State) when Ref =:= Mons#monitors.queue_pid ->
 	?WARNING("Queue ~p died due to ~p (I'm ~p)", [element(1, State#state.queue_pid), Info, Call#call.id]),

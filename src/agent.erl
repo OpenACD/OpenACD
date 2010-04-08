@@ -388,12 +388,14 @@ state_to_integer(State) ->
 	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'idle', #agent{}}).
 idle({precall, Call}, _From, State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
+	gen_leader:cast(agent_manager, {end_avail, State#agent.login}),
 	gen_server:cast(State#agent.connection, {change_state, precall, Call}),
 	Newstate = State#agent{state=precall, oldstate=idle, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?PRECALL_LIMITS, []),
 	{reply, ok, precall, Newstate};
 idle({ringing, Call = #call{}}, _From, State) ->
 	gen_server:cast(State#agent.connection, {change_state, ringing, Call}),
+	gen_leader:cast(agent_manager, {end_avail, State#agent.login}),
 	Newstate = State#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, Newstate};
@@ -401,6 +403,7 @@ idle({released, default}, From, State) ->
 	idle({released, ?DEFAULT_REL}, From, State);
 idle({released, {Id, Reason, Bias}}, _From, State) when -1 =< Bias, Bias =< 1, is_integer(Bias) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
+	gen_leader:cast(agent_manager, {end_avail, State#agent.login}),
 	gen_server:cast(State#agent.connection, {change_state, released, {Id, Reason, Bias}}), % it's up to the connection to determine if this is worth listening to
 	Newstate = State#agent{state=released, oldstate=idle, statedata={Id, Reason, Bias}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
@@ -430,6 +433,7 @@ ringing(oncall, _From, #agent{statedata = Statecall} = State) when Statecall#cal
 		ok ->
 			Newstate = State#agent{state=oncall, oldstate = ringing, lastchange = util:now()},
 			gen_server:cast(dispatch_manager, {end_avail, self()}),
+			gen_leader:cast(agent_manager, {end_avail, State#agent.login}),
 			gen_server:cast(State#agent.connection, {change_state, oncall, State#agent.statedata}),
 			gen_server:cast(Statecall#call.cook, remove_from_queue),
 			%cdr:oncall(Statecall, State#agent.login),
@@ -443,6 +447,7 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #agent{statedata = Statecall} 
 		Callid -> 
 			Newstate = State#agent{state = oncall, statedata = Call, oldstate = ringing, lastchange = util:now()},
 			gen_server:cast(dispatch_manager, {end_avail, self()}),
+			gen_leader:cast(agent_manager, {end_avail, State#agent.login}),
 			gen_server:cast(State#agent.connection, {change_state, oncall, Call}),
 			set_cpx_monitor(Newstate, ?ONCALL_LIMITS, []),
 			{reply, ok, oncall, Newstate};
@@ -456,12 +461,13 @@ ringing({released, {Id, Text, Bias} = Reason}, _From, #agent{statedata = Call} =
 	%gen_server:cast(Call#call.cook, {stop_ringing_keep_state, self()}),
 	gen_media:stop_ringing(Call#call.source),
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
+	gen_leader:cast(agent_manager, {end_avail, State#agent.login}),
 	gen_server:cast(State#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	Newstate = State#agent{state=released, oldstate=ringing, statedata=Reason, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?RELEASED_LIMITS(Bias), [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, Newstate};
 ringing(idle, _From, State) ->
-	%gen_server:cast(dispatch_manager, {now_avail, self()}),
+	gen_leader:cast(agent_manager, {now_avail, State#agent.login}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
 	Newstate = State#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
@@ -493,6 +499,7 @@ precall({outgoing, Call}, _From, #agent{statedata = StateCall} = State) when Cal
 precall(idle, _From, #agent{statedata = Call} = State) ->
 	gen_server:cast(Call#call.source, cancel),
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
+	gen_leader:cast(agent_manager, {now_avail, State#agent.login}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
 	Newstate = State#agent{state=idle, oldstate=State#agent.state, statedata={}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
@@ -717,6 +724,7 @@ released({precall, Call}, _From, State) ->
 	{reply, ok, precall, Newstate};
 released(idle, _From, State) ->	
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
+	gen_leader:cast(agent_manager, {now_avail, State#agent.login}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
 	Newstate = State#agent{state=idle, oldstate=released, statedata={}, lastchange = util:now()},
 	set_cpx_monitor(Newstate, ?IDLE_LIMITS, []),
@@ -869,8 +877,9 @@ wrapup({released, default}, From, State) ->
 	wrapup({released, ?DEFAULT_REL}, From, State);
 wrapup({released, {_Id, _Text, Bias} = Reason}, _From, State) when is_integer(Bias), -1 =< Bias, Bias =< 1 ->
 	{reply, queued, wrapup, State#agent{queuedrelease=Reason}};
-wrapup(idle, _From, State= #agent{statedata = Call, queuedrelease = undefined}) ->
+wrapup(idle, _From, #agent{statedata = Call, queuedrelease = undefined} = State) ->
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
+	gen_leader:cast(agent_manager, {now_avail, State#agent.login}),
 	gen_server:cast(State#agent.connection, {change_state, idle}),
 	cdr:endwrapup(Call, State#agent.login),
 	Newstate = State#agent{state=idle, oldstate=wrapup, statedata={}, lastchange = util:now()},
@@ -937,9 +946,11 @@ handle_sync_event({url_pop, URL, Name}, _From, StateName, #agent{connection=Conn
 	{reply, ok, StateName, State};
 handle_sync_event({add_skills, Skills}, _From, StateName, State) ->
 	NewSkills = util:merge_skill_lists(expand_magic_skills(State, Skills), State#agent.skills, ['_queue', '_brand']),
+	agent_manager:update_skill_list(State#agent.login, NewSkills),
 	{reply, ok, StateName, State#agent{skills = NewSkills}};
 handle_sync_event({remove_skills, Skills}, _From, StateName, State) ->
 	NewSkills = util:subtract_skill_lists(State#agent.skills, expand_magic_skills(State, Skills)),
+	agent_manager:update_skill_list(State#agent.login, NewSkills),
 	{reply, ok, StateName, State#agent{skills = NewSkills}};
 handle_sync_event({change_profile, Profile}, _From, StateName, State) ->
 	OldProfile = State#agent.profile,
@@ -1294,6 +1305,7 @@ from_idle_test_() ->
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, log_pid = Logpid},
@@ -1302,20 +1314,22 @@ from_idle_test_() ->
 			gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
+			gen_leader_mock:assert_expectations(AMmock),
 			ok
 		end,
 		?CONSOLE("Test args:  ~p", [[Agent, Dmock, Monmock, Connmock, Logpid, Assertmocks]]),
-		{Agent, Dmock, Monmock, Connmock, Assertmocks}
+		{Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}
 	end,
-	fun({_Agent, Dmock, Monmock, Connmock, _Assertmocks}) ->
+	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
 		gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
+		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
 	end,
-	[fun({Agent, Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
+	[fun({Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
 		{"to precall",
 		fun() ->
 			Client = #client{label = "testclient"},
@@ -1334,11 +1348,15 @@ from_idle_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", precall, idle, _Client}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
 			?assertMatch({reply, ok, precall, _State}, idle({precall, Client}, {"ref", "pid"}, Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
+	fun({Agent, AMmock, _Dmock, Monmock, Connmock, Assertmocks} = _Testargs) ->
 		{"to ringing",
 		fun() ->
 			Self = self(),
@@ -1356,17 +1374,21 @@ from_idle_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, idle, _Call}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
 			?assertMatch({reply, ok, ringing, _State}, idle({ringing, Call}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released with invalid format",
 		fun() ->
 			?assertMatch({reply, invalid, idle, _State}, idle({released, "not a valid data"}, "from", Agent)), Assertmocks()
 		end}
 	end,
-	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released with default",
 		fun() ->
 			Self = self(),
@@ -1383,11 +1405,15 @@ from_idle_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, idle, ?DEFAULT_REL}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
 			?assertMatch({reply, ok, released, _State}, idle({released, default}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released",
 		fun() ->
 			Self = self(),
@@ -1404,39 +1430,43 @@ from_idle_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, idle, {"id", "just 'cause", 0}}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
 			?assertMatch({reply, ok, released, _State}, idle({released, {"id", "just 'cause", 0}}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to oncall",
 		fun() ->
 			?assertMatch({reply, invalid, idle, _State}, idle({oncall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to ringing with invalid call",
 		fun() ->
 			?assertMatch({reply, invalid, idle, _State}, idle({ringing, "not a call rec"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to outgoing",
 		fun() ->
 			?assertMatch({reply, invalid, idle, _State}, idle({outgoing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to warmtransfer",
 		fun() ->
 			?assertMatch({reply, invalid, idle, _State}, idle({warmtransfer, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to wrapup",
 		fun() ->
 			?assertMatch({reply, invalid, idle, _State}, idle({wrapup, "doesn't matter"}, "from", Agent)),
@@ -1450,6 +1480,7 @@ from_ringing_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		gen_leader_mock:expect_leader_cast(Monmock, fun({set, _}, _, _) -> ok end),
+		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Mpid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
 		{ok, Logpid} = gen_server_mock:new(),
@@ -1465,21 +1496,22 @@ from_ringing_test_() ->
 			gen_server_mock:assert_expectations(Logpid),
 			ok
 		end,
-		{Agent, Dmock, Monmock, Connmock, Assertmocks}
+		{Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}
 	end,
-	fun({#agent{statedata = Callrec}, Dmock, Monmock, Connmock, _Assertmocks}) ->
+	fun({#agent{statedata = Callrec}, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
 		gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
 		gen_server_mock:stop(Callrec#call.source),
+		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
 	end,
-	[fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	[fun({Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to idle",
 		fun() ->
-			%Aself = self(),
+			Aself = self(),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{idle, _Limits}] = Health,
 				Node = node(),
@@ -1489,25 +1521,34 @@ from_ringing_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, ringing, {}}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({now_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
+			%gen_leader_mock:expect_leader_cast(AMmock, fun(_, _State, _Elect) -> ok end),
+%			gen_server_mock:expect_cast(Dmock, fun({now_avail, Self}, _State) ->
+%				Self = Aself,
+%				ok
+%			end),
 			?assertMatch({reply, ok, idle, _State}, ringing(idle, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to ringing",
 		fun() ->
 			?assertMatch({reply, invalid, ringing, _State}, ringing({ringing, "doens't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to precall",
 		fun() ->
 			?assertMatch({reply, invalid, ringing, _State}, ringing({precall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to oncall with inband media path",
 		fun() ->
 			Callrec = Agent#agent.statedata, 
@@ -1529,7 +1570,7 @@ from_ringing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to oncall with failing inband media",
 		fun() ->
 			Callrec = Agent#agent.statedata,
@@ -1540,13 +1581,14 @@ from_ringing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Oldagent, Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Oldagent, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to oncall with outband media path",
 		fun() ->
 			Oldcall = Oldagent#agent.statedata, 
 			Callrec = Oldcall#call{ring_path = outband, media_path = outband},
 			Agent = Oldagent#agent{statedata = Callrec},
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State, _Elec) -> ok end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, oncall, Inrec}, _State) ->
 				Inrec = Agent#agent.statedata,
 				ok
@@ -1561,7 +1603,7 @@ from_ringing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to oncall with call id mismatch",
 		fun() ->
 			Oldcall = Agent#agent.statedata,
@@ -1570,20 +1612,20 @@ from_ringing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to outgoing",
 		fun() ->
 			?assertMatch({reply, invalid, ringing, _State}, ringing({outgoing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _, _, _, _}) ->
+	fun({Agent, _, _, _, _, _}) ->
 		{"to released with bad format",
 		fun() ->
 			?assertMatch({reply, invalid, ringing, _State}, ringing({released, "not valid"}, "from", Agent))
 		end}
 	end,
-	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released default",
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
@@ -1592,6 +1634,7 @@ from_ringing_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State, _Elec) -> ok end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
@@ -1606,10 +1649,11 @@ from_ringing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released",
 		fun() ->
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State) -> ok end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{released, _Limits}, {bias, 50}] = Health,
 				Node = node(),
@@ -1629,14 +1673,14 @@ from_ringing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to warmtransfer",
 		fun() ->
 			?assertMatch({reply, invalid, ringing, _State}, ringing({warmtransfer, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to wrapup",
 		fun() ->
 			?assertMatch({reply, invalid, ringing, _State}, ringing({wrapup, "doesn't matter"}, "from", Agent)),
@@ -1651,27 +1695,30 @@ from_precall_test_() ->
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
+		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		Client = #client{label = "testclient", id = "testclient"},
 		Call = #call{id = "testcall", client = Client, source = spawn(fun() -> ok end)},
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = precall, statedata = Call, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
+			gen_leader_mock:assert_expectations(AMmock),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
 			ok
 		end,
-		{Agent, Dmock, Monmock, Connmock, Assertmocks}
+		{Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}
 	end,
-	fun({_Agent, Dmock, Monmock, Connmock, _Assertmocks}) ->
+	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
 		gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
+		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
 	end,
-	[fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+	[fun({Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to idle",
 		fun() ->
 			Apid = self(),
@@ -1687,33 +1734,37 @@ from_precall_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
+			gen_leader_mock:expect_cast(AMmock, fun({now_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, precall, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, precall(idle, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to ringing",
 		fun() ->
 			?assertMatch({reply, invalid, precall, _State}, precall({ringing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to precall",
 		fun() ->
 			?assertMatch({reply, invalid, precall, _State}, precall({precall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to oncall",
 		fun() ->
 			?assertMatch({reply, invalid, precall, _State}, precall({oncall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to outgoing",
 		fun() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, outgoing, _Data}, _State) ->
@@ -1729,14 +1780,14 @@ from_precall_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released with bad info",
 		fun() ->
 			?assertMatch({reply, invalid, precall, _State}, precall({released, "reason"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released with default",
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
@@ -1752,7 +1803,7 @@ from_precall_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released",
 		fun() ->
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
@@ -1768,14 +1819,14 @@ from_precall_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to warmtransfer",
 		fun() ->
 			?assertMatch({reply, invalid, precall, _State}, precall({warmtransfer, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to wrapup",
 		fun() ->
 			?assertMatch({reply, invalid, precall, _State}, precall({wrapup, "doesn't matter"}, "from", Agent)),
@@ -1789,6 +1840,7 @@ from_oncall_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
+		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		Client = #client{label = "testclient"},
 		{ok, Mediapid} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
@@ -1803,75 +1855,77 @@ from_oncall_test_() ->
 			gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
+			gen_leader_mock:assert_expectations(AMmock),
 			ok
 		end,
-		{Agent, Dmock, Monmock, Connmock, Assertmocks}
+		{Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}
 	end,
-	fun({_Agent, Dmock, Monmock, Connmock, _Assertmocks}) ->
+	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
 		gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
+		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
 	end,
-	[fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	[fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to idle",
 		fun() ->
 			?assertMatch({reply, invalid, oncall, _State}, oncall(idle, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to ringing",
 		fun() ->
 			?assertMatch({reply, invalid, oncall, _State}, oncall({ringing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to precall",
 		fun() ->
 			?assertMatch({reply, invalid, oncall, _State}, oncall({precall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to oncall",
 		fun() ->
 			?assertMatch({reply, invalid, oncall, _State}, oncall({oncall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to outgoing",
 		fun() ->
 			?assertMatch({reply, invalid, oncall, _State}, oncall({outgoing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released when no release queued with default reason",
 		fun() ->
 			?assertMatch({reply, queued, oncall, _State}, oncall({released, default}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released when no release queued with invalid reason",
 		fun() ->
 			?assertMatch({reply, invalid, oncall, _State}, oncall({released, "goober"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released when no release queued with valid reason",
 		fun() ->
 			?assertMatch({reply, queued, oncall, _State}, oncall({released, {"id", "goober", 0}}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Oldagent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Oldagent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released when a release is queued",
 		fun() ->
 			Agent = Oldagent#agent{queuedrelease = "oldreason"},
@@ -1879,7 +1933,7 @@ from_oncall_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Oldagent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Oldagent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released (default) when a release is queued",
 		fun() ->
 			Agent = Oldagent#agent{queuedrelease = {"oid", "oldreason", 0}},
@@ -1887,7 +1941,7 @@ from_oncall_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Oldagent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Oldagent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released (invalid) when a release is queued",
 		fun() ->
 			Agent = Oldagent#agent{queuedrelease = {"oid", "oldreason", 0}},
@@ -1895,7 +1949,7 @@ from_oncall_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Oldagent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Oldagent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released undefined",
 		fun() ->
 			Agent = Oldagent#agent{queuedrelease = {"oid", "oldreason", 0}},
@@ -1903,7 +1957,7 @@ from_oncall_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to warmtransfer",
 		fun() ->
 			%Callrec = Agent#agent.statedata,
@@ -1924,7 +1978,7 @@ from_oncall_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to wrapup",
 		fun() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
@@ -1948,6 +2002,7 @@ from_outgoing_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
+		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		Client = #client{label = "testclient"},
 		{ok, Mediapid} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
@@ -1962,82 +2017,84 @@ from_outgoing_test_() ->
 			gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
+			gen_leader_mock:assert_expectations(AMmock),
 			ok
 		end,
-		{Agent, Dmock, Monmock, Connmock, Assertmocks}
+		{Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}
 	end,
-	fun({_Agent, Dmock, Monmock, Connmock, _Assertmocks}) ->
+	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
 		gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
+		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
 	end,
-	[fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	[fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to idle",
 		fun() ->
 			?assertMatch({reply, invalid, outgoing, _State}, outgoing(idle, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to ringing",
 		fun() ->
 			?assertMatch({reply, invalid, outgoing, _State}, outgoing({ringing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to precall",
 		fun() ->
 			?assertMatch({reply, invalid, outgoing, _State}, outgoing({precall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to oncall",
 		fun() ->
 			?assertMatch({reply, invalid, outgoing, _State}, outgoing({oncall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to outgoing",
 		fun() ->
 			?assertMatch({reply, invalid, outgoing, _State}, outgoing({outgoing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to unqueuing a release",
 		fun() ->
 			?assertMatch({reply, ok, outgoing, _State}, outgoing({released, undefined}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to queue a default release",
 		fun() ->
 			?assertMatch({reply, queued, outgoing, _State}, outgoing({released, default}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to queue a valid release",
 		fun() ->
 			?assertMatch({reply, queued, outgoing, _State}, outgoing({released, {"id", "reason", 0}}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to queue an invalid release",
 		fun() ->
 			?assertMatch({reply, invalid, outgoing, _State}, outgoing({released, "bad bad juju"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to requeue a release",
 		fun() ->
 			?assertMatch({reply, queued, outgoing, _State}, outgoing({released, default}, "from", Agent)),
@@ -2045,7 +2102,7 @@ from_outgoing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to warmtransfer",
 		fun() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, warmtransfer, {onhold, #call{id = "testcall"}, calling, "transferto"}}, _State) ->
@@ -2065,7 +2122,7 @@ from_outgoing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to wrapup",
 		fun() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, _Calldata}, _State) ->
@@ -2084,7 +2141,7 @@ from_outgoing_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to wrapup with call id mismatch",
 		fun() ->
 			Oldrec = Agent#agent.statedata,
@@ -2100,6 +2157,7 @@ from_released_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
+		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Logpid} = gen_server_mock:new(),
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = released, statedata = "testrelease", log_pid = Logpid},
 		Assertmocks = fun() ->
@@ -2107,19 +2165,21 @@ from_released_test_() ->
 			gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
+			gen_leader_mock:assert_expectations(AMmock),
 			ok
 		end,
-		{Agent, Dmock, Monmock, Connmock, Assertmocks}
+		{Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}
 	end,
-	fun({_Agent, Dmock, Monmock, Connmock, _Assertmocks}) ->
+	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
 		gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
+		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
 	end,
-	[fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+	[fun({Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to idle",
 		fun() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
@@ -2128,6 +2188,10 @@ from_released_test_() ->
 			Self = self(),
 			gen_server_mock:expect_cast(Dmock, fun({now_avail, Apid}, _State) ->
 				Self = Apid,
+				ok
+			end),
+			gen_leader_mock:expect_cast(AMmock, fun({now_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
 				ok
 			end),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
@@ -2140,7 +2204,7 @@ from_released_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to ringing",
 		fun() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, "callrec"}, _State) ->
@@ -2156,7 +2220,7 @@ from_released_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to precall",
 		fun() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, precall, "client"}, _State) ->
@@ -2172,21 +2236,21 @@ from_released_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to oncall",
 		fun() ->
 			?assertMatch({reply, invalid, released, _State}, released({oncall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to outgoing",
 		fun() ->
 			?assertMatch({reply, invalid, released, _State}, released({outgoing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, Connmock, Assertmocks}) ->
 		{"to released default",
 		fun() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
@@ -2197,7 +2261,7 @@ from_released_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, Connmock, Assertmocks}) ->
 		{"to released valid",
 		fun() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "reason", 0}}, _State) ->
@@ -2208,21 +2272,21 @@ from_released_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released invalid",
 		fun() ->
 			?assertMatch({reply, invalid, released, _State}, released({released, "not gonna work"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to warmtransfer",
 		fun() ->
 			?assertMatch({reply, invalid, released, _State}, released({warmtransfer, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to wrapup",
 		fun() ->
 			?assertMatch({reply, invalid, released, _State}, released({wrapup, "doesn't matter"}, "from", Agent)),
@@ -2237,6 +2301,7 @@ from_warmtransfer_test_() ->
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
+		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		Client = #client{label = "testclient"},
 		{ok, Mediapid} = gen_server_mock:new(),
 		Callrec = #call{
@@ -2250,40 +2315,42 @@ from_warmtransfer_test_() ->
 			gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
+			gen_leader_mock:assert_expectations(AMmock),
 			ok
 		end,
-		{Agent, Dmock, Monmock, Connmock, Assertmocks}
+		{Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}
 	end,
-	fun({_Agent, Dmock, Monmock, Connmock, _Assertmocks}) ->
+	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
 		gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
+		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
 	end,
-	[fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	[fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to idle",
 		fun() ->
 			?assertMatch({reply, invalid, warmtransfer, _State}, warmtransfer(idle, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to ringing",
 		fun() ->
 			?assertMatch({reply, invalid, warmtransfer, _State}, warmtransfer({ringing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to precall",
 		fun() ->
 			?assertMatch({reply, invalid, warmtransfer, _State}, warmtransfer({precall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to oncall",
 		fun() ->
 			{onhold, Callrec, calling, _Whoever} = Agent#agent.statedata,
@@ -2301,7 +2368,7 @@ from_warmtransfer_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to oncall with id mismatch",
 		fun() ->
 			Badcall = #call{id = "hagurk", source= self()},
@@ -2309,7 +2376,7 @@ from_warmtransfer_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to outgoing",
 		fun() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, outgoing, _Inrec}, _State) ->
@@ -2328,7 +2395,7 @@ from_warmtransfer_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to wrapup",
 		fun() ->
 			{onhold, Callrec, calling, _Whoever} = Agent#agent.statedata,
@@ -2346,7 +2413,7 @@ from_warmtransfer_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to oncall with id mismatch",
 		fun() ->
 			Badcall = #call{id = "hagurk", source= self()},
@@ -2361,6 +2428,7 @@ from_wrapup_test_() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
 		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
+		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		Client = #client{label = "testclient"},
 		{ok, Mediapid} = gen_server_mock:new(),
 		Callrec = #call{
@@ -2374,24 +2442,30 @@ from_wrapup_test_() ->
 			gen_server_mock:assert_expectations(Dmock),
 			gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
+			gen_leader_mock:assert_expectations(AMmock),
 			ok
 		end,
-		{Agent, Dmock, Monmock, Connmock, Assertmocks}
+		{Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}
 	end,
-	fun({_Agent, Dmock, Monmock, Connmock, _Assertmocks}) ->
+	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
 		gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
+		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
 		% before the next test runs.
 		ok
 	end,
-	[fun({Agent, Dmock, Monmock, Connmock, Assertmocks}) ->
+	[fun({Agent, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to idle",
 		fun() ->
 			Self = self(),
 			gen_server_mock:expect_cast(Dmock, fun({now_avail, Apid}, _State) ->
 				Self = Apid,
+				ok
+			end),
+			gen_leader_mock:expect_cast(AMmock, fun({now_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
 				ok
 			end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
@@ -2407,7 +2481,7 @@ from_wrapup_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({OldAgent, _Dmock, Monmock, Connmock, Assertmocks}) ->
+	fun({OldAgent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to idle with a release queued",
 		fun() ->
 			Agent = OldAgent#agent{queuedrelease = ?DEFAULT_REL},
@@ -2424,77 +2498,77 @@ from_wrapup_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to precall",
 		fun() ->
 			?assertMatch({reply, invalid, wrapup, _State}, wrapup({precall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to ringing",
 		fun() ->
 			?assertMatch({reply, invalid, wrapup, _State}, wrapup({ringing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to precall",
 		fun() ->
 			?assertMatch({reply, invalid, wrapup, _State}, wrapup({precall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to oncall",
 		fun() ->
 			?assertMatch({reply, invalid, wrapup, _State}, wrapup({oncall, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to outgoing",
 		fun() ->
 			?assertMatch({reply, invalid, wrapup, _State}, wrapup({outgoing, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released with reason undefined",
 		fun() ->
 			?assertMatch({reply, ok, wrapup, #agent{queuedrelease = undefined}}, wrapup({released, undefined}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released with default reason",
 		fun() ->
 			?assertMatch({reply, queued, wrapup, #agent{queuedrelease = ?DEFAULT_REL}}, wrapup({released, default}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released with a valid reason",
 		fun() ->
 			?assertMatch({reply, queued, wrapup, #agent{queuedrelease = {"id", "reason", 0}}}, wrapup({released, {"id", "reason", 0}}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released with a bad reason",
 		fun() ->
 			?assertMatch({reply, invalid, wrapup, #agent{queuedrelease = undefined}}, wrapup({released, "reason"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to warmtransfer",
 		fun() ->
 			?assertMatch({reply, invalid, wrapup, _State}, wrapup({warmtransfer, "doesn't matter"}, "from", Agent)),
 			Assertmocks()
 		end}
 	end,
-	fun({Agent, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to wrapup",
 		fun() ->
 			?assertMatch({reply, invalid, wrapup, _State}, wrapup({wrapup, "doesn't matter"}, "from", Agent)),

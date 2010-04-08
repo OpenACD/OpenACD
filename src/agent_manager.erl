@@ -43,6 +43,13 @@
 -include("call.hrl").
 -include("agent.hrl").
 
+-type(agent_pid() :: pid()).
+-type(agent_id() :: string()).
+-type(time_avail() :: integer()).
+-type(skill() :: atom() | {atom(), any()}).
+-type(skills() :: [skill()]).
+-type(agent_cache() :: {agent_pid(), agent_id(), time_avail(), skills()}).
+
 -record(state, {
 	agents = dict:new() :: dict()
 	}).
@@ -59,7 +66,8 @@
 	start/2, 
 	stop/0, 
 	start_agent/1, 
-	query_agent/1, 
+	query_agent/1,
+	update_skill_list/2,
 	find_by_skill/1,
 	find_avail_agents_by_skill/1,
 	sort_agents_by_elegibility/1,
@@ -120,41 +128,46 @@ start_agent(#agent{login = ALogin} = Agent) ->
 			{exists, Apid}
 	end.
 
+%% @doc updates the skill-list cached here.  'Tis a case to prevent blockage.
+-spec(update_skill_list/2 :: (Login :: string(), Skills :: skills()) -> 'ok').
+update_skill_list(Login, Skills) ->
+	gen_leader:cast(?MODULE, {update_skill_list, Login, Skills}).
+
 %% @doc Locally find all available agents with a particular skillset that contains the subset `Skills'.
 -spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [{string(), pid(), #agent{}}]).
 find_avail_agents_by_skill(Skills) -> 
 	%?DEBUG("skills passed:  ~p.", [Skills]),
-	AvailSkilledAgents = [{K, V, AgState} || {K, {V, _}} <-
+	AvailSkilledAgents = [{K, V, TimeAvail, AgSkills} || {K, {V, _Aid, TimeAvail, AgSkills}} <-
 		gen_leader:call(?MODULE, list_agents), % get all the agents
-		AgState <- [agent:dump_state(V)], % dump their state
-		AgState#agent.state =:= idle, % only get the idle ones
+		TimeAvail > 0, % only the available (idle) ones
 		( % check if either the call or the agent has the _all skill
-			lists:member('_all', AgState#agent.skills) orelse
+			lists:member('_all', AgSkills) orelse
 			lists:member('_all', Skills)
 			% if there's no _all skill, make sure the agent has all the required skills
-		) orelse util:list_contains_all(AgState#agent.skills, Skills)],
+		) orelse util:list_contains_all(AgSkills, Skills)],
 	AvailSkilledAgents.
 
 %% @doc Sorted by idle time, then the length of the list of skills the agent has;  this means idle time is less important.
--spec(sort_agents_by_elegibility/1 :: (Agents :: [{string(), pid(), #agent{}}]) -> [{string(), pid(), #agent{}}]).
+%% No idle agents should be in the list, otherwise it is fail.
+-spec(sort_agents_by_elegibility/1 :: (Agents :: [agent_cache()]) -> [agent_cache()]).
 sort_agents_by_elegibility(AvailSkilledAgents) ->
 	AvailSkilledAgentsByIdleTime = lists:sort(
-		fun({_K1, _V1, State1}, {_K2, _V2, State2}) ->
-				State1#agent.lastchange =< State2#agent.lastchange
+		fun({_K1, _V1, Time1, _Skills1}, {_K2, _V2, Time2, _Skills2}) ->
+			Time1 =< Time2
 		end, AvailSkilledAgents),
 
 	% TODO - path cost sorting. We need to make sure that we prefer local
 	% delivery slightly over remote delivery so that we tie up less long
 	% distance network resources.
 
-	F = fun({_K1, _V1, State1}, {_K2, _V2, State2}) -> 
-		case {lists:member('_all', State1#agent.skills), lists:member('_all', State2#agent.skills)} of
+	F = fun({_K1, _V1, Time1, Skills1}, {_K2, _V2, Time2, Skills2}) -> 
+		case {lists:member('_all', Skills1), lists:member('_all', Skills2)} of
 			{true, false} -> 
 				false;
 			{false, true} -> 
 				true;
 			_Else -> 
-				length(State1#agent.skills) =< length(State2#agent.skills)
+				length(Skills1) =< length(Skills2)
 		end
 	end,
 	lists:sort(F, AvailSkilledAgentsByIdleTime).
@@ -162,7 +175,9 @@ sort_agents_by_elegibility(AvailSkilledAgents) ->
 %% @doc Gets all the agents have have the given `[atom()] Skills'.
 -spec(find_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
 find_by_skill(Skills) ->
-	[{K, V, AgState} || {K, {V, _}} <- gen_leader:call(?MODULE, list_agents), AgState <- [agent:dump_state(V)], lists:member('_all', AgState#agent.skills) orelse util:list_contains_all(AgState#agent.skills, Skills)].
+	[{K, V, Timeavail, AgSkills} || 
+		{K, {V, _Id, Timeavail, AgSkills}} <- gen_leader:call(?MODULE, list_agents), 
+		lists:member('_all', AgSkills) orelse util:list_contains_all(AgSkills, Skills)].
 
 %% @doc Gets the login associated with the passed pid().
 -spec(find_by_pid/1 :: (Apid :: pid()) -> string() | 'notfound').
@@ -241,13 +256,13 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 	mnesia:unsubscribe(system),
 
 	% clean out non-local pids
-	F = fun(_Login, {Apid, _}) -> 
+	F = fun(_Login, {Apid, _, _, _}) -> 
 		node() =:= node(Apid)
 	end,
 	Locals = dict:filter(F, Agents),
 	% and tell the leader about local pids
-	Notify = fun({Login, {Apid, Id}}) -> 
-		gen_leader:leader_cast(?MODULE, {notify, Login, Id, Apid})
+	Notify = fun({Login, V}) -> 
+		gen_leader:leader_cast(?MODULE, {update_notify, Login, V})
 	end,
 	lists:foreach(Notify, dict:to_list(Locals)),
 	{ok, State#state{agents=Locals}}.
@@ -255,27 +270,34 @@ surrendered(#state{agents = Agents} = State, _LeaderState, _Election) ->
 %% @hidden
 handle_DOWN(Node, #state{agents = Agents} = State, _Election) -> 
 	% clean out the pids associated w/ the dead node
-	F = fun(_Login, {Apid, _}) -> 
+	F = fun(_Login, {Apid, _, _, _}) -> 
 		Node =/= node(Apid)
 	end,
 	Agents2 = dict:filter(F, Agents),
 	{ok, State#state{agents = Agents2}}.
 
 %% @hidden
-handle_leader_call({exists, Agent}, _From, #state{agents = Agents} = State, _Election) when is_list(Agent) -> 
+handle_leader_call({exists, Agent}, From, #state{agents = Agents} = State, Election) when is_list(Agent) -> 
 	?DEBUG("Trying to determine if ~p exists", [Agent]),
+	case handle_leader_call({full_data, Agent}, From, State, Election) of
+		{reply, false, _State} = O ->
+			O;
+		{reply, {Apid, _Id, _Time, _Skills}, NewState} ->
+			{reply, {true, Apid}, NewState}
+	end;
+handle_leader_call({full_data, Agent}, _From, #state{agents = Agents} = State, _Election) when is_list(Agent) ->
 	case dict:find(Agent, Agents) of
 		error ->
 			%% TODO - a nasty hack for when the agent has a @ sign in their username
 			case dict:find(re:replace(Agent, "_", "@", [{return, list}]), Agents) of
 				error ->
 					{reply, false, State};
-				{ok, {Apid, _Id}} ->
-					{reply, {true, Apid}, State}
+				{ok, Value} ->
+					{reply, Value, State}
 			end;
-		{ok, {Apid, _Id}} -> 
-			{reply, {true, Apid}, State}
-	end;
+		{ok, Value} -> 
+			{reply, Value, State}
+	end;			
 handle_leader_call(get_pid, _From, State, _Election) ->
 	{reply, {ok, self()}, State};
 handle_leader_call({get_login, Apid}, _From, #state{agents = Agents} = State, _Election) when is_pid(Apid) ->
@@ -303,6 +325,9 @@ handle_leader_cast({notify, Agent, Id, Apid}, #state{agents = Agents} = State, _
 			agent:register_rejected(Apid),
 			{noreply, State}
 	end;
+handle_leader_cast({update_notify, Login, Value}, #state{agents = Agents} = State, _Election) ->
+	NewAgents = dict:update(Login, fun(Old) -> Value end, Value, Agents),
+	{noreply, State#state{agents = NewAgents}};
 handle_leader_cast({notify_down, Agent}, #state{agents = Agents} = State, _Election) ->
 	?NOTICE("leader notified of ~p exiting", [Agent]),
 	{noreply, State#state{agents = dict:erase(Agent, Agents)}};
@@ -373,28 +398,35 @@ handle_call({start_agent, #agent{login = ALogin, id=Aid} = Agent}, _From, #state
 	?INFO("Starting new agent ~p", [Agent]),
 	{ok, Apid} = agent:start(Agent, [logging, gen_leader:candidates(Election)]),
 	link(Apid),
-	gen_leader:leader_cast(?MODULE, {notify, ALogin, Aid, Apid}),
-	Agents2 = dict:store(ALogin, {Apid, Aid}, Agents),
+	Value = {Apid, Aid, 0, Agent#agent.skills},
+	Leader = gen_leader:leader_node(Election),
+	case node() of
+		Leader ->
+			ok;
+		_ ->
+			gen_leader:leader_cast(?MODULE, {update_notify, ALogin, Value})
+	end,
+	Agents2 = dict:store(ALogin, Value, Agents),
 	gen_server:cast(dispatch_manager, {end_avail, Apid}),
 	{reply, {ok, Apid}, State#state{agents = Agents2}};
 handle_call({exists, Login}, _From, #state{agents = Agents} = State, Election) ->
 	Leader = gen_leader:leader_node(Election),
 	case dict:find(Login, Agents) of
 		error when Leader =/= node() ->
-			case gen_leader:leader_call(?MODULE, {exists, Login}) of
+			case gen_leader:leader_call(?MODULE, {full_data, Login}) of
 				false ->
 					{reply, false, State};
-				{true, Pid} when node(Pid) =:= node() ->
+				{Pid, Id, Time, Skills} = V when node(Pid) =:= node() ->
 					% leader knows about a local agent, but we didn't!
 					% So we update the local dict
-					Agents2 = dict:store(Login, Pid, Agents),
+					Agents2 = dict:store(Login, V, Agents),
 					{reply, {true, Pid}, State#state{agents = Agents2}};
-				{true, OtherPid} ->
+				{OtherPid, _Id, _Time, _Skills} ->
 					{reply, {true, OtherPid}, State}
 			end;
 		error -> % we're the leader
 			{reply, false, State};
-		{ok, {Pid, _Id}} ->
+		{ok, {Pid, _Id, _Timeavail, _Skills}} ->
 			{reply, {true, Pid}, State}
 	end;
 handle_call({notify, Login, Id, Pid}, _From, #state{agents = Agents} = State, Election) when is_pid(Pid) andalso node(Pid) =:= node() ->
@@ -422,6 +454,48 @@ handle_call(Message, From, State, _Election) ->
 
 
 %% @hidden
+handle_cast({now_avail, Nom}, #state{agents = Agents} = State, Election) ->
+	Node = node(),
+	F = fun({Pid, Id, _Time, Skills}) ->
+		Out = {Pid, Id, util:now(), Skills},
+		case gen_leader:leader_node(Election) of
+			Node ->
+				ok;
+			_ ->
+				gen_leader:leader_cast(?MODULE, {update_notify, Nom, Out})
+		end,
+		Out
+	end,
+	NewAgents = dict:update(Nom, F, Agents),
+	{noreply, State#state{agents = NewAgents}};
+handle_cast({end_avail, Nom}, #state{agents = Agents} = State, Election) ->
+	Node = node(),
+	F = fun({Pid, Id, _Time, Skills}) ->
+		Out = {Pid, Id, 0, Skills},
+		case gen_leader:leader_node(Election) of
+			Node ->
+				ok;
+			_ ->
+				gen_leader:leader_cast(?MODULE, {update_notify, Nom, Out})
+		end,
+		Out
+	end,
+	NewAgents = dict:update(Nom, F, Agents),
+	{noreply, State#state{agents = NewAgents}};
+handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State, Election) ->
+	Node = node(),
+	F = fun({Pid, Id, Time, _OldSkills}) ->
+		Out = {Pid, Id, Time, Skills},
+		case gen_leader:leader_node(Election) of
+			Node ->
+				ok;
+			_ ->
+				gen_leader:leader_cast(?MODULE, {update_notify, Login, Out})
+		end,
+		Out
+	end,	
+	NewAgents = dict:update(Login, F, Agents),
+	{noreply, State#state{agents = NewAgents}};
 handle_cast(_Request, State, _Election) -> 
 	?DEBUG("Stub handle_cast", []),
 	{noreply, State}.
@@ -429,7 +503,7 @@ handle_cast(_Request, State, _Election) ->
 %% @hidden
 handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
 	?NOTICE("Caught exit for ~p with reason ~p", [Pid, Reason]),
-	F = fun(Key, {Value, Id}) ->
+	F = fun(Key, {Value, Id, _Time, _Skills}) ->
 		case Value =/= Pid of
 			true -> true;
 			false ->
@@ -459,7 +533,7 @@ code_change(_OldVsn, State, _Election, _Extra) ->
 %% @private
 find_via_pid(_Needle, []) ->
 	notfound;
-find_via_pid(Needle, [{Key, {Needle, _}} | _Tail]) ->
+find_via_pid(Needle, [{Key, {Needle, _, _, _}} | _Tail]) ->
 	Key;
 find_via_pid(Needle, [{_Key, _NotNeedle} | Tail]) ->
 	find_via_pid(Needle, Tail).
@@ -467,7 +541,7 @@ find_via_pid(Needle, [{_Key, _NotNeedle} | Tail]) ->
 %% @private
 find_via_id(_Needle, []) ->
 	notfound;
-find_via_id(Needle, [{Key, {_, Needle}} | _Tail]) ->
+find_via_id(Needle, [{Key, {_, Needle, _, _}} | _Tail]) ->
 	Key;
 find_via_id(Needle, [_Head | Tail]) ->
 	find_via_id(Needle, Tail).
@@ -546,10 +620,11 @@ single_node_test_() ->
 						{ok, Agent4Pid} = gen_leader:call(?MODULE, {start_agent, Agent4}),
 						agent:set_state(Agent1Pid, idle),
 						agent:set_state(Agent3Pid, idle),
-						?assertMatch([{"Agent3", Agent3Pid, _}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill]))),
+						?DEBUG("agent list:~n~p", [gen_leader:call(?MODULE, list_agents)]),
+						?assertMatch([{"Agent3", Agent3Pid, _Time, _Skills}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill]))),
 						agent:set_state(Agent2Pid, idle),
 						agent:set_state(Agent4Pid, idle),
-						?assertMatch([{"Agent3", Agent3Pid, _}, {"Agent2", Agent2Pid, _}, {"Agent4", Agent4Pid, _}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
+						?assertMatch([{"Agent3", Agent3Pid, _, _}, {"Agent2", Agent2Pid, _, _}, {"Agent4", Agent4Pid, _, _}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
 					end
 				}
 			end,
@@ -564,10 +639,10 @@ single_node_test_() ->
 						{ok, Agent3Pid} = gen_leader:call(?MODULE, {start_agent, Agent3}),
 						agent:set_state(Agent1Pid, idle),
 						agent:set_state(Agent2Pid, idle),
-						?assertMatch([{"Agent2", Agent2Pid, _}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill]))),
+						?assertMatch([{"Agent2", Agent2Pid, _, _}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill]))),
 						receive after 1000 -> ok end,
 						agent:set_state(Agent3Pid, idle),
-						?assertMatch([{"Agent2", Agent2Pid, _}, {"Agent3", Agent3Pid, _}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
+						?assertMatch([{"Agent2", Agent2Pid, _, _}, {"Agent3", Agent3Pid, _, _}], sort_agents_by_elegibility(find_avail_agents_by_skill([coolskill])))
 					end
 				}
 			end

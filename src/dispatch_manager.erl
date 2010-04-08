@@ -211,12 +211,14 @@ code_change(_OldVsn, State, _Extra) ->
 	
 %% @private
 -spec(balance/1 :: (State :: #state{}) -> #state{}).
-balance(State) when length(State#state.agents) > length(State#state.dispatchers) -> 
+balance(#state{dispatchers = Dispatchers} = State) when length(State#state.agents) > length(Dispatchers) -> 
 	?DEBUG("Starting new dispatcher",[]),
-	Dispatchers = State#state.dispatchers,
-	{ok, Pid} = dispatcher:start_link(),
-	State2 = State#state{dispatchers = [ Pid | Dispatchers]},
-	balance(State2);
+	case dispatcher:start_link() of
+		{ok, Pid} ->
+			balance(State#state{dispatchers = [ Pid | Dispatchers]});
+		_ ->
+			balance(State)
+	end;
 balance(State) when length(State#state.agents) < length(State#state.dispatchers) -> 
 	?DEBUG("Killing a dispatcher",[]),
 	[Pid | Dispatchers] = lists:reverse(State#state.dispatchers),

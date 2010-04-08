@@ -192,7 +192,7 @@ init(Options) ->
 	DmmOpts = [
 		{call_frequency, Protoconf#conf.call_frequency},
 		{call_max_life, Protoconf#conf.call_max_life},
-		{start_count, round(Protoconf#conf.agents * 0.8)},
+		{start_count, proplists:get_value(start_count, Options, round(Protoconf#conf.agents * 0.8))},
 		{queues, Protoconf#conf.queues},
 		{call_priority, Protoconf#conf.call_priority}
 	],

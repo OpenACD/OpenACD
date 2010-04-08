@@ -105,13 +105,13 @@ init([]) ->
 			{ok, #state{}};
 		_Else ->
 			Agents = agent_manager:list(),
-			F = fun({Login, {Pid, _}}) ->
+			F = fun({Login, {Pid, _, Time, _}}) ->
 				?DEBUG("Checking status of ~s (~p)", [Login, Pid]),
-				case agent:query_state(Pid) of
-					{ok, idle} ->
-						gen_server:cast(dispatch_manager, {now_avail, Pid});
-					_Other ->
-						gen_server:cast(dispatch_manager, {end_avail, Pid})
+				case Time of
+					0 ->
+						gen_server:cast(dispatch_manager, {end_avail, Pid});
+					_ ->
+						gen_server:cast(dispatch_manager, {now_avail, Pid})
 				end
 			end,
 			spawn(fun() -> 
@@ -370,7 +370,7 @@ balance_test_() ->
 					agent_dummy_connection:start_x(10),
 					Agents = agent_manager:list(),
 					Setrel = fun(I) ->
-						{_Login, {Pid, _}} = lists:nth(I, Agents),
+						{_Login, {Pid, _, _, _}} = lists:nth(I, Agents),
 						agent:set_state(Pid, released, default)
 					end,
 					lists:foreach(Setrel, lists:seq(1, 5)),
@@ -380,6 +380,8 @@ balance_test_() ->
 					{ok, _Pid} = start(),
 					timer:sleep(30),
 					#state{agents = Newagents, dispatchers = Newdispathers} = Dump = gen_server:call(dispatch_manager, dump),
+					?DEBUG("Expected:  ~p", [Expectedagents]),
+					?DEBUG("New agents:  ~p", [Newagents]),
 					?assertEqual(length(Expectedagents), length(Newagents)),
 					?assertEqual(length(Unexpecteddispatchers), length(Newdispathers)),
 					lists:foreach(fun(I) ->

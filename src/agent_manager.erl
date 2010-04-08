@@ -148,7 +148,7 @@ find_avail_agents_by_skill(Skills) ->
 	AvailSkilledAgents.
 
 %% @doc Sorted by idle time, then the length of the list of skills the agent has;  this means idle time is less important.
-%% No idle agents should be in the list, otherwise it is fail.
+%% No un-idle agents should be in the list, otherwise it is fail.
 -spec(sort_agents_by_elegibility/1 :: (Agents :: [agent_cache()]) -> [agent_cache()]).
 sort_agents_by_elegibility(AvailSkilledAgents) ->
 	AvailSkilledAgentsByIdleTime = lists:sort(

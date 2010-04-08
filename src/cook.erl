@@ -349,11 +349,11 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 offer_call([], _Call) ->
 	%?DEBUG("No valid agents found", []),
 	none;
-offer_call([{_, Apid, Agent} | Tail], Call) ->
+offer_call([{Login, Apid, _Time, _Skills} | Tail], Call) ->
 	case gen_media:ring(Call#queued_call.media, Apid, Call, ?TICK_LENGTH * ?RINGOUT) of
 		ok ->
 			Callrec = gen_media:get_call(Call#queued_call.media),
-			?INFO("cook offering call:  ~p to ~p", [Callrec#call.id, Agent#agent.login]),
+			?INFO("cook offering call:  ~p to ~p", [Callrec#call.id, Login]),
 			ringing;
 		invalid ->
 			offer_call(Tail, Call)
@@ -858,7 +858,7 @@ check_conditions_test_() ->
 			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
 			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
 			Out = lists:map(fun(Rec) ->
-				{Rec#agent.login, {element(2, agent:start_link(Rec)), Rec#agent.id}}
+				{Rec#agent.login, {element(2, agent:start_link(Rec)), Rec#agent.id, util:now(), Rec#agent.skills}}
 			end, List),
 			{ok, Out, State}
 		end),
@@ -938,7 +938,7 @@ check_conditions_test_() ->
 			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
 			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
 			Out = lists:map(fun(Rec) ->
-				{Rec#agent.login, {element(2, agent:start_link(Rec)), Rec#agent.id}}
+				{Rec#agent.login, {element(2, agent:start_link(Rec)), Rec#agent.id, util:now(), Rec#agent.skills}}
 			end, List),
 			{ok, Out, State}
 		end),

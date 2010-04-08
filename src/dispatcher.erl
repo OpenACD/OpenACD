@@ -84,7 +84,7 @@ init([]) ->
 	case grab_best() of
 		none ->
 			%?DEBUG("no call to grab, lets start a timer", []),
-			{ok, Tref} = timer:send_interval(?POLL_INTERVAL, grab_best),
+			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
 			{ok, State#state{tref=Tref}};
 		{Qpid, Call} ->
 			%?DEBUG("sweet, grabbed a call: ~p", [Call#queued_call.id]),
@@ -159,9 +159,9 @@ handle_cast(_Msg, State) ->
 handle_info(grab_best, State) ->
 	case grab_best() of
 		none ->
-			{noreply, State};
+			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
+			{noreply, State#state{tref = Tref}};
 		{Qpid, Call} ->
-			timer:cancel(State#state.tref),
 			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined}}
 	end;
 handle_info(Info, State) ->

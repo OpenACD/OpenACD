@@ -465,7 +465,7 @@ spy(Genmedia, Spy) ->
 	gen_server:call(Genmedia, {'$gen_media_spy', Spy}).
 
 set_cook(Genmedia, CookPid) ->
-	gen_server:call(Genmedia, {'$gen_media_set_cook', CookPid}).
+	gen_server:cast(Genmedia, {'$gen_media_set_cook', CookPid}).
 
 set_queue(Genmedia, Qpid) ->
 	gen_server:call(Genmedia, {'$gen_media_set_queue', Qpid}).
@@ -913,16 +913,6 @@ handle_call('$gen_media_agent_oncall', From, #state{oncall_pid = {_Ocagent, OcPi
 handle_call('$gen_media_agent_oncall', From, #state{ring_pid = undefined, callrec = Call} = State) ->
 	?INFO("oncall request from ~p for ~p when no ring_pid (probobly a late request)", [From, Call#call.id]),
 	{reply, invalid, State};
-handle_call({'$gen_media_set_cook', CookPid}, _From, #state{callrec = Call, monitors = Mons} = State) ->
-	?NOTICE("Updating cook pid for ~p to ~p", [Call#call.id, CookPid]),
-	case Mons#monitors.cook of
-		undefined ->
-			ok;
-		M ->
-			erlang:demonitor(M)
-	end,
-	Newmons = Mons#monitors{cook = erlang:monitor(process, CookPid)},
-	{reply, ok, State#state{callrec = Call#call{cook = CookPid}, monitors = Newmons}};
 handle_call({'$gen_media_set_queue', Qpid}, _From, #state{callrec = Call, queue_pid = {Queue, _}, monitors = Mons} = State) ->
 	?NOTICE("Updating queue pid for ~p to ~p", [Call#call.id, Qpid]),
 	case Mons#monitors.queue_pid of
@@ -942,6 +932,16 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 
 %% @private
+handle_cast({'$gen_media_set_cook', CookPid}, #state{callrec = Call, monitors = Mons} = State) ->
+	?NOTICE("Updating cook pid for ~p to ~p", [Call#call.id, CookPid]),
+	case Mons#monitors.cook of
+		undefined ->
+			ok;
+		M ->
+			erlang:demonitor(M)
+	end,
+	Newmons = Mons#monitors{cook = erlang:monitor(process, CookPid)},
+	{noreply, State#state{callrec = Call#call{cook = CookPid}, monitors = Newmons}};
 handle_cast(Msg, #state{callback = Callback} = State) ->
 	Reply = Callback:handle_cast(Msg, State#state.callrec, State#state.substate),
 	handle_custom_return(Reply, State, noreply).
@@ -987,7 +987,6 @@ handle_info({'$gen_media_stop_ring', Cook}, #state{ring_pid = {Agent, Apid}, cal
 	cdr:ringout(State#state.callrec, {Reason, Agent}),
 	erlang:demonitor(Mons#monitors.ring_pid),
 	Newmons = Mons#monitors{ring_pid = undefined},
-	gen_server:cast(Call#call.cook, stop_ringing),% tell the cook to try to ring again
 	{noreply, State#state{substate = Newsub, ringout = false, ring_pid = undefined, monitors = Newmons}};
 handle_info({'DOWN', Ref, process, _Pid, Info}, #state{monitors = Mons, callrec = Call, callback = _Callback, queue_pid = {Q, _Qp}} = State) when Ref =:= Mons#monitors.queue_pid ->
 	?WARNING("Queue ~p died due to ~p (I'm ~p)", [element(1, State#state.queue_pid), Info, Call#call.id]),

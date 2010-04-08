@@ -188,6 +188,7 @@ init([State, Options]) when is_record(State, agent) ->
 			#agent_profile{name = error}
 	end,
 	State2 = State#agent{skills = util:merge_skill_lists(expand_magic_skills(State, Skills), expand_magic_skills(State, State#agent.skills), ['_queue', '_brand']), profile = Profile},
+	agent_manager:update_skill_list(State2#agent.login, State2#agent.skills),
 	case State#agent.state of
 		idle ->
 			gen_server:cast(dispatch_manager, {now_avail, self()});

@@ -662,21 +662,24 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 					cdr:ringing(Call, Agent),
 					url_pop(Call, Apid, Popopts),
 					Newcall = Call#call{cook = QCall#queued_call.cook},
-					Arec = agent:dump_state(Apid),
-					Outbandringpid = case {Arec#agent.defaultringpath, Call#call.ring_path, whereis(freeswitch_media_manager)} of
-						{outband, inband, Pid} when is_pid(Pid) ->
-							case freeswitch_media_manager:ring_agent(Apid, Arec, Call, Timeout) of
-								{ok, RingChanPid} ->
-									RingChanPid;
-								Else ->
-									?WARNING("Failed to do out of band ring:  ~p for ~p", [Else, Call#call.id]),
-									undefined
-							end;
-						_ ->
-							undefined
-					end,
+					Self = self(),
+					spawn(fun() -> % do this in a subprocess so we don't block
+						Arec = agent:dump_state(Apid),
+						case {Arec#agent.defaultringpath, Call#call.ring_path, whereis(freeswitch_media_manager)} of
+							{outband, inband, Pid} when is_pid(Pid) ->
+								case freeswitch_media_manager:ring_agent(Apid, Arec#agent.login, Call, Timeout) of
+									{ok, RingChanPid} ->
+										gen_media:cast(Self, {'$gen_media_set_outband_ring_pid', RingChanPid});
+									Else ->
+										?WARNING("Failed to do out of band ring:  ~p for ~p", [Else, Call#call.id]),
+										undefined
+								end;
+							_ ->
+								undefined
+						end
+					end),
 					Newmons = Mons#monitors{ ring_pid = erlang:monitor(process, Apid)},
-					{reply, ok, State#state{substate = Substate, ring_pid = {Agent, Apid}, ringout=Tref, callrec = Newcall, outband_ring_pid = Outbandringpid, monitors = Newmons}};
+					{reply, ok, State#state{substate = Substate, ring_pid = {Agent, Apid}, ringout=Tref, callrec = Newcall, monitors = Newmons}};
 				{invalid, Substate} ->
 					set_agent_state(Apid, [released, {"Ring Fail", "Ring Fail", -1}]),
 					{reply, invalid, State#state{substate = Substate}}
@@ -930,6 +933,8 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 
 %% @private
+handle_cast({'gen_media_set_outband_ring_pid', Pid}, State) ->
+	{noreply, State#state{outband_ring_pid = Pid}};
 handle_cast({'$gen_media_set_cook', CookPid}, #state{callrec = Call, monitors = Mons} = State) ->
 	?NOTICE("Updating cook pid for ~p to ~p", [Call#call.id, CookPid]),
 	case Mons#monitors.cook of

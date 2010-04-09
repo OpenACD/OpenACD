@@ -195,7 +195,7 @@ handle_answer(Apid, Callrec, State) ->
 
 handle_ring(Apid, Callrec, State) ->
 	?INFO("ring to agent ~p for call ~s", [Apid, Callrec#call.id]),
-	AgentRec = agent:dump_state(Apid),
+	AgentRec = agent:dump_state(Apid), % TODO - we could avoid this if we had the agent's login
 	F = fun(UUID) ->
 		fun(ok, _Reply) ->
 			freeswitch:api(State#state.cnode, uuid_bridge, UUID ++ " " ++ Callrec#call.id);
@@ -204,7 +204,7 @@ handle_ring(Apid, Callrec, State) ->
 			ok
 		end
 	end,
-	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F) of
+	case freeswitch_ring:start(State#state.cnode, AgentRec#agent.login, Apid, Callrec, 600, F) of
 		{ok, Pid} ->
 			link(Pid),
 			{ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], State#state{ringchannel = Pid, agent_pid = Apid}};
@@ -256,7 +256,7 @@ handle_spy(_Agent, _Call, State) ->
 	{invalid, State}.
 
 handle_agent_transfer(AgentPid, Timeout, Call, State) ->
-	AgentRec = agent:dump_state(AgentPid),
+	AgentRec = agent:dump_state(AgentPid), % TODO - avoid this
 	?INFO("transfer_agent to ~p for call ~p", [AgentRec#agent.login, Call#call.id]),
 	% fun that returns another fun when passed the UUID of the new channel
 	% (what fun!)
@@ -268,7 +268,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 			?WARNING("originate failed for ~p with  ~p", [Call#call.id, Reply])
 		end
 	end,
-	case freeswitch_ring:start_link(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge]) of
+	case freeswitch_ring:start_link(State#state.cnode, AgentRec#agent.login, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge]) of
 		{ok, Pid} ->
 			{ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], State#state{xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->
@@ -323,9 +323,9 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 					true
 			end,
 
-			AgentState = agent:dump_state(AgentPid),
+			AgentState = agent:dump_state(AgentPid), % TODO - avoid
 
-			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}]) of
+			case freeswitch_ring:start(Node, AgentState#agent.login, AgentPid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}]) of
 				{ok, Pid} ->
 					link(Pid),
 					{ok, NewUUID, State#state{ringchannel = Pid, warm_transfer_uuid = NewUUID}};
@@ -422,9 +422,9 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 					end
 			end,
 
-			AgentState = agent:dump_state(AgentPid),
+			AgentState = agent:dump_state(AgentPid), % TODO - avoid
 
-			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, []) of
+			case freeswitch_ring:start(Node, AgentState#agent.login, AgentPid, Call, 600, F, []) of
 				{ok, Pid} ->
 					link(Pid),
 					{ok, State#state{ringchannel = Pid, warm_transfer_uuid = undefined}};

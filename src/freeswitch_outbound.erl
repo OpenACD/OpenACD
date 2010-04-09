@@ -93,13 +93,13 @@
 %% API
 %%====================================================================
 
--spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), DialString :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
-start(Fnode, AgentRec, Apid, Number, DialString, Ringout) when is_pid(Apid) ->
-	gen_media:start(?MODULE, [Fnode, AgentRec, Apid, Number, DialString, Ringout]).
+-spec(start/6 :: (Fnode :: atom(), Agent :: string(), Apid :: pid(), Number :: any(), DialString :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
+start(Fnode, Agent, Apid, Number, DialString, Ringout) when is_pid(Apid) ->
+	gen_media:start(?MODULE, [Fnode, Agent, Apid, Number, DialString, Ringout]).
 
--spec(start_link/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Number :: any(), DialString :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
-start_link(Fnode, AgentRec, Apid, Number, DialString, Ringout) when is_pid(Apid) ->
-	gen_media:start_link(?MODULE, [Fnode, AgentRec, Apid, Number, DialString, Ringout]).
+-spec(start_link/6 :: (Fnode :: atom(), Agent :: string(), Apid :: pid(), Number :: any(), DialString :: string(), Ringout :: pos_integer()) -> {'ok', pid()}).
+start_link(Fnode, Agent, Apid, Number, DialString, Ringout) when is_pid(Apid) ->
+	gen_media:start_link(?MODULE, [Fnode, Agent, Apid, Number, DialString, Ringout]).
 
 -spec(hangup/1 :: (Pid :: pid()) -> 'ok').
 hangup(Pid) ->
@@ -109,12 +109,12 @@ hangup(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, AgentRec, Apid, Client, DialString, _Ringout]) ->
+init([Fnode, Agent, Apid, Client, DialString, _Ringout]) ->
 	process_flag(trap_exit, true),
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			Call = #call{id=UUID, source=self(), type=voice, direction=outbound, client = Client, priority = 10},
-			{ok, {#state{cnode = Fnode, agent_pid = Apid, dialstring = DialString, agent = AgentRec#agent.login}, Call, {precall, [Client]}}};
+			{ok, {#state{cnode = Fnode, agent_pid = Apid, dialstring = DialString, agent = Agent}, Call, {precall, [Client]}}};
 		Else ->
 			?ERROR("create_uuid failed: ~p", [Else]),
 			{stop, {error, Else}}

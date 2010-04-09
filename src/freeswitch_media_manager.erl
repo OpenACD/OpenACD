@@ -178,12 +178,13 @@ get_handler(UUID) ->
 notify(UUID, Pid) ->
 	gen_server:cast(?MODULE, {notify, UUID, Pid}).
 
--spec(make_outbound_call/3 :: (Client :: any(), AgentPid :: pid(), AgentRec :: #agent{}) -> {'ok', pid()} | {'error', any()}).
-make_outbound_call(Client, AgentPid, AgentRec) ->
-	gen_server:call(?MODULE, {make_outbound_call, Client, AgentPid, AgentRec}).
+-spec(make_outbound_call/3 :: (Client :: any(), AgentPid :: pid(), Agent :: string()) -> {'ok', pid()} | {'error', any()}).
+make_outbound_call(Client, AgentPid, Agent) ->
+	gen_server:call(?MODULE, {make_outbound_call, Client, AgentPid, Agent}).
 
-record_outage(Client, AgentPid, AgentRec) ->
-	gen_server:call(?MODULE, {record_outage, Client, AgentPid, AgentRec}).
+-spec(record_outage/3 :: (Client :: any(), AgentPid :: pid(), Agent :: string()) -> 'ok' | {'error', any()}).
+record_outage(Client, AgentPid, Agent) ->
+	gen_server:call(?MODULE, {record_outage, Client, AgentPid, Agent}).
 
 -spec(new_voicemail/5 :: (UUID :: string(), File :: string(), Queue :: string(), Priority :: pos_integer(), Client :: #client{} | string()) -> 'ok').
 new_voicemail(UUID, File, Queue, Priority, Client) ->
@@ -195,15 +196,15 @@ stop() ->
 
 %% @doc Just blindly start an agent's phone ringing, set to hangup on pickup.
 %% Yes, this is a prank call function.
--spec(ring_agent/4 :: (AgentPid :: pid(), Arec :: #agent{}, Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
-ring_agent(AgentPid, Arec, Call, Timeout) ->
-	gen_server:call(?MODULE, {ring_agent, AgentPid, Arec, Call, Timeout}).
+-spec(ring_agent/4 :: (AgentPid :: pid(), Agent :: string(), Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
+ring_agent(AgentPid, Agent, Call, Timeout) ->
+	gen_server:call(?MODULE, {ring_agent, AgentPid, Agent, Call, Timeout}).
 
 %% @doc Just blindly start an agent's phone ringing, set to echo test on pickup.
 %% Yes, this is a prank call function.
--spec(ring_agent_echo/4 :: (AgentPid :: pid(), Arec :: #agent{}, Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
-ring_agent_echo(AgentPid, Arec, Call, Timeout) ->
-	gen_server:call(?MODULE, {ring_agent_echo, AgentPid, Arec, Call, Timeout}).
+-spec(ring_agent_echo/4 :: (AgentPid :: pid(), Agent :: string(), Call :: #call{}, Timeout :: pos_integer()) -> {'ok', pid()} | {'error', any()}).
+ring_agent_echo(AgentPid, Agent, Call, Timeout) ->
+	gen_server:call(?MODULE, {ring_agent_echo, AgentPid, Agent, Call, Timeout}).
 
 -spec(get_media/1 :: (MediaKey :: pid() | string()) -> {string(), pid()} | 'none').
 get_media(MediaKey) ->
@@ -246,13 +247,13 @@ init([Nodename, Options]) ->
 %%--------------------------------------------------------------------
 %% @private
 
-handle_call({make_outbound_call, Client, AgentPid, AgentRec}, _From, #state{nodename = Node, dialstring = DS, freeswitch_up = FS} = State) when FS == true ->
-	{ok, Pid} = freeswitch_outbound:start(Node, AgentRec, AgentPid, Client, DS, 30),
+handle_call({make_outbound_call, Client, AgentPid, Agent}, _From, #state{nodename = Node, dialstring = DS, freeswitch_up = FS} = State) when FS == true ->
+	{ok, Pid} = freeswitch_outbound:start(Node, Agent, AgentPid, Client, DS, 30),
 	link(Pid),
 	{reply, {ok, Pid}, State};
-handle_call({make_outbound_call, _Client, _AgentPid, _AgentRec}, _From, State) -> % freeswitch is down
+handle_call({make_outbound_call, _Client, _AgentPid, _Agent}, _From, State) -> % freeswitch is down
 	{reply, {error, noconnection}, State};
-handle_call({record_outage, Client, AgentPid, AgentRec}, _From, #state{nodename = Node, freeswitch_up = FS} = State) when FS == true ->
+handle_call({record_outage, Client, AgentPid, Agent}, _From, #state{nodename = Node, freeswitch_up = FS} = State) when FS == true ->
 	Recording = "/tmp/"++Client++"/problem.wav",
 	case filelib:ensure_dir(Recording) of
 		ok ->
@@ -264,7 +265,7 @@ handle_call({record_outage, Client, AgentPid, AgentRec}, _From, #state{nodename 
 							ok
 					end
 			end,
-			case freeswitch_ring:start(Node, AgentRec, AgentPid, #call{id=none, source=none}, 30, F, [no_oncall_on_bridge]) of
+			case freeswitch_ring:start(Node, Agent, AgentPid, #call{id=none, source=none}, 30, F, [no_oncall_on_bridge]) of
 				{ok, _Pid} ->
 					{reply, ok, State};
 				{error, Reason} ->
@@ -285,18 +286,18 @@ handle_call({get_handler, UUID}, _From, #state{call_dict = Dict} = State) ->
 handle_call(stop, _From, State) ->
 	?NOTICE("Normal termination", []),
 	{stop, normal, ok, State};
-handle_call({ring_agent, AgentPid, Arec, Call, Timeout}, _From, #state{nodename = Node} = State) ->
+handle_call({ring_agent, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
 	case State#state.freeswitch_up of
 		true ->
 			Fun = fun(_) ->
 				fun(_, _) -> ok end
 			end,
-			Out = freeswitch_ring:start(Node, Arec, AgentPid, Call, Timeout, Fun, [single_leg]),
+			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [single_leg]),
 			{reply, Out, State};
 		false ->
 			{reply, {error, noconnection}, State}
 	end;
-handle_call({ring_agent_echo, AgentPid, Arec, Call, Timeout}, _From, #state{nodename = Node} = State) ->
+handle_call({ring_agent_echo, AgentPid, Agent, Call, Timeout}, _From, #state{nodename = Node} = State) ->
 	case State#state.freeswitch_up of
 		true ->
 			Fun = fun(UUID) ->
@@ -311,7 +312,7 @@ handle_call({ring_agent_echo, AgentPid, Arec, Call, Timeout}, _From, #state{node
 					ok
 				end
 			end,
-			Out = freeswitch_ring:start(Node, Arec, AgentPid, Call, Timeout, Fun, [no_oncall_on_bridge]),
+			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [no_oncall_on_bridge]),
 			{reply, Out, State};
 		false ->
 			{reply, {error, noconnection}, State}

@@ -750,7 +750,6 @@ handle_call('$gen_media_warm_transfer_cancel', _From, #state{callback = Callback
 				{ok, NewState} ->
 					Res = set_agent_state(Apid, [oncall, Call]),
 					cdr:warmxfer_cancel(Call, Agent),
-					#agent{login = Agent} = agent:dump_state(Apid),
 					cdr:oncall(Call, Agent),
 					{reply, Res, State#state{substate = NewState, warm_transfer = false}};
 				{error, Error, NewState} ->
@@ -767,7 +766,6 @@ handle_call('$gen_media_warm_transfer_complete', _From, #state{callback = Callba
 				{ok, NewState} ->
 					Res = set_agent_state(Apid, [wrapup, Call]),
 					cdr:warmxfer_complete(Call, Agent),
-					#agent{login = Agent} = agent:dump_state(Apid),
 					cdr:wrapup(Call, Agent),
 					erlang:demonitor(Mons#monitors.oncall_pid),
 					Newmons = Mons#monitors{oncall_pid = undefined},

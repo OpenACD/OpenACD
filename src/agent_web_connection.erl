@@ -366,14 +366,14 @@ handle_call({queue_transfer, Queue}, _From, #state{agent_fsm = Apid} = State) ->
 	{reply, Reply, State};
 handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = State) ->
 	?NOTICE("Request to initiate outbound call of type ~p to ~p", [Type, Client]),
-	AgentRec = agent:dump_state(Apid),
+	AgentRec = agent:dump_state(Apid), % TODO - avoid
 	Reply = case AgentRec#agent.state of
 		Agentstate when Agentstate =:= released; Agentstate =:= idle ->
 			try list_to_existing_atom(Type) of
 				freeswitch ->
 					case whereis(freeswitch_media_manager) of
 						P when is_pid(P) ->
-							case freeswitch_media_manager:make_outbound_call(Client, Apid, AgentRec) of
+							case freeswitch_media_manager:make_outbound_call(Client, Apid, AgentRec#agent.login) of
 								{ok, Pid} ->
 									Call = gen_media:get_call(Pid),
 									agent:set_state(Apid, precall, Call),
@@ -520,10 +520,10 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 			cpx_monitor:subscribe(),
 			{reply, {200, [], mochijson2:encode({struct, [{success, true}, {<<"message">>, <<"subscribed">>}]})}, State};
 		["start_problem_recording", _Agentname, Clientid] ->
-			AgentRec = agent:dump_state(State#state.agent_fsm),
+			AgentRec = agent:dump_state(State#state.agent_fsm), % TODO - avoid
 			case whereis(freeswitch_media_manager) of
 				P when is_pid(P) ->
-					case freeswitch_media_manager:record_outage(Clientid, State#state.agent_fsm, AgentRec) of
+					case freeswitch_media_manager:record_outage(Clientid, State#state.agent_fsm, AgentRec#agent.login) of
 						ok ->
 							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 						{error, Reason} ->
@@ -830,11 +830,11 @@ handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = St
 	end,
 	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined, agent_fsm = Apid} = State) ->
-	AgentRec = agent:dump_state(Apid),
+	AgentRec = agent:dump_state(Apid), % TODO - avoid
 	Json = case whereis(freeswitch_media_manager) of
 		Pid when is_pid(Pid), AgentRec#agent.state == released ->
 			Callrec = #call{id="unused", source=self(), callerid={"Echo Test", "0000000"}},
-			case freeswitch_media_manager:ring_agent_echo(Apid, AgentRec, Callrec, 600) of
+			case freeswitch_media_manager:ring_agent_echo(Apid, AgentRec#agent.login, Callrec, 600) of
 				{ok, _} ->
 					{struct, [{success, true}]};
 				{error, Error} ->

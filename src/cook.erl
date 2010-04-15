@@ -967,15 +967,18 @@ check_conditions_test_() ->
 			Mpid = Incpid,
 			{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
 		end),
-		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
-			?CONSOLE("list_agents", []),
-			List = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
+		AgentList = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
 			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
 			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
-			Out = lists:map(fun(Rec) ->
-				{Rec#agent.login, {element(2, agent:start_link(Rec)), Rec#agent.id, util:now(), Rec#agent.skills}}
-			end, List),
-			{ok, Out, State}
+		Outlist = [begin
+			gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
+				ok
+			end),
+			{ok, P} = agent:start_link(Rec),
+			{Rec#agent.login, {P, Rec#agent.id, util:now(), Rec#agent.skills}}
+		end || Rec <- AgentList ],
+		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
+			{ok, Outlist, State}
 		end),
 		{QMPid, QPid, Mpid, AMpid, Assertmocks}
 	end,
@@ -1047,15 +1050,18 @@ check_conditions_test_() ->
 			Mpid = Incpid,
 			{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
 		end),
-		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
-			?CONSOLE("list_agents", []),
-			List = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
+		StartAgents = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
 			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
 			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
-			Out = lists:map(fun(Rec) ->
-				{Rec#agent.login, {element(2, agent:start_link(Rec)), Rec#agent.id, util:now(), Rec#agent.skills}}
-			end, List),
-			{ok, Out, State}
+		List = [begin
+			gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
+				ok
+			end),
+			{ok, P} = agent:start_link(Rec),
+			{Rec#agent.login, {P, Rec#agent.id, util:now(), Rec#agent.skills}}
+		end || Rec <- StartAgents],
+		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
+			{ok, List, State}
 		end),
 		{QMPid, QPid, Mpid, AMpid, Assertmocks}
 	end,
@@ -1633,9 +1639,9 @@ multinode_test_() ->
 			["testpx", Host] = string:tokens(atom_to_list(node()), "@"),
 			Master = list_to_atom(lists:append("master@", Host)),
 			Slave = list_to_atom(lists:append("slave@", Host)),
-			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
-			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
-
+			M = slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
+			S = slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+			?CONSOLE("M start:  ~p;  S start:  ~p", [M, S]),
 			mnesia:stop(),
 
 			mnesia:change_config(extra_db_nodes, [Master, Slave]),

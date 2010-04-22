@@ -68,7 +68,7 @@
 -define(WARMTRANSFER_LIMITS, {warmtransfer, {0, 60 * 2, 60 * 5, {time, util:now()}}}).
 -define(DEFAULT_REL, {"default", default, -1}).
 
--define(WRAPUP_AUTOEND_KEY, "autoend-wrapup").
+-define(WRAPUP_AUTOEND_KEY, autoend_wrapup).
 %% gen_fsm exports
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4, format_status/2]).
 %% defined state exports

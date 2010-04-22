@@ -68,6 +68,7 @@
 -define(WARMTRANSFER_LIMITS, {warmtransfer, {0, 60 * 2, 60 * 5, {time, util:now()}}}).
 -define(DEFAULT_REL, {"default", default, -1}).
 
+-define(WRAPUP_AUTOEND_KEY, "autoend-wrapup").
 %% gen_fsm exports
 -export([init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4, format_status/2]).
 %% defined state exports
@@ -549,6 +550,14 @@ oncall(wrapup, _From, #agent{statedata = Call} = State) when Call#call.media_pat
 		ok ->			
 			Newstate = State#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
 			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
+			Client = Call#call.client,
+			case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
+				N when is_integer(N) andalso N > 0 ->
+					Self = self(),
+					erlang:send_after(N * 1000, Self, end_wrapup);
+				_ ->
+					ok
+			end,
 			{reply, ok, wrapup, Newstate};
 		invalid ->
 			?WARNING("a living media replied it could not go to wrapup", []),
@@ -566,7 +575,15 @@ oncall({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentcal
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 			%cdr:wrapup(Call, State#agent.login),
 			Newstate = State#agent{state=wrapup, statedata=Call, lastchange = util:now(), oldstate = oncall},
-			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []), 
+			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
+			Client = Call#call.client,
+			case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
+				N when is_integer(N) andalso N > 0 ->
+					Self = self(),
+					erlang:send_after(N * 1000, Self, end_wrapup);
+				_ ->
+					ok
+			end,
 			{reply, ok, wrapup, Newstate};
 		_Else ->
 			{reply, invalid, oncall, State}
@@ -665,6 +682,14 @@ outgoing({wrapup, #call{id = Callid} = Call}, _From, #agent{statedata = Currentc
 			Newstate = State#agent{state=wrapup, statedata=Call, lastchange = util:now(), oldstate = outgoing},
 			gen_server:cast(State#agent.connection, {change_state, wrapup, Call}),
 			set_cpx_monitor(Newstate, ?WRAPUP_LIMITS, []),
+			Client = Call#call.client,
+			case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
+				N when is_integer(N) andalso N > 0 ->
+					Self = self(),
+					erlang:send_after(N * 1000, Self, end_wrapup);
+				_ ->
+					ok
+			end,
 			{reply, ok, wrapup, Newstate};
 		_Else -> 
 			{reply, invalid, outgoing, State}
@@ -1105,6 +1130,9 @@ handle_info({'EXIT', From, Reason}, StateName, State) ->
 			?INFO("unknown exit from ~p", [From]),
 			{next_state, StateName, State}
 	end;
+handle_info(end_wrapup, wrapup, State) ->
+	{reply, ok, Nextstate, Newstate} = wrapup(idle, "fudged", State),
+	{next_state, Nextstate, Newstate};
 handle_info(_Info, StateName, State) ->
 	{next_state, StateName, State}.
 
@@ -1160,7 +1188,7 @@ terminate(Reason, StateName, State) ->
 code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
 
-
+-spec(format_status/2 :: (Cause :: atom(), Data :: [any()]) -> any()).
 format_status(normal, [PDict, State]) ->
 	[{data, [{"State", format_status(terminate, [PDict, State])}]}];
 format_status(terminate, [_PDict, State]) ->
@@ -1995,6 +2023,63 @@ from_oncall_test_() ->
 			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, "from", Agent)),
 			Assertmocks()
 		end}
+	end,
+	fun({BaseAgent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to wrapup with a hard end",
+		fun() ->
+			Basecall = BaseAgent#agent.statedata,
+			Client = #client{label = "testclient", options = [{?WRAPUP_AUTOEND_KEY, 1}]},
+			Callrec = Basecall#call{client = Client},
+			Agent = BaseAgent#agent{statedata = Callrec},
+			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
+				Incall = Agent#agent.statedata,
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{wrapup, _Limits}] = Health, 
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
+			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, "from", Agent)),
+			Gotend = receive
+				end_wrapup ->
+					ok
+			after 1500 ->
+				error
+			end,
+			?assertEqual(ok, Gotend),
+			Assertmocks()
+		end}
+	end,
+	fun({BaseAgent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to wrapup with hard end and inband media",
+		fun() ->
+			Basecall = BaseAgent#agent.statedata,
+			Client = #client{label = "testclient", options = [{?WRAPUP_AUTOEND_KEY, 1}]},
+			Callrec = Basecall#call{client = Client, media_path = inband},
+			Agent = BaseAgent#agent{statedata = Callrec},
+			gen_server_mock:expect_call(Callrec#call.source, fun('$gen_media_wrapup', _From, _State) -> ok end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
+				Incall = Agent#agent.statedata,
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{wrapup, _Limits}] = Health, 
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
+			?assertMatch({reply, ok, wrapup, _State}, oncall(wrapup, "from", Agent)),
+			Gotend = receive
+				end_wrapup ->
+					ok
+			after 1500 ->
+				error
+			end,
+			?assertEqual(ok, Gotend),
+			Assertmocks()
+		end}
 	end]}.
 
 from_outgoing_test_() ->
@@ -2148,6 +2233,36 @@ from_outgoing_test_() ->
 			Oldrec = Agent#agent.statedata,
 			Invalidrec = Oldrec#call{id = "bad bad leroy brown"},
 			?assertMatch({reply, invalid, outgoing, _State}, outgoing({wrapup, Invalidrec}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({BaseAgent, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to wrapup with a hard end",
+		fun() ->
+			Basecall = BaseAgent#agent.statedata,
+			Client = #client{label = "testclient", options = [{?WRAPUP_AUTOEND_KEY, 1}]},
+			Callrec = Basecall#call{client = Client},
+			Agent = BaseAgent#agent{statedata = Callrec},
+			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, _Calldata}, _State) ->
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{wrapup, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, outgoing, Call}, _State) ->
+				Call = Agent#agent.statedata, 
+				ok
+			end),
+			?assertMatch({reply, ok, wrapup, _State}, outgoing({wrapup, Agent#agent.statedata}, "from", Agent)),
+			Gotend = receive
+				end_wrapup ->
+					ok
+			after 1500 ->
+				error
+			end,
+			?assertEqual(ok, Gotend),
 			Assertmocks()
 		end}
 	end]}.
@@ -2848,4 +2963,89 @@ handle_conn_exit_outband_test_() ->
 			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
 		end}
 	end]}.
+
+handle_info_test_() ->
+	{foreach,
+	fun() ->
+		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
+		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, Connmock} = gen_server_mock:new(),
+		{ok, AMmock} = gen_leader_mock:start(agent_manager),
+		Client = #client{label = "testclient"},
+		{ok, Mediapid} = gen_server_mock:new(),
+		Callrec = #call{
+			id = "testcall",
+			source = Mediapid,
+			client = Client
+		},
+		{ok, Logpid} = gen_server_mock:new(),
+		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = wrapup, statedata = Callrec, log_pid = Logpid},
+		Assertmocks = fun() ->
+			gen_server_mock:assert_expectations(Dmock),
+			gen_leader_mock:assert_expectations(Monmock),
+			gen_server_mock:assert_expectations(Connmock),
+			gen_leader_mock:assert_expectations(AMmock),
+			ok
+		end,
+		{Agent, Assertmocks}
+	end,
+	fun({Agent, _Assertmocks}) ->
+		gen_server_mock:stop(whereis(dispatch_manager)),
+		gen_leader_mock:stop(cpx_monitor),
+		gen_server_mock:stop(Agent#agent.connection),
+		gen_leader_mock:stop(agent_manager),
+		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
+		% before the next test runs.
+		ok
+	end,
+	[fun({Agent, Assertmocks}) ->
+		{"Hard end to idle",
+		fun() ->
+			Self = self(),
+			gen_server_mock:expect_cast(dispatch_manager, fun({now_avail, Apid}, _State) ->
+				Self = Apid,
+				ok
+			end),
+			gen_leader_mock:expect_cast(agent_manager, fun({now_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
+			gen_server_mock:expect_cast(Agent#agent.connection, fun({change_state, idle}, _State) ->
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(cpx_monitor, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{idle, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, wrapup, {}}, _State) -> ok end),
+			?assertMatch({next_state, idle, _State}, handle_info(end_wrapup, wrapup, Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({OldAgent, Assertmocks}) ->
+		{"Hard end with queued release",
+		fun() ->
+			Agent = OldAgent#agent{queuedrelease = ?DEFAULT_REL},
+			gen_server_mock:expect_cast(Agent#agent.connection, fun({change_state, released, ?DEFAULT_REL}, _State) ->
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(cpx_monitor, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{released, _Limits}, {bias, _}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, wrapup, ?DEFAULT_REL}, _State) -> ok end),
+			?assertMatch({next_state, released, _State}, handle_info(end_wrapup, wrapup, Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({OldAgent, Assertmocks}) ->
+		{"hard wrapup comes in at wrong time",
+		fun() ->
+			Agent = OldAgent#agent{state = oncall},
+			?assertEqual({next_state, oncall, Agent}, handle_info(end_wrapup, oncall, Agent))
+		end}
+	end]}.
+
 -endif.

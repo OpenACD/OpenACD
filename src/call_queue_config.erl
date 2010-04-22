@@ -61,6 +61,8 @@
 ).
 -define(DEFAULT_QUEUE_GROUP, #queue_group{name = "Default", sort = 0, protected = true}).
 
+-define(DEFAULTABLE_CLIENT_OPTIONS, [url_pop, autoend_wrapup]).
+
 -include("log.hrl").
 -include("queue.hrl").
 -include("call.hrl").
@@ -607,18 +609,7 @@ new_client(Label, ID, Options) ->
 %% @doc Add a new client based on `#client{}' `Rec'.
 new_client(Rec) when is_record(Rec, client) ->
 	F = fun() ->
-		NewOptions = case proplists:get_value(url_pop, Rec#client.options) of
-			undefined ->
-				#client{options = Options} = get_default_client(),
-				case proplists:get_value(url_pop, Options) of
-					undefined ->
-						Rec#client.options;
-					Else ->
-						[{url_pop, Else} | Rec#client.options]
-				end;
-			_Else ->
-				Rec#client.options
-		end,
+		NewOptions = merge_client_options(Rec#client.options),
 		mnesia:write(Rec#client{options = NewOptions})
 	end,
 	mnesia:transaction(F).
@@ -635,18 +626,7 @@ set_client(Id, Newlabel, Options) ->
 set_client(Id, Client) when is_record(Client, client) ->
 	F = fun() ->
 		mnesia:delete({client, Id}),
-		Newoptions = case proplists:get_value(url_pop, Client#client.options) of
-			undefined ->
-				#client{options = Options} = get_default_client(),
-				case proplists:get_value(url_pop, Options) of
-					undefined ->
-						Client#client.options;
-					Else ->
-						[{url_pop, Else} | Client#client.options]
-				end;
-			_Else ->
-				Client#client.options
-		end,
+		Newoptions = merge_client_options(Client#client.options),
 		mnesia:write(Client#client{id = Id, options = Newoptions, timestamp = util:now()})
 	end,
 	mnesia:transaction(F).
@@ -752,6 +732,22 @@ merge_clients(Nodes, Time) ->
 %% =====
 %% Internal / helper functions
 %% =====
+
+merge_client_options(Given) ->
+	#client{options = Defaults} = get_default_client(),
+	merge_client_options(Given, Defaults, ?DEFAULTABLE_CLIENT_OPTIONS).
+
+merge_client_options(Given, _Defaults, []) ->
+	Given;
+merge_client_options(Given, Defaults, [Key | Tail]) ->
+	case {proplists:get_value(Key, Given), proplists:get_value(Key, Defaults)} of
+		{undefined, undefined} ->
+			merge_client_options(Given, Defaults, Tail);
+		{undefined, Val} ->
+			merge_client_options([{Key, Val} | Given], Defaults, Tail);
+		_ ->
+			merge_client_options(Given, Defaults, Tail)
+	end.
 
 query_nodes(Nodes, F) ->
 	query_nodes_loop(Nodes, F, []).
@@ -1340,6 +1336,30 @@ skill_rec_test_() ->
 			end
 		]
 	}.
+
+merge_client_options_test_() ->
+	Given = [{givenkey, "given"}, {sharedkey, "shared"}],
+	Default = [{defaultkey, "default"}, {sharedkey, "default_shared"}],
+	[{"neither has mergaeble key",
+	fun() ->
+		Expected = Given,
+		?assertEqual(Expected, merge_client_options(Given, Default, [neither]))
+	end},
+	{"Given lacks a key",
+	fun() ->
+		Expected = [{defaultkey, "default"} | Given],
+		?assertEqual(Expected, merge_client_options(Given, Default, [defaultkey]))
+	end},
+	{"Default doesn't overwrite existing values",
+	fun() ->
+		Expected = Given,
+		?assertEqual(Expected, merge_client_options(Given, Default, [sharedkey]))
+	end},
+	{"Default lacks a key",
+	fun() ->
+		Expected = Given,
+		?assertEqual(Expected, merge_client_options(Given, Default, [givenkey]))
+	end}].
 
 client_rec_test_() ->
 	["testpx", _Host] = string:tokens(atom_to_list(node()), "@"),

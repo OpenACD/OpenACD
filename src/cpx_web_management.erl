@@ -1343,10 +1343,18 @@ api({clients, "getDefault"}, ?COOKIE, _Post) ->
 	Json = encode_client(Client),
 	{200, [], mochijson2:encode(Json)};
 api({clients, "setDefault"}, ?COOKIE, Post) ->
+	Baseoptions = try list_to_integer(proplists:get_value("autowrapup", Post)) of
+		I ->
+			[{autoend_wrapup, I}]
+	catch
+		error:badarg ->
+			[] 
+	end,
+	?ERROR("The a:  ~p", [Baseoptions]),
 	Client = #client{
 		label = undefined,
 		id = undefined,
-		options = [{url_pop, proplists:get_value("url_pop", Post, "")}]
+		options = [{url_pop, proplists:get_value("url_pop", Post, "")} | Baseoptions]
 	},
 	call_queue_config:set_client(undefined, Client),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};

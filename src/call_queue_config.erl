@@ -626,7 +626,12 @@ set_client(Id, Newlabel, Options) ->
 set_client(Id, Client) when is_record(Client, client) ->
 	F = fun() ->
 		mnesia:delete({client, Id}),
-		Newoptions = merge_client_options(Client#client.options),
+		Newoptions = case Id of
+			undefined ->
+				Client#client.options;
+			_ ->
+				merge_client_options(Client#client.options)
+		end,
 		mnesia:write(Client#client{id = Id, options = Newoptions, timestamp = util:now()})
 	end,
 	mnesia:transaction(F).

@@ -31,6 +31,8 @@ Other contributions are welcome.
 
 You can also (possibly) get help on IRC via #openacd on FreeNode.
 
+A mailinglist also exists at http://groups.google.com/group/openacd/
+
 Contributing
 ============
 

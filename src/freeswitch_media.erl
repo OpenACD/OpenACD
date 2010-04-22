@@ -27,15 +27,7 @@
 %%	Micah Warren <micahw at fusedsolutions dot com>
 %%
 
-%% @doc An on demand gen_server for watching a freeswitch call.
-%% This is started by freeswitch_media_manager when a new call id is found.
-%% This is responsible for:
-%% <ul>
-%% <li>Connecting an agent to a call</li>
-%% <li>Moving a call into queue.</li>
-%% <li>Removing a call from queue.</li>
-%% <li>Signalling when a call has hung up.</li>
-%% </ul>
+%% @doc The gen_media callback module for voice calls through freeswitch.  
 %% @see freeswitch_media_manager
 
 -module(freeswitch_media).
@@ -55,9 +47,6 @@
 -define(TIMEOUT, 10000).
 
 -define(DEFAULT_PRIORITY, 10).
-
-% TODO hangup occurs in reverse order.  eg:  if the agent hangs up, it looks
-% like the the caller did, and vice versa.
 
 %% API
 -export([

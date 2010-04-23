@@ -1350,7 +1350,6 @@ api({clients, "setDefault"}, ?COOKIE, Post) ->
 		error:badarg ->
 			[] 
 	end,
-	?ERROR("The a:  ~p", [Baseoptions]),
 	Client = #client{
 		label = undefined,
 		id = undefined,
@@ -1565,6 +1564,8 @@ encode_client_options([], Acc) ->
 	[{<<"_type">>, <<"json">>}, {<<"_value">>, {struct, lists:reverse(Acc)}}];
 encode_client_options([{url_pop, Format} | Tail], Acc) ->
 	encode_client_options(Tail, [{url_pop, list_to_binary(Format)} | Acc]);
+encode_client_options([{autoend_wrapup, N} | Tail], Acc) ->
+	encode_client_options(Tail, [{autoend_wrapup, N} | Acc]);
 encode_client_options([_Head | Tail], Acc) ->
 	encode_client_options(Tail, Acc).
 

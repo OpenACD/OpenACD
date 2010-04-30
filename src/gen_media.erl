@@ -2641,7 +2641,7 @@ handle_info_test_() ->
 agent_interact_test_() ->
 	{foreach,
 	fun() ->
-		Callrec = #call{id = "testcall", source = self()},
+		Callrec = #call{id = "testcall", source = self(), client = #client{}},
 		{ok, Mock} = gen_leader_mock:start(agent_manager),
 		gen_leader_mock:expect_leader_call(Mock, fun(_Data, _From, State, _Elec) -> {ok, "testagent", State} end),
 		gen_event:start({local, cdr}),

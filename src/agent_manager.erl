@@ -51,7 +51,8 @@
 -type(agent_cache() :: {agent_pid(), agent_id(), time_avail(), skills()}).
 
 -record(state, {
-	agents = dict:new() :: dict()
+	agents = dict:new() :: dict(),
+	lists_requested = 0 :: integer()
 	}).
 
 -type(state() :: #state{}).
@@ -151,26 +152,22 @@ find_avail_agents_by_skill(Skills) ->
 %% No un-idle agents should be in the list, otherwise it is fail.
 -spec(sort_agents_by_elegibility/1 :: (Agents :: [agent_cache()]) -> [agent_cache()]).
 sort_agents_by_elegibility(AvailSkilledAgents) ->
-	AvailSkilledAgentsByIdleTime = lists:sort(
-		fun({_K1, _V1, Time1, _Skills1}, {_K2, _V2, Time2, _Skills2}) ->
-			Time1 =< Time2
-		end, AvailSkilledAgents),
-
-	% TODO - path cost sorting. We need to make sure that we prefer local
-	% delivery slightly over remote delivery so that we tie up less long
-	% distance network resources.
-
-	F = fun({_K1, _V1, Time1, Skills1}, {_K2, _V2, Time2, Skills2}) -> 
+	Sort = fun({_K1, _V1, Time1, Skills1}, {_K2, _V2, Time2, Skills2}) ->
 		case {lists:member('_all', Skills1), lists:member('_all', Skills2)} of
-			{true, false} -> 
+			{true, false} ->
 				false;
-			{false, true} -> 
+			{false, true} ->
 				true;
-			_Else -> 
-				length(Skills1) =< length(Skills2)
+			_Else ->
+				if
+					length(Skills1) == length(Skills2) ->
+						Time1 =< Time2;
+					true ->
+						length(Skills1) =< length(Skills2)
+				end
 		end
 	end,
-	lists:sort(F, AvailSkilledAgentsByIdleTime).
+	lists:sort(Sort, AvailSkilledAgents).
 
 %% @doc Gets all the agents have have the given `[atom()] Skills'.
 -spec(find_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
@@ -559,6 +556,48 @@ build_tables() ->
 handle_call_start_test() ->
 	?assertMatch({ok, _Pid}, start([node()])),
 	stop().
+
+sort_eligible_agents_test_() ->
+	[{"only difference is the length of the skills list",
+	fun() ->
+		In = [{"3rd", "3rd", 3, [a, b, c, d]}, {"1st", "1st", 3, [a]}, {"2nd", "2nd", 3, [a, b, c]}],
+		Out = [{"1st", "1st", 3, [a]}, {"2nd", "2nd", 3, [a, b, c]}, {"3rd", "3rd", 3, [a, b, c, d]}],
+		?assertEqual(Out, sort_agents_by_elegibility(In))
+	end},
+	{"Only difference is the time went available",
+	fun() ->
+		In = [{"3rd", "3rd", 9, [a]}, {"1st", "1st", 3, [a]}, {"2nd", "2nd", 6, [a]}],
+		Out = [{"1st", "1st", 3, [a]}, {"2nd", "2nd", 6, [a]}, {"3rd", "3rd", 9, [a]}],
+		?assertEqual(Out, sort_agents_by_elegibility(In))
+	end},
+	{"'_all' loses the skill list war",
+	fun() ->
+		In = [{"3rd", "3rd", 3, ['_all']}, {"1st", "1st", 3, [a]}, {"2nd", "2nd", 3, [a, b, c]}],
+		Out = [{"1st", "1st", 3, [a]}, {"2nd", "2nd", 3, [a, b, c]}, {"3rd", "3rd", 3, ['_all']}],
+		?assertEqual(Out, sort_agents_by_elegibility(In))
+	end},
+	{"Big sortification",
+	fun() ->
+		In = [
+			{"5th", "5th", 9, ['_all']},
+			{"7th", "7th", 9, ['_all', a]},
+			{"2nd", "2nd", 9, [a, b]},
+			{"6th", "6th", 6, ['_all', a]},
+			{"3rd", "3rd", 6, [a, b, c]},
+			{"1st", "1st", 6, [a, b]},
+			{"4th", "4th", 6, ['_all']}
+		],
+		Out = [
+			{"1st", "1st", 6, [a, b]},
+			{"2nd", "2nd", 9, [a, b]},
+			{"3rd", "3rd", 6, [a, b, c]},
+			{"4th", "4th", 6, ['_all']},
+			{"5th", "5th", 9, ['_all']},
+			{"6th", "6th", 6, ['_all', a]},
+			{"7th", "7th", 9, ['_all', a]}
+		],
+		?assertEqual(Out, sort_agents_by_elegibility(In))
+	end}].
 
 single_node_test_() -> 
 	{foreach,

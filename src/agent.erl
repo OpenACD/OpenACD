@@ -1131,7 +1131,7 @@ handle_info({'EXIT', From, Reason}, StateName, State) ->
 			{next_state, StateName, State}
 	end;
 handle_info(end_wrapup, wrapup, State) ->
-	{reply, ok, Nextstate, Newstate} = wrapup(idle, "fudged", State),
+	{reply, ok, Nextstate, Newstate} = wrapup(idle, self(), State),
 	{next_state, Nextstate, Newstate};
 handle_info(_Info, StateName, State) ->
 	{next_state, StateName, State}.
@@ -1222,7 +1222,7 @@ log_change(#agent{log_pid = Pid} = State) when is_pid(Pid) ->
 	Pid ! {State#agent.login, State#agent.state, State#agent.oldstate, State#agent.statedata},
 	ok.
 
--spec(log_loop/4 :: (Id :: string(), Agentname :: string(), Nodes :: [atom()], Profile :: string()) -> 'ok').
+-spec(log_loop/4 :: (Id :: string(), Agentname :: string(), Nodes :: [atom()], Profile :: string() | {string(), string()}) -> 'ok').
 log_loop(Id, Agentname, Nodes, ProfileTup) ->
 	process_flag(trap_exit, true),
 	Profile = case ProfileTup of

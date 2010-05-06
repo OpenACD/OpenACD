@@ -143,6 +143,9 @@ handle_info(Info, State) ->
 	?DEBUG("Info:  ~p", [Info]),
 	{noreply, State}.
 
+terminate(Reason, _State) when Reason == normal; Reason == shutdown ->
+	?NOTICE("Graceful termination:  ~p", [Reason]),
+	ok;
 terminate(Reason, _State) ->
 	?NOTICE("Terminating dirty:  ~p", [Reason]),
 	ok.

@@ -253,6 +253,11 @@ dojo.requireLocalization("admin", "labels");
 						<input id="agentModuleWebListen" dojoType="dijit.form.NumberTextBox" name="agentModuleWebListen" constraints="{min:1024,max:49151,places:0}", required="true", invalidMessage="Not a valid port to bind to.">
 					</p>
 					<p>
+						<label for="agentModuleDialplanListenEnabled">&nbsp;</label>
+						<input id="agentModuleDialplanListenEnabled" name="agentModuleDialplanListenEnabled" dojoType="dijit.form.CheckBox" value="dialplanEnabled" />
+						<span class="translate">ENABLEAGENTDIALPLAN</span>
+					</p>
+					<p>
 						<label for="agentModuleSubmit">&nbsp;</label>
 						<button dojoType="dijit.form.Button" label="SUBMIT">
 							<script type="dojo/connect" event="onClick">

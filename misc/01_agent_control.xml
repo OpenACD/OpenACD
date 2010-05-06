@@ -1,0 +1,34 @@
+<include>
+<extension name="OpenACD agent login">
+	<condition field="${sip_authorized}" expression="^true$"/>
+	<condition field="destination_number" expression="^\*88$">
+		<action application="erlang_sendmsg" data="agent_dialplan_listener testme@openacd1 agent_login ${sip_auth_username}"/>
+		<action application="hangup"/>
+	</condition>
+</extension>
+
+<extension name="OpenACD agent logoff">
+	<condition field="${sip_authorized}" expression="^true$"/>
+	<condition field="destination_number" expression="^\*89$">
+		<action application="erlang_sendmsg" data="agent_dialplan_listener testme@openacd1 agent_logoff ${sip_auth_username}"/>
+		<action application="hangup"/>
+	</condition>
+</extension>
+
+<extension name="OpenACD agent available">
+	<condition field="${sip_authorized}" expression="^true$"/>
+	<condition field="destination_number" expression="^\*86$">
+		<action application="erlang_sendmsg" data="agent_dialplan_listener testme@openacd1 agent_available ${sip_auth_username}"/>
+		<action application="hangup"/>
+	</condition>
+</extension>
+
+<extension name="OpenACD agent available">
+	<condition field="${sip_authorized}" expression="^true$"/>
+	<condition field="destination_number" expression="^\*87$">
+		<action application="erlang_sendmsg" data="agent_dialplan_listener testme@openacd1 agent_release ${sip_auth_username}"/>
+		<action application="hangup"/>
+	</condition>
+</extension>
+</include>
+

@@ -126,7 +126,7 @@ stop() ->
 start_agent(#agent{login = ALogin} = Agent) -> 
 	case query_agent(ALogin) of
 		false -> 
-			gen_leader:call(?MODULE, {start_agent, Agent});
+			gen_leader:call(?MODULE, {start_agent, Agent}, infinity);
 		{true, Apid} -> 
 			{exists, Apid}
 	end.

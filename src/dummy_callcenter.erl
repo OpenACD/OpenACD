@@ -43,14 +43,17 @@
 -include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
+-include("cpx.hrl").
 
 %% API
 -export([
 	start/0,
 	start/1,
+	start_supped/1,
 	start_link/0,
 	start_link/1,
 	stop/0,
+	stop_supped/0,
 	set_option/2
 ]).
 
@@ -147,6 +150,22 @@ start() ->
 start_link(Options) ->
 	gen_server:start_link({local, ?SERVER}, ?MODULE, Options, []).
 
+%% @doc Puts this in the supervisor tree.  @see start/1
+-spec(start_supped/1 :: (Options :: start_options()) -> {'ok', pid()}).
+start_supped(Options) ->
+	Conf = #cpx_conf{
+		id = ?MODULE,
+		module_name = ?MODULE,
+		start_function = start_link,
+		start_args = [Options]
+	},
+	cpx_middle_supervisor:add_with_middleman(management_sup, 3, 5, Conf).
+
+%% @doc Stops when it be supervised.
+-spec(stop_supped/0 :: () -> 'ok').
+stop_supped() ->
+	cpx_middle_supervisor:drop_child(management_sup, ?MODULE).
+
 -spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
 	start_link([]).
@@ -221,24 +240,21 @@ init(Options) ->
 %		Queues ->
 %			dummy_media:q_x(Conf#conf.agents, Queues)
 %	end,
-	Makename = fun(Num) ->
-		Listnum = integer_to_list(Num),
-		lists:append(Listnum, "_dummy_agent@" ++ atom_to_list(node()))
-	end,
-	Names = lists:map(Makename, lists:seq(1, Conf#conf.agents * 2)),
-	Spawnagent = fun(_, {Pidlist, [Nom | Tail]}) ->
-		O = spawn_agent(Conf, Nom),
-		?INFO("agent spawned:  ~p", [O]),
-		{ok, Pid} = O,
-		{[{Pid, Nom} | Pidlist], Tail}
-	end,
-	{Pidlist, Namelist} = lists:foldl(Spawnagent, {[], Names}, lists:seq(1, Conf#conf.agents)),
+	Names = [make_name(Num) || Num <- lists:seq(1, Conf#conf.agents) ],
+%	Spawnagent = fun(_, {Pidlist, [Nom | Tail]}) ->
+%		O = spawn_agent(Conf, Nom),
+%		?INFO("agent spawned:  ~p", [O]),
+%		{ok, Pid} = O,
+%		{[{Pid, Nom} | Pidlist], Tail}
+%	end,
+%	{Pidlist, Namelist} = lists:foldl(Spawnagent, {[], Names}, lists:seq(1, Conf#conf.agents)),
+	spawn(fun() -> [ callcenter ! spawn_agent || _ <- lists:seq(1, Conf#conf.agents)] end),
 	%Medias = lists:map(fun(_) -> [Pid] = queue_media(Conf), Pid end, lists:seq(1, round(Conf#conf.agents * 0.8))),
 	%{ok, Spawncall} = timer:send_after(get_number(Conf#conf.call_frequency) * 1000, spawn_call),
 	State = #state{
 		life_timer = Lifetime,
-		agent_pids = Pidlist,
-		agent_names = Namelist,
+		agent_pids = [],
+		agent_names = Names,
 		conf = Conf
 	},
     {ok, State}.
@@ -276,10 +292,18 @@ handle_cast({set_option, simulation_life, Value}, #state{life_timer = Timer} = S
 			R
 	end,
 	{noreply, State#state{life_timer = Newtimer}};
+handle_cast({set_option, agents, Value}, #state{conf = Conf} = State) ->
+	Newconf = Conf#conf{agents = Value},
+	case {Value, Conf#conf.agents} of
+		{X, Y} when X > Y ->
+			Self = self(),
+			[ Self ! spawn_agent || _ <- lists:seq(1, X - Y) ],
+			{noreply, State#state{conf = Newconf}};
+		_ ->
+			{noreply, State#state{conf = Newconf}}
+	end;
 handle_cast({set_option, Key, Value}, #state{conf = Conf} = State) ->
 	Newconf = case Key of
-		agents ->
-			Conf#conf{agents = Value};
 		agent_max_calls ->
 			Conf#conf{agent_max_calls = Value};
 		_Else ->
@@ -295,32 +319,51 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%--------------------------------------------------------------------
-handle_info({'EXIT', Pid, Why}, #state{conf = Conf} = State) ->
-%	case lists:member(Pid, State#state.media_pids) of
-%		true ->
-%			?INFO("Media ~p died because ~p", [Pid, Why]),
-%			Newmedias = lists:delete(Pid, State#state.media_pids),
-%			{noreply, State#state{media_pids = Newmedias}};
-%		false ->
-			case proplists:get_value(Pid, State#state.agent_pids) of
-				undefined ->
-					?INFO("no idea where pid ~p came from", [Pid]),
-					{noreply, State};
-				Nom ->
-					?NOTICE("agent ~p (~p) died due to ~p", [Pid, Nom, Why]),
-					[Headname | Newnames] = lists:append(State#state.agent_names, [Nom]),
-					{ok, Newagentpid} = spawn_agent(Conf, Headname),
+handle_info(spawn_agent, #state{conf = Conf} = State) ->
+	case {length(State#state.agent_pids), Conf#conf.agents} of
+		{X, Y} when X < Y ->
+			[Headname | Newnames] = case State#state.agent_names of
+				[] ->
+					[make_name(length(State#state.agent_pids) + 1)];
+				Else ->
+					Else
+			end,
+			case spawn_agent(Conf, Headname) of
+				{ok, Newagentpid} ->
 					Newagentlist = [{Newagentpid, Headname} | State#state.agent_pids],
-					{noreply, State#state{agent_pids = Newagentlist, agent_names = Newnames}}
+					{noreply, State#state{agent_pids = Newagentlist, agent_names = Newnames}};
+				OrElse ->
+					?NOTICE("Retrying a failed agent start ~p due to ~p", [Headname, OrElse]),
+					callcenter ! spawn_agent,
+					{noreply, State}
 			end;
-%	end;
-%handle_info(spawn_call, #state{conf = Conf} = State) ->
-%	[Pid] = queue_media(Conf),
-%	Medialist = [Pid | State#state.media_pids],
-%	Time = get_number(Conf#conf.call_frequency),
-%	?NOTICE("Next call will be spawned at ~p", [Time * 1000]),
-%	{ok, Timer} = timer:send_after(Time * 1000, spawn_call),
-%	{noreply, State#state{media_pids = Medialist, call_timer = Timer}};
+		{_X, _Y} ->
+			{noreply, State}
+	end;
+handle_info({'EXIT', Pid, Why}, #state{conf = Conf} = State) ->
+	case proplists:get_value(Pid, State#state.agent_pids) of
+		undefined ->
+			?INFO("no idea where pid ~p came from", [Pid]),
+			{noreply, State};
+		Nom ->
+			?NOTICE("agent ~p (~p) died due to ~p", [Pid, Nom, Why]),
+			[Headname | Newnames] = lists:append(State#state.agent_names, [Nom]),
+			Midlist = proplists:delete(Pid, State#state.agent_pids),
+			case {length(Midlist), Conf#conf.agents} of
+				{X, Y} when X < Y ->
+					case spawn_agent(Conf, Headname) of
+						{ok, Newagentpid} ->
+							Newagentlist = [{Newagentpid, Headname} | Midlist],
+							{noreply, State#state{agent_pids = Newagentlist, agent_names = Newnames}};
+						Else ->
+							?NOTICE("Retrying a failed agent start due to ~p", [Else]),
+							callcenter ! spawn_agent,
+							{noreply, State}
+					end;
+				_ ->
+					{noreply, State#state{agent_pids = Midlist, agent_names = [Headname | Newnames]}}
+			end
+	end;
 handle_info(endoflife, State) ->
 	?NOTICE("My life is over.", []),
 	{stop, normal, State};
@@ -363,6 +406,12 @@ spawn_agent(#conf{agent_opts = Baseopts} = Conf, Login) ->
 	Midopts4 = proplists_replace(profile, Profile, Midopts3),
 	Midopts5 = proplists_replace(id, Login, Midopts4),
 	agent_dummy_connection:start_link(Midopts5).
+
+make_name(N) ->
+	Listnum = integer_to_list(N),
+	lists:append(Listnum, "_dummy_agent@" ++ atom_to_list(node())).
+
+
 
 %get_number({distribution, Number}) ->
 %	trunc(util:distribution(Number));

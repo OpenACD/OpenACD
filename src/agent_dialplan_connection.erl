@@ -46,10 +46,10 @@
 
 %% API
 start(AgentRec, Security) ->
-	gen_server:start({local, ?MODULE}, ?MODULE, [AgentRec, Security], []).
+	gen_server:start(?MODULE, [AgentRec, Security], []).
 
 start_link(AgentRec, Security) ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [AgentRec, Security], []).
+	gen_server:start_link(?MODULE, [AgentRec, Security], []).
 
 logout(Pid) ->
 	gen_server:call(Pid, logout).

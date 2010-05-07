@@ -759,7 +759,7 @@ loop(#server{parent = Parent,
                 {election} ->
                     %% io:format("Doing an election~n"),
                     Mide = E,%#election{leader = none, leadernode = none},
-                    E1 = startStage1(Mide),
+                    E1 = startStage1(Mide, Server),
                     safe_loop(Server, candidate, E1, Msg);
                   {checklead, Node} ->
                     %% io:format("Checking lead~n"),
@@ -774,7 +774,7 @@ loop(#server{parent = Parent,
                               {Name, N} ! {election}
                           end, E1#election.candidate_nodes),
                         Mide = E1,%#election{leader = none, leadernode = none},
-                        E2 = startStage1(Mide),
+                        E2 = startStage1(Mide, Server),
                         safe_loop(Server, candidate, E2, Msg);
                       false ->
                         %% io:format("conflict, I'll be getting told by the leader when to start an election~n"),

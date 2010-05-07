@@ -626,13 +626,13 @@ set_client(Id, Newlabel, Options) ->
 set_client(Id, Client) when is_record(Client, client) ->
 	F = fun() ->
 		mnesia:delete({client, Id}),
-		Newoptions = case Id of
-			undefined ->
-				Client#client.options;
-			_ ->
-				merge_client_options(Client#client.options)
-		end,
-		mnesia:write(Client#client{id = Id, options = Newoptions, timestamp = util:now()})
+%		Newoptions = case Id of
+%			undefined ->
+%				Client#client.options;
+%			_ ->
+%				merge_client_options(Client#client.options)
+%		end,
+		mnesia:write(Client#client{timestamp = util:now()})
 	end,
 	mnesia:transaction(F).
 
@@ -711,8 +711,11 @@ local_get_client(Key, Value) ->
 	case mnesia:transaction(F) of
 		{atomic, []} ->
 			none;
-		{atomic, [Client]} when is_record(Client, client) ->
-			Client
+		{atomic, [#client{id = undefined} = Client]} when is_record(Client, client) ->
+			Client;
+		{atomic, [Client]} ->
+			Options = merge_client_options(Client#client.options),
+			Client#client{options = Options}
 	end.
 
 %% @doc Gets `[#client{}]' sorted by `#client.label'.
@@ -1474,6 +1477,18 @@ client_rec_test_() ->
 	{"Get a client that's not there without integration",
 	fun() ->
 		?assertEqual(none, get_client("Noexists"))
+	end},
+	{"Get a client when the default has options",
+	fun() ->
+		set_client(undefined, undefined, [{autoend_wrapup, 10}]),
+		set_client("test1", "test1", []),
+		Find = fun() ->
+			qlc:e(qlc:q([X || X <- mnesia:table(client), X#client.label =:= "test1"]))
+		end,
+		{atomic, [#client{options = Rawopts}]} = mnesia:transaction(Find),
+		#client{options = Dasopts} = get_client("test1"),
+		?assertEqual([{autoend_wrapup, 10}], Dasopts),
+		?assertEqual([], Rawopts)
 	end},
 	{"integration mocking",
 		{foreach,

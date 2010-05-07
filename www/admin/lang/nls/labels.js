@@ -27,6 +27,7 @@
 	SUBMIT: "Submit",
 	ENABLEAGENTTCP: "Enable Agent TCP Server",
 	ENABLEAGENTWEB: "Enable Agent Web Server",
+	ENABLEAGENTDIALPLAN: "Enabled Agent Dialplan Listener",
 	PROFILENAME: "Profile Name",
 	LOGINNAME: "Login Name",
 	LASTINTEGRATED: "Last Integrated",

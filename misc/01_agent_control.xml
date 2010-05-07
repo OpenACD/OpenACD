@@ -33,7 +33,7 @@ Also, if you're using ACL authentication, change sip_auth_username to sip_from_u
 	</condition>
 </extension>
 
-<extension name="OpenACD agent available">
+<extension name="OpenACD agent released">
 	<condition field="${sip_authorized}" expression="^true$"/>
 	<condition field="destination_number" expression="^\*87$">
 		<action application="erlang_sendmsg" data="agent_dialplan_listener testme@nodename agent_release ${sip_auth_username}"/>

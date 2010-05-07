@@ -269,6 +269,26 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 					{struct, [{success, false}, {<<"message">>, <<"Listen port not a number">>}]}
 			end
 	end,
+	Dialplanout = case proplists:get_value("agentModuleDialplanListenEnabled", Post) of
+		undefined ->
+			cpx_supervisor:destroy(agent_dialplan_listener),
+			{struct, [{success, true}, {<<"message">>, <<"Dialplan Listener Disabled">>}]};
+		_ ->
+			case cpx_supervisor:get_conf(agent_dialplan_listener) of
+				undefined ->
+					DialplanConf = #cpx_conf{
+						id = agent_dialplan_listener,
+						module_name = agent_dialplan_listener,
+						start_function = start_link,
+						start_args = [],
+						supervisor = agent_connection_sup
+					},
+					cpx_supervisor:update_conf(agent_dialplan_listener, DialplanConf),
+					{struct, [{success, true}, {<<"message">>, <<"Dialplan Listener Enabled">>}]};
+				_ ->
+					{struct, [{success, true}, {<<"message">>< <<"Already enabled">>}]}
+			end
+	end,
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"results">>, [Tcpout, Webout]}]})};
 api({agents, "modules", "get"}, ?COOKIE, _Post) ->
 	Tcpout = case cpx_supervisor:get_conf(agent_tcp_listener) of

@@ -32,6 +32,10 @@
 %-include("queue.hrl").
 -include("agent.hrl").
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -record(state, {
 	agent_fsm :: pid(),
 	listener :: pid()

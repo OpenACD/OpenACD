@@ -97,7 +97,7 @@ init([]) ->
 %% @private
 handle_call(get_agents, _From, State) when is_record(State#state.call, queued_call) -> 
 	Call = State#state.call,
-	{reply, agent_manager:find_avail_agents_by_skill(Call#queued_call.skills), State};
+	{reply, agent_manager:filtered_route_list(Call#queued_call.skills), State};
 handle_call(bound_call, _From, State) ->
 	case State#state.call of
 		undefined ->

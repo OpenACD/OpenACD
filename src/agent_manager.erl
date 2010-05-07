@@ -72,6 +72,8 @@
 	find_by_skill/1,
 	find_avail_agents_by_skill/1,
 	sort_agents_by_elegibility/1,
+	filtered_route_list/1,
+	rotate_based_on_list_count/1,
 	find_by_pid/1,
 	blab/2,
 	get_leader/0,
@@ -138,8 +140,22 @@ update_skill_list(Login, Skills) ->
 -spec(find_avail_agents_by_skill/1 :: (Skills :: [atom()]) -> [{string(), pid(), #agent{}}]).
 find_avail_agents_by_skill(Skills) -> 
 	%?DEBUG("skills passed:  ~p.", [Skills]),
-	AvailSkilledAgents = [{K, V, TimeAvail, AgSkills} || {K, {V, _Aid, TimeAvail, AgSkills}} <-
-		gen_leader:call(?MODULE, list_agents), % get all the agents
+	List = list(),
+	filter_avail_agents_by_skill(List, Skills).
+
+%% @doc Locally find all available agents with a particular skillset, and
+%% makes sure the server knows it's for routing.
+-spec(filtered_route_list/1 :: (Skills :: [atom()]) -> {integer(), [{string(), pid(), integer(), [atom()], integer()}]}).
+filtered_route_list(Skills) ->
+	{Count, Agents} = route_list(),
+	Newagents = filter_avail_agents_by_skill(Agents, Skills),
+	{Count, Newagents}.
+
+%% @doc Filter the agents based on the skill list and availability.
+-spec(filter_avail_agents_by_skill/2 :: (Agents :: [any()], Skills :: [atom()]) -> [any()]).
+filter_avail_agents_by_skill(Agents, Skills) ->
+	AvailSkilledAgents = [{K, V, TimeAvail, AgSkills} || 
+		{K, {V, _Aid, TimeAvail, AgSkills}} <- Agents,
 		TimeAvail > 0, % only the available (idle) ones
 		( % check if either the call or the agent has the _all skill
 			lists:member('_all', AgSkills) orelse
@@ -152,22 +168,70 @@ find_avail_agents_by_skill(Skills) ->
 %% No un-idle agents should be in the list, otherwise it is fail.
 -spec(sort_agents_by_elegibility/1 :: (Agents :: [agent_cache()]) -> [agent_cache()]).
 sort_agents_by_elegibility(AvailSkilledAgents) ->
-	Sort = fun({_K1, _V1, Time1, Skills1}, {_K2, _V2, Time2, Skills2}) ->
-		case {lists:member('_all', Skills1), lists:member('_all', Skills2)} of
-			{true, false} ->
-				false;
-			{false, true} ->
-				true;
-			_Else ->
-				if
-					length(Skills1) == length(Skills2) ->
-						Time1 =< Time2;
-					true ->
-						length(Skills1) =< length(Skills2)
-				end
-		end
-	end,
+	Sort = fun help_sort/2,
 	lists:sort(Sort, AvailSkilledAgents).
+
+help_sort(E1, E2) when size(E1) == 4, size(E2) == 4 ->
+	help_sort(erlang:append_element(E1, ignored), erlang:append_element(E2, ignored));
+help_sort({_K1, _V1, Time1, Skills1, _}, {_K2, _V2, Time2, Skills2, _}) ->
+	case {lists:member('_all', Skills1), lists:member('_all', Skills2)} of
+		{true, false} ->
+			false;
+		{false, true} ->
+			true;
+		_Else ->
+			if
+				length(Skills1) == length(Skills2) ->
+					Time1 =< Time2;
+				true ->
+					length(Skills1) =< length(Skills2)
+			end
+	end.
+
+
+%% @doc To keep the first agent on a given node from being flooded with 
+%% messages rotate the list based on how many times it's been requested
+%% without the agent list being updated.
+-spec(rotate_based_on_list_count/1 :: (Agents :: [{string(), pid(), integer(), [atom()], {atom(), integer()}}]) -> any()).
+rotate_based_on_list_count(Agents) ->
+	Nodemap = create_node_map(Agents),
+	Remap = rotate_based_on_list_count(Agents, Nodemap, 1, []),
+	remap(Agents, Remap).
+
+remap(List, Remap) ->
+	Sort = fun({_O1, N1}, {_O2, N2}) ->
+		N1 =< N2
+	end,
+	remap(List, lists:sort(Sort, Remap), []).
+
+remap(_List, [], Acc) ->
+	lists:reverse(Acc);
+remap(List, [{Old, _New} | Tail], Acc) ->
+	E = lists:nth(Old, List),
+	remap(List, Tail, [E | Acc]).
+
+rotate_based_on_list_count([], _Nodemap, _Nth, Remap) ->
+	lists:reverse(Remap);
+rotate_based_on_list_count([{_Login, _Pid, _Timeavail, _Skills, {Node, Count}} | Tail], Nodemap, Nth, Remap) ->
+	Map = dict:fetch(Node, Nodemap),
+	OriginalIndex = util:list_index(Nth, Map),
+	% clock math.  Given [1, 2, 3] :: 2 + 3 = 2; 1 + 2 = 3; 1 + 4 = 1; 2 + 5 = 3
+	Newindex = case ( (OriginalIndex + Count) rem length(Map) ) of 0 -> length(Map); I -> I end,
+	Newmap = lists:nth(Newindex, Map),
+	rotate_based_on_list_count(Tail, Nodemap, Nth + 1, [{Nth, Newmap} | Remap]).
+
+create_node_map(Agents) ->
+	create_node_map(Agents, 1, dict:new()).
+
+create_node_map([], _Nth, Acc) ->
+	Acc;
+create_node_map([{_Login, _Pid, _Timeavail, _Skills, {Node, _Count}} | Tail], Nth, Acc) ->
+	case dict:is_key(Node, Acc) of
+		true ->
+			create_node_map(Tail, Nth + 1, dict:append(Node, Nth, Acc));
+		false ->
+			create_node_map(Tail, Nth + 1, dict:store(Node, [Nth], Acc))
+	end.
 
 %% @doc Gets all the agents have have the given `[atom()] Skills'.
 -spec(find_by_skill/1 :: (Skills :: [atom()]) -> [#agent{}]).
@@ -185,6 +249,13 @@ find_by_pid(Apid) ->
 -spec(list/0 :: () -> [any()]).
 list() ->
 	gen_leader:call(?MODULE, list_agents).
+
+%% @doc Get a list of agents, tagged for how many requests of this type
+%% have been made without the agent list changing in any way.  A change is
+%% either an agent added, dropped, or skill list change.
+-spec(route_list/0 :: () -> {integer(), [any()]}).
+route_list() ->
+	gen_leader:call(?MODULE, route_list_agents).
 
 %% @doc Check if an agent idetified by agent record or login name string of `Login' exists
 -spec(query_agent/1 ::	(Agent :: #agent{}) -> {'true', pid()} | 'false';
@@ -388,6 +459,8 @@ from_leader(_Msg, State, _Election) ->
 %% @hidden
 handle_call(list_agents, _From, #state{agents = Agents} = State, _Election) -> 
 	{reply, dict:to_list(Agents), State};
+handle_call(route_list_agents, _From, #state{agents = Agents, lists_requested = Count} = State, _Election) ->
+	{reply, {Count, dict:to_list(Agents)}, State#state{lists_requested = Count + 1}};
 handle_call(stop, _From, State, _Election) -> 
 	{stop, normal, ok, State};
 handle_call({start_agent, #agent{login = ALogin, id=Aid} = Agent}, _From, #state{agents = Agents} = State, Election) -> 
@@ -405,7 +478,7 @@ handle_call({start_agent, #agent{login = ALogin, id=Aid} = Agent}, _From, #state
 	end,
 	Agents2 = dict:store(ALogin, Value, Agents),
 	gen_server:cast(dispatch_manager, {end_avail, Apid}),
-	{reply, {ok, Apid}, State#state{agents = Agents2}};
+	{reply, {ok, Apid}, State#state{agents = Agents2, lists_requested = 0}};
 handle_call({exists, Login}, _From, #state{agents = Agents} = State, Election) ->
 	Leader = gen_leader:leader_node(Election),
 	case dict:find(Login, Agents) of
@@ -437,7 +510,7 @@ handle_call({notify, Login, Id, Pid}, _From, #state{agents = Agents} = State, El
 					ok
 			end,
 			Agents2 = dict:store(Login, {Pid, Id}, Agents),
-			{reply, ok, State#state{agents = Agents2}};
+			{reply, ok, State#state{agents = Agents2, lists_requested = 0}};
 		{ok, {Pid, _Id}} ->
 			{reply, ok, State};
 		{ok, _OtherPid} ->
@@ -464,7 +537,7 @@ handle_cast({now_avail, Nom}, #state{agents = Agents} = State, Election) ->
 		Out
 	end,
 	NewAgents = dict:update(Nom, F, Agents),
-	{noreply, State#state{agents = NewAgents}};
+	{noreply, State#state{agents = NewAgents, lists_requested = 0}};
 handle_cast({end_avail, Nom}, #state{agents = Agents} = State, Election) ->
 	Node = node(),
 	F = fun({Pid, Id, _Time, Skills}) ->
@@ -478,7 +551,7 @@ handle_cast({end_avail, Nom}, #state{agents = Agents} = State, Election) ->
 		Out
 	end,
 	NewAgents = dict:update(Nom, F, Agents),
-	{noreply, State#state{agents = NewAgents}};
+	{noreply, State#state{agents = NewAgents, lists_requested = 0}};
 handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State, Election) ->
 	Node = node(),
 	F = fun({Pid, Id, Time, _OldSkills}) ->
@@ -492,7 +565,7 @@ handle_cast({update_skill_list, Login, Skills}, #state{agents = Agents} = State,
 		Out
 	end,	
 	NewAgents = dict:update(Login, F, Agents),
-	{noreply, State#state{agents = NewAgents}};
+	{noreply, State#state{agents = NewAgents, lists_requested = 0}};
 handle_cast(_Request, State, _Election) -> 
 	?DEBUG("Stub handle_cast", []),
 	{noreply, State}.
@@ -510,7 +583,7 @@ handle_info({'EXIT', Pid, Reason}, #state{agents=Agents} = State) ->
 				false
 		end
 	end,
-	{noreply, State#state{agents=dict:filter(F, Agents)}};
+	{noreply, State#state{agents=dict:filter(F, Agents), lists_requested = 0}};
 handle_info({mnesia_system_event, {mnesia_down, Node}}, State) ->
 	?WARNING("mnesia down at ~w", [Node]),
 	{noreply, State};
@@ -560,43 +633,88 @@ handle_call_start_test() ->
 sort_eligible_agents_test_() ->
 	[{"only difference is the length of the skills list",
 	fun() ->
-		In = [{"3rd", "3rd", 3, [a, b, c, d]}, {"1st", "1st", 3, [a]}, {"2nd", "2nd", 3, [a, b, c]}],
-		Out = [{"1st", "1st", 3, [a]}, {"2nd", "2nd", 3, [a, b, c]}, {"3rd", "3rd", 3, [a, b, c, d]}],
+		In = [{"3rd", "3rd", 3, [a, b, c, d], ignored}, {"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}],
+		Out = [{"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}, {"3rd", "3rd", 3, [a, b, c, d], ignored}],
 		?assertEqual(Out, sort_agents_by_elegibility(In))
 	end},
 	{"Only difference is the time went available",
 	fun() ->
-		In = [{"3rd", "3rd", 9, [a]}, {"1st", "1st", 3, [a]}, {"2nd", "2nd", 6, [a]}],
-		Out = [{"1st", "1st", 3, [a]}, {"2nd", "2nd", 6, [a]}, {"3rd", "3rd", 9, [a]}],
+		In = [{"3rd", "3rd", 9, [a], ignored}, {"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 6, [a], ignored}],
+		Out = [{"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 6, [a], ignored}, {"3rd", "3rd", 9, [a], ignored}],
 		?assertEqual(Out, sort_agents_by_elegibility(In))
 	end},
 	{"'_all' loses the skill list war",
 	fun() ->
-		In = [{"3rd", "3rd", 3, ['_all']}, {"1st", "1st", 3, [a]}, {"2nd", "2nd", 3, [a, b, c]}],
-		Out = [{"1st", "1st", 3, [a]}, {"2nd", "2nd", 3, [a, b, c]}, {"3rd", "3rd", 3, ['_all']}],
+		In = [{"3rd", "3rd", 3, ['_all'], ignored}, {"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}],
+		Out = [{"1st", "1st", 3, [a], ignored}, {"2nd", "2nd", 3, [a, b, c], ignored}, {"3rd", "3rd", 3, ['_all'], ignored}],
 		?assertEqual(Out, sort_agents_by_elegibility(In))
 	end},
 	{"Big sortification",
 	fun() ->
 		In = [
-			{"5th", "5th", 9, ['_all']},
-			{"7th", "7th", 9, ['_all', a]},
-			{"2nd", "2nd", 9, [a, b]},
-			{"6th", "6th", 6, ['_all', a]},
-			{"3rd", "3rd", 6, [a, b, c]},
-			{"1st", "1st", 6, [a, b]},
-			{"4th", "4th", 6, ['_all']}
+			{"5th", "5th", 9, ['_all'], ignored},
+			{"7th", "7th", 9, ['_all', a], ignored},
+			{"2nd", "2nd", 9, [a, b], ignored},
+			{"6th", "6th", 6, ['_all', a], ignored},
+			{"3rd", "3rd", 6, [a, b, c], ignored},
+			{"1st", "1st", 6, [a, b], ignored},
+			{"4th", "4th", 6, ['_all'], ignored}
 		],
 		Out = [
-			{"1st", "1st", 6, [a, b]},
-			{"2nd", "2nd", 9, [a, b]},
-			{"3rd", "3rd", 6, [a, b, c]},
-			{"4th", "4th", 6, ['_all']},
-			{"5th", "5th", 9, ['_all']},
-			{"6th", "6th", 6, ['_all', a]},
-			{"7th", "7th", 9, ['_all', a]}
+			{"1st", "1st", 6, [a, b], ignored},
+			{"2nd", "2nd", 9, [a, b], ignored},
+			{"3rd", "3rd", 6, [a, b, c], ignored},
+			{"4th", "4th", 6, ['_all'], ignored},
+			{"5th", "5th", 9, ['_all'], ignored},
+			{"6th", "6th", 6, ['_all', a], ignored},
+			{"7th", "7th", 9, ['_all', a], ignored}
 		],
 		?assertEqual(Out, sort_agents_by_elegibility(In))
+	end}].
+
+remap_test() ->
+	Out = [1, 2, 3, 4, 5, 6],
+	In = [3, 6, 5, 4, 1, 2],
+	Remap = [{1, 3}, {2, 6}, {3, 5}, {4, 4}, {5, 1}, {6, 2}],
+	?assertEqual(Out, remap(In, Remap)).
+
+rotate_based_on_list_count_test_() ->
+	[{"No rotation",
+	fun() ->
+		In = [{"1st", "1st", 3, [], {node(), 0}}, {"2nd", "2nd", 6, [], {node(), 0}}, {"3rd", "3rd", 9, [], {node(), 0}}],
+		?assertEqual(In, rotate_based_on_list_count(In))
+	end},
+	{"All same node, rotate one",
+	fun() ->
+		In = [{"1st", "1st", 3, [], {node(), 1}}, {"2nd", "2nd", 6, [], {node(), 1}}, {"3rd", "3rd", 9, [], {node(), 1}}],
+		Out = [{"3rd", "3rd", 9, [], {node(), 1}}, {"1st", "1st", 3, [], {node(), 1}}, {"2nd", "2nd", 6, [], {node(), 1}}],
+		?assertEqual(Out, rotate_based_on_list_count(In))
+	end},
+	{"Diff nodes, no rotates",
+	fun() ->
+		In = [
+			{"1st", "1st", 3, [], {one@node, 0}},
+			{"2nd", "2nd", 3, [], {two@node, 0}},
+			{"3rd", "3rd", 6, [], {one@node, 0}},
+			{"4th", "4th", 6, [], {two@node, 0}}
+		],
+		?assertEqual(In, rotate_based_on_list_count(In))
+	end},
+	{"Diff nodes, one@node rotates",
+	fun() ->
+		In = [
+			{"3rd", "3rd", 3, [], {one@node, 1}},
+			{"2nd", "2nd", 3, [], {two@node, 0}},
+			{"1st", "1st", 6, [], {one@node, 1}},
+			{"4th", "4th", 6, [], {two@node, 0}}
+		],
+		Out = [
+			{"1st", "1st", 6, [], {one@node, 1}},
+			{"2nd", "2nd", 3, [], {two@node, 0}},
+			{"3rd", "3rd", 3, [], {one@node, 1}},
+			{"4th", "4th", 6, [], {two@node, 0}}
+		],
+		?assertEqual(Out, rotate_based_on_list_count(In))
 	end}].
 
 single_node_test_() -> 

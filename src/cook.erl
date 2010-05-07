@@ -334,12 +334,12 @@ sort_agent_list([]) ->
 sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	F = fun(Dpid) ->
 		try dispatcher:get_agents(Dpid) of
-			[] ->
+			{_, []} ->
 				%?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
 				dispatcher:regrab(Dpid),
 				[];
-			Ag ->
-				Ag
+			{Count, Ag} ->
+				[{K, V, TimeAvail, AgSkills, {node(Dpid), Count}} || {K, V, TimeAvail, AgSkills} <- Ag]
 		catch
 			What:Why ->
 				?INFO("Caught:  ~p:~p", [What, Why]),
@@ -349,14 +349,17 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	Agents = lists:map(F, Dispatchers),
 	Agents2 = lists:flatten(Agents),
 	% XXX - sort_agents_by_elegibility doesn't sort by pathcost yet
-	agent_manager:sort_agents_by_elegibility(Agents2).
+	Agents3 = agent_manager:sort_agents_by_elegibility(Agents2),
+	Out = agent_manager:rotate_based_on_list_count(Agents3),
+	?DEBUG("The out:  ~p", [Out]),
+	Out.
 
 %% @private
 -spec(offer_call/2 :: (Agents :: [{string(), pid(), #agent{}}], Call :: #queued_call{}) -> 'none' | 'ringing').
 offer_call([], _Call) ->
 	%?DEBUG("No valid agents found", []),
 	none;
-offer_call([{Login, Apid, _Time, _Skills} | Tail], Call) ->
+offer_call([{Login, Apid, _Time, _Skills, _Ignorable} | Tail], Call) ->
 	case gen_media:ring(Call#queued_call.media, Apid, Call, ?TICK_LENGTH * ?RINGOUT) of
 		ok ->
 			Callrec = gen_media:get_call(Call#queued_call.media),
@@ -1541,6 +1544,7 @@ agent_interaction_test_() ->
 			fun() ->
 				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2"}),
 				agent:set_state(APid, idle),
+				receive after 1000 -> ok end,
 				agent:set_state(APid2, idle),
 				call_queue:add(QPid, MPid),
 				receive

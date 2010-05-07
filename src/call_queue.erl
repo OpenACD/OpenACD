@@ -1322,8 +1322,8 @@ multi_node_test_() ->
 					?assertEqual("testcall", Callrec2#queued_call.id),					
 					rpc:call(Master, gen_leader_mock, start, [agent_manager]),
 					rpc:call(Slave, gen_leader_mock, start, [agent_manager]),
-					ListAgents = fun(list_agents, _From, State, _Elec) ->
-						{ok, [], State}
+					ListAgents = fun(route_list_agents, _From, State, _Elec) ->
+						{ok, {0, []}, State}
 					end,
 					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
 					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),

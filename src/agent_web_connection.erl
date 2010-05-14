@@ -417,9 +417,9 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 						noagent ->
 							<<"unknown agent">>;
 						unknown_profile ->
-							<<"unknown profile">>;
-						_ ->
-							list_to_binary(io_lib:format("~p", [Err]))
+							<<"unknown profile">>%;
+%						_ ->
+%							list_to_binary(io_lib:format("~p", [Err]))
 					end,
 					{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Msg}]})}, State};
 				{ok, "makePerm"} ->

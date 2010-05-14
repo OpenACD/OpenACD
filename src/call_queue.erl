@@ -1319,7 +1319,17 @@ multi_node_test_() ->
 					{_Key, Callrec} = rpc:call(Master, call_queue, ask, [Queue]),
 					?assertEqual("testcall", Callrec#queued_call.id),
 					{_Key, Callrec2} = rpc:call(Slave, call_queue, ask, [Queue]),
-					?assertEqual("testcall", Callrec2#queued_call.id),
+					?assertEqual("testcall", Callrec2#queued_call.id),					
+					rpc:call(Master, gen_leader_mock, start, [agent_manager]),
+					rpc:call(Slave, gen_leader_mock, start, [agent_manager]),
+					ListAgents = fun(route_list_agents, _From, State, _Elec) ->
+						{ok, {0, []}, State}
+					end,
+					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
+					% {K, {V, _Id, Timeavail, AgSkills}} <- gen_leader:call(?MODULE, list_agents), 
 					_P1 = spawn(Slave, dispatcher, start, []),
 					_P2 = spawn(Master, dispatcher, start, []),
 					receive after 300 -> ok end,

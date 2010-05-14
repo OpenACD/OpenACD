@@ -111,7 +111,7 @@ init([Args]) ->
 			skills = proplists:get_value(skills, Args, [english, '_agent', '_node'])
 		}),
 	ok = agent:set_state(Pid, idle),
-	agent:set_connection(Pid, self()),
+	ok = agent:set_connection(Pid, self()),
 	?NOTICE("Created new dummy agent connection", []),
 	Lifewatch = case proplists:get_value(max_life, Args) of
 		undefined ->

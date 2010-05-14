@@ -6,7 +6,7 @@ require 'socket'
 Dir.chdir(File.dirname(__FILE__))
 
 def helpdump
-	STDERR.puts "usage: #{$0} [-c cookiename] [-s shortname | -n longname] [-b bootfile] [-f configfile] [-d] [-r]"
+	STDERR.puts "usage: #{$0} [-c cookiename] [-s shortname | -n longname] [-b bootfile] [-f configfile] [-d] [-r] [-q]"
 	STDERR.puts
 	STDERR.puts "  -c defaults to \"ClueCon\" or, if a .erlang.cookie file is in the directory, the contents of that."
 	STDERR.puts "  -s and -n override each other.  Defaults to \"-s testme\"."
@@ -14,6 +14,7 @@ def helpdump
 	STDERR.puts "  -f defaults to \"single\"."
 	STDERR.puts "  -d uses the debug compile."
 	STDERR.puts "  -r to add -run reloader to the erl command line flags."
+	STDERR.puts "  -q to run the system detached; good for daemonizing."
 	STDERR.puts ""
 	STDERR.puts "If you have not yet run rake (or rake test if you are using"
 	STDERR.puts "-d), erl will fail to start.  If the config file does not"
@@ -34,6 +35,7 @@ $name = 'testme'
 $conf = 'single'
 $boot = 'cpx-rel-0.1'
 $reloader = ''
+$daemon = ''
 
 while true do
 	case ARGV[0]
@@ -70,7 +72,11 @@ while true do
 		when '-r'
 			ARGV.shift
 			$reloader = ' -run reloader'
-		
+
+		when '-q'
+			ARGV.shift
+			$daemon = ' -detached'
+
 		else
 			break
 	end
@@ -104,6 +110,6 @@ if ! File.exists?($conf + ".config")
 	f.close
 end
 
-#puts "erl -pa #{$ebin} -pa contrib/mochiweb/ebin/ -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot}"
-exec "erl +K true -pa #{$ebin} -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot} #{$reloader}"
-#erl -pa ebin/ -pa contrib/mochiweb/ebin/ -setcookie ClueCon -sname testme -config single -boot ebin/cpx-rel-0.1
+execStr = "erl +K true -pa #{$ebin} -setcookie #{$cookie} #{$nametype} #{$name} -config #{$conf} -boot ebin/#{$boot} #{$reloader}#{$daemon}"
+#puts execStr
+exec execStr

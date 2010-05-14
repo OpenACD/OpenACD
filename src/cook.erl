@@ -120,13 +120,20 @@ start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 %%====================================================================
 
 %% @private
-init([Call, InRecipe, Queue, Qpid, Key]) ->
+init([Call, InRecipe, Queue, Qpid, {_Priority, {MSec, Sec, _MsSec}} = Key]) ->
 	CallRec = gen_media:get_call(Call),
 	?DEBUG("Cook starting for call ~p from queue ~p", [CallRec#call.id, Queue]),
 	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
 	process_flag(trap_exit, true),
 	Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
-	Recipe = optimize_recipe(InRecipe),
+	OptRecipe = optimize_recipe(InRecipe),
+	Now = util:now(),
+	Recipe = case Now - (MSec * 1000000 + Sec) of
+		Ticked when Ticked > 1 ->
+			fast_forward(OptRecipe, Ticked / (?TICK_LENGTH / 1000), Qpid, Call);
+		_Else ->
+			OptRecipe
+	end,
 	State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key, callid = CallRec#call.id},
 	{ok, State}.
 
@@ -327,12 +334,12 @@ sort_agent_list([]) ->
 sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	F = fun(Dpid) ->
 		try dispatcher:get_agents(Dpid) of
-			[] ->
+			{_, []} ->
 				%?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
 				dispatcher:regrab(Dpid),
 				[];
-			Ag ->
-				Ag
+			{Count, Ag} ->
+				[{K, V, TimeAvail, AgSkills, {node(Dpid), Count}} || {K, V, TimeAvail, AgSkills} <- Ag]
 		catch
 			What:Why ->
 				?INFO("Caught:  ~p:~p", [What, Why]),
@@ -342,14 +349,17 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	Agents = lists:map(F, Dispatchers),
 	Agents2 = lists:flatten(Agents),
 	% XXX - sort_agents_by_elegibility doesn't sort by pathcost yet
-	agent_manager:sort_agents_by_elegibility(Agents2).
+	Agents3 = agent_manager:sort_agents_by_elegibility(Agents2),
+	Out = agent_manager:rotate_based_on_list_count(Agents3),
+	?DEBUG("The out:  ~p", [Out]),
+	Out.
 
 %% @private
 -spec(offer_call/2 :: (Agents :: [{string(), pid(), #agent{}}], Call :: #queued_call{}) -> 'none' | 'ringing').
 offer_call([], _Call) ->
 	%?DEBUG("No valid agents found", []),
 	none;
-offer_call([{Login, Apid, _Time, _Skills} | Tail], Call) ->
+offer_call([{Login, Apid, _Time, _Skills, _Ignorable} | Tail], Call) ->
 	case gen_media:ring(Call#queued_call.media, Apid, Call, ?TICK_LENGTH * ?RINGOUT) of
 		ok ->
 			Callrec = gen_media:get_call(Call#queued_call.media),
@@ -508,6 +518,65 @@ do_recipe([{Conditions, Op, Runs, _Comment} = OldAction | Recipe], Ticked, Qpid,
 	end.
 
 %% @private
+-spec(fast_forward/4 :: (Recipe :: recipe(), Ticked :: non_neg_integer(), Qpid :: pid(), Call :: pid()) -> recipe()).
+fast_forward(Recipe, Ticked, Qpid, Call) ->
+	fast_forward(Recipe, Ticked, Qpid, Call, 0, []).
+
+fast_forward([], Ticked, _Qpid, _Call, Ticked, Acc) ->
+	lists:reverse(Acc);
+fast_forward([], ToTick, Qpid, Call, Ticked, Acc) ->
+	fast_forward(lists:reverse(Acc), ToTick, Qpid, Call, Ticked + 1, []);
+fast_forward([{Conditions, Ops, Runs, _Comment} = OldAction | Recipe], ToTick, Qpid, Call, Ticked, Acc) ->
+	case fast_forward_check_conditions(Conditions, Ticked, Qpid, Call) of
+		true ->
+			Doneop = fast_forward_do_op(Ops, Qpid, Call),
+			case Runs of
+				run_once ->
+					fast_forward(Recipe, ToTick, Qpid, Call, Ticked, lists:append(Doneop, Acc));
+				run_many ->
+					fast_forward(Recipe, ToTick, Qpid, Call, Ticked, lists:append([Doneop, [OldAction], Acc]))
+			end;
+		false ->
+			fast_forward(Recipe, ToTick, Qpid, Call, Ticked, lists:append([OldAction], Acc))
+	end.
+
+fast_forward_check_conditions([], _Ticked, _Qpid, _Call) -> 
+	true;
+fast_forward_check_conditions([Condition | Tail], Ticked, Qpid, Call) ->
+	AssumeFalse = [available_agents, eligible_agents, calls_queued, client_calls_queued, queue_position],
+	case lists:member(element(1, Condition), AssumeFalse) of
+		true ->
+			false;
+		false ->
+			case check_conditions([Condition], Ticked, Qpid, Call) of
+				true ->
+					fast_forward_check_conditions(Tail, Ticked, Qpid, Call);
+				false ->
+					false
+			end
+	end.
+
+fast_forward_do_op(Ops, Qpid, Call) ->
+	fast_forward_do_op(Ops, Qpid, Call, []).
+
+fast_forward_do_op([], _, _, Acc) ->
+	lists:reverse(Acc);
+fast_forward_do_op([{Op, Args} | Tail], Qpid, Call, Acc) ->
+	Out = case Op of
+		add_recipe ->
+			list_to_tuple(Args);
+		_ ->
+			ok
+	end,
+	Newacc = case Out of
+		ok ->
+			Acc;
+		_ ->
+			[Out | Acc]
+	end,
+	fast_forward_do_op(Tail, Qpid, Call, Newacc).	
+
+%% @private
 -spec(do_operation/3 :: (Operations :: [recipe_operation()], Qpid :: pid(), Callpid :: pid()) -> [recipe_step()]).
 do_operation(Operations, Qpid, Callpid) when is_pid(Qpid), is_pid(Callpid) ->
 	do_operation(Operations, Qpid, Callpid, []).
@@ -557,56 +626,6 @@ do_operation([{Op, Args} | Tail], Qpid, Callpid, Acc) ->
 	end,
 	do_operation(Tail, Qpid, Callpid, Newacc).
 
-%
-%
-%
-%-spec(do_operation/3 :: (Recipe :: recipe_step(), Qpid :: pid(), Callpid :: pid()) -> [recipe_step()]).
-%do_operation({_Conditions, Ops, _Args, _Runs} = Doops, Qpid, Callpid) when is_pid(Qpid), is_pid(Callpid), is_list(Ops) ->
-%	do_operation(Doops, Qpid, Callpid, []);
-%do_operation({Conditions, Op, Args, Runs}, Qpid, Callpid) ->
-%	do_operation({Conditions, [Op], Args, Runs}, Qpid, Callpid).
-%
-%-spec(do_operation/4 :: (Recipe :: recipe_step(), Qpid :: pid(), Callpid :: pid(), Acc :: [recipe_step()])).
-%do_operation({_Conditions, [], _Args, _Runs}, _Qpid, _Callpid, Acc) ->
-%	lists:reverse(Acc);
-%do_operation({_Conditions, [Op | Tail], Args, 
-%
-%-spec(do_operation/4 :: (Recipe :: recipe_stop(), Qpid :: pid(), Callpid :: pid()) -> [recipe_step()]).
-%	?INFO("do_operation ~p with args ~p", [Op, Args]),
-%	case Op of
-%		add_skills ->
-%			call_queue:add_skills(Qpid, Callpid, Args),
-%			ok;
-%		remove_skills ->
-%			call_queue:remove_skills(Qpid, Callpid, Args),
-%			ok;
-%		set_priority ->
-%			call_queue:set_priority(Qpid, Callpid, Args),
-%			ok;
-%		prioritize ->
-%			{{Prior, _Time}, _Call} = call_queue:get_call(Qpid, Callpid),
-%			call_queue:set_priority(Qpid, Callpid, Prior + 1),
-%			ok;
-%		deprioritize ->
-%			{{Prior, _Time}, _Call} = call_queue:get_call(Qpid, Callpid),
-%			call_queue:set_priority(Qpid, Callpid, Prior - 1),
-%			ok;
-%		voicemail ->
-%			case gen_media:voicemail(Callpid) of
-%				ok ->
-%					?DEBUG("voicemail successfully, removing from queue", []),
-%					call_queue:bgremove(Qpid, Callpid);
-%				invalid ->
-%					?WARNING("voicemail failed.", []),
-%					ok
-%			end;
-%		add_recipe ->
-%			list_to_tuple(Args);
-%		announce ->
-%			gen_media:announce(Callpid, Args),
-%			ok
-%	end.
-
 optimize_recipe(Recipe) ->
 	optimize_recipe(Recipe, []).
 
@@ -626,6 +645,105 @@ sort_conditions_compare(CondA, CondB) ->
 	util:list_index(A, Condlist) < util:list_index(B, Condlist).
 
 -ifdef(TEST).
+
+fast_forward_test_() ->
+	% if an no_gen_server_mock_expectation occurs, it may be due to a 
+	% recipe looping forward too many times.
+	{setup,
+	fun() ->
+		{ok, MediaPid} = gen_server_mock:new(),
+		{ok, Qpid} = gen_server_mock:new(),
+		MakeTime = fun(Seconds) ->
+			Fulltime = util:now() - Seconds,
+			Msec = util:floor(Fulltime / 1000000),
+			Sec = Fulltime - Msec,
+			{Msec, Sec, 0}
+		end,
+		Client = #client{label = "testclient", id="testclient"},
+		MediaRec = #call{id = "testmedia", source = MediaPid, client = Client},
+		SeedMedia = fun() ->
+			gen_server_mock:expect_call(MediaPid, fun(A, B, State) ->
+				{ok, MediaRec, State}
+			end)
+		end,
+		?DEBUG("dsaflhadslkfhkjsadfL ~p", [MediaRec]),
+		{MediaRec, Qpid, MakeTime, SeedMedia}
+	end,
+	fun({Media, Qpid, _, _}) ->
+		gen_server_mock:stop(Media#call.source),
+		gen_server_mock:stop(Qpid)
+	end,
+	fun({Media, Qpid, MakeTime, SeedMedia}) ->
+		[{"Simple fast forward (ticks only)",
+		fun() ->
+			InRecipe = [{[{ticks, 5}], [{prioritize, []}], run_once, <<"test">>}],
+			?assertEqual([], fast_forward(InRecipe, 10, Qpid, Media#call.source))
+		end},
+		{"Fast forward run may (ticks only)",
+		fun() ->
+			InRecipe = [{[{ticks, 5}], [{prioritize, []}], run_many, <<"test">>}],
+			?assertEqual(InRecipe, fast_forward(InRecipe, 10, Qpid, Media#call.source))
+		end},
+		{"Fast forward client check matches, run_once",
+		fun() ->
+			SeedMedia(),
+			InRecipe = [{[{client, '=', "testclient"}], [{prioritize, []}], run_once, <<"test">>}],
+			?assertEqual([], fast_forward(InRecipe, 5, Qpid, Media#call.source))
+		end},
+		{"Fast forward client check mismatch, run_once",
+		fun() ->
+			InRecipe = [{[{client, '=', "goober"}], [{prioritize, []}], run_once, <<"test">>}],
+			[SeedMedia() || _ <- lists:seq(0, 5)],
+			?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
+		end},
+		{"Fast forward client check mismatch, run_many",
+		fun() ->
+			[SeedMedia() || _ <- lists:seq(0, 5)],
+			InRecipe = [{[{client, '=', "goober"}], [{prioritize, []}], run_many, <<"test">>}],
+			?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
+		end},
+		{"Fast forward media type check mismatch run_once",
+		fun() ->
+			[SeedMedia() || _ <- lists:seq(0, 5)],
+			InRecipe = [{[{type, '!=', voice}], [{prioritize, []}], run_once, <<"test">>}],
+			?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
+		end},
+		{"Fast forward media type check mismatch run_many",
+		fun() ->
+			[SeedMedia() || _ <- lists:seq(0, 5)],
+			InRecipe = [{[{type, '!=', voice}], [{prioritize, []}], run_many, <<"test">>}],
+			?assertEqual(InRecipe, fast_forward(InRecipe, 5, Qpid, Media#call.source))
+		end},
+		{"Fast forward ticks and media type (both match) run_once",
+		fun() ->
+			[SeedMedia() || _ <- lists:seq(0, 5)],
+			InRecipe = [{[{type, '=', voice}, {ticks, 5}], [{prioritize, []}], run_once, <<"test">>}],
+			?assertEqual([], fast_forward(InRecipe, 10, Qpid, Media#call.source))
+		end},
+		{"Fast forward ticks and media type, insufficent ticks, run_once",
+		fun() ->
+			[SeedMedia() || _ <- lists:seq(0, 10)],
+			InRecipe = [{[{type, '=', voice}, {ticks, 20}], [{prioritize, []}], run_once, <<"test">>}],
+			?assertEqual(InRecipe, fast_forward(InRecipe, 10, Qpid, Media#call.source))
+		end},
+		{"Fast forward adding recipe run_once",
+		fun() ->
+			InRecipe = [{[{ticks, 5}], [{add_recipe, [[{ticks, 10}], [{prioritize, []}], run_once, <<"inner test">>]}], run_once, <<"test">>}],
+			OutRecipe = [{[{ticks, 10}], [{prioritize, []}], run_once, <<"inner test">>}],
+			?assertEqual(OutRecipe, fast_forward(InRecipe, 6, Qpid, Media#call.source))
+		end},
+		{"Fast forward adding multiple recipes",
+		fun() ->
+			InRecipe = [{[{ticks, 5}], [{add_recipe, [[{ticks, 30}], [{prioritize, []}], run_once, <<"inner test">>]}], run_many, <<"test">>}],
+			OutRecipe = [{[{ticks, 5}], [{add_recipe, [[{ticks, 30}], [{prioritize, []}], run_once, <<"inner test">>]}], run_many, <<"test">>}, {[{ticks, 30}], [{prioritize, []}], run_once, <<"inner test">>}, {[{ticks, 30}], [{prioritize, []}], run_once, <<"inner test">>}],
+			?assertEqual(OutRecipe, fast_forward(InRecipe, 10, Qpid, Media#call.source))
+		end},
+		{"Fast forward added recipe runs",
+		fun() ->
+			InRecipe = [{[{ticks, 5}], [{add_recipe, [[{ticks, 5}], [{prioritize, []}], run_once, <<"inner test">>]}], run_once, <<"test">>}],
+			?assertEqual([], fast_forward(InRecipe, 12, Qpid, Media#call.source))
+		end}]
+	end}.
 
 sort_conditions_test() ->
 	[{"Simple comparison",
@@ -852,15 +970,18 @@ check_conditions_test_() ->
 			Mpid = Incpid,
 			{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
 		end),
-		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
-			?CONSOLE("list_agents", []),
-			List = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
+		AgentList = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
 			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
 			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
-			Out = lists:map(fun(Rec) ->
-				{Rec#agent.login, {element(2, agent:start_link(Rec)), Rec#agent.id, util:now(), Rec#agent.skills}}
-			end, List),
-			{ok, Out, State}
+		Outlist = [begin
+			gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
+				ok
+			end),
+			{ok, P} = agent:start_link(Rec),
+			{Rec#agent.login, {P, Rec#agent.id, util:now(), Rec#agent.skills}}
+		end || Rec <- AgentList ],
+		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
+			{ok, Outlist, State}
 		end),
 		{QMPid, QPid, Mpid, AMpid, Assertmocks}
 	end,
@@ -932,15 +1053,18 @@ check_conditions_test_() ->
 			Mpid = Incpid,
 			{ok, {"key", #queued_call{id = "testcall", media = Mpid, skills = [english]}}, State}
 		end),
-		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
-			?CONSOLE("list_agents", []),
-			List = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
+		StartAgents = [#agent{login = "agent1", id = "agent1", skills = ['_all'], state = idle},
 			#agent{login = "agent2", id = "agent2", skills = ['_all'], state = idle},
 			#agent{login = "agent3", id = "agent3", skills = ['_all'], state = idle}],
-			Out = lists:map(fun(Rec) ->
-				{Rec#agent.login, {element(2, agent:start_link(Rec)), Rec#agent.id, util:now(), Rec#agent.skills}}
-			end, List),
-			{ok, Out, State}
+		List = [begin
+			gen_leader_mock:expect_cast(AMpid, fun({update_skill_list, _, _}, _, _) ->
+				ok
+			end),
+			{ok, P} = agent:start_link(Rec),
+			{Rec#agent.login, {P, Rec#agent.id, util:now(), Rec#agent.skills}}
+		end || Rec <- StartAgents],
+		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
+			{ok, List, State}
 		end),
 		{QMPid, QPid, Mpid, AMpid, Assertmocks}
 	end,
@@ -1420,6 +1544,7 @@ agent_interaction_test_() ->
 			fun() ->
 				{ok, APid2} = agent_manager:start_agent(#agent{login = "testagent2"}),
 				agent:set_state(APid, idle),
+				receive after 1000 -> ok end,
 				agent:set_state(APid2, idle),
 				call_queue:add(QPid, MPid),
 				receive
@@ -1518,9 +1643,9 @@ multinode_test_() ->
 			["testpx", Host] = string:tokens(atom_to_list(node()), "@"),
 			Master = list_to_atom(lists:append("master@", Host)),
 			Slave = list_to_atom(lists:append("slave@", Host)),
-			slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
-			slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
-
+			M = slave:start(net_adm:localhost(), master, " -pa debug_ebin"),
+			S = slave:start(net_adm:localhost(), slave, " -pa debug_ebin"),
+			?CONSOLE("M start:  ~p;  S start:  ~p", [M, S]),
 			mnesia:stop(),
 
 			mnesia:change_config(extra_db_nodes, [Master, Slave]),

@@ -1,0 +1,44 @@
+<!--
+
+This sample dialplan illustrates how OpenACD agents can be implemented via the dialplan.
+
+If you want to use this, change testme@nodename to be the actual name of your OpenACD node.
+
+Also, if you're using ACL authentication, change sip_auth_username to sip_from_user
+
+-->
+
+<include>
+<extension name="OpenACD agent login">
+	<condition field="${sip_authorized}" expression="^true$"/>
+	<condition field="destination_number" expression="^\*88$">
+		<action application="erlang_sendmsg" data="agent_dialplan_listener testme@nodename agent_login ${sip_auth_username}"/>
+		<action application="hangup"/>
+	</condition>
+</extension>
+
+<extension name="OpenACD agent logoff">
+	<condition field="${sip_authorized}" expression="^true$"/>
+	<condition field="destination_number" expression="^\*89$">
+		<action application="erlang_sendmsg" data="agent_dialplan_listener testme@nodename agent_logoff ${sip_auth_username}"/>
+		<action application="hangup"/>
+	</condition>
+</extension>
+
+<extension name="OpenACD agent available">
+	<condition field="${sip_authorized}" expression="^true$"/>
+	<condition field="destination_number" expression="^\*86$">
+		<action application="erlang_sendmsg" data="agent_dialplan_listener testme@nodename agent_available ${sip_auth_username}"/>
+		<action application="hangup"/>
+	</condition>
+</extension>
+
+<extension name="OpenACD agent released">
+	<condition field="${sip_authorized}" expression="^true$"/>
+	<condition field="destination_number" expression="^\*87$">
+		<action application="erlang_sendmsg" data="agent_dialplan_listener testme@nodename agent_release ${sip_auth_username}"/>
+		<action application="hangup"/>
+	</condition>
+</extension>
+</include>
+

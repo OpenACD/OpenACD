@@ -523,7 +523,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #call{id = UUID}, State) ->
 							?DEBUG("Agent hungup ~p, cause ~p", [UUID, Cause]),
 							"agent";
 						_ ->
-							?DEBUG("I don't know who hung up ~p, cause", [UUID, Cause]),
+							?DEBUG("I don't know who hung up ~p, cause ~p", [UUID, Cause]),
 							undefined
 					end,
 					{hangup, Who};

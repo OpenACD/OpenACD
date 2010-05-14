@@ -269,6 +269,26 @@ api({agents, "modules", "update"}, ?COOKIE, Post) ->
 					{struct, [{success, false}, {<<"message">>, <<"Listen port not a number">>}]}
 			end
 	end,
+	Dialplanout = case proplists:get_value("agentModuleDialplanListenEnabled", Post) of
+		undefined ->
+			cpx_supervisor:destroy(agent_dialplan_listener),
+			{struct, [{success, true}, {<<"message">>, <<"Dialplan Listener Disabled">>}]};
+		_ ->
+			case cpx_supervisor:get_conf(agent_dialplan_listener) of
+				undefined ->
+					DialplanConf = #cpx_conf{
+						id = agent_dialplan_listener,
+						module_name = agent_dialplan_listener,
+						start_function = start_link,
+						start_args = [],
+						supervisor = agent_connection_sup
+					},
+					cpx_supervisor:update_conf(agent_dialplan_listener, DialplanConf),
+					{struct, [{success, true}, {<<"message">>, <<"Dialplan Listener Enabled">>}]};
+				_ ->
+					{struct, [{success, true}, {<<"message">>< <<"Already enabled">>}]}
+			end
+	end,
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"results">>, [Tcpout, Webout]}]})};
 api({agents, "modules", "get"}, ?COOKIE, _Post) ->
 	Tcpout = case cpx_supervisor:get_conf(agent_tcp_listener) of
@@ -1343,10 +1363,17 @@ api({clients, "getDefault"}, ?COOKIE, _Post) ->
 	Json = encode_client(Client),
 	{200, [], mochijson2:encode(Json)};
 api({clients, "setDefault"}, ?COOKIE, Post) ->
+	Baseoptions = try list_to_integer(proplists:get_value("autowrapup", Post)) of
+		I ->
+			[{autoend_wrapup, I}]
+	catch
+		error:badarg ->
+			[] 
+	end,
 	Client = #client{
 		label = undefined,
 		id = undefined,
-		options = [{url_pop, proplists:get_value("url_pop", Post, "")}]
+		options = [{url_pop, proplists:get_value("url_pop", Post, "")} | Baseoptions]
 	},
 	call_queue_config:set_client(undefined, Client),
 	{200, [], mochijson2:encode({struct, [{success, true}]})};
@@ -1557,6 +1584,8 @@ encode_client_options([], Acc) ->
 	[{<<"_type">>, <<"json">>}, {<<"_value">>, {struct, lists:reverse(Acc)}}];
 encode_client_options([{url_pop, Format} | Tail], Acc) ->
 	encode_client_options(Tail, [{url_pop, list_to_binary(Format)} | Acc]);
+encode_client_options([{autoend_wrapup, N} | Tail], Acc) ->
+	encode_client_options(Tail, [{autoend_wrapup, N} | Acc]);
 encode_client_options([_Head | Tail], Acc) ->
 	encode_client_options(Tail, Acc).
 

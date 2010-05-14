@@ -69,6 +69,7 @@
 ]).
 -export([
 	new_profile/1,
+	new_profile/2,
 	set_profile/2,
 	get_profile/1,
 	get_profiles/0,

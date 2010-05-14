@@ -253,6 +253,11 @@ dojo.requireLocalization("admin", "labels");
 						<input id="agentModuleWebListen" dojoType="dijit.form.NumberTextBox" name="agentModuleWebListen" constraints="{min:1024,max:49151,places:0}", required="true", invalidMessage="Not a valid port to bind to.">
 					</p>
 					<p>
+						<label for="agentModuleDialplanListenEnabled">&nbsp;</label>
+						<input id="agentModuleDialplanListenEnabled" name="agentModuleDialplanListenEnabled" dojoType="dijit.form.CheckBox" value="dialplanEnabled" />
+						<span class="translate">ENABLEAGENTDIALPLAN</span>
+					</p>
+					<p>
 						<label for="agentModuleSubmit">&nbsp;</label>
 						<button dojoType="dijit.form.Button" label="SUBMIT">
 							<script type="dojo/connect" event="onClick">
@@ -826,6 +831,7 @@ dojo.requireLocalization("admin", "labels");
 							var item = items[0];
 							var options = clients.store.getValue(item, "options")
 							dijit.byId("clientDefaultUrl").attr('value', options["url_pop"]);
+							dijit.byId("clientDefaultAutowrapup").attr('value', options["autoend_wrapup"]);
 						}
 					});
 					dijit.byId('clientsMain').selectChild('clientsDefaults');
@@ -844,9 +850,17 @@ dojo.requireLocalization("admin", "labels");
 		<div dojoType="dijit.layout.StackContainer" region="center" id="clientsMain">
 			<div dojoType="dijit.layout.ContentPane" id="clientsDefaults">
 				<form dojoType="dijit.form.Form" method="post" id="clientsDefaultsForm">
+					<p class="translate">URL_POP_EXPLANATION</p>
 					<p>
 						<label for="clientDefaultUrl" class="translatecol">URL_POP</label>
 						<input name="clientDefaultUrl" dojoType="dijit.form.TextBox" id="clientDefaultUrl" type="text" style="width:60em" />
+					</p>
+					
+					<p class="translate">AUTOWRAPUP_EXPLANATION</p>
+					
+					<p>
+						<label for="clientDefaultAutowrapup" class="translatecol">AUTOWRAPUP</label>
+						<input name="clientDefaultAutowrapup" dojoType="dijit.form.TextBox" id="clientDefaultAutowrapup" type="text" style="width:5em" />
 					</p>
 					
 					<p>
@@ -857,12 +871,12 @@ dojo.requireLocalization("admin", "labels");
 							</script>
 							<script type="dojo/connect" event="onClick">
 								clients.setDefault({
-									url_pop: dijit.byId("clientDefaultUrl").value
+									url_pop: dijit.byId("clientDefaultUrl").value,
+									autowrapup: parseInt(dijit.byId("clientDefaultAutowrapup").value)
 								});
 							</script>
 						</button>
 					</p>
-					<p class="translate">URL_POP_EXPLANATION</p>
 				</form>
 			</div>
 			<div dojoType="dijit.layout.ContentPane" id="clientsGridPane">

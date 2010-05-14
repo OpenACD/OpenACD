@@ -116,7 +116,7 @@
 	id :: string(),
 	agent :: string(),
 	state :: statename() | 'login' | 'logout',
-	oldstate :: statename(),
+	oldstate :: statename() | 'login' | 'logout',
 	statedata :: any(),
 	start :: integer(),
 	ended :: 'undefined' | integer(),

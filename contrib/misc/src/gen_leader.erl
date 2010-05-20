@@ -461,221 +461,224 @@ safe_loop(#server{mod = Mod, state = State} = Server, Role,
     %% Event for QuickCheck
     %% ?EVENT({Role,E}),
   receive
-    Msg ->
-      case Msg of
-        {system, From, Req} ->
-            #server{parent = Parent, debug = Debug} = Server,
-            sys:handle_system_msg(Req, From, Parent, ?MODULE, Debug,
-                                  [safe, Server, Role, E]);
-        {'EXIT', _, Reason} = Msg ->
-            terminate(Reason, Msg, Server, Role, E);
-        {halt,T,From} = Msg ->
-            NewE = halting(E,T,From,Server),
-            From ! {ackLeader,T,self()},
-            safe_loop(Server,Role,NewE,Msg);
-        {hasLeader,Ldr,T,_} = Msg ->
-            NewE1 = mon_node(E,Ldr,Server),
-            case ( (E#election.status == elec2) and (E#election.acks /= []) ) of
-                true ->
-                    lists:foreach(
-                      fun(Node) ->
-                              {Name,Node} ! {hasLeader,Ldr,T,self()}
-                      end,E#election.acks);
-                false ->
-                    ok
-            end,
-            NewE = NewE1#election{elid = T,
-                                  status = wait,
-                                  leadernode = node(Ldr),
-                                  down = E#election.down -- [node(Ldr)],
-                                  acks = []},
-            Ldr ! {isLeader,T,self()},
-            safe_loop(Server,Role,NewE,Msg);
-        {isLeader,T,From} = Msg ->
-            From ! {notLeader,T,self()},
-            safe_loop(Server,Role,E,Msg);
-        {notLeader,T,_} = Msg ->
-            case ( (E#election.status == wait) and (E#election.elid == T) ) of
-                true ->
-                    NewE = startStage1(E, Server);
-                false ->
-                    NewE = E
-            end,
-            safe_loop(Server,Role,NewE,Msg);
-        {ackLeader,T,From} = Msg ->
-            case ( (E#election.status == elec2) and (E#election.elid == T) and
-                   (E#election.pendack == node(From)) ) of
-                true ->
-                    NewE = continStage2(
-                             E#election{acks = [node(From)|E#election.acks]},
-                             Server);
-                false ->
-                    NewE = E
-            end,
-            hasBecomeLeader(NewE,Server,Msg);
-        {ldr,Synch,T,Workers, From} = Msg ->
-            case ( (E#election.status == wait) and (E#election.elid == T) ) of
-                true ->
-                    timer:cancel(E#election.cand_timer),
-                    NewE1 = mon_node(E, From, Server),
-                    NewE = NewE1#election{leader = From,
-                                          leadernode = node(From),
-                                          worker_nodes = Workers,
-                                          status = norm,
-                                          cand_timer=undefined},
-                    %io:format("Making ~p (myself) surrender. Workers should be passed as: ~p~n~n",
-                    %          [self(), NewE]),
-                    %io:format("~n~n~n ---Gen leader is forcing this instance to surrender.---~n~n~n"),
-                    {ok,NewState} = Mod:surrendered(State,Synch,NewE),
-                    loop(Server#server{state = NewState},surrendered,NewE,Msg);
-                false ->
-                    safe_loop(Server,Role,E,Msg)
-            end;
-        {normQ,T,From} = Msg ->
-            case ( (E#election.status == elec1) or
-                   ( (E#election.status == wait) and (E#election.elid == T))) of
-                true ->
-                    NewE = halting(E,T,From,Server),
-                    From ! {notNorm,T,self()};
-                false ->
-                    NewE = E
-            end,
-            safe_loop(Server,Role,NewE,Msg);
+	{system, From, Req} ->
+		#server{parent = Parent, debug = Debug} = Server,
+		sys:handle_system_msg(Req, From, Parent, ?MODULE, Debug,
+							  [safe, Server, Role, E]);
+	{'EXIT', _, Reason} = Msg ->
+		terminate(Reason, Msg, Server, Role, E);
+	{halt,T,From} = Msg ->
+		NewE = halting(E,T,From,Server),
+		From ! {ackLeader,T,self()},
+		safe_loop(Server,Role,NewE,Msg);
+	{hasLeader,Ldr,T,_} = Msg ->
+		NewE1 = mon_node(E,Ldr,Server),
+		case ( (E#election.status == elec2) and (E#election.acks /= []) ) of
+			true ->
+				lists:foreach(
+				  fun(Node) ->
+						  {Name,Node} ! {hasLeader,Ldr,T,self()}
+				  end,E#election.acks);
+			false ->
+				ok
+		end,
+		NewE = NewE1#election{elid = T,
+							  status = wait,
+							  leadernode = node(Ldr),
+							  down = E#election.down -- [node(Ldr)],
+							  acks = []},
+		Ldr ! {isLeader,T,self()},
+		safe_loop(Server,Role,NewE,Msg);
+	{isLeader,T,From} = Msg ->
+		From ! {notLeader,T,self()},
+		safe_loop(Server,Role,E,Msg);
+	{notLeader,T,_} = Msg ->
+		case ( (E#election.status == wait) and (E#election.elid == T) ) of
+			true ->
+				NewE = startStage1(E, Server);
+			false ->
+				NewE = E
+		end,
+		safe_loop(Server,Role,NewE,Msg);
+	{ackLeader,T,From} = Msg ->
+		case ( (E#election.status == elec2) and (E#election.elid == T) and
+			   (E#election.pendack == node(From)) ) of
+			true ->
+				NewE = continStage2(
+						 E#election{acks = [node(From)|E#election.acks]},
+						 Server);
+			false ->
+				NewE = E
+		end,
+		hasBecomeLeader(NewE,Server,Msg);
+	{ldr,Synch,T,Workers, From} = Msg ->
+		case ( (E#election.status == wait) and (E#election.elid == T) ) of
+			true ->
+				timer:cancel(E#election.cand_timer),
+				NewE1 = mon_node(E, From, Server),
+				NewE = NewE1#election{leader = From,
+									  leadernode = node(From),
+									  worker_nodes = Workers,
+									  status = norm,
+									  cand_timer=undefined},
+				%io:format("Making ~p (myself) surrender. Workers should be passed as: ~p~n~n",
+				%          [self(), NewE]),
+				%io:format("~n~n~n ---Gen leader is forcing this instance to surrender.---~n~n~n"),
+				{ok,NewState} = Mod:surrendered(State,Synch,NewE),
+				loop(Server#server{state = NewState},surrendered,NewE,Msg);
+			false ->
+				safe_loop(Server,Role,E,Msg)
+		end;
+	{normQ,T,From} = Msg ->
+		case ( (E#election.status == elec1) or
+			   ( (E#election.status == wait) and (E#election.elid == T))) of
+			true ->
+				NewE = halting(E,T,From,Server),
+				From ! {notNorm,T,self()};
+			false ->
+				NewE = E
+		end,
+		safe_loop(Server,Role,NewE,Msg);
 
-        {notNorm,_,_} = Msg ->
-            safe_loop(Server,Role,E,Msg);
-        {workerAlive,T,From} = Msg ->
-            case E#election.leadernode == none of
-                true ->
-                    %% We should initiate activation,
-                    %% monitor the possible leader!
-                    NewE = mon_node(E#election{leadernode = node(From),
-                                               elid = T},
-                                    From, Server),
-                    From ! {workerIsAlive,T,self()};
-                false ->
-                    %% We should acutally ignore this, the present activation
-                    %% will complete or abort first...
-                    NewE = E
-            end,
-            safe_loop(Server,Role,NewE,Msg);
-        {workerIsAlive,_,_} = Msg ->
-            %% If this happens, the activation process should abort
-            %% This process is no longer the leader!
-            %% The sender will notice this via a DOWN message
-            safe_loop(Server,Role,E,Msg);
-        {activateWorker,T,Synch,From} = Msg ->
-            case ( (T == E#election.elid) and
-                   (node(From) == E#election.leadernode)) of
-                true ->
-                    NewE = E#election{ leader = From, status = worker },
-                    %io:format("~n~n~n ---Gen leader is forcing this instance to surrender.---~n~n~n"),
-                    {ok,NewState} = Mod:surrendered(State,Synch,NewE),
-                    loop(Server#server{state = NewState},worker,NewE,Msg);
-                false ->
-                    %% This should be a VERY special case...
-                    %% But doing nothing is the right thing!
-                    %% A DOWN message should arrive to solve this situation
-                    safe_loop(Server,Role,E,Msg)
-            end;
-        {election} = Msg ->
-            %% We're already in an election, so this is likely an old message.
-            safe_loop(Server, Role, E, Msg);
-        {heartbeat, _Node} = Msg ->
-            %% io:format("Got {heartbeat, ~w} - ~w (safe_loop)\n", [_Node, E#election.leadernode]),
-            safe_loop(Server,Role,E,Msg);
-          {candidate_timer} = Msg ->
-            NewE =
-                case E#election.down of
-                    [] ->
-                        %% io:format("Canceling candidate timer (timer=~w\n  down=~w\n  role=~w, leader=~w)\n",
-                        %%    [E#election.cand_timer, E#election.down, Role, E#election.leadernode]),
-                        timer:cancel(E#election.cand_timer),
-                        E#election{cand_timer = undefined};
-                    Down ->
-                        %% Some of potential master candidate nodes are down - try to wake them up
-                        F = fun(N) ->
-                                    %% io:format("Sending {heartbeat, ~w} to ~w\n", [N, node()]),
-                                    {E#election.name, N} ! {heartbeat, node()}
-                            end,
-                        [F(N) || N <- Down, {ok, up} =/= net_kernel:node_info(N, state)],
-                        E
-                end,
-              safe_loop(Server,Role,NewE,Msg);
-          {ldr, 'DOWN', Node} = Msg when Role == waiting_worker ->
+	{notNorm,_,_} = Msg ->
+		safe_loop(Server,Role,E,Msg);
+	{workerAlive,T,From} = Msg ->
+		case E#election.leadernode == none of
+			true ->
+				%% We should initiate activation,
+				%% monitor the possible leader!
+				NewE = mon_node(E#election{leadernode = node(From),
+										   elid = T},
+								From, Server),
+				From ! {workerIsAlive,T,self()};
+			false ->
+				%% We should acutally ignore this, the present activation
+				%% will complete or abort first...
+				NewE = E
+		end,
+		safe_loop(Server,Role,NewE,Msg);
+	{workerIsAlive,_,_} = Msg ->
+		%% If this happens, the activation process should abort
+		%% This process is no longer the leader!
+		%% The sender will notice this via a DOWN message
+		safe_loop(Server,Role,E,Msg);
+	{activateWorker,T,Synch,From} = Msg ->
+		case ( (T == E#election.elid) and
+			   (node(From) == E#election.leadernode)) of
+			true ->
+				NewE = E#election{ leader = From, status = worker },
+				%io:format("~n~n~n ---Gen leader is forcing this instance to surrender.---~n~n~n"),
+				{ok,NewState} = Mod:surrendered(State,Synch,NewE),
+				loop(Server#server{state = NewState},worker,NewE,Msg);
+			false ->
+				%% This should be a VERY special case...
+				%% But doing nothing is the right thing!
+				%% A DOWN message should arrive to solve this situation
+				safe_loop(Server,Role,E,Msg)
+		end;
+	{election} = Msg ->
+		%% We're already in an election, so this is likely an old message.
+		safe_loop(Server, Role, E, Msg);
+	{checklead, _Node} = Msg->
+		%% already in an election, ditching for now
+		safe_loop(Server, Role, E, Msg);
+	{heartbeat} = Msg ->
+		%% most likely a late lub-dub.
+		safe_loop(Server, Role, E, Msg);
+	{heartbeat, _Node} = Msg ->
+		%% io:format("Got {heartbeat, ~w} - ~w (safe_loop)\n", [_Node, E#election.leadernode]),
+		safe_loop(Server,Role,E,Msg);
+	  {candidate_timer} = Msg ->
+		NewE =
+			case E#election.down of
+				[] ->
+					%% io:format("Canceling candidate timer (timer=~w\n  down=~w\n  role=~w, leader=~w)\n",
+					%%    [E#election.cand_timer, E#election.down, Role, E#election.leadernode]),
+					timer:cancel(E#election.cand_timer),
+					E#election{cand_timer = undefined};
+				Down ->
+					%% Some of potential master candidate nodes are down - try to wake them up
+					F = fun(N) ->
+								%% io:format("Sending {heartbeat, ~w} to ~w\n", [N, node()]),
+								{E#election.name, N} ! {heartbeat, node()}
+						end,
+					[F(N) || N <- Down, {ok, up} =/= net_kernel:node_info(N, state)],
+					E
+			end,
+		  safe_loop(Server,Role,NewE,Msg);
+	  {ldr, 'DOWN', Node} = Msg when Role == waiting_worker ->
 %%         {'DOWN',_Ref,process,From,_Reason} = Msg when Role==waiting_worker ->
 %%             %% We are only monitoring one proc, the leader!
 %%             Node = case From of
 %%                        {Name,_Node} -> _Node;
 %%                        _ when is_pid(From) -> node(From)
 %%                    end,
-            case Node == E#election.leadernode of
-                true ->
-                    NewE = E#election{ leader = none, leadernode = none,
-                                       status = waiting_worker,
-                                       monitored = []};
-                false ->
-                    NewE = E
-            end,
-            safe_loop(Server, Role, NewE,Msg);
-          {ldr, 'DOWN', Node} = Msg ->
+		case Node == E#election.leadernode of
+			true ->
+				NewE = E#election{ leader = none, leadernode = none,
+								   status = waiting_worker,
+								   monitored = []};
+			false ->
+				NewE = E
+		end,
+		safe_loop(Server, Role, NewE,Msg);
+	  {ldr, 'DOWN', Node} = Msg ->
 %%         {'DOWN',Ref,process,From,_Reason} = Msg ->
 %%             Node = case From of
 %%                        {Name,_Node} -> _Node;
 %%                        _ when is_pid(From) -> node(From)
 %%                    end,
 %%             NewMon = E#election.monitored -- [{Ref,Node}],
-              NewMon = lists:keydelete(Node, 2, E#election.monitored),
-            case lists:member(Node,E#election.candidate_nodes) of
-                true ->
-                    NewDown = [Node | E#election.down],
-                    E1 = E#election{down = NewDown, monitored = NewMon},
-                    case ( pos(Node,E#election.candidate_nodes) <
-                           pos(node(),E#election.candidate_nodes) ) of
-                        true ->
-                            NewServer = Server,
-                            Lesser = lesser(node(),E#election.candidate_nodes),
-                            LesserIsSubset = (Lesser -- NewDown) == [],
-                            case ((E#election.status == wait) and
-                                  (Node == E#election.leadernode)) of
-                                true ->
-                                    NewE = startStage1(E1, Server);
-                                false ->
-                                    case ((E#election.status == elec1) and
-                                          LesserIsSubset) of
-                                        true ->
-                                            NewE = startStage2(
-                                                     E1#election{down = Lesser},
-                                                     Server);
-                                        false ->
-                                            NewE = E1
-                                    end
-                            end;
-                        false ->
-                            case (E#election.leader == self()) of
-                                true ->
-                                    {ok,NewState} = (Server#server.mod):handle_DOWN(Node, Server#server.state, E),
-                                    NewServer = Server#server{state = NewState};
-                                false ->
-                                  NewServer = Server
-                              end,
-                            case ( (E#election.status == elec2) and
-                                   (Node == E#election.pendack) ) of
-                                true ->
-                                    NewE = continStage2(E1, Server);
-                                false ->
-                                    case ( (E#election.status == wait) and
-                                           (Node == E#election.leadernode)) of
-                                        true ->
-                                            NewE = startStage1(E1, Server);
-                                        false ->
-                                            NewE = E1
-                                    end
-                            end
-                    end
-            end,
-            hasBecomeLeader(NewE,NewServer,Msg)
-      end
+		  NewMon = lists:keydelete(Node, 2, E#election.monitored),
+		case lists:member(Node,E#election.candidate_nodes) of
+			true ->
+				NewDown = [Node | E#election.down],
+				E1 = E#election{down = NewDown, monitored = NewMon},
+				case ( pos(Node,E#election.candidate_nodes) <
+					   pos(node(),E#election.candidate_nodes) ) of
+					true ->
+						NewServer = Server,
+						Lesser = lesser(node(),E#election.candidate_nodes),
+						LesserIsSubset = (Lesser -- NewDown) == [],
+						case ((E#election.status == wait) and
+							  (Node == E#election.leadernode)) of
+							true ->
+								NewE = startStage1(E1, Server);
+							false ->
+								case ((E#election.status == elec1) and
+									  LesserIsSubset) of
+									true ->
+										NewE = startStage2(
+												 E1#election{down = Lesser},
+												 Server);
+									false ->
+										NewE = E1
+								end
+						end;
+					false ->
+						case (E#election.leader == self()) of
+							true ->
+								{ok,NewState} = (Server#server.mod):handle_DOWN(Node, Server#server.state, E),
+								NewServer = Server#server{state = NewState};
+							false ->
+							  NewServer = Server
+						  end,
+						case ( (E#election.status == elec2) and
+							   (Node == E#election.pendack) ) of
+							true ->
+								NewE = continStage2(E1, Server);
+							false ->
+								case ( (E#election.status == wait) and
+									   (Node == E#election.leadernode)) of
+									true ->
+										NewE = startStage1(E1, Server);
+									false ->
+										NewE = E1
+								end
+						end
+				end
+		end,
+		hasBecomeLeader(NewE,NewServer,Msg)
     end.
 
 
@@ -717,7 +720,7 @@ loop(#server{parent = Parent,
                     loop(Server,Role,E,Msg);
                 {ack,_,_} ->
                     loop(Server,Role,E,Msg);
-                {ldr,_,_,_} ->
+                {ldr,_,_,_,_} ->
                     loop(Server,Role,E,Msg);
                 {normQ,_,_} ->
                     loop(Server,Role,E,Msg);
@@ -761,7 +764,7 @@ loop(#server{parent = Parent,
                     Mide = E,%#election{leader = none, leadernode = none},
                     E1 = startStage1(Mide, Server),
                     safe_loop(Server, candidate, E1, Msg);
-                  {checklead, Node} ->
+				{checklead, Node} ->
                     %% io:format("Checking lead~n"),
                     case (E#election.leadernode == Node) of
                       true ->
@@ -1295,7 +1298,7 @@ hasBecomeLeader(E,Server,Msg) ->
             lists:foreach(
               fun(Node) ->
                       {E#election.name,Node} !
-                          {ldr, Synch, E#election.elid, self()}
+                          {ldr, Synch, E#election.elid, E#election.worker_nodes, self()}
               end,E#election.acks),
 
             %% Make sure we will try to contact all workers!

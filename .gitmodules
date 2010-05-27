@@ -7,3 +7,6 @@
 [submodule "contrib/errd"]
 	path = contrib/errd
 	url = git://github.com/Vagabond/errd.git
+[submodule "contrib/gen_leader_revival"]
+	path = contrib/gen_leader_revival
+	url = git://github.com/Vagabond/gen_leader_revival.git

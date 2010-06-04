@@ -46,7 +46,8 @@
 
 -record(state, {
 	agent_rec :: #agent{},
-	ring_fails = 0 :: non_neg_integer()
+	ring_fails = 0 :: non_neg_integer(),
+	ring_locked = 'unlocked' :: 'unlocked' | 'locked'
 }).
 
 -type(state() :: #state{}).
@@ -72,6 +73,8 @@
 -define(RINGING_LIMITS, {ringing, {0, 0, 60, {time, util:now()}}}).
 -define(WARMTRANSFER_LIMITS, {warmtransfer, {0, 60 * 2, 60 * 5, {time, util:now()}}}).
 -define(DEFAULT_REL, {"default", default, -1}).
+-define(RING_FAIL_REL, {"Ring Fail", "Ring Fail", -1}).
+-define(RING_LOCK_DURATION, 1000). % in ms
 
 -define(WRAPUP_AUTOEND_KEY, autoend_wrapup).
 %% gen_fsm exports
@@ -110,6 +113,8 @@
 	url_pop/3,
 	blab/2,
 	spy/2,
+	has_successful_ring/1,
+	has_failed_ring/1,
 	%warm_transfer_begin/2,
 	%warm_transfer_cancel/1,
 	%warm_transfer_complete/1,
@@ -280,6 +285,18 @@ agent_transfer(Pid, Target) ->
 queue_transfer(Pid, Queue) ->
 	gen_fsm:sync_send_event(Pid, {queue_transfer, Queue}).
 
+%% @doc Inform the agent that it's failed a ring, usually an outbound.
+%% Used by gen_media, prolly not anywhere else.
+-spec(has_failed_ring/1 :: (Pid :: pid()) -> 'ok').
+has_failed_ring(Pid) ->
+	MediaPid = self(),
+	gen_fsm:send_event(Pid, {failed_ring, MediaPid}).
+
+%% @doc Media saying the ring worked afterall; useful to confirm outband rings.
+-spec(has_successful_ring/1 :: (Pid :: pid()) -> 'ok').
+has_successful_ring(Pid) ->
+	MediaPid = self(),
+	gen_fsm:send_event(Pid, {has_successful_ring, MediaPid}).
 
 %% @_doc Start the warm_transfer procedure.  Gernally the media will handle it from here.
 %-spec(warm_transfer_begin/2 :: (Pid :: pid(), Target :: string()) -> 'ok' | 'invalid').
@@ -400,6 +417,9 @@ idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 	Newagent = Agent#agent{state=precall, oldstate=idle, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newagent, ?PRECALL_LIMITS, []),
 	{reply, ok, precall, State#state{agent_rec = Newagent}};
+idle({ringing, _Call}, _From, #state{ring_locked = locked, agent_rec = Agent} = State) ->
+	?INFO("~s rejected a ring request due to ring_locked.", [Agent#agent.login]),
+	{reply, invalid, idle, State};
 idle({ringing, Call = #call{}}, _From, #state{agent_rec = Agent} = State) ->
 	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
@@ -419,7 +439,7 @@ idle(Event, From, State) ->
 	?WARNING("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
 	{reply, invalid, idle, State}.
 
--spec(idle/2 :: (Msg :: any(), State :: #agent{}) -> {'next_state', 'idle', #agent{}}).
+-spec(idle/2 :: (Msg :: any(), State :: #state{}) -> {'next_state', 'idle', #state{}}).
 idle(_Message, State) ->
 	{next_state, idle, State}.
 
@@ -483,7 +503,18 @@ ringing(Event, _From, State) ->
 	?DEBUG("ringing evnet ~p", [Event]),
 	{reply, invalid, ringing, State}.
 
--spec(ringing/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
+-spec(ringing/2 :: (Msg :: any(), State :: #state{}) -> {'stop', any(), #state{}} | {'next_state', statename(), #state{}}).
+ringing({failed_ring, Mpid}, #state{ring_fails = 3, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = Agent} = State) ->
+	?INFO("~s has failed too many rings, setting ring fail state", [Agent#agent.login]),
+	{reply, ok, released, Midstate} = ringing({released, ?RING_FAIL_REL}, "from", State),
+	{next_state, released, Midstate#state{ring_fails = 0, ring_locked = unlocked}};
+ringing({failed_ring, Mpid}, #state{ring_locked = unlocked, ring_fails = Failcount, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) ->
+	{reply, ok, idle, Midstate} = ringing(idle, "from", State),
+	Self = self(),
+	erlang:send_after(?RING_LOCK_DURATION, Self, ring_unlock),
+	{next_state, idle, Midstate#state{ring_fails = Failcount + 1, ring_locked = locked}};
+ringing({has_successful_ring, Mpid}, #state{agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) ->
+	{next_state, ringing, State#state{ring_fails = 0}};
 ringing(register_rejected, State) ->
 	{stop, register_rejected, State};
 ringing(_Msg, State) ->
@@ -601,7 +632,7 @@ oncall({warmtransfer, Transferto}, _From, #state{agent_rec = Agent} = State) ->
 	Newagent = Agent#agent{state=warmtransfer, oldstate=Agent#agent.state, statedata=StateData, lastchange = util:now()},
 	set_cpx_monitor(Newagent, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, State#state{agent_rec = Newagent}};
-oncall({agent_transfer, Agent}, _From, #state{agent_rec = #agent{statedata = Call} = Agentrec} = State) when is_pid(Agent) ->
+oncall({agent_transfer, Agent}, _From, #state{agent_rec = #agent{statedata = Call} = _Agentrec} = State) when is_pid(Agent) ->
 	% TODO - why is the timeout hardcoded, any why was it only 10 seconds
 	Reply = gen_media:agent_transfer(Call#call.source, Agent, 30000),
 	{reply, Reply, oncall, State};
@@ -620,7 +651,7 @@ oncall({queue_transfer, Queue}, _From, #state{agent_rec = #agent{statedata = Cal
 		%_ ->
 			%{reply, invalid, oncall, State}
 	%end;
-oncall(get_media, _From, #state{agent_rec = #agent{statedata = Media} = Agent} = State) when is_record(Media, call) ->
+oncall(get_media, _From, #state{agent_rec = #agent{statedata = Media} = _Agent} = State) when is_record(Media, call) ->
 	{reply, {ok, Media}, oncall, State};
 oncall({conn_call, Request}, {Pid, _Tag}, #state{agent_rec = #agent{statedata = Media} = Agent} = State) ->
 	case {Media#call.source, Agent#agent.connection} of
@@ -636,7 +667,7 @@ oncall(_Event, _From, State) ->
 	{reply, invalid, oncall, State}.
 
 -spec(oncall/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
-oncall({conn_cast, Request}, #state{agent_rec = #agent{connection = Pid} = Agent} = State) ->
+oncall({conn_cast, Request}, #state{agent_rec = #agent{connection = Pid} = _Agent} = State) ->
 	case is_pid(Pid) of
 		true ->
 			gen_server:cast(Pid, Request);
@@ -644,16 +675,18 @@ oncall({conn_cast, Request}, #state{agent_rec = #agent{connection = Pid} = Agent
 			ok
 	end,
 	{next_state, oncall, State};
-oncall({mediacast, Request}, #state{agent_rec = #agent{statedata = Call} = Agent} = State) ->
+oncall({mediacast, Request}, #state{agent_rec = #agent{statedata = Call} = _Agent} = State) ->
 	?DEBUG("media case ~p", [Request]),
 	gen_media:cast(Call#call.source, Request),
 	{next_state, oncall, State};
-oncall(register_rejected, #state{agent_rec = #agent{statedata = Media} = Agent} = State) when Media#call.media_path =:= inband ->
+oncall({has_successful_ring, Mpid}, #state{agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) ->
+	{next_state, oncall, State#state{ring_fails = 0}};
+oncall(register_rejected, #state{agent_rec = #agent{statedata = Media} = _Agent} = State) when Media#call.media_path =:= inband ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};
 oncall(register_rejected, State) ->
 	{stop, register_rejected, State};
-oncall({mediapush, Mediapid, Data}, #state{agent_rec = #agent{statedata = Media} = Agent} = State) when Media#call.source =:= Mediapid ->
+oncall({mediapush, Mediapid, Data}, #state{agent_rec = #agent{statedata = Media} = _Agent} = State) when Media#call.source =:= Mediapid ->
 	case State#agent.connection of
 		undefined ->
 			{next_state, oncall, State};
@@ -709,7 +742,7 @@ outgoing({warmtransfer, Transferto}, _From, #state{agent_rec = Agent} = State) -
 	Newagent = Agent#agent{state=warmtransfer, oldstate=outgoing, statedata=StateData, lastchange = util:now()},
 	set_cpx_monitor(Newagent, ?WARMTRANSFER_LIMITS, []),
 	{reply, ok, warmtransfer, State#state{agent_rec = Newagent}};
-outgoing({agent_transfer, Agent}, _From, #state{agent_rec = #agent{statedata = Call} = Agentrec} = State) when is_pid(Agent) ->
+outgoing({agent_transfer, Agent}, _From, #state{agent_rec = #agent{statedata = Call} = _Agentrec} = State) when is_pid(Agent) ->
 	Reply = gen_media:agent_transfer(Call#call.source, Agent, 10000),
 	{reply, Reply, outgoing, State};
 outgoing({queue_transfer, Queue}, _From, #state{agent_rec = #agent{statedata = Call} = Agent} = State) ->
@@ -718,13 +751,13 @@ outgoing({queue_transfer, Queue}, _From, #state{agent_rec = #agent{statedata = C
 	Newagent = Agent#agent{state=wrapup, oldstate=Agent#agent.state, statedata=Call, lastchange = util:now()},
 	set_cpx_monitor(Newagent, ?WARMTRANSFER_LIMITS, []),
 	{reply, Reply, wrapup, State#state{agent_rec = Newagent}};
-outgoing(get_media, _From, #state{agent_rec = #agent{statedata = Media} = Agent} = State) when is_record(Media, call) ->
+outgoing(get_media, _From, #state{agent_rec = #agent{statedata = Media} = _Agent} = State) when is_record(Media, call) ->
 	{reply, {ok, Media}, outgoing, State};
 outgoing(_Event, _From, State) -> 
 	{reply, invalid, outgoing, State}.
 
 -spec(outgoing/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
-outgoing({conn_cast, Request}, #state{agent_rec = #agent{connection = Pid} = Agent} = State) ->
+outgoing({conn_cast, Request}, #state{agent_rec = #agent{connection = Pid} = _Agent} = State) ->
 	case is_pid(Pid) of
 		true ->
 			gen_server:cast(Pid, Request);
@@ -732,7 +765,7 @@ outgoing({conn_cast, Request}, #state{agent_rec = #agent{connection = Pid} = Age
 			ok
 	end,
 	{next_state, outgoing, State};
-outgoing(register_rejected, #state{agent_rec = #agent{statedata = Media} = Agent} = State) when Media#call.media_path =:= inband ->
+outgoing(register_rejected, #state{agent_rec = #agent{statedata = Media} = _Agent} = State) when Media#call.media_path =:= inband ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};
 outgoing(register_rejected, State) ->
@@ -776,7 +809,7 @@ released({ringing, Call}, _From, #state{agent_rec = Agent} = State) ->
 	Newagent = Agent#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now(), queuedrelease = Agent#agent.statedata},
 	set_cpx_monitor(Newagent, ?RINGING_LIMITS, []),
 	{reply, ok, ringing, State#state{agent_rec = Newagent}};
-released({spy, Target}, {Conn, _Tag}, #state{agent_rec = #agent{connection = Conn} = Agent} = State) ->
+released({spy, Target}, {Conn, _Tag}, #state{agent_rec = #agent{connection = Conn} = _Agent} = State) ->
 	case self() of
 		Target ->
 			?INFO("Cannot spy on yourself", []),
@@ -797,7 +830,7 @@ released(_Event, _From, State) ->
 -spec(released/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
 released(register_rejected, State) ->
 	{stop, register_rejected, State};
-released({conn_cast, {mediaload, #call{type = email}} = Request}, #state{agent_rec = #agent{connection = Pid} = Agent} = State) ->
+released({conn_cast, {mediaload, #call{type = email}} = Request}, #state{agent_rec = #agent{connection = Pid} = _Agent} = State) ->
 	%% most likely trying to go spy on an email.
 	gen_server:cast(Pid, Request),
 	{next_state, released, State};
@@ -884,7 +917,7 @@ warmtransfer(_Event, _From, State) ->
 	{reply, invalid, warmtransfer, State}.
 
 -spec(warmtransfer/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
-warmtransfer(register_rejected, #state{agent_rec = #agent{statedata = {onhold, Media, calling, _Target}} = Agent} = State) ->
+warmtransfer(register_rejected, #state{agent_rec = #agent{statedata = {onhold, Media, calling, _Target}} = _Agent} = State) ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};
 warmtransfer({mediapush, Mediapid, Data}, #state{agent_rec = #agent{statedata = {onhold, Media, calling, _}} = Agent} = State) when Media#call.source =:= Mediapid ->
@@ -945,7 +978,9 @@ wrapup(_Msg, State) ->
 %% @private
 %-spec(handle_event/3 :: (Event :: 'stop', StateName :: statename(), State :: #agent{}) -> {'stop','normal', #agent{}}).
 	%(Event :: any(), StateName :: atom(), State :: #agent{}) -> {'next_state', atom(), #agent{}}).
-handle_event({blab, Text}, Statename, #state{agent_rec = #agent{connection = Conpid} = Agent} = State) when is_pid(Conpid) ->
+handle_event(ring_unlock, idle, State) ->
+	{next_state, idle, State#state{ring_locked = unlocked}};
+handle_event({blab, Text}, Statename, #state{agent_rec = #agent{connection = Conpid} = _Agent} = State) when is_pid(Conpid) ->
 	?DEBUG("sending blab ~p", [Text]),
 	gen_server:cast(Conpid, {blab, Text}),
 	{next_state, Statename, State};
@@ -980,8 +1015,8 @@ handle_sync_event({set_connection, _Pid}, _From, StateName, #state{agent_rec = A
 	?WARNING("An attempt to set connection to ~w when there is already a connection ~w", [_Pid, Agent#agent.connection]),
 	{reply, error, StateName, State};
 handle_sync_event({set_endpoint, {Endpointtype, Endpointdata}}, _From, StateName, #state{agent_rec = Agent} = State) ->
-	{reply, ok, StateName, Agent#agent{endpointtype = Endpointtype, endpointdata = Endpointdata}};
-handle_sync_event({url_pop, URL, Name}, _From, StateName, #state{agent_rec = #agent{connection=Connection} = Agent} = State) when is_pid(Connection) ->
+	{reply, ok, StateName, State#state{agent_rec = Agent#agent{endpointtype = Endpointtype, endpointdata = Endpointdata}}};
+handle_sync_event({url_pop, URL, Name}, _From, StateName, #state{agent_rec = #agent{connection=Connection} = _Agent} = State) when is_pid(Connection) ->
 	gen_server:cast(Connection, {url_pop, URL, Name}),
 	{reply, ok, StateName, State};
 handle_sync_event({add_skills, Skills}, _From, StateName, #state{agent_rec = Agent} = State) ->
@@ -1048,6 +1083,8 @@ handle_sync_event(_Event, _From, StateName, State) ->
 
 %% @private
 %-spec(handle_info/3 :: (Event :: any(), StateName :: statename(), State :: #agent{}) -> {'stop', 'normal', #agent{}} | {'stop', 'shutdown', #agent{}} | {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
+handle_info(ring_unlock, Statename, State) ->
+	{next_state, Statename, State#state{ring_locked = unlocked}};
 handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{log_pid = From} = Agent} = State) ->
 	?INFO("Log pid ~w died due to ~p", [From, Reason]),
 	Nodes = case proplists:get_value(nodes, Agent#agent.start_opts) of
@@ -1125,7 +1162,7 @@ handle_info({'EXIT', From, Reason}, wrapup, #state{agent_rec = #agent{connection
 			{error, conn_exit, Other}
 	end,
 	{stop, Stopwhy, State};
-handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{connection = From} = Agent} = State) ->
+handle_info({'EXIT', From, Reason}, StateName, #state{agent_rec = #agent{connection = From} = _Agent} = State) ->
 	?WARNING("agent connection died while ~w with ~p media", [StateName, "doesn't matter"]),
 	Stopwhy = case Reason of
 		normal ->
@@ -1189,7 +1226,7 @@ wait_for_agent_manager(Count, StateName, #state{agent_rec = Agent} = State) ->
 % obviousness below.
 %% @private
 %-spec(terminate/3 :: (Reason :: any(), StateName :: statename(), State :: #agent{}) -> 'ok').
-terminate(Reason, StateName, #state{agent_rec = Agent} = State) ->
+terminate(Reason, StateName, #state{agent_rec = Agent} = _State) ->
 	?NOTICE("Agent terminating:  ~p, State:  ~p", [Reason, StateName]),
 %	case State#agent.log_pid of
 %		Pid when is_pid(Pid) ->
@@ -1213,13 +1250,13 @@ format_status(terminate, [_PDict, #state{agent_rec = Agent} = State]) ->
 	Newagent = case Agent#agent.statedata of
 		#call{client = Client} = Call when is_record(Call#call.client, client) ->
 			Client = Call#call.client,
-			State#agent{statedata = Call#call{client = Client#client{options = []}}};
+			Agent#agent{statedata = Call#call{client = Client#client{options = []}}};
 		{onhold, #call{client = Client} = Call, calling, ID} when is_record(Client, client) ->
-			State#agent{statedata = {onhold, Call#call{client = Client#client{options = []}}, calling, ID}};
+			Agent#agent{statedata = {onhold, Call#call{client = Client#client{options = []}}, calling, ID}};
 		_ ->
 			Agent
 	end,
-	Newagent#agent{password = redacted}.
+	[Newagent#agent{password = redacted}].
 
 
 %% =====
@@ -1428,6 +1465,19 @@ from_idle_test_() ->
 			Assertmocks()
 		end}
 	end,
+	fun({Seedstate, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks} = _Testargs) ->
+		{"to ringing with a ring lock in effect",
+		fun() ->
+			Self = self(),
+			Call = #call{
+				id = "testcall",
+				source = Self
+			},
+			State = Seedstate#state{ring_locked = locked},
+			?assertEqual({reply, invalid, idle, State}, idle({ringing, Call}, "from", State)),
+			Assertmocks()
+		end}
+	end,
 	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to released with invalid format",
 		fun() ->
@@ -1554,10 +1604,10 @@ from_ringing_test_() ->
 		% before the next test runs.
 		ok
 	end,
-	[fun({#state{agent_rec = Agent} = State, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
+	[fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to idle",
 		fun() ->
-			Aself = self(),
+			%Aself = self(),
 			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
 				[{idle, _Limits}] = Health,
 				Node = node(),
@@ -1731,6 +1781,72 @@ from_ringing_test_() ->
 		{"to wrapup",
 		fun() ->
 			?assertMatch({reply, invalid, ringing, _State}, ringing({wrapup, "doesn't matter"}, "from", Agent)),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = #agent{statedata = Callrec} = _Agent} = Seedstate, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"Ring fails are reset on a has_successful_ring message",
+		fun() ->
+			State = Seedstate#state{ring_fails = 2},
+			?assertEqual({next_state, ringing, Seedstate}, ringing({has_successful_ring, Callrec#call.source}, State)),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = #agent{statedata = Callrec} = Agent} = Seedstate, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"gets a ring_failed message with < 3 ring fails",
+		fun() ->
+			Aself = self(),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{idle, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, ringing, {}}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({now_avail, Nom}, _State, _Elec) ->
+				Nom = Agent#agent.login,
+				ok
+			end),
+			%gen_leader_mock:expect_leader_cast(AMmock, fun(_, _State, _Elect) -> ok end),
+%			gen_server_mock:expect_cast(Dmock, fun({now_avail, Self}, _State) ->
+%				Self = Aself,
+%				ok
+%			end),
+			%?DEBUG("~p", [ringing({ring_fail, Callrec#call.source}, Seedstate)]),
+			?assertMatch({next_state, idle, #state{ring_fails = 1} = _State}, ringing({failed_ring, Callrec#call.source}, Seedstate)),
+			Gotmsg = receive
+				ring_unlock ->
+					ok
+			after (?RING_LOCK_DURATION + 50) ->
+				error
+			end,
+			?assertEqual(ok, Gotmsg),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = #agent{statedata = Callrec} = Agent} = Seedstate, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"gets a ring_failed message with = 3 ring fails",
+		fun() ->
+			State = Seedstate#state{ring_fails = 3},
+			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State, _Elec) -> ok end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{released, _Limits}, {bias, 60}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?RING_FAIL_REL}, _State) ->
+				ok
+			end),
+			Self = self(),
+			gen_server_mock:expect_info(Callrec#call.source, fun({'$gen_media_stop_ring', Inpid}, _State) ->
+				Inpid = Self,
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, ringing, ?RING_FAIL_REL}, _State) -> ok end),
+			?assertMatch({next_state, released, #state{ring_fails = 0}}, ringing({failed_ring, Callrec#call.source}, State)),
 			Assertmocks()
 		end}
 	end]}.
@@ -2096,6 +2212,14 @@ from_oncall_test_() ->
 				error
 			end,
 			?assertEqual(ok, Gotend),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = #agent{statedata = Callrec} = _Agent} = Seedstate, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
+		{"gets successful ring message, so resets ring fails",
+		fun() ->
+			State = Seedstate#state{ring_fails = 2},
+			?assertMatch({next_state, oncall, #state{ring_fails = 0} = _Newstate}, oncall({has_successful_ring, Callrec#call.source}, State)),
 			Assertmocks()
 		end}
 	end]}.
@@ -2832,6 +2956,13 @@ handle_sync_event_test_() ->
 		fun() ->
 			?assertMatch({reply, ok, state, "state"}, handle_sync_event(<<"garbage data">>, "from", state, "state"))
 		end}
+	end,
+	fun(_) ->
+		{"setting end point doesn't corrupt state",
+		fun() ->
+			Seedstate = #state{agent_rec = #agent{login = "test"}},
+			?assertMatch({reply, ok, state, #state{agent_rec = #agent{endpointtype = "end point type", endpointdata = "end point data"} = _Agent} = _State}, handle_sync_event({set_endpoint, {"end point type", "end point data"}}, "from", state, Seedstate))
+		end}
 	end]}.
 
 handle_conn_exit_inband_test_() ->
@@ -2954,7 +3085,7 @@ handle_conn_exit_outband_test_() ->
 			?assertEqual({next_state, oncall, #state{agent_rec = Agent#agent{connection = undefined}}}, Res)
 		end}
 	end,
-	fun({#state{agent_rec = AA} = A, P, _Mp, C}) ->
+	fun({#state{agent_rec = AA} = _A, P, _Mp, C}) ->
 		{"Death in outgoing",
 		fun() ->
 			Agent = AA#agent{statedata = C},
@@ -2969,7 +3100,7 @@ handle_conn_exit_outband_test_() ->
 			?assertEqual({stop, {error, conn_exit, "fail"}, A}, Res)
 		end}
 	end,
-	fun({#state{agent_rec = AA} = A, P, _Mp, C}) ->
+	fun({#state{agent_rec = AA} = _A, P, _Mp, C}) ->
 		{"Death in warm transfer",
 		fun() ->
 			Agent = AA#agent{statedata = {onhold, C, calling, "target"}},
@@ -3065,7 +3196,16 @@ handle_info_test_() ->
 		{"hard wrapup comes in at wrong time",
 		fun() ->
 			Agent = OldAgent#agent{state = oncall},
-			?assertEqual({next_state, oncall, State#state{agent_rec = Agent}}, handle_info(end_wrapup, oncall, State#state{agent_rec = Agent}))
+			?assertEqual({next_state, oncall, State#state{agent_rec = Agent}}, handle_info(end_wrapup, oncall, State#state{agent_rec = Agent})),
+			Assertmocks()
+		end}
+	end,
+	fun({Seedstate, Assertmocks}) ->
+		{"getting the unlock message unlocks ringability",
+		fun() ->
+			State = Seedstate#state{ring_locked = locked},
+			?assertEqual({next_state, gooberstate, Seedstate}, handle_info(ring_unlock, gooberstate, State)),
+			Assertmocks()
 		end}
 	end]}.
 

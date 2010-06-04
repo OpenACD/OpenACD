@@ -1585,7 +1585,7 @@ agent_interaction_test_() ->
 					ok
 				end,
 				{ok, Statename} = agent:query_state(APid),
-				?assertEqual(released, Statename),
+				?assertEqual(idle, Statename),
 				dummy_media:stop(Media)
 			end}
 		end,

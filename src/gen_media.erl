@@ -679,10 +679,11 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 						end
 					end),
 					Newmons = Mons#monitors{ ring_pid = erlang:monitor(process, Apid)},
+					agent:has_successful_ring(Apid),
 					{reply, ok, State#state{substate = Substate, ring_pid = {Agent, Apid}, ringout=Tref, callrec = Newcall, monitors = Newmons}};
 				{invalid, Substate} ->
-					%agent:has_failed_ring(Apid),
-					set_agent_state(Apid, [released, {"Ring Fail", "Ring Fail", -1}]),
+					agent:has_failed_ring(Apid),
+					%set_agent_state(Apid, [released, {"Ring Fail", "Ring Fail", -1}]),
 					{reply, invalid, State#state{substate = Substate}}
 			end;
 		Else ->
@@ -1964,7 +1965,8 @@ handle_call_test_() ->
 			#queued_call{cook = Cook} = Qcall = #queued_call{media = Callrec#call.source, id = "testcall"},
 			gen_leader_mock:expect_cast(Ammock, fun({update_skill_list, _, _}, _, _) -> ok end),
 			gen_leader_mock:expect_cast(Ammock, fun({end_avail, _}, _, _) -> ok end),
-			gen_leader_mock:expect_cast(Ammock, fun({end_avail, _}, _, _) -> ok end),
+			%gen_leader_mock:expect_cast(Ammock, fun({end_avail, _}, _, _) -> ok end),
+			gen_leader_mock:expect_cast(Ammock, fun({now_avail, _}, _, _) -> ok end),
 			{ok, Agent} = agent:start(#agent{login = "testagent", state = idle, statedata = {}}),
 			{reply, invalid, Newstate} = handle_call({'$gen_media_ring', {"testagent", Agent}, Qcall, 150}, {Cook, "tag"}, Seedstate),
 			receive
@@ -1974,7 +1976,7 @@ handle_call_test_() ->
 				ok
 			end,
 			?assertEqual(undefined, Newstate#state.ring_pid),
-			?assertEqual({ok, released}, agent:query_state(Agent)),
+			?assertEqual({ok, idle}, agent:query_state(Agent)),
 			?assertEqual(Seedstate#state.monitors, Newstate#state.monitors),
 			Assertmocks()
 		end}

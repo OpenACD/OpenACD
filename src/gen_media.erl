@@ -681,6 +681,7 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 					Newmons = Mons#monitors{ ring_pid = erlang:monitor(process, Apid)},
 					{reply, ok, State#state{substate = Substate, ring_pid = {Agent, Apid}, ringout=Tref, callrec = Newcall, monitors = Newmons}};
 				{invalid, Substate} ->
+					%agent:has_failed_ring(Apid),
 					set_agent_state(Apid, [released, {"Ring Fail", "Ring Fail", -1}]),
 					{reply, invalid, State#state{substate = Substate}}
 			end;
@@ -933,7 +934,7 @@ handle_call(Request, From, #state{callback = Callback} = State) ->
 %%--------------------------------------------------------------------
 
 %% @private
-handle_cast({'gen_media_set_outband_ring_pid', Pid}, State) ->
+handle_cast({'$gen_media_set_outband_ring_pid', Pid}, State) ->
 	{noreply, State#state{outband_ring_pid = Pid}};
 handle_cast({'$gen_media_set_cook', CookPid}, #state{callrec = Call, monitors = Mons} = State) ->
 	?NOTICE("Updating cook pid for ~p to ~p", [Call#call.id, CookPid]),
@@ -2408,6 +2409,42 @@ handle_call_test_() ->
 			?assertEqual(undefined, Newstate#state.ring_pid),
 			?assertEqual({"default_queue", Qpid}, State#state.queue_pid),
 			Assertmocks()
+		end}
+	end]}.
+
+handle_cast_test_() ->
+	{foreach,
+	fun() ->
+		Call = #call{
+			id = "testcall",
+			source = self()
+		},
+		{#state{callrec = Call}}
+	end,
+	fun(_) ->
+		ok
+	end,
+	[fun({Seedstate}) ->
+		{"setting outband ring pid",
+		fun() ->
+			P = dead_spawn(),
+			{noreply, #state{outband_ring_pid = NewP}} = handle_cast({'$gen_media_set_outband_ring_pid', P}, Seedstate),
+			?assertEqual(P, NewP)
+		end}
+	end,
+	fun({Seedstate}) ->
+		{"setting the cook with no previous mons",
+		fun() ->
+			P = spawn(fun() ->
+				receive
+					done ->
+						ok
+				end
+			end),
+			{noreply, #state{callrec = Newcall, monitors = Mons}} = handle_cast({'$gen_media_set_cook', P}, Seedstate),
+			?assert(Mons#monitors.cook =/= undefined andalso is_reference(Mons#monitors.cook)),
+			?assertEqual(P, Newcall#call.cook),
+			P ! done
 		end}
 	end]}.
 

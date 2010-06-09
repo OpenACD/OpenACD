@@ -404,24 +404,24 @@ handle_leader_cast({blab, Text, {agent, Value}}, #state{agents = Agents} = State
 		error ->
 			% /shrug.  Meh.
 			{noreply, State};
-		{ok, {Apid, _Id}} ->
+		{ok, {Apid, _Id, _Time, _Skills}} ->
 			agent:blab(Apid, Text),
 			{noreply, State}
 	end;
 handle_leader_cast({blab, Text, {node, Value}}, #state{agents = Agents} = State, _Election) ->
 	Alist = dict:to_list(Agents),
-	F = fun({_Aname, {Apid, _Id}}) -> 
+	F = fun({_Aname, {Apid, _Id, _Time, _Skills}}) -> 
 		case node(Apid) of
 			Value ->
 				agent:blab(Apid, Text);
 			_Else -> ok
 		end
 	end,
-	lists:foreach(F, Alist),
+	spawn(fun() -> lists:foreach(F, Alist) end),
 	{noreply, State};
 handle_leader_cast({blab, Text, {profile, Value}}, #state{agents = Agents} = State, _Election) ->
 	Alist = dict:to_list(Agents),
-	Foreach = fun({_Aname, {Apid, _Id}}) ->
+	Foreach = fun({_Aname, {Apid, _Id, _Time, _Skills}}) ->
 		try agent:dump_state(Apid) of
 			#agent{profile = Value} ->
 				agent:blab(Apid, Text);
@@ -439,10 +439,10 @@ handle_leader_cast({blab, Text, {profile, Value}}, #state{agents = Agents} = Sta
 	spawn(F),
 	{noreply, State};
 handle_leader_cast({blab, Text, all}, #state{agents = Agents} = State, _Election) ->
-	F = fun(_, {Pid, _}) ->
+	F = fun(_, {Pid, _, _, _}) ->
 		agent:blab(Pid, Text)
 	end,
-	dict:map(F, Agents),
+	spawn(fun() -> dict:map(F, Agents) end),
 	{noreply, State};
 handle_leader_cast(dump_election, State, Election) -> 
 	?DEBUG("Dumping leader election.~nSelf:  ~p~nDump:  ~p", [self(), Election]),

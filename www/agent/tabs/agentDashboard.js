@@ -9,103 +9,113 @@ if(typeof(agentDashboard) == 'undefined'){
 	agentDashboard.makeMenu = function(profileNom, agentNom){
 		var menu = new dijit.Menu({
 			onOpen:function(){
-				var profile = {};
+				this.profile = {};
 				for(var i = 0; i < agentDashboard.profiles.length; i++){
 					if(agentDashboard.profiles[i].name == profileNom){
-						profile = agentDashboard.profiles[i];
+						this.profile = agentDashboard.profiles[i];
 						break;
 					}
 				}
-				var agent = profile.agents[agentNom];
+				this.agent = this.profile.agents[agentNom];
+				var kids = this.getChildren();
+				for(var i = 0; i < kids.length; i++){
+					kids[i].attr('disabled', false);;
+				}
 				switch(agent.state){
 					case 'released':
 					case 'wrapup':
-						this.addChild(new dijit.MenuItem({
-							label:'Idle',
-							onClick:function(){
-								agent.setState('idle');
-							}
-						}));
+						kids[1].attr('disabled', true);
+						kids[2].attr('disabled', true);
 						break;
 					case 'idle':
 					case 'ringing':
-						this.addChild(new dijit.MenuItem({
-							label:'Released',
-							onClick:function(){
-								agent.setState('released', 'default');
-							}
-						}));
+						kids[0].attr('disabled', true);
+						kids[2].attr('disabled', true);
 						break;
 					case 'oncall':
-						this.addChild(new dijit.MenuItem({
-							label:'Spy',
-							onClick:function(){
-								agent.spy();
-							}
-						}));
+						kids[0].attr('disabled', true);
+						kids[1].attr('disabled', true);
 						break;
 					default:
-						// noop
+						kids[0].attr('disabled', true);
+						kids[1].attr('disabled', true);
+						kids[2].attr('disabled', true);
 				}
-				this.addChild(new dijit.MenuSeparator());
-				this.addChild(new dijit.MenuItem({
-					label:'Blab...',
-					onClick:function(){ 
-						agentDashboard.showBlabDialog('agent', agent.name);
-					}
-				}));
-				this.addChild(new dijit.MenuItem({
-					label:'Set Profile...',
-					onClick:function(){
-						var dialog = dijit.byId("profileSwapDialog");
-						var submitSetProf = function(){
-							var data = dialog.attr('value');
-							/*console.log(['das data', data]);*/
-							agent.setProfile(data.profile, data.makePermanent[0]);
-						}
-						dialog.attr('execute', submitSetProf);
-						dojo.xhrGet({
-							url:"/supervisor/get_profiles",
-							handleAs:"json",
-							load:function(r){
-								if(r.success){
-									var span = dojo.byId('profileSwapDialogParent');
-									while(span.hasChildNodes()){
-										span.removeChild(span.firstChild);
-									}
-									var html = '<select name="profile">';
-									dojo.forEach(r.profiles, function(item){
-										html += '<option>' + item + '</option>';
-									});
-									html += '</select>';
-									span.innerHTML = html;
-									var modenode = span.firstChild;
-									new dijit.form.ComboBox({
-										name:'profile'
-									}, modenode);
-									dialog.show();
-								} else {
-									warning(["get_profiles failure", r.message]);
-								}
-							},
-							error:function(r){
-								warning(["get_profiles errored", r])
-							}
-						});
-					}
-				}));
-				this.addChild(new dijit.MenuSeparator());
-				this.addChild(new dijit.MenuItem({
-					label: 'Kick',
-					onClick:function(){
-						agent.kick();
-					}
-				}));
-			},
-			onClose:function(){
-				this.destroyDescendants();
 			}
 		});
+		// TODO i18n these.
+		menu.addChild(new dijit.MenuItem({
+			label:'Idle',
+			onClick:function(){
+				this.getParent().agent.setState('idle');
+			}
+		}));
+		menu.addChild(new dijit.MenuItem({
+			label:'Released',
+			onClick:function(){
+				this.getParent().agent.setState('released', 'default');
+			}
+		}));
+		menu.addChild(new dijit.MenuItem({
+			label:'Spy',
+			onClick:function(){
+				this.getParent().agent.spy();
+			}
+		}));
+		menu.addChild(new dijit.MenuSeparator());
+		menu.addChild(new dijit.MenuItem({
+			label:'Blab...',
+			onClick:function(){ 
+				agentDashboard.showBlabDialog('agent', this.getParent().agent.name);
+			}
+		}));
+		menu.addChild(new dijit.MenuItem({
+			label:'Set Profile...',
+			onClick:function(){
+				var dialog = dijit.byId("profileSwapDialog");
+				var submitSetProf = function(){
+					var data = dialog.attr('value');
+					/*console.log(['das data', data]);*/
+					this.getParent().agent.setProfile(data.profile, data.makePermanent[0]);
+				}
+				dialog.attr('execute', submitSetProf);
+				dojo.xhrGet({
+					url:"/supervisor/get_profiles",
+					handleAs:"json",
+					load:function(r){
+						if(r.success){
+							var span = dojo.byId('profileSwapDialogParent');
+							while(span.hasChildNodes()){
+								span.removeChild(span.firstChild);
+							}
+							var html = '<select name="profile">';
+							dojo.forEach(r.profiles, function(item){
+								html += '<option>' + item + '</option>';
+							});
+							html += '</select>';
+							span.innerHTML = html;
+							var modenode = span.firstChild;
+							new dijit.form.ComboBox({
+								name:'profile'
+							}, modenode);
+							dialog.show();
+						} else {
+							warning(["get_profiles failure", r.message]);
+						}
+					},
+					error:function(r){
+						warning(["get_profiles errored", r])
+					}
+				});
+			}
+		}));
+		menu.addChild(new dijit.MenuSeparator());
+		menu.addChild(new dijit.MenuItem({
+			label: 'Kick',
+			onClick:function(){
+				this.getParent().agent.kick();
+			}
+		}));
 		return menu;
 	}
 	

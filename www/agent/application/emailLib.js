@@ -218,6 +218,9 @@ if(typeof(emailLib) == 'undefined'){
 	
 	//scrub &, <, and > so it's displayable via html
 	emailLib.scrubString = function(instr){
+		if(instr == undefined){
+			return '';
+		}
 		return instr.replace(/\&/g, '&amp;').replace(/\</g, '&lt;').replace(/\>/g, '&gt;').replace(/\"/g, '&quot;'); //"
 	};
 

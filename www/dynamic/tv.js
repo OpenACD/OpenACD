@@ -295,7 +295,7 @@ function agentAlerts(agents) {
 	var adiv = dojo.byId("agentalerts");
 	var now = new Date().getTime() / 1000;
 	for(var i in agents) {
-		if (agents[i].state == "released" && (now - agents[i].timestamp) > 6) {
+		if (agents[i].state == "released" && (now - agents[i].timestamp) > (60 * 10)) {
 			var s;
 			if (dojo.byId(agents[i].login)) {
 				s =dojo.byId(agents[i].login).firstChild;
@@ -358,6 +358,7 @@ function update() {
 		},
 		load:function(response, ioargs){
 			if(response) {
+				window.lastRes = response;
 				var now = new Date();
 				updateStats(dojo.byId("histhour"), getStatsSince((new Date().getTime() / 1000) - 3600, response.rawData));
 				updateStats(dojo.byId("histday"), getStatsSince((new Date().getTime() / 1000) - 86400, response.rawData));

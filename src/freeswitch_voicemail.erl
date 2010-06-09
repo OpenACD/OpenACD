@@ -201,7 +201,7 @@ handle_ring(Apid, Callrec, State) ->
 			true
 	end,
 	AgentRec = agent:dump_state(Apid),
-	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F, [single_leg, {eventfun, F2}]) of
+	case freeswitch_ring:start(State#state.cnode, AgentRec#agent.login, Apid, Callrec, 600, F, [single_leg, {eventfun, F2}]) of
 		{ok, Pid} ->
 			link(Pid),
 			{ok, [{"caseid", State#state.caseid}], State#state{ringchannel = Pid, ringuuid = freeswitch_ring:get_uuid(Pid), agent_pid = Apid}};

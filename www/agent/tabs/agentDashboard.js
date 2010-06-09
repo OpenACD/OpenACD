@@ -21,7 +21,7 @@ if(typeof(agentDashboard) == 'undefined'){
 				for(var i = 0; i < kids.length; i++){
 					kids[i].attr('disabled', false);;
 				}
-				switch(agent.state){
+				switch(this.agent.state){
 					case 'released':
 					case 'wrapup':
 						kids[1].attr('disabled', true);

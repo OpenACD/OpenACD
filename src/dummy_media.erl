@@ -539,16 +539,16 @@ handle_warm_transfer_cancel(_Callrec, #state{fail = Fail} = State) ->
 	case check_fail(warm_transfer_cancel, Fail) of
 		{success, Newfail} ->
 			{ok, State#state{fail = Newfail}};
-		{Fail, Newfail} ->
-			{error, Fail, State#state{fail = Newfail}}
+		{DidFail, Newfail} ->
+			{error, DidFail, State#state{fail = Newfail}}
 	end.
 
 handle_warm_transfer_complete(_Callrec, #state{fail = Fail} = State) ->
 	case check_fail(warm_transfer_complete, Fail) of
 		{success, Newfail} ->
 			{ok, State#state{fail = Newfail}};
-		{Fail, Newfail} ->
-			{error, Fail, State#state{fail = Newfail}}
+		{DidFail, Newfail} ->
+			{error, DidFail, State#state{fail = Newfail}}
 	end.
 
 -spec(handle_spy/3 :: (Spy :: pid(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}} | {'invalid', #state{}} | {'error', 'fail_once', #state{}}).

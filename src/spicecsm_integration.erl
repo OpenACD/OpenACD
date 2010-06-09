@@ -128,7 +128,7 @@ combine_id(Tenantid, Brandid) ->
 
 %% @doc Imports some data into the mnesia data to enable the spicecsm_integration
 %% to start much more quickly.
--spec(import/1 :: (Options :: [option() | 'addconf']) -> 'ok' | {'ok', pid()}).
+-spec(import/1 :: (Options :: [option() | 'add_conf']) -> 'ok' | {'ok', pid()}).
 import(Options) ->
 	{ok, Pid} = gen_server:start_link(?MODULE, Options, []),
 	Reslist = gen_server:call(Pid, {raw_request, <<"companyList">>, []}),

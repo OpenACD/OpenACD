@@ -253,7 +253,7 @@ get_profiles() ->
 	sort_profiles(Profiles).
 
 %% @doc Update the agent `string() Oldlogin' without changing the password.
--spec(set_agent/5 :: (Id :: string(), Newlogin :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'ok'}).
+-spec(set_agent/5 :: (Id :: string(), Newlogin :: string(), Newskills :: [atom()], NewSecurity :: security_level(), Newprofile :: string()) -> {'atomic', 'ok'} | {'aborted', any()}).
 set_agent(Id, Newlogin, Newskills, NewSecurity, Newprofile) ->
 	Props = [
 		{login, Newlogin},
@@ -265,7 +265,7 @@ set_agent(Id, Newlogin, Newskills, NewSecurity, Newprofile) ->
 
 %% @doc Sets the agent `string() Oldlogin' with new data in `proplist Props'; 
 %% does not change data that is not in the proplist.
--spec(set_agent/2 :: (Oldlogin :: string(), Props :: [{atom(), any()}]) -> {'atomic', 'ok'}).
+-spec(set_agent/2 :: (Oldlogin :: string(), Props :: [{atom(), any()}]) -> {'atomic', 'ok'} | {'aborted', any()}).
 set_agent(Id, Props) ->
 	F = fun() ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.id =:= Id]),

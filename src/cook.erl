@@ -128,7 +128,7 @@ init([Call, InRecipe, Queue, Qpid, {_Priority, {MSec, Sec, _MsSec}} = Key]) ->
 	Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
 	OptRecipe = optimize_recipe(InRecipe),
 	Now = util:now(),
-	Recipe = case Now - (MSec * 1000000 + Sec) of
+	Recipe = case round(Now - (MSec * 1000000 + Sec)) of
 		Ticked when Ticked > 1 ->
 			fast_forward(OptRecipe, Ticked / (?TICK_LENGTH / 1000), Qpid, Call);
 		_Else ->

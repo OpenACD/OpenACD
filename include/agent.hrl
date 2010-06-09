@@ -39,7 +39,7 @@
 	id :: 'undefined' | string(),
 	skills = [english, '_agent', '_node'] :: [atom(), ...],
 	connection :: pid(),
-	profile = "Default" :: string(),
+	profile = "Default" :: string() | 'error',
 	password = "" :: string(),
 	state = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
 	oldstate = released :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'released' | 'warmtransfer' | 'wrapup',	
@@ -95,7 +95,7 @@
 	{'graphed', boolean()}).
 
 -record(agent_profile, {
-	name = erlang:error({undefined, name}) :: string(),
+	name = erlang:error({undefined, name}) :: string() | 'error',
 	id :: 'undefined' | string(), %erlang:error({undefined, id}) :: string(),
 	order = 1 :: pos_integer(),
 	options = [] :: [profile_option()],

@@ -203,7 +203,7 @@ stop() ->
 
 %% @doc Attempts to remove from the dets table any medias that no longer
 %% exist.
--spec(prune_dets/0 :: () -> 'ok').
+-spec(prune_dets/0 :: () -> 'prune_dets').
 prune_dets() ->
 	?MODULE ! prune_dets.
 

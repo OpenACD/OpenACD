@@ -82,7 +82,7 @@ init([AgentRec, Security]) ->
 handle_call(logout, {From, _Ref}, #state{listener = From} = State) ->
 	{stop, normal, ok, State};
 handle_call(go_released, {From, _Ref}, #state{listener = From} = State) ->
-	Res = agent:set_state(State#state.agent_fsm, {released, default}),
+	Res = agent:set_state(State#state.agent_fsm, released, default),
 	{reply, Res, State};
 handle_call(go_available, {From, _Ref}, #state{listener = From} = State) ->
 	Res = agent:set_state(State#state.agent_fsm, idle),

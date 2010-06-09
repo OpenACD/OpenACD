@@ -371,7 +371,7 @@ behaviour_info(_Other) ->
 
 %% @doc Make the `pid() Genmedia' ring to `pid() Agent' based off of
 %% `#queued_call{} Qcall' with a ringout of `pos_integer() Timeout' miliseconds.
--spec(ring/4 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}, Qcall :: #queued_call{}, Timeout :: pos_integer())  -> 'ok' | 'invalid').
+-spec(ring/4 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}, Qcall :: #queued_call{}, Timeout :: pos_integer())  -> 'ok' | 'invalid' | 'deferred').
 ring(Genmedia, {_Agent, Apid} = A, Qcall, Timeout) when is_pid(Apid) ->
 	gen_server:call(Genmedia, {'$gen_media_ring', A, Qcall, Timeout});
 ring(Genmedia, Apid, Qcall, Timeout) when is_pid(Apid) ->

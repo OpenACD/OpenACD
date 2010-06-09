@@ -73,7 +73,7 @@
 -define(RINGING_LIMITS, {ringing, {0, 0, 60, {time, util:now()}}}).
 -define(WARMTRANSFER_LIMITS, {warmtransfer, {0, 60 * 2, 60 * 5, {time, util:now()}}}).
 -define(DEFAULT_REL, {"default", default, -1}).
--define(RING_FAIL_REL, {"Ring Fail", "Ring Fail", -1}).
+-define(RING_FAIL_REL, {"Ring Fail", ring_fail, -1}).
 -define(RING_LOCK_DURATION, 1000). % in ms
 
 -define(WRAPUP_AUTOEND_KEY, autoend_wrapup).
@@ -406,10 +406,10 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 %%<li>`{ringing, Call :: #call{}}'</li>
 %%<li>`{released, Reason :: string()}'</li>
 %%</ul>
--spec(idle/3 :: (Event :: {'precall', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'precall', #agent{}};
-	(Event :: {'ringing', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'ringing', #agent{}};
-	(Event :: {'released',  release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}}).
-	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'idle', #agent{}}).
+-spec(idle/3 :: (Event :: {'precall', #call{}}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'precall', #state{}};
+	(Event :: {'ringing', #call{}}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'ringing', #state{}};
+	(Event :: {'released',  release_code()}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'released', #state{}}).
+	%(Event :: any(), From :: pid(), State :: #state{}) -> {'reply', 'invalid', 'idle', #state{}}).
 idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 	gen_server:cast(dispatch_manager, {end_avail, self()}),
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
@@ -449,11 +449,11 @@ idle(_Message, State) ->
 %%<li>`{released, Reason :: string()}'</li>
 %%<li>`idle'</li>
 %</ul>
--spec(ringing/3 :: (Event :: 'oncall', From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'oncall', #agent{}};
-	(Event :: {'oncall', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'oncall', #agent{}};
-	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}};
-	(Event :: 'idle', From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'idle', #agent{}}).
-	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'ringing', #agent{}}).
+-spec(ringing/3 :: (Event :: 'oncall', From :: pid(), State :: #state{}) -> {'reply', 'ok', 'oncall', #state{}};
+	(Event :: {'oncall', #call{}}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'oncall', #state{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'released', #state{}};
+	(Event :: 'idle', From :: pid(), State :: #state{}) -> {'reply', 'ok', 'idle', #state{}}).
+	%(Event :: any(), From :: pid(), State :: #state{}) -> {'reply', 'invalid', 'ringing', #state{}}).
 ringing(oncall, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent} = State) when Statecall#call.ring_path == inband ->
 	?DEBUG("default ringpath inband, ring_path not outband", []),
 	case gen_media:oncall(Statecall#call.source) of
@@ -506,7 +506,7 @@ ringing(Event, _From, State) ->
 -spec(ringing/2 :: (Msg :: any(), State :: #state{}) -> {'stop', any(), #state{}} | {'next_state', statename(), #state{}}).
 ringing({failed_ring, Mpid}, #state{ring_fails = Failcount, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = Agent} = State) when Failcount >= 3 ->
 	?INFO("~s has failed too many rings, setting ring fail state", [Agent#agent.login]),
-	{reply, ok, released, Midstate} = ringing({released, ?RING_FAIL_REL}, "from", State),
+	{reply, ok, released, Midstate} = ringing({released, ?RING_FAIL_REL}, self(), State),
 	{next_state, released, Midstate#state{ring_fails = 0, ring_locked = unlocked}};
 ringing({failed_ring, Mpid}, #state{ring_locked = unlocked, ring_fails = Failcount, agent_rec = #agent{statedata = #call{source = Mpid} = _Call} = _Agent} = State) ->
 	{reply, ok, idle, Midstate} = ringing(idle, "from", State),
@@ -525,10 +525,10 @@ ringing(_Msg, State) ->
 %%<li>`idle'</li>
 %%<li>`{released, Reason}'</li>
 %%</ul>
--spec(precall/3 :: (Event :: {'outgoing', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'outgoingcall', #agent{}};
-	(Event :: 'idle', From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'idle', #agent{}};
-	(Event :: {'released', any()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}}).
-	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'precall', #agent{}}).
+-spec(precall/3 :: (Event :: {'outgoing', #call{}}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'outgoingcall', #state{}};
+	(Event :: 'idle', From :: pid(), State :: #state{}) -> {'reply', 'ok', 'idle', #state{}};
+	(Event :: {'released', any()}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'released', #state{}}).
+	%(Event :: any(), From :: pid(), State :: #state{}) -> {'reply', 'invalid', 'precall', #state{}}).
 precall({outgoing, Call}, _From, #state{agent_rec = #agent{statedata = StateCall} = Agent} = State) when Call#call.id =:= StateCall#call.id ->
 	gen_server:cast(Agent#agent.connection, {change_state, outgoing, Call}),
 	Newagent = Agent#agent{state=outgoing, oldstate=Agent#agent.state, statedata=Call, lastchange = util:now()},
@@ -553,7 +553,7 @@ precall({released, {Id, Text, Bias} = Reason}, _From, #state{agent_rec = #agent{
 precall(_Event, _From, State) -> 
 	{reply, invalid, precall, State}.
 
--spec(precall/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
+-spec(precall/2 :: (Msg :: any(), State :: #state{}) -> {'stop', any(), #state{}} | {'next_state', statename(), #state{}}).
 precall(register_rejected, State) ->
 	{stop, register_rejected, State};
 precall(_Msg, State) ->
@@ -566,12 +566,12 @@ precall(_Msg, State) ->
 %%<li>`{wrapup, Call :: #call}'<br />When the media path is `outband'</li>
 %%<li>`{warmtransfer, Transferto :: any()}'</li>
 %%</ul>
--spec(oncall/3 :: (Event :: {'released', 'undefined'}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'oncall', #agent{}};
-	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'oncall', #agent{}};
-	(Event :: 'wrapup', From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'wrapup', #agent{}};
-	(Event :: {'wrapup', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'wrapup', #agent{}};
-	(Event :: {'warmtransfer', any()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'warmtransfer', #agent{}}).
-	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'oncall', #agent{}}).
+-spec(oncall/3 :: (Event :: {'released', 'undefined'}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'oncall', #state{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #state{}) -> {'reply', 'queued', 'oncall', #state{}};
+	(Event :: 'wrapup', From :: pid(), State :: #state{}) -> {'reply', 'ok', 'wrapup', #state{}};
+	(Event :: {'wrapup', #call{}}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'wrapup', #state{}};
+	(Event :: {'warmtransfer', any()}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'warmtransfer', #state{}}).
+	%(Event :: any(), From :: pid(), State :: #state{}) -> {'reply', 'invalid', 'oncall', #state{}}).
 oncall({released, undefined}, _From, #state{agent_rec = Agent} = State) -> 
 	Newagent = Agent#agent{queuedrelease = undefined},
 	{reply, ok, oncall, State#state{agent_rec = Newagent}};
@@ -666,7 +666,7 @@ oncall({conn_call, Request}, {Pid, _Tag}, #state{agent_rec = #agent{statedata = 
 oncall(_Event, _From, State) -> 
 	{reply, invalid, oncall, State}.
 
--spec(oncall/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
+-spec(oncall/2 :: (Msg :: any(), State :: #state{}) -> {'stop', any(), #state{}} | {'next_state', statename(), #state{}}).
 oncall({conn_cast, Request}, #state{agent_rec = #agent{connection = Pid} = _Agent} = State) ->
 	case is_pid(Pid) of
 		true ->
@@ -686,8 +686,8 @@ oncall(register_rejected, #state{agent_rec = #agent{statedata = Media} = _Agent}
 	{stop, register_rejected, State};
 oncall(register_rejected, State) ->
 	{stop, register_rejected, State};
-oncall({mediapush, Mediapid, Data}, #state{agent_rec = #agent{statedata = Media} = _Agent} = State) when Media#call.source =:= Mediapid ->
-	case State#agent.connection of
+oncall({mediapush, Mediapid, Data}, #state{agent_rec = #agent{statedata = Media} = Agent} = State) when Media#call.source =:= Mediapid ->
+	case Agent#agent.connection of
 		undefined ->
 			{next_state, oncall, State};
 		Conn when is_pid(Conn) ->
@@ -705,11 +705,11 @@ oncall(Message, State) ->
 %%<li>`{wrapup, Call :: #call{}}'</li>
 %%<li>`{warmtransfer, Transferto :: any()}'</li>
 %%</ul>
--spec(outgoing/3 :: (Event :: {'released', 'undefined'}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'outgoing', #agent{}};
-	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'outgoing', #agent{}};
-	(Event :: {'wrapup', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'wrapup', #agent{}};
-	(Event :: {'warmtransfer', any()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'warmtransfer', #agent{}}).
-	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'outgoing', #agent{}}).
+-spec(outgoing/3 :: (Event :: {'released', 'undefined'}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'outgoing', #state{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #state{}) -> {'reply', 'queued', 'outgoing', #state{}};
+	(Event :: {'wrapup', #call{}}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'wrapup', #state{}};
+	(Event :: {'warmtransfer', any()}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'warmtransfer', #state{}}).
+	%(Event :: any(), From :: pid(), State :: #state{}) -> {'reply', 'invalid', 'outgoing', #state{}}).
 outgoing({released, undefined}, _From, #state{agent_rec = Agent} = State) -> 
 	Newagent = Agent#agent{queuedrelease=undefined},
 	{reply, ok, outgoing, State#state{agent_rec = Newagent}};
@@ -756,7 +756,7 @@ outgoing(get_media, _From, #state{agent_rec = #agent{statedata = Media} = _Agent
 outgoing(_Event, _From, State) -> 
 	{reply, invalid, outgoing, State}.
 
--spec(outgoing/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
+-spec(outgoing/2 :: (Msg :: any(), State :: #state{}) -> {'stop', any(), #state{}} | {'next_state', statename(), #state{}}).
 outgoing({conn_cast, Request}, #state{agent_rec = #agent{connection = Pid} = _Agent} = State) ->
 	case is_pid(Pid) of
 		true ->
@@ -780,11 +780,11 @@ outgoing(_Msg, State) ->
 %%<li>`{ringing, Call :: #call{}}'<br />While the system cannot automatically route to a released agent,
 %%there is functionality for a supervisor to force it through.</li>
 %%</ul>
--spec(released/3 :: (Event :: {'precall', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'precall', #agent{}};
-	(Event :: 'idle', From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'idle', #agent{}};
-	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'released', #agent{}};
-	(Event :: {'ringing', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'ringing', #agent{}}).
-	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'released', #agent{}}).
+-spec(released/3 :: (Event :: {'precall', #call{}}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'precall', #state{}};
+	(Event :: 'idle', From :: pid(), State :: #state{}) -> {'reply', 'queued', 'idle', #state{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'released', #state{}};
+	(Event :: {'ringing', #call{}}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'ringing', #state{}}).
+	%(Event :: any(), From :: pid(), State :: #state{}) -> {'reply', 'invalid', 'released', #state{}}).
 released({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 	gen_server:cast(Agent#agent.connection, {change_state, precall, Call}),
 	Newagent = Agent#agent{state=precall, oldstate=released, statedata=Call, lastchange = util:now()},
@@ -827,7 +827,7 @@ released({spy, Target}, {Conn, _Tag}, #state{agent_rec = #agent{connection = Con
 released(_Event, _From, State) ->
 	{reply, invalid, released, State}.
 
--spec(released/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
+-spec(released/2 :: (Msg :: any(), State :: #state{}) -> {'stop', any(), #state{}} | {'next_state', statename(), #state{}}).
 released(register_rejected, State) ->
 	{stop, register_rejected, State};
 released({conn_cast, {mediaload, #call{type = email}} = Request}, #state{agent_rec = #agent{connection = Pid} = _Agent} = State) ->
@@ -844,12 +844,12 @@ released(_Msg, State) ->
 %%<li>`{oncall, Call :: #call{}}'<br />If the agent goes back to the orignal call</li>
 %%<li>`{outgoing, Call :: #call{}}'</li> TODO outgoing state will go away when callrec supports in/out directions
 %%</ul>
--spec(warmtransfer/3 :: (Event :: {'released', undefined}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'warmtransfer', #agent{}};
-	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'released', #agent{}};
-	(Event :: {'wrapup', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'wrapup', #agent{}};
-	(Event :: {'oncall', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'oncall', #agent{}};
-	(Event :: {'outgoing', #call{}}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'outgoing', #agent{}}).
-	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'warmtransfer', #agent{}}).
+-spec(warmtransfer/3 :: (Event :: {'released', undefined}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'warmtransfer', #state{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #state{}) -> {'reply', 'queued', 'released', #state{}};
+	(Event :: {'wrapup', #call{}}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'wrapup', #state{}};
+	(Event :: {'oncall', #call{}}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'oncall', #state{}};
+	(Event :: {'outgoing', #call{}}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'outgoing', #state{}}).
+	%(Event :: any(), From :: pid(), State :: #state{}) -> {'reply', 'invalid', 'warmtransfer', #state{}}).
 warmtransfer({released, undefined}, _From, #state{agent_rec = Agent} = State) ->
 	Newagent = Agent#agent{queuedrelease=undefined},
 	{reply, ok, warmtransfer, State#state{agent_rec = Newagent}};
@@ -916,7 +916,7 @@ warmtransfer({warmtransfer, TransferTo}, _From, #state{agent_rec = Agent} = Stat
 warmtransfer(_Event, _From, State) ->
 	{reply, invalid, warmtransfer, State}.
 
--spec(warmtransfer/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
+-spec(warmtransfer/2 :: (Msg :: any(), State :: #state{}) -> {'stop', any(), #state{}} | {'next_state', statename(), #state{}}).
 warmtransfer(register_rejected, #state{agent_rec = #agent{statedata = {onhold, Media, calling, _Target}} = _Agent} = State) ->
 	gen_media:wrapup(Media#call.source),
 	{stop, register_rejected, State};
@@ -937,10 +937,10 @@ warmtransfer(_Msg, State) ->
 %%<li>`{released, Reason :: string()}'<br />Queues a release the next time the agent tries to go `idle'.</li>
 %%<li>`idle'<br />If the agent has a release queued, that state is set instead.</li>
 %%</ul>
--spec(wrapup/3 :: (Event :: {'released', undefined}, From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'wrapup', #agent{}};
-	(Event :: {'released', release_code()}, From :: pid(), State :: #agent{}) -> {'reply', 'queued', 'wrapup', #agent{}};
-	(Event :: 'idle', From :: pid(), State :: #agent{}) -> {'reply', 'ok', 'idle', #agent{}}).
-	%(Event :: any(), From :: pid(), State :: #agent{}) -> {'reply', 'invalid', 'wrapup', #agent{}}).
+-spec(wrapup/3 :: (Event :: {'released', undefined}, From :: pid(), State :: #state{}) -> {'reply', 'ok', 'wrapup', #state{}};
+	(Event :: {'released', release_code()}, From :: pid(), State :: #state{}) -> {'reply', 'queued', 'wrapup', #state{}};
+	(Event :: 'idle', From :: pid(), State :: #state{}) -> {'reply', 'ok', 'idle', #state{}}).
+	%(Event :: any(), From :: pid(), State :: #state{}) -> {'reply', 'invalid', 'wrapup', #state{}}).
 wrapup({released, undefined}, _From, #state{agent_rec = Agent} = State) ->
 	Newagent = Agent#agent{queuedrelease=undefined},
 	{reply, ok, wrapup, State#state{agent_rec = Newagent}};
@@ -968,7 +968,7 @@ wrapup(Event, From, State) ->
 	?WARNING("Invalid event '~p' from ~p while in wrapup.", [Event, From]),
 	{reply, invalid, wrapup, State}.
 
--spec(wrapup/2 :: (Msg :: any(), State :: #agent{}) -> {'stop', any(), #agent{}} | {'next_state', statename(), #agent{}}).
+-spec(wrapup/2 :: (Msg :: any(), State :: #state{}) -> {'stop', any(), #state{}} | {'next_state', statename(), #state{}}).
 wrapup(register_rejected, State) ->
 	{stop, register_rejected, State};
 wrapup(_Msg, State) ->
@@ -976,8 +976,8 @@ wrapup(_Msg, State) ->
 
 % generic handlers independant of state
 %% @private
-%-spec(handle_event/3 :: (Event :: 'stop', StateName :: statename(), State :: #agent{}) -> {'stop','normal', #agent{}}).
-	%(Event :: any(), StateName :: atom(), State :: #agent{}) -> {'next_state', atom(), #agent{}}).
+%-spec(handle_event/3 :: (Event :: 'stop', StateName :: statename(), State :: #state{}) -> {'stop','normal', #state{}}).
+	%(Event :: any(), StateName :: atom(), State :: #state{}) -> {'next_state', atom(), #state{}}).
 handle_event(ring_unlock, idle, State) ->
 	{next_state, idle, State#state{ring_locked = unlocked}};
 handle_event({blab, Text}, Statename, #state{agent_rec = #agent{connection = Conpid} = _Agent} = State) when is_pid(Conpid) ->
@@ -990,7 +990,7 @@ handle_event(_Event, StateName, State) ->
 	{next_state, StateName, State}.
 
 %% @private
-%-spec(handle_sync_event/4 :: (Event :: any(), From :: pid(), StateName :: statename(), State :: #agent{}) -> {'reply', any(), atom(), #agent{}}).
+%-spec(handle_sync_event/4 :: (Event :: any(), From :: pid(), StateName :: statename(), State :: #state{}) -> {'reply', any(), atom(), #state{}}).
 handle_sync_event(query_state, _From, StateName, State) -> 
 	{reply, {ok, StateName}, StateName, State};
 handle_sync_event(dump_state, _From, StateName, State) ->
@@ -1082,7 +1082,7 @@ handle_sync_event(_Event, _From, StateName, State) ->
 	{reply, ok, StateName, State}.
 
 %% @private
-%-spec(handle_info/3 :: (Event :: any(), StateName :: statename(), State :: #agent{}) -> {'stop', 'normal', #agent{}} | {'stop', 'shutdown', #agent{}} | {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
+%-spec(handle_info/3 :: (Event :: any(), StateName :: statename(), State :: #state{}) -> {'stop', 'normal', #state{}} | {'stop', 'shutdown', #state{}} | {'stop', 'timeout', #state{}} | {'next_state', statename(), #state{}}).
 handle_info(ring_unlock, Statename, State) ->
 	{next_state, Statename, State#state{ring_locked = unlocked}};
 handle_info({'EXIT', From, Reason}, Statename, #state{agent_rec = #agent{log_pid = From} = Agent} = State) ->
@@ -1191,7 +1191,7 @@ handle_info(_Info, StateName, State) ->
 	{next_state, StateName, State}.
 
 %% @private
--spec(agent_manager_exit/3 :: (Reason :: any(), StateName :: statename(), State :: #agent{}) -> {'stop', 'normal', #agent{}} | {'stop', 'shutdown', #agent{}} | {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
+-spec(agent_manager_exit/3 :: (Reason :: any(), StateName :: statename(), State :: #state{}) -> {'stop', 'normal', #state{}} | {'stop', 'shutdown', #state{}} | {'stop', 'timeout', #state{}} | {'next_state', statename(), #state{}}).
 agent_manager_exit(Reason, StateName, State) ->
 	case Reason of
 		normal ->
@@ -1205,7 +1205,7 @@ agent_manager_exit(Reason, StateName, State) ->
 			wait_for_agent_manager(5, StateName, State)
 	end.
 
--spec(wait_for_agent_manager/3 :: (Count :: non_neg_integer(), StateName :: statename(), State :: #agent{}) -> {'stop', 'timeout', #agent{}} | {'next_state', statename(), #agent{}}).
+-spec(wait_for_agent_manager/3 :: (Count :: non_neg_integer(), StateName :: statename(), State :: #state{}) -> {'stop', 'timeout', #state{}} | {'next_state', statename(), #state{}}).
 wait_for_agent_manager(0, _StateName, State) ->
 	?WARNING("Timed out waiting for agent manager respawn", []),
 	{stop, timeout, State};
@@ -1225,7 +1225,7 @@ wait_for_agent_manager(Count, StateName, #state{agent_rec = Agent} = State) ->
 
 % obviousness below.
 %% @private
-%-spec(terminate/3 :: (Reason :: any(), StateName :: statename(), State :: #agent{}) -> 'ok').
+%-spec(terminate/3 :: (Reason :: any(), StateName :: statename(), State :: #state{}) -> 'ok').
 terminate(Reason, StateName, #state{agent_rec = Agent} = _State) ->
 	?NOTICE("Agent terminating:  ~p, State:  ~p", [Reason, StateName]),
 %	case State#agent.log_pid of
@@ -1238,7 +1238,7 @@ terminate(Reason, StateName, #state{agent_rec = Agent} = _State) ->
 	ok.
 
 %% @private
-%-spec(code_change/4 :: (OldVsn :: string(), StateName :: statename(), State :: #agent{}, Extra :: any()) -> {'ok', statename(), #agent{}}).
+%-spec(code_change/4 :: (OldVsn :: string(), StateName :: statename(), State :: #state{}, Extra :: any()) -> {'ok', statename(), #state{}}).
 code_change(_OldVsn, StateName, State, _Extra) ->
 	{ok, StateName, State}.
 
@@ -1256,7 +1256,7 @@ format_status(terminate, [_PDict, #state{agent_rec = Agent} = State]) ->
 		_ ->
 			Agent
 	end,
-	[Newagent#agent{password = redacted}].
+	[Newagent#agent{password = "redacted"}].
 
 
 %% =====

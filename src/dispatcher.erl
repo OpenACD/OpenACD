@@ -191,7 +191,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% @doc queries the agent_manager for available agents with an appropriate skill-list.
 %% @see agent_manager:find_avail_agents_by_skill/1
--spec(get_agents/1 :: (Pid :: pid()) -> [{string, pid(), #agent{}}]).
+-spec(get_agents/1 :: (Pid :: pid()) -> {non_neg_integer(), [{string, pid(), #agent{}}]}).
 get_agents(Pid) -> 
 	gen_server:call(Pid, get_agents).
 

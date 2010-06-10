@@ -1,0 +1,39 @@
+<!-- 
+This sample demonstrates some of the variables that OpenACD looks for in the 
+dialplan.
+
+testme@nodename should be replaced with the actual node name of OpenACD,
+or a variable of the node name.
+
+This would normally be put in the public context dialplan.
+
+-->
+
+<include>
+	<extension name="OpenACD Example">
+		<condition field="destination_number" expression="^5551963$">
+			<action application="answer"/>
+			<action application="set" data="domain_name=$${domain}"/>
+			<!-- Set the queue OpenACD will put this call in. -->
+			<action application="set" data="queue=default_queue" />
+			<!-- Set the brand OpenACD will attach to this call.  
+			Brand is set by the id OpenACD uses. -->
+			<action application="set" data="brand=00990099" />
+			<!-- Set if the caller is allowed to go to voicemail -->
+			<action application="set" data="allow_voicemail=true" />
+			<!-- Set the music on hold that while in OpenACD's queue. -->
+			<action application="set" data="queue_mod=$${muzak}" />
+			<!-- Set the priority the call will have.  Lower is more
+			important (think 1st place, 2nd place, 3rd place in a race) -->
+			<action application="set" data="queue_priority=5" />
+			<!-- Tell OpenACD about the call, but don't queue it. -->
+			<action application="erlang_sendmsg" data="freeswitch_media_manager testme@nodename inivr ${uuid}" />
+			<!-- At this point, you can play back various problem messages,
+			get IVR inputs, set further options, or change some options
+			based on IVR.  I've nothing better to do, so queuing it.
+			I could have made this more effecient by skipping the above 
+			inivr message. -->
+			<action application="erlang" data="freeswitch_media_manager:! testme@nodename" />
+		</condition>
+	</extension>
+</include>

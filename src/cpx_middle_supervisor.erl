@@ -171,9 +171,11 @@ startup_test_() ->
 			start_args = [{local, dummy_media_manager}]
 		},
 		{ok, _Top} = start_named(3, 5, testsup),
-		_Middle = add_with_middleman(testsup, 3, 5, Dummyspec),
+		{ok, Middle} = add_with_middleman(testsup, 3, 5, Dummyspec),
+		?assert(is_pid(whereis(dummy_media_manager))),
 		drop_child(testsup, gen_server_mock),
-		?assertEqual(undefined, whereis(dummy_media_manager))
+		?assertEqual(undefined, whereis(dummy_media_manager)),
+		?assertNot(is_process_alive(Middle))
 	end}].
 	
 	

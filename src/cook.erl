@@ -176,7 +176,7 @@ handle_cast(stop_ringing, #state{qpid = Qpid} = State) ->
 	end;
 handle_cast({ring_to, Apid, QCall}, State) ->
 	Agent = agent:dump_state(Apid),
-	Newstate = case offer_call([{Agent#agent.login, Apid, Agent}], QCall) of
+	Newstate = case offer_call([{Agent#agent.login, Apid, 0, [], 0}], QCall) of
 		ringing ->
 			State#state{ringstate = ringing};
 		none ->

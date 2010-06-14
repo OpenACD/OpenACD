@@ -26,6 +26,9 @@ This would normally be put in the public context dialplan.
 			<!-- Set the priority the call will have.  Lower is more
 			important (think 1st place, 2nd place, 3rd place in a race) -->
 			<action application="set" data="queue_priority=5" />
+			<!-- Setting the below to false prevents OpenACD from sending
+			an answer to the incoming channel.  -->
+			<action application="set" data="erlang_answer=true" />
 			<!-- Tell OpenACD about the call, but don't queue it. -->
 			<action application="erlang_sendmsg" data="freeswitch_media_manager testme@nodename inivr ${uuid}" />
 			<!-- At this point, you can play back various problem messages,

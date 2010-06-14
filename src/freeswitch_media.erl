@@ -604,10 +604,16 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					end,
 					Calleridname = proplists:get_value("Caller-Caller-ID-Name", Rawcall, "Unknown"),
 					Calleridnum = proplists:get_value("Caller-Caller-ID-Number", Rawcall, "Unknown"),
+					Doanswer = proplists:get_value("variable_erlang_answer", Rawcall, true),
 					NewCall = Callrec#call{client=Client, callerid={Calleridname, Calleridnum}, priority = Priority},
-					freeswitch:sendmsg(State#state.cnode, UUID,
-						[{"call-command", "execute"},
-							{"execute-app-name", "answer"}]),
+					case Doanswer of
+						"false" ->
+							ok;
+						_ ->
+							freeswitch:sendmsg(State#state.cnode, UUID,
+								[{"call-command", "execute"},
+									{"execute-app-name", "answer"}])
+					end,
 					freeswitch:bgapi(State#state.cnode, uuid_setvar, UUID ++ " hangup_after_bridge true"),
 					% play musique d'attente
 					freeswitch:sendmsg(State#state.cnode, UUID,

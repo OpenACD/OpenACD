@@ -745,7 +745,7 @@ fast_forward_test_() ->
 		end}]
 	end}.
 
-sort_conditions_test() ->
+sort_conditions_test_() ->
 	[{"Simple comparison",
 	fun() ->
 		Input = [{eligible_agents, '=', "Doesn't matter"}, {queue_position, '=', "Doesn't matter"}, {type, '=', "Doesn't matter"}],

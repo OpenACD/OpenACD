@@ -320,7 +320,7 @@ do_route(none, Qpid, Callpid) ->
 		{_Key, Call} ->
 			Dispatchers = Call#queued_call.dispatchers,
 			Agents = sort_agent_list(Dispatchers),
-			%?DEBUG("Dispatchers:  ~p; Agents:  ~p", [Dispatchers, Agents]),
+			?DEBUG("Dispatchers:  ~p; Agents:  ~p", [Dispatchers, Agents]),
 			offer_call(Agents, Call);
 		none ->
 			?DEBUG("No call to ring",[]),
@@ -335,8 +335,10 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	F = fun(Dpid) ->
 		try dispatcher:get_agents(Dpid) of
 			{_, []} ->
-				%?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
+				?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
 				dispatcher:regrab(Dpid),
+				[];
+			{unknown_call, get_agents} ->
 				[];
 			{Count, Ag} ->
 				[{K, V, TimeAvail, AgSkills, {node(Dpid), Count}} || {K, V, TimeAvail, AgSkills} <- Ag]

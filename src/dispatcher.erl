@@ -140,13 +140,17 @@ handle_cast(regrab, State) ->
 	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
-	%?DEBUG("looping through filtered queues... ~p", [Filtered]),
 	case loop_queues(Filtered) of
 		none -> 
-			{noreply, State};
+			?DEBUG("No new queue found, maintaining same state, releasing hold for another dispatcher", []),
+			OldCall = State#state.call,
+			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
+			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
+			{noreply, State#state{qpid = undefined, call = undefined, tref = Tref}};
 		{Qpid, Call} ->
 			OldCall = State#state.call,
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
+			?DEBUG("updating from call ~s in ~p to ~s in ~p", [OldCall#queued_call.id, State#state.qpid, Call#queued_call.id, Qpid]),
 			{noreply, State#state{qpid=Qpid, call=Call}}
 	end;
 handle_cast(_Msg, State) ->
@@ -334,7 +338,41 @@ randomtest_loop(Queues, Total, Dict, Acc) ->
 	Dict2 = dict:store(Name, dict:fetch(Name, Dict) +1, Dict),
 	randomtest_loop(Queues, Total, Dict2, Acc+1).
 
-
+agents_avail_test_() ->
+	{foreach,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		crypto:start(),
+		queue_manager:start([node()]),
+		{_, Q1} = queue_manager:add_queue("q1", []),
+		agent_manager:start([node()]),
+		dispatch_manager:start(),
+		{_, A1} = agent_manager:start_agent(#agent{login = "a1"}),
+		{_, A2} = agent_manager:start_agent(#agent{login = "a2", skills = ['_all']}),
+		{Q1, A1, A2}
+	end,
+	fun(_) ->
+		agent_manager:stop(),
+		dispatch_manager:stop(),
+		queue_manager:stop(),
+		mnesia:stop(),
+		mnesia:delete_schema([node()])
+	end,
+	[fun({_Q1, A1, A2}) ->
+		{"a call is routed even if the agent that can take it starts released",
+		fun() ->
+			dummy_media:q([{skills, [skills]}]),
+			agent:set_state(A1, idle),
+			timer:sleep(10),
+			?assertEqual({ok, idle}, agent:query_state(A1)),
+			agent:set_state(A2, idle),
+			timer:sleep(10),
+			?assertEqual({ok, ringing}, agent:query_state(A2))
+		end}
+	end]}.
 
 grab_test_() ->
 	{

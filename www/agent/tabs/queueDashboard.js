@@ -467,9 +467,9 @@ queueDashboard.queueSub = dojo.subscribe('dashboard/supevent/queue', queueDashbo
 	if(supevent.action == 'drop'){
 		delete queueDashboard.dataStore.queues[supevent.name];
 		var d = dojo.query('tr[purpose="queueDisplay"][queue="' + supevent.name + '"]')[0];
-		if(d){
-			dojo.destroy(d);
-		}
+		dojo.destroy(d);
+		var t = dojo.query('table[purpose="callDisplay"][queue="' + supevent.name + '"]')[0];
+		dojo.destroy(t);
 	} else if(supevent.action == 'set'){
 		if(queueDashboard.dataStore.queues[supevent.name] == undefined){
 			queueDashboard.dataStore.queues[supevent.name] = new queueDashboard.Queue(supevent.name);

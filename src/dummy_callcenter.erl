@@ -68,6 +68,7 @@
 	agent_max_calls :: pos_integer() | 'infinity',
 	simulation_life :: pos_integer() | 'infinity',
 	queues :: [string()] | 'any',
+	additional_queues = [] :: [{string, any()}],
 	agent_opts :: [any()],
 	call_priority :: any()
 }).
@@ -88,15 +89,16 @@
 %%====================================================================
 
 -type(frequency() :: {pos_integer(), pos_integer()} | pos_integer()).
--type(call_frequency() :: {call_frequency, frequency()}).
+-type(call_frequency() :: {'call_frequency', frequency()}).
 %-type(call_deviation_limit() :: {call_deviation_limit, non_neg_integer()}).
--type(call_max_life() :: frequency()).
--type(agents() :: {agents, pos_integer()}).
--type(agent_max_calls() :: {agent_max_calls, frequency() | 'infinity'}).
+-type(call_max_life() :: {'call_max_life', frequency()}).
+-type(agents() :: {'agents', pos_integer()}).
+-type(agent_max_calls() :: {'agent_max_calls', frequency() | 'infinity'}).
 %-type(agent_max_calls_deviation_limit() :: {agent_max_calls_deviation_limit, non_neg_integer()}).
--type(simulation_life() :: {simulation_life, pos_integer() | 'infinity'}).
--type(queues() :: {queues, [string()] | 'any'}).
--type(agent_opts() :: {agent_opts, [any()]}).
+-type(simulation_life() :: {'simulation_life', pos_integer() | 'infinity'}).
+-type(queues() :: {'queues', [string()] | 'any'}).
+-type(additonal_queues() :: {'additonal_queues', [{string(), [any()]}]}).
+-type(agent_opts() :: {'agent_opts', [any()]}).
 
 -type(start_option() :: 
 	call_frequency() |
@@ -105,9 +107,10 @@
 	agent_max_calls() | 
 	agent_opts() |
 	simulation_life() | 
-	queues()
+	queues() |
+	additonal_queues()
 ).
--type(start_options() :: [start_option()]).
+-type(start_options() :: [start_option()] | {'file', string()}).
 
 %% @doc Start the simulator with the given options.
 %% * call_frequency: {30, 900}
@@ -124,6 +127,9 @@
 %%		How many minutes the the simulation will run.
 %% * queues: any
 %%		The queues to place calls in.
+%% * additional_queues: [{QName::string(), QueueOptions::list()}]
+%%		Additional queues to start, and thier config options.
+%%		@see queue_manager:add_queue/2
 %% * agent_opts:  The agent options used to start dummy agents.  A scale of 1000
 %%		is automatically added, overriding whatever is set.  Defaults to [].
 %%
@@ -136,8 +142,21 @@
 %% * wrapup: {5, 120}
 %% * release_frequency: {3600, 10800}
 %% * release_percent: 1
-
+%%
+%% You can put the options list in a file and call start with 
+%% `{file, Filename::string()}'.  Erlang will file:consult/1 the passed
+%% file name and send the resulting list as the options list.  Note that
+%% a file for consult expects terms seperated by '. ' (dot then whitespace).
+%%
+%% Example consult file:
+%%	<pre>% comments start with percent sign
+%%	% and are thankfully ignored.
+%%	{simulation_life, infinity}.
+%%	{agents, 15}.</pre>
 -spec(start/1 :: (Options :: start_options()) -> {'ok', pid()}).
+start({file, Consult}) ->
+	{ok, Options} = file:consult(Consult),
+	start(Options);
 start(Options) ->
 	gen_server:start({local, ?SERVER}, ?MODULE, Options, []).
 
@@ -147,6 +166,9 @@ start() ->
 
 %% @doc.  @see start/1
 -spec(start_link/1 :: (Options :: start_options()) -> {'ok', pid()}).
+start_link({file, Consult}) ->
+	{ok, Options} = file:consult(Consult),
+	start_link(Options);
 start_link(Options) ->
 	gen_server:start_link({local, ?SERVER}, ?MODULE, Options, []).
 
@@ -199,6 +221,7 @@ init(Options) ->
 		agent_max_calls = proplists:get_value(agent_max_calls, Options, {20, 40}),
 		simulation_life = proplists:get_value(simulation_life, Options, infinity),
 		queues = proplists:get_value(queues, Options, any),
+		additional_queues = proplists:get_value(additional_queues, Options, []),
 		agent_opts = proplists:get_value(agent_opts, Options, [
 			{ringing, {distribution, 15}},
 			{oncall, {distribution, 330}},
@@ -207,6 +230,8 @@ init(Options) ->
 			{release_percent, 1}
 		])
 	},
+	% start any additional queues
+	[queue_manager:add_queue(Qnom, Qoptions) || {Qnom, Qoptions} <- Protoconf#conf.additional_queues],
 	%dmm is dummy_media_manager
 	DmmOpts = [
 		{call_frequency, Protoconf#conf.call_frequency},
@@ -222,7 +247,7 @@ init(Options) ->
 			lists:foreach(fun({Key, Val}) ->
 				dummy_media_manager:set_option(Key, Val)
 			end, DmmOpts),
-			lists:foreach(fun(_) -> dummy_media_manager ! spawn_call end, lists:seq(1, proplists:get_value(start_count, DmmOpts)))
+			[dummy_media_manager ! spawn_call || _X <- lists:seq(1, proplists:get_value(start_count, DmmOpts))]
 	end,
 	Newagentopts = proplists_replace(scale, 1000, Protoconf#conf.agent_opts),
 	Conf = Protoconf#conf{agent_opts = Newagentopts},
@@ -373,7 +398,16 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, #state{conf = Conf} = _State) ->
+	[begin 
+		Qpid = queue_manager:get_queue(Qnom),
+		case Qpid of
+			undefined ->
+				ok;
+			_ ->
+				call_queue:stop(Qpid)
+		end
+	end || {Qnom, _Opts} <- Conf#conf.additional_queues],
     ok.
 
 %%--------------------------------------------------------------------

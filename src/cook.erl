@@ -900,6 +900,21 @@ do_operation_test_() ->
 			?assertEqual([], do_operation([{announce, "do the robot"}], QPid, Mpid)),
 			Assertmocks()
 		end}
+	end,
+	fun({_QMPid, QPid, Mpid, Assertmocks}) ->
+		{"M-m-m-m-m-multi-op! (add and remove skills)",
+		fun() ->
+			gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+				{ok, #call{id = "c1", source = Mpid}, State}
+			end),
+			gen_server_mock:expect_call(QPid, fun({add_skills, "c1", [add_skills]}, _From, _State) -> ok end),
+			gen_server_mock:expect_call(Mpid, fun('$gen_media_get_call', _From, State) ->
+				{ok, #call{id = "c1", source = Mpid}, State}
+			end),
+			gen_server_mock:expect_call(QPid, fun({remove_skills, "c1", [remove_skills]}, _From, _State) -> ok end),
+			?assertEqual([], do_operation([{add_skills, [add_skills]}, {remove_skills, [remove_skills]}], QPid, Mpid)),
+			Assertmocks()
+		end}
 	end]}.
 
 check_conditions_test_() ->

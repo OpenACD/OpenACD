@@ -55,6 +55,7 @@
 	call :: #queued_call{} | 'undefined',
 	tref :: any(), % timer reference
 	qpid :: pid(),
+	tried_queues = [] :: [pid()],
 	agents = [] :: [pid()]}).
 	
 -type(state() :: #state{}).
@@ -88,7 +89,7 @@ init([]) ->
 			{ok, State#state{tref=Tref}};
 		{Qpid, Call} ->
 			%?DEBUG("sweet, grabbed a call: ~p", [Call#queued_call.id]),
-			{ok, State#state{call=Call, qpid=Qpid}}
+			{ok, State#state{call=Call, qpid=Qpid, tried_queues = [Qpid]}}
 	end.
 
 %%--------------------------------------------------------------------
@@ -136,22 +137,22 @@ handle_cast(stop, State) ->
 handle_cast({update_skills, Skills}, #state{call = Call} = State) ->
 	Newcall = Call#queued_call{skills = Skills},
 	{noreply, State#state{call = Newcall}};
-handle_cast(regrab, State) ->
+handle_cast(regrab, #state{tried_queues = Tried} = State) ->
 	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
-	Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
+	Filtered = [Elem || {_Qnom, Qpid, {_Pos, _QueuedCall}, _Weight} = Elem <- Queues, not lists:member(Qpid, Tried)],
 	case loop_queues(Filtered) of
 		none -> 
 			?DEBUG("No new queue found, maintaining same state, releasing hold for another dispatcher", []),
 			OldCall = State#state.call,
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
-			{noreply, State#state{qpid = undefined, call = undefined, tref = Tref}};
+			{noreply, State#state{qpid = undefined, call = undefined, tref = Tref, tried_queues = []}};
 		{Qpid, Call} ->
 			OldCall = State#state.call,
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			?DEBUG("updating from call ~s in ~p to ~s in ~p", [OldCall#queued_call.id, State#state.qpid, Call#queued_call.id, Qpid]),
-			{noreply, State#state{qpid=Qpid, call=Call}}
+			{noreply, State#state{qpid=Qpid, call=Call, tried_queues = [Qpid | Tried]}}
 	end;
 handle_cast(_Msg, State) ->
 	{noreply, State}.
@@ -373,7 +374,69 @@ agents_avail_test_() ->
 			?assertEqual({ok, ringing}, agent:query_state(A2))
 		end}
 	end]}.
-
+	
+prevent_infinite_regrabbing_test_() ->
+	{timeout,
+	10,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		crypto:start(),
+		queue_manager:start([node()]),
+		{_, Q1} = queue_manager:add_queue("q1", []),
+		{_, Q2} = queue_manager:add_queue("q2", []),
+		agent_manager:start([node()]),
+		{_, A1} = agent_manager:start_agent(#agent{login = "a1"}),
+		{ok, M1} = dummy_media:q([{skills, [skills]}, {queues, ["q1"]}]),
+		{ok, M2} = dummy_media:q([{skills, [skills]}, {queues, ["q2"]}]),
+		agent:set_state(A1, idle),
+		timer:sleep(100),
+		{ok, State} = init([]),
+		{Regrabs, Grab_bests} = O = recloop(0, 0, State),
+		?DEBUG("regrabs and grab_bests:  ~p", [O]),
+		?assertEqual(2, Regrabs),
+		% two because the dispatcher will start bound to q1.
+		% the regrab bounds it to q2 (regrab 1)
+		% then it's bound to nothing (regrab 2)
+		% next message should be a grab_best, which restarts the cycle.
+		?assertEqual(1, Grab_bests)
+	end}.
+	
+recloop(Regrabs, Grab_bests, _State) when (Regrabs > 2); Grab_bests >= 1 ->
+	{Regrabs, Grab_bests};
+recloop(Regrabs, Grab_bests, State) ->
+	receive
+		{'$gen_call',{Pid, Ref} = From, Msg} ->
+			?DEBUG("recloop ~p", [Msg]),
+			{reply, Reply, Newstate} = handle_call(Msg, From, State),
+			gen_server:reply(From, Reply),
+			recloop(Regrabs, Grab_bests, Newstate);
+		{'$gen_cast', Msg} ->
+			?DEBUG("recloop ~p", [Msg]),
+			{noreply, Newstate} = handle_cast(Msg, State),
+			Newgrabs = case Msg of
+				regrab ->
+					Regrabs + 1;
+				_ ->
+					Regrabs
+			end,
+			recloop(Newgrabs, Grab_bests, Newstate);
+		Msg ->
+			{noreply, Newstate} = handle_info(Msg, State),
+			?DEBUG("recloop ~p", [Msg]),
+			Newgrabs = case Msg of
+				grab_best ->
+					Grab_bests + 1;
+				_ ->
+					Grab_bests
+			end,
+			recloop(Regrabs, Newgrabs, Newstate)
+	after (?POLL_INTERVAL - 100) ->
+		recloop(Regrabs, Grab_bests, State)
+	end.
+	
 grab_test_() ->
 	{
 		foreach,
@@ -434,7 +497,7 @@ grab_test_() ->
 					{ok, DPid} = dispatcher:start(),
 					Queuedcall = dispatcher:bound_call(DPid),
 					dispatcher:regrab(DPid),
-					?assertEqual(Queuedcall, dispatcher:bound_call(DPid))
+					?assertEqual(none, dispatcher:bound_call(DPid))
 				end}
 			end,
 			fun([Pid1, Pid2, _Pid3]) ->
@@ -463,7 +526,7 @@ grab_test_() ->
 					Queuedcall = dispatcher:bound_call(DPid),
 					dispatcher:regrab(DPid),
 					Regrabbed = dispatcher:bound_call(DPid),
-					?assertEqual(Queuedcall, Regrabbed)
+					?assertEqual(none, Regrabbed)
 				end}
 			end,
 			fun([Pid1, _Pid2, _Pid3]) ->

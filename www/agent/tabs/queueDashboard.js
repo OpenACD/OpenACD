@@ -462,6 +462,22 @@ queueDashboard.mediaSub = dojo.subscribe('dashboard/supevent/media', queueDashbo
 	dojo.publish("queueDashboard/supevent", [supcp]);
 });
 
+queueDashboard.queueSub = dojo.subscribe('dashboard/supevent/queue', queueDashboard, function(supevent){
+	console.log('queue sup event', supevent);
+	if(supevent.action == 'drop'){
+		delete queueDashboard.dataStore.queues[supevent.name];
+		var d = dojo.query('tr[purpose="queueDisplay"][queue="' + supevent.name + '"]')[0];
+		if(d){
+			dojo.destroy(d);
+		}
+	} else if(supevent.action == 'set'){
+		if(queueDashboard.dataStore.queues[supevent.name] == undefined){
+			queueDashboard.dataStore.queues[supevent.name] = new queueDashboard.Queue(supevent.name);
+		}
+	}
+	queueDashboard.drawQueueTable();
+});
+
 queueDashboard.globalTick = dojo.subscribe('globaltick', function(){
 	var now = Math.floor(new Date().getTime() / 1000);
 	var nodes = dojo.query('table[queue][purpose="callDisplay"] td[purpose="age"]', 'dashboardQueueCallsPane');

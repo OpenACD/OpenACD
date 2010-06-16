@@ -662,7 +662,7 @@ transform_event({set, {{media, Id}, _Hp, Details, Time}}, [], QueueCache, AgentC
 		undefined ->
 			{ivr, null};
 		Nom ->
-			Group = proplists:get_value(Nom, QueueCache),
+			Group = proplists:get_value(Nom, QueueCache, "default"),
 			{queue, {Group, Nom}}
 	end,
 	History = case State of

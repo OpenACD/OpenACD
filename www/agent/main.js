@@ -406,6 +406,66 @@ dojo.addOnLoad(function(){
 		EventLog.log(line);
 	});
 	
+	var seedUI = function(confobj){
+		var confs = {
+			username:'',
+			elapsed:'',
+			skew:0,
+			profile:'',
+			statedata:'',
+			state:'',
+			voipendpoint:false,
+			voipendpointdata:false,
+			useoutbandring:true,
+			mediaload:false,
+			timestamp:false
+		};
+		dojo.mixin(confs, confobj);
+		dojo.byId("main").style.display="block";
+		dojo.byId("main").style.visibility = "visible";
+		dijit.byId("tabPanel_tablist").domNode.style.visibility = 'visible';
+		dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("agent/logout", function(data){
+			dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
+		});
+		agent = new Agent(confs.username, confs.elapsed, confs.skew);
+		agent.profile = confs.profile;
+		agent.state = confs.state;
+		agent.statedata = confs.statedata;
+		if(agent.state){
+			dojo.publish("agent/state", [{"state":agent.state, "statedata":agent.statedata}]);
+			if( (agent.state == "oncall") && (confs.mediaload) ){
+				var fixedres = confs.mediaload;
+				fixedres.media = confobj.statedata.type;
+				dojo.publish("agent/mediaload", [fixedres]);
+			}
+		}
+		buildReleaseMenu(agent);
+		buildOutboundMenu(agent);
+		buildQueueMenu(agent);
+		dojo.byId("agentname").innerHTML = confs.username;
+		dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + confs.profile;
+		agent.stopwatch.onTick = function(){
+			var elapsed = agent.stopwatch.time();
+			dojo.byId("timerdisp").innerHTML = formatseconds(elapsed);
+		}
+		agent.stopwatch.start();
+		var settings = {};
+		if(dojo.cookie('agentui-settings')){
+			settings = dojo.fromJson(dojo.cookie('agentui-settings'));
+			if(! settings.tabs){
+				settings.tabs = [];
+			}
+		}
+		settings.username = confs.username;
+		settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
+		settings.voipendpointdata = confs.voipendpointdata ? confs.voipendpointdata : settings.voipendpoint;
+		settings.useoutbandring = confs.useoutbandring ? confs.useoutbandring : settings.useoutbandring;
+		for(var i = 0; i < settings.tabs.length; i++){
+			loadTab(settings.tabs[i]);
+		}
+		dojo.cookie('agentui-settings', dojo.toJson(settings));
+	}
+	
 	dojo.xhrGet({
 		url:"/checkcookie",
 		handleAs:"json",
@@ -414,74 +474,11 @@ dojo.addOnLoad(function(){
 		},
 		load:function(response, ioargs){
 			if(response.success){
-				dojo.byId("main").style.display="block";
-				dojo.byId("main").style.visibility = "visible";
-				dijit.byId("tabPanel_tablist").domNode.style.visibility = 'visible';
-				dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("agent/logout", function(data){
-					dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
-				});
-				agent = new Agent(response.login, parseInt(response.statetime, 10), response.timestamp);
-				agent.setSkew(response.timestamp);
-				agent.profile = response.profile;
-				agent.statedata = response.statedata;
-				buildReleaseMenu(agent);
-				buildOutboundMenu(agent);
-				buildQueueMenu(agent);
-				dojo.byId("agentname").innerHTML = response.login;
-				agent.state = response.state;
-				dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response.profile;
-				dojo.publish("agent/state", [{"state":response.state, "statedata":response.statedata}]);
-				if( (response.state == "oncall") && (response.mediaload) ){
-					var fixedres = response.mediaload;
-					fixedres.media = response.statedata.type;
-					dojo.publish("agent/mediaload", [fixedres]);
-				}
-
-				agent.stopwatch.onTick = function(){
-					var elapsed = agent.stopwatch.time();
-					dojo.byId("timerdisp").innerHTML = formatseconds(elapsed);
-				};
-				agent.stopwatch.start();
-				var settings = {
-					tabs:[]
-				};
-				if (dojo.cookie('agentui-settings')) {
-					settings = dojo.fromJson(dojo.cookie('agentui-settings'));
-					if(! settings.tabs){
-						settings.tabs = [];
-					}
-				}
-				console.log("tabs:");
-				console.log(settings.tabs);
-				for(var i = 0; i < settings.tabs.length; i++){
-					loadTab(settings.tabs[i]);
-				}
-
-				/* XXX wtf is this ? I'm disabling it pending review */
-				/*
-				for(var i = 0; i < settings.tabs.length; i++){
-					// TODO This could get ugly if/when we add more tabs.
-					if(settings.tabs[0] == "supervisorTab"){
-						if(! dijit.byId("supervisorTab")){							
-							var t = new dojox.layout.ContentPane({
-								//href:"tabs/supervisor.html",
-								title:"Supervisor",
-								executeScripts: "true",
-								id:"supervisorTab",
-								closable:true
-							});
-							dijit.byId("tabPanel").addChild(t);
-						}
-						dijit.byId("supervisorTab").attr('href', "tabs/supervisor.html");
-						dijit.byId("tabPanel").selectChild("supervisorTab");
-						dijit.byId("tabPanel").logoutListener = dojo.subscribe("agent/logout", function(data){
-							dijit.byId("tabPanel").closeChild(dijit.byId("supervisorTab"));
-							dojo.unsubscribe(dijit.byId("tabPanel").logoutListener);
-							storeTab('supervisorTab');
-						});
-					}
-				}*/
-				dojo.cookie('agentui-settings', dojo.toJson(settings)); 
+				var seedConf = dojo.clone(response);
+				seedConf.username = seedConf.login;
+				seedConf.elapsed = parseInt(response.statetime, 10);
+				seedConf.skew = response.timestamp;
+				seedUI(seedConf);
 			}
 			else{
 				dijit.byId("loginpane").show();
@@ -851,40 +848,11 @@ dojo.addOnLoad(function(){
 							if(response2.success){
 								EventLog.log("Logged in");
 								dijit.byId("loginpane").hide();
-								dojo.byId("main").style.display="block";
-								dojo.byId("main").style.visibility = "visible";
-								dijit.byId("tabPanel_tablist").domNode.style.visibility = 'visible';
-								dijit.byId('tabPanel_tablist').logoutListener = dojo.subscribe("agent/logout", function(data){
-									dijit.byId('tabPanel_tablist').domNode.style.visibility = 'hidden';
-								});
-								dojo.byId("agentname").innerHTML = attrs.username;
-								dojo.byId("profiledisp").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").PROFILE + ":  " + response2.profile;
-								var settings = {};
-								if (dojo.cookie('agentui-settings')) {
-									settings = dojo.fromJson(dojo.cookie('agentui-settings'));
-								}
-								settings.username = attrs.username;
-								settings.voipendpoint = attrs.voipendpoint;
-								settings.voipendpointdata = attrs.voipendpointdata;
-								settings.useoutbandring = dijit.byId('useoutbandring').attr('checked');
-								if(settings.tabs){
-									for(var i = 0; i < settings.tabs.length; i++){
-										loadTab(settings.tabs[i]);
-									}
-								}
-								dojo.cookie('agentui-settings', dojo.toJson(settings)); 
-								debug(response2);
-								agent = new Agent(attrs.username, parseInt(response2.statetime, 10));
-								agent.profile = response2.profile;
-								agent.setSkew(response2.timestamp);
-								agent.stopwatch.onTick = function(){
-									var elapsed = agent.stopwatch.time();
-									dojo.byId("timerdisp").innerHTML = formatseconds(elapsed);
-								};
-								buildReleaseMenu(agent);
-								buildOutboundMenu(agent);
-								buildQueueMenu(agent);
-								agent.stopwatch.start();
+								var seedSettings = dojo.clone(attrs);
+								seedSettings.useoutbandring = dijit.byId('useoutbandring').attr('checked');
+								seedSettings.profile = response2.profile;
+								seedSettings.timestamp = response2.timestamp;
+								seedUI(seedSettings);
 							} else{
 								dojo.byId("loginerrp").style.display = "block";
 								dojo.byId("loginerrspan").innerHTML = response2.message;

@@ -143,7 +143,7 @@ init([Cnode, DialString, UUID]) ->
 
 -spec(urlpop_getvars/1 :: (State :: #state{}) -> [{binary(), binary()}]).
 urlpop_getvars(#state{ivroption = Ivropt} = _State) ->
-	[{"ivropt", Ivropt}].
+	[{"itxt", Ivropt}].
 
 -spec(handle_announce/3 :: (Announcement :: string(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_announce(Announcement, Callrec, State) ->
@@ -201,7 +201,7 @@ handle_ring(Apid, Callrec, State) ->
 	case freeswitch_ring:start(State#state.cnode, AgentRec#agent.login, Apid, Callrec, 600, F) of
 		{ok, Pid} ->
 			link(Pid),
-			{ok, [{"ivropt", State#state.ivroption}], State#state{ringchannel = Pid, agent_pid = Apid}};
+			{ok, [{"itxt", State#state.ivroption}], State#state{ringchannel = Pid, agent_pid = Apid}};
 		{error, Error} ->
 			?ERROR("error ringing agent:  ~p; agent:  ~s call: ~p", [Error, AgentRec#agent.login, Callrec#call.id]),
 			{invalid, State}

@@ -599,8 +599,8 @@ parse_path(Path) ->
 					{api, warm_transfer_cancel};
 				["queue_transfer", Number] ->
 					{api, {queue_transfer, Number}};
-				["queue_transfer", Number, CaseID] ->
-					{api, {queue_transfer, Number, CaseID}};
+%				["queue_transfer", Number, CaseID] ->
+%					{api, {queue_transfer, Number, CaseID}};
 				["init_outbound", Client, Type] ->
 					{api, {init_outbound, Client, Type}};
 				["supervisor" | Supertail] ->

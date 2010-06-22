@@ -61,6 +61,9 @@
 	encode_agent/1,
 	encode_agents/1
 ]).
+-export([
+	parse_posted_skills/1
+]).
 
 -type(simple_json() :: {'struct', [{atom() | binary(), atom() | binary()}]}).
 
@@ -1056,7 +1059,7 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 	{200, [], mochijson2:encode(Json)};
 	
 api({medias, _Node, "cpx_supervisor", "get"}, ?COOKIE, _Post) ->
-	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"get what now?">>}]})};
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"cpx_supervisor get invalid, need to know which cpx_value key">>}]})};
 api({medias, Node, "cpx_supervisor", "get", "archivepath"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_value, [archivepath]) of
@@ -1074,6 +1077,25 @@ api({medias, Node, "cpx_supervisor", "get", "mantispath"}, ?COOKIE, _Post) ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, <<"">>}]})};
 		{ok, Value} ->
 			{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, list_to_binary(Value)}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+api({medias, Node, "cpx_supervisor", "get", "transferprompt"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	case rpc:call(Atomnode, cpx_supervisor, get_value, [transferprompt]) of
+		none ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"skills">>, []}, {<<"prompts">>, []}]})};
+		{ok, {Prompts, Skills}} ->
+			EncodedSkills = [encode_skill(X) || X <- Skills],
+			EncodedPrompts = [
+				{struct, [
+					{<<"name">>, Name},
+					{<<"label">>, Label},
+					{<<"regex">>, RegEx}
+				]} ||
+				{Name, Label, RegEx} <- Prompts
+			],
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"skills">>, EncodedSkills}, {<<"prompts">>, EncodedPrompts}]})};
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
@@ -1107,6 +1129,27 @@ api({medias, Node, "cpx_supervisor", "update", "mantispath"}, ?COOKIE, Post) ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		Else ->
 			?INFO("dropping mantispath: ~p", [Else]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+api({medias, Node, "cpx_supervisor", "update", "transferprompt"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	{struct, Prompts} = mochijson2:decode(proplists:get_value("prompts", Post, "{\"label\":[],\"name\":[],\"regex\":[]}")),
+	Skills = parse_posted_skills(proplists:get_all_values("skills", Post)),
+	PromptNames = proplists:get_value(<<"name">>, Prompts),
+	PromptLabels = proplists:get_value(<<"label">>, Prompts),
+	PromptRegExs = proplists:get_value(<<"regex">>, Prompts),
+	Zipped = lists:zip3(PromptNames, PromptLabels, PromptRegExs),
+	{Func, Args} = case {Zipped, Skills} of
+		{[], []} ->
+			{drop_value, [transferprompt]};
+		{_, _} ->
+			{set_value, [transferprompt, {Zipped, Skills}]}
+	end,
+	case rpc:call(Atomnode, cpx_supervisor, Func, Args) of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Else ->
+			?INFO("Setting transfer prompt:  ~p", [Else]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
 api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->

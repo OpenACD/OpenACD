@@ -69,6 +69,86 @@ function confirmDialog(conf){
 	dialog.show();
 }
 
+function queueTransferDialog(queueNom){
+	var createDialog = function(queueOpts){
+		var dialog = new dijit.Dialog({
+			title:'Queue Transfer Options'
+		});
+		dialog.prompts = [];
+		var form = dojo.create('form', {action:'javascript:void(0)',method:'post'}, dialog.containerNode);
+		for(var i = 0; i < queueOpts.prompts.length; i++){
+			var p = dojo.create('p', {}, form);
+			dojo.create('label', {'for':queueOpts.prompts[i].name,innerHTML:queueOpts.prompts[i].label + ':','class':'narrow'}, p);
+			var inputBase = dojo.create('input', {name:queueOpts.prompts[i].name}, p);
+			dialog.prompts.push(new dijit.form.ValidationTextBox({
+				regExp:queueOpts.prompts[i].regex,
+				name:queueOpts.prompts[i].name,
+				value:queueOpts.currentVars[queueOpts.prompts[i].name]
+			}, inputBase));
+		}
+		p = dojo.create('p', {}, form);
+		dojo.create('label', {'for':'skills',innerHTML:'Skills:','class':'narrow'}, p);
+		dialog.select = dojo.create('select', {name:'skills',multiple:true,size:3}, p);
+		for(i = 0; i < queueOpts.skills.length; i++){
+			var outSkill = queueOpts.skills[i].atom;
+			if(queueOpts.skills[i].expanded){
+				outSkill = '{' + outSkill + ',' + queueOpts.skills[i].expanded + '}';
+			}
+			dojo.create('option', {value:outSkill,innerHTML:outSkill,toolTip:queueOpts.skills[i].description}, dialog.select);
+		}
+		p = dojo.create('p', {}, form);
+		dojo.create('label', {innerHTML:'&nbsp;'}, p);
+		var submitNode = dojo.create('button', {}, p);
+		var submitButton = new dijit.form.Button({
+			label:'Submit'
+		}, submitNode);
+		dojo.connect(submitButton, 'onClick', dialog, function(){
+			var urlopts = {},
+			for(var i = 0; i < this.prompts.length; i++){
+				if(this.prompts[i].isValid() == false){
+					return false;
+				}
+				urlopts[this.prompts[i].name] = this.prompts[i].value;
+			}
+			var skills = [];
+			for(i = 0; i < this.select.options.length; i++){
+				if(this.select.options[i].selected){
+					skills.push(this.select.options[i].value);
+				}
+			}
+			Agent.queuetransfer(queueNom, skills, urlopts);
+			this.destroy();
+		});
+		dialog.show();
+	}
+	dojo.xhrGet({
+		url:'/get_queue_transfer_options',
+		handleAs:'json',
+		error:function(res){
+			confirmDialog({
+				'yesLabel':'Queue anyway',
+				'noLabel':'Don\'t queue',
+				'question':'Could not load queue transfer options (' + res + ').  Queue to ' + queueNom + ' anyway?',
+				'yesAction':function(){ agent.queueTransfer(queueNom, [], {}) },
+				'title':'Queue Transfer Options Errored'
+			});
+		},
+		load:function(res){
+			if(res.success){
+				createDialog(res);
+			} else {
+				confirmDialog({
+					'yesLabel':'Queue anyway',
+					'noLabel':'Don\'t queue',
+					'question':'Could not load queue transfer options (' + res.message + ').  Queue to ' + queueNom + ' anyway?',
+					'yesAction':function(){ agent.queueTransfer(queueNom, [], {}) },
+					'title':'Queue Transfer Options Failed'
+				});
+			}
+		}
+	});
+}
+
 function getTheme() {
 	if (dojo.cookie('agentui-settings')) {
 		var settings = dojo.fromJson(dojo.cookie('agentui-settings'));
@@ -992,7 +1072,7 @@ dojo.addOnLoad(function(){
 					for(var i = 0; i < response.queues.length; i++) {
 						item = new dijit.MenuItem({
 							label: response.queues[i].name,
-							onClick: function(){ Agent.queuetransfer(this.label); }
+							onClick: function(){ queueTransferDialog(this.label); }
 						});
 						menu.addChild(item);
 					}

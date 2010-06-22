@@ -352,18 +352,6 @@ handle_call(warm_transfer_complete, _From, #state{current_call = Call} = State) 
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not complete transfer">>}]})}
 	end,
 	{reply, Reply, State};
-handle_call({queue_transfer, Queue, CaseID}, From, #state{current_call = Call} = State) when is_record(Call, call) ->
-	gen_media:cast(Call#call.source, {set_caseid, CaseID}),
-	handle_call({queue_transfer, Queue}, From, State);
-handle_call({queue_transfer, Queue}, _From, #state{agent_fsm = Apid} = State) ->
-	?NOTICE("queue transfer to ~p", [Queue]),
-	Reply = case agent:queue_transfer(Apid, Queue) of
-		ok ->
-			{200, [], mochijson2:encode({struct, [{success, true}]})};
-		invalid ->
-			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
-	end,
-	{reply, Reply, State};
 handle_call({init_outbound, Client, Type}, _From, #state{agent_fsm = Apid} = State) ->
 	?NOTICE("Request to initiate outbound call of type ~p to ~p", [Type, Client]),
 	AgentRec = agent:dump_state(Apid), % TODO - avoid
@@ -820,6 +808,34 @@ handle_call({media, Post}, _From, #state{current_call = Call} = State) when is_r
 		undefined ->
 			{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mode defined">>}]})}, State}
 	end;
+handle_call({undefined, "/get_queue_transfer_options"}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
+	{ok, Setvars} = gen_media:get_url_getvars(Call#call.source),
+	{ok, {Prompts, Skills}} = cpx_supervisor:get_value(transferprompt),
+	Varslist = [begin
+		Newkey = case is_list(Key) of
+			true ->
+				list_to_binary(Key);
+			_ ->
+				Key
+		end,
+		Newval = case is_list(Val) of
+			true ->
+				list_to_binary(Val);
+			_ ->
+				Val
+		end,
+		{Newkey, Newval}
+	end || 
+	{Key, Val} <- Setvars],
+	Encodedprompts = [{struct, [{<<"name">>, Name}, {<<"label">>, Label}, {<<"regex">>, Regex}]} || {Name, Label, Regex} <- Prompts],
+	Encodedskills = cpx_web_management:encode_skills(Skills),
+	Json = {struct, [
+		{<<"success">>, true},
+		{<<"currentVars">>, {struct, Varslist}},
+		{<<"prompts">>, Encodedprompts},
+		{<<"skills">>, Encodedskills}
+	]},
+	{reply, {200, [], mochijson2:encode(Json)}, State};
 handle_call({undefined, "/call_hangup"}, _From, #state{current_call = Call} = State) when is_record(Call, call) ->
 	Call#call.source ! call_hangup,
 	Json = case agent:set_state(State#state.agent_fsm, {wrapup, State#state.current_call}) of
@@ -846,6 +862,22 @@ handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined, ag
 			{struct, [{success, false}, {<<"message">>, <<"you must be released to perform a ring test">>}]}
 	end,
 	{reply, {200, [], mochijson2:encode(Json)}, State};
+handle_call({undefined, "/queue_transfer", Opts}, From, #state{current_call = Call, agent_fsm = Apid} = State) when is_record(Call, call) ->
+	Queue = proplists:get_value("queue", Opts),
+	MidSkills = proplists:get_all_values("skills", Opts),
+	Midopts = proplists:delete("skills", proplists:delete("queue", Opts)),
+	gen_media:set_url_getvars(Call#call.source, Midopts),
+	Skills = cpx_web_management:parse_posted_skills(MidSkills),
+	gen_media:add_skills(Call#call.source, Skills),
+	?NOTICE("queue transfer to ~p", [Queue]),
+	?DEBUG("options:  ~p", [Opts]),
+	Reply = case agent:queue_transfer(Apid, Queue) of
+		ok ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		invalid ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Could not start transfer">>}]})}
+	end,
+	{reply, Reply, State};
 handle_call({undefined, "/report_issue", Post}, _From, State) ->
 	Summary = proplists:get_value("reportIssueSummary", Post),
 	Description = proplists:get_value("reportIssueError", Post),

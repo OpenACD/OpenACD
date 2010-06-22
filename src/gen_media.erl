@@ -47,6 +47,18 @@
 %%
 %%		Some media may not be able to provide a call record on start-up, thus
 %%		allowing the media to finish prepping and then queue later.
+%%	<b>urlpop_getvars(State) -> UrlOptions</b>
+%%		types:	State = any()
+%%				UrlOptions = [{string(), string()}]
+%%
+%%		When a call rings to an agent, if a pop url is configured, get variables
+%%		are appended to the end.  If this is set, get_url_getvars/1 will 
+%%		call it and merge the results to what will be used when ringing 
+%%		an agent.  Options set via set_url_getvars/2 super-ceede those 
+%%		returned by the callback module.
+%%
+%%		At the time of this doc, the agent web interface prompts the agent
+%%		to adjust the url pop options when doing a queue transfer.
 %%
 %%	<b>handle_ring(Agent, Call, State) -> Result</b>
 %%		types:	Agent = pid()
@@ -61,7 +73,7 @@
 %%		start of a transfer), this is called.
 %%
 %%		Agent is the pid of the agent that will be set to ringing if Result is
-%%		{ok, NewState}.
+%%		{ok, NewState} or {ok, UrlOptions, NewState}.
 %%
 %%		Call is the #call{} maintained by the gen_media and passed in for 
 %%		Reference.
@@ -73,6 +85,11 @@
 %%		the agent is the client for the media is set to have one.  In the case
 %%		of {ok, UrlOptions, NewState}, the UrlOptions are appened to the url as
 %%		a query (get) string.
+%%
+%%		Note that UrlOptions can be set by the agent before a queue transfer
+%%		occurs.  In this case, before the transfer is made, urlpop_getvars/1
+%%		should be used to present the agent with a chance to adjust the 
+%%		url pop.
 %%
 %%		If Result is {invalid, NewState}, Agent is set to idle, and execution
 %%		continues with NewState.
@@ -312,7 +329,10 @@
 	wrapup/1,
 	spy/2,
 	set_cook/2,
-	set_queue/2
+	set_queue/2,
+	set_url_getvars/2,
+	get_url_getvars/1,
+	add_skills/2
 ]).
 
 % TODO - add these to a global .hrl, cpx perhaps?
@@ -338,7 +358,8 @@
 	ringout = false:: tref() | 'false',
 	outband_ring_pid :: 'undefined' | pid(),
 	warm_transfer = false :: boolean(),
-	monitors = #monitors{} :: #monitors{}
+	monitors = #monitors{} :: #monitors{},
+	url_pop_getvars = [] :: [{string(), string()}]
 }).
 
 -type(state() :: #state{}).
@@ -470,6 +491,18 @@ set_cook(Genmedia, CookPid) ->
 set_queue(Genmedia, Qpid) ->
 	gen_server:call(Genmedia, {'$gen_media_set_queue', Qpid}).
 
+-spec(set_url_getvars/2 :: (Genmedia :: pid(), Vars :: [{string(), string()}]) -> 'ok').
+set_url_getvars(Genmedia, Vars) ->
+	gen_server:cast(Genmedia, {'$gen_media_set_url_getvars', Vars}).
+
+-spec(get_url_getvars/1 :: (Genmedia :: pid()) -> {'ok', [{string(), string()}]}).
+get_url_getvars(Genmedia) ->
+	gen_server:call(Genmedia, '$gen_media_get_url_vars').
+
+-spec(add_skills/2 :: (Genmedia :: pid(), Skills :: [atom() | {atom(), any()}]) -> 'ok').
+add_skills(Genmedia, Skills) ->
+	gen_server:cast(Genmedia, {'$gen_media_add_skills', Skills}).
+	
 %% @doc Do the equivalent of a `gen_server:call/2'.
 -spec(call/2 :: (Genmedia :: pid(), Request :: any()) -> any()).
 call(Genmedia, Request) ->
@@ -645,7 +678,7 @@ handle_call({'$gen_media_queue', Queue}, From, #state{callback = Callback, callr
 	end;
 handle_call('$gen_media_get_call', _From, State) ->
 	{reply, State#state.callrec, State};
-handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = QCall, Timeout}, {Requester, _Tag}, #state{callrec = Call, callback = Callback, ring_pid = undefined, monitors = Mons} = State) ->
+handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = QCall, Timeout}, {Requester, _Tag}, #state{callrec = Call, callback = Callback, ring_pid = undefined, monitors = Mons, url_pop_getvars = GenPopopts} = State) ->
 	?INFO("Trying to ring ~p with ~p with timeout ~p", [Agent, Call#call.id, Timeout]),
 	case set_agent_state(Apid, [ringing, Call#call{cook=QCall#queued_call.cook}]) of
 		ok ->
@@ -654,9 +687,9 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 				Success when element(1, Success) == ok ->
 					Popopts = case Success of
 						{ok, Substate} ->
-							[];
+							GenPopopts;
 						{ok, Opts, Substate} ->
-							Opts
+							lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts))
 					end,
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', QCall#queued_call.cook}),
 					cdr:ringing(Call, Agent),
@@ -703,7 +736,7 @@ handle_call({'$gen_media_ring', {Agent, Apid}, QCall, Timeout}, From, #state{cal
 handle_call({'$gen_media_agent_transfer', {Agent, Apid}}, _From, #state{oncall_pid = {Agent, Apid}, callrec = Call} = State) ->
 	?NOTICE("Can't transfer to yourself, silly ~p! ~p", [Apid, Call#call.id]),
 	{reply, invalid, State};
-handle_call({'$gen_media_agent_transfer', {Agent, Apid}, Timeout}, _From, #state{callrec = Call, callback = Callback, ring_pid = undefined, oncall_pid = {OcAgent, Ocpid}, monitors = Mons} = State) when is_pid(Ocpid) ->
+handle_call({'$gen_media_agent_transfer', {Agent, Apid}, Timeout}, _From, #state{callrec = Call, callback = Callback, ring_pid = undefined, oncall_pid = {OcAgent, Ocpid}, monitors = Mons, url_pop_getvars = GenPopopts} = State) when is_pid(Ocpid) ->
 	case set_agent_state(Apid, [ringing, State#state.callrec]) of
 		ok ->
 			case Callback:handle_agent_transfer(Apid, Timeout, State#state.callrec, State#state.substate) of
@@ -712,7 +745,7 @@ handle_call({'$gen_media_agent_transfer', {Agent, Apid}, Timeout}, _From, #state
 						{ok, Substate} ->
 							[];
 						{ok, Opts, Substate} ->
-							Opts
+							lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Opts))
 					end,
 					% TODO - this is a little ambigious - the pattern match for stop_ring doesn't check for dummy or anything
 					{ok, Tref} = timer:send_after(Timeout, {'$gen_media_stop_ring', dummy}),
@@ -926,6 +959,15 @@ handle_call({'$gen_media_set_queue', Qpid}, _From, #state{callrec = Call, queue_
 	end,
 	Newmons = Mons#monitors{queue_pid = erlang:monitor(process, Qpid)},
 	{reply, ok, State#state{queue_pid = {Queue, Qpid}, monitors = Newmons}};
+handle_call('$gen_media_get_url_vars', From, #state{url_pop_getvars = GenPopopts, substate = Substate, callback = Callback} = State) ->
+	Cbopts = case erlang:function_exported(Callback, urlpop_getvars, 1) of
+		true ->
+			Callback:urlpop_getvars(Substate);
+		false ->
+			[]
+	end,
+	Out = lists:ukeymerge(1, lists:ukeysort(1, GenPopopts), lists:ukeysort(1, Cbopts)),
+	{reply, {ok, Out}, State};
 handle_call(Request, From, #state{callback = Callback} = State) ->
 	Reply = Callback:handle_call(Request, From, State#state.callrec, State#state.substate),
 	handle_custom_return(Reply, State, reply).
@@ -947,6 +989,14 @@ handle_cast({'$gen_media_set_cook', CookPid}, #state{callrec = Call, monitors = 
 	end,
 	Newmons = Mons#monitors{cook = erlang:monitor(process, CookPid)},
 	{noreply, State#state{callrec = Call#call{cook = CookPid}, monitors = Newmons}};
+handle_cast({'$gen_media_set_url_getvars', Vars}, #state{url_pop_getvars = Oldvars} = State) ->
+	Newvars = lists:ukeymerge(1, lists:ukeysort(1, Vars), lists:ukeysort(1, Oldvars)),
+	?DEBUG("Input:  ~p;  Old:  ~p;  new:  ~p", [Vars, Oldvars, Newvars]),
+	{noreply, State#state{url_pop_getvars = Newvars}};
+handle_cast({'$gen_media_add_skills', Skills}, #state{callrec = Call} = State) ->
+	Newskills = lists:umerge(Call#call.skills, Skills),
+	Newcall = Call#call{skills = Newskills},
+	{noreply, State#state{callrec = Newcall}};
 handle_cast(Msg, #state{callback = Callback} = State) ->
 	Reply = Callback:handle_cast(Msg, State#state.callrec, State#state.substate),
 	handle_custom_return(Reply, State, noreply).
@@ -2447,6 +2497,38 @@ handle_cast_test_() ->
 			?assert(Mons#monitors.cook =/= undefined andalso is_reference(Mons#monitors.cook)),
 			?assertEqual(P, Newcall#call.cook),
 			P ! done
+		end}
+	end,
+	fun({Seedstate}) ->
+		{"setting additional url pop opts",
+		fun() ->
+			{noreply, #state{url_pop_getvars = Urlget}} = handle_cast({'$gen_media_set_url_getvars', [{"key", "val"}]}, Seedstate),
+			?assertEqual([{"key", "val"}], Urlget)
+		end}
+	end,
+	fun({Seedstate}) ->
+		{"setting new url pop opts doen't nix old ones",
+		fun() ->
+			State = Seedstate#state{url_pop_getvars = [{"oldkey", "oldval"}]},
+			{noreply, #state{url_pop_getvars = Newget}} = handle_cast({'$gen_media_set_url_getvars', [{"newkey", "newval"}]}, State),
+			?assertEqual("oldval", proplists:get_value("oldkey", Newget)),
+			?assertEqual("newval", proplists:get_value("newkey", Newget))
+		end}
+	end,
+	fun({Seedstate}) ->
+		{"Adding new skills",
+		fun() ->
+			{noreply, #state{callrec = Callrec}} = handle_cast({'$gen_media_add_skills', [cookskill, {'_agent', "anagent"}]}, Seedstate),
+			?assertEqual([cookskill, {'_agent', "anagent"}], Callrec#call.skills)
+		end}
+	end,
+	fun({#state{callrec = Oldcall} = Seedstate}) ->
+		{"Adding existing skills",
+		fun() ->
+			Call = Oldcall#call{skills = [cookskill]},
+			State = Seedstate#state{callrec = Call},
+			{noreply, #state{callrec = Newcall}} = handle_cast({'$gen_media_add_skills', [cookskill]}, State),
+			?assertEqual([cookskill], Newcall#call.skills)
 		end}
 	end]}.
 

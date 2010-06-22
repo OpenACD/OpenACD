@@ -233,7 +233,10 @@
 					dojo.byId("voipendpointlabel").innerHTML = dojo.i18n.getLocalization("agentUI", "labels").VOIPENDPOINT + ":";
 				</script>
 			</label>
-			<select dojoType="dijit.form.FilteringSelect" value="SIP Registration" id="voipendpoint" name="voipendpoint" onchange="endpointselect()">
+			<select dojoType="dijit.form.FilteringSelect" value="SIP Registration" id="voipendpoint" name="voipendpoint">
+				<script type="dojo/method" event="onChange">
+					//endpointselect()
+				</script>
 				<option value="SIP Registration" selected="selected">SIP Registration</option>
 				<option value="SIP URI">SIP URI</option>
 				<option value="IAX2 URI">IAX2 URI</option>

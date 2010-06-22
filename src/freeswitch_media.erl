@@ -62,7 +62,8 @@
 
 %% gen_media callbacks
 -export([
-	init/1, 
+	init/1,
+	urlpop_getvars/1,
 	handle_ring/3,
 	handle_ring_stop/2,
 	handle_answer/3,
@@ -140,6 +141,10 @@ init([Cnode, DialString, UUID]) ->
 	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}},
 	{ok, {#state{cnode=Cnode, manager_pid = Manager, dialstring = DialString}, Call, {inivr, [DNIS]}}}.
 
+-spec(urlpop_getvars/1 :: (State :: #state{}) -> [{binary(), binary()}]).
+urlpop_getvars(#state{ivroption = Ivropt} = _State) ->
+	[{"ivropt", Ivropt}].
+
 -spec(handle_announce/3 :: (Announcement :: string(), Callrec :: #call{}, State :: #state{}) -> {'ok', #state{}}).
 handle_announce(Announcement, Callrec, State) ->
 	freeswitch:sendmsg(State#state.cnode, Callrec#call.id,
@@ -196,7 +201,7 @@ handle_ring(Apid, Callrec, State) ->
 	case freeswitch_ring:start(State#state.cnode, AgentRec#agent.login, Apid, Callrec, 600, F) of
 		{ok, Pid} ->
 			link(Pid),
-			{ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], State#state{ringchannel = Pid, agent_pid = Apid}};
+			{ok, [{"ivropt", State#state.ivroption}], State#state{ringchannel = Pid, agent_pid = Apid}};
 		{error, Error} ->
 			?ERROR("error ringing agent:  ~p; agent:  ~s call: ~p", [Error, AgentRec#agent.login, Callrec#call.id]),
 			{invalid, State}
@@ -597,6 +602,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					AllowVM = proplists:get_value("variable_allow_voicemail", Rawcall, false),
 					Moh = proplists:get_value("variable_queue_moh", Rawcall, "moh"),
 					P = proplists:get_value("variable_queue_priority", Rawcall, integer_to_list(?DEFAULT_PRIORITY)),
+					Ivropt = proplists:get_value("variable_ivropt", Rawcall),
 					Priority = try list_to_integer(P) of
 						Pri -> Pri
 					catch
@@ -621,7 +627,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 							{"execute-app-name", "playback"},
 							{"execute-app-arg", "local_stream://"++Moh}]),
 						%% tell gen_media to (finally) queue the media
-					{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, moh=Moh}};
+					{queue, Queue, NewCall, State#state{queue = Queue, queued=true, allow_voicemail=AllowVM, moh=Moh, ivroption = Ivropt}};
 				_Otherwise ->
 					{noreply, State}
 			end;

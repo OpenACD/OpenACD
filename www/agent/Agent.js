@@ -345,37 +345,24 @@ Agent.warmtransfercomplete = function() {
 	});
 };
 
-Agent.queuetransfer = function(queue) {
-	var dialog = dijit.byId("getCaseIDDialog");
-	var caseid = dijit.byId('caseid');
-	caseid.setAttribute("value", "");
-	dialog.attr('execute', function(){
-			if (caseid.isValid()) {
-				dialog.hide();
-				var url = "/queue_transfer/"+queue;
-				if (caseid.attr("value") != "") {
-					url += "/" + caseid.attr("value");
-				}
-				dojo.xhrGet({
-					url: url,
-					handleAs:"json",
-					error:function(response, ioargs){
-						errMessage(["error on transfer", response]);
-					},
-					load:function(response, ioargs){
-						if(response.success){
-							dojo.publish("agent/queuetransfer", [response.success]);
-						}
-						else{
-							errMessage(["failed to initiate queue transfer", response.message]);
-						}
-					}
-				});
+Agent.queuetransfer = function(queue, skills, urlopts) {
+	urlopts.skills = skills;
+	urlopts.queue = queue;
+	dojo.xhrPost({
+		url:'/queue_transfer',
+		content:urlopts,
+		handleAs:'json',
+		error:function(response, ioargs){
+			errMessage(["error on transfer", response]);
+		},
+		load:function(response, ioargs){
+			if(response.success){
+				dojo.publish("agent/queuetransfer", [response.success]);
 			} else {
-				dialog.show();
+				errMessage(["failed to initiate queue transfer", response.message]);
 			}
+		}
 	});
-	dialog.show();
 };
 
 

@@ -86,15 +86,17 @@ function queueTransferDialog(queueNom){
 				value:queueOpts.currentVars[queueOpts.prompts[i].name]
 			}, inputBase));
 		}
-		p = dojo.create('p', {}, form);
-		dojo.create('label', {'for':'skills',innerHTML:'Skills:','class':'narrow'}, p);
-		dialog.select = dojo.create('select', {name:'skills',multiple:true,size:3}, p);
-		for(i = 0; i < queueOpts.skills.length; i++){
-			var outSkill = queueOpts.skills[i].atom;
-			if(queueOpts.skills[i].expanded){
-				outSkill = '{' + outSkill + ',' + queueOpts.skills[i].expanded + '}';
+		if(queueOpts.skills.length > 0){
+			p = dojo.create('p', {}, form);
+			dojo.create('label', {'for':'skills',innerHTML:'Skills:','class':'narrow'}, p);
+			dialog.select = dojo.create('select', {name:'skills',multiple:true,size:3}, p);
+			for(i = 0; i < queueOpts.skills.length; i++){
+				var outSkill = queueOpts.skills[i].atom;
+				if(queueOpts.skills[i].expanded){
+					outSkill = '{' + outSkill + ',' + queueOpts.skills[i].expanded + '}';
+				}
+				dojo.create('option', {value:outSkill,innerHTML:outSkill,toolTip:queueOpts.skills[i].description}, dialog.select);
 			}
-			dojo.create('option', {value:outSkill,innerHTML:outSkill,toolTip:queueOpts.skills[i].description}, dialog.select);
 		}
 		p = dojo.create('p', {}, form);
 		dojo.create('label', {innerHTML:'&nbsp;'}, p);
@@ -111,9 +113,11 @@ function queueTransferDialog(queueNom){
 				urlopts[this.prompts[i].name] = this.prompts[i].value;
 			}
 			var skills = [];
-			for(i = 0; i < this.select.options.length; i++){
-				if(this.select.options[i].selected){
-					skills.push(this.select.options[i].value);
+			if(this.select){
+				for(i = 0; i < this.select.options.length; i++){
+					if(this.select.options[i].selected){
+						skills.push(this.select.options[i].value);
+					}
 				}
 			}
 			Agent.queuetransfer(queueNom, skills, urlopts);

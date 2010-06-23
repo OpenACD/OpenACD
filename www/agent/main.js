@@ -544,8 +544,10 @@ dojo.addOnLoad(function(){
 		settings.voipendpoint = confs.voipendpoint ? confs.voipendpoint : settings.voipendpoint;
 		settings.voipendpointdata = confs.voipendpointdata ? confs.voipendpointdata : settings.voipendpoint;
 		settings.useoutbandring = confs.useoutbandring ? confs.useoutbandring : settings.useoutbandring;
-		for(var i = 0; i < settings.tabs.length; i++){
-			loadTab(settings.tabs[i]);
+		if(settings.tabs){
+			for(var i = 0; i < settings.tabs.length; i++){
+				loadTab(settings.tabs[i]);
+			}
 		}
 		dojo.cookie('agentui-settings', dojo.toJson(settings));
 	}

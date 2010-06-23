@@ -2,16 +2,16 @@
 	<p>
 	<label for="mediaEnabled">&nbsp;</label>
 	<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" />
-	<span id="lFREESWITCHENABLED">FREESWITCHENABLED</span>
+	<span class="translate">FREESWITCHENABLED</span>
 	</p>
 
 	<p>
-	<label for="cnode" id="lCNODE">CNODE:</label>
+	<label for="cnode" class="translatecol">CNODE</label>
 	<input dojoType="dijit.form.TextBox" name="cnode" id="cnode" />
 	</p>
 
 	<p>
-	<label for="voicegw" id="lDIALSTRING">DIALSTRING:</label>
+	<label for="voicegw" class="translatecol">DIALSTRING</label>
 	<input dojoType="dijit.form.TextBox" name="dialstring" id="dialstring" />
 	</p>
 
@@ -34,9 +34,12 @@
 	<label for="mediaSubmit">&nbsp;</label>
 	<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">
 		<script type="dojo/method" event="postCreate">
-			dojo.byId("lFREESWITCHENABLED").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").FREESWITCHENABLED;
-			dojo.byId("lCNODE").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").CNODE + ":";
-			dojo.byId("lDIALSTRING").innerHTML = dojo.i18n.getLocalization("admin", "freeswitch_media_manager").DIALSTRING + ":";
+			dojo.query('.translate', 'mediaForm').forEach(function(node){
+				node.innerHTML = dojo.i18n.getLocalization('admin', 'freeswitch_media_manager')[node.innerHTML];
+			});
+			dojo.query('.translatecol', 'mediaForm').forEach(function(node){
+				node.innerHTML = dojo.i18n.getLocalization('admin', 'freeswitch_media_manager')[node.innerHTML] + ':';
+			});
 			this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 		</script>
 	</button>

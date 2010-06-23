@@ -158,6 +158,9 @@ start(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
 %% <ul>
 %% <li>`domain :: string()'</li>
 %% <li>`dialstring :: string()'</li>
+%% <li>`sip' :: string()'</li>
+%% <li>`iax2 :: string()'</li>
+%% <li>`h323 :: string()'</li>
 %% </ul>
 -spec(start_link/2 :: (Nodename :: atom(), Options :: [any()]) -> {'ok', pid()}).
 start_link(Nodename, [Head | _Tail] = Options) when is_tuple(Head) ->
@@ -234,7 +237,8 @@ init([Nodename, Options]) ->
 		pong ->
 			Lpid = start_listener(Nodename),
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
-			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, DialString}]),
+			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
+			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, StrippedOpts),
 			link(Pid),
 			{Lpid, Pid};
 		_ ->
@@ -533,11 +537,11 @@ fetch_domain_user(Node, State) ->
 													"${sofia_contact("++re:replace(Agent#agent.endpointdata, "@", "_", [{return, list}])++"@"++Domain++")}"
 											end;
 										sip ->
-											"sofia/internal/sip:"++Agent#agent.endpointdata;
+											freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State, "sofia/internal/sip:"), Agent#agent.endpointdata, []);
 										iax2 ->
-											"iax2/"++Agent#agent.endpointdata;
+											freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State, "iax2/"), Agent#agent.endpointdata, []);
 										h323 ->
-											"opal/h323:"++Agent#agent.endpointdata;
+											freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State, "opal/h323:"), Agent#agent.endpointdata, []);
 										pstn ->
 											freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State, ""), Agent#agent.endpointdata, [])
 									end,

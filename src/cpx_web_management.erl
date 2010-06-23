@@ -1159,8 +1159,22 @@ api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 			rpc:call(Atomnode, cpx_supervisor, destroy, [freeswitch_media_manager], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})};
 		_Else ->
-			Args = [list_to_atom(proplists:get_value("cnode", Post)), [
-				{dialstring, proplists:get_value("dialstring", Post, "")}]],
+			PostToProp = [
+				{"dialstring", dialstring},
+				{"sipEndpoint", sip},
+				{"iax2Endpoint", iax2},
+				{"h323Endpoint", h323}
+			],
+			Builder = fun({PostKey, RealKey}, Acc) ->
+				case proplists:get_value(PostKey, Post) of
+					undefined ->
+						Acc;
+					Else ->
+						[{RealKey, Else} | Acc]
+				end
+			end,
+			Options = lists:foldl(Builder, [], PostToProp),
+			Args = [list_to_atom(proplists:get_value("cnode", Post)), Options],
 			Conf = #cpx_conf{
 				id = freeswitch_media_manager,
 				module_name = freeswitch_media_manager,
@@ -1180,20 +1194,29 @@ api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 			]},
 			{200, [], mochijson2:encode(Json)};
 		Rec when is_record(Rec, cpx_conf) ->
-			[Cnode, [Head | _Tail] = Args] = Rec#cpx_conf.start_args,
-			?DEBUG("Args: ~p", [Args]),
-			{_Domain, DialString} = case Head of
-				X when is_tuple(X) ->
-					{proplists:get_value(domain, Args, ""), proplists:get_value(dialstring, Args, "")};
-				X ->
-					{X, ""}
-			end,
-			Json = {struct, [
+			[Cnode, Args] = Rec#cpx_conf.start_args,
+			%?DEBUG("Args: ~p", [Args]),
+			BaseStruct = [
 				{success, true},
 				{<<"enabled">>, true},
-				{<<"cnode">>, list_to_binary(atom_to_list(Cnode))},
-				{<<"dialstring">>, list_to_binary(DialString)}
-			]},
+				{<<"cnode">>, list_to_binary(atom_to_list(Cnode))}
+			],
+			PropToPost = [
+				{dialstring, <<"dialstring">>},
+				{sip, <<"sipEndpoint">>},
+				{iax2, <<"iax2Endpoint">>},
+				{h323, <<"h323Endpoint">>}
+			],
+			Builder = fun({Key, Newkey}, Acc) ->
+				case proplists:get_value(Key, Args) of
+					undefined ->
+						Acc;
+					Else ->
+						[{Newkey, list_to_binary(Else)} | Acc]
+				end
+			end,
+			Fullstruct = lists:foldl(Builder, BaseStruct, PropToPost),
+			Json = {struct, Fullstruct},
 			{200, [], mochijson2:encode(Json)}
 	end;
 	

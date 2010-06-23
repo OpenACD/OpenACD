@@ -1,4 +1,4 @@
-<form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
+<form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm" class="wide">
 	<p>
 	<label for="mediaEnabled">&nbsp;</label>
 	<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" />
@@ -30,6 +30,26 @@
 		Please read the relevant documentation to determine what your dial string should be. This dialstring is used whenever an 'external' number has to be called - outbound calls, warm transfers, agents on a PSTN line, etc.
 	</div>
 
+	<p>
+	<label>&nbsp;</label>
+	<span class="translate" style="font-weight:bold">AGENT_ENDPOINTS</span>
+	</p>
+	
+	<p>
+	<label for="sipEndpoint" class="translatecol">SIP_ENDPOINT</label>
+	<input dojoType="dijit.form.TextBox" name="sipEndpoint" id="sipEndpoint" default="sofia/internal/sip:$1" />
+	</p>
+	
+	<p>
+	<label for="iax2Endpoint" class="translatecol">IAX2_ENDPOINT</label>
+	<input dojoType="dijit.form.TextBox" name="iax2Endpoint" id="iax2Endpoint" default="iax2/$1" />
+	</p>
+	
+	<p>
+	<label for="h323Endpoint" class="translatecol">H323_ENDPOINT</label>
+	<input dojoType="dijit.form.TextBox" name="h323Endpoint" id="h323Endpoint" default="opal/h3232:$1" />
+	</p>
+	
 	<p>
 	<label for="mediaSubmit">&nbsp;</label>
 	<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">

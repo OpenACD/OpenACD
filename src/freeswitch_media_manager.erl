@@ -125,7 +125,8 @@
 	call_dict = dict:new() :: dict(),
 	dialstring = "" :: string(),
 	eventserver :: pid() | 'undefined',
-	xmlserver :: pid() | 'undefined'
+	xmlserver :: pid() | 'undefined',
+	fetch_domain_user :: []
 	}).
 
 -type(state() :: #state{}).
@@ -233,18 +234,18 @@ init([Nodename, Options]) ->
 	process_flag(trap_exit, true),
 	DialString = proplists:get_value(dialstring, Options, ""),
 	monitor_node(Nodename, true),
-	{Listenpid, DomainPid} = case net_adm:ping(Nodename) of
+	{Listenpid, DomainPid, FetchUserOpts} = case net_adm:ping(Nodename) of
 		pong ->
 			Lpid = start_listener(Nodename),
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
 			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, StrippedOpts),
 			link(Pid),
-			{Lpid, Pid};
+			{Lpid, Pid, StrippedOpts};
 		_ ->
 			{undefined, undefined}
 	end,
-	{ok, #state{nodename=Nodename, dialstring = DialString, eventserver = Listenpid, xmlserver = DomainPid, freeswitch_up = true}}.
+	{ok, #state{nodename=Nodename, dialstring = DialString, eventserver = Listenpid, xmlserver = DomainPid, freeswitch_up = true, fetch_domain_user = FetchUserOpts}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -401,9 +402,9 @@ handle_info({'EXIT', Pid, Reason}, #state{eventserver = Pid, nodename = Nodename
 	Lpid = start_listener(Nodename),
 	freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 	{noreply, State#state{eventserver = Lpid}};
-handle_info({'EXIT', Pid, Reason}, #state{xmlserver = Pid, nodename = Nodename, dialstring = DialString, freeswitch_up = true} = State) ->
+handle_info({'EXIT', Pid, Reason}, #state{xmlserver = Pid, nodename = Nodename, dialstring = DialString, freeswitch_up = true, fetch_domain_user = Fopts} = State) ->
 	?NOTICE("XML pid exited unexpectedly: ~p", [Reason]),
-	{ok, NPid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, DialString}]),
+	{ok, NPid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, Fopts),
 	link(NPid),
 	{noreply, State#state{xmlserver = NPid}};
 handle_info({'EXIT', Pid, _Reason}, #state{eventserver = Pid} = State) ->
@@ -442,13 +443,13 @@ handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Pid, e
 	end,
 	timer:send_after(1000, freeswitch_ping),
 	{noreply, State#state{freeswitch_up = false}};
-handle_info(freeswitch_ping, #state{nodename = Nodename} = State) ->
+handle_info(freeswitch_ping, #state{nodename = Nodename, fetch_domain_user = Fopts} = State) ->
 	case net_adm:ping(Nodename) of
 		pong ->
 			?NOTICE("Freeswitch node ~p is back up", [Nodename]),
 			monitor_node(Nodename, true),
 			Lpid = start_listener(Nodename),
-			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, [{dialstring, State#state.dialstring}]),
+			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, directory, ?MODULE, fetch_domain_user, Fopts),
 			link(Pid),
 			freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
 			{noreply, State#state{eventserver = Lpid, xmlserver = Pid, freeswitch_up = true}};

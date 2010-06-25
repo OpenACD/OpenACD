@@ -227,6 +227,18 @@ handle_info({'EXIT', Pid, _Reason}, #state{eventserver = Pid} = State) ->
 	{noreply, State#state{eventserver = undefined}};
 handle_info({'EXIT', Pid, _Reason}, #state{xmlserver = Pid} = State) ->
 	{noreply, State#state{xmlserver = undefined}};
+handle_info({'EXIT', Pid, Reason}, #state{bot_dict = Dict} = State) ->
+	?NOTICE("trapped exit of ~p, doing clean up for ~p", [Reason, Pid]),
+	F = fun(Key, Value, Acc) -> 
+		case Value of
+			Pid ->
+				Acc;
+			_ ->
+				dict:store(Key, Value, Acc)
+		end
+	end,
+	NewDict = dict:fold(F, dict:new(), Dict),
+	{noreply, State#state{bot_dict = NewDict}};
 handle_info({nodedown, Nodename}, #state{nodename = Nodename, xmlserver = Pid, eventserver = Lpid} = State) ->
 	?WARNING("Freeswitch node ~p has gone down", [Nodename]),
 	case is_pid(Pid) of

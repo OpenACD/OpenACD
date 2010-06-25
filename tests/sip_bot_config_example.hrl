@@ -19,6 +19,17 @@
 	{"username1", "password1"},
 	{"username2", "password2"}
 ]}.
+% A list of profiles to put agents in.  They are looped through in order,
+% so the profiles are roughly filled up evenly.  Of course, if there are 
+% fewer agents than profiles, this is all for naught.  Defaults to an
+% empty list, indicating to stuff the agents in "Default"
+{profiles, ["profile1", "profile2"]}.
+% Additional options pased to the sip_bots that are spawned up.  
+% defaults to an empty list.
+{sip_bots, [
+	% the file to play when the bot answers a call.  Shown is the default
+	{playback_file, "sounds/sip_bot_message.aiff"}
+]}.
 % The realm agents us to authenticate.  Defaults to gateway.
 {realm, "realm.example.com"}.
 

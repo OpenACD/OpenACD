@@ -112,11 +112,18 @@
 -type(agents() :: {'agents', [agent_tuple()]}).
 -type(gateway() :: {'gateway', string()}).
 -type(realm() :: {'realm', string()}).
+-type(profiles() :: {'profiles', [string()]}).
+-type(sip_bot_option() :: 
+	{'playback_file', string()}
+).
+-type(sip_bots() :: {'sip_bots', [sip_bot_option]}).
 -type(start_option() :: 
 	gateway() |
 	agents() |
 	acd_node() |
-	realm()
+	realm() | 
+	profiles() |
+	sip_bots()
 ).
 -type(start_options() :: [start_option()]).
 
@@ -127,7 +134,8 @@
 	eventserver :: pid() | 'undefined',
 	xmlserver :: pid() | 'undefined',
 	xmlserver_opts = [] :: start_options(),
-	bot_dict = dict:new() :: dict()
+	bot_dict = dict:new() :: dict(),
+	bot_opts = [] :: [sip_bot_option()]
 }).
 
 -type(state() :: #state{}).
@@ -172,9 +180,10 @@ init([Nodename, Options]) ->
 	?DEBUG("starting...", []),
 	Acd = proplists:get_value(acd_node, Options),
 	Agents = proplists:get_value(agents, Options, []),
+	Botopts = proplists:get_value(sip_bots, Options, []),
 	process_flag(trap_exit, true),
 	monitor_node(Nodename, true),
-	spawn(fun() -> launch_agents(Agents, Acd) end),
+	spawn(fun() -> launch_agents(Agents, proplists:get_value(profiles, Options, ["default"]), Acd) end),
 	{Listenpid, DomainPid} = case net_adm:ping(Nodename) of
 		pong ->
 			?NOTICE("Starting with live freeswitch node", []),
@@ -187,7 +196,15 @@ init([Nodename, Options]) ->
 			?NOTICE("Starting with dead freeswitch node", []),
 			{undefined, undefined}
 	end,
-	{ok, #state{nodename=Nodename, acd_node = Acd, eventserver = Listenpid, xmlserver = DomainPid, xmlserver_opts = Options, freeswitch_up = true}}.
+	{ok, #state{
+		nodename=Nodename, 
+		acd_node = Acd, 
+		eventserver = Listenpid, 
+		xmlserver = DomainPid, 
+		xmlserver_opts = Options, 
+		freeswitch_up = true,
+		bot_opts = Botopts
+	}}.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages
@@ -271,7 +288,7 @@ handle_info({get_pid, UUID, Ref, From}, #state{bot_dict = Dict} = State) ->
 			?NOTICE("bot set up for ~s already (~p)", [UUID, Pid]),
 			Pid;
 		error ->
-			{ok, Pid} = sip_bot:start_link(State#state.nodename, [{uuid, UUID}]),
+			{ok, Pid} = sip_bot:start_link(State#state.nodename, [{uuid, UUID} | State#state.bot_opts]),
 			Pid
 	end,
 	From ! {Ref, Gotpid},
@@ -302,11 +319,12 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-launch_agents([], _Acd) ->
+launch_agents([], _Profiles, _Acd) ->
 	ok;
-launch_agents([{User, Pass} | Tail], Acd) ->
-	rpc:call(Acd, agent_dummy_connection, start, [[{login, User}, {password, Pass}, {scale, 10000}]]),
-	launch_agents(Tail, Acd).
+launch_agents([{User, Pass} | Tail], [Profile | Proftail], Acd) ->
+	O = rpc:call(Acd, agent_dummy_connection, start, [[{login, User}, {password, Pass}, {scale, 100}, {profile, Profile}]]),
+	?DEBUG("Launched agent ~s:  ~p", [User, O]),
+	launch_agents(Tail, Proftail ++ [Profile], Acd).
 
 kill_agents([], _Acd) ->
 	ok;

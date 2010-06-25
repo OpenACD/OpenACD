@@ -242,7 +242,7 @@ handle_info(hangup, #state{call = Call} = State) when is_record(Call, call) ->
 		inband ->
 			ok = agent:set_state(State#state.agent_fsm, wrapup);
 		outband ->
-			ok = agent:set_state(State#state.agent_fsm, wrapup, State#state.call)
+			Call#call.source ! call_hangup
 	end,
 	{noreply, State};
 handle_info(endwrapup, #state{call = Call} = State) when is_record(Call, call) ->

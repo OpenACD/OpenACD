@@ -1,0 +1,188 @@
+<?xml version="1.0"?>
+<!-- For use with sip_bot_manager.
+The goal behind sip_bot is to test an instance of OpenACD + FreeSWITCH
+running on a separate server beyond what dummy_callcenter can do.  
+
+Set up OpenACD + FreeSWITCH on a server for testing.
+
+On a second node, set up an erlang node (henceforth refered to as 
+'sip_bot node') and FreeSWITCH with this dialplan,modifying bits as 
+noted.  Have the OpenACD beam files available to the sip_bot node.  In 
+erlang, start cpxlog then sip_bot_manager passing in the desired options.
+You may want to see sip_bot_config_example.hrl to see the options.  Next
+start freeswitch with this dialplan.
+
+Beging pushing calls through OpenACD+FreeSWITCH on the test server.
+-->
+<document type="freeswitch/xml">
+	<X-PRE-PROCESS cmd="set" data="sound_prefix=$${base_dir}/sounds/en/us/callie"/>
+	<X-PRE-PROCESS cmd="set" data="domain=$${local_ip_v4}"/>
+	<X-PRE-PROCESS cmd="set" data="hold_music=local_stream://moh"/>
+	<X-PRE-PROCESS cmd="set" data="global_codec_prefs=G722,PCMU,PCMA,GSM"/>
+	<X-PRE-PROCESS cmd="set" data="outbound_codec_prefs=PCMU,PCMA,GSM"/>
+	<X-PRE-PROCESS cmd="set" data="xmpp_client_profile=xmppc"/>
+	<X-PRE-PROCESS cmd="set" data="xmpp_server_profile=xmpps"/>
+	<X-PRE-PROCESS cmd="set" data="bind_server_ip=auto"/>
+	<X-PRE-PROCESS cmd="set" data="unroll_loops=true"/>
+	<X-PRE-PROCESS cmd="set" data="outbound_caller_name=FreeSWITCH"/>
+	<X-PRE-PROCESS cmd="set" data="outbound_caller_id=0000000000"/>
+	<X-PRE-PROCESS cmd="set" data="call_debug=false"/>
+	<X-PRE-PROCESS cmd="set" data="uk-ring=%(400,200,400,450);%(400,2200,400,450)"/>
+	<X-PRE-PROCESS cmd="set" data="us-ring=%(2000, 4000, 440.0, 480.0)"/>
+	<X-PRE-PROCESS cmd="set" data="fr-ring=%(1500, 3500, 440.0, 0.0)"/>
+	<X-PRE-PROCESS cmd="set" data="bong-ring=v=-7;%(100,0,941.0,1477.0);v=-7;>=2;+=.1;%(1400,0,350,440)"/>
+	<section name="configuration" description="Various Configuration">
+		<configuration name="console.conf" description="Console Logger">
+			<mappings>
+				<map name="all" value="console,debug,info,notice,warning,err,crit,alert"/>
+			</mappings>
+			<settings>
+				<param name="colorize" value="true"/>
+				<param name="loglevel" value="info"/>
+		  </settings>
+		</configuration>
+		<configuration name="event_socket.conf" description="Socket Client">
+			<settings>
+				<param name="listen-ip" value="127.0.0.1"/>
+				<param name="listen-port" value="8021"/>
+				<param name="password" value="ClueCon"/>
+			</settings>
+		</configuration>
+		<configuration name="local_stream.conf" description="stream files from local dir">
+			<directory name="moh/8000" path="$${base_dir}/sounds/music/8000">
+				<param name="rate" value="8000"/>
+				<param name="shuffle" value="true"/>
+				<param name="channels" value="1"/>
+				<param name="interval" value="20"/>
+				<param name="timer_name" value="soft"/>
+			</directory>
+			<directory name="moh/16000" path="$${base_dir}/sounds/music/16000">
+				<param name="rate" value="16000"/>
+				<param name="shuffle" value="true"/>
+				<param name="channels" value="1"/>
+				<param name="interval" value="20"/>
+				<param name="timer_name" value="soft"/>
+			</directory>
+		</configuration>
+		<configuration name="logfile.conf" description="File Logging">
+			<settings>
+				<param name="rotate-on-hup" value="true"/>
+			</settings>
+			<profiles>
+				<profile name="default">
+					<settings>
+					</settings>
+					<mappings>
+						<map name="all" value="debug,info,notice,warning,err,crit,alert"/>
+					</mappings>
+				</profile>
+			</profiles>
+		</configuration>
+		<configuration name="modules.conf" description="Modules">
+			<modules>
+				<load module="mod_console"/>
+				<load module="mod_logfile"/>
+				<load module="mod_event_socket"/>
+				<load module="mod_erlang_event"/>
+				<load module="mod_sofia"/>
+				<load module="mod_commands"/>
+				<load module="mod_dptools"/>
+				<load module="mod_expr"/>
+				<load module="mod_fsv"/>
+				<load module="mod_dialplan_xml"/>
+				<load module="mod_voipcodecs"/>
+				<load module="mod_g723_1"/>
+				<load module="mod_g729"/>
+				<load module="mod_amr"/>
+				<load module="mod_ilbc"/>
+				<load module="mod_speex"/>
+				<load module="mod_h26x"/>
+				<load module="mod_sndfile"/>
+				<load module="mod_native_file"/>
+				<load module="mod_local_stream"/>
+				<load module="mod_tone_stream"/>
+			</modules>
+		</configuration>
+		<configuration name="erlang_event.conf" description="sip bots">
+			<settings>
+				<!-- Modify to the name of this local freeswitch erlang
+				node.  Must be unique (differing from OpenACD's 
+				FreeSWITCH) -->
+				<param name="nodename" value="freebots"/>
+				<param name="listen-ip" value="0.0.0.0" />
+				<param name="listen-port" value="8031"/>
+				<param name="cookie" value="aCookie"/>
+				<param name="shortname" value="true"/>
+			</settings>
+		</configuration>
+		<!-- sip_bot_manager provides this information, so no change 
+		should be needed -->
+		<configuration name="sofia.conf" description="sofia Endpoint">
+			<global_settings>
+				<param name="log-level" value="0"/>
+			</global_settings>
+			<profiles>
+			</profiles>
+		</configuration>
+		<configuration name="switch.conf" description="Core Configuration">
+			<cli-keybindings>
+				<key name="1" value="help"/>
+				<key name="2" value="status"/>
+				<key name="3" value="show channels"/>
+				<key name="4" value="show calls"/>
+				<key name="5" value="sofia status"/>
+				<key name="6" value="reloadxml"/>
+				<key name="7" value="console loglevel 0"/>
+				<key name="8" value="console loglevel 7"/>
+				<key name="9" value="sofia status profile internal"/>
+				<key name="10" value="fsctl pause"/>
+				<key name="11" value="fsctl resume"/>
+				<key name="12" value="version"/>
+			</cli-keybindings> 
+			<settings>
+				<param name="colorize-console" value="true"/>
+				<param name="max-sessions" value="1000"/>
+				<param name="sessions-per-second" value="30"/>
+				<param name="loglevel" value="debug"/>
+				<param name="crash-protection" value="false"/>
+				<param name="mailer-app" value="sendmail"/>
+				<param name="mailer-app-args" value="-t"/>
+				<param name="dump-cores" value="yes"/>
+			</settings>
+		</configuration>
+		<configuration name="syslog.conf" description="Syslog Logger">
+			<settings>
+				<param name="ident" value="freeswitch"/>
+				<param name="loglevel" value="warning"/>
+			</settings>
+		</configuration>
+	</section>
+	<section name="dialplan" description="Regex/XML Dialplan">
+		<context name="default">
+			<extension name="all">
+				<condition field="destination_number" expression="^(.*)$">
+					<!-- Replace 'nodename@example' with the node 
+					sip_bot_manager is running on.   -->
+					<action application="erlang" data="sip_bot_manager:! nodename@example" />
+				</condition>
+			</extension>
+		</context>
+	</section>
+	<section name="directory" description="User Directory">
+		<domain name="$${domain}">
+			<params>
+				<param name="dial-string" value="{presence_id=${dialed_user}@${dialed_domain},transfer_fallback_extension=${dialed_user}}${sofia_contact(${dialed_domain}/${dialed_user}@${dialed_domain})}"/>
+			</params>
+			<variables>
+				<variable name="record_stereo" value="true"/>
+			</variables>
+			<user id="default">
+				<variables>
+					<variable name="numbering_plan" value="US"/>
+					<variable name="default_gateway" value="asterlink.com"/>
+					<variable name="default_area_code" value="918"/>
+				</variables>
+			</user>
+		</domain>
+	</section>
+</document>

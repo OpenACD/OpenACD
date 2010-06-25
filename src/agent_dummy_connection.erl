@@ -70,6 +70,39 @@
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
 
+
+-type(login_option() :: {'login', string()}).
+-type(password_option() :: {'password', string()}).
+-type(id_option() :: {'id', string()}).
+-type(profile() :: {'profile', string()}).
+-type(skill() :: atom() | {atom(), any()}).
+-type(skill_list() :: [skill()]).
+-type(skills_option() :: {'skills', skill_list()}).
+-type(max_life() :: {'max_life', pos_integer()}).
+-type(release_frequency() :: {'release_frequency', pos_integer()}).
+-type(release_percent() :: {'release_percent', pos_integer()}).
+-type(ringing() :: {'ringing', pos_integer()}).
+-type(oncall() :: {'oncall', pos_integer()}).
+-type(wrapup() :: {'wrapup', pos_integer()}).
+-type(maxcalls() :: {'maxcalls', pos_integer()}).
+-type(scale() :: {'scale', pos_integer()}).
+-type(start_option() :: 
+	login_option() |
+	password_option() |
+	id_option() |
+	profile() |
+	skills_option() |
+	max_life() | 
+	release_frequency() |
+	release_percent() |
+	ringing() |
+	oncall() |
+	wrapup() |
+	maxcalls() |
+	scale()
+).
+-type(start_options() :: [start_option()]).
+
 -spec(start_x/1 :: (N :: pos_integer()) -> 'ok').
 start_x(N) ->
 	start_x(N, []).
@@ -107,6 +140,7 @@ init([Args]) ->
 	{ok, Pid} = agent_manager:start_agent(#agent{
 			id = proplists:get_value(id, Args, Login),
 			login = Login,
+			password = proplists:get_value(password, Args, ""),
 			profile = proplists:get_value(profile, Args, "Default"),
 			skills = proplists:get_value(skills, Args, [english, '_agent', '_node'])
 		}),

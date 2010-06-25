@@ -580,7 +580,20 @@ oncall({released, default}, From, State) ->
 oncall({released, {_Id, _Text, Bias} = Reason}, _From, #state{agent_rec = Agent} = State) when is_integer(Bias), -1 =< Bias, Bias =< 1 -> 
 	Newagent = Agent#agent{queuedrelease=Reason},
 	{reply, queued, oncall, State#state{agent_rec = Newagent}};
-oncall(wrapup, _From, #state{agent_rec = #agent{statedata = Call} = Agent} = State) when Call#call.media_path =:= inband ->
+oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent} = State) when Call#call.media_path =:= inband andalso From =:= Call#call.source ->
+	Newagent = Agent#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
+	set_cpx_monitor(Newagent, ?WRAPUP_LIMITS, []),
+	Client = Call#call.client,
+	case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
+		N when is_integer(N) andalso N > 0 ->
+			Self = self(),
+			erlang:send_after(N * 1000, Self, end_wrapup);
+		_ ->
+			ok
+	end,
+	gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
+	{reply, ok, wrapup, State#state{agent_rec = Newagent}};	
+oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent} = State) when Call#call.media_path =:= inband andalso From =:= Agent#agent.connection ->
 	gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
 	%cdr:hangup(Call, agent),
 	%cdr:wrapup(Call, State#agent.login),
@@ -607,7 +620,9 @@ oncall(wrapup, _From, #state{agent_rec = #agent{statedata = Call} = Agent} = Sta
 			set_cpx_monitor(Newagent, ?WRAPUP_LIMITS, []),
 			{reply, ok, wrapup, State#state{agent_rec = Newagent}}
 	end;
-oncall({wrapup, #call{id = Callid} = Call}, _From, #state{agent_rec = #agent{statedata = Currentcall} = Agent} = State) ->
+oncall({wrapup, #call{media_path = inband} = Call}, From, State) ->
+	oncall(wrapup, From, State);
+oncall({wrapup, #call{id = Callid, source = CallSource} = Call}, {From, _Tag}, #state{agent_rec = #agent{statedata = Currentcall, connection = AgentConnection} = Agent} = State) when From =:= CallSource orelse From =:= Currentcall#call.source ->
 	case Currentcall#call.id of
 		Callid -> 
 			gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
@@ -2141,9 +2156,77 @@ from_oncall_test_() ->
 			Assertmocks()
 		end}
 	end,
-	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
-		{"to wrapup",
+	fun({#state{agent_rec = BaseAgent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to wrapup request from agent connection and inband media",
 		fun() ->
+			Basecall = BaseAgent#agent.statedata,
+			Callrec = Basecall#call{media_path = inband},
+			Agent = BaseAgent#agent{statedata = Callrec},
+			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
+				Incall = Agent#agent.statedata,
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{wrapup, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) ->
+				Incall = Agent#agent.statedata,
+				ok
+			end),
+			gen_server_mock:expect_call(Callrec#call.source, fun('$gen_media_wrapup', _From, _State) ->
+				ok
+			end),
+			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Connmock, make_ref()}, State#state{agent_rec = Agent})),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = BaseAgent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to wrapup request from media and inband media",
+		fun() ->
+			Basecall = BaseAgent#agent.statedata,
+			Callrec = Basecall#call{media_path = inband},
+			Agent = BaseAgent#agent{statedata = Callrec},
+			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
+				Incall = Agent#agent.statedata,
+				ok
+			end),
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+				[{wrapup, _Limits}] = Health,
+				Node = node(),
+				ok
+			end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) ->
+				Incall = Agent#agent.statedata,
+				ok
+			end),
+			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Callrec#call.source, make_ref()}, State#state{agent_rec = Agent})),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = BaseAgent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to wrapup request from some other pid and inband media",
+		fun() ->
+			Basecall = BaseAgent#agent.statedata,
+			Client = #client{label = "testclient", options = [{?WRAPUP_AUTOEND_KEY, 1}]},
+			Callrec = Basecall#call{client = Client},
+			Agent = BaseAgent#agent{statedata = Callrec},
+			?assertMatch({reply, invalid, oncall, _State}, oncall({wrapup, Agent#agent.statedata}, {spawn(fun() -> ok end), make_ref()}, State)),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to wrapup request from agent connection with outband media",
+		fun() ->
+			?assertMatch({reply, invalid, oncall, _State}, oncall({wrapup, Agent#agent.statedata}, {Connmock, make_ref()}, State)),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to wrapup request from media with outband media",
+		fun() ->
+			Call = Agent#agent.statedata,
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, Incall}, _State) ->
 				Incall = Agent#agent.statedata,
 				ok
@@ -2154,7 +2237,14 @@ from_oncall_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
-			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, "from", State)),
+			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Call#call.source, make_ref()}, State)),
+			Assertmocks()
+		end}
+	end,
+	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to wrapup request from some other pid with outband media",
+		fun() ->
+			?assertMatch({reply, invalid, oncall, _State}, oncall({wrapup, Agent#agent.statedata}, {spawn(fun() -> ok end), make_ref()}, State)),
 			Assertmocks()
 		end}
 	end,
@@ -2175,7 +2265,7 @@ from_oncall_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
-			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, "from", State#state{agent_rec = Agent})),
+			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Callrec#call.source, make_ref()}, State#state{agent_rec = Agent})),
 			Gotend = receive
 				end_wrapup ->
 					ok
@@ -2204,7 +2294,7 @@ from_oncall_test_() ->
 				ok
 			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
-			?assertMatch({reply, ok, wrapup, _State}, oncall(wrapup, "from", State#state{agent_rec = Agent})),
+			?assertMatch({reply, ok, wrapup, _State}, oncall(wrapup, {Connmock, make_ref()}, State#state{agent_rec = Agent})),
 			Gotend = receive
 				end_wrapup ->
 					ok

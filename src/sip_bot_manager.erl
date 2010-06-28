@@ -100,7 +100,9 @@
 	start_link/1,
 	start_link/2,
 	stop/0,
-	configuration_server/2
+	configuration_server/2,
+	originate/1,
+	originate/2
 ]).
 
 %% gen_server callbacks
@@ -200,6 +202,24 @@ start_link(Node, Opts) ->
 stop() ->
 	gen_server:cast(?MODULE, stop).
 
+-spec(originate/1 :: (TargetNum :: string()) -> 'ok').
+originate(TargetNum) ->
+	gen_server:cast(?MODULE, {originate, TargetNum}).
+
+-spec(originate/2 :: (X :: pos_integer(), TargetNum :: string() | [string()]) -> 'ok').
+originate(X, [H | _] = TargetNum) when is_integer(H) ->
+	originate(X, [TargetNum]);
+originate(X, TargetNums) ->
+	spawn(fun() -> originate(X, TargetNums, []) end).
+
+originate(X, _Targs, _Acc) when X < 1 ->
+	ok;
+originate(X, [], Acc) ->
+	originate(X, lists:reverse(Acc), []);
+originate(X, [H | T], Acc) ->
+	originate(H),
+	originate(X - 1, T, [H | Acc]).
+	
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -262,6 +282,13 @@ handle_call(Request, _From, State) ->
 %% @private
 handle_cast(stop, State) ->
 	{stop, normal, State};
+handle_cast({originate, TargetNum}, State) when is_integer(TargetNum) ->
+	handle_cast({originate, integer_to_list(TargetNum)}, State);
+handle_cast({originate, TargetNum}, #state{xmlserver_opts = Opts, nodename = FSnode} = State) ->
+	Gateway = proplists:get_value(gateway, Opts, ""),
+	Arg = lists:flatten(io_lib:format("sofia/default/~s@~s park", [TargetNum, Gateway])),
+	freeswitch:bgapi(FSnode, originate, Arg),
+	{noreply, State};
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 

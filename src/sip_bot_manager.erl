@@ -95,6 +95,8 @@
 -export([
 	start/1,
 	start/2,
+	start_app/1,
+	start_app/2,
 	start_link/1,
 	start_link/2,
 	stop/0,
@@ -109,6 +111,17 @@
 -type(username() :: string()).
 -type(password() :: string()).
 -type(agent_tuple() :: {username(), password()}).
+-type(agent_option() ::
+	{'max_life', pos_integer()} |
+	{'release_frequency', pos_integer()} |
+	{'release_percent', pos_integer()} |
+	{'ringing', pos_integer()} |
+	{'oncall', pos_integer()} |
+	{'wrapup', pos_integer()} |
+	{'maxcalls', pos_integer()} |
+	{'scale', pos_integer()}
+).	
+-type(agent_options() :: {'agent_options', [agent_option()]}).
 -type(agents() :: {'agents', [agent_tuple()]}).
 -type(gateway() :: {'gateway', string()}).
 -type(realm() :: {'realm', string()}).
@@ -123,7 +136,8 @@
 	acd_node() |
 	realm() | 
 	profiles() |
-	sip_bots()
+	sip_bots() |
+	agent_options()
 ).
 -type(start_options() :: [start_option()]).
 
@@ -146,6 +160,20 @@
 %% API
 %%====================================================================
 
+-spec(start_app/1 :: (Node :: atom()) -> {'ok', pid()}).
+start_app(Node) ->
+	start_app(Node, "sip_bot_conf.hrl").
+
+-spec(start_app/2 :: (Node :: atom(), File :: string()) -> {'ok', pid()}).
+start_app(Node, File) ->
+	case whereis(cpxlog) of
+		undefined ->
+			cpxlog:start();
+		_ ->
+			ok
+	end,
+	start(Node, {file, File}).
+	
 -spec(start/1 :: (Node :: atom()) -> {'ok', pid()}).
 start(Node) ->
 	start(Node, []).
@@ -179,17 +207,28 @@ stop() ->
 init([Nodename, Options]) -> 
 	?DEBUG("starting...", []),
 	Acd = proplists:get_value(acd_node, Options),
-	Agents = proplists:get_value(agents, Options, []),
+	Agents = case proplists:get_value(agents, Options, []) of
+		List when is_list(List) ->
+			List;
+		X when is_integer(X), X > 0 ->
+			make_agent_list(X)
+	end,
+	Profiles = proplists:get_value(profiles, Options, ["default"]),
+	DummyAgentOpts = proplists:get_value(agent_options, Options, []),
 	Botopts = proplists:get_value(sip_bots, Options, []),
+	ConfOpts = [{agents, Agents} | proplists:delete(agents, Options)],
 	process_flag(trap_exit, true),
 	monitor_node(Nodename, true),
-	spawn(fun() -> launch_agents(Agents, proplists:get_value(profiles, Options, ["default"]), Acd) end),
+	spawn(fun() -> 
+		kill_agents(Agents, Acd),
+		launch_agents(Agents, Profiles, DummyAgentOpts, Acd)
+	end),
 	{Listenpid, DomainPid} = case net_adm:ping(Nodename) of
 		pong ->
 			?NOTICE("Starting with live freeswitch node", []),
 			Lpid = start_listener(Nodename),
 			%freeswitch:event(Nodename, ['CHANNEL_DESTROY']),
-			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, configuration, ?MODULE, configuration_server, Options),
+			{ok, Pid} = freeswitch:start_fetch_handler(Nodename, configuration, ?MODULE, configuration_server, ConfOpts),
 			link(Pid),
 			{Lpid, Pid};
 		_ ->
@@ -319,12 +358,14 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-launch_agents([], _Profiles, _Acd) ->
+launch_agents([], _Profiles, _Opts, _Acd) ->
 	ok;
-launch_agents([{User, Pass} | Tail], [Profile | Proftail], Acd) ->
-	O = rpc:call(Acd, agent_dummy_connection, start, [[{login, User}, {password, Pass}, {scale, 100}, {profile, Profile}]]),
+launch_agents([{User, Pass} | Tail], [Profile | Proftail], Opts, Acd) ->
+	O = rpc:call(Acd, agent_dummy_connection, start, [lists:merge([{login, User}, {password, Pass}, {scale, 100}, {profile, Profile}], Opts)]),
 	?DEBUG("Launched agent ~s:  ~p", [User, O]),
-	launch_agents(Tail, Proftail ++ [Profile], Acd).
+	launch_agents(Tail, Proftail ++ [Profile], Opts, Acd);
+launch_agents(X, P, O, A) when is_integer(X) ->
+	launch_agents(make_agent_list(X), P, O, A).
 
 kill_agents([], _Acd) ->
 	ok;
@@ -336,7 +377,12 @@ kill_agents([{User, _Pass} | Tail], Acd) ->
 			?DEBUG("Not murdering ~s", [User]),
 			ok
 	end,
-	kill_agents(Tail, Acd).
+	kill_agents(Tail, Acd);
+kill_agents(X, A) when is_integer(X) ->
+	kill_agents(make_agent_list(X), A).
+
+make_agent_list(X) when is_integer(X), X > 0 ->
+	[{"a" ++ integer_to_list(A), "pw"} || A <- lists:seq(1, X)].
 
 %% @private
 start_listener(Nodename) ->

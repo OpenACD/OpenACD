@@ -184,7 +184,7 @@ case_event_name([UUID | Rawcall], State) ->
 				{"execute-app-name", "playback"},
 				{"execute-app-arg", State#state.playback_file}
 			]),
-			spew_vars(Rawcall),
+			%spew_vars(Rawcall),
 			{noreply, State};
 		_ ->
 			% not much else I can think of.

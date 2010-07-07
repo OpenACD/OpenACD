@@ -243,7 +243,8 @@ init([Nodename, Options]) ->
 			link(Pid),
 			{Lpid, Pid, StrippedOpts};
 		_ ->
-			{undefined, undefined}
+			StrippedOpts = [ X || {Key, _} = X <- Options, Key /= domain],
+			{undefined, undefined, StrippedOpts}
 	end,
 	{ok, #state{nodename=Nodename, dialstring = DialString, eventserver = Listenpid, xmlserver = DomainPid, freeswitch_up = true, fetch_domain_user = FetchUserOpts}}.
 

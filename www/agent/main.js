@@ -105,7 +105,7 @@ function queueTransferDialog(queueNom){
 			label:'Submit'
 		}, submitNode);
 		dojo.connect(submitButton, 'onClick', dialog, function(){
-			var urlopts = {},
+			var urlopts = {};
 			for(var i = 0; i < this.prompts.length; i++){
 				if(this.prompts[i].isValid() == false){
 					return false;

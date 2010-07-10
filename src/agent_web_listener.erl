@@ -263,7 +263,7 @@ file_data_handler(Data, {Name, ContentType, Acc}) ->
 	fun(N) -> file_data_handler(N, {Name, ContentType, Newacc}) end.
 
 determine_language(undefined) ->
-	"";
+	"en"; %% not requested, assume english
 determine_language([]) ->
 	"";
 determine_language(String) ->

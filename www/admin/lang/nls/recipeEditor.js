@@ -14,7 +14,7 @@
 	ADDRECIPE: "Add Recipe",
 	RUNONCE: "Run Once",
 	RUNMANY: "Run Many",
-	TICKINTERVALE: "Tick Interval",
+	TICKINTERVAL: "Tick Interval",
 	AGENTSAVAILABLE: "Agents Available",
 	AGENTSELIGIBLE: "Agents Eligible",
 	CALLSINQUEUE: "Calls in Queue",

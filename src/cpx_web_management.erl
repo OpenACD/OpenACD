@@ -115,7 +115,7 @@ loop(Req) ->
 					% now would be a good time to determine the language.
 					Language = case Req:get_header_value("Accept-Language") of
 						undefined ->
-							"";
+							"en"; %% not requested, assume english
 						Langlist ->
 							determine_language(util:string_split(Langlist, ","))
 					end,

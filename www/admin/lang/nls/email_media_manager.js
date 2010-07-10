@@ -1,10 +1,10 @@
 {
 	EMAILENABLED: "Enable Email",
 	PORT: "Port",
-	IN_RELAYS: "Inbound Relays",
-	OUT_RELAY: "Outbound Relays",
 	BINDIP: "IP",
 	HOST: "Host",
+	IN_RELAYS: "Inbound Relays",
+	OUT_RELAY: "Outbound Relay",
 	REQUIRE_AUTH: "Use Authentication",
 	USERNAME: "Username",
 	PASSWORD: "Password",

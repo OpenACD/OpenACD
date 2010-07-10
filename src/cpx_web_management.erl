@@ -119,7 +119,7 @@ loop(Req) ->
 						Langlist ->
 							determine_language(util:string_split(Langlist, ","))
 					end,
-					Langcookie = io_lib:format("cpx_lang=~s", [Language]),
+					Langcookie = io_lib:format("cpx_lang=~s; path=/", [Language]),
 					Req:serve_file(File, Docroot, [{"Set-Cookie", Cookie},{"Set-Cookie", Langcookie}]);
 				{_Reflist, _Salt, _Login} ->
 					Req:serve_file(File, Docroot)
@@ -204,7 +204,7 @@ api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	ets:insert(cpx_management_logins, {Reflist, undefined, undefined}),
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
 api(_Api, {_Reflist, _Salt, undefined}, _Post) ->
-	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"login required">>}]})};
+	{403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"login required">>}]})};
 	
 %% =====
 %% agents -> modules

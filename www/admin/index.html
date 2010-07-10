@@ -122,6 +122,14 @@ dojo.require("openacd.releaseOpts");
 dojo.require("dojox.grid.DataGrid");
 dojo.requireLocalization("admin", "labels");
 
+function init() {
+	if (dojo.config.locale == "") {
+		dojo.byId("loginerrp").style.display = "block";
+		dojo.byId("loginerrspan").innerHTML="No translation for any locales<br/>matching your request, sorry.";
+	}
+}
+
+dojo.addOnLoad(init);
 </script>
 <script type="text/javascript" src="main.js"></script>
 </head>

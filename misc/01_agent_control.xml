@@ -4,7 +4,18 @@ This sample dialplan illustrates how OpenACD agents can be implemented via the d
 
 If you want to use this, change testme@nodename to be the actual name of your OpenACD node.
 
-Also, if you're using ACL authentication, change sip_auth_username to sip_from_user
+Also, if you're using ACL authentication, change sip_auth_username to sip_from_user.
+
+If your dialplan agents are on a different endpoint, you can pass additional parameters to the
+agent_dialplan_listener. The syntax is as follows:
+
+<Action> <agent> [EndpointType [EndpointData]]
+
+Some examples:
+
+agent_login agent sip - Dial the SIP dialstring with 'agent' inlined for $1
+agent_login agent sip ${Caller-Caller-ID-Name} - Use the callerid name
+agent_login agent pstn ${Caller-Caller-ID-Number} - Dial the CallerID number on the PSTN
 
 -->
 

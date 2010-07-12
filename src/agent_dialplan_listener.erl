@@ -69,18 +69,28 @@ handle_cast(Msg, State) ->
 	?DEBUG("Cast ~p", [Msg]),
 	{noreply, State}.
 
-handle_info({freeswitch_sendmsg, "agent_login " ++ Username}, State) ->
+handle_info({freeswitch_sendmsg, "agent_login " ++ Parameters}, State) ->
+	case util:string_split(Parameters, " ") of
+		[Username] ->
+			Endpoint = {sip_registration, Username};
+		[Username, EndpointType] ->
+			Endpoint = construct_endpoint(EndpointType, Username);
+		[Username, EndpointType, EndpointData] ->
+			Endpoint = construct_endpoint(EndpointType, EndpointData)
+	end,
+
 	case dict:find(Username, State#state.registry) of
 		error ->
 			case agent_auth:get_agent(Username) of
 				{atomic, []} ->
 					?INFO("no such agent ~p", [Username]),
 					{noreply, State};
+				{atomic, [AgentAuth]} when Endpoint == error ->
+					?WARNING("~p tried to login with invalid endpoint parameters ~p", [Parameters]);
 				{atomic, [AgentAuth]} ->
 					Agent = #agent{id = AgentAuth#agent_auth.id, login = AgentAuth#agent_auth.login, skills = AgentAuth#agent_auth.skills, profile = AgentAuth#agent_auth.profile},
 					case agent_dialplan_connection:start(Agent, AgentAuth#agent_auth.securitylevel) of
 						{ok, Pid} ->
-							Endpoint = {sip_registration, Username},
 							?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
 							gen_server:call(Pid, {set_endpoint, Endpoint}),
 							link(Pid),
@@ -152,4 +162,21 @@ terminate(Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+%% TODO - this should be a common function
+construct_endpoint(Type, Data) ->
+	case list_to_existing_atom(Type) of
+			sip_registration ->
+				{sip_registration, Data};
+			sip ->
+				{sip, Data};
+			iax2 ->
+				{iax2, Data};
+			h323 ->
+				{h323, Data};
+			pstn ->
+				{pstn, Data};
+			_ ->
+				invalid
+		end.
 

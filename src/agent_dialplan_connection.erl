@@ -109,8 +109,8 @@ handle_info(Info, State) ->
 	?DEBUG("Info:  ~p", [Info]),
 	{noreply, State}.
 
-terminate(Reason, _State) ->
-	?NOTICE("Terminating dirty:  ~p", [Reason]),
+terminate(_Reason, _State) ->
+	?NOTICE("Terminated: ~p", [Reason]),
 	ok.
 
 code_change(_OldVsn, State, _Extra) ->

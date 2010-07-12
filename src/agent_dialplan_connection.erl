@@ -109,7 +109,7 @@ handle_info(Info, State) ->
 	?DEBUG("Info:  ~p", [Info]),
 	{noreply, State}.
 
-terminate(_Reason, _State) ->
+terminate(Reason, _State) ->
 	?NOTICE("Terminated: ~p", [Reason]),
 	ok.
 

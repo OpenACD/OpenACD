@@ -469,7 +469,7 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 			?DEBUG("Updating password", []),
 			agent_auth:set_agent(Agent, [
 				{login, proplists:get_value("login", Post)},
-				{password, proplists:get_value("password", Post)},
+				{password, util:bin_to_hexstr(erlang:md5(proplists:get_value("password", Post)))},
 				{skills, Fixedskills},
 				{securitylevel, list_to_existing_atom(proplists:get_value("security", Post))},
 				{profile, proplists:get_value("profile", Post)},

@@ -565,6 +565,8 @@ fetch_domain_user(Node, State) ->
 							case agent_manager:query_agent(User) of
 								{true, Pid} ->
 									try agent:dump_state(Pid) of
+										Agent when Agent#agent.password == 'undefined' ->
+											return_a1_hash(Domain, User, Node, ID);
 										Agent ->
 											Password=Agent#agent.password,
 											Hash = util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password)),
@@ -575,21 +577,7 @@ fetch_domain_user(Node, State) ->
 											freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
 									end;
 								false ->
-									case agent_auth:get_extended_prop({login, User}, a1_hash) of
-										{ok, Hash} ->
-											freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))});
-										undefined ->
-											freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE});
-										{error, noagent} ->
-											case agent_auth:get_extended_prop({login, re:replace(User, "_", "@", [{return, list}])}, a1_hash) of
-												{ok, Hash} ->
-													freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))});
-												undefined ->
-													freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE});
-												{error, noagent} ->
-													freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
-											end
-									end
+									return_a1_hash(Domain, User, Node, ID)
 							end;
 						undefined -> % I guess we're just looking up a user?
 							User = proplists:get_value("user", Data),
@@ -615,3 +603,21 @@ fetch_domain_user(Node, State) ->
 			?DEBUG("got other response: ~p", [Other]),
 			?MODULE:fetch_domain_user(Node, State)
 	end.
+
+return_a1_hash(Domain, User, Node, FetchID) ->
+	case agent_auth:get_extended_prop({login, User}, a1_hash) of
+		{ok, Hash} ->
+			freeswitch:send(Node, {fetch_reply, FetchID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))});
+		undefined ->
+			freeswitch:send(Node, {fetch_reply, FetchID, ?EMPTYRESPONSE});
+		{error, noagent} ->
+			case agent_auth:get_extended_prop({login, re:replace(User, "_", "@", [{return, list}])}, a1_hash) of
+				{ok, Hash} ->
+					freeswitch:send(Node, {fetch_reply, FetchID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))});
+				undefined ->
+					freeswitch:send(Node, {fetch_reply, FetchID, ?EMPTYRESPONSE});
+				{error, noagent} ->
+					freeswitch:send(Node, {fetch_reply, FetchID, ?EMPTYRESPONSE})
+			end
+	end.
+

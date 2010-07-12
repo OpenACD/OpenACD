@@ -77,7 +77,7 @@ handle_info({freeswitch_sendmsg, "agent_login " ++ Username}, State) ->
 					?INFO("no such agent ~p", [Username]),
 					{noreply, State};
 				{atomic, [AgentAuth]} ->
-					Agent = #agent{id = AgentAuth#agent_auth.id, login = AgentAuth#agent_auth.login, skills = AgentAuth#agent_auth.skills, profile = AgentAuth#agent_auth.profile, password = AgentAuth#agent_auth.password},
+					Agent = #agent{id = AgentAuth#agent_auth.id, login = AgentAuth#agent_auth.login, skills = AgentAuth#agent_auth.skills, profile = AgentAuth#agent_auth.profile},
 					case agent_dialplan_connection:start(Agent, AgentAuth#agent_auth.securitylevel) of
 						{ok, Pid} ->
 							Endpoint = {sip_registration, Username},

@@ -81,6 +81,9 @@
 				<params>
 					<param name=\"a1-hash\" value=\"~s\"/>
 				</params>
+				<variables>
+					<variable name=\"user_context\" value=\"default\"/>
+				</variables>
 			</user>
 		</domain>
 	</section>

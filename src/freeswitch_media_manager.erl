@@ -561,27 +561,35 @@ fetch_domain_user(Node, State) ->
 					end;
 				_Else ->
 					case proplists:get_value("action", Data) of
-						"sip_auth" ->
-							User = proplists:get_value("user", Data),
-							Domain = proplists:get_value("domain", Data),
-							Realm = proplists:get_value("sip_auth_realm", Data),
-							case agent_manager:query_agent(User) of
-								{true, Pid} ->
-									try agent:dump_state(Pid) of
-										Agent when Agent#agent.password == 'undefined' ->
-											return_a1_hash(Domain, User, Node, ID);
-										Agent ->
-											Password=Agent#agent.password,
-											Hash = util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password)),
-											freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))}),
-											agent_auth:set_extended_prop({login, Agent#agent.login}, a1_hash, Hash)
-									catch
-										_:_ -> % agent pid is toast?
-											freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
-									end;
-								false ->
-									return_a1_hash(Domain, User, Node, ID)
-							end;
+						"sip_auth" -> % authing a SIP device
+							case proplists:get_value("sipauth", State) of
+								undefined ->
+									%% not doing sip auth, return nothing
+									?DEBUG("Not doing SIP auth", []),
+									freeswitch:send(Node, {fetch_reply, ID, ""}),
+									ok;
+								_ ->
+									User = proplists:get_value("user", Data),
+									Domain = proplists:get_value("domain", Data),
+									Realm = proplists:get_value("sip_auth_realm", Data),
+									case agent_manager:query_agent(User) of
+										{true, Pid} ->
+											try agent:dump_state(Pid) of
+												Agent when Agent#agent.password == 'undefined' ->
+													return_a1_hash(Domain, User, Node, ID);
+												Agent ->
+													Password=Agent#agent.password,
+													Hash = util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password)),
+													freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))}),
+													agent_auth:set_extended_prop({login, Agent#agent.login}, a1_hash, Hash)
+												catch
+													_:_ -> % agent pid is toast?
+														freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
+												end;
+											false ->
+												return_a1_hash(Domain, User, Node, ID)
+										end
+								end;
 						undefined -> % I guess we're just looking up a user?
 							User = proplists:get_value("user", Data),
 							Domain = proplists:get_value("domain", Data),

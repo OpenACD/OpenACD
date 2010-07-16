@@ -1163,7 +1163,8 @@ api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 				{"dialstring", dialstring},
 				{"sipEndpoint", sip},
 				{"iax2Endpoint", iax2},
-				{"h323Endpoint", h323}
+				{"h323Endpoint", h323},
+				{"sipauth", sipauth}
 			],
 			Builder = fun({PostKey, RealKey}, Acc) ->
 				case proplists:get_value(PostKey, Post) of
@@ -1205,7 +1206,8 @@ api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 				{dialstring, <<"dialstring">>},
 				{sip, <<"sipEndpoint">>},
 				{iax2, <<"iax2Endpoint">>},
-				{h323, <<"h323Endpoint">>}
+				{h323, <<"h323Endpoint">>},
+				{sipauth, <<"sipauth">>}
 			],
 			Builder = fun({Key, Newkey}, Acc) ->
 				case proplists:get_value(Key, Args) of

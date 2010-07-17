@@ -551,13 +551,13 @@ fetch_domain_user(Node, State) ->
 											freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State, ""), Agent#agent.endpointdata, [])
 									end,
 									?NOTICE("returning ~s for user directory entry ~s", [DialString, User]),
-									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, DialString]))})
+									freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?DIALUSERRESPONSE, [Domain, User, DialString])))
 							catch
 								_:_ -> % agent pid is toast?
-									freeswitch:send(Node, {fetch_reply, ID, ?NOTFOUNDRESPONSE})
+									freeswitch:fetch_reply(Node, ID, ?NOTFOUNDRESPONSE)
 							end;
 						false ->
-							freeswitch:send(Node, {fetch_reply, ID, ?NOTFOUNDRESPONSE})
+							freeswitch:fetch_reply(Node, ID, ?NOTFOUNDRESPONSE)
 					end;
 				_Else ->
 					case proplists:get_value("action", Data) of
@@ -566,7 +566,7 @@ fetch_domain_user(Node, State) ->
 								undefined ->
 									%% not doing sip auth, return nothing
 									?DEBUG("Not doing SIP auth", []),
-									freeswitch:send(Node, {fetch_reply, ID, ""}),
+									freeswitch:fetch_reply(Node, ID, ""),
 									ok;
 								_ ->
 									User = proplists:get_value("user", Data),
@@ -580,11 +580,11 @@ fetch_domain_user(Node, State) ->
 												Agent ->
 													Password=Agent#agent.password,
 													Hash = util:bin_to_hexstr(erlang:md5(User++":"++Realm++":"++Password)),
-													freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))}),
+													freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))),
 													agent_auth:set_extended_prop({login, Agent#agent.login}, a1_hash, Hash)
 												catch
 													_:_ -> % agent pid is toast?
-														freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
+														freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
 												end;
 											false ->
 												return_a1_hash(Domain, User, Node, ID)
@@ -595,17 +595,17 @@ fetch_domain_user(Node, State) ->
 							Domain = proplists:get_value("domain", Data),
 							case agent_manager:query_agent(User) of
 								{true, _Pid} ->
-									freeswitch:send(Node, {fetch_reply, ID, lists:flatten(io_lib:format(?USERRESPONSE, [Domain, User]))});
+									freeswitch:fetch_reply(Node, ID, lists:flatten(io_lib:format(?USERRESPONSE, [Domain, User])));
 								false ->
-									freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
+									freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
 							end;
 						_ ->
-							freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE})
+							freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE)
 					end
 			end,
 			?MODULE:fetch_domain_user(Node, State);
 		{fetch, _Section, _Something, _Key, _Value, ID, [undefined | _Data]} ->
-			freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE}),
+			freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE),
 			?MODULE:fetch_domain_user(Node, State);
 		{nodedown, Node} ->
 			?DEBUG("Node we were serving XML search requests to exited", []),
@@ -618,17 +618,17 @@ fetch_domain_user(Node, State) ->
 return_a1_hash(Domain, User, Node, FetchID) ->
 	case agent_auth:get_extended_prop({login, User}, a1_hash) of
 		{ok, Hash} ->
-			freeswitch:send(Node, {fetch_reply, FetchID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))});
+			freeswitch:fetch_reply(Node, FetchID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash])));
 		undefined ->
-			freeswitch:send(Node, {fetch_reply, FetchID, ?EMPTYRESPONSE});
+			freeswitch:fetch_reply(Node, FetchID, ?EMPTYRESPONSE);
 		{error, noagent} ->
 			case agent_auth:get_extended_prop({login, re:replace(User, "_", "@", [{return, list}])}, a1_hash) of
 				{ok, Hash} ->
-					freeswitch:send(Node, {fetch_reply, FetchID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash]))});
+					freeswitch:fetch_reply(Node, FetchID, lists:flatten(io_lib:format(?REGISTERRESPONSE, [Domain, User, Hash])));
 				undefined ->
-					freeswitch:send(Node, {fetch_reply, FetchID, ?EMPTYRESPONSE});
+					freeswitch:fetch_reply(Node, FetchID, ?EMPTYRESPONSE);
 				{error, noagent} ->
-					freeswitch:send(Node, {fetch_reply, FetchID, ?EMPTYRESPONSE})
+					freeswitch:fetch_reply(Node, FetchID, ?EMPTYRESPONSE)
 			end
 	end.
 

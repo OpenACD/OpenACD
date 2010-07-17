@@ -528,14 +528,14 @@ configuration_server(Node, State) ->
 			]},
 			Binout = list_to_binary(mochiweb_html:to_html(Out)),
 			%?DEBUG("Binout:  ~s", [Binout]),
-			freeswitch:send(Node, {fetch_reply, ID, binary_to_list(Binout)}),
+			freeswitch:fetch_reply(Node, ID, binary_to_list(Binout)),
 			?MODULE:configuration_server(Node, State);
 		{reconfig, Newstate} ->
 			?MODULE:configuration_server(Node, Newstate);
 		{fetch, _Section, _Something, _Key, _Value, ID, _Params} = T->
 			Out = [element(I, T) || I <- lists:seq(2, 6)],
 			?DEBUG("Something:  ~p", [Out]),
-			freeswitch:send(Node, {fetch_reply, ID, ?EMPTYRESPONSE}),
+			freeswitch:fetch_reply(Node, ID, ?EMPTYRESPONSE),
 			?MODULE:configuration_server(Node, State);
 		{nodedown, Node} ->
 			?DEBUG("Node we were serving XML search requests to exited", []),

@@ -6,6 +6,8 @@
 		agent_auth,
 		agent_dummy_connection,
 		agent_manager,
+		agent_dialplan_connection,
+		agent_dialplan_listener,
 		agent_tcp_connection,
 		agent_tcp_listener,
 		agent_web_connection,
@@ -46,6 +48,8 @@
 		gen_media,
 		integration,
 		queue_manager,
+		sip_bot,
+		sip_bot_manager,
 		spicecsm_integration,
 		util
 	]},

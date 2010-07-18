@@ -108,10 +108,14 @@ start(Call, Recipe, Queue, Qpid, Key) when is_pid(Call) ->
 -spec(start_at/6 :: (Node :: atom(), Call :: pid(), Recipe :: recipe(), Queue :: string(), Qpid :: pid(), Key :: call_key()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
 start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 	F = fun() ->
-		{ok, State} = init([Call, Recipe, Queue, Qpid, Key]),
-		?DEBUG("about to enter loop ~p, ~p", [get('$ancestors'), Call]),
-		put('$ancestors', [Call]), % we don't want to die with the queue
-		gen_server:enter_loop(?MODULE, [], State)
+		case init([Call, Recipe, Queue, Qpid, Key]) of
+			{ok, State} ->
+				?DEBUG("about to enter loop ~p, ~p", [get('$ancestors'), Call]),
+				put('$ancestors', [Call]), % we don't want to die with the queue
+				gen_server:enter_loop(?MODULE, [], State);
+			{error, Reason} ->
+				{error, Reason}
+		end
 	end,
 	{ok, proc_lib:spawn_link(Node, F)}.
 
@@ -121,21 +125,28 @@ start_at(Node, Call, Recipe, Queue, Qpid, Key) ->
 
 %% @private
 init([Call, InRecipe, Queue, Qpid, {_Priority, {MSec, Sec, _MsSec}} = Key]) ->
-	CallRec = gen_media:get_call(Call),
-	?DEBUG("Cook starting for call ~p from queue ~p", [CallRec#call.id, Queue]),
-	?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
 	process_flag(trap_exit, true),
-	Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
-	OptRecipe = optimize_recipe(InRecipe),
-	Now = util:now(),
-	Recipe = case round(Now - (MSec * 1000000 + Sec)) of
-		Ticked when Ticked > 1 ->
-			fast_forward(OptRecipe, Ticked / (?TICK_LENGTH / 1000), Qpid, Call);
-		_Else ->
-			OptRecipe
-	end,
-	State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key, callid = CallRec#call.id},
-	{ok, State}.
+	?DEBUG("Getting call information", []),
+	try gen_media:get_call(Call) of
+		CallRec ->
+			?DEBUG("Cook starting for call ~p from queue ~p", [CallRec#call.id, Queue]),
+			?DEBUG("node check.  self:  ~p;  call:  ~p", [node(self()), node(Call)]),
+			Tref = erlang:send_after(?TICK_LENGTH, self(), do_tick),
+			OptRecipe = optimize_recipe(InRecipe),
+			Now = util:now(),
+			Recipe = case round(Now - (MSec * 1000000 + Sec)) of
+				Ticked when Ticked > 1 ->
+					fast_forward(OptRecipe, Ticked / (?TICK_LENGTH / 1000), Qpid, Call);
+				_Else ->
+					OptRecipe
+			end,
+			State = #state{recipe=Recipe, call=Call, queue=Queue, qpid = Qpid, tref=Tref, key = Key, callid = CallRec#call.id},
+			{ok, State}
+	catch
+		Why:Reason ->
+			?ERROR("~p:~p", [Why, Reason]),
+			{error, Reason}
+	end.
 
 %%--------------------------------------------------------------------
 %% Description: Handling call messages

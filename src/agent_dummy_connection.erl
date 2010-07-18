@@ -230,17 +230,22 @@ handle_info(answer, #state{call = Call} = State) when is_record(Call, call)->
 	%gen_server:call(Call#call.source, unqueue),
 	case Call#call.ring_path of
 		inband ->
-			ok = agent:set_state(State#state.agent_fsm, oncall);
+			Result = agent:set_state(State#state.agent_fsm, oncall);
 		outband ->
-			ok = agent:set_state(State#state.agent_fsm, oncall, State#state.call)
+			Result  = agent:set_state(State#state.agent_fsm, oncall, State#state.call)
 	end,
-	gen_server:cast(Call#call.cook, remove_from_queue),
+	case Result of
+		ok ->
+			gen_server:cast(Call#call.cook, remove_from_queue);
+		invalid ->
+			?WARNING("Failed to go oncall from idle", [])
+	end,
 	{noreply, State};
 handle_info(hangup, #state{call = Call} = State) when is_record(Call, call) ->
 	?INFO("time to hangup", []),
 	case Call#call.ring_path of
 		inband ->
-			ok = agent:set_state(State#state.agent_fsm, wrapup);
+			agent:set_state(State#state.agent_fsm, wrapup);
 		outband ->
 			Call#call.source ! call_hangup
 	end,

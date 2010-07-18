@@ -146,7 +146,7 @@ init(Options) ->
 			lists:map(Fun, lists:seq(1, Seeds))
 	end,
 	Timer = spawn_timer(Conf#conf.call_frequency),
-    {ok, #state{
+	{ok, #state{
 		calls = Pidlist,
 		conf = Conf,
 		timer = Timer
@@ -204,9 +204,15 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info(spawn_call, #state{calls = Pidlist, conf = Conf} = State) ->
 	Newpid = queue_media(State#state.conf),
-	#call{id = Newid} = gen_media:get_call(Newpid),
 	Timer = spawn_timer(Conf#conf.call_frequency),
-	{noreply, State#state{calls = [{Newpid, Newid} | Pidlist], timer = Timer}};
+	try gen_media:get_call(Newpid) of
+		#call{id = Newid} ->
+			{noreply, State#state{calls = [{Newpid, Newid} | Pidlist], timer = Timer}}
+	catch
+		exit:Reason ->
+			?WARNING("Newly spawned call not found: ~p", [Reason]),
+			{noreply, State#state{timer = Timer}}
+	end;
 handle_info({spawn_call, Opts}, #state{calls = Pidlist} = State) ->
 	Fakeconf = #conf{
 		queues = proplists:get_value(queues, Opts, any),
@@ -214,8 +220,14 @@ handle_info({spawn_call, Opts}, #state{calls = Pidlist} = State) ->
 		call_priority = proplists:get_value(priority, Opts)
 	},
 	Newpid = queue_media(Fakeconf),
-	#call{id = Newid} = gen_media:get_call(Newpid),
-	{noreply, State#state{calls = [{Newpid, Newid} | Pidlist]}};
+	try gen_media:get_call(Newpid) of
+		#call{id = Newid} ->
+			{noreply, State#state{calls = [{Newpid, Newid} | Pidlist]}}
+	catch
+		exit:Reason ->
+			?WARNING("Newly spawned call not found: ~p", [Reason]),
+			{noreply, State}
+	end;
 handle_info({'EXIT', _Reason, Pid}, #state{calls = Pidlist} = State) ->
 	case proplists:get_value(Pid, Pidlist) of
 		undefined ->

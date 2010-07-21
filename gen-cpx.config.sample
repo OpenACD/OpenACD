@@ -5,5 +5,7 @@
 % Change the nodes to those you plan to use, adding or 
 % removing as needed.
 [{cpx, [
-	{nodes, [node1@host1, node2@host2]}
+	{nodes, [node1@host1, node2@host2]},
+	% The following is option, default shown.
+	{webdir_dynamic, "www/dynamic"}
 ]}].

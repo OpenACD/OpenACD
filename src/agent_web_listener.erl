@@ -559,9 +559,15 @@ parse_path(Path) ->
 			case Tail of 
 				["dynamic" | Moretail] ->
 					File = string:join(Moretail, "/"),
-					case filelib:is_regular(string:concat("www/dynamic/", File)) of
+					Dynamic = case application:get_env(cpx, webdir_dynamic) of
+						undefined ->
+							"www/dynamic";
+						{ok, WebDirDyn} ->
+							WebDirDyn
+					end,
+					case filelib:is_regular(string:join([Dynamic, File], "/")) of
 						true ->
-							{file, {File, "www/dynamic"}};
+							{file, {File, Dynamic}};
 						false ->
 							{api, {undefined, Path}}
 					end;

@@ -34,6 +34,17 @@
 %%
 %% Starts a given number of dummy agents, and then creates a config for 
 %% freeswitch with attempts to do a sip registration to OpenACD's freeswitch.
+%%
+%% Setting up for a test is rather involved, but there are a couple of example
+%% files to help.  tests/sip_bot_config_example.hrl is a basic file for starting
+%% this.  tests/sip_bot_manager_dialplan_example.xml provides a simple 
+%% FreeSWITCH config for the bot setting.  
+%%
+%% A full test will involve having OpenACD running on one machine with an
+%% instance of FreeSWITCH, and sip_bot_manager running on another machine with 
+%% a separate instance of FreeSWITCH.  Ensure the two nodes OpenACD and sip_bot's
+%% can talk to each other, otherwise sip_bot will not be able to start the 
+%% agents it needs to.
 
 -module(sip_bot_manager).
 -author("Micah").

@@ -72,21 +72,21 @@
 %%====================================================================
 %% API
 %%====================================================================
--spec(start/6 :: (Fnode :: atom(), Agent :: string(), Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start(Fnode, Agent, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Call, call) ->
-	gen_server:start(?MODULE, [Fnode, Agent, Apid, Call, Ringout, Fun, []], []).
+-spec(start/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start(Fnode, AgentRec, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Call, call) ->
+	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, []], []).
 
--spec(start_link/6 :: (Fnode :: atom(), Agent :: string(), Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start_link(Fnode, Agent, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Call, call) ->
-	gen_server:start_link(?MODULE, [Fnode, Agent, Apid, Call, Ringout, Fun, []], []).
+-spec(start_link/6 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun()) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_link(Fnode, AgentRec, Apid, Call, Ringout, Fun) when is_pid(Apid), is_record(Call, call) ->
+	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, []], []).
 
--spec(start/7 :: (Fnode :: atom(), Agent :: string(), Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun(), Options :: [any()]) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start(Fnode, Agent, Apid, Call, Ringout, Fun, Options) when is_pid(Apid), is_record(Call, call) ->
-	gen_server:start(?MODULE, [Fnode, Agent, Apid, Call, Ringout, Fun, Options], []).
+-spec(start/7 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun(), Options :: [any()]) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start(Fnode, AgentRec, Apid, Call, Ringout, Fun, Options) when is_pid(Apid), is_record(Call, call) ->
+	gen_server:start(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, Options], []).
 
--spec(start_link/7 :: (Fnode :: atom(), Agent :: string(), Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun(), Options :: [any()]) -> {'ok', pid()} | 'ignore' | {'error', any()}).
-start_link(Fnode, Agent, Apid, Call, Ringout, Fun, Options) when is_pid(Apid), is_record(Call, call) ->
-	gen_server:start_link(?MODULE, [Fnode, Agent, Apid, Call, Ringout, Fun, Options], []).
+-spec(start_link/7 :: (Fnode :: atom(), AgentRec :: #agent{}, Apid :: pid(), Call :: #call{}, Ringout :: pos_integer(), Fun :: fun(), Options :: [any()]) -> {'ok', pid()} | 'ignore' | {'error', any()}).
+start_link(Fnode, AgentRec, Apid, Call, Ringout, Fun, Options) when is_pid(Apid), is_record(Call, call) ->
+	gen_server:start_link(?MODULE, [Fnode, AgentRec, Apid, Call, Ringout, Fun, Options], []).
 
 -spec(hangup/1 :: (Pid :: pid()) -> 'ok').
 hangup(Pid) ->
@@ -100,13 +100,30 @@ get_uuid(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Fnode, Agent, Apid, Call, Ringout, Fun, Options]) when is_record(Call, call) ->
+init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, call) ->
 	case freeswitch:api(Fnode, create_uuid) of
 		{ok, UUID} ->
 			{CallerName, CallerNumber} = Call#call.callerid,
-			Args = "[origination_caller_id_name='"++re:replace(CallerName, "'", "", [{return, list}])++"',origination_caller_id_number="++CallerNumber++",hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ re:replace(Agent, "@", "_", [{return, list}]) ++ " &park()",
-			?INFO("originating ring channel with args: ~p", [Args]),
-			case freeswitch:bgapi(Fnode, originate, Args, Fun(UUID)) of
+			%Args = "[origination_caller_id_name='"++re:replace(CallerName, "'", "", [{return, list}])++"',origination_caller_id_number="++CallerNumber++",hangup_after_bridge=true,origination_uuid=" ++ UUID ++ ",originate_timeout=" ++ integer_to_list(Ringout) ++ "]user/" ++ re:replace(Agent, "@", "_", [{return, list}]) ++ " &park()",
+			DialStringOpts = [
+					"origination_caller_id_name='"++CallerName++"'",
+					"origination_caller_id_number="++CallerNumber,
+					"hangup_after_bridge=true",
+					"origination_uuid="++UUID,
+					"originate_timeout="++integer_to_list(Ringout)
+				],
+
+			DialString = case proplists:get_value(dialstring, Options) of
+				undefined ->
+					%% warning, this is only safe if freeswitch_media_manager is NOT in the callstack
+					freeswitch_media_manager:get_agent_dial_string(AgentRec, DialStringOpts);
+				String ->
+					%% usually this is set by calls to freeswitch_ring:start that pass through freeswitch_media_manager
+					freeswitch_media_manager:do_dial_string(String, AgentRec#agent.login, DialStringOpts)
+			end,
+
+			?INFO("originating ring channel with args: ~p", [DialString ++ " &park()"]),
+			case freeswitch:bgapi(Fnode, originate, DialString ++ " &park()", Fun(UUID)) of
 				ok ->
 					Gethandle = fun(Recusef, Count) ->
 						?DEBUG("Counted ~p", [Count]),
@@ -124,17 +141,17 @@ init([Fnode, Agent, Apid, Call, Ringout, Fun, Options]) when is_record(Call, cal
 					end,
 					case Gethandle(Gethandle, 0) of
 						{error, badsession} ->
-							?ERROR("bad uuid ~p when calling ~p", [UUID, Agent]),
+							?ERROR("bad uuid ~p when calling ~p", [UUID, AgentRec#agent.login]),
 							{stop, normal};
 						{error, Other} ->
-							?ERROR("other error starting; ~p for ~p", [Other, Agent]),
+							?ERROR("other error starting; ~p for ~p", [Other, AgentRec#agent.login]),
 							{stop, normal};
 						_Else ->
 							?DEBUG("starting for ~p", [UUID]),
 							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Call, options = Options}}
 					end;
 				Else ->
-					?ERROR("bgapi call failed ~p  when calling ~p", [Else, Agent]),
+					?ERROR("bgapi call failed ~p  when calling ~p", [Else, AgentRec#agent.login]),
 					{stop, normal}
 			end
 	end.

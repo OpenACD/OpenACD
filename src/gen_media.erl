@@ -700,7 +700,7 @@ handle_call({'$gen_media_ring', {Agent, Apid}, #queued_call{cook = Requester} = 
 						Arec = agent:dump_state(Apid),
 						case {Arec#agent.defaultringpath, Call#call.ring_path, whereis(freeswitch_media_manager)} of
 							{outband, inband, Pid} when is_pid(Pid) ->
-								case freeswitch_media_manager:ring_agent(Apid, Arec#agent.login, Call, Timeout) of
+								case freeswitch_media_manager:ring_agent(Apid, Arec, Call, Timeout) of
 									{ok, RingChanPid} ->
 										gen_media:cast(Self, {'$gen_media_set_outband_ring_pid', RingChanPid});
 									Else ->

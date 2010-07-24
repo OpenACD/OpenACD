@@ -511,7 +511,7 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 			AgentRec = agent:dump_state(State#state.agent_fsm), % TODO - avoid
 			case whereis(freeswitch_media_manager) of
 				P when is_pid(P) ->
-					case freeswitch_media_manager:record_outage(Clientid, State#state.agent_fsm, AgentRec#agent.login) of
+					case freeswitch_media_manager:record_outage(Clientid, State#state.agent_fsm, AgentRec) of
 						ok ->
 							{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State};
 						{error, Reason} ->
@@ -850,7 +850,7 @@ handle_call({undefined, "/ringtest"}, _From, #state{current_call = undefined, ag
 	Json = case whereis(freeswitch_media_manager) of
 		Pid when is_pid(Pid), AgentRec#agent.state == released ->
 			Callrec = #call{id="unused", source=self(), callerid={"Echo Test", "0000000"}},
-			case freeswitch_media_manager:ring_agent_echo(Apid, AgentRec#agent.login, Callrec, 600) of
+			case freeswitch_media_manager:ring_agent_echo(Apid, AgentRec, Callrec, 600) of
 				{ok, _} ->
 					{struct, [{success, true}]};
 				{error, Error} ->

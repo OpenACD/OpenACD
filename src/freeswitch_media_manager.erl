@@ -115,7 +115,8 @@
 	ring_agent/4,
 	ring_agent_echo/4,
 	get_media/1,
-	do_dial_string/3
+	do_dial_string/3,
+	get_agent_dial_string/2
 ]).
 
 %% gen_server callbacks
@@ -217,6 +218,11 @@ ring_agent_echo(AgentPid, Agent, Call, Timeout) ->
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
 
+-spec(get_agent_dial_string/2 :: (AgentRec :: #agent{}, Options :: [string()]) -> string()).
+get_agent_dial_string(AgentRec, Options) ->
+	gen_server:call(?MODULE, {get_agent_dial_string, AgentRec, Options}).
+
+% TODO - need better support for forked dial strings
 -spec(do_dial_string/3 :: (DialString :: string(), Destination :: string(), Options :: [string()]) -> string()).
 do_dial_string(DialString, Destination, []) ->
 	re:replace(DialString, "\\$1", Destination, [{return, list}]);
@@ -274,7 +280,8 @@ handle_call({record_outage, Client, AgentPid, Agent}, _From, #state{nodename = N
 							ok
 					end
 			end,
-			case freeswitch_ring:start(Node, Agent, AgentPid, #call{id=none, source=none}, 30, F, [no_oncall_on_bridge]) of
+			DialString = get_agent_dial_string(Agent, [], State),
+			case freeswitch_ring:start(Node, Agent, AgentPid, #call{id=none, source=none}, 30, F, [no_oncall_on_bridge, {dialstring, DialString}]) of
 				{ok, _Pid} ->
 					{reply, ok, State};
 				{error, Reason} ->
@@ -301,7 +308,8 @@ handle_call({ring_agent, AgentPid, Agent, Call, Timeout}, _From, #state{nodename
 			Fun = fun(_) ->
 				fun(_, _) -> ok end
 			end,
-			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [single_leg]),
+			DialString = get_agent_dial_string(Agent, [], State),
+			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [single_leg, {dialstring, DialString}]),
 			{reply, Out, State};
 		false ->
 			{reply, {error, noconnection}, State}
@@ -321,7 +329,8 @@ handle_call({ring_agent_echo, AgentPid, Agent, Call, Timeout}, _From, #state{nod
 					ok
 				end
 			end,
-			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [no_oncall_on_bridge]),
+			DialString = get_agent_dial_string(Agent, [], State),
+			Out = freeswitch_ring:start(Node, Agent, AgentPid, Call, Timeout, Fun, [no_oncall_on_bridge, {dialstring, DialString}]),
 			{reply, Out, State};
 		false ->
 			{reply, {error, noconnection}, State}
@@ -348,6 +357,9 @@ handle_call({get_media, MediaKey}, _From, #state{call_dict = Dict} = State) ->
 		error ->
 			{reply, none, State}
 	end;
+handle_call({get_agent_dial_string, AgentRec, Options}, _From, State) ->
+	DialString = get_agent_dial_string(AgentRec, Options, State),
+	{reply, DialString, State};
 handle_call(Request, _From, State) ->
 	?INFO("Unexpected call:  ~p", [Request]),
 	Reply = ok,
@@ -632,3 +644,22 @@ return_a1_hash(Domain, User, Node, FetchID) ->
 			end
 	end.
 
+get_agent_dial_string(AgentRec, Options, State) ->
+	case AgentRec#agent.endpointtype of
+		sip_registration ->
+			case AgentRec#agent.endpointdata of
+				undefined ->
+					freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(AgentRec#agent.login, "@", "_", [{return, list}]), Options);
+				_ ->
+					%"sofia/internal/"++re:replace(Agent#agent.endpointdata, "@", "_", [{return, list}])++"%"
+					freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(AgentRec#agent.endpointdata, "@", "_", [{return, list}]), Options)
+			end;
+		sip ->
+			freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State, "sofia/internal/sip:$1"), AgentRec#agent.endpointdata, Options);
+		iax2 ->
+			freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State, "iax2/$1"), AgentRec#agent.endpointdata, Options);
+		h323 ->
+			freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State, "opal/h323:$1"), AgentRec#agent.endpointdata, Options);
+		pstn ->
+			freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State, ""), AgentRec#agent.endpointdata, Options)
+	end.

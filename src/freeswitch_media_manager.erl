@@ -655,11 +655,11 @@ get_agent_dial_string(AgentRec, Options, State) ->
 					freeswitch_media_manager:do_dial_string("sofia/internal/$1%", re:replace(AgentRec#agent.endpointdata, "@", "_", [{return, list}]), Options)
 			end;
 		sip ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State, "sofia/internal/sip:$1"), AgentRec#agent.endpointdata, Options);
+			freeswitch_media_manager:do_dial_string(proplists:get_value(sip, State#state.fetch_domain_user, "sofia/internal/sip:$1"), AgentRec#agent.endpointdata, Options);
 		iax2 ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State, "iax2/$1"), AgentRec#agent.endpointdata, Options);
+			freeswitch_media_manager:do_dial_string(proplists:get_value(iax2, State#state.fetch_domain_user, "iax2/$1"), AgentRec#agent.endpointdata, Options);
 		h323 ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State, "opal/h323:$1"), AgentRec#agent.endpointdata, Options);
+			freeswitch_media_manager:do_dial_string(proplists:get_value(h323, State#state.fetch_domain_user, "opal/h323:$1"), AgentRec#agent.endpointdata, Options);
 		pstn ->
-			freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State, ""), AgentRec#agent.endpointdata, Options)
+			freeswitch_media_manager:do_dial_string(proplists:get_value(dialstring, State#state.fetch_domain_user, ""), AgentRec#agent.endpointdata, Options)
 	end.

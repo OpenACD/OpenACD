@@ -42,6 +42,7 @@
 		id = erlang:error({undefined, id}) :: string(),
 		type = voice :: 'voice' | 'voicemail' | 'email' | 'chat',
 		callerid = {"Unknown", "Unknown"} :: {string(), string()},
+		dnis = "" :: string(),
 		source = erlang:error({undefined, source}) :: pid(),
 		bound = [] :: [pid()],
 		% client record

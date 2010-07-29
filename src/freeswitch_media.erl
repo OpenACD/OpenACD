@@ -138,7 +138,7 @@ init([Cnode, DialString, UUID]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
 	{DNIS, Client, Priority, CidName, CidNum} = get_info(Cnode, UUID),
-	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}},
+	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}, dnis=DNIS},
 	{ok, {#state{cnode=Cnode, manager_pid = Manager, dialstring = DialString}, Call, {inivr, [DNIS]}}}.
 
 -spec(urlpop_getvars/1 :: (State :: #state{}) -> [{binary(), binary()}]).
@@ -727,6 +727,9 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 	end.
 
 get_info(Cnode, UUID) ->
+	get_info(Cnode, UUID, 0).
+
+get_info(Cnode, UUID, Retries) when Retries < 2 ->
 	case freeswitch:api(Cnode, uuid_dump, UUID) of
 		{ok, Result} ->
 			Proplist = lists:foldl(
@@ -750,9 +753,15 @@ get_info(Cnode, UUID) ->
 				proplists:get_value("Caller-Caller-ID-Number", Proplist, "Unknown")
 			};
 		timeout ->
-			?WARNING("uuid_dump for ~s timed out", [UUID]),
-			{"", "", 10, "Unknown", "Unknown"};
+			?WARNING("uuid_dump for ~s timed out. Retrying", [UUID]),
+			%{"", "", 10, "Unknown", "Unknown"};
+			get_info(Cnode, UUID, Retries + 1);
 		{error, Error} ->
-			?WARNING("uuid_dump for ~s errored:  ~p", [UUID, Error]),
-			{"", "", 10, "Unknown", "Unknown"}
-	end.
+			?WARNING("uuid_dump for ~s errored:  ~p. Retrying", [UUID, Error]),
+			%{"", "", 10, "Unknown", "Unknown"}
+			get_info(Cnode, UUID, Retries + 1)
+	end;
+get_info(_, UUID, _) ->
+	?WARNING("Too many failures doing uuid_dump for ~p", [UUID]),
+	{"", "", ?DEFAULT_PRIORITY, "Unknown", "Unknown"}.
+

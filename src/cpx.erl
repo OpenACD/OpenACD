@@ -64,7 +64,8 @@
 	get_agents/1,
 	get_queues/0,
 	get_queues/1,
-	get_queue_lengths/0,
+	get_queue_status/0,
+	get_agent_status/0,
 	get_media/1,
 	kick_agent/1,
 	kick_call/1,
@@ -170,9 +171,28 @@ get_agents(Profile) ->
 get_queues() ->
 	queue_manager:queues().
 
-get_queue_lengths() ->
+get_queue_status() ->
 	[io:format("Queue: ~s; ~B calls~n", [Name, call_queue:call_count(Pid)]) || {Name, Pid} <- queue_manager:queues()],
 	ok.
+
+get_agent_status() ->
+	Agents = agent_manager:list(),
+	{I, O, W, R} = lists:foldl(fun(Agent, {Idle, Oncall, Wrapup, Released}) ->
+				case Agent#agent.state of
+					X when X == ringing; X == idle ->
+					{Idle + 1, Oncall, Wrapup, Released};
+				X when X == oncall; X == precall; X == warmtransfer; X == outgoing ->
+					{Idle, Oncall + 1, Wrapup, Released};
+				wrapup ->
+					{Idle, Oncall, Wrapup + 1, Released};
+				released ->
+					{Idle, Oncall, Wrapup, Released + 1};
+				_ ->
+					{Idle, Oncall, Wrapup, Released}
+			end
+	end,
+	{0, 0, 0, 0}, [agent:dump_state(Pid) || {_Name, {Pid, _, _, _}} <- Agents]),
+	io:format("~B Agents; ~B Idle, ~B Oncall, ~B Wrapup, ~B Released~n", [length(Agents), I, O, W, R]).
 
 -spec(get_queues/1 :: (Group :: string()) -> [{string(), pid()}]).
 get_queues(Group) ->

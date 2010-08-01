@@ -46,6 +46,7 @@
 	start_supervised/1,
 	stop/0,
 	stop_supped/0,
+	halt/0,
 	set_option/2,
 	get_media/1,
 	spawn_call/0,
@@ -108,6 +109,9 @@ set_option(Key, Valu) ->
 -spec(get_media/1 :: (MediaKey :: pid() | string()) -> {string(), pid()} | 'none').
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
+
+halt() ->
+	gen_server:cast(?MODULE, halt).
 
 -spec(spawn_call/0 :: () -> 'ok').
 spawn_call() ->
@@ -196,8 +200,11 @@ handle_cast({set_option, Option, Arg}, #state{conf = Conf} = State) ->
 	{noreply, State#state{conf = Newconf}};
 handle_cast({stop, Why}, State) when Why =:= normal orelse Why =:= shutdown ->
 	{stop, Why, State};
+handle_cast(halt, State) ->
+	erlang:cancel_timer(State#state.timer),
+	{noreply, State};
 handle_cast(_Msg, State) ->
-    {noreply, State}.
+	{noreply, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |

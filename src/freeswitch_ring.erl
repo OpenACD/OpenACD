@@ -152,9 +152,12 @@ init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, 
 							{ok, #state{cnode = Fnode, uuid = UUID, agent_pid = Apid, callrec = Call, options = Options}}
 					end;
 				Else ->
-					?ERROR("bgapi call failed ~p  when calling ~p", [Else, AgentRec#agent.login]),
+					?ERROR("originate failed with ~p  when calling ~p", [Else, AgentRec#agent.login]),
 					{stop, normal}
-			end
+			end;
+		Else ->
+			?ERROR("create_uuid failed with ~p when trying to call ~p", [Else, AgentRec#agent.login]),
+			{stop, normal}
 	end.
 
 %%--------------------------------------------------------------------

@@ -43,6 +43,7 @@
 %% API
 -export([
 	start_link/1,
+	start/1,
 	start_supervised/1,
 	stop/0,
 	stop_supped/0,
@@ -82,7 +83,11 @@
 %%--------------------------------------------------------------------
 -spec(start_link/1 :: (Options :: [{atom(), any()}]) -> {'ok', pid()}).
 start_link(Options) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, Options, []).
+	gen_server:start_link({local, ?MODULE}, ?MODULE, Options, []).
+
+-spec(start/1 :: (Options :: [{atom(), any()}]) -> {'ok', pid()}).
+start(Options) ->
+	gen_server:start({local, ?MODULE}, ?MODULE, Options, []).
 
 -spec(start_supervised/1 :: (Options :: [{atom(), any()}]) -> {'ok', pid()}).
 start_supervised(Options) ->
@@ -138,23 +143,27 @@ init(Options) ->
 		call_priority = proplists:get_value(call_priority, Options, {distribution, 20})
 	},
 	Seeds = proplists:get_value(start_count, Options, 10),
+	Self = self(),
 	Fun = fun(_) ->
 		Pid = queue_media(Conf),
-		Call = gen_media:get_call(Pid),
-		{Pid, Call#call.id}
+		unlink(Pid),
+		try gen_media:get_call(Pid) of
+			Call ->
+				gen_server:cast(Self, {add_call, {Pid, Call#call.id}})
+		catch
+			_:_ ->
+				?NOTICE("new dummy call dropped instantly", [])
+		end
 	end,
-	Pidlist = case Seeds of
-		0 ->
-			[];
-		_ ->
-			lists:map(Fun, lists:seq(1, Seeds))
-	end,
+	spawn(fun() ->
+				[Fun(X) || X <- lists:seq(1, Seeds)]
+		end),
 	Timer = spawn_timer(Conf#conf.call_frequency),
 	{ok, #state{
-		calls = Pidlist,
-		conf = Conf,
-		timer = Timer
-	}}.
+			calls = [],
+			conf = Conf,
+			timer = Timer
+		}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -200,6 +209,9 @@ handle_cast({set_option, Option, Arg}, #state{conf = Conf} = State) ->
 	{noreply, State#state{conf = Newconf}};
 handle_cast({stop, Why}, State) when Why =:= normal orelse Why =:= shutdown ->
 	{stop, Why, State};
+handle_cast({add_call, {Pid, Call}}, State) ->
+	link(Pid),
+	{noreply, State#state{calls = [{Pid, Call} | State#state.calls]}};
 handle_cast(halt, State) ->
 	erlang:cancel_timer(State#state.timer),
 	{noreply, State};

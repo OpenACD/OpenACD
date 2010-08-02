@@ -331,7 +331,7 @@ do_route(none, Qpid, Callpid) ->
 		{_Key, Call} ->
 			Dispatchers = Call#queued_call.dispatchers,
 			Agents = sort_agent_list(Dispatchers),
-			?DEBUG("Dispatchers:  ~p; Agents:  ~p", [Dispatchers, Agents]),
+			%?DEBUG("Dispatchers:  ~p; Agents:  ~p", [Dispatchers, Agents]),
 			offer_call(Agents, Call);
 		none ->
 			?DEBUG("No call to ring",[]),
@@ -364,7 +364,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	% XXX - sort_agents_by_elegibility doesn't sort by pathcost yet
 	Agents3 = agent_manager:sort_agents_by_elegibility(Agents2),
 	Out = agent_manager:rotate_based_on_list_count(Agents3),
-	?DEBUG("The out:  ~p", [Out]),
+	%?DEBUG("The out:  ~p", [Out]),
 	Out.
 
 %% @private

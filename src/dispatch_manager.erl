@@ -222,7 +222,7 @@ balance(#state{dispatchers = Dispatchers} = State) when length(State#state.agent
 balance(State) when length(State#state.agents) < length(State#state.dispatchers) -> 
 	?DEBUG("Killing a dispatcher",[]),
 	[Pid | Dispatchers] = lists:reverse(State#state.dispatchers),
-	?DEBUG("Pid I'm about to kill: ~p.  me:  ~p.  Dispatchers:  ~p~n", [Pid, self(), Dispatchers]),
+	?DEBUG("Pid I'm about to kill: ~p.", [Pid]),
 	dispatcher:stop(Pid),
 	% if it dies, we'll get the exit message.
 	balance(State#state{dispatchers=Dispatchers});

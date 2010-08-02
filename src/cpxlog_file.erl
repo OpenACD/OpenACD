@@ -67,7 +67,7 @@ init([Files]) ->
 open_files([], State) ->
 	{ok, State};
 open_files([{Filename, LogLevel} | Tail], State) ->
-	case file:open(Filename, [append, raw]) of
+	case file:open(Filename, [append, delayed_write]) of % buffer writes to reduce overhead
 		{ok, FileHandle} ->
 			{ok, FileInfo} = file:read_file_info(Filename),
 			open_files(Tail, State#state{filehandles = [{Filename, FileHandle, FileInfo#file_info.inode, LogLevel} | State#state.filehandles]});

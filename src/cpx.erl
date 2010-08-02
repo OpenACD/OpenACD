@@ -176,9 +176,9 @@ get_queue_status() ->
 	ok.
 
 get_agent_status() ->
-	Agents = agent_manager:list(),
-	{I, O, W, R} = lists:foldl(fun(Agent, {Idle, Oncall, Wrapup, Released}) ->
-				case Agent#agent.state of
+	{ok, Agents} = cpx_monitor:get_health(agent),
+	{I, O, W, R} = lists:foldl(fun({_, _, Info}, {Idle, Oncall, Wrapup, Released}) ->
+				case proplists:get_value(state, Info) of
 					X when X == ringing; X == idle ->
 					{Idle + 1, Oncall, Wrapup, Released};
 				X when X == oncall; X == precall; X == warmtransfer; X == outgoing ->
@@ -191,7 +191,7 @@ get_agent_status() ->
 					{Idle, Oncall, Wrapup, Released}
 			end
 	end,
-	{0, 0, 0, 0}, [agent:dump_state(Pid) || {_Name, {Pid, _, _, _}} <- Agents]),
+	{0, 0, 0, 0}, Agents),
 	io:format("~B Agents; ~B Idle, ~B Oncall, ~B Wrapup, ~B Released~n", [length(Agents), I, O, W, R]).
 
 -spec(get_queues/1 :: (Group :: string()) -> [{string(), pid()}]).

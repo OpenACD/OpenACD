@@ -394,7 +394,7 @@ behaviour_info(_Other) ->
 %% `#queued_call{} Qcall' with a ringout of `pos_integer() Timeout' miliseconds.
 -spec(ring/4 :: (Genmedia :: pid(), Agent :: pid() | string() | {string(), pid()}, Qcall :: #queued_call{}, Timeout :: pos_integer())  -> 'ok' | 'invalid' | 'deferred').
 ring(Genmedia, {_Agent, Apid} = A, Qcall, Timeout) when is_pid(Apid) ->
-	gen_server:call(Genmedia, {'$gen_media_ring', A, Qcall, Timeout});
+	gen_server:call(Genmedia, {'$gen_media_ring', A, Qcall, Timeout}, infinity);
 ring(Genmedia, Apid, Qcall, Timeout) when is_pid(Apid) ->
 	case agent_manager:find_by_pid(Apid) of
 		notfound ->
@@ -442,7 +442,7 @@ stop_ringing(Genmedia) ->
 %% @doc Set the agent associated with `pid() Genmedia' to oncall.
 -spec(oncall/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').
 oncall(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media_agent_oncall').
+	gen_server:call(Genmedia, '$gen_media_agent_oncall', infinity).
 
 %% @doc Transfer the call from the agent it is associated with to a new agent.
 -spec(agent_transfer/3 :: (Genmedia :: pid(), Apid :: pid() | string() | {string(), pid()}, Timeout :: pos_integer()) -> 'ok' | 'invalid').

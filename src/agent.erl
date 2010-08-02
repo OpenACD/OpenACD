@@ -226,14 +226,14 @@ query_state(Pid) ->
 %% @doc Attempt to set the state of agent at `Pid' to `State'.
 -spec(set_state/2 :: (Pid :: pid(), State :: atom()) -> 'ok' | 'invalid').
 set_state(Pid, State) ->
-	gen_fsm:sync_send_event(Pid, State).
+	gen_fsm:sync_send_event(Pid, State, infinity).
 
 %% @doc Attempt to set the state of the agent at `Pid' to `State' with data `Data'.  `Data' is related to the `State' the agent is going into.  
 %% Often `Data' will be `#call{} or a callid of type `string()'.
 -spec(set_state/3 :: (Pid :: pid(), State :: 'idle' | 'ringing' | 'precall' | 'oncall' | 'outgoing' | 'warmtransfer' | 'wrapup', Data :: any()) -> 'ok' | 'invalid';
                      (Pid :: pid(), State :: 'released', Data :: any()) -> 'ok' | 'invalid' | 'queued').
 set_state(Pid, State, Data) ->
-	gen_fsm:sync_send_event(Pid, {State, Data}).
+	gen_fsm:sync_send_event(Pid, {State, Data}, infinity).
 
 %% @doc attmept to push data from the media connection to the agent.  It's up to
 %% the agent connection to interpret this correctly.

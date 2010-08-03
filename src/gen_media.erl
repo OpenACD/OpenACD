@@ -413,7 +413,7 @@ ring(Genmedia, Agent, Qcall, Timeout) ->
 %% @doc Get the call record associated with `pid() Genmedia'.
 -spec(get_call/1 :: (Genmedia :: pid()) -> #call{}).
 get_call(Genmedia) ->
-	gen_server:call(Genmedia, '$gen_media_get_call', timeout).
+	gen_server:call(Genmedia, '$gen_media_get_call', infinity).
 
 %% @doc Send the passed `pid() Genmedia' to voicemail.
 -spec(voicemail/1 :: (Genmedia :: pid()) -> 'ok' | 'invalid').

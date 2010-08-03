@@ -539,6 +539,8 @@ handle_info({'EXIT', Pid, Reason}, Call, #state{manager_pid = Pid} = State) ->
 	{noreply, State#state{manager_pid = Tref}};
 handle_info({call, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->
 	?DEBUG("reporting new call ~p.", [UUID]),
+	{send, State#state.cnode} ! session_noevents,
+	{send, State#state.cnode} ! {session_event, 'CHANNEL_PARK', 'CHANNEL_HANGUP', 'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_DESTROY', 'DTMF'},
 	freeswitch_media_manager:notify(UUID, self()),
 	case_event_name([UUID | Rest], Call, State#state{in_control = true});
 handle_info({call_event, {event, [UUID | Rest]}}, Call, State) when is_list(UUID) ->

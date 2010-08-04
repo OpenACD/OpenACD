@@ -201,7 +201,7 @@ handle_ring(Apid, Callrec, State) ->
 			true
 	end,
 	AgentRec = agent:dump_state(Apid),
-	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F, [single_leg, {eventfun, F2}]) of
+	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F, [single_leg, {eventfun, F2}, {needed_events, ['DTMF', 'CHANNEL_EXECUTE_COMPLETE']}]) of
 		{ok, Pid} ->
 			link(Pid),
 			{ok, [{"caseid", State#state.caseid}], State#state{ringchannel = Pid, ringuuid = freeswitch_ring:get_uuid(Pid), agent_pid = Apid}};
@@ -260,7 +260,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 			end,
 			true
 	end,
-	case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, {eventfun, F2}]) of
+	case freeswitch_ring:start(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, {eventfun, F2}, {needed_events, ['DTMF', 'CHANNEL_EXECUTE_COMPLETE']}]) of
 		{ok, Pid} ->
 			{ok, [{"caseid", State#state.caseid}], State#state{agent_pid = AgentPid, xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->

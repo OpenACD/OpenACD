@@ -319,7 +319,7 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 
 			AgentState = agent:dump_state(AgentPid), % TODO - avoid
 
-			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}]) of
+			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}, {needed_events, ['CHANNEL_BRIDGE']}]) of
 				{ok, Pid} ->
 					link(Pid),
 					{ok, NewUUID, State#state{ringchannel = Pid, warm_transfer_uuid = NewUUID}};

@@ -183,8 +183,24 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({call, {event, [UUID | _Rest]}}, #state{uuid = UUID} = State) ->
+handle_info({call, {event, [UUID | _Rest]}}, #state{cnode = Cnode, options = Options, uuid = UUID} = State) ->
 	?DEBUG("call", []),
+	case lists:keysearch(eventfun, 1, Options) of
+		{value, {eventfun, _Fun}} ->
+			% TODO - rewrite freeswitch_ring calls which use eventfun to include a list of events they need
+			case lists:keysearch(needed_events, 1, Options) of
+				{value, {needed_events, Events}} ->
+					freeswitch:session_nixevent(Cnode, 'ALL'),
+					freeswitch:session_event(Cnode, ['CHANNEL_ANSWER', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE', 'CHANNEL_HANGUP']),
+					freeswitch:session_event(Cnode, Events);
+				_ ->
+					?WARNING("freeswitch_ring was unable to filter out unneded events because an eventfun was specified without a list of what events it used", [])
+			end;
+		_ ->
+			% no eventfun is defined, so we can filter
+			freeswitch:session_nixevent(Cnode, 'ALL'),
+			freeswitch:session_event(Cnode, ['CHANNEL_ANSWER', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE', 'CHANNEL_HANGUP'])
+	end,
 	{noreply, State};
 handle_info({call_event, {event, [UUID | Rest]}}, #state{options = Options, uuid = UUID} = State) ->
 	Event = proplists:get_value("Event-Name", Rest),

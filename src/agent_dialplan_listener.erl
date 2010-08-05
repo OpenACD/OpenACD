@@ -85,6 +85,9 @@ handle_info({freeswitch_sendmsg, "agent_login " ++ Parameters}, State) ->
 				{atomic, []} ->
 					?INFO("no such agent ~p", [Username]),
 					{noreply, State};
+				{atomic, [_A, _B | _]} ->
+					?WARNING("more than one agent found for username ~p, login failed", [Username]),
+					{noreply, State};
 				{atomic, [AgentAuth]} when Endpoint == error ->
 					?WARNING("~p tried to login with invalid endpoint parameters ~p", [Parameters]);
 				{atomic, [AgentAuth]} ->

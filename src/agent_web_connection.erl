@@ -417,8 +417,10 @@ handle_call({{supervisor, Request}, Post}, _From, #state{securitylevel = Secleve
 									Msg = list_to_binary(io_lib:format("Profile changed, but not permanent:  ~p", [Err])),
 									{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, Msg}]})}, State}
 							end;
+						{atomic, [_A, _B | _]} ->
+							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Multiple agent records found, not making a change">>}]})}, State};
 						{atomic, []} ->
-							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent is not permantent, so not permanent change made">>}]})}, State}
+							{reply, {200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"Agent is not permanent, so not permanent change made">>}]})}, State}
 					end;
 				{ok, _} ->
 					{reply, {200, [], mochijson2:encode({struct, [{success, true}]})}, State}

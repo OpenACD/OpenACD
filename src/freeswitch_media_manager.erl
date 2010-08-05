@@ -411,7 +411,7 @@ handle_info({get_pid, UUID, Ref, From}, #state{call_dict = Dict} = State) ->
 		error ->
 			{ok, Pid} = freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID),
 			From ! {Ref, Pid},
-			link(Pid)
+			link(Pid),
 			{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}}
 	end;
 handle_info({'EXIT', Pid, Reason}, #state{eventserver = Pid, nodename = Nodename, freeswitch_up = true} = State) ->

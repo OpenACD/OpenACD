@@ -405,14 +405,15 @@ handle_info({freeswitch_sendmsg, "inivr "++UUID}, #state{call_dict = Dict} = Sta
 handle_info({get_pid, UUID, Ref, From}, #state{call_dict = Dict} = State) ->
 	case dict:find(UUID, Dict) of
 		{ok, Pid} ->
+			From ! {Ref, Pid},
 			?NOTICE("pid for ~s already allocated", [UUID]),
-			Pid;
+			{noreply, State};
 		error ->
 			{ok, Pid} = freeswitch_media:start(State#state.nodename, State#state.dialstring, UUID),
+			From ! {Ref, Pid},
 			link(Pid)
-	end,
-	From ! {Ref, Pid},
-	{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}};
+			{noreply, State#state{call_dict = dict:store(UUID, Pid, Dict)}}
+	end;
 handle_info({'EXIT', Pid, Reason}, #state{eventserver = Pid, nodename = Nodename, freeswitch_up = true} = State) ->
 	?NOTICE("listener pid exited unexpectedly: ~p", [Reason]),
 	Lpid = start_listener(Nodename),

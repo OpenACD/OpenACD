@@ -72,11 +72,12 @@ if(typeof(agentDashboard) == 'undefined'){
 		menu.addChild(new dijit.MenuItem({
 			label:'Set Profile...',
 			onClick:function(){
+				var thisagent = this;
 				var dialog = dijit.byId("profileSwapDialog");
 				var submitSetProf = function(){
 					var data = dialog.attr('value');
 					/*console.log(['das data', data]);*/
-					this.getParent().agent.setProfile(data.profile, data.makePermanent[0]);
+					thisagent.getParent().agent.setProfile(data.profile, data.makePermanent[0]);
 				}
 				dialog.attr('execute', submitSetProf);
 				dojo.xhrGet({

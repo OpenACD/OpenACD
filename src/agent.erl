@@ -1057,7 +1057,7 @@ handle_sync_event({change_profile, Profile}, _From, StateName, #state{agent_rec 
 			NewAgentSkills = util:subtract_skill_lists(Agent#agent.skills, expand_magic_skills(Agent, OldSkills)),
 			NewAgentSkills2 = util:merge_skill_lists(NewAgentSkills, expand_magic_skills(Agent#agent{profile = Profile}, Skills2), ['_queue', '_brand']),
 			Newagent = Agent#agent{skills = NewAgentSkills2, profile = Profile},
-			Deatils = [{profile, Newagent#agent.profile}, {state, Newagent#agent.state}, {statedata, Newagent#agent.statedata}, {login, Newagent#agent.login}, {lastchange, {timestamp, Newagent#agent.lastchange}}],
+			Deatils = [{profile, Newagent#agent.profile}, {state, Newagent#agent.state}, {statedata, Newagent#agent.statedata}, {login, Newagent#agent.login}, {lastchange, {timestamp, Newagent#agent.lastchange}}, {skills, Newagent#agent.skills}],
 			{S, {T1, T2, T3, {time, _Now}}} = case StateName of
 				idle ->
 					?IDLE_LIMITS;
@@ -1280,7 +1280,7 @@ format_status(terminate, [_PDict, #state{agent_rec = Agent} = State]) ->
 
 set_cpx_monitor(State, Hp, Otherdeatils) when is_list(Hp)->
 	log_change(State),
-	Deatils = lists:append([{profile, State#agent.profile}, {state, State#agent.state}, {statedata, State#agent.statedata}, {login, State#agent.login}, {lastchange, {timestamp, State#agent.lastchange}}], Otherdeatils),
+	Deatils = lists:append([{profile, State#agent.profile}, {state, State#agent.state}, {statedata, State#agent.statedata}, {login, State#agent.login}, {lastchange, {timestamp, State#agent.lastchange}}, {skills, State#agent.skills}], Otherdeatils),
 	cpx_monitor:set({agent, State#agent.id}, Hp, Deatils);
 set_cpx_monitor(State, Hp, Dets) ->
 	set_cpx_monitor(State, [Hp], Dets).

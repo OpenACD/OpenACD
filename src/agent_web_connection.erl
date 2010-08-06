@@ -1809,6 +1809,8 @@ encode_proplist([], Acc) ->
 encode_proplist([Entry | Tail], Acc) when is_atom(Entry) ->
 	Newacc = [{Entry, true} | Acc],
 	encode_proplist(Tail, Newacc);
+encode_proplist([{skills, _Skills} | Tail], Acc) ->
+	encode_proplist(Tail, Acc);
 encode_proplist([{Key, {timestamp, Num}} | Tail], Acc) when is_integer(Num) ->
 	Newacc = [{Key, {struct, [{timestamp, Num}]}} | Acc],
 	encode_proplist(Tail, Newacc);

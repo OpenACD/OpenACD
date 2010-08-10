@@ -45,7 +45,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start/0, stop/1, get_agents/1, bound_call/1, regrab/1]).
+-export([start_link/0, start/0, stop/2, get_agents/1, bound_call/1, regrab/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -84,11 +84,11 @@ init([]) ->
 	State = #state{},
 	case grab_best() of
 		none ->
-			%?DEBUG("no call to grab, lets start a timer", []),
+			?DEBUG("no call to grab, lets start a timer", []),
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
 			{ok, State#state{tref=Tref}};
 		{Qpid, Call} ->
-			%?DEBUG("sweet, grabbed a call: ~p", [Call#queued_call.id]),
+			?DEBUG("sweet, grabbed a call: ~p", [Call#queued_call.id]),
 			{ok, State#state{call=Call, qpid=Qpid, tried_queues = [Qpid]}}
 	end.
 
@@ -106,9 +106,14 @@ handle_call(bound_call, _From, State) ->
 		Call ->
 			{reply, Call, State}
 		end;
-handle_call(stop, _From, State) when is_record(State#state.call, queued_call) ->
-	{stop, normal, ok, State};
-handle_call(stop, _From, State) ->
+handle_call({stop, Force}, _From, State) when is_record(State#state.call, queued_call) ->
+	case Force of
+		true ->
+			{stop, normal, ok, State};
+		false ->
+			{reply, no, State}
+	end;
+handle_call({stop, _Force}, _From, State) ->
 	{stop, normal, ok, State};
 %handle_call(regrab, _From, State) ->
 	%OldQ = State#state.qpid,
@@ -253,9 +258,9 @@ regrab(Pid) ->
 	ok.
 
 %% @doc Stops the dispatcher at `pid() Pid' with reason `normal'.
--spec(stop/1 :: (pid()) -> 'ok').
-stop(Pid) -> 
-	gen_server:cast(Pid, stop).
+-spec(stop/2 :: (pid(),  boolean()) -> 'ok').
+stop(Pid, Force) -> 
+	gen_server:call(Pid, {stop, Force}, infinity).
 	
 -ifdef(TEST).
 

@@ -220,15 +220,49 @@ balance(#state{dispatchers = Dispatchers} = State) when length(State#state.agent
 			balance(State)
 	end;
 balance(State) when length(State#state.agents) < length(State#state.dispatchers) -> 
-	?DEBUG("Killing a dispatcher",[]),
-	[Pid | Dispatchers] = lists:reverse(State#state.dispatchers),
-	?DEBUG("Pid I'm about to kill: ~p.", [Pid]),
-	dispatcher:stop(Pid),
-	% if it dies, we'll get the exit message.
-	balance(State#state{dispatchers=Dispatchers});
+	%?DEBUG("Killing a dispatcher",[]),
+	%[Pid | Dispatchers] = State#state.dispatchers,
+	%?DEBUG("Pid I'm about to kill: ~p.", [Pid]),
+	%try dispatcher:stop(Pid) of
+		%ok ->
+			% if it dies, we'll get the exit message.
+			%balance(State#state{dispatchers=Dispatchers});
+		%_ ->
+			%balance(State#state{dispatchers=[Pid | Dispatchers]})
+	%catch
+		%_:_ ->
+			%balance(State#state{dispatchers=Dispatchers})
+	%end;
+	Diff = length(State#state.dispatchers) - length(State#state.agents),
+	case Diff of
+		_ when Diff > 10 ->
+			Dispatchers = balance_down([], lists:reverse(State#state.dispatchers), Diff, false),
+			State#state{dispatchers = Dispatchers};
+		_ ->
+			State
+	end;
 balance(State) -> 
 	?DEBUG("It is fully balanced!",[]),
 	State.
+
+balance_down(Out, _In, 0, _Force) ->
+	lists:reverse(Out);
+balance_down(Out, [], _Count, true) ->
+	lists:reverse(Out);
+balance_down(Out, [], Count, false) ->
+	?DEBUG("switching to hard kill mode; ~p holdouts", [Count]),
+	balance_down([], lists:reverse(Out), Count, true);
+balance_down(Out, [D | In], Count, Force) ->
+	try dispatcher:stop(D, Force) of
+		ok ->
+			balance_down(Out, In, Count - 1, Force);
+		_ ->
+			?DEBUG("dispatcher declined to die", []),
+			balance_down([D | Out], In, Count, Force)
+	catch
+		_:_ ->
+			balance_down(Out, In, Count - 1, Force)
+	end.
 
 -ifdef(TEST).
 

@@ -456,17 +456,18 @@ idle(_Message, State) ->
 	%(Event :: any(), From :: pid(), State :: #state{}) -> {'reply', 'invalid', 'ringing', #state{}}).
 ringing(oncall, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent} = State) when Statecall#call.ring_path == inband ->
 	?DEBUG("default ringpath inband, ring_path not outband", []),
+	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
 	case gen_media:oncall(Statecall#call.source) of
 		ok ->
 			Newagent = Agent#agent{state=oncall, oldstate = ringing, lastchange = util:now()},
 			gen_server:cast(dispatch_manager, {end_avail, self()}),
-			gen_leader:cast(agent_manager, {end_avail, Newagent#agent.login}),
 			gen_server:cast(Newagent#agent.connection, {change_state, oncall, Newagent#agent.statedata}),
 			gen_server:cast(Statecall#call.cook, remove_from_queue),
 			%cdr:oncall(Statecall, State#agent.login),
 			set_cpx_monitor(Newagent, ?ONCALL_LIMITS, []),
 			{reply, ok, oncall, State#state{agent_rec = Newagent}};
 		invalid ->
+			gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 			{reply, invalid, ringing, State}
 	end;
 ringing({oncall, #call{id=Callid} = Call}, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent} = State) ->
@@ -1234,7 +1235,13 @@ wait_for_agent_manager(Count, StateName, #state{agent_rec = Agent} = State) ->
 			% this will throw an error if the agent is already registered as
 			% a different pid and that error will crash this process
 			?INFO("Notifying new agent manager of agent ~p at ~p", [Agent#agent.login, self()]),
-			agent_manager:notify(Agent#agent.login, Agent#agent.id, self()),
+			Time = case Agent#agent.state of 
+				idle ->
+					Agent#agent.lastchange;
+				_ ->
+					0
+			end,
+			agent_manager:notify(Agent#agent.login, Agent#agent.id, self(), Time, Agent#agent.skills),
 			{next_state, StateName, State}
 	end.
 

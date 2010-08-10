@@ -78,7 +78,7 @@
 	blab/2,
 	get_leader/0,
 	list/0,
-	notify/3,
+	notify/5,
 	log_state/3
 ]).
 
@@ -266,11 +266,11 @@ query_agent(Login) ->
 	gen_leader:leader_call(?MODULE, {exists, Login}).
 
 %% @doc Notify the agent_manager of a local agent after an agent manager restart.
--spec(notify/3 :: (Login :: string(), Id :: string(), Pid :: pid()) -> 'ok').
-notify(Login, Id, Pid) ->
+-spec(notify/5 :: (Login :: string(), Id :: string(), Pid :: pid(), TimeAvail :: non_neg_integer(), Skills :: [atom()]) -> 'ok').
+notify(Login, Id, Pid, TimeAvail, Skills) ->
 	case gen_leader:call(?MODULE, {exists, Login}) of
 		false ->
-			gen_leader:call(?MODULE, {notify, Login, Id, Pid});
+			gen_leader:call(?MODULE, {notify, Login, Id, Pid, TimeAvail, Skills});
 		{true, Pid} ->
 			ok;
 		{true, _OtherPid} ->
@@ -381,11 +381,11 @@ handle_leader_call(Message, From, State, _Election) ->
 	{reply, ok, State}.
 
 %% @hidden
-handle_leader_cast({notify, Agent, Id, Apid}, #state{agents = Agents} = State, _Election) -> 
+handle_leader_cast({notify, Agent, Id, Apid, TimeAvail, Skills}, #state{agents = Agents} = State, _Election) -> 
 	?INFO("Notified of ~p pid ~p", [Agent, Apid]),
 	case dict:find(Agent, Agents) of
 		error -> 
-			Agents2 = dict:store(Agent, {Apid, Id}, Agents),
+			Agents2 = dict:store(Agent, {Apid, Id, TimeAvail, Skills}, Agents),
 			{noreply, State#state{agents = Agents2}};
 		{ok, {Apid, _}} ->
 			{noreply, State};
@@ -478,7 +478,7 @@ handle_call({start_agent, #agent{login = ALogin, id=Aid} = Agent}, _From, #state
 	end,
 	Agents2 = dict:store(ALogin, Value, Agents),
 	gen_server:cast(dispatch_manager, {end_avail, Apid}),
-	{reply, {ok, Apid}, State#state{agents = Agents2, lists_requested = 0}};
+	{reply, {ok, Apid}, State#state{agents = Agents2}};
 handle_call({exists, Login}, _From, #state{agents = Agents} = State, Election) ->
 	Leader = gen_leader:leader_node(Election),
 	case dict:find(Login, Agents) of
@@ -499,18 +499,24 @@ handle_call({exists, Login}, _From, #state{agents = Agents} = State, Election) -
 		{ok, {Pid, _Id, _Timeavail, _Skills}} ->
 			{reply, {true, Pid}, State}
 	end;
-handle_call({notify, Login, Id, Pid}, _From, #state{agents = Agents} = State, Election) when is_pid(Pid) andalso node(Pid) =:= node() ->
+handle_call({notify, Login, Id, Pid, TimeAvail, Skills}, _From, #state{agents = Agents} = State, Election) when is_pid(Pid) andalso node(Pid) =:= node() ->
 	case dict:find(Login, Agents) of
 		error ->
 			link(Pid),
 			case gen_leader:leader_node(Election) =:= node() of
 				false -> 
-					gen_leader:leader_cast(?MODULE, {notify, Login, Id, Pid});
+					gen_leader:leader_cast(?MODULE, {notify, Login, Id, Pid, TimeAvail, Skills});
 				_Else ->
 					ok
 			end,
-			Agents2 = dict:store(Login, {Pid, Id}, Agents),
-			{reply, ok, State#state{agents = Agents2, lists_requested = 0}};
+			Agents2 = dict:store(Login, {Pid, Id, TimeAvail, Skills}, Agents),
+			case TimeAvail of
+				0 ->
+					{reply, ok, State#state{agents = Agents2}};
+				_ ->
+					% only clear the lists_requested if the agent is actually available.
+					{reply, ok, State#state{agents = Agents2, lists_requested = 0}}
+			end;
 		{ok, {Pid, _Id}} ->
 			{reply, ok, State};
 		{ok, _OtherPid} ->

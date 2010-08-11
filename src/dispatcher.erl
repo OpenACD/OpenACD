@@ -482,7 +482,7 @@ grab_test_() ->
 					receive after ?POLL_INTERVAL -> ok end,
 					Call = bound_call(Pid),
 					?assertEqual("C3", Call#queued_call.id),
-					stop(Pid)
+					stop(Pid, true)
 				end}
 			end,
 			fun(_Pids) ->
@@ -491,7 +491,7 @@ grab_test_() ->
 					{ok, Pid} = start(),
 					 Call = bound_call(Pid),
 					 ?assertEqual(none, Call),
-					 stop(Pid)
+					 stop(Pid, true)
 				end}
 			end,
 			fun([Pid1, _Pid2, _Pid3]) ->
@@ -556,7 +556,7 @@ bias_to_test() ->
 		{ok, Pid} = start(),
 		{Pid, fun() ->
 			queue_manager:stop(),
-			Ref = stop(Pid),
+			Ref = stop(Pid, true),
 			mnesia:stop(),
 			mnesia:delete_schema([node]),
 			Ref

@@ -88,5 +88,7 @@
 	HIDDEN: "Hidden",
 	LIMIT_QUEUES: "Limit Queues",
 	LIMIT_PROFILES: "Limit Profiles",
-	LIMIT_CLIENTS: "Limit Clients"
+	LIMIT_CLIENTS: "Limit Clients",
+	FILEPATH: "Filepath",
+	ENABLED:  "Enabled"
 }

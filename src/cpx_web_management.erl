@@ -755,7 +755,8 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 			{cpx_supervisor, rpc:call(Node, cpx_supervisor, get_value, [archivepath], 2000)},
 			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)},
 			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
-			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)}
+			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)},
+			{cpx_monitor_kgb_eventlog, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog], 200)}
 		]}
 	end,
 	Rpcs = lists:map(F, Nodes),
@@ -766,6 +767,58 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 %% media -> node -> media
 %% =====
 
+api({medias, Node, "cpx_monitor_kgb_eventlog", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog]) of
+		undefined ->
+			{struct, [
+				{success, true},
+				{<<"enabled">>, false},
+				{<<"isDefaultLogfile">>, true},
+				{<<"kgbLogfile">>, <<"events.log">>}
+			]};
+		#cpx_conf{start_args = [Args]} ->
+			{Isdefault, Filepath} = case proplists:get_value(filename, Args) of
+				undefined ->
+					{true, <<"events.log">>};
+				Else ->
+					{false, list_to_binary(Else)}
+			end,
+			{struct, [
+				{success, true},
+				{<<"enabled">>, true},
+				{<<"isDefaultLogFile">>, Isdefault},
+				{<<"kgbLogfile">>, Filepath}
+			]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+api({medias, Node, "cpx_monitor_kgb_eventlog", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case proplists:get_value("kgbEventsEnabled", Post) of
+		"false" ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [cpx_monitor_kgb_eventlog], 2000),
+			{struct, [{success, true}]};
+		"true" ->
+			Args = case proplists:get_value("kgbFilename", Post) of
+				"" ->
+					[];
+				Else ->
+					[{filename, Else}]
+			end,
+			case rpc:call(Atomnode, cpx_supervisor, update_conf, [cpx_monitor_kgb_eventlog, #cpx_conf{
+				id = cpx_monitor_kgb_eventlog,
+				module_name = cpx_monitor_kgb_eventlog,
+				start_function = start_link,
+				start_args = [Args],
+				supervisor = management_sup
+			}]) of
+				{atomic, {ok, Pid}} when is_pid(Pid) ->
+					{struct, [{success, true}]};
+				_ElseErr ->
+					{struct, [{success, false}]}
+			end
+	end,
+	{200, [], mochijson2:encode(Json)};
 api({medias, Node, "cpx_monitor_grapher", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_grapher]) of

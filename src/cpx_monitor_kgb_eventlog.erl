@@ -27,13 +27,18 @@
 
 -behaviour(gen_server).
 
+-ifdef(TEST).
+	-include_lib("eunit/include/eunit.hrl").
+-endif.
 -include("log.hrl").
 -include("call.hrl").
 
 %% API
 -export([
 	start/0,
-	start/1
+	start/1,
+	start_link/0,
+	start_link/1
 ]).
 
 %% gen_server callbacks
@@ -58,6 +63,12 @@ start() ->
 
 start(Props) ->
 	gen_server:start(?MODULE, Props, []).
+
+start_link() ->
+	start_link([]).
+
+start_link(Props) ->
+	gen_server:start_link(?MODULE, Props, []).
 
 init(Props) ->
 	Filename = proplists:get_value(filename, Props, "events.log"),

@@ -1161,7 +1161,7 @@ handle_info({cpx_monitor_event, _Message}, #state{securitylevel = agent} = State
 handle_info({cpx_monitor_event, Message}, State) ->
 	%?DEBUG("Ingesting cpx_monitor_event ~p", [Message]),
 	Json = case Message of
-		{drop, {Type, Name}} ->
+		{drop, {Type, Name}, _Timestamp} ->
 			Fixedname = if 
 				is_atom(Name) ->
 					 atom_to_binary(Name, latin1); 

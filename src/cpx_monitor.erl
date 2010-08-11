@@ -329,14 +329,14 @@ surrendered(#state{ets = Tid} = State, {_Merge, _Stilldown}, Election) ->
 	Ealive = gen_leader:alive(Election),
 	
 	lists:foreach(fun(Node) -> 
-		ets:insert(Tid, {{node, Node}, [{down, 100}], [], util:now()})
+		ets:insert(Tid, {{node, Node}, [{down, 100}], [], os:timestamp()})
 	end, Edown),
 
 	lists:foreach(fun(Node) ->
-		ets:insert(Tid, {{node, Node}, [{up, 50}], [{up, util:now()}], util:now()})
+		ets:insert(Tid, {{node, Node}, [{up, 50}], [{up, util:now()}], os:timestamp()})
 	end, Ealive),
 	
-	gen_leader:leader_cast(cpx_monitor, {ensure_live, node(), util:now()}),
+	gen_leader:leader_cast(cpx_monitor, {ensure_live, node(), os:timestamp()}),
 	
 	{ok, State}.
 	
@@ -360,7 +360,8 @@ handle_DOWN(Node, #state{ets = Tid} = State, Election) ->
 		proplists:get_value(node, Details) == Node
 	]),
 	Idlist = qlc:e(QH),
-	lists:foreach(fun(Id) -> entry({drop, Id}, State, Election) end, Idlist),
+	Time = os:timestamp(),
+	lists:foreach(fun(Id) -> entry({drop, Id, Time}, State, Election) end, Idlist),
 	%%ets:match_delete(Tid, {'_', '_', '_', Node}),
 	entry(Entry, State, Election),
 	{ok, State#state{splits = Newsplits}}.
@@ -408,15 +409,15 @@ handle_leader_cast({unsubscribe, Pid}, #state{subscribers = Subs} = State, _Elec
 	Newsubs = proplists:delete(Pid, Subs),
 	{noreply, State#state{subscribers = Newsubs}};
 handle_leader_cast({drop, Key}, State, Election) ->
-	entry({drop, Key}, State, Election),
+	entry({drop, Key, os:timestamp()}, State, Election),
 	{noreply, State};
 handle_leader_cast({set, {Key, Hp, Details, Node}}, State, Election)  ->
 	Trueentry = case proplists:get_value(node, Details) of
 		undefined ->
 			Newdetails = [{node, Node} | Details],
-			{Key, Hp, Newdetails, util:now()};
+			{Key, Hp, Newdetails, os:timestamp()};
 		_Else ->
-			{Key, Hp, Details, util:now()}
+			{Key, Hp, Details, os:timestamp()}
 	end,
 	entry(Trueentry, State, Election),
 	{noreply, State};
@@ -672,7 +673,7 @@ calc_healths([{Key, {Min, Mid, Max, {time, X}}} | Tail], Acc) ->
 
 entry(Entry, #state{ets = Tid} = State, Election) ->
 	Message = case Entry of
-		{drop, Key} ->
+		{drop, Key, _Timestamp} ->
 			ets:delete(Tid, Key),
 			Entry;
 		_ ->
@@ -686,8 +687,8 @@ entry(Entry, #state{ets = Tid} = State, Election) ->
 					% doing some housecleaning.
 					?DEBUG("Keys to drop:  ~p", [Keys]),
 					Foreach = fun(K) -> 
-						tell_subs({drop, K}, State#state.subscribers),
-						tell_cands({drop, K}, Election),
+						tell_subs({drop, K, os:timestamp()}, State#state.subscribers),
+						tell_cands({drop, K, os:timestamp()}, Election),
 						ets:delete(Tid, K)
 					end,
 					lists:foreach(Foreach, Keys);
@@ -818,9 +819,9 @@ data_grooming_test_() ->
 			cpx_monitor:subscribe(),
 			cpx_monitor:set({media, "new"}, [], [{agent, "agent"}]),
 			receive
-				{cpx_monitor_event, {drop, {media, "old"}}} ->
+				{cpx_monitor_event, {drop, {media, "old"}, _Time}} ->
 					?assert(true);
-				{cpx_monitor_event, {drop, Key}} ->
+				{cpx_monitor_event, {drop, Key}, _Time} ->
 					?DEBUG("Bad drop:  ~p", [Key]),
 					?assert("bad drop recieved")
 			after 1000 ->
@@ -835,8 +836,8 @@ data_grooming_test_() ->
 handle_down_test() ->
 	Tid = ets:new(?MODULE, []),
 	Entries = [
-		{{media, "cull1"}, [], [{node, "deadnode"}], util:now()},
-		{{media, "keep1"}, [], [{node, "goodnode"}], util:now()}
+		{{media, "cull1"}, [], [{node, "deadnode"}], os:timestamp()},
+		{{media, "keep1"}, [], [{node, "goodnode"}], os:timestamp()}
 	],
 	ets:insert(Tid, Entries),
 	State = #state{ets = Tid},

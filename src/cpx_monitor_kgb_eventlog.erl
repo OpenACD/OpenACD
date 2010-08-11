@@ -105,7 +105,7 @@ handle_info({cpx_monitor_event, {set, {{agent, Key}, _Health, Details, Timestamp
 			agent_diff(Key, Details, Current, State)
 	end,
 	{noreply, State#state{agents = dict:store(Key, Details, State#state.agents)}};
-handle_info({cpx_monitor_event, {drop, {agent, Key}}}, State) ->
+handle_info({cpx_monitor_event, {drop, {agent, Key}, _Timestamp}}, State) ->
 	case dict:find(Key, State#state.agents) of
 		error ->
 			{noreply, State};

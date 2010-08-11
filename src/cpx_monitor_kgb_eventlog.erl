@@ -54,7 +54,8 @@
 -record(state, {
 		file,
 		agents,
-		calls
+		calls,
+		callqueuemap
 	}).
 
 
@@ -79,7 +80,7 @@ init(Props) ->
 				AgentDict = dict:from_list([{Key, Value} || {{agent, Key}, _Health, Value} <- Agents]),
 				CallDict = dict:from_list([{Key, Value} || {{media, Key}, _Health, Value} <- Calls]),
 				cpx_monitor:subscribe(),
-				{ok, #state{file = File, agents = AgentDict, calls = CallDict}};
+				{ok, #state{file = File, agents = AgentDict, calls = CallDict, callqueuemap = dict:new()}};
 			{error, Reason} ->
 				{stop, {error, Reason}}
 	end.
@@ -94,14 +95,14 @@ handle_cast(_Msg, State) ->
 handle_info({cpx_monitor_event, {set, {{agent, Key}, _Health, Details, Timestamp}}}, State) ->
 	case dict:find(Key, State#state.agents) of
 		error ->
-			%?NOTICE("Agent ~p just logged in", [Key]),
-			io:format(State#state.file, "~s : ~p : agent_start : ~p : ~s~n", [inet_db:gethostname(), Timestamp, proplists:get_value(node, Details), Key]),
-			[io:format(State#state.file, "~s : ~p : agent_login : ~p : ~s : ~s~n", [inet_db:gethostname(), Timestamp, proplists:get_value(node, Details), Queue, Key]) || {'_queue', Queue} <- proplists:get_value(skills, Details)],
+			%?NOTICE("Agent ~p just logged in ~p", [Key, Details]),
+			io:format(State#state.file, "~s : ~s : agent_start : ~p : ~s~n", [inet_db:gethostname(), iso8601_timestamp(), proplists:get_value(node, Details), proplists:get_value(login, Details)]),
+			[io:format(State#state.file, "~s : ~s : agent_login : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(), proplists:get_value(node, Details), Queue, proplists:get_value(login, Details)]) || {'_queue', Queue} <- proplists:get_value(skills, Details)],
 			?INFO("skills: ~p", [proplists:get_value(skills, Details)]),
 			ok;
 		{ok, Current} ->
 			%?NOTICE("Udating agent ~p from  ~p to ~p", [Key, Current, Details]),
-			agent_diff(Key, Details, Current, State#state.file)
+			agent_diff(Key, Details, Current, State)
 	end,
 	{noreply, State#state{agents = dict:store(Key, Details, State#state.agents)}};
 handle_info({cpx_monitor_event, {drop, {agent, Key}}}, State) ->
@@ -109,8 +110,8 @@ handle_info({cpx_monitor_event, {drop, {agent, Key}}}, State) ->
 		error ->
 			{noreply, State};
 		{ok, Current} ->
-			io:format(State#state.file, "~s : ~p : agent_stop : ~p : ~s~n", [inet_db:gethostname(), util:now(), proplists:get_value(node, Current), Key]),
-			[io:format(State#state.file, "~s : ~p : agent_logout : ~p : ~s : ~s~n", [inet_db:gethostname(), util:now(), proplists:get_value(node, Current), Queue, Key]) || {'_queue', Queue} <- proplists:get_value(skills, Current)],
+			io:format(State#state.file, "~s : ~s : agent_stop : ~p : ~s~n", [inet_db:gethostname(), iso8601_timestamp(), proplists:get_value(node, Current), proplists:get_value(login, Current)]),
+			[io:format(State#state.file, "~s : ~s : agent_logout : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(), proplists:get_value(node, Current), Queue, proplists:get_value(login, Current)]) || {'_queue', Queue} <- proplists:get_value(skills, Current)],
 			{noreply, State#state{agents = dict:erase(Key, State#state.agents)}}
 	end;
 handle_info({cpx_monitor_event, {set, {{media, Key}, _Health, Details, Timestamp}}}, State) ->
@@ -118,9 +119,10 @@ handle_info({cpx_monitor_event, {set, {{media, Key}, _Health, Details, Timestamp
 		undefined ->
 			{noreply, State};
 		Queue ->
-			io:format(State#state.file, "~s : ~p : call_enqueue : ~p : ~s : ~s : ~s : ~s : ~s : ~s : ~s~n", [
+			io:format(State#state.file, "~s : ~s : call_enqueue : ~p : ~s : ~s : ~s : ~s : ~s : ~s : ~s~n", [
 					inet_db:gethostname(),
-					Timestamp,
+					%Timestamp,
+					iso8601_timestamp(),
 					proplists:get_value(node, Details),
 					Queue,
 					element(2, proplists:get_value(callerid, Details)),
@@ -129,7 +131,7 @@ handle_info({cpx_monitor_event, {set, {{media, Key}, _Health, Details, Timestamp
 					"CLS",
 					"Source IP",
 					proplists:get_value(dnis, Details, "")]),
-			{noreply, State}
+			{noreply, State#state{callqueuemap = dict:store(Key, Queue, State#state.callqueuemap)}}
 	end;
 handle_info(Info, State) ->
 	%?NOTICE("Got message: ~p", [Info]),
@@ -141,7 +143,7 @@ terminate(_Reason, _State) ->
 code_change(_Oldvsn, State, _Extra) ->
 	{ok, State}.
 
-agent_diff(Agent, New, Old, File) ->
+agent_diff(Agent, New, Old, #state{file = File} = State) ->
 	% has the agent's state changed?
 	case proplists:get_value(state, New) == proplists:get_value(state, Old) of
 		true ->
@@ -154,8 +156,8 @@ agent_diff(Agent, New, Old, File) ->
 						% ok, now diff the skill lists to see if we've changed queue membership
 						Lost = proplists:get_value(skills, Old) -- proplists:get_value(skills, New),
 						Gained = proplists:get_value(skills, New) -- proplists:get_value(skills, Old),
-						[io:format(File, "~s : ~p : agent_logout : ~p : ~s : ~s~n", [inet_db:gethostname(), util:now(), proplists:get_value(node, New), Queue, Agent]) || {'_queue', Queue} <- Lost],
-						[io:format(File, "~s : ~p : agent_login : ~p : ~s : ~s~n", [inet_db:gethostname(), util:now(), proplists:get_value(node, New), Queue, Agent]) || {'_queue', Queue} <- Gained],
+						[io:format(File, "~s : ~s : agent_logout : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(), proplists:get_value(node, New), Queue, proplists:get_value(login, New)]) || {'_queue', Queue} <- Lost],
+						[io:format(File, "~s : ~s : agent_login : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(), proplists:get_value(node, New), Queue, proplists:get_value(login, New)]) || {'_queue', Queue} <- Gained],
 						ok
 			end;
 		false ->
@@ -164,13 +166,18 @@ agent_diff(Agent, New, Old, File) ->
 			case {proplists:get_value(state, Old), proplists:get_value(state, New)} of
 					{wrapup, _} ->
 						Call = proplists:get_value(statedata, Old),
+						Queue = case dict:find(Call#call.id, State#state.callqueuemap) of
+							error -> "Unknown Queue";
+							{ok, Value} -> Value
+						end,
 
-						io:format(File, "~s : ~p : call_terminate : ~p : ~s : ~s : ~s : ~s : ~s : ~s : ~s : ~s~n", [
+						io:format(File, "~s : ~s : call_terminate : ~p : ~s : ~s : ~s : ~s : ~s : ~s : ~s : ~s~n", [
 								inet_db:gethostname(),
-								util:now(),
+								%util:now(),
+								iso8601_timestamp(),
 								proplists:get_value(node, New),
-								"Queue Name",
-								Agent,
+								Queue,
+								proplists:get_value(login, New),
 								element(2, Call#call.callerid),
 								Call#call.id,
 								"Origin",
@@ -180,13 +187,18 @@ agent_diff(Agent, New, Old, File) ->
 							]);
 					{_, oncall} ->
 						Call = proplists:get_value(statedata, New),
+						Queue = case dict:find(Call#call.id, State#state.callqueuemap) of
+							error -> "Unknown Queue";
+							{ok, Value} -> Value
+						end,
 
-						io:format(File, "~s : ~p : call_pickup : ~p : ~s : ~s : ~s : ~s : ~s : ~s : ~s : ~s~n", [
+						io:format(File, "~s : ~s : call_pickup : ~p : ~s : ~s : ~s : ~s : ~s : ~s : ~s : ~s~n", [
 								inet_db:gethostname(),
-								util:now(),
+								%util:now(),
+								iso8601_timestamp(),
 								proplists:get_value(node, New),
-								"Queue Name",
-								Agent,
+								Queue,
+								proplists:get_value(login, New),
 								element(2, Call#call.callerid),
 								Call#call.id,
 								"Origin",
@@ -198,4 +210,15 @@ agent_diff(Agent, New, Old, File) ->
 						ok
 				end
 		end.
+
+% generates time stamps like 2010-07-29T12:31:02.776357Z according to ISO8601
+iso8601_timestamp() ->
+	Now = os:timestamp(),
+	{{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_universal_time(Now),
+	{_, _, Microseconds} = Now,
+	%Milliseconds = Microseconds div 1000,
+	lists:flatten(io_lib:format("~B-~2..0B-~2..0BT~2..0B:~2..0B:~2..0B.~BZ", [Year, Month, Day, Hour, Minute, Second, Microseconds])).
+
+
+
 

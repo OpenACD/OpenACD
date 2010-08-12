@@ -661,7 +661,13 @@ add_agent(Proplist) when is_list(Proplist) ->
 add_agent(Rec) when is_record(Rec, agent_auth) ->
 	Id = make_id(),
 	F = fun() ->
-		mnesia:write(Rec#agent_auth{id = Id})
+		QH = qlc:q([Rec || #agent_auth{login = Nom} <- mnesia:table(agent_auth), Nom =:= Rec#agent_auth.login]),
+		case qlc:e(QH) of
+			[] ->
+				mnesia:write(Rec#agent_auth{id = Id});
+			_ ->
+				erlang:error(duplicate_login, Rec)
+		end
 	end,
 	mnesia:transaction(F).
 
@@ -811,6 +817,27 @@ timestamp_comp(A, B) when is_record(A, agent_profile) ->
 %%--------------------------------------------------------------------
 %%% Test functions
 %%--------------------------------------------------------------------
+
+crud_test_() ->
+	{setup,
+	fun() ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()]),
+		mnesia:create_schema([node()]),
+		mnesia:start(),
+		build_tables(),
+		mnesia:clear_table(agent_auth)
+	end,
+	fun(_) ->
+		mnesia:stop(),
+		mnesia:delete_schema([node()])
+	end,
+	[{"trying to add an agent with a duplicate un",
+	fun() ->
+		add_agent("dup-login", "pass", [], agent, "Default"),
+		Out = add_agent("dup-login", "pass", [], agent, "Default"),
+		?assertMatch({aborted, {duplicate_login, _Props}}, Out)
+	end}]}.
 
 auth_no_integration_test_() ->
 	{setup,

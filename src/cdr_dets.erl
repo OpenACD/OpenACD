@@ -99,7 +99,12 @@ load_loop(Key, Detsref, Acc) ->
 init(Opts) ->
 	Logdir = case proplists:get_value(logdir, Opts, dynamic) of
 		dynamic ->
-			"www/dynamic/";
+			case application:get_env(cpx, webdir_dynamic) of
+				undefined ->
+					"www/dynamic";
+				{ok, WebDirDyn} ->
+					WebDirDyn
+			end;
 		tmp ->
 			"/tmp/";
 		LogElse ->

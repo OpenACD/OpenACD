@@ -79,8 +79,10 @@ init(Props) ->
 				{ok, Calls} = cpx_monitor:get_health(media),
 				AgentDict = dict:from_list([{Key, Value} || {{agent, Key}, _Health, Value} <- Agents]),
 				CallDict = dict:from_list([{Key, Value} || {{media, Key}, _Health, Value} <- Calls]),
+				% hopefully the below won't take too long if this module is started on a busy system.
+				CallQMap = init_call_queue_map(),
 				cpx_monitor:subscribe(),
-				{ok, #state{file = File, agents = AgentDict, calls = CallDict, callqueuemap = dict:new()}};
+				{ok, #state{file = File, agents = AgentDict, calls = CallDict, callqueuemap = CallQMap}};
 			{error, Reason} ->
 				{stop, {error, Reason}}
 	end.
@@ -133,6 +135,16 @@ handle_info({cpx_monitor_event, {set, {{media, Key}, _Health, Details, Timestamp
 					proplists:get_value(dnis, Details, "")]),
 			{noreply, State#state{callqueuemap = dict:store(Key, Queue, State#state.callqueuemap)}}
 	end;
+handle_info({cpx_monitor_event, {drop, {media, Key}, _Timestamp}}, State) ->
+	% setting up a delay as there may be messages about agents that need the 
+	% info.
+	Self = self(),
+	erlang:send_after(5000, Self, {redrop, {media, Key}}),
+	{noreply, State};
+handle_info({redrop, {media, Key}}, #state{callqueuemap = Callqmap, calls = Calls} = State) ->
+	Newcalls = dict:erase(Key, Calls),
+	Newmap = dict:erase(Key, Callqmap),
+	{noreply, State#state{callqueuemap = Newmap, calls = Newcalls}};
 handle_info(Info, State) ->
 	%?NOTICE("Got message: ~p", [Info]),
 	{noreply, State}.
@@ -219,6 +231,20 @@ iso8601_timestamp() ->
 	%Milliseconds = Microseconds div 1000,
 	lists:flatten(io_lib:format("~B-~2..0B-~2..0BT~2..0B:~2..0B:~2..0B.~BZ", [Year, Month, Day, Hour, Minute, Second, Microseconds])).
 
-
+init_call_queue_map() ->
+	Queuelist = queue_manager:queues(),
+	map_call_to_queue(Queuelist, dict:new()).
+	
+map_call_to_queue([], Dict) ->
+	Dict;
+map_call_to_queue([{Name, Pid} | Tail], Dict) ->
+	Calls = call_queue:get_calls(Pid),
+	Newdict = map_call_to_queue(Calls, Name, Dict),
+	map_call_to_queue(Tail, Newdict).
+	
+map_call_to_queue([], _Name, Dict) ->
+	Dict;
+map_call_to_queue([{_Key, #queued_call{id = Id} = _Media} | Tail], Name, Dict) ->
+	map_call_to_queue(Tail, Name, dict:store(Id, Name, Dict)).
 
 

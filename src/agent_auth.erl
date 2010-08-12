@@ -157,7 +157,12 @@ new_profile(#agent_profile{name = "Default"}) ->
 	error;
 new_profile(Rec) ->
 	F = fun() ->
-		mnesia:write(Rec)
+		case qlc:e(qlc:q([Out || #agent_profile{name = N} = Out <- mnesia:table(agent_profile), N =:= Rec#agent_profile.name])) of
+			[] ->
+				mnesia:write(Rec);
+			_ ->
+				erlang:error(duplicate_name, Rec)
+		end
 	end,
 	mnesia:transaction(F).
 
@@ -182,10 +187,15 @@ set_profile("Default", _Rec) ->
 	error;
 set_profile(Oldname, #agent_profile{name = Newname} = Rec) ->
 	F = fun() ->
-		mnesia:delete({agent_profile, Oldname}),
-		mnesia:write(Rec),
-		qlc:e(qlc:q([mnesia:write(Arec#agent_auth{profile = Newname}) || Arec <- mnesia:table(agent_auth), Arec#agent_auth.profile =:= Oldname])),
-		ok
+		case qlc:e(qlc:q([Found || #agent_profile{name = Nom} = Found <- mnesia:table(agent_profile), Nom =:= Newname])) of
+			[] ->
+				mnesia:delete({agent_profile, Oldname}),
+				mnesia:write(Rec),
+				qlc:e(qlc:q([mnesia:write(Arec#agent_auth{profile = Newname}) || Arec <- mnesia:table(agent_auth), Arec#agent_auth.profile =:= Oldname])),
+				ok;
+			_ ->
+				erlang:error(duplicate_name, Rec)
+		end
 	end,
 	mnesia:transaction(F).
 
@@ -271,9 +281,14 @@ set_agent(Id, Props) ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.id =:= Id]),
 		[Agent] = qlc:e(QH),
 		Newrec = build_agent_record(Props, Agent),
-		destroy(Id),
-		mnesia:write(Newrec#agent_auth{timestamp = util:now()}),
-		ok
+		case qlc:e(qlc:q([Dup || #agent_auth{login = Login} = Dup <- mnesia:table(agent_auth), Login =:= Newrec#agent_auth.login])) of
+			[] ->
+				destroy(Id),
+				mnesia:write(Newrec#agent_auth{timestamp = util:now()}),
+				ok;
+			_ ->
+				erlang:error(duplicate_login, Newrec)
+		end
 	end,
 	mnesia:transaction(F).
 	
@@ -826,7 +841,8 @@ crud_test_() ->
 		mnesia:create_schema([node()]),
 		mnesia:start(),
 		build_tables(),
-		mnesia:clear_table(agent_auth)
+		mnesia:clear_table(agent_auth),
+		mnesia:clear_table(agent_profile)
 	end,
 	fun(_) ->
 		mnesia:stop(),
@@ -837,6 +853,27 @@ crud_test_() ->
 		add_agent("dup-login", "pass", [], agent, "Default"),
 		Out = add_agent("dup-login", "pass", [], agent, "Default"),
 		?assertMatch({aborted, {duplicate_login, _Props}}, Out)
+	end},
+	{"updating an agent to a duplicate name",
+	fun() ->
+		add_agent("original", "pass", [], agent, "Default"),
+		add_agent("target", "pass", [], agent, "Default"),
+		{atomic, [Old]} = get_agent("target"),
+		Out = set_agent(Old#agent_auth.id, [{login, "original"}]),
+		?assertMatch({aborted, {duplicate_login, _Props}}, Out)
+	end},
+	{"Trying to add a profile with duplicate name fails",
+	fun() ->
+		new_profile("dup-name", []),
+		Out = new_profile("dup-name", []),
+		?assertMatch({aborted, {duplicate_name, _Props}}, Out)
+	end},
+	{"Trying to update a proflie with duplicate name failes",
+	fun() ->
+		new_profile("original", []),
+		new_profile("target", []),
+		Out = set_profile("target", #agent_profile{name = "original"}),
+		?assertMatch({aborted, {duplicate_name, _Props}}, Out)
 	end}]}.
 
 auth_no_integration_test_() ->

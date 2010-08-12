@@ -37,6 +37,7 @@
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-export([fake_dispatcher/0]).
 -endif.
 
 -behaviour(gen_server).
@@ -1308,13 +1309,19 @@ multi_node_test_() ->
 		end,
 		[
 			{ "multi node grab test", fun() ->
+					% only one dispatcher per node is allowed to bind, thus we'll
+					% be faking a dispatcher.
 					timer:sleep(10),
 					Queue = rpc:call(Slave, queue_manager, get_queue, ["testqueue"]),
 					?DEBUG("queue: ~p", [Queue]),
+					
+					% ensure an empty queue says that it is indeed empty.
 					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
 					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue])),
+					
+					% so adding the call to teh queue on one node gets the same
+					% results no matter where the ask came from.
 					{ok, Dummy} = rpc:call(node(Queue), dummy_media, start, [[{id, "testcall"}, {skills, [english, testskill]}, {queues, none}]]),
-					%dummy_media:set_skills(Dummy, [english, testskill]),
 					rpc:call(Master, call_queue, add, [Queue, 1, Dummy]),
 					{_Key, Callrec} = rpc:call(Master, call_queue, ask, [Queue]),
 					?assertEqual("testcall", Callrec#queued_call.id),
@@ -1330,11 +1337,44 @@ multi_node_test_() ->
 					rpc:call(Master, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
 					rpc:call(Slave, gen_leader_mock, expect_call, [agent_manager, ListAgents]),
 					% {K, {V, _Id, Timeavail, AgSkills}} <- gen_leader:call(?MODULE, list_agents), 
-					_P1 = spawn(Slave, dispatcher, start, []),
-					_P2 = spawn(Master, dispatcher, start, []),
-					receive after 300 -> ok end,
-					?assertEqual(none, rpc:call(Master, call_queue, grab, [Queue])),
-					?assertEqual(none, rpc:call(Slave, call_queue, grab, [Queue]))
+					Faked1 = spawn(Slave, ?MODULE, fake_dispatcher, []),
+					Faked1 ! {grabit, Queue, self()},
+					receive
+						none ->
+							?assert(none);
+						Else ->
+							?assert(true)
+					after 10 ->
+						?assert("faked1 timeout")
+					end,
+					Faked1 ! {grabit, Queue, self()},
+					receive
+						none ->
+							?assert(true);
+						Else2 ->
+							?assert(Else2)
+					after 10 ->
+						?assert("faked1 try 2 timeout")
+					end,
+					Faked2 = spawn(Master, ?MODULE, fake_dispatcher, []),
+					Faked2 ! {grabit, Queue, self()},
+					receive
+						none ->
+							?assert(none);
+						Else3 ->
+							?assert(true)
+					after 10 ->
+						?assert("faked2 timeout")
+					end,
+					Faked2 ! {grabit, Queue, self()},
+					receive
+						none ->
+							?assert(true);
+						Else4 ->
+							?assert(Else4)
+					after 10 ->
+						?assert("faked2 try 2 timeout")
+					end
 				end
 			}, { "ensure cook is started on same node as call", fun() ->
 					timer:sleep(10),
@@ -1363,6 +1403,16 @@ multi_node_test_() ->
 		]
 	}.
 
+fake_dispatcher() ->
+	receive
+		{grabit, Q, From} ->
+			Out = rpc:call(node(), call_queue, grab, [Q]),
+			From ! Out,
+			fake_dispatcher();
+		_ ->
+			fake_dispatcher()
+	end.
+	
 -define(MYSERVERFUNC, fun() -> {ok, Pid} = start("testq", []), {Pid, fun() -> stop(Pid) end} end).
 
 -include("gen_server_test.hrl").

@@ -406,7 +406,11 @@ prevent_infinite_regrabbing_test_() ->
 		% the regrab bounds it to q2 (regrab 1)
 		% then it's bound to nothing (regrab 2)
 		% next message should be a grab_best, which restarts the cycle.
-		?assertEqual(1, Grab_bests)
+		?assertEqual(1, Grab_bests),
+		% must remember to clean up the mess I've made.
+		agent_manager:stop(),
+		queue_manager:stop(),
+		mnesia:stop()
 	end}.
 	
 recloop(Regrabs, Grab_bests, _State) when (Regrabs > 2); Grab_bests >= 1 ->
@@ -468,7 +472,12 @@ grab_test_() ->
 			fun([Pid1, Pid2, Pid3]) ->
 				{"there is a call we want",
 				fun() -> 
-					{ok, Pid} = start(),
+					% circumventing usual start because the lack of agents will
+					% make the cook tell the dispatcher to continually regrab.
+					% I just want to make sure the dispatcher on it's very first 
+					% grab gets C3, the call in the highest weighted queue.
+					%{ok, Pid} = start(),
+					{ok, State} = init([]),
 					PCalls = [Call || N <- [1, 2, 3], Call <- ["C" ++ integer_to_list(N)]],
 					F = fun(Callrec) -> 
 						{ok, Mpid} = dummy_media:start([{id, Callrec}, {queues, none}]),
@@ -479,10 +488,11 @@ grab_test_() ->
 					call_queue:add(Pid1, 1, lists:nth(1, Calls)),
 					call_queue:add(Pid2, 1, lists:nth(2, Calls)),
 					call_queue:add(Pid3, 1, lists:nth(3, Calls)),
-					receive after ?POLL_INTERVAL -> ok end,
-					Call = bound_call(Pid),
-					?assertEqual("C3", Call#queued_call.id),
-					stop(Pid, true)
+					%receive after ?POLL_INTERVAL -> ok end,
+					%Call = bound_call(Pid),
+					{noreply, #state{call = Call} = _Newstate} = handle_info(grab_best, State),
+					?assertEqual("C3", Call#queued_call.id)
+					%stop(Pid, true)
 				end}
 			end,
 			fun(_Pids) ->

@@ -498,7 +498,7 @@ handle_info({leader_event, report}, State) ->
 handle_info({leader_event, Message}, #state{ets = Tid} = State) ->
 	?DEBUG("Got message leader_event ~p", [Message]),
 	case Message of
-		{drop, Key} ->
+		{drop, Key, _Time} ->
 			ets:delete(Tid, Key),
 			{noreply, State};
 		{set, Entry} ->

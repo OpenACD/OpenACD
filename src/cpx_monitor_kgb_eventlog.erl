@@ -218,9 +218,9 @@ agent_diff(Agent, New, Old, #state{file = File} = State) ->
 								"Source IP",
 								Call#call.dnis
 							]);
-					{idle, _} ->
+					{idle, released} ->
 						[io:format(State#state.file, "~s : ~s : agent_unavailable : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(), proplists:get_value(node, New), Queue, proplists:get_value(login, New)]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
-					{_, idle} ->
+					{released, idle} ->
 						[io:format(State#state.file, "~s : ~s : agent_available : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(), proplists:get_value(node, New), Queue, proplists:get_value(login, New)]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
 					{_, _} ->
 						ok

@@ -178,7 +178,7 @@ handle_info({cpx_monitor_event, {drop, {media, Key}, Timestamp}}, #state{file = 
 	end,
 	Self = self(),
 	erlang:send_after(5000, Self, {redrop, {media, Key}}),
-	{noreply, State};
+	{noreply, State#state{calls = dict:erase(Key, State#state.calls)}};
 handle_info({redrop, {media, Key}}, #state{callqueuemap = Callqmap, callagentmap = CallAgentMap, calls = Calls} = State) ->
 	Newcalls = dict:erase(Key, Calls),
 	Newcmap = dict:erase(Key, Callqmap),

@@ -114,7 +114,7 @@ handle_info({freeswitch_sendmsg, "agent_logoff " ++ Username}, State) ->
 	case dict:find(Username, State#state.registry) of
 		{ok, Pid} ->
 			?DEBUG("requesting ~p logoff", [Username]),
-			agent_dialplan_connection:logout(Pid),
+			catch agent_dialplan_connection:logout(Pid),
 			% wait for the EXIT message to cleanup
 			{noreply, State};
 		error ->
@@ -125,7 +125,7 @@ handle_info({freeswitch_sendmsg, "agent_release " ++ Username}, State) ->
 	case dict:find(Username, State#state.registry) of
 		{ok, Pid} ->
 			?DEBUG("requesting ~p go released", [Username]),
-			agent_dialplan_connection:go_released(Pid),
+			catch agent_dialplan_connection:go_released(Pid),
 			{noreply, State};
 		error ->
 			?NOTICE("~p is not logged in", [Username]),
@@ -135,7 +135,7 @@ handle_info({freeswitch_sendmsg, "agent_available " ++ Username}, State) ->
 	case dict:find(Username, State#state.registry) of
 		{ok, Pid} ->
 			?DEBUG("requesting ~p go available", [Username]),
-			agent_dialplan_connection:go_available(Pid),
+			catch agent_dialplan_connection:go_available(Pid),
 			{noreply, State};
 		error ->
 			?NOTICE("~p is not logged in", [Username]),

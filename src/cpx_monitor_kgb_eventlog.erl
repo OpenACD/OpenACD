@@ -55,7 +55,8 @@
 		file,
 		agents,
 		calls,
-		callqueuemap
+		callqueuemap,
+		callagentmap
 	}).
 
 
@@ -82,8 +83,9 @@ init(Props) ->
 				CallDict = dict:from_list([{Key, Value} || {{media, Key}, _Health, Value} <- Calls]),
 				% hopefully the below won't take too long if this module is started on a busy system.
 				CallQMap = init_call_queue_map(),
+				CallAgentMap = dict:new(), % TODO bootstrap this to avoid false positives on abandon
 				cpx_monitor:subscribe(),
-				{ok, #state{file = File, agents = AgentDict, calls = CallDict, callqueuemap = CallQMap}};
+				{ok, #state{file = File, agents = AgentDict, calls = CallDict, callqueuemap = CallQMap, callagentmap = CallAgentMap}};
 			{error, Reason} ->
 				{stop, {error, Reason}}
 	end.
@@ -107,7 +109,13 @@ handle_info({cpx_monitor_event, {set, {{agent, Key}, _Health, Details, Timestamp
 			%?NOTICE("Udating agent ~p from  ~p to ~p", [Key, Current, Details]),
 			agent_diff(Key, Details, Current, Timestamp, State)
 	end,
-	{noreply, State#state{agents = dict:store(Key, Details, State#state.agents)}};
+	case {proplists:get_value(statedata, Details), proplists:get_value(state, Details)} of
+		{X, Y} when is_record(X, call), Y =/= ringing ->
+			% ok, an agent is definitely interacting with this call
+			{noreply, State#state{agents = dict:store(Key, Details, State#state.agents), callagentmap = dict:store(X#call.id, Key, State#state.callagentmap)}};
+		_ ->
+			{noreply, State#state{agents = dict:store(Key, Details, State#state.agents)}}
+	end;
 handle_info({cpx_monitor_event, {drop, {agent, Key}, Timestamp}}, State) ->
 	case dict:find(Key, State#state.agents) of
 		error ->
@@ -120,7 +128,7 @@ handle_info({cpx_monitor_event, {drop, {agent, Key}, Timestamp}}, State) ->
 handle_info({cpx_monitor_event, {set, {{media, Key}, _Health, Details, Timestamp}}}, State) ->
 	case proplists:get_value(queue, Details) of
 		undefined ->
-			{noreply, State};
+			{noreply, State#state{calls = dict:store(Key, Details, State#state.calls)}};
 		Queue ->
 			io:format(State#state.file, "~s : ~s : call_enqueue : ~p : ~s : ~s : ~s : ~s : ~s : ~s : ~s~n", [
 					get_FQDN(),
@@ -134,18 +142,48 @@ handle_info({cpx_monitor_event, {set, {{media, Key}, _Health, Details, Timestamp
 					"CLS",
 					"Source IP",
 					proplists:get_value(dnis, Details, "")]),
-			{noreply, State#state{callqueuemap = dict:store(Key, Queue, State#state.callqueuemap)}}
+			{noreply, State#state{callqueuemap = dict:store(Key, Queue, State#state.callqueuemap), calls = dict:store(Key, Details, State#state.calls)}}
 	end;
-handle_info({cpx_monitor_event, {drop, {media, Key}, _Timestamp}}, State) ->
+handle_info({cpx_monitor_event, {drop, {media, Key}, Timestamp}}, #state{file = File} = State) ->
 	% setting up a delay as there may be messages about agents that need the 
 	% info.
+	case dict:find(Key, State#state.callagentmap) of
+		error -> % An abandonment!
+			Queue = case dict:find(Key, State#state.callqueuemap) of
+				error -> "Unknown Queue";
+				{ok, Value} -> Value
+			end,
+
+			case dict:find(Key, State#state.calls) of
+				{ok, New} ->
+					?INFO("~p abandoned", [Key]),
+					io:format(File, "~s : ~s : call_terminate : ~p : ~s : ~s : ~s : ~s : ~s : ~s : ~s : ~s~n", [
+							get_FQDN(),
+							iso8601_timestamp(Timestamp),
+							proplists:get_value(node, New),
+							Queue,
+							"", %proplists:get_value(login, New),
+							element(2, proplists:get_value(callerid, New)),
+							Key,
+							"Origin",
+							"CLS",
+							"Source IP",
+							proplists:get_value(dnis, New, "")
+						]);
+				error ->
+					?ERROR("unknown call ~p abandoned", [Key])
+			end;
+		{ok, _Agent} ->
+			ok
+	end,
 	Self = self(),
 	erlang:send_after(5000, Self, {redrop, {media, Key}}),
 	{noreply, State};
-handle_info({redrop, {media, Key}}, #state{callqueuemap = Callqmap, calls = Calls} = State) ->
+handle_info({redrop, {media, Key}}, #state{callqueuemap = Callqmap, callagentmap = CallAgentMap, calls = Calls} = State) ->
 	Newcalls = dict:erase(Key, Calls),
-	Newmap = dict:erase(Key, Callqmap),
-	{noreply, State#state{callqueuemap = Newmap, calls = Newcalls}};
+	Newcmap = dict:erase(Key, Callqmap),
+	Newamap = dict:erase(Key, CallAgentMap),
+	{noreply, State#state{callqueuemap = Newcmap, callagentmap = Newamap, calls = Newcalls}};
 handle_info(Info, State) ->
 	%?NOTICE("Got message: ~p", [Info]),
 	{noreply, State}.

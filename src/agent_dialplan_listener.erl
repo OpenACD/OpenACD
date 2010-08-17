@@ -94,7 +94,7 @@ handle_info({freeswitch_sendmsg, "agent_login " ++ Parameters}, State) ->
 					Agent = #agent{id = AgentAuth#agent_auth.id, login = AgentAuth#agent_auth.login, skills = AgentAuth#agent_auth.skills, profile = AgentAuth#agent_auth.profile},
 					case agent_dialplan_connection:start(Agent, AgentAuth#agent_auth.securitylevel) of
 						{ok, Pid} ->
-							?WARNING("~s logged in with endpoint ~p", [Username, Endpoint]),
+							?INFO("~s logged in with endpoint ~p", [Username, Endpoint]),
 							gen_server:call(Pid, {set_endpoint, Endpoint}),
 							link(Pid),
 							{noreply, State#state{registry = dict:store(Username, Pid, State#state.registry)}};

@@ -99,7 +99,7 @@ handle_info({cpx_monitor_event, {set, {{agent, Key}, _Health, Details, Timestamp
 		error ->
 			%?NOTICE("Agent ~p just logged in ~p", [Key, Details]),
 			io:format(State#state.file, "~s : ~s : agent_start : ~p : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, Details), proplists:get_value(login, Details)]),
-			[io:format(State#state.file, "~s : ~s : agent_login : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, Details), Queue, proplists:get_value(login, Details)]) || {'_queue', Queue} <- proplists:get_value(skills, Details)],
+			[io:format(State#state.file, "~s : ~s : agent_login : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, Details), proplists:get_value(login, Details), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Details)],
 			?INFO("skills: ~p", [proplists:get_value(skills, Details)]),
 			ok;
 		{ok, Current} ->
@@ -113,7 +113,7 @@ handle_info({cpx_monitor_event, {drop, {agent, Key}, Timestamp}}, State) ->
 			{noreply, State};
 		{ok, Current} ->
 			io:format(State#state.file, "~s : ~s : agent_stop : ~p : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, Current), proplists:get_value(login, Current)]),
-			[io:format(State#state.file, "~s : ~s : agent_logout : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, Current), Queue, proplists:get_value(login, Current)]) || {'_queue', Queue} <- proplists:get_value(skills, Current)],
+			[io:format(State#state.file, "~s : ~s : agent_logout : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, Current), proplists:get_value(login, Current), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Current)],
 			{noreply, State#state{agents = dict:erase(Key, State#state.agents)}}
 	end;
 handle_info({cpx_monitor_event, {set, {{media, Key}, _Health, Details, Timestamp}}}, State) ->
@@ -168,8 +168,8 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 						% ok, now diff the skill lists to see if we've changed queue membership
 						Lost = proplists:get_value(skills, Old) -- proplists:get_value(skills, New),
 						Gained = proplists:get_value(skills, New) -- proplists:get_value(skills, Old),
-						[io:format(File, "~s : ~s : agent_logout : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, New), Queue, proplists:get_value(login, New)]) || {'_queue', Queue} <- Lost],
-						[io:format(File, "~s : ~s : agent_login : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, New), Queue, proplists:get_value(login, New)]) || {'_queue', Queue} <- Gained],
+						[io:format(File, "~s : ~s : agent_logout : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, New), proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- Lost],
+						[io:format(File, "~s : ~s : agent_login : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, New), proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- Gained],
 						ok
 			end;
 		false ->
@@ -219,9 +219,9 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 								Call#call.dnis
 							]);
 					{idle, released} ->
-						[io:format(State#state.file, "~s : ~s : agent_unavailable : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, New), Queue, proplists:get_value(login, New)]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
+						[io:format(State#state.file, "~s : ~s : agent_unavailable : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, New), proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
 					{released, idle} ->
-						[io:format(State#state.file, "~s : ~s : agent_available : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, New), Queue, proplists:get_value(login, New)]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
+						[io:format(State#state.file, "~s : ~s : agent_available : ~p : ~s : ~s~n", [inet_db:gethostname(), iso8601_timestamp(Timestamp), proplists:get_value(node, New), proplists:get_value(login, New), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, New)];
 					{_, _} ->
 						ok
 				end

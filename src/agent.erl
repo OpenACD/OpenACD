@@ -1372,7 +1372,7 @@ log_loop(Id, Agentname, Nodes, ProfileTup) ->
 				ok
 			end,
 			Res = mnesia:async_dirty(F),
-			?DEBUG("res of agent state change log:  ~p", [Res]),
+			?DEBUG("res of agent ~p state change ~p log:  ~p", [Id, State, Res]),
 			case {State, ProfileTup} of
 				{State, {Profile, Queued}} when State == wrapup; State == idle; State == released ->
 					agent:log_loop(Id, Agentname, Nodes, Queued);

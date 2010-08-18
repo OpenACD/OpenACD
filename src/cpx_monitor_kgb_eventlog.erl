@@ -64,13 +64,13 @@ start() ->
 	start([]).
 
 start(Props) ->
-	gen_server:start(?MODULE, Props, []).
+	gen_server:start({local, ?MODULE}, ?MODULE, Props, []).
 
 start_link() ->
 	start_link([]).
 
 start_link(Props) ->
-	gen_server:start_link(?MODULE, Props, []).
+	gen_server:start_link({local, ?MODULE}, ?MODULE, Props, []).
 
 init(Props) ->
 	Filename = proplists:get_value(filename, Props, "events.log"),

@@ -345,14 +345,14 @@ sort_agent_list([]) ->
 sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	F = fun(Dpid) ->
 		try dispatcher:get_agents(Dpid) of
-			{_, []} ->
+			[] ->
 				?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
 				dispatcher:regrab(Dpid),
 				[];
 			{unknown_call, get_agents} ->
 				[];
-			{Count, Ag} ->
-				[{K, V, TimeAvail, AgSkills, {node(Dpid), Count}} || {K, V, TimeAvail, AgSkills} <- Ag]
+			Ag ->
+				[{K, {Apid, Aid, Askills, node(Dpid)}} || {K, {Apid, Aid, Askills}} <- Ag]
 		catch
 			What:Why ->
 				?INFO("Caught:  ~p:~p", [What, Why]),
@@ -362,21 +362,21 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 	Agents = lists:map(F, Dispatchers),
 	Agents2 = lists:flatten(Agents),
 	% XXX - sort_agents_by_elegibility doesn't sort by pathcost yet
-	Agents3 = agent_manager:sort_agents_by_elegibility(Agents2),
-	Out = agent_manager:rotate_based_on_list_count(Agents3),
+	agent_manager:sort_agents_by_elegibility(Agents2).
+	%Out = agent_manager:rotate_based_on_list_count(Agents3),
 	%?DEBUG("The out:  ~p", [Out]),
-	Out.
+	%Out.
 
 %% @private
 -spec(offer_call/2 :: (Agents :: [{string(), pid(), #agent{}}], Call :: #queued_call{}) -> 'none' | 'ringing').
 offer_call([], _Call) ->
 	%?DEBUG("No valid agents found", []),
 	none;
-offer_call([{Login, Apid, _Time, _Skills, _Ignorable} | Tail], Call) ->
+offer_call([{Key, {Apid, Aid, _Skills, _Node}} | Tail], Call) ->
 	case gen_media:ring(Call#queued_call.media, Apid, Call, ?TICK_LENGTH * ?RINGOUT) of
 		ok ->
 			Callrec = gen_media:get_call(Call#queued_call.media),
-			?INFO("cook offering call:  ~p to ~p", [Callrec#call.id, Login]),
+			?INFO("cook offering call:  ~p to ~p", [Callrec#call.id, Aid]),
 			ringing;
 		invalid ->
 			offer_call(Tail, Call)
@@ -1006,9 +1006,9 @@ check_conditions_test_() ->
 				ok
 			end),
 			{ok, P} = agent:start_link(Rec),
-			{Rec#agent.login, {P, Rec#agent.id, util:now(), Rec#agent.skills}}
+			{{0, z, length(Rec#agent.skills), os:timestamp()}, {P, Rec#agent.id, Rec#agent.skills}}
 		end || Rec <- AgentList ],
-		gen_leader_mock:expect_call(AMpid, fun(list_agents, _From, State, _Elec) ->
+		gen_leader_mock:expect_call(AMpid, fun(list_avail_agents, _From, State, _Elec) ->
 			{ok, Outlist, State}
 		end),
 		{QMPid, QPid, Mpid, AMpid, Assertmocks}

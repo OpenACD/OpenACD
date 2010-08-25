@@ -851,7 +851,8 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)},
 			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
 			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)},
-			{cpx_monitor_kgb_eventlog, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog], 200)}
+			{cpx_monitor_kgb_eventlog, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog], 2000)},
+			{cpx_web_management, rpc:call(Node, cpx_supervisor, get_conf, [cpx_web_management], 2000)}
 		]}
 	end,
 	Rpcs = lists:map(F, Nodes),
@@ -862,6 +863,97 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 %% media -> node -> media
 %% =====
 
+api({medias, Node, "cpx_web_management", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_web_management]) of
+		undefined ->
+			{struct, [
+				{success, true},
+				{<<"enabled">>, false},
+				{<<"port">>, ?PORT},
+				{<<"ip_peers">>, []},
+				{<<"http_basic_peers">>, []}
+			]};
+		#cpx_conf{start_args = []} ->
+			{struct, [
+				{success, true},
+				{<<"enabled">>, true},
+				{<<"port">>, ?PORT},
+				{<<"ip_peers">>, []},
+				{<<"http_basic_peers">>, []}
+			]};
+		#cpx_conf{start_args = [Port]} when is_integer(Port) ->
+			{struct, [
+				{success, true},
+				{<<"enabled">>, true},
+				{<<"port">>, Port},
+				{<<"ip_peers">>, []},
+				{<<"http_basic_peers">>, []}
+			]};
+		#cpx_conf{start_args = [Args]} ->
+			Ippeers = [list_to_binary(Ip) || Ip <- proplists:get_value(ip_peers, Args, [])],
+			Httppeers = [{struct, [
+				{<<"username">>, list_to_binary(Username)},
+				{<<"password">>, list_to_binary(Password)}
+			]} || {Username, Password} <- proplists:get_value(http_basic_peers, Args, [])],
+			{struct, [
+				{success, true},
+				{<<"enabled">>, true},
+				{<<"port">>, proplists:get_value(port, Args, ?PORT)},
+				{<<"ip_peers">>, Ippeers},
+				{<<"http_basic_peers">>, Httppeers}
+			]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+api({medias, Node, "cpx_web_management", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case proplists:get_value("enabled", Post) of
+		"true" ->
+			Port = list_to_integer(proplists:get_value("port", Post)),
+			Ips = mochijson2:decode(list_to_binary(proplists:get_value("ip_peers", Post))),
+			Https = mochijson2:decode(list_to_binary(proplists:get_value("http_basic_peers", Post))),
+			Midargs = case Ips of
+				[] ->
+					[{port, Port}];
+				_ ->
+					[{port, Port}, {ip_peers, [binary_to_list(I) || I <- Ips]}]
+			end,
+			Args = case Https of
+				[] ->
+					Midargs;
+				_ ->
+					Properhttps = [
+						{binary_to_list(proplists:get_value(<<"username">>, Props)), binary_to_list(proplists:get_value(<<"password">>, Props))} || 
+						{struct, Props} <- Https
+					],
+					[{http_basic_peers, Properhttps} | Midargs]
+			end,
+			Conf = #cpx_conf{
+				id = cpx_web_management,
+				module_name = cpx_web_management,
+				start_function = start_link,
+				start_args = [Args],
+				supervisor = management_sup
+			},
+			% spawning up as the supervisor will kill this process before it writes the new one.
+			% this will cause the write to not happen, but the process not to restart.
+			% thus, having a spawn do it.
+			Rpcfun = fun() ->
+				case rpc:call(Atomnode, cpx_supervisor, update_conf, [cpx_web_management, Conf]) of
+					{atomic, {ok, Pid}} when is_pid(Pid) ->
+						{struct, [{success, true}]};
+					Else ->
+						?ERROR("Error updating cpx_web_management from web management:  ~p", [Else]),
+						{struct, [{success, false}]}
+				end
+			end,
+			spawn(Rpcfun),
+			{struct, [{success, true}]};
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [cpx_web_management], 2000),
+			{struct, [{success, true}]}
+	end,
+	{200, [], mochijson2:encode(Json)};
 api({medias, Node, "cpx_monitor_kgb_eventlog", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog]) of

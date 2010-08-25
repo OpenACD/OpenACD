@@ -181,7 +181,6 @@ json_api({struct, Props}) ->
 	ProtoModule = proplists:get_value(<<"module">>, Props),
 	ProtoFunction = proplists:get_value(<<"function">>, Props),
 	ProtoArgs = proplists:get_value(<<"args">>, Props),
-	?ERROR("M: ~p, F: ~p, P:  ~p", [ProtoModule, ProtoFunction, Props]),
 	Module = list_to_existing_atom(binary_to_list(ProtoModule)),
 	Function = list_to_existing_atom(binary_to_list(ProtoFunction)),
 	json_api(Module, Function, ProtoArgs);
@@ -205,6 +204,11 @@ json_api(agent_manager, list, _) ->
 				{atom, Key},
 				{value, list_to_binary(Val)}
 			]};
+		({Key, Val}) ->
+			{struct, [
+				{atom, Key},
+				{value, Val}
+			]};
 		(Key) ->
 			{struct, [{atom, Key}]}
 	end,
@@ -212,7 +216,7 @@ json_api(agent_manager, list, _) ->
 	JsonList = [{struct, [
 		{<<"login">>, list_to_binary(Agent)},
 		{<<"id">>, list_to_binary(Id)},
-		{<<"pid">>, Apid},
+		{<<"pid">>, list_to_binary(pid_to_list(Apid))},
 		{<<"wentAvailable">>, TimeAvail},
 		{<<"skills">>, lists:map(EncodeSkill, Skills)}
 	]} || {Agent, {Apid, Id, TimeAvail, Skills}} <- RawList],

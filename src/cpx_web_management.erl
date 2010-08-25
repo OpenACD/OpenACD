@@ -51,7 +51,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([start_link/0, start_link/1, start/0, start/1, stop/0, loop/1]).
+-export([start_link/0, start_link/1, start/0, start/1, stop/0, loop/2]).
 
 -export([
 	encode_skill/1,
@@ -70,10 +70,17 @@
 %% @doc Start the web management server unlinked to the parent process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
-	start(?PORT).
+	start([]).
 
 -spec(start/1 :: (Port :: pos_integer()) -> {'ok', pid()}).
-start(Port) ->
+start(Port) when is_integer(Port), Port > 1023 ->
+	start([{port, Port}]);
+start(Opts) ->
+	Port = proplists:get_value(port, Opts, ?PORT),
+	ProtoAuths = proplists:get_value(http_basic_peers, Opts, []),
+	Midopts = proplists:delete(http_basic_peers, Opts),
+	Auths = [base64:encode_to_string(User ++ ":" ++ Pass) || {User, Pass} <- ProtoAuths ],
+	NewOpts = [{http_basic_peers, Auths} | Midopts],
 	?DEBUG("Starting mochiweb...", []),
 	case ets:info(cpx_management_logins) of
 		undefined ->
@@ -82,15 +89,20 @@ start(Port) ->
 			?DEBUG("looks like the table exists already", []),
 			ok
 	end,
-	mochiweb_http:start([{loop, {?MODULE, loop}}, {name, ?MODULE}, {port, Port}]).
+	F = fun(Req) ->
+		?MODULE:loop(Req, NewOpts)
+	end,
+	mochiweb_http:start([{loop, F}, {name, ?MODULE}, {port, Port}]).
 
 -spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
-	start_link(?PORT).
+	start_link([]).
 
 -spec(start_link/1 :: (Port :: pos_integer()) -> {'ok', pid()}).
-start_link(Port) ->
-	{ok, Pid} = Out = start(Port),
+start_link(Port) when is_integer(Port), Port > 1023 ->
+	start_link([{port, Port}]);
+start_link(Opts) ->
+	{ok, Pid} = Out = start(Opts),
 	link(Pid),
 	Out.
 
@@ -100,8 +112,8 @@ stop() ->
 	ets:delete(cpx_management_logins),
 	mochiweb_http:stop(?MODULE).
 
--spec(loop/1 :: (Req :: atom()) -> any()).
-loop(Req) ->
+-spec(loop/2 :: (Req :: atom(), Opts :: [any()]) -> any()).
+loop(Req, Opts) ->
 	Path = Req:get(path),
 	Post = Req:parse_post(),
 	case parse_path(Path) of
@@ -126,8 +138,87 @@ loop(Req) ->
 			end;
 		{api, Api} ->
 			Out = api(Api, check_cookie(Req:parse_cookie()), Post),
-			Req:respond(Out)
+			Req:respond(Out);
+		api ->
+			Peercheck = api_check_peer(Req:get(peer), proplists:get_value(ip_peers, Opts, [])),
+			Httpauthcheck = api_check_http_auth(Req:get_header_value("Authorization"), proplists:get_value(http_basic_peers, Opts, [])),
+			case {Peercheck, Httpauthcheck} of
+				{deny, deny} ->
+					Req:respond({401, [{"WWW-Authenticate", "basic realm=cpx_api"}], "unauthorized access"});
+				_ -> % if either says okay, we're good
+					Out = try json_api(proplists:get_value("request", Post)) of
+						O ->
+							O
+					catch
+						error:badarg ->
+							{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"No such module or function">>}, {<<"errcode">>, <<"MODULE_FUNCTION_NOEXISTS">>}]})}
+					end,
+					Req:respond(Out)
+			end
 	end.
+
+api_check_peer(_Ip, []) ->
+	deny;
+api_check_peer(Ip, AllowedIPs) ->
+	case lists:member(Ip, AllowedIPs) of
+		false ->
+			deny;
+		true ->
+			allowed
+	end.
+
+api_check_http_auth("Basic " ++ Authval, Auths) ->
+	case lists:member(Authval, Auths) of
+		false ->
+			deny;
+		true ->
+			allow
+	end;
+api_check_http_auth(_, _) ->
+	deny.
+
+json_api({struct, Props}) ->
+	ProtoModule = proplists:get_value(<<"module">>, Props),
+	ProtoFunction = proplists:get_value(<<"function">>, Props),
+	ProtoArgs = proplists:get_value(<<"args">>, Props),
+	?ERROR("M: ~p, F: ~p, P:  ~p", [ProtoModule, ProtoFunction, Props]),
+	Module = list_to_existing_atom(binary_to_list(ProtoModule)),
+	Function = list_to_existing_atom(binary_to_list(ProtoFunction)),
+	json_api(Module, Function, ProtoArgs);
+json_api(undefined) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no request made">>}, {<<"errcode">>, <<"NO_REQUEST">>}]})};
+json_api(Props) ->
+	json_api(mochijson2:decode(Props)).
+
+json_api(cpx, kick_agent, Agent) ->
+	Json = case cpx:kick_agent(binary_to_list(Agent)) of
+		none ->
+			{struct, [{success, false}, {<<"message">>, <<"no such agent">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]};
+		ok ->
+			{struct, [{success, true}]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+json_api(agent_manager, list, _) ->
+	EncodeSkill = fun
+		({Key, Val}) when is_list(Val) ->
+			{struct, [
+				{atom, Key},
+				{value, list_to_binary(Val)}
+			]};
+		(Key) ->
+			{struct, [{atom, Key}]}
+	end,
+	RawList = agent_manager:list(),
+	JsonList = [{struct, [
+		{<<"login">>, list_to_binary(Agent)},
+		{<<"id">>, list_to_binary(Id)},
+		{<<"pid">>, Apid},
+		{<<"wentAvailable">>, TimeAvail},
+		{<<"skills">>, lists:map(EncodeSkill, Skills)}
+	]} || {Agent, {Apid, Id, TimeAvail, Skills}} <- RawList],
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"agents">>, JsonList}]})};	
+json_api(_, _, _) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"module/function not available to json api">>}, {<<"errcode">>, <<"DISALLOWED">>}]})}.
 
 determine_language([]) ->
 	"";
@@ -146,7 +237,7 @@ determine_language([Head | Tail]) ->
 					determine_language(Tail)
 			end
 	end.
-
+	
 %% =====
 %% General requests
 %% =====
@@ -1584,6 +1675,8 @@ parse_path(Path) ->
 			{api, logout};
 		"/checkcookie" ->
 			{api, checkcookie};
+		"/api" ->
+			api;
 		_Other ->
 			% section/action (params in post data)
 			case util:string_split(Path, "/") of

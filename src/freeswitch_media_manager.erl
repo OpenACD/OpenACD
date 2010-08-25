@@ -115,6 +115,7 @@
 	ring_agent/4,
 	ring_agent_echo/4,
 	get_media/1,
+	get_default_dial_string/0,
 	do_dial_string/3,
 	get_agent_dial_string/2
 ]).
@@ -217,6 +218,9 @@ ring_agent_echo(AgentPid, Agent, Call, Timeout) ->
 -spec(get_media/1 :: (MediaKey :: pid() | string()) -> {string(), pid()} | 'none').
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
+
+get_default_dial_string() ->
+	gen_server:call(?MODULE, get_default_dial_string).
 
 -spec(get_agent_dial_string/2 :: (AgentRec :: #agent{}, Options :: [string()]) -> string()).
 get_agent_dial_string(AgentRec, Options) ->
@@ -360,6 +364,8 @@ handle_call({get_media, MediaKey}, _From, #state{call_dict = Dict} = State) ->
 handle_call({get_agent_dial_string, AgentRec, Options}, _From, State) ->
 	DialString = get_agent_dial_string(AgentRec, Options, State),
 	{reply, DialString, State};
+handle_call(get_default_dial_string, _From, State) ->
+	{reply, State#state.dialstring, State};
 handle_call(Request, _From, State) ->
 	?INFO("Unexpected call:  ~p", [Request]),
 	Reply = ok,

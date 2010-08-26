@@ -257,6 +257,30 @@ api(checkcookie, Cookie, _Post) ->
 		{_Reflist, _Salt, Login} ->
 			{200, [], mochijson2:encode({struct, [{<<"success">>, true}, {<<"login">>, list_to_binary(Login)}]})}
 	end;
+api(dialer, _, Post) ->
+	?ERROR("post: ~p", [Post]),
+	Client = proplists:get_value("client", Post),
+	Exten = proplists:get_value("exten", Post),
+	NodeString = proplists:get_value("node", Post),
+	Number = proplists:get_value("number", Post),
+	SkillStrings = util:string_split(proplists:get_value("skills", Post, ""), ","),
+	Vars = util:string_split(proplists:get_value("vars", Post, ""), ","),
+
+	try
+		Node = list_to_existing_atom(NodeString),
+		Skills = [list_to_existing_atom(Skill) || Skill <- SkillStrings],
+		case freeswitch_dialer:start_fg(Node, Number, Exten, Skills, Client, Vars) of
+			{ok, Pid} ->
+				{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"call started">>}]})};
+			{error, Reason} ->
+				{500, [], mochijson2:encode({struct, [{success, false}, {message, Reason}]})}
+		end
+	of
+		Res -> Res
+	catch
+		_:_ ->
+			{500, [], mochijson2:encode({struct, [{success, false}, {message, bad_params}]})}
+	end;
 api(_Apirequest, badcookie, _Post) ->
 	Reflist = erlang:ref_to_list(make_ref()),
 	Cookie = io_lib:format("cpx_management=~p; path=/", [Reflist]),
@@ -1771,6 +1795,8 @@ parse_path(Path) ->
 			{api, logout};
 		"/checkcookie" ->
 			{api, checkcookie};
+		"/dialer" ->
+			{api, dialer};
 		"/api" ->
 			api;
 		_Other ->

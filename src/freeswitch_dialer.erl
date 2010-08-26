@@ -40,7 +40,8 @@
 %% API
 
 -export([
-		start/6
+		start/6,
+		start_fg/6
 	]).
 
 -ifdef(TEST).
@@ -63,17 +64,26 @@
 
 
 start(Node, Number, Exten, Skills, Client, Vars) ->
-	gen_server:start(?MODULE, [Node, Number, Exten, Skills, Client, Vars], []).
+	gen_server:start(?MODULE, [Node, Number, Exten, Skills, Client, Vars, false], []).
 
-init([Node, Number, Exten, Skills, Client, Vars]) ->
+start_fg(Node, Number, Exten, Skills, Client, Vars) ->
+	gen_server:start(?MODULE, [Node, Number, Exten, Skills, Client, Vars, true], []).
+
+init([Node, Number, Exten, Skills, Client, Vars, Foreground]) ->
 	case call_queue_config:get_client(id, Client) of
 			none ->
 				{stop, bad_client};
 			ClientRec ->
 				case freeswitch:api(Node, create_uuid) of
 					{ok, UUID} ->
-						erlang:send_after(1000, self(), reserve_agent), % defer doing this to after we return control
-						{ok, #state{cnode = Node, number = Number, exten = Exten, skills = Skills, client = ClientRec, vars = Vars, uuid = UUID}};
+						State = #state{cnode = Node, number = Number, exten = Exten, skills = Skills, client = ClientRec, vars = Vars, uuid = UUID},
+						case Foreground of
+							true ->
+								reserve_agent(State);
+							false ->
+								erlang:send_after(1000, self(), reserve_agent), % defer doing this to after we return control
+								{ok, State}
+						end;
 					Else ->
 						?WARNING("create_uuid returned ~p", [Else]),
 						{stop, bad_uuid}
@@ -88,60 +98,14 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 handle_info(reserve_agent, State) ->
-	Call = #call{id = State#state.uuid, source = self(), client = State#state.client, skills = State#state.skills, direction = outbound},
-	Agents = agent_manager:find_avail_agents_by_skill(State#state.skills),
-	case grab_agent(Agents, Call) of
-		none ->
-			erlang:send_after(10000, self(), reserve_agent),
+	case reserve_agent(State) of
+		{stop, no_agents} ->
+			erlang:send_after(5000, self(), reserve_agent),
+			{ok, State};
+		{ok, State} ->
 			{noreply, State};
-		{ok, Agent} ->
-			% so, we've reserved an agent, time to do make an outvound call
-			% sadly freeswitch_ring isn't generic enough to be useful here, so we have to do it ourselves for now
-			Client = State#state.client,
-			CalleridArgs = case proplists:get_value(<<"callerid">>, Client#client.options) of
-				undefined ->
-					["origination_privacy=hide_namehide_number"];
-				CalleridNum ->
-					["origination_caller_id_name='"++Client#client.label++"'", "origination_caller_id_number='"++binary_to_list(CalleridNum)++"'"]
-			end,
-
-			UUID = State#state.uuid,
-			Dialstring = freeswitch_media_manager:do_dial_string(freeswitch_media_manager:get_default_dial_string(), State#state.number, ["origination_uuid="++UUID, "hangup_after_bridge=true" | CalleridArgs]),
-			?INFO("Dialstring: ~p", [Dialstring]),
-			case freeswitch:bgapi(State#state.cnode, originate, Dialstring ++ " "++State#state.exten) of
-				{ok, _JobID} ->
-					Gethandle = fun(Recusef, Count) ->
-						?DEBUG("Counted ~p", [Count]),
-						case freeswitch:handlecall(State#state.cnode, UUID) of
-							{error, badsession} when Count > 10 ->
-								{error, badsession};
-							{error, badsession} ->
-								timer:sleep(100),
-								Recusef(Recusef, Count+1);
-							{error, Other} ->
-								{error, Other};
-							Else ->
-								Else
-						end
-					end,
-					case Gethandle(Gethandle, 0) of
-						{error, badsession} ->
-							?ERROR("bad uuid ~p when calling ~p", [UUID, State#state.number]),
-							agent:set_state(element(2, Agent), idle),
-							{stop, normal, State};
-						{error, Other} ->
-							?ERROR("other error starting; ~p for ~p", [Other, State#state.number]),
-							agent:set_state(element(2, Agent), idle),
-							{stop, normal, State};
-						_Else ->
-							?DEBUG("starting for ~p", [UUID]),
-							{noreply, State#state{agent = Agent, call = Call}}
-					end;
-				Else ->
-					?ERROR("originate failed with ~p  when calling ~p", [Else, State#state.number]),
-					agent:set_state(element(2, Agent), idle),
-					{stop, normal, State}
-			end
+		{stop, Reason} ->
+			{exit, Reason, State}
 	end;
 handle_info({call_event, {event, [UUID | Rest]}}, #state{cnode = Node, uuid = UUID} = State) ->
 	Event = proplists:get_value("Event-Name", Rest),
@@ -188,3 +152,60 @@ grab_agent([{Login, Pid, Time, AgentRec} = Agent | Agents], Call) ->
 			grab_agent(Agents, Call)
 	end.
 	
+
+reserve_agent(State) ->
+	Call = #call{id = State#state.uuid, source = self(), client = State#state.client, skills = State#state.skills, direction = outbound},
+	Agents = agent_manager:find_avail_agents_by_skill(State#state.skills),
+	case grab_agent(Agents, Call) of
+		none ->
+			{stop, no_agents};
+		{ok, Agent} ->
+			% so, we've reserved an agent, time to do make an outvound call
+			% sadly freeswitch_ring isn't generic enough to be useful here, so we have to do it ourselves for now
+			Client = State#state.client,
+			CalleridArgs = case proplists:get_value(<<"callerid">>, Client#client.options) of
+				undefined ->
+					["origination_privacy=hide_namehide_number"];
+				CalleridNum ->
+					["origination_caller_id_name='"++Client#client.label++"'", "origination_caller_id_number='"++binary_to_list(CalleridNum)++"'"]
+			end,
+
+			UUID = State#state.uuid,
+			Dialstring = freeswitch_media_manager:do_dial_string(freeswitch_media_manager:get_default_dial_string(), State#state.number, ["origination_uuid="++UUID, "hangup_after_bridge=true" | CalleridArgs]),
+			?INFO("Dialstring: ~p", [Dialstring]),
+			case freeswitch:bgapi(State#state.cnode, originate, Dialstring ++ " "++State#state.exten) of
+				{ok, _JobID} ->
+					Gethandle = fun(Recusef, Count) ->
+						?DEBUG("Counted ~p", [Count]),
+						case freeswitch:handlecall(State#state.cnode, UUID) of
+							{error, badsession} when Count > 10 ->
+								{error, badsession};
+							{error, badsession} ->
+								timer:sleep(100),
+								Recusef(Recusef, Count+1);
+							{error, Other} ->
+								{error, Other};
+							Else ->
+								Else
+						end
+					end,
+					case Gethandle(Gethandle, 0) of
+						{error, badsession} ->
+							?ERROR("bad uuid ~p when calling ~p", [UUID, State#state.number]),
+							agent:set_state(element(2, Agent), idle),
+							{stop, bad_uuid};
+						{error, Other} ->
+							?ERROR("other error starting; ~p for ~p", [Other, State#state.number]),
+							agent:set_state(element(2, Agent), idle),
+							{stop, unknown_error};
+						_Else ->
+							?DEBUG("starting for ~p", [UUID]),
+							{ok, State#state{agent = Agent, call = Call}}
+					end;
+				Else ->
+					?ERROR("originate failed with ~p  when calling ~p", [Else, State#state.number]),
+					agent:set_state(element(2, Agent), idle),
+					{stop, originate_failed}
+			end
+	end.
+

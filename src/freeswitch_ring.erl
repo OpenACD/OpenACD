@@ -112,7 +112,7 @@ init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, 
 					"origination_uuid="++UUID,
 					"originate_timeout="++integer_to_list(Ringout),
 					"sip_h_X-DNIS='"++Call#call.dnis++"'"
-				],
+					| proplists:get_value(dial_vars, Options, [])],
 
 			DialString = case proplists:get_value(dialstring, Options) of
 				undefined ->

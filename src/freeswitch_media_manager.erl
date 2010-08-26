@@ -587,7 +587,7 @@ fetch_domain_user(Node, State) ->
 				_Else ->
 					case proplists:get_value("action", Data) of
 						"sip_auth" -> % authing a SIP device
-							case proplists:get_value("sipauth", State) of
+							case proplists:get_value(sipauth, State) of
 								undefined ->
 									%% not doing sip auth, return nothing
 									?DEBUG("Not doing SIP auth", []),

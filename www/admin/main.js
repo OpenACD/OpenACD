@@ -79,6 +79,9 @@ dojo.addOnLoad(function(){
 
 	var skillsTreeRefreshHandle = dojo.subscribe("skills/tree/refreshed", function(data){
 		dijit.byId('skillGroup').store = skills.store;
+		dojo.connect(skills.tree, 'onOpen', function(){
+			dijit.byId('skillsTab').layout();
+		});
 		dojo.connect(skills.tree, "onClick", function(item){
 			if(skills.store.getValue(item, 'type') == "skill"){
 				dijit.byId('skillsMain').selectChild('skillEditor');
@@ -106,6 +109,9 @@ dojo.addOnLoad(function(){
 
 	var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(data){
 		dijit.byId('queueGroup').store = queues.store;
+		dojo.connect(queues.tree, 'onOpen', function(){
+			dijit.byId('queuesTab').layout();
+		});
 		dojo.connect(queues.tree, "onClick", function(item){
 			if(queues.tree.store.getValue(item, 'type') == "queue"){
 				dijit.byId("queuesMain").selectChild('queueEditor');
@@ -205,6 +211,9 @@ dojo.addOnLoad(function(){
 
 	var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){
 		dijit.byId('agentProfile').store = agents.store;
+		dojo.connect(agents.tree, 'onOpen', function(){
+			dijit.byId('agentsTab').layout();
+		});
 		dojo.connect(agents.tree, "onClick", function(item){
 			if(agents.store.getValue(item, 'type') == "profile"){
 				dijit.byId("agentProfileSubmit").onClick = function(){

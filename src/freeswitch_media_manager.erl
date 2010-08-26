@@ -232,11 +232,17 @@ do_dial_string(DialString, Destination, []) ->
 	re:replace(DialString, "\\$1", Destination, [{return, list}]);
 do_dial_string([${ | _] = DialString, Destination, Options) ->
 	% Dialstring begins with a {} block.
+	% escape any commas in the string, unless they're already escaped
+	EscapedOptions = [re:replace(Option, "([^\\\\]),", "\\1\\\\,", [{return, list}, global]) ||
+		Option <- Options],
 	D1 = re:replace(DialString, "\\$1", Destination, [{return, list}]),
-	re:replace(D1, "^{", "{" ++ string:join(Options, ",") ++ ",", [{return, list}]);
+	re:replace(D1, "^{", "{" ++ string:join(EscapedOptions, ",") ++ ",", [{return, list}]);
 do_dial_string(DialString, Destination, Options) ->
+	% escape any commas in the string, unless they're already escaped
+	EscapedOptions = [re:replace(Option, "([^\\\\]),", "\\1\\\\,", [{return, list}, global]) ||
+		Option <- Options],
 	D1 = re:replace(DialString, "\\$1", Destination, [{return, list}]),
-	"{" ++ string:join(Options, ",") ++ "}" ++ D1.
+	"{" ++ string:join(EscapedOptions, ",") ++ "}" ++ D1.
 
 %%====================================================================
 %% gen_server callbacks

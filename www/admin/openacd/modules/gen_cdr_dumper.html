@@ -1,9 +1,9 @@
-<div id="cpx_media">
+<div id="cpx_module">
 <form dojoType="dijit.form.Form" action="javascrit:void(0)" id="cdr_dumper_form">
 	<script type="dojo/method" event="postCreate">
 		console.log("do the get xhr here");
 		dojo.xhrGet({
-			url:'/medias/' + medias.activeNode + '/gen_cdr_dumper/get',
+			url:'/modules/' + modules.activeNode + '/gen_cdr_dumper/get',
 			handleAs:'json',
 			load:function(res){
 				if(! res.success){
@@ -119,7 +119,7 @@
 		<script type="dojo/connect" event="onClick">
 			var vals = dijit.byId('cdr_dumper_form').attr('value');
 			dojo.xhrPost({
-				url: '/medias/' + medias.activeNode + '/gen_cdr_dumper/update',
+				url: '/modules/' + modules.activeNode + '/gen_cdr_dumper/update',
 				content: vals,
 				handleAs: 'json',
 				load: function(res){
@@ -137,10 +137,5 @@
 	</button>
 </p>
 
-</form>
-
-<form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
-<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" style="display:none" />
-<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit" style="display:none"></button>
 </form>
 </div>

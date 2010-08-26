@@ -1,4 +1,4 @@
-<div id="cpx_media">
+<div id="cpx_module">
 <p>
 	<label for="archivePath" class="translatecol">ARCHIVEPATH</label>
 	<input dojoType="dijit.form.TextBox" name="archivepath" id="archivepath" />
@@ -11,11 +11,6 @@
 		</script>
 	</button>
 </p>
-
-<form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
-<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" style="display:none" />
-<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit" style="display:none"></button>
-</form>
 
 <p>The archive path uses ruby-style interpoation for variables. Anything of form #{variable_name} is replaced.  A media appends the file extension to this path; this path should point to the actual file to create (not just a directory).</p>
 
@@ -82,5 +77,5 @@
 	</button>
 </p>
 </form>
-<script type="text/javascript" src="openacd/medias/cpx_supervisor.js"></script>
+<script type="text/javascript" src="openacd/modules/cpx_supervisor.js"></script>
 </div>

@@ -1,10 +1,10 @@
-dojo.provide("openacd.medias");
+dojo.provide("openacd.modules");
 
-medias = function(){
+modules = function(){
 	return {};
 };
 
-medias.store = new dojo.data.ItemFileReadStore({
+modules.store = new dojo.data.ItemFileReadStore({
 	data:{
 		"identifier":'id',
 		"label":'name',
@@ -12,50 +12,50 @@ medias.store = new dojo.data.ItemFileReadStore({
 	}
 });
 
-medias.model = new dijit.tree.ForestStoreModel({
-	store: medias.store,
+modules.model = new dijit.tree.ForestStoreModel({
+	store: modules.store,
 	labelAttr: 'name',
 	query:{"type":"node"},
-	childrenAttrs:["medias"],
+	childrenAttrs:["modules"],
 	rootId:"nodes",
 	rootLabel:'nodes'
 });
 
-medias.tree = false;
+modules.tree = false;
 
-medias.init = function(){
-	medias.store = new dojo.data.ItemFileReadStore({
-		url:"/medias/poll"
+modules.init = function(){
+	modules.store = new dojo.data.ItemFileReadStore({
+		url:"/modules/poll"
 	});
-	medias.store.fetch();
-	medias.model = new dijit.tree.ForestStoreModel({
-		store: medias.store,
+	modules.store.fetch();
+	modules.model = new dijit.tree.ForestStoreModel({
+		store: modules.store,
 		labelAttr: 'name',
 		query:{"type":"node"},
-		childrenAttrs:["medias"],
+		childrenAttrs:["modules"],
 		rootId:"nodes",
 		rootLabel:'nodes'
 	});
 };
 
-medias.refreshTree = function(node){
+modules.refreshTree = function(node){
 	var parent = dojo.byId(node).parentNode;
 	queues.init();
-	if(dijit.byId(medias.tree.id)){
-		dijit.byId(medias.tree.id).destroy();
+	if(dijit.byId(modules.tree.id)){
+		dijit.byId(modules.tree.id).destroy();
 	}
 	var n = dojo.doc.createElement('div');
 	n.id = node;
 	parent.appendChild(n);
-	medias.tree = new dijit.Tree({
-		store: medias.store,
-		model: medias.model,
+	modules.tree = new dijit.Tree({
+		store: modules.store,
+		model: modules.model,
 		showRoot: false
 	}, node);
-	dojo.publish("medias/tree/refreshed", []);
+	dojo.publish("modules/tree/refreshed", []);
 };
 
-medias.setMedia = function(erlnode, mediatype, args, treenode){
+/*medias.setMedia = function(erlnode, mediatype, args, treenode){
 	dojo.xhrPost({
 		url:"medias/" + erlnode + "/" + mediatype + "/" + "update",
 		handleAs:"json",
@@ -74,4 +74,4 @@ medias.setMedia = function(erlnode, mediatype, args, treenode){
 			console.log(["Setting media errored", res]);
 		}
 	});
-};
+};*/

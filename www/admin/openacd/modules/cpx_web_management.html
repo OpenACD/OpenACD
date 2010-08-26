@@ -1,4 +1,4 @@
-<div id="cpx_media" class="wide">
+<div id="cpx_module" class="wide">
 <form dojoType="dijit.form.Form" id="cpxWebManagementForm">
 <p>
 	<label>&nbsp;</label>
@@ -83,7 +83,7 @@
 			var errFunc = function(res){
 				errMessage('update errored:  ' + res);
 			};
-			var postUrl = '/medias/' + medias.activeNode + '/cpx_web_management/update';
+			var postUrl = '/modules/' + modules.activeNode + '/cpx_web_management/update';
 			if(dijit.byId('cpxWebManagementEnabled').attr('checked') == false){
 				confirmDialog({
 					'question':'Really disable web management?  You will not be able to turn it back on whithout using the shell.',
@@ -143,7 +143,7 @@
 </p>
 </form>
 <script type="text/javascript">
-	var transNodes = dojo.query('.translate, .translatecol', 'cpx_media');
+	var transNodes = dojo.query('.translate, .translatecol', 'cpx_module');
 
 	for(var i = 0; i < transNodes.length; i++){
 		var trans = dojo.i18n.getLocalization('admin', 'cpx_web_management')[transNodes[i].innerHTML];
@@ -190,7 +190,7 @@
 	}
 
 	dojo.xhrGet({
-		url:'/medias/' + medias.activeNode + '/cpx_web_management/get',
+		url:'/modules/' + modules.activeNode + '/cpx_web_management/get',
 		handleAs:'json',
 		load:function(res){
 			if(res.success == false){

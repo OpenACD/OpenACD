@@ -116,7 +116,7 @@ dojo.require("openacd.skills");
 dojo.require("openacd.queues");
 dojo.require("openacd.PredicateEditor");
 dojo.require("openacd.RecipeEditor");
-dojo.require("openacd.medias");
+dojo.require("openacd.modules");
 dojo.require("openacd.clients");
 dojo.require("openacd.releaseOpts");
 dojo.require("dojox.grid.DataGrid");
@@ -1029,19 +1029,19 @@ dojo.addOnLoad(init);
 		</div>
 	</div>
 	
-	<div id="mediaTab" dojoType="dijit.layout.BorderContainer" title="MEDIATYPES">
-		<div id="mediaNav" dojoType="dijit.layout.ContentPane" region="leading" width="20%">
+	<div id="moduleTab" dojoType="dijit.layout.BorderContainer" title="MODULES">
+		<div id="moduleNav" dojoType="dijit.layout.ContentPane" region="leading" width="20%">
 			<div style="width:100%;height: 92%">
-				<div id="mediaList"></div>
+				<div id="moduleList"></div>
 			</div>
 		</div>
 		
-		<div id="mediaMain" dojoType="dijit.layout.StackContainer" region="center">
-			<div id="mediaNodeInfo" dojoType="dijit.layout.ContentPane">
+		<div id="moduleMain" dojoType="dijit.layout.StackContainer" region="center">
+			<div id="moduleNodeInfo" dojoType="dijit.layout.ContentPane">
 				Node data
 			</div>
 			
-			<div id="mediaConf" dojoType="dojox.layout.ContentPane">
+			<div id="moduleConf" dojoType="dojox.layout.ContentPane">
 				Conf container
 			</div>
 		</div>

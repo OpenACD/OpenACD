@@ -1,8 +1,8 @@
-<div id="cpx_media" class="wide">
+<div id="cpx_module" class="wide">
 <form dojoType="dijit.form.Form" action="javascrpt:void(0)" id="kgbEventForm">
 	<script type="dojo/method" event="postCreate">
 		dojo.xhrGet({
-			url:"/medias/" + escape(medias.activeNode) + "/cpx_monitor_kgb_eventlog/get",
+			url:"/modules/" + escape(modules.activeNode) + "/cpx_monitor_kgb_eventlog/get",
 			handleAs:"json",
 			load:function(res){
 				if(res.success){
@@ -38,10 +38,10 @@
 	<label>&nbsp;</label>
 	<button dojoType="dijit.form.Button" label="SUBMIT">
 		<script type="dojo/method" event="postCreate">
-			dojo.query('.translate', 'cpx_media').forEach(function(node){
+			dojo.query('.translate', 'cpx_module').forEach(function(node){
 				node.innerHTML = dojo.i18n.getLocalization('admin', 'labels')[node.innerHTML];
 			});
-			dojo.query('.translatecol', 'cpx_media').forEach(function(node){
+			dojo.query('.translatecol', 'cpx_module').forEach(function(node){
 				node.innerHTML = dojo.i18n.getLocalization('admin', 'labels')[node.innerHTML] + ':';
 			});
 			this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
@@ -58,7 +58,7 @@
 				vals.kgbFilename = dijit.byId('kgbFilename').attr('value');
 			}
 			dojo.xhrPost({
-				url:'/medias/' + escape(medias.activeNode) + '/cpx_monitor_kgb_eventlog/update',
+				url:'/modules/' + escape(modules.activeNode) + '/cpx_monitor_kgb_eventlog/update',
 				content:vals,
 				handleAs:'json',
 				load:function(res){
@@ -74,8 +74,4 @@
 	</button>
 </p>
 
-<!--<form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
-<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" style="display:none" />
-<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit" style="display:none"></button>
-</form>-->
 </div>

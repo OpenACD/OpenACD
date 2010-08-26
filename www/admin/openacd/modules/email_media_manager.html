@@ -124,7 +124,7 @@
 			};
 			
 			mailMappings = new dojo.data.ItemFileWriteStore({
-				url:"/medias/anynode/email_media_manager/getMappings"
+				url:"/modules/anynode/email_media_manager/getMappings"
 			});
 			mailMappings._forceLoad();
 			console.log(mailMappings);
@@ -183,7 +183,7 @@
 			dojo.connect(mapGrid, "onApplyEdit", function(row){
 				var ajax = function(oldaddy, newitem){
 					dojo.xhrPost({
-						url:"/medias/anynode/email_media_manager/setMapping",
+						url:"/modules/anynode/email_media_manager/setMapping",
 						content:{
 							"oldaddress":oldaddy,
 							"address":mailMappings.getValue(newitem, "address"),
@@ -269,7 +269,7 @@
 							mailMappings.save();
 						};
 						dojo.xhrPost({
-							url:"/medias/node/email_media_manager/new",
+							url:"/modules/node/email_media_manager/new",
 							content:{
 								"address":"support" + count + "@example.com",
 								"client":"undefined",
@@ -293,7 +293,7 @@
 					item = item[0];
 					if(item !== null){
 						dojo.xhrPost({
-							url:"/medias/node/email_media_manager/destroyMapping",
+							url:"/modules/node/email_media_manager/destroyMapping",
 							content:{
 								"address":mailMappings.getValue(item, "address")
 							},

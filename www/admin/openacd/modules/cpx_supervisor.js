@@ -9,7 +9,7 @@ CPXSupervisor.setArchivePath = function(newPath, cb){
 		cb = function(){ };
 	}
 	dojo.xhrPost({
-		url:"medias/" + medias.activeNode + "/cpx_supervisor/update/archivepath",
+		url:"modules/" + modules.activeNode + "/cpx_supervisor/update/archivepath",
 		content:{
 			value:newPath
 		},
@@ -32,7 +32,7 @@ CPXSupervisor.setMantisPath = function(newPath, cb){
 		cb = function(){ };
 	}
 	dojo.xhrPost({
-		url:"medias/" + medias.activeNode + "/cpx_supervisor/update/mantispath",
+		url:"modules/" + modules.activeNode + "/cpx_supervisor/update/mantispath",
 		content:{
 			value: newPath
 		},
@@ -52,7 +52,7 @@ CPXSupervisor.setMantisPath = function(newPath, cb){
 
 CPXSupervisor.setTransferPrompt = function(formBits, skills){
 	dojo.xhrPost({
-		url:"medias/" + medias.activeNode + "/cpx_supervisor/update/transferprompt",
+		url:"modules/" + modules.activeNode + "/cpx_supervisor/update/transferprompt",
 		content:{
 			prompts:formBits,
 			'skills':skills
@@ -98,7 +98,7 @@ CPXSupervisor.createTransferPromptOptionsRow = function(rawNode, seedObj){
 	}, rawNode.cells[3].firstChild);
 }
 
-dojo.query(".translate, .translatecol", 'cpx_media').forEach(function(node){
+dojo.query(".translate, .translatecol", 'cpx_module').forEach(function(node){
 	var trans = dojo.i18n.getLocalization('admin', 'cpx_supervisor')[node.innerHTML];
 	if(trans){
 		node.innerHTML = trans;
@@ -109,7 +109,7 @@ dojo.query(".translate, .translatecol", 'cpx_media').forEach(function(node){
 });
 
 dojo.xhrGet({
-	url:"medias/" + medias.activeNode + "/cpx_supervisor/get/archivepath",
+	url:"modules/" + modules.activeNode + "/cpx_supervisor/get/archivepath",
 	handleAs:"json",
 	load:function(res){
 		if(res.success){
@@ -125,7 +125,7 @@ dojo.xhrGet({
 });
 
 dojo.xhrGet({
-	url:"medias/" + medias.activeNode + "/cpx_supervisor/get/mantispath",
+	url:"modules/" + modules.activeNode + "/cpx_supervisor/get/mantispath",
 	handleAs:"json",
 	load:function(res){
 		if(res.success){
@@ -140,7 +140,7 @@ dojo.xhrGet({
 });
 
 dojo.xhrGet({
-	url:"medias/" + medias.activeNode + "/cpx_supervisor/get/transferprompt",
+	url:"modules/" + modules.activeNode + "/cpx_supervisor/get/transferprompt",
 	handleAs:"json",
 	load:function(res){
 		var skillCb = function(select){

@@ -1,4 +1,5 @@
-<form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm" class="wide">
+<div id="cpx_module">
+<form dojoType="dijit.form.Form" action="javascript:void(0)" id="freeswitchMediaForm" class="wide">
 	<p>
 	<label for="mediaEnabled">&nbsp;</label>
 	<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" />
@@ -61,14 +62,60 @@
 	<label for="mediaSubmit">&nbsp;</label>
 	<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">
 		<script type="dojo/method" event="postCreate">
-			dojo.query('.translate', 'mediaForm').forEach(function(node){
+			dojo.query('.translate', 'freeswitchMediaForm').forEach(function(node){
 				node.innerHTML = dojo.i18n.getLocalization('admin', 'freeswitch_media_manager')[node.innerHTML];
 			});
-			dojo.query('.translatecol', 'mediaForm').forEach(function(node){
+			dojo.query('.translatecol', 'freeswitchMediaForm').forEach(function(node){
 				node.innerHTML = dojo.i18n.getLocalization('admin', 'freeswitch_media_manager')[node.innerHTML] + ':';
 			});
 			this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 		</script>
+		<script type="dojo/connect" event="onClick">
+			var contentObj = dijit.byId('freeswitchMediaForm').attr('value');
+			if(dijit.byId('mediaEnabled').attr('checked')){
+				contentObj.enabled = true;
+			}
+			dojo.xhrPost({
+				url:"modules/" + modules.activeNode + "/freeswitch_media_manager/update",
+				handleAs:"json",
+				content:contentObj,
+				load:function(resp, ioargs){
+					if(resp.success){
+						return;
+					}
+					else{
+						errMessage(["Setting media failed", resp.message]);
+						console.log(resp.message);
+					}
+				},
+				error:function(res){
+					errMessage(["Setting media errored", res]);
+					console.log(["Setting media errored", res]);
+				}
+			});
+
+
+
+
+		</script>
 	</button>
 </form>
-
+<script type="text/javascript">
+	dojo.xhrGet({
+		url:"modules/" + modules.activeNode + "/freeswitch_media_manager/get",
+		handleAs:"json",
+		load:function(resp, ioargs){
+			if(resp.success){
+				dijit.byId("freeswitchMediaForm").attr('value', resp);
+				dijit.byId("mediaEnabled").attr('value', resp.enabled);
+			}
+			else{
+				console.log(resp.message);
+			}
+		},
+		error:function(resp){
+			console.log(["error get media", node, medias.store.getValue(item, 'name'), resp]);
+		}
+	});
+</script>
+</div>

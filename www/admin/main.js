@@ -165,11 +165,11 @@ dojo.addOnLoad(function(){
 		});
 	});
 
-	var mediaTreeRefreshHandle = dojo.subscribe("medias/tree/refreshed", function(data){
-		dojo.connect(medias.tree, "onClick", function(item){
-			medias.activeNode = medias.store.getValue(item, 'node');
-			var node = medias.store.getValue(item, 'node');
-			dijit.byId("mediaConf").onDownloadEnd = function(){
+	var moduleTreeRefreshHandle = dojo.subscribe("modules/tree/refreshed", function(data){
+		dojo.connect(modules.tree, "onClick", function(item){
+			modules.activeNode = modules.store.getValue(item, 'node');
+			var node = modules.store.getValue(item, 'node');
+			/*dijit.byId("mediaConf").onDownloadEnd = function(){
 				dijit.byId("mediaSubmit").onClick = function(){
 					medias.setMedia(node, medias.store.getValue(item, 'name'), dijit.byId("mediaForm").attr('value'), 'mediaList');
 				};
@@ -190,13 +190,13 @@ dojo.addOnLoad(function(){
 						console.log(["error get media", node, medias.store.getValue(item, 'name'), resp]);
 					}
 				});
-			};
+			};*/
 		
 			if(item.type[0] == "conf"){
-				dojo.requireLocalization("admin", medias.store.getValue(item, 'mediatype'));
-				dijit.byId("mediaConf").attr('href', "openacd/medias/" + medias.store.getValue(item, 'mediatype') + ".html");
+				dojo.requireLocalization("admin", modules.store.getValue(item, 'name'));
+				dijit.byId("moduleConf").attr('href', "openacd/modules/" + modules.store.getValue(item, 'name') + ".html");
 			}
-			dijit.byId("mediaMain").selectChild("mediaConf");
+			dijit.byId("moduleMain").selectChild("moduleConf");
 		});
 	});
 
@@ -358,8 +358,8 @@ dojo.addOnLoad(function(){
 									agents.getSpiceIntegration(dijit.byId('editSpicecsmIntegration'));
 									queues.init();
 									queues.refreshTree('queuesList');
-									medias.init();
-									medias.refreshTree('mediaList');
+									modules.init();
+									modules.refreshTree('moduleList');
 									clients.init();
 									releaseOpts.init();
 									dojo.byId("loginerrspan").innerHTML = '';
@@ -398,8 +398,8 @@ dojo.addOnLoad(function(){
 					agents.getSpiceIntegration(dijit.byId('editSpicecsmIntegration'));
 					queues.init();
 					queues.refreshTree('queuesList');
-					medias.init();
-					medias.refreshTree('mediaList');
+					modules.init();
+					modules.refreshTree('moduleList');
 					clients.init();
 					releaseOpts.init();
 					//skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);

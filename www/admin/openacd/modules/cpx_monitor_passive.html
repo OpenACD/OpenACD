@@ -30,11 +30,11 @@
 	</p>
 </div>
 
-<div id="cpx_media" class="wide">
+<div id="cpx_module" class="wide">
 <form dojoType="dijit.form.Form" action="javascript:void(0)" id="passive_mon_form">
 	<script type="dojo/method" event="postCreate">
 		dojo.xhrGet({
-			url:"/medias/" + escape(medias.activeNode) + "/cpx_monitor_passive/get",
+			url:"/modules/" + escape(modules.activeNode) + "/cpx_monitor_passive/get",
 			handleAs:'json',
 			load:function(res){
 				if(res.success){
@@ -143,7 +143,7 @@
 				}
 				vals.filters = dojo.toJson(items);
 				dojo.xhrPost({
-					url:'/medias/' + medias.activeNode + '/cpx_monitor_passive/update',
+					url:'/modules/' + modules.activeNode + '/cpx_monitor_passive/update',
 					handleAs:'json',
 					content: vals,
 					load: function(res){
@@ -166,10 +166,5 @@
 
 
 
-</form>
-
-<form dojoType="dijit.form.Form" action="javascript:void(0)" id="mediaForm">
-<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" style="display:none" />
-<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit" style="display:none"></button>
 </form>
 </div>

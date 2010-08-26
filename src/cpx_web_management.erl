@@ -183,6 +183,7 @@ json_api({struct, Props}) ->
 	ProtoArgs = proplists:get_value(<<"args">>, Props),
 	Module = list_to_existing_atom(binary_to_list(ProtoModule)),
 	Function = list_to_existing_atom(binary_to_list(ProtoFunction)),
+	?DEBUG("json_api handling ~p:~p(~p)", [Module, Function, ProtoArgs]),
 	json_api(Module, Function, ProtoArgs);
 json_api(undefined) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no request made">>}, {<<"errcode">>, <<"NO_REQUEST">>}]})};
@@ -220,7 +221,40 @@ json_api(agent_manager, list, _) ->
 		{<<"wentAvailable">>, TimeAvail},
 		{<<"skills">>, lists:map(EncodeSkill, Skills)}
 	]} || {Agent, {Apid, Id, TimeAvail, Skills}} <- RawList],
-	{200, [], mochijson2:encode({struct, [{success, true}, {<<"agents">>, JsonList}]})};	
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"agents">>, JsonList}]})};
+json_api(freeswitch_dialer, start_fg, {struct, Args}) ->
+	Node = list_to_binary(proplists:get_value("node", Args, "")),
+	Number = list_to_binary(proplists:get_value("number", Args, "")),
+	Exten = list_to_binary(proplists:get_value("exten", Args, "")),
+	Skills = proplists:get_value("skills", Args, []),
+	Client = list_to_binary(proplists:get_value("client", Args, "")),
+	Vars = proplists:get_value("vars", Args, {struct, []}),
+	json_api(freeswitch_dialer, start_fg, [Node, Number, Exten, Skills, Client, Vars]);
+json_api(freeswitch_dialer, start_fg, [Node, Number, Exten, Skills, Client, {struct, Vars}]) ->
+	try list_to_existing_atom(binary_to_list(Node)) of
+		AtomNode ->
+			Fixskill = fun({struct, Props}) ->
+				case proplists:get_value(value, Props) of
+					undefined ->
+						proplists:get_value(atom, Props);
+					Val when is_binary ->
+						{proplists:get_value(atom, Props), binary_to_list(Val)};
+					Val ->
+						{proplists:get_value(atom, Props), Val}
+				end
+			end,
+			FixedSkills = [Fixskill(Skill) || Skill <- Skills],
+			FixedVars = [{binary_to_list(Key), binary_to_list(Val)} || {Key, Val} <- Vars],
+			case freeswitch_dialer:start_fg(AtomNode, binary_to_list(Number), binary_to_list(Exten), FixedSkills, binary_to_list(Client), FixedVars) of
+				{ok, _Pid} ->
+					{200, [], mochijson2:encode({struct, [{success, true}]})};
+				_ ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"could not start dialer">>}, {<<"errcode">>, <<"DIALER_ERR">>}]})}
+			end
+	catch
+		error:badarg ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such node">>}, {<<"errcode">>, <<"NODE_NOEXISTS">>}]})}
+	end;
 json_api(_, _, _) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"module/function not available to json api">>}, {<<"errcode">>, <<"DISALLOWED">>}]})}.
 

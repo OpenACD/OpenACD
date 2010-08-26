@@ -198,6 +198,9 @@ dojo.addOnLoad(function(){
 			}
 			dijit.byId("moduleMain").selectChild("moduleConf");
 		});
+		dojo.connect(modules.tree, 'onOpen', function(item, node){
+			dijit.byId('moduleTab').layout();
+		});
 	});
 
 	var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){

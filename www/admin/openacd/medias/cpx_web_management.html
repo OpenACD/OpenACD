@@ -143,6 +143,16 @@
 </p>
 </form>
 <script type="text/javascript">
+	var transNodes = dojo.query('.translate, .translatecol', 'cpx_media');
+
+	for(var i = 0; i < transNodes.length; i++){
+		var trans = dojo.i18n.getLocalization('admin', 'cpx_web_management')[transNodes[i].innerHTML];
+		if(dojo.hasClass(transNodes[i], 'translatecol')){
+			trans = trans + ':';
+		}
+		transNodes[i].innerHTML = trans;
+	}
+
 	var confirmDialog = function(conf){
 		var defaultConf = {
 			'yesLabel': 'Yes',

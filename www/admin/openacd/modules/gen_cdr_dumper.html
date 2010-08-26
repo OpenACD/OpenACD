@@ -1,7 +1,6 @@
 <div id="cpx_module">
 <form dojoType="dijit.form.Form" action="javascrit:void(0)" id="cdr_dumper_form">
 	<script type="dojo/method" event="postCreate">
-		console.log("do the get xhr here");
 		dojo.xhrGet({
 			url:'/modules/' + modules.activeNode + '/gen_cdr_dumper/get',
 			handleAs:'json',

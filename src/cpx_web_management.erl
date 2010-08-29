@@ -292,7 +292,6 @@ api(checkcookie, Cookie, _Post) ->
 			{200, [], mochijson2:encode({struct, [{<<"success">>, true}, {<<"login">>, list_to_binary(Login)}]})}
 	end;
 api(dialer, _, Post) ->
-	?ERROR("post: ~p", [Post]),
 	Client = proplists:get_value("client", Post),
 	Exten = proplists:get_value("exten", Post),
 	NodeString = proplists:get_value("node", Post),
@@ -303,6 +302,7 @@ api(dialer, _, Post) ->
 	try
 		Node = list_to_existing_atom(NodeString),
 		Skills = [list_to_existing_atom(Skill) || Skill <- SkillStrings],
+		?DEBUG("starting dialer", []),
 		case freeswitch_dialer:start_fg(Node, Number, Exten, Skills, Client, Vars) of
 			{ok, Pid} ->
 				{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"call started">>}]})};

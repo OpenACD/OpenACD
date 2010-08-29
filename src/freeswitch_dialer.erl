@@ -59,7 +59,8 @@
 		vars,
 		uuid,
 		agent,
-		call
+		call,
+		fg_pid
 	}).
 
 
@@ -67,7 +68,17 @@ start(Node, Number, Exten, Skills, Client, Vars) ->
 	gen_server:start(?MODULE, [Node, Number, Exten, Skills, Client, Vars, false], []).
 
 start_fg(Node, Number, Exten, Skills, Client, Vars) ->
-	gen_server:start(?MODULE, [Node, Number, Exten, Skills, Client, Vars, true], []).
+	case gen_server:start_link(?MODULE, [Node, Number, Exten, Skills, Client, Vars, self()], []) of
+		{ok, Pid} ->
+			receive
+				{dialer_result, Result} ->
+					Result
+			after 30000 ->
+					{error, timeout}
+			end;
+		Result ->
+			Result
+	end.
 
 init([Node, Number, Exten, Skills, Client, Vars, Foreground]) ->
 	case call_queue_config:get_client(id, Client) of
@@ -78,8 +89,8 @@ init([Node, Number, Exten, Skills, Client, Vars, Foreground]) ->
 					{ok, UUID} ->
 						State = #state{cnode = Node, number = Number, exten = Exten, skills = Skills, client = ClientRec, vars = Vars, uuid = UUID},
 						case Foreground of
-							true ->
-								reserve_agent(State);
+							Pid ->
+								reserve_agent(State#state{fg_pid = Pid});
 							false ->
 								erlang:send_after(1000, self(), reserve_agent), % defer doing this to after we return control
 								{ok, State}
@@ -111,21 +122,29 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{cnode = Node, uuid = UU
 	Event = proplists:get_value("Event-Name", Rest),
 	case Event of
 		"CHANNEL_PARK" ->
-			?INFO("call got parked, send them to an agent", []),
 			AgentRec = agent:dump_state(element(2, State#state.agent)),
+			?INFO("call got parked, send them to an agent at ~p", [freeswitch_media_manager:get_agent_dial_string(AgentRec, [])]),
 			freeswitch:sendmsg(Node, UUID,
 				[{"call-command", "execute"},
 					{"execute-app-name", "bridge"},
 					{"execute-app-arg",
-						freeswitch_media_manager:get_agent_dial_string(AgentRec, [])}]);
+						freeswitch_media_manager:get_agent_dial_string(AgentRec, [])}]),
 			%agent:set_state(element(2, State#state.agent), ringing, State#state.call);
+			{noreply, State};
 		"CHANNEL_BRIDGE" ->
 			%Hey, we bridged to an agent
-			agent:set_state(element(2, State#state.agent), outgoing, State#state.call);
+			agent:set_state(element(2, State#state.agent), outgoing, State#state.call),
+			{noreply, State};
+		"CHANNEL_ANSWER" when is_pid(State#state.fg_pid) ->
+			State#state.fg_pid ! {dialer_result, {ok, self()}},
+			{noreply, State#state{fg_pid = false}};
+		"CHANNEL_HANGUP" when is_pid(State#state.fg_pid) ->
+			State#state.fg_pid ! {dialer_result, {error, no_answer}},
+			{noreply, State#state{fg_pid = false}};
 		_ ->
-			ok
-	end,
-	{noreply, State};
+			?INFO("Got ~p", [Event]),
+			{noreply, State}
+	end;
 handle_info(call_hangup, State) ->
 	?DEBUG("Call hangup info", []),
 	% channel hungup, set the agent back to a sane state
@@ -170,8 +189,10 @@ reserve_agent(State) ->
 					["origination_caller_id_name='"++Client#client.label++"'", "origination_caller_id_number='"++binary_to_list(CalleridNum)++"'"]
 			end,
 
+			DialVars = lists:append(CalleridArgs, State#state.vars),
+
 			UUID = State#state.uuid,
-			Dialstring = freeswitch_media_manager:do_dial_string(freeswitch_media_manager:get_default_dial_string(), State#state.number, ["origination_uuid="++UUID, "hangup_after_bridge=true" | CalleridArgs]),
+			Dialstring = freeswitch_media_manager:do_dial_string(freeswitch_media_manager:get_default_dial_string(), State#state.number, ["origination_uuid="++UUID, "hangup_after_bridge=true" | DialVars]),
 			?INFO("Dialstring: ~p", [Dialstring]),
 			case freeswitch:bgapi(State#state.cnode, originate, Dialstring ++ " "++State#state.exten) of
 				{ok, _JobID} ->

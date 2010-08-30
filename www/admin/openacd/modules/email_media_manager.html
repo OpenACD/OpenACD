@@ -110,6 +110,42 @@
 			<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">
 				<script type="dojo/method" event="postCreate">
 					this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+					dojo.xhrGet({
+						url:"/modules/" + modules.activeNode + "/email_media_manager/get",
+						handleAs:"json",
+						load:function(res){
+							if(res.success){
+								dijit.byId('mediaForm').attr('value', res);
+								if(res.enabled !== false){
+									dijit.byId('mediaEnabled').attr('checked', true);
+								} else {
+									dijit.byId('mediaEnabled').attr('checked', false);
+								}
+							} else {
+								console.log('getting emm config failed', res.message);
+							}
+						},
+						error:function(res){
+							console.log('getting emm config errored', res);
+						}
+					});
+				</script>
+				<script type="dojo/connect" event="onClick">
+					var values = dijit.byId("mediaForm").attr('value');
+					dojo.xhrPost({
+						url:"/modules/" + modules.activeNode + "/email_media_manager/update",
+						handleAs:"json",
+						content:values,
+						load:function(res){
+							if(res.success){
+								return;
+							}
+							console.log('updating emm failed.', res.message);
+						},
+						error:function(res){
+							console.log('updating emm errored', res);
+						}
+					});
 				</script>
 			</button>
 		</form>

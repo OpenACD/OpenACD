@@ -607,7 +607,7 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 	Fixedskills = parse_posted_skills(Postedskills),
 	?DEBUG("~p", [Fixedskills]),
 	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
-	case proplists:get_value("password", Post) of
+	Out = case proplists:get_value("password", Post) of
 		"" ->
 			?DEBUG("Not updating password.", []),
 			agent_auth:set_agent(Agent, [
@@ -630,7 +630,15 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 				{firstname, proplists:get_value("firstname", Post)}
 			])
 	end,
-	{200, [], mochijson2:encode({struct, [{success, true}]})};
+	case Out of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		{aborted, {duplicate_login, _}} ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"login name already exists">>}]})};
+		{aborted, Err} ->
+			?ERROR("Updating agent ~s got ~p", [Agent, Err]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"could not update agent">>}]})}
+	end;
 api({agents, "agents", "new"}, ?COOKIE, Post) ->
 	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
 	case proplists:get_value("password", Post) of
@@ -896,7 +904,7 @@ api({queues, "queue", "new"}, ?COOKIE = Cookie, Post) ->
 	api({queues, "queue", Name, "update"}, Cookie, Post);
 	
 %% =====
-%% media -> *
+%% modules -> *
 %% =====
 api({modules, "poll"}, ?COOKIE, _Post) ->
 	{ok, Appnodes} = application:get_env(cpx, nodes),

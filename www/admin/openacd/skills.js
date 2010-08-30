@@ -175,7 +175,7 @@ skills.updateGroup = function(submform, node){
 
 skills.updateSkill = function(submform, node){
 	var values = dijit.byId(submform).get('value');
-	var atom = dijit.byId('skillAtom').getValue();
+	var atom = dijit.byId('skillAtom').get('value');
 	dojo.xhrPost({
 		url:"/skills/skill/" + atom + "/update",
 		form:submform,

@@ -98,9 +98,9 @@ dojo.addOnLoad(function(){
 				}	
 				dijit.byId('skillAtom').set('disabled', true);	
 				dijit.byId('skillSubmit').onClick = function(){
-					skills.updateSkill('editSkill', item);
-					 }
-					 }
+					skills.updateSkill('editSkill', 'skillsList');
+				}
+			}
 			else{
 				dijit.byId('skillsMain').selectChild('skillGroupEditor');
 				dijit.byId('editSkillGroupForm').set('value', item);

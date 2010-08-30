@@ -39,7 +39,7 @@
 
 %% gen_smtp callbacks
 -export([
-	init/3,
+	init/4,
 	handle_HELO/2,
 	handle_EHLO/3,
 	handle_MAIL/2,
@@ -97,11 +97,11 @@ archive(Rawdata, Callrec, Direction) when is_binary(Rawdata) ->
 
 
 %% gen_smtp_server_session callbacks
--spec(init/3 :: (Hostname :: string(), SessionCount :: pos_integer(), Address :: string()) -> {'stop', 'normal', any(), [string()]} | {'ok', string(), #state{}}).
-init(Hostname, SessionCount, Address) when SessionCount > 20 ->
+-spec(init/4 :: (Hostname :: string(), SessionCount :: pos_integer(), Address :: string(), Options :: [any()]) -> {'stop', 'normal', any(), [string()]} | {'ok', string(), #state{}}).
+init(Hostname, SessionCount, Address, _Options) when SessionCount > 20 ->
 	?ERROR("Session limit exceeded at ~s by ~s", [Hostname, Address]),
 	{stop, normal, io_lib:format("421 ~s is too busy to accecpt mail right now", [Hostname])};
-init(Hostname, _SessionCount, _Address) ->
+init(Hostname, _SessionCount, _Address, _Options) ->
 	Banner = io_lib:format("~s ESMTP OpenACD", [Hostname]),
 	{ok, Banner, #state{}}.
 

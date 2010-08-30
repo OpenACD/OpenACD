@@ -109,7 +109,7 @@
 			<label for="mediaSubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">
 				<script type="dojo/method" event="postCreate">
-					this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+					this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 					dojo.xhrGet({
 						url:"/modules/" + modules.activeNode + "/email_media_manager/get",
 						handleAs:"json",
@@ -122,11 +122,11 @@
 									dijit.byId('mediaEnabled').attr('checked', false);
 								}
 							} else {
-								console.log('getting emm config failed', res.message);
+								console.warning('getting emm config failed', res.message);
 							}
 						},
 						error:function(res){
-							console.log('getting emm config errored', res);
+							console.warning('getting emm config errored', res);
 						}
 					});
 				</script>
@@ -140,10 +140,10 @@
 							if(res.success){
 								return;
 							}
-							console.log('updating emm failed.', res.message);
+							console.warning('updating emm failed.', res.message);
 						},
 						error:function(res){
-							console.log('updating emm errored', res);
+							console.warning('updating emm errored', res);
 						}
 					});
 				</script>
@@ -156,14 +156,14 @@
 			dojo.require("dojox.grid.DataGrid");
 			
 			var spit = function(){
-				console.log(["spit", arguments]);
+				//onsole.log(["spit", arguments]);
 			};
 			
 			mailMappings = new dojo.data.ItemFileWriteStore({
 				url:"/modules/anynode/email_media_manager/getMappings"
 			});
 			mailMappings._forceLoad();
-			console.log(mailMappings);
+			//onsole.log(mailMappings);
 			mailMappings._saveCustom = function(savecomplete){
 				var changeset = mailMappings._pending;
 				var updates = [];
@@ -177,7 +177,7 @@
 					}
 					updates.push(item);
 				}
-				console.log(updates);
+				//onsole.log(updates);
 				savecomplete();
 			}
 		</script>
@@ -186,12 +186,12 @@
 			var queueOpt = [];
 			var clientOpt = [];
 			var clientVal = [];
-			console.log(["post create", mailMappings]);
+			//onsole.log(["post create", mailMappings]);
 			
 			var formatter = function(arg){
 				var callback = function(select){
 					var out = new dijit.form.MultiSelect({}, select);
-					console.log(["formatter", out]);
+					//onsole.log(["formatter", out]);
 					return out;
 				}
 				
@@ -233,7 +233,7 @@
 								mailMappings.save();
 							}
 							else{
-								console.log(resp.message);
+								console.warning(resp.message);
 							}
 						}
 					});

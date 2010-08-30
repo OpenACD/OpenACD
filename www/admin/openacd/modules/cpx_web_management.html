@@ -211,7 +211,6 @@
 				var pass = res.http_basic_peers[i].password;
 				dojo.create('option', {innerHTML:user + ' - ' + pass,username:user,password:pass}, dojo.byId('httpBasicList'));
 			}
-			console.log(res);
 		},
 		error:function(res){
 			errMessage('getting management settings errored:  ' + res);

@@ -44,7 +44,7 @@
 			dojo.query('.translatecol', 'cpx_module').forEach(function(node){
 				node.innerHTML = dojo.i18n.getLocalization('admin', 'labels')[node.innerHTML] + ':';
 			});
-			this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 			dijit.byId('kgbEventsEnabled').onClick = function(){ 
 				dijit.byId('kgbFilename').attr('disabled', ! dijit.byId('kgbEventsEnabled').attr('checked'));
 				return true;

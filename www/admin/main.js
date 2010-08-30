@@ -3,7 +3,7 @@ currenttab = undefined;
 
 function switchtab(tab) {
 	if (currenttab != tab){
-		console.log("switched tab to "+tab);
+		//onsole.log("switched tab to "+tab);
 	}
 	currenttab = tab;
 }
@@ -189,11 +189,11 @@ dojo.addOnLoad(function(){
 							dijit.byId("mediaEnabled").attr('value', resp.enabled);
 						}
 						else{
-							console.log(resp.message);
+							//onsole.log(resp.message);
 						}
 					},
 					error:function(resp){
-						console.log(["error get media", node, medias.store.getValue(item, 'name'), resp]);
+						console.warning(["error get media", node, medias.store.getValue(item, 'name'), resp]);
 					}
 				});
 			};*/
@@ -259,7 +259,7 @@ dojo.addOnLoad(function(){
 						handleAs:"json",
 						load:function(response, ioargs){
 							if( ! response.success){
-								console.log(response.message);
+								console.warning(response.message);
 							}
 							else{
 								agents.refreshTree('agentsList');
@@ -315,7 +315,7 @@ dojo.addOnLoad(function(){
 								agents.refreshTree('agentsList');
 							}
 							else{
-								console.log(response.message);
+								console.warning(response.message);
 							}
 						}
 					});
@@ -336,7 +336,7 @@ dojo.addOnLoad(function(){
 					handleAs:"json",
 					error:function(response, ioargs){
 						dojo.byId("loginerrp").style.display = "block";
-						console.log(response);
+						console.warning(response);
 						if (response.status){
 							dojo.byId("loginerrspan").innerHTML = response.responseText;
 						}
@@ -395,8 +395,8 @@ dojo.addOnLoad(function(){
 			url:"/checkcookie",
 			handleAs:"json",
 			error:function(response, ioargs){
-				console.log("checkcookie failed!");
-				console.log(response);
+				console.warning("checkcookie failed!");
+				//onsole.log(response);
 			},
 			load:function(response, ioargs){
 				if(response.success){

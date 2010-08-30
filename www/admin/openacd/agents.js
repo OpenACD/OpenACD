@@ -13,10 +13,10 @@ agents.updateModule = function(subform){
 		form:subform,
 		error:function(response, ioargs){
 			errMessage(["update module errored", response]);
-			console.log(response);
+			console.warning(response);
 		},
 		load:function(response, ioargs){
-			console.log(response);
+			//onsole.log(response);
 		}
 	});
 };
@@ -63,7 +63,7 @@ agents.setSpiceIntegration = function(subform){
 		form:subform,
 		error:function(response){
 			errMessage(["setting spicecsm integration errored", response]);
-			console.log(["error setting spice integration", response]);
+			console.warning(["error setting spice integration", response]);
 		},
 		load:function(res){
 			if(! res.success){
@@ -151,7 +151,8 @@ agents.newProfile = function(submitForm, treenode){
 };
 
 agents.updateAgent = function(subform, node){
-	var values = dijit.byId(subform).getValues();
+	//onsole.log('ping');
+	var values = dijit.byId(subform).attr('value');
 	values.skills = dijit.byId(subform).domNode.skills.getValues();
 	agents.store.fetchItemByIdentity({
 		identity:values.profile,
@@ -159,12 +160,13 @@ agents.updateAgent = function(subform, node){
 			values.profile = agents.store.getValue(item, 'name');
 		}
 	});
+	//onsole.log(values);
 	dojo.xhrPost({
-		url:"/agents/agents/" + values.oldlogin + "/update",
+		url:"/agents/agents/" + values.agentId + "/update",
 		handleAs:"json",
 		content:values,
 		error:function(response, ioargs){
-			console.log(response);
+			console.warning(response);
 		},
 		load:function(response, ioargs){
 			agents.refreshTree(node);
@@ -187,7 +189,7 @@ agents.newAgent = function(subform, node){
 		content:values,
 		error:function(response, ioargs){
 			errMessage(["New agent errored", response]);
-			console.log(response);
+			console.warning(response);
 		},
 		load:function(response, ioargs){
 			if(! response.success){

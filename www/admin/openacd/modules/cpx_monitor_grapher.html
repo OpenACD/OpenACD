@@ -41,7 +41,7 @@
 	<label>&nbsp;</label>
 	<button dojoType="dijit.form.Button" label="SUBMIT">
 		<script type="dojo/connect" event="onClick">
-			var vals = dijit.byId('grapher_form').getValues();
+			var vals = dijit.byId('grapher_form').get('value');
 			if(vals.enabled.length == 0){
 				delete vals.enabled;
 			}

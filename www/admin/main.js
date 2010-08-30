@@ -97,7 +97,10 @@ dojo.addOnLoad(function(){
 					}
 				}	
 				dijit.byId('skillAtom').set('disabled', true);	
-			}
+				dijit.byId('skillSubmit').onClick = function(){
+					skills.updateSkill('editSkill', item);
+					 }
+					 }
 			else{
 				dijit.byId('skillsMain').selectChild('skillGroupEditor');
 				dijit.byId('editSkillGroupForm').set('value', item);
@@ -193,7 +196,7 @@ dojo.addOnLoad(function(){
 						}
 					},
 					error:function(resp){
-						console.warning(["error get media", node, medias.store.getValue(item, 'name'), resp]);
+						console.warn(["error get media", node, medias.store.getValue(item, 'name'), resp]);
 					}
 				});
 			};*/
@@ -259,7 +262,7 @@ dojo.addOnLoad(function(){
 						handleAs:"json",
 						load:function(response, ioargs){
 							if( ! response.success){
-								console.warning(response.message);
+								console.warn(response.message);
 							}
 							else{
 								agents.refreshTree('agentsList');
@@ -315,7 +318,7 @@ dojo.addOnLoad(function(){
 								agents.refreshTree('agentsList');
 							}
 							else{
-								console.warning(response.message);
+								console.warn(response.message);
 							}
 						}
 					});
@@ -336,7 +339,7 @@ dojo.addOnLoad(function(){
 					handleAs:"json",
 					error:function(response, ioargs){
 						dojo.byId("loginerrp").style.display = "block";
-						console.warning(response);
+						console.warn(response);
 						if (response.status){
 							dojo.byId("loginerrspan").innerHTML = response.responseText;
 						}
@@ -395,7 +398,7 @@ dojo.addOnLoad(function(){
 			url:"/checkcookie",
 			handleAs:"json",
 			error:function(response, ioargs){
-				console.warning("checkcookie failed!");
+				console.warn("checkcookie failed!");
 				//onsole.log(response);
 			},
 			load:function(response, ioargs){

@@ -85,12 +85,12 @@
 					}
 					else{
 						errMessage(["Setting media failed", resp.message]);
-						console.warning(resp.message);
+						console.warn(resp.message);
 					}
 				},
 				error:function(res){
 					errMessage(["Setting media errored", res]);
-					console.warning(["Setting media errored", res]);
+					console.warn(["Setting media errored", res]);
 				}
 			});
 
@@ -110,11 +110,11 @@
 				dijit.byId("mediaEnabled").set('value', resp.enabled);
 			}
 			else{
-				console.warning(resp.message);
+				console.warn(resp.message);
 			}
 		},
 		error:function(resp){
-			console.warning(["error get media", node, medias.store.getValue(item, 'name'), resp]);
+			console.warn(["error get media", node, medias.store.getValue(item, 'name'), resp]);
 		}
 	});
 </script>

@@ -74,7 +74,7 @@
 				}
 			},
 			error:function(res){
-				console.warning(["getting cpx_monitor_passive errored", res]);
+				console.warn(["getting cpx_monitor_passive errored", res]);
 			}
 		});
 	</script>
@@ -148,11 +148,11 @@
 					content: vals,
 					load: function(res){
 						if(! res.success){
-							console.warning(["updating passive cpx_mon failed", res.message]);
+							console.warn(["updating passive cpx_mon failed", res.message]);
 						}
 					},
 					error: function(res){
-						console.warning(["updating passive cpx_mon errored", res]);
+						console.warn(["updating passive cpx_mon errored", res]);
 					}
 				});
 			}

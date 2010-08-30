@@ -122,11 +122,11 @@
 									dijit.byId('mediaEnabled').set('checked', false);
 								}
 							} else {
-								console.warning('getting emm config failed', res.message);
+								console.warn('getting emm config failed', res.message);
 							}
 						},
 						error:function(res){
-							console.warning('getting emm config errored', res);
+							console.warn('getting emm config errored', res);
 						}
 					});
 				</script>
@@ -140,10 +140,10 @@
 							if(res.success){
 								return;
 							}
-							console.warning('updating emm failed.', res.message);
+							console.warn('updating emm failed.', res.message);
 						},
 						error:function(res){
-							console.warning('updating emm errored', res);
+							console.warn('updating emm errored', res);
 						}
 					});
 				</script>
@@ -233,7 +233,7 @@
 								mailMappings.save();
 							}
 							else{
-								console.warning(resp.message);
+								console.warn(resp.message);
 							}
 						}
 					});

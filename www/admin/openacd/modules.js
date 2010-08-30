@@ -71,7 +71,7 @@ modules.refreshTree = function(node){
 		},
 		error:function(res){
 			errMessage(["Setting media errored", res]);
-			console.warning(["Setting media errored", res]);
+			console.warn(["Setting media errored", res]);
 		}
 	});
 };*/

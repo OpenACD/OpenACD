@@ -168,7 +168,7 @@ queues.refreshTree = function(node){
 };
 
 queues.setGroup = function(form, reciper, refreshnode){
-	var vals = form.getValues();
+	var vals = form.get('value');
 	if(! vals.name){
 		vals.name = vals.oldname;
 	}
@@ -180,7 +180,7 @@ queues.setGroup = function(form, reciper, refreshnode){
 		load:function(resp, ioargs){
 			if(! resp.success){
 				errMessage(["Setting queue group failed", resp.message]);
-				console.warning(resp.message);
+				console.warn(resp.message);
 			}
 			else{
 				queues.refreshTree(refreshnode);
@@ -193,7 +193,7 @@ queues.setGroup = function(form, reciper, refreshnode){
 };
 
 queues.newGroup = function(form, reciper, refreshnode){
-	var vals = form.getValues();
+	var vals = form.get('value');
 	vals.recipe = dojo.toJson(reciper.getValue());
 	dojo.xhrPost({
 		url:"/queues/groups/new",
@@ -202,7 +202,7 @@ queues.newGroup = function(form, reciper, refreshnode){
 		load:function(resp, ioargs){
 			if(! resp.success){
 				errMessage(["Creating queue group failed", resp.message]);
-				console.warning(resp.message);
+				console.warn(resp.message);
 			}
 			else{
 				queues.refreshTree(refreshnode);
@@ -254,7 +254,7 @@ queues.deleteGroup = function(group, node){
 		load:function(resp, ioargs){
 			if(! resp.success){
 				errMessage(["Deleting queue group failed", resp.message]);
-				console.warning(resp.message);
+				console.warn(resp.message);
 			}
 			else{
 				queues.refreshTree(node);
@@ -276,12 +276,12 @@ queues.getQueue = function(queue, callback){
 			}
 			else{
 				errMessage(["Getting queues failed", resp.message]);
-				console.warning(resp.message);
+				console.warn(resp.message);
 			}
 		},
 		error: function(res){
 			errMessage(["Getting queues errored", res]);
-			console.warning(res);
+			console.warn(res);
 		}
 	});
 };
@@ -301,12 +301,12 @@ queues.setQueue = function(queue, form, reciper, refreshnode){
 				}
 				else{
 					errMessage(["queue update failed", resp.message]);
-					console.warning(["queue update failed", resp.message]);
+					console.warn(["queue update failed", resp.message]);
 				}
 			},
 			error: function(res){
 				errMessage(["queue update errored", res]);
-				console.warning(["queue update errored", res]);
+				console.warn(["queue update errored", res]);
 			}
 		});
 	};
@@ -329,18 +329,18 @@ queues.deleteQueue = function(queue, refreshnode){
 			}
 			else{
 				errMessage(["Queue delete failed", resp.message]);
-				console.warning(resp.message);
+				console.warn(resp.message);
 			}
 		},
 		error: function(res){
 			errMessage(["queue delete errored", res]);
-			console.warning(res);
+			console.warn(res);
 		}
 	});
 };
 
 queues.newQueue = function(form, reciper, node){
-	var vals = form.getValues();
+	var vals = form.get('value');
 	vals.recipe = dojo.toJson(reciper.getValue());
 	vals.skills = form.domNode.skills.getValues();
 	var doxhr = function(){
@@ -354,12 +354,12 @@ queues.newQueue = function(form, reciper, node){
 				}
 				else{
 					errMessage(["new queue failed", resp.message]);
-					console.warning(["new queue failed", resp.message]);
+					console.warn(["new queue failed", resp.message]);
 				}
 			},
 			error: function(res){
 				errMessage(["new queue errored", res]);
-				console.warning(["new queue errored", res]);
+				console.warn(["new queue errored", res]);
 			}
 		});
 	};

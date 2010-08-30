@@ -361,10 +361,10 @@ dojo.addOnLoad(init);
 											return true;
 										}
 										
-										console.warning(['add release failed', res.message]);
+										console.warn(['add release failed', res.message]);
 									};
 									var error = function(res){
-										console.warning(['add release erred', res]);
+										console.warn(['add release erred', res]);
 									};
 									releaseOpts.addOption(vals, loaded, error);
 									dijit.byId('releaseOptAddDialog').hide();
@@ -920,11 +920,11 @@ dojo.addOnLoad(init);
 													dijit.byId('addClientDialog').hide();
 												}
 												else{
-													console.warning(res)
+													console.warn(res)
 												}
 											},
 											error:function(res){
-												console.warning(res)
+												console.warn(res)
 											}
 										});
 									</script>
@@ -958,11 +958,11 @@ dojo.addOnLoad(init);
 												clients.store.save();
 											}
 											else{
-												console.warning(res)
+												console.warn(res)
 											}
 										},
 										error:function(res){
-											console.warning(['load fail', res])
+											console.warn(['load fail', res])
 										}
 									});
 								</script>
@@ -991,11 +991,11 @@ dojo.addOnLoad(init);
 													clients.store.save();
 												}
 												else{
-													console.warning(["client drop fail", res])
+													console.warn(["client drop fail", res])
 												}
 											},
 											error:function(res){
-												console.warning(["client drop uberfail", res])
+												console.warn(["client drop uberfail", res])
 											}
 										});
 									}

@@ -7,7 +7,7 @@
 			load:function(res){
 				if(! res.success){
 					errMessage(['get gen_cdr_dumper failed', res.message]);
-					console.warning(['get gen_cdr_dumper failed', res.message]);
+					console.warn(['get gen_cdr_dumper failed', res.message]);
 					return false
 				}
 				dijit.byId('cdr_dumper_form').set('value', res);
@@ -24,7 +24,7 @@
 			},
 			error:function(res){
 				errMessage(['get gen_cdr_dumper errored', res]);
-				console.warning(['get gen_cdr_dumper errored', res]);
+				console.warn(['get gen_cdr_dumper errored', res]);
 			}
 		});
 	</script>
@@ -124,12 +124,12 @@
 				load: function(res){
 					if(! res.success){
 						errMessage(['set gen_cdr_dumper failed', res.message]);
-						console.warning(['set gen_cdr_dumper failed', res.message]);
+						console.warn(['set gen_cdr_dumper failed', res.message]);
 					}
 				},
 				error: function(res){
 					errMessage(['set gen_cdr_dumper errored', res]);
-					console.warning(['set gen_cdr_dumper errored', res]);
+					console.warn(['set gen_cdr_dumper errored', res]);
 				}
 			});
 		</script>

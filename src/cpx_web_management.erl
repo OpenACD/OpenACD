@@ -537,10 +537,10 @@ api({agents, "profiles", "get"}, ?COOKIE, _Post) ->
 	Foreachprofile = fun(#agent_profile{name = Pname, skills = Pskills} = P) ->
 		Agents = agent_auth:get_agents(Pname),
 		{struct, [
-			{<<"name">>, list_to_binary(Pname)}, 
+			{<<"name">>, case Pname of undefined -> undefined; _ -> list_to_binary(Pname) end}, 
 			{<<"type">>, <<"profile">>},
 			{<<"order">>, P#agent_profile.order},
-			{<<"id">>, list_to_binary(P#agent_profile.id)},
+			{<<"id">>, case P#agent_profile.id of undefined -> undefined; _ -> list_to_binary(P#agent_profile.id) end},
 			{<<"skills">>, encode_skills(Pskills)}, 
 			{<<"agents">>, encode_agents(Agents)}]}
 	end,

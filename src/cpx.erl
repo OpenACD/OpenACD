@@ -138,10 +138,14 @@ stop(_State) ->
 %% helper funcs
 %% =====
 
+%% @doc Backups the mnesia database for use with the restore functions.  Does a
+%% full backup, so the mnesia restore funtions could be used directly to restore
+%% even the cdr and agent state tables.
 -spec(backup_config/0 :: () -> 'ok').
 backup_config() ->
 	backup_config(lists:flatten(io_lib:format("cpx-~B", [util:now()]))).
 
+%% @doc Same as above, but you give the file to store the backup in.
 -spec(backup_config/1 :: (Filename :: string()) -> {'ok', string()} | {'error', any()}).
 backup_config(Filename) ->
 	case mnesia:backup(Filename) of
@@ -151,10 +155,12 @@ backup_config(Filename) ->
 			{error, Else}
 	end.
 
+%% @doc Restore all the config files from the given back up file.
 -spec(restore_config/1 :: (Filename :: string()) -> {'atomic', [atom()]} | {'aborted', any()}).
 restore_config(Filename) ->
 	mnesia:restore(Filename, [{skip_tables, [agent_state, cdr_raw, cdr_rec]}]).
 
+%% @doc Restore only the passed in table names from the given back up file.
 -spec(restore_config/2 :: (Filename :: string(), Tables :: [atom()] | atom()) -> {'atomic', [atom()]} | {'aborted', any()}).
 restore_config(Filename, Table) when is_atom(Table) ->
 	restore_config(Filename, [Table]);

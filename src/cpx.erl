@@ -57,6 +57,10 @@
 -export([
 	agent_state/1,
 	agent_states/1,
+	backup_config/0,
+	backup_config/1,
+	restore_config/1,
+	restore_config/2,
 	call_state/1,	
 	get_queue/1,
 	get_agent/1,
@@ -133,6 +137,32 @@ stop(_State) ->
 %% =====
 %% helper funcs
 %% =====
+
+-spec(backup_config/0 :: () -> 'ok').
+backup_config() ->
+	backup_config(lists:flatten(io_lib:format("cpx-~B", [util:now()]))).
+
+-spec(backup_config/1 :: (Filename :: string()) -> {'ok', string()} | {'error', any()}).
+backup_config(Filename) ->
+	case mnesia:backup(Filename) of
+		ok ->
+			{ok, Filename};
+		Else ->
+			{error, Else}
+	end.
+
+-spec(restore_config/1 :: (Filename :: string()) -> {'atomic', [atom()]} | {'aborted', any()}).
+restore_config(Filename) ->
+	mnesia:restore(Filename, [{skip_tables, [agent_state, cdr_raw, cdr_rec]}]).
+
+-spec(restore_config/2 :: (Filename :: string(), Tables :: [atom()] | atom()) -> {'atomic', [atom()]} | {'aborted', any()}).
+restore_config(Filename, Table) when is_atom(Table) ->
+	restore_config(Filename, [Table]);
+restore_config(Filename, Tables) ->
+	mnesia:restore(Filename, [
+		{clear_tables, Tables},
+		{default_op, skip_tables}
+	]).
 
 -spec(get_queue/1 :: (Queue :: string()) -> pid() | 'none').
 get_queue(Queue) ->

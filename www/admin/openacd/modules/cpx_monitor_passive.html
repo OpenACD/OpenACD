@@ -23,7 +23,7 @@
 					'outputdir':'dynamic'
 				});
 				dijit.byId('cpx_monitor_passive_grid').store.save();
-				dijit.byId('mon_passive_add_filter_name').attr('value', '');
+				dijit.byId('mon_passive_add_filter_name').set('value', '');
 				dijit.byId('mon_passive_add_filter_dialog').hide();
 			</script>
 		</button>
@@ -38,9 +38,9 @@
 			handleAs:'json',
 			load:function(res){
 				if(res.success){
-					dijit.byId('passiveEnabled').attr('checked', res.enabled);
+					dijit.byId('passiveEnabled').set('checked', res.enabled);
 					if(res.interval){
-						dijit.byId('passiveInterval').attr('value', res.interval);
+						dijit.byId('passiveInterval').set('value', res.interval);
 					}
 					if(res.filters){
 						var data = res.filters;
@@ -107,7 +107,7 @@
 	<button dojoType="dijit.form.Button" label="SUBMIT">
 		<script type="dojo/connect" event="onClick">
 
-			var vals = dijit.byId('passive_mon_form').attr('value');
+			var vals = dijit.byId('passive_mon_form').get('value');
 			if(vals.enabled.length == 0){
 				delete vals.enabled
 			}

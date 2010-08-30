@@ -6,13 +6,13 @@
 			handleAs:"json",
 			load:function(res){
 				if(res.success){
-					dijit.byId('kgbEventsEnabled').attr('checked', res.enabled);
+					dijit.byId('kgbEventsEnabled').set('checked', res.enabled);
 					if(res.enabled){
-						dijit.byId('kgbFilename').attr('disabled', false);
-						dijit.byId('kgbFilename').attr('value', res.kgbLogfile);
+						dijit.byId('kgbFilename').set('disabled', false);
+						dijit.byId('kgbFilename').set('value', res.kgbLogfile);
 					} else {
-						dijit.byId('kgbFilename').attr('disabled', true);
-						dijit.byId('kgbFilename').attr('value', res.kgbLogfile);
+						dijit.byId('kgbFilename').set('disabled', true);
+						dijit.byId('kgbFilename').set('value', res.kgbLogfile);
 					}
 				} else {
 					warning(['getting KGB Event Logger settings failed', res.message]);
@@ -46,16 +46,16 @@
 			});
 			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 			dijit.byId('kgbEventsEnabled').onClick = function(){ 
-				dijit.byId('kgbFilename').attr('disabled', ! dijit.byId('kgbEventsEnabled').attr('checked'));
+				dijit.byId('kgbFilename').set('disabled', ! dijit.byId('kgbEventsEnabled').get('checked'));
 				return true;
 			};
 		</script>
 		<script type="dojo/connect" event="onClick">
 			var vals = {
-				kgbEventsEnabled: dijit.byId('kgbEventsEnabled').attr('checked')
+				kgbEventsEnabled: dijit.byId('kgbEventsEnabled').get('checked')
 			};
 			if(vals.kgbEventsEnabled){
-				vals.kgbFilename = dijit.byId('kgbFilename').attr('value');
+				vals.kgbFilename = dijit.byId('kgbFilename').get('value');
 			}
 			dojo.xhrPost({
 				url:'/modules/' + escape(modules.activeNode) + '/cpx_monitor_kgb_eventlog/update',

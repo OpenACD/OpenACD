@@ -113,7 +113,7 @@ dojo.xhrGet({
 	handleAs:"json",
 	load:function(res){
 		if(res.success){
-			dijit.byId('archivepath').attr('value', res.result);
+			dijit.byId('archivepath').set('value', res.result);
 		}
 		else{
 			console.warning(["load fail", res.message]);
@@ -129,7 +129,7 @@ dojo.xhrGet({
 	handleAs:"json",
 	load:function(res){
 		if(res.success){
-			dijit.byId('mantispath').attr('value', res.result);
+			dijit.byId('mantispath').set('value', res.result);
 		} else {
 			console.warning(["load fail", res.message]);
 		}

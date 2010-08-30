@@ -72,7 +72,7 @@
 		</script>
 		<script type="dojo/connect" event="onClick">
 			var sel = dojo.byId('transferPromptSkills').firstChild
-			CPXSupervisor.setTransferPrompt(dojo.toJson(dijit.byId("transferDialogForm").attr('value')), sel.getValues());
+			CPXSupervisor.setTransferPrompt(dojo.toJson(dijit.byId("transferDialogForm").get('value')), sel.getValues());
 		</script>
 	</button>
 </p>

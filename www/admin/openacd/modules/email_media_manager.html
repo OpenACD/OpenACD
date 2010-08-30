@@ -57,22 +57,22 @@
 			<label for="outrelayauth" class="translatecol">REQUIRE_AUTH</label>
 				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_always" value="always">
 					<script type="dojo/connect" event="postCreate">
-						dijit.byId("auth_username").attr('disabled', false);
-						dijit.byId("auth_password").attr('disabled', false);
+						dijit.byId("auth_username").set('disabled', false);
+						dijit.byId("auth_password").set('disabled', false);
 					</script>
 				</input>
 				<label class="radio translate" for="auth_always">ALWAYS</label>&nbsp;
 				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_ifcan" value="ifcan">
 					<script type="dojo/method" event="onClick">
-						dijit.byId("auth_username").attr('disabled', false);
-						dijit.byId("auth_password").attr('disabled', false);
+						dijit.byId("auth_username").set('disabled', false);
+						dijit.byId("auth_password").set('disabled', false);
 					</script>
 				</input>
 				<label class="radio translate" for="auth_ifcan">IF_AVAILABLE</label>&nbsp;
 				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_never" value="never">
 					<script type="dojo/method" event="onclick">
-						dijit.byId("auth_username").attr('disabled', true);
-						dijit.byId("auth_password").attr('disabled', true);
+						dijit.byId("auth_username").set('disabled', true);
+						dijit.byId("auth_password").set('disabled', true);
 					</script>
 				</input>
 				<label class="radio translate" for="auth_never">NEVER</label>
@@ -115,11 +115,11 @@
 						handleAs:"json",
 						load:function(res){
 							if(res.success){
-								dijit.byId('mediaForm').attr('value', res);
+								dijit.byId('mediaForm').set('value', res);
 								if(res.enabled !== false){
-									dijit.byId('mediaEnabled').attr('checked', true);
+									dijit.byId('mediaEnabled').set('checked', true);
 								} else {
-									dijit.byId('mediaEnabled').attr('checked', false);
+									dijit.byId('mediaEnabled').set('checked', false);
 								}
 							} else {
 								console.warning('getting emm config failed', res.message);
@@ -131,7 +131,7 @@
 					});
 				</script>
 				<script type="dojo/connect" event="onClick">
-					var values = dijit.byId("mediaForm").attr('value');
+					var values = dijit.byId("mediaForm").get('value');
 					dojo.xhrPost({
 						url:"/modules/" + modules.activeNode + "/email_media_manager/update",
 						handleAs:"json",

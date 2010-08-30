@@ -226,8 +226,8 @@ dojo.addOnLoad(init);
 							var out = new dijit.form.MultiSelect(selectNode);
 						};
 						skills.createSelect(skillCallback, [], ['_brand', '_queue'], ['_brand', '_queue'])
-						dijit.byId('agentProfileName').attr('disabled', false);
-						dijit.byId('agentProfileId').attr('disabled', false);
+						dijit.byId('agentProfileName').set('disabled', false);
+						dijit.byId('agentProfileId').set('disabled', false);
 					</script>
 				</button>
 				<button dojoType="dijit.form.Button" label="DROPAGENTORPROFILE" id="agentsDestroyButton">
@@ -244,7 +244,7 @@ dojo.addOnLoad(init);
 				<form dojoType="dijit.form.Form" id="editAgentModuleForm" action="javascript:void(0)" method="post">
 					<p>
 						<label for="agentModuleTCPListenEnabled">&nbsp;</label>
-						<input id="agentModuleTCPListenEnabled" name="agentModuleTCPListenEnabled" dojoType="dijit.form.CheckBox" value="tcpEnabled" checked onChange="dijit.byId('agentModuleTCPListen').attr('disabled', !this.checked)" />
+						<input id="agentModuleTCPListenEnabled" name="agentModuleTCPListenEnabled" dojoType="dijit.form.CheckBox" value="tcpEnabled" checked onChange="dijit.byId('agentModuleTCPListen').set('disabled', !this.checked)" />
 						<span class="translate">ENABLEAGENTTCP</span>
 					</p>
 					<p>
@@ -253,7 +253,7 @@ dojo.addOnLoad(init);
 					</p>
 					<p>
 						<label for="agentModuleWebListenEnabled">&nbsp;</label>
-						<input id="agentModuleWebListenEnabled" name="agentModuleWebListenEnabled" dojoType="dijit.form.CheckBox" value="webEnabled" checked onChange="dijit.byId('agentModuleWebListen').attr('disabled', !this.checked)" />
+						<input id="agentModuleWebListenEnabled" name="agentModuleWebListenEnabled" dojoType="dijit.form.CheckBox" value="webEnabled" checked onChange="dijit.byId('agentModuleWebListen').set('disabled', !this.checked)" />
 						<span class="translate">ENABLEAGENTWEB</span>
 					</p>
 					<p>
@@ -287,20 +287,20 @@ dojo.addOnLoad(init);
 					<p>
 						<label for="spiceIntegrationImport">&nbsp;</label>
 						<span style="width:1em;display:inline-block"></span>
-						<input id="spiceIntegrationImport" name="spiceIntegratoinImport" dojoType="dijit.form.CheckBox" value="spiceIntegrationImport" disabled="true" postCreate='dijit.byId("spiceIntegrationImport").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data) { dijit.byId("spiceIntegrationImport").attr("disabled", ! data) } );' />
+						<input id="spiceIntegrationImport" name="spiceIntegratoinImport" dojoType="dijit.form.CheckBox" value="spiceIntegrationImport" disabled="true" postCreate='dijit.byId("spiceIntegrationImport").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data) { dijit.byId("spiceIntegrationImport").set("disabled", ! data) } );' />
 						<span class="translate">IMPORTSPICEINTEGRATION</span>
 					<p>
 						<label for="spiceServer" class="translatecol">SERVER</label>
-						<input id="spiceServer" name="server" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceServer").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceServer").attr("disabled", ! data) });'>
+						<input id="spiceServer" name="server" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceServer").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceServer").set("disabled", ! data) });'>
 						</input>
 					</p>
 					<p>
 						<label for="spiceUsername" class="translatecol">USERNAME</label>
-						<input id="spiceUsername" name="username" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceUsername").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceUsername").attr("disabled", ! data) });' />
+						<input id="spiceUsername" name="username" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceUsername").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceUsername").set("disabled", ! data) });' />
 					</p>
 					<p>
 						<label for="spicePassword" class="translatecol">PASSWORD</label>
-						<input id="spicePassword" name="password" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spicePassword").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spicePassword").attr("disabled", ! data) });' />
+						<input id="spicePassword" name="password" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spicePassword").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spicePassword").set("disabled", ! data) });' />
 					</p>
 					<p>
 						<label>&nbsp;</label>
@@ -596,9 +596,9 @@ dojo.addOnLoad(init);
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
 				<button dojoType="dijit.form.Button" label="ADDQUEUE">
 					<script type="dojo/connect" event="onClick">
-						dijit.byId("queueName").attr('value', "New Call Queue");
-						dijit.byId("queueGroup").attr('displayedValue', "Default");
-						dijit.byId("queueWeight").attr('value', "1");
+						dijit.byId("queueName").set('value', "New Call Queue");
+						dijit.byId("queueGroup").set('displayedValue', "Default");
+						dijit.byId("queueWeight").set('value', "1");
 						dijit.byId("queueGroupRecipeDisplay").setValue([]);
 						dijit.byId("queueRecipe").setValue([]);
 						dijit.byId("queueSubmit").onClick = function(){
@@ -623,11 +623,11 @@ dojo.addOnLoad(init);
 				<button dojoType="dijit.form.Button" label="ADDQUEUEGROUP">
 					<script type="dojo/connect" event="onClick">
 						dijit.byId("queuesMain").selectChild('queueGroupEditor');
-						dijit.byId("queueGroupOldName").attr('value', "");
-						dijit.byId("queueGroupName").attr('value', "New Group");
-						dijit.byId("queueGroupSort").attr('value', 10);
+						dijit.byId("queueGroupOldName").set('value', "");
+						dijit.byId("queueGroupName").set('value', "New Group");
+						dijit.byId("queueGroupSort").set('value', 10);
 						dijit.byId("queueGroupRecipe").setValue([]);
-						dijit.byId("queueGroupName").attr('disabled', false);
+						dijit.byId("queueGroupName").set('disabled', false);
 						dijit.byId("queueGroupSubmit").onClick = function(){
 							queues.newGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
 						}
@@ -749,7 +749,7 @@ dojo.addOnLoad(init);
 					<script type="dojo/connect" event="onClick">
 						dijit.byId('skillsMain').selectChild('skillEditor');
 						dijit.byId('editSkill').reset();
-						dijit.byId('skillAtom').attr('disabled', false);
+						dijit.byId('skillAtom').set('disabled', false);
 						dijit.byId('skillSubmit').onClick = function(){
 							skills.newSkill('editSkill', 'skillsList');
 						}
@@ -838,8 +838,8 @@ dojo.addOnLoad(init);
 						onComplete:function(items){
 							var item = items[0];
 							var options = clients.store.getValue(item, "options")
-							dijit.byId("clientDefaultUrl").attr('value', options["url_pop"]);
-							dijit.byId("clientDefaultAutowrapup").attr('value', options["autoend_wrapup"]);
+							dijit.byId("clientDefaultUrl").set('value', options["url_pop"]);
+							dijit.byId("clientDefaultAutowrapup").set('value', options["autoend_wrapup"]);
 						}
 					});
 					dijit.byId('clientsMain').selectChild('clientsDefaults');
@@ -895,7 +895,7 @@ dojo.addOnLoad(init);
 						</script>
 						<div dojoType="dijit.Dialog" id="addClientDialog">
 							<script type="dojo/method" event="onShow">
-								dijit.byId('addClientForm').attr('value', {
+								dijit.byId('addClientForm').set('value', {
 									'id':'',
 									'label':''
 								});

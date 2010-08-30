@@ -71,8 +71,8 @@
 			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 		</script>
 		<script type="dojo/connect" event="onClick">
-			var contentObj = dijit.byId('freeswitchMediaForm').attr('value');
-			if(dijit.byId('mediaEnabled').attr('checked')){
+			var contentObj = dijit.byId('freeswitchMediaForm').get('value');
+			if(dijit.byId('mediaEnabled').get('checked')){
 				contentObj.enabled = true;
 			}
 			dojo.xhrPost({
@@ -106,8 +106,8 @@
 		handleAs:"json",
 		load:function(resp, ioargs){
 			if(resp.success){
-				dijit.byId("freeswitchMediaForm").attr('value', resp);
-				dijit.byId("mediaEnabled").attr('value', resp.enabled);
+				dijit.byId("freeswitchMediaForm").set('value', resp);
+				dijit.byId("mediaEnabled").set('value', resp.enabled);
 			}
 			else{
 				console.warning(resp.message);

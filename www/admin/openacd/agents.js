@@ -26,14 +26,14 @@ agents.getModules = function(targetform){
 		url:"agents/modules/get",
 		handleAs:"json",
 		load:function(response, ioargs){
-			targetform.attr('value', response.result);
+			targetform.set('value', response.result);
 			var kids = targetform.getDescendants();
 			for(var i = 0; i < kids.length; i++){
 				if(kids[i].id == 'agentModuleTCPListenEnabled'){
-					kids[i].attr('checked', response.result.agentModuleTCPListenEnabled);
+					kids[i].set('checked', response.result.agentModuleTCPListenEnabled);
 				}
 				if(kids[i].id == 'agentModuleWebListenEnabled'){
-					kids[i].attr('checked', response.result.agentModuleWebListenEnabled);
+					kids[i].set('checked', response.result.agentModuleWebListenEnabled);
 				}
 			}
 		}
@@ -45,11 +45,11 @@ agents.getSpiceIntegration = function(targetform){
 		url:"agents/spiceintegration/get",
 		handleAs:"json",
 		load:function(response){
-			targetform.attr('value', response.result);
+			targetform.set('value', response.result);
 			var kids = targetform.getDescendants();
 			for(var i in kids){
 				if(kids[i].id == 'spiceIntegrationEnabled'){
-					kids[i].attr('checked', response.result.spiceIntegrationEnabled);
+					kids[i].set('checked', response.result.spiceIntegrationEnabled);
 				}
 			}
 		}
@@ -138,7 +138,7 @@ agents.updateProfile = function(submitForm, treenode){
 };
 
 agents.newProfile = function(submitForm, treenode){
-	var values = dijit.byId(submitForm).attr('value');
+	var values = dijit.byId(submitForm).get('value');
 	values.skills = dijit.byId(submitForm).domNode.skills.getValues();
 	dojo.xhrPost({
 		url:"/agents/profiles/new",
@@ -152,7 +152,7 @@ agents.newProfile = function(submitForm, treenode){
 
 agents.updateAgent = function(subform, node){
 	//onsole.log('ping');
-	var values = dijit.byId(subform).attr('value');
+	var values = dijit.byId(subform).get('value');
 	values.skills = dijit.byId(subform).domNode.skills.getValues();
 	agents.store.fetchItemByIdentity({
 		identity:values.profile,

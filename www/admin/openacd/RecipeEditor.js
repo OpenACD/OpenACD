@@ -120,18 +120,18 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 			case "set_priority":
 				this.numberWidget.domNode.style.display = '';
 				this.argsWidget = 'numberWidget';
-				this.numberWidget.attr('value', args);
+				this.numberWidget.get('value', args);
 				break;
 			case "prioritize":
 			case "deprioritize":
 			case "voicemail":
-				//this.argumentsDiv.attr('content', "");
+				//this.argumentsDiv.set('content', "");
 				this._nullArgsWidget();
 				break;
 			case "announce":
 				this.stringWidget.domNode.style.display = '';
 				this.argsWidget = 'stringWidget';
-				this.stringWidget.attr('value', args);
+				this.stringWidget.set('value', args);
 				break;
 			case "add_recipe":
 				//TODO : implement real recusive recipe-age.
@@ -145,11 +145,11 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 	getValue:function(){
 		var args = "";
 		if(this.argsWidget == 'numberWidget'){
-			args = this.numberWidget.attr('value');
+			args = this.numberWidget.get('value');
 		} else if ( this.argsWidget == 'stringWidget') {
-			args = this.stringWidget.attr('value');
-		} else if (this.argsWidget.attr){
-			args = this.argsWidget.attr('value');
+			args = this.stringWidget.get('value');
+		} else if (this.argsWidget.get){
+			args = this.argsWidget.get('value');
 		} else{
 			args = this.argsWidget.getValue();
 		}
@@ -167,8 +167,8 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 		this.setArguments(actionObj.action, actionObj['arguments']);
 		//this._suppressNextSetArgs = true;
 		/*if(! openacd.inArray(actionObj.action, ['add_skills', 'remove_skills'])){
-			if(this.argsWidget.attr){
-				this.argsWidget.attr('value', actionObj['arguments']);
+			if(this.argsWidget.at tr){
+				this.argsWidget.at tr('value', actionObj['arguments']);
 			} else if(this.argsWidget.setValue) {
 				this.argsWidget.setValue(actionObj['arguments']);
 			}
@@ -206,9 +206,9 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 	setDisabled:function(bool){
 		this._disabled = bool;
 		this.actionField.set('disabled', bool);
-		this._nullArgsWidget('disabled', bool);
-		this.numberWidget.attr('disabled', bool);
-		this.stringWidget.attr('disabled', bool);
+		this._nullArgsWidget.set('disabled', bool);
+		this.numberWidget.set('disabled', bool);
+		this.stringWidget.set('disabled', bool);
 	}
 });
 
@@ -236,10 +236,10 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		this.actions.splice(index, 0, widget.id);
 		if(this.actions.length > 1){
 			for(var i = 0; i < this.actions.length; i++){
-				dijit.byId(this.actions[i]).dropButton.attr('disabled', false);
+				dijit.byId(this.actions[i]).dropButton.set('disabled', false);
 			}
 		} else if(this.actions.length == 1) {
-			dijit.byId(this.actions[0]).dropButton.attr('disabled', true);
+			dijit.byId(this.actions[0]).dropButton.set('disabled', true);
 		}
 		return widget;
 	},
@@ -253,7 +253,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		dijit.byId(widgetid).destroy();
 		this.actions.splice(i, 1);
 		if(this.actions.length == 1){
-			dijit.byId(this.actions[0]).dropButton.attr('disabled', true);
+			dijit.byId(this.actions[0]).dropButton.set('disabled', true);
 		}
 	},
 	setValue:function(recipeStep){
@@ -268,8 +268,8 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 			//onsole.log(['setting action args gooober', recipeStep.actions[i]]);
 			widget.setValue(recipeStep.actions[i]);
 		}
-		this.runsField.attr('value', recipeStep.runs);
-		this.containerNode.attr('title', recipeStep.comment);
+		this.runsField.set('value', recipeStep.runs);
+		this.containerNode.set('title', recipeStep.comment);
 		this.comment = recipeStep.comment;
 	},
 	getValue:function(){
@@ -280,7 +280,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 		out = {
 			actions: actionsArray,
 			conditions: this.conditionsEditor.getValue(),
-			runs:this.runsField.attr('value'),
+			runs:this.runsField.get('value'),
 			comment:this.comment
 		};
 		return out;
@@ -319,7 +319,7 @@ dojo.declare("RecipeEditorRow", [dijit._Widget, dijit._Templated], {
 			dijit.byId(this.actions[i]).setDisabled(bool);
 		}
 		this.conditionsEditor.setDisabled(bool);
-		this.runsField.attr('disabled', bool);
+		this.runsField.set('disabled', bool);
 	}
 });
 
@@ -343,14 +343,14 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		this.stepsContainer.addChild(row);
 		var rowTitleButton = dijit.byId(row.id + '_button');
 		////onsole.log(['the row title thang', rowTitleButton]);
-		rowTitleButton.attr('label', 'New Step');
+		rowTitleButton.set('label', 'New Step');
 		row.comment = 'New Step';
 		var commentEditor = new dijit.form.TextBox({
 			style:'display:none',
 			onBlur:function(){
-				this.attr('style', 'display:none');
-				rowTitleButton.attr('label', this.attr('value'));
-				row.comment = this.attr('value');
+				this.set('style', 'display:none');
+				rowTitleButton.set('label', this.get('value'));
+				row.comment = this.get('value');
 			},
 			onClick:function(e){
 				////onsole.log('stop onClick');
@@ -382,9 +382,9 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 			onClick:function(e){
 				////onsole.log(e);
 				e.stopPropagation();
-				commentEditor.attr('value', rowTitleButton.attr('label'));
-				rowTitleButton.attr('label', '');
-				commentEditor.attr('style', 'display:inline');
+				commentEditor.set('value', rowTitleButton.get('label'));
+				rowTitleButton.set('label', '');
+				commentEditor.set('style', 'display:inline');
 				commentEditor.focus();
 			}
 		});
@@ -456,7 +456,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		}
 		for(i = 0; i < value.length; i++){
 			this.addRow();
-			dijit.byId(this.rows[i] + '_button').attr('label', value[i].comment);
+			dijit.byId(this.rows[i] + '_button').set('label', value[i].comment);
 			dijit.byId(this.rows[i]).setValue(value[i]);
 		}
 	},
@@ -465,11 +465,11 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		for(var i = 0; i < this.rows.length; i++){
 			var dahrow = dijit.byId(this.rows[i]);
 			dahrow.setDisabled(bool);
-			dahrow.addRowButton.attr('disabled', bool);
-			dahrow.dropRowButton.attr('disabled', bool);
-			dahrow.editCommentButton.attr('disabled', bool);
+			dahrow.addRowButton.set('disabled', bool);
+			dahrow.dropRowButton.set('disabled', bool);
+			dahrow.editCommentButton.set('disabled', bool);
 		}
-		this.nullButton.attr('disabled', true);
+		this.nullButton.set('disabled', true);
 	}
 });
 

@@ -287,7 +287,7 @@ queues.getQueue = function(queue, callback){
 };
 
 queues.setQueue = function(queue, form, reciper, refreshnode){
-	var vals = form.attr('value');
+	var vals = form.get('value');
 	vals.recipe = dojo.toJson(reciper.getValue());
 	vals.skills = form.domNode.skills.getValues();
 	var doxhr = function(){

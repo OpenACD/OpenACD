@@ -10,7 +10,7 @@
 					console.warning(['get gen_cdr_dumper failed', res.message]);
 					return false
 				}
-				dijit.byId('cdr_dumper_form').attr('value', res);
+				dijit.byId('cdr_dumper_form').set('value', res);
 				switch(res.dumper){
 					case 'csv':
 						dojo.byId('csvDumperP').style.display = 'block';
@@ -116,7 +116,7 @@
 			});
 		</script>
 		<script type="dojo/connect" event="onClick">
-			var vals = dijit.byId('cdr_dumper_form').attr('value');
+			var vals = dijit.byId('cdr_dumper_form').get('value');
 			dojo.xhrPost({
 				url: '/modules/' + modules.activeNode + '/gen_cdr_dumper/update',
 				content: vals,

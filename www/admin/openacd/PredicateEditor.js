@@ -91,9 +91,9 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 	},
 	setDisabled: function(bool){
 		this._disabled = bool;
-		this.propertyField.attr('disabled', bool);
-		this.comparisonField.attr('disabled', bool);
-		this.valueField.attr('disabled', bool);
+		this.propertyField.set('disabled', bool);
+		this.comparisonField.set('disabled', bool);
+		this.valueField.set('disabled', bool);
 		this.addButton.set('disabled',  bool);
 		this.dropButton.set('disabled', bool);
 	}
@@ -134,7 +134,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 		this.rows.push(row.id);
 		this.topNode.appendChild(row.domNode);
 		if(this.rows.length > 1){
-			dijit.byId(this.rows[0]).dropButton.attr('disabled', false);
+			dijit.byId(this.rows[0]).dropButton.set('disabled', false);
 		}
 	},
 	dropRow:function(rowid){
@@ -153,7 +153,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 		}
 		this.rows = newrows;
 		if(this.rows.length == 1){
-			dijit.byId(this.rows[0]).dropButton.attr('disabled', true);
+			dijit.byId(this.rows[0]).dropButton.set('disabled', true);
 		}
 	},
 	getValue:function(){

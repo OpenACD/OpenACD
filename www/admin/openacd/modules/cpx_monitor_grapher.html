@@ -6,8 +6,8 @@
 			handleAs:'json',
 			load:function(res){
 				if(res.success){
-					dijit.byId('grapher_form').attr('value', res);
-					dijit.byId('grapherEnabled').attr('checked', res.enabled);
+					dijit.byId('grapher_form').set('value', res);
+					dijit.byId('grapherEnabled').set('checked', res.enabled);
 				}
 				else{
 					warning(["getting grapher settings failed", res.message]);

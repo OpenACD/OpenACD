@@ -62,10 +62,10 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 	},
 	setArguments: function(action, args){
 		//onsole.log(['setting arguments', action, args]);
-		if(args == undefined){
-			console.error('awwwww, fuck');
+		/*if(args == undefined){
+			console.error('args is undefined for', action);
 			console.trace();
-		}
+		}*/
 		/*if(this._suppressNextSetArgs){
 			delete this._suppressNextSetArgs;
 			return;
@@ -120,7 +120,7 @@ dojo.declare("RecipeEditorAction", [dijit._Widget, dijit._Templated], {
 			case "set_priority":
 				this.numberWidget.domNode.style.display = '';
 				this.argsWidget = 'numberWidget';
-				this.numberWidget.get('value', args);
+				this.numberWidget.set('value', args);
 				break;
 			case "prioritize":
 			case "deprioritize":
@@ -344,6 +344,7 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		var rowTitleButton = dijit.byId(row.id + '_button');
 		////onsole.log(['the row title thang', rowTitleButton]);
 		rowTitleButton.set('label', 'New Step');
+		rowTitleButton.titleNode.style.display = 'inline';
 		row.comment = 'New Step';
 		var commentEditor = new dijit.form.TextBox({
 			style:'display:none',
@@ -376,16 +377,17 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 			}
 		});
 		dojo.place(commentEditor.domNode, rowTitleButton.domNode, 1);
+		row.commentEditor = commentEditor;
 		var editCommentButton = new dijit.form.Button({
 			label:dojo.i18n.getLocalization("admin", "recipeEditor").EDIT,
 			style:'font-size:xx-small;',
 			onClick:function(e){
-				////onsole.log(e);
+				console.log(e, row, row.commentEditor);
 				e.stopPropagation();
-				commentEditor.set('value', rowTitleButton.get('label'));
+				row.commentEditor.set('value', rowTitleButton.get('label'));
 				rowTitleButton.set('label', '');
-				commentEditor.set('style', 'display:inline');
-				commentEditor.focus();
+				row.commentEditor.set('style', 'display:inline');
+				row.commentEditor.focus();
 			}
 		});
 		dojo.place(editCommentButton.domNode, rowTitleButton.domNode, 'first');
@@ -408,7 +410,6 @@ dojo.declare("RecipeEditor", [dijit._Widget, dijit._Templated], {
 		row.addRowButton = addRowButton;
 		row.dropRowButton = dropRowButton;
 		row.editCommentButton = editCommentButton;
-		row.commentEditor = commentEditor;
 		this.nullButton.domNode.style.display = "none";
 		this.stepsContainer.resize();
 		this.stepsContainer.selectChild(row.id);

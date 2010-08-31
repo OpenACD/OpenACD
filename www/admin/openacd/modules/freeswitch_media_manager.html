@@ -68,11 +68,11 @@
 			dojo.query('.translatecol', 'freeswitchMediaForm').forEach(function(node){
 				node.innerHTML = dojo.i18n.getLocalization('admin', 'freeswitch_media_manager')[node.innerHTML] + ':';
 			});
-			this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 		</script>
 		<script type="dojo/connect" event="onClick">
-			var contentObj = dijit.byId('freeswitchMediaForm').attr('value');
-			if(dijit.byId('mediaEnabled').attr('checked')){
+			var contentObj = dijit.byId('freeswitchMediaForm').get('value');
+			if(dijit.byId('mediaEnabled').get('checked')){
 				contentObj.enabled = true;
 			}
 			dojo.xhrPost({
@@ -85,12 +85,12 @@
 					}
 					else{
 						errMessage(["Setting media failed", resp.message]);
-						console.log(resp.message);
+						console.warn(resp.message);
 					}
 				},
 				error:function(res){
 					errMessage(["Setting media errored", res]);
-					console.log(["Setting media errored", res]);
+					console.warn(["Setting media errored", res]);
 				}
 			});
 
@@ -106,15 +106,15 @@
 		handleAs:"json",
 		load:function(resp, ioargs){
 			if(resp.success){
-				dijit.byId("freeswitchMediaForm").attr('value', resp);
-				dijit.byId("mediaEnabled").attr('value', resp.enabled);
+				dijit.byId("freeswitchMediaForm").set('value', resp);
+				dijit.byId("mediaEnabled").set('value', resp.enabled);
 			}
 			else{
-				console.log(resp.message);
+				console.warn(resp.message);
 			}
 		},
 		error:function(resp){
-			console.log(["error get media", node, medias.store.getValue(item, 'name'), resp]);
+			console.warn(["error get media", node, medias.store.getValue(item, 'name'), resp]);
 		}
 	});
 </script>

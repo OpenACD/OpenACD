@@ -66,12 +66,12 @@ modules.refreshTree = function(node){
 			}
 			else{
 				errMessage(["Setting media failed", resp.message]);
-				console.log(resp.message);
+				//onsole.log(resp.message);
 			}
 		},
 		error:function(res){
 			errMessage(["Setting media errored", res]);
-			console.log(["Setting media errored", res]);
+			console.warn(["Setting media errored", res]);
 		}
 	});
 };*/

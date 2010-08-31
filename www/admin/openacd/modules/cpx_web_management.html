@@ -16,9 +16,9 @@
 	<button dojoType="dijit.form.Button" name="ippeerinputadd" label="+">
 		<script type="dojo/connect" event="onClick">
 			var input = dijit.byId('ippeerinput');
-			if(input.isValid() && input.attr('value') != ''){
-				dojo.create('option', {innerHTML:input.attr('value')}, dojo.byId('ipList'));
-				input.attr('value', '');
+			if(input.isValid() && input.get('value') != ''){
+				dojo.create('option', {innerHTML:input.get('value')}, dojo.byId('ipList'));
+				input.set('value', '');
 				input.focus();
 			}
 		</script>
@@ -46,9 +46,9 @@
 		<script type="dojo/connect" event="onClick">
 			var namein = dijit.byId('httpinputname');
 			var passin = dijit.byId('httpinputpass');
-			if(namein.isValid() && passin.isValid() && namein.attr('value') != '' && passin.attr('value') != ''){
-				var nom = namein.attr('value');
-				var pass = passin.attr('value');
+			if(namein.isValid() && passin.isValid() && namein.get('value') != '' && passin.get('value') != ''){
+				var nom = namein.get('value');
+				var pass = passin.get('value');
 				var optinnerhtml = nom + ' - ' + pass;
 				dojo.create('option', {innerHTML:optinnerhtml,username:nom,password:pass}, dojo.byId('httpBasicList'));
 				namein.focus();
@@ -84,7 +84,7 @@
 				errMessage('update errored:  ' + res);
 			};
 			var postUrl = '/modules/' + modules.activeNode + '/cpx_web_management/update';
-			if(dijit.byId('cpxWebManagementEnabled').attr('checked') == false){
+			if(dijit.byId('cpxWebManagementEnabled').get('checked') == false){
 				confirmDialog({
 					'question':'Really disable web management?  You will not be able to turn it back on whithout using the shell.',
 					'yesLabel':'Disable',
@@ -105,7 +105,7 @@
 			}
 			var contentObj = {
 				enabled:true,
-				port:dijit.byId('cpxWebManagementPort').attr('value')
+				port:dijit.byId('cpxWebManagementPort').get('value')
 			};
 			var select = dojo.byId('ipList');
 			var ipList = [];
@@ -198,11 +198,11 @@
 				return;
 			}
 			if(res.enabled == false){
-				dijit.byId('cpxWebManagementEnabled').attr('checked', false);
+				dijit.byId('cpxWebManagementEnabled').set('checked', false);
 				return;
 			}
-			dijit.byId('cpxWebManagementEnabled').attr('checked', true);
-			dijit.byId('cpxWebManagementPort').attr('value', res.port);
+			dijit.byId('cpxWebManagementEnabled').set('checked', true);
+			dijit.byId('cpxWebManagementPort').set('value', res.port);
 			for(var i = 0; i < res.ip_peers.length; i++){
 				dojo.create('option', {innerHTML:res.ip_peers[i]}, dojo.byId('ipList'));
 			}
@@ -211,7 +211,6 @@
 				var pass = res.http_basic_peers[i].password;
 				dojo.create('option', {innerHTML:user + ' - ' + pass,username:user,password:pass}, dojo.byId('httpBasicList'));
 			}
-			console.log(res);
 		},
 		error:function(res){
 			errMessage('getting management settings errored:  ' + res);

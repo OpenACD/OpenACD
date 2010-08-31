@@ -7,10 +7,10 @@
 			load:function(res){
 				if(! res.success){
 					errMessage(['get gen_cdr_dumper failed', res.message]);
-					console.log(['get gen_cdr_dumper failed', res.message]);
+					console.warn(['get gen_cdr_dumper failed', res.message]);
 					return false
 				}
-				dijit.byId('cdr_dumper_form').attr('value', res);
+				dijit.byId('cdr_dumper_form').set('value', res);
 				switch(res.dumper){
 					case 'csv':
 						dojo.byId('csvDumperP').style.display = 'block';
@@ -24,7 +24,7 @@
 			},
 			error:function(res){
 				errMessage(['get gen_cdr_dumper errored', res]);
-				console.log(['get gen_cdr_dumper errored', res]);
+				console.warn(['get gen_cdr_dumper errored', res]);
 			}
 		});
 	</script>
@@ -116,7 +116,7 @@
 			});
 		</script>
 		<script type="dojo/connect" event="onClick">
-			var vals = dijit.byId('cdr_dumper_form').attr('value');
+			var vals = dijit.byId('cdr_dumper_form').get('value');
 			dojo.xhrPost({
 				url: '/modules/' + modules.activeNode + '/gen_cdr_dumper/update',
 				content: vals,
@@ -124,12 +124,12 @@
 				load: function(res){
 					if(! res.success){
 						errMessage(['set gen_cdr_dumper failed', res.message]);
-						console.log(['set gen_cdr_dumper failed', res.message]);
+						console.warn(['set gen_cdr_dumper failed', res.message]);
 					}
 				},
 				error: function(res){
 					errMessage(['set gen_cdr_dumper errored', res]);
-					console.log(['set gen_cdr_dumper errored', res]);
+					console.warn(['set gen_cdr_dumper errored', res]);
 				}
 			});
 		</script>

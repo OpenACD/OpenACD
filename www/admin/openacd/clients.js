@@ -38,7 +38,7 @@ clients.init = function(){
 };
 
 clients.gridHackFilter = function(){
-	console.log(arguments);
+	//onsole.log(arguments);
 	return true;
 };
 
@@ -57,7 +57,7 @@ clients.setDefault = function(inconf){
 		load:function(res){
 			if(! res.success){
 				errMessage(["client default set failure", res.message]);
-				console.log(["client default set failure", res]);
+				console.warn(["client default set failure", res]);
 				return;
 			}
 			
@@ -76,7 +76,7 @@ clients.setDefault = function(inconf){
 		},
 		error:function(res){
 			errMessage(["client default set error", res]);
-			console.log(["client default set error", res]);
+			console.warn(["client default set error", res]);
 		}
 	});
 };

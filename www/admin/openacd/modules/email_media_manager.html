@@ -57,22 +57,22 @@
 			<label for="outrelayauth" class="translatecol">REQUIRE_AUTH</label>
 				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_always" value="always">
 					<script type="dojo/connect" event="postCreate">
-						dijit.byId("auth_username").attr('disabled', false);
-						dijit.byId("auth_password").attr('disabled', false);
+						dijit.byId("auth_username").set('disabled', false);
+						dijit.byId("auth_password").set('disabled', false);
 					</script>
 				</input>
 				<label class="radio translate" for="auth_always">ALWAYS</label>&nbsp;
 				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_ifcan" value="ifcan">
 					<script type="dojo/method" event="onClick">
-						dijit.byId("auth_username").attr('disabled', false);
-						dijit.byId("auth_password").attr('disabled', false);
+						dijit.byId("auth_username").set('disabled', false);
+						dijit.byId("auth_password").set('disabled', false);
 					</script>
 				</input>
 				<label class="radio translate" for="auth_ifcan">IF_AVAILABLE</label>&nbsp;
 				<input type="radio" dojoType="dijit.form.RadioButton" name="auth" id="auth_never" value="never">
 					<script type="dojo/method" event="onclick">
-						dijit.byId("auth_username").attr('disabled', true);
-						dijit.byId("auth_password").attr('disabled', true);
+						dijit.byId("auth_username").set('disabled', true);
+						dijit.byId("auth_password").set('disabled', true);
 					</script>
 				</input>
 				<label class="radio translate" for="auth_never">NEVER</label>
@@ -109,29 +109,29 @@
 			<label for="mediaSubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">
 				<script type="dojo/method" event="postCreate">
-					this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+					this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 					dojo.xhrGet({
 						url:"/modules/" + modules.activeNode + "/email_media_manager/get",
 						handleAs:"json",
 						load:function(res){
 							if(res.success){
-								dijit.byId('mediaForm').attr('value', res);
+								dijit.byId('mediaForm').set('value', res);
 								if(res.enabled !== false){
-									dijit.byId('mediaEnabled').attr('checked', true);
+									dijit.byId('mediaEnabled').set('checked', true);
 								} else {
-									dijit.byId('mediaEnabled').attr('checked', false);
+									dijit.byId('mediaEnabled').set('checked', false);
 								}
 							} else {
-								console.log('getting emm config failed', res.message);
+								console.warn('getting emm config failed', res.message);
 							}
 						},
 						error:function(res){
-							console.log('getting emm config errored', res);
+							console.warn('getting emm config errored', res);
 						}
 					});
 				</script>
 				<script type="dojo/connect" event="onClick">
-					var values = dijit.byId("mediaForm").attr('value');
+					var values = dijit.byId("mediaForm").get('value');
 					dojo.xhrPost({
 						url:"/modules/" + modules.activeNode + "/email_media_manager/update",
 						handleAs:"json",
@@ -140,10 +140,10 @@
 							if(res.success){
 								return;
 							}
-							console.log('updating emm failed.', res.message);
+							console.warn('updating emm failed.', res.message);
 						},
 						error:function(res){
-							console.log('updating emm errored', res);
+							console.warn('updating emm errored', res);
 						}
 					});
 				</script>
@@ -156,14 +156,14 @@
 			dojo.require("dojox.grid.DataGrid");
 			
 			var spit = function(){
-				console.log(["spit", arguments]);
+				//onsole.log(["spit", arguments]);
 			};
 			
 			mailMappings = new dojo.data.ItemFileWriteStore({
 				url:"/modules/anynode/email_media_manager/getMappings"
 			});
 			mailMappings._forceLoad();
-			console.log(mailMappings);
+			//onsole.log(mailMappings);
 			mailMappings._saveCustom = function(savecomplete){
 				var changeset = mailMappings._pending;
 				var updates = [];
@@ -177,7 +177,7 @@
 					}
 					updates.push(item);
 				}
-				console.log(updates);
+				//onsole.log(updates);
 				savecomplete();
 			}
 		</script>
@@ -186,12 +186,12 @@
 			var queueOpt = [];
 			var clientOpt = [];
 			var clientVal = [];
-			console.log(["post create", mailMappings]);
+			//onsole.log(["post create", mailMappings]);
 			
 			var formatter = function(arg){
 				var callback = function(select){
 					var out = new dijit.form.MultiSelect({}, select);
-					console.log(["formatter", out]);
+					//onsole.log(["formatter", out]);
 					return out;
 				}
 				
@@ -233,7 +233,7 @@
 								mailMappings.save();
 							}
 							else{
-								console.log(resp.message);
+								console.warn(resp.message);
 							}
 						}
 					});

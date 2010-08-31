@@ -85,17 +85,17 @@ dojo.declare("PredicateEditorRow", [dijit._Widget, dijit._Templated], {
 		return out;
 	},
 	setValue: function(obj){
-		this.propertyField.attr('value', obj.property);
-		this.comparisonField.attr('value', obj.comparison);
-		this.valueField.attr('value', obj.value);
+		this.propertyField.set('value', obj.property);
+		this.comparisonField.set('value', obj.comparison);
+		this.valueField.set('value', obj.value);
 	},
 	setDisabled: function(bool){
 		this._disabled = bool;
-		this.propertyField.attr('disabled', bool);
-		this.comparisonField.attr('disabled', bool);
-		this.valueField.attr('disabled', bool);
-		this.addButton.attr('disabled',  bool);
-		this.dropButton.attr('disabled', bool);
+		this.propertyField.set('disabled', bool);
+		this.comparisonField.set('disabled', bool);
+		this.valueField.set('disabled', bool);
+		this.addButton.set('disabled',  bool);
+		this.dropButton.set('disabled', bool);
 	}
 });
 
@@ -134,7 +134,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 		this.rows.push(row.id);
 		this.topNode.appendChild(row.domNode);
 		if(this.rows.length > 1){
-			dijit.byId(this.rows[0]).dropButton.attr('disabled', false);
+			dijit.byId(this.rows[0]).dropButton.set('disabled', false);
 		}
 	},
 	dropRow:function(rowid){
@@ -153,7 +153,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 		}
 		this.rows = newrows;
 		if(this.rows.length == 1){
-			dijit.byId(this.rows[0]).dropButton.attr('disabled', true);
+			dijit.byId(this.rows[0]).dropButton.set('disabled', true);
 		}
 	},
 	getValue:function(){
@@ -164,7 +164,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 		return items;
 	},
 	setValue:function(list){
-		//console.log('Predicate editor set value hit');
+		////onsole.log('Predicate editor set value hit');
 		for(var i = 0; i < this.rows.length; i++){
 			try{
 				dijit.byId(this.rows[i]).destroy();
@@ -174,7 +174,7 @@ dojo.declare("PredicateEditor", [dijit._Widget, dijit._Templated], {
 			}
 		}
 		this.rows = [];
-		//console.log('adding row');
+		////onsole.log('adding row');
 		for(i = 0; i < list.length; i++){
 			this.addRow();
 			dijit.byId(this.rows[i]).setValue(list[i]);

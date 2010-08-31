@@ -41,11 +41,11 @@ CPXSupervisor.setMantisPath = function(newPath, cb){
 			if(res.success){
 				cb();
 			} else {
-				console.log("res success false", res.message);
+				console.warn("res success false", res.message);
 			}
 		},
 		error:function(err){
-			console.log("fail!", err);
+			console.warn("fail!", err);
 		}
 	});
 }
@@ -62,11 +62,11 @@ CPXSupervisor.setTransferPrompt = function(formBits, skills){
 			if(res.success){
 				//cool
 			} else {
-				console.log('setTransferPrompt failed', res.message);
+				console.warn('setTransferPrompt failed', res.message);
 			}
 		},
 		error:function(res){
-			console.log('setTransferPrompt errored', res);
+			console.warn('setTransferPrompt errored', res);
 		}
 	});
 }
@@ -113,14 +113,14 @@ dojo.xhrGet({
 	handleAs:"json",
 	load:function(res){
 		if(res.success){
-			dijit.byId('archivepath').attr('value', res.result);
+			dijit.byId('archivepath').set('value', res.result);
 		}
 		else{
-			console.log(["load fail", res.message]);
+			console.warn(["load fail", res.message]);
 		}
 	},
 	error:function(err){
-		console.log(["other fail", err]);
+		console.warn(["other fail", err]);
 	}
 });
 
@@ -129,13 +129,13 @@ dojo.xhrGet({
 	handleAs:"json",
 	load:function(res){
 		if(res.success){
-			dijit.byId('mantispath').attr('value', res.result);
+			dijit.byId('mantispath').set('value', res.result);
 		} else {
-			console.log(["load fail", res.message]);
+			console.warn(["load fail", res.message]);
 		}
 	},
 	error:function(err){
-		console.log(["other fail", err]);
+		console.warn(["other fail", err]);
 	}
 });
 
@@ -164,6 +164,6 @@ dojo.xhrGet({
 		}
 	},
 	error:function(err){
-		console.log(["other fail", err]);
+		console.warn(["other fail", err]);
 	}
 });

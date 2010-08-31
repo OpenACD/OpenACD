@@ -4,7 +4,7 @@
 	<input dojoType="dijit.form.TextBox" name="archivepath" id="archivepath" />
 	<button dojoType="dijit.form.Button" label="SAVE">
 		<script type="dojo/method" event="postCreate">
-			this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 		</script>
 		<script type="dojo/connect" event="onClick">
 			CPXSupservisor.setArchivePath(dijit.byId('archivepath').value);
@@ -31,7 +31,7 @@
 	<input dojoType="dijit.form.TextBox" name="mantisPath" id="mantispath" />
 	<button dojoType="dijit.form.Button" label="SAVE">
 		<script type="dojo/method" event="postCreate">
-			this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 		</script>
 		<script type="dojo/connect" event="onClick">
 			CPXSupservisor.setMantisPath(dijit.byId('mantispath').value);
@@ -68,11 +68,11 @@
 	<label>&nbsp;</label>
 	<button dojoType="dijit.form.Button" label="SAVE">
 		<script type="dojo/method" event="postCreate">
-			this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 		</script>
 		<script type="dojo/connect" event="onClick">
 			var sel = dojo.byId('transferPromptSkills').firstChild
-			CPXSupervisor.setTransferPrompt(dojo.toJson(dijit.byId("transferDialogForm").attr('value')), sel.getValues());
+			CPXSupervisor.setTransferPrompt(dojo.toJson(dijit.byId("transferDialogForm").get('value')), sel.getValues());
 		</script>
 	</button>
 </p>

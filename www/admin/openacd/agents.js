@@ -13,10 +13,10 @@ agents.updateModule = function(subform){
 		form:subform,
 		error:function(response, ioargs){
 			errMessage(["update module errored", response]);
-			console.log(response);
+			console.warn(response);
 		},
 		load:function(response, ioargs){
-			console.log(response);
+			//onsole.log(response);
 		}
 	});
 };
@@ -26,14 +26,14 @@ agents.getModules = function(targetform){
 		url:"agents/modules/get",
 		handleAs:"json",
 		load:function(response, ioargs){
-			targetform.attr('value', response.result);
+			targetform.set('value', response.result);
 			var kids = targetform.getDescendants();
 			for(var i = 0; i < kids.length; i++){
 				if(kids[i].id == 'agentModuleTCPListenEnabled'){
-					kids[i].attr('checked', response.result.agentModuleTCPListenEnabled);
+					kids[i].set('checked', response.result.agentModuleTCPListenEnabled);
 				}
 				if(kids[i].id == 'agentModuleWebListenEnabled'){
-					kids[i].attr('checked', response.result.agentModuleWebListenEnabled);
+					kids[i].set('checked', response.result.agentModuleWebListenEnabled);
 				}
 			}
 		}
@@ -45,11 +45,11 @@ agents.getSpiceIntegration = function(targetform){
 		url:"agents/spiceintegration/get",
 		handleAs:"json",
 		load:function(response){
-			targetform.attr('value', response.result);
+			targetform.set('value', response.result);
 			var kids = targetform.getDescendants();
 			for(var i in kids){
 				if(kids[i].id == 'spiceIntegrationEnabled'){
-					kids[i].attr('checked', response.result.spiceIntegrationEnabled);
+					kids[i].set('checked', response.result.spiceIntegrationEnabled);
 				}
 			}
 		}
@@ -63,7 +63,7 @@ agents.setSpiceIntegration = function(subform){
 		form:subform,
 		error:function(response){
 			errMessage(["setting spicecsm integration errored", response]);
-			console.log(["error setting spice integration", response]);
+			console.warn(["error setting spice integration", response]);
 		},
 		load:function(res){
 			if(! res.success){
@@ -124,7 +124,7 @@ agents.refreshTree = function(targetnode){
 };
 
 agents.updateProfile = function(submitForm, treenode){
-	var values = dijit.byId(submitForm).getValues();
+	var values = dijit.byId(submitForm).get('value');
 	values.skills = dijit.byId(submitForm).domNode.skills.getValues();
 	var xhrurl = "/agents/profiles/" + values.oldname + "/update";
 	dojo.xhrPost({
@@ -138,7 +138,7 @@ agents.updateProfile = function(submitForm, treenode){
 };
 
 agents.newProfile = function(submitForm, treenode){
-	var values = dijit.byId(submitForm).attr('value');
+	var values = dijit.byId(submitForm).get('value');
 	values.skills = dijit.byId(submitForm).domNode.skills.getValues();
 	dojo.xhrPost({
 		url:"/agents/profiles/new",
@@ -151,7 +151,7 @@ agents.newProfile = function(submitForm, treenode){
 };
 
 agents.updateAgent = function(subform, node){
-	var values = dijit.byId(subform).attr('value');
+	var values = dijit.byId(subform).get('value');
 	values.skills = dijit.byId(subform).domNode.skills.getValues();
 	agents.store.fetchItemByIdentity({
 		identity:values.profile,
@@ -159,12 +159,13 @@ agents.updateAgent = function(subform, node){
 			values.profile = agents.store.getValue(item, 'name');
 		}
 	});
+	//onsole.log(values);
 	dojo.xhrPost({
 		url:"/agents/agents/" + values.agentId + "/update",
 		handleAs:"json",
 		content:values,
 		error:function(response, ioargs){
-			console.log(response);
+			console.warn(response);
 		},
 		load:function(response, ioargs){
 			agents.refreshTree(node);
@@ -173,7 +174,7 @@ agents.updateAgent = function(subform, node){
 };
 
 agents.newAgent = function(subform, node){
-	var values = dijit.byId(subform).getValues();
+	var values = dijit.byId(subform).get('value');
 	values.skills = dijit.byId(subform).domNode.skills.getValues();
 	agents.store.fetchItemByIdentity({
 		identity:values.profile,
@@ -187,7 +188,7 @@ agents.newAgent = function(subform, node){
 		content:values,
 		error:function(response, ioargs){
 			errMessage(["New agent errored", response]);
-			console.log(response);
+			console.warn(response);
 		},
 		load:function(response, ioargs){
 			if(! response.success){

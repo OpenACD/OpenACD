@@ -152,13 +152,13 @@ skills.expandSkill = function(callback, magicskill){
 		},
 		error: function(res){
 			errMessage(["expanding skill errored", res]);
-			console.log(["expanding skill errored", res]);
+			console.warn(["expanding skill errored", res]);
 		}
 	});
 };
 
 skills.updateGroup = function(submform, node){
-	var values = dijit.byId(submform).getValues();
+	var values = dijit.byId(submform).get('value');
 	dojo.xhrPost({
 		url:"/skills/groups/" + values.oldname + "/update",
 		form:submform,
@@ -168,14 +168,14 @@ skills.updateGroup = function(submform, node){
 		},
 		error:function(response, ioargs){
 			errMessage(["skill group update errored", response]);
-			console.log(["skill group update errored", response]);
+			console.warn(["skill group update errored", response]);
 		}
 	});
 };
 
 skills.updateSkill = function(submform, node){
-	var values = dijit.byId(submform).getValues();
-	var atom = dijit.byId('skillAtom').getValue();
+	var values = dijit.byId(submform).get('value');
+	var atom = dijit.byId('skillAtom').get('value');
 	dojo.xhrPost({
 		url:"/skills/skill/" + atom + "/update",
 		form:submform,
@@ -188,13 +188,13 @@ skills.updateSkill = function(submform, node){
 		},
 		error:function(response, ioargs){
 			errMessage(["update skill errored", response]);
-			console.log(["update skill errored", response]);
+			console.warn(["update skill errored", response]);
 		}
 	});
 };
 
 skills.newSkill = function(submform, node){
-	var values = dijit.byId(submform).getValues();
+	var values = dijit.byId(submform).get('value');
 	dojo.xhrPost({
 		url:"/skills/skill/new",
 		form:submform,
@@ -204,7 +204,7 @@ skills.newSkill = function(submform, node){
 		},
 		error:function(response, ioargs){
 			errMessage(["create skill errored", response]);
-			console.log(["create skill errored", response]);
+			console.warn(["create skill errored", response]);
 		}
 	});
 };

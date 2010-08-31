@@ -151,7 +151,7 @@ agents.newProfile = function(submitForm, treenode){
 };
 
 agents.updateAgent = function(subform, node){
-	var values = dijit.byId(subform).getValues();
+	var values = dijit.byId(subform).attr('value');
 	values.skills = dijit.byId(subform).domNode.skills.getValues();
 	agents.store.fetchItemByIdentity({
 		identity:values.profile,
@@ -160,7 +160,7 @@ agents.updateAgent = function(subform, node){
 		}
 	});
 	dojo.xhrPost({
-		url:"/agents/agents/" + values.oldlogin + "/update",
+		url:"/agents/agents/" + values.agentId + "/update",
 		handleAs:"json",
 		content:values,
 		error:function(response, ioargs){

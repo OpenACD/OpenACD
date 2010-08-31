@@ -267,8 +267,7 @@ dojo.addOnLoad(function(){
 						}
 					});
 				};
-			}
-			else{
+			} else {
 				var id = agents.store.getValue(item, 'id');
 				dojo.xhrGet({
 					url:"/agents/agents/" + id + "/get",
@@ -276,7 +275,7 @@ dojo.addOnLoad(function(){
 					load:function(response, ioargs){
 						var agent = response.agent;
 						dijit.byId("agentLogin").attr("value", agent.login);
-						dojo.byId("agentId").value = agent.id;
+						dijit.byId("agentId").attr('value', agent.id);
 						//dijit.byId("agentProfile").attr("value", agent.profile);
 						dojo.byId("agentIntegrated").innerHTML = agent.integrated;
 						dijit.byId("agentSecurity").attr('value', agent.securitylevel);
@@ -301,6 +300,9 @@ dojo.addOnLoad(function(){
 						var expandSkills = ['_queue', '_brand'];
 						
 						skills.createSelect(skillCallback, selectedSkills, ['_queue', '_brand'], expandSkills);
+					},
+					error:function(res){
+						console.warn("getting agent errored", res);
 					}
 				});
 			

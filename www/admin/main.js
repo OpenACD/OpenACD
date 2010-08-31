@@ -276,7 +276,7 @@ dojo.addOnLoad(function(){
 					load:function(response, ioargs){
 						var agent = response.agent;
 						dijit.byId("agentLogin").attr("value", agent.login);
-						dojo.byId("agentOldLogin").value = agent.id;
+						dojo.byId("agentId").value = agent.id;
 						//dijit.byId("agentProfile").attr("value", agent.profile);
 						dojo.byId("agentIntegrated").innerHTML = agent.integrated;
 						dijit.byId("agentSecurity").attr('value', agent.securitylevel);

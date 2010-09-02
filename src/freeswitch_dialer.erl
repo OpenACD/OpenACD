@@ -44,11 +44,22 @@
 		start_fg/6
 	]).
 
--ifdef(TEST).
-	-include_lib("eunit/include/eunit.hrl").
--endif.
 -include("log.hrl").
 -include("call.hrl").
+-ifdef(TEST).
+	-include_lib("eunit/include/eunit.hrl").
+	-define(URL_POPS, [
+		{"test 1", "http://www.example.com"}, 
+		{"test 2", "http://subdomain.example.com"}
+	]).
+	-include("agent.hrl").
+-else.
+	-define(URL_POPS, [
+		{"test 1", "http://www.example.com"}, 
+		{"test 2", "http://subdomain.example.com"}
+	]).
+-endif.
+
 
 -record(state, {
 		cnode,
@@ -134,6 +145,7 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{cnode = Node, uuid = UU
 		"CHANNEL_BRIDGE" ->
 			%Hey, we bridged to an agent
 			agent:set_state(element(2, State#state.agent), outgoing, State#state.call),
+			url_pop(element(2, State#state.agent), []), % the 3rd parameter is the interpolatable variables.
 			{noreply, State};
 		"CHANNEL_ANSWER" when is_pid(State#state.fg_pid) ->
 			State#state.fg_pid ! {dialer_result, {ok, self()}},
@@ -230,3 +242,24 @@ reserve_agent(State) ->
 			end
 	end.
 
+url_pop(Agent, Args) ->
+	url_pop(Agent, Args, ?URL_POPS).
+
+url_pop(_Agent, _Args, []) ->
+	ok;
+url_pop(Agent, Args, [{Window, Url} | Tail]) ->
+	TrueUrl = util:string_interpolate(Url, Args),
+	agent:url_pop(Agent, TrueUrl, Window),
+	url_pop(Agent, Args, Tail).
+
+-ifdef(TEST).
+
+url_pop_test() ->
+	{ok, Aconn} = gen_server_mock:new(),
+	{ok, Apid} = agent:start(#agent{login = "agent", connection = Aconn}),
+	gen_server_mock:expect_cast(Aconn, fun({url_pop,"http://www.example.com","test 1"}, _) -> ok end),
+	gen_server_mock:expect_cast(Aconn, fun({url_pop,"http://subdomain.example.com","test 2"}, _) -> ok end),
+	url_pop(Apid, []),
+	gen_server_mock:assert_expectations(Aconn).
+	
+-endif.

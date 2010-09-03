@@ -373,7 +373,7 @@ offer_call([], _Call) ->
 	%?DEBUG("No valid agents found", []),
 	none;
 offer_call([{Login, Apid, _Time, _Skills, _Ignorable} | Tail], Call) ->
-	case gen_media:ring(Call#queued_call.media, Apid, Call, ?TICK_LENGTH * ?RINGOUT) of
+	case gen_media:ring(Call#queued_call.media, Apid, Call, element(2, cpx:get_env(default_ringout, ?TICK_LENGTH * ?RINGOUT))) of
 		ok ->
 			Callrec = gen_media:get_call(Call#queued_call.media),
 			?INFO("cook offering call:  ~p to ~p", [Callrec#call.id, Login]),

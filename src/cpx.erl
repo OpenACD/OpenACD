@@ -52,6 +52,13 @@
 -endif.
 % behavior cbs.
 -export([start/2, prep_stop/1, stop/1]).
+% some get_env and get_key nicities
+-export([
+	get_env/1,
+	get_env/2,
+	get_key/1,
+	get_key/2
+]).
 
 % helper funcs
 -export([
@@ -133,6 +140,39 @@ prep_stop(State) ->
 stop(_State) ->
 	application:unset_env(cpx, uptime),
 	ok.
+
+%% ====
+%% better getter/setters
+%% ====
+
+%% @doc The erlang application:get_env and get_key functions don't allow for
+%% a default value.  These do.
+-spec(get_env/1 :: (Key :: any()) -> {'ok', any()} | 'undefined').
+get_env(Key) ->
+	application:get_env(cpx, Key).
+
+%% @doc @see gen_env/1
+-spec(get_env/2 :: (Key :: any(), Default :: any()) -> {'ok', any()}).
+get_env(Key, Default) ->
+	case application:get_env(cpx, Key) of
+		undefined ->
+			{ok, Default};
+		Out ->
+			Out
+	end.
+
+-spec(get_key/1 :: (Key :: any()) -> {'ok', any()} | 'undefined').
+get_key(Key) ->
+	application:get_key(cpx, Key).
+
+-spec(get_key/2 :: (Key :: any(), Default :: any()) -> {'ok', any()}).
+get_key(Key, Default) ->
+	case application:get_env(cpx, Key) of
+		undefined ->
+			{ok, Default};
+		Out ->
+			Out
+	end.
 
 %% =====
 %% helper funcs

@@ -38,6 +38,7 @@
 -endif.
 -define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
 -define(COOKIE, {_Reflist, _Salt, _Login}).
+-define(DEFAULT_RINGOUT, 60).
 
 -include("log.hrl").
 -include("call.hrl").
@@ -1422,10 +1423,37 @@ api({modules, Node, "cpx_supervisor", "get", "transferprompt"}, ?COOKIE, _Post) 
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
+api({modules, Node, "cpx_supervisor", "get", "default_ringout"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Truedefault = ?DEFAULT_RINGOUT * 1000,
+	case rpc:call(Atomnode, cpx, get_env, [default_ringout]) of
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
+		{ok, Truedefault} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
+		{ok, Val} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, false}, {<<"value">>, Val / 1000}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
 api({modules, _Node, "cpx_supervisor", "update"}, ?COOKIE, Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"update what now?">>}]})};
+api({modules, Node, "cpx_supervisor", "update", "default_ringout"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Val = case proplists:get_value("value", Post) of
+		undefined ->
+			60;
+		Else ->
+			list_to_integer(Else)
+	end,
+	case rpc:call(Atomnode, application, set_env, [cpx, default_ringout, Val * 1000]) of
+		ok ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Err ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Err]))}]})}
+	end;
 api({modules, Node, "cpx_supervisor", "update", "archivepath"}, ?COOKIE, Post) ->
-	Atomnode = list_to_atom(Node),
+	Atomnode = list_to_existing_atom(Node),
 	{Func, Args} = case proplists:get_value("value", Post) of
 		"" ->
 			{drop_value, [archivepath]};

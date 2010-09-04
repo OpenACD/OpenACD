@@ -1,4 +1,7 @@
 <div id="cpx_module">
+<script type="text/javascript">
+	dojo.require("dijit.form.NumberSpinner");
+</script>
 <p>
 	<label for="archivePath" class="translatecol">ARCHIVEPATH</label>
 	<input dojoType="dijit.form.TextBox" name="archivepath" id="archivepath" />
@@ -73,6 +76,26 @@
 		<script type="dojo/connect" event="onClick">
 			var sel = dojo.byId('transferPromptSkills').firstChild
 			CPXSupervisor.setTransferPrompt(dojo.toJson(dijit.byId("transferDialogForm").get('value')), sel.getValues());
+		</script>
+	</button>
+</p>
+</form>
+<form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="setDefaultRingoutForm">
+<p class="translate">DEFAULT_RINGOUT_EXPLANATION</p>
+<p>
+	<label for="defaultRingout" class="translatecol">DEFAULT_RINGOUT</label>
+	<input dojoType="dijit.form.NumberSpinner" placeHolder="60", constraints="{min:1, max:120}" id="defaultRingout" name="value" />
+	<button dojoType="dijit.form.Button" label="SAVE">
+		<script type="dojo/method" event="postCreate">
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			var newVal = dijit.byId('defaultRingout').get('value');
+			if(newVal && newVal != ''){
+				CPXSupervisor.setDefaultRingout(newVal);
+			} else {
+				CPXSupervisor.setDefaultRingout(false);
+			}
 		</script>
 	</button>
 </p>

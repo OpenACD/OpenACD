@@ -55,8 +55,8 @@
 	-include("agent.hrl").
 -else.
 	-define(URL_POPS, [
-		{"test 1", "http://www.example.com"}, 
-		{"test 2", "http://subdomain.example.com"}
+		{"test 1", "http://subdomain.example.com?ivroption=#{ivroption}&callid=#{callid}"},
+		{"test 2", "http://subdomain2.example.com?number=#{number}&clientid=#{clientid}"}
 	]).
 -endif.
 
@@ -145,7 +145,8 @@ handle_info({call_event, {event, [UUID | Rest]}}, #state{cnode = Node, uuid = UU
 		"CHANNEL_BRIDGE" ->
 			%Hey, we bridged to an agent
 			agent:set_state(element(2, State#state.agent), outgoing, State#state.call),
-			url_pop(element(2, State#state.agent), []), % the 3rd parameter is the interpolatable variables.
+			Client = State#state.client,
+			url_pop(element(2, State#state.agent), [{"callid", State#state.uuid}, {"number", State#state.number}, {"clientid", Client#client.id}, {"ivroption", proplists:get_value("variable_ivropt", Rest, "")}]), % the 2rd parameter is the interpolatable variables.
 			{noreply, State};
 		"CHANNEL_ANSWER" when is_pid(State#state.fg_pid) ->
 			State#state.fg_pid ! {dialer_result, {ok, self()}},

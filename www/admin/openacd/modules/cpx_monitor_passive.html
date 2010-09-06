@@ -1,0 +1,170 @@
+<script type="text/javascript">
+	dojo.require("dijit.form.NumberSpinner");
+</script>
+
+<div dojoType="dijit.Dialog" title="Add Filter" id="mon_passive_add_filter_dialog">
+	<p>
+		<label class="translatecol">NAME</label>
+		<input dojoType="dijit.form.TextBox" id="mon_passive_add_filter_name" />
+	</p>
+	
+	<p>
+		<label>&nbsp;</label>
+		<button dojoType="dijit.form.Button" label="SUBMIT">
+			<script type="dojo/connect" event="onClick">
+				dijit.byId('cpx_monitor_passive_grid').store.newItem({
+					'name':dijit.byId('mon_passive_add_filter_name').getValue(),
+					'queues':'all',
+					'queue_groups':'all',
+					'agents':'all',
+					'agent_profiles':'all',
+					'clients':'all',
+					'nodes':'all',
+					'outputdir':'dynamic'
+				});
+				dijit.byId('cpx_monitor_passive_grid').store.save();
+				dijit.byId('mon_passive_add_filter_name').set('value', '');
+				dijit.byId('mon_passive_add_filter_dialog').hide();
+			</script>
+		</button>
+	</p>
+</div>
+
+<div id="cpx_module" class="wide">
+<form dojoType="dijit.form.Form" action="javascript:void(0)" id="passive_mon_form">
+	<script type="dojo/method" event="postCreate">
+		dojo.xhrGet({
+			url:"/modules/" + escape(modules.activeNode) + "/cpx_monitor_passive/get",
+			handleAs:'json',
+			load:function(res){
+				if(res.success){
+					dijit.byId('passiveEnabled').set('checked', res.enabled);
+					if(res.interval){
+						dijit.byId('passiveInterval').set('value', res.interval);
+					}
+					if(res.filters){
+						var data = res.filters;
+					}
+					else{
+						var data = {'identifier': 'name', 'items':[]};
+					}
+					var dataStore = new dojo.data.ItemFileWriteStore({
+						'data':data
+					});
+
+					var mapGrid = new dojox.grid.DataGrid({
+						store: dataStore,
+						query: {'name':'*'},
+						selectionMode:'single',
+						structure: [
+							{field: 'name', name: 'Name', width:'150px', editable: false},
+							{field: 'outputdir', name: 'Output dir', width:'150px', editable: true},
+							{field: 'queues',	name: 'Queues', width:'150px', editable: true},
+							{field: 'queue_groups', name: 'Queue Groups', width: '150px', editable: true},
+							{field: 'agents', name: 'Agents', width: '150px', editable: true},
+							{field: 'agent_profiles', name: 'Agent Profiles', width: '150px', editable: true},
+							{field: 'clients', name: 'Clients', width: '150px', editable: true},
+							{field: 'nodes', name: 'Nodes', width: '140px', editable: true}
+						]
+					}, dojo.byId('cpx_monitor_passive_grid'));
+					mapGrid.startup();
+				}
+				else{
+					console.a(["getting cpx_monitor_passive failed", res.message]);
+				}
+			},
+			error:function(res){
+				console.warn(["getting cpx_monitor_passive errored", res]);
+			}
+		});
+	</script>
+<p>
+	<label>&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" value="passiveEnabled" id="passiveEnabled" name="enabled" />
+	<span class="translate">ENABLED</span>
+</p>
+
+<p>
+	<label class="translatecol">INTERVAL</label>
+	<input dojoType="dijit.form.NumberSpinner" value="10" smallDelta="5" id="passiveInterval" name="interval" />
+</p>
+
+<p>
+	<label class="translatecol">FILTERS</label>
+	<button dojoType="dijit.form.Button" label="ADD_FILTER" >
+		<script type="dojo/connect" event="onClick">
+			dijit.byId('mon_passive_add_filter_dialog').show();
+		</script>
+	</button>
+</p>
+
+<p>
+	<div id="cpx_monitor_passive_grid" style="height:250px"></div>
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<button dojoType="dijit.form.Button" label="SUBMIT">
+		<script type="dojo/connect" event="onClick">
+
+			var vals = dijit.byId('passive_mon_form').get('value');
+			if(vals.enabled.length == 0){
+				delete vals.enabled
+			}
+			
+			vals.filters = [];
+			var store = dijit.byId('cpx_monitor_passive_grid').store;
+			var fetched = function(items){
+				for(var i = 0; i < items.length; i++){
+					var item = items[i];
+					var makeList = function(str){
+						if( (str == 'all') || (str == '') ){
+							return 'all';
+						}
+						
+						var arr = str.split(',');
+						for(var j = 0; j < arr.length; j++){
+							arr[j] = dojo.string.trim(arr[j]);
+						}
+						
+						return arr;
+					}
+					var obj = {
+						'name': store.getValue(item, 'name'),
+						'queues': makeList(store.getValue(item, 'queues')),
+						'queue_groups': makeList(store.getValue(item, 'queue_groups')),
+						'agents': makeList(store.getValue(item, 'agents')),
+						'agent_profiles': makeList(store.getValue(item, 'agent_profiles')),
+						'clients': makeList(store.getValue(item, 'clients')),
+						'nodes': makeList(store.getValue(item, 'nodes')),
+						'outputdir': store.getValue(item, 'outputdir')
+					}
+					items[i] = obj;
+				}
+				vals.filters = dojo.toJson(items);
+				dojo.xhrPost({
+					url:'/modules/' + modules.activeNode + '/cpx_monitor_passive/update',
+					handleAs:'json',
+					content: vals,
+					load: function(res){
+						if(! res.success){
+							console.warn(["updating passive cpx_mon failed", res.message]);
+						}
+					},
+					error: function(res){
+						console.warn(["updating passive cpx_mon errored", res]);
+					}
+				});
+			}
+			
+			store.fetch({
+				onComplete: fetched
+			});
+		</script>
+	</button>
+</p>
+
+
+
+</form>
+</div>

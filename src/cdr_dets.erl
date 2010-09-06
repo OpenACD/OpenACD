@@ -41,6 +41,7 @@
 -include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 %% API
 
@@ -52,7 +53,10 @@
 	rollback/1,
 	terminate/2, 
 	code_change/3,
-	load_to_mnesia/1]).
+	load_to_mnesia/1,
+	load_to_ets/1,
+	load_to_ets/2,
+	load_to_file/2]).
 
 -record(state, {
 	agent_dets_ref :: reference(),
@@ -91,6 +95,30 @@ load_loop('$end_of_table', _Detsref, Acc) ->
 load_loop(Key, Detsref, Acc) ->
 	Obj = dets:lookup(Detsref, Key),
 	load_loop(dets:next(Detsref, Key), Detsref, [Obj | Acc]).
+
+%% @doc If loading to Mnesia is not wanted, but using tv is desired, loading to
+%% ets can make a reasonable comprise.
+-spec(load_to_ets/1 :: (File :: string()) -> any()).
+load_to_ets(File) ->
+	E = ets:new(ets_cdr, [{keypos, 2}]),
+	load_to_ets(File, E).
+
+%% @doc same as above, but you provide the 
+-spec(load_to_ets/2 :: (File :: string(), Ets :: any()) -> any()).
+load_to_ets(File, Ets) ->
+	{ok, Dets} = dets:open_file(File, [{keypos, 2}]),
+	dets:to_ets(Dets, Ets),
+	Ets.
+
+%% @doc Create a semi-human readable dump file.
+-spec(load_to_file/2 :: (InFile :: string(), OutFile :: string()) -> pid()).
+load_to_file(InFile, OutFile) ->
+	spawn(fun() ->
+		{ok, Out} = file:open(OutFile, [read, write]),
+		{ok, Dets} = dets:open_file(InFile, [{keypos, 2}]),
+		qlc:e(qlc:q([io:fwrite(Out, "~p.~n", [Row]) || Row <- dets:table(Dets)])),
+		?INFO("File dump to ~s done.", [OutFile])
+	end).
 
 %%====================================================================
 %% gen_cdr callbacks

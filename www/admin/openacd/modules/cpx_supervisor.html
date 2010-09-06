@@ -1,0 +1,104 @@
+<div id="cpx_module">
+<script type="text/javascript">
+	dojo.require("dijit.form.NumberSpinner");
+</script>
+<p>
+	<label for="archivePath" class="translatecol">ARCHIVEPATH</label>
+	<input dojoType="dijit.form.TextBox" name="archivepath" id="archivepath" />
+	<button dojoType="dijit.form.Button" label="SAVE">
+		<script type="dojo/method" event="postCreate">
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			CPXSupservisor.setArchivePath(dijit.byId('archivepath').value);
+		</script>
+	</button>
+</p>
+
+<p>The archive path uses ruby-style interpoation for variables. Anything of form #{variable_name} is replaced.  A media appends the file extension to this path; this path should point to the actual file to create (not just a directory).</p>
+
+<p>The available variables are:</p>
+
+<ul>
+	<li>year - The full 4 digit year</li>
+	<li>month - 2 digit month</li>
+	<li>day - 2 digit day</li>
+	<li>callid - The full call id (<i>not</i> caller id)</li>
+	<li>calltype - email, voice, voicemail ...</li>
+	<li>calldirection - inbound or outbound</li>
+</ul>
+
+<form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="mantisConnectForm">
+<p>
+	<label for="mantisPath" class="translatecol">MANTISPATH</label>
+	<input dojoType="dijit.form.TextBox" name="mantisPath" id="mantispath" />
+	<button dojoType="dijit.form.Button" label="SAVE">
+		<script type="dojo/method" event="postCreate">
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			CPXSupservisor.setMantisPath(dijit.byId('mantispath').value);
+		</script>
+	</button>
+</p>
+</form>
+<form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="transferDialogForm">
+<p class="translate">TRANSFER_OPTIONS_EXPLAINATION</p>
+<p>
+	<label for="transferPromptOptions" class="translatecol">TRANSFER_PROMPTS</label>
+	<table id="transferPromptOptions">
+		<tr>
+			<th>Label</th>
+			<th>Name</th>
+			<th>RegEx</th>
+			<th>
+				<button dojoType="dijit.form.Button" label="+">
+					<script type="dojo/connect" event="onClick">
+						var table = dojo.byId("transferPromptOptions");
+						var newRow = table.insertRow(table.rows.length);
+						CPXSupervisor.createTransferPromptOptionsRow(newRow);
+					</script>
+				</button>
+			</th>
+		</tr>
+	</table>
+</p>
+<p>
+	<label for="transferPromptSkills" class="translatecol">TRANSFER_SKILLS</label>
+	<span id="transferPromptSkills" /> 
+</p>
+<p>
+	<label>&nbsp;</label>
+	<button dojoType="dijit.form.Button" label="SAVE">
+		<script type="dojo/method" event="postCreate">
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			var sel = dojo.byId('transferPromptSkills').firstChild
+			CPXSupervisor.setTransferPrompt(dojo.toJson(dijit.byId("transferDialogForm").get('value')), sel.getValues());
+		</script>
+	</button>
+</p>
+</form>
+<form dojoType="dijit.form.Form" action="javascript:void(0)" method="post" id="setDefaultRingoutForm">
+<p class="translate">DEFAULT_RINGOUT_EXPLANATION</p>
+<p>
+	<label for="defaultRingout" class="translatecol">DEFAULT_RINGOUT</label>
+	<input dojoType="dijit.form.NumberSpinner" placeHolder="60", constraints="{min:1, max:120}" id="defaultRingout" name="value" />
+	<button dojoType="dijit.form.Button" label="SAVE">
+		<script type="dojo/method" event="postCreate">
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			var newVal = dijit.byId('defaultRingout').get('value');
+			if(newVal && newVal != ''){
+				CPXSupervisor.setDefaultRingout(newVal);
+			} else {
+				CPXSupervisor.setDefaultRingout(false);
+			}
+		</script>
+	</button>
+</p>
+</form>
+<script type="text/javascript" src="openacd/modules/cpx_supervisor.js"></script>
+</div>

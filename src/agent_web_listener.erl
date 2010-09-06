@@ -802,7 +802,7 @@ web_connection_login_test_() ->
 				{"Trying to login before salt request",
 				fun() ->
 					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
-					Salted = crypto:rsa_public_encrypt(string:concat("123345", "badpass"), Key, rsa_pkcs1_padding),
+					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat("123345", "badpass")), Key, rsa_pkcs1_padding),
 					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
@@ -814,7 +814,7 @@ web_connection_login_test_() ->
 				{"Login with a bad pw",
 				fun() ->
 					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
-					Salted = crypto:rsa_public_encrypt(string:concat(Salt(),"badpass"), Key, rsa_pkcs1_padding),
+					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"badpass")), Key, rsa_pkcs1_padding),
 					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
@@ -826,7 +826,7 @@ web_connection_login_test_() ->
 				{"Login with bad un",
 				fun() ->
 					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
-					Salted = crypto:rsa_public_encrypt(string:concat(Salt(),"pass"), Key, rsa_pkcs1_padding),
+					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"pass")), Key, rsa_pkcs1_padding),
 					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=badun&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
@@ -839,7 +839,7 @@ web_connection_login_test_() ->
 				fun() ->
 					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
 					Salt(),
-					Salted = crypto:rsa_public_encrypt(string:concat("345678","pass"), Key, rsa_pkcs1_padding),
+					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat("345678","pass")), Key, rsa_pkcs1_padding),
 					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),
@@ -851,7 +851,7 @@ web_connection_login_test_() ->
 				{"Login properly",
 				fun() ->
 					Key = [crypto:mpint(N) || N <- get_pubkey()], % cheating a little here...
-					Salted = crypto:rsa_public_encrypt(string:concat(Salt(),"pass"), Key, rsa_pkcs1_padding),
+					Salted = crypto:rsa_public_encrypt(list_to_binary(string:concat(Salt(),"pass")), Key, rsa_pkcs1_padding),
 					{ok, {_Statusline, _Head, Body}} = http:request(post, {?url("/login"), Cookie, "application/x-www-form-urlencoded", lists:append(["username=testagent&password=", util:bin_to_hexstr(Salted), "&voipendpoint=SIP Registration"])}, [], []),
 					?CONSOLE("BODY:  ~p", [Body]),
 					{struct, Json} = mochijson2:decode(Body),

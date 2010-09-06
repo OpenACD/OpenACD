@@ -281,7 +281,7 @@ set_agent(Id, Props) ->
 		QH = qlc:q([X || X <- mnesia:table(agent_auth), X#agent_auth.id =:= Id]),
 		[Agent] = qlc:e(QH),
 		Newrec = build_agent_record(Props, Agent),
-		case qlc:e(qlc:q([Dup || #agent_auth{login = Login} = Dup <- mnesia:table(agent_auth), Login =:= Newrec#agent_auth.login])) of
+		case qlc:e(qlc:q([Dup || #agent_auth{login = Login, id = Gotid} = Dup <- mnesia:table(agent_auth), Login =:= Newrec#agent_auth.login, Id =/= Gotid])) of
 			[] ->
 				destroy(Id),
 				mnesia:write(Newrec#agent_auth{timestamp = util:now()}),
@@ -861,6 +861,13 @@ crud_test_() ->
 		{atomic, [Old]} = get_agent("target"),
 		Out = set_agent(Old#agent_auth.id, [{login, "original"}]),
 		?assertMatch({aborted, {duplicate_login, _Props}}, Out)
+	end},
+	{"no duplicat un error when doing an inline update for agent",
+	fun() ->
+		add_agent("agent", "pass", [], agent, "Default"),
+		{atomic, [Agent]} = get_agent("agent"),
+		Out = set_agent(Agent#agent_auth.id, [{password, "newpass"}]),
+		?assertEqual({atomic, ok}, Out)
 	end},
 	{"Trying to add a profile with duplicate name fails",
 	fun() ->

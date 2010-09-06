@@ -1,0 +1,121 @@
+<div id="cpx_module">
+<form dojoType="dijit.form.Form" action="javascript:void(0)" id="freeswitchMediaForm" class="wide">
+	<p>
+	<label for="mediaEnabled">&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" value="freeswitchEnabled" id="mediaEnabled" name="enabled" />
+	<span class="translate">FREESWITCHENABLED</span>
+	</p>
+
+	<p>
+	<label for="cnode" class="translatecol">CNODE</label>
+	<input dojoType="dijit.form.TextBox" name="cnode" id="cnode" />
+	</p>
+
+	<p>
+	<label for="voicegw" class="translatecol">DIALSTRING</label>
+	<input dojoType="dijit.form.TextBox" name="dialstring" id="dialstring" />
+	</p>
+
+	<div dojoType="dijit.Tooltip" connectId="dialstring" position="below">
+		This should be a valid FreeSWITCH &trade; dialstring.
+		Examples can be found at <a href="http://wiki.freeswitch.org/wiki/Freeswitch_IVR_Originate">the FreeSWITCH&trade; wiki</a>.
+		$1 is replaced by the number to be dialed, you probably want to ignore early media.<br/>
+		Some simple examples:
+		<ul>
+			<li>Dial by gateway: <tt>{ignore_early_media=true}sofia/gateway/example.com/$1</tt></li>
+			<li>Dial by profile <tt>{ignore_early_media=true}sofia/mydomain.com/$1</tt></li>
+			<li>Forked dial: <tt>{ignore_early_media=true}sofia/gateway/example.com/$1,sofia/gateway/otherexample.com/$1</tt></li>
+			<li>Failover dial: <tt>{ignore_early_media=true}sofia/gateway/example.com/$1|sofia/gateway/otherexample.com/$1</tt></li>
+			<li>OpenZap dial: <tt>{ignore_early_media}openzap/1/a/$1</tt></li>
+		</ul>
+		Please read the relevant documentation to determine what your dial string should be. This dialstring is used whenever an 'external' number has to be called - outbound calls, warm transfers, agents on a PSTN line, etc.
+	</div>
+
+	<p>
+	<label>&nbsp;</label>
+	<span class="translate" style="font-weight:bold">AGENT_ENDPOINTS</span>
+	</p>
+	
+	<p>
+	<label for="sipEndpoint" class="translatecol">SIP_ENDPOINT</label>
+	<input dojoType="dijit.form.TextBox" name="sipEndpoint" id="sipEndpoint" placeHolder="sofia/internal/sip:$1" />
+	</p>
+	
+	<p>
+	<label for="iax2Endpoint" class="translatecol">IAX2_ENDPOINT</label>
+	<input dojoType="dijit.form.TextBox" name="iax2Endpoint" id="iax2Endpoint" placeHolder="iax2/$1" />
+	</p>
+	
+	<p>
+	<label for="h323Endpoint" class="translatecol">H323_ENDPOINT</label>
+	<input dojoType="dijit.form.TextBox" name="h323Endpoint" id="h323Endpoint" placeHolder="opal/h3232:$1" />
+	</p>
+
+	<p>
+	<label for="sipauth">&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" value="sipauth" id="sipauth" name="sipauth" />
+	<span class="translate">SIPAUTH</span>
+	</p>
+
+	
+	<p>
+	<label for="mediaSubmit">&nbsp;</label>
+	<button dojoType="dijit.form.Button" label="SUBMIT" id="mediaSubmit">
+		<script type="dojo/method" event="postCreate">
+			dojo.query('.translate', 'freeswitchMediaForm').forEach(function(node){
+				node.innerHTML = dojo.i18n.getLocalization('admin', 'freeswitch_media_manager')[node.innerHTML];
+			});
+			dojo.query('.translatecol', 'freeswitchMediaForm').forEach(function(node){
+				node.innerHTML = dojo.i18n.getLocalization('admin', 'freeswitch_media_manager')[node.innerHTML] + ':';
+			});
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+		</script>
+		<script type="dojo/connect" event="onClick">
+			var contentObj = dijit.byId('freeswitchMediaForm').get('value');
+			if(dijit.byId('mediaEnabled').get('checked')){
+				contentObj.enabled = true;
+			}
+			dojo.xhrPost({
+				url:"modules/" + modules.activeNode + "/freeswitch_media_manager/update",
+				handleAs:"json",
+				content:contentObj,
+				load:function(resp, ioargs){
+					if(resp.success){
+						return;
+					}
+					else{
+						errMessage(["Setting media failed", resp.message]);
+						console.warn(resp.message);
+					}
+				},
+				error:function(res){
+					errMessage(["Setting media errored", res]);
+					console.warn(["Setting media errored", res]);
+				}
+			});
+
+
+
+
+		</script>
+	</button>
+</form>
+<script type="text/javascript">
+	dojo.xhrGet({
+		url:"modules/" + modules.activeNode + "/freeswitch_media_manager/get",
+		handleAs:"json",
+		load:function(resp, ioargs){
+			if(resp.success){
+				dijit.byId("freeswitchMediaForm").set('value', resp);
+				dijit.byId("mediaEnabled").set('value', resp.enabled);
+			}
+			else{
+				console.warn(resp.message);
+			}
+		},
+		error:function(resp){
+			console.warn(["error get media", node, medias.store.getValue(item, 'name'), resp]);
+		}
+	});
+</script>
+</div>

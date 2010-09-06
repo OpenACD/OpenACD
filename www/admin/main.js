@@ -3,7 +3,7 @@ currenttab = undefined;
 
 function switchtab(tab) {
 	if (currenttab != tab){
-		console.log("switched tab to "+tab);
+		//onsole.log("switched tab to "+tab);
 	}
 	currenttab = tab;
 }
@@ -31,7 +31,7 @@ function timeSince(timestamp){
 }
 
 function errMessage(message){
-	dijit.byId('errorDialog').attr('content', message.toString());
+	dijit.byId('errorDialog').set('content', message.toString());
 	dijit.byId('errorDialog').show();
 }
 
@@ -63,7 +63,7 @@ dojo.addOnLoad(function(){
 
 	var logoutdiv = dojo.byId('logoutButtonDiv');
 	dojo.place(logoutdiv, dojo.byId('main_tablist'), 'first');
-	//dojo.attr(logoutdiv, 'class', 'rightFloater')
+	//dojo.set(logoutdiv, 'class', 'rightFloater')
 	
 	var agentsSkillRefreshHandle = dojo.subscribe("skills/init", function(data){
 		var skillsCallback = function(selectNode){
@@ -79,39 +79,48 @@ dojo.addOnLoad(function(){
 
 	var skillsTreeRefreshHandle = dojo.subscribe("skills/tree/refreshed", function(data){
 		dijit.byId('skillGroup').store = skills.store;
+		dojo.connect(skills.tree, 'onOpen', function(){
+			dijit.byId('skillsTab').layout();
+		});
 		dojo.connect(skills.tree, "onClick", function(item){
 			if(skills.store.getValue(item, 'type') == "skill"){
 				dijit.byId('skillsMain').selectChild('skillEditor');
-				dijit.byId('editSkill').attr('value', item);
+				dijit.byId('editSkill').set('value', item);
 				var descendants = dijit.byId('editSkill').getDescendants();
 				for(var i =0; i < descendants.length; i++){
 					try{
-						 descendants[i].attr('disabled', skills.store.getValue(item, 'protected'));
+						 descendants[i].set('disabled', skills.store.getValue(item, 'protected'));
 					}
 					catch(err){
 						//ditching it sinse this will ususally be "this is a funciton" error
 						//Prolly should test that first instead of shoving it to a try/catch.
 					}
 				}	
-				dijit.byId('skillAtom').attr('disabled', true);	
+				dijit.byId('skillAtom').set('disabled', true);	
+				dijit.byId('skillSubmit').onClick = function(){
+					skills.updateSkill('editSkill', 'skillsList');
+				}
 			}
 			else{
 				dijit.byId('skillsMain').selectChild('skillGroupEditor');
-				dijit.byId('editSkillGroupForm').attr('value', item);
-				dijit.byId('skillGroupOldName').attr('value', item.name[0]);
-				dijit.byId('skillGroupName').attr('disabled', item.name[0] == "Magic");
+				dijit.byId('editSkillGroupForm').set('value', item);
+				dijit.byId('skillGroupOldName').set('value', item.name[0]);
+				dijit.byId('skillGroupName').set('disabled', item.name[0] == "Magic");
 			}
 		});
 	});
 
 	var queueTreeRefreshHandle = dojo.subscribe("queues/tree/refreshed", function(data){
 		dijit.byId('queueGroup').store = queues.store;
+		dojo.connect(queues.tree, 'onOpen', function(){
+			dijit.byId('queuesTab').layout();
+		});
 		dojo.connect(queues.tree, "onClick", function(item){
 			if(queues.tree.store.getValue(item, 'type') == "queue"){
 				dijit.byId("queuesMain").selectChild('queueEditor');
-				dijit.byId('queueName').attr('value', queues.tree.store.getValue(item, 'name'));
-				dijit.byId('queueOldName').attr('value', queues.tree.store.getValue(item, 'name'));
-				dijit.byId('queueGroup').attr('displayedValue', queues.tree.store.getValue(item, 'group'));
+				dijit.byId('queueName').set('value', queues.tree.store.getValue(item, 'name'));
+				dijit.byId('queueOldName').set('value', queues.tree.store.getValue(item, 'name'));
+				dijit.byId('queueGroup').set('displayedValue', queues.tree.store.getValue(item, 'group'));
 				
 				var skillsSelected = queues.tree.store.getValues(item, 'skills');
 				
@@ -125,7 +134,7 @@ dojo.addOnLoad(function(){
 				for(var i = 0; i < options.length; i++){
 					options[i].selected = inArray(options[i].value, skills);
 				}*/
-				dijit.byId('queueWeight').attr('value', queues.tree.store.getValue(item, 'weight'));
+				dijit.byId('queueWeight').set('value', queues.tree.store.getValue(item, 'weight'));
 				var recipe = queues.tree.store.getValue(item, 'recipe') ? queues.tree.store.getValue(item, 'recipe') : [];
 				dijit.byId('queueRecipe').setValue(recipe);
 				
@@ -149,12 +158,12 @@ dojo.addOnLoad(function(){
 			}
 			else{
 				dijit.byId("queuesMain").selectChild('queueGroupEditor');
-				dijit.byId("queueGroupOldName").attr('value', queues.tree.store.getValue(item, 'name'));
-				dijit.byId("queueGroupName").attr('value', queues.tree.store.getValue(item, 'name'));
-				dijit.byId("queueGroupSort").attr('value', queues.tree.store.getValue(item, 'sort'));
+				dijit.byId("queueGroupOldName").set('value', queues.tree.store.getValue(item, 'name'));
+				dijit.byId("queueGroupName").set('value', queues.tree.store.getValue(item, 'name'));
+				dijit.byId("queueGroupSort").set('value', queues.tree.store.getValue(item, 'sort'));
 				//var rec = queues.fromStoreToObj(item.recipe);
 				dijit.byId("queueGroupRecipe").setValue(queues.tree.store.getValue(item, 'recipe'));
-				dijit.byId("queueGroupName").attr('disabled', queues.tree.store.getValue(item, 'protected'));
+				dijit.byId("queueGroupName").set('disabled', queues.tree.store.getValue(item, 'protected'));
 				dijit.byId("queueGroupSubmit").onClick = function(){
 					queues.setGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
 				};
@@ -165,13 +174,13 @@ dojo.addOnLoad(function(){
 		});
 	});
 
-	var mediaTreeRefreshHandle = dojo.subscribe("medias/tree/refreshed", function(data){
-		dojo.connect(medias.tree, "onClick", function(item){
-			medias.activeNode = medias.store.getValue(item, 'node');
-			var node = medias.store.getValue(item, 'node');
-			dijit.byId("mediaConf").onDownloadEnd = function(){
+	var moduleTreeRefreshHandle = dojo.subscribe("modules/tree/refreshed", function(data){
+		dojo.connect(modules.tree, "onClick", function(item){
+			modules.activeNode = modules.store.getValue(item, 'node');
+			var node = modules.store.getValue(item, 'node');
+			/*dijit.byId("mediaConf").onDownloadEnd = function(){
 				dijit.byId("mediaSubmit").onClick = function(){
-					medias.setMedia(node, medias.store.getValue(item, 'name'), dijit.byId("mediaForm").attr('value'), 'mediaList');
+					medias.setMedia(node, medias.store.getValue(item, 'name'), dijit.byId("mediaForm").get('value'), 'mediaList');
 				};
 				dojo.publish("media/node/changed", [node]);
 				dojo.xhrGet({
@@ -179,44 +188,50 @@ dojo.addOnLoad(function(){
 					handleAs:"json",
 					load:function(resp, ioargs){
 						if(resp.success){
-							dijit.byId("mediaForm").attr('value', resp);
-							dijit.byId("mediaEnabled").attr('value', resp.enabled);
+							dijit.byId("mediaForm").set('value', resp);
+							dijit.byId("mediaEnabled").set('value', resp.enabled);
 						}
 						else{
-							console.log(resp.message);
+							//onsole.log(resp.message);
 						}
 					},
 					error:function(resp){
-						console.log(["error get media", node, medias.store.getValue(item, 'name'), resp]);
+						console.warn(["error get media", node, medias.store.getValue(item, 'name'), resp]);
 					}
 				});
-			};
+			};*/
 		
 			if(item.type[0] == "conf"){
-				dojo.requireLocalization("admin", medias.store.getValue(item, 'mediatype'));
-				dijit.byId("mediaConf").attr('href', "openacd/medias/" + medias.store.getValue(item, 'mediatype') + ".html");
+				dojo.requireLocalization("admin", modules.store.getValue(item, 'name'));
+				dijit.byId("moduleConf").set('href', "openacd/modules/" + modules.store.getValue(item, 'name') + ".html");
 			}
-			dijit.byId("mediaMain").selectChild("mediaConf");
+			dijit.byId("moduleMain").selectChild("moduleConf");
+		});
+		dojo.connect(modules.tree, 'onOpen', function(item, node){
+			dijit.byId('moduleTab').layout();
 		});
 	});
 
 	var agentsTreeRefreshHandle = dojo.subscribe("agents/tree/refreshed", function(data){
 		dijit.byId('agentProfile').store = agents.store;
+		dojo.connect(agents.tree, 'onOpen', function(){
+			dijit.byId('agentsTab').layout();
+		});
 		dojo.connect(agents.tree, "onClick", function(item){
 			if(agents.store.getValue(item, 'type') == "profile"){
 				dijit.byId("agentProfileSubmit").onClick = function(){
 					agents.updateProfile('editAgentProfileForm', 'agentsList');
 				};
 				dojo.byId("agentProfileOldName").value = agents.store.getValue(item, 'name');
-				dijit.byId("agentProfileName").attr("value", agents.store.getValue(item, 'name'));
-				dijit.byId("agentProfileId").attr("value", agents.store.getValue(item, 'id'));
-				dijit.byId('agentProfileId').attr('disabled', true);
-				dijit.byId("agentProfileOrder").attr("value", agents.store.getValue(item, 'order'));
+				dijit.byId("agentProfileName").set("value", agents.store.getValue(item, 'name'));
+				dijit.byId("agentProfileId").set("value", agents.store.getValue(item, 'id'));
+				dijit.byId('agentProfileId').set('disabled', true);
+				dijit.byId("agentProfileOrder").set("value", agents.store.getValue(item, 'order'));
 				if(agents.store.getValue(item, 'name') == "Default"){
-					dijit.byId("agentProfileName").attr('disabled', true);
+					dijit.byId("agentProfileName").set('disabled', true);
 				}
 				else{
-					dijit.byId("agentProfileName").attr('disabled', false);
+					dijit.byId("agentProfileName").set('disabled', false);
 				}
 				dijit.byId('agentsMain').selectChild('agentProfileEditor');
 				
@@ -247,7 +262,7 @@ dojo.addOnLoad(function(){
 						handleAs:"json",
 						load:function(response, ioargs){
 							if( ! response.success){
-								console.log(response.message);
+								console.warn(response.message);
 							}
 							else{
 								agents.refreshTree('agentsList');
@@ -255,24 +270,23 @@ dojo.addOnLoad(function(){
 						}
 					});
 				};
-			}
-			else{
+			} else {
 				var id = agents.store.getValue(item, 'id');
 				dojo.xhrGet({
 					url:"/agents/agents/" + id + "/get",
 					handleAs:"json",
 					load:function(response, ioargs){
 						var agent = response.agent;
-						dijit.byId("agentLogin").attr("value", agent.login);
-						dojo.byId("agentOldLogin").value = agent.id;
-						//dijit.byId("agentProfile").attr("value", agent.profile);
+						dijit.byId("agentLogin").set("value", agent.login);
+						dijit.byId("agentId").set('value', agent.id);
+						//dijit.byId("agentProfile").set("value", agent.profile);
 						dojo.byId("agentIntegrated").innerHTML = agent.integrated;
-						dijit.byId("agentSecurity").attr('value', agent.securitylevel);
-						dijit.byId("agentProfile").attr('displayedValue', agent.profile);
-						dijit.byId("agentPassword").attr('value', "");
-						dijit.byId("agentConfirm").attr('value', "");
-						dijit.byId("agentLastName").attr('value', agent.lastname);
-						dijit.byId("agentFirstName").attr('value', agent.firstname);
+						dijit.byId("agentSecurity").set('value', agent.securitylevel);
+						dijit.byId("agentProfile").set('displayedValue', agent.profile);
+						dijit.byId("agentPassword").set('value', "");
+						dijit.byId("agentConfirm").set('value', "");
+						dijit.byId("agentLastName").set('value', agent.lastname);
+						dijit.byId("agentFirstName").set('value', agent.firstname);
 						var skillCallback = function(selectNode){
 							selectNode.name = 'skills';
 							dojo.place(selectNode, dojo.byId('agentSkills'), 'only');
@@ -289,6 +303,9 @@ dojo.addOnLoad(function(){
 						var expandSkills = ['_queue', '_brand'];
 						
 						skills.createSelect(skillCallback, selectedSkills, ['_queue', '_brand'], expandSkills);
+					},
+					error:function(res){
+						console.warn("getting agent errored", res);
 					}
 				});
 			
@@ -303,7 +320,7 @@ dojo.addOnLoad(function(){
 								agents.refreshTree('agentsList');
 							}
 							else{
-								console.log(response.message);
+								console.warn(response.message);
 							}
 						}
 					});
@@ -324,7 +341,7 @@ dojo.addOnLoad(function(){
 					handleAs:"json",
 					error:function(response, ioargs){
 						dojo.byId("loginerrp").style.display = "block";
-						console.log(response);
+						console.warn(response);
 						if (response.status){
 							dojo.byId("loginerrspan").innerHTML = response.responseText;
 						}
@@ -336,7 +353,7 @@ dojo.addOnLoad(function(){
 						var salt = response.salt;
 						var e = response.pubkey.E;
 						var n = response.pubkey.N;
-						var attrs = loginform.attr("value");
+						var attrs = loginform.get("value");
 						var values = attrs;
 						var rsa = new RSAKey();
 						rsa.setPublic(n, e);
@@ -358,8 +375,8 @@ dojo.addOnLoad(function(){
 									agents.getSpiceIntegration(dijit.byId('editSpicecsmIntegration'));
 									queues.init();
 									queues.refreshTree('queuesList');
-									medias.init();
-									medias.refreshTree('mediaList');
+									modules.init();
+									modules.refreshTree('moduleList');
 									clients.init();
 									releaseOpts.init();
 									dojo.byId("loginerrspan").innerHTML = '';
@@ -383,8 +400,8 @@ dojo.addOnLoad(function(){
 			url:"/checkcookie",
 			handleAs:"json",
 			error:function(response, ioargs){
-				console.log("checkcookie failed!");
-				console.log(response);
+				console.warn("checkcookie failed!");
+				//onsole.log(response);
 			},
 			load:function(response, ioargs){
 				if(response.success){
@@ -398,8 +415,8 @@ dojo.addOnLoad(function(){
 					agents.getSpiceIntegration(dijit.byId('editSpicecsmIntegration'));
 					queues.init();
 					queues.refreshTree('queuesList');
-					medias.init();
-					medias.refreshTree('mediaList');
+					modules.init();
+					modules.refreshTree('moduleList');
 					clients.init();
 					releaseOpts.init();
 					//skills.skillSelection(dijit.byId('agentNewProfileSkills').domNode);

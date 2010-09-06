@@ -38,6 +38,7 @@
 -endif.
 -define(WEB_DEFAULTS, [{name, ?MODULE}, {port, ?PORT}]).
 -define(COOKIE, {_Reflist, _Salt, _Login}).
+-define(DEFAULT_RINGOUT, 60).
 
 -include("log.hrl").
 -include("call.hrl").
@@ -51,7 +52,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([start_link/0, start_link/1, start/0, start/1, stop/0, loop/1]).
+-export([start_link/0, start_link/1, start/0, start/1, stop/0, loop/2]).
 
 -export([
 	encode_skill/1,
@@ -70,10 +71,17 @@
 %% @doc Start the web management server unlinked to the parent process.
 -spec(start/0 :: () -> {'ok', pid()}).
 start() ->
-	start(?PORT).
+	start([]).
 
 -spec(start/1 :: (Port :: pos_integer()) -> {'ok', pid()}).
-start(Port) ->
+start(Port) when is_integer(Port), Port > 1023 ->
+	start([{port, Port}]);
+start(Opts) ->
+	Port = proplists:get_value(port, Opts, ?PORT),
+	ProtoAuths = proplists:get_value(http_basic_peers, Opts, []),
+	Midopts = proplists:delete(http_basic_peers, Opts),
+	Auths = [base64:encode_to_string(User ++ ":" ++ Pass) || {User, Pass} <- ProtoAuths ],
+	NewOpts = [{http_basic_peers, Auths} | Midopts],
 	?DEBUG("Starting mochiweb...", []),
 	case ets:info(cpx_management_logins) of
 		undefined ->
@@ -82,15 +90,20 @@ start(Port) ->
 			?DEBUG("looks like the table exists already", []),
 			ok
 	end,
-	mochiweb_http:start([{loop, {?MODULE, loop}}, {name, ?MODULE}, {port, Port}]).
+	F = fun(Req) ->
+		?MODULE:loop(Req, NewOpts)
+	end,
+	mochiweb_http:start([{loop, F}, {name, ?MODULE}, {port, Port}]).
 
 -spec(start_link/0 :: () -> {'ok', pid()}).
 start_link() ->
-	start_link(?PORT).
+	start_link([]).
 
 -spec(start_link/1 :: (Port :: pos_integer()) -> {'ok', pid()}).
-start_link(Port) ->
-	{ok, Pid} = Out = start(Port),
+start_link(Port) when is_integer(Port), Port > 1023 ->
+	start_link([{port, Port}]);
+start_link(Opts) ->
+	{ok, Pid} = Out = start(Opts),
 	link(Pid),
 	Out.
 
@@ -100,8 +113,8 @@ stop() ->
 	ets:delete(cpx_management_logins),
 	mochiweb_http:stop(?MODULE).
 
--spec(loop/1 :: (Req :: atom()) -> any()).
-loop(Req) ->
+-spec(loop/2 :: (Req :: atom(), Opts :: [any()]) -> any()).
+loop(Req, Opts) ->
 	Path = Req:get(path),
 	Post = Req:parse_post(),
 	case parse_path(Path) of
@@ -126,8 +139,125 @@ loop(Req) ->
 			end;
 		{api, Api} ->
 			Out = api(Api, check_cookie(Req:parse_cookie()), Post),
-			Req:respond(Out)
+			Req:respond(Out);
+		api ->
+			Peercheck = api_check_peer(Req:get(peer), proplists:get_value(ip_peers, Opts, [])),
+			Httpauthcheck = api_check_http_auth(Req:get_header_value("Authorization"), proplists:get_value(http_basic_peers, Opts, [])),
+			case {Peercheck, Httpauthcheck} of
+				{deny, deny} ->
+					Req:respond({401, [{"WWW-Authenticate", "basic realm=cpx_api"}], "unauthorized access"});
+				_ -> % if either says okay, we're good
+					Out = try json_api(proplists:get_value("request", Post)) of
+						O ->
+							O
+					catch
+						error:badarg ->
+							{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"No such module or function">>}, {<<"errcode">>, <<"MODULE_FUNCTION_NOEXISTS">>}]})}
+					end,
+					Req:respond(Out)
+			end
 	end.
+
+api_check_peer(_Ip, []) ->
+	deny;
+api_check_peer(Ip, AllowedIPs) ->
+	case lists:member(Ip, AllowedIPs) of
+		false ->
+			deny;
+		true ->
+			allowed
+	end.
+
+api_check_http_auth("Basic " ++ Authval, Auths) ->
+	case lists:member(Authval, Auths) of
+		false ->
+			deny;
+		true ->
+			allow
+	end;
+api_check_http_auth(_, _) ->
+	deny.
+
+json_api({struct, Props}) ->
+	ProtoModule = proplists:get_value(<<"module">>, Props),
+	ProtoFunction = proplists:get_value(<<"function">>, Props),
+	ProtoArgs = proplists:get_value(<<"args">>, Props),
+	Module = list_to_existing_atom(binary_to_list(ProtoModule)),
+	Function = list_to_existing_atom(binary_to_list(ProtoFunction)),
+	?DEBUG("json_api handling ~p:~p(~p)", [Module, Function, ProtoArgs]),
+	json_api(Module, Function, ProtoArgs);
+json_api(undefined) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no request made">>}, {<<"errcode">>, <<"NO_REQUEST">>}]})};
+json_api(Props) ->
+	json_api(mochijson2:decode(Props)).
+
+json_api(cpx, kick_agent, Agent) ->
+	Json = case cpx:kick_agent(binary_to_list(Agent)) of
+		none ->
+			{struct, [{success, false}, {<<"message">>, <<"no such agent">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]};
+		ok ->
+			{struct, [{success, true}]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+json_api(agent_manager, list, _) ->
+	EncodeSkill = fun
+		({Key, Val}) when is_list(Val) ->
+			{struct, [
+				{atom, Key},
+				{value, list_to_binary(Val)}
+			]};
+		({Key, Val}) ->
+			{struct, [
+				{atom, Key},
+				{value, Val}
+			]};
+		(Key) ->
+			{struct, [{atom, Key}]}
+	end,
+	RawList = agent_manager:list(),
+	JsonList = [{struct, [
+		{<<"login">>, list_to_binary(Agent)},
+		{<<"id">>, list_to_binary(Id)},
+		{<<"pid">>, list_to_binary(pid_to_list(Apid))},
+		{<<"wentAvailable">>, TimeAvail},
+		{<<"skills">>, lists:map(EncodeSkill, Skills)}
+	]} || {Agent, {Apid, Id, TimeAvail, Skills}} <- RawList],
+	{200, [], mochijson2:encode({struct, [{success, true}, {<<"agents">>, JsonList}]})};
+json_api(freeswitch_dialer, start_fg, {struct, Args}) ->
+	Node = list_to_binary(proplists:get_value("node", Args, "")),
+	Number = list_to_binary(proplists:get_value("number", Args, "")),
+	Exten = list_to_binary(proplists:get_value("exten", Args, "")),
+	Skills = proplists:get_value("skills", Args, []),
+	Client = list_to_binary(proplists:get_value("client", Args, "")),
+	Vars = proplists:get_value("vars", Args, {struct, []}),
+	json_api(freeswitch_dialer, start_fg, [Node, Number, Exten, Skills, Client, Vars]);
+json_api(freeswitch_dialer, start_fg, [Node, Number, Exten, Skills, Client, {struct, Vars}]) ->
+	try list_to_existing_atom(binary_to_list(Node)) of
+		AtomNode ->
+			Fixskill = fun({struct, Props}) ->
+				case proplists:get_value(value, Props) of
+					undefined ->
+						proplists:get_value(atom, Props);
+					Val when is_binary ->
+						{proplists:get_value(atom, Props), binary_to_list(Val)};
+					Val ->
+						{proplists:get_value(atom, Props), Val}
+				end
+			end,
+			FixedSkills = [Fixskill(Skill) || Skill <- Skills],
+			FixedVars = [{binary_to_list(Key), binary_to_list(Val)} || {Key, Val} <- Vars],
+			case freeswitch_dialer:start_fg(AtomNode, binary_to_list(Number), binary_to_list(Exten), FixedSkills, binary_to_list(Client), FixedVars) of
+				{ok, _Pid} ->
+					{200, [], mochijson2:encode({struct, [{success, true}]})};
+				_ ->
+					{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"could not start dialer">>}, {<<"errcode">>, <<"DIALER_ERR">>}]})}
+			end
+	catch
+		error:badarg ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such node">>}, {<<"errcode">>, <<"NODE_NOEXISTS">>}]})}
+	end;
+json_api(_, _, _) ->
+	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"module/function not available to json api">>}, {<<"errcode">>, <<"DISALLOWED">>}]})}.
 
 determine_language([]) ->
 	"";
@@ -146,7 +276,7 @@ determine_language([Head | Tail]) ->
 					determine_language(Tail)
 			end
 	end.
-
+	
 %% =====
 %% General requests
 %% =====
@@ -161,6 +291,30 @@ api(checkcookie, Cookie, _Post) ->
 			{200, [], mochijson2:encode({struct, [{<<"success">>, false}]})};
 		{_Reflist, _Salt, Login} ->
 			{200, [], mochijson2:encode({struct, [{<<"success">>, true}, {<<"login">>, list_to_binary(Login)}]})}
+	end;
+api(dialer, _, Post) ->
+	Client = proplists:get_value("client", Post),
+	Exten = proplists:get_value("exten", Post),
+	NodeString = proplists:get_value("node", Post),
+	Number = proplists:get_value("number", Post),
+	SkillStrings = util:string_split(proplists:get_value("skills", Post, ""), ","),
+	Vars = util:string_split(proplists:get_value("vars", Post, ""), ","),
+
+	try
+		Node = list_to_existing_atom(NodeString),
+		Skills = [list_to_existing_atom(Skill) || Skill <- SkillStrings],
+		?DEBUG("starting dialer", []),
+		case freeswitch_dialer:start_fg(Node, Number, Exten, Skills, Client, Vars) of
+			{ok, Pid} ->
+				{200, [], mochijson2:encode({struct, [{success, true}, {message, <<"call started">>}]})};
+			{error, Reason} ->
+				{500, [], mochijson2:encode({struct, [{success, false}, {message, Reason}]})}
+		end
+	of
+		Res -> Res
+	catch
+		_:_ ->
+			{500, [], mochijson2:encode({struct, [{success, false}, {message, bad_params}]})}
 	end;
 api(_Apirequest, badcookie, _Post) ->
 	Reflist = erlang:ref_to_list(make_ref()),
@@ -384,10 +538,10 @@ api({agents, "profiles", "get"}, ?COOKIE, _Post) ->
 	Foreachprofile = fun(#agent_profile{name = Pname, skills = Pskills} = P) ->
 		Agents = agent_auth:get_agents(Pname),
 		{struct, [
-			{<<"name">>, list_to_binary(Pname)}, 
+			{<<"name">>, case Pname of undefined -> undefined; _ -> list_to_binary(Pname) end}, 
 			{<<"type">>, <<"profile">>},
 			{<<"order">>, P#agent_profile.order},
-			{<<"id">>, list_to_binary(P#agent_profile.id)},
+			{<<"id">>, case P#agent_profile.id of undefined -> undefined; _ -> list_to_binary(P#agent_profile.id) end},
 			{<<"skills">>, encode_skills(Pskills)}, 
 			{<<"agents">>, encode_agents(Agents)}]}
 	end,
@@ -454,7 +608,7 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 	Fixedskills = parse_posted_skills(Postedskills),
 	?DEBUG("~p", [Fixedskills]),
 	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
-	case proplists:get_value("password", Post) of
+	Out = case proplists:get_value("password", Post) of
 		"" ->
 			?DEBUG("Not updating password.", []),
 			agent_auth:set_agent(Agent, [
@@ -477,7 +631,15 @@ api({agents, "agents", Agent, "update"}, ?COOKIE, Post) ->
 				{firstname, proplists:get_value("firstname", Post)}
 			])
 	end,
-	{200, [], mochijson2:encode({struct, [{success, true}]})};
+	case Out of
+		{atomic, ok} ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		{aborted, {duplicate_login, _}} ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"login name already exists">>}]})};
+		{aborted, Err} ->
+			?ERROR("Updating agent ~s got ~p", [Agent, Err]),
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"could not update agent">>}]})}
+	end;
 api({agents, "agents", "new"}, ?COOKIE, Post) ->
 	Confirmpw = proplists:get_value("confirm", Post, {"notfilledin"}),
 	case proplists:get_value("password", Post) of
@@ -743,9 +905,9 @@ api({queues, "queue", "new"}, ?COOKIE = Cookie, Post) ->
 	api({queues, "queue", Name, "update"}, Cookie, Post);
 	
 %% =====
-%% media -> *
+%% modules -> *
 %% =====
-api({medias, "poll"}, ?COOKIE, _Post) ->
+api({modules, "poll"}, ?COOKIE, _Post) ->
 	{ok, Appnodes} = application:get_env(cpx, nodes),
 	Nodes = lists:filter(fun(N) -> lists:member(N, Appnodes) end, [node() | nodes()]),
 	F = fun(Node) ->
@@ -756,18 +918,110 @@ api({medias, "poll"}, ?COOKIE, _Post) ->
 			{email_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [email_media_manager], 2000)},
 			{freeswitch_media_manager, rpc:call(Node, cpx_supervisor, get_conf, [freeswitch_media_manager], 2000)},
 			{gen_cdr_dumper, rpc:call(Node, cpx_supervisor, get_conf, [gen_cdr_dumper], 2000)},
-			{cpx_monitor_kgb_eventlog, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog], 200)}
+			{cpx_monitor_kgb_eventlog, rpc:call(Node, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog], 2000)},
+			{cpx_web_management, rpc:call(Node, cpx_supervisor, get_conf, [cpx_web_management], 2000)}
 		]}
 	end,
 	Rpcs = lists:map(F, Nodes),
-	Json = encode_medias(Rpcs, []),
+	Json = encode_modules(Rpcs, []),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"identifier">>, <<"id">>}, {<<"label">>, <<"name">>}, {<<"items">>, Json}]})};
 
 %% =====
 %% media -> node -> media
 %% =====
 
-api({medias, Node, "cpx_monitor_kgb_eventlog", "get"}, ?COOKIE, _Post) ->
+api({modules, Node, "cpx_web_management", "get"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_web_management]) of
+		undefined ->
+			{struct, [
+				{success, true},
+				{<<"enabled">>, false},
+				{<<"port">>, ?PORT},
+				{<<"ip_peers">>, []},
+				{<<"http_basic_peers">>, []}
+			]};
+		#cpx_conf{start_args = []} ->
+			{struct, [
+				{success, true},
+				{<<"enabled">>, true},
+				{<<"port">>, ?PORT},
+				{<<"ip_peers">>, []},
+				{<<"http_basic_peers">>, []}
+			]};
+		#cpx_conf{start_args = [Port]} when is_integer(Port) ->
+			{struct, [
+				{success, true},
+				{<<"enabled">>, true},
+				{<<"port">>, Port},
+				{<<"ip_peers">>, []},
+				{<<"http_basic_peers">>, []}
+			]};
+		#cpx_conf{start_args = [Args]} ->
+			Ippeers = [list_to_binary(Ip) || Ip <- proplists:get_value(ip_peers, Args, [])],
+			Httppeers = [{struct, [
+				{<<"username">>, list_to_binary(Username)},
+				{<<"password">>, list_to_binary(Password)}
+			]} || {Username, Password} <- proplists:get_value(http_basic_peers, Args, [])],
+			{struct, [
+				{success, true},
+				{<<"enabled">>, true},
+				{<<"port">>, proplists:get_value(port, Args, ?PORT)},
+				{<<"ip_peers">>, Ippeers},
+				{<<"http_basic_peers">>, Httppeers}
+			]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+api({modules, Node, "cpx_web_management", "update"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Json = case proplists:get_value("enabled", Post) of
+		"true" ->
+			Port = list_to_integer(proplists:get_value("port", Post)),
+			Ips = mochijson2:decode(list_to_binary(proplists:get_value("ip_peers", Post))),
+			Https = mochijson2:decode(list_to_binary(proplists:get_value("http_basic_peers", Post))),
+			Midargs = case Ips of
+				[] ->
+					[{port, Port}];
+				_ ->
+					[{port, Port}, {ip_peers, [binary_to_list(I) || I <- Ips]}]
+			end,
+			Args = case Https of
+				[] ->
+					Midargs;
+				_ ->
+					Properhttps = [
+						{binary_to_list(proplists:get_value(<<"username">>, Props)), binary_to_list(proplists:get_value(<<"password">>, Props))} || 
+						{struct, Props} <- Https
+					],
+					[{http_basic_peers, Properhttps} | Midargs]
+			end,
+			Conf = #cpx_conf{
+				id = cpx_web_management,
+				module_name = cpx_web_management,
+				start_function = start_link,
+				start_args = [Args],
+				supervisor = management_sup
+			},
+			% spawning up as the supervisor will kill this process before it writes the new one.
+			% this will cause the write to not happen, but the process not to restart.
+			% thus, having a spawn do it.
+			Rpcfun = fun() ->
+				case rpc:call(Atomnode, cpx_supervisor, update_conf, [cpx_web_management, Conf]) of
+					{atomic, {ok, Pid}} when is_pid(Pid) ->
+						{struct, [{success, true}]};
+					Else ->
+						?ERROR("Error updating cpx_web_management from web management:  ~p", [Else]),
+						{struct, [{success, false}]}
+				end
+			end,
+			spawn(Rpcfun),
+			{struct, [{success, true}]};
+		_ ->
+			rpc:call(Atomnode, cpx_supervisor, destroy, [cpx_web_management], 2000),
+			{struct, [{success, true}]}
+	end,
+	{200, [], mochijson2:encode(Json)};
+api({modules, Node, "cpx_monitor_kgb_eventlog", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_kgb_eventlog]) of
 		undefined ->
@@ -792,7 +1046,7 @@ api({medias, Node, "cpx_monitor_kgb_eventlog", "get"}, ?COOKIE, _Post) ->
 			]}
 	end,
 	{200, [], mochijson2:encode(Json)};
-api({medias, Node, "cpx_monitor_kgb_eventlog", "update"}, ?COOKIE, Post) ->
+api({modules, Node, "cpx_monitor_kgb_eventlog", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case proplists:get_value("kgbEventsEnabled", Post) of
 		"false" ->
@@ -819,7 +1073,7 @@ api({medias, Node, "cpx_monitor_kgb_eventlog", "update"}, ?COOKIE, Post) ->
 			end
 	end,
 	{200, [], mochijson2:encode(Json)};
-api({medias, Node, "cpx_monitor_grapher", "get"}, ?COOKIE, _Post) ->
+api({modules, Node, "cpx_monitor_grapher", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_grapher]) of
 		undefined ->
@@ -855,7 +1109,7 @@ api({medias, Node, "cpx_monitor_grapher", "get"}, ?COOKIE, _Post) ->
 			]}
 	end,
 	{200, [], mochijson2:encode(Json)};
-api({medias, Node, "cpx_monitor_grapher", "update"}, ?COOKIE, Post) ->
+api({modules, Node, "cpx_monitor_grapher", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case proplists:get_value("enabled", Post) of
 		undefined ->
@@ -895,7 +1149,7 @@ api({medias, Node, "cpx_monitor_grapher", "update"}, ?COOKIE, Post) ->
 			end
 	end,
 	{200, [], mochijson2:encode(Json)};
-api({medias, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
+api({modules, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case proplists:get_value("enabled", Post, false) of
 		false ->
@@ -947,7 +1201,7 @@ api({medias, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
 			{struct, [{success, true}]}
 	end,
 	{200, [], mochijson2:encode(Json)};	
-api({medias, Node, "cpx_monitor_passive", "get"}, ?COOKIE, _Post) ->
+api({modules, Node, "cpx_monitor_passive", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [cpx_monitor_passive]) of
 		undefined ->
@@ -990,10 +1244,10 @@ api({medias, Node, "cpx_monitor_passive", "get"}, ?COOKIE, _Post) ->
 			]},
 			{200, [], mochijson2:encode(Json)}
 	end;
-%%api({medias, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
+%%api({modules, Node, "cpx_monitor_passive", "update"}, ?COOKIE, Post) ->
 %%	Atomnode = list_to_existing_atom(Node),
 	
-api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, _Post) ->
+api({modules, Node, "gen_cdr_dumper", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	Json = case rpc:call(Atomnode, cpx_supervisor, get_conf, [gen_cdr_dumper]) of
 		undefined ->
@@ -1052,7 +1306,7 @@ api({medias, Node, "gen_cdr_dumper", "get"}, ?COOKIE, _Post) ->
 			end
 	end,
 	{200, [], mochijson2:encode(Json)};
-api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
+api({modules, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	%?DEBUG("post:  ~p", [Post]),
 	Conf = #cpx_conf{
@@ -1128,9 +1382,9 @@ api({medias, Node, "gen_cdr_dumper", "update"}, ?COOKIE, Post) ->
 	end,
 	{200, [], mochijson2:encode(Json)};
 	
-api({medias, _Node, "cpx_supervisor", "get"}, ?COOKIE, _Post) ->
+api({modules, _Node, "cpx_supervisor", "get"}, ?COOKIE, _Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"cpx_supervisor get invalid, need to know which cpx_value key">>}]})};
-api({medias, Node, "cpx_supervisor", "get", "archivepath"}, ?COOKIE, _Post) ->
+api({modules, Node, "cpx_supervisor", "get", "archivepath"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_value, [archivepath]) of
 		none ->
@@ -1140,7 +1394,7 @@ api({medias, Node, "cpx_supervisor", "get", "archivepath"}, ?COOKIE, _Post) ->
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
-api({medias, Node, "cpx_supervisor", "get", "mantispath"}, ?COOKIE, _Post) ->
+api({modules, Node, "cpx_supervisor", "get", "mantispath"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_value, [mantispath]) of
 		none ->
@@ -1150,7 +1404,7 @@ api({medias, Node, "cpx_supervisor", "get", "mantispath"}, ?COOKIE, _Post) ->
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
-api({medias, Node, "cpx_supervisor", "get", "transferprompt"}, ?COOKIE, _Post) ->
+api({modules, Node, "cpx_supervisor", "get", "transferprompt"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_value, [transferprompt]) of
 		none ->
@@ -1169,10 +1423,37 @@ api({medias, Node, "cpx_supervisor", "get", "transferprompt"}, ?COOKIE, _Post) -
 		Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
-api({medias, _Node, "cpx_supervisor", "update"}, ?COOKIE, Post) ->
+api({modules, Node, "cpx_supervisor", "get", "default_ringout"}, ?COOKIE, _Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Truedefault = ?DEFAULT_RINGOUT * 1000,
+	case rpc:call(Atomnode, cpx, get_env, [default_ringout]) of
+		undefined ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
+		{ok, Truedefault} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, true}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
+		{ok, Val} ->
+			{200, [], mochijson2:encode({struct, [{success, true}, {<<"isDefault">>, false}, {<<"value">>, Val / 1000}, {<<"default">>, ?DEFAULT_RINGOUT}]})};
+		Else ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
+	end;
+api({modules, _Node, "cpx_supervisor", "update"}, ?COOKIE, Post) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"update what now?">>}]})};
-api({medias, Node, "cpx_supervisor", "update", "archivepath"}, ?COOKIE, Post) ->
-	Atomnode = list_to_atom(Node),
+api({modules, Node, "cpx_supervisor", "update", "default_ringout"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
+	Val = case proplists:get_value("value", Post) of
+		undefined ->
+			60;
+		Else ->
+			list_to_integer(Else)
+	end,
+	case rpc:call(Atomnode, application, set_env, [cpx, default_ringout, Val * 1000]) of
+		ok ->
+			{200, [], mochijson2:encode({struct, [{success, true}]})};
+		Err ->
+			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Err]))}]})}
+	end;
+api({modules, Node, "cpx_supervisor", "update", "archivepath"}, ?COOKIE, Post) ->
+	Atomnode = list_to_existing_atom(Node),
 	{Func, Args} = case proplists:get_value("value", Post) of
 		"" ->
 			{drop_value, [archivepath]};
@@ -1186,7 +1467,7 @@ api({medias, Node, "cpx_supervisor", "update", "archivepath"}, ?COOKIE, Post) ->
 			?INFO("dropping archivepath: ~p", [Else]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
-api({medias, Node, "cpx_supervisor", "update", "mantispath"}, ?COOKIE, Post) ->
+api({modules, Node, "cpx_supervisor", "update", "mantispath"}, ?COOKIE, Post) ->
 	Atomnode = list_to_atom(Node),
 	{Func, Args} = case proplists:get_value("value", Post) of
 		"" ->
@@ -1201,7 +1482,7 @@ api({medias, Node, "cpx_supervisor", "update", "mantispath"}, ?COOKIE, Post) ->
 			?INFO("dropping mantispath: ~p", [Else]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
-api({medias, Node, "cpx_supervisor", "update", "transferprompt"}, ?COOKIE, Post) ->
+api({modules, Node, "cpx_supervisor", "update", "transferprompt"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	{struct, Prompts} = mochijson2:decode(proplists:get_value("prompts", Post, "{\"label\":[],\"name\":[],\"regex\":[]}")),
 	Skills = parse_posted_skills(proplists:get_all_values("skills", Post)),
@@ -1222,7 +1503,7 @@ api({medias, Node, "cpx_supervisor", "update", "transferprompt"}, ?COOKIE, Post)
 			?INFO("Setting transfer prompt:  ~p", [Else]),
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, list_to_binary(io_lib:format("~p", [Else]))}]})}
 	end;
-api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
+api({modules, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case proplists:get_value("enabled", Post) of
 		undefined ->
@@ -1255,7 +1536,7 @@ api({medias, Node, "freeswitch_media_manager", "update"}, ?COOKIE, Post) ->
 			rpc:call(Atomnode, cpx_supervisor, update_conf, [freeswitch_media_manager, Conf], 2000),
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
+api({modules, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 	Anode = list_to_existing_atom(Node),
 	case rpc:call(Anode, cpx_supervisor, get_conf, [freeswitch_media_manager]) of
 		undefined ->
@@ -1292,7 +1573,7 @@ api({medias, Node, "freeswitch_media_manager", "get"}, ?COOKIE, _Post) ->
 			{200, [], mochijson2:encode(Json)}
 	end;
 	
-api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
+api({modules, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case proplists:get_value("enabled", Post) of
 		undefined ->
@@ -1373,7 +1654,7 @@ api({medias, Node, "email_media_manager", "update"}, ?COOKIE, Post) ->
 			{200, [], mochijson2:encode(Json)}
 	end;
 	
-api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
+api({modules, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 	Atomnode = list_to_existing_atom(Node),
 	case rpc:call(Atomnode, cpx_supervisor, get_conf, [email_media_manager]) of
 		undefined ->
@@ -1421,7 +1702,7 @@ api({medias, Node, "email_media_manager", "get"}, ?COOKIE, _Post) ->
 			],
 			{200, [], mochijson2:encode({struct, Sendargs})}
 	end;
-api({medias, _Node, "email_media_manager", "getMappings"}, ?COOKIE, _Post) ->
+api({modules, _Node, "email_media_manager", "getMappings"}, ?COOKIE, _Post) ->
 	case email_media_manager:get_mappings() of
 		{atomic, Mappings} ->
 			Encode = fun(Mapping) ->
@@ -1449,7 +1730,7 @@ api({medias, _Node, "email_media_manager", "getMappings"}, ?COOKIE, _Post) ->
 		_Else ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no mappings">>}]})}
 	end;
-api({medias, _Node, "email_media_manager", "setMapping"}, ?COOKIE, Post) ->
+api({modules, _Node, "email_media_manager", "setMapping"}, ?COOKIE, Post) ->
 	Translated = proplists:substitute_aliases([
 		{"address", address},
 		{"skills", skills},
@@ -1467,7 +1748,7 @@ api({medias, _Node, "email_media_manager", "setMapping"}, ?COOKIE, Post) ->
 		{atomic, ok} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-api({medias, _Node, "email_media_manager", "destroyMapping"}, ?COOKIE, Post) ->
+api({modules, _Node, "email_media_manager", "destroyMapping"}, ?COOKIE, Post) ->
 	case email_media_manager:destroy_mapping(proplists:get_value("address", Post)) of
 		{aborted, Reason} ->
 			Json = {struct, [{success, false}, {message, list_to_binary(lists:flatten(io_lib:format("~p", [Reason])))}]},
@@ -1475,7 +1756,7 @@ api({medias, _Node, "email_media_manager", "destroyMapping"}, ?COOKIE, Post) ->
 		{atomic, ok} ->
 			{200, [], mochijson2:encode({struct, [{success, true}]})}
 	end;
-api({medias, _Node, "email_media_manager", "new"}, ?COOKIE, Post) ->
+api({modules, _Node, "email_media_manager", "new"}, ?COOKIE, Post) ->
 	Translated = proplists:substitute_aliases([
 		{"address", address},
 		{"skills", skills},
@@ -1584,6 +1865,10 @@ parse_path(Path) ->
 			{api, logout};
 		"/checkcookie" ->
 			{api, checkcookie};
+		"/dialer" ->
+			{api, dialer};
+		"/api" ->
+			api;
 		_Other ->
 			% section/action (params in post data)
 			case util:string_split(Path, "/") of
@@ -1629,12 +1914,12 @@ parse_path(Path) ->
 					{api, {queues, "queue", Queue, Action}};
 				["", "queues", "queue", Action] ->
 					{api, {queues, "queue", Action}};
-				["", "medias", Action] ->
-					{api, {medias, Action}};
-				["", "medias", Node, Media, Action] ->
-					{api, {medias, Node, Media, Action}};
-				["", "medias", Node, Media, Action, Other] ->
-					{api, {medias, Node, Media, Action, Other}};
+				["", "modules", Action] ->
+					{api, {modules, Action}};
+				["", "modules", Node, Media, Action] ->
+					{api, {modules, Node, Media, Action}};
+				["", "modules", Node, Media, Action, Other] ->
+					{api, {modules, Node, Media, Action, Other}};
 				["", "clients", Action] ->
 					{api, {clients, Action}};
 				["", "clients", Client, Action] ->
@@ -2076,20 +2361,20 @@ encode_recipe_actions([{Operation, Args} | Tail], Acc) ->
 	]},
 	encode_recipe_actions(Tail, [Head | Acc]).
 
-encode_medias([], Acc) ->
+encode_modules([], Acc) ->
 	lists:reverse(Acc);
-encode_medias([{Node, Medias} | Tail], Acc) ->
+encode_modules([{Node, Medias} | Tail], Acc) ->
 	Json = {struct, [
 		{<<"name">>, list_to_binary(atom_to_list(Node))},
 		{<<"type">>, <<"node">>},
 		{<<"id">>, list_to_binary(atom_to_list(Node))},
-		{<<"medias">>, encode_medias_confs(Node, Medias, [])}
+		{<<"modules">>, encode_modules_confs(Node, Medias, [])}
 	]},
-	encode_medias(Tail, [Json | Acc]).
+	encode_modules(Tail, [Json | Acc]).
 
-encode_medias_confs(_Node, [], Acc) ->
+encode_modules_confs(_Node, [], Acc) ->
 	lists:reverse(Acc);
-encode_medias_confs(Node, [{cpx_supervisor, BadConf} | Tail], Acc) ->
+encode_modules_confs(Node, [{cpx_supervisor, BadConf} | Tail], Acc) ->
 	Conf = case BadConf of
 		none ->
 			"";
@@ -2105,28 +2390,26 @@ encode_medias_confs(Node, [{cpx_supervisor, BadConf} | Tail], Acc) ->
 		{<<"enabled">>, true},
 		{<<"node">>, list_to_binary(atom_to_list(Node))}
 	]},
-	encode_medias_confs(Node, Tail, [Json | Acc]);
-encode_medias_confs(Node, [{Mod, Conf} | Tail], Acc) when is_record(Conf, cpx_conf) ->
+	encode_modules_confs(Node, Tail, [Json | Acc]);
+encode_modules_confs(Node, [{Mod, Conf} | Tail], Acc) when is_record(Conf, cpx_conf) ->
 	Json = {struct, [
 		{<<"name">>, list_to_binary(atom_to_list(Conf#cpx_conf.module_name))},
 		{<<"enabled">>, true},
 		{<<"type">>, <<"conf">>},
 		{<<"id">>, list_to_binary(atom_to_list(Node) ++ "/" ++ atom_to_list(Mod))},
-		{<<"mediatype">>, list_to_binary(atom_to_list(Mod))},
 		{<<"start">>, list_to_binary(atom_to_list(Conf#cpx_conf.start_function))},
 		{<<"node">>, list_to_binary(atom_to_list(Node))}
 	]},
-	encode_medias_confs(Node, Tail, [Json | Acc]);
-encode_medias_confs(Node, [{Mod, undefined} | Tail], Acc) ->
+	encode_modules_confs(Node, Tail, [Json | Acc]);
+encode_modules_confs(Node, [{Mod, undefined} | Tail], Acc) ->
 	Json = {struct, [
 		{<<"name">>, list_to_binary(atom_to_list(Mod))},
 		{<<"enabled">>, false},
-		{<<"mediatype">>, list_to_binary(atom_to_list(Mod))},
 		{<<"type">>, <<"conf">>},
 		{<<"id">>, list_to_binary(atom_to_list(Node) ++ "/" ++ atom_to_list(Mod))},
 		{<<"node">>, list_to_binary(atom_to_list(Node))}
 	]},
-	encode_medias_confs(Node, Tail, [Json | Acc]).
+	encode_modules_confs(Node, Tail, [Json | Acc]).
 
 %% =====
 %% tests
@@ -2650,7 +2933,7 @@ api_test_() ->
 %			{timeout,
 %			120,
 %			[
-%				{"/medias/Thisnode/freeswitch_media_manager/update disabling",
+%				{"/modules/Thisnode/freeswitch_media_manager/update disabling",
 %				fun() ->
 %					Fsconf = #cpx_conf{
 %						id = freeswitch_media_manager,
@@ -2665,7 +2948,7 @@ api_test_() ->
 %					Res = cpx_supervisor:get_conf(freeswitch_media_manager),
 %					?assert(rec_equals(Fsconf, Res)),
 %					?CONSOLE("post get", []),
-%					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, []),
+%					api({modules, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, []),
 %					?CONSOLE("post api", []),
 %					?assertEqual(undefined, cpx_supervisor:get_conf(freeswitch_media_manager)),
 %					?CONSOLE("post assertEqual", []),
@@ -2677,7 +2960,7 @@ api_test_() ->
 %			{timeout,
 %			120,
 %			[
-%				{"/medias/Thisnode/freeswitch_media_manager/update enabling",
+%				{"/modules/Thisnode/freeswitch_media_manager/update enabling",
 %				fun() ->
 %					?assertEqual(undefined, cpx_supervisor:get_conf(freeswitch_media_manager)),
 %					Post = [
@@ -2692,7 +2975,7 @@ api_test_() ->
 %						start_function = start_link,
 %						start_args = [freeswitch@localhost, [{voicegateway, "whatever"}]],
 %						supervisor = management_sup},
-%					api({medias, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, Post),
+%					api({modules, atom_to_list(node()), "freeswitch_media_manager", "update"}, Cookie, Post),
 %					Res = cpx_supervisor:get_conf(freeswitch_media_manager),
 %					?assert(rec_equals(Fsconf, Res)),
 %					cpx_supervisor:destroy(freeswitch_media_manager)

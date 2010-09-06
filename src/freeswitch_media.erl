@@ -102,7 +102,8 @@
 	ivroption :: string() | 'undefined',
 	caseid :: string() | 'undefined',
 	moh = "moh" :: string(),
-	record_path :: 'undefined' | string()
+	record_path :: 'undefined' | string(),
+	dial_vars :: list()
 	}).
 
 -type(state() :: #state{}).
@@ -137,9 +138,9 @@ dump_state(Mpid) when is_pid(Mpid) ->
 init([Cnode, DialString, UUID]) ->
 	process_flag(trap_exit, true),
 	Manager = whereis(freeswitch_media_manager),
-	{DNIS, Client, Priority, CidName, CidNum} = get_info(Cnode, UUID),
+	{DNIS, Client, Priority, CidName, CidNum, SIPFrom} = get_info(Cnode, UUID),
 	Call = #call{id = UUID, source = self(), client = Client, priority = Priority, callerid={CidName, CidNum}, dnis=DNIS},
-	{ok, {#state{cnode=Cnode, manager_pid = Manager, dialstring = DialString}, Call, {inivr, [DNIS]}}}.
+	{ok, {#state{cnode=Cnode, manager_pid = Manager, dialstring = DialString, dial_vars = ["sip_h_X-FromData='"++SIPFrom++"'"]}, Call, {inivr, [DNIS]}}}.
 
 -spec(urlpop_getvars/1 :: (State :: #state{}) -> [{binary(), binary()}]).
 urlpop_getvars(#state{ivroption = Ivropt} = _State) ->
@@ -198,7 +199,7 @@ handle_ring(Apid, Callrec, State) ->
 			ok
 		end
 	end,
-	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F) of
+	case freeswitch_ring:start(State#state.cnode, AgentRec, Apid, Callrec, 600, F, [{dial_vars, State#state.dial_vars}]) of
 		{ok, Pid} ->
 			link(Pid),
 			{ok, [{"itxt", State#state.ivroption}], State#state{ringchannel = Pid, agent_pid = Apid}};
@@ -262,7 +263,7 @@ handle_agent_transfer(AgentPid, Timeout, Call, State) ->
 			?WARNING("originate failed for ~p with  ~p", [Call#call.id, Reply])
 		end
 	end,
-	case freeswitch_ring:start_link(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge]) of
+	case freeswitch_ring:start_link(State#state.cnode, AgentRec, AgentPid, Call, Timeout, F, [single_leg, no_oncall_on_bridge, {dial_vars, State#state.dial_vars}]) of
 		{ok, Pid} ->
 			{ok, [{"ivropt", State#state.ivroption}, {"caseid", State#state.caseid}], State#state{xferchannel = Pid, xferuuid = freeswitch_ring:get_uuid(Pid)}};
 		{error, Error} ->
@@ -319,7 +320,7 @@ handle_warm_transfer_begin(Number, Call, #state{agent_pid = AgentPid, cnode = No
 
 			AgentState = agent:dump_state(AgentPid), % TODO - avoid
 
-			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}, {needed_events, ['CHANNEL_BRIDGE']}]) of
+			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [no_oncall_on_bridge, {eventfun, F2}, {needed_events, ['CHANNEL_BRIDGE']}, {dial_vars, State#state.dial_vars}]) of
 				{ok, Pid} ->
 					link(Pid),
 					{ok, NewUUID, State#state{ringchannel = Pid, warm_transfer_uuid = NewUUID}};
@@ -418,7 +419,7 @@ handle_warm_transfer_cancel(Call, #state{warm_transfer_uuid = WUUID, cnode = Nod
 
 			AgentState = agent:dump_state(AgentPid), % TODO - avoid
 
-			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, []) of
+			case freeswitch_ring:start(Node, AgentState, AgentPid, Call, 600, F, [{dial_vars, State#state.dial_vars}]) of
 				{ok, Pid} ->
 					link(Pid),
 					{ok, State#state{ringchannel = Pid, warm_transfer_uuid = undefined}};
@@ -752,7 +753,8 @@ get_info(Cnode, UUID, Retries) when Retries < 2 ->
 			{proplists:get_value("Caller-Destination-Number", Proplist, ""),
 				proplists:get_value("variable_brand", Proplist, ""), Priority,
 				proplists:get_value("Caller-Caller-ID-Name", Proplist, "Unknown"),
-				proplists:get_value("Caller-Caller-ID-Number", Proplist, "Unknown")
+				proplists:get_value("Caller-Caller-ID-Number", Proplist, "Unknown"),
+				proplists:get_value("variable_sip_from_display", Proplist, "")
 			};
 		timeout ->
 			?WARNING("uuid_dump for ~s timed out. Retrying", [UUID]),
@@ -765,5 +767,5 @@ get_info(Cnode, UUID, Retries) when Retries < 2 ->
 	end;
 get_info(_, UUID, _) ->
 	?WARNING("Too many failures doing uuid_dump for ~p", [UUID]),
-	{"", "", ?DEFAULT_PRIORITY, "Unknown", "Unknown"}.
+	{"", "", ?DEFAULT_PRIORITY, "Unknown", "Unknown", ""}.
 

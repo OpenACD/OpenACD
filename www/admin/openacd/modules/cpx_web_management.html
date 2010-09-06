@@ -1,0 +1,220 @@
+<div id="cpx_module" class="wide">
+<form dojoType="dijit.form.Form" id="cpxWebManagementForm">
+<p>
+	<label>&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" name="enabled" value="enabled" id="cpxWebManagementEnabled"/><span class="translate">ENABLED</span>
+</p>
+
+<p>
+	<label class="translatecol" for="port">PORT</label>
+	<input dojoType="dijit.form.ValidationTextBox" name="port" id="cpxWebManagementPort" regExp="[\d]+" />
+</p>
+
+<p>
+	<label class="translatecol">IP_PEERS</label>
+	<input dojoType="dijit.form.ValidationTextBox" name="ippeerinput" id="ippeerinput" regExp="[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}" />
+	<button dojoType="dijit.form.Button" name="ippeerinputadd" label="+">
+		<script type="dojo/connect" event="onClick">
+			var input = dijit.byId('ippeerinput');
+			if(input.isValid() && input.get('value') != ''){
+				dojo.create('option', {innerHTML:input.get('value')}, dojo.byId('ipList'));
+				input.set('value', '');
+				input.focus();
+			}
+		</script>
+	</button>
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<button dojoType="dijit.form.Button" name="ippeerinputdrop" label="-">
+		<script type="dojo/connect" event="onClick">
+			var select = dojo.byId('ipList');
+			if(select.selectedIndex > -1){
+				select.removeChild(select.childNodes[select.selectedIndex]);
+			}
+		</script>
+	</button>
+	<select size="3" style="float:left" id="ipList"></select>
+</p>
+
+<p style="clear:both">
+	<label class="translatecol">HTTP_PEERS</label>
+	<input dojoType="dijit.form.ValidationTextBox" name="httpinputname" id="httpinputname" regExp=".+" />
+	<input dojoType="dijit.form.ValidationTextBox" name="httpinputpass" id="httpinputpass" regExp=".+" />
+	<button dojoType="dijit.form.Button" name="httpinputadd" label="+">
+		<script type="dojo/connect" event="onClick">
+			var namein = dijit.byId('httpinputname');
+			var passin = dijit.byId('httpinputpass');
+			if(namein.isValid() && passin.isValid() && namein.get('value') != '' && passin.get('value') != ''){
+				var nom = namein.get('value');
+				var pass = passin.get('value');
+				var optinnerhtml = nom + ' - ' + pass;
+				dojo.create('option', {innerHTML:optinnerhtml,username:nom,password:pass}, dojo.byId('httpBasicList'));
+				namein.focus();
+			}
+		</script>
+	</button>
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<button dojoType="dijit.form.Button" name="httpinputdrop" label="-">
+		<script type="dojo/connect" event="onClick">
+			var select = dojo.byId('httpBasicList');
+			if(select.selectedIndex > -1){
+				select.removeChild(select.childNodes[select.selectedIndex]);
+			}
+		</script>
+	</button>
+	<select size="3" style="float:left" id="httpBasicList"></select>
+</p>
+
+<p style="clear:both">
+	<label>&nbsp;</label>
+	<button dojoType="dijit.form.Button" name="submit" label="submit">
+		<script type="dojo/connect" event="onClick">
+			var loadFunc = function(res){
+				if(res.success == false){
+					errMessage('update failed:  ' + res.message);
+					return;
+				}
+			};
+			var errFunc = function(res){
+				errMessage('update errored:  ' + res);
+			};
+			var postUrl = '/modules/' + modules.activeNode + '/cpx_web_management/update';
+			if(dijit.byId('cpxWebManagementEnabled').get('checked') == false){
+				confirmDialog({
+					'question':'Really disable web management?  You will not be able to turn it back on whithout using the shell.',
+					'yesLabel':'Disable',
+					'noLabel':'Cancel',
+					'yesAction':function(){
+						dojo.xhrPost({
+							url:postUrl,
+							content:{
+								enabled:false
+							},
+							handleAs:'json',
+							load:loadFunc,
+							error:errFunc
+						});
+					}
+				});
+				return;
+			}
+			var contentObj = {
+				enabled:true,
+				port:dijit.byId('cpxWebManagementPort').get('value')
+			};
+			var select = dojo.byId('ipList');
+			var ipList = [];
+			for(var i = 0; i < select.childNodes.length; i++){
+				ipList.push(select.childNodes[i].innerHTML);
+			}
+			contentObj.ip_peers = dojo.toJson(ipList);
+			select = dojo.byId('httpBasicList');
+			var httpList = [];
+			for(var i = 0; i < select.childNodes.length; i++){
+				var node = select.childNodes[i];
+				var pushObj = {
+					username:node.getAttribute('username'),
+					password:node.getAttribute('password')
+				};
+				httpList.push(pushObj);
+			}
+			contentObj.http_basic_peers = dojo.toJson(httpList);
+			confirmDialog({
+				'question':'Really update web management?  You will need to log back in for further changes.',
+				'yesLabel':'Update',
+				'noLabel':'Cancel',
+				'yesAction':function(){
+					dojo.xhrPost({
+						url:postUrl,
+						handleAs:'json',
+						content:contentObj,
+						load:loadFunc,
+						error:errFunc
+					});
+				}
+			});
+		</script>
+	</button>
+</p>
+</form>
+<script type="text/javascript">
+	var transNodes = dojo.query('.translate, .translatecol', 'cpx_module');
+
+	for(var i = 0; i < transNodes.length; i++){
+		var trans = dojo.i18n.getLocalization('admin', 'cpx_web_management')[transNodes[i].innerHTML];
+		if(dojo.hasClass(transNodes[i], 'translatecol')){
+			trans = trans + ':';
+		}
+		transNodes[i].innerHTML = trans;
+	}
+
+	var confirmDialog = function(conf){
+		var defaultConf = {
+			'yesLabel': 'Yes',
+			'noLabel': 'No',
+			'yesAction': function(){ return true},
+			'noAction': function(){ return false},
+			'question': 'Are you sure?',
+			'title': 'Confirmation'
+		};
+		
+		conf = dojo.mixin(defaultConf, conf);
+		
+		var dialog = new dijit.Dialog({
+			title: conf.title,
+			content: '<div style="align:center">' + 
+				'<p>' + conf.question + '</p>' + 
+				'<p><input dojoType="dijit.form.Button" type="button" label="' + conf.yesLabel + '" />' +
+				'<input dojoType="dijit.form.Button" type="button" label="' + conf.noLabel + '">' + 
+				'</div>'
+		});
+		dojo.connect(dialog, 'onCancel', dialog, function(){
+			conf.noAction();
+			dialog.destroy();
+		});
+		var kids = dialog.getChildren()
+		dojo.connect(kids[1], 'onClick', dialog, function(){
+			conf.noAction();
+			dialog.destroy();
+		});
+		dojo.connect(kids[0], 'onClick', dialog, function(){
+			conf.yesAction();
+			dialog.destroy();
+		});
+		dialog.show();
+	}
+
+	dojo.xhrGet({
+		url:'/modules/' + modules.activeNode + '/cpx_web_management/get',
+		handleAs:'json',
+		load:function(res){
+			if(res.success == false){
+				errMessage('getting management settings failed:  ' + res.message);
+				return;
+			}
+			if(res.enabled == false){
+				dijit.byId('cpxWebManagementEnabled').set('checked', false);
+				return;
+			}
+			dijit.byId('cpxWebManagementEnabled').set('checked', true);
+			dijit.byId('cpxWebManagementPort').set('value', res.port);
+			for(var i = 0; i < res.ip_peers.length; i++){
+				dojo.create('option', {innerHTML:res.ip_peers[i]}, dojo.byId('ipList'));
+			}
+			for(var i = 0; i < res.http_basic_peers; i++){
+				var user = res.http_basic_peers[i].username;
+				var pass = res.http_basic_peers[i].password;
+				dojo.create('option', {innerHTML:user + ' - ' + pass,username:user,password:pass}, dojo.byId('httpBasicList'));
+			}
+		},
+		error:function(res){
+			errMessage('getting management settings errored:  ' + res);
+		}
+	});
+</script>
+</div>

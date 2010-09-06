@@ -1,0 +1,140 @@
+<div id="cpx_module">
+<form dojoType="dijit.form.Form" action="javascrit:void(0)" id="cdr_dumper_form">
+	<script type="dojo/method" event="postCreate">
+		dojo.xhrGet({
+			url:'/modules/' + modules.activeNode + '/gen_cdr_dumper/get',
+			handleAs:'json',
+			load:function(res){
+				if(! res.success){
+					errMessage(['get gen_cdr_dumper failed', res.message]);
+					console.warn(['get gen_cdr_dumper failed', res.message]);
+					return false
+				}
+				dijit.byId('cdr_dumper_form').set('value', res);
+				switch(res.dumper){
+					case 'csv':
+						dojo.byId('csvDumperP').style.display = 'block';
+						break;
+					case 'odbc':
+						dojo.byId('odbcDumperP').style.display = 'block';
+						break;
+					default:
+						//
+				}
+			},
+			error:function(res){
+				errMessage(['get gen_cdr_dumper errored', res]);
+				console.warn(['get gen_cdr_dumper errored', res]);
+			}
+		});
+	</script>
+	
+<p>
+	<label>&nbsp;</label>
+	<input type="radio" dojoType="dijit.form.RadioButton" name="dumper" value="null" id="cdrNullRadio">
+	</input>
+	<span class="translate">NULL_DUMPER</span>
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<input type="radio" dojoType="dijit.form.RadioButton" name="dumper" value="odbc" id="cdrOdbcRadio" />
+	<span class="translate">ODBC_DUMPER</span>
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<input type="radio" dojoType="dijit.form.RadioButton" name="dumper" value="csv" id="cdrCsvRadio" />
+	<span class="translate">CSV_DUMPER</span>
+</p>
+
+<p>
+	<label>&nbsp;</label>
+	<input type="radio" dojoType="dijit.form.RadioButton" name="dumper" value="dets" id="cdrDetsRadio" />
+	<span class="translate">DETS_DUMPER</span>
+</p>
+
+<div class="dumper_p" id="csvDumperP" style="display:none">
+<p>&nbsp;</p>
+<p>
+	<label class="translatecol">CDR_FILE</label>
+	<input dojoType="dijit.form.TextBox" name="cdrFile" />
+</p>
+<p>
+	<label class="translatecol">AGENTS_FILE</label>
+	<input dojoType="dijit.form.TextBox" name="agentFile" />
+</p>
+</div>
+
+<div id="odbcDumperP" class="dumper_p" style="display:none">
+<p>&nbsp;</p>
+<p>
+	<label>&nbsp;</label>
+	<input dojoType="dijit.form.CheckBox" name="traceEnabled" />
+	<span class="translate">ENABLE_TRACE</span>
+</p>
+<p>
+	<label class="translatecol">DSN</label>
+	<input dojoType="dijit.form.TextBox" name="dsn" />
+</p>
+</div>
+
+<div id="detsDumperP" class="dumper_p" style="display:none">
+<p>&nbsp;</p>
+<p>
+	<label for="destDir" class="translatecol">DETS_DIR</label>
+	<select dojoType="dijit.form.ComboBox" name="destDir" id="destDir">
+		<option value="/tmp/">/tmp/</option>
+		<option value="dynamic/">dynamic/</option>
+	</select>
+</p>
+</div>
+
+<p>
+	<label>&nbsp;</label>
+	<button dojoType="dijit.form.Button" label="SUBMIT">
+		<script type="dojo/method" event="postCreate">
+			var hider = function(){
+				dojo.query(".dumper_p").forEach(function(n){
+					n.style.display = 'none';
+				});
+			}
+			dojo.connect(dijit.byId('cdrNullRadio'), 'onClick', function(){
+				hider();
+			});
+			dojo.connect(dijit.byId('cdrCsvRadio'), 'onClick', function(){
+				hider();
+				dojo.byId('csvDumperP').style.display = 'block';
+			});
+			dojo.connect(dijit.byId('cdrOdbcRadio'), 'onClick', function(){
+				hider();
+				dojo.byId('odbcDumperP').style.display = 'block';
+			});
+			dojo.connect(dijit.byId('cdrDetsRadio'), 'onClick', function(){
+				hider();
+				dojo.byId('detsDumperP').style.display = 'block';
+			});
+		</script>
+		<script type="dojo/connect" event="onClick">
+			var vals = dijit.byId('cdr_dumper_form').get('value');
+			dojo.xhrPost({
+				url: '/modules/' + modules.activeNode + '/gen_cdr_dumper/update',
+				content: vals,
+				handleAs: 'json',
+				load: function(res){
+					if(! res.success){
+						errMessage(['set gen_cdr_dumper failed', res.message]);
+						console.warn(['set gen_cdr_dumper failed', res.message]);
+					}
+				},
+				error: function(res){
+					errMessage(['set gen_cdr_dumper errored', res]);
+					console.warn(['set gen_cdr_dumper errored', res]);
+				}
+			});
+		</script>
+	</button>
+</p>
+
+</form>
+</div>

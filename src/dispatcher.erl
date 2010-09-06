@@ -356,8 +356,8 @@ agents_avail_test_() ->
 		{_, Q1} = queue_manager:add_queue("q1", []),
 		agent_manager:start([node()]),
 		dispatch_manager:start(),
-		{_, A1} = agent_manager:start_agent(#agent{login = "a1"}),
-		{_, A2} = agent_manager:start_agent(#agent{login = "a2", skills = ['_all']}),
+		{_, A1} = agent_manager:start_agent(#agent{login = "a1", id = "a1"}),
+		{_, A2} = agent_manager:start_agent(#agent{login = "a2", id = "a2", skills = ['_all']}),
 		{Q1, A1, A2}
 	end,
 	fun(_) ->

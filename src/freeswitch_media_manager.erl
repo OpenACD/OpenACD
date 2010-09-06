@@ -115,6 +115,7 @@
 	ring_agent/4,
 	ring_agent_echo/4,
 	get_media/1,
+	get_default_dial_string/0,
 	do_dial_string/3,
 	get_agent_dial_string/2
 ]).
@@ -218,6 +219,9 @@ ring_agent_echo(AgentPid, Agent, Call, Timeout) ->
 get_media(MediaKey) ->
 	gen_server:call(?MODULE, {get_media, MediaKey}).
 
+get_default_dial_string() ->
+	gen_server:call(?MODULE, get_default_dial_string).
+
 -spec(get_agent_dial_string/2 :: (AgentRec :: #agent{}, Options :: [string()]) -> string()).
 get_agent_dial_string(AgentRec, Options) ->
 	gen_server:call(?MODULE, {get_agent_dial_string, AgentRec, Options}).
@@ -228,11 +232,17 @@ do_dial_string(DialString, Destination, []) ->
 	re:replace(DialString, "\\$1", Destination, [{return, list}]);
 do_dial_string([${ | _] = DialString, Destination, Options) ->
 	% Dialstring begins with a {} block.
+	% escape any commas in the string, unless they're already escaped
+	EscapedOptions = [re:replace(Option, "([^\\\\]),", "\\1\\\\,", [{return, list}, global]) ||
+		Option <- Options],
 	D1 = re:replace(DialString, "\\$1", Destination, [{return, list}]),
-	re:replace(D1, "^{", "{" ++ string:join(Options, ",") ++ ",", [{return, list}]);
+	re:replace(D1, "^{", "{" ++ string:join(EscapedOptions, ",") ++ ",", [{return, list}]);
 do_dial_string(DialString, Destination, Options) ->
+	% escape any commas in the string, unless they're already escaped
+	EscapedOptions = [re:replace(Option, "([^\\\\]),", "\\1\\\\,", [{return, list}, global]) ||
+		Option <- Options],
 	D1 = re:replace(DialString, "\\$1", Destination, [{return, list}]),
-	"{" ++ string:join(Options, ",") ++ "}" ++ D1.
+	"{" ++ string:join(EscapedOptions, ",") ++ "}" ++ D1.
 
 %%====================================================================
 %% gen_server callbacks
@@ -360,6 +370,8 @@ handle_call({get_media, MediaKey}, _From, #state{call_dict = Dict} = State) ->
 handle_call({get_agent_dial_string, AgentRec, Options}, _From, State) ->
 	DialString = get_agent_dial_string(AgentRec, Options, State),
 	{reply, DialString, State};
+handle_call(get_default_dial_string, _From, State) ->
+	{reply, State#state.dialstring, State};
 handle_call(Request, _From, State) ->
 	?INFO("Unexpected call:  ~p", [Request]),
 	Reply = ok,
@@ -575,7 +587,7 @@ fetch_domain_user(Node, State) ->
 				_Else ->
 					case proplists:get_value("action", Data) of
 						"sip_auth" -> % authing a SIP device
-							case proplists:get_value("sipauth", State) of
+							case proplists:get_value(sipauth, State) of
 								undefined ->
 									%% not doing sip auth, return nothing
 									?DEBUG("Not doing SIP auth", []),

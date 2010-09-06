@@ -97,7 +97,7 @@ dojo.require("dijit.form.Form");
 dojo.require("dijit.form.TextBox");
 dojo.require("dijit.form.ValidationTextBox");
 dojo.require("dijit.form.Textarea");
-dojo.require("dijit._tree.dndSource");
+dojo.require("dijit.tree.dndSource");
 dojo.require("dijit.Tree");
 dojo.require("dojo.data.ItemFileWriteStore");
 dojo.require("dojo.data.ItemFileReadStore");
@@ -116,7 +116,7 @@ dojo.require("openacd.skills");
 dojo.require("openacd.queues");
 dojo.require("openacd.PredicateEditor");
 dojo.require("openacd.RecipeEditor");
-dojo.require("openacd.medias");
+dojo.require("openacd.modules");
 dojo.require("openacd.clients");
 dojo.require("openacd.releaseOpts");
 dojo.require("dojox.grid.DataGrid");
@@ -138,7 +138,7 @@ dojo.addOnLoad(init);
 
 <div dojoType="dijit.Dialog" title="ddd" id="loginpane">
 	<script type="dojo/connect" event="onShow">
-		this.attr("title", dojo.i18n.getLocalization("admin", "labels").LOGIN);
+		this.set("title", dojo.i18n.getLocalization("admin", "labels").LOGIN);
 	</script>
 	<div dojoType="dijit.form.Form" id="loginform" jsId="loginform" action="/login" method="post">
 		<p  id="loginerrp" style="font-size:smaller;display:none"><label>&nbsp;</label><span id="loginerrspan" style="color:#ff0000"></span></p>
@@ -152,7 +152,7 @@ dojo.addOnLoad(init);
 		<p><label for="loginsubmit">&nbsp;</label>
 			<button dojoType="dijit.form.Button" id="loginsubmit" type="submit">
 				<script type="dojo/method" event="postCreate">
-					this.attr('label', dojo.i18n.getLocalization("admin", "labels").LOGIN);
+					this.set('label', dojo.i18n.getLocalization("admin", "labels").LOGIN);
 				</script>
 			</button>
 		</p>
@@ -173,7 +173,7 @@ dojo.addOnLoad(init);
 						agents.getModules(dijit.byId('editAgentModuleForm'));
 					</script>
 					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization("admin","labels").AGENTMODULES);
+						this.set('label', dojo.i18n.getLocalization("admin","labels").AGENTMODULES);
 					</script>
 				</button>
 			</div>
@@ -184,7 +184,7 @@ dojo.addOnLoad(init);
 						dijit.byId('agentsMain').selectChild('agentReleaseCodesSettings');
 					</script>
 					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization('admin', 'labels').RELEASE_CODES);
+						this.set('label', dojo.i18n.getLocalization('admin', 'labels').RELEASE_CODES);
 					</script>
 				</button>
 			</div>
@@ -195,7 +195,7 @@ dojo.addOnLoad(init);
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
 				<button dojoType="dijit.form.Button" label="ADDAGENT">
 					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization("admin","labels").ADDAGENT);
+						this.set('label', dojo.i18n.getLocalization("admin","labels").ADDAGENT);
 					</script>
 					<script type="dojo/connect" event="onClick">
 						dijit.byId('editAgent').reset();
@@ -212,7 +212,7 @@ dojo.addOnLoad(init);
 				</button>
 				<button dojoType="dijit.form.Button" label="ADDAGENTPROFILE">
 					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization("admin","labels").ADDAGENTPROFILE);
+						this.set('label', dojo.i18n.getLocalization("admin","labels").ADDAGENTPROFILE);
 					</script>
 					<script type="dojo/connect" event="onClick">
 						dijit.byId('editAgentProfileForm').reset(); 
@@ -226,13 +226,13 @@ dojo.addOnLoad(init);
 							var out = new dijit.form.MultiSelect(selectNode);
 						};
 						skills.createSelect(skillCallback, [], ['_brand', '_queue'], ['_brand', '_queue'])
-						dijit.byId('agentProfileName').attr('disabled', false);
-						dijit.byId('agentProfileId').attr('disabled', false);
+						dijit.byId('agentProfileName').set('disabled', false);
+						dijit.byId('agentProfileId').set('disabled', false);
 					</script>
 				</button>
 				<button dojoType="dijit.form.Button" label="DROPAGENTORPROFILE" id="agentsDestroyButton">
 					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization("admin","labels").DROPAGENTORPROFILE);
+						this.set('label', dojo.i18n.getLocalization("admin","labels").DROPAGENTORPROFILE);
 					</script>
 				</button>
 			</div>
@@ -244,7 +244,7 @@ dojo.addOnLoad(init);
 				<form dojoType="dijit.form.Form" id="editAgentModuleForm" action="javascript:void(0)" method="post">
 					<p>
 						<label for="agentModuleTCPListenEnabled">&nbsp;</label>
-						<input id="agentModuleTCPListenEnabled" name="agentModuleTCPListenEnabled" dojoType="dijit.form.CheckBox" value="tcpEnabled" checked onChange="dijit.byId('agentModuleTCPListen').attr('disabled', !this.checked)" />
+						<input id="agentModuleTCPListenEnabled" name="agentModuleTCPListenEnabled" dojoType="dijit.form.CheckBox" value="tcpEnabled" checked onChange="dijit.byId('agentModuleTCPListen').set('disabled', !this.checked)" />
 						<span class="translate">ENABLEAGENTTCP</span>
 					</p>
 					<p>
@@ -253,7 +253,7 @@ dojo.addOnLoad(init);
 					</p>
 					<p>
 						<label for="agentModuleWebListenEnabled">&nbsp;</label>
-						<input id="agentModuleWebListenEnabled" name="agentModuleWebListenEnabled" dojoType="dijit.form.CheckBox" value="webEnabled" checked onChange="dijit.byId('agentModuleWebListen').attr('disabled', !this.checked)" />
+						<input id="agentModuleWebListenEnabled" name="agentModuleWebListenEnabled" dojoType="dijit.form.CheckBox" value="webEnabled" checked onChange="dijit.byId('agentModuleWebListen').set('disabled', !this.checked)" />
 						<span class="translate">ENABLEAGENTWEB</span>
 					</p>
 					<p>
@@ -272,7 +272,7 @@ dojo.addOnLoad(init);
 								agents.updateModule('editAgentModuleForm');
 							</script>
 							<script type="dojo/method" event="postCreate">
-								this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+								this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 							</script>
 						</button>
 					</p>
@@ -287,20 +287,20 @@ dojo.addOnLoad(init);
 					<p>
 						<label for="spiceIntegrationImport">&nbsp;</label>
 						<span style="width:1em;display:inline-block"></span>
-						<input id="spiceIntegrationImport" name="spiceIntegratoinImport" dojoType="dijit.form.CheckBox" value="spiceIntegrationImport" disabled="true" postCreate='dijit.byId("spiceIntegrationImport").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data) { dijit.byId("spiceIntegrationImport").attr("disabled", ! data) } );' />
+						<input id="spiceIntegrationImport" name="spiceIntegratoinImport" dojoType="dijit.form.CheckBox" value="spiceIntegrationImport" disabled="true" postCreate='dijit.byId("spiceIntegrationImport").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data) { dijit.byId("spiceIntegrationImport").set("disabled", ! data) } );' />
 						<span class="translate">IMPORTSPICEINTEGRATION</span>
 					<p>
 						<label for="spiceServer" class="translatecol">SERVER</label>
-						<input id="spiceServer" name="server" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceServer").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceServer").attr("disabled", ! data) });'>
+						<input id="spiceServer" name="server" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceServer").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceServer").set("disabled", ! data) });'>
 						</input>
 					</p>
 					<p>
 						<label for="spiceUsername" class="translatecol">USERNAME</label>
-						<input id="spiceUsername" name="username" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceUsername").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceUsername").attr("disabled", ! data) });' />
+						<input id="spiceUsername" name="username" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spiceUsername").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spiceUsername").set("disabled", ! data) });' />
 					</p>
 					<p>
 						<label for="spicePassword" class="translatecol">PASSWORD</label>
-						<input id="spicePassword" name="password" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spicePassword").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spicePassword").attr("disabled", ! data) });' />
+						<input id="spicePassword" name="password" dojoType="dijit.form.TextBox" postCreate='dijit.byId("spicePassword").sub = dojo.subscribe("agent/modules/spicecsm_integration/enabled_changed", function(data){ dijit.byId("spicePassword").set("disabled", ! data) });' />
 					</p>
 					<p>
 						<label>&nbsp;</label>
@@ -309,7 +309,7 @@ dojo.addOnLoad(init);
 								agents.setSpiceIntegration('editSpicecsmIntegration');
 							</script>
 							<script type="dojo/method" event="postCreate">
-								this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+								this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 							</script>
 						</button>
 					</p>
@@ -323,7 +323,7 @@ dojo.addOnLoad(init);
 				</script>
 				<div dojoType="dijit.Dialog" title="RELEASE_CODES" id="releaseOptAddDialog">
 					<script type="dojo/connect" event="onShow">
-						this.attr('title', dojo.i18n.getLocalization('admin', 'labels').RELEASE_CODES);
+						this.set('title', dojo.i18n.getLocalization('admin', 'labels').RELEASE_CODES);
 						dijit.byId('releaseOptAddForm').reset();
 					</script>
 					<div dojoType="dijit.form.Form" id="releaseOptAddForm" action="/release_opts/add" method="post">
@@ -345,7 +345,7 @@ dojo.addOnLoad(init);
 							<label>&nbsp;</label>
 							<button dojoType="dijit.form.Button" label="SUBMIT">
 								<script type="dojo/method" event="postCreate">
-									this.attr('label', dojo.i18n.getLocalization('admin', 'labels').SUBMIT);
+									this.set('label', dojo.i18n.getLocalization('admin', 'labels').SUBMIT);
 								</script>
 								<script type="dojo/connect" event="onClick">
 									var vals = dijit.byId('releaseOptAddForm').getValues();
@@ -361,10 +361,10 @@ dojo.addOnLoad(init);
 											return true;
 										}
 										
-										console.log(['add release failed', res.message]);
+										console.warn(['add release failed', res.message]);
 									};
 									var error = function(res){
-										console.log(['add release erred', res]);
+										console.warn(['add release erred', res]);
 									};
 									releaseOpts.addOption(vals, loaded, error);
 									dijit.byId('releaseOptAddDialog').hide();
@@ -376,7 +376,7 @@ dojo.addOnLoad(init);
 				
 				<button dojoType="dijit.form.Button" label="ADD">
 					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization('admin', 'labels').ADD);
+						this.set('label', dojo.i18n.getLocalization('admin', 'labels').ADD);
 					</script>
 					<script type="dojo/connect" event="onClick">
 						dijit.byId('releaseOptAddDialog').show();
@@ -384,7 +384,7 @@ dojo.addOnLoad(init);
 				</button>
 				<button dojoType="dijit.form.Button" label="DROP">
 					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization('admin', 'labels').DROP);
+						this.set('label', dojo.i18n.getLocalization('admin', 'labels').DROP);
 					</script>
 					<script type="dojo/method" event="onClick">
 						var items = dijit.byId('agentReleaseCodesGrid').selection.getSelected();
@@ -429,7 +429,7 @@ dojo.addOnLoad(init);
 
 			<div dojoType="dijit.layout.ContentPane" id="agentEditor">
 				<form dojoType="dijit.form.Form" id="editAgent" action="javascript:void(0)" method="post">
-				<input type="hidden" dojoType="dijit.form.TextBox" name="oldlogin" id="agentOldLogin" value="" />
+				<input type="hidden" dojoType="dijit.form.TextBox" name="agentId" id="agentId" value="" />
 				<p>
 					<label for="agentLogin" class="translatecol wide">LOGINNAME</label>
 					<input dojoType="dijit.form.TextBox" name="login" id="agentLogin" />
@@ -512,7 +512,7 @@ dojo.addOnLoad(init);
 							agents.updateAgent('editAgent', 'agentsList')
 						</script>
 						<script type="dojo/method" event="postCreate">
-							this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+							this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 						</script>
 					</button>
 				</p>
@@ -577,7 +577,7 @@ dojo.addOnLoad(init);
 								agents.updateProfile('editAgentProfileForm', 'agentsList')
 							</script>
 							<script type="dojo/method" event="postCreate">
-								this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT)
+								this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT)
 							</script>
 						</button>
 					</p>
@@ -596,9 +596,9 @@ dojo.addOnLoad(init);
 			<div dojoType="dijit.layout.ContentPane" layoutAlign="bottom">
 				<button dojoType="dijit.form.Button" label="ADDQUEUE">
 					<script type="dojo/connect" event="onClick">
-						dijit.byId("queueName").attr('value', "New Call Queue");
-						dijit.byId("queueGroup").attr('displayedValue', "Default");
-						dijit.byId("queueWeight").attr('value', "1");
+						dijit.byId("queueName").set('value', "New Call Queue");
+						dijit.byId("queueGroup").set('displayedValue', "Default");
+						dijit.byId("queueWeight").set('value', "1");
 						dijit.byId("queueGroupRecipeDisplay").setValue([]);
 						dijit.byId("queueRecipe").setValue([]);
 						dijit.byId("queueSubmit").onClick = function(){
@@ -617,28 +617,28 @@ dojo.addOnLoad(init);
 						dijit.byId("queuesMain").selectChild('queueEditor');
 					</script>
 					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization("admin","labels").ADDQUEUE);
+						this.set('label', dojo.i18n.getLocalization("admin","labels").ADDQUEUE);
 					</script>
 				</button>
 				<button dojoType="dijit.form.Button" label="ADDQUEUEGROUP">
 					<script type="dojo/connect" event="onClick">
 						dijit.byId("queuesMain").selectChild('queueGroupEditor');
-						dijit.byId("queueGroupOldName").attr('value', "");
-						dijit.byId("queueGroupName").attr('value', "New Group");
-						dijit.byId("queueGroupSort").attr('value', 10);
+						dijit.byId("queueGroupOldName").set('value', "");
+						dijit.byId("queueGroupName").set('value', "New Group");
+						dijit.byId("queueGroupSort").set('value', 10);
 						dijit.byId("queueGroupRecipe").setValue([]);
-						dijit.byId("queueGroupName").attr('disabled', false);
+						dijit.byId("queueGroupName").set('disabled', false);
 						dijit.byId("queueGroupSubmit").onClick = function(){
 							queues.newGroup(dijit.byId("editQueueGroupForm"), dijit.byId("queueGroupRecipe"), "queuesList");
 						}
 					</script>
 					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization("admin","labels").ADDQUEUEGROUP);
+						this.set('label', dojo.i18n.getLocalization("admin","labels").ADDQUEUEGROUP);
 					</script>
 				</button>
 				<button dojoType="dijit.form.Button" label="DROPQUEUEORGROUP" id="queueDropButton">
 					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization("admin", "labels").DROPQUEUEORGROUP);
+						this.set('label', dojo.i18n.getLocalization("admin", "labels").DROPQUEUEORGROUP);
 					</script>
 				</button>
 			</div>
@@ -668,10 +668,10 @@ dojo.addOnLoad(init);
 					<label for="queueGroupSubmit">&nbsp;</label>
 					<button dojoType="dijit.form.Button" label="SUBMIT" id="queueGroupSubmit">
 						<script type="dojo/connect" event="onClick">
-							console.log('submit');
+							//onsole.log('submit');
 						</script>
 						<script type="dojo/method" event="postCreate">
-							this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+							this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 						</script>
 					</button>
 				</p>
@@ -694,8 +694,8 @@ dojo.addOnLoad(init);
 					</div>
 					<input dojoType="dijit.form.FilteringSelect" id="queueGroup" name="group" store="queueStore" value="Default" searchAttr="name" query="{'type':'group'}">
 						<script type="dojo/method" event="postCreate">
-							console.log("goo");
-							console.log(queues.store);
+							//onsole.log("goo");
+							//onsole.log(queues.store);
 							this.store = queues.store;
 						</script>
 					</input>
@@ -725,10 +725,10 @@ dojo.addOnLoad(init);
 					<label for="queueSubmit">&nbsp;</label>
 					<button dojoType="dijit.form.Button" label="SUBMIT" id="queueSubmit">
 						<script type="dojo/connect" event="onClick">
-							console.log('submit');
+							//onsole.log('submit');
 						</script>
 						<script type="dojo/method" event="postCreate">
-							this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+							this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 						</script>
 					</button>
 				</p>
@@ -749,13 +749,13 @@ dojo.addOnLoad(init);
 					<script type="dojo/connect" event="onClick">
 						dijit.byId('skillsMain').selectChild('skillEditor');
 						dijit.byId('editSkill').reset();
-						dijit.byId('skillAtom').attr('disabled', false);
+						dijit.byId('skillAtom').set('disabled', false);
 						dijit.byId('skillSubmit').onClick = function(){
 							skills.newSkill('editSkill', 'skillsList');
 						}
 					</script>
 					<script type="dojo/method" event="postCreate">
-						this.attr('label', dojo.i18n.getLocalization("admin", "labels").ADDSKILL);
+						this.set('label', dojo.i18n.getLocalization("admin", "labels").ADDSKILL);
 					</script>
 				</button>
 			</div>
@@ -792,7 +792,7 @@ dojo.addOnLoad(init);
 								skills.updateSkill('editSkill', 'skillsList');
 							</script>
 							<script type="dojo/method" event="postCreate">
-								this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+								this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 							</script>
 						</button>
 					</p>
@@ -817,7 +817,7 @@ dojo.addOnLoad(init);
 								skills.updateGroup('editSkillGroupForm', 'skillsList');
 							</script>
 							<script type="dojo/method" event="postCreate">
-								this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+								this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 							</script>
 						</button>
 					</p>
@@ -830,7 +830,7 @@ dojo.addOnLoad(init);
 		<div dojoType="dijit.layout.ContentPane" region="leading" width="20%" id="clientsNav">
 			<p><button dojoType="dijit.form.Button" label="DEFAULTS">
 				<script type="dojo/method" event="postCreate">
-					this.attr('label', dojo.i18n.getLocalization("admin", "labels").DEFAULTS);
+					this.set('label', dojo.i18n.getLocalization("admin", "labels").DEFAULTS);
 				</script>
 				<script type="dojo/method" event="onClick">
 					clients.store.fetch({
@@ -838,8 +838,8 @@ dojo.addOnLoad(init);
 						onComplete:function(items){
 							var item = items[0];
 							var options = clients.store.getValue(item, "options")
-							dijit.byId("clientDefaultUrl").attr('value', options["url_pop"]);
-							dijit.byId("clientDefaultAutowrapup").attr('value', options["autoend_wrapup"]);
+							dijit.byId("clientDefaultUrl").set('value', options["url_pop"]);
+							dijit.byId("clientDefaultAutowrapup").set('value', options["autoend_wrapup"]);
 						}
 					});
 					dijit.byId('clientsMain').selectChild('clientsDefaults');
@@ -847,7 +847,7 @@ dojo.addOnLoad(init);
 			</button></p>
 			<p><button dojoType="dijit.form.Button" label="CLIENTS">
 				<script type="dojo/method" event="postCreate">
-					this.attr('label', dojo.i18n.getLocalization("admin", "labels").CLIENTS);
+					this.set('label', dojo.i18n.getLocalization("admin", "labels").CLIENTS);
 				</script>
 				<script type="dojo/method" event="onClick">
 					dijit.byId('clientsMain').selectChild('clientsGridPane');
@@ -875,7 +875,7 @@ dojo.addOnLoad(init);
 						<label>&nbsp;</label>
 						<button name="submit" dojoType="dijit.form.Button" label="SUBMIT" id="clientDefaultSubmit">
 							<script type="dojo/method" event="postCreate">
-								this.attr('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
+								this.set('label', dojo.i18n.getLocalization("admin", "labels").SUBMIT);
 							</script>
 							<script type="dojo/connect" event="onClick">
 								clients.setDefault({
@@ -891,11 +891,11 @@ dojo.addOnLoad(init);
 				<div dojoType="dijit.layout.TabContainer">
 					<div dojoType="dijit.layout.ContentPane" title="CLIENT_STAND_ALONE_LIST">
 						<script type="dojo/method" event="postCreate">
-							this.attr('title', dojo.i18n.getLocalization('admin', 'labels').CLIENT_STAND_ALONE_LIST);
+							this.set('title', dojo.i18n.getLocalization('admin', 'labels').CLIENT_STAND_ALONE_LIST);
 						</script>
 						<div dojoType="dijit.Dialog" id="addClientDialog">
 							<script type="dojo/method" event="onShow">
-								dijit.byId('addClientForm').attr('value', {
+								dijit.byId('addClientForm').set('value', {
 									'id':'',
 									'label':''
 								});
@@ -903,7 +903,7 @@ dojo.addOnLoad(init);
 							<div dojoType="dijit.layout.ContentPane" title="boo">
 								<form dojoType="dijit.form.Form" method="post" id="addClientForm" action="javascript:void(0)">
 									<script type="dojo/method" event="onSubmit">
-										console.log(this.getValues());
+										//onsole.log(this.getValues());
 										var postData = this.getValues();
 										dojo.xhrPost({
 											url:'/clients/add',
@@ -920,11 +920,11 @@ dojo.addOnLoad(init);
 													dijit.byId('addClientDialog').hide();
 												}
 												else{
-													console.log(res)
+													console.warn(res)
 												}
 											},
 											error:function(res){
-												console.log(res)
+												console.warn(res)
 											}
 										});
 									</script>
@@ -958,11 +958,11 @@ dojo.addOnLoad(init);
 												clients.store.save();
 											}
 											else{
-												console.log(res)
+												console.warn(res)
 											}
 										},
 										error:function(res){
-											console.log(['load fail', res])
+											console.warn(['load fail', res])
 										}
 									});
 								</script>
@@ -991,11 +991,11 @@ dojo.addOnLoad(init);
 													clients.store.save();
 												}
 												else{
-													console.log(["client drop fail", res])
+													console.warn(["client drop fail", res])
 												}
 											},
 											error:function(res){
-												console.log(["client drop uberfail", res])
+												console.warn(["client drop uberfail", res])
 											}
 										});
 									}
@@ -1012,7 +1012,7 @@ dojo.addOnLoad(init);
 					</div>
 					<div dojoType="dijit.layout.ContentPane" title="CLIENT_INTEGRATION_LIST">
 						<script type="dojo/method" event="postCreate">
-							this.attr('title', dojo.i18n.getLocalization('admin', 'labels').CLIENT_INTEGRATION_LIST);
+							this.set('title', dojo.i18n.getLocalization('admin', 'labels').CLIENT_INTEGRATION_LIST);
 						</script>
 						<table dojoType="dojox.grid.DataGrid" id="clientsStaticGrid" query="{id:'?*',integration:'12*'}">
 							<thead>
@@ -1029,19 +1029,19 @@ dojo.addOnLoad(init);
 		</div>
 	</div>
 	
-	<div id="mediaTab" dojoType="dijit.layout.BorderContainer" title="MEDIATYPES">
-		<div id="mediaNav" dojoType="dijit.layout.ContentPane" region="leading" width="20%">
+	<div id="moduleTab" dojoType="dijit.layout.BorderContainer" title="MODULES">
+		<div id="moduleNav" dojoType="dijit.layout.ContentPane" region="leading" width="20%">
 			<div style="width:100%;height: 92%">
-				<div id="mediaList"></div>
+				<div id="moduleList"></div>
 			</div>
 		</div>
 		
-		<div id="mediaMain" dojoType="dijit.layout.StackContainer" region="center">
-			<div id="mediaNodeInfo" dojoType="dijit.layout.ContentPane">
+		<div id="moduleMain" dojoType="dijit.layout.StackContainer" region="center">
+			<div id="moduleNodeInfo" dojoType="dijit.layout.ContentPane">
 				Node data
 			</div>
 			
-			<div id="mediaConf" dojoType="dojox.layout.ContentPane">
+			<div id="moduleConf" dojoType="dojox.layout.ContentPane">
 				Conf container
 			</div>
 		</div>
@@ -1062,14 +1062,14 @@ dojo.addOnLoad(init);
 <div id="logoutButtonDiv" class="rightFloater">
 	<button id="logoutbutton" dojoType="dijit.form.Button" label="Log Out">
 		<script type="dojo/method" event="postCreate">
-			this.attr('label', dojo.i18n.getLocalization("admin", "labels").LOGOUT);
+			this.set('label', dojo.i18n.getLocalization("admin", "labels").LOGOUT);
 		</script>
 		<script type="dojo/connect" event="onClick">
 			dojo.xhrGet({
 				url:"/logout",
 				handleAs:"json",
 				load:function(resp, ioargs){
-					console.log(resp);
+					//onsole.log(resp);
 					if(resp.success){
 						dojo.byId("main").style.visibility = "hidden";
 						dojo.byId("logoutButtonDiv").style.display = "none";

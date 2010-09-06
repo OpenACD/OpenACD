@@ -14,6 +14,7 @@
 	AGENTS: "Agents",
 	QUEUES: "Queues",
 	SKILLS: "Skills",
+	MODULES: "Modules",
 	MEDIATYPES: "Media Types",
 	AGENTMODULES: "Agent Modules",
 	RELEASE_CODES: "Release Codes",

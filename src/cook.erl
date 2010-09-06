@@ -347,7 +347,7 @@ sort_agent_list(Dispatchers) when is_list(Dispatchers) ->
 		try dispatcher:get_agents(Dpid) of
 			[] ->
 				?DEBUG("empty list, might as well tell this dispatcher to regrab", []),
-				dispatcher:regrab(Dpid),
+				%dispatcher:regrab(Dpid),
 				[];
 			{unknown_call, get_agents} ->
 				[];

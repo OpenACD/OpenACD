@@ -56,8 +56,10 @@
 	tref :: any(), % timer reference
 	qpid :: pid(),
 	tried_queues = [] :: [pid()],
-	agents = [] :: [pid()]}).
-	
+	agents = [] :: [pid()],
+	cook_mon :: reference() | 'undefined'
+}).
+
 -type(state() :: #state{}).
 -define(GEN_SERVER, true).
 -include("gen_spec.hrl").
@@ -96,9 +98,15 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 %% @private
-handle_call(get_agents, _From, State) when is_record(State#state.call, queued_call) -> 
+handle_call(get_agents, From, State) when is_record(State#state.call, queued_call) -> 
 	Call = State#state.call,
-	{reply, agent_manager:filtered_route_list(Call#queued_call.skills), State};
+	case agent_manager:filtered_route_list(Call#queued_call.skills) of
+		[] ->
+			gen_server:reply(From, []),
+			handle_cast(regrab, State);
+		List ->
+			{reply, List, State}
+	end;
 handle_call(bound_call, _From, State) ->
 	case State#state.call of
 		undefined ->
@@ -115,19 +123,6 @@ handle_call({stop, Force}, _From, State) when is_record(State#state.call, queued
 	end;
 handle_call({stop, _Force}, _From, State) ->
 	{stop, normal, ok, State};
-%handle_call(regrab, _From, State) ->
-	%OldQ = State#state.qpid,
-	%Queues = queue_manager:get_best_bindable_queues(),
-	%Filtered = lists:filter(fun(Elem) -> element(2, Elem) =/= OldQ end, Queues),
-	%?DEBUG("looping through filtered queues... ~p", [Filtered]),
-	%case loop_queues(Filtered) of
-		%none -> 
-			%{reply, State#state.call, State};
-		%{Qpid, Call} ->
-			%OldCall = State#state.call,
-			%call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
-			%{reply, Call, State#state{qpid=Qpid, call=Call}}
-	%end;
 handle_call(dump_state, _From, State) ->
 	{reply, {ok, State}, State};
 handle_call(Request, _From, State) ->
@@ -142,22 +137,22 @@ handle_cast(stop, State) ->
 handle_cast({update_skills, Skills}, #state{call = Call} = State) ->
 	Newcall = Call#queued_call{skills = Skills},
 	{noreply, State#state{call = Newcall}};
-handle_cast(regrab, #state{tried_queues = Tried} = State) ->
+handle_cast(regrab, #state{tried_queues = Tried, call = OldCall} = State) ->
 	OldQ = State#state.qpid,
 	Queues = queue_manager:get_best_bindable_queues(),
 	Filtered = [Elem || {_Qnom, Qpid, {_Pos, _QueuedCall}, _Weight} = Elem <- Queues, not lists:member(Qpid, Tried)],
 	case loop_queues(Filtered) of
 		none -> 
 			?DEBUG("No new queue found, maintaining same state, releasing hold for another dispatcher", []),
-			OldCall = State#state.call,
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
-			{noreply, State#state{qpid = undefined, call = undefined, tref = Tref, tried_queues = []}};
+			erlang:demonitor(State#state.cook_mon),
+			{noreply, State#state{qpid = undefined, call = undefined, tref = Tref, tried_queues = [], cook_mon = undefined}};
 		{Qpid, Call} ->
-			OldCall = State#state.call,
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			?DEBUG("updating from call ~s in ~p to ~s in ~p", [OldCall#queued_call.id, State#state.qpid, Call#queued_call.id, Qpid]),
-			{noreply, State#state{qpid=Qpid, call=Call, tried_queues = [Qpid | Tried]}}
+			Cookmon = erlang:monitor(process, Call#queued_call.cook),
+			{noreply, State#state{qpid=Qpid, call=Call, tried_queues = [Qpid | Tried], cook_mon = Cookmon}}
 	end;
 handle_cast(_Msg, State) ->
 	{noreply, State}.
@@ -174,6 +169,12 @@ handle_info(grab_best, State) ->
 		{Qpid, Call} ->
 			{noreply, State#state{call=Call, qpid=Qpid, tref=undefined}}
 	end;
+handle_info({'DOWN', Mon, process, Pid, Reason}, #state{cook_mon = Mon} = State) when Reason =:= normal orelse Reason =:= shutdown ->
+	?DEBUG("Monitor'ed cook (~p) exited cleanly, going down", [Pid]),
+	{stop, Reason, State};
+handle_info({'DOWN', Mon, process, Pid, Reason}, #state{cook_mon = Mon} = State) ->
+	?DEBUG("Monitored cook (~p) died messily, moving onto another call.", [Pid]),
+	handle_cast(regrab, State);
 handle_info(Info, State) ->
 	?DEBUG("unexpected info ~p", [Info]),
 	{noreply, State}.

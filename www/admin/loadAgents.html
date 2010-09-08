@@ -68,10 +68,11 @@ dojo.addOnLoad(init);
 </head>
 
 <body class="tundra">
-<form name="loadAgentFileForm" action="loadAgentsFromFile" method="post">
+<form name="loadAgentFileForm" action="loadAgentsFromFile" method="post" enctype="multipart/form-data">
 <p class="translate">LOAD_AGENTS_EXPLANATION</p>
-<p style="font-family:monospace">{AgentLogin, AgentPassword, Profie, FirstName, LastName, SecrityAtom, [Skill1, Skill2, ...]}.</p>
+<p style="font-family:monospace">{AgentId, AgentLogin, AgentPassword, Profie, FirstName, LastName, SecrityAtom, [Skill1, Skill2, ...]}.</p>
 <dl class="codeDefinition">
+	<dt>AgentId</dt><dd>string()</dd>
 	<dt>AgentLogin</dt><dd>string()</dd>
 	<dt>AgentPassword</dt><dd>string()</dd>
 	<dt>Profie</dt><dd>string()</dd>

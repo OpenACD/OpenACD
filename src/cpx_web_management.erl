@@ -113,10 +113,34 @@ stop() ->
 	ets:delete(cpx_management_logins),
 	mochiweb_http:stop(?MODULE).
 
+file_handler(Name, ContentType) ->
+	fun(N) -> file_data_handler(N, {Name, ContentType, <<>>}) end.
+
+file_data_handler(eof, {Name, _ContentType, Acc}) ->
+	?DEBUG("eof gotten", []),
+	{Name, Acc};
+file_data_handler(Data, {Name, ContentType, Acc}) ->
+	Newacc = <<Acc/binary, Data/binary>>,
+	fun(N) -> file_data_handler(N, {Name, ContentType, Newacc}) end.
+
 -spec(loop/2 :: (Req :: atom(), Opts :: [any()]) -> any()).
 loop(Req, Opts) ->
 	Path = Req:get(path),
-	Post = Req:parse_post(),
+	Post = case Req:get_primary_header_value("content-type") of
+		"application/x-www-form-urlencoded" ++ _ ->
+			Req:parse_post();
+		_ ->
+			%% TODO Change this to a custom parser rather than mochi's default.
+			try mochiweb_multipart:parse_form(Req, fun file_handler/2) of
+				Whoa ->
+					?NOTICE("whoa:  ~p", [Whoa]),
+					Whoa
+			catch
+				_:_ ->
+					%?DEBUG("Going with a blank post due to mulipart parse fail:  ~p:~p", [What, Why]),
+					[]
+			end
+	end,
 	case parse_path(Path) of
 		{file, {File, Docroot}} ->
 			Cookies = Req:parse_cookie(),
@@ -359,6 +383,37 @@ api(logout, {Reflist, _Salt, _Login}, _Post) ->
 	{200, [{"Set-Cookie", Cookie}], mochijson2:encode({struct, [{success, true}]})};
 api(_Api, {_Reflist, _Salt, undefined}, _Post) ->
 	{403, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"login required">>}]})};
+api(load_agents, ?COOKIE, Post) ->
+	{_Filename, Binary} = proplists:get_value("loadAgentFile", Post),
+	Overwrite = proplists:get_value("overwrite", Post),
+	String = binary_to_list(Binary),
+	Terms = list_to_terms(String),
+	?NOTICE("Das terms:  ~p", [Terms]),
+	CreateAgentFun = fun({Id, Login, Pass, Profile, Firstname, Lastname, Security, Skills}) ->
+		case {agent_auth:get_agent(id, Id), agent_auth:get_agent(login, Login), Overwrite} of
+			{{atomic, []}, {atomic, []}, _} ->
+				agent_auth:cache(Id, Login, Pass, {Profile, Skills}, Security, [{<<"auto_loaded">>, util:now()}]),
+				agent_auth:set_agent(Id, [{firstname, Firstname}, {lastname, Lastname}]);
+			{_, _, undefined} ->
+				{skipped, Login};
+			{{atomic, [_Rec]}, {atomic, []}, _} ->
+				agent_auth:destroy(id, Id),
+				agent_auth:cache(Id, Login, Pass, {Profile, Skills}, Security, [{<<"auto_loaded">>, util:now()}]),
+				agent_auth:set_agent(Id, [{firstname, Firstname}, {lastname, Lastname}]);
+			{{atomic, []}, {atomic, [_Rec]}, _} ->
+				agent_auth:destroy(login, Id),
+				agent_auth:cache(Id, Login, Pass, {Profile, Skills}, Security, [{<<"auto_loaded">>, util:now()}]),
+				agent_auth:set_agent(Id, [{firstname, Firstname}, {lastname, Lastname}]);
+			{{atomic, [_Rec]}, {atomic, [_OtherRec]}, _} ->
+				agent_auth:destroy(id, Id),
+				agent_auth:destroy(login, Id),
+				agent_auth:cache(Id, Login, Pass, {Profile, Skills}, Security, [{<<"auto_loaded">>, util:now()}]),
+				agent_auth:set_agent(Id, [{firstname, Firstname}, {lastname, Lastname}])
+		end
+	end,
+	Reses = [CreateAgentFun(X) || X <- Terms],
+	?NOTICE("load agents res:  ~p", [Reses]),
+	{301, [{"location", "/loadAgents.html"}], <<"yar?">>};
 	
 %% =====
 %% agents -> modules
@@ -1869,6 +1924,8 @@ parse_path(Path) ->
 			{api, dialer};
 		"/api" ->
 			api;
+		"/loadAgentsFromFile" ->
+			{api, load_agents};
 		_Other ->
 			% section/action (params in post data)
 			case util:string_split(Path, "/") of
@@ -2410,6 +2467,26 @@ encode_modules_confs(Node, [{Mod, undefined} | Tail], Acc) ->
 		{<<"node">>, list_to_binary(atom_to_list(Node))}
 	]},
 	encode_modules_confs(Node, Tail, [Json | Acc]).
+
+list_to_terms(List) ->
+	list_to_terms(List, 1, []).
+
+list_to_terms([], _Loc, Acc) ->
+	lists:reverse(Acc);
+list_to_terms(List, Location, Acc) ->
+	case erl_scan:tokens([], List, Location) of
+		{done, {ok, Tokens, End}, Tail} ->
+			{ok, Term} = erl_parse:parse_term(Tokens),
+			NewAcc = [Term | Acc],
+			list_to_terms(Tail, 1, NewAcc);
+		{done, {eof, _Locaction}, _Tail} ->
+			list_to_terms([], Location, Acc);
+		{done, Error, _Tail} ->
+			Error;
+		{more, Continuation} ->
+			?NOTICE("list to term ending early.  ~p", [Continuation]),
+			list_to_terms([], Location, Acc)
+	end.
 
 %% =====
 %% tests

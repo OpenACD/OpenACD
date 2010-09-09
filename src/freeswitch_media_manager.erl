@@ -450,8 +450,12 @@ handle_info({'EXIT', Pid, Reason}, #state{call_dict = Dict} = State) ->
 					normal ->
 						% all is well.
 						Acc;
+					shutdown ->
+						% also good.
+						Acc;
 					_ ->
 						cdr:truncate(Key),
+						cpx_monitor:drop({media, Key}),
 						Acc
 				end;
 			_Else ->

@@ -1,0 +1,112 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<link rel="stylesheet" href="/dojo/dijit/themes/tundra/tundra.css">
+<style type="text/css">
+	@import "/dojo/dijit/themes/tundra/tundra.css";
+	label{
+		width: 5.5em;
+		float: left;
+		text-align:right;
+		margin-right:0.1em;
+		display:block;
+		font-weight:bold;
+		clear:both;
+	}
+	.codeDefinition li,dd{
+		list-style-type:none;
+		font-family:monospace;
+	}
+</style> 
+
+<script type="text/javascript">
+	//Can't use dojo.cookie because we need the language to configure dojo.
+	//Thus, the hard parsing.
+	var cookies = document.cookie.split('; ');
+	var locale = "";
+	for(var i = 0; i < cookies.length; i++){
+		var broken = cookies[i].split("=");
+		if(broken[0] == "cpx_lang"){
+			locale = broken[1];
+			break;
+		}
+	}
+	var djConfig = {
+		parseOnLoad:true,
+		isDebug:true,
+		locale:locale,
+		modulePaths:{
+			"admin":"/lang"
+		}
+	}
+</script>
+<!-- load the dojo toolkit base -->
+<script type="text/javascript" src="/dojo/dojo/dojo.js"></script>
+<script type="text/javascript">
+/* dependancies */
+dojo.require("dojo.parser");
+dojo.require("dijit.form.CheckBox");
+dojo.require("dijit.form.Button");
+dojo.registerModulePath("openacd", "../../openacd");
+dojo.requireLocalization("admin", "labels");
+
+function init() {
+	var nodes = dojo.query('.translate, .translatecol');
+	var nlsStrings = dojo.i18n.getLocalization("admin", "labels");
+	for(var i = 0; i < nodes.length; i++){
+		var trans = nlsStrings[nodes[i].innerHTML];
+		if(dojo.hasClass(nodes[i], 'translatecol')){
+			trans += ':';
+		}
+		nodes[i].innerHTML = trans;
+	}
+}
+
+dojo.addOnLoad(init);
+</script>
+</head>
+
+<body class="tundra">
+<form name="loadAgentFileForm" action="loadAgentsFromFile" method="post" enctype="multipart/form-data">
+<p class="translate">LOAD_AGENTS_EXPLANATION</p>
+<p style="font-family:monospace">{AgentId, AgentLogin, AgentPassword, Profie, FirstName, LastName, SecrityAtom, [Skill1, Skill2, ...]}.</p>
+<dl class="codeDefinition">
+	<dt>AgentId</dt><dd>string()</dd>
+	<dt>AgentLogin</dt><dd>string()</dd>
+	<dt>AgentPassword</dt><dd>string()</dd>
+	<dt>Profie</dt><dd>string()</dd>
+	<dt>FirstName</dt><dd>string()</dd>
+	<dt>LastName</dt><dd>string()</dd>
+	<dt>SecrityAtom</dt><dd>One of:
+		<ul>
+			<li>agent</li>
+			<li>supervisor</li>
+			<li>admin</li>
+		</ul></dd>
+	<dt>Skill</dt><dd>One of:
+		<ul>
+			<li>'skill_atom'</li>
+			<li>{'_skill_atom', string()}</li>
+		</ul>
+	</dd>
+</dl>
+<p>
+	<label for="laodAgentFile" class="translatecol">FILE</label>
+	<input name="loadAgentFile" id="loadAgentFile" type="file" />
+</p>
+<p>
+	<label>&nbsp;</label>
+	<input name="overwrite" id="overwrite" type="checkbox" dojoType="dijit.form.CheckBox" /><span class="translate">OVERWRITE_EXISTING</span>
+</p>
+<p>
+	<label>&nbsp;</label>
+	<button dojoType="dijit.form.Button" name="submit" id="submit" type="submit" label="SUBMIT" >
+		<script type="dojo/method" event="postCreate">
+			this.set('label', dojo.i18n.getLocalization('admin', 'labels')['SUBMIT']);
+		</script>
+	</button>
+</p>
+</form>
+</body>
+</html>

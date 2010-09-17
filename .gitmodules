@@ -19,3 +19,6 @@
 [submodule "www/contrib/dojo/dojox"]
 	path = www/contrib/dojo/dojox
 	url = http://github.com/dojo/dojox.git
+[submodule "contrib/mochiweb"]
+	path = contrib/mochiweb
+	url = git://github.com/mochi/mochiweb.git

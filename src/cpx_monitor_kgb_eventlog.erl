@@ -215,7 +215,7 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 			% state change!
 			% what's the new state; if its oncall we just grabbed a call, if its released/idle we just finished one
 			case {proplists:get_value(state, Old), proplists:get_value(state, New)} of
-					{wrapup, _} ->
+					{_, wrapup} ->
 						Call = proplists:get_value(statedata, Old),
 						Queue = case dict:find(Call#call.id, State#state.callqueuemap) of
 							error -> "Unknown Queue";
@@ -223,6 +223,27 @@ agent_diff(Agent, New, Old, Timestamp, #state{file = File} = State) ->
 						end,
 
 						io:format(File, "~s : ~s : call_terminate : ~p : ~s : ~s : ~s : ~s : ~s : ~s : ~s : ~s~n", [
+								get_FQDN(),
+								%util:now(),
+								iso8601_timestamp(Timestamp),
+								proplists:get_value(node, New),
+								Queue,
+								proplists:get_value(login, New),
+								element(2, Call#call.callerid),
+								Call#call.id,
+								"Origin",
+								"CLS",
+								"Source IP",
+								Call#call.dnis
+							]);
+					{wrapup, _} ->
+						Call = proplists:get_value(statedata, Old),
+						Queue = case dict:find(Call#call.id, State#state.callqueuemap) of
+							error -> "Unknown Queue";
+							{ok, Value} -> Value
+						end,
+
+						io:format(File, "~s : ~s : call_complete : ~p : ~s : ~s : ~s : ~s : ~s : ~s : ~s : ~s~n", [
 								get_FQDN(),
 								%util:now(),
 								iso8601_timestamp(Timestamp),

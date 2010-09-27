@@ -40,13 +40,21 @@ else
 end
 ERLC_FLAGS = "-I#{INCLUDE} -D #{OTPVERSION} +warn_unused_vars +warn_unused_import +warn_exported_vars +warn_untyped_record"
 
+$skips = []
+if(ENV['skip'])
+	$skips = ENV['skip'].split(",").map do |skip|
+		"contrib/" + skip
+	end
+end
 SRC = FileList['src/*.erl']
 HEADERS = FileList['include/*.hrl']
 OBJ = SRC.pathmap("%{src,ebin}X.beam")
-CONTRIB = FileList['contrib/*']
+CONTRIB = FileList['contrib/*'] - $skips
 DEBUGOBJ = SRC.pathmap("%{src,debug_ebin}X.beam")
 COVERAGE = SRC.pathmap("%{src,coverage}X.txt")
 RELEASE = FileList['src/*.rel.src'].pathmap("%{src,ebin}X")
+
+puts "CONTRIB: " + CONTRIB.to_s
 
 # check to see if gmake is available, if not fall back on the system make
 if (not win32) and res = `which gmake` and $?.exitstatus.zero? and not res =~ /no gmake in/

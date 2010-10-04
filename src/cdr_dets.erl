@@ -180,8 +180,8 @@ commit(#state{last_day = Lastday} = State) ->
 			{NewAdetsF, NewCdetsF} = make_file_names(State#state.log_dir),
 			dets:close(agent_dets_ref),
 			dets:close(cdr_dets_ref),
-			NewAdets = dets:open_file(agent_dets_ref, [{file, NewAdetsF}]),
-			NewCdets = dets:open_file(cdr_dets_ref, [{file, NewCdetsF}]),
+			NewAdets = dets:open_file(agent_dets_ref, [{file, NewAdetsF},{keypos, 2}]),
+			NewCdets = dets:open_file(cdr_dets_ref, [{file, NewCdetsF},{keypos, 2}]),
 			{ANewday, NewAdets, NewCdets}
 	end,
 	dets:insert(agent_dets_ref, State#state.agent_buffer),

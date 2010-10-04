@@ -2019,7 +2019,13 @@ check_cookie(Allothers) ->
 	end.
 
 get_pubkey() ->
-	{ok,[Entry]} = public_key:pem_to_der("./key"),
+	% TODO - this is going to break again for R15A, fix before then
+	Entry = case public_key:pem_to_der("./key") of
+		{ok, [Ent]} ->
+			Ent;
+		[Ent] ->
+			Ent
+	end,
 	{ok,{'RSAPrivateKey', 'two-prime', N , E, _D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
 	[E, N].
 
@@ -2054,7 +2060,13 @@ parse_posted_skills([Skill | Tail], Acc) ->
 	end.
 
 decrypt_password(Password) ->
-	{ok,[Entry]} = public_key:pem_to_der("./key"),
+	% TODO - this is going to break again for R15A, fix before then
+	Entry = case public_key:pem_to_der("./key") of
+		{ok, [Ent]} ->
+			Ent;
+		[Ent] ->
+			Ent
+	end,
 	{ok,{'RSAPrivateKey', 'two-prime', N , E, D, _P, _Q, _E1, _E2, _C, _Other}} =  public_key:decode_private_key(Entry),
 	PrivKey = [crypto:mpint(E), crypto:mpint(N), crypto:mpint(D)],
 	Bar = crypto:rsa_private_decrypt(util:hexstr_to_bin(Password), PrivKey, rsa_pkcs1_padding),

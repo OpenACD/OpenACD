@@ -495,11 +495,19 @@ ringing({released, {Id, Text, Bias} = Reason}, _From, #state{agent_rec = #agent{
 	set_cpx_monitor(Newagent, ?RELEASED_LIMITS(Bias), [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = Newagent}};
 ringing(idle, _From, #state{agent_rec = Agent} = State) ->
+	Locked = case cpx:get_env(agent_ringout_lock, 0) of
+		{ok, 0} ->
+			unlocked;
+		{ok, Lock} ->
+			Self = self(),
+			erlang:send_after(Lock, Self, ring_unlock),
+			locked
+	end,
 	gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 	gen_server:cast(Agent#agent.connection, {change_state, idle}),
 	Newagent = Agent#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now()},
 	set_cpx_monitor(Newagent, ?IDLE_LIMITS, []),
-	{reply, ok, idle, State#state{agent_rec = Newagent}};
+	{reply, ok, idle, State#state{agent_rec = Newagent, ring_locked = Locked}};
 ringing(Event, _From, State) ->
 	?DEBUG("ringing evnet ~p", [Event]),
 	{reply, invalid, ringing, State}.
@@ -1651,6 +1659,35 @@ from_ringing_test_() ->
 			?assertMatch({reply, ok, idle, _State}, ringing(idle, "from", State)),
 			Assertmocks()
 		end}
+	end,
+	fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
+		{"to idle with a ring lock between rings",
+		fun() ->
+			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
+											[{idle, _Limits}] = Health,
+											Node = node(),
+											ok
+											end),
+			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
+									 ok
+									 end),
+			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, ringing, {}}, _State) -> ok end),
+			gen_leader_mock:expect_cast(AMmock, fun({now_avail, Nom}, _State, _Elec) ->
+									 Nom = Agent#agent.login,
+									 ok
+									 end),
+			application:set_env(cpx, agent_ringout_lock, 10),
+			{reply, ok, idle, #state{ring_locked = Newlocked} = Newstate} = ringing(idle, "from", State),
+			?assertEqual(locked, Newlocked),
+			receive
+				ring_unlock ->
+					ok
+			after 15 ->
+				?assert("ring_unlock on recieved")
+			end,
+			Assertmocks(),
+			application:set_env(cpx, agent_ringout_lock, 0)
+	 end}
 	end,
 	fun({Agent, _AMmock, _Dmock, _Monmock, _Connmock, Assertmocks}) ->
 		{"to ringing",

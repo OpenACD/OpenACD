@@ -606,6 +606,17 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					Moh = proplists:get_value("variable_queue_moh", Rawcall, "moh"),
 					P = proplists:get_value("variable_queue_priority", Rawcall, integer_to_list(?DEFAULT_PRIORITY)),
 					Ivropt = proplists:get_value("variable_ivropt", Rawcall),
+					SkillList = proplists:get_value("variable_skills", Rawcall, ""),
+					Skills = lists:foldl(fun(X, Acc) ->
+								try list_to_existing_atom(X) of
+									Atom ->
+										[Atom | Acc]
+								catch
+									error:badarg ->
+										?WARNING("Freeswitch requested unknown skill ~s~n", [X]),
+										Acc
+								end
+						end, [], util:string_split(SkillList, ",")),
 					Priority = try list_to_integer(P) of
 						Pri -> Pri
 					catch
@@ -614,7 +625,7 @@ case_event_name([UUID | Rawcall], Callrec, State) ->
 					Calleridname = proplists:get_value("Caller-Caller-ID-Name", Rawcall, "Unknown"),
 					Calleridnum = proplists:get_value("Caller-Caller-ID-Number", Rawcall, "Unknown"),
 					Doanswer = proplists:get_value("variable_erlang_answer", Rawcall, true),
-					NewCall = Callrec#call{client=Client, callerid={Calleridname, Calleridnum}, priority = Priority},
+					NewCall = Callrec#call{client=Client, callerid={Calleridname, Calleridnum}, priority = Priority, skills = Skills},
 					case Doanswer of
 						"false" ->
 							ok;

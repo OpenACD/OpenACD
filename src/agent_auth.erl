@@ -615,7 +615,7 @@ cache(Id, Username, Password, {Profile, Skills}, Security, Extended) ->
 					id = Id,
 					login = Username,
 					password = util:bin_to_hexstr(erlang:md5(Password)),
-					skills = [],
+					skills = Skills,
 					securitylevel = Security,
 					integrated = util:now(),
 					profile = Profile,

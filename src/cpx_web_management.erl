@@ -517,7 +517,13 @@ api({agents, "modules", "get"}, ?COOKIE, _Post) ->
 			[Webport] = Weblist#cpx_conf.start_args,
 			[{"agentModuleWebListen", Webport}, {"agentModuleWebListenEnabled", true}]
 	end,
-	Full = lists:append([Tcpout, Webout]),
+	Dialplanout = case cpx_supervisor:get_conf(agent_dialplan_listener) of
+		undefined ->
+			[{"agentModuleDialplanListenEnabled", false}];
+		_ ->
+			[{"agentModuleDialplanListenEnabled", true}]
+	end,
+	Full = lists:append([Tcpout, Webout, Dialplanout]),
 	{200, [], mochijson2:encode({struct, [{success, true}, {<<"result">>, {struct, Full}}]})};
 
 %% =====

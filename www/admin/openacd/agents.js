@@ -35,6 +35,9 @@ agents.getModules = function(targetform){
 				if(kids[i].id == 'agentModuleWebListenEnabled'){
 					kids[i].set('checked', response.result.agentModuleWebListenEnabled);
 				}
+				if(kids[i].id = 'agentModuleDialplanListenEnabled'){
+					kids[i].set('checked', response.result.agentModuleDialplanListenEnabled);
+				}
 			}
 		}
 	});

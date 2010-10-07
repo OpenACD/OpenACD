@@ -146,7 +146,10 @@ handle_cast(regrab, #state{tried_queues = Tried, call = OldCall} = State) ->
 			?DEBUG("No new queue found, maintaining same state, releasing hold for another dispatcher", []),
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),
 			Tref = erlang:send_after(?POLL_INTERVAL, self(), grab_best),
-			erlang:demonitor(State#state.cook_mon),
+			case State#state.cook_mon of
+				undefined -> ok;
+				Monitor -> erlang:demonitor(Monitor)
+			end,
 			{noreply, State#state{qpid = undefined, call = undefined, tref = Tref, tried_queues = [], cook_mon = undefined}};
 		{Qpid, Call} ->
 			call_queue:ungrab(State#state.qpid, OldCall#queued_call.id),

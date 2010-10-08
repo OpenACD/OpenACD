@@ -123,7 +123,7 @@ init([Fnode, AgentRec, Apid, Call, Ringout, Fun, Options]) when is_record(Call, 
 					freeswitch_media_manager:do_dial_string(String, AgentRec#agent.login, DialStringOpts)
 			end,
 
-			?INFO("originating ring channel with args: ~p", [DialString ++ " &park()"]),
+			?INFO("originating ring channel for ~p with args: ~p", [Call#call.id, DialString ++ " &park()"]),
 			case freeswitch:bgapi(Fnode, originate, DialString ++ " &park()", Fun(UUID)) of
 				ok ->
 					Gethandle = fun(Recusef, Count) ->

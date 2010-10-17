@@ -39,8 +39,8 @@
 
 %% API
 -export([
-		monitor_agent/2,
-		monitor_client/2
+		monitor_agent/3,
+		monitor_client/3
 	]).
 
 -include("log.hrl").
@@ -49,10 +49,13 @@
 
 -record(state, {
 		type :: 'agent' | 'client',
-		oncall = false :: boolean()
+		oncall = false :: boolean(),
+		uuid :: string(),
+		filter :: fun(),
+		node :: node()
 	}).
 
-monitor_agent(Agent, Dialstring) ->
+monitor_agent(Agent, Dialstring, Node) ->
 	case agent_auth:get_agent(Agent) of
 		{'atomic', [AgentAuth]} ->
 			ID = AgentAuth#agent_auth.id,
@@ -61,12 +64,12 @@ monitor_agent(Agent, Dialstring) ->
 				(_Msg) ->
 					false
 			end,
-			gen_server:start(?MODULE, [agent, Filter, Dialstring], []);
+			gen_server:start(?MODULE, [agent, Filter, Dialstring, Node], []);
 		_ ->
 			{error, no_agent}
 	end.
 
-monitor_client(Client, Dialstring) ->
+monitor_client(Client, Dialstring, Node) ->
 	case call_queue_config:get_client(Client) of
 		none ->
 			{error, no_client};
@@ -86,12 +89,13 @@ monitor_client(Client, Dialstring) ->
 				(_Msg) ->
 					false
 			end,
-			gen_server:start(?MODULE, [client, Filter, Dialstring], [])
+			gen_server:start(?MODULE, [client, Filter, Dialstring, Node], [])
 	end.
 
-init([Type, Filter, Dialstring]) ->
-	cpx_monitor:subscribe(Filter),
-	{ok, #state{type = Type}}.
+init([Type, Filter, Dialstring, Node]) ->
+	Self = self(),
+	freeswitch:bgapi(Node, originate, Dialstring ++ " &park()", fun(Status, Reply) -> Self ! {originate, Status, Reply} end),
+	{ok, #state{type = Type, filter = Filter, node = Node}}.
 
 handle_call(_Request, _From, State) ->
 	Reply = ok,
@@ -103,7 +107,19 @@ handle_cast(_Msg, State) ->
 handle_info({cpx_monitor_event, {set, {{agent, Key}, _Health, Details, Timestamp}}}, State) ->
 	case proplists:get_value(state, Details) of
 		S when S == oncall; S == outgoing ->
-			?NOTICE("Watched ~p just went oncall", [State#state.type]),
+			?NOTICE("Watched ~p just went oncall ~p", [State#state.type, Details]),
+			% check the state data to make sure its a voice call
+			case proplists:get_value(statedata, Details) of
+				Call when is_record(Call, call), element(3, Call) == voice ->
+					?NOTICE("we can eavesdrop on ~p", [Call#call.id]),
+					Res = freeswitch:sendmsg(State#state.node, State#state.uuid,
+						[{"call-command", "execute"},
+							{"execute-app-name", "eavesdrop"},
+							{"execute-app-arg", Call#call.id}]),
+					?NOTICE("eavesdrop result: ~p", [Res]);
+				_ ->
+					ok
+			end,
 			{noreply, State#state{oncall = true}};
 		_ when State#state.oncall == true ->
 			?NOTICE("Watched ~p just went offcall", [State#state.type]),
@@ -111,6 +127,23 @@ handle_info({cpx_monitor_event, {set, {{agent, Key}, _Health, Details, Timestamp
 		_ ->
 			{noreply, State}
 	end;
+handle_info({originate, ok, "+OK "++RawUUID}, State) ->
+	UUID = util:string_chomp(RawUUID),
+	?NOTICE("Call originated OK: ~p", [UUID]),
+	case freeswitch:handlecall(State#state.node, UUID) of
+		ok ->
+			?NOTICE("bound to call", []),
+			cpx_monitor:subscribe(State#state.filter),
+			% TODO - find initial call to monitor, if any
+			{noreply, State#state{uuid = UUID}};
+		Reply ->
+			{stop, {no_channel, Reply}, State}
+	end;
+handle_info({originate, error, Reply}, State) ->
+	?NOTICE("Call originate FAILED", []),
+	{stop, {bad_originate, Reply}, State};
+handle_info(call_hangup, State) ->
+	{stop, normal, State};
 handle_info(Info, State) ->
 	%?NOTICE("Got message: ~p", [Info]),
 	{noreply, State}.

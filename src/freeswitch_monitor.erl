@@ -106,7 +106,7 @@ handle_cast(_Msg, State) ->
 
 handle_info({cpx_monitor_event, {set, {{agent, Key}, _Health, Details, Timestamp}}}, State) ->
 	case proplists:get_value(state, Details) of
-		S when S == oncall; S == outgoing ->
+		S when State#state.oncall == false, (S == oncall orelse S == outgoing) ->
 			?NOTICE("Watched ~p just went oncall ~p", [State#state.type, Details]),
 			% check the state data to make sure its a voice call
 			case proplists:get_value(statedata, Details) of
@@ -116,11 +116,11 @@ handle_info({cpx_monitor_event, {set, {{agent, Key}, _Health, Details, Timestamp
 						[{"call-command", "execute"},
 							{"execute-app-name", "eavesdrop"},
 							{"execute-app-arg", Call#call.id}]),
-					?NOTICE("eavesdrop result: ~p", [Res]);
+					?NOTICE("eavesdrop result: ~p", [Res]),
+					{noreply, State#state{oncall = true}};
 				_ ->
-					ok
-			end,
-			{noreply, State#state{oncall = true}};
+					{noreply, State}
+			end;
 		_ when State#state.oncall == true ->
 			?NOTICE("Watched ~p just went offcall", [State#state.type]),
 			{noreply, State#state{oncall = false}};

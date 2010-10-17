@@ -380,7 +380,7 @@ handle_call({get_agent_dial_string, AgentRec, Options}, _From, State) ->
 	{reply, DialString, State};
 handle_call(get_default_dial_string, _From, State) ->
 	{reply, State#state.dialstring, State};
-handle_call({monitor, Type, Watched, Watcher}, _From, State) when is_record(Watcher, agent) ->
+handle_call({monitor, Type, Watched, Watcher}, _From, State) ->
 	DialString = case Watcher of
 		X when is_record(X, agent) ->
 			get_agent_dial_string(Watcher, [], State);

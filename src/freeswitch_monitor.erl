@@ -43,6 +43,9 @@
 		monitor_client/3
 	]).
 
+-ifdef(TEST).
+	-include_lib("eunit/include/eunit.hrl").
+-endif.
 -include("log.hrl").
 -include("call.hrl").
 -include("agent.hrl").

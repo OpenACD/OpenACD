@@ -21,7 +21,8 @@
 %%
 %%	Andrew Thompson <andrew at hijacked dot us>
 
-%% @doc A simple outbound dialer, this is NOT a predictive dialer.
+%% @doc Starts persistantly monitoring the given agent or client by the
+%% given dialstring.
 
 -module(freeswitch_monitor).
 

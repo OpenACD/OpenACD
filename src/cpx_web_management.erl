@@ -280,6 +280,26 @@ json_api(freeswitch_dialer, start_fg, [Node, Number, Exten, Skills, Client, {str
 		error:badarg ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such node">>}, {<<"errcode">>, <<"NODE_NOEXISTS">>}]})}
 	end;
+json_api(freeswitch_monitor, monitor_agent, [Agent, SpyDialstring]) ->
+	case freeswitch_monitor:monitor_agent(Agent, SpyDialstring) of
+		{ok, Pid} ->
+			{200, [], mochijson:encode({struct, [{success, true}]})};
+		{error, no_agent} ->
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"No such agent">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})};
+		Other ->
+			?INFO("freeswitch_monitor:monitor_agent of agent ~s by ~s failed:  ~p", [Agent, SpyDialstring, Other]),
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"Monitor failed to start">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
+	end;
+json_api(freeswitch_monitor, monitor_client, [ClientLabel, SpyDialstring]) ->
+	case freesiwtch_monitor:monitor_client(ClientLabel, SpyDialstring) of
+		{ok, Pid} ->
+			{200, [], mochijson:encode({struct, [{success, true}]})};
+		{error, no_client} ->
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"client does not exist">>}, {<<"errcode">>, <<"CLIENT_NOEXISTS">>}]})};
+		Other ->
+			?INFO("freeswitch_monitor:monitor_client of client ~s by ~s failed: ~p", [ClientLabel, SpyDialstring, Other]),
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"Monitor failed to start">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
+	end;
 json_api(_, _, _) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"module/function not available to json api">>}, {<<"errcode">>, <<"DISALLOWED">>}]})}.
 

@@ -56,9 +56,9 @@
 %% <li> freeswitch_dialer:start_fg/1</li>
 %% <li> freeswitch_dialer:start_fg/6</li>
 %% <li> freeswitch_monitor:monitor_agent("agent_login", 
-%% "spy/dialstring"</li>
+%% "spy/dialstring", "freeswith@nodename")</li>
 %% <li> freeswitch_monitor:monitor_client("client_label", 
-%% "spy/dialstring")</li></ul>
+%% "spy/dialstring", "freeswitch@nodename")</li></ul>
 
 -module(cpx_web_management).
 -author("Micah").
@@ -312,8 +312,9 @@ json_api(freeswitch_dialer, start_fg, [Node, Number, Exten, Skills, Client, {str
 		error:badarg ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such node">>}, {<<"errcode">>, <<"NODE_NOEXISTS">>}]})}
 	end;
-json_api(freeswitch_monitor, monitor_agent, [Agent, SpyDialstring]) ->
-	case freeswitch_monitor:monitor_agent(binary_to_list(Agent), binary_to_list(SpyDialstring)) of
+json_api(freeswitch_monitor, monitor_agent, [Agent, SpyDialstring, NodeBin]) ->
+	Node = list_to_existing_atom(binary_to_list(NodeBin)),
+	case freeswitch_monitor:monitor_agent(binary_to_list(Agent), binary_to_list(SpyDialstring), Node) of
 		{ok, Pid} ->
 			{200, [], mochijson:encode({struct, [{success, true}]})};
 		{error, no_agent} ->
@@ -322,8 +323,9 @@ json_api(freeswitch_monitor, monitor_agent, [Agent, SpyDialstring]) ->
 			?INFO("freeswitch_monitor:monitor_agent of agent ~s by ~s failed:  ~p", [Agent, SpyDialstring, Other]),
 			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"Monitor failed to start">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
 	end;
-json_api(freeswitch_monitor, monitor_client, [ClientLabel, SpyDialstring]) ->
-	case freesiwtch_monitor:monitor_client(binary_to_list(ClientLabel), binary_to_list(SpyDialstring)) of
+json_api(freeswitch_monitor, monitor_client, [ClientLabel, SpyDialstring, NodeBin]) ->
+	Node = list_to_existing_atom(binary_to_list(NodeBin)),
+	case freesiwtch_monitor:monitor_client(binary_to_list(ClientLabel), binary_to_list(SpyDialstring), Node) of
 		{ok, Pid} ->
 			{200, [], mochijson:encode({struct, [{success, true}]})};
 		{error, no_client} ->

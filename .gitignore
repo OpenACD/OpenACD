@@ -37,3 +37,7 @@ profile
 # Vim
 *.swp
 *.swo
+
+# qt creator
+*.pro
+*.pro.user

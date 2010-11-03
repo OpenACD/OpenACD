@@ -24,7 +24,7 @@
 %%	Contributor(s):
 %%
 %%	Andrew Thompson <andrew at hijacked dot us>
-%%	Micah Warren <micahw at fusedsolutions dot com>
+%%	Micah Warren <micahw at lordnull dot com>
 %%
 
 %% @doc The controlling module for connection CPX to a freeswitch installation.  There are 2 primary requirements for this work:  

@@ -24,7 +24,7 @@
 %%	Contributor(s):
 %%
 %%	Andrew Thompson <andrew at hijacked dot us>
-%%	Micah Warren <micahw at fusedsolutions dot com>
+%%	Micah Warren <micahw at lordnull dot com>
 %%
 
 %% @doc Behavior for cdr dumping modules.  A cdr dumper is a module that takes 

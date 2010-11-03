@@ -334,6 +334,26 @@ json_api(freeswitch_monitor, monitor_client, [ClientLabel, SpyDialstring, NodeBi
 			?INFO("freeswitch_monitor:monitor_client of client ~s by ~s failed: ~p", [ClientLabel, SpyDialstring, Other]),
 			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"Monitor failed to start">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
 	end;
+json_api(freeswitch_media_manager, monitor_agent, [Agent, SpyString]) ->
+	case freeswitch_media_manager:monitor_agent(binary_to_list(Agent), binary_to_list(SpyString)) of
+		{ok, _Pid} ->
+			{200, [], mochijson:encode({struct, [{success, true}]})};
+		{error, no_agent} ->
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"agent does not exist">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})};
+		Other ->
+			?INFO("freeswitch_media_manager:monitor_agent of agent ~s by ~s failed:  ~p", [Agent, SpyString, Other]),
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"monitor failed to start">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
+	end;
+json_api(freesiwtch_media_manager, monitor_client, [Client, SpyString]) ->
+	case freeswitch_media_manager:monitor_client(binary_to_list(Client), binary_to_list(SpyString)) of
+		{ok, _Pid} ->
+			{200, [], mochijson:encode({struct, [{success, true}]})};
+		{error, no_client} ->
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"client does not exist">>}, {<<"errcode">>, <<"CLIENT_NOEXISTS">>}]})};
+		Other ->
+			?INFO("freeswitch_media_manager:monitor_client of ~s by ~s failed due to ~p", [Client, SpyString, Other]),
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"monitor failed to start">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
+	end;
 json_api(_, _, _) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"module/function not available to json api">>}, {<<"errcode">>, <<"DISALLOWED">>}]})}.
 

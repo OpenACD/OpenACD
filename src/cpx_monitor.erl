@@ -841,23 +841,24 @@ handle_down_test() ->
 	],
 	ets:insert(Tid, Entries),
 	State = #state{ets = Tid},
-	% This is an election record, see gen_leader to find out what it is.
-	Election = {election, node(), ?MODULE, none, [], [], [], [], [], [], undefined, undefined, [], [], 1, undefined, [], undefined, undefined, all},
+	% This is an election record, see gen_leader to find out what it is
+	% as the copy/pasta record below may be out of date
+	Election = {election, node(), none, ?MODULE, node(), [], [], [], [], [],  none, undefined, undefined, [], [], 1, undefined, undefined, undefined, undefined, all},
 	handle_DOWN("deadnode", State, Election),
 	?assertEqual([], ets:lookup(Tid, {media, "cull1"})),
 	?assertMatch([{{media, "keep1"}, [], [{node, "goodnode"}], _Time}], ets:lookup(Tid, {media, "keep1"})).
 
-
 %-record(election, {
 %          leader = none,
+%          previous_leader = none,
 %          name,
 %          leadernode = none,
 %          candidate_nodes = [],
 %          worker_nodes = [],
-%          alive = [],
 %          down = [],
 %          monitored = [],
 %          buffered = [],
+%          seed_node = none,
 %          status,
 %          elid,
 %          acks = [],
@@ -867,10 +868,10 @@ handle_down_test() ->
 %          pendack,
 %          incarn,
 %          nextel,
-%          bcast_type              %% all | one. When `all' each election event
+%          %% all | one. When `all' each election event
 %          %% will be broadcast to all candidate nodes.
+%          bcast_type
 %         }).
-%
 
 time_dependant_test_() ->
 	[{"Low health by time",

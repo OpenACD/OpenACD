@@ -382,7 +382,7 @@ list_index_(Fun, Needle, [Head | Tail], Index) ->
 %% Macro and Sec together.
 -spec(now/0 :: () -> pos_integer()).
 now() ->
-	{Mega, Sec, _} = erlang:now(),
+	{Mega, Sec, _} = os:timestamp(),
 	Mega * 1000000 + Sec.
 
 %% @doc For those times when you don't need a code reload with release files

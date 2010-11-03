@@ -27,7 +27,39 @@
 %%	Micah Warren <micahw at fusedsolutions dot com>
 %%
 
-%% @doc The web management module.  Uses mochiweb for the heavy lifting.  Listens on port 9999 by default.
+%% @doc The web management module.  Uses mochiweb for the heavy lifting. 
+%%  Listens on port 9999 by default.
+%%
+%% Handles json api requests on /api.  A well formed api request is a post
+%% with one field:  "request".  "request" should consist of a json object
+%% of three properties:  module, function, and args.  the module and 
+%% function should both be strings.  Args is a json representation of
+%% what the erlang module:function() would accept as arguments (as best as
+%% can be represented in json).  Proplists should be represented as json 
+%% objects, and will be decoded as such.  For any function of arity 1 
+%% (takes one argument), the args should be that argument.  Otherwise it 
+%% should be a list/array.
+%%
+%% The json_api is always enabled, but protected behind http basic 
+%% authentication and an ip whitelist.  If either of those conditions are
+%% met, the api call is allowed.  Obviously this is not something you want
+%% to expose to the internet.
+%% 
+%% An error is generated if either the module or function do not exist, 
+%% the function is not exported by the module.
+%% 
+%% The currently exported funtions are listed below.  In theory, there is
+%% documentation on therm either in the auto generated docs, the built-in
+%% documentation, or the wiki.
+%% <ul><li>cpx:kick_agent("agent_login")</li>
+%% <li> agent_manager:list()</li>
+%% <li> freeswitch_dialer:start_fg/1</li>
+%% <li> freeswitch_dialer:start_fg/6</li>
+%% <li> freeswitch_monitor:monitor_agent("agent_login", 
+%% "spy/dialstring", "freeswith@nodename")</li>
+%% <li> freeswitch_monitor:monitor_client("client_label", 
+%% "spy/dialstring", "freeswitch@nodename")</li></ul>
+
 -module(cpx_web_management).
 -author("Micah").
 
@@ -279,6 +311,48 @@ json_api(freeswitch_dialer, start_fg, [Node, Number, Exten, Skills, Client, {str
 	catch
 		error:badarg ->
 			{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"no such node">>}, {<<"errcode">>, <<"NODE_NOEXISTS">>}]})}
+	end;
+json_api(freeswitch_monitor, monitor_agent, [Agent, SpyDialstring, NodeBin]) ->
+	Node = list_to_existing_atom(binary_to_list(NodeBin)),
+	case freeswitch_monitor:monitor_agent(binary_to_list(Agent), binary_to_list(SpyDialstring), Node) of
+		{ok, Pid} ->
+			{200, [], mochijson:encode({struct, [{success, true}]})};
+		{error, no_agent} ->
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"No such agent">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})};
+		Other ->
+			?INFO("freeswitch_monitor:monitor_agent of agent ~s by ~s failed:  ~p", [Agent, SpyDialstring, Other]),
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"Monitor failed to start">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
+	end;
+json_api(freeswitch_monitor, monitor_client, [ClientLabel, SpyDialstring, NodeBin]) ->
+	Node = list_to_existing_atom(binary_to_list(NodeBin)),
+	case freesiwtch_monitor:monitor_client(binary_to_list(ClientLabel), binary_to_list(SpyDialstring), Node) of
+		{ok, Pid} ->
+			{200, [], mochijson:encode({struct, [{success, true}]})};
+		{error, no_client} ->
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"client does not exist">>}, {<<"errcode">>, <<"CLIENT_NOEXISTS">>}]})};
+		Other ->
+			?INFO("freeswitch_monitor:monitor_client of client ~s by ~s failed: ~p", [ClientLabel, SpyDialstring, Other]),
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"Monitor failed to start">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
+	end;
+json_api(freeswitch_media_manager, monitor_agent, [Agent, SpyString]) ->
+	case freeswitch_media_manager:monitor_agent(binary_to_list(Agent), binary_to_list(SpyString)) of
+		{ok, _Pid} ->
+			{200, [], mochijson:encode({struct, [{success, true}]})};
+		{error, no_agent} ->
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"agent does not exist">>}, {<<"errcode">>, <<"AGENT_NOEXISTS">>}]})};
+		Other ->
+			?INFO("freeswitch_media_manager:monitor_agent of agent ~s by ~s failed:  ~p", [Agent, SpyString, Other]),
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"monitor failed to start">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
+	end;
+json_api(freesiwtch_media_manager, monitor_client, [Client, SpyString]) ->
+	case freeswitch_media_manager:monitor_client(binary_to_list(Client), binary_to_list(SpyString)) of
+		{ok, _Pid} ->
+			{200, [], mochijson:encode({struct, [{success, true}]})};
+		{error, no_client} ->
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"client does not exist">>}, {<<"errcode">>, <<"CLIENT_NOEXISTS">>}]})};
+		Other ->
+			?INFO("freeswitch_media_manager:monitor_client of ~s by ~s failed due to ~p", [Client, SpyString, Other]),
+			{200, [], mochijson:encode({struct, [{success, false}, {<<"message">>, <<"monitor failed to start">>}, {<<"errcode">>, <<"UNKNOWN_ERROR">>}]})}
 	end;
 json_api(_, _, _) ->
 	{200, [], mochijson2:encode({struct, [{success, false}, {<<"message">>, <<"module/function not available to json api">>}, {<<"errcode">>, <<"DISALLOWED">>}]})}.

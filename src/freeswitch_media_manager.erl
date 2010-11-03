@@ -117,7 +117,9 @@
 	get_media/1,
 	get_default_dial_string/0,
 	do_dial_string/3,
-	get_agent_dial_string/2
+	get_agent_dial_string/2,
+	monitor_agent/2,
+	monitor_client/2
 ]).
 
 %% gen_server callbacks
@@ -243,6 +245,12 @@ do_dial_string(DialString, Destination, Options) ->
 		Option <- Options],
 	D1 = re:replace(DialString, "\\$1", Destination, [{return, list}]),
 	"{" ++ string:join(EscapedOptions, ",") ++ "}" ++ D1.
+
+monitor_agent(Agent, Watcher) ->
+	gen_server:call(?MODULE, {monitor, agent, Agent, Watcher}).
+
+monitor_client(Client, Watcher) ->
+	gen_server:call(?MODULE, {monitor, client, Client, Watcher}).
 
 %%====================================================================
 %% gen_server callbacks
@@ -372,6 +380,20 @@ handle_call({get_agent_dial_string, AgentRec, Options}, _From, State) ->
 	{reply, DialString, State};
 handle_call(get_default_dial_string, _From, State) ->
 	{reply, State#state.dialstring, State};
+handle_call({monitor, Type, Watched, Watcher}, _From, State) ->
+	DialString = case Watcher of
+		X when is_record(X, agent) ->
+			get_agent_dial_string(Watcher, [], State);
+		_ ->
+			Watcher
+	end,
+	Res = case Type of
+		agent ->
+			freeswitch_monitor:monitor_agent(Watched, DialString, State#state.nodename);
+		client ->
+			freeswitch_monitor:monitor_client(Watched, DialString, State#state.nodename)
+	end,
+	{reply, Res, State};
 handle_call(Request, _From, State) ->
 	?INFO("Unexpected call:  ~p", [Request]),
 	Reply = ok,

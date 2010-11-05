@@ -47,15 +47,17 @@
 -type(data_type() :: 'system' | 'node' | 'queue' | 'agent' | 'media').
 -type(data_key() :: {data_type(), Name :: string() | atom()}).
 -type(time() :: integer() | {integer(), integer(), integer()}).
-%-type(event_struct() :: {data_key(), time(), proplist()}).
-%-type(event_instruction() :: 'set' | 'drop' | 'info').
+%-type(set_event_payload() :: {data_key(), proplist(), node()}).
+%-type(drop_event_payload() :: data_key()),
+%-type(info_event_payload() :: proplist())
+%-type(event_struct() :: {data_key(), proplist()}).
 %-type(event_message() :: 
-%	{'set', event_struct()} | 
-%	{'drop', data_key()} | 
-%	{'info', {time(), proplist()}}).
+%	{'set', time(), set_event_payload()} | 
+%	{'drop', time(), data_key()} | 
+%	{'info', time(), proplist()}).
 %-type(item_monitored() :: 'none' | pid() | atom() | {atom(), atom()}).
 %-type(monitor_reference() :: reference()).
-%-type(cached_event() :: {data_key(), time(), proplist(), node(), item_monitored(), monitor_reference()}).
+%-type(cached_event() :: {data_key(), proplist(), node(), time(), item_monitored(), monitor_reference()}).
 
 %% API
 -export([
@@ -96,7 +98,6 @@
 	splits = [] :: [{atom(), integer()}],
 	merge_status = none :: 'none' | any(),
 	merging = none :: 'none' | [atom()],
-	monitors = dict:new() :: dict(),
 	subscribers = [] :: [{pid(), fun()}]
 }).
 
@@ -121,14 +122,12 @@
 -spec(start_link/1 :: (Args :: options()) -> {'ok', pid()}).
 start_link(Args) ->
 	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
-	?DEBUG("nodes:  ~p", [Nodes]),
     gen_leader:start_link(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, Args, []).
 
 %% @doc See {@link start_link/1}
 -spec(start/1 :: (Args :: options()) -> {'ok', pid()}).
 start(Args) ->
 	Nodes = lists:flatten(proplists:get_all_values(nodes, Args)),
-	?DEBUG("nodes:  ~p", [Nodes]),
 	gen_leader:start(?MODULE, Nodes, [{heartbeat, 1}], ?MODULE, Args, []).
 
 %% @doc Stops the monitor.
@@ -154,19 +153,20 @@ set({_Type, _Name} = Key, Params, WatchMe) ->
 		Else ->
 			{Else, Params}
 	end,
-	gen_leader:leader_cast(?MODULE, {set, {Key, RealParams, os:timestamp(), Node}, WatchMe}).
+	gen_leader:leader_cast(?MODULE, {set, os:timestamp(), {Key, RealParams, Node}, WatchMe}).
 
 %% @doc Remove the entry with the key `Key' from being tracked.  If 
 %% monitoring was set up, it's halted as well.
 -spec(drop/1 :: (Key :: data_key()) -> 'ok').
 drop({_Type, _Name} = Key) ->
-	gen_leader:leader_cast(?MODULE, {drop, Key, os:timestamp()}).
+	gen_leader:leader_cast(?MODULE, {drop, os:timestamp(), Key}).
 
 %% @doc Forward a general message to the subscribers.  There is no caching
 %% or monitoring done for this.
 -spec(info/1 :: (Params :: proplist()) -> 'ok').
 info(Params) ->
-	gen_leader:leader_cast(?MODULE, {info, Params, os:timestamp()}).
+	%?DEBUG("infoing initial:  ~p", [Params]),
+	gen_leader:leader_cast(?MODULE, {info, os:timestamp(), Params}).
 
 %% @doc Subscribe the calling process to all events from ?MODULE.
 %% @see subscribe/1
@@ -223,9 +223,7 @@ elected(State, Election, Node) ->
 	lists:foreach(fun(Cnode) ->
 		ets:insert(?MODULE, {{node, Cnode}, [{down, 100}], [{state, unreported}], util:now()})
 	end, Cands),
-	
 	tell_cands(report, Election),
-	
 	Edown = gen_leader:down(Election),
 	Foldf = fun({N, T}, {Up, Down}) ->
 		case lists:member(N, Edown) of
@@ -242,7 +240,7 @@ elected(State, Election, Node) ->
 			Time
 	end,
 	Event = {{node, node()}, os:timestamp(), [is_leader], node()},
-	Cached = erlang:appned_elemnt(erlang:append_element(Event, none), undefined),
+	Cached = erlang:append_element(erlang:append_element(Event, none), undefined),
 	ets:insert(?MODULE, Cached),
 	tell_subs(Event, State#state.subscribers),
 	tell_cands(Event, Election),
@@ -345,38 +343,28 @@ handle_leader_call(Message, From, State, _Election) ->
 % =====
 
 %% @hidden
-handle_leader_cast({subscribe, Pid, Fun}, #state{subscribers = Subs, monitors = Mons} = State, _Election) ->
-	{Newsubs, Newmons} = case proplists:get_value(Pid, Subs) of
+handle_leader_cast({subscribe, Pid, Fun}, #state{subscribers = Subs} = State, _Election) ->
+	Newsubs = case proplists:get_value(Pid, Subs) of
 		undefined ->
-			MonRef = erlang:monitor(process, Pid),
-			{[{Pid, Fun} | Subs], [{Pid, MonRef} | Mons]};
+			link(Pid),
+			[{Pid, Fun} | Subs];
 		_Else ->
 			Midsub = proplists:delete(Pid, Subs),
-			[erlang:demonitor(X) || X <- proplists:get_all_values(Pid, Mons)],
-			MidMons = proplists:delete(Pid),
-			MonRef = erlang:monitor(process, Pid),
-			{[{Pid, Fun} | Midsub], [{Pid, MonRef} | MidMons]}
+			[{Pid, Fun} | Midsub]
 	end,
-	{noreply, State#state{subscribers = Newsubs, monitors = Newmons}};
+	{noreply, State#state{subscribers = Newsubs}};
 handle_leader_cast({unsubscribe, Pid}, #state{subscribers = Subs} = State, _Election) ->
-	?DEBUG("removing ~w from subscribers", [Pid]),
+	unlink(Pid),
 	Newsubs = proplists:delete(Pid, Subs),
-	Newmons = case proplists:get_value(Pid, State#state.monitors) of
-		undefined ->
-			State#state.monitors;
-		Mon ->
-			erlang:demonitor(Mon),
-			proplists:delete(Pid, State#state.monitors)
-	end,
-	{noreply, State#state{subscribers = Newsubs, monitors = Newmons}};
+	{noreply, State#state{subscribers = Newsubs}};
 handle_leader_cast({reporting, Node}, State, Election) ->
-	Event = {{node, Node}, [{state, reported}], os:timestamp(), Node},
-	CacheEvent = erlang:append_element(erlang:append_element(Event, none), undefined),
-	ets:insert(?MODULE, CacheEvent),
-	tell_cands({set, Event}, Election),
-	tell_subs({set, Event}, State#state.subscribers),
+	Time = os:timestamp(),
+	Event = {{node, Node}, [{state, reported}], Node},
+	cache_event(Event, Time, none, undefined),
+	tell_cands({set, Time, Event}, Election),
+	tell_subs({set, Time, Event}, State#state.subscribers),
 	{noreply, State};
-handle_leader_cast({drop, Key, Time}, State, Election) ->
+handle_leader_cast({drop, Time, Key} = Msg, State, Election) ->
 	case qlc:e(qlc:q([ X || {DahKey, _, _, _, _, _} = X <- ets:table(?MODULE), DahKey =:= Key])) of
 		[] ->
 			% no need to do ets updates, or change monitoring
@@ -387,40 +375,36 @@ handle_leader_cast({drop, Key, Time}, State, Election) ->
 			erlang:demonitor(Monref),
 			ets:delete(?MODULE, Key)
 	end,
-	tell_subs({drop, Key, Time}, State#state.subscribers),
-	tell_cands({drop, Key, Time}, Election),
+	tell_subs(Msg, State#state.subscribers),
+	tell_cands(Msg, Election),
 	{noreply, State};
-handle_leader_cast({info, Params, Time}, State, _Election) ->
-	tell_subs({info, Params, Time}, State#state.subscribers),
+handle_leader_cast({info, Time, Params} = Msg, State, _Election) ->
+	tell_subs(Msg, State#state.subscribers),
 	%% no ets need updating, so not telling cands.
 	{noreply, State};
-handle_leader_cast({set, {Key, Details, Time, Node} = Event, Watchwhat}, State, Election) ->
+handle_leader_cast({set, Time, {Key, Details, Node} = Event, Watchwhat}, State, Election) ->
 	case qlc:e(qlc:q([X || {DahKey, _, _, _, _, _} = X <- ets:table(?MODULE), DahKey =:= Key])) of
 		[] ->
-			CacheEvent = case Watchwhat of
+			Monref = case Watchwhat of
 				none ->
-					erlang:append_element(erlang:append_element(Event, none, undefined));
+					undefined;
 				_ ->
-					Monref = erlang:monitor(process, Watchwhat),
-					erlang:append_element(erlang:append_element(Event, Watchwhat, Monref))
+					erlang:monitor(process, Watchwhat)
 			end,
-			ets:insert(?MODULE, CacheEvent);
+			cache_event(Event, Time, Watchwhat, Monref);
 		[{Key, _, _, _, Watchwhat, Monref}] ->
-			CacheEvent = {Key, Details, Time, Node, Watchwhat, Monref},
-			ets:insert(?MODULE, CacheEvent);
+			cache_event(Event, Time, Watchwhat, Monref);
 		[{Key, _, _, _, none, _}] ->
 			NewMonref = erlang:monitor(process, Watchwhat),
-			CacheEvent = {Key, Details, Time, Node, Watchwhat, NewMonref},
-			ets:insert(?MODULE, CacheEvent);
+			cache_event(Event, Time, Watchwhat, NewMonref);
 		[{Key, _, _, _, _OtherWatched, Monref}] ->
 			% the other one likely died.
 			erlang:demonitor(Monref),
 			NewMonref = erlang:monitor(process, Watchwhat),
-			CacheEvent = {Key, Details, Time, Node, Watchwhat, NewMonref},
-			ets:insert(?MODULE, CacheEvent)
+			cache_event(Event, Time, Watchwhat, NewMonref)
 	end,
-	tell_cands(Event, Election),
-	tell_subs(Event, State#state.subscribers),
+	tell_cands({set, Time, Event}, Election),
+	tell_subs({set, Time, Event}, State#state.subscribers),
 	{noreply, State};
 handle_leader_cast({ensure_live, Node, Time}, State, Election) ->
 	Alive = gen_leader:alive(Election),
@@ -430,13 +414,11 @@ handle_leader_cast({ensure_live, Node, Time}, State, Election) ->
 		false ->
 			?WARNING("Node ~w does not appear in the election alive list", [Node])
 	end,
-	Message = {{node, Node}, Time, [{up, Time}], Node},
-	Cache = erlang:append_element(erlang:append_element(Message, none), undefined),
-	ets:insert(?MODULE, Cache),
-	tell_cands({set, Message}, Election),
-	tell_subs({set, Message}, State#state.subscribers),
+	Message = {{node, Node}, [{up, Time}], Node},
+	cache_event(Message, Time, none, undefined),
+	tell_cands({set, Time, Message}, Election),
+	tell_subs({set, Time, Message}, State#state.subscribers),
 	{noreply, State};
-
 handle_leader_cast(clear_dead_media, State, Election) ->
 	Dropples = qlc:e(qlc:q([Id || 
 		{{Type, Id}, _Time, Details, _, _, _} <- ets:table(?MODULE), 
@@ -460,10 +442,11 @@ handle_leader_cast(clear_dead_media, State, Election) ->
 			end
 		end
 	])),
+	Time = os:timestamp(),
 	ets:safe_fixtable(?MODULE),
 	[begin
 		ets:delete(?MODULE, {media, Id}),
-		Message = {drop, {media, Id}},
+		Message = {drop, Time, {media, Id}},
 		tell_cands(Message, Election),
 		tell_subs(Message, State#state.subscribers)
 	end || Id <- Dropples],
@@ -554,6 +537,9 @@ handle_info({'EXIT', From, Reason}, #state{subscribers = Subs} = State) ->
 	?INFO("~p said it died due to ~p.", [From, Reason]),
 	Newsubs = proplists:delete(From, Subs),
 	{noreply, State#state{subscribers = Newsubs}};
+handle_info(dump_subs, #state{subscribers = Subs} = State) ->
+	?DEBUG("Subs:  ~p", [Subs]),
+	{noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -561,7 +547,8 @@ handle_info(_Info, State) ->
 %% Function: terminate(Reason, State) -> void()
 %%--------------------------------------------------------------------
 %% @hidden
-terminate(_Reason, _State) ->
+terminate(Reason, _State) ->
+	?INFO("~s going down for ~p", [?MODULE, Reason]),
     ok.
 
 %%--------------------------------------------------------------------
@@ -638,11 +625,19 @@ write_rows_loop([{_Mod, Recs} | Tail]) ->
 	mnesia:transaction(F),
 	write_rows_loop(Tail).	
 
+cache_event(Event, Time, WatchWhat, WatchRef) ->
+	Cache = append_elements(Event, [Time, WatchWhat, WatchRef]),
+	ets:insert(?MODULE, Cache).
+
+append_elements(Tuple, []) ->
+	Tuple;
+append_elements(Tuple, [H | T]) ->
+	append_elements(erlang:append_element(Tuple, H), T).
+
 %% spawning each message out so if the fun fails or crashes, it won't halt
 %% messages to other subscribers.  Also, means the filter funs aren't 
 %% running in ?MODULE's thread.
 tell_subs(Message, Subs) ->
-	%?DEBUG("Telling subs ~p message", [Subs]),
 	[spawn(fun() -> tell_sub_fun(Message, Pid, Fun) end) ||
 	{Pid, Fun} <- Subs].
 
@@ -716,7 +711,8 @@ tell_cands(Message, [Node | Tail], Leader) ->
 	Election = {election, node(), none, ?MODULE, node(), [], [], [], [], [],  none, undefined, undefined, [], [], 1, undefined, undefined, undefined, undefined, all},
 	handle_DOWN("deadnode", State, Election),
 	?assertEqual([], ets:lookup(?MODULE, {media, "cull1"})),
-	?assertMatch([{{media, "keep1"}, _Time, [{node, "goodnode"}], "goodnode", none, undefined}], ets:lookup(?MODULE, {media, "keep1"})).
+	?assertMatch([{{media, "keep1"}, _Time, [{node, "goodnode"}], "goodnode", none, undefined}], ets:lookup(?MODULE, {media, "keep1"})),
+	ets:delete(?MODULE).
 
 %-record(election, {
 %          leader = none,
@@ -743,6 +739,120 @@ tell_cands(Message, [Node | Tail], Leader) ->
 %          bcast_type
 %         }).
 
+sub_mock() ->
+	sub_mock(fun(_) -> true end).
+
+sub_mock(Fun) ->
+	{ok, Mock} = gen_server_mock:new(),
+	%gen_server_mock:expect_info(Mock, fun(goober, _) ->
+	%	?DEBUG("Mon:  ~p; me:  ~p", [whereis(?MODULE), self()]),
+	%	ok
+	%end),
+	%Mock ! goober,
+	gen_server_mock:expect_info(Mock, fun({sub, TheFun}, _) ->
+		?DEBUG("mon:  ~p;  me:  ~p", [whereis(?MODULE), self()]),
+		cpx_monitor:subscribe(TheFun),
+		ok
+	end),
+	Mock ! {sub, Fun},
+	{ok, Mock}.
+
+subscribers_test_() ->
+	{foreach,
+	fun() ->
+		{ok, CpxMon} = cpx_monitor:start([{nodes, node()}]),
+		ok
+	end,
+	fun(ok) ->
+		cpx_monitor:stop()
+	end,
+	[fun(ok) -> {"simple info", fun() ->
+		cpx_monitor:subscribe(),
+		cpx_monitor:info([{<<"key">>, <<"value">>}]),
+		receive
+			{cpx_monitor_event, {info, _Time, [{<<"key">>, <<"value">>}]}} ->
+				?assert(true);
+			{cpx_monitor_event, Other} ->
+				?assert(Other)
+		after 20 ->
+			?assert("timeout")
+		end 
+	end} end,
+	fun(ok) -> {"simple set", fun() ->
+		cpx_monitor:subscribe(),
+		cpx_monitor:set({media, "media1"}, [{<<"key">>, <<"val">>}]),
+		receive
+			{cpx_monitor_event, {set, _Time, {{media, "media1"}, [{node, _Node}, {<<"key">>, <<"val">>}], _Node}}} ->
+				?assert(true);
+			{cpx_monitor_event, Other} ->
+				?assert(Other)
+		after 20 ->
+			?assert("timeout")
+		end
+	end} end,
+	fun(ok) -> {"getting a drop", fun() ->
+		cpx_monitor:subscribe(),
+		cpx_monitor:drop({media, "dead"}),
+		receive
+			{cpx_monitor_event, {drop, _Time, {media, "dead"}}} ->
+				?assert(true);
+			{cpx_monitor_event, Other} ->
+				?assert(Other)
+		after 20 ->
+			?assert("timeout")
+		end
+	end} end,
+	fun(ok) -> {"Filtering out infos", fun() ->
+		Filter = fun(E) ->
+			?DEBUG("filtering ~p", [E]),
+			case E of
+				{info, _, _} ->
+					false;
+				_ ->
+					true
+			end
+		end,
+		cpx_monitor:subscribe(Filter),
+		cpx_monitor:info([{<<"key">>, <<"value">>}]),
+		Good = receive
+			{cpx_monitor_event, {info, _, _}} ->
+				false;
+			Other ->
+				Other
+		after 20 ->
+			true
+		end,
+		?assert(Good)
+	end} end,
+	fun(ok) -> {"gen_server_mock test", fun() ->
+		{ok, Mock} = sub_mock(),
+		timer:sleep(10),
+		whereis(?MODULE) ! dump_subs,
+		gen_server_mock:expect_info(Mock, fun({cpx_monitor_event, _}, _) ->
+			ok
+		end),
+		cpx_monitor:info([]),
+		timer:sleep(10),
+		gen_server_mock:assert_expectations(Mock)
+	end} end,
+	fun(ok) -> {"a bad filter tolerance", fun() ->
+		BadFilter = fun(_) ->
+			exit(<<"I suck">>)
+		end,
+		{ok, GoodMock} = sub_mock(),
+		{ok, BadMock} = sub_mock(BadFilter),
+		%% sleep to give the monitor time to set up the subs.
+		timer:sleep(10),
+		whereis(?MODULE) ! dump_subs,
+		gen_server_mock:expect_info(GoodMock, fun({cpx_monitor_event, {info, _, _}}, _) ->
+			ok
+		end),
+		cpx_monitor:info([{<<"key">>, <<"val">>}]),
+		timer:sleep(10),
+		gen_server_mock:assert_expectations(GoodMock),
+		gen_server_mock:assert_expectations(BadMock)
+	end} end]}.
+			
 multinode_test_d() ->
 	{foreach,
 	fun() ->

@@ -521,7 +521,7 @@ handle_info({merge_complete, Mod, Recs}, #state{status = merging} = State) ->
 			{noreply, State#state{merge_status = Newmerged}}
 	end;
 handle_info({'DOWN', Monref, process, WatchWhat, Why}, State) ->
-	?INFO("Down message for reference ~s of ~p due to ~p", [Monref, WatchWhat, Why]),
+	?INFO("Down message for reference ~p of ~p due to ~p", [Monref, WatchWhat, Why]),
 	case qlc:e(qlc:q([Key || 
 		{Key, _Time, _, _, TestWatchWhat, TestMonref} <- ets:table(?MODULE), 
 		TestWatchWhat =:= WatchWhat, 
@@ -757,6 +757,13 @@ sub_mock(Fun) ->
 	Mock ! {sub, Fun},
 	{ok, Mock}.
 
+mock_test_then_die([]) ->
+	ok;
+mock_test_then_die([H | T]) ->
+	gen_server_mock:assert_expectations(H),
+	gen_server_mock:stop(H),
+	mock_test_then_die(T).
+
 subscribers_test_() ->
 	{foreach,
 	fun() ->
@@ -827,13 +834,12 @@ subscribers_test_() ->
 	fun(ok) -> {"gen_server_mock test", fun() ->
 		{ok, Mock} = sub_mock(),
 		timer:sleep(10),
-		whereis(?MODULE) ! dump_subs,
 		gen_server_mock:expect_info(Mock, fun({cpx_monitor_event, _}, _) ->
 			ok
 		end),
 		cpx_monitor:info([]),
 		timer:sleep(10),
-		gen_server_mock:assert_expectations(Mock)
+		mock_test_then_die([Mock])
 	end} end,
 	fun(ok) -> {"a bad filter tolerance", fun() ->
 		BadFilter = fun(_) ->
@@ -843,16 +849,82 @@ subscribers_test_() ->
 		{ok, BadMock} = sub_mock(BadFilter),
 		%% sleep to give the monitor time to set up the subs.
 		timer:sleep(10),
-		whereis(?MODULE) ! dump_subs,
 		gen_server_mock:expect_info(GoodMock, fun({cpx_monitor_event, {info, _, _}}, _) ->
 			ok
 		end),
 		cpx_monitor:info([{<<"key">>, <<"val">>}]),
 		timer:sleep(10),
-		gen_server_mock:assert_expectations(GoodMock),
-		gen_server_mock:assert_expectations(BadMock)
+		mock_test_then_die([GoodMock, BadMock])
+	end} end,
+	fun(ok) -> {"a monitored process dies, causing a drop", fun() ->
+		{ok, Watched} = gen_server_mock:new(),
+		{ok, Watcher} = sub_mock(),
+		gen_server_mock:expect_info(Watcher, fun({cpx_monitor_event, {set, _Time, {{media, "hi"}, _Params, _Node}}}, _) ->
+			?DEBUG("got the set.", []),
+			ok
+		end),
+		gen_server_mock:expect_info(Watcher, fun({cpx_monitor_event, {drop, _Time, {media, "hi"}}}, _) ->
+			?DEBUG("Got the drop", []),
+			ok
+		end),
+		timer:sleep(10),
+		cpx_monitor:set({media, "hi"}, [], Watched),
+		gen_server_mock:stop(Watched),
+		timer:sleep(10),
+		mock_test_then_die([Watcher])
 	end} end]}.
-			
+
+ets_test_() ->
+	{foreach,
+	fun() ->
+		{ok, _} = cpx_monitor:start([{nodes, node()}]),
+		ok
+	end,
+	fun(ok) ->
+		cpx_monitor:stop()
+	end,
+	[fun(ok) -> {"simple set", fun() ->
+		cpx_monitor:set({media, "hi"}, [{<<"key">>, <<"val">>}]),
+		timer:sleep(10),
+		Out = qlc:e(qlc:q([X || {Key, _, _, _, none, undefined} = X <- ets:table(?MODULE), Key =:= {media, "hi"}])),
+		Node = node(),
+		?assertMatch([{{media, "hi"}, [{node, Node}, {<<"key">>, <<"val">>}], Node, _Time, none, undefined}], Out)
+	end} end,
+	fun(ok) -> {"set, reset", fun() ->
+		cpx_monitor:set({media, "hi"}, []),
+		timer:sleep(10),
+		Time = qlc:e(qlc:q([T || {{media, "hi"}, _, _, T, _, _} <- ets:table(?MODULE)])),
+		cpx_monitor:set({media, "hi"}, [{"hi", "bye"}]),
+		timer:sleep(10),
+		[{_Key, NewProps, _, NewTime, _, _}] = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
+		Node = node(),
+		?assertEqual([{node, Node}, {"hi", "bye"}], NewProps),
+		?assertNot(NewTime =:= Time)
+	end} end,
+	fun(ok) -> {"set, drop", fun() ->
+		cpx_monitor:set({media, "hi"}, []),
+		cpx_monitor:drop({media, "hi"}),
+		timer:sleep(10),
+		Res = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
+		?assertEqual([], Res)
+	end} end,
+	fun(ok) -> {"set, reset, die", fun() ->
+		{ok, Mock} = gen_server_mock:new(),
+		cpx_monitor:set({media, "hi"}, []),
+		timer:sleep(10),
+		Time = qlc:e(qlc:q([T || {{media, "hi"}, _, _, T, _, _} <- ets:table(?MODULE)])),
+		cpx_monitor:set({media, "hi"}, [{"hi", "bye"}], Mock),
+		timer:sleep(10),
+		[{_Key, NewProps, _, NewTime, Mock, _Ref}] = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
+		gen_server_mock:stop(Mock),
+		timer:sleep(10),
+		Res = qlc:e(qlc:q([X || {{media, "hi"}, _, _, _, _, _} = X <- ets:table(?MODULE)])),
+		Node = node(),
+		?assertEqual([{node, node()}, {"hi", "bye"}], NewProps),
+		?assertNot(Time =:= NewTime),
+		?assertEqual([], Res)
+	end} end]}.
+		
 multinode_test_d() ->
 	{foreach,
 	fun() ->

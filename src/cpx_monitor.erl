@@ -89,6 +89,22 @@
 	terminate/2, 
 	code_change/4]).
 
+%% test helper for other modules that rely on this.
+-ifdef(TEST).
+-export([
+	make_mock/0,
+	make_mock/1,
+	add_mocks/1,
+	add_set/1,
+	add_drop/1,
+	add_info/1,
+	add_message/1,
+	add_message/2,
+	assert_mock/0,
+	stop_mock/0
+]).
+-endif.
+
 -record(state, {
 	nodes = [] :: [atom()],
 	monitoring = [] :: [atom()],
@@ -199,7 +215,86 @@ get_key({Key, _, _}) ->
 -spec(clear_dead_media/0 :: () -> 'ok').
 clear_dead_media() ->
 	gen_leader:leader_cast(?MODULE, clear_dead_media).
-	
+
+%% =====
+%% test helpers for other modules
+%% =====
+
+-ifdef(TEST).
+
+make_mock() ->
+	make_mock([]).
+
+make_mock(Events) ->
+	{ok, Mock} = gen_leader_mock:start(?MODULE),
+	add_mocks(Events),
+	{ok, Mock}.
+
+add_mocks([]) ->
+	ok;
+add_mocks([{set, Key, Params} | T]) ->
+	add_set({Key, Params, none}),
+	add_mocks(T);
+add_mocks([{set, Key, Params, Watch} | T]) ->
+	add_set({Key, Params, Watch}),
+	add_mocks(T);
+add_mocks([{drop, Key} | T]) ->
+	add_drop(Key),
+	add_mocks(T);
+add_mocks([{info, Params} | T]) ->
+	add_info(Params),
+	add_mocks(T);
+add_mocks([{message, Msg} | T]) ->
+	add_message(Msg),
+	add_mocks(T);
+add_mocks([{message, Msg, Fun} | T]) ->
+	add_message(Msg, Fun),
+	add_mocks(T).
+
+add_set({Key, Params, Watch}) ->
+	gen_leader_mock:expect_leader_cast(whereis(cpx_monitor),
+		fun({set, _Time, {InKey, InParams, _Node}, InWatch}, _State, _Election) ->
+			InKey = Key,
+			InWatch = Watch,
+			lists:all(fun(E) -> lists:member(E, InParams) end, Params),
+			ok
+		end
+	);
+add_set({Key, Params}) ->
+	add_set({Key, Params, none}).
+
+add_drop(Key) ->
+	gen_leader_mock:expect_leader_cast(whereis(cpx_monitor), 
+		fun({drop, _Time, AKey}, _State, _Election) ->
+			Key = AKey,
+			ok
+		end
+	).
+
+add_info(Params) ->
+	gen_leader_mock:expect_leader_cast(whereis(cpx_monitor),
+		fun({info, _Time, TheParams}, _State, _Election) ->
+			lists:all(fun(E) -> lists:memeber(E, TheParams) end, Params),
+			ok
+		end
+	).
+
+add_message(Msg) ->
+	Fun = fun(_Msg, _State) ->
+		ok
+	end,
+	add_message(Msg, Fun).
+
+add_message(Msg, Fun) ->
+	gen_leader_mock:expect_info(whereis(cpx_monitor), Fun).
+
+assert_mock() ->
+	gen_leader_mock:assert_expectations(whereis(cpx_monitor)).
+
+stop_mock() ->
+	gen_leader_mock:stop(whereis(cpx_monitor)).
+
+-endif.
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================

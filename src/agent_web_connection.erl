@@ -679,11 +679,11 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 		["status"] ->
 			% nodes, agents, queues, media, and system.
 			cpx_monitor:subscribe(),
-			{ok, Nodestats} = cpx_monitor:get_health(node),
-			{ok, Agentstats} = cpx_monitor:get_health(agent),
-			{ok, Queuestats} = cpx_monitor:get_health(queue),
-			{ok, Systemstats} = cpx_monitor:get_health(system),
-			{ok, Mediastats} = cpx_monitor:get_health(media),
+			Nodestats = qlc:e(qlc:q([X || {{node, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+			Agentstats = qlc:e(qlc:q([X || {{agent, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+			Queuestats = qlc:e(qlc:q([X || {{queue, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+			Systemstats = qlc:e(qlc:q([X || {{system, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+			Mediastats = qlc:e(qlc:q([X || {{media, _}, _, _, _, _, _} = X <- ets:table(cpx_monitor)])),
 			Groupstats = extract_groups(lists:append(Queuestats, Agentstats)),
 			Stats = lists:append([Nodestats, Agentstats, Queuestats, Systemstats, Mediastats]),
 			{Count, Encodedstats} = encode_stats(Stats),
@@ -693,7 +693,6 @@ handle_call({supervisor, Request}, _From, #state{securitylevel = Seclevel} = Sta
 				{<<"id">>, <<"system-System">>},
 				{<<"type">>, <<"system">>},
 				{<<"display">>, <<"System">>},
-				{<<"health">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, {struct, []}}]}},
 				{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, {struct, []}}]}}
 			]},
 			Json = mochijson2:encode({struct, [
@@ -1158,10 +1157,13 @@ handle_info({cpx_monitor_event, _Message}, #state{securitylevel = agent} = State
 	?WARNING("Not eligible for supervisor view, so shouldn't be getting events.  Unsubbing", []),
 	cpx_monitor:unsubscribe(),
 	{noreply, State};
+handle_info({cpx_monitor_event, {info, _, _}}, State) ->
+	% TODO fix the subscribe, or start using this.
+	{noreply, State};
 handle_info({cpx_monitor_event, Message}, State) ->
 	%?DEBUG("Ingesting cpx_monitor_event ~p", [Message]),
 	Json = case Message of
-		{drop, {Type, Name}, _Timestamp} ->
+		{drop, _Timestamp, {Type, Name}} ->
 			Fixedname = if 
 				is_atom(Name) ->
 					 atom_to_binary(Name, latin1); 
@@ -1177,8 +1179,7 @@ handle_info({cpx_monitor_event, Message}, State) ->
 					{<<"name">>, Fixedname}
 				]}}
 			]};
-		{set, {{Type, Name}, Healthprop, Detailprop, _Timestamp}} ->
-			Encodedhealth = encode_health(Healthprop),
+		{set, _Timestamp, {{Type, Name}, Detailprop, _Node}} ->
 			Encodeddetail = encode_proplist(Detailprop),
 			Fixedname = if 
 				is_atom(Name) ->
@@ -1194,7 +1195,6 @@ handle_info({cpx_monitor_event, Message}, State) ->
 					{<<"type">>, Type},
 					{<<"name">>, Fixedname},
 					{<<"display">>, Fixedname},
-					{<<"health">>, Encodedhealth},
 					{<<"details">>, Encodeddetail}
 				]}}
 			]}
@@ -1653,11 +1653,8 @@ encode_stats(Stats) ->
 
 encode_stats([], Count, Acc) ->
 	{Count - 1, Acc};
-encode_stats([Head | Tail], Count, Acc) ->
-	Proplisted = cpx_monitor:to_proplist(Head),
-	Protohealth = proplists:get_value(health, Proplisted),
-	Protodetails = proplists:get_value(details, Proplisted),
-	Display = case {proplists:get_value(name, Proplisted), proplists:get_value(type, Proplisted)} of
+encode_stats([{{Type, ProtoName}, Protodetails, Node, _Time, _Watched, _Mon} = Head | Tail], Count, Acc) ->
+	Display = case {ProtoName, Type} of
 		{_Name, agent} ->
 			Login = proplists:get_value(login, Protodetails),
 			[{<<"display">>, list_to_binary(Login)}];
@@ -1668,37 +1665,20 @@ encode_stats([Head | Tail], Count, Acc) ->
 		{Name, _} when is_atom(Name) ->
 			[{<<"display">>, Name}]
 	end,
-	Type = [{<<"type">>, proplists:get_value(type, Proplisted)}],
-	[{_, Rawtype}] = Type,
-	Id = case {Display, proplists:get_value(type, Proplisted)} of
-		{_, agent} ->
-			[{<<"id">>, list_to_binary(lists:append([atom_to_list(agent), "-", proplists:get_value(name, Proplisted)]))}];
-		{[{_, D}], _} when is_atom(D) ->
-			[{<<"id">>, list_to_binary(lists:append([atom_to_list(Rawtype), "-", atom_to_list(D)]))}];
-		{[{_, D}], _} when is_binary(D) ->
-			[{<<"id">>, list_to_binary(lists:append([atom_to_list(Rawtype), "-", binary_to_list(D)]))}]
-	end,
-	Node = case Type of
-		[{_, system}] ->
-			[];
-		[{_, node}] ->
-			[];
-		[{_, _Else}] ->
-			[{node, proplists:get_value(node, Protodetails)}]
-	end,
+	Id = list_to_binary(lists:flatten([Type, "-", ProtoName])),
 	Parent = case Type of
-		[{_, system}] ->
+		system ->
 			[];
-		[{_, node}] ->
+		node ->
 			[];
-		[{_, agent}] ->
+		agent ->
 			[{<<"profile">>, list_to_binary(proplists:get_value(profile, Protodetails))}];
-		[{_, queue}] ->
+		queue ->
 			[{<<"group">>, list_to_binary(proplists:get_value(group, Protodetails))}];
-		[{_, media}] ->
+		media ->
 			case {proplists:get_value(agent, Protodetails), proplists:get_value(queue, Protodetails)} of
 				{undefined, undefined} ->
-					?DEBUG("Ignoring ~p as it's likely in ivr (no agent/queu)", [proplists:get_value(name, Proplisted)]),
+					?DEBUG("Ignoring ~p as it's likely in ivr (no agent/queu)", [ProtoName]),
 					[];
 				{undefined, Queue} ->
 					[{queue, list_to_binary(Queue)}];
@@ -1706,53 +1686,12 @@ encode_stats([Head | Tail], Count, Acc) ->
 					[{agent, list_to_binary(Agent)}]
 			end
 	end,
-	Scrubbedhealth = encode_health(Protohealth),
 	Scrubbeddetails = Protodetails,
-	Health = [{<<"health">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, Scrubbedhealth}]}}],
 	Details = [{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbeddetails)}]}}],
-	Encoded = lists:append([Id, Display, Type, Node, Parent, Health, Details]),
+	Encoded = lists:append([Id, Display, Type, Node, Parent, Details]),
 	Newacc = [{struct, Encoded} | Acc],
 	encode_stats(Tail, Count + 1, Newacc).
 
--spec(encode_health/1 :: (Health :: [{atom(), any()}]) -> json_simple()).
-encode_health(Health) ->
-	List = encode_health(Health, []),
-	{struct, List}.
-
-encode_health([], Acc) ->
-	Acc;
-encode_health([{Key, {Min, Goal, Max, {time, Time}}} | Tail], Acc) ->
-	Json = {struct, [
-		{<<"min">>, Min},
-		{<<"goal">>, Goal},
-		{<<"max">>, Max},
-		{<<"time">>, Time}
-	]},
-	encode_health(Tail, [{Key, Json} | Acc]);
-encode_health([{Key, {Min, Goal, Max, Val}} | Tail], Acc) ->
-	Json = {struct, [
-		{<<"min">>, Min},
-		{<<"goal">>, Goal},
-		{<<"max">>, Max},
-		{<<"value">>, Val}
-	]},
-	encode_health(Tail, [{Key, Json} | Acc]);
-encode_health([{Key, Val} | Tail], Acc) ->
-	Newacc = case Val of
-		Val when is_integer(Val); is_float(Val); is_binary(Val); is_atom(Val) ->
-			[{Key, Val} | Acc];
-		Val when is_list(Val) ->
-			[{Key, list_to_binary(Val)} | Acc];
-		Val ->
-			Acc
-	end,
-	encode_health(Tail, Newacc);
-encode_health([Key | Tail], Acc) when is_atom(Key) ->
-	encode_health(Tail, [{Key, true} | Acc]);
-encode_health([_Whatever | Tail], Acc) ->
-	encode_health(Tail, Acc).
-	
-	
 -spec(encode_groups/2 :: (Stats :: [{string(), string()}], Count :: non_neg_integer()) -> {non_neg_integer(), [tuple()]}).
 encode_groups(Stats, Count) ->
 	%?DEBUG("Stats to encode:  ~p", [Stats]),
@@ -1771,11 +1710,7 @@ encode_groups([], Count, Acc, Gotqgroup, Gotaprof) ->
 		{struct, [
 			{<<"id">>, list_to_binary(lists:append([Type, "-", Name]))},
 			{<<"type">>, list_to_binary(Type)},
-			{<<"display">>, list_to_binary(Name)},
-			{<<"health">>, {struct, [
-				{<<"_type">>, <<"details">>},
-				{<<"_value">>, {struct, []}}
-			]}}
+			{<<"display">>, list_to_binary(Name)}
 		]}
 	end,
 	{atomic, List} = mnesia:transaction(F),
@@ -1786,11 +1721,7 @@ encode_groups([{Type, Name} | Tail], Count, Acc, Gotqgroup, Gotaprof) ->
 	Out = {struct, [
 		{<<"id">>, list_to_binary(lists:append([Type, "-", Name]))},
 		{<<"type">>, list_to_binary(Type)},
-		{<<"display">>, list_to_binary(Name)},
-		{<<"health">>, {struct, [
-			{<<"_type">>, <<"details">>},
-			{<<"_value">>, {struct, []}}
-		]}}
+		{<<"display">>, list_to_binary(Name)}
 	]},
 	{Ngotqgroup, Ngotaprof} = case Type of
 		"queuegroup" ->
@@ -1864,10 +1795,8 @@ extract_groups(Stats) ->
 
 extract_groups([], Acc) ->
 	Acc;
-extract_groups([Head | Tail], Acc) ->
-	Proplisted = cpx_monitor:to_proplist(Head),
-	Details = proplists:get_value(details, Proplisted, []),
-	case proplists:get_value(type, Proplisted) of
+extract_groups([{{Type, _Id}, Details, _Node, _Time, _Watched, _Monref} = Head | Tail], Acc) ->
+	case Type of
 		queue ->
 			Display = proplists:get_value(group, Details),
 			case lists:member({"queuegroup", Display}, Acc) of
@@ -2040,13 +1969,13 @@ set_state_test_() ->
 
 extract_groups_test() ->
 	Rawlist = [
-		{{queue, "queue1"}, [], [{group, "group1"}]},
-		{{queue, "queue2"}, [], [{group, "Default"}]},
-		{{agent, "agent1"}, [], [{profile, "profile1"}]},
-		{{media, "media1"}, [], []},
-		{{queue, "queue3"}, [], [{group, "Default"}]},
-		{{agent, "agent2"}, [], [{profile, "Default"}]},
-		{{agent, "agent3"}, [], [{profile, "profile1"}]}
+		{{queue, "queue1"}, [{group, "group1"}], node(), os:timestamp(), none, undefined},
+		{{queue, "queue2"}, [{group, "Default"}], node(), os:timestamp(), none, undefined},
+		{{agent, "agent1"}, [{profile, "profile1"}], node(), os:timestamp(), none, undefined},
+		{{media, "media1"}, [], node(), os:timestamp(), none, undefined},
+		{{queue, "queue3"}, [{group, "Default"}], node(), os:timestamp(), none, undefined},
+		{{agent, "agent2"}, [{profile, "Default"}], node(), os:timestamp(), none, undefined},
+		{{agent, "agent3"}, [{profile, "profile1"}], node(), os:timestamp(), none, undefined}
 	],
 	Expected = [
 		{"agentprofile", "Default"},

@@ -255,7 +255,14 @@ add_set({Key, Params, Watch}) ->
 	gen_leader_mock:expect_leader_cast(whereis(cpx_monitor),
 		fun({set, _Time, {InKey, InParams, _Node}, InWatch}, _State, _Election) ->
 			InKey = Key,
-			InWatch = Watch,
+			case Watch of
+				ignore ->
+					ok;
+				InWatch ->
+					ok;
+				_ ->
+					Watch = InWatch
+			end,
 			lists:all(fun(E) -> lists:member(E, InParams) end, Params),
 			ok
 		end

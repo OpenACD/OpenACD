@@ -398,7 +398,7 @@ init([Agent, Options]) when is_record(Agent, agent) ->
 		_Orelse ->
 			Agent2
 	end,
-	set_cpx_monitor(Agent3, ?RELEASED_LIMITS(-1), [{reason, default}, {bias, -1}]),
+	set_cpx_monitor(Agent3, [{reason, default}, {bias, -1}]),
 	{ok, Agent#agent.state, #state{agent_rec = Agent3#agent{start_opts = Options}}}.
 	
 %% @doc The various state changes available when an agent is idle. <ul>
@@ -415,7 +415,7 @@ idle({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
 	gen_server:cast(Agent#agent.connection, {change_state, precall, Call}),
 	Newagent = Agent#agent{state=precall, oldstate=idle, statedata=Call, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?PRECALL_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, precall, State#state{agent_rec = Newagent}};
 idle({ringing, _Call}, _From, #state{ring_locked = locked, agent_rec = Agent} = State) ->
 	?INFO("~s rejected a ring request due to ring_locked.", [Agent#agent.login]),
@@ -424,7 +424,7 @@ idle({ringing, Call = #call{}}, _From, #state{agent_rec = Agent} = State) ->
 	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
 	Newagent = Agent#agent{state=ringing, oldstate=idle, statedata=Call, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?RINGING_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, ringing, State#state{agent_rec = Newagent}};
 idle({released, default}, From, State) ->
 	idle({released, ?DEFAULT_REL}, From, State);
@@ -433,7 +433,7 @@ idle({released, {Id, Reason, Bias}}, _From, #state{agent_rec = Agent} = State) w
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
 	gen_server:cast(Agent#agent.connection, {change_state, released, {Id, Reason, Bias}}), % it's up to the connection to determine if this is worth listening to
 	Newagent = Agent#agent{state=released, oldstate=idle, statedata={Id, Reason, Bias}, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?RELEASED_LIMITS(Bias), [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
+	set_cpx_monitor(Newagent, [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = Newagent}};
 idle(Event, From, State) ->
 	?WARNING("Invalid event '~p' sent from ~p while in state 'idle'", [Event, From]),
@@ -464,7 +464,7 @@ ringing(oncall, _From, #state{agent_rec = #agent{statedata = Statecall} = Agent}
 			gen_server:cast(Newagent#agent.connection, {change_state, oncall, Newagent#agent.statedata}),
 			gen_server:cast(Statecall#call.cook, remove_from_queue),
 			%cdr:oncall(Statecall, State#agent.login),
-			set_cpx_monitor(Newagent, ?ONCALL_LIMITS, []),
+			set_cpx_monitor(Newagent, []),
 			{reply, ok, oncall, State#state{agent_rec = Newagent}};
 		invalid ->
 			gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
@@ -477,7 +477,7 @@ ringing({oncall, #call{id=Callid} = Call}, _From, #state{agent_rec = #agent{stat
 			gen_server:cast(dispatch_manager, {end_avail, self()}),
 			gen_leader:cast(agent_manager, {end_avail, Newagent#agent.login}),
 			gen_server:cast(Newagent#agent.connection, {change_state, oncall, Call}),
-			set_cpx_monitor(Newagent, ?ONCALL_LIMITS, []),
+			set_cpx_monitor(Newagent, []),
 			{reply, ok, oncall, State#state{agent_rec = Newagent}};
 		_Other -> 
 			{reply, invalid, ringing, State}
@@ -492,7 +492,7 @@ ringing({released, {Id, Text, Bias} = Reason}, _From, #state{agent_rec = #agent{
 	gen_leader:cast(agent_manager, {end_avail, Agent#agent.login}),
 	gen_server:cast(Agent#agent.connection, {change_state, released, Reason}), % it's up to the connection to determine if this is worth listening to
 	Newagent = Agent#agent{state=released, oldstate=ringing, statedata=Reason, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?RELEASED_LIMITS(Bias), [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
+	set_cpx_monitor(Newagent, [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = Newagent}};
 ringing(idle, _From, #state{agent_rec = Agent} = State) ->
 	Locked = case cpx:get_env(agent_ringout_lock, 0) of
@@ -506,7 +506,7 @@ ringing(idle, _From, #state{agent_rec = Agent} = State) ->
 	gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 	gen_server:cast(Agent#agent.connection, {change_state, idle}),
 	Newagent = Agent#agent{state=idle, oldstate=ringing, statedata={}, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?IDLE_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, idle, State#state{agent_rec = Newagent, ring_locked = Locked}};
 ringing(Event, _From, State) ->
 	?DEBUG("ringing evnet ~p", [Event]),
@@ -541,7 +541,7 @@ ringing(_Msg, State) ->
 precall({outgoing, Call}, _From, #state{agent_rec = #agent{statedata = StateCall} = Agent} = State) when Call#call.id =:= StateCall#call.id ->
 	gen_server:cast(Agent#agent.connection, {change_state, outgoing, Call}),
 	Newagent = Agent#agent{state=outgoing, oldstate=Agent#agent.state, statedata=Call, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?OUTGOING_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, outgoing, State#state{agent_rec = Newagent}};
 precall(idle, _From, #state{agent_rec = #agent{statedata = Call} = Agent} = State) ->
 	gen_server:cast(Call#call.source, cancel),
@@ -549,7 +549,7 @@ precall(idle, _From, #state{agent_rec = #agent{statedata = Call} = Agent} = Stat
 	gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 	gen_server:cast(Agent#agent.connection, {change_state, idle}),
 	Newagent = Agent#agent{state=idle, oldstate=Agent#agent.state, statedata={}, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?IDLE_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, idle, State#state{agent_rec = Newagent}};
 precall({released, default}, From, State) ->
 	precall({released, ?DEFAULT_REL}, From, State);
@@ -557,7 +557,7 @@ precall({released, {Id, Text, Bias} = Reason}, _From, #state{agent_rec = #agent{
 	gen_server:cast(Call#call.source, cancel),
 	gen_server:cast(Agent#agent.connection, {change_state, released, Reason}),
 	Newagent = Agent#agent{state=released, oldstate=Agent#agent.state, statedata=Reason, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?RELEASED_LIMITS(Bias), [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
+	set_cpx_monitor(Newagent, [{reason, Text}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = Newagent}};
 precall(_Event, _From, State) -> 
 	{reply, invalid, precall, State}.
@@ -591,7 +591,7 @@ oncall({released, {_Id, _Text, Bias} = Reason}, _From, #state{agent_rec = Agent}
 	{reply, queued, oncall, State#state{agent_rec = Newagent}};
 oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent} = State) when Call#call.media_path =:= inband andalso From =:= Call#call.source ->
 	Newagent = Agent#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
-	set_cpx_monitor(Newagent, ?WRAPUP_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	Client = Call#call.client,
 	case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
 		N when is_integer(N) andalso N > 0 ->
@@ -609,7 +609,7 @@ oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent
 	try gen_media:wrapup(Call#call.source) of
 		ok ->			
 			Newagent = Agent#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
-			set_cpx_monitor(Newagent, ?WRAPUP_LIMITS, []),
+			set_cpx_monitor(Newagent, []),
 			Client = Call#call.client,
 			case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
 				N when is_integer(N) andalso N > 0 ->
@@ -626,7 +626,7 @@ oncall(wrapup, {From, _Tag}, #state{agent_rec = #agent{statedata = Call} = Agent
 		exit:{noproc, _Blahblahcall} ->
 			?WARNING("Seems the call died without ~s noticing", [Agent#agent.login]),
 			Newagent = Agent#agent{state=wrapup, lastchange = util:now(), oldstate = oncall},
-			set_cpx_monitor(Newagent, ?WRAPUP_LIMITS, []),
+			set_cpx_monitor(Newagent, []),
 			{reply, ok, wrapup, State#state{agent_rec = Newagent}}
 	end;
 oncall({wrapup, #call{media_path = inband} = Call}, From, State) ->
@@ -637,7 +637,7 @@ oncall({wrapup, #call{id = Callid, source = CallSource} = Call}, {From, _Tag}, #
 			gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
 			%cdr:wrapup(Call, State#agent.login),
 			Newagent = Agent#agent{state=wrapup, statedata=Call, lastchange = util:now(), oldstate = oncall},
-			set_cpx_monitor(Newagent, ?WRAPUP_LIMITS, []),
+			set_cpx_monitor(Newagent, []),
 			Client = Call#call.client,
 			case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
 				N when is_integer(N) andalso N > 0 ->
@@ -654,7 +654,7 @@ oncall({warmtransfer, Transferto}, _From, #state{agent_rec = Agent} = State) ->
 	StateData = {onhold, Agent#agent.statedata, calling, Transferto},
 	gen_server:cast(Agent#agent.connection, {change_state, warmtransfer, StateData}),
 	Newagent = Agent#agent{state=warmtransfer, oldstate=Agent#agent.state, statedata=StateData, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?WARMTRANSFER_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, warmtransfer, State#state{agent_rec = Newagent}};
 oncall({agent_transfer, Agent}, _From, #state{agent_rec = #agent{statedata = Call} = _Agentrec} = State) when is_pid(Agent) ->
 	% TODO - why is the timeout hardcoded, any why was it only 10 seconds
@@ -664,7 +664,7 @@ oncall({queue_transfer, Queue}, _From, #state{agent_rec = #agent{statedata = Cal
 	Reply = gen_media:queue(Call#call.source, Queue),
 	gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
 	Newagent = Agent#agent{state=wrapup, oldstate=Agent#agent.state, statedata=Call, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?WARMTRANSFER_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, Reply, wrapup, State#state{agent_rec = Newagent}};
 %oncall({warm_transfer_begin, Number}, _From, #agent{statedata = Call} = State) ->
 	%case gen_media:warm_transfer_begin(Call#call.source, Number, self(), State) of
@@ -747,7 +747,7 @@ outgoing({wrapup, #call{id = Callid} = Call}, _From, #state{agent_rec = #agent{s
 		Callid -> 
 			Newagent = Agent#agent{state=wrapup, statedata=Call, lastchange = util:now(), oldstate = outgoing},
 			gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
-			set_cpx_monitor(Newagent, ?WRAPUP_LIMITS, []),
+			set_cpx_monitor(Newagent, []),
 			Client = Call#call.client,
 			case proplists:get_value(?WRAPUP_AUTOEND_KEY, Client#client.options) of
 				N when is_integer(N) andalso N > 0 ->
@@ -764,7 +764,7 @@ outgoing({warmtransfer, Transferto}, _From, #state{agent_rec = Agent} = State) -
 	StateData = {onhold, Agent#agent.statedata, calling, Transferto},
 	gen_server:cast(Agent#agent.connection, {change_state, warmtransfer, StateData}),
 	Newagent = Agent#agent{state=warmtransfer, oldstate=outgoing, statedata=StateData, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?WARMTRANSFER_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, warmtransfer, State#state{agent_rec = Newagent}};
 outgoing({agent_transfer, Agent}, _From, #state{agent_rec = #agent{statedata = Call} = _Agentrec} = State) when is_pid(Agent) ->
 	Reply = gen_media:agent_transfer(Call#call.source, Agent, 10000),
@@ -773,7 +773,7 @@ outgoing({queue_transfer, Queue}, _From, #state{agent_rec = #agent{statedata = C
 	Reply = gen_media:queue(Call#call.source, Queue),
 	gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
 	Newagent = Agent#agent{state=wrapup, oldstate=Agent#agent.state, statedata=Call, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?WARMTRANSFER_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, Reply, wrapup, State#state{agent_rec = Newagent}};
 outgoing(get_media, _From, #state{agent_rec = #agent{statedata = Media} = _Agent} = State) when is_record(Media, call) ->
 	{reply, {ok, Media}, outgoing, State};
@@ -812,14 +812,14 @@ outgoing(_Msg, State) ->
 released({precall, Call}, _From, #state{agent_rec = Agent} = State) ->
 	gen_server:cast(Agent#agent.connection, {change_state, precall, Call}),
 	Newagent = Agent#agent{state=precall, oldstate=released, statedata=Call, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?PRECALL_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, precall, State#state{agent_rec = Newagent}};
 released(idle, _From, #state{agent_rec = Agent} = State) ->	
 	gen_server:cast(dispatch_manager, {now_avail, self()}),
 	gen_leader:cast(agent_manager, {now_avail, Agent#agent.login}),
 	gen_server:cast(Agent#agent.connection, {change_state, idle}),
 	Newagent = Agent#agent{state=idle, oldstate=released, statedata={}, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?IDLE_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, idle, State#state{agent_rec = Newagent}};
 released({released, default}, From, State) ->
 	released({released, ?DEFAULT_REL}, From, State);
@@ -831,7 +831,7 @@ released({released, {_Id, _Text, Bias} = Reason}, _From, #state{agent_rec = Agen
 released({ringing, Call}, _From, #state{agent_rec = Agent} = State) ->
 	gen_server:cast(Agent#agent.connection, {change_state, ringing, Call}),
 	Newagent = Agent#agent{state=ringing, oldstate=released, statedata=Call, lastchange = util:now(), queuedrelease = Agent#agent.statedata},
-	set_cpx_monitor(Newagent, ?RINGING_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, ringing, State#state{agent_rec = Newagent}};
 released({spy, Target}, {Conn, _Tag}, #state{agent_rec = #agent{connection = Conn} = _Agent} = State) ->
 	case self() of
@@ -885,7 +885,7 @@ warmtransfer({wrapup, #call{id = Callid} = Call}, _From, #state{agent_rec = #age
 		 Callid -> 
 			gen_server:cast(Agent#agent.connection, {change_state, wrapup, Call}),
 			Newagent = Agent#agent{state=wrapup, oldstate=warmtransfer, statedata=Call, lastchange = util:now()},
-			set_cpx_monitor(Newagent, ?WRAPUP_LIMITS, []),
+			set_cpx_monitor(Newagent, []),
 			{reply, ok, wrapup, State#state{agent_rec = Newagent}};
 		_Else -> 
 			{reply, invalid, warmtransfer, State}
@@ -895,7 +895,7 @@ warmtransfer({oncall, #call{id = Callid} = Call}, _From, #state{agent_rec = #age
 		 Callid -> 
 			gen_server:cast(Agent#agent.connection, {change_state, oncall, Call}),
 			Newagent = Agent#agent{state=oncall, oldstate=warmtransfer, statedata=Call, lastchange = util:now()},
-			set_cpx_monitor(Newagent, ?ONCALL_LIMITS, []),
+			set_cpx_monitor(Newagent, []),
 			{reply, ok, oncall, State#state{agent_rec = Newagent}};
 		_Else -> 
 			{reply, invalid, warmtransfer, State}
@@ -903,12 +903,12 @@ warmtransfer({oncall, #call{id = Callid} = Call}, _From, #state{agent_rec = #age
 warmtransfer({outgoing, Call}, _From, #state{agent_rec = Agent} = State) ->
 	gen_server:cast(Agent#agent.connection, {change_state, outgoing, Call}),
 	Newagent = Agent#agent{state=outgoing, oldstate=warmtransfer, statedata=Call, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?OUTGOING_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, outgoing, State#state{agent_rec = Newagent}};
 warmtransfer({warmtransfer, TransferTo}, _From, #state{agent_rec = Agent} = State) ->
 	Statedata = setelement(4, Agent#agent.statedata, TransferTo),
 	Newagent = Agent#agent{statedata = Statedata},
-	set_cpx_monitor(Newagent, ?OUTGOING_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, warmtransfer, State#state{agent_rec = Newagent}};
 %warmtransfer({warm_transfer_begin, Number}, _From, #agent{statedata = {onhold, Call, calling, _Call}} = State) ->
 	%case gen_media:warm_transfer_begin(Call#call.source, Number, self(), State) of
@@ -979,14 +979,14 @@ wrapup(idle, _From, #state{agent_rec = #agent{statedata = Call, queuedrelease = 
 	gen_server:cast(Agent#agent.connection, {change_state, idle}),
 	cdr:endwrapup(Call, Agent#agent.login),
 	Newagent = Agent#agent{state=idle, oldstate=wrapup, statedata={}, lastchange = util:now()},
-	set_cpx_monitor(Newagent, ?IDLE_LIMITS, []),
+	set_cpx_monitor(Newagent, []),
 	{reply, ok, idle, State#state{agent_rec = Newagent}};
 wrapup(idle, _From, #state{agent_rec = #agent{statedata=Call} = Agent} = State) ->
 	gen_server:cast(Agent#agent.connection, {change_state, released, Agent#agent.queuedrelease}),
 	cdr:endwrapup(Call, Agent#agent.login),
 	Newagent = Agent#agent{state=released, oldstate=wrapup, statedata=Agent#agent.queuedrelease, queuedrelease=undefined, lastchange = util:now()},
 	{Id, Reason, Bias} = Agent#agent.queuedrelease,
-	set_cpx_monitor(Newagent, ?RELEASED_LIMITS(Bias), [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
+	set_cpx_monitor(Newagent, [{reason, Reason}, {bias, Bias}, {reason_id, Id}]),
 	{reply, ok, released, State#state{agent_rec = Newagent}};
 wrapup(Event, From, State) ->
 	?WARNING("Invalid event '~p' from ~p while in wrapup.", [Event, From]),
@@ -1293,12 +1293,17 @@ format_status(terminate, [_PDict, #state{agent_rec = Agent} = State]) ->
 %% Internal functions
 %% =====
 
-set_cpx_monitor(State, Hp, Otherdeatils) when is_list(Hp)->
+set_cpx_monitor(State, Otherdeatils)->
 	log_change(State),
-	Deatils = lists:append([{profile, State#agent.profile}, {state, State#agent.state}, {statedata, State#agent.statedata}, {login, State#agent.login}, {lastchange, {timestamp, State#agent.lastchange}}, {skills, State#agent.skills}], Otherdeatils),
-	cpx_monitor:set({agent, State#agent.id}, Hp, Deatils);
-set_cpx_monitor(State, Hp, Dets) ->
-	set_cpx_monitor(State, [Hp], Dets).
+	Deatils = lists:append([
+		{profile, State#agent.profile}, 
+		{state, State#agent.state}, 
+		{statedata, State#agent.statedata}, 
+		{login, State#agent.login}, 
+		{lastchange, {timestamp, State#agent.lastchange}}, 
+		{skills, State#agent.skills}], 
+	Otherdeatils),
+	cpx_monitor:set({agent, State#agent.id}, Deatils, self()).
 
 log_change(#agent{log_pid = undefined}) ->
 	ok;
@@ -1417,25 +1422,27 @@ from_idle_test_() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, Monmock} = cpx_monitor:make_mock(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
-			gen_leader_mock:assert_expectations(Monmock),
+			%gen_leader_mock:assert_expectations(Monmock),
+			cpx_monitor:assert_mock(),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
 			gen_leader_mock:assert_expectations(AMmock),
 			ok
 		end,
-		?CONSOLE("Test args:  ~p", [[Agent, Dmock, Monmock, Connmock, Logpid, Assertmocks]]),
+		%?CONSOLE("Test args:  ~p", [[Agent, Dmock, Monmock, Connmock, Logpid, Assertmocks]]),
 		{#state{agent_rec = Agent}, AMmock, Dmock, Monmock, Connmock, Assertmocks}
 	end,
 	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
-		gen_leader_mock:stop(Monmock),
+		%gen_leader_mock:stop(Monmock),
+		cpx_monitor:stop_mock(),
 		gen_server_mock:stop(Connmock),
 		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
@@ -1451,11 +1458,7 @@ from_idle_test_() ->
 				Self = Aself,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{precall, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], Aself}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, precall, Inclient}, _State) -> 
 				Inclient = Client,
 				ok
@@ -1477,11 +1480,7 @@ from_idle_test_() ->
 				id = "testcall",
 				source = Self
 			},
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{ringing, _Limits}] = Health,
-				?assertEqual(node(), Node),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, Incall}, _State) -> 
 				Call = Incall,
 				ok
@@ -1522,11 +1521,7 @@ from_idle_test_() ->
 				Self = Apid,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}, {bias, _}] = Health,
-				?assertEqual(node(), Node),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], Self}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
@@ -1547,11 +1542,7 @@ from_idle_test_() ->
 				Self = Apid,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}, {bias, _}] = Health,
-				?assertEqual(node(), Node),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], Self}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "just 'cause", 0}}, _State) ->
 				ok
 			end),
@@ -1604,8 +1595,9 @@ from_ringing_test_() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
-		gen_leader_mock:expect_leader_cast(Monmock, fun({set, _}, _, _) -> ok end),
+		{ok, Monmock} = cpx_monitor:make_mock(),
+		cpx_monitor:add_set({{media, "testcall"}, [], ignore}),
+		%gen_leader_mock:expect_leader_cast(Monmock, fun({set, _}, _, _) -> ok end),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Mpid} = dummy_media:start([{id, "testcall"}, {queues, none}]),
@@ -1617,7 +1609,8 @@ from_ringing_test_() ->
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, statedata = Callrec, state = ringing, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
-			gen_leader_mock:assert_expectations(Monmock),
+			%gen_leader_mock:assert_expectations(Monmock),
+			cpx_monitor:assert_mock(),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
 			ok
@@ -1626,7 +1619,8 @@ from_ringing_test_() ->
 	end,
 	fun({#state{agent_rec = #agent{statedata = Callrec}}, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
-		gen_leader_mock:stop(Monmock),
+		%gen_leader_mock:stop(Monmock),
+		cpx_monitor:stop_mock(),
 		gen_server_mock:stop(Connmock),
 		gen_server_mock:stop(Callrec#call.source),
 		gen_leader_mock:stop(AMmock),
@@ -1638,11 +1632,7 @@ from_ringing_test_() ->
 		{"to idle",
 		fun() ->
 			%Aself = self(),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{idle, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
@@ -1651,11 +1641,6 @@ from_ringing_test_() ->
 				Nom = Agent#agent.login,
 				ok
 			end),
-			%gen_leader_mock:expect_leader_cast(AMmock, fun(_, _State, _Elect) -> ok end),
-%			gen_server_mock:expect_cast(Dmock, fun({now_avail, Self}, _State) ->
-%				Self = Aself,
-%				ok
-%			end),
 			?assertMatch({reply, ok, idle, _State}, ringing(idle, "from", State)),
 			Assertmocks()
 		end}
@@ -1663,19 +1648,15 @@ from_ringing_test_() ->
 	fun({#state{agent_rec = Agent} = State, AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to idle with a ring lock between rings",
 		fun() ->
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-											[{idle, _Limits}] = Health,
-											Node = node(),
-											ok
-											end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
-									 ok
-									 end),
+				ok
+			end),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, ringing, {}}, _State) -> ok end),
 			gen_leader_mock:expect_cast(AMmock, fun({now_avail, Nom}, _State, _Elec) ->
-									 Nom = Agent#agent.login,
-									 ok
-									 end),
+				Nom = Agent#agent.login,
+				ok
+			end),
 			application:set_env(cpx, agent_ringout_lock, 10),
 			{reply, ok, idle, #state{ring_locked = Newlocked} = Newstate} = ringing(idle, "from", State),
 			?assertEqual(locked, Newlocked),
@@ -1709,11 +1690,7 @@ from_ringing_test_() ->
 			Callrec = Agent#agent.statedata, 
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Aglogin}, _State, _Elec) -> ok end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{oncall, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, oncall, Inrec}, _State) ->
 				Inrec = Agent#agent.statedata,
 				ok
@@ -1749,11 +1726,7 @@ from_ringing_test_() ->
 				Inrec = Agent#agent.statedata,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{oncall, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, ringing, _Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, ringing({oncall, Callrec}, "from", State)),
 			Assertmocks()
@@ -1784,11 +1757,7 @@ from_ringing_test_() ->
 	fun({#state{agent_rec = Agent} = State, AMmock, Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released default",
 		fun() ->
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}, {bias, 60}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State, _Elec) -> ok end),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
@@ -1810,11 +1779,7 @@ from_ringing_test_() ->
 		fun() ->
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State, _Elec) -> ok end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}, {bias, 50}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "res_reason", 0}}, _State) ->
 				ok
 			end),
@@ -1855,11 +1820,7 @@ from_ringing_test_() ->
 		{"gets a ring_failed message with < 3 ring fails",
 		fun() ->
 			Aself = self(),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{idle, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
@@ -1868,12 +1829,6 @@ from_ringing_test_() ->
 				Nom = Agent#agent.login,
 				ok
 			end),
-			%gen_leader_mock:expect_leader_cast(AMmock, fun(_, _State, _Elect) -> ok end),
-%			gen_server_mock:expect_cast(Dmock, fun({now_avail, Self}, _State) ->
-%				Self = Aself,
-%				ok
-%			end),
-			%?DEBUG("~p", [ringing({ring_fail, Callrec#call.source}, Seedstate)]),
 			?assertMatch({next_state, idle, #state{ring_fails = 1} = _State}, ringing({failed_ring, Callrec#call.source}, Seedstate)),
 			Gotmsg = receive
 				ring_unlock ->
@@ -1891,11 +1846,7 @@ from_ringing_test_() ->
 			State = Seedstate#state{ring_fails = 3},
 			gen_server_mock:expect_cast(Dmock, fun({end_avail, _Apid}, _State) -> ok end),
 			gen_leader_mock:expect_cast(AMmock, fun({end_avail, _Nom}, _State, _Elec) -> ok end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}, {bias, 60}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?RING_FAIL_REL}, _State) ->
 				ok
 			end),
@@ -1914,7 +1865,8 @@ from_precall_test_() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, Monmock} = cpx_monitor:make_mock(),
+		%{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
@@ -1923,7 +1875,8 @@ from_precall_test_() ->
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = precall, statedata = Call, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
-			gen_leader_mock:assert_expectations(Monmock),
+			%gen_leader_mock:assert_expectations(Monmock),
+			cpx_monitor:assert_mock(),
 			gen_leader_mock:assert_expectations(AMmock),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
@@ -1933,7 +1886,8 @@ from_precall_test_() ->
 	end,
 	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
-		gen_leader_mock:stop(Monmock),
+		cpx_monitor:stop_mock(),
+		%gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
 		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
@@ -1948,11 +1902,7 @@ from_precall_test_() ->
 				Apid = Pid,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{idle, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], Apid}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
@@ -1992,11 +1942,7 @@ from_precall_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, outgoing, _Data}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{outgoing, _Limits}] = Health, 
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", outgoing, precall, _}, _State) -> ok end),
 			?assertMatch({reply, ok, outgoing, _State}, precall({outgoing, #call{id = "testcall", source = spawn(fun() -> ok end)} }, "from", State)),
 			Assertmocks()
@@ -2012,11 +1958,7 @@ from_precall_test_() ->
 	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released with default",
 		fun() ->
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				Node = node(),
-				[{released, _Limits}, {bias, _}] = Health,
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
@@ -2028,11 +1970,7 @@ from_precall_test_() ->
 	fun({#state{agent_rec = Agent} = State, _AMmock, _Dmock, Monmock, Connmock, Assertmocks}) ->
 		{"to released",
 		fun() ->
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				Node = node(),
-				[{released, _Limits}, {bias, _}] = Health,
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, {"id", "reason", 0}}, _State) ->
 				ok
 			end),
@@ -2060,7 +1998,8 @@ from_oncall_test_() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, Monmock} = cpx_monitor:make_mock(),
+		%{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		Client = #client{label = "testclient"},
@@ -2074,7 +2013,8 @@ from_oncall_test_() ->
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = oncall, statedata = Callrec, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
-			gen_leader_mock:assert_expectations(Monmock),
+			cpx_monitor:assert_mock(),
+			%gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
 			gen_leader_mock:assert_expectations(AMmock),
@@ -2084,7 +2024,8 @@ from_oncall_test_() ->
 	end,
 	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
-		gen_leader_mock:stop(Monmock),
+		cpx_monitor:stop_mock(),
+		%gen_leader_mock:stop(Monmock),
 		gen_server_mock:stop(Connmock),
 		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
@@ -2186,11 +2127,7 @@ from_oncall_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, warmtransfer, {onhold, _Callrec, calling, "transferto"}}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{warmtransfer, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, 
 				fun({"testagent", warmtransfer, oncall, {onhold, Call, calling, "transferto"}}, _State) -> 
 					Call = Agent#agent.statedata,
@@ -2210,11 +2147,7 @@ from_oncall_test_() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{wrapup, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) ->
 				Incall = Agent#agent.statedata,
 				ok
@@ -2236,11 +2169,7 @@ from_oncall_test_() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{wrapup, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) ->
 				Incall = Agent#agent.statedata,
 				ok
@@ -2275,11 +2204,7 @@ from_oncall_test_() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{wrapup, _Limits}] = Health, 
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
 			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Call#call.source, make_ref()}, State)),
 			Assertmocks()
@@ -2303,11 +2228,7 @@ from_oncall_test_() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{wrapup, _Limits}] = Health, 
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
 			?assertMatch({reply, ok, wrapup, _State}, oncall({wrapup, Agent#agent.statedata}, {Callrec#call.source, make_ref()}, State#state{agent_rec = Agent})),
 			Gotend = receive
@@ -2332,11 +2253,7 @@ from_oncall_test_() ->
 				Incall = Agent#agent.statedata,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{wrapup, _Limits}] = Health, 
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, oncall, Incall}, _State) -> Incall = Agent#agent.statedata, ok end),
 			?assertMatch({reply, ok, wrapup, _State}, oncall(wrapup, {Connmock, make_ref()}, State#state{agent_rec = Agent})),
 			Gotend = receive
@@ -2376,7 +2293,8 @@ from_outgoing_test_() ->
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = oncall, statedata = Callrec, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
-			gen_leader_mock:assert_expectations(Monmock),
+			cpx_monitor:assert_mock(),
+			%gen_leader_mock:assert_expectations(Monmock),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
 			gen_leader_mock:assert_expectations(AMmock),
@@ -2386,7 +2304,8 @@ from_outgoing_test_() ->
 	end,
 	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
-		gen_leader_mock:stop(Monmock),
+		%gen_leader_mock:stop(Monmock),
+		cpx_monitor:stop_mock(),
 		gen_server_mock:stop(Connmock),
 		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
@@ -2470,11 +2389,7 @@ from_outgoing_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, warmtransfer, {onhold, #call{id = "testcall"}, calling, "transferto"}}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{warmtransfer, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, 
 				fun({"testagent", warmtransfer, outgoing, {onhold, Call, calling, "transferto"}}, _State) ->
 					Call = Agent#agent.statedata,
@@ -2490,11 +2405,7 @@ from_outgoing_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, _Calldata}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{wrapup, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, outgoing, Call}, _State) ->
 				Call = Agent#agent.statedata, 
 				ok
@@ -2522,11 +2433,7 @@ from_outgoing_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, wrapup, _Calldata}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{wrapup, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, outgoing, Call}, _State) ->
 				Call = Agent#agent.statedata, 
 				ok
@@ -2547,14 +2454,14 @@ from_released_test_() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, Monmock} = cpx_monitor:make_mock(),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		{ok, Logpid} = gen_server_mock:new(),
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = released, statedata = "testrelease", log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
-			gen_leader_mock:assert_expectations(Monmock),
+			cpx_monitor:assert_mock(),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
 			gen_leader_mock:assert_expectations(AMmock),
@@ -2564,7 +2471,7 @@ from_released_test_() ->
 	end,
 	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
-		gen_leader_mock:stop(Monmock),
+		cpx_monitor:stop_mock(),
 		gen_server_mock:stop(Connmock),
 		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
@@ -2586,11 +2493,7 @@ from_released_test_() ->
 				Nom = Agent#agent.login,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{idle, _Limits}] = Health, 
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, released, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, released(idle, "from", State)),
 			Assertmocks()
@@ -2602,11 +2505,7 @@ from_released_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, ringing, "callrec"}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{ringing, _Limits}] = Health, 
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", ringing, released, "callrec"}, _State) -> ok end),
 			?assertMatch({reply, ok, ringing, _State}, released({ringing, "callrec"}, "from", State)),
 			Assertmocks()
@@ -2618,11 +2517,7 @@ from_released_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, precall, "client"}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{precall, _Limits}] = Health, 
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", precall, released, "client"}, _State) -> ok end),
 			?assertMatch({reply, ok, precall, _State}, released({precall, "client"}, "from", State)),
 			Assertmocks()
@@ -2690,7 +2585,7 @@ from_warmtransfer_test_() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, Monmock} = cpx_monitor:make_mock(),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, Logpid} = gen_server_mock:new(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
@@ -2704,7 +2599,7 @@ from_warmtransfer_test_() ->
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = warmtransfer, statedata = {onhold, Callrec, calling, "testtarget"}, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
-			gen_leader_mock:assert_expectations(Monmock),
+			cpx_monitor:assert_mock(),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_server_mock:assert_expectations(Logpid),
 			gen_leader_mock:assert_expectations(AMmock),
@@ -2714,7 +2609,7 @@ from_warmtransfer_test_() ->
 	end,
 	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
-		gen_leader_mock:stop(Monmock),
+		cpx_monitor:stop_mock(),
 		gen_server_mock:stop(Connmock),
 		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
@@ -2750,11 +2645,7 @@ from_warmtransfer_test_() ->
 				Callrec = Inrec,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{oncall, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", oncall, warmtransfer, _Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, oncall, _State}, warmtransfer({oncall, Callrec}, "from", State)),
 			Assertmocks()
@@ -2774,11 +2665,7 @@ from_warmtransfer_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, outgoing, _Inrec}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock,fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{outgoing, _Limits}] = Health, 
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", outgoing, warmtransfer, Callrec}, _State) ->
 				Callrec = element(2, Agent#agent.statedata),
 				ok
@@ -2795,11 +2682,7 @@ from_warmtransfer_test_() ->
 				Callrec = Inrec,
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{wrapup, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", wrapup, warmtransfer, _Callrec}, _State) -> ok end),
 			?assertMatch({reply, ok, wrapup, _State}, warmtransfer({wrapup, Callrec}, "from", State)),
 			Assertmocks()
@@ -2818,7 +2701,7 @@ from_wrapup_test_() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, Monmock} = cpx_monitor:make_mock(),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		Client = #client{label = "testclient"},
@@ -2832,7 +2715,7 @@ from_wrapup_test_() ->
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = warmtransfer, statedata = Callrec, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
-			gen_leader_mock:assert_expectations(Monmock),
+			cpx_monitor:assert_mock(),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_leader_mock:assert_expectations(AMmock),
 			ok
@@ -2841,7 +2724,7 @@ from_wrapup_test_() ->
 	end,
 	fun({_Agent, AMmock, Dmock, Monmock, Connmock, _Assertmocks}) ->
 		gen_server_mock:stop(Dmock),
-		gen_leader_mock:stop(Monmock),
+		cpx_monitor:stop_mock(),
 		gen_server_mock:stop(Connmock),
 		gen_leader_mock:stop(AMmock),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
@@ -2863,11 +2746,7 @@ from_wrapup_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, idle}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{idle, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, wrapup, {}}, _State) -> ok end),
 			?assertMatch({reply, ok, idle, _State}, wrapup(idle, "from", State)),
 			Assertmocks()
@@ -2880,11 +2759,7 @@ from_wrapup_test_() ->
 			gen_server_mock:expect_cast(Connmock, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(Monmock, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}, {bias, _}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, wrapup, ?DEFAULT_REL}, _State) -> ok end),
 			?assertMatch({reply, ok, released, _State}, wrapup(idle, "from", State#state{agent_rec = Agent})),
 			Assertmocks()
@@ -3254,7 +3129,7 @@ handle_info_test_() ->
 	{foreach,
 	fun() ->
 		{ok, Dmock} = gen_server_mock:named({local, dispatch_manager}),
-		{ok, Monmock} = gen_leader_mock:start(cpx_monitor),
+		{ok, Monmock} = cpx_monitor:make_mock(),
 		{ok, Connmock} = gen_server_mock:new(),
 		{ok, AMmock} = gen_leader_mock:start(agent_manager),
 		Client = #client{label = "testclient"},
@@ -3268,7 +3143,7 @@ handle_info_test_() ->
 		Agent = #agent{id = "testid", login = "testagent", connection = Connmock, state = wrapup, statedata = Callrec, log_pid = Logpid},
 		Assertmocks = fun() ->
 			gen_server_mock:assert_expectations(Dmock),
-			gen_leader_mock:assert_expectations(Monmock),
+			cpx_monitor:assert_mock(),
 			gen_server_mock:assert_expectations(Connmock),
 			gen_leader_mock:assert_expectations(AMmock),
 			ok
@@ -3277,7 +3152,7 @@ handle_info_test_() ->
 	end,
 	fun({#state{agent_rec = Agent}, _Assertmocks}) ->
 		gen_server_mock:stop(whereis(dispatch_manager)),
-		gen_leader_mock:stop(cpx_monitor),
+		cpx_monitor:stop_mock(),
 		gen_server_mock:stop(Agent#agent.connection),
 		gen_leader_mock:stop(agent_manager),
 		timer:sleep(10), % because the mock dispatch manager isn't dying quickly enough 
@@ -3299,11 +3174,7 @@ handle_info_test_() ->
 			gen_server_mock:expect_cast(Agent#agent.connection, fun({change_state, idle}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(cpx_monitor, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{idle, _Limits}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], Self}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", idle, wrapup, {}}, _State) -> ok end),
 			?assertMatch({next_state, idle, _State}, handle_info(end_wrapup, wrapup, State)),
 			Assertmocks()
@@ -3316,11 +3187,7 @@ handle_info_test_() ->
 			gen_server_mock:expect_cast(Agent#agent.connection, fun({change_state, released, ?DEFAULT_REL}, _State) ->
 				ok
 			end),
-			gen_leader_mock:expect_leader_cast(cpx_monitor, fun({set, {{agent, "testid"}, Health, _Details, Node}}, _State, _Elec) ->
-				[{released, _Limits}, {bias, _}] = Health,
-				Node = node(),
-				ok
-			end),
+			cpx_monitor:add_set({{agent, "testid"}, [{node, node()}], self()}),
 			gen_server_mock:expect_info(Agent#agent.log_pid, fun({"testagent", released, wrapup, ?DEFAULT_REL}, _State) -> ok end),
 			?assertMatch({next_state, released, _State}, handle_info(end_wrapup, wrapup, State#state{agent_rec = Agent})),
 			Assertmocks()

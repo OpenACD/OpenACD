@@ -950,6 +950,79 @@ multinode_test_d() ->
 			?assertMatch({ok, _Pid}, Srez)
 		end}
 	end]}.
+
+-ifdef(PROFILE).
+
+avg(Acc) ->
+	Sum = lists:foldl(fun(X, S) -> S + X end, 0, Acc),
+	Sum / length(Acc).
+
+tdiff({InMeg, InSec, InMic}, {GotMeg, GotSec, GotMic}) ->
+	InTime = InMeg * 1000000 + InSec + InMic / 1000000,
+	GotTime = GotMeg * 1000000 + GotSec + GotMic / 1000000,
+	GotTime - InTime.
+
+profile_test_() ->
+	{foreach,
+	fun() ->
+		case whereis(cpx_monitor) of
+			undefined ->
+				ok;
+			Pid ->
+				unregister(cpx_monitor),
+				exit(Pid, kill)
+		end,
+		{ok, Mon} = cpx_monitor:start([{nodes, node()}]),
+		Mon
+	end,
+	fun(_Mon) ->
+		cpx_monitor:stop()
+	end,
+	[fun(_Mon) -> {timeout, 60, {"info message with little data", fun() ->
+		cpx_monitor:subscribe(),
+		Acc = [begin
+			cpx_monitor:info([{"info", X}]),
+			receive
+				{cpx_monitor_event, {info, InTime, [{"info", X}]}} ->
+					tdiff(InTime, os:timestamp())
+			end
+		end || X <- lists:seq(1, 1000)],
+		?INFO("Average time:  ~f", [avg(Acc)])
+	end}} end,
+	fun(_Mon) -> {timeout, 60, {"info message with lots of data", fun() ->
+		AtoZ = "abcdefghijklmnopqrstuvwxyz",
+		MakeData = fun() ->
+			[{make_ref(), X} || X <- AtoZ]
+		end,
+		cpx_monitor:subscribe(),
+		Acc = [begin
+			Data = [{"nth", X} | MakeData()],
+			cpx_monitor:info(Data),
+			receive
+				{cpx_monitor_event, {info, InTime, _Data}} ->
+					tdiff(InTime, os:timestamp())
+			end
+		end || X <- lists:seq(1, 1000)],
+		?INFO("Average time:  ~f", [avg(Acc)])
+	end}} end,
+	fun(_Mon) -> {timeout, 60, {"alternating sets and drops, no data", fun() ->
+		cpx_monitor:subscribe(),
+		Acc = [begin
+			case X rem 2 of
+				1 ->
+					cpx_monitor:set({agent, "1"}, []);
+				0 ->
+					cpx_monitor:drop({agent, "1"})
+			end,
+			receive
+				{cpx_monitor_event, {_, InTime, _Data}} ->
+					tdiff(InTime, os:timestamp())
+			end
+		end || X <- lists:seq(1, 1000)],
+		?INFO("Average time:  ~f", [avg(Acc)])
+	end}} end]}.
+
+-endif.
 	
 -endif.
 

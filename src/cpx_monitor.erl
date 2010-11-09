@@ -323,7 +323,7 @@ elected(State, Election, Node) ->
 	% what was down and is now up?
 	Cands = gen_leader:candidates(Election),
 	lists:foreach(fun(Cnode) ->
-		ets:insert(?MODULE, {{node, Cnode}, [{down, 100}], [{state, unreported}], util:now()})
+		ets:insert(?MODULE, {{node, Cnode}, [{down, 100}], [{state, unreported}], Cnode, os:timestamp(), none, undefined})
 	end, Cands),
 	tell_cands(report, Election),
 	Edown = gen_leader:down(Election),
@@ -341,8 +341,8 @@ elected(State, Election, Node) ->
 		({_N, _T}, Time) ->
 			Time
 	end,
-	Event = {{node, node()}, os:timestamp(), [is_leader], node()},
-	Cached = erlang:append_element(erlang:append_element(Event, none), undefined),
+	Event = {{node, node()}, [is_leader], node()},
+	Cached = erlang:append_element(erlang:append_element(erlang:append_element(Event, os:timestamp()), none), undefined),
 	ets:insert(?MODULE, Cached),
 	tell_subs(Event, State#state.subscribers),
 	tell_cands(Event, Election),
@@ -383,11 +383,11 @@ surrendered(State, {_Merge, _Stilldown}, Election) ->
 	Ealive = gen_leader:alive(Election),
 	
 	lists:foreach(fun(Node) -> 
-		ets:insert(?MODULE, {{node, Node}, [{down, 100}], [], os:timestamp()})
+		ets:insert(?MODULE, {{node, Node}, [down], Node, os:timestamp(), none, undefined})
 	end, Edown),
 
 	lists:foreach(fun(Node) ->
-		ets:insert(?MODULE, {{node, Node}, [{up, 50}], [{up, util:now()}], os:timestamp()})
+		ets:insert(?MODULE, {{node, Node}, [{up, util:now()}], Node, os:timestamp(), none, undefined})
 	end, Ealive),
 	
 	gen_leader:leader_cast(?MODULE, {ensure_live, node(), os:timestamp()}),
@@ -404,8 +404,8 @@ handle_DOWN(Node, State, Election) ->
 			State#state.splits
 	end,
 	Time = os:timestamp(),
-	Message = {{node, Node}, Time, [{down, Time}], Node},
-	Cached = erlang:append_element(erlang:append_element(Message, none), undefined),
+	Message = {{node, Node}, [{down, Time}], Node},
+	Cached = erlang:append_element(erlang:append_element(erlang:append_element(Message, os:timestamp()), none), undefined),
 	ets:insert(?MODULE, Cached),
 	tell_cands({set, Message}, Election),
 	tell_subs({set, Message}, State#state.subscribers),

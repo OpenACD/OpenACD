@@ -34,6 +34,8 @@
 -include("contrib/errd/include/errd.hrl").
 
 -include("log.hrl").
+-include_lib("stdlib/include/qlc.hrl").
+
 %% API
 -export([
 	start_link/0,

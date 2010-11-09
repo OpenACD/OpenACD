@@ -1665,7 +1665,13 @@ encode_stats([{{Type, ProtoName}, Protodetails, Node, _Time, _Watched, _Mon} = H
 		{Name, _} when is_atom(Name) ->
 			[{<<"display">>, Name}]
 	end,
-	Id = list_to_binary(lists:flatten([Type, "-", ProtoName])),
+	Id = case is_atom(ProtoName) of
+		true ->
+			list_to_binary(lists:flatten([atom_to_list(Type), "-", atom_to_list(ProtoName)]));
+		false ->
+			% Here's hoping it's a string or binary.
+			list_to_binary(lists:flatten([atom_to_list(Type), "-", ProtoName]))
+	end,
 	Parent = case Type of
 		system ->
 			[];
@@ -1688,7 +1694,7 @@ encode_stats([{{Type, ProtoName}, Protodetails, Node, _Time, _Watched, _Mon} = H
 	end,
 	Scrubbeddetails = Protodetails,
 	Details = [{<<"details">>, {struct, [{<<"_type">>, <<"details">>}, {<<"_value">>, encode_proplist(Scrubbeddetails)}]}}],
-	Encoded = lists:append([Id, Display, Type, Node, Parent, Details]),
+	Encoded = lists:append([[{<<"id">>, Id}], Display, [{<<"type">>, Type}], [{node, Node}], Parent, Details]),
 	Newacc = [{struct, Encoded} | Acc],
 	encode_stats(Tail, Count + 1, Newacc).
 

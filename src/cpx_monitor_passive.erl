@@ -441,7 +441,7 @@ update_queue_stats(#cached_media{state = ivr} = Old, #cached_media{state = queue
 				outbound ->
 					Stats#media_stats{outbound = Stats#media_stats.outbound + 1}
 			end,
-			ets:insert(stats_cache, {{queue, Newqueue}, Stats})
+			ets:insert(stats_cache, {{queue, Newqueue}, Newstats})
 	end;
 update_queue_stats(#cached_media{state = queue} = Old, #cached_media{state = agent} = New) ->
 	{_G, Newqueue} = Old#cached_media.statedata,

@@ -24,7 +24,7 @@
 %%	Contributor(s):
 %%
 %%	Andrew Thompson <andrew at hijacked dot us>
-%%	Micah Warren <micahw at fusedsolutions dot com>
+%%	Micah Warren <micahw at lordnull dot com>
 %%
 
 %% @doc The cook is a process that is spawned per call in queue, it

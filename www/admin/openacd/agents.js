@@ -26,10 +26,13 @@ agents.getModules = function(targetform){
 		url:"agents/modules/get",
 		handleAs:"json",
 		load:function(response, ioargs){
-			targetform.set('value', response.result);
 			var kids = targetform.getDescendants();
 			for(var i = 0; i < kids.length; i++){
-				kids[i].set('checked', response.result[kids[i].id]);
+				if(kids[i].id.match(/Enabled$/)){
+					kids[i].set('checked', response.result[kids[i].id]);
+				} else {
+					kids[i].set('value', response.result[kids[i].id]);
+				}
 			}
 		}
 	});

@@ -32,7 +32,7 @@
 -endif.
 -include("log.hrl").
 -include("call.hrl").
-
+-include_lib("stdlib/include/qlc.hrl").
 %% API
 -export([
 	start/0,
@@ -125,7 +125,7 @@ handle_info({cpx_monitor_event, {drop, Timestamp, {agent, Key}}}, State) ->
 			[log_event(State#state.file, "agent_logout", Timestamp, [proplists:get_value(node, Current), proplists:get_value(login, Current), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Current)],
 			{noreply, State#state{agents = dict:erase(Key, State#state.agents)}}
 	end;
-handle_info({cpx_monitor_event, Timestamp, {set, {{media, Key}, Details, _Node}}}, State) ->
+handle_info({cpx_monitor_event, {set, Timestamp, {{media, Key}, Details, _Node}}}, State) ->
 	case proplists:get_value(queue, Details) of
 		undefined ->
 			{noreply, State#state{calls = dict:store(Key, Details, State#state.calls)}};
@@ -141,7 +141,7 @@ handle_info({cpx_monitor_event, Timestamp, {set, {{media, Key}, Details, _Node}}
 					proplists:get_value(dnis, Details, "")]),
 			{noreply, State#state{callqueuemap = dict:store(Key, Queue, State#state.callqueuemap), calls = dict:store(Key, Details, State#state.calls)}}
 	end;
-handle_info({cpx_monitor_event, {drop, {media, Key}, Timestamp}}, #state{file = File} = State) ->
+handle_info({cpx_monitor_event, {drop, Timestamp, {media, Key}}}, #state{file = File} = State) ->
 	% setting up a delay as there may be messages about agents that need the 
 	% info.
 	case dict:find(Key, State#state.callagentmap) of

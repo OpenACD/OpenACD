@@ -162,7 +162,7 @@ handle_info(update, State) ->
 
 	update_utilization(Util ++ Composite, State#state.rrd),
 	{noreply, State#state{lastrun = Now, agents = GroupedAgents}, hibernate};
-handle_info({cpx_monitor_event, {set, {{agent, _}, _, Agent, _}}}, #state{agents = Agents} = State) ->
+handle_info({cpx_monitor_event, {set, {{agent, _}, Agent, _}}}, #state{agents = Agents} = State) ->
 	NewAgents = update_agent(Agent, Agents),
 	{noreply, State#state{agents = NewAgents}, hibernate};
 handle_info(_Info, State) ->
@@ -177,7 +177,10 @@ code_change(_Oldvsn, State, _Extra) ->
 % internal functions
 
 get_agents(Now) ->
-	Agents = lists:map(fun({_, _, Agent}) -> [{lastchange, {timestamp, Now}} | proplists:delete(lastchange, Agent)] end, element(2, cpx_monitor:get_health(agent))),
+	Agents = qlc:e(qlc:q([begin
+		[{lastchange, {timestamp, Now}} |
+		proplists:delete(lastchange, Agent)]
+	end || {{agent, _}, Agent, _, _, _, _} <- ets:table(cpx_monitor)])),
 	GroupedList = util:group_by_with_key(fun(Agent) -> proplists:get_value(profile, Agent) end, Agents),
 	lists:filter(fun({P, _A}) -> P =/= "Supervisor" andalso P =/= "Customer Service" end, GroupedList).
 

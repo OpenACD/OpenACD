@@ -77,10 +77,10 @@ init(Props) ->
 	case file:open(Filename, [append]) of
 			{ok, File} ->
 				inet_config:do_load_resolv(os:type(), longnames),
-				{ok, Agents} = cpx_monitor:get_health(agent),
-				{ok, Calls} = cpx_monitor:get_health(media),
-				AgentDict = dict:from_list([{Key, Value} || {{agent, Key}, _Health, Value} <- Agents]),
-				CallDict = dict:from_list([{Key, Value} || {{media, Key}, _Health, Value} <- Calls]),
+				Agents = qlc:e(qlc:q([{Key, Details} || {{agent, Key}, Details, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+				Calls = qlc:e(qlc:q([{Key, Details} || {{media, Key}, Details, _, _, _, _} = X <- ets:table(cpx_monitor)])),
+				AgentDict = dict:from_list(Agents),
+				CallDict = dict:from_list(Calls),
 				% hopefully the below won't take too long if this module is started on a busy system.
 				CallQMap = init_call_queue_map(),
 				CallAgentMap = dict:new(), % TODO bootstrap this to avoid false positives on abandon
@@ -97,7 +97,7 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State, hibernate}.
 
-handle_info({cpx_monitor_event, {set, {{agent, Key}, _Health, Details, Timestamp}}}, State) ->
+handle_info({cpx_monitor_event, {set, Timestamp, {{agent, Key}, Details, _Node}}}, State) ->
 	case dict:find(Key, State#state.agents) of
 		error ->
 			%?NOTICE("Agent ~p just logged in ~p", [Key, Details]),
@@ -116,7 +116,7 @@ handle_info({cpx_monitor_event, {set, {{agent, Key}, _Health, Details, Timestamp
 		_ ->
 			{noreply, State#state{agents = dict:store(Key, Details, State#state.agents)}}
 	end;
-handle_info({cpx_monitor_event, {drop, {agent, Key}, Timestamp}}, State) ->
+handle_info({cpx_monitor_event, {drop, Timestamp, {agent, Key}}}, State) ->
 	case dict:find(Key, State#state.agents) of
 		error ->
 			{noreply, State};
@@ -125,7 +125,7 @@ handle_info({cpx_monitor_event, {drop, {agent, Key}, Timestamp}}, State) ->
 			[log_event(State#state.file, "agent_logout", Timestamp, [proplists:get_value(node, Current), proplists:get_value(login, Current), Queue]) || {'_queue', Queue} <- proplists:get_value(skills, Current)],
 			{noreply, State#state{agents = dict:erase(Key, State#state.agents)}}
 	end;
-handle_info({cpx_monitor_event, {set, {{media, Key}, _Health, Details, Timestamp}}}, State) ->
+handle_info({cpx_monitor_event, Timestamp, {set, {{media, Key}, Details, _Node}}}, State) ->
 	case proplists:get_value(queue, Details) of
 		undefined ->
 			{noreply, State#state{calls = dict:store(Key, Details, State#state.calls)}};

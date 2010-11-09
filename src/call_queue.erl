@@ -646,7 +646,7 @@ set_cpx_mon(State) ->
 	Hp = [
 		{calls, {0, 0, 10, gb_trees:size(State#state.queue)}}
 	],
-	cpx_monitor:set(Key, Hp, Details).
+	cpx_monitor:set(Key, Details, self()).
 
 %% @private
 -spec(set_cpx_mon/2 :: (State :: #state{}, 'delete') -> 'ok').
